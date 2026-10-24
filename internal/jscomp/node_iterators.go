@@ -35,8 +35,8 @@ type NodeIterators struct{}
 type NodeIterators_FunctionlessLocalScope struct {
 	// Go-only: language-adapter — the ArrayDeque, first element at index 0
 	// and last element at the end of the slice.
-	ancestors    []*rhino.Node
-	ancestorsBuf [16]*rhino.Node
+	ancestors    []rhino.Node
+	ancestorsBuf [16]rhino.Node
 }
 
 // NewNodeIterators_FunctionlessLocalScope: ancestors are the ancestors of
@@ -44,7 +44,7 @@ type NodeIterators_FunctionlessLocalScope struct {
 // ancestor. The start node will not be exposed in the iteration.
 //
 // Java: NodeIterators.FunctionlessLocalScope(Node...)
-func NewNodeIterators_FunctionlessLocalScope(ancestors ...*rhino.Node) *NodeIterators_FunctionlessLocalScope {
+func NewNodeIterators_FunctionlessLocalScope(ancestors ...rhino.Node) *NodeIterators_FunctionlessLocalScope {
 	jutil.CheckArgument(len(ancestors) > 0)
 	s := &NodeIterators_FunctionlessLocalScope{}
 	s.ancestors = s.ancestorsBuf[:0]
@@ -59,7 +59,7 @@ func NewNodeIterators_FunctionlessLocalScope(ancestors ...*rhino.Node) *NodeIter
 	return s
 }
 
-func (s *NodeIterators_FunctionlessLocalScope) init3(a, b, c *rhino.Node) {
+func (s *NodeIterators_FunctionlessLocalScope) init3(a, b, c rhino.Node) {
 	if s.ancestors == nil {
 		s.ancestors = s.ancestorsBuf[:0]
 	} else {
@@ -69,50 +69,50 @@ func (s *NodeIterators_FunctionlessLocalScope) init3(a, b, c *rhino.Node) {
 	if a.IsFunction() {
 		return
 	}
-	jutil.CheckNotNull(a)
+	rhino.CheckNotNull(a)
 	if b.IsFunction() {
 		s.ancestors = append(s.ancestors, a)
 		return
 	}
-	jutil.CheckNotNull(b)
+	rhino.CheckNotNull(b)
 	if c.IsFunction() {
 		s.ancestors = append(s.ancestors, b, a)
 		return
 	}
-	jutil.CheckNotNull(c)
+	rhino.CheckNotNull(c)
 	s.ancestors = append(s.ancestors, c, b, a)
 }
 
 // Go-only: language-adapter — ArrayDeque.addFirst(E) (null-hostile).
-func (s *NodeIterators_FunctionlessLocalScope) addFirst(n *rhino.Node) {
-	jutil.CheckNotNull(n)
-	s.ancestors = append(s.ancestors, nil)
+func (s *NodeIterators_FunctionlessLocalScope) addFirst(n rhino.Node) {
+	rhino.CheckNotNull(n)
+	s.ancestors = append(s.ancestors, rhino.Node{})
 	copy(s.ancestors[1:], s.ancestors)
 	s.ancestors[0] = n
 }
 
 // Go-only: language-adapter — ArrayDeque.addLast(E) (null-hostile).
-func (s *NodeIterators_FunctionlessLocalScope) addLast(n *rhino.Node) {
-	jutil.CheckNotNull(n)
+func (s *NodeIterators_FunctionlessLocalScope) addLast(n rhino.Node) {
+	rhino.CheckNotNull(n)
 	s.ancestors = append(s.ancestors, n)
 }
 
 // Go-only: language-adapter — ArrayDeque.peekLast(): null when empty.
-func (s *NodeIterators_FunctionlessLocalScope) peekLast() *rhino.Node {
+func (s *NodeIterators_FunctionlessLocalScope) peekLast() rhino.Node {
 	if len(s.ancestors) == 0 {
-		return nil
+		return rhino.Node{}
 	}
 	return s.ancestors[len(s.ancestors)-1]
 }
 
 // Go-only: language-adapter — ArrayDeque.removeLast(): throws NoSuchElementException
 // when empty.
-func (s *NodeIterators_FunctionlessLocalScope) removeLast() *rhino.Node {
+func (s *NodeIterators_FunctionlessLocalScope) removeLast() rhino.Node {
 	if len(s.ancestors) == 0 {
 		panic(jutil.NewNoSuchElementException())
 	}
 	last := s.ancestors[len(s.ancestors)-1]
-	s.ancestors[len(s.ancestors)-1] = nil
+	s.ancestors[len(s.ancestors)-1] = rhino.Node{}
 	s.ancestors = s.ancestors[:len(s.ancestors)-1]
 	return last
 }
@@ -120,13 +120,13 @@ func (s *NodeIterators_FunctionlessLocalScope) removeLast() *rhino.Node {
 // Java: NodeIterators.FunctionlessLocalScope.hasNext()
 func (s *NodeIterators_FunctionlessLocalScope) HasNext() bool {
 	// Check if the current node has any nodes after it.
-	return !(len(s.ancestors) == 1 && s.peekLast().GetNext() == nil)
+	return !(len(s.ancestors) == 1 && s.peekLast().GetNext().IsNil())
 }
 
 // Java: NodeIterators.FunctionlessLocalScope.next()
-func (s *NodeIterators_FunctionlessLocalScope) Next() *rhino.Node {
+func (s *NodeIterators_FunctionlessLocalScope) Next() rhino.Node {
 	current := s.removeLast()
-	if current.GetNext() == nil {
+	if current.GetNext().IsNil() {
 		current = s.peekLast()
 
 		// If this is a function node, skip it.
@@ -164,7 +164,7 @@ func (s *NodeIterators_FunctionlessLocalScope) Remove() {
 // Current gets the node most recently returned by next().
 //
 // Java: NodeIterators.FunctionlessLocalScope.current()
-func (s *NodeIterators_FunctionlessLocalScope) Current() *rhino.Node {
+func (s *NodeIterators_FunctionlessLocalScope) Current() rhino.Node {
 	return s.peekLast()
 }
 
@@ -172,19 +172,19 @@ func (s *NodeIterators_FunctionlessLocalScope) Current() *rhino.Node {
 // next().
 //
 // Java: NodeIterators.FunctionlessLocalScope.currentParent()
-func (s *NodeIterators_FunctionlessLocalScope) CurrentParent() *rhino.Node {
+func (s *NodeIterators_FunctionlessLocalScope) CurrentParent() rhino.Node {
 	if len(s.ancestors) >= 2 {
 		return s.Current().GetParent()
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // CurrentAncestors gets the ancestors of the current node, with the deepest
 // node first. Only exposed for testing purposes.
 //
 // Java: NodeIterators.FunctionlessLocalScope.currentAncestors()
-func (s *NodeIterators_FunctionlessLocalScope) CurrentAncestors() *jutil.ArrayList[*rhino.Node] {
-	list := jutil.NewArrayListFrom(append([]*rhino.Node(nil), s.ancestors...))
+func (s *NodeIterators_FunctionlessLocalScope) CurrentAncestors() *jutil.ArrayList[rhino.Node] {
+	list := jutil.NewArrayListFrom(append([]rhino.Node(nil), s.ancestors...))
 	// Collections.reverse(list)
 	elems := list.Slice()
 	for i, j := 0, len(elems)-1; i < j; i, j = i+1, j-1 {
@@ -217,7 +217,7 @@ type NodeIterators_LocalVarMotion struct {
 	extIterator         *NodeIterators_FunctionlessLocalScope
 	iteratorStorage     NodeIterators_FunctionlessLocalScope
 	varName             string
-	lookAhead           *rhino.Node
+	lookAhead           rhino.Node
 }
 
 func (m *NodeIterators_LocalVarMotion) iter() *NodeIterators_FunctionlessLocalScope {
@@ -234,13 +234,13 @@ func (m *NodeIterators_LocalVarMotion) iter() *NodeIterators_FunctionlessLocalSc
 // variable declaration.
 //
 // Java: NodeIterators.LocalVarMotion.forVar(AbstractCompiler, Node, Node, Node)
-func NodeIterators_LocalVarMotion_ForVar(compiler AbstractCompiler, name *rhino.Node, var_ *rhino.Node, block *rhino.Node) *NodeIterators_LocalVarMotion {
+func NodeIterators_LocalVarMotion_ForVar(compiler AbstractCompiler, name rhino.Node, var_ rhino.Node, block rhino.Node) *NodeIterators_LocalVarMotion {
 	m := &NodeIterators_LocalVarMotion{}
 	m.initForVar(compiler, name, var_, block)
 	return m
 }
 
-func (m *NodeIterators_LocalVarMotion) initForVar(compiler AbstractCompiler, name *rhino.Node, var_ *rhino.Node, block *rhino.Node) {
+func (m *NodeIterators_LocalVarMotion) initForVar(compiler AbstractCompiler, name rhino.Node, var_ rhino.Node, block rhino.Node) {
 	jutil.CheckArgument(NodeUtil_IsNameDeclaration(var_))
 	jutil.CheckArgument(NodeUtil_IsStatement(var_))
 	// The FunctionlessLocalScope must start at "name" as this may be used
@@ -257,14 +257,14 @@ func (m *NodeIterators_LocalVarMotion) initForVar(compiler AbstractCompiler, nam
 //
 // Java: NodeIterators.LocalVarMotion.forAssign(AbstractCompiler, Node, Node, Node, Node)
 func NodeIterators_LocalVarMotion_ForAssign(
-	compiler AbstractCompiler, name *rhino.Node, assign *rhino.Node, expr *rhino.Node, block *rhino.Node) *NodeIterators_LocalVarMotion {
+	compiler AbstractCompiler, name rhino.Node, assign rhino.Node, expr rhino.Node, block rhino.Node) *NodeIterators_LocalVarMotion {
 	m := &NodeIterators_LocalVarMotion{}
 	m.initForAssign(compiler, name, assign, expr, block)
 	return m
 }
 
 func (m *NodeIterators_LocalVarMotion) initForAssign(
-	compiler AbstractCompiler, name *rhino.Node, assign *rhino.Node, expr *rhino.Node, block *rhino.Node) {
+	compiler AbstractCompiler, name rhino.Node, assign rhino.Node, expr rhino.Node, block rhino.Node) {
 	jutil.CheckArgument(assign.IsAssign())
 	jutil.CheckArgument(expr.IsExprResult())
 	// The FunctionlessLocalScope must start at "assign", to skip the value
@@ -278,31 +278,31 @@ func (m *NodeIterators_LocalVarMotion) initForAssign(
 //
 // Java: NodeIterators.LocalVarMotion(AbstractCompiler, Node, FunctionlessLocalScope)
 func newNodeIterators_LocalVarMotion(
-	compiler AbstractCompiler, nameNode *rhino.Node, iterator *NodeIterators_FunctionlessLocalScope) *NodeIterators_LocalVarMotion {
+	compiler AbstractCompiler, nameNode rhino.Node, iterator *NodeIterators_FunctionlessLocalScope) *NodeIterators_LocalVarMotion {
 	m := &NodeIterators_LocalVarMotion{}
 	m.init(compiler, nameNode, iterator)
 	return m
 }
 
 func (m *NodeIterators_LocalVarMotion) init(
-	compiler AbstractCompiler, nameNode *rhino.Node, iterator *NodeIterators_FunctionlessLocalScope) {
+	compiler AbstractCompiler, nameNode rhino.Node, iterator *NodeIterators_FunctionlessLocalScope) {
 	jutil.CheckArgument(nameNode.IsName())
 	valueNode := NodeUtil_GetAssignedValue(nameNode)
 	m.compiler = jutil.CheckNotNull(compiler)
 	m.varName = nameNode.GetString()
-	m.valueHasSideEffects = valueNode != nil && compiler.GetAstAnalyzer().MayHaveSideEffects(valueNode)
+	m.valueHasSideEffects = !valueNode.IsNil() && compiler.GetAstAnalyzer().MayHaveSideEffects(valueNode)
 	m.extIterator = iterator
-	m.lookAhead = nil
+	m.lookAhead = rhino.Node{}
 	m.AdvanceLookAhead(true)
 }
 
 // Java: NodeIterators.LocalVarMotion.hasNext()
 func (m *NodeIterators_LocalVarMotion) HasNext() bool {
-	return m.lookAhead != nil
+	return !m.lookAhead.IsNil()
 }
 
 // Java: NodeIterators.LocalVarMotion.next()
-func (m *NodeIterators_LocalVarMotion) Next() *rhino.Node {
+func (m *NodeIterators_LocalVarMotion) Next() rhino.Node {
 	next := m.lookAhead
 	m.AdvanceLookAhead(false)
 	return next
@@ -317,7 +317,7 @@ func (m *NodeIterators_LocalVarMotion) Remove() {
 func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 	it := m.iter()
 	if !atStart {
-		if m.lookAhead == nil {
+		if m.lookAhead.IsNil() {
 			return
 		}
 
@@ -325,13 +325,13 @@ func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 		// to inline.
 		curNode := it.Current()
 		if curNode.IsName() && m.varName == curNode.GetString() {
-			m.lookAhead = nil
+			m.lookAhead = rhino.Node{}
 			return
 		}
 	}
 
 	if !it.HasNext() {
-		m.lookAhead = nil
+		m.lookAhead = rhino.Node{}
 		return
 	}
 
@@ -352,7 +352,7 @@ func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 				nextNode.IsOptChainGetElem()) {
 
 			// If this is a simple assign, we'll be ok.
-			if nextParent == nil || !NodeUtil_IsNameDeclOrSimpleAssignLhs(nextNode, nextParent) {
+			if nextParent.IsNil() || !NodeUtil_IsNameDeclOrSimpleAssignLhs(nextNode, nextParent) {
 				readsState = true
 			}
 
@@ -366,7 +366,7 @@ func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 		}
 
 		if readsState {
-			m.lookAhead = nil
+			m.lookAhead = rhino.Node{}
 			return
 		}
 	}
@@ -379,7 +379,7 @@ func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 	//   alert(a);
 	if (m.compiler.GetAstAnalyzer().NodeTypeMayHaveSideEffects(nextNode) && type_ != rhino.Token_NAME) ||
 		(type_ == rhino.Token_NAME && nextParent.IsCatch()) {
-		m.lookAhead = nil
+		m.lookAhead = rhino.Node{}
 		return
 	}
 

@@ -215,9 +215,9 @@ func TestTemplatizedType_GetPropertyTypeOnTemplatizedType(t *testing.T) {
 		templateT := s.Registry.CreateTemplateType("T")
 		ctor := // function<T>(new:Foo<T>)
 			s.Registry.CreateConstructorType(
-				ptr("Foo"), nil, nil, nil, []*TemplateType{templateT}, false)
+				ptr("Foo"), Node{}, nil, nil, []*TemplateType{templateT}, false)
 		rawType := ctor.GetInstanceType() // Foo<T> == Foo
-		rawType.DefineDeclaredProperty("property", templateT, nil)
+		rawType.DefineDeclaredProperty("property", templateT, Node{})
 
 		templatizedNumber := s.Registry.CreateTemplatizedType(rawType, s.NUMBER_TYPE)
 		s.AssertType(templatizedNumber.ToObjectType().GetPropertyType("property")).
@@ -233,9 +233,9 @@ func TestTemplatizedType_FindPropertyTypeOnTemplatizedType(t *testing.T) {
 		templateT := s.Registry.CreateTemplateType("T")
 		ctor := // function<T>(new:Foo<T>)
 			s.Registry.CreateConstructorType(
-				ptr("Foo"), nil, nil, nil, []*TemplateType{templateT}, false)
+				ptr("Foo"), Node{}, nil, nil, []*TemplateType{templateT}, false)
 		rawType := ctor.GetInstanceType() // Foo<T> == Foo
-		rawType.DefineDeclaredProperty("property", templateT, nil)
+		rawType.DefineDeclaredProperty("property", templateT, Node{})
 
 		templatizedNumber := s.Registry.CreateTemplatizedType(rawType, s.NUMBER_TYPE)
 		s.AssertType(templatizedNumber.FindPropertyType("property")).IsEqualTo(s.NUMBER_TYPE)
@@ -250,11 +250,11 @@ func TestTemplatizedType_GreatestSubtypeWithSubclass(t *testing.T) {
 		templateT := s.Registry.CreateTemplateType("T")
 
 		baseCtor := s.Registry.CreateConstructorType(
-			ptr("Base"), nil, nil, nil, []*TemplateType{templateT}, false)
+			ptr("Base"), Node{}, nil, nil, []*TemplateType{templateT}, false)
 		baseRaw := baseCtor.GetInstanceType()
 
 		subCtor := s.Registry.CreateConstructorType(
-			ptr("Sub"), nil, nil, nil, []*TemplateType{templateT}, false)
+			ptr("Sub"), Node{}, nil, nil, []*TemplateType{templateT}, false)
 		subCtor.SetPrototypeBasedOn(baseRaw)
 		subRaw := subCtor.GetInstanceType()
 
@@ -274,11 +274,11 @@ func TestTemplatizedType_GreatestSubtypeWithIncompatibleGenerics(t *testing.T) {
 		templateT := s.Registry.CreateTemplateType("T")
 
 		baseCtor := s.Registry.CreateConstructorType(
-			ptr("Base"), nil, nil, nil, []*TemplateType{templateT}, false)
+			ptr("Base"), Node{}, nil, nil, []*TemplateType{templateT}, false)
 		baseRaw := baseCtor.GetInstanceType()
 
 		subCtor := s.Registry.CreateConstructorType(
-			ptr("Sub"), nil, nil, nil, []*TemplateType{templateT}, false)
+			ptr("Sub"), Node{}, nil, nil, []*TemplateType{templateT}, false)
 		subCtor.SetPrototypeBasedOn(baseRaw)
 		subRaw := subCtor.GetInstanceType()
 
@@ -298,7 +298,7 @@ func (s *templatizedTypeTest) CreateCustomTemplatizedType(rawName string) Object
 		ctor := // function<T,U>(new:Foo<T,U>)
 			s.Registry.CreateConstructorType(
 				ptr(rawName),
-				nil,
+				Node{},
 				nil,
 				nil,
 				[]*TemplateType{s.Registry.CreateTemplateType("T"), s.Registry.CreateTemplateType("U")},

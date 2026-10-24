@@ -55,7 +55,7 @@ type peepholeRemoveDeadCodeTest_processor struct {
 }
 
 // Java: PeepholeRemoveDeadCodeTest.getProcessor(Compiler).new CompilerPass() {...}.process(Node, Node)
-func (p *peepholeRemoveDeadCodeTest_processor) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *peepholeRemoveDeadCodeTest_processor) Process(externs rhino.Node, root rhino.Node) {
 	peepholePass :=
 		NewPeepholeOptimizationsPass(p.compiler, p.this.GetName(), NewPeepholeRemoveDeadCode())
 	peepholePass.Process(externs, root)

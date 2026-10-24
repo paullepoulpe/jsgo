@@ -283,7 +283,7 @@ func (p *PrototypeObjectTypeBase) GetPropertyMap() *PropertyMap {
 }
 
 // Java: PrototypeObjectType.defineProperty(Property.Key, JSType, boolean, Node)
-func (p *PrototypeObjectTypeBase) DefinePropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (p *PrototypeObjectTypeBase) DefinePropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	if p.selfObj().HasOwnDeclaredPropertyByKey(name) {
 		return false
 	}
@@ -301,7 +301,7 @@ func (p *PrototypeObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Propert
 			// defined anywhere, then we consider this an explicit declaration of
 			// the property.
 			self := p.selfObj()
-			self.DefineInferredPropertyByKey(propertyName, self.GetPropertyTypeByKey(propertyName), nil)
+			self.DefineInferredPropertyByKey(propertyName, self.GetPropertyTypeByKey(propertyName), Node{})
 			property = p.properties.GetOwnPropertyByKey(propertyName)
 		}
 
@@ -314,7 +314,7 @@ func (p *PrototypeObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Propert
 }
 
 // Java: PrototypeObjectType.setPropertyNode(Property.Key, Node)
-func (p *PrototypeObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key, defSite *Node) {
+func (p *PrototypeObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key, defSite Node) {
 	property := p.properties.GetOwnPropertyByKey(propertyName)
 	if property != nil {
 		property.SetNode(defSite)
@@ -651,7 +651,7 @@ func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj Object
 			if !p.self().HasProperty(prop) {
 				typeToInfer = p.GetNativeType(JSTypeNative_VOID_TYPE).GetLeastSupertype(propType)
 			}
-			self.DefineInferredProperty(prop, typeToInfer, nil)
+			self.DefineInferredProperty(prop, typeToInfer, Node{})
 		}
 	}
 }

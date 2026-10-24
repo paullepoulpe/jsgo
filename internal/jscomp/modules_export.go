@@ -55,8 +55,8 @@ type Export struct {
 	importName       *string
 	localName        *string
 	modulePath       *ModuleLoader_ModulePath
-	exportNode       *rhino.Node
-	nameNode         *rhino.Node
+	exportNode       rhino.Node
+	nameNode         rhino.Node
 	moduleMetadata   *ModuleMetadataMap_ModuleMetadata
 	closureNamespace *string
 	mutated          bool
@@ -83,8 +83,8 @@ func NewExport(
 	importName *string,
 	localName *string,
 	modulePath *ModuleLoader_ModulePath,
-	exportNode *rhino.Node,
-	nameNode *rhino.Node,
+	exportNode rhino.Node,
+	nameNode rhino.Node,
 	moduleMetadata *ModuleMetadataMap_ModuleMetadata,
 	closureNamespace *string,
 	mutated bool) *Export {
@@ -131,12 +131,12 @@ func (e *Export) ModulePath() *ModuleLoader_ModulePath { return e.modulePath }
 // ExportNode may return nil.
 //
 // Java: Export.exportNode()
-func (e *Export) ExportNode() *rhino.Node { return e.exportNode }
+func (e *Export) ExportNode() rhino.Node { return e.exportNode }
 
 // NameNode may return nil.
 //
 // Java: Export.nameNode()
-func (e *Export) NameNode() *rhino.Node { return e.nameNode }
+func (e *Export) NameNode() rhino.Node { return e.nameNode }
 
 // Java: Export.moduleMetadata()
 func (e *Export) ModuleMetadata() *ModuleMetadataMap_ModuleMetadata { return e.moduleMetadata }
@@ -184,8 +184,8 @@ func (e *Export) computeHashCode() int32 {
 	h = 31*h + modules_nullableStringHash(e.importName)
 	h = 31*h + modules_nullableStringHash(e.localName)
 	h = 31*h + jutil.IdentityHashCodeOfPointer(e.modulePath)
-	h = 31*h + jutil.IdentityHashCodeOfPointer(e.exportNode)
-	h = 31*h + jutil.IdentityHashCodeOfPointer(e.nameNode)
+	h = 31*h + e.exportNode.IdentityHashCode()
+	h = 31*h + e.nameNode.IdentityHashCode()
 	h = 31*h + jutil.IdentityHashCodeOfPointer(e.moduleMetadata)
 	h = 31*h + modules_nullableStringHash(e.closureNamespace)
 	if e.mutated {
@@ -242,8 +242,8 @@ type Export_Builder struct {
 	importName       *string
 	localName        *string
 	modulePath       *ModuleLoader_ModulePath
-	exportNode       *rhino.Node
-	nameNode         *rhino.Node
+	exportNode       rhino.Node
+	nameNode         rhino.Node
 	moduleMetadata   *ModuleMetadataMap_ModuleMetadata
 	closureNamespace *string
 	mutated          bool
@@ -315,7 +315,7 @@ func (b *Export_Builder) ModulePath(modulePath *ModuleLoader_ModulePath) *Export
 // ExportNode takes a possibly-nil value.
 //
 // Java: AutoBuilder_Export_Builder.exportNode(Node)
-func (b *Export_Builder) ExportNode(exportNode *rhino.Node) *Export_Builder {
+func (b *Export_Builder) ExportNode(exportNode rhino.Node) *Export_Builder {
 	b.exportNode = exportNode
 	return b
 }
@@ -323,7 +323,7 @@ func (b *Export_Builder) ExportNode(exportNode *rhino.Node) *Export_Builder {
 // NameNode takes a possibly-nil value.
 //
 // Java: AutoBuilder_Export_Builder.nameNode(Node)
-func (b *Export_Builder) NameNode(nameNode *rhino.Node) *Export_Builder {
+func (b *Export_Builder) NameNode(nameNode rhino.Node) *Export_Builder {
 	b.nameNode = nameNode
 	return b
 }
@@ -424,7 +424,7 @@ func (b *Export_Builder) ValidateEsModule(e *Export) {
 func Export_Builder_ValidateGoogModule(e *Export) {
 	jutil.CheckStateMsg(e.ClosureNamespace() != nil, "Exports should be associated with a namespace")
 	jutil.CheckStateMsg(e.ExportName() != nil, "Exports should be named")
-	jutil.CheckStateMsg(e.ExportNode() != nil, "Exports should have a node")
+	jutil.CheckStateMsg(!e.ExportNode().IsNil(), "Exports should have a node")
 	jutil.CheckStateMsg(e.LocalName() == nil, "goog.module Exports don't set a localName")
 	jutil.CheckStateMsg(e.ModuleRequest() == nil, "goog modules cannot export from other modules")
 }
@@ -437,11 +437,11 @@ func Export_Builder_ValidateOtherModule(e *Export) {
 	jutil.CheckNotNull(e.ExportName())
 
 	// Fields ignored for these fake exports. Should not set these.
-	jutil.CheckState(e.ExportNode() == nil)
+	jutil.CheckState(e.ExportNode().IsNil())
 	jutil.CheckState(e.LocalName() == nil)
 	jutil.CheckState(e.ModuleRequest() == nil)
 	jutil.CheckState(e.ImportName() == nil)
-	jutil.CheckState(e.NameNode() == nil)
+	jutil.CheckState(e.NameNode().IsNil())
 }
 
 // Java: Export.builder()

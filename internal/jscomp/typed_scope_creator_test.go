@@ -49,14 +49,14 @@ type TypedScopeCreatorTest struct {
 // TypedScopeCreatorTest_LabeledStatement stores information about a labeled
 // statement and allows making assertions on it.
 type TypedScopeCreatorTest_LabeledStatement struct {
-	statementNode  *rhino.Node
+	statementNode  rhino.Node
 	enclosingScope *TypedScope
 }
 
 // Java: TypedScopeCreatorTest.LabeledStatement(Node, TypedScope)
-func NewTypedScopeCreatorTest_LabeledStatement(statementNode *rhino.Node, enclosingScope *TypedScope) *TypedScopeCreatorTest_LabeledStatement {
+func NewTypedScopeCreatorTest_LabeledStatement(statementNode rhino.Node, enclosingScope *TypedScope) *TypedScopeCreatorTest_LabeledStatement {
 	s := &TypedScopeCreatorTest_LabeledStatement{}
-	s.statementNode = jutil.CheckNotNull(statementNode)
+	s.statementNode = rhino.CheckNotNull(statementNode)
 	s.enclosingScope = jutil.CheckNotNull(enclosingScope)
 	return s
 }
@@ -90,7 +90,7 @@ type TypedScopeCreatorTest_ScopeFinder struct {
 }
 
 // Java: TypedScopeCreatorTest.ScopeFinder.visit(NodeTraversal, Node, Node)
-func (f *TypedScopeCreatorTest_ScopeFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *TypedScopeCreatorTest_ScopeFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	scope := t.GetTypedScope()
 	if scope.IsGlobal() {
 		f.outer.globalScope = scope
@@ -100,9 +100,9 @@ func (f *TypedScopeCreatorTest_ScopeFinder) Visit(t *NodeTraversal, n *rhino.Nod
 	} else if scope.IsFunctionScope() {
 		f.outer.lastFunctionScope = scope
 	}
-	if parent != nil && parent.IsLabel() && !n.IsLabelName() {
+	if !parent.IsNil() && parent.IsLabel() && !n.IsLabelName() {
 		// First child of a LABEL is a LABEL_NAME, n is the second child.
-		labelNameNode := jutil.CheckNotNullMsg1(n.GetPrevious(), "%s", n)
+		labelNameNode := rhino.CheckNotNullMsg1(n.GetPrevious(), "%s", n)
 		jutil.CheckStateMsg1(labelNameNode.IsLabelName(), "%s", labelNameNode)
 		labelName := labelNameNode.GetString()
 		AssertWithMessage("Duplicate label name: %s", labelName).
@@ -125,7 +125,7 @@ func (c *TypedScopeCreatorTest) GetProcessor(compiler *Compiler) CompilerPass {
 	c.registry = compiler.GetTypeRegistry()
 	// Create a fresh statement map for each test case.
 	c.labeledStatementMap = jutil.NewLinkedHashMap[string, *TypedScopeCreatorTest_LabeledStatement]()
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewGatherModuleMetadata(compiler, false, ModuleLoader_ResolutionMode_BROWSER).Process(externs, root)
 		NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap()).Process(externs, root)
 		NewInferConsts(compiler).Process(externs, root)
@@ -8185,7 +8185,7 @@ function markImplementor(ctor) {
 }
 
 // Java: TypedScopeCreatorTest.createEmptyRoot()
-func TypedScopeCreatorTest_CreateEmptyRoot() *rhino.Node {
+func TypedScopeCreatorTest_CreateEmptyRoot() rhino.Node {
 	script := rhino.IR_Script()
 	root := rhino.IR_Root(rhino.IR_Root(), rhino.IR_Root(script))
 	script.SetInputId(rhino.NewInputId("input"))
@@ -8194,7 +8194,7 @@ func TypedScopeCreatorTest_CreateEmptyRoot() *rhino.Node {
 
 // Java: TypedScopeCreatorTest.findNameType(String, TypedScope)
 func (c *TypedScopeCreatorTest) FindNameType(name string, scope *TypedScope) rhino.JSType {
-	return c.FindTypeOnMatchedNode(func(n *rhino.Node) bool { return n.MatchesQualifiedName(name) }, scope)
+	return c.FindTypeOnMatchedNode(func(n rhino.Node) bool { return n.MatchesQualifiedName(name) }, scope)
 }
 
 // Java: TypedScopeCreatorTest.findNameTypeStr(String, TypedScope)
@@ -8204,15 +8204,15 @@ func (c *TypedScopeCreatorTest) FindNameTypeStr(name string, scope *TypedScope) 
 
 // Java: TypedScopeCreatorTest.findTokenType(Token, TypedScope)
 func (c *TypedScopeCreatorTest) FindTokenType(type_ rhino.Token, scope *TypedScope) rhino.JSType {
-	return c.FindTypeOnMatchedNode(func(n *rhino.Node) bool { return type_ == n.GetToken() }, scope)
+	return c.FindTypeOnMatchedNode(func(n rhino.Node) bool { return type_ == n.GetToken() }, scope)
 }
 
 // Java: TypedScopeCreatorTest.findTypeOnMatchedNode(Predicate, TypedScope)
-func (c *TypedScopeCreatorTest) FindTypeOnMatchedNode(matcher func(*rhino.Node) bool, scope *TypedScope) rhino.JSType {
+func (c *TypedScopeCreatorTest) FindTypeOnMatchedNode(matcher func(rhino.Node) bool, scope *TypedScope) rhino.JSType {
 	root := scope.GetRootNode()
 	// Go-only: language-adapter — the ArrayDeque used as a stack
 	// (push/pop at the head) is a slice whose top is its end.
-	queue := []*rhino.Node{root}
+	queue := []rhino.Node{root}
 	for len(queue) != 0 {
 		current := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
@@ -8220,7 +8220,7 @@ func (c *TypedScopeCreatorTest) FindTypeOnMatchedNode(matcher func(*rhino.Node) 
 			return current.GetJSType()
 		}
 
-		for child := current.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := current.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			queue = append(queue, child)
 		}
 	}

@@ -27,7 +27,7 @@ import (
 type BasicBlock struct {
 	parent *BasicBlock
 
-	root *rhino.Node
+	root rhino.Node
 
 	depth int32
 
@@ -43,11 +43,11 @@ type BasicBlock struct {
 // parent is the containing block; root is the root node of the block.
 //
 // Java: BasicBlock(BasicBlock, Node)
-func NewBasicBlock(parent *BasicBlock, root *rhino.Node) *BasicBlock {
+func NewBasicBlock(parent *BasicBlock, root rhino.Node) *BasicBlock {
 	return initBasicBlock(&BasicBlock{}, parent, root)
 }
 
-func initBasicBlock(b *BasicBlock, parent *BasicBlock, root *rhino.Node) *BasicBlock {
+func initBasicBlock(b *BasicBlock, parent *BasicBlock, root rhino.Node) *BasicBlock {
 	b.parent = parent
 	b.root = root
 	if parent != nil {
@@ -58,7 +58,7 @@ func initBasicBlock(b *BasicBlock, parent *BasicBlock, root *rhino.Node) *BasicB
 
 	b.isFunction = root.IsFunction()
 
-	if p := root.GetParent(); p != nil {
+	if p := root.GetParent(); !p.IsNil() {
 		pType := p.GetToken()
 		b.isLoop = pType == rhino.Token_DO ||
 			pType == rhino.Token_WHILE ||
@@ -119,7 +119,7 @@ func (b *BasicBlock) IsLoop() bool {
 }
 
 // Java: BasicBlock.getRoot()
-func (b *BasicBlock) GetRoot() *rhino.Node {
+func (b *BasicBlock) GetRoot() rhino.Node {
 	return b.root
 }
 

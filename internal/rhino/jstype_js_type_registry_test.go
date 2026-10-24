@@ -346,13 +346,13 @@ func TestJSTypeRegistry_GetBuiltInType_Map(t *testing.T) {
 // createStaticTypedScope.
 type jsTypeRegistryTestScope struct {
 	rhinotesting.AbstractStaticScopeBase
-	root          *Node
+	root          Node
 	parentScope   StaticTypedScope
 	slots         *jutil.LinkedHashMap[string, StaticTypedSlot]
 	reservedNames *jutil.LinkedHashSet[string]
 }
 
-func (sc *jsTypeRegistryTestScope) GetRootNode() *Node {
+func (sc *jsTypeRegistryTestScope) GetRootNode() Node {
 	return sc.root
 }
 
@@ -382,7 +382,7 @@ func (sc *jsTypeRegistryTestScope) GetTopmostScopeOfEventualDeclaration(name str
 
 // Returns a scope that overrides a few methods from {@link AbstractStaticScope}
 func (s *jsTypeRegistryTest) createStaticTypedScope(
-	root *Node,
+	root Node,
 	parentScope StaticTypedScope,
 	slots *jutil.LinkedHashMap[string, StaticTypedSlot],
 	reservedNames *jutil.LinkedHashSet[string]) StaticTypedScope {

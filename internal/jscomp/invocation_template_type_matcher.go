@@ -44,14 +44,14 @@ type InvocationTemplateTypeMatcher struct {
 	registry      *rhino.JSTypeRegistry
 	calleeType    rhino.FunctionType
 	localThisType rhino.JSType
-	invocation    *rhino.Node
+	invocation    rhino.Node
 
 	unknownType rhino.JSType
 }
 
 // Java: InvocationTemplateTypeMatcher(JSTypeRegistry, FunctionType, JSType, Node)
 func NewInvocationTemplateTypeMatcher(
-	registry *rhino.JSTypeRegistry, calleeType rhino.FunctionType, localThisType rhino.JSType, invocation *rhino.Node) *InvocationTemplateTypeMatcher {
+	registry *rhino.JSTypeRegistry, calleeType rhino.FunctionType, localThisType rhino.JSType, invocation rhino.Node) *InvocationTemplateTypeMatcher {
 	m := &InvocationTemplateTypeMatcher{
 		matchedTypes: base.NewLinkedIdentityHashMap[*rhino.TemplateType, rhino.JSType](),
 		seenTypes:    base.NewLinkedIdentityHashSet[rhino.JSType](),
@@ -213,7 +213,7 @@ func (m *InvocationTemplateTypeMatcher) matchTemplateTypesRecursive(paramType rh
 // Java: InvocationTemplateTypeMatcher.matchTemplateTypesFromNodes(Iterable<Parameter>, Iterable<Node>)
 // Java: InvocationTemplateTypeMatcher.matchTemplateTypesFromNodes(Iterator<Parameter>, Iterator<Node>)
 func (m *InvocationTemplateTypeMatcher) matchTemplateTypesFromNodes(
-	declParams []*rhino.FunctionType_Parameter, callParams iter.Seq[*rhino.Node]) {
+	declParams []*rhino.FunctionType_Parameter, callParams iter.Seq[rhino.Node]) {
 	i := 0
 	var variadicParam *rhino.FunctionType_Parameter
 	for callParam := range callParams {
@@ -275,7 +275,7 @@ func (m *InvocationTemplateTypeMatcher) copyMatchedTypes() *jutil.LinkedHashMap[
 }
 
 // Java: InvocationTemplateTypeMatcher.getTypeOrUnknown(Node)
-func (m *InvocationTemplateTypeMatcher) getTypeOrUnknown(n *rhino.Node) rhino.JSType {
+func (m *InvocationTemplateTypeMatcher) getTypeOrUnknown(n rhino.Node) rhino.JSType {
 	type_ := n.GetJSType()
 	if type_ == nil {
 		return m.unknownType

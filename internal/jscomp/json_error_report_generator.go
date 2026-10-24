@@ -97,7 +97,7 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager SortingErrorManager) {
 			jsonWriter.Name("column").ValueLong(int64(charno))
 			node := message.Error.Node()
 			regionLength := message.Error.Length()
-			if node != nil && regionLength > 0 {
+			if !node.IsNil() && regionLength > 0 {
 				jsonWriter.Name("length").ValueLong(int64(message.Error.Length()))
 			}
 
@@ -123,7 +123,7 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager SortingErrorManager) {
 							b.WriteByte(' ')
 						}
 					}
-					if node == nil {
+					if node.IsNil() {
 						b.WriteString("^")
 					} else {
 						length := max(1, min(regionLength, len(units)-charno))

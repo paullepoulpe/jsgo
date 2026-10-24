@@ -30,7 +30,7 @@ import (
 type ProcessTweaksTest struct {
 	CompilerTestCaseBase
 
-	defaultValueOverrides *jutil.LinkedHashMap[string, *rhino.Node]
+	defaultValueOverrides *jutil.LinkedHashMap[string, rhino.Node]
 	stripTweaks           bool
 }
 
@@ -49,7 +49,7 @@ func TestProcessTweaksTest(t *testing.T) {
 func (c *ProcessTweaksTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.EnableNormalize()
-	c.defaultValueOverrides = jutil.NewLinkedHashMap[string, *rhino.Node]()
+	c.defaultValueOverrides = jutil.NewLinkedHashMap[string, rhino.Node]()
 	c.stripTweaks = false
 }
 
@@ -60,7 +60,7 @@ type processTweaksTest_pass struct {
 }
 
 // Java: ProcessTweaksTest.getProcessor(Compiler).new CompilerPass() {...}.process(Node, Node)
-func (p *processTweaksTest_pass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *processTweaksTest_pass) Process(externs rhino.Node, root rhino.Node) {
 	processTweak := NewProcessTweaks(p.compiler, p.outer.stripTweaks)
 	processTweak.Process(externs, root)
 

@@ -168,7 +168,7 @@ func typeCheckDump_dumpOne(sb *strings.Builder, externs string, name string, src
 	}
 	typeCheckDump_line(sb, "# tree")
 	jsRoot := compiler.GetJsRoot()
-	if jsRoot == nil {
+	if jsRoot.IsNil() {
 		typeCheckDump_line(sb, "null")
 	} else {
 		typeCheckDump_dumpTree(sb, jsRoot, 0)
@@ -176,9 +176,9 @@ func typeCheckDump_dumpOne(sb *strings.Builder, externs string, name string, src
 }
 
 // typeCheckDump_dumpTree is TypeCheckDump.dumpTree.
-func typeCheckDump_dumpTree(sb *strings.Builder, n *rhino.Node, level int) {
+func typeCheckDump_dumpTree(sb *strings.Builder, n rhino.Node, level int) {
 	typeCheckDump_line(sb, strings.Repeat("    ", level)+n.ToStringWithFlags(true, true, true))
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		typeCheckDump_dumpTree(sb, c, level+1)
 	}
 }

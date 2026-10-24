@@ -129,7 +129,7 @@ func (r *ReportUntranspilableFeatures) GetAdditionalFeaturesToRunOn() *parser.Fe
 }
 
 // Java: ReportUntranspilableFeatures.checkForUntranspilable(Node)
-func (r *ReportUntranspilableFeatures) CheckForUntranspilable(root *rhino.Node) {
+func (r *ReportUntranspilableFeatures) CheckForUntranspilable(root rhino.Node) {
 	// Non-flag RegExp features are not attached to nodes, so we must force traversal.
 	switch root.GetToken() {
 	case rhino.Token_REGEXP:
@@ -195,7 +195,7 @@ func (r *ReportUntranspilableFeatures) CheckForUntranspilable(root *rhino.Node) 
 }
 
 // Java: ReportUntranspilableFeatures.reportUntranspilable(Feature, Node)
-func (r *ReportUntranspilableFeatures) ReportUntranspilable(feature parser.FeatureSet_Feature, node *rhino.Node) {
+func (r *ReportUntranspilableFeatures) ReportUntranspilable(feature parser.FeatureSet_Feature, node rhino.Node) {
 	minimumLanguageMode := parsing.Config_LanguageMode_MinimumRequiredFor(feature)
 	if minimumLanguageMode == parsing.Config_LanguageMode_UNSUPPORTED {
 		r.compiler.Report(JSError_MakeWithNode(node, ReportUntranspilableFeatures_UNSUPPORTED_FEATURE_PRESENT, feature.String()))
@@ -229,7 +229,7 @@ func (r *ReportUntranspilableFeatures) ReportUntranspilable(feature parser.Featu
 }
 
 // Java: ReportUntranspilableFeatures.checkForRegExpSFlag(Node)
-func (r *ReportUntranspilableFeatures) CheckForRegExpSFlag(regexpNode *rhino.Node) {
+func (r *ReportUntranspilableFeatures) CheckForRegExpSFlag(regexpNode rhino.Node) {
 	jutil.CheckArgument(regexpNode.IsRegExp())
 	flags := ""
 	if regexpNode.HasTwoChildren() {
@@ -241,8 +241,8 @@ func (r *ReportUntranspilableFeatures) CheckForRegExpSFlag(regexpNode *rhino.Nod
 }
 
 // Java: ReportUntranspilableFeatures.checkForLookbehind(Node, RegExpTree)
-func (r *ReportUntranspilableFeatures) CheckForLookbehind(regexpNode *rhino.Node, tree regex.RegExpTree) {
-	jutil.CheckArgument(regexpNode != nil)
+func (r *ReportUntranspilableFeatures) CheckForLookbehind(regexpNode rhino.Node, tree regex.RegExpTree) {
+	jutil.CheckArgument(!regexpNode.IsNil())
 	if ReportUntranspilableFeatures_AnySubtreeMeetsPredicate(tree, func(t regex.RegExpTree) bool {
 		_, ok := t.(*regex.RegExpTree_LookbehindAssertion)
 		return ok
@@ -252,8 +252,8 @@ func (r *ReportUntranspilableFeatures) CheckForLookbehind(regexpNode *rhino.Node
 }
 
 // Java: ReportUntranspilableFeatures.checkForNamedGroups(Node, RegExpTree)
-func (r *ReportUntranspilableFeatures) CheckForNamedGroups(regexpNode *rhino.Node, tree regex.RegExpTree) {
-	jutil.CheckArgument(regexpNode != nil)
+func (r *ReportUntranspilableFeatures) CheckForNamedGroups(regexpNode rhino.Node, tree regex.RegExpTree) {
+	jutil.CheckArgument(!regexpNode.IsNil())
 	if ReportUntranspilableFeatures_AnySubtreeMeetsPredicate(tree, func(t regex.RegExpTree) bool {
 		_, ok := t.(*regex.RegExpTree_NamedCaptureGroup)
 		return ok
@@ -263,8 +263,8 @@ func (r *ReportUntranspilableFeatures) CheckForNamedGroups(regexpNode *rhino.Nod
 }
 
 // Java: ReportUntranspilableFeatures.checkForUnicodePropertyEscape(Node, RegExpTree)
-func (r *ReportUntranspilableFeatures) CheckForUnicodePropertyEscape(regexpNode *rhino.Node, tree regex.RegExpTree) {
-	jutil.CheckArgument(regexpNode != nil)
+func (r *ReportUntranspilableFeatures) CheckForUnicodePropertyEscape(regexpNode rhino.Node, tree regex.RegExpTree) {
+	jutil.CheckArgument(!regexpNode.IsNil())
 	if ReportUntranspilableFeatures_AnySubtreeMeetsPredicate(tree, func(t regex.RegExpTree) bool {
 		_, ok := t.(*regex.RegExpTree_UnicodePropertyEscape)
 		return ok
@@ -274,7 +274,7 @@ func (r *ReportUntranspilableFeatures) CheckForUnicodePropertyEscape(regexpNode 
 }
 
 // Java: ReportUntranspilableFeatures.checkForRegExpDFlag(Node)
-func (r *ReportUntranspilableFeatures) CheckForRegExpDFlag(regexpNode *rhino.Node) {
+func (r *ReportUntranspilableFeatures) CheckForRegExpDFlag(regexpNode rhino.Node) {
 	jutil.CheckArgument(regexpNode.IsRegExp())
 	flags := ""
 	if regexpNode.HasTwoChildren() {
@@ -286,10 +286,10 @@ func (r *ReportUntranspilableFeatures) CheckForRegExpDFlag(regexpNode *rhino.Nod
 }
 
 // Java: ReportUntranspilableFeatures.checkForTopLevelAwait(Node)
-func (r *ReportUntranspilableFeatures) CheckForTopLevelAwait(awaitNode *rhino.Node) {
+func (r *ReportUntranspilableFeatures) CheckForTopLevelAwait(awaitNode rhino.Node) {
 	jutil.CheckArgument(awaitNode.IsAwait() || awaitNode.IsForAwaitOf())
 
-	if NodeUtil_GetEnclosingFunction(awaitNode) == nil {
+	if NodeUtil_GetEnclosingFunction(awaitNode).IsNil() {
 		jutil.CheckArgumentMsg(
 			NodeUtil_GetEnclosingScript(awaitNode).GetBooleanProp(rhino.Node_ES6_MODULE),
 			"Top-level await is only allowed in ES module sources")
@@ -311,7 +311,7 @@ func ReportUntranspilableFeatures_AnySubtreeMeetsPredicate(tree regex.RegExpTree
 }
 
 // Java: ReportUntranspilableFeatures.transpileSubtree(Node)
-func (r *ReportUntranspilableFeatures) TranspileSubtree(subtree *rhino.Node) *rhino.Node {
+func (r *ReportUntranspilableFeatures) TranspileSubtree(subtree rhino.Node) rhino.Node {
 	r.CheckForUntranspilable(subtree)
 	return subtree
 }

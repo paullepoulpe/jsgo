@@ -44,7 +44,7 @@ var CheckMissingReturn_MISSING_RETURN_STATEMENT = DiagnosticType_Warning(
 //
 // Java: CheckMissingReturn.goesThroughTrueCondition(DiGraphEdge<Node, ControlFlowGraph.Branch>)
 func CheckMissingReturn_GoesThroughTrueCondition(
-	input DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]) bool {
+	input DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]) bool {
 	// First skill all exceptions.
 	branch := input.GetValue()
 	if branch == ControlFlowGraph_Branch_ON_EX {
@@ -55,7 +55,7 @@ func CheckMissingReturn_GoesThroughTrueCondition(
 		// constants. We DO have a full blown ReverseAbstractInterupter and
 		// type system that can evaluate some impressions' boolean value but
 		// for now we will keep this pass lightweight.
-		if condition != nil {
+		if !condition.IsNil() {
 			val := NodeUtil_GetBooleanValue(condition)
 			if val != base.Tri_UNKNOWN {
 				return val.ToBoolean(true) == (branch == ControlFlowGraph_Branch_ON_TRUE)
@@ -65,8 +65,8 @@ func CheckMissingReturn_GoesThroughTrueCondition(
 	return true
 }
 
-func checkMissingReturn_isReturn(input *rhino.Node) bool {
-	return input != nil && input.IsReturn()
+func checkMissingReturn_isReturn(input rhino.Node) bool {
+	return !input.IsNil() && input.IsReturn()
 }
 
 // Java: CheckMissingReturn(AbstractCompiler)
@@ -100,7 +100,7 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 		return
 	}
 
-	var cfg ControlFlowGraph[*rhino.Node]
+	var cfg ControlFlowGraph[rhino.Node]
 	if c.sharedCfgSource != nil {
 		if shared := c.sharedCfgSource.PeekCurrentScopeCfg(); shared != nil &&
 			shared.GetEntry() != nil &&
@@ -115,7 +115,7 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 		return
 	}
 
-	test := CheckPathsBetweenNodes[*rhino.Node, ControlFlowGraph_Branch]{
+	test := CheckPathsBetweenNodes[rhino.Node, ControlFlowGraph_Branch]{
 		graph:         cfg,
 		start:         cfg.GetEntry(),
 		end:           cfg.GetImplicitReturn(),
@@ -137,7 +137,7 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 // Returns true if all paths return, converse not necessarily true.
 //
 // Java: CheckMissingReturn.fastAllPathsReturnCheck(ControlFlowGraph<Node>)
-func (c *CheckMissingReturn) FastAllPathsReturnCheck(cfg ControlFlowGraph[*rhino.Node]) bool {
+func (c *CheckMissingReturn) FastAllPathsReturnCheck(cfg ControlFlowGraph[rhino.Node]) bool {
 	for _, s := range cfg.GetImplicitReturn().GetInEdges() {
 		n := s.GetSource().GetValue()
 		// NOTE(dimvar): it is possible to change ControlFlowAnalysis.java, so
@@ -152,12 +152,12 @@ func (c *CheckMissingReturn) FastAllPathsReturnCheck(cfg ControlFlowGraph[*rhino
 
 // Java: CheckMissingReturn.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckMissingReturn) ShouldTraverse(
-	nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
 // Java: CheckMissingReturn.visit(NodeTraversal, Node, Node)
-func (c *CheckMissingReturn) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckMissingReturn) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 func (*CheckMissingReturn) nodeTraversalNoVisit()          {}
@@ -174,7 +174,7 @@ func (*CheckMissingReturn) nodeTraversalNoShouldTraverse() {}
 // If a return type is expected, returns it. Otherwise, returns null.
 //
 // Java: CheckMissingReturn.getExplicitReturnTypeIfExpected(Node)
-func (c *CheckMissingReturn) GetExplicitReturnTypeIfExpected(scopeRoot *rhino.Node) rhino.JSType {
+func (c *CheckMissingReturn) GetExplicitReturnTypeIfExpected(scopeRoot rhino.Node) rhino.JSType {
 	if !scopeRoot.IsFunction() {
 		// Nothing to do in a global/module/block scope.
 		return nil
@@ -218,7 +218,7 @@ func (c *CheckMissingReturn) GetExplicitReturnTypeIfExpected(scopeRoot *rhino.No
 // JavaScript function with an empty body.
 //
 // Java: CheckMissingReturn.isEmptyFunction(Node)
-func CheckMissingReturn_IsEmptyFunction(function *rhino.Node) bool {
+func CheckMissingReturn_IsEmptyFunction(function rhino.Node) bool {
 	return function.HasXChildren(3) && !function.GetSecondChild().GetNext().HasChildren()
 }
 

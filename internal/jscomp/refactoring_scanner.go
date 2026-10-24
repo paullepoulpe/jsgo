@@ -35,7 +35,7 @@ type Scanner interface {
 	// end of the traversal.
 	//
 	// Java: Scanner.matches(Node, NodeMetadata)
-	Matches(node *rhino.Node, t *NodeMetadata) bool
+	Matches(node rhino.Node, t *NodeMetadata) bool
 
 	// Java: Scanner.processMatch(Match)
 	ProcessMatch(match *Match) []*SuggestedFix

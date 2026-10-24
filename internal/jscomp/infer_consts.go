@@ -44,7 +44,7 @@ func NewInferConsts(compiler AbstractCompiler) *InferConsts {
 func (*InferConsts) onlyNameLeaves() {}
 
 // Java: InferConsts.process(Node, Node)
-func (c *InferConsts) Process(externs *rhino.Node, js *rhino.Node) {
+func (c *InferConsts) Process(externs rhino.Node, js rhino.Node) {
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
 	collector := newInferConstsCollector(c, c.compiler, scopeCreator)
 	collector.processRoot(js)
@@ -67,7 +67,7 @@ func (c *InferConsts) considerExternVar(v *Var) {
 		return // no name node for provided variables.
 	}
 	nameNode := v.GetNameNode()
-	if nameNode != nil && nameNode.GetParent().IsConst() {
+	if !nameNode.IsNil() && nameNode.GetParent().IsConst() {
 		nameNode.SetDeclaredConstantVar(true)
 	} else if docInfo := v.GetJSDocInfo(); docInfo != nil && docInfo.IsConstant() {
 		nameNode.SetDeclaredConstantVar(true)
@@ -80,7 +80,7 @@ func (c *InferConsts) considerVarState(st *inferConstVarState) {
 		return // no name node for provided variables.
 	}
 	nameNode := v.GetNameNode()
-	if nameNode != nil && nameNode.GetParent().IsConst() {
+	if !nameNode.IsNil() && nameNode.GetParent().IsConst() {
 		nameNode.SetDeclaredConstantVar(true)
 	} else if docInfo := v.GetJSDocInfo(); docInfo != nil && docInfo.IsConstant() {
 		nameNode.SetDeclaredConstantVar(true)
@@ -90,8 +90,8 @@ func (c *InferConsts) considerVarState(st *inferConstVarState) {
 	}
 }
 
-func inferConsts_isInferredConstState(v *Var, nameNode *rhino.Node, st *inferConstVarState) bool {
-	if nameNode == nil || st.assignCount != 1 || !st.isAssignedOnceInLifetime() {
+func inferConsts_isInferredConstState(v *Var, nameNode rhino.Node, st *inferConstVarState) bool {
+	if nameNode.IsNil() || st.assignCount != 1 || !st.isAssignedOnceInLifetime() {
 		return false
 	}
 	declarationType := v.DeclarationType()
@@ -128,7 +128,7 @@ type inferConstVarState struct {
 	v               *Var
 	firstBlock      *BasicBlock
 	assignBlock     *BasicBlock
-	assignHoistRoot *rhino.Node
+	assignHoistRoot rhino.Node
 	assignCount     int32
 	firstIsInitDecl bool
 	firstIsDecl     bool
@@ -170,9 +170,9 @@ type inferConstsCollector struct {
 	blockStack          []basicBlockEntry
 	blockStackPool      [][]basicBlockEntry
 	blocks              jutil.Slab[BasicBlock] // one pass's blocks die together
-	collectedHoistedMap map[*rhino.Node]struct{}
-	lastHoisted         *rhino.Node
-	hoistedBuf          [16]*rhino.Node
+	collectedHoistedMap map[rhino.Node]struct{}
+	lastHoisted         rhino.Node
+	hoistedBuf          [16]rhino.Node
 	hoistedCount        uint8
 	jumpDepth           int
 	blockStackBuf       [64]basicBlockEntry
@@ -203,23 +203,23 @@ func (c *inferConstsCollector) flushLocalStates() {
 
 func (c *inferConstsCollector) builderVal() NodeTraversal_Builder {
 	return NodeTraversal_Builder{
-		compiler:                                       c.compiler,
-		callback:                                       c,
-		scopeCreator:                                   c.scopeCreator,
+		compiler:     c.compiler,
+		callback:     c,
+		scopeCreator: c.scopeCreator,
 		obeyDestructuringAndDefaultValueExecutionOrder: true,
 	}
 }
 
-func (c *inferConstsCollector) processRoot(root *rhino.Node) {
+func (c *inferConstsCollector) processRoot(root rhino.Node) {
 	b := c.builderVal()
 	b.Traverse(root)
 }
 
-func (c *inferConstsCollector) pushNewBlock(root *rhino.Node) {
+func (c *inferConstsCollector) pushNewBlock(root rhino.Node) {
 	c.blockStack = append(c.blockStack, basicBlockEntry{root: root})
 }
 
-func (c *inferConstsCollector) popLastBlock(root *rhino.Node) {
+func (c *inferConstsCollector) popLastBlock(root rhino.Node) {
 	idx := len(c.blockStack) - 1
 	lastRoot := c.blockStack[idx].root
 	c.blockStack[idx] = basicBlockEntry{}
@@ -251,8 +251,8 @@ func (c *inferConstsCollector) materializeBlock(idx int) *BasicBlock {
 	return parent
 }
 
-func (c *inferConstsCollector) addCollectedHoistedFunction(n *rhino.Node) bool {
-	if n == c.lastHoisted && n != nil {
+func (c *inferConstsCollector) addCollectedHoistedFunction(n rhino.Node) bool {
+	if n == c.lastHoisted && !n.IsNil() {
 		return false
 	}
 	if c.collectedHoistedMap == nil {
@@ -268,7 +268,7 @@ func (c *inferConstsCollector) addCollectedHoistedFunction(n *rhino.Node) bool {
 			c.lastHoisted = n
 			return true
 		}
-		c.collectedHoistedMap = make(map[*rhino.Node]struct{}, 64)
+		c.collectedHoistedMap = make(map[rhino.Node]struct{}, 64)
 		for i := uint8(0); i < c.hoistedCount; i++ {
 			c.collectedHoistedMap[c.hoistedBuf[i]] = struct{}{}
 		}
@@ -282,9 +282,9 @@ func (c *inferConstsCollector) addCollectedHoistedFunction(n *rhino.Node) bool {
 	return true
 }
 
-func (c *inferConstsCollector) hasCollectedHoistedFunction(n *rhino.Node) bool {
+func (c *inferConstsCollector) hasCollectedHoistedFunction(n rhino.Node) bool {
 	if n == c.lastHoisted {
-		return n != nil
+		return !n.IsNil()
 	}
 	if c.collectedHoistedMap == nil {
 		for i := uint8(0); i < c.hoistedCount; i++ {
@@ -302,8 +302,8 @@ func (c *inferConstsCollector) hasCollectedHoistedFunction(n *rhino.Node) bool {
 	return exists
 }
 
-func (c *inferConstsCollector) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	if n.GetFirstChild() == nil {
+func (c *inferConstsCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if n.GetFirstChild().IsNil() {
 		switch n.GetToken() {
 		case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
 			if referenceCollector_isBlockBoundary(n, parent) {
@@ -342,7 +342,7 @@ func (c *inferConstsCollector) ExitScope(t *NodeTraversal) {
 	}
 }
 
-func (c *inferConstsCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *inferConstsCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	tok := n.GetToken()
 	if tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
 		if (parent.IsImportSpec() && n != parent.GetLastChild()) ||
@@ -368,11 +368,11 @@ func (c *inferConstsCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rh
 
 func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTraversal) {
 	nameNode := var_.nameNode
-	if nameNode == nil {
+	if nameNode.IsNil() {
 		return
 	}
 	fnNode := nameNode.GetParent()
-	if fnNode == nil || !fnNode.IsFunction() || fnNode == c.lastHoisted {
+	if fnNode.IsNil() || !fnNode.IsFunction() || fnNode == c.lastHoisted {
 		return
 	}
 	if c.hasCollectedHoistedFunction(fnNode) || !rcIsHoistedFunctionDeclaration(fnNode) {
@@ -428,7 +428,7 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 	c.blockStack = oldBlockStack
 }
 
-func inferConsts_isLvalue(n *rhino.Node, parent *rhino.Node) bool {
+func inferConsts_isLvalue(n rhino.Node, parent rhino.Node) bool {
 	switch parent.GetToken() {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		return n.HasChildren() || (NodeUtil_IsEnhancedFor(parent) && parent.GetFirstChild() == n)
@@ -446,7 +446,7 @@ func inferConsts_isLvalue(n *rhino.Node, parent *rhino.Node) bool {
 	}
 }
 
-func (c *inferConstsCollector) addReference(v *Var, n *rhino.Node, parent *rhino.Node, t *NodeTraversal) {
+func (c *inferConstsCollector) addReference(v *Var, n rhino.Node, parent rhino.Node, t *NodeTraversal) {
 	idx := v.nameHash
 	if idx == 0 {
 		isDecl := reference_isDeclarationHelper(n)
@@ -517,7 +517,7 @@ func (c *InferConsts) ConsiderVar(v *Var, refCollection *ReferenceCollection) {
 		return // no name node for provided variables.
 	}
 	nameNode := v.GetNameNode()
-	if nameNode != nil && nameNode.GetParent().IsConst() {
+	if !nameNode.IsNil() && nameNode.GetParent().IsConst() {
 		nameNode.SetDeclaredConstantVar(true)
 	} else if docInfo := v.GetJSDocInfo(); docInfo != nil && docInfo.IsConstant() {
 		nameNode.SetDeclaredConstantVar(true)
@@ -530,7 +530,7 @@ func (c *InferConsts) ConsiderVar(v *Var, refCollection *ReferenceCollection) {
 // Java: InferConsts.isInferredConst(Var, ReferenceCollection)
 func InferConsts_IsInferredConst(v *Var, refCollection *ReferenceCollection) bool {
 	nameNode := v.GetNameNode()
-	if nameNode == nil || refCollection == nil || !refCollection.IsAssignedOnceInLifetime() {
+	if nameNode.IsNil() || refCollection == nil || !refCollection.IsAssignedOnceInLifetime() {
 		return false
 	}
 	if v.IsImplicitGoogNamespace() {

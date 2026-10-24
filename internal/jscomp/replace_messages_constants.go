@@ -44,7 +44,7 @@ var replaceMessagesConstants_PROTECTED_FUNCTION_NAMES = jutil.NewLinkedHashSet(
 	ReplaceMessagesConstants_DEFINE_MSG_CALLEE, ReplaceMessagesConstants_FALLBACK_MSG_CALLEE)
 
 // Java: ReplaceMessagesConstants.isProtectedMessage(Node)
-func ReplaceMessagesConstants_IsProtectedMessage(n *rhino.Node) bool {
+func ReplaceMessagesConstants_IsProtectedMessage(n rhino.Node) bool {
 	if !n.IsCall() {
 		return false
 	}

@@ -64,7 +64,7 @@ type FlowScope interface {
 	//
 	// Java: FlowScope.inferQualifiedSlot(Node, String, JSType, JSType, boolean)
 	InferQualifiedSlot(
-		node *rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declare bool) FlowScope
+		node rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declare bool) FlowScope
 
 	// GetDeclarationScope returns the underlying TypedScope.
 	//

@@ -29,23 +29,23 @@ import (
 //
 // Java: public class J2clClinitPrunerPass implements CompilerPass
 type J2clClinitPrunerPass struct {
-	emptiedClinitMethods *jutil.LinkedHashMap[string, *rhino.Node]
+	emptiedClinitMethods *jutil.LinkedHashMap[string, rhino.Node]
 	compiler             AbstractCompiler
 	// initialChangedScopeNodes is a nullable Java List: nil is null.
-	initialChangedScopeNodes []*rhino.Node
+	initialChangedScopeNodes []rhino.Node
 }
 
 // Java: J2clClinitPrunerPass(AbstractCompiler, List<Node>)
-func NewJ2clClinitPrunerPass(compiler AbstractCompiler, initialChangedScopeNodes []*rhino.Node) *J2clClinitPrunerPass {
+func NewJ2clClinitPrunerPass(compiler AbstractCompiler, initialChangedScopeNodes []rhino.Node) *J2clClinitPrunerPass {
 	return &J2clClinitPrunerPass{
-		emptiedClinitMethods:     jutil.NewLinkedHashMap[string, *rhino.Node](),
+		emptiedClinitMethods:     jutil.NewLinkedHashMap[string, rhino.Node](),
 		compiler:                 compiler,
 		initialChangedScopeNodes: initialChangedScopeNodes,
 	}
 }
 
 // Java: J2clClinitPrunerPass.process(Node, Node)
-func (p *J2clClinitPrunerPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *J2clClinitPrunerPass) Process(externs rhino.Node, root rhino.Node) {
 	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
 		return
 	}
@@ -73,7 +73,7 @@ func (p *J2clClinitPrunerPass) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 // Java: J2clClinitPrunerPass.removeRedundantClinits(Node, List<Node>)
-func (p *J2clClinitPrunerPass) removeRedundantClinits(root *rhino.Node, changedScopeNodes []*rhino.Node) {
+func (p *J2clClinitPrunerPass) removeRedundantClinits(root rhino.Node, changedScopeNodes []rhino.Node) {
 	changedRoots := j2clClinitPrunerPass_getNonNestedParentScopeNodes(changedScopeNodes)
 	p.traverseScopeRootsWithFallback(
 		root, changedRoots, p.newRedundantClinitPruner(changedRoots), true)
@@ -83,7 +83,7 @@ func (p *J2clClinitPrunerPass) removeRedundantClinits(root *rhino.Node, changedS
 }
 
 // Java: J2clClinitPrunerPass.pruneEmptyClinits(Node, List<Node>)
-func (p *J2clClinitPrunerPass) pruneEmptyClinits(root *rhino.Node, changedScopes []*rhino.Node) {
+func (p *J2clClinitPrunerPass) pruneEmptyClinits(root rhino.Node, changedScopes []rhino.Node) {
 	// Clear emptiedClinitMethods before EmptyClinitPruner to populate only with new ones.
 	p.emptiedClinitMethods.Clear()
 	p.traverseScopeRootsWithFallback(root, changedScopes, p.newEmptyClinitPruner(), false)
@@ -96,8 +96,8 @@ func (p *J2clClinitPrunerPass) pruneEmptyClinits(root *rhino.Node, changedScopes
 
 // Java: J2clClinitPrunerPass.traverseScopeRootsWithFallback(Node, List<Node>, Callback, boolean)
 func (p *J2clClinitPrunerPass) traverseScopeRootsWithFallback(
-	root *rhino.Node,
-	scopeRoots []*rhino.Node,
+	root rhino.Node,
+	scopeRoots []rhino.Node,
 	callback NodeTraversal_Callback,
 	traverseNested bool) {
 	if scopeRoots == nil {
@@ -108,9 +108,9 @@ func (p *J2clClinitPrunerPass) traverseScopeRootsWithFallback(
 }
 
 // Java: J2clClinitPrunerPass.resolveReplacement(Node)
-func (p *J2clClinitPrunerPass) resolveReplacement(node *rhino.Node) *rhino.Node {
-	if node == nil {
-		return nil
+func (p *J2clClinitPrunerPass) resolveReplacement(node rhino.Node) rhino.Node {
+	if node.IsNil() {
+		return rhino.Node{}
 	}
 	clinitName := j2clClinitPrunerPass_getClinitMethodName(node)
 	if clinitName != nil && p.emptiedClinitMethods.ContainsKey(*clinitName) {
@@ -120,12 +120,12 @@ func (p *J2clClinitPrunerPass) resolveReplacement(node *rhino.Node) *rhino.Node 
 }
 
 // Java: J2clClinitPrunerPass.collectClinitReferences(Node)
-func (p *J2clClinitPrunerPass) collectClinitReferences(root *rhino.Node) *jutil.LinkedHashMultimap[*string, *rhino.Node] {
+func (p *J2clClinitPrunerPass) collectClinitReferences(root rhino.Node) *jutil.LinkedHashMultimap[*string, rhino.Node] {
 	// Go-only: language-adapter — Java HashMultimap: its keys are only looked
 	// up (never iterated) and its values are Nodes, which Java hashes by
 	// identity, so Java's own value order is not deterministic; insertion
 	// order is used.
-	clinitReferences := jutil.NewLinkedHashMultimap[*string, *rhino.Node]()
+	clinitReferences := jutil.NewLinkedHashMultimap[*string, rhino.Node]()
 	NodeTraversal_Traverse(
 		p.compiler,
 		root,
@@ -137,11 +137,11 @@ func (p *J2clClinitPrunerPass) collectClinitReferences(root *rhino.Node) *jutil.
 // AbstractPostOrderCallback of collectClinitReferences.
 type j2clClinitPrunerPass_collectClinitReferencesCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	clinitReferences *jutil.LinkedHashMultimap[*string, *rhino.Node]
+	clinitReferences *jutil.LinkedHashMultimap[*string, rhino.Node]
 }
 
 // Java: J2clClinitPrunerPass.collectClinitReferences(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (c *j2clClinitPrunerPass_collectClinitReferencesCallback) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (c *j2clClinitPrunerPass_collectClinitReferencesCallback) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	clinitName := j2clClinitPrunerPass_getClinitMethodName(node)
 	if clinitName != nil {
 		c.clinitReferences.Put(clinitName, node)
@@ -149,15 +149,15 @@ func (c *j2clClinitPrunerPass_collectClinitReferencesCallback) Visit(t *NodeTrav
 }
 
 // Java: J2clClinitPrunerPass.cleanEmptyClinitReferences(Multimap<String, Node>)
-func (p *J2clClinitPrunerPass) cleanEmptyClinitReferences(clinitReferences *jutil.LinkedHashMultimap[*string, *rhino.Node]) []*rhino.Node {
-	newChangedScopes := []*rhino.Node{}
+func (p *J2clClinitPrunerPass) cleanEmptyClinitReferences(clinitReferences *jutil.LinkedHashMultimap[*string, rhino.Node]) []rhino.Node {
+	newChangedScopes := []rhino.Node{}
 	// resolveReplacement step above should not require any particular iteration order of the
 	// emptiedClinitMethods but we are using LinkedHashMap to be extra safe.
 	for clinitName, replacement := range p.emptiedClinitMethods.All() {
 		references := clinitReferences.RemoveAll(&clinitName)
 		for _, reference := range references {
 			changedScope := ChangeTracker_GetEnclosingChangeScopeRoot(reference.GetParent())
-			if replacement == nil {
+			if replacement.IsNil() {
 				NodeUtil_DeleteFunctionCall(reference, p.compiler)
 			} else {
 				replacement = replacement.CloneTree()
@@ -172,7 +172,7 @@ func (p *J2clClinitPrunerPass) cleanEmptyClinitReferences(clinitReferences *juti
 }
 
 // Java: J2clClinitPrunerPass.getNonNestedParentScopeNodes(List<Node>)
-func j2clClinitPrunerPass_getNonNestedParentScopeNodes(changedScopeNodes []*rhino.Node) []*rhino.Node {
+func j2clClinitPrunerPass_getNonNestedParentScopeNodes(changedScopeNodes []rhino.Node) []rhino.Node {
 	if changedScopeNodes == nil {
 		return nil
 	}
@@ -180,13 +180,13 @@ func j2clClinitPrunerPass_getNonNestedParentScopeNodes(changedScopeNodes []*rhin
 		NodeUtil_GetParentChangeScopeNodes(changedScopeNodes))
 }
 
-	// J2clClinitPrunerPass_RedundantClinitPruner removes redundant clinit calls
+// J2clClinitPrunerPass_RedundantClinitPruner removes redundant clinit calls
 // inside method body if it is guaranteed to be called earlier.
 //
 // Java: private final class J2clClinitPrunerPass.RedundantClinitPruner implements NodeTraversal.Callback
 type J2clClinitPrunerPass_RedundantClinitPruner struct {
 	outer                 *J2clClinitPrunerPass
-	roots                 *jutil.LinkedHashSet[*rhino.Node]
+	roots                 *jutil.LinkedHashSet[rhino.Node]
 	stateStack            []*J2clClinitPrunerPass_HierarchicalSet[string]
 	clinitsCalledAtBranch *J2clClinitPrunerPass_HierarchicalSet[string]
 	setPool               []*J2clClinitPrunerPass_HierarchicalSet[string]
@@ -214,7 +214,7 @@ func (r *J2clClinitPrunerPass_RedundantClinitPruner) releaseSet(s *J2clClinitPru
 }
 
 // Java: J2clClinitPrunerPass.RedundantClinitPruner(Iterable<Node>)
-func (p *J2clClinitPrunerPass) newRedundantClinitPruner(roots []*rhino.Node) *J2clClinitPrunerPass_RedundantClinitPruner {
+func (p *J2clClinitPrunerPass) newRedundantClinitPruner(roots []rhino.Node) *J2clClinitPrunerPass_RedundantClinitPruner {
 	r := &J2clClinitPrunerPass_RedundantClinitPruner{outer: p}
 	r.stateStack = nil // new ArrayDeque<>()
 	r.clinitsCalledAtBranch = r.allocSet(nil)
@@ -225,7 +225,7 @@ func (p *J2clClinitPrunerPass) newRedundantClinitPruner(roots []*rhino.Node) *J2
 }
 
 // Java: J2clClinitPrunerPass.RedundantClinitPruner.shouldTraverse(NodeTraversal, Node, Node)
-func (r *J2clClinitPrunerPass_RedundantClinitPruner) ShouldTraverse(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) bool {
+func (r *J2clClinitPrunerPass_RedundantClinitPruner) ShouldTraverse(t *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
 	if r.roots != nil && r.roots.Contains(node) {
 		// Reset the clinit call tracking when starting over on a new scope.
 		r.clinitsCalledAtBranch = r.allocSet(nil)
@@ -253,7 +253,7 @@ func (r *J2clClinitPrunerPass_RedundantClinitPruner) ShouldTraverse(t *NodeTrave
 }
 
 // Java: J2clClinitPrunerPass.RedundantClinitPruner.visit(NodeTraversal, Node, Node)
-func (r *J2clClinitPrunerPass_RedundantClinitPruner) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (r *J2clClinitPrunerPass_RedundantClinitPruner) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	r.tryRemovingClinit(node)
 
 	if r.isNewControlBranch(parent) {
@@ -277,7 +277,7 @@ func (r *J2clClinitPrunerPass_RedundantClinitPruner) Visit(t *NodeTraversal, nod
 }
 
 // Java: J2clClinitPrunerPass.RedundantClinitPruner.tryRemovingClinit(Node)
-func (r *J2clClinitPrunerPass_RedundantClinitPruner) tryRemovingClinit(node *rhino.Node) {
+func (r *J2clClinitPrunerPass_RedundantClinitPruner) tryRemovingClinit(node rhino.Node) {
 	clinitName := j2clClinitPrunerPass_getClinitMethodName(node)
 	if clinitName == nil {
 		return
@@ -292,8 +292,8 @@ func (r *J2clClinitPrunerPass_RedundantClinitPruner) tryRemovingClinit(node *rhi
 }
 
 // Java: J2clClinitPrunerPass.RedundantClinitPruner.isNewControlBranch(Node)
-func (r *J2clClinitPrunerPass_RedundantClinitPruner) isNewControlBranch(n *rhino.Node) bool {
-	return n != nil &&
+func (r *J2clClinitPrunerPass_RedundantClinitPruner) isNewControlBranch(n rhino.Node) bool {
+	return !n.IsNil() &&
 		(NodeUtil_IsControlStructure(n) ||
 			n.IsDefaultValue() ||
 			n.IsHook() ||
@@ -321,7 +321,7 @@ func (p *J2clClinitPrunerPass) newLookAheadRedundantClinitPruner() *J2clClinitPr
 }
 
 // Java: J2clClinitPrunerPass.LookAheadRedundantClinitPruner.visit(NodeTraversal, Node, Node)
-func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	if !node.IsExprResult() {
 		return
 	}
@@ -334,13 +334,13 @@ func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) Visit(t *NodeTrave
 
 	// Check for calls to a static method immediately following the clinit call.
 	callOrNewNode := l.getCallOrNewNode(node.GetNext())
-	if callOrNewNode == nil || !callOrNewNode.GetFirstChild().IsName() {
+	if callOrNewNode.IsNil() || !callOrNewNode.GetFirstChild().IsName() {
 		return
 	}
 
 	// Check that the call isn't a recursive call to the same function.
 	enclosingFunction := NodeUtil_GetEnclosingFunction(node)
-	if enclosingFunction == nil {
+	if enclosingFunction.IsNil() {
 		return
 	}
 	if nearest := NodeUtil_GetNearestFunctionName(enclosingFunction); nearest != nil &&
@@ -350,7 +350,7 @@ func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) Visit(t *NodeTrave
 
 	// Find the definition of the function being called.
 	var_ := t.GetScope().GetVar(callOrNewNode.GetFirstChild().GetString())
-	if var_ == nil || var_.GetInitialValue() == nil || !var_.GetInitialValue().IsFunction() {
+	if var_ == nil || var_.GetInitialValue().IsNil() || !var_.GetInitialValue().IsFunction() {
 		return
 	}
 
@@ -368,9 +368,9 @@ func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) Visit(t *NodeTrave
 // the clinit we are trying to remove).
 //
 // Java: J2clClinitPrunerPass.LookAheadRedundantClinitPruner.hasSafeArguments(NodeTraversal, Node)
-func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) hasSafeArguments(t *NodeTraversal, callOrNewNode *rhino.Node) bool {
+func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) hasSafeArguments(t *NodeTraversal, callOrNewNode rhino.Node) bool {
 	child := callOrNewNode.GetSecondChild()
-	for child != nil {
+	for !child.IsNil() {
 		if !NodeUtil_IsLiteralValue(child /* includeFunctions= */, false) &&
 			!l.isParameter(t, child) {
 			return false
@@ -384,7 +384,7 @@ func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) hasSafeArguments(t
 // to its enclosing function.
 //
 // Java: J2clClinitPrunerPass.LookAheadRedundantClinitPruner.isParameter(NodeTraversal, Node)
-func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) isParameter(t *NodeTraversal, n *rhino.Node) bool {
+func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) isParameter(t *NodeTraversal, n rhino.Node) bool {
 	if !n.IsName() {
 		return false
 	}
@@ -396,9 +396,9 @@ func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) isParameter(t *Nod
 // if one exists, otherwise returns null.
 //
 // Java: J2clClinitPrunerPass.LookAheadRedundantClinitPruner.getCallOrNewNode(Node)
-func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) getCallOrNewNode(n *rhino.Node) *rhino.Node {
-	if n == nil {
-		return nil
+func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) getCallOrNewNode(n rhino.Node) rhino.Node {
+	if n.IsNil() {
+		return rhino.Node{}
 	}
 	switch n.GetToken() {
 	case rhino.Token_EXPR_RESULT, rhino.Token_RETURN:
@@ -409,9 +409,9 @@ func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) getCallOrNewNode(n
 		if n.HasOneChild() {
 			return l.getCallOrNewNode(n.GetFirstFirstChild())
 		}
-		return nil
+		return rhino.Node{}
 	default:
-		return nil
+		return rhino.Node{}
 	}
 }
 
@@ -419,11 +419,11 @@ func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) getCallOrNewNode(n
 // specified clinit.
 //
 // Java: J2clClinitPrunerPass.LookAheadRedundantClinitPruner.callsClinit(Node, String)
-func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) callsClinit(fnNode *rhino.Node, clinitName string) bool {
+func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) callsClinit(fnNode rhino.Node, clinitName string) bool {
 	// TODO(michaelthomas): Consider checking all children, but watch out for return statements
 	// that could short-circuit the clinit.
 	child := fnNode.GetLastChild().GetFirstChild()
-	if child == nil || !child.IsExprResult() {
+	if child.IsNil() || !child.IsExprResult() {
 		return false
 	}
 	name := j2clClinitPrunerPass_getClinitMethodName(child.GetFirstChild())
@@ -445,7 +445,7 @@ func (p *J2clClinitPrunerPass) newEmptyClinitPruner() *J2clClinitPrunerPass_Empt
 }
 
 // Java: J2clClinitPrunerPass.EmptyClinitPruner.visit(NodeTraversal, Node, Node)
-func (e *J2clClinitPrunerPass_EmptyClinitPruner) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (e *J2clClinitPrunerPass_EmptyClinitPruner) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	if !j2clClinitPrunerPass_isClinitMethod(node) {
 		return
 	}
@@ -457,7 +457,7 @@ func (e *J2clClinitPrunerPass_EmptyClinitPruner) Visit(t *NodeTraversal, node *r
 // equivalent to empty functions.
 //
 // Java: J2clClinitPrunerPass.EmptyClinitPruner.trySubstituteEmptyFunction(Node)
-func (e *J2clClinitPrunerPass_EmptyClinitPruner) trySubstituteEmptyFunction(fnNode *rhino.Node) {
+func (e *J2clClinitPrunerPass_EmptyClinitPruner) trySubstituteEmptyFunction(fnNode rhino.Node) {
 	fnQualifiedName := j2clClinitPrunerPass_getQualifiedNameOfFunction(fnNode)
 
 	// Ignore anonymous/constructor functions.
@@ -477,11 +477,11 @@ func (e *J2clClinitPrunerPass_EmptyClinitPruner) trySubstituteEmptyFunction(fnNo
 	}
 
 	secondExpr := firstExpr.GetNext()
-	var replaceReferencesWith *rhino.Node
-	if secondExpr == nil {
+	var replaceReferencesWith rhino.Node
+	if secondExpr.IsNil() {
 		// There are no expressions in clinit so it is noop; remove all references.
-		replaceReferencesWith = nil
-	} else if secondExpr.GetNext() == nil &&
+		replaceReferencesWith = rhino.Node{}
+	} else if secondExpr.GetNext().IsNil() &&
 		secondExpr.IsExprResult() &&
 		j2clClinitPrunerPass_getClinitMethodName(secondExpr.GetFirstChild()) != nil {
 		// Only expression in clinit is a call to another clinit. We can safely replace all
@@ -497,7 +497,7 @@ func (e *J2clClinitPrunerPass_EmptyClinitPruner) trySubstituteEmptyFunction(fnNo
 }
 
 // Java: J2clClinitPrunerPass.EmptyClinitPruner.isAssignToEmptyFn(Node, String)
-func (e *J2clClinitPrunerPass_EmptyClinitPruner) isAssignToEmptyFn(node *rhino.Node, enclosingFnName string) bool {
+func (e *J2clClinitPrunerPass_EmptyClinitPruner) isAssignToEmptyFn(node rhino.Node, enclosingFnName string) bool {
 	if !NodeUtil_IsExprAssign(node) {
 		return false
 	}
@@ -518,12 +518,12 @@ func (e *J2clClinitPrunerPass_EmptyClinitPruner) isAssignToEmptyFn(node *rhino.N
 }
 
 // Java: J2clClinitPrunerPass.isClinitMethod(Node)
-func j2clClinitPrunerPass_isClinitMethod(node *rhino.Node) bool {
+func j2clClinitPrunerPass_isClinitMethod(node rhino.Node) bool {
 	return node.IsFunction() && j2clClinitPrunerPass_isClinitMethodName(j2clClinitPrunerPass_getQualifiedNameOfFunction(node))
 }
 
 // Java: J2clClinitPrunerPass.getClinitMethodName(Node)
-func j2clClinitPrunerPass_getClinitMethodName(node *rhino.Node) *string {
+func j2clClinitPrunerPass_getClinitMethodName(node rhino.Node) *string {
 	if node.IsCall() {
 		fnName := NodeUtil_GetBestLValueName(node.GetFirstChild())
 		if j2clClinitPrunerPass_isClinitMethodName(fnName) {
@@ -593,7 +593,7 @@ func (s *J2clClinitPrunerPass_HierarchicalSet[T]) parentsContains(o T) bool {
 // without becoming blocked on name APIs.
 //
 // Java: J2clClinitPrunerPass.getQualifiedNameOfFunction(Node)
-func j2clClinitPrunerPass_getQualifiedNameOfFunction(function *rhino.Node) *string {
+func j2clClinitPrunerPass_getQualifiedNameOfFunction(function rhino.Node) *string {
 	jutil.CheckArgumentMsg1(function.IsFunction(), "%s", function)
 	// The node representing the name (e.g. GETPROP, MEMBER_FUNCTION_DEF, etc.).
 	lValue := NodeUtil_GetBestLValue(function)

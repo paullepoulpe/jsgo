@@ -51,7 +51,7 @@ func (c *InlineCostEstimatorTest) JUnitBefore() {}
 func (c *InlineCostEstimatorTest) JUnitAfter() {}
 
 // Java: InlineCostEstimatorTest.parse(String)
-func InlineCostEstimatorTest_Parse(js string) *rhino.Node {
+func InlineCostEstimatorTest_Parse(js string) rhino.Node {
 	compiler := NewCompiler()
 	n := compiler.ParseTestCode(js)
 	AssertThat(compiler.GetErrors()).IsEmpty()

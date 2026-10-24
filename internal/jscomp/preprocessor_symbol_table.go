@@ -38,11 +38,11 @@ type PreprocessorSymbolTable struct {
 
 	refs *jutil.ListMultimap[string, *PreprocessorSymbolTable_Reference]
 
-	root *rhino.Node
+	root rhino.Node
 }
 
 // Java: PreprocessorSymbolTable(Node)
-func NewPreprocessorSymbolTable(root *rhino.Node) *PreprocessorSymbolTable {
+func NewPreprocessorSymbolTable(root rhino.Node) *PreprocessorSymbolTable {
 	return &PreprocessorSymbolTable{
 		symbols: jutil.NewLinkedHashMap[string, rhino.SimpleSlot](),
 		refs:    jutil.ArrayListMultimap_Create[string, *PreprocessorSymbolTable_Reference](),
@@ -51,7 +51,7 @@ func NewPreprocessorSymbolTable(root *rhino.Node) *PreprocessorSymbolTable {
 }
 
 // Java: PreprocessorSymbolTable.getRootNode()
-func (t *PreprocessorSymbolTable) GetRootNode() *rhino.Node {
+func (t *PreprocessorSymbolTable) GetRootNode() rhino.Node {
 	return t.root
 }
 
@@ -108,7 +108,7 @@ func (t *PreprocessorSymbolTable) GetScope(slot rhino.SimpleSlot) rhino.StaticSc
 }
 
 // Java: PreprocessorSymbolTable.addReference(Node)
-func (t *PreprocessorSymbolTable) AddReference(node *rhino.Node) {
+func (t *PreprocessorSymbolTable) AddReference(node rhino.Node) {
 	name := t.GetQualifiedName(node)
 	// Go-only: language-adapter — AddReferenceWithName takes a Go string, so
 	// its checkNotNull(name) of a null qualified name happens here.
@@ -117,7 +117,7 @@ func (t *PreprocessorSymbolTable) AddReference(node *rhino.Node) {
 }
 
 // Java: PreprocessorSymbolTable.addReference(Node, String)
-func (t *PreprocessorSymbolTable) AddReferenceWithName(node *rhino.Node, name string) {
+func (t *PreprocessorSymbolTable) AddReferenceWithName(node rhino.Node, name string) {
 	// checkNotNull(name): a Go string is never null.
 
 	t.symbols.ComputeIfAbsent(name, func(k string) rhino.SimpleSlot { return rhino.NewSimpleSlot(k, nil, true) })
@@ -129,7 +129,7 @@ func (t *PreprocessorSymbolTable) AddReferenceWithName(node *rhino.Node, name st
 // support STRING nodes which represent module names.
 //
 // Java: PreprocessorSymbolTable.getQualifiedName(Node)
-func (t *PreprocessorSymbolTable) GetQualifiedName(n *rhino.Node) *string {
+func (t *PreprocessorSymbolTable) GetQualifiedName(n rhino.Node) *string {
 	if n.IsStringLit() {
 		s := n.GetString()
 		return &s
@@ -144,7 +144,7 @@ type PreprocessorSymbolTable_Reference struct {
 }
 
 // Java: PreprocessorSymbolTable.Reference(SimpleSlot, Node)
-func NewPreprocessorSymbolTable_Reference(symbol rhino.SimpleSlot, node *rhino.Node) *PreprocessorSymbolTable_Reference {
+func NewPreprocessorSymbolTable_Reference(symbol rhino.SimpleSlot, node rhino.Node) *PreprocessorSymbolTable_Reference {
 	r := &PreprocessorSymbolTable_Reference{}
 	r.InitSimpleReference(symbol, node)
 	return r

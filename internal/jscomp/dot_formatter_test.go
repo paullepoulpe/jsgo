@@ -42,7 +42,7 @@ func TestDotFormatter_KeyAssignementOncePerNode(t *testing.T) {
 	node2 := rhino.NewNode(rhino.Token_BLOCK)
 
 	for _, tc := range []struct {
-		n    *rhino.Node
+		n    rhino.Node
 		want int
 	}{{node0, 0}, {node1, 1}, {node2, 2}, {node0, 0}, {node1, 1}, {node2, 2}} {
 		if got := dot.Key(tc.n); got != tc.want {
@@ -139,7 +139,7 @@ func TestDotFormatter_ImportStarLabel(t *testing.T) {
 }
 
 // Java: DotFormatterTest.test(String, Node)
-func dotFormatterTestTest(t *testing.T, expected string, ast *rhino.Node) {
+func dotFormatterTestTest(t *testing.T, expected string, ast rhino.Node) {
 	t.Helper()
 	if got := DotFormatter_ToDot(ast); got != expected {
 		t.Errorf("toDot:\n got: %q\nwant: %q", got, expected)

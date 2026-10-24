@@ -68,7 +68,7 @@ type CrossChunkCodeMotion struct {
 
 	// Map from chunk to the node in that chunk that should parent variable
 	// declarations that have to be moved into that chunk
-	chunkInsertionPointMap *jutil.LinkedHashMap[*JSChunk, *rhino.Node]
+	chunkInsertionPointMap *jutil.LinkedHashMap[*JSChunk, rhino.Node]
 
 	scratchImmovableChunks jutil.BitSet
 	scratchDsgCycle        CrossChunkCodeMotion_DeclarationStatementGroupCycle
@@ -179,7 +179,7 @@ func NewCrossChunkCodeMotion(
 	graph *JSChunkGraph,
 	parentChunkCanSeeSymbolsDeclaredInChildren bool) *CrossChunkCodeMotion {
 	return &CrossChunkCodeMotion{
-		chunkInsertionPointMap: jutil.NewLinkedHashMap[*JSChunk, *rhino.Node](),
+		chunkInsertionPointMap: jutil.NewLinkedHashMap[*JSChunk, rhino.Node](),
 		compiler:               compiler,
 		graph:                  graph,
 		parentChunkCanSeeSymbolsDeclaredInChildren: parentChunkCanSeeSymbolsDeclaredInChildren,
@@ -187,7 +187,7 @@ func NewCrossChunkCodeMotion(
 }
 
 // Java: CrossChunkCodeMotion.process(Node, Node)
-func (c *CrossChunkCodeMotion) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 	logFile := c.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[CrossChunkCodeMotion](), "cccm.log")
 	defer logFile.Close()
 	defer func() {
@@ -708,12 +708,12 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgsLatestFirst() *jutil.Arr
 }
 
 // Java: CrossChunkCodeMotion.addGuardToInstanceofReference(Node)
-func (c *CrossChunkCodeMotion) AddGuardToInstanceofReference(referenceNode *rhino.Node) {
+func (c *CrossChunkCodeMotion) AddGuardToInstanceofReference(referenceNode rhino.Node) {
 	jutil.CheckStateMsg1(
 		c.IsUnguardedInstanceofReference(referenceNode),
 		"instanceof Reference is already guarded: %s",
 		referenceNode)
-	instanceofNode := jutil.CheckNotNull(referenceNode.GetParent())
+	instanceofNode := rhino.CheckNotNull(referenceNode.GetParent())
 	referenceForTypeOf := referenceNode.CloneNode()
 	tmp := rhino.IR_Block()
 	// Wrap "foo instanceof Bar" in
@@ -1013,7 +1013,7 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetGlobalSymbolNam
 	return builder
 }
 
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) moveSingleStatementToChunk(statement *CrossChunkReferenceCollector_TopLevelStatement, destParent *rhino.Node) {
+func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) moveSingleStatementToChunk(statement *CrossChunkReferenceCollector_TopLevelStatement, destParent rhino.Node) {
 	statementNode := statement.GetStatementNode()
 	// Remove it
 	y.outer.compiler.ReportChangeToEnclosingScope(statementNode)
@@ -1163,12 +1163,12 @@ func (r *CrossChunkCodeMotion_MovableInstanceofReference) GetReference() *Refere
 // Ref.
 //
 // Java: CrossChunkCodeMotion.isUndefinedTypeofGuardReference(Node)
-func (c *CrossChunkCodeMotion) IsUndefinedTypeofGuardReference(reference *rhino.Node) bool {
+func (c *CrossChunkCodeMotion) IsUndefinedTypeofGuardReference(reference rhino.Node) bool {
 	// reference => typeof => `!=`
 	maybeTypeofGuard := reference.GetGrandparent()
-	if maybeTypeofGuard != nil && c.IsExistenceTypeofGuardFor(maybeTypeofGuard, reference) {
+	if !maybeTypeofGuard.IsNil() && c.IsExistenceTypeofGuardFor(maybeTypeofGuard, reference) {
 		andNode := maybeTypeofGuard.GetParent()
-		return andNode != nil &&
+		return !andNode.IsNil() &&
 			andNode.IsAnd() &&
 			c.IsInstanceofFor(andNode.GetLastChild(), reference)
 	} else {
@@ -1183,7 +1183,7 @@ func (c *CrossChunkCodeMotion) IsUndefinedTypeofGuardReference(reference *rhino.
 // be equivalent to this node.
 //
 // Java: CrossChunkCodeMotion.isExistenceTypeofGuardFor(Node, Node)
-func (c *CrossChunkCodeMotion) IsExistenceTypeofGuardFor(expression *rhino.Node, reference *rhino.Node) bool {
+func (c *CrossChunkCodeMotion) IsExistenceTypeofGuardFor(expression rhino.Node, reference rhino.Node) bool {
 	if expression.IsNE() || expression.IsSHNE() {
 		undefinedString := expression.GetFirstChild()
 		typeofNode := expression.GetLastChild()
@@ -1210,11 +1210,11 @@ func (c *CrossChunkCodeMotion) IsExistenceTypeofGuardFor(expression *rhino.Node,
 // Ref.
 //
 // Java: CrossChunkCodeMotion.isGuardedInstanceofReference(Node)
-func (c *CrossChunkCodeMotion) IsGuardedInstanceofReference(reference *rhino.Node) bool {
+func (c *CrossChunkCodeMotion) IsGuardedInstanceofReference(reference rhino.Node) bool {
 	instanceofNode := reference.GetParent()
 	if c.IsInstanceofFor(instanceofNode, reference) {
 		andNode := instanceofNode.GetParent()
-		return andNode != nil &&
+		return !andNode.IsNil() &&
 			andNode.IsAnd() &&
 			c.IsExistenceTypeofGuardFor(andNode.GetFirstChild(), reference)
 	} else {
@@ -1226,7 +1226,7 @@ func (c *CrossChunkCodeMotion) IsGuardedInstanceofReference(reference *rhino.Nod
 // an instanceof and not guarded?
 //
 // Java: CrossChunkCodeMotion.isUnguardedInstanceofReference(Node)
-func (c *CrossChunkCodeMotion) IsUnguardedInstanceofReference(reference *rhino.Node) bool {
+func (c *CrossChunkCodeMotion) IsUnguardedInstanceofReference(reference rhino.Node) bool {
 	instanceofNode := reference.GetParent()
 	if c.IsInstanceofFor(instanceofNode, reference) {
 		if c.compiler.GetAstAnalyzer().MayHaveSideEffects(instanceofNode.GetFirstChild()) {
@@ -1243,6 +1243,6 @@ func (c *CrossChunkCodeMotion) IsUnguardedInstanceofReference(reference *rhino.N
 // reference is the Ref node; it must be equivalent to this node.
 //
 // Java: CrossChunkCodeMotion.isInstanceofFor(Node, Node)
-func (c *CrossChunkCodeMotion) IsInstanceofFor(expression *rhino.Node, reference *rhino.Node) bool {
+func (c *CrossChunkCodeMotion) IsInstanceofFor(expression rhino.Node, reference rhino.Node) bool {
 	return expression.IsInstanceOf() && expression.GetLastChild().IsEquivalentTo(reference)
 }

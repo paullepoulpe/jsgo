@@ -18,7 +18,10 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
 
 // JsMessageExtractor extracts messages and message comments from JS code.
 //
@@ -133,7 +136,7 @@ func (e *JsMessageExtractor) ExtractMessagesFromIterable(inputs []*SourceFile) [
 
 	extractCompilerPass := newJsMessageExtractor_ExtractMessagesVisitor(e, compiler)
 	if len(compiler.GetErrors()) == 0 {
-		extractCompilerPass.Process(nil, compiler.GetRoot())
+		extractCompilerPass.Process(rhino.Node{}, compiler.GetRoot())
 	}
 
 	errors := compiler.GetErrors()

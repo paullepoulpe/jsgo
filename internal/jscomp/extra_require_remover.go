@@ -44,7 +44,7 @@ type ExtraRequireRemover struct {
 
 	// Keys are the local name of a required namespace. Values are the
 	// goog.require CALL node.
-	requires *jutil.LinkedHashMap[string, *rhino.Node]
+	requires *jutil.LinkedHashMap[string, rhino.Node]
 
 	// Adding an entry to `usages` indicates that the name (either a fully
 	// qualified or local name) is used and can be required. Note that since
@@ -60,14 +60,14 @@ var extraRequireRemover_DEFAULT_EXTRA_NAMESPACES = jutil.NewLinkedHashSet(
 // Java: ExtraRequireRemover(AbstractCompiler)
 func NewExtraRequireRemover(compiler AbstractCompiler) *ExtraRequireRemover {
 	e := &ExtraRequireRemover{}
-	e.requires = jutil.NewLinkedHashMap[string, *rhino.Node]()
+	e.requires = jutil.NewLinkedHashMap[string, rhino.Node]()
 	e.usages = jutil.NewLinkedHashSet[string]()
 	e.compiler = compiler
 	return e
 }
 
 // Java: ExtraRequireRemover.process(Node, Node)
-func (e *ExtraRequireRemover) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *ExtraRequireRemover) Process(externs rhino.Node, root rhino.Node) {
 	e.Reset()
 	NodeTraversal_Traverse(e.compiler, root, e)
 }
@@ -78,7 +78,7 @@ func (e *ExtraRequireRemover) Process(externs *rhino.Node, root *rhino.Node) {
 // Ex: `goog.require('foo.bar');` will return `foo.bar`
 //
 // Java: ExtraRequireRemover.extractNamespace(Node, QualifiedName...)
-func (e *ExtraRequireRemover) ExtractNamespace(call *rhino.Node, primitiveNames ...rhino.QualifiedName) *string {
+func (e *ExtraRequireRemover) ExtractNamespace(call rhino.Node, primitiveNames ...rhino.QualifiedName) *string {
 	callee := call.GetFirstChild()
 	if !callee.IsGetProp() {
 		return nil
@@ -86,7 +86,7 @@ func (e *ExtraRequireRemover) ExtractNamespace(call *rhino.Node, primitiveNames 
 	for _, primitiveName := range primitiveNames {
 		if primitiveName.Matches(callee) {
 			target := callee.GetNext()
-			if target != nil && target.IsStringLit() {
+			if !target.IsNil() && target.IsStringLit() {
 				s := target.GetString()
 				return &s
 			}
@@ -103,12 +103,12 @@ var extraRequireRemover_GOOG_FORWARD_DECLARE = rhino.QualifiedName_Of("goog.forw
 // goog.requireType nodes
 //
 // Java: ExtraRequireRemover.extractNamespaceIfRequire(Node)
-func (e *ExtraRequireRemover) ExtractNamespaceIfRequire(call *rhino.Node) *string {
+func (e *ExtraRequireRemover) ExtractNamespaceIfRequire(call rhino.Node) *string {
 	return e.ExtractNamespace(call, extraRequireRemover_GOOG_REQUIRE, extraRequireRemover_GOOG_REQUIRE_TYPE, extraRequireRemover_GOOG_FORWARD_DECLARE)
 }
 
 // Java: ExtraRequireRemover.shouldTraverse(NodeTraversal, Node, Node)
-func (e *ExtraRequireRemover) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (e *ExtraRequireRemover) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Skip ES modules. We could support them in the future if desired.
 	return !n.IsModuleBody() || n.GetParent().GetBooleanProp(rhino.Node_GOOG_MODULE)
 }
@@ -117,7 +117,7 @@ func (e *ExtraRequireRemover) ShouldTraverse(t *NodeTraversal, n *rhino.Node, pa
 // as their usages
 //
 // Java: ExtraRequireRemover.visit(NodeTraversal, Node, Node)
-func (e *ExtraRequireRemover) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *ExtraRequireRemover) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	e.MaybeAddJsDocUsages(n)
 	switch n.GetToken() {
 	case rhino.Token_NAME:
@@ -168,7 +168,7 @@ func (e *ExtraRequireRemover) RemoveExtraRequiresInScript() {
 //     unused: const {x, unused} = goog.require('foo.bar');
 //
 // Java: ExtraRequireRemover.removeExtraRequire(Node, String)
-func (e *ExtraRequireRemover) RemoveExtraRequire(call *rhino.Node, require string) {
+func (e *ExtraRequireRemover) RemoveExtraRequire(call rhino.Node, require string) {
 	if e.usages.Contains(require) {
 		return
 	}
@@ -246,7 +246,7 @@ func (e *ExtraRequireRemover) RemoveExtraRequire(call *rhino.Node, require strin
 // in the case of goog.require('foo.bar');
 //
 // Java: ExtraRequireRemover.visitRequire(String, String, Node)
-func (e *ExtraRequireRemover) VisitRequire(localName string, namespace string, node *rhino.Node) {
+func (e *ExtraRequireRemover) VisitRequire(localName string, namespace string, node rhino.Node) {
 	if extraRequireRemover_DEFAULT_EXTRA_NAMESPACES.Contains(namespace) {
 		return
 	}
@@ -263,7 +263,7 @@ func (e *ExtraRequireRemover) VisitRequire(localName string, namespace string, n
 // `Baz` to `usages`
 //
 // Java: ExtraRequireRemover.visitGoogRequire(String, Node, Node)
-func (e *ExtraRequireRemover) VisitGoogRequire(namespace string, googRequireCall *rhino.Node, parent *rhino.Node) {
+func (e *ExtraRequireRemover) VisitGoogRequire(namespace string, googRequireCall rhino.Node, parent rhino.Node) {
 	// local names
 	if parent.IsName() {
 		e.VisitRequire(parent.GetString(), namespace, googRequireCall)
@@ -271,7 +271,7 @@ func (e *ExtraRequireRemover) VisitGoogRequire(namespace string, googRequireCall
 		// destructured imports
 		if parent.GetFirstChild().HasChildren() {
 			// loop through identifiers in destructured import
-			for stringKey := parent.GetFirstFirstChild(); stringKey != nil; stringKey = stringKey.GetNext() {
+			for stringKey := parent.GetFirstFirstChild(); !stringKey.IsNil(); stringKey = stringKey.GetNext() {
 				importName := stringKey.GetFirstChild()
 				e.VisitRequire(importName.GetString(), namespace, importName)
 			}
@@ -294,7 +294,7 @@ var extraRequireRemover_GOOG_MODULE_GET = rhino.QualifiedName_Of("goog.module.ge
 // 'goog.require('foo')'
 //
 // Java: ExtraRequireRemover.visitCallNode(Node, Node)
-func (e *ExtraRequireRemover) VisitCallNode(call *rhino.Node, parent *rhino.Node) {
+func (e *ExtraRequireRemover) VisitCallNode(call rhino.Node, parent rhino.Node) {
 	required := e.ExtractNamespaceIfRequire(call)
 	if required != nil {
 		e.VisitGoogRequire(*required, call, parent)
@@ -326,7 +326,7 @@ func (e *ExtraRequireRemover) AddUsagesOfAllPrefixes(qualifiedName rhino.Qualifi
 }
 
 // Java: ExtraRequireRemover.visitQualifiedName(Node)
-func (e *ExtraRequireRemover) VisitQualifiedName(n *rhino.Node) {
+func (e *ExtraRequireRemover) VisitQualifiedName(n rhino.Node) {
 	jutil.CheckArgumentMsg1(n.IsQualifiedName(), "%s", n)
 	e.AddUsagesOfAllPrefixes(n.GetQualifiedNameObject())
 }
@@ -335,7 +335,7 @@ func (e *ExtraRequireRemover) VisitQualifiedName(n *rhino.Node) {
 // through its type names and track usages
 //
 // Java: ExtraRequireRemover.maybeAddJsDocUsages(Node)
-func (e *ExtraRequireRemover) MaybeAddJsDocUsages(n *rhino.Node) {
+func (e *ExtraRequireRemover) MaybeAddJsDocUsages(n rhino.Node) {
 	info := n.GetJSDocInfo()
 	if info == nil {
 		return
@@ -349,10 +349,10 @@ func (e *ExtraRequireRemover) MaybeAddJsDocUsages(n *rhino.Node) {
 }
 
 // Java: ExtraRequireRemover.isTsickleProtoCall(Node)
-func ExtraRequireRemover_IsTsickleProtoCall(call *rhino.Node) bool {
+func ExtraRequireRemover_IsTsickleProtoCall(call rhino.Node) bool {
 	if !call.IsCall() || !strings.HasSuffix(*call.GetSourceFileName(), ".closure.js") {
 		return false
 	}
 	moduleId := call.GetSecondChild()
-	return moduleId != nil && moduleId.IsStringLit() && strings.HasPrefix(moduleId.GetString(), "proto.")
+	return !moduleId.IsNil() && moduleId.IsStringLit() && strings.HasPrefix(moduleId.GetString(), "proto.")
 }

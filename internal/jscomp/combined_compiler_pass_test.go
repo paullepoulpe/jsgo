@@ -51,7 +51,7 @@ func TestCombinedCompilerPassTest(t *testing.T) {
 //	a b c   e f g   i j k
 //
 // Java: CombinedCompilerPassTest.createPostOrderAlphabet()
-func combinedCompilerPassTest_createPostOrderAlphabet() *rhino.Node {
+func combinedCompilerPassTest_createPostOrderAlphabet() rhino.Node {
 	a := rhino.Node_NewString("a")
 	b := rhino.Node_NewString("b")
 	c := rhino.Node_NewString("c")
@@ -115,13 +115,13 @@ func (c *combinedCompilerPassTest_ConcatTraversal) Ignore(s string) *combinedCom
 }
 
 // Java: CombinedCompilerPassTest.ConcatTraversal.visit(NodeTraversal, Node, Node)
-func (c *combinedCompilerPassTest_ConcatTraversal) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *combinedCompilerPassTest_ConcatTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	AssertThat(n.GetToken()).IsEqualTo(rhino.Token_STRINGLIT)
 	c.visited.Append(n.GetString())
 }
 
 // Java: CombinedCompilerPassTest.ConcatTraversal.shouldTraverse(NodeTraversal, Node, Node)
-func (c *combinedCompilerPassTest_ConcatTraversal) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *combinedCompilerPassTest_ConcatTraversal) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	AssertThat(n.GetToken()).IsEqualTo(rhino.Token_STRINGLIT)
 	c.shouldTraversed.Append(n.GetString())
 	return !c.ignoring.Contains(n.GetString())
@@ -193,7 +193,7 @@ func combinedCompilerPassTest_createStringTests() []*combinedCompilerPassTest_Te
 func (c *CombinedCompilerPassTest) TestIndividualPasses() {
 	for _, test := range combinedCompilerPassTest_createStringTests() {
 		pass := NewCombinedCompilerPass(c.compiler, test.GetTraversal())
-		pass.Process(nil, combinedCompilerPassTest_createPostOrderAlphabet())
+		pass.Process(rhino.Node{}, combinedCompilerPassTest_createPostOrderAlphabet())
 		test.CheckResults()
 	}
 }
@@ -208,7 +208,7 @@ func (c *CombinedCompilerPassTest) TestCombinedPasses() {
 		i++
 	}
 	pass := NewCombinedCompilerPass(c.compiler, callbacks...)
-	pass.Process(nil, combinedCompilerPassTest_createPostOrderAlphabet())
+	pass.Process(rhino.Node{}, combinedCompilerPassTest_createPostOrderAlphabet())
 	for _, test := range tests {
 		test.CheckResults()
 	}
@@ -218,13 +218,13 @@ func (c *CombinedCompilerPassTest) TestCombinedPasses() {
 // visited during an AST traversal. Abbreviates traversals by ignoring
 // subtrees rooted with specified NAME nodes.
 type combinedCompilerPassTest_ScopeRecordingCallback struct {
-	visitedScopes *jutil.LinkedHashSet[*rhino.Node]
+	visitedScopes *jutil.LinkedHashSet[rhino.Node]
 	ignoring      *jutil.LinkedHashSet[string]
 }
 
 func newCombinedCompilerPassTest_ScopeRecordingCallback() *combinedCompilerPassTest_ScopeRecordingCallback {
 	return &combinedCompilerPassTest_ScopeRecordingCallback{
-		visitedScopes: jutil.NewLinkedHashSet[*rhino.Node](),
+		visitedScopes: jutil.NewLinkedHashSet[rhino.Node](),
 		ignoring:      jutil.NewLinkedHashSet[string](),
 	}
 }
@@ -240,12 +240,12 @@ func (c *combinedCompilerPassTest_ScopeRecordingCallback) EnterScope(t *NodeTrav
 }
 
 // Java: CombinedCompilerPassTest.ScopeRecordingCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *combinedCompilerPassTest_ScopeRecordingCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *combinedCompilerPassTest_ScopeRecordingCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return !n.IsName() || !c.ignoring.Contains(n.GetString())
 }
 
 // Java: CombinedCompilerPassTest.ScopeRecordingCallback.getVisitedScopes()
-func (c *combinedCompilerPassTest_ScopeRecordingCallback) GetVisitedScopes() *jutil.LinkedHashSet[*rhino.Node] {
+func (c *combinedCompilerPassTest_ScopeRecordingCallback) GetVisitedScopes() *jutil.LinkedHashSet[rhino.Node] {
 	return c.visitedScopes
 }
 
@@ -253,7 +253,7 @@ func (c *combinedCompilerPassTest_ScopeRecordingCallback) GetVisitedScopes() *ju
 func (c *combinedCompilerPassTest_ScopeRecordingCallback) ExitScope(t *NodeTraversal) {}
 
 // Java: CombinedCompilerPassTest.ScopeRecordingCallback.visit(NodeTraversal, Node, Node)
-func (c *combinedCompilerPassTest_ScopeRecordingCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *combinedCompilerPassTest_ScopeRecordingCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 // Java: CombinedCompilerPassTest.testScopes()
@@ -267,7 +267,7 @@ func (c *CombinedCompilerPassTest) TestScopes() {
 	c3 := newCombinedCompilerPassTest_ScopeRecordingCallback()
 
 	pass := NewCombinedCompilerPass(c.compiler, c1, c2, c3)
-	pass.Process(nil, root)
+	pass.Process(rhino.Node{}, root)
 
 	AssertThat(c1.GetVisitedScopes().Size()).IsEqualTo(1)
 	AssertThat(c2.GetVisitedScopes().Size()).IsEqualTo(3)

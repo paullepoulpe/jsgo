@@ -184,7 +184,7 @@ func (p *JSDocInfo_Property) Clone(arg any, transform JSDocInfo_TypeTransform) a
 		}
 		return out
 	case jsDocPropKindNodeMap:
-		return jutil.NewLinkedHashMapFrom(jsdocGet[*jutil.LinkedHashMap[string, *Node]](arg))
+		return jutil.NewLinkedHashMapFrom(jsdocGet[*jutil.LinkedHashMap[string, Node]](arg))
 	}
 	return arg
 }
@@ -252,14 +252,14 @@ func (p *JSDocInfo_Property) EqualValues(left any, right any) bool {
 		}
 		return true
 	case jsDocPropKindNodeMap:
-		l := jsdocGet[*jutil.LinkedHashMap[string, *Node]](left)
-		r := jsdocGet[*jutil.LinkedHashMap[string, *Node]](right)
+		l := jsdocGet[*jutil.LinkedHashMap[string, Node]](left)
+		r := jsdocGet[*jutil.LinkedHashMap[string, Node]](right)
 		if l.Size() != r.Size() {
 			return false
 		}
 		for k, v := range l.All() {
 			rightValue := r.Get(k)
-			if rightValue == nil || !v.IsEquivalentTo(rightValue) {
+			if rightValue.IsNil() || !v.IsEquivalentTo(rightValue) {
 				return false
 			}
 		}
@@ -696,7 +696,7 @@ func (p *JSDocInfo_TrimmedStringPosition) SetItem(item string) {
 // JSDocInfo_NamePosition is a piece of information (found in a marker) which
 // contains a position with a name node.
 type JSDocInfo_NamePosition struct {
-	SourcePositionBase[*Node]
+	SourcePositionBase[Node]
 }
 
 // Java: JSDocInfo.NamePosition()
@@ -705,19 +705,19 @@ func NewJSDocInfo_NamePosition() *JSDocInfo_NamePosition {
 }
 
 // Java: JSDocInfo.NamePosition.isEquivalentTo(SourcePosition<Node>)
-func (p *JSDocInfo_NamePosition) IsEquivalentTo(that SourcePosition[*Node]) bool {
+func (p *JSDocInfo_NamePosition) IsEquivalentTo(that SourcePosition[Node]) bool {
 	if jutil.IsNil(that) ||
 		!p.IsSamePositionAs(that) ||
-		(p.GetItem() == nil) != (that.GetItem() == nil) {
+		(p.GetItem().IsNil()) != (that.GetItem().IsNil()) {
 		return false
 	}
-	return p.GetItem() == nil || p.GetItem().IsEquivalentTo(that.GetItem())
+	return p.GetItem().IsNil() || p.GetItem().IsEquivalentTo(that.GetItem())
 }
 
 // JSDocInfo_TypePosition is a piece of information (found in a marker) which
 // contains a position with a type expression syntax tree.
 type JSDocInfo_TypePosition struct {
-	SourcePositionBase[*Node]
+	SourcePositionBase[Node]
 	brackets bool
 }
 
@@ -739,15 +739,15 @@ func (p *JSDocInfo_TypePosition) SetHasBrackets(newVal bool) {
 }
 
 // Java: JSDocInfo.TypePosition.isEquivalentTo(SourcePosition<Node>)
-func (p *JSDocInfo_TypePosition) IsEquivalentTo(that SourcePosition[*Node]) bool {
+func (p *JSDocInfo_TypePosition) IsEquivalentTo(that SourcePosition[Node]) bool {
 	typePosition, ok := that.(*JSDocInfo_TypePosition)
 	if !ok || typePosition == nil ||
 		!p.IsSamePositionAs(that) ||
 		p.brackets != typePosition.brackets ||
-		(p.GetItem() == nil) != (that.GetItem() == nil) {
+		(p.GetItem().IsNil()) != (that.GetItem().IsNil()) {
 		return false
 	}
-	return p.GetItem() == nil || p.GetItem().IsEquivalentTo(that.GetItem())
+	return p.GetItem().IsNil() || p.GetItem().IsEquivalentTo(that.GetItem())
 }
 
 // JSDocInfo_Marker defines a class for containing the parsing information
@@ -829,9 +829,9 @@ func (m *JSDocInfo_Marker) SetType(p *JSDocInfo_TypePosition) {
 // Java: JSDocInfo.Marker.isEquivalentTo(Marker)
 func (m *JSDocInfo_Marker) IsEquivalentTo(that *JSDocInfo_Marker) bool {
 	return JSDocInfo_Marker_AreEquivalent[string](m.annotation, that.annotation) &&
-		JSDocInfo_Marker_AreEquivalent[*Node](m.nameNode, that.nameNode) &&
+		JSDocInfo_Marker_AreEquivalent[Node](m.nameNode, that.nameNode) &&
 		JSDocInfo_Marker_AreEquivalent[string](m.description, that.description) &&
-		JSDocInfo_Marker_AreEquivalent[*Node](m.type_, that.type_)
+		JSDocInfo_Marker_AreEquivalent[Node](m.type_, that.type_)
 }
 
 // JSDocInfo_Marker_AreEquivalent compares two nullable positions.
@@ -2099,7 +2099,7 @@ func (i *JSDocInfo) GetTemplateTypeNames() []string {
 
 var (
 	jsDocInfo_noTemplateTypes       = jutil.NewLinkedHashMap[string, *JSTypeExpression]()
-	jsDocInfo_noTypeTransformations = jutil.NewLinkedHashMap[string, *Node]()
+	jsDocInfo_noTypeTransformations = jutil.NewLinkedHashMap[string, Node]()
 )
 
 // Java: JSDocInfo.getTemplateTypes()
@@ -2114,8 +2114,8 @@ func (i *JSDocInfo) GetTemplateTypes() *jutil.LinkedHashMap[string, *JSTypeExpre
 // GetTypeTransformations gets the type transformations.
 //
 // Java: JSDocInfo.getTypeTransformations()
-func (i *JSDocInfo) GetTypeTransformations() *jutil.LinkedHashMap[string, *Node] {
-	m := jsdocGet[*jutil.LinkedHashMap[string, *Node]](JSDocInfo_TYPE_TRANSFORMATIONS.Get(i))
+func (i *JSDocInfo) GetTypeTransformations() *jutil.LinkedHashMap[string, Node] {
+	m := jsdocGet[*jutil.LinkedHashMap[string, Node]](JSDocInfo_TYPE_TRANSFORMATIONS.Get(i))
 	if m != nil {
 		return m
 	}
@@ -2167,7 +2167,7 @@ func (i *JSDocInfo) TypeExprIter() JSDocTypeExprIterator {
 func (it *JSDocTypeExprIterator) Expr() *JSTypeExpression { return it.cur }
 
 // Node returns the root Node of the current JSTypeExpression after Next returns true.
-func (it *JSDocTypeExprIterator) Node() *Node { return it.cur.GetRoot() }
+func (it *JSDocTypeExprIterator) Node() Node { return it.cur.GetRoot() }
 
 // Next advances to the next non-nil JSTypeExpression and reports whether one exists.
 func (it *JSDocTypeExprIterator) Next() bool {
@@ -2237,8 +2237,8 @@ func (i *JSDocInfo) TypeExpressions() iter.Seq[*JSTypeExpression] {
 
 // TypeNodes iterates over all type AST root nodes in this JSDocInfo without
 // allocating intermediate slices.
-func (i *JSDocInfo) TypeNodes() iter.Seq[*Node] {
-	return func(yield func(*Node) bool) {
+func (i *JSDocInfo) TypeNodes() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
 		for it := i.TypeExprIter(); it.Next(); {
 			if !yield(it.Node()) {
 				return
@@ -2282,8 +2282,8 @@ func (i *JSDocInfo) GetTypeExpressions() []*JSTypeExpression {
 // nodes here.
 //
 // Java: JSDocInfo.getTypeNodes()
-func (i *JSDocInfo) GetTypeNodes() []*Node {
-	nodes := []*Node{}
+func (i *JSDocInfo) GetTypeNodes() []Node {
+	nodes := []Node{}
 
 	for it := i.TypeExprIter(); it.Next(); {
 		nodes = append(nodes, it.Node())
@@ -2640,7 +2640,7 @@ func (b *JSDocInfo_Builder) MarkText(text string, startLineno int, startCharno i
 // MarkTypeNode adds a type declaration to the current marker.
 //
 // Java: JSDocInfo.Builder.markTypeNode(Node, int, int, int, int, boolean)
-func (b *JSDocInfo_Builder) MarkTypeNode(typeNode *Node, lineno int, startCharno int, endLineno int, endCharno int, hasLC bool) {
+func (b *JSDocInfo_Builder) MarkTypeNode(typeNode Node, lineno int, startCharno int, endLineno int, endCharno int, hasLC bool) {
 	if b.currentMarker != nil {
 		position := NewJSDocInfo_TypePosition()
 		position.SetItem(typeNode)
@@ -2653,7 +2653,7 @@ func (b *JSDocInfo_Builder) MarkTypeNode(typeNode *Node, lineno int, startCharno
 // MarkName adds a name declaration to the current marker.
 //
 // Java: JSDocInfo.Builder.markName(String, Node, int, int)
-func (b *JSDocInfo_Builder) MarkName(name string, templateNode *Node, lineno int, charno int) {
+func (b *JSDocInfo_Builder) MarkName(name string, templateNode Node, lineno int, charno int) {
 	if b.currentMarker != nil {
 		// Record the name as both a SourcePosition<String> and a
 		// SourcePosition<Node>. The <String> form is deprecated, because <Node>
@@ -2669,7 +2669,7 @@ func (b *JSDocInfo_Builder) MarkName(name string, templateNode *Node, lineno int
 		nodePos := NewJSDocInfo_NamePosition()
 		node := Node_NewStringWithToken(Token_NAME, name).SetLinenoCharno(lineno, charno)
 		node.SetLength(jutil.StringLength(name))
-		if templateNode != nil {
+		if !templateNode.IsNil() {
 			node.SetStaticSourceFileFrom(templateNode)
 		}
 		nodePos.SetItem(node)
@@ -2746,7 +2746,7 @@ func (b *JSDocInfo_Builder) RecordTemplateTypeNameWithBound(name string, bound *
 	if bound == nil {
 		bound = JSTypeExpression_IMPLICIT_TEMPLATE_BOUND
 	}
-	transformations := jsdocGet[*jutil.LinkedHashMap[string, *Node]](b.GetProp(JSDocInfo_TYPE_TRANSFORMATIONS))
+	transformations := jsdocGet[*jutil.LinkedHashMap[string, Node]](b.GetProp(JSDocInfo_TYPE_TRANSFORMATIONS))
 	if (transformations != nil && transformations.ContainsKey(name)) ||
 		b.hasPropKey(JSDocInfo_TYPEDEF_TYPE) {
 		return false
@@ -2758,7 +2758,7 @@ func (b *JSDocInfo_Builder) RecordTemplateTypeNameWithBound(name string, bound *
 // together with its template type name.
 //
 // Java: JSDocInfo.Builder.recordTypeTransformation(String, Node)
-func (b *JSDocInfo_Builder) RecordTypeTransformation(name string, expr *Node) bool {
+func (b *JSDocInfo_Builder) RecordTypeTransformation(name string, expr Node) bool {
 	names := jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](b.GetProp(JSDocInfo_TEMPLATE_TYPE_NAMES))
 	if names != nil && names.ContainsKey(name) {
 		return false

@@ -63,7 +63,7 @@ type esModulesDump struct {
 	sections []string
 }
 
-type esModulesRun func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string)
+type esModulesRun func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string)
 
 func esModulesEscape(s string) string {
 	var b strings.Builder
@@ -118,8 +118,8 @@ func esModulesDiagnostics(compiler *Compiler) []string {
 	return out
 }
 
-func esModulesNodeRef(n *rhino.Node) string {
-	if n == nil {
+func esModulesNodeRef(n rhino.Node) string {
+	if n.IsNil() {
 		return "null"
 	}
 	return n.GetToken().String() + "@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
@@ -130,13 +130,13 @@ func esModulesNoSetup(*CompilerOptions) {}
 func esModulesCjs(o *CompilerOptions) { o.SetProcessCommonJSModules(true) }
 
 // esModulesGatherAndCreateModuleMap is the Java tool's gatherAndCreateModuleMap.
-func esModulesGatherAndCreateModuleMap(compiler *Compiler, externs *rhino.Node, js *rhino.Node, processCommonJsModules bool) {
+func esModulesGatherAndCreateModuleMap(compiler *Compiler, externs rhino.Node, js rhino.Node, processCommonJsModules bool) {
 	compiler.GetSynthesizedExternsInput()
 	NewGatherModuleMetadata(compiler, processCommonJsModules, ModuleLoader_ResolutionMode_BROWSER).Process(externs, js)
 	NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap()).Process(externs, js)
 }
 
-func esModulesRewriteModules(compiler *Compiler, externs *rhino.Node, js *rhino.Node) {
+func esModulesRewriteModules(compiler *Compiler, externs rhino.Node, js rhino.Node) {
 	NewEs6RewriteModulesWithChunkOutputType(
 		compiler,
 		compiler.GetModuleMetadataMap(),
@@ -296,12 +296,12 @@ func (d *esModulesDump) dumpFile(rel string, src string) {
 	for _, section := range d.sections {
 		switch section {
 		case "gather":
-			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 				NewGatherModuleMetadata(compiler, false, ModuleLoader_ResolutionMode_BROWSER).Process(externs, js)
 				esModulesMetadata(compiler.GetModuleMetadataMap(), extra)
 			})
 		case "gatherCjs":
-			d.pass(rel, src, nil, section, esModulesCjs, func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+			d.pass(rel, src, nil, section, esModulesCjs, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 				for _, input := range compiler.GetChunkGraph().GetAllInputs() {
 					*extra = append(*extra, "input "+input.GetName()+" "+input.GetJsModuleType().String())
 				}
@@ -309,34 +309,34 @@ func (d *esModulesDump) dumpFile(rel string, src string) {
 				esModulesMetadata(compiler.GetModuleMetadataMap(), extra)
 			})
 		case "rewriteCommonJs":
-			d.pass(rel, src, nil, section, esModulesCjs, func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+			d.pass(rel, src, nil, section, esModulesCjs, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 				esModulesGatherAndCreateModuleMap(compiler, externs, js, true)
 				NewProcessCommonJSModules(compiler).Process(externs, js)
 			})
 		case "es6RewriteModules":
-			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 				compiler.GetSynthesizedExternsInput()
 				NewEs6RewriteScriptsToModules(compiler).Process(externs, js)
 				esModulesGatherAndCreateModuleMap(compiler, externs, js, false)
 				esModulesRewriteModules(compiler, externs, js)
 			})
 		case "es6ToCjs":
-			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 				esModulesGatherAndCreateModuleMap(compiler, externs, js, false)
 				NewEs6RewriteModulesToCommonJsModules(compiler).Process(externs, js)
 			})
 		case "relativize":
-			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 				NewEs6RelativizeImportPaths(compiler).Process(externs, js)
 			})
 		case "dynamicImports":
-			d.pass(rel, src, parseDiags, section, func(o *CompilerOptions) { o.SetAllowDynamicImport(true) }, func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+			d.pass(rel, src, parseDiags, section, func(o *CompilerOptions) { o.SetAllowDynamicImport(true) }, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 				esModulesGatherAndCreateModuleMap(compiler, externs, js, false)
 				esModulesRewriteModules(compiler, externs, js)
 				NewRewriteDynamicImports(compiler, nil, CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE).Process(externs, js)
 			})
 		case "ijs":
-			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 				NewConvertToTypedInterface(compiler).Process(externs, js)
 			})
 		default:

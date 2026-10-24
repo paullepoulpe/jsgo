@@ -69,7 +69,7 @@ func NewJ2clChecksPass(compiler AbstractCompiler) *J2clChecksPass {
 }
 
 // Java: J2clChecksPass.visit(NodeTraversal, Node, Node)
-func (p *J2clChecksPass) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *J2clChecksPass) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SHEQ, rhino.Token_EQ, rhino.Token_SHNE, rhino.Token_NE:
 		firstJsType := n.GetFirstChild().GetJSType()
@@ -90,7 +90,7 @@ func (p *J2clChecksPass) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhi
 // equality check of the specified type.
 //
 // Java: J2clChecksPass.checkReferenceEquality(Node, String, String)
-func (p *J2clChecksPass) CheckReferenceEquality(n *rhino.Node, typeName string, fileName string) {
+func (p *J2clChecksPass) CheckReferenceEquality(n rhino.Node, typeName string, fileName string) {
 	if n.IsSHEQ() || n.IsEQ() || n.IsSHNE() || n.IsNE() {
 		firstJsType := n.GetFirstChild().GetJSType()
 		lastJsType := n.GetLastChild().GetJSType()
@@ -134,14 +134,14 @@ func (p *J2clChecksPass) GetSourceName(jsType rhino.JSType) *string {
 	return NodeUtil_GetSourceName(constructor.GetSource())
 }
 
-func (p *J2clChecksPass) walk(n *rhino.Node) {
+func (p *J2clChecksPass) walk(n rhino.Node) {
 	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if c.IsComputedProp() || c.IsComputedFieldDef() {
 				p.walk(c.GetFirstChild())
 			}
 		}
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			switch c.GetToken() {
 			case rhino.Token_COMPUTED_PROP:
 				p.walk(c.GetLastChild())
@@ -155,8 +155,8 @@ func (p *J2clChecksPass) walk(n *rhino.Node) {
 		}
 		return
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		if c.GetFirstChild() != nil {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if !c.GetFirstChild().IsNil() {
 			p.walk(c)
 		}
 	}
@@ -167,8 +167,8 @@ func (p *J2clChecksPass) walk(n *rhino.Node) {
 }
 
 // Java: J2clChecksPass.process(Node, Node)
-func (p *J2clChecksPass) Process(externs *rhino.Node, root *rhino.Node) {
-	if root != nil {
+func (p *J2clChecksPass) Process(externs rhino.Node, root rhino.Node) {
+	if !root.IsNil() {
 		p.walk(root)
 	}
 }

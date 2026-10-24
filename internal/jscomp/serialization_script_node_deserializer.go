@@ -73,7 +73,7 @@ var scriptNodeDeserializerRunnerPool = sync.Pool{
 }
 
 // Java: ScriptNodeDeserializer.deserializeNew()
-func (d *ScriptNodeDeserializer) DeserializeNew() *rhino.Node {
+func (d *ScriptNodeDeserializer) DeserializeNew() rhino.Node {
 	r := scriptNodeDeserializerRunnerPool.Get().(*scriptNodeDeserializer_Runner)
 	r.owner_ = d
 	r.featureCollectorVal.Reset()
@@ -84,7 +84,6 @@ func (d *ScriptNodeDeserializer) DeserializeNew() *rhino.Node {
 	defer func() {
 		r.owner_ = nil
 		r.featureCollector = nil
-		r.templateNodeVal = rhino.Node{}
 		clear(r.childBytes)
 		r.childBytes = r.childBytes[:0]
 		r.jsdoc = OptimizationJsdoc{}
@@ -98,7 +97,6 @@ type scriptNodeDeserializer_Runner struct {
 	owner_              *ScriptNodeDeserializer
 	featureCollector    *parsing.FeatureCollector
 	featureCollectorVal parsing.FeatureCollector
-	templateNodeVal     rhino.Node
 	previousLine        int
 	previousColumn      int
 	childBytes          [][]byte
@@ -113,7 +111,7 @@ func newScriptNodeDeserializer_Runner(owner *ScriptNodeDeserializer) *scriptNode
 }
 
 // Java: ScriptNodeDeserializer.Runner.run()
-func (r *scriptNodeDeserializer_Runner) Run() (result *rhino.Node) {
+func (r *scriptNodeDeserializer_Runner) Run() (result rhino.Node) {
 	jutil.Try(func() {
 		contextStack := r.contextStack
 		if contextStack == nil {
@@ -147,8 +145,8 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 	data []byte,
 	depth int,
 	contextStack *jutil.ArrayList[parsing.FeatureCollector_FeatureContext],
-	sourceFileTemplate *rhino.Node,
-) (*rhino.Node, int32) {
+	sourceFileTemplate rhino.Node,
+) (rhino.Node, int32) {
 	var (
 		kindVal             int32
 		stringValuePointer  int32
@@ -230,7 +228,7 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 	}
 
 	owner := r.owner_
-	if sourceFileTemplate == nil || sourceFile != 0 {
+	if sourceFileTemplate.IsNil() || sourceFile != 0 {
 		// 0 == 'not set'
 		sourceFileTemplate = owner.CreateSourceInfoTemplate(owner.filePool[sourceFile-1])
 	}
@@ -302,12 +300,12 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 	return n, originalNamePointer
 }
 
-func (r *scriptNodeDeserializer_Runner) stringNode(token rhino.Token, stringValPtr int32, templateNode *rhino.Node) *rhino.Node {
+func (r *scriptNodeDeserializer_Runner) stringNode(token rhino.Token, stringValPtr int32, templateNode rhino.Node) rhino.Node {
 	id := r.owner_.stringPool.GetInternedStrings().GetID(int(stringValPtr))
 	return rhino.AllocNode().InitFromTemplate(token, templateNode).SetStringID(id)
 }
 
-func (r *scriptNodeDeserializer_Runner) newNodeFromTemplate(token rhino.Token, templateNode *rhino.Node) *rhino.Node {
+func (r *scriptNodeDeserializer_Runner) newNodeFromTemplate(token rhino.Token, templateNode rhino.Node) rhino.Node {
 	return rhino.AllocNode().InitFromTemplate(token, templateNode)
 }
 
@@ -317,8 +315,8 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 	doubleVal float64,
 	templateRawPtr int32,
 	templateCookedPtr int32,
-	templateNode *rhino.Node,
-) *rhino.Node {
+	templateNode rhino.Node,
+) rhino.Node {
 	switch kind {
 	case NodeKind_SOURCE_FILE:
 		return rhino.AllocNode().InitFromTemplate(rhino.Token_SCRIPT, templateNode)
@@ -641,8 +639,8 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 //
 // Java: ScriptNodeDeserializer.Runner.visit(AstNode, List<FeatureContext>, Node)
 func (r *scriptNodeDeserializer_Runner) Visit(
-	astNode *AstNode, contextStack *jutil.ArrayList[parsing.FeatureCollector_FeatureContext], sourceFileTemplate *rhino.Node) *rhino.Node {
-	if sourceFileTemplate == nil || astNode.GetSourceFile() != 0 {
+	astNode *AstNode, contextStack *jutil.ArrayList[parsing.FeatureCollector_FeatureContext], sourceFileTemplate rhino.Node) rhino.Node {
+	if sourceFileTemplate.IsNil() || astNode.GetSourceFile() != 0 {
 		// 0 == 'not set'
 		sourceFileTemplate =
 			r.Owner().
@@ -728,12 +726,12 @@ func (d *ScriptNodeDeserializer) GetSourceFile() *SourceFile {
 // O(files).
 //
 // Java: ScriptNodeDeserializer.createSourceInfoTemplate(SourceFile)
-func (d *ScriptNodeDeserializer) CreateSourceInfoTemplate(file *SourceFile) *rhino.Node {
+func (d *ScriptNodeDeserializer) CreateSourceInfoTemplate(file *SourceFile) rhino.Node {
 	return file.getOrCreateSourceInfoTemplate()
 }
 
 // Java: ScriptNodeDeserializer.setOriginalNameIfPresent(AstNode, Node)
-func (d *ScriptNodeDeserializer) SetOriginalNameIfPresent(astNode *AstNode, n *rhino.Node) {
+func (d *ScriptNodeDeserializer) SetOriginalNameIfPresent(astNode *AstNode, n rhino.Node) {
 	if astNode.GetOriginalNamePointer() != 0 {
 		n.SetOriginalNameFromStringPool(
 			d.stringPool.GetInternedStrings(), int(astNode.GetOriginalNamePointer()))
@@ -748,21 +746,21 @@ func (d *ScriptNodeDeserializer) SetOriginalNameIfPresent(astNode *AstNode, n *r
 // interning results.
 //
 // Java: ScriptNodeDeserializer.stringNode(Token, AstNode, Node)
-func (d *ScriptNodeDeserializer) StringNode(token rhino.Token, n *AstNode, templateNode *rhino.Node) *rhino.Node {
+func (d *ScriptNodeDeserializer) StringNode(token rhino.Token, n *AstNode, templateNode rhino.Node) rhino.Node {
 	str := rhino.Node_NewStringFromStringPool(token, d.stringPool.GetInternedStrings(), int(n.GetStringValuePointer()))
 	str.ClonePropsFrom(templateNode)
 	return str
 }
 
 // Java: ScriptNodeDeserializer.newNodeFromTemplate(Token, Node)
-func (d *ScriptNodeDeserializer) NewNodeFromTemplate(token rhino.Token, templateNode *rhino.Node) *rhino.Node {
+func (d *ScriptNodeDeserializer) NewNodeFromTemplate(token rhino.Token, templateNode rhino.Node) rhino.Node {
 	n := templateNode.CloneTree()
 	n.SetToken(token)
 	return n
 }
 
 // Java: ScriptNodeDeserializer.deserializeSingleNode(AstNode, Node)
-func (d *ScriptNodeDeserializer) DeserializeSingleNode(n *AstNode, templateNode *rhino.Node) *rhino.Node {
+func (d *ScriptNodeDeserializer) DeserializeSingleNode(n *AstNode, templateNode rhino.Node) rhino.Node {
 	switch n.GetKind() {
 	case NodeKind_SOURCE_FILE:
 		return d.NewNodeFromTemplate(rhino.Token_SCRIPT, templateNode)

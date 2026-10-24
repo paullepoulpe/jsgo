@@ -57,9 +57,9 @@ type RenameProperties struct {
 	// Property renaming map from a previous compilation.
 	prevUsedPropertyMap *VariableMap
 
-	toRemove                   *jutil.ArrayList[*rhino.Node]
-	stringNodesToRename        *jutil.ArrayList[*rhino.Node]
-	callNodeToParentMap        *jutil.LinkedHashMap[*rhino.Node, *rhino.Node]
+	toRemove                   *jutil.ArrayList[rhino.Node]
+	stringNodesToRename        *jutil.ArrayList[rhino.Node]
+	callNodeToParentMap        *jutil.LinkedHashMap[rhino.Node, rhino.Node]
 	reservedFirstCharacters    jutil.Set[uint16]
 	reservedNonFirstCharacters jutil.Set[uint16]
 
@@ -77,7 +77,7 @@ type RenameProperties struct {
 
 	// Filter function for property names. The function takes a node as input and returns true if the
 	// node should be renamed.
-	propertyRenameEligibilityFilter func(*rhino.Node) bool
+	propertyRenameEligibilityFilter func(rhino.Node) bool
 	// Property names that should not be renamed, based on the propertyNameFilter. Unlike
 	// externedNames, this set is dynamically constructed during the pass.
 	filteredOutNames *jutil.LinkedHashSet[string]
@@ -137,7 +137,7 @@ func NewRenameProperties(
 		reservedFirstCharacters,
 		reservedNonFirstCharacters,
 		nameGenerator,
-		func(n *rhino.Node) bool { return true })
+		func(n rhino.Node) bool { return true })
 }
 
 // NewRenamePropertiesWithFilter creates an instance.
@@ -158,7 +158,7 @@ func NewRenamePropertiesWithFilter(
 	reservedFirstCharacters jutil.Set[uint16],
 	reservedNonFirstCharacters jutil.Set[uint16],
 	nameGenerator NameGenerator,
-	propertyRenameEligibilityFilter func(*rhino.Node) bool) *RenameProperties {
+	propertyRenameEligibilityFilter func(rhino.Node) bool) *RenameProperties {
 	externProperties := compiler.GetExternProperties()
 	if externProperties == nil {
 		panic(jutil.NewNullPointerException()) // externedNames.addAll(null)
@@ -172,9 +172,9 @@ func NewRenamePropertiesWithFilter(
 		compiler:                        compiler,
 		generatePseudoNames:             generatePseudoNames,
 		prevUsedPropertyMap:             prevUsedPropertyMap,
-		toRemove:                        jutil.NewArrayList[*rhino.Node](),
-		stringNodesToRename:             jutil.NewArrayList[*rhino.Node](),
-		callNodeToParentMap:             jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *rhino.Node](256),
+		toRemove:                        jutil.NewArrayList[rhino.Node](),
+		stringNodesToRename:             jutil.NewArrayList[rhino.Node](),
+		callNodeToParentMap:             jutil.NewLinkedHashMapWithCapacity[rhino.Node, rhino.Node](256),
 		reservedFirstCharacters:         reservedFirstCharacters,
 		reservedNonFirstCharacters:      reservedNonFirstCharacters,
 		propertyMap:                     jutil.NewLinkedHashMapWithCapacity[string, *RenameProperties_Property](4096),
@@ -188,10 +188,10 @@ func NewRenamePropertiesWithFilter(
 }
 
 // Java: RenameProperties.process(Node, Node)
-func (r *RenameProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(r.compiler.GetLifeCycleStage().IsNormalized())
 	if r.stringNodesToRename == nil {
-		r.stringNodesToRename = jutil.NewArrayList[*rhino.Node]()
+		r.stringNodesToRename = jutil.NewArrayList[rhino.Node]()
 	}
 
 	NodeTraversal_Traverse(r.compiler, root, &RenameProperties_ProcessProperties{outer: r})
@@ -383,7 +383,7 @@ type RenameProperties_ProcessProperties struct {
 }
 
 // Java: RenameProperties.ProcessProperties.visit(NodeTraversal, Node, Node)
-func (p *RenameProperties_ProcessProperties) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *RenameProperties_ProcessProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	r := p.outer
 	switch n.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_MEMBER_FIELD_DEF:
@@ -393,7 +393,7 @@ func (p *RenameProperties_ProcessProperties) Visit(t *NodeTraversal, n *rhino.No
 		// ensure that we never rename some other property in a way that
 		// could conflict with this quoted name.
 		child := n.GetLastChild()
-		if child != nil && child.IsStringLit() {
+		if !child.IsNil() && child.IsStringLit() {
 			r.quotedNames.Add(child.GetString())
 		}
 	case rhino.Token_CALL:
@@ -463,7 +463,7 @@ func (p *RenameProperties_ProcessProperties) Visit(t *NodeTraversal, n *rhino.No
 // n is the STRING node for a property.
 //
 // Java: RenameProperties.ProcessProperties.maybeMarkCandidate(Node)
-func (p *RenameProperties_ProcessProperties) MaybeMarkCandidate(n *rhino.Node) {
+func (p *RenameProperties_ProcessProperties) MaybeMarkCandidate(n rhino.Node) {
 	r := p.outer
 	name := n.GetString()
 	if !r.externedNames.Contains(name) {
@@ -481,7 +481,7 @@ func (p *RenameProperties_ProcessProperties) MaybeMarkCandidate(n *rhino.Node) {
 // callNode is the CALL node for a property; t is the traversal.
 //
 // Java: RenameProperties.ProcessProperties.countCallCandidates(NodeTraversal, Node)
-func (p *RenameProperties_ProcessProperties) CountCallCandidates(t *NodeTraversal, callNode *rhino.Node) {
+func (p *RenameProperties_ProcessProperties) CountCallCandidates(t *NodeTraversal, callNode rhino.Node) {
 	r := p.outer
 	fnName := callNode.GetFirstChild().GetString()
 	firstArg := callNode.GetSecondChild()

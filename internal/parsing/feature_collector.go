@@ -56,17 +56,17 @@ func (c *FeatureCollector) AllFeatures() *parser.FeatureSet {
 }
 
 // Java: FeatureCollector.visitScript(Node)
-func (c *FeatureCollector) VisitScript(script *rhino.Node) {
+func (c *FeatureCollector) VisitScript(script rhino.Node) {
 	emptyContext := jutil.NewArrayList[FeatureCollector_FeatureContext]()
 	emptyContext.Add(FeatureCollector_FeatureContext_NONE)
 	c.VisitRecursive(emptyContext, script)
 }
 
 // Java: FeatureCollector.visitRecursive(List<FeatureContext>, Node)
-func (c *FeatureCollector) VisitRecursive(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node *rhino.Node) {
+func (c *FeatureCollector) VisitRecursive(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node rhino.Node) {
 	newContext := c.VisitSingleNode(contextStack, node)
 	contextStack.Add(newContext)
-	for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		c.VisitRecursive(contextStack, child)
 	}
 	contextStack.RemoveAt(contextStack.Size() - 1)
@@ -78,7 +78,7 @@ func (c *FeatureCollector) VisitRecursive(contextStack *jutil.ArrayList[FeatureC
 // node: The node to visit.
 //
 // Java: FeatureCollector.visitSingleNode(List<FeatureContext>, Node)
-func (c *FeatureCollector) VisitSingleNode(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node *rhino.Node) FeatureCollector_FeatureContext {
+func (c *FeatureCollector) VisitSingleNode(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node rhino.Node) FeatureCollector_FeatureContext {
 	jutil.CheckStateMsg(
 		contextStack.Size() >= 1,
 		"The provided feature context stack was empty. It must have at least one element.")
@@ -88,7 +88,7 @@ func (c *FeatureCollector) VisitSingleNode(contextStack *jutil.ArrayList[Feature
 }
 
 // Java: FeatureCollector.recordScriptFeatures(List<FeatureContext>, Node)
-func (c *FeatureCollector) RecordScriptFeatures(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node *rhino.Node) {
+func (c *FeatureCollector) RecordScriptFeatures(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node rhino.Node) {
 	parentContext := contextStack.GetLast()
 	switch node.GetToken() {
 	case rhino.Token_FUNCTION:
@@ -212,7 +212,7 @@ func (c *FeatureCollector) RecordScriptFeatures(contextStack *jutil.ArrayList[Fe
 			c.AddScriptFeature(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
 		}
 	case rhino.Token_IN:
-		if node.GetFirstChild() != nil && node.GetFirstChild().IsPrivateIdentifier() {
+		if !node.GetFirstChild().IsNil() && node.GetFirstChild().IsPrivateIdentifier() {
 			c.AddScriptFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 		}
 	case rhino.Token_COMPUTED_FIELD_DEF:
@@ -293,7 +293,7 @@ func (c FeatureCollector_FeatureContext) String() string {
 }
 
 // Java: FeatureCollector.contextFor(List<FeatureContext>, Node)
-func FeatureCollector_ContextFor(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node *rhino.Node) FeatureCollector_FeatureContext {
+func FeatureCollector_ContextFor(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node rhino.Node) FeatureCollector_FeatureContext {
 	switch node.GetToken() {
 	case rhino.Token_PARAM_LIST:
 		return FeatureCollector_FeatureContext_PARAM_LIST

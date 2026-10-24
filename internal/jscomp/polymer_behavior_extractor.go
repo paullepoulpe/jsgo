@@ -89,8 +89,8 @@ func NewPolymerBehaviorExtractor(
 //
 // Java: PolymerBehaviorExtractor.extractBehaviors(Node, ModuleMetadata)
 func (e *PolymerBehaviorExtractor) ExtractBehaviors(
-	behaviorArray *rhino.Node, moduleMetadata *ModuleMetadataMap_ModuleMetadata) []*PolymerBehaviorExtractor_BehaviorDefinition {
-	if behaviorArray == nil {
+	behaviorArray rhino.Node, moduleMetadata *ModuleMetadataMap_ModuleMetadata) []*PolymerBehaviorExtractor_BehaviorDefinition {
+	if behaviorArray.IsNil() {
 		return nil
 	}
 
@@ -101,12 +101,12 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 	}
 
 	var behaviors []*PolymerBehaviorExtractor_BehaviorDefinition
-	for behaviorName := behaviorArray.GetFirstChild(); behaviorName != nil; behaviorName = behaviorName.GetNext() {
+	for behaviorName := behaviorArray.GetFirstChild(); !behaviorName.IsNil(); behaviorName = behaviorName.GetNext() {
 		if behaviorName.IsObjectLit() {
 			PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(behaviorName, e.compiler)
 			PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(behaviorName, e.compiler)
 			PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(behaviorName)
-			if NodeUtil_GetFirstPropMatchingKey(behaviorName, "is") != nil {
+			if !NodeUtil_GetFirstPropMatchingKey(behaviorName, "is").IsNil() {
 				e.compiler.Report(JSError_MakeWithNode(behaviorName, PolymerPassErrors_POLYMER_INVALID_BEHAVIOR))
 			}
 			behaviorModule := NodeUtil_GetEnclosingModuleIfPresent(behaviorName)
@@ -117,7 +117,7 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 						behaviorName,
 						PolymerClassDefinition_DefinitionType_ObjectLiteral,
 						e.compiler,
-						/* constructor= */ nil),
+						/* constructor= */ rhino.Node{}),
 					polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorName),
 					polymerBehaviorExtractor_getNonPropertyMembersToCopy(behaviorName),
 					/* isGlobalDeclaration= */ NodeUtil_GetEnclosingScopeRoot(behaviorName).IsRoot(),
@@ -144,7 +144,7 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 		} else if behaviorValue.IsObjectLit() {
 			PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(behaviorValue, e.compiler)
 			PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(behaviorValue, e.compiler)
-			if NodeUtil_GetFirstPropMatchingKey(behaviorValue, "is") != nil {
+			if !NodeUtil_GetFirstPropMatchingKey(behaviorValue, "is").IsNil() {
 				e.compiler.Report(JSError_MakeWithNode(behaviorValue, PolymerPassErrors_POLYMER_INVALID_BEHAVIOR))
 			}
 			behaviorModule := NodeUtil_GetEnclosingModuleIfPresent(behaviorValue)
@@ -155,7 +155,7 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 						behaviorValue,
 						PolymerClassDefinition_DefinitionType_ObjectLiteral,
 						e.compiler,
-						/* constructor= */ nil),
+						/* constructor= */ rhino.Node{}),
 					polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorValue),
 					polymerBehaviorExtractor_getNonPropertyMembersToCopy(behaviorValue),
 					resolveResult.isGlobalDeclaration,
@@ -170,14 +170,14 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 
 // Java: private static class PolymerBehaviorExtractor.ResolveBehaviorNameResult
 type PolymerBehaviorExtractor_ResolveBehaviorNameResult struct {
-	node                *rhino.Node
+	node                rhino.Node
 	isGlobalDeclaration bool
 	moduleMetadata      *ModuleMetadataMap_ModuleMetadata
 }
 
 // Java: PolymerBehaviorExtractor.ResolveBehaviorNameResult(Node, boolean, ModuleMetadata)
 func NewPolymerBehaviorExtractor_ResolveBehaviorNameResult(
-	node *rhino.Node, isGlobalDeclaration bool, moduleMetadata *ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
+	node rhino.Node, isGlobalDeclaration bool, moduleMetadata *ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
 	return &PolymerBehaviorExtractor_ResolveBehaviorNameResult{
 		node:                node,
 		isGlobalDeclaration: isGlobalDeclaration,
@@ -185,7 +185,7 @@ func NewPolymerBehaviorExtractor_ResolveBehaviorNameResult(
 	}
 }
 
-var polymerBehaviorExtractor_FAILED_RESOLVE_RESULT = NewPolymerBehaviorExtractor_ResolveBehaviorNameResult(nil, false, nil)
+var polymerBehaviorExtractor_FAILED_RESOLVE_RESULT = NewPolymerBehaviorExtractor_ResolveBehaviorNameResult(rhino.Node{}, false, nil)
 
 // resolveBehaviorName resolves an identifier, which is presumed to refer to a
 // Polymer Behavior declaration, using the global namespace. Recurses to
@@ -272,11 +272,11 @@ func (e *PolymerBehaviorExtractor) resolveBehaviorNameInternal(
 	}
 
 	declarationNode := declarationRef.GetNode()
-	if declarationNode == nil {
+	if declarationNode.IsNil() {
 		return polymerBehaviorExtractor_FAILED_RESOLVE_RESULT
 	}
 	rValue := NodeUtil_GetRValueOfLValue(declarationNode)
-	if rValue == nil {
+	if rValue.IsNil() {
 		return polymerBehaviorExtractor_FAILED_RESOLVE_RESULT
 	}
 
@@ -345,7 +345,7 @@ func (e *PolymerBehaviorExtractor) resolveReferenceToLegacyGoogModule(name strin
 var polymerBehaviorExtractor_GOOG_MODULE_GET = rhino.QualifiedName_Of("goog.module.get")
 
 // Java: PolymerBehaviorExtractor.isGoogModuleGetCall(Node)
-func polymerBehaviorExtractor_isGoogModuleGetCall(callNode *rhino.Node) bool {
+func polymerBehaviorExtractor_isGoogModuleGetCall(callNode rhino.Node) bool {
 	if !callNode.IsCall() {
 		return false
 	}
@@ -484,12 +484,12 @@ func (e *PolymerBehaviorExtractor) resolveModuleNamespaceBinding(b *Binding, res
 // functions from a behavior which should be copied to the element prototype.
 //
 // Java: PolymerBehaviorExtractor.getBehaviorFunctionsToCopy(Node)
-func polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorObjLit *rhino.Node) []*PolymerPass_MemberDefinition {
+func polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorObjLit rhino.Node) []*PolymerPass_MemberDefinition {
 	jutil.CheckState(behaviorObjLit.IsObjectLit())
 	var functionsToCopy []*PolymerPass_MemberDefinition
 	enclosingModule := NodeUtil_GetEnclosingModuleIfPresent(behaviorObjLit)
 
-	for keyNode := behaviorObjLit.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := behaviorObjLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		isFunctionDefinition := (keyNode.IsStringKey() && keyNode.GetFirstChild().IsFunction()) ||
 			keyNode.IsMemberFunctionDef()
 		if isFunctionDefinition && !polymerBehaviorExtractor_BEHAVIOR_NAMES_NOT_TO_COPY.Contains(keyNode.GetString()) {
@@ -512,7 +512,7 @@ func polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorObjLit *rhino.N
 // Polymer-specific context.
 //
 // Java: PolymerBehaviorExtractor.getQualifiedNameThroughCast(Node)
-func polymerBehaviorExtractor_getQualifiedNameThroughCast(node *rhino.Node) *string {
+func polymerBehaviorExtractor_getQualifiedNameThroughCast(node rhino.Node) *string {
 	if node.IsName() {
 		name := node.GetString()
 		if name == "" {
@@ -538,12 +538,12 @@ func polymerBehaviorExtractor_getQualifiedNameThroughCast(node *rhino.Node) *str
 // should still be copied to the element prototype.
 //
 // Java: PolymerBehaviorExtractor.getNonPropertyMembersToCopy(Node)
-func polymerBehaviorExtractor_getNonPropertyMembersToCopy(behaviorObjLit *rhino.Node) []*PolymerPass_MemberDefinition {
+func polymerBehaviorExtractor_getNonPropertyMembersToCopy(behaviorObjLit rhino.Node) []*PolymerPass_MemberDefinition {
 	jutil.CheckState(behaviorObjLit.IsObjectLit())
 	var membersToCopy []*PolymerPass_MemberDefinition
 	enclosingModule := NodeUtil_GetEnclosingModuleIfPresent(behaviorObjLit)
 
-	for keyNode := behaviorObjLit.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := behaviorObjLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		isNonFunctionMember := keyNode.IsGetterDef() || (keyNode.IsStringKey() && !keyNode.GetFirstChild().IsFunction())
 		if isNonFunctionMember && !polymerBehaviorExtractor_BEHAVIOR_NAMES_NOT_TO_COPY.Contains(keyNode.GetString()) {
 			membersToCopy = append(membersToCopy,
@@ -580,7 +580,7 @@ type PolymerBehaviorExtractor_BehaviorDefinition struct {
 	features *parser.FeatureSet
 
 	// Containing MODULE_BODY if this behavior is defined inside a module, otherwise null
-	behaviorModule *rhino.Node
+	behaviorModule rhino.Node
 
 	lazyModuleLocalNames *jutil.LinkedHashSet[string]
 }
@@ -592,7 +592,7 @@ func NewPolymerBehaviorExtractor_BehaviorDefinition(
 	nonPropertyMembersToCopy []*PolymerPass_MemberDefinition,
 	isGlobalDeclaration bool,
 	features *parser.FeatureSet,
-	behaviorModule *rhino.Node) *PolymerBehaviorExtractor_BehaviorDefinition {
+	behaviorModule rhino.Node) *PolymerBehaviorExtractor_BehaviorDefinition {
 	return &PolymerBehaviorExtractor_BehaviorDefinition{
 		props:                    props,
 		functionsToCopy:          functionsToCopy,

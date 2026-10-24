@@ -57,16 +57,16 @@ func NewEs6RewriteSpreadExpressions(compiler AbstractCompiler) *Es6RewriteSpread
 }
 
 // Java: Es6RewriteSpreadExpressions.process(Node, Node)
-func (e *Es6RewriteSpreadExpressions) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6RewriteSpreadExpressions) Process(externs rhino.Node, root rhino.Node) {
 	TranspilationPasses_ProcessTranspile(e.compiler, root, Es6RewriteSpreadExpressions_TRANSPILED_FEATURES, e)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, Es6RewriteSpreadExpressions_TRANSPILED_FEATURES)
 }
 
 // Java: Es6RewriteSpreadExpressions.visit(NodeTraversal, Node, Node)
-func (e *Es6RewriteSpreadExpressions) Visit(traversal *NodeTraversal, current *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteSpreadExpressions) Visit(traversal *NodeTraversal, current rhino.Node, parent rhino.Node) {
 	token := current.GetToken()
 	if token == rhino.Token_ARRAYLIT || token == rhino.Token_NEW || token == rhino.Token_CALL {
-		for child := current.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := current.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if child.IsSpread() {
 				e.VisitArrayLitOrCallWithSpread(traversal, current)
 				break
@@ -86,7 +86,7 @@ func (e *Es6RewriteSpreadExpressions) Visit(traversal *NodeTraversal, current *r
 //     [null].concat($jscomp.arrayFromIterable(args)))
 //
 // Java: Es6RewriteSpreadExpressions.visitArrayLitOrCallWithSpread(NodeTraversal, Node)
-func (e *Es6RewriteSpreadExpressions) VisitArrayLitOrCallWithSpread(t *NodeTraversal, spreadParent *rhino.Node) {
+func (e *Es6RewriteSpreadExpressions) VisitArrayLitOrCallWithSpread(t *NodeTraversal, spreadParent rhino.Node) {
 	if spreadParent.IsArrayLit() {
 		e.VisitArrayLitContainingSpread(spreadParent)
 	} else if spreadParent.IsCall() {
@@ -118,18 +118,18 @@ func (e *Es6RewriteSpreadExpressions) VisitArrayLitOrCallWithSpread(t *NodeTrave
 // TODO(nickreid): Stop mutating `spreadParent`.
 //
 // Java: Es6RewriteSpreadExpressions.extractSpreadGroups(Node)
-func (e *Es6RewriteSpreadExpressions) ExtractSpreadGroups(spreadParent *rhino.Node) []*rhino.Node {
+func (e *Es6RewriteSpreadExpressions) ExtractSpreadGroups(spreadParent rhino.Node) []rhino.Node {
 	jutil.CheckArgument(spreadParent.IsCall() || spreadParent.IsArrayLit() || spreadParent.IsNew())
 
-	groups := []*rhino.Node{}
-	var currGroup *rhino.Node = nil
+	groups := []rhino.Node{}
+	var currGroup rhino.Node = rhino.Node{}
 
-	for currElement := spreadParent.RemoveFirstChild(); currElement != nil; currElement = spreadParent.RemoveFirstChild() {
+	for currElement := spreadParent.RemoveFirstChild(); !currElement.IsNil(); currElement = spreadParent.RemoveFirstChild() {
 		if currElement.IsSpread() {
 			spreadExpression := currElement.RemoveFirstChild()
 			if spreadExpression.IsArrayLit() {
 				// We can expand an array literal spread in place.
-				if currGroup == nil {
+				if currGroup.IsNil() {
 					// [...[spread, contents], a, b]
 					// we can use this array lit itself as a group and append following elements to it
 					currGroup = spreadExpression
@@ -140,24 +140,24 @@ func (e *Es6RewriteSpreadExpressions) ExtractSpreadGroups(spreadParent *rhino.No
 				}
 			} else {
 				// We need to treat the spread expression as a separate group
-				if currGroup != nil {
+				if !currGroup.IsNil() {
 					// finish off and add the group we were collecting before
 					groups = append(groups, currGroup)
-					currGroup = nil
+					currGroup = rhino.Node{}
 				}
 
 				groups = append(groups,
 					e.astFactory.CreateJscompArrayFromIterableCall(spreadExpression, e.namespace))
 			}
 		} else {
-			if currGroup == nil {
+			if currGroup.IsNil() {
 				currGroup = e.astFactory.CreateArraylit()
 			}
 			currGroup.AddChildToBack(currElement)
 		}
 	}
 
-	if currGroup != nil {
+	if !currGroup.IsNil() {
 		groups = append(groups, currGroup)
 	}
 	return groups
@@ -170,12 +170,12 @@ func (e *Es6RewriteSpreadExpressions) ExtractSpreadGroups(spreadParent *rhino.No
 //	[1, 2, ...x, 4, 5] => [1, 2].concat($jscomp.arrayFromIterable(x), [4, 5])
 //
 // Java: Es6RewriteSpreadExpressions.visitArrayLitContainingSpread(Node)
-func (e *Es6RewriteSpreadExpressions) VisitArrayLitContainingSpread(spreadParent *rhino.Node) {
+func (e *Es6RewriteSpreadExpressions) VisitArrayLitContainingSpread(spreadParent rhino.Node) {
 	jutil.CheckArgument(spreadParent.IsArrayLit())
 
 	groups := e.ExtractSpreadGroups(spreadParent)
 
-	var baseArrayLit *rhino.Node
+	var baseArrayLit rhino.Node
 	if groups[0].IsArrayLit() {
 		// g0.concat(g1, g2, ..., gn)
 		baseArrayLit = groups[0]
@@ -185,7 +185,7 @@ func (e *Es6RewriteSpreadExpressions) VisitArrayLitContainingSpread(spreadParent
 		baseArrayLit = e.astFactory.CreateArraylit()
 	}
 
-	var joinedGroups *rhino.Node
+	var joinedGroups rhino.Node
 	if len(groups) == 0 {
 		joinedGroups = baseArrayLit
 	} else {
@@ -208,7 +208,7 @@ func (e *Es6RewriteSpreadExpressions) VisitArrayLitContainingSpread(spreadParent
 //	f(...arr, b) => f.apply(null, [].concat($jscomp.arrayFromIterable(arr), [b]))
 //
 // Java: Es6RewriteSpreadExpressions.visitCallContainingSpread(NodeTraversal, Node)
-func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal, spreadParent *rhino.Node) {
+func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal, spreadParent rhino.Node) {
 	jutil.CheckArgument(spreadParent.IsCall())
 
 	callee := spreadParent.GetFirstChild()
@@ -225,7 +225,7 @@ func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal
 		// the checks phase, and they complicate detecting GETPROP/GETELEM callees.
 		callee = callee.RemoveFirstChild()
 	}
-	var joinedGroups *rhino.Node
+	var joinedGroups rhino.Node
 	if spreadParent.HasOneChild() && e.IsSpreadOfArguments(spreadParent.GetOnlyChild()) {
 		// Check for special case of `foo(...arguments)` and pass `arguments` directly to
 		// `foo.apply(null, arguments)`. We want to avoid calling $jscomp.arrayFromIterable(arguments)
@@ -247,7 +247,7 @@ func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal
 			// TODO(bradfordcsmith): Now that this pass runs after type checking, it would be nice
 			// to skip creating an array literal when when the type of the first element says it is
 			// an Array.
-			var baseArrayLit *rhino.Node
+			var baseArrayLit rhino.Node
 			if groups[0].IsArrayLit() {
 				baseArrayLit = groups[0]
 				groups = groups[1:]
@@ -260,7 +260,7 @@ func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal
 	}
 	isFreeCall := spreadParent.GetBooleanProp(rhino.Node_FREE_CALL)
 
-	var callToApply *rhino.Node
+	var callToApply rhino.Node
 	if calleeMayHaveSideEffects && (callee.IsGetProp() || callee.IsGetElem()) && !isFreeCall {
 		// foo().method(...[a, b, c]) or foo()['method'](...[a, b, c])
 		//   must convert to
@@ -290,7 +290,7 @@ func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal
 		// foo['method'](...[a, b, c]) -> foo['method'].apply(foo, [a, b, c])
 		// or
 		// foo(...[a, b, c]) -> foo.apply(null, [a, b, c])
-		var context *rhino.Node
+		var context rhino.Node
 		if (callee.IsGetProp() || callee.IsGetElem()) && !isFreeCall {
 			context = callee.GetFirstChild().CloneTree()
 		} else {
@@ -311,7 +311,7 @@ func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal
 }
 
 // Java: Es6RewriteSpreadExpressions.isSpreadOfArguments(Node)
-func (e *Es6RewriteSpreadExpressions) IsSpreadOfArguments(n *rhino.Node) bool {
+func (e *Es6RewriteSpreadExpressions) IsSpreadOfArguments(n rhino.Node) bool {
 	return n.IsSpread() && n.GetOnlyChild().MatchesName("arguments")
 }
 
@@ -323,7 +323,7 @@ func (e *Es6RewriteSpreadExpressions) IsSpreadOfArguments(n *rhino.Node) bool {
 //	    new Function.prototype.bind.apply(F, [].concat($jscomp.arrayFromIterable(args)))
 //
 // Java: Es6RewriteSpreadExpressions.visitNewWithSpread(Node)
-func (e *Es6RewriteSpreadExpressions) VisitNewWithSpread(spreadParent *rhino.Node) {
+func (e *Es6RewriteSpreadExpressions) VisitNewWithSpread(spreadParent rhino.Node) {
 	jutil.CheckArgument(spreadParent.IsNew())
 
 	// Must remove callee before extracting argument groups.
@@ -333,7 +333,7 @@ func (e *Es6RewriteSpreadExpressions) VisitNewWithSpread(spreadParent *rhino.Nod
 	// We need to generate
 	// `new (Function.prototype.bind.apply(callee, [null].concat(other, args))();`.
 	// `null` stands in for the 'this' arg to the contructor.
-	var baseArrayLit *rhino.Node
+	var baseArrayLit rhino.Node
 	if groups[0].IsArrayLit() {
 		baseArrayLit = groups[0]
 		groups = groups[1:]
@@ -341,7 +341,7 @@ func (e *Es6RewriteSpreadExpressions) VisitNewWithSpread(spreadParent *rhino.Nod
 		baseArrayLit = e.astFactory.CreateArraylit()
 	}
 	baseArrayLit.AddChildToFront(e.astFactory.CreateNull())
-	var joinedGroups *rhino.Node
+	var joinedGroups rhino.Node
 	if len(groups) == 0 {
 		joinedGroups = baseArrayLit
 	} else {

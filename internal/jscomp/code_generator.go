@@ -43,20 +43,20 @@ const codeGenerator_GT_ESCAPED = "\\x3e"
 type CodeGenerator interface {
 	TagAsTypeSummary()
 	TagAsStrict()
-	PrintLeadingCommentsInOrder(node *rhino.Node)
-	PrintTrailingComment(node *rhino.Node)
+	PrintLeadingCommentsInOrder(node rhino.Node)
+	PrintTrailingComment(node rhino.Node)
 	Add(str string)
-	AddNode(n *rhino.Node)
-	AddNodeWithContext(node *rhino.Node, context CodeGenerator_Context)
-	AddNodeWithContextAndComments(node *rhino.Node, context CodeGenerator_Context, printComments bool)
-	AddList(firstInList *rhino.Node)
-	AddListWithSeparator(firstInList *rhino.Node, separator string)
-	AddListWithContextAndSeparator(firstInList *rhino.Node, isArrayOrFunctionArgument bool, lhsContext CodeGenerator_Context, separator string)
-	AddStringKey(n *rhino.Node)
-	AddObjectPattern(n *rhino.Node)
-	AddArrayList(firstInList *rhino.Node)
-	AddCaseBody(caseBody *rhino.Node)
-	AddAllSiblings(n *rhino.Node)
+	AddNode(n rhino.Node)
+	AddNodeWithContext(node rhino.Node, context CodeGenerator_Context)
+	AddNodeWithContextAndComments(node rhino.Node, context CodeGenerator_Context, printComments bool)
+	AddList(firstInList rhino.Node)
+	AddListWithSeparator(firstInList rhino.Node, separator string)
+	AddListWithContextAndSeparator(firstInList rhino.Node, isArrayOrFunctionArgument bool, lhsContext CodeGenerator_Context, separator string)
+	AddStringKey(n rhino.Node)
+	AddObjectPattern(n rhino.Node)
+	AddArrayList(firstInList rhino.Node)
+	AddCaseBody(caseBody rhino.Node)
+	AddAllSiblings(n rhino.Node)
 	RegexpEscape(s string) string
 
 	GetCodeGeneratorBase() *CodeGeneratorBase
@@ -200,7 +200,7 @@ func (g *CodeGeneratorBase) TagAsStrict() {
 }
 
 // Java: CodeGenerator.printJSDocComment(Node, JSDocInfo)
-func (g *CodeGeneratorBase) PrintJSDocComment(node *rhino.Node, jsDocInfo *rhino.JSDocInfo) {
+func (g *CodeGeneratorBase) PrintJSDocComment(node rhino.Node, jsDocInfo *rhino.JSDocInfo) {
 	var jsdocAsString *string
 	// In gents mode, we print NonJSDocInfo without special handling, as we
 	// already have pre-filtered the comments properly.
@@ -220,7 +220,7 @@ func (g *CodeGeneratorBase) PrintJSDocComment(node *rhino.Node, jsDocInfo *rhino
 }
 
 // Java: CodeGenerator.printNonJSDocComment(Node, NonJSDocComment)
-func (g *CodeGeneratorBase) PrintNonJSDocComment(node *rhino.Node, nonJSDocComment *rhino.NonJSDocComment) {
+func (g *CodeGeneratorBase) PrintNonJSDocComment(node rhino.Node, nonJSDocComment *rhino.NonJSDocComment) {
 	nonJSDocCommentString := nonJSDocComment.GetCommentString()
 	if nonJSDocCommentString != "" {
 		g.AddNonJsDoc_nonTrailing(node, nonJSDocComment)
@@ -232,7 +232,7 @@ func (g *CodeGeneratorBase) PrintNonJSDocComment(node *rhino.Node, nonJSDocComme
 // location.
 //
 // Java: CodeGenerator.printLeadingCommentsInOrder(Node)
-func (g *CodeGeneratorBase) PrintLeadingCommentsInOrder(node *rhino.Node) {
+func (g *CodeGeneratorBase) PrintLeadingCommentsInOrder(node rhino.Node) {
 	if !g.preserveTypeAnnotations && !g.printNonJSDocComments {
 		return
 	}
@@ -273,7 +273,7 @@ func (g *CodeGeneratorBase) PrintLeadingCommentsInOrder(node *rhino.Node) {
 // comment.
 //
 // Java: CodeGenerator.hasTrailingCommentOnSameLine(Node)
-func (g *CodeGeneratorBase) HasTrailingCommentOnSameLine(node *rhino.Node) bool {
+func (g *CodeGeneratorBase) HasTrailingCommentOnSameLine(node rhino.Node) bool {
 	if !g.printNonJSDocComments {
 		return false
 	}
@@ -281,7 +281,7 @@ func (g *CodeGeneratorBase) HasTrailingCommentOnSameLine(node *rhino.Node) bool 
 }
 
 // Java: CodeGenerator.printTrailingComment(Node)
-func (g *CodeGeneratorBase) PrintTrailingComment(node *rhino.Node) {
+func (g *CodeGeneratorBase) PrintTrailingComment(node rhino.Node) {
 	// print any trailing nonJSDoc comment attached to this node
 	if !g.printNonJSDocComments {
 		return
@@ -301,14 +301,14 @@ func (g *CodeGeneratorBase) Add(str string) {
 }
 
 // Java: CodeGenerator.add(Node)
-func (g *CodeGeneratorBase) AddNode(n *rhino.Node) {
+func (g *CodeGeneratorBase) AddNode(n rhino.Node) {
 	g.self.AddNodeWithContext(n, CodeGenerator_Context_OTHER)
 }
 
 var codeGenerator_JSCOMP_SCOPE = rhino.QualifiedName_Of("$jscomp.scope")
 
 // Java: CodeGenerator.add(Node, Context)
-func (g *CodeGeneratorBase) AddNodeWithContext(node *rhino.Node, context CodeGenerator_Context) {
+func (g *CodeGeneratorBase) AddNodeWithContext(node rhino.Node, context CodeGenerator_Context) {
 	g.self.AddNodeWithContextAndComments(node, context, true)
 }
 
@@ -318,7 +318,7 @@ const codeGenerator_NODE_CLASS = "com.google.javascript.rhino.Node"
 // AddNodeWithContextAndComments generates the current node.
 //
 // Java: CodeGenerator.add(Node, Context, boolean)
-func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, context CodeGenerator_Context, printComments bool) {
+func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node rhino.Node, context CodeGenerator_Context, printComments bool) {
 	cc := g.cc
 	if !cc.ContinueProcessing() {
 		return
@@ -326,7 +326,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 	// If this node is actually a shadow host node, then print the shadow
 	// content instead.
 	shadow := node.GetClosureUnawareShadow()
-	if shadow != nil {
+	if !shadow.IsNil() {
 		script := shadow.GetOnlyChild()
 		sinkCall := script.GetOnlyChild().GetOnlyChild()
 		jutil.CheckStateMsg1(sinkCall.IsCall(), "%s", sinkCall)
@@ -343,7 +343,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 	first := node.GetFirstChild()
 	last := node.GetLastChild()
 	childCount := 0
-	if first != nil {
+	if !first.IsNil() {
 		if first == last {
 			childCount = 1
 		} else if second := first.GetNext(); second == last {
@@ -407,7 +407,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		// second child contains the catch block, or nothing if there
 		// isn't a catch block
 		catchblock := first.GetNext().GetFirstChild()
-		if catchblock != nil {
+		if !catchblock.IsNil() {
 			g.self.AddNode(catchblock)
 		}
 
@@ -457,19 +457,19 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 	case rhino.Token_VAR:
 		g.self.Add("var ")
 		g.self.AddListWithContextAndSeparator(first, false, CodeGenerator_GetContextForNoInOperator(context), ",")
-		if node.GetParent() == nil || NodeUtil_IsStatement(node) {
+		if node.GetParent().IsNil() || NodeUtil_IsStatement(node) {
 			cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
 		}
 	case rhino.Token_CONST:
 		g.self.Add("const ")
 		g.self.AddListWithContextAndSeparator(first, false, CodeGenerator_GetContextForNoInOperator(context), ",")
-		if node.GetParent() == nil || NodeUtil_IsStatement(node) {
+		if node.GetParent().IsNil() || NodeUtil_IsStatement(node) {
 			cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
 		}
 	case rhino.Token_LET:
 		g.self.Add("let ")
 		g.self.AddListWithContextAndSeparator(first, false, CodeGenerator_GetContextForNoInOperator(context), ",")
-		if node.GetParent() == nil || NodeUtil_IsStatement(node) {
+		if node.GetParent().IsNil() || NodeUtil_IsStatement(node) {
 			cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
 		}
 	case rhino.Token_LABEL_NAME:
@@ -491,7 +491,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		g.MaybeAddOptional(node)
 		g.MaybeAddTypeDecl(node)
 
-		if first != nil && !first.IsEmpty() {
+		if !first.IsNil() && !first.IsEmpty() {
 			jutil.CheckStateMsg1(childCount == 1, "%s", node)
 			cc.AddOp("=", true)
 			g.AddExpr(first, NodeUtil_Precedence(rhino.Token_ASSIGN), CodeGenerator_GetContextForNoInOperator(context))
@@ -587,7 +587,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		}
 		if node.GetBooleanProp(rhino.Node_EXPORT_ALL_FROM) {
 			g.self.Add("*")
-			jutil.CheckStateMsg1(first != nil && first.IsEmpty(), "%s", node)
+			jutil.CheckStateMsg1(!first.IsNil() && first.IsEmpty(), "%s", node)
 		} else {
 			g.self.AddNode(first)
 		}
@@ -616,7 +616,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
 	case rhino.Token_EXPORT_SPECS, rhino.Token_IMPORT_SPECS:
 		g.self.Add("{")
-		for c := first; c != nil; c = c.GetNext() {
+		for c := first; !c.IsNil(); c = c.GetNext() {
 			if c != first {
 				cc.ListSeparator()
 			}
@@ -669,13 +669,13 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 			}
 
 			interfaces := codeGenerator_nodeProp(node.GetProp(rhino.Node_IMPLEMENTS))
-			if interfaces != nil {
+			if !interfaces.IsNil() {
 				g.self.Add("implements")
 				child := interfaces.GetFirstChild()
 				g.self.AddNode(child)
 				for {
 					child = child.GetNext()
-					if child == nil {
+					if child.IsNil() {
 						break
 					}
 					g.self.Add(",")
@@ -692,7 +692,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		}
 	case rhino.Token_CLASS_MEMBERS, rhino.Token_INTERFACE_MEMBERS, rhino.Token_NAMESPACE_ELEMENTS:
 		cc.BeginBlock()
-		for c := first; c != nil; c = c.GetNext() {
+		for c := first; !c.IsNil(); c = c.GetNext() {
 			g.self.AddNode(c)
 			g.ProcessEnd(c, context)
 			cc.EndLine()
@@ -700,9 +700,9 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		cc.EndBlockWithShouldEndLine(false)
 	case rhino.Token_ENUM_MEMBERS:
 		cc.BeginBlock()
-		for c := first; c != nil; c = c.GetNext() {
+		for c := first; !c.IsNil(); c = c.GetNext() {
 			g.self.AddNode(c)
-			if c.GetNext() != nil {
+			if !c.GetNext().IsNil() {
 				g.self.Add(",")
 			}
 			cc.EndLine()
@@ -789,7 +789,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		if node.GetBooleanProp(rhino.Node_STATIC_MEMBER) {
 			g.self.Add("static ")
 		}
-		var init *rhino.Node
+		var init rhino.Node
 		switch type_ {
 		case rhino.Token_MEMBER_FIELD_DEF:
 			propertyName := node.GetString()
@@ -805,7 +805,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 			init = node.GetSecondChild()
 		default:
 		}
-		if init != nil {
+		if !init.IsNil() {
 			cc.AddOp("=", true)
 			g.AddExpr(init, 1, CodeGenerator_Context_OTHER)
 		}
@@ -830,7 +830,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 
 		preferLineBreaks := type_ == rhino.Token_SCRIPT ||
 			(type_ == rhino.Token_BLOCK && !preserveBlock && node.GetParent().IsScript())
-		for c := first; c != nil; c = c.GetNext() {
+		for c := first; !c.IsNil(); c = c.GetNext() {
 			g.self.AddNodeWithContext(c, CodeGenerator_Context_STATEMENT)
 
 			if c.IsFunction() || c.IsClass() {
@@ -1100,10 +1100,10 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 	case rhino.Token_YIELD:
 		g.self.Add("yield")
 		if node.IsYieldAll() {
-			jutil.CheckNotNull(first)
+			rhino.CheckNotNull(first)
 			g.self.Add("*")
 		}
-		if first != nil {
+		if !first.IsNil() {
 			cc.MaybeInsertSpace()
 			g.AddExpr(first, NodeUtil_Precedence(type_), CodeGenerator_Context_OTHER)
 		}
@@ -1163,7 +1163,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		// Also, NEW requires parentheses around an optional chain callee.
 		// If the first child is an arrow function, then parentheses is
 		// needed
-		if NodeUtil_Has(first, (*rhino.Node).IsCall, NodeUtil_MATCH_NOT_FUNCTION) ||
+		if NodeUtil_Has(first, (rhino.Node).IsCall, NodeUtil_MATCH_NOT_FUNCTION) ||
 			NodeUtil_IsOptChainNode(first) {
 			precedence = NodeUtil_Precedence(first.GetToken()) + 1
 		}
@@ -1171,7 +1171,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 
 		// '()' is optional when no arguments are present
 		next := first.GetNext()
-		if next != nil {
+		if !next.IsNil() {
 			g.self.Add("(")
 			g.self.AddList(next)
 			g.self.Add(")")
@@ -1196,7 +1196,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 			g.self.Add("(")
 		}
 		g.self.Add("{")
-		for c := first; c != nil; c = c.GetNext() {
+		for c := first; !c.IsNil(); c = c.GetNext() {
 			if c != first {
 				cc.ListSeparator()
 			}
@@ -1204,7 +1204,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 			jutil.CheckStateMsg1(NodeUtil_IsObjLitProperty(c) || c.IsSpread(), "%s", c)
 			g.self.AddNode(c)
 		}
-		if first != nil && node.HasTrailingComma() {
+		if !first.IsNil() && node.HasTrailingComma() {
 			cc.OptionalListSeparator()
 		}
 		g.self.Add("}")
@@ -1253,7 +1253,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 			// This is a field or object literal property.
 			isInClass := node.GetParent().IsClassMembers()
 			initializer := first.GetNext()
-			if initializer != nil {
+			if !initializer.IsNil() {
 				// Object literal value.
 				jutil.CheckStateMsg(
 					!isInClass, "initializers should only exist in object literals, not classes")
@@ -1314,7 +1314,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 		g.self.AddNode(first.GetNext())
 	case rhino.Token_TEMPLATELIT:
 		cc.BeginTemplateLit()
-		for c := first; c != nil; c = c.GetNext() {
+		for c := first; !c.IsNil(); c = c.GetNext() {
 			if c.IsTemplateLitString() {
 				g.self.Add(g.EscapeUnrecognizedCharacters(c.GetRawString()))
 			} else {
@@ -1389,7 +1389,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 				g.self.AddNode(superType)
 				for {
 					superType = superType.GetNext()
-					if superType == nil {
+					if superType.IsNil() {
 						break
 					}
 					g.self.Add(",")
@@ -1450,11 +1450,11 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 // codeGenerator_nodeProp is the cast `(Node) n.getProp(...)`.
 //
 // Go-only: language-adapter — Java's reference cast of a property value.
-func codeGenerator_nodeProp(value any) *rhino.Node {
+func codeGenerator_nodeProp(value any) rhino.Node {
 	if value == nil {
-		return nil
+		return rhino.Node{}
 	}
-	return value.(*rhino.Node)
+	return value.(rhino.Node)
 }
 
 // Java: CodeGenerator.addIdentifier(String)
@@ -1463,14 +1463,14 @@ func (g *CodeGeneratorBase) AddIdentifier(identifier string) {
 }
 
 // Java: CodeGenerator.addGetpropIdentifier(Node)
-func (g *CodeGeneratorBase) AddGetpropIdentifier(getprop *rhino.Node) {
+func (g *CodeGeneratorBase) AddGetpropIdentifier(getprop rhino.Node) {
 	g.cc.StartSourceMapping(getprop)
 	g.AddIdentifier(getprop.GetString())
 	g.cc.EndSourceMapping(getprop)
 }
 
 // Java: CodeGenerator.precedence(Node)
-func (g *CodeGeneratorBase) Precedence(n *rhino.Node) int {
+func (g *CodeGeneratorBase) Precedence(n rhino.Node) int {
 	if n.IsCast() {
 		return g.Precedence(n.GetFirstChild())
 	}
@@ -1489,7 +1489,7 @@ func (g *CodeGeneratorBase) Precedence(n *rhino.Node) int {
 //     preserved.
 //
 // Java: CodeGenerator.addInvocationTarget(Node, Context)
-func (g *CodeGeneratorBase) AddInvocationTarget(node *rhino.Node, context CodeGenerator_Context) {
+func (g *CodeGeneratorBase) AddInvocationTarget(node rhino.Node, context CodeGenerator_Context) {
 	first := node.GetFirstChild()
 
 	needsParens := NodeUtil_IsOptChainNode(first)
@@ -1510,10 +1510,10 @@ func (g *CodeGeneratorBase) AddInvocationTarget(node *rhino.Node, context CodeGe
 }
 
 // Java: CodeGenerator.arrowFunctionNeedsParens(Node)
-func (g *CodeGeneratorBase) ArrowFunctionNeedsParens(n *rhino.Node) bool {
+func (g *CodeGeneratorBase) ArrowFunctionNeedsParens(n rhino.Node) bool {
 	parent := n.GetParent()
 	expressionOrEnclosingCast := n
-	for parent != nil && parent.IsCast() {
+	for !parent.IsNil() && parent.IsCast() {
 		if g.preserveTypeAnnotations {
 			// If printing type annotations, any expression in a CAST
 			// automatically is wrapped in parentheses when printing the
@@ -1547,7 +1547,7 @@ func (g *CodeGeneratorBase) ArrowFunctionNeedsParens(n *rhino.Node) bool {
 	//    ArrowFunction in parentheses, because:
 	//      LeftHandSideExpression => MemberExpression => PrimaryExpression
 	//      PrimaryExpression => '(' Expression ')' => '(' ArrowFunction ')'
-	if parent == nil {
+	if parent.IsNil() {
 		return false
 	} else if NodeUtil_IsBinaryOperator(parent) ||
 		NodeUtil_IsUnaryOperator(parent) ||
@@ -1580,7 +1580,7 @@ func (g *CodeGeneratorBase) ArrowFunctionNeedsParens(n *rhino.Node) bool {
 }
 
 // Java: CodeGenerator.addArrowFunction(Node, Node, Node, Context)
-func (g *CodeGeneratorBase) AddArrowFunction(n *rhino.Node, first *rhino.Node, last *rhino.Node, context CodeGenerator_Context) {
+func (g *CodeGeneratorBase) AddArrowFunction(n rhino.Node, first rhino.Node, last rhino.Node, context CodeGenerator_Context) {
 	jutil.CheckStateMsg1(first.GetString() == "", "%s", first)
 	funcNeedsParens := g.ArrowFunctionNeedsParens(n)
 	if funcNeedsParens {
@@ -1613,7 +1613,7 @@ func (g *CodeGeneratorBase) AddArrowFunction(n *rhino.Node, first *rhino.Node, l
 }
 
 // Java: CodeGenerator.addFunction(Node, Node, Node, Context)
-func (g *CodeGeneratorBase) AddFunction(n *rhino.Node, first *rhino.Node, last *rhino.Node, context CodeGenerator_Context) {
+func (g *CodeGeneratorBase) AddFunction(n rhino.Node, first rhino.Node, last rhino.Node, context CodeGenerator_Context) {
 	funcNeedsParens := (context == CodeGenerator_Context_START_OF_EXPR)
 	if funcNeedsParens {
 		g.self.Add("(")
@@ -1646,7 +1646,7 @@ func (g *CodeGeneratorBase) AddFunction(n *rhino.Node, first *rhino.Node, last *
 }
 
 // Java: CodeGenerator.maybeAddAccessibilityModifier(Node)
-func (g *CodeGeneratorBase) MaybeAddAccessibilityModifier(n *rhino.Node) {
+func (g *CodeGeneratorBase) MaybeAddAccessibilityModifier(n rhino.Node) {
 	access := n.GetProp(rhino.Node_ACCESS_MODIFIER)
 	if access != nil {
 		g.self.Add(jutil.StringToLowerCaseASCII(access.(rhino.JSDocInfo_Visibility).String()) + " ")
@@ -1654,8 +1654,8 @@ func (g *CodeGeneratorBase) MaybeAddAccessibilityModifier(n *rhino.Node) {
 }
 
 // Java: CodeGenerator.maybeAddTypeDecl(Node)
-func (g *CodeGeneratorBase) MaybeAddTypeDecl(n *rhino.Node) {
-	if n.GetDeclaredTypeExpression() != nil {
+func (g *CodeGeneratorBase) MaybeAddTypeDecl(n rhino.Node) {
+	if !n.GetDeclaredTypeExpression().IsNil() {
 		g.self.Add(":")
 		g.cc.MaybeInsertSpace()
 		g.self.AddNode(n.GetDeclaredTypeExpression())
@@ -1663,15 +1663,15 @@ func (g *CodeGeneratorBase) MaybeAddTypeDecl(n *rhino.Node) {
 }
 
 // Java: CodeGenerator.maybeAddGenericTypes(Node)
-func (g *CodeGeneratorBase) MaybeAddGenericTypes(n *rhino.Node) {
+func (g *CodeGeneratorBase) MaybeAddGenericTypes(n rhino.Node) {
 	generics := codeGenerator_nodeProp(n.GetProp(rhino.Node_GENERIC_TYPE_LIST))
-	if generics != nil {
+	if !generics.IsNil() {
 		g.self.AddNode(generics)
 	}
 }
 
 // Java: CodeGenerator.maybeAddOptional(Node)
-func (g *CodeGeneratorBase) MaybeAddOptional(n *rhino.Node) {
+func (g *CodeGeneratorBase) MaybeAddOptional(n rhino.Node) {
 	if n.GetBooleanProp(rhino.Node_OPT_ES6_TYPED) {
 		g.self.Add("?")
 	}
@@ -1685,7 +1685,7 @@ func (g *CodeGeneratorBase) MaybeAddOptional(n *rhino.Node) {
 //
 // Java: CodeGenerator.unrollBinaryOperator(Node, Token, String, Context, Context, int, int)
 func (g *CodeGeneratorBase) UnrollBinaryOperator(
-	n *rhino.Node,
+	n rhino.Node,
 	op rhino.Token,
 	opStr string,
 	context CodeGenerator_Context,
@@ -1746,7 +1746,7 @@ func CodeGenerator_GetSimpleNumber(s string) float64 {
 // eval.
 //
 // Java: CodeGenerator.isIndirectEval(Node)
-func CodeGenerator_IsIndirectEval(n *rhino.Node) bool {
+func CodeGenerator_IsIndirectEval(n rhino.Node) bool {
 	return n.IsName() && n.GetString() == "eval" && !n.GetBooleanProp(rhino.Node_DIRECT_EVAL)
 }
 
@@ -1758,7 +1758,7 @@ func CodeGenerator_IsIndirectEval(n *rhino.Node) bool {
 // should be printed.
 //
 // Java: CodeGenerator.addNonEmptyStatement(Node, Context, boolean)
-func (g *CodeGeneratorBase) AddNonEmptyStatement(n *rhino.Node, context CodeGenerator_Context, allowNonBlockChild bool) {
+func (g *CodeGeneratorBase) AddNonEmptyStatement(n rhino.Node, context CodeGenerator_Context, allowNonBlockChild bool) {
 	nodeToProcess := n
 
 	if !allowNonBlockChild && !n.IsBlock() {
@@ -1815,7 +1815,7 @@ func (g *CodeGeneratorBase) AddNonEmptyStatement(n *rhino.Node, context CodeGene
 // declaration that is only allowed in restricted contexts.
 //
 // Java: CodeGenerator.isBlockDeclOrDo(Node)
-func CodeGenerator_IsBlockDeclOrDo(n *rhino.Node) bool {
+func CodeGenerator_IsBlockDeclOrDo(n rhino.Node) bool {
 	if n.IsLabel() {
 		labeledStatement := n.GetLastChild()
 		if !labeledStatement.IsBlock() {
@@ -1843,7 +1843,7 @@ func CodeGenerator_IsBlockDeclOrDo(n *rhino.Node) bool {
 }
 
 // Java: CodeGenerator.addExpr(Node, int, Context)
-func (g *CodeGeneratorBase) AddExpr(n *rhino.Node, minPrecedence int, context CodeGenerator_Context) {
+func (g *CodeGeneratorBase) AddExpr(n rhino.Node, minPrecedence int, context CodeGenerator_Context) {
 	if g.OpRequiresParentheses(n, minPrecedence, context) {
 		g.self.Add("(")
 		g.self.AddNodeWithContext(n, CodeGenerator_Context_OTHER)
@@ -1854,7 +1854,7 @@ func (g *CodeGeneratorBase) AddExpr(n *rhino.Node, minPrecedence int, context Co
 }
 
 // Java: CodeGenerator.opRequiresParentheses(Node, int, Context)
-func (g *CodeGeneratorBase) OpRequiresParentheses(n *rhino.Node, minPrecedence int, context CodeGenerator_Context) bool {
+func (g *CodeGeneratorBase) OpRequiresParentheses(n rhino.Node, minPrecedence int, context CodeGenerator_Context) bool {
 	if context.InForInInitClause() && n.IsIn() {
 		// make sure this operator 'in' isn't confused with the for-loop 'in'
 		return true
@@ -1878,43 +1878,43 @@ func (g *CodeGeneratorBase) OpRequiresParentheses(n *rhino.Node, minPrecedence i
 }
 
 // Java: CodeGenerator.isLogicalANDorLogicalORChildOfNullishCoalesce(Node)
-func CodeGenerator_IsLogicalANDorLogicalORChildOfNullishCoalesce(n *rhino.Node) bool {
+func CodeGenerator_IsLogicalANDorLogicalORChildOfNullishCoalesce(n rhino.Node) bool {
 	parent := n.GetParent()
 	logicalANDorLogicalOR := n.IsAnd() || n.IsOr()
-	childOfNullishCoalesce := parent != nil && parent.IsNullishCoalesce()
+	childOfNullishCoalesce := !parent.IsNil() && parent.IsNullishCoalesce()
 	return logicalANDorLogicalOR && childOfNullishCoalesce
 }
 
 // Java: CodeGenerator.isNullishCoalesceChildOfLogicalANDorLogicalOR(Node)
-func CodeGenerator_IsNullishCoalesceChildOfLogicalANDorLogicalOR(n *rhino.Node) bool {
+func CodeGenerator_IsNullishCoalesceChildOfLogicalANDorLogicalOR(n rhino.Node) bool {
 	parent := n.GetParent()
-	childOfLogicalANDorLogicalOR := parent != nil && (parent.IsAnd() || parent.IsOr())
+	childOfLogicalANDorLogicalOR := !parent.IsNil() && (parent.IsAnd() || parent.IsOr())
 	return n.IsNullishCoalesce() && childOfLogicalANDorLogicalOR
 }
 
 // Java: CodeGenerator.isFirstOperandOfExponentiationExpression(Node)
-func (g *CodeGeneratorBase) IsFirstOperandOfExponentiationExpression(n *rhino.Node) bool {
+func (g *CodeGeneratorBase) IsFirstOperandOfExponentiationExpression(n rhino.Node) bool {
 	parent := n.GetParent()
-	return parent != nil && parent.IsExponent() && parent.GetFirstChild() == n
+	return !parent.IsNil() && parent.IsExponent() && parent.GetFirstChild() == n
 }
 
 // Java: CodeGenerator.addList(Node)
-func (g *CodeGeneratorBase) AddList(firstInList *rhino.Node) {
+func (g *CodeGeneratorBase) AddList(firstInList rhino.Node) {
 	g.self.AddListWithContextAndSeparator(firstInList, true, CodeGenerator_Context_OTHER, ",")
 }
 
 // Java: CodeGenerator.addList(Node, String)
-func (g *CodeGeneratorBase) AddListWithSeparator(firstInList *rhino.Node, separator string) {
+func (g *CodeGeneratorBase) AddListWithSeparator(firstInList rhino.Node, separator string) {
 	g.self.AddListWithContextAndSeparator(firstInList, true, CodeGenerator_Context_OTHER, separator)
 }
 
 // Java: CodeGenerator.addList(Node, boolean, Context, String)
 func (g *CodeGeneratorBase) AddListWithContextAndSeparator(
-	firstInList *rhino.Node, isArrayOrFunctionArgument bool, lhsContext CodeGenerator_Context, separator string) {
-	if firstInList == nil {
+	firstInList rhino.Node, isArrayOrFunctionArgument bool, lhsContext CodeGenerator_Context, separator string) {
+	if firstInList.IsNil() {
 		return
 	}
-	for n := firstInList; n != nil; n = n.GetNext() {
+	for n := firstInList; !n.IsNil(); n = n.GetNext() {
 		isFirst := n == firstInList
 		minPrecedence := 0
 		if isArrayOrFunctionArgument {
@@ -1927,13 +1927,13 @@ func (g *CodeGeneratorBase) AddListWithContextAndSeparator(
 			g.AddExpr(n, minPrecedence, CodeGenerator_GetContextForNoInOperator(lhsContext))
 		}
 	}
-	if isArrayOrFunctionArgument && jutil.CheckNotNull(firstInList.GetParent()).HasTrailingComma() {
+	if isArrayOrFunctionArgument && rhino.CheckNotNull(firstInList.GetParent()).HasTrailingComma() {
 		g.cc.OptionalListSeparator()
 	}
 }
 
 // Java: CodeGenerator.addStringKey(Node)
-func (g *CodeGeneratorBase) AddStringKey(n *rhino.Node) {
+func (g *CodeGeneratorBase) AddStringKey(n rhino.Node) {
 	key := n.GetString()
 	// Object literal property names don't have to be quoted if they are not
 	// JavaScript keywords.
@@ -1974,9 +1974,9 @@ func (g *CodeGeneratorBase) AddStringKey(n *rhino.Node) {
 }
 
 // Java: CodeGenerator.addObjectPattern(Node)
-func (g *CodeGeneratorBase) AddObjectPattern(n *rhino.Node) {
+func (g *CodeGeneratorBase) AddObjectPattern(n rhino.Node) {
 	g.self.Add("{")
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child != n.GetFirstChild() {
 			g.cc.ListSeparator()
 		}
@@ -1993,12 +1993,12 @@ func (g *CodeGeneratorBase) AddObjectPattern(n *rhino.Node) {
 // property).
 //
 // Java: CodeGenerator.addArrayList(Node)
-func (g *CodeGeneratorBase) AddArrayList(firstInList *rhino.Node) {
-	if firstInList == nil {
+func (g *CodeGeneratorBase) AddArrayList(firstInList rhino.Node) {
+	if firstInList.IsNil() {
 		return
 	}
 	lastWasEmpty := false
-	for n := firstInList; n != nil; n = n.GetNext() {
+	for n := firstInList; !n.IsNil(); n = n.GetNext() {
 		if n != firstInList {
 			g.cc.ListSeparator()
 		}
@@ -2014,7 +2014,7 @@ func (g *CodeGeneratorBase) AddArrayList(firstInList *rhino.Node) {
 }
 
 // Java: CodeGenerator.addCaseBody(Node)
-func (g *CodeGeneratorBase) AddCaseBody(caseBody *rhino.Node) {
+func (g *CodeGeneratorBase) AddCaseBody(caseBody rhino.Node) {
 	jutil.CheckStateMsg1(caseBody.IsBlock(), "%s", caseBody)
 	g.cc.BeginCaseBody()
 	g.self.AddAllSiblings(caseBody.GetFirstChild())
@@ -2022,14 +2022,14 @@ func (g *CodeGeneratorBase) AddCaseBody(caseBody *rhino.Node) {
 }
 
 // Java: CodeGenerator.addAllSiblings(Node)
-func (g *CodeGeneratorBase) AddAllSiblings(n *rhino.Node) {
-	for c := n; c != nil; c = c.GetNext() {
+func (g *CodeGeneratorBase) AddAllSiblings(n rhino.Node) {
+	for c := n; !c.IsNil(); c = c.GetNext() {
 		g.self.AddNode(c)
 	}
 }
 
 // Java: CodeGenerator.addNonJsDoc_nonTrailing(Node, NonJSDocComment)
-func (g *CodeGeneratorBase) AddNonJsDoc_nonTrailing(node *rhino.Node, nonJSDocComment *rhino.NonJSDocComment) {
+func (g *CodeGeneratorBase) AddNonJsDoc_nonTrailing(node rhino.Node, nonJSDocComment *rhino.NonJSDocComment) {
 	content := nonJSDocComment.GetCommentString()
 	commentEndPosition := nonJSDocComment.GetEndPosition()
 
@@ -2084,7 +2084,7 @@ func (g *CodeGeneratorBase) AddNonJsDoctrailing(nonJSDocComment *rhino.NonJSDocC
 // character.
 //
 // Java: CodeGenerator.addJsString(Node)
-func (g *CodeGeneratorBase) AddJsString(n *rhino.Node) {
+func (g *CodeGeneratorBase) AddJsString(n rhino.Node) {
 	g.self.Add(g.JsString(n.GetString()))
 }
 
@@ -2483,10 +2483,10 @@ func CodeGenerator_IdentifierEscape(s string) string {
 // children to look for).
 //
 // Java: CodeGenerator.getNonEmptyChildCount(Node, int)
-func CodeGenerator_GetNonEmptyChildCount(n *rhino.Node, maxCount int) int {
+func CodeGenerator_GetNonEmptyChildCount(n rhino.Node, maxCount int) int {
 	i := 0
 	c := n.GetFirstChild()
-	for ; c != nil && i < maxCount; c = c.GetNext() {
+	for ; !c.IsNil() && i < maxCount; c = c.GetNext() {
 		if c.IsBlock() {
 			i += CodeGenerator_GetNonEmptyChildCount(c, maxCount-i)
 		} else if !c.IsEmpty() {
@@ -2500,18 +2500,18 @@ func CodeGenerator_GetNonEmptyChildCount(n *rhino.Node, maxCount int) int {
 // given node.
 //
 // Java: CodeGenerator.getFirstNonEmptyChild(Node)
-func CodeGenerator_GetFirstNonEmptyChild(n *rhino.Node) *rhino.Node {
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+func CodeGenerator_GetFirstNonEmptyChild(n rhino.Node) rhino.Node {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.IsBlock() {
 			result := CodeGenerator_GetFirstNonEmptyChild(c)
-			if result != nil {
+			if !result.IsNil() {
 				return result
 			}
 		} else if !c.IsEmpty() {
 			return c
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // CodeGenerator_Context is information on the current context. Used for
@@ -2634,7 +2634,7 @@ func CodeGenerator_GetContextForArrowFunctionBody(context CodeGenerator_Context)
 }
 
 // Java: CodeGenerator.processEnd(Node, Context)
-func (g *CodeGeneratorBase) ProcessEnd(n *rhino.Node, context CodeGenerator_Context) {
+func (g *CodeGeneratorBase) ProcessEnd(n rhino.Node, context CodeGenerator_Context) {
 	switch n.GetToken() {
 	case rhino.Token_CLASS, rhino.Token_INTERFACE, rhino.Token_ENUM, rhino.Token_NAMESPACE:
 		g.cc.EndClass(context == CodeGenerator_Context_STATEMENT)

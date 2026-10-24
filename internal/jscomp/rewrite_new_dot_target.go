@@ -44,14 +44,14 @@ func (r *RewriteNewDotTarget) GetTranspiledAwayFeatures() *parser.FeatureSet {
 }
 
 // Java: RewriteNewDotTarget.transpileSubtree(Node)
-func (r *RewriteNewDotTarget) TranspileSubtree(n *rhino.Node) *rhino.Node {
+func (r *RewriteNewDotTarget) TranspileSubtree(n rhino.Node) rhino.Node {
 	if n.GetToken() != rhino.Token_NEW_TARGET {
 		// there's nothing to rewrite
 		return n
 	}
 
 	enclosingNonArrowFunction := NodeUtil_GetEnclosingNonArrowFunction(n)
-	if enclosingNonArrowFunction != nil && NodeUtil_IsEs6Constructor(enclosingNonArrowFunction) {
+	if !enclosingNonArrowFunction.IsNil() && NodeUtil_IsEs6Constructor(enclosingNonArrowFunction) {
 		// Within an ES6 class constructor that we're about to transpile.
 		// `new.target` -> `this.constructor`
 		enclosingClass := enclosingNonArrowFunction.GetParent().GetGrandparent()

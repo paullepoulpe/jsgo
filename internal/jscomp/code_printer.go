@@ -330,7 +330,7 @@ func (m *CodePrinter_MappedCodePrinterBase) Append(str string) {
 }
 
 // Java: CodePrinter.MappedCodePrinter.trackLicenses(Node)
-func (m *CodePrinter_MappedCodePrinterBase) TrackLicenses(node *rhino.Node) {
+func (m *CodePrinter_MappedCodePrinterBase) TrackLicenses(node rhino.Node) {
 	if m.licenseTracker != nil {
 		m.licenseTracker.TrackLicensesForNode(node)
 	}
@@ -340,9 +340,9 @@ func (m *CodePrinter_MappedCodePrinterBase) TrackLicenses(node *rhino.Node) {
 // current position.
 //
 // Java: CodePrinter.MappedCodePrinter.startSourceMapping(Node)
-func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node *rhino.Node) {
+func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node rhino.Node) {
 	// checkState(sourceMapDetailLevel != null): see the constructor.
-	jutil.CheckState(node != nil)
+	jutil.CheckState(!node.IsNil())
 	// Go-only: language-adapter — `node.getSourceFileName() != null` is
 	// `node.getStaticSourceFile() != null` (a Go file name is never null);
 	// it avoids allocating the *string for every node.
@@ -365,7 +365,7 @@ func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node *rhino.Node)
 // current position.
 //
 // Java: CodePrinter.MappedCodePrinter.endSourceMapping(Node)
-func (m *CodePrinter_MappedCodePrinterBase) EndSourceMapping(node *rhino.Node) {
+func (m *CodePrinter_MappedCodePrinterBase) EndSourceMapping(node rhino.Node) {
 	if m.createSrcMap && len(m.mappings) != 0 && m.mappings[len(m.mappings)-1].node == node {
 		mapping := m.mappings[len(m.mappings)-1]
 		m.mappings[len(m.mappings)-1] = nil
@@ -741,7 +741,7 @@ func (p *CodePrinter_PrettyCodePrinter) Append(str string) {
 // location, falling back to the default behavior if we cannot locate it.
 //
 // Java: CodePrinter.PrettyCodePrinter.addNumber(double, Node)
-func (p *CodePrinter_PrettyCodePrinter) AddNumber(x float64, n *rhino.Node) {
+func (p *CodePrinter_PrettyCodePrinter) AddNumber(x float64, n rhino.Node) {
 	if !base.JSCompDoubles_IsPositive(x) {
 		// checkState(isPositive(x), x)
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.DoubleToString(x)))
@@ -889,7 +889,7 @@ func (p *CodePrinter_PrettyCodePrinter) AppendOp(op string, binOp bool) {
 // And similar.
 //
 // Java: CodePrinter.PrettyCodePrinter.shouldPreserveExtras(Node)
-func (p *CodePrinter_PrettyCodePrinter) ShouldPreserveExtras(n *rhino.Node) bool {
+func (p *CodePrinter_PrettyCodePrinter) ShouldPreserveExtras(n rhino.Node) bool {
 	// When pretty-printing, always place the statement in its own block so
 	// it is printed on a separate line. This allows breakpoints to be
 	// placed on the statement.
@@ -939,7 +939,7 @@ func (p *CodePrinter_PrettyCodePrinter) MaybeInsertSpace() {
 // specified CATCH node.
 //
 // Java: CodePrinter.PrettyCodePrinter.getTryForCatch(Node)
-func CodePrinter_PrettyCodePrinter_GetTryForCatch(n *rhino.Node) *rhino.Node {
+func CodePrinter_PrettyCodePrinter_GetTryForCatch(n rhino.Node) rhino.Node {
 	return n.GetGrandparent()
 }
 
@@ -947,7 +947,7 @@ func CodePrinter_PrettyCodePrinter_GetTryForCatch(n *rhino.Node) *rhino.Node {
 // the specified BLOCK.
 //
 // Java: CodePrinter.PrettyCodePrinter.breakAfterBlockFor(Node, boolean)
-func (p *CodePrinter_PrettyCodePrinter) BreakAfterBlockFor(n *rhino.Node, isStatementContext bool) bool {
+func (p *CodePrinter_PrettyCodePrinter) BreakAfterBlockFor(n rhino.Node, isStatementContext bool) bool {
 	jutil.CheckStateMsg1(n.IsBlock(), "%s", n)
 	parent := n.GetParent()
 	type_ := parent.GetToken()
@@ -987,7 +987,7 @@ func (p *CodePrinter_PrettyCodePrinter) EndFile() {
 // of the source code (see the numberSource fields).
 //
 // Java: CodePrinter.PrettyCodePrinter.getNumberFromSource(Node)
-func (p *CodePrinter_PrettyCodePrinter) GetNumberFromSource(n *rhino.Node) *string {
+func (p *CodePrinter_PrettyCodePrinter) GetNumberFromSource(n rhino.Node) *string {
 	if !n.IsNumber() {
 		return nil
 	}
@@ -1085,7 +1085,7 @@ func codePrinter_getCode(src *SourceFile) (code string, ok bool) {
 // threw.
 //
 // Go-only: language-adapter — as codePrinter_getCode.
-func codePrinter_getSourceOffset(n *rhino.Node) (offset int, ok bool) {
+func codePrinter_getSourceOffset(n rhino.Node) (offset int, ok bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			if _, isIAE := r.(jutil.IIllegalArgumentException); isIAE {
@@ -1233,7 +1233,7 @@ func (c *CodePrinter_CompactCodePrinter) NotePreferredLineBreak() {
 // to determine how they are intended to be used.
 type CodePrinter_LicenseTracker interface {
 	// Java: CodePrinter.LicenseTracker.trackLicensesForNode(Node)
-	TrackLicensesForNode(node *rhino.Node)
+	TrackLicensesForNode(node rhino.Node)
 
 	// Java: CodePrinter.LicenseTracker.emitLicenses()
 	EmitLicenses() *jutil.LinkedHashSet[string]
@@ -1241,7 +1241,7 @@ type CodePrinter_LicenseTracker interface {
 
 // CodePrinter_Builder builds the source code of an AST.
 type CodePrinter_Builder struct {
-	root                 *rhino.Node
+	root                 rhino.Node
 	options              *CompilerOptions
 	lineBreak            bool
 	prettyPrint          bool
@@ -1272,7 +1272,7 @@ func (f *codePrinter_Builder_defaultCodeGeneratorFactory) GetCodeGenerator(outpu
 // source code.
 //
 // Java: CodePrinter.Builder(Node)
-func NewCodePrinter_Builder(node *rhino.Node) *CodePrinter_Builder {
+func NewCodePrinter_Builder(node rhino.Node) *CodePrinter_Builder {
 	b := &CodePrinter_Builder{}
 	// Go-only: performance — Java initializes options to a new
 	// CompilerOptions(), which almost every caller (Compiler.toSource, once
@@ -1408,7 +1408,7 @@ func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMa
 func codePrinter_emptyMappingsSeq(func(int, *SourceMap_Mapping) bool) {}
 
 func (b *CodePrinter_Builder) buildSourceAndMappingsInto(sm *CodePrinter_SourceAndMappings, wantMappings bool) string {
-	if b.root == nil {
+	if b.root.IsNil() {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot build without root node being specified"))
 	}
 	options := b.getOptions()
@@ -1603,7 +1603,7 @@ func (s *CodePrinter_SourceAndMappings) Release() {
 //
 // Java: CodePrinter.toSource(Node, Format, CompilerOptions, LicenseTracker, boolean, boolean, boolean, CodeGeneratorFactory)
 func CodePrinter_ToSource(
-	root *rhino.Node,
+	root rhino.Node,
 	outputFormat CodePrinter_Format,
 	options *CompilerOptions,
 	licenseTracker CodePrinter_LicenseTracker,

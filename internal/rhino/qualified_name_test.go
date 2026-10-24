@@ -42,7 +42,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-func qname(root *Node, props ...string) *Node {
+func qname(root Node, props ...string) Node {
 	n := root
 	for _, p := range props {
 		n = IR_Getprop(n, p)
@@ -78,7 +78,7 @@ func assertComponent(t *testing.T, n QualifiedName, want string) {
 	}
 }
 
-func assertMatches(t *testing.T, n QualifiedName, node *Node, want bool) {
+func assertMatches(t *testing.T, n QualifiedName, node Node, want bool) {
 	t.Helper()
 	if got := n.Matches(node); got != want {
 		t.Errorf("%s.matches(%s) = %v, want %v", n.Join(), node.ToStringTree(), got, want)
@@ -159,7 +159,7 @@ func TestQualifiedName_GetOwner_FromString(t *testing.T) {
 func TestQualifiedName_GetOwner_FromNode(t *testing.T) {
 	n := qname(IR_Name("foo"), "bar", "baz").GetQualifiedNameObject()
 	assertJoin(t, n.GetOwner(), "foo.bar")
-	for _, root := range []*Node{IR_Name("foo"), IR_ThisNode(), IR_SuperNode()} {
+	for _, root := range []Node{IR_Name("foo"), IR_ThisNode(), IR_SuperNode()} {
 		if o := root.GetQualifiedNameObject().GetOwner(); o != nil {
 			t.Errorf("owner of %s = %v, want null", root, o)
 		}

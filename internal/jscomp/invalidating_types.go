@@ -31,11 +31,11 @@ import (
 type InvalidatingTypes struct {
 	// Go-only: language-adapter — an ImmutableSetMultimap keyed by JSType
 	// (JSType.equals/hashCode) with Node values (identity).
-	typeToLocation *jutil.SetMultimap[rhino.JSType, *rhino.Node]
+	typeToLocation *jutil.SetMultimap[rhino.JSType, rhino.Node]
 }
 
 // Java: InvalidatingTypes(ImmutableSetMultimap<JSType, Node>)
-func newInvalidatingTypes(typeToLocation *jutil.SetMultimap[rhino.JSType, *rhino.Node]) *InvalidatingTypes {
+func newInvalidatingTypes(typeToLocation *jutil.SetMultimap[rhino.JSType, rhino.Node]) *InvalidatingTypes {
 	t := &InvalidatingTypes{}
 	t.typeToLocation = typeToLocation
 	return t
@@ -78,7 +78,7 @@ func (it *InvalidatingTypes) IsInvalidating(type_ rhino.JSType) bool {
 }
 
 // Java: InvalidatingTypes.getMismatchLocations()
-func (it *InvalidatingTypes) GetMismatchLocations() *jutil.SetMultimap[rhino.JSType, *rhino.Node] {
+func (it *InvalidatingTypes) GetMismatchLocations() *jutil.SetMultimap[rhino.JSType, rhino.Node] {
 	return it.typeToLocation
 }
 
@@ -122,13 +122,13 @@ type InvalidatingTypes_Builder struct {
 
 	// Go-only: language-adapter — ImmutableSetMultimap.Builder: keys and
 	// values in insertion order, duplicate pairs dropped.
-	typeToLocation *jutil.SetMultimap[rhino.JSType, *rhino.Node]
+	typeToLocation *jutil.SetMultimap[rhino.JSType, rhino.Node]
 }
 
 // Java: InvalidatingTypes.Builder(JSTypeRegistry)
 func NewInvalidatingTypes_Builder(registry *rhino.JSTypeRegistry) *InvalidatingTypes_Builder {
 	b := &InvalidatingTypes_Builder{}
-	b.typeToLocation = jutil.NewSetMultimap[rhino.JSType, *rhino.Node]()
+	b.typeToLocation = jutil.NewSetMultimap[rhino.JSType, rhino.Node]()
 	b.registry = registry
 	return b
 }
@@ -156,7 +156,7 @@ func (b *InvalidatingTypes_Builder) AddAllTypeMismatches(mismatches []*TypeMisma
 // will be inlined or renamed.
 //
 // Java: InvalidatingTypes.Builder.addTypeWithReason(JSType, Node)
-func (b *InvalidatingTypes_Builder) AddTypeWithReason(type_ rhino.JSType, location *rhino.Node) {
+func (b *InvalidatingTypes_Builder) AddTypeWithReason(type_ rhino.JSType, location rhino.Node) {
 	type_ = type_.RestrictByNotNullOrUndefined()
 
 	if type_.IsUnionType() {
@@ -190,7 +190,7 @@ func (b *InvalidatingTypes_Builder) AddTypeWithReason(type_ rhino.JSType, locati
 }
 
 // Java: InvalidatingTypes.Builder.recordTypeWithReason(ObjectType, Node)
-func (b *InvalidatingTypes_Builder) RecordTypeWithReason(type_ rhino.ObjectType, location *rhino.Node) {
+func (b *InvalidatingTypes_Builder) RecordTypeWithReason(type_ rhino.ObjectType, location rhino.Node) {
 	if type_ == nil {
 		return
 	}

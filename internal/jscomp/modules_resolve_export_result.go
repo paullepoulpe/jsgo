@@ -49,8 +49,8 @@ func newResolveExportResult(binding *Binding, state resolveExportResult_State) *
 // binding and given type of binding.
 //
 // Java: ResolveExportResult.copy(Node, Binding.CreatedBy)
-func (r *ResolveExportResult) Copy(sourceNode *rhino.Node, createdBy Binding_CreatedBy) *ResolveExportResult {
-	jutil.CheckNotNull(sourceNode)
+func (r *ResolveExportResult) Copy(sourceNode rhino.Node, createdBy Binding_CreatedBy) *ResolveExportResult {
+	rhino.CheckNotNull(sourceNode)
 
 	if r.binding == nil {
 		return r

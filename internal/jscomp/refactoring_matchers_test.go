@@ -57,7 +57,7 @@ func (c *MatchersTest) TestAnything() {
 	input := "goog.base(this);"
 	root := matchersTest_compileToScriptRoot(matchersTest_getCompiler(input))
 	child := root.GetFirstChild()
-	AssertThat(Matchers_Anything().Matches(nil, nil)).IsTrue()
+	AssertThat(Matchers_Anything().Matches(rhino.Node{}, nil)).IsTrue()
 	AssertThat(Matchers_Anything().Matches(root, nil)).IsTrue()
 	AssertThat(Matchers_Anything().Matches(child, nil)).IsTrue()
 	AssertThat(Matchers_Anything().Matches(child, NewNodeMetadata(nil))).IsTrue()
@@ -92,7 +92,7 @@ func (c *MatchersTest) TestAnyOf() {
 
 // Java: MatchersTest.testNot()
 func (c *MatchersTest) TestNot() {
-	AssertThat(Matchers_Not(Matchers_Anything()).Matches(nil, nil)).IsFalse()
+	AssertThat(Matchers_Not(Matchers_Anything()).Matches(rhino.Node{}, nil)).IsFalse()
 
 	input := "goog.require('goog.dom');"
 	root := matchersTest_compileToScriptRoot(matchersTest_getCompiler(input))
@@ -429,7 +429,7 @@ func (c *MatchersTest) TestIsPrivate() {
 // from the compiled JS input.
 //
 // Java: MatchersTest.compileToScriptRoot(Compiler)
-func matchersTest_compileToScriptRoot(compiler *Compiler) *rhino.Node {
+func matchersTest_compileToScriptRoot(compiler *Compiler) rhino.Node {
 	root := compiler.GetRoot()
 	// The last child of the compiler root is a Block node, and the first child
 	// of that is the Script node.

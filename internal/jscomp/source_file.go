@@ -78,7 +78,7 @@ type SourceFile struct {
 
 	sourceInfoTemplateMu    sync.Mutex
 	sourceInfoTemplateReady atomic.Bool
-	sourceInfoTemplateVal   rhino.Node
+	sourceInfoTemplate      rhino.Node
 }
 
 var _ rhino.StaticSourceFile = (*SourceFile)(nil)
@@ -86,21 +86,24 @@ var _ rhino.StaticSourceFileFast = (*SourceFile)(nil)
 
 func (f *SourceFile) GetNamePtr() *string { return &f.fileName }
 
-func (f *SourceFile) getOrCreateSourceInfoTemplate() *rhino.Node {
+func (f *SourceFile) getOrCreateSourceInfoTemplate() rhino.Node {
 	if f == nil {
 		return rhino.NewNode(rhino.Token_SCRIPT)
 	}
 	if f.sourceInfoTemplateReady.Load() {
-		return &f.sourceInfoTemplateVal
+		return f.sourceInfoTemplate
 	}
 	f.sourceInfoTemplateMu.Lock()
 	if !f.sourceInfoTemplateReady.Load() {
-		f.sourceInfoTemplateVal.Init(rhino.Token_SCRIPT)
-		f.sourceInfoTemplateVal.SetStaticSourceFile(f)
+		// A template in the static store: a SourceFile can outlive the
+		// compilation (tests share them) and must not keep its store alive.
+		t := rhino.NewTemplateNode(rhino.Token_SCRIPT)
+		t.SetStaticSourceFile(f)
+		f.sourceInfoTemplate = t
 		f.sourceInfoTemplateReady.Store(true)
 	}
 	f.sourceInfoTemplateMu.Unlock()
-	return &f.sourceInfoTemplateVal
+	return f.sourceInfoTemplate
 }
 
 const sourceFile_UTF8_BOM = "\uFEFF"

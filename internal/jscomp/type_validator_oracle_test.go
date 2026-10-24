@@ -63,8 +63,8 @@ func newTvDump() *tvDump {
 	return d
 }
 
-func tvNodeLabel(n *rhino.Node) string {
-	if n == nil {
+func tvNodeLabel(n rhino.Node) string {
+	if n.IsNil() {
 		return "null"
 	}
 	if n.IsName() || n.IsStringLit() {
@@ -89,10 +89,10 @@ func (d *tvDump) buildExtraTypes() {
 	numberOrUndefined := r.CreateUnionType(number, d.nat(rhino.JSTypeNative_VOID_TYPE))
 
 	i2Ctor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("I2")).WithSourceNode(raiFn("I2")).Build()
-	i2Ctor.GetPrototype().DefineDeclaredProperty("m", number, nil)
-	i2Ctor.GetPrototype().DefineDeclaredProperty("opt", numberOrUndefined, nil)
+	i2Ctor.GetPrototype().DefineDeclaredProperty("m", number, rhino.Node{})
+	i2Ctor.GetPrototype().DefineDeclaredProperty("opt", numberOrUndefined, rhino.Node{})
 	i2 := i2Ctor.GetInstanceType()
-	i2.DefineDeclaredProperty("own", str, nil)
+	i2.DefineDeclaredProperty("own", str, rhino.Node{})
 
 	badImplCtor := r.CreateConstructorType(
 		jutil.StringPtr("BadImpl"), raiFn("BadImpl"), r.CreateParameters(), nil, nil, false)
@@ -101,18 +101,18 @@ func (d *tvDump) buildExtraTypes() {
 	wrongImplCtor := r.CreateConstructorType(
 		jutil.StringPtr("WrongImpl"), raiFn("WrongImpl"), r.CreateParameters(), nil, nil, false)
 	wrongImplCtor.SetImplementedInterfaces([]rhino.ObjectType{i2})
-	wrongImplCtor.GetPrototype().DefineDeclaredProperty("m", str, nil)
-	wrongImplCtor.GetInstanceType().DefineDeclaredProperty("own", number, nil)
+	wrongImplCtor.GetPrototype().DefineDeclaredProperty("m", str, rhino.Node{})
+	wrongImplCtor.GetInstanceType().DefineDeclaredProperty("own", number, rhino.Node{})
 
 	goodImplCtor := r.CreateConstructorType(
 		jutil.StringPtr("GoodImpl"), raiFn("GoodImpl"), r.CreateParameters(), nil, nil, false)
 	goodImplCtor.SetImplementedInterfaces([]rhino.ObjectType{i2})
-	goodImplCtor.GetPrototype().DefineDeclaredProperty("m", number, nil)
-	goodImplCtor.GetInstanceType().DefineDeclaredProperty("own", str, nil)
+	goodImplCtor.GetPrototype().DefineDeclaredProperty("m", number, rhino.Node{})
+	goodImplCtor.GetInstanceType().DefineDeclaredProperty("own", str, rhino.Node{})
 
 	i3Ctor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("I3")).WithSourceNode(raiFn("I3")).Build()
 	i3Ctor.SetExtendedInterfaces([]rhino.ObjectType{i2})
-	i3Ctor.GetPrototype().DefineDeclaredProperty("n", str, nil)
+	i3Ctor.GetPrototype().DefineDeclaredProperty("n", str, rhino.Node{})
 
 	abstractMethod := rhino.FunctionType_Builder_(r).WithReturnType(number).WithIsAbstract(true).Build()
 	concreteMethod := rhino.FunctionType_Builder_(r).WithReturnType(number).Build()
@@ -122,8 +122,8 @@ func (d *tvDump) buildExtraTypes() {
 		WithSourceNode(raiFn("Abs")).
 		WithIsAbstract(true).
 		Build()
-	absCtor.GetPrototype().DefineDeclaredProperty("am", abstractMethod, nil)
-	absCtor.GetPrototype().DefineDeclaredProperty("cm", concreteMethod, nil)
+	absCtor.GetPrototype().DefineDeclaredProperty("am", abstractMethod, rhino.Node{})
+	absCtor.GetPrototype().DefineDeclaredProperty("cm", concreteMethod, rhino.Node{})
 	abs2Ctor := rhino.FunctionType_Builder_(r).
 		ForConstructor().
 		WithName(jutil.StringPtr("Abs2")).
@@ -131,20 +131,20 @@ func (d *tvDump) buildExtraTypes() {
 		WithIsAbstract(true).
 		Build()
 	abs2Ctor.SetPrototypeBasedOn(absCtor.GetInstanceType())
-	abs2Ctor.GetPrototype().DefineDeclaredProperty("am2", abstractMethod, nil)
+	abs2Ctor.GetPrototype().DefineDeclaredProperty("am2", abstractMethod, rhino.Node{})
 	concreteCtor := r.CreateConstructorType(
 		jutil.StringPtr("Concrete"), raiFn("Concrete"), r.CreateParameters(), nil, nil, false)
 	concreteCtor.SetPrototypeBasedOn(abs2Ctor.GetInstanceType())
-	concreteCtor.GetPrototype().DefineDeclaredProperty("am2", concreteMethod, nil)
+	concreteCtor.GetPrototype().DefineDeclaredProperty("am2", concreteMethod, rhino.Node{})
 	concrete2Ctor := r.CreateConstructorType(
 		jutil.StringPtr("Concrete2"), raiFn("Concrete2"), r.CreateParameters(), nil, nil, false)
 	concrete2Ctor.SetPrototypeBasedOn(absCtor.GetInstanceType())
-	concrete2Ctor.GetPrototype().DefineDeclaredProperty("am", concreteMethod, nil)
+	concrete2Ctor.GetPrototype().DefineDeclaredProperty("am", concreteMethod, rhino.Node{})
 
 	structCtor := r.CreateConstructorType(
 		jutil.StringPtr("Struct"), raiFn("Struct"), r.CreateParameters(), nil, nil, false)
 	structCtor.SetStruct()
-	structCtor.GetPrototype().DefineDeclaredProperty("s", number, nil)
+	structCtor.GetPrototype().DefineDeclaredProperty("s", number, rhino.Node{})
 
 	d.add("I2", i2)
 	d.add("ctor:I2", i2Ctor)
@@ -215,7 +215,7 @@ func tvBool(v bool) string {
 	return "false"
 }
 
-func tvTyped(n *rhino.Node, t rhino.JSType) *rhino.Node {
+func tvTyped(n rhino.Node, t rhino.JSType) rhino.Node {
 	if t != nil {
 		n.SetJSType(t)
 	}
@@ -229,7 +229,7 @@ func (d *tvDump) unary(i int) {
 	t := d.types[i]
 	v := d.validator
 	idx := " " + strconv.Itoa(i+1)
-	name := func() *rhino.Node { return rhino.IR_Name("n") }
+	name := func() rhino.Node { return rhino.IR_Name("n") }
 	void := func(f func()) func() string { return func() string { f(); return "" } }
 	d.call("U expectObject"+idx, func() string { return tvBool(v.ExpectObject(name(), t, "msg")) })
 	d.call("U expectActualObject"+idx, void(func() { v.ExpectActualObject(name(), t, "msg") }))
@@ -288,7 +288,7 @@ func (d *tvDump) binary() {
 	v := d.validator
 	ij := " " + strconv.Itoa(i+1) + " " + strconv.Itoa(j+1)
 	ijk := ij + " " + strconv.Itoa(k+1)
-	name := func(s string) *rhino.Node { return rhino.IR_Name(s) }
+	name := func(s string) rhino.Node { return rhino.IR_Name(s) }
 	void := func(f func()) func() string { return func() string { f(); return "" } }
 	switch d.nextInt(11) {
 	case 0:
@@ -441,7 +441,7 @@ func (d *tvDump) scenarios() {
 		}
 		name := names[s]
 		oldName := rhino.IR_Name(name)
-		var oldDecl *rhino.Node
+		var oldDecl rhino.Node
 		if s == 3 {
 			oldDecl = rhino.IR_ExprResult(oldName)
 		} else {
@@ -464,7 +464,7 @@ func (d *tvDump) scenarios() {
 		}
 		var_ := global.Declare(name, oldName, oldType, oldInput, false)
 		newName := rhino.IR_Name(name)
-		var newDecl *rhino.Node
+		var newDecl rhino.Node
 		if s == 6 {
 			newName = rhino.IR_Function(rhino.IR_Name(name), rhino.IR_ParamList(), rhino.IR_Block())
 			newDecl = rhino.IR_ExprResult(newName)

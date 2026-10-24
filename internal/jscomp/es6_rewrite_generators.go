@@ -132,7 +132,7 @@ func (e *Es6RewriteGenerators) generatorContextType() AstFactory_Type {
 }
 
 // Java: Es6RewriteGenerators.process(Node, Node)
-func (e *Es6RewriteGenerators) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6RewriteGenerators) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(e.compiler.GetLifeCycleStage().IsNormalized())
 	TranspilationPasses_ProcessTranspile(
 		e.compiler, root, Es6RewriteGenerators_transpiledFeatures, &Es6RewriteGenerators_GeneratorFunctionsTranspiler{outer: e})
@@ -175,7 +175,7 @@ func NewEs6RewriteGenerators_YieldExposer(outer *Es6RewriteGenerators) *Es6Rewri
 }
 
 // Java: YieldExposer.shouldTraverse(NodeTraversal, Node, Node)
-func (y *Es6RewriteGenerators_YieldExposer) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (y *Es6RewriteGenerators_YieldExposer) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	n.SetGeneratorMarker(false)
 	if n.IsFunction() {
 		return false
@@ -188,7 +188,7 @@ func (y *Es6RewriteGenerators_YieldExposer) ShouldTraverse(t *NodeTraversal, n *
 }
 
 // Java: YieldExposer.visitYield(Node)
-func (y *Es6RewriteGenerators_YieldExposer) VisitYield(n *rhino.Node) {
+func (y *Es6RewriteGenerators_YieldExposer) VisitYield(n rhino.Node) {
 	if n.GetParent().IsExprResult() {
 		return
 	}
@@ -214,7 +214,7 @@ type Es6RewriteGenerators_GeneratorFunctionsTranspiler struct {
 }
 
 // Java: GeneratorFunctionsTranspiler.visit(NodeTraversal, Node, Node)
-func (g *Es6RewriteGenerators_GeneratorFunctionsTranspiler) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *Es6RewriteGenerators_GeneratorFunctionsTranspiler) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsGeneratorFunction() {
 		NewEs6RewriteGenerators_SingleGeneratorFunctionTranspiler(g.outer, n, g.outer.uniqueIdSupplier.GetUniqueId(t.GetInput())).
 			Transpile()
@@ -232,7 +232,7 @@ type Es6RewriteGenerators_SingleGeneratorFunctionTranspiler struct {
 	context *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext
 
 	// The body of original generator function that should be transpiled
-	originalGeneratorBody *rhino.Node
+	originalGeneratorBody rhino.Node
 
 	// Counter to generate unique variable names for for-in loops.
 	//
@@ -253,11 +253,11 @@ type Es6RewriteGenerators_SingleGeneratorFunctionTranspiler struct {
 	//
 	// The assumption is that the hoist block always ends with a return statement, and all local
 	// variables are added before this "return" statement.
-	newGeneratorHoistBlock *rhino.Node
+	newGeneratorHoistBlock rhino.Node
 }
 
 // Java: SingleGeneratorFunctionTranspiler(Node, String)
-func NewEs6RewriteGenerators_SingleGeneratorFunctionTranspiler(outer *Es6RewriteGenerators, genFunc *rhino.Node, uniqueId string) *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler {
+func NewEs6RewriteGenerators_SingleGeneratorFunctionTranspiler(outer *Es6RewriteGenerators, genFunc rhino.Node, uniqueId string) *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler {
 	s := &Es6RewriteGenerators_SingleGeneratorFunctionTranspiler{outer: outer}
 	s.forInCounter = 0
 	s.originalGeneratorBody = genFunc.GetLastChild()
@@ -272,7 +272,7 @@ func NewEs6RewriteGenerators_SingleGeneratorFunctionTranspiler(outer *Es6Rewrite
 // generator execution function.
 //
 // Java: SingleGeneratorFunctionTranspiler.hoistVarNode(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) HoistVarNode(node *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) HoistVarNode(node rhino.Node) {
 	jutil.CheckStateMsg1(node.IsVar(), "%s", node)
 	node.InsertBefore(s.newGeneratorHoistBlock.GetLastChild())
 }
@@ -285,7 +285,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) HoistVarNode(no
 // body.
 //
 // Java: SingleGeneratorFunctionTranspiler.hoistFunctionDeclarationNode(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) HoistFunctionDeclarationNode(node *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) HoistFunctionDeclarationNode(node rhino.Node) {
 	jutil.CheckStateMsg1(node.IsFunction(), "%s", node)
 	s.newGeneratorHoistBlock.AddChildToFront(node)
 }
@@ -299,14 +299,14 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) HoistFunctionDe
 //	}
 //
 // Java: SingleGeneratorFunctionTranspiler.isTranspiledAsyncFunction(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) IsTranspiledAsyncFunction(generatorFunction *rhino.Node) bool {
-	if generatorFunction.GetParent().IsCall() && generatorFunction.GetPrevious() != nil {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) IsTranspiledAsyncFunction(generatorFunction rhino.Node) bool {
+	if generatorFunction.GetParent().IsCall() && !generatorFunction.GetPrevious().IsNil() {
 		callTarget := generatorFunction.GetParent().GetFirstChild()
 		if generatorFunction.GetPrevious() == callTarget &&
-			generatorFunction.GetNext() == nil &&
+			generatorFunction.GetNext().IsNil() &&
 			s.outer.jscompAsyncExecuteFunction.Matches(callTarget) {
 			jutil.CheckState(generatorFunction.GetGrandparent().IsReturn())
-			jutil.CheckState(generatorFunction.GetGrandparent().GetNext() == nil)
+			jutil.CheckState(generatorFunction.GetGrandparent().GetNext().IsNil())
 			return true
 		}
 	}
@@ -323,12 +323,12 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) Transpile() {
 	// A "program" function:
 	//   function ($jscomp$generator$context) {
 	//   }
-	var program *rhino.Node
+	var program rhino.Node
 	// function(!Context<YIELD_TYPE>): (void|{value: YIELD_TYPE})
 	programType := colors.StandardColors_TOP_OBJECT
 	generatorBody := astFactory.CreateBlock()
 
-	var changeScopeNode *rhino.Node
+	var changeScopeNode rhino.Node
 	if s.IsTranspiledAsyncFunction(generatorFunction) {
 		// Our generatorFunction is a transpiled async function
 
@@ -426,7 +426,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) Transpile() {
 // TranspileStatement: see TranspileStatementWithCases.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileStatement(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileStatement(statement *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileStatement(statement rhino.Node) {
 	s.TranspileStatementWithCases(statement, nil, nil)
 }
 
@@ -435,11 +435,11 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileStatem
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileStatement(Node, TranspilationContext.Case, TranspilationContext.Case)
 func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileStatementWithCases(
-	statement *rhino.Node,
+	statement rhino.Node,
 	breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case,
 	continueCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	jutil.CheckState(rhino.IR_MayBeStatement(statement))
-	jutil.CheckState(statement.GetParent() == nil)
+	jutil.CheckState(statement.GetParent().IsNil())
 
 	if !statement.IsGeneratorMarker() {
 		s.TranspileUnmarkedNode(statement)
@@ -480,7 +480,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileStatem
 // TranspileUnmarkedNode transpiles code that doesn't contain `yield`s.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileUnmarkedNode(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileUnmarkedNode(n *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileUnmarkedNode(n rhino.Node) {
 	jutil.CheckState(!n.IsGeneratorMarker())
 	if n.IsFunction() {
 		// An inner function should be created only once, when the generator function is first
@@ -507,9 +507,9 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileUnmark
 // TranspileLabel transpiles a label with marked statement.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileLabel(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileLabel(n *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileLabel(n rhino.Node) {
 	// Collect all labels names in "a: b: c: {}" statement
-	labelNames := []*rhino.Node{}
+	labelNames := []rhino.Node{}
 	for n.IsLabel() {
 		labelNames = append(labelNames, n.RemoveFirstChild())
 		n = n.RemoveFirstChild()
@@ -534,7 +534,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileLabel(
 // TranspileBlock transpiles a block.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileBlock(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileBlock(n *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileBlock(n rhino.Node) {
 	for n.HasChildren() {
 		s.TranspileStatement(n.RemoveFirstChild())
 	}
@@ -543,7 +543,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileBlock(
 // TranspileExpressionResult transpiles marked expression result statement.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileExpressionResult(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileExpressionResult(n *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileExpressionResult(n rhino.Node) {
 	exposedExpression := s.ExposeYieldAndTranspileRest(n.RemoveFirstChild())
 	decomposed := s.TranspileYields(exposedExpression)
 
@@ -560,15 +560,15 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileExpres
 // TranspileVar transpiles marked "var" statement.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileVar(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileVar(n *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileVar(n rhino.Node) {
 	n.SetGeneratorMarker(false)
 	newVars := n.CloneNode()
 	for n.HasChildren() {
-		var var_ *rhino.Node
+		var var_ rhino.Node
 		// Just collect all unmarked vars and transpile them together.
 		for {
 			var_ = n.RemoveFirstChild()
-			if !(var_ != nil && !var_.IsGeneratorMarker()) {
+			if !(!var_.IsNil() && !var_.IsGeneratorMarker()) {
 				break
 			}
 			newVars.AddChildToBack(var_)
@@ -579,7 +579,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileVar(n 
 		}
 
 		// Transpile marked var
-		if var_ != nil {
+		if !var_.IsNil() {
 			jutil.CheckState(var_.IsGeneratorMarker())
 			var_.AddChildToFront(s.MaybeDecomposeExpression(var_.RemoveFirstChild()))
 			var_.SetGeneratorMarker(false)
@@ -596,7 +596,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileVar(n 
 // TranspileReturn transpiles marked "return" statement.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileReturn(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileReturn(n *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileReturn(n rhino.Node) {
 	n.AddChildToFront(
 		s.context.ReturnExpression(
 			n, s.PrepareNodeForWrite(s.MaybeDecomposeExpression(n.RemoveFirstChild()))))
@@ -607,7 +607,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileReturn
 // TranspileThrow transpiles marked "throw" statement.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileThrow(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileThrow(n *rhino.Node) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileThrow(n rhino.Node) {
 	n.AddChildToFront(s.PrepareNodeForWrite(s.MaybeDecomposeExpression(n.RemoveFirstChild())))
 	s.context.WriteGeneratedNode(n)
 	s.context.currentCase.mayFallThrough = false
@@ -617,7 +617,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileThrow(
 // effects transpiling some code on the way.
 //
 // Java: SingleGeneratorFunctionTranspiler.exposeYieldAndTranspileRest(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) ExposeYieldAndTranspileRest(n *rhino.Node) *rhino.Node {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) ExposeYieldAndTranspileRest(n rhino.Node) rhino.Node {
 	jutil.CheckState(n.IsGeneratorMarker())
 	if n.IsYield() {
 		return n
@@ -634,7 +634,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) ExposeYieldAndT
 	// Need to put expression nodes into return node so that they always stay expression nodes
 	// If expression put into expression result YieldExposer may turn it into an "if" statement.
 	isExpression := rhino.IR_MayBeExpression(n)
-	var block *rhino.Node
+	var block rhino.Node
 	if isExpression {
 		block = s.outer.astFactory.CreateBlock(s.outer.astFactory.CreateReturn(n))
 	} else {
@@ -658,8 +658,8 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) ExposeYieldAndT
 // an unmarked analogue.
 //
 // Java: SingleGeneratorFunctionTranspiler.maybeDecomposeExpression(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) MaybeDecomposeExpression(n *rhino.Node) *rhino.Node {
-	if n == nil || !n.IsGeneratorMarker() {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) MaybeDecomposeExpression(n rhino.Node) rhino.Node {
+	if n.IsNil() || !n.IsGeneratorMarker() {
 		return n
 	}
 	return s.TranspileYields(s.ExposeYieldAndTranspileRest(n))
@@ -669,13 +669,13 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) MaybeDecomposeE
 // to write using the TranspilationContext.writeGeneratedNode method.
 //
 // Java: SingleGeneratorFunctionTranspiler.prepareNodeForWrite(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) PrepareNodeForWrite(n *rhino.Node) *rhino.Node {
-	if n == nil {
-		return nil
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) PrepareNodeForWrite(n rhino.Node) rhino.Node {
+	if n.IsNil() {
+		return rhino.Node{}
 	}
 
 	// Need to wrap a node so, it can be replaced in the tree with some other node if necessary.
-	var wrapper *rhino.Node
+	var wrapper rhino.Node
 	if rhino.IR_MayBeStatement(n) {
 		wrapper = s.outer.astFactory.CreateBlock(n)
 	} else {
@@ -690,7 +690,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) PrepareNodeForW
 // $jscomp$generator$context.yieldResult.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileYields(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileYields(n *rhino.Node) *rhino.Node {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileYields(n rhino.Node) rhino.Node {
 	if !n.IsGeneratorMarker() {
 		// In some cases exposing yield causes it to disapear from the resulting statement.
 		// I.e. the following node: "0 || yield;" becomes:
@@ -728,7 +728,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileYields
 // TranspileIf transpiles marked "if" stetement.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileIf(Node, TranspilationContext.Case)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileIf(n *rhino.Node, breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileIf(n rhino.Node, breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	astFactory := s.outer.astFactory
 	// Decompose condition first
 	condition := s.MaybeDecomposeExpression(n.RemoveFirstChild())
@@ -736,7 +736,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileIf(n *
 	elseBlock := ifBlock.GetNext()
 
 	// No transpilation is needed
-	if !ifBlock.IsGeneratorMarker() && (elseBlock == nil || !elseBlock.IsGeneratorMarker()) {
+	if !ifBlock.IsGeneratorMarker() && (elseBlock.IsNil() || !elseBlock.IsGeneratorMarker()) {
 		n.AddChildToFront(condition)
 		n.SetGeneratorMarker(false)
 		s.TranspileUnmarkedNode(n)
@@ -744,7 +744,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileIf(n *
 	}
 
 	ifBlock.Detach()
-	if elseBlock == nil {
+	if elseBlock.IsNil() {
 		// No "else" block, just create an empty one as will need it anyway.
 		elseBlock = astFactory.CreateBlock().Srcref(n)
 	} else {
@@ -793,7 +793,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileIf(n *
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileFor(Node, TranspilationContext.Case, TranspilationContext.Case)
 func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileFor(
-	n *rhino.Node,
+	n rhino.Node,
 	breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case,
 	continueCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	astFactory := s.outer.astFactory
@@ -862,7 +862,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileFor(
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileForIn(Node, TranspilationContext.Case, TranspilationContext.Case)
 func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileForIn(
-	n *rhino.Node,
+	n rhino.Node,
 	breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case,
 	continueCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	astFactory := s.outer.astFactory
@@ -880,7 +880,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileForIn(
 	}
 
 	// Prepare a new init statement
-	var init *rhino.Node
+	var init rhino.Node
 	if target.Detach().IsVar() {
 		// "var i in x"    =>   "var i"
 		jutil.CheckState(!target.IsGeneratorMarker())
@@ -939,7 +939,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileForIn(
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileDo(Node, TranspilationContext.Case, TranspilationContext.Case)
 func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileDo(
-	n *rhino.Node,
+	n rhino.Node,
 	breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case,
 	continueCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	startCase := s.context.CreateCase()
@@ -968,7 +968,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileDo(
 // TranspileTry transpiles "try" statement
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileTry(Node, TranspilationContext.Case)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileTry(n *rhino.Node, breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileTry(n rhino.Node, breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	tryBlock := n.RemoveFirstChild()
 	catchBlock := n.RemoveFirstChild()
 	finallyBlock := n.RemoveFirstChild()
@@ -978,7 +978,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileTry(n 
 		catchCase = s.context.CreateCase()
 	}
 	var finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case
-	if finallyBlock != nil {
+	if !finallyBlock.IsNil() {
 		finallyCase = s.context.CreateCase()
 	}
 	endCase := s.context.MaybeCreateCase(breakCase)
@@ -987,7 +987,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileTry(n 
 	s.context.EnterTryBlock(catchCase, finallyCase, tryBlock)
 	s.TranspileStatement(tryBlock)
 
-	if finallyBlock == nil {
+	if finallyBlock.IsNil() {
 		s.context.LeaveTryBlock(catchCase, endCase, tryBlock)
 	} else {
 		// Transpile "finally" block
@@ -1017,14 +1017,14 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileTry(n 
 // TranspileSwitch transpiles "switch" statement.
 //
 // Java: SingleGeneratorFunctionTranspiler.transpileSwitch(Node, TranspilationContext.Case)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileSwitch(n *rhino.Node, breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileSwitch(n rhino.Node, breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	// Transpile condition first
 	n.AddChildToFront(s.MaybeDecomposeExpression(n.RemoveFirstChild()))
 
 	// Are all "switch" cases unmarked?
 	hasGeneratorMarker := false
 	switchBody := n.GetSecondChild()
-	for caseSection := switchBody.GetFirstChild(); caseSection != nil; caseSection = caseSection.GetNext() {
+	for caseSection := switchBody.GetFirstChild(); !caseSection.IsNil(); caseSection = caseSection.GetNext() {
 		if caseSection.IsGeneratorMarker() {
 			hasGeneratorMarker = true
 			break
@@ -1040,7 +1040,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileSwitch
 	// Stores a detached body of a case statement and a case section assosiated with it.
 	type SwitchCase struct {
 		generatedCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case
-		body          *rhino.Node
+		body          rhino.Node
 	}
 
 	// TODO(skill): Don't move all case sections.
@@ -1048,7 +1048,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileSwitch
 
 	// We don't have to transpile unmarked cases at the beginning of "switch".
 	canSkipUnmarkedCases := true
-	for caseSection := switchBody.GetFirstChild(); caseSection != nil; caseSection = caseSection.GetNext() {
+	for caseSection := switchBody.GetFirstChild(); !caseSection.IsNil(); caseSection = caseSection.GetNext() {
 		if !caseSection.IsDefaultCase() && caseSection.GetFirstChild().IsGeneratorMarker() {
 			// Following example is possible to transpile, but it's not trivial.
 			// switch (cond) {
@@ -1111,7 +1111,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileSwitch
 // FindYield finds the only YIELD node in a tree.
 //
 // Java: SingleGeneratorFunctionTranspiler.findYield(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) FindYield(n *rhino.Node) *rhino.Node {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) FindYield(n rhino.Node) rhino.Node {
 	yieldFinder := &Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_YieldFinder{}
 	NodeTraversal_Traverse(s.outer.compiler, n, yieldFinder)
 	return yieldFinder.GetYieldNode()
@@ -1122,16 +1122,16 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) FindYield(n *rh
 type Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_YieldFinder struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
 
-	yieldNode *rhino.Node
+	yieldNode rhino.Node
 }
 
 // Java: YieldFinder.shouldTraverse(NodeTraversal, Node, Node)
-func (y *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_YieldFinder) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (y *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_YieldFinder) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsFunction() {
 		return false
 	}
 	if n.IsYield() {
-		jutil.CheckState(y.yieldNode == nil)
+		jutil.CheckState(y.yieldNode.IsNil())
 		y.yieldNode = n
 		return false
 	}
@@ -1139,8 +1139,8 @@ func (y *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_YieldFinder) Sho
 }
 
 // Java: YieldFinder.getYieldNode()
-func (y *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_YieldFinder) GetYieldNode() *rhino.Node {
-	jutil.CheckNotNull(y.yieldNode)
+func (y *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_YieldFinder) GetYieldNode() rhino.Node {
+	rhino.CheckNotNull(y.yieldNode)
 	return y.yieldNode
 }
 
@@ -1150,7 +1150,7 @@ func (y *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_YieldFinder) Get
 // It's OK for this method to return false-negatives.
 //
 // Java: SingleGeneratorFunctionTranspiler.isEndOfBlockUnreachable(Node)
-func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) IsEndOfBlockUnreachable(block *rhino.Node) bool {
+func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) IsEndOfBlockUnreachable(block rhino.Node) bool {
 	jutil.CheckState(block.IsBlock())
 	if !block.HasChildren() {
 		return false
@@ -1185,7 +1185,7 @@ type Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext
 	allCases []*Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case
 
 	// All "break" nodes that exit from the generator primary switch statement
-	switchBreaks []*rhino.Node
+	switchBreaks []rhino.Node
 
 	// A virtual case that indicates end of program
 	programEndCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case
@@ -1266,10 +1266,10 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 				currentCase.jumpTo = currentCase.jumpTo.jumpTo
 			}
 
-			if currentCase.embedInto != nil && len(currentCase.references) == 1 {
+			if !currentCase.embedInto.IsNil() && len(currentCase.references) == 1 {
 				currentCase.jumpTo.embedInto = currentCase.embedInto
 			}
-			currentCase.embedInto = nil
+			currentCase.embedInto = rhino.Node{}
 
 			// Update references to jump to the final case in the chain
 			for _, reference := range currentCase.references {
@@ -1302,14 +1302,14 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 	for _, currentCase := range c.allCases[1:] {
 		if len(currentCase.references) == 0 {
 			// No jump references, just append the body to a previous case if needed.
-			jutil.CheckState(currentCase.embedInto == nil)
+			jutil.CheckState(currentCase.embedInto.IsNil())
 			if prevCase.mayFallThrough {
 				prevCase.caseBlock.AddChildrenToBack(currentCase.caseBlock.RemoveChildren())
 				prevCase.mayFallThrough = currentCase.mayFallThrough
 			}
 			continue // it.remove()
 		}
-		if currentCase.embedInto != nil {
+		if !currentCase.embedInto.IsNil() {
 			jutil.CheckState(currentCase.jumpTo == nil)
 			// Cases can be embedded only if they are referenced once and don't fall through.
 			if len(currentCase.references) == 1 && !currentCase.mayFallThrough {
@@ -1360,7 +1360,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) EliminateSwitchBreaks() {
 	for _, breakNode := range c.switchBreaks {
 		prevStatement := breakNode.GetPrevious()
-		jutil.CheckState(prevStatement != nil)
+		jutil.CheckState(!prevStatement.IsNil())
 		jutil.CheckState(prevStatement.IsExprResult())
 		prevStatement.ReplaceWith(rhino.IR_ReturnNodeWithExpr(prevStatement.RemoveFirstChild()))
 		breakNode.Detach()
@@ -1381,7 +1381,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // "case" nodes.
 //
 // Java: TranspilationContext.finalizeTransformation(Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) FinalizeTransformation(generatorBody *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) FinalizeTransformation(generatorBody rhino.Node) {
 	astFactory := c.outer.outer.astFactory
 	c.OptimizeCaseIds()
 
@@ -1478,7 +1478,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // current case.
 //
 // Java: TranspilationContext.transpileUnmarkedBlock(Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) TranspileUnmarkedBlock(block *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) TranspileUnmarkedBlock(block rhino.Node) {
 	if block.HasChildren() {
 		NodeTraversal_Traverse(c.outer.outer.compiler, block, NewEs6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler(c))
 		for block.HasChildren() {
@@ -1491,7 +1491,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // case.
 //
 // Java: TranspilationContext.writeGeneratedNode(Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) WriteGeneratedNode(n *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) WriteGeneratedNode(n rhino.Node) {
 	c.currentCase.AddNode(n)
 }
 
@@ -1499,7 +1499,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // current case and finializes it.
 //
 // Java: TranspilationContext.writeGeneratedNodeAndBreak(Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) WriteGeneratedNodeAndBreak(n *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) WriteGeneratedNodeAndBreak(n rhino.Node) {
 	c.WriteGeneratedNode(n)
 	c.WriteGeneratedNode(c.CreateBreakNodeFor(n))
 	c.currentCase.mayFallThrough = false
@@ -1527,7 +1527,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // the program.
 //
 // Java: TranspilationContext.getJsContextNameNode(Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) GetJsContextNameNode(sourceNode *rhino.Node) *rhino.Node {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) GetJsContextNameNode(sourceNode rhino.Node) rhino.Node {
 	return c.outer.outer.astFactory.
 		CreateName(c.GetScopedName(Es6RewriteGenerators_GENERATOR_CONTEXT), c.outer.outer.generatorContextType()).
 		Srcref(sourceNode)
@@ -1544,7 +1544,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // context.
 //
 // Java: TranspilationContext.getContextField(Node, String)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) GetContextField(sourceNode *rhino.Node, fieldName string) *rhino.Node {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) GetContextField(sourceNode rhino.Node, fieldName string) rhino.Node {
 	return c.outer.outer.astFactory.
 		CreateGetPropWithUnknownType(c.GetJsContextNameNode(sourceNode), fieldName).
 		Srcref(sourceNode)
@@ -1554,7 +1554,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 //
 // Java: TranspilationContext.callContextMethod(Node, String, AstFactory.Type, Node...)
 func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) CallContextMethod(
-	sourceNode *rhino.Node, methodName string, type_ AstFactory_Type, args ...*rhino.Node) *rhino.Node {
+	sourceNode rhino.Node, methodName string, type_ AstFactory_Type, args ...rhino.Node) rhino.Node {
 	contextField := c.GetContextField(sourceNode, methodName)
 	return c.outer.outer.astFactory.CreateCall(contextField, type_, args...).Srcref(sourceNode)
 }
@@ -1564,7 +1564,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 //
 // Java: TranspilationContext.callContextMethodResult(Node, String, AstFactory.Type, Node...)
 func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) CallContextMethodResult(
-	sourceNode *rhino.Node, methodName string, type_ AstFactory_Type, args ...*rhino.Node) *rhino.Node {
+	sourceNode rhino.Node, methodName string, type_ AstFactory_Type, args ...rhino.Node) rhino.Node {
 	return c.outer.outer.astFactory.
 		ExprResult(c.CallContextMethod(sourceNode, methodName, type_, args...)).
 		Srcref(sourceNode)
@@ -1575,7 +1575,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 //
 // Java: TranspilationContext.returnContextMethod(Node, String, AstFactory.Type, Node...)
 func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) ReturnContextMethod(
-	sourceNode *rhino.Node, methodName string, type_ AstFactory_Type, args ...*rhino.Node) *rhino.Node {
+	sourceNode rhino.Node, methodName string, type_ AstFactory_Type, args ...rhino.Node) rhino.Node {
 	return c.outer.outer.astFactory.
 		CreateReturn(c.CallContextMethod(sourceNode, methodName, type_, args...)).
 		Srcref(sourceNode)
@@ -1595,7 +1595,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 //	return $context.jumpTo(5);
 //
 // Java: TranspilationContext.createBreakNodeFor(Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) CreateBreakNodeFor(preBreak *rhino.Node) *rhino.Node {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) CreateBreakNodeFor(preBreak rhino.Node) rhino.Node {
 	breakNode := rhino.IR_BreakNode().Srcref(preBreak)
 	c.switchBreaks = append(c.switchBreaks, breakNode)
 	return breakNode
@@ -1605,7 +1605,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // jump to a selected case section.
 //
 // Java: TranspilationContext.createJumpToNode(Case, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) CreateJumpToNode(section *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode *rhino.Node) *rhino.Node {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) CreateJumpToNode(section *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode rhino.Node) rhino.Node {
 	return c.ReturnContextMethod(
 		sourceNode, "jumpTo", AstFactory_Type_OfColor(colors.StandardColors_NULL_OR_VOID), section.GetNumber(sourceNode))
 }
@@ -1614,7 +1614,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // section.
 //
 // Java: TranspilationContext.writeJumpTo(Case, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) WriteJumpTo(section *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) WriteJumpTo(section *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode rhino.Node) {
 	c.currentCase.JumpTo(
 		section, c.CreateJumpToBlock(section /* allowEmbedding= */, false, sourceNode))
 }
@@ -1625,8 +1625,8 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // embedded into jump block.
 //
 // Java: TranspilationContext.createJumpToBlock(Case, boolean, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) CreateJumpToBlock(section *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, allowEmbedding bool, sourceNode *rhino.Node) *rhino.Node {
-	jutil.CheckState(section.embedInto == nil)
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) CreateJumpToBlock(section *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, allowEmbedding bool, sourceNode rhino.Node) rhino.Node {
+	jutil.CheckState(section.embedInto.IsNil())
 	jumpBlock :=
 		c.outer.outer.astFactory.
 			CreateBlock(
@@ -1647,7 +1647,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // into state machine jumps.
 //
 // Java: TranspilationContext.replaceBreakContinueWithJump(Node, Case, int)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) ReplaceBreakContinueWithJump(sourceNode *rhino.Node, section *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, breakSuppressors int) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) ReplaceBreakContinueWithJump(sourceNode rhino.Node, section *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, breakSuppressors int) {
 	var jumpMethod string
 	if c.nestedFinallyBlockCount > 0 {
 		// If we are in a finally block, we need to use jumpThroughFinallyBlocks to ensure that
@@ -1693,9 +1693,9 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 //
 // Java: TranspilationContext.yieldValue(Node, TranspilationContext.Case, Node)
 func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) YieldValue(
-	expression *rhino.Node, jumpToSection *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode *rhino.Node) {
-	args := []*rhino.Node{}
-	if expression == nil {
+	expression rhino.Node, jumpToSection *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode rhino.Node) {
+	args := []rhino.Node{}
+	if expression.IsNil() {
 		args = append(args, c.outer.outer.astFactory.CreateUndefinedValue().SrcrefTree(sourceNode))
 	} else {
 		args = append(args, expression)
@@ -1711,7 +1711,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // jump to a selected case section.
 //
 // Java: TranspilationContext.yieldAll(Node, TranspilationContext.Case, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) YieldAll(expression *rhino.Node, jumpToSection *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) YieldAll(expression rhino.Node, jumpToSection *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode rhino.Node) {
 	c.WriteGeneratedNode(
 		c.ReturnContextMethod(
 			sourceNode,
@@ -1726,8 +1726,8 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // expression.
 //
 // Java: TranspilationContext.returnExpression(Node, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) ReturnExpression(sourceNode *rhino.Node, expression *rhino.Node) *rhino.Node {
-	if expression == nil {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) ReturnExpression(sourceNode rhino.Node, expression rhino.Node) rhino.Node {
+	if expression.IsNil() {
 		return c.CallContextMethod(sourceNode, "return", AstFactory_Type_OfColor(colors.StandardColors_NULL_OR_VOID))
 	}
 	return c.CallContextMethod(
@@ -1738,7 +1738,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // after yielding.
 //
 // Java: TranspilationContext.yieldResult(Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) YieldResult(sourceNode *rhino.Node) *rhino.Node {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) YieldResult(sourceNode rhino.Node) rhino.Node {
 	return c.CallContextMethod(sourceNode, "getYieldResultJsc", AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN))
 }
 
@@ -1848,11 +1848,11 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // beginning of try block.
 //
 // Java: TranspilationContext.enterTryBlock(Case, Case, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) EnterTryBlock(catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) EnterTryBlock(catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode rhino.Node) {
 	c.AddCatchFinallyCases(catchCase, finallyCase)
 
 	var methodName string
-	args := []*rhino.Node{}
+	args := []rhino.Node{}
 	if catchCase == nil {
 		methodName = "setFinallyBlock"
 		args = append(args, finallyCase.GetNumber(sourceNode))
@@ -1875,9 +1875,9 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // block if finally block is not present.
 //
 // Java: TranspilationContext.leaveTryBlock(Case, Case, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) LeaveTryBlock(catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, endCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) LeaveTryBlock(catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, endCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode rhino.Node) {
 	c.RemoveCatchFinallyCases(catchCase, nil)
-	args := []*rhino.Node{}
+	args := []rhino.Node{}
 	args = append(args, endCase.GetNumber(sourceNode))
 	// Find the next catch block that is not hidden by any finally blocks.
 	nextCatchCase := c.GetNextCatchCase()
@@ -1896,7 +1896,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // beginning of catch block.
 //
 // Java: TranspilationContext.enterCatchBlock(Case, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) EnterCatchBlock(finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, exceptionName *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) EnterCatchBlock(finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, exceptionName rhino.Node) {
 	astFactory := c.outer.outer.astFactory
 	jutil.CheckState(exceptionName.IsName())
 	c.AddCatchFinallyCases(nil, finallyCase)
@@ -1908,7 +1908,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 		c.outer.HoistVarNode(rhino.IR_Var(exceptionName.CloneNode()).Srcref(exceptionName))
 	}
 
-	args := []*rhino.Node{}
+	args := []rhino.Node{}
 	if nextCatchCase != nil {
 		args = append(args, nextCatchCase.GetNumber(exceptionName))
 	}
@@ -1933,7 +1933,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // present.
 //
 // Java: TranspilationContext.leaveCatchBlock(Case, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) LeaveCatchBlock(finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode *rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) LeaveCatchBlock(finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode rhino.Node) {
 	if finallyCase != nil {
 		c.RemoveCatchFinallyCases(nil, finallyCase)
 		c.WriteJumpTo(finallyCase, sourceNode)
@@ -1945,14 +1945,14 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 //
 // Java: TranspilationContext.enterFinallyBlock(Case, Case, Node)
 func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) EnterFinallyBlock(
-	catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode *rhino.Node) {
+	catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode rhino.Node) {
 	astFactory := c.outer.outer.astFactory
 	c.RemoveCatchFinallyCases(catchCase, finallyCase)
 
 	nextCatchCase := c.GetNextCatchCase()
 	nextFinallyCase := c.GetNextFinallyCase()
 
-	args := []*rhino.Node{}
+	args := []rhino.Node{}
 	if c.nestedFinallyBlockCount == 0 {
 		if nextCatchCase != nil || nextFinallyCase != nil {
 			if nextCatchCase == nil {
@@ -1992,8 +1992,8 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // finally block.
 //
 // Java: TranspilationContext.leaveFinallyBlock(Case, Node)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) LeaveFinallyBlock(endCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode *rhino.Node) {
-	args := []*rhino.Node{}
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) LeaveFinallyBlock(endCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, sourceNode rhino.Node) {
+	args := []rhino.Node{}
 	args = append(args, endCase.GetNumber(sourceNode))
 	c.nestedFinallyBlockCount--
 	if c.nestedFinallyBlockCount != 0 {
@@ -2020,7 +2020,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // PushLabels adds a named labels to the context.
 //
 // Java: TranspilationContext.pushLabels(ArrayList<Node>, Case, Case)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) PushLabels(labelNames []*rhino.Node, breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, continueCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) PushLabels(labelNames []rhino.Node, breakCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, continueCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	for _, labelName := range labelNames {
 		jutil.CheckState(labelName.IsLabelName())
 		c.namedLabels.Put(labelName.GetString(), NewEs6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_LabelCases(breakCase, continueCase))
@@ -2030,7 +2030,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // PopLabels removes the named labels from the context.
 //
 // Java: TranspilationContext.popLabels(ArrayList<Node>)
-func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) PopLabels(labelNames []*rhino.Node) {
+func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) PopLabels(labelNames []rhino.Node) {
 	for _, labelName := range labelNames {
 		jutil.CheckState(labelName.IsLabelName())
 		c.namedLabels.Remove(labelName.GetString())
@@ -2082,12 +2082,12 @@ type Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext
 	outer *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext
 
 	id        int
-	caseBlock *rhino.Node
+	caseBlock rhino.Node
 
 	// Records number of times the section was referenced.
 	//
 	// It's used to drop unreferenced sections.
-	references []*rhino.Node
+	references []rhino.Node
 
 	// Indicates that this case is a simple jump or a fall-though case. Points to the target
 	// case.
@@ -2112,7 +2112,7 @@ type Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext
 	//	labelEnd:
 	//
 	// In this example "labelIf" case can be embedded into "{ goto labelIf; }" block.
-	embedInto *rhino.Node
+	embedInto rhino.Node
 
 	// Tells whether this case might fall-through.
 	mayFallThrough bool
@@ -2133,7 +2133,7 @@ func NewEs6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCont
 }
 
 // Java: Case.createCaseNode()
-func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) CreateCaseNode() *rhino.Node {
+func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) CreateCaseNode() rhino.Node {
 	return rhino.IR_CaseNode(cs.outer.outer.outer.astFactory.CreateNumber(float64(cs.id)).Srcref(cs.caseBlock), cs.caseBlock).
 		Srcref(cs.caseBlock)
 }
@@ -2142,7 +2142,7 @@ func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCo
 // reference counter.
 //
 // Java: Case.getNumber(Node)
-func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) GetNumber(sourceNode *rhino.Node) *rhino.Node {
+func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) GetNumber(sourceNode rhino.Node) rhino.Node {
 	if cs.jumpTo != nil {
 		return cs.jumpTo.GetNumber(sourceNode)
 	}
@@ -2156,7 +2156,7 @@ func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCo
 // AddNode cannot be invoked after this method is called.
 //
 // Java: Case.jumpTo(Case, Node)
-func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) JumpTo(other *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, jumpBlock *rhino.Node) {
+func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) JumpTo(other *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, jumpBlock rhino.Node) {
 	jutil.CheckState(jumpBlock.IsBlock())
 	jutil.CheckState(cs.jumpTo == nil)
 	cs.WillFollowBy(other)
@@ -2188,7 +2188,7 @@ func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCo
 // AddNode adds a new node to the end of the case block.
 //
 // Java: Case.addNode(Node)
-func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) AddNode(n *rhino.Node) {
+func (cs *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) AddNode(n rhino.Node) {
 	jutil.CheckState(cs.jumpTo == nil)
 	jutil.CheckState(rhino.IR_MayBeStatement(n))
 	cs.caseBlock.AddChildToBack(n)
@@ -2220,7 +2220,7 @@ func NewEs6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCont
 }
 
 // Java: UnmarkedNodeTranspiler.shouldTraverse(NodeTraversal, Node, Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsGeneratorSafe() {
 		// Skip nodes that were generated by the compiler.
 		n.SetGeneratorSafe(false)
@@ -2250,7 +2250,7 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 }
 
 // Java: UnmarkedNodeTranspiler.visit(NodeTraversal, Node, Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsLoopStructure(n) {
 		u.continueSuppressors--
 		u.breakSuppressors--
@@ -2277,7 +2277,7 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // VisitReturn adjusts return statements.
 //
 // Java: UnmarkedNodeTranspiler.visitReturn(Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitReturn(n *rhino.Node) {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitReturn(n rhino.Node) {
 	// return ...;   =>   return $context.return(...);
 	n.AddChildToFront(u.outer.ReturnExpression(n, n.RemoveFirstChild()))
 }
@@ -2286,7 +2286,7 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // into a jump.
 //
 // Java: UnmarkedNodeTranspiler.visitNamedBreakContinue(Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitNamedBreakContinue(n *rhino.Node) {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitNamedBreakContinue(n rhino.Node) {
 	jutil.CheckState(n.GetFirstChild().IsLabelName())
 	cases := u.outer.namedLabels.Get(n.GetFirstChild().GetString())
 	if cases != nil {
@@ -2303,7 +2303,7 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // VisitBreakContinue converts `break` or `continue` statement into a jump.
 //
 // Java: UnmarkedNodeTranspiler.visitBreakContinue(Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitBreakContinue(n *rhino.Node) {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitBreakContinue(n rhino.Node) {
 	var caseSection *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = nil
 	if n.IsBreak() && u.breakSuppressors == 0 {
 		if len(u.outer.breakCases) == 0 {
@@ -2325,7 +2325,7 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // VisitThis replaces reference to `this` with `$jscomp$generator$this`.
 //
 // Java: UnmarkedNodeTranspiler.visitThis(Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitThis(n *rhino.Node) {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitThis(n rhino.Node) {
 	s := u.outer.outer
 	newThis := s.outer.astFactory.CreateName(s.context.GetScopedName(Es6RewriteGenerators_GENERATOR_THIS), AstFactory_Type_(n))
 	n.ReplaceWith(newThis)
@@ -2340,7 +2340,7 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // `$jscomp$generator$arguments`.
 //
 // Java: UnmarkedNodeTranspiler.visitArguments(Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitArguments(n *rhino.Node) {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitArguments(n rhino.Node) {
 	s := u.outer.outer
 	newArguments :=
 		s.outer.astFactory.CreateName(s.context.GetScopedName(Es6RewriteGenerators_GENERATOR_ARGUMENTS), AstFactory_Type_(n)).Srcref(n)
@@ -2364,9 +2364,9 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 //	a = "test", b = i + 5;
 //
 // Java: UnmarkedNodeTranspiler.visitVarStatement(Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitVarStatement(varStatement *rhino.Node) {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitVarStatement(varStatement rhino.Node) {
 	commaExpression := u.ExtractAssignmentsToCommaExpression(varStatement)
-	if commaExpression == nil {
+	if commaExpression.IsNil() {
 		varStatement.Detach()
 	} else {
 		varStatement.ReplaceWith(u.outer.outer.outer.astFactory.ExprResult(commaExpression))
@@ -2387,9 +2387,9 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 //	for (a = "test", b = i + 5; ...; )
 //
 // Java: UnmarkedNodeTranspiler.visitVanillaForLoopVar(Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitVanillaForLoopVar(varDeclaration *rhino.Node) {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitVanillaForLoopVar(varDeclaration rhino.Node) {
 	commaExpression := u.ExtractAssignmentsToCommaExpression(varDeclaration)
-	if commaExpression == nil {
+	if commaExpression.IsNil() {
 		// `for (var x; ` becomes `for (; `
 		varDeclaration.ReplaceWith(rhino.IR_Empty())
 	} else {
@@ -2412,7 +2412,7 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 //	for (a in obj))
 //
 // Java: UnmarkedNodeTranspiler.visitForInLoopVar(Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitForInLoopVar(varDeclaration *rhino.Node) {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitForInLoopVar(varDeclaration rhino.Node) {
 	// `for (var varName in ` ...
 	varName := varDeclaration.GetOnlyChild()
 	jutil.CheckStateMsg1(!varName.HasChildren(), "%s", varName)
@@ -2431,10 +2431,10 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 // `varName1 = 1, varName2 = y`).
 //
 // Java: UnmarkedNodeTranspiler.extractAssignmentsToCommaExpression(Node)
-func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) ExtractAssignmentsToCommaExpression(varDeclaration *rhino.Node) *rhino.Node {
+func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) ExtractAssignmentsToCommaExpression(varDeclaration rhino.Node) rhino.Node {
 	astFactory := u.outer.outer.outer.astFactory
-	assignments := []*rhino.Node{}
-	for varName := varDeclaration.GetFirstChild(); varName != nil; varName = varName.GetNext() {
+	assignments := []rhino.Node{}
+	for varName := varDeclaration.GetFirstChild(); !varName.IsNil(); varName = varName.GetNext() {
 		if varName.HasChildren() {
 			copiedVarName := varName.CloneNode().SetJSDocInfo(nil)
 			assign :=
@@ -2444,9 +2444,9 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 			assignments = append(assignments, assign)
 		}
 	}
-	var commaExpression *rhino.Node = nil
+	var commaExpression rhino.Node = rhino.Node{}
 	for _, assignment := range assignments {
-		if commaExpression == nil {
+		if commaExpression.IsNil() {
 			commaExpression = assignment
 		} else {
 			commaExpression = astFactory.CreateComma(commaExpression, assignment).Srcref(assignment)
@@ -2493,19 +2493,19 @@ func NewEs6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCont
 type Es6RewriteGenerators_YieldNodeMarker struct{}
 
 // Java: YieldNodeMarker.shouldTraverse(NodeTraversal, Node, Node)
-func (y *Es6RewriteGenerators_YieldNodeMarker) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (y *Es6RewriteGenerators_YieldNodeMarker) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return !n.IsFunction()
 }
 
 // Java: YieldNodeMarker.visit(NodeTraversal, Node, Node)
-func (y *Es6RewriteGenerators_YieldNodeMarker) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (y *Es6RewriteGenerators_YieldNodeMarker) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsYield() {
 		n.SetGeneratorMarker(true)
 	}
 
 	// This class is used on a tree that is detached from the main AST, so this will not end up
 	// marking the parent of the node used to start the traversal.
-	if parent != nil && n.IsGeneratorMarker() {
+	if !parent.IsNil() && n.IsGeneratorMarker() {
 		parent.SetGeneratorMarker(true)
 	}
 }

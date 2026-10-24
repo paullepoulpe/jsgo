@@ -256,7 +256,7 @@ func (c *NestedCompilerRunnerTest) TestDoesNotRunTypechecking() {
 }
 
 // Java: NestedCompilerRunnerTest.createScript(String)
-func (c *NestedCompilerRunnerTest) createScript(code string) *rhino.Node {
+func (c *NestedCompilerRunnerTest) createScript(code string) rhino.Node {
 	file := SourceFile_FromCodeWithKind("test.js", code, rhino.StaticSourceFile_SourceKind_STRONG)
 
 	parsed := c.original.ParseTestCode(code)
@@ -275,7 +275,7 @@ func (c *NestedCompilerRunnerTest) createScript(code string) *rhino.Node {
 }
 
 // Java: NestedCompilerRunnerTest.parse(String)
-func (c *NestedCompilerRunnerTest) parse(src string) *rhino.Node {
+func (c *NestedCompilerRunnerTest) parse(src string) rhino.Node {
 	return c.original.ParseTestCode(src)
 }
 

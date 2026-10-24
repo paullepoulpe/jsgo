@@ -60,7 +60,7 @@ func OptimizeCalls_Builder_() *OptimizeCalls_Builder {
 // CallGraphCompilerPass.
 type OptimizeCalls_CallGraphCompilerPass interface {
 	// Java: OptimizeCalls.CallGraphCompilerPass.process(Node, Node, ReferenceMap)
-	Process(externs *rhino.Node, root *rhino.Node, references *OptimizeCalls_ReferenceMap)
+	Process(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap)
 }
 
 // OptimizeCalls_CallGraphCompilerPassFunc lets a closure (a Java lambda) be
@@ -68,10 +68,10 @@ type OptimizeCalls_CallGraphCompilerPass interface {
 //
 // Go-only: language-adapter — Java lambdas implement the functional
 // interface directly.
-type OptimizeCalls_CallGraphCompilerPassFunc func(externs *rhino.Node, root *rhino.Node, references *OptimizeCalls_ReferenceMap)
+type OptimizeCalls_CallGraphCompilerPassFunc func(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap)
 
 // Process calls f.
-func (f OptimizeCalls_CallGraphCompilerPassFunc) Process(externs *rhino.Node, root *rhino.Node, references *OptimizeCalls_ReferenceMap) {
+func (f OptimizeCalls_CallGraphCompilerPassFunc) Process(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap) {
 	f(externs, root, references)
 }
 
@@ -123,7 +123,7 @@ func NewOptimizeCalls_Builder() *OptimizeCalls_Builder {
 }
 
 // Java: OptimizeCalls.process(Node, Node)
-func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
+func (o *OptimizeCalls) Process(externs rhino.Node, root rhino.Node) {
 	// Only global names are collected, which is insufficient if names have not been normalized.
 	jutil.CheckState(o.compiler.GetLifeCycleStage().IsNormalized())
 
@@ -141,7 +141,7 @@ func (o *OptimizeCalls) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 	cb := NewOptimizeCalls_ReferenceMapBuildingCallback(o, references)
 	scopeRoot := externs.GetParent()
-	if scopeRoot == nil {
+	if scopeRoot.IsNil() {
 		failNodeTraversalNull()
 	}
 	jutil.CheckState(root.GetParent() == scopeRoot)
@@ -189,33 +189,33 @@ func (o *OptimizeCalls) EliminateAccessorsFrom(references *OptimizeCalls_Referen
 // properties.
 type OptimizeCalls_ReferenceMap struct {
 	globalScope  *Scope
-	names        *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]]
-	props        *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]]
+	names        *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]]
+	props        *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]]
 	lastNameKey  string
 	lastNameID   uint32
-	lastNameList *jutil.ArrayList[*rhino.Node]
+	lastNameList *jutil.ArrayList[rhino.Node]
 	lastPropKey  string
 	lastPropID   uint32
 	refLists     jutil.Slab[optimizeCalls_refList] // one pass's lists die together
-	lastPropList *jutil.ArrayList[*rhino.Node]
+	lastPropList *jutil.ArrayList[rhino.Node]
 }
 
 // Java: OptimizeCalls.ReferenceMap()
 func NewOptimizeCalls_ReferenceMap() *OptimizeCalls_ReferenceMap {
 	return &OptimizeCalls_ReferenceMap{
-		names: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](256),
-		props: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](512),
+		names: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[rhino.Node]](256),
+		props: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[rhino.Node]](512),
 	}
 }
 
 // optimizeCalls_refList is a reference list with room for its first nodes in
 // the same allocation.
 type optimizeCalls_refList struct {
-	list jutil.ArrayList[*rhino.Node]
-	buf  [4]*rhino.Node
+	list jutil.ArrayList[rhino.Node]
+	buf  [4]rhino.Node
 }
 
-func (m *OptimizeCalls_ReferenceMap) newRefList() *jutil.ArrayList[*rhino.Node] {
+func (m *OptimizeCalls_ReferenceMap) newRefList() *jutil.ArrayList[rhino.Node] {
 	l := m.refLists.New()
 	l.list.InitWithBuffer(l.buf[:])
 	return &l.list
@@ -243,7 +243,7 @@ func appendDoubling[T any](s []T, e T) []T {
 }
 
 // Java: OptimizeCalls.ReferenceMap.addReference(LinkedHashMap<String, ArrayList<Node>>, String, Node)
-func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]], name string, n *rhino.Node) {
+func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]], name string, n rhino.Node) {
 	refs := data.Get(name)
 	if refs == nil {
 		refs = m.newRefList()
@@ -253,7 +253,7 @@ func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[stri
 }
 
 // Java: OptimizeCalls.ReferenceMap.addNameReference(String, Node)
-func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n *rhino.Node) {
+func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n rhino.Node) {
 	if m.lastNameList != nil && m.lastNameKey != "" && name == m.lastNameKey {
 		listAddDoubling(m.lastNameList, n)
 		return
@@ -270,7 +270,7 @@ func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n *rhino.Node
 }
 
 // Java: OptimizeCalls.ReferenceMap.addPropReference(String, Node)
-func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n *rhino.Node) {
+func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n rhino.Node) {
 	if m.lastPropList != nil && m.lastPropKey != "" && name == m.lastPropKey {
 		listAddDoubling(m.lastPropList, n)
 		return
@@ -292,16 +292,16 @@ func (m *OptimizeCalls_ReferenceMap) GetGlobalScope() *Scope {
 }
 
 // Java: OptimizeCalls.ReferenceMap.getNameReferences()
-func (m *OptimizeCalls_ReferenceMap) GetNameReferences() iter.Seq2[string, *jutil.ArrayList[*rhino.Node]] {
+func (m *OptimizeCalls_ReferenceMap) GetNameReferences() iter.Seq2[string, *jutil.ArrayList[rhino.Node]] {
 	return m.names.All()
 }
 
 // Java: OptimizeCalls.ReferenceMap.getPropReferences()
-func (m *OptimizeCalls_ReferenceMap) GetPropReferences() iter.Seq2[string, *jutil.ArrayList[*rhino.Node]] {
+func (m *OptimizeCalls_ReferenceMap) GetPropReferences() iter.Seq2[string, *jutil.ArrayList[rhino.Node]] {
 	return m.props.All()
 }
 
-var optimizeCalls_emptyFunctionNodes = jutil.NewImmutableListMultimapBuilder[*rhino.Node, *rhino.Node]().Build()
+var optimizeCalls_emptyFunctionNodes = jutil.NewImmutableListMultimapBuilder[rhino.Node, rhino.Node]().Build()
 
 // OptimizeCalls_ReferenceMap_GetFunctionNodes, given a set of references,
 // returns the set of known definitions; specifically, those of the form:
@@ -323,8 +323,8 @@ var optimizeCalls_emptyFunctionNodes = jutil.NewImmutableListMultimapBuilder[*rh
 // input definitionSites to each of their associated functions.
 //
 // Java: OptimizeCalls.ReferenceMap.getFunctionNodes(List<Node>)
-func OptimizeCalls_ReferenceMap_GetFunctionNodes(definitionSites []*rhino.Node) *jutil.ListMultimap[*rhino.Node, *rhino.Node] {
-	var result *jutil.ImmutableListMultimapBuilder[*rhino.Node, *rhino.Node]
+func OptimizeCalls_ReferenceMap_GetFunctionNodes(definitionSites []rhino.Node) *jutil.ListMultimap[rhino.Node, rhino.Node] {
+	var result *jutil.ImmutableListMultimapBuilder[rhino.Node, rhino.Node]
 	for _, def := range definitionSites {
 		optimizeCalls_putDefinitionFunctionNodesFor(&result, def)
 	}
@@ -334,20 +334,20 @@ func OptimizeCalls_ReferenceMap_GetFunctionNodes(definitionSites []*rhino.Node) 
 	return result.Build()
 }
 
-func optimizeCalls_putFn(result **jutil.ImmutableListMultimapBuilder[*rhino.Node, *rhino.Node], def *rhino.Node, fn *rhino.Node) {
+func optimizeCalls_putFn(result **jutil.ImmutableListMultimapBuilder[rhino.Node, rhino.Node], def rhino.Node, fn rhino.Node) {
 	if *result == nil {
-		*result = jutil.NewImmutableListMultimapBuilder[*rhino.Node, *rhino.Node]()
+		*result = jutil.NewImmutableListMultimapBuilder[rhino.Node, rhino.Node]()
 	}
 	(*result).Put(def, fn)
 }
 
-func optimizeCalls_putDefinitionFunctionNodesFor(result **jutil.ImmutableListMultimapBuilder[*rhino.Node, *rhino.Node], definitionSite *rhino.Node) {
+func optimizeCalls_putDefinitionFunctionNodesFor(result **jutil.ImmutableListMultimapBuilder[rhino.Node, rhino.Node], definitionSite rhino.Node) {
 	if definitionSite.IsGetterDef() || definitionSite.IsSetterDef() {
 		return
 	}
 
 	parent := definitionSite.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return
 	}
 
@@ -355,7 +355,7 @@ func optimizeCalls_putDefinitionFunctionNodesFor(result **jutil.ImmutableListMul
 	case rhino.Token_CLASS:
 		if definitionSite.IsFirstChildOf(parent) {
 			constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(parent)
-			if constructorFnDef != nil {
+			if !constructorFnDef.IsNil() {
 				optimizeCalls_putFn(result, definitionSite, constructorFnDef.GetOnlyChild())
 			}
 		}
@@ -367,7 +367,7 @@ func optimizeCalls_putDefinitionFunctionNodesFor(result **jutil.ImmutableListMul
 		} else {
 			jutil.CheckArgumentMsg1(definitionSite.IsMemberFieldDef(), "%s", definitionSite)
 			value := definitionSite.GetFirstChild()
-			if value != nil {
+			if !value.IsNil() {
 				optimizeCalls_putValueFunctionNodes(result, definitionSite, value)
 			}
 		}
@@ -390,11 +390,11 @@ func optimizeCalls_putDefinitionFunctionNodesFor(result **jutil.ImmutableListMul
 	}
 }
 
-func optimizeCalls_putValueFunctionNodes(result **jutil.ImmutableListMultimapBuilder[*rhino.Node, *rhino.Node], def *rhino.Node, n *rhino.Node) {
+func optimizeCalls_putValueFunctionNodes(result **jutil.ImmutableListMultimapBuilder[rhino.Node, rhino.Node], def rhino.Node, n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
 		constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-		if constructorFnDef != nil {
+		if !constructorFnDef.IsNil() {
 			optimizeCalls_putFn(result, def, constructorFnDef.GetOnlyChild())
 		}
 	case rhino.Token_FUNCTION:
@@ -413,7 +413,7 @@ func optimizeCalls_putValueFunctionNodes(result **jutil.ImmutableListMultimapBui
 
 // OptimizeCalls_ReferenceMap_AppendFunctionNodes appends all function nodes
 // associated with definitionSites to dst and returns the updated slice.
-func OptimizeCalls_ReferenceMap_AppendFunctionNodes(dst []*rhino.Node, definitionSites []*rhino.Node) []*rhino.Node {
+func OptimizeCalls_ReferenceMap_AppendFunctionNodes(dst []rhino.Node, definitionSites []rhino.Node) []rhino.Node {
 	for _, def := range definitionSites {
 		dst = optimizeCalls_appendDefinitionFunctionNodesFor(dst, def)
 	}
@@ -422,39 +422,39 @@ func OptimizeCalls_ReferenceMap_AppendFunctionNodes(dst []*rhino.Node, definitio
 
 // OptimizeCalls_ReferenceMap_GetSingleFunctionNode returns the single function
 // node associated with definitionSites if there is exactly 1, or nil if 0 or > 1.
-func OptimizeCalls_ReferenceMap_GetSingleFunctionNode(definitionSites []*rhino.Node) *rhino.Node {
+func OptimizeCalls_ReferenceMap_GetSingleFunctionNode(definitionSites []rhino.Node) rhino.Node {
 	fn, count := optimizeCalls_getSingleFunctionNode(definitionSites)
 	if count == 1 {
 		return fn
 	}
-	return nil
+	return rhino.Node{}
 }
 
-func optimizeCalls_getSingleFunctionNode(definitionSites []*rhino.Node) (*rhino.Node, int) {
-	var single *rhino.Node
+func optimizeCalls_getSingleFunctionNode(definitionSites []rhino.Node) (rhino.Node, int) {
+	var single rhino.Node
 	count := 0
 	for _, def := range definitionSites {
 		single, count = optimizeCalls_collectSingleDefinitionFunctionNode(def, single, count)
 		if count > 1 {
-			return nil, count
+			return rhino.Node{}, count
 		}
 	}
 	return single, count
 }
 
-func optimizeCalls_collectSingleDefinitionFunctionNode(definitionSite *rhino.Node, single *rhino.Node, count int) (*rhino.Node, int) {
+func optimizeCalls_collectSingleDefinitionFunctionNode(definitionSite rhino.Node, single rhino.Node, count int) (rhino.Node, int) {
 	if definitionSite.IsGetterDef() || definitionSite.IsSetterDef() {
 		return single, count
 	}
 	parent := definitionSite.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return single, count
 	}
 	switch parent.GetToken() {
 	case rhino.Token_CLASS:
 		if definitionSite.IsFirstChildOf(parent) {
 			constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(parent)
-			if constructorFnDef != nil {
+			if !constructorFnDef.IsNil() {
 				return constructorFnDef.GetOnlyChild(), count + 1
 			}
 		}
@@ -465,7 +465,7 @@ func optimizeCalls_collectSingleDefinitionFunctionNode(definitionSite *rhino.Nod
 			return definitionSite.GetLastChild(), count + 1
 		}
 		jutil.CheckArgumentMsg1(definitionSite.IsMemberFieldDef(), "%s", definitionSite)
-		if value := definitionSite.GetFirstChild(); value != nil {
+		if value := definitionSite.GetFirstChild(); !value.IsNil() {
 			return optimizeCalls_collectSingleValueFunctionNode(value, single, count)
 		}
 	case rhino.Token_OBJECTLIT:
@@ -488,11 +488,11 @@ func optimizeCalls_collectSingleDefinitionFunctionNode(definitionSite *rhino.Nod
 	return single, count
 }
 
-func optimizeCalls_collectSingleValueFunctionNode(n *rhino.Node, single *rhino.Node, count int) (*rhino.Node, int) {
+func optimizeCalls_collectSingleValueFunctionNode(n rhino.Node, single rhino.Node, count int) (rhino.Node, int) {
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
 		constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-		if constructorFnDef != nil {
+		if !constructorFnDef.IsNil() {
 			return constructorFnDef.GetOnlyChild(), count + 1
 		}
 	case rhino.Token_FUNCTION:
@@ -500,13 +500,13 @@ func optimizeCalls_collectSingleValueFunctionNode(n *rhino.Node, single *rhino.N
 	case rhino.Token_HOOK:
 		single, count = optimizeCalls_collectSingleValueFunctionNode(n.GetSecondChild(), single, count)
 		if count > 1 {
-			return nil, count
+			return rhino.Node{}, count
 		}
 		return optimizeCalls_collectSingleValueFunctionNode(n.GetLastChild(), single, count)
 	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
 		single, count = optimizeCalls_collectSingleValueFunctionNode(n.GetFirstChild(), single, count)
 		if count > 1 {
-			return nil, count
+			return rhino.Node{}, count
 		}
 		return optimizeCalls_collectSingleValueFunctionNode(n.GetLastChild(), single, count)
 	case rhino.Token_CAST, rhino.Token_COMMA:
@@ -522,11 +522,11 @@ func optimizeCalls_collectSingleValueFunctionNode(n *rhino.Node, single *rhino.N
 // See getFunctionNodes.
 //
 // Java: OptimizeCalls.ReferenceMap.definitionFunctionNodesFor(Node)
-func OptimizeCalls_ReferenceMap_DefinitionFunctionNodesFor(definitionSite *rhino.Node) []*rhino.Node {
+func OptimizeCalls_ReferenceMap_DefinitionFunctionNodesFor(definitionSite rhino.Node) []rhino.Node {
 	return optimizeCalls_appendDefinitionFunctionNodesFor(nil, definitionSite)
 }
 
-func optimizeCalls_appendDefinitionFunctionNodesFor(fns []*rhino.Node, definitionSite *rhino.Node) []*rhino.Node {
+func optimizeCalls_appendDefinitionFunctionNodesFor(fns []rhino.Node, definitionSite rhino.Node) []rhino.Node {
 	if definitionSite.IsGetterDef() || definitionSite.IsSetterDef() {
 		// TODO(nickreid): Support getters and setters. Ignore them for now since they aren't
 		// "called".
@@ -535,7 +535,7 @@ func optimizeCalls_appendDefinitionFunctionNodesFor(fns []*rhino.Node, definitio
 
 	// Ignore detached nodes.
 	parent := definitionSite.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return fns
 	}
 
@@ -543,7 +543,7 @@ func optimizeCalls_appendDefinitionFunctionNodesFor(fns []*rhino.Node, definitio
 	case rhino.Token_CLASS:
 		if definitionSite.IsFirstChildOf(parent) {
 			constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(parent)
-			if constructorFnDef != nil {
+			if !constructorFnDef.IsNil() {
 				fns = append(fns, constructorFnDef.GetOnlyChild())
 			}
 		}
@@ -555,7 +555,7 @@ func optimizeCalls_appendDefinitionFunctionNodesFor(fns []*rhino.Node, definitio
 		} else {
 			jutil.CheckArgumentMsg1(definitionSite.IsMemberFieldDef(), "%s", definitionSite)
 			value := definitionSite.GetFirstChild()
-			if value != nil {
+			if !value.IsNil() {
 				fns = optimizeCalls_appendValueFunctionNodes(fns, value)
 			}
 		}
@@ -580,11 +580,11 @@ func optimizeCalls_appendDefinitionFunctionNodesFor(fns []*rhino.Node, definitio
 	return fns
 }
 
-func optimizeCalls_appendValueFunctionNodes(fns []*rhino.Node, n *rhino.Node) []*rhino.Node {
+func optimizeCalls_appendValueFunctionNodes(fns []rhino.Node, n rhino.Node) []rhino.Node {
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
 		constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-		if constructorFnDef != nil {
+		if !constructorFnDef.IsNil() {
 			fns = append(fns, constructorFnDef.GetOnlyChild())
 		}
 	case rhino.Token_FUNCTION:
@@ -603,13 +603,13 @@ func optimizeCalls_appendValueFunctionNodes(fns []*rhino.Node, n *rhino.Node) []
 }
 
 // Java: OptimizeCalls.ReferenceMap.addValueFunctionNodes(ImmutableList.Builder<Node>, Node)
-func OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns *jutil.ImmutableList_Builder[*rhino.Node], n *rhino.Node) {
+func OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns *jutil.ImmutableList_Builder[rhino.Node], n rhino.Node) {
 	// TODO(johnlenz): add member definitions
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
 		{
 			constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-			if constructorFnDef != nil {
+			if !constructorFnDef.IsNil() {
 				fns.Add(constructorFnDef.GetOnlyChild())
 			}
 		}
@@ -634,7 +634,7 @@ func OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns *jutil.ImmutableList_B
 // returns true for 'x' in 'x?.call()'.
 //
 // Java: OptimizeCalls.ReferenceMap.isNormalOrOptChainCallOrNewTarget(Node)
-func OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n *rhino.Node) bool {
+func OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n rhino.Node) bool {
 	return OptimizeCalls_ReferenceMap_IsCallTarget(n) || OptimizeCalls_ReferenceMap_IsNewTarget(n) ||
 		OptimizeCalls_ReferenceMap_IsOptChainCallTarget(n)
 }
@@ -644,7 +644,7 @@ func OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n *rhino.Node)
 // expressions. For example, returns true for 'x' in 'x.call()'.
 //
 // Java: OptimizeCalls.ReferenceMap.isCallTarget(Node)
-func OptimizeCalls_ReferenceMap_IsCallTarget(n *rhino.Node) bool {
+func OptimizeCalls_ReferenceMap_IsCallTarget(n rhino.Node) bool {
 	parent := n.GetParent()
 	if parent.IsCall() && n.IsFirstChildOf(parent) {
 		return true
@@ -663,7 +663,7 @@ func OptimizeCalls_ReferenceMap_IsCallTarget(n *rhino.Node) bool {
 // in 'x?.call()'.
 //
 // Java: OptimizeCalls.ReferenceMap.isOptChainCallTarget(Node)
-func OptimizeCalls_ReferenceMap_IsOptChainCallTarget(n *rhino.Node) bool {
+func OptimizeCalls_ReferenceMap_IsOptChainCallTarget(n rhino.Node) bool {
 	parent := n.GetParent()
 	if parent.IsOptChainCall() && n.IsFirstChildOf(parent) {
 		return true
@@ -680,7 +680,7 @@ func OptimizeCalls_ReferenceMap_IsOptChainCallTarget(n *rhino.Node) bool {
 // acts as the target function in a new expression.
 //
 // Java: OptimizeCalls.ReferenceMap.isNewTarget(Node)
-func OptimizeCalls_ReferenceMap_IsNewTarget(n *rhino.Node) bool {
+func OptimizeCalls_ReferenceMap_IsNewTarget(n rhino.Node) bool {
 	parent := n.GetParent()
 	return parent.IsNew() && parent.GetFirstChild() == n
 }
@@ -690,7 +690,7 @@ func OptimizeCalls_ReferenceMap_IsNewTarget(n *rhino.Node) bool {
 // true.
 //
 // Java: OptimizeCalls.ReferenceMap.getCallOrNewNodeForTarget(Node)
-func OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(n *rhino.Node) *rhino.Node {
+func OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(n rhino.Node) rhino.Node {
 	maybeCall := n.GetParent()
 	jutil.CheckStateMsg2(n.IsFirstChildOf(maybeCall), "%s\n\n%s", maybeCall, n)
 
@@ -717,7 +717,7 @@ func OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(n *rhino.Node) *rhino.
 // .call expressions.
 //
 // Java: OptimizeCalls.ReferenceMap.getFirstArgumentForCallOrNewOrDotCall(Node)
-func OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n *rhino.Node) *rhino.Node {
+func OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n rhino.Node) rhino.Node {
 	return OptimizeCalls_ReferenceMap_GetArgumentForCallOrNewOrDotCall(n, 0)
 }
 
@@ -728,7 +728,7 @@ func OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n *rhino.N
 // .call expressions.
 //
 // Java: OptimizeCalls.ReferenceMap.getArgumentForCallOrNewOrDotCall(Node, int)
-func OptimizeCalls_ReferenceMap_GetArgumentForCallOrNewOrDotCall(n *rhino.Node, index int) *rhino.Node {
+func OptimizeCalls_ReferenceMap_GetArgumentForCallOrNewOrDotCall(n rhino.Node, index int) rhino.Node {
 	adjustedIndex := index
 	parent := n.GetParent()
 	if !(parent.IsCall() || parent.IsOptChainCall() || parent.IsNew()) {
@@ -741,7 +741,7 @@ func OptimizeCalls_ReferenceMap_GetArgumentForCallOrNewOrDotCall(n *rhino.Node, 
 }
 
 // Java: OptimizeCalls.ReferenceMap.isSimpleAssignmentTarget(Node)
-func OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n *rhino.Node) bool {
+func OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n rhino.Node) bool {
 	parent := n.GetParent()
 	// `ref = value;`
 	return parent.IsAssign() && n.IsFirstChildOf(parent) && parent.GetParent().IsExprResult()
@@ -760,7 +760,7 @@ func OptimizeCalls_SafeSet(set *jutil.LinkedHashSet[string]) *jutil.LinkedHashSe
 type ocRefCacheEntry struct {
 	id   uint32
 	skip bool
-	list *jutil.ArrayList[*rhino.Node]
+	list *jutil.ArrayList[rhino.Node]
 }
 
 func ocCacheIdx(s string) uint32 {
@@ -816,14 +816,14 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) initGlobalScope(s *Scope) {
 	// growth otherwise allocates about twice their final size.
 	varCount := s.GetVarCount()
 	if varCount > 4096 && c.references.names.IsEmpty() {
-		c.references.names = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](varCount)
+		c.references.names = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[rhino.Node]](varCount)
 	}
 	if varCount > 1024 && c.references.props.IsEmpty() {
-		c.references.props = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[*rhino.Node]](max(varCount*4, 16384))
+		c.references.props = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[rhino.Node]](max(varCount*4, 16384))
 	}
 }
 
-func (c *OptimizeCalls_ReferenceMapBuildingCallback) traverseNode(n *rhino.Node) {
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) traverseNode(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		if !c.outer.considerExterns && n.IsFromExterns() {
@@ -838,12 +838,12 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) traverseNode(n *rhino.Node)
 		c.traverseNode(body)
 		return
 	case rhino.Token_CLASS_MEMBERS:
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if child.IsComputedProp() || child.IsComputedFieldDef() {
 				c.traverseNode(child.GetFirstChild())
 			}
 		}
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			switch child.GetToken() {
 			case rhino.Token_COMPUTED_PROP:
 				c.traverseNode(child.GetLastChild())
@@ -858,8 +858,8 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) traverseNode(n *rhino.Node)
 		return
 	}
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
-		if child.GetFirstChild() == nil {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		if child.GetFirstChild().IsNil() {
 			switch child.GetToken() {
 			case rhino.Token_NAME:
 				c.maybeAddNameReferenceNode(child, child)
@@ -882,9 +882,9 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) traverseNode(n *rhino.Node)
 		c.maybeAddPropReferenceOnNode(n, n)
 	case rhino.Token_CALL:
 		fnName := n.GetFirstChild()
-		if fnName.GetNext() != nil && c.codingConvention.IsPropertyRenameFunction(fnName) {
+		if !fnName.GetNext().IsNil() && c.codingConvention.IsPropertyRenameFunction(fnName) {
 			propName := NodeUtil_GetArgumentForCallOrNew(n, 0)
-			if propName != nil {
+			if !propName.IsNil() {
 				c.maybeAddPropReferenceOnNode(propName, n)
 			}
 		}
@@ -899,7 +899,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) traverseNode(n *rhino.Node)
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.visit(NodeTraversal, Node, Node)
-func (c *OptimizeCalls_ReferenceMapBuildingCallback) Visit(t *NodeTraversal, n *rhino.Node, unused *rhino.Node) {
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) Visit(t *NodeTraversal, n rhino.Node, unused rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		c.maybeAddNameReferenceNode(n, n)
@@ -911,9 +911,9 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) Visit(t *NodeTraversal, n *
 		fnName := n.GetFirstChild()
 		if fnName.IsSuper() {
 			c.VisitSuper(fnName)
-		} else if fnName.GetNext() != nil && c.codingConvention.IsPropertyRenameFunction(fnName) {
+		} else if !fnName.GetNext().IsNil() && c.codingConvention.IsPropertyRenameFunction(fnName) {
 			propName := NodeUtil_GetArgumentForCallOrNew(n, 0)
-			if propName != nil {
+			if !propName.IsNil() {
 				c.maybeAddPropReferenceOnNode(propName, n)
 			}
 		}
@@ -941,12 +941,12 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) Visit(t *NodeTraversal, n *
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.visitSuper(Node)
-func (c *OptimizeCalls_ReferenceMapBuildingCallback) VisitSuper(superNode *rhino.Node) {
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) VisitSuper(superNode rhino.Node) {
 	// Determine whether this is a super() constructor call.
 	// If it is, identify the super class and record this as a reference to that.
 	parent := superNode.GetParent()
 	if parent.IsCall() && superNode.IsFirstChildOf(parent) {
-		enclosingClass := jutil.CheckNotNull(NodeUtil_GetEnclosingClass(parent))
+		enclosingClass := rhino.CheckNotNull(NodeUtil_GetEnclosingClass(parent))
 		extendsNode := enclosingClass.GetSecondChild()
 		jutil.CheckStateMsg(!extendsNode.IsEmpty(), "super call appears in class without extends clause")
 		if extendsNode.IsName() {
@@ -960,7 +960,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) VisitSuper(superNode *rhino
 	}
 }
 
-func (c *OptimizeCalls_ReferenceMapBuildingCallback) maybeAddNameReferenceNode(nameNode *rhino.Node, n *rhino.Node) {
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) maybeAddNameReferenceNode(nameNode rhino.Node, n rhino.Node) {
 	id := nameNode.GetStringID()
 	if id <= rhino.RhinoStringPool_EmptyID || id == c.lastSkippedNameID {
 		return
@@ -993,7 +993,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) maybeAddNameReferenceNode(n
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddNameReference(String, Node)
-func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name string, n *rhino.Node) {
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name string, n rhino.Node) {
 	if name == "" || name == c.lastSkippedName {
 		return
 	}
@@ -1038,7 +1038,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name 
 	}
 }
 
-func (c *OptimizeCalls_ReferenceMapBuildingCallback) maybeAddPropReferenceOnNode(propNode *rhino.Node, n *rhino.Node) {
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) maybeAddPropReferenceOnNode(propNode rhino.Node, n rhino.Node) {
 	id := propNode.GetStringID()
 	if id <= rhino.RhinoStringPool_EmptyID {
 		c.MaybeAddPropReference(propNode.GetString(), n)
@@ -1075,7 +1075,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) maybeAddPropReferenceOnNode
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddPropReference(String, Node)
-func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddPropReference(name string, n *rhino.Node) {
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddPropReference(name string, n rhino.Node) {
 	if c.references.lastPropList != nil && c.references.lastPropKey != "" && name == c.references.lastPropKey {
 		listAddDoubling(c.references.lastPropList, n)
 		return
@@ -1127,7 +1127,7 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddPropReference(name 
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *OptimizeCalls_ReferenceMapBuildingCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *OptimizeCalls_ReferenceMapBuildingCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		// Even when considering externs, we only care about top-level identifiers. Dummy function
 		// parameters, for example, shouldn't be considered references.
@@ -1171,7 +1171,7 @@ func OptimizeCalls_MayBeOptimizableName(compiler AbstractCompiler, name string) 
 // non-aliasing reference.
 //
 // Java: OptimizeCalls.isAllowedReference(Node)
-func OptimizeCalls_IsAllowedReference(n *rhino.Node) bool {
+func OptimizeCalls_IsAllowedReference(n rhino.Node) bool {
 	parent := n.GetParent()
 	switch parent.GetToken() {
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
@@ -1184,7 +1184,7 @@ func OptimizeCalls_IsAllowedReference(n *rhino.Node) bool {
 		// property references do not.
 		grandparent := parent.GetParent()
 		if n == parent.GetFirstChild() &&
-			grandparent != nil &&
+			!grandparent.IsNil() &&
 			(grandparent.IsCall() ||
 				grandparent.IsOptChainCall() ||
 				grandparent.IsTaggedTemplateLit()) {
@@ -1200,7 +1200,7 @@ func OptimizeCalls_IsAllowedReference(n *rhino.Node) bool {
 			// class SubClass extends Name {
 			jutil.CheckStateMsg1(n.IsSecondChildOf(parent), "%s", parent)
 			// find the constructor
-			if NodeUtil_GetEs6ClassConstructorMemberFunctionDef(parent) == nil {
+			if NodeUtil_GetEs6ClassConstructorMemberFunctionDef(parent).IsNil() {
 				// The subclass has no explicit constructor, so `new SubClass()` implicitly calls
 				// `new Name(...arguments)`. This hidden call makes it harder to safely optimize the
 				// `Name` constructor, so we won't do it.

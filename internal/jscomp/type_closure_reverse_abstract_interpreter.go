@@ -71,7 +71,7 @@ func NewClosureReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *C
 
 // Java: ClosureReverseAbstractInterpreter.getPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 func (c *ClosureReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOutcome(
-	condition *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+	condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	if condition.IsCall() && condition.HasTwoChildren() {
 		callee := condition.GetFirstChild()
 		param := condition.GetLastChild()
@@ -91,7 +91,7 @@ func (c *ClosureReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOutc
 
 // Java: ClosureReverseAbstractInterpreter.restrictParameter(Node, JSType, FlowScope, Function<TypeRestriction, JSType>, boolean)
 func (c *ClosureReverseAbstractInterpreter) RestrictParameter(
-	parameter *rhino.Node,
+	parameter rhino.Node,
 	type_ rhino.JSType,
 	blindScope FlowScope,
 	restriction func(*ClosureReverseAbstractInterpreter_TypeRestriction) rhino.JSType,

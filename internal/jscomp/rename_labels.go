@@ -158,7 +158,7 @@ func (p *RenameLabels_ProcessLabels) ExitScope(nodeTraversal *NodeTraversal) {
 // here to build the context for label renames.
 //
 // Java: RenameLabels.ProcessLabels.shouldTraverse(NodeTraversal, Node, Node)
-func (p *RenameLabels_ProcessLabels) ShouldTraverse(nodeTraversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) bool {
+func (p *RenameLabels_ProcessLabels) ShouldTraverse(nodeTraversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
 	if node.IsLabel() {
 		// Determine the new name for this label.
 		current := p.peek()
@@ -186,7 +186,7 @@ func (p *RenameLabels_ProcessLabels) ShouldTraverse(nodeTraversal *NodeTraversal
 // visitBreakOrContinue.
 //
 // Java: RenameLabels.ProcessLabels.visit(NodeTraversal, Node, Node)
-func (p *RenameLabels_ProcessLabels) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (p *RenameLabels_ProcessLabels) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	switch node.GetToken() {
 	case rhino.Token_LABEL:
 		p.VisitLabel(t, node)
@@ -201,9 +201,9 @@ func (p *RenameLabels_ProcessLabels) Visit(t *NodeTraversal, node *rhino.Node, p
 // node is the break or continue node.
 //
 // Java: RenameLabels.ProcessLabels.visitBreakOrContinue(NodeTraversal, Node)
-func (p *RenameLabels_ProcessLabels) VisitBreakOrContinue(t *NodeTraversal, node *rhino.Node) {
+func (p *RenameLabels_ProcessLabels) VisitBreakOrContinue(t *NodeTraversal, node rhino.Node) {
 	nameNode := node.GetFirstChild()
-	if nameNode != nil {
+	if !nameNode.IsNil() {
 		// This is a named break or continue;
 		name := nameNode.GetString()
 		jutil.CheckState(name != "")
@@ -228,9 +228,9 @@ func (p *RenameLabels_ProcessLabels) VisitBreakOrContinue(t *NodeTraversal, node
 // node is the label node.
 //
 // Java: RenameLabels.ProcessLabels.visitLabel(NodeTraversal, Node)
-func (p *RenameLabels_ProcessLabels) VisitLabel(t *NodeTraversal, node *rhino.Node) {
+func (p *RenameLabels_ProcessLabels) VisitLabel(t *NodeTraversal, node rhino.Node) {
 	nameNode := node.GetFirstChild()
-	jutil.CheckState(nameNode != nil)
+	jutil.CheckState(!nameNode.IsNil())
 	name := nameNode.GetString()
 	li := p.GetLabelInfo(name)
 	// This is a label...
@@ -285,7 +285,7 @@ func (p *RenameLabels_ProcessLabels) GetLabelInfo(name string) *RenameLabels_Lab
 }
 
 // Java: RenameLabels.process(Node, Node)
-func (r *RenameLabels) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RenameLabels) Process(externs rhino.Node, root rhino.Node) {
 	// Do variable reference counting.
 	NodeTraversal_Traverse(r.compiler, root, NewRenameLabels_ProcessLabels(r, r.markChanges))
 }

@@ -127,7 +127,7 @@ func (d *polymerJ2clOracleDumper) diagnostics(title string, compiler *Compiler) 
 	}
 }
 
-func (d *polymerJ2clOracleDumper) tree(n *rhino.Node) {
+func (d *polymerJ2clOracleDumper) tree(n rhino.Node) {
 	d.line("# tree")
 	for _, l := range strings.Split(n.ToStringTree(), "\n") {
 		d.line(l)
@@ -173,7 +173,7 @@ func polymerJ2clOracleRun(body func()) (exception any) {
 }
 
 // polymerJ2clOracleUpdateAccessorSummary is PolymerJ2clDump.updateAccessorSummary.
-func polymerJ2clOracleUpdateAccessorSummary(compiler *Compiler, root *rhino.Node) {
+func polymerJ2clOracleUpdateAccessorSummary(compiler *Compiler, root rhino.Node) {
 	compiler.SetAccessorSummary(
 		AccessorSummary_Create(GatherGetterAndSetterProperties_Gather(compiler, root)))
 }
@@ -191,7 +191,7 @@ func polymerJ2clOracleDumpPolymer(in polymerJ2clOracleInput, externs string) str
 		[]*SourceFile{SourceFile_FromCode(in.name, in.code)},
 		options)
 	root := compiler.ParseInputs()
-	if root == nil || compiler.GetErrorCount() > 0 {
+	if root.IsNil() || compiler.GetErrorCount() > 0 {
 		d.parseErrors(compiler)
 		return d.sb.String()
 	}
@@ -238,7 +238,7 @@ func polymerJ2clOracleDumpJ2cl(in polymerJ2clOracleInput) string {
 		[]*SourceFile{SourceFile_FromCode(in.name, in.code)},
 		polymerJ2clOracleOptions())
 	root := compiler.ParseInputs()
-	if root == nil || compiler.GetErrorCount() > 0 {
+	if root.IsNil() || compiler.GetErrorCount() > 0 {
 		d.parseErrors(compiler)
 		return d.sb.String()
 	}
@@ -261,7 +261,7 @@ func polymerJ2clOracleDumpJ2cl(in polymerJ2clOracleInput) string {
 		case "J2clPassTest":
 			pass = NewJ2clPass(compiler)
 		case "J2clUtilGetDefineRewriterPassTest":
-			pass = CompilerPassFunc(func(externs *rhino.Node, js *rhino.Node) {
+			pass = CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
 				NewProcessDefines_Builder(compiler).
 					SetMode(ProcessDefines_Mode_OPTIMIZE).
 					Build().

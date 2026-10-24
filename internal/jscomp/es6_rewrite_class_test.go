@@ -3184,7 +3184,7 @@ $jscomp.global.Object.defineProperties(
 // labeled as `label`
 //
 // Java: Es6RewriteClassTest.getNodeMatchingLabel(Node, String)
-func (c *Es6RewriteClassTest) GetNodeMatchingLabel(root *rhino.Node, label string) *rhino.Node {
+func (c *Es6RewriteClassTest) GetNodeMatchingLabel(root rhino.Node, label string) rhino.Node {
 	if root.IsLabel() && root.GetFirstChild().GetString() == label {
 		// "FOO: return foo;"
 		//   becomes
@@ -3194,20 +3194,20 @@ func (c *Es6RewriteClassTest) GetNodeMatchingLabel(root *rhino.Node, label strin
 		//   NAME foo
 		return root.GetSecondChild()
 	}
-	for child := root.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := root.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		result := c.GetNodeMatchingLabel(child, label)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // GetNodeWithName returns the first node (preorder) in the given AST that
 // matches the given qualified name
 //
 // Java: Es6RewriteClassTest.getNodeWithName(Node, String)
-func (c *Es6RewriteClassTest) GetNodeWithName(root *rhino.Node, name string) *rhino.Node {
+func (c *Es6RewriteClassTest) GetNodeWithName(root rhino.Node, name string) rhino.Node {
 	switch root.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_NAME, rhino.Token_STRINGLIT, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_STRING_KEY:
 		if root.GetString() == name {
@@ -3216,13 +3216,13 @@ func (c *Es6RewriteClassTest) GetNodeWithName(root *rhino.Node, name string) *rh
 	default:
 	}
 
-	for child := root.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := root.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		result := c.GetNodeWithName(child, name)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // TestAndReturnAsts tests that the transpiled source matches the expected
@@ -3240,13 +3240,13 @@ func (c *Es6RewriteClassTest) TestAndReturnAsts(source string, expected string) 
 
 // Java: private static class Es6RewriteClassTest.AstPair
 type es6RewriteClassTest_AstPair struct {
-	sourceRoot *rhino.Node
+	sourceRoot rhino.Node
 
-	expectedRoot *rhino.Node
+	expectedRoot rhino.Node
 }
 
 // Java: Es6RewriteClassTest.AstPair(Node, Node)
-func newEs6RewriteClassTest_AstPair(sourceRoot *rhino.Node, expectedRoot *rhino.Node) *es6RewriteClassTest_AstPair {
+func newEs6RewriteClassTest_AstPair(sourceRoot rhino.Node, expectedRoot rhino.Node) *es6RewriteClassTest_AstPair {
 	return &es6RewriteClassTest_AstPair{sourceRoot: sourceRoot, expectedRoot: expectedRoot}
 }
 
@@ -3254,9 +3254,9 @@ func newEs6RewriteClassTest_AstPair(sourceRoot *rhino.Node, expectedRoot *rhino.
 // every node in the given subtree
 //
 // Java: Es6RewriteClassTest.removeLengthFromSubtree(Node)
-func Es6RewriteClassTest_RemoveLengthFromSubtree(root *rhino.Node) {
+func Es6RewriteClassTest_RemoveLengthFromSubtree(root rhino.Node) {
 	root.SetLength(0)
-	for child := root.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := root.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		Es6RewriteClassTest_RemoveLengthFromSubtree(child)
 	}
 }

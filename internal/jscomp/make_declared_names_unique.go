@@ -149,7 +149,7 @@ func (m *MakeDeclaredNamesUnique) ExitScope(t *NodeTraversal) {
 }
 
 // Java: MakeDeclaredNamesUnique.visit(NodeTraversal, Node, Node)
-func (m *MakeDeclaredNamesUnique) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (m *MakeDeclaredNamesUnique) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NAME, rhino.Token_IMPORT_STAR:
 		m.VisitNameOrImportStar(t, n, parent)
@@ -158,7 +158,7 @@ func (m *MakeDeclaredNamesUnique) Visit(t *NodeTraversal, n *rhino.Node, parent 
 }
 
 // Java: MakeDeclaredNamesUnique.visitNameOrImportStar(NodeTraversal, Node, Node)
-func (m *MakeDeclaredNamesUnique) VisitNameOrImportStar(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (m *MakeDeclaredNamesUnique) VisitNameOrImportStar(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Don't rename the exported name foo in export {a as foo}; or import {foo as b};
 	if n.IsName() && NodeUtil_IsNonlocalModuleExportName(n) {
 		return
@@ -176,7 +176,7 @@ func (m *MakeDeclaredNamesUnique) VisitNameOrImportStar(t *NodeTraversal, n *rhi
 	if renamer.StripConstIfReplaced() {
 		n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, false)
 		jsDocInfoNode := NodeUtil_GetBestJSDocInfoNode(n)
-		if jsDocInfoNode != nil && jsDocInfoNode.GetJSDocInfo() != nil {
+		if !jsDocInfoNode.IsNil() && jsDocInfoNode.GetJSDocInfo() != nil {
 			builder := rhino.JSDocInfo_Builder_CopyFrom(jsDocInfoNode.GetJSDocInfo())
 			builder.RecordMutable()
 			jsDocInfoNode.SetJSDocInfo(builder.Build())
@@ -220,7 +220,7 @@ func (m *MakeDeclaredNamesUnique) GetReplacementNameValue(oldName string) (strin
 // renamerStack.
 //
 // Java: MakeDeclaredNamesUnique.findDeclaredNames(NodeTraversal, Node)
-func (m *MakeDeclaredNamesUnique) FindDeclaredNames(t *NodeTraversal, n *rhino.Node) {
+func (m *MakeDeclaredNamesUnique) FindDeclaredNames(t *NodeTraversal, n rhino.Node) {
 	jutil.CheckStateMsg1(NodeUtil_CreatesScope(n) || n.IsScript(), "%s", n)
 
 	topRenamer := m.renamerStack[len(m.renamerStack)-1]
@@ -263,7 +263,7 @@ type MakeDeclaredNamesUnique_Renamer interface {
 	// within the scope of the current Renamer.
 	//
 	// Java: MakeDeclaredNamesUnique.Renamer.createForChildScope(Node, boolean)
-	CreateForChildScope(scopeRoot *rhino.Node, hoisted bool) MakeDeclaredNamesUnique_Renamer
+	CreateForChildScope(scopeRoot rhino.Node, hoisted bool) MakeDeclaredNamesUnique_Renamer
 
 	// GetHoistRenamer returns the closest hoisting target for var and
 	// function declarations.
@@ -303,7 +303,7 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter(
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.process(Node, Node)
-func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Process(externs *rhino.Node, js *rhino.Node) {
+func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Process(externs rhino.Node, js rhino.Node) {
 	sc := NewSyntacticScopeCreator(c.compiler)
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
@@ -387,7 +387,7 @@ type MakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo struct {
 	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter // the enclosing instance
 
 	// Will be filled with all nodes referring to the variable.
-	referenceNodes []*rhino.Node
+	referenceNodes []rhino.Node
 
 	// Will be filled with objects representing variables whose names must not conflict with this
 	// one.
@@ -526,7 +526,7 @@ func (d *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo) 
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo.addReferenceNode(Node)
-func (d *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo) AddReferenceNode(nameNode *rhino.Node) {
+func (d *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo) AddReferenceNode(nameNode rhino.Node) {
 	if d.renamingInfo != nil {
 		d.renamingInfo.referenceNodes = append(d.renamingInfo.referenceNodes, nameNode)
 	} // else we won't rename, so we don't care
@@ -589,13 +589,13 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) ExitScope(t *NodeTrav
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.shouldTraverse(NodeTraversal, Node, Node)
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) ShouldTraverse(
-	t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.visit(NodeTraversal, Node, Node)
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Visit(
-	t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+	t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	var scopeContext *MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext
 	if len(c.scopeContextStack) != 0 {
 		scopeContext = c.scopeContextStack[len(c.scopeContextStack)-1]
@@ -785,7 +785,7 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter_UndeclaredVariableInfo(
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.UndeclaredVariableInfo.addReferenceNode(Node)
-func (u *MakeDeclaredNamesUnique_ContextualRenameInverter_UndeclaredVariableInfo) AddReferenceNode(nameNode *rhino.Node) {
+func (u *MakeDeclaredNamesUnique_ContextualRenameInverter_UndeclaredVariableInfo) AddReferenceNode(nameNode rhino.Node) {
 	// no need to track references
 }
 
@@ -813,7 +813,7 @@ func (u *MakeDeclaredNamesUnique_ContextualRenameInverter_UndeclaredVariableInfo
 // these will be created for every variable we encounter.
 type MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo interface {
 	// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.addReferenceNode(Node)
-	AddReferenceNode(nameNode *rhino.Node)
+	AddReferenceNode(nameNode rhino.Node)
 
 	// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.getName()
 	GetName() string
@@ -850,7 +850,7 @@ type MakeDeclaredNamesUnique_ContextualRenamer interface {
 type MakeDeclaredNamesUnique_ContextualRenamerBase struct {
 	self MakeDeclaredNamesUnique_ContextualRenamer
 
-	scopeRoot *rhino.Node
+	scopeRoot rhino.Node
 
 	// This multiset is shared between this ContextualRenamer and its parent (and its parent's
 	// parent, etc.) because it tracks counts of variables across the entire JS program.
@@ -904,7 +904,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamerBase) InitMakeDeclaredNamesUni
 	self MakeDeclaredNamesUnique_ContextualRenamer) {
 	c.self = self
 	c.declarations = jutil.NewLinkedHashMap[string, *string]()
-	c.scopeRoot = nil
+	c.scopeRoot = rhino.Node{}
 	c.global = true
 	c.nameUsage = newMakeDeclaredNamesUniqueMultiset()
 
@@ -916,7 +916,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamerBase) InitMakeDeclaredNamesUni
 //
 // Java: MakeDeclaredNamesUnique.ContextualRenamer(Node, Multiset<String>, boolean, MakeDeclaredNamesUnique.Renamer)
 func NewMakeDeclaredNamesUnique_ContextualRenamerForChildScope(
-	scopeRoot *rhino.Node,
+	scopeRoot rhino.Node,
 	nameUsage *makeDeclaredNamesUniqueMultiset,
 	hoistingTargetScope bool,
 	parent MakeDeclaredNamesUnique_Renamer) *MakeDeclaredNamesUnique_ContextualRenamerBase {
@@ -947,7 +947,7 @@ func NewMakeDeclaredNamesUnique_ContextualRenamerForChildScope(
 //
 // Java: MakeDeclaredNamesUnique.ContextualRenamer.createForChildScope(Node, boolean)
 func (c *MakeDeclaredNamesUnique_ContextualRenamerBase) CreateForChildScope(
-	scopeRoot *rhino.Node, hoistingTargetScope bool) MakeDeclaredNamesUnique_Renamer {
+	scopeRoot rhino.Node, hoistingTargetScope bool) MakeDeclaredNamesUnique_Renamer {
 	return NewMakeDeclaredNamesUnique_ContextualRenamerForChildScope(scopeRoot, c.nameUsage, hoistingTargetScope, c.self)
 }
 
@@ -1229,7 +1229,7 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementNameValue(oldName 
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.createForChildScope(Node, boolean)
 func (r *MakeDeclaredNamesUnique_InlineRenamer) CreateForChildScope(
-	scopeRoot *rhino.Node, hoistingTargetScope bool) MakeDeclaredNamesUnique_Renamer {
+	scopeRoot rhino.Node, hoistingTargetScope bool) MakeDeclaredNamesUnique_Renamer {
 	if r.mutator != nil {
 		return r.mutator.allocInlineRenamer(
 			r.convention, r.uniqueIdSupplier, r.concreteCompiler, r.idPrefix, r.removeConstness, hoistingTargetScope, r)
@@ -1271,7 +1271,7 @@ func NewMakeDeclaredNamesUnique_BoilerplateRenamer(
 
 // Java: MakeDeclaredNamesUnique.BoilerplateRenamer.createForChildScope(Node, boolean)
 func (b *MakeDeclaredNamesUnique_BoilerplateRenamer) CreateForChildScope(
-	scopeRoot *rhino.Node, hoisted bool) MakeDeclaredNamesUnique_Renamer {
+	scopeRoot rhino.Node, hoisted bool) MakeDeclaredNamesUnique_Renamer {
 	return NewMakeDeclaredNamesUnique_InlineRenamer(b.convention, b.uniqueIdSupplier, b.idPrefix, false, hoisted, b)
 }
 
@@ -1317,7 +1317,7 @@ func (r *MakeDeclaredNamesUnique_TargettedRenamer) StripConstIfReplaced() bool {
 
 // Java: MakeDeclaredNamesUnique.TargettedRenamer.createForChildScope(Node, boolean)
 func (r *MakeDeclaredNamesUnique_TargettedRenamer) CreateForChildScope(
-	scopeRoot *rhino.Node, hoistingTargetScope bool) MakeDeclaredNamesUnique_Renamer {
+	scopeRoot rhino.Node, hoistingTargetScope bool) MakeDeclaredNamesUnique_Renamer {
 	return NewMakeDeclaredNamesUnique_TargettedRenamer(
 		r.delegate.CreateForChildScope(scopeRoot, hoistingTargetScope), r.targets)
 }

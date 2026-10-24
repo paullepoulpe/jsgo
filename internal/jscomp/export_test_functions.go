@@ -74,8 +74,8 @@ func newExportTestFunctions_ExportTestFunctionsNodes(outer *ExportTestFunctions)
 }
 
 // Java: ExportTestFunctions.ExportTestFunctionsNodes.visit(NodeTraversal, Node, Node)
-func (x *ExportTestFunctions_ExportTestFunctionsNodes) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	if parent == nil {
+func (x *ExportTestFunctions_ExportTestFunctionsNodes) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if parent.IsNil() {
 		return
 	}
 
@@ -103,7 +103,7 @@ func (x *ExportTestFunctions_ExportTestFunctionsNodes) Visit(t *NodeTraversal, n
 	} else if NodeUtil_IsExprAssign(parent) {
 		// Check for a test method assignment.
 		grandparent := parent.GetParent()
-		if grandparent != nil && (grandparent.IsScript() || grandparent.IsModuleBody()) {
+		if !grandparent.IsNil() && (grandparent.IsScript() || grandparent.IsModuleBody()) {
 			//                                    NAME/(GETPROP -> ... -> NAME)
 			// SCRIPT -> EXPR_RESULT -> ASSIGN ->
 			//                                    FUNCTION/CLASS
@@ -124,7 +124,7 @@ func (x *ExportTestFunctions_ExportTestFunctionsNodes) Visit(t *NodeTraversal, n
 			}
 		}
 	} else if ExportTestFunctions_IsTestSuiteArgument(n, t) {
-		for c := n.GetFirstChild(); c != nil; {
+		for c := n.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
 			if c.IsStringKey() && !c.IsQuotedStringKey() {
 				c.SetQuotedStringKey()
@@ -138,7 +138,7 @@ func (x *ExportTestFunctions_ExportTestFunctionsNodes) Visit(t *NodeTraversal, n
 }
 
 // Java: ExportTestFunctions.ExportTestFunctionsNodes.exportClass(Node)
-func (x *ExportTestFunctions_ExportTestFunctionsNodes) ExportClass(classNode *rhino.Node) {
+func (x *ExportTestFunctions_ExportTestFunctionsNodes) ExportClass(classNode rhino.Node) {
 	className := NodeUtil_GetName(classNode)
 	x.ExportClassWithName(classNode, className, classNode)
 }
@@ -147,9 +147,9 @@ func (x *ExportTestFunctions_ExportTestFunctionsNodes) ExportClass(classNode *rh
 // concatenation renders null as "null").
 //
 // Java: ExportTestFunctions.ExportTestFunctionsNodes.exportClass(Node, String, Node)
-func (x *ExportTestFunctions_ExportTestFunctionsNodes) ExportClassWithName(classNode *rhino.Node, className *string, addAfter *rhino.Node) {
+func (x *ExportTestFunctions_ExportTestFunctionsNodes) ExportClassWithName(classNode rhino.Node, className *string, addAfter rhino.Node) {
 	classMembers := classNode.GetLastChild()
-	for maybeMemberFunctionDef := classMembers.GetFirstChild(); maybeMemberFunctionDef != nil; maybeMemberFunctionDef = maybeMemberFunctionDef.GetNext() {
+	for maybeMemberFunctionDef := classMembers.GetFirstChild(); !maybeMemberFunctionDef.IsNil(); maybeMemberFunctionDef = maybeMemberFunctionDef.GetNext() {
 		if maybeMemberFunctionDef.IsMemberFunctionDef() {
 			methodName := maybeMemberFunctionDef.GetString()
 			if ExportTestFunctions_IsTestFunction(&methodName) {
@@ -184,7 +184,7 @@ func (x *ExportTestFunctions_ExportTestFunctionsNodes) ExportClassWithName(class
 // key to avoid property renaming
 //
 // Java: ExportTestFunctions.ExportTestFunctionsNodes.rewriteMemberDefInObjLit(Node, Node)
-func (x *ExportTestFunctions_ExportTestFunctionsNodes) RewriteMemberDefInObjLit(memberDef *rhino.Node, objLit *rhino.Node) {
+func (x *ExportTestFunctions_ExportTestFunctionsNodes) RewriteMemberDefInObjLit(memberDef rhino.Node, objLit rhino.Node) {
 	name := memberDef.GetString()
 	stringKey := rhino.IR_StringKeyWithValue(name, memberDef.RemoveFirstChild())
 	memberDef.ReplaceWith(stringKey)
@@ -198,9 +198,9 @@ func (x *ExportTestFunctions_ExportTestFunctionsNodes) RewriteMemberDefInObjLit(
 // -> NAME -> NODE
 //
 // Java: ExportTestFunctions.ExportTestFunctionsNodes.getNameDeclaredGrandchild(Node)
-func (x *ExportTestFunctions_ExportTestFunctionsNodes) GetNameDeclaredGrandchild(node *rhino.Node) *rhino.Node {
+func (x *ExportTestFunctions_ExportTestFunctionsNodes) GetNameDeclaredGrandchild(node rhino.Node) rhino.Node {
 	if !NodeUtil_IsNameDeclaration(node) {
-		return nil
+		return rhino.Node{}
 	}
 	return node.GetFirstFirstChild()
 }
@@ -215,9 +215,9 @@ func (x *ExportTestFunctions_ExportTestFunctionsNodes) GetNameDeclaredGrandchild
 // This has the AST structure VAR/LET/CONST -> NAME -> FUNCTION
 //
 // Java: ExportTestFunctions.ExportTestFunctionsNodes.isNameDeclaredFunction(Node)
-func (x *ExportTestFunctions_ExportTestFunctionsNodes) IsNameDeclaredFunction(node *rhino.Node) bool {
+func (x *ExportTestFunctions_ExportTestFunctionsNodes) IsNameDeclaredFunction(node rhino.Node) bool {
 	grandchild := x.GetNameDeclaredGrandchild(node)
-	return grandchild != nil && grandchild.IsFunction()
+	return !grandchild.IsNil() && grandchild.IsFunction()
 }
 
 // IsNameDeclaredClass is whether node corresponds to a class declared with
@@ -230,13 +230,13 @@ func (x *ExportTestFunctions_ExportTestFunctionsNodes) IsNameDeclaredFunction(no
 // This has the AST structure VAR/LET/CONST -> NAME -> CLASS
 //
 // Java: ExportTestFunctions.ExportTestFunctionsNodes.isNameDeclaredClass(Node)
-func (x *ExportTestFunctions_ExportTestFunctionsNodes) IsNameDeclaredClass(node *rhino.Node) bool {
+func (x *ExportTestFunctions_ExportTestFunctionsNodes) IsNameDeclaredClass(node rhino.Node) bool {
 	grandchild := x.GetNameDeclaredGrandchild(node)
-	return grandchild != nil && grandchild.IsClass()
+	return !grandchild.IsNil() && grandchild.IsClass()
 }
 
 // Java: ExportTestFunctions.process(Node, Node)
-func (e *ExportTestFunctions) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *ExportTestFunctions) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(e.compiler, root, newExportTestFunctions_ExportTestFunctionsNodes(e))
 }
 
@@ -244,7 +244,7 @@ func (e *ExportTestFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 // testFunction);
 //
 // Java: ExportTestFunctions.exportTestFunctionAsSymbol(String, Node)
-func (e *ExportTestFunctions) ExportTestFunctionAsSymbol(testFunctionName string, node *rhino.Node) {
+func (e *ExportTestFunctions) ExportTestFunctionAsSymbol(testFunctionName string, node rhino.Node) {
 
 	exportCallTarget := NodeUtil_NewQNameWithOriginalName(e.compiler,
 		*e.exportSymbolFunction, node, testFunctionName)
@@ -266,7 +266,7 @@ func (e *ExportTestFunctions) ExportTestFunctionAsSymbol(testFunctionName string
 // name on the prototype object
 //
 // Java: ExportTestFunctions.exportTestFunctionAsProperty(Node, Node)
-func (e *ExportTestFunctions) ExportTestFunctionAsProperty(fullyQualifiedFunctionName *rhino.Node, node *rhino.Node) {
+func (e *ExportTestFunctions) ExportTestFunctionAsProperty(fullyQualifiedFunctionName rhino.Node, node rhino.Node) {
 	jutil.CheckStateMsg1(fullyQualifiedFunctionName.IsGetProp(), "%s", fullyQualifiedFunctionName)
 
 	testFunctionName :=
@@ -296,7 +296,7 @@ func (e *ExportTestFunctions) ExportTestFunctionAsProperty(fullyQualifiedFunctio
 // create the scope.
 //
 // Java: ExportTestFunctions.isTestSuiteArgument(Node, NodeTraversal)
-func ExportTestFunctions_IsTestSuiteArgument(n *rhino.Node, t *NodeTraversal) bool {
+func ExportTestFunctions_IsTestSuiteArgument(n rhino.Node, t *NodeTraversal) bool {
 	return n.IsObjectLit() &&
 		n.GetParent().IsCall() &&
 		n.IsSecondChildOf(n.GetParent()) &&
@@ -312,7 +312,7 @@ func ExportTestFunctions_IsTestSuiteArgument(n *rhino.Node, t *NodeTraversal) bo
 // requires, etc.
 //
 // Java: ExportTestFunctions.isGoogTestingTestSuite(NodeTraversal, Node)
-func ExportTestFunctions_IsGoogTestingTestSuite(t *NodeTraversal, qname *rhino.Node) bool {
+func ExportTestFunctions_IsGoogTestingTestSuite(t *NodeTraversal, qname rhino.Node) bool {
 	qname = NodeUtil_GetCallTargetResolvingIndirectCalls(qname.GetParent())
 	if !qname.IsQualifiedName() {
 		return false
@@ -324,7 +324,7 @@ func ExportTestFunctions_IsGoogTestingTestSuite(t *NodeTraversal, qname *rhino.N
 		return qname.MatchesQualifiedName(exportTestFunctions_GOOG_TESTING_TEST_SUITE)
 	} else if rootVar.GetScope().(*Scope).IsModuleScope() {
 		originalValue := rootVar.GetInitialValue()
-		return originalValue != nil &&
+		return !originalValue.IsNil() &&
 			NodeUtil_IsGoogRequireCall(originalValue) &&
 			originalValue.HasTwoChildren() &&
 			originalValue.GetSecondChild().GetString() == exportTestFunctions_GOOG_TESTING_TEST_SUITE

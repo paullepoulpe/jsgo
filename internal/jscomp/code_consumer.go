@@ -38,9 +38,9 @@ import (
 // and the base implementations. Subclasses embed CodeConsumerBase and call
 // InitCodeConsumerBase with themselves.
 type CodeConsumer interface {
-	StartSourceMapping(node *rhino.Node)
-	EndSourceMapping(node *rhino.Node)
-	TrackLicenses(node *rhino.Node)
+	StartSourceMapping(node rhino.Node)
+	EndSourceMapping(node rhino.Node)
+	TrackLicenses(node rhino.Node)
 	ContinueProcessing() bool
 	GetLastChar() uint16
 	Add(newcode string)
@@ -72,12 +72,12 @@ type CodeConsumer interface {
 	IsInTemplateLiteral() bool
 	AppendOp(op string, binOp bool)
 	AddOp(op string, binOp bool)
-	AddNumber(x float64, n *rhino.Node)
+	AddNumber(x float64, n rhino.Node)
 	AddBigInt(bi *big.Int)
 	AddConstant(newcode string)
-	ShouldPreserveExtras(n *rhino.Node) bool
+	ShouldPreserveExtras(n rhino.Node) bool
 	MaybeInsertSpace()
-	BreakAfterBlockFor(n *rhino.Node, statementContext bool) bool
+	BreakAfterBlockFor(n rhino.Node, statementContext bool) bool
 	EndFile()
 
 	GetCodeConsumerBase() *CodeConsumerBase
@@ -116,14 +116,14 @@ func (c *CodeConsumerBase) GetCodeConsumerBase() *CodeConsumerBase { return c }
 // current position.
 //
 // Java: CodeConsumer.startSourceMapping(Node)
-func (c *CodeConsumerBase) StartSourceMapping(node *rhino.Node) {
+func (c *CodeConsumerBase) StartSourceMapping(node rhino.Node) {
 }
 
 // EndSourceMapping finishes the source mapping for the given node at the
 // current position.
 //
 // Java: CodeConsumer.endSourceMapping(Node)
-func (c *CodeConsumerBase) EndSourceMapping(node *rhino.Node) {
+func (c *CodeConsumerBase) EndSourceMapping(node rhino.Node) {
 }
 
 // TrackLicenses indicates to the CodeConsumer that this Node might carry
@@ -131,7 +131,7 @@ func (c *CodeConsumerBase) EndSourceMapping(node *rhino.Node) {
 // as it sees fit.
 //
 // Java: CodeConsumer.trackLicenses(Node)
-func (c *CodeConsumerBase) TrackLicenses(node *rhino.Node) {}
+func (c *CodeConsumerBase) TrackLicenses(node rhino.Node) {}
 
 // ContinueProcessing provides a means of interrupting the CodeGenerator.
 // Derived classes should return false to stop further processing.
@@ -439,7 +439,7 @@ func (c *CodeConsumerBase) AddOp(op string, binOp bool) {
 }
 
 // Java: CodeConsumer.addNumber(double, Node)
-func (c *CodeConsumerBase) AddNumber(x float64, n *rhino.Node) {
+func (c *CodeConsumerBase) AddNumber(x float64, n rhino.Node) {
 	if !base.JSCompDoubles_IsPositive(x) {
 		// checkState(isPositive(x), x)
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.DoubleToString(x)))
@@ -515,7 +515,7 @@ func CodeConsumer_IsWordChar(ch uint16) bool {
 // Returns true if such expressions should be wrapped.
 //
 // Java: CodeConsumer.shouldPreserveExtras(Node)
-func (c *CodeConsumerBase) ShouldPreserveExtras(n *rhino.Node) bool {
+func (c *CodeConsumerBase) ShouldPreserveExtras(n rhino.Node) bool {
 	return false
 }
 
@@ -532,7 +532,7 @@ func (c *CodeConsumerBase) MaybeInsertSpace() {}
 // the specified BLOCK.
 //
 // Java: CodeConsumer.breakAfterBlockFor(Node, boolean)
-func (c *CodeConsumerBase) BreakAfterBlockFor(n *rhino.Node, statementContext bool) bool {
+func (c *CodeConsumerBase) BreakAfterBlockFor(n rhino.Node, statementContext bool) bool {
 	return statementContext
 }
 

@@ -46,8 +46,8 @@ func NewEs6RewriteModulesToCommonJsModules(compiler AbstractCompiler) *Es6Rewrit
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.process(Node, Node)
-func (e *Es6RewriteModulesToCommonJsModules) Process(externs *rhino.Node, root *rhino.Node) {
-	for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+func (e *Es6RewriteModulesToCommonJsModules) Process(externs rhino.Node, root rhino.Node) {
+	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		if Es6RewriteModules_IsEs6ModuleRoot(script) {
 			NodeTraversal_Traverse(e.compiler, script, NewEs6RewriteModulesToCommonJsModules_Rewriter(e.compiler, script))
 		}
@@ -72,11 +72,11 @@ type Es6RewriteModulesToCommonJsModules_LocalQName struct {
 	// displayed in the source map. In general it should either be the export
 	// itself (e.g. export function or class) or the specific name being
 	// exported (export specs, const, etc).
-	nodeForSourceInfo *rhino.Node
+	nodeForSourceInfo rhino.Node
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.LocalQName(String, Node)
-func NewEs6RewriteModulesToCommonJsModules_LocalQName(qName string, nodeForSourceInfo *rhino.Node) *Es6RewriteModulesToCommonJsModules_LocalQName {
+func NewEs6RewriteModulesToCommonJsModules_LocalQName(qName string, nodeForSourceInfo rhino.Node) *Es6RewriteModulesToCommonJsModules_LocalQName {
 	l := &Es6RewriteModulesToCommonJsModules_LocalQName{}
 	l.qName = qName
 	l.nodeForSourceInfo = nodeForSourceInfo
@@ -164,31 +164,31 @@ func Es6RewriteModulesToCommonJsModules_ModuleRequest_Create(specifier string, v
 type Es6RewriteModulesToCommonJsModules_Rewriter struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	requireInsertSpot        *rhino.Node
-	script                   *rhino.Node
+	requireInsertSpot        rhino.Node
+	script                   rhino.Node
 	exportedNameToLocalQName *jutil.TreeMap[string, *Es6RewriteModulesToCommonJsModules_LocalQName]
-	imports                  *jutil.LinkedHashSet[*rhino.Node]
+	imports                  *jutil.LinkedHashSet[rhino.Node]
 	importRequests           *jutil.ObjectLinkedHashSet[*Es6RewriteModulesToCommonJsModules_ModuleRequest]
 	compiler                 AbstractCompiler
 	modulePath               *ModuleLoader_ModulePath
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter(AbstractCompiler, Node)
-func NewEs6RewriteModulesToCommonJsModules_Rewriter(compiler AbstractCompiler, script *rhino.Node) *Es6RewriteModulesToCommonJsModules_Rewriter {
+func NewEs6RewriteModulesToCommonJsModules_Rewriter(compiler AbstractCompiler, script rhino.Node) *Es6RewriteModulesToCommonJsModules_Rewriter {
 	r := &Es6RewriteModulesToCommonJsModules_Rewriter{}
 	r.compiler = compiler
 	r.script = script
-	r.requireInsertSpot = nil
+	r.requireInsertSpot = rhino.Node{}
 	// TreeMap because ES6 orders the export key using natural ordering.
 	r.exportedNameToLocalQName = jutil.NewTreeMap[string, *Es6RewriteModulesToCommonJsModules_LocalQName](jutil.StringCompareTo)
 	r.importRequests = jutil.NewObjectLinkedHashSet[*Es6RewriteModulesToCommonJsModules_ModuleRequest]()
-	r.imports = jutil.NewLinkedHashSet[*rhino.Node]()
+	r.imports = jutil.NewLinkedHashSet[rhino.Node]()
 	r.modulePath = compiler.GetInput(script.GetInputId()).GetPath()
 	return r
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visit(NodeTraversal, Node, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_IMPORT:
 		r.VisitImport(t.GetInput().GetPath(), n)
@@ -227,7 +227,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) Visit(t *NodeTraversal, n 
 // renaming.
 //
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.getVarNameOfImport(Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) GetVarNameOfImport(importDecl *rhino.Node) string {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) GetVarNameOfImport(importDecl rhino.Node) string {
 	jutil.CheckState(importDecl.IsImport())
 	if importDecl.GetSecondChild().IsImportStar() {
 		return importDecl.GetSecondChild().GetString()
@@ -255,7 +255,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) GetVarNameOfImportWithImpo
 // Used to rename references to imported values within this module.
 //
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.getNameOfImportedValue(Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) GetNameOfImportedValue(nameNode *rhino.Node) string {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) GetNameOfImportedValue(nameNode rhino.Node) string {
 	importDecl := nameNode
 
 	for !importDecl.IsImport() {
@@ -280,13 +280,13 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) GetNameOfImportedValue(nam
 // if the value is not imported or if it is in the import statement itself.
 //
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.maybeGetNameOfImportedValue(Scope, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) MaybeGetNameOfImportedValue(s *Scope, nameNode *rhino.Node) *string {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) MaybeGetNameOfImportedValue(s *Scope, nameNode rhino.Node) *string {
 	jutil.CheckState(nameNode.IsName())
 	var_ := s.GetVar(nameNode.GetString())
 
 	if var_ != nil &&
 		// variables added implicitly to the scope, like arguments, have a null name node
-		var_.GetNameNode() != nil &&
+		!var_.GetNameNode().IsNil() &&
 		NodeUtil_IsImportedName(var_.GetNameNode()) &&
 		nameNode != var_.GetNameNode() {
 		return jutil.StringPtr(r.GetNameOfImportedValue(var_.GetNameNode()))
@@ -299,7 +299,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) MaybeGetNameOfImportedValu
 // value.
 //
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.maybeRenameImportedValue(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) MaybeRenameImportedValue(t *NodeTraversal, n *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) MaybeRenameImportedValue(t *NodeTraversal, n rhino.Node) {
 	jutil.CheckState(n.IsName())
 	parent := n.GetParent()
 
@@ -319,7 +319,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) MaybeRenameImportedValue(t
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitScript(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitScript(t *NodeTraversal, script *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitScript(t *NodeTraversal, script rhino.Node) {
 	jutil.CheckState(r.script == script)
 	moduleNode := script.GetFirstChild()
 	jutil.CheckState(moduleNode.IsModuleBody())
@@ -362,7 +362,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddRequireCalls() {
 				requireCall.PutBooleanProp(rhino.Node_FREE_CALL, true)
 				decl := rhino.IR_VarWithValue(rhino.IR_Name(varName), requireCall)
 				decl.SrcrefTreeIfMissing(r.script)
-				if r.requireInsertSpot == nil {
+				if r.requireInsertSpot.IsNil() {
 					r.script.AddChildToFront(decl)
 				} else {
 					decl.InsertAfter(r.requireInsertSpot)
@@ -450,7 +450,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExportDef() {
 // export.
 //
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.addExport(Node, String, LocalQName)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExport(definePropertiesLit *rhino.Node, exportedName string, localQName *Es6RewriteModulesToCommonJsModules_LocalQName) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExport(definePropertiesLit rhino.Node, exportedName string, localQName *Es6RewriteModulesToCommonJsModules_LocalQName) {
 	exportedValue := NodeUtil_NewQName(r.compiler, localQName.qName)
 	getterFunction :=
 		rhino.IR_Function(rhino.IR_Name(""), rhino.IR_ParamList(), rhino.IR_BlockOfNode(rhino.IR_ReturnNodeWithExpr(exportedValue)))
@@ -465,7 +465,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExport(defineProperties
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitImport(ModulePath, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitImport(path *ModuleLoader_ModulePath, importDecl *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitImport(path *ModuleLoader_ModulePath, importDecl rhino.Node) {
 	if strings.Contains(importDecl.GetLastChild().GetString(), "://") {
 		r.compiler.Report(
 			JSError_MakeWithNode(
@@ -483,7 +483,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitImport(path *ModuleLo
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportDefault(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportDefault(t *NodeTraversal, export *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportDefault(t *NodeTraversal, export rhino.Node) {
 	child := export.GetFirstChild()
 	var name *string
 
@@ -508,7 +508,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportDefault(t *Node
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportFrom(NodeTraversal, Node, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportFrom(t *NodeTraversal, export *rhino.Node, parent *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportFrom(t *NodeTraversal, export rhino.Node, parent rhino.Node) {
 	//   export {x, y as z} from 'moduleIdentifier';
 	moduleIdentifier := export.GetLastChild()
 	importNode := rhino.IR_ImportNode(rhino.IR_Empty(), rhino.IR_Empty(), moduleIdentifier.CloneNode())
@@ -518,7 +518,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportFrom(t *NodeTra
 
 	moduleName := r.GetVarNameOfImportWithImportRequest(moduleIdentifier.GetString())
 
-	for exportSpec := export.GetFirstFirstChild(); exportSpec != nil; exportSpec = exportSpec.GetNext() {
+	for exportSpec := export.GetFirstFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
 		r.exportedNameToLocalQName.Put(
 			exportSpec.GetLastChild().GetString(),
 			NewEs6RewriteModulesToCommonJsModules_LocalQName(moduleName+"."+exportSpec.GetFirstChild().GetString(), exportSpec))
@@ -529,9 +529,9 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportFrom(t *NodeTra
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportSpecs(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportSpecs(t *NodeTraversal, export *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportSpecs(t *NodeTraversal, export rhino.Node) {
 	//     export {Foo};
-	for exportSpec := export.GetFirstFirstChild(); exportSpec != nil; exportSpec = exportSpec.GetNext() {
+	for exportSpec := export.GetFirstFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
 		localName := exportSpec.GetFirstChild().GetString()
 		var_ := t.GetScope().GetVar(localName)
 		if var_ != nil && NodeUtil_IsImportedName(var_.GetNameNode()) {
@@ -545,21 +545,21 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportSpecs(t *NodeTr
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportNameDeclaration(Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportNameDeclaration(declaration *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportNameDeclaration(declaration rhino.Node) {
 	//    export var Foo;
 	//    export let {a, b:[c,d]} = {};
 	NodeUtil_VisitLhsNodesInNode(declaration, r.AddExportedName)
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.addExportedName(Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExportedName(lhs *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExportedName(lhs rhino.Node) {
 	jutil.CheckState(lhs.IsName())
 	name := lhs.GetString()
 	r.exportedNameToLocalQName.Put(name, NewEs6RewriteModulesToCommonJsModules_LocalQName(name, lhs))
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportDeclaration(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportDeclaration(t *NodeTraversal, export *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportDeclaration(t *NodeTraversal, export rhino.Node) {
 	//    export var Foo;
 	//    export function Foo() {}
 	// etc.
@@ -578,7 +578,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportDeclaration(t *
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportStar(NodeTraversal, Node, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportStar(t *NodeTraversal, export *rhino.Node, parent *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportStar(t *NodeTraversal, export rhino.Node, parent rhino.Node) {
 	//   export * from 'moduleIdentifier';
 	moduleIdentifier := export.GetLastChild()
 
@@ -598,7 +598,7 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportStar(t *NodeTra
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExport(NodeTraversal, Node, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExport(t *NodeTraversal, export *rhino.Node, parent *rhino.Node) {
+func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExport(t *NodeTraversal, export rhino.Node, parent rhino.Node) {
 	if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
 		r.VisitExportDefault(t, export)
 	} else if export.GetBooleanProp(rhino.Node_EXPORT_ALL_FROM) {

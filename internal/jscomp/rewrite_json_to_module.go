@@ -61,13 +61,13 @@ func (r *RewriteJsonToModule) GetPackageJsonMainEntries() *jutil.LinkedHashMap[s
 // jsRoot of other passes.
 //
 // Java: RewriteJsonToModule.process(Node, Node)
-func (r *RewriteJsonToModule) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteJsonToModule) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(root.IsScript())
 	NodeTraversal_Traverse(r.compiler, root, r)
 }
 
 // Java: RewriteJsonToModule.visit(NodeTraversal, Node, Node)
-func (r *RewriteJsonToModule) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *RewriteJsonToModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		if !n.HasOneChild() {
@@ -106,7 +106,7 @@ func (r *RewriteJsonToModule) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 // `--package_json_entry_names` option.
 //
 // Java: RewriteJsonToModule.visitScript(NodeTraversal, Node)
-func (r *RewriteJsonToModule) VisitScript(t *NodeTraversal, n *rhino.Node) {
+func (r *RewriteJsonToModule) VisitScript(t *NodeTraversal, n rhino.Node) {
 	if !n.HasOneChild() || !n.GetFirstChild().IsExprResult() {
 		r.compiler.Report(JSError_MakeWithNode(n, RewriteJsonToModule_JSON_UNEXPECTED_TOKEN))
 		return
@@ -136,7 +136,7 @@ func (r *RewriteJsonToModule) VisitScript(t *NodeTraversal, n *rhino.Node) {
 		for _, entryName := range possibleMainEntries {
 			entry := NodeUtil_GetFirstPropMatchingKey(jsonObject, entryName)
 
-			if entry != nil && (entry.IsStringLit() || entry.IsObjectLit()) {
+			if !entry.IsNil() && (entry.IsStringLit() || entry.IsObjectLit()) {
 				dirName := jutil.StringSubstring(inputPath, 0, jutil.StringLength(inputPath)-jutil.StringLength("package.json"))
 
 				if entry.IsStringLit() {
@@ -163,8 +163,8 @@ func (r *RewriteJsonToModule) VisitScript(t *NodeTraversal, n *rhino.Node) {
 // track the entries in that object literal as module file replacements.
 //
 // Java: RewriteJsonToModule.processBrowserFieldAdvancedUsage(String, Node)
-func (r *RewriteJsonToModule) ProcessBrowserFieldAdvancedUsage(dirName string, entry *rhino.Node) {
-	for child := entry.GetFirstChild(); child != nil; child = child.GetNext() {
+func (r *RewriteJsonToModule) ProcessBrowserFieldAdvancedUsage(dirName string, entry rhino.Node) {
+	for child := entry.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		value := child.GetFirstChild()
 
 		jutil.CheckState(child.IsStringKey() && (value.IsStringLit() || value.IsFalse()))

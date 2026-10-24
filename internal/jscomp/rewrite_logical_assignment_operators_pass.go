@@ -41,14 +41,14 @@ func NewRewriteLogicalAssignmentOperatorsPass(compiler AbstractCompiler) *Rewrit
 }
 
 // Java: RewriteLogicalAssignmentOperatorsPass.process(Node, Node)
-func (r *RewriteLogicalAssignmentOperatorsPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteLogicalAssignmentOperatorsPass) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, r)
 	TranspilationPasses_MaybeMarkFeatureAsTranspiledAway(
 		r.compiler, root, parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
 }
 
 // Java: RewriteLogicalAssignmentOperatorsPass.shouldTraverse(NodeTraversal, Node, Node)
-func (r *RewriteLogicalAssignmentOperatorsPass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (r *RewriteLogicalAssignmentOperatorsPass) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
 		// runs only if logical assignment present
@@ -58,7 +58,7 @@ func (r *RewriteLogicalAssignmentOperatorsPass) ShouldTraverse(t *NodeTraversal,
 }
 
 // Java: RewriteLogicalAssignmentOperatorsPass.visit(NodeTraversal, Node, Node)
-func (r *RewriteLogicalAssignmentOperatorsPass) Visit(t *NodeTraversal, logicalAssignment *rhino.Node, parent *rhino.Node) {
+func (r *RewriteLogicalAssignmentOperatorsPass) Visit(t *NodeTraversal, logicalAssignment rhino.Node, parent rhino.Node) {
 	switch logicalAssignment.GetToken() {
 	case rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
 		r.rewriteLogicalAssignmentOperatorsHelper.VisitLogicalAssignmentOperator(

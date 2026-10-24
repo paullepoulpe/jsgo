@@ -1,6 +1,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"runtime"
 	"testing"
 	"time"
@@ -42,11 +43,11 @@ alert(new Point(3).twice());
 	}
 }
 
-// Go-only: the node tables (rhino/node_tables.go) are released when the
-// Compiler is collected, so nothing reachable from them may reach the
-// Compiler. A type-checked compilation that never converts to colors is the
-// case that exercises it: the node type table keeps every attached JSType,
-// each JSType its registry, and the registry reports to the Compiler.
+// Go-only: a Compiler is collectable once its node store is no longer
+// current. A type-checked compilation that never converts to colors is the
+// case that exercises it: the store's type table keeps every attached
+// JSType, each JSType its registry, and the registry reports to the
+// Compiler, so nothing else may keep the store or the Compiler alive.
 func TestCompilerIsCollectableWithTypesAttached(t *testing.T) {
 	collected := make(chan struct{}, 1)
 	func() {
@@ -66,6 +67,7 @@ alert(new Point(3).x);
 			t.Fatal("expected type checking to have run without clearing the registry")
 		}
 		runtime.AddCleanup(c, func(ch chan struct{}) { ch <- struct{}{} }, collected)
+		rhino.ResetNodeStore()
 	}()
 	for i := 0; i < 50; i++ {
 		runtime.GC()
@@ -75,5 +77,5 @@ alert(new Point(3).x);
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
-	t.Fatal("the Compiler is still reachable (its node tables were never released)")
+	t.Fatal("the Compiler is still reachable after its node store stopped being current")
 }

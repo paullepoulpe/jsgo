@@ -75,19 +75,19 @@ func (r *ConvertTypesToColors_RemoveTypesBase) GetConvertTypesToColors_RemoveTyp
 }
 
 // Java: ConvertTypesToColors.RemoveTypes.visit(NodeTraversal, Node, Node)
-func (r *ConvertTypesToColors_RemoveTypesBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *ConvertTypesToColors_RemoveTypesBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	convertTypesToColors_removeTypesFromNode(n)
 }
 
-func convertTypesToColors_removeTypesFromNode(n *rhino.Node) {
+func convertTypesToColors_removeTypesFromNode(n rhino.Node) {
 	_, _, jsdoc := n.TakeTypesAndJSDocForColorConversion()
 	if jsdoc != nil {
 		n.SetJSDocInfo(JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc))
 	}
 }
 
-func convertTypesToColors_removeTypesWalk(n *rhino.Node) {
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+func convertTypesToColors_removeTypesWalk(n rhino.Node) {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		convertTypesToColors_removeTypesWalk(c)
 	}
 	convertTypesToColors_removeTypesFromNode(n)
@@ -112,11 +112,11 @@ func NewConvertTypesToColors_RemoveTypesAndApplyColors(
 }
 
 // Java: ConvertTypesToColors.RemoveTypesAndApplyColors.visit(NodeTraversal, Node, Node)
-func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	r.visitNode(n)
 }
 
-func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n *rhino.Node) {
+func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n rhino.Node) {
 	oldType, hadBeforeCast, jsdoc := n.TakeTypesAndJSDocForColorConversion()
 	if jsdoc != nil {
 		n.SetJSDocInfo(JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc))
@@ -145,15 +145,15 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n *rhino.Node
 	}
 }
 
-func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) walk(n *rhino.Node) {
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) walk(n rhino.Node) {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		r.walk(c)
 	}
 	r.visitNode(n)
 }
 
 // Java: ConvertTypesToColors.process(Node, Node)
-func (c *ConvertTypesToColors) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ConvertTypesToColors) Process(externs rhino.Node, root rhino.Node) {
 	if c.compiler.GetLifeCycleStage().HasColorAndSimplifiedJSDoc() {
 		// Pass is a no-op if we already have optimization colors or have finished the checks phase
 		return
@@ -206,14 +206,14 @@ func (c *ConvertTypesToColors) Process(externs *rhino.Node, root *rhino.Node) {
 // JSType graph (every type points to the registry) can be collected.
 //
 // Go-only.
-func convertTypesToColors_forDetachedRoots(compiler AbstractCompiler, externsAndJsRoot *rhino.Node, walk func(*rhino.Node)) {
-	seen := map[*rhino.Node]struct{}{}
-	visit := func(n *rhino.Node) {
-		if n == nil {
+func convertTypesToColors_forDetachedRoots(compiler AbstractCompiler, externsAndJsRoot rhino.Node, walk func(rhino.Node)) {
+	seen := map[rhino.Node]struct{}{}
+	visit := func(n rhino.Node) {
+		if n.IsNil() {
 			return
 		}
 		root := n
-		for p := root.GetParent(); p != nil; p = p.GetParent() {
+		for p := root.GetParent(); !p.IsNil(); p = p.GetParent() {
 			root = p
 		}
 		if root == externsAndJsRoot {
@@ -225,7 +225,7 @@ func convertTypesToColors_forDetachedRoots(compiler AbstractCompiler, externsAnd
 		seen[root] = struct{}{}
 		walk(root)
 	}
-	compiler.GetChangeTracker().changeTimeline.Values(func(n *rhino.Node) bool {
+	compiler.GetChangeTracker().changeTimeline.Values(func(n rhino.Node) bool {
 		visit(n)
 		return true
 	})

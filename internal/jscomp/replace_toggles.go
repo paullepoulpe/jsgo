@@ -72,7 +72,7 @@ func NewReplaceToggles(compiler AbstractCompiler) *ReplaceToggles {
 }
 
 // Java: ReplaceToggles.process(Node, Node)
-func (r *ReplaceToggles) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *ReplaceToggles) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, NewReplaceToggles_Traversal(r))
 }
 
@@ -94,7 +94,7 @@ func NewReplaceToggles_Traversal(outer *ReplaceToggles) *ReplaceToggles_Traversa
 }
 
 // Java: Traversal.visit(NodeTraversal, Node, Node)
-func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	r := v.this_
 	// Look for `var CLOSURE_TOGGLE_ORDINALS = {...};`, record the mapping, and then delete the
 	// declaration from the AST since we should no longer need it (and the optimizer won't
@@ -102,7 +102,7 @@ func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n *rhino.Node, parent
 	if NodeUtil_IsNameDeclaration(n) && n.GetFirstChild().MatchesName(ReplaceToggles_ORDINAL_VAR_NAME) {
 		rhs := n.GetFirstFirstChild()
 
-		if rhs == nil && n.IsVar() {
+		if rhs.IsNil() && n.IsVar() {
 			// An empty var is fine; it should get deleted later.
 			return
 		} else if !rhs.IsObjectLit() {
@@ -115,7 +115,7 @@ func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n *rhino.Node, parent
 
 		mapping := jutil.NewLinkedHashMap[string, int]()
 		ordinals := jutil.NewLinkedHashSet[int]()
-		for c := rhs.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := rhs.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if !c.IsStringKey() && !c.IsStringLit() {
 				r.compiler.Report(JSError_MakeWithNode(c, ReplaceToggles_INVALID_ORDINAL_MAPPING, "non-string key"))
 				return
@@ -166,7 +166,7 @@ func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n *rhino.Node, parent
 	}
 
 	arg := n.GetSecondChild()
-	if arg == nil || !arg.IsStringLit() || !n.HasTwoChildren() {
+	if arg.IsNil() || !arg.IsStringLit() || !n.HasTwoChildren() {
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceToggles_INVALID_TOGGLE_PARAMETER))
 		return
 	}
@@ -201,7 +201,7 @@ func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n *rhino.Node, parent
 	// where x is the `goog.TOGGLES_[index]` lookup, and `mask` is `1 << bit`.
 	// When `bit < 14`, option 1 is shorter.  When `bit > 16`, option 2 is shorter.
 	// We arbitrarily prefer option 2 in the break-even range 14..16.
-	var bitAnd *rhino.Node
+	var bitAnd rhino.Node
 	if bit < 14 {
 		bitAnd = r.astFactory.CreateBitwiseAnd(getElem, r.astFactory.CreateNumber(float64(int32(1)<<bit)))
 	} else {

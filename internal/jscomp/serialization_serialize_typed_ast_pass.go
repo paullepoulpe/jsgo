@@ -527,7 +527,7 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 }
 
 // Java: SerializeTypedAstPass.process(Node, Node)
-func (p *SerializeTypedAstPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *SerializeTypedAstPass) Process(externs rhino.Node, root rhino.Node) {
 	NewRemoveCastNodes(p.compiler).Process(externs, root)
 	serializer := NewTypedAstSerializer(p.compiler, p.serializationOptions)
 	ast := serializer.SerializeRoots(externs, root)

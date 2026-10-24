@@ -48,10 +48,10 @@ type ClosureCodeRemoval struct {
 	abstractMethodAssignmentNodes *jutil.ArrayList[*ClosureCodeRemoval_RemovableAssignment]
 
 	// List of member function definition nodes annotated with @abstract.
-	abstractMemberFunctionNodes *jutil.ArrayList[*rhino.Node]
+	abstractMemberFunctionNodes *jutil.ArrayList[rhino.Node]
 
 	// List of assertion functions.
-	assertionCalls *jutil.ArrayList[*rhino.Node]
+	assertionCalls *jutil.ArrayList[rhino.Node]
 }
 
 var _ CompilerPass = (*ClosureCodeRemoval)(nil)
@@ -67,16 +67,16 @@ type ClosureCodeRemoval_RemovableAssignment struct {
 	outer *ClosureCodeRemoval
 
 	// The node
-	node *rhino.Node
+	node rhino.Node
 
 	// Its parent
-	parent *rhino.Node
+	parent rhino.Node
 
 	// Full chain of ASSIGN ancestors
-	assignAncestors *jutil.ArrayList[*rhino.Node]
+	assignAncestors *jutil.ArrayList[rhino.Node]
 
 	// The last ancestor
-	lastAncestor *rhino.Node
+	lastAncestor rhino.Node
 }
 
 // NewRemovableAssignment is the data structure for information about a
@@ -84,8 +84,8 @@ type ClosureCodeRemoval_RemovableAssignment struct {
 // node.
 //
 // Java: ClosureCodeRemoval.RemovableAssignment(Node, Node)
-func (c *ClosureCodeRemoval) NewRemovableAssignment(nameNode *rhino.Node, assignNode *rhino.Node) *ClosureCodeRemoval_RemovableAssignment {
-	a := &ClosureCodeRemoval_RemovableAssignment{outer: c, assignAncestors: jutil.NewArrayList[*rhino.Node]()}
+func (c *ClosureCodeRemoval) NewRemovableAssignment(nameNode rhino.Node, assignNode rhino.Node) *ClosureCodeRemoval_RemovableAssignment {
+	a := &ClosureCodeRemoval_RemovableAssignment{outer: c, assignAncestors: jutil.NewArrayList[rhino.Node]()}
 	a.node = nameNode
 	a.parent = assignNode
 
@@ -131,7 +131,7 @@ type ClosureCodeRemoval_FindAbstractMethods struct {
 }
 
 // Java: ClosureCodeRemoval.FindAbstractMethods.visit(NodeTraversal, Node, Node)
-func (f *ClosureCodeRemoval_FindAbstractMethods) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *ClosureCodeRemoval_FindAbstractMethods) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c := f.outer
 	if n.IsAssign() {
 		nameNode := n.GetFirstChild()
@@ -173,7 +173,7 @@ func (c *ClosureCodeRemoval) NewFindAssertionCalls() *ClosureCodeRemoval_FindAss
 }
 
 // Java: ClosureCodeRemoval.FindAssertionCalls.visit(NodeTraversal, Node, Node)
-func (f *ClosureCodeRemoval_FindAssertionCalls) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *ClosureCodeRemoval_FindAssertionCalls) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsCall() {
 		return
 	}
@@ -197,13 +197,13 @@ func NewClosureCodeRemoval(compiler AbstractCompiler, removeAbstractMethods bool
 		removeAbstractMethods:         removeAbstractMethods,
 		removeAssertionCalls:          removeAssertionCalls,
 		abstractMethodAssignmentNodes: jutil.NewArrayList[*ClosureCodeRemoval_RemovableAssignment](),
-		abstractMemberFunctionNodes:   jutil.NewArrayList[*rhino.Node](),
-		assertionCalls:                jutil.NewArrayList[*rhino.Node](),
+		abstractMemberFunctionNodes:   jutil.NewArrayList[rhino.Node](),
+		assertionCalls:                jutil.NewArrayList[rhino.Node](),
 	}
 }
 
 // Java: ClosureCodeRemoval.process(Node, Node)
-func (c *ClosureCodeRemoval) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ClosureCodeRemoval) Process(externs rhino.Node, root rhino.Node) {
 	var passes []NodeTraversal_Callback
 	if c.removeAbstractMethods {
 		passes = append(passes, &ClosureCodeRemoval_FindAbstractMethods{outer: c})
@@ -235,7 +235,7 @@ func (c *ClosureCodeRemoval) Process(externs *rhino.Node, root *rhino.Node) {
 			// Otherwise, replace the assertion with its first argument,
 			// which is the return value of the assertion.
 			firstArg := call.GetSecondChild()
-			if firstArg == nil {
+			if firstArg.IsNil() {
 				call.ReplaceWith(NodeUtil_NewUndefinedNode(call))
 			} else {
 				replacement := firstArg.Detach()

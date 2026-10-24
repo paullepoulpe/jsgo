@@ -33,18 +33,18 @@ type Es6RenameTypeReferences struct {
 	// An entry in this map means we should rename a variable that was
 	// originally declared in the scope with the given root and had the
 	// original variable name to the new name.
-	renameTable *jutil.HashBasedTable[*rhino.Node, string, string]
+	renameTable *jutil.HashBasedTable[rhino.Node, string, string]
 }
 
 // Java: Es6RenameTypeReferences(Table<Node, String, String>)
-func NewEs6RenameTypeReferences(renameTable *jutil.HashBasedTable[*rhino.Node, string, string]) *Es6RenameTypeReferences {
+func NewEs6RenameTypeReferences(renameTable *jutil.HashBasedTable[rhino.Node, string, string]) *Es6RenameTypeReferences {
 	e := &Es6RenameTypeReferences{}
 	e.renameTable = renameTable
 	return e
 }
 
 // Java: Es6RenameTypeReferences.visit(NodeTraversal, Node, Node)
-func (e *Es6RenameTypeReferences) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6RenameTypeReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Remove this branch after module rewriting is always done
 	// after type checking.
 	info := n.GetJSDocInfo()
@@ -56,18 +56,18 @@ func (e *Es6RenameTypeReferences) Visit(t *NodeTraversal, n *rhino.Node, parent 
 }
 
 // Java: Es6RenameTypeReferences.renameTypeNodeRecursive(NodeTraversal, Node)
-func (e *Es6RenameTypeReferences) RenameTypeNodeRecursive(t *NodeTraversal, n *rhino.Node) {
+func (e *Es6RenameTypeReferences) RenameTypeNodeRecursive(t *NodeTraversal, n rhino.Node) {
 	if n.IsStringLit() {
 		e.RenameTypeReference(t, n)
 	}
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		e.RenameTypeNodeRecursive(t, child)
 	}
 }
 
 // Java: Es6RenameTypeReferences.renameTypeReference(NodeTraversal, Node)
-func (e *Es6RenameTypeReferences) RenameTypeReference(t *NodeTraversal, n *rhino.Node) {
+func (e *Es6RenameTypeReferences) RenameTypeReference(t *NodeTraversal, n rhino.Node) {
 	jutil.CheckState(n.IsStringLit())
 	fullName := n.GetString()
 	var rootName string
@@ -88,7 +88,7 @@ func (e *Es6RenameTypeReferences) RenameTypeReference(t *NodeTraversal, n *rhino
 // qualified name; rest is the rest of the qualified name or null.
 //
 // Java: Es6RenameTypeReferences.renameReference(NodeTraversal, Node, String, String)
-func (e *Es6RenameTypeReferences) RenameReference(t *NodeTraversal, n *rhino.Node, oldName string, rest *string) {
+func (e *Es6RenameTypeReferences) RenameReference(t *NodeTraversal, n rhino.Node, oldName string, rest *string) {
 	current := t.GetScope()
 
 	// You should be wondering:

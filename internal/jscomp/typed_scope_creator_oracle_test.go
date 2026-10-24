@@ -114,7 +114,7 @@ type typedScopeDump_firstScopeBuildingCallback struct {
 }
 
 func (c *typedScopeDump_firstScopeBuildingCallback) EnterScope(t *NodeTraversal) { t.GetTypedScope() }
-func (c *typedScopeDump_firstScopeBuildingCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *typedScopeDump_firstScopeBuildingCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 // typedScopeDump_exceptionLine renders an escaped exception like the Java
@@ -149,7 +149,7 @@ func typedScopeDump(externs string, inputs []*SourceFile, baseline *jutil.Linked
 		typedScopeDump_options())
 	compiler.SetErrorManager(em)
 	root := compiler.ParseInputs()
-	if root == nil || compiler.GetErrorCount() > 0 {
+	if root.IsNil() || compiler.GetErrorCount() > 0 {
 		out = append(out, fmt.Sprintf("P %d", compiler.GetErrorCount()))
 		out = append(out, em.lines...)
 		return out
@@ -191,7 +191,7 @@ func typedScopeDump(externs string, inputs []*SourceFile, baseline *jutil.Linked
 
 	scopes := scopeCreator.GetAllMemoizedScopes()
 	slices.Reverse(scopes)
-	scopeIndex := map[*rhino.Node]int{}
+	scopeIndex := map[rhino.Node]int{}
 	for i, s := range scopes {
 		scopeIndex[s.GetRootNode()] = i
 	}
@@ -217,8 +217,8 @@ func typedScopeDump(externs string, inputs []*SourceFile, baseline *jutil.Linked
 
 	var table []string
 	registry := compiler.GetTypeRegistry()
-	globalRoot := typedScopeDump_registryField[*rhino.Node](registry, "nameTableGlobalRoot")
-	nameTable := typedScopeDump_registryField[*jutil.LinkedHashMap[*rhino.Node, *jutil.LinkedHashMap[string, rhino.JSType]]](
+	globalRoot := typedScopeDump_registryField[rhino.Node](registry, "nameTableGlobalRoot")
+	nameTable := typedScopeDump_registryField[*jutil.LinkedHashMap[rhino.Node, *jutil.LinkedHashMap[string, rhino.JSType]]](
 		registry, "scopedNameTable")
 	for rowKey, row := range nameTable.All() {
 		var rowLabel string
@@ -263,7 +263,7 @@ func typedScopeDump_varLine(v *TypedVar) string {
 		})
 	}
 	node := "null"
-	if v.GetNameNode() != nil {
+	if !v.GetNameNode().IsNil() {
 		node = typedScopeDump_pos(v.GetNameNode())
 	}
 	return fmt.Sprintf("V %s | %s | %s | inferred=%t esc=%t once=%t input=%s node=%s",
@@ -291,17 +291,17 @@ func typedScopeDump_typeString(type_ rhino.JSType) (s string) {
 	return s
 }
 
-func typedScopeDump_pos(n *rhino.Node) string {
+func typedScopeDump_pos(n rhino.Node) string {
 	return fmt.Sprintf("%s@%d:%d", n.GetToken(), n.GetLineno(), n.GetCharno())
 }
 
-func typedScopeDump_nodeTypes(out []string, n *rhino.Node) []string {
+func typedScopeDump_nodeTypes(out []string, n rhino.Node) []string {
 	type_ := n.GetJSType()
 	if type_ != nil && !typedScopeDump_isLiteral(n.GetToken()) {
 		out = append(out, fmt.Sprintf("N %s %s:%d:%d | %s", n.GetToken(),
 			jutil.ToJavaString(n.GetSourceFileName()), n.GetLineno(), n.GetCharno(), typedScopeDump_typeString(type_)))
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		out = typedScopeDump_nodeTypes(out, c)
 	}
 	return out

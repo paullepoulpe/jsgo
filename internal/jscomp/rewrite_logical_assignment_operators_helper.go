@@ -49,9 +49,9 @@ func NewRewriteLogicalAssignmentOperatorsHelper(
 }
 
 // Java: RewriteLogicalAssignmentOperatorsHelper.visitLogicalAssignmentOperator(NodeTraversal, Node)
-func (h *RewriteLogicalAssignmentOperatorsHelper) VisitLogicalAssignmentOperator(t *NodeTraversal, logicalAssignment *rhino.Node) {
+func (h *RewriteLogicalAssignmentOperatorsHelper) VisitLogicalAssignmentOperator(t *NodeTraversal, logicalAssignment rhino.Node) {
 	enclosingFunction := NodeUtil_GetEnclosingFunction(logicalAssignment)
-	if enclosingFunction != nil && !NodeUtil_GetFunctionBody(enclosingFunction).IsBlock() {
+	if !enclosingFunction.IsNil() && !NodeUtil_GetFunctionBody(enclosingFunction).IsBlock() {
 		returnValue := NodeUtil_GetFunctionBody(enclosingFunction)
 		body := rhino.IR_BlockOfNode(rhino.IR_ReturnNodeWithExpr(returnValue.Detach())).SrcrefTreeIfMissing(returnValue)
 		enclosingFunction.AddChildToBack(body)
@@ -63,7 +63,7 @@ func (h *RewriteLogicalAssignmentOperatorsHelper) VisitLogicalAssignmentOperator
 	left := logicalAssignment.RemoveFirstChild()
 	right := logicalAssignment.GetLastChild().Detach()
 
-	var replacement *rhino.Node
+	var replacement rhino.Node
 
 	for left.IsCast() {
 		// This pass runs after type checking, which is what requires the CAST nodes.
@@ -88,7 +88,7 @@ func (h *RewriteLogicalAssignmentOperatorsHelper) VisitLogicalAssignmentOperator
 }
 
 // Java: RewriteLogicalAssignmentOperatorsHelper.handleLHSName(Node, Node, Node)
-func (h *RewriteLogicalAssignmentOperatorsHelper) HandleLHSName(logicalAssignment *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (h *RewriteLogicalAssignmentOperatorsHelper) HandleLHSName(logicalAssignment rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	// handle name case
 	// e.g. convert `name ??= something()` to
 	// `name ?? (name = something())`
@@ -103,14 +103,14 @@ func (h *RewriteLogicalAssignmentOperatorsHelper) HandleLHSName(logicalAssignmen
 
 // Java: RewriteLogicalAssignmentOperatorsHelper.handleLHSPropertyReference(NodeTraversal, Node, Node, Node, Node)
 func (h *RewriteLogicalAssignmentOperatorsHelper) HandleLHSPropertyReference(
-	t *NodeTraversal, logicalAssignment *rhino.Node, left *rhino.Node, right *rhino.Node, enclosingStatement *rhino.Node) *rhino.Node {
+	t *NodeTraversal, logicalAssignment rhino.Node, left rhino.Node, right rhino.Node, enclosingStatement rhino.Node) rhino.Node {
 	// handle getprop case and getelem case
 	input := t.GetInput()
 	uniqueId := h.uniqueIdSupplier.GetUniqueId(input)
 	tempVarName := RewriteLogicalAssignmentOperatorsHelper_TEMP_VAR_NAME_PREFIX + uniqueId
 
-	var assignToRHS *rhino.Node
-	var newLHS *rhino.Node
+	var assignToRHS rhino.Node
+	var newLHS rhino.Node
 
 	objectNode := left.RemoveFirstChild()
 

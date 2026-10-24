@@ -97,7 +97,7 @@ var (
 )
 
 // Java: J2clPass.process(Node, Node)
-func (p *J2clPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *J2clPass) Process(externs rhino.Node, root rhino.Node) {
 	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
 		return
 	}
@@ -132,7 +132,7 @@ type J2clPass_ClassStaticFunctionsInliner struct {
 	outer                      *J2clPass
 	fnsToInlineByQualifiedName *jutil.LinkedHashMap[string, *J2clPass_ClassStaticFunctionsInliner_InlinableFunction]
 	injector                   *FunctionInjector
-	root                       *rhino.Node
+	root                       rhino.Node
 	inlineSpecs                []*J2clPass_InlineSpec
 	collector                  J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector
 	callInliner                J2clPass_ClassStaticFunctionsInliner_StaticCallInliner
@@ -143,17 +143,17 @@ type J2clPass_ClassStaticFunctionsInliner struct {
 //
 // Java: private record J2clPass.ClassStaticFunctionsInliner.InlinableFunction(Node, InliningMode)
 type J2clPass_ClassStaticFunctionsInliner_InlinableFunction struct {
-	impl         *rhino.Node
+	impl         rhino.Node
 	inliningMode FunctionInjector_InliningMode
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.InlinableFunction(Node, InliningMode)
-func NewJ2clPass_ClassStaticFunctionsInliner_InlinableFunction(impl *rhino.Node, inliningMode FunctionInjector_InliningMode) *J2clPass_ClassStaticFunctionsInliner_InlinableFunction {
+func NewJ2clPass_ClassStaticFunctionsInliner_InlinableFunction(impl rhino.Node, inliningMode FunctionInjector_InliningMode) *J2clPass_ClassStaticFunctionsInliner_InlinableFunction {
 	return &J2clPass_ClassStaticFunctionsInliner_InlinableFunction{impl: impl, inliningMode: inliningMode}
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.InlinableFunction.impl()
-func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) Impl() *rhino.Node { return f.impl }
+func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) Impl() rhino.Node { return f.impl }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.InlinableFunction.inliningMode()
 func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) InliningMode() FunctionInjector_InliningMode {
@@ -167,7 +167,7 @@ func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) String() string
 	return "InlinableFunction[impl=" + jutil.ToJavaString(f.impl) + ", inliningMode=" + f.inliningMode.String() + "]"
 }
 
-func (p *J2clPass) getOrCreateInliner(root *rhino.Node, inlineSpecs []*J2clPass_InlineSpec) *J2clPass_ClassStaticFunctionsInliner {
+func (p *J2clPass) getOrCreateInliner(root rhino.Node, inlineSpecs []*J2clPass_InlineSpec) *J2clPass_ClassStaticFunctionsInliner {
 	c := p.inliner
 	if c == nil {
 		c = &J2clPass_ClassStaticFunctionsInliner{
@@ -192,7 +192,7 @@ func (p *J2clPass) getOrCreateInliner(root *rhino.Node, inlineSpecs []*J2clPass_
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner(Node, List<InlineSpec>)
-func (p *J2clPass) newClassStaticFunctionsInliner(root *rhino.Node, inlineSpecs []*J2clPass_InlineSpec) *J2clPass_ClassStaticFunctionsInliner {
+func (p *J2clPass) newClassStaticFunctionsInliner(root rhino.Node, inlineSpecs []*J2clPass_InlineSpec) *J2clPass_ClassStaticFunctionsInliner {
 	c := &J2clPass_ClassStaticFunctionsInliner{
 		outer:                      p,
 		fnsToInlineByQualifiedName: jutil.NewLinkedHashMap[string, *J2clPass_ClassStaticFunctionsInliner_InlinableFunction](),
@@ -250,7 +250,7 @@ func (c *J2clPass_ClassStaticFunctionsInliner) newFunctionDefsCollector() *J2clP
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.FunctionDefsCollector.shouldTraverse(NodeTraversal, Node, Node)
-func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		f.currFileInlineSpecs = f.outer.findMatchingSpecsForFile(n.GetSourceFileName(), f.currFileInlineSpecs)
 		return len(f.currFileInlineSpecs) != 0
@@ -259,7 +259,7 @@ func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) ShouldTrave
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.FunctionDefsCollector.visit(NodeTraversal, Node, Node)
-func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Only look at named function declarations that are fully qualified.
 	var fnName string
 	switch n.GetToken() {
@@ -315,7 +315,7 @@ func (c *J2clPass_ClassStaticFunctionsInliner) newStaticCallInliner() *J2clPass_
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.StaticCallInliner.visit(NodeTraversal, Node, Node)
-func (s *J2clPass_ClassStaticFunctionsInliner_StaticCallInliner) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (s *J2clPass_ClassStaticFunctionsInliner_StaticCallInliner) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Only look at method calls
 	if !n.IsCall() {
 		return

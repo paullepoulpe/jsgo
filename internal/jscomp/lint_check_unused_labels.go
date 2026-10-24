@@ -57,12 +57,12 @@ func NewCheckUnusedLabels(compiler AbstractCompiler) *CheckUnusedLabels {
 }
 
 // Java: CheckUnusedLabels.process(Node, Node)
-func (c *CheckUnusedLabels) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckUnusedLabels) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckUnusedLabels.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckUnusedLabels) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckUnusedLabels) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_BREAK, rhino.Token_CONTINUE:
 		if n.HasChildren() {
@@ -84,7 +84,7 @@ func (c *CheckUnusedLabels) ShouldTraverse(t *NodeTraversal, n *rhino.Node, pare
 }
 
 // Java: CheckUnusedLabels.visit(NodeTraversal, Node, Node)
-func (c *CheckUnusedLabels) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckUnusedLabels) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsLabel() && c.currentContext != nil {
 		if !c.currentContext.used {
 			t.Report(n, CheckUnusedLabels_UNUSED_LABEL, n.GetFirstChild().GetString())

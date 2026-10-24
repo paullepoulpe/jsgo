@@ -1451,18 +1451,18 @@ func (c *NormalizeTest) TestShadowFunctionName() {
 }
 
 // Java: NormalizeTest.isConstantName(Node)
-func NormalizeTest_IsConstantName(n *rhino.Node) bool {
+func NormalizeTest_IsConstantName(n rhino.Node) bool {
 	return n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)
 }
 
 // Java: NormalizeTest.findNodesWithProperty(Node, Predicate<Node>)
-func (c *NormalizeTest) FindNodesWithProperty(root *rhino.Node, prop func(*rhino.Node) bool) *jutil.LinkedHashSet[*rhino.Node] {
-	set := jutil.NewLinkedHashSet[*rhino.Node]()
+func (c *NormalizeTest) FindNodesWithProperty(root rhino.Node, prop func(rhino.Node) bool) *jutil.LinkedHashSet[rhino.Node] {
+	set := jutil.NewLinkedHashSet[rhino.Node]()
 
 	NodeTraversal_Builder_().
 		SetCompiler(c.GetLastCompiler()).
 		SetCallbackFunc(
-			func(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+			func(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 				if prop(node) {
 					set.Add(node)
 				}

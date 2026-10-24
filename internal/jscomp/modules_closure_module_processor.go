@@ -175,7 +175,7 @@ func (m *ClosureModuleProcessor_UnresolvedGoogModule) ResolveImport(
 			return ResolveExportResult_ERROR
 		}
 		forSourceInfo := importRecord.NameNode()
-		if forSourceInfo == nil {
+		if forSourceInfo.IsNil() {
 			forSourceInfo = importRecord.ImportNode()
 		}
 		return result.Copy(forSourceInfo, require.CreatedBy())
@@ -278,7 +278,7 @@ func closureModuleProcessor_mayBeAccidentalDefaultExport(
 		return false
 	}
 	// Look for `importName` in the exported object literal.
-	for key := exportedValue.GetFirstChild(); key != nil; key = key.GetNext() {
+	for key := exportedValue.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		if key.IsStringKey() && key.GetString() == importName {
 			return true
 		}
@@ -293,7 +293,7 @@ func NewClosureModuleProcessor(compiler AbstractCompiler) *ClosureModuleProcesso
 
 // Java: ClosureModuleProcessor.process(ModuleMetadata, ModulePath, Node)
 func (p *ClosureModuleProcessor) Process(
-	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script *rhino.Node) UnresolvedModule {
+	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule {
 	jutil.CheckArgumentMsg1(
 		script.IsScript() || script.IsCall(), "Unexpected module root %s", script)
 	jutil.CheckArgumentMsg(
@@ -346,7 +346,7 @@ func NewClosureModuleProcessor_ModuleProcessingCallback(
 }
 
 // Java: ClosureModuleProcessor.ModuleProcessingCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *ClosureModuleProcessor_ModuleProcessingCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_MODULE_BODY,
 		rhino.Token_SCRIPT,
@@ -380,7 +380,7 @@ func (c *ClosureModuleProcessor_ModuleProcessingCallback) ShouldTraverse(t *Node
 // list of Exports.
 //
 // Java: ClosureModuleProcessor.ModuleProcessingCallback.maybeInitializeExports(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeExports(assignment *rhino.Node) {
+func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeExports(assignment rhino.Node) {
 	lhs := assignment.GetFirstChild()
 	rhs := assignment.GetSecondChild()
 	if lhs.IsName() && lhs.GetString() == "exports" {
@@ -405,7 +405,7 @@ func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeExports
 // to the list of Exports.
 //
 // Java: ClosureModuleProcessor.ModuleProcessingCallback.maybeInitializeExportsStub(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeExportsStub(qname *rhino.Node) {
+func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeExportsStub(qname rhino.Node) {
 	owner := qname.GetFirstChild()
 	if owner.IsName() && owner.GetString() == "exports" {
 		c.AddPropertyExport(qname.GetString(), qname)
@@ -419,7 +419,7 @@ func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeExports
 // ...' assignment
 //
 // Java: ClosureModuleProcessor.ModuleProcessingCallback.markExportsAssignmentInNamespace(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) MarkExportsAssignmentInNamespace(exportsNode *rhino.Node) {
+func (c *ClosureModuleProcessor_ModuleProcessingCallback) MarkExportsAssignmentInNamespace(exportsNode rhino.Node) {
 	exportName := Export_NAMESPACE
 	closureNamespace := c.closureNamespace
 	c.namespace.Put(
@@ -436,8 +436,8 @@ func (c *ClosureModuleProcessor_ModuleProcessingCallback) MarkExportsAssignmentI
 }
 
 // Java: ClosureModuleProcessor.ModuleProcessingCallback.initializeNamedExportsLiteral(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) InitializeNamedExportsLiteral(objectLit *rhino.Node) {
-	for key := objectLit.GetFirstChild(); key != nil; key = key.GetNext() {
+func (c *ClosureModuleProcessor_ModuleProcessingCallback) InitializeNamedExportsLiteral(objectLit rhino.Node) {
+	for key := objectLit.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		c.AddPropertyExport(key.GetString(), key)
 	}
 }
@@ -445,7 +445,7 @@ func (c *ClosureModuleProcessor_ModuleProcessingCallback) InitializeNamedExports
 // AddPropertyExport adds a named export to the list of Exports.
 //
 // Java: ClosureModuleProcessor.ModuleProcessingCallback.addPropertyExport(String, Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) AddPropertyExport(exportedId string, propNode *rhino.Node) {
+func (c *ClosureModuleProcessor_ModuleProcessingCallback) AddPropertyExport(exportedId string, propNode rhino.Node) {
 	if c.seenExportsAssignment {
 		// We've seen an assignment "exports = ...", so this is not a named
 		// export.
@@ -473,7 +473,7 @@ func (c *ClosureModuleProcessor_ModuleProcessingCallback) AddPropertyExport(expo
 // list of requiresByLocalName.
 //
 // Java: ClosureModuleProcessor.ModuleProcessingCallback.maybeInitializeRequire(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeRequire(nameDeclaration *rhino.Node) {
+func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeRequire(nameDeclaration rhino.Node) {
 	for _, require := range ClosureRequireProcessor_GetAllRequires(nameDeclaration) {
 		c.requiresByLocalName.PutIfAbsent(require.LocalName(), require)
 	}

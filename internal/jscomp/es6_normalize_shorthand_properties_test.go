@@ -79,7 +79,7 @@ func (c *Es6NormalizeShorthandPropertiesTest) TestNormalizationInSource() {
 }
 
 // Java: Es6NormalizeShorthandPropertiesTest.assertNotShorthandProperty(Node)
-func Es6NormalizeShorthandPropertiesTest_AssertNotShorthandProperty(node *rhino.Node) {
+func Es6NormalizeShorthandPropertiesTest_AssertNotShorthandProperty(node rhino.Node) {
 	AssertWithMessage("Detected shorthand property node <%s>.", node).
 		That(node.IsShorthandProperty()).
 		IsFalse()

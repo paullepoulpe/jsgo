@@ -71,7 +71,7 @@ func (b *RecordTypeBuilder) SetSynthesized(synthesized bool) {
 // builder itself for chaining purposes.
 //
 // Java: RecordTypeBuilder.addProperty(String, JSType, Node)
-func (b *RecordTypeBuilder) AddProperty(name string, type_ JSType, propertyNode *Node) *RecordTypeBuilder {
+func (b *RecordTypeBuilder) AddProperty(name string, type_ JSType, propertyNode Node) *RecordTypeBuilder {
 	b.isEmpty = false
 	b.properties.Put(name, NewRecordTypeBuilder_RecordProperty(type_, propertyNode))
 	return b
@@ -95,11 +95,11 @@ func (b *RecordTypeBuilder) Build() JSType {
 // RecordTypeBuilder_RecordProperty is RecordTypeBuilder.RecordProperty.
 type RecordTypeBuilder_RecordProperty struct {
 	type_        JSType
-	propertyNode *Node
+	propertyNode Node
 }
 
 // Java: RecordTypeBuilder.RecordProperty(JSType, Node)
-func NewRecordTypeBuilder_RecordProperty(type_ JSType, propertyNode *Node) *RecordTypeBuilder_RecordProperty {
+func NewRecordTypeBuilder_RecordProperty(type_ JSType, propertyNode Node) *RecordTypeBuilder_RecordProperty {
 	return &RecordTypeBuilder_RecordProperty{type_: type_, propertyNode: propertyNode}
 }
 
@@ -109,7 +109,7 @@ func (p *RecordTypeBuilder_RecordProperty) GetType() JSType {
 }
 
 // Java: RecordTypeBuilder.RecordProperty.getPropertyNode()
-func (p *RecordTypeBuilder_RecordProperty) GetPropertyNode() *Node {
+func (p *RecordTypeBuilder_RecordProperty) GetPropertyNode() Node {
 	return p.propertyNode
 }
 

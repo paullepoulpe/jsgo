@@ -212,7 +212,7 @@ func (b *CompilerTypeTestCaseBase) CreateTemplatizedType(baseType rhino.ObjectTy
 // resolves to the correct JSType.
 //
 // Java: CompilerTypeTestCase.assertTypeEquals(JSType, Node)
-func (b *CompilerTypeTestCaseBase) AssertTypeEqualsNode(expected rhino.JSType, actual *rhino.Node) {
+func (b *CompilerTypeTestCaseBase) AssertTypeEqualsNode(expected rhino.JSType, actual rhino.Node) {
 	b.AssertTypeEqualsExpr(expected, rhino.NewJSTypeExpression(actual, "<BaseJSTypeTestCase.java>"))
 }
 

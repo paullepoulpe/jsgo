@@ -1341,7 +1341,7 @@ func TestJSDocAttachment11(t *testing.T) {
 	assertNode(t, varNode).HasType(rhino.Token_VAR)
 	pt.assertNodeHasJSDocInfoWithJSType(
 		varNode,
-		pt.CreateRecordTypeBuilder().AddProperty("x", pt.NUMBER_TYPE, nil).AddProperty("y", pt.STRING_TYPE, nil).AddProperty("z", pt.UNKNOWN_TYPE, nil).Build())
+		pt.CreateRecordTypeBuilder().AddProperty("x", pt.NUMBER_TYPE, rhino.Node{}).AddProperty("y", pt.STRING_TYPE, rhino.Node{}).AddProperty("z", pt.UNKNOWN_TYPE, rhino.Node{}).Build())
 
 	// NAME
 	nameNode := varNode.GetFirstChild()
@@ -2949,7 +2949,7 @@ func TestInlineJSDocAttachment6(t *testing.T) {
 	info := fn.GetSecondChild().GetFirstChild().GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
 	pt.AssertTypeEqualsExpr(
-		pt.CreateRecordTypeBuilder().AddProperty("attr", pt.NUMBER_TYPE, nil).Build(), info.GetType())
+		pt.CreateRecordTypeBuilder().AddProperty("attr", pt.NUMBER_TYPE, rhino.Node{}).Build(), info.GetType())
 }
 
 // Java: ParserTest.testInlineJSDocWithOptionalType()
@@ -3445,9 +3445,9 @@ func TestBigIntComputedMethodClass(t *testing.T) {
 	pt := newParserTest(t)
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
-	var classMembers *rhino.Node
-	var computedProp *rhino.Node
-	var bigint *rhino.Node
+	var classMembers rhino.Node
+	var computedProp rhino.Node
+	var bigint rhino.Node
 	bigintValue := jutil.NewBigIntegerFromString("123")
 	classMembers =
 		pt.parse("class X { 123n() {} }"). // SCRIPT
@@ -9762,9 +9762,9 @@ let string1 = "ClosureAwareString";
 	firstShadowRoot := firstUnawareShadowHost.GetClosureUnawareShadow()
 	secondShadowRoot := secondUnawareShadowHost.GetClosureUnawareShadow()
 	firstUnawareFunctionFunctionNode :=
-		codeSubTree_findFirstNode(firstShadowRoot, (*rhino.Node).IsFunction)
+		codeSubTree_findFirstNode(firstShadowRoot, (rhino.Node).IsFunction)
 	secondUnawareFunctionFunctionNode :=
-		codeSubTree_findFirstNode(secondShadowRoot, (*rhino.Node).IsFunction)
+		codeSubTree_findFirstNode(secondShadowRoot, (rhino.Node).IsFunction)
 
 	assertNode(t, firstUnawareShadowHost).IsName("$jscomp_wrap_closure_unaware_code")
 	assertNode(t, secondUnawareShadowHost).IsName("$jscomp_wrap_closure_unaware_code")
@@ -9910,13 +9910,13 @@ func (pt *parserTest) testLinenoCharnoBinop(binop string) {
 }
 
 // Java: ParserTest.assertNodeEquality(Node, Node)
-func (pt *parserTest) assertNodeEquality(expected *rhino.Node, found *rhino.Node) {
+func (pt *parserTest) assertNodeEquality(expected rhino.Node, found rhino.Node) {
 	pt.t.Helper()
 	assertNode(pt.t, found).IsEqualTo(expected)
 }
 
 // Java: ParserTest.createScript(Node)
-func (pt *parserTest) createScript(n *rhino.Node) *rhino.Node {
+func (pt *parserTest) createScript(n rhino.Node) rhino.Node {
 	script := rhino.NewNode(rhino.Token_SCRIPT)
 	script.AddChildToBack(n)
 	return script
@@ -9956,7 +9956,7 @@ func (pt *parserTest) testComputedProperty(js string) {
 }
 
 // Java: ParserTest.testTemplateLiteral(String)
-func (pt *parserTest) testTemplateLiteral(s string) *rhino.Node {
+func (pt *parserTest) testTemplateLiteral(s string) rhino.Node {
 	pt.t.Helper()
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -10003,13 +10003,13 @@ func (pt *parserTest) doAsyncArrowFunctionTest(arrowFunctionSource string) {
 }
 
 // Java: ParserTest.freeCall(Node)
-func (pt *parserTest) freeCall(n *rhino.Node) *rhino.Node {
+func (pt *parserTest) freeCall(n rhino.Node) rhino.Node {
 	n.PutBooleanProp(rhino.Node_FREE_CALL, true)
 	return n
 }
 
 // Java: ParserTest.assertNodeHasJSDocInfoWithJSType(Node, JSType)
-func (pt *parserTest) assertNodeHasJSDocInfoWithJSType(node *rhino.Node, jsType rhino.JSType) {
+func (pt *parserTest) assertNodeHasJSDocInfoWithJSType(node rhino.Node, jsType rhino.JSType) {
 	t := pt.t
 	t.Helper()
 	info := node.GetJSDocInfo()
@@ -10018,7 +10018,7 @@ func (pt *parserTest) assertNodeHasJSDocInfoWithJSType(node *rhino.Node, jsType 
 }
 
 // Java: ParserTest.assertNodeHasJSDocInfoWithNoJSType(Node)
-func (pt *parserTest) assertNodeHasJSDocInfoWithNoJSType(node *rhino.Node) {
+func (pt *parserTest) assertNodeHasJSDocInfoWithNoJSType(node rhino.Node) {
 	t := pt.t
 	t.Helper()
 	info := node.GetJSDocInfo()
@@ -10028,7 +10028,7 @@ func (pt *parserTest) assertNodeHasJSDocInfoWithNoJSType(node *rhino.Node) {
 }
 
 // Java: ParserTest.assertNodeHasNoJSDocInfo(Node)
-func (pt *parserTest) assertNodeHasNoJSDocInfo(node *rhino.Node) {
+func (pt *parserTest) assertNodeHasNoJSDocInfo(node rhino.Node) {
 	t := pt.t
 	t.Helper()
 	info := node.GetJSDocInfo()
@@ -10041,17 +10041,17 @@ func requiresLanguageModeMessage(feature parser.FeatureSet_Feature) string {
 }
 
 // Java: ParserTest.script(Node)
-func (pt *parserTest) script(stmt *rhino.Node) *rhino.Node {
+func (pt *parserTest) script(stmt rhino.Node) rhino.Node {
 	return rhino.NewNodeWithChild(rhino.Token_SCRIPT, stmt)
 }
 
 // Java: ParserTest.expr(Node)
-func (pt *parserTest) expr(n *rhino.Node) *rhino.Node {
+func (pt *parserTest) expr(n rhino.Node) rhino.Node {
 	return rhino.NewNodeWithChild(rhino.Token_EXPR_RESULT, n)
 }
 
 // Java: ParserTest.regex(String) / ParserTest.regex(String, String)
-func (pt *parserTest) regex(regex string, flag ...string) *rhino.Node {
+func (pt *parserTest) regex(regex string, flag ...string) rhino.Node {
 	if len(flag) == 0 {
 		return rhino.NewNodeWithChild(rhino.Token_REGEXP, rhino.Node_NewString(regex))
 	}
@@ -10062,7 +10062,7 @@ func (pt *parserTest) regex(regex string, flag ...string) *rhino.Node {
 // Returns, if in IDE mode, a partial tree.
 //
 // Java: ParserTest.parseError(String, String...)
-func (pt *parserTest) parseError(source string, errors ...string) *rhino.Node {
+func (pt *parserTest) parseError(source string, errors ...string) rhino.Node {
 	t := pt.t
 	t.Helper()
 	assertThat(t, errors).IsNotEmpty()
@@ -10088,7 +10088,7 @@ func (pt *parserTest) parseError(source string, errors ...string) *rhino.Node {
 // Returns the parse tree.
 //
 // Java: ParserTest.parseWarning(String, String...)
-func (pt *parserTest) parseWarning(string_ string, warnings ...string) *rhino.Node {
+func (pt *parserTest) parseWarning(string_ string, warnings ...string) rhino.Node {
 	pt.t.Helper()
 	return pt.doParse(string_, warnings...).Ast
 }
@@ -10117,10 +10117,10 @@ func (pt *parserTest) doParseWithReporter(string_ string, testErrorReporter *tes
 }
 
 // Java: ParserTest.assertSourceInfoPresent(Node)
-func (pt *parserTest) assertSourceInfoPresent(node *rhino.Node) {
+func (pt *parserTest) assertSourceInfoPresent(node rhino.Node) {
 	t := pt.t
 	t.Helper()
-	deque := []*rhino.Node{node}
+	deque := []rhino.Node{node}
 
 	for len(deque) != 0 {
 		node = deque[0]
@@ -10132,7 +10132,7 @@ func (pt *parserTest) assertSourceInfoPresent(node *rhino.Node) {
 		assertWithMessage(t, jutil.LenientFormat("Source length must be nonnegative on %s", node)).
 			That(node.GetLength()).IsAtLeast(0)
 
-		for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			deque = append(deque, child)
 		}
 	}
@@ -10142,7 +10142,7 @@ func (pt *parserTest) assertSourceInfoPresent(node *rhino.Node) {
 // Returns the parse tree.
 //
 // Java: ParserTest.parse(String)
-func (pt *parserTest) parse(string_ string) *rhino.Node {
+func (pt *parserTest) parse(string_ string) rhino.Node {
 	pt.t.Helper()
 	return pt.parseWarning(string_)
 }
@@ -10178,7 +10178,7 @@ func (pt *parserTest) expectFeatures(features ...parser.FeatureSet_Feature) {
 // parserTest_ParserResult is ParserTest.ParserResult.
 type parserTest_ParserResult struct {
 	code string
-	node *rhino.Node
+	node rhino.Node
 }
 
 // ---------------------------------------------------------------------------
@@ -10216,14 +10216,14 @@ func (s *subject) IsLessThan(max int64) {
 
 // codeSubTree_findFirstNode is CodeSubTree.findFirstNode(Node, Predicate):
 // the first match in a pre-order traversal (NodeUtil.visitPreOrder).
-func codeSubTree_findFirstNode(rootNode *rhino.Node, predicate func(*rhino.Node) bool) *rhino.Node {
-	var matches []*rhino.Node
-	var visit func(n *rhino.Node)
-	visit = func(n *rhino.Node) {
+func codeSubTree_findFirstNode(rootNode rhino.Node, predicate func(rhino.Node) bool) rhino.Node {
+	var matches []rhino.Node
+	var visit func(n rhino.Node)
+	visit = func(n rhino.Node) {
 		if predicate(n) {
 			matches = append(matches, n)
 		}
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			visit(c)
 		}
 	}
@@ -10233,7 +10233,7 @@ func codeSubTree_findFirstNode(rootNode *rhino.Node, predicate func(*rhino.Node)
 }
 
 // nodeUtil_getClassMembers is NodeUtil.getClassMembers(Node).
-func nodeUtil_getClassMembers(n *rhino.Node) *rhino.Node {
+func nodeUtil_getClassMembers(n rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsClass())
 	return n.GetLastChild()
 }

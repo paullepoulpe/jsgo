@@ -43,8 +43,8 @@ type Import struct {
 	importName    string
 	localName     string
 	modulePath    *ModuleLoader_ModulePath
-	importNode    *rhino.Node
-	nameNode      *rhino.Node
+	importNode    rhino.Node
+	nameNode      rhino.Node
 }
 
 // Java: Import(String, String, String, ModulePath, Node, Node)
@@ -53,10 +53,10 @@ func NewImport(
 	importName string,
 	localName string,
 	modulePath *ModuleLoader_ModulePath,
-	importNode *rhino.Node,
-	nameNode *rhino.Node) *Import {
-	jutil.CheckNotNullMsg(importNode, "importNode")
-	jutil.CheckNotNullMsg(nameNode, "nameNode")
+	importNode rhino.Node,
+	nameNode rhino.Node) *Import {
+	rhino.CheckNotNullMsg(importNode, "importNode")
+	rhino.CheckNotNullMsg(nameNode, "nameNode")
 	return &Import{
 		moduleRequest: moduleRequest,
 		importName:    importName,
@@ -82,10 +82,10 @@ func (i *Import) LocalName() string { return i.localName }
 func (i *Import) ModulePath() *ModuleLoader_ModulePath { return i.modulePath }
 
 // Java: Import.importNode()
-func (i *Import) ImportNode() *rhino.Node { return i.importNode }
+func (i *Import) ImportNode() rhino.Node { return i.importNode }
 
 // Java: Import.nameNode()
-func (i *Import) NameNode() *rhino.Node { return i.nameNode }
+func (i *Import) NameNode() rhino.Node { return i.nameNode }
 
 // Equals is the record's componentwise equals (ModulePath and Node compare
 // by identity).
@@ -139,8 +139,8 @@ type Import_Builder struct {
 	importName    *string
 	localName     *string
 	modulePath    *ModuleLoader_ModulePath
-	importNode    *rhino.Node
-	nameNode      *rhino.Node
+	importNode    rhino.Node
+	nameNode      rhino.Node
 }
 
 // Java: Import.builder()
@@ -190,8 +190,8 @@ func (b *Import_Builder) ModulePath(modulePath *ModuleLoader_ModulePath) *Import
 }
 
 // Java: AutoBuilder_Import_Builder.importNode(Node)
-func (b *Import_Builder) ImportNode(importNode *rhino.Node) *Import_Builder {
-	if importNode == nil {
+func (b *Import_Builder) ImportNode(importNode rhino.Node) *Import_Builder {
+	if importNode.IsNil() {
 		panic(jutil.NewNullPointerExceptionMsg("Null importNode"))
 	}
 	b.importNode = importNode
@@ -199,8 +199,8 @@ func (b *Import_Builder) ImportNode(importNode *rhino.Node) *Import_Builder {
 }
 
 // Java: AutoBuilder_Import_Builder.nameNode(Node)
-func (b *Import_Builder) NameNode(nameNode *rhino.Node) *Import_Builder {
-	if nameNode == nil {
+func (b *Import_Builder) NameNode(nameNode rhino.Node) *Import_Builder {
+	if nameNode.IsNil() {
 		panic(jutil.NewNullPointerExceptionMsg("Null nameNode"))
 	}
 	b.nameNode = nameNode
@@ -212,8 +212,8 @@ func (b *Import_Builder) Build() *Import {
 	if b.moduleRequest == nil ||
 		b.importName == nil ||
 		b.localName == nil ||
-		b.importNode == nil ||
-		b.nameNode == nil {
+		b.importNode.IsNil() ||
+		b.nameNode.IsNil() {
 		missing := ""
 		if b.moduleRequest == nil {
 			missing += " moduleRequest"
@@ -224,10 +224,10 @@ func (b *Import_Builder) Build() *Import {
 		if b.localName == nil {
 			missing += " localName"
 		}
-		if b.importNode == nil {
+		if b.importNode.IsNil() {
 			missing += " importNode"
 		}
-		if b.nameNode == nil {
+		if b.nameNode.IsNil() {
 			missing += " nameNode"
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing))

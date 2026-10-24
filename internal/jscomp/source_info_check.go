@@ -68,21 +68,21 @@ func NewSourceInfoCheck(compiler AbstractCompiler) *SourceInfoCheck {
 }
 
 // Java: SourceInfoCheck.setCheckSubTree(Node)
-func (s *SourceInfoCheck) SetCheckSubTree(root *rhino.Node) {
+func (s *SourceInfoCheck) SetCheckSubTree(root rhino.Node) {
 	s.requiresLineNumbers = true
 
 	NodeTraversal_Traverse(s.compiler, root, s)
 }
 
 // Java: SourceInfoCheck.process(Node, Node)
-func (s *SourceInfoCheck) Process(externs *rhino.Node, root *rhino.Node) {
+func (s *SourceInfoCheck) Process(externs rhino.Node, root rhino.Node) {
 	s.requiresLineNumbers = false
 
 	NodeTraversal_Traverse(s.compiler, root, s)
 }
 
 // Java: SourceInfoCheck.shouldTraverse(NodeTraversal, Node, Node)
-func (s *SourceInfoCheck) ShouldTraverse(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (s *SourceInfoCheck) ShouldTraverse(unused *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Each JavaScript file is rooted in a script node, so we'll only
 	// have line number information inside the script node.
 	if n.IsScript() {
@@ -92,7 +92,7 @@ func (s *SourceInfoCheck) ShouldTraverse(unused *NodeTraversal, n *rhino.Node, p
 }
 
 // Java: SourceInfoCheck.visit(NodeTraversal, Node, Node)
-func (s *SourceInfoCheck) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (s *SourceInfoCheck) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsScript() {
 		s.requiresLineNumbers = false
 	} else if s.requiresLineNumbers {
@@ -130,7 +130,7 @@ func (s *SourceInfoCheck) CheckJSDoc(info *rhino.JSDocInfo) {
 }
 
 // Java: SourceInfoCheck.checkSourceFile(Node)
-func (s *SourceInfoCheck) CheckSourceFile(n *rhino.Node) {
+func (s *SourceInfoCheck) CheckSourceFile(n rhino.Node) {
 	sourceName := n.GetStaticSourceFile()
 	if sourceName == nil {
 		s.compiler.Report(JSError_MakeWithNode(n, sourceInfoCheck_MISSING_SOURCE_NAME, "type node "+n.ToStringTree()))

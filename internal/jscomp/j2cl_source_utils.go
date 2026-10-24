@@ -36,20 +36,20 @@ func J2clSourceUtils_IsJ2clSource(sourceFileName *string) bool {
 }
 
 // Java: J2clSourceUtils.isJ2clSource(Node)
-func J2clSourceUtils_IsJ2clSourceOfNode(scriptNode *rhino.Node) bool {
+func J2clSourceUtils_IsJ2clSourceOfNode(scriptNode rhino.Node) bool {
 	jutil.CheckArgument(scriptNode.IsScript())
 	return J2clSourceUtils_IsJ2clSource(scriptNode.GetSourceFileName())
 }
 
 // Java: J2clSourceUtils.isInsideJ2clSource(Node)
-func J2clSourceUtils_IsInsideJ2clSource(node *rhino.Node) bool {
-	var scriptNode *rhino.Node
+func J2clSourceUtils_IsInsideJ2clSource(node rhino.Node) bool {
+	var scriptNode rhino.Node
 	if node.IsScript() {
 		scriptNode = node
 	} else {
 		scriptNode = NodeUtil_GetEnclosingScript(node)
 	}
-	if scriptNode == nil {
+	if scriptNode.IsNil() {
 		return false
 	}
 	return J2clSourceUtils_IsJ2clSourceOfNode(scriptNode)

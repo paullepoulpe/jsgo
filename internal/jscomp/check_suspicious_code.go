@@ -82,7 +82,7 @@ func NewCheckSuspiciousCode() *CheckSuspiciousCode {
 }
 
 // Java: CheckSuspiciousCode.visit(NodeTraversal, Node, Node)
-func (c *CheckSuspiciousCode) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckSuspiciousCode) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c.CheckMissingSemicolon(t, n)
 	c.CheckNaN(t, n)
 	c.CheckInvalidIn(t, n)
@@ -93,13 +93,13 @@ func (c *CheckSuspiciousCode) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 }
 
 // Java: CheckSuspiciousCode.checkMissingSemicolon(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckMissingSemicolon(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckSuspiciousCode) CheckMissingSemicolon(t *NodeTraversal, n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_IF:
 		trueCase := n.GetSecondChild()
 		CheckSuspiciousCode_ReportIfWasEmpty(t, trueCase)
 		elseCase := trueCase.GetNext()
-		if elseCase != nil {
+		if !elseCase.IsNil() {
 			CheckSuspiciousCode_ReportIfWasEmpty(t, elseCase)
 		}
 	case rhino.Token_WHILE, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
@@ -109,7 +109,7 @@ func (c *CheckSuspiciousCode) CheckMissingSemicolon(t *NodeTraversal, n *rhino.N
 }
 
 // Java: CheckSuspiciousCode.reportIfWasEmpty(NodeTraversal, Node)
-func CheckSuspiciousCode_ReportIfWasEmpty(t *NodeTraversal, block *rhino.Node) {
+func CheckSuspiciousCode_ReportIfWasEmpty(t *NodeTraversal, block rhino.Node) {
 	jutil.CheckState(block.IsBlock())
 
 	// A semicolon is distinguished from a block without children by
@@ -121,7 +121,7 @@ func CheckSuspiciousCode_ReportIfWasEmpty(t *NodeTraversal, block *rhino.Node) {
 }
 
 // Java: CheckSuspiciousCode.checkNaN(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckNaN(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckSuspiciousCode) CheckNaN(t *NodeTraversal, n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_EQ, rhino.Token_GE, rhino.Token_GT, rhino.Token_LE, rhino.Token_LT, rhino.Token_NE,
 		rhino.Token_SHEQ, rhino.Token_SHNE:
@@ -132,28 +132,28 @@ func (c *CheckSuspiciousCode) CheckNaN(t *NodeTraversal, n *rhino.Node) {
 }
 
 // Java: CheckSuspiciousCode.reportIfNaN(NodeTraversal, Node)
-func CheckSuspiciousCode_ReportIfNaN(t *NodeTraversal, n *rhino.Node) {
+func CheckSuspiciousCode_ReportIfNaN(t *NodeTraversal, n rhino.Node) {
 	if NodeUtil_IsNaN(n) {
 		t.GetCompiler().Report(JSError_MakeWithNode(n.GetParent(), CheckSuspiciousCode_SUSPICIOUS_COMPARISON_WITH_NAN))
 	}
 }
 
 // Java: CheckSuspiciousCode.checkInvalidIn(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckInvalidIn(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckSuspiciousCode) CheckInvalidIn(t *NodeTraversal, n rhino.Node) {
 	if n.IsIn() {
 		CheckSuspiciousCode_ReportIfNonObject(t, n.GetLastChild(), CheckSuspiciousCode_SUSPICIOUS_IN_OPERATOR)
 	}
 }
 
 // Java: CheckSuspiciousCode.checkNonObjectInstanceOf(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckNonObjectInstanceOf(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckSuspiciousCode) CheckNonObjectInstanceOf(t *NodeTraversal, n rhino.Node) {
 	if n.IsInstanceOf() {
 		CheckSuspiciousCode_ReportIfNonObject(t, n.GetFirstChild(), CheckSuspiciousCode_SUSPICIOUS_INSTANCEOF_LEFT_OPERAND)
 	}
 }
 
 // Java: CheckSuspiciousCode.reportIfNonObject(NodeTraversal, Node, DiagnosticType)
-func CheckSuspiciousCode_ReportIfNonObject(t *NodeTraversal, n *rhino.Node, diagnosticType *DiagnosticType) bool {
+func CheckSuspiciousCode_ReportIfNonObject(t *NodeTraversal, n rhino.Node, diagnosticType *DiagnosticType) bool {
 	if n.IsAdd() || !NodeUtil_MayBeObject(n) {
 		t.Report(n.GetParent(), diagnosticType)
 		return true
@@ -162,7 +162,7 @@ func CheckSuspiciousCode_ReportIfNonObject(t *NodeTraversal, n *rhino.Node, diag
 }
 
 // Java: CheckSuspiciousCode.checkNegatedLeftOperandOfInOperator(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckNegatedLeftOperandOfInOperator(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckSuspiciousCode) CheckNegatedLeftOperandOfInOperator(t *NodeTraversal, n rhino.Node) {
 	if n.IsIn() && n.GetFirstChild().IsNot() {
 		t.Report(n.GetFirstChild(), CheckSuspiciousCode_SUSPICIOUS_NEGATED_LEFT_OPERAND_OF_IN_OPERATOR)
 	}
@@ -178,7 +178,7 @@ func (c *CheckSuspiciousCode) CheckNegatedLeftOperandOfInOperator(t *NodeTravers
 // these back offs).
 //
 // Java: CheckSuspiciousCode.checkLeftOperandOfLogicalOperator(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckLeftOperandOfLogicalOperator(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckSuspiciousCode) CheckLeftOperandOfLogicalOperator(t *NodeTraversal, n rhino.Node) {
 	if n.IsOr() || n.IsAnd() {
 		operator := "&&"
 		if n.IsOr() {
@@ -202,7 +202,7 @@ func (c *CheckSuspiciousCode) CheckLeftOperandOfLogicalOperator(t *NodeTraversal
 // not nullish.
 //
 // Java: CheckSuspiciousCode.checkSuspiciousBreakingOutOfOptionalChain(NodeTraversal, Node)
-func CheckSuspiciousCode_CheckSuspiciousBreakingOutOfOptionalChain(t *NodeTraversal, n *rhino.Node) {
+func CheckSuspiciousCode_CheckSuspiciousBreakingOutOfOptionalChain(t *NodeTraversal, n rhino.Node) {
 	if NodeUtil_IsOptChainNode(n) {
 		parent := n.GetParent()
 		if n.IsFirstChildOf(parent) &&
@@ -241,7 +241,7 @@ func CheckSuspiciousCode_CheckSuspiciousBreakingOutOfOptionalChain(t *NodeTraver
 // much less common.
 //
 // Java: CheckSuspiciousCode.getBooleanValueWithTypes(Node)
-func (c *CheckSuspiciousCode) GetBooleanValueWithTypes(n *rhino.Node) base.Tri {
+func (c *CheckSuspiciousCode) GetBooleanValueWithTypes(n rhino.Node) base.Tri {
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN, rhino.Token_COMMA:
 		return c.GetBooleanValueWithTypes(n.GetLastChild())

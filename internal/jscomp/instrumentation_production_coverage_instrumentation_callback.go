@@ -96,7 +96,7 @@ func (c *ProductionCoverageInstrumentationCallback) functionNamePeek() *string {
 }
 
 // Java: ProductionCoverageInstrumentationCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *ProductionCoverageInstrumentationCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *ProductionCoverageInstrumentationCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 
 	// If origin of node is not from sourceFile, do not instrument. This typically occurs when
 	// polyfill code is injected into the sourceFile AST and this check avoids instrumenting it. We
@@ -132,7 +132,7 @@ func productionCoverageInstrumentationCallback_stringsEqual(a *string, b *string
 }
 
 // Java: ProductionCoverageInstrumentationCallback.visit(NodeTraversal, Node, Node)
-func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	fileName := traversal.GetSourceName()
 	sourceFileName := node.GetSourceFileName()
 
@@ -166,7 +166,7 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 	case rhino.Token_SWITCH:
 		hasDefaultCase := false
 		switchBody := node.GetSecondChild()
-		for ch := switchBody.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		for ch := switchBody.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			if ch.IsDefaultCase() {
 				c.instrumentBlockNode(
 					ch.GetLastChild(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
@@ -204,7 +204,7 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 	default:
 		if NodeUtil_IsLoopStructure(node) {
 			blockNode := NodeUtil_GetLoopCodeBlock(node)
-			jutil.CheckNotNull(blockNode)
+			rhino.CheckNotNull(blockNode)
 			c.instrumentBlockNode(blockNode, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
 		}
 	}
@@ -216,7 +216,7 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 //
 // Java: ProductionCoverageInstrumentationCallback.addInstrumentationNodeWithComma(Node, String, String, Type)
 func (c *ProductionCoverageInstrumentationCallback) addInstrumentationNodeWithComma(
-	originalNode *rhino.Node, fileName *string, functionName *string, type_ productionCoverageInstrumentationCallback_Type) {
+	originalNode rhino.Node, fileName *string, functionName *string, type_ productionCoverageInstrumentationCallback_Type) {
 	cloneOfOriginal := originalNode.CloneTree()
 	newInstrumentationNode :=
 		c.newInstrumentationNode(cloneOfOriginal, fileName, functionName, type_)
@@ -234,7 +234,7 @@ func (c *ProductionCoverageInstrumentationCallback) addInstrumentationNodeWithCo
 // instrumented; type_ the type of the node being instrumented.
 //
 // Java: ProductionCoverageInstrumentationCallback.instrumentBlockNode(Node, String, String, Type)
-func (c *ProductionCoverageInstrumentationCallback) instrumentBlockNode(block *rhino.Node, fileName *string, fnName *string, type_ productionCoverageInstrumentationCallback_Type) {
+func (c *ProductionCoverageInstrumentationCallback) instrumentBlockNode(block rhino.Node, fileName *string, fnName *string, type_ productionCoverageInstrumentationCallback_Type) {
 	block.AddChildToFront(c.newInstrumentationNode(block, fileName, fnName, type_))
 	c.compiler.ReportChangeToEnclosingScope(block)
 }
@@ -251,7 +251,7 @@ func (c *ProductionCoverageInstrumentationCallback) instrumentBlockNode(block *r
 // newly constructed function call node.
 //
 // Java: ProductionCoverageInstrumentationCallback.newInstrumentationNode(Node, String, String, Type)
-func (c *ProductionCoverageInstrumentationCallback) newInstrumentationNode(node *rhino.Node, fileName *string, fnName *string, type_ productionCoverageInstrumentationCallback_Type) *rhino.Node {
+func (c *ProductionCoverageInstrumentationCallback) newInstrumentationNode(node rhino.Node, fileName *string, fnName *string, type_ productionCoverageInstrumentationCallback_Type) rhino.Node {
 
 	lineNo := node.GetLineno()
 	columnNo := node.GetCharno()
@@ -275,7 +275,7 @@ func (c *ProductionCoverageInstrumentationCallback) newInstrumentationNode(node 
 // present.
 //
 // Java: ProductionCoverageInstrumentationCallback.addElseBlock(Node)
-func (c *ProductionCoverageInstrumentationCallback) addElseBlock(node *rhino.Node) *rhino.Node {
+func (c *ProductionCoverageInstrumentationCallback) addElseBlock(node rhino.Node) rhino.Node {
 	defaultBlock := rhino.IR_Block()
 	node.AddChildToBack(defaultBlock)
 	return defaultBlock.SrcrefTreeIfMissing(node)

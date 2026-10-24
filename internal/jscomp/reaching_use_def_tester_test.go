@@ -30,7 +30,7 @@ type ReachingUseDefTester struct {
 	compiler     *Compiler
 	scopeCreator *SyntacticScopeCreator
 	labelFinder  *ReachingUseDefTester_LabelFinder
-	root         *rhino.Node
+	root         rhino.Node
 	reachingUse  *MaybeReachingVariableUse
 	reachingDef  *MustBeReachingVariableDef
 }
@@ -106,7 +106,7 @@ func (r *ReachingUseDefTester) ComputeReachingDef(src string) {
 }
 
 // Java: ReachingUseDefTester.parseScript(String, boolean)
-func (r *ReachingUseDefTester) parseScript(src string, async bool) *rhino.Node {
+func (r *ReachingUseDefTester) parseScript(src string, async bool) rhino.Node {
 	prefix := ""
 	if async {
 		prefix = "async "
@@ -118,7 +118,7 @@ func (r *ReachingUseDefTester) parseScript(src string, async bool) *rhino.Node {
 }
 
 // Java: ReachingUseDefTester.computeFunctionBlockScope(Node, Node)
-func (r *ReachingUseDefTester) computeFunctionBlockScope(script *rhino.Node, fn *rhino.Node) *Scope {
+func (r *ReachingUseDefTester) computeFunctionBlockScope(script rhino.Node, fn rhino.Node) *Scope {
 	functionBlock := fn.GetLastChild()
 	globalScope := r.scopeCreator.CreateScopeOfScope(script, nil)
 	functionScope := r.scopeCreator.CreateScopeOfScope(r.root, globalScope)
@@ -126,7 +126,7 @@ func (r *ReachingUseDefTester) computeFunctionBlockScope(script *rhino.Node, fn 
 }
 
 // Java: ReachingUseDefTester.computeCfg(Node)
-func (r *ReachingUseDefTester) computeCfg(fn *rhino.Node) ControlFlowGraph[*rhino.Node] {
+func (r *ReachingUseDefTester) computeCfg(fn rhino.Node) ControlFlowGraph[rhino.Node] {
 	return ControlFlowAnalysis_Builder_().
 		SetCompiler(r.compiler).
 		SetCfgRoot(fn).
@@ -138,8 +138,8 @@ func (r *ReachingUseDefTester) computeCfg(fn *rhino.Node) ControlFlowGraph[*rhin
 // on the node extracted at label `D:`.
 //
 // Java: ReachingUseDefTester.getComputedUses()
-func (r *ReachingUseDefTester) GetComputedUses() *jutil.LinkedHashSet[*rhino.Node] {
-	uses := jutil.NewLinkedHashSet[*rhino.Node]()
+func (r *ReachingUseDefTester) GetComputedUses() *jutil.LinkedHashSet[rhino.Node] {
+	uses := jutil.NewLinkedHashSet[rhino.Node]()
 	for n := range r.reachingUse.GetUses("x", r.labelFinder.extractedDef) {
 		uses.Add(n)
 	}
@@ -150,7 +150,7 @@ func (r *ReachingUseDefTester) GetComputedUses() *jutil.LinkedHashSet[*rhino.Nod
 // use node extracted at label `U:`.
 //
 // Java: ReachingUseDefTester.getComputedDef()
-func (r *ReachingUseDefTester) GetComputedDef() *rhino.Node {
+func (r *ReachingUseDefTester) GetComputedDef() rhino.Node {
 	return r.reachingDef.GetDefNode("x", r.labelFinder.extractedUses[0])
 }
 
@@ -177,17 +177,17 @@ func (r *ReachingUseDefTester) ExtractDefAndUsesFromInputLabels() {
 type ReachingUseDefTester_LabelFinder struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	// Def and uses extracted from `D:` and `U:` labels respectively
-	extractedDef  *rhino.Node
-	extractedUses []*rhino.Node
+	extractedDef  rhino.Node
+	extractedUses []rhino.Node
 }
 
 // Java: ReachingUseDefTester.LabelFinder()
 func NewReachingUseDefTester_LabelFinder() *ReachingUseDefTester_LabelFinder {
-	return &ReachingUseDefTester_LabelFinder{extractedUses: []*rhino.Node{}}
+	return &ReachingUseDefTester_LabelFinder{extractedUses: []rhino.Node{}}
 }
 
 // Java: ReachingUseDefTester.LabelFinder.visit(NodeTraversal, Node, Node)
-func (f *ReachingUseDefTester_LabelFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *ReachingUseDefTester_LabelFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsLabel() {
 		if n.GetFirstChild().GetString() == "D" {
 			AssertWithMessage("Multiple D: labels in test src").That(f.extractedDef).IsNull()
@@ -199,11 +199,11 @@ func (f *ReachingUseDefTester_LabelFinder) Visit(t *NodeTraversal, n *rhino.Node
 }
 
 // Java: ReachingUseDefTester.getExtractedUses()
-func (r *ReachingUseDefTester) GetExtractedUses() []*rhino.Node {
+func (r *ReachingUseDefTester) GetExtractedUses() []rhino.Node {
 	return r.labelFinder.extractedUses
 }
 
 // Java: ReachingUseDefTester.getExtractedDef()
-func (r *ReachingUseDefTester) GetExtractedDef() *rhino.Node {
+func (r *ReachingUseDefTester) GetExtractedDef() rhino.Node {
 	return r.labelFinder.extractedDef
 }

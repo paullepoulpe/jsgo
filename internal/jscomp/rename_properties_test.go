@@ -38,8 +38,8 @@ type RenamePropertiesTest struct {
 
 	renameProperties    *RenameProperties
 	generatePseudoNames bool
-	prevUsedPropertyMap *VariableMap                // may be nil
-	propertyNameFilter  func(name *rhino.Node) bool // may be nil
+	prevUsedPropertyMap *VariableMap               // may be nil
+	propertyNameFilter  func(name rhino.Node) bool // may be nil
 }
 
 // Java: RenamePropertiesTest.EXTERNS
@@ -52,7 +52,7 @@ var google = { gears: { factory: {}, workerPool: {} } };
 func NewRenamePropertiesTest() *RenamePropertiesTest {
 	c := &RenamePropertiesTest{}
 	c.InitCompilerTestCaseBaseWithExterns(c, renamePropertiesTest_EXTERNS)
-	c.propertyNameFilter = func(name *rhino.Node) bool { return true }
+	c.propertyNameFilter = func(name rhino.Node) bool { return true }
 	return c
 }
 
@@ -883,7 +883,7 @@ foo.b();
 // Java: RenamePropertiesTest.testPrototypePropertiesUsingFilterFunction()
 func (c *RenamePropertiesTest) TestPrototypePropertiesUsingFilterFunction() {
 	c.propertyNameFilter =
-		func(node *rhino.Node) bool {
+		func(node rhino.Node) bool {
 			name := node.GetString()
 			// Strings.nullToEmpty(name): getString() is never null.
 			return strings.HasPrefix(name, "get")
@@ -903,7 +903,7 @@ Bar.prototype.setC = function(){}
 // Java: RenamePropertiesTest.testPrototypePropertiesUsingFilterOnFilename()
 func (c *RenamePropertiesTest) TestPrototypePropertiesUsingFilterOnFilename() {
 	c.propertyNameFilter =
-		func(node *rhino.Node) bool {
+		func(node rhino.Node) bool {
 			name := ""
 			if sourceFileName := node.GetSourceFileName(); sourceFileName != nil { // Strings.nullToEmpty
 				name = *sourceFileName
@@ -943,7 +943,7 @@ bar.getA();
 // Java: RenamePropertiesTest.testPrototypeAndRenameFunctionsFilterOnFilename()
 func (c *RenamePropertiesTest) TestPrototypeAndRenameFunctionsFilterOnFilename() {
 	c.propertyNameFilter =
-		func(node *rhino.Node) bool {
+		func(node rhino.Node) bool {
 			name := ""
 			if sourceFileName := node.GetSourceFileName(); sourceFileName != nil { // Strings.nullToEmpty
 				name = *sourceFileName
@@ -981,7 +981,7 @@ f(bar['myProp']);
 // Java: RenamePropertiesTest.testPrototypeAndRenameFunctionsFilterOnFilename2()
 func (c *RenamePropertiesTest) TestPrototypeAndRenameFunctionsFilterOnFilename2() {
 	c.propertyNameFilter =
-		func(node *rhino.Node) bool {
+		func(node rhino.Node) bool {
 			name := ""
 			if sourceFileName := node.GetSourceFileName(); sourceFileName != nil { // Strings.nullToEmpty
 				name = *sourceFileName

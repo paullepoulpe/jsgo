@@ -50,7 +50,7 @@ func (c *ConstCheckTest) SetUp() {
 
 // Java: ConstCheckTest.getProcessor(Compiler)
 func (c *ConstCheckTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewInferConsts(compiler).Process(externs, root)
 		NewConstCheck(compiler).Process(externs, root)
 	})

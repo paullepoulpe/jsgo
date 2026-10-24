@@ -53,8 +53,8 @@ func (c *PolymerPassStaticUtilsTest) JUnitAfter() {}
 func (c *PolymerPassStaticUtilsTest) TestGetPolymerElementType_noNativeElement() {
 	def := NewPolymerClassDefinition(
 		PolymerClassDefinition_DefinitionType_ObjectLiteral,
-		nil,
-		nil,
+		rhino.Node{},
+		rhino.Node{},
 		false,
 		rhino.IR_Objectlit(),
 		nil,
@@ -74,8 +74,8 @@ func (c *PolymerPassStaticUtilsTest) TestGetPolymerElementType_inputBaseElement(
 	input := "input"
 	def := NewPolymerClassDefinition(
 		PolymerClassDefinition_DefinitionType_ES6Class,
-		nil,
-		nil,
+		rhino.Node{},
+		rhino.Node{},
 		false,
 		rhino.IR_Objectlit(),
 		nil,

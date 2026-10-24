@@ -155,7 +155,7 @@ func dumpParsing(name, src string, config *Config) string {
 		line(c.Type.String() + " " + dumpRange(c.Location) + " " + dumpQuote(c.Value))
 	}
 	line("# tree")
-	if result.Ast == nil {
+	if result.Ast.IsNil() {
 		line("null")
 	} else {
 		dumpTree(line, result.Ast, 0)
@@ -163,17 +163,17 @@ func dumpParsing(name, src string, config *Config) string {
 	return sb.String()
 }
 
-func dumpTree(line func(string), n *rhino.Node, level int) {
+func dumpTree(line func(string), n rhino.Node, level int) {
 	indent := strings.Repeat("    ", level)
 	line(indent + n.ToStringWithFlags(true, true, false))
 	if info := n.GetJSDocInfo(); info != nil {
 		line(indent + "  @jsdoc " + info.ToStringVerbose())
 	}
-	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+	if shadow := n.GetClosureUnawareShadow(); !shadow.IsNil() {
 		line(indent + "  @shadow")
 		dumpTree(line, shadow, level+1)
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		dumpTree(line, c, level+1)
 	}
 }

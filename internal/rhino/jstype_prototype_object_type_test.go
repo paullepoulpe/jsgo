@@ -38,6 +38,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
 )
 
@@ -55,10 +56,10 @@ func TestPrototypeObjectType_ToString(t *testing.T) {
 	type_ := s.Registry.CreateAnonymousObjectType(nil)
 	s.AssertThat(type_.String()).IsEqualTo("{}")
 
-	type_.DefineDeclaredProperty("foo", s.NUMBER_TYPE, nil)
+	type_.DefineDeclaredProperty("foo", s.NUMBER_TYPE, rhino.Node{})
 	s.AssertThat(type_.String()).IsEqualTo("{foo: number}")
 
-	type_.DefineDeclaredProperty("bar", type_, nil)
+	type_.DefineDeclaredProperty("bar", type_, rhino.Node{})
 	s.AssertThat(type_.String()).
 		IsEqualTo(
 			strings.Join([]string{

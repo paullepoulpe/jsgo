@@ -105,7 +105,7 @@ var ConcretizeStaticInheritanceForInlining_BANNED_PROP_NAMES = jutil.NewLinkedHa
 // JavascriptClass.
 type ConcretizeStaticInheritanceForInlining_JavascriptClass struct {
 	// All static members to the class including get set properties.
-	staticMembers *jutil.LinkedHashSet[*rhino.Node]
+	staticMembers *jutil.LinkedHashSet[rhino.Node]
 	// Keep updated the set of static member names to avoid O(n^2) searches.
 	staticMemberNames *jutil.LinkedHashSet[string]
 	// Collect all get set properties as defined by Object.defineProperties(...)
@@ -115,14 +115,14 @@ type ConcretizeStaticInheritanceForInlining_JavascriptClass struct {
 // Java: ConcretizeStaticInheritanceForInlining.JavascriptClass()
 func NewConcretizeStaticInheritanceForInlining_JavascriptClass() *ConcretizeStaticInheritanceForInlining_JavascriptClass {
 	return &ConcretizeStaticInheritanceForInlining_JavascriptClass{
-		staticMembers:     jutil.NewLinkedHashSet[*rhino.Node](),
+		staticMembers:     jutil.NewLinkedHashSet[rhino.Node](),
 		staticMemberNames: jutil.NewLinkedHashSet[string](),
 		definedProperties: jutil.NewLinkedHashSet[string](),
 	}
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.JavascriptClass.addStaticMember(Node)
-func (c *ConcretizeStaticInheritanceForInlining_JavascriptClass) AddStaticMember(node *rhino.Node) {
+func (c *ConcretizeStaticInheritanceForInlining_JavascriptClass) AddStaticMember(node rhino.Node) {
 	c.staticMembers.Add(node)
 	c.staticMemberNames.Add(node.GetFirstChild().GetString())
 }
@@ -148,7 +148,7 @@ func (c *ConcretizeStaticInheritanceForInlining) putClassByAlias(name string, cl
 	c.classAliasLeafs[leaf] = struct{}{}
 }
 
-func (c *ConcretizeStaticInheritanceForInlining) lookupClassByNode(n *rhino.Node) (string, *ConcretizeStaticInheritanceForInlining_JavascriptClass) {
+func (c *ConcretizeStaticInheritanceForInlining) lookupClassByNode(n rhino.Node) (string, *ConcretizeStaticInheritanceForInlining_JavascriptClass) {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		name := n.GetString()
@@ -179,7 +179,7 @@ func (c *ConcretizeStaticInheritanceForInlining) lookupClassByNode(n *rhino.Node
 	}
 }
 
-func (c *ConcretizeStaticInheritanceForInlining) resolveReferencedClass(t *NodeTraversal, n *rhino.Node) *ConcretizeStaticInheritanceForInlining_JavascriptClass {
+func (c *ConcretizeStaticInheritanceForInlining) resolveReferencedClass(t *NodeTraversal, n rhino.Node) *ConcretizeStaticInheritanceForInlining_JavascriptClass {
 	className, cls := c.lookupClassByNode(n)
 	if cls == nil {
 		return nil
@@ -215,7 +215,7 @@ func (c *ConcretizeStaticInheritanceForInlining) classByAliasContainsKey(qname *
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.process(Node, Node)
-func (c *ConcretizeStaticInheritanceForInlining) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ConcretizeStaticInheritanceForInlining) Process(externs rhino.Node, root rhino.Node) {
 	findStaticMembers := NewConcretizeStaticInheritanceForInlining_FindStaticMembers(c)
 	// Since this is an optimization pass, running on externs would be unnecessary
 	NodeTraversal_Traverse(c.compiler, root, findStaticMembers)
@@ -246,7 +246,7 @@ func (c *ConcretizeStaticInheritanceForInlining) ProcessInherits(findStaticMembe
 func (c *ConcretizeStaticInheritanceForInlining) CopyStaticMembers(
 	superClass *ConcretizeStaticInheritanceForInlining_JavascriptClass,
 	subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass,
-	inheritsCall *rhino.Node,
+	inheritsCall rhino.Node,
 	findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
 	for staticMember := range superClass.staticMembers.All() {
 		jutil.CheckStateMsg1(staticMember.IsAssign(), "%s", staticMember)
@@ -302,7 +302,7 @@ func (c *ConcretizeStaticInheritanceForInlining) IsOverriden(subClass *Concretiz
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.isReferenceToClass(NodeTraversal, Node)
-func (c *ConcretizeStaticInheritanceForInlining) IsReferenceToClass(t *NodeTraversal, n *rhino.Node) bool {
+func (c *ConcretizeStaticInheritanceForInlining) IsReferenceToClass(t *NodeTraversal, n rhino.Node) bool {
 	className := n.GetQualifiedName()
 	if !c.classByAliasContainsKey(className) {
 		return false
@@ -322,23 +322,23 @@ type ConcretizeStaticInheritanceForInlining_FindStaticMembers struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *ConcretizeStaticInheritanceForInlining
 
-	inheritsCalls *jutil.ArrayList[*rhino.Node]
+	inheritsCalls *jutil.ArrayList[rhino.Node]
 	// Store the order we find class definitions and static fields.  Copied statics must occur
 	// after both the namespace and the copied property are defined.
-	nodeOrder map[*rhino.Node]int
+	nodeOrder map[rhino.Node]int
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers()
 func NewConcretizeStaticInheritanceForInlining_FindStaticMembers(outer *ConcretizeStaticInheritanceForInlining) *ConcretizeStaticInheritanceForInlining_FindStaticMembers {
 	return &ConcretizeStaticInheritanceForInlining_FindStaticMembers{
 		outer:         outer,
-		inheritsCalls: jutil.NewArrayList[*rhino.Node](),
-		nodeOrder:     make(map[*rhino.Node]int),
+		inheritsCalls: jutil.NewArrayList[rhino.Node](),
+		nodeOrder:     make(map[rhino.Node]int),
 	}
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visit(NodeTraversal, Node, Node)
-func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CALL:
 		if f.outer.inherits.Matches(n.GetFirstChild()) {
@@ -359,7 +359,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit(t *Node
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visitDefinedPropertiesCall(NodeTraversal, Node)
-func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitDefinedPropertiesCall(t *NodeTraversal, definePropertiesCall *rhino.Node) {
+func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitDefinedPropertiesCall(t *NodeTraversal, definePropertiesCall rhino.Node) {
 	object := definePropertiesCall.GetSecondChild()
 	if c := f.outer.resolveReferencedClass(t, object); c != nil {
 		for _, prop := range NodeUtil_GetObjectDefinedPropertiesKeys(definePropertiesCall) {
@@ -369,7 +369,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitDefinedP
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visitFunctionClassDef(Node)
-func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitFunctionClassDef(n *rhino.Node) {
+func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitFunctionClassDef(n rhino.Node) {
 	classInfo := NodeUtil_GetBestJSDocInfo(n)
 	if classInfo != nil && classInfo.IsConstructor() {
 		name := NodeUtil_GetName(n)
@@ -393,7 +393,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) SetAlias(orig
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visitAssign(NodeTraversal, Node)
-func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitAssign(t *NodeTraversal, n *rhino.Node) {
+func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitAssign(t *NodeTraversal, n rhino.Node) {
 	// Alias for classes. We assume that the alias appears after the class declaration.
 	if _, existingClass := f.outer.lookupClassByNode(n.GetLastChild()); existingClass != nil {
 		if alias, ok := n.GetFirstChild().GetQualifiedNameString(); ok {
@@ -410,7 +410,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitAssign(t
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visitVariableDeclaration(Node)
-func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitVariableDeclaration(n *rhino.Node) {
+func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitVariableDeclaration(n rhino.Node) {
 	child := n.GetFirstChild()
 	if !child.HasChildren() {
 		return
@@ -423,7 +423,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitVariable
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.isBefore(Node, Node)
-func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) IsBefore(earlier *rhino.Node, later *rhino.Node) bool {
+func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) IsBefore(earlier rhino.Node, later rhino.Node) bool {
 	earlierPosition, earlierOk := f.nodeOrder[earlier]
 	laterPosition, laterOk := f.nodeOrder[later]
 	return earlierOk && laterOk && earlierPosition < laterPosition

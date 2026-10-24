@@ -38,7 +38,7 @@ type CheckConstantCaseNames struct {
 	compiler   AbstractCompiler
 	convention CodingConvention
 	// Maps CONSTANT_CASE module-level names to their initializing NAME node
-	invalidNamesPerModule *jutil.LinkedHashMap[string, *rhino.Node]
+	invalidNamesPerModule *jutil.LinkedHashMap[string, rhino.Node]
 	// Subset of variables in `invalidNamesPerModule` that are mutated post-declaration.
 	reassignedNames *jutil.LinkedHashSet[string]
 }
@@ -58,7 +58,7 @@ var CheckConstantCaseNames_REASSIGNED_CONSTANT_CASE_NAME = DiagnosticType_Disabl
 // Java: CheckConstantCaseNames(AbstractCompiler)
 func NewCheckConstantCaseNames(compiler AbstractCompiler) *CheckConstantCaseNames {
 	c := &CheckConstantCaseNames{
-		invalidNamesPerModule: jutil.NewLinkedHashMap[string, *rhino.Node](),
+		invalidNamesPerModule: jutil.NewLinkedHashMap[string, rhino.Node](),
 		reassignedNames:       jutil.NewLinkedHashSet[string](),
 	}
 	c.compiler = compiler
@@ -67,12 +67,12 @@ func NewCheckConstantCaseNames(compiler AbstractCompiler) *CheckConstantCaseName
 }
 
 // Java: CheckConstantCaseNames.process(Node, Node)
-func (c *CheckConstantCaseNames) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckConstantCaseNames) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckConstantCaseNames.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckConstantCaseNames) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckConstantCaseNames) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Only need to warn for module-level names, so don't visit other files.
 	if n.IsScript() {
 		return n.HasChildren() && n.GetFirstChild().IsModuleBody()
@@ -81,7 +81,7 @@ func (c *CheckConstantCaseNames) ShouldTraverse(t *NodeTraversal, n *rhino.Node,
 }
 
 // Java: CheckConstantCaseNames.visit(NodeTraversal, Node, Node)
-func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsModuleBody() {
 		c.ReportWarningsAndClear()
 		return
@@ -98,7 +98,7 @@ func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n *rhino.Node, parent *
 		}
 		NodeUtil_VisitLhsNodesInNode(
 			n,
-			func(name *rhino.Node) {
+			func(name rhino.Node) {
 				if c.convention.IsConstant(name.GetString()) {
 					c.invalidNamesPerModule.Put(name.GetString(), name)
 				}
@@ -129,6 +129,6 @@ func (c *CheckConstantCaseNames) ReportWarningsAndClear() {
 			c.compiler.Report(JSError_MakeWithNode(nameNode, CheckConstantCaseNames_MISSING_CONST_PROPERTY, name))
 		}
 	}
-	c.invalidNamesPerModule = jutil.NewLinkedHashMap[string, *rhino.Node]()
+	c.invalidNamesPerModule = jutil.NewLinkedHashMap[string, rhino.Node]()
 	c.reassignedNames = jutil.NewLinkedHashSet[string]()
 }

@@ -61,7 +61,7 @@ func NewPeepholeFoldConstants(late bool, shouldUseTypes bool) *PeepholeFoldConst
 }
 
 // Java: PeepholeFoldConstants.optimizeSubtree(Node)
-func (p *PeepholeFoldConstants) OptimizeSubtree(subtree *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	switch subtree.GetToken() {
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
 		return p.TryFoldUselessObjectDotDefinePropertiesCall(subtree)
@@ -89,16 +89,16 @@ func (p *PeepholeFoldConstants) OptimizeSubtree(subtree *rhino.Node) *rhino.Node
 }
 
 // Java: PeepholeFoldConstants.tryFoldBinaryOperator(Node)
-func (p *PeepholeFoldConstants) TryFoldBinaryOperator(subtree *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldBinaryOperator(subtree rhino.Node) rhino.Node {
 	left := subtree.GetFirstChild()
 
-	if left == nil {
+	if left.IsNil() {
 		return subtree
 	}
 
 	right := left.GetNext()
 
-	if right == nil {
+	if right.IsNil() {
 		return subtree
 	}
 
@@ -147,7 +147,7 @@ func (p *PeepholeFoldConstants) TryFoldBinaryOperator(subtree *rhino.Node) *rhin
 }
 
 // Java: PeepholeFoldConstants.tryReduceVoid(Node)
-func (p *PeepholeFoldConstants) TryReduceVoid(n *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryReduceVoid(n rhino.Node) rhino.Node {
 	child := n.GetFirstChild()
 	if (!child.IsNumber() || child.GetDouble() != 0.0) && !p.MayHaveSideEffects(n) {
 		child.ReplaceWith(rhino.IR_Number(0))
@@ -157,7 +157,7 @@ func (p *PeepholeFoldConstants) TryReduceVoid(n *rhino.Node) *rhino.Node {
 }
 
 // Java: PeepholeFoldConstants.tryReduceOperandsForOp(Node)
-func (p *PeepholeFoldConstants) TryReduceOperandsForOp(n *rhino.Node) {
+func (p *PeepholeFoldConstants) TryReduceOperandsForOp(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_ADD:
 		left := n.GetFirstChild()
@@ -185,16 +185,16 @@ func (p *PeepholeFoldConstants) TryReduceOperandsForOp(n *rhino.Node) {
 }
 
 // Java: PeepholeFoldConstants.tryConvertOperandsToNumber(Node)
-func (p *PeepholeFoldConstants) TryConvertOperandsToNumber(n *rhino.Node) {
-	var next *rhino.Node
-	for c := n.GetFirstChild(); c != nil; c = next {
+func (p *PeepholeFoldConstants) TryConvertOperandsToNumber(n rhino.Node) {
+	var next rhino.Node
+	for c := n.GetFirstChild(); !c.IsNil(); c = next {
 		next = c.GetNext()
 		p.TryConvertToNumber(c)
 	}
 }
 
 // Java: PeepholeFoldConstants.tryConvertToNumber(Node)
-func (p *PeepholeFoldConstants) TryConvertToNumber(n *rhino.Node) {
+func (p *PeepholeFoldConstants) TryConvertToNumber(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NUMBER:
 		// Nothing to do
@@ -231,11 +231,11 @@ func (p *PeepholeFoldConstants) TryConvertToNumber(n *rhino.Node) {
 // --> "string" typeof(6) --> "number"
 //
 // Java: PeepholeFoldConstants.tryFoldTypeof(Node)
-func (p *PeepholeFoldConstants) TryFoldTypeof(originalTypeofNode *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldTypeof(originalTypeofNode rhino.Node) rhino.Node {
 	jutil.CheckArgument(originalTypeofNode.IsTypeOf())
 
 	argumentNode := originalTypeofNode.GetFirstChild()
-	if argumentNode == nil || !NodeUtil_IsLiteralValue(argumentNode, true) {
+	if argumentNode.IsNil() || !NodeUtil_IsLiteralValue(argumentNode, true) {
 		return originalTypeofNode
 	}
 
@@ -283,13 +283,13 @@ func (p *PeepholeFoldConstants) TryFoldTypeof(originalTypeofNode *rhino.Node) *r
 }
 
 // Java: PeepholeFoldConstants.tryFoldUnaryOperator(Node)
-func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n rhino.Node) rhino.Node {
 	jutil.CheckStateMsg1(n.HasOneChild(), "%s", n)
 
 	left := n.GetFirstChild()
 	parent := n.GetParent()
 
-	if left == nil {
+	if left.IsNil() {
 		return n
 	}
 
@@ -320,7 +320,7 @@ func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n *rhino.Node) *rhino.Node 
 		}
 		return n
 	case rhino.Token_NEG:
-		var result *rhino.Node
+		var result rhino.Node
 		if left.IsName() && left.GetString() == "NaN" {
 			result = left.Detach() // "-NaN" is "NaN".
 		} else if left.IsNeg() {
@@ -330,7 +330,7 @@ func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n *rhino.Node) *rhino.Node 
 			}
 		}
 
-		if result != nil {
+		if !result.IsNil() {
 			n.ReplaceWith(result)
 			p.ReportChangeToEnclosingScope(parent)
 			return result
@@ -378,14 +378,14 @@ func (p *PeepholeFoldConstants) isReasonableDoubleVal(x float64, ok bool) bool {
 // false.
 //
 // Java: PeepholeFoldConstants.tryFoldInstanceof(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldInstanceof(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldInstanceof(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsInstanceOf())
 
 	// TODO(johnlenz) Use type information if available to fold
 	// instanceof.
 	if NodeUtil_IsLiteralValue(left, true) && !p.MayHaveSideEffects(right) {
 
-		var replacementNode *rhino.Node
+		var replacementNode rhino.Node
 
 		if NodeUtil_IsImmutableValue(left) {
 			// Non-object types are never instances.
@@ -400,7 +400,7 @@ func (p *PeepholeFoldConstants) TryFoldInstanceof(n *rhino.Node, left *rhino.Nod
 			replacementNode = rhino.IR_TrueNode()
 		}
 
-		if replacementNode != nil {
+		if !replacementNode.IsNil() {
 			n.ReplaceWith(replacementNode)
 			p.ReportChangeToEnclosingScope(replacementNode)
 			p.MarkFunctionsDeleted(n)
@@ -412,7 +412,7 @@ func (p *PeepholeFoldConstants) TryFoldInstanceof(n *rhino.Node, left *rhino.Nod
 }
 
 // Java: PeepholeFoldConstants.tryFoldAssign(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldAssign(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldAssign(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsAssign())
 
 	if !p.late {
@@ -478,7 +478,7 @@ func (p *PeepholeFoldConstants) TryFoldAssign(n *rhino.Node, left *rhino.Node, r
 	// Right now we only recurse one level deep which allows use to handle x = x + y + z but not
 	// x = x + y + z + w.
 
-	var newRight *rhino.Node
+	var newRight rhino.Node
 	if p.AreNodesEqualForInlining(left, right.GetFirstChild()) {
 		newRight = right.GetLastChild()
 	} else if NodeUtil_IsCommutative(operator) &&
@@ -507,7 +507,7 @@ func (p *PeepholeFoldConstants) TryFoldAssign(n *rhino.Node, left *rhino.Node, r
 }
 
 // Java: PeepholeFoldConstants.tryUnfoldAssignOp(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryUnfoldAssignOp(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryUnfoldAssignOp(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	if p.late {
 		return n
 	}
@@ -532,11 +532,11 @@ func (p *PeepholeFoldConstants) TryUnfoldAssignOp(n *rhino.Node, left *rhino.Nod
 // TryFoldAndOr tries to fold a AND/OR node.
 //
 // Java: PeepholeFoldConstants.tryFoldAndOr(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldAndOr(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldAndOr(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	parent := n.GetParent()
 
-	var result *rhino.Node
-	var dropped *rhino.Node
+	var result rhino.Node
+	var dropped rhino.Node
 
 	type_ := n.GetToken()
 
@@ -569,7 +569,7 @@ func (p *PeepholeFoldConstants) TryFoldAndOr(n *rhino.Node, left *rhino.Node, ri
 			// like "x() || false || z()".
 			n.DetachChildren()
 			result = rhino.IR_Comma(left, right)
-			dropped = nil
+			dropped = rhino.Node{}
 		}
 	} else if parent.GetToken() == type_ && n == parent.GetFirstChild() {
 		rightValue := NodeUtil_GetBooleanValue(right)
@@ -585,12 +585,12 @@ func (p *PeepholeFoldConstants) TryFoldAndOr(n *rhino.Node, left *rhino.Node, ri
 	// Note: Right hand side folding is handled by
 	// PeepholeMinimizeConditions#tryMinimizeCondition
 
-	if result != nil {
+	if !result.IsNil() {
 		// Fold it!
 		n.DetachChildren()
 		n.ReplaceWith(result)
 		p.ReportChangeToEnclosingScope(result)
-		if dropped != nil {
+		if !dropped.IsNil() {
 			p.MarkFunctionsDeleted(dropped)
 		}
 		return result
@@ -602,9 +602,9 @@ func (p *PeepholeFoldConstants) TryFoldAndOr(n *rhino.Node, left *rhino.Node, ri
 // TryFoldCoalesce tries to fold a COALESCE node.
 //
 // Java: PeepholeFoldConstants.tryFoldCoalesce(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldCoalesce(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldCoalesce(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 
-	var result *rhino.Node
+	var result rhino.Node
 
 	leftVal := NodeUtil_GetKnownValueType(left)
 
@@ -626,7 +626,7 @@ func (p *PeepholeFoldConstants) TryFoldCoalesce(n *rhino.Node, left *rhino.Node,
 	case NodeUtil_ValueType_UNDETERMINED:
 	}
 
-	if result != nil {
+	if !result.IsNil() {
 		// Fold!
 		n.DetachChildren()
 		n.ReplaceWith(result)
@@ -648,7 +648,7 @@ func (p *PeepholeFoldConstants) TryFoldCoalesce(n *rhino.Node, left *rhino.Node,
 // leftmost right child leaf node if possible to do so in a type safe way.
 //
 // Java: PeepholeFoldConstants.tryFoldAdjacentLiteralLeaves(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldAdjacentLiteralLeaves(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldAdjacentLiteralLeaves(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 
 	// Find left child's rightmost leaf
 	leftParent := n
@@ -680,19 +680,19 @@ func (p *PeepholeFoldConstants) TryFoldAdjacentLiteralLeaves(n *rhino.Node, left
 		rr := right.GetNext()
 		foldIsTypeSafe :=
 			// If right.getNext() is already a string, folding won't disturb any typecasting
-			(rr != nil && NodeUtil_IsStringResult(rr)) ||
-				(rr != nil &&
+			(!rr.IsNil() && NodeUtil_IsStringResult(rr)) ||
+				(!rr.IsNil() &&
 					// If right.getNext() isn't a string result, right must be a string to be folded
 					right.IsStringLit() &&
 					// Access the right grandparent safely...
-					rightGrandparent != nil &&
+					!rightGrandparent.IsNil() &&
 					rightGrandparent.IsAdd() &&
 					// The second child of `rightGrandparent` is what `right + rr` is being added to.
 					// If it exists, `right` can only be safely removed if `rr` is still treated as a
 					// string in the resulting addition.
 					NodeUtil_IsStringResult(rightGrandparent.GetSecondChild())) ||
 				// Dangling literal term has no typecasting side effects; fold it!
-				(rr == nil)
+				(rr.IsNil())
 		if foldIsTypeSafe {
 			result := left.GetString() + jutil.ToJavaString(NodeUtil_GetStringValue(right))
 			// If the right parent is the root, shift the left parent up so as not to overwrite the tree
@@ -712,7 +712,7 @@ func (p *PeepholeFoldConstants) TryFoldAdjacentLiteralLeaves(n *rhino.Node, left
 // TryFoldAddConstantString tries to fold an ADD node with constant operands.
 //
 // Java: PeepholeFoldConstants.tryFoldAddConstantString(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldAddConstantString(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldAddConstantString(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	if left.IsStringLit() || right.IsStringLit() || left.IsArrayLit() || right.IsArrayLit() {
 		// Add strings.
 		leftString := p.GetSideEffectFreeStringValue(left)
@@ -731,9 +731,9 @@ func (p *PeepholeFoldConstants) TryFoldAddConstantString(n *rhino.Node, left *rh
 // TryFoldArithmeticOp tries to fold arithmetic binary operators.
 //
 // Java: PeepholeFoldConstants.tryFoldArithmeticOp(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldArithmeticOp(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldArithmeticOp(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	result := p.PerformArithmeticOp(n, left, right)
-	if result != nil {
+	if !result.IsNil() {
 		result.SrcrefTreeIfMissing(n)
 		p.ReportChangeToEnclosingScope(n)
 		n.ReplaceWith(result)
@@ -745,13 +745,13 @@ func (p *PeepholeFoldConstants) TryFoldArithmeticOp(n *rhino.Node, left *rhino.N
 // PerformArithmeticOp tries to fold arithmetic binary operators.
 //
 // Java: PeepholeFoldConstants.performArithmeticOp(Node, Node, Node)
-func (p *PeepholeFoldConstants) PerformArithmeticOp(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) PerformArithmeticOp(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	// Unlike other operations, ADD operands are not always converted
 	// to Number.
 	if n.IsAdd() &&
 		(NodeUtil_MayBeStringWithUseType(left, p.shouldUseTypes) ||
 			NodeUtil_MayBeStringWithUseType(right, p.shouldUseTypes)) {
-		return nil
+		return rhino.Node{}
 	}
 
 	if p.IsBigInt(left) && p.IsBigInt(right) {
@@ -767,7 +767,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n *rhino.Node, left *rhino.N
 	rval, rOk := p.GetSideEffectFreeNumberValueVal(right)
 	// at least one of the two operands must have a value and both must be numeric
 	if (!lOk && !rOk) || !p.IsNumeric(left) || !p.IsNumeric(right) {
-		return nil
+		return rhino.Node{}
 	}
 	// handle the operations that have algebraic identities, since we can simplify the tree without
 	// actually knowing the value statically.
@@ -781,7 +781,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n *rhino.Node, left *rhino.N
 		} else if rOk && rval == 0 {
 			return left.CloneTreeWithTypeExprs(true)
 		}
-		return nil
+		return rhino.Node{}
 	case rhino.Token_SUB:
 		if lOk && rOk {
 			return p.MaybeReplaceBinaryOpWithNumericResult(lval-rval, lval, rval)
@@ -795,7 +795,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n *rhino.Node, left *rhino.N
 			// x - 0 -> x
 			return left.CloneTreeWithTypeExprs(true)
 		}
-		return nil
+		return rhino.Node{}
 	case rhino.Token_MUL:
 		if lOk && rOk {
 			return p.MaybeReplaceBinaryOpWithNumericResult(lval*rval, lval, rval)
@@ -811,11 +811,11 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n *rhino.Node, left *rhino.N
 				return left.CloneTreeWithTypeExprs(true)
 			}
 		}
-		return nil
+		return rhino.Node{}
 	case rhino.Token_DIV:
 		if lOk && rOk {
 			if rval == 0 {
-				return nil
+				return rhino.Node{}
 			}
 			return p.MaybeReplaceBinaryOpWithNumericResult(lval/rval, lval, rval)
 		}
@@ -826,17 +826,17 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n *rhino.Node, left *rhino.N
 				return left.CloneTreeWithTypeExprs(true)
 			}
 		}
-		return nil
+		return rhino.Node{}
 	case rhino.Token_EXPONENT:
 		if lOk && rOk {
 			return p.MaybeReplaceBinaryOpWithNumericResult(
 				jutil.MathPow(lval, rval), lval, rval)
 		}
-		return nil
+		return rhino.Node{}
 	default:
 	}
 	if !lOk || !rOk {
-		return nil
+		return rhino.Node{}
 	}
 	switch n.GetToken() {
 	case rhino.Token_BITAND:
@@ -847,7 +847,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n *rhino.Node, left *rhino.N
 		result = float64(base.JSCompDoubles_EcmascriptToInt32(lval) ^ base.JSCompDoubles_EcmascriptToInt32(rval))
 	case rhino.Token_MOD:
 		if rval == 0 {
-			return nil
+			return rhino.Node{}
 		}
 		result = jutil.DRem(lval, rval)
 	default:
@@ -857,7 +857,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n *rhino.Node, left *rhino.N
 }
 
 // Java: PeepholeFoldConstants.performBigIntArithmeticOp(Node, Node, Node)
-func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	lVal := p.GetSideEffectFreeBigIntValue(left)
 	rVal := p.GetSideEffectFreeBigIntValue(right)
 	if lVal != nil && rVal != nil {
@@ -872,14 +872,14 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n *rhino.Node, left *r
 			if !jutil.BigIntegerEquals(rVal, jutil.BigInteger_ZERO) {
 				return PeepholeFoldConstants_BigintNode(new(big.Int).Quo(lVal, rVal), n)
 			} else {
-				return nil
+				return rhino.Node{}
 			}
 		case rhino.Token_EXPONENT:
-			var result *rhino.Node
+			var result rhino.Node
 			jutil.Try(func() {
 				result = PeepholeFoldConstants_BigintNode(jutil.BigIntegerPow(lVal, jutil.BigIntegerIntValueExact(rVal)), n)
 			}, func(exception jutil.IArithmeticException) {
-				result = nil
+				result = rhino.Node{}
 			})
 			return result
 		case rhino.Token_MOD:
@@ -891,7 +891,7 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n *rhino.Node, left *r
 		case rhino.Token_BITXOR:
 			return PeepholeFoldConstants_BigintNode(new(big.Int).Xor(lVal, rVal), n)
 		default:
-			return nil
+			return rhino.Node{}
 		}
 	}
 
@@ -904,7 +904,7 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n *rhino.Node, left *r
 		} else if rVal != nil && jutil.BigIntegerEquals(rVal, jutil.BigInteger_ZERO) {
 			return left.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		}
-		return nil
+		return rhino.Node{}
 	case rhino.Token_SUB:
 		if lVal != nil && jutil.BigIntegerEquals(lVal, jutil.BigInteger_ZERO) {
 			// 0n - x -> -x
@@ -913,26 +913,26 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n *rhino.Node, left *r
 			// x - 0n -> x
 			return left.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		}
-		return nil
+		return rhino.Node{}
 	case rhino.Token_MUL:
 		if lVal != nil && jutil.BigIntegerEquals(lVal, jutil.BigInteger_ONE) {
 			return right.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		} else if rVal != nil && jutil.BigIntegerEquals(rVal, jutil.BigInteger_ONE) {
 			return left.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		}
-		return nil
+		return rhino.Node{}
 	case rhino.Token_DIV:
 		if rVal != nil && jutil.BigIntegerEquals(rVal, jutil.BigInteger_ONE) {
 			return left.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		}
-		return nil
+		return rhino.Node{}
 	default:
-		return nil
+		return rhino.Node{}
 	}
 }
 
 // Java: PeepholeFoldConstants.isNumeric(Node)
-func (p *PeepholeFoldConstants) IsNumeric(n *rhino.Node) bool {
+func (p *PeepholeFoldConstants) IsNumeric(n rhino.Node) bool {
 	if NodeUtil_IsNumericResult(n) {
 		return true
 	}
@@ -943,7 +943,7 @@ func (p *PeepholeFoldConstants) IsNumeric(n *rhino.Node) bool {
 }
 
 // Java: PeepholeFoldConstants.isBigInt(Node)
-func (p *PeepholeFoldConstants) IsBigInt(n *rhino.Node) bool {
+func (p *PeepholeFoldConstants) IsBigInt(n rhino.Node) bool {
 	if NodeUtil_IsBigIntResult(n) {
 		return true
 	}
@@ -955,7 +955,7 @@ func (p *PeepholeFoldConstants) IsBigInt(n *rhino.Node) bool {
 
 // Java: PeepholeFoldConstants.maybeReplaceBinaryOpWithNumericResult(double, double, double)
 func (p *PeepholeFoldConstants) MaybeReplaceBinaryOpWithNumericResult(
-	result float64, lval float64, rval float64) *rhino.Node {
+	result float64, lval float64, rval float64) rhino.Node {
 	// TODO(johnlenz): consider removing the result length check.
 	// length of the left and right value plus 1 byte for the operator.
 	// Double.toString is always ASCII.
@@ -968,9 +968,9 @@ func (p *PeepholeFoldConstants) MaybeReplaceBinaryOpWithNumericResult(
 		math.IsNaN(result) ||
 		result == math.Inf(1) ||
 		result == math.Inf(-1) {
-		return NodeUtil_NumberNode(result, nil)
+		return NodeUtil_NumberNode(result, rhino.Node{})
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // TryFoldLeftChildOp folds expressions such as [foo() && 10 && 20] that
@@ -983,7 +983,7 @@ func (p *PeepholeFoldConstants) MaybeReplaceBinaryOpWithNumericResult(
 //   - The left child's right child is a BIGINT or NUMBER constant.
 //
 // Java: PeepholeFoldConstants.tryFoldLeftChildOp(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldLeftChildOp(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldLeftChildOp(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	opType := n.GetToken()
 	jutil.CheckState(NodeUtil_IsAssociative(opType) && NodeUtil_IsCommutative(opType))
 
@@ -999,11 +999,11 @@ func (p *PeepholeFoldConstants) TryFoldLeftChildOp(n *rhino.Node, left *rhino.No
 
 		valueToCombine := ll
 		replacement := p.PerformArithmeticOp(n, valueToCombine, right)
-		if replacement == nil {
+		if replacement.IsNil() {
 			valueToCombine = lr
 			replacement = p.PerformArithmeticOp(n, valueToCombine, right)
 		}
-		if replacement != nil {
+		if !replacement.IsNil() {
 			// Remove the child that has been combined
 			valueToCombine.Detach()
 			// Replace the left op with the remaining child.
@@ -1028,7 +1028,7 @@ func (p *PeepholeFoldConstants) TryFoldLeftChildOp(n *rhino.Node, left *rhino.No
 // string.
 //
 // Java: PeepholeFoldConstants.foldAddTemplateLiterals(Node, Node, Node)
-func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	// All template literal nodes with placeholders/substitutions will have their first child
 	// and last child as a string node.
 	// Merge the last left child string node with the first right child node.
@@ -1112,31 +1112,31 @@ func (p *PeepholeFoldConstants) EndsWithUnescapedDollar(raw string) bool {
 }
 
 // Java: PeepholeFoldConstants.tryFoldTemplateLiteralSubstitutions(Node)
-func (p *PeepholeFoldConstants) TryFoldTemplateLiteralSubstitutions(n *rhino.Node) *rhino.Node {
-	if n.GetParent() != nil && n.GetParent().IsTaggedTemplateLit() {
+func (p *PeepholeFoldConstants) TryFoldTemplateLiteralSubstitutions(n rhino.Node) rhino.Node {
+	if !n.GetParent().IsNil() && n.GetParent().IsTaggedTemplateLit() {
 		return n
 	}
 
 	changed := false
 	cur := n.GetFirstChild()
-	if cur == nil {
+	if cur.IsNil() {
 		return n
 	}
 
-	for cur != nil {
+	for !cur.IsNil() {
 		next := cur.GetNext()
-		if next == nil {
+		if next.IsNil() {
 			break
 		}
 
 		if cur.IsTemplateLitString() && next.IsTemplateLitSub() {
 			expr := next.GetFirstChild()
-			if expr != nil &&
+			if !expr.IsNil() &&
 				(expr.IsStringLit() || expr.IsNumber() || expr.IsTrue() || expr.IsFalse()) {
 				strValue := p.GetSideEffectFreeStringValue(expr)
 				if strValue != nil && p.IsSimpleTemplateStringValue(*strValue) {
 					nextNext := next.GetNext()
-					if nextNext != nil && nextNext.IsTemplateLitString() {
+					if !nextNext.IsNil() && nextNext.IsTemplateLitString() {
 						curCooked := *cur.GetCookedString()
 						nextNextCooked := *nextNext.GetCookedString()
 
@@ -1201,7 +1201,7 @@ func (p *PeepholeFoldConstants) IsRestrictedOctalEscape(prefixRaw string, suffix
 }
 
 // Java: PeepholeFoldConstants.tryFoldAdd(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldAdd(node *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldAdd(node rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	jutil.CheckArgument(node.IsAdd())
 
 	if NodeUtil_MayBeStringWithUseType(node, p.shouldUseTypes) {
@@ -1237,7 +1237,7 @@ func (p *PeepholeFoldConstants) TryFoldAdd(node *rhino.Node, left *rhino.Node, r
 }
 
 // Java: PeepholeFoldConstants.foldTemplateLiteralAndConstant(Node, Node, String)
-func (p *PeepholeFoldConstants) FoldTemplateLiteralAndConstant(oldNode *rhino.Node, left *rhino.Node, rightStr string) *rhino.Node {
+func (p *PeepholeFoldConstants) FoldTemplateLiteralAndConstant(oldNode rhino.Node, left rhino.Node, rightStr string) rhino.Node {
 	lastLeft := left.GetLastChild()
 	jutil.CheckState(lastLeft.IsTemplateLitString())
 
@@ -1257,7 +1257,7 @@ func (p *PeepholeFoldConstants) FoldTemplateLiteralAndConstant(oldNode *rhino.No
 }
 
 // Java: PeepholeFoldConstants.foldConstantAndTemplateLiteral(Node, String, Node)
-func (p *PeepholeFoldConstants) FoldConstantAndTemplateLiteral(oldNode *rhino.Node, leftStr string, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) FoldConstantAndTemplateLiteral(oldNode rhino.Node, leftStr string, right rhino.Node) rhino.Node {
 	firstRight := right.GetFirstChild()
 	jutil.CheckState(firstRight.IsTemplateLitString())
 
@@ -1277,14 +1277,14 @@ func (p *PeepholeFoldConstants) FoldConstantAndTemplateLiteral(oldNode *rhino.No
 }
 
 // Java: PeepholeFoldConstants.replace(Node, Node)
-func (p *PeepholeFoldConstants) Replace(oldNode *rhino.Node, newNode *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) Replace(oldNode rhino.Node, newNode rhino.Node) rhino.Node {
 	oldNode.ReplaceWith(newNode)
 	p.ReportChangeToEnclosingScope(newNode)
 	return newNode
 }
 
 // Java: PeepholeFoldConstants.isStringTyped(Node)
-func (p *PeepholeFoldConstants) IsStringTyped(n *rhino.Node) bool {
+func (p *PeepholeFoldConstants) IsStringTyped(n rhino.Node) bool {
 	// We could also accept !String, but it is unlikely to be very common.
 	if NodeUtil_IsStringResult(n) {
 		return true
@@ -1298,7 +1298,7 @@ func (p *PeepholeFoldConstants) IsStringTyped(n *rhino.Node) bool {
 // TryFoldShift tries to fold shift operations.
 //
 // Java: PeepholeFoldConstants.tryFoldShift(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldShift(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldShift(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	leftVal, lOk := p.GetSideEffectFreeNumberValueVal(left)
 	rightVal, rOk := p.GetSideEffectFreeNumberValueVal(right)
 
@@ -1347,7 +1347,7 @@ func (p *PeepholeFoldConstants) TryFoldShift(n *rhino.Node, left *rhino.Node, ri
 // TryFoldComparison tries to fold comparison nodes, e.g ==
 //
 // Java: PeepholeFoldConstants.tryFoldComparison(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldComparison(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldComparison(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	result := PeepholeFoldConstants_EvaluateComparison(p, n.GetToken(), left, right)
 	if result == base.Tri_UNKNOWN {
 		return n
@@ -1367,8 +1367,8 @@ func (p *PeepholeFoldConstants) TryFoldComparison(n *rhino.Node, left *rhino.Nod
 // Java: PeepholeFoldConstants.tryAbstractRelationalComparison(AbstractPeepholeOptimization, Node, Node, boolean)
 func PeepholeFoldConstants_TryAbstractRelationalComparison(
 	peepholeOptimization AbstractPeepholeOptimization,
-	left *rhino.Node,
-	right *rhino.Node,
+	left rhino.Node,
+	right rhino.Node,
 	willNegate bool) base.Tri {
 	leftValueType := NodeUtil_GetKnownValueType(left)
 	rightValueType := NodeUtil_GetKnownValueType(right)
@@ -1507,7 +1507,7 @@ func PeepholeFoldConstants_BigintLessThanDouble(
 //
 // Java: PeepholeFoldConstants.tryAbstractEqualityComparison(AbstractPeepholeOptimization, Node, Node)
 func PeepholeFoldConstants_TryAbstractEqualityComparison(
-	peepholeOptimization AbstractPeepholeOptimization, left *rhino.Node, right *rhino.Node) base.Tri {
+	peepholeOptimization AbstractPeepholeOptimization, left rhino.Node, right rhino.Node) base.Tri {
 	// Evaluate based on the general type.
 	leftValueType := NodeUtil_GetKnownValueType(left)
 	rightValueType := NodeUtil_GetKnownValueType(right)
@@ -1617,7 +1617,7 @@ func PeepholeFoldConstants_TryAbstractEqualityComparison(
 //
 // Java: PeepholeFoldConstants.tryStrictEqualityComparison(AbstractPeepholeOptimization, Node, Node)
 func PeepholeFoldConstants_TryStrictEqualityComparison(
-	peepholeOptimization AbstractPeepholeOptimization, left *rhino.Node, right *rhino.Node) base.Tri {
+	peepholeOptimization AbstractPeepholeOptimization, left rhino.Node, right rhino.Node) base.Tri {
 	// First, try to evaluate based on the general type.
 	leftValueType := NodeUtil_GetKnownValueType(left)
 	rightValueType := NodeUtil_GetKnownValueType(right)
@@ -1689,7 +1689,7 @@ func PeepholeFoldConstants_TryStrictEqualityComparison(
 
 // Java: PeepholeFoldConstants.evaluateComparison(AbstractPeepholeOptimization, Token, Node, Node)
 func PeepholeFoldConstants_EvaluateComparison(
-	peepholeOptimization AbstractPeepholeOptimization, op rhino.Token, left *rhino.Node, right *rhino.Node) base.Tri {
+	peepholeOptimization AbstractPeepholeOptimization, op rhino.Token, left rhino.Node, right rhino.Node) base.Tri {
 	// Don't try to minimize side-effects here.
 	if peepholeOptimization.MayHaveSideEffects(left) ||
 		peepholeOptimization.MayHaveSideEffects(right) {
@@ -1722,7 +1722,7 @@ func PeepholeFoldConstants_EvaluateComparison(
 // this[new String('eval')] -> this.eval
 //
 // Java: PeepholeFoldConstants.tryFoldCtorCall(Node)
-func (p *PeepholeFoldConstants) TryFoldCtorCall(n *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldCtorCall(n rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsNew())
 
 	// we can remove this for GETELEM calls (anywhere else?)
@@ -1736,10 +1736,10 @@ func (p *PeepholeFoldConstants) TryFoldCtorCall(n *rhino.Node) *rhino.Node {
 // Object.defineProperties(o, {}) -> o
 //
 // Java: PeepholeFoldConstants.tryFoldUselessObjectDotDefinePropertiesCall(Node)
-func (p *PeepholeFoldConstants) TryFoldUselessObjectDotDefinePropertiesCall(n *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldUselessObjectDotDefinePropertiesCall(n rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall() || n.IsOptChainCall())
 
-	if first := n.GetFirstChild(); first != nil && first.IsGetProp() && first.GetString() == "defineProperties" && NodeUtil_IsObjectDefinePropertiesDefinition(n) {
+	if first := n.GetFirstChild(); !first.IsNil() && first.IsGetProp() && first.GetString() == "defineProperties" && NodeUtil_IsObjectDefinePropertiesDefinition(n) {
 		srcObj := n.GetLastChild()
 		if srcObj.IsObjectLit() && !srcObj.HasChildren() {
 			parent := n.GetParent()
@@ -1755,7 +1755,7 @@ func (p *PeepholeFoldConstants) TryFoldUselessObjectDotDefinePropertiesCall(n *r
 // be coerced to a string.
 //
 // Java: PeepholeFoldConstants.inForcedStringContext(Node)
-func PeepholeFoldConstants_InForcedStringContext(n *rhino.Node) bool {
+func PeepholeFoldConstants_InForcedStringContext(n rhino.Node) bool {
 	if n.GetParent().IsGetElem() && n.GetParent().GetLastChild() == n {
 		return true
 	}
@@ -1765,7 +1765,7 @@ func PeepholeFoldConstants_InForcedStringContext(n *rhino.Node) bool {
 }
 
 // Java: PeepholeFoldConstants.tryFoldInForcedStringContext(Node)
-func (p *PeepholeFoldConstants) TryFoldInForcedStringContext(n *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldInForcedStringContext(n rhino.Node) rhino.Node {
 	// For now, we only know how to fold ctors.
 	jutil.CheckArgument(n.IsNew())
 
@@ -1777,7 +1777,7 @@ func (p *PeepholeFoldConstants) TryFoldInForcedStringContext(n *rhino.Node) *rhi
 	if objectType.GetString() == "String" {
 		value := objectType.GetNext()
 		var stringValue *string
-		if value == nil {
+		if value.IsNil() {
 			empty := ""
 			stringValue = &empty
 		} else {
@@ -1805,7 +1805,7 @@ func (p *PeepholeFoldConstants) TryFoldInForcedStringContext(n *rhino.Node) *rhi
 // array-element [1, 2, 3][1];
 //
 // Java: PeepholeFoldConstants.tryFoldGetElem(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldGetElem(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldGetElem(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsGetElem() || n.IsOptChainGetElem())
 
 	if left.IsObjectLit() {
@@ -1826,7 +1826,7 @@ func (p *PeepholeFoldConstants) TryFoldGetElem(n *rhino.Node, left *rhino.Node, 
 // ==> 2
 //
 // Java: PeepholeFoldConstants.tryFoldGetProp(Node)
-func (p *PeepholeFoldConstants) TryFoldGetProp(n *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldGetProp(n rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsGetProp() || n.IsOptChainGetProp())
 	left := n.GetFirstChild()
 
@@ -1844,7 +1844,7 @@ func (p *PeepholeFoldConstants) TryFoldGetProp(n *rhino.Node) *rhino.Node {
 					// Nope, can't fold this, without handling the side-effects.
 					return n
 				}
-				for child := left.GetFirstChild(); child != nil; child = child.GetNext() {
+				for child := left.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 					if child.IsSpread() {
 						return n
 					}
@@ -1866,7 +1866,7 @@ func (p *PeepholeFoldConstants) TryFoldGetProp(n *rhino.Node) *rhino.Node {
 }
 
 // Java: PeepholeFoldConstants.tryFoldArrayAccess(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldArrayAccess(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldArrayAccess(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	// If GETPROP/GETELEM is used as assignment target the array literal is
 	// acting as a temporary we can't fold it here:
 	//    "[][0] += 1"
@@ -1889,8 +1889,8 @@ func (p *PeepholeFoldConstants) TryFoldArrayAccess(n *rhino.Node, left *rhino.No
 
 	intIndex := int(jutil.D2I(index))
 	current := left.GetFirstChild()
-	var elem *rhino.Node
-	for i := 0; current != nil; i++ {
+	var elem rhino.Node
+	for i := 0; !current.IsNil(); i++ {
 		if current.IsSpread() {
 			// The only time we can fold getelems with spread is for spread arrays literals, and
 			// `tryFlattenArray` already flattens those.
@@ -1907,7 +1907,7 @@ func (p *PeepholeFoldConstants) TryFoldArrayAccess(n *rhino.Node, left *rhino.No
 		current = current.GetNext()
 	}
 
-	if elem == nil { // If the index was out of bounds
+	if elem.IsNil() { // If the index was out of bounds
 		elem = NodeUtil_NewUndefinedNode(left)
 	} else if elem.IsEmpty() {
 		elem = NodeUtil_NewUndefinedNode(elem)
@@ -1925,7 +1925,7 @@ func (p *PeepholeFoldConstants) TryFoldArrayAccess(n *rhino.Node, left *rhino.No
 // ...[1,2,3] to 1,2,3
 //
 // Java: PeepholeFoldConstants.tryFoldSpread(Node)
-func (p *PeepholeFoldConstants) TryFoldSpread(spread *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldSpread(spread rhino.Node) rhino.Node {
 	jutil.CheckState(spread.IsSpread())
 	parent := spread.GetParent()
 	child := spread.GetOnlyChild()
@@ -1947,8 +1947,8 @@ func (p *PeepholeFoldConstants) TryFoldSpread(spread *rhino.Node) *rhino.Node {
 // Example: `[0, ...[1, 2, 3], 4, ...[5]]` => `[0, 1, 2, 3, 4, 5]`
 //
 // Java: PeepholeFoldConstants.tryFlattenArrayOrObjectLit(Node)
-func (p *PeepholeFoldConstants) TryFlattenArrayOrObjectLit(parentLit *rhino.Node) *rhino.Node {
-	for child := parentLit.GetFirstChild(); child != nil; {
+func (p *PeepholeFoldConstants) TryFlattenArrayOrObjectLit(parentLit rhino.Node) rhino.Node {
+	for child := parentLit.GetFirstChild(); !child.IsNil(); {
 		// We have to store the next element here because nodes may be inserted below.
 		spread := child
 		child = child.GetNext()
@@ -1978,7 +1978,7 @@ func (p *PeepholeFoldConstants) TryFlattenArrayOrObjectLit(parentLit *rhino.Node
 }
 
 // Java: PeepholeFoldConstants.tryFoldStringArrayAccess(Node, Node, Node)
-func (p *PeepholeFoldConstants) TryFoldStringArrayAccess(n *rhino.Node, left *rhino.Node, right *rhino.Node) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldStringArrayAccess(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	// If GETPROP/GETELEM is used as assignment target the array literal is
 	// acting as a temporary we can't fold it here:
 	//    "[][0] += 1"
@@ -2041,7 +2041,7 @@ func (p *PeepholeFoldConstants) TryFoldStringArrayAccess(n *rhino.Node, left *rh
 //   - `({a() { return 1; }}).a()` ---> `(function() { return 1; }())`
 //
 // Java: PeepholeFoldConstants.tryFoldObjectPropAccess(Node, Node, String)
-func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n *rhino.Node, left *rhino.Node, name string) *rhino.Node {
+func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n rhino.Node, left rhino.Node, name string) rhino.Node {
 	jutil.CheckArgument(NodeUtil_IsNormalOrOptChainGet(n))
 
 	if !left.IsObjectLit() {
@@ -2057,15 +2057,15 @@ func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n *rhino.Node, left *rhi
 	}
 
 	// find the last definition in the object literal
-	var key *rhino.Node
-	var value *rhino.Node
-	for c := left.GetFirstChild(); c != nil; c = c.GetNext() {
+	var key rhino.Node
+	var value rhino.Node
+	for c := left.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		switch c.GetToken() {
 		case rhino.Token_SETTER_DEF:
 		case rhino.Token_OBJECT_SPREAD:
 			// Reset the search because spread could overwrite any previous result.
-			key = nil
-			value = nil
+			key = rhino.Node{}
+			value = rhino.Node{}
 		case rhino.Token_COMPUTED_PROP:
 			// don't handle computed properties unless the input is a simple string
 			prop := c.GetFirstChild()
@@ -2088,7 +2088,7 @@ func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n *rhino.Node, left *rhi
 
 	// Didn't find a definition of the name in the object literal, it might
 	// be coming from the Object prototype.
-	if value == nil {
+	if value.IsNil() {
 		return n
 	}
 
@@ -2170,8 +2170,8 @@ func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n *rhino.Node, left *rhi
 }
 
 // Java: PeepholeFoldConstants.bigintNode(BigInteger, Node)
-func PeepholeFoldConstants_BigintNode(val *big.Int, srcref *rhino.Node) *rhino.Node {
-	var tree *rhino.Node
+func PeepholeFoldConstants_BigintNode(val *big.Int, srcref rhino.Node) rhino.Node {
+	var tree rhino.Node
 	if val.Sign() < 0 {
 		tree = rhino.IR_Neg(rhino.IR_Bigint(new(big.Int).Neg(val)))
 	} else {
@@ -2181,8 +2181,8 @@ func PeepholeFoldConstants_BigintNode(val *big.Int, srcref *rhino.Node) *rhino.N
 }
 
 // Java: PeepholeFoldConstants.isSafeToFlattenObjectLitSpread(Node)
-func PeepholeFoldConstants_IsSafeToFlattenObjectLitSpread(innerLit *rhino.Node) bool {
-	for prop := innerLit.GetFirstChild(); prop != nil; prop = prop.GetNext() {
+func PeepholeFoldConstants_IsSafeToFlattenObjectLitSpread(innerLit rhino.Node) bool {
+	for prop := innerLit.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
 		// Object spread converts all properties to regular data properties. This step evaluates
 		// any getters and omits any setters. See https://tc39.es/ecma262/#sec-copydataproperties.
 		// For simplicity, we just back off and do not flatten spread in this case.
@@ -2194,8 +2194,8 @@ func PeepholeFoldConstants_IsSafeToFlattenObjectLitSpread(innerLit *rhino.Node) 
 }
 
 // Java: PeepholeFoldConstants.isSafeToFlattenArrayLitSpread(Node)
-func PeepholeFoldConstants_IsSafeToFlattenArrayLitSpread(innerLit *rhino.Node) bool {
-	for n := innerLit.GetFirstChild(); n != nil; n = n.GetNext() {
+func PeepholeFoldConstants_IsSafeToFlattenArrayLitSpread(innerLit rhino.Node) bool {
+	for n := innerLit.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if n.IsEmpty() {
 			return false
 		}

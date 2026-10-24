@@ -48,7 +48,7 @@ func (p *J2clStringValueOfRewriterPass) BeginTraversal(compiler AbstractCompiler
 }
 
 // Java: J2clStringValueOfRewriterPass.optimizeSubtree(Node)
-func (p *J2clStringValueOfRewriterPass) OptimizeSubtree(node *rhino.Node) *rhino.Node {
+func (p *J2clStringValueOfRewriterPass) OptimizeSubtree(node rhino.Node) rhino.Node {
 	if !p.shouldRunJ2clPasses || !j2clStringValueOfRewriterPass_isStringValueOfCall(node) {
 		return node
 	}
@@ -72,7 +72,7 @@ func (p *J2clStringValueOfRewriterPass) OptimizeSubtree(node *rhino.Node) *rhino
 //	String.valueOf("foo" + String.valueOf(bar)) -> String("foo" + String.valueOf(bar))
 //
 // Java: J2clStringValueOfRewriterPass.tryRewriteStringValueOfCall(Node)
-func (p *J2clStringValueOfRewriterPass) tryRewriteStringValueOfCall(n *rhino.Node) *rhino.Node {
+func (p *J2clStringValueOfRewriterPass) tryRewriteStringValueOfCall(n rhino.Node) rhino.Node {
 	param := n.GetSecondChild()
 	if NodeUtil_IsUndefined(param) {
 		return rhino.IR_String("null")
@@ -84,7 +84,7 @@ func (p *J2clStringValueOfRewriterPass) tryRewriteStringValueOfCall(n *rhino.Nod
 }
 
 // Java: J2clStringValueOfRewriterPass.isStringValueOfCall(Node)
-func j2clStringValueOfRewriterPass_isStringValueOfCall(node *rhino.Node) bool {
+func j2clStringValueOfRewriterPass_isStringValueOfCall(node rhino.Node) bool {
 	return node.IsCall() &&
 		// Do not optimize if the parameter was removed
 		node.HasXChildren(2) &&
@@ -92,6 +92,6 @@ func j2clStringValueOfRewriterPass_isStringValueOfCall(node *rhino.Node) bool {
 }
 
 // Java: J2clStringValueOfRewriterPass.isStringValueOfMethodName(Node)
-func j2clStringValueOfRewriterPass_isStringValueOfMethodName(fnName *rhino.Node) bool {
+func j2clStringValueOfRewriterPass_isStringValueOfMethodName(fnName rhino.Node) bool {
 	return fnName.IsQualifiedName() && *fnName.GetOriginalQualifiedName() == j2clStringValueOfRewriterPass_METHOD_NAME
 }

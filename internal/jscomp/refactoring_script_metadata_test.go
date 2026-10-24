@@ -45,7 +45,7 @@ func TestScriptMetadataTest(t *testing.T) {
 
 // Java: ScriptMetadataTest.getProcessor(Compiler)
 func (c *ScriptMetadataTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		c.lastMetadata = ScriptMetadata_Create(root.GetOnlyChild(), compiler)
 	})
 }

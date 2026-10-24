@@ -94,8 +94,8 @@ func (d *scopeDumper) line(s string) {
 }
 
 // scopeDumpNode is ScopeDump.node.
-func scopeDumpNode(n *rhino.Node) string {
-	if n == nil {
+func scopeDumpNode(n rhino.Node) string {
+	if n.IsNil() {
 		return "null"
 	}
 	return n.GetToken().String() + "@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
@@ -164,7 +164,7 @@ func (d *scopeDumper) dumpOne(name, src string) string {
 		d.line("# exception " + scopeDumpExc(exception))
 		return d.sb.String()
 	}
-	if result.Ast == nil {
+	if result.Ast.IsNil() {
 		d.line("# no ast")
 		return d.sb.String()
 	}
@@ -196,7 +196,7 @@ type scopeDumpRecorder struct {
 	scoped  bool
 }
 
-func (r *scopeDumpRecorder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (r *scopeDumpRecorder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if r.verbose {
 		r.d.line("S " + scopeDumpNode(n) +
 			" p=" + scopeDumpNode(parent) +
@@ -212,7 +212,7 @@ func (r *scopeDumpRecorder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, pare
 	return true
 }
 
-func (r *scopeDumpRecorder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *scopeDumpRecorder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if r.verbose {
 		r.d.line("V " + scopeDumpNode(n) + " p=" + scopeDumpNode(parent))
 	} else {
@@ -258,7 +258,7 @@ func scopeDumpTraversalFlags(t *NodeTraversal) string {
 	return f.String()
 }
 
-func (d *scopeDumper) traversal(compiler AbstractCompiler, root *rhino.Node, obey, verbose bool) {
+func (d *scopeDumper) traversal(compiler AbstractCompiler, root rhino.Node, obey, verbose bool) {
 	NodeTraversal_Builder_().
 		SetCompiler(compiler).
 		SetCallback(&scopeDumpRecorder{d: d, verbose: verbose, scoped: verbose}).
@@ -267,14 +267,14 @@ func (d *scopeDumper) traversal(compiler AbstractCompiler, root *rhino.Node, obe
 }
 
 // scopeDumpFunctions is ScopeDump.functions.
-func scopeDumpFunctions(root *rhino.Node) []*rhino.Node {
-	var fns []*rhino.Node
-	var collect func(n *rhino.Node)
-	collect = func(n *rhino.Node) {
+func scopeDumpFunctions(root rhino.Node) []rhino.Node {
+	var fns []rhino.Node
+	var collect func(n rhino.Node)
+	collect = func(n rhino.Node) {
 		if n.IsFunction() {
 			fns = append(fns, n)
 		}
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			collect(c)
 		}
 	}
@@ -283,20 +283,20 @@ func scopeDumpFunctions(root *rhino.Node) []*rhino.Node {
 }
 
 // scopeDumpSize is ScopeDump.size.
-func scopeDumpSize(n *rhino.Node) int {
+func scopeDumpSize(n rhino.Node) int {
 	s := 1
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		s += scopeDumpSize(c)
 	}
 	return s
 }
 
-func (d *scopeDumper) scopeRoots(compiler AbstractCompiler, root *rhino.Node) {
+func (d *scopeDumper) scopeRoots(compiler AbstractCompiler, root rhino.Node) {
 	for _, fn := range scopeDumpFunctions(root) {
 		d.line("R " + scopeDumpNode(fn))
 		jutil.Try(func() {
 			NodeTraversal_TraverseScopeRoots(
-				compiler, []*rhino.Node{fn}, &scopeDumpRecorder{d: d, verbose: false, scoped: true}, false)
+				compiler, []rhino.Node{fn}, &scopeDumpRecorder{d: d, verbose: false, scoped: true}, false)
 		}, func(e jutil.Throwable) { d.line("# exception " + scopeDumpExc(e)) })
 	}
 }
@@ -313,9 +313,9 @@ func (c *scopeDumpScopeCollector) EnterScope(t *NodeTraversal) {
 	}
 }
 
-func (c *scopeDumpScopeCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {}
+func (c *scopeDumpScopeCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {}
 
-func (d *scopeDumper) atScope(compiler AbstractCompiler, root *rhino.Node) {
+func (d *scopeDumper) atScope(compiler AbstractCompiler, root rhino.Node) {
 	creator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler))
 	collector := &scopeDumpScopeCollector{}
 	NodeTraversal_Builder_().
@@ -342,7 +342,7 @@ func (d *scopeDumper) atScope(compiler AbstractCompiler, root *rhino.Node) {
 // ScopeDump.scopes.
 type scopeDumpRedeclarationHandler struct{ d *scopeDumper }
 
-func (h *scopeDumpRedeclarationHandler) OnRedeclaration(s *Scope, name string, n *rhino.Node, input *CompilerInput) {
+func (h *scopeDumpRedeclarationHandler) OnRedeclaration(s *Scope, name string, n rhino.Node, input *CompilerInput) {
 	inputName := "null"
 	if input != nil {
 		inputName = input.GetName()
@@ -361,9 +361,9 @@ func (p *scopeDumpScopePrinter) EnterScope(t *NodeTraversal) {
 	p.d.printScope(t.GetScope())
 }
 
-func (p *scopeDumpScopePrinter) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {}
+func (p *scopeDumpScopePrinter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {}
 
-func (d *scopeDumper) scopes(compiler AbstractCompiler, root *rhino.Node) {
+func (d *scopeDumper) scopes(compiler AbstractCompiler, root rhino.Node) {
 	creator := NewSyntacticScopeCreatorWithTreatProvidesAsRedeclarations(
 		compiler, &scopeDumpRedeclarationHandler{d: d}, true)
 	NodeTraversal_Builder_().
@@ -508,7 +508,7 @@ func (b *scopeDumpBehavior) AfterExitScope(t *NodeTraversal, referenceMap Refere
 	b.d.line(l.String())
 }
 
-func (d *scopeDumper) references(compiler AbstractCompiler, root *rhino.Node) {
+func (d *scopeDumper) references(compiler AbstractCompiler, root rhino.Node) {
 	collector := NewReferenceCollector(compiler, &scopeDumpBehavior{d: d}, NewSyntacticScopeCreator(compiler))
 	collector.ProcessRoot(root)
 	for v := range collector.GetAllSymbols() {
@@ -579,7 +579,7 @@ func (d *scopeDumper) printReference(ref *Reference) {
 	}))
 }
 
-func (d *scopeDumper) memoized(compiler AbstractCompiler, root *rhino.Node) {
+func (d *scopeDumper) memoized(compiler AbstractCompiler, root rhino.Node) {
 	var creator ScopeCreator = NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler))
 	a := creator.CreateScope(root, nil)
 	b := creator.CreateScope(root, nil)

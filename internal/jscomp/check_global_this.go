@@ -59,7 +59,7 @@ type CheckGlobalThis struct {
 	// If assignLhsChild != null, then the node being traversed is a
 	// descendant of the first child of an ASSIGN node. assignLhsChild's parent
 	// is this ASSIGN node.
-	assignLhsChild *rhino.Node
+	assignLhsChild rhino.Node
 }
 
 // Java: CheckGlobalThis.GLOBAL_THIS
@@ -69,7 +69,7 @@ var CheckGlobalThis_GLOBAL_THIS = DiagnosticType_Warning(
 // Java: CheckGlobalThis(AbstractCompiler)
 func NewCheckGlobalThis(compiler AbstractCompiler) *CheckGlobalThis {
 	c := &CheckGlobalThis{}
-	c.assignLhsChild = nil
+	c.assignLhsChild = rhino.Node{}
 	c.compiler = compiler
 	return c
 }
@@ -79,7 +79,7 @@ func NewCheckGlobalThis(compiler AbstractCompiler) *CheckGlobalThis {
 // global contexts.
 //
 // Java: CheckGlobalThis.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 
 	if n.IsFunction() {
 		// Arrow functions automatically get the "this" value from the
@@ -105,12 +105,12 @@ func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent
 			functionType := jsDoc.GetType()
 			if functionType != nil {
 				functionNode := functionType.GetRoot()
-				if functionNode != nil && functionNode.IsFunction() {
+				if !functionNode.IsNil() && functionNode.IsFunction() {
 					// function(this: ThisType, ...)
 					// `this:` is only allowed as the very first child of the
 					// FUNCTION node.
 					thisNode := functionNode.GetFirstChild()
-					if thisNode != nil && thisNode.IsThis() {
+					if !thisNode.IsNil() && thisNode.IsThis() {
 						// Type of `this` is specified, so no need to check further.
 						return false
 					}
@@ -157,14 +157,14 @@ func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent
 		return false
 	}
 
-	if parent != nil && parent.IsAssign() {
+	if !parent.IsNil() && parent.IsAssign() {
 		lhs := parent.GetFirstChild()
 
 		if n == lhs {
 			// Always traverse the left side of the assignment. To handle
 			// nested assignments properly (e.g., (a = this).property = c;),
 			// assignLhsChild should not be overridden.
-			if c.assignLhsChild == nil {
+			if c.assignLhsChild.IsNil() {
 				c.assignLhsChild = lhs
 			}
 		} else {
@@ -186,23 +186,23 @@ func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent
 }
 
 // Java: CheckGlobalThis.visit(NodeTraversal, Node, Node)
-func (c *CheckGlobalThis) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckGlobalThis) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsThis() && c.ShouldReportThis(n) {
 		c.compiler.Report(JSError_MakeWithNode(n, CheckGlobalThis_GLOBAL_THIS))
 	}
 	if n == c.assignLhsChild {
-		c.assignLhsChild = nil
+		c.assignLhsChild = rhino.Node{}
 	}
 }
 
 // Java: CheckGlobalThis.shouldReportThis(Node)
-func (c *CheckGlobalThis) ShouldReportThis(n *rhino.Node) bool {
+func (c *CheckGlobalThis) ShouldReportThis(n rhino.Node) bool {
 	parent := n.GetParent()
-	if c.assignLhsChild != nil {
+	if !c.assignLhsChild.IsNil() {
 		// Always report a THIS on the left side of an assign.
 		return true
 	}
 
 	// Also report a THIS with a property access.
-	return parent != nil && NodeUtil_IsNormalGet(parent)
+	return !parent.IsNil() && NodeUtil_IsNormalGet(parent)
 }

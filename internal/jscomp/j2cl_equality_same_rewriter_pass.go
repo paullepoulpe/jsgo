@@ -52,7 +52,7 @@ func (p *J2clEqualitySameRewriterPass) BeginTraversal(compiler AbstractCompiler)
 }
 
 // Java: J2clEqualitySameRewriterPass.optimizeSubtree(Node)
-func (p *J2clEqualitySameRewriterPass) OptimizeSubtree(node *rhino.Node) *rhino.Node {
+func (p *J2clEqualitySameRewriterPass) OptimizeSubtree(node rhino.Node) rhino.Node {
 	if !p.shouldRunJ2clPasses {
 		return node
 	}
@@ -62,14 +62,14 @@ func (p *J2clEqualitySameRewriterPass) OptimizeSubtree(node *rhino.Node) *rhino.
 		return node
 	}
 
-	var replacement *rhino.Node
+	var replacement rhino.Node
 	if j2clEqualitySameRewriterPass_isStringEqualsMethod(node) {
 		replacement = p.trySubstituteStringEquals(node)
 	} else if j2clEqualitySameRewriterPass_isEqualitySameCall(node) {
 		replacement = p.trySubstituteEqualitySame(node)
 	}
 
-	if replacement == nil {
+	if replacement.IsNil() {
 		return node
 	}
 
@@ -80,19 +80,19 @@ func (p *J2clEqualitySameRewriterPass) OptimizeSubtree(node *rhino.Node) *rhino.
 }
 
 // Java: J2clEqualitySameRewriterPass.trySubstituteStringEquals(Node)
-func (p *J2clEqualitySameRewriterPass) trySubstituteStringEquals(callNode *rhino.Node) *rhino.Node {
+func (p *J2clEqualitySameRewriterPass) trySubstituteStringEquals(callNode rhino.Node) rhino.Node {
 	firstExprValue := j2clEqualitySameRewriterPass_getKnownLiteralValue(callNode.GetSecondChild())
 	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_UNKNOWN ||
 		firstExprValue == J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED {
 		// Potential NPE, don't optimize.
-		return nil
+		return rhino.Node{}
 	}
 
 	return p.trySubstituteEqualitySame(callNode)
 }
 
 // Java: J2clEqualitySameRewriterPass.trySubstituteEqualitySame(Node)
-func (p *J2clEqualitySameRewriterPass) trySubstituteEqualitySame(callNode *rhino.Node) *rhino.Node {
+func (p *J2clEqualitySameRewriterPass) trySubstituteEqualitySame(callNode rhino.Node) rhino.Node {
 	firstExpr := callNode.GetSecondChild()
 	firstExprValue := j2clEqualitySameRewriterPass_getKnownLiteralValue(firstExpr)
 	secondExpr := callNode.GetLastChild()
@@ -100,7 +100,7 @@ func (p *J2clEqualitySameRewriterPass) trySubstituteEqualitySame(callNode *rhino
 
 	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_UNKNOWN &&
 		secondExprValue == J2clEqualitySameRewriterPass_NodeValue_UNKNOWN {
-		return nil
+		return rhino.Node{}
 	}
 
 	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED {
@@ -124,7 +124,7 @@ func (p *J2clEqualitySameRewriterPass) trySubstituteEqualitySame(callNode *rhino
 }
 
 // Java: J2clEqualitySameRewriterPass.rewriteNullCheck(Node, Node)
-func (p *J2clEqualitySameRewriterPass) rewriteNullCheck(expr *rhino.Node, nullExpression *rhino.Node) *rhino.Node {
+func (p *J2clEqualitySameRewriterPass) rewriteNullCheck(expr rhino.Node, nullExpression rhino.Node) rhino.Node {
 	expr.Detach()
 	nullExpression.Detach()
 	if p.useTypes && p.canOnlyBeObject(expr) {
@@ -135,7 +135,7 @@ func (p *J2clEqualitySameRewriterPass) rewriteNullCheck(expr *rhino.Node, nullEx
 }
 
 // Java: J2clEqualitySameRewriterPass.canOnlyBeObject(Node)
-func (p *J2clEqualitySameRewriterPass) canOnlyBeObject(n *rhino.Node) bool {
+func (p *J2clEqualitySameRewriterPass) canOnlyBeObject(n rhino.Node) bool {
 	color := n.GetColor()
 	// Safe as long as the color is a) not the UNKNOWN native color and b) not any primitive
 	if color == nil {
@@ -158,14 +158,14 @@ func (p *J2clEqualitySameRewriterPass) canOnlyBeObject(n *rhino.Node) bool {
 }
 
 // Java: J2clEqualitySameRewriterPass.rewriteAsStrictEq(Node, Node)
-func (p *J2clEqualitySameRewriterPass) rewriteAsStrictEq(firstExpr *rhino.Node, secondExpr *rhino.Node) *rhino.Node {
+func (p *J2clEqualitySameRewriterPass) rewriteAsStrictEq(firstExpr rhino.Node, secondExpr rhino.Node) rhino.Node {
 	firstExpr.Detach()
 	secondExpr.Detach()
 	return rhino.IR_Sheq(firstExpr, secondExpr)
 }
 
 // Java: J2clEqualitySameRewriterPass.rewriteNumberCheck(Node, Node)
-func (p *J2clEqualitySameRewriterPass) rewriteNumberCheck(firstExpr *rhino.Node, secondExpr *rhino.Node) *rhino.Node {
+func (p *J2clEqualitySameRewriterPass) rewriteNumberCheck(firstExpr rhino.Node, secondExpr rhino.Node) rhino.Node {
 	firstValue := NodeUtil_GetNumberValue(firstExpr)
 	secondValue := NodeUtil_GetNumberValue(secondExpr)
 
@@ -186,7 +186,7 @@ func (p *J2clEqualitySameRewriterPass) rewriteNumberCheck(firstExpr *rhino.Node,
 		return p.rewriteAsStrictEq(firstExpr, secondExpr)
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // Java: J2clEqualitySameRewriterPass.isSafeNumber(Double)
@@ -226,7 +226,7 @@ func (v J2clEqualitySameRewriterPass_NodeValue) String() string {
 }
 
 // Java: J2clEqualitySameRewriterPass.getKnownLiteralValue(Node)
-func j2clEqualitySameRewriterPass_getKnownLiteralValue(n *rhino.Node) J2clEqualitySameRewriterPass_NodeValue {
+func j2clEqualitySameRewriterPass_getKnownLiteralValue(n rhino.Node) J2clEqualitySameRewriterPass_NodeValue {
 	switch NodeUtil_GetKnownValueType(n) {
 	case NodeUtil_ValueType_VOID:
 		if NodeUtil_CanBeSideEffected(n) {
@@ -248,12 +248,12 @@ func j2clEqualitySameRewriterPass_getKnownLiteralValue(n *rhino.Node) J2clEquali
 }
 
 // Java: J2clEqualitySameRewriterPass.isEqualitySameCall(Node)
-func j2clEqualitySameRewriterPass_isEqualitySameCall(node *rhino.Node) bool {
+func j2clEqualitySameRewriterPass_isEqualitySameCall(node rhino.Node) bool {
 	return node.IsCall() && j2clEqualitySameRewriterPass_hasName(node.GetFirstChild(), "Equality", "$same")
 }
 
 // Java: J2clEqualitySameRewriterPass.isStringEqualsMethod(Node)
-func j2clEqualitySameRewriterPass_isStringEqualsMethod(node *rhino.Node) bool {
+func j2clEqualitySameRewriterPass_isStringEqualsMethod(node rhino.Node) bool {
 	return node.IsCall() &&
 		j2clEqualitySameRewriterPass_hasName(
 			node.GetFirstChild(),
@@ -262,7 +262,7 @@ func j2clEqualitySameRewriterPass_isStringEqualsMethod(node *rhino.Node) bool {
 }
 
 // Java: J2clEqualitySameRewriterPass.hasName(Node, String, String)
-func j2clEqualitySameRewriterPass_hasName(fnName *rhino.Node, className string, methodName string) bool {
+func j2clEqualitySameRewriterPass_hasName(fnName rhino.Node, className string, methodName string) bool {
 	if !fnName.IsQualifiedName() {
 		return false
 	}

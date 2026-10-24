@@ -1159,7 +1159,7 @@ func NewRenameVarsTest_ClosurePassAndRenameVars(outer *RenameVarsTest, compiler 
 }
 
 // Java: RenameVarsTest.ClosurePassAndRenameVars.process(Node, Node)
-func (p *RenameVarsTest_ClosurePassAndRenameVars) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *RenameVarsTest_ClosurePassAndRenameVars) Process(externs rhino.Node, root rhino.Node) {
 	NewGatherModuleMetadata(
 		p.compiler, false /* processCommonJsModules= */, ModuleLoader_ResolutionMode_BROWSER).
 		Process(externs, root)
@@ -1192,7 +1192,7 @@ func NewRenameVarsTest_NormalizePassWrapper(compiler *Compiler, wrappedPass Comp
 }
 
 // Java: RenameVarsTest.NormalizePassWrapper.process(Node, Node)
-func (p *RenameVarsTest_NormalizePassWrapper) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *RenameVarsTest_NormalizePassWrapper) Process(externs rhino.Node, root rhino.Node) {
 	normalize := Normalize_CreateNormalizeForOptimizations(p.compiler)
 	normalize.Process(externs, root)
 

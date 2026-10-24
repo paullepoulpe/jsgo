@@ -46,7 +46,7 @@ func NewInlineCostEstimator() *InlineCostEstimator {
 // InlineCostEstimator_GetCost determines the size of the JS code.
 //
 // Java: InlineCostEstimator.getCost(Node)
-func InlineCostEstimator_GetCost(root *rhino.Node) int {
+func InlineCostEstimator_GetCost(root rhino.Node) int {
 	return InlineCostEstimator_GetCostWithThreshold(root, math.MaxInt32)
 }
 
@@ -68,7 +68,7 @@ var costEstimatorPool = sync.Pool{
 // the JS snippet represented by the node.
 //
 // Java: InlineCostEstimator.getCost(Node, int)
-func InlineCostEstimator_GetCostWithThreshold(root *rhino.Node, costThreshold int) int {
+func InlineCostEstimator_GetCostWithThreshold(root rhino.Node, costThreshold int) int {
 	p := costEstimatorPool.Get().(*pooledCostEstimator)
 	p.est.InitCodeConsumerBase(&p.est)
 	p.est.maxCost = costThreshold
@@ -109,7 +109,7 @@ func NewInlineCostEstimator_CompiledSizeEstimator(costThreshold int) *InlineCost
 // AddNode is the Java add(Node) overload.
 //
 // Java: InlineCostEstimator.CompiledSizeEstimator.add(Node)
-func (e *InlineCostEstimator_CompiledSizeEstimator) AddNode(root *rhino.Node) {
+func (e *InlineCostEstimator_CompiledSizeEstimator) AddNode(root rhino.Node) {
 	cg := CodeGenerator_ForCostEstimation(e)
 	cg.AddNode(root)
 }

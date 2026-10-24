@@ -176,7 +176,7 @@ func NewCheckConformanceTest_CustomRuleMissingPublicConstructor(compiler Abstrac
 }
 
 // Java: CheckConformanceTest.CustomRuleMissingPublicConstructor.checkConformance(NodeTraversal, Node)
-func (r *CheckConformanceTest_CustomRuleMissingPublicConstructor) CheckConformance(t *NodeTraversal, n *rhino.Node) *ConformanceRules_ConformanceResult {
+func (r *CheckConformanceTest_CustomRuleMissingPublicConstructor) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
 	// Everything is ok.
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
@@ -197,7 +197,7 @@ func NewCheckConformanceTest_CustomRule(compiler AbstractCompiler, requirement *
 }
 
 // Java: CheckConformanceTest.CustomRule.checkConformance(NodeTraversal, Node)
-func (r *CheckConformanceTest_CustomRule) CheckConformance(t *NodeTraversal, n *rhino.Node) *ConformanceRules_ConformanceResult {
+func (r *CheckConformanceTest_CustomRule) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
 	// Everything is ok.
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
@@ -218,7 +218,7 @@ func NewCheckConformanceTest_CustomRuleReport(compiler AbstractCompiler, require
 }
 
 // Java: CheckConformanceTest.CustomRuleReport.checkConformance(NodeTraversal, Node)
-func (r *CheckConformanceTest_CustomRuleReport) CheckConformance(t *NodeTraversal, n *rhino.Node) *ConformanceRules_ConformanceResult {
+func (r *CheckConformanceTest_CustomRuleReport) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
 	// Everything is ok.
 	if n.IsScript() {
 		return ConformanceRules_ConformanceResult_VIOLATION

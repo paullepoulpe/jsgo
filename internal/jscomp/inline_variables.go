@@ -83,7 +83,7 @@ var inlineVariables_Mode_varPredicate = [...]func(*Var) bool{
 
 func inlineVariables_isDeclaredOrInferredConst(v *Var) bool {
 	n := v.nameNode
-	if n == nil {
+	if n.IsNil() {
 		return false
 	}
 	if n.GetConstantVarFlags()&(rhino.Node_ConstantVarFlags_DECLARED|rhino.Node_ConstantVarFlags_INFERRED) != 0 {
@@ -113,7 +113,7 @@ func NewInlineVariables(compiler AbstractCompiler, mode InlineVariables_Mode) *I
 }
 
 // Java: InlineVariables.process(Node, Node)
-func (iv *InlineVariables) Process(externs *rhino.Node, root *rhino.Node) {
+func (iv *InlineVariables) Process(externs rhino.Node, root rhino.Node) {
 	behavior := NewInlineVariables_InliningBehavior(iv)
 	callback := NewReferenceCollectorWithVarFilter(
 		iv.compiler,
@@ -747,7 +747,7 @@ type InlineVariables_InliningBehavior_StandardVarExpert struct {
 	initValAnalysis       InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis
 	analysisKind          standardVarAnalysisKind
 	analysisAliasedVar    *Var
-	analysisInitValue     *rhino.Node
+	analysisInitValue     rhino.Node
 	analysisInitRef       *Reference
 	analysisSingleReadRef *Reference
 }
@@ -918,12 +918,12 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) Analyze() InlineVar
 		if e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 			return e.GetNegativeInlineVarAnalysis()
 		}
-		if firstChild := e.declaration.nameNode.GetFirstChild(); firstChild == nil || !firstChild.IsName() {
+		if firstChild := e.declaration.nameNode.GetFirstChild(); firstChild.IsNil() || !firstChild.IsName() {
 			return e.GetNegativeInlineVarAnalysis()
 		}
 	}
 	initialization := e.GetInitialization()
-	var initValue *rhino.Node
+	var initValue rhino.Node
 	if initialization != nil {
 		initValue = initialization.GetAssignedValue()
 	}
@@ -957,7 +957,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) Analyze() InlineVar
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.analyzeWithInitialValue(Reference, Node, InitialValueAnalysis)
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) AnalyzeWithInitialValue(
-	initialization *Reference, initValue *rhino.Node, initialValueAnalysis *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis) InlineVariables_InlineVarAnalysis {
+	initialization *Reference, initValue rhino.Node, initialValueAnalysis *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis) InlineVariables_InlineVarAnalysis {
 	refCount := e.referenceInfo.references.Size()
 
 	// TODO(bradfordcsmith): We could remove the `refCount > 1` here, but:
@@ -1060,14 +1060,14 @@ func (a *inlineVariables_delayedNegativeAnalysis) IsSafeToInlineAliases() bool {
 	}
 }
 
-func (e *InlineVariables_InliningBehavior_StandardVarExpert) inlineWellDefinedVarAnalysis(initValue *rhino.Node) InlineVariables_InlineVarAnalysis {
+func (e *InlineVariables_InliningBehavior_StandardVarExpert) inlineWellDefinedVarAnalysis(initValue rhino.Node) InlineVariables_InlineVarAnalysis {
 	e.analysisKind = analysisKindInlineWellDefined
 	e.analysisInitValue = initValue
 	return e
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.createInlineWellDefinedVarAnalysis(Node)
-func (e *InlineVariables_InliningBehavior_StandardVarExpert) CreateInlineWellDefinedVarAnalysis(initValue *rhino.Node) *InlineVariables_InliningBehavior_PositiveInlineVarAnalysis {
+func (e *InlineVariables_InliningBehavior_StandardVarExpert) CreateInlineWellDefinedVarAnalysis(initValue rhino.Node) *InlineVariables_InliningBehavior_PositiveInlineVarAnalysis {
 	return NewInlineVariables_InliningBehavior_PositiveInlineVarAnalysis(
 		func() { e.outer.InlineWellDefinedVariable(e.v, initValue, &e.referenceInfo.references) })
 }
@@ -1076,7 +1076,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) CreateInlineWellDef
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) ReanalyzeAfterAliasedVar(
 	aliasedVar *Var, aliasedVarAnalysis InlineVariables_InlineVarAnalysis) InlineVariables_InlineVarAnalysis {
 	initialization := e.GetInitialization()
-	var initValue *rhino.Node
+	var initValue rhino.Node
 	if initialization != nil {
 		initValue = initialization.GetAssignedValue()
 	}
@@ -1110,7 +1110,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) ReanalyzeAfterAlias
 type InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis struct {
 	outer *InlineVariables_InliningBehavior_StandardVarExpert
 
-	value *rhino.Node
+	value rhino.Node
 
 	isImmutableValue InlineVariables_InitiallyUnknown[bool]
 	aliasedVar       InlineVariables_InitiallyUnknown[*Var]
@@ -1118,7 +1118,7 @@ type InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis str
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.InitialValueAnalysis(Node)
 func NewInlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis(
-	outer *InlineVariables_InliningBehavior_StandardVarExpert, value *rhino.Node) *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis {
+	outer *InlineVariables_InliningBehavior_StandardVarExpert, value rhino.Node) *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis {
 	return &InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis{
 		outer: outer,
 		value: value,
@@ -1131,7 +1131,7 @@ func (a *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis
 		return a.isImmutableValue.GetKnownValue()
 	} else {
 		return a.isImmutableValue.SetKnownValueOnce(
-			a.value != nil && NodeUtil_IsImmutableValue(a.value))
+			!a.value.IsNil() && NodeUtil_IsImmutableValue(a.value))
 	}
 }
 
@@ -1145,7 +1145,7 @@ func (a *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis
 	if a.aliasedVar.IsKnown() {
 		return a.aliasedVar.GetKnownValue()
 	} else {
-		if a.value != nil && a.value.IsName() {
+		if !a.value.IsNil() && a.value.IsName() {
 			aliasedName := a.value.GetString()
 			// Never consider this variable to be an alias of itself.
 			if aliasedName == a.outer.v.GetName() {
@@ -1296,7 +1296,7 @@ func NewInlineVariables_InliningBehavior_VarExpertInitData() *InlineVariables_In
 // varsInThisScopeMayBeModifiedUsingArguments.
 //
 // Java: InlineVariables.InliningBehavior.isSafeUseOfArguments(Node)
-func (b *InlineVariables_InliningBehavior) IsSafeUseOfArguments(argumentsNode *rhino.Node) bool {
+func (b *InlineVariables_InliningBehavior) IsSafeUseOfArguments(argumentsNode rhino.Node) bool {
 	jutil.CheckArgument(argumentsNode.MatchesName("arguments"))
 	// `arguments[i]` that is only read, not assigned
 	// or `fn.apply(thisArg, arguments)`
@@ -1309,7 +1309,7 @@ func (b *InlineVariables_InliningBehavior) IsSafeUseOfArguments(argumentsNode *r
 // of those) and the property is only being read, not modified.
 //
 // Java: InlineVariables.InliningBehavior.isTargetOfPropertyRead(Node)
-func (b *InlineVariables_InliningBehavior) IsTargetOfPropertyRead(n *rhino.Node) bool {
+func (b *InlineVariables_InliningBehavior) IsTargetOfPropertyRead(n rhino.Node) bool {
 	getNode := n.GetParent()
 	return n.IsFirstChildOf(getNode) &&
 		NodeUtil_IsNormalOrOptChainGet(getNode) &&
@@ -1320,14 +1320,14 @@ func (b *InlineVariables_InliningBehavior) IsTargetOfPropertyRead(n *rhino.Node)
 // this: `fn.apply(thisArg, n)`.
 //
 // Java: InlineVariables.InliningBehavior.isSecondArgumentToDotApplyMethod(Node)
-func (b *InlineVariables_InliningBehavior) IsSecondArgumentToDotApplyMethod(n *rhino.Node) bool {
+func (b *InlineVariables_InliningBehavior) IsSecondArgumentToDotApplyMethod(n rhino.Node) bool {
 	callNode := n.GetParent()
 	if NodeUtil_IsNormalOrOptChainCall(callNode) {
 		calleeNode := callNode.GetFirstChild()
 		if NodeUtil_IsNormalOrOptChainGetProp(calleeNode) {
 			if calleeNode.GetString() == "apply" {
 				thisArgNode := calleeNode.GetNext()
-				if thisArgNode != nil {
+				if !thisArgNode.IsNil() {
 					return thisArgNode.GetNext() == n
 				}
 			}
@@ -1342,7 +1342,7 @@ func (b *InlineVariables_InliningBehavior) IsSecondArgumentToDotApplyMethod(n *r
 // Java: InlineVariables.InliningBehavior.inline(Reference, Reference, Reference)
 func (b *InlineVariables_InliningBehavior) Inline(decl *Reference, init *Reference, ref *Reference) {
 	value := init.GetAssignedValue()
-	jutil.CheckState(value != nil)
+	jutil.CheckState(!value.IsNil())
 	// Check for function declarations before the value is moved in the AST.
 	isFunctionDeclaration := NodeUtil_IsFunctionDeclaration(value)
 	if isFunctionDeclaration {
@@ -1350,7 +1350,7 @@ func (b *InlineVariables_InliningBehavior) Inline(decl *Reference, init *Referen
 		// probably the rhs of an assignment statement. Since we're eliminating the only
 		// reference, we can get rid of it. See b/277538101.
 		funcName := value.GetFirstChild()
-		jutil.CheckNotNull(funcName)
+		rhino.CheckNotNull(funcName)
 		jutil.CheckState(funcName.IsName())
 		funcName.SetString("")
 
@@ -1375,7 +1375,7 @@ func (b *InlineVariables_InliningBehavior) Inline(decl *Reference, init *Referen
 // references.
 //
 // Java: InlineVariables.InliningBehavior.inlineWellDefinedVariable(Var, Node, List<Reference>)
-func (b *InlineVariables_InliningBehavior) InlineWellDefinedVariable(v *Var, value *rhino.Node, refSet *jutil.ArrayList[*Reference]) {
+func (b *InlineVariables_InliningBehavior) InlineWellDefinedVariable(v *Var, value rhino.Node, refSet *jutil.ArrayList[*Reference]) {
 	for _, r := range refSet.Slice() {
 		if r.GetNode() == v.GetNameNode() {
 			b.RemoveDeclaration(r)
@@ -1424,7 +1424,7 @@ func (b *InlineVariables_InliningBehavior) RemoveDeclaration(decl *Reference) {
 }
 
 // Java: InlineVariables.InliningBehavior.inlineValue(Node, Node)
-func (b *InlineVariables_InliningBehavior) InlineValue(toRemove *rhino.Node, toInsert *rhino.Node) {
+func (b *InlineVariables_InliningBehavior) InlineValue(toRemove rhino.Node, toInsert rhino.Node) {
 	b.outer.compiler.ReportChangeToEnclosingScope(toRemove)
 
 	// Help type-based optimizations by propagating more specific types from type assertions
@@ -1441,7 +1441,7 @@ func (b *InlineVariables_InliningBehavior) InlineValue(toRemove *rhino.Node, toI
 //
 // Java: InlineVariables.InliningBehavior.canInline(Reference, Reference, Reference, Node)
 func (b *InlineVariables_InliningBehavior) CanInline(
-	declaration *Reference, initialization *Reference, reference *Reference, initValue *rhino.Node) bool {
+	declaration *Reference, initialization *Reference, reference *Reference, initValue rhino.Node) bool {
 	// If the value is read more than once, skip it.
 	// VAR declarations and EXPR_RESULT don't need the value, but other
 	// ASSIGN expressions parents do.
@@ -1464,7 +1464,7 @@ func (b *InlineVariables_InliningBehavior) CanInline(
 	//   var a = b.c;
 	//   f(a)
 	// is OK.
-	jutil.CheckState(initValue != nil)
+	jutil.CheckState(!initValue.IsNil())
 	if initValue.IsGetProp() &&
 		reference.GetParent().IsCall() &&
 		reference.GetParent().GetFirstChild() == reference.GetNode() {
@@ -1502,7 +1502,7 @@ func (b *InlineVariables_InliningBehavior) CanInline(
 // boundaries to inline it.
 //
 // Java: InlineVariables.InliningBehavior.canMoveAggressively(Node)
-func (b *InlineVariables_InliningBehavior) CanMoveAggressively(value *rhino.Node) bool {
+func (b *InlineVariables_InliningBehavior) CanMoveAggressively(value rhino.Node) bool {
 	// Function expressions and other mutable objects can move within
 	// the same basic block.
 	return NodeUtil_IsLiteralValue(value, true) || value.IsFunction()
@@ -1588,14 +1588,14 @@ func (b *InlineVariables_InliningBehavior) IsValidReference(reference *Reference
 // Java: InlineVariables.hasNoInlineAnnotation(Var)
 func InlineVariables_HasNoInlineAnnotation(var_ *Var) bool {
 	n := var_.nameNode
-	if n == nil {
+	if n.IsNil() {
 		return false
 	}
 	if info := n.GetJSDocInfo(); info != nil {
 		return info.IsNoInline()
 	}
 	parent := n.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return false
 	}
 	switch parent.GetToken() {
@@ -1606,7 +1606,7 @@ func InlineVariables_HasNoInlineAnnotation(var_ *Var) bool {
 			if info := parent.GetJSDocInfo(); info != nil {
 				return info.IsNoInline()
 			}
-			if gp := parent.GetParent(); gp != nil && gp.IsExport() {
+			if gp := parent.GetParent(); !gp.IsNil() && gp.IsExport() {
 				info := gp.GetJSDocInfo()
 				return info != nil && info.IsNoInline()
 			}

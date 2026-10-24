@@ -75,14 +75,14 @@ var TypeInferenceTest_ASSERTION_FUNCTION_MAP = CodingConvention_AssertionFunctio
 // TypeInferenceTest_LabeledStatement stores information about a labeled
 // statement and allows making assertions on it.
 type TypeInferenceTest_LabeledStatement struct {
-	statementNode  *rhino.Node
+	statementNode  rhino.Node
 	enclosingScope *TypedScope
 }
 
 // Java: TypeInferenceTest.LabeledStatement(Node, TypedScope)
-func NewTypeInferenceTest_LabeledStatement(statementNode *rhino.Node, enclosingScope *TypedScope) *TypeInferenceTest_LabeledStatement {
+func NewTypeInferenceTest_LabeledStatement(statementNode rhino.Node, enclosingScope *TypedScope) *TypeInferenceTest_LabeledStatement {
 	s := &TypeInferenceTest_LabeledStatement{}
-	s.statementNode = jutil.CheckNotNull(statementNode)
+	s.statementNode = rhino.CheckNotNull(statementNode)
 	s.enclosingScope = jutil.CheckNotNull(enclosingScope)
 	return s
 }
@@ -212,11 +212,11 @@ func (cb *typeInferenceTest_labelCollector) EnterScope(t *NodeTraversal) {
 }
 
 // Java: TypeInferenceTest.parseAndRunTypeInference(Node, Node) (anonymous AbstractScopedCallback).visit(NodeTraversal, Node, Node)
-func (cb *typeInferenceTest_labelCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *typeInferenceTest_labelCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	scope := t.GetTypedScope()
-	if parent != nil && parent.IsLabel() && !n.IsLabelName() {
+	if !parent.IsNil() && parent.IsLabel() && !n.IsLabelName() {
 		// First child of a LABEL is a LABEL_NAME, n is the second child.
-		labelNameNode := jutil.CheckNotNullMsg1(n.GetPrevious(), "%s", n)
+		labelNameNode := rhino.CheckNotNullMsg1(n.GetPrevious(), "%s", n)
 		jutil.CheckStateMsg1(labelNameNode.IsLabelName(), "%s", labelNameNode)
 		labelName := labelNameNode.GetString()
 		AssertWithMessage("Duplicate label name: %s", labelName).
@@ -227,7 +227,7 @@ func (cb *typeInferenceTest_labelCollector) Visit(t *NodeTraversal, n *rhino.Nod
 }
 
 // Java: TypeInferenceTest.parseAndRunTypeInference(Node, Node)
-func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root *rhino.Node, cfgRoot *rhino.Node) {
+func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root rhino.Node, cfgRoot rhino.Node) {
 	c.closer.Close()
 
 	scopeCreator := NewTypedScopeCreator(c.compiler)
@@ -245,7 +245,7 @@ func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root *rhino.Node, cfg
 			Traverse(root)
 		assumedScope = scopeCreator.CreateScopeOfNode(cfgRoot)
 		for name, type_ := range c.assumptions.All() {
-			assumedScope.Declare(name, nil, type_, nil, false)
+			assumedScope.Declare(name, rhino.Node{}, type_, nil, false)
 		}
 		scopeCreator.ResolveWeakImportsPreResolution()
 	}()
@@ -327,14 +327,14 @@ func (c *TypeInferenceTest) GetType(name string) rhino.JSType {
 // top level of type inference.
 //
 // Java: TypeInferenceTest.getParamNameNode(String)
-func (c *TypeInferenceTest) GetParamNameNode(name string) *rhino.Node {
+func (c *TypeInferenceTest) GetParamNameNode(name string) rhino.Node {
 	staticScope := jutil.CheckNotNullMsg1(c.returnScope.GetDeclarationScope(), "%s", c.returnScope)
 	slot := jutil.CheckNotNullMsg1(staticScope.GetSlot(name), "%s", staticScope)
 	declaration := jutil.CheckNotNullMsg1(slot.GetDeclaration(), "%s", slot)
-	node := jutil.CheckNotNullMsg1(declaration.GetNode(), "%s", declaration)
+	node := rhino.CheckNotNullMsg1(declaration.GetNode(), "%s", declaration)
 
 	NodeSubject_AssertNode(node).HasType(rhino.Token_NAME)
-	var paramLists []*rhino.Node
+	var paramLists []rhino.Node
 	for ancestor := range node.GetAncestors().All() {
 		if ancestor.IsParamList() {
 			paramLists = append(paramLists, ancestor)
@@ -854,7 +854,7 @@ func (c *TypeInferenceTest) TestGetElemDereference() {
 func (c *TypeInferenceTest) TestGetElemDereference_knownSymbol() {
 	var array rhino.ObjectType = c.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE)
 	var sym *rhino.KnownSymbolType = rhino.NewKnownSymbolType(c.registry, "sym")
-	array.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_STRING_TYPE), nil)
+	array.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_STRING_TYPE), rhino.Node{})
 	c.Assuming("o", array)
 	c.Assuming("sym", sym)
 	c.InFunction("const x = o[sym];")
@@ -865,7 +865,7 @@ func (c *TypeInferenceTest) TestGetElemDereference_knownSymbol() {
 func (c *TypeInferenceTest) TestGetElemDereference_knownSymbol_nullable() {
 	var array rhino.ObjectType = c.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE)
 	var sym *rhino.KnownSymbolType = rhino.NewKnownSymbolType(c.registry, "sym")
-	array.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_STRING_TYPE), nil)
+	array.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_STRING_TYPE), rhino.Node{})
 	c.Assuming("o", c.CreateNullableTypeOfJSType(array))
 	c.Assuming("sym", sym)
 	c.InFunction("const x = o[sym];")
@@ -877,8 +877,8 @@ func (c *TypeInferenceTest) TestGetElemDereference_knownSymbol_union() {
 	var array rhino.ObjectType = c.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE)
 	var promise rhino.ObjectType = c.GetNativeObjectType(rhino.JSTypeNative_PROMISE_TYPE)
 	var sym *rhino.KnownSymbolType = rhino.NewKnownSymbolType(c.registry, "sym")
-	array.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_STRING_TYPE), nil)
-	promise.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE), nil)
+	array.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_STRING_TYPE), rhino.Node{})
+	promise.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE), rhino.Node{})
 	c.Assuming("o", c.registry.CreateUnionType(array, promise))
 	c.Assuming("sym", sym)
 	c.InFunction("const x = o[sym];")
@@ -890,7 +890,7 @@ func (c *TypeInferenceTest) TestGetElemDereference_knownSymbol_union_notOnAllAlt
 	var array rhino.ObjectType = c.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE)
 	var promise rhino.ObjectType = c.GetNativeObjectType(rhino.JSTypeNative_PROMISE_TYPE)
 	var sym *rhino.KnownSymbolType = rhino.NewKnownSymbolType(c.registry, "sym")
-	array.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_STRING_TYPE), nil)
+	array.DefineDeclaredPropertyByKey(rhino.NewProperty_SymbolKey(sym), c.GetNativeType(rhino.JSTypeNative_STRING_TYPE), rhino.Node{})
 	c.Assuming("o", c.registry.CreateUnionType(array, promise))
 	c.Assuming("sym", sym)
 	c.InFunction("const x = o[sym];")
@@ -960,7 +960,7 @@ func (c *TypeInferenceTest) TestIf3() {
 // Java: TypeInferenceTest.testPropertyInference1()
 func (c *TypeInferenceTest) TestPropertyInference1() {
 	var thisType rhino.ObjectType = c.registry.CreateAnonymousObjectType(nil)
-	thisType.DefineDeclaredProperty("foo", c.CreateUndefinableType(rhino.JSTypeNative_STRING_TYPE), nil)
+	thisType.DefineDeclaredProperty("foo", c.CreateUndefinableType(rhino.JSTypeNative_STRING_TYPE), rhino.Node{})
 	c.AssumingThisType(thisType)
 	c.InFunction("var y = 1; if (this.foo) { y = this.foo; }")
 	c.Verify("y", c.CreateUnionType(rhino.JSTypeNative_NUMBER_TYPE, rhino.JSTypeNative_STRING_TYPE))
@@ -969,7 +969,7 @@ func (c *TypeInferenceTest) TestPropertyInference1() {
 // Java: TypeInferenceTest.testPropertyInference2()
 func (c *TypeInferenceTest) TestPropertyInference2() {
 	var thisType rhino.ObjectType = c.registry.CreateAnonymousObjectType(nil)
-	thisType.DefineDeclaredProperty("foo", c.CreateUndefinableType(rhino.JSTypeNative_STRING_TYPE), nil)
+	thisType.DefineDeclaredProperty("foo", c.CreateUndefinableType(rhino.JSTypeNative_STRING_TYPE), rhino.Node{})
 	c.AssumingThisType(thisType)
 	c.InFunction("var y = 1; this.foo = 'x'; y = this.foo;")
 	c.VerifyNative("y", rhino.JSTypeNative_STRING_TYPE)
@@ -978,7 +978,7 @@ func (c *TypeInferenceTest) TestPropertyInference2() {
 // Java: TypeInferenceTest.testPropertyInference3()
 func (c *TypeInferenceTest) TestPropertyInference3() {
 	var thisType rhino.ObjectType = c.registry.CreateAnonymousObjectType(nil)
-	thisType.DefineDeclaredProperty("foo", c.CreateUndefinableType(rhino.JSTypeNative_STRING_TYPE), nil)
+	thisType.DefineDeclaredProperty("foo", c.CreateUndefinableType(rhino.JSTypeNative_STRING_TYPE), rhino.Node{})
 	c.AssumingThisType(thisType)
 	c.InFunction("var y = 1; this.foo = x; y = this.foo;")
 	c.Verify("y", c.CreateUndefinableType(rhino.JSTypeNative_STRING_TYPE))
@@ -3718,9 +3718,9 @@ for ({length: obj.length} in {'1': 1, '22': 22}) {
 // Java: TypeInferenceTest.testInferringTypeInObjectPattern_fromTemplatizedProperty()
 func (c *TypeInferenceTest) TestInferringTypeInObjectPattern_fromTemplatizedProperty() {
 	var templateKey *rhino.TemplateType = c.registry.CreateTemplateType("T")
-	var fooCtor rhino.FunctionType = c.registry.CreateConstructorType(jutil.StringPtr("Foo"), nil, c.registry.CreateParameters(), nil, []*rhino.TemplateType{templateKey}, false)
+	var fooCtor rhino.FunctionType = c.registry.CreateConstructorType(jutil.StringPtr("Foo"), rhino.Node{}, c.registry.CreateParameters(), nil, []*rhino.TemplateType{templateKey}, false)
 	var fooInstanceType rhino.ObjectType = fooCtor.GetInstanceType()
-	fooInstanceType.DefineDeclaredProperty("data", templateKey, nil)
+	fooInstanceType.DefineDeclaredProperty("data", templateKey, rhino.Node{})
 	var fooOfNumber rhino.JSType = c.Templatize(fooInstanceType, []rhino.JSType{c.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)})
 	c.Assuming("obj", fooOfNumber)
 	c.InFunction(`const {data} = obj;

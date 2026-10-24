@@ -47,7 +47,7 @@ type IcuTemplateDefinition interface {
 	//	          });
 	//
 	// Java: IcuTemplateDefinition.getMessageNode()
-	GetMessageNode() *rhino.Node
+	GetMessageNode() rhino.Node
 
 	// GetTemplateTextNode is the Node representing the message text
 	// template.
@@ -56,5 +56,5 @@ type IcuTemplateDefinition interface {
 	// strings.
 	//
 	// Java: IcuTemplateDefinition.getTemplateTextNode()
-	GetTemplateTextNode() *rhino.Node
+	GetTemplateTextNode() rhino.Node
 }

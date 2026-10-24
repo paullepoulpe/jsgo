@@ -99,7 +99,7 @@ var AngularPass_INJECTED_FUNCTION_ON_NON_QNAME = DiagnosticType_Error("JSC_INJEC
 	"@ngInject can only be used on qualified names.")
 
 // Java: AngularPass.process(Node, Node)
-func (p *AngularPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *AngularPass) Process(externs rhino.Node, root rhino.Node) {
 	// Traverses AST looking for nodes annotated with @ngInject.
 	NodeTraversal_Traverse(p.compiler, root, p)
 	// iterates through annotated nodes adding $inject property to elements.
@@ -129,7 +129,7 @@ func (p *AngularPass) Process(externs *rhino.Node, root *rhino.Node) {
 		// goog.inherits call.
 		insertionPoint := entry.GetTarget()
 		next := insertionPoint.GetNext()
-		for next != nil &&
+		for !next.IsNil() &&
 			NodeUtil_IsExprCall(next) &&
 			p.compiler.GetCodingConvention().GetClassesDefinedByCall(
 				next.GetFirstChild()) != nil {
@@ -148,13 +148,13 @@ func (p *AngularPass) Process(externs *rhino.Node, root *rhino.Node) {
 // n is the FUNCTION node. Returns STRING nodes.
 //
 // Java: AngularPass.createDependenciesList(Node)
-func (p *AngularPass) createDependenciesList(n *rhino.Node) *jutil.ArrayList[*rhino.Node] {
+func (p *AngularPass) createDependenciesList(n rhino.Node) *jutil.ArrayList[rhino.Node] {
 	jutil.CheckArgument(n.IsFunction())
 	params := NodeUtil_GetFunctionParameters(n)
-	if params != nil {
+	if !params.IsNil() {
 		return p.createStringsFromParamList(params)
 	}
-	return jutil.NewArrayList[*rhino.Node]()
+	return jutil.NewArrayList[rhino.Node]()
 }
 
 // createStringsFromParamList: given a PARAM_LIST node creates an array of
@@ -163,20 +163,20 @@ func (p *AngularPass) createDependenciesList(n *rhino.Node) *jutil.ArrayList[*rh
 // params is the PARAM_LIST node. Returns array of STRING nodes.
 //
 // Java: AngularPass.createStringsFromParamList(Node)
-func (p *AngularPass) createStringsFromParamList(params *rhino.Node) *jutil.ArrayList[*rhino.Node] {
+func (p *AngularPass) createStringsFromParamList(params rhino.Node) *jutil.ArrayList[rhino.Node] {
 	param := params.GetFirstChild()
-	names := jutil.NewArrayList[*rhino.Node]()
-	for param != nil {
+	names := jutil.NewArrayList[rhino.Node]()
+	for !param.IsNil() {
 		if param.IsName() {
 			names.Add(rhino.IR_String(param.GetString()).Srcref(param))
 		} else if param.IsDestructuringPattern() {
 			p.compiler.Report(JSError_MakeWithNode(param,
 				AngularPass_INJECTED_FUNCTION_HAS_DESTRUCTURED_PARAM))
-			return jutil.NewArrayList[*rhino.Node]()
+			return jutil.NewArrayList[rhino.Node]()
 		} else if param.IsDefaultValue() {
 			p.compiler.Report(JSError_MakeWithNode(param,
 				AngularPass_INJECTED_FUNCTION_HAS_DEFAULT_VALUE))
-			return jutil.NewArrayList[*rhino.Node]()
+			return jutil.NewArrayList[rhino.Node]()
 		}
 		param = param.GetNext()
 	}
@@ -184,7 +184,7 @@ func (p *AngularPass) createStringsFromParamList(params *rhino.Node) *jutil.Arra
 }
 
 // Java: AngularPass.visit(NodeTraversal, Node, Node)
-func (p *AngularPass) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *AngularPass) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	docInfo := n.GetJSDocInfo()
 	if docInfo != nil && docInfo.IsNgInject() {
 		p.addNode(n)
@@ -196,9 +196,9 @@ func (p *AngularPass) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.
 // n is the node to add.
 //
 // Java: AngularPass.addNode(Node)
-func (p *AngularPass) addNode(n *rhino.Node) {
-	var injectAfter *rhino.Node
-	var fn *rhino.Node
+func (p *AngularPass) addNode(n rhino.Node) {
+	var injectAfter rhino.Node
+	var fn rhino.Node
 	var name *string
 
 	switch n.GetToken() {
@@ -260,7 +260,7 @@ func (p *AngularPass) addNode(n *rhino.Node) {
 	default:
 	}
 
-	if fn == nil || !fn.IsFunction() {
+	if fn.IsNil() || !fn.IsFunction() {
 		p.compiler.Report(JSError_MakeWithNode(n, AngularPass_INJECT_NON_FUNCTION_ERROR))
 		return
 	}
@@ -293,12 +293,12 @@ func (p *AngularPass) addNode(n *rhino.Node) {
 // rvalue of an assignment chain, or null.
 //
 // Java: AngularPass.getDeclarationRValue(Node)
-func angularPass_getDeclarationRValue(n *rhino.Node) *rhino.Node {
-	jutil.CheckNotNull(n)
+func angularPass_getDeclarationRValue(n rhino.Node) rhino.Node {
+	rhino.CheckNotNull(n)
 	jutil.CheckArgument(NodeUtil_IsNameDeclaration(n))
 	n = n.GetFirstFirstChild()
-	if n == nil {
-		return nil
+	if n.IsNil() {
+		return rhino.Node{}
 	}
 	for n.IsAssign() {
 		n = n.GetLastChild()
@@ -313,15 +313,15 @@ type AngularPass_NodeContext struct {
 	// name is the name of the function/object.
 	name string
 	// node is the node jsDoc is attached to.
-	node *rhino.Node
+	node rhino.Node
 	// functionNode is the function node
-	functionNode *rhino.Node
+	functionNode rhino.Node
 	// target is the node after which to inject the new code
-	target *rhino.Node
+	target rhino.Node
 }
 
 // Java: AngularPass.NodeContext(String, Node, Node, Node)
-func NewAngularPass_NodeContext(name string, node *rhino.Node, functionNode *rhino.Node, target *rhino.Node) *AngularPass_NodeContext {
+func NewAngularPass_NodeContext(name string, node rhino.Node, functionNode rhino.Node, target rhino.Node) *AngularPass_NodeContext {
 	return &AngularPass_NodeContext{
 		name:         name,
 		node:         node,
@@ -340,20 +340,20 @@ func (c *AngularPass_NodeContext) GetName() string {
 // GetNode returns the node.
 //
 // Java: AngularPass.NodeContext.getNode()
-func (c *AngularPass_NodeContext) GetNode() *rhino.Node {
+func (c *AngularPass_NodeContext) GetNode() rhino.Node {
 	return c.node
 }
 
 // GetFunctionNode returns the context.
 //
 // Java: AngularPass.NodeContext.getFunctionNode()
-func (c *AngularPass_NodeContext) GetFunctionNode() *rhino.Node {
+func (c *AngularPass_NodeContext) GetFunctionNode() rhino.Node {
 	return c.functionNode
 }
 
 // GetTarget returns the context.
 //
 // Java: AngularPass.NodeContext.getTarget()
-func (c *AngularPass_NodeContext) GetTarget() *rhino.Node {
+func (c *AngularPass_NodeContext) GetTarget() rhino.Node {
 	return c.target
 }

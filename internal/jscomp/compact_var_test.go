@@ -7,15 +7,16 @@ import (
 )
 
 func TestCompactVarCrossClassEquality(t *testing.T) {
-	if unsafe.Sizeof(Var{}) != 40 {
-		t.Fatalf("Var has %d bytes, want 40", unsafe.Sizeof(Var{}))
+	// 48: the name node is a 16-byte handle (rhino/node_store.go).
+	if unsafe.Sizeof(Var{}) != 48 {
+		t.Fatalf("Var has %d bytes, want 48", unsafe.Sizeof(Var{}))
 	}
-	if unsafe.Sizeof(TypedVar{}) != 64 {
-		t.Fatalf("TypedVar has %d bytes, want 64", unsafe.Sizeof(TypedVar{}))
+	if unsafe.Sizeof(TypedVar{}) != 72 {
+		t.Fatalf("TypedVar has %d bytes, want 72", unsafe.Sizeof(TypedVar{}))
 	}
 	root := rhino.IR_Root()
 	scope := Scope_CreateGlobalScope(root)
-	a, b := NewVar("x", nil, scope, 0, nil, nil), NewVar("x", nil, scope, 1, nil, nil)
+	a, b := NewVar("x", rhino.Node{}, scope, 0, nil, rhino.Node{}), NewVar("x", rhino.Node{}, scope, 1, nil, rhino.Node{})
 	named := ScopedName_Of("x", root)
 	for _, other := range []ScopedName{a, b, named} {
 		if !a.Equals(other) || !other.Equals(a) || a.HashCode() != other.HashCode() {
@@ -23,7 +24,7 @@ func TestCompactVarCrossClassEquality(t *testing.T) {
 		}
 	}
 	// Hash zero is a valid value; a lazy-cache sentinel must not alter it.
-	zero := NewVar("", nil, scope, -1, nil, nil)
+	zero := NewVar("", rhino.Node{}, scope, -1, nil, rhino.Node{})
 	for i := 0; i < 5; i++ {
 		if zero.HashCode() != ScopedName_Of("", root).HashCode() {
 			t.Fatal("zero name hash changed value")

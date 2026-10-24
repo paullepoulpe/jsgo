@@ -111,13 +111,13 @@ func hashOrderDumpOne(t testing.TB, sb *strings.Builder, c hashOrderCase) {
 		[]*SourceFile{SourceFile_FromCode("externs", "")},
 		c.files,
 		lintChecksDumpOptions(t, "google"))
-	var root *rhino.Node
+	var root rhino.Node
 	jutil.Try(func() {
 		root = compiler.ParseInputs()
 	}, func(e jutil.IRuntimeException) {
-		root = nil
+		root = rhino.Node{}
 	})
-	if root == nil || compiler.HasErrors() {
+	if root.IsNil() || compiler.HasErrors() {
 		failed := "# parse-failed"
 		for _, e := range compiler.GetErrors() {
 			failed += " " + e.GetType().key

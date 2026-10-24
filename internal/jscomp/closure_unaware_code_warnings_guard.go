@@ -55,7 +55,7 @@ func (g *ClosureUnawareCodeWarningsGuard) Level(error *JSError) *CheckLevel {
 		return nil
 	}
 	node := error.Node()
-	if node == nil {
+	if node.IsNil() {
 		return nil
 	}
 	if node.IsClosureUnawareCode() {

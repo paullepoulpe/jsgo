@@ -38,7 +38,7 @@ func NewRemovePropertyRenamingCalls(compiler AbstractCompiler) *RemovePropertyRe
 }
 
 // Java: RemovePropertyRenamingCalls.process(Node, Node)
-func (r *RemovePropertyRenamingCalls) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RemovePropertyRenamingCalls) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, &RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback{outer: r})
 }
 
@@ -50,7 +50,7 @@ type RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback struct {
 }
 
 // Java: RemovePropertyRenamingCalls.RemoveCompilerPropertyRenamingCallback.visit(NodeTraversal, Node, Node)
-func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsCall() {
 		fn := n.GetFirstChild()
 		if c.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(fn) {
@@ -63,9 +63,9 @@ func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) Vis
 // with "bar".
 //
 // Java: RemovePropertyRenamingCalls.RemoveCompilerPropertyRenamingCallback.replacePropertyRenamingCall(Node)
-func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) ReplacePropertyRenamingCall(callNode *rhino.Node) {
+func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) ReplacePropertyRenamingCall(callNode rhino.Node) {
 	propName := NodeUtil_GetArgumentForCallOrNew(callNode, 0)
-	if propName != nil {
+	if !propName.IsNil() {
 		callNode.ReplaceWith(propName.Detach())
 		c.outer.compiler.ReportChangeToEnclosingScope(propName)
 		return

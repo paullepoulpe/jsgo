@@ -43,7 +43,7 @@ type JsMessageDefinition interface {
 	//	        { unescapeHtmlEntities: true });
 	//
 	// Java: JsMessageDefinition.getMessageNode()
-	GetMessageNode() *rhino.Node
+	GetMessageNode() rhino.Node
 
 	// GetTemplateTextNode is the Node representing the message text
 	// template.
@@ -54,7 +54,7 @@ type JsMessageDefinition interface {
 	// For a goog.getMsg() call this is the first argument.
 	//
 	// Java: JsMessageDefinition.getTemplateTextNode()
-	GetTemplateTextNode() *rhino.Node
+	GetTemplateTextNode() rhino.Node
 
 	// GetPlaceholderValuesNode is the object literal Node that maps
 	// placeholder names to expressions providing their values.
@@ -63,7 +63,7 @@ type JsMessageDefinition interface {
 	// placeholder values.
 	//
 	// Java: JsMessageDefinition.getPlaceholderValuesNode()
-	GetPlaceholderValuesNode() *rhino.Node
+	GetPlaceholderValuesNode() rhino.Node
 
 	// GetPlaceholderValueMap is a map from placehlolder name to the Node
 	// assigned to it in the values map argument of `goog.getMsg()`.
@@ -72,7 +72,7 @@ type JsMessageDefinition interface {
 	// object literal.
 	//
 	// Java: JsMessageDefinition.getPlaceholderValueMap()
-	GetPlaceholderValueMap() *jutil.LinkedHashMap[string, *rhino.Node]
+	GetPlaceholderValueMap() *jutil.LinkedHashMap[string, rhino.Node]
 
 	// ShouldEscapeLessThan is the value of the 'html' options key in the
 	// options bag argument.

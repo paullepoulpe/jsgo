@@ -42,15 +42,15 @@ func NewEs6RewriteBlockScopedFunctionDeclaration(compiler AbstractCompiler) *Es6
 }
 
 // Java: Es6RewriteBlockScopedFunctionDeclaration.process(Node, Node)
-func (e *Es6RewriteBlockScopedFunctionDeclaration) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6RewriteBlockScopedFunctionDeclaration) Process(externs rhino.Node, root rhino.Node) {
 	TranspilationPasses_ProcessTranspile(e.compiler, root, es6RewriteBlockScopedFunctionDeclaration_transpiledFeatures, e)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, es6RewriteBlockScopedFunctionDeclaration_transpiledFeatures)
 }
 
 // Java: Es6RewriteBlockScopedFunctionDeclaration.visit(NodeTraversal, Node, Node)
-func (e *Es6RewriteBlockScopedFunctionDeclaration) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteBlockScopedFunctionDeclaration) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsFunction() &&
-		parent != nil &&
+		!parent.IsNil() &&
 		parent.IsBlock() &&
 		!parent.GetParent().IsFunction() {
 		// Only consider declarations (all expressions have non-block parents) that are not directly
@@ -82,7 +82,7 @@ func (e *Es6RewriteBlockScopedFunctionDeclaration) Visit(t *NodeTraversal, n *rh
 // but rewrites to "let" instead of "var".
 //
 // Java: Es6RewriteBlockScopedFunctionDeclaration.visitBlockScopedFunctionDeclaration(NodeTraversal, Node, Node)
-func (e *Es6RewriteBlockScopedFunctionDeclaration) VisitBlockScopedFunctionDeclaration(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteBlockScopedFunctionDeclaration) VisitBlockScopedFunctionDeclaration(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Prepare a spot for the function.
 	oldNameNode := n.GetFirstChild()
 	fnNameNode := oldNameNode.CloneNode()

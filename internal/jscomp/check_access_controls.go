@@ -55,9 +55,9 @@ type CheckAccessControls struct {
 	defaultVisibilityForFiles *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]
 
 	scratchPropRef           CheckAccessControls_PropertyReference
-	lastHoistScopeRoot       *rhino.Node
+	lastHoistScopeRoot       rhino.Node
 	lastHoistScopeDeprecated bool
-	lastVarNode              *rhino.Node
+	lastVarNode              rhino.Node
 	lastVar                  *Var
 	varCache                 [256][2]cacVarCacheEntry
 }
@@ -186,12 +186,12 @@ func (c CheckAccessControls_Constancy) Ordinal() int { return int(c) }
 
 // Java: CheckAccessControls.ConstantDeclaration
 type CheckAccessControls_ConstantDeclaration struct {
-	node       *rhino.Node
+	node       rhino.Node
 	annotation CheckAccessControls_Constancy
 }
 
 // Java: CheckAccessControls.ConstantDeclaration(Node, Constancy)
-func NewCheckAccessControls_ConstantDeclaration(node *rhino.Node, annotation CheckAccessControls_Constancy) *CheckAccessControls_ConstantDeclaration {
+func NewCheckAccessControls_ConstantDeclaration(node rhino.Node, annotation CheckAccessControls_Constancy) *CheckAccessControls_ConstantDeclaration {
 	d := &CheckAccessControls_ConstantDeclaration{}
 	d.node = node
 	d.annotation = annotation
@@ -210,14 +210,14 @@ func NewCheckAccessControls(compiler AbstractCompiler) *CheckAccessControls {
 }
 
 // Java: CheckAccessControls.process(Node, Node)
-func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckAccessControls) Process(externs rhino.Node, root rhino.Node) {
 	collectPass := NewCollectFileOverviewVisibility(c.compiler)
 	collectPass.Process(externs, root)
 	c.defaultVisibilityForFiles = collectPass.GetFileOverviewVisibilityMap()
 
 	sc := NewSyntacticScopeCreator(c.compiler)
 	defer func() {
-		c.lastVarNode = nil
+		c.lastVarNode = rhino.Node{}
 		c.lastVar = nil
 		clear(c.varCache[:])
 	}()
@@ -227,13 +227,13 @@ func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
 		scopeCreator: sc,
 	}
 
-	c.lastHoistScopeRoot = nil
-	c.lastVarNode = nil
+	c.lastHoistScopeRoot = rhino.Node{}
+	c.lastVarNode = rhino.Node{}
 	c.lastVar = nil
 	clear(c.varCache[:])
 	b.Traverse(externs)
-	c.lastHoistScopeRoot = nil
-	c.lastVarNode = nil
+	c.lastHoistScopeRoot = rhino.Node{}
+	c.lastVarNode = rhino.Node{}
 	c.lastVar = nil
 	clear(c.varCache[:])
 	b.Traverse(root)
@@ -267,7 +267,7 @@ func (c *CheckAccessControls) lookupVar(scope *Scope, name string) *Var {
 }
 
 // Java: CheckAccessControls.enterAccessControlScope(Node)
-func (c *CheckAccessControls) EnterAccessControlScope(root *rhino.Node) {
+func (c *CheckAccessControls) EnterAccessControlScope(root rhino.Node) {
 	scopeType := c.BestInstanceTypeForMethodOrCtor(root)
 
 	if CheckAccessControls_IsMarkedDeprecated(root) {
@@ -277,7 +277,7 @@ func (c *CheckAccessControls) EnterAccessControlScope(root *rhino.Node) {
 }
 
 // Java: CheckAccessControls.exitAccessControlScope(Node)
-func (c *CheckAccessControls) ExitAccessControlScope(root *rhino.Node) {
+func (c *CheckAccessControls) ExitAccessControlScope(root rhino.Node) {
 	if CheckAccessControls_IsMarkedDeprecated(root) {
 		c.deprecationDepth--
 	}
@@ -309,13 +309,13 @@ func (c *CheckAccessControls) ExitAccessControlScope(root *rhino.Node) {
 //   - CLASS extends clause: secondary root of the scope defined by the CLASS.
 //
 // Java: CheckAccessControls.primaryAccessControlScopeRootFor(Node)
-func CheckAccessControls_PrimaryAccessControlScopeRootFor(node *rhino.Node) *rhino.Node {
+func CheckAccessControls_PrimaryAccessControlScopeRootFor(node rhino.Node) rhino.Node {
 	if CheckAccessControls_IsExtendsTarget(node) {
 		return node.GetParent()
 	} else if CheckAccessControls_IsFunctionOrClass(node) {
 		return node
 	} else {
-		return nil
+		return rhino.Node{}
 	}
 }
 
@@ -329,7 +329,7 @@ func CheckAccessControls_PrimaryAccessControlScopeRootFor(node *rhino.Node) *rhi
 //   - Object-literal members => The object-literal type
 //
 // Java: CheckAccessControls.bestInstanceTypeForMethodOrCtor(Node)
-func (c *CheckAccessControls) BestInstanceTypeForMethodOrCtor(n *rhino.Node) rhino.ObjectType {
+func (c *CheckAccessControls) BestInstanceTypeForMethodOrCtor(n rhino.Node) rhino.ObjectType {
 	jutil.CheckStateMsg1(CheckAccessControls_IsFunctionOrClass(n), "%s", n)
 	parent := n.GetParent()
 
@@ -422,9 +422,9 @@ func CheckAccessControls_InstanceTypeFor(type_ rhino.JSType) rhino.ObjectType {
 }
 
 // Java: CheckAccessControls.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckAccessControls) ShouldTraverse(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckAccessControls) ShouldTraverse(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
 	accessControlRoot := CheckAccessControls_PrimaryAccessControlScopeRootFor(node)
-	if accessControlRoot != nil {
+	if !accessControlRoot.IsNil() {
 		c.EnterAccessControlScope(accessControlRoot)
 	}
 
@@ -432,11 +432,11 @@ func (c *CheckAccessControls) ShouldTraverse(traversal *NodeTraversal, node *rhi
 }
 
 // Java: CheckAccessControls.visit(NodeTraversal, Node, Node)
-func (c *CheckAccessControls) Visit(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (c *CheckAccessControls) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	tok := node.GetToken()
 	if !checkAccessControlsActiveToken[tok] {
 		if t := node.GetJSType(); t == nil || !t.IsFunctionType() {
-			if parent != nil && parent.IsClass() && parent.GetFirstChild().GetNext() == node {
+			if !parent.IsNil() && parent.IsClass() && parent.GetFirstChild().GetNext() == node {
 				c.ExitAccessControlScope(parent)
 			}
 			return
@@ -459,7 +459,7 @@ func (c *CheckAccessControls) Visit(traversal *NodeTraversal, node *rhino.Node, 
 					c.checkNameVisibilityWithVar(var_, node)
 				}
 			}
-			if parent != nil && parent.IsClass() && parent.GetFirstChild().GetNext() == node {
+			if !parent.IsNil() && parent.IsClass() && parent.GetFirstChild().GetNext() == node {
 				c.ExitAccessControlScope(parent)
 			}
 			return
@@ -480,14 +480,14 @@ func (c *CheckAccessControls) Visit(traversal *NodeTraversal, node *rhino.Node, 
 	c.CheckFinalClassOverrides(node)
 
 	accessControlRoot := CheckAccessControls_PrimaryAccessControlScopeRootFor(node)
-	if accessControlRoot != nil {
+	if !accessControlRoot.IsNil() {
 		c.ExitAccessControlScope(accessControlRoot)
 	}
 }
 
 // Java: CheckAccessControls.checkDeprecation(Node, PropertyReference, IdentifierBehaviour, NodeTraversal)
 func (c *CheckAccessControls) CheckDeprecation(
-	node *rhino.Node,
+	node rhino.Node,
 	propRef *CheckAccessControls_PropertyReference,
 	identifierBehaviour CheckAccessControls_IdentifierBehaviour,
 	traversal *NodeTraversal) {
@@ -514,7 +514,7 @@ func (c *CheckAccessControls) CheckDeprecation(
 
 // Java: CheckAccessControls.checkVisibility(Node, PropertyReference, IdentifierBehaviour, Scope)
 func (c *CheckAccessControls) CheckVisibility(
-	node *rhino.Node,
+	node rhino.Node,
 	propRef *CheckAccessControls_PropertyReference,
 	identifierBehaviour CheckAccessControls_IdentifierBehaviour,
 	scope *Scope) {
@@ -536,7 +536,7 @@ func (c *CheckAccessControls) CheckVisibility(
 // Precondition: n has a constructor JSType.
 //
 // Java: CheckAccessControls.checkTypeDeprecation(NodeTraversal, Node)
-func (c *CheckAccessControls) CheckTypeDeprecation(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckAccessControls) CheckTypeDeprecation(t *NodeTraversal, n rhino.Node) {
 	if !c.ShouldEmitDeprecationWarning(t, n) {
 		return
 	}
@@ -559,7 +559,7 @@ func (c *CheckAccessControls) CheckTypeDeprecation(t *NodeTraversal, n *rhino.No
 // restrictions are obeyed.
 //
 // Java: CheckAccessControls.checkNameDeprecation(NodeTraversal, Node)
-func (c *CheckAccessControls) CheckNameDeprecation(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckAccessControls) CheckNameDeprecation(t *NodeTraversal, n rhino.Node) {
 	if !n.IsName() {
 		return
 	}
@@ -633,7 +633,7 @@ func (c *CheckAccessControls) CheckPropertyDeprecation(t *NodeTraversal, propRef
 // scope is the current scope; name the name node.
 //
 // Java: CheckAccessControls.checkNameVisibility(Scope, Node)
-func (c *CheckAccessControls) CheckNameVisibility(scope *Scope, name *rhino.Node) {
+func (c *CheckAccessControls) CheckNameVisibility(scope *Scope, name rhino.Node) {
 	if !name.IsName() {
 		return
 	}
@@ -650,7 +650,7 @@ func (c *CheckAccessControls) CheckNameVisibility(scope *Scope, name *rhino.Node
 	c.checkNameVisibilityWithVar(var_, name)
 }
 
-func (c *CheckAccessControls) checkNameVisibilityWithVar(var_ *Var, name *rhino.Node) {
+func (c *CheckAccessControls) checkNameVisibilityWithVar(var_ *Var, name rhino.Node) {
 	var v rhino.JSDocInfo_Visibility
 	if c.defaultVisibilityForFiles.IsEmpty() {
 		if jsDocInfo := var_.GetJSDocInfo(); jsDocInfo != nil {
@@ -688,7 +688,7 @@ func (c *CheckAccessControls) checkNameVisibilityWithVar(var_ *Var, name *rhino.
 }
 
 // Java: CheckAccessControls.isPrivateAccessAllowed(Var, Node)
-func CheckAccessControls_IsPrivateAccessAllowed(var_ *Var, name *rhino.Node) bool {
+func CheckAccessControls_IsPrivateAccessAllowed(var_ *Var, name rhino.Node) bool {
 	varSrc := var_.GetSourceFile()
 	refSrc := name.GetStaticSourceFile()
 
@@ -696,7 +696,7 @@ func CheckAccessControls_IsPrivateAccessAllowed(var_ *Var, name *rhino.Node) boo
 }
 
 // Java: CheckAccessControls.isPackageAccessAllowed(Var, Node)
-func (c *CheckAccessControls) IsPackageAccessAllowed(var_ *Var, name *rhino.Node) bool {
+func (c *CheckAccessControls) IsPackageAccessAllowed(var_ *Var, name rhino.Node) bool {
 	varSrc := var_.GetSourceFile()
 	refSrc := name.GetStaticSourceFile()
 	if varSrc == nil && refSrc == nil {
@@ -747,7 +747,7 @@ func CheckAccessControls_GetOverridingPropertyVisibility(propRef *CheckAccessCon
 // final class.
 //
 // Java: CheckAccessControls.checkFinalClassOverrides(Node)
-func (c *CheckAccessControls) CheckFinalClassOverrides(ctor *rhino.Node) {
+func (c *CheckAccessControls) CheckFinalClassOverrides(ctor rhino.Node) {
 	if !CheckAccessControls_IsFunctionOrClass(ctor) ||
 		// checking class constructors is redundant because we already check the same thing on
 		// the CLASS node
@@ -989,10 +989,10 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 		fileOverviewVisibility = checkAccessControls_visibilityFor(c.defaultVisibilityForFiles, definingSource)
 	}
 
-	var defSite *rhino.Node
+	var defSite rhino.Node
 	if objectType != nil {
 		defSite = objectType.GetOwnPropertyDefSite(propertyName)
-		if defSite == nil && fileOverviewVisibility == nil {
+		if defSite.IsNil() && fileOverviewVisibility == nil {
 			return
 		}
 	} else if fileOverviewVisibility == nil {
@@ -1027,7 +1027,7 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 
 	reportType := rawReferenceType
 	if objectType != nil {
-		if defSite == nil {
+		if defSite.IsNil() {
 			// Assume the property is public.
 			return
 		}
@@ -1074,7 +1074,7 @@ func checkAccessControls_visibilityFor(
 // Precondition: target has an ES6 class JSType.
 //
 // Java: CheckAccessControls.checkEs6ConstructorInvocationVisibility(Node)
-func (c *CheckAccessControls) CheckEs6ConstructorInvocationVisibility(target *rhino.Node) {
+func (c *CheckAccessControls) CheckEs6ConstructorInvocationVisibility(target rhino.Node) {
 	ctorType := target.GetJSType().ToMaybeFunctionType()
 	prototypeType := ctorType.GetPrototype()
 
@@ -1083,7 +1083,7 @@ func (c *CheckAccessControls) CheckEs6ConstructorInvocationVisibility(target *rh
 	classDefinition := ctorType.GetSource()
 
 	var definingSource rhino.StaticSourceFile
-	if classDefinition != nil {
+	if !classDefinition.IsNil() {
 		definingSource = AccessControlUtils_GetDefiningSource(classDefinition, prototypeType, "constructor")
 	}
 
@@ -1255,7 +1255,7 @@ func (c *CheckAccessControls) CheckProtectedPropertyVisibility(
 // t is the current traversal; n the node which we are checking.
 //
 // Java: CheckAccessControls.shouldEmitDeprecationWarning(NodeTraversal, Node)
-func (c *CheckAccessControls) ShouldEmitDeprecationWarning(t *NodeTraversal, n *rhino.Node) bool {
+func (c *CheckAccessControls) ShouldEmitDeprecationWarning(t *NodeTraversal, n rhino.Node) bool {
 	// In the global scope, there are only two kinds of accesses that should
 	// be flagged for warnings:
 	// 1) Calls of deprecated functions and methods.
@@ -1318,7 +1318,7 @@ func (c *CheckAccessControls) CanAccessDeprecatedTypes(t *NodeTraversal) bool {
 		return true
 	}
 	hoistRoot := t.GetClosestHoistScopeRoot()
-	if hoistRoot == c.lastHoistScopeRoot && hoistRoot != nil {
+	if hoistRoot == c.lastHoistScopeRoot && !hoistRoot.IsNil() {
 		return c.lastHoistScopeDeprecated
 	}
 	scopeRoot := hoistRoot
@@ -1333,7 +1333,7 @@ func (c *CheckAccessControls) CanAccessDeprecatedTypes(t *NodeTraversal) bool {
 		// Case #2
 		(CheckAccessControls_GetTypeDeprecationInfo(c.GetTypeOfThis(scopeRoot)) != nil) ||
 			// Case #3
-			(scopeRootParent != nil &&
+			(!scopeRootParent.IsNil() &&
 				scopeRootParent.IsAssign() &&
 				CheckAccessControls_GetTypeDeprecationInfo(c.BestInstanceTypeForMethodOrCtor(scopeRoot)) != nil)
 	c.lastHoistScopeRoot = hoistRoot
@@ -1345,7 +1345,7 @@ func (c *CheckAccessControls) CanAccessDeprecatedTypes(t *NodeTraversal) bool {
 // subtree under which references to deprecated constructs are allowed.
 //
 // Java: CheckAccessControls.isMarkedDeprecated(Node)
-func CheckAccessControls_IsMarkedDeprecated(n *rhino.Node) bool {
+func CheckAccessControls_IsMarkedDeprecated(n rhino.Node) bool {
 	return CheckAccessControls_GetDeprecationReason(NodeUtil_GetBestJSDocInfo(n)) != nil
 }
 
@@ -1436,18 +1436,18 @@ func CheckAccessControls_CastToObject(type_ rhino.JSType) rhino.ObjectType {
 }
 
 // Java: CheckAccessControls.isFunctionOrClass(Node)
-func CheckAccessControls_IsFunctionOrClass(n *rhino.Node) bool {
+func CheckAccessControls_IsFunctionOrClass(n rhino.Node) bool {
 	return n.IsFunction() || n.IsClass()
 }
 
 // Java: CheckAccessControls.isExtendsTarget(Node)
-func CheckAccessControls_IsExtendsTarget(node *rhino.Node) bool {
+func CheckAccessControls_IsExtendsTarget(node rhino.Node) bool {
 	parent := node.GetParent()
 	return parent.IsClass() && node.IsSecondChildOf(parent)
 }
 
 // Java: CheckAccessControls.getTypeOfThis(Node)
-func (c *CheckAccessControls) GetTypeOfThis(scopeRoot *rhino.Node) rhino.JSType {
+func (c *CheckAccessControls) GetTypeOfThis(scopeRoot rhino.Node) rhino.JSType {
 	if scopeRoot.IsRoot() || scopeRoot.IsScript() {
 		return CheckAccessControls_CastToObject(scopeRoot.GetJSType())
 	} else if scopeRoot.IsModuleBody() {
@@ -1521,7 +1521,7 @@ func (b CheckAccessControls_IdentifierBehaviour) String() string {
 func (b CheckAccessControls_IdentifierBehaviour) Ordinal() int { return int(b) }
 
 // Java: CheckAccessControls.IdentifierBehaviour.select(Node)
-func CheckAccessControls_IdentifierBehaviour_Select(target *rhino.Node) CheckAccessControls_IdentifierBehaviour {
+func CheckAccessControls_IdentifierBehaviour_Select(target rhino.Node) CheckAccessControls_IdentifierBehaviour {
 	type_ := target.GetJSType()
 	if type_ == nil || !type_.IsFunctionType() {
 		// If we aren't sure what we're dealing with be more strict.
@@ -1534,7 +1534,7 @@ func CheckAccessControls_IdentifierBehaviour_Select(target *rhino.Node) CheckAcc
 	}
 
 	isInvocation := NodeUtil_IsInvocationTarget(target) || CheckAccessControls_IsExtendsTarget(target)
-	isEs6 := (ctorType.GetSource() != nil) && ctorType.GetSource().IsClass()
+	isEs6 := (!ctorType.GetSource().IsNil()) && ctorType.GetSource().IsClass()
 
 	if !isEs6 {
 		if isInvocation {
@@ -1567,7 +1567,7 @@ func CheckAccessControls_IdentifierBehaviour_Select(target *rhino.Node) CheckAcc
 //
 // Java: CheckAccessControls.PropertyReference (a record)
 type CheckAccessControls_PropertyReference struct {
-	sourceNode       *rhino.Node
+	sourceNode       rhino.Node
 	name             string
 	receiverType     rhino.ObjectType
 	mutation         bool
@@ -1575,7 +1575,7 @@ type CheckAccessControls_PropertyReference struct {
 	override         bool
 	readableTypeName func() string
 	typeRegistry     *rhino.JSTypeRegistry
-	readableTypeNode *rhino.Node
+	readableTypeNode rhino.Node
 	jsdoc            *rhino.JSDocInfo
 	hasJSDoc         bool
 }
@@ -1592,14 +1592,14 @@ func checkAccessControls_requireNonNull(isNull bool, message string) {
 //
 // Java: CheckAccessControls.PropertyReference(Node, String, ObjectType, boolean, boolean, boolean, Supplier<String>)
 func NewCheckAccessControls_PropertyReference(
-	sourceNode *rhino.Node,
+	sourceNode rhino.Node,
 	name string,
 	receiverType rhino.ObjectType,
 	mutation bool,
 	declaration bool,
 	override bool,
 	readableTypeName func() string) *CheckAccessControls_PropertyReference {
-	checkAccessControls_requireNonNull(sourceNode == nil, "sourceNode")
+	checkAccessControls_requireNonNull(sourceNode.IsNil(), "sourceNode")
 	// Go-only: language-adapter — a Go string cannot be null:
 	// requireNonNull(name, "name") cannot fail.
 	checkAccessControls_requireNonNull(receiverType == nil, "receiverType")
@@ -1616,7 +1616,7 @@ func NewCheckAccessControls_PropertyReference(
 }
 
 // Java: CheckAccessControls.PropertyReference.sourceNode()
-func (r *CheckAccessControls_PropertyReference) SourceNode() *rhino.Node { return r.sourceNode }
+func (r *CheckAccessControls_PropertyReference) SourceNode() rhino.Node { return r.sourceNode }
 
 // Java: CheckAccessControls.PropertyReference.name()
 func (r *CheckAccessControls_PropertyReference) Name() string { return r.name }
@@ -1641,7 +1641,7 @@ func (r *CheckAccessControls_PropertyReference) ReadableTypeName() func() string
 		return r.readableTypeName
 	}
 	return func() string {
-		if r.readableTypeNode != nil && r.typeRegistry != nil {
+		if !r.readableTypeNode.IsNil() && r.typeRegistry != nil {
 			return r.typeRegistry.GetReadableTypeName(r.readableTypeNode)
 		}
 		return ""
@@ -1660,7 +1660,7 @@ func CheckAccessControls_PropertyReference_Builder_() *CheckAccessControls_Prope
 // AutoBuilder_CheckAccessControls_PropertyReference_Builder (its only
 // implementation) is folded into this struct.
 type CheckAccessControls_PropertyReference_Builder struct {
-	sourceNode       *rhino.Node
+	sourceNode       rhino.Node
 	name             *string
 	receiverType     rhino.ObjectType
 	mutation         bool
@@ -1692,8 +1692,8 @@ func NewAutoBuilder_CheckAccessControls_PropertyReference_BuilderFromSource(
 }
 
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setSourceNode(Node)
-func (b *CheckAccessControls_PropertyReference_Builder) SetSourceNode(sourceNode *rhino.Node) *CheckAccessControls_PropertyReference_Builder {
-	if sourceNode == nil {
+func (b *CheckAccessControls_PropertyReference_Builder) SetSourceNode(sourceNode rhino.Node) *CheckAccessControls_PropertyReference_Builder {
+	if sourceNode.IsNil() {
 		panic(jutil.NewNullPointerExceptionMsg("Null sourceNode"))
 	}
 	b.sourceNode = sourceNode
@@ -1750,12 +1750,12 @@ func (b *CheckAccessControls_PropertyReference_Builder) SetReadableTypeName(read
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.build()
 func (b *CheckAccessControls_PropertyReference_Builder) Build() *CheckAccessControls_PropertyReference {
 	if b.set_0 != 7 ||
-		b.sourceNode == nil ||
+		b.sourceNode.IsNil() ||
 		b.name == nil ||
 		b.receiverType == nil ||
 		b.readableTypeName == nil {
 		var missing strings.Builder
-		if b.sourceNode == nil {
+		if b.sourceNode.IsNil() {
 			missing.WriteString(" sourceNode")
 		}
 		if b.name == nil {
@@ -1791,7 +1791,7 @@ func (b *CheckAccessControls_PropertyReference_Builder) Build() *CheckAccessCont
 // Derived properties.
 
 // Java: CheckAccessControls.PropertyReference.getParentNode()
-func (r *CheckAccessControls_PropertyReference) GetParentNode() *rhino.Node {
+func (r *CheckAccessControls_PropertyReference) GetParentNode() rhino.Node {
 	return r.SourceNode().GetParent()
 }
 
@@ -1825,7 +1825,7 @@ func (r *CheckAccessControls_PropertyReference) GetReadableTypeNameOrDefault() s
 	var preferred string
 	if r.readableTypeName != nil {
 		preferred = r.readableTypeName()
-	} else if r.readableTypeNode != nil && r.typeRegistry != nil {
+	} else if !r.readableTypeNode.IsNil() && r.typeRegistry != nil {
 		preferred = r.typeRegistry.GetReadableTypeName(r.readableTypeNode)
 	}
 	if preferred == "" {
@@ -1835,7 +1835,7 @@ func (r *CheckAccessControls_PropertyReference) GetReadableTypeNameOrDefault() s
 }
 
 // Java: CheckAccessControls.createPropertyReference(Node)
-func (c *CheckAccessControls) CreatePropertyReference(sourceNode *rhino.Node) *CheckAccessControls_PropertyReference {
+func (c *CheckAccessControls) CreatePropertyReference(sourceNode rhino.Node) *CheckAccessControls_PropertyReference {
 	switch sourceNode.GetToken() {
 	case rhino.Token_GETPROP:
 		parent := sourceNode.GetParent()
@@ -1934,7 +1934,7 @@ func (c *CheckAccessControls) CreatePropertyReference(sourceNode *rhino.Node) *C
 			ref.override = jsdoc != nil
 			ref.readableTypeName = nil
 			ref.typeRegistry = nil
-			ref.readableTypeNode = nil
+			ref.readableTypeNode = rhino.Node{}
 			ref.jsdoc = jsdoc
 			ref.hasJSDoc = true
 			return ref

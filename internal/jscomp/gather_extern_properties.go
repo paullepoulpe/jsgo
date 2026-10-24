@@ -95,18 +95,18 @@ func NewGatherExternProperties(compiler AbstractCompiler, mode GatherExternPrope
 }
 
 // Java: GatherExternProperties.process(Node, Node)
-func (g *GatherExternProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (g *GatherExternProperties) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(g.compiler, externs, g)
 	g.compiler.SetExternProperties(jutil.NewLinkedHashSet(g.externProperties.ToSlice()...))
 }
 
 // Java: GatherExternProperties.shouldTraverse(NodeTraversal, Node, Node)
-func (g *GatherExternProperties) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (g *GatherExternProperties) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return !n.IsScript() || !NodeUtil_IsFromTypeSummary(n)
 }
 
 // Java: GatherExternProperties.visit(NodeTraversal, Node, Node)
-func (g *GatherExternProperties) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *GatherExternProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if gatherExternProperties_Mode_optimize[g.mode] {
 		switch n.GetToken() {
 		case rhino.Token_GETPROP:
@@ -136,29 +136,29 @@ func (g *GatherExternProperties) GatherPropertiesFromJSDocInfo(jsDocInfo *rhino.
 }
 
 // Java: GatherExternProperties.gatherPropertiesFromJsTypeExpressionNode(Node)
-func (g *GatherExternProperties) GatherPropertiesFromJsTypeExpressionNode(jsTypeExpressionNode *rhino.Node) {
+func (g *GatherExternProperties) GatherPropertiesFromJsTypeExpressionNode(jsTypeExpressionNode rhino.Node) {
 	switch jsTypeExpressionNode.GetToken() {
 	case rhino.Token_LB:
 		g.GatherPropertiesFromJsDocRecordType(jsTypeExpressionNode)
 	default:
-		for child := jsTypeExpressionNode.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := jsTypeExpressionNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			g.GatherPropertiesFromJsTypeExpressionNode(child)
 		}
 	}
 }
 
 // Java: GatherExternProperties.gatherPropertiesFromJsDocRecordType(Node)
-func (g *GatherExternProperties) GatherPropertiesFromJsDocRecordType(jsDocRecordNode *rhino.Node) {
+func (g *GatherExternProperties) GatherPropertiesFromJsDocRecordType(jsDocRecordNode rhino.Node) {
 	jutil.CheckStateMsg1(jsDocRecordNode.GetToken() == rhino.Token_LB, "%s", jsDocRecordNode)
-	for fieldNode := jsDocRecordNode.GetFirstChild(); fieldNode != nil; fieldNode = fieldNode.GetNext() {
-		var fieldNameNode *rhino.Node
-		var fieldTypeNode *rhino.Node
+	for fieldNode := jsDocRecordNode.GetFirstChild(); !fieldNode.IsNil(); fieldNode = fieldNode.GetNext() {
+		var fieldNameNode rhino.Node
+		var fieldTypeNode rhino.Node
 		if fieldNode.GetToken() == rhino.Token_COLON {
 			fieldNameNode = fieldNode.GetFirstChild()
 			fieldTypeNode = fieldNameNode.GetNext()
 		} else {
 			fieldNameNode = fieldNode
-			fieldTypeNode = nil
+			fieldTypeNode = rhino.Node{}
 		}
 		jutil.CheckStateMsg1(fieldNameNode.IsStringKey(), "%s", fieldNameNode)
 		fieldName := fieldNameNode.GetString()
@@ -167,7 +167,7 @@ func (g *GatherExternProperties) GatherPropertiesFromJsDocRecordType(jsDocRecord
 			fieldName = jutil.StringSubstring(fieldName, 1, jutil.StringLength(fieldName)-1)
 		}
 		g.externProperties.Add(fieldName)
-		if fieldTypeNode != nil {
+		if !fieldTypeNode.IsNil() {
 			g.GatherPropertiesFromJsTypeExpressionNode(fieldTypeNode)
 		}
 	}

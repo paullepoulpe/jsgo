@@ -33,7 +33,7 @@ import (
 // and how much a pass impacts the size of the compiled output, before and
 // after gzip.
 type PerformanceTracker struct {
-	externsRoot *rhino.Node
+	externsRoot rhino.Node
 
 	mode CompilerOptions_TracerMode
 
@@ -41,7 +41,7 @@ type PerformanceTracker struct {
 	// if there is any.
 	codeChange *RecentChange
 
-	jsRoot *rhino.Node
+	jsRoot rhino.Node
 
 	initAstSize    int
 	initCodeSize   int
@@ -100,7 +100,7 @@ type PerformanceTracker struct {
 const PerformanceTracker_DEFAULT_WHEN_SIZE_UNTRACKED = -1
 
 // Java: PerformanceTracker(Node, Node, TracerMode)
-func NewPerformanceTracker(externsRoot *rhino.Node, jsRoot *rhino.Node, mode CompilerOptions_TracerMode) *PerformanceTracker {
+func NewPerformanceTracker(externsRoot rhino.Node, jsRoot rhino.Node, mode CompilerOptions_TracerMode) *PerformanceTracker {
 	p := &PerformanceTracker{}
 	p.codeChange = NewRecentChange()
 	p.initAstSize = PerformanceTracker_DEFAULT_WHEN_SIZE_UNTRACKED
@@ -159,7 +159,7 @@ func (p *PerformanceTracker) RecordPassStart(passName string, isOneTime bool) {
 // tracking fields accordingly.
 //
 // Java: PerformanceTracker.updateAfterDeserialize(Node)
-func (p *PerformanceTracker) UpdateAfterDeserialize(jsRoot *rhino.Node) {
+func (p *PerformanceTracker) UpdateAfterDeserialize(jsRoot rhino.Node) {
 	// TODO(bradfordcsmith): Restore line counts for inputs and externs.
 	p.jsRoot = jsRoot
 	if !p.TracksAstSize() {
@@ -260,7 +260,7 @@ func (p *PerformanceTracker) RecordOtherPassStop(logStats *PerformanceTracker_St
 
 // Java: PerformanceTracker.recordInputCount()
 func (p *PerformanceTracker) RecordInputCount() {
-	for n := p.externsRoot.GetFirstChild(); n != nil; n = n.GetNext() {
+	for n := p.externsRoot.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if NodeUtil_IsFromTypeSummary(n) {
 			p.transitiveSummarySources += 1
 			p.transitiveSummaryLines += NodeUtil_EstimateNumLines(n)
@@ -270,7 +270,7 @@ func (p *PerformanceTracker) RecordInputCount() {
 		}
 	}
 
-	for n := p.jsRoot.GetFirstChild(); n != nil; n = n.GetNext() {
+	for n := p.jsRoot.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		p.jsSources += 1
 		p.jsLines += NodeUtil_EstimateNumLines(n)
 	}
@@ -420,7 +420,7 @@ func (p *PerformanceTracker) PopulateAstManifest() {
 	}
 
 	builder := jutil.NewImmutableMultiset_Builder[rhino.Token]()
-	NodeUtil_VisitPreOrder(p.jsRoot, NodeUtil_VisitorFunc(func(n *rhino.Node) { builder.Add(n.GetToken()) }))
+	NodeUtil_VisitPreOrder(p.jsRoot, NodeUtil_VisitorFunc(func(n rhino.Node) { builder.Add(n.GetToken()) }))
 	p.astManifest = builder.Build()
 }
 

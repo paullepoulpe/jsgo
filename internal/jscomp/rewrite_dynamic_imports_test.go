@@ -80,7 +80,7 @@ func (c *RewriteDynamicImportsTest) GetOptions() *CompilerOptions {
 
 // Java: RewriteDynamicImportsTest.getProcessor(Compiler)
 func (c *RewriteDynamicImportsTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		// NOTE: we cannot just use enableTypeCheck(), because we need to be able
 		// to retrieve globalTypedScope for use by Es6RewriteModules.
 		var rai ReverseAbstractInterpreter = NewSemanticReverseAbstractInterpreter(compiler.GetTypeRegistry())

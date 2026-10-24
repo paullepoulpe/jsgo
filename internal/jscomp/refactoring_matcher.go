@@ -27,5 +27,5 @@ type Matcher interface {
 	// given pattern.
 	//
 	// Java: Matcher.matches(Node, NodeMetadata)
-	Matches(n *rhino.Node, metadata *NodeMetadata) bool
+	Matches(n rhino.Node, metadata *NodeMetadata) bool
 }

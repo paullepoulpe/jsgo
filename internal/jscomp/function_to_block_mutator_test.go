@@ -343,7 +343,7 @@ foo(1);
 }
 
 // Java: FunctionToBlockMutatorTest.validateSourceInfo(Compiler, Node)
-func (c *FunctionToBlockMutatorTest) ValidateSourceInfo(compiler *Compiler, subtree *rhino.Node) {
+func (c *FunctionToBlockMutatorTest) ValidateSourceInfo(compiler *Compiler, subtree rhino.Node) {
 	NewSourceInfoCheck(compiler).SetCheckSubTree(subtree)
 	AssertThat(compiler.GetErrors()).IsEmpty()
 }
@@ -383,7 +383,7 @@ func (c *FunctionToBlockMutatorTest) HelperMutateWithResultName(
 
 	// inline tester
 	tester :=
-		func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+		func(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 			result :=
 				mutator.Mutate(fnName, fnNode, n, resultName, c.needsDefaultResult, c.isCallInLoop)
 			c.ValidateSourceInfo(compiler, result)
@@ -402,7 +402,7 @@ func (c *FunctionToBlockMutatorTest) HelperMutateWithResultName(
 }
 
 // FunctionToBlockMutatorTest_Method is the functional interface Method.
-type FunctionToBlockMutatorTest_Method func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool
+type FunctionToBlockMutatorTest_Method func(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool
 
 // FunctionToBlockMutatorTest_TestCallback is the static class TestCallback.
 type FunctionToBlockMutatorTest_TestCallback struct {
@@ -417,12 +417,12 @@ func NewFunctionToBlockMutatorTest_TestCallback(callname string, method Function
 }
 
 // Java: FunctionToBlockMutatorTest.TestCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (cb *FunctionToBlockMutatorTest_TestCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (cb *FunctionToBlockMutatorTest_TestCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return !cb.complete
 }
 
 // Java: FunctionToBlockMutatorTest.TestCallback.visit(NodeTraversal, Node, Node)
-func (cb *FunctionToBlockMutatorTest_TestCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *FunctionToBlockMutatorTest_TestCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsCall() {
 		first := n.GetFirstChild()
 		if first.IsName() && first.GetString() == cb.callname {
@@ -430,25 +430,25 @@ func (cb *FunctionToBlockMutatorTest_TestCallback) Visit(t *NodeTraversal, n *rh
 		}
 	}
 
-	if parent == nil {
+	if parent.IsNil() {
 		AssertThat(cb.complete).IsTrue()
 	}
 }
 
 // Java: FunctionToBlockMutatorTest.findFunction(Node, String)
-func FunctionToBlockMutatorTest_FindFunction(n *rhino.Node, name string) *rhino.Node {
+func FunctionToBlockMutatorTest_FindFunction(n rhino.Node, name string) rhino.Node {
 	if n.IsFunction() {
 		if n.GetFirstChild().GetString() == name {
 			return n
 		}
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		result := FunctionToBlockMutatorTest_FindFunction(c, name)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
 
-	return nil
+	return rhino.Node{}
 }

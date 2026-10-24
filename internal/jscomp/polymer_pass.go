@@ -41,9 +41,9 @@ type PolymerPass struct {
 	compiler   AbstractCompiler
 	tagNameMap *jutil.LinkedHashMap[string, string]
 
-	polymerElementExterns        *rhino.Node
+	polymerElementExterns        rhino.Node
 	nativeExternsAdded           *jutil.LinkedHashSet[string]
-	polymerElementProps          []*rhino.Node
+	polymerElementProps          []rhino.Node
 	globalNames                  *GlobalNamespace
 	behaviorExtractor            *PolymerBehaviorExtractor
 	warnedPolymer1ExternsMissing bool
@@ -62,7 +62,7 @@ func NewPolymerPass(compiler AbstractCompiler) *PolymerPass {
 }
 
 // Java: PolymerPass.process(Node, Node)
-func (p *PolymerPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *PolymerPass) Process(externs rhino.Node, root rhino.Node) {
 	externsCallback := NewPolymerPassFindExterns()
 	NodeTraversal_Traverse(p.compiler, externs, externsCallback)
 	p.polymerElementExterns = externsCallback.GetPolymerElementExterns()
@@ -79,9 +79,9 @@ func (p *PolymerPass) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 // Java: PolymerPass.visit(NodeTraversal, Node, Node)
-func (p *PolymerPass) Visit(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (p *PolymerPass) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	if PolymerPassStaticUtils_IsPolymerCall(node) {
-		if p.polymerElementExterns != nil {
+		if !p.polymerElementExterns.IsNil() {
 			p.rewritePolymer1ClassDefinition(node, parent, traversal)
 		} else if !p.warnedPolymer1ExternsMissing {
 			p.compiler.Report(JSError_MakeWithNode(node, PolymerPassErrors_POLYMER_MISSING_EXTERNS))
@@ -95,7 +95,7 @@ func (p *PolymerPass) Visit(traversal *NodeTraversal, node *rhino.Node, parent *
 // Java: PolymerPass.getModuleMetadata(NodeTraversal)
 func (p *PolymerPass) getModuleMetadata(traversal *NodeTraversal) *ModuleMetadataMap_ModuleMetadata {
 	script := traversal.GetCurrentScript()
-	if script != nil && script.GetFirstChild().IsModuleBody() {
+	if !script.IsNil() && script.GetFirstChild().IsModuleBody() {
 		return ModuleImportResolver_GetModuleFromScopeRoot(
 			p.compiler.GetModuleMap(), p.compiler, script.GetFirstChild()).
 			Metadata()
@@ -114,12 +114,12 @@ func (p *PolymerPass) getModuleMetadata(traversal *NodeTraversal) *ModuleMetadat
 // Element Definitions
 //
 // Java: PolymerPass.rewritePolymer1ClassDefinition(Node, Node, NodeTraversal)
-func (p *PolymerPass) rewritePolymer1ClassDefinition(node *rhino.Node, parent *rhino.Node, traversal *NodeTraversal) {
+func (p *PolymerPass) rewritePolymer1ClassDefinition(node rhino.Node, parent rhino.Node, traversal *NodeTraversal) {
 	grandparent := parent.GetParent()
 	if grandparent.IsConst() {
 		grandparent.SetToken(rhino.Token_LET)
 		scriptNode := traversal.GetCurrentScript()
-		if scriptNode != nil {
+		if !scriptNode.IsNil() {
 			NodeUtil_AddFeatureToScript(scriptNode, parser.FeatureSet_Feature_LET_DECLARATIONS, p.compiler)
 		}
 		traversal.ReportCodeChange()
@@ -142,7 +142,7 @@ func (p *PolymerPass) rewritePolymer1ClassDefinition(node *rhino.Node, parent *r
 // rewritePolymer2ClassDefinition handles Polymer 2.x Class Nodes
 //
 // Java: PolymerPass.rewritePolymer2ClassDefinition(Node, NodeTraversal)
-func (p *PolymerPass) rewritePolymer2ClassDefinition(node *rhino.Node, traversal *NodeTraversal) {
+func (p *PolymerPass) rewritePolymer2ClassDefinition(node rhino.Node, traversal *NodeTraversal) {
 	def := PolymerClassDefinition_ExtractFromClassNode(node, p.compiler)
 	if def != nil {
 		rewriter := NewPolymerClassRewriter(p.compiler)
@@ -159,7 +159,7 @@ func (p *PolymerPass) rewritePolymer2ClassDefinition(node *rhino.Node, traversal
 // `let Element = ...; export {Element};`
 //
 // Java: PolymerPass.normalizePolymerExport(Node, Node)
-func (p *PolymerPass) normalizePolymerExport(nameDecl *rhino.Node, export *rhino.Node) {
+func (p *PolymerPass) normalizePolymerExport(nameDecl rhino.Node, export rhino.Node) {
 	name := nameDecl.GetFirstChild()
 	nameDecl.Detach().InsertBefore(export)
 
@@ -219,18 +219,18 @@ func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
 // block and exports all non-private properties.
 //
 // Java: PolymerPass.exportTsickleProps(Node, String)
-func polymerPass_exportTsickleProps(classNode *rhino.Node, classQualifiedName string) {
-	classStmt := jutil.CheckNotNull(NodeUtil_GetEnclosingStatement(classNode))
+func polymerPass_exportTsickleProps(classNode rhino.Node, classQualifiedName string) {
+	classStmt := rhino.CheckNotNull(NodeUtil_GetEnclosingStatement(classNode))
 
-	for sibling := classStmt.GetNext(); sibling != nil; sibling = sibling.GetNext() {
+	for sibling := classStmt.GetNext(); !sibling.IsNil(); sibling = sibling.GetNext() {
 		ifBlock := polymerPass_maybeGetTsicklePropTypesIfBlock(sibling)
-		if ifBlock == nil {
+		if ifBlock.IsNil() {
 			continue
 		}
 
-		for stmt := ifBlock.GetFirstChild(); stmt != nil; stmt = stmt.GetNext() {
+		for stmt := ifBlock.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
 			prop := polymerPass_getTsickleClassPrototypeProp(stmt, classQualifiedName)
-			if prop == nil {
+			if prop.IsNil() {
 				continue
 			}
 
@@ -252,16 +252,16 @@ func polymerPass_exportTsickleProps(classNode *rhino.Node, classQualifiedName st
 // `if (false) {}`, returns its block node. Otherwise returns null.
 //
 // Java: PolymerPass.maybeGetTsicklePropTypesIfBlock(Node)
-func polymerPass_maybeGetTsicklePropTypesIfBlock(node *rhino.Node) *rhino.Node {
+func polymerPass_maybeGetTsicklePropTypesIfBlock(node rhino.Node) rhino.Node {
 	if !node.IsIf() {
-		return nil
+		return rhino.Node{}
 	}
 	condition := node.GetFirstChild()
 	if !condition.IsFalse() {
-		return nil
+		return rhino.Node{}
 	}
 	block := condition.GetNext()
-	jutil.CheckStateMsg1(block != nil && block.IsBlock(), "Expected block but got %s", block)
+	jutil.CheckStateMsg1(!block.IsNil() && block.IsBlock(), "Expected block but got %s", block)
 	return block
 }
 
@@ -270,21 +270,21 @@ func polymerPass_maybeGetTsicklePropTypesIfBlock(node *rhino.Node) *rhino.Node {
 // found).
 //
 // Java: PolymerPass.getTsickleClassPrototypeProp(Node, String)
-func polymerPass_getTsickleClassPrototypeProp(stmt *rhino.Node, classQualifiedName string) *rhino.Node {
+func polymerPass_getTsickleClassPrototypeProp(stmt rhino.Node, classQualifiedName string) rhino.Node {
 	if !stmt.IsExprResult() {
-		return nil
+		return rhino.Node{}
 	}
 	expr := stmt.GetFirstChild()
 	if !expr.IsGetProp() {
-		return nil
+		return rhino.Node{}
 	}
 	owner := expr.GetFirstChild()
 	if !owner.IsGetProp() || owner.GetString() != "prototype" {
-		return nil
+		return rhino.Node{}
 	}
 	classRef := owner.GetFirstChild()
 	if !classRef.MatchesQualifiedName(classQualifiedName) {
-		return nil
+		return rhino.Node{}
 	}
 	return expr
 }
@@ -298,16 +298,16 @@ type PolymerPass_MemberDefinition struct {
 	info *rhino.JSDocInfo
 
 	// Name Node for the definition of this member.
-	name *rhino.Node
+	name rhino.Node
 
 	// Value Node (RHS) for the definition of this member.
-	value *rhino.Node
+	value rhino.Node
 
-	enclosingModule *rhino.Node
+	enclosingModule rhino.Node
 }
 
 // Java: PolymerPass.MemberDefinition(JSDocInfo, Node, Node, Node)
-func NewPolymerPass_MemberDefinition(info *rhino.JSDocInfo, name *rhino.Node, value *rhino.Node, enclosingModule *rhino.Node) *PolymerPass_MemberDefinition {
+func NewPolymerPass_MemberDefinition(info *rhino.JSDocInfo, name rhino.Node, value rhino.Node, enclosingModule rhino.Node) *PolymerPass_MemberDefinition {
 	return &PolymerPass_MemberDefinition{
 		info:            info,
 		name:            name,

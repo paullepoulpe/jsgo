@@ -58,7 +58,7 @@ type checkProvidesSortedTest_processor struct {
 }
 
 // Java: CheckProvidesSortedTest.getProcessor(...).new CompilerPass() {...}.process(Node, Node)
-func (p *checkProvidesSortedTest_processor) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *checkProvidesSortedTest_processor) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, p.callback)
 }
 

@@ -35,11 +35,11 @@ type RuntimeJsLibManager struct {
 	changeTracker        *ChangeTracker
 	mode                 RuntimeJsLibManager_RuntimeLibraryMode
 	resourceProvider     RuntimeJsLibManager_ResourceProvider
-	nodeForCodeInsertion func() *rhino.Node
+	nodeForCodeInsertion func() rhino.Node
 	injectedLibs         *jutil.LinkedHashSet[string]
 	internedFields       *jutil.LinkedHashMap[string, *RuntimeJsLibManager_InternalField]
 
-	lastInjectedLibrary *rhino.Node
+	lastInjectedLibrary rhino.Node
 }
 
 // RuntimeJsLibManager_RuntimeLibraryMode is what to do with the runtime
@@ -106,7 +106,7 @@ func (m RuntimeJsLibManager_RuntimeLibraryMode) Ordinal() int { return int(m) }
 //
 // Go-only: language-adapter — a functional interface, so a Go func type
 // (Java: Node parse(String resourceName, String path)).
-type RuntimeJsLibManager_ResourceProvider func(resourceName string, path string) *rhino.Node
+type RuntimeJsLibManager_ResourceProvider func(resourceName string, path string) rhino.Node
 
 // Java: RuntimeJsLibManager.RUNTIME_LIB_DIR
 const RuntimeJsLibManager_RUNTIME_LIB_DIR = "src/com/google/javascript/jscomp/js/"
@@ -156,7 +156,7 @@ func newRuntimeJsLibManager(
 	changeTracker *ChangeTracker,
 	mode RuntimeJsLibManager_RuntimeLibraryMode,
 	resourceProvider RuntimeJsLibManager_ResourceProvider,
-	nodeForCodeInsertion func() *rhino.Node) *RuntimeJsLibManager {
+	nodeForCodeInsertion func() rhino.Node) *RuntimeJsLibManager {
 	return &RuntimeJsLibManager{
 		mode:                 mode,
 		changeTracker:        changeTracker,
@@ -172,7 +172,7 @@ func RuntimeJsLibManager_Create(
 	mode RuntimeJsLibManager_RuntimeLibraryMode,
 	resourceProvider RuntimeJsLibManager_ResourceProvider,
 	changeTracker *ChangeTracker,
-	nodeForCodeInsertion func() *rhino.Node) *RuntimeJsLibManager {
+	nodeForCodeInsertion func() rhino.Node) *RuntimeJsLibManager {
 
 	return newRuntimeJsLibManager(changeTracker, mode, resourceProvider, nodeForCodeInsertion)
 }
@@ -314,7 +314,7 @@ func (f *RuntimeJsLibManager_InternalField) AssertInjected() RuntimeJsLibManager
 }
 
 // Java: RuntimeJsLibManager.InternalField.matches(Node)
-func (f *RuntimeJsLibManager_InternalField) Matches(node *rhino.Node) bool {
+func (f *RuntimeJsLibManager_InternalField) Matches(node rhino.Node) bool {
 	return node.MatchesQualifiedName(f.qualifiedName)
 }
 
@@ -363,7 +363,7 @@ func (m *RuntimeJsLibManager) getJsLibFieldInternal(fieldName string) *RuntimeJs
 // the js/ directory.
 type RuntimeJsLibManager_JsLibField interface {
 	// Java: RuntimeJsLibManager.JsLibField.matches(Node)
-	Matches(node *rhino.Node) bool
+	Matches(node rhino.Node) bool
 
 	// Java: RuntimeJsLibManager.JsLibField.resourceName()
 	ResourceName() string
@@ -449,7 +449,7 @@ func (m *RuntimeJsLibManager) InjectLibForField(fieldName string) {
 // injected, then null is returned.
 //
 // Java: RuntimeJsLibManager.ensureLibraryInjected(String, boolean)
-func (m *RuntimeJsLibManager) EnsureLibraryInjected(resourceName string, force bool) *rhino.Node {
+func (m *RuntimeJsLibManager) EnsureLibraryInjected(resourceName string, force bool) rhino.Node {
 	if !force {
 		switch m.mode {
 		case RuntimeJsLibManager_RuntimeLibraryMode_NO_OP:
@@ -475,14 +475,14 @@ func (m *RuntimeJsLibManager) EnsureLibraryInjected(resourceName string, force b
 }
 
 // Java: RuntimeJsLibManager.injectLibrary(Node)
-func (m *RuntimeJsLibManager) injectLibrary(ast *rhino.Node) *rhino.Node {
+func (m *RuntimeJsLibManager) injectLibrary(ast rhino.Node) rhino.Node {
 	if !ast.HasChildren() {
 		// Require-only libraries may be empty at this point. Nothing to do
 		// here.
 		return m.lastInjectedLibrary
 	}
 
-	for child := ast.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := ast.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		m.changeTracker.MarkNewScopesChanged(child)
 	}
 	endOfLib := ast.GetLastChild()
@@ -491,7 +491,7 @@ func (m *RuntimeJsLibManager) injectLibrary(ast *rhino.Node) *rhino.Node {
 	// Insert the code immediately after the last-inserted runtime library,
 	// if any.
 	parent := m.nodeForCodeInsertion()
-	if m.lastInjectedLibrary == nil {
+	if m.lastInjectedLibrary.IsNil() {
 		parent.AddChildrenToFront(firstChild)
 	} else {
 		parent.AddChildrenAfter(firstChild, m.lastInjectedLibrary)
@@ -503,10 +503,10 @@ func (m *RuntimeJsLibManager) injectLibrary(ast *rhino.Node) *rhino.Node {
 }
 
 // Java: RuntimeJsLibManager.injectLibraryDependencies(Node, boolean)
-func (m *RuntimeJsLibManager) injectLibraryDependencies(ast *rhino.Node, force bool) {
+func (m *RuntimeJsLibManager) injectLibraryDependencies(ast rhino.Node, force bool) {
 	// Look for string literals of the form 'require foo bar'
 	// As we process each one, remove it from its parent.
-	for node := ast.GetFirstChild(); node != nil && node.IsExprResult() && node.GetFirstChild().IsStringLit(); node = ast.GetFirstChild() {
+	for node := ast.GetFirstChild(); !node.IsNil() && node.IsExprResult() && node.GetFirstChild().IsStringLit(); node = ast.GetFirstChild() {
 		directive := node.GetFirstChild().GetString()
 		// Splitter.on(' ').limit(2).splitToList(directive)
 		words := strings.SplitN(directive, " ", 2)
@@ -527,11 +527,11 @@ func (m *RuntimeJsLibManager) injectLibraryDependencies(ast *rhino.Node, force b
 }
 
 // Java: RuntimeJsLibManager.setLastInjectedLibrary(Node)
-func (m *RuntimeJsLibManager) SetLastInjectedLibrary(lastInjectedLibrary *rhino.Node) {
+func (m *RuntimeJsLibManager) SetLastInjectedLibrary(lastInjectedLibrary rhino.Node) {
 	m.lastInjectedLibrary = lastInjectedLibrary
 }
 
 // Java: RuntimeJsLibManager.getLastInjectedLibrary()
-func (m *RuntimeJsLibManager) GetLastInjectedLibrary() *rhino.Node {
+func (m *RuntimeJsLibManager) GetLastInjectedLibrary() rhino.Node {
 	return m.lastInjectedLibrary
 }

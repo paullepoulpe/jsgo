@@ -48,7 +48,7 @@ type FileInstrumentationData struct {
 	// For example, if the source code has an 'if' statement on line 3 with
 	// an if and else branch, the two branches will be indexed as (2, 0) and
 	// (2, 1).
-	branchNodes *jutil.LinkedHashMap[FileInstrumentationData_BranchIndexPair, *rhino.Node]
+	branchNodes *jutil.LinkedHashMap[FileInstrumentationData_BranchIndexPair, rhino.Node]
 }
 
 // FileInstrumentationData_BranchIndexPair is a (line, branch) pair.
@@ -101,7 +101,7 @@ func NewFileInstrumentationData(fileName string, arrayName string) *FileInstrume
 		instrumentedBits: jutil.NewBitSet(),
 		branchPresent:    jutil.NewBitSet(),
 		branchesInLine:   jutil.NewLinkedHashMap[int, int](),
-		branchNodes:      jutil.NewLinkedHashMap[FileInstrumentationData_BranchIndexPair, *rhino.Node](),
+		branchNodes:      jutil.NewLinkedHashMap[FileInstrumentationData_BranchIndexPair, rhino.Node](),
 	}
 }
 
@@ -132,7 +132,7 @@ func (d *FileInstrumentationData) MaxBranchPresentLine() int {
 // number, block the node of the conditional block.
 //
 // Java: FileInstrumentationData.putBranchNode(int, int, Node)
-func (d *FileInstrumentationData) PutBranchNode(lineNumber int, branchNumber int, block *rhino.Node) {
+func (d *FileInstrumentationData) PutBranchNode(lineNumber int, branchNumber int, block rhino.Node) {
 	jutil.CheckArgumentMsg1(
 		lineNumber > 0, "Expected non-zero positive integer as line number: %s", lineNumber)
 	jutil.CheckArgumentMsg1(
@@ -148,7 +148,7 @@ func (d *FileInstrumentationData) PutBranchNode(lineNumber int, branchNumber int
 // number. Returns the node of the conditional block.
 //
 // Java: FileInstrumentationData.getBranchNode(int, int)
-func (d *FileInstrumentationData) GetBranchNode(lineNumber int, branchNumber int) *rhino.Node {
+func (d *FileInstrumentationData) GetBranchNode(lineNumber int, branchNumber int) rhino.Node {
 	jutil.CheckArgumentMsg1(
 		lineNumber > 0, "Expected non-zero positive integer as line number: %s", lineNumber)
 	jutil.CheckArgumentMsg1(

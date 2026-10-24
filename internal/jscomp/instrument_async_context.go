@@ -48,10 +48,10 @@ type InstrumentAsyncContext struct {
 
 	// Go-only: language-adapter — the ArrayDeque used as a stack is a slice
 	// whose last element is the top (Deque.peek/push/pop).
-	tryFunctionStack     []*rhino.Node
-	needsInstrumentation *jutil.LinkedHashMap[*rhino.Node, *InstrumentAsyncContext_FunctionContext]
-	alreadyInstrumented  *jutil.LinkedHashSet[*rhino.Node]
-	hasSuper             *jutil.LinkedHashSet[*rhino.Node]
+	tryFunctionStack     []rhino.Node
+	needsInstrumentation *jutil.LinkedHashMap[rhino.Node, *InstrumentAsyncContext_FunctionContext]
+	alreadyInstrumented  *jutil.LinkedHashSet[rhino.Node]
+	hasSuper             *jutil.LinkedHashSet[rhino.Node]
 }
 
 // NOTE: we prefix all internal symbols with a characteristic "ᵃᶜ" (U+1D43, U+1D9C) to
@@ -72,9 +72,9 @@ const (
 func NewInstrumentAsyncContext(compiler AbstractCompiler, shouldInstrumentAwait bool) *InstrumentAsyncContext {
 	i := &InstrumentAsyncContext{}
 	i.tryFunctionStack = nil
-	i.needsInstrumentation = jutil.NewLinkedHashMap[*rhino.Node, *InstrumentAsyncContext_FunctionContext]()
-	i.alreadyInstrumented = jutil.NewLinkedHashSet[*rhino.Node]()
-	i.hasSuper = jutil.NewLinkedHashSet[*rhino.Node]()
+	i.needsInstrumentation = jutil.NewLinkedHashMap[rhino.Node, *InstrumentAsyncContext_FunctionContext]()
+	i.alreadyInstrumented = jutil.NewLinkedHashSet[rhino.Node]()
+	i.hasSuper = jutil.NewLinkedHashSet[rhino.Node]()
 	i.compiler = compiler
 	i.astFactory = compiler.CreateAstFactory()
 	i.uniqueIdSupplier = compiler.GetUniqueIdSupplier()
@@ -84,7 +84,7 @@ func NewInstrumentAsyncContext(compiler AbstractCompiler, shouldInstrumentAwait 
 }
 
 // Java: InstrumentAsyncContext.process(Node, Node)
-func (i *InstrumentAsyncContext) Process(externs *rhino.Node, root *rhino.Node) {
+func (i *InstrumentAsyncContext) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckStateMsg1(i.compiler.GetLifeCycleStage().IsNormalized(), "%s", i.compiler.GetLifeCycleStage())
 	// Scan through code and find uses of AsyncContext. Look specifically for Variable.run.
 	NodeTraversal_Traverse(i.compiler, root, i)
@@ -93,15 +93,15 @@ func (i *InstrumentAsyncContext) Process(externs *rhino.Node, root *rhino.Node) 
 // tryFunctionStackPeek is Deque.peek(): the top, or null when empty.
 //
 // Go-only: language-adapter — the ArrayDeque operation on the slice stack.
-func (i *InstrumentAsyncContext) tryFunctionStackPeek() *rhino.Node {
+func (i *InstrumentAsyncContext) tryFunctionStackPeek() rhino.Node {
 	if len(i.tryFunctionStack) == 0 {
-		return nil
+		return rhino.Node{}
 	}
 	return i.tryFunctionStack[len(i.tryFunctionStack)-1]
 }
 
 // Java: InstrumentAsyncContext.shouldTraverse(NodeTraversal, Node, Node)
-func (i *InstrumentAsyncContext) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (i *InstrumentAsyncContext) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// The top of tryFunctionStack should always point to the innermost try or function block.
 	// This is a minor optimization to avoid recursing up the ancestor chain to determine if a
 	// reentrance is within a try block, in which case a "resume" call needs to be added to the
@@ -115,7 +115,7 @@ func (i *InstrumentAsyncContext) ShouldTraverse(t *NodeTraversal, n *rhino.Node,
 }
 
 // Java: InstrumentAsyncContext.isReentrance(Node)
-func (i *InstrumentAsyncContext) IsReentrance(n *rhino.Node) bool {
+func (i *InstrumentAsyncContext) IsReentrance(n rhino.Node) bool {
 	if n.IsYield() {
 		return true
 	} else if !i.shouldInstrumentAwait {
@@ -125,7 +125,7 @@ func (i *InstrumentAsyncContext) IsReentrance(n *rhino.Node) bool {
 }
 
 // Java: InstrumentAsyncContext.visit(NodeTraversal, Node, Node)
-func (i *InstrumentAsyncContext) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (i *InstrumentAsyncContext) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() && strings.HasPrefix(n.GetString(), InstrumentAsyncContext_FACTORY) {
 		i.alreadyInstrumented.Add(t.GetEnclosingFunction())
 	} else if n.IsSuper() {
@@ -140,7 +140,7 @@ func (i *InstrumentAsyncContext) Visit(t *NodeTraversal, n *rhino.Node, parent *
 		var context *InstrumentAsyncContext_FunctionContext
 		if n.IsGeneratorFunction() {
 			context = i.needsInstrumentation.ComputeIfAbsent(
-				n, func(unused *rhino.Node) *InstrumentAsyncContext_FunctionContext {
+				n, func(unused rhino.Node) *InstrumentAsyncContext_FunctionContext {
 					return i.CreateNewFunctionContext(t.GetInput())
 				})
 		} else {
@@ -169,13 +169,13 @@ func (i *InstrumentAsyncContext) Visit(t *NodeTraversal, n *rhino.Node, parent *
 //     `ᵃᶜresume`
 //
 // Java: InstrumentAsyncContext.instrumentReentrance(NodeTraversal, Node, Node)
-func (i *InstrumentAsyncContext) InstrumentReentrance(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (i *InstrumentAsyncContext) InstrumentReentrance(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	enclosingTry := i.tryFunctionStackPeek()
-	if enclosingTry != nil && !enclosingTry.IsTry() {
-		enclosingTry = nil // not a try
+	if !enclosingTry.IsNil() && !enclosingTry.IsTry() {
+		enclosingTry = rhino.Node{} // not a try
 	}
 	enclosingFunction := t.GetEnclosingFunction()
-	if enclosingFunction == nil {
+	if enclosingFunction.IsNil() {
 		// NOTE: This is a top-level await, which is currently not supported.  If it becomes supported
 		// then we should consider instrumenting the module body as if it were a function.
 		// See https://github.com/google/closure-compiler/issues/3835.
@@ -186,7 +186,7 @@ func (i *InstrumentAsyncContext) InstrumentReentrance(t *NodeTraversal, n *rhino
 	} else if parent.IsFunction() {
 		// `async (...) => await ...` - no reentrance, so no instrumentation needed.
 		return
-	} else if parent.IsReturn() && enclosingTry == nil {
+	} else if parent.IsReturn() && enclosingTry.IsNil() {
 		// `return await ...` - no reentrance unless we're inside a `try`.
 		return
 	}
@@ -195,10 +195,10 @@ func (i *InstrumentAsyncContext) InstrumentReentrance(t *NodeTraversal, n *rhino
 	// enclosing function or try block.
 	functionContext :=
 		i.needsInstrumentation.ComputeIfAbsent(
-			enclosingFunction, func(unused *rhino.Node) *InstrumentAsyncContext_FunctionContext {
+			enclosingFunction, func(unused rhino.Node) *InstrumentAsyncContext_FunctionContext {
 				return i.CreateNewFunctionContext(t.GetInput())
 			})
-	if enclosingTry != nil {
+	if !enclosingTry.IsNil() {
 		i.needsInstrumentation.Put(enclosingTry, functionContext)
 	}
 
@@ -210,7 +210,7 @@ func (i *InstrumentAsyncContext) InstrumentReentrance(t *NodeTraversal, n *rhino
 	// Wrap yielded/awaited expression with a ᵃᶜsuspend(...) call
 	placeholder := rhino.IR_Empty()
 	arg := n.GetFirstChild()
-	if arg == nil {
+	if arg.IsNil() {
 		n.AddChildToBack(functionContext.Suspend().SrcrefTreeIfMissing(n))
 	} else {
 		arg.ReplaceWith(placeholder)
@@ -223,7 +223,7 @@ func (i *InstrumentAsyncContext) InstrumentReentrance(t *NodeTraversal, n *rhino
 }
 
 // Java: InstrumentAsyncContext.instrumentForAwaitOf(NodeTraversal, Node, Node, FunctionContext)
-func (i *InstrumentAsyncContext) InstrumentForAwaitOf(t *NodeTraversal, n *rhino.Node, parent *rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
+func (i *InstrumentAsyncContext) InstrumentForAwaitOf(t *NodeTraversal, n rhino.Node, parent rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
 	// for await (const x of expr()) {
 	//   use(x);
 	// }
@@ -266,7 +266,7 @@ func (i *InstrumentAsyncContext) InstrumentForAwaitOf(t *NodeTraversal, n *rhino
 }
 
 // Java: InstrumentAsyncContext.instrumentTry(Node, FunctionContext)
-func (i *InstrumentAsyncContext) InstrumentTry(n *rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
+func (i *InstrumentAsyncContext) InstrumentTry(n rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
 	// Find either a catch or a finally block (if there is no catch).
 	block := n.GetSecondChild()
 	if block.HasChildren() {
@@ -282,7 +282,7 @@ func (i *InstrumentAsyncContext) InstrumentTry(n *rhino.Node, functionContext *I
 }
 
 // Java: InstrumentAsyncContext.instrumentGeneratorFunction(NodeTraversal, Node, FunctionContext)
-func (i *InstrumentAsyncContext) InstrumentGeneratorFunction(t *NodeTraversal, f *rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
+func (i *InstrumentAsyncContext) InstrumentGeneratorFunction(t *NodeTraversal, f rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
 	// If a function is completely empty then there's no need to instrument it
 	// because there's nothing within that can observe the state of any variables.
 	if !f.GetLastChild().HasChildren() {
@@ -343,7 +343,7 @@ func (i *InstrumentAsyncContext) InstrumentGeneratorFunction(t *NodeTraversal, f
 }
 
 // Java: InstrumentAsyncContext.instrumentGeneratorMethod(NodeTraversal, Node, FunctionContext)
-func (i *InstrumentAsyncContext) InstrumentGeneratorMethod(t *NodeTraversal, f *rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
+func (i *InstrumentAsyncContext) InstrumentGeneratorMethod(t *NodeTraversal, f rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
 	// This requires special handling compared to ordinary generator functions because
 	// it may reference `super`, which would break in a vanilla IIFE.  Instead, copy the
 	// body to a new method with the same parameters, plus one or two more for the
@@ -391,8 +391,8 @@ func (i *InstrumentAsyncContext) InstrumentGeneratorMethod(t *NodeTraversal, f *
 	// Look for references to `arguments`.  If found, add an extra parameter to the inner method.
 	// We need to save a reference to the parameter in order to replace it in the function call
 	// arguments.
-	var argumentsParam *rhino.Node = nil
-	var argumentsReference *rhino.Node = nil
+	var argumentsParam rhino.Node = rhino.Node{}
+	var argumentsReference rhino.Node = rhino.Node{}
 	renamer := NewInstrumentAsyncContext_ArgumentsRenamer(i)
 	NodeTraversal_Traverse(i.compiler, generatorBody, renamer)
 	if renamer.argumentsName != nil {
@@ -418,11 +418,11 @@ func (i *InstrumentAsyncContext) InstrumentGeneratorMethod(t *NodeTraversal, f *
 	innerCall.AddChildToBack(outerFactoryName.CloneTree())
 	innerParam = innerParam.GetNext()
 	// Copy the arguments parameter if it's there.
-	if innerParam != nil && innerParam == argumentsParam {
+	if !innerParam.IsNil() && innerParam == argumentsParam {
 		innerCall.AddChildToBack(argumentsReference)
 	}
 	// Copy the remaining parameters.
-	for outerParam := outerParams.GetFirstChild(); outerParam != nil; outerParam = outerParam.GetNext() {
+	for outerParam := outerParams.GetFirstChild(); !outerParam.IsNil(); outerParam = outerParam.GetNext() {
 		argParamPair := i.SimplifyParameter(outerParam.CloneTree(), t)
 		// Go-only: language-adapter — Java's `outerParam.replaceWith(outerParam = p)` calls
 		// replaceWith on the old outerParam, then continues the loop from p.
@@ -479,7 +479,7 @@ func (i *InstrumentAsyncContext) InstrumentGeneratorMethod(t *NodeTraversal, f *
 }
 
 // Java: InstrumentAsyncContext.simplifyParameter(Node, NodeTraversal)
-func (i *InstrumentAsyncContext) SimplifyParameter(param *rhino.Node, t *NodeTraversal) *InstrumentAsyncContext_ArgParamPair {
+func (i *InstrumentAsyncContext) SimplifyParameter(param rhino.Node, t *NodeTraversal) *InstrumentAsyncContext_ArgParamPair {
 	if param.IsRest() {
 		// Replace REST with SPREAD.  For arguments, we know it has to be ITER_REST and ITER_SPREAD.
 		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_SPREAD_EXPRESSIONS, i.compiler)
@@ -515,12 +515,12 @@ func (i *InstrumentAsyncContext) SimplifyParameter(param *rhino.Node, t *NodeTra
 
 // InstrumentAsyncContext_ArgParamPair is InstrumentAsyncContext.ArgParamPair.
 type InstrumentAsyncContext_ArgParamPair struct {
-	argument  *rhino.Node
-	parameter *rhino.Node
+	argument  rhino.Node
+	parameter rhino.Node
 }
 
 // Java: ArgParamPair(Node, Node)
-func NewInstrumentAsyncContext_ArgParamPair(argument *rhino.Node, parameter *rhino.Node) *InstrumentAsyncContext_ArgParamPair {
+func NewInstrumentAsyncContext_ArgParamPair(argument rhino.Node, parameter rhino.Node) *InstrumentAsyncContext_ArgParamPair {
 	p := &InstrumentAsyncContext_ArgParamPair{}
 	p.argument = argument
 	p.parameter = parameter
@@ -540,12 +540,12 @@ func NewInstrumentAsyncContext_ArgumentsRenamer(outer *InstrumentAsyncContext) *
 }
 
 // Java: ArgumentsRenamer.shouldTraverse(NodeTraversal, Node, Node)
-func (r *InstrumentAsyncContext_ArgumentsRenamer) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (r *InstrumentAsyncContext_ArgumentsRenamer) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return !n.IsFunction() || n.IsArrowFunction()
 }
 
 // Java: ArgumentsRenamer.visit(NodeTraversal, Node, Node)
-func (r *InstrumentAsyncContext_ArgumentsRenamer) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *InstrumentAsyncContext_ArgumentsRenamer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() && n.GetString() == "arguments" {
 		if r.argumentsName == nil {
 			name := "$jscomp$arguments$" + r.outer.uniqueIdSupplier.GetUniqueId(t.GetInput())
@@ -565,7 +565,7 @@ func (r *InstrumentAsyncContext_ArgumentsRenamer) Visit(t *NodeTraversal, n *rhi
 // wrapping the body in a try-finally and adding an "start" call to the front.
 //
 // Java: InstrumentAsyncContext.instrumentAsyncFunction(Node, CompilerInput, FunctionContext)
-func (i *InstrumentAsyncContext) InstrumentAsyncFunction(f *rhino.Node, input *CompilerInput, functionContext *InstrumentAsyncContext_FunctionContext) {
+func (i *InstrumentAsyncContext) InstrumentAsyncFunction(f rhino.Node, input *CompilerInput, functionContext *InstrumentAsyncContext_FunctionContext) {
 	// Add a variable to the front of the body
 	block := f.GetLastChild()
 	newBlock := i.AddFinallySuspend(block, functionContext)
@@ -584,7 +584,7 @@ func (i *InstrumentAsyncContext) InstrumentAsyncFunction(f *rhino.Node, input *C
 // try (original body) finally (suspend).
 //
 // Java: InstrumentAsyncContext.addFinallySuspend(Node, FunctionContext)
-func (i *InstrumentAsyncContext) AddFinallySuspend(block *rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) *rhino.Node {
+func (i *InstrumentAsyncContext) AddFinallySuspend(block rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) rhino.Node {
 	placeholder := rhino.IR_Empty()
 	block.ReplaceWith(placeholder)
 	finallyBlock := rhino.IR_BlockOfNode(rhino.IR_ExprResult(functionContext.Suspend()))
@@ -594,7 +594,7 @@ func (i *InstrumentAsyncContext) AddFinallySuspend(block *rhino.Node, functionCo
 }
 
 // Java: InstrumentAsyncContext.addSuspendResumeVarsAfter(Node, FunctionContext)
-func (i *InstrumentAsyncContext) AddSuspendResumeVarsAfter(node *rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
+func (i *InstrumentAsyncContext) AddSuspendResumeVarsAfter(node rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
 	// var ᵃᶜsuspend = ᵃᶜfactory();
 	// var ᵃᶜresume = ᵃᶜfactory(1);
 	resumeCall :=
@@ -608,7 +608,7 @@ func (i *InstrumentAsyncContext) AddSuspendResumeVarsAfter(node *rhino.Node, fun
 
 // Java: InstrumentAsyncContext.addSuspendResumeVarsAtStartOf(Node, Node, FunctionContext)
 func (i *InstrumentAsyncContext) AddSuspendResumeVarsAtStartOf(
-	node *rhino.Node, factoryName *rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
+	node rhino.Node, factoryName rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
 	// var ᵃᶜsuspend = ᵃᶜfactory();
 	// var ᵃᶜresume = ᵃᶜfactory(1);
 	resumeCall :=
@@ -620,7 +620,7 @@ func (i *InstrumentAsyncContext) AddSuspendResumeVarsAtStartOf(
 }
 
 // Java: InstrumentAsyncContext.createVar(Node, Node)
-func InstrumentAsyncContext_CreateVar(name *rhino.Node, value *rhino.Node) *rhino.Node {
+func InstrumentAsyncContext_CreateVar(name rhino.Node, value rhino.Node) rhino.Node {
 	return rhino.IR_VarWithValue(name, value)
 }
 
@@ -628,7 +628,7 @@ func InstrumentAsyncContext_CreateVar(name *rhino.Node, value *rhino.Node) *rhin
 // `const ᵃᶜfactory = $jscomp$asyncContextStart();`.
 //
 // Java: InstrumentAsyncContext.createFactoryCall(Node, Node...)
-func (i *InstrumentAsyncContext) CreateFactoryCall(factoryName *rhino.Node, arg ...*rhino.Node) *rhino.Node {
+func (i *InstrumentAsyncContext) CreateFactoryCall(factoryName rhino.Node, arg ...rhino.Node) rhino.Node {
 	call :=
 		i.astFactory.CreateCallWithUnknownType(i.astFactory.CreateQNameWithUnknownTypeOfField(i.start), arg...)
 	return InstrumentAsyncContext_CreateVar(factoryName, call)
@@ -638,7 +638,7 @@ func (i *InstrumentAsyncContext) CreateFactoryCall(factoryName *rhino.Node, arg 
 // `const ᵃᶜfactory = $jscomp$asyncContextStart(1);`.
 //
 // Java: InstrumentAsyncContext.createFactorySuspendCall(Node)
-func (i *InstrumentAsyncContext) CreateFactorySuspendCall(factoryName *rhino.Node) *rhino.Node {
+func (i *InstrumentAsyncContext) CreateFactorySuspendCall(factoryName rhino.Node) rhino.Node {
 	return i.CreateFactoryCall(factoryName, i.astFactory.CreateNumber(1))
 }
 
@@ -646,15 +646,15 @@ func (i *InstrumentAsyncContext) CreateFactorySuspendCall(factoryName *rhino.Nod
 // InstrumentAsyncContext.FunctionContext.
 type InstrumentAsyncContext_FunctionContext struct {
 	uniqueSuffix string
-	suspendName  *rhino.Node
-	resumeName   *rhino.Node
-	factoryName  *rhino.Node
+	suspendName  rhino.Node
+	resumeName   rhino.Node
+	factoryName  rhino.Node
 	astFactory   *AstFactory
 }
 
 // Java: FunctionContext(String, Node, Node, Node, AstFactory)
 func NewInstrumentAsyncContext_FunctionContext(
-	uniqueSuffix string, suspendName *rhino.Node, resumeName *rhino.Node, factoryName *rhino.Node, astFactory *AstFactory) *InstrumentAsyncContext_FunctionContext {
+	uniqueSuffix string, suspendName rhino.Node, resumeName rhino.Node, factoryName rhino.Node, astFactory *AstFactory) *InstrumentAsyncContext_FunctionContext {
 	return &InstrumentAsyncContext_FunctionContext{
 		uniqueSuffix: uniqueSuffix,
 		suspendName:  suspendName,
@@ -668,13 +668,13 @@ func NewInstrumentAsyncContext_FunctionContext(
 func (c *InstrumentAsyncContext_FunctionContext) UniqueSuffix() string { return c.uniqueSuffix }
 
 // Java: FunctionContext.suspendName()
-func (c *InstrumentAsyncContext_FunctionContext) SuspendName() *rhino.Node { return c.suspendName }
+func (c *InstrumentAsyncContext_FunctionContext) SuspendName() rhino.Node { return c.suspendName }
 
 // Java: FunctionContext.resumeName()
-func (c *InstrumentAsyncContext_FunctionContext) ResumeName() *rhino.Node { return c.resumeName }
+func (c *InstrumentAsyncContext_FunctionContext) ResumeName() rhino.Node { return c.resumeName }
 
 // Java: FunctionContext.factoryName()
-func (c *InstrumentAsyncContext_FunctionContext) FactoryName() *rhino.Node { return c.factoryName }
+func (c *InstrumentAsyncContext_FunctionContext) FactoryName() rhino.Node { return c.factoryName }
 
 // Java: FunctionContext.astFactory()
 func (c *InstrumentAsyncContext_FunctionContext) AstFactory() *AstFactory { return c.astFactory }
@@ -682,28 +682,28 @@ func (c *InstrumentAsyncContext_FunctionContext) AstFactory() *AstFactory { retu
 // Suspend creates an empty suspend call: `ᵃᶜsuspend()`.
 //
 // Java: FunctionContext.suspend()
-func (c *InstrumentAsyncContext_FunctionContext) Suspend() *rhino.Node {
+func (c *InstrumentAsyncContext_FunctionContext) Suspend() rhino.Node {
 	return c.astFactory.CreateCall(c.suspendName.CloneNode(), AstFactory_Type_(c.suspendName))
 }
 
 // SuspendWithInner wraps the given node in a suspend call: `ᵃᶜsuspend(NODE)`.
 //
 // Java: FunctionContext.suspend(Node)
-func (c *InstrumentAsyncContext_FunctionContext) SuspendWithInner(inner *rhino.Node) *rhino.Node {
+func (c *InstrumentAsyncContext_FunctionContext) SuspendWithInner(inner rhino.Node) rhino.Node {
 	return c.astFactory.CreateCall(c.suspendName.CloneNode(), AstFactory_Type_(inner), inner)
 }
 
 // Resume creates an empty resume call: `ᵃᶜresume()`.
 //
 // Java: FunctionContext.resume()
-func (c *InstrumentAsyncContext_FunctionContext) Resume() *rhino.Node {
+func (c *InstrumentAsyncContext_FunctionContext) Resume() rhino.Node {
 	return c.astFactory.CreateCall(c.resumeName.CloneNode(), AstFactory_Type_(c.resumeName))
 }
 
 // ResumeWithInner wraps the given node in a resume call: `ᵃᶜresume(NODE)`.
 //
 // Java: FunctionContext.resume(Node)
-func (c *InstrumentAsyncContext_FunctionContext) ResumeWithInner(inner *rhino.Node) *rhino.Node {
+func (c *InstrumentAsyncContext_FunctionContext) ResumeWithInner(inner rhino.Node) rhino.Node {
 	return c.astFactory.CreateCall(c.resumeName.CloneNode(), AstFactory_Type_(inner), inner)
 }
 

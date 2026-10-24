@@ -107,7 +107,7 @@ func NestedCompilerRunner_Create(
 }
 
 // Java: NestedCompilerRunner.addScript(Node, String)
-func (r *NestedCompilerRunner) AddScript(shadowScript *rhino.Node, uniqueShadowId string) *NestedCompilerRunner {
+func (r *NestedCompilerRunner) AddScript(shadowScript rhino.Node, uniqueShadowId string) *NestedCompilerRunner {
 	jutil.CheckArgumentMsg1(
 		shadowScript.GetIsInClosureUnawareSubtree(),
 		"Expected closureUnaware script, found %s",

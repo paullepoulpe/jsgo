@@ -163,11 +163,10 @@ type JSTypeRegistry struct {
 
 	reporter ErrorReporter
 
-	// nodeTypes hands out the handles Nodes use to refer to this registry's
-	// types (node_tables.go); released by ReleaseNodeTypeHandles. Its own
-	// allocation: the NodeTables that will release it must not keep the
-	// registry alive through an interior pointer.
-	nodeTypes *handleAlloc
+	// nodeStores are the node stores whose type tables hold this registry's
+	// types (node_tables.go); cleared by ReleaseNodeTypeHandles.
+	nodeStoresMu sync.Mutex
+	nodeStores   []*NodeStore
 
 	// We use an Array instead of an immutable list because this lookup needs
 	// to be very fast. When it was an immutable list, we were spending 5% of
@@ -175,7 +174,7 @@ type JSTypeRegistry struct {
 	nativeTypes []JSType
 
 	// Table<Node, String, JSType> (a HashBasedTable).
-	scopedNameTable *jutil.LinkedHashMap[*Node, *jutil.LinkedHashMap[string, JSType]]
+	scopedNameTable *jutil.LinkedHashMap[Node, *jutil.LinkedHashMap[string, JSType]]
 
 	// Only needed for type resolution at the moment
 	closureNamespaces *jutil.LinkedHashMap[string, *JSTypeRegistry_ClosureNamespace]
@@ -183,7 +182,7 @@ type JSTypeRegistry struct {
 	// NOTE: This would normally be "static final" but that causes unit test
 	// failures when serializing and deserializing compiler state for
 	// multistage builds.
-	nameTableGlobalRoot *Node
+	nameTableGlobalRoot Node
 
 	// NOTE(nicksantos): This is a terrible terrible hack. When type
 	// expressions are evaluated, we need to be able to decide whether that
@@ -204,7 +203,7 @@ type JSTypeRegistry struct {
 	// evaluation.
 	//
 	// Multimap<Node, String> with hash keys and hash set values.
-	nonNullableTypeNames *jutil.LinkedHashMap[*Node, *jutil.LinkedHashSet[string]]
+	nonNullableTypeNames *jutil.LinkedHashMap[Node, *jutil.LinkedHashSet[string]]
 
 	// Types that have been "forward-declared." If these types are not
 	// declared anywhere in the binary, we shouldn't try to type-check them at
@@ -415,19 +414,15 @@ func NewJSTypeRegistry(reporter ErrorReporter) *JSTypeRegistry {
 // Java: JSTypeRegistry(ErrorReporter, Set<String>)
 func NewJSTypeRegistryWithForwardDeclaredTypes(reporter ErrorReporter, forwardDeclaredTypes jutil.Set[string]) *JSTypeRegistry {
 	r := &JSTypeRegistry{
-		scopedNameTable:                jutil.NewLinkedHashMap[*Node, *jutil.LinkedHashMap[string, JSType]](),
+		scopedNameTable:                jutil.NewLinkedHashMap[Node, *jutil.LinkedHashMap[string, JSType]](),
 		closureNamespaces:              jutil.NewLinkedHashMap[string, *JSTypeRegistry_ClosureNamespace](),
 		nameTableGlobalRoot:            NewNode(Token_ROOT),
-		nonNullableTypeNames:           jutil.NewLinkedHashMap[*Node, *jutil.LinkedHashSet[string]](),
+		nonNullableTypeNames:           jutil.NewLinkedHashMap[Node, *jutil.LinkedHashSet[string]](),
 		nonRefTypesIndexedByProperty:   make(map[string]*jutil.ObjectLinkedHashSet[JSType]),
 		propertiesOfSupertypesInUnions: jutil.NewLinkedHashSet[string](),
 		droppedPropertiesOfUnions:      jutil.NewLinkedHashSet[string](),
 		eachRefTypeIndexedByProperty:   make(map[string]*jutil.ObjectLinkedHashSet[ObjectType]),
 		leastSupertypeGen:              1,
-		nodeTypes:                      &handleAlloc{tab: &nodeTypeTable},
-	}
-	if t := currentNodeTables.Load(); t != nil {
-		t.adoptRegistry(r)
 	}
 	r.reporter = reporter
 	r.forwardDeclaredTypes = forwardDeclaredTypes
@@ -741,7 +736,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 		WithTypeOfThis(unknownType).
 		WithReturnType(unknownType).
 		Build()
-	functionType.SetPrototype(functionInstancePrototype, nil)
+	functionType.SetPrototype(functionInstancePrototype, Node{})
 	r.RegisterNativeType(JSTypeNative_FUNCTION_TYPE, functionType)
 
 	// `(typeof Function)`
@@ -756,7 +751,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 		WithTypeOfThis(functionType).
 		// TODO(nickreid): .withReturnsOwnInstanceType()
 		Build()
-	functionFunctionType.SetPrototype(functionPrototype, nil)
+	functionFunctionType.SetPrototype(functionPrototype, Node{})
 	r.RegisterNativeType(JSTypeNative_FUNCTION_FUNCTION_TYPE, functionFunctionType)
 
 	// `Object.prototype`
@@ -773,7 +768,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 		WithReturnsOwnInstanceType().
 		WithTemplateKeys(r.iObjectIndexTemplateKey, r.iObjectElementTemplateKey).
 		Build()
-	objectFunctionType.SetPrototype(objectPrototype, nil)
+	objectFunctionType.SetPrototype(objectPrototype, Node{})
 	r.RegisterNativeType(JSTypeNative_OBJECT_FUNCTION_TYPE, objectFunctionType)
 
 	objectType := objectFunctionType.GetInstanceType()
@@ -914,7 +909,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 		SetNative(true).
 		SetImplicitPrototype(arrayOfString).
 		Build()
-	iTemplateArrayFunctionType.SetPrototype(iTemplateArrayPrototype, nil)
+	iTemplateArrayFunctionType.SetPrototype(iTemplateArrayPrototype, Node{})
 	iTemplateArrayFunctionType.GetInstanceType().MergeSupertypeTemplateTypes(arrayOfString)
 	r.RegisterNativeType(
 		JSTypeNative_I_TEMPLATE_ARRAY_TYPE, iTemplateArrayFunctionType.GetInstanceType())
@@ -1336,12 +1331,12 @@ func JSTypeRegistry_GetLookupScope(scope StaticScope, name string) StaticScope {
 }
 
 // Java: JSTypeRegistry.getRootNodeForScope(StaticScope)
-func (r *JSTypeRegistry) GetRootNodeForScope(scope StaticScope) *Node {
-	var root *Node
+func (r *JSTypeRegistry) GetRootNodeForScope(scope StaticScope) Node {
+	var root Node
 	if scope != nil {
 		root = scope.GetRootNode()
 	}
-	if root == nil || root.IsRoot() || root.IsScript() {
+	if root.IsNil() || root.IsRoot() || root.IsScript() {
 		return r.nameTableGlobalRoot
 	}
 	return root
@@ -1481,7 +1476,7 @@ func (r *JSTypeRegistry) ResolveViaProperties(declarationScope StaticTypedScope,
 		}
 	}
 	slotType := slot.GetType()
-	return r.ResolveViaPropertyGivenSlot(slotType, nil, componentNames)
+	return r.ResolveViaPropertyGivenSlot(slotType, Node{}, componentNames)
 }
 
 // ResolveViaPropertyGivenSlot resolves a type using a given StaticTypedSlot
@@ -1491,7 +1486,7 @@ func (r *JSTypeRegistry) ResolveViaProperties(declarationScope StaticTypedScope,
 // the Node representing the type definition.
 //
 // Java: JSTypeRegistry.resolveViaPropertyGivenSlot(JSType, Node, List<String>)
-func (r *JSTypeRegistry) ResolveViaPropertyGivenSlot(slotType JSType, definitionNode *Node, componentNames []string) JSType {
+func (r *JSTypeRegistry) ResolveViaPropertyGivenSlot(slotType JSType, definitionNode Node, componentNames []string) JSType {
 	if len(componentNames) == 0 {
 		typedefType := JSTypeRegistry_ResolveTypeFromNodeIfTypedef(definitionNode)
 		if typedefType != nil {
@@ -1543,8 +1538,8 @@ func (r *JSTypeRegistry) ResolveViaPropertyGivenSlot(slotType JSType, definition
 // typedef annotation, resolving to that type if existent.
 //
 // Java: JSTypeRegistry.resolveTypeFromNodeIfTypedef(Node)
-func JSTypeRegistry_ResolveTypeFromNodeIfTypedef(node *Node) JSType {
-	if node == nil {
+func JSTypeRegistry_ResolveTypeFromNodeIfTypedef(node Node) JSType {
+	if node.IsNil() {
 		return nil
 	}
 	return node.GetTypedefTypeProp()
@@ -1582,8 +1577,8 @@ func (r *JSTypeRegistry) RegisterForScope(scope StaticScope, type_ JSType, name 
 }
 
 // scopedNameTablePut is Table.put(row, column, value), which rejects nulls.
-func (r *JSTypeRegistry) scopedNameTablePut(rowKey *Node, columnKey string, value JSType) {
-	jutil.CheckNotNull(rowKey)
+func (r *JSTypeRegistry) scopedNameTablePut(rowKey Node, columnKey string, value JSType) {
+	CheckNotNull(rowKey)
 	jutil.CheckNotNull(value)
 	row := r.scopedNameTable.Get(rowKey)
 	if row == nil {
@@ -1902,12 +1897,12 @@ func (r *JSTypeRegistry) IsForwardDeclaredType(name string) bool {
 // null/undefined then returns a human-readable type name
 //
 // Java: JSTypeRegistry.getReadableTypeName(Node)
-func (r *JSTypeRegistry) GetReadableTypeName(n *Node) string {
+func (r *JSTypeRegistry) GetReadableTypeName(n Node) string {
 	return r.GetReadableJSTypeName(n, true)
 }
 
 // Java: JSTypeRegistry.getReadableTypeNameNoDeref(Node)
-func (r *JSTypeRegistry) GetReadableTypeNameNoDeref(n *Node) string {
+func (r *JSTypeRegistry) GetReadableTypeNameNoDeref(n Node) string {
 	return r.GetReadableJSTypeName(n, false)
 }
 
@@ -1928,7 +1923,7 @@ func JSTypeRegistry_GetSimpleReadableJSTypeName(type_ JSType) *string {
 		}
 
 		source := type_.ToObjectType().GetConstructor().GetSource()
-		if source != nil {
+		if !source.IsNil() {
 			jutil.CheckStateMsg1(source.IsFunction() || source.IsClass(), "%s", source)
 			readable := source.GetFirstChild().GetOriginalName()
 			if readable != nil {
@@ -1973,7 +1968,7 @@ func JSTypeRegistry_GetSimpleReadableJSTypeName(type_ JSType) *string {
 // instead of passing this as an argument.
 //
 // Java: JSTypeRegistry.getReadableJSTypeName(Node, boolean)
-func (r *JSTypeRegistry) GetReadableJSTypeName(n *Node, dereference bool) string {
+func (r *JSTypeRegistry) GetReadableJSTypeName(n Node, dereference bool) string {
 	type_ := r.GetJSTypeOrUnknown(n)
 	if dereference {
 		autoboxed := type_.Autobox()
@@ -2030,7 +2025,7 @@ func JSTypeRegistry_IsReadableObjectType(type_ ObjectType) bool {
 }
 
 // Java: JSTypeRegistry.getJSTypeOrUnknown(Node)
-func (r *JSTypeRegistry) GetJSTypeOrUnknown(n *Node) JSType {
+func (r *JSTypeRegistry) GetJSTypeOrUnknown(n Node) JSType {
 	jsType := n.GetJSType()
 	if jsType == nil {
 		return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
@@ -2393,7 +2388,7 @@ func (r *JSTypeRegistry) BuildRecordTypeFromObject(objType ObjectType) JSType {
 func (r *JSTypeRegistry) CreateRecordType(props *jutil.LinkedHashMap[string, JSType]) JSType {
 	builder := NewRecordTypeBuilder(r)
 	for k, v := range props.All() {
-		builder.AddProperty(k, v, nil)
+		builder.AddProperty(k, v, Node{})
 	}
 	return builder.Build()
 }
@@ -2454,12 +2449,12 @@ func (r *JSTypeRegistry) ResetImplicitPrototype(type_ JSType, newImplicitProto O
 // Java: JSTypeRegistry.createConstructorType(String, Node, List<FunctionType.Parameter>, JSType, ImmutableList<TemplateType>, boolean)
 func (r *JSTypeRegistry) CreateConstructorType(
 	name *string,
-	source *Node,
+	source Node,
 	parameters []*FunctionType_Parameter,
 	returnType JSType,
 	templateKeys []*TemplateType,
 	isAbstract bool) FunctionType {
-	jutil.CheckArgument(source == nil || source.IsFunction() || source.IsClass())
+	jutil.CheckArgument(source.IsNil() || source.IsFunction() || source.IsClass())
 	return FunctionType_Builder_(r).
 		ForConstructor().
 		WithName(name).
@@ -2482,7 +2477,7 @@ func (r *JSTypeRegistry) CreateTemplateTypeWithBound(name string, bound JSType) 
 }
 
 // Java: JSTypeRegistry.createTemplateTypeWithTransformation(String, Node)
-func (r *JSTypeRegistry) CreateTemplateTypeWithTransformation(name string, expr *Node) *TemplateType {
+func (r *JSTypeRegistry) CreateTemplateTypeWithTransformation(name string, expr Node) *TemplateType {
 	return NewTemplateTypeWithTransformation(r, name, expr)
 }
 
@@ -2593,7 +2588,7 @@ func (r *JSTypeRegistry) EvaluateTypeExpression(expr *JSTypeExpression, scope St
 }
 
 // Java: JSTypeRegistry.createTypeFromCommentNode(Node)
-func (r *JSTypeRegistry) CreateTypeFromCommentNode(n *Node) JSType {
+func (r *JSTypeRegistry) CreateTypeFromCommentNode(n Node) JSType {
 	return r.CreateTypeFromCommentNodeWithScope(n, "[internal]", nil)
 }
 
@@ -2604,7 +2599,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNode(n *Node) JSType {
 // scope for doing type name lookups.
 //
 // Java: JSTypeRegistry.createTypeFromCommentNode(Node, String, StaticTypedScope)
-func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName string, scope StaticTypedScope) JSType {
+func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName string, scope StaticTypedScope) JSType {
 	switch n.GetToken() {
 	case Token_LC:
 		// Record type.
@@ -2619,7 +2614,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 	case Token_QMARK:
 		// Nullable or unknown
 		firstChild := n.GetFirstChild()
-		if firstChild == nil {
+		if firstChild.IsNil() {
 			return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 		}
 		return r.CreateNullableType(r.CreateTypeFromCommentNodeWithScope(firstChild, sourceName, scope))
@@ -2638,7 +2633,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 		// Union type
 		var buf [8]JSType
 		builder := buf[:0]
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			builder = append(builder, jutil.CheckNotNull(r.CreateTypeFromCommentNodeWithScope(child, sourceName, scope)))
 		}
 		return r.CreateUnionTypeOfList(builder)
@@ -2735,7 +2730,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 		paramBuilder.InitWithBuf(r, paramBuf[:0])
 
 		if current.GetToken() == Token_PARAM_LIST {
-			for arg := current.GetFirstChild(); arg != nil; arg = arg.GetNext() {
+			for arg := current.GetFirstChild(); !arg.IsNil(); arg = arg.GetNext() {
 				if arg.GetToken() == Token_ITER_REST {
 					if !arg.HasChildren() {
 						paramBuilder.AddVarArgs(r.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
@@ -2788,7 +2783,7 @@ func jsTypeStaticScopeOrNil(scope StaticTypedScope) StaticScope {
 }
 
 // Java: JSTypeRegistry.addNullabilityBasedOnParseContext(Node, JSType, StaticScope)
-func (r *JSTypeRegistry) AddNullabilityBasedOnParseContext(n *Node, type_ JSType, scope StaticTypedScope) JSType {
+func (r *JSTypeRegistry) AddNullabilityBasedOnParseContext(n Node, type_ JSType, scope StaticTypedScope) JSType {
 	// Other node types may be appropriate in the future.
 	jutil.CheckStateMsg1(n.IsName() || n.IsStringLit(), "%s", n)
 	jutil.CheckNotNull(type_)
@@ -2809,14 +2804,14 @@ func (r *JSTypeRegistry) AddNullabilityBasedOnParseContext(n *Node, type_ JSType
 
 // Java: JSTypeRegistry.parseTemplateArgs(JSType, Node, String, StaticTypedScope)
 func (r *JSTypeRegistry) ParseTemplateArgs(
-	nominalType JSType, typeNode *Node, sourceName string, scope StaticTypedScope) []JSType {
+	nominalType JSType, typeNode Node, sourceName string, scope StaticTypedScope) []JSType {
 	typeList := typeNode.GetFirstChild()
-	if typeList == nil {
+	if typeList.IsNil() {
 		return nil
 	}
 
 	count := 0
-	for templateNode := typeList.GetFirstChild(); templateNode != nil; templateNode = templateNode.GetNext() {
+	for templateNode := typeList.GetFirstChild(); !templateNode.IsNil(); templateNode = templateNode.GetNext() {
 		count++
 	}
 	// TODO(b/138617950): Eliminate the special case for `Object`.
@@ -2830,7 +2825,7 @@ func (r *JSTypeRegistry) ParseTemplateArgs(
 	if isObject && count == 1 {
 		templateArgs = append(templateArgs, r.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
 	}
-	for templateNode := typeList.GetFirstChild(); templateNode != nil; templateNode = templateNode.GetNext() {
+	for templateNode := typeList.GetFirstChild(); !templateNode.IsNil(); templateNode = templateNode.GetNext() {
 		templateArgs = append(templateArgs, jutil.CheckNotNull(r.CreateTypeFromCommentNodeWithScope(templateNode, sourceName, scope)))
 	}
 
@@ -2871,12 +2866,12 @@ func (r *JSTypeRegistry) ParseTemplateArgs(
 // scope for doing type name lookups.
 //
 // Java: JSTypeRegistry.createRecordTypeFromNodes(Node, String, StaticTypedScope)
-func (r *JSTypeRegistry) CreateRecordTypeFromNodes(n *Node, sourceName string, scope StaticTypedScope) JSType {
+func (r *JSTypeRegistry) CreateRecordTypeFromNodes(n Node, sourceName string, scope StaticTypedScope) JSType {
 
 	builder := NewRecordTypeBuilder(r)
 
 	// For each of the fields in the record type.
-	for fieldTypeNode := n.GetFirstChild(); fieldTypeNode != nil; fieldTypeNode = fieldTypeNode.GetNext() {
+	for fieldTypeNode := n.GetFirstChild(); !fieldTypeNode.IsNil(); fieldTypeNode = fieldTypeNode.GetNext() {
 
 		// Get the property's name.
 		fieldNameNode := fieldTypeNode
@@ -2917,7 +2912,7 @@ func (r *JSTypeRegistry) CreateRecordTypeFromNodes(n *Node, sourceName string, s
 // it is called, the scope has not yet been created.
 //
 // Java: JSTypeRegistry.registerTemplateTypeNamesInScope(Iterable<TemplateType>, Node)
-func (r *JSTypeRegistry) RegisterTemplateTypeNamesInScope(keys []*TemplateType, scopeRoot *Node) {
+func (r *JSTypeRegistry) RegisterTemplateTypeNamesInScope(keys []*TemplateType, scopeRoot Node) {
 	for _, key := range keys {
 		r.scopedNameTablePut(scopeRoot, *key.GetReferenceName(), key)
 	}
@@ -2960,7 +2955,7 @@ func NewJSTypeRegistry_SyntheticTemplateScope(delegate StaticTypedScope, templat
 }
 
 // Java: JSTypeRegistry.SyntheticTemplateScope.getRootNode()
-func (s *JSTypeRegistry_SyntheticTemplateScope) GetRootNode() *Node {
+func (s *JSTypeRegistry_SyntheticTemplateScope) GetRootNode() Node {
 	return s.delegate.GetRootNode()
 }
 
@@ -3031,7 +3026,7 @@ func (r *JSTypeRegistry) NativeRecord(name string, templateKeys ...*TemplateType
 // space and do not have a corresponding value space value.
 //
 // Java: JSTypeRegistry.registerNonLegacyClosureNamespace(String, Node, JSType)
-func (r *JSTypeRegistry) RegisterNonLegacyClosureNamespace(moduleName string, definitionNode *Node, type_ JSType) {
+func (r *JSTypeRegistry) RegisterNonLegacyClosureNamespace(moduleName string, definitionNode Node, type_ JSType) {
 	r.closureNamespaces.Put(
 		moduleName, JSTypeRegistry_ClosureNamespace_Create( /* isLegacy= */ false, definitionNode, type_))
 }
@@ -3041,7 +3036,7 @@ func (r *JSTypeRegistry) RegisterNonLegacyClosureNamespace(moduleName string, de
 //
 // Java: JSTypeRegistry.registerLegacyClosureNamespace(String)
 func (r *JSTypeRegistry) RegisterLegacyClosureNamespace(moduleName string) {
-	r.closureNamespaces.Put(moduleName, JSTypeRegistry_ClosureNamespace_Create( /* isLegacy= */ true, nil, nil))
+	r.closureNamespaces.Put(moduleName, JSTypeRegistry_ClosureNamespace_Create( /* isLegacy= */ true, Node{}, nil))
 }
 
 // JSTypeRegistry_ClosureNamespace stores information about a Closure
@@ -3051,7 +3046,7 @@ func (r *JSTypeRegistry) RegisterLegacyClosureNamespace(moduleName string) {
 // AutoValue_JSTypeRegistry_ClosureNamespace implementation folded in.
 type JSTypeRegistry_ClosureNamespace struct {
 	isLegacy       bool
-	definitionNode *Node
+	definitionNode Node
 	type_          JSType
 }
 
@@ -3062,13 +3057,13 @@ type JSTypeRegistry_ClosureNamespace struct {
 func (c *JSTypeRegistry_ClosureNamespace) IsLegacy() bool { return c.isLegacy }
 
 // Java: JSTypeRegistry.ClosureNamespace.definitionNode()
-func (c *JSTypeRegistry_ClosureNamespace) DefinitionNode() *Node { return c.definitionNode }
+func (c *JSTypeRegistry_ClosureNamespace) DefinitionNode() Node { return c.definitionNode }
 
 // Java: JSTypeRegistry.ClosureNamespace.type()
 func (c *JSTypeRegistry_ClosureNamespace) Type() JSType { return c.type_ }
 
 // Java: JSTypeRegistry.ClosureNamespace.create(boolean, Node, JSType)
-func JSTypeRegistry_ClosureNamespace_Create(isLegacy bool, definitionNode *Node, type_ JSType) *JSTypeRegistry_ClosureNamespace {
+func JSTypeRegistry_ClosureNamespace_Create(isLegacy bool, definitionNode Node, type_ JSType) *JSTypeRegistry_ClosureNamespace {
 	return &JSTypeRegistry_ClosureNamespace{isLegacy: isLegacy, definitionNode: definitionNode, type_: type_}
 }
 

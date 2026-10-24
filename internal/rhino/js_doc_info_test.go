@@ -490,7 +490,7 @@ func TestJSDocInfo_GetTypeNodes_IncludesTemplateTypeBounds(t *testing.T) {
 	info := builder.Build()
 
 	// Then
-	var upperBoundRoots []*Node
+	var upperBoundRoots []Node
 	for e := range info.GetTemplateTypes().Values() {
 		upperBoundRoots = append(upperBoundRoots, e.GetRoot())
 	}

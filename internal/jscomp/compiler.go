@@ -88,9 +88,9 @@ type Compiler struct {
 	warningsGuard WarningsGuard
 
 	// Parse tree root nodes
-	externsRoot     *rhino.Node
-	jsRoot          *rhino.Node
-	externAndJsRoot *rhino.Node
+	externsRoot     rhino.Node
+	jsRoot          rhino.Node
+	externAndJsRoot rhino.Node
 
 	// Used for debugging; to see the compiled code between passes
 	lastJsSource *string
@@ -103,7 +103,7 @@ type Compiler struct {
 	// (value equality); never iterated.
 	inputsById *jutil.JavaHashMap[*rhino.InputId, *CompilerInput]
 
-	scriptNodeByFilename *jutil.LinkedHashMap[string, *rhino.Node]
+	scriptNodeByFilename *jutil.LinkedHashMap[string, rhino.Node]
 
 	// Go-only: AST compaction state (compiler_compact.go).
 	astCompact astCompaction
@@ -174,7 +174,7 @@ type Compiler struct {
 	tracker *PerformanceTracker
 
 	// Runtime-library files deserailized from a TypedAST JAR resource; indexed by filename
-	runtimeLibraryTypedAsts *jutil.LinkedHashMap[string, func() *rhino.Node]
+	runtimeLibraryTypedAsts *jutil.LinkedHashMap[string, func() rhino.Node]
 
 	// Types that have been forward declared
 	forwardDeclaredTypes compiler_forwardDeclaredTypes
@@ -185,10 +185,9 @@ type Compiler struct {
 	// typeRegistryReleased.
 	clearedTypeRegistry weak.Pointer[rhino.JSTypeRegistry]
 
-	// Go-only: the node tables this compilation's Nodes refer to their
-	// colors, JSDoc and cold properties through (rhino/node_tables.go);
-	// released when the Compiler is collected.
-	nodeTables *rhino.NodeTables
+	// Go-only: the store this compilation's nodes are allocated in
+	// (rhino/node_store.go); compaction replaces it.
+	nodeStore *rhino.NodeStore
 
 	// This error reporter gets the messages from the current Rhino parser or TypeRegistry.
 	oldErrorReporter rhino.ErrorReporter
@@ -208,7 +207,7 @@ type Compiler struct {
 	// as a cache of size one.
 	resolvedSourceMap compiler_ResolvedSourceMap
 
-	typedAstFilesystem          *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
+	typedAstFilesystem          *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
 	typedAstScriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
 
 	validityCheck *PassFactory
@@ -388,7 +387,7 @@ func (*compiler_allForwardDeclared) IsEmpty() bool {
 func (c *Compiler) initFields() {
 	c.externs = jutil.NewArrayList[*CompilerInput]()
 	c.inputsById = jutil.NewJavaHashMap[*rhino.InputId, *CompilerInput]()
-	c.scriptNodeByFilename = jutil.NewLinkedHashMap[string, *rhino.Node]()
+	c.scriptNodeByFilename = jutil.NewLinkedHashMap[string, rhino.Node]()
 	c.sourceMapOriginalSources = jutil.NewLinkedHashMap[string, *SourceFile]()
 	c.inputSourceMaps = jutil.NewJavaHashMap[string, *SourceMapInput]()
 	c.commentsPerFile = jutil.NewLinkedHashMap[string, []*parser.Comment]()
@@ -401,7 +400,7 @@ func (c *Compiler) initFields() {
 	c.typeCheckingHasRun = false
 	c.asErrorHandler = &compiler_errorHandler{c: c}
 	c.asSourceFileMapping = &compiler_sourceFileMapping{c: c}
-	c.oldErrorReporter = RhinoErrorReporter_ForOldRhino(&compiler_weakErrorHandler{c: weak.Make(c)})
+	c.oldErrorReporter = RhinoErrorReporter_ForOldRhino(c.asErrorHandler)
 	c.compilerExecutor = c.CreateCompilerExecutor()
 	c.changeTracker = NewChangeTracker()
 	c.resolvedSourceMap = compiler_ResolvedSourceMap{}
@@ -441,16 +440,9 @@ func NewCompiler() *Compiler {
 //
 // Java: Compiler(PrintStream)
 func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
-	// Go-only: the nodes of this compilation get their own generation
-	// (rhino/node_store.go); compaction later replaces it.
-	rhino.NewNodeGeneration()
-	c := &Compiler{}
-	c.nodeTables = rhino.NewNodeTables()
-	c.nodeTables.Install()
-	// The tables hold everything a Node refers to by handle; nothing in them
-	// may reach the Compiler (the registry reports through a weak reference),
-	// so the Compiler is collectable and this frees them.
-	runtime.AddCleanup(c, func(t *rhino.NodeTables) { t.Release() }, c.nodeTables)
+	// Go-only: the first compiler of a run (or of a test) starts the node
+	// store; compilers created after it share it (rhino/node_store.go).
+	c := &Compiler{nodeStore: rhino.EnsureCompilationStore()}
 	c.InitAbstractCompilerBase(c)
 	c.initFields()
 	c.changeTracker.AddChangeHandler(c.changeTracker.GetRecentChange())
@@ -477,21 +469,6 @@ type compiler_errorHandler struct {
 // Report is Compiler.report(CheckLevel, JSError).
 func (h *compiler_errorHandler) Report(level *CheckLevel, error *JSError) {
 	h.c.ReportWithLevel(level, error)
-}
-
-// compiler_weakErrorHandler is compiler_errorHandler through a weak
-// reference: the JSTypeRegistry's reporter. Every JSType reaches its
-// registry, and the node type table reaches every JSType a Node referred
-// to, so a strong reference here would keep a Compiler alive (and its node
-// tables unreleased) for as long as any of its types is registered.
-type compiler_weakErrorHandler struct {
-	c weak.Pointer[Compiler]
-}
-
-func (h *compiler_weakErrorHandler) Report(level *CheckLevel, error *JSError) {
-	if c := h.c.Value(); c != nil {
-		c.ReportWithLevel(level, error)
-	}
 }
 
 // compiler_sourceFileMapping is the Compiler as a SourceFileMapping.
@@ -798,7 +775,7 @@ func (c *Compiler) ReconcileOptionsWithGuards() {
 }
 
 // Java: Compiler.getTypedAstDeserializer(SourceFile)
-func (c *Compiler) GetTypedAstDeserializer(file *SourceFile) func() *rhino.Node {
+func (c *Compiler) GetTypedAstDeserializer(file *SourceFile) func() rhino.Node {
 	if c.typedAstFilesystem == nil {
 		return nil
 	}
@@ -818,7 +795,7 @@ func (c *Compiler) GetTypedAstDeserializer(file *SourceFile) func() *rhino.Node 
 	return ast
 }
 
-func (c *Compiler) takeTypedAstDeserializer(file *SourceFile) (*ScriptNodeDeserializer, func() *rhino.Node) {
+func (c *Compiler) takeTypedAstDeserializer(file *SourceFile) (*ScriptNodeDeserializer, func() rhino.Node) {
 	if c.typedAstFilesystem == nil {
 		return nil, nil
 	}
@@ -974,10 +951,10 @@ func (c *Compiler) InitRuntimeLibraryTypedAsts(colorPoolBuilder *ColorPool_Build
 		c.GetOptions().GetParseInlineSourceMaps())
 
 	// Re-index the runtime libraries by file name rather than SourceFile object
-	runtimeLibraryTypedAsts := jutil.NewLinkedHashMap[string, func() *rhino.Node]()
+	runtimeLibraryTypedAsts := jutil.NewLinkedHashMap[string, func() rhino.Node]()
 	for key, value := range astData.GetFilesystem().All() {
 		runtimeLibraryTypedAsts.ComputeIfAbsent(
-			key.GetName(), func(f string) func() *rhino.Node { return value })
+			key.GetName(), func(f string) func() rhino.Node { return value })
 	}
 
 	c.runtimeLibraryTypedAsts = jutil.NewLinkedHashMapFrom(runtimeLibraryTypedAsts)
@@ -1060,7 +1037,7 @@ func (c *Compiler) InitChunks(externs []*SourceFile, chunks []*JSChunk, options 
 		}
 	}()
 
-	var nodeForCodeInsertion func() *rhino.Node
+	var nodeForCodeInsertion func() rhino.Node
 	if options.GetRuntimeLibraryMode() == RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES {
 		nodeForCodeInsertion = c.getSynthesizedExternsRoot
 	} else {
@@ -1207,7 +1184,7 @@ func (c *Compiler) CompileOfSourceFiles(extern *SourceFile, input *SourceFile, o
 // Java: Compiler.compile(List<SourceFile>, List<SourceFile>, CompilerOptions)
 func (c *Compiler) Compile(externs []*SourceFile, inputs []*SourceFile, options *CompilerOptions) *Result {
 	// The compile method should only be called once.
-	jutil.CheckState(c.jsRoot == nil)
+	jutil.CheckState(c.jsRoot.IsNil())
 
 	func() {
 		defer c.GenerateReport()
@@ -1277,7 +1254,7 @@ func (c *Compiler) clearSourcesCachedForReport() {
 // Java: Compiler.compileChunks(List<SourceFile>, List<JSChunk>, CompilerOptions)
 func (c *Compiler) CompileChunks(externs []*SourceFile, chunks []*JSChunk, options *CompilerOptions) *Result {
 	// The compile method should only be called once.
-	jutil.CheckState(c.jsRoot == nil)
+	jutil.CheckState(c.jsRoot.IsNil())
 
 	func() {
 		defer c.GenerateReport()
@@ -1578,7 +1555,7 @@ func (c *Compiler) Parse() {
 }
 
 // Java: Compiler.parse(SourceFile)
-func (c *Compiler) ParseOfSourceFile(file *SourceFile) *rhino.Node {
+func (c *Compiler) ParseOfSourceFile(file *SourceFile) rhino.Node {
 	c.InitCompilerOptionsIfTesting()
 	Compiler_logger.Finest("Parsing: " + file.GetName())
 	return NewCompilerInput(file).GetAstRoot(c)
@@ -1631,7 +1608,7 @@ func (c *Compiler) WhitespaceOnlyPasses() {
 // Java: Compiler.markTranspiledFiles()
 func (c *Compiler) markTranspiledFiles() {
 	// note whether any script will get transpiled
-	for child := c.jsRoot.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := c.jsRoot.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		jutil.CheckState(child.IsScript())
 		featureSet := NodeUtil_GetFeatureSetOfScript(child)
 		if !c.options.GetOutputFeatureSet().Contains(featureSet) {
@@ -1920,10 +1897,10 @@ func (c *Compiler) GetCurrentJsSource() string {
 		return c.ToSource()
 	}
 	if len(fileNameRegexList) != 0 {
-		jutil.CheckNotNull(c.externsRoot)
-		jutil.CheckNotNull(c.jsRoot)
-		for _, r := range []*rhino.Node{c.externsRoot, c.jsRoot} {
-			for fileNode := r.GetFirstChild(); fileNode != nil; fileNode = fileNode.GetNext() {
+		rhino.CheckNotNull(c.externsRoot)
+		rhino.CheckNotNull(c.jsRoot)
+		for _, r := range []rhino.Node{c.externsRoot, c.jsRoot} {
+			for fileNode := r.GetFirstChild(); !fileNode.IsNil(); fileNode = fileNode.GetNext() {
 				fileName := fileNode.GetSourceFileName()
 				for _, regex := range fileNameRegexList {
 					if jutil.Pattern_Compile(regex).Matches(*fileName) {
@@ -1975,12 +1952,12 @@ func (c *Compiler) GetCurrentJsSource() string {
 		// the stream is consumed (after the header below is written), so
 		// the filter is applied in the loop at the end.
 		statements := c.getTopLevelStatements(c.jsRoot)
-		statementFilter := func(statement *rhino.Node) bool {
+		statementFilter := func(statement rhino.Node) bool {
 			// filter to just those statements containing interesting qnames
 			return NodeUtil_Has(
 				statement,
-				func(n *rhino.Node) bool {
-					jutil.CheckNotNull(n)
+				func(n rhino.Node) bool {
+					rhino.CheckNotNull(n)
 					if !n.IsQualifiedName() {
 						return false
 					}
@@ -1996,7 +1973,7 @@ func (c *Compiler) GetCurrentJsSource() string {
 						return false
 					}
 				},
-				func(node *rhino.Node) bool { return true })
+				func(node rhino.Node) bool { return true })
 		}
 		builder.Append("//\n")
 		builder.Append("// closure-compiler: Printing all of the top-level statements\n")
@@ -2023,7 +2000,7 @@ func (c *Compiler) GetCurrentJsSource() string {
 }
 
 // Java: Compiler.getTopLevelStatements(Node)
-func (c *Compiler) getTopLevelStatements(root *rhino.Node) []*rhino.Node {
+func (c *Compiler) getTopLevelStatements(root rhino.Node) []rhino.Node {
 	cb := &compiler_topLevelStatementsCallback{}
 	NodeTraversal_Traverse(c, root, cb)
 	return cb.builder
@@ -2034,11 +2011,11 @@ func (c *Compiler) getTopLevelStatements(root *rhino.Node) []*rhino.Node {
 // outermost statements.
 type compiler_topLevelStatementsCallback struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
-	builder []*rhino.Node
+	builder []rhino.Node
 }
 
 // Java: Compiler.getTopLevelStatements(...).new AbstractPreOrderCallback() {...}.shouldTraverse(NodeTraversal, Node, Node)
-func (cb *compiler_topLevelStatementsCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (cb *compiler_topLevelStatementsCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if NodeUtil_IsStatement(n) {
 		cb.builder = append(cb.builder, n)
 		return false
@@ -2048,7 +2025,7 @@ func (cb *compiler_topLevelStatementsCallback) ShouldTraverse(t *NodeTraversal, 
 }
 
 // Java: Compiler.getScriptNode(String)
-func (c *Compiler) GetScriptNode(filename string) *rhino.Node {
+func (c *Compiler) GetScriptNode(filename string) rhino.Node {
 	return c.scriptNodeByFilename.Get(jutil.CheckNotNull(filename))
 }
 
@@ -2115,7 +2092,7 @@ func (c *Compiler) GetWarnings() []*JSError {
 }
 
 // Java: Compiler.getRoot()
-func (c *Compiler) GetRoot() *rhino.Node {
+func (c *Compiler) GetRoot() rhino.Node {
 	return c.externAndJsRoot
 }
 
@@ -2170,7 +2147,7 @@ func (c *Compiler) GetUniqueNameIdSupplier() func() string {
 }
 
 // Java: Compiler.areNodesEqualForInlining(Node, Node)
-func (c *Compiler) AreNodesEqualForInlining(n1 *rhino.Node, n2 *rhino.Node) bool {
+func (c *Compiler) AreNodesEqualForInlining(n1 rhino.Node, n2 rhino.Node) bool {
 	if c.options.ShouldAmbiguateProperties() || c.options.ShouldDisambiguateProperties() {
 		// The type based optimizations require that type information is preserved
 		// during other optimizations.
@@ -2442,7 +2419,7 @@ func (c *Compiler) GetTranspilationNamespace() rhino.StaticScope {
 		gn := NewGlobalNamespaceWithRoots(c, c.GetExternsRoot(), c.GetJsRoot())
 		// Exclude user-defined code names, to save memory and help prevent misuse.
 		gn.SetShouldTraverseScriptPredicate(
-			func(script *rhino.Node) bool { return script.IsFromExterns() || script.IsFirstChildOf(c.GetJsRoot()) })
+			func(script rhino.Node) bool { return script.IsFromExterns() || script.IsFirstChildOf(c.GetJsRoot()) })
 		gn.GetNameForest() // ensure namespace is generated
 		gn.ReleaseScopeArena()
 		// wrap GlobalNamespace to prevent looking up extra information in GlobalNamespace
@@ -2504,7 +2481,7 @@ func (c *Compiler) InitializeModuleLoader() {
 // and the main root
 //
 // Java: Compiler.parseInputs()
-func (c *Compiler) ParseInputs() (result *rhino.Node) {
+func (c *Compiler) ParseInputs() (result rhino.Node) {
 	devMode := c.options.GetDevMode() != CompilerOptions_DevMode_OFF
 
 	// If old roots exist (we are parsing a second time), detach each of the
@@ -2525,9 +2502,9 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(c.externs.All())
 	}
 	for input := range c.externs.All() {
-		n := jutil.CheckNotNull(input.GetAstRoot(c))
+		n := rhino.CheckNotNull(input.GetAstRoot(c))
 		if c.HasErrors() {
-			return nil
+			return rhino.Node{}
 		}
 		c.externsRoot.AddChildToBack(n)
 		c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), n)
@@ -2587,7 +2564,7 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 
 	// If in IDE mode, we ignore the error and keep going.
 	if c.HasErrors() {
-		return nil
+		return rhino.Node{}
 	}
 
 	// Build the AST.
@@ -2604,7 +2581,7 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 		c.options.GetNumParallelThreads() > 1 && len(allInputs) > 1 && !c.HasErrors() {
 		sia := SourceInformationAnnotator_Create()
 		failures := parallelPrebuild(len(allInputs), c.options.GetNumParallelThreads(), func(i int) {
-			if root := allInputs[i].GetAstRoot(c); root != nil {
+			if root := allInputs[i].GetAstRoot(c); !root.IsNil() {
 				sia.AnnotateTree(root)
 			}
 		})
@@ -2617,11 +2594,11 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 	}
 
 	for _, input := range allInputs {
-		n := jutil.CheckNotNull(input.GetAstRoot(c))
+		n := rhino.CheckNotNull(input.GetAstRoot(c))
 		if devMode {
 			c.runValidityCheck()
 			if c.HasErrors() {
-				return nil
+				return rhino.Node{}
 			}
 		}
 
@@ -2646,7 +2623,7 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 	}
 
 	if c.HasErrors() {
-		return nil
+		return rhino.Node{}
 	}
 	// Save on memory. Any future calls to "createInputConsideringTypedAstFilesystem" will throw.
 	// TODO(lharker): do we actually need the synthetic externs file in stage 2?
@@ -2820,7 +2797,7 @@ func (c *Compiler) findModulesFromInput(
 
 	findDeps := NewFindModuleDependencies(
 		c, supportEs6Modules, supportCommonJSModules, c.inputPathByWebpackId)
-	findDeps.Process(jutil.CheckNotNull(input.GetAstRoot(c)))
+	findDeps.Process(rhino.CheckNotNull(input.GetAstRoot(c)))
 
 	// If this input was imported by another module, it is itself a module
 	// so we force it to be detected as such.
@@ -2982,9 +2959,9 @@ func (c *Compiler) ProcessJsonInputs(inputsToProcess []*CompilerInput) *jutil.Li
 			continue
 		}
 
-		root := jutil.CheckNotNull(input.GetAstRoot(c))
+		root := rhino.CheckNotNull(input.GetAstRoot(c))
 		input.SetJsModuleType(CompilerInput_ModuleType_JSON)
-		rewriteJson.Process(nil, root)
+		rewriteJson.Process(rhino.Node{}, root)
 	}
 	return rewriteJson.GetPackageJsonMainEntries()
 }
@@ -3031,7 +3008,7 @@ func (c *Compiler) InitCompilerOptionsIfTesting() {
 }
 
 // Java: Compiler.parseSyntheticCode(String, String)
-func (c *Compiler) ParseSyntheticCode(fileName string, js string) *rhino.Node {
+func (c *Compiler) ParseSyntheticCode(fileName string, js string) rhino.Node {
 	c.InitCompilerOptionsIfTesting()
 	source := SourceFile_FromCode(compiler_SYNTHETIC_FILE_NAME_PREFIX+fileName+"] ", js)
 	c.addFilesToSourceMap([]*SourceFile{source})
@@ -3039,7 +3016,7 @@ func (c *Compiler) ParseSyntheticCode(fileName string, js string) *rhino.Node {
 }
 
 // Java: Compiler.parseTestCode(String)
-func (c *Compiler) ParseTestCode(js string) *rhino.Node {
+func (c *Compiler) ParseTestCode(js string) rhino.Node {
 	c.InitCompilerOptionsIfTesting()
 	c.InitBasedOnOptions()
 	// NOTE: The file name used here is important, because at least Es6RewriteClassTest expects
@@ -3051,7 +3028,7 @@ func (c *Compiler) ParseTestCode(js string) *rhino.Node {
 }
 
 // Java: Compiler.parseTestCode(ImmutableList<String>)
-func (c *Compiler) ParseTestCodeOfList(code []string) *rhino.Node {
+func (c *Compiler) ParseTestCodeOfList(code []string) rhino.Node {
 	c.InitCompilerOptionsIfTesting()
 	c.InitBasedOnOptions()
 	srcs := make([]*SourceFile, len(code))
@@ -3062,16 +3039,16 @@ func (c *Compiler) ParseTestCodeOfList(code []string) *rhino.Node {
 }
 
 // Java: Compiler.parseCodeHelper(SourceFile)
-func (c *Compiler) parseCodeHelper(src *SourceFile) *rhino.Node {
+func (c *Compiler) parseCodeHelper(src *SourceFile) rhino.Node {
 	input := NewCompilerInput(src)
 	c.putCompilerInput(input)
 	root := input.GetAstRoot(c)
 	c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), root)
-	return jutil.CheckNotNull(root)
+	return rhino.CheckNotNull(root)
 }
 
 // Java: Compiler.parseCodeHelper(List<SourceFile>)
-func (c *Compiler) parseCodeHelperOfList(srcs []*SourceFile) *rhino.Node {
+func (c *Compiler) parseCodeHelperOfList(srcs []*SourceFile) rhino.Node {
 	root := rhino.IR_Root()
 	for _, src := range srcs {
 		root.AddChildToBack(c.parseCodeHelper(src))
@@ -3107,14 +3084,14 @@ func (c *Compiler) ToSource() string {
 			// We are emitting all the sources at once, so use the SingleBinaryLicenseTracker
 			// to de-dupe seen licenses across all inputs.
 			lt := newCompiler_SingleBinaryLicenseTracker(c)
-			if c.jsRoot != nil {
-				var scripts []*rhino.Node
+			if !c.jsRoot.IsNil() {
+				var scripts []rhino.Node
 				if c.options.ShouldPrintExterns() {
-					for scriptNode := c.externsRoot.GetFirstChild(); scriptNode != nil; scriptNode = scriptNode.GetNext() {
+					for scriptNode := c.externsRoot.GetFirstChild(); !scriptNode.IsNil(); scriptNode = scriptNode.GetNext() {
 						scripts = append(scripts, scriptNode)
 					}
 				}
-				for scriptNode := c.jsRoot.GetFirstChild(); scriptNode != nil; scriptNode = scriptNode.GetNext() {
+				for scriptNode := c.jsRoot.GetFirstChild(); !scriptNode.IsNil(); scriptNode = scriptNode.GetNext() {
 					scripts = append(scripts, scriptNode)
 				}
 				if c.options.GetNumParallelThreads() > 1 && len(scripts) > 1 {
@@ -3213,10 +3190,10 @@ func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter
 			if numInputs > 1 && c.options != nil && c.options.GetNumParallelThreads() > 1 {
 				replay, onlyScript, canParallel := compiler_licenseTrackerReplay(licenseTracker)
 				if canParallel {
-					scripts := make([]*rhino.Node, numInputs)
+					scripts := make([]rhino.Node, numInputs)
 					for i := 0; i < numInputs; i++ {
 						scriptNode := inputs[i].GetAstRoot(c)
-						if scriptNode == nil {
+						if scriptNode.IsNil() {
 							panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunk.GetName()))
 						}
 						scripts[i] = scriptNode
@@ -3260,7 +3237,7 @@ func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter
 			}
 			for i := 0; i < numInputs; i++ {
 				scriptNode := inputs[i].GetAstRoot(c)
-				if scriptNode == nil {
+				if scriptNode.IsNil() {
 					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunk.GetName()))
 				}
 				c.ToSourceOfCodeBuilder(cb, licenseTracker, i, scriptNode)
@@ -3284,7 +3261,7 @@ func (c *Compiler) ToSourceOfCodeBuilder(
 	cb *Compiler_CodeBuilder,
 	licenseTracker CodePrinter_LicenseTracker,
 	inputSeqNum int,
-	root *rhino.Node) {
+	root rhino.Node) {
 	Compiler_RunInCompilerThread(c,
 		func() any {
 			var sourceAndMappings CodePrinter_SourceAndMappings
@@ -3298,7 +3275,7 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	cb *Compiler_CodeBuilder,
 	licenseTracker CodePrinter_LicenseTracker,
 	inputSeqNum int,
-	root *rhino.Node,
+	root rhino.Node,
 	sourceAndMappings *CodePrinter_SourceAndMappings) {
 	defer sourceAndMappings.Release()
 	if c.options.ShouldPrintInputDelimiter() {
@@ -3381,9 +3358,9 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 // generate source map info.
 //
 // Java: Compiler.toSource(Node)
-func (c *Compiler) ToSourceOfNode(n *rhino.Node) string {
+func (c *Compiler) ToSourceOfNode(n rhino.Node) string {
 	c.InitCompilerOptionsIfTesting()
-	if n != nil && !n.IsRoot() && !n.IsScript() {
+	if !n.IsNil() && !n.IsRoot() && !n.IsScript() {
 		return c.toSourceWithoutMappings(n, false, nil)
 	}
 	sb := jutil.NewStringBuilder()
@@ -3413,7 +3390,7 @@ func (c *Compiler) ToSourceOfNode(n *rhino.Node) string {
 type compiler_SeenSetLicenseTracker interface {
 	CodePrinter_LicenseTracker
 	// Java: Compiler.SeenSetLicenseTracker.shouldUseLicenseInfo(Node)
-	ShouldUseLicenseInfo(node *rhino.Node) bool
+	ShouldUseLicenseInfo(node rhino.Node) bool
 }
 
 // compiler_SeenSetLicenseTrackerBase holds the fields and base
@@ -3436,12 +3413,12 @@ func (t *compiler_SeenSetLicenseTrackerBase) initCompiler_SeenSetLicenseTrackerB
 }
 
 // Java: Compiler.SeenSetLicenseTracker.shouldUseLicenseInfo(Node)
-func (t *compiler_SeenSetLicenseTrackerBase) ShouldUseLicenseInfo(node *rhino.Node) bool {
+func (t *compiler_SeenSetLicenseTrackerBase) ShouldUseLicenseInfo(node rhino.Node) bool {
 	return !node.IsRoot() && !node.IsScript()
 }
 
 // Java: Compiler.SeenSetLicenseTracker.trackLicensesForNode(Node)
-func (t *compiler_SeenSetLicenseTrackerBase) TrackLicensesForNode(node *rhino.Node) {
+func (t *compiler_SeenSetLicenseTrackerBase) TrackLicensesForNode(node rhino.Node) {
 	if !t.self.ShouldUseLicenseInfo(node) {
 		return
 	}
@@ -3508,7 +3485,7 @@ func NewCompiler_ScriptNodeLicensesOnlyTracker(compiler AbstractCompiler) *Compi
 }
 
 // Java: Compiler.ScriptNodeLicensesOnlyTracker.shouldUseLicenseInfo(Node)
-func (t *Compiler_ScriptNodeLicensesOnlyTracker) ShouldUseLicenseInfo(node *rhino.Node) bool {
+func (t *Compiler_ScriptNodeLicensesOnlyTracker) ShouldUseLicenseInfo(node rhino.Node) bool {
 	// Only use license information that is found on the script or root nodes of the tree.
 	return node.IsRoot() || node.IsScript()
 }
@@ -3532,7 +3509,7 @@ func newCompiler_SingleBinaryLicenseTracker(compiler AbstractCompiler) *Compiler
 }
 
 // Java: Compiler.SingleBinaryLicenseTracker.shouldUseLicenseInfo(Node)
-func (t *Compiler_SingleBinaryLicenseTracker) ShouldUseLicenseInfo(node *rhino.Node) bool {
+func (t *Compiler_SingleBinaryLicenseTracker) ShouldUseLicenseInfo(node rhino.Node) bool {
 	// Ignore the licensing information attached to root or script nodes, and only carry license
 	// info for nodes that emit visible JS.
 	return !node.IsRoot() && !node.IsScript()
@@ -3679,7 +3656,7 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk 
 }
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker.trackLicensesForNode(Node)
-func (t *Compiler_ChunkGraphAwareLicenseTracker) TrackLicensesForNode(node *rhino.Node) {
+func (t *Compiler_ChunkGraphAwareLicenseTracker) TrackLicensesForNode(node rhino.Node) {
 	if node.IsRoot() || node.IsScript() {
 		// Neither of these node kinds on their own emit code, so skip their analysis.
 		return
@@ -3796,7 +3773,7 @@ func (r *compiler_ParallelScriptLicenseRecorder) Reset(onlyScript bool) {
 	r.seenFiles = r.seenFiles[:0]
 }
 
-func (r *compiler_ParallelScriptLicenseRecorder) TrackLicensesForNode(node *rhino.Node) {
+func (r *compiler_ParallelScriptLicenseRecorder) TrackLicensesForNode(node rhino.Node) {
 	isRootOrScript := node.IsRoot() || node.IsScript()
 	if r.onlyScript != isRootOrScript {
 		return
@@ -3852,7 +3829,7 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) EmitLicenses() *jutil.LinkedHas
 //
 // Java: Compiler.toSourceAndMappings(Node, boolean, LicenseTracker)
 func (c *Compiler) toSourceAndMappings(
-	n *rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) *CodePrinter_SourceAndMappings {
+	n rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) *CodePrinter_SourceAndMappings {
 	sm := &CodePrinter_SourceAndMappings{}
 	c.toSourceAndMappingsInto(n, firstOutput, licenseTracker, sm)
 	sm.mappings = sm.iterMappings
@@ -3860,7 +3837,7 @@ func (c *Compiler) toSourceAndMappings(
 }
 
 func (c *Compiler) toSourceAndMappingsInto(
-	n *rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker, sm *CodePrinter_SourceAndMappings) {
+	n rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker, sm *CodePrinter_SourceAndMappings) {
 	builder := CodePrinter_Builder{root: n}
 	builder.SetCompilerOptions(c.options)
 	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
@@ -3870,7 +3847,7 @@ func (c *Compiler) toSourceAndMappingsInto(
 }
 
 func (c *Compiler) toSourceWithoutMappings(
-	n *rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) string {
+	n rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) string {
 	builder := CodePrinter_Builder{root: n}
 	builder.SetCompilerOptions(c.options)
 	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
@@ -3889,7 +3866,7 @@ func Compiler_GetLicenseForFile(compiler AbstractCompiler, fileName *string) *st
 
 func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) *string {
 	licenseRoot := compiler.GetScriptNode(fileName)
-	if licenseRoot == nil {
+	if licenseRoot.IsNil() {
 		return nil
 	}
 	docInfo := licenseRoot.GetJSDocInfo()
@@ -3924,7 +3901,7 @@ func (c *Compiler) ToSourceArray(licenseTracker CodePrinter_LicenseTracker, chun
 			cb := NewCompiler_CodeBuilder()
 			for i := 0; i < numInputs; i++ {
 				scriptNode := inputs[i].GetAstRoot(c)
-				if scriptNode == nil {
+				if scriptNode.IsNil() {
 					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk input: " + inputs[i].GetName()))
 				}
 
@@ -4100,7 +4077,7 @@ func (c *Compiler) PerformFinalizations() {
 // ComputeCFG is Control Flow Analysis.
 //
 // Java: Compiler.computeCFG()
-func (c *Compiler) ComputeCFG() ControlFlowGraph[*rhino.Node] {
+func (c *Compiler) ComputeCFG() ControlFlowGraph[rhino.Node] {
 	Compiler_logger.Fine("Computing Control Flow Graph")
 	tracer := c.NewTracer("computeCFG")
 	cfg := ControlFlowAnalysis_Builder_().
@@ -4207,17 +4184,17 @@ func (c *Compiler) GetIndex(key reflect.Type) any {
 }
 
 // Java: Compiler.getExternsRoot()
-func (c *Compiler) GetExternsRoot() *rhino.Node {
+func (c *Compiler) GetExternsRoot() rhino.Node {
 	return c.externsRoot
 }
 
 // Java: Compiler.getJsRoot()
-func (c *Compiler) GetJsRoot() *rhino.Node {
+func (c *Compiler) GetJsRoot() rhino.Node {
 	return c.jsRoot
 }
 
 // Java: Compiler.hasScopeChanged(Node)
-func (c *Compiler) HasScopeChanged(n *rhino.Node) bool {
+func (c *Compiler) HasScopeChanged(n rhino.Node) bool {
 	if c.phaseOptimizer == nil {
 		return true
 	}
@@ -4225,12 +4202,12 @@ func (c *Compiler) HasScopeChanged(n *rhino.Node) bool {
 }
 
 // Java: Compiler.reportChangeToChangeScope(Node)
-func (c *Compiler) ReportChangeToChangeScope(changeScopeRoot *rhino.Node) {
+func (c *Compiler) ReportChangeToChangeScope(changeScopeRoot rhino.Node) {
 	c.changeTracker.ReportChangeToChangeScope(changeScopeRoot)
 }
 
 // Java: Compiler.reportFunctionDeleted(Node)
-func (c *Compiler) ReportFunctionDeleted(n *rhino.Node) {
+func (c *Compiler) ReportFunctionDeleted(n rhino.Node) {
 	c.changeTracker.ReportFunctionDeleted(n)
 }
 
@@ -4249,7 +4226,7 @@ func (c *Compiler) ReportAmbiguatePropertiesSummary(summarySupplier func() strin
 }
 
 // Java: Compiler.reportChangeToEnclosingScope(Node)
-func (c *Compiler) ReportChangeToEnclosingScope(n *rhino.Node) {
+func (c *Compiler) ReportChangeToEnclosingScope(n rhino.Node) {
 	c.changeTracker.ReportChangeToEnclosingScope(n)
 }
 
@@ -4645,7 +4622,7 @@ func (c *Compiler) GetSourceRegion(sourceName *string, lineNumber int) Region {
 // ------------------------------------------------------------------------
 
 // Java: Compiler.getNodeForCodeInsertion(JSChunk)
-func (c *Compiler) GetNodeForCodeInsertion(chunk *JSChunk) *rhino.Node {
+func (c *Compiler) GetNodeForCodeInsertion(chunk *JSChunk) rhino.Node {
 	if c.inputsById.ContainsKey(compiler_SYNTHETIC_CODE_INPUT_ID) {
 		return c.inputsById.Get(compiler_SYNTHETIC_CODE_INPUT_ID).GetAstRoot(c)
 	}
@@ -4779,7 +4756,7 @@ func Compiler_SetLoggingLevel(level *jutil.Level) {
 //
 // Java: Compiler.getAstDotGraph()
 func (c *Compiler) GetAstDotGraph() string {
-	if c.jsRoot != nil {
+	if !c.jsRoot.IsNil() {
 		cfg := ControlFlowAnalysis_Builder_().
 			SetCompiler(c).
 			SetCfgRoot(c.jsRoot).
@@ -4876,7 +4853,7 @@ func (c *Compiler) GetSynthesizedExternsInput() *CompilerInput {
 	}
 
 	input := NewCompilerInputWithIsExtern(c.SYNTHETIC_EXTERNS_FILE /* isExtern= */, true)
-	root := jutil.CheckNotNull(input.GetAstRoot(c))
+	root := rhino.CheckNotNull(input.GetAstRoot(c))
 	c.putCompilerInput(input)
 	c.syntheticExternsInput = input
 	c.externsRoot.AddChildToFront(root)
@@ -4887,7 +4864,7 @@ func (c *Compiler) GetSynthesizedExternsInput() *CompilerInput {
 }
 
 // Java: Compiler.getSynthesizedExternsRoot()
-func (c *Compiler) getSynthesizedExternsRoot() *rhino.Node {
+func (c *Compiler) getSynthesizedExternsRoot() rhino.Node {
 	externsInput := c.GetSynthesizedExternsInput()
 	return externsInput.GetAstRoot(c)
 }
@@ -4899,7 +4876,7 @@ func (c *Compiler) GetSynthesizedTypeSummaryInput() *CompilerInput {
 	}
 
 	input := NewCompilerInputWithIsExtern(c.syntheticTypeSummaryFile /* isExtern= */, true)
-	root := jutil.CheckNotNull(input.GetAstRoot(c))
+	root := rhino.CheckNotNull(input.GetAstRoot(c))
 	c.putCompilerInput(input)
 	c.syntheticTypeSummaryInput = input
 	c.externsRoot.AddChildToFront(root)
@@ -4926,7 +4903,7 @@ func (c *Compiler) InitializeSyntheticCodeInput() {
 	if c.inputsById.ContainsKey(ast.GetInputId()) {
 		panic(jutil.NewIllegalStateExceptionMsg("Conflicting synthetic id name"))
 	}
-	c.jsRoot.AddChildToFront(jutil.CheckNotNull(ast.GetAstRoot(c)))
+	c.jsRoot.AddChildToFront(rhino.CheckNotNull(ast.GetAstRoot(c)))
 
 	var firstChunk *JSChunk
 	if chunks := c.GetChunks(); len(chunks) > 0 {
@@ -4969,7 +4946,7 @@ func (c *Compiler) removeSyntheticCodeInputMerging(mergeContentIntoFirstInput bo
 	if mergeContentIntoFirstInput && astRoot.HasChildren() {
 		// If we've inserted anything into the synthetic AST, move it into the top of the next script.
 		next := astRoot.GetNext()
-		jutil.CheckNotNullMsg(next, "Must provide at least one source")
+		rhino.CheckNotNullMsg(next, "Must provide at least one source")
 		compiler_checkNotModule(
 			next, "Cannot remove synthetic code input until modules are rewritten: %s", next)
 		next.AddChildrenToFront(astRoot.RemoveChildren())
@@ -5016,7 +4993,7 @@ func (c *Compiler) SetAccessorSummary(summary *AccessorSummary) {
 // format
 //
 // Java: Compiler.loadResourceContents(String, String)
-func (c *Compiler) loadResourceContents(resourceName string, path string) *rhino.Node {
+func (c *Compiler) loadResourceContents(resourceName string, path string) rhino.Node {
 	if c.GetLifeCycleStage().HasColorAndSimplifiedJSDoc() {
 		jutil.CheckNotNullMsg(
 			c.runtimeLibraryTypedAsts,
@@ -5043,7 +5020,7 @@ func (c *Compiler) loadResourceContents(resourceName string, path string) *rhino
 }
 
 // Java: Compiler.getNodeForRuntimeCodeInsertion()
-func (c *Compiler) getNodeForRuntimeCodeInsertion() *rhino.Node {
+func (c *Compiler) getNodeForRuntimeCodeInsertion() rhino.Node {
 	// For stage 2 optimizing builds, insert runtime libraries as actual code in the AST.
 	// For library builds that outputs a TypedAST, the runtime libraries are injected to a synthetic
 	// @typeSummary (.i.js) node so that the types are available.
@@ -5268,7 +5245,7 @@ func (c *Compiler) GetCompilerStateProtoBuilder() *JSCompilerStateProto_Builder 
 
 	builder.AddAllInjectedLibraries(c.runtimeJsLibManager.GetInjectedLibraries())
 	lastInjectedLibrary := c.runtimeJsLibManager.GetLastInjectedLibrary()
-	if lastInjectedLibrary != nil && c.jsRoot != nil && c.jsRoot.HasChildren() {
+	if !lastInjectedLibrary.IsNil() && !c.jsRoot.IsNil() && c.jsRoot.HasChildren() {
 		builder.SetLastInjectedLibraryIndexInFirstScript(
 			int32(c.jsRoot.GetFirstChild().GetIndexOfChild(lastInjectedLibrary)))
 	} else {
@@ -5846,7 +5823,7 @@ func (c *Compiler) ResetAndIntitializeSourceMap() {
 }
 
 // Java: Compiler.checkNotModule(Node, String, Object...)
-func compiler_checkNotModule(script *rhino.Node, msg string, args ...any) *rhino.Node {
+func compiler_checkNotModule(script rhino.Node, msg string, args ...any) rhino.Node {
 	jutil.CheckArgumentMsg1(script.IsScript(), "%s", script)
 	if !script.HasOneChild() {
 		return script

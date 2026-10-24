@@ -28,7 +28,7 @@ import (
 type CheckConstPrivateProperties struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler                  AbstractCompiler
-	candidates                []*rhino.Node
+	candidates                []rhino.Node
 	modified                  *jutil.LinkedHashSet[string]
 	constructorsAndInterfaces *jutil.LinkedHashSet[string]
 }
@@ -49,7 +49,7 @@ func NewCheckConstPrivateProperties(compiler AbstractCompiler) *CheckConstPrivat
 }
 
 // Java: CheckConstPrivateProperties.process(Node, Node)
-func (c *CheckConstPrivateProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckConstPrivateProperties) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
@@ -70,13 +70,13 @@ func (c *CheckConstPrivateProperties) ReportMissingConst(t *NodeTraversal) {
 }
 
 // Java: CheckConstPrivateProperties.visit(NodeTraversal, Node, Node)
-func (c *CheckConstPrivateProperties) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckConstPrivateProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		// Exiting the script, report any non-const privates not modified in the file.
 		c.ReportMissingConst(t)
 	case rhino.Token_GETELEM, rhino.Token_GETPROP:
-		var propNode *rhino.Node
+		var propNode rhino.Node
 		if n.IsGetProp() {
 			propNode = n
 		} else if n.GetLastChild().IsStringLit() {
@@ -104,7 +104,7 @@ func (c *CheckConstPrivateProperties) Visit(t *NodeTraversal, n *rhino.Node, par
 }
 
 // Java: CheckConstPrivateProperties.recordConstructorOrInterface(Node)
-func (c *CheckConstPrivateProperties) RecordConstructorOrInterface(n *rhino.Node) {
+func (c *CheckConstPrivateProperties) RecordConstructorOrInterface(n rhino.Node) {
 	className := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
 	if className != nil {
 		// If className is null, then this pass won't report any diagnostics on static members of this
@@ -117,7 +117,7 @@ func (c *CheckConstPrivateProperties) RecordConstructorOrInterface(n *rhino.Node
 // property declaration that is not marked constant.
 //
 // Java: CheckConstPrivateProperties.isCandidatePropertyDefinition(Node)
-func (c *CheckConstPrivateProperties) IsCandidatePropertyDefinition(n *rhino.Node) bool {
+func (c *CheckConstPrivateProperties) IsCandidatePropertyDefinition(n rhino.Node) bool {
 	if !NodeUtil_IsLhsOfAssign(n) {
 		return false
 	}
@@ -143,7 +143,7 @@ func (c *CheckConstPrivateProperties) IsCandidatePropertyDefinition(n *rhino.Nod
 //
 // Go-only: language-adapter — getQualifiedName() may be null (*string here),
 // and a Java set of non-null strings never contains null.
-func (c *CheckConstPrivateProperties) containsQualifiedName(target *rhino.Node) bool {
+func (c *CheckConstPrivateProperties) containsQualifiedName(target rhino.Node) bool {
 	qname := target.GetQualifiedName()
 	return qname != nil && c.constructorsAndInterfaces.Contains(*qname)
 }
@@ -152,19 +152,19 @@ func (c *CheckConstPrivateProperties) containsQualifiedName(target *rhino.Node) 
 // assigned to a function.
 //
 // Java: CheckConstPrivateProperties.isFunctionProperty(Node)
-func (c *CheckConstPrivateProperties) IsFunctionProperty(n *rhino.Node) bool {
+func (c *CheckConstPrivateProperties) IsFunctionProperty(n rhino.Node) bool {
 	// TODO(dylandavidson): getAssignedValue does not support GETELEM.
 	if n.IsGetElem() {
 		return false
 	}
 	assignedValue := NodeUtil_GetAssignedValue(n)
-	return assignedValue != nil && assignedValue.IsFunction()
+	return !assignedValue.IsNil() && assignedValue.IsFunction()
 }
 
 // IsModificationOp returns whether the given property is modified in any way
 // (assignment, increment/decrement, or 'delete' property).
 //
 // Java: CheckConstPrivateProperties.isModificationOp(Node)
-func (c *CheckConstPrivateProperties) IsModificationOp(n *rhino.Node) bool {
+func (c *CheckConstPrivateProperties) IsModificationOp(n rhino.Node) bool {
 	return NodeUtil_IsLValue(n) || n.GetParent().IsDelProp()
 }

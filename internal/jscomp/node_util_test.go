@@ -52,11 +52,11 @@ func nuAssertWithMessage(t *testing.T, format string, args ...any) *rhinotesting
 // that NodeUtilTest uses.
 type nuNodeSubject struct {
 	t      *testing.T
-	actual *rhino.Node
+	actual rhino.Node
 }
 
 // Java: NodeSubject.assertNode(Node)
-func nuAssertNode(t *testing.T, actual *rhino.Node) *nuNodeSubject {
+func nuAssertNode(t *testing.T, actual rhino.Node) *nuNodeSubject {
 	return &nuNodeSubject{t: t, actual: actual}
 }
 
@@ -64,9 +64,9 @@ func nuAssertNode(t *testing.T, actual *rhino.Node) *nuNodeSubject {
 // JSDoc and side-effects.
 //
 // Java: NodeSubject.isEqualTo(Node)
-func (s *nuNodeSubject) IsEqualTo(expected *rhino.Node) {
+func (s *nuNodeSubject) IsEqualTo(expected rhino.Node) {
 	s.t.Helper()
-	if s.actual == nil || expected == nil {
+	if s.actual.IsNil() || expected.IsNil() {
 		s.t.Fatalf("expected not to be null: actual %v, expected %v", s.actual, expected)
 	}
 	if m := nuNodeSubject_findFirstMismatch(s.actual, expected); m != nil {
@@ -76,14 +76,14 @@ func (s *nuNodeSubject) IsEqualTo(expected *rhino.Node) {
 }
 
 // Java: NodeSubject.findFirstMismatch(Node, Node, boolean)
-func nuNodeSubject_findFirstMismatch(actual, expected *rhino.Node) []*rhino.Node {
+func nuNodeSubject_findFirstMismatch(actual, expected rhino.Node) []rhino.Node {
 	if !actual.IsEquivalentToWithFlagsAndSideEffect(
 		expected, false /* compareType */, false /* recurse */, false /* jsDoc */, false /* sideEffect */) {
-		return []*rhino.Node{actual, expected}
+		return []rhino.Node{actual, expected}
 	}
 	actualChild := actual.GetFirstChild()
 	expectedChild := expected.GetFirstChild()
-	for actualChild != nil {
+	for !actualChild.IsNil() {
 		if mismatch := nuNodeSubject_findFirstMismatch(actualChild, expectedChild); mismatch != nil {
 			return mismatch
 		}
@@ -92,7 +92,7 @@ func nuNodeSubject_findFirstMismatch(actual, expected *rhino.Node) []*rhino.Node
 	}
 	actualShadowAst := actual.GetClosureUnawareShadow()
 	expectedShadowAst := expected.GetClosureUnawareShadow()
-	if actualShadowAst != nil && expectedShadowAst != nil {
+	if !actualShadowAst.IsNil() && !expectedShadowAst.IsNil() {
 		if mismatch := nuNodeSubject_findFirstMismatch(actualShadowAst, expectedShadowAst); mismatch != nil {
 			return mismatch
 		}
@@ -143,14 +143,14 @@ func (s *nuNodeSubject) MatchesQualifiedName(qname string) *nuNodeSubject {
 // nuParse is NodeUtilTest.parse (ParseHelper.parse): a Compiler with
 // setStrictModeInput(false), the ES5_STRICT group off and languageIn
 // UNSUPPORTED parses js with parseTestCode; it must report no errors.
-func nuParse(t *testing.T, js string) *rhino.Node {
+func nuParse(t *testing.T, js string) rhino.Node {
 	t.Helper()
 	n, _ := nuParseWithCompiler(t, js)
 	return n
 }
 
 // nuParseWithCompiler is ParseHelper.parse, also returning ParseHelper.compiler.
-func nuParseWithCompiler(t *testing.T, js string) (*rhino.Node, *Compiler) {
+func nuParseWithCompiler(t *testing.T, js string) (rhino.Node, *Compiler) {
 	t.Helper()
 	options := NewCompilerOptions()
 
@@ -169,7 +169,7 @@ func nuParseWithCompiler(t *testing.T, js string) (*rhino.Node, *Compiler) {
 
 // nuParseFirstWithCompiler is ParseHelper.parseFirst, also returning
 // ParseHelper.compiler (for ParseHelper.getAstAnalyzer).
-func nuParseFirstWithCompiler(t *testing.T, token rhino.Token, js string) (*rhino.Node, *Compiler) {
+func nuParseFirstWithCompiler(t *testing.T, token rhino.Token, js string) (rhino.Node, *Compiler) {
 	t.Helper()
 	rootNode, compiler := nuParseWithCompiler(t, js)
 	jutil.CheckStateMsg1(rootNode.IsScript(), "%s", rootNode)
@@ -180,7 +180,7 @@ func nuParseFirstWithCompiler(t *testing.T, token rhino.Token, js string) (*rhin
 }
 
 // Java: NodeUtilTest.ParseHelper.parseFirst(Token, String)
-func nuParseFirst(t *testing.T, token rhino.Token, js string) *rhino.Node {
+func nuParseFirst(t *testing.T, token rhino.Token, js string) rhino.Node {
 	t.Helper()
 	rootNode := nuParse(t, js)
 	jutil.CheckStateMsg1(rootNode.IsScript(), "%s", rootNode)
@@ -191,7 +191,7 @@ func nuParseFirst(t *testing.T, token rhino.Token, js string) *rhino.Node {
 }
 
 // Java: NodeUtilTest.ParseHelper.parseSecond(Token, String)
-func nuParseSecond(t *testing.T, token rhino.Token, js string) *rhino.Node {
+func nuParseSecond(t *testing.T, token rhino.Token, js string) rhino.Node {
 	t.Helper()
 	return nuGetNode(t, nuParseFirst(t, token, js), token)
 }
@@ -199,7 +199,7 @@ func nuParseSecond(t *testing.T, token rhino.Token, js string) *rhino.Node {
 // nuParseExpr returns the parsed expression (e.g. returns a NAME given 'a').
 //
 // Java: NodeUtilTest.parseExpr(String)
-func nuParseExpr(t *testing.T, js string) *rhino.Node {
+func nuParseExpr(t *testing.T, js string) rhino.Node {
 	t.Helper()
 	script := nuParse(t, "("+js+");") // Parens force interpretation as an expression.
 	return script.
@@ -212,10 +212,10 @@ func nuParseExpr(t *testing.T, js string) *rhino.Node {
 // found.
 //
 // Java: NodeUtilTest.getNode(Node, Token)
-func nuGetNode(t *testing.T, root *rhino.Node, token rhino.Token) *rhino.Node {
+func nuGetNode(t *testing.T, root rhino.Node, token rhino.Token) rhino.Node {
 	t.Helper()
 	result := nuGetNodeOrNull(root, token)
-	if result == nil {
+	if result.IsNil() {
 		t.Fatalf("No %v node found in:\n %s", token, root.ToStringTree())
 	}
 	return result
@@ -225,17 +225,17 @@ func nuGetNode(t *testing.T, root *rhino.Node, token rhino.Token) *rhino.Node {
 // matching token. The search doesn't include root.
 //
 // Java: NodeUtilTest.getNodeOrNull(Node, Token)
-func nuGetNodeOrNull(root *rhino.Node, token rhino.Token) *rhino.Node {
-	for n := root.GetFirstChild(); n != nil; n = n.GetNext() {
+func nuGetNodeOrNull(root rhino.Node, token rhino.Token) rhino.Node {
+	for n := root.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if n.GetToken() == token {
 			return n
 		}
 		potentialMatch := nuGetNodeOrNull(n, token)
-		if potentialMatch != nil {
+		if !potentialMatch.IsNil() {
 			return potentialMatch
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // nuAssertThatDouble is assertThat(Double): a nullable double compares like
@@ -258,17 +258,17 @@ func nuAssertThatBigInt(t *testing.T, actual *big.Int) *rhinotesting.Subject {
 
 // nuNodeIterator is the Iterator<Node> of a list.
 type nuNodeIterator struct {
-	nodes []*rhino.Node
+	nodes []rhino.Node
 	i     int
 }
 
-func nuIteratorOf(nodes []*rhino.Node) *nuNodeIterator { return &nuNodeIterator{nodes: nodes} }
+func nuIteratorOf(nodes []rhino.Node) *nuNodeIterator { return &nuNodeIterator{nodes: nodes} }
 
 // Java: Iterator.hasNext()
 func (it *nuNodeIterator) HasNext() bool { return it.i < len(it.nodes) }
 
 // Java: Iterator.next()
-func (it *nuNodeIterator) Next() *rhino.Node {
+func (it *nuNodeIterator) Next() rhino.Node {
 	if !it.HasNext() {
 		panic(jutil.NewNoSuchElementException())
 	}
@@ -589,19 +589,19 @@ func nuh_isLiteralValue(t *testing.T, code string) bool {
 	return NodeUtil_IsLiteralValue(nuParseExpr(t, code) /* includeFunctions= */, true)
 }
 
-func nuh_assertLiteralAndImmutable(t *testing.T, n *rhino.Node) {
+func nuh_assertLiteralAndImmutable(t *testing.T, n rhino.Node) {
 	nuAssertThat(t, NodeUtil_IsLiteralValue(n, true)).IsTrue()
 	nuAssertThat(t, NodeUtil_IsLiteralValue(n, false)).IsTrue()
 	nuAssertThat(t, NodeUtil_IsImmutableValue(n)).IsTrue()
 }
 
-func nuh_assertLiteralButNotImmutable(t *testing.T, n *rhino.Node) {
+func nuh_assertLiteralButNotImmutable(t *testing.T, n rhino.Node) {
 	nuAssertThat(t, NodeUtil_IsLiteralValue(n, true)).IsTrue()
 	nuAssertThat(t, NodeUtil_IsLiteralValue(n, false)).IsTrue()
 	nuAssertThat(t, NodeUtil_IsImmutableValue(n)).IsFalse()
 }
 
-func nuh_assertNotLiteral(t *testing.T, n *rhino.Node) {
+func nuh_assertNotLiteral(t *testing.T, n rhino.Node) {
 	nuAssertThat(t, NodeUtil_IsLiteralValue(n, true)).IsFalse()
 	nuAssertThat(t, NodeUtil_IsLiteralValue(n, false)).IsFalse()
 	nuAssertThat(t, NodeUtil_IsImmutableValue(n)).IsFalse()
@@ -731,11 +731,11 @@ func TestNodeUtil_AssortedTests_TestIsObjectLitKey(t *testing.T) {
 	nuh_assertIsObjectLitKey(t, nuParseExpr(t, "(class { a() {} })").GetLastChild().GetFirstChild(), false)
 }
 
-func nuh_assertMayBeObjectLitKey(t *testing.T, node *rhino.Node, expected bool) {
+func nuh_assertMayBeObjectLitKey(t *testing.T, node rhino.Node, expected bool) {
 	nuAssertThat(t, NodeUtil_MayBeObjectLitKey(node)).IsEqualTo(expected)
 }
 
-func nuh_assertIsObjectLitKey(t *testing.T, node *rhino.Node, expected bool) {
+func nuh_assertIsObjectLitKey(t *testing.T, node rhino.Node, expected bool) {
 	nuAssertThat(t, NodeUtil_IsObjectLitKey(node)).IsEqualTo(expected)
 }
 
@@ -798,7 +798,7 @@ func TestNodeUtil_AssortedTests_TestTypedefNamespace(t *testing.T) {
 	namespaceNames := jutil.NewLinkedHashSet[string]()
 	nonNamespaceNames := jutil.NewLinkedHashSet[string]()
 	for statement := range statements.Children() {
-		var name *rhino.Node
+		var name rhino.Node
 		if statement.IsExprResult() {
 			name = statement.GetFirstFirstChild()
 		} else {
@@ -815,7 +815,7 @@ func TestNodeUtil_AssortedTests_TestTypedefNamespace(t *testing.T) {
 	nuAssertThat(t, nonNamespaceNames).ContainsExactly("obj.c", "obj.d")
 }
 
-func nuh_assertGetNameResult(t *testing.T, function *rhino.Node, name string) {
+func nuh_assertGetNameResult(t *testing.T, function rhino.Node, name string) {
 	nuAssertNode(t, function).HasToken(rhino.Token_FUNCTION)
 	nuAssertThat(t, NodeUtil_GetName(function)).IsEqualTo(name)
 }
@@ -973,40 +973,40 @@ func nuh_assertContainsAnonClass(t *testing.T, expected bool, js string) {
 	nuAssertThat(t, NodeUtil_IsClassExpression(classNode)).IsEqualTo(expected)
 }
 
-func nuh_findParentOfFuncOrClassDescendant(t *testing.T, n *rhino.Node, token rhino.Token) *rhino.Node {
+func nuh_findParentOfFuncOrClassDescendant(t *testing.T, n rhino.Node, token rhino.Token) rhino.Node {
 	jutil.CheckArgument(token == rhino.Token_CLASS || token == rhino.Token_FUNCTION)
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetToken() == token {
 			return n
 		}
 		result := nuh_findParentOfFuncOrClassDescendant(t, c, token)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
-func nuh_getFuncOrClassChild(t *testing.T, n *rhino.Node, token rhino.Token) *rhino.Node {
+func nuh_getFuncOrClassChild(t *testing.T, n rhino.Node, token rhino.Token) rhino.Node {
 	jutil.CheckArgument(token == rhino.Token_CLASS || token == rhino.Token_FUNCTION)
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetToken() == token {
 			return c
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 func TestNodeUtil_AssortedTests_TestGetNodeTypeReferenceCount(t *testing.T) {
 	nuAssertThat(t,
 		NodeUtil_GetNodeTypeReferenceCount(
-			nuParse(t, "function foo(){}"), rhino.Token_THIS, func(*rhino.Node) bool { return true })).IsEqualTo(0)
+			nuParse(t, "function foo(){}"), rhino.Token_THIS, func(rhino.Node) bool { return true })).IsEqualTo(0)
 	nuAssertThat(t,
 		NodeUtil_GetNodeTypeReferenceCount(
-			nuParse(t, "this"), rhino.Token_THIS, func(*rhino.Node) bool { return true })).IsEqualTo(1)
+			nuParse(t, "this"), rhino.Token_THIS, func(rhino.Node) bool { return true })).IsEqualTo(1)
 	nuAssertThat(t,
 		NodeUtil_GetNodeTypeReferenceCount(
-			nuParse(t, "this;function foo(){}(this)"), rhino.Token_THIS, func(*rhino.Node) bool { return true })).IsEqualTo(2)
+			nuParse(t, "this;function foo(){}(this)"), rhino.Token_THIS, func(rhino.Node) bool { return true })).IsEqualTo(2)
 }
 
 func TestNodeUtil_AssortedTests_TestIsNameReferenceCount(t *testing.T) {
@@ -1048,7 +1048,7 @@ func TestNodeUtil_AssortedTests_TestGetVarsDeclaredInBranch(t *testing.T) {
 		NodeUtil_GetVarsDeclaredInBranch(nuParse(t, "var goo;function f(){var foo;}")))
 }
 
-func nuh_assertNodeNames(t *testing.T, nodeNames []string, nodes []*rhino.Node) {
+func nuh_assertNodeNames(t *testing.T, nodeNames []string, nodes []rhino.Node) {
 	// Go-only: test-helper — Set.equals compares the names in any order.
 	var actualNames []string
 	for _, node := range nodes {
@@ -1743,7 +1743,7 @@ func TestNodeUtil_AssortedTests_TestLocalValueSpread(t *testing.T) {
 }
 
 func TestNodeUtil_AssortedTests_TestLocalValueAwait(t *testing.T) {
-	var expr *rhino.Node
+	var expr rhino.Node
 	expr = nuParseFirst(t, rhino.Token_AWAIT, "async function f() { await someAsyncAction(); }")
 	nuAssertThat(t, NodeUtil_EvaluatesToLocalValue(expr)).IsFalse()
 
@@ -1756,7 +1756,7 @@ func TestNodeUtil_AssortedTests_TestLocalValueAwait(t *testing.T) {
 }
 
 func TestNodeUtil_AssortedTests_TestLocalValueYield(t *testing.T) {
-	var expr *rhino.Node
+	var expr rhino.Node
 	expr = nuParseFirst(t, rhino.Token_YIELD, "function *f() { yield; }")
 	nuAssertThat(t, NodeUtil_EvaluatesToLocalValue(expr)).IsFalse()
 
@@ -2110,7 +2110,7 @@ func TestNodeUtil_AssortedTests_TestIsNumericLiteral(t *testing.T) {
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+0x10"))).IsTrue()
 
 	// False cases
-	nuAssertThat(t, NodeUtil_IsNumericLiteral(nil)).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(rhino.Node{})).IsFalse()
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "null"))).IsFalse()
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "undefined"))).IsFalse()
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "void 0"))).IsFalse()
@@ -2190,7 +2190,7 @@ func TestNodeUtil_AssortedTests_TestGetNumericLiteralValue(t *testing.T) {
 	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-1e5"))).IsEqualTo(-100000.0)
 	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "+1e5"))).IsEqualTo(100000.0)
 
-	assertThrows[jutil.IIllegalArgumentException](t, func() { NodeUtil_GetNumericLiteralValue(nil) })
+	assertThrows[jutil.IIllegalArgumentException](t, func() { NodeUtil_GetNumericLiteralValue(rhino.Node{}) })
 	assertThrows[jutil.IIllegalArgumentException](t,
 		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "\"1\"")) })
 	assertThrows[jutil.IIllegalArgumentException](t,
@@ -2992,7 +2992,7 @@ func TestNodeUtil_AssortedTests_TestIsExecutedExactlyOnce(t *testing.T) {
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "if (1) { try {} finally {x} }")).IsFalse()
 }
 
-func nuh_assertLValueNamedX(t *testing.T, n *rhino.Node) {
+func nuh_assertLValueNamedX(t *testing.T, n rhino.Node) {
 	nuAssertThat(t, n.GetString()).IsEqualTo("x")
 	nuAssertThat(t, NodeUtil_IsLValue(n)).IsTrue()
 }
@@ -3020,7 +3020,7 @@ func TestNodeUtil_AssortedTests_TestIsLValue(t *testing.T) {
 		nuParse(t, "({[0]: x} = obj)").GetFirstFirstChild().GetFirstFirstChild().GetSecondChild())
 }
 
-func nuh_assertNotLValueNamedX(t *testing.T, n *rhino.Node) {
+func nuh_assertNotLValueNamedX(t *testing.T, n rhino.Node) {
 	nuAssertThat(t, n.GetString()).IsEqualTo("x")
 	nuAssertThat(t, NodeUtil_IsLValue(n)).IsFalse()
 }
@@ -3266,14 +3266,14 @@ func TestNodeUtil_AssortedTests_TestIsConstantDeclaration_keys(t *testing.T) {
 	nuh_assertIsConstantDeclaration(t, false, nuh_getStringKeyNodeFrom(t, "const ns = {x: y};", "x"))
 }
 
-func nuh_assertIsConstantDeclaration(t *testing.T, isConstantDeclaration bool, node *rhino.Node) {
+func nuh_assertIsConstantDeclaration(t *testing.T, isConstantDeclaration bool, node rhino.Node) {
 
 	jsDocInfo := NodeUtil_GetBestJSDocInfo(node)
 	nuAssertWithMessage(t, "Is %s a constant declaration?", node).That(NodeUtil_IsConstantDeclaration(jsDocInfo, node)).IsEqualTo(isConstantDeclaration)
 }
 
 /** Returns a NAME node from 'let foo = 1;` */
-func nuh_constructInferredConstantDeclaration(t *testing.T) *rhino.Node {
+func nuh_constructInferredConstantDeclaration(t *testing.T) rhino.Node {
 	nameNode := rhino.IR_Name("foo")
 	nameNode.SetInferredConstantVar(true)
 	rhino.IR_ScriptOfNodes(rhino.IR_LetWithValue(nameNode, rhino.IR_Number(1))) // attach the expected context to the name.
@@ -3968,11 +3968,11 @@ func TestNodeUtil_AssortedTests_TestDestructuringObjectRest(t *testing.T) {
 	nuAssertThat(t, NodeUtil_GetDeclaringParent(nameNodeRest)).IsSameInstanceAs(varNode)
 }
 
-func nuh_assertLhsByDestructuring(t *testing.T, n *rhino.Node) {
+func nuh_assertLhsByDestructuring(t *testing.T, n rhino.Node) {
 	nuAssertThat(t, NodeUtil_IsLhsByDestructuring(n)).IsTrue()
 }
 
-func nuh_assertNotLhsByDestructuring(t *testing.T, n *rhino.Node) {
+func nuh_assertNotLhsByDestructuring(t *testing.T, n rhino.Node) {
 	nuAssertThat(t, NodeUtil_IsLhsByDestructuring(n)).IsFalse()
 }
 
@@ -4012,7 +4012,7 @@ func TestNodeUtil_AssortedTests_TestNewQNameDeclarationWithConst(t *testing.T) {
 	nuAssertNode(t, nuh_createNewQNameDeclaration(t, "x", rhino.IR_Number(0), rhino.Token_CONST)).IsEqualTo(rhino.IR_ConstNode(rhino.IR_Name("x"), rhino.IR_Number(0)))
 }
 
-func nuh_createNewQNameDeclaration(t *testing.T, name string, value *rhino.Node, type_ rhino.Token) *rhino.Node {
+func nuh_createNewQNameDeclaration(t *testing.T, name string, value rhino.Node, type_ rhino.Token) rhino.Node {
 	compiler := NewCompiler()
 	options := NewCompilerOptions()
 	options.SetCodingConvention(NewGoogleCodingConvention())
@@ -4578,8 +4578,8 @@ func TestNodeUtil_ConvertToNonOptChainTests_ConvertSegmentDownToStopNode(t *test
 }
 
 // All nodes till the current chain's start are converted to non-optional.
-func nuh_isChainConverted(t *testing.T, node *rhino.Node) bool {
-	if node == nil {
+func nuh_isChainConverted(t *testing.T, node rhino.Node) bool {
+	if node.IsNil() {
 		return true
 	}
 	return !NodeUtil_IsOptChainNode(node) && nuh_isChainConverted(t, node.GetFirstChild())
@@ -4759,7 +4759,7 @@ func TestNodeUtil_CreateSynthesizedExternsSymbolTests(t *testing.T) {
 
 // Java: NodeUtilTest.CreateSynthesizedExternsSymbolTests.getProcessor(Compiler)
 func (c *NodeUtilTest_CreateSynthesizedExternsSymbolTests) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, srcs *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, srcs rhino.Node) {
 		expectedExtern := "TEST_NAME"
 		NodeUtil_CreateSynthesizedExternsSymbol(compiler, expectedExtern)
 	})
@@ -4798,7 +4798,7 @@ func TestNodeUtil_NodeTraversalTests_TestIteratePreOrder(t *testing.T) {
 }
 
 func TestNodeUtil_NodeTraversalTests_TestIteratePreOrderWithPredicate(t *testing.T) {
-	isNotE := func(n *rhino.Node) bool { return n.GetString() != "E" }
+	isNotE := func(n rhino.Node) bool { return n.GetString() != "E" }
 	var nodeNames []string
 	for n := range NodeUtil_PreOrderIterableWithPred(nuh_buildTestTree(t), isNotE) {
 		nodeNames = append(nodeNames, n.GetString())
@@ -4860,7 +4860,7 @@ func TestNodeUtil_NodeTraversalTests_RemoveFeatureSetFromAllScriptUpdatesCompile
  * C   D  F   G
  * </pre>
  */
-func nuh_buildTestTree(t *testing.T) *rhino.Node {
+func nuh_buildTestTree(t *testing.T) rhino.Node {
 	a := rhino.Node_NewString("A")
 
 	b := rhino.Node_NewString("B")
@@ -4881,10 +4881,10 @@ func nuh_buildTestTree(t *testing.T) *rhino.Node {
 //
 // Go-only: test-helper — Mockito.
 type nuRecordingVisitor struct {
-	visited []*rhino.Node
+	visited []rhino.Node
 }
 
-func (v *nuRecordingVisitor) Visit(node *rhino.Node) { v.visited = append(v.visited, node) }
+func (v *nuRecordingVisitor) Visit(node rhino.Node) { v.visited = append(v.visited, node) }
 
 // Java: NodeUtilTest.NodeTraversalTests.getNodeStringsFromMockVisitor(NodeUtil.Visitor)
 func nuGetNodeStringsFromMockVisitor(t *testing.T, mockVisitor *nuRecordingVisitor) []string {
@@ -4955,7 +4955,7 @@ func TestNodeUtil_GoogRequireInfoTest_Test(t *testing.T) {
 			globalScope := scopeCreator.CreateScopeOfScope(first, nil)
 			module := nuGetNodeOrNull(first, rhino.Token_MODULE_BODY)
 			localScope := globalScope
-			if module != nil {
+			if !module.IsNil() {
 				localScope = scopeCreator.CreateScopeOfScope(module, globalScope)
 			}
 			got := NodeUtil_GetGoogRequireInfoWithScope(c.name, localScope)
@@ -5242,13 +5242,13 @@ func TestNodeUtil_NodeMetricsTest_TestEstimateNumLines(t *testing.T) {
 }
 
 // Java: NodeUtilTest.getNameNodeFrom(String, String)
-func nuh_getNameNodeFrom(t *testing.T, code string, name string) *rhino.Node {
+func nuh_getNameNodeFrom(t *testing.T, code string, name string) rhino.Node {
 	ast := nuParse(t, code)
 	return nuh_getNameNode(t, ast, name)
 }
 
 // Java: NodeUtilTest.getStringKeyNodeFrom(String, String)
-func nuh_getStringKeyNodeFrom(t *testing.T, code string, name string) *rhino.Node {
+func nuh_getStringKeyNodeFrom(t *testing.T, code string, name string) rhino.Node {
 	ast := nuParse(t, code)
 	return nuh_getStringNode(t, ast, name, rhino.Token_STRING_KEY)
 }
@@ -5262,7 +5262,7 @@ func nuh_executedOnceTestCase(t *testing.T, code string) bool {
 // Java: NodeUtilTest.getFunctionLValue(String)
 func nuh_getFunctionLValue(t *testing.T, js string) *string {
 	lVal := NodeUtil_GetBestLValue(nuParseFirst(t, rhino.Token_FUNCTION, js))
-	if lVal == nil {
+	if lVal.IsNil() {
 		return nil
 	}
 	return jutil.StringPtr(lVal.GetString())
@@ -5289,7 +5289,7 @@ func nuh_testFunctionName(t *testing.T, js string, expected any) {
 // CONST statement, in which case the declaration statement will be passed.
 //
 // Java: NodeUtilTest.visitLhsNodesInNode(String)
-func nuh_visitLhsNodesInNode(t *testing.T, js string) []*rhino.Node {
+func nuh_visitLhsNodesInNode(t *testing.T, js string) []rhino.Node {
 	root := nuParse(t, js)
 	jutil.CheckStateMsg1(root.IsScript(), "%s", root)
 	root = root.GetOnlyChild()
@@ -5297,71 +5297,71 @@ func nuh_visitLhsNodesInNode(t *testing.T, js string) []*rhino.Node {
 		root = root.GetOnlyChild()
 		jutil.CheckStateMsg1(NodeUtil_IsAssignmentOp(root), "%s", root)
 	}
-	var nodes []*rhino.Node
-	NodeUtil_VisitLhsNodesInNode(root, func(n *rhino.Node) { nodes = append(nodes, n) })
+	var nodes []rhino.Node
+	NodeUtil_VisitLhsNodesInNode(root, func(n rhino.Node) { nodes = append(nodes, n) })
 	return nodes
 }
 
 // Java: NodeUtilTest.getNameNode(Node, String)
-func nuh_getNameNode(t *testing.T, n *rhino.Node, name string) *rhino.Node {
+func nuh_getNameNode(t *testing.T, n rhino.Node, name string) rhino.Node {
 	return nuh_getStringNode(t, n, name, rhino.Token_NAME)
 }
 
 // Java: NodeUtilTest.getStringNode(Node, String, Token)
-func nuh_getStringNode(t *testing.T, n *rhino.Node, name string, nodeType rhino.Token) *rhino.Node {
+func nuh_getStringNode(t *testing.T, n rhino.Node, name string, nodeType rhino.Token) rhino.Node {
 	if nodeType == n.GetToken() && n.GetString() == name {
 		return n
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		result := nuh_getStringNode(t, c, name, nodeType)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: NodeUtilTest.getStringLitNode(Node, String)
-func nuh_getStringLitNode(t *testing.T, n *rhino.Node, str string) *rhino.Node {
+func nuh_getStringLitNode(t *testing.T, n rhino.Node, str string) rhino.Node {
 	return nuh_getStringNode(t, n, str, rhino.Token_STRINGLIT)
 }
 
 // Java: NodeUtilTest.getStringLitNodeFrom(String, String)
-func nuh_getStringLitNodeFrom(t *testing.T, code string, str string) *rhino.Node {
+func nuh_getStringLitNodeFrom(t *testing.T, code string, str string) rhino.Node {
 	ast := nuParse(t, code)
 	return nuh_getStringLitNode(t, ast, str)
 }
 
 // Java: NodeUtilTest.getNumberNode(Node, double)
-func nuh_getNumberNode(t *testing.T, n *rhino.Node, number float64) *rhino.Node {
+func nuh_getNumberNode(t *testing.T, n rhino.Node, number float64) rhino.Node {
 	if n.IsNumber() &&
 		jutil.ObjectsEquals(n.GetDouble(), number) { // equals allow checks for -0 and NaN
 		return n
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		result := nuh_getNumberNode(t, c, number)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // nuh_getPattern returns the first node in tree that is an array pattern or
 // object pattern.
 //
 // Java: NodeUtilTest.getPattern(Node)
-func nuh_getPattern(t *testing.T, tree *rhino.Node) *rhino.Node {
+func nuh_getPattern(t *testing.T, tree rhino.Node) rhino.Node {
 	if tree.IsDestructuringPattern() {
 		return tree
 	}
-	for c := tree.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := tree.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		result := nuh_getPattern(t, c)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: NodeUtilTest.isValidPropertyName(String)
@@ -5405,16 +5405,16 @@ func TestNodeUtil_GoogRequireRecordMethods(t *testing.T) {
 // list, never null, and a nil slice is Java null to the callers of
 // getParentChangeScopeNodes and removeNestedChangeScopeNodes.
 func TestNodeUtil_GoOnly_ChangeScopeNodesEmptyIsNotNull(t *testing.T) {
-	if NodeUtil_GetParentChangeScopeNodes([]*rhino.Node{}) == nil {
+	if NodeUtil_GetParentChangeScopeNodes([]rhino.Node{}) == nil {
 		t.Error("getParentChangeScopeNodes(empty) returned null")
 	}
-	if NodeUtil_RemoveNestedChangeScopeNodes([]*rhino.Node{}) == nil {
+	if NodeUtil_RemoveNestedChangeScopeNodes([]rhino.Node{}) == nil {
 		t.Error("removeNestedChangeScopeNodes(empty) returned null")
 	}
 	script := rhino.IR_Script()
 	fn := rhino.IR_Function(rhino.IR_Name("f"), rhino.IR_ParamList(), rhino.IR_Block())
 	script.AddChildToBack(fn)
-	if got := NodeUtil_RemoveNestedChangeScopeNodes([]*rhino.Node{fn, script}); len(got) != 1 || got[0] != script {
+	if got := NodeUtil_RemoveNestedChangeScopeNodes([]rhino.Node{fn, script}); len(got) != 1 || got[0] != script {
 		t.Errorf("removeNestedChangeScopeNodes([f, SCRIPT]) = %v, want [SCRIPT]", got)
 	}
 }

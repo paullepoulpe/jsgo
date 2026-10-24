@@ -72,9 +72,9 @@ import (
 type DevirtualizeMethods struct {
 	compiler     AbstractCompiler
 	refMap       *OptimizeCalls_ReferenceMap
-	defSites     []*rhino.Node
-	defFunctions []*rhino.Node
-	callSites    []*rhino.Node
+	defSites     []rhino.Node
+	defFunctions []rhino.Node
+	callSites    []rhino.Node
 }
 
 // Java: DevirtualizeMethods(AbstractCompiler)
@@ -83,7 +83,7 @@ func NewDevirtualizeMethods(compiler AbstractCompiler) *DevirtualizeMethods {
 }
 
 // Java: DevirtualizeMethods.process(Node, Node, ReferenceMap)
-func (d *DevirtualizeMethods) Process(externs *rhino.Node, root *rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
+func (d *DevirtualizeMethods) Process(externs rhino.Node, root rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
 	jutil.CheckStateMsg(d.refMap == nil, "`process` should only be called once.")
 
 	d.refMap = refMap
@@ -102,7 +102,7 @@ func (d *DevirtualizeMethods) Process(externs *rhino.Node, root *rhino.Node, ref
 }
 
 // Java: DevirtualizeMethods.processReferenceList(String, List<Node>)
-func (d *DevirtualizeMethods) ProcessReferenceList(name string, sites []*rhino.Node) {
+func (d *DevirtualizeMethods) ProcessReferenceList(name string, sites []rhino.Node) {
 	defSites := d.defSites[:0]
 	defFunctions := d.defFunctions[:0]
 	callSites := d.callSites[:0]
@@ -161,7 +161,7 @@ func (d *DevirtualizeMethods) ProcessReferenceList(name string, sites []*rhino.N
 // `functionsBySite.keySet().stream().allMatch((s) -> isEligibleDefinitionSite(name, s))`.
 //
 // Go-only: language-adapter — a Java stream.
-func (d *DevirtualizeMethods) allSitesAreEligibleDefinitionSites(name string, defSites []*rhino.Node) bool {
+func (d *DevirtualizeMethods) allSitesAreEligibleDefinitionSites(name string, defSites []rhino.Node) bool {
 	for _, s := range defSites {
 		if !d.IsEligibleDefinitionSite(name, s) {
 			return false
@@ -174,7 +174,7 @@ func (d *DevirtualizeMethods) allSitesAreEligibleDefinitionSites(name string, de
 // `functionsBySite.values().stream().allMatch(this::isEligibleDefinitionFunction)`.
 //
 // Go-only: language-adapter — a Java stream.
-func (d *DevirtualizeMethods) allFunctionsAreEligibleDefinitionFunctions(defFunctions []*rhino.Node) bool {
+func (d *DevirtualizeMethods) allFunctionsAreEligibleDefinitionFunctions(defFunctions []rhino.Node) bool {
 	for _, f := range defFunctions {
 		if !d.IsEligibleDefinitionFunction(f) {
 			return false
@@ -187,7 +187,7 @@ func (d *DevirtualizeMethods) allFunctionsAreEligibleDefinitionFunctions(defFunc
 // `callSites.stream().allMatch((c) -> isEligibleCallSite(c, canonicalDefinitionSite))`.
 //
 // Go-only: language-adapter — a Java stream.
-func (d *DevirtualizeMethods) allCallSitesAreEligible(callSites []*rhino.Node, canonicalDefinitionSite *rhino.Node) bool {
+func (d *DevirtualizeMethods) allCallSitesAreEligible(callSites []rhino.Node, canonicalDefinitionSite rhino.Node) bool {
 	for _, c := range callSites {
 		if !d.IsEligibleCallSite(c, canonicalDefinitionSite) {
 			return false
@@ -197,10 +197,10 @@ func (d *DevirtualizeMethods) allCallSitesAreEligible(callSites []*rhino.Node, c
 }
 
 // Java: DevirtualizeMethods.isPrototypeOrStaticMethodDefinition(Node)
-func (d *DevirtualizeMethods) IsPrototypeOrStaticMethodDefinition(node *rhino.Node) bool {
+func (d *DevirtualizeMethods) IsPrototypeOrStaticMethodDefinition(node rhino.Node) bool {
 	parent := node.GetParent()
 	grandparent := node.GetGrandparent()
-	if parent == nil || grandparent == nil {
+	if parent.IsNil() || grandparent.IsNil() {
 		return false
 	}
 
@@ -256,7 +256,7 @@ func (d *DevirtualizeMethods) IsPrototypeOrStaticMethodDefinition(node *rhino.No
 // performs.
 //
 // Java: DevirtualizeMethods.isPrototypeObjectLit(Node)
-func DevirtualizeMethods_IsPrototypeObjectLit(objectLit *rhino.Node) bool {
+func DevirtualizeMethods_IsPrototypeObjectLit(objectLit rhino.Node) bool {
 	jutil.CheckArgumentMsg1(objectLit.IsObjectLit(), "%s", objectLit)
 	parent := objectLit.GetParent()
 	return objectLit.IsSecondChildOf(parent) &&
@@ -264,7 +264,7 @@ func DevirtualizeMethods_IsPrototypeObjectLit(objectLit *rhino.Node) bool {
 }
 
 // Java: DevirtualizeMethods.isDefinitelyCtorOrInterface(Node)
-func (d *DevirtualizeMethods) IsDefinitelyCtorOrInterface(receiver *rhino.Node) bool {
+func (d *DevirtualizeMethods) IsDefinitelyCtorOrInterface(receiver rhino.Node) bool {
 	qname := receiver.GetQualifiedName()
 	if qname == nil {
 		return false
@@ -300,7 +300,7 @@ func (d *DevirtualizeMethods) IsDefinitelyCtorOrInterface(receiver *rhino.Node) 
 //   - Be for a prototype method
 //
 // Java: DevirtualizeMethods.isEligibleDefinitionSite(String, Node)
-func (d *DevirtualizeMethods) IsEligibleDefinitionSite(name string, definitionSite *rhino.Node) bool {
+func (d *DevirtualizeMethods) IsEligibleDefinitionSite(name string, definitionSite rhino.Node) bool {
 	switch definitionSite.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_STRING_KEY, rhino.Token_MEMBER_FIELD_DEF:
 	default:
@@ -332,14 +332,14 @@ func (d *DevirtualizeMethods) IsEligibleDefinitionSite(name string, definitionSi
 //   - Not be an arrow function
 //
 // Java: DevirtualizeMethods.isEligibleDefinitionFunction(Node)
-func (d *DevirtualizeMethods) IsEligibleDefinitionFunction(definitionFunction *rhino.Node) bool {
+func (d *DevirtualizeMethods) IsEligibleDefinitionFunction(definitionFunction rhino.Node) bool {
 	jutil.CheckArgumentMsg1(definitionFunction.IsFunction(), "%s", definitionFunction)
 
 	if definitionFunction.IsArrowFunction() {
 		return false
 	}
 
-	for ancestor := definitionFunction.GetParent(); ancestor != nil; ancestor = ancestor.GetParent() {
+	for ancestor := definitionFunction.GetParent(); !ancestor.IsNil(); ancestor = ancestor.GetParent() {
 		// The definition must be made exactly once. (i.e. not in a loop, conditional, or function)
 		if DevirtualizeMethods_IsScopingOrBranchingConstruct(ancestor) {
 			return false
@@ -354,7 +354,7 @@ func (d *DevirtualizeMethods) IsEligibleDefinitionFunction(definitionFunction *r
 		}
 	}
 
-	if NodeUtil_Has(definitionFunction, (*rhino.Node).IsSuper, func(*rhino.Node) bool { return true }) {
+	if NodeUtil_Has(definitionFunction, (rhino.Node).IsSuper, func(rhino.Node) bool { return true }) {
 		// TODO(b/120452418): Remove this when we have a rewrite for `super`. We punted initially due
 		// to complexity.
 		return false
@@ -377,7 +377,7 @@ func (d *DevirtualizeMethods) IsEligibleDefinitionFunction(definitionFunction *r
 //   - Property is never accessed outside a function call context.
 //
 // Java: DevirtualizeMethods.isEligibleCallSite(Node, Node)
-func (d *DevirtualizeMethods) IsEligibleCallSite(access *rhino.Node, definitionSite *rhino.Node) bool {
+func (d *DevirtualizeMethods) IsEligibleCallSite(access rhino.Node, definitionSite rhino.Node) bool {
 	invocation := access.GetParent()
 	if !NodeUtil_IsInvocationTarget(access) || !invocation.IsCall() {
 		// TODO(nickreid): Use the same definition of "a call" as
@@ -426,7 +426,7 @@ func (d *DevirtualizeMethods) IsEligibleCallSite(access *rhino.Node, definitionS
 // they are the same.
 //
 // Java: DevirtualizeMethods.allDefinitionsEquivalent(Collection<Node>)
-func (d *DevirtualizeMethods) AllDefinitionsEquivalent(definitions []*rhino.Node) bool {
+func (d *DevirtualizeMethods) AllDefinitionsEquivalent(definitions []rhino.Node) bool {
 	if len(definitions) == 0 {
 		return true
 	}
@@ -450,7 +450,7 @@ func (d *DevirtualizeMethods) AllDefinitionsEquivalent(definitions []*rhino.Node
 // After: foo(o, a, b, c)
 //
 // Java: DevirtualizeMethods.rewriteCall(Node, String, boolean)
-func (d *DevirtualizeMethods) RewriteCall(getprop *rhino.Node, newMethodName string, isConstantName bool) {
+func (d *DevirtualizeMethods) RewriteCall(getprop rhino.Node, newMethodName string, isConstantName bool) {
 	jutil.CheckArgumentMsg1(getprop.IsGetProp(), "%s", getprop)
 	call := getprop.GetParent()
 	jutil.CheckArgumentMsg1(call.IsCall(), "%s", call)
@@ -492,13 +492,13 @@ func (d *DevirtualizeMethods) RewriteCall(getprop *rhino.Node, newMethodName str
 //
 // Java: DevirtualizeMethods.rewriteDefinition(Node, String, boolean)
 func (d *DevirtualizeMethods) RewriteDefinition(
-	definitionSite *rhino.Node, newMethodName string, isConstantName bool) {
+	definitionSite rhino.Node, newMethodName string, isConstantName bool) {
 	if definitionSite.GetToken() == rhino.Token_GETPROP {
 		assign := definitionSite.GetParent()
 		statement := NodeUtil_GetEnclosingStatement(definitionSite)
 		recv := definitionSite.GetFirstChild()
-		if assign != nil && statement == assign.GetParent() && statement.IsExprResult() &&
-			recv != nil && recv.IsQualifiedName() &&
+		if !assign.IsNil() && statement == assign.GetParent() && statement.IsExprResult() &&
+			!recv.IsNil() && recv.IsQualifiedName() &&
 			definitionSite.CanResetInPlace() && statement.CanResetInPlace() && recv.CanResetInPlace() {
 			originalJSDoc := NodeUtil_GetBestJSDocInfo(definitionSite)
 			function := assign.GetLastChild()
@@ -529,9 +529,9 @@ func (d *DevirtualizeMethods) RewriteDefinition(
 		}
 	}
 
-	var function *rhino.Node
-	var subtreeToRemove *rhino.Node
-	var nameSource *rhino.Node
+	var function rhino.Node
+	var subtreeToRemove rhino.Node
+	var nameSource rhino.Node
 
 	switch definitionSite.GetToken() {
 	case rhino.Token_GETPROP:
@@ -583,11 +583,11 @@ func (d *DevirtualizeMethods) RewriteDefinition(
 // name. Do not traverse function boundaries.
 //
 // Java: DevirtualizeMethods.replaceReferencesToThis(Node, String)
-func (d *DevirtualizeMethods) ReplaceReferencesToThis(node *rhino.Node, name string) {
+func (d *DevirtualizeMethods) ReplaceReferencesToThis(node rhino.Node, name string) {
 	d.replaceReferencesToThisID(node, name, rhino.RhinoStringPool_InternID(name))
 }
 
-func (d *DevirtualizeMethods) replaceReferencesToThisID(node *rhino.Node, name string, nameID uint32) {
+func (d *DevirtualizeMethods) replaceReferencesToThisID(node rhino.Node, name string, nameID uint32) {
 	if (node.IsFunction() && !node.IsArrowFunction()) ||
 		node.IsMemberFieldDef() ||
 		NodeUtil_IsClassStaticBlock(node) {
@@ -600,7 +600,7 @@ func (d *DevirtualizeMethods) replaceReferencesToThisID(node *rhino.Node, name s
 		// Computed field keys are evaluated in the enclosing scope, but field initializers create a
 		// new binding for `this`.
 		key := node.GetFirstChild()
-		if key != nil {
+		if !key.IsNil() {
 			if key.IsThis() {
 				if key.MutateThisToNameIDInPlace(nameID) {
 					d.compiler.ReportChangeToEnclosingScope(key)
@@ -616,7 +616,7 @@ func (d *DevirtualizeMethods) replaceReferencesToThisID(node *rhino.Node, name s
 		return
 	}
 
-	for child := node.GetFirstChild(); child != nil; {
+	for child := node.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
 		if child.IsThis() {
 			if child.MutateThisToNameIDInPlace(nameID) {
@@ -634,7 +634,7 @@ func (d *DevirtualizeMethods) replaceReferencesToThisID(node *rhino.Node, name s
 }
 
 // Java: DevirtualizeMethods.chunkForNode(Node)
-func (d *DevirtualizeMethods) ChunkForNode(node *rhino.Node) *JSChunk {
+func (d *DevirtualizeMethods) ChunkForNode(node rhino.Node) *JSChunk {
 	script := NodeUtil_GetEnclosingScript(node)
 	input := d.compiler.GetInput(script.GetInputId())
 	return input.GetChunk()
@@ -684,7 +684,7 @@ func DevirtualizeMethods_RewrittenMethodNameOf(originalMethodName string) string
 // See localNameIsDeclaredByClass().
 //
 // Java: DevirtualizeMethods.isScopingOrBranchingConstruct(Node)
-func DevirtualizeMethods_IsScopingOrBranchingConstruct(node *rhino.Node) bool {
+func DevirtualizeMethods_IsScopingOrBranchingConstruct(node rhino.Node) bool {
 	return NodeUtil_IsControlStructure(node) || // Branching.
 		node.IsAnd() || // Branching.
 		node.IsOr() || // Branching.
@@ -702,7 +702,7 @@ func DevirtualizeMethods_IsScopingOrBranchingConstruct(node *rhino.Node) bool {
 //	}
 //
 // Java: DevirtualizeMethods.localNameIsDeclaredByClass(Node)
-func DevirtualizeMethods_LocalNameIsDeclaredByClass(clazz *rhino.Node) bool {
+func DevirtualizeMethods_LocalNameIsDeclaredByClass(clazz rhino.Node) bool {
 	jutil.CheckArgumentMsg1(clazz.IsClass(), "%s", clazz)
 
 	if clazz.GetFirstChild().IsEmpty() {

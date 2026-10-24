@@ -46,7 +46,7 @@ type PerformanceTrackerCodeSizeEstimator struct {
 }
 
 // Java: PerformanceTrackerCodeSizeEstimator.estimate(Node, boolean)
-func PerformanceTrackerCodeSizeEstimator_Estimate(jsRoot *rhino.Node, trackGzSize bool) *PerformanceTrackerCodeSizeEstimator {
+func PerformanceTrackerCodeSizeEstimator_Estimate(jsRoot rhino.Node, trackGzSize bool) *PerformanceTrackerCodeSizeEstimator {
 	estimator := NewPerformanceTrackerCodeSizeEstimator(trackGzSize)
 	CodeGenerator_ForCostEstimation(estimator).AddNode(jsRoot)
 	return estimator

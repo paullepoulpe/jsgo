@@ -35,18 +35,18 @@ type PolymerClassDefinition struct {
 	defType PolymerClassDefinition_DefinitionType
 
 	// The Polymer call or class node which defines the Element.
-	definition *rhino.Node
+	definition rhino.Node
 
 	input *CompilerInput
 
 	// The target node (LHS) for the Polymer element definition.
-	target *rhino.Node
+	target rhino.Node
 
 	// Whether the target of this element is a generated node
 	hasGeneratedLhs bool
 
 	// The object literal passed to the call to the Polymer() function.
-	descriptor *rhino.Node
+	descriptor rhino.Node
 
 	// The constructor function for the element.
 	constructor *PolymerPass_MemberDefinition
@@ -98,10 +98,10 @@ func (t PolymerClassDefinition_DefinitionType) String() string {
 // Java: PolymerClassDefinition(DefinitionType, Node, Node, boolean, Node, JSDocInfo, MemberDefinition, String, List<MemberDefinition>, Map<MemberDefinition, BehaviorDefinition>, List<MemberDefinition>, ImmutableList<BehaviorDefinition>, FeatureSet, CompilerInput)
 func NewPolymerClassDefinition(
 	defType PolymerClassDefinition_DefinitionType,
-	definition *rhino.Node,
-	target *rhino.Node,
+	definition rhino.Node,
+	target rhino.Node,
 	hasGeneratedLhs bool,
-	descriptor *rhino.Node,
+	descriptor rhino.Node,
 	classInfo *rhino.JSDocInfo,
 	constructor *PolymerPass_MemberDefinition,
 	nativeBaseElement *string,
@@ -117,7 +117,7 @@ func NewPolymerClassDefinition(
 	d.definition = definition
 	d.target = target
 	d.hasGeneratedLhs = hasGeneratedLhs
-	jutil.CheckState(descriptor == nil || descriptor.IsObjectLit())
+	jutil.CheckState(descriptor.IsNil() || descriptor.IsObjectLit())
 	d.descriptor = descriptor
 	d.constructor = constructor
 	d.nativeBaseElement = nativeBaseElement
@@ -135,12 +135,12 @@ func NewPolymerClassDefinition(
 //
 // Java: PolymerClassDefinition.extractFromCallNode(Node, AbstractCompiler, ModuleMetadata, PolymerBehaviorExtractor)
 func PolymerClassDefinition_ExtractFromCallNode(
-	callNode *rhino.Node,
+	callNode rhino.Node,
 	compiler AbstractCompiler,
 	moduleMetadata *ModuleMetadataMap_ModuleMetadata,
 	behaviorExtractor *PolymerBehaviorExtractor) *PolymerClassDefinition {
 	descriptor := NodeUtil_GetArgumentForCallOrNew(callNode, 0)
-	if descriptor == nil || !descriptor.IsObjectLit() {
+	if descriptor.IsNil() || !descriptor.IsObjectLit() {
 		// report bad class definition
 		compiler.Report(JSError_MakeWithNode(callNode, PolymerPassErrors_POLYMER_DESCRIPTOR_NOT_VALID))
 		return nil
@@ -153,14 +153,14 @@ func PolymerClassDefinition_ExtractFromCallNode(
 	}
 
 	elName := NodeUtil_GetFirstPropMatchingKey(descriptor, "is")
-	if elName == nil {
+	if elName.IsNil() {
 		compiler.Report(JSError_MakeWithNode(callNode, PolymerPassErrors_POLYMER_MISSING_IS))
 		return nil
 	}
 	enclosingModule := NodeUtil_GetEnclosingModuleIfPresent(callNode)
 
 	hasGeneratedLhs := false
-	var target *rhino.Node
+	var target rhino.Node
 	if NodeUtil_IsNameDeclaration(callNode.GetGrandparent()) {
 		target = rhino.IR_Name(callNode.GetParent().GetString())
 	} else if callNode.GetParent().IsAssign() {
@@ -189,7 +189,7 @@ func PolymerClassDefinition_ExtractFromCallNode(
 
 	var ctorInfo *rhino.JSDocInfo
 	constructor := NodeUtil_GetFirstPropMatchingKey(descriptor, "factoryImpl")
-	if constructor == nil {
+	if constructor.IsNil() {
 		constructor = NodeUtil_EmptyFunction()
 		compiler.ReportChangeToChangeScope(constructor)
 		constructor.SrcrefTree(callNode)
@@ -199,7 +199,7 @@ func PolymerClassDefinition_ExtractFromCallNode(
 
 	baseClass := NodeUtil_GetFirstPropMatchingKey(descriptor, "extends")
 	var nativeBaseElement *string
-	if baseClass != nil {
+	if !baseClass.IsNil() {
 		s := baseClass.GetString()
 		nativeBaseElement = &s
 	}
@@ -216,7 +216,7 @@ func PolymerClassDefinition_ExtractFromCallNode(
 	properties = polymerClassDefinition_overwriteMembersIfPresent(
 		properties,
 		PolymerPassStaticUtils_ExtractProperties(
-			descriptor, PolymerClassDefinition_DefinitionType_ObjectLiteral, compiler /* constructor= */, nil))
+			descriptor, PolymerClassDefinition_DefinitionType_ObjectLiteral, compiler /* constructor= */, rhino.Node{}))
 
 	// Behaviors might get included multiple times for the same element. See test case
 	// testDuplicatedBehaviorsAreCopiedOnce
@@ -235,7 +235,7 @@ func PolymerClassDefinition_ExtractFromCallNode(
 	}
 
 	methods := []*PolymerPass_MemberDefinition{}
-	for keyNode := descriptor.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := descriptor.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		isFunctionDefinition := keyNode.IsMemberFunctionDef() ||
 			(keyNode.IsStringKey() && keyNode.GetFirstChild().IsFunction())
 		if isFunctionDefinition {
@@ -256,7 +256,7 @@ func PolymerClassDefinition_ExtractFromCallNode(
 		hasGeneratedLhs,
 		descriptor,
 		classInfo,
-		NewPolymerPass_MemberDefinition(ctorInfo, nil, constructor, enclosingModule),
+		NewPolymerPass_MemberDefinition(ctorInfo, rhino.Node{}, constructor, enclosingModule),
 		nativeBaseElement,
 		properties,
 		behaviorProps,
@@ -267,7 +267,7 @@ func PolymerClassDefinition_ExtractFromCallNode(
 }
 
 // Java: PolymerClassDefinition.isGoogModuleExports(Node)
-func polymerClassDefinition_isGoogModuleExports(assign *rhino.Node) bool {
+func polymerClassDefinition_isGoogModuleExports(assign rhino.Node) bool {
 	// Verify this is an assignment to a name `exports`
 	if !assign.GetParent().IsExprResult() || !assign.GetFirstChild().MatchesName("exports") {
 		return false
@@ -295,7 +295,7 @@ func polymerClassDefinition_isGoogModuleExports(assign *rhino.Node) bool {
 // Polymer call.
 //
 // Java: PolymerClassDefinition.createDummyGoogModuleExportsTarget(AbstractCompiler, Node)
-func polymerClassDefinition_createDummyGoogModuleExportsTarget(compiler AbstractCompiler, callNode *rhino.Node) *rhino.Node {
+func polymerClassDefinition_createDummyGoogModuleExportsTarget(compiler AbstractCompiler, callNode rhino.Node) rhino.Node {
 	madeUpName := "exportsForPolymer$jscomp" + compiler.GetUniqueNameIdSupplier()()
 	assignExpr := callNode.GetGrandparent()
 
@@ -314,19 +314,19 @@ func polymerClassDefinition_createDummyGoogModuleExportsTarget(compiler Abstract
 // the Polymer 1 extraction, this operation is non-destructive.
 //
 // Java: PolymerClassDefinition.extractFromClassNode(Node, AbstractCompiler)
-func PolymerClassDefinition_ExtractFromClassNode(classNode *rhino.Node, compiler AbstractCompiler) *PolymerClassDefinition {
-	jutil.CheckState(classNode != nil && classNode.IsClass())
+func PolymerClassDefinition_ExtractFromClassNode(classNode rhino.Node, compiler AbstractCompiler) *PolymerClassDefinition {
+	jutil.CheckState(!classNode.IsNil() && classNode.IsClass())
 
 	// The supported case is for the config getter to return an object literal descriptor.
-	var propertiesDescriptor *rhino.Node
+	var propertiesDescriptor rhino.Node
 	propertiesGetter := NodeUtil_GetFirstGetterMatchingKey(NodeUtil_GetClassMembers(classNode), "properties")
-	if propertiesGetter != nil {
+	if !propertiesGetter.IsNil() {
 		if !propertiesGetter.IsStaticMember() {
 			// report bad class definition
 			compiler.Report(
 				JSError_MakeWithNode(classNode, PolymerPassErrors_POLYMER_CLASS_PROPERTIES_NOT_STATIC))
 		} else {
-			for child := NodeUtil_GetFunctionBody(propertiesGetter.GetFirstChild()).GetFirstChild(); child != nil; child = child.GetNext() {
+			for child := NodeUtil_GetFunctionBody(propertiesGetter.GetFirstChild()).GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 				if child.IsReturn() {
 					if child.HasChildren() && child.GetFirstChild().IsObjectLit() {
 						propertiesDescriptor = child.GetFirstChild()
@@ -341,7 +341,7 @@ func PolymerClassDefinition_ExtractFromClassNode(classNode *rhino.Node, compiler
 		}
 	}
 
-	var target *rhino.Node
+	var target rhino.Node
 	if NodeUtil_IsNameDeclaration(classNode.GetGrandparent()) {
 		target = rhino.IR_Name(classNode.GetParent().GetString())
 	} else if classNode.GetParent().IsAssign() &&
@@ -366,7 +366,7 @@ func PolymerClassDefinition_ExtractFromClassNode(classNode *rhino.Node, compiler
 	methods := polymerClassDefinition_extractClassMethods(classNode, enclosingModule)
 
 	var ctorInfo *rhino.JSDocInfo
-	if constructor != nil {
+	if !constructor.IsNil() {
 		ctorInfo = NodeUtil_GetBestJSDocInfo(constructor)
 
 		// Add properties assigned to functions in the constructor (i.e. `this.prop = function`).
@@ -381,7 +381,7 @@ func PolymerClassDefinition_ExtractFromClassNode(classNode *rhino.Node, compiler
 		/* hasGeneratedLhs= */ false,
 		propertiesDescriptor,
 		classInfo,
-		NewPolymerPass_MemberDefinition(ctorInfo, nil, constructor, enclosingModule),
+		NewPolymerPass_MemberDefinition(ctorInfo, rhino.Node{}, constructor, enclosingModule),
 		nil,
 		properties,
 		nil,
@@ -395,9 +395,9 @@ func PolymerClassDefinition_ExtractFromClassNode(classNode *rhino.Node, compiler
 // fields assigned to functions from an ES6 class node.
 //
 // Java: PolymerClassDefinition.extractClassMethods(Node, Node)
-func polymerClassDefinition_extractClassMethods(classNode *rhino.Node, enclosingModule *rhino.Node) []*PolymerPass_MemberDefinition {
+func polymerClassDefinition_extractClassMethods(classNode rhino.Node, enclosingModule rhino.Node) []*PolymerPass_MemberDefinition {
 	methods := []*PolymerPass_MemberDefinition{}
-	for keyNode := NodeUtil_GetClassMembers(classNode).GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := NodeUtil_GetClassMembers(classNode).GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		if keyNode.IsMemberFunctionDef() || polymerClassDefinition_isFunctionField(keyNode) {
 			methods = append(methods,
 				NewPolymerPass_MemberDefinition(
@@ -414,12 +414,12 @@ func polymerClassDefinition_extractClassMethods(classNode *rhino.Node, enclosing
 // `field = function() {}` and `field = () => {})`.
 //
 // Java: PolymerClassDefinition.isFunctionField(Node)
-func polymerClassDefinition_isFunctionField(field *rhino.Node) bool {
+func polymerClassDefinition_isFunctionField(field rhino.Node) bool {
 	if !field.IsMemberFieldDef() {
 		return false
 	}
 	value := field.GetFirstChild()
-	return value != nil && value.IsFunction()
+	return !value.IsNil() && value.IsFunction()
 }
 
 // polymerClassDefinition_addFunctionAssignmentsFromConstructor adds
@@ -431,9 +431,9 @@ func polymerClassDefinition_isFunctionField(field *rhino.Node) bool {
 //
 // Java: PolymerClassDefinition.addFunctionAssignmentsFromConstructor(Node, Node, List<MemberDefinition>)
 func polymerClassDefinition_addFunctionAssignmentsFromConstructor(
-	constructor *rhino.Node, enclosingModule *rhino.Node, methods []*PolymerPass_MemberDefinition) []*PolymerPass_MemberDefinition {
+	constructor rhino.Node, enclosingModule rhino.Node, methods []*PolymerPass_MemberDefinition) []*PolymerPass_MemberDefinition {
 	body := NodeUtil_GetFunctionBody(constructor.GetFirstChild())
-	for stmt := body.GetFirstChild(); stmt != nil; stmt = stmt.GetNext() {
+	for stmt := body.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
 		if !stmt.IsExprResult() || !stmt.GetFirstChild().IsAssign() {
 			continue
 		}

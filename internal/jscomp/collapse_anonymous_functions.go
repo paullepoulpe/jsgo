@@ -50,12 +50,12 @@ func NewCollapseAnonymousFunctions(compiler AbstractCompiler) *CollapseAnonymous
 }
 
 // Java: CollapseAnonymousFunctions.process(Node, Node)
-func (c *CollapseAnonymousFunctions) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CollapseAnonymousFunctions) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CollapseAnonymousFunctions.visit(NodeTraversal, Node, Node)
-func (c *CollapseAnonymousFunctions) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CollapseAnonymousFunctions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !(n.IsVar() || n.IsLet() || n.IsConst()) {
 		return
 	}
@@ -68,7 +68,7 @@ func (c *CollapseAnonymousFunctions) Visit(t *NodeTraversal, n *rhino.Node, pare
 
 	grandparent := parent.GetParent()
 	if !(parent.IsScript() ||
-		(grandparent != nil && grandparent.IsFunction() && parent.IsBlock())) {
+		(!grandparent.IsNil() && grandparent.IsFunction() && parent.IsBlock())) {
 		return
 	}
 
@@ -82,7 +82,7 @@ func (c *CollapseAnonymousFunctions) Visit(t *NodeTraversal, n *rhino.Node, pare
 	}
 
 	value := name.GetFirstChild()
-	if value != nil &&
+	if !value.IsNil() &&
 		value.IsFunction() &&
 		!value.IsArrowFunction() &&
 		!c.IsRecursiveFunction(value) {
@@ -113,7 +113,7 @@ func (c *CollapseAnonymousFunctions) Visit(t *NodeTraversal, n *rhino.Node, pare
 }
 
 // Java: CollapseAnonymousFunctions.isRecursiveFunction(Node)
-func (c *CollapseAnonymousFunctions) IsRecursiveFunction(function *rhino.Node) bool {
+func (c *CollapseAnonymousFunctions) IsRecursiveFunction(function rhino.Node) bool {
 	name := function.GetFirstChild()
 	if name.GetString() == "" {
 		return false
@@ -124,12 +124,12 @@ func (c *CollapseAnonymousFunctions) IsRecursiveFunction(function *rhino.Node) b
 }
 
 // Java: CollapseAnonymousFunctions.containsName(Node, String)
-func (c *CollapseAnonymousFunctions) ContainsName(n *rhino.Node, name string) bool {
+func (c *CollapseAnonymousFunctions) ContainsName(n rhino.Node, name string) bool {
 	if n.IsName() && n.GetString() == name {
 		return true
 	}
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if c.ContainsName(child, name) {
 			return true
 		}

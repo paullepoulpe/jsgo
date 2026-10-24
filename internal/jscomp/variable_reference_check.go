@@ -101,7 +101,7 @@ func NewVariableReferenceCheck(compiler AbstractCompiler) *VariableReferenceChec
 }
 
 // Java: VariableReferenceCheck.process(Node, Node)
-func (v *VariableReferenceCheck) Process(externs *rhino.Node, root *rhino.Node) {
+func (v *VariableReferenceCheck) Process(externs rhino.Node, root rhino.Node) {
 	sc := NewSyntacticScopeCreator(v.compiler)
 	callback := NewReferenceCollector(
 		v.compiler, NewVariableReferenceCheck_ReferenceCheckingBehavior(v), sc)
@@ -192,7 +192,7 @@ type variableReferenceCheck_defaultParamCallback struct {
 }
 
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.checkDefaultParam(...).new AbstractShallowCallback() {...}.visit(NodeTraversal, Node, Node)
-func (cb *variableReferenceCheck_defaultParamCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *variableReferenceCheck_defaultParamCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !NodeUtil_IsReferenceName(n) {
 		return
 	}
@@ -333,7 +333,7 @@ func (v *VariableReferenceCheck) LookForHoistedFunction(references *jutil.ArrayL
 }
 
 // Java: VariableReferenceCheck.checkBlocklessDeclaration(Var, Reference, Node)
-func (v *VariableReferenceCheck) CheckBlocklessDeclaration(va *Var, reference *Reference, referenceNode *rhino.Node) {
+func (v *VariableReferenceCheck) CheckBlocklessDeclaration(va *Var, reference *Reference, referenceNode rhino.Node) {
 	if !reference.IsVarDeclaration() && reference.GetGrandparent().IsAddedBlock() &&
 		variableReferenceCheck_BLOCKLESS_DECLARATION_FORBIDDEN_STATEMENTS.Contains(
 			reference.GetGrandparent().GetParent().GetToken()) {
@@ -345,7 +345,7 @@ func (v *VariableReferenceCheck) CheckBlocklessDeclaration(va *Var, reference *R
 //
 // Java: VariableReferenceCheck.checkRedeclaration(Var, Reference, Node, Reference, BasicBlock)
 func (vc *VariableReferenceCheck) CheckRedeclaration(
-	v *Var, reference *Reference, referenceNode *rhino.Node, hoistedFn *Reference, basicBlock *BasicBlock) bool {
+	v *Var, reference *Reference, referenceNode rhino.Node, hoistedFn *Reference, basicBlock *BasicBlock) bool {
 	letConstShadowsVar := v.GetParentNode().IsVar() &&
 		(reference.IsLetDeclaration() || reference.IsConstDeclaration())
 	isVarNodeSameAsReferenceNode := v.GetNode() == reference.GetNode()
@@ -362,7 +362,7 @@ func (vc *VariableReferenceCheck) CheckRedeclaration(
 			NodeUtil_IsBlockScopedDeclaration(referenceNode.GetParent()) &&
 			v.GetScope() == rhino.StaticScope(reference.GetScope().GetParent())
 
-		isFunctionDecl := v.GetParentNode() != nil &&
+		isFunctionDecl := !v.GetParentNode().IsNil() &&
 			v.GetParentNode().IsFunction() &&
 			v.GetParentNode().GetFirstChild() == referenceNode
 
@@ -421,8 +421,8 @@ func (v *VariableReferenceCheck) IsRedeclaration(newDeclaration *BasicBlock) boo
 }
 
 // Java: VariableReferenceCheck.locationOf(Node)
-func VariableReferenceCheck_LocationOf(n *rhino.Node) string {
-	if n == nil {
+func VariableReferenceCheck_LocationOf(n rhino.Node) string {
+	if n.IsNil() {
 		return "<unknown>"
 	}
 	return n.GetLocation()
@@ -431,7 +431,7 @@ func VariableReferenceCheck_LocationOf(n *rhino.Node) string {
 // CheckEarlyReference returns if an early reference has been found.
 //
 // Java: VariableReferenceCheck.checkEarlyReference(Var, Reference, Node)
-func (vc *VariableReferenceCheck) CheckEarlyReference(v *Var, reference *Reference, referenceNode *rhino.Node) bool {
+func (vc *VariableReferenceCheck) CheckEarlyReference(v *Var, reference *Reference, referenceNode rhino.Node) bool {
 	// Don't check the order of references in externs files.
 	if referenceNode.IsFromExterns() || v.IsImplicitGoogNamespace() {
 		return false
@@ -498,7 +498,7 @@ func (vc *VariableReferenceCheck) CheckForUnusedLocalVar(v *Var, unusedAssignmen
 	if s.IsFunctionBlockScope() {
 		function := s.GetRootNode().GetParent()
 		callee := function.GetPrevious()
-		inGoogScope = callee != nil && variableReferenceCheck_GOOG_SCOPE.Matches(callee)
+		inGoogScope = !callee.IsNil() && variableReferenceCheck_GOOG_SCOPE.Matches(callee)
 	}
 
 	if inGoogScope {
@@ -511,7 +511,7 @@ func (vc *VariableReferenceCheck) CheckForUnusedLocalVar(v *Var, unusedAssignmen
 		if NodeUtil_IsNameDeclaration(statement) {
 			lhs := statement.GetFirstChild()
 			rhs := lhs.GetFirstChild()
-			if rhs != nil &&
+			if !rhs.IsNil() &&
 				(NodeUtil_IsCallToQualifiedName(rhs, variableReferenceCheck_GOOG_FORWARD_DECLARE) ||
 					NodeUtil_IsCallToQualifiedName(rhs, variableReferenceCheck_GOOG_REQUIRE_TYPE) ||
 					NodeUtil_IsCallToQualifiedName(rhs, variableReferenceCheck_GOOG_REQUIRE) ||

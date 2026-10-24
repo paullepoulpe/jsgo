@@ -41,7 +41,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-func testIR(t *testing.T, node *Node, expectedStructure string) {
+func testIR(t *testing.T, node Node, expectedStructure string) {
 	t.Helper()
 	if got := node.ToStringTree(); got != expectedStructure {
 		t.Errorf("toStringTree:\n%s\nwant:\n%s", got, expectedStructure)
@@ -84,7 +84,7 @@ func TestIR_Block(t *testing.T) {
 		"BLOCK\n    EMPTY\n    EMPTY\n")
 
 	testIR(t,
-		IR_BlockOfList([]*Node{IR_Empty(), IR_Empty()}),
+		IR_BlockOfList([]Node{IR_Empty(), IR_Empty()}),
 		"BLOCK\n    EMPTY\n    EMPTY\n")
 }
 
@@ -96,7 +96,7 @@ func TestIR_Script(t *testing.T) {
 		"SCRIPT\n    EMPTY\n    EMPTY\n")
 
 	testIR(t,
-		IR_ScriptOfList([]*Node{IR_Empty(), IR_Empty()}),
+		IR_ScriptOfList([]Node{IR_Empty(), IR_Empty()}),
 		"SCRIPT\n    EMPTY\n    EMPTY\n")
 }
 

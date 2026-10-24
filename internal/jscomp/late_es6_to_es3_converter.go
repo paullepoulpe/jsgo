@@ -49,7 +49,7 @@ type LateEs6ToEs3Converter struct {
 	// definition as injecting to the top of the script causes runtime errors
 	// https://github.com/google/closure-compiler/issues/3589. For the subsequent script(s), the call
 	// is injected to the top of that script.
-	templateLitInsertionPoint *rhino.Node
+	templateLitInsertionPoint rhino.Node
 }
 
 // Java: LateEs6ToEs3Converter.transpiledFeatures
@@ -64,7 +64,7 @@ const LateEs6ToEs3Converter_FRESH_COMP_PROP_VAR = "$jscomp$compprop"
 // Java: LateEs6ToEs3Converter(AbstractCompiler)
 func NewLateEs6ToEs3Converter(compiler AbstractCompiler) *LateEs6ToEs3Converter {
 	l := &LateEs6ToEs3Converter{}
-	l.templateLitInsertionPoint = nil
+	l.templateLitInsertionPoint = rhino.Node{}
 	l.compiler = compiler
 	l.astFactory = compiler.CreateAstFactory()
 	l.templateLiteralConverter = NewEs6TemplateLiterals(compiler)
@@ -72,13 +72,13 @@ func NewLateEs6ToEs3Converter(compiler AbstractCompiler) *LateEs6ToEs3Converter 
 }
 
 // Java: LateEs6ToEs3Converter.process(Node, Node)
-func (l *LateEs6ToEs3Converter) Process(externs *rhino.Node, root *rhino.Node) {
+func (l *LateEs6ToEs3Converter) Process(externs rhino.Node, root rhino.Node) {
 	TranspilationPasses_ProcessTranspile(l.compiler, root, LateEs6ToEs3Converter_transpiledFeatures, l)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(l.compiler, root, LateEs6ToEs3Converter_transpiledFeatures)
 }
 
 // Java: LateEs6ToEs3Converter.shouldTraverse(NodeTraversal, Node, Node)
-func (l *LateEs6ToEs3Converter) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (l *LateEs6ToEs3Converter) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		l.templateLitInsertionPoint = LateEs6ToEs3Converter_FindTemplateLitInsertionPoint(n)
 	}
@@ -86,7 +86,7 @@ func (l *LateEs6ToEs3Converter) ShouldTraverse(t *NodeTraversal, n *rhino.Node, 
 }
 
 // Java: LateEs6ToEs3Converter.findTemplateLitInsertionPoint(Node)
-func LateEs6ToEs3Converter_FindTemplateLitInsertionPoint(script *rhino.Node) *rhino.Node {
+func LateEs6ToEs3Converter_FindTemplateLitInsertionPoint(script rhino.Node) rhino.Node {
 	if script.GetIsInClosureUnawareSubtree() {
 		// For all closure-unaware scripts, initialize the injection point within the closure
 		// aware function.
@@ -100,7 +100,7 @@ func LateEs6ToEs3Converter_FindTemplateLitInsertionPoint(script *rhino.Node) *rh
 }
 
 // Java: LateEs6ToEs3Converter.visit(NodeTraversal, Node, Node)
-func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN:
 		// Find whether this script contains the `$jscomp.createTemplateTagFirstArgWithRaw =
@@ -110,7 +110,7 @@ func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 		if lhs.IsGetProp() && rhs.IsFunction() && lhs.GetFirstChild().IsName() {
 			qName := rhino.QualifiedName_Of("$jscomp.createTemplateTagFirstArgWithRaw")
 			if qName.Matches(lhs) {
-				jutil.CheckNotNullMsg1(n.GetParent(), "%s", n)
+				rhino.CheckNotNullMsg1(n.GetParent(), "%s", n)
 				jutil.CheckStateMsg1(n.GetParent().IsExprResult(), "%s", n)
 				l.templateLitInsertionPoint = n.GetParent().GetNext()
 			}
@@ -136,7 +136,7 @@ func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 // handled in Es6RewriteClass.
 //
 // Java: LateEs6ToEs3Converter.visitMemberFunctionDefInObjectLit(Node)
-func (l *LateEs6ToEs3Converter) VisitMemberFunctionDefInObjectLit(n *rhino.Node) {
+func (l *LateEs6ToEs3Converter) VisitMemberFunctionDefInObjectLit(n rhino.Node) {
 	name := n.GetString()
 	nameNode := n.GetFirstFirstChild()
 	stringKey := l.astFactory.CreateStringKey(name, n.RemoveFirstChild())
@@ -147,8 +147,8 @@ func (l *LateEs6ToEs3Converter) VisitMemberFunctionDefInObjectLit(n *rhino.Node)
 }
 
 // Java: LateEs6ToEs3Converter.visitObject(NodeTraversal, Node)
-func (l *LateEs6ToEs3Converter) VisitObject(t *NodeTraversal, obj *rhino.Node) {
-	for child := obj.GetFirstChild(); child != nil; child = child.GetNext() {
+func (l *LateEs6ToEs3Converter) VisitObject(t *NodeTraversal, obj rhino.Node) {
+	for child := obj.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsComputedProp() {
 			l.VisitObjectWithComputedProperty(t, obj)
 			return
@@ -173,13 +173,13 @@ func (l *LateEs6ToEs3Converter) VisitObject(t *NodeTraversal, obj *rhino.Node) {
 // $jscomp$compprop0.a = 1
 //
 // Java: LateEs6ToEs3Converter.visitObjectWithComputedProperty(NodeTraversal, Node)
-func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal, obj *rhino.Node) {
+func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal, obj rhino.Node) {
 	jutil.CheckArgument(obj.IsObjectLit())
-	props := []*rhino.Node{}
+	props := []rhino.Node{}
 	currElement := obj.GetFirstChild()
 	objectType := AstFactory_Type_(obj)
 
-	for currElement != nil {
+	for !currElement.IsNil() {
 		if currElement.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) ||
 			currElement.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
 			l.compiler.Report(
@@ -224,7 +224,7 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal
 			propdef.PutBooleanProp(rhino.Node_QUOTED_PROP, false)
 
 			objNameNode := l.astFactory.CreateName(objName, objectType)
-			var access *rhino.Node
+			var access rhino.Node
 			if isQuotedAccess {
 				access = l.astFactory.CreateGetElem(objNameNode, propdef)
 			} else {

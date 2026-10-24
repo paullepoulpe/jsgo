@@ -73,7 +73,7 @@ func (c *ClosureCodingConvention) ApplySubclassRelationship(
 // patterns that occur in Google code (various uses of inherits and mixin).
 //
 // Java: ClosureCodingConvention.getClassesDefinedByCall(Node)
-func (c *ClosureCodingConvention) GetClassesDefinedByCall(callNode *rhino.Node) *CodingConvention_SubclassRelationship {
+func (c *ClosureCodingConvention) GetClassesDefinedByCall(callNode rhino.Node) *CodingConvention_SubclassRelationship {
 	relationship :=
 		c.CodingConventions_ProxyBase.GetClassesDefinedByCall(callNode)
 	if relationship != nil {
@@ -110,7 +110,7 @@ func (c *ClosureCodingConvention) GetClassesDefinedByCall(callNode *rhino.Node) 
 		// isn't a real class name. This prevents us from
 		// doing something weird in cases like:
 		// goog.inherits(MySubClass, cond ? SuperClass1 : BaseClass2)
-		if subclass != nil &&
+		if !subclass.IsNil() &&
 			subclass.IsUnscopedQualifiedName() &&
 			superclass.IsUnscopedQualifiedName() {
 			return NewCodingConvention_SubclassRelationship(*type_, subclass, superclass)
@@ -135,7 +135,7 @@ var closureCodingConvention_subclassTypes = [...]CodingConvention_SubclassType{
 // Returns the type of class-defining name, or nil.
 //
 // Java: ClosureCodingConvention.typeofClassDefiningName(Node)
-func ClosureCodingConvention_TypeofClassDefiningName(callName *rhino.Node) *CodingConvention_SubclassType {
+func ClosureCodingConvention_TypeofClassDefiningName(callName rhino.Node) *CodingConvention_SubclassType {
 	// Check if the method name matches one of the class-defining methods.
 	var methodName *string
 	if callName.IsGetProp() {
@@ -171,7 +171,7 @@ func (c *ClosureCodingConvention) IsSuperClassReference(propertyName string) boo
 // a.b.c.prototype => true
 //
 // Java: ClosureCodingConvention.endsWithPrototype(Node)
-func ClosureCodingConvention_EndsWithPrototype(qualifiedName *rhino.Node) bool {
+func ClosureCodingConvention_EndsWithPrototype(qualifiedName rhino.Node) bool {
 	return qualifiedName.IsGetProp() && qualifiedName.GetString() == "prototype"
 }
 
@@ -180,7 +180,7 @@ func ClosureCodingConvention_EndsWithPrototype(qualifiedName *rhino.Node) bool {
 // global scope.
 //
 // Java: ClosureCodingConvention.extractIsModuleFile(Node, Node)
-func (c *ClosureCodingConvention) ExtractIsModuleFile(node *rhino.Node, parent *rhino.Node) bool {
+func (c *ClosureCodingConvention) ExtractIsModuleFile(node rhino.Node, parent rhino.Node) bool {
 	namespace := ClosureCodingConvention_ExtractClassNameIfGoog(node, parent, "goog.module")
 	return namespace != nil
 }
@@ -191,7 +191,7 @@ func (c *ClosureCodingConvention) ExtractIsModuleFile(node *rhino.Node, parent *
 // Returns the extracted class name, or nil.
 //
 // Java: ClosureCodingConvention.extractClassNameIfProvide(Node, Node)
-func (c *ClosureCodingConvention) ExtractClassNameIfProvide(node *rhino.Node, parent *rhino.Node) *string {
+func (c *ClosureCodingConvention) ExtractClassNameIfProvide(node rhino.Node, parent rhino.Node) *string {
 	namespace := ClosureCodingConvention_ExtractClassNameIfGoog(node, parent, "goog.provide")
 	if namespace == nil {
 		namespace = ClosureCodingConvention_ExtractClassNameIfGoog(node, parent, "goog.module")
@@ -205,19 +205,19 @@ func (c *ClosureCodingConvention) ExtractClassNameIfProvide(node *rhino.Node, pa
 // Returns the extracted class name, or nil.
 //
 // Java: ClosureCodingConvention.extractClassNameIfRequire(Node, Node)
-func (c *ClosureCodingConvention) ExtractClassNameIfRequire(node *rhino.Node, parent *rhino.Node) *string {
+func (c *ClosureCodingConvention) ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) *string {
 	return ClosureCodingConvention_ExtractClassNameIfGoog(node, parent, "goog.require")
 }
 
 // Java: ClosureCodingConvention.extractClassNameIfGoog(Node, Node, String)
-func ClosureCodingConvention_ExtractClassNameIfGoog(node *rhino.Node, parent *rhino.Node,
+func ClosureCodingConvention_ExtractClassNameIfGoog(node rhino.Node, parent rhino.Node,
 	functionName string) *string {
 	var className *string
 	if NodeUtil_IsExprCall(parent) {
 		callee := node.GetFirstChild()
-		if callee != nil && callee.IsGetProp() && callee.MatchesQualifiedName(functionName) {
+		if !callee.IsNil() && callee.IsGetProp() && callee.MatchesQualifiedName(functionName) {
 			target := callee.GetNext()
-			if target != nil && target.IsStringLit() {
+			if !target.IsNil() && target.IsStringLit() {
 				s := target.GetString()
 				className = &s
 			}
@@ -229,7 +229,6 @@ func ClosureCodingConvention_ExtractClassNameIfGoog(node *rhino.Node, parent *rh
 // GetExportPropertyFunction uses closure's implementation.
 //
 // Returns closure's function name for exporting properties.
-//
 var (
 	closureCodingConvention_exportPropertyFunction = "goog.exportProperty"
 	closureCodingConvention_exportSymbolFunction   = "goog.exportSymbol"
@@ -253,7 +252,7 @@ func (c *ClosureCodingConvention) GetExportSymbolFunction() *string {
 var ClosureCodingConvention_GOOG_FORWARDDECLARE = rhino.QualifiedName_Of("goog.forwardDeclare")
 
 // Java: ClosureCodingConvention.identifyTypeDeclarationCall(Node)
-func (c *ClosureCodingConvention) IdentifyTypeDeclarationCall(n *rhino.Node) []string {
+func (c *ClosureCodingConvention) IdentifyTypeDeclarationCall(n rhino.Node) []string {
 	callName := n.GetFirstChild()
 	// Identify forward declaration of form goog.forwardDeclare('foo.bar')
 	if ClosureCodingConvention_GOOG_FORWARDDECLARE.Matches(callName) && n.HasTwoChildren() {
@@ -276,7 +275,7 @@ var ClosureCodingConvention_GOOG_ADDSINGLETONGETTER = rhino.QualifiedName_Of("go
 var ClosureCodingConvention_GOOG_ADDSINGLETONGETTER_MANGLED = rhino.QualifiedName_Of("goog$addSingletonGetter")
 
 // Java: ClosureCodingConvention.getSingletonGetterClassName(Node)
-func (c *ClosureCodingConvention) GetSingletonGetterClassName(callNode *rhino.Node) *string {
+func (c *ClosureCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) *string {
 	callArg := callNode.GetFirstChild()
 	// Use both the original name and the post-CollapseProperties name.
 	if callNode.HasTwoChildren() &&
@@ -295,7 +294,7 @@ func (c *ClosureCodingConvention) ApplySingletonGetter(classType *rhino.NominalT
 }
 
 // Java: ClosureCodingConvention.isPropertyTestFunction(Node)
-func (c *ClosureCodingConvention) IsPropertyTestFunction(call *rhino.Node) bool {
+func (c *ClosureCodingConvention) IsPropertyTestFunction(call rhino.Node) bool {
 	jutil.CheckArgument(call.IsCall())
 	// Avoid building the qualified name and check for
 	// "goog.isArrayLike", "goog.isObject"
@@ -318,7 +317,7 @@ var ClosureCodingConvention_GOOG_REFLECT_OBJECTPROPERTY = rhino.QualifiedName_Of
 var ClosureCodingConvention_GOOG_REFLECT_OBJECTPROPERTY_MANGLED = rhino.QualifiedName_Of("goog$reflect$objectProperty")
 
 // Java: ClosureCodingConvention.isPropertyRenameFunction(Node)
-func (c *ClosureCodingConvention) IsPropertyRenameFunction(nameNode *rhino.Node) bool {
+func (c *ClosureCodingConvention) IsPropertyRenameFunction(nameNode rhino.Node) bool {
 	if c.CodingConventions_ProxyBase.IsPropertyRenameFunction(nameNode) {
 		return true
 	}
@@ -327,7 +326,7 @@ func (c *ClosureCodingConvention) IsPropertyRenameFunction(nameNode *rhino.Node)
 }
 
 // Java: ClosureCodingConvention.isFunctionCallThatAlwaysThrows(Node)
-func (c *ClosureCodingConvention) IsFunctionCallThatAlwaysThrows(n *rhino.Node) bool {
+func (c *ClosureCodingConvention) IsFunctionCallThatAlwaysThrows(n rhino.Node) bool {
 	return c.CodingConventions_ProxyBase.IsFunctionCallThatAlwaysThrows(n) ||
 		CodingConventions_DefaultIsFunctionCallThatAlwaysThrows(n, "goog.asserts.fail")
 }
@@ -337,7 +336,7 @@ var ClosureCodingConvention_GOOG_REFLECT_OBJECT = rhino.QualifiedName_Of("goog.r
 var ClosureCodingConvention_JSCOMP_REFLECTOBJECT = rhino.QualifiedName_Of("$jscomp.reflectObject")
 
 // Java: ClosureCodingConvention.getObjectLiteralCast(Node)
-func (c *ClosureCodingConvention) GetObjectLiteralCast(callNode *rhino.Node) *CodingConvention_ObjectLiteralCast {
+func (c *ClosureCodingConvention) GetObjectLiteralCast(callNode rhino.Node) *CodingConvention_ObjectLiteralCast {
 	jutil.CheckArgumentMsg1(callNode.IsCall(), "Expected call node but found %s", callNode)
 	proxyCast := c.CodingConventions_ProxyBase.GetObjectLiteralCast(callNode)
 	if proxyCast != nil {
@@ -357,7 +356,7 @@ func (c *ClosureCodingConvention) GetObjectLiteralCast(callNode *rhino.Node) *Co
 
 	objectNode := typeNode.GetNext()
 	if !objectNode.IsObjectLit() {
-		return NewCodingConvention_ObjectLiteralCast(nil, nil, ClosureCodingConvention_OBJECTLIT_EXPECTED)
+		return NewCodingConvention_ObjectLiteralCast(nil, rhino.Node{}, ClosureCodingConvention_OBJECTLIT_EXPECTED)
 	}
 
 	return NewCodingConvention_ObjectLiteralCast(typeNode.GetQualifiedName(), typeNode.GetNext(), nil)
@@ -402,7 +401,7 @@ var ClosureCodingConvention_GOOG_BIND = rhino.QualifiedName_Of("goog.bind")
 var ClosureCodingConvention_GOOG_PARTIAL = rhino.QualifiedName_Of("goog.partial")
 
 // Java: ClosureCodingConvention.describeFunctionBind(Node, boolean)
-func (c *ClosureCodingConvention) DescribeFunctionBind(n *rhino.Node, checkTypes bool) *CodingConvention_Bind {
+func (c *ClosureCodingConvention) DescribeFunctionBind(n rhino.Node, checkTypes bool) *CodingConvention_Bind {
 	if !n.IsCall() {
 		return nil
 	}
@@ -411,7 +410,7 @@ func (c *ClosureCodingConvention) DescribeFunctionBind(n *rhino.Node, checkTypes
 		if ClosureCodingConvention_GOOG_BIND.Matches(callTarget) || callTarget.MatchesName("goog$bind") {
 			// goog.bind(fn, self, args...);
 			fn := callTarget.GetNext()
-			if fn == nil {
+			if fn.IsNil() {
 				return nil
 			}
 			thisValue := ClosureCodingConvention_SafeNext(fn)
@@ -422,10 +421,10 @@ func (c *ClosureCodingConvention) DescribeFunctionBind(n *rhino.Node, checkTypes
 		if ClosureCodingConvention_GOOG_PARTIAL.Matches(callTarget) || callTarget.MatchesName("goog$partial") {
 			// goog.partial(fn, args...);
 			fn := callTarget.GetNext()
-			if fn == nil {
+			if fn.IsNil() {
 				return nil
 			}
-			var thisValue *rhino.Node
+			var thisValue rhino.Node
 			parameters := ClosureCodingConvention_SafeNext(fn)
 			return NewCodingConvention_Bind(fn, thisValue, parameters)
 		}
@@ -434,7 +433,7 @@ func (c *ClosureCodingConvention) DescribeFunctionBind(n *rhino.Node, checkTypes
 }
 
 // Java: ClosureCodingConvention.describeCachingCall(Node)
-func (c *ClosureCodingConvention) DescribeCachingCall(node *rhino.Node) *CodingConvention_Cache {
+func (c *ClosureCodingConvention) DescribeCachingCall(node rhino.Node) *CodingConvention_Cache {
 	if !node.IsCall() {
 		return nil
 	}
@@ -458,7 +457,7 @@ func (c *ClosureCodingConvention) DescribeCachingCall(node *rhino.Node) *CodingC
 var ClosureCodingConvention_googCacheReflect = rhino.IR_GetpropWithMoreProps(rhino.IR_Name("goog"), "reflect", "cache")
 
 // Java: ClosureCodingConvention.matchesCacheMethodName(Node)
-func (c *ClosureCodingConvention) MatchesCacheMethodName(target *rhino.Node) bool {
+func (c *ClosureCodingConvention) MatchesCacheMethodName(target rhino.Node) bool {
 	if target.IsGetProp() {
 		return target.MatchesQualifiedNameNode(ClosureCodingConvention_googCacheReflect)
 	} else if target.IsName() {
@@ -468,9 +467,9 @@ func (c *ClosureCodingConvention) MatchesCacheMethodName(target *rhino.Node) boo
 }
 
 // Java: ClosureCodingConvention.safeNext(Node)
-func ClosureCodingConvention_SafeNext(n *rhino.Node) *rhino.Node {
-	if n != nil {
+func ClosureCodingConvention_SafeNext(n rhino.Node) rhino.Node {
+	if !n.IsNil() {
 		return n.GetNext()
 	}
-	return nil
+	return rhino.Node{}
 }

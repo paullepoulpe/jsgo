@@ -290,7 +290,7 @@ func TestUnionTypeBuilder_AfterBuild_cannotAdd(t *testing.T) {
 func (s *unionTypeBuilderTest) AddRecordType(builder *UnionType_Builder, inferred bool) {
 	recBuilder := NewRecordTypeBuilder(s.Registry)
 	recBuilder.SetSynthesized(inferred)
-	recBuilder.AddProperty("prop", s.NUMBER_TYPE, nil)
+	recBuilder.AddProperty("prop", s.NUMBER_TYPE, Node{})
 	builder.AddAlternate(recBuilder.Build())
 }
 

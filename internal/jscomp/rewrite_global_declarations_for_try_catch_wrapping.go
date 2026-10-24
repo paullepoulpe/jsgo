@@ -60,22 +60,22 @@ type RewriteGlobalDeclarationsForTryCatchWrapping struct {
 	// iteration order over the chunks is not deterministic; each chunk has
 	// its own insertion root, so the order is not observable. Insertion order
 	// is used here.
-	functions *jutil.LinkedHashMap[*JSChunk, *jutil.ArrayList[*rhino.Node]]
-	classes   *jutil.ArrayList[*rhino.Node]
+	functions *jutil.LinkedHashMap[*JSChunk, *jutil.ArrayList[rhino.Node]]
+	classes   *jutil.ArrayList[rhino.Node]
 }
 
 // Java: RewriteGlobalDeclarationsForTryCatchWrapping(AbstractCompiler)
 func NewRewriteGlobalDeclarationsForTryCatchWrapping(compiler AbstractCompiler) *RewriteGlobalDeclarationsForTryCatchWrapping {
 	r := &RewriteGlobalDeclarationsForTryCatchWrapping{
-		functions: jutil.NewLinkedHashMap[*JSChunk, *jutil.ArrayList[*rhino.Node]](),
-		classes:   jutil.NewArrayList[*rhino.Node](),
+		functions: jutil.NewLinkedHashMap[*JSChunk, *jutil.ArrayList[rhino.Node]](),
+		classes:   jutil.NewArrayList[rhino.Node](),
 	}
 	r.compiler = compiler
 	return r
 }
 
 // Java: RewriteGlobalDeclarationsForTryCatchWrapping.process(Node, Node)
-func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, r)
 	for chunk, values := range r.functions.All() {
 		addingRoot := r.compiler.GetNodeForCodeInsertion(chunk)
@@ -110,14 +110,14 @@ func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Process(externs *rhino.No
 }
 
 // Java: RewriteGlobalDeclarationsForTryCatchWrapping.shouldTraverse(NodeTraversal, Node, Node)
-func (r *RewriteGlobalDeclarationsForTryCatchWrapping) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (r *RewriteGlobalDeclarationsForTryCatchWrapping) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	grandparent := n.GetAncestor(2)
-	return grandparent == nil || !grandparent.IsScript()
+	return grandparent.IsNil() || !grandparent.IsScript()
 }
 
 // Java: RewriteGlobalDeclarationsForTryCatchWrapping.visit(NodeTraversal, Node, Node)
-func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	if parent == nil || !parent.IsScript() {
+func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if parent.IsNil() || !parent.IsScript() {
 		return
 	}
 
@@ -125,7 +125,7 @@ func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Visit(t *NodeTraversal, n
 		chunk := t.GetChunk()
 		list := r.functions.Get(chunk)
 		if list == nil {
-			list = jutil.NewArrayList[*rhino.Node]()
+			list = jutil.NewArrayList[rhino.Node]()
 			r.functions.Put(chunk, list)
 		}
 		list.Add(n)

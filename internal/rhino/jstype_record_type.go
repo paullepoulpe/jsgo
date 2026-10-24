@@ -117,7 +117,7 @@ func (t *RecordType) GetImplicitPrototype() ObjectType {
 }
 
 // Java: RecordType.defineProperty(Property.Key, JSType, boolean, Node)
-func (t *RecordType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (t *RecordType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	if t.isFrozen {
 		return false
 	}

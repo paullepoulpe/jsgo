@@ -46,7 +46,7 @@ type InvocationsCallback interface {
 	// callName the name of method invoked by first child of call.
 	//
 	// Java: InvocationsCallback.visit(NodeTraversal, Node, Node, String)
-	VisitWithCallName(t *NodeTraversal, callNode *rhino.Node, parent *rhino.Node, callName string)
+	VisitWithCallName(t *NodeTraversal, callNode rhino.Node, parent rhino.Node, callName string)
 
 	GetInvocationsCallbackBase() *InvocationsCallbackBase
 }
@@ -71,7 +71,7 @@ func (b *InvocationsCallbackBase) InitInvocationsCallbackBase(self InvocationsCa
 func (b *InvocationsCallbackBase) GetInvocationsCallbackBase() *InvocationsCallbackBase { return b }
 
 // Java: InvocationsCallback.visit(NodeTraversal, Node, Node)
-func (b *InvocationsCallbackBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *InvocationsCallbackBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsCall() {
 		return
 	}

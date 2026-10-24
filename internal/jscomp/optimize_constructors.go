@@ -60,7 +60,7 @@ type OptimizeConstructors struct {
 	astAnalyzer *AstAnalyzer
 
 	// All constructor definition nodes that are to be removed.
-	removableConstructors []*rhino.Node
+	removableConstructors []rhino.Node
 }
 
 // Java: OptimizeConstructors(AbstractCompiler)
@@ -79,7 +79,7 @@ func NewOptimizeConstructors(compiler AbstractCompiler) *OptimizeConstructors {
 // ProcessWithReferenceMap, and AsCallGraphCompilerPass adapts it.
 //
 // Java: OptimizeConstructors.process(Node, Node)
-func (o *OptimizeConstructors) Process(externs *rhino.Node, root *rhino.Node) {
+func (o *OptimizeConstructors) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(o.compiler.GetLifeCycleStage() == AbstractCompiler_LifeCycleStage_NORMALIZED)
 
 	OptimizeCalls_Builder_().
@@ -99,7 +99,7 @@ func (o *OptimizeConstructors) AsCallGraphCompilerPass() OptimizeCalls_CallGraph
 }
 
 // Java: OptimizeConstructors.process(Node, Node, ReferenceMap)
-func (o *OptimizeConstructors) ProcessWithReferenceMap(externs *rhino.Node, root *rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
+func (o *OptimizeConstructors) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
 	for key, value := range refMap.GetNameReferences() {
 		o.AddConstructorsToBeRemoved(key, value)
 	}
@@ -126,21 +126,21 @@ func (o *OptimizeConstructors) ProcessWithReferenceMap(externs *rhino.Node, root
 // -allowed reference (anything not an assignment)
 //
 // Java: OptimizeConstructors.addConstructorsToBeRemoved(String, ArrayList<Node>)
-func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jutil.ArrayList[*rhino.Node]) {
+func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jutil.ArrayList[rhino.Node]) {
 	if !OptimizeCalls_MayBeOptimizableName(o.compiler, name) {
 		return
 	}
 
-	var candidateClassDefinition *rhino.Node
-	var candidateConstructor *rhino.Node
+	var candidateClassDefinition rhino.Node
+	var candidateConstructor rhino.Node
 
 	// Lazily init as most symbols aren't class, and most classes don't have subclasses
-	var subclassConstructors []*rhino.Node
+	var subclassConstructors []rhino.Node
 
 	for _, n := range refs.Slice() {
 		definition := o.GetClassDefinitionOrFunction(n)
-		if definition != nil {
-			if candidateClassDefinition != nil {
+		if !definition.IsNil() {
+			if !candidateClassDefinition.IsNil() {
 				// As a simplification only allow one definition.
 				return
 			}
@@ -161,7 +161,7 @@ func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jut
 				if extendsExpr.IsEmpty() {
 					constructor :=
 						NodeUtil_GetEs6ClassConstructorMemberFunctionDef(candidateClassDefinition)
-					if constructor != nil {
+					if !constructor.IsNil() {
 						fn := constructor.GetLastChild()
 						body := fn.GetLastChild()
 						if !body.HasChildren() && o.HasRemovableParameterList(constructor) {
@@ -181,7 +181,7 @@ func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jut
 				subclassLiteral := n.GetParent()
 				subclassConstructor :=
 					NodeUtil_GetEs6ClassConstructorMemberFunctionDef(subclassLiteral)
-				if subclassConstructor != nil &&
+				if !subclassConstructor.IsNil() &&
 					OptimizeConstructors_ConstructorHasRemovableDefinition(subclassConstructor) {
 
 					subclassConstructors = append(subclassConstructors, subclassConstructor)
@@ -197,11 +197,11 @@ func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jut
 	}
 
 	// There is no known class definition
-	if candidateClassDefinition == nil {
+	if candidateClassDefinition.IsNil() {
 		return
 	}
 
-	if candidateConstructor != nil {
+	if !candidateConstructor.IsNil() {
 		o.removableConstructors = append(o.removableConstructors, candidateConstructor)
 	}
 
@@ -222,7 +222,7 @@ func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jut
 // the AST so that it might be assigned a value?
 //
 // Java: OptimizeConstructors.isAssigningReference(Node)
-func OptimizeConstructors_IsAssigningReference(n *rhino.Node) bool {
+func OptimizeConstructors_IsAssigningReference(n rhino.Node) bool {
 	parent := n.GetParent()
 	gparent := parent.GetParent()
 	switch parent.GetToken() {
@@ -264,16 +264,16 @@ func OptimizeConstructors_IsAssigningReference(n *rhino.Node) bool {
 }
 
 // Java: OptimizeConstructors.isClassExtendsExpression(Node)
-func (o *OptimizeConstructors) IsClassExtendsExpression(n *rhino.Node) bool {
+func (o *OptimizeConstructors) IsClassExtendsExpression(n rhino.Node) bool {
 	parent := n.GetParent()
 	return (parent.IsClass() && parent.GetSecondChild() == n)
 }
 
 // Java: OptimizeConstructors.getClassDefinitionOrFunction(Node)
-func (o *OptimizeConstructors) GetClassDefinitionOrFunction(n *rhino.Node) *rhino.Node {
+func (o *OptimizeConstructors) GetClassDefinitionOrFunction(n rhino.Node) rhino.Node {
 	parent := n.GetParent()
 
-	var expr *rhino.Node
+	var expr rhino.Node
 	if OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n) {
 		expr = parent.GetLastChild()
 	} else if n.IsName() && n.HasChildren() {
@@ -283,19 +283,19 @@ func (o *OptimizeConstructors) GetClassDefinitionOrFunction(n *rhino.Node) *rhin
 	} else if parent.IsClass() && n.IsFirstChildOf(parent) {
 		expr = parent
 	} else {
-		return nil // Couldn't find a function.
+		return rhino.Node{} // Couldn't find a function.
 	}
 
 	expr = o.Unwrap(expr)
 	if OptimizeConstructors_IsDefinitionClassLiteralOrFunction(expr) {
 		return expr
 	} else {
-		return nil
+		return rhino.Node{}
 	}
 }
 
 // Java: OptimizeConstructors.unwrap(Node)
-func (o *OptimizeConstructors) Unwrap(expr *rhino.Node) *rhino.Node {
+func (o *OptimizeConstructors) Unwrap(expr rhino.Node) rhino.Node {
 	for expr.IsCast() || expr.IsComma() {
 		expr = expr.GetLastChild()
 	}
@@ -303,7 +303,7 @@ func (o *OptimizeConstructors) Unwrap(expr *rhino.Node) *rhino.Node {
 }
 
 // Java: OptimizeConstructors.isDefinitionClassLiteralOrFunction(Node)
-func OptimizeConstructors_IsDefinitionClassLiteralOrFunction(n *rhino.Node) bool {
+func OptimizeConstructors_IsDefinitionClassLiteralOrFunction(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		// TODO(b/176208718): ideally this is only return true for normal functions, but it is
@@ -316,7 +316,7 @@ func OptimizeConstructors_IsDefinitionClassLiteralOrFunction(n *rhino.Node) bool
 			// `class NameNode {`
 			// find the constructor
 			constructorMemberFunctionDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-			return constructorMemberFunctionDef != nil
+			return !constructorMemberFunctionDef.IsNil()
 		}
 	default:
 		return false
@@ -340,9 +340,9 @@ func NewOptimizeConstructors_ClassConstructorSummary(isVarArgs bool, formalParam
 }
 
 // Java: OptimizeConstructors.ClassConstructorSummary.build(Node)
-func OptimizeConstructors_ClassConstructorSummary_Build(classDefinition *rhino.Node) *OptimizeConstructors_ClassConstructorSummary {
+func OptimizeConstructors_ClassConstructorSummary_Build(classDefinition rhino.Node) *OptimizeConstructors_ClassConstructorSummary {
 	jutil.CheckState(classDefinition.IsClass() || classDefinition.IsFunction())
-	var fn *rhino.Node
+	var fn rhino.Node
 	if classDefinition.IsClass() {
 		// NOTE: it would be possible to handle implicit superclass definitions by caching
 		// the super class constructor summaries.
@@ -359,7 +359,7 @@ func OptimizeConstructors_ClassConstructorSummary_Build(classDefinition *rhino.N
 }
 
 // Java: OptimizeConstructors.ClassConstructorSummary.isEquivalentConstructorDefinition(Node)
-func (s *OptimizeConstructors_ClassConstructorSummary) IsEquivalentConstructorDefinition(constructorMember *rhino.Node) bool {
+func (s *OptimizeConstructors_ClassConstructorSummary) IsEquivalentConstructorDefinition(constructorMember rhino.Node) bool {
 	// `constructorHasRemovableDefinition` has already checked the subclass definition. We
 	// know that it has a trivial constructor and that the parameters are passed to the super call
 	// in the same order as they are declared in the parameter list, etc.
@@ -389,11 +389,11 @@ func (s *OptimizeConstructors_ClassConstructorSummary) IsEquivalentConstructorDe
 }
 
 // Java: OptimizeConstructors.functionHasRest(Node)
-func OptimizeConstructors_FunctionHasRest(fn *rhino.Node) bool {
+func OptimizeConstructors_FunctionHasRest(fn rhino.Node) bool {
 	jutil.CheckState(fn.IsFunction())
 	params := NodeUtil_GetFunctionParameters(fn)
 	lastParam := params.GetLastChild()
-	return lastParam != nil && lastParam.IsRest()
+	return !lastParam.IsNil() && lastParam.IsRest()
 }
 
 // OptimizeConstructors_ConstructorHasRemovableDefinition validates that
@@ -403,10 +403,10 @@ func OptimizeConstructors_FunctionHasRest(fn *rhino.Node) bool {
 // removable.
 //
 // Java: OptimizeConstructors.constructorHasRemovableDefinition(Node)
-func OptimizeConstructors_ConstructorHasRemovableDefinition(member *rhino.Node) bool {
+func OptimizeConstructors_ConstructorHasRemovableDefinition(member rhino.Node) bool {
 	fn := member.GetFirstChild()
 	superCall := OptimizeConstructors_GetOnlySuperCall(fn)
-	if superCall == nil {
+	if superCall.IsNil() {
 		return false
 	}
 
@@ -418,7 +418,7 @@ func OptimizeConstructors_ConstructorHasRemovableDefinition(member *rhino.Node) 
 	// TODO(johnlenz): broaden the recognized patterns: default parameters
 	param := paramList.GetFirstChild()
 	arg := superCall.GetSecondChild()
-	for param != nil {
+	for !param.IsNil() {
 		if param.IsRest() {
 			if !arg.IsSpread() || !param.GetFirstChild().MatchesNameNode(arg.GetFirstChild()) {
 				return false
@@ -438,11 +438,11 @@ func OptimizeConstructors_ConstructorHasRemovableDefinition(member *rhino.Node) 
 // side-effects.
 //
 // Java: OptimizeConstructors.hasRemovableParameterList(Node)
-func (o *OptimizeConstructors) HasRemovableParameterList(member *rhino.Node) bool {
+func (o *OptimizeConstructors) HasRemovableParameterList(member rhino.Node) bool {
 	fn := member.GetFirstChild()
 	paramList := NodeUtil_GetFunctionParameters(fn)
 
-	for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
+	for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
 		if param.IsName() {
 			// a simple name
 			continue
@@ -470,7 +470,7 @@ func (o *OptimizeConstructors) HasRemovableParameterList(member *rhino.Node) boo
 // to super, return it, otherwise null.
 //
 // Java: OptimizeConstructors.getOnlySuperCall(Node)
-func OptimizeConstructors_GetOnlySuperCall(fn *rhino.Node) *rhino.Node {
+func OptimizeConstructors_GetOnlySuperCall(fn rhino.Node) rhino.Node {
 	body := fn.GetLastChild()
 	if body.IsBlock() && body.HasOneChild() {
 		stmt := body.GetFirstChild()
@@ -481,14 +481,14 @@ func OptimizeConstructors_GetOnlySuperCall(fn *rhino.Node) *rhino.Node {
 			}
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // RemoveConstructorMethod removes any candidate constructor if the callers
 // are consistent with the definition.
 //
 // Java: OptimizeConstructors.removeConstructorMethod(Node)
-func (o *OptimizeConstructors) RemoveConstructorMethod(member *rhino.Node) {
+func (o *OptimizeConstructors) RemoveConstructorMethod(member rhino.Node) {
 	jutil.CheckState(member.IsMemberFunctionDef())
 
 	o.compiler.ReportFunctionDeleted(member.GetFirstChild())

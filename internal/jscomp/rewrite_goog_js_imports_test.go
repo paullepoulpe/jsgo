@@ -61,7 +61,7 @@ func TestRewriteGoogJsImportsTest(t *testing.T) {
 
 // Java: RewriteGoogJsImportsTest.getProcessor(Compiler)
 func (c *RewriteGoogJsImportsTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		gmm :=
 			NewGatherModuleMetadata(
 				compiler /* processCommonJsModules= */, false, ModuleLoader_ResolutionMode_BROWSER)

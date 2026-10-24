@@ -29,9 +29,9 @@ import (
 type FunctionArgumentInjector struct {
 	astAnalyzer *AstAnalyzer
 
-	sentinelUndefinedNode *rhino.Node
-	templateUndefinedNode *rhino.Node
-	sentinelThisNode      *rhino.Node
+	sentinelUndefinedNode rhino.Node
+	templateUndefinedNode rhino.Node
+	sentinelThisNode      rhino.Node
 	scratchArgMap         *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
 	scratchPairSlab       []FunctionArgumentInjector_ParamArgPair
 	scratchPairBuf        [8]FunctionArgumentInjector_ParamArgPair
@@ -52,8 +52,8 @@ const FunctionArgumentInjector_REST_MARKER = "rest param"
 func NewFunctionArgumentInjector(astAnalyzer *AstAnalyzer) *FunctionArgumentInjector {
 	f := &FunctionArgumentInjector{
 		astAnalyzer:           astAnalyzer,
-		sentinelUndefinedNode: NodeUtil_NewUndefinedNode(nil),
-		templateUndefinedNode: NodeUtil_NewUndefinedNode(nil),
+		sentinelUndefinedNode: NodeUtil_NewUndefinedNode(rhino.Node{}),
+		templateUndefinedNode: NodeUtil_NewUndefinedNode(rhino.Node{}),
 		sentinelThisNode:      rhino.IR_ThisNode(),
 		scratchArgMap:         jutil.NewLinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair](),
 		scratchLocals:         jutil.NewLinkedHashSet[string](),
@@ -66,9 +66,9 @@ func NewFunctionArgumentInjector(astAnalyzer *AstAnalyzer) *FunctionArgumentInje
 	return f
 }
 
-func (f *FunctionArgumentInjector) allocScratchPair(paramNode *rhino.Node, arg *rhino.Node) *FunctionArgumentInjector_ParamArgPair {
-	jutil.CheckNotNull(paramNode)
-	jutil.CheckNotNull(arg)
+func (f *FunctionArgumentInjector) allocScratchPair(paramNode rhino.Node, arg rhino.Node) *FunctionArgumentInjector_ParamArgPair {
+	rhino.CheckNotNull(paramNode)
+	rhino.CheckNotNull(arg)
 	if len(f.scratchPairSlab) == cap(f.scratchPairSlab) {
 		nextCap := max(cap(f.scratchPairSlab)*2, 16)
 		f.scratchPairSlab = make([]FunctionArgumentInjector_ParamArgPair, 0, nextCap)
@@ -81,8 +81,8 @@ func (f *FunctionArgumentInjector) allocScratchPair(paramNode *rhino.Node, arg *
 	return p
 }
 
-func (f *FunctionArgumentInjector) getTemplateUndefinedNode(callNode *rhino.Node) *rhino.Node {
-	if f.templateUndefinedNode != nil && f.templateUndefinedNode.ResetTemplateUndefinedSrcref(callNode) {
+func (f *FunctionArgumentInjector) getTemplateUndefinedNode(callNode rhino.Node) rhino.Node {
+	if !f.templateUndefinedNode.IsNil() && f.templateUndefinedNode.ResetTemplateUndefinedSrcref(callNode) {
 		return f.templateUndefinedNode
 	}
 	return NodeUtil_NewUndefinedNode(callNode)
@@ -96,23 +96,23 @@ func (f *FunctionArgumentInjector) getTemplateUndefinedNode(callNode *rhino.Node
 // Returns the root node or its replacement.
 //
 // Java: FunctionArgumentInjector.inject(AbstractCompiler, Node, Node, Map<String, Node>)
-func (f *FunctionArgumentInjector) Inject(compiler AbstractCompiler, node *rhino.Node, parent *rhino.Node, replacements *jutil.LinkedHashMap[string, *rhino.Node]) *rhino.Node {
+func (f *FunctionArgumentInjector) Inject(compiler AbstractCompiler, node rhino.Node, parent rhino.Node, replacements *jutil.LinkedHashMap[string, rhino.Node]) rhino.Node {
 	return f.InjectWithReplaceThis(compiler, node, parent, replacements, true /* replaceThis= */)
 }
 
 // Java: FunctionArgumentInjector.inject(AbstractCompiler, Node, Node, Map<String, Node>, boolean)
 func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 	compiler AbstractCompiler,
-	node *rhino.Node,
-	parent *rhino.Node,
-	replacements *jutil.LinkedHashMap[string, *rhino.Node],
-	replaceThis bool) *rhino.Node {
+	node rhino.Node,
+	parent rhino.Node,
+	replacements *jutil.LinkedHashMap[string, rhino.Node],
+	replaceThis bool) rhino.Node {
 	if node.IsName() {
 		replacementTemplate := replacements.Get(node.GetString())
-		if replacementTemplate != nil {
+		if !replacementTemplate.IsNil() {
 			// This should not be replacing declared names.
 			jutil.CheckStateMsg1(!(parent.IsFunction() || parent.IsVar() || parent.IsCatch()), "%s", parent)
-			if parent != nil && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
+			if !parent.IsNil() && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
 				node.OverwriteLeafFromClone(replacementTemplate)
 				return node
 			}
@@ -124,9 +124,9 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 		}
 	} else if replaceThis && node.IsThis() {
 		replacementTemplate := replacements.Get(FunctionArgumentInjector_THIS_MARKER)
-		jutil.CheckNotNull(replacementTemplate)
+		rhino.CheckNotNull(replacementTemplate)
 		if !replacementTemplate.IsThis() {
-			if parent != nil && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
+			if !parent.IsNil() && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
 				node.OverwriteLeafFromClone(replacementTemplate)
 				if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
 					replacements.Remove(FunctionArgumentInjector_THIS_MARKER)
@@ -157,17 +157,17 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 
 	if node.IsComputedFieldDef() {
 		key := node.GetFirstChild()
-		if key != nil {
+		if !key.IsNil() {
 			key = f.InjectWithReplaceThis(compiler, key, node, replacements, replaceThis)
 			value := key.GetNext()
-			if value != nil {
+			if !value.IsNil() {
 				value = f.InjectWithReplaceThis(compiler, value, node, replacements /* replaceThis= */, false)
 			}
 		}
 		return node
 	}
 
-	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		// We have to reassign c in case it was replaced, because the removed c's
 		// getNext() would no longer be correct.
 		c = f.InjectWithReplaceThis(compiler, c, node, replacements, replaceThis)
@@ -181,14 +181,14 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 //
 // Java: FunctionArgumentInjector.getFunctionCallParameterMap(Node, Node, Supplier<String>)
 func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
-	fnNode *rhino.Node, callNode *rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
-	jutil.CheckNotNull(fnNode)
+	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
+	rhino.CheckNotNull(fnNode)
 	// Create an parameterName -> expression map
 	argMap := jutil.NewImmutableMapBuilder[string, *FunctionArgumentInjector_ParamArgPair]()
 
 	// CALL NODE: [ NAME, ARG1, ARG2, ... ]
 	cArg := callNode.GetSecondChild()
-	if cArg != nil && NodeUtil_IsFunctionObjectCall(callNode) {
+	if !cArg.IsNil() && NodeUtil_IsFunctionObjectCall(callNode) {
 		if !fnNode.IsArrowFunction() {
 			argMap.Put(FunctionArgumentInjector_THIS_MARKER, NewFunctionArgumentInjector_ParamArgPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
 		} else {
@@ -202,13 +202,13 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
 			FunctionArgumentInjector_THIS_MARKER, NewFunctionArgumentInjector_ParamArgPair(FunctionArgumentInjector_THIS_MARKER_NODE, NodeUtil_NewUndefinedNode(callNode)))
 	}
 
-	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); fnParam != nil; fnParam = fnParam.GetNext() {
-		if cArg != nil {
+	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !fnParam.IsNil(); fnParam = fnParam.GetNext() {
+		if !cArg.IsNil() {
 			if fnParam.IsRest() {
 				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam.GetOnlyChild())
 				array := rhino.IR_Arraylit()
 				array.SrcrefTreeIfMissing(cArg)
-				for cArg != nil {
+				for !cArg.IsNil() {
 					array.AddChildToBack(cArg.CloneTree())
 					cArg = cArg.GetNext()
 				}
@@ -241,7 +241,7 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
 
 	// Add temp names for arguments that don't have named parameters in the
 	// called function.
-	for cArg != nil {
+	for !cArg.IsNil() {
 		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
 		argMap.Put(uniquePlaceholder, NewFunctionArgumentInjector_ParamArgPair(rhino.IR_Name(uniquePlaceholder), cArg))
 		cArg = cArg.GetNext()
@@ -254,16 +254,16 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
 // Node entries without allocating an ImmutableMapBuilder, LinkedHashMap, or
 // ParamArgPair structs.
 func (f *FunctionArgumentInjector) FillFunctionCallParameterNodeMap(
-	fnNode *rhino.Node,
-	callNode *rhino.Node,
+	fnNode rhino.Node,
+	callNode rhino.Node,
 	safeNameIdSupplier func() string,
-	dst *jutil.LinkedHashMap[string, *rhino.Node]) {
-	jutil.CheckNotNull(fnNode)
+	dst *jutil.LinkedHashMap[string, rhino.Node]) {
+	rhino.CheckNotNull(fnNode)
 	dst.Clear()
 
-	var undefTemplate *rhino.Node
+	var undefTemplate rhino.Node
 	cArg := callNode.GetSecondChild()
-	if cArg != nil && NodeUtil_IsFunctionObjectCall(callNode) {
+	if !cArg.IsNil() && NodeUtil_IsFunctionObjectCall(callNode) {
 		if !fnNode.IsArrowFunction() {
 			dst.Put(FunctionArgumentInjector_THIS_MARKER, cArg)
 		} else {
@@ -276,23 +276,23 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterNodeMap(
 		dst.Put(FunctionArgumentInjector_THIS_MARKER, undefTemplate)
 	}
 
-	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); fnParam != nil; fnParam = fnParam.GetNext() {
-		if cArg != nil {
+	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !fnParam.IsNil(); fnParam = fnParam.GetNext() {
+		if !cArg.IsNil() {
 			if fnParam.IsRest() {
 				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam.GetOnlyChild())
 				array := rhino.IR_Arraylit()
 				array.SrcrefTreeIfMissing(cArg)
-				for cArg != nil {
+				for !cArg.IsNil() {
 					array.AddChildToBack(cArg.CloneTree())
 					cArg = cArg.GetNext()
 				}
-				if dst.Put(fnParam.GetOnlyChild().GetString(), array) != nil {
+				if !dst.Put(fnParam.GetOnlyChild().GetString(), array).IsNil() {
 					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
 				}
 				return
 			}
 			jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-			if dst.Put(fnParam.GetString(), cArg) != nil {
+			if !dst.Put(fnParam.GetString(), cArg).IsNil() {
 				f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
 			}
 			cArg = cArg.GetNext()
@@ -300,22 +300,22 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterNodeMap(
 			if fnParam.IsRest() {
 				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam)
 				array := rhino.IR_Arraylit().Srcref(fnParam)
-				if dst.Put(fnParam.GetOnlyChild().GetString(), array) != nil {
+				if !dst.Put(fnParam.GetOnlyChild().GetString(), array).IsNil() {
 					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
 				}
 			} else {
 				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				if undefTemplate == nil {
+				if undefTemplate.IsNil() {
 					undefTemplate = f.getTemplateUndefinedNode(callNode)
 				}
-				if dst.Put(fnParam.GetString(), undefTemplate) != nil {
+				if !dst.Put(fnParam.GetString(), undefTemplate).IsNil() {
 					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
 				}
 			}
 		}
 	}
 
-	for cArg != nil {
+	for !cArg.IsNil() {
 		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
 		dst.Put(uniquePlaceholder, cArg)
 		cArg = cArg.GetNext()
@@ -325,11 +325,11 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterNodeMap(
 // FillFunctionCallParameterPairMap populates dst with parameterName ->
 // ParamArgPair entries backed by f's scratch pair slab.
 func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
-	fnNode *rhino.Node,
-	callNode *rhino.Node,
+	fnNode rhino.Node,
+	callNode rhino.Node,
 	safeNameIdSupplier func() string,
 	dst *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]) {
-	jutil.CheckNotNull(fnNode)
+	rhino.CheckNotNull(fnNode)
 	dst.Clear()
 	if cap(f.scratchPairSlab) == 0 {
 		f.scratchPairSlab = f.scratchPairBuf[:0:len(f.scratchPairBuf)]
@@ -338,9 +338,9 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 		f.scratchPairSlab = f.scratchPairSlab[:0]
 	}
 
-	var undefTemplate *rhino.Node
+	var undefTemplate rhino.Node
 	cArg := callNode.GetSecondChild()
-	if cArg != nil && NodeUtil_IsFunctionObjectCall(callNode) {
+	if !cArg.IsNil() && NodeUtil_IsFunctionObjectCall(callNode) {
 		if !fnNode.IsArrowFunction() {
 			dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
 		} else {
@@ -353,13 +353,13 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 		dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, undefTemplate))
 	}
 
-	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); fnParam != nil; fnParam = fnParam.GetNext() {
-		if cArg != nil {
+	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !fnParam.IsNil(); fnParam = fnParam.GetNext() {
+		if !cArg.IsNil() {
 			if fnParam.IsRest() {
 				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam.GetOnlyChild())
 				array := rhino.IR_Arraylit()
 				array.SrcrefTreeIfMissing(cArg)
-				for cArg != nil {
+				for !cArg.IsNil() {
 					array.AddChildToBack(cArg.CloneTree())
 					cArg = cArg.GetNext()
 				}
@@ -382,7 +382,7 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 				}
 			} else {
 				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				if undefTemplate == nil {
+				if undefTemplate.IsNil() {
 					undefTemplate = f.getTemplateUndefinedNode(callNode)
 				}
 				if dst.Put(fnParam.GetString(), f.allocScratchPair(fnParam, undefTemplate)) != nil {
@@ -392,7 +392,7 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 		}
 	}
 
-	for cArg != nil {
+	for !cArg.IsNil() {
 		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
 		dst.Put(uniquePlaceholder, f.allocScratchPair(rhino.IR_Name(uniquePlaceholder), cArg))
 		cArg = cArg.GetNext()
@@ -403,8 +403,8 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 // GetFunctionCallParameterMap for call-site inlining checks that only inspect
 // the returned map and do not inject its nodes into the AST.
 func (f *FunctionArgumentInjector) GetFunctionCallParameterMapScratch(
-	fnNode *rhino.Node, callNode *rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
-	jutil.CheckNotNull(fnNode)
+	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
+	rhino.CheckNotNull(fnNode)
 	argMap := f.scratchArgMap
 	argMap.Clear()
 	if cap(f.scratchPairSlab) == 0 {
@@ -416,7 +416,7 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMapScratch(
 
 	// CALL NODE: [ NAME, ARG1, ARG2, ... ]
 	cArg := callNode.GetSecondChild()
-	if cArg != nil && NodeUtil_IsFunctionObjectCall(callNode) {
+	if !cArg.IsNil() && NodeUtil_IsFunctionObjectCall(callNode) {
 		if !fnNode.IsArrowFunction() {
 			argMap.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
 		} else {
@@ -430,13 +430,13 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMapScratch(
 			FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, f.sentinelUndefinedNode))
 	}
 
-	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); fnParam != nil; fnParam = fnParam.GetNext() {
-		if cArg != nil {
+	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !fnParam.IsNil(); fnParam = fnParam.GetNext() {
+		if !cArg.IsNil() {
 			if fnParam.IsRest() {
 				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam.GetOnlyChild())
 				array := rhino.IR_Arraylit()
 				array.SrcrefTreeIfMissing(cArg)
-				for cArg != nil {
+				for !cArg.IsNil() {
 					array.AddChildToBack(cArg.CloneTree())
 					cArg = cArg.GetNext()
 				}
@@ -467,7 +467,7 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMapScratch(
 
 	// Add temp names for arguments that don't have named parameters in the
 	// called function.
-	for cArg != nil {
+	for !cArg.IsNil() {
 		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
 		argMap.Put(uniquePlaceholder, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
 		cArg = cArg.GetNext()
@@ -497,7 +497,7 @@ func FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier
 // to be modified (bad).
 //
 // Java: FunctionArgumentInjector.findModifiedParameters(Node)
-func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode *rhino.Node) *jutil.LinkedHashSet[string] {
+func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode rhino.Node) *jutil.LinkedHashSet[string] {
 	names := FunctionArgumentInjector_GetFunctionParameterSet(fnNode)
 	if names.IsEmpty() {
 		return names
@@ -508,14 +508,14 @@ func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode *rhino.Node) *j
 // FindModifiedParametersInto populates dstUnsafe with modified parameter names
 // of fnNode, reusing dstNames and dstUnsafe without allocating sets.
 func (f *FunctionArgumentInjector) FindModifiedParametersInto(
-	fnNode *rhino.Node, dstNames *jutil.LinkedHashSet[string], dstUnsafe *jutil.LinkedHashSet[string]) {
+	fnNode rhino.Node, dstNames *jutil.LinkedHashSet[string], dstUnsafe *jutil.LinkedHashSet[string]) {
 	dstUnsafe.Clear()
 	firstParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild()
-	if firstParam == nil {
+	if firstParam.IsNil() {
 		return
 	}
 	dstNames.Clear()
-	for n := firstParam; n != nil; n = n.GetNext() {
+	for n := firstParam; !n.IsNil(); n = n.GetNext() {
 		if n.IsRest() {
 			dstNames.Add(FunctionArgumentInjector_REST_MARKER)
 		} else if n.IsDefaultValue() || n.IsObjectPattern() || n.IsArrayPattern() {
@@ -543,14 +543,14 @@ func (f *FunctionArgumentInjector) FindModifiedParametersInto(
 //
 // Java: FunctionArgumentInjector.findModifiedParameters(Node, ImmutableSet<String>, boolean)
 func FunctionArgumentInjector_FindModifiedParametersIn(
-	n *rhino.Node, names *jutil.LinkedHashSet[string], inInnerClosure bool) *jutil.LinkedHashSet[string] {
+	n rhino.Node, names *jutil.LinkedHashSet[string], inInnerClosure bool) *jutil.LinkedHashSet[string] {
 	unsafe := jutil.NewLinkedHashSet[string]()
 	functionArgumentInjector_collectModifiedParameters(n, names, inInnerClosure, unsafe)
 	return unsafe
 }
 
 func functionArgumentInjector_collectModifiedParameters(
-	n *rhino.Node, names *jutil.LinkedHashSet[string], inInnerClosure bool, unsafe *jutil.LinkedHashSet[string]) {
+	n rhino.Node, names *jutil.LinkedHashSet[string], inInnerClosure bool, unsafe *jutil.LinkedHashSet[string]) {
 	if NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
 		// A function parameter can not be replaced with a direct inlined value
 		// if it is referred to by an inner function or a non-static class field
@@ -566,7 +566,7 @@ func functionArgumentInjector_collectModifiedParameters(
 		}
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		functionArgumentInjector_collectModifiedParameters(c, names, inInnerClosure, unsafe)
 	}
 }
@@ -581,7 +581,7 @@ func functionArgumentInjector_collectModifiedParameters(
 // n is the NAME node in question.
 //
 // Java: FunctionArgumentInjector.canNameValueChange(Node)
-func FunctionArgumentInjector_CanNameValueChange(n *rhino.Node) bool {
+func FunctionArgumentInjector_CanNameValueChange(n rhino.Node) bool {
 	if !NodeUtil_IsLValue(n) {
 		return false
 	}
@@ -610,10 +610,9 @@ func FunctionArgumentInjector_CanNameValueChange(n *rhino.Node) bool {
 // fnNode is the FUNCTION node to be inlined; argMap is the argument list for
 // the call to fnNode; modifiedParameters is the set of parameters known to
 // be modified, which automatically need temps.
-//
 func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterName(
 	compiler AbstractCompiler,
-	fnNode *rhino.Node,
+	fnNode rhino.Node,
 	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
 	modifiedParameters *jutil.LinkedHashSet[string],
 	convention CodingConvention) string {
@@ -737,7 +736,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterName(
 // would return a non-empty set, without allocating a set.
 func (f *FunctionArgumentInjector) HasCallArgumentsNeedingTemps(
 	compiler AbstractCompiler,
-	fnNode *rhino.Node,
+	fnNode rhino.Node,
 	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
 	modifiedParameters *jutil.LinkedHashSet[string],
 	convention CodingConvention) bool {
@@ -768,7 +767,7 @@ func (f *FunctionArgumentInjector) HasCallArgumentsNeedingTemps(
 // Java: FunctionArgumentInjector.gatherCallArgumentsNeedingTemps(AbstractCompiler, Node, ImmutableMap<String, ParamArgPair>, ImmutableSet<String>, CodingConvention)
 func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 	compiler AbstractCompiler,
-	fnNode *rhino.Node,
+	fnNode rhino.Node,
 	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
 	modifiedParameters *jutil.LinkedHashSet[string],
 	convention CodingConvention) *jutil.LinkedHashSet[string] {
@@ -824,7 +823,7 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 // all call arguments needing temps, without allocating intermediate sets or slices.
 func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTempsInto(
 	compiler AbstractCompiler,
-	fnNode *rhino.Node,
+	fnNode rhino.Node,
 	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
 	modifiedParameters *jutil.LinkedHashSet[string],
 	convention CodingConvention,
@@ -863,7 +862,7 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTempsInto(
 // class field initializer.
 //
 // Java: FunctionArgumentInjector.bodyMayHaveConditionalCode(Node)
-func (f *FunctionArgumentInjector) BodyMayHaveConditionalCode(n *rhino.Node) bool {
+func (f *FunctionArgumentInjector) BodyMayHaveConditionalCode(n rhino.Node) bool {
 	if !n.IsReturn() && !n.IsExprResult() {
 		return true
 	}
@@ -875,8 +874,8 @@ func (f *FunctionArgumentInjector) BodyMayHaveConditionalCode(n *rhino.Node) boo
 // initializer.
 //
 // Java: FunctionArgumentInjector.mayHaveConditionalCode(Node)
-func (f *FunctionArgumentInjector) MayHaveConditionalCode(n *rhino.Node) bool {
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+func (f *FunctionArgumentInjector) MayHaveConditionalCode(n rhino.Node) bool {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		switch c.GetToken() {
 		case rhino.Token_FUNCTION,
 			rhino.Token_AND,
@@ -912,7 +911,7 @@ func (f *FunctionArgumentInjector) MayHaveConditionalCode(n *rhino.Node) bool {
 //
 // Java: FunctionArgumentInjector.findParametersReferencedAfterSideEffect(ImmutableSet<String>, Node)
 func (f *FunctionArgumentInjector) FindParametersReferencedAfterSideEffect(
-	parameters *jutil.LinkedHashSet[string], root *rhino.Node) *FunctionArgumentInjector_SetContainer {
+	parameters *jutil.LinkedHashSet[string], root rhino.Node) *FunctionArgumentInjector_SetContainer {
 
 	if f.scratchLocals == nil {
 		f.scratchLocals = jutil.NewLinkedHashSet[string]()
@@ -943,7 +942,7 @@ func (f *FunctionArgumentInjector) FindParametersReferencedAfterSideEffect(
 }
 
 func (f *FunctionArgumentInjector) findParametersReferencedAfterSideEffectForArgMap(
-	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair], root *rhino.Node) *FunctionArgumentInjector_SetContainer {
+	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair], root rhino.Node) *FunctionArgumentInjector_SetContainer {
 	if f.scratchLocals == nil {
 		f.scratchLocals = jutil.NewLinkedHashSet[string]()
 	} else {
@@ -1070,7 +1069,7 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) GetParametersWithNa
 }
 
 // Java: FunctionArgumentInjector.ReferencedAfterSideEffect.apply(Node)
-func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) Apply(node *rhino.Node) bool {
+func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) Apply(node rhino.Node) bool {
 	// Keep track of any loop structures entered.
 	if NodeUtil_IsLoopStructure(node) {
 		r.loopsEntered++
@@ -1087,7 +1086,7 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) InLoop() bool {
 }
 
 // Java: FunctionArgumentInjector.ReferencedAfterSideEffect.visit(Node)
-func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) Visit(n *rhino.Node) {
+func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) Visit(n rhino.Node) {
 	if n.IsName() {
 		name := n.GetString()
 		if r.hasParameter(name) && r.nameNodeHasBeenSeen {
@@ -1135,7 +1134,7 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) Visit(n *rhino.Node
 // side-effects.
 //
 // Java: FunctionArgumentInjector.ReferencedAfterSideEffect.hasNonLocalSideEffect(Node)
-func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) HasNonLocalSideEffect(n *rhino.Node) bool {
+func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) HasNonLocalSideEffect(n rhino.Node) bool {
 	sideEffect := false
 	type_ := n.GetToken()
 	// Note: Only care about changes to non-local names, specifically
@@ -1160,7 +1159,7 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) HasNonLocalSideEffe
 // IsLocalName returns whether node is a reference to locally declared name.
 //
 // Java: FunctionArgumentInjector.ReferencedAfterSideEffect.isLocalName(Node)
-func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) IsLocalName(node *rhino.Node) bool {
+func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) IsLocalName(node rhino.Node) bool {
 	if node.IsName() {
 		name := node.GetString()
 		return r.hasParameter(name) || r.locals.Contains(name)
@@ -1172,7 +1171,7 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) IsLocalName(node *r
 // the local scope.
 //
 // Java: FunctionArgumentInjector.gatherLocalNames(Node, Set<String>)
-func FunctionArgumentInjector_GatherLocalNames(n *rhino.Node, names *jutil.LinkedHashSet[string]) {
+func FunctionArgumentInjector_GatherLocalNames(n rhino.Node, names *jutil.LinkedHashSet[string]) {
 	if n.IsFunction() {
 		if NodeUtil_IsFunctionDeclaration(n) {
 			names.Add(n.GetFirstChild().GetString())
@@ -1187,7 +1186,7 @@ func FunctionArgumentInjector_GatherLocalNames(n *rhino.Node, names *jutil.Linke
 		}
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		FunctionArgumentInjector_GatherLocalNames(c, names)
 	}
 }
@@ -1196,9 +1195,9 @@ func FunctionArgumentInjector_GatherLocalNames(n *rhino.Node, names *jutil.Linke
 // parameter names.
 //
 // Java: FunctionArgumentInjector.getFunctionParameterSet(Node)
-func FunctionArgumentInjector_GetFunctionParameterSet(fnNode *rhino.Node) *jutil.LinkedHashSet[string] {
+func FunctionArgumentInjector_GetFunctionParameterSet(fnNode rhino.Node) *jutil.LinkedHashSet[string] {
 	builder := jutil.NewLinkedHashSet[string]()
-	for n := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); n != nil; n = n.GetNext() {
+	for n := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if n.IsRest() {
 			builder.Add(FunctionArgumentInjector_REST_MARKER)
 		} else if n.IsDefaultValue() || n.IsObjectPattern() || n.IsArrayPattern() {
@@ -1218,19 +1217,19 @@ func FunctionArgumentInjector_GetFunctionParameterSet(fnNode *rhino.Node) *jutil
 // FunctionArgumentInjector#THIS_MARKER_NODE; arg is the argument passed as
 // `paramNode` at some call site, such as 500 in f(500);.
 type FunctionArgumentInjector_ParamArgPair struct {
-	paramNode *rhino.Node
-	arg       *rhino.Node
+	paramNode rhino.Node
+	arg       rhino.Node
 }
 
 // Java: FunctionArgumentInjector.ParamArgPair(Node, Node)
-func NewFunctionArgumentInjector_ParamArgPair(paramNode *rhino.Node, arg *rhino.Node) *FunctionArgumentInjector_ParamArgPair {
-	jutil.CheckNotNull(paramNode)
-	jutil.CheckNotNull(arg)
+func NewFunctionArgumentInjector_ParamArgPair(paramNode rhino.Node, arg rhino.Node) *FunctionArgumentInjector_ParamArgPair {
+	rhino.CheckNotNull(paramNode)
+	rhino.CheckNotNull(arg)
 	return &FunctionArgumentInjector_ParamArgPair{paramNode: paramNode, arg: arg}
 }
 
 // Java: FunctionArgumentInjector.ParamArgPair.paramNode()
-func (p *FunctionArgumentInjector_ParamArgPair) ParamNode() *rhino.Node { return p.paramNode }
+func (p *FunctionArgumentInjector_ParamArgPair) ParamNode() rhino.Node { return p.paramNode }
 
 // Java: FunctionArgumentInjector.ParamArgPair.arg()
-func (p *FunctionArgumentInjector_ParamArgPair) Arg() *rhino.Node { return p.arg }
+func (p *FunctionArgumentInjector_ParamArgPair) Arg() rhino.Node { return p.arg }

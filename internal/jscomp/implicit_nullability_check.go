@@ -61,7 +61,7 @@ func NewImplicitNullabilityCheck(compiler AbstractCompiler) *ImplicitNullability
 }
 
 // Java: ImplicitNullabilityCheck.process(Node, Node)
-func (c *ImplicitNullabilityCheck) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ImplicitNullabilityCheck) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(c.compiler, c, externs, root)
 }
 
@@ -101,12 +101,12 @@ func (n ImplicitNullabilityCheck_Nullability) IsNullable() bool {
 // a "!" or "?" to be explicit, as well as an enum indicating which of the
 // two nullability cases were found ("!" or "?").
 type ImplicitNullabilityCheck_Result struct {
-	node        *rhino.Node
+	node        rhino.Node
 	nullability ImplicitNullabilityCheck_Nullability
 }
 
 // Java: ImplicitNullabilityCheck.Result(Node, Nullability)
-func newImplicitNullabilityCheck_Result(node *rhino.Node, nullability ImplicitNullabilityCheck_Nullability) *ImplicitNullabilityCheck_Result {
+func newImplicitNullabilityCheck_Result(node rhino.Node, nullability ImplicitNullabilityCheck_Nullability) *ImplicitNullabilityCheck_Result {
 	r := &ImplicitNullabilityCheck_Result{}
 	jutil.CheckArgument(node.IsStringLit())
 	r.node = node
@@ -115,7 +115,7 @@ func newImplicitNullabilityCheck_Result(node *rhino.Node, nullability ImplicitNu
 }
 
 // Java: ImplicitNullabilityCheck.Result.create(Node, Nullability)
-func ImplicitNullabilityCheck_Result_Create(node *rhino.Node, nullability ImplicitNullabilityCheck_Nullability) *ImplicitNullabilityCheck_Result {
+func ImplicitNullabilityCheck_Result_Create(node rhino.Node, nullability ImplicitNullabilityCheck_Nullability) *ImplicitNullabilityCheck_Result {
 	return newImplicitNullabilityCheck_Result(node, nullability)
 }
 
@@ -125,7 +125,7 @@ func (r *ImplicitNullabilityCheck_Result) GetNullability() ImplicitNullabilityCh
 }
 
 // Java: ImplicitNullabilityCheck.Result.getNode()
-func (r *ImplicitNullabilityCheck_Result) GetNode() *rhino.Node {
+func (r *ImplicitNullabilityCheck_Result) GetNode() rhino.Node {
 	return r.node
 }
 
@@ -146,12 +146,12 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 		typeRoot := it.Node()
 		NodeUtil_VisitPreOrderWithPred(
 			typeRoot,
-			NodeUtil_VisitorFunc(func(node *rhino.Node) {
+			NodeUtil_VisitorFunc(func(node rhino.Node) {
 				if !node.IsStringLit() {
 					return
 				}
 				parent := node.GetParent()
-				if parent != nil {
+				if !parent.IsNil() {
 					switch parent.GetToken() {
 					case rhino.Token_BANG,
 						rhino.Token_QMARK,
@@ -162,10 +162,10 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 					case rhino.Token_PIPE:
 						// Inside a union
 						gp := parent.GetParent()
-						if gp != nil && gp.GetToken() == rhino.Token_QMARK {
+						if !gp.IsNil() && gp.GetToken() == rhino.Token_QMARK {
 							return // Inside an explicitly nullable union
 						}
-						for child := parent.GetFirstChild(); child != nil; child = child.GetNext() {
+						for child := parent.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 							if (child.IsStringLit() && child.GetString() == "null") ||
 								child.GetToken() == rhino.Token_QMARK {
 								return // Inside a union that contains null or nullable type
@@ -191,7 +191,7 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 				}
 				builder = append(builder, ImplicitNullabilityCheck_Result_Create(node, nullability))
 			}),
-			func(*rhino.Node) bool { return true })
+			func(rhino.Node) bool { return true })
 	}
 	return builder
 }
@@ -200,7 +200,7 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 // are implicitly null.
 //
 // Java: ImplicitNullabilityCheck.visit(NodeTraversal, Node, Node)
-func (c *ImplicitNullabilityCheck) Visit(t *NodeTraversal, n *rhino.Node, p *rhino.Node) {
+func (c *ImplicitNullabilityCheck) Visit(t *NodeTraversal, n rhino.Node, p rhino.Node) {
 	info := n.GetJSDocInfo()
 	for _, r := range ImplicitNullabilityCheck_FindImplicitNullabilityResults(info, t) {
 		stringNode := r.GetNode()

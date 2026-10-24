@@ -389,7 +389,7 @@ func (p *ProxyObjectTypeBase) GetImplicitPrototype() ObjectType {
 }
 
 // Java: ProxyObjectType.defineProperty(Property.Key, JSType, boolean, Node)
-func (p *ProxyObjectTypeBase) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (p *ProxyObjectTypeBase) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	return p.referencedObjType == nil ||
 		p.referencedObjType.DefinePropertyByKey(propertyName, type_, inferred, propertyNode)
 }

@@ -115,7 +115,7 @@ func (s *TypedScope) HashCode() int32 {
 }
 
 // Java: TypedScope(TypedScope, Node)
-func NewTypedScope(parent *TypedScope, rootNode *rhino.Node) *TypedScope {
+func NewTypedScope(parent *TypedScope, rootNode rhino.Node) *TypedScope {
 	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil)
 }
 
@@ -127,7 +127,7 @@ func NewTypedScope(parent *TypedScope, rootNode *rhino.Node) *TypedScope {
 //
 // Java: TypedScope(TypedScope, Node, Set<String>, Module)
 func NewTypedScopeWithReservedNames(
-	parent *TypedScope, rootNode *rhino.Node, reservedNames *jutil.LinkedHashSet[string], module *Module) *TypedScope {
+	parent *TypedScope, rootNode rhino.Node, reservedNames *jutil.LinkedHashSet[string], module *Module) *TypedScope {
 	var copied []string
 	if !jutil.CheckNotNull(reservedNames).IsEmpty() { // Java: NPE on a null set
 		copied = reservedNames.ToSlice()
@@ -136,7 +136,7 @@ func NewTypedScopeWithReservedNames(
 }
 
 func newTypedScopeOwnedReservedNames(
-	parent *TypedScope, rootNode *rhino.Node, reservedNames []string, module *Module) *TypedScope {
+	parent *TypedScope, rootNode rhino.Node, reservedNames []string, module *Module) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
 	// Go-only: performance — the reserved names will all be declared.
@@ -160,7 +160,7 @@ func newTypedScopeOwnedReservedNames(
 // scope.
 //
 // Java: TypedScope(Node, boolean)
-func newTypedScopeWithIsBottom(rootNode *rhino.Node, isBottom bool) *TypedScope {
+func newTypedScopeWithIsBottom(rootNode rhino.Node, isBottom bool) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
 	s.CheckRootScope()
@@ -170,7 +170,7 @@ func newTypedScopeWithIsBottom(rootNode *rhino.Node, isBottom bool) *TypedScope 
 	return s
 }
 
-func newGlobalTypedScopeWithCapacity(rootNode *rhino.Node, varCap int) *TypedScope {
+func newGlobalTypedScopeWithCapacity(rootNode rhino.Node, varCap int) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
 	if varCap > 0 {
@@ -184,12 +184,12 @@ func newGlobalTypedScopeWithCapacity(rootNode *rhino.Node, varCap int) *TypedSco
 }
 
 // Java: TypedScope.createGlobalScope(Node)
-func TypedScope_CreateGlobalScope(rootNode *rhino.Node) *TypedScope {
+func TypedScope_CreateGlobalScope(rootNode rhino.Node) *TypedScope {
 	return newTypedScopeWithIsBottom(rootNode, false)
 }
 
 // Java: TypedScope.createLatticeBottom(Node)
-func TypedScope_CreateLatticeBottom(rootNode *rhino.Node) *TypedScope {
+func TypedScope_CreateLatticeBottom(rootNode rhino.Node) *TypedScope {
 	return newTypedScopeWithIsBottom(rootNode, true)
 }
 
@@ -292,13 +292,13 @@ func (s *TypedScope) GetTypeOfThis() rhino.JSType {
 }
 
 // Java: TypedScope.declare(String, Node, JSType, CompilerInput, boolean)
-func (s *TypedScope) Declare(name string, nameNode *rhino.Node,
+func (s *TypedScope) Declare(name string, nameNode rhino.Node,
 	type_ rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
 	var_, _ := s.declareWithReserved(name, nameNode, type_, input, inferred)
 	return var_
 }
 
-func (s *TypedScope) declareWithReserved(name string, nameNode *rhino.Node,
+func (s *TypedScope) declareWithReserved(name string, nameNode rhino.Node,
 	type_ rhino.JSType, input *CompilerInput, inferred bool) (*TypedVar, bool) {
 	jutil.CheckState(name != "") // Java: name != null && !name.isEmpty()
 	wasReserved := false
@@ -505,7 +505,7 @@ func (s *TypedScope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *TypedVar {
 		// declared.
 		return nil
 	}
-	return NewTypedVar(false, var_.name(), nil, s.GetImplicitVarType(var_), s, -1, nil)
+	return NewTypedVar(false, var_.name(), rhino.Node{}, s.GetImplicitVarType(var_), s, -1, nil)
 }
 
 // Java: TypedScope.hasOwnImplicitSlot(ImplicitVar)
@@ -581,7 +581,7 @@ func (s *TypedScope) GetDeclarativelyUnboundVarsWithoutTypes() iter.Seq[*TypedVa
 
 // Java: TypedScope.isDeclarativelyUnboundVarWithoutType(TypedVar)
 func (s *TypedScope) IsDeclarativelyUnboundVarWithoutType(var_ *TypedVar) bool {
-	return var_.GetParentNode() != nil &&
+	return !var_.GetParentNode().IsNil() &&
 		var_.GetType() == nil &&
 		// TODO(bradfordcsmith): update this for destructuring
 		var_.GetParentNode().IsVar() && // NOTE: explicitly excludes let/const

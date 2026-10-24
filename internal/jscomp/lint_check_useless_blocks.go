@@ -39,7 +39,7 @@ type CheckUselessBlocks struct {
 	compiler AbstractCompiler
 	// Go-only: language-adapter — the ArrayDeque used as a stack (push, pop
 	// and peek at its head) is a slice whose last element is the head.
-	loneBlocks []*rhino.Node
+	loneBlocks []rhino.Node
 }
 
 var CheckUselessBlocks_USELESS_BLOCK = DiagnosticType_Disabled(
@@ -51,12 +51,12 @@ var CheckUselessBlocks_USELESS_BLOCK = DiagnosticType_Disabled(
 func NewCheckUselessBlocks(compiler AbstractCompiler) *CheckUselessBlocks {
 	c := &CheckUselessBlocks{}
 	c.compiler = compiler
-	c.loneBlocks = []*rhino.Node{}
+	c.loneBlocks = []rhino.Node{}
 	return c
 }
 
 // Java: CheckUselessBlocks.process(Node, Node)
-func (c *CheckUselessBlocks) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckUselessBlocks) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
@@ -64,9 +64,9 @@ func (c *CheckUselessBlocks) Process(externs *rhino.Node, root *rhino.Node) {
 // direct child of another non-synthetic, not-added BLOCK or a SCRIPT node.
 //
 // Java: CheckUselessBlocks.isLoneBlock(Node)
-func (c *CheckUselessBlocks) IsLoneBlock(n *rhino.Node) bool {
+func (c *CheckUselessBlocks) IsLoneBlock(n rhino.Node) bool {
 	parent := n.GetParent()
-	if parent != nil && (parent.IsScript() ||
+	if !parent.IsNil() && (parent.IsScript() ||
 		(parent.IsBlock() && !parent.IsSyntheticBlock() && !parent.IsAddedBlock())) {
 		return !n.IsSyntheticBlock() && !n.IsAddedBlock()
 	}
@@ -77,7 +77,7 @@ func (c *CheckUselessBlocks) IsLoneBlock(n *rhino.Node) bool {
 // from the loneBlocks stack.
 //
 // Java: CheckUselessBlocks.allowLoneBlock(Node)
-func (c *CheckUselessBlocks) AllowLoneBlock(parent *rhino.Node) {
+func (c *CheckUselessBlocks) AllowLoneBlock(parent rhino.Node) {
 	if len(c.loneBlocks) == 0 {
 		return
 	}
@@ -92,12 +92,12 @@ func (c *CheckUselessBlocks) AllowLoneBlock(parent *rhino.Node) {
 // Go-only: language-adapter — see loneBlocks.
 func (c *CheckUselessBlocks) popLoneBlock() {
 	last := len(c.loneBlocks) - 1
-	c.loneBlocks[last] = nil
+	c.loneBlocks[last] = rhino.Node{}
 	c.loneBlocks = c.loneBlocks[:last]
 }
 
 // Java: CheckUselessBlocks.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckUselessBlocks) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckUselessBlocks) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_BLOCK:
 		if c.IsLoneBlock(n) {
@@ -119,7 +119,7 @@ func (c *CheckUselessBlocks) ShouldTraverse(t *NodeTraversal, n *rhino.Node, par
 }
 
 // Java: CheckUselessBlocks.visit(NodeTraversal, Node, Node)
-func (c *CheckUselessBlocks) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckUselessBlocks) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsBlock() && len(c.loneBlocks) != 0 && c.loneBlocks[len(c.loneBlocks)-1] == n {
 		c.popLoneBlock()
 		t.Report(n, CheckUselessBlocks_USELESS_BLOCK)

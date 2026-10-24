@@ -31,7 +31,7 @@ const useSiteRenamerTest_PROP_NAME = "prop"
 // @After checks run in finish.
 type useSiteRenamerTest struct {
 	t                 *testing.T
-	reportedMutations *jutil.LinkedHashSet[*rhino.Node]
+	reportedMutations *jutil.LinkedHashSet[rhino.Node]
 	prop              *PropertyClustering
 	renamingIndex     *jutil.SetMultimap[string, string]
 }
@@ -39,7 +39,7 @@ type useSiteRenamerTest struct {
 func newUseSiteRenamerTest(t *testing.T) *useSiteRenamerTest {
 	return &useSiteRenamerTest{
 		t:                 t,
-		reportedMutations: jutil.NewLinkedHashSet[*rhino.Node](),
+		reportedMutations: jutil.NewLinkedHashSet[rhino.Node](),
 		prop:              NewPropertyClustering(useSiteRenamerTest_PROP_NAME),
 	}
 }
@@ -75,7 +75,7 @@ func (s *useSiteRenamerTest) verifyNewNamesAreReportedAsMutations() {
 		return
 	}
 
-	mutatedNodes := jutil.NewLinkedHashSet[*rhino.Node]()
+	mutatedNodes := jutil.NewLinkedHashSet[rhino.Node]()
 	for n := range s.prop.GetUseSites().Keys() {
 		if n.GetString() != useSiteRenamerTest_PROP_NAME {
 			mutatedNodes.Add(n)
@@ -86,13 +86,13 @@ func (s *useSiteRenamerTest) verifyNewNamesAreReportedAsMutations() {
 }
 
 func (s *useSiteRenamerTest) runRename() {
-	renamer := NewUseSiteRenamer(func(n *rhino.Node) { s.reportedMutations.Add(n) })
+	renamer := NewUseSiteRenamer(func(n rhino.Node) { s.reportedMutations.Add(n) })
 	renamer.RenameUses(s.prop)
 
 	s.renamingIndex = renamer.GetRenamingIndex()
 }
 
-func useSiteRenamerTest_namesOf(useSites []*rhino.Node) []string {
+func useSiteRenamerTest_namesOf(useSites []rhino.Node) []string {
 	out := jutil.NewLinkedHashSet[string]()
 	for _, n := range useSites {
 		out.Add(n.GetString())

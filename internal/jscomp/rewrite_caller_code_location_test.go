@@ -43,7 +43,7 @@ func TestRewriteCallerCodeLocationTest(t *testing.T) {
 
 // Java: RewriteCallerCodeLocationTest.getProcessor(Compiler)
 func (c *RewriteCallerCodeLocationTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewRewriteCallerCodeLocation(compiler).Process(externs, root)
 	})
 }

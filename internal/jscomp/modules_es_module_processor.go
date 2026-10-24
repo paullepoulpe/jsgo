@@ -131,7 +131,7 @@ func esModuleProcessor_localNameKey(e *Export) string {
 }
 
 // Java: EsModuleProcessor.FindMutableExports.visit(NodeTraversal, Node, Node)
-func (f *EsModuleProcessor_FindMutableExports) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *EsModuleProcessor_FindMutableExports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsName() {
 		return
 	}
@@ -188,14 +188,14 @@ func esModuleProcessor_indexOf(list *jutil.ArrayList[*Export], e *Export) int {
 type EsModuleProcessor_UnresolvedModuleBuilder struct {
 	outer              *EsModuleProcessor
 	path               *ModuleLoader_ModulePath
-	root               *rhino.Node
+	root               rhino.Node
 	importsByLocalName *jutil.LinkedHashMap[string, *Import]
 	exports            *jutil.ArrayList[*Export]
 	exportedNames      *jutil.LinkedHashSet[string]
 }
 
 // Java: EsModuleProcessor.UnresolvedModuleBuilder(ModulePath, Node)
-func (p *EsModuleProcessor) NewUnresolvedModuleBuilder(path *ModuleLoader_ModulePath, root *rhino.Node) *EsModuleProcessor_UnresolvedModuleBuilder {
+func (p *EsModuleProcessor) NewUnresolvedModuleBuilder(path *ModuleLoader_ModulePath, root rhino.Node) *EsModuleProcessor_UnresolvedModuleBuilder {
 	b := &EsModuleProcessor_UnresolvedModuleBuilder{outer: p}
 	b.path = path
 	b.root = root
@@ -478,7 +478,7 @@ func (m *EsModuleProcessor_UnresolvedEsModule) ResolveImportImpl(
 				return ResolveExportResult_ERROR
 			}
 			forSourceInfo := i.NameNode()
-			if forSourceInfo == nil {
+			if forSourceInfo.IsNil() {
 				forSourceInfo = i.ImportNode()
 			}
 			return result.Copy(forSourceInfo, Binding_CreatedBy_IMPORT)
@@ -579,7 +579,7 @@ func (m *EsModuleProcessor_UnresolvedEsModule) ResolveExportWithSets(
 	for _, e := range m.localExports {
 		if e.ExportName() != nil && exportName == *e.ExportName() {
 			forSourceInfo := e.ExportNode()
-			if e.NameNode() != nil {
+			if !e.NameNode().IsNil() {
 				forSourceInfo = e.NameNode()
 			}
 			return ResolveExportResult_Of(Binding_From(e, forSourceInfo))
@@ -706,7 +706,7 @@ func NewEsModuleProcessor(compiler AbstractCompiler) *EsModuleProcessor {
 
 // Java: EsModuleProcessor.process(ModuleMetadata, ModulePath, Node)
 func (p *EsModuleProcessor) Process(
-	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script *rhino.Node) UnresolvedModule {
+	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule {
 	p.metadata = metadata
 	p.currentModuleBuilder = p.NewUnresolvedModuleBuilder(path, script)
 
@@ -719,7 +719,7 @@ func (p *EsModuleProcessor) Process(
 }
 
 // Java: EsModuleProcessor.shouldTraverse(NodeTraversal, Node, Node)
-func (p *EsModuleProcessor) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (p *EsModuleProcessor) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_ROOT, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_EXPORT, rhino.Token_IMPORT:
 		return true
@@ -729,7 +729,7 @@ func (p *EsModuleProcessor) ShouldTraverse(t *NodeTraversal, n *rhino.Node, pare
 }
 
 // Java: EsModuleProcessor.visit(NodeTraversal, Node, Node)
-func (p *EsModuleProcessor) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *EsModuleProcessor) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_EXPORT:
 		p.VisitExport(t, n)
@@ -740,7 +740,7 @@ func (p *EsModuleProcessor) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino
 }
 
 // Java: EsModuleProcessor.visitExportAllFrom(NodeTraversal, Node)
-func (p *EsModuleProcessor) VisitExportAllFrom(t *NodeTraversal, export *rhino.Node) {
+func (p *EsModuleProcessor) VisitExportAllFrom(t *NodeTraversal, export rhino.Node) {
 	// export * from '';
 	moduleRequest := export.GetSecondChild().GetString()
 	importName := "*"
@@ -757,7 +757,7 @@ func (p *EsModuleProcessor) VisitExportAllFrom(t *NodeTraversal, export *rhino.N
 }
 
 // Java: EsModuleProcessor.visitExportDefault(NodeTraversal, Node)
-func (p *EsModuleProcessor) VisitExportDefault(t *NodeTraversal, export *rhino.Node) {
+func (p *EsModuleProcessor) VisitExportDefault(t *NodeTraversal, export rhino.Node) {
 	// export default <expression>;
 	child := export.GetFirstChild()
 	name := Export_DEFAULT_EXPORT_NAME
@@ -786,9 +786,9 @@ func (p *EsModuleProcessor) VisitExportDefault(t *NodeTraversal, export *rhino.N
 }
 
 // Java: EsModuleProcessor.visitExportFrom(NodeTraversal, Node)
-func (p *EsModuleProcessor) VisitExportFrom(t *NodeTraversal, export *rhino.Node) {
+func (p *EsModuleProcessor) VisitExportFrom(t *NodeTraversal, export rhino.Node) {
 	// export { Foo, Bar as Rab } from '';
-	for child := export.GetFirstFirstChild(); child != nil; child = child.GetNext() {
+	for child := export.GetFirstFirstChild(); !child.IsNil(); child = child.GetNext() {
 		importName := child.GetFirstChild().GetString()
 		exportedName := child.GetLastChild().GetString()
 		moduleRequest := export.GetSecondChild().GetString()
@@ -809,9 +809,9 @@ func (p *EsModuleProcessor) VisitExportFrom(t *NodeTraversal, export *rhino.Node
 }
 
 // Java: EsModuleProcessor.visitExportSpecs(NodeTraversal, Node)
-func (p *EsModuleProcessor) VisitExportSpecs(t *NodeTraversal, export *rhino.Node) {
+func (p *EsModuleProcessor) VisitExportSpecs(t *NodeTraversal, export rhino.Node) {
 	// export { Foo, Bar as Rab };
-	for child := export.GetFirstFirstChild(); child != nil; child = child.GetNext() {
+	for child := export.GetFirstFirstChild(); !child.IsNil(); child = child.GetNext() {
 		localName := child.GetFirstChild().GetString()
 		exportedName := child.GetLastChild().GetString()
 		if !p.currentModuleBuilder.AddExport(
@@ -831,15 +831,15 @@ func (p *EsModuleProcessor) VisitExportSpecs(t *NodeTraversal, export *rhino.Nod
 }
 
 // Java: EsModuleProcessor.visitExportNameDeclaration(NodeTraversal, Node, Node)
-func (p *EsModuleProcessor) VisitExportNameDeclaration(t *NodeTraversal, export *rhino.Node, declaration *rhino.Node) {
+func (p *EsModuleProcessor) VisitExportNameDeclaration(t *NodeTraversal, export rhino.Node, declaration rhino.Node) {
 	//    export var Foo;
 	//    export let {a, b:[c,d]} = {};
 	NodeUtil_VisitLhsNodesInNode(
-		declaration, func(lhs *rhino.Node) { p.AddExportNameDeclaration(t, lhs, export) })
+		declaration, func(lhs rhino.Node) { p.AddExportNameDeclaration(t, lhs, export) })
 }
 
 // Java: EsModuleProcessor.addExportNameDeclaration(NodeTraversal, Node, Node)
-func (p *EsModuleProcessor) AddExportNameDeclaration(t *NodeTraversal, lhs *rhino.Node, export *rhino.Node) {
+func (p *EsModuleProcessor) AddExportNameDeclaration(t *NodeTraversal, lhs rhino.Node, export rhino.Node) {
 	jutil.CheckState(lhs.IsName())
 	name := lhs.GetString()
 	if !p.currentModuleBuilder.AddExport(
@@ -858,7 +858,7 @@ func (p *EsModuleProcessor) AddExportNameDeclaration(t *NodeTraversal, lhs *rhin
 }
 
 // Java: EsModuleProcessor.visitExportFunctionOrClass(NodeTraversal, Node, Node)
-func (p *EsModuleProcessor) VisitExportFunctionOrClass(t *NodeTraversal, export *rhino.Node, declaration *rhino.Node) {
+func (p *EsModuleProcessor) VisitExportFunctionOrClass(t *NodeTraversal, export rhino.Node, declaration rhino.Node) {
 	// export function foo() {}
 	// export class Foo {}
 	jutil.CheckState(declaration.IsFunction() || declaration.IsClass())
@@ -880,7 +880,7 @@ func (p *EsModuleProcessor) VisitExportFunctionOrClass(t *NodeTraversal, export 
 }
 
 // Java: EsModuleProcessor.visitExport(NodeTraversal, Node)
-func (p *EsModuleProcessor) VisitExport(t *NodeTraversal, export *rhino.Node) {
+func (p *EsModuleProcessor) VisitExport(t *NodeTraversal, export rhino.Node) {
 	if export.GetBooleanProp(rhino.Node_EXPORT_ALL_FROM) {
 		p.VisitExportAllFrom(t, export)
 	} else if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
@@ -900,7 +900,7 @@ func (p *EsModuleProcessor) VisitExport(t *NodeTraversal, export *rhino.Node) {
 }
 
 // Java: EsModuleProcessor.visitImportDefault(NodeTraversal, Node, String)
-func (p *EsModuleProcessor) VisitImportDefault(t *NodeTraversal, importNode *rhino.Node, moduleRequest string) {
+func (p *EsModuleProcessor) VisitImportDefault(t *NodeTraversal, importNode rhino.Node, moduleRequest string) {
 	// import Default from '';
 	p.currentModuleBuilder.Add(
 		Import_Builder_().
@@ -914,9 +914,9 @@ func (p *EsModuleProcessor) VisitImportDefault(t *NodeTraversal, importNode *rhi
 }
 
 // Java: EsModuleProcessor.visitImportSpecs(NodeTraversal, Node, String)
-func (p *EsModuleProcessor) VisitImportSpecs(t *NodeTraversal, importNode *rhino.Node, moduleRequest string) {
+func (p *EsModuleProcessor) VisitImportSpecs(t *NodeTraversal, importNode rhino.Node, moduleRequest string) {
 	// import { A, b as B } from '';
-	for child := importNode.GetSecondChild().GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := importNode.GetSecondChild().GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		importName := child.GetFirstChild().GetString()
 		localName := child.GetLastChild().GetString()
 		p.currentModuleBuilder.Add(
@@ -932,7 +932,7 @@ func (p *EsModuleProcessor) VisitImportSpecs(t *NodeTraversal, importNode *rhino
 }
 
 // Java: EsModuleProcessor.visitImportStar(NodeTraversal, Node, String)
-func (p *EsModuleProcessor) VisitImportStar(t *NodeTraversal, importNode *rhino.Node, moduleRequest string) {
+func (p *EsModuleProcessor) VisitImportStar(t *NodeTraversal, importNode rhino.Node, moduleRequest string) {
 	// import * as ns from '';
 	p.currentModuleBuilder.Add(
 		Import_Builder_().
@@ -946,7 +946,7 @@ func (p *EsModuleProcessor) VisitImportStar(t *NodeTraversal, importNode *rhino.
 }
 
 // Java: EsModuleProcessor.visitImport(NodeTraversal, Node)
-func (p *EsModuleProcessor) VisitImport(t *NodeTraversal, importNode *rhino.Node) {
+func (p *EsModuleProcessor) VisitImport(t *NodeTraversal, importNode rhino.Node) {
 	moduleRequest := importNode.GetLastChild().GetString()
 
 	if importNode.GetFirstChild().IsName() {

@@ -310,7 +310,7 @@ func (c *DefaultPassConfig) initFields() {
 							options.ShouldExportLocalPropertyDefinitions(),
 							convention.GetExportSymbolFunction(),
 							convention.GetExportPropertyFunction())
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						pass.Process(externs, root)
 						compiler.AddExportedNames(pass.GetExportedVariableNames())
 					})
@@ -361,7 +361,7 @@ func (c *DefaultPassConfig) initFields() {
 				func(compiler AbstractCompiler) CompilerPass {
 					pass := NewGatherRawExports(compiler)
 
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						pass.Process(externs, root)
 						compiler.AddExportedNames(pass.GetExportedVariableNames())
 					})
@@ -389,7 +389,7 @@ func (c *DefaultPassConfig) initFields() {
 					pass :=
 						NewProcessClosureProvidesAndRequires(
 							compiler, options.ShouldPreservesGoogProvidesAndRequires())
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						pass.Process(externs, root)
 						compiler.AddExportedNames(pass.GetExportedVariableNames())
 					})
@@ -534,7 +534,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("closureReplaceGetCssName").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, jsRoot *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, jsRoot rhino.Node) {
 						// Go-only: language-adapter — Optional<ImmutableSet.Builder<String>>:
 						// nil is Optional.empty().
 						var cssNames *jutil.LinkedHashSet[string]
@@ -697,7 +697,7 @@ func (c *DefaultPassConfig) initFields() {
 							options.GetAssumePropertiesAreStaticallyAnalyzable(),
 							/* reportErrors= */ true)
 
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						pass.Process(externs, root)
 						compiler.SetHasRegExpGlobalReferences(pass.IsGlobalRegExpPropertiesUsed())
 					})
@@ -716,7 +716,7 @@ func (c *DefaultPassConfig) initFields() {
 							options.GetAssumePropertiesAreStaticallyAnalyzable(),
 							/* reportErrors= */ false)
 
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						regExpCheck.Process(externs, root)
 						compiler.SetHasRegExpGlobalReferences(
 							regExpCheck.IsGlobalRegExpPropertiesUsed())
@@ -743,7 +743,7 @@ func (c *DefaultPassConfig) initFields() {
 		PassFactory_Builder_().
 			SetName("clearTypedScopeCreatorPass").
 			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) { compiler.ClearTypedScopeCreator() })
+				return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) { compiler.ClearTypedScopeCreator() })
 			}).
 			Build()
 
@@ -753,7 +753,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("clearTopTypedScopePass").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						// clear these scopes which we don't need anymore so they can be garbage
 						// collected
 						compiler.SetTopScope(nil)
@@ -780,7 +780,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName(PassNames_INFER_TYPES).
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(unused *rhino.Node, srcRoot *rhino.Node) {
+					return CompilerPassFunc(func(unused rhino.Node, srcRoot rhino.Node) {
 						if comp, ok := compiler.(*Compiler); ok {
 							comp.evictPassArenaCaches()
 						}
@@ -822,7 +822,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName(PassNames_CHECK_TYPES).
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						check :=
 							NewTypeCheckWithScope(
 								compiler,
@@ -954,7 +954,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("processTweaks").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, jsRoot *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, jsRoot rhino.Node) {
 						NewProcessTweaks(compiler, options.GetTweakProcessing().ShouldStrip()).
 							Process(externs, jsRoot)
 					})
@@ -975,7 +975,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("stripCode").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, jsRoot *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, jsRoot rhino.Node) {
 						options := compiler.GetOptions()
 						pass :=
 							NewStripCode(
@@ -1021,7 +1021,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName(PassNames_REPLACE_ID_GENERATORS).
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						pass :=
 							NewReplaceIdGenerators(
 								compiler,
@@ -1042,7 +1042,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("replaceStrings").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						pass :=
 							NewReplaceStrings(
 								compiler,
@@ -1505,7 +1505,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("markUnnormalized").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
 					})
 				}).
@@ -1554,7 +1554,7 @@ func (c *DefaultPassConfig) initFields() {
 				func(compiler AbstractCompiler) CompilerPass {
 					jutil.CheckState(options.GetPropertyRenaming() == PropertyRenamingPolicy_ALL_UNQUOTED)
 					prevPropertyMap := options.GetInputPropertyMap()
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						rprop :=
 							NewRenameProperties(
 								compiler,
@@ -1586,7 +1586,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
 					prevVariableMap := options.GetInputVariableMap()
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						compiler.SetVariableMap(
 							c.runVariableRenaming(compiler, prevVariableMap, externs, root))
 					})
@@ -1752,7 +1752,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("typesToColors").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, js *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
 						NewConvertTypesToColors(
 							compiler,
 							SerializationOptions_Builder_().
@@ -1865,7 +1865,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("ADD_SYNTHETIC_SCRIPT").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, js *rhino.Node) { compiler.InitializeSyntheticCodeInput() })
+					return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) { compiler.InitializeSyntheticCodeInput() })
 				}).
 			Build()
 
@@ -1873,7 +1873,7 @@ func (c *DefaultPassConfig) initFields() {
 		PassFactory_Builder_().
 			SetName("REMOVE_SYNTHETIC_SCRIPT").
 			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs *rhino.Node, js *rhino.Node) { compiler.RemoveSyntheticCodeInput() })
+				return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) { compiler.RemoveSyntheticCodeInput() })
 			}).
 			Build()
 
@@ -1881,7 +1881,7 @@ func (c *DefaultPassConfig) initFields() {
 		PassFactory_Builder_().
 			SetName("MERGE_SYNTHETIC_SCRIPT").
 			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs *rhino.Node, js *rhino.Node) { compiler.MergeSyntheticCodeInput() })
+				return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) { compiler.MergeSyntheticCodeInput() })
 			}).
 			Build()
 
@@ -1892,7 +1892,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("protectLocaleData").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						NewLocaleDataPasses_ProtectGoogLocale(compiler).Process(externs, root)
 					})
 				}).
@@ -1904,7 +1904,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetName("SubstituteLocaleData").
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						NewLocaleDataPasses_LocaleSubstitutions(
 							compiler, compiler.GetOptions().GetLocale()).
 							Process(externs, root)
@@ -3271,7 +3271,7 @@ func (c *DefaultPassConfig) createProcessDefines(mode ProcessDefines_Mode) *Pass
 
 // Java: DefaultPassConfig.runVariableRenaming(AbstractCompiler, VariableMap, Node, Node)
 func (c *DefaultPassConfig) runVariableRenaming(
-	compiler AbstractCompiler, prevVariableMap *VariableMap, externs *rhino.Node, root *rhino.Node) *VariableMap {
+	compiler AbstractCompiler, prevVariableMap *VariableMap, externs rhino.Node, root rhino.Node) *VariableMap {
 	options := c.options
 	reservedChars := jutil.NewLinkedHashSet[uint16]()
 	reservedNames := jutil.NewLinkedHashSet[string]()
@@ -3331,7 +3331,7 @@ func (c *DefaultPassConfig) getCustomPasses(executionTime CustomPassExecutionTim
 //
 // Java: DefaultPassConfig.runInSerial(Collection<CompilerPass>)
 func defaultPassConfig_runInSerial(passes []CompilerPass) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		for _, pass := range passes {
 			pass.Process(externs, root)
 		}
@@ -3339,8 +3339,8 @@ func defaultPassConfig_runInSerial(passes []CompilerPass) CompilerPass {
 }
 
 // Java: DefaultPassConfig.getAdditionalReplacements(CompilerOptions)
-func defaultPassConfig_getAdditionalReplacements(options *CompilerOptions) *jutil.LinkedHashMap[string, *rhino.Node] {
-	additionalReplacements := jutil.NewLinkedHashMap[string, *rhino.Node]()
+func defaultPassConfig_getAdditionalReplacements(options *CompilerOptions) *jutil.LinkedHashMap[string, rhino.Node] {
+	additionalReplacements := jutil.NewLinkedHashMap[string, rhino.Node]()
 
 	if options.ShouldMarkAsCompiled() || options.GetClosurePass() {
 		additionalReplacements.Put(defaultPassConfig_COMPILED_CONSTANT_NAME, rhino.IR_TrueNode())

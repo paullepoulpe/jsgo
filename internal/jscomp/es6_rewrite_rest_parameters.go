@@ -48,13 +48,13 @@ func NewEs6RewriteRestParameters(compiler AbstractCompiler) *Es6RewriteRestParam
 }
 
 // Java: Es6RewriteRestParameters.process(Node, Node)
-func (e *Es6RewriteRestParameters) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6RewriteRestParameters) Process(externs rhino.Node, root rhino.Node) {
 	TranspilationPasses_ProcessTranspile(e.compiler, root, Es6RewriteRestParameters_TRANSPILED_FEATURES, e)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, Es6RewriteRestParameters_TRANSPILED_FEATURES)
 }
 
 // Java: Es6RewriteRestParameters.visit(NodeTraversal, Node, Node)
-func (e *Es6RewriteRestParameters) Visit(traversal *NodeTraversal, current *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteRestParameters) Visit(traversal *NodeTraversal, current rhino.Node, parent rhino.Node) {
 	if current.GetToken() == rhino.Token_ITER_REST {
 		e.VisitRestParam(traversal, current, parent)
 	}
@@ -63,7 +63,7 @@ func (e *Es6RewriteRestParameters) Visit(traversal *NodeTraversal, current *rhin
 // VisitRestParam processes a rest parameter
 //
 // Java: Es6RewriteRestParameters.visitRestParam(NodeTraversal, Node, Node)
-func (e *Es6RewriteRestParameters) VisitRestParam(t *NodeTraversal, restParam *rhino.Node, paramList *rhino.Node) {
+func (e *Es6RewriteRestParameters) VisitRestParam(t *NodeTraversal, restParam rhino.Node, paramList rhino.Node) {
 	functionBody := paramList.GetNext()
 	restIndex := paramList.GetIndexOfChild(restParam)
 	nameNode := restParam.GetOnlyChild()
@@ -94,7 +94,7 @@ func (e *Es6RewriteRestParameters) VisitRestParam(t *NodeTraversal, restParam *r
 			SrcrefTreeIfMissing(functionBody)
 	insertBeforePoint :=
 		NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(functionBody)
-	if insertBeforePoint != nil {
+	if !insertBeforePoint.IsNil() {
 		let.InsertBefore(insertBeforePoint)
 	} else {
 		// functionBody only contains hoisted function declarations

@@ -34,9 +34,9 @@ type AstManipulations struct{}
 // If exp2 is EMPTY this just returns exp1.
 //
 // Java: AstManipulations.fuseExpressions(Node, Node)
-func AstManipulations_FuseExpressions(exp1 *rhino.Node, exp2 *rhino.Node) *rhino.Node {
-	jutil.CheckArgumentMsg1(exp1.GetParent() == nil, "Expected detached node, got %s", exp1)
-	jutil.CheckArgumentMsg1(exp2.GetParent() == nil, "Expected detached node, got %s", exp2)
+func AstManipulations_FuseExpressions(exp1 rhino.Node, exp2 rhino.Node) rhino.Node {
+	jutil.CheckArgumentMsg1(exp1.GetParent().IsNil(), "Expected detached node, got %s", exp1)
+	jutil.CheckArgumentMsg1(exp2.GetParent().IsNil(), "Expected detached node, got %s", exp2)
 	if exp2.IsEmpty() {
 		return exp1
 	}

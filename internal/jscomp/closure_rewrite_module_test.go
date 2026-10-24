@@ -48,7 +48,7 @@ func TestClosureRewriteModuleTest(t *testing.T) {
 
 // Java: ClosureRewriteModuleTest.getProcessor(Compiler)
 func (c *ClosureRewriteModuleTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, main *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, main rhino.Node) {
 		var globalTypedScope *TypedScope
 		if c.runTypeCheck {
 			var rai ReverseAbstractInterpreter = NewSemanticReverseAbstractInterpreter(compiler.GetTypeRegistry())
@@ -3641,7 +3641,7 @@ new module$exports$mod$one.Bar();
 
 	// Verify the type of $module$exports$mod$one.Bar is correct
 	secondScript := c.GetLastCompiler().GetJsRoot().GetSecondChild()
-	moduleExportsDotBar := NodeUtil_FindPreorder(secondScript, func(node *rhino.Node) bool { return node.MatchesQualifiedName("module$exports$mod$one.Bar") }, func(*rhino.Node) bool { return true })
+	moduleExportsDotBar := NodeUtil_FindPreorder(secondScript, func(node rhino.Node) bool { return node.MatchesQualifiedName("module$exports$mod$one.Bar") }, func(rhino.Node) bool { return true })
 
 	AssertNode(moduleExportsDotBar).HasJSTypeThat().GetReferenceNameIsEqualTo("mod.one.Bar")
 	// The source info for the rewritten name must match the source info for `Bar` in `new Bar();`
@@ -3677,7 +3677,7 @@ new mod.one.Bar();
 
 	// Verify the type of mod.one.Bar is correct
 	secondScript := c.GetLastCompiler().GetJsRoot().GetSecondChild()
-	moduleExportsDotBar := NodeUtil_FindPreorder(secondScript, func(node *rhino.Node) bool { return node.MatchesQualifiedName("mod.one.Bar") }, func(*rhino.Node) bool { return true })
+	moduleExportsDotBar := NodeUtil_FindPreorder(secondScript, func(node rhino.Node) bool { return node.MatchesQualifiedName("mod.one.Bar") }, func(rhino.Node) bool { return true })
 
 	AssertNode(moduleExportsDotBar).HasJSTypeThat().GetReferenceNameIsEqualTo("mod.one.Bar")
 }

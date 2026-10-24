@@ -38,7 +38,7 @@ type CheckSideEffects struct {
 
 	report bool
 
-	problemNodes []*rhino.Node
+	problemNodes []rhino.Node
 
 	noSideEffectExterns *jutil.LinkedHashSet[string]
 
@@ -71,7 +71,7 @@ const CheckSideEffects_J2CL_PROTECTOR_FN = "$J2CL_PRESERVE$"
 // Java: CheckSideEffects(AbstractCompiler, boolean, boolean)
 func NewCheckSideEffects(compiler AbstractCompiler, report bool, protectSideEffectFreeCode bool) *CheckSideEffects {
 	c := &CheckSideEffects{}
-	c.problemNodes = []*rhino.Node{}
+	c.problemNodes = []rhino.Node{}
 	c.noSideEffectExterns = jutil.NewLinkedHashSet[string]()
 	c.preserveFunctionInjected = false
 	c.compiler = compiler
@@ -81,7 +81,7 @@ func NewCheckSideEffects(compiler AbstractCompiler, report bool, protectSideEffe
 }
 
 // Java: CheckSideEffects.process(Node, Node)
-func (c *CheckSideEffects) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckSideEffects) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, externs, &CheckSideEffects_GetNoSideEffectExterns{c: c})
 
 	if !c.processRootParallel(root) {
@@ -105,7 +105,7 @@ func (c *CheckSideEffects) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 }
 
-func (c *CheckSideEffects) processRootParallel(root *rhino.Node) bool {
+func (c *CheckSideEffects) processRootParallel(root rhino.Node) bool {
 	scripts, ok := collectRootScripts(root)
 	if !ok {
 		return false
@@ -118,7 +118,7 @@ func (c *CheckSideEffects) processRootParallel(root *rhino.Node) bool {
 	prewarmCompilerForParallelReads(c.compiler)
 	lazyGlobal := newLazyGlobalScope(c.compiler, root)
 
-	problemsByScript := make([][]*rhino.Node, len(scripts))
+	problemsByScript := make([][]rhino.Node, len(scripts))
 	runParallelWork(c.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
 		var workerRC *recordingCompiler
 		var workerPass *CheckSideEffects
@@ -147,7 +147,7 @@ func (c *CheckSideEffects) processRootParallel(root *rhino.Node) bool {
 			traverseScriptUnderRoot(t, root, root, scripts[idx], lazyGlobal)
 			releaseNodeTraversal(t)
 			if len(workerPass.problemNodes) != 0 {
-				copied := make([]*rhino.Node, len(workerPass.problemNodes))
+				copied := make([]rhino.Node, len(workerPass.problemNodes))
 				copy(copied, workerPass.problemNodes)
 				problemsByScript[idx] = copied
 				workerPass.problemNodes = workerPass.problemNodes[:0]
@@ -165,7 +165,7 @@ func (c *CheckSideEffects) processRootParallel(root *rhino.Node) bool {
 }
 
 // Java: CheckSideEffects.visit(NodeTraversal, Node, Node)
-func (c *CheckSideEffects) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckSideEffects) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// VOID nodes appear when there are extra semicolons at the BLOCK level.
 	// I've been unable to think of any cases where this indicates a bug,
 	// and apparently some people like keeping these semicolons around,
@@ -174,7 +174,7 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.
 		return
 	}
 
-	if parent == nil {
+	if parent.IsNil() {
 		return
 	}
 
@@ -239,7 +239,7 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.
 					isDefinedInSrc := false
 					if first.IsGetProp() {
 						rootNameNode := NodeUtil_GetRootOfQualifiedName(first)
-						isDefinedInSrc = rootNameNode != nil &&
+						isDefinedInSrc = !rootNameNode.IsNil() &&
 							rootNameNode.IsName() &&
 							t.GetScope().GetVar(rootNameNode.GetString()) != nil
 					} else {
@@ -304,14 +304,14 @@ func NewCheckSideEffects_StripProtection(compiler AbstractCompiler) *CheckSideEf
 }
 
 // Java: CheckSideEffects.StripProtection.process(Node, Node)
-func (s *CheckSideEffects_StripProtection) Process(externs *rhino.Node, root *rhino.Node) {
+func (s *CheckSideEffects_StripProtection) Process(externs rhino.Node, root rhino.Node) {
 	if s.processParallel(root) {
 		return
 	}
 	NodeTraversal_Traverse(s.compiler, root, s)
 }
 
-func (s *CheckSideEffects_StripProtection) processParallel(root *rhino.Node) bool {
+func (s *CheckSideEffects_StripProtection) processParallel(root rhino.Node) bool {
 	scripts, ok := collectRootScripts(root)
 	if !ok {
 		return false
@@ -343,7 +343,7 @@ func (s *CheckSideEffects_StripProtection) processParallel(root *rhino.Node) boo
 }
 
 // Java: CheckSideEffects.StripProtection.visit(NodeTraversal, Node, Node)
-func (s *CheckSideEffects_StripProtection) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (s *CheckSideEffects_StripProtection) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsCall() {
 		target := n.GetFirstChild()
 		if !target.IsName() {
@@ -380,7 +380,7 @@ type CheckSideEffects_GetNoSideEffectExterns struct {
 }
 
 // Java: CheckSideEffects.GetNoSideEffectExterns.visit(NodeTraversal, Node, Node)
-func (g *CheckSideEffects_GetNoSideEffectExterns) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *CheckSideEffects_GetNoSideEffectExterns) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsFunction() {
 		jsDoc := NodeUtil_GetBestJSDocInfo(n)
 		if jsDoc != nil && jsDoc.IsNoSideEffects() {

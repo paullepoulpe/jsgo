@@ -31,8 +31,8 @@ import (
 // PerformanceTrackerTest holds the unit tests for PerformanceTracker.
 type PerformanceTrackerTest struct {
 	t               *testing.T
-	emptyExternRoot *rhino.Node
-	emptyJsRoot     *rhino.Node
+	emptyExternRoot rhino.Node
+	emptyJsRoot     rhino.Node
 }
 
 func (c *PerformanceTrackerTest) JUnitSetT(t *testing.T) { c.t = t }
@@ -268,7 +268,7 @@ Type summary sources \(post-pruning\):\s* 2
 }
 
 // Java: PerformanceTrackerTest.createScript(String)
-func PerformanceTrackerTest_CreateScript(sourceFileName string) *rhino.Node {
+func PerformanceTrackerTest_CreateScript(sourceFileName string) rhino.Node {
 	sourceFile := SourceFile_FromCode(sourceFileName, "")
 	script := rhino.IR_Script()
 	script.SetStaticSourceFile(sourceFile)
@@ -276,7 +276,7 @@ func PerformanceTrackerTest_CreateScript(sourceFileName string) *rhino.Node {
 }
 
 // Java: PerformanceTrackerTest.createTypeSummary(String)
-func PerformanceTrackerTest_CreateTypeSummary(sourceFileName string) *rhino.Node {
+func PerformanceTrackerTest_CreateTypeSummary(sourceFileName string) rhino.Node {
 	script := PerformanceTrackerTest_CreateScript(sourceFileName)
 	scriptInfo := rhino.JSDocInfo_Builder_()
 	scriptInfo.RecordTypeSummary()
@@ -285,7 +285,7 @@ func PerformanceTrackerTest_CreateTypeSummary(sourceFileName string) *rhino.Node
 }
 
 // Java: PerformanceTrackerTest.createExtern(String)
-func PerformanceTrackerTest_CreateExtern(sourceFileName string) *rhino.Node {
+func PerformanceTrackerTest_CreateExtern(sourceFileName string) rhino.Node {
 	script := PerformanceTrackerTest_CreateScript(sourceFileName)
 	scriptInfo := rhino.JSDocInfo_Builder_()
 	scriptInfo.RecordExterns()

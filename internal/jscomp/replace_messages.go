@@ -75,18 +75,18 @@ func (r *ReplaceMessages) GetMsgProtectionPass() CompilerPass {
 // Java: record ReplaceMessages.MsgProtectionData
 type ReplaceMessages_MsgProtectionData struct {
 	message               *JsMessage
-	messageNode           *rhino.Node
-	templateTextNode      *rhino.Node
-	placeholderValuesNode *rhino.Node // may be nil
+	messageNode           rhino.Node
+	templateTextNode      rhino.Node
+	placeholderValuesNode rhino.Node // may be nil
 	messageOptions        *ReplaceMessages_MsgOptions
 }
 
 // Java: ReplaceMessages.MsgProtectionData(JsMessage, Node, Node, Node, ReplaceMessages.MsgOptions)
 func NewReplaceMessages_MsgProtectionData(
 	message *JsMessage,
-	messageNode *rhino.Node,
-	templateTextNode *rhino.Node,
-	placeholderValuesNode *rhino.Node,
+	messageNode rhino.Node,
+	templateTextNode rhino.Node,
+	placeholderValuesNode rhino.Node,
 	messageOptions *ReplaceMessages_MsgOptions) *ReplaceMessages_MsgProtectionData {
 	return &ReplaceMessages_MsgProtectionData{
 		message:               message,
@@ -101,15 +101,15 @@ func NewReplaceMessages_MsgProtectionData(
 func (d *ReplaceMessages_MsgProtectionData) Message() *JsMessage { return d.message }
 
 // Java: ReplaceMessages.MsgProtectionData.messageNode()
-func (d *ReplaceMessages_MsgProtectionData) MessageNode() *rhino.Node { return d.messageNode }
+func (d *ReplaceMessages_MsgProtectionData) MessageNode() rhino.Node { return d.messageNode }
 
 // Java: ReplaceMessages.MsgProtectionData.templateTextNode()
-func (d *ReplaceMessages_MsgProtectionData) TemplateTextNode() *rhino.Node {
+func (d *ReplaceMessages_MsgProtectionData) TemplateTextNode() rhino.Node {
 	return d.templateTextNode
 }
 
 // Java: ReplaceMessages.MsgProtectionData.placeholderValuesNode()
-func (d *ReplaceMessages_MsgProtectionData) PlaceholderValuesNode() *rhino.Node {
+func (d *ReplaceMessages_MsgProtectionData) PlaceholderValuesNode() rhino.Node {
 	return d.placeholderValuesNode
 }
 
@@ -132,7 +132,7 @@ func NewReplaceMessages_MsgProtectionPass(outer *ReplaceMessages) *ReplaceMessag
 }
 
 // Java: ReplaceMessages.MsgProtectionPass.process(Node, Node)
-func (p *ReplaceMessages_MsgProtectionPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *ReplaceMessages_MsgProtectionPass) Process(externs rhino.Node, root rhino.Node) {
 	compiler := p.outer.compiler
 	// Add externs declarations for the function names we use in our replacements.
 	NodeUtil_CreateSynthesizedExternsSymbol(compiler, ReplaceMessagesConstants_DEFINE_MSG_CALLEE)
@@ -152,7 +152,7 @@ func (p *ReplaceMessages_MsgProtectionPass) ProcessIcuTemplateDefinition(definit
 			/* templateTextNode= */ definition.GetTemplateTextNode(),
 			// There are no compile-time placeholder replacements for ICU templates
 			/* placeholderValuesNode= */
-			nil,
+			rhino.Node{},
 			/* messageOptions= */ replaceMessages_ICU_MSG_OPTIONS))
 }
 
@@ -191,10 +191,10 @@ func (p *ReplaceMessages_MsgProtectionPass) PerformMessageProtection(msgProtecti
 	// If the result of this call (the message) is unused, there is no reason for optimizations
 	// to preserve it.
 	newCallNode.SetSideEffectFlags(rhino.Node_SideEffectFlags_NO_SIDE_EFFECTS)
-	if placeholdersNode != nil {
+	if !placeholdersNode.IsNil() {
 		jutil.CheckStateMsg1(placeholdersNode.IsObjectLit(), "%s", placeholdersNode)
 		// put quotes around the keys so they won't get renamed.
-		for strKey := placeholdersNode.GetFirstChild(); strKey != nil; strKey = strKey.GetNext() {
+		for strKey := placeholdersNode.GetFirstChild(); !strKey.IsNil(); strKey = strKey.GetNext() {
 			jutil.CheckStateMsg1(strKey.IsStringKey(), "%s", strKey)
 			strKey.SetQuotedStringKey()
 		}
@@ -205,7 +205,7 @@ func (p *ReplaceMessages_MsgProtectionPass) PerformMessageProtection(msgProtecti
 }
 
 // Java: ReplaceMessages.MsgProtectionPass.createProtectionFunctionCallee(String)
-func (p *ReplaceMessages_MsgProtectionPass) CreateProtectionFunctionCallee(protectionFunctionName string) *rhino.Node {
+func (p *ReplaceMessages_MsgProtectionPass) CreateProtectionFunctionCallee(protectionFunctionName string) rhino.Node {
 	callee := p.outer.astFactory.CreateNameWithUnknownType(protectionFunctionName)
 	// The name is declared constant in the externs definition we created, so all references
 	// to it must also be marked as constant for consistency's sake.
@@ -214,16 +214,16 @@ func (p *ReplaceMessages_MsgProtectionPass) CreateProtectionFunctionCallee(prote
 }
 
 // Java: ReplaceMessages.MsgProtectionPass.processMessageFallback(Node, JsMessage, JsMessage)
-func (p *ReplaceMessages_MsgProtectionPass) ProcessMessageFallback(callNode *rhino.Node, message1 *JsMessage, message2 *JsMessage) {
+func (p *ReplaceMessages_MsgProtectionPass) ProcessMessageFallback(callNode rhino.Node, message1 *JsMessage, message2 *JsMessage) {
 	r := p.outer
-	originalCallee := jutil.CheckNotNullMsg1(callNode.GetFirstChild(), "%s", callNode)
+	originalCallee := rhino.CheckNotNullMsg1(callNode.GetFirstChild(), "%s", callNode)
 	fallbackCallee := p.CreateProtectionFunctionCallee(ReplaceMessagesConstants_FALLBACK_MSG_CALLEE).
 		Srcref(originalCallee)
 
-	originalFirstArg := jutil.CheckNotNullMsg1(originalCallee.GetNext(), "%s", callNode)
+	originalFirstArg := rhino.CheckNotNullMsg1(originalCallee.GetNext(), "%s", callNode)
 	firstMsgKey := r.astFactory.CreateString(message1.GetKey()).Srcref(originalFirstArg)
 
-	originalSecondArg := jutil.CheckNotNullMsg1(originalFirstArg.GetNext(), "%s", callNode)
+	originalSecondArg := rhino.CheckNotNullMsg1(originalFirstArg.GetNext(), "%s", callNode)
 	secondMsgKey := r.astFactory.CreateString(message2.GetKey()).Srcref(originalSecondArg)
 
 	// `__jscomp_msg_fallback__('MSG_ONE', MSG_ONE, 'MSG_TWO', MSG_TWO)`
@@ -252,7 +252,7 @@ func (r *ReplaceMessages) GetMsgOptionsFromDefinition(definition JsMessageDefini
 }
 
 // Java: ReplaceMessages.createMsgPropertiesNode(JsMessage, ReplaceMessages.MsgOptions)
-func (r *ReplaceMessages) CreateMsgPropertiesNode(message *JsMessage, msgOptions *ReplaceMessages_MsgOptions) *rhino.Node {
+func (r *ReplaceMessages) CreateMsgPropertiesNode(message *JsMessage, msgOptions *ReplaceMessages_MsgOptions) rhino.Node {
 	msgPropsBuilder := NewReplaceMessages_QuotedKeyObjectLitBuilder(r)
 	msgPropsBuilder.AddString("key", message.GetKey())
 	if msgOptions.IsIcuTemplate() && !message.CanonicalPlaceholderNames().IsEmpty() {
@@ -299,14 +299,14 @@ func (r *ReplaceMessages) CreateMsgPropertiesNode(message *JsMessage, msgOptions
 type ReplaceMessages_QuotedKeyObjectLitBuilder struct {
 	outer *ReplaceMessages
 	// LinkedHashMap to keep the keys in the order we set them so our output is deterministic.
-	keyToValueNodeMap *jutil.LinkedHashMap[string, *rhino.Node]
+	keyToValueNodeMap *jutil.LinkedHashMap[string, rhino.Node]
 }
 
 // Java: ReplaceMessages.QuotedKeyObjectLitBuilder()
 func NewReplaceMessages_QuotedKeyObjectLitBuilder(outer *ReplaceMessages) *ReplaceMessages_QuotedKeyObjectLitBuilder {
 	return &ReplaceMessages_QuotedKeyObjectLitBuilder{
 		outer:             outer,
-		keyToValueNodeMap: jutil.NewLinkedHashMap[string, *rhino.Node](),
+		keyToValueNodeMap: jutil.NewLinkedHashMap[string, rhino.Node](),
 	}
 }
 
@@ -316,14 +316,14 @@ func (b *ReplaceMessages_QuotedKeyObjectLitBuilder) AddString(key string, value 
 }
 
 // Java: ReplaceMessages.QuotedKeyObjectLitBuilder.addNode(String, Node)
-func (b *ReplaceMessages_QuotedKeyObjectLitBuilder) AddNode(key string, node *rhino.Node) *ReplaceMessages_QuotedKeyObjectLitBuilder {
+func (b *ReplaceMessages_QuotedKeyObjectLitBuilder) AddNode(key string, node rhino.Node) *ReplaceMessages_QuotedKeyObjectLitBuilder {
 	jutil.CheckStateMsg1(!b.keyToValueNodeMap.ContainsKey(key), "repeated key: %s", key)
 	b.keyToValueNodeMap.Put(key, node)
 	return b
 }
 
 // Java: ReplaceMessages.QuotedKeyObjectLitBuilder.build()
-func (b *ReplaceMessages_QuotedKeyObjectLitBuilder) Build() *rhino.Node {
+func (b *ReplaceMessages_QuotedKeyObjectLitBuilder) Build() rhino.Node {
 	result := b.outer.astFactory.CreateObjectLit()
 	for key, value := range b.keyToValueNodeMap.All() {
 		result.AddChildToBack(b.outer.astFactory.CreateQuotedStringKey(key, value))
@@ -364,7 +364,7 @@ type replaceMessages_replacementCompletionCallback struct {
 }
 
 // Java: ReplaceMessages.ReplacementCompletionPass.process(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (c *replaceMessages_replacementCompletionCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *replaceMessages_replacementCompletionCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	protectedJsMessage := ReplaceMessages_ProtectedJsMessage_FromAstNode(n, c.pass.outer.bundle.IdGenerator())
 	if protectedJsMessage != nil {
 		c.pass.VisitMsgDefinition(protectedJsMessage)
@@ -377,7 +377,7 @@ func (c *replaceMessages_replacementCompletionCallback) Visit(t *NodeTraversal, 
 }
 
 // Java: ReplaceMessages.ReplacementCompletionPass.process(Node, Node)
-func (p *ReplaceMessages_ReplacementCompletionPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *ReplaceMessages_ReplacementCompletionPass) Process(externs rhino.Node, root rhino.Node) {
 	// for each `__jscomp_define_msg__` call in post-order traversal
 	// replace it with the appropriate expression
 	NodeTraversal_Traverse(
@@ -418,7 +418,7 @@ func (p *ReplaceMessages_ReplacementCompletionPass) VisitMsgDefinition(protected
 
 // Java: ReplaceMessages.ReplacementCompletionPass.visitMsgFallback(ReplaceMessages.ProtectedMsgFallback)
 func (p *ReplaceMessages_ReplacementCompletionPass) VisitMsgFallback(protectedMsgFallback *ReplaceMessages_ProtectedMsgFallback) {
-	var valueNodeToUse *rhino.Node
+	var valueNodeToUse rhino.Node
 	if p.translatedMsgKeys.Contains(protectedMsgFallback.firstMsgKey) {
 		// Obviously use the first message, if it is translated.
 		valueNodeToUse = protectedMsgFallback.firstMsgValue
@@ -435,8 +435,8 @@ func (p *ReplaceMessages_ReplacementCompletionPass) VisitMsgFallback(protectedMs
 }
 
 // Java: ReplaceMessages.extractPlaceholderValuesMapOrThrow(Node)
-func ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(valuesObjLit *rhino.Node) *jutil.LinkedHashMap[string, *rhino.Node] {
-	var result *jutil.LinkedHashMap[string, *rhino.Node]
+func ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(valuesObjLit rhino.Node) *jutil.LinkedHashMap[string, rhino.Node] {
+	var result *jutil.LinkedHashMap[string, rhino.Node]
 	jutil.Try(func() {
 		result = JsMessageVisitor_ExtractObjectLiteralMap(valuesObjLit).ExtractAsValueMap()
 	}, func(e IJsMessageVisitor_MalformedException) {
@@ -447,20 +447,20 @@ func ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(valuesObjLit *rhino.Node
 
 // Java: private static class ReplaceMessages.ProtectedMsgFallback
 type ReplaceMessages_ProtectedMsgFallback struct {
-	callNode       *rhino.Node
+	callNode       rhino.Node
 	firstMsgKey    string
-	firstMsgValue  *rhino.Node
+	firstMsgValue  rhino.Node
 	secondMsgKey   string
-	secondMsgValue *rhino.Node
+	secondMsgValue rhino.Node
 }
 
 // Java: ReplaceMessages.ProtectedMsgFallback(Node, String, Node, String, Node)
 func NewReplaceMessages_ProtectedMsgFallback(
-	callNode *rhino.Node,
+	callNode rhino.Node,
 	firstMsgKey string,
-	firstMsgValue *rhino.Node,
+	firstMsgValue rhino.Node,
 	secondMsgKey string,
-	secondMsgValue *rhino.Node) *ReplaceMessages_ProtectedMsgFallback {
+	secondMsgValue rhino.Node) *ReplaceMessages_ProtectedMsgFallback {
 	return &ReplaceMessages_ProtectedMsgFallback{
 		callNode:       callNode,
 		firstMsgKey:    firstMsgKey,
@@ -471,7 +471,7 @@ func NewReplaceMessages_ProtectedMsgFallback(
 }
 
 // Java: ReplaceMessages.ProtectedMsgFallback.fromAstNode(Node)
-func ReplaceMessages_ProtectedMsgFallback_FromAstNode(n *rhino.Node) *ReplaceMessages_ProtectedMsgFallback {
+func ReplaceMessages_ProtectedMsgFallback_FromAstNode(n rhino.Node) *ReplaceMessages_ProtectedMsgFallback {
 	if !n.IsCall() {
 		return nil
 	}
@@ -491,7 +491,7 @@ func ReplaceMessages_ProtectedMsgFallback_FromAstNode(n *rhino.Node) *ReplaceMes
 
 // Java: ReplaceMessages.lookupMessage(Node, MessageBundle, JsMessage)
 func (r *ReplaceMessages) LookupMessage(
-	callNode *rhino.Node, bundle MessageBundle, message *JsMessage) *JsMessage {
+	callNode rhino.Node, bundle MessageBundle, message *JsMessage) *JsMessage {
 	translatedMessage := bundle.GetMessage(message.GetId())
 	if translatedMessage != nil {
 		return translatedMessage
@@ -555,17 +555,17 @@ func (r *ReplaceMessages) GetFullReplacementPass() CompilerPass {
 // Java: record ReplaceMessages.FullReplacementMsgData
 type ReplaceMessages_FullReplacementMsgData struct {
 	message             *JsMessage
-	messageNode         *rhino.Node
+	messageNode         rhino.Node
 	messageOptions      *ReplaceMessages_MsgOptions
-	placeholderValueMap *jutil.LinkedHashMap[string, *rhino.Node]
+	placeholderValueMap *jutil.LinkedHashMap[string, rhino.Node]
 }
 
 // Java: ReplaceMessages.FullReplacementMsgData(JsMessage, Node, ReplaceMessages.MsgOptions, ImmutableMap<String, Node>)
 func NewReplaceMessages_FullReplacementMsgData(
 	message *JsMessage,
-	messageNode *rhino.Node,
+	messageNode rhino.Node,
 	messageOptions *ReplaceMessages_MsgOptions,
-	placeholderValueMap *jutil.LinkedHashMap[string, *rhino.Node]) *ReplaceMessages_FullReplacementMsgData {
+	placeholderValueMap *jutil.LinkedHashMap[string, rhino.Node]) *ReplaceMessages_FullReplacementMsgData {
 	return &ReplaceMessages_FullReplacementMsgData{
 		message:             message,
 		messageNode:         messageNode,
@@ -578,7 +578,7 @@ func NewReplaceMessages_FullReplacementMsgData(
 func (d *ReplaceMessages_FullReplacementMsgData) Message() *JsMessage { return d.message }
 
 // Java: ReplaceMessages.FullReplacementMsgData.messageNode()
-func (d *ReplaceMessages_FullReplacementMsgData) MessageNode() *rhino.Node { return d.messageNode }
+func (d *ReplaceMessages_FullReplacementMsgData) MessageNode() rhino.Node { return d.messageNode }
 
 // Java: ReplaceMessages.FullReplacementMsgData.messageOptions()
 func (d *ReplaceMessages_FullReplacementMsgData) MessageOptions() *ReplaceMessages_MsgOptions {
@@ -586,7 +586,7 @@ func (d *ReplaceMessages_FullReplacementMsgData) MessageOptions() *ReplaceMessag
 }
 
 // Java: ReplaceMessages.FullReplacementMsgData.placeholderValueMap()
-func (d *ReplaceMessages_FullReplacementMsgData) PlaceholderValueMap() *jutil.LinkedHashMap[string, *rhino.Node] {
+func (d *ReplaceMessages_FullReplacementMsgData) PlaceholderValueMap() *jutil.LinkedHashMap[string, rhino.Node] {
 	return d.placeholderValueMap
 }
 
@@ -604,11 +604,11 @@ func NewReplaceMessages_FullReplacementPass(outer *ReplaceMessages) *ReplaceMess
 }
 
 // Java: ReplaceMessages.FullReplacementPass.processMessageFallback(Node, JsMessage, JsMessage)
-func (p *ReplaceMessages_FullReplacementPass) ProcessMessageFallback(callNode *rhino.Node, message1 *JsMessage, message2 *JsMessage) {
+func (p *ReplaceMessages_FullReplacementPass) ProcessMessageFallback(callNode rhino.Node, message1 *JsMessage, message2 *JsMessage) {
 	r := p.outer
 	isFirstMessageTranslated := r.LookupMessage(callNode, r.bundle, message1) != nil
 	isSecondMessageTranslated := r.LookupMessage(callNode, r.bundle, message2) != nil
-	var replacementNode *rhino.Node
+	var replacementNode rhino.Node
 	if isSecondMessageTranslated && !isFirstMessageTranslated {
 		replacementNode = callNode.GetChildAtIndex(2)
 	} else {
@@ -616,7 +616,7 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessMessageFallback(callNode *r
 	}
 	callNode.ReplaceWith(replacementNode.Detach())
 	changeScope := ChangeTracker_GetEnclosingChangeScopeRoot(replacementNode)
-	if changeScope != nil {
+	if !changeScope.IsNil() {
 		r.compiler.ReportChangeToChangeScope(changeScope)
 	}
 }
@@ -630,7 +630,7 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessIcuTemplateDefinition(defin
 			/* messageOptions= */ replaceMessages_ICU_MSG_OPTIONS,
 			// There are no compile-time placeholder replacements for an ICU template message.
 			/* placeholderValueMap= */
-			jutil.NewLinkedHashMap[string, *rhino.Node]()))
+			jutil.NewLinkedHashMap[string, rhino.Node]()))
 }
 
 // Java: ReplaceMessages.FullReplacementPass.processJsMessageDefinition(JsMessageDefinition)
@@ -666,7 +666,7 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessFullReplacement(fullReplace
 	}
 
 	// Replace the message.
-	var newValue *rhino.Node
+	var newValue rhino.Node
 	jutil.Try(func() {
 		// Build the replacement tree.
 		newValue = r.ConstructStringExprNode(replacement, placeholderValueMap, options, msgNode)
@@ -700,7 +700,7 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessFullReplacement(fullReplace
 //
 // Java: ReplaceMessages.createNodeForGenderedMsgString(JsMessage, Map<String, Node>, ReplaceMessages.MsgOptions, Node)
 func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
-	message *JsMessage, placeholderMap *jutil.LinkedHashMap[string, *rhino.Node], options *ReplaceMessages_MsgOptions, nodeToReplace *rhino.Node) *rhino.Node {
+	message *JsMessage, placeholderMap *jutil.LinkedHashMap[string, rhino.Node], options *ReplaceMessages_MsgOptions, nodeToReplace rhino.Node) rhino.Node {
 
 	// Dynamically build parameter list with unique ids for each placeholder
 	paramList := r.astFactory.CreateParamList()
@@ -754,7 +754,7 @@ func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 //
 // Java: ReplaceMessages.createConditionForGrammaticalGender(AstFactory.Type, JsMessage.GrammaticalGenderCase, Node)
 func (r *ReplaceMessages) CreateConditionForGrammaticalGender(
-	type_ AstFactory_Type, grammaticalGender JsMessage_GrammaticalGenderCase, nodeToReplace *rhino.Node) *rhino.Node {
+	type_ AstFactory_Type, grammaticalGender JsMessage_GrammaticalGenderCase, nodeToReplace rhino.Node) rhino.Node {
 
 	// NOTE: Collapse properties isn't guarantee to collapse any given property but if
 	// we get a partial collapse of "goog.msgKind" then something has gone very wrong
@@ -802,19 +802,19 @@ func (r *ReplaceMessages) CreateHookExpressionForGenderedMsg(
 	type_ AstFactory_Type,
 	msg *JsMessage,
 	options *ReplaceMessages_MsgOptions,
-	nodeToReplace *rhino.Node,
-	placeholderMapIds *jutil.LinkedHashMap[string, string]) *rhino.Node {
+	nodeToReplace rhino.Node,
+	placeholderMapIds *jutil.LinkedHashMap[string, string]) rhino.Node {
 
 	hookHead := rhino.IR_Hook(rhino.IR_Name(""), rhino.IR_String(""), rhino.IR_String(""))
 	hookHead.SetColor(nodeToReplace.GetColor())
 	// The previous hook condition needing to be replaced
 	placeholderHook := hookHead
 
-	placeholderNodeProvider := ReplaceMessages_PlaceholderNodeProviderFunc(func(placeholderName string) *rhino.Node {
+	placeholderNodeProvider := ReplaceMessages_PlaceholderNodeProviderFunc(func(placeholderName string) rhino.Node {
 		if placeholderId, ok := placeholderMapIds.Lookup(placeholderName); ok {
 			return r.astFactory.CreateName(placeholderId, AstFactory_Type_(nodeToReplace))
 		}
-		return nil
+		return rhino.Node{}
 	})
 
 	for _, grammaticalGender := range msg.GetGenderedMessageVariants() {
@@ -838,7 +838,7 @@ func (r *ReplaceMessages) CreateHookExpressionForGenderedMsg(
 			r.astFactory.CreateString(""))
 		currentHook.SetColor(nodeToReplace.GetColor())
 
-		if placeholderHook.GetParent() != nil {
+		if !placeholderHook.GetParent().IsNil() {
 			// Replace the previous hook condition with the current hook condition
 			parent := placeholderHook.GetParent()
 			parent.GetLastChild().ReplaceWith(currentHook)
@@ -867,17 +867,17 @@ type ReplaceMessages_PlaceholderNodeProvider interface {
 	// Get may return nil.
 	//
 	// Java: ReplaceMessages.PlaceholderNodeProvider.get(String)
-	Get(placeholderName string) *rhino.Node
+	Get(placeholderName string) rhino.Node
 }
 
 // ReplaceMessages_PlaceholderNodeProviderFunc lets a Go closure stand for a
 // Java lambda or method reference implementing PlaceholderNodeProvider.
 //
 // Go-only: language-adapter
-type ReplaceMessages_PlaceholderNodeProviderFunc func(placeholderName string) *rhino.Node
+type ReplaceMessages_PlaceholderNodeProviderFunc func(placeholderName string) rhino.Node
 
 // Get calls f.
-func (f ReplaceMessages_PlaceholderNodeProviderFunc) Get(placeholderName string) *rhino.Node {
+func (f ReplaceMessages_PlaceholderNodeProviderFunc) Get(placeholderName string) rhino.Node {
 	return f(placeholderName)
 }
 
@@ -900,9 +900,9 @@ func (f ReplaceMessages_PlaceholderNodeProviderFunc) Get(placeholderName string)
 func (r *ReplaceMessages) BuildMessageNode(
 	msgParts []JsMessage_Part,
 	options *ReplaceMessages_MsgOptions,
-	nodeToReplace *rhino.Node,
+	nodeToReplace rhino.Node,
 	placeholderNodeProvider ReplaceMessages_PlaceholderNodeProvider,
-	isGenderedMsg bool) *rhino.Node {
+	isGenderedMsg bool) rhino.Node {
 
 	// A message might have normal string parts that are consecutive.
 	// Join them together before processing them further. This allows split HTML entities
@@ -911,13 +911,13 @@ func (r *ReplaceMessages) BuildMessageNode(
 	if len(parts) == 0 {
 		return r.astFactory.CreateString("")
 	}
-	var message *rhino.Node
+	var message rhino.Node
 	for _, msgPart := range parts {
-		var partNode *rhino.Node
+		var partNode rhino.Node
 		if msgPart.IsPlaceholder() {
 			jsPlaceholderName := msgPart.GetJsPlaceholderName()
 			valueNode := placeholderNodeProvider.Get(jsPlaceholderName)
-			if valueNode == nil {
+			if valueNode.IsNil() {
 				if isGenderedMsg {
 					// Add the ICU placeholder directly to the message ex: 'Hello {NAME}'
 					partNode = r.astFactory.CreateString("{" + msgPart.GetCanonicalPlaceholderName() + "}")
@@ -933,7 +933,7 @@ func (r *ReplaceMessages) BuildMessageNode(
 			partNode = r.CreateNodeForMsgString(options, msgPart.GetString())
 		}
 
-		if message == nil {
+		if message.IsNil() {
 			message = partNode
 		} else if partNode.IsString() && message.IsString() {
 			message = r.astFactory.CreateString(message.GetString() + partNode.GetString())
@@ -957,7 +957,7 @@ func (r *ReplaceMessages) BuildMessageNode(
 //
 // Java: ReplaceMessages.constructStringExprNode(JsMessage, Map<String, Node>, ReplaceMessages.MsgOptions, Node)
 func (r *ReplaceMessages) ConstructStringExprNode(
-	message *JsMessage, placeholderMap *jutil.LinkedHashMap[string, *rhino.Node], options *ReplaceMessages_MsgOptions, nodeToReplace *rhino.Node) *rhino.Node {
+	message *JsMessage, placeholderMap *jutil.LinkedHashMap[string, rhino.Node], options *ReplaceMessages_MsgOptions, nodeToReplace rhino.Node) rhino.Node {
 
 	// If the message has gendered variants, create a hook expression containing the gendered
 	// variants.
@@ -973,7 +973,7 @@ func (r *ReplaceMessages) ConstructStringExprNode(
 //
 // Java: ReplaceMessages.constructNonGenderedMsgNode(JsMessage, Map<String, Node>, ReplaceMessages.MsgOptions, Node)
 func (r *ReplaceMessages) ConstructNonGenderedMsgNode(
-	message *JsMessage, placeholderMap *jutil.LinkedHashMap[string, *rhino.Node], options *ReplaceMessages_MsgOptions, nodeToReplace *rhino.Node) *rhino.Node {
+	message *JsMessage, placeholderMap *jutil.LinkedHashMap[string, rhino.Node], options *ReplaceMessages_MsgOptions, nodeToReplace rhino.Node) rhino.Node {
 	if placeholderMap.IsEmpty() {
 		// The compiler does not expect to do any placeholder substitution, because the message
 		// definition in the JS code doesn't have any placeholders.
@@ -1024,7 +1024,7 @@ func (r *ReplaceMessages) ConstructNonGenderedMsgNode(
 }
 
 // Java: ReplaceMessages.createNodeForMsgString(ReplaceMessages.MsgOptions, String)
-func (r *ReplaceMessages) CreateNodeForMsgString(options *ReplaceMessages_MsgOptions, s string) *rhino.Node {
+func (r *ReplaceMessages) CreateNodeForMsgString(options *ReplaceMessages_MsgOptions, s string) rhino.Node {
 	if options.EscapeLessThan() {
 		// Note that "&" is not replaced because the translation can contain HTML entities.
 		s = strings.ReplaceAll(s, "<", "&lt;")
@@ -1134,9 +1134,9 @@ type ReplaceMessages_ProtectedJsMessage struct {
 	jsMessage *JsMessage
 	// The expression Node that defines the message and should be replaced with the localized
 	// message.
-	definitionNode *rhino.Node
+	definitionNode rhino.Node
 	// e.g. `{ name: x.getName(), age: x.getAgeString() }`
-	substitutionsNode *rhino.Node // may be nil
+	substitutionsNode rhino.Node // may be nil
 	// The message was defined in JS code using the ICU template method.
 	isIcuTemplate bool
 	// Replace `'<'` with `'&lt;'` in the message.
@@ -1154,8 +1154,8 @@ type ReplaceMessages_ProtectedJsMessage struct {
 // Java: ReplaceMessages.ProtectedJsMessage(JsMessage, Node, Node, boolean, boolean, boolean)
 func NewReplaceMessages_ProtectedJsMessage(
 	jsMessage *JsMessage,
-	definitionNode *rhino.Node,
-	substitutionsNode *rhino.Node,
+	definitionNode rhino.Node,
+	substitutionsNode rhino.Node,
 	isIcuTemplate bool,
 	escapeLessThan bool,
 	unescapeHtmlEntities bool) *ReplaceMessages_ProtectedJsMessage {
@@ -1171,15 +1171,15 @@ func NewReplaceMessages_ProtectedJsMessage(
 
 // Java: ReplaceMessages.ProtectedJsMessage.fromAstNode(Node, JsMessage.IdGenerator)
 func ReplaceMessages_ProtectedJsMessage_FromAstNode(
-	node *rhino.Node, idGenerator JsMessage_IdGenerator) *ReplaceMessages_ProtectedJsMessage {
+	node rhino.Node, idGenerator JsMessage_IdGenerator) *ReplaceMessages_ProtectedJsMessage {
 	if !node.IsCall() {
 		return nil
 	}
-	calleeNode := jutil.CheckNotNullMsg1(node.GetFirstChild(), "%s", node)
+	calleeNode := rhino.CheckNotNullMsg1(node.GetFirstChild(), "%s", node)
 	if !calleeNode.MatchesName(ReplaceMessagesConstants_DEFINE_MSG_CALLEE) {
 		return nil
 	}
-	propertiesNode := jutil.CheckNotNullMsg1(calleeNode.GetNext(), "%s", calleeNode)
+	propertiesNode := rhino.CheckNotNullMsg1(calleeNode.GetNext(), "%s", calleeNode)
 	substitutionsNode := propertiesNode.GetNext()
 	escapeLessThanOption := false
 	unescapeHtmlEntitiesOption := false
@@ -1190,8 +1190,8 @@ func ReplaceMessages_ProtectedJsMessage_FromAstNode(
 	var meaning *string
 	icuPlaceholderNames := jutil.NewLinkedHashSet[string]()
 	var messageText *string
-	var messageTextNode *rhino.Node
-	for strKey := propertiesNode.GetFirstChild(); strKey != nil; strKey = strKey.GetNext() {
+	var messageTextNode rhino.Node
+	for strKey := propertiesNode.GetFirstChild(); !strKey.IsNil(); strKey = strKey.GetNext() {
 		jutil.CheckStateMsg1(strKey.IsStringKey(), "%s", strKey)
 		key := strKey.GetString()
 		valueNode := strKey.GetOnlyChild()

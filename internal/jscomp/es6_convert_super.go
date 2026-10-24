@@ -54,7 +54,7 @@ func NewEs6ConvertSuper(compiler AbstractCompiler) *Es6ConvertSuper {
 }
 
 // Java: Es6ConvertSuper.visit(NodeTraversal, Node, Node)
-func (e *Es6ConvertSuper) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6ConvertSuper) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsClass() {
 		e.constructorSynthesizer.SynthesizeClassConstructorIfMissing(t, n)
 	} else if n.IsSuper() {
@@ -63,13 +63,13 @@ func (e *Es6ConvertSuper) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.N
 }
 
 // Java: Es6ConvertSuper.isInterface(Node)
-func (e *Es6ConvertSuper) IsInterface(classNode *rhino.Node) bool {
+func (e *Es6ConvertSuper) IsInterface(classNode rhino.Node) bool {
 	classJsDocInfo := NodeUtil_GetBestJSDocInfo(classNode)
 	return classJsDocInfo != nil && classJsDocInfo.IsInterface()
 }
 
 // Java: Es6ConvertSuper.visitSuper(Node, Node)
-func (e *Es6ConvertSuper) VisitSuper(node *rhino.Node, parent *rhino.Node) {
+func (e *Es6ConvertSuper) VisitSuper(node rhino.Node, parent rhino.Node) {
 	jutil.CheckState(node.IsSuper())
 	exprRoot := node
 
@@ -79,7 +79,7 @@ func (e *Es6ConvertSuper) VisitSuper(node *rhino.Node, parent *rhino.Node) {
 
 	enclosingMemberDef := NodeUtil_GetEnclosingNode(
 		exprRoot,
-		func(n *rhino.Node) bool {
+		func(n rhino.Node) bool {
 			switch n.GetToken() {
 			case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP:
 				return true
@@ -88,7 +88,7 @@ func (e *Es6ConvertSuper) VisitSuper(node *rhino.Node, parent *rhino.Node) {
 			}
 		})
 
-	if enclosingMemberDef == nil || enclosingMemberDef.GetParent().IsObjectLit() {
+	if enclosingMemberDef.IsNil() || enclosingMemberDef.GetParent().IsObjectLit() {
 		e.compiler.Report(
 			JSError_MakeWithNode(node, TranspilationUtil_CANNOT_CONVERT, "super is not supported in object literal methods."))
 		return
@@ -127,7 +127,7 @@ func (e *Es6ConvertSuper) VisitSuper(node *rhino.Node, parent *rhino.Node) {
 }
 
 // Java: Es6ConvertSuper.visitSuperCall(Node, Node, Node)
-func (e *Es6ConvertSuper) VisitSuperCall(node *rhino.Node, parent *rhino.Node, enclosingMemberDef *rhino.Node) {
+func (e *Es6ConvertSuper) VisitSuperCall(node rhino.Node, parent rhino.Node, enclosingMemberDef rhino.Node) {
 	jutil.CheckStateMsg1(parent.IsCall(), "%s", parent)
 	jutil.CheckStateMsg1(node.IsSuper(), "%s", node)
 
@@ -160,7 +160,7 @@ func (e *Es6ConvertSuper) VisitSuperCall(node *rhino.Node, parent *rhino.Node, e
 }
 
 // Java: Es6ConvertSuper.visitSuperPropertyCall(Node, Node, Node)
-func (e *Es6ConvertSuper) VisitSuperPropertyCall(node *rhino.Node, parent *rhino.Node, enclosingMemberDef *rhino.Node) {
+func (e *Es6ConvertSuper) VisitSuperPropertyCall(node rhino.Node, parent rhino.Node, enclosingMemberDef rhino.Node) {
 	jutil.CheckStateMsg1(parent.IsGetProp() || parent.IsGetElem(), "%s", parent)
 	jutil.CheckStateMsg1(node.IsSuper(), "%s", node)
 	grandparent := parent.GetParent()
@@ -207,7 +207,7 @@ func (e *Es6ConvertSuper) VisitSuperPropertyCall(node *rhino.Node, parent *rhino
 }
 
 // Java: Es6ConvertSuper.visitSuperPropertyAccess(Node, Node, Node)
-func (e *Es6ConvertSuper) VisitSuperPropertyAccess(node *rhino.Node, parent *rhino.Node, enclosingMemberDef *rhino.Node) {
+func (e *Es6ConvertSuper) VisitSuperPropertyAccess(node rhino.Node, parent rhino.Node, enclosingMemberDef rhino.Node) {
 	jutil.CheckStateMsg1(parent.IsGetProp() || parent.IsGetElem(), "%s", parent)
 	jutil.CheckStateMsg1(node.IsSuper(), "%s", node)
 	grandparent := parent.GetParent()
@@ -225,7 +225,7 @@ func (e *Es6ConvertSuper) VisitSuperPropertyAccess(node *rhino.Node, parent *rhi
 		return
 	}
 
-	var newProp *rhino.Node
+	var newProp rhino.Node
 	if enclosingMemberDef.IsStaticMember() {
 		// super.prop -> SuperClass.prop
 		newProp = superName.CloneTree().SrcrefTree(node)
@@ -245,7 +245,7 @@ func (e *Es6ConvertSuper) VisitSuperPropertyAccess(node *rhino.Node, parent *rhi
 		reflectGet := e.astFactory.CreateGetPropWithUnknownType(
 			e.astFactory.CreateConstantName("Reflect", AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)),
 			"get")
-		var propertyArg *rhino.Node
+		var propertyArg rhino.Node
 		if parent.IsGetProp() {
 			propertyArg = e.astFactory.CreateCall(
 				e.astFactory.CreateName(
@@ -290,15 +290,15 @@ func (e *Es6ConvertSuper) VisitSuperPropertyAccess(node *rhino.Node, parent *rhi
 // dereferences it; the INTERNAL COMPILER ERROR report that follows prints
 // the exception's message, which the JVM derives from the bytecode of this
 // call. A Go nil dereference has none.
-func es6ConvertSuper_secondChildOfClazz(clazz *rhino.Node) *rhino.Node {
-	if clazz == nil {
+func es6ConvertSuper_secondChildOfClazz(clazz rhino.Node) rhino.Node {
+	if clazz.IsNil() {
 		panic(jutil.NewHelpfulNullPointerException(`Cannot invoke "com.google.javascript.rhino.Node.getSecondChild()" because "clazz" is null`))
 	}
 	return clazz.GetSecondChild()
 }
 
 // Java: Es6ConvertSuper.ensureNoCollapseOnStaticMemberDef(Node)
-func (e *Es6ConvertSuper) EnsureNoCollapseOnStaticMemberDef(memberDef *rhino.Node) {
+func (e *Es6ConvertSuper) EnsureNoCollapseOnStaticMemberDef(memberDef rhino.Node) {
 	if !memberDef.IsStaticMember() {
 		return
 	}
@@ -309,7 +309,7 @@ func (e *Es6ConvertSuper) EnsureNoCollapseOnStaticMemberDef(memberDef *rhino.Nod
 }
 
 // Java: Es6ConvertSuper.process(Node, Node)
-func (e *Es6ConvertSuper) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6ConvertSuper) Process(externs rhino.Node, root rhino.Node) {
 	// Might need to synthesize constructors for ambient classes in .d.ts externs
 	TranspilationPasses_ProcessTranspile(e.compiler, externs, es6ConvertSuper_FEATURES_TO_RUN_FOR, e)
 	TranspilationPasses_ProcessTranspile(e.compiler, root, es6ConvertSuper_FEATURES_TO_RUN_FOR, e)

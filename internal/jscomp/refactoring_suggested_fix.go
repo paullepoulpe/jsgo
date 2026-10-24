@@ -183,7 +183,7 @@ func NewSuggestedFix_Builder() *SuggestedFix_Builder {
 // SuggestedFix to be built in the first place.
 //
 // Java: SuggestedFix.Builder.attachMatchedNodeInfo(Node, AbstractCompiler)
-func (b *SuggestedFix_Builder) AttachMatchedNodeInfo(node *rhino.Node, compiler AbstractCompiler) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) AttachMatchedNodeInfo(node rhino.Node, compiler AbstractCompiler) *SuggestedFix_Builder {
 	b.matchedNodeInfo =
 		SuggestedFix_MatchedNodeInfo_Create(
 			node, RefactoringUtils_IsInClosurizedFile(node, NewNodeMetadata(compiler)))
@@ -202,7 +202,7 @@ func (b *SuggestedFix_Builder) AddAlternative(alternative *SuggestedFix) *Sugges
 // ReplaceText replaces text starting at the given node position.
 //
 // Java: SuggestedFix.Builder.replaceText(Node, int, String)
-func (b *SuggestedFix_Builder) ReplaceText(node *rhino.Node, length int, newContent string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) ReplaceText(node rhino.Node, length int, newContent string) *SuggestedFix_Builder {
 	startPosition := node.GetSourceOffset()
 	b.replacements.Put(
 		*node.GetSourceFileName(), CodeReplacement_Create(startPosition, length, newContent))
@@ -213,7 +213,7 @@ func (b *SuggestedFix_Builder) ReplaceText(node *rhino.Node, length int, newCont
 // node.
 //
 // Java: SuggestedFix.Builder.addChildToFront(Node, String)
-func (b *SuggestedFix_Builder) AddChildToFront(parentNode *rhino.Node, content string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) AddChildToFront(parentNode rhino.Node, content string) *SuggestedFix_Builder {
 	jutil.CheckStateMsg(
 		parentNode.IsBlock(), "addChildToFront is only supported for BLOCK statements.")
 	startPosition := parentNode.GetSourceOffset() + 1
@@ -225,7 +225,7 @@ func (b *SuggestedFix_Builder) AddChildToFront(parentNode *rhino.Node, content s
 // InsertAfter inserts the text after the given node.
 //
 // Java: SuggestedFix.Builder.insertAfter(Node, String)
-func (b *SuggestedFix_Builder) InsertAfter(node *rhino.Node, text string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) InsertAfter(node rhino.Node, text string) *SuggestedFix_Builder {
 	position := node.GetSourceOffset() + node.GetLength()
 	b.replacements.Put(*node.GetSourceFileName(), CodeReplacement_Create(position, 0, text))
 	return b
@@ -234,13 +234,13 @@ func (b *SuggestedFix_Builder) InsertAfter(node *rhino.Node, text string) *Sugge
 // InsertBeforeNode inserts a new node before the provided node.
 //
 // Java: SuggestedFix.Builder.insertBefore(Node, Node, AbstractCompiler)
-func (b *SuggestedFix_Builder) InsertBeforeNode(nodeToInsertBefore *rhino.Node, n *rhino.Node, compiler AbstractCompiler) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) InsertBeforeNode(nodeToInsertBefore rhino.Node, n rhino.Node, compiler AbstractCompiler) *SuggestedFix_Builder {
 	return b.InsertBeforeNodeWithSortKey(nodeToInsertBefore, n, compiler, "")
 }
 
 // Java: SuggestedFix.Builder.insertBefore(Node, Node, AbstractCompiler, String)
 func (b *SuggestedFix_Builder) InsertBeforeNodeWithSortKey(
-	nodeToInsertBefore *rhino.Node, n *rhino.Node, compiler AbstractCompiler, sortKey string) *SuggestedFix_Builder {
+	nodeToInsertBefore rhino.Node, n rhino.Node, compiler AbstractCompiler, sortKey string) *SuggestedFix_Builder {
 	return b.InsertBeforeWithSortKey(nodeToInsertBefore, b.GenerateCode(compiler, n), sortKey)
 }
 
@@ -249,12 +249,12 @@ func (b *SuggestedFix_Builder) InsertBeforeNodeWithSortKey(
 // currently support printing comments.
 //
 // Java: SuggestedFix.Builder.insertBefore(Node, String)
-func (b *SuggestedFix_Builder) InsertBefore(nodeToInsertBefore *rhino.Node, content string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) InsertBefore(nodeToInsertBefore rhino.Node, content string) *SuggestedFix_Builder {
 	return b.InsertBeforeWithSortKey(nodeToInsertBefore, content, "")
 }
 
 // Java: SuggestedFix.Builder.insertBefore(Node, String, String)
-func (b *SuggestedFix_Builder) InsertBeforeWithSortKey(nodeToInsertBefore *rhino.Node, content string, sortKey string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) InsertBeforeWithSortKey(nodeToInsertBefore rhino.Node, content string, sortKey string) *SuggestedFix_Builder {
 	startPosition := SuggestedFix_GetStartPositionForNodeConsideringComments(nodeToInsertBefore)
 	jutil.CheckNotNullMsg1(nodeToInsertBefore.GetSourceFileName(),
 		"No source file name for node: %s", nodeToInsertBefore)
@@ -269,7 +269,7 @@ func (b *SuggestedFix_Builder) InsertBeforeWithSortKey(nodeToInsertBefore *rhino
 // whitespace before the node.
 //
 // Java: SuggestedFix.Builder.delete(Node)
-func (b *SuggestedFix_Builder) Delete(n *rhino.Node) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) Delete(n rhino.Node) *SuggestedFix_Builder {
 	return b.DeleteWithWhitespaceBefore(n, true)
 }
 
@@ -277,12 +277,12 @@ func (b *SuggestedFix_Builder) Delete(n *rhino.Node) *SuggestedFix_Builder {
 // source file.
 //
 // Java: SuggestedFix.Builder.delete(Node, boolean)
-func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n *rhino.Node, deleteWhitespaceBefore bool) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n rhino.Node, deleteWhitespaceBefore bool) *SuggestedFix_Builder {
 	startPosition := SuggestedFix_GetStartPositionForNodeConsideringComments(n)
 	startOffsetWithoutComments := n.GetSourceOffset()
 	length := (startOffsetWithoutComments - startPosition) + n.GetLength()
 
-	if n.GetNext() != nil &&
+	if !n.GetNext().IsNil() &&
 		NodeUtil_GetBestJSDocInfo(n.GetNext()) == nil &&
 		n.GetNext().GetNonJSDocComment() == nil {
 		length = n.GetNext().GetSourceOffset() - startPosition
@@ -296,7 +296,7 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n *rhino.Node, deleteW
 	// TODO(mknichel): Move this logic and the start position logic to a
 	// helper function so that it can be reused in other methods.
 	if (n.IsName() && NodeUtil_IsNameDeclaration(n.GetParent())) || n.IsStringKey() {
-		if n.GetNext() != nil {
+		if !n.GetNext().IsNil() {
 			length = SuggestedFix_GetStartPositionForNodeConsideringComments(n.GetNext()) - startPosition
 		} else if n.HasChildren() {
 			child := n.GetFirstChild()
@@ -320,10 +320,10 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n *rhino.Node, deleteW
 
 	parent := n.GetParent()
 	if deleteWhitespaceBefore &&
-		parent != nil &&
+		!parent.IsNil() &&
 		(parent.IsScript() || parent.IsBlock()) {
 		previousSibling := n.GetPrevious()
-		if previousSibling != nil {
+		if !previousSibling.IsNil() {
 			previousSiblingEndPosition :=
 				previousSibling.GetSourceOffset() + previousSibling.GetLength()
 			length += (startPosition - previousSiblingEndPosition)
@@ -338,7 +338,7 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n *rhino.Node, deleteW
 // from the source file.
 //
 // Java: SuggestedFix.Builder.deleteWithoutRemovingWhitespaceBefore(Node)
-func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespaceBefore(n *rhino.Node) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespaceBefore(n rhino.Node) *SuggestedFix_Builder {
 	return b.DeleteWithWhitespaceBefore(n, false)
 }
 
@@ -346,7 +346,7 @@ func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespaceBefore(n *rhino.No
 // surrounding whitespace.
 //
 // Java: SuggestedFix.Builder.deleteWithoutRemovingWhitespace(Node)
-func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespace(n *rhino.Node) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespace(n rhino.Node) *SuggestedFix_Builder {
 	b.replacements.Put(
 		*n.GetSourceFileName(), CodeReplacement_Create(n.GetSourceOffset(), n.GetLength(), ""))
 	return b
@@ -357,7 +357,7 @@ func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespace(n *rhino.Node) *S
 // n is the node to rename; name is the new name for the node.
 //
 // Java: SuggestedFix.Builder.rename(Node, String)
-func (b *SuggestedFix_Builder) Rename(n *rhino.Node, name string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) Rename(n rhino.Node, name string) *SuggestedFix_Builder {
 	return b.RenameWithReplaceNameSubtree(n, name, false)
 }
 
@@ -371,8 +371,8 @@ func (b *SuggestedFix_Builder) Rename(n *rhino.Node, name string) *SuggestedFix_
 // will be renamed to `bar()`.
 //
 // Java: SuggestedFix.Builder.rename(Node, String, boolean)
-func (b *SuggestedFix_Builder) RenameWithReplaceNameSubtree(n *rhino.Node, name string, replaceNameSubtree bool) *SuggestedFix_Builder {
-	var range_ *rhino.Node
+func (b *SuggestedFix_Builder) RenameWithReplaceNameSubtree(n rhino.Node, name string, replaceNameSubtree bool) *SuggestedFix_Builder {
+	var range_ rhino.Node
 	switch n.GetToken() {
 	case rhino.Token_CALL, rhino.Token_TAGGED_TEMPLATELIT:
 		return b.RenameWithReplaceNameSubtree(n.GetFirstChild(), name, replaceNameSubtree)
@@ -401,7 +401,7 @@ func (b *SuggestedFix_Builder) RenameWithReplaceNameSubtree(n *rhino.Node, name 
 // ReplaceRange replaces a range of nodes with the given content.
 //
 // Java: SuggestedFix.Builder.replaceRange(Node, Node, String)
-func (b *SuggestedFix_Builder) ReplaceRange(first *rhino.Node, last *rhino.Node, newContent string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) ReplaceRange(first rhino.Node, last rhino.Node, newContent string) *SuggestedFix_Builder {
 	jutil.CheckState(first.GetParent() == last.GetParent())
 
 	start := SuggestedFix_GetStartPositionForNodeConsideringComments(first)
@@ -420,12 +420,12 @@ func (b *SuggestedFix_Builder) ReplaceRange(first *rhino.Node, last *rhino.Node,
 // Replace replaces the provided node with new node in the source file.
 //
 // Java: SuggestedFix.Builder.replace(Node, Node, AbstractCompiler)
-func (b *SuggestedFix_Builder) Replace(original *rhino.Node, newNode *rhino.Node, compiler AbstractCompiler) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) Replace(original rhino.Node, newNode rhino.Node, compiler AbstractCompiler) *SuggestedFix_Builder {
 	parent := original.GetParent()
 	// EXPR_RESULT nodes will contain the trailing semicolons, but the child
 	// node will not. Replace the EXPR_RESULT node to ensure that the
 	// semicolons are correct in the final output.
-	if parent != nil && parent.IsExprResult() {
+	if !parent.IsNil() && parent.IsExprResult() {
 		original = parent
 	}
 	// TODO(mknichel): Move this logic to CodePrinter.
@@ -440,7 +440,7 @@ func (b *SuggestedFix_Builder) Replace(original *rhino.Node, newNode *rhino.Node
 	// however, some statements that are blocks or expressions will need the
 	// semicolon.
 	needsSemicolon :=
-		parent != nil &&
+		!parent.IsNil() &&
 			(parent.IsExprResult() ||
 				parent.IsBlock() ||
 				parent.IsScript() ||
@@ -451,7 +451,7 @@ func (b *SuggestedFix_Builder) Replace(original *rhino.Node, newNode *rhino.Node
 
 	// If the replacement has lower precedence then we may need to add
 	// parentheses.
-	if parent != nil && rhino.IR_MayBeExpression(parent) {
+	if !parent.IsNil() && rhino.IR_MayBeExpression(parent) {
 		replacement := newNode
 		for (replacement.IsBlock() || replacement.IsScript() || replacement.IsModuleBody()) &&
 			replacement.HasOneChild() {
@@ -484,7 +484,7 @@ func (b *SuggestedFix_Builder) Replace(original *rhino.Node, newNode *rhino.Node
 // AddCast adds a cast of the given type to the provided node.
 //
 // Java: SuggestedFix.Builder.addCast(Node, AbstractCompiler, String)
-func (b *SuggestedFix_Builder) AddCast(n *rhino.Node, compiler AbstractCompiler, type_ string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) AddCast(n rhino.Node, compiler AbstractCompiler, type_ string) *SuggestedFix_Builder {
 	// TODO(mknichel): Figure out the best way to output the typecast.
 	b.replacements.Put(
 		*n.GetSourceFileName(),
@@ -498,7 +498,7 @@ func (b *SuggestedFix_Builder) AddCast(n *rhino.Node, compiler AbstractCompiler,
 // RemoveCast removes a cast from the given node.
 //
 // Java: SuggestedFix.Builder.removeCast(Node, AbstractCompiler)
-func (b *SuggestedFix_Builder) RemoveCast(n *rhino.Node, compiler AbstractCompiler) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) RemoveCast(n rhino.Node, compiler AbstractCompiler) *SuggestedFix_Builder {
 	jutil.CheckArgument(n.IsCast())
 	jsDoc := n.GetJSDocInfo()
 	b.replacements.Put(
@@ -516,7 +516,7 @@ func (b *SuggestedFix_Builder) RemoveCast(n *rhino.Node, compiler AbstractCompil
 // AddOrReplaceJsDoc adds or replaces the JS Doc for the given node.
 //
 // Java: SuggestedFix.Builder.addOrReplaceJsDoc(Node, String)
-func (b *SuggestedFix_Builder) AddOrReplaceJsDoc(n *rhino.Node, newJsDoc string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) AddOrReplaceJsDoc(n rhino.Node, newJsDoc string) *SuggestedFix_Builder {
 	offset := n.GetSourceOffset()
 	length := 0
 
@@ -537,9 +537,9 @@ func (b *SuggestedFix_Builder) AddOrReplaceJsDoc(n *rhino.Node, newJsDoc string)
 // ChangeJsDocType changes the JS Doc Type of the given node.
 //
 // Java: SuggestedFix.Builder.changeJsDocType(Node, AbstractCompiler, String)
-func (b *SuggestedFix_Builder) ChangeJsDocType(n *rhino.Node, compiler AbstractCompiler, type_ string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) ChangeJsDocType(n rhino.Node, compiler AbstractCompiler, type_ string) *SuggestedFix_Builder {
 	typeNode := parsing.JsDocInfoParser_ParseTypeString(type_)
-	jutil.CheckNotNullMsg1(typeNode, "Invalid type: %s", type_)
+	rhino.CheckNotNullMsg1(typeNode, "Invalid type: %s", type_)
 	typeExpr := rhino.NewJSTypeExpression(typeNode, "jsflume")
 	newJsType := typeExpr.Evaluate(nil, compiler.GetTypeRegistry())
 	if newJsType == nil {
@@ -567,7 +567,7 @@ func (b *SuggestedFix_Builder) ChangeJsDocType(n *rhino.Node, compiler AbstractC
 // replaced.
 //
 // Java: SuggestedFix.Builder.replaceTypePattern(Node, String, Pattern)
-func (b *SuggestedFix_Builder) ReplaceTypePattern(n *rhino.Node, type_ string, pattern *jutil.Pattern) {
+func (b *SuggestedFix_Builder) ReplaceTypePattern(n rhino.Node, type_ string, pattern *jutil.Pattern) {
 	info := NodeUtil_GetBestJSDocInfo(n)
 	jutil.CheckNotNullMsg1(info, "Node %s does not have JS Doc associated with it.", n)
 	originalComment := info.GetOriginalCommentString()
@@ -588,16 +588,16 @@ func (b *SuggestedFix_Builder) ReplaceTypePattern(n *rhino.Node, type_ string, p
 // InsertArguments inserts arguments into an existing function call.
 //
 // Java: SuggestedFix.Builder.insertArguments(Node, int, String...)
-func (b *SuggestedFix_Builder) InsertArguments(n *rhino.Node, position int, args ...string) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) InsertArguments(n rhino.Node, position int, args ...string) *SuggestedFix_Builder {
 	jutil.CheckArgumentMsg(n.IsCall(), "insertArguments is only applicable to function call nodes.")
 	var startPosition int
 	argument := n.GetSecondChild()
 	i := 0
-	for argument != nil && i < position {
+	for !argument.IsNil() && i < position {
 		argument = argument.GetNext()
 		i++
 	}
-	if argument == nil {
+	if argument.IsNil() {
 		jutil.CheckArgumentMsg(
 			position == i, "The specified position must be less than the number of arguments.")
 		startPosition = n.GetSourceOffset() + n.GetLength() - 1
@@ -606,7 +606,7 @@ func (b *SuggestedFix_Builder) InsertArguments(n *rhino.Node, position int, args
 	}
 
 	newContent := strings.Join(args, ", ")
-	if argument != nil {
+	if !argument.IsNil() {
 		newContent += ", "
 	} else if i > 0 {
 		newContent = ", " + newContent
@@ -622,7 +622,7 @@ func (b *SuggestedFix_Builder) InsertArguments(n *rhino.Node, position int, args
 // comment to belong to the next argument.
 //
 // Java: SuggestedFix.Builder.deleteArgument(Node, int)
-func (b *SuggestedFix_Builder) DeleteArgument(n *rhino.Node, position int) *SuggestedFix_Builder {
+func (b *SuggestedFix_Builder) DeleteArgument(n rhino.Node, position int) *SuggestedFix_Builder {
 	jutil.CheckArgumentMsg(
 		n.IsCall() || n.IsNew(), "deleteArgument is only applicable to function call nodes.")
 
@@ -642,7 +642,7 @@ func (b *SuggestedFix_Builder) DeleteArgument(n *rhino.Node, position int) *Sugg
 	// Points one past the last position in the code we will remove.
 	endOfArgumentToRemove := -1
 	i := 0
-	for argument != nil {
+	for !argument.IsNil() {
 		// If we are removing the first argument, we remove from the start of
 		// it (including any jsdoc). Otherwise, we remove from the end of the
 		// previous argument (to remove the comma and any whitespace).
@@ -683,7 +683,7 @@ func (b *SuggestedFix_Builder) DeleteArgument(n *rhino.Node, position int) *Sugg
 //
 // Java: SuggestedFix.Builder.createImportNode(ImportType, String, String)
 func SuggestedFix_Builder_CreateImportNode(
-	importType SuggestedFix_ImportType, alias *string, namespace string) *rhino.Node {
+	importType SuggestedFix_ImportType, alias *string, namespace string) rhino.Node {
 	var requireFlavor string
 	switch importType {
 	case SuggestedFix_ImportType_REQUIRE:
@@ -755,12 +755,12 @@ func (b *SuggestedFix_Builder) AddImport(
 	metadata := m.GetMetadata()
 	existingNode := SuggestedFix_Builder_FindGoogRequireNode(m.GetNode(), metadata, namespace)
 
-	if existingNode != nil {
+	if !existingNode.IsNil() {
 		// TODO(b/139953612): Destructured goog.requires are not supported.
 
 		// Add an alias to a naked require if allowed in this file.
 		if existingNode.IsExprResult() && alias != nil {
-			var newNode *rhino.Node
+			var newNode rhino.Node
 			// Replace goog.forwardDeclare with the appropriate alternative
 			if NodeUtil_IsCallTo(existingNode.GetFirstChild(), "goog.forwardDeclare") {
 				newNode = SuggestedFix_Builder_CreateImportNode(importType, alias, namespace)
@@ -780,11 +780,11 @@ func (b *SuggestedFix_Builder) AddImport(
 		script = script.GetFirstChild()
 	}
 
-	var lastModuleOrProvideNode *rhino.Node
-	var lastGoogRequireNode *rhino.Node
-	var nodeToInsertBefore *rhino.Node
+	var lastModuleOrProvideNode rhino.Node
+	var lastGoogRequireNode rhino.Node
+	var nodeToInsertBefore rhino.Node
 	child := script.GetFirstChild()
-	for child != nil {
+	for !child.IsNil() {
 		if Matchers_GoogModule().Matches(child, metadata) {
 			lastModuleOrProvideNode = child
 		}
@@ -803,7 +803,7 @@ func (b *SuggestedFix_Builder) AddImport(
 				}
 			}
 		} else if NodeUtil_IsNameDeclaration(child) &&
-			child.GetFirstFirstChild() != nil &&
+			!child.GetFirstFirstChild().IsNil() &&
 			Matchers_GoogRequirelike().Matches(child.GetFirstFirstChild(), metadata) {
 			lastGoogRequireNode = child.GetFirstFirstChild()
 			requireName := child.GetFirstChild().GetString()
@@ -820,12 +820,12 @@ func (b *SuggestedFix_Builder) AddImport(
 	}
 
 	newImportNode := SuggestedFix_Builder_CreateImportNode(importType, alias, namespace)
-	if nodeToInsertBefore == nil {
+	if nodeToInsertBefore.IsNil() {
 		// The file has goog.provide or goog.require nodes but they come before
 		// the new goog.require node alphabetically.
-		if lastModuleOrProvideNode != nil || lastGoogRequireNode != nil {
-			var nodeToInsertAfter *rhino.Node
-			if lastGoogRequireNode != nil {
+		if !lastModuleOrProvideNode.IsNil() || !lastGoogRequireNode.IsNil() {
+			var nodeToInsertAfter rhino.Node
+			if !lastGoogRequireNode.IsNil() {
 				nodeToInsertAfter = lastGoogRequireNode
 			} else {
 				nodeToInsertAfter = lastModuleOrProvideNode
@@ -864,7 +864,7 @@ func (b *SuggestedFix_Builder) AddImport(
 // Java: SuggestedFix.Builder.removeGoogRequire(Match, String)
 func (b *SuggestedFix_Builder) RemoveGoogRequire(m *Match, namespace string) *SuggestedFix_Builder {
 	googRequireNode := SuggestedFix_Builder_FindGoogRequireNode(m.GetNode(), m.GetMetadata(), namespace)
-	if googRequireNode != nil {
+	if !googRequireNode.IsNil() {
 		return b.DeleteWithoutRemovingWhitespaceBefore(googRequireNode)
 	}
 	return b
@@ -880,34 +880,34 @@ func (b *SuggestedFix_Builder) RemoveGoogRequire(m *Match, namespace string) *Su
 //
 // Java: SuggestedFix.Builder.findGoogRequireNode(Node, NodeMetadata, String)
 func SuggestedFix_Builder_FindGoogRequireNode(
-	n *rhino.Node, metadata *NodeMetadata, namespace string) *rhino.Node {
+	n rhino.Node, metadata *NodeMetadata, namespace string) rhino.Node {
 	script := metadata.GetCompiler().GetScriptNode(*n.GetSourceFileName())
 	if script.GetFirstChild().IsModuleBody() {
 		script = script.GetFirstChild()
 	}
 
-	for child := script.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if NodeUtil_IsExprCall(child) &&
 			Matchers_GoogRequirelikeWithNamespace(namespace).Matches(child.GetFirstChild(), metadata) {
 			return child
 		}
 	}
 
-	for child := script.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if NodeUtil_IsNameDeclaration(child) &&
 			// TODO(b/139953612): respect destructured goog.requires
 			!child.GetFirstChild().IsDestructuringLhs() &&
-			child.GetFirstChild().GetLastChild() != nil &&
+			!child.GetFirstChild().GetLastChild().IsNil() &&
 			Matchers_GoogRequirelikeWithNamespace(namespace).
 				Matches(child.GetFirstChild().GetLastChild(), metadata) {
 			return child
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: SuggestedFix.Builder.subtreeRangeOfIdentifier(Node)
-func SuggestedFix_Builder_SubtreeRangeOfIdentifier(n *rhino.Node) *rhino.Node {
+func SuggestedFix_Builder_SubtreeRangeOfIdentifier(n rhino.Node) rhino.Node {
 	jutil.CheckStateMsg(n.IsGetProp(), "Support other identifier nodes")
 
 	leftmost := n
@@ -923,7 +923,7 @@ func SuggestedFix_Builder_SubtreeRangeOfIdentifier(n *rhino.Node) *rhino.Node {
 }
 
 // Java: SuggestedFix.Builder.generateCode(AbstractCompiler, Node)
-func (b *SuggestedFix_Builder) GenerateCode(compiler AbstractCompiler, node *rhino.Node) string {
+func (b *SuggestedFix_Builder) GenerateCode(compiler AbstractCompiler, node rhino.Node) string {
 	// TODO(mknichel): Fix all the formatting problems with this code.
 	// How does this play with goog.scope?
 	if node.IsBlock() {
@@ -1039,7 +1039,7 @@ func (i *SuggestedFix_MatchedNodeInfo) IsInClosurizedFile() bool {
 }
 
 // Java: SuggestedFix.MatchedNodeInfo.create(Node, boolean)
-func SuggestedFix_MatchedNodeInfo_Create(node *rhino.Node, closurized bool) *SuggestedFix_MatchedNodeInfo {
+func SuggestedFix_MatchedNodeInfo_Create(node rhino.Node, closurized bool) *SuggestedFix_MatchedNodeInfo {
 	return NewSuggestedFix_MatchedNodeInfo(
 		NodeUtil_GetSourceName(node), node.GetLineno(), node.GetCharno(), closurized)
 }
@@ -1049,7 +1049,7 @@ func SuggestedFix_MatchedNodeInfo_Create(node *rhino.Node, closurized bool) *Sug
 // comments, non-JDDoc comments, or both may or may not be attached.
 //
 // Java: SuggestedFix.getStartPositionForNodeConsideringComments(Node)
-func SuggestedFix_GetStartPositionForNodeConsideringComments(node *rhino.Node) int {
+func SuggestedFix_GetStartPositionForNodeConsideringComments(node rhino.Node) int {
 	jsdoc := NodeUtil_GetBestJSDocInfo(node)
 	associatedNonJSDocComment := node.GetNonJSDocComment()
 	start := node.GetSourceOffset()

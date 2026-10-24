@@ -52,7 +52,7 @@ func NewDeadPropertyAssignmentElimination(compiler AbstractCompiler) *DeadProper
 }
 
 // Java: DeadPropertyAssignmentElimination.process(Node, Node)
-func (d *DeadPropertyAssignmentElimination) Process(externs *rhino.Node, root *rhino.Node) {
+func (d *DeadPropertyAssignmentElimination) Process(externs rhino.Node, root rhino.Node) {
 	// GatherExternProperties must be enabled for this pass to safely know what property writes are
 	// eligible for removal.
 	if d.compiler.GetExternProperties() == nil || d.compiler.GetAccessorSummary() == nil {
@@ -130,7 +130,7 @@ func NewDeadPropertyAssignmentElimination_FunctionVisitor(skiplistedPropNames ju
 }
 
 // Java: DeadPropertyAssignmentElimination.FunctionVisitor.enterChangedScopeRoot(AbstractCompiler, Node)
-func (v *DeadPropertyAssignmentElimination_FunctionVisitor) EnterChangedScopeRoot(compiler AbstractCompiler, root *rhino.Node) {
+func (v *DeadPropertyAssignmentElimination_FunctionVisitor) EnterChangedScopeRoot(compiler AbstractCompiler, root rhino.Node) {
 	if !root.IsFunction() {
 		return
 	}
@@ -175,7 +175,7 @@ func (v *DeadPropertyAssignmentElimination_FunctionVisitor) EnterChangedScopeRoo
 	}
 }
 
-func dpaeShouldSkipBody(body *rhino.Node) bool {
+func dpaeShouldSkipBody(body rhino.Node) bool {
 	if !body.HasChildren() {
 		return true
 	}
@@ -186,14 +186,14 @@ func dpaeShouldSkipBody(body *rhino.Node) bool {
 	return assignCount < 2
 }
 
-func dpaeHasBailoutAndCountAssigns(n *rhino.Node, assignCount *int) bool {
+func dpaeHasBailoutAndCountAssigns(n rhino.Node, assignCount *int) bool {
 	if NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
 		return true
 	}
 	if NodeUtil_IsAssignmentOp(n) && n.GetFirstChild().IsGetProp() {
 		*assignCount++
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if dpaeHasBailoutAndCountAssigns(c, assignCount) {
 			return true
 		}
@@ -203,7 +203,7 @@ func dpaeHasBailoutAndCountAssigns(n *rhino.Node, assignCount *int) bool {
 
 // deadPropertyAssignmentElimination_alwaysTrue is Guava's
 // Predicates.alwaysTrue().
-func deadPropertyAssignmentElimination_alwaysTrue(*rhino.Node) bool { return true }
+func deadPropertyAssignmentElimination_alwaysTrue(rhino.Node) bool { return true }
 
 // DeadPropertyAssignmentElimination_Property is the nested class Property.
 type DeadPropertyAssignmentElimination_Property struct {
@@ -285,7 +285,7 @@ func (p *DeadPropertyAssignmentElimination_Property) MarkChildrenRead() {
 }
 
 // Java: DeadPropertyAssignmentElimination.Property.addWrite(Node)
-func (p *DeadPropertyAssignmentElimination_Property) AddWrite(lhs *rhino.Node) {
+func (p *DeadPropertyAssignmentElimination_Property) AddWrite(lhs rhino.Node) {
 	jutil.CheckArgument(lhs.IsQualifiedName())
 	p.writes.Add(NewDeadPropertyAssignmentElimination_PropertyWrite(lhs))
 }
@@ -298,13 +298,13 @@ func (p *DeadPropertyAssignmentElimination_Property) String() string {
 // DeadPropertyAssignmentElimination_PropertyWrite is the nested class
 // PropertyWrite.
 type DeadPropertyAssignmentElimination_PropertyWrite struct {
-	assignedAt    *rhino.Node
+	assignedAt    rhino.Node
 	isRead        bool
 	qualifiedName *string
 }
 
 // Java: DeadPropertyAssignmentElimination.PropertyWrite(Node)
-func NewDeadPropertyAssignmentElimination_PropertyWrite(assignedAt *rhino.Node) *DeadPropertyAssignmentElimination_PropertyWrite {
+func NewDeadPropertyAssignmentElimination_PropertyWrite(assignedAt rhino.Node) *DeadPropertyAssignmentElimination_PropertyWrite {
 	w := &DeadPropertyAssignmentElimination_PropertyWrite{}
 	jutil.CheckArgument(assignedAt.IsQualifiedName())
 	w.assignedAt = assignedAt
@@ -387,7 +387,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) all
 	return p
 }
 
-func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) addWrite(p *DeadPropertyAssignmentElimination_Property, lhs *rhino.Node) {
+func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) addWrite(p *DeadPropertyAssignmentElimination_Property, lhs rhino.Node) {
 	jutil.CheckArgument(lhs.IsQualifiedName())
 	if len(f.writeSlab) == cap(f.writeSlab) {
 		nextCap := min(max(cap(f.writeSlab)*2, 16), 256)
@@ -401,26 +401,26 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) add
 	p.writes.Add(w)
 }
 
-func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) traverse(compiler AbstractCompiler, root *rhino.Node) {
+func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) traverse(compiler AbstractCompiler, root rhino.Node) {
 	jutil.CheckNotNull(compiler)
-	if root == nil {
+	if root.IsNil() {
 		b := NodeTraversal_Builder{compiler: compiler, callback: f}
 		newNodeTraversal(&b).Traverse(root)
 		return
 	}
-	var currentNode *rhino.Node
-	var currentScript *rhino.Node
+	var currentNode rhino.Node
+	var currentScript rhino.Node
 	jutil.Try(func() {
 		if Platform_IsThreadInterrupted() {
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
 		currentNode = root
-		f.walkBranch(root, nil, &currentNode, &currentScript)
+		f.walkBranch(root, rhino.Node{}, &currentNode, &currentScript)
 	}, func(unexpectedException jutil.Throwable) {
 		b := NodeTraversal_Builder{compiler: compiler, callback: f}
 		t := newNodeTraversal(&b)
 		t.InitTraversal(root)
-		if currentScript != nil {
+		if !currentScript.IsNil() {
 			t.currentScript = currentScript
 		}
 		t.currentNode = currentNode
@@ -428,7 +428,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) tra
 	})
 }
 
-func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) walkBranch(n, parent *rhino.Node, currentNode, currentScript **rhino.Node) {
+func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) walkBranch(n, parent rhino.Node, currentNode, currentScript *rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		if Platform_IsThreadInterrupted() {
@@ -437,7 +437,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) wal
 		*currentNode = n
 		*currentScript = n
 		if f.VisitNode(n, parent) {
-			for child := n.GetFirstChild(); child != nil; {
+			for child := n.GetFirstChild(); !child.IsNil(); {
 				next := child.GetNext()
 				f.walkBranch(child, n, currentNode, currentScript)
 				child = next
@@ -450,7 +450,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) wal
 		*currentNode = n
 		if f.VisitNode(n, parent) {
 			fnName := n.GetFirstChild()
-			if parent != nil {
+			if !parent.IsNil() {
 				_ = NodeUtil_IsFunctionDeclaration(n)
 			}
 			args := fnName.GetNext()
@@ -481,14 +481,14 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) wal
 		if !f.VisitNode(n, parent) {
 			return
 		}
-		for child := n.GetFirstChild(); child != nil; {
+		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
 			if child.IsComputedProp() || child.IsComputedFieldDef() {
 				f.walkBranch(child.GetFirstChild(), child, currentNode, currentScript)
 			}
 			child = next
 		}
-		for child := n.GetFirstChild(); child != nil; {
+		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
 			switch child.GetToken() {
 			case rhino.Token_COMPUTED_PROP:
@@ -525,7 +525,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) wal
 	if !f.VisitNode(n, parent) {
 		return
 	}
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
 		f.walkBranch(child, n, currentNode, currentScript)
 		child = next
@@ -540,7 +540,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) wal
 // Returns a Property, or null if the provided node is not a qualified name.
 //
 // Java: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal.getOrCreateProperty(Node)
-func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) GetOrCreateProperty(propNode *rhino.Node) *DeadPropertyAssignmentElimination_Property {
+func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) GetOrCreateProperty(propNode rhino.Node) *DeadPropertyAssignmentElimination_Property {
 	var propName string
 	switch propNode.GetToken() {
 	case rhino.Token_GETPROP:
@@ -589,12 +589,12 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Get
 }
 
 // Java: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal.shouldTraverse(NodeTraversal, Node, Node)
-func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return f.VisitNode(n, parent)
 }
 
 // Java: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal.visit(NodeTraversal, Node, Node)
-func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Visit the LHS of an assignment in post-order
 	if NodeUtil_IsAssignmentOp(n) {
 		f.VisitAssignmentLhs(n.GetFirstChild())
@@ -613,7 +613,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Vis
 }
 
 // Java: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal.visitBlock(Node)
-func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) VisitBlock(blockNode *rhino.Node) {
+func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) VisitBlock(blockNode rhino.Node) {
 	jutil.CheckArgument(blockNode.IsBlock())
 
 	// We don't do flow analysis yet so we're going to assume everything written up to this
@@ -624,7 +624,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Vis
 }
 
 // Java: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal.isConditionalExpression(Node)
-func DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal_IsConditionalExpression(n *rhino.Node) bool {
+func DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal_IsConditionalExpression(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_HOOK, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_CALL,
 		rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP:
@@ -635,7 +635,7 @@ func DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal_IsCondit
 }
 
 // Java: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal.visitAssignmentLhs(Node)
-func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) VisitAssignmentLhs(lhs *rhino.Node) {
+func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) VisitAssignmentLhs(lhs rhino.Node) {
 	property := f.GetOrCreateProperty(lhs)
 
 	if property == nil {
@@ -663,7 +663,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Vis
 
 	// Now we need to go up the prop chain and mark those as read.
 	child := lhs.GetFirstChild()
-	for child != nil {
+	for !child.IsNil() {
 		var childName string
 		if child.IsGetProp() || child.IsName() {
 			childName = child.GetString()
@@ -684,7 +684,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Vis
 }
 
 // Java: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal.visitNode(Node, Node)
-func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) VisitNode(n *rhino.Node, parent *rhino.Node) bool {
+func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) VisitNode(n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP:
 		// Handle potential getters/setters.
@@ -728,7 +728,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Vis
 		f.MarkAllPropsRead()
 		return false
 	case rhino.Token_OBJECT_PATTERN:
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if child.IsStringKey() {
 				propName := child.GetString()
 				property := f.propertyMap.Get(propName)

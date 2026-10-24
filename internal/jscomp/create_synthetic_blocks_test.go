@@ -71,7 +71,7 @@ type createSyntheticBlocksTest_pass struct {
 }
 
 // Java: CreateSyntheticBlocksTest.getProcessor(Compiler).new CompilerPass() {...}.process(Node, Node)
-func (p *createSyntheticBlocksTest_pass) Process(externs *rhino.Node, js *rhino.Node) {
+func (p *createSyntheticBlocksTest_pass) Process(externs rhino.Node, js rhino.Node) {
 	NewCreateSyntheticBlocks(p.compiler, createSyntheticBlocksTest_START_MARKER, createSyntheticBlocksTest_END_MARKER).Process(externs, js)
 	Normalize_CreateNormalizeForOptimizations(p.compiler).Process(externs, js)
 	NewPeepholeOptimizationsPass(

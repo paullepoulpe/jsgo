@@ -29,7 +29,7 @@ import (
 // modules.
 type ModuleImportResolver struct {
 	moduleMap         *ModuleMap
-	nodeToScopeMapper func(*rhino.Node) *TypedScope
+	nodeToScopeMapper func(rhino.Node) *TypedScope
 	registry          *rhino.JSTypeRegistry
 }
 
@@ -42,7 +42,7 @@ var moduleImportResolver_GOOG_MODULE_GET = rhino.QualifiedName_Of("goog.module.g
 
 // Java: ModuleImportResolver(ModuleMap, Function<Node, TypedScope>, JSTypeRegistry)
 func NewModuleImportResolver(
-	moduleMap *ModuleMap, nodeToScopeMapper func(*rhino.Node) *TypedScope, registry *rhino.JSTypeRegistry) *ModuleImportResolver {
+	moduleMap *ModuleMap, nodeToScopeMapper func(rhino.Node) *TypedScope, registry *rhino.JSTypeRegistry) *ModuleImportResolver {
 	r := &ModuleImportResolver{}
 	r.moduleMap = moduleMap
 	r.nodeToScopeMapper = nodeToScopeMapper
@@ -59,8 +59,8 @@ func NewModuleImportResolver(
 // calls are at the top-level. That is left to the caller.
 //
 // Java: ModuleImportResolver.isGoogModuleDependencyCall(Node)
-func ModuleImportResolver_IsGoogModuleDependencyCall(value *rhino.Node) bool {
-	if value == nil ||
+func ModuleImportResolver_IsGoogModuleDependencyCall(value rhino.Node) bool {
+	if value.IsNil() ||
 		!value.IsCall() ||
 		!value.HasTwoChildren() ||
 		!value.GetSecondChild().IsStringLit() {
@@ -88,7 +88,7 @@ func ModuleImportResolver_IsGoogModuleDependencyCall(value *rhino.Node) bool {
 // googRequire is a CALL node representing some kind of Closure require.
 //
 // Java: ModuleImportResolver.getClosureNamespaceTypeFromCall(Node)
-func (r *ModuleImportResolver) GetClosureNamespaceTypeFromCall(googRequire *rhino.Node) ScopedName {
+func (r *ModuleImportResolver) GetClosureNamespaceTypeFromCall(googRequire rhino.Node) ScopedName {
 	if r.moduleMap == nil {
 		// TODO(b/124919359): make sure all tests have generated a ModuleMap
 		return nil
@@ -117,7 +117,7 @@ func (r *ModuleImportResolver) GetScopedNameForClosureNamespace(moduleId string)
 	case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
 		// Expect this to be a global variable
 		provide := module.Metadata().RootNode()
-		if provide != nil && provide.IsScript() {
+		if !provide.IsNil() && provide.IsScript() {
 			return ScopedName_Of(moduleId, provide.GetGrandparent())
 		} else {
 			// Unknown module requires default to 'goog provides', but we don't want to type them.
@@ -126,7 +126,7 @@ func (r *ModuleImportResolver) GetScopedNameForClosureNamespace(moduleId string)
 	case ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
 		// TODO(b/124919359): Fix getGoogModuleScopeRoot to never return null.
 		scopeRoot := r.GetGoogModuleScopeRoot(module)
-		if scopeRoot != nil {
+		if !scopeRoot.IsNil() {
 			return ScopedName_Of("exports", scopeRoot)
 		}
 		return nil
@@ -145,7 +145,7 @@ func (r *ModuleImportResolver) GetScopedNameForClosureNamespace(moduleId string)
 // goog.module.
 //
 // Java: ModuleImportResolver.getGoogModuleScopeRoot(Module)
-func (r *ModuleImportResolver) GetGoogModuleScopeRoot(module *Module) *rhino.Node {
+func (r *ModuleImportResolver) GetGoogModuleScopeRoot(module *Module) rhino.Node {
 	jutil.CheckArgumentMsg1(module.Metadata().IsGoogModule(), "%s", module.Metadata())
 	scriptNode := module.Metadata().RootNode()
 
@@ -164,7 +164,7 @@ func (r *ModuleImportResolver) GetGoogModuleScopeRoot(module *Module) *rhino.Nod
 	}
 	// TODO(b/124919359): this case should not happen, but is triggering on goog.require calls in
 	// rewritten modules with preserveClosurePrimitives enabled.
-	return nil
+	return rhino.Node{}
 }
 
 // DeclareEsModuleImports declares/updates the type of all bindings imported
@@ -178,10 +178,10 @@ func (r *ModuleImportResolver) GetGoogModuleScopeRoot(module *Module) *rhino.Nod
 //
 // Java: ModuleImportResolver.declareEsModuleImports(Module, TypedScope, CompilerInput)
 func (r *ModuleImportResolver) DeclareEsModuleImports(
-	module *Module, scope *TypedScope, moduleInput *CompilerInput) *jutil.LinkedHashMap[*rhino.Node, ScopedName] {
+	module *Module, scope *TypedScope, moduleInput *CompilerInput) *jutil.LinkedHashMap[rhino.Node, ScopedName] {
 	jutil.CheckArgumentMsg1(module.Metadata().IsEs6Module(), "%s", module)
 	jutil.CheckArgumentMsg1(scope.IsModuleScope(), "%s", scope)
-	missingNames := jutil.NewImmutableMapBuilder[*rhino.Node, ScopedName]()
+	missingNames := jutil.NewImmutableMapBuilder[rhino.Node, ScopedName]()
 	for localName, binding := range module.BoundNames().All() {
 		if !binding.IsCreatedByEsImport() {
 			continue
@@ -290,7 +290,7 @@ func (r *ModuleImportResolver) UpdateEsModuleNamespaceType(namespace rhino.Objec
 
 // Java: ModuleImportResolver.updateAstForExport(Node, JSType, JSType)
 func (r *ModuleImportResolver) UpdateAstForExport(
-	bindingSourceNode *rhino.Node, exportType rhino.JSType, typedefType rhino.JSType) {
+	bindingSourceNode rhino.Node, exportType rhino.JSType, typedefType rhino.JSType) {
 	bindingSourceNode.SetJSType(exportType)
 	bindingSourceNode.SetTypedefTypeProp(typedefType)
 	if bindingSourceNode.GetParent().IsExportSpec() {
@@ -328,9 +328,9 @@ func (r *ModuleImportResolver) GetScopedNameFromEsBinding(binding *Binding) Scop
 		scriptNode := originalMetadata.RootNode()
 		// Imports of nonexistent modules have a null 'root node'. Imports of names from scripts are
 		// meaningless.
-		jutil.CheckStateMsg1(scriptNode == nil || scriptNode.IsScript(), "%s", scriptNode)
-		var scopeRoot *rhino.Node
-		if scriptNode != nil {
+		jutil.CheckStateMsg1(scriptNode.IsNil() || scriptNode.IsScript(), "%s", scriptNode)
+		var scopeRoot rhino.Node
+		if !scriptNode.IsNil() {
 			scopeRoot = scriptNode.GetOnlyChild()
 		}
 		return moduleImportResolver_scopedNameOf(name, scopeRoot)
@@ -340,7 +340,7 @@ func (r *ModuleImportResolver) GetScopedNameFromEsBinding(binding *Binding) Scop
 		if closureModuleObject == nil {
 			// This is an error, but one that should be reported elsewhere. assume the module is
 			// a goog.provide for legacy compatibility.
-			return ScopedName_Of(*binding.ClosureNamespace(), nil)
+			return ScopedName_Of(*binding.ClosureNamespace(), rhino.Node{})
 		}
 		if binding.IsModuleNamespace() {
 			return closureModuleObject
@@ -351,7 +351,7 @@ func (r *ModuleImportResolver) GetScopedNameFromEsBinding(binding *Binding) Scop
 	case ModuleMetadataMap_ModuleType_SCRIPT:
 		// Importing SCRIPTs should not allow you to look up names in scope.
 		// we also don't really support CommonJs.
-		return moduleImportResolver_scopedNameOf(name, nil)
+		return moduleImportResolver_scopedNameOf(name, rhino.Node{})
 	case ModuleMetadataMap_ModuleType_COMMON_JS:
 		panic(jutil.NewIllegalStateExceptionMsg("Typechecking CommonJS modules is not supported"))
 	}
@@ -368,7 +368,7 @@ func (r *ModuleImportResolver) GetScopedNameFromEsBinding(binding *Binding) Scop
 // NonEsModuleProcessor resolves has no local name). The scope root is then
 // null as well, and nothing reads the name of such a ScopedName (its scope is
 // looked up first and is missing), so the null name becomes "".
-func moduleImportResolver_scopedNameOf(name *string, scopeRoot *rhino.Node) ScopedName {
+func moduleImportResolver_scopedNameOf(name *string, scopeRoot rhino.Node) ScopedName {
 	if name == nil {
 		return ScopedName_Of("", scopeRoot)
 	}
@@ -380,7 +380,7 @@ func moduleImportResolver_scopedNameOf(name *string, scopeRoot *rhino.Node) Scop
 //
 // Java: ModuleImportResolver.getModuleFromScopeRoot(ModuleMap, CompilerInputProvider, Node)
 func ModuleImportResolver_GetModuleFromScopeRoot(
-	moduleMap *ModuleMap, inputProvider CompilerInputProvider, moduleBody *rhino.Node) *Module {
+	moduleMap *ModuleMap, inputProvider CompilerInputProvider, moduleBody rhino.Node) *Module {
 	if ModuleImportResolver_IsGoogModuleBody(moduleBody) {
 		googModuleCall := moduleBody.GetFirstChild()
 		namespace := googModuleCall.GetFirstChild().GetSecondChild().GetString()
@@ -399,7 +399,7 @@ func ModuleImportResolver_GetModuleFromScopeRoot(
 }
 
 // Java: ModuleImportResolver.isGoogModuleBody(Node)
-func ModuleImportResolver_IsGoogModuleBody(moduleBody *rhino.Node) bool {
+func ModuleImportResolver_IsGoogModuleBody(moduleBody rhino.Node) bool {
 	if moduleBody.IsModuleBody() {
 		return moduleBody.GetParent().GetBooleanProp(rhino.Node_GOOG_MODULE)
 	} else if moduleBody.IsBlock() {

@@ -117,7 +117,7 @@ func (c *Es6RewriteGeneratorsTest) GetProcessor(compiler *Compiler) CompilerPass
 		CompilerTestCase_MakePassFactory(
 			"extraRuntimeLibraries",
 			func(ac AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs *rhino.Node, js *rhino.Node) {
+				return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
 					for _, field := range c.extraRuntimeLibFields {
 						ac.GetRuntimeJsLibManager().InjectLibForField(field)
 					}
@@ -206,7 +206,7 @@ AFTER_BODY
 //
 // Java: Es6RewriteGeneratorsTest.testAndReturnBodyForNumericGenerator(String, String, String)
 func (c *Es6RewriteGeneratorsTest) TestAndReturnBodyForNumericGenerator(
-	beforeBody string, varDecls string, afterBody string) *rhino.Node {
+	beforeBody string, varDecls string, afterBody string) rhino.Node {
 	c.RewriteGeneratorBodyWithVarsAndReturnType(
 		beforeBody, varDecls, afterBody, "!Generator<number>")
 
@@ -221,7 +221,7 @@ func (c *Es6RewriteGeneratorsTest) TestAndReturnBodyForNumericGenerator(
 // generator
 //
 // Java: Es6RewriteGeneratorsTest.getAndCheckGeneratorProgram(Node)
-func (c *Es6RewriteGeneratorsTest) GetAndCheckGeneratorProgram(genFunction *rhino.Node) *rhino.Node {
+func (c *Es6RewriteGeneratorsTest) GetAndCheckGeneratorProgram(genFunction rhino.Node) rhino.Node {
 	returnNode := genFunction.GetLastChild().GetLastChild()
 	callNode := returnNode.GetFirstChild()
 	jutil.CheckStateMsg1(callNode.IsCall(), "%s", callNode)
@@ -1657,7 +1657,7 @@ func (c *Es6RewriteGeneratorsTest) TestYield_withTypes() {
 		transpileTests_GetOnlyElement(
 			CodeSubTree_FindFirstNode(
 				c.GetLastCompiler().GetExternsRoot(),
-				func(n *rhino.Node) bool { return n.MatchesQualifiedName("$jscomp.generator.Context") }).
+				func(n rhino.Node) bool { return n.MatchesQualifiedName("$jscomp.generator.Context") }).
 				GetColor().
 				GetInstanceColors().All())
 	AssertThat(jscompGeneratorContext.GetColor()).IsEqualTo(generatorContext)
@@ -1776,7 +1776,7 @@ GEN_CONTEXT$0.jumpToEnd();
 		transpileTests_GetOnlyElement(
 			CodeSubTree_FindFirstNode(
 				c.GetLastCompiler().GetExternsRoot(),
-				func(n *rhino.Node) bool { return n.MatchesQualifiedName("$jscomp.generator.Context") }).
+				func(n rhino.Node) bool { return n.MatchesQualifiedName("$jscomp.generator.Context") }).
 				GetColor().
 				GetInstanceColors().All())
 	AssertThat(jscompGeneratorContext.GetColor()).IsEqualTo(generatorContext)

@@ -110,7 +110,7 @@ type replaceStringsTest_Renamer struct {
 }
 
 // Java: ReplaceStringsTest.Renamer.visit(NodeTraversal, Node, Node)
-func (r *replaceStringsTest_Renamer) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *replaceStringsTest_Renamer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() || n.IsGetProp() {
 		originalName := n.GetString()
 		n.SetOriginalName(&originalName)
@@ -123,7 +123,7 @@ func (r *replaceStringsTest_Renamer) Visit(t *NodeTraversal, n *rhino.Node, pare
 func (c *ReplaceStringsTest) GetProcessor(compiler *Compiler) CompilerPass {
 	c.pass = NewReplaceStrings(compiler, "`", c.functionsToInspect)
 
-	return CompilerPassFunc(func(externs *rhino.Node, js *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
 		if c.rename {
 			NodeTraversal_Traverse(compiler, js, &replaceStringsTest_Renamer{})
 		}

@@ -388,7 +388,7 @@ func jscompBAddNumber(bitsCol string) string {
 	return jscompBCatch(func() string {
 		c := &jscompBConsumer{}
 		c.InitCodeConsumerBase(c)
-		c.AddNumber(math.Float64frombits(bits), (*rhino.Node)(nil))
+		c.AddNumber(math.Float64frombits(bits), (rhino.Node)(rhino.Node{}))
 		return jscompBEncS(jutil.StringFromUTF16(c.buf))
 	})
 }

@@ -30,20 +30,20 @@ import (
 // desired check point.
 type ChangeVerifier struct {
 	changeTracker   *ChangeTracker
-	clonesByCurrent *jutil.BiMap[*rhino.Node, *rhino.Node]
+	clonesByCurrent *jutil.BiMap[rhino.Node, rhino.Node]
 	snapshotChange  int32
 }
 
 // Java: ChangeVerifier(AbstractCompiler)
 func NewChangeVerifier(compiler AbstractCompiler) *ChangeVerifier {
 	return &ChangeVerifier{
-		clonesByCurrent: jutil.HashBiMap_Create[*rhino.Node, *rhino.Node](),
+		clonesByCurrent: jutil.HashBiMap_Create[rhino.Node, rhino.Node](),
 		changeTracker:   compiler.GetChangeTracker(),
 	}
 }
 
 // Java: ChangeVerifier.snapshot(Node)
-func (v *ChangeVerifier) Snapshot(root *rhino.Node) *ChangeVerifier {
+func (v *ChangeVerifier) Snapshot(root rhino.Node) *ChangeVerifier {
 	// remove any existing snapshot data.
 	v.clonesByCurrent.Clear()
 	v.snapshotChange = v.changeTracker.GetChangeStamp()
@@ -54,12 +54,12 @@ func (v *ChangeVerifier) Snapshot(root *rhino.Node) *ChangeVerifier {
 }
 
 // Java: ChangeVerifier.checkRecordedChanges(Node)
-func (v *ChangeVerifier) CheckRecordedChanges(current *rhino.Node) {
+func (v *ChangeVerifier) CheckRecordedChanges(current rhino.Node) {
 	v.CheckRecordedChangesWithPassName("", current)
 }
 
 // Java: ChangeVerifier.checkRecordedChanges(String, Node)
-func (v *ChangeVerifier) CheckRecordedChangesWithPassName(passName string, root *rhino.Node) {
+func (v *ChangeVerifier) CheckRecordedChangesWithPassName(passName string, root rhino.Node) {
 	v.VerifyScopeChangesHaveBeenRecorded(passName, root)
 }
 
@@ -67,7 +67,7 @@ func (v *ChangeVerifier) CheckRecordedChangesWithPassName(passName string, root 
 // scope of main to the corresponding root node of clone
 //
 // Java: ChangeVerifier.associateClones(Node, Node)
-func (v *ChangeVerifier) AssociateClones(n *rhino.Node, snapshot *rhino.Node) {
+func (v *ChangeVerifier) AssociateClones(n rhino.Node, snapshot rhino.Node) {
 	// TODO(johnlenz): determine if MODULE_BODY is useful here.
 	if n.IsRoot() || ChangeTracker_IsChangeScopeRoot(n) {
 		v.clonesByCurrent.Put(n, snapshot)
@@ -75,7 +75,7 @@ func (v *ChangeVerifier) AssociateClones(n *rhino.Node, snapshot *rhino.Node) {
 
 	child := n.GetFirstChild()
 	snapshotChild := snapshot.GetFirstChild()
-	for child != nil {
+	for !child.IsNil() {
 		v.AssociateClones(child, snapshotChild)
 		child = child.GetNext()
 		snapshotChild = snapshotChild.GetNext()
@@ -86,17 +86,17 @@ func (v *ChangeVerifier) AssociateClones(n *rhino.Node, snapshot *rhino.Node) {
 // changed have indeed changed
 //
 // Java: ChangeVerifier.verifyScopeChangesHaveBeenRecorded(String, Node)
-func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, root *rhino.Node) {
+func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, root rhino.Node) {
 	passNameMsg := ""
 	if passName != "" {
 		passNameMsg = passName + ": "
 	}
 
 	// Gather all the scope nodes that existed when the snapshot was taken.
-	snapshotScopeNodes := jutil.NewLinkedHashSet[*rhino.Node]()
+	snapshotScopeNodes := jutil.NewLinkedHashSet[rhino.Node]()
 	NodeUtil_VisitPreOrder(
 		v.clonesByCurrent.Get(root),
-		NodeUtil_VisitorFunc(func(oldNode *rhino.Node) {
+		NodeUtil_VisitorFunc(func(oldNode rhino.Node) {
 			if ChangeTracker_IsChangeScopeRoot(oldNode) {
 				snapshotScopeNodes.Add(oldNode)
 			}
@@ -104,7 +104,7 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 
 	NodeUtil_VisitPreOrder(
 		root,
-		NodeUtil_VisitorFunc(func(n *rhino.Node) {
+		NodeUtil_VisitorFunc(func(n rhino.Node) {
 			if n.IsRoot() {
 				v.VerifyRoot(n)
 			} else if ChangeTracker_IsChangeScopeRoot(n) {
@@ -112,7 +112,7 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 				// Remove any scope nodes that still exist.
 				snapshotScopeNodes.Remove(clone)
 				v.VerifyNode(passNameMsg, n)
-				if clone == nil {
+				if clone.IsNil() {
 					v.VerifyNewNode(passNameMsg, n)
 				} else {
 					v.VerifyNodeChange(passNameMsg, n, clone)
@@ -125,7 +125,7 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 }
 
 // Java: ChangeVerifier.verifyDeletedScopeNodes(String, Set<Node>)
-func (v *ChangeVerifier) VerifyDeletedScopeNodes(passNameMsg string, deletedScopeNodes *jutil.LinkedHashSet[*rhino.Node]) {
+func (v *ChangeVerifier) VerifyDeletedScopeNodes(passNameMsg string, deletedScopeNodes *jutil.LinkedHashSet[rhino.Node]) {
 	for snapshotScopeNode := range deletedScopeNodes.All() {
 		currentNode := v.clonesByCurrent.Inverse().Get(snapshotScopeNode)
 		// If the original was marked deleted, that's fine, ignore it.
@@ -140,7 +140,7 @@ func (v *ChangeVerifier) VerifyDeletedScopeNodes(passNameMsg string, deletedScop
 }
 
 // Java: ChangeVerifier.verifyNode(String, Node)
-func (v *ChangeVerifier) VerifyNode(passNameMsg string, n *rhino.Node) {
+func (v *ChangeVerifier) VerifyNode(passNameMsg string, n rhino.Node) {
 	if n.IsDeleted() {
 		panic(jutil.NewIllegalStateExceptionMsg(
 			passNameMsg + "existing scope is improperly marked as deleted:\n" + n.ToStringTree()))
@@ -148,7 +148,7 @@ func (v *ChangeVerifier) VerifyNode(passNameMsg string, n *rhino.Node) {
 }
 
 // Java: ChangeVerifier.verifyNewNode(String, Node)
-func (v *ChangeVerifier) VerifyNewNode(passNameMsg string, n *rhino.Node) {
+func (v *ChangeVerifier) VerifyNewNode(passNameMsg string, n rhino.Node) {
 	changeTime := n.GetChangeTime()
 	if changeTime == 0 || changeTime < v.snapshotChange {
 		panic(jutil.NewIllegalStateExceptionMsg(
@@ -157,7 +157,7 @@ func (v *ChangeVerifier) VerifyNewNode(passNameMsg string, n *rhino.Node) {
 }
 
 // Java: ChangeVerifier.verifyRoot(Node)
-func (v *ChangeVerifier) VerifyRoot(root *rhino.Node) {
+func (v *ChangeVerifier) VerifyRoot(root rhino.Node) {
 	jutil.CheckState(root.IsRoot())
 	if root.GetChangeTime() != 0 {
 		panic(jutil.NewIllegalStateExceptionMsg("Root nodes should never be marked as changed."))
@@ -165,7 +165,7 @@ func (v *ChangeVerifier) VerifyRoot(root *rhino.Node) {
 }
 
 // Java: ChangeVerifier.verifyNodeChange(String, Node, Node)
-func (v *ChangeVerifier) VerifyNodeChange(passNameMsg string, n *rhino.Node, snapshot *rhino.Node) {
+func (v *ChangeVerifier) VerifyNodeChange(passNameMsg string, n rhino.Node, snapshot rhino.Node) {
 	if n.IsRoot() {
 		return
 	}
@@ -198,7 +198,7 @@ func (v *ChangeVerifier) VerifyNodeChange(passNameMsg string, n *rhino.Node, sna
 }
 
 // Java: ChangeVerifier.getNameForNode(Node)
-func (v *ChangeVerifier) GetNameForNode(n *rhino.Node) string {
+func (v *ChangeVerifier) GetNameForNode(n rhino.Node) string {
 	sourceName := NodeUtil_GetSourceName(n)
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
@@ -218,7 +218,7 @@ func (v *ChangeVerifier) GetNameForNode(n *rhino.Node) string {
 // Path returns the path from the ancestor to the child node.
 //
 // Java: ChangeVerifier.path(Node, Node)
-func (v *ChangeVerifier) Path(ancestor *rhino.Node, child *rhino.Node) string {
+func (v *ChangeVerifier) Path(ancestor rhino.Node, child rhino.Node) string {
 	childToAncestor := jutil.NewArrayList[string]()
 	for current := child; current != ancestor; current = current.GetParent() {
 		childToAncestor.Add(current.String())
@@ -248,7 +248,7 @@ func (v *ChangeVerifier) Path(ancestor *rhino.Node, child *rhino.Node) string {
 // record's equals/hashCode/toString are never used.
 type changeVerifier_EqualsResult struct {
 	equals       bool
-	errorNode    *rhino.Node
+	errorNode    rhino.Node
 	errorMessage func() *string
 }
 
@@ -256,18 +256,18 @@ type changeVerifier_EqualsResult struct {
 func (r *changeVerifier_EqualsResult) Equals() bool { return r.equals }
 
 // Java: ChangeVerifier.EqualsResult.errorNode()
-func (r *changeVerifier_EqualsResult) ErrorNode() *rhino.Node { return r.errorNode }
+func (r *changeVerifier_EqualsResult) ErrorNode() rhino.Node { return r.errorNode }
 
 // Java: ChangeVerifier.EqualsResult.errorMessage()
 func (r *changeVerifier_EqualsResult) ErrorMessage() func() *string { return r.errorMessage }
 
 // Java: ChangeVerifier.EqualsResult.equal()
 func changeVerifier_EqualsResult_equal() *changeVerifier_EqualsResult {
-	return &changeVerifier_EqualsResult{true, nil, func() *string { return nil }}
+	return &changeVerifier_EqualsResult{true, rhino.Node{}, func() *string { return nil }}
 }
 
 // Java: ChangeVerifier.EqualsResult.notEqual(Node, String, Object, Object)
-func changeVerifier_EqualsResult_notEqual(errorNode *rhino.Node, error_ string, after any, before any) *changeVerifier_EqualsResult {
+func changeVerifier_EqualsResult_notEqual(errorNode rhino.Node, error_ string, after any, before any) *changeVerifier_EqualsResult {
 	return &changeVerifier_EqualsResult{
 		false,
 		errorNode,
@@ -286,9 +286,9 @@ func changeVerifier_EqualsResult_notEqual(errorNode *rhino.Node, error_ string, 
 // functions.
 //
 // Java: ChangeVerifier.getInequivalenceReasonExcludingFunctions(Node, Node)
-func changeVerifier_getInequivalenceReasonExcludingFunctions(thisNode *rhino.Node, thatNode *rhino.Node) *changeVerifier_EqualsResult {
-	jutil.CheckNotNull(thisNode)
-	jutil.CheckNotNull(thatNode)
+func changeVerifier_getInequivalenceReasonExcludingFunctions(thisNode rhino.Node, thatNode rhino.Node) *changeVerifier_EqualsResult {
+	rhino.CheckNotNull(thisNode)
+	rhino.CheckNotNull(thatNode)
 	if thisNode.GetChildCount() != thatNode.GetChildCount() {
 		return changeVerifier_EqualsResult_notEqual(
 			thisNode,
@@ -308,7 +308,7 @@ func changeVerifier_getInequivalenceReasonExcludingFunctions(thisNode *rhino.Nod
 
 	thisChild := thisNode.GetFirstChild()
 	thatChild := thatNode.GetFirstChild()
-	for thisChild != nil && thatChild != nil {
+	for !thisChild.IsNil() && !thatChild.IsNil() {
 		if thisChild.IsFunction() || thisChild.IsScript() {
 			// Don't compare function expression name, parameters or bodies.
 			// But do check that that the node is there.

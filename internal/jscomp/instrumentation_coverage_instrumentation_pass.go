@@ -97,7 +97,7 @@ func NewCoverageInstrumentationPass(compiler AbstractCompiler, reach CoverageIns
 // and initializes the variables required for collection of coverage data.
 //
 // Java: CoverageInstrumentationPass.addHeaderCode(Node)
-func (p *CoverageInstrumentationPass) AddHeaderCode(script *rhino.Node) {
+func (p *CoverageInstrumentationPass) AddHeaderCode(script rhino.Node) {
 	script.AddChildToFront(p.CreateConditionalObjectDecl(CoverageInstrumentationPass_JS_INSTRUMENTATION_OBJECT_NAME, script))
 
 	// Make subsequent usages of "window" and "window.top" work in a Web Worker context.
@@ -112,7 +112,7 @@ func (p *CoverageInstrumentationPass) AddHeaderCode(script *rhino.Node) {
 }
 
 // Java: CoverageInstrumentationPass.addProductionHeaderCode(Node, String)
-func (p *CoverageInstrumentationPass) AddProductionHeaderCode(script *rhino.Node, arrayName string) {
+func (p *CoverageInstrumentationPass) AddProductionHeaderCode(script rhino.Node, arrayName string) {
 	arrayLit := rhino.IR_Arraylit()
 	name := rhino.IR_Name(arrayName)
 	varNode := rhino.IR_VarWithValue(name, arrayLit)
@@ -120,7 +120,7 @@ func (p *CoverageInstrumentationPass) AddProductionHeaderCode(script *rhino.Node
 }
 
 // Java: CoverageInstrumentationPass.checkIfArrayNameExternDeclared(Node, String)
-func (p *CoverageInstrumentationPass) CheckIfArrayNameExternDeclared(externsNode *rhino.Node, arrayName string) {
+func (p *CoverageInstrumentationPass) CheckIfArrayNameExternDeclared(externsNode rhino.Node, arrayName string) {
 	if !NodeUtil_CollectExternVariableNames(p.compiler, externsNode).Contains(arrayName) {
 		panic(jutil.NewAssertionError(
 			"The array name passed to --production_instrumentation_array_name was not " +
@@ -129,7 +129,7 @@ func (p *CoverageInstrumentationPass) CheckIfArrayNameExternDeclared(externsNode
 }
 
 // Java: CoverageInstrumentationPass.process(Node, Node)
-func (p *CoverageInstrumentationPass) Process(externsNode *rhino.Node, rootNode *rhino.Node) {
+func (p *CoverageInstrumentationPass) Process(externsNode rhino.Node, rootNode rhino.Node) {
 	if rootNode.HasChildren() {
 		if p.instrumentOption == CompilerOptions_InstrumentOption_BRANCH_ONLY {
 			NodeTraversal_Traverse(
@@ -169,9 +169,9 @@ func (p *CoverageInstrumentationPass) Process(externsNode *rhino.Node, rootNode 
 }
 
 // Java: CoverageInstrumentationPass.createConditionalObjectDecl(String, Node)
-func (p *CoverageInstrumentationPass) CreateConditionalObjectDecl(name string, srcref *rhino.Node) *rhino.Node {
+func (p *CoverageInstrumentationPass) CreateConditionalObjectDecl(name string, srcref rhino.Node) rhino.Node {
 	// Make sure to quote properties so they are not renamed.
-	var jscovData *rhino.Node
+	var jscovData rhino.Node
 	switch p.instrumentOption {
 	case CompilerOptions_InstrumentOption_BRANCH_ONLY:
 		jscovData = rhino.IR_Objectlit(

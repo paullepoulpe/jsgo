@@ -36,15 +36,15 @@ func NewRefactoringUtils() *RefactoringUtils {
 // goog.provide() or goog.module() call in the node's file.
 //
 // Java: RefactoringUtils.isInClosurizedFile(Node, NodeMetadata)
-func RefactoringUtils_IsInClosurizedFile(node *rhino.Node, metadata *NodeMetadata) bool {
+func RefactoringUtils_IsInClosurizedFile(node rhino.Node, metadata *NodeMetadata) bool {
 	script := NodeUtil_GetEnclosingScript(node)
 
-	if script == nil {
+	if script.IsNil() {
 		return false
 	}
 
 	child := script.GetFirstChild()
-	for child != nil {
+	for !child.IsNil() {
 		if NodeUtil_IsExprCall(child) {
 			firstChild := child.GetFirstChild()
 			if Matchers_GoogRequire().Matches(firstChild, metadata) ||

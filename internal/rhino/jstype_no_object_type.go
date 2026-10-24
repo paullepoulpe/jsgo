@@ -156,7 +156,7 @@ func (t *NoObjectTypeBase) RecursionUnsafeHashCode() int32 {
 }
 
 // Java: NoObjectType.defineProperty(Property.Key, JSType, boolean, Node)
-func (t *NoObjectTypeBase) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (t *NoObjectTypeBase) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	// nothing, all properties are defined
 	return true
 }

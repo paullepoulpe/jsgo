@@ -127,7 +127,7 @@ func (t *InstanceObjectType) GetConstructor() FunctionType {
 }
 
 // Java: InstanceObjectType.defineProperty(Property.Key, JSType, boolean, Node)
-func (t *InstanceObjectType) DefinePropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (t *InstanceObjectType) DefinePropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	proto := t.GetImplicitPrototype()
 	if proto != nil && proto.HasOwnDeclaredPropertyByKey(name) {
 		return false
@@ -151,7 +151,7 @@ func (t *InstanceObjectType) AppendTo(sb *TypeStringBuilder) {
 		n := ctor.GetSource()
 		sourceFileName := "unknown"
 		lineno := 0
-		if n != nil {
+		if !n.IsNil() {
 			sourceFileName = jutil.ToJavaString(n.GetSourceFileName())
 			lineno = n.GetLineno()
 		}

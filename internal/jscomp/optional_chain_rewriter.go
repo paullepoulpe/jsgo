@@ -51,10 +51,10 @@ type OptionalChainRewriter struct {
 	tmpVarNameCreator OptionalChainRewriter_TmpVarNameCreator
 	// If a scope is provided, newly created variables will be declared in that scope
 	scope           *Scope
-	chainParent     *rhino.Node
-	wholeChain      *rhino.Node
-	insertionPoint  *rhino.Node
-	deletesToDelete []*rhino.Node // ArrayDeque used as a FIFO queue
+	chainParent     rhino.Node
+	wholeChain      rhino.Node
+	insertionPoint  rhino.Node
+	deletesToDelete []rhino.Node // ArrayDeque used as a FIFO queue
 }
 
 // OptionalChainRewriter_TmpVarNameCreator creates unique names to be used
@@ -112,7 +112,7 @@ func (b *OptionalChainRewriter_Builder) SetScope(scope *Scope) *OptionalChainRew
 // the rest.
 //
 // Java: OptionalChainRewriter.Builder.build(Node)
-func (b *OptionalChainRewriter_Builder) Build(wholeChain *rhino.Node) *OptionalChainRewriter {
+func (b *OptionalChainRewriter_Builder) Build(wholeChain rhino.Node) *OptionalChainRewriter {
 	return NewOptionalChainRewriter(b, wholeChain)
 }
 
@@ -122,7 +122,7 @@ func OptionalChainRewriter_Builder_(compiler AbstractCompiler) *OptionalChainRew
 }
 
 // Java: OptionalChainRewriter(OptionalChainRewriter.Builder, Node)
-func NewOptionalChainRewriter(builder *OptionalChainRewriter_Builder, wholeChain *rhino.Node) *OptionalChainRewriter {
+func NewOptionalChainRewriter(builder *OptionalChainRewriter_Builder, wholeChain rhino.Node) *OptionalChainRewriter {
 	o := &OptionalChainRewriter{}
 	// This class will only operate on an entire chain.
 	jutil.CheckArgumentMsg1(NodeUtil_IsEndOfFullOptChain(wholeChain), "%s", wholeChain)
@@ -131,10 +131,10 @@ func NewOptionalChainRewriter(builder *OptionalChainRewriter_Builder, wholeChain
 	o.tmpVarNameCreator = jutil.CheckNotNull(builder.tmpVarNameCreator)
 	o.scope = builder.scope
 	o.wholeChain = wholeChain
-	o.chainParent = jutil.CheckNotNullMsg1(wholeChain.GetParent(), "%s", wholeChain)
+	o.chainParent = rhino.CheckNotNullMsg1(wholeChain.GetParent(), "%s", wholeChain)
 	// Insert temporaries just before the enclosing statement.
 	enclosingStatement := NodeUtil_GetEnclosingStatement(wholeChain)
-	if enclosingStatement.GetPrevious() != nil &&
+	if !enclosingStatement.GetPrevious().IsNil() &&
 		enclosingStatement.GetPrevious().IsLabelName() {
 		// Do not insert temporaries between a label name and its statement.
 		// e.g. `{ label: for (const a of b?.c) {...}`
@@ -161,7 +161,7 @@ func (o *OptionalChainRewriter) Rewrite() {
 	// `first?.start.second?.start`
 	// We search from the end of the chain and push the start nodes onto the stack, so the first
 	// one ends up on top.
-	var startNodeStack []*rhino.Node // ArrayDeque used as a stack; the top is the last element
+	var startNodeStack []rhino.Node // ArrayDeque used as a stack; the top is the last element
 	subchainEnd := o.wholeChain
 	for NodeUtil_IsOptChainNode(subchainEnd) {
 		subchainStart := NodeUtil_GetStartOfOptChainSegment(subchainEnd)
@@ -251,7 +251,7 @@ func (o *OptionalChainRewriter) Rewrite() {
 // last element.
 //
 // Go-only: language-adapter — ArrayDeque.
-func optionalChainRewriterPop(stack *[]*rhino.Node) *rhino.Node {
+func optionalChainRewriterPop(stack *[]rhino.Node) rhino.Node {
 	s := *stack
 	if len(s) == 0 {
 		panic(jutil.NewNoSuchElementException())
@@ -290,7 +290,7 @@ func optionalChainRewriterPop(stack *[]*rhino.Node) *rhino.Node {
 // optional chain node. Returns the hook expression that replaced the chain.
 //
 // Java: OptionalChainRewriter.rewriteInitialSegment(Node, Node)
-func (o *OptionalChainRewriter) RewriteInitialSegment(fullChainStart *rhino.Node, fullChainEnd *rhino.Node) *rhino.Node {
+func (o *OptionalChainRewriter) RewriteInitialSegment(fullChainStart rhino.Node, fullChainEnd rhino.Node) rhino.Node {
 	// `receiverNode?.restOfChain`
 	receiverNode := fullChainStart.GetFirstChild()
 	// for `a?.b.c?.d`, this will be `a?.b.c`, because the NodeUtil method finds the end
@@ -342,7 +342,7 @@ func (o *OptionalChainRewriter) RewriteInitialSegment(fullChainStart *rhino.Node
 	}
 	// Arguments of createHook, in Java's evaluation order.
 	cond := o.astFactory.CreateEq(receiverNode, o.astFactory.CreateNull())
-	var trueValue, falseValue *rhino.Node
+	var trueValue, falseValue rhino.Node
 	if isBeingDeleted {
 		trueValue = o.astFactory.CreateBoolean(true)
 	} else {
@@ -379,7 +379,7 @@ func (o *OptionalChainRewriter) RewriteInitialSegment(fullChainStart *rhino.Node
 // `subExpr`, that may be inserted where needed.
 //
 // Java: OptionalChainRewriter.getSubExprNameNode(Node)
-func (o *OptionalChainRewriter) GetSubExprNameNode(subExpr *rhino.Node) *rhino.Node {
+func (o *OptionalChainRewriter) GetSubExprNameNode(subExpr rhino.Node) rhino.Node {
 	tempVarName := o.DeclareTempVarName(subExpr)
 	placeholder := rhino.IR_Empty()
 	subExpr.ReplaceWith(placeholder)
@@ -399,7 +399,7 @@ func (o *OptionalChainRewriter) GetSubExprNameNode(subExpr *rhino.Node) *rhino.N
 // variable.
 //
 // Java: OptionalChainRewriter.declareTempVarName(Node)
-func (o *OptionalChainRewriter) DeclareTempVarName(valueNode *rhino.Node) string {
+func (o *OptionalChainRewriter) DeclareTempVarName(valueNode rhino.Node) string {
 	tempVarName := o.tmpVarNameCreator.CreateTmpVarName()
 	declarationStatement :=
 		o.astFactory.CreateSingleLetNameDeclaration(tempVarName).SrcrefTree(valueNode)

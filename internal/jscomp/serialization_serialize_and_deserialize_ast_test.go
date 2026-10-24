@@ -767,7 +767,7 @@ func (c *SerializeAndDeserializeAstTest) TestIncludesShadowedCode() {
 
 	// Also validate that the content of the shadow is actually correct
 	shadowHost :=
-		CodeSubTree_FindFirstNode(result.sourceRoot, func(n *rhino.Node) bool { return n.GetClosureUnawareShadow() != nil })
+		CodeSubTree_FindFirstNode(result.sourceRoot, func(n rhino.Node) bool { return !n.GetClosureUnawareShadow().IsNil() })
 
 	shadowedContent := shadowHost.GetClosureUnawareShadow()
 
@@ -794,9 +794,9 @@ type serializeAndDeserializeAstTest_shadowCallback struct {
 }
 
 // Java: SerializeAndDeserializeAstTest.includesShadowedCode().new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (cb *serializeAndDeserializeAstTest_shadowCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *serializeAndDeserializeAstTest_shadowCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	AssertThat(n.GetIsInClosureUnawareSubtree()).IsTrue()
-	if parent != nil {
+	if !parent.IsNil() {
 		AssertThat(rhino.Node_ValidateMemorySensitivePropertyGuarantees(n, true, parent, true)).
 			IsTrue()
 	}
@@ -817,7 +817,7 @@ func (c *SerializeAndDeserializeAstTest) TestShadowAsts_featuresSetOnMainAstScri
 					"})();\n"))
 
 	shadowHost :=
-		CodeSubTree_FindFirstNode(result.sourceRoot, func(n *rhino.Node) bool { return n.GetClosureUnawareShadow() != nil })
+		CodeSubTree_FindFirstNode(result.sourceRoot, func(n rhino.Node) bool { return !n.GetClosureUnawareShadow().IsNil() })
 	shadowScript := shadowHost.GetClosureUnawareShadow().GetOnlyChild()
 	mainScript := result.sourceRoot.GetOnlyChild()
 	jutil.CheckStateMsg1(mainScript.IsScript(), "%s", mainScript)
@@ -962,13 +962,13 @@ func (c *SerializeAndDeserializeAstTest) run(externs *CompilerTestCase_Externs, 
 	// know what order the sources/externs are expected to be in. The easiest way for us to get that
 	// ordering is by looking at the pre-serialized AST, since the Sources/Expected APIs hide the
 	// actual file names.
-	for oldExtern := serializingCompiler.GetRoot().GetFirstFirstChild(); oldExtern != nil; oldExtern = oldExtern.GetNext() {
+	for oldExtern := serializingCompiler.GetRoot().GetFirstFirstChild(); !oldExtern.IsNil(); oldExtern = oldExtern.GetNext() {
 		extern := oldExtern.GetStaticSourceFile().(*SourceFile)
 		script := ast.GetFilesystem().Get(extern)()
 		script.SetInputId(rhino.NewInputId(extern.GetName()))
 		newExternsRoot.AddChildToBack(script)
 	}
-	for oldSource := serializingCompiler.GetRoot().GetSecondChild().GetFirstChild(); oldSource != nil; oldSource = oldSource.GetNext() {
+	for oldSource := serializingCompiler.GetRoot().GetSecondChild().GetFirstChild(); !oldSource.IsNil(); oldSource = oldSource.GetNext() {
 		source := oldSource.GetStaticSourceFile().(*SourceFile)
 		script := ast.GetFilesystem().Get(source)()
 		script.SetInputId(rhino.NewInputId(source.GetName()))
@@ -987,7 +987,7 @@ func (c *SerializeAndDeserializeAstTest) run(externs *CompilerTestCase_Externs, 
 }
 
 // Java: SerializeAndDeserializeAstTest.assertFeatureSetsOfScriptsMatch(Node, Node)
-func (c *SerializeAndDeserializeAstTest) assertFeatureSetsOfScriptsMatch(oldRoot *rhino.Node, newRoot *rhino.Node) {
+func (c *SerializeAndDeserializeAstTest) assertFeatureSetsOfScriptsMatch(oldRoot rhino.Node, newRoot rhino.Node) {
 	featureSetsOfOldScripts := c.getFeatureSetsOfScripts(oldRoot)
 	featureSetsOfNewScripts := c.getFeatureSetsOfScripts(newRoot)
 	AssertThat(featureSetsOfNewScripts.KeySlice()).IsEqualTo(featureSetsOfOldScripts.KeySlice())
@@ -1004,16 +1004,16 @@ func (c *SerializeAndDeserializeAstTest) assertFeatureSetsOfScriptsMatch(oldRoot
 }
 
 // Java: SerializeAndDeserializeAstTest.getFeatureSetsOfScripts(Node)
-func (c *SerializeAndDeserializeAstTest) getFeatureSetsOfScripts(root *rhino.Node) *jutil.LinkedHashMap[*SourceFile, *parser.FeatureSet] {
+func (c *SerializeAndDeserializeAstTest) getFeatureSetsOfScripts(root rhino.Node) *jutil.LinkedHashMap[*SourceFile, *parser.FeatureSet] {
 	builder := jutil.NewImmutableMapBuilder[*SourceFile, *parser.FeatureSet]()
 	externsRoot := root.GetFirstChild()
 	sourceRoot := root.GetSecondChild()
-	for script := externsRoot.GetFirstChild(); script != nil; script = script.GetNext() {
+	for script := externsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		jutil.CheckState(script.IsScript())
 		builder.Put(
 			script.GetStaticSourceFile().(*SourceFile), serializeAndDeserializeAstTest_featureSet(script))
 	}
-	for script := sourceRoot.GetFirstChild(); script != nil; script = script.GetNext() {
+	for script := sourceRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		jutil.CheckState(script.IsScript())
 		builder.Put(
 			script.GetStaticSourceFile().(*SourceFile), serializeAndDeserializeAstTest_featureSet(script))
@@ -1025,15 +1025,15 @@ func (c *SerializeAndDeserializeAstTest) getFeatureSetsOfScripts(root *rhino.Nod
 // (FeatureSet) script.getProp(Node.FEATURE_SET), null included.
 //
 // Go-only: language-adapter — a Go type assertion panics on a nil interface.
-func serializeAndDeserializeAstTest_featureSet(script *rhino.Node) *parser.FeatureSet {
+func serializeAndDeserializeAstTest_featureSet(script rhino.Node) *parser.FeatureSet {
 	featureSet, _ := script.GetProp(rhino.Node_FEATURE_SET).(*parser.FeatureSet)
 	return featureSet
 }
 
 // Java: SerializeAndDeserializeAstTest.collectSourceFilesFromScripts(Node)
-func (c *SerializeAndDeserializeAstTest) collectSourceFilesFromScripts(root *rhino.Node) []*SourceFile {
+func (c *SerializeAndDeserializeAstTest) collectSourceFilesFromScripts(root rhino.Node) []*SourceFile {
 	files := []*SourceFile{}
-	for n := root.GetFirstChild(); n != nil; n = n.GetNext() {
+	for n := root.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		files = append(files, n.GetStaticSourceFile().(*SourceFile))
 	}
 	return files
@@ -1043,12 +1043,12 @@ func (c *SerializeAndDeserializeAstTest) collectSourceFilesFromScripts(root *rhi
 type serializeAndDeserializeAstTest_Result struct {
 	ast        *TypedAstDeserializer_DeserializedAst
 	registry   *colors.ColorRegistry
-	sourceRoot *rhino.Node
+	sourceRoot rhino.Node
 	compiler   *Compiler
 }
 
 // Java: SerializeAndDeserializeAstTest.Result(DeserializedAst, ColorRegistry, Node, Compiler)
-func newSerializeAndDeserializeAstTest_Result(ast *TypedAstDeserializer_DeserializedAst, registry *colors.ColorRegistry, sourceRoot *rhino.Node, compiler *Compiler) *serializeAndDeserializeAstTest_Result {
+func newSerializeAndDeserializeAstTest_Result(ast *TypedAstDeserializer_DeserializedAst, registry *colors.ColorRegistry, sourceRoot rhino.Node, compiler *Compiler) *serializeAndDeserializeAstTest_Result {
 	return &serializeAndDeserializeAstTest_Result{
 		ast:        ast,
 		registry:   registry,

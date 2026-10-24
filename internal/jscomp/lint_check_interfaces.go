@@ -67,7 +67,7 @@ func NewCheckInterfaces(compiler AbstractCompiler) *CheckInterfaces {
 }
 
 // Java: CheckInterfaces.process(Node, Node)
-func (c *CheckInterfaces) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckInterfaces) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
@@ -80,7 +80,7 @@ func CheckInterfaces_IsInterface(jsDoc *rhino.JSDocInfo) bool {
 }
 
 // Java: CheckInterfaces.visit(NodeTraversal, Node, Node)
-func (c *CheckInterfaces) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckInterfaces) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		jsdoc := NodeUtil_GetBestJSDocInfo(n)
@@ -91,11 +91,11 @@ func (c *CheckInterfaces) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.N
 	case rhino.Token_CLASS:
 		jsdoc := NodeUtil_GetBestJSDocInfo(n)
 		if CheckInterfaces_IsInterface(jsdoc) {
-			if n.GetSecondChild() != nil && n.GetSecondChild().IsName() {
+			if !n.GetSecondChild().IsNil() && n.GetSecondChild().IsName() {
 				t.Report(n, CheckInterfaces_INTERFACE_DEFINED_WITH_EXTENDS)
 			}
 			ctorDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-			if ctorDef != nil {
+			if !ctorDef.IsNil() {
 				ctor := ctorDef.GetFirstChild()
 				CheckInterfaces_CheckInterfaceConstructorArgs(t, ctor)
 				CheckInterfaces_CheckConstructorBlock(t, ctor)
@@ -108,7 +108,7 @@ func (c *CheckInterfaces) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.N
 }
 
 // Java: CheckInterfaces.checkInterfaceConstructorArgs(NodeTraversal, Node)
-func CheckInterfaces_CheckInterfaceConstructorArgs(t *NodeTraversal, funcNode *rhino.Node) {
+func CheckInterfaces_CheckInterfaceConstructorArgs(t *NodeTraversal, funcNode rhino.Node) {
 	args := funcNode.GetSecondChild()
 	if args.HasChildren() {
 		t.Report(args.GetFirstChild(), CheckInterfaces_INTERFACE_CONSTRUCTOR_SHOULD_NOT_TAKE_ARGS)
@@ -119,10 +119,10 @@ func CheckInterfaces_CheckInterfaceConstructorArgs(t *NodeTraversal, funcNode *r
 // for `@record` and `@interface` as per the style guide.
 //
 // Java: CheckInterfaces.checkClassMethods(NodeTraversal, Node, Node)
-func CheckInterfaces_CheckClassMethods(t *NodeTraversal, classNode *rhino.Node, ctorDef *rhino.Node) {
+func CheckInterfaces_CheckClassMethods(t *NodeTraversal, classNode rhino.Node, ctorDef rhino.Node) {
 	classMembers := classNode.GetLastChild()
 	jutil.CheckStateMsg1(classMembers.IsClassMembers(), "%s", classMembers)
-	for memberFuncDef := classMembers.GetFirstChild(); memberFuncDef != nil; memberFuncDef = memberFuncDef.GetNext() {
+	for memberFuncDef := classMembers.GetFirstChild(); !memberFuncDef.IsNil(); memberFuncDef = memberFuncDef.GetNext() {
 		// Node does not override equals: memberFuncDef.equals(ctorDef) is identity.
 		if memberFuncDef == ctorDef {
 			continue // constructor was already checked; don't check here.
@@ -148,13 +148,13 @@ func CheckInterfaces_CheckClassMethods(t *NodeTraversal, classNode *rhino.Node, 
 // non-empty, check that only field declarations exist in them.
 //
 // Java: CheckInterfaces.checkConstructorBlock(NodeTraversal, Node)
-func CheckInterfaces_CheckConstructorBlock(t *NodeTraversal, funcNode *rhino.Node) {
+func CheckInterfaces_CheckConstructorBlock(t *NodeTraversal, funcNode rhino.Node) {
 	block := funcNode.GetLastChild()
 	if !block.HasChildren() {
 		return
 	}
 
-	for stmt := block.GetFirstChild(); stmt != nil; stmt = stmt.GetNext() {
+	for stmt := block.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
 		if !CheckInterfaces_IsThisPropAccess(stmt) {
 			// Only field declarations are expected inside @record and @interface.
 			t.Report(stmt, CheckInterfaces_NON_DECLARATION_STATEMENT_IN_INTERFACE)
@@ -168,7 +168,7 @@ func CheckInterfaces_CheckConstructorBlock(t *NodeTraversal, funcNode *rhino.Nod
 }
 
 // Java: CheckInterfaces.isThisPropAccess(Node)
-func CheckInterfaces_IsThisPropAccess(stmt *rhino.Node) bool {
+func CheckInterfaces_IsThisPropAccess(stmt rhino.Node) bool {
 	return stmt.IsExprResult() &&
 		stmt.GetFirstChild().IsGetProp() &&
 		stmt.GetFirstFirstChild().IsThis()

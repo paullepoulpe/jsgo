@@ -388,7 +388,7 @@ func (m *HamtPMap[K, V]) Get(key K) V {
 func (m *HamtPMap[K, V]) keyEquals(key K) bool {
 	// Go-only: performance — ObjectsEqualsOf compares String keys without
 	// boxing them.
-	return !m.keyIsNull && jutil.ObjectsEqualsOf(key, m.key)
+	return !m.keyIsNull && hamtEquals(key, m.key)
 }
 
 // GetWithHash is the internal recursive implementation of get(K).
@@ -425,7 +425,7 @@ func (m *HamtPMap[K, V]) PlusMap(key K, value V) *HamtPMap[K, V] {
 
 // PlusMapWithArena is PlusMap using arena for node and child-slice allocations.
 func (m *HamtPMap[K, V]) PlusMapWithArena(arena *HamtPMapArena[K, V], key K, value V) *HamtPMap[K, V] {
-	jutil.CheckNotNull(any(value))
+	hamtCheckNotNull(value)
 
 	if !m.IsEmpty() {
 		return m.plusWithHash(arena, key, HamtPMap_Hash(key), value)
@@ -442,7 +442,7 @@ func (m *HamtPMap[K, V]) PlusWithHash(key K, hash int32, value V) *HamtPMap[K, V
 
 func (m *HamtPMap[K, V]) plusWithHash(arena *HamtPMapArena[K, V], key K, hash int32, value V) *HamtPMap[K, V] {
 	if hash == m.hash && m.keyEquals(key) {
-		if jutil.ObjectsEqualsOf(value, m.value) {
+		if hamtEquals(value, m.value) {
 			return m
 		}
 		return allocHamtPMap(arena, key, false, hash, value, m.mask, m.children)
@@ -607,7 +607,7 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 	} else if t1 == nil {
 		newValue := joiner(t2.key, null, t2.value)
 		if checkNotNull {
-			jutil.CheckNotNull(newValue)
+			hamtCheckNotNull(newValue)
 		}
 		var newChildrenBuf [16]*HamtPMap[K, V]
 		n := len(t2.children)
@@ -619,7 +619,7 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 				sameChildren = false
 			}
 		}
-		if sameChildren && jutil.ObjectsEqualsOf(t2.value, newValue) {
+		if sameChildren && hamtEquals(t2.value, newValue) {
 			return t2
 		}
 		var newChildren []*HamtPMap[K, V]
@@ -636,7 +636,7 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 	} else if t2 == nil {
 		newValue := joiner(t1.key, t1.value, null)
 		if checkNotNull {
-			jutil.CheckNotNull(newValue)
+			hamtCheckNotNull(newValue)
 		}
 		var newChildrenBuf [16]*HamtPMap[K, V]
 		n := len(t1.children)
@@ -648,7 +648,7 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 				sameChildren = false
 			}
 		}
-		if sameChildren && jutil.ObjectsEqualsOf(t1.value, newValue) {
+		if sameChildren && hamtEquals(t1.value, newValue) {
 			return t1
 		}
 		var newChildren []*HamtPMap[K, V]
@@ -700,12 +700,12 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 	// Note: one or the other (but not both) tree may have a null key at root.
 
 	var newValue V
-	if vacatedBit1 == 0 && vacatedBit2 == 0 && jutil.ObjectsEqualsOf(t1Val, t2Val) {
+	if vacatedBit1 == 0 && vacatedBit2 == 0 && hamtEquals(t1Val, t2Val) {
 		newValue = t1Val
 	} else {
 		newValue = joiner(key, t1Val, t2Val)
 		if checkNotNull {
-			jutil.CheckNotNull(newValue)
+			hamtCheckNotNull(newValue)
 		}
 	}
 	t1Mask := t1.mask | vacatedBit1
@@ -767,9 +767,9 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 			newMask &^= childBit
 		}
 	}
-	if sameChildrenAs1 && jutil.ObjectsEqualsOf(t1Val, newValue) {
+	if sameChildrenAs1 && hamtEquals(t1Val, newValue) {
 		return t1
-	} else if sameChildrenAs2 && jutil.ObjectsEqualsOf(t2Val, newValue) {
+	} else if sameChildrenAs2 && hamtEquals(t2Val, newValue) {
 		return t2
 	}
 	var newChildren []*HamtPMap[K, V]
@@ -887,7 +887,28 @@ func HamtPMap_Hash[K any](key K) int32 {
 	if s, ok := any(key).(string); ok {
 		return int32(bits.Reverse32(uint32(jutil.StringHashCode(s))))
 	}
+	if n, ok := any(&key).(*Node); ok {
+		return int32(bits.Reverse32(uint32(CheckNotNull(*n).IdentityHashCode())))
+	}
 	return int32(bits.Reverse32(uint32(jutil.ObjectHashCode(jutil.CheckNotNull(any(key))))))
+}
+
+// hamtEquals is jutil.ObjectsEqualsOf, without putting a Node in an any
+// (which allocates): Node keys and values compare by identity.
+func hamtEquals[T any](a, b T) bool {
+	if na, ok := any(&a).(*Node); ok {
+		return *na == *any(&b).(*Node)
+	}
+	return jutil.ObjectsEqualsOf(a, b)
+}
+
+// hamtCheckNotNull is jutil.CheckNotNull, without boxing a Node.
+func hamtCheckNotNull[T any](v T) {
+	if n, ok := any(&v).(*Node); ok {
+		CheckNotNull(*n)
+		return
+	}
+	jutil.CheckNotNull(any(v))
 }
 
 // HamtPMap_Bucket returns the current bucket index from the hash.

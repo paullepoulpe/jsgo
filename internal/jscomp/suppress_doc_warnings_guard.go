@@ -81,10 +81,10 @@ func SuppressDocWarningsGuard_CreateSuppressors(
 // Java: SuppressDocWarningsGuard.level(JSError)
 func (g *SuppressDocWarningsGuard) Level(error *JSError) *CheckLevel {
 	node := error.Node()
-	if node == nil {
+	if node.IsNil() {
 		node = g.GetScriptNodeBySourceName(error)
 	}
-	if node == nil {
+	if node.IsNil() {
 		return nil
 	}
 
@@ -96,7 +96,7 @@ func (g *SuppressDocWarningsGuard) Level(error *JSError) *CheckLevel {
 	// Some errors are on nodes that do not have the script as a parent.
 	// Look up the script node by filename.
 	scriptNode := g.GetScriptNodeBySourceName(error)
-	if scriptNode != nil {
+	if !scriptNode.IsNil() {
 		info := scriptNode.GetJSDocInfo()
 		if info != nil {
 			return g.GetCheckLevelFromInfo(error, info)
@@ -113,8 +113,8 @@ func (g *SuppressDocWarningsGuard) Level(error *JSError) *CheckLevel {
 // keys, and the top level script node.
 //
 // Java: SuppressDocWarningsGuard.getCheckLevelFromAncestors(JSError, Node)
-func (g *SuppressDocWarningsGuard) GetCheckLevelFromAncestors(error *JSError, node *rhino.Node) *CheckLevel {
-	for current := node; current != nil; current = current.GetParent() {
+func (g *SuppressDocWarningsGuard) GetCheckLevelFromAncestors(error *JSError, node rhino.Node) *CheckLevel {
+	for current := node; !current.IsNil(); current = current.GetParent() {
 		var info *rhino.JSDocInfo
 		if current.IsFunction() || current.IsClass() {
 			info = NodeUtil_GetBestJSDocInfo(current)
@@ -161,14 +161,14 @@ func (g *SuppressDocWarningsGuard) GetCheckLevelFromInfo(error *JSError, info *r
 }
 
 // Java: SuppressDocWarningsGuard.getScriptNodeBySourceName(JSError)
-func (g *SuppressDocWarningsGuard) GetScriptNodeBySourceName(error *JSError) *rhino.Node {
+func (g *SuppressDocWarningsGuard) GetScriptNodeBySourceName(error *JSError) rhino.Node {
 	if error.SourceName() == nil {
-		return nil
+		return rhino.Node{}
 	}
 
 	scriptNode := g.compiler.GetScriptNode(*error.SourceName())
-	if scriptNode == nil {
-		return nil
+	if scriptNode.IsNil() {
+		return rhino.Node{}
 	}
 
 	jutil.CheckState(scriptNode.IsScript())

@@ -47,7 +47,7 @@ type TemplateType struct {
 
 	name               string
 	bound              JSType
-	typeTransformation *Node
+	typeTransformation Node
 }
 
 // Java: TemplateType.TYPE_CLASS
@@ -55,22 +55,22 @@ const TemplateType_TYPE_CLASS = JSTypeClass_TEMPLATE
 
 // Java: TemplateType(JSTypeRegistry, String)
 func NewTemplateType(registry *JSTypeRegistry, name string) *TemplateType {
-	return NewTemplateTypeWithBoundAndTransformation(registry, name, nil, nil)
+	return NewTemplateTypeWithBoundAndTransformation(registry, name, nil, Node{})
 }
 
 // Java: TemplateType(JSTypeRegistry, String, JSType)
 func NewTemplateTypeWithBound(registry *JSTypeRegistry, name string, bound JSType) *TemplateType {
-	return NewTemplateTypeWithBoundAndTransformation(registry, name, bound, nil)
+	return NewTemplateTypeWithBoundAndTransformation(registry, name, bound, Node{})
 }
 
 // Java: TemplateType(JSTypeRegistry, String, Node)
-func NewTemplateTypeWithTransformation(registry *JSTypeRegistry, name string, typeTransformation *Node) *TemplateType {
+func NewTemplateTypeWithTransformation(registry *JSTypeRegistry, name string, typeTransformation Node) *TemplateType {
 	return NewTemplateTypeWithBoundAndTransformation(registry, name, nil, typeTransformation)
 }
 
 // Java: TemplateType(JSTypeRegistry, String, JSType, Node)
 func NewTemplateTypeWithBoundAndTransformation(
-	registry *JSTypeRegistry, name string, bound JSType, typeTransformation *Node) *TemplateType {
+	registry *JSTypeRegistry, name string, bound JSType, typeTransformation Node) *TemplateType {
 	t := &TemplateType{}
 	t.objFlags = objKindTemplate
 	referenced := bound
@@ -137,11 +137,11 @@ func (t *TemplateType) VisitRelationship(visitor RelationshipVisitor, that JSTyp
 
 // Java: TemplateType.isTypeTransformation()
 func (t *TemplateType) IsTypeTransformation() bool {
-	return t.typeTransformation != nil
+	return !t.typeTransformation.IsNil()
 }
 
 // Java: TemplateType.getTypeTransformation()
-func (t *TemplateType) GetTypeTransformation() *Node {
+func (t *TemplateType) GetTypeTransformation() Node {
 	return t.typeTransformation
 }
 

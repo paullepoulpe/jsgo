@@ -127,17 +127,17 @@ func (c *DevirtualizeMethodsTest) CheckColorOfRewrittenMethods() {
 }
 
 // Java: DevirtualizeMethodsTest.getLabelledExpression(String)
-func (c *DevirtualizeMethodsTest) GetLabelledExpression(label string) *rhino.Node {
+func (c *DevirtualizeMethodsTest) GetLabelledExpression(label string) rhino.Node {
 	root := c.GetLastCompiler().GetJsRoot()
 
-	return jutil.CheckNotNullMsg1(
+	return rhino.CheckNotNullMsg1(
 		DevirtualizeMethodsTest_GetLabelledExpressionIfPresent(label, root),
 		"Could not find statement matching label %s",
 		label)
 }
 
 // Java: DevirtualizeMethodsTest.getLabelledExpressionIfPresent(String, Node)
-func DevirtualizeMethodsTest_GetLabelledExpressionIfPresent(label string, root *rhino.Node) *rhino.Node {
+func DevirtualizeMethodsTest_GetLabelledExpressionIfPresent(label string, root rhino.Node) rhino.Node {
 	if root.IsLabel() && root.GetFirstChild().GetString() == label {
 		labelledBlock := root.GetSecondChild()
 		jutil.CheckStateMsg1(labelledBlock.IsBlock(), "%s", labelledBlock)
@@ -147,13 +147,13 @@ func DevirtualizeMethodsTest_GetLabelledExpressionIfPresent(label string, root *
 			labelledBlock)
 		return labelledBlock.GetOnlyChild().GetOnlyChild()
 	}
-	for child := root.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := root.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		possibleMatch := DevirtualizeMethodsTest_GetLabelledExpressionIfPresent(label, child)
-		if possibleMatch != nil {
+		if !possibleMatch.IsNil() {
 			return possibleMatch
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: DevirtualizeMethodsTest.testRewriteChained()

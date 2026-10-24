@@ -122,18 +122,18 @@ type Scope struct {
 }
 
 // Java: Scope.createGlobalScope(Node)
-func Scope_CreateGlobalScope(rootNode *rhino.Node) *Scope {
+func Scope_CreateGlobalScope(rootNode rhino.Node) *Scope {
 	return newScope(rootNode)
 }
 
 // Java: Scope.createChildScope(Scope, Node)
-func Scope_CreateChildScope(parent *Scope, rootNode *rhino.Node) *Scope {
+func Scope_CreateChildScope(parent *Scope, rootNode rhino.Node) *Scope {
 	return newScopeWithParent(parent, rootNode)
 }
 
 // Java: Scope(Scope, Node)
-func newScopeWithParent(parent *Scope, rootNode *rhino.Node) *Scope {
-	if rootNode == nil || parent == nil {
+func newScopeWithParent(parent *Scope, rootNode rhino.Node) *Scope {
+	if rootNode.IsNil() || parent == nil {
 		panic(jutil.NewNullPointerException())
 	}
 	if !NodeUtil_CreatesScope(rootNode) {
@@ -148,7 +148,7 @@ func newScopeWithParent(parent *Scope, rootNode *rhino.Node) *Scope {
 
 // initScopeWithParent is newScopeWithParent on a zero Scope (one a
 // SyntacticScopeCreator's slab handed out).
-func initScopeWithParent(s *Scope, parent *Scope, rootNode *rhino.Node) *Scope {
+func initScopeWithParent(s *Scope, parent *Scope, rootNode rhino.Node) *Scope {
 	s.parent = parent
 	s.rootNode = rootNode
 	s.depth = parent.depth + 1
@@ -157,8 +157,8 @@ func initScopeWithParent(s *Scope, parent *Scope, rootNode *rhino.Node) *Scope {
 }
 
 // Java: Scope(Node)
-func newScope(rootNode *rhino.Node) *Scope {
-	if rootNode == nil {
+func newScope(rootNode rhino.Node) *Scope {
+	if rootNode.IsNil() {
 		panic(jutil.NewNullPointerException())
 	}
 	if !NodeUtil_CreatesScope(rootNode) && !rootNode.IsScript() && !rootNode.IsRoot() {
@@ -261,7 +261,7 @@ func (s *Scope) GetClosestContainerScope() *Scope {
 func (s *Scope) isBleedingFunctionNameID(id uint32) bool {
 	var_ := s.GetVarByID(id)
 	return var_ != nil &&
-		var_.GetNode() != nil &&
+		!var_.GetNode().IsNil() &&
 		var_.GetNode().GetParent().IsFunction()
 }
 
@@ -408,7 +408,7 @@ func (s *Scope) GetVar(name string) *Var {
 	return s.GetVarByID(id)
 }
 
-func (s *Scope) GetVarByNode(n *rhino.Node) *Var {
+func (s *Scope) GetVarByNode(n rhino.Node) *Var {
 	return s.GetVarByID(n.GetStringID())
 }
 
@@ -578,14 +578,14 @@ func (s *Scope) GetSlot(name string) rhino.StaticSlot {
 // variable, input the input in which this variable is defined.
 //
 // Java: Scope.declare(String, Node, CompilerInput)
-func (s *Scope) Declare(name string, nameNode *rhino.Node, input *CompilerInput) *Var {
+func (s *Scope) Declare(name string, nameNode rhino.Node, input *CompilerInput) *Var {
 	jutil.CheckArgument(name != "")
 	id := rhino.RhinoStringPool_InternID(name)
 	// Make sure that it's declared only once
 	if s.getOwnSlotByID(id) != nil {
 		panic(jutil.NewIllegalStateException())
 	}
-	var_ := newVarWithID(id, nameNode, s, len(s.varList), input, nil)
+	var_ := newVarWithID(id, nameNode, s, len(s.varList), input, rhino.Node{})
 	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotByID(id) && !s.isBleedingFunctionNameID(id) {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
 	}
@@ -613,7 +613,7 @@ func (s *Scope) getOwnSlotByID(id uint32) *Var {
 // the full namespace.
 //
 // Java: Scope.declareImplicitGoogNamespaceIfAbsent(String, Node)
-func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rhino.Node) *Var {
+func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition rhino.Node) *Var {
 	jutil.CheckArgument(name != "")
 	jutil.CheckStateMsg1(s.IsGlobal(), "Cannot declare implicit goog namespace in local scope %s", s)
 	// Allow redeclarations of provides, since they are implicit and don't have a single
@@ -621,7 +621,7 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 	id := rhino.RhinoStringPool_InternID(name)
 	var_ := s.getOwnSlotByID(id)
 	if var_ == nil {
-		var_ = newVarWithID(id, nil, s, -1, nil, definition)
+		var_ = newVarWithID(id, rhino.Node{}, s, -1, nil, definition)
 		s.addVar(var_)
 	} else if var_.IsImplicitGoogNamespace() {
 		var_.AddImplicitGoogNamespaceDefinition(definition)
@@ -631,5 +631,5 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition *rh
 
 // Java: Scope.makeImplicitVar(ImplicitVar)
 func (s *Scope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *Var {
-	return newVarWithID(var_.nameID(), nil, s, -1, nil, nil)
+	return newVarWithID(var_.nameID(), rhino.Node{}, s, -1, nil, rhino.Node{})
 }

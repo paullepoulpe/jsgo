@@ -35,7 +35,7 @@ type CheckNoMutatedEs6Exports struct {
 	// Java's does. Its Node values hash by identity, so Java iterates the
 	// values of one key in an order that differs from run to run; they are
 	// kept in insertion order here (PORTING.md §6).
-	mutatedNames       *jutil.JavaHashMap[string, *jutil.LinkedHashSet[*rhino.Node]]
+	mutatedNames       *jutil.JavaHashMap[string, *jutil.LinkedHashSet[rhino.Node]]
 	exportedLocalNames *jutil.LinkedHashSet[string]
 }
 
@@ -52,7 +52,7 @@ var CheckNoMutatedEs6Exports_MUTATED_EXPORT = DiagnosticType_Warning(
 func NewCheckNoMutatedEs6Exports(compiler AbstractCompiler) *CheckNoMutatedEs6Exports {
 	return &CheckNoMutatedEs6Exports{
 		compiler:           compiler,
-		mutatedNames:       jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.LinkedHashSet[*rhino.Node]](8),
+		mutatedNames:       jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.LinkedHashSet[rhino.Node]](8),
 		exportedLocalNames: jutil.NewLinkedHashSet[string](),
 	}
 }
@@ -75,14 +75,14 @@ func (c *CheckNoMutatedEs6Exports) CheckNoMutations() {
 }
 
 // Java: CheckNoMutatedEs6Exports.visit(NodeTraversal, Node, Node)
-func (c *CheckNoMutatedEs6Exports) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckNoMutatedEs6Exports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsModuleBody() {
 		c.CheckNoMutations()
 	}
 }
 
 // Java: CheckNoMutatedEs6Exports.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckNoMutatedEs6Exports) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckNoMutatedEs6Exports) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		return n.GetBooleanProp(rhino.Node_ES6_MODULE)
@@ -98,10 +98,10 @@ func (c *CheckNoMutatedEs6Exports) ShouldTraverse(t *NodeTraversal, n *rhino.Nod
 }
 
 // Java: CheckNoMutatedEs6Exports.visitExport(Node)
-func (c *CheckNoMutatedEs6Exports) VisitExport(export *rhino.Node) {
+func (c *CheckNoMutatedEs6Exports) VisitExport(export rhino.Node) {
 	if export.HasOneChild() && export.GetFirstChild().IsExportSpecs() {
 		// export {a, b as c};
-		for exportSpec := export.GetFirstFirstChild(); exportSpec != nil; exportSpec = exportSpec.GetNext() {
+		for exportSpec := export.GetFirstFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
 			jutil.CheckState(exportSpec.HasTwoChildren())
 			c.exportedLocalNames.Add(exportSpec.GetFirstChild().GetString())
 		}
@@ -113,7 +113,7 @@ func (c *CheckNoMutatedEs6Exports) VisitExport(export *rhino.Node) {
 			// export let a, b, c;
 			NodeUtil_VisitLhsNodesInNode(
 				declaration,
-				func(lhs *rhino.Node) {
+				func(lhs rhino.Node) {
 					jutil.CheckState(lhs.IsName())
 					c.exportedLocalNames.Add(lhs.GetString())
 				})
@@ -140,7 +140,7 @@ func (c *CheckNoMutatedEs6Exports) VisitExport(export *rhino.Node) {
 }
 
 // Java: CheckNoMutatedEs6Exports.visitName(NodeTraversal, Node)
-func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name *rhino.Node) {
+func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name rhino.Node) {
 	scope := t.GetScope()
 	if NodeUtil_IsLValue(name) && !scope.GetClosestHoistScope().IsModuleScope() {
 		var_ := scope.GetVar(name.GetString())
@@ -149,7 +149,7 @@ func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name *rhino.Node)
 			// map) on its first value.
 			mutations := c.mutatedNames.Get(name.GetString())
 			if mutations == nil {
-				mutations = jutil.NewLinkedHashSet[*rhino.Node]()
+				mutations = jutil.NewLinkedHashSet[rhino.Node]()
 				c.mutatedNames.Put(name.GetString(), mutations)
 			}
 			mutations.Add(name)
@@ -158,6 +158,6 @@ func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name *rhino.Node)
 }
 
 // Java: CheckNoMutatedEs6Exports.process(Node, Node)
-func (c *CheckNoMutatedEs6Exports) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckNoMutatedEs6Exports) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }

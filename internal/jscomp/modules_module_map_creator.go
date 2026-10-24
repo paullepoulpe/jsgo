@@ -68,7 +68,7 @@ type moduleMapCreator_fallbackForMissingNonClosureModule struct {
 func (r *ModuleMapCreator_ModuleRequestResolverImpl) GetFallbackForMissingNonClosureModule(path *ModuleLoader_ModulePath) UnresolvedModule {
 	metadata :=
 		ModuleMetadataMap_ModuleMetadata_Builder_().
-			RootNode(nil).
+			RootNode(rhino.Node{}).
 			Path(path).
 			ModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE).
 			IsTestOnly(false).
@@ -126,7 +126,7 @@ func (m *moduleMapCreator_fallbackForMissingNonClosureModule) ResolveExportWithT
 				ModulePath(m.path).
 				ClosureNamespace(nil).
 				Build(),
-			/* sourceNode= */ nil))
+			/* sourceNode= */ rhino.Node{}))
 }
 
 // Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingClosureModule(String)
@@ -137,11 +137,11 @@ func (r *ModuleMapCreator_ModuleRequestResolverImpl) GetFallbackForMissingClosur
 			IsTestOnly(false).
 			ModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE).
 			Path(nil).
-			RootNode(nil).
+			RootNode(rhino.Node{}).
 			UsesClosure(true).
 			Build(),
 		/* path= */ nil,
-		/* script= */ nil)
+		/* script= */ rhino.Node{})
 }
 
 // Java: ModuleMapCreator.ModuleRequestResolverImpl.resolve(Import)
@@ -167,7 +167,7 @@ func (r *ModuleMapCreator_ModuleRequestResolverImpl) ResolveForClosure(namespace
 
 // Java: ModuleMapCreator.ModuleRequestResolverImpl.resolve(String, ModulePath, Node)
 func (r *ModuleMapCreator_ModuleRequestResolverImpl) ResolveWithModulePath(
-	moduleRequest string, modulePath *ModuleLoader_ModulePath, forLineInfo *rhino.Node) UnresolvedModule {
+	moduleRequest string, modulePath *ModuleLoader_ModulePath, forLineInfo rhino.Node) UnresolvedModule {
 
 	if GoogEsImports_IsGoogImportSpecifier(moduleRequest) {
 		namespace := GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleRequest)
@@ -204,7 +204,7 @@ func (r *ModuleMapCreator_ModuleRequestResolverImpl) ResolveWithModulePath(
 // return information about a module.
 type ModuleMapCreator_ModuleProcessor interface {
 	// Java: ModuleMapCreator.ModuleProcessor.process(ModuleMetadata, ModulePath, Node)
-	Process(metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script *rhino.Node) UnresolvedModule
+	Process(metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule
 }
 
 // Java: ModuleMapCreator(AbstractCompiler, ModuleMetadataMap)
@@ -345,6 +345,6 @@ func (c *ModuleMapCreator) ProcessModuleMetadata(moduleMetadata *ModuleMetadataM
 }
 
 // Java: ModuleMapCreator.process(Node, Node)
-func (c *ModuleMapCreator) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ModuleMapCreator) Process(externs rhino.Node, root rhino.Node) {
 	c.compiler.SetModuleMap(c.Create())
 }

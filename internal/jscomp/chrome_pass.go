@@ -90,12 +90,12 @@ func NewChromePass(compiler AbstractCompiler) *ChromePass {
 }
 
 // Java: ChromePass.process(Node, Node)
-func (p *ChromePass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *ChromePass) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, p)
 }
 
 // Java: ChromePass.visit(NodeTraversal, Node, Node)
-func (p *ChromePass) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (p *ChromePass) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	if node.IsCall() {
 		callee := node.GetFirstChild()
 		if callee.MatchesQualifiedName(chromePass_CR_DEFINE) {
@@ -108,7 +108,7 @@ func (p *ChromePass) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Nod
 }
 
 // Java: ChromePass.visitPropertyDefinition(Node, Node)
-func (p *ChromePass) visitPropertyDefinition(call *rhino.Node, parent *rhino.Node) {
+func (p *ChromePass) visitPropertyDefinition(call rhino.Node, parent rhino.Node) {
 	callee := call.GetFirstChild()
 	isCrDefinePropertyCall := callee.MatchesQualifiedName(chromePass_CR_DEFINE_PROPERTY)
 
@@ -138,7 +138,7 @@ func (p *ChromePass) visitPropertyDefinition(call *rhino.Node, parent *rhino.Nod
 	if isCrDefinePropertyCall {
 		// The 3rd argument (PropertyKind) is actually used at runtime, so it takes precedence.
 		propertyType := p.getTypeByCrPropertyKind(call.GetChildAtIndex(3))
-		if propertyType != nil {
+		if !propertyType.IsNil() {
 			chromePass_setJsDocWithType(getPropNode, propertyType)
 		} else {
 			// Otherwise, if there's a @type above the cr.defineProperty() call, move it to the getter.
@@ -168,10 +168,10 @@ func (p *ChromePass) visitPropertyDefinition(call *rhino.Node, parent *rhino.Nod
 }
 
 // Java: ChromePass.getTypeByCrPropertyKind(Node)
-func (p *ChromePass) getTypeByCrPropertyKind(propertyKind *rhino.Node) *rhino.Node {
-	if propertyKind == nil || chromePass_CR_PROPERTYKIND_JS.Matches(propertyKind) {
+func (p *ChromePass) getTypeByCrPropertyKind(propertyKind rhino.Node) rhino.Node {
+	if propertyKind.IsNil() || chromePass_CR_PROPERTYKIND_JS.Matches(propertyKind) {
 		// This is valid, it just doesn't tell us much about the type.
-		return nil
+		return rhino.Node{}
 	}
 	if chromePass_CR_PROPERTYKIND_ATTR.Matches(propertyKind) {
 		return rhino.IR_String("string")
@@ -184,18 +184,18 @@ func (p *ChromePass) getTypeByCrPropertyKind(propertyKind *rhino.Node) *rhino.No
 			propertyKind,
 			ChromePass_CR_DEFINE_PROPERTY_INVALID_PROPERTY_KIND,
 			jutil.ToJavaString(propertyKind.GetQualifiedName())))
-	return nil
+	return rhino.Node{}
 }
 
 // Java: ChromePass.setJsDocWithType(Node, Node)
-func chromePass_setJsDocWithType(target *rhino.Node, type_ *rhino.Node) {
+func chromePass_setJsDocWithType(target rhino.Node, type_ rhino.Node) {
 	builder := rhino.JSDocInfo_Builder_()
 	builder.RecordType(rhino.NewJSTypeExpression(type_.SrcrefTree(chromePass_VIRTUAL_NODE), chromePass_VIRTUAL_FILE))
 	target.SetJSDocInfo(builder.Build())
 }
 
 // Java: ChromePass.createAndInsertObjectsForQualifiedName(Node, String)
-func (p *ChromePass) createAndInsertObjectsForQualifiedName(scriptChild *rhino.Node, namespace string) {
+func (p *ChromePass) createAndInsertObjectsForQualifiedName(scriptChild rhino.Node, namespace string) {
 	objectsForQualifiedName := p.createObjectsForQualifiedName(namespace)
 	for n := range objectsForQualifiedName.All() {
 		n.SrcrefTree(scriptChild).InsertBefore(scriptChild)
@@ -206,7 +206,7 @@ func (p *ChromePass) createAndInsertObjectsForQualifiedName(scriptChild *rhino.N
 }
 
 // Java: ChromePass.visitNamespaceDefinition(Node, Node)
-func (p *ChromePass) visitNamespaceDefinition(crDefineCallNode *rhino.Node, parent *rhino.Node) {
+func (p *ChromePass) visitNamespaceDefinition(crDefineCallNode rhino.Node, parent rhino.Node) {
 	if crDefineCallNode.GetChildCount() != 3 {
 		p.compiler.Report(JSError_MakeWithNode(crDefineCallNode, ChromePass_CR_DEFINE_WRONG_NUMBER_OF_ARGUMENTS))
 	}
@@ -230,16 +230,16 @@ func (p *ChromePass) visitNamespaceDefinition(crDefineCallNode *rhino.Node, pare
 		return
 	}
 
-	var returnNode *rhino.Node
-	var objectLit *rhino.Node
+	var returnNode rhino.Node
+	var objectLit rhino.Node
 	functionBlock := function.GetLastChild()
 	returnNode = functionBlock.GetLastChild()
-	if returnNode == nil || !returnNode.IsReturn() {
+	if returnNode.IsNil() || !returnNode.IsReturn() {
 		p.compiler.Report(JSError_MakeWithNode(namespaceArg, ChromePass_CR_DEFINE_INVALID_RETURN_IN_FUNCTION))
 		return
 	}
 	objectLit = returnNode.GetFirstChild()
-	if objectLit == nil || !objectLit.IsObjectLit() {
+	if objectLit.IsNil() || !objectLit.IsObjectLit() {
 		p.compiler.Report(JSError_MakeWithNode(namespaceArg, ChromePass_CR_DEFINE_INVALID_RETURN_IN_FUNCTION))
 		return
 	}
@@ -253,10 +253,10 @@ func (p *ChromePass) visitNamespaceDefinition(crDefineCallNode *rhino.Node, pare
 }
 
 // Java: ChromePass.objectLitToMap(Node)
-func chromePass_objectLitToMap(objectLit *rhino.Node) *jutil.LinkedHashMap[string, string] {
+func chromePass_objectLitToMap(objectLit rhino.Node) *jutil.LinkedHashMap[string, string] {
 	res := jutil.NewLinkedHashMap[string, string]()
 
-	for keyNode := objectLit.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := objectLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		key := keyNode.GetString()
 
 		valueNode := keyNode.GetFirstChild()
@@ -277,8 +277,8 @@ func chromePass_objectLitToMap(objectLit *rhino.Node) *jutil.LinkedHashMap[strin
 //	a.b.c = a.b.c || {};
 //
 // Java: ChromePass.createObjectsForQualifiedName(String)
-func (p *ChromePass) createObjectsForQualifiedName(namespace string) *jutil.ArrayList[*rhino.Node] {
-	objects := jutil.NewArrayList[*rhino.Node]()
+func (p *ChromePass) createObjectsForQualifiedName(namespace string) *jutil.ArrayList[rhino.Node] {
+	objects := jutil.NewArrayList[rhino.Node]()
 	// namespace.split("\\.")
 	parts := jutil.StringSplitLiteral(namespace, ".")
 
@@ -296,7 +296,7 @@ func (p *ChromePass) createObjectsForQualifiedName(namespace string) *jutil.Arra
 }
 
 // Java: ChromePass.createObjectIfNew(List<Node>, String, boolean)
-func (p *ChromePass) createObjectIfNew(objects *jutil.ArrayList[*rhino.Node], name string, needVar bool) {
+func (p *ChromePass) createObjectIfNew(objects *jutil.ArrayList[rhino.Node], name string, needVar bool) {
 	if p.createdObjects.Contains(name) {
 		return
 	}
@@ -319,13 +319,13 @@ type chromePass_RenameInternalsToExternalsCallback struct {
 
 	namespaceName  string
 	exports        *jutil.LinkedHashMap[string, string]
-	namespaceBlock *rhino.Node
+	namespaceBlock rhino.Node
 }
 
 // Java: ChromePass.RenameInternalsToExternalsCallback(String, Map<String, String>, Node)
 func newChromePass_RenameInternalsToExternalsCallback(
 	outer *ChromePass,
-	namespaceName string, exports *jutil.LinkedHashMap[string, string], namespaceBlock *rhino.Node) *chromePass_RenameInternalsToExternalsCallback {
+	namespaceName string, exports *jutil.LinkedHashMap[string, string], namespaceBlock rhino.Node) *chromePass_RenameInternalsToExternalsCallback {
 	return &chromePass_RenameInternalsToExternalsCallback{
 		outer:          outer,
 		namespaceName:  namespaceName,
@@ -335,7 +335,7 @@ func newChromePass_RenameInternalsToExternalsCallback(
 }
 
 // Java: ChromePass.RenameInternalsToExternalsCallback.visit(NodeTraversal, Node, Node)
-func (c *chromePass_RenameInternalsToExternalsCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *chromePass_RenameInternalsToExternalsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	compiler := c.outer.compiler
 	if (n.IsFunction() || n.IsClass()) &&
 		parent == c.namespaceBlock &&
@@ -397,8 +397,8 @@ func (c *chromePass_RenameInternalsToExternalsCallback) Visit(t *NodeTraversal, 
 				//
 				//   my.namespace.name.enum = { 'one': 1, 'two': 2 };
 				varContent := n.RemoveFirstChild()
-				var exprResult *rhino.Node
-				if varContent == nil {
+				var exprResult rhino.Node
+				if varContent.IsNil() {
 					exprResult = rhino.IR_ExprResult(c.buildQualifiedName(n)).Srcref(parent)
 				} else {
 					exprResult =
@@ -431,7 +431,7 @@ func (c *chromePass_RenameInternalsToExternalsCallback) Visit(t *NodeTraversal, 
 }
 
 // Java: ChromePass.RenameInternalsToExternalsCallback.buildQualifiedName(Node)
-func (c *chromePass_RenameInternalsToExternalsCallback) buildQualifiedName(internalName *rhino.Node) *rhino.Node {
+func (c *chromePass_RenameInternalsToExternalsCallback) buildQualifiedName(internalName rhino.Node) rhino.Node {
 	// Java string concatenation renders a missing export (null) as "null".
 	externalName, ok := c.exports.Lookup(internalName.GetString())
 	if !ok {

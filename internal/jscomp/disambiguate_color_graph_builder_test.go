@@ -114,14 +114,14 @@ type colorGraphBuilderTest_collector struct {
 }
 
 // Java: ColorGraphBuilderTest.createBuilderIncludingCode(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (cb *colorGraphBuilderTest_collector) Visit(t *NodeTraversal, n *rhino.Node, unused *rhino.Node) {
+func (cb *colorGraphBuilderTest_collector) Visit(t *NodeTraversal, n rhino.Node, unused rhino.Node) {
 	if n.IsName() && jutil.StringStartsWith(n.GetString(), "test") {
 		cb.testTypes.Put(n.GetString(), cb.graphNodeFactory.CreateNode(n.GetColor()))
 	}
 
 	if n.IsLabel() {
 		labelName := n.GetFirstChild().GetString()
-		var labeledExpr *rhino.Node
+		var labeledExpr rhino.Node
 		if n.GetSecondChild().IsExprResult() {
 			labeledExpr = n.GetSecondChild().GetOnlyChild()
 		} else {
@@ -141,7 +141,7 @@ func (c *ColorGraphBuilderTest) createBuilderIncludingCode(
 	c.labelToId = jutil.NewLinkedHashMap[string, colors.ColorId]()
 
 	/* Flatten and collect the types of all NAMEs that start with "test". */
-	c.processor = CompilerPassFunc(func(externs *rhino.Node, main *rhino.Node) {
+	c.processor = CompilerPassFunc(func(externs rhino.Node, main rhino.Node) {
 		NodeTraversal_Traverse(
 			c.compiler,
 			main,

@@ -529,8 +529,8 @@ func (c *SemanticReverseAbstractInterpreterTest) TestInstanceOf4() {
 func (c *SemanticReverseAbstractInterpreterTest) testBinop(
 	blind []FlowScope,
 	binop rhino.Token,
-	left *rhino.Node,
-	right *rhino.Node,
+	left rhino.Node,
+	right rhino.Node,
 	trueOutcome []*semanticReverseAbstractInterpreterTest_TypedName,
 	falseOutcome []*semanticReverseAbstractInterpreterTest_TypedName) {
 	condition := rhino.NewNode(binop)
@@ -553,21 +553,21 @@ func (c *SemanticReverseAbstractInterpreterTest) testBinop(
 }
 
 // Java: SemanticReverseAbstractInterpreterTest.createNull()
-func (c *SemanticReverseAbstractInterpreterTest) createNull() *rhino.Node {
+func (c *SemanticReverseAbstractInterpreterTest) createNull() rhino.Node {
 	n := rhino.NewNode(rhino.Token_NULL)
 	n.SetJSType(c.GetNativeNullType())
 	return n
 }
 
 // Java: SemanticReverseAbstractInterpreterTest.createNumber(int)
-func (c *SemanticReverseAbstractInterpreterTest) createNumber(n int) *rhino.Node {
+func (c *SemanticReverseAbstractInterpreterTest) createNumber(n int) rhino.Node {
 	number := c.createUntypedNumber(n)
 	number.SetJSType(c.GetNativeNumberType())
 	return number
 }
 
 // Java: SemanticReverseAbstractInterpreterTest.createUntypedNumber(int)
-func (c *SemanticReverseAbstractInterpreterTest) createUntypedNumber(n int) *rhino.Node {
+func (c *SemanticReverseAbstractInterpreterTest) createUntypedNumber(n int) rhino.Node {
 	return rhino.Node_NewNumber(float64(n))
 }
 
@@ -577,7 +577,7 @@ func (c *SemanticReverseAbstractInterpreterTest) getVarType(scope FlowScope, nam
 }
 
 // Java: SemanticReverseAbstractInterpreterTest.createVar(FlowScope[], String, JSType)
-func (c *SemanticReverseAbstractInterpreterTest) createVar(scope []FlowScope, name string, type_ rhino.JSType) *rhino.Node {
+func (c *SemanticReverseAbstractInterpreterTest) createVar(scope []FlowScope, name string, type_ rhino.JSType) rhino.Node {
 	n := rhino.Node_NewStringWithToken(rhino.Token_NAME, name)
 	c.functionScope.Declare(name, n, nil, nil, true)
 	scope[0] = scope[0].InferSlotType(name, type_)

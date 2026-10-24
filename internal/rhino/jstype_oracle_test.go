@@ -199,11 +199,11 @@ func (r *typeAlgebraTestReporter) Error(message string, sourceName string, line 
 }
 
 type typeAlgebraTestScope struct {
-	root  *Node
+	root  Node
 	slots *jutil.LinkedHashMap[string, *SimpleSlotBase]
 }
 
-func (s *typeAlgebraTestScope) GetRootNode() *Node { return s.root }
+func (s *typeAlgebraTestScope) GetRootNode() Node { return s.root }
 
 func (s *typeAlgebraTestScope) GetParentScope() StaticScope { return nil }
 
@@ -264,18 +264,18 @@ func taAdd[T JSType](d *typeAlgebraDump, label string, t T) T {
 	return t
 }
 
-func taFn(name string) *Node {
+func taFn(name string) Node {
 	return IR_Function(IR_Name(name), IR_ParamList(), IR_Block())
 }
 
 // taSexp serializes a type AST: (TOKEN[ "string"] line:char child...).
-func taSexp(n *Node) string {
+func taSexp(n Node) string {
 	var sb strings.Builder
 	taSexpTo(n, &sb)
 	return sb.String()
 }
 
-func taSexpTo(n *Node, sb *strings.Builder) {
+func taSexpTo(n Node, sb *strings.Builder) {
 	sb.WriteByte('(')
 	sb.WriteString(n.GetToken().Name())
 	if n.nodeKind() == node_kindString {
@@ -287,7 +287,7 @@ func taSexpTo(n *Node, sb *strings.Builder) {
 	sb.WriteString(strconv.Itoa(n.GetLineno()))
 	sb.WriteByte(':')
 	sb.WriteString(strconv.Itoa(n.GetCharno()))
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		sb.WriteByte(' ')
 		taSexpTo(c, sb)
 	}
@@ -334,16 +334,16 @@ var taTokensByName = func() map[string]Token {
 }()
 
 // taParseSexp rebuilds the AST printed by taSexp / TypeAlgebraDump.sexp.
-func taParseSexp(s string) *Node {
+func taParseSexp(s string) Node {
 	p := 0
-	var parse func() *Node
+	var parse func() Node
 	expect := func(c byte) {
 		if s[p] != c {
 			panic(fmt.Sprintf("sexp: expected %q at %d in %s", c, p, s))
 		}
 		p++
 	}
-	parse = func() *Node {
+	parse = func() Node {
 		expect('(')
 		start := p
 		for s[p] != ' ' {
@@ -354,7 +354,7 @@ func taParseSexp(s string) *Node {
 			panic("sexp: unknown token " + s[start:p])
 		}
 		expect(' ')
-		var n *Node
+		var n Node
 		if s[p] == '"' {
 			p++
 			var sb strings.Builder
@@ -454,9 +454,9 @@ func (d *typeAlgebraDump) buildTypes() {
 	fooCtor := registry.CreateConstructorType(
 		s("Foo"), taFn("Foo"), registry.CreateParameters(number), nil, nil, false)
 	foo := fooCtor.GetInstanceType()
-	fooCtor.GetPrototype().DefineDeclaredProperty("bar", number, nil)
-	foo.DefineDeclaredProperty("baz", string_, nil)
-	fooCtor.DefineDeclaredProperty("staticProp", bool_, nil)
+	fooCtor.GetPrototype().DefineDeclaredProperty("bar", number, Node{})
+	foo.DefineDeclaredProperty("baz", string_, Node{})
+	fooCtor.DefineDeclaredProperty("staticProp", bool_, Node{})
 	registry.DeclareType(scope, "Foo", foo)
 	d.add("Foo", foo)
 	d.add("ctor:Foo", fooCtor)
@@ -466,14 +466,14 @@ func (d *typeAlgebraDump) buildTypes() {
 		s("SubFoo"), taFn("SubFoo"), registry.CreateParameters(), nil, nil, false)
 	subFooCtor.SetPrototypeBasedOn(foo)
 	subFoo := subFooCtor.GetInstanceType()
-	subFoo.DefineDeclaredProperty("qux", bool_, nil)
+	subFoo.DefineDeclaredProperty("qux", bool_, Node{})
 	registry.DeclareType(scope, "SubFoo", subFoo)
 	d.add("SubFoo", subFoo)
 	d.add("ctor:SubFoo", subFooCtor)
 	d.add("SubFoo.prototype", subFooCtor.GetPrototype())
 
 	iCtor := FunctionType_Builder_(registry).ForInterface().WithName(s("I")).WithSourceNode(taFn("I")).Build()
-	iCtor.GetPrototype().DefineDeclaredProperty("bar", number, nil)
+	iCtor.GetPrototype().DefineDeclaredProperty("bar", number, Node{})
 	iface := iCtor.GetInstanceType()
 	registry.DeclareType(scope, "I", iface)
 	d.add("I", iface)
@@ -481,7 +481,7 @@ func (d *typeAlgebraDump) buildTypes() {
 
 	jCtor := FunctionType_Builder_(registry).ForInterface().WithName(s("J")).WithSourceNode(taFn("J")).Build()
 	jCtor.SetExtendedInterfaces([]ObjectType{iface})
-	jCtor.GetPrototype().DefineDeclaredProperty("jay", string_, nil)
+	jCtor.GetPrototype().DefineDeclaredProperty("jay", string_, Node{})
 	jface := jCtor.GetInstanceType()
 	d.add("J", jface)
 	d.add("ctor:J", jCtor)
@@ -489,15 +489,15 @@ func (d *typeAlgebraDump) buildTypes() {
 	implCtor := registry.CreateConstructorType(
 		s("Impl"), taFn("Impl"), registry.CreateParameters(), nil, nil, false)
 	implCtor.SetImplementedInterfaces([]ObjectType{jface})
-	implCtor.GetPrototype().DefineDeclaredProperty("bar", number, nil)
+	implCtor.GetPrototype().DefineDeclaredProperty("bar", number, Node{})
 	impl := implCtor.GetInstanceType()
 	registry.DeclareType(scope, "Impl", impl)
 	d.add("Impl", impl)
 
 	recCtor := FunctionType_Builder_(registry).ForInterface().WithName(s("Rec")).WithSourceNode(taFn("Rec")).Build()
 	recCtor.SetImplicitMatch(true)
-	recCtor.GetPrototype().DefineDeclaredProperty("bar", number, nil)
-	recCtor.GetPrototype().DefineDeclaredProperty("opt", registry.CreateOptionalType(string_), nil)
+	recCtor.GetPrototype().DefineDeclaredProperty("bar", number, Node{})
+	recCtor.GetPrototype().DefineDeclaredProperty("opt", registry.CreateOptionalType(string_), Node{})
 	rec := recCtor.GetInstanceType()
 	registry.DeclareType(scope, "Rec", rec)
 	d.add("Rec", rec)
@@ -512,7 +512,7 @@ func (d *typeAlgebraDump) buildTypes() {
 		WithParametersOfList(registry.CreateParameters(tKey)).
 		WithTemplateKeys(tKey).
 		Build()
-	boxCtor.GetPrototype().DefineDeclaredProperty("value", tKey, nil)
+	boxCtor.GetPrototype().DefineDeclaredProperty("value", tKey, Node{})
 	box := boxCtor.GetInstanceType()
 	registry.DeclareType(scope, "Box", box)
 	d.add("Box", box)
@@ -526,7 +526,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	structCtor := registry.CreateConstructorType(
 		s("Struct"), taFn("Struct"), registry.CreateParameters(), nil, nil, false)
 	structCtor.SetStruct()
-	structCtor.GetPrototype().DefineDeclaredProperty("s", number, nil)
+	structCtor.GetPrototype().DefineDeclaredProperty("s", number, Node{})
 	d.add("Struct", structCtor.GetInstanceType())
 	dictCtor := registry.CreateConstructorType(
 		s("Dict"), taFn("Dict"), registry.CreateParameters(), nil, nil, false)
@@ -540,20 +540,20 @@ func (d *typeAlgebraDump) buildTypes() {
 		s("SubStruct"), taFn("SubStruct"), registry.CreateParameters(), nil, nil, false)
 	subStructCtor.SetPrototypeBasedOn(structCtor.GetInstanceType())
 	d.add("SubStruct", subStructCtor.GetInstanceType())
-	anonCtor := registry.CreateConstructorType(s(""), nil, registry.CreateParameters(), nil, nil, false)
+	anonCtor := registry.CreateConstructorType(s(""), Node{}, registry.CreateParameters(), nil, nil, false)
 	d.add("anonCtor", anonCtor)
 	d.add("anonInstance", anonCtor.GetInstanceType())
 	structuralCtor := FunctionType_Builder_(registry).ForConstructor().WithTypeOfThis(foo).Build()
 	d.add("structuralCtor", structuralCtor)
 
 	lit := registry.CreateAnonymousObjectType(nil)
-	lit.DefineInferredProperty("a", number, nil)
-	lit.DefineInferredProperty("b", string_, nil)
+	lit.DefineInferredProperty("a", number, Node{})
+	lit.DefineInferredProperty("b", string_, Node{})
 	d.add("objlit", lit)
 	emptyLit := registry.CreateAnonymousObjectType(nil)
 	d.add("emptyObjlit", emptyLit)
 	named := registry.CreateObjectType(s("Named"), object)
-	named.DefineDeclaredProperty("n", number, nil)
+	named.DefineDeclaredProperty("n", number, Node{})
 	d.add("Named", named)
 
 	// Records.
@@ -575,7 +575,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("{many}", registry.CreateRecordType(rMany))
 	synth := NewRecordTypeBuilder(registry)
 	synth.SetSynthesized(true)
-	synth.AddProperty("x", bool_, nil)
+	synth.AddProperty("x", bool_, Node{})
 	d.add("{x:boolean}(synthetic)", synth.Build())
 	d.add("emptyRecord", NewRecordTypeBuilder(registry).Build())
 	d.add("buildRecordTypeFromObject(objlit)", registry.BuildRecordTypeFromObject(lit))
@@ -671,7 +671,7 @@ func (d *typeAlgebraDump) buildTypes() {
 		"function(this:Foo, number):number",
 		registry.CreateFunctionTypeWithInstanceType(foo, number, []JSType{number}))
 	withProps := registry.CreateFunctionType(number, string_)
-	withProps.DefineDeclaredProperty("extra", bool_, nil)
+	withProps.DefineDeclaredProperty("extra", bool_, Node{})
 	d.add("fnWithProps", withProps)
 	d.add("bind(-1)", fooCtor.GetBindReturnType(-1))
 	d.add("bind(1)", registry.CreateFunctionType(number, string_, bool_).GetBindReturnType(1))
@@ -683,19 +683,19 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("toBuilder(SubFoo)", subFooCtor.ToBuilder().Build())
 
 	// Enums.
-	eNum := EnumType_Builder_(registry).SetName(s("E")).SetElementType(number).SetSource(nil).Build()
-	eNum.DefineElement("A", nil)
-	eNum.DefineElement("B", nil)
+	eNum := EnumType_Builder_(registry).SetName(s("E")).SetElementType(number).SetSource(Node{}).Build()
+	eNum.DefineElement("A", Node{})
+	eNum.DefineElement("B", Node{})
 	registry.DeclareType(scope, "E", eNum.GetElementsType())
 	registry.IdentifyNonNullableName(scope, "E")
 	d.add("enum E", eNum)
 	d.add("E", eNum.GetElementsType())
 	eStr := EnumType_Builder_(registry).SetName(s("S")).SetElementType(string_).Build()
-	eStr.DefineElement("X", nil)
+	eStr.DefineElement("X", Node{})
 	d.add("enum S", eStr)
 	d.add("S", eStr.GetElementsType())
 	eFoo := EnumType_Builder_(registry).SetName(s("EF")).SetElementType(foo).Build()
-	eFoo.DefineElement("F", nil)
+	eFoo.DefineElement("F", Node{})
 	d.add("enum EF", eFoo)
 	d.add("EF", eFoo.GetElementsType())
 	eUnion := EnumType_Builder_(registry).
@@ -742,7 +742,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("noResolved", NewNoResolvedType(registry, "NR", []JSType{}))
 	iter := taAdd(d, "knownSymbol", NewKnownSymbolType(registry, "Symbol.iterator"))
 	withSym := registry.CreateAnonymousObjectType(nil)
-	withSym.DefineDeclaredPropertyByKey(NewProperty_SymbolKey(iter), number, nil)
+	withSym.DefineDeclaredPropertyByKey(NewProperty_SymbolKey(iter), number, Node{})
 	d.add("objlitWithSymbol", withSym)
 
 	// More generics, structural interfaces and forward references.
@@ -755,8 +755,8 @@ func (d *typeAlgebraDump) buildTypes() {
 		WithTemplateKeys(kKey, vKey).
 		Build()
 	pairCtor.SetImplicitMatch(true)
-	pairCtor.GetPrototype().DefineDeclaredProperty("k", kKey, nil)
-	pairCtor.GetPrototype().DefineDeclaredProperty("v", vKey, nil)
+	pairCtor.GetPrototype().DefineDeclaredProperty("k", kKey, Node{})
+	pairCtor.GetPrototype().DefineDeclaredProperty("v", vKey, Node{})
 	pairType := pairCtor.GetInstanceType()
 	registry.DeclareType(scope, "Pair", pairType)
 	d.add("Pair", pairType)
@@ -781,7 +781,7 @@ func (d *typeAlgebraDump) buildTypes() {
 		WithTemplateKeys(elKey).
 		Build()
 	listCtor.SetExtendedInterfaces([]ObjectType{registry.CreateTemplatizedType(iterable, elKey)})
-	listCtor.GetPrototype().DefineDeclaredProperty("get", registry.CreateFunctionType(elKey, number), nil)
+	listCtor.GetPrototype().DefineDeclaredProperty("get", registry.CreateFunctionType(elKey, number), Node{})
 	registry.DeclareType(scope, "List", listCtor.GetInstanceType())
 	d.add("List", listCtor.GetInstanceType())
 	d.add("ctor:List", listCtor)
@@ -825,10 +825,10 @@ func (d *typeAlgebraDump) buildTypes() {
 
 	// Forward references, resolved when the resolver closes.
 	late := registry.CreateNamedType(scope, "Late", s("src.js"), 9, 10)
-	late.DefineDeclaredProperty("lateProp", number, nil)
+	late.DefineDeclaredProperty("lateProp", number, Node{})
 	d.add("named:Late", late)
 	lateMissing := registry.CreateNamedType(scope, "LateMissing", s("src.js"), 11, 12)
-	lateMissing.DefineDeclaredProperty("p", number, nil)
+	lateMissing.DefineDeclaredProperty("p", number, Node{})
 	d.add("named:LateMissing", lateMissing)
 	d.add("Box<Late>", registry.CreateTemplatizedType(box, late))
 	d.add("Late|null", registry.CreateNullableType(late))

@@ -56,7 +56,7 @@ func TestChangeTracker_GetChangesAndDeletionsBaseline(t *testing.T) {
 	}
 }
 
-func newChangeTrackerTestFunctions() (*rhino.Node, *rhino.Node) {
+func newChangeTrackerTestFunctions() (rhino.Node, rhino.Node) {
 	function1 := rhino.IR_Function(rhino.IR_Name("foo"), rhino.IR_ParamList(), rhino.IR_Block())
 	function2 := rhino.IR_Function(rhino.IR_Name("foo"), rhino.IR_ParamList(), rhino.IR_Block())
 	rhino.IR_Root(rhino.IR_ScriptOfNodes(function1, function2))
@@ -77,7 +77,7 @@ func TestChangeTracker_GetChangesAndDeletionsChangeReportsVisible(t *testing.T) 
 	// Both function1 and function2 are seen as changed and nothing is seen
 	// as deleted.
 	assertSameElements(t, "changed", changeTracker.GetChangedScopeNodesForPass("FunctionInliner"),
-		[]*rhino.Node{function1, function2})
+		[]rhino.Node{function1, function2})
 }
 
 func TestChangeTracker_GetChangesAndDeletionsDeleteOverridesChange(t *testing.T) {
@@ -97,7 +97,7 @@ func TestChangeTracker_GetChangesAndDeletionsDeleteOverridesChange(t *testing.T)
 	// Now function1 will be seen as changed and function2 will be seen as
 	// deleted, since delete overrides change.
 	assertSameElements(t, "changed", changeTracker.GetChangedScopeNodesForPass("FunctionInliner"),
-		[]*rhino.Node{function1})
+		[]rhino.Node{function1})
 }
 
 func TestChangeTracker_GetChangesAndDeletionsChangeDoesntOverrideDelete(t *testing.T) {
@@ -117,7 +117,7 @@ func TestChangeTracker_GetChangesAndDeletionsChangeDoesntOverrideDelete(t *testi
 	// Now function1 will be seen as changed and function2 will be seen as
 	// deleted, since change does not override delete.
 	assertSameElements(t, "changed", changeTracker.GetChangedScopeNodesForPass("FunctionInliner"),
-		[]*rhino.Node{function1})
+		[]rhino.Node{function1})
 }
 
 func TestChangeTracker_GetChangesAndDeletionsOnlySeesChangesSinceLastRequest(t *testing.T) {
@@ -134,7 +134,7 @@ func TestChangeTracker_GetChangesAndDeletionsOnlySeesChangesSinceLastRequest(t *
 
 	// Verify their respective states are seen.
 	assertSameElements(t, "changed", changeTracker.GetChangedScopeNodesForPass("FunctionInliner"),
-		[]*rhino.Node{function1})
+		[]rhino.Node{function1})
 
 	// Check states again. Should find nothing since nothing has changed
 	// since the last 'FunctionInliner' request.

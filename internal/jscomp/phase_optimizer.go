@@ -42,7 +42,7 @@ type PhaseOptimizer struct {
 	lastRuns *jutil.LinkedHashMap[*PhaseOptimizer_NamedPass, int32]
 	// The time of the last change made to the program by any pass.
 	lastChange int32
-	jsRoot     *rhino.Node
+	jsRoot     rhino.Node
 
 	useSizeHeuristicToStopOptimizationLoop bool
 
@@ -190,7 +190,7 @@ func (p *PhaseOptimizer) SetPrintAstHashcodes(printAstHashcodes bool) {
 // Process runs all the passes in the optimizer.
 //
 // Java: PhaseOptimizer.process(Node, Node)
-func (p *PhaseOptimizer) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *PhaseOptimizer) Process(externs rhino.Node, root rhino.Node) {
 	// When looking at this code, one can mistakenly think that the instance of
 	// PhaseOptimizer keeps all compiler passes live. This would be undesirable. A pass can
 	// create large data structures that are only useful to the pass, and we shouldn't
@@ -217,7 +217,7 @@ func (p *PhaseOptimizer) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 // Java: PhaseOptimizer.maybePrintAstHashcodes(String, Node)
-func (p *PhaseOptimizer) MaybePrintAstHashcodes(passName string, root *rhino.Node) {
+func (p *PhaseOptimizer) MaybePrintAstHashcodes(passName string, root rhino.Node) {
 	if p.printAstHashcodes {
 		hashCodeMsg :=
 			"AST hashCode after " + passName + ": " +
@@ -229,7 +229,7 @@ func (p *PhaseOptimizer) MaybePrintAstHashcodes(passName string, root *rhino.Nod
 // MaybeRunValidityCheck runs the validity check if it is available.
 //
 // Java: PhaseOptimizer.maybeRunValidityCheck(String, Node, Node)
-func (p *PhaseOptimizer) MaybeRunValidityCheck(passName string, externs *rhino.Node, root *rhino.Node) {
+func (p *PhaseOptimizer) MaybeRunValidityCheck(passName string, externs rhino.Node, root rhino.Node) {
 	if p.validityCheck == nil {
 		return
 	}
@@ -265,7 +265,7 @@ func NewPhaseOptimizer_NamedPass(outer *PhaseOptimizer, factory *PassFactory) *P
 }
 
 // Java: PhaseOptimizer.NamedPass.process(Node, Node)
-func (n *PhaseOptimizer_NamedPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (n *PhaseOptimizer_NamedPass) Process(externs rhino.Node, root rhino.Node) {
 	p := n.outer
 	PhaseOptimizer_logger.Fine("Running pass " + n.name)
 	n.factory.ValidatePreconditions(p.compiler.GetOptions())
@@ -312,7 +312,7 @@ func (n *PhaseOptimizer_NamedPass) String() string {
 }
 
 // Java: PhaseOptimizer.hasScopeChanged(Node)
-func (p *PhaseOptimizer) HasScopeChanged(n *rhino.Node) bool {
+func (p *PhaseOptimizer) HasScopeChanged(n rhino.Node) bool {
 	// Outside loops we don't track changed scopes, so we visit them all.
 	if !p.inLoop {
 		return true
@@ -392,7 +392,7 @@ func (l *PhaseOptimizer_Loop) AddLoopedPass(factory *PassFactory) {
 }
 
 // Java: PhaseOptimizer.Loop.process(Node, Node)
-func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
+func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 	p := l.outer
 	jutil.CheckStateMsg(!p.inLoop, "Nested loops are forbidden")
 	p.inLoop = true
@@ -422,12 +422,12 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 	const astSizeTimelineKey = "__phaseOptAstSize__"
 	trackAstSize := p.useSizeHeuristicToStopOptimizationLoop && l.isCodeRemovalLoop
 	var astSize int
-	var scriptSizes map[*rhino.Node]int
+	var scriptSizes map[rhino.Node]int
 	if trackAstSize {
 		numScripts := root.GetChildCount()
-		scriptSizes = make(map[*rhino.Node]int, numScripts)
+		scriptSizes = make(map[rhino.Node]int, numScripts)
 		astSize = 1
-		for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+		for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 			sz := NodeUtil_CountAstSize(script)
 			scriptSizes[script] = sz
 			astSize += sz
@@ -494,13 +494,13 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 			if changedScopes == nil {
 				astSize = NodeUtil_CountAstSize(root)
 			} else {
-				recounted := make(map[*rhino.Node]struct{}, len(changedScopes))
+				recounted := make(map[rhino.Node]struct{}, len(changedScopes))
 				for _, scopeNode := range changedScopes {
 					cur := scopeNode
-					for cur != nil && cur.GetParent() != root {
+					for !cur.IsNil() && cur.GetParent() != root {
 						cur = cur.GetParent()
 					}
-					if cur != nil && cur.GetParent() == root {
+					if !cur.IsNil() && cur.GetParent() == root {
 						if _, done := recounted[cur]; !done {
 							recounted[cur] = struct{}{}
 							newSz := NodeUtil_CountAstSize(cur)
@@ -511,7 +511,7 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 					}
 				}
 				liveScripts := 0
-				for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+				for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 					liveScripts++
 					if _, known := scriptSizes[script]; !known {
 						sz := NodeUtil_CountAstSize(script)
@@ -530,9 +530,9 @@ func (l *PhaseOptimizer_Loop) Process(externs *rhino.Node, root *rhino.Node) {
 			}
 		}
 		if c, ok := p.compiler.(*Compiler); ok {
-			c.maybeCompactAST("loop iteration", &externs, &root, func(fwd func(*rhino.Node) *rhino.Node) {
+			c.maybeCompactAST("loop iteration", &externs, &root, func(fwd func(rhino.Node) rhino.Node) {
 				if scriptSizes != nil {
-					sizes := make(map[*rhino.Node]int, len(scriptSizes))
+					sizes := make(map[rhino.Node]int, len(scriptSizes))
 					for script, sz := range scriptSizes {
 						sizes[fwd(script)] = sz
 					}

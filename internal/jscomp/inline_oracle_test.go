@@ -282,7 +282,7 @@ func inlineOracleDumpName(lines *[]string, name *GlobalNamespace_Name) {
 	for _, ref := range name.GetRefs() {
 		n := ref.GetNode()
 		parent := "null"
-		if n != nil && n.GetParent() != nil {
+		if !n.IsNil() && !n.GetParent().IsNil() {
 			parent = n.GetParent().GetToken().String()
 		}
 		scope := "null"
@@ -301,8 +301,8 @@ func inlineOracleDumpName(lines *[]string, name *GlobalNamespace_Name) {
 }
 
 // inlineOracleNode is InlineDump.node.
-func inlineOracleNode(n *rhino.Node) string {
-	if n == nil {
+func inlineOracleNode(n rhino.Node) string {
+	if n.IsNil() {
 		return "null"
 	}
 	s := n.GetToken().String() + "@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())

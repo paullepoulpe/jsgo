@@ -80,7 +80,7 @@ type polymerPassFindExternsTest_pass struct {
 	findExternsCallback *PolymerPassFindExterns
 }
 
-func (p *polymerPassFindExternsTest_pass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *polymerPassFindExternsTest_pass) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, externs, p.findExternsCallback)
 }
 
@@ -150,11 +150,11 @@ func (c *PolymerPassFindExternsTest) TestFindsPolymerElementProps() {
 }
 
 // Java: PolymerPassFindExternsTest.getPropertyName(Node)
-func (c *PolymerPassFindExternsTest) getPropertyName(node *rhino.Node) string {
+func (c *PolymerPassFindExternsTest) getPropertyName(node rhino.Node) string {
 	node = node.GetFirstChild()
 
 	rvalue := node.GetSecondChild()
-	if rvalue != nil && rvalue.IsFunction() && !node.IsGetProp() {
+	if !rvalue.IsNil() && rvalue.IsFunction() && !node.IsGetProp() {
 		node = node.GetFirstChild()
 	}
 

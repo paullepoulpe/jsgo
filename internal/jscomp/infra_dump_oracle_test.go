@@ -81,44 +81,44 @@ func infraExc(t jutil.Throwable) string {
 }
 
 // infraShow is InfraDump.show.
-func infraShow(n *rhino.Node) string {
-	if n == nil {
+func infraShow(n rhino.Node) string {
+	if n.IsNil() {
 		return "null"
 	}
 	return n.ToStringWithFlags(true, false, false)
 }
 
 // infraSexpr is InfraDump.sexpr.
-func infraSexpr(n *rhino.Node) string {
+func infraSexpr(n rhino.Node) string {
 	var b strings.Builder
 	infraSexprTo(&b, n)
 	return b.String()
 }
 
-func infraSexprTo(b *strings.Builder, n *rhino.Node) {
-	if n == nil {
+func infraSexprTo(b *strings.Builder, n rhino.Node) {
+	if n.IsNil() {
 		b.WriteString("null")
 		return
 	}
 	b.WriteByte('(')
 	b.WriteString(n.ToStringWithFlags(false, false, false))
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		b.WriteByte(' ')
 		infraSexprTo(b, c)
 	}
 	b.WriteByte(')')
 }
 
-func infraPreorder(n *rhino.Node, out *[]*rhino.Node) {
+func infraPreorder(n rhino.Node, out *[]rhino.Node) {
 	*out = append(*out, n)
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		infraPreorder(c, out)
 	}
 }
 
-func infraSize(n *rhino.Node, cap_ int) int {
+func infraSize(n rhino.Node, cap_ int) int {
 	s := 1
-	for c := n.GetFirstChild(); c != nil && s <= cap_; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil() && s <= cap_; c = c.GetNext() {
 		s += infraSize(c, cap_)
 	}
 	return s
@@ -128,7 +128,7 @@ func infraSize(n *rhino.Node, cap_ int) int {
 type infraDumper struct {
 	sb       strings.Builder
 	compiler *Compiler
-	ids      map[*rhino.Node]int
+	ids      map[rhino.Node]int
 }
 
 func (d *infraDumper) line(s string) {
@@ -136,8 +136,8 @@ func (d *infraDumper) line(s string) {
 	d.sb.WriteByte('\n')
 }
 
-func (d *infraDumper) id(n *rhino.Node) string {
-	if n == nil {
+func (d *infraDumper) id(n rhino.Node) string {
+	if n.IsNil() {
 		return "R"
 	}
 	if i, ok := d.ids[n]; ok {
@@ -160,7 +160,7 @@ func (d *infraDumper) dumpOne(name, src string) string {
 	options := NewCompilerOptions()
 	options.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
 	d.compiler.InitOptions(options)
-	var script *rhino.Node
+	var script rhino.Node
 	if e := infraTry(func() {
 		script = NewCompilerInput(SourceFile_FromCode(name, src)).GetAstRoot(d.compiler)
 	}); e != nil {
@@ -168,9 +168,9 @@ func (d *infraDumper) dumpOne(name, src string) string {
 		return d.sb.String()
 	}
 	d.line("# errors " + strconv.Itoa(d.compiler.GetErrorCount()))
-	var nodes []*rhino.Node
+	var nodes []rhino.Node
 	infraPreorder(script, &nodes)
-	d.ids = make(map[*rhino.Node]int, len(nodes))
+	d.ids = make(map[rhino.Node]int, len(nodes))
 	for i, n := range nodes {
 		d.ids[n] = i
 	}
@@ -194,11 +194,11 @@ type infraViolations struct {
 	lines  []string
 }
 
-func (v *infraViolations) HandleViolation(message string, n *rhino.Node) {
+func (v *infraViolations) HandleViolation(message string, n rhino.Node) {
 	v.lines = append(v.lines, v.indent+"V "+message+"\t"+infraShow(n))
 }
 
-func (d *infraDumper) validate(script *rhino.Node, indent string) {
+func (d *infraDumper) validate(script rhino.Node, indent string) {
 	violations := &infraViolations{indent: indent}
 	validator := NewAstValidatorWithHandler(
 		d.compiler, violations /* validateScriptFeatures= */, true /* shouldValidateRequiredInlinings= */, false)
@@ -214,7 +214,7 @@ func (d *infraDumper) validate(script *rhino.Node, indent string) {
 
 const infraCorruptions = 6
 
-func (d *infraDumper) corrupt(script *rhino.Node, count int) {
+func (d *infraDumper) corrupt(script rhino.Node, count int) {
 	if count < 2 {
 		return
 	}
@@ -222,7 +222,7 @@ func (d *infraDumper) corrupt(script *rhino.Node, count int) {
 	kind := 0
 	for k := 1; k < count; k, kind = k+step, kind+1 {
 		clone := script.CloneTree()
-		var cloneNodes []*rhino.Node
+		var cloneNodes []rhino.Node
 		infraPreorder(clone, &cloneNodes)
 		n := cloneNodes[k]
 		var what string
@@ -246,7 +246,7 @@ func (d *infraDumper) corrupt(script *rhino.Node, count int) {
 			}
 			what = "retoken"
 		case 3:
-			if next := n.GetNext(); next != nil {
+			if next := n.GetNext(); !next.IsNil() {
 				next.Detach()
 				next.InsertBefore(n)
 				what = "swap-with-next"
@@ -271,9 +271,9 @@ func (d *infraDumper) corrupt(script *rhino.Node, count int) {
 // ---------------------------------------------------------------------------
 // MinimizedCondition
 
-func infraIsCondition(n *rhino.Node) bool {
+func infraIsCondition(n rhino.Node) bool {
 	parent := n.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return false
 	}
 	switch parent.GetToken() {
@@ -284,7 +284,7 @@ func infraIsCondition(n *rhino.Node) bool {
 	}
 }
 
-func (d *infraDumper) minimize(nodes []*rhino.Node) {
+func (d *infraDumper) minimize(nodes []rhino.Node) {
 	for _, n := range nodes {
 		var candidate bool
 		switch n.GetToken() {
@@ -341,10 +341,10 @@ func (d *infraDumper) motion(header string, it *NodeIterators_LocalVarMotion) {
 	d.line(b.String())
 }
 
-func (d *infraDumper) iterators(nodes []*rhino.Node) {
+func (d *infraDumper) iterators(nodes []rhino.Node) {
 	for _, n := range nodes {
 		if NodeUtil_IsNameDeclaration(n) && NodeUtil_IsStatement(n) {
-			for name := n.GetFirstChild(); name != nil; name = name.GetNext() {
+			for name := n.GetFirstChild(); !name.IsNil(); name = name.GetNext() {
 				if !name.IsName() {
 					continue
 				}
@@ -384,7 +384,7 @@ var infraTemplates = []string{
 	"/** @param {?} a\n * @param {?} b */ function template(a, b) { a = b; }",
 }
 
-func (d *infraDumper) templates(nodes []*rhino.Node) {
+func (d *infraDumper) templates(nodes []rhino.Node) {
 	for t, template := range infraTemplates {
 		var matcher, exact *TemplateAstMatcher
 		if e := infraTry(func() {
@@ -408,7 +408,7 @@ func (d *infraDumper) templates(nodes []*rhino.Node) {
 	}
 }
 
-func (d *infraDumper) match(tag string, matcher *TemplateAstMatcher, n *rhino.Node) {
+func (d *infraDumper) match(tag string, matcher *TemplateAstMatcher, n rhino.Node) {
 	var matches bool
 	if e := infraTry(func() { matches = matcher.Matches(n) }); e != nil {
 		d.line(tag + " " + d.id(n) + ": X " + infraExc(e))
@@ -486,16 +486,16 @@ func (j *infraUnionJoiner) JoinFlow(input *infraNameSet) {
 func (j *infraUnionJoiner) Finish() *infraNameSet { return j.result }
 
 // infraNames is InfraDump.names(Node, boolean, Set<String>).
-func infraNames(n *rhino.Node, writes bool, out *jutil.TreeSet[string]) {
+func infraNames(n rhino.Node, writes bool, out *jutil.TreeSet[string]) {
 	if n.IsName() {
 		parent := n.GetParent()
-		isWrite := parent != nil &&
+		isWrite := !parent.IsNil() &&
 			(NodeUtil_IsNameDeclaration(parent) || (parent.IsAssign() && parent.GetFirstChild() == n))
 		if isWrite == writes {
 			out.Add(n.GetString())
 		}
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		switch c.GetToken() {
 		case rhino.Token_BLOCK, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_SCRIPT:
 		default:
@@ -506,11 +506,11 @@ func infraNames(n *rhino.Node, writes bool, out *jutil.TreeSet[string]) {
 
 // infraWrittenNames is InfraDump.WrittenNames.
 type infraWrittenNames struct {
-	DataFlowAnalysisBase[*rhino.Node, *infraNameSet]
+	DataFlowAnalysisBase[rhino.Node, *infraNameSet]
 	branched bool
 }
 
-func newInfraWrittenNames(cfg ControlFlowGraph[*rhino.Node], branched bool) *infraWrittenNames {
+func newInfraWrittenNames(cfg ControlFlowGraph[rhino.Node], branched bool) *infraWrittenNames {
 	a := &infraWrittenNames{branched: branched}
 	a.InitDataFlowAnalysisBase(a, cfg)
 	return a
@@ -521,12 +521,12 @@ func (a *infraWrittenNames) IsBranched() bool { return a.branched }
 func (a *infraWrittenNames) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*infraNameSet] {
 	return &infraUnionJoiner{result: newInfraNameSet()}
 }
-func (a *infraWrittenNames) FlowThrough(node *rhino.Node, input *infraNameSet) *infraNameSet {
+func (a *infraWrittenNames) FlowThrough(node rhino.Node, input *infraNameSet) *infraNameSet {
 	out := newInfraNameSetCopy(input)
 	infraNames(node, true, out.names)
 	return out
 }
-func (a *infraWrittenNames) CreateFlowBrancher(node *rhino.Node, output *infraNameSet) DataFlowAnalysis_FlowBrancher[*infraNameSet] {
+func (a *infraWrittenNames) CreateFlowBrancher(node rhino.Node, output *infraNameSet) DataFlowAnalysis_FlowBrancher[*infraNameSet] {
 	return func(branch ControlFlowGraph_Branch) *infraNameSet {
 		if !branch.IsConditional() {
 			return output
@@ -541,10 +541,10 @@ func (a *infraWrittenNames) CreateEntryLattice() *infraNameSet           { retur
 
 // infraReadNames is InfraDump.ReadNames.
 type infraReadNames struct {
-	DataFlowAnalysisBase[*rhino.Node, *infraNameSet]
+	DataFlowAnalysisBase[rhino.Node, *infraNameSet]
 }
 
-func newInfraReadNames(cfg ControlFlowGraph[*rhino.Node]) *infraReadNames {
+func newInfraReadNames(cfg ControlFlowGraph[rhino.Node]) *infraReadNames {
 	a := &infraReadNames{}
 	a.InitDataFlowAnalysisBase(a, cfg)
 	return a
@@ -554,7 +554,7 @@ func (a *infraReadNames) IsForward() bool { return false }
 func (a *infraReadNames) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*infraNameSet] {
 	return &infraUnionJoiner{result: newInfraNameSet()}
 }
-func (a *infraReadNames) FlowThrough(node *rhino.Node, input *infraNameSet) *infraNameSet {
+func (a *infraReadNames) FlowThrough(node rhino.Node, input *infraNameSet) *infraNameSet {
 	out := newInfraNameSetCopy(input)
 	infraNames(node, false, out.names)
 	return out
@@ -562,15 +562,15 @@ func (a *infraReadNames) FlowThrough(node *rhino.Node, input *infraNameSet) *inf
 func (a *infraReadNames) CreateInitialEstimateLattice() *infraNameSet { return newInfraNameSet() }
 func (a *infraReadNames) CreateEntryLattice() *infraNameSet           { return newInfraNameSet() }
 
-func (d *infraDumper) dataflow(script *rhino.Node, nodes []*rhino.Node) {
-	roots := []*rhino.Node{script}
+func (d *infraDumper) dataflow(script rhino.Node, nodes []rhino.Node) {
+	roots := []rhino.Node{script}
 	for _, n := range nodes {
 		if n.IsFunction() {
 			roots = append(roots, n)
 		}
 	}
 	for _, root := range roots {
-		var cfg ControlFlowGraph[*rhino.Node]
+		var cfg ControlFlowGraph[rhino.Node]
 		if e := infraTry(func() {
 			cfg = ControlFlowAnalysis_Builder_().
 				SetCompiler(d.compiler).
@@ -587,7 +587,7 @@ func (d *infraDumper) dataflow(script *rhino.Node, nodes []*rhino.Node) {
 	}
 }
 
-func (d *infraDumper) runAnalysis(header string, cfg ControlFlowGraph[*rhino.Node], a DataFlowAnalysis[*rhino.Node, *infraNameSet], edges bool) {
+func (d *infraDumper) runAnalysis(header string, cfg ControlFlowGraph[rhino.Node], a DataFlowAnalysis[rhino.Node, *infraNameSet], edges bool) {
 	if e := infraTry(func() { a.GetDataFlowAnalysisBase().Analyze() }); e != nil {
 		d.line(header + " X " + infraExc(e))
 		return
@@ -639,9 +639,9 @@ func (f *infraEscapedFinder) EnterScope(t *NodeTraversal) {
 	f.lines = append(f.lines, "E "+f.d.id(scopeRoot)+": "+result)
 }
 
-func (f *infraEscapedFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {}
+func (f *infraEscapedFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {}
 
-func (d *infraDumper) escaped(script *rhino.Node) {
+func (d *infraDumper) escaped(script rhino.Node) {
 	finder := &infraEscapedFinder{d: d, scopeCreator: NewSyntacticScopeCreator(d.compiler)}
 	if e := infraTry(func() {
 		NodeTraversal_Builder_().

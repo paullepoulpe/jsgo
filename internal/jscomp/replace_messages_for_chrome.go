@@ -56,7 +56,7 @@ func NewReplaceMessagesForChrome(compiler AbstractCompiler, idGenerator JsMessag
 }
 
 // Java: ReplaceMessagesForChrome.getChromeI18nGetMessageNode(String)
-func (r *ReplaceMessagesForChrome) GetChromeI18nGetMessageNode(messageId string) *rhino.Node {
+func (r *ReplaceMessagesForChrome) GetChromeI18nGetMessageNode(messageId string) rhino.Node {
 	getMessage := r.astFactory.CreateQNameWithUnknownType("chrome.i18n.getMessage")
 	return r.astFactory.CreateCall(
 		getMessage, AstFactory_Type_OfColor(colors.StandardColors_STRING), r.astFactory.CreateString(messageId))
@@ -82,7 +82,7 @@ func (r *ReplaceMessagesForChrome) ProcessJsMessageDefinition(definition JsMessa
 }
 
 // Java: ReplaceMessagesForChrome.getNewValueNode(JsMessage, JsMessageDefinition)
-func (r *ReplaceMessagesForChrome) GetNewValueNode(message *JsMessage, definition JsMessageDefinition) *rhino.Node {
+func (r *ReplaceMessagesForChrome) GetNewValueNode(message *JsMessage, definition JsMessageDefinition) rhino.Node {
 	newValueNode := r.GetChromeI18nGetMessageNode(message.GetId())
 
 	isHtml := definition.ShouldEscapeLessThan()
@@ -98,7 +98,7 @@ func (r *ReplaceMessagesForChrome) GetNewValueNode(message *JsMessage, definitio
 			// JsMessageVisitor ensures that every placeholder name appearing in the message string
 			// has a corresponding value node. It will report an error and avoid passing any messages
 			// violating this invariant to processMessage().
-			value := jutil.CheckNotNull(placeholderValueMap.Get(name)).CloneTree()
+			value := rhino.CheckNotNull(placeholderValueMap.Get(name)).CloneTree()
 			placeholderValueArray.AddChildToBack(value)
 		}
 		if isHtml {

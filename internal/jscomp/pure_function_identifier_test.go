@@ -27,7 +27,7 @@ import (
 
 type PureFunctionIdentifierTest struct {
 	CompilerTestCaseBase
-	noSideEffectCalls                []*rhino.Node
+	noSideEffectCalls                []rhino.Node
 	regExpHaveSideEffects            bool
 	enableArtificialPurityDebugError bool
 }
@@ -189,8 +189,8 @@ func NewPureFunctionIdentifierTest_NoSideEffectCallEnumerator(outer *PureFunctio
 }
 
 // Java: PureFunctionIdentifierTest.NoSideEffectCallEnumerator.process(Node, Node)
-func (e *PureFunctionIdentifierTest_NoSideEffectCallEnumerator) Process(externs *rhino.Node, root *rhino.Node) {
-	e.outer.noSideEffectCalls = []*rhino.Node{}
+func (e *PureFunctionIdentifierTest_NoSideEffectCallEnumerator) Process(externs rhino.Node, root rhino.Node) {
+	e.outer.noSideEffectCalls = []rhino.Node{}
 	// TODO(nickreid): Move these into 'getOptions' and 'getCompiler' overrides.
 	e.compiler.SetHasRegExpGlobalReferences(e.outer.regExpHaveSideEffects)
 	e.compiler.GetOptions().SetUseTypesForLocalOptimization(true)
@@ -201,7 +201,7 @@ func (e *PureFunctionIdentifierTest_NoSideEffectCallEnumerator) Process(externs 
 }
 
 // Java: PureFunctionIdentifierTest.NoSideEffectCallEnumerator.visit(NodeTraversal, Node, Node)
-func (e *PureFunctionIdentifierTest_NoSideEffectCallEnumerator) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *PureFunctionIdentifierTest_NoSideEffectCallEnumerator) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsNew() {
 		if !e.compiler.GetAstAnalyzer().ConstructorCallHasSideEffects(n) {
 			e.outer.noSideEffectCalls = append(e.outer.noSideEffectCalls, n.GetFirstChild())

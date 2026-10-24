@@ -52,12 +52,12 @@ func NewCheckDebuggerStatement(compiler AbstractCompiler) *CheckDebuggerStatemen
 }
 
 // Java: CheckDebuggerStatement.process(Node, Node)
-func (c *CheckDebuggerStatement) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckDebuggerStatement) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckDebuggerStatement.visit(NodeTraversal, Node, Node)
-func (c *CheckDebuggerStatement) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckDebuggerStatement) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsDebugger() {
 		t.Report(n, CheckDebuggerStatement_DEBUGGER_STATEMENT_PRESENT)
 	}

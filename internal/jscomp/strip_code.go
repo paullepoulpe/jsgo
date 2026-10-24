@@ -152,7 +152,7 @@ func NewStripCode(
 }
 
 // Java: StripCode.process(Node, Node)
-func (s *StripCode) Process(externs *rhino.Node, root *rhino.Node) {
+func (s *StripCode) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(s.compiler.GetLifeCycleStage().IsNormalized())
 	decisionsLog := s.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[StripCode](), "decisions.log")
 	defer decisionsLog.Close()
@@ -217,7 +217,7 @@ func NewStripCode_Strip(outer *StripCode, decisionsLog diagnostic.LogFile) *Stri
 }
 
 // Java: Strip.shouldTraverse(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (st *StripCode_Strip) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Here we check for cases where we're going to remove a large chunk of code,
 	// and so should not traverse into it to avoid both wasting time and causing
 	// problems with logic duplication.
@@ -237,7 +237,7 @@ func (st *StripCode_Strip) ShouldTraverse(t *NodeTraversal, n *rhino.Node, paren
 }
 
 // Java: Strip.visit(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (st *StripCode_Strip) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
 		st.RemoveVarDeclarationsByNameOrRvalue(t, n, parent)
@@ -274,10 +274,10 @@ func (st *StripCode_Strip) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.
 // t is the traversal, n a VAR, CONST, or LET node, parent n's parent.
 //
 // Java: Strip.removeVarDeclarationsByNameOrRvalue(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	s := st.this_
-	var next *rhino.Node = nil
-	for nameNode := n.GetFirstChild(); nameNode != nil; nameNode = next {
+	var next rhino.Node = rhino.Node{}
+	for nameNode := n.GetFirstChild(); !nameNode.IsNil(); nameNode = next {
 		next = nameNode.GetNext()
 		if nameNode.IsDestructuringLhs() {
 			continue
@@ -343,7 +343,7 @@ func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal,
 // t is the traversal, n a NAME node, parent n's parent.
 //
 // Java: Strip.maybeRemoveReferenceToRemovedVariable(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (st *StripCode_Strip) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch parent.GetToken() {
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
 		// This is a variable declaration, not a reference.
@@ -442,13 +442,13 @@ func (st *StripCode_Strip) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversa
 // and it will take a few iterations through this loop to get up to d().
 //
 // Java: Strip.replaceHighestNestedCallWithNull(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (st *StripCode_Strip) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	ancestor := parent
 	ancestorChild := node
-	var ancestorParent *rhino.Node
+	var ancestorParent rhino.Node
 	for {
 		ancestorParent = ancestor.GetParent()
-		if ancestorParent == nil {
+		if ancestorParent.IsNil() {
 			return // the call was already removed from the AST
 		}
 
@@ -486,7 +486,7 @@ func (st *StripCode_Strip) ReplaceHighestNestedCallWithNull(t *NodeTraversal, no
 // t is the traversal, n an ASSIGN node, parent n's parent.
 //
 // Java: Strip.maybeEliminateAssignmentByLvalueName(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (st *StripCode_Strip) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	s := st.this_
 	// ASSIGN
 	//   l-value
@@ -502,7 +502,7 @@ func (st *StripCode_Strip) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal
 			grandparent := parent.GetParent()
 			// the assignment may already have been removed when visiting either the lhs
 			// or the rhs.
-			if grandparent != nil {
+			if !grandparent.IsNil() {
 				st.ReplaceWithEmpty(parent, grandparent)
 				s.compiler.ReportChangeToEnclosingScope(grandparent)
 			}
@@ -524,13 +524,13 @@ func (st *StripCode_Strip) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal
 // n is an EXPR_RESULT node.
 //
 // Java: Strip.maybeEliminateExpressionByName(Node)
-func (st *StripCode_Strip) MaybeEliminateExpressionByName(n *rhino.Node) {
+func (st *StripCode_Strip) MaybeEliminateExpressionByName(n rhino.Node) {
 	s := st.this_
 	// EXPR_RESULT
 	//   expression
 	jutil.CheckArgumentMsg1(n.IsExprResult(), "%s", n)
 	parent := n.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		// This EXPR_RESULT was already removed when one of its child nodes was visited.
 		return
 	}
@@ -550,7 +550,7 @@ func (st *StripCode_Strip) MaybeEliminateExpressionByName(n *rhino.Node) {
 // n is an OBJLIT node.
 //
 // Java: Strip.eliminateKeysWithStripNamesFromObjLit(Node)
-func (st *StripCode_Strip) EliminateKeysWithStripNamesFromObjLit(n *rhino.Node) {
+func (st *StripCode_Strip) EliminateKeysWithStripNamesFromObjLit(n rhino.Node) {
 	s := st.this_
 	// OBJLIT
 	//   key1
@@ -558,7 +558,7 @@ func (st *StripCode_Strip) EliminateKeysWithStripNamesFromObjLit(n *rhino.Node) 
 	//   key2
 	//   ...
 	key := n.GetFirstChild()
-	for key != nil {
+	for !key.IsNil() {
 		switch key.GetToken() {
 		case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF:
 			if st.IsStripName(key.GetString()) {
@@ -582,11 +582,11 @@ func (st *StripCode_Strip) EliminateKeysWithStripNamesFromObjLit(n *rhino.Node) 
 // strippable type.
 //
 // Java: Strip.maybeEliminateClassByNameOrExtends(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, classNode *rhino.Node, parent *rhino.Node) {
+func (st *StripCode_Strip) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, classNode rhino.Node, parent rhino.Node) {
 	nameNode := NodeUtil_GetNameNode(classNode)
 	var className string
 	// Replace class with null if it is a strip type
-	if nameNode != nil && nameNode.IsQualifiedName() {
+	if !nameNode.IsNil() && nameNode.IsQualifiedName() {
 		className = *nameNode.GetQualifiedName()
 		if st.QualifiedNameBeginsWithStripTypeName(&className) {
 			st.decisionsLog.LogSupplier(func() string { return className + ": removing class" })
@@ -604,7 +604,7 @@ func (st *StripCode_Strip) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, 
 
 	// If the class is not a strip type, the superclass also cannot be a strip type
 	superclassNode := classNode.GetSecondChild()
-	if superclassNode != nil && superclassNode.IsQualifiedName() {
+	if !superclassNode.IsNil() && superclassNode.IsQualifiedName() {
 		superclassName := superclassNode.GetQualifiedName()
 		if st.QualifiedNameBeginsWithStripTypeName(superclassName) {
 			t.Report(classNode, StripCode_STRIP_TYPE_INHERIT_ERROR, className, *superclassName)
@@ -625,8 +625,8 @@ func (st *StripCode_Strip) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, 
 // value should be stripped.
 //
 // Java: Strip.isCallWhoseReturnValueShouldBeStripped(Node)
-func (st *StripCode_Strip) IsCallWhoseReturnValueShouldBeStripped(n *rhino.Node) bool {
-	if n == nil || (!n.IsCall() && !n.IsNew()) || !n.HasChildren() {
+func (st *StripCode_Strip) IsCallWhoseReturnValueShouldBeStripped(n rhino.Node) bool {
+	if n.IsNil() || (!n.IsCall() && !n.IsNew()) || !n.HasChildren() {
 		return false
 	}
 
@@ -644,7 +644,7 @@ func (st *StripCode_Strip) IsCallWhoseReturnValueShouldBeStripped(n *rhino.Node)
 // begins with a strip name.
 //
 // Java: Strip.qualifiedNameBeginsWithStripType(Node)
-func (st *StripCode_Strip) QualifiedNameBeginsWithStripType(n *rhino.Node) bool {
+func (st *StripCode_Strip) QualifiedNameBeginsWithStripType(n rhino.Node) bool {
 	name := n.GetQualifiedName()
 	return st.QualifiedNameBeginsWithStripTypeName(name)
 }
@@ -691,7 +691,7 @@ func (st *StripCode_Strip) QualifiedNameBeginsWithStripTypeName(name *string) bo
 // n is a NAME node. Returns whether the variable was removed.
 //
 // Java: Strip.isReferenceToRemovedVar(Node)
-func (st *StripCode_Strip) IsReferenceToRemovedVar(n *rhino.Node) bool {
+func (st *StripCode_Strip) IsReferenceToRemovedVar(n rhino.Node) bool {
 	return st.this_.varsToRemove.Contains(n.GetString())
 }
 
@@ -705,7 +705,7 @@ func (st *StripCode_Strip) IsReferenceToRemovedVar(n *rhino.Node) bool {
 // statement removal.
 //
 // Java: Strip.isMethodOrCtorCallThatTriggersRemoval(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (st *StripCode_Strip) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// CALL/NEW
 	//   GETPROP (function)         <-- we're interested in this, the function
 	//     GETPROP (callee object)  <-- or the object on which it is called
@@ -715,13 +715,13 @@ func (st *StripCode_Strip) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversa
 	//   ... (arguments)
 
 	function := NodeUtil_GetCallTargetResolvingIndirectCalls(n)
-	if function == nil || !function.IsQualifiedName() {
+	if function.IsNil() || !function.IsQualifiedName() {
 		return false
 	}
 
-	if parent != nil && parent.IsName() {
+	if !parent.IsNil() && parent.IsName() {
 		grandparent := parent.GetParent()
-		if grandparent != nil && NodeUtil_IsNameDeclaration(grandparent) {
+		if !grandparent.IsNil() && NodeUtil_IsNameDeclaration(grandparent) {
 			// The call's return value is being used to initialize a newly
 			// declared variable. We should leave the call intact for now.
 			// That way, when the traversal reaches the variable declaration,
@@ -746,8 +746,8 @@ func (st *StripCode_Strip) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversa
 // etc.
 //
 // Java: Strip.nameIncludesFieldNameToStrip(Node)
-func (st *StripCode_Strip) NameIncludesFieldNameToStrip(n *rhino.Node) bool {
-	if n == nil {
+func (st *StripCode_Strip) NameIncludesFieldNameToStrip(n rhino.Node) bool {
+	if n.IsNil() {
 		return false
 	} else if n.IsGetProp() {
 		return st.IsStripName(n.GetString()) || st.NameIncludesFieldNameToStrip(n.GetFirstChild())
@@ -789,7 +789,7 @@ func (st *StripCode_Strip) NameIncludesFieldNameToStrip(n *rhino.Node) bool {
 // t is the current traversal, callNode the CALL node.
 //
 // Java: Strip.actsOnStripType(NodeTraversal, Node)
-func (st *StripCode_Strip) ActsOnStripType(t *NodeTraversal, callNode *rhino.Node) bool {
+func (st *StripCode_Strip) ActsOnStripType(t *NodeTraversal, callNode rhino.Node) bool {
 	s := st.this_
 	classes := s.compiler.GetCodingConvention().GetClassesDefinedByCall(callNode)
 	if classes != nil {
@@ -887,7 +887,7 @@ func (st *StripCode_Strip) LogStripNameSupplier(name string, reasonSupplier func
 // value is expected.
 //
 // Java: Strip.replaceWithNull(Node)
-func (st *StripCode_Strip) ReplaceWithNull(n *rhino.Node) {
+func (st *StripCode_Strip) ReplaceWithNull(n rhino.Node) {
 	if st.decisionsLog.IsLogging() {
 		st.decisionsLog.LogSupplier(func() string { return "replace with null: " + n.GetLocation() })
 	}
@@ -901,7 +901,7 @@ func (st *StripCode_Strip) ReplaceWithNull(n *rhino.Node) {
 // n is a node, parent n's parent.
 //
 // Java: Strip.replaceWithEmpty(Node, Node)
-func (st *StripCode_Strip) ReplaceWithEmpty(n *rhino.Node, parent *rhino.Node) {
+func (st *StripCode_Strip) ReplaceWithEmpty(n rhino.Node, parent rhino.Node) {
 	if st.decisionsLog.IsLogging() {
 		st.decisionsLog.LogSupplier(func() string { return "replace with empty: " + n.GetLocation() })
 	}

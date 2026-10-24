@@ -93,14 +93,14 @@ func NewCheckRegExp(
 }
 
 // Java: CheckRegExp.process(Node, Node)
-func (c *CheckRegExp) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckRegExp) Process(externs rhino.Node, root rhino.Node) {
 	if c.processParallel(root) {
 		return
 	}
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
-func (c *CheckRegExp) processParallel(root *rhino.Node) bool {
+func (c *CheckRegExp) processParallel(root rhino.Node) bool {
 	scripts, ok := collectRootScripts(root)
 	if !ok {
 		return false
@@ -151,7 +151,7 @@ func (c *CheckRegExp) processParallel(root *rhino.Node) bool {
 }
 
 // Java: CheckRegExp.visit(NodeTraversal, Node, Node)
-func (c *CheckRegExp) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckRegExp) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsReferenceName(n) {
 		name := n.GetString()
 		if name == "RegExp" && t.GetScope().GetVar(name) == nil {

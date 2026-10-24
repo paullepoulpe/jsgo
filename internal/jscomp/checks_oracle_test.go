@@ -117,7 +117,7 @@ func (m *checksDumpErrorManager) Println(level *CheckLevel, error *JSError) {}
 
 func (m *checksDumpErrorManager) PrintSummary() {}
 
-type checksDumpPass func(c *Compiler, externsRoot *rhino.Node, mainRoot *rhino.Node, out *strings.Builder)
+type checksDumpPass func(c *Compiler, externsRoot rhino.Node, mainRoot rhino.Node, out *strings.Builder)
 
 // checksDumpOne is ChecksDump.dumpOne.
 func checksDumpOne(sb *strings.Builder, rel string, src string, asExterns bool) {
@@ -157,7 +157,7 @@ func checksDump(sb *strings.Builder, externs []*SourceFile, inputs []*SourceFile
 	compiler.SetErrorManager(newChecksDumpErrorManager(sb))
 	compiler.Init(externs, inputs, checksDumpOptions())
 	checksDumpLine(sb, "## parse")
-	var root *rhino.Node
+	var root rhino.Node
 	threw := false
 	jutil.Try(func() {
 		root = compiler.ParseInputs()
@@ -168,7 +168,7 @@ func checksDump(sb *strings.Builder, externs []*SourceFile, inputs []*SourceFile
 	if threw {
 		return
 	}
-	if root == nil || compiler.GetErrorCount() > 0 {
+	if root.IsNil() || compiler.GetErrorCount() > 0 {
 		checksDumpLine(sb, "# parse-errors")
 		return
 	}
@@ -186,48 +186,48 @@ func checksDump(sb *strings.Builder, externs []*SourceFile, inputs []*SourceFile
 
 	if program {
 		// As CheckMissingRequiresTest does.
-		run("CheckMissingRequires", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+		run("CheckMissingRequires", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 			NewGatherModuleMetadata(c /* processCommonJsModules= */, false, ModuleLoader_ResolutionMode_BROWSER).
 				Process(e, m)
 			NewCheckMissingRequires(c, c.GetModuleMetadataMap()).Process(e, m)
 		})
 	}
-	run("CheckDebuggerStatement", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckDebuggerStatement", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewCheckDebuggerStatement(c).Process(e, m)
 	})
-	run("CheckGlobalThis", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckGlobalThis", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NodeTraversal_Traverse(c, m, NewCheckGlobalThis(c))
 	})
-	run("CheckSuspiciousCode", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckSuspiciousCode", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NodeTraversal_Traverse(c, m, NewCheckSuspiciousCode())
 	})
-	run("CheckRegExp", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckRegExp", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		pass := NewCheckRegExp(c, true, true)
 		pass.Process(e, m)
 		checksDumpLine(out, "= globalRegExpPropertiesUsed="+strconv.FormatBool(pass.IsGlobalRegExpPropertiesUsed()))
 	})
-	run("CheckSuper", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckSuper", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewCheckSuper(c).Process(e, m)
 	})
-	run("CheckTypeImportCodeReferences", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckTypeImportCodeReferences", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewCheckTypeImportCodeReferences(c).Process(e, m)
 	})
-	run("StrictModeCheck", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("StrictModeCheck", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewStrictModeCheck(c, CheckLevel_WARNING).Process(e, m)
 	})
-	run("SourceInfoCheck", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("SourceInfoCheck", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewSourceInfoCheck(c).Process(e, m)
 	})
-	run("CheckUnreachableCode", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckUnreachableCode", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NodeTraversal_Traverse(c, m, NewCheckUnreachableCode(c))
 	})
-	run("CheckMissingReturn", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckMissingReturn", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NodeTraversal_Traverse(c, m, NewCheckMissingReturn(c))
 	})
-	run("J2clChecksPass", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("J2clChecksPass", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewJ2clChecksPass(c).Process(e, m)
 	})
-	run("VarCheck", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("VarCheck", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewVarCheck(c).Process(e, m)
 		synthesized := c.GetSynthesizedExternsInput().GetAstRoot(c)
 		for _, l := range strings.Split(synthesized.ToStringTree(), "\n") {
@@ -236,13 +236,13 @@ func checksDump(sb *strings.Builder, externs []*SourceFile, inputs []*SourceFile
 			}
 		}
 	})
-	run("ConstCheck", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("ConstCheck", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewConstCheck(c).Process(e, m)
 	})
-	run("VarCheckValidity", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("VarCheckValidity", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewVarCheckWithValidityCheck(c, true).Process(e, m)
 	})
-	run("ForbidDynamicImportUsage", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("ForbidDynamicImportUsage", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewForbidDynamicImportUsage(c).Process(e, m)
 	})
 }

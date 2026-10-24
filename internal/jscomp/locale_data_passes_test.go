@@ -83,7 +83,7 @@ type localeDataPassesTest_protectPass struct {
 	compiler *Compiler
 }
 
-func (p *localeDataPassesTest_protectPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *localeDataPassesTest_protectPass) Process(externs rhino.Node, root rhino.Node) {
 	extract := NewLocaleDataPasses_ProtectGoogLocale(p.compiler)
 	extract.Process(externs, root)
 }
@@ -94,7 +94,7 @@ type localeDataPassesTest_replacePass struct {
 	compiler *Compiler
 }
 
-func (p *localeDataPassesTest_replacePass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *localeDataPassesTest_replacePass) Process(externs rhino.Node, root rhino.Node) {
 	extract := NewLocaleDataPasses_ProtectGoogLocale(p.compiler)
 	extract.Process(externs, root)
 	subs :=

@@ -438,33 +438,33 @@ func TestWarningsGuard_ComposeGuardCycle(t *testing.T) {
 }
 
 // Java: WarningsGuardTest.findNameNode(Node, String)
-func jsaWgFindNameNode(root *rhino.Node, name string) *rhino.Node {
+func jsaWgFindNameNode(root rhino.Node, name string) rhino.Node {
 	if root.IsName() && root.GetString() == name {
 		return root
 	}
 
-	for n := root.GetFirstChild(); n != nil; n = n.GetNext() {
+	for n := root.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		result := jsaWgFindNameNode(n, name)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: WarningsGuardTest.findGetPropNode(Node, String)
-func jsaWgFindGetPropNode(root *rhino.Node, name string) *rhino.Node {
+func jsaWgFindGetPropNode(root rhino.Node, name string) rhino.Node {
 	if root.IsGetProp() && root.GetString() == name {
 		return root
 	}
 
-	for n := root.GetFirstChild(); n != nil; n = n.GetNext() {
+	for n := root.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		result := jsaWgFindGetPropNode(n, name)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 func jsaWgMakeError(sourcePath *string) *JSError {

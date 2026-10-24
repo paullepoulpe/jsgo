@@ -48,7 +48,7 @@ type AliasStrings struct {
 
 	// Map from chunk to the node in that chunk that should parent any string
 	// variable declarations that have to be moved into that chunk
-	chunkVarParentMap *jutil.LinkedHashMap[*JSChunk, *rhino.Node]
+	chunkVarParentMap *jutil.LinkedHashMap[*JSChunk, rhino.Node]
 
 	// package private. This value is AND-ed with the hash function to allow
 	// unit tests to reduce the range of hash values to test collision cases
@@ -80,7 +80,7 @@ func NewAliasStrings(
 	a := &AliasStrings{
 		stringInfoMap:             jutil.NewTreeMap[string, *AliasStrings_StringInfo](jutil.StringCompareTo),
 		usedHashedAliases:         jutil.NewLinkedHashSet[string](),
-		chunkVarParentMap:         jutil.NewLinkedHashMap[*JSChunk, *rhino.Node](),
+		chunkVarParentMap:         jutil.NewLinkedHashMap[*JSChunk, rhino.Node](),
 		unitTestHashReductionMask: ^0,
 	}
 	a.compiler = compiler
@@ -92,7 +92,7 @@ func NewAliasStrings(
 }
 
 // Java: AliasStrings.process(Node, Node)
-func (a *AliasStrings) Process(externs *rhino.Node, root *rhino.Node) {
+func (a *AliasStrings) Process(externs rhino.Node, root rhino.Node) {
 	aliasStrings_logger.Fine("Aliasing common strings")
 
 	// Traverse the tree and collect strings
@@ -110,7 +110,7 @@ func (a *AliasStrings) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 // Java: AliasStrings.shouldTraverse(NodeTraversal, Node, Node)
-func (a *AliasStrings) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (a *AliasStrings) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_TEMPLATELIT,
 		rhino.Token_TAGGED_TEMPLATELIT,
@@ -126,7 +126,7 @@ func (a *AliasStrings) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Nod
 }
 
 // Java: AliasStrings.visit(NodeTraversal, Node, Node)
-func (a *AliasStrings) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (a *AliasStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsStringLit() && !parent.IsRegExp() {
 		str := n.GetString()
 
@@ -209,7 +209,7 @@ func (a *AliasStrings) AddAliasDeclarationNodes() {
 		var_ := rhino.IR_VarWithValue(rhino.IR_Name(alias), rhino.IR_String(key))
 		firstUse := info.occurrences.Get(0)
 		var_.SrcrefTree(firstUse)
-		if info.siblingToInsertVarDeclBefore == nil {
+		if info.siblingToInsertVarDeclBefore.IsNil() {
 			info.parentForNewVarDecl.AddChildToFront(var_)
 		} else {
 			var_.InsertBefore(info.siblingToInsertVarDeclBefore)
@@ -259,7 +259,7 @@ func (a *AliasStrings) ShouldReplaceWithAlias(str string, info *AliasStrings_Str
 // the string's alias variable.
 //
 // Java: AliasStrings.replaceStringWithAliasName(Node, String, StringInfo)
-func (a *AliasStrings) ReplaceStringWithAliasName(n *rhino.Node, name string, info *AliasStrings_StringInfo) {
+func (a *AliasStrings) ReplaceStringWithAliasName(n rhino.Node, name string, info *AliasStrings_StringInfo) {
 	nameNode := rhino.IR_Name(name)
 	n.ReplaceWith(nameNode)
 	info.isAliased = true
@@ -297,18 +297,18 @@ type AliasStrings_StringInfo struct {
 
 	isAliased bool // set to 'true' when reference to alias created
 
-	occurrences *jutil.ArrayList[*rhino.Node]
+	occurrences *jutil.ArrayList[rhino.Node]
 
 	chunkToContainDecl           *JSChunk
-	parentForNewVarDecl          *rhino.Node
-	siblingToInsertVarDeclBefore *rhino.Node
+	parentForNewVarDecl          rhino.Node
+	siblingToInsertVarDeclBefore rhino.Node
 
 	aliasName *string
 }
 
 // Java: AliasStrings.StringInfo(int)
 func NewAliasStrings_StringInfo(outer *AliasStrings, id int) *AliasStrings_StringInfo {
-	s := &AliasStrings_StringInfo{outer: outer, occurrences: jutil.NewArrayList[*rhino.Node]()}
+	s := &AliasStrings_StringInfo{outer: outer, occurrences: jutil.NewArrayList[rhino.Node]()}
 	s.id = id
 	s.isAliased = false
 	return s

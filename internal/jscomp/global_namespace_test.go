@@ -353,13 +353,13 @@ func (c *GlobalNamespaceTest) TestUpdateRefNodeCanSetNodeToNullButPreventsFurthe
 	refA := nameA.GetFirstRef()
 	oldNode := refA.GetNode()
 	AssertThat(nameA.GetRefForNode(oldNode)).IsEqualTo(refA)
-	nameA.UpdateRefNode(refA, nil)
+	nameA.UpdateRefNode(refA, rhino.Node{})
 	AssertThat(refA.GetNode()).IsNull()
 	AssertThat(nameA.GetRefForNode(oldNode)).IsNull()
 	// cannot get refs for null
-	AssertThrows[jutil.INullPointerException](func() { nameA.GetRefForNode(nil) })
+	AssertThrows[jutil.INullPointerException](func() { nameA.GetRefForNode(rhino.Node{}) })
 	// cannot update the node again once it's been set to null
-	AssertThrows[jutil.IIllegalArgumentException](func() { nameA.UpdateRefNode(refA, nil) })
+	AssertThrows[jutil.IIllegalArgumentException](func() { nameA.UpdateRefNode(refA, rhino.Node{}) })
 	AssertThrows[jutil.IIllegalStateException](func() { nameA.UpdateRefNode(refA, oldNode) })
 }
 
@@ -555,7 +555,7 @@ func (c *GlobalNamespaceTest) TestScanFromNodeNoticesHasOwnProperty() {
 }
 
 // Java: GlobalNamespaceTest.createGlobalAstChangeForNode(Node, Node)
-func (c *GlobalNamespaceTest) CreateGlobalAstChangeForNode(jsRoot *rhino.Node, n *rhino.Node) GlobalNamespace_AstChange {
+func (c *GlobalNamespaceTest) CreateGlobalAstChangeForNode(jsRoot rhino.Node, n rhino.Node) GlobalNamespace_AstChange {
 	// This only creates a global scope, so don't use this with local nodes
 	globalScope := NewSyntacticScopeCreator(c.lastCompiler).CreateScopeOfScope(jsRoot, nil)
 	var firstChunk *JSChunk

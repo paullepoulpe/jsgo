@@ -62,7 +62,7 @@ func NewEs6RewriteClass(
 }
 
 // Java: Es6RewriteClass.process(Node, Node)
-func (e *Es6RewriteClass) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6RewriteClass) Process(externs rhino.Node, root rhino.Node) {
 	if opts := e.compiler.GetOptions(); opts != nil && opts.GetOutputFeatureSet() != nil {
 		e.isES3Output = parser.FeatureSet_ES3.Contains(opts.GetOutputFeatureSet())
 	} else {
@@ -89,7 +89,7 @@ func (e *Es6RewriteClass) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 // Java: Es6RewriteClass.shouldTraverse(NodeTraversal, Node, Node)
-func (e *Es6RewriteClass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (e *Es6RewriteClass) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
 		if e.isES3Output {
@@ -102,7 +102,7 @@ func (e *Es6RewriteClass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent
 }
 
 // Java: Es6RewriteClass.visit(NodeTraversal, Node, Node)
-func (e *Es6RewriteClass) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteClass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsClass() {
 		e.VisitClass(t, n, parent)
 	}
@@ -115,7 +115,7 @@ func (e *Es6RewriteClass) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.N
 //  3. The constructor is built.
 //
 // Java: Es6RewriteClass.visitClass(NodeTraversal, Node, Node)
-func (e *Es6RewriteClass) VisitClass(t *NodeTraversal, classNode *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteClass) VisitClass(t *NodeTraversal, classNode rhino.Node, parent rhino.Node) {
 	// Collect Metadata
 	metadata := es6RewriteClass_ClassDeclarationMetadata_CreateInto(&e.metadataBuf, classNode, parent, e.astFactory)
 
@@ -138,10 +138,10 @@ func (e *Es6RewriteClass) VisitClass(t *NodeTraversal, classNode *rhino.Node, pa
 		"insertion point must be a statement: %s",
 		metadata.InsertionPoint().GetNode())
 
-	var constructor *rhino.Node
+	var constructor rhino.Node
 	// Process all members of the class
 	classMembers := classNode.GetLastChild()
-	for member := classMembers.GetFirstChild(); member != nil; {
+	for member := classMembers.GetFirstChild(); !member.IsNil(); {
 		next := member.GetNext()
 		if (member.IsComputedProp() &&
 			(member.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) ||
@@ -170,7 +170,7 @@ func (e *Es6RewriteClass) VisitClass(t *NodeTraversal, classNode *rhino.Node, pa
 		}
 		member = next
 	}
-	jutil.CheckNotNullMsg(
+	rhino.CheckNotNullMsg(
 		constructor,
 		"Es6RewriteClasses expects all classes to have (possibly synthetic) constructors")
 
@@ -232,21 +232,21 @@ func (e *Es6RewriteClass) VisitClass(t *NodeTraversal, classNode *rhino.Node, pa
 }
 
 // Java: Es6RewriteClass.createObjectDotDefineProperties()
-func (e *Es6RewriteClass) CreateObjectDotDefineProperties() *rhino.Node {
+func (e *Es6RewriteClass) CreateObjectDotDefineProperties() rhino.Node {
 	return e.astFactory.CreateJSCompDotGlobalAccess(
 		e.transpilationNamespace, "Object.defineProperties")
 }
 
 // Java: Es6RewriteClass.createObjectDotDefineProperty()
-func (e *Es6RewriteClass) CreateObjectDotDefineProperty() *rhino.Node {
+func (e *Es6RewriteClass) CreateObjectDotDefineProperty() rhino.Node {
 	return e.astFactory.CreateJSCompDotGlobalAccess(
 		e.transpilationNamespace, "Object.defineProperty")
 }
 
 // Java: Es6RewriteClass.flushDefinePropertiesForPrototype(ClassDeclarationMetadata, Node)
 func (e *Es6RewriteClass) FlushDefinePropertiesForPrototype(
-	metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode *rhino.Node) {
-	if metadata.definePropertiesObjForPrototype != nil && metadata.definePropertiesObjForPrototype.HasChildren() {
+	metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode rhino.Node) {
+	if !metadata.definePropertiesObjForPrototype.IsNil() && metadata.definePropertiesObjForPrototype.HasChildren() {
 		definePropsCall :=
 			rhino.IR_ExprResult(
 				e.astFactory.CreateCall(
@@ -256,13 +256,13 @@ func (e *Es6RewriteClass) FlushDefinePropertiesForPrototype(
 					metadata.definePropertiesObjForPrototype))
 		definePropsCall.SrcrefTreeIfMissing(srcrefNode)
 		metadata.InsertNodeAndAdvance(definePropsCall)
-		metadata.definePropertiesObjForPrototype = nil
+		metadata.definePropertiesObjForPrototype = rhino.Node{}
 	}
 }
 
 // Java: Es6RewriteClass.flushDefinePropertiesForClass(ClassDeclarationMetadata, Node)
-func (e *Es6RewriteClass) FlushDefinePropertiesForClass(metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode *rhino.Node) {
-	if metadata.definePropertiesObjForClass != nil && metadata.definePropertiesObjForClass.HasChildren() {
+func (e *Es6RewriteClass) FlushDefinePropertiesForClass(metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode rhino.Node) {
+	if !metadata.definePropertiesObjForClass.IsNil() && metadata.definePropertiesObjForClass.HasChildren() {
 		definePropsCall :=
 			rhino.IR_ExprResult(
 				e.astFactory.CreateCall(
@@ -272,13 +272,13 @@ func (e *Es6RewriteClass) FlushDefinePropertiesForClass(metadata *Es6RewriteClas
 					metadata.definePropertiesObjForClass))
 		definePropsCall.SrcrefTreeIfMissing(srcrefNode)
 		metadata.InsertNodeAndAdvance(definePropsCall)
-		metadata.definePropertiesObjForClass = nil
+		metadata.definePropertiesObjForClass = rhino.Node{}
 	}
 }
 
 // Java: Es6RewriteClass.flushPendingDefineProperties(ClassDeclarationMetadata, boolean, Node)
 func (e *Es6RewriteClass) FlushPendingDefineProperties(
-	metadata *Es6RewriteClass_ClassDeclarationMetadata, isStatic bool, srcrefNode *rhino.Node) {
+	metadata *Es6RewriteClass_ClassDeclarationMetadata, isStatic bool, srcrefNode rhino.Node) {
 	if isStatic {
 		e.FlushDefinePropertiesForClass(metadata, srcrefNode)
 	} else {
@@ -289,9 +289,9 @@ func (e *Es6RewriteClass) FlushPendingDefineProperties(
 // AddToDefinePropertiesObject takes member, a getter or setter.
 //
 // Java: Es6RewriteClass.addToDefinePropertiesObject(ClassDeclarationMetadata, Node)
-func (e *Es6RewriteClass) AddToDefinePropertiesObject(metadata *Es6RewriteClass_ClassDeclarationMetadata, member *rhino.Node) {
+func (e *Es6RewriteClass) AddToDefinePropertiesObject(metadata *Es6RewriteClass_ClassDeclarationMetadata, member rhino.Node) {
 	jutil.CheckArgument(!member.IsComputedProp())
-	var obj *rhino.Node
+	var obj rhino.Node
 	if member.IsStaticMember() {
 		obj = metadata.DefinePropertiesObjForClass()
 	} else {
@@ -302,23 +302,23 @@ func (e *Es6RewriteClass) AddToDefinePropertiesObject(metadata *Es6RewriteClass_
 	if member.IsGetterDef() {
 		accessorKind = "get"
 	}
-	if prop != nil && NodeUtil_GetFirstPropMatchingKey(prop, accessorKind) != nil {
+	if !prop.IsNil() && !NodeUtil_GetFirstPropMatchingKey(prop, accessorKind).IsNil() {
 		e.FlushPendingDefineProperties(metadata, member.IsStaticMember(), member)
 		if member.IsStaticMember() {
 			obj = metadata.DefinePropertiesObjForClass()
 		} else {
 			obj = metadata.DefinePropertiesObjForPrototype()
 		}
-		prop = nil
+		prop = rhino.Node{}
 	}
-	if prop == nil {
+	if prop.IsNil() {
 		prop = e.CreatePropertyDescriptor()
 		if member.GetString() == "__proto__" {
 			stringKey :=
 				e.astFactory.CreateComputedProperty(e.astFactory.CreateString("__proto__"), prop)
 			obj.AddChildToBack(stringKey)
 			scriptNode := NodeUtil_GetEnclosingScript(member)
-			if scriptNode != nil {
+			if !scriptNode.IsNil() {
 				NodeUtil_AddFeatureToScript(scriptNode, parser.FeatureSet_Feature_COMPUTED_PROPERTIES, e.compiler)
 			}
 		} else {
@@ -343,10 +343,10 @@ func (e *Es6RewriteClass) AddToDefinePropertiesObject(metadata *Es6RewriteClass_
 // the given computed getter or setter.
 //
 // Java: Es6RewriteClass.extractComputedProperty(Node, ClassDeclarationMetadata)
-func (e *Es6RewriteClass) ExtractComputedProperty(computedMember *rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
+func (e *Es6RewriteClass) ExtractComputedProperty(computedMember rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
 	e.FlushPendingDefineProperties(metadata, computedMember.IsStaticMember(), computedMember)
 
-	var owner *rhino.Node
+	var owner rhino.Node
 	if computedMember.IsStaticMember() {
 		owner = metadata.FullClassNameNode()
 	} else {
@@ -387,7 +387,7 @@ func (e *Es6RewriteClass) ExtractComputedProperty(computedMember *rhino.Node, me
 // Object.defineProperty calls
 //
 // Java: Es6RewriteClass.visitNonMethodMember(Node, ClassDeclarationMetadata)
-func (e *Es6RewriteClass) VisitNonMethodMember(member *rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
+func (e *Es6RewriteClass) VisitNonMethodMember(member rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
 	if member.IsComputedProp() {
 		e.ExtractComputedProperty(member.Detach(), metadata)
 		return
@@ -419,7 +419,7 @@ func (e *Es6RewriteClass) VisitNonMethodMember(member *rhino.Node, metadata *Es6
 // Getters, setters, and the constructor are not handled here.
 //
 // Java: Es6RewriteClass.visitMethod(Node, ClassDeclarationMetadata)
-func (e *Es6RewriteClass) VisitMethod(member *rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
+func (e *Es6RewriteClass) VisitMethod(member rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
 	e.FlushPendingDefineProperties(metadata, member.IsStaticMember(), member)
 
 	qualifiedMemberAccess := e.GetQualifiedMemberAccess(member, metadata)
@@ -458,7 +458,7 @@ func (e *Es6RewriteClass) VisitMethod(member *rhino.Node, metadata *Es6RewriteCl
 // recognize the properties' existence.
 //
 // Java: Es6RewriteClass.addTypeDeclarations(ClassDeclarationMetadata, Node)
-func (e *Es6RewriteClass) AddTypeDeclarations(metadata *Es6RewriteClass_ClassDeclarationMetadata, insertionPoint *rhino.Node) {
+func (e *Es6RewriteClass) AddTypeDeclarations(metadata *Es6RewriteClass_ClassDeclarationMetadata, insertionPoint rhino.Node) {
 	if metadata.classMembersToDeclare == nil {
 		return
 	}
@@ -479,8 +479,8 @@ func (e *Es6RewriteClass) AddTypeDeclarations(metadata *Es6RewriteClass_ClassDec
 // afterwards.
 //
 // Java: Es6RewriteClass.getQualifiedMemberAccess(Node, ClassDeclarationMetadata)
-func (e *Es6RewriteClass) GetQualifiedMemberAccess(member *rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) *rhino.Node {
-	var context *rhino.Node
+func (e *Es6RewriteClass) GetQualifiedMemberAccess(member rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) rhino.Node {
+	var context rhino.Node
 	if member.IsStaticMember() {
 		context = metadata.FullClassNameNode().CloneTree()
 	} else {
@@ -501,7 +501,7 @@ func (e *Es6RewriteClass) GetQualifiedMemberAccess(member *rhino.Node, metadata 
 }
 
 // Java: Es6RewriteClass.createPropertyDescriptor()
-func (e *Es6RewriteClass) CreatePropertyDescriptor() *rhino.Node {
+func (e *Es6RewriteClass) CreatePropertyDescriptor() rhino.Node {
 	return e.astFactory.CreateObjectLit(
 		e.astFactory.CreateStringKey("configurable", e.astFactory.CreateBoolean(true)),
 		e.astFactory.CreateStringKey("enumerable", e.astFactory.CreateBoolean(true)))
@@ -627,8 +627,8 @@ func (k Es6RewriteClass_ClassProperty_PropertyKind) Ordinal() int { return int(k
 // it into the returned EXPR_RESULT.
 //
 // Java: Es6RewriteClass.ClassProperty.getDeclaration(AstFactory, Node)
-func (c *Es6RewriteClass_ClassProperty) GetDeclaration(astFactory *AstFactory, toDeclareOn *rhino.Node) *rhino.Node {
-	var decl *rhino.Node
+func (c *Es6RewriteClass_ClassProperty) GetDeclaration(astFactory *AstFactory, toDeclareOn rhino.Node) rhino.Node {
+	var decl rhino.Node
 	switch c.Kind() {
 	case Es6RewriteClass_ClassProperty_PropertyKind_QUOTED_PROPERTY:
 		decl = astFactory.CreateGetElem(toDeclareOn, astFactory.CreateString(c.PropertyKey()))
@@ -755,35 +755,35 @@ type Es6RewriteClass_ClassDeclarationMetadata struct {
 	insertionPoint                  *Es6RewriteClass_InsertionPoint
 	insertionPointVal               Es6RewriteClass_InsertionPoint
 	astFactory                      *AstFactory
-	definePropertiesObjForPrototype *rhino.Node
-	definePropertiesObjForClass     *rhino.Node
+	definePropertiesObjForPrototype rhino.Node
+	definePropertiesObjForClass     rhino.Node
 	classMembersToDeclare           *jutil.LinkedHashMap[string, *Es6RewriteClass_ClassProperty]
-	fullClassNameNode               *rhino.Node
-	classPrototypeNode              *rhino.Node
+	fullClassNameNode               rhino.Node
+	classPrototypeNode              rhino.Node
 	anonymous                       bool
-	classNameNode                   *rhino.Node
-	superClassNameNode              *rhino.Node
+	classNameNode                   rhino.Node
+	superClassNameNode              rhino.Node
 }
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata(InsertionPoint, Node, Node, Map<String, ClassProperty>, Node, Node, boolean, Node, Node)
 func NewEs6RewriteClass_ClassDeclarationMetadata(
 	insertionPoint *Es6RewriteClass_InsertionPoint,
-	definePropertiesObjForPrototype *rhino.Node,
-	definePropertiesObjForClass *rhino.Node,
+	definePropertiesObjForPrototype rhino.Node,
+	definePropertiesObjForClass rhino.Node,
 	classMembersToDeclare *jutil.LinkedHashMap[string, *Es6RewriteClass_ClassProperty],
-	fullClassNameNode *rhino.Node,
-	classPrototypeNode *rhino.Node,
+	fullClassNameNode rhino.Node,
+	classPrototypeNode rhino.Node,
 	anonymous bool,
-	classNameNode *rhino.Node,
-	superClassNameNode *rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata {
+	classNameNode rhino.Node,
+	superClassNameNode rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata {
 	jutil.CheckNotNullMsg(insertionPoint, "insertionPoint")
-	jutil.CheckNotNullMsg(definePropertiesObjForPrototype, "definePropertiesObjForPrototype")
-	jutil.CheckNotNullMsg(definePropertiesObjForClass, "definePropertiesObjForClass")
+	rhino.CheckNotNullMsg(definePropertiesObjForPrototype, "definePropertiesObjForPrototype")
+	rhino.CheckNotNullMsg(definePropertiesObjForClass, "definePropertiesObjForClass")
 	jutil.CheckNotNullMsg(classMembersToDeclare, "classMembersToDeclare")
-	jutil.CheckNotNullMsg(fullClassNameNode, "fullClassNameNode")
-	jutil.CheckNotNullMsg(classPrototypeNode, "classPrototypeNode")
-	jutil.CheckNotNullMsg(classNameNode, "classNameNode")
-	jutil.CheckNotNullMsg(superClassNameNode, "superClassNameNode")
+	rhino.CheckNotNullMsg(fullClassNameNode, "fullClassNameNode")
+	rhino.CheckNotNullMsg(classPrototypeNode, "classPrototypeNode")
+	rhino.CheckNotNullMsg(classNameNode, "classNameNode")
+	rhino.CheckNotNullMsg(superClassNameNode, "superClassNameNode")
 	return &Es6RewriteClass_ClassDeclarationMetadata{
 		insertionPoint:                  insertionPoint,
 		definePropertiesObjForPrototype: definePropertiesObjForPrototype,
@@ -803,8 +803,8 @@ func (m *Es6RewriteClass_ClassDeclarationMetadata) InsertionPoint() *Es6RewriteC
 }
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata.definePropertiesObjForPrototype()
-func (m *Es6RewriteClass_ClassDeclarationMetadata) DefinePropertiesObjForPrototype() *rhino.Node {
-	if m.definePropertiesObjForPrototype == nil && m.astFactory != nil {
+func (m *Es6RewriteClass_ClassDeclarationMetadata) DefinePropertiesObjForPrototype() rhino.Node {
+	if m.definePropertiesObjForPrototype.IsNil() && m.astFactory != nil {
 		m.definePropertiesObjForPrototype =
 			m.astFactory.CreateObjectLitWithType(AstFactory_Type_(m.fullClassNameNode))
 	}
@@ -818,8 +818,8 @@ func (m *Es6RewriteClass_ClassDeclarationMetadata) ResetDefinePropertiesObjForPr
 }
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata.definePropertiesObjForClass()
-func (m *Es6RewriteClass_ClassDeclarationMetadata) DefinePropertiesObjForClass() *rhino.Node {
-	if m.definePropertiesObjForClass == nil && m.astFactory != nil {
+func (m *Es6RewriteClass_ClassDeclarationMetadata) DefinePropertiesObjForClass() rhino.Node {
+	if m.definePropertiesObjForClass.IsNil() && m.astFactory != nil {
 		m.definePropertiesObjForClass =
 			m.astFactory.CreateObjectLitWithType(AstFactory_Type_(m.fullClassNameNode))
 	}
@@ -840,12 +840,12 @@ func (m *Es6RewriteClass_ClassDeclarationMetadata) ClassMembersToDeclare() *juti
 }
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata.fullClassNameNode()
-func (m *Es6RewriteClass_ClassDeclarationMetadata) FullClassNameNode() *rhino.Node {
+func (m *Es6RewriteClass_ClassDeclarationMetadata) FullClassNameNode() rhino.Node {
 	return m.fullClassNameNode
 }
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata.classPrototypeNode()
-func (m *Es6RewriteClass_ClassDeclarationMetadata) ClassPrototypeNode() *rhino.Node {
+func (m *Es6RewriteClass_ClassDeclarationMetadata) ClassPrototypeNode() rhino.Node {
 	return m.classPrototypeNode
 }
 
@@ -853,12 +853,12 @@ func (m *Es6RewriteClass_ClassDeclarationMetadata) ClassPrototypeNode() *rhino.N
 func (m *Es6RewriteClass_ClassDeclarationMetadata) Anonymous() bool { return m.anonymous }
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata.classNameNode()
-func (m *Es6RewriteClass_ClassDeclarationMetadata) ClassNameNode() *rhino.Node {
+func (m *Es6RewriteClass_ClassDeclarationMetadata) ClassNameNode() rhino.Node {
 	return m.classNameNode
 }
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata.superClassNameNode()
-func (m *Es6RewriteClass_ClassDeclarationMetadata) SuperClassNameNode() *rhino.Node {
+func (m *Es6RewriteClass_ClassDeclarationMetadata) SuperClassNameNode() rhino.Node {
 	return m.superClassNameNode
 }
 
@@ -870,14 +870,14 @@ func (m *Es6RewriteClass_ClassDeclarationMetadata) SuperClassNameNode() *rhino.N
 // into it.
 type Es6RewriteClass_ClassDeclarationMetadata_Builder struct {
 	insertionPoint                  *Es6RewriteClass_InsertionPoint
-	definePropertiesObjForPrototype *rhino.Node
-	definePropertiesObjForClass     *rhino.Node
+	definePropertiesObjForPrototype rhino.Node
+	definePropertiesObjForClass     rhino.Node
 	classMembersToDeclare           *jutil.LinkedHashMap[string, *Es6RewriteClass_ClassProperty]
-	fullClassNameNode               *rhino.Node
-	classPrototypeNode              *rhino.Node
+	fullClassNameNode               rhino.Node
+	classPrototypeNode              rhino.Node
 	anonymous                       bool
-	classNameNode                   *rhino.Node
-	superClassNameNode              *rhino.Node
+	classNameNode                   rhino.Node
+	superClassNameNode              rhino.Node
 	set_0                           byte
 }
 
@@ -912,8 +912,8 @@ func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetInsertionPoint(ins
 }
 
 // Java: AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.setDefinePropertiesObjForPrototype(Node)
-func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetDefinePropertiesObjForPrototype(definePropertiesObjForPrototype *rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
-	if definePropertiesObjForPrototype == nil {
+func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetDefinePropertiesObjForPrototype(definePropertiesObjForPrototype rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
+	if definePropertiesObjForPrototype.IsNil() {
 		panic(jutil.NewNullPointerExceptionMsg("Null definePropertiesObjForPrototype"))
 	}
 	b.definePropertiesObjForPrototype = definePropertiesObjForPrototype
@@ -921,8 +921,8 @@ func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetDefinePropertiesOb
 }
 
 // Java: AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.setDefinePropertiesObjForClass(Node)
-func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetDefinePropertiesObjForClass(definePropertiesObjForClass *rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
-	if definePropertiesObjForClass == nil {
+func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetDefinePropertiesObjForClass(definePropertiesObjForClass rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
+	if definePropertiesObjForClass.IsNil() {
 		panic(jutil.NewNullPointerExceptionMsg("Null definePropertiesObjForClass"))
 	}
 	b.definePropertiesObjForClass = definePropertiesObjForClass
@@ -939,8 +939,8 @@ func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetClassMembersToDecl
 }
 
 // Java: AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.setFullClassNameNode(Node)
-func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetFullClassNameNode(fullClassNameNode *rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
-	if fullClassNameNode == nil {
+func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetFullClassNameNode(fullClassNameNode rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
+	if fullClassNameNode.IsNil() {
 		panic(jutil.NewNullPointerExceptionMsg("Null fullClassNameNode"))
 	}
 	b.fullClassNameNode = fullClassNameNode
@@ -948,16 +948,16 @@ func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetFullClassNameNode(
 }
 
 // Java: AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.fullClassNameNode()
-func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) FullClassNameNode() *rhino.Node {
-	if b.fullClassNameNode == nil {
+func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) FullClassNameNode() rhino.Node {
+	if b.fullClassNameNode.IsNil() {
 		panic(jutil.NewIllegalStateExceptionMsg("Property \"fullClassNameNode\" has not been set"))
 	}
 	return b.fullClassNameNode
 }
 
 // Java: AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.setClassPrototypeNode(Node)
-func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetClassPrototypeNode(classPrototypeNode *rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
-	if classPrototypeNode == nil {
+func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetClassPrototypeNode(classPrototypeNode rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
+	if classPrototypeNode.IsNil() {
 		panic(jutil.NewNullPointerExceptionMsg("Null classPrototypeNode"))
 	}
 	b.classPrototypeNode = classPrototypeNode
@@ -972,8 +972,8 @@ func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetAnonymous(anonymou
 }
 
 // Java: AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.setClassNameNode(Node)
-func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetClassNameNode(classNameNode *rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
-	if classNameNode == nil {
+func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetClassNameNode(classNameNode rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
+	if classNameNode.IsNil() {
 		panic(jutil.NewNullPointerExceptionMsg("Null classNameNode"))
 	}
 	b.classNameNode = classNameNode
@@ -981,8 +981,8 @@ func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetClassNameNode(clas
 }
 
 // Java: AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.setSuperClassNameNode(Node)
-func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetSuperClassNameNode(superClassNameNode *rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
-	if superClassNameNode == nil {
+func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetSuperClassNameNode(superClassNameNode rhino.Node) *Es6RewriteClass_ClassDeclarationMetadata_Builder {
+	if superClassNameNode.IsNil() {
 		panic(jutil.NewNullPointerExceptionMsg("Null superClassNameNode"))
 	}
 	b.superClassNameNode = superClassNameNode
@@ -993,39 +993,39 @@ func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) SetSuperClassNameNode
 func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) Build() *Es6RewriteClass_ClassDeclarationMetadata {
 	if b.set_0 != 1 ||
 		b.insertionPoint == nil ||
-		b.definePropertiesObjForPrototype == nil ||
-		b.definePropertiesObjForClass == nil ||
+		b.definePropertiesObjForPrototype.IsNil() ||
+		b.definePropertiesObjForClass.IsNil() ||
 		b.classMembersToDeclare == nil ||
-		b.fullClassNameNode == nil ||
-		b.classPrototypeNode == nil ||
-		b.classNameNode == nil ||
-		b.superClassNameNode == nil {
+		b.fullClassNameNode.IsNil() ||
+		b.classPrototypeNode.IsNil() ||
+		b.classNameNode.IsNil() ||
+		b.superClassNameNode.IsNil() {
 		missing := jutil.NewStringBuilder()
 		if b.insertionPoint == nil {
 			missing.Append(" insertionPoint")
 		}
-		if b.definePropertiesObjForPrototype == nil {
+		if b.definePropertiesObjForPrototype.IsNil() {
 			missing.Append(" definePropertiesObjForPrototype")
 		}
-		if b.definePropertiesObjForClass == nil {
+		if b.definePropertiesObjForClass.IsNil() {
 			missing.Append(" definePropertiesObjForClass")
 		}
 		if b.classMembersToDeclare == nil {
 			missing.Append(" classMembersToDeclare")
 		}
-		if b.fullClassNameNode == nil {
+		if b.fullClassNameNode.IsNil() {
 			missing.Append(" fullClassNameNode")
 		}
-		if b.classPrototypeNode == nil {
+		if b.classPrototypeNode.IsNil() {
 			missing.Append(" classPrototypeNode")
 		}
 		if (b.set_0 & 1) == 0 {
 			missing.Append(" anonymous")
 		}
-		if b.classNameNode == nil {
+		if b.classNameNode.IsNil() {
 			missing.Append(" classNameNode")
 		}
-		if b.superClassNameNode == nil {
+		if b.superClassNameNode.IsNil() {
 			missing.Append(" superClassNameNode")
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
@@ -1050,20 +1050,20 @@ func Es6RewriteClass_ClassDeclarationMetadata_Builder_() *Es6RewriteClass_ClassD
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata.create(Node, Node, AstFactory)
 func Es6RewriteClass_ClassDeclarationMetadata_Create(
-	classNode *rhino.Node, parent *rhino.Node, astFactory *AstFactory) *Es6RewriteClass_ClassDeclarationMetadata {
+	classNode rhino.Node, parent rhino.Node, astFactory *AstFactory) *Es6RewriteClass_ClassDeclarationMetadata {
 	return es6RewriteClass_ClassDeclarationMetadata_CreateInto(&Es6RewriteClass_ClassDeclarationMetadata{}, classNode, parent, astFactory)
 }
 
 func es6RewriteClass_ClassDeclarationMetadata_CreateInto(
 	m *Es6RewriteClass_ClassDeclarationMetadata,
-	classNode *rhino.Node,
-	parent *rhino.Node,
+	classNode rhino.Node,
+	parent rhino.Node,
 	astFactory *AstFactory) *Es6RewriteClass_ClassDeclarationMetadata {
 	classNameNode := classNode.GetFirstChild()
 	superClassNameNode := classNameNode.GetNext()
 
-	var insertionStart *rhino.Node
-	var fullClassNameNode *rhino.Node
+	var insertionStart rhino.Node
+	var fullClassNameNode rhino.Node
 	var anonymous bool
 
 	// If this is a class statement, or a class expression in a simple
@@ -1100,8 +1100,8 @@ func es6RewriteClass_ClassDeclarationMetadata_CreateInto(
 	m.insertionPointVal.insertionPoint = insertionStart
 	m.insertionPoint = &m.insertionPointVal
 	m.astFactory = astFactory
-	m.definePropertiesObjForPrototype = nil
-	m.definePropertiesObjForClass = nil
+	m.definePropertiesObjForPrototype = rhino.Node{}
+	m.definePropertiesObjForClass = rhino.Node{}
 	m.classMembersToDeclare = nil
 	m.fullClassNameNode = fullClassNameNode
 	m.classPrototypeNode = astFactory.CreatePrototypeAccess(fullClassNameNode.CloneTree())
@@ -1112,7 +1112,7 @@ func es6RewriteClass_ClassDeclarationMetadata_CreateInto(
 }
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata.insertNodeAndAdvance(Node)
-func (m *Es6RewriteClass_ClassDeclarationMetadata) InsertNodeAndAdvance(newNode *rhino.Node) {
+func (m *Es6RewriteClass_ClassDeclarationMetadata) InsertNodeAndAdvance(newNode rhino.Node) {
 	m.InsertionPoint().InsertNodeAndAdvance(newNode)
 }
 
@@ -1124,26 +1124,26 @@ func (m *Es6RewriteClass_ClassDeclarationMetadata) HasSuperClass() bool {
 // Es6RewriteClass_InsertionPoint is used by ClassDeclarationMetadata to
 // represent the point where we insert the next transpiled method of a class
 type Es6RewriteClass_InsertionPoint struct {
-	insertionPoint *rhino.Node
+	insertionPoint rhino.Node
 }
 
 // Java: Es6RewriteClass.InsertionPoint(Node)
-func newEs6RewriteClass_InsertionPoint(insertionPoint *rhino.Node) *Es6RewriteClass_InsertionPoint {
+func newEs6RewriteClass_InsertionPoint(insertionPoint rhino.Node) *Es6RewriteClass_InsertionPoint {
 	return &Es6RewriteClass_InsertionPoint{insertionPoint: insertionPoint}
 }
 
 // Java: Es6RewriteClass.InsertionPoint.insertNodeAndAdvance(Node)
-func (p *Es6RewriteClass_InsertionPoint) InsertNodeAndAdvance(newNode *rhino.Node) {
+func (p *Es6RewriteClass_InsertionPoint) InsertNodeAndAdvance(newNode rhino.Node) {
 	newNode.InsertAfter(p.insertionPoint)
 	p.insertionPoint = newNode
 }
 
 // Java: Es6RewriteClass.InsertionPoint.from(Node)
-func Es6RewriteClass_InsertionPoint_From(start *rhino.Node) *Es6RewriteClass_InsertionPoint {
+func Es6RewriteClass_InsertionPoint_From(start rhino.Node) *Es6RewriteClass_InsertionPoint {
 	return newEs6RewriteClass_InsertionPoint(start)
 }
 
 // Java: Es6RewriteClass.InsertionPoint.getNode()
-func (p *Es6RewriteClass_InsertionPoint) GetNode() *rhino.Node {
+func (p *Es6RewriteClass_InsertionPoint) GetNode() rhino.Node {
 	return p.insertionPoint
 }

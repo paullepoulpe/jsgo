@@ -64,7 +64,7 @@ func (c *ProcessClosureProvidesAndRequiresTest) SetUp() {
 
 // Java: ProcessClosureProvidesAndRequiresTest.getProcessor(Compiler)
 func (c *ProcessClosureProvidesAndRequiresTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		c.VerifyCollectProvidedNamesDoesntChangeAst(externs, root, compiler)
 		c.lastProcessor = c.CreateClosureProcessor(compiler)
 		c.lastProcessor.RewriteProvidesAndRequires(externs, root)
@@ -94,7 +94,7 @@ func (c *ProcessClosureProvidesAndRequiresTest) GetProvidedNameCollection(js str
 //
 // Java: ProcessClosureProvidesAndRequiresTest.verifyCollectProvidedNamesDoesntChangeAst(Node, Node, Compiler)
 func (c *ProcessClosureProvidesAndRequiresTest) VerifyCollectProvidedNamesDoesntChangeAst(
-	externs *rhino.Node, root *rhino.Node, compiler *Compiler) {
+	externs rhino.Node, root rhino.Node, compiler *Compiler) {
 	// Validate that this does not modify the AST at all!
 	originalExterns := externs.CloneTree()
 	originalRoot := root.CloneTree()

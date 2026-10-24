@@ -117,7 +117,7 @@ func (c *Es6RewriteModulesWithGoogInteropTest) GetOptions() *CompilerOptions {
 
 // Java: Es6RewriteModulesWithGoogInteropTest.getProcessor(Compiler)
 func (c *Es6RewriteModulesWithGoogInteropTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		var globalTypedScope *TypedScope
 		if c.runTypeChecker {
 			rai :=

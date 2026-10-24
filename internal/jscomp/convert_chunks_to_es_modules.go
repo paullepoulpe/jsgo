@@ -51,7 +51,7 @@ type ConvertChunksToESModules struct {
 	compiler               AbstractCompiler
 	crossChunkExports      *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]
 	crossChunkImports      *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]]
-	dynamicImportCallbacks *jutil.ArrayList[*rhino.Node]
+	dynamicImportCallbacks *jutil.ArrayList[rhino.Node]
 }
 
 // ConvertChunksToESModules_ImportType is the ImportType enum.
@@ -106,13 +106,13 @@ func NewConvertChunksToESModules(compiler AbstractCompiler) *ConvertChunksToESMo
 	c := &ConvertChunksToESModules{}
 	c.crossChunkExports = jutil.NewLinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]()
 	c.crossChunkImports = jutil.NewLinkedHashMap[*JSChunk, *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]]()
-	c.dynamicImportCallbacks = jutil.NewArrayList[*rhino.Node]()
+	c.dynamicImportCallbacks = jutil.NewArrayList[rhino.Node]()
 	c.compiler = compiler
 	return c
 }
 
 // Java: ConvertChunksToESModules.process(Node, Node)
-func (c *ConvertChunksToESModules) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ConvertChunksToESModules) Process(externs rhino.Node, root rhino.Node) {
 	// Find global names that are used in more than one chunk. Those that
 	// are have to have import and export statements added.
 	NodeTraversal_Traverse(c.compiler, root, newConvertChunksToESModules_FindCrossChunkReferences(c))
@@ -168,7 +168,7 @@ func (c *ConvertChunksToESModules) ConvertChunkSourcesToModules() {
 					firstInputScriptFeatures.Union(NodeUtil_GetFeatureSetOfScript(astRoot))
 				astRoot.PutProp(rhino.Node_FEATURE_SET, combinedFeatureSet)
 				moduleBody := firstInputAstRoot.GetFirstChild()
-				jutil.CheckState(moduleBody != nil && moduleBody.IsModuleBody())
+				jutil.CheckState(!moduleBody.IsNil() && moduleBody.IsModuleBody())
 				moduleBody.AddChildrenToBack(astRoot.RemoveChildren())
 				c.compiler.ReportChangeToEnclosingScope(firstInputAstRoot)
 				c.compiler.ReportChangeToChangeScope(astRoot)
@@ -184,7 +184,7 @@ func (c *ConvertChunksToESModules) AddExportStatements() {
 	for jsModuleExportsKey, jsModuleExportsValue := range c.crossChunkExports.All() {
 		firstInput := jsModuleExportsKey.GetFirst()
 		moduleBody := firstInput.GetAstRoot(c.compiler).GetFirstChild()
-		jutil.CheckState(moduleBody != nil && moduleBody.IsModuleBody())
+		jutil.CheckState(!moduleBody.IsNil() && moduleBody.IsModuleBody())
 		exportSpecs := rhino.NewNode(rhino.Token_EXPORT_SPECS)
 		for name := range jsModuleExportsValue.All() {
 			exportSpec := rhino.NewNode(rhino.Token_EXPORT_SPEC)
@@ -215,10 +215,10 @@ func ConvertChunksToESModules_GetChunkName(chunk *JSChunk) string {
 // Java: ConvertChunksToESModules.addImportStatements()
 func (c *ConvertChunksToESModules) AddImportStatements() {
 	for importingChunk, chunkImportsValue := range c.crossChunkImports.All() {
-		importStatements := jutil.NewArrayList[*rhino.Node]()
+		importStatements := jutil.NewArrayList[rhino.Node]()
 		firstInput := importingChunk.GetFirst()
 		moduleBody := firstInput.GetAstRoot(c.compiler).GetFirstChild()
-		jutil.CheckState(moduleBody != nil && moduleBody.IsModuleBody())
+		jutil.CheckState(!moduleBody.IsNil() && moduleBody.IsModuleBody())
 
 		// For each distinct chunk where a referenced symbol is defined, create an import statement
 		// referencing the names.
@@ -271,10 +271,10 @@ func (c *ConvertChunksToESModules) AddImportStatements() {
 //
 // Java: ConvertChunksToESModules.getDynamicImportCallbackModuleNamespace(AbstractCompiler, Node)
 func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(
-	compiler AbstractCompiler, call *rhino.Node) *rhino.Node {
+	compiler AbstractCompiler, call rhino.Node) rhino.Node {
 	jutil.CheckState(call.IsCall())
 	callbackFn := NodeUtil_GetArgumentForCallOrNew(call, 0)
-	if callbackFn == nil ||
+	if callbackFn.IsNil() ||
 		!callbackFn.IsFunction() ||
 		NodeUtil_GetFunctionParameters(callbackFn).HasChildren() {
 		compiler.Report(
@@ -282,7 +282,7 @@ func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(
 				call,
 				ConvertChunksToESModules_UNRECOGNIZED_DYNAMIC_IMPORT_CALLBACK,
 				" Unable to find valid callback function."))
-		return nil
+		return rhino.Node{}
 	}
 	callbackBody := NodeUtil_GetFunctionBody(callbackFn)
 
@@ -302,7 +302,7 @@ func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(
 			call,
 			ConvertChunksToESModules_UNRECOGNIZED_DYNAMIC_IMPORT_CALLBACK,
 			" Unable to find valid namespace reference."))
-	return nil
+	return rhino.Node{}
 }
 
 // RewriteDynamicImportCallbacks: the RewriteDynamicImports pass adds direct
@@ -327,7 +327,7 @@ func (c *ConvertChunksToESModules) RewriteDynamicImportCallbacks() {
 		jutil.CheckState(dynamicImportCallback.IsCall())
 		moduleNamespace :=
 			ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(c.compiler, dynamicImportCallback)
-		if moduleNamespace == nil {
+		if moduleNamespace.IsNil() {
 			continue
 		}
 		callbackFn := NodeUtil_GetArgumentForCallOrNew(dynamicImportCallback, 0)
@@ -363,7 +363,7 @@ func newConvertChunksToESModules_FindCrossChunkReferences(outer *ConvertChunksTo
 }
 
 // Java: ConvertChunksToESModules.FindCrossChunkReferences.shouldTraverse(NodeTraversal, Node, Node)
-func (f *ConvertChunksToESModules_FindCrossChunkReferences) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *ConvertChunksToESModules_FindCrossChunkReferences) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		f.VisitScript(t, n)
 		return true
@@ -377,7 +377,7 @@ func (f *ConvertChunksToESModules_FindCrossChunkReferences) ShouldTraverse(t *No
 }
 
 // Java: ConvertChunksToESModules.FindCrossChunkReferences.visitScript(NodeTraversal, Node)
-func (f *ConvertChunksToESModules_FindCrossChunkReferences) VisitScript(t *NodeTraversal, script *rhino.Node) {
+func (f *ConvertChunksToESModules_FindCrossChunkReferences) VisitScript(t *NodeTraversal, script rhino.Node) {
 	jutil.CheckState(script.IsScript())
 	chunk := t.GetChunk()
 	chunkDependencies := chunk.GetDependencies()
@@ -405,7 +405,7 @@ func (f *ConvertChunksToESModules_FindCrossChunkReferences) VisitScript(t *NodeT
 // when the chunk output type is ES_MODULES
 //
 // Java: ConvertChunksToESModules.isDynamicImportCallback(Node)
-func ConvertChunksToESModules_IsDynamicImportCallback(call *rhino.Node) bool {
+func ConvertChunksToESModules_IsDynamicImportCallback(call rhino.Node) bool {
 	if !call.IsCall() {
 		return false
 	}
@@ -419,14 +419,14 @@ func ConvertChunksToESModules_IsDynamicImportCallback(call *rhino.Node) bool {
 // the RewriteDynamicImports pass
 //
 // Java: ConvertChunksToESModules.visitCallAndTraverse(NodeTraversal, Node)
-func (c *ConvertChunksToESModules) VisitCallAndTraverse(t *NodeTraversal, call *rhino.Node) bool {
+func (c *ConvertChunksToESModules) VisitCallAndTraverse(t *NodeTraversal, call rhino.Node) bool {
 	jutil.CheckState(call.IsCall())
 	if !ConvertChunksToESModules_IsDynamicImportCallback(call) {
 		return true
 	}
 
 	moduleNamespace := ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(c.compiler, call)
-	if moduleNamespace == nil {
+	if moduleNamespace.IsNil() {
 		return true
 	}
 	isValidModuleNamespace := c.VisitName(t, moduleNamespace, ConvertChunksToESModules_ImportType_DYNAMIC)
@@ -443,7 +443,7 @@ func (c *ConvertChunksToESModules) VisitCallAndTraverse(t *NodeTraversal, call *
 }
 
 // Java: ConvertChunksToESModules.visitName(NodeTraversal, Node, ImportType)
-func (c *ConvertChunksToESModules) VisitName(t *NodeTraversal, nameNode *rhino.Node, importType ConvertChunksToESModules_ImportType) bool {
+func (c *ConvertChunksToESModules) VisitName(t *NodeTraversal, nameNode rhino.Node, importType ConvertChunksToESModules_ImportType) bool {
 	jutil.CheckState(nameNode.IsName())
 	name := nameNode.GetString()
 

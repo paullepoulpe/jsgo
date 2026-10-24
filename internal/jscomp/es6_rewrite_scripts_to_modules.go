@@ -45,7 +45,7 @@ func NewEs6RewriteScriptsToModules(compiler AbstractCompiler) *Es6RewriteScripts
 // for imported files that contain no "import" or "export" statements.
 //
 // Java: Es6RewriteScriptsToModules.forceToEs6Module(Node)
-func (e *Es6RewriteScriptsToModules) ForceToEs6Module(root *rhino.Node) {
+func (e *Es6RewriteScriptsToModules) ForceToEs6Module(root rhino.Node) {
 	if Es6RewriteModules_IsEs6ModuleRoot(root) {
 		return
 	}
@@ -56,15 +56,15 @@ func (e *Es6RewriteScriptsToModules) ForceToEs6Module(root *rhino.Node) {
 }
 
 // Java: Es6RewriteScriptsToModules.process(Node, Node)
-func (e *Es6RewriteScriptsToModules) Process(externs *rhino.Node, root *rhino.Node) {
-	for file := root.GetFirstChild(); file != nil; file = file.GetNext() {
+func (e *Es6RewriteScriptsToModules) Process(externs rhino.Node, root rhino.Node) {
+	for file := root.GetFirstChild(); !file.IsNil(); file = file.GetNext() {
 		jutil.CheckArgument(file.IsScript())
 		NodeTraversal_Traverse(e.compiler, file, e)
 	}
 }
 
 // Java: Es6RewriteScriptsToModules.shouldTraverse(NodeTraversal, Node, Node)
-func (e *Es6RewriteScriptsToModules) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (e *Es6RewriteScriptsToModules) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		moduleType := e.compiler.GetInput(n.GetInputId()).GetJsModuleType()
 

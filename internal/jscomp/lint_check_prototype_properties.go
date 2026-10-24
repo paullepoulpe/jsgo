@@ -49,12 +49,12 @@ func NewCheckPrototypeProperties(compiler AbstractCompiler) *CheckPrototypePrope
 }
 
 // Java: CheckPrototypeProperties.process(Node, Node)
-func (c *CheckPrototypeProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckPrototypeProperties) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckPrototypeProperties.visit(NodeTraversal, Node, Node)
-func (c *CheckPrototypeProperties) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckPrototypeProperties) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsPrototypePropertyDeclaration(n) {
 		assign := n.GetFirstChild()
 		rhs := assign.GetLastChild()
@@ -72,6 +72,6 @@ func (c *CheckPrototypeProperties) Visit(unused *NodeTraversal, n *rhino.Node, p
 }
 
 // Java: CheckPrototypeProperties.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckPrototypeProperties) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckPrototypeProperties) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }

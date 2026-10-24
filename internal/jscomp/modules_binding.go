@@ -45,7 +45,7 @@ import (
 // e.g. created by import *.
 type Binding struct {
 	metadata          *ModuleMetadataMap_ModuleMetadata
-	sourceNode        *rhino.Node
+	sourceNode        rhino.Node
 	originatingExport *Export
 	isModuleNamespace bool
 	closureNamespace  *string
@@ -56,7 +56,7 @@ type Binding struct {
 // Java: Binding(ModuleMetadata, Node, Export, boolean, String, CreatedBy)
 func NewBinding(
 	metadata *ModuleMetadataMap_ModuleMetadata,
-	sourceNode *rhino.Node,
+	sourceNode rhino.Node,
 	originatingExport *Export,
 	isModuleNamespace bool,
 	closureNamespace *string,
@@ -78,7 +78,7 @@ func (b *Binding) Metadata() *ModuleMetadataMap_ModuleMetadata { return b.metada
 // SourceNode may return nil.
 //
 // Java: Binding.sourceNode()
-func (b *Binding) SourceNode() *rhino.Node { return b.sourceNode }
+func (b *Binding) SourceNode() rhino.Node { return b.sourceNode }
 
 // OriginatingExport may return nil.
 //
@@ -131,7 +131,7 @@ func (b *Binding) HashCode() int32 {
 func (b *Binding) computeHashCode() int32 {
 	h := int32(0)
 	h = 31*h + jutil.IdentityHashCodeOfPointer(b.metadata)
-	h = 31*h + jutil.IdentityHashCodeOfPointer(b.sourceNode)
+	h = 31*h + b.sourceNode.IdentityHashCode()
 	if b.originatingExport != nil {
 		h = 31*h + b.originatingExport.HashCode()
 	} else {
@@ -227,7 +227,7 @@ func (c Binding_CreatedBy) IsClosureImport() bool {
 // namespace object.
 //
 // Java: Binding.from(Export, Node)
-func Binding_From(boundExport *Export, sourceNode *rhino.Node) *Binding {
+func Binding_From(boundExport *Export, sourceNode rhino.Node) *Binding {
 	return NewBinding(
 		boundExport.ModuleMetadata(),
 		sourceNode,
@@ -242,7 +242,7 @@ func Binding_From(boundExport *Export, sourceNode *rhino.Node) *Binding {
 //
 // Java: Binding.from(ModuleMetadata, Node, String, CreatedBy)
 func Binding_FromClosureImport(
-	metadata *ModuleMetadataMap_ModuleMetadata, sourceNode *rhino.Node, closureNamespace *string, createdBy Binding_CreatedBy) *Binding {
+	metadata *ModuleMetadataMap_ModuleMetadata, sourceNode rhino.Node, closureNamespace *string, createdBy Binding_CreatedBy) *Binding {
 	jutil.CheckArgumentMsg1(
 		createdBy.IsClosureImport(),
 		"Expected goog.require(Type) or goog.forwardDeclare, got %s",
@@ -261,7 +261,7 @@ func Binding_FromClosureImport(
 //
 // Java: Binding.from(ModuleMetadata, String, Node)
 func Binding_FromImportStar(
-	metadataOfBoundModule *ModuleMetadataMap_ModuleMetadata, closureNamespace *string, sourceNode *rhino.Node) *Binding {
+	metadataOfBoundModule *ModuleMetadataMap_ModuleMetadata, closureNamespace *string, sourceNode rhino.Node) *Binding {
 	return NewBinding(
 		metadataOfBoundModule,
 		sourceNode,
@@ -274,8 +274,8 @@ func Binding_FromImportStar(
 // Copy copies the binding with a new source node and CreatedBy binding.
 //
 // Java: Binding.copy(Node, CreatedBy)
-func (b *Binding) Copy(sourceNode *rhino.Node, createdBy Binding_CreatedBy) *Binding {
-	jutil.CheckNotNull(sourceNode)
+func (b *Binding) Copy(sourceNode rhino.Node, createdBy Binding_CreatedBy) *Binding {
+	rhino.CheckNotNull(sourceNode)
 
 	return NewBinding(
 		b.Metadata(),

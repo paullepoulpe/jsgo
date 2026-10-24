@@ -96,7 +96,7 @@ func NewNodeUtil() *NodeUtil {
 // This method does not consider whether the node may have side-effects.
 //
 // Java: NodeUtil.getBooleanValue(Node)
-func NodeUtil_GetBooleanValue(n *rhino.Node) base.Tri {
+func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 	// This switch consists of cases that are not supported by getLiteralBooleanValue(),
 	// which we will call if none of these match.
 	switch n.GetToken() {
@@ -189,7 +189,7 @@ func NodeUtil_GetBooleanValue(n *rhino.Node) base.Tri {
 // IMPORTANT: This method does not consider whether n may have side effects.
 //
 // Java: NodeUtil.getStringValue(Node)
-func NodeUtil_GetStringValue(n *rhino.Node) *string {
+func NodeUtil_GetStringValue(n rhino.Node) *string {
 	// TODO(user): regex literals as well.
 	switch n.GetToken() {
 	case rhino.Token_STRINGLIT, rhino.Token_STRING_KEY:
@@ -197,7 +197,7 @@ func NodeUtil_GetStringValue(n *rhino.Node) *string {
 	case rhino.Token_TEMPLATELIT:
 		// Only convert a template literal if all its expressions can be converted.
 		string_ := jutil.NewStringBuilder()
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			expression := child
 			if child.IsTemplateLitSub() {
 				expression = child.GetFirstChild()
@@ -264,7 +264,7 @@ func NodeUtil_GetStringValue(n *rhino.Node) *string {
 // representation.
 //
 // Java: NodeUtil.getArrayElementStringValue(Node)
-func NodeUtil_GetArrayElementStringValue(n *rhino.Node) *string {
+func NodeUtil_GetArrayElementStringValue(n rhino.Node) *string {
 	if NodeUtil_IsNullOrUndefined(n) || n.IsEmpty() {
 		return jutil.StringPtr("")
 	}
@@ -272,10 +272,10 @@ func NodeUtil_GetArrayElementStringValue(n *rhino.Node) *string {
 }
 
 // Java: NodeUtil.arrayToString(Node)
-func NodeUtil_ArrayToString(literal *rhino.Node) *string {
+func NodeUtil_ArrayToString(literal rhino.Node) *string {
 	first := literal.GetFirstChild()
 	var result strings.Builder
-	for n := first; n != nil; n = n.GetNext() {
+	for n := first; !n.IsNil(); n = n.GetNext() {
 		childValue := NodeUtil_GetArrayElementStringValue(n)
 		if childValue == nil {
 			return nil
@@ -297,7 +297,7 @@ func NodeUtil_ArrayToString(literal *rhino.Node) *string {
 // Returns the value of a node as a Number, or null if it cannot be converted.
 //
 // Java: NodeUtil.getNumberValue(Node)
-func NodeUtil_GetNumberValue(n *rhino.Node) *float64 {
+func NodeUtil_GetNumberValue(n rhino.Node) *float64 {
 	v, ok := nodeUtil_doGetNumberValue(n, true /* numberConversions */)
 	if !ok {
 		return nil
@@ -313,7 +313,7 @@ func NodeUtil_GetNumberValue(n *rhino.Node) *float64 {
 // IMPORTANT: This method does not consider whether n may have side effects.
 //
 // Java: NodeUtil.getNumberValueNoConversions(Node)
-func NodeUtil_GetNumberValueNoConversions(n *rhino.Node) *float64 {
+func NodeUtil_GetNumberValueNoConversions(n rhino.Node) *float64 {
 	v, ok := nodeUtil_doGetNumberValue(n, false /* numberConversions */)
 	if !ok {
 		return nil
@@ -327,7 +327,7 @@ func nodeUtil_double(d float64) *float64 {
 }
 
 // Java: NodeUtil.doGetNumberValue(Node, boolean)
-func NodeUtil_DoGetNumberValue(n *rhino.Node, numberConversions bool) *float64 {
+func NodeUtil_DoGetNumberValue(n rhino.Node, numberConversions bool) *float64 {
 	v, ok := nodeUtil_doGetNumberValue(n, numberConversions)
 	if !ok {
 		return nil
@@ -335,7 +335,7 @@ func NodeUtil_DoGetNumberValue(n *rhino.Node, numberConversions bool) *float64 {
 	return &v
 }
 
-func nodeUtil_doGetNumberValue(n *rhino.Node, numberConversions bool) (float64, bool) {
+func nodeUtil_doGetNumberValue(n rhino.Node, numberConversions bool) (float64, bool) {
 	switch n.GetToken() {
 	case rhino.Token_NUMBER:
 		return n.GetDouble(), true
@@ -571,7 +571,7 @@ func nodeUtil_bigIntFromInt64(v int64) *big.Int {
 // IMPORTANT: This method does not consider whether n may have side effects.
 //
 // Java: NodeUtil.getBigIntValue(Node)
-func NodeUtil_GetBigIntValue(n *rhino.Node) *big.Int {
+func NodeUtil_GetBigIntValue(n rhino.Node) *big.Int {
 	switch n.GetToken() {
 	case rhino.Token_NUMBER:
 		val := n.GetDouble()
@@ -693,17 +693,17 @@ func NodeUtil_TrimJsWhiteSpace(s string) string {
 // has one. n is a function or class node.
 //
 // Java: NodeUtil.getName(Node)
-func NodeUtil_GetName(n *rhino.Node) *string {
+func NodeUtil_GetName(n rhino.Node) *string {
 	nameNode := NodeUtil_GetNameNode(n)
-	if nameNode == nil {
+	if nameNode.IsNil() {
 		return nil
 	}
 	return nameNode.GetQualifiedName()
 }
 
-func NodeUtil_GetNameString(n *rhino.Node) (string, bool) {
+func NodeUtil_GetNameString(n rhino.Node) (string, bool) {
 	nameNode := NodeUtil_GetNameNode(n)
-	if nameNode == nil {
+	if nameNode.IsNil() {
 		return "", false
 	}
 	return nameNode.GetQualifiedNameString()
@@ -725,7 +725,7 @@ func NodeUtil_GetNameString(n *rhino.Node) (string, bool) {
 // class's name.
 //
 // Java: NodeUtil.getNameNode(Node)
-func NodeUtil_GetNameNode(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetNameNode(n rhino.Node) rhino.Node {
 	jutil.CheckStateMsg1(n.IsFunction() || n.IsClass(), "%s", n)
 	parent := n.GetParent()
 	switch parent.GetToken() {
@@ -740,7 +740,7 @@ func NodeUtil_GetNameNode(n *rhino.Node) *rhino.Node {
 		if firstChild.IsQualifiedName() {
 			return firstChild
 		}
-		return nil
+		return rhino.Node{}
 	default:
 		// function name() ...
 		//   or
@@ -751,7 +751,7 @@ func NodeUtil_GetNameNode(n *rhino.Node) *rhino.Node {
 		// anonymous classes have an EMPTY name node while anonymous functions
 		// have a STRING node with an empty string. Consider making these the same.
 		if funNameNode.IsEmpty() || funNameNode.GetString() == "" {
-			return nil
+			return rhino.Node{}
 		}
 		return funNameNode
 	}
@@ -760,10 +760,10 @@ func NodeUtil_GetNameNode(n *rhino.Node) *rhino.Node {
 // NodeUtil_RemoveName sets the given function/class node to an empty name.
 //
 // Java: NodeUtil.removeName(Node)
-func NodeUtil_RemoveName(n *rhino.Node) {
+func NodeUtil_RemoveName(n rhino.Node) {
 	jutil.CheckState(n.IsFunction() || n.IsClass())
 	originalName := n.GetFirstChild()
-	var emptyName *rhino.Node
+	var emptyName rhino.Node
 	if n.IsFunction() {
 		emptyName = rhino.IR_Name("")
 	} else {
@@ -788,7 +788,7 @@ func NodeUtil_RemoveName(n *rhino.Node) {
 // null if it has no name.
 //
 // Java: NodeUtil.getNearestFunctionName(Node)
-func NodeUtil_GetNearestFunctionName(n *rhino.Node) *string {
+func NodeUtil_GetNearestFunctionName(n rhino.Node) *string {
 	if !n.IsFunction() {
 		return nil
 	}
@@ -812,28 +812,28 @@ func NodeUtil_GetNearestFunctionName(n *rhino.Node) *string {
 }
 
 // Java: NodeUtil.getClassMembers(Node)
-func NodeUtil_GetClassMembers(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetClassMembers(n rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsClass())
 	return n.GetLastChild()
 }
 
 // Java: NodeUtil.getEs6ClassConstructorMemberFunctionDef(Node)
-func NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode *rhino.Node) *rhino.Node {
+func NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(classNode.IsClass(), "%s", classNode)
-	classMembers := jutil.CheckNotNullMsg1(classNode.GetLastChild(), "%s", classNode)
-	for memberFunctionDef := classMembers.GetFirstChild(); memberFunctionDef != nil; memberFunctionDef = memberFunctionDef.GetNext() {
+	classMembers := rhino.CheckNotNullMsg1(classNode.GetLastChild(), "%s", classNode)
+	for memberFunctionDef := classMembers.GetFirstChild(); !memberFunctionDef.IsNil(); memberFunctionDef = memberFunctionDef.GetNext() {
 		if NodeUtil_IsEs6ConstructorMemberFunctionDef(memberFunctionDef) {
 			return memberFunctionDef
 		}
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // NodeUtil_IsImmutableValue returns true if this is an immutable value.
 //
 // Java: NodeUtil.isImmutableValue(Node)
-func NodeUtil_IsImmutableValue(n *rhino.Node) bool {
+func NodeUtil_IsImmutableValue(n rhino.Node) bool {
 	// TODO(johnlenz): rename this function.  It is currently being used
 	// in two disjoint cases:
 	// 1) We only care about the result of the expression
@@ -855,7 +855,7 @@ func NodeUtil_IsImmutableValue(n *rhino.Node) bool {
 		// undefined to something other than the value undefined.
 		return "undefined" == name || "Infinity" == name || "NaN" == name
 	case rhino.Token_TEMPLATELIT:
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if child.IsTemplateLitSub() {
 				if !NodeUtil_IsImmutableValue(child.GetFirstChild()) {
 					return false
@@ -875,8 +875,8 @@ func NodeUtil_IsImmutableValue(n *rhino.Node) bool {
 // +/- applied directly to a numeric literal (e.g. 12.3, -12.3, +12.3).
 //
 // Java: NodeUtil.isNumericLiteral(Node)
-func NodeUtil_IsNumericLiteral(n *rhino.Node) bool {
-	if n == nil {
+func NodeUtil_IsNumericLiteral(n rhino.Node) bool {
+	if n.IsNil() {
 		return false
 	}
 	return n.IsNumber() ||
@@ -888,7 +888,7 @@ func NodeUtil_IsNumericLiteral(n *rhino.Node) bool {
 // does not.
 //
 // Java: NodeUtil.getNumericLiteralValue(Node)
-func NodeUtil_GetNumericLiteralValue(n *rhino.Node) float64 {
+func NodeUtil_GetNumericLiteralValue(n rhino.Node) float64 {
 	jutil.CheckArgumentMsg1(NodeUtil_IsNumericLiteral(n), "%s", n)
 	switch n.GetToken() {
 	case rhino.Token_NUMBER:
@@ -906,7 +906,7 @@ func NodeUtil_GetNumericLiteralValue(n *rhino.Node) float64 {
 // symmetric.
 //
 // Java: NodeUtil.isSymmetricOperation(Node)
-func NodeUtil_IsSymmetricOperation(n *rhino.Node) bool {
+func NodeUtil_IsSymmetricOperation(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_EQ, // equal
 		rhino.Token_NE,   // not equal
@@ -924,7 +924,7 @@ func NodeUtil_IsSymmetricOperation(n *rhino.Node) bool {
 // relational. the returned set does not include the equalities.
 //
 // Java: NodeUtil.isRelationalOperation(Node)
-func NodeUtil_IsRelationalOperation(n *rhino.Node) bool {
+func NodeUtil_IsRelationalOperation(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_GT, rhino.Token_GE, rhino.Token_LT, rhino.Token_LE:
 		return true
@@ -971,12 +971,12 @@ func NodeUtil_GetInverseOperator(type_ rhino.Token) rhino.Token {
 // literals.
 //
 // Java: NodeUtil.isLiteralValue(Node, boolean)
-func NodeUtil_IsLiteralValue(n *rhino.Node, includeFunctions bool) bool {
+func NodeUtil_IsLiteralValue(n rhino.Node, includeFunctions bool) bool {
 	switch n.GetToken() {
 	case rhino.Token_CAST:
 		return NodeUtil_IsLiteralValue(n.GetFirstChild(), includeFunctions)
 	case rhino.Token_ARRAYLIT:
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if (!child.IsEmpty()) && !NodeUtil_IsLiteralValue(child, includeFunctions) {
 				return false
 			}
@@ -984,14 +984,14 @@ func NodeUtil_IsLiteralValue(n *rhino.Node, includeFunctions bool) bool {
 		return true
 	case rhino.Token_REGEXP:
 		// Return true only if all descendants are const.
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if !NodeUtil_IsLiteralValue(child, includeFunctions) {
 				return false
 			}
 		}
 		return true
 	case rhino.Token_OBJECTLIT:
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			switch child.GetToken() {
 			case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
 				// { methodName() {...} }
@@ -1036,7 +1036,7 @@ func NodeUtil_IsLiteralValue(n *rhino.Node, includeFunctions bool) bool {
 	case rhino.Token_FUNCTION:
 		return includeFunctions && !NodeUtil_IsFunctionDeclaration(n)
 	case rhino.Token_TEMPLATELIT:
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if child.IsTemplateLitSub() {
 				if !NodeUtil_IsLiteralValue(child.GetFirstChild(), includeFunctions) {
 					return false
@@ -1062,9 +1062,9 @@ func NodeUtil_IsLiteralValue(n *rhino.Node, includeFunctions bool) bool {
 // the script level.
 //
 // Java: NodeUtil.findClosureUnawareScriptRoot(Node)
-func NodeUtil_FindClosureUnawareScriptRoot(script *rhino.Node) *rhino.Node {
+func NodeUtil_FindClosureUnawareScriptRoot(script rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(script.IsScript() && script.GetIsInClosureUnawareSubtree(), "%s", script)
-	return NodeUtil_FindPreorder(script, (*rhino.Node).IsBlock, func(c *rhino.Node) bool { return true })
+	return NodeUtil_FindPreorder(script, (rhino.Node).IsBlock, func(c rhino.Node) bool { return true })
 }
 
 // NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations returns the
@@ -1075,11 +1075,11 @@ func NodeUtil_FindClosureUnawareScriptRoot(script *rhino.Node) *rhino.Node {
 // only contains inner function declarations), return null.
 //
 // Java: NodeUtil.getInsertionPointAfterAllInnerFunctionDeclarations(Node)
-func NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(block *rhino.Node) *rhino.Node {
+func NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(block rhino.Node) rhino.Node {
 	jutil.CheckState(block.IsBlock())
 	current := block.GetFirstChild()
 
-	for current != nil && NodeUtil_IsFunctionDeclaration(current) {
+	for !current.IsNil() && NodeUtil_IsFunctionDeclaration(current) {
 		current = current.GetNext()
 	}
 	return current
@@ -1090,7 +1090,7 @@ func NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(block *rhino.No
 // a ternary operator choosing between string literals.
 //
 // Java: NodeUtil.isSomeCompileTimeConstStringValue(Node)
-func NodeUtil_IsSomeCompileTimeConstStringValue(node *rhino.Node) bool {
+func NodeUtil_IsSomeCompileTimeConstStringValue(node rhino.Node) bool {
 	// TODO(bangert): Support constants, using a Scope argument. See ConstParamCheck
 	if node.IsStringLit() || (node.IsTemplateLit() && node.HasOneChild()) {
 		return true
@@ -1111,12 +1111,12 @@ func NodeUtil_IsSomeCompileTimeConstStringValue(node *rhino.Node) bool {
 // NodeUtil_IsEmptyBlock returns whether this a BLOCK node with no children.
 //
 // Java: NodeUtil.isEmptyBlock(Node)
-func NodeUtil_IsEmptyBlock(block *rhino.Node) bool {
+func NodeUtil_IsEmptyBlock(block rhino.Node) bool {
 	if !block.IsBlock() {
 		return false
 	}
 
-	for n := block.GetFirstChild(); n != nil; n = n.GetNext() {
+	for n := block.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if !n.IsEmpty() {
 			return false
 		}
@@ -1125,7 +1125,7 @@ func NodeUtil_IsEmptyBlock(block *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isBinaryOperator(Node)
-func NodeUtil_IsBinaryOperator(n *rhino.Node) bool {
+func NodeUtil_IsBinaryOperator(n rhino.Node) bool {
 	return NodeUtil_IsBinaryOperatorType(n.GetToken())
 }
 
@@ -1170,7 +1170,7 @@ func NodeUtil_IsBinaryOperatorType(type_ rhino.Token) bool {
 }
 
 // Java: NodeUtil.isUnaryOperator(Node)
-func NodeUtil_IsUnaryOperator(n *rhino.Node) bool {
+func NodeUtil_IsUnaryOperator(n rhino.Node) bool {
 	return NodeUtil_IsUnaryOperatorType(n.GetToken())
 }
 
@@ -1189,7 +1189,7 @@ func NodeUtil_IsUnaryOperatorType(type_ rhino.Token) bool {
 }
 
 // Java: NodeUtil.isUpdateOperator(Node)
-func NodeUtil_IsUpdateOperator(n *rhino.Node) bool {
+func NodeUtil_IsUpdateOperator(n rhino.Node) bool {
 	return NodeUtil_IsUpdateOperatorType(n.GetToken())
 }
 
@@ -1204,7 +1204,7 @@ func NodeUtil_IsUpdateOperatorType(type_ rhino.Token) bool {
 }
 
 // Java: NodeUtil.isSimpleOperator(Node)
-func NodeUtil_IsSimpleOperator(n *rhino.Node) bool {
+func NodeUtil_IsSimpleOperator(n rhino.Node) bool {
 	return NodeUtil_IsSimpleOperatorType(n.GetToken())
 }
 
@@ -1258,7 +1258,7 @@ func NodeUtil_IsSimpleOperatorType(type_ rhino.Token) bool {
 //	/** @const */ goog.math = goog.math || {};
 //
 // Java: NodeUtil.isNamespaceDecl(Node)
-func NodeUtil_IsNamespaceDecl(n *rhino.Node) bool {
+func NodeUtil_IsNamespaceDecl(n rhino.Node) bool {
 	jsdoc := NodeUtil_GetBestJSDocInfo(n)
 	if jsdoc != nil && jsdoc.HasTypeNodes() && !jsdoc.HasTypedefType() {
 		return false
@@ -1273,8 +1273,8 @@ func NodeUtil_IsNamespaceDecl(n *rhino.Node) bool {
 	if !n.IsFromExterns() && !isMarkedConst {
 		return false
 	}
-	var qnameNode *rhino.Node
-	var initializer *rhino.Node
+	var qnameNode rhino.Node
+	var initializer rhino.Node
 	if NodeUtil_IsNameDeclaration(n.GetParent()) {
 		qnameNode = n
 		initializer = n.GetFirstChild()
@@ -1295,7 +1295,7 @@ func NodeUtil_IsNamespaceDecl(n *rhino.Node) bool {
 	} else {
 		return false
 	}
-	if initializer == nil || qnameNode == nil {
+	if initializer.IsNil() || qnameNode.IsNil() {
 		return false
 	}
 	if initializer.IsObjectLit() {
@@ -1310,7 +1310,7 @@ func NodeUtil_IsNamespaceDecl(n *rhino.Node) bool {
 // @typeSummary file, like an i.js file.
 //
 // Java: NodeUtil.isFromTypeSummary(Node)
-func NodeUtil_IsFromTypeSummary(n *rhino.Node) bool {
+func NodeUtil_IsFromTypeSummary(n rhino.Node) bool {
 	jutil.CheckArgumentMsg1(n.IsScript(), "%s", n)
 	info := n.GetJSDocInfo()
 	return info != nil && info.IsTypeSummary()
@@ -1322,7 +1322,7 @@ func NodeUtil_IsFromTypeSummary(n *rhino.Node) bool {
 // child as subexpression.
 //
 // Java: NodeUtil.newExpr(Node)
-func NodeUtil_NewExpr(child *rhino.Node) *rhino.Node {
+func NodeUtil_NewExpr(child rhino.Node) rhino.Node {
 	return rhino.IR_ExprResult(child).Srcref(child)
 }
 
@@ -1338,10 +1338,10 @@ func NodeUtil_NewExpr(child *rhino.Node) *rhino.Node {
 // nodes that do.
 //
 // Java: NodeUtil.iteratesImpureIterable(Node)
-func NodeUtil_IteratesImpureIterable(node *rhino.Node) bool {
+func NodeUtil_IteratesImpureIterable(node rhino.Node) bool {
 	parent := node.GetParent()
 
-	var iterable *rhino.Node
+	var iterable rhino.Node
 	switch node.GetToken() {
 	case rhino.Token_ITER_SPREAD:
 		iterable = node.GetOnlyChild()
@@ -1376,7 +1376,7 @@ func NodeUtil_IteratesImpureIterable(node *rhino.Node) bool {
 // `Iterable` that causes no side-effects during iteration, false otherwise.
 //
 // Java: NodeUtil.isPureIterable(Node)
-func NodeUtil_IsPureIterable(node *rhino.Node) bool {
+func NodeUtil_IsPureIterable(node rhino.Node) bool {
 	// TODO(b/127862986): The type of the iterable should also allow us to say it's pure.
 	switch node.GetToken() {
 	// These iterables are known to be pure.
@@ -1391,14 +1391,14 @@ func NodeUtil_IsPureIterable(node *rhino.Node) bool {
 // NodeUtil_NewHasLocalResult returns whether the new has a local result.
 //
 // Java: NodeUtil.newHasLocalResult(Node)
-func NodeUtil_NewHasLocalResult(n *rhino.Node) bool {
+func NodeUtil_NewHasLocalResult(n rhino.Node) bool {
 	jutil.CheckStateMsg1(n.IsNew(), "%s", n)
 	return n.IsOnlyModifiesThisCall()
 }
 
 // Java: NodeUtil.allArgsUnescapedLocal(Node)
-func NodeUtil_AllArgsUnescapedLocal(callOrNew *rhino.Node) bool {
-	for arg := callOrNew.GetSecondChild(); arg != nil; arg = arg.GetNext() {
+func NodeUtil_AllArgsUnescapedLocal(callOrNew rhino.Node) bool {
+	for arg := callOrNew.GetSecondChild(); !arg.IsNil(); arg = arg.GetNext() {
 		if !NodeUtil_EvaluatesToLocalValue(arg) {
 			return false
 		}
@@ -1416,7 +1416,7 @@ var NodeUtil_KNOWN_CONSTANTS = jutil.NewLinkedHashSet("undefined", "Infinity", "
 // side-effects or has side-effects.
 //
 // Java: NodeUtil.canBeSideEffected(Node)
-func NodeUtil_CanBeSideEffected(n *rhino.Node) bool {
+func NodeUtil_CanBeSideEffected(n rhino.Node) bool {
 	return NodeUtil_CanBeSideEffectedWithScope(n, NodeUtil_KNOWN_CONSTANTS, nil)
 }
 
@@ -1429,7 +1429,7 @@ func NodeUtil_CanBeSideEffected(n *rhino.Node) bool {
 //
 // TODO(nick): Get rid of the knownConstants argument in favor of using
 // scope with InferConsts.
-func NodeUtil_CanBeSideEffectedWithScope(n *rhino.Node, knownConstants *jutil.LinkedHashSet[string], scope *Scope) bool {
+func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants *jutil.LinkedHashSet[string], scope *Scope) bool {
 	switch n.GetToken() {
 	case rhino.Token_YIELD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_AWAIT, rhino.Token_DYNAMIC_IMPORT:
 		// Function calls or constructor can reference changed values.
@@ -1457,7 +1457,7 @@ func NodeUtil_CanBeSideEffectedWithScope(n *rhino.Node, knownConstants *jutil.Li
 	default:
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if NodeUtil_CanBeSideEffectedWithScope(c, knownConstants, scope) {
 			return true
 		}
@@ -1598,7 +1598,7 @@ func NodeUtil_Precedence(type_ rhino.Token) int {
 }
 
 // Java: NodeUtil.isUndefined(Node)
-func NodeUtil_IsUndefined(n *rhino.Node) bool {
+func NodeUtil_IsUndefined(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_VOID:
 		return true
@@ -1610,7 +1610,7 @@ func NodeUtil_IsUndefined(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isNullOrUndefined(Node)
-func NodeUtil_IsNullOrUndefined(n *rhino.Node) bool {
+func NodeUtil_IsNullOrUndefined(n rhino.Node) bool {
 	return n.IsNull() || NodeUtil_IsUndefined(n)
 }
 
@@ -1666,7 +1666,7 @@ func (t NodeUtil_ValueType) Ordinal() int { return int(t) }
 // that relied on this behavior.
 //
 // Java: NodeUtil.getKnownValueType(Node)
-func NodeUtil_GetKnownValueType(n *rhino.Node) NodeUtil_ValueType {
+func NodeUtil_GetKnownValueType(n rhino.Node) NodeUtil_ValueType {
 	switch n.GetToken() {
 	case rhino.Token_CAST:
 		return NodeUtil_GetKnownValueType(n.GetFirstChild())
@@ -1813,7 +1813,7 @@ func NodeUtil_And(a NodeUtil_ValueType, b NodeUtil_ValueType) NodeUtil_ValueType
 // always a number.
 //
 // Java: NodeUtil.isNumericResult(Node)
-func NodeUtil_IsNumericResult(n *rhino.Node) bool {
+func NodeUtil_IsNumericResult(n rhino.Node) bool {
 	return NodeUtil_GetKnownValueType(n) == NodeUtil_ValueType_NUMBER
 }
 
@@ -1821,7 +1821,7 @@ func NodeUtil_IsNumericResult(n *rhino.Node) bool {
 // always a bigint.
 //
 // Java: NodeUtil.isBigIntResult(Node)
-func NodeUtil_IsBigIntResult(n *rhino.Node) bool {
+func NodeUtil_IsBigIntResult(n rhino.Node) bool {
 	return NodeUtil_GetKnownValueType(n) == NodeUtil_ValueType_BIGINT
 }
 
@@ -1829,7 +1829,7 @@ func NodeUtil_IsBigIntResult(n *rhino.Node) bool {
 // always a boolean.
 //
 // Java: NodeUtil.isBooleanResult(Node)
-func NodeUtil_IsBooleanResult(n *rhino.Node) bool {
+func NodeUtil_IsBooleanResult(n rhino.Node) bool {
 	return NodeUtil_GetKnownValueType(n) == NodeUtil_ValueType_BOOLEAN
 }
 
@@ -1837,7 +1837,7 @@ func NodeUtil_IsBooleanResult(n *rhino.Node) bool {
 // always a string.
 //
 // Java: NodeUtil.isStringResult(Node)
-func NodeUtil_IsStringResult(n *rhino.Node) bool {
+func NodeUtil_IsStringResult(n rhino.Node) bool {
 	return NodeUtil_GetKnownValueType(n) == NodeUtil_ValueType_STRING
 }
 
@@ -1845,12 +1845,12 @@ func NodeUtil_IsStringResult(n *rhino.Node) bool {
 // always an object.
 //
 // Java: NodeUtil.isObjectResult(Node)
-func NodeUtil_IsObjectResult(n *rhino.Node) bool {
+func NodeUtil_IsObjectResult(n rhino.Node) bool {
 	return NodeUtil_GetKnownValueType(n) == NodeUtil_ValueType_OBJECT
 }
 
 // Java: NodeUtil.mayBeString(Node)
-func NodeUtil_MayBeString(n *rhino.Node) bool {
+func NodeUtil_MayBeString(n rhino.Node) bool {
 	return NodeUtil_MayBeStringWithUseType(n, false)
 }
 
@@ -1861,7 +1861,7 @@ func NodeUtil_MayBeString(n *rhino.Node) bool {
 // a string.
 //
 // Java: NodeUtil.mayBeString(Node, boolean)
-func NodeUtil_MayBeStringWithUseType(n *rhino.Node, useType bool) bool {
+func NodeUtil_MayBeStringWithUseType(n rhino.Node, useType bool) bool {
 	if useType {
 		color := n.GetColor()
 		if color != nil {
@@ -1906,7 +1906,7 @@ func NodeUtil_MayBeStringValueType(type_ NodeUtil_ValueType) bool {
 }
 
 // Java: NodeUtil.mayBeObject(Node)
-func NodeUtil_MayBeObject(n *rhino.Node) bool {
+func NodeUtil_MayBeObject(n rhino.Node) bool {
 	return NodeUtil_MayBeObjectValueType(NodeUtil_GetKnownValueType(n))
 }
 
@@ -1962,7 +1962,7 @@ func NodeUtil_IsCommutative(type_ rhino.Token) bool {
 // optimized).
 //
 // Java: NodeUtil.isAssignmentOp(Node)
-func NodeUtil_IsAssignmentOp(n *rhino.Node) bool {
+func NodeUtil_IsAssignmentOp(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN,
 		rhino.Token_ASSIGN_BITOR,
@@ -1990,7 +1990,7 @@ func NodeUtil_IsAssignmentOp(n *rhino.Node) bool {
 // assignment type operator.
 //
 // Java: NodeUtil.isLogicalAssignmentOp(Node)
-func NodeUtil_IsLogicalAssignmentOp(n *rhino.Node) bool {
+func NodeUtil_IsLogicalAssignmentOp(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
 		return true
@@ -2000,12 +2000,12 @@ func NodeUtil_IsLogicalAssignmentOp(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isCompoundAssignmentOp(Node)
-func NodeUtil_IsCompoundAssignmentOp(n *rhino.Node) bool {
+func NodeUtil_IsCompoundAssignmentOp(n rhino.Node) bool {
 	return NodeUtil_IsAssignmentOp(n) && !n.IsAssign()
 }
 
 // Java: NodeUtil.getOpFromAssignmentOp(Node)
-func NodeUtil_GetOpFromAssignmentOp(n *rhino.Node) rhino.Token {
+func NodeUtil_GetOpFromAssignmentOp(n rhino.Node) rhino.Token {
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN_BITOR:
 		return rhino.Token_BITOR
@@ -2046,56 +2046,56 @@ func NodeUtil_GetOpFromAssignmentOp(n *rhino.Node) rhino.Token {
 // the provided type.
 //
 // Java: NodeUtil.getEnclosingType(Node, Token)
-func NodeUtil_GetEnclosingType(n *rhino.Node, type_ rhino.Token) *rhino.Node {
-	return NodeUtil_GetEnclosingNode(n, func(n1 *rhino.Node) bool { return n1.GetToken() == type_ })
+func NodeUtil_GetEnclosingType(n rhino.Node, type_ rhino.Token) rhino.Node {
+	return NodeUtil_GetEnclosingNode(n, func(n1 rhino.Node) bool { return n1.GetToken() == type_ })
 }
 
 // Java: NodeUtil.getEnclosingNonArrowFunction(Node)
-func NodeUtil_GetEnclosingNonArrowFunction(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetEnclosingNonArrowFunction(n rhino.Node) rhino.Node {
 	return NodeUtil_GetEnclosingNode(n, NodeUtil_IsNonArrowFunction)
 }
 
 // NodeUtil_GetEnclosingClass finds the class containing the given node.
 //
 // Java: NodeUtil.getEnclosingClass(Node)
-func NodeUtil_GetEnclosingClass(n *rhino.Node) *rhino.Node {
-	return NodeUtil_GetEnclosingNode(n, (*rhino.Node).IsClass)
+func NodeUtil_GetEnclosingClass(n rhino.Node) rhino.Node {
+	return NodeUtil_GetEnclosingNode(n, (rhino.Node).IsClass)
 }
 
 // Java: NodeUtil.getEnclosingModuleIfPresent(Node)
-func NodeUtil_GetEnclosingModuleIfPresent(n *rhino.Node) *rhino.Node {
-	return NodeUtil_GetEnclosingNode(n, (*rhino.Node).IsModuleBody)
+func NodeUtil_GetEnclosingModuleIfPresent(n rhino.Node) rhino.Node {
+	return NodeUtil_GetEnclosingNode(n, (rhino.Node).IsModuleBody)
 }
 
 // NodeUtil_GetEnclosingFunction finds the function containing the given
 // node.
 //
 // Java: NodeUtil.getEnclosingFunction(Node)
-func NodeUtil_GetEnclosingFunction(n *rhino.Node) *rhino.Node {
-	return NodeUtil_GetEnclosingNode(n, (*rhino.Node).IsFunction)
+func NodeUtil_GetEnclosingFunction(n rhino.Node) rhino.Node {
+	return NodeUtil_GetEnclosingNode(n, (rhino.Node).IsFunction)
 }
 
 // NodeUtil_GetEnclosingScript finds the script containing the given node.
 //
 // Java: NodeUtil.getEnclosingScript(Node)
-func NodeUtil_GetEnclosingScript(n *rhino.Node) *rhino.Node {
-	return NodeUtil_GetEnclosingNode(n, (*rhino.Node).IsScript)
+func NodeUtil_GetEnclosingScript(n rhino.Node) rhino.Node {
+	return NodeUtil_GetEnclosingNode(n, (rhino.Node).IsScript)
 }
 
 // NodeUtil_GetEnclosingBlock finds the block containing the given node.
 //
 // Java: NodeUtil.getEnclosingBlock(Node)
-func NodeUtil_GetEnclosingBlock(n *rhino.Node) *rhino.Node {
-	return NodeUtil_GetEnclosingNode(n, (*rhino.Node).IsBlock)
+func NodeUtil_GetEnclosingBlock(n rhino.Node) rhino.Node {
+	return NodeUtil_GetEnclosingNode(n, (rhino.Node).IsBlock)
 }
 
 // Java: NodeUtil.getEnclosingBlockScopeRoot(Node)
-func NodeUtil_GetEnclosingBlockScopeRoot(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetEnclosingBlockScopeRoot(n rhino.Node) rhino.Node {
 	return NodeUtil_GetEnclosingNode(n, NodeUtil_CreatesBlockScope)
 }
 
 // Java: NodeUtil.getEnclosingScopeRoot(Node)
-func NodeUtil_GetEnclosingScopeRoot(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetEnclosingScopeRoot(n rhino.Node) rhino.Node {
 	return NodeUtil_GetEnclosingNode(n, NodeUtil_CreatesScope)
 }
 
@@ -2104,30 +2104,30 @@ func NodeUtil_GetEnclosingScopeRoot(n *rhino.Node) *rhino.Node {
 // roots to consider: the global, module, function, and class static blocks.
 //
 // Java: NodeUtil.getEnclosingHoistScopeRoot(Node)
-func NodeUtil_GetEnclosingHoistScopeRoot(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetEnclosingHoistScopeRoot(n rhino.Node) rhino.Node {
 	return NodeUtil_GetEnclosingNode(n, NodeUtil_IsHoistScopeRoot)
 }
 
 // Java: NodeUtil.isHoistScopeRoot(Node)
-func NodeUtil_IsHoistScopeRoot(n *rhino.Node) bool {
+func NodeUtil_IsHoistScopeRoot(n rhino.Node) bool {
 	// The "global" hoist scope has multiple meaning so
 	return n.IsFunction() || n.IsModuleBody() || NodeUtil_IsClassStaticBlock(n)
 }
 
 // Java: NodeUtil.isInFunction(Node)
-func NodeUtil_IsInFunction(n *rhino.Node) bool {
-	return NodeUtil_GetEnclosingFunction(n) != nil
+func NodeUtil_IsInFunction(n rhino.Node) bool {
+	return !NodeUtil_GetEnclosingFunction(n).IsNil()
 }
 
 // Java: NodeUtil.getEnclosingStatement(Node)
-func NodeUtil_GetEnclosingStatement(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetEnclosingStatement(n rhino.Node) rhino.Node {
 	return NodeUtil_GetEnclosingNode(n, NodeUtil_IsStatement)
 }
 
 // Java: NodeUtil.getEnclosingNode(Node, Predicate<Node>)
-func NodeUtil_GetEnclosingNode(n *rhino.Node, pred func(*rhino.Node) bool) *rhino.Node {
+func NodeUtil_GetEnclosingNode(n rhino.Node, pred func(rhino.Node) bool) rhino.Node {
 	curr := n
-	for curr != nil && !pred(curr) {
+	for !curr.IsNil() && !pred(curr) {
 		curr = curr.GetParent()
 	}
 	return curr
@@ -2137,9 +2137,9 @@ func NodeUtil_GetEnclosingNode(n *rhino.Node, pred func(*rhino.Node) bool) *rhin
 // or class members, that matches the key.
 //
 // Java: NodeUtil.getFirstPropMatchingKey(Node, String)
-func NodeUtil_GetFirstPropMatchingKey(n *rhino.Node, keyName string) *rhino.Node {
+func NodeUtil_GetFirstPropMatchingKey(n rhino.Node, keyName string) rhino.Node {
 	jutil.CheckState(n.IsObjectLit() || n.IsClassMembers())
-	for keyNode := n.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := n.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		if (keyNode.IsStringKey() || keyNode.IsMemberFunctionDef()) &&
 			keyNode.GetString() == keyName {
 			return keyNode.GetFirstChild()
@@ -2149,21 +2149,21 @@ func NodeUtil_GetFirstPropMatchingKey(n *rhino.Node, keyName string) *rhino.Node
 			return keyNode.GetLastChild()
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // NodeUtil_GetFirstGetterMatchingKey returns the first getter in the class
 // members that matches the key.
 //
 // Java: NodeUtil.getFirstGetterMatchingKey(Node, String)
-func NodeUtil_GetFirstGetterMatchingKey(n *rhino.Node, keyName string) *rhino.Node {
+func NodeUtil_GetFirstGetterMatchingKey(n rhino.Node, keyName string) rhino.Node {
 	jutil.CheckStateMsg1(n.IsClassMembers() || n.IsObjectLit(), "%s", n)
-	for keyNode := n.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := n.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		if keyNode.IsGetterDef() && keyNode.GetString() == keyName {
 			return keyNode
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // NodeUtil_ReferencesOwnReceiver returns true if this function references
@@ -2176,7 +2176,7 @@ func NodeUtil_GetFirstGetterMatchingKey(n *rhino.Node, keyName string) *rhino.No
 // rather capture the receiver of the enclosing scope.
 //
 // Java: NodeUtil.referencesOwnReceiver(Node)
-func NodeUtil_ReferencesOwnReceiver(fn *rhino.Node) bool {
+func NodeUtil_ReferencesOwnReceiver(fn rhino.Node) bool {
 	jutil.CheckState(fn.IsFunction())
 	if fn.IsArrowFunction() {
 		return false
@@ -2196,8 +2196,8 @@ func NodeUtil_ReferencesOwnReceiver(fn *rhino.Node) bool {
 // enclosing scope, rather than having their own.
 //
 // Java: NodeUtil.referencesEnclosingReceiver(Node)
-func NodeUtil_ReferencesEnclosingReceiver(n *rhino.Node) bool {
-	return NodeUtil_Has(n, func(c *rhino.Node) bool { return c.IsThis() || c.IsSuper() },
+func NodeUtil_ReferencesEnclosingReceiver(n rhino.Node) bool {
+	return NodeUtil_Has(n, func(c rhino.Node) bool { return c.IsThis() || c.IsSuper() },
 		NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION)
 }
 
@@ -2207,10 +2207,10 @@ func NodeUtil_ReferencesEnclosingReceiver(n *rhino.Node) bool {
 // not reported.
 //
 // Java: NodeUtil.referencesSuper(Node)
-func NodeUtil_ReferencesSuper(n *rhino.Node) bool {
+func NodeUtil_ReferencesSuper(n rhino.Node) bool {
 	curr := n.GetFirstChild()
-	for curr != nil {
-		if NodeUtil_Has(curr, (*rhino.Node).IsSuper, func(node *rhino.Node) bool { return !node.IsClass() }) {
+	for !curr.IsNil() {
+		if NodeUtil_Has(curr, (rhino.Node).IsSuper, func(node rhino.Node) bool { return !node.IsClass() }) {
 			return true
 		}
 		curr = curr.GetNext()
@@ -2222,28 +2222,28 @@ func NodeUtil_ReferencesSuper(n *rhino.Node) bool {
 // GETELEM, or OPTCHAIN_GETELEM?
 //
 // Java: NodeUtil.isNormalOrOptChainGet(Node)
-func NodeUtil_IsNormalOrOptChainGet(n *rhino.Node) bool {
+func NodeUtil_IsNormalOrOptChainGet(n rhino.Node) bool {
 	return NodeUtil_IsNormalGet(n) || NodeUtil_IsOptChainGet(n)
 }
 
 // NodeUtil_IsNormalOrOptChainGetProp: is this a GETPROP or OPTCHAIN_GETPROP?
 //
 // Java: NodeUtil.isNormalOrOptChainGetProp(Node)
-func NodeUtil_IsNormalOrOptChainGetProp(n *rhino.Node) bool {
+func NodeUtil_IsNormalOrOptChainGetProp(n rhino.Node) bool {
 	return n.IsGetProp() || n.IsOptChainGetProp()
 }
 
 // NodeUtil_IsNormalOrOptChainCall: is this a CALL or OPTCHAIN_CALL?
 //
 // Java: NodeUtil.isNormalOrOptChainCall(Node)
-func NodeUtil_IsNormalOrOptChainCall(n *rhino.Node) bool {
+func NodeUtil_IsNormalOrOptChainCall(n rhino.Node) bool {
 	return n.IsCall() || n.IsOptChainCall()
 }
 
 // NodeUtil_IsNormalGet: is this a GETPROP or GETELEM node?
 //
 // Java: NodeUtil.isNormalGet(Node)
-func NodeUtil_IsNormalGet(n *rhino.Node) bool {
+func NodeUtil_IsNormalGet(n rhino.Node) bool {
 	return n.IsGetProp() || n.IsGetElem()
 }
 
@@ -2251,7 +2251,7 @@ func NodeUtil_IsNormalGet(n *rhino.Node) bool {
 // node?
 //
 // Java: NodeUtil.isOptChainGet(Node)
-func NodeUtil_IsOptChainGet(n *rhino.Node) bool {
+func NodeUtil_IsOptChainGet(n rhino.Node) bool {
 	return n.IsOptChainGetProp() || n.IsOptChainGetElem()
 }
 
@@ -2259,7 +2259,7 @@ func NodeUtil_IsOptChainGet(n *rhino.Node) bool {
 // OPTCHAIN_CALL node?
 //
 // Java: NodeUtil.isOptChainNode(Node)
-func NodeUtil_IsOptChainNode(n *rhino.Node) bool {
+func NodeUtil_IsOptChainNode(n rhino.Node) bool {
 	return n.IsOptChainGetProp() || n.IsOptChainGetElem() || n.IsOptChainCall()
 }
 
@@ -2270,7 +2270,7 @@ func NodeUtil_IsOptChainNode(n *rhino.Node) bool {
 // that n is part of.
 //
 // Java: NodeUtil.getStartOfOptChainSegment(Node)
-func NodeUtil_GetStartOfOptChainSegment(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetStartOfOptChainSegment(n rhino.Node) rhino.Node {
 	jutil.CheckStateMsg1(NodeUtil_IsOptChainNode(n), "%s", n)
 	if n.IsOptionalChainStart() {
 		return n
@@ -2294,7 +2294,7 @@ func NodeUtil_GetStartOfOptChainSegment(n *rhino.Node) *rhino.Node {
 // that n is part of.
 //
 // Java: NodeUtil.getEndOfOptChainSegment(Node)
-func NodeUtil_GetEndOfOptChainSegment(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetEndOfOptChainSegment(n rhino.Node) rhino.Node {
 	jutil.CheckStateMsg1(NodeUtil_IsOptChainNode(n), "%s", n)
 	if NodeUtil_IsEndOfOptChainSegment(n) {
 		return n
@@ -2311,7 +2311,7 @@ func NodeUtil_GetEndOfOptChainSegment(n *rhino.Node) *rhino.Node {
 // also represents the whole chain in the AST.
 //
 // Java: NodeUtil.isEndOfFullOptChain(Node)
-func NodeUtil_IsEndOfFullOptChain(n *rhino.Node) bool {
+func NodeUtil_IsEndOfFullOptChain(n rhino.Node) bool {
 	if NodeUtil_IsOptChainNode(n) {
 		parent := n.GetParent()
 		// the chain continues if this is the first child of another optional chain node
@@ -2329,13 +2329,13 @@ func NodeUtil_IsEndOfFullOptChain(n *rhino.Node) bool {
 // of the whole chain is also the end of its final segment.
 //
 // Java: NodeUtil.isEndOfOptChainSegment(Node)
-func NodeUtil_IsEndOfOptChainSegment(n *rhino.Node) bool {
+func NodeUtil_IsEndOfOptChainSegment(n rhino.Node) bool {
 	if !NodeUtil_IsOptChainNode(n) {
 		return false
 	} else {
 		parent := n.GetParent()
 		// Check for null so this method will work for a disconnected Node.
-		if parent != nil && n.IsFirstChildOf(parent) && NodeUtil_IsOptChainNode(parent) {
+		if !parent.IsNil() && n.IsFirstChildOf(parent) && NodeUtil_IsOptChainNode(parent) {
 			// The parent is a continuation of this optional chain.
 			// If it starts a new segment, then this node is the end of a segment
 			return parent.IsOptionalChainStart()
@@ -2355,7 +2355,7 @@ func NodeUtil_IsEndOfOptChainSegment(n *rhino.Node) bool {
 // `({a})?.a.b.c.d()`.
 //
 // Java: NodeUtil.convertToNonOptionalChainSegment(Node)
-func NodeUtil_ConvertToNonOptionalChainSegment(endOfOptChainSegment *rhino.Node) {
+func NodeUtil_ConvertToNonOptionalChainSegment(endOfOptChainSegment rhino.Node) {
 	start := NodeUtil_GetStartOfOptChainSegment(endOfOptChainSegment)
 	NodeUtil_ConvertToNonOptionalChainSegmentDownTo(endOfOptChainSegment, start.GetFirstChild())
 }
@@ -2365,11 +2365,11 @@ func NodeUtil_ConvertToNonOptionalChainSegment(endOfOptChainSegment *rhino.Node)
 // to (but excluding) stopNode into non-optional nodes.
 //
 // Java: NodeUtil.convertToNonOptionalChainSegmentDownTo(Node, Node)
-func NodeUtil_ConvertToNonOptionalChainSegmentDownTo(endOfOptChainSegment *rhino.Node, stopNode *rhino.Node) {
+func NodeUtil_ConvertToNonOptionalChainSegmentDownTo(endOfOptChainSegment rhino.Node, stopNode rhino.Node) {
 	jutil.CheckArgumentMsg1(NodeUtil_IsEndOfOptChainSegment(endOfOptChainSegment), "%s", endOfOptChainSegment)
-	var segmentNodes []*rhino.Node
+	var segmentNodes []rhino.Node
 	segmentNode := endOfOptChainSegment
-	for segmentNode != nil && segmentNode != stopNode {
+	for !segmentNode.IsNil() && segmentNode != stopNode {
 		if NodeUtil_IsOptChainNode(segmentNode) {
 			segmentNodes = append(segmentNodes, segmentNode)
 		}
@@ -2402,7 +2402,7 @@ func NodeUtil_GetNonOptChainToken(optChainToken rhino.Token) rhino.Token {
 // Returns true if n is a block-scoped declaration statement.
 //
 // Java: NodeUtil.isBlockScopedDeclaration(Node)
-func NodeUtil_IsBlockScopedDeclaration(n *rhino.Node) bool {
+func NodeUtil_IsBlockScopedDeclaration(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH:
 		return true
@@ -2420,17 +2420,17 @@ func NodeUtil_IsBlockScopedDeclaration(n *rhino.Node) bool {
 // Returns true if n is VAR, LET or CONST.
 //
 // Java: NodeUtil.isNameDeclaration(Node)
-func NodeUtil_IsNameDeclaration(n *rhino.Node) bool {
-	return n != nil && (n.IsVar() || n.IsLet() || n.IsConst())
+func NodeUtil_IsNameDeclaration(n rhino.Node) bool {
+	return !n.IsNil() && (n.IsVar() || n.IsLet() || n.IsConst())
 }
 
 // NodeUtil_IsDestructuringDeclaration returns true if n is a VAR, LET or
 // CONST that contains a destructuring pattern.
 //
 // Java: NodeUtil.isDestructuringDeclaration(Node)
-func NodeUtil_IsDestructuringDeclaration(n *rhino.Node) bool {
+func NodeUtil_IsDestructuringDeclaration(n rhino.Node) bool {
 	if NodeUtil_IsNameDeclaration(n) {
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if c.IsDestructuringLhs() {
 				return true
 			}
@@ -2445,7 +2445,7 @@ func NodeUtil_IsDestructuringDeclaration(n *rhino.Node) bool {
 // Returns the value node representing the new value.
 //
 // Java: NodeUtil.getAssignedValue(Node)
-func NodeUtil_GetAssignedValue(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetAssignedValue(n rhino.Node) rhino.Node {
 	jutil.CheckStateMsg1(n.IsName() || n.IsGetProp(), "%s", n)
 	parent := n.GetParent()
 	if NodeUtil_IsNameDeclaration(parent) {
@@ -2453,7 +2453,7 @@ func NodeUtil_GetAssignedValue(n *rhino.Node) *rhino.Node {
 	} else if parent.IsAssign() && parent.GetFirstChild() == n {
 		return n.GetNext()
 	} else {
-		return nil
+		return rhino.Node{}
 	}
 }
 
@@ -2462,7 +2462,7 @@ func NodeUtil_GetAssignedValue(n *rhino.Node) *rhino.Node {
 // Returns true if n is EXPR_RESULT and n's first child is ASSIGN.
 //
 // Java: NodeUtil.isExprAssign(Node)
-func NodeUtil_IsExprAssign(n *rhino.Node) bool {
+func NodeUtil_IsExprAssign(n rhino.Node) bool {
 	return n.IsExprResult() && n.GetFirstChild().IsAssign()
 }
 
@@ -2471,22 +2471,22 @@ func NodeUtil_IsExprAssign(n *rhino.Node) bool {
 // Returns true if n is EXPR_RESULT and n's first child is CALL.
 //
 // Java: NodeUtil.isExprCall(Node)
-func NodeUtil_IsExprCall(n *rhino.Node) bool {
+func NodeUtil_IsExprCall(n rhino.Node) bool {
 	return n.IsExprResult() && n.GetFirstChild().IsCall()
 }
 
 // Java: NodeUtil.isNonArrowFunction(Node)
-func NodeUtil_IsNonArrowFunction(n *rhino.Node) bool {
+func NodeUtil_IsNonArrowFunction(n rhino.Node) bool {
 	return n.IsFunction() && !n.IsArrowFunction()
 }
 
 // Java: NodeUtil.isEnhancedFor(Node)
-func NodeUtil_IsEnhancedFor(n *rhino.Node) bool {
+func NodeUtil_IsEnhancedFor(n rhino.Node) bool {
 	return n.IsForOf() || n.IsForAwaitOf() || n.IsForIn()
 }
 
 // Java: NodeUtil.isAnyFor(Node)
-func NodeUtil_IsAnyFor(n *rhino.Node) bool {
+func NodeUtil_IsAnyFor(n rhino.Node) bool {
 	return n.IsVanillaFor() || n.IsForIn() || n.IsForOf() || n.IsForAwaitOf()
 }
 
@@ -2494,7 +2494,7 @@ func NodeUtil_IsAnyFor(n *rhino.Node) bool {
 // or WHILE node.
 //
 // Java: NodeUtil.isLoopStructure(Node)
-func NodeUtil_IsLoopStructure(n *rhino.Node) bool {
+func NodeUtil_IsLoopStructure(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_DO,
 		rhino.Token_WHILE:
@@ -2508,14 +2508,14 @@ func NodeUtil_IsLoopStructure(n *rhino.Node) bool {
 // FOR, WHILE, or DO, it returns the node for the code BLOCK, null otherwise.
 //
 // Java: NodeUtil.getLoopCodeBlock(Node)
-func NodeUtil_GetLoopCodeBlock(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetLoopCodeBlock(n rhino.Node) rhino.Node {
 	switch n.GetToken() {
 	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE:
 		return n.GetLastChild()
 	case rhino.Token_DO:
 		return n.GetFirstChild()
 	default:
-		return nil
+		return rhino.Node{}
 	}
 }
 
@@ -2523,7 +2523,7 @@ func NodeUtil_GetLoopCodeBlock(n *rhino.Node) *rhino.Node {
 // that is within the current scope.
 //
 // Java: NodeUtil.isWithinLoop(Node)
-func NodeUtil_IsWithinLoop(n *rhino.Node) bool {
+func NodeUtil_IsWithinLoop(n rhino.Node) bool {
 	for parent := range n.GetAncestors().All() {
 		if NodeUtil_IsLoopStructure(parent) {
 			return true
@@ -2540,7 +2540,7 @@ func NodeUtil_IsWithinLoop(n *rhino.Node) bool {
 // DO, WHILE, WITH, or IF node.
 //
 // Java: NodeUtil.isControlStructure(Node)
-func NodeUtil_IsControlStructure(n *rhino.Node) bool {
+func NodeUtil_IsControlStructure(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FOR,
 		rhino.Token_FOR_IN,
@@ -2566,7 +2566,7 @@ func NodeUtil_IsControlStructure(n *rhino.Node) bool {
 // code node for FOR, DO, WHILE, WITH, or IF node.
 //
 // Java: NodeUtil.isControlStructureCodeBlock(Node, Node)
-func NodeUtil_IsControlStructureCodeBlock(parent *rhino.Node, n *rhino.Node) bool {
+func NodeUtil_IsControlStructureCodeBlock(parent rhino.Node, n rhino.Node) bool {
 	switch parent.GetToken() {
 	case rhino.Token_DO:
 		return parent.GetFirstChild() == n
@@ -2592,7 +2592,7 @@ func NodeUtil_IsControlStructureCodeBlock(parent *rhino.Node, n *rhino.Node) boo
 // node or null if the condition is not obviously a node.
 //
 // Java: NodeUtil.getConditionExpression(Node)
-func NodeUtil_GetConditionExpression(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetConditionExpression(n rhino.Node) rhino.Node {
 	switch n.GetToken() {
 	case rhino.Token_IF, rhino.Token_WHILE:
 		return n.GetFirstChild()
@@ -2601,7 +2601,7 @@ func NodeUtil_GetConditionExpression(n *rhino.Node) *rhino.Node {
 	case rhino.Token_FOR:
 		return n.GetSecondChild()
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_CASE:
-		return nil
+		return rhino.Node{}
 	default:
 		panic(jutil.NewIllegalArgumentExceptionMsg(n.String() + " does not have a condition."))
 	}
@@ -2611,7 +2611,7 @@ func NodeUtil_GetConditionExpression(n *rhino.Node) *rhino.Node {
 // contain other statements.
 //
 // Java: NodeUtil.isStatementBlock(Node)
-func NodeUtil_IsStatementBlock(n *rhino.Node) bool {
+func NodeUtil_IsStatementBlock(n rhino.Node) bool {
 	return n.IsRoot() || n.IsScript() || n.IsBlock() || n.IsModuleBody()
 }
 
@@ -2625,16 +2625,16 @@ func NodeUtil_IsStatementBlock(n *rhino.Node) bool {
 // Returns whether the node creates a block scope.
 //
 // Java: NodeUtil.createsBlockScope(Node)
-func NodeUtil_CreatesBlockScope(n *rhino.Node) bool {
+func NodeUtil_CreatesBlockScope(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_BLOCK:
 		parent := n.GetParent()
-		if parent != nil && (parent.IsBlock() || parent.IsScript()) && n.IsSyntheticBlock() {
+		if !parent.IsNil() && (parent.IsBlock() || parent.IsScript()) && n.IsSyntheticBlock() {
 			// Don't create block scope for synthetic blocks.
 			return false
 		}
 		// Don't create block scope for switch cases or catch blocks.
-		return parent != nil && !NodeUtil_IsSwitchCase(parent) && !parent.IsCatch()
+		return !parent.IsNil() && !NodeUtil_IsSwitchCase(parent) && !parent.IsCatch()
 	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY,
 		rhino.Token_CLASS:
 		return true
@@ -2644,7 +2644,7 @@ func NodeUtil_CreatesBlockScope(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.createsScope(Node)
-func NodeUtil_CreatesScope(n *rhino.Node) bool {
+func NodeUtil_CreatesScope(n rhino.Node) bool {
 	return NodeUtil_CreatesBlockScope(n) ||
 		n.IsFunction() ||
 		n.IsModuleBody() ||
@@ -2653,7 +2653,7 @@ func NodeUtil_CreatesScope(n *rhino.Node) bool {
 		// The ROOT nodes that are the root of the externs tree or main JS tree do not
 		// create scopes. The parent of those two, which is the root of the entire AST and
 		// therefore has no parent, is the only ROOT node that creates a scope.
-		(n.IsRoot() && n.GetParent() == nil)
+		(n.IsRoot() && n.GetParent().IsNil())
 }
 
 // Java: NodeUtil.DEFINITE_CFG_ROOTS
@@ -2661,14 +2661,14 @@ var NodeUtil_DEFINITE_CFG_ROOTS = jutil.NewEnumSet(rhino.Token_FUNCTION, rhino.T
 	rhino.Token_ROOT)
 
 // Java: NodeUtil.isValidCfgRoot(Node)
-func NodeUtil_IsValidCfgRoot(n *rhino.Node) bool {
+func NodeUtil_IsValidCfgRoot(n rhino.Node) bool {
 	return NodeUtil_DEFINITE_CFG_ROOTS.Contains(n.GetToken()) || NodeUtil_IsClassStaticBlock(n)
 }
 
 // NodeUtil_IsStatement returns whether the node is used as a statement.
 //
 // Java: NodeUtil.isStatement(Node)
-func NodeUtil_IsStatement(n *rhino.Node) bool {
+func NodeUtil_IsStatement(n rhino.Node) bool {
 	return !n.IsModuleBody() && !n.IsScript() && !n.IsRoot() && NodeUtil_IsStatementParent(n.GetParent())
 }
 
@@ -2682,7 +2682,7 @@ var NodeUtil_IS_STATEMENT_PARENT = jutil.NewEnumSet(
 	rhino.Token_INTERFACE_MEMBERS)
 
 // Java: NodeUtil.isStatementParent(Node)
-func NodeUtil_IsStatementParent(parent *rhino.Node) bool {
+func NodeUtil_IsStatementParent(parent rhino.Node) bool {
 	// It is not possible to determine definitely if a node is a statement
 	// or not if it is not part of the AST.  A FUNCTION node can be
 	// either part of an expression or a statement.
@@ -2690,7 +2690,7 @@ func NodeUtil_IsStatementParent(parent *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isDeclarationParent(Node)
-func NodeUtil_IsDeclarationParent(parent *rhino.Node) bool {
+func NodeUtil_IsDeclarationParent(parent rhino.Node) bool {
 	switch parent.GetToken() {
 	case rhino.Token_DECLARE, rhino.Token_EXPORT:
 		return true
@@ -2702,7 +2702,7 @@ func NodeUtil_IsDeclarationParent(parent *rhino.Node) bool {
 // NodeUtil_IsSwitchCase: whether the node is part of a switch statement.
 //
 // Java: NodeUtil.isSwitchCase(Node)
-func NodeUtil_IsSwitchCase(n *rhino.Node) bool {
+func NodeUtil_IsSwitchCase(n rhino.Node) bool {
 	return n.IsCase() || n.IsDefaultCase()
 }
 
@@ -2711,7 +2711,7 @@ func NodeUtil_IsSwitchCase(n *rhino.Node) bool {
 // function expression name).
 //
 // Java: NodeUtil.isReferenceName(Node)
-func NodeUtil_IsReferenceName(n *rhino.Node) bool {
+func NodeUtil_IsReferenceName(n rhino.Node) bool {
 	return n.IsName() && n.GetString() != ""
 }
 
@@ -2730,7 +2730,7 @@ func NodeUtil_IsReferenceName(n *rhino.Node) bool {
 // n is a NAME node.
 //
 // Java: NodeUtil.isNonlocalModuleExportName(Node)
-func NodeUtil_IsNonlocalModuleExportName(n *rhino.Node) bool {
+func NodeUtil_IsNonlocalModuleExportName(n rhino.Node) bool {
 	jutil.CheckArgumentMsg1(n.IsName(), "%s", n)
 	parent := n.GetParent()
 	if parent.IsImportSpec() && n.IsFirstChildOf(parent) {
@@ -2752,7 +2752,7 @@ func NodeUtil_IsNonlocalModuleExportName(n *rhino.Node) bool {
 // a try.
 //
 // Java: NodeUtil.isTryFinallyNode(Node, Node)
-func NodeUtil_IsTryFinallyNode(parent *rhino.Node, child *rhino.Node) bool {
+func NodeUtil_IsTryFinallyNode(parent rhino.Node, child rhino.Node) bool {
 	return parent.IsTry() && parent.HasXChildren(3) && child == parent.GetLastChild()
 }
 
@@ -2760,7 +2760,7 @@ func NodeUtil_IsTryFinallyNode(parent *rhino.Node, child *rhino.Node) bool {
 // BLOCK.
 //
 // Java: NodeUtil.isTryCatchNodeContainer(Node)
-func NodeUtil_IsTryCatchNodeContainer(n *rhino.Node) bool {
+func NodeUtil_IsTryCatchNodeContainer(n rhino.Node) bool {
 	parent := n.GetParent()
 	return parent.IsTry() && parent.GetSecondChild() == n
 }
@@ -2769,7 +2769,7 @@ func NodeUtil_IsTryCatchNodeContainer(n *rhino.Node) bool {
 //
 // TODO(tbreisacher): Add a method for detecting nodes injected as runtime
 // libraries.
-func NodeUtil_IsInSyntheticScript(n *rhino.Node) bool {
+func NodeUtil_IsInSyntheticScript(n rhino.Node) bool {
 	sourceFileName := n.GetSourceFileName()
 	return sourceFileName != nil &&
 		(strings.HasPrefix(*sourceFileName, " [synthetic:") ||
@@ -2780,7 +2780,7 @@ func NodeUtil_IsInSyntheticScript(n *rhino.Node) bool {
 // well as report the related AST changes/deletions to the given compiler.
 //
 // Java: NodeUtil.deleteNode(Node, AbstractCompiler)
-func NodeUtil_DeleteNode(n *rhino.Node, compiler AbstractCompiler) {
+func NodeUtil_DeleteNode(n rhino.Node, compiler AbstractCompiler) {
 	parent := n.GetParent()
 	NodeUtil_MarkFunctionsDeleted(n, compiler)
 	n.Detach()
@@ -2794,7 +2794,7 @@ func NodeUtil_DeleteNode(n *rhino.Node, compiler AbstractCompiler) {
 // by undefined.
 //
 // Java: NodeUtil.deleteFunctionCall(Node, AbstractCompiler)
-func NodeUtil_DeleteFunctionCall(n *rhino.Node, compiler AbstractCompiler) {
+func NodeUtil_DeleteFunctionCall(n rhino.Node, compiler AbstractCompiler) {
 	jutil.CheckState(n.IsCall())
 
 	parent := n.GetParent()
@@ -2815,7 +2815,7 @@ func NodeUtil_DeleteFunctionCall(n *rhino.Node, compiler AbstractCompiler) {
 // node, including reporting changes.
 //
 // Java: NodeUtil.deleteChildren(Node, AbstractCompiler)
-func NodeUtil_DeleteChildren(n *rhino.Node, compiler AbstractCompiler) {
+func NodeUtil_DeleteChildren(n rhino.Node, compiler AbstractCompiler) {
 	for n.HasChildren() {
 		NodeUtil_DeleteNode(n.GetFirstChild(), compiler)
 	}
@@ -2826,7 +2826,7 @@ func NodeUtil_DeleteChildren(n *rhino.Node, compiler AbstractCompiler) {
 // the AST as well.
 //
 // Java: NodeUtil.removeChild(Node, Node)
-func NodeUtil_RemoveChild(parent *rhino.Node, node *rhino.Node) {
+func NodeUtil_RemoveChild(parent rhino.Node, node rhino.Node) {
 	if NodeUtil_IsTryFinallyNode(parent, node) {
 		if NodeUtil_HasCatchHandler(NodeUtil_GetCatchBlock(parent)) {
 			// A finally can only be removed if there is a catch.
@@ -2916,24 +2916,24 @@ func NodeUtil_RemoveChild(parent *rhino.Node, node *rhino.Node) {
 // replace with.
 //
 // Java: NodeUtil.replaceDeclarationChild(Node, Node)
-func NodeUtil_ReplaceDeclarationChild(declChild *rhino.Node, newStatement *rhino.Node) {
+func NodeUtil_ReplaceDeclarationChild(declChild rhino.Node, newStatement rhino.Node) {
 	jutil.CheckArgument(NodeUtil_IsNameDeclaration(declChild.GetParent()))
-	jutil.CheckArgument(nil == newStatement.GetParent())
+	jutil.CheckArgument(newStatement.GetParent().IsNil())
 
 	decl := declChild.GetParent()
 	if decl.HasOneChild() {
 		decl.ReplaceWith(newStatement)
-	} else if declChild.GetNext() == nil {
+	} else if declChild.GetNext().IsNil() {
 		declChild.Detach()
 		newStatement.InsertAfter(decl)
-	} else if declChild.GetPrevious() == nil {
+	} else if declChild.GetPrevious().IsNil() {
 		declChild.Detach()
 		newStatement.InsertBefore(decl)
 	} else {
 		jutil.CheckState(decl.HasMoreThanOneChild())
 		newDecl := rhino.NewNode(decl.GetToken()).Srcref(decl)
-		var next *rhino.Node
-		for after := declChild.GetNext(); after != nil; after = next {
+		var next rhino.Node
+		for after := declChild.GetNext(); !after.IsNil(); after = next {
 			next = after.GetNext()
 			newDecl.AddChildToBack(after.Detach())
 		}
@@ -2946,7 +2946,7 @@ func NodeUtil_ReplaceDeclarationChild(declChild *rhino.Node, newStatement *rhino
 // NodeUtil_MaybeAddFinally adds a finally block if one does not exist.
 //
 // Java: NodeUtil.maybeAddFinally(Node)
-func NodeUtil_MaybeAddFinally(tryNode *rhino.Node) {
+func NodeUtil_MaybeAddFinally(tryNode rhino.Node) {
 	jutil.CheckState(tryNode.IsTry())
 	if !NodeUtil_HasFinally(tryNode) {
 		tryNode.AddChildToBack(rhino.IR_Block().Srcref(tryNode))
@@ -2960,7 +2960,7 @@ func NodeUtil_MaybeAddFinally(tryNode *rhino.Node) {
 // AST is normalized. Returns whether the block was removed.
 //
 // Java: NodeUtil.tryMergeBlock(Node, boolean)
-func NodeUtil_TryMergeBlock(block *rhino.Node, ignoreBlockScopedDeclarations bool) bool {
+func NodeUtil_TryMergeBlock(block rhino.Node, ignoreBlockScopedDeclarations bool) bool {
 	jutil.CheckState(block.IsBlock())
 	parent := block.GetParent()
 	canMerge := ignoreBlockScopedDeclarations || NodeUtil_CanMergeBlock(block)
@@ -2987,8 +2987,8 @@ func NodeUtil_TryMergeBlock(block *rhino.Node, ignoreBlockScopedDeclarations boo
 // Returns whether the block can be removed.
 //
 // Java: NodeUtil.canMergeBlock(Node)
-func NodeUtil_CanMergeBlock(block *rhino.Node) bool {
-	for c := block.GetFirstChild(); c != nil; c = c.GetNext() {
+func NodeUtil_CanMergeBlock(block rhino.Node) bool {
+	for c := block.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		switch c.GetToken() {
 		case rhino.Token_LABEL:
 			if NodeUtil_CanMergeBlock(c) {
@@ -3008,14 +3008,14 @@ func NodeUtil_CanMergeBlock(block *rhino.Node) bool {
 // NodeUtil_IsCallOrNew returns whether the call is a NEW or CALL node.
 //
 // Java: NodeUtil.isCallOrNew(Node)
-func NodeUtil_IsCallOrNew(node *rhino.Node) bool {
+func NodeUtil_IsCallOrNew(node rhino.Node) bool {
 	return node.IsCall() || node.IsNew() || node.IsOptChainCall()
 }
 
 // NodeUtil_GetFunctionBody returns a BLOCK node for the given FUNCTION node.
 //
 // Java: NodeUtil.getFunctionBody(Node)
-func NodeUtil_GetFunctionBody(fn *rhino.Node) *rhino.Node {
+func NodeUtil_GetFunctionBody(fn rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(fn.IsFunction(), "%s", fn)
 	return fn.GetLastChild()
 }
@@ -3024,7 +3024,7 @@ func NodeUtil_GetFunctionBody(fn *rhino.Node) *rhino.Node {
 // call expression, resolving an indirected call (`(0, foo)()`) if present.
 //
 // Java: NodeUtil.getCallTargetResolvingIndirectCalls(Node)
-func NodeUtil_GetCallTargetResolvingIndirectCalls(call *rhino.Node) *rhino.Node {
+func NodeUtil_GetCallTargetResolvingIndirectCalls(call rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(
 		call.IsCall() || call.IsNew() || call.IsTaggedTemplateLit(),
 		"must be call, new or tagged-template-literal expression, got %s",
@@ -3041,7 +3041,7 @@ func NodeUtil_GetCallTargetResolvingIndirectCalls(call *rhino.Node) *rhino.Node 
 // and NodeUtil_IsNameDeclaration.
 //
 // Java: NodeUtil.isDeclaration(Node)
-func NodeUtil_IsDeclaration(n *rhino.Node) bool {
+func NodeUtil_IsDeclaration(n rhino.Node) bool {
 	return NodeUtil_IsNameDeclaration(n) || NodeUtil_IsFunctionDeclaration(n) || NodeUtil_IsClassDeclaration(n)
 }
 
@@ -3053,11 +3053,11 @@ func NodeUtil_IsDeclaration(n *rhino.Node) bool {
 //   - exports = {a: 0, b}; // namespace export, returns false.
 //
 // Java: NodeUtil.isNamedExportsLiteral(Node)
-func NodeUtil_IsNamedExportsLiteral(objectLiteral *rhino.Node) bool {
+func NodeUtil_IsNamedExportsLiteral(objectLiteral rhino.Node) bool {
 	if !objectLiteral.IsObjectLit() || !objectLiteral.HasChildren() {
 		return false
 	}
-	for key := objectLiteral.GetFirstChild(); key != nil; key = key.GetNext() {
+	for key := objectLiteral.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		if !key.IsStringKey() || key.IsQuotedStringKey() {
 			return false
 		}
@@ -3074,7 +3074,7 @@ func NodeUtil_IsNamedExportsLiteral(objectLiteral *rhino.Node) bool {
 // NodeUtil_IsFunctionExpression).
 //
 // Java: NodeUtil.isFunctionDeclaration(Node)
-func NodeUtil_IsFunctionDeclaration(n *rhino.Node) bool {
+func NodeUtil_IsFunctionDeclaration(n rhino.Node) bool {
 	// Note: There is currently one case where an unnamed function has a declaration parent.
 	// `export default function() {...}`
 	// In this case we consider the function to be an expression.
@@ -3100,7 +3100,7 @@ func NodeUtil_IsFunctionDeclaration(n *rhino.Node) bool {
 //	}
 //
 // Java: NodeUtil.isMethodDeclaration(Node)
-func NodeUtil_IsMethodDeclaration(n *rhino.Node) bool {
+func NodeUtil_IsMethodDeclaration(n rhino.Node) bool {
 	if n.IsFunction() {
 		parent := n.GetParent()
 		switch parent.GetToken() {
@@ -3130,7 +3130,7 @@ func NodeUtil_IsMethodDeclaration(n *rhino.Node) bool {
 // NodeUtil_IsClassDeclaration: is this a class declaration.
 //
 // Java: NodeUtil.isClassDeclaration(Node)
-func NodeUtil_IsClassDeclaration(n *rhino.Node) bool {
+func NodeUtil_IsClassDeclaration(n rhino.Node) bool {
 	return n.IsClass() && NodeUtil_IsDeclarationParent(n.GetParent()) && NodeUtil_IsNamedClass(n)
 }
 
@@ -3139,7 +3139,7 @@ func NodeUtil_IsClassDeclaration(n *rhino.Node) bool {
 // top of the scope. See NodeUtil_IsFunctionDeclaration.
 //
 // Java: NodeUtil.isHoistedFunctionDeclaration(Node)
-func NodeUtil_IsHoistedFunctionDeclaration(n *rhino.Node) bool {
+func NodeUtil_IsHoistedFunctionDeclaration(n rhino.Node) bool {
 	if NodeUtil_IsFunctionDeclaration(n) {
 		parent := n.GetParent()
 		return parent.IsScript() ||
@@ -3151,12 +3151,12 @@ func NodeUtil_IsHoistedFunctionDeclaration(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isBlockScopedFunctionDeclaration(Node)
-func NodeUtil_IsBlockScopedFunctionDeclaration(n *rhino.Node) bool {
+func NodeUtil_IsBlockScopedFunctionDeclaration(n rhino.Node) bool {
 	if !NodeUtil_IsFunctionDeclaration(n) {
 		return false
 	}
 	current := n.GetParent()
-	for current != nil {
+	for !current.IsNil() {
 		switch current.GetToken() {
 		case rhino.Token_BLOCK:
 			return !current.GetParent().IsFunction()
@@ -3172,12 +3172,12 @@ func NodeUtil_IsBlockScopedFunctionDeclaration(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isFunctionBlock(Node)
-func NodeUtil_IsFunctionBlock(n *rhino.Node) bool {
+func NodeUtil_IsFunctionBlock(n rhino.Node) bool {
 	return n.IsBlock() && n.HasParent() && n.GetParent().IsFunction()
 }
 
 // Java: NodeUtil.isClassStaticBlock(Node)
-func NodeUtil_IsClassStaticBlock(n *rhino.Node) bool {
+func NodeUtil_IsClassStaticBlock(n rhino.Node) bool {
 	return n.IsBlock() && n.HasParent() && n.GetParent().IsClassMembers()
 }
 
@@ -3191,7 +3191,7 @@ func NodeUtil_IsClassStaticBlock(n *rhino.Node) bool {
 // body).
 //
 // Java: NodeUtil.isNonStaticClassFieldInitializer(Node)
-func NodeUtil_IsNonStaticClassFieldInitializer(n *rhino.Node) bool {
+func NodeUtil_IsNonStaticClassFieldInitializer(n rhino.Node) bool {
 	parent := n.GetParent()
 	// Note: COMPUTED_FIELD_DEF has only one child (the key) if there is no initializer.
 	if parent.IsMemberFieldDef() ||
@@ -3207,7 +3207,7 @@ func NodeUtil_IsNonStaticClassFieldInitializer(n *rhino.Node) bool {
 // capture variables from the enclosing scope.
 //
 // Java: NodeUtil.isFunctionOrNonStaticClassFieldInitializer(Node)
-func NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n *rhino.Node) bool {
+func NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n rhino.Node) bool {
 	return n.IsFunction() || NodeUtil_IsNonStaticClassFieldInitializer(n)
 }
 
@@ -3252,7 +3252,7 @@ func NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n *rhino.Node) bool {
 // Returns whether n is a function used within an expression.
 //
 // Java: NodeUtil.isFunctionExpression(Node)
-func NodeUtil_IsFunctionExpression(n *rhino.Node) bool {
+func NodeUtil_IsFunctionExpression(n rhino.Node) bool {
 	return n.IsFunction() && !NodeUtil_IsFunctionDeclaration(n) && !NodeUtil_IsMethodDeclaration(n)
 }
 
@@ -3260,7 +3260,7 @@ func NodeUtil_IsFunctionExpression(n *rhino.Node) bool {
 // function expression and the function is named.
 //
 // Java: NodeUtil.isNamedFunctionExpression(Node)
-func NodeUtil_IsNamedFunctionExpression(n *rhino.Node) bool {
+func NodeUtil_IsNamedFunctionExpression(n rhino.Node) bool {
 	return NodeUtil_IsFunctionExpression(n) && n.GetFirstChild().GetString() != ""
 }
 
@@ -3268,7 +3268,7 @@ func NodeUtil_IsNamedFunctionExpression(n *rhino.Node) bool {
 // whether n is a class used within an expression.
 //
 // Java: NodeUtil.isClassExpression(Node)
-func NodeUtil_IsClassExpression(n *rhino.Node) bool {
+func NodeUtil_IsClassExpression(n rhino.Node) bool {
 	return n.IsClass() && (!NodeUtil_IsNamedClass(n) || !NodeUtil_IsDeclarationParent(n.GetParent()))
 }
 
@@ -3276,7 +3276,7 @@ func NodeUtil_IsClassExpression(n *rhino.Node) bool {
 // expression and the class is named.
 //
 // Java: NodeUtil.isNamedClassExpression(Node)
-func NodeUtil_IsNamedClassExpression(n *rhino.Node) bool {
+func NodeUtil_IsNamedClassExpression(n rhino.Node) bool {
 	return NodeUtil_IsClassExpression(n) && n.GetFirstChild().IsName()
 }
 
@@ -3292,7 +3292,7 @@ func NodeUtil_IsNamedClassExpression(n *rhino.Node) bool {
 //	var f = function f() {};
 //
 // Java: NodeUtil.isNamedFunction(Node)
-func NodeUtil_IsNamedFunction(n *rhino.Node) bool {
+func NodeUtil_IsNamedFunction(n rhino.Node) bool {
 	return n.IsFunction() && NodeUtil_IsReferenceName(n.GetFirstChild())
 }
 
@@ -3300,7 +3300,7 @@ func NodeUtil_IsNamedFunction(n *rhino.Node) bool {
 // a named class.
 //
 // Java: NodeUtil.isNamedClass(Node)
-func NodeUtil_IsNamedClass(n *rhino.Node) bool {
+func NodeUtil_IsNamedClass(n rhino.Node) bool {
 	return n.IsClass() && NodeUtil_IsReferenceName(n.GetFirstChild())
 }
 
@@ -3308,7 +3308,7 @@ func NodeUtil_IsNamedClass(n *rhino.Node) bool {
 // function (an anonymous named function that bleeds into the inner scope).
 //
 // Java: NodeUtil.isBleedingFunctionName(Node)
-func NodeUtil_IsBleedingFunctionName(n *rhino.Node) bool {
+func NodeUtil_IsBleedingFunctionName(n rhino.Node) bool {
 	if !n.IsName() || n.GetString() == "" {
 		return false
 	}
@@ -3322,7 +3322,7 @@ func NodeUtil_IsBleedingFunctionName(n *rhino.Node) bool {
 // Returns whether the given node is a function expression that is empty.
 //
 // Java: NodeUtil.isEmptyFunctionExpression(Node)
-func NodeUtil_IsEmptyFunctionExpression(node *rhino.Node) bool {
+func NodeUtil_IsEmptyFunctionExpression(node rhino.Node) bool {
 	return NodeUtil_IsFunctionExpression(node) && NodeUtil_IsEmptyBlock(node.GetLastChild())
 }
 
@@ -3330,7 +3330,7 @@ func NodeUtil_IsEmptyFunctionExpression(node *rhino.Node) bool {
 // function has a reference to its own "arguments" object.
 //
 // Java: NodeUtil.doesFunctionReferenceOwnArgumentsObject(Node)
-func NodeUtil_DoesFunctionReferenceOwnArgumentsObject(fn *rhino.Node) bool {
+func NodeUtil_DoesFunctionReferenceOwnArgumentsObject(fn rhino.Node) bool {
 	jutil.CheckArgument(fn.IsFunction())
 	if fn.IsArrowFunction() {
 		return false
@@ -3345,7 +3345,7 @@ func NodeUtil_DoesFunctionReferenceOwnArgumentsObject(fn *rhino.Node) bool {
 // other functions which shadow the "arguments" value with their own.
 //
 // Java: NodeUtil.referencesArgumentsHelper(Node)
-func NodeUtil_ReferencesArgumentsHelper(node *rhino.Node) bool {
+func NodeUtil_ReferencesArgumentsHelper(node rhino.Node) bool {
 	if node.IsName() && node.GetString() == "arguments" {
 		return true
 	}
@@ -3354,7 +3354,7 @@ func NodeUtil_ReferencesArgumentsHelper(node *rhino.Node) bool {
 		return false
 	}
 
-	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if NodeUtil_ReferencesArgumentsHelper(c) {
 			return true
 		}
@@ -3370,14 +3370,14 @@ func NodeUtil_ReferencesArgumentsHelper(node *rhino.Node) bool {
 //	a['f'](...)
 //
 // Java: NodeUtil.isObjectCallMethod(Node, String)
-func NodeUtil_IsObjectCallMethod(callNode *rhino.Node, methodName string) bool {
+func NodeUtil_IsObjectCallMethod(callNode rhino.Node, methodName string) bool {
 	if callNode.IsCall() || callNode.IsOptChainCall() {
 		callee := callNode.GetFirstChild()
 		if NodeUtil_IsNormalOrOptChainGetProp(callee) {
 			return callee.GetString() == methodName
 		} else if NodeUtil_IsNormalOrOptChainGet(callee) {
 			last := callee.GetLastChild()
-			if last != nil && last.IsStringLit() {
+			if !last.IsNil() && last.IsStringLit() {
 				propName := last.GetString()
 				return propName == methodName
 			}
@@ -3390,7 +3390,7 @@ func NodeUtil_IsObjectCallMethod(callNode *rhino.Node, methodName string) bool {
 // expression in the form of: x.call(...) x['call'](...)
 //
 // Java: NodeUtil.isFunctionObjectCall(Node)
-func NodeUtil_IsFunctionObjectCall(callNode *rhino.Node) bool {
+func NodeUtil_IsFunctionObjectCall(callNode rhino.Node) bool {
 	return NodeUtil_IsObjectCallMethod(callNode, "call")
 }
 
@@ -3398,7 +3398,7 @@ func NodeUtil_IsFunctionObjectCall(callNode *rhino.Node) bool {
 // expression in the form of: x.apply(...) x['apply'](...)
 //
 // Java: NodeUtil.isFunctionObjectApply(Node)
-func NodeUtil_IsFunctionObjectApply(callNode *rhino.Node) bool {
+func NodeUtil_IsFunctionObjectApply(callNode rhino.Node) bool {
 	return NodeUtil_IsObjectCallMethod(callNode, "apply")
 }
 
@@ -3411,7 +3411,7 @@ func NodeUtil_IsFunctionObjectApply(callNode *rhino.Node) bool {
 // left hand of an assign.
 //
 // Java: NodeUtil.isNameDeclOrSimpleAssignLhs(Node, Node)
-func NodeUtil_IsNameDeclOrSimpleAssignLhs(n *rhino.Node, parent *rhino.Node) bool {
+func NodeUtil_IsNameDeclOrSimpleAssignLhs(n rhino.Node, parent rhino.Node) bool {
 	return (parent.IsAssign() && parent.GetFirstChild() == n) || NodeUtil_IsNameDeclaration(parent)
 }
 
@@ -3426,7 +3426,7 @@ func NodeUtil_IsNameDeclOrSimpleAssignLhs(n *rhino.Node, parent *rhino.Node) boo
 // Returns true if n is an L-value.
 //
 // Java: NodeUtil.isLValue(Node)
-func NodeUtil_IsLValue(n *rhino.Node) bool {
+func NodeUtil_IsLValue(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_NAME, rhino.Token_GETPROP, rhino.Token_GETELEM:
 	default:
@@ -3434,7 +3434,7 @@ func NodeUtil_IsLValue(n *rhino.Node) bool {
 	}
 
 	parent := n.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return false
 	}
 
@@ -3460,7 +3460,7 @@ func NodeUtil_IsLValue(n *rhino.Node) bool {
 // `x = 5;` is an L-value but does not declare a variable.
 //
 // Java: NodeUtil.isDeclarationLValue(Node)
-func NodeUtil_IsDeclarationLValue(n *rhino.Node) bool {
+func NodeUtil_IsDeclarationLValue(n rhino.Node) bool {
 	isLValue := NodeUtil_IsLValue(n)
 
 	if !isLValue {
@@ -3483,13 +3483,13 @@ func NodeUtil_IsDeclarationLValue(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isLhsOfAssign(Node)
-func NodeUtil_IsLhsOfAssign(n *rhino.Node) bool {
+func NodeUtil_IsLhsOfAssign(n rhino.Node) bool {
 	parent := n.GetParent()
-	return parent != nil && parent.IsAssign() && parent.GetFirstChild() == n
+	return !parent.IsNil() && parent.IsAssign() && parent.GetFirstChild() == n
 }
 
 // Java: NodeUtil.isImportedName(Node)
-func NodeUtil_IsImportedName(n *rhino.Node) bool {
+func NodeUtil_IsImportedName(n rhino.Node) bool {
 	parent := n.GetParent()
 	return parent.IsImport() || (parent.IsImportSpec() && parent.GetLastChild() == n)
 }
@@ -3518,7 +3518,7 @@ func NodeUtil_IsImportedName(n *rhino.Node) bool {
 // target.
 //
 // Java: NodeUtil.getDeclaringParent(Node)
-func NodeUtil_GetDeclaringParent(targetNode *rhino.Node) *rhino.Node {
+func NodeUtil_GetDeclaringParent(targetNode rhino.Node) rhino.Node {
 	rootTarget := NodeUtil_GetRootTarget(targetNode)
 	parent := rootTarget.GetParent()
 	if parent.IsRest() || parent.IsDefaultValue() {
@@ -3581,9 +3581,9 @@ func NodeUtil_GetDeclaringParent(targetNode *rhino.Node) *rhino.Node {
 // target.
 //
 // Java: NodeUtil.getRootTarget(Node)
-func NodeUtil_GetRootTarget(targetNode *rhino.Node) *rhino.Node {
+func NodeUtil_GetRootTarget(targetNode rhino.Node) rhino.Node {
 	enclosingTarget := targetNode
-	for nextTarget := NodeUtil_GetEnclosingTarget(enclosingTarget); nextTarget != nil; nextTarget = NodeUtil_GetEnclosingTarget(enclosingTarget) {
+	for nextTarget := NodeUtil_GetEnclosingTarget(enclosingTarget); !nextTarget.IsNil(); nextTarget = NodeUtil_GetEnclosingTarget(enclosingTarget) {
 		enclosingTarget = nextTarget
 	}
 	return enclosingTarget
@@ -3595,9 +3595,9 @@ func NodeUtil_GetRootTarget(targetNode *rhino.Node) *rhino.Node {
 // See NodeUtil_GetRootTarget for examples.
 //
 // Java: NodeUtil.getEnclosingTarget(Node)
-func NodeUtil_GetEnclosingTarget(targetNode *rhino.Node) *rhino.Node {
-	jutil.CheckStateMsg1(jutil.CheckNotNull(targetNode).IsValidAssignmentTarget(), "%s", targetNode)
-	parent := jutil.CheckNotNullMsg1(targetNode.GetParent(), "%s", targetNode)
+func NodeUtil_GetEnclosingTarget(targetNode rhino.Node) rhino.Node {
+	jutil.CheckStateMsg1(rhino.CheckNotNull(targetNode).IsValidAssignmentTarget(), "%s", targetNode)
+	parent := rhino.CheckNotNullMsg1(targetNode.GetParent(), "%s", targetNode)
 	targetIsFirstChild := parent.GetFirstChild() == targetNode
 	if parent.IsDefaultValue() || parent.IsRest() {
 		// in `([something = targetNode] = x)` targetNode isn't actually acting
@@ -3606,7 +3606,7 @@ func NodeUtil_GetEnclosingTarget(targetNode *rhino.Node) *rhino.Node {
 		// The DEFAULT_VALUE or REST occupies the place where the assignment target it contains would
 		// otherwise be in the AST, so pretend it is the target for the logic below.
 		targetNode = parent
-		parent = jutil.CheckNotNull(targetNode.GetParent())
+		parent = rhino.CheckNotNull(targetNode.GetParent())
 		targetIsFirstChild = targetNode == parent.GetFirstChild()
 	}
 	switch parent.GetToken() {
@@ -3624,12 +3624,12 @@ func NodeUtil_GetEnclosingTarget(targetNode *rhino.Node) *rhino.Node {
 		// make sure the effective target (targetNode or DEFAULT_VALUE containing it)
 		// isn't the expression part
 		jutil.CheckStateMsg1(!targetIsFirstChild, "%s", parent)
-		grandparent := jutil.CheckNotNullMsg1(parent.GetParent(), "%s", parent)
+		grandparent := rhino.CheckNotNullMsg1(parent.GetParent(), "%s", parent)
 		jutil.CheckStateMsg1(grandparent.IsObjectPattern(), "%s", grandparent)
 		return grandparent
 	case rhino.Token_STRING_KEY:
 		// e.g. ({parent: targetNode} = something)
-		grandparent := jutil.CheckNotNullMsg1(parent.GetParent(), "%s", parent)
+		grandparent := rhino.CheckNotNullMsg1(parent.GetParent(), "%s", parent)
 		jutil.CheckStateMsg1(grandparent.IsObjectPattern(), "%s", grandparent)
 		return grandparent
 
@@ -3637,44 +3637,44 @@ func NodeUtil_GetEnclosingTarget(targetNode *rhino.Node) *rhino.Node {
 		// e.g. `function foo(targetNode) {}`
 		// or non-destructured declarations
 		// e.g. `let targetNode = 3;`
-		return nil
+		return rhino.Node{}
 
 	case rhino.Token_FUNCTION, rhino.Token_CLASS:
 		// e.g. `function targetNode() {}`
 		// e.g. `class targetNode {}`
 		jutil.CheckStateMsg1(targetIsFirstChild, "%s", targetNode)
-		return nil
+		return rhino.Node{}
 
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// e.g. `for ({length} in obj) {}` // targetNode is `{length}`
 		// e.g. `for ({length} of obj) {}` // targetNode is `{length}`
 		jutil.CheckStateMsg1(targetIsFirstChild, "%s", targetNode)
-		return nil
+		return rhino.Node{}
 
 	case rhino.Token_DESTRUCTURING_LHS:
 		// destructured declarations
 		// e.g. `let [a] = 3`; // targetNode is `[a]`
 		jutil.CheckStateMsg1(targetIsFirstChild, "%s", targetNode)
-		return nil
+		return rhino.Node{}
 
 	case rhino.Token_IMPORT:
 		// e.g. `import targetNode from './foo/bar';`
-		return nil
+		return rhino.Node{}
 
 	case rhino.Token_IMPORT_SPEC:
 		// e.g. `import {bar as targetNode} from './foo/bar';`
 		// e.g. `import {targetNode} from './foo/bar';` // AST will have {targetNode as targetNode}
 		jutil.CheckStateMsg1(!targetIsFirstChild, "%s", parent)
-		return nil
+		return rhino.Node{}
 
 	case rhino.Token_CATCH:
 		// e.g. `try {} catch (foo) {}`
-		return nil
+		return rhino.Node{}
 
 	default:
 		// e.g. targetNode = something
 		jutil.CheckStateMsg1(NodeUtil_IsAssignmentOp(parent) && targetIsFirstChild, "%s", parent)
-		return nil
+		return rhino.Node{}
 	}
 }
 
@@ -3686,7 +3686,7 @@ func NodeUtil_GetEnclosingTarget(targetNode *rhino.Node) *rhino.Node {
 // `({key: a.b} = {key: 1});`
 //
 // Java: NodeUtil.isLhsByDestructuring(Node)
-func NodeUtil_IsLhsByDestructuring(n *rhino.Node) bool {
+func NodeUtil_IsLhsByDestructuring(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_NAME, rhino.Token_GETPROP, rhino.Token_GETELEM:
 		return NodeUtil_IsLhsByDestructuringHelper(n)
@@ -3702,7 +3702,7 @@ func NodeUtil_IsLhsByDestructuring(n *rhino.Node) bool {
 // node containing b.
 //
 // Java: NodeUtil.isLhsByDestructuringHelper(Node)
-func NodeUtil_IsLhsByDestructuringHelper(n *rhino.Node) bool {
+func NodeUtil_IsLhsByDestructuringHelper(n rhino.Node) bool {
 	parent := n.GetParent()
 	grandparent := n.GetGrandparent()
 
@@ -3736,7 +3736,7 @@ func NodeUtil_IsLhsByDestructuringHelper(n *rhino.Node) bool {
 // Java: NodeUtil.mayBeObjectLitKey(Node)
 //
 // TODO(b/189993301): should fields be added to this method?
-func NodeUtil_MayBeObjectLitKey(node *rhino.Node) bool {
+func NodeUtil_MayBeObjectLitKey(node rhino.Node) bool {
 	switch node.GetToken() {
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF:
 		return true
@@ -3750,7 +3750,7 @@ func NodeUtil_MayBeObjectLitKey(node *rhino.Node) bool {
 // object literal. Computed properties are excluded here (see b/111621528).
 //
 // Java: NodeUtil.isObjectLitKey(Node)
-func NodeUtil_IsObjectLitKey(node *rhino.Node) bool {
+func NodeUtil_IsObjectLitKey(node rhino.Node) bool {
 	return node.GetParent().IsObjectLit() && NodeUtil_MayBeObjectLitKey(node)
 }
 
@@ -3758,9 +3758,9 @@ func NodeUtil_IsObjectLitKey(node *rhino.Node) bool {
 // key.
 //
 // Java: NodeUtil.getObjectOrClassLitKeyName(Node)
-func NodeUtil_GetObjectOrClassLitKeyName(key *rhino.Node) string {
+func NodeUtil_GetObjectOrClassLitKeyName(key rhino.Node) string {
 	keyNode := NodeUtil_GetObjectOrClassLitKeyNode(key)
-	if keyNode != nil {
+	if !keyNode.IsNil() {
 		return keyNode.GetString()
 	}
 	panic(jutil.NewIllegalStateExceptionMsg("Unexpected node type: " + key.String()))
@@ -3770,7 +3770,7 @@ func NodeUtil_GetObjectOrClassLitKeyName(key *rhino.Node) string {
 // an object literal key.
 //
 // Java: NodeUtil.getObjectOrClassLitKeyNode(Node)
-func NodeUtil_GetObjectOrClassLitKeyNode(key *rhino.Node) *rhino.Node {
+func NodeUtil_GetObjectOrClassLitKeyNode(key rhino.Node) rhino.Node {
 	switch key.GetToken() {
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF,
 		rhino.Token_MEMBER_FIELD_DEF:
@@ -3780,7 +3780,7 @@ func NodeUtil_GetObjectOrClassLitKeyNode(key *rhino.Node) *rhino.Node {
 			IsStringLit() { // TODO(b/189993301): may be an issue with non string lits
 			return key.GetFirstChild()
 		}
-		return nil
+		return rhino.Node{}
 	default:
 	}
 	panic(jutil.NewIllegalStateExceptionMsg("Unexpected node type: " + key.String()))
@@ -3790,7 +3790,7 @@ func NodeUtil_GetObjectOrClassLitKeyNode(key *rhino.Node) *rhino.Node {
 // literal get or set key (e.g. key1 in {get key1() {}, set key2(a){}).
 //
 // Java: NodeUtil.isGetOrSetKey(Node)
-func NodeUtil_IsGetOrSetKey(node *rhino.Node) bool {
+func NodeUtil_IsGetOrSetKey(node rhino.Node) bool {
 	switch node.GetToken() {
 	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
 		return true
@@ -3948,7 +3948,7 @@ func NodeUtil_OpToStrNoFail(operator rhino.Token) string {
 // necessary.
 //
 // Java: NodeUtil.redeclareVarsInsideBranch(Node)
-func NodeUtil_RedeclareVarsInsideBranch(branch *rhino.Node) {
+func NodeUtil_RedeclareVarsInsideBranch(branch rhino.Node) {
 	if !NodeUtil_CanContainHoistedVarsDecls(branch) {
 		return
 	}
@@ -3967,7 +3967,7 @@ func NodeUtil_RedeclareVarsInsideBranch(branch *rhino.Node) {
 }
 
 // Java: NodeUtil.canContainHoistedVarsDecls(Node)
-func NodeUtil_CanContainHoistedVarsDecls(n *rhino.Node) bool {
+func NodeUtil_CanContainHoistedVarsDecls(n rhino.Node) bool {
 	if NodeUtil_IsStatement(n) {
 		switch n.GetToken() {
 		case rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE,
@@ -3984,7 +3984,7 @@ func NodeUtil_CanContainHoistedVarsDecls(n *rhino.Node) bool {
 // value.
 //
 // Java: NodeUtil.copyNameAnnotations(Node, Node)
-func NodeUtil_CopyNameAnnotations(source *rhino.Node, destination *rhino.Node) {
+func NodeUtil_CopyNameAnnotations(source rhino.Node, destination rhino.Node) {
 	if source.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
 		destination.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 	}
@@ -3994,13 +3994,13 @@ func NodeUtil_CopyNameAnnotations(source *rhino.Node, destination *rhino.Node) {
 // we can add new var declarations as children.
 //
 // Java: NodeUtil.getAddingRoot(Node)
-func NodeUtil_GetAddingRoot(n *rhino.Node) *rhino.Node {
-	var addingRoot *rhino.Node
+func NodeUtil_GetAddingRoot(n rhino.Node) rhino.Node {
+	var addingRoot rhino.Node
 	ancestor := n
 crawl_ancestors:
 	for {
 		ancestor = ancestor.GetParent()
-		if ancestor == nil {
+		if ancestor.IsNil() {
 			break
 		}
 		switch ancestor.GetToken() {
@@ -4022,8 +4022,8 @@ crawl_ancestors:
 }
 
 // Java: NodeUtil.newDeclaration(Node, Node, Token)
-func NodeUtil_NewDeclaration(lhs *rhino.Node, rhs *rhino.Node, declarationType rhino.Token) *rhino.Node {
-	if rhs == nil {
+func NodeUtil_NewDeclaration(lhs rhino.Node, rhs rhino.Node, declarationType rhino.Token) rhino.Node {
+	if rhs.IsNil() {
 		return rhino.IR_Declaration(lhs, declarationType)
 	}
 	return rhino.IR_DeclarationWithValue(lhs, rhs, declarationType)
@@ -4035,13 +4035,13 @@ func NodeUtil_NewDeclaration(lhs *rhino.Node, rhs *rhino.Node, declarationType r
 // GETPROP node.
 //
 // Java: NodeUtil.newQName(AbstractCompiler, String)
-func NodeUtil_NewQName(compiler AbstractCompiler, name string) *rhino.Node {
+func NodeUtil_NewQName(compiler AbstractCompiler, name string) rhino.Node {
 	endPos := jutil.StringIndexOfChar(name, '.')
 	if endPos == -1 {
 		endPos = jutil.StringLength(name)
 	}
 
-	var qname *rhino.Node
+	var qname rhino.Node
 	nodeName := jutil.StringSubstring(name, 0, endPos)
 	if "this" == nodeName {
 		qname = rhino.IR_ThisNode()
@@ -4080,7 +4080,7 @@ func NodeUtil_NewQName(compiler AbstractCompiler, name string) *rhino.Node {
 //
 // Java: NodeUtil.newQName(AbstractCompiler, String, Node, String)
 func NodeUtil_NewQNameWithOriginalName(
-	compiler AbstractCompiler, name string, basisNode *rhino.Node, originalName string) *rhino.Node {
+	compiler AbstractCompiler, name string, basisNode rhino.Node, originalName string) rhino.Node {
 	node := NodeUtil_NewQName(compiler, name)
 	node.SrcrefTreeIfMissing(basisNode)
 	if nodeOriginalName := node.GetOriginalName(); nodeOriginalName == nil || originalName != *nodeOriginalName {
@@ -4098,16 +4098,16 @@ func NodeUtil_NewQNameWithOriginalName(
 // Returns a new qualified name declaration.
 //
 // Java: NodeUtil.getDeclarationFromName(Node, Node, Token, JSDocInfo)
-func NodeUtil_GetDeclarationFromName(nameNode *rhino.Node, value *rhino.Node, type_ rhino.Token, info *rhino.JSDocInfo) *rhino.Node {
-	var result *rhino.Node
+func NodeUtil_GetDeclarationFromName(nameNode rhino.Node, value rhino.Node, type_ rhino.Token, info *rhino.JSDocInfo) rhino.Node {
+	var result rhino.Node
 	if nameNode.IsName() {
-		if value == nil {
+		if value.IsNil() {
 			result = rhino.IR_Declaration(nameNode, type_)
 		} else {
 			result = rhino.IR_DeclarationWithValue(nameNode, value, type_)
 		}
 		result.SetJSDocInfo(info)
-	} else if value != nil {
+	} else if !value.IsNil() {
 		result = rhino.IR_ExprResult(rhino.IR_Assign(nameNode, value))
 		result.GetFirstChild().SetJSDocInfo(info)
 	} else {
@@ -4120,7 +4120,7 @@ func NodeUtil_GetDeclarationFromName(nameNode *rhino.Node, value *rhino.Node, ty
 // NodeUtil_NewPropertyAccess creates a property access on the context tree.
 //
 // Java: NodeUtil.newPropertyAccess(AbstractCompiler, Node, String)
-func NodeUtil_NewPropertyAccess(compiler AbstractCompiler, context *rhino.Node, name string) *rhino.Node {
+func NodeUtil_NewPropertyAccess(compiler AbstractCompiler, context rhino.Node, name string) rhino.Node {
 	propNode := rhino.IR_Getprop(context, name)
 	if compiler.GetCodingConvention().IsConstantKey(name) {
 		propNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
@@ -4135,7 +4135,7 @@ func NodeUtil_NewPropertyAccess(compiler AbstractCompiler, context *rhino.Node, 
 //
 // Java: NodeUtil.newQNameDeclaration(AbstractCompiler, String, Node, JSDocInfo)
 func NodeUtil_NewQNameDeclaration(
-	compiler AbstractCompiler, name string, value *rhino.Node, info *rhino.JSDocInfo) *rhino.Node {
+	compiler AbstractCompiler, name string, value rhino.Node, info *rhino.JSDocInfo) rhino.Node {
 	return NodeUtil_NewQNameDeclarationWithType(compiler, name, value, info, rhino.Token_VAR)
 }
 
@@ -4148,7 +4148,7 @@ func NodeUtil_NewQNameDeclaration(
 //
 // Java: NodeUtil.newQNameDeclaration(AbstractCompiler, String, Node, JSDocInfo, Token)
 func NodeUtil_NewQNameDeclarationWithType(
-	compiler AbstractCompiler, name string, value *rhino.Node, info *rhino.JSDocInfo, type_ rhino.Token) *rhino.Node {
+	compiler AbstractCompiler, name string, value rhino.Node, info *rhino.JSDocInfo, type_ rhino.Token) rhino.Node {
 	jutil.CheckStateMsg1(type_ == rhino.Token_VAR || type_ == rhino.Token_LET || type_ == rhino.Token_CONST, "%s", type_)
 	nameNode := NodeUtil_NewQName(compiler, name)
 	return NodeUtil_GetDeclarationFromName(nameNode, value, type_, info)
@@ -4158,7 +4158,7 @@ func NodeUtil_NewQNameDeclarationWithType(
 // Must be either NAME, THIS or SUPER.
 //
 // Java: NodeUtil.getRootOfQualifiedName(Node)
-func NodeUtil_GetRootOfQualifiedName(qName *rhino.Node) *rhino.Node {
+func NodeUtil_GetRootOfQualifiedName(qName rhino.Node) rhino.Node {
 	for current := qName; ; current = current.GetFirstChild() {
 		if current.IsName() || current.IsThis() || current.IsSuper() {
 			return current
@@ -4180,7 +4180,7 @@ func NodeUtil_GetRootOfQualifiedNameString(qName string) string {
 }
 
 // Java: NodeUtil.newName(AbstractCompiler, String)
-func NodeUtil_NewName(compiler AbstractCompiler, name string) *rhino.Node {
+func NodeUtil_NewName(compiler AbstractCompiler, name string) rhino.Node {
 	nameNode := rhino.IR_Name(name)
 	nameNode.SetLength(jutil.StringLength(name))
 	if compiler.GetCodingConvention().IsConstant(name) {
@@ -4196,7 +4196,7 @@ func NodeUtil_NewName(compiler AbstractCompiler, name string) *rhino.Node {
 // the name as currently found in the AST. Returns the node created.
 //
 // Java: NodeUtil.newName(AbstractCompiler, String, Node)
-func NodeUtil_NewNameWithSrcref(compiler AbstractCompiler, name string, srcref *rhino.Node) *rhino.Node {
+func NodeUtil_NewNameWithSrcref(compiler AbstractCompiler, name string, srcref rhino.Node) rhino.Node {
 	return NodeUtil_NewName(compiler, name).Srcref(srcref)
 }
 
@@ -4211,7 +4211,7 @@ func NodeUtil_NewNameWithSrcref(compiler AbstractCompiler, name string, srcref *
 //
 // Java: NodeUtil.newName(AbstractCompiler, String, Node, String)
 func NodeUtil_NewNameWithOriginalName(
-	compiler AbstractCompiler, name string, basisNode *rhino.Node, originalName string) *rhino.Node {
+	compiler AbstractCompiler, name string, basisNode rhino.Node, originalName string) rhino.Node {
 	nameNode := NodeUtil_NewNameWithSrcref(compiler, name, basisNode)
 	nameNode.SetOriginalNameString(originalName)
 	return nameNode
@@ -4302,18 +4302,18 @@ func NodeUtil_IsValidPropertyName(mode *parser.FeatureSet, name string) bool {
 //
 // Java: NodeUtil.VarCollector
 type NodeUtil_VarCollector struct {
-	vars *jutil.LinkedHashMap[string, *rhino.Node]
+	vars *jutil.LinkedHashMap[string, rhino.Node]
 }
 
 // Java: NodeUtil.VarCollector()
 func NewNodeUtil_VarCollector() *NodeUtil_VarCollector {
-	return &NodeUtil_VarCollector{vars: jutil.NewLinkedHashMap[string, *rhino.Node]()}
+	return &NodeUtil_VarCollector{vars: jutil.NewLinkedHashMap[string, rhino.Node]()}
 }
 
 // Java: NodeUtil.VarCollector.visit(Node)
-func (c *NodeUtil_VarCollector) Visit(n *rhino.Node) {
+func (c *NodeUtil_VarCollector) Visit(n rhino.Node) {
 	if n.IsVar() {
-		NodeUtil_VisitLhsNodesInNode(n, func(name *rhino.Node) { c.vars.PutIfAbsent(name.GetString(), name) })
+		NodeUtil_VisitLhsNodesInNode(n, func(name rhino.Node) { c.vars.PutIfAbsent(name.GetString(), name) })
 	}
 }
 
@@ -4321,14 +4321,14 @@ func (c *NodeUtil_VarCollector) Visit(n *rhino.Node) {
 // node tree, excluding descent scopes.
 //
 // Java: NodeUtil.getVarsDeclaredInBranch(Node)
-func NodeUtil_GetVarsDeclaredInBranch(root *rhino.Node) []*rhino.Node {
+func NodeUtil_GetVarsDeclaredInBranch(root rhino.Node) []rhino.Node {
 	collector := NewNodeUtil_VarCollector()
 	NodeUtil_VisitPreOrderWithPred(root, collector, NodeUtil_MATCH_NOT_FUNCTION)
 	return slices.Collect(collector.vars.Values())
 }
 
 // Java: NodeUtil.getLhsNodesHelper(Node, Consumer<Node>)
-func NodeUtil_GetLhsNodesHelper(n *rhino.Node, consumer func(*rhino.Node)) {
+func NodeUtil_GetLhsNodesHelper(n rhino.Node, consumer func(rhino.Node)) {
 	switch n.GetToken() {
 	case rhino.Token_IMPORT:
 		NodeUtil_GetLhsNodesHelper(n.GetFirstChild(), consumer)
@@ -4336,7 +4336,7 @@ func NodeUtil_GetLhsNodesHelper(n *rhino.Node, consumer func(*rhino.Node)) {
 		return
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET, rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN,
 		rhino.Token_PARAM_LIST, rhino.Token_IMPORT_SPECS:
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			NodeUtil_GetLhsNodesHelper(child, consumer)
 		}
 		return
@@ -4373,7 +4373,7 @@ func NodeUtil_GetLhsNodesHelper(n *rhino.Node, consumer func(*rhino.Node)) {
 // nodes.
 //
 // Java: NodeUtil.visitLhsNodesInNode(Node, Consumer<Node>)
-func NodeUtil_VisitLhsNodesInNode(assigningParent *rhino.Node, consumer func(*rhino.Node)) {
+func NodeUtil_VisitLhsNodesInNode(assigningParent rhino.Node, consumer func(rhino.Node)) {
 	jutil.CheckArgumentMsg1(
 		NodeUtil_IsNameDeclaration(assigningParent) || // e.g. `var [a,b,c];`
 			assigningParent.IsParamList() || // e.g. `function foo([a,b,c]) {}`
@@ -4394,7 +4394,7 @@ func NodeUtil_VisitLhsNodesInNode(assigningParent *rhino.Node, consumer func(*rh
 //
 // Java: NodeUtil.visitLhsNodesInDestructuringPattern(Node, Consumer<Node>)
 func NodeUtil_VisitLhsNodesInDestructuringPattern(
-	destructuringPattern *rhino.Node, consumer func(*rhino.Node)) {
+	destructuringPattern rhino.Node, consumer func(rhino.Node)) {
 	jutil.CheckArgumentMsg(
 		destructuringPattern.IsDestructuringPattern(), "Must be a destructuring pattern node.")
 	NodeUtil_GetLhsNodesHelper(destructuringPattern, consumer)
@@ -4404,7 +4404,7 @@ func NodeUtil_VisitLhsNodesInDestructuringPattern(
 // definition with Object.defineProperties.
 //
 // Java: NodeUtil.isObjectDefinePropertiesDefinition(Node)
-func NodeUtil_IsObjectDefinePropertiesDefinition(n *rhino.Node) bool {
+func NodeUtil_IsObjectDefinePropertiesDefinition(n rhino.Node) bool {
 	// We intentionally don't check optional Object.defineProperties?.() because we expect it to be
 	// defined or polyfill-ed, and to avoid changing the current invariant that this method returns
 	// true only for non-optional `Object.defineProperties()`.
@@ -4426,7 +4426,7 @@ var NodeUtil_GLOBAL_OBJECT = rhino.QualifiedName_Of("$jscomp.global.Object")
 var NodeUtil_GLOBAL_OBJECT_MANGLED = rhino.QualifiedName_Of("$jscomp$global.Object")
 
 // Java: NodeUtil.isKnownGlobalObjectReference(Node)
-func NodeUtil_IsKnownGlobalObjectReference(n *rhino.Node) bool {
+func NodeUtil_IsKnownGlobalObjectReference(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		return n.GetString() == "Object"
@@ -4441,7 +4441,7 @@ func NodeUtil_IsKnownGlobalObjectReference(n *rhino.Node) bool {
 // definition with Object.defineProperty.
 //
 // Java: NodeUtil.isObjectDefinePropertyDefinition(Node)
-func NodeUtil_IsObjectDefinePropertyDefinition(n *rhino.Node) bool {
+func NodeUtil_IsObjectDefinePropertyDefinition(n rhino.Node) bool {
 	if !n.IsCall() || !n.HasXChildren(4) {
 		return false
 	}
@@ -4457,11 +4457,11 @@ func NodeUtil_IsObjectDefinePropertyDefinition(n *rhino.Node) bool {
 // properties defined by a Object.defineProperties(o, {...}) call.
 //
 // Java: NodeUtil.getObjectDefinedPropertiesKeys(Node)
-func NodeUtil_GetObjectDefinedPropertiesKeys(definePropertiesCall *rhino.Node) []*rhino.Node {
+func NodeUtil_GetObjectDefinedPropertiesKeys(definePropertiesCall rhino.Node) []rhino.Node {
 	jutil.CheckArgument(NodeUtil_IsObjectDefinePropertiesDefinition(definePropertiesCall))
-	var properties []*rhino.Node
+	var properties []rhino.Node
 	objectLiteral := definePropertiesCall.GetLastChild()
-	for key := objectLiteral.GetFirstChild(); key != nil; key = key.GetNext() {
+	for key := objectLiteral.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		if !key.IsStringKey() {
 			continue
 		}
@@ -4474,7 +4474,7 @@ func NodeUtil_GetObjectDefinedPropertiesKeys(definePropertiesCall *rhino.Node) [
 // assignment to a prototype property of some constructor.
 //
 // Java: NodeUtil.isPrototypePropertyDeclaration(Node)
-func NodeUtil_IsPrototypePropertyDeclaration(n *rhino.Node) bool {
+func NodeUtil_IsPrototypePropertyDeclaration(n rhino.Node) bool {
 	return NodeUtil_IsExprAssign(n) && NodeUtil_IsPrototypeProperty(n.GetFirstFirstChild())
 }
 
@@ -4482,7 +4482,7 @@ func NodeUtil_IsPrototypePropertyDeclaration(n *rhino.Node) bool {
 // qualified prototype property.
 //
 // Java: NodeUtil.isPrototypeProperty(Node)
-func NodeUtil_IsPrototypeProperty(n *rhino.Node) bool {
+func NodeUtil_IsPrototypeProperty(n rhino.Node) bool {
 	if !n.IsGetProp() {
 		return false
 	}
@@ -4494,7 +4494,7 @@ func NodeUtil_IsPrototypeProperty(n *rhino.Node) bool {
 // method.
 //
 // Java: NodeUtil.isPrototypeMethod(Node)
-func NodeUtil_IsPrototypeMethod(n *rhino.Node) bool {
+func NodeUtil_IsPrototypeMethod(n rhino.Node) bool {
 	if !n.IsFunction() {
 		return false
 	}
@@ -4506,7 +4506,7 @@ func NodeUtil_IsPrototypeMethod(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isPrototypeAssignment(Node)
-func NodeUtil_IsPrototypeAssignment(getProp *rhino.Node) bool {
+func NodeUtil_IsPrototypeAssignment(getProp rhino.Node) bool {
 	if !getProp.IsGetProp() {
 		return false
 	}
@@ -4523,7 +4523,7 @@ func NodeUtil_IsPrototypeAssignment(getProp *rhino.Node) bool {
 // propAccess is the GETPROP or GETELEM being tested.
 //
 // Java: NodeUtil.isPropertyTest(AbstractCompiler, Node)
-func NodeUtil_IsPropertyTest(compiler AbstractCompiler, propAccess *rhino.Node) bool {
+func NodeUtil_IsPropertyTest(compiler AbstractCompiler, propAccess rhino.Node) bool {
 	parent := propAccess.GetParent()
 	switch parent.GetToken() {
 	case rhino.Token_CALL:
@@ -4537,7 +4537,7 @@ func NodeUtil_IsPropertyTest(compiler AbstractCompiler, propAccess *rhino.Node) 
 		return true
 
 	case rhino.Token_NE, rhino.Token_SHNE:
-		var other *rhino.Node
+		var other rhino.Node
 		if parent.GetFirstChild() == propAccess {
 			other = parent.GetSecondChild()
 		} else {
@@ -4556,11 +4556,11 @@ func NodeUtil_IsPropertyTest(compiler AbstractCompiler, propAccess *rhino.Node) 
 }
 
 // Java: NodeUtil.isPropertyAbsenceTest(Node)
-func NodeUtil_IsPropertyAbsenceTest(propAccess *rhino.Node) bool {
+func NodeUtil_IsPropertyAbsenceTest(propAccess rhino.Node) bool {
 	parent := propAccess.GetParent()
 	switch parent.GetToken() {
 	case rhino.Token_EQ, rhino.Token_SHEQ:
-		var other *rhino.Node
+		var other rhino.Node
 		if parent.GetFirstChild() == propAccess {
 			other = parent.GetSecondChild()
 		} else {
@@ -4578,9 +4578,9 @@ func NodeUtil_IsPropertyAbsenceTest(propAccess *rhino.Node) bool {
 // part of a qualified prototype name, e.g. foo.Bar.
 //
 // Java: NodeUtil.getPrototypeClassName(Node)
-func NodeUtil_GetPrototypeClassName(qName *rhino.Node) *rhino.Node {
+func NodeUtil_GetPrototypeClassName(qName rhino.Node) rhino.Node {
 	if !qName.IsGetProp() {
-		return nil
+		return rhino.Node{}
 	}
 	if qName.GetString() == "prototype" {
 		return qName.GetFirstChild()
@@ -4589,14 +4589,14 @@ func NodeUtil_GetPrototypeClassName(qName *rhino.Node) *rhino.Node {
 	if recv.IsGetProp() && recv.GetString() == "prototype" {
 		return recv.GetFirstChild()
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // NodeUtil_GetPrototypePropertyName returns the string property name part of
 // a qualified prototype name.
 //
 // Java: NodeUtil.getPrototypePropertyName(Node)
-func NodeUtil_GetPrototypePropertyName(qName *rhino.Node) string {
+func NodeUtil_GetPrototypePropertyName(qName rhino.Node) string {
 	qNameStr, ok := qName.GetQualifiedNameString()
 	if !ok {
 		panic(jutil.NewNullPointerException())
@@ -4610,9 +4610,9 @@ func NodeUtil_GetPrototypePropertyName(qName *rhino.Node) string {
 // "void 0".
 //
 // Java: NodeUtil.newUndefinedNode(Node)
-func NodeUtil_NewUndefinedNode(srcReferenceNode *rhino.Node) *rhino.Node {
+func NodeUtil_NewUndefinedNode(srcReferenceNode rhino.Node) rhino.Node {
 	node := rhino.IR_VoidNode(rhino.IR_Number(0))
-	if srcReferenceNode != nil {
+	if !srcReferenceNode.IsNil() {
 		node.SrcrefTree(srcReferenceNode)
 	}
 	return node
@@ -4622,9 +4622,9 @@ func NodeUtil_NewUndefinedNode(srcReferenceNode *rhino.Node) *rhino.Node {
 // initial value expression.
 //
 // Java: NodeUtil.newVarNode(String, Node)
-func NodeUtil_NewVarNode(name string, value *rhino.Node) *rhino.Node {
+func NodeUtil_NewVarNode(name string, value rhino.Node) rhino.Node {
 	lhs := rhino.IR_Name(name)
-	if value != nil {
+	if !value.IsNil() {
 		lhs.Srcref(value)
 	}
 	return NodeUtil_NewVarNodeWithLhs(lhs, value)
@@ -4634,15 +4634,15 @@ func NodeUtil_NewVarNode(name string, value *rhino.Node) *rhino.Node {
 // (name or destructuring pattern) and initial value expression.
 //
 // Java: NodeUtil.newVarNode(Node, Node)
-func NodeUtil_NewVarNodeWithLhs(lhs *rhino.Node, value *rhino.Node) *rhino.Node {
+func NodeUtil_NewVarNodeWithLhs(lhs rhino.Node, value rhino.Node) rhino.Node {
 	if lhs.IsDestructuringPattern() {
 		// TODO(b/314005766): Ensure that destructuring declarations are generated as normalized (i.e
 		// individual names get their own stub declarations)
-		jutil.CheckNotNull(value)
+		rhino.CheckNotNull(value)
 		return rhino.IR_Var(rhino.NewNodeWith2Children(rhino.Token_DESTRUCTURING_LHS, lhs, value).Srcref(lhs)).Srcref(lhs)
 	} else {
 		jutil.CheckState(lhs.IsName() && !lhs.HasChildren())
-		if value != nil {
+		if !value.IsNil() {
 			lhs.AddChildToBack(value)
 		}
 		return rhino.IR_Var(lhs).Srcref(lhs)
@@ -4650,7 +4650,7 @@ func NodeUtil_NewVarNodeWithLhs(lhs *rhino.Node, value *rhino.Node) *rhino.Node 
 }
 
 // Java: NodeUtil.emptyFunction()
-func NodeUtil_EmptyFunction() *rhino.Node {
+func NodeUtil_EmptyFunction() rhino.Node {
 	return rhino.IR_Function(rhino.IR_Name(""), rhino.IR_ParamList(), rhino.IR_Block())
 }
 
@@ -4668,7 +4668,7 @@ func NewNodeUtil_MatchNameNode(name string) *NodeUtil_MatchNameNode {
 }
 
 // Java: NodeUtil.MatchNameNode.apply(Node)
-func (m *NodeUtil_MatchNameNode) Apply(n *rhino.Node) bool {
+func (m *NodeUtil_MatchNameNode) Apply(n rhino.Node) bool {
 	return n.IsName() && n.GetString() == m.name
 }
 
@@ -4686,7 +4686,7 @@ func NewNodeUtil_MatchNodeType(type_ rhino.Token) *NodeUtil_MatchNodeType {
 }
 
 // Java: NodeUtil.MatchNodeType.apply(Node)
-func (m *NodeUtil_MatchNodeType) Apply(n *rhino.Node) bool {
+func (m *NodeUtil_MatchNodeType) Apply(n rhino.Node) bool {
 	return n.GetToken() == m.type_
 }
 
@@ -4704,12 +4704,12 @@ func NewNodeUtil_MatchDeclaration() *NodeUtil_MatchDeclaration {
 }
 
 // Java: NodeUtil.MatchDeclaration.apply(Node)
-func (m *NodeUtil_MatchDeclaration) Apply(n *rhino.Node) bool {
+func (m *NodeUtil_MatchDeclaration) Apply(n rhino.Node) bool {
 	return NodeUtil_IsDeclaration(n)
 }
 
 // Java: NodeUtil.MATCH_NOT_FUNCTION
-var NodeUtil_MATCH_NOT_FUNCTION = func(n *rhino.Node) bool { return !n.IsFunction() }
+var NodeUtil_MATCH_NOT_FUNCTION = func(n rhino.Node) bool { return !n.IsFunction() }
 
 // NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION is a predicate for matching
 // anything except for a non-arrow function.
@@ -4718,7 +4718,7 @@ var NodeUtil_MATCH_NOT_FUNCTION = func(n *rhino.Node) bool { return !n.IsFunctio
 // for this, super, or arguments.
 //
 // Java: NodeUtil.MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION
-var NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION = func(n *rhino.Node) bool { return !NodeUtil_IsNonArrowFunction(n) }
+var NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION = func(n rhino.Node) bool { return !NodeUtil_IsNonArrowFunction(n) }
 
 // NodeUtil_IsShallowStatementTree: whether the given node's subtree may
 // contain statements, excepting nested functions.
@@ -4728,8 +4728,8 @@ var NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION = func(n *rhino.Node) bool { 
 // for e.g. a BLOCK or SWITCH statement.
 //
 // Java: NodeUtil.isShallowStatementTree(Node)
-func NodeUtil_IsShallowStatementTree(n *rhino.Node) bool {
-	return n == nil ||
+func NodeUtil_IsShallowStatementTree(n rhino.Node) bool {
+	return n.IsNil() ||
 		NodeUtil_IsControlStructure(n) ||
 		NodeUtil_IsStatementBlock(n) ||
 		n.IsSwitchBody()
@@ -4749,7 +4749,7 @@ func NewNodeUtil_MatchShallowStatement() *NodeUtil_MatchShallowStatement {
 }
 
 // Java: NodeUtil.MatchShallowStatement.apply(Node)
-func (m *NodeUtil_MatchShallowStatement) Apply(n *rhino.Node) bool {
+func (m *NodeUtil_MatchShallowStatement) Apply(n rhino.Node) bool {
 	parent := n.GetParent()
 	return n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(parent))
 }
@@ -4759,7 +4759,7 @@ func (m *NodeUtil_MatchShallowStatement) Apply(n *rhino.Node) bool {
 //
 // Java: NodeUtil.getNodeTypeReferenceCount(Node, Token, Predicate<Node>)
 func NodeUtil_GetNodeTypeReferenceCount(
-	node *rhino.Node, type_ rhino.Token, traverseChildrenPred func(*rhino.Node) bool) int {
+	node rhino.Node, type_ rhino.Token, traverseChildrenPred func(rhino.Node) bool) int {
 	return NodeUtil_GetCount(node, NewNodeUtil_MatchNodeType(type_).Apply, traverseChildrenPred)
 }
 
@@ -4767,7 +4767,7 @@ func NodeUtil_GetNodeTypeReferenceCount(
 // within the node tree.
 //
 // Java: NodeUtil.isNameReferenced(Node, String, Predicate<Node>)
-func NodeUtil_IsNameReferencedWithPred(node *rhino.Node, name string, traverseChildrenPred func(*rhino.Node) bool) bool {
+func NodeUtil_IsNameReferencedWithPred(node rhino.Node, name string, traverseChildrenPred func(rhino.Node) bool) bool {
 	return NodeUtil_Has(node, NewNodeUtil_MatchNameNode(name).Apply, traverseChildrenPred)
 }
 
@@ -4775,7 +4775,7 @@ func NodeUtil_IsNameReferencedWithPred(node *rhino.Node, name string, traverseCh
 // node tree.
 //
 // Java: NodeUtil.isNameReferenced(Node, String)
-func NodeUtil_IsNameReferenced(node *rhino.Node, name string) bool {
+func NodeUtil_IsNameReferenced(node rhino.Node, name string) bool {
 	return NodeUtil_IsNameReferencedWithPred(node, name, nodeUtil_alwaysTrue)
 }
 
@@ -4783,18 +4783,18 @@ func NodeUtil_IsNameReferenced(node *rhino.Node, name string) bool {
 // referenced within the node tree.
 //
 // Java: NodeUtil.getNameReferenceCount(Node, String)
-func NodeUtil_GetNameReferenceCount(node *rhino.Node, name string) int {
+func NodeUtil_GetNameReferenceCount(node rhino.Node, name string) int {
 	return NodeUtil_GetCount(node, NewNodeUtil_MatchNameNode(name).Apply, nodeUtil_alwaysTrue)
 }
 
 // nodeUtil_alwaysTrue is Guava's Predicates.alwaysTrue() for nodes.
-func nodeUtil_alwaysTrue(*rhino.Node) bool { return true }
+func nodeUtil_alwaysTrue(rhino.Node) bool { return true }
 
 // NodeUtil_Has returns whether the predicate is true for the node or any of
 // its descendants.
 //
 // Java: NodeUtil.has(Node, Predicate<Node>, Predicate<Node>)
-func NodeUtil_Has(node *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) bool {
+func NodeUtil_Has(node rhino.Node, pred func(rhino.Node) bool, traverseChildrenPred func(rhino.Node) bool) bool {
 	if pred(node) {
 		return true
 	}
@@ -4803,7 +4803,7 @@ func NodeUtil_Has(node *rhino.Node, pred func(*rhino.Node) bool, traverseChildre
 		return false
 	}
 
-	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if NodeUtil_Has(c, pred, traverseChildrenPred) {
 			return true
 		}
@@ -4817,30 +4817,30 @@ func NodeUtil_Has(node *rhino.Node, pred func(*rhino.Node) bool, traverseChildre
 //
 // Java: NodeUtil.findPreorder(Node, Predicate<Node>, Predicate<Node>)
 func NodeUtil_FindPreorder(
-	node *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) *rhino.Node {
+	node rhino.Node, pred func(rhino.Node) bool, traverseChildrenPred func(rhino.Node) bool) rhino.Node {
 	if pred(node) {
 		return node
 	}
 
 	if !traverseChildrenPred(node) {
-		return nil
+		return rhino.Node{}
 	}
 
-	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		result := NodeUtil_FindPreorder(c, pred, traverseChildrenPred)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // NodeUtil_GetCount returns the number of times the predicate is true for
 // the node or any of its descendants.
 //
 // Java: NodeUtil.getCount(Node, Predicate<Node>, Predicate<Node>)
-func NodeUtil_GetCount(n *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) int {
+func NodeUtil_GetCount(n rhino.Node, pred func(rhino.Node) bool, traverseChildrenPred func(rhino.Node) bool) int {
 	total := 0
 
 	if pred(n) {
@@ -4848,7 +4848,7 @@ func NodeUtil_GetCount(n *rhino.Node, pred func(*rhino.Node) bool, traverseChild
 	}
 
 	if traverseChildrenPred(n) {
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			total += NodeUtil_GetCount(c, pred, traverseChildrenPred)
 		}
 	}
@@ -4863,23 +4863,23 @@ func NodeUtil_GetCount(n *rhino.Node, pred func(*rhino.Node) bool, traverseChild
 // Java: NodeUtil.Visitor
 type NodeUtil_Visitor interface {
 	// Java: NodeUtil.Visitor.visit(Node)
-	Visit(node *rhino.Node)
+	Visit(node rhino.Node)
 }
 
 // NodeUtil_VisitorFunc adapts a function (a Java lambda) to NodeUtil_Visitor.
 //
 // Go-only: language-adapter — Java lambdas implementing the functional
 // interface.
-type NodeUtil_VisitorFunc func(node *rhino.Node)
+type NodeUtil_VisitorFunc func(node rhino.Node)
 
 // Visit calls f.
-func (f NodeUtil_VisitorFunc) Visit(node *rhino.Node) { f(node) }
+func (f NodeUtil_VisitorFunc) Visit(node rhino.Node) { f(node) }
 
 // NodeUtil_VisitPreOrder is a pre-order traversal, calling Visitor.visit for
 // each decendent.
 //
 // Java: NodeUtil.visitPreOrder(Node, Visitor)
-func NodeUtil_VisitPreOrder(node *rhino.Node, visitor NodeUtil_Visitor) {
+func NodeUtil_VisitPreOrder(node rhino.Node, visitor NodeUtil_Visitor) {
 	NodeUtil_VisitPreOrderWithPred(node, visitor, nodeUtil_alwaysTrue)
 }
 
@@ -4889,11 +4889,11 @@ func NodeUtil_VisitPreOrder(node *rhino.Node, visitor NodeUtil_Visitor) {
 //
 // Java: NodeUtil.visitPreOrder(Node, Visitor, Predicate<Node>)
 func NodeUtil_VisitPreOrderWithPred(
-	node *rhino.Node, visitor NodeUtil_Visitor, traverseChildrenPred func(*rhino.Node) bool) {
+	node rhino.Node, visitor NodeUtil_Visitor, traverseChildrenPred func(rhino.Node) bool) {
 	visitor.Visit(node)
 
 	if traverseChildrenPred(node) {
-		for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			NodeUtil_VisitPreOrderWithPred(c, visitor, traverseChildrenPred)
 		}
 	}
@@ -4903,7 +4903,7 @@ func NodeUtil_VisitPreOrderWithPred(
 // for each decendent.
 //
 // Java: NodeUtil.visitPostOrder(Node, Visitor)
-func NodeUtil_VisitPostOrder(node *rhino.Node, visitor NodeUtil_Visitor) {
+func NodeUtil_VisitPostOrder(node rhino.Node, visitor NodeUtil_Visitor) {
 	NodeUtil_VisitPostOrderWithPred(node, visitor, nodeUtil_alwaysTrue)
 }
 
@@ -4913,9 +4913,9 @@ func NodeUtil_VisitPostOrder(node *rhino.Node, visitor NodeUtil_Visitor) {
 //
 // Java: NodeUtil.visitPostOrder(Node, Visitor, Predicate<Node>)
 func NodeUtil_VisitPostOrderWithPred(
-	node *rhino.Node, visitor NodeUtil_Visitor, traverseChildrenPred func(*rhino.Node) bool) {
+	node rhino.Node, visitor NodeUtil_Visitor, traverseChildrenPred func(rhino.Node) bool) {
 	if traverseChildrenPred(node) {
-		for c := node.GetFirstChild(); c != nil; {
+		for c := node.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
 			NodeUtil_VisitPostOrderWithPred(c, visitor, traverseChildrenPred)
 			c = next
@@ -4946,9 +4946,9 @@ func NodeUtil_VisitPostOrderWithPred(
 // lambda.
 //
 // Java: NodeUtil.preOrderIterable(Node, Predicate<Node>)
-func NodeUtil_PreOrderIterableWithPred(root *rhino.Node, travserseNodePredicate func(*rhino.Node) bool) iter.Seq[*rhino.Node] {
-	return func(yield func(*rhino.Node) bool) {
-		if root == nil {
+func NodeUtil_PreOrderIterableWithPred(root rhino.Node, travserseNodePredicate func(rhino.Node) bool) iter.Seq[rhino.Node] {
+	return func(yield func(rhino.Node) bool) {
+		if root.IsNil() {
 			panic(jutil.NewNullPointerException())
 		}
 		it := NodeUtil_PreOrderIterator{traverseNodePredicate: travserseNodePredicate, current: root}
@@ -4964,7 +4964,7 @@ func NodeUtil_PreOrderIterableWithPred(root *rhino.Node, travserseNodePredicate 
 // but iterates over all nodes in the tree without exception.
 //
 // Java: NodeUtil.preOrderIterable(Node)
-func NodeUtil_PreOrderIterable(root *rhino.Node) iter.Seq[*rhino.Node] {
+func NodeUtil_PreOrderIterable(root rhino.Node) iter.Seq[rhino.Node] {
 	return NodeUtil_PreOrderIterableWithPred(
 		root,
 		// Traverse all nodes.
@@ -4976,20 +4976,20 @@ func NodeUtil_PreOrderIterable(root *rhino.Node) iter.Seq[*rhino.Node] {
 //
 // Java: NodeUtil.PreOrderIterator
 type NodeUtil_PreOrderIterator struct {
-	traverseNodePredicate func(*rhino.Node) bool
+	traverseNodePredicate func(rhino.Node) bool
 
-	current *rhino.Node
+	current rhino.Node
 
 	// Go-only: language-adapter — AbstractIterator's state: whether next
 	// holds a computed element, and whether endOfData() was reached.
-	next    *rhino.Node
+	next    rhino.Node
 	hasNext bool
 	done    bool
 }
 
 // Java: NodeUtil.PreOrderIterator(Node, Predicate<Node>)
-func NewNodeUtil_PreOrderIterator(root *rhino.Node, traverseNodePredicate func(*rhino.Node) bool) *NodeUtil_PreOrderIterator {
-	if root == nil {
+func NewNodeUtil_PreOrderIterator(root rhino.Node, traverseNodePredicate func(rhino.Node) bool) *NodeUtil_PreOrderIterator {
+	if root.IsNil() {
 		panic(jutil.NewNullPointerException())
 	}
 	return &NodeUtil_PreOrderIterator{traverseNodePredicate: traverseNodePredicate, current: root}
@@ -5013,22 +5013,22 @@ func (it *NodeUtil_PreOrderIterator) HasNext() bool {
 }
 
 // Next is AbstractIterator.next().
-func (it *NodeUtil_PreOrderIterator) Next() *rhino.Node {
+func (it *NodeUtil_PreOrderIterator) Next() rhino.Node {
 	if !it.HasNext() {
 		panic(jutil.NewNoSuchElementException())
 	}
 	it.hasNext = false
 	result := it.next
-	it.next = nil
+	it.next = rhino.Node{}
 	return result
 }
 
 // ComputeNext returns the next node, or ok=false for endOfData().
 //
 // Java: NodeUtil.PreOrderIterator.computeNext()
-func (it *NodeUtil_PreOrderIterator) ComputeNext() (next *rhino.Node, ok bool) {
-	if it.current == nil {
-		return nil, false
+func (it *NodeUtil_PreOrderIterator) ComputeNext() (next rhino.Node, ok bool) {
+	if it.current.IsNil() {
+		return rhino.Node{}, false
 	}
 
 	returnValue := it.current
@@ -5037,8 +5037,8 @@ func (it *NodeUtil_PreOrderIterator) ComputeNext() (next *rhino.Node, ok bool) {
 }
 
 // Java: NodeUtil.PreOrderIterator.calculateNextNode(Node)
-func (it *NodeUtil_PreOrderIterator) CalculateNextNode(currentNode *rhino.Node) *rhino.Node {
-	if currentNode == nil {
+func (it *NodeUtil_PreOrderIterator) CalculateNextNode(currentNode rhino.Node) rhino.Node {
+	if currentNode.IsNil() {
 		panic(jutil.NewNullPointerException())
 	}
 
@@ -5056,22 +5056,22 @@ func (it *NodeUtil_PreOrderIterator) CalculateNextNode(currentNode *rhino.Node) 
 	// first sibling we see.
 	// If we don't find one, we're done.
 
-	for currentNode != nil {
+	for !currentNode.IsNil() {
 		next := currentNode.GetNext()
-		if next != nil {
+		if !next.IsNil() {
 			return next
 		}
 
 		currentNode = currentNode.GetParent()
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // NodeUtil_IsExportFrom returns whether an EXPORT node has a from clause.
 //
 // Java: NodeUtil.isExportFrom(Node)
-func NodeUtil_IsExportFrom(n *rhino.Node) bool {
+func NodeUtil_IsExportFrom(n rhino.Node) bool {
 	jutil.CheckArgument(n.IsExport())
 	return n.HasTwoChildren()
 }
@@ -5079,7 +5079,7 @@ func NodeUtil_IsExportFrom(n *rhino.Node) bool {
 // NodeUtil_HasFinally returns whether a TRY node has a finally block.
 //
 // Java: NodeUtil.hasFinally(Node)
-func NodeUtil_HasFinally(n *rhino.Node) bool {
+func NodeUtil_HasFinally(n rhino.Node) bool {
 	jutil.CheckArgument(n.IsTry())
 	return n.HasXChildren(3)
 }
@@ -5088,7 +5088,7 @@ func NodeUtil_HasFinally(n *rhino.Node) bool {
 // (if any) of a TRY.
 //
 // Java: NodeUtil.getCatchBlock(Node)
-func NodeUtil_GetCatchBlock(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetCatchBlock(n rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsTry())
 	return n.GetSecondChild()
 }
@@ -5099,7 +5099,7 @@ func NodeUtil_GetCatchBlock(n *rhino.Node) *rhino.Node {
 // See NodeUtil_GetCatchBlock.
 //
 // Java: NodeUtil.hasCatchHandler(Node)
-func NodeUtil_HasCatchHandler(n *rhino.Node) bool {
+func NodeUtil_HasCatchHandler(n rhino.Node) bool {
 	jutil.CheckArgument(n.IsBlock())
 	return n.HasChildren() && n.GetFirstChild().IsCatch()
 }
@@ -5108,7 +5108,7 @@ func NodeUtil_HasCatchHandler(n *rhino.Node) bool {
 // containing the Function parameters.
 //
 // Java: NodeUtil.getFunctionParameters(Node)
-func NodeUtil_GetFunctionParameters(fnNode *rhino.Node) *rhino.Node {
+func NodeUtil_GetFunctionParameters(fnNode rhino.Node) rhino.Node {
 	jutil.CheckArgument(fnNode.IsFunction())
 	return fnNode.GetSecondChild()
 }
@@ -5121,10 +5121,10 @@ func NodeUtil_GetFunctionParameters(fnNode *rhino.Node) *rhino.Node {
 // non-simple; false otherwise.
 //
 // Java: NodeUtil.hasNonSimpleParameters(Node)
-func NodeUtil_HasNonSimpleParameters(fnNode *rhino.Node) bool {
+func NodeUtil_HasNonSimpleParameters(fnNode rhino.Node) bool {
 	jutil.CheckArgument(fnNode.IsFunction())
 	paramList := NodeUtil_GetFunctionParameters(fnNode)
-	for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
+	for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
 		if !param.IsName() {
 			return true
 		}
@@ -5141,10 +5141,10 @@ func NodeUtil_HasNonSimpleParameters(fnNode *rhino.Node) bool {
 // parameters may have side effects or throw; false otherwise.
 //
 // Java: NodeUtil.functionParametersMayHaveSideEffects(Node, AstAnalyzer)
-func NodeUtil_FunctionParametersMayHaveSideEffects(fnNode *rhino.Node, astAnalyzer *AstAnalyzer) bool {
+func NodeUtil_FunctionParametersMayHaveSideEffects(fnNode rhino.Node, astAnalyzer *AstAnalyzer) bool {
 	jutil.CheckArgument(fnNode.IsFunction())
 	paramList := NodeUtil_GetFunctionParameters(fnNode)
-	for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
+	for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
 		if param.IsName() {
 			continue
 		}
@@ -5171,7 +5171,7 @@ func NodeUtil_FunctionParametersMayHaveSideEffects(fnNode *rhino.Node, astAnalyz
 }
 
 // Java: NodeUtil.isConstantVar(Node, Scope)
-func NodeUtil_IsConstantVar(node *rhino.Node, scope *Scope) bool {
+func NodeUtil_IsConstantVar(node rhino.Node, scope *Scope) bool {
 	if NodeUtil_IsConstantName(node) {
 		return true
 	}
@@ -5196,7 +5196,7 @@ func NodeUtil_IsConstantVar(node *rhino.Node, scope *Scope) bool {
 // identical things. Clean up
 //
 // Java: NodeUtil.isConstantName(Node)
-func NodeUtil_IsConstantName(node *rhino.Node) bool {
+func NodeUtil_IsConstantName(node rhino.Node) bool {
 	return node.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)
 }
 
@@ -5207,7 +5207,7 @@ func NodeUtil_IsConstantName(node *rhino.Node) bool {
 // http://b/135755127
 //
 // Java: NodeUtil.isConstantByConvention(CodingConvention, Node)
-func NodeUtil_IsConstantByConvention(convention CodingConvention, node *rhino.Node) bool {
+func NodeUtil_IsConstantByConvention(convention CodingConvention, node rhino.Node) bool {
 	if NodeUtil_IsNormalOrOptChainGetProp(node) {
 		return convention.IsConstantKey(node.GetString())
 	} else if NodeUtil_MayBeObjectLitKey(node) {
@@ -5228,7 +5228,7 @@ func NodeUtil_IsConstantByConvention(convention CodingConvention, node *rhino.No
 // is not an lvalue.
 //
 // Java: NodeUtil.isConstantDeclaration(JSDocInfo, Node)
-func NodeUtil_IsConstantDeclaration(info *rhino.JSDocInfo, node *rhino.Node) bool {
+func NodeUtil_IsConstantDeclaration(info *rhino.JSDocInfo, node rhino.Node) bool {
 	if NodeUtil_IsObjectLitKey(node) ||
 		(node.GetParent().IsAssign() && node.IsFirstChildOf(node.GetParent())) ||
 		(node.GetParent().IsExprResult() && NodeUtil_IsNormalGet(node)) ||
@@ -5248,7 +5248,7 @@ func NodeUtil_IsConstantDeclaration(info *rhino.JSDocInfo, node *rhino.Node) boo
 }
 
 // Java: NodeUtil.functionHasInlineJsdocs(Node)
-func NodeUtil_FunctionHasInlineJsdocs(fn *rhino.Node) bool {
+func NodeUtil_FunctionHasInlineJsdocs(fn rhino.Node) bool {
 	if !fn.IsFunction() {
 		return false
 	}
@@ -5258,7 +5258,7 @@ func NodeUtil_FunctionHasInlineJsdocs(fn *rhino.Node) bool {
 	}
 	// Check inline parameter annotations
 	param := fn.GetSecondChild().GetFirstChild()
-	for param != nil {
+	for !param.IsNil() {
 		if param.GetJSDocInfo() != nil {
 			return true
 		}
@@ -5271,9 +5271,9 @@ func NodeUtil_FunctionHasInlineJsdocs(fn *rhino.Node) bool {
 // ancestors.
 //
 // Java: NodeUtil.getSourceName(Node)
-func NodeUtil_GetSourceName(n *rhino.Node) *string {
+func NodeUtil_GetSourceName(n rhino.Node) *string {
 	var sourceName *string
-	for sourceName == nil && n != nil {
+	for sourceName == nil && !n.IsNil() {
 		sourceName = n.GetSourceFileName()
 		n = n.GetParent()
 	}
@@ -5284,9 +5284,9 @@ func NodeUtil_GetSourceName(n *rhino.Node) *string {
 // ancestors.
 //
 // Java: NodeUtil.getSourceFile(Node)
-func NodeUtil_GetSourceFile(n *rhino.Node) rhino.StaticSourceFile {
+func NodeUtil_GetSourceFile(n rhino.Node) rhino.StaticSourceFile {
 	var sourceName rhino.StaticSourceFile
-	for sourceName == nil && n != nil {
+	for sourceName == nil && !n.IsNil() {
 		sourceName = n.GetStaticSourceFile()
 		n = n.GetParent()
 	}
@@ -5297,12 +5297,12 @@ func NodeUtil_GetSourceFile(n *rhino.Node) rhino.StaticSourceFile {
 // ancestors.
 //
 // Java: NodeUtil.getInputId(Node)
-func NodeUtil_GetInputId(n *rhino.Node) *rhino.InputId {
-	for n != nil && !n.IsScript() {
+func NodeUtil_GetInputId(n rhino.Node) *rhino.InputId {
+	for !n.IsNil() && !n.IsScript() {
 		n = n.GetParent()
 	}
 
-	if n != nil && n.IsScript() {
+	if !n.IsNil() && n.IsScript() {
 		return n.GetInputId()
 	}
 	return nil
@@ -5312,7 +5312,7 @@ func NodeUtil_GetInputId(n *rhino.Node) *rhino.InputId {
 // based on call target.
 //
 // Java: NodeUtil.newCallNode(Node, Node...)
-func NodeUtil_NewCallNode(callTarget *rhino.Node, parameters ...*rhino.Node) *rhino.Node {
+func NodeUtil_NewCallNode(callTarget rhino.Node, parameters ...rhino.Node) rhino.Node {
 	isFreeCall := !NodeUtil_IsNormalGet(callTarget)
 	call := rhino.IR_Call(callTarget)
 	call.PutBooleanProp(rhino.Node_FREE_CALL, isFreeCall)
@@ -5343,7 +5343,7 @@ func NodeUtil_NewCallNode(callTarget *rhino.Node, parameters ...*rhino.Node) *rh
 // escape.
 //
 // Java: NodeUtil.evaluatesToLocalValue(Node)
-func NodeUtil_EvaluatesToLocalValue(value *rhino.Node) bool {
+func NodeUtil_EvaluatesToLocalValue(value rhino.Node) bool {
 	switch value.GetToken() {
 	case rhino.Token_ASSIGN:
 		// A result that is aliased by a non-local name, is the effectively the
@@ -5411,7 +5411,7 @@ func NodeUtil_EvaluatesToLocalValue(value *rhino.Node) bool {
 // evaluate to 'undefined'.
 //
 // Java: NodeUtil.mayBeUndefined(Node)
-func NodeUtil_MayBeUndefined(n *rhino.Node) bool {
+func NodeUtil_MayBeUndefined(n rhino.Node) bool {
 	return !NodeUtil_IsDefinedValue(n)
 }
 
@@ -5422,7 +5422,7 @@ func NodeUtil_MayBeUndefined(n *rhino.Node) bool {
 // simplifying default value expressions.
 //
 // Java: NodeUtil.isDefinedValue(Node)
-func NodeUtil_IsDefinedValue(value *rhino.Node) bool {
+func NodeUtil_IsDefinedValue(value rhino.Node) bool {
 	switch value.GetToken() {
 	case rhino.Token_ASSIGN, rhino.Token_CAST, rhino.Token_COMMA:
 		// Only the assigned value matters here.
@@ -5492,9 +5492,9 @@ func NodeUtil_IsDefinedValue(value *rhino.Node) bool {
 // but returns null for non-existent indexes.
 //
 // Java: NodeUtil.getNthSibling(Node, int)
-func NodeUtil_GetNthSibling(first *rhino.Node, index int) *rhino.Node {
+func NodeUtil_GetNthSibling(first rhino.Node, index int) rhino.Node {
 	sibling := first
-	for index != 0 && sibling != nil {
+	for index != 0 && !sibling.IsNil() {
 		sibling = sibling.GetNext()
 		index--
 	}
@@ -5505,7 +5505,7 @@ func NodeUtil_GetNthSibling(first *rhino.Node, index int) *rhino.Node {
 // argument or null if no such parameter exists.
 //
 // Java: NodeUtil.getArgumentForFunction(Node, int)
-func NodeUtil_GetArgumentForFunction(function *rhino.Node, index int) *rhino.Node {
+func NodeUtil_GetArgumentForFunction(function rhino.Node, index int) rhino.Node {
 	jutil.CheckState(function.IsFunction())
 	return NodeUtil_GetNthSibling(function.GetSecondChild().GetFirstChild(), index)
 }
@@ -5514,7 +5514,7 @@ func NodeUtil_GetArgumentForFunction(function *rhino.Node, index int) *rhino.Nod
 // nth argument of the call or null if no such argument exists.
 //
 // Java: NodeUtil.getArgumentForCallOrNew(Node, int)
-func NodeUtil_GetArgumentForCallOrNew(call *rhino.Node, index int) *rhino.Node {
+func NodeUtil_GetArgumentForCallOrNew(call rhino.Node, index int) rhino.Node {
 	jutil.CheckState(NodeUtil_IsCallOrNew(call))
 	return NodeUtil_GetNthSibling(call.GetSecondChild(), index)
 }
@@ -5523,9 +5523,9 @@ func NodeUtil_GetArgumentForCallOrNew(call *rhino.Node, index int) *rhino.Node {
 // new.
 //
 // Java: NodeUtil.isInvocationTarget(Node)
-func NodeUtil_IsInvocationTarget(n *rhino.Node) bool {
+func NodeUtil_IsInvocationTarget(n rhino.Node) bool {
 	parent := n.GetParent()
-	return parent != nil &&
+	return !parent.IsNil() &&
 		(NodeUtil_IsCallOrNew(parent) || parent.IsTaggedTemplateLit()) &&
 		parent.GetFirstChild() == n
 }
@@ -5534,18 +5534,18 @@ func NodeUtil_IsInvocationTarget(n *rhino.Node) bool {
 // template lits) or new.
 //
 // Java: NodeUtil.isInvocation(Node)
-func NodeUtil_IsInvocation(n *rhino.Node) bool {
+func NodeUtil_IsInvocation(n rhino.Node) bool {
 	return NodeUtil_IsCallOrNew(n) || n.IsTaggedTemplateLit()
 }
 
 // Java: NodeUtil.isCallOrNewArgument(Node)
-func NodeUtil_IsCallOrNewArgument(n *rhino.Node) bool {
+func NodeUtil_IsCallOrNewArgument(n rhino.Node) bool {
 	parent := n.GetParent()
-	return parent != nil && NodeUtil_IsCallOrNew(parent) && parent.GetFirstChild() != n
+	return !parent.IsNil() && NodeUtil_IsCallOrNew(parent) && parent.GetFirstChild() != n
 }
 
 // Java: NodeUtil.isToStringMethodCall(Node)
-func NodeUtil_IsToStringMethodCall(call *rhino.Node) bool {
+func NodeUtil_IsToStringMethodCall(call rhino.Node) bool {
 	getNode := call.GetFirstChild()
 	var name string
 	if NodeUtil_IsNormalOrOptChainGetProp(getNode) {
@@ -5567,7 +5567,7 @@ func NodeUtil_IsToStringMethodCall(call *rhino.Node) bool {
 // given name declaration, or null if none present.
 //
 // Java: NodeUtil.getDeclaredTypeExpression(Node)
-func NodeUtil_GetDeclaredTypeExpression(declaration *rhino.Node) *rhino.JSTypeExpression {
+func NodeUtil_GetDeclaredTypeExpression(declaration rhino.Node) *rhino.JSTypeExpression {
 	jutil.CheckArgument(declaration.IsName() || declaration.IsStringKey())
 	nameJsdoc := NodeUtil_GetBestJSDocInfo(declaration)
 	if nameJsdoc != nil {
@@ -5589,9 +5589,9 @@ func NodeUtil_GetDeclaredTypeExpression(declaration *rhino.Node) *rhino.JSTypeEx
 // NodeUtil_GetBestJSDocInfo finds the best JSDoc for the given node.
 //
 // Java: NodeUtil.getBestJSDocInfo(Node)
-func NodeUtil_GetBestJSDocInfo(n *rhino.Node) *rhino.JSDocInfo {
+func NodeUtil_GetBestJSDocInfo(n rhino.Node) *rhino.JSDocInfo {
 	jsdocNode := NodeUtil_GetBestJSDocInfoNode(n)
-	if jsdocNode == nil {
+	if jsdocNode.IsNil() {
 		return nil
 	}
 	return jsdocNode.GetJSDocInfo()
@@ -5605,7 +5605,7 @@ func NodeUtil_GetBestJSDocInfo(n *rhino.Node) *rhino.JSDocInfo {
 // Throws IllegalStateException if any other input node token is provided.
 //
 // Java: NodeUtil.getBestJsDocInfoNodeStrict(Node)
-func NodeUtil_GetBestJsDocInfoNodeStrict(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetBestJsDocInfoNodeStrict(n rhino.Node) rhino.Node {
 	isDeclaredName := n.IsName() && NodeUtil_IsNameDeclaration(n.GetParent())
 	if isDeclaredName {
 		return NodeUtil_GetBestJsDocInfoNodeInternal(n)
@@ -5644,7 +5644,7 @@ func NodeUtil_GetBestJsDocInfoNodeStrict(n *rhino.Node) *rhino.Node {
 // NodeUtil_IsRhsClass: e.g. `class A` in `/** some */ var x = class A {};`
 //
 // Java: NodeUtil.isRhsClass(Node)
-func NodeUtil_IsRhsClass(n *rhino.Node) bool {
+func NodeUtil_IsRhsClass(n rhino.Node) bool {
 	return NodeUtil_IsNamedClassExpression(n) &&
 		(n.GetParent().IsName() || n.GetParent().IsAssign())
 }
@@ -5653,7 +5653,7 @@ func NodeUtil_IsRhsClass(n *rhino.Node) bool {
 // `/** some */ var x = function A() {};`
 //
 // Java: NodeUtil.isRhsFunction(Node)
-func NodeUtil_IsRhsFunction(n *rhino.Node) bool {
+func NodeUtil_IsRhsFunction(n rhino.Node) bool {
 	return NodeUtil_IsNamedFunctionExpression(n) &&
 		(n.GetParent().IsName() || n.GetParent().IsAssign())
 }
@@ -5665,20 +5665,20 @@ func NodeUtil_IsRhsFunction(n *rhino.Node) bool {
 // this function. Use getBestJSDocInfoNodeStrict instead.
 //
 // Java: NodeUtil.getBestJSDocInfoNode(Node)
-func NodeUtil_GetBestJSDocInfoNode(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetBestJSDocInfoNode(n rhino.Node) rhino.Node {
 	return NodeUtil_GetBestJsDocInfoNodeInternal(n)
 }
 
 // Java: NodeUtil.getBestJsDocInfoNodeInternal(Node)
-func NodeUtil_GetBestJsDocInfoNodeInternal(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetBestJsDocInfoNodeInternal(n rhino.Node) rhino.Node {
 	if n.IsExprResult() {
 		return NodeUtil_GetBestJSDocInfoNode(n.GetFirstChild())
 	}
 	info := n.GetJSDocInfo()
 	if info == nil {
 		parent := n.GetParent()
-		if parent == nil || n.IsExprResult() {
-			return nil
+		if parent.IsNil() || n.IsExprResult() {
+			return rhino.Node{}
 		}
 
 		if parent.IsName() ||
@@ -5711,7 +5711,7 @@ func NodeUtil_GetBestJsDocInfoNodeInternal(n *rhino.Node) *rhino.Node {
 // assigned to.
 //
 // Java: NodeUtil.getBestLValue(Node)
-func NodeUtil_GetBestLValue(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetBestLValue(n rhino.Node) rhino.Node {
 	parent := n.GetParent()
 	if NodeUtil_IsFunctionDeclaration(n) || NodeUtil_IsClassDeclaration(n) {
 		return n.GetFirstChild()
@@ -5731,14 +5731,14 @@ func NodeUtil_GetBestLValue(n *rhino.Node) *rhino.Node {
 	} else if parent.IsCast() {
 		return NodeUtil_GetBestLValue(parent)
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // NodeUtil_GetRValueOfLValue gets the r-value (or initializer) of a node
 // returned by getBestLValue.
 //
 // Java: NodeUtil.getRValueOfLValue(Node)
-func NodeUtil_GetRValueOfLValue(n *rhino.Node) *rhino.Node {
+func NodeUtil_GetRValueOfLValue(n rhino.Node) rhino.Node {
 	parent := n.GetParent()
 	switch parent.GetToken() {
 	case rhino.Token_ASSIGN,
@@ -5785,7 +5785,7 @@ func NodeUtil_GetRValueOfLValue(n *rhino.Node) *rhino.Node {
 		return parent
 	default:
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // NodeUtil_GetBestLValueOwner gets the owner of the given l-value node.
@@ -5794,9 +5794,9 @@ func NodeUtil_GetRValueOfLValue(n *rhino.Node) *rhino.Node {
 //
 // TODO(b/189993301): do I have to add logic for class fields in these LValue
 // functions?
-func NodeUtil_GetBestLValueOwner(lValue *rhino.Node) *rhino.Node {
-	if lValue == nil || lValue.GetParent() == nil {
-		return nil
+func NodeUtil_GetBestLValueOwner(lValue rhino.Node) rhino.Node {
+	if lValue.IsNil() || lValue.GetParent().IsNil() {
+		return rhino.Node{}
 	}
 	if NodeUtil_MayBeObjectLitKey(lValue) || lValue.IsComputedProp() {
 		return NodeUtil_GetBestLValue(lValue.GetParent())
@@ -5804,7 +5804,7 @@ func NodeUtil_GetBestLValueOwner(lValue *rhino.Node) *rhino.Node {
 		return lValue.GetFirstChild()
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // NodeUtil_GetBestLValueName gets the name of the given l-value node.
@@ -5814,7 +5814,7 @@ func NodeUtil_GetBestLValueOwner(lValue *rhino.Node) *rhino.Node {
 // the string header on its stack.
 //
 // Java: NodeUtil.getBestLValueName(Node)
-func NodeUtil_GetBestLValueName(lValue *rhino.Node) *string {
+func NodeUtil_GetBestLValueName(lValue rhino.Node) *string {
 	s, ok := nodeUtil_getBestLValueNameString(lValue)
 	if !ok {
 		return nil
@@ -5824,8 +5824,8 @@ func NodeUtil_GetBestLValueName(lValue *rhino.Node) *string {
 
 // nodeUtil_getBestLValueNameString is the body of getBestLValueName; ok is
 // false where Java returns null.
-func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
-	if lValue == nil || lValue.GetParent() == nil {
+func nodeUtil_getBestLValueNameString(lValue rhino.Node) (string, bool) {
+	if lValue.IsNil() || lValue.GetParent().IsNil() {
 		return "", false
 	}
 	if lValue.GetParent().IsClassMembers() && !lValue.IsComputedProp() {
@@ -5843,7 +5843,7 @@ func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
 	// Could get rid of the isJSIdentifier check, but may need to fix depot.
 	if NodeUtil_MayBeObjectLitKey(lValue) {
 		owner := NodeUtil_GetBestLValue(lValue.GetParent())
-		if owner != nil {
+		if !owner.IsNil() {
 			key := NodeUtil_GetObjectOrClassLitKeyName(lValue)
 			if !rhino.TokenStream_IsJSIdentifier(key) {
 				return "", false
@@ -5861,9 +5861,9 @@ func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
 // NodeUtil_GetBestLValueRoot gets the root of a qualified name l-value.
 //
 // Java: NodeUtil.getBestLValueRoot(Node)
-func NodeUtil_GetBestLValueRoot(lValue *rhino.Node) *rhino.Node {
-	if lValue == nil {
-		return nil
+func NodeUtil_GetBestLValueRoot(lValue rhino.Node) rhino.Node {
+	if lValue.IsNil() {
+		return rhino.Node{}
 	}
 	switch lValue.GetToken() {
 	case rhino.Token_STRING_KEY:
@@ -5874,7 +5874,7 @@ func NodeUtil_GetBestLValueRoot(lValue *rhino.Node) *rhino.Node {
 	case rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_NAME:
 		return lValue
 	default:
-		return nil
+		return rhino.Node{}
 	}
 }
 
@@ -5882,7 +5882,7 @@ func NodeUtil_GetBestLValueRoot(lValue *rhino.Node) *rhino.Node {
 // expression is consumed.
 //
 // Java: NodeUtil.isExpressionResultUsed(Node)
-func NodeUtil_IsExpressionResultUsed(expr *rhino.Node) bool {
+func NodeUtil_IsExpressionResultUsed(expr rhino.Node) bool {
 	parent := expr.GetParent()
 	switch parent.GetToken() {
 	case rhino.Token_BLOCK, rhino.Token_EXPR_RESULT:
@@ -5928,7 +5928,7 @@ func NodeUtil_IsExpressionResultUsed(expr *rhino.Node) bool {
 // containing execution scope.
 //
 // Java: NodeUtil.isExecutedExactlyOnce(Node)
-func NodeUtil_IsExecutedExactlyOnce(n *rhino.Node) bool {
+func NodeUtil_IsExecutedExactlyOnce(n rhino.Node) bool {
 	// Go-only: language-adapter — Java's do-while; `continue inspect` jumps
 	// to the loop condition, which ends each iteration below.
 inspect:
@@ -5968,7 +5968,7 @@ inspect:
 		default:
 		}
 		n = n.GetParent()
-		if n == nil {
+		if n.IsNil() {
 			break
 		}
 	}
@@ -5979,7 +5979,7 @@ inspect:
 // value.
 //
 // Java: NodeUtil.booleanNode(boolean)
-func NodeUtil_BooleanNode(value bool) *rhino.Node {
+func NodeUtil_BooleanNode(value bool) rhino.Node {
 	if value {
 		return rhino.IR_TrueNode()
 	}
@@ -5989,8 +5989,8 @@ func NodeUtil_BooleanNode(value bool) *rhino.Node {
 // NodeUtil_NumberNode returns an appropriate AST node for the double value.
 //
 // Java: NodeUtil.numberNode(double, Node)
-func NodeUtil_NumberNode(value float64, srcref *rhino.Node) *rhino.Node {
-	var result *rhino.Node
+func NodeUtil_NumberNode(value float64, srcref rhino.Node) rhino.Node {
+	var result rhino.Node
 	if math.IsNaN(value) {
 		result = rhino.IR_Name("NaN")
 		result.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
@@ -6005,14 +6005,14 @@ func NodeUtil_NumberNode(value float64, srcref *rhino.Node) *rhino.Node {
 			result = rhino.IR_Neg(result)
 		}
 	}
-	if srcref != nil {
+	if !srcref.IsNil() {
 		result.SrcrefTree(srcref)
 	}
 	return result
 }
 
 // Java: NodeUtil.isNaN(Node)
-func NodeUtil_IsNaN(n *rhino.Node) bool {
+func NodeUtil_IsNaN(n rhino.Node) bool {
 	return (n.IsName() && n.GetString() == "NaN") ||
 		(n.GetToken() == rhino.Token_DIV &&
 			n.GetFirstChild().IsNumber() &&
@@ -6026,11 +6026,11 @@ func NodeUtil_IsNaN(n *rhino.Node) bool {
 var NodeUtil_NUMBER_NAN = rhino.IR_Getprop(rhino.IR_Name("Number"), "NaN")
 
 // Java: NodeUtil.countAstSizeUpToLimit(Node, int)
-func NodeUtil_CountAstSizeUpToLimit(n *rhino.Node, limit int) int {
+func NodeUtil_CountAstSizeUpToLimit(n rhino.Node, limit int) int {
 	count := 1
 	if limit > 1 {
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-			if c.GetFirstChild() == nil || limit-count <= 1 {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			if c.GetFirstChild().IsNil() || limit-count <= 1 {
 				count++
 			} else {
 				count += NodeUtil_CountAstSizeUpToLimit(c, limit-count)
@@ -6041,19 +6041,19 @@ func NodeUtil_CountAstSizeUpToLimit(n *rhino.Node, limit int) int {
 }
 
 // Java: NodeUtil.countAstSize(Node)
-func NodeUtil_CountAstSize(n *rhino.Node) int {
+func NodeUtil_CountAstSize(n rhino.Node) int {
 	count := 1
-	if n.GetFirstChild() == nil {
+	if n.GetFirstChild().IsNil() {
 		return 1
 	}
-	var stackBuf [64]*rhino.Node
+	var stackBuf [64]rhino.Node
 	stack := stackBuf[:0]
 	cur := n
 	for {
-		for c := cur.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := cur.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			count++
-			if gc := c.GetFirstChild(); gc != nil {
-				if gc.GetNext() == nil && gc.GetFirstChild() == nil {
+			if gc := c.GetFirstChild(); !gc.IsNil() {
+				if gc.GetNext().IsNil() && gc.GetFirstChild().IsNil() {
 					count++
 				} else {
 					stack = append(stack, c)
@@ -6076,7 +6076,7 @@ func NodeUtil_CreateConstantJsDoc() *rhino.JSDocInfo {
 }
 
 // Java: NodeUtil.isGoogProvideCall(Node)
-func NodeUtil_IsGoogProvideCall(n *rhino.Node) bool {
+func NodeUtil_IsGoogProvideCall(n rhino.Node) bool {
 	if NodeUtil_IsExprCall(n) {
 		target := n.GetFirstFirstChild()
 		return NodeUtil_GOOG_PROVIDE.Matches(target)
@@ -6085,7 +6085,7 @@ func NodeUtil_IsGoogProvideCall(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isGoogModuleCall(Node)
-func NodeUtil_IsGoogModuleCall(n *rhino.Node) bool {
+func NodeUtil_IsGoogModuleCall(n rhino.Node) bool {
 	if NodeUtil_IsExprCall(n) {
 		target := n.GetFirstFirstChild()
 		return NodeUtil_GOOG_MODULE.Matches(target)
@@ -6094,7 +6094,7 @@ func NodeUtil_IsGoogModuleCall(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isGoogModuleGetCall(Node)
-func NodeUtil_IsGoogModuleGetCall(callNode *rhino.Node) bool {
+func NodeUtil_IsGoogModuleGetCall(callNode rhino.Node) bool {
 	if !callNode.IsCall() {
 		return false
 	}
@@ -6104,7 +6104,7 @@ func NodeUtil_IsGoogModuleGetCall(callNode *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isGoogRequireCall(Node)
-func NodeUtil_IsGoogRequireCall(call *rhino.Node) bool {
+func NodeUtil_IsGoogRequireCall(call rhino.Node) bool {
 	if call.IsCall() {
 		target := call.GetFirstChild()
 		return NodeUtil_GOOG_REQUIRE.Matches(target)
@@ -6113,7 +6113,7 @@ func NodeUtil_IsGoogRequireCall(call *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isGoogRequireTypeCall(Node)
-func NodeUtil_IsGoogRequireTypeCall(call *rhino.Node) bool {
+func NodeUtil_IsGoogRequireTypeCall(call rhino.Node) bool {
 	if call.IsCall() {
 		target := call.GetFirstChild()
 		return NodeUtil_GOOG_REQUIRE_TYPE.Matches(target)
@@ -6122,7 +6122,7 @@ func NodeUtil_IsGoogRequireTypeCall(call *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isGoogForwardDeclareCall(Node)
-func NodeUtil_IsGoogForwardDeclareCall(call *rhino.Node) bool {
+func NodeUtil_IsGoogForwardDeclareCall(call rhino.Node) bool {
 	if call.IsCall() {
 		target := call.GetFirstChild()
 		return NodeUtil_GOOG_FORWARD_DECLARE.Matches(target)
@@ -6131,7 +6131,7 @@ func NodeUtil_IsGoogForwardDeclareCall(call *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isGoogRequireDynamicCall(Node)
-func NodeUtil_IsGoogRequireDynamicCall(call *rhino.Node) bool {
+func NodeUtil_IsGoogRequireDynamicCall(call rhino.Node) bool {
 	if call.IsCall() {
 		target := call.GetFirstChild()
 		return NodeUtil_GOOG_REQUIRE_DYNAMIC.Matches(target)
@@ -6140,7 +6140,7 @@ func NodeUtil_IsGoogRequireDynamicCall(call *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isGoogWeakUsageCall(Node)
-func NodeUtil_IsGoogWeakUsageCall(call *rhino.Node) bool {
+func NodeUtil_IsGoogWeakUsageCall(call rhino.Node) bool {
 	if call.IsCall() {
 		target := call.GetFirstChild()
 		return NodeUtil_GOOG_WEAK_USAGE.Matches(target) || NodeUtil_GOOG_WEAK_USAGE_MANGLED.Matches(target)
@@ -6149,7 +6149,7 @@ func NodeUtil_IsGoogWeakUsageCall(call *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isModuleScopeRoot(Node)
-func NodeUtil_IsModuleScopeRoot(n *rhino.Node) bool {
+func NodeUtil_IsModuleScopeRoot(n rhino.Node) bool {
 	return n.IsModuleBody() || NodeUtil_IsBundledGoogModuleScopeRoot(n)
 }
 
@@ -6157,16 +6157,16 @@ func NodeUtil_IsModuleScopeRoot(n *rhino.Node) bool {
 // referencing the `exports` object in some goog.module.
 //
 // Java: NodeUtil.isGoogModuleExportsReference(Scope, Node)
-func NodeUtil_IsGoogModuleExportsReference(scope *Scope, possibleName *rhino.Node) bool {
+func NodeUtil_IsGoogModuleExportsReference(scope *Scope, possibleName rhino.Node) bool {
 	if !possibleName.IsName() || possibleName.GetString() != "exports" {
 		return false
 	}
 	var_ := scope.GetVar(possibleName.GetString())
-	var scopeRoot *rhino.Node
+	var scopeRoot rhino.Node
 	if var_ != nil {
 		scopeRoot = var_.GetScopeRoot()
 	}
-	return scopeRoot != nil &&
+	return !scopeRoot.IsNil() &&
 		(scopeRoot.IsModuleBody() ||
 			(scopeRoot.IsFunction() &&
 				NodeUtil_IsBundledGoogModuleScopeRoot(NodeUtil_GetFunctionBody(scopeRoot))))
@@ -6176,7 +6176,7 @@ func NodeUtil_IsGoogModuleExportsReference(scope *Scope, possibleName *rhino.Nod
 var NodeUtil_GOOG_LOADMODULE = rhino.QualifiedName_Of("goog.loadModule")
 
 // Java: NodeUtil.isBundledGoogModuleCall(Node)
-func NodeUtil_IsBundledGoogModuleCall(n *rhino.Node) bool {
+func NodeUtil_IsBundledGoogModuleCall(n rhino.Node) bool {
 	// TODO(lharker): take an EXPR_RESULT to align with NodeUtil.isGoogModuleCall and
 	// NodeUtil.isGoogProvideCall.
 	if !(n.IsCall() && n.HasTwoChildren() && NodeUtil_GOOG_LOADMODULE.Matches(n.GetFirstChild())) {
@@ -6184,17 +6184,17 @@ func NodeUtil_IsBundledGoogModuleCall(n *rhino.Node) bool {
 	}
 	return n.HasParent() &&
 		n.GetParent().IsExprResult() &&
-		n.GetGrandparent() != nil &&
+		!n.GetGrandparent().IsNil() &&
 		n.GetGrandparent().IsScript()
 }
 
 // Java: NodeUtil.isBundledGoogModuleScopeRoot(Node)
-func NodeUtil_IsBundledGoogModuleScopeRoot(n *rhino.Node) bool {
+func NodeUtil_IsBundledGoogModuleScopeRoot(n rhino.Node) bool {
 	if !n.IsBlock() || !n.HasChildren() || !NodeUtil_IsGoogModuleCall(n.GetFirstChild()) {
 		return false
 	}
 	function := n.GetParent()
-	if function == nil ||
+	if function.IsNil() ||
 		!function.IsFunction() ||
 		!NodeUtil_GetFunctionParameters(function).HasOneChild() ||
 		!NodeUtil_GetFunctionParameters(function).GetFirstChild().MatchesName("exports") {
@@ -6210,7 +6210,7 @@ func NodeUtil_IsBundledGoogModuleScopeRoot(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isGoogModuleDeclareLegacyNamespaceCall(Node)
-func NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(n *rhino.Node) bool {
+func NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(n rhino.Node) bool {
 	if NodeUtil_IsExprCall(n) {
 		target := n.GetFirstFirstChild()
 		return NodeUtil_GOOG_MODULE_DECLARE_LEGACY_NAMESPACE.Matches(target)
@@ -6219,7 +6219,7 @@ func NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isGoogSetTestOnlyCall(Node)
-func NodeUtil_IsGoogSetTestOnlyCall(n *rhino.Node) bool {
+func NodeUtil_IsGoogSetTestOnlyCall(n rhino.Node) bool {
 	if NodeUtil_IsExprCall(n) {
 		target := n.GetFirstFirstChild()
 		return NodeUtil_GOOG_SET_TEST_ONLY.Matches(target)
@@ -6228,7 +6228,7 @@ func NodeUtil_IsGoogSetTestOnlyCall(n *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isTopLevel(Node)
-func NodeUtil_IsTopLevel(n *rhino.Node) bool {
+func NodeUtil_IsTopLevel(n rhino.Node) bool {
 	return n.IsScript() || n.IsModuleBody()
 }
 
@@ -6236,7 +6236,7 @@ func NodeUtil_IsTopLevel(n *rhino.Node) bool {
 // SCRIPT node.
 //
 // Java: NodeUtil.isGoogModuleFile(Node)
-func NodeUtil_IsGoogModuleFile(n *rhino.Node) bool {
+func NodeUtil_IsGoogModuleFile(n rhino.Node) bool {
 	return n.IsScript() &&
 		n.HasChildren() &&
 		n.GetFirstChild().IsModuleBody() &&
@@ -6247,14 +6247,14 @@ func NodeUtil_IsGoogModuleFile(n *rhino.Node) bool {
 // for a goog.module that has a declareLegacyNamespace call.
 //
 // Java: NodeUtil.isLegacyGoogModuleFile(Node)
-func NodeUtil_IsLegacyGoogModuleFile(n *rhino.Node) bool {
+func NodeUtil_IsLegacyGoogModuleFile(n rhino.Node) bool {
 	return NodeUtil_IsGoogModuleFile(n) &&
 		NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(n.GetFirstChild().GetSecondChild())
 }
 
 // Java: NodeUtil.isConstructor(Node)
-func NodeUtil_IsConstructor(fnNode *rhino.Node) bool {
-	if fnNode == nil || !fnNode.IsFunction() {
+func NodeUtil_IsConstructor(fnNode rhino.Node) bool {
+	if fnNode.IsNil() || !fnNode.IsFunction() {
 		return false
 	}
 
@@ -6269,7 +6269,7 @@ func NodeUtil_IsConstructor(fnNode *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isEs6ConstructorMemberFunctionDef(Node)
-func NodeUtil_IsEs6ConstructorMemberFunctionDef(memberFunctionDef *rhino.Node) bool {
+func NodeUtil_IsEs6ConstructorMemberFunctionDef(memberFunctionDef rhino.Node) bool {
 	if !memberFunctionDef.IsMemberFunctionDef() {
 		return false // not a member function at all
 	}
@@ -6279,16 +6279,16 @@ func NodeUtil_IsEs6ConstructorMemberFunctionDef(memberFunctionDef *rhino.Node) b
 }
 
 // Java: NodeUtil.isEs6Constructor(Node)
-func NodeUtil_IsEs6Constructor(fnNode *rhino.Node) bool {
+func NodeUtil_IsEs6Constructor(fnNode rhino.Node) bool {
 	if !fnNode.IsFunction() {
 		return false
 	}
 	memberFunctionDef := fnNode.GetParent()
-	return memberFunctionDef != nil && NodeUtil_IsEs6ConstructorMemberFunctionDef(memberFunctionDef)
+	return !memberFunctionDef.IsNil() && NodeUtil_IsEs6ConstructorMemberFunctionDef(memberFunctionDef)
 }
 
 // Java: NodeUtil.isGetterOrSetter(Node)
-func NodeUtil_IsGetterOrSetter(propNode *rhino.Node) bool {
+func NodeUtil_IsGetterOrSetter(propNode rhino.Node) bool {
 	if NodeUtil_IsGetOrSetKey(propNode) {
 		return true
 	}
@@ -6300,12 +6300,12 @@ func NodeUtil_IsGetterOrSetter(propNode *rhino.Node) bool {
 }
 
 // Java: NodeUtil.isCallTo(Node, String)
-func NodeUtil_IsCallTo(n *rhino.Node, qualifiedName string) bool {
+func NodeUtil_IsCallTo(n rhino.Node, qualifiedName string) bool {
 	return n.IsCall() && n.GetFirstChild().MatchesQualifiedName(qualifiedName)
 }
 
 // Java: NodeUtil.isCallTo(Node, QualifiedName)
-func NodeUtil_IsCallToQualifiedName(n *rhino.Node, qualifiedName rhino.QualifiedName) bool {
+func NodeUtil_IsCallToQualifiedName(n rhino.Node, qualifiedName rhino.QualifiedName) bool {
 	return n.IsCall() && qualifiedName.Matches(n.GetFirstChild())
 }
 
@@ -6315,7 +6315,7 @@ func NodeUtil_IsCallToQualifiedName(n *rhino.Node, qualifiedName rhino.Qualified
 // node that represents the method to check.
 //
 // Java: NodeUtil.isCallTo(Node, Node)
-func NodeUtil_IsCallToNode(n *rhino.Node, targetMethod *rhino.Node) bool {
+func NodeUtil_IsCallToNode(n rhino.Node, targetMethod rhino.Node) bool {
 	if !n.IsCall() {
 		return false
 	}
@@ -6325,7 +6325,7 @@ func NodeUtil_IsCallToNode(n *rhino.Node, targetMethod *rhino.Node) bool {
 
 // Java: NodeUtil.collectExternVariableNames(AbstractCompiler, Node)
 func NodeUtil_CollectExternVariableNames(
-	compiler AbstractCompiler, externs *rhino.Node) *jutil.LinkedHashSet[string] {
+	compiler AbstractCompiler, externs rhino.Node) *jutil.LinkedHashSet[string] {
 	externsRefs := NewReferenceCollector(
 		compiler, ReferenceCollector_DO_NOTHING_BEHAVIOR, NewSyntacticScopeCreator(compiler))
 	externsRefs.ProcessRoot(externs)
@@ -6355,11 +6355,11 @@ func NodeUtil_CreateSynthesizedExternsSymbol(compiler AbstractCompiler, nameToAd
 // function nodes as changed.
 //
 // Java: NodeUtil.markNewScopesChanged(Node, AbstractCompiler)
-func NodeUtil_MarkNewScopesChanged(node *rhino.Node, compiler AbstractCompiler) {
+func NodeUtil_MarkNewScopesChanged(node rhino.Node, compiler AbstractCompiler) {
 	if node.IsFunction() {
 		compiler.ReportChangeToChangeScope(node)
 	}
-	for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		NodeUtil_MarkNewScopesChanged(child, compiler)
 	}
 }
@@ -6368,17 +6368,17 @@ func NodeUtil_MarkNewScopesChanged(node *rhino.Node, compiler AbstractCompiler) 
 // function nodes deleted.
 //
 // Java: NodeUtil.markFunctionsDeleted(Node, AbstractCompiler)
-func NodeUtil_MarkFunctionsDeleted(node *rhino.Node, compiler AbstractCompiler) {
+func NodeUtil_MarkFunctionsDeleted(node rhino.Node, compiler AbstractCompiler) {
 	if node.IsFunction() {
 		compiler.ReportFunctionDeleted(node)
 	}
 
-	for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		NodeUtil_MarkFunctionsDeleted(child, compiler)
 	}
 
 	shadowed := node.GetClosureUnawareShadow()
-	if shadowed != nil {
+	if !shadowed.IsNil() {
 		NodeUtil_MarkFunctionsDeleted(shadowed, compiler)
 	}
 }
@@ -6387,7 +6387,7 @@ func NodeUtil_MarkFunctionsDeleted(node *rhino.Node, compiler AbstractCompiler) 
 // are parents of the provided list of scope nodes.
 //
 // Java: NodeUtil.getParentChangeScopeNodes(List<Node>)
-func NodeUtil_GetParentChangeScopeNodes(scopeNodes []*rhino.Node) []*rhino.Node {
+func NodeUtil_GetParentChangeScopeNodes(scopeNodes []rhino.Node) []rhino.Node {
 	parentScopeNodes := jutil.NewLinkedHashSet(scopeNodes...)
 	for _, scopeNode := range scopeNodes {
 		parentScopeNodes.Add(ChangeTracker_GetEnclosingChangeScopeRoot(scopeNode))
@@ -6400,10 +6400,10 @@ func NodeUtil_GetParentChangeScopeNodes(scopeNodes []*rhino.Node) []*rhino.Node 
 // list. Returns the modified list.
 //
 // Java: NodeUtil.removeNestedChangeScopeNodes(List<Node>)
-func NodeUtil_RemoveNestedChangeScopeNodes(scopeNodes []*rhino.Node) []*rhino.Node {
+func NodeUtil_RemoveNestedChangeScopeNodes(scopeNodes []rhino.Node) []rhino.Node {
 	uniqueScopeNodes := jutil.NewLinkedHashSet(scopeNodes...)
 	for _, scopeNode := range scopeNodes {
-		for ancestor := scopeNode.GetParent(); ancestor != nil; ancestor = ancestor.GetParent() {
+		for ancestor := scopeNode.GetParent(); !ancestor.IsNil(); ancestor = ancestor.GetParent() {
 			if ChangeTracker_IsChangeScopeRoot(ancestor) && uniqueScopeNodes.Contains(ancestor) {
 				uniqueScopeNodes.Remove(scopeNode)
 				break
@@ -6418,8 +6418,8 @@ func NodeUtil_RemoveNestedChangeScopeNodes(scopeNodes []*rhino.Node) []*rhino.No
 // Go-only: language-adapter — the new list is never null, also when it is
 // empty, and a nil slice is Java null to the callers (J2clClinitPrunerPass
 // reads a null list of changed scopes as "traverse everything").
-func nodeUtil_newArrayList(set *jutil.LinkedHashSet[*rhino.Node]) []*rhino.Node {
-	list := make([]*rhino.Node, 0, set.Size())
+func nodeUtil_newArrayList(set *jutil.LinkedHashSet[rhino.Node]) []rhino.Node {
+	list := make([]rhino.Node, 0, set.Size())
 	for n := range set.All() {
 		list = append(list, n)
 	}
@@ -6427,18 +6427,18 @@ func nodeUtil_newArrayList(set *jutil.LinkedHashSet[*rhino.Node]) []*rhino.Node 
 }
 
 // Java: NodeUtil.getInvocationArgsAsIterable(Node)
-func NodeUtil_GetInvocationArgsAsIterable(invocation *rhino.Node) iter.Seq[*rhino.Node] {
+func NodeUtil_GetInvocationArgsAsIterable(invocation rhino.Node) iter.Seq[rhino.Node] {
 	if invocation.IsTaggedTemplateLit() {
 		return NewNodeUtil_TemplateArgsIterable(invocation.GetLastChild()).All()
 	}
 
 	jutil.CheckStateMsg1(NodeUtil_IsCallOrNew(invocation), "%s", invocation)
 	if invocation.HasOneChild() {
-		return slices.Values([]*rhino.Node(nil))
+		return slices.Values([]rhino.Node(nil))
 	}
 
-	var list []*rhino.Node
-	for arg := invocation.GetSecondChild(); arg != nil; arg = arg.GetNext() {
+	var list []rhino.Node
+	for arg := invocation.GetSecondChild(); !arg.IsNil(); arg = arg.GetNext() {
 		list = append(list, arg)
 	}
 	return slices.Values(list)
@@ -6449,7 +6449,7 @@ func NodeUtil_GetInvocationArgsAsIterable(invocation *rhino.Node) iter.Seq[*rhin
 // argument of ITemplateArray.
 //
 // Java: NodeUtil.getInvocationArgsCount(Node)
-func NodeUtil_GetInvocationArgsCount(invocation *rhino.Node) int {
+func NodeUtil_GetInvocationArgsCount(invocation rhino.Node) int {
 	if invocation.IsTaggedTemplateLit() {
 		args := NewNodeUtil_TemplateArgsIterable(invocation.GetLastChild())
 		size := 0
@@ -6468,11 +6468,11 @@ func NodeUtil_GetInvocationArgsCount(invocation *rhino.Node) int {
 //
 // Java: NodeUtil.TemplateArgsIterable
 type NodeUtil_TemplateArgsIterable struct {
-	templateLit *rhino.Node
+	templateLit rhino.Node
 }
 
 // Java: NodeUtil.TemplateArgsIterable(Node)
-func NewNodeUtil_TemplateArgsIterable(templateLit *rhino.Node) *NodeUtil_TemplateArgsIterable {
+func NewNodeUtil_TemplateArgsIterable(templateLit rhino.Node) *NodeUtil_TemplateArgsIterable {
 	jutil.CheckState(templateLit.IsTemplateLit())
 	return &NodeUtil_TemplateArgsIterable{templateLit: templateLit}
 }
@@ -6487,8 +6487,8 @@ func (t *NodeUtil_TemplateArgsIterable) Iterator() *nodeUtil_templateArgsIterato
 // All iterates the iterable.
 //
 // Go-only: language-adapter — Java's for-each over the Iterable.
-func (t *NodeUtil_TemplateArgsIterable) All() iter.Seq[*rhino.Node] {
-	return func(yield func(*rhino.Node) bool) {
+func (t *NodeUtil_TemplateArgsIterable) All() iter.Seq[rhino.Node] {
+	return func(yield func(rhino.Node) bool) {
 		it := t.Iterator()
 		for it.HasNext() {
 			if !yield(it.Next()) {
@@ -6501,10 +6501,10 @@ func (t *NodeUtil_TemplateArgsIterable) All() iter.Seq[*rhino.Node] {
 // nodeUtil_templateArgsIterator is the anonymous AbstractIterator<Node>
 // returned by TemplateArgsIterable.iterator().
 type nodeUtil_templateArgsIterator struct {
-	nextChild *rhino.Node
+	nextChild rhino.Node
 
 	// Go-only: language-adapter — AbstractIterator's state.
-	next    *rhino.Node
+	next    rhino.Node
 	hasNext bool
 	done    bool
 }
@@ -6527,25 +6527,25 @@ func (it *nodeUtil_templateArgsIterator) HasNext() bool {
 }
 
 // Next is AbstractIterator.next().
-func (it *nodeUtil_templateArgsIterator) Next() *rhino.Node {
+func (it *nodeUtil_templateArgsIterator) Next() rhino.Node {
 	if !it.HasNext() {
 		panic(jutil.NewNoSuchElementException())
 	}
 	it.hasNext = false
 	result := it.next
-	it.next = nil
+	it.next = rhino.Node{}
 	return result
 }
 
 // ComputeNext returns the next argument, or ok=false for endOfData().
 //
 // Java: NodeUtil.TemplateArgsIterable.iterator().computeNext()
-func (it *nodeUtil_templateArgsIterator) ComputeNext() (next *rhino.Node, ok bool) {
-	for it.nextChild != nil && !it.nextChild.IsTemplateLitSub() {
+func (it *nodeUtil_templateArgsIterator) ComputeNext() (next rhino.Node, ok bool) {
+	for !it.nextChild.IsNil() && !it.nextChild.IsTemplateLitSub() {
 		it.nextChild = it.nextChild.GetNext()
 	}
-	if it.nextChild == nil {
-		return nil, false
+	if it.nextChild.IsNil() {
+		return rhino.Node{}, false
 	} else {
 		result := it.nextChild.GetFirstChild()
 		it.nextChild = it.nextChild.GetNext()
@@ -6564,7 +6564,7 @@ func (it *nodeUtil_templateArgsIterator) ComputeNext() (next *rhino.Node, ok boo
 //
 // Java: NodeUtil.getAllVarNamesDeclaredInModule(Node, AbstractCompiler, ScopeCreator, Scope)
 func NodeUtil_GetAllVarNamesDeclaredInModule(
-	moduleNode *rhino.Node,
+	moduleNode rhino.Node,
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
 	globalScope *Scope) *jutil.LinkedHashSet[string] {
@@ -6603,12 +6603,12 @@ func (f *nodeUtil_getAllVarNamesDeclaredInModule_finder) EnterScope(t *NodeTrave
 func (f *nodeUtil_getAllVarNamesDeclaredInModule_finder) ExitScope(t *NodeTraversal) {}
 
 // Java: NodeUtil.getAllVarNamesDeclaredInModule(...).finder.shouldTraverse(NodeTraversal, Node, Node)
-func (f *nodeUtil_getAllVarNamesDeclaredInModule_finder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *nodeUtil_getAllVarNamesDeclaredInModule_finder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return n.IsModuleBody()
 }
 
 // Java: NodeUtil.getAllVarNamesDeclaredInModule(...).finder.visit(NodeTraversal, Node, Node)
-func (f *nodeUtil_getAllVarNamesDeclaredInModule_finder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *nodeUtil_getAllVarNamesDeclaredInModule_finder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 // NodeUtil_GetAllVarsDeclaredInFunction returns a mapping of names to vars
@@ -6650,14 +6650,14 @@ type nodeUtil_getAllVarsDeclaredInFunction_finder struct {
 	varBuf  [8]*Var
 }
 
-func nodeUtilSubtreeHasBlockScopeDecls(n *rhino.Node) bool {
+func nodeUtilSubtreeHasBlockScopeDecls(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CLASS, rhino.Token_CATCH, rhino.Token_IMPORT:
 		return true
 	case rhino.Token_FUNCTION:
 		return !NodeUtil_IsFunctionExpression(n)
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if nodeUtilSubtreeHasBlockScopeDecls(c) {
 			return true
 		}
@@ -6665,14 +6665,14 @@ func nodeUtilSubtreeHasBlockScopeDecls(n *rhino.Node) bool {
 	return false
 }
 
-func nodeUtilStmtHasBlockScopeDecls(stmt *rhino.Node) bool {
+func nodeUtilStmtHasBlockScopeDecls(stmt rhino.Node) bool {
 	switch stmt.GetToken() {
 	case rhino.Token_FUNCTION:
 		return false
 	case rhino.Token_CLASS, rhino.Token_CATCH, rhino.Token_IMPORT:
 		return true
 	default:
-		for c := stmt.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := stmt.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if nodeUtilSubtreeHasBlockScopeDecls(c) {
 				return true
 			}
@@ -6681,13 +6681,13 @@ func nodeUtilStmtHasBlockScopeDecls(stmt *rhino.Node) bool {
 	}
 }
 
-func nodeUtilBlockScopeMayHaveDecls(n, root *rhino.Node) bool {
+func nodeUtilBlockScopeMayHaveDecls(n, root rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH, rhino.Token_IMPORT:
 		return true
 	case rhino.Token_EXPORT:
 		first := n.GetFirstChild()
-		return first != nil && nodeUtilBlockScopeMayHaveDecls(first, root)
+		return !first.IsNil() && nodeUtilBlockScopeMayHaveDecls(first, root)
 	case rhino.Token_FUNCTION:
 		return !NodeUtil_IsFunctionExpression(n) && n.GetFirstChild().GetString() != ""
 	case rhino.Token_CLASS:
@@ -6705,7 +6705,7 @@ func nodeUtilBlockScopeMayHaveDecls(n, root *rhino.Node) bool {
 	default:
 		return false
 	}
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if scanVarsTokenKind[uint8(child.GetToken())] == 1 {
 			if nodeUtilBlockScopeMayHaveDecls(child, root) {
 				return true
@@ -6715,7 +6715,7 @@ func nodeUtilBlockScopeMayHaveDecls(n, root *rhino.Node) bool {
 	return false
 }
 
-func nodeUtilScopeRootMayDeclareVars(root, fnRoot *rhino.Node) bool {
+func nodeUtilScopeRootMayDeclareVars(root, fnRoot rhino.Node) bool {
 	switch root.GetToken() {
 	case rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_MEMBER_FIELD_DEF:
 		return false
@@ -6725,7 +6725,7 @@ func nodeUtilScopeRootMayDeclareVars(root, fnRoot *rhino.Node) bool {
 		return nodeUtilBlockScopeMayHaveDecls(root, root)
 	case rhino.Token_BLOCK:
 		parent := root.GetParent()
-		if parent == fnRoot || (parent != nil && parent.IsClassMembers()) {
+		if parent == fnRoot || (!parent.IsNil() && parent.IsClassMembers()) {
 			return root.HasChildren()
 		}
 		return nodeUtilBlockScopeMayHaveDecls(root, root)
@@ -6775,7 +6775,7 @@ func (*nodeUtil_getAllVarsDeclaredInFunction_finder) nodeTraversalNoVisit() {}
 func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ExitScope(t *NodeTraversal) {}
 
 // Java: NodeUtil.getAllVarsDeclaredInFunction(...).finder.shouldTraverse(NodeTraversal, Node, Node)
-func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	fnRoot := f.scope.GetRootNode()
 	if n == fnRoot {
 		return true
@@ -6789,7 +6789,7 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ShouldTraverse(t *NodeTra
 			return n.HasChildren()
 		}
 		if n.IsParamList() {
-			for p := n.GetFirstChild(); p != nil; p = p.GetNext() {
+			for p := n.GetFirstChild(); !p.IsNil(); p = p.GetNext() {
 				if !p.IsName() && nodeUtilSubtreeHasBlockScopeDecls(p) {
 					return true
 				}
@@ -6801,14 +6801,14 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ShouldTraverse(t *NodeTra
 		}
 		return nodeUtilSubtreeHasBlockScopeDecls(n)
 	}
-	if parent != nil && parent.GetParent() == fnRoot && parent.IsBlock() {
+	if !parent.IsNil() && parent.GetParent() == fnRoot && parent.IsBlock() {
 		return nodeUtilStmtHasBlockScopeDecls(n)
 	}
 	return true
 }
 
 // Java: NodeUtil.getAllVarsDeclaredInFunction(...).finder.visit(NodeTraversal, Node, Node)
-func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 // NodeUtil_AllVarsDeclaredInFunction represents a mapping of names to vars
@@ -6841,7 +6841,7 @@ func (a *NodeUtil_AllVarsDeclaredInFunction) GetAllVariablesInOrder() []*Var {
 // object literal.
 //
 // Java: NodeUtil.isObjLitProperty(Node)
-func NodeUtil_IsObjLitProperty(node *rhino.Node) bool {
+func NodeUtil_IsObjLitProperty(node rhino.Node) bool {
 	return node.IsStringKey() ||
 		node.IsGetterDef() ||
 		node.IsSetterDef() ||
@@ -6853,9 +6853,9 @@ func NodeUtil_IsObjLitProperty(node *rhino.Node) bool {
 // represents the return value of a blockless Arrow function.
 //
 // Java: NodeUtil.isBlocklessArrowFunctionResult(Node)
-func NodeUtil_IsBlocklessArrowFunctionResult(n *rhino.Node) bool {
+func NodeUtil_IsBlocklessArrowFunctionResult(n rhino.Node) bool {
 	parent := n.GetParent()
-	return parent != nil && parent.IsFunction() && n == parent.GetLastChild() && !n.IsBlock()
+	return !parent.IsNil() && parent.IsFunction() && n == parent.GetLastChild() && !n.IsBlock()
 }
 
 // NodeUtil_GetFeatureSetOfScript returns a script node's FeatureSet, which
@@ -6866,7 +6866,7 @@ func NodeUtil_IsBlocklessArrowFunctionResult(n *rhino.Node) bool {
 // or if the parser didn't detect any interesting features.
 //
 // Java: NodeUtil.getFeatureSetOfScript(Node)
-func NodeUtil_GetFeatureSetOfScript(scriptNode *rhino.Node) *parser.FeatureSet {
+func NodeUtil_GetFeatureSetOfScript(scriptNode rhino.Node) *parser.FeatureSet {
 	jutil.CheckStateMsg1(scriptNode.IsScript(), "%s", scriptNode)
 	prop := scriptNode.GetProp(rhino.Node_FEATURE_SET)
 	if prop == nil {
@@ -6881,7 +6881,7 @@ func NodeUtil_GetFeatureSetOfScript(scriptNode *rhino.Node) *parser.FeatureSet {
 // Also updates the compiler's FeatureSet.
 //
 // Java: NodeUtil.addFeatureToScript(Node, Feature, AbstractCompiler)
-func NodeUtil_AddFeatureToScript(scriptNode *rhino.Node, feature parser.FeatureSet_Feature, compiler AbstractCompiler) {
+func NodeUtil_AddFeatureToScript(scriptNode rhino.Node, feature parser.FeatureSet_Feature, compiler AbstractCompiler) {
 	jutil.CheckStateMsg1(scriptNode.IsScript(), "%s", scriptNode)
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
 	var newFeatures *parser.FeatureSet
@@ -6914,7 +6914,7 @@ func NodeUtil_AddFeatureToScript(scriptNode *rhino.Node, feature parser.FeatureS
 // it's calling this method for each script.
 //
 // Java: NodeUtil.removeFeatureFromScript(Node, Feature)
-func NodeUtil_RemoveFeatureFromScript(scriptNode *rhino.Node, feature parser.FeatureSet_Feature) {
+func NodeUtil_RemoveFeatureFromScript(scriptNode rhino.Node, feature parser.FeatureSet_Feature) {
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
 	if currentFeatures == nil {
 		scriptNode.PutProp(rhino.Node_FEATURE_SET, nil)
@@ -6937,7 +6937,7 @@ func NodeUtil_RemoveFeatureFromScript(scriptNode *rhino.Node, feature parser.Fea
 // script.
 //
 // Java: NodeUtil.removeFeaturesFromScript(Node, FeatureSet)
-func NodeUtil_RemoveFeaturesFromScript(scriptNode *rhino.Node, featureSet *parser.FeatureSet) {
+func NodeUtil_RemoveFeaturesFromScript(scriptNode rhino.Node, featureSet *parser.FeatureSet) {
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
 	if currentFeatures != nil {
 		updated := currentFeatures.Without(featureSet)
@@ -6953,9 +6953,9 @@ func NodeUtil_RemoveFeaturesFromScript(scriptNode *rhino.Node, featureSet *parse
 // Also updates the compiler's FeatureSet.
 //
 // Java: NodeUtil.removeFeatureFromAllScripts(Node, Feature, AbstractCompiler)
-func NodeUtil_RemoveFeatureFromAllScripts(root *rhino.Node, feature parser.FeatureSet_Feature, compiler AbstractCompiler) {
+func NodeUtil_RemoveFeatureFromAllScripts(root rhino.Node, feature parser.FeatureSet_Feature, compiler AbstractCompiler) {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
-	for childNode := root.GetFirstChild(); childNode != nil; childNode = childNode.GetNext() {
+	for childNode := root.GetFirstChild(); !childNode.IsNil(); childNode = childNode.GetNext() {
 		jutil.CheckState(childNode.IsScript())
 		NodeUtil_RemoveFeatureFromScript(childNode, feature)
 	}
@@ -6969,9 +6969,9 @@ func NodeUtil_RemoveFeatureFromAllScripts(root *rhino.Node, feature parser.Featu
 //
 // Java: NodeUtil.removeFeaturesFromAllScripts(Node, FeatureSet, AbstractCompiler)
 func NodeUtil_RemoveFeaturesFromAllScripts(
-	root *rhino.Node, featureSet *parser.FeatureSet, compiler AbstractCompiler) {
+	root rhino.Node, featureSet *parser.FeatureSet, compiler AbstractCompiler) {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
-	for childNode := root.GetFirstChild(); childNode != nil; childNode = childNode.GetNext() {
+	for childNode := root.GetFirstChild(); !childNode.IsNil(); childNode = childNode.GetNext() {
 		jutil.CheckState(childNode.IsScript())
 		NodeUtil_RemoveFeaturesFromScript(childNode, featureSet)
 	}
@@ -6982,9 +6982,9 @@ func NodeUtil_RemoveFeaturesFromAllScripts(
 // prop of all scripts under externs and root.
 //
 // Java: NodeUtil.addFeatureToAllScripts(Node, Feature, AbstractCompiler)
-func NodeUtil_AddFeatureToAllScripts(root *rhino.Node, feature parser.FeatureSet_Feature, compiler AbstractCompiler) {
+func NodeUtil_AddFeatureToAllScripts(root rhino.Node, feature parser.FeatureSet_Feature, compiler AbstractCompiler) {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
-	for childNode := root.GetFirstChild(); childNode != nil; childNode = childNode.GetNext() {
+	for childNode := root.GetFirstChild(); !childNode.IsNil(); childNode = childNode.GetNext() {
 		jutil.CheckState(childNode.IsScript())
 		NodeUtil_AddFeatureToScript(childNode, feature, compiler)
 	}
@@ -6996,7 +6996,7 @@ func NodeUtil_AddFeatureToAllScripts(root *rhino.Node, feature parser.FeatureSet
 // Also updates the compiler's FeatureSet.
 //
 // Java: NodeUtil.addFeaturesToScript(Node, FeatureSet, AbstractCompiler)
-func NodeUtil_AddFeaturesToScript(scriptNode *rhino.Node, features *parser.FeatureSet, compiler AbstractCompiler) {
+func NodeUtil_AddFeaturesToScript(scriptNode rhino.Node, features *parser.FeatureSet, compiler AbstractCompiler) {
 	jutil.CheckStateMsg1(scriptNode.IsScript(), "%s", scriptNode)
 	for feature := range features.GetFeatures().All() {
 		NodeUtil_AddFeatureToScript(scriptNode, feature, compiler)
@@ -7007,7 +7007,7 @@ func NodeUtil_AddFeaturesToScript(scriptNode *rhino.Node, features *parser.Featu
 // PARAM_LIST or destructuring pattern.
 //
 // Java: NodeUtil.getParamOrPatternNames(Node, Consumer<Node>)
-func NodeUtil_GetParamOrPatternNames(n *rhino.Node, cb func(*rhino.Node)) {
+func NodeUtil_GetParamOrPatternNames(n rhino.Node, cb func(rhino.Node)) {
 	parsing.ParsingUtil_GetParamOrPatternNames(n, cb)
 }
 
@@ -7111,7 +7111,7 @@ func NodeUtil_GetGoogRequireInfoWithScope(name string, scope *Scope) *NodeUtil_G
 // Java: NodeUtil.getGoogRequireInfo(Var)
 func NodeUtil_GetGoogRequireInfo(var_ *Var) *NodeUtil_GoogRequire {
 	jutil.CheckNotNull(var_)
-	if !var_.GetScopeRoot().IsModuleBody() || var_.GetNameNode() == nil {
+	if !var_.GetScopeRoot().IsModuleBody() || var_.GetNameNode().IsNil() {
 		return nil
 	}
 
@@ -7119,7 +7119,7 @@ func NodeUtil_GetGoogRequireInfo(var_ *Var) *NodeUtil_GoogRequire {
 }
 
 // Java: NodeUtil.getGoogRequireInfo(Node)
-func NodeUtil_GetGoogRequireInfoNode(nameNode *rhino.Node) *NodeUtil_GoogRequire {
+func NodeUtil_GetGoogRequireInfoNode(nameNode rhino.Node) *NodeUtil_GoogRequire {
 	// IMPORT_STAR is not part of a GoogRequire call.
 	if nameNode.IsImportStar() {
 		return nil
@@ -7128,7 +7128,7 @@ func NodeUtil_GetGoogRequireInfoNode(nameNode *rhino.Node) *NodeUtil_GoogRequire
 
 	if NodeUtil_IsNameDeclaration(nameNode.GetParent()) {
 		requireCall := nameNode.GetFirstChild()
-		if requireCall == nil {
+		if requireCall.IsNil() {
 			return nil
 		}
 		isStrongRequire := NodeUtil_IsGoogRequireCall(requireCall)
@@ -7139,7 +7139,7 @@ func NodeUtil_GetGoogRequireInfoNode(nameNode *rhino.Node) *NodeUtil_GoogRequire
 		return NodeUtil_GoogRequire_FromNamespace(namespace, isStrongRequire)
 	} else if nameNode.GetParent().IsStringKey() && nameNode.GetGrandparent().IsObjectPattern() {
 		requireCall := nameNode.GetGrandparent().GetNext()
-		if requireCall == nil {
+		if requireCall.IsNil() {
 			return nil
 		}
 		isStrongRequire := NodeUtil_IsGoogRequireCall(requireCall)
@@ -7162,7 +7162,7 @@ func NodeUtil_GetGoogRequireInfoNode(nameNode *rhino.Node) *NodeUtil_GoogRequire
 // perfect accuracy is desired the original source file will have to be read.
 //
 // Java: NodeUtil.estimateNumLines(Node)
-func NodeUtil_EstimateNumLines(scriptNode *rhino.Node) int {
+func NodeUtil_EstimateNumLines(scriptNode rhino.Node) int {
 	jutil.CheckArgument(scriptNode.IsScript())
 	current := scriptNode
 	for current.HasChildren() {

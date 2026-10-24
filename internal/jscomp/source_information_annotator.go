@@ -67,7 +67,7 @@ func SourceInformationAnnotator_CreateWithAnnotationChecks(sourceFile string) *S
 }
 
 // Java: SourceInformationAnnotator.visit(NodeTraversal, Node, Node)
-func (a *SourceInformationAnnotator) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (a *SourceInformationAnnotator) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Verify the source file is annotated.
 	if a.sourceFileToCheck != nil {
 		sourceFileName := n.GetSourceFileName()
@@ -87,8 +87,8 @@ func (a *SourceInformationAnnotator) Visit(t *NodeTraversal, n *rhino.Node, pare
 
 // AnnotateTree performs the post-order Visit walk directly without allocating
 // a NodeTraversal or Deque stack when dev-mode sourceFileToCheck is disabled.
-func (a *SourceInformationAnnotator) AnnotateTree(n *rhino.Node) {
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+func (a *SourceInformationAnnotator) AnnotateTree(n rhino.Node) {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		a.AnnotateTree(child)
 	}
 	if SourceInformationAnnotator_IsStringNodeRequiringOriginalName(n) {
@@ -100,7 +100,7 @@ func (a *SourceInformationAnnotator) AnnotateTree(n *rhino.Node) {
 	}
 }
 
-func appendQualifiedNameTo(dst []byte, n *rhino.Node) ([]byte, bool) {
+func appendQualifiedNameTo(dst []byte, n rhino.Node) ([]byte, bool) {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		s := n.GetString()
@@ -150,7 +150,7 @@ func appendQualifiedNameTo(dst []byte, n *rhino.Node) ([]byte, bool) {
 	}
 }
 
-func annotateFunctionOriginalName(n *rhino.Node) {
+func annotateFunctionOriginalName(n rhino.Node) {
 	if n.GetOriginalName() != nil {
 		return
 	}
@@ -192,7 +192,7 @@ func annotateFunctionOriginalName(n *rhino.Node) {
 // on the AST post-mangling and in source maps.
 //
 // Java: SourceInformationAnnotator.isStringNodeRequiringOriginalName(Node)
-func SourceInformationAnnotator_IsStringNodeRequiringOriginalName(node *rhino.Node) bool {
+func SourceInformationAnnotator_IsStringNodeRequiringOriginalName(node rhino.Node) bool {
 	switch node.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_NAME:
 		return true
@@ -204,7 +204,7 @@ func SourceInformationAnnotator_IsStringNodeRequiringOriginalName(node *rhino.No
 }
 
 // Java: SourceInformationAnnotator.setOriginalName(Node, String)
-func SourceInformationAnnotator_SetOriginalName(n *rhino.Node, name string) {
+func SourceInformationAnnotator_SetOriginalName(n rhino.Node, name string) {
 	if name != "" && n.GetOriginalName() == nil {
 		n.SetOriginalName(&name)
 	}
@@ -215,7 +215,7 @@ func SourceInformationAnnotator_SetOriginalName(n *rhino.Node, name string) {
 // for if the string is interned.
 //
 // Java: SourceInformationAnnotator.setOriginalName(Node, Node)
-func SourceInformationAnnotator_SetOriginalNameFromNode(n *rhino.Node, name *rhino.Node) {
+func SourceInformationAnnotator_SetOriginalNameFromNode(n rhino.Node, name rhino.Node) {
 	if name.GetString() != "" && n.GetOriginalName() == nil {
 		n.SetOriginalNameFromName(name)
 	}

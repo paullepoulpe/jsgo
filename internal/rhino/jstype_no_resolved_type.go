@@ -132,7 +132,7 @@ func (t *NoResolvedType) RecursionUnsafeHashCode() int32 {
 }
 
 // Java: NoResolvedType.defineProperty(Property.Key, JSType, boolean, Node)
-func (t *NoResolvedType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (t *NoResolvedType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	// nothing, all properties are defined
 	return true
 }

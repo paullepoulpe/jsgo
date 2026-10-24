@@ -98,7 +98,7 @@ func peepholeTranspilationsPass_simpleName(transpilation AbstractPeepholeTranspi
 }
 
 // Java: PeepholeTranspilationsPass.process(Node, Node)
-func (p *PeepholeTranspilationsPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *PeepholeTranspilationsPass) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, &PeepholeTranspilationsPass_PeepCallback{outer: p})
 	// Update the featureSets with all features that got transpiled.
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(
@@ -112,12 +112,12 @@ type PeepholeTranspilationsPass_PeepCallback struct {
 }
 
 // Java: PeepholeTranspilationsPass.PeepCallback.visit(NodeTraversal, Node, Node)
-func (c *PeepholeTranspilationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *PeepholeTranspilationsPass_PeepCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 
 	currentNode := n
 	for _, transpilation := range c.outer.peepholeTranspilations {
 		currentNode = transpilation.TranspileSubtree(currentNode)
-		if currentNode == nil {
+		if currentNode.IsNil() {
 			// this subtree was removed by the current transpilation, so we don't need to run the rest
 			// of the peephole transpilations.
 			return
@@ -126,7 +126,7 @@ func (c *PeepholeTranspilationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhi
 }
 
 // Java: PeepholeTranspilationsPass.PeepCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *PeepholeTranspilationsPass_PeepCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *PeepholeTranspilationsPass_PeepCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		// check if the script contains any of the features that we are transpiling.

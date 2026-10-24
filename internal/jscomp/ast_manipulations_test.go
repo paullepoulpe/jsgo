@@ -24,7 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-func assertNodeEquivalent(t *testing.T, got, want *rhino.Node) {
+func assertNodeEquivalent(t *testing.T, got, want rhino.Node) {
 	t.Helper()
 	if !got.IsEquivalentTo(want) {
 		t.Errorf("got\n%s\nwant\n%s", got.ToStringTree(), want.ToStringTree())

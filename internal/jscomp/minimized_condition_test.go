@@ -40,7 +40,7 @@ func TestMinimizedConditionTest(t *testing.T) {
 }
 
 // Java: MinimizedConditionTest.parseExpr(String)
-func minimizedConditionTest_parseExpr(code string) *rhino.Node {
+func minimizedConditionTest_parseExpr(code string) rhino.Node {
 	compiler := NewCompiler()
 	input := []*SourceFile{SourceFile_FromCode("code", code)}
 	externs := []*SourceFile{}
@@ -58,7 +58,7 @@ func minimizedConditionTest_parseExpr(code string) *rhino.Node {
 }
 
 // Java: MinimizedConditionTest.cloneAttachedTree(Node)
-func minimizedConditionTest_cloneAttachedTree(n *rhino.Node) *rhino.Node {
+func minimizedConditionTest_cloneAttachedTree(n rhino.Node) rhino.Node {
 	jutil.CheckState(n.GetParent().GetFirstChild() == n)
 	return n.GetParent().CloneTree().GetFirstChild()
 }

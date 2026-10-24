@@ -49,7 +49,7 @@ func TestInferConstsTest(t *testing.T) {
 // Java: InferConstsTest.getProcessor(Compiler)
 func (c *InferConstsTest) GetProcessor(compiler *Compiler) CompilerPass {
 	c.constFinder = NewInferConstsTest_FindConstants(c.names)
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewInferConsts(compiler).Process(externs, root)
 		NodeTraversal_Traverse(compiler, root, c.constFinder)
 	})
@@ -366,7 +366,7 @@ func NewInferConstsTest_FindConstants(names []string) *InferConstsTest_FindConst
 }
 
 // Java: InferConstsTest.FindConstants.visit(NodeTraversal, Node, Node)
-func (f *InferConstsTest_FindConstants) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *InferConstsTest_FindConstants) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	for _, name := range f.names {
 		if (n.IsName() || n.IsImportStar()) && n.MatchesQualifiedName(name) {
 			if n.IsDeclaredConstantVar() {

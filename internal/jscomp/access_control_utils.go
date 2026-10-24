@@ -48,7 +48,7 @@ type AccessControlUtils struct{}
 //
 // Java: AccessControlUtils.getEffectiveNameVisibility(Node, Var, ImmutableMap<StaticSourceFile, Visibility>)
 func AccessControlUtils_GetEffectiveNameVisibility(
-	name *rhino.Node, var_ *Var,
+	name rhino.Node, var_ *Var,
 	fileVisibilityMap *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]) rhino.JSDocInfo_Visibility {
 	jsDocInfo := var_.GetJSDocInfo()
 	// Go-only: language-adapter — JSDocInfo.getVisibility() never returns
@@ -97,7 +97,7 @@ func AccessControlUtils_GetEffectiveNameVisibility(
 //
 // Java: AccessControlUtils.getEffectivePropertyVisibility(Node, ObjectType, ImmutableMap<StaticSourceFile, Visibility>)
 func AccessControlUtils_GetEffectivePropertyVisibility(
-	property *rhino.Node,
+	property rhino.Node,
 	referenceType rhino.ObjectType,
 	fileVisibilityMap *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]) rhino.JSDocInfo_Visibility {
 	propertyName := property.GetString()
@@ -128,10 +128,10 @@ func AccessControlUtils_GetEffectivePropertyVisibility(
 //
 // Java: AccessControlUtils.getDefiningSource(Node, ObjectType, String)
 func AccessControlUtils_GetDefiningSource(
-	node *rhino.Node, referenceType rhino.ObjectType, propertyName string) rhino.StaticSourceFile {
+	node rhino.Node, referenceType rhino.ObjectType, propertyName string) rhino.StaticSourceFile {
 	if referenceType != nil {
 		propDefNode := referenceType.GetPropertyDefSite(propertyName)
-		if propDefNode != nil {
+		if !propDefNode.IsNil() {
 			return propDefNode.GetStaticSourceFile()
 		}
 	}
@@ -197,7 +197,7 @@ func AccessControlUtils_GetEffectiveVisibilityForOverriddenProperty(
 //
 // Java: AccessControlUtils.getEffectiveVisibilityForNonOverriddenProperty(Node, ObjectType, Visibility)
 func AccessControlUtils_GetEffectiveVisibilityForNonOverriddenProperty(
-	getprop *rhino.Node, objectType rhino.ObjectType, fileOverviewVisibility *rhino.JSDocInfo_Visibility) rhino.JSDocInfo_Visibility {
+	getprop rhino.Node, objectType rhino.ObjectType, fileOverviewVisibility *rhino.JSDocInfo_Visibility) rhino.JSDocInfo_Visibility {
 	propertyName := getprop.GetString()
 	raw := rhino.JSDocInfo_Visibility_INHERITED
 	if objectType != nil {

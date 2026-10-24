@@ -41,7 +41,7 @@ func dumpCorpusTypes(name, src string) string {
 	}
 	result := ParserRunner_Parse(rhino.NewSimpleSourceFile(name, rhino.StaticSourceFile_SourceKind_STRONG),
 		src, defaultDumpConfig(), rhino.ErrorReporter_NULL_INSTANCE)
-	if result.Ast == nil {
+	if result.Ast.IsNil() {
 		line("# no ast")
 		return sb.String()
 	}
@@ -50,8 +50,8 @@ func dumpCorpusTypes(name, src string) string {
 	str := registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
 	object := registry.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE)
 	b := strconv.FormatBool
-	var walk func(n *rhino.Node)
-	walk = func(n *rhino.Node) {
+	var walk func(n rhino.Node)
+	walk = func(n rhino.Node) {
 		if info := n.GetJSDocInfo(); info != nil {
 			for _, expr := range info.GetTypeExpressions() {
 				root := expr.GetRoot()
@@ -79,7 +79,7 @@ func dumpCorpusTypes(name, src string) string {
 					" | glb(obj)=" + t.GetGreatestSubtype(object).String())
 			}
 		}
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			walk(c)
 		}
 	}

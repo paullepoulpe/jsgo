@@ -56,11 +56,11 @@ import (
 // (externsRoot, mainRoot).
 type lintChecksDumpCheck struct {
 	name string
-	run  func(c AbstractCompiler, externsRoot, mainRoot *rhino.Node)
+	run  func(c AbstractCompiler, externsRoot, mainRoot rhino.Node)
 }
 
 func lintChecksDumpPass(name string, create func(c AbstractCompiler) CompilerPass) lintChecksDumpCheck {
-	return lintChecksDumpCheck{name, func(c AbstractCompiler, externsRoot, mainRoot *rhino.Node) {
+	return lintChecksDumpCheck{name, func(c AbstractCompiler, externsRoot, mainRoot rhino.Node) {
 		create(c).Process(externsRoot, mainRoot)
 	}}
 }
@@ -84,10 +84,10 @@ var lintChecksDumpChecks = []lintChecksDumpCheck{
 	lintChecksDumpPass("CheckNullabilityModifiers", func(c AbstractCompiler) CompilerPass { return NewCheckNullabilityModifiers(c) }),
 	lintChecksDumpPass("CheckPrimitiveAsObject", func(c AbstractCompiler) CompilerPass { return NewCheckPrimitiveAsObject(c) }),
 	lintChecksDumpPass("CheckPrototypeProperties", func(c AbstractCompiler) CompilerPass { return NewCheckPrototypeProperties(c) }),
-	{"CheckProvidesSorted", func(c AbstractCompiler, externsRoot, mainRoot *rhino.Node) {
+	{"CheckProvidesSorted", func(c AbstractCompiler, externsRoot, mainRoot rhino.Node) {
 		NodeTraversal_Traverse(c, mainRoot, NewCheckProvidesSorted(CheckProvidesSorted_Mode_COLLECT_AND_REPORT))
 	}},
-	{"CheckRequiresSorted", func(c AbstractCompiler, externsRoot, mainRoot *rhino.Node) {
+	{"CheckRequiresSorted", func(c AbstractCompiler, externsRoot, mainRoot rhino.Node) {
 		NodeTraversal_Traverse(c, mainRoot, NewCheckRequiresSorted(CheckRequiresSorted_Mode_COLLECT_AND_REPORT))
 	}},
 	lintChecksDumpPass("CheckUnusedLabels", func(c AbstractCompiler) CompilerPass { return NewCheckUnusedLabels(c) }),
@@ -143,13 +143,13 @@ func lintChecksDumpOne(t testing.TB, sb *strings.Builder, convention string, nam
 		[]*SourceFile{SourceFile_FromCode("externs", "")},
 		[]*SourceFile{SourceFile_FromCode(name, src)},
 		lintChecksDumpOptions(t, convention))
-	var root *rhino.Node
+	var root rhino.Node
 	jutil.Try(func() {
 		root = compiler.ParseInputs()
 	}, func(e jutil.IRuntimeException) {
-		root = nil
+		root = rhino.Node{}
 	})
-	if root == nil || compiler.HasErrors() {
+	if root.IsNil() || compiler.HasErrors() {
 		failed := "# parse-failed"
 		for _, e := range compiler.GetErrors() {
 			failed += " " + e.GetType().key

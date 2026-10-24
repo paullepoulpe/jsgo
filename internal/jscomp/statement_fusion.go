@@ -48,7 +48,7 @@ func NewStatementFusion() *StatementFusion {
 }
 
 // Java: StatementFusion.optimizeSubtree(Node)
-func (s *StatementFusion) OptimizeSubtree(n *rhino.Node) *rhino.Node {
+func (s *StatementFusion) OptimizeSubtree(n rhino.Node) rhino.Node {
 	if n.GetParent().IsFunction() || !s.CanFuseIntoOneStatement(n) {
 		return n
 	}
@@ -63,7 +63,7 @@ func (s *StatementFusion) OptimizeSubtree(n *rhino.Node) *rhino.Node {
 }
 
 // Java: StatementFusion.canFuseIntoOneStatement(Node)
-func (s *StatementFusion) CanFuseIntoOneStatement(block *rhino.Node) bool {
+func (s *StatementFusion) CanFuseIntoOneStatement(block rhino.Node) bool {
 	if !block.IsBlock() {
 		return false
 	}
@@ -75,7 +75,7 @@ func (s *StatementFusion) CanFuseIntoOneStatement(block *rhino.Node) bool {
 
 	last := block.GetLastChild()
 
-	for c := block.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := block.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.IsExprResult() && c != last {
 			return false
 		}
@@ -85,7 +85,7 @@ func (s *StatementFusion) CanFuseIntoOneStatement(block *rhino.Node) bool {
 }
 
 // Java: StatementFusion.isFusableControlStatement(Node)
-func (s *StatementFusion) IsFusableControlStatement(n *rhino.Node) bool {
+func (s *StatementFusion) IsFusableControlStatement(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_IF, rhino.Token_THROW, rhino.Token_SWITCH, rhino.Token_EXPR_RESULT:
 		return true
@@ -117,7 +117,7 @@ func (s *StatementFusion) IsFusableControlStatement(n *rhino.Node) bool {
 // the fused statement as one.
 //
 // Java: StatementFusion.fuseIntoOneStatement(Node, Node)
-func StatementFusion_FuseIntoOneStatement(first *rhino.Node, last *rhino.Node) *rhino.Node {
+func StatementFusion_FuseIntoOneStatement(first rhino.Node, last rhino.Node) rhino.Node {
 	// Nothing to fuse if there is only one statement.
 	if first.GetNext() == last {
 		return first
@@ -126,7 +126,7 @@ func StatementFusion_FuseIntoOneStatement(first *rhino.Node, last *rhino.Node) *
 	// Step one: Create a comma tree that contains all the statements.
 	commaTree := first.RemoveFirstChild()
 
-	var next *rhino.Node
+	var next rhino.Node
 	for cur := first.GetNext(); cur != last; cur = next {
 		commaTree = AstManipulations_FuseExpressions(commaTree, cur.RemoveFirstChild())
 		next = cur.GetNext()
@@ -141,7 +141,7 @@ func StatementFusion_FuseIntoOneStatement(first *rhino.Node, last *rhino.Node) *
 
 // Java: StatementFusion.fuseExpressionIntoControlFlowStatement(Node, Node)
 func StatementFusion_FuseExpressionIntoControlFlowStatement(
-	before *rhino.Node, control *rhino.Node) {
+	before rhino.Node, control rhino.Node) {
 	jutil.CheckArgumentMsg(before.IsExprResult(), "before must be expression result")
 
 	// Now we are just left with two statements. The comma tree of the first
@@ -164,14 +164,14 @@ func StatementFusion_FuseExpressionIntoControlFlowStatement(
 }
 
 // Java: StatementFusion.fuseExpressionIntoFirstChild(Node, Node)
-func StatementFusion_FuseExpressionIntoFirstChild(exp *rhino.Node, stmt *rhino.Node) {
+func StatementFusion_FuseExpressionIntoFirstChild(exp rhino.Node, stmt rhino.Node) {
 	val := stmt.RemoveFirstChild()
 	comma := AstManipulations_FuseExpressions(exp, val)
 	stmt.AddChildToFront(comma)
 }
 
 // Java: StatementFusion.fuseExpressionIntoSecondChild(Node, Node)
-func StatementFusion_FuseExpressionIntoSecondChild(exp *rhino.Node, stmt *rhino.Node) {
+func StatementFusion_FuseExpressionIntoSecondChild(exp rhino.Node, stmt rhino.Node) {
 	val := stmt.GetSecondChild().Detach()
 	comma := AstManipulations_FuseExpressions(exp, val)
 	comma.InsertAfter(stmt.GetFirstChild())

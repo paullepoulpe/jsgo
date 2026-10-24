@@ -50,7 +50,7 @@ func (c *TypeValidatorTest) SetUp() {
 
 // Java: TypeValidatorTest.getProcessor(Compiler)
 func (c *TypeValidatorTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, n *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, n rhino.Node) {
 		// Do nothing: we're in it for the type-checking.
 	})
 }

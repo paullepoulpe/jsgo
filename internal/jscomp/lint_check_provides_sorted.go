@@ -36,8 +36,8 @@ type CheckProvidesSorted struct {
 	originalProvides []string
 
 	// The provided namespaces in canonical order.
-	firstNode *rhino.Node
-	lastNode  *rhino.Node
+	firstNode rhino.Node
+	lastNode  rhino.Node
 	finished  bool
 
 	replacement *string
@@ -82,8 +82,8 @@ func (m CheckProvidesSorted_Mode) Ordinal() int { return int(m) }
 // Java: CheckProvidesSorted(CheckProvidesSorted.Mode)
 func NewCheckProvidesSorted(mode CheckProvidesSorted_Mode) *CheckProvidesSorted {
 	return &CheckProvidesSorted{
-		firstNode:   nil,
-		lastNode:    nil,
+		firstNode:   rhino.Node{},
+		lastNode:    rhino.Node{},
 		finished:    false,
 		replacement: nil,
 		needsFix:    false,
@@ -94,14 +94,14 @@ func NewCheckProvidesSorted(mode CheckProvidesSorted_Mode) *CheckProvidesSorted 
 // GetFirstNode returns the node for the first recognized provide statement.
 //
 // Java: CheckProvidesSorted.getFirstNode()
-func (c *CheckProvidesSorted) GetFirstNode() *rhino.Node {
+func (c *CheckProvidesSorted) GetFirstNode() rhino.Node {
 	return c.firstNode
 }
 
 // GetLastNode returns the node for the last recognized provide statement.
 //
 // Java: CheckProvidesSorted.getLastNode()
-func (c *CheckProvidesSorted) GetLastNode() *rhino.Node {
+func (c *CheckProvidesSorted) GetLastNode() rhino.Node {
 	return c.lastNode
 }
 
@@ -122,14 +122,14 @@ func (c *CheckProvidesSorted) NeedsFix() bool {
 }
 
 // Java: CheckProvidesSorted.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckProvidesSorted) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckProvidesSorted) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Traverse top-level statements until a block of contiguous provides is found.
 	return !c.finished &&
-		(parent == nil || parent.IsRoot() || parent.IsScript() || parent.IsModuleBody())
+		(parent.IsNil() || parent.IsRoot() || parent.IsScript() || parent.IsModuleBody())
 }
 
 // Java: CheckProvidesSorted.visit(NodeTraversal, Node, Node)
-func (c *CheckProvidesSorted) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckProvidesSorted) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsScript() {
 		c.CheckCanonical(t)
 		return
@@ -137,7 +137,7 @@ func (c *CheckProvidesSorted) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 
 	if NodeUtil_IsGoogProvideCall(n) && CheckProvidesSorted_AreProvideArgumentsValid(n.GetFirstChild()) {
 		c.originalProvides = append(c.originalProvides, CheckProvidesSorted_GetNamespace(n))
-		if c.firstNode == nil {
+		if c.firstNode.IsNil() {
 			c.lastNode = n
 			c.firstNode = c.lastNode
 		} else {
@@ -149,12 +149,12 @@ func (c *CheckProvidesSorted) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 }
 
 // Java: CheckProvidesSorted.areProvideArgumentsValid(Node)
-func CheckProvidesSorted_AreProvideArgumentsValid(call *rhino.Node) bool {
+func CheckProvidesSorted_AreProvideArgumentsValid(call rhino.Node) bool {
 	return call.HasTwoChildren() && call.GetSecondChild().IsStringLit()
 }
 
 // Java: CheckProvidesSorted.getNamespace(Node)
-func CheckProvidesSorted_GetNamespace(n *rhino.Node) string {
+func CheckProvidesSorted_GetNamespace(n rhino.Node) string {
 	return n.GetFirstChild().GetSecondChild().GetString()
 }
 

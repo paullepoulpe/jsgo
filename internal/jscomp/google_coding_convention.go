@@ -205,13 +205,13 @@ func (c *GoogleCodingConvention) IsValidEnumKey(key string) bool {
 // are treated as optional arguments.
 //
 // Java: GoogleCodingConvention.isOptionalParameter(Node)
-func (c *GoogleCodingConvention) IsOptionalParameter(parameter *rhino.Node) bool {
+func (c *GoogleCodingConvention) IsOptionalParameter(parameter rhino.Node) bool {
 	return c.CodingConventions_ProxyBase.IsOptionalParameter(parameter) ||
 		(parameter.IsName() && strings.HasPrefix(parameter.GetString(), GoogleCodingConvention_OPTIONAL_ARG_PREFIX))
 }
 
 // Java: GoogleCodingConvention.isVarArgsParameter(Node)
-func (c *GoogleCodingConvention) IsVarArgsParameter(parameter *rhino.Node) bool {
+func (c *GoogleCodingConvention) IsVarArgsParameter(parameter rhino.Node) bool {
 	return c.CodingConventions_ProxyBase.IsVarArgsParameter(parameter) ||
 		(parameter.IsName() && GoogleCodingConvention_VAR_ARGS_NAME == parameter.GetString())
 }
@@ -225,7 +225,7 @@ func (c *GoogleCodingConvention) IsExportedWithLocal(name string, local bool) bo
 }
 
 // Java: GoogleCodingConvention.isClassFactoryCall(Node)
-func (c *GoogleCodingConvention) IsClassFactoryCall(callNode *rhino.Node) bool {
+func (c *GoogleCodingConvention) IsClassFactoryCall(callNode rhino.Node) bool {
 	callTarget := callNode.GetFirstChild()
 	// Go-only: performance — in Java, `callTarget.isName() && callTarget.toString().equals("Polymer")`
 	// always evaluates to false because `Node.toString()` starts with `"NAME "`. Calling `callTarget.String()`

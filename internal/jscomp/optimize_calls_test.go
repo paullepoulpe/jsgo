@@ -61,7 +61,7 @@ func (c *OptimizeCallsTest) GetProcessor(compiler *Compiler) CompilerPass {
 	return OptimizeCalls_Builder_().
 		SetCompiler(compiler).
 		SetConsiderExterns(*c.considerExterns). // Boolean unboxing: null throws.
-		AddPass(OptimizeCalls_CallGraphCompilerPassFunc(func(externs *rhino.Node, root *rhino.Node, references *OptimizeCalls_ReferenceMap) {
+		AddPass(OptimizeCalls_CallGraphCompilerPassFunc(func(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap) {
 			c.references = references
 		})).
 		Build()
@@ -79,12 +79,12 @@ func (c *OptimizeCallsTest) setConsiderExterns(b bool) { c.considerExterns = &b 
 // Go-only: test-helper — Java iterates the entry set directly.
 type optimizeCallsTest_Entry struct {
 	key   string
-	value *jutil.ArrayList[*rhino.Node]
+	value *jutil.ArrayList[rhino.Node]
 }
 
 // optimizeCallsTest_entries collects ReferenceMap.getNameReferences() /
 // getPropReferences() (an Iterable of entries) for assertThat.
-func optimizeCallsTest_entries(refs iter.Seq2[string, *jutil.ArrayList[*rhino.Node]]) []optimizeCallsTest_Entry {
+func optimizeCallsTest_entries(refs iter.Seq2[string, *jutil.ArrayList[rhino.Node]]) []optimizeCallsTest_Entry {
 	var out []optimizeCallsTest_Entry
 	for k, v := range refs {
 		out = append(out, optimizeCallsTest_Entry{key: k, value: v})
@@ -93,8 +93,8 @@ func optimizeCallsTest_entries(refs iter.Seq2[string, *jutil.ArrayList[*rhino.No
 }
 
 // optimizeCallsTest_copyOf is ImmutableMap.copyOf(Iterable<Entry>).
-func optimizeCallsTest_copyOf(refs iter.Seq2[string, *jutil.ArrayList[*rhino.Node]]) *jutil.LinkedHashMap[string, *jutil.ArrayList[*rhino.Node]] {
-	m := jutil.NewImmutableMapBuilder[string, *jutil.ArrayList[*rhino.Node]]()
+func optimizeCallsTest_copyOf(refs iter.Seq2[string, *jutil.ArrayList[rhino.Node]]) *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]] {
+	m := jutil.NewImmutableMapBuilder[string, *jutil.ArrayList[rhino.Node]]()
 	for k, v := range refs {
 		m.Put(k, v)
 	}
@@ -104,7 +104,7 @@ func optimizeCallsTest_copyOf(refs iter.Seq2[string, *jutil.ArrayList[*rhino.Nod
 var OptimizeCallsTest_KEY_EQUALITY = Correspondence_Transforming(
 	func(e optimizeCallsTest_Entry) string { return e.key }, "has key")
 
-var OptimizeCallsTest_HAS_TOKEN = Correspondence_Transforming((*rhino.Node).GetToken, "has token")
+var OptimizeCallsTest_HAS_TOKEN = Correspondence_Transforming((rhino.Node).GetToken, "has token")
 
 // Java: OptimizeCallsTest.testReferenceCollection_ignoringExterns()
 func (c *OptimizeCallsTest) TestReferenceCollection_ignoringExterns() {

@@ -48,7 +48,7 @@ func CodingConventions_GetDefault() CodingConvention {
 //
 // Java: CodingConventions.defaultIsFunctionCallThatAlwaysThrows(Node, String)
 func CodingConventions_DefaultIsFunctionCallThatAlwaysThrows(
-	n *rhino.Node, alwaysThrowsFunctionName string) bool {
+	n rhino.Node, alwaysThrowsFunctionName string) bool {
 	if n.IsExprResult() {
 		if !n.GetFirstChild().IsCall() {
 			return false
@@ -113,17 +113,17 @@ func (p *CodingConventions_ProxyBase) IsValidEnumKey(key string) bool {
 }
 
 // Java: CodingConventions.Proxy.isOptionalParameter(Node)
-func (p *CodingConventions_ProxyBase) IsOptionalParameter(parameter *rhino.Node) bool {
+func (p *CodingConventions_ProxyBase) IsOptionalParameter(parameter rhino.Node) bool {
 	return p.nextConvention.IsOptionalParameter(parameter)
 }
 
 // Java: CodingConventions.Proxy.isVarArgsParameter(Node)
-func (p *CodingConventions_ProxyBase) IsVarArgsParameter(parameter *rhino.Node) bool {
+func (p *CodingConventions_ProxyBase) IsVarArgsParameter(parameter rhino.Node) bool {
 	return p.nextConvention.IsVarArgsParameter(parameter)
 }
 
 // Java: CodingConventions.Proxy.isFunctionCallThatAlwaysThrows(Node)
-func (p *CodingConventions_ProxyBase) IsFunctionCallThatAlwaysThrows(n *rhino.Node) bool {
+func (p *CodingConventions_ProxyBase) IsFunctionCallThatAlwaysThrows(n rhino.Node) bool {
 	return p.nextConvention.IsFunctionCallThatAlwaysThrows(n)
 }
 
@@ -155,12 +155,12 @@ func (p *CodingConventions_ProxyBase) GetPackageName(source rhino.StaticSourceFi
 }
 
 // Java: CodingConventions.Proxy.getClassesDefinedByCall(Node)
-func (p *CodingConventions_ProxyBase) GetClassesDefinedByCall(callNode *rhino.Node) *CodingConvention_SubclassRelationship {
+func (p *CodingConventions_ProxyBase) GetClassesDefinedByCall(callNode rhino.Node) *CodingConvention_SubclassRelationship {
 	return p.nextConvention.GetClassesDefinedByCall(callNode)
 }
 
 // Java: CodingConventions.Proxy.isClassFactoryCall(Node)
-func (p *CodingConventions_ProxyBase) IsClassFactoryCall(callNode *rhino.Node) bool {
+func (p *CodingConventions_ProxyBase) IsClassFactoryCall(callNode rhino.Node) bool {
 	return p.nextConvention.IsClassFactoryCall(callNode)
 }
 
@@ -170,17 +170,17 @@ func (p *CodingConventions_ProxyBase) IsSuperClassReference(propertyName string)
 }
 
 // Java: CodingConventions.Proxy.extractIsModuleFile(Node, Node)
-func (p *CodingConventions_ProxyBase) ExtractIsModuleFile(node *rhino.Node, parent *rhino.Node) bool {
+func (p *CodingConventions_ProxyBase) ExtractIsModuleFile(node rhino.Node, parent rhino.Node) bool {
 	return p.nextConvention.ExtractIsModuleFile(node, parent)
 }
 
 // Java: CodingConventions.Proxy.extractClassNameIfProvide(Node, Node)
-func (p *CodingConventions_ProxyBase) ExtractClassNameIfProvide(node *rhino.Node, parent *rhino.Node) *string {
+func (p *CodingConventions_ProxyBase) ExtractClassNameIfProvide(node rhino.Node, parent rhino.Node) *string {
 	return p.nextConvention.ExtractClassNameIfProvide(node, parent)
 }
 
 // Java: CodingConventions.Proxy.extractClassNameIfRequire(Node, Node)
-func (p *CodingConventions_ProxyBase) ExtractClassNameIfRequire(node *rhino.Node, parent *rhino.Node) *string {
+func (p *CodingConventions_ProxyBase) ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) *string {
 	return p.nextConvention.ExtractClassNameIfRequire(node, parent)
 }
 
@@ -195,7 +195,7 @@ func (p *CodingConventions_ProxyBase) GetExportSymbolFunction() *string {
 }
 
 // Java: CodingConventions.Proxy.identifyTypeDeclarationCall(Node)
-func (p *CodingConventions_ProxyBase) IdentifyTypeDeclarationCall(n *rhino.Node) []string {
+func (p *CodingConventions_ProxyBase) IdentifyTypeDeclarationCall(n rhino.Node) []string {
 	return p.nextConvention.IdentifyTypeDeclarationCall(n)
 }
 
@@ -211,7 +211,7 @@ func (p *CodingConventions_ProxyBase) GetAbstractMethodName() *string {
 }
 
 // Java: CodingConventions.Proxy.getSingletonGetterClassName(Node)
-func (p *CodingConventions_ProxyBase) GetSingletonGetterClassName(callNode *rhino.Node) *string {
+func (p *CodingConventions_ProxyBase) GetSingletonGetterClassName(callNode rhino.Node) *string {
 	return p.nextConvention.GetSingletonGetterClassName(callNode)
 }
 
@@ -227,32 +227,32 @@ func (p *CodingConventions_ProxyBase) GetAssertionFunctions() []*CodingConventio
 }
 
 // Java: CodingConventions.Proxy.describeFunctionBind(Node, boolean)
-func (p *CodingConventions_ProxyBase) DescribeFunctionBind(n *rhino.Node, checkTypes bool) *CodingConvention_Bind {
+func (p *CodingConventions_ProxyBase) DescribeFunctionBind(n rhino.Node, checkTypes bool) *CodingConvention_Bind {
 	return p.nextConvention.DescribeFunctionBind(n, checkTypes)
 }
 
 // Java: CodingConventions.Proxy.describeCachingCall(Node)
-func (p *CodingConventions_ProxyBase) DescribeCachingCall(node *rhino.Node) *CodingConvention_Cache {
+func (p *CodingConventions_ProxyBase) DescribeCachingCall(node rhino.Node) *CodingConvention_Cache {
 	return p.nextConvention.DescribeCachingCall(node)
 }
 
 // Java: CodingConventions.Proxy.isPropertyTestFunction(Node)
-func (p *CodingConventions_ProxyBase) IsPropertyTestFunction(call *rhino.Node) bool {
+func (p *CodingConventions_ProxyBase) IsPropertyTestFunction(call rhino.Node) bool {
 	return p.nextConvention.IsPropertyTestFunction(call)
 }
 
 // Java: CodingConventions.Proxy.isPropertyRenameFunction(Node)
-func (p *CodingConventions_ProxyBase) IsPropertyRenameFunction(nameNode *rhino.Node) bool {
+func (p *CodingConventions_ProxyBase) IsPropertyRenameFunction(nameNode rhino.Node) bool {
 	return p.nextConvention.IsPropertyRenameFunction(nameNode)
 }
 
 // Java: CodingConventions.Proxy.isPrototypeAlias(Node)
-func (p *CodingConventions_ProxyBase) IsPrototypeAlias(getProp *rhino.Node) bool {
+func (p *CodingConventions_ProxyBase) IsPrototypeAlias(getProp rhino.Node) bool {
 	return false
 }
 
 // Java: CodingConventions.Proxy.getObjectLiteralCast(Node)
-func (p *CodingConventions_ProxyBase) GetObjectLiteralCast(callNode *rhino.Node) *CodingConvention_ObjectLiteralCast {
+func (p *CodingConventions_ProxyBase) GetObjectLiteralCast(callNode rhino.Node) *CodingConvention_ObjectLiteralCast {
 	return p.nextConvention.GetObjectLiteralCast(callNode)
 }
 
@@ -289,18 +289,18 @@ func (d *CodingConventions_DefaultCodingConvention) IsValidEnumKey(key string) b
 }
 
 // Java: CodingConventions.DefaultCodingConvention.isOptionalParameter(Node)
-func (d *CodingConventions_DefaultCodingConvention) IsOptionalParameter(parameter *rhino.Node) bool {
+func (d *CodingConventions_DefaultCodingConvention) IsOptionalParameter(parameter rhino.Node) bool {
 	return false
 }
 
 // Java: CodingConventions.DefaultCodingConvention.isVarArgsParameter(Node)
-func (d *CodingConventions_DefaultCodingConvention) IsVarArgsParameter(parameter *rhino.Node) bool {
+func (d *CodingConventions_DefaultCodingConvention) IsVarArgsParameter(parameter rhino.Node) bool {
 	// be as lax as possible
 	return parameter.IsRest()
 }
 
 // Java: CodingConventions.DefaultCodingConvention.isFunctionCallThatAlwaysThrows(Node)
-func (d *CodingConventions_DefaultCodingConvention) IsFunctionCallThatAlwaysThrows(n *rhino.Node) bool {
+func (d *CodingConventions_DefaultCodingConvention) IsFunctionCallThatAlwaysThrows(n rhino.Node) bool {
 	if NodeUtil_IsExprCall(n) {
 		fnType := rhino.JSType_ToMaybeFunctionType(n.GetFirstFirstChild().GetJSType())
 		return fnType != nil && fnType.GetClosurePrimitive() != nil &&
@@ -344,7 +344,7 @@ func (d *CodingConventions_DefaultCodingConvention) BlockRenamingForProperty(nam
 var codingConventions_DefaultCodingConvention_JSCOMP_INHERITS = rhino.QualifiedName_Of("$jscomp.inherits")
 
 // Java: CodingConventions.DefaultCodingConvention.getClassesDefinedByCall(Node)
-func (d *CodingConventions_DefaultCodingConvention) GetClassesDefinedByCall(callNode *rhino.Node) *CodingConvention_SubclassRelationship {
+func (d *CodingConventions_DefaultCodingConvention) GetClassesDefinedByCall(callNode rhino.Node) *CodingConvention_SubclassRelationship {
 	callName := callNode.GetFirstChild()
 	if (codingConventions_DefaultCodingConvention_JSCOMP_INHERITS.Matches(callName) || callName.MatchesName("$jscomp$inherits")) &&
 		callNode.HasXChildren(3) {
@@ -359,7 +359,7 @@ func (d *CodingConventions_DefaultCodingConvention) GetClassesDefinedByCall(call
 }
 
 // Java: CodingConventions.DefaultCodingConvention.isClassFactoryCall(Node)
-func (d *CodingConventions_DefaultCodingConvention) IsClassFactoryCall(callNode *rhino.Node) bool {
+func (d *CodingConventions_DefaultCodingConvention) IsClassFactoryCall(callNode rhino.Node) bool {
 	return false
 }
 
@@ -369,19 +369,19 @@ func (d *CodingConventions_DefaultCodingConvention) IsSuperClassReference(proper
 }
 
 // Java: CodingConventions.DefaultCodingConvention.extractIsModuleFile(Node, Node)
-func (d *CodingConventions_DefaultCodingConvention) ExtractIsModuleFile(node *rhino.Node, parent *rhino.Node) bool {
+func (d *CodingConventions_DefaultCodingConvention) ExtractIsModuleFile(node rhino.Node, parent rhino.Node) bool {
 	message := "only implemented in ClosureCodingConvention"
 	panic(jutil.NewUnsupportedOperationExceptionMsg(message))
 }
 
 // Java: CodingConventions.DefaultCodingConvention.extractClassNameIfProvide(Node, Node)
-func (d *CodingConventions_DefaultCodingConvention) ExtractClassNameIfProvide(node *rhino.Node, parent *rhino.Node) *string {
+func (d *CodingConventions_DefaultCodingConvention) ExtractClassNameIfProvide(node rhino.Node, parent rhino.Node) *string {
 	message := "only implemented in ClosureCodingConvention"
 	panic(jutil.NewUnsupportedOperationExceptionMsg(message))
 }
 
 // Java: CodingConventions.DefaultCodingConvention.extractClassNameIfRequire(Node, Node)
-func (d *CodingConventions_DefaultCodingConvention) ExtractClassNameIfRequire(node *rhino.Node, parent *rhino.Node) *string {
+func (d *CodingConventions_DefaultCodingConvention) ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) *string {
 	message := "only implemented in ClosureCodingConvention"
 	panic(jutil.NewUnsupportedOperationExceptionMsg(message))
 }
@@ -397,7 +397,7 @@ func (d *CodingConventions_DefaultCodingConvention) GetExportSymbolFunction() *s
 }
 
 // Java: CodingConventions.DefaultCodingConvention.identifyTypeDeclarationCall(Node)
-func (d *CodingConventions_DefaultCodingConvention) IdentifyTypeDeclarationCall(n *rhino.Node) []string {
+func (d *CodingConventions_DefaultCodingConvention) IdentifyTypeDeclarationCall(n rhino.Node) []string {
 	return []string{}
 }
 
@@ -413,7 +413,7 @@ func (d *CodingConventions_DefaultCodingConvention) GetAbstractMethodName() *str
 }
 
 // Java: CodingConventions.DefaultCodingConvention.getSingletonGetterClassName(Node)
-func (d *CodingConventions_DefaultCodingConvention) GetSingletonGetterClassName(callNode *rhino.Node) *string {
+func (d *CodingConventions_DefaultCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) *string {
 	return nil
 }
 
@@ -424,7 +424,7 @@ func (d *CodingConventions_DefaultCodingConvention) ApplySingletonGetter(
 }
 
 // Java: CodingConventions.DefaultCodingConvention.isPropertyTestFunction(Node)
-func (d *CodingConventions_DefaultCodingConvention) IsPropertyTestFunction(call *rhino.Node) bool {
+func (d *CodingConventions_DefaultCodingConvention) IsPropertyTestFunction(call rhino.Node) bool {
 	// Avoid building the qualified name and check for
 	// "goog.isArray"
 	target := call.GetFirstChild()
@@ -439,17 +439,17 @@ func (d *CodingConventions_DefaultCodingConvention) IsPropertyTestFunction(call 
 }
 
 // Java: CodingConventions.DefaultCodingConvention.isPropertyRenameFunction(Node)
-func (d *CodingConventions_DefaultCodingConvention) IsPropertyRenameFunction(nameNode *rhino.Node) bool {
+func (d *CodingConventions_DefaultCodingConvention) IsPropertyRenameFunction(nameNode rhino.Node) bool {
 	return nameNode.MatchesName(NodeUtil_JSC_PROPERTY_NAME_FN)
 }
 
 // Java: CodingConventions.DefaultCodingConvention.isPrototypeAlias(Node)
-func (d *CodingConventions_DefaultCodingConvention) IsPrototypeAlias(getProp *rhino.Node) bool {
+func (d *CodingConventions_DefaultCodingConvention) IsPrototypeAlias(getProp rhino.Node) bool {
 	return false
 }
 
 // Java: CodingConventions.DefaultCodingConvention.getObjectLiteralCast(Node)
-func (d *CodingConventions_DefaultCodingConvention) GetObjectLiteralCast(callNode *rhino.Node) *CodingConvention_ObjectLiteralCast {
+func (d *CodingConventions_DefaultCodingConvention) GetObjectLiteralCast(callNode rhino.Node) *CodingConvention_ObjectLiteralCast {
 	return nil
 }
 
@@ -468,7 +468,7 @@ func (d *CodingConventions_DefaultCodingConvention) GetAssertionFunctions() []*C
 var codingConventions_DefaultCodingConvention_FUNCTION_PROTOTYPE_BIND_CALL = rhino.QualifiedName_Of("Function.prototype.bind.call")
 
 // Java: CodingConventions.DefaultCodingConvention.describeFunctionBind(Node, boolean)
-func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n *rhino.Node, checkTypes bool) *CodingConvention_Bind {
+func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n rhino.Node, checkTypes bool) *CodingConvention_Bind {
 	if !n.IsCall() {
 		return nil
 	}
@@ -478,7 +478,7 @@ func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n *rhin
 		if codingConventions_DefaultCodingConvention_FUNCTION_PROTOTYPE_BIND_CALL.Matches(callTarget) {
 			// goog.bind(fn, self, args...);
 			fn := callTarget.GetNext()
-			if fn == nil {
+			if fn.IsNil() {
 				return nil
 			}
 			thisValue := CodingConventions_DefaultCodingConvention_SafeNext(fn)
@@ -508,14 +508,14 @@ func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n *rhin
 }
 
 // Java: CodingConventions.DefaultCodingConvention.describeCachingCall(Node)
-func (d *CodingConventions_DefaultCodingConvention) DescribeCachingCall(node *rhino.Node) *CodingConvention_Cache {
+func (d *CodingConventions_DefaultCodingConvention) DescribeCachingCall(node rhino.Node) *CodingConvention_Cache {
 	return nil
 }
 
 // Java: CodingConventions.DefaultCodingConvention.safeNext(Node)
-func CodingConventions_DefaultCodingConvention_SafeNext(n *rhino.Node) *rhino.Node {
-	if n != nil {
+func CodingConventions_DefaultCodingConvention_SafeNext(n rhino.Node) rhino.Node {
+	if !n.IsNil() {
 		return n.GetNext()
 	}
-	return nil
+	return rhino.Node{}
 }

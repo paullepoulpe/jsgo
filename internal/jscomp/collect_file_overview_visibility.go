@@ -38,15 +38,15 @@ func NewCollectFileOverviewVisibility(compiler AbstractCompiler) *CollectFileOve
 }
 
 // Java: CollectFileOverviewVisibility.process(Node, Node)
-func (c *CollectFileOverviewVisibility) Process(externs *rhino.Node, root *rhino.Node) {
-	for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+func (c *CollectFileOverviewVisibility) Process(externs rhino.Node, root rhino.Node) {
+	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		jutil.CheckState(script.IsScript())
 		c.Visit(script)
 	}
 }
 
 // Java: CollectFileOverviewVisibility.visit(Node)
-func (c *CollectFileOverviewVisibility) Visit(scriptNode *rhino.Node) {
+func (c *CollectFileOverviewVisibility) Visit(scriptNode rhino.Node) {
 	jsDocInfo := scriptNode.GetJSDocInfo()
 	if jsDocInfo == nil {
 		return

@@ -42,6 +42,6 @@ func NewErrorPassWithJSError(compiler AbstractCompiler, error_ *JSError) *ErrorP
 }
 
 // Java: ErrorPass.process(Node, Node)
-func (p *ErrorPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *ErrorPass) Process(externs rhino.Node, root rhino.Node) {
 	p.compiler.Report(p.error_)
 }

@@ -46,15 +46,15 @@ type InlineProperties struct {
 // InlineProperties_PropertyInfo is the nested class PropertyInfo.
 type InlineProperties_PropertyInfo struct {
 	color *colors.Color
-	value *rhino.Node
+	value rhino.Node
 }
 
 // Java: InlineProperties.PropertyInfo(Color, Node)
-func NewInlineProperties_PropertyInfo(color *colors.Color, value *rhino.Node) *InlineProperties_PropertyInfo {
+func NewInlineProperties_PropertyInfo(color *colors.Color, value rhino.Node) *InlineProperties_PropertyInfo {
 	return &InlineProperties_PropertyInfo{color: color, value: value}
 }
 
-var InlineProperties_INVALIDATED = NewInlineProperties_PropertyInfo(nil, nil)
+var InlineProperties_INVALIDATED = NewInlineProperties_PropertyInfo(nil, rhino.Node{})
 
 // Java: InlineProperties(AbstractCompiler)
 func NewInlineProperties(compiler AbstractCompiler) *InlineProperties {
@@ -78,7 +78,7 @@ func (p *InlineProperties) InvalidateExternProperties() {
 // present.
 //
 // Java: InlineProperties.getColor(Node)
-func (p *InlineProperties) GetColor(n *rhino.Node) *colors.Color {
+func (p *InlineProperties) GetColor(n rhino.Node) *colors.Color {
 	color := n.GetColor()
 
 	if color == nil {
@@ -89,7 +89,7 @@ func (p *InlineProperties) GetColor(n *rhino.Node) *colors.Color {
 }
 
 // Java: InlineProperties.process(Node, Node)
-func (p *InlineProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *InlineProperties) Process(externs rhino.Node, root rhino.Node) {
 	// Find and replace the properties in non-extern AST.
 	NodeTraversal_Traverse(p.compiler, root, &InlineProperties_GatherCandidates{outer: p})
 	NodeTraversal_Traverse(p.compiler, root, NewInlineProperties_ReplaceCandidates(p))
@@ -102,7 +102,7 @@ type InlineProperties_GatherCandidates struct {
 }
 
 // Java: InlineProperties.GatherCandidates.visit(NodeTraversal, Node, Node)
-func (g *InlineProperties_GatherCandidates) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *InlineProperties_GatherCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// These are assigned at most once in the branches below
 	var invalidatingPropRef bool
 	var propName string
@@ -166,7 +166,7 @@ func (g *InlineProperties_GatherCandidates) Visit(t *NodeTraversal, n *rhino.Nod
 // definition for a candidate class field.
 //
 // Java: InlineProperties.GatherCandidates.maybeRecordCandidateClassFieldDefinition(Node)
-func (g *InlineProperties_GatherCandidates) MaybeRecordCandidateClassFieldDefinition(n *rhino.Node) bool {
+func (g *InlineProperties_GatherCandidates) MaybeRecordCandidateClassFieldDefinition(n rhino.Node) bool {
 	jutil.CheckStateMsg1(n.IsMemberFieldDef(), "%s", n)
 	value := n.GetFirstChild()
 	propName := n.GetString()
@@ -191,7 +191,7 @@ func (g *InlineProperties_GatherCandidates) MaybeRecordCandidateClassFieldDefini
 // definition for a candidate property.
 //
 // Java: InlineProperties.GatherCandidates.maybeRecordCandidateGetpropDefinition(NodeTraversal, Node, Node)
-func (g *InlineProperties_GatherCandidates) MaybeRecordCandidateGetpropDefinition(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (g *InlineProperties_GatherCandidates) MaybeRecordCandidateGetpropDefinition(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	jutil.CheckStateMsg1(n.IsGetProp() && parent.IsAssign(), "%s", n)
 	src := n.GetFirstChild()
 	propName := n.GetString()
@@ -235,8 +235,8 @@ func (g *InlineProperties_GatherCandidates) InvalidateProperty(propName string) 
 // Returns true if the property was successfully added.
 //
 // Java: InlineProperties.GatherCandidates.maybeStoreCandidateValue(Color, String, Node)
-func (g *InlineProperties_GatherCandidates) MaybeStoreCandidateValue(color *colors.Color, propName string, value *rhino.Node) bool {
-	jutil.CheckNotNull(value)
+func (g *InlineProperties_GatherCandidates) MaybeStoreCandidateValue(color *colors.Color, propName string, value rhino.Node) bool {
+	rhino.CheckNotNull(value)
 	if g.outer.props[propName] == nil &&
 		(g.outer.externProps == nil || !g.outer.externProps.Contains(propName)) &&
 		!color.IsInvalidating() &&
@@ -261,7 +261,7 @@ func (g *InlineProperties_GatherCandidates) MaybeStoreCandidateValue(color *colo
 // Java: InlineProperties.GatherCandidates.inConstructor(NodeTraversal)
 func (g *InlineProperties_GatherCandidates) InConstructor(t *NodeTraversal) bool {
 	root := t.GetEnclosingFunction()
-	if root == nil { // we might be in the global scope
+	if root.IsNil() { // we might be in the global scope
 		return false
 	}
 	return NodeUtil_IsConstructor(root)
@@ -284,7 +284,7 @@ func NewInlineProperties_ReplaceCandidates(outer *InlineProperties) *InlinePrope
 }
 
 // Java: InlineProperties.ReplaceCandidates.visit(NodeTraversal, Node, Node)
-func (r *InlineProperties_ReplaceCandidates) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *InlineProperties_ReplaceCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsGetProp() && !NodeUtil_IsLValue(n) {
 		target := n.GetFirstChild()
 		propName := n.GetString()
@@ -301,7 +301,7 @@ func (r *InlineProperties_ReplaceCandidates) Visit(t *NodeTraversal, n *rhino.No
 }
 
 // Java: InlineProperties.ReplaceCandidates.isMatchingType(Node, Color)
-func (r *InlineProperties_ReplaceCandidates) IsMatchingType(n *rhino.Node, src *colors.Color) bool {
+func (r *InlineProperties_ReplaceCandidates) IsMatchingType(n rhino.Node, src *colors.Color) bool {
 	src = InlineProperties_RemoveNullAndUndefinedIfUnion(src)
 	dest := InlineProperties_RemoveNullAndUndefinedIfUnion(r.outer.GetColor(n))
 	if dest.IsInvalidating() {

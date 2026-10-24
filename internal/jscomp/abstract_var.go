@@ -47,7 +47,7 @@ type AbstractVar interface {
 	GetInput() *CompilerInput
 
 	// Java: AbstractVar.getParentNode()
-	GetParentNode() *rhino.Node
+	GetParentNode() rhino.Node
 
 	// Java: AbstractVar.isBleedingFunction()
 	IsBleedingFunction() bool
@@ -71,10 +71,10 @@ type AbstractVar interface {
 	IsDefine() bool
 
 	// Java: AbstractVar.getInitialValue()
-	GetInitialValue() *rhino.Node
+	GetInitialValue() rhino.Node
 
 	// Java: AbstractVar.getNameNode()
-	GetNameNode() *rhino.Node
+	GetNameNode() rhino.Node
 
 	// Java: AbstractVar.isVar()
 	IsVar() bool
@@ -116,7 +116,7 @@ type AbstractVar interface {
 	IsImplicitGoogNamespace() bool
 
 	// Java: AbstractVar.addImplicitGoogNamespaceDefinition(Node)
-	AddImplicitGoogNamespaceDefinition(definition *rhino.Node)
+	AddImplicitGoogNamespaceDefinition(definition rhino.Node)
 
 	// Java: AbstractVar.getImplicitGoogNamespaceStrength()
 	GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind
@@ -158,7 +158,7 @@ const (
 // string ID (scopes look vars up by ID), a TypedVar as a string (most typed
 // names are qualified names that nothing else interns).
 type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
-	nameNode *rhino.Node
+	nameNode rhino.Node
 
 	// Input source
 	input *CompilerInput
@@ -195,15 +195,15 @@ func (b *AbstractVarBase[S, V]) self() V {
 //
 // Java: AbstractVar(String, Node, S, int, CompilerInput, Node)
 func (b *AbstractVarBase[S, V]) initAbstractVarBase(
-	nameNode *rhino.Node,
+	nameNode rhino.Node,
 	scope S,
 	index int,
 	input *CompilerInput,
-	implicitGoogNamespaceDefinition *rhino.Node) {
+	implicitGoogNamespaceDefinition rhino.Node) {
 	jutil.CheckArgumentMsg1(index >= -1, "%s", index)
 	flags := uint32(index+1) & varIndexMask
-	if implicitGoogNamespaceDefinition != nil {
-		b.nameNode = nil
+	if !implicitGoogNamespaceDefinition.IsNil() {
+		b.nameNode = rhino.Node{}
 		strength := abstractVar_strengthOf(implicitGoogNamespaceDefinition)
 		flags |= (uint32(strength) + 1) << varImplicitStrengthShift
 	} else {
@@ -216,7 +216,7 @@ func (b *AbstractVarBase[S, V]) initAbstractVarBase(
 }
 
 // Java: AbstractVar.getScopeRoot()
-func (b *AbstractVarBase[S, V]) GetScopeRoot() *rhino.Node {
+func (b *AbstractVarBase[S, V]) GetScopeRoot() rhino.Node {
 	return b.scope.GetRootNode()
 }
 
@@ -235,16 +235,16 @@ func (b *AbstractVarBase[S, V]) HashCode() int32 {
 //go:noinline
 func (b *AbstractVarBase[S, V]) computeHashCode() int32 {
 	root := b.scope.GetRootNode()
-	if root == nil {
+	if root.IsNil() {
 		panic(jutil.NewNullPointerException())
 	}
-	h := 31*(31+jutil.StringHashCode(b.self().GetName())) + jutil.IdentityHashCodeOfPointer(root)
+	h := 31*(31+jutil.StringHashCode(b.self().GetName())) + root.IdentityHashCode()
 	atomic.StoreInt32(&b.nameHash, h)
 	return h
 }
 
 // Java: AbstractVar.getNode()
-func (b *AbstractVarBase[S, V]) GetNode() *rhino.Node {
+func (b *AbstractVarBase[S, V]) GetNode() rhino.Node {
 	return b.nameNode
 }
 
@@ -256,16 +256,16 @@ func (b *AbstractVarBase[S, V]) GetInput() *CompilerInput {
 // Java: AbstractVar.getSourceFile()
 func (b *AbstractVarBase[S, V]) GetSourceFile() rhino.StaticSourceFile {
 	n := b.GetNode()
-	if n == nil {
+	if n.IsNil() {
 		n = b.scope.GetRootNode()
 	}
 	return n.GetStaticSourceFile()
 }
 
 // Java: AbstractVar.getParentNode()
-func (b *AbstractVarBase[S, V]) GetParentNode() *rhino.Node {
-	if b.GetNode() == nil {
-		return nil
+func (b *AbstractVarBase[S, V]) GetParentNode() rhino.Node {
+	if b.GetNode().IsNil() {
+		return rhino.Node{}
 	}
 	return b.GetNode().GetParent()
 }
@@ -276,7 +276,7 @@ func (b *AbstractVarBase[S, V]) GetParentNode() *rhino.Node {
 // Java: AbstractVar.isBleedingFunction()
 func (b *AbstractVarBase[S, V]) IsBleedingFunction() bool {
 	parent := b.GetParentNode()
-	return parent != nil && NodeUtil_IsFunctionExpression(parent)
+	return !parent.IsNil() && NodeUtil_IsFunctionExpression(parent)
 }
 
 // GetScope is final in Java and returns S; see AbstractVar.
@@ -326,7 +326,7 @@ func (b *AbstractVarBase[S, V]) IsExtern() bool {
 // Java: AbstractVar.isDeclaredOrInferredConst()
 func (b *AbstractVarBase[S, V]) IsDeclaredOrInferredConst() bool {
 	declarationNode := b.GetNode()
-	if declarationNode == nil {
+	if declarationNode.IsNil() {
 		return false
 	}
 
@@ -345,21 +345,21 @@ func (b *AbstractVarBase[S, V]) IsDefine() bool {
 }
 
 // Java: AbstractVar.getInitialValue()
-func (b *AbstractVarBase[S, V]) GetInitialValue() *rhino.Node {
-	if b.GetNode() == nil {
-		return nil
+func (b *AbstractVarBase[S, V]) GetInitialValue() rhino.Node {
+	if b.GetNode().IsNil() {
+		return rhino.Node{}
 	}
 	return NodeUtil_GetRValueOfLValue(b.GetNode())
 }
 
 // Java: AbstractVar.getNameNode()
-func (b *AbstractVarBase[S, V]) GetNameNode() *rhino.Node {
+func (b *AbstractVarBase[S, V]) GetNameNode() rhino.Node {
 	return b.GetNode()
 }
 
 // Java: AbstractVar.getJSDocInfo()
 func (b *AbstractVarBase[S, V]) GetJSDocInfo() *rhino.JSDocInfo {
-	if b.GetNode() == nil {
+	if b.GetNode().IsNil() {
 		return nil
 	}
 	return NodeUtil_GetBestJSDocInfo(b.GetNode())
@@ -460,7 +460,7 @@ func (b *AbstractVarBase[S, V]) DeclarationType() *rhino.Token {
 	if b.IsImplicitGoogNamespace() {
 		return nil
 	}
-	for current := b.GetNode(); current != nil; current = current.GetParent() {
+	for current := b.GetNode(); !current.IsNil(); current = current.GetParent() {
 		if abstractVar_DECLARATION_TYPES.Contains(current.GetToken()) {
 			return &abstractVar_tokenPtrs[current.GetToken()]
 		}
@@ -485,7 +485,7 @@ func (b *AbstractVarBase[S, V]) IsImplicitGoogNamespace() bool {
 // goog.module call.
 //
 // Java: AbstractVar.addImplicitGoogNamespaceDefinition(Node)
-func (b *AbstractVarBase[S, V]) AddImplicitGoogNamespaceDefinition(definition *rhino.Node) {
+func (b *AbstractVarBase[S, V]) AddImplicitGoogNamespaceDefinition(definition rhino.Node) {
 	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b.self())
 	cur := rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
 	strength := abstractVar_strongerOf(cur, abstractVar_strengthOf(definition))
@@ -502,7 +502,7 @@ func (b *AbstractVarBase[S, V]) GetImplicitGoogNamespaceStrength() rhino.StaticS
 }
 
 // Java: AbstractVar.strengthOf(Node)
-func abstractVar_strengthOf(n *rhino.Node) rhino.StaticSourceFile_SourceKind {
+func abstractVar_strengthOf(n rhino.Node) rhino.StaticSourceFile_SourceKind {
 	source := n.GetStaticSourceFile()
 	if source == nil {
 		return rhino.StaticSourceFile_SourceKind_EXTERN

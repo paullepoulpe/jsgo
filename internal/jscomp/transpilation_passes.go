@@ -453,7 +453,7 @@ var TranspilationPasses_rewriteNullishCoalesceOperator = PassFactory_Builder_().
 // be relied upon to check if a feature exists in the AST or not.
 //
 // Java: TranspilationPasses.doesScriptHaveAnyOfTheseFeatures(Node, FeatureSet)
-func TranspilationPasses_DoesScriptHaveAnyOfTheseFeatures(script *rhino.Node, featureSet *parser.FeatureSet) bool {
+func TranspilationPasses_DoesScriptHaveAnyOfTheseFeatures(script rhino.Node, featureSet *parser.FeatureSet) bool {
 	features := NodeUtil_GetFeatureSetOfScript(script)
 	return features != nil && features.ContainsAtLeastOneOf(featureSet)
 }
@@ -473,7 +473,7 @@ func TranspilationPasses_DoesScriptHaveAnyOfTheseFeatures(script *rhino.Node, fe
 // Java: TranspilationPasses.processTranspile(AbstractCompiler, Node, FeatureSet, NodeTraversal.Callback...)
 func TranspilationPasses_ProcessTranspile(
 	compiler AbstractCompiler,
-	combinedRoot *rhino.Node,
+	combinedRoot rhino.Node,
 	featuresToRunFor *parser.FeatureSet,
 	callbacks ...NodeTraversal_Callback) {
 	languageOutFeatures := compiler.GetOptions().GetOutputFeatureSet()
@@ -482,7 +482,7 @@ func TranspilationPasses_ProcessTranspile(
 		return
 	}
 
-	for singleRoot := combinedRoot.GetFirstChild(); singleRoot != nil; singleRoot = singleRoot.GetNext() {
+	for singleRoot := combinedRoot.GetFirstChild(); !singleRoot.IsNil(); singleRoot = singleRoot.GetNext() {
 		jutil.CheckState(singleRoot.IsScript())
 		// only run the callbacks if any feature from the given featureSet exists in the script
 		if TranspilationPasses_DoesScriptHaveAnyOfTheseFeatures(singleRoot, featuresToRunFor) {
@@ -499,7 +499,7 @@ func TranspilationPasses_ProcessTranspile(
 //
 // Java: TranspilationPasses.maybeMarkFeatureAsTranspiledAway(AbstractCompiler, Node, Feature)
 func TranspilationPasses_MaybeMarkFeatureAsTranspiledAway(
-	compiler AbstractCompiler, root *rhino.Node, feature parser.FeatureSet_Feature) {
+	compiler AbstractCompiler, root rhino.Node, feature parser.FeatureSet_Feature) {
 	// We don't bother to do this if the compiler has halting errors, which avoids unnecessary
 	// warnings from AstValidator warning that the features are still there.
 	if !compiler.HasHaltingErrors() {
@@ -514,7 +514,7 @@ func TranspilationPasses_MaybeMarkFeatureAsTranspiledAway(
 //
 // Java: TranspilationPasses.maybeMarkFeaturesAsTranspiledAway(AbstractCompiler, Node, FeatureSet)
 func TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(
-	compiler AbstractCompiler, root *rhino.Node, transpiledFeatures *parser.FeatureSet) {
+	compiler AbstractCompiler, root rhino.Node, transpiledFeatures *parser.FeatureSet) {
 	// We don't bother to do this if the compiler has halting errors, which avoids unnecessary
 	// warnings from AstValidator warning that the features are still there.
 	if !compiler.HasHaltingErrors() {
@@ -566,7 +566,7 @@ func TranspilationPasses_CreateFeatureRemovalPass(
 		SetName(passName).
 		SetInternalFactory(
 			func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+				return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 					TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(compiler, root, featuresToRemove)
 				})
 			}).
@@ -583,7 +583,7 @@ func TranspilationPasses_CreatePostTranspileUnsupportedFeaturesRemovedCheck(pass
 		SetName(passName).
 		SetInternalFactory(
 			func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+				return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 					TranspilationPasses_PostTranspileCheckUnsupportedFeaturesRemoved(compiler)
 				})
 			}).

@@ -643,14 +643,14 @@ function template(foo) {
 }
 
 // Java: TemplateAstMatcherTest.assertMatch(Node, Node, boolean)
-func (c *TemplateAstMatcherTest) assertMatchWithShouldMatch(templateRoot *rhino.Node, testNode *rhino.Node, shouldMatch bool) {
+func (c *TemplateAstMatcherTest) assertMatchWithShouldMatch(templateRoot rhino.Node, testNode rhino.Node, shouldMatch bool) {
 	c.assertMatchWithStrategy(templateRoot, testNode, shouldMatch, TypeMatchingStrategy_LOOSE)
 }
 
 // Java: TemplateAstMatcherTest.assertMatch(Node, Node, boolean, TypeMatchingStrategy)
 func (c *TemplateAstMatcherTest) assertMatchWithStrategy(
-	templateRoot *rhino.Node,
-	testNode *rhino.Node,
+	templateRoot rhino.Node,
+	testNode rhino.Node,
 	shouldMatch bool,
 	typeMatchingStrategy TypeMatchingStrategy) {
 	matcher := NewTemplateAstMatcher(c.lastCompiler, templateRoot.GetFirstChild(), typeMatchingStrategy)
@@ -668,12 +668,12 @@ func (c *TemplateAstMatcherTest) assertMatchWithStrategy(
 }
 
 // Java: TemplateAstMatcherTest.assertMatch(Node, Node)
-func (c *TemplateAstMatcherTest) assertMatch(templateRoot *rhino.Node, testNode *rhino.Node) {
+func (c *TemplateAstMatcherTest) assertMatch(templateRoot rhino.Node, testNode rhino.Node) {
 	c.assertMatchWithShouldMatch(templateRoot, testNode, true)
 }
 
 // Java: TemplateAstMatcherTest.assertNotMatch(Node, Node)
-func (c *TemplateAstMatcherTest) assertNotMatch(templateRoot *rhino.Node, testNode *rhino.Node) {
+func (c *TemplateAstMatcherTest) assertNotMatch(templateRoot rhino.Node, testNode rhino.Node) {
 	c.assertMatchWithShouldMatch(templateRoot, testNode, false)
 }
 
@@ -706,12 +706,12 @@ func (c *TemplateAstMatcherTest) compile(externs string, template string, code s
 
 // templateAstMatcherTest_TestNodePair is TemplateAstMatcherTest.TestNodePair.
 type templateAstMatcherTest_TestNodePair struct {
-	templateNode *rhino.Node
-	testNode     *rhino.Node
+	templateNode rhino.Node
+	testNode     rhino.Node
 }
 
 // Java: TemplateAstMatcherTest.TestNodePair(Node, Node)
-func newTemplateAstMatcherTest_TestNodePair(template *rhino.Node, root *rhino.Node) *templateAstMatcherTest_TestNodePair {
+func newTemplateAstMatcherTest_TestNodePair(template rhino.Node, root rhino.Node) *templateAstMatcherTest_TestNodePair {
 	return &templateAstMatcherTest_TestNodePair{
 		templateNode: template,
 		testNode:     root.GetLastChild().GetFirstChild(),
@@ -719,9 +719,9 @@ func newTemplateAstMatcherTest_TestNodePair(template *rhino.Node, root *rhino.No
 }
 
 // Java: TemplateAstMatcherTest.TestNodePair.getTestExprResultRoot()
-func (p *templateAstMatcherTest_TestNodePair) GetTestExprResultRoot() *rhino.Node {
+func (p *templateAstMatcherTest_TestNodePair) GetTestExprResultRoot() rhino.Node {
 	if p.testNode.GetFirstChild().IsExprResult() {
 		return p.testNode.GetFirstChild()
 	}
-	return nil
+	return rhino.Node{}
 }

@@ -39,7 +39,7 @@ func NewGatherGetterAndSetterProperties(compiler AbstractCompiler) *GatherGetter
 }
 
 // Java: GatherGetterAndSetterProperties.process(Node, Node)
-func (g *GatherGetterAndSetterProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (g *GatherGetterAndSetterProperties) Process(externs rhino.Node, root rhino.Node) {
 	GatherGetterAndSetterProperties_Update(g.compiler, externs, root)
 }
 
@@ -47,7 +47,7 @@ func (g *GatherGetterAndSetterProperties) Process(externs *rhino.Node, root *rhi
 // the AST.
 //
 // Java: GatherGetterAndSetterProperties.update(AbstractCompiler, Node, Node)
-func GatherGetterAndSetterProperties_Update(compiler AbstractCompiler, externs *rhino.Node, root *rhino.Node) {
+func GatherGetterAndSetterProperties_Update(compiler AbstractCompiler, externs rhino.Node, root rhino.Node) {
 	// TODO(nickreid): We probably don't need to re-gather from the externs. They don't change so
 	// the first collection should be good forever.
 	// For now we traverse both trees every time because there's no reason we have to treat them
@@ -63,7 +63,7 @@ func GatherGetterAndSetterProperties_Update(compiler AbstractCompiler, externs *
 }
 
 // Java: GatherGetterAndSetterProperties.gather(AbstractCompiler, Node)
-func GatherGetterAndSetterProperties_Gather(compiler AbstractCompiler, root *rhino.Node) *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
+func GatherGetterAndSetterProperties_Gather(compiler AbstractCompiler, root rhino.Node) *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
 	gatherCallback := NewGatherGetterAndSetterProperties_GatherCallback()
 	NodeTraversal_Traverse(compiler, root, gatherCallback)
 	return jutil.NewLinkedHashMapFrom(gatherCallback.properties)
@@ -94,7 +94,7 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) Record(property string,
 }
 
 // Java: GatherCallback.visit(NodeTraversal, Node, Node)
-func (c *GatherGetterAndSetterProperties_GatherCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *GatherGetterAndSetterProperties_GatherCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_GETTER_DEF:
 		c.RecordGetterDef(n)
@@ -111,7 +111,7 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) Visit(t *NodeTraversal,
 }
 
 // Java: GatherCallback.recordGetterDef(Node)
-func (c *GatherGetterAndSetterProperties_GatherCallback) RecordGetterDef(getterDef *rhino.Node) {
+func (c *GatherGetterAndSetterProperties_GatherCallback) RecordGetterDef(getterDef rhino.Node) {
 	jutil.CheckState(getterDef.IsGetterDef())
 
 	name := getterDef.GetString()
@@ -119,7 +119,7 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) RecordGetterDef(getterD
 }
 
 // Java: GatherCallback.recordSetterDef(Node)
-func (c *GatherGetterAndSetterProperties_GatherCallback) RecordSetterDef(setterDef *rhino.Node) {
+func (c *GatherGetterAndSetterProperties_GatherCallback) RecordSetterDef(setterDef rhino.Node) {
 	jutil.CheckState(setterDef.IsSetterDef())
 
 	name := setterDef.GetString()
@@ -133,8 +133,8 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) RecordSetterDef(setterD
 //	Object.defineProperties(obj, { 'propertyName': { /* descriptor */ } });
 //
 // Java: GatherCallback.visitDescriptor(String, Node)
-func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDescriptor(propertyName string, descriptor *rhino.Node) {
-	for key := descriptor.GetFirstChild(); key != nil; key = key.GetNext() {
+func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDescriptor(propertyName string, descriptor rhino.Node) {
+	for key := descriptor.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		if key.IsStringKey() || key.IsMemberFunctionDef() {
 			if "get" == key.GetString() {
 				c.Record(propertyName, AccessorSummary_PropertyAccessKind_GETTER_ONLY)
@@ -146,7 +146,7 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDescriptor(propert
 }
 
 // Java: GatherCallback.visitDefineProperty(Node)
-func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDefineProperty(definePropertyCall *rhino.Node) {
+func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDefineProperty(definePropertyCall rhino.Node) {
 	propertyNameNode := definePropertyCall.GetChildAtIndex(2)
 	descriptor := definePropertyCall.GetChildAtIndex(3)
 
@@ -159,14 +159,14 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDefineProperty(def
 }
 
 // Java: GatherCallback.visitDefineProperties(Node)
-func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDefineProperties(definePropertiesCall *rhino.Node) {
+func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDefineProperties(definePropertiesCall rhino.Node) {
 	props := definePropertiesCall.GetChildAtIndex(2)
 
 	if !props.IsObjectLit() {
 		return
 	}
 
-	for prop := props.GetFirstChild(); prop != nil; prop = prop.GetNext() {
+	for prop := props.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
 		if prop.IsStringKey() && prop.HasOneChild() && prop.GetFirstChild().IsObjectLit() {
 			propertyName := prop.GetString()
 			descriptor := prop.GetFirstChild()

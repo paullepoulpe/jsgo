@@ -29,18 +29,18 @@ import (
 
 // nodeTraversalTestCallback is an anonymous NodeTraversal.Callback.
 type nodeTraversalTestCallback struct {
-	shouldTraverse func(t *NodeTraversal, n, parent *rhino.Node) bool
-	visit          func(t *NodeTraversal, n, parent *rhino.Node)
+	shouldTraverse func(t *NodeTraversal, n, parent rhino.Node) bool
+	visit          func(t *NodeTraversal, n, parent rhino.Node)
 }
 
-func (c *nodeTraversalTestCallback) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool {
+func (c *nodeTraversalTestCallback) ShouldTraverse(t *NodeTraversal, n, parent rhino.Node) bool {
 	if c.shouldTraverse == nil {
 		return true
 	}
 	return c.shouldTraverse(t, n, parent)
 }
 
-func (c *nodeTraversalTestCallback) Visit(t *NodeTraversal, n, parent *rhino.Node) {
+func (c *nodeTraversalTestCallback) Visit(t *NodeTraversal, n, parent rhino.Node) {
 	if c.visit != nil {
 		c.visit(t, n, parent)
 	}
@@ -90,11 +90,11 @@ func TestNodeTraversal_Report(t *testing.T) {
 	dt := DiagnosticType_Warning("FOO", "{0}, {1} - {2}")
 
 	callback := &nodeTraversalTestCallback{
-		shouldTraverse: func(nt *NodeTraversal, n, parent *rhino.Node) bool {
+		shouldTraverse: func(nt *NodeTraversal, n, parent rhino.Node) bool {
 			nt.Report(n, dt, "Foo", "Bar", "Hello")
 			return false
 		},
-		visit: func(nt *NodeTraversal, n, parent *rhino.Node) {
+		visit: func(nt *NodeTraversal, n, parent rhino.Node) {
 			panic(jutil.NewAssertionErrorNoMessage())
 		},
 	}
@@ -117,14 +117,14 @@ func TestNodeTraversal_Report(t *testing.T) {
 
 func TestNodeTraversal_ReportWithRange(t *testing.T) {
 	dt := DiagnosticType_Warning("FOO", "{0}, {1} - {2}")
-	getRootNode := func(n *rhino.Node) *rhino.Node {
+	getRootNode := func(n rhino.Node) rhino.Node {
 		for n.IsGetProp() {
 			n = n.GetFirstChild()
 		}
 		return n
 	}
 	callback := &nodeTraversalTestCallback{
-		shouldTraverse: func(nt *NodeTraversal, n, parent *rhino.Node) bool {
+		shouldTraverse: func(nt *NodeTraversal, n, parent rhino.Node) bool {
 			if n.IsGetProp() && parent.IsExprResult() {
 				nt.ReportWithNodeRange(getRootNode(n), n, dt, "Foo", "Bar", "Hello")
 			}
@@ -153,7 +153,7 @@ func TestNodeTraversal_ReportWithRange(t *testing.T) {
 const nodeTraversalTest_TEST_EXCEPTION = "test me"
 
 func TestNodeTraversal_UnexpectedException(t *testing.T) {
-	var cb NodeTraversal_AbstractPostOrderCallbackInterface = func(nt *NodeTraversal, n, parent *rhino.Node) {
+	var cb NodeTraversal_AbstractPostOrderCallbackInterface = func(nt *NodeTraversal, n, parent rhino.Node) {
 		panic(jutil.NewRuntimeException(nodeTraversalTest_TEST_EXCEPTION))
 	}
 
@@ -199,15 +199,15 @@ func TestNodeTraversal_GetScopeRoot_inEsModule(t *testing.T) {
 export {x};
 `
 	tree := scopeTestParse(t, compiler, code)
-	check := func(nt *NodeTraversal, n, parent *rhino.Node) {
-		if n.IsModuleBody() || (parent != nil && parent.IsModuleBody()) {
+	check := func(nt *NodeTraversal, n, parent rhino.Node) {
+		if n.IsModuleBody() || (!parent.IsNil() && parent.IsModuleBody()) {
 			if tok := nt.GetScopeRoot().GetToken(); tok != rhino.Token_MODULE_BODY {
 				t.Errorf("scope root token %v, want MODULE_BODY", tok)
 			}
 		}
 	}
 	NodeTraversal_Traverse(compiler, tree, &nodeTraversalTestCallback{
-		shouldTraverse: func(nt *NodeTraversal, n, parent *rhino.Node) bool {
+		shouldTraverse: func(nt *NodeTraversal, n, parent rhino.Node) bool {
 			check(nt, n, parent)
 			return true
 		},
@@ -223,15 +223,15 @@ function foo() {
 }
 `
 	tree := scopeTestParse(t, compiler, code)
-	check := func(nt *NodeTraversal, n, parent *rhino.Node) {
-		if n.IsModuleBody() || (parent != nil && parent.IsModuleBody()) {
+	check := func(nt *NodeTraversal, n, parent rhino.Node) {
+		if n.IsModuleBody() || (!parent.IsNil() && parent.IsModuleBody()) {
 			if tok := nt.GetScopeRoot().GetToken(); tok != rhino.Token_MODULE_BODY {
 				t.Errorf("scope root token %v, want MODULE_BODY", tok)
 			}
 		}
 	}
 	NodeTraversal_Traverse(compiler, tree, &nodeTraversalTestCallback{
-		shouldTraverse: func(nt *NodeTraversal, n, parent *rhino.Node) bool {
+		shouldTraverse: func(nt *NodeTraversal, n, parent rhino.Node) bool {
 			check(nt, n, parent)
 			return true
 		},
@@ -247,7 +247,7 @@ func TestNodeTraversal_GetHoistScopeRoot(t *testing.T) {
 `
 	tree := scopeTestParse(t, compiler, code)
 	NodeTraversal_Traverse(compiler, tree, &nodeTraversalTestCallback{
-		visit: func(nt *NodeTraversal, n, parent *rhino.Node) {
+		visit: func(nt *NodeTraversal, n, parent rhino.Node) {
 			if n.IsName() && n.GetString() == "XXX" {
 				root := nt.GetClosestHoistScopeRoot()
 				if !NodeUtil_IsFunctionBlock(root) {
@@ -268,11 +268,11 @@ func TestNodeTraversal_GetHoistScopeRoot(t *testing.T) {
 // nodeTraversalTest_NameChangingCallback is NodeTraversalTest.NameChangingCallback.
 type nodeTraversalTest_NameChangingCallback struct{}
 
-func (nodeTraversalTest_NameChangingCallback) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool {
+func (nodeTraversalTest_NameChangingCallback) ShouldTraverse(t *NodeTraversal, n, parent rhino.Node) bool {
 	return true
 }
 
-func (nodeTraversalTest_NameChangingCallback) Visit(t *NodeTraversal, n, parent *rhino.Node) {
+func (nodeTraversalTest_NameChangingCallback) Visit(t *NodeTraversal, n, parent rhino.Node) {
 	if n.IsName() && n.GetString() == "change" {
 		n.SetString("xx")
 		t.ReportCodeChange()
@@ -701,13 +701,13 @@ function bar() {
 	fooFunction := tree.GetFirstChild()
 
 	// Traverse without entering nested scopes.
-	NodeTraversal_TraverseScopeRoots(compiler, []*rhino.Node{fooFunction}, callback, false)
+	NodeTraversal_TraverseScopeRoots(compiler, []rhino.Node{fooFunction}, callback, false)
 	assertSameElements(t, "strings", callback.strings, []string{"string in foo"})
 
 	callback.strings = nil
 
 	// Traverse *with* entering nested scopes, now also sees "string nested in baz".
-	NodeTraversal_TraverseScopeRoots(compiler, []*rhino.Node{fooFunction}, callback, true)
+	NodeTraversal_TraverseScopeRoots(compiler, []rhino.Node{fooFunction}, callback, true)
 	assertSameElements(t, "strings", callback.strings, []string{"string in foo", "string nested in baz"})
 }
 
@@ -731,14 +731,14 @@ var bar = function() {
 	fooFunction := tree.GetSecondChild().GetFirstFirstChild()
 
 	// Traverse without entering nested scopes.
-	NodeTraversal_TraverseScopeRoots(compiler, []*rhino.Node{fooFunction}, callback, false)
+	NodeTraversal_TraverseScopeRoots(compiler, []rhino.Node{fooFunction}, callback, false)
 	assertSameElements(t, "var names", callback.varNames.ToSlice(),
 		[]string{"varDefinedInScript", "foo", "bar", "varDefinedInFoo", "baz"})
 
 	callback.varNames.Clear()
 
 	// Traverse *with* entering nested scopes, now also sees "varDefinedInBaz".
-	NodeTraversal_TraverseScopeRoots(compiler, []*rhino.Node{fooFunction}, callback, true)
+	NodeTraversal_TraverseScopeRoots(compiler, []rhino.Node{fooFunction}, callback, true)
 	assertSameElements(t, "var names", callback.varNames.ToSlice(),
 		[]string{"varDefinedInScript", "foo", "bar", "varDefinedInFoo", "baz", "varDefinedInBaz"})
 }
@@ -746,7 +746,7 @@ var bar = function() {
 func TestNodeTraversal_TraverseEs6ScopeRoots_callsEnterScope(t *testing.T) {
 	compiler := NewCompiler()
 
-	var scopesEntered []*rhino.Node
+	var scopesEntered []rhino.Node
 
 	testCallback := &nodeTraversalTestScopedCallback{
 		enterScope: func(nt *NodeTraversal) {
@@ -759,7 +759,7 @@ func TestNodeTraversal_TraverseEs6ScopeRoots_callsEnterScope(t *testing.T) {
 	tree := scopeTestParse(t, compiler, code)
 	fooFunction := tree.GetFirstChild()
 
-	NodeTraversal_TraverseScopeRoots(compiler, []*rhino.Node{fooFunction}, testCallback, true)
+	NodeTraversal_TraverseScopeRoots(compiler, []rhino.Node{fooFunction}, testCallback, true)
 	// Function, function's body, and the block inside it.
 	assertEqual(t, "scopes entered", len(scopesEntered), 3)
 }
@@ -775,7 +775,7 @@ type nodeTraversalTest_LexicallyScopedVarsAccumulator struct {
 	varNames *jutil.LinkedHashSet[string]
 }
 
-func (a *nodeTraversalTest_LexicallyScopedVarsAccumulator) Visit(t *NodeTraversal, n, parent *rhino.Node) {
+func (a *nodeTraversalTest_LexicallyScopedVarsAccumulator) Visit(t *NodeTraversal, n, parent rhino.Node) {
 	firstScope := t.GetScope()
 	if firstScope == nil {
 		return
@@ -794,7 +794,7 @@ type nodeTraversalTest_StringAccumulator struct {
 	strings []string
 }
 
-func (a *nodeTraversalTest_StringAccumulator) Visit(t *NodeTraversal, n, parent *rhino.Node) {
+func (a *nodeTraversalTest_StringAccumulator) Visit(t *NodeTraversal, n, parent rhino.Node) {
 	if n.IsStringLit() {
 		a.strings = append(a.strings, n.GetString())
 	}
@@ -807,7 +807,7 @@ type nodeTraversalTest_TokenAccumulator struct {
 	scopeRoots []rhino.Token
 }
 
-func (a *nodeTraversalTest_TokenAccumulator) Visit(t *NodeTraversal, n, parent *rhino.Node) {
+func (a *nodeTraversalTest_TokenAccumulator) Visit(t *NodeTraversal, n, parent rhino.Node) {
 	a.tokens = append(a.tokens, n.GetToken())
 }
 
@@ -820,8 +820,8 @@ func (a *nodeTraversalTest_TokenAccumulator) EnterScope(t *NodeTraversal) {
 type nodeTraversalTest_ExpectNodeOnEnterScope struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
 	t         *testing.T
-	node      *rhino.Node
-	scopeRoot *rhino.Node
+	node      rhino.Node
+	scopeRoot rhino.Node
 	entered   bool
 }
 
@@ -829,7 +829,7 @@ func newNodeTraversalTest_ExpectNodeOnEnterScope(t *testing.T) *nodeTraversalTes
 	return &nodeTraversalTest_ExpectNodeOnEnterScope{t: t}
 }
 
-func (c *nodeTraversalTest_ExpectNodeOnEnterScope) expect(node, scopeRoot *rhino.Node) {
+func (c *nodeTraversalTest_ExpectNodeOnEnterScope) expect(node, scopeRoot rhino.Node) {
 	c.node = node
 	c.scopeRoot = scopeRoot
 	c.entered = false
@@ -858,7 +858,7 @@ func (c *nodeTraversalTest_ExpectNodeOnEnterScope) EnterScope(t *NodeTraversal) 
 
 func (c *nodeTraversalTest_ExpectNodeOnEnterScope) ExitScope(t *NodeTraversal) {}
 
-func (c *nodeTraversalTest_ExpectNodeOnEnterScope) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool {
+func (c *nodeTraversalTest_ExpectNodeOnEnterScope) ShouldTraverse(t *NodeTraversal, n, parent rhino.Node) bool {
 	return !c.entered
 }
 
@@ -907,6 +907,6 @@ func (c *nodeTraversalTest_AccessibleCallback) EnterScope(t *NodeTraversal) {}
 
 func (c *nodeTraversalTest_AccessibleCallback) ExitScope(t *NodeTraversal) {}
 
-func (c *nodeTraversalTest_AccessibleCallback) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool {
+func (c *nodeTraversalTest_AccessibleCallback) ShouldTraverse(t *NodeTraversal, n, parent rhino.Node) bool {
 	return true
 }

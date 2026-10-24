@@ -18,7 +18,7 @@ func TestMustDefDenseStateDifferential(t *testing.T) {
 			vars := jutil.NewLinkedHashMap[string, *Var]()
 			for i := 0; i < count; i++ {
 				name := fmt.Sprintf("v%d", i)
-				vars.Put(name, NewVar(name, nil, scope, i, nil, nil))
+				vars.Put(name, NewVar(name, rhino.Node{}, scope, i, nil, rhino.Node{}))
 			}
 			list := vars.KeySlice()
 			got := newMustDefMap(newMustDefLayout(vars))
@@ -62,7 +62,7 @@ func TestMustDefDenseStateDifferential(t *testing.T) {
 				if got.Get(v) != old {
 					t.Fatal("copy modified original")
 				}
-				alias := NewVar(v.GetName(), nil, scope, -1, nil, nil)
+				alias := NewVar(v.GetName(), rhino.Node{}, scope, -1, nil, rhino.Node{})
 				if got.Get(alias) != d || !got.ContainsKey(alias) {
 					t.Fatal("ScopedName equality differs")
 				}
@@ -70,7 +70,7 @@ func TestMustDefDenseStateDifferential(t *testing.T) {
 			// A value-equal non-canonical key can enter through public lattice
 			// constructors; falling back must preserve its original key object.
 			v := vars.Get(list[0])
-			alias := NewVar(v.GetName(), nil, scope, -1, nil, nil)
+			alias := NewVar(v.GetName(), rhino.Node{}, scope, -1, nil, rhino.Node{})
 			got.Put(alias, nil)
 			want.Put(alias, nil)
 			if got.Get(v) != nil || got.HashCode() != want.HashCode() {

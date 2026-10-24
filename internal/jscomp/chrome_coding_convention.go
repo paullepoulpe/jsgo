@@ -42,7 +42,7 @@ func NewChromeCodingConventionWithConvention(wrapped CodingConvention) *ChromeCo
 var ChromeCodingConvention_CR_ADD_SINGLETON_GETTER = rhino.QualifiedName_Of("cr.addSingletonGetter")
 
 // Java: ChromeCodingConvention.getSingletonGetterClassName(Node)
-func (c *ChromeCodingConvention) GetSingletonGetterClassName(callNode *rhino.Node) *string {
+func (c *ChromeCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) *string {
 	callArg := callNode.GetFirstChild()
 	if !ChromeCodingConvention_CR_ADD_SINGLETON_GETTER.Matches(callArg) || !callNode.HasTwoChildren() {
 		return c.CodingConventions_ProxyBase.GetSingletonGetterClassName(callNode)

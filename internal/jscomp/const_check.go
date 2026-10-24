@@ -38,7 +38,7 @@ type ConstCheck struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	compiler             AbstractCompiler
-	initializedConstants map[*rhino.Node]struct{}
+	initializedConstants map[rhino.Node]struct{}
 }
 
 // Java: ConstCheck.CONST_REASSIGNED_VALUE_ERROR
@@ -52,13 +52,13 @@ var ConstCheck_CONST_REASSIGNED_VALUE_ERROR = DiagnosticType_Warning(
 func NewConstCheck(compiler AbstractCompiler) *ConstCheck {
 	c := &ConstCheck{}
 	c.compiler = compiler
-	c.initializedConstants = make(map[*rhino.Node]struct{})
+	c.initializedConstants = make(map[rhino.Node]struct{})
 	return c
 }
 
 func (c *ConstCheck) addInitializedConstant(var_ *Var) bool {
 	key := var_.nameNode
-	if key == nil {
+	if key.IsNil() {
 		key = var_.scope.rootNode
 	}
 	if _, exists := c.initializedConstants[key]; exists {
@@ -69,7 +69,7 @@ func (c *ConstCheck) addInitializedConstant(var_ *Var) bool {
 }
 
 // Java: ConstCheck.process(Node, Node)
-func (c *ConstCheck) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ConstCheck) Process(externs rhino.Node, root rhino.Node) {
 	sc := NewSyntacticScopeCreator(c.compiler)
 	defer func() {
 		clear(c.initializedConstants)
@@ -85,7 +85,7 @@ func (c *ConstCheck) Process(externs *rhino.Node, root *rhino.Node) {
 func (*ConstCheck) onlyNameLeaves() {}
 
 // Java: ConstCheck.visit(NodeTraversal, Node, Node)
-func (c *ConstCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *ConstCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		if NodeUtil_IsNameDeclaration(parent) {
@@ -145,7 +145,7 @@ func (c *ConstCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 // value at the point where it is declared.
 //
 // Java: ConstCheck.isConstant(Var, Node)
-func (c *ConstCheck) IsConstant(var_ *Var, nameNode *rhino.Node) bool {
+func (c *ConstCheck) IsConstant(var_ *Var, nameNode rhino.Node) bool {
 	jutil.CheckNotNullMsg1(var_, "Found unexpected undeclared name %s", nameNode)
 	return var_.IsConst() || var_.IsDeclaredOrInferredConst()
 }
@@ -153,7 +153,7 @@ func (c *ConstCheck) IsConstant(var_ *Var, nameNode *rhino.Node) bool {
 // ReportError reports a reassigned constant error.
 //
 // Java: ConstCheck.reportError(Node, Var, String)
-func (c *ConstCheck) ReportError(n *rhino.Node, var_ *Var, name string) {
+func (c *ConstCheck) ReportError(n rhino.Node, var_ *Var, name string) {
 	info := NodeUtil_GetBestJSDocInfo(n)
 	if info == nil || !info.HasSuppression("const") {
 		declNode := var_.GetNode()

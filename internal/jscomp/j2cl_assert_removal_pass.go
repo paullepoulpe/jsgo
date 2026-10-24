@@ -39,7 +39,7 @@ func NewJ2clAssertRemovalPass(compiler AbstractCompiler) *J2clAssertRemovalPass 
 }
 
 // Java: J2clAssertRemovalPass.process(Node, Node)
-func (p *J2clAssertRemovalPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *J2clAssertRemovalPass) Process(externs rhino.Node, root rhino.Node) {
 	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
 		return
 	}
@@ -48,19 +48,19 @@ func (p *J2clAssertRemovalPass) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 // Java: J2clAssertRemovalPass.visit(NodeTraversal, Node, Node)
-func (p *J2clAssertRemovalPass) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (p *J2clAssertRemovalPass) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	if j2clAssertRemovalPass_isAssertionCall(node) {
 		NodeUtil_DeleteFunctionCall(node, p.compiler)
 	}
 }
 
 // Java: J2clAssertRemovalPass.isAssertionCall(Node)
-func j2clAssertRemovalPass_isAssertionCall(node *rhino.Node) bool {
+func j2clAssertRemovalPass_isAssertionCall(node rhino.Node) bool {
 	return node.IsCall() && j2clAssertRemovalPass_isAssertionMethodName(node.GetFirstChild())
 }
 
 // Java: J2clAssertRemovalPass.isAssertionMethodName(Node)
-func j2clAssertRemovalPass_isAssertionMethodName(fnName *rhino.Node) bool {
+func j2clAssertRemovalPass_isAssertionMethodName(fnName rhino.Node) bool {
 	if !fnName.IsQualifiedName() {
 		return false
 	}

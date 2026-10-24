@@ -50,7 +50,7 @@ type AbstractPeepholeTranspilation interface {
 	// must return subtree.
 	//
 	// Java: AbstractPeepholeTranspilation.transpileSubtree(Node)
-	TranspileSubtree(subtree *rhino.Node) *rhino.Node
+	TranspileSubtree(subtree rhino.Node) rhino.Node
 }
 
 // AbstractPeepholeTranspilationBase holds the base implementations; every

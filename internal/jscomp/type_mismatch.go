@@ -39,16 +39,16 @@ import (
 type TypeMismatch struct {
 	found    rhino.JSType
 	required rhino.JSType
-	location *rhino.Node
+	location rhino.Node
 }
 
 // NewTypeMismatch is the record's canonical (compact) constructor.
 //
 // Java: TypeMismatch(JSType, JSType, Node)
-func NewTypeMismatch(found rhino.JSType, required rhino.JSType, location *rhino.Node) *TypeMismatch {
+func NewTypeMismatch(found rhino.JSType, required rhino.JSType, location rhino.Node) *TypeMismatch {
 	jutil.CheckNotNullMsg(found, "found")
 	jutil.CheckNotNullMsg(required, "required")
-	jutil.CheckNotNullMsg(location, "location")
+	rhino.CheckNotNullMsg(location, "location")
 	return &TypeMismatch{found: found, required: required, location: location}
 }
 
@@ -65,7 +65,7 @@ func (m *TypeMismatch) Required() rhino.JSType { return m.required }
 // Location is the record component accessor.
 //
 // Java: TypeMismatch.location()
-func (m *TypeMismatch) Location() *rhino.Node { return m.location }
+func (m *TypeMismatch) Location() rhino.Node { return m.location }
 
 // Java: TypeMismatch.getFound()
 func (m *TypeMismatch) GetFound() rhino.JSType {
@@ -78,12 +78,12 @@ func (m *TypeMismatch) GetRequired() rhino.JSType {
 }
 
 // Java: TypeMismatch.getLocation()
-func (m *TypeMismatch) GetLocation() *rhino.Node {
+func (m *TypeMismatch) GetLocation() rhino.Node {
 	return m.Location()
 }
 
 // Java: TypeMismatch.create(JSType, JSType, Node)
-func TypeMismatch_Create(found rhino.JSType, required rhino.JSType, location *rhino.Node) *TypeMismatch {
+func TypeMismatch_Create(found rhino.JSType, required rhino.JSType, location rhino.Node) *TypeMismatch {
 	return NewTypeMismatch(found, required, location)
 }
 
@@ -145,7 +145,7 @@ func NewTypeMismatch_Accumulator() *TypeMismatch_Accumulator {
 }
 
 // Java: TypeMismatch.Accumulator.registerMismatch(Node, JSType, JSType)
-func (a *TypeMismatch_Accumulator) RegisterMismatch(location *rhino.Node, found rhino.JSType, required rhino.JSType) {
+func (a *TypeMismatch_Accumulator) RegisterMismatch(location rhino.Node, found rhino.JSType, required rhino.JSType) {
 	// Don't register a mismatch for differences in null or undefined or if the
 	// code didn't downcast.
 	found = TypeMismatch_Accumulator_RemoveNullUndefinedAndTemplates(found)
@@ -183,7 +183,7 @@ func (a *TypeMismatch_Accumulator) GetMismatches() []*TypeMismatch {
 }
 
 // Java: TypeMismatch.Accumulator.registerIfMismatch(Node, JSType, JSType)
-func (a *TypeMismatch_Accumulator) RegisterIfMismatch(location *rhino.Node, found rhino.JSType, required rhino.JSType) {
+func (a *TypeMismatch_Accumulator) RegisterIfMismatch(location rhino.Node, found rhino.JSType, required rhino.JSType) {
 	if found != nil && required != nil && !found.IsSubtypeOf(required) {
 		a.RegisterMismatch(location, found, required)
 	}

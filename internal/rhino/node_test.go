@@ -62,14 +62,14 @@ func assertFalse(t *testing.T, what string, got bool) {
 	}
 }
 
-func assertEquivalent(t *testing.T, a, b *Node) {
+func assertEquivalent(t *testing.T, a, b Node) {
 	t.Helper()
 	if !a.IsEquivalentTo(b) {
 		t.Errorf("not equivalent:\n%s\n%s", a.ToStringTree(), b.ToStringTree())
 	}
 }
 
-func assertNotEquivalent(t *testing.T, a, b *Node) {
+func assertNotEquivalent(t *testing.T, a, b Node) {
 	t.Helper()
 	if a.IsEquivalentTo(b) {
 		t.Errorf("unexpectedly equivalent:\n%s\n%s", a.ToStringTree(), b.ToStringTree())
@@ -85,7 +85,7 @@ func TestNode_ValidatePropertiesForRoot(t *testing.T) {
 	assertContainsExactly(t, getMessagesFromValidateProperties(n), "ROOT has properties")
 }
 
-func getMessagesFromValidateProperties(n *Node) []string {
+func getMessagesFromValidateProperties(n Node) []string {
 	var listBuilder []string
 	violationMessageConsumer := func(s string) { listBuilder = append(listBuilder, s) }
 	n.ValidateProperties(violationMessageConsumer)
@@ -382,7 +382,7 @@ func assertNumberNodeRejects(t *testing.T, d float64) {
 func TestNode_BigintRejects_NegativeValues(t *testing.T) {
 	assertBigIntNodeRejects(t, "-1394793")
 	assertBigIntNodeRejects(t, "-1")
-	if Node_NewBigInt(jutil.NewBigIntegerFromString("-0")) == nil {
+	if Node_NewBigInt(jutil.NewBigIntegerFromString("-0")).IsNil() {
 		t.Error("newBigInt(-0) is null")
 	}
 }
@@ -469,7 +469,7 @@ func TestNode_IsQualifiedName(t *testing.T) {
 
 func TestNode_MatchesQualifiedName1(t *testing.T) {
 	type c struct {
-		n    *Node
+		n    Node
 		name string
 		want bool
 	}
@@ -539,8 +539,8 @@ func TestNode_MatchesQualifiedName1(t *testing.T) {
 
 func TestNode_MatchesQualifiedName2(t *testing.T) {
 	type c struct {
-		n     *Node
-		other *Node
+		n     Node
+		other Node
 		want  bool
 	}
 	for i, tc := range []c{
@@ -613,12 +613,12 @@ func TestNode_MatchesNameNodes(t *testing.T) {
 
 // nodeQname is NodeTest.qname(String) (renamed: QualifiedNameTest's
 // qname(Node, String...) shares the package).
-func nodeQname(name string) *Node {
+func nodeQname(name string) Node {
 	endPos := strings.IndexByte(name, '.')
 	if endPos == -1 {
 		return IR_Name(name)
 	}
-	var node *Node
+	var node Node
 	nodeName := name[:endPos]
 	if nodeName == "this" {
 		node = IR_ThisNode()
@@ -696,7 +696,7 @@ func TestNode_SharedProps1(t *testing.T) {
 	assertSideEffectFlags(t, m, 5)
 }
 
-func assertSideEffectFlags(t *testing.T, n *Node, want int32) {
+func assertSideEffectFlags(t *testing.T, n Node, want int32) {
 	t.Helper()
 	if got := n.GetSideEffectFlags(); got != want {
 		t.Errorf("getSideEffectFlags() = %d, want %d", got, want)
@@ -840,12 +840,12 @@ func TestNode_GetIndexOfChild(t *testing.T) {
 
 	firstChild := assign.GetFirstChild()
 	secondChild := firstChild.GetNext()
-	if secondChild == nil {
+	if secondChild.IsNil() {
 		t.Fatal("second child is null")
 	}
 
 	for _, tc := range []struct {
-		child *Node
+		child Node
 		want  int
 	}{{firstChild, 0}, {secondChild, 1}, {assign, -1}} {
 		if got := assign.GetIndexOfChild(tc.child); got != tc.want {
@@ -854,7 +854,7 @@ func TestNode_GetIndexOfChild(t *testing.T) {
 	}
 }
 
-func assertLinenoAndSourceFile(t *testing.T, n *Node, lineno int, file string) {
+func assertLinenoAndSourceFile(t *testing.T, n Node, lineno int, file string) {
 	t.Helper()
 	if got := n.GetLineno(); got != lineno {
 		t.Errorf("lineno = %d, want %d", got, lineno)
@@ -913,7 +913,7 @@ func TestNode_QualifiedName(t *testing.T) {
 		t.Errorf("qualified name of '' = %q, want null", *got)
 	}
 	for _, tc := range []struct {
-		n    *Node
+		n    Node
 		want string
 	}{
 		{IR_Name("a"), "a"},
@@ -971,7 +971,7 @@ func TestNode_AddChildToFrontWithSingleNode(t *testing.T) {
 	assertTrue(t, "parent", nodeToAdd.GetParent() == root)
 	assertTrue(t, "first child", nodeToAdd == root.GetFirstChild())
 	assertTrue(t, "last child", nodeToAdd == root.GetLastChild())
-	assertTrue(t, "next is null", nodeToAdd.GetNext() == nil)
+	assertTrue(t, "next is null", nodeToAdd.GetNext().IsNil())
 }
 
 func TestNode_AddChildToFrontWithLargerTree(t *testing.T) {
@@ -985,7 +985,7 @@ func TestNode_AddChildToFrontWithLargerTree(t *testing.T) {
 
 	assertTrue(t, "parent", nodeToAdd.GetParent() == root)
 	assertTrue(t, "first child", nodeToAdd == root.GetFirstChild())
-	assertTrue(t, "previous is null", nodeToAdd.GetPrevious() == nil)
+	assertTrue(t, "previous is null", nodeToAdd.GetPrevious().IsNil())
 	assertTrue(t, "next is left", nodeToAdd.GetNext() == left)
 	assertTrue(t, "left.previous", left.GetPrevious() == nodeToAdd)
 }
@@ -1002,8 +1002,8 @@ func TestNode_Detach1(t *testing.T) {
 
 	mid.Detach()
 
-	assertTrue(t, "mid.parent is null", mid.GetParent() == nil)
-	assertTrue(t, "mid.next is null", mid.GetNext() == nil)
+	assertTrue(t, "mid.parent is null", mid.GetParent().IsNil())
+	assertTrue(t, "mid.next is null", mid.GetNext().IsNil())
 
 	assertTrue(t, "right.previous", right.GetPrevious() == left)
 	assertTrue(t, "left.next", left.GetNext() == right)
@@ -1036,15 +1036,15 @@ func TestNode_TrailingComma(t *testing.T) {
 	assertTrue(t, "hasTrailingComma", list.HasTrailingComma())
 }
 
-func getVarRef(name string) *Node {
+func getVarRef(name string) Node {
 	return Node_NewStringWithToken(Token_NAME, name)
 }
 
-func getAssignExpr(name1 string, name2 string) *Node {
+func getAssignExpr(name1 string, name2 string) Node {
 	return NewNodeWith2Children(Token_ASSIGN, getVarRef(name1), getVarRef(name2))
 }
 
-func getCall(name1 string) *Node {
+func getCall(name1 string) Node {
 	return NewNodeWithChild(Token_CALL, getVarRef(name1))
 }
 

@@ -46,7 +46,7 @@ import (
 //		NodeTraversal_AbstractPostOrderCallbackBase
 //		compiler AbstractCompiler
 //	}
-//	func (p *MyPass) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) { ... }
+//	func (p *MyPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) { ... }
 //
 //	NodeTraversal_Traverse(compiler, root, p) // p is a NodeTraversal_Callback
 //
@@ -127,18 +127,18 @@ type NodeTraversal struct {
 	fastMode                                       uint8
 
 	// Contains the current node
-	currentNode *rhino.Node
+	currentNode rhino.Node
 
-	currentHoistScopeRoot *rhino.Node
+	currentHoistScopeRoot rhino.Node
 
 	// Contains the current FUNCTION node if there is one, otherwise null.
-	currentFunction *rhino.Node
+	currentFunction rhino.Node
 
 	// Contains the enclosing SCRIPT node if there is one, otherwise null.
-	currentScript *rhino.Node
+	currentScript rhino.Node
 
 	// The change scope for the current node being visiteds
-	currentChangeScope *rhino.Node
+	currentChangeScope rhino.Node
 
 	// The chain scope for the currentNode being visited. Scopes are relatively
 	// expensive to build so they are built lazily. Each entry holds the root
@@ -162,7 +162,7 @@ type NodeTraversal struct {
 }
 
 type scopeStackEntry struct {
-	node         *rhino.Node
+	node         rhino.Node
 	scope        AbstractScope
 	untypedScope *Scope
 	lookupScope  *Scope
@@ -230,7 +230,7 @@ type NodeTraversal_Callback interface {
 	// visited.
 	//
 	// Java: NodeTraversal.Callback.shouldTraverse(NodeTraversal, Node, Node)
-	ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool
+	ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool
 
 	// Visit visits a node in postorder (after its children). A node is
 	// visited in postorder iff ShouldTraverse returned true for its parent
@@ -247,7 +247,7 @@ type NodeTraversal_Callback interface {
 	// the current node.
 	//
 	// Java: NodeTraversal.Callback.visit(NodeTraversal, Node, Node)
-	Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node)
+	Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node)
 }
 
 // NodeTraversal_ScopedCallback is a callback that also knows about scope
@@ -285,7 +285,7 @@ type NodeTraversal_AbstractPostOrderCallbackBase struct {
 // ShouldTraverse is final in Java.
 //
 // Java: NodeTraversal.AbstractPostOrderCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractPostOrderCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *NodeTraversal_AbstractPostOrderCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
@@ -307,7 +307,7 @@ type NodeTraversal_ExternsSkippingCallbackBase struct {
 // ShouldTraverse is final in Java.
 //
 // Java: NodeTraversal.ExternsSkippingCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_ExternsSkippingCallbackBase) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *NodeTraversal_ExternsSkippingCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return !n.IsScript() || !n.IsFromExterns() || NodeUtil_IsFromTypeSummary(n)
 }
 
@@ -317,16 +317,16 @@ func (b *NodeTraversal_ExternsSkippingCallbackBase) ShouldTraverse(t *NodeTraver
 // Go-only: language-adapter — a @FunctionalInterface, so a Go func type.
 //
 // Java: NodeTraversal.AbstractPostOrderCallbackInterface.visit(NodeTraversal, Node, Node)
-type NodeTraversal_AbstractPostOrderCallbackInterface func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node)
+type NodeTraversal_AbstractPostOrderCallbackInterface func(t *NodeTraversal, n rhino.Node, parent rhino.Node)
 
 // ShouldTraverse implements NodeTraversal_Callback directly on the func type
 // so SetCallbackFunc does not need to allocate a wrapper struct on the heap.
-func (f NodeTraversal_AbstractPostOrderCallbackInterface) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f NodeTraversal_AbstractPostOrderCallbackInterface) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
 // Visit implements NodeTraversal_Callback directly on the func type.
-func (f NodeTraversal_AbstractPostOrderCallbackInterface) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f NodeTraversal_AbstractPostOrderCallbackInterface) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	f(t, n, parent)
 }
 
@@ -345,7 +345,7 @@ type NodeTraversal_AbstractPreOrderCallbackBase struct {
 // Visit is final in Java.
 //
 // Java: NodeTraversal.AbstractPreOrderCallback.visit(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractPreOrderCallbackBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *NodeTraversal_AbstractPreOrderCallbackBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 func (NodeTraversal_AbstractPreOrderCallbackBase) nodeTraversalNoVisit() {}
@@ -366,7 +366,7 @@ type NodeTraversal_AbstractScopedCallbackBase struct {
 // ShouldTraverse is final in Java.
 //
 // Java: NodeTraversal.AbstractScopedCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractScopedCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *NodeTraversal_AbstractScopedCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
@@ -385,7 +385,7 @@ type NodeTraversal_AbstractCfgCallback interface {
 	NodeTraversal_ScopedCallback
 
 	// Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
-	GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[*rhino.Node]
+	GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[rhino.Node]
 
 	// Java: NodeTraversal.AbstractCfgCallback.enterScopeWithCfg(NodeTraversal)
 	EnterScopeWithCfg(t *NodeTraversal)
@@ -403,8 +403,8 @@ type NodeTraversal_AbstractCfgCallbackBase struct {
 	self NodeTraversal_AbstractCfgCallback
 
 	// Go-only: language-adapter — the ArrayDeque<Object> used as a stack
-	// (push/peek/pop at the end); each element is a *rhino.Node (a CFG root
-	// whose graph is not built yet) or a ControlFlowGraph[*rhino.Node].
+	// (push/peek/pop at the end); each element is a rhino.Node (a CFG root
+	// whose graph is not built yet) or a ControlFlowGraph[rhino.Node].
 	cfgs    []any
 	cfgsBuf [8]any
 
@@ -431,12 +431,12 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) GetNodeTraversal_AbstractCfgCall
 
 // PeekCurrentScopeCfg returns the already-computed ControlFlowGraph for the
 // current scope if one has been materialized, or nil otherwise.
-func (b *NodeTraversal_AbstractCfgCallbackBase) PeekCurrentScopeCfg() ControlFlowGraph[*rhino.Node] {
+func (b *NodeTraversal_AbstractCfgCallbackBase) PeekCurrentScopeCfg() ControlFlowGraph[rhino.Node] {
 	idx := len(b.cfgs) - 1
 	if idx < 0 {
 		return nil
 	}
-	if cfg, ok := b.cfgs[idx].(ControlFlowGraph[*rhino.Node]); ok {
+	if cfg, ok := b.cfgs[idx].(ControlFlowGraph[rhino.Node]); ok {
 		return cfg
 	}
 	return nil
@@ -445,15 +445,15 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) PeekCurrentScopeCfg() ControlFlo
 // GetControlFlowGraph gets the control flow graph for the current JS scope.
 //
 // Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
-func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[*rhino.Node] {
-	var result ControlFlowGraph[*rhino.Node]
+func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[rhino.Node] {
+	var result ControlFlowGraph[rhino.Node]
 	var o any
 	idx := len(b.cfgs) - 1
 	if idx >= 0 {
 		o = b.cfgs[idx]
 	}
 	jutil.CheckState(o != nil)
-	if cfgRoot, ok := o.(*rhino.Node); ok {
+	if cfgRoot, ok := o.(rhino.Node); ok {
 		for len(b.cfgStorage) <= idx {
 			b.cfgStorage = append(b.cfgStorage, &ReusableCfg{})
 		}
@@ -464,7 +464,7 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler Abs
 			/* edgeAnnotations= */ true)
 		b.cfgs[idx] = result
 	} else {
-		result = o.(ControlFlowGraph[*rhino.Node])
+		result = o.(ControlFlowGraph[rhino.Node])
 	}
 	return result
 }
@@ -491,7 +491,7 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) ExitScope(t *NodeTraversal) {
 			panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
 		}
 		idx := len(b.cfgs) - 1
-		if _, computed := b.cfgs[idx].(ControlFlowGraph[*rhino.Node]); computed {
+		if _, computed := b.cfgs[idx].(ControlFlowGraph[rhino.Node]); computed {
 			b.cfgStorage[idx].release()
 		}
 		b.cfgs[idx] = nil
@@ -506,12 +506,12 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) EnterScopeWithCfg(t *NodeTravers
 func (b *NodeTraversal_AbstractCfgCallbackBase) ExitScopeWithCfg(t *NodeTraversal) {}
 
 // Java: NodeTraversal.AbstractCfgCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractCfgCallbackBase) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *NodeTraversal_AbstractCfgCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
 // Java: NodeTraversal.AbstractCfgCallback.visit(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractCfgCallbackBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *NodeTraversal_AbstractCfgCallbackBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 // NodeTraversal_AbstractShallowCallback is the abstract callback to visit
@@ -529,10 +529,10 @@ type NodeTraversal_AbstractShallowCallbackBase struct {
 // ShouldTraverse is final in Java.
 //
 // Java: NodeTraversal.AbstractShallowCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractShallowCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *NodeTraversal_AbstractShallowCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// We do want to traverse the name of a named function, but we don't
 	// want to traverse the arguments or body.
-	return parent == nil || !parent.IsFunction() || n == parent.GetFirstChild()
+	return parent.IsNil() || !parent.IsFunction() || n == parent.GetFirstChild()
 }
 
 // NodeTraversal_AbstractShallowStatementCallback is the abstract callback to
@@ -551,7 +551,7 @@ type NodeTraversal_AbstractShallowStatementCallbackBase struct {
 // ShouldTraverse is final in Java.
 //
 // Java: NodeTraversal.AbstractShallowStatementCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractShallowStatementCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *NodeTraversal_AbstractShallowStatementCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return NodeUtil_IsShallowStatementTree(parent)
 }
 
@@ -568,22 +568,22 @@ type NodeTraversal_AbstractModuleCallback interface {
 	// global files.
 	//
 	// Java: NodeTraversal.AbstractModuleCallback.enterModule(ModuleMetadata, Node)
-	EnterModule(currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot *rhino.Node)
+	EnterModule(currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node)
 
 	// ExitModule is called when the traversal exits a global file or module.
 	// oldModule is the exited global file or module; moduleScopeRoot the root
 	// scope for the exited module or SCRIPT for global files.
 	//
 	// Java: NodeTraversal.AbstractModuleCallback.exitModule(ModuleMetadata, Node)
-	ExitModule(oldModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot *rhino.Node)
+	ExitModule(oldModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node)
 
 	// Java: NodeTraversal.AbstractModuleCallback.shouldTraverse(NodeTraversal, Node, ModuleMetadata, Node)
 	ShouldTraverseWithModule(
-		t *NodeTraversal, n *rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot *rhino.Node) bool
+		t *NodeTraversal, n rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node) bool
 
 	// Java: NodeTraversal.AbstractModuleCallback.visit(NodeTraversal, Node, ModuleMetadata, Node)
 	VisitWithModule(
-		t *NodeTraversal, n *rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot *rhino.Node)
+		t *NodeTraversal, n rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node)
 
 	GetNodeTraversal_AbstractModuleCallbackBase() *NodeTraversal_AbstractModuleCallbackBase
 }
@@ -598,7 +598,7 @@ type NodeTraversal_AbstractModuleCallbackBase struct {
 	moduleMetadataMap *ModuleMetadataMap
 
 	currentModule *ModuleMetadataMap_ModuleMetadata
-	scopeRoot     *rhino.Node
+	scopeRoot     rhino.Node
 	inLoadModule  bool
 }
 
@@ -621,12 +621,12 @@ func (b *NodeTraversal_AbstractModuleCallbackBase) GetNodeTraversal_AbstractModu
 
 // Java: NodeTraversal.AbstractModuleCallback.enterModule(ModuleMetadata, Node)
 func (b *NodeTraversal_AbstractModuleCallbackBase) EnterModule(
-	currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot *rhino.Node) {
+	currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node) {
 }
 
 // Java: NodeTraversal.AbstractModuleCallback.exitModule(ModuleMetadata, Node)
 func (b *NodeTraversal_AbstractModuleCallbackBase) ExitModule(
-	oldModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot *rhino.Node) {
+	oldModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node) {
 }
 
 var nodeTraversal_AbstractModuleCallback_GOOG_MODULE = rhino.QualifiedName_Of("goog.module")
@@ -639,7 +639,7 @@ func failNodeTraversalNull() {
 // ShouldTraverse is final in Java.
 //
 // Java: NodeTraversal.AbstractModuleCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractModuleCallbackBase) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *NodeTraversal_AbstractModuleCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		b.currentModule = b.moduleMetadataMap.GetModulesByPath().Get(t.GetInput().GetPath().String())
@@ -685,16 +685,16 @@ func (b *NodeTraversal_AbstractModuleCallbackBase) ShouldTraverse(t *NodeTravers
 // Java: NodeTraversal.AbstractModuleCallback.shouldTraverse(NodeTraversal, Node, ModuleMetadata, Node)
 func (b *NodeTraversal_AbstractModuleCallbackBase) ShouldTraverseWithModule(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	currentModule *ModuleMetadataMap_ModuleMetadata,
-	moduleScopeRoot *rhino.Node) bool {
+	moduleScopeRoot rhino.Node) bool {
 	return true
 }
 
 // Visit is final in Java.
 //
 // Java: NodeTraversal.AbstractModuleCallback.visit(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractModuleCallbackBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *NodeTraversal_AbstractModuleCallbackBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		if b.currentModule == nil {
@@ -702,7 +702,7 @@ func (b *NodeTraversal_AbstractModuleCallbackBase) Visit(t *NodeTraversal, n *rh
 		}
 		b.self.ExitModule(b.currentModule, b.scopeRoot)
 		b.currentModule = nil
-		b.scopeRoot = nil
+		b.scopeRoot = rhino.Node{}
 	case rhino.Token_BLOCK:
 		if NodeUtil_IsBundledGoogModuleScopeRoot(n) {
 			if b.currentModule == nil {
@@ -732,9 +732,9 @@ func (b *NodeTraversal_AbstractModuleCallbackBase) Visit(t *NodeTraversal, n *rh
 // Java: NodeTraversal.AbstractModuleCallback.visit(NodeTraversal, Node, ModuleMetadata, Node)
 func (b *NodeTraversal_AbstractModuleCallbackBase) VisitWithModule(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	currentModule *ModuleMetadataMap_ModuleMetadata,
-	moduleScopeRoot *rhino.Node) {
+	moduleScopeRoot rhino.Node) {
 }
 
 // NodeTraversal_AbstractChangedScopeCallback is the callback that fires on
@@ -743,7 +743,7 @@ type NodeTraversal_AbstractChangedScopeCallback interface {
 	NodeTraversal_AbstractPreOrderCallback
 
 	// Java: NodeTraversal.AbstractChangedScopeCallback.enterChangedScopeRoot(AbstractCompiler, Node)
-	EnterChangedScopeRoot(compiler AbstractCompiler, root *rhino.Node)
+	EnterChangedScopeRoot(compiler AbstractCompiler, root rhino.Node)
 }
 
 // NodeTraversal_AbstractChangedScopeCallbackBase holds the methods of
@@ -768,7 +768,7 @@ func (b *NodeTraversal_AbstractChangedScopeCallbackBase) InitNodeTraversal_Abstr
 // ShouldTraverse is final in Java.
 //
 // Java: NodeTraversal.AbstractChangedScopeCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractChangedScopeCallbackBase) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *NodeTraversal_AbstractChangedScopeCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if ChangeTracker_IsChangeScopeRoot(n) && t.GetCompiler().HasScopeChanged(n) {
 		b.self.EnterChangedScopeRoot(t.GetCompiler(), n)
 	}
@@ -822,7 +822,7 @@ type nodeTraversal_Builder_postOrderCallback struct {
 }
 
 // Java: NodeTraversal.Builder.setCallback(AbstractPostOrderCallbackInterface) (anonymous AbstractPostOrderCallback).visit(NodeTraversal, Node, Node)
-func (c *nodeTraversal_Builder_postOrderCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *nodeTraversal_Builder_postOrderCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c.x(t, n, parent)
 }
 
@@ -850,7 +850,7 @@ func (b *NodeTraversal_Builder) Build() *NodeTraversal {
 }
 
 // Java: NodeTraversal.Builder.traverse(Node)
-func (b *NodeTraversal_Builder) Traverse(root *rhino.Node) {
+func (b *NodeTraversal_Builder) Traverse(root rhino.Node) {
 	t := acquireNodeTraversal(b)
 	t.Traverse(root)
 	releaseNodeTraversal(t)
@@ -864,14 +864,14 @@ func (b *NodeTraversal_Builder) TraverseAtScope(scope AbstractScope) {
 }
 
 // Java: NodeTraversal.Builder.traverseRoots(Node, Node)
-func (b *NodeTraversal_Builder) TraverseRoots(externs *rhino.Node, root *rhino.Node) {
+func (b *NodeTraversal_Builder) TraverseRoots(externs rhino.Node, root rhino.Node) {
 	t := acquireNodeTraversal(b)
 	t.TraverseRoots(externs, root)
 	releaseNodeTraversal(t)
 }
 
 // Java: NodeTraversal.Builder.traverseWithScope(Node, AbstractScope<?, ?>)
-func (b *NodeTraversal_Builder) TraverseWithScope(root *rhino.Node, s AbstractScope) {
+func (b *NodeTraversal_Builder) TraverseWithScope(root rhino.Node, s AbstractScope) {
 	t := acquireNodeTraversal(b)
 	t.TraverseWithScope(root, s)
 	releaseNodeTraversal(t)
@@ -991,9 +991,9 @@ func (t *NodeTraversal) ThrowUnexpectedException(unexpectedException jutil.Throw
 	// TODO(user): It is possible to get more information if currentNode or
 	// its parent is missing. We still have the scope stack in which it is still
 	// very useful to find out at least which function caused the exception.
-	if t.currentScript != nil {
+	if !t.currentScript.IsNil() {
 		parentContext := ""
-		if t.currentNode != nil {
+		if !t.currentNode.IsNil() {
 			parentContext = t.FormatNodeContext("Parent", t.currentNode.GetParent())
 		}
 		m := jutil.ToJavaString(jutil.GetMessageOrNull(unexpectedException)) +
@@ -1010,8 +1010,8 @@ func (t *NodeTraversal) ThrowUnexpectedException(unexpectedException jutil.Throw
 }
 
 // Java: NodeTraversal.formatNodeContext(String, Node)
-func (t *NodeTraversal) FormatNodeContext(label string, n *rhino.Node) string {
-	if n == nil {
+func (t *NodeTraversal) FormatNodeContext(label string, n rhino.Node) string {
+	if n.IsNil() {
 		return "  " + label + ": NULL"
 	}
 	return "  " + label + "(" + n.ToStringWithFlags(false, false, false) + "): " + t.FormatNodePosition(n)
@@ -1020,7 +1020,7 @@ func (t *NodeTraversal) FormatNodeContext(label string, n *rhino.Node) string {
 // Traverse traverses a parse tree recursively.
 //
 // Java: NodeTraversal.traverse(Node)
-func (t *NodeTraversal) Traverse(root *rhino.Node) {
+func (t *NodeTraversal) Traverse(root rhino.Node) {
 	defer func() {
 		if r := recover(); r != nil {
 			t.ThrowUnexpectedException(jutil.AsThrowable(r))
@@ -1030,14 +1030,14 @@ func (t *NodeTraversal) Traverse(root *rhino.Node) {
 	t.currentNode = root
 	t.PushScope(root)
 	// null parent ensures that the shallow callbacks will traverse root
-	t.TraverseBranch(root, nil)
+	t.TraverseBranch(root, rhino.Node{})
 	t.PopScope()
 }
 
 // NodeTraversal_Traverse traverses using the SyntacticScopeCreator
 //
 // Java: NodeTraversal.traverse(AbstractCompiler, Node, Callback)
-func NodeTraversal_Traverse(compiler AbstractCompiler, root *rhino.Node, cb NodeTraversal_Callback) {
+func NodeTraversal_Traverse(compiler AbstractCompiler, root rhino.Node, cb NodeTraversal_Callback) {
 	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
 	t := acquireNodeTraversal(&b)
 	t.Traverse(root)
@@ -1045,14 +1045,14 @@ func NodeTraversal_Traverse(compiler AbstractCompiler, root *rhino.Node, cb Node
 }
 
 // Java: NodeTraversal.traverseRoots(Node, Node)
-func (t *NodeTraversal) TraverseRoots(externs *rhino.Node, root *rhino.Node) {
+func (t *NodeTraversal) TraverseRoots(externs rhino.Node, root rhino.Node) {
 	defer func() {
 		if r := recover(); r != nil {
 			t.ThrowUnexpectedException(jutil.AsThrowable(r))
 		}
 	}()
 	scopeRoot := externs.GetParent()
-	if scopeRoot == nil {
+	if scopeRoot.IsNil() {
 		failNodeTraversalNull()
 	}
 
@@ -1069,7 +1069,7 @@ func (t *NodeTraversal) TraverseRoots(externs *rhino.Node, root *rhino.Node) {
 
 // Java: NodeTraversal.traverseRoots(AbstractCompiler, Callback, Node, Node)
 func NodeTraversal_TraverseRoots(
-	compiler AbstractCompiler, cb NodeTraversal_Callback, externs *rhino.Node, root *rhino.Node) {
+	compiler AbstractCompiler, cb NodeTraversal_Callback, externs rhino.Node, root rhino.Node) {
 	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
 	t := acquireNodeTraversal(&b)
 	t.TraverseRoots(externs, root)
@@ -1078,9 +1078,9 @@ func NodeTraversal_TraverseRoots(
 
 func traverseScriptUnderRoot(
 	t *NodeTraversal,
-	scopeRoot *rhino.Node,
-	scriptParent *rhino.Node,
-	script *rhino.Node,
+	scopeRoot rhino.Node,
+	scriptParent rhino.Node,
+	script rhino.Node,
 	lazyGlobal *lazyGlobalScope,
 ) {
 	defer func() {
@@ -1092,7 +1092,7 @@ func traverseScriptUnderRoot(
 	t.InitTraversal(scopeRoot)
 	t.currentNode = scopeRoot
 	t.PushScope(scopeRoot)
-	if t.noShouldTraverse || t.callback.ShouldTraverse(t, scopeRoot, nil) {
+	if t.noShouldTraverse || t.callback.ShouldTraverse(t, scopeRoot, rhino.Node{}) {
 		if scriptParent != scopeRoot {
 			if t.noShouldTraverse || t.callback.ShouldTraverse(t, scriptParent, scopeRoot) {
 				t.TraverseBranch(script, scriptParent)
@@ -1106,7 +1106,7 @@ func traverseScriptUnderRoot(
 		}
 		if !t.noVisit {
 			t.currentNode = scopeRoot
-			t.callback.Visit(t, scopeRoot, nil)
+			t.callback.Visit(t, scopeRoot, rhino.Node{})
 		}
 	}
 	t.PopScope()
@@ -1115,7 +1115,7 @@ func traverseScriptUnderRoot(
 const nodeTraversal_MISSING_SOURCE = "[source unknown]"
 
 // Java: NodeTraversal.formatNodePosition(Node)
-func (t *NodeTraversal) FormatNodePosition(n *rhino.Node) string {
+func (t *NodeTraversal) FormatNodePosition(n rhino.Node) string {
 	sourceFileName := t.GetBestSourceFileName(n)
 	if sourceFileName == nil {
 		return nodeTraversal_MISSING_SOURCE + "\n"
@@ -1136,7 +1136,7 @@ func (t *NodeTraversal) FormatNodePosition(n *rhino.Node) string {
 // scope or module scopes. Otherwise, use TraverseAtScope.
 //
 // Java: NodeTraversal.traverseWithScope(Node, AbstractScope<?, ?>)
-func (t *NodeTraversal) TraverseWithScope(root *rhino.Node, s AbstractScope) {
+func (t *NodeTraversal) TraverseWithScope(root rhino.Node, s AbstractScope) {
 	jutil.CheckStateMsg1(s.IsGlobal() || s.IsModuleScope(), "%s", s)
 	defer func() {
 		if r := recover(); r != nil {
@@ -1146,7 +1146,7 @@ func (t *NodeTraversal) TraverseWithScope(root *rhino.Node, s AbstractScope) {
 	t.InitTraversal(root)
 	t.currentNode = root
 	t.PushScopeOfScope(s)
-	t.TraverseBranch(root, nil)
+	t.TraverseBranch(root, rhino.Node{})
 	t.PopScope()
 }
 
@@ -1186,7 +1186,7 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
-		if t.callback.ShouldTraverse(t, n, nil) {
+		if t.callback.ShouldTraverse(t, n, rhino.Node{}) {
 			t.PushScopeOfScope(s)
 
 			fnName := n.GetFirstChild()
@@ -1200,10 +1200,10 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 			t.TraverseBranch(body, n)
 
 			t.PopScope()
-			t.callback.Visit(t, n, nil)
+			t.callback.Visit(t, n, rhino.Node{})
 		}
 	case rhino.Token_CLASS:
-		if t.callback.ShouldTraverse(t, n, nil) {
+		if t.callback.ShouldTraverse(t, n, rhino.Node{}) {
 			t.PushScopeOfScope(s)
 
 			className := n.GetFirstChild()
@@ -1218,39 +1218,39 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 			t.TraverseBranch(body, n)
 
 			t.PopScope()
-			t.callback.Visit(t, n, nil)
+			t.callback.Visit(t, n, rhino.Node{})
 		}
 	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
-		if t.callback.ShouldTraverse(t, n, nil) {
+		if t.callback.ShouldTraverse(t, n, rhino.Node{}) {
 			t.PushScopeOfScope(s)
 
 			// traverseBranch is not called here to avoid re-creating the block scope.
 			t.TraverseChildren(n)
 
 			t.PopScope()
-			t.callback.Visit(t, n, nil)
+			t.callback.Visit(t, n, rhino.Node{})
 		}
 	case rhino.Token_MEMBER_FIELD_DEF:
 		t.PushScopeOfScope(s)
-		if t.callback.ShouldTraverse(t, n, nil) {
+		if t.callback.ShouldTraverse(t, n, rhino.Node{}) {
 
 			// traverseBranch is not called here to avoid re-creating the MemberFieldDef scope.
 			t.TraverseChildren(n)
 
-			t.callback.Visit(t, n, nil)
+			t.callback.Visit(t, n, rhino.Node{})
 		}
 		t.PopScope()
 	case rhino.Token_COMPUTED_FIELD_DEF:
 		t.PushScopeOfScope(s)
-		if t.callback.ShouldTraverse(t, n, nil) {
+		if t.callback.ShouldTraverse(t, n, rhino.Node{}) {
 
 			t.TraverseBranch(n.GetLastChild(), n)
 
-			t.callback.Visit(t, n, nil)
+			t.callback.Visit(t, n, rhino.Node{})
 		}
 		t.PopScope()
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR:
-		if t.callback.ShouldTraverse(t, n, nil) {
+		if t.callback.ShouldTraverse(t, n, rhino.Node{}) {
 			t.PushScopeOfScope(s)
 
 			forAssignmentParam := n.GetFirstChild()
@@ -1261,7 +1261,7 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 			t.TraverseBranch(forBodyScope, n)
 
 			t.PopScope()
-			t.callback.Visit(t, n, nil)
+			t.callback.Visit(t, n, rhino.Node{})
 		}
 	default:
 		jutil.CheckStateMsg1(
@@ -1275,7 +1275,7 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 //
 // Java: NodeTraversal.traverseScopeRoots(AbstractCompiler, List<Node>, Callback, boolean)
 func NodeTraversal_TraverseScopeRoots(
-	compiler AbstractCompiler, scopeNodes []*rhino.Node, cb NodeTraversal_Callback, traverseNested bool) {
+	compiler AbstractCompiler, scopeNodes []rhino.Node, cb NodeTraversal_Callback, traverseNested bool) {
 	if len(scopeNodes) == 0 {
 		return
 	}
@@ -1306,7 +1306,7 @@ func NodeTraversal_TraverseScopeRoots(
 // are its captured variables).
 type nodeTraversal_TraverseScopeRootsCallback struct {
 	insideScopeNode bool
-	scopeNode       *rhino.Node
+	scopeNode       rhino.Node
 
 	cb             NodeTraversal_Callback
 	scopedCb       NodeTraversal_ScopedCallback
@@ -1314,7 +1314,7 @@ type nodeTraversal_TraverseScopeRootsCallback struct {
 }
 
 // Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *nodeTraversal_TraverseScopeRootsCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *nodeTraversal_TraverseScopeRootsCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if c.scopeNode == n {
 		c.insideScopeNode = true
 	}
@@ -1323,7 +1323,7 @@ func (c *nodeTraversal_TraverseScopeRootsCallback) ShouldTraverse(t *NodeTravers
 }
 
 // Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.visit(NodeTraversal, Node, Node)
-func (c *nodeTraversal_TraverseScopeRootsCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *nodeTraversal_TraverseScopeRootsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if c.scopeNode == n {
 		c.insideScopeNode = false
 	}
@@ -1345,7 +1345,7 @@ func (c *nodeTraversal_TraverseScopeRootsCallback) ExitScope(t *NodeTraversal) {
 }
 
 // Java: NodeTraversal.traverseScopeRoot(Node)
-func (t *NodeTraversal) TraverseScopeRoot(scopeRoot *rhino.Node) {
+func (t *NodeTraversal) TraverseScopeRoot(scopeRoot rhino.Node) {
 	defer func() {
 		if r := recover(); r != nil {
 			t.ThrowUnexpectedException(jutil.AsThrowable(r))
@@ -1373,7 +1373,7 @@ var nodeTraversal_emptyString = ""
 // Java: NodeTraversal.getSourceName()
 func (t *NodeTraversal) GetSourceName() *string {
 	if t.sourceName == nil {
-		if t.currentScript != nil {
+		if !t.currentScript.IsNil() {
 			t.sourceName = t.currentScript.GetSourceFileName()
 		} else {
 			t.sourceName = &nodeTraversal_emptyString
@@ -1407,12 +1407,12 @@ func (t *NodeTraversal) GetChunk() *JSChunk {
 // GetCurrentNode returns the node currently being traversed.
 //
 // Java: NodeTraversal.getCurrentNode()
-func (t *NodeTraversal) GetCurrentNode() *rhino.Node {
+func (t *NodeTraversal) GetCurrentNode() rhino.Node {
 	return t.currentNode
 }
 
 // Java: NodeTraversal.handleScript(Node, Node)
-func (t *NodeTraversal) HandleScript(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) HandleScript(n rhino.Node, parent rhino.Node) {
 	if Platform_IsThreadInterrupted() {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 	}
@@ -1426,11 +1426,11 @@ func (t *NodeTraversal) HandleScript(n *rhino.Node, parent *rhino.Node) {
 		t.currentNode = n
 		t.callback.Visit(t, n, parent)
 	}
-	t.SetChangeScope(nil)
+	t.SetChangeScope(rhino.Node{})
 }
 
 // Java: NodeTraversal.handleFunction(Node, Node)
-func (t *NodeTraversal) HandleFunction(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) HandleFunction(n rhino.Node, parent rhino.Node) {
 	changeScope := t.currentChangeScope
 	t.SetChangeScope(n)
 	t.currentNode = n
@@ -1445,7 +1445,7 @@ func (t *NodeTraversal) HandleFunction(n *rhino.Node, parent *rhino.Node) {
 // HandleModule traverses a module.
 //
 // Java: NodeTraversal.handleModule(Node, Node)
-func (t *NodeTraversal) HandleModule(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) HandleModule(n rhino.Node, parent rhino.Node) {
 	t.currentHoistScopeRoot = n
 	t.PushScope(n)
 	t.currentNode = n
@@ -1456,18 +1456,18 @@ func (t *NodeTraversal) HandleModule(n *rhino.Node, parent *rhino.Node) {
 	}
 	t.PopScope()
 	// Module bodies don't nest
-	t.currentHoistScopeRoot = nil
+	t.currentHoistScopeRoot = rhino.Node{}
 }
 
 // Java: NodeTraversal.handleDestructuringOrDefaultValue(Node, Node)
-func (t *NodeTraversal) HandleDestructuringOrDefaultValue(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) HandleDestructuringOrDefaultValue(n rhino.Node, parent rhino.Node) {
 	t.currentNode = n
 	if t.callback.ShouldTraverse(t, n, parent) {
 		first := n.GetFirstChild()
 		second := first.GetNext()
 
-		if second != nil {
-			jutil.CheckStateMsg1(second.GetNext() == nil, "%s", second)
+		if !second.IsNil() {
+			jutil.CheckStateMsg1(second.GetNext().IsNil(), "%s", second)
 			t.TraverseBranch(second, n)
 		}
 		t.TraverseBranch(first, n)
@@ -1509,13 +1509,13 @@ var nodeTraversalBlockScopeToken = [256]bool{
 	rhino.Token_CLASS:        true,
 }
 
-func (t *NodeTraversal) isBlockScopeBlock(n *rhino.Node) bool {
+func (t *NodeTraversal) isBlockScopeBlock(n rhino.Node) bool {
 	if t.mayContainSyntheticBlocks && n.IsSyntheticBlock() {
 		// Don't create block scope for synthetic blocks.
 		return false
 	}
 	parent := n.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return false
 	}
 	pt := parent.GetToken()
@@ -1527,7 +1527,7 @@ func (t *NodeTraversal) isBlockScopeBlock(n *rhino.Node) bool {
 // for isSyntheticBlock.
 //
 // Java: NodeTraversal.createsBlockScope(Node)
-func (t *NodeTraversal) CreatesBlockScope(n *rhino.Node) bool {
+func (t *NodeTraversal) CreatesBlockScope(n rhino.Node) bool {
 	tok := n.GetToken()
 	if tok == rhino.Token_BLOCK {
 		return t.isBlockScopeBlock(n)
@@ -1541,7 +1541,7 @@ const (
 	nodeTraversalFastFull
 )
 
-func (t *NodeTraversal) traverseBranchPostOrder(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) traverseBranchPostOrder(n rhino.Node, parent rhino.Node) {
 	tok := n.GetToken()
 	switch nodeTraversalTokenKind[uint8(tok)] {
 	case nodeTraversalTokenSpecial:
@@ -1571,9 +1571,9 @@ func (t *NodeTraversal) traverseBranchPostOrder(n *rhino.Node, parent *rhino.Nod
 			if n.GetParent().IsClassMembers() {
 				t.currentHoistScopeRoot = n
 			}
-			for child := n.GetFirstChild(); child != nil; {
+			for child := n.GetFirstChild(); !child.IsNil(); {
 				next := child.GetNext()
-				if child.GetFirstChild() == nil {
+				if child.GetFirstChild().IsNil() {
 					ctok := child.GetToken()
 					if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 						t.currentNode = child
@@ -1596,9 +1596,9 @@ func (t *NodeTraversal) traverseBranchPostOrder(n *rhino.Node, parent *rhino.Nod
 		t.currentNode = n
 		previousHoistScopeRoot := t.currentHoistScopeRoot
 		t.PushScope(n)
-		for child := n.GetFirstChild(); child != nil; {
+		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			if child.GetFirstChild() == nil {
+			if child.GetFirstChild().IsNil() {
 				ctok := child.GetToken()
 				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 					t.currentNode = child
@@ -1619,9 +1619,9 @@ func (t *NodeTraversal) traverseBranchPostOrder(n *rhino.Node, parent *rhino.Nod
 
 	cb := t.callback
 	t.currentNode = n
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
-		if child.GetFirstChild() == nil {
+		if child.GetFirstChild().IsNil() {
 			ctok := child.GetToken()
 			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 				t.currentNode = child
@@ -1637,7 +1637,7 @@ func (t *NodeTraversal) traverseBranchPostOrder(n *rhino.Node, parent *rhino.Nod
 	cb.Visit(t, n, parent)
 }
 
-func (t *NodeTraversal) traverseBranchFull(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) traverseBranchFull(n rhino.Node, parent rhino.Node) {
 	tok := n.GetToken()
 	switch nodeTraversalTokenKind[uint8(tok)] {
 	case nodeTraversalTokenSpecial:
@@ -1670,9 +1670,9 @@ func (t *NodeTraversal) traverseBranchFull(n *rhino.Node, parent *rhino.Node) {
 			if n.GetParent().IsClassMembers() {
 				t.currentHoistScopeRoot = n
 			}
-			for child := n.GetFirstChild(); child != nil; {
+			for child := n.GetFirstChild(); !child.IsNil(); {
 				next := child.GetNext()
-				if child.GetFirstChild() == nil {
+				if child.GetFirstChild().IsNil() {
 					ctok := child.GetToken()
 					if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 						t.currentNode = child
@@ -1700,9 +1700,9 @@ func (t *NodeTraversal) traverseBranchFull(n *rhino.Node, parent *rhino.Node) {
 		}
 		previousHoistScopeRoot := t.currentHoistScopeRoot
 		t.PushScope(n)
-		for child := n.GetFirstChild(); child != nil; {
+		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			if child.GetFirstChild() == nil {
+			if child.GetFirstChild().IsNil() {
 				ctok := child.GetToken()
 				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 					t.currentNode = child
@@ -1728,9 +1728,9 @@ func (t *NodeTraversal) traverseBranchFull(n *rhino.Node, parent *rhino.Node) {
 	if !cb.ShouldTraverse(t, n, parent) {
 		return
 	}
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
-		if child.GetFirstChild() == nil {
+		if child.GetFirstChild().IsNil() {
 			ctok := child.GetToken()
 			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 				t.currentNode = child
@@ -1751,7 +1751,7 @@ func (t *NodeTraversal) traverseBranchFull(n *rhino.Node, parent *rhino.Node) {
 // TraverseBranch traverses a branch.
 //
 // Java: NodeTraversal.traverseBranch(Node, Node)
-func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) TraverseBranch(n rhino.Node, parent rhino.Node) {
 	switch t.fastMode {
 	case nodeTraversalFastPostOrder:
 		t.traverseBranchPostOrder(n, parent)
@@ -1800,9 +1800,9 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 			}
 			noVisitLeaves := t.noVisitLeaves
 			onlyNameLeaves := t.onlyNameLeaves
-			for child := n.GetFirstChild(); child != nil; {
+			for child := n.GetFirstChild(); !child.IsNil(); {
 				next := child.GetNext()
-				if child.GetFirstChild() == nil {
+				if child.GetFirstChild().IsNil() {
 					ctok := child.GetToken()
 					if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 						if t.noShouldTraverse {
@@ -1843,9 +1843,9 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 		t.PushScope(n)
 		noVisitLeaves := t.noVisitLeaves
 		onlyNameLeaves := t.onlyNameLeaves
-		for child := n.GetFirstChild(); child != nil; {
+		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			if child.GetFirstChild() == nil {
+			if child.GetFirstChild().IsNil() {
 				ctok := child.GetToken()
 				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 					if t.noShouldTraverse {
@@ -1892,11 +1892,11 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 	 */
 	noVisitLeaves := t.noVisitLeaves
 	onlyNameLeaves := t.onlyNameLeaves
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		// child could be replaced, in which case our child node
 		// would no longer point to the true next
 		next := child.GetNext()
-		if child.GetFirstChild() == nil {
+		if child.GetFirstChild().IsNil() {
 			ctok := child.GetToken()
 			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 				if t.noShouldTraverse {
@@ -1921,7 +1921,7 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 	}
 
 	if !t.noVisit {
-		if n.GetFirstChild() != nil || (!noVisitLeaves && (!onlyNameLeaves || tok == rhino.Token_NAME)) || tok == rhino.Token_BLOCK {
+		if !n.GetFirstChild().IsNil() || (!noVisitLeaves && (!onlyNameLeaves || tok == rhino.Token_NAME)) || tok == rhino.Token_BLOCK {
 			t.currentNode = n
 			cb.Visit(t, n, parent)
 		}
@@ -1931,7 +1931,7 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 // TraverseFunction traverses a function.
 //
 // Java: NodeTraversal.traverseFunction(Node, Node)
-func (t *NodeTraversal) TraverseFunction(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) TraverseFunction(n rhino.Node, parent rhino.Node) {
 	fnName := n.GetFirstChild()
 	// NOTE: If a function declaration is the root of a traversal, then we will treat it as a
 	// function expression (since 'parent' is null, even though 'n' actually has a parent node) and
@@ -1942,7 +1942,7 @@ func (t *NodeTraversal) TraverseFunction(n *rhino.Node, parent *rhino.Node) {
 	// This does not actually change anything, though, since rooting a traversal at a function node
 	// causes the function scope to be entered twice (unless using #traverseAtScope, which doesn't
 	// call this method), so that the name node is just always traversed inside the scope anyway.
-	isFunctionDeclaration := parent != nil && NodeUtil_IsFunctionDeclaration(n)
+	isFunctionDeclaration := !parent.IsNil() && NodeUtil_IsFunctionDeclaration(n)
 
 	if isFunctionDeclaration {
 		// Function declarations are in the scope containing the declaration.
@@ -1989,7 +1989,7 @@ func (t *NodeTraversal) TraverseFunction(n *rhino.Node, parent *rhino.Node) {
 // visiting the name (first child) or body (last child).
 //
 // Java: NodeTraversal.handleClass(Node, Node)
-func (t *NodeTraversal) HandleClass(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) HandleClass(n rhino.Node, parent rhino.Node) {
 	t.currentNode = n
 	if !t.callback.ShouldTraverse(t, n, parent) {
 		return
@@ -2030,13 +2030,13 @@ func (t *NodeTraversal) HandleClass(n *rhino.Node, parent *rhino.Node) {
 // props.
 //
 // Java: NodeTraversal.handleClassMembers(Node, Node)
-func (t *NodeTraversal) HandleClassMembers(n *rhino.Node, parent *rhino.Node) {
+func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 	t.currentNode = n
 	if !t.callback.ShouldTraverse(t, n, parent) {
 		return
 	}
 
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext() // see traverseChildren
 		if child.IsComputedProp() || child.IsComputedFieldDef() {
 			t.TraverseBranch(child.GetFirstChild(), child)
@@ -2044,7 +2044,7 @@ func (t *NodeTraversal) HandleClassMembers(n *rhino.Node, parent *rhino.Node) {
 		child = next
 	}
 
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext() // see traverseChildren
 
 		switch child.GetToken() {
@@ -2089,7 +2089,7 @@ func (t *NodeTraversal) HandleClassMembers(n *rhino.Node, parent *rhino.Node) {
 }
 
 // Java: NodeTraversal.handleMemberFieldDef(Node, Node)
-func (t *NodeTraversal) HandleMemberFieldDef(n *rhino.Node, child *rhino.Node) {
+func (t *NodeTraversal) HandleMemberFieldDef(n rhino.Node, child rhino.Node) {
 	previousHoistScopeRoot := t.currentHoistScopeRoot
 	t.currentHoistScopeRoot = n
 	t.PushScope(child)
@@ -2099,13 +2099,13 @@ func (t *NodeTraversal) HandleMemberFieldDef(n *rhino.Node, child *rhino.Node) {
 }
 
 // Java: NodeTraversal.traverseChildren(Node)
-func (t *NodeTraversal) TraverseChildren(n *rhino.Node) {
+func (t *NodeTraversal) TraverseChildren(n rhino.Node) {
 	cb := t.callback
 	switch t.fastMode {
 	case nodeTraversalFastPostOrder:
-		for child := n.GetFirstChild(); child != nil; {
+		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			if child.GetFirstChild() == nil {
+			if child.GetFirstChild().IsNil() {
 				ctok := child.GetToken()
 				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 					t.currentNode = child
@@ -2119,9 +2119,9 @@ func (t *NodeTraversal) TraverseChildren(n *rhino.Node) {
 		}
 		return
 	case nodeTraversalFastFull:
-		for child := n.GetFirstChild(); child != nil; {
+		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			if child.GetFirstChild() == nil {
+			if child.GetFirstChild().IsNil() {
 				ctok := child.GetToken()
 				if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 					t.currentNode = child
@@ -2139,11 +2139,11 @@ func (t *NodeTraversal) TraverseChildren(n *rhino.Node) {
 	}
 	noVisitLeaves := t.noVisitLeaves
 	onlyNameLeaves := t.onlyNameLeaves
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		// child could be replaced, in which case our child node
 		// would no longer point to the true next
 		next := child.GetNext()
-		if child.GetFirstChild() == nil {
+		if child.GetFirstChild().IsNil() {
 			ctok := child.GetToken()
 			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
 				if t.noShouldTraverse {
@@ -2174,18 +2174,18 @@ func (t *NodeTraversal) TraverseChildren(n *rhino.Node) {
 // nodes.
 //
 // Java: NodeTraversal.getEnclosingFunction()
-func (t *NodeTraversal) GetEnclosingFunction() *rhino.Node {
+func (t *NodeTraversal) GetEnclosingFunction() rhino.Node {
 	return t.currentFunction
 }
 
 // PushScope creates a new scope (e.g. when entering a function).
 //
 // Java: NodeTraversal.pushScope(Node)
-func (t *NodeTraversal) PushScope(node *rhino.Node) {
-	if t.currentNode == nil {
+func (t *NodeTraversal) PushScope(node rhino.Node) {
+	if t.currentNode.IsNil() {
 		panic(jutil.NewNullPointerException()) // checkNotNull(currentNode)
 	}
-	if node == nil {
+	if node.IsNil() {
 		panic(jutil.NewNullPointerException()) // checkNotNull(node)
 	}
 	releaseInline := len(t.scopes) == len(t.scopesBuf) && &t.scopes[0] == &t.scopesBuf[0]
@@ -2210,10 +2210,10 @@ func (t *NodeTraversal) PushScopeOfScope(s AbstractScope) {
 //
 // Java: NodeTraversal.pushScope(AbstractScope<?, ?>, boolean)
 func (t *NodeTraversal) PushScopeOfScopeWithQuietly(s AbstractScope, quietly bool) {
-	if t.currentNode == nil {
+	if t.currentNode.IsNil() {
 		panic(jutil.NewNullPointerException()) // checkNotNull(currentNode)
 	}
-	var root *rhino.Node
+	var root rhino.Node
 	var u *Scope
 	if s != nil {
 		root = s.GetRootNode()
@@ -2251,8 +2251,8 @@ func (t *NodeTraversal) PopScopeWithQuietly(quietly bool) {
 // root of the scope.
 //
 // Java: NodeTraversal.getNodeRootFromScopeObj(Object)
-func (t *NodeTraversal) GetNodeRootFromScopeObj(root any) *rhino.Node {
-	if node, ok := root.(*rhino.Node); ok {
+func (t *NodeTraversal) GetNodeRootFromScopeObj(root any) rhino.Node {
+	if node, ok := root.(rhino.Node); ok {
 		return node
 	}
 	return root.(AbstractScope).GetRootNode()
@@ -2261,16 +2261,16 @@ func (t *NodeTraversal) GetNodeRootFromScopeObj(root any) *rhino.Node {
 // GetScopeRoot returns the current scope's root.
 //
 // Java: NodeTraversal.getScopeRoot()
-func (t *NodeTraversal) GetScopeRoot() *rhino.Node {
+func (t *NodeTraversal) GetScopeRoot() rhino.Node {
 	roots := len(t.scopes)
 	if roots > 0 {
 		e := &t.scopes[roots-1]
-		if e.node != nil {
+		if !e.node.IsNil() {
 			return e.node
 		}
 		return e.scope.GetRootNode()
 	} else {
-		return nil
+		return rhino.Node{}
 	}
 }
 
@@ -2306,7 +2306,7 @@ func (t *NodeTraversal) LookupVarByID(id uint32) *Var {
 	return t.resolveLookupScope(idx).GetVarByID(id)
 }
 
-func (t *NodeTraversal) LookupVarByNode(n *rhino.Node) *Var {
+func (t *NodeTraversal) LookupVarByNode(n rhino.Node) *Var {
 	return t.LookupVarByID(n.GetStringID())
 }
 
@@ -2323,7 +2323,7 @@ func (t *NodeTraversal) resolveLookupScope(rootDepth int) *Scope {
 		}
 		return e.lookupScope
 	}
-	if t.syntacticScopeCreator != nil && e.scope == nil && e.node != nil && rootDepth > 0 {
+	if t.syntacticScopeCreator != nil && e.scope == nil && !e.node.IsNil() && rootDepth > 0 {
 		if e.node.IsBlock() {
 			if NodeUtil_IsFunctionBlock(e.node) {
 				if !NodeUtil_IsBundledGoogModuleScopeRoot(e.node) && syntacticFunctionBlockHasNoDecls(e.node) {
@@ -2435,7 +2435,7 @@ func (t *NodeTraversal) IsHoistScope() bool {
 }
 
 // Java: NodeTraversal.getClosestHoistScopeRoot()
-func (t *NodeTraversal) GetClosestHoistScopeRoot() *rhino.Node {
+func (t *NodeTraversal) GetClosestHoistScopeRoot() rhino.Node {
 	for i := len(t.scopes) - 1; i >= 0; i-- {
 		rootNode := t.scopes[i].node
 		if nodeTraversal_isHoistScopeRootNode(rootNode) {
@@ -2443,7 +2443,7 @@ func (t *NodeTraversal) GetClosestHoistScopeRoot() *rhino.Node {
 		}
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // Java: NodeTraversal.getClosestContainerScope()
@@ -2469,7 +2469,7 @@ func (t *NodeTraversal) GetClosestHoistScope() AbstractScope {
 }
 
 // Java: NodeTraversal.isHoistScopeRootNode(Node)
-func nodeTraversal_isHoistScopeRootNode(n *rhino.Node) bool {
+func nodeTraversal_isHoistScopeRootNode(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY, rhino.Token_ROOT, rhino.Token_SCRIPT:
 		return true
@@ -2478,10 +2478,10 @@ func nodeTraversal_isHoistScopeRootNode(n *rhino.Node) bool {
 	}
 }
 
-func (t *NodeTraversal) closestScopeHoistRoot() (int, *rhino.Node) {
+func (t *NodeTraversal) closestScopeHoistRoot() (int, rhino.Node) {
 	for i := len(t.scopes) - 1; i > 0; i-- {
 		r := t.scopes[i].node
-		if r == nil {
+		if r.IsNil() {
 			r = t.scopes[i].scope.GetRootNode()
 		}
 		switch r.GetToken() {
@@ -2496,14 +2496,14 @@ func (t *NodeTraversal) closestScopeHoistRoot() (int, *rhino.Node) {
 	if len(t.scopes) > 0 {
 		return 0, t.scopes[0].node
 	}
-	return 0, nil
+	return 0, rhino.Node{}
 }
 
 // GetClosestScopeRootNodeBindingThisOrSuper returns the closest scope
 // binding the `this` or `super` keyword
 //
 // Java: NodeTraversal.getClosestScopeRootNodeBindingThisOrSuper()
-func (t *NodeTraversal) GetClosestScopeRootNodeBindingThisOrSuper() *rhino.Node {
+func (t *NodeTraversal) GetClosestScopeRootNodeBindingThisOrSuper() rhino.Node {
 	for i := len(t.scopes) - 1; i >= 0; i-- {
 		rootNode := t.scopes[i].node
 		switch rootNode.GetToken() {
@@ -2524,7 +2524,7 @@ func (t *NodeTraversal) GetClosestScopeRootNodeBindingThisOrSuper() *rhino.Node 
 			continue
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: NodeTraversal.getScopeCreator()
@@ -2573,7 +2573,7 @@ func (t *NodeTraversal) InFunctionBlockScope() bool {
 //
 // Java: NodeTraversal.inGlobalHoistScope()
 func (t *NodeTraversal) InGlobalHoistScope() bool {
-	return t.currentHoistScopeRoot == nil
+	return t.currentHoistScopeRoot.IsNil()
 }
 
 // InModuleHoistScope determines whether the hoist scope of the current
@@ -2582,7 +2582,7 @@ func (t *NodeTraversal) InGlobalHoistScope() bool {
 // Java: NodeTraversal.inModuleHoistScope()
 func (t *NodeTraversal) InModuleHoistScope() bool {
 	moduleRoot := t.currentHoistScopeRoot
-	if moduleRoot == nil {
+	if moduleRoot.IsNil() {
 		// in global hoist scope
 		return false
 	}
@@ -2596,7 +2596,7 @@ func (t *NodeTraversal) InModuleHoistScope() bool {
 // Report reports a diagnostic (error or warning)
 //
 // Java: NodeTraversal.report(Node, DiagnosticType, String...)
-func (t *NodeTraversal) Report(n *rhino.Node, diagnosticType *DiagnosticType, arguments ...string) {
+func (t *NodeTraversal) Report(n rhino.Node, diagnosticType *DiagnosticType, arguments ...string) {
 	error_ := JSError_MakeWithNode(n, diagnosticType, arguments...)
 	t.compiler.Report(error_)
 }
@@ -2606,7 +2606,7 @@ func (t *NodeTraversal) Report(n *rhino.Node, diagnosticType *DiagnosticType, ar
 // otherwise just the last component (`abc` in `foo.abc`).
 //
 // Java: NodeTraversal.report(Node, Node, DiagnosticType, String...)
-func (t *NodeTraversal) ReportWithNodeRange(start *rhino.Node, end *rhino.Node, diagnosticType *DiagnosticType, arguments ...string) {
+func (t *NodeTraversal) ReportWithNodeRange(start rhino.Node, end rhino.Node, diagnosticType *DiagnosticType, arguments ...string) {
 	error_ := JSError_MakeWithNodeRange(start, end, diagnosticType, arguments...)
 	t.compiler.Report(error_)
 }
@@ -2614,7 +2614,7 @@ func (t *NodeTraversal) ReportWithNodeRange(start *rhino.Node, end *rhino.Node, 
 // Java: NodeTraversal.reportCodeChange()
 func (t *NodeTraversal) ReportCodeChange() {
 	changeScope := t.currentChangeScope
-	if changeScope == nil {
+	if changeScope.IsNil() {
 		panic(jutil.NewNullPointerException()) // checkNotNull(changeScope)
 	}
 	jutil.CheckStateMsg1(ChangeTracker_IsChangeScopeRoot(changeScope), "%s", changeScope)
@@ -2622,7 +2622,7 @@ func (t *NodeTraversal) ReportCodeChange() {
 }
 
 // Java: NodeTraversal.reportCodeChange(Node)
-func (t *NodeTraversal) ReportCodeChangeWithNode(n *rhino.Node) {
+func (t *NodeTraversal) ReportCodeChangeWithNode(n rhino.Node) {
 	t.compiler.ReportChangeToEnclosingScope(n)
 }
 
@@ -2637,8 +2637,8 @@ func (t *NodeTraversal) ReportCodeChangeWithNode(n *rhino.Node) {
 // FUNCTION.
 //
 // Java: NodeTraversal.getCurrentScript()
-func (t *NodeTraversal) GetCurrentScript() *rhino.Node {
-	if t.currentScript == nil {
+func (t *NodeTraversal) GetCurrentScript() rhino.Node {
+	if t.currentScript.IsNil() {
 		panic(jutil.NewUnsupportedOperationExceptionMsg("getCurrentScript not supported"))
 	}
 	return t.currentScript
@@ -2648,20 +2648,20 @@ func (t *NodeTraversal) GetCurrentScript() *rhino.Node {
 // traversal is complete.
 //
 // Java: NodeTraversal.setChangeScope(Node)
-func (t *NodeTraversal) SetChangeScope(n *rhino.Node) {
+func (t *NodeTraversal) SetChangeScope(n rhino.Node) {
 	t.currentChangeScope = n
 }
 
 // Java: NodeTraversal.getEnclosingScript(Node)
-func (t *NodeTraversal) GetEnclosingScript(n *rhino.Node) *rhino.Node {
-	for n != nil && !n.IsScript() {
+func (t *NodeTraversal) GetEnclosingScript(n rhino.Node) rhino.Node {
+	for !n.IsNil() && !n.IsScript() {
 		n = n.GetParent()
 	}
 	return n
 }
 
 // Java: NodeTraversal.initTraversal(Node)
-func (t *NodeTraversal) InitTraversal(traversalRoot *rhino.Node) {
+func (t *NodeTraversal) InitTraversal(traversalRoot rhino.Node) {
 	if Platform_IsThreadInterrupted() {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 	}
@@ -2670,14 +2670,14 @@ func (t *NodeTraversal) InitTraversal(traversalRoot *rhino.Node) {
 	// "null" is the global hoist scope root, but we want the current script if any
 	// for the "change scope"
 	changeScopeStart := traversalRoot
-	if hoistScopeRoot != nil {
+	if !hoistScopeRoot.IsNil() {
 		changeScopeStart = hoistScopeRoot
 	}
 	changeScope := ChangeTracker_GetEnclosingChangeScopeRoot(changeScopeStart)
 	t.SetChangeScope(changeScope)
 
-	var enclosingFunction *rhino.Node
-	if hoistScopeRoot != nil {
+	var enclosingFunction rhino.Node
+	if !hoistScopeRoot.IsNil() {
 		enclosingFunction = NodeUtil_GetEnclosingFunction(hoistScopeRoot)
 	}
 	t.currentFunction = enclosingFunction
@@ -2692,12 +2692,12 @@ func (t *NodeTraversal) InitTraversal(traversalRoot *rhino.Node) {
 // state.
 //
 // Java: NodeTraversal.initScopeRoots(Node)
-func (t *NodeTraversal) InitScopeRoots(n *rhino.Node) {
+func (t *NodeTraversal) InitScopeRoots(n rhino.Node) {
 	// Go-only: language-adapter — the Deque filled with addFirst: roots are
 	// collected innermost first and pushed outermost first.
-	var queuedScopeRootsBuf [16]*rhino.Node
+	var queuedScopeRootsBuf [16]rhino.Node
 	queuedScopeRoots := queuedScopeRootsBuf[:0]
-	for n != nil {
+	for !n.IsNil() {
 		if t.IsScopeRoot(n) {
 			queuedScopeRoots = append(queuedScopeRoots, n)
 		}
@@ -2709,8 +2709,8 @@ func (t *NodeTraversal) InitScopeRoots(n *rhino.Node) {
 }
 
 // Java: NodeTraversal.isScopeRoot(Node)
-func (t *NodeTraversal) IsScopeRoot(n *rhino.Node) bool {
-	if n.IsRoot() && n.GetParent() == nil {
+func (t *NodeTraversal) IsScopeRoot(n rhino.Node) bool {
+	if n.IsRoot() && n.GetParent().IsNil() {
 		return true
 	} else if n.IsFunction() {
 		return true
@@ -2733,15 +2733,15 @@ func (t *NodeTraversal) ClearScriptState() {
 
 // Java: NodeTraversal.getInputId()
 func (t *NodeTraversal) GetInputId() *rhino.InputId {
-	if t.currentScript != nil && t.inputId == nil {
+	if !t.currentScript.IsNil() && t.inputId == nil {
 		t.inputId = t.currentScript.GetInputId()
 	}
 	return t.inputId
 }
 
 // Java: NodeTraversal.getBestSourceFileName(Node)
-func (t *NodeTraversal) GetBestSourceFileName(n *rhino.Node) *string {
-	if n == nil {
+func (t *NodeTraversal) GetBestSourceFileName(n rhino.Node) *string {
+	if n.IsNil() {
 		return t.GetSourceName()
 	}
 	return n.GetSourceFileName()

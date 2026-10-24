@@ -181,7 +181,7 @@ func NewReplaceCssNames(
 }
 
 // Java: ReplaceCssNames.process(Node, Node)
-func (r *ReplaceCssNames) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *ReplaceCssNames) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, &ReplaceCssNames_FindSetCssNameTraversal{outer: r})
 	getCssNameInstances := r.GatherGetCssNameInstances(root)
 	for getCssNameInstance := range getCssNameInstances.All() {
@@ -209,7 +209,7 @@ func (r *ReplaceCssNames) Process(externs *rhino.Node, root *rhino.Node) {
 //	goog.getCssName(goog.getCssName('me-first'), 'me-second')
 //
 // Java: ReplaceCssNames.gatherGetCssNameInstances(Node)
-func (r *ReplaceCssNames) GatherGetCssNameInstances(root *rhino.Node) *jutil.ArrayList[*ReplaceCssNames_GetCssNameInstance] {
+func (r *ReplaceCssNames) GatherGetCssNameInstances(root rhino.Node) *jutil.ArrayList[*ReplaceCssNames_GetCssNameInstance] {
 	gatherCssNamesTraversal := NewReplaceCssNames_GatherCssNamesTraversal(r)
 	NodeTraversal_Traverse(r.compiler, root, gatherCssNamesTraversal)
 	return gatherCssNamesTraversal.listOfCssNameInstances
@@ -226,7 +226,7 @@ type ReplaceCssNames_FindSetCssNameTraversal struct {
 }
 
 // Java: ReplaceCssNames.FindSetCssNameTraversal.visit(NodeTraversal, Node, Node)
-func (f *ReplaceCssNames_FindSetCssNameTraversal) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *ReplaceCssNames_FindSetCssNameTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	r := f.outer
 	if !n.IsCall() || !parent.IsExprResult() {
 		return
@@ -257,7 +257,7 @@ func NewReplaceCssNames_GatherCssNamesTraversal(outer *ReplaceCssNames) *Replace
 }
 
 // Java: ReplaceCssNames.GatherCssNamesTraversal.shouldTraverse(NodeTraversal, Node, Node)
-func (g *ReplaceCssNames_GatherCssNamesTraversal) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (g *ReplaceCssNames_GatherCssNamesTraversal) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	r := g.outer
 	jsdoc := n.GetJSDocInfo()
 	hasSassGeneratedCssTsJsDoc := jsdoc != nil && jsdoc.IsSassGeneratedCssTs()
@@ -280,7 +280,7 @@ func (g *ReplaceCssNames_GatherCssNamesTraversal) ShouldTraverse(t *NodeTraversa
 }
 
 // Java: ReplaceCssNames.GatherCssNamesTraversal.visit(NodeTraversal, Node, Node)
-func (g *ReplaceCssNames_GatherCssNamesTraversal) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *ReplaceCssNames_GatherCssNamesTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	r := g.outer
 	if r.IsGetCssNameCall(n) {
 		getCssNameInstance := r.CreateGetCssNameInstance(n, g.traversalState.cssClosureClassesQualifiedName)
@@ -293,7 +293,7 @@ func (g *ReplaceCssNames_GatherCssNamesTraversal) Visit(t *NodeTraversal, n *rhi
 }
 
 // Java: ReplaceCssNames.GatherCssNamesTraversal.createSassGeneratedCssTsExpert(Node)
-func (g *ReplaceCssNames_GatherCssNamesTraversal) CreateSassGeneratedCssTsExpert(n *rhino.Node) *ReplaceCssNames_GatherCssNamesTraversal_SassGeneratedCssTsExpert {
+func (g *ReplaceCssNames_GatherCssNamesTraversal) CreateSassGeneratedCssTsExpert(n rhino.Node) *ReplaceCssNames_GatherCssNamesTraversal_SassGeneratedCssTsExpert {
 	r := g.outer
 	jsdoc := n.GetJSDocInfo()
 	hasSassGeneratedCssTsJsDoc := jsdoc != nil && jsdoc.IsSassGeneratedCssTs()
@@ -349,19 +349,19 @@ type ReplaceCssNames_GatherCssNamesTraversal_TraversalState struct {
 }
 
 // Java: ReplaceCssNames.isNotInCssClosureFile(Node)
-func (r *ReplaceCssNames) IsNotInCssClosureFile(node *rhino.Node) bool {
+func (r *ReplaceCssNames) IsNotInCssClosureFile(node rhino.Node) bool {
 	sourceFileName := node.GetSourceFileName()
 	return sourceFileName == nil || !strings.HasSuffix(*sourceFileName, ".css.closure.js")
 }
 
 // Java: ReplaceCssNames.isGetCssNameCall(Node)
-func (r *ReplaceCssNames) IsGetCssNameCall(node *rhino.Node) bool {
+func (r *ReplaceCssNames) IsGetCssNameCall(node rhino.Node) bool {
 	return node.IsCall() && node.GetFirstChild().MatchesQualifiedNameNode(ReplaceCssNames_GET_CSS_NAME_FUNCTION)
 }
 
 // Java: ReplaceCssNames.createGetCssNameInstance(Node, String)
 func (r *ReplaceCssNames) CreateGetCssNameInstance(
-	n *rhino.Node, cssClosureClassesQualifiedName *string) *ReplaceCssNames_GetCssNameInstance {
+	n rhino.Node, cssClosureClassesQualifiedName *string) *ReplaceCssNames_GetCssNameInstance {
 	validationError := r.ValidateGetCssNameCall(n)
 	if len(r.instanceSlab) == cap(r.instanceSlab) {
 		r.instanceSlab = make([]ReplaceCssNames_GetCssNameInstance, 0, 256)
@@ -386,7 +386,7 @@ type ReplaceCssNames_GetCssNameInstance struct {
 	//
 	// We shouldn't store final pointers to any of the children of this node, because they might
 	// be changed between creation of this object and performance of other methods.
-	callNode *rhino.Node
+	callNode rhino.Node
 
 	// Non-null if the shape of the function call was invalid, when this object was created.
 	validationError *JSError
@@ -398,7 +398,7 @@ type ReplaceCssNames_GetCssNameInstance struct {
 
 // Java: ReplaceCssNames.GetCssNameInstance(Node, JSError, String)
 func NewReplaceCssNames_GetCssNameInstance(
-	outer *ReplaceCssNames, callNode *rhino.Node, validationError *JSError, cssClosureClassesQualifiedName *string) *ReplaceCssNames_GetCssNameInstance {
+	outer *ReplaceCssNames, callNode rhino.Node, validationError *JSError, cssClosureClassesQualifiedName *string) *ReplaceCssNames_GetCssNameInstance {
 	return &ReplaceCssNames_GetCssNameInstance{
 		outer:                          outer,
 		callNode:                       callNode,
@@ -424,7 +424,7 @@ func (g *ReplaceCssNames_GetCssNameInstance) GetValidationError() *JSError {
 // Java: ReplaceCssNames.GetCssNameInstance.replaceWithExpression()
 func (g *ReplaceCssNames_GetCssNameInstance) ReplaceWithExpression() {
 	jutil.CheckStateMsg1(g.IsValid(), "not a valid goog.getCssName() call: %s", g.callNode)
-	jutil.CheckNotNullMsg1(g.callNode.GetParent(), "already replaced: %s", g.callNode)
+	rhino.CheckNotNullMsg1(g.callNode.GetParent(), "already replaced: %s", g.callNode)
 	childCount := g.callNode.GetChildCount()
 	switch childCount {
 	case 2:
@@ -441,7 +441,7 @@ func (g *ReplaceCssNames_GetCssNameInstance) ReplaceWithExpression() {
 func (g *ReplaceCssNames_GetCssNameInstance) ReplaceWithConvertedSingleArg() {
 	r := g.outer
 	// `goog.getCssName('some-literal')` -> `'mapped-literal'`
-	stringLitArg := jutil.CheckNotNullMsg1(g.callNode.GetSecondChild(), "%s", g.callNode)
+	stringLitArg := rhino.CheckNotNullMsg1(g.callNode.GetSecondChild(), "%s", g.callNode)
 	jutil.CheckStateMsg1(stringLitArg.IsStringLit(), "not a string literal: %s", stringLitArg)
 	stringLitArg.Detach()
 	r.ProcessStringNode(stringLitArg)
@@ -453,8 +453,8 @@ func (g *ReplaceCssNames_GetCssNameInstance) ReplaceWithConvertedSingleArg() {
 func (g *ReplaceCssNames_GetCssNameInstance) ReplaceWithConcatenatedArgs() {
 	r := g.outer
 	// `goog.getCssName(someExpr, 'some-literal')` -> `someExpr + '-mapped-literal'`
-	firstArg := jutil.CheckNotNullMsg1(g.callNode.GetSecondChild(), "%s", g.callNode)
-	secondArg := jutil.CheckNotNullMsg1(firstArg.GetNext(), "%s", firstArg)
+	firstArg := rhino.CheckNotNullMsg1(g.callNode.GetSecondChild(), "%s", g.callNode)
+	secondArg := rhino.CheckNotNullMsg1(firstArg.GetNext(), "%s", firstArg)
 	firstArg.Detach()
 	secondArg.Detach()
 	r.ProcessStringNode(secondArg)
@@ -498,16 +498,16 @@ func (g *ReplaceCssNames_GetCssNameInstance) GetCssClosureClassesMemberName() *s
 // Java: ReplaceCssNames.GetCssNameInstance.getCssClassName()
 func (g *ReplaceCssNames_GetCssNameInstance) GetCssClassName() *string {
 	jutil.CheckStateMsg1(g.IsValid(), "not a valid goog.getCssName() call: %s", g.callNode)
-	jutil.CheckNotNullMsg1(g.callNode.GetParent(), "already replaced: %s", g.callNode)
+	rhino.CheckNotNullMsg1(g.callNode.GetParent(), "already replaced: %s", g.callNode)
 	childCount := g.callNode.GetChildCount()
-	firstArg := jutil.CheckNotNullMsg1(g.callNode.GetSecondChild(), "%s", g.callNode)
+	firstArg := rhino.CheckNotNullMsg1(g.callNode.GetSecondChild(), "%s", g.callNode)
 	switch childCount {
 	case 2:
 		jutil.CheckStateMsg1(firstArg.IsStringLit(), "not a string literal: %s", firstArg)
 		name := firstArg.GetString()
 		return &name
 	case 3:
-		secondArg := jutil.CheckNotNullMsg1(firstArg.GetNext(), "%s", firstArg)
+		secondArg := rhino.CheckNotNullMsg1(firstArg.GetNext(), "%s", firstArg)
 		jutil.CheckStateMsg1(secondArg.IsStringLit(), "not a string literal: %s", secondArg)
 		name := secondArg.GetString()
 		return &name
@@ -518,7 +518,7 @@ func (g *ReplaceCssNames_GetCssNameInstance) GetCssClassName() *string {
 }
 
 // Java: ReplaceCssNames.validateGetCssNameCall(Node)
-func (r *ReplaceCssNames) ValidateGetCssNameCall(callNode *rhino.Node) *JSError {
+func (r *ReplaceCssNames) ValidateGetCssNameCall(callNode rhino.Node) *JSError {
 	childCount := callNode.GetChildCount()
 	switch childCount {
 	case 2:
@@ -531,9 +531,9 @@ func (r *ReplaceCssNames) ValidateGetCssNameCall(callNode *rhino.Node) *JSError 
 }
 
 // Java: ReplaceCssNames.validateSingleArgGetCssNameCall(Node)
-func (r *ReplaceCssNames) ValidateSingleArgGetCssNameCall(callNode *rhino.Node) *JSError {
+func (r *ReplaceCssNames) ValidateSingleArgGetCssNameCall(callNode rhino.Node) *JSError {
 	// `goog.getCssName('css-name')`
-	stringLiteralArg := jutil.CheckNotNull(callNode.GetLastChild())
+	stringLiteralArg := rhino.CheckNotNull(callNode.GetLastChild())
 	if !stringLiteralArg.IsStringLit() {
 		return JSError_MakeWithNode(
 			callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, stringLiteralArg.GetToken().String())
@@ -542,11 +542,11 @@ func (r *ReplaceCssNames) ValidateSingleArgGetCssNameCall(callNode *rhino.Node) 
 }
 
 // Java: ReplaceCssNames.validateTwoArgGetCssNameCall(Node)
-func (r *ReplaceCssNames) ValidateTwoArgGetCssNameCall(callNode *rhino.Node) *JSError {
+func (r *ReplaceCssNames) ValidateTwoArgGetCssNameCall(callNode rhino.Node) *JSError {
 	// `goog.getCssName(BASE_CSS_NAME, 'css-suffix')`
 	// The first child is the callee, so the first argument is the second child
-	firstArg := jutil.CheckNotNull(callNode.GetSecondChild())
-	secondArg := jutil.CheckNotNull(firstArg.GetNext())
+	firstArg := rhino.CheckNotNull(callNode.GetSecondChild())
+	secondArg := rhino.CheckNotNull(firstArg.GetNext())
 
 	if !secondArg.IsStringLit() {
 		return JSError_MakeWithNode(callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, secondArg.GetToken().String())
@@ -578,7 +578,7 @@ func (r *ReplaceCssNames) ValidateTwoArgGetCssNameCall(callNode *rhino.Node) *JS
 // n is the string node to process.
 //
 // Java: ReplaceCssNames.processStringNode(Node)
-func (r *ReplaceCssNames) ProcessStringNode(n *rhino.Node) {
+func (r *ReplaceCssNames) ProcessStringNode(n rhino.Node) {
 	name := n.GetString()
 	if r.skiplist != nil && r.skiplist.Contains(name) {
 		// We apply the skiplist before splitting on dashes, and not after.
@@ -648,7 +648,7 @@ type ReplaceCssNames_CountCssNamesBySymbol struct {
 }
 
 // Java: ReplaceCssNames.CountCssNamesBySymbol.shouldTraverse(NodeTraversal, Node, Node)
-func (c *ReplaceCssNames_CountCssNamesBySymbol) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *ReplaceCssNames_CountCssNamesBySymbol) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		// Only descend into source files NOT named `*.css.closure.js`
 		return c.outer.IsNotInCssClosureFile(n)
@@ -658,7 +658,7 @@ func (c *ReplaceCssNames_CountCssNamesBySymbol) ShouldTraverse(t *NodeTraversal,
 }
 
 // Java: ReplaceCssNames.CountCssNamesBySymbol.visit(NodeTraversal, Node, Node)
-func (c *ReplaceCssNames_CountCssNamesBySymbol) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *ReplaceCssNames_CountCssNamesBySymbol) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	r := c.outer
 	if r.classesObjectsQualifiedNames.IsEmpty() || !n.IsQualifiedName() {
 		return

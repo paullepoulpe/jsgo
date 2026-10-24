@@ -55,7 +55,7 @@ func NewDenormalize(compiler AbstractCompiler, outputFeatureSet *parser.FeatureS
 }
 
 // Java: Denormalize.process(Node, Node)
-func (d *Denormalize) Process(externs *rhino.Node, root *rhino.Node) {
+func (d *Denormalize) Process(externs rhino.Node, root rhino.Node) {
 	d.hasLogicalAssign = d.outputFeatureSet != nil && d.outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
 	NodeTraversal_Traverse(d.compiler, root, d)
 	// Don't inline the VAR declaration if this compilation involves old-style ctemplates.
@@ -73,13 +73,13 @@ func (d *Denormalize) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 type denormalizeVarState struct {
-	declNode   *rhino.Node
-	assignNode *rhino.Node
+	declNode   rhino.Node
+	assignNode rhino.Node
 }
 
 type denormalizeVarInliner struct {
 	states          []denormalizeVarState
-	scopesWithDecls map[*rhino.Node]*Scope
+	scopesWithDecls map[rhino.Node]*Scope
 	statesBuf       [32]denormalizeVarState
 }
 
@@ -99,7 +99,7 @@ func (inliner *denormalizeVarInliner) getOrAllocState(v *Var) *denormalizeVarSta
 	return &inliner.states[idx-1]
 }
 
-func (inliner *denormalizeVarInliner) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (inliner *denormalizeVarInliner) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
@@ -124,7 +124,7 @@ func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 			continue
 		}
 		st := &inliner.states[idx-1]
-		if st.declNode != nil && st.assignNode != nil {
+		if !st.declNode.IsNil() && !st.assignNode.IsNil() {
 			lhs := st.assignNode
 			assignNode := lhs.GetParent()
 			if assignNode.GetParent().IsExprResult() {
@@ -144,8 +144,8 @@ func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 	}
 }
 
-func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	if !n.IsName() || parent == nil {
+func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if !n.IsName() || parent.IsNil() {
 		return
 	}
 	switch parent.GetToken() {
@@ -162,7 +162,7 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n *rhino.Node, par
 					st := inliner.getOrAllocState(v)
 					st.declNode = n
 					if inliner.scopesWithDecls == nil {
-						inliner.scopesWithDecls = make(map[*rhino.Node]*Scope, 8)
+						inliner.scopesWithDecls = make(map[rhino.Node]*Scope, 8)
 					}
 					inliner.scopesWithDecls[vRoot] = v.scope
 				}
@@ -180,7 +180,7 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n *rhino.Node, par
 				vRoot := v.scope.GetRootNode()
 				if vRoot.IsBlock() && vRoot.GetParent().IsFunction() {
 					st := inliner.getOrAllocState(v)
-					if st.assignNode == nil {
+					if st.assignNode.IsNil() {
 						st.assignNode = n
 					}
 				}
@@ -190,7 +190,7 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n *rhino.Node, par
 }
 
 // Java: Denormalize.shouldTraverse(NodeTraversal, Node, Node)
-func (d *Denormalize) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (d *Denormalize) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
@@ -239,7 +239,7 @@ func (d *Denormalize) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap
 }
 
 // Java: Denormalize.visit(NodeTraversal, Node, Node)
-func (d *Denormalize) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (d *Denormalize) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_EXPR_RESULT, rhino.Token_VAR:
 		d.MaybeCollapseIntoForStatements(n, parent)
@@ -256,16 +256,16 @@ func (d *Denormalize) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node)
 // FOR loop initializers where possible.
 //
 // Java: Denormalize.maybeCollapseIntoForStatements(Node, Node)
-func (d *Denormalize) MaybeCollapseIntoForStatements(n *rhino.Node, parent *rhino.Node) {
+func (d *Denormalize) MaybeCollapseIntoForStatements(n rhino.Node, parent rhino.Node) {
 	// Is the next statement a valid FOR?
 	nextSibling := n.GetNext()
-	if nextSibling == nil {
+	if nextSibling.IsNil() {
 		return
 	}
 
 	// Only SCRIPT, BLOCK, and LABELs can have FORs that can be collapsed into.
 	// LABELs are not supported here.
-	if parent == nil || !NodeUtil_IsStatementBlock(parent) {
+	if parent.IsNil() || !NodeUtil_IsStatementBlock(parent) {
 		return
 	}
 
@@ -296,7 +296,7 @@ func (d *Denormalize) MaybeCollapseIntoForStatements(n *rhino.Node, parent *rhin
 		// as the PlayStation 3's browser based on Access's NetFront
 		// browser) to fail to parse the code.
 		// See bug 1778863 for details.
-		if NodeUtil_Has(n, (*rhino.Node).IsIn, denormalize_alwaysTrue) {
+		if NodeUtil_Has(n, (rhino.Node).IsIn, denormalize_alwaysTrue) {
 			return
 		}
 
@@ -305,7 +305,7 @@ func (d *Denormalize) MaybeCollapseIntoForStatements(n *rhino.Node, parent *rhin
 		oldInitializer := forNode.GetFirstChild()
 		n.Detach()
 
-		var newInitializer *rhino.Node
+		var newInitializer rhino.Node
 		if n.IsVar() {
 			newInitializer = n
 		} else {
@@ -322,10 +322,10 @@ func (d *Denormalize) MaybeCollapseIntoForStatements(n *rhino.Node, parent *rhin
 }
 
 // denormalize_alwaysTrue is Guava's Predicates.alwaysTrue().
-func denormalize_alwaysTrue(*rhino.Node) bool { return true }
+func denormalize_alwaysTrue(rhino.Node) bool { return true }
 
 // Java: Denormalize.maybeCollapseAssignShorthand(Node, Node)
-func (d *Denormalize) MaybeCollapseAssignShorthand(n *rhino.Node, parent *rhino.Node) {
+func (d *Denormalize) MaybeCollapseAssignShorthand(n rhino.Node, parent rhino.Node) {
 	if !d.IsCollapsableAssign(n) {
 		return
 	}
@@ -341,7 +341,7 @@ func (d *Denormalize) MaybeCollapseAssignShorthand(n *rhino.Node, parent *rhino.
 }
 
 // Java: Denormalize.maybeCollapseLogicalAssignShorthand(NodeTraversal, Node, Node)
-func (d *Denormalize) MaybeCollapseLogicalAssignShorthand(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (d *Denormalize) MaybeCollapseLogicalAssignShorthand(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !d.IsCollapsableLogicalAssign(n) {
 		return
 	}
@@ -358,7 +358,7 @@ func (d *Denormalize) MaybeCollapseLogicalAssignShorthand(t *NodeTraversal, n *r
 }
 
 // Java: Denormalize.isCollapsableAssign(Node)
-func (d *Denormalize) IsCollapsableAssign(n *rhino.Node) bool {
+func (d *Denormalize) IsCollapsableAssign(n rhino.Node) bool {
 	return n.IsAssign() &&
 		n.GetFirstChild().IsName() &&
 		d.HasCorrespondingAssignmentOp(n.GetLastChild()) &&
@@ -366,7 +366,7 @@ func (d *Denormalize) IsCollapsableAssign(n *rhino.Node) bool {
 }
 
 // Java: Denormalize.isCollapsableLogicalAssign(Node)
-func (d *Denormalize) IsCollapsableLogicalAssign(n *rhino.Node) bool {
+func (d *Denormalize) IsCollapsableLogicalAssign(n rhino.Node) bool {
 	return d.outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT) &&
 		(n.IsOr() || n.IsAnd() || n.IsNullishCoalesce()) &&
 		n.GetFirstChild().IsName() &&
@@ -375,7 +375,7 @@ func (d *Denormalize) IsCollapsableLogicalAssign(n *rhino.Node) bool {
 }
 
 // Java: Denormalize.getAssignOpFromOp(Node)
-func (d *Denormalize) GetAssignOpFromOp(n *rhino.Node) rhino.Token {
+func (d *Denormalize) GetAssignOpFromOp(n rhino.Node) rhino.Token {
 	switch n.GetToken() {
 	case rhino.Token_BITOR:
 		return rhino.Token_ASSIGN_BITOR
@@ -413,7 +413,7 @@ func (d *Denormalize) GetAssignOpFromOp(n *rhino.Node) rhino.Token {
 }
 
 // Java: Denormalize.hasCorrespondingAssignmentOp(Node)
-func (d *Denormalize) HasCorrespondingAssignmentOp(n *rhino.Node) bool {
+func (d *Denormalize) HasCorrespondingAssignmentOp(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_LSH, rhino.Token_RSH,
 		rhino.Token_URSH, rhino.Token_ADD, rhino.Token_SUB, rhino.Token_MUL, rhino.Token_DIV,

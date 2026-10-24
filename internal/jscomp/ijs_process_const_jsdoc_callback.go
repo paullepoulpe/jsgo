@@ -36,7 +36,7 @@ type ProcessConstJsdocCallback interface {
 	GetProcessConstJsdocCallbackBase() *ProcessConstJsdocCallbackBase
 
 	// Java: ProcessConstJsdocCallback.processConstWithRhs(NodeTraversal, Node)
-	ProcessConstWithRhs(t *NodeTraversal, lhs *rhino.Node)
+	ProcessConstWithRhs(t *NodeTraversal, lhs rhino.Node)
 }
 
 // ProcessConstJsdocCallbackBase holds the fields and base methods of the
@@ -68,14 +68,14 @@ func (b *ProcessConstJsdocCallbackBase) GetProcessConstJsdocCallbackBase() *Proc
 }
 
 // Java: ProcessConstJsdocCallback.visit(NodeTraversal, Node, Node)
-func (b *ProcessConstJsdocCallbackBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *ProcessConstJsdocCallbackBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
 		if NodeUtil_IsStatementParent(parent) {
 			b.currentFile.RecordNameDeclaration(n.GetFirstChild())
 		}
 	case rhino.Token_MEMBER_FIELD_DEF:
-		if NodeUtil_GetRValueOfLValue(n) != nil {
+		if !NodeUtil_GetRValueOfLValue(n).IsNil() {
 			b.ProcessDeclarationWithRhs(t, n)
 		}
 		b.currentFile.RecordMemberFieldDef(n)
@@ -118,8 +118,8 @@ func (b *ProcessConstJsdocCallbackBase) Visit(t *NodeTraversal, n *rhino.Node, p
 }
 
 // Java: ProcessConstJsdocCallback.recordDeclaration(NodeTraversal, Node, Node)
-func (b *ProcessConstJsdocCallbackBase) RecordDeclaration(t *NodeTraversal, lhs *rhino.Node, rhs *rhino.Node) {
-	if rhs != nil &&
+func (b *ProcessConstJsdocCallbackBase) RecordDeclaration(t *NodeTraversal, lhs rhino.Node, rhs rhino.Node) {
+	if !rhs.IsNil() &&
 		rhs.IsCall() &&
 		processConstJsdocCallback_GOOG_DEFINE.Matches(rhs.GetFirstChild()) &&
 		lhs.IsQualifiedName() {
@@ -128,20 +128,20 @@ func (b *ProcessConstJsdocCallbackBase) RecordDeclaration(t *NodeTraversal, lhs 
 		return
 	} else {
 		b.RecordNameDeclaration(lhs, rhs)
-		if !lhs.IsDestructuringLhs() && rhs != nil {
+		if !lhs.IsDestructuringLhs() && !rhs.IsNil() {
 			b.ProcessDeclarationWithRhs(t, lhs)
 		}
 	}
 }
 
 // Java: ProcessConstJsdocCallback.recordNameDeclaration(Node, Node)
-func (b *ProcessConstJsdocCallbackBase) RecordNameDeclaration(lhs *rhino.Node, rhs *rhino.Node) {
+func (b *ProcessConstJsdocCallbackBase) RecordNameDeclaration(lhs rhino.Node, rhs rhino.Node) {
 	jutil.CheckArgument(NodeUtil_IsNameDeclaration(lhs.GetParent()) || lhs.GetParent().IsAssign())
 	isImport := PotentialDeclaration_IsImportRhs(rhs)
 	isAlias := PotentialDeclaration_IsAliasDeclaration(lhs, rhs)
 	NodeUtil_VisitLhsNodesInNode(
 		lhs.GetParent(),
-		func(name *rhino.Node) {
+		func(name rhino.Node) {
 			if isAlias || isImport {
 				b.currentFile.RecordAliasDeclaration(name)
 			} else {
@@ -151,9 +151,9 @@ func (b *ProcessConstJsdocCallbackBase) RecordNameDeclaration(lhs *rhino.Node, r
 }
 
 // Java: ProcessConstJsdocCallback.processDeclarationWithRhs(NodeTraversal, Node)
-func (b *ProcessConstJsdocCallbackBase) ProcessDeclarationWithRhs(t *NodeTraversal, lhs *rhino.Node) {
+func (b *ProcessConstJsdocCallbackBase) ProcessDeclarationWithRhs(t *NodeTraversal, lhs rhino.Node) {
 	jutil.CheckArgumentMsg1(lhs.IsQualifiedName() || lhs.IsStringKey() || lhs.IsMemberFieldDef(), "%s", lhs)
-	jutil.CheckStateMsg1(NodeUtil_GetRValueOfLValue(lhs) != nil, "%s", lhs)
+	jutil.CheckStateMsg1(!NodeUtil_GetRValueOfLValue(lhs).IsNil(), "%s", lhs)
 	if PotentialDeclaration_IsConstToBeInferred(lhs) {
 		b.self.ProcessConstWithRhs(t, lhs)
 	}

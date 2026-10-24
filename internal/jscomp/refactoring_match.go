@@ -24,19 +24,19 @@ import (
 
 // Match is an object that contains the information for a given match.
 type Match struct {
-	node     *rhino.Node
+	node     rhino.Node
 	metadata *NodeMetadata
 }
 
 // Java: Match(Node, NodeMetadata)
-func NewMatch(node *rhino.Node, metadata *NodeMetadata) *Match {
+func NewMatch(node rhino.Node, metadata *NodeMetadata) *Match {
 	return &Match{node: node, metadata: metadata}
 }
 
 // GetNode returns the node that matched the given conditions.
 //
 // Java: Match.getNode()
-func (m *Match) GetNode() *rhino.Node {
+func (m *Match) GetNode() rhino.Node {
 	return m.node
 }
 

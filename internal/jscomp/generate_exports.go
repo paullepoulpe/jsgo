@@ -88,7 +88,7 @@ func (g *GenerateExports) GetExportedVariableNames() *jutil.LinkedHashSet[string
 }
 
 // Java: GenerateExports.process(Node, Node)
-func (g *GenerateExports) Process(externs *rhino.Node, root *rhino.Node) {
+func (g *GenerateExports) Process(externs rhino.Node, root rhino.Node) {
 	findExportableNodes := NewFindExportableNodes(g.compiler, g.allowNonGlobalExports)
 	NodeTraversal_Traverse(g.compiler, root, findExportableNodes)
 	exports := findExportableNodes.GetExports()
@@ -120,10 +120,10 @@ func (g *GenerateExports) Process(externs *rhino.Node, root *rhino.Node) {
 //
 // Java: GenerateExports.validateExportMethodsIncluded(Map<String, Node>, Map<Node, String>, Node)
 func (g *GenerateExports) ValidateExportMethodsIncluded(
-	exports *jutil.LinkedHashMap[string, *rhino.Node], es6Exports *jutil.LinkedHashMap[*rhino.Node, string], root *rhino.Node) bool {
+	exports *jutil.LinkedHashMap[string, rhino.Node], es6Exports *jutil.LinkedHashMap[rhino.Node, string], root rhino.Node) bool {
 
 	// Pick an arbitrary @export to report the warning on.
-	var errorLocation *rhino.Node
+	var errorLocation rhino.Node
 	if !exports.IsEmpty() {
 		for v := range exports.Values() {
 			errorLocation = v
@@ -164,7 +164,7 @@ func (g *GenerateExports) ValidateExportMethodsIncluded(
 // goog.exportSymbol.
 //
 // Java: GenerateExports.includesExportMethods(Node)
-func (g *GenerateExports) IncludesExportMethods(root *rhino.Node) bool {
+func (g *GenerateExports) IncludesExportMethods(root rhino.Node) bool {
 	globalScope := NewSyntacticScopeCreator(g.compiler).CreateScopeOfScope(root /* parent= */, nil)
 	exportPropertyRoot := NodeUtil_GetRootOfQualifiedNameString(*g.exportPropertyFunction)
 	exportSymbolRoot := NodeUtil_GetRootOfQualifiedNameString(*g.exportSymbolFunction)
@@ -175,7 +175,7 @@ func (g *GenerateExports) IncludesExportMethods(root *rhino.Node) bool {
 // prevent crashes later on in VarCheck.
 //
 // Java: GenerateExports.declareExportMethodsInExterns(Node)
-func (g *GenerateExports) DeclareExportMethodsInExterns(srcref *rhino.Node) {
+func (g *GenerateExports) DeclareExportMethodsInExterns(srcref rhino.Node) {
 
 	exportPropertyRoot := NodeUtil_GetRootOfQualifiedNameString(*g.exportPropertyFunction)
 	exportSymbolRoot := NodeUtil_GetRootOfQualifiedNameString(*g.exportSymbolFunction)
@@ -189,7 +189,7 @@ func (g *GenerateExports) DeclareExportMethodsInExterns(srcref *rhino.Node) {
 }
 
 // Java: GenerateExports.declareSyntheticExternsVar(String, Node)
-func (g *GenerateExports) DeclareSyntheticExternsVar(name string, srcref *rhino.Node) {
+func (g *GenerateExports) DeclareSyntheticExternsVar(name string, srcref rhino.Node) {
 	syntheticInput := g.compiler.GetSynthesizedExternsInput()
 	syntheticVarRoot := syntheticInput.GetAstRoot(g.compiler)
 
@@ -222,7 +222,7 @@ func (g *GenerateExports) RecordExportSymbol(qname string) {
 }
 
 // Java: GenerateExports.addExportForEs6Method(Node, String)
-func (g *GenerateExports) AddExportForEs6Method(memberFunction *rhino.Node, ownerName string) {
+func (g *GenerateExports) AddExportForEs6Method(memberFunction rhino.Node, ownerName string) {
 	// We always export ES6 member methods as properties.
 	jutil.CheckArgumentMsg1(memberFunction.IsMemberFunctionDef(), "%s", memberFunction)
 	jutil.CheckArgumentMsg1(ownerName != "", "%s", ownerName)
@@ -240,7 +240,7 @@ func (g *GenerateExports) AddExportForEs6Method(memberFunction *rhino.Node, owne
 // context the node on which the @export annotation was found.
 //
 // Java: GenerateExports.addExportMethod(Map<String, Node>, String, Node)
-func (g *GenerateExports) AddExportMethod(exports *jutil.LinkedHashMap[string, *rhino.Node], export string, context *rhino.Node) {
+func (g *GenerateExports) AddExportMethod(exports *jutil.LinkedHashMap[string, rhino.Node], export string, context rhino.Node) {
 	// We can export as a property if any of the following conditions holds:
 	// a) ES6 class members, which the above `addExportForEs6Method` handles
 	// b) this is a property on a name which is also being exported
@@ -250,7 +250,7 @@ func (g *GenerateExports) AddExportMethod(exports *jutil.LinkedHashMap[string, *
 	var propertyName string
 
 	child := context.GetFirstChild()
-	if child != nil && child.IsGetProp() { // e.g. `/** @export */ a.prototype.b = obj;`
+	if !child.IsNil() && child.IsGetProp() { // e.g. `/** @export */ a.prototype.b = obj;`
 		node := context.GetFirstChild()                // e.g. get `a.prototype.b`
 		ownerNode := node.GetFirstChild()              // e.g. get `a.prototype`
 		methodOwnerName = ownerNode.GetQualifiedName() // e.g. get the string "a.prototype"
@@ -278,7 +278,7 @@ func (g *GenerateExports) AddExportMethod(exports *jutil.LinkedHashMap[string, *
 
 // Java: GenerateExports.addExportPropertyCall(String, Node, String, String)
 func (g *GenerateExports) AddExportPropertyCall(
-	methodOwnerName *string, context *rhino.Node, export string, propertyName string) {
+	methodOwnerName *string, context rhino.Node, export string, propertyName string) {
 	// JS output: exportProperty(object, publicName, symbol);
 	jutil.CheckNotNull(methodOwnerName)
 	call :=
@@ -300,7 +300,7 @@ func (g *GenerateExports) AddExportPropertyCall(
 }
 
 // Java: GenerateExports.addExportSymbolCall(String, Node)
-func (g *GenerateExports) AddExportSymbolCall(export string, context *rhino.Node) {
+func (g *GenerateExports) AddExportSymbolCall(export string, context rhino.Node) {
 	// JS output: exportSymbol(publicPath, object);
 	g.RecordExportSymbol(export)
 
@@ -320,7 +320,7 @@ func (g *GenerateExports) AddExportSymbolCall(export string, context *rhino.Node
 }
 
 // Java: GenerateExports.addStatement(Node, Node)
-func (g *GenerateExports) AddStatement(context *rhino.Node, stmt *rhino.Node) {
+func (g *GenerateExports) AddStatement(context rhino.Node, stmt rhino.Node) {
 	convention := g.compiler.GetCodingConvention()
 
 	n := context
@@ -333,7 +333,7 @@ func (g *GenerateExports) AddStatement(context *rhino.Node, stmt *rhino.Node) {
 	// come right after the class definition, so move the export after that.
 	for {
 		next := exprRoot.GetNext()
-		if next != nil &&
+		if !next.IsNil() &&
 			NodeUtil_IsExprCall(next) &&
 			convention.GetClassesDefinedByCall(next.GetFirstChild()) != nil {
 			exprRoot = next
@@ -350,6 +350,6 @@ func (g *GenerateExports) AddStatement(context *rhino.Node, stmt *rhino.Node) {
 // undeclared variables.
 //
 // Java: GenerateExports.getSynthesizedExternsRoot()
-func (g *GenerateExports) GetSynthesizedExternsRoot() *rhino.Node {
+func (g *GenerateExports) GetSynthesizedExternsRoot() rhino.Node {
 	return g.compiler.GetSynthesizedExternsInput().GetAstRoot(g.compiler)
 }

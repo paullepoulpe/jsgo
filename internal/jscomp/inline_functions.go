@@ -32,12 +32,12 @@ import (
 // dropped when the run ends.
 type inlineFunctionsRunState struct {
 	fns          *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
-	anonFns      *jutil.LinkedHashMap[*rhino.Node, string]
+	anonFns      *jutil.LinkedHashMap[rhino.Node, string]
 	fnNames      *jutil.LinkedHashSet[string]
 	calledNames  *jutil.LinkedHashSet[string]
 	refsScratch  []FunctionInjector_Reference
 	paramScratch []string
-	movedArgs    map[*rhino.Node]struct{}
+	movedArgs    map[rhino.Node]struct{}
 	references   jutil.Slab[InlineFunctions_Reference] // one run's references die together
 }
 
@@ -60,7 +60,7 @@ type InlineFunctions struct {
 	// to ensure that this doesn't produce invalid code. But in the long run,
 	// this needs a major refactor.
 	fns     *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
-	anonFns *jutil.LinkedHashMap[*rhino.Node, string]
+	anonFns *jutil.LinkedHashMap[rhino.Node, string]
 
 	compiler AbstractCompiler
 
@@ -75,9 +75,9 @@ type InlineFunctions struct {
 
 	runState *inlineFunctionsRunState
 
-	lastCheckedBlock              *rhino.Node
+	lastCheckedBlock              rhino.Node
 	lastCheckedBlockHasLetOrConst bool
-	lastContainingFn              *rhino.Node
+	lastContainingFn              rhino.Node
 	lastContainingFnSize          int
 }
 
@@ -121,10 +121,10 @@ func NewInlineFunctions(
 		AssumeMinimumCapture(assumeMinimumCapture).
 		FunctionArgumentInjector(f.functionArgumentInjector).
 		Build()
-	f.injector.mutator.onMovedArg = func(arg *rhino.Node) {
+	f.injector.mutator.onMovedArg = func(arg rhino.Node) {
 		if f.runState != nil {
 			if f.runState.movedArgs == nil {
-				f.runState.movedArgs = make(map[*rhino.Node]struct{}, 16)
+				f.runState.movedArgs = make(map[rhino.Node]struct{}, 16)
 			}
 			f.runState.movedArgs[arg] = struct{}{}
 		}
@@ -136,7 +136,7 @@ func (f *InlineFunctions) ensureRunState() *inlineFunctionsRunState {
 	if f.runState == nil {
 		p := &inlineFunctionsRunState{
 			fns:         jutil.NewLinkedHashMap[string, *InlineFunctions_FunctionState](),
-			anonFns:     jutil.NewLinkedHashMap[*rhino.Node, string](),
+			anonFns:     jutil.NewLinkedHashMap[rhino.Node, string](),
 			fnNames:     jutil.NewLinkedHashSet[string](),
 			calledNames: jutil.NewLinkedHashSet[string](),
 		}
@@ -147,7 +147,7 @@ func (f *InlineFunctions) ensureRunState() *inlineFunctionsRunState {
 	return f.runState
 }
 
-func (f *InlineFunctions) allocReference(callNode *rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *InlineFunctions_Reference {
+func (f *InlineFunctions) allocReference(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *InlineFunctions_Reference {
 	r := f.ensureRunState().references.New()
 	r.InitFunctionInjector_ReferenceBase(callNode, scope, chunk, mode)
 	return r
@@ -164,7 +164,7 @@ func (f *InlineFunctions) GetOrCreateFunctionState(fnName string) *InlineFunctio
 	return fs
 }
 
-func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root *rhino.Node, cb NodeTraversal_Callback, sc ScopeCreator) {
+func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root rhino.Node, cb NodeTraversal_Callback, sc ScopeCreator) {
 	b := NodeTraversal_Builder{compiler: compiler, callback: cb, scopeCreator: sc}
 	t := acquireNodeTraversal(&b)
 	t.Traverse(root)
@@ -172,7 +172,7 @@ func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root *r
 }
 
 // Java: InlineFunctions.process(Node, Node)
-func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
+func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(f.compiler.GetLifeCycleStage().IsNormalized())
 
 	p := f.ensureRunState()
@@ -181,14 +181,14 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 		f.runState = nil
 		f.fns = nil
 		f.anonFns = nil
-		f.lastCheckedBlock = nil
-		f.lastContainingFn = nil
+		f.lastCheckedBlock = rhino.Node{}
+		f.lastContainingFn = rhino.Node{}
 	}()
 
-	if root != nil {
+	if !root.IsNil() {
 		if !f.findCandidateFunctionsParallel(root) {
 			findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}
-			findCandidates.walk(root, nil, nil, false)
+			findCandidates.walk(root, rhino.Node{}, nil, false)
 		}
 	}
 	if f.fns.IsEmpty() {
@@ -200,7 +200,7 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 		findRefs.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &findRefs)
 		inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findRefs, sc)
 	}
-	f.lastContainingFn = nil
+	f.lastContainingFn = rhino.Node{}
 	f.TrimCandidatesNotMeetingMinimumRequirements()
 	if f.fns.IsEmpty() {
 		return // Nothing left to do.
@@ -230,15 +230,15 @@ func (f *InlineFunctions) Process(externs *rhino.Node, root *rhino.Node) {
 	inlineCb := InlineFunctions_Inline{injector: f.injector}
 	callVisitor := InlineFunctions_CallVisitorBase{}
 	callVisitor.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &inlineCb)
-	if root != nil {
-		callVisitor.inlineWalk(root, nil)
+	if !root.IsNil() {
+		callVisitor.inlineWalk(root, rhino.Node{})
 	}
 
 	f.RemoveInlinedFunctions()
 }
 
 // Java: InlineFunctions.isAlwaysInlinable(Node)
-func InlineFunctions_IsAlwaysInlinable(fn *rhino.Node) bool {
+func InlineFunctions_IsAlwaysInlinable(fn rhino.Node) bool {
 	jutil.CheckArgument(fn.IsFunction())
 	body := NodeUtil_GetFunctionBody(fn)
 	return (!body.HasChildren()) || (body.HasOneChild() && body.GetFirstChild().IsReturn())
@@ -249,7 +249,7 @@ func (f *InlineFunctions) TargetSizeAfterInlineExceedsLimit(t *NodeTraversal, fu
 	containingFunction := t.GetEnclosingFunction()
 	// Always inline at the top level,
 	// unless maybeAddFunction has marked functionState as not inlinable.
-	if containingFunction == nil {
+	if containingFunction.IsNil() {
 		return false
 	}
 	inlinedFun := functionState.GetFn().GetFunctionNode()
@@ -289,7 +289,7 @@ func NewInlineFunctions_FindCandidateFunctions(outer *InlineFunctions) *InlineFu
 
 func (*InlineFunctions_FindCandidateFunctions) noVisitLeaves() {}
 
-func (c *InlineFunctions_FindCandidateFunctions) walk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+func (c *InlineFunctions_FindCandidateFunctions) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
 	tok := n.GetToken()
 	childLocalHoist := inLocalHoist
 	switch tok {
@@ -302,16 +302,16 @@ func (c *InlineFunctions_FindCandidateFunctions) walk(n *rhino.Node, parent *rhi
 	case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF:
 		childLocalHoist = true
 	case rhino.Token_BLOCK:
-		if parent != nil && parent.IsClassMembers() {
+		if !parent.IsNil() && parent.IsClassMembers() {
 			childLocalHoist = true
 		}
 	case rhino.Token_CLASS_MEMBERS:
-		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			if ch.IsComputedProp() || ch.IsComputedFieldDef() {
 				c.walk(ch.GetFirstChild(), ch, chunk, inLocalHoist)
 			}
 		}
-		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			switch ch.GetToken() {
 			case rhino.Token_COMPUTED_PROP:
 				c.walk(ch.GetLastChild(), ch, chunk, inLocalHoist)
@@ -325,8 +325,8 @@ func (c *InlineFunctions_FindCandidateFunctions) walk(n *rhino.Node, parent *rhi
 		}
 		return
 	}
-	for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
-		if ch.GetFirstChild() != nil {
+	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+		if !ch.GetFirstChild().IsNil() {
 			c.walk(ch, n, chunk, childLocalHoist)
 		}
 	}
@@ -343,7 +343,7 @@ func (c *InlineFunctions_FindCandidateFunctions) walk(n *rhino.Node, parent *rhi
 }
 
 // Java: InlineFunctions.FindCandidateFunctions.visit(NodeTraversal, Node, Node)
-func (c *InlineFunctions_FindCandidateFunctions) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *InlineFunctions_FindCandidateFunctions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION:
 		if c.outer.reach.IncludesGlobals() || !t.InGlobalHoistScope() {
@@ -358,11 +358,11 @@ func (c *InlineFunctions_FindCandidateFunctions) Visit(t *NodeTraversal, n *rhin
 }
 
 // Java: InlineFunctions.FindCandidateFunctions.findNamedFunctions(NodeTraversal, Node, Node)
-func (c *InlineFunctions_FindCandidateFunctions) FindNamedFunctions(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *InlineFunctions_FindCandidateFunctions) FindNamedFunctions(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c.findNamedFunctionsWithChunk(n, parent, t.GetChunk())
 }
 
-func (c *InlineFunctions_FindCandidateFunctions) findNamedFunctionsWithChunk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk) {
+func (c *InlineFunctions_FindCandidateFunctions) findNamedFunctionsWithChunk(n rhino.Node, parent rhino.Node, chunk *JSChunk) {
 	switch n.GetToken() {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		if !NodeUtil_IsStatement(n) {
@@ -396,16 +396,16 @@ func (c *InlineFunctions_FindCandidateFunctions) findNamedFunctionsWithChunk(n *
 // (function(a,b,...){...}).call(this,a,b, ...)
 //
 // Java: InlineFunctions.FindCandidateFunctions.findFunctionExpressions(NodeTraversal, Node)
-func (c *InlineFunctions_FindCandidateFunctions) FindFunctionExpressions(t *NodeTraversal, n *rhino.Node) {
+func (c *InlineFunctions_FindCandidateFunctions) FindFunctionExpressions(t *NodeTraversal, n rhino.Node) {
 	c.findFunctionExpressionsWithChunk(n, t.GetChunk())
 }
 
-func (c *InlineFunctions_FindCandidateFunctions) findFunctionExpressionsWithChunk(n *rhino.Node, chunk *JSChunk) {
+func (c *InlineFunctions_FindCandidateFunctions) findFunctionExpressionsWithChunk(n rhino.Node, chunk *JSChunk) {
 	switch n.GetToken() {
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
 		// Functions expressions in the form of:
 		//   (function(){})();
-		var fnNode *rhino.Node
+		var fnNode rhino.Node
 		first := n.GetFirstChild()
 		if first.IsFunction() {
 			fnNode = first
@@ -414,7 +414,7 @@ func (c *InlineFunctions_FindCandidateFunctions) findFunctionExpressionsWithChun
 		}
 
 		// If an interesting function was discovered, add it.
-		if fnNode != nil {
+		if !fnNode.IsNil() {
 			callsSeen := c.callsSeen
 			c.callsSeen++
 			fn := NewInlineFunctions_FunctionExpression(fnNode, callsSeen)
@@ -550,7 +550,7 @@ func (f *InlineFunctions) UpdateFunctionStateForInlining(
 	}
 }
 
-func (f *InlineFunctions) blockHasLetOrConst(block *rhino.Node) bool {
+func (f *InlineFunctions) blockHasLetOrConst(block rhino.Node) bool {
 	if block == f.lastCheckedBlock {
 		return f.lastCheckedBlockHasLetOrConst
 	}
@@ -566,12 +566,12 @@ type inlineFunctions_bodyAnalysis struct {
 	hasInnerClosures bool
 }
 
-func (f *InlineFunctions) analyzeFunctionBody(fnNode *rhino.Node) (*jutil.LinkedHashSet[string], bool, bool) {
+func (f *InlineFunctions) analyzeFunctionBody(fnNode rhino.Node) (*jutil.LinkedHashSet[string], bool, bool) {
 	p := f.ensureRunState()
 	params := NodeUtil_GetFunctionParameters(fnNode)
 	p.paramScratch = p.paramScratch[:0]
 	var paramBloom uint64
-	for n := params.GetFirstChild(); n != nil; n = n.GetNext() {
+	for n := params.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if n.IsRest() {
 			p.paramScratch = append(p.paramScratch, FunctionArgumentInjector_REST_MARKER)
 			paramBloom |= scopeBloomMask(FunctionArgumentInjector_REST_MARKER)
@@ -589,7 +589,7 @@ func (f *InlineFunctions) analyzeFunctionBody(fnNode *rhino.Node) (*jutil.Linked
 }
 
 func inlineFunctions_analyzeBodyNode(
-	n *rhino.Node,
+	n rhino.Node,
 	paramNames []string,
 	paramBloom uint64,
 	inInnerClosure bool,
@@ -635,8 +635,8 @@ func inlineFunctions_analyzeBodyNode(
 		return
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		if c.GetFirstChild() == nil {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.GetFirstChild().IsNil() {
 			switch c.GetToken() {
 			case rhino.Token_NAME:
 				if paramBloom != 0 {
@@ -671,29 +671,29 @@ func inlineFunctions_analyzeBodyNode(
 }
 
 // Java: InlineFunctions.hasNoInlineAnnotation(Node)
-func (f *InlineFunctions) HasNoInlineAnnotation(fnNode *rhino.Node) bool {
+func (f *InlineFunctions) HasNoInlineAnnotation(fnNode rhino.Node) bool {
 	jsDocInfo := NodeUtil_GetBestJSDocInfo(fnNode)
 	return jsDocInfo != nil && jsDocInfo.IsNoInline()
 }
 
 // Java: InlineFunctions.hasEncourageInliningAnnotation(Node)
-func InlineFunctions_HasEncourageInliningAnnotation(fnNode *rhino.Node) bool {
+func InlineFunctions_HasEncourageInliningAnnotation(fnNode rhino.Node) bool {
 	jsDocInfo := NodeUtil_GetBestJSDocInfo(fnNode)
 	return jsDocInfo != nil && jsDocInfo.IsEncourageInlining()
 }
 
 // Java: InlineFunctions.hasRequireInliningAnnotation(Node)
-func InlineFunctions_HasRequireInliningAnnotation(fnNode *rhino.Node) bool {
+func InlineFunctions_HasRequireInliningAnnotation(fnNode rhino.Node) bool {
 	jsDocInfo := NodeUtil_GetBestJSDocInfo(fnNode)
 	return jsDocInfo != nil && jsDocInfo.IsRequireInlining()
 }
 
-func inlineFunctions_hasLetOrConst(n *rhino.Node) bool {
+func inlineFunctions_hasLetOrConst(n rhino.Node) bool {
 	if n.IsLet() || n.IsConst() {
 		return true
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		if c.GetFirstChild() != nil && inlineFunctions_hasLetOrConst(c) {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if !c.GetFirstChild().IsNil() && inlineFunctions_hasLetOrConst(c) {
 			return true
 		}
 	}
@@ -705,7 +705,7 @@ func inlineFunctions_hasLetOrConst(n *rhino.Node) bool {
 // declarations.
 //
 // Java: InlineFunctions.hasLocalNames(Node)
-func InlineFunctions_HasLocalNames(fnNode *rhino.Node) bool {
+func InlineFunctions_HasLocalNames(fnNode rhino.Node) bool {
 	block := NodeUtil_GetFunctionBody(fnNode)
 	return NodeUtil_GetFunctionParameters(fnNode).HasChildren() ||
 		functionInjector_hasShallowDeclaration(block)
@@ -740,7 +740,7 @@ func (f *InlineFunctions) IsCandidateFunction(fn InlineFunctions_Function) bool 
 // InlineFunctions_CallVisitorCallback: see CallVisitor.
 type InlineFunctions_CallVisitorCallback interface {
 	// Java: InlineFunctions.CallVisitorCallback.visitCallSite(NodeTraversal, Node, FunctionState)
-	VisitCallSite(t *NodeTraversal, callNode *rhino.Node, functionState *InlineFunctions_FunctionState)
+	VisitCallSite(t *NodeTraversal, callNode rhino.Node, functionState *InlineFunctions_FunctionState)
 }
 
 // InlineFunctions_CallVisitor visits call sites for functions in
@@ -767,7 +767,7 @@ type InlineFunctions_CallVisitorBase struct {
 
 	callback        InlineFunctions_CallVisitorCallback
 	functionMap     *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
-	anonFunctionMap *jutil.LinkedHashMap[*rhino.Node, string]
+	anonFunctionMap *jutil.LinkedHashMap[rhino.Node, string]
 	lookupCache     [512]ifLookupCacheEntry
 	lastMissName    string
 	hasLastMiss     bool
@@ -800,7 +800,7 @@ func (v *InlineFunctions_CallVisitorBase) lookupFunctionState(name string) *Inli
 // Java: InlineFunctions.CallVisitor(Map<String, FunctionState>, Map<Node, String>, CallVisitorCallback)
 func NewInlineFunctions_CallVisitor(
 	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
-	anonFns *jutil.LinkedHashMap[*rhino.Node, string],
+	anonFns *jutil.LinkedHashMap[rhino.Node, string],
 	callback InlineFunctions_CallVisitorCallback) *InlineFunctions_CallVisitorBase {
 	v := &InlineFunctions_CallVisitorBase{}
 	v.InitInlineFunctions_CallVisitorBase(fns, anonFns, callback)
@@ -813,7 +813,7 @@ func NewInlineFunctions_CallVisitor(
 // Java: InlineFunctions.CallVisitor(Map<String, FunctionState>, Map<Node, String>, CallVisitorCallback)
 func (v *InlineFunctions_CallVisitorBase) InitInlineFunctions_CallVisitorBase(
 	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
-	anonFns *jutil.LinkedHashMap[*rhino.Node, string],
+	anonFns *jutil.LinkedHashMap[rhino.Node, string],
 	callback InlineFunctions_CallVisitorCallback) {
 	v.functionMap = fns
 	v.anonFunctionMap = anonFns
@@ -828,16 +828,16 @@ func (v *InlineFunctions_CallVisitorBase) GetInlineFunctions_CallVisitorBase() *
 
 func (*InlineFunctions_CallVisitorBase) noVisitLeaves() {}
 
-func (v *InlineFunctions_CallVisitorBase) inlineWalk(n *rhino.Node, parent *rhino.Node) {
+func (v *InlineFunctions_CallVisitorBase) inlineWalk(n rhino.Node, parent rhino.Node) {
 	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
-		for c := n.GetFirstChild(); c != nil; {
+		for c := n.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
 			if c.IsComputedProp() || c.IsComputedFieldDef() {
 				v.inlineWalk(c.GetFirstChild(), c)
 			}
 			c = next
 		}
-		for c := n.GetFirstChild(); c != nil; {
+		for c := n.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
 			switch c.GetToken() {
 			case rhino.Token_COMPUTED_PROP:
@@ -853,9 +853,9 @@ func (v *InlineFunctions_CallVisitorBase) inlineWalk(n *rhino.Node, parent *rhin
 		}
 		return
 	}
-	for c := n.GetFirstChild(); c != nil; {
+	for c := n.GetFirstChild(); !c.IsNil(); {
 		next := c.GetNext()
-		if c.GetFirstChild() != nil {
+		if !c.GetFirstChild().IsNil() {
 			v.inlineWalk(c, n)
 		}
 		c = next
@@ -867,7 +867,7 @@ func (v *InlineFunctions_CallVisitorBase) inlineWalk(n *rhino.Node, parent *rhin
 }
 
 // Java: InlineFunctions.CallVisitor.visit(NodeTraversal, Node, Node)
-func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
 		// Function calls
@@ -905,7 +905,7 @@ func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n *rhino.Node,
 // that might be a candidate for inlining.
 //
 // Java: InlineFunctions.isCandidateUsage(Node)
-func InlineFunctions_IsCandidateUsage(name *rhino.Node) bool {
+func InlineFunctions_IsCandidateUsage(name rhino.Node) bool {
 	parent := name.GetParent()
 	jutil.CheckState(name.IsName())
 	if NodeUtil_IsNameDeclaration(parent) || parent.IsFunction() {
@@ -953,7 +953,7 @@ type InlineFunctions_FindCandidatesReferences struct {
 func NewInlineFunctions_FindCandidatesReferences(
 	outer *InlineFunctions,
 	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
-	anonFns *jutil.LinkedHashMap[*rhino.Node, string]) *InlineFunctions_FindCandidatesReferences {
+	anonFns *jutil.LinkedHashMap[rhino.Node, string]) *InlineFunctions_FindCandidatesReferences {
 	r := &InlineFunctions_FindCandidatesReferences{outer: outer}
 	r.InitInlineFunctions_CallVisitorBase(fns, anonFns, nil)
 	r.callback = r
@@ -963,7 +963,7 @@ func NewInlineFunctions_FindCandidatesReferences(
 func (*InlineFunctions_FindCandidatesReferences) onlyNameLeaves() {}
 
 // Java: InlineFunctions.FindCandidatesReferences.visit(NodeTraversal, Node, Node)
-func (r *InlineFunctions_FindCandidatesReferences) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *InlineFunctions_FindCandidatesReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		r.CheckNameUsage(n, parent)
 		return
@@ -972,13 +972,13 @@ func (r *InlineFunctions_FindCandidatesReferences) Visit(t *NodeTraversal, n *rh
 }
 
 // Java: InlineFunctions.FindCandidatesReferences.visitCallSite(NodeTraversal, Node, FunctionState)
-func (r *InlineFunctions_FindCandidatesReferences) VisitCallSite(t *NodeTraversal, callNode *rhino.Node, functionState *InlineFunctions_FunctionState) {
+func (r *InlineFunctions_FindCandidatesReferences) VisitCallSite(t *NodeTraversal, callNode rhino.Node, functionState *InlineFunctions_FunctionState) {
 	r.MaybeAddReference(t, functionState, callNode, t.GetChunk())
 }
 
 // Java: InlineFunctions.FindCandidatesReferences.maybeAddReference(NodeTraversal, FunctionState, Node, JSChunk)
 func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReference(
-	t *NodeTraversal, functionState *InlineFunctions_FunctionState, callNode *rhino.Node, chunk *JSChunk) {
+	t *NodeTraversal, functionState *InlineFunctions_FunctionState, callNode rhino.Node, chunk *JSChunk) {
 	if !functionState.CanInline() {
 		return
 	}
@@ -1011,7 +1011,7 @@ func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReference(
 func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReferenceUsingMode(
 	t *NodeTraversal,
 	functionState *InlineFunctions_FunctionState,
-	callNode *rhino.Node,
+	callNode rhino.Node,
 	chunk *JSChunk,
 	mode FunctionInjector_InliningMode) bool {
 
@@ -1055,7 +1055,7 @@ func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReferenceUsingMode(
 // CheckNameUsage finds functions that can be inlined.
 //
 // Java: InlineFunctions.FindCandidatesReferences.checkNameUsage(Node, Node)
-func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n *rhino.Node, parent *rhino.Node) {
+func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
 	name := n.GetString()
@@ -1082,7 +1082,7 @@ func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n *rhino.Node,
 		parent.GetJSDocInfo() != nil &&
 		parent.GetJSDocInfo().IsConstant() &&
 		parent.GetSecondChild() == n) ||
-		(parent.GetParent() != nil &&
+		(!parent.GetParent().IsNil() &&
 			parent.GetParent().IsConst() &&
 			parent.GetFirstChild() == n) {
 		// e.g. const bar = foo; exports.bar = foo;
@@ -1122,8 +1122,8 @@ const (
 
 type ifPhase1Candidate struct {
 	kind                ifCandKind
-	node                *rhino.Node
-	fnNode              *rhino.Node
+	node                rhino.Node
+	fnNode              rhino.Node
 	name                string
 	chunk               *JSChunk
 	disallowReason      InlineFunctions_DisallowInliningReason
@@ -1139,12 +1139,12 @@ type ifPhase1Candidate struct {
 type ifPhase1Worker struct {
 	outer                         *InlineFunctions
 	paramScratch                  []string
-	lastCheckedBlock              *rhino.Node
+	lastCheckedBlock              rhino.Node
 	lastCheckedBlockHasLetOrConst bool
 	cands                         []ifPhase1Candidate
 }
 
-func (w *ifPhase1Worker) blockHasLetOrConst(block *rhino.Node) bool {
+func (w *ifPhase1Worker) blockHasLetOrConst(block rhino.Node) bool {
 	if block == w.lastCheckedBlock {
 		return w.lastCheckedBlockHasLetOrConst
 	}
@@ -1154,11 +1154,11 @@ func (w *ifPhase1Worker) blockHasLetOrConst(block *rhino.Node) bool {
 	return res
 }
 
-func (w *ifPhase1Worker) analyzeBody(fnNode *rhino.Node) (*jutil.LinkedHashSet[string], bool, bool) {
+func (w *ifPhase1Worker) analyzeBody(fnNode rhino.Node) (*jutil.LinkedHashSet[string], bool, bool) {
 	params := NodeUtil_GetFunctionParameters(fnNode)
 	w.paramScratch = w.paramScratch[:0]
 	var paramBloom uint64
-	for n := params.GetFirstChild(); n != nil; n = n.GetNext() {
+	for n := params.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if n.IsRest() {
 			w.paramScratch = append(w.paramScratch, FunctionArgumentInjector_REST_MARKER)
 			paramBloom |= scopeBloomMask(FunctionArgumentInjector_REST_MARKER)
@@ -1175,7 +1175,7 @@ func (w *ifPhase1Worker) analyzeBody(fnNode *rhino.Node) (*jutil.LinkedHashSet[s
 	return res.namesToAlias, res.referencesThis, res.hasInnerClosures
 }
 
-func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node *rhino.Node, nameNode *rhino.Node, fnNode *rhino.Node, chunk *JSChunk) ifPhase1Candidate {
+func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.Node, nameNode rhino.Node, fnNode rhino.Node, chunk *JSChunk) ifPhase1Candidate {
 	f := w.outer
 	name := nameNode.GetString()
 	cand := ifPhase1Candidate{
@@ -1238,7 +1238,7 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node *rhino.N
 		}
 	}
 	if fnNode.GetGrandparent().IsVar() {
-		var block *rhino.Node
+		var block rhino.Node
 		if kind == ifCandVar {
 			block = node.GetParent()
 		} else {
@@ -1256,7 +1256,7 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node *rhino.N
 	return cand
 }
 
-func (w *ifPhase1Worker) walk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+func (w *ifPhase1Worker) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
 	tok := n.GetToken()
 	childLocalHoist := inLocalHoist
 	switch tok {
@@ -1269,16 +1269,16 @@ func (w *ifPhase1Worker) walk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk,
 	case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF:
 		childLocalHoist = true
 	case rhino.Token_BLOCK:
-		if parent != nil && parent.IsClassMembers() {
+		if !parent.IsNil() && parent.IsClassMembers() {
 			childLocalHoist = true
 		}
 	case rhino.Token_CLASS_MEMBERS:
-		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			if ch.IsComputedProp() || ch.IsComputedFieldDef() {
 				w.walk(ch.GetFirstChild(), ch, chunk, inLocalHoist)
 			}
 		}
-		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			switch ch.GetToken() {
 			case rhino.Token_COMPUTED_PROP:
 				w.walk(ch.GetLastChild(), ch, chunk, inLocalHoist)
@@ -1292,8 +1292,8 @@ func (w *ifPhase1Worker) walk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk,
 		}
 		return
 	}
-	for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
-		if ch.GetFirstChild() != nil {
+	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+		if !ch.GetFirstChild().IsNil() {
 			w.walk(ch, n, chunk, childLocalHoist)
 		}
 	}
@@ -1315,14 +1315,14 @@ func (w *ifPhase1Worker) walk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk,
 		}
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
 		if w.outer.reach.IncludesGlobals() || inLocalHoist {
-			var fnNode *rhino.Node
+			var fnNode rhino.Node
 			first := n.GetFirstChild()
 			if first.IsFunction() {
 				fnNode = first
 			} else if first.HasChildren() && first.GetFirstChild().IsFunction() && NodeUtil_IsFunctionObjectCall(n) {
 				fnNode = first.GetFirstChild()
 			}
-			if fnNode != nil {
+			if !fnNode.IsNil() {
 				w.cands = append(w.cands, ifPhase1Candidate{
 					kind:   ifCandAnonExpr,
 					node:   fnNode,
@@ -1334,7 +1334,7 @@ func (w *ifPhase1Worker) walk(n *rhino.Node, parent *rhino.Node, chunk *JSChunk,
 	}
 }
 
-func (f *InlineFunctions) findCandidateFunctionsParallel(root *rhino.Node) bool {
+func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 	if f.compiler.IsDebugLoggingEnabled() {
 		return false
 	}
@@ -1364,7 +1364,7 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root *rhino.Node) bool 
 					return
 				}
 				worker.cands = nil
-				worker.lastCheckedBlock = nil
+				worker.lastCheckedBlock = rhino.Node{}
 				func() {
 					defer func() {
 						if r := recover(); r != nil {
@@ -1450,7 +1450,7 @@ const (
 type ifPhase2Event struct {
 	kind                  ifPhase2EventKind
 	fs                    *InlineFunctions_FunctionState
-	node                  *rhino.Node
+	node                  rhino.Node
 	scope                 *Scope
 	chunk                 *JSChunk
 	mode                  FunctionInjector_InliningMode
@@ -1465,7 +1465,7 @@ type ifPhase2RefCallback struct {
 	injector             *FunctionInjector
 	safeIdsCounter       int
 	scratchRef           InlineFunctions_Reference
-	lastContainingFn     *rhino.Node
+	lastContainingFn     rhino.Node
 	lastContainingFnSize int
 	localDisallowed      map[*InlineFunctions_FunctionState]struct{}
 	events               []ifPhase2Event
@@ -1486,7 +1486,7 @@ func (r *ifPhase2RefCallback) isDisallowed(fs *InlineFunctions_FunctionState) bo
 
 func (r *ifPhase2RefCallback) targetSizeExceedsLimit(t *NodeTraversal, fs *InlineFunctions_FunctionState) bool {
 	containingFunction := t.GetEnclosingFunction()
-	if containingFunction == nil {
+	if containingFunction.IsNil() {
 		return false
 	}
 	inlinedFun := fs.GetFn().GetFunctionNode()
@@ -1508,7 +1508,7 @@ func (r *ifPhase2RefCallback) targetSizeExceedsLimit(t *NodeTraversal, fs *Inlin
 	return inlinedFunSize+targetFunSize > r.outer.maxSizeAfterInlining
 }
 
-func (r *ifPhase2RefCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *ifPhase2RefCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		r.checkNameUsage(n, parent)
 		return
@@ -1516,7 +1516,7 @@ func (r *ifPhase2RefCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 	r.InlineFunctions_CallVisitorBase.Visit(t, n, parent)
 }
 
-func (r *ifPhase2RefCallback) VisitCallSite(t *NodeTraversal, callNode *rhino.Node, functionState *InlineFunctions_FunctionState) {
+func (r *ifPhase2RefCallback) VisitCallSite(t *NodeTraversal, callNode rhino.Node, functionState *InlineFunctions_FunctionState) {
 	if r.isDisallowed(functionState) {
 		return
 	}
@@ -1555,7 +1555,7 @@ func (r *ifPhase2RefCallback) VisitCallSite(t *NodeTraversal, callNode *rhino.No
 func (r *ifPhase2RefCallback) tryMode(
 	t *NodeTraversal,
 	functionState *InlineFunctions_FunctionState,
-	callNode *rhino.Node,
+	callNode rhino.Node,
 	chunk *JSChunk,
 	mode FunctionInjector_InliningMode,
 ) (bool, *Scope, bool, FunctionInjector_InliningMode) {
@@ -1584,7 +1584,7 @@ func (r *ifPhase2RefCallback) tryMode(
 	return false, nil, false, mode
 }
 
-func (r *ifPhase2RefCallback) checkNameUsage(n *rhino.Node, parent *rhino.Node) {
+func (r *ifPhase2RefCallback) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
 	name := n.GetString()
@@ -1611,7 +1611,7 @@ func (r *ifPhase2RefCallback) checkNameUsage(n *rhino.Node, parent *rhino.Node) 
 		parent.GetJSDocInfo() != nil &&
 		parent.GetJSDocInfo().IsConstant() &&
 		parent.GetSecondChild() == n) ||
-		(parent.GetParent() != nil &&
+		(!parent.GetParent().IsNil() &&
 			parent.GetParent().IsConst() &&
 			parent.GetFirstChild() == n) {
 		r.events = append(r.events, ifPhase2Event{
@@ -1627,7 +1627,7 @@ func (r *ifPhase2RefCallback) checkNameUsage(n *rhino.Node, parent *rhino.Node) 
 	}
 }
 
-func (f *InlineFunctions) findCandidatesReferencesParallel(root *rhino.Node) bool {
+func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool {
 	scripts, ok := collectRootScripts(root)
 	if !ok {
 		return false
@@ -1650,7 +1650,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root *rhino.Node) boo
 	}
 
 	lazyGlobal := newLazyGlobalScope(f.compiler, root)
-	workerFnCaches := make([]map[*rhino.Node]functionInjectorFnInfo, numWorkers)
+	workerFnCaches := make([]map[rhino.Node]functionInjectorFnInfo, numWorkers)
 
 	ifEventsByScript := make([][]ifPhase2Event, len(scripts))
 	runParallelWork(f.compiler, numWorkers, len(scripts), func(workerID int) (func(int, *recordingCompiler), func()) {
@@ -1684,7 +1684,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root *rhino.Node) boo
 				sc = NewSyntacticScopeCreator(rc)
 			} else {
 				cb.events = nil
-				cb.lastContainingFn = nil
+				cb.lastContainingFn = rhino.Node{}
 				if cb.localDisallowed != nil {
 					clear(cb.localDisallowed)
 				}
@@ -1754,11 +1754,11 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root *rhino.Node) boo
 			continue
 		}
 		if f.injector.fnInfoCache == nil {
-			f.injector.fnInfoCache = make(map[*rhino.Node]functionInjectorFnInfo, len(cache)*2)
+			f.injector.fnInfoCache = make(map[rhino.Node]functionInjectorFnInfo, len(cache)*2)
 		}
 		for fnNode, info := range cache {
 			if existing, ok := f.injector.fnInfoCache[fnNode]; ok {
-				if existing.inner == nil && info.inner != nil {
+				if existing.inner.IsNil() && !info.inner.IsNil() {
 					existing.inner = info.inner
 				}
 				if existing.evalState == 0 && info.evalState != 0 {
@@ -1782,7 +1782,7 @@ func NewInlineFunctions_Inline(injector *FunctionInjector) *InlineFunctions_Inli
 func (*InlineFunctions_Inline) noVisitLeaves() {}
 
 // Java: InlineFunctions.Inline.visitCallSite(NodeTraversal, Node, FunctionState)
-func (i *InlineFunctions_Inline) VisitCallSite(t *NodeTraversal, callNode *rhino.Node, functionState *InlineFunctions_FunctionState) {
+func (i *InlineFunctions_Inline) VisitCallSite(t *NodeTraversal, callNode rhino.Node, functionState *InlineFunctions_FunctionState) {
 	jutil.CheckState(functionState.HasExistingFunctionDefinition())
 	if functionState.CanInline() {
 		ref := functionState.GetReference(callNode)
@@ -1923,11 +1923,11 @@ func (f *InlineFunctions) ResolveInlineConflicts() {
 	}
 }
 
-func inlineFunctions_hasNonInlinableParamNode(n *rhino.Node) bool {
+func inlineFunctions_hasNonInlinableParamNode(n rhino.Node) bool {
 	if n.IsDefaultValue() || n.IsDestructuringPattern() {
 		return true
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if inlineFunctions_hasNonInlinableParamNode(c) {
 			return true
 		}
@@ -1940,9 +1940,9 @@ func inlineFunctions_hasNonInlinableParamNode(n *rhino.Node) bool {
 // includes object patterns, array patterns, and default values.
 //
 // Java: InlineFunctions.hasNonInlinableParam(Node)
-func InlineFunctions_HasNonInlinableParam(node *rhino.Node) bool {
-	jutil.CheckNotNull(node)
-	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
+func InlineFunctions_HasNonInlinableParam(node rhino.Node) bool {
+	rhino.CheckNotNull(node)
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.IsName() || c.HasChildren() {
 			return inlineFunctions_hasNonInlinableParamNode(node)
 		}
@@ -1968,8 +1968,8 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 	if !names.IsEmpty() {
 		needsSafeClone := hasAnonInlinable || !inlineFunctions_isIsolatedStmtFn(fnNode)
 		if !needsSafeClone {
-			for param := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); param != nil; param = param.GetNext() {
-				if param.GetFirstChild() != nil {
+			for param := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !param.IsNil(); param = param.GetNext() {
+				if !param.GetFirstChild().IsNil() {
 					needsSafeClone = true
 					break
 				}
@@ -2007,8 +2007,8 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 	}
 }
 
-func inlineFunctions_isIsolatedStmtFn(fnNode *rhino.Node) bool {
-	for anc := fnNode.GetParent(); anc != nil; anc = anc.GetParent() {
+func inlineFunctions_isIsolatedStmtFn(fnNode rhino.Node) bool {
+	for anc := fnNode.GetParent(); !anc.IsNil(); anc = anc.GetParent() {
 		switch anc.GetToken() {
 		case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY:
 			return true
@@ -2016,7 +2016,7 @@ func inlineFunctions_isIsolatedStmtFn(fnNode *rhino.Node) bool {
 			rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
 			rhino.Token_NAME, rhino.Token_EXPR_RESULT, rhino.Token_LABEL:
 		case rhino.Token_ASSIGN:
-			if p := anc.GetParent(); p == nil || !p.IsExprResult() {
+			if p := anc.GetParent(); p.IsNil() || !p.IsExprResult() {
 				return false
 			}
 		default:
@@ -2029,7 +2029,7 @@ func inlineFunctions_isIsolatedStmtFn(fnNode *rhino.Node) bool {
 // FindCalledFunctions: this functions that may be called directly.
 //
 // Java: InlineFunctions.findCalledFunctions(Node)
-func (f *InlineFunctions) FindCalledFunctions(node *rhino.Node) *jutil.LinkedHashSet[string] {
+func (f *InlineFunctions) FindCalledFunctions(node rhino.Node) *jutil.LinkedHashSet[string] {
 	changed := jutil.NewLinkedHashSet[string]()
 	inlineFunctions_findCalledFunctions(NodeUtil_GetFunctionBody(node), changed)
 	return changed
@@ -2038,18 +2038,18 @@ func (f *InlineFunctions) FindCalledFunctions(node *rhino.Node) *jutil.LinkedHas
 // InlineFunctions_FindCalledFunctionsInto: see findCalledFunctions(Node).
 //
 // Java: InlineFunctions.findCalledFunctions(Node, Set<String>)
-func InlineFunctions_FindCalledFunctionsInto(node *rhino.Node, changed *jutil.LinkedHashSet[string]) {
+func InlineFunctions_FindCalledFunctionsInto(node rhino.Node, changed *jutil.LinkedHashSet[string]) {
 	jutil.CheckArgument(changed != nil)
 	inlineFunctions_findCalledFunctions(node, changed)
 }
 
-func inlineFunctions_findCalledFunctions(node *rhino.Node, changed *jutil.LinkedHashSet[string]) {
+func inlineFunctions_findCalledFunctions(node rhino.Node, changed *jutil.LinkedHashSet[string]) {
 	if node.IsName() && InlineFunctions_IsCandidateUsage(node) {
 		changed.Add(node.GetString())
 	}
 
-	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
-		if c.GetFirstChild() == nil {
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.GetFirstChild().IsNil() {
 			if c.IsName() && InlineFunctions_IsCandidateUsage(c) {
 				changed.Add(c.GetString())
 			}
@@ -2060,9 +2060,9 @@ func inlineFunctions_findCalledFunctions(node *rhino.Node, changed *jutil.Linked
 }
 
 func inlineFunctions_findCalledFunctionsAndAnon(
-	node *rhino.Node,
+	node rhino.Node,
 	changed *jutil.LinkedHashSet[string],
-	anonFns *jutil.LinkedHashMap[*rhino.Node, string],
+	anonFns *jutil.LinkedHashMap[rhino.Node, string],
 	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
 ) bool {
 	if anonFns == nil || anonFns.IsEmpty() {
@@ -2073,9 +2073,9 @@ func inlineFunctions_findCalledFunctionsAndAnon(
 }
 
 func inlineFunctions_findCalledFunctionsWithAnon(
-	node *rhino.Node,
+	node rhino.Node,
 	changed *jutil.LinkedHashSet[string],
-	anonFns *jutil.LinkedHashMap[*rhino.Node, string],
+	anonFns *jutil.LinkedHashMap[rhino.Node, string],
 	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
 ) bool {
 	hasAnon := false
@@ -2089,8 +2089,8 @@ func inlineFunctions_findCalledFunctionsWithAnon(
 		}
 	}
 
-	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
-		if c.GetFirstChild() == nil {
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.GetFirstChild().IsNil() {
 			if c.IsName() && InlineFunctions_IsCandidateUsage(c) {
 				changed.Add(c.GetString())
 			}
@@ -2131,7 +2131,7 @@ func (f *InlineFunctions) RemoveInlinedFunctions() {
 			jutil.CheckState(fn != nil)
 			if f.runState != nil && len(f.runState.movedArgs) > 0 {
 				inMovedArg := false
-				for anc := fn.GetFunctionNode(); anc != nil; anc = anc.GetParent() {
+				for anc := fn.GetFunctionNode(); !anc.IsNil(); anc = anc.GetParent() {
 					if _, ok := f.runState.movedArgs[anc]; ok {
 						inMovedArg = true
 						break
@@ -2164,7 +2164,7 @@ func (f *InlineFunctions) VerifyAllReferencesInlined(name string, functionState 
 		if !ref.inlined {
 			parent := ref.callNode.GetParent()
 			parentString := "null"
-			if parent != nil {
+			if !parent.IsNil() {
 				parentString = parent.ToStringTree()
 			}
 			panic(jutil.NewIllegalStateExceptionMsg(
@@ -2182,14 +2182,14 @@ func (f *InlineFunctions) VerifyAllReferencesInlined(name string, functionState 
 // been made about a function.
 type InlineFunctions_FunctionState struct {
 	fn               InlineFunctions_Function
-	safeFnNode       *rhino.Node
+	safeFnNode       rhino.Node
 	inline           bool
 	remove           bool
 	inlineDirectly   bool
 	referencesThis   bool
 	hasInnerClosures bool
-	references       *jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]
-	refMapVal        jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]
+	references       *jutil.LinkedHashMap[rhino.Node, *InlineFunctions_Reference]
+	refMapVal        jutil.LinkedHashMap[rhino.Node, *InlineFunctions_Reference]
 	chunk            *JSChunk
 	namesToAlias     *jutil.LinkedHashSet[string]
 
@@ -2205,7 +2205,7 @@ type InlineFunctions_FunctionState struct {
 func NewInlineFunctions_FunctionState() *InlineFunctions_FunctionState {
 	return &InlineFunctions_FunctionState{
 		fn:             nil,
-		safeFnNode:     nil,
+		safeFnNode:     rhino.Node{},
 		inline:         true,
 		remove:         true,
 		inlineDirectly: false,
@@ -2278,15 +2278,15 @@ func (s *InlineFunctions_FunctionState) SetFn(fn InlineFunctions_Function) {
 }
 
 // Java: InlineFunctions.FunctionState.getSafeFnNode()
-func (s *InlineFunctions_FunctionState) GetSafeFnNode() *rhino.Node {
-	if s.safeFnNode != nil {
+func (s *InlineFunctions_FunctionState) GetSafeFnNode() rhino.Node {
+	if !s.safeFnNode.IsNil() {
 		return s.safeFnNode
 	}
 	return s.fn.GetFunctionNode()
 }
 
 // Java: InlineFunctions.FunctionState.setSafeFnNode(Node)
-func (s *InlineFunctions_FunctionState) SetSafeFnNode(safeFnNode *rhino.Node) {
+func (s *InlineFunctions_FunctionState) SetSafeFnNode(safeFnNode rhino.Node) {
 	s.safeFnNode = safeFnNode
 }
 
@@ -2358,7 +2358,7 @@ func (s *InlineFunctions_FunctionState) SetRemove(
 	compiler AbstractCompiler,
 	reason InlineFunctions_CannotRemoveReason,
 	shouldWarnIfRequireInlining InlineFunctions_ShouldWarnWhenRequireInliningCannotInline) {
-	s.SetRemoveWithContext(remove, compiler, reason, shouldWarnIfRequireInlining /* contextNode= */, nil)
+	s.SetRemoveWithContext(remove, compiler, reason, shouldWarnIfRequireInlining /* contextNode= */, rhino.Node{})
 }
 
 // Java: InlineFunctions.FunctionState.setRemove(boolean, AbstractCompiler, CannotRemoveReason, ShouldWarnWhenRequireInliningCannotInline, Node)
@@ -2367,13 +2367,13 @@ func (s *InlineFunctions_FunctionState) SetRemoveWithContext(
 	compiler AbstractCompiler,
 	reason InlineFunctions_CannotRemoveReason,
 	shouldWarnIfRequireInlining InlineFunctions_ShouldWarnWhenRequireInliningCannotInline,
-	contextNode *rhino.Node) {
+	contextNode rhino.Node) {
 	if !remove &&
 		(shouldWarnIfRequireInlining != InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO) &&
 		s.RequireInlining() &&
 		compiler.IsDebugLoggingEnabled() {
 		contextString := "unknown"
-		if contextNode != nil {
+		if !contextNode.IsNil() {
 			contextString = contextNode.String()
 		}
 		compiler.Report(
@@ -2402,9 +2402,9 @@ func (s *InlineFunctions_FunctionState) HasReferences() bool {
 }
 
 // Java: InlineFunctions.FunctionState.getReferencesInternal()
-func (s *InlineFunctions_FunctionState) GetReferencesInternal() *jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference] {
+func (s *InlineFunctions_FunctionState) GetReferencesInternal() *jutil.LinkedHashMap[rhino.Node, *InlineFunctions_Reference] {
 	if s.references == nil {
-		return jutil.NewLinkedHashMap[*rhino.Node, *InlineFunctions_Reference]()
+		return jutil.NewLinkedHashMap[rhino.Node, *InlineFunctions_Reference]()
 	}
 	return s.references
 }
@@ -2437,7 +2437,7 @@ func (s *InlineFunctions_FunctionState) GetReferences() []*InlineFunctions_Refer
 }
 
 // Java: InlineFunctions.FunctionState.getReference(Node)
-func (s *InlineFunctions_FunctionState) GetReference(n *rhino.Node) *InlineFunctions_Reference {
+func (s *InlineFunctions_FunctionState) GetReference(n rhino.Node) *InlineFunctions_Reference {
 	if s.references == nil {
 		return nil
 	}
@@ -2478,12 +2478,12 @@ type InlineFunctions_Function interface {
 	// GetNameNode gets the name node of the function.
 	//
 	// Java: InlineFunctions.Function.getNameNode()
-	GetNameNode() *rhino.Node
+	GetNameNode() rhino.Node
 
 	// GetFunctionNode gets the function node.
 	//
 	// Java: InlineFunctions.Function.getFunctionNode()
-	GetFunctionNode() *rhino.Node
+	GetFunctionNode() rhino.Node
 
 	// Remove removes itself from the JavaScript.
 	//
@@ -2491,7 +2491,7 @@ type InlineFunctions_Function interface {
 	Remove()
 
 	// Java: InlineFunctions.Function.getDeclaringBlock()
-	GetDeclaringBlock() *rhino.Node
+	GetDeclaringBlock() rhino.Node
 }
 
 // InlineFunctions_NamedFunction is the NamedFunction implementation of the
@@ -2499,11 +2499,11 @@ type InlineFunctions_Function interface {
 type InlineFunctions_NamedFunction struct {
 	outer *InlineFunctions
 
-	fn *rhino.Node
+	fn rhino.Node
 }
 
 // Java: InlineFunctions.NamedFunction(Node)
-func NewInlineFunctions_NamedFunction(outer *InlineFunctions, fn *rhino.Node) *InlineFunctions_NamedFunction {
+func NewInlineFunctions_NamedFunction(outer *InlineFunctions, fn rhino.Node) *InlineFunctions_NamedFunction {
 	return &InlineFunctions_NamedFunction{outer: outer, fn: fn}
 }
 
@@ -2513,12 +2513,12 @@ func (n *InlineFunctions_NamedFunction) GetName() string {
 }
 
 // Java: InlineFunctions.NamedFunction.getNameNode()
-func (n *InlineFunctions_NamedFunction) GetNameNode() *rhino.Node {
+func (n *InlineFunctions_NamedFunction) GetNameNode() rhino.Node {
 	return n.fn.GetFirstChild()
 }
 
 // Java: InlineFunctions.NamedFunction.getFunctionNode()
-func (n *InlineFunctions_NamedFunction) GetFunctionNode() *rhino.Node {
+func (n *InlineFunctions_NamedFunction) GetFunctionNode() rhino.Node {
 	return n.fn
 }
 
@@ -2530,7 +2530,7 @@ func (n *InlineFunctions_NamedFunction) Remove() {
 }
 
 // Java: InlineFunctions.NamedFunction.getDeclaringBlock()
-func (n *InlineFunctions_NamedFunction) GetDeclaringBlock() *rhino.Node {
+func (n *InlineFunctions_NamedFunction) GetDeclaringBlock() rhino.Node {
 	return n.fn.GetParent()
 }
 
@@ -2539,11 +2539,11 @@ func (n *InlineFunctions_NamedFunction) GetDeclaringBlock() *rhino.Node {
 type InlineFunctions_FunctionVar struct {
 	outer *InlineFunctions
 
-	var_ *rhino.Node
+	var_ rhino.Node
 }
 
 // Java: InlineFunctions.FunctionVar(Node)
-func NewInlineFunctions_FunctionVar(outer *InlineFunctions, var_ *rhino.Node) *InlineFunctions_FunctionVar {
+func NewInlineFunctions_FunctionVar(outer *InlineFunctions, var_ rhino.Node) *InlineFunctions_FunctionVar {
 	return &InlineFunctions_FunctionVar{outer: outer, var_: var_}
 }
 
@@ -2553,12 +2553,12 @@ func (v *InlineFunctions_FunctionVar) GetName() string {
 }
 
 // Java: InlineFunctions.FunctionVar.getNameNode()
-func (v *InlineFunctions_FunctionVar) GetNameNode() *rhino.Node {
+func (v *InlineFunctions_FunctionVar) GetNameNode() rhino.Node {
 	return v.var_.GetFirstChild()
 }
 
 // Java: InlineFunctions.FunctionVar.getFunctionNode()
-func (v *InlineFunctions_FunctionVar) GetFunctionNode() *rhino.Node {
+func (v *InlineFunctions_FunctionVar) GetFunctionNode() rhino.Node {
 	return v.var_.GetFirstFirstChild()
 }
 
@@ -2570,20 +2570,20 @@ func (v *InlineFunctions_FunctionVar) Remove() {
 }
 
 // Java: InlineFunctions.FunctionVar.getDeclaringBlock()
-func (v *InlineFunctions_FunctionVar) GetDeclaringBlock() *rhino.Node {
+func (v *InlineFunctions_FunctionVar) GetDeclaringBlock() rhino.Node {
 	return v.var_.GetParent()
 }
 
 // InlineFunctions_FunctionExpression is the FunctionExpression
 // implementation of the Function interface.
 type InlineFunctions_FunctionExpression struct {
-	fn           *rhino.Node
+	fn           rhino.Node
 	fakeName     string
-	fakeNameNode *rhino.Node
+	fakeNameNode rhino.Node
 }
 
 // Java: InlineFunctions.FunctionExpression(Node, int)
-func NewInlineFunctions_FunctionExpression(fn *rhino.Node, index int) *InlineFunctions_FunctionExpression {
+func NewInlineFunctions_FunctionExpression(fn rhino.Node, index int) *InlineFunctions_FunctionExpression {
 	return &InlineFunctions_FunctionExpression{
 		fn:       fn,
 		fakeName: strconv.Itoa(index),
@@ -2596,15 +2596,15 @@ func (e *InlineFunctions_FunctionExpression) GetName() string {
 }
 
 // Java: InlineFunctions.FunctionExpression.getNameNode()
-func (e *InlineFunctions_FunctionExpression) GetNameNode() *rhino.Node {
-	if e.fakeNameNode == nil {
+func (e *InlineFunctions_FunctionExpression) GetNameNode() rhino.Node {
+	if e.fakeNameNode.IsNil() {
 		e.fakeNameNode = rhino.IR_Name(e.fakeName)
 	}
 	return e.fakeNameNode
 }
 
 // Java: InlineFunctions.FunctionExpression.getFunctionNode()
-func (e *InlineFunctions_FunctionExpression) GetFunctionNode() *rhino.Node {
+func (e *InlineFunctions_FunctionExpression) GetFunctionNode() rhino.Node {
 	return e.fn
 }
 
@@ -2614,8 +2614,8 @@ func (e *InlineFunctions_FunctionExpression) Remove() {
 }
 
 // Java: InlineFunctions.FunctionExpression.getDeclaringBlock()
-func (e *InlineFunctions_FunctionExpression) GetDeclaringBlock() *rhino.Node {
-	return nil
+func (e *InlineFunctions_FunctionExpression) GetDeclaringBlock() rhino.Node {
+	return rhino.Node{}
 }
 
 // InlineFunctions_Reference is InlineFunctions.Reference, a subclass of
@@ -2628,7 +2628,7 @@ type InlineFunctions_Reference struct {
 }
 
 // Java: InlineFunctions.Reference(Node, Scope, JSChunk, InliningMode)
-func NewInlineFunctions_Reference(callNode *rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *InlineFunctions_Reference {
+func NewInlineFunctions_Reference(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *InlineFunctions_Reference {
 	r := &InlineFunctions_Reference{requiresDecomposition: false, inlined: false}
 	r.InitFunctionInjector_ReferenceBase(callNode, scope, chunk, mode)
 	return r

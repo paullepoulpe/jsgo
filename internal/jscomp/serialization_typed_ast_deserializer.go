@@ -58,7 +58,7 @@ var (
 //
 // Go-only: language-adapter — Guava/JDK Optional values are nil-able
 // pointers (nil is absent); java.util.function.Supplier<Node> is
-// func() *rhino.Node; the ConcurrentMap filesystem is a
+// func() rhino.Node; the ConcurrentMap filesystem is a
 // *jutil.LinkedHashMap (Java's ConcurrentHashMap iteration order is
 // unspecified, and Closure only looks suppliers up by file).
 type TypedAstDeserializer struct {
@@ -69,7 +69,7 @@ type TypedAstDeserializer struct {
 	requiredInputFiles            *jutil.LinkedHashSet[*SourceFile] // Optional: nil when absent
 	filePoolBuilder               *jutil.LinkedHashMap[string, *SourceFile]
 	canonicalFilePool             *jutil.LinkedHashMap[string, *SourceFile]
-	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
+	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
 	scriptDeserializers           map[*SourceFile]*ScriptNodeDeserializer
 	sourceFileSlab                jutil.Slab[SourceFile]
 	externProperties              *jutil.LinkedHashSet[string]
@@ -77,7 +77,7 @@ type TypedAstDeserializer struct {
 	syntheticExternsDeserializers *jutil.ArrayList[*ScriptNodeDeserializer]
 }
 
-func typedAstDeserializer_scriptSentinel() *rhino.Node {
+func typedAstDeserializer_scriptSentinel() rhino.Node {
 	panic(jutil.NewAssertionError("unexpected direct call to sentinel script supplier"))
 }
 
@@ -91,7 +91,7 @@ func newTypedAstDeserializer(
 	d := &TypedAstDeserializer{
 		filePoolBuilder:               jutil.NewLinkedHashMap[string, *SourceFile](),
 		canonicalFilePool:             jutil.NewLinkedHashMap[string, *SourceFile](),
-		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() *rhino.Node](),
+		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() rhino.Node](),
 		scriptDeserializers:           make(map[*SourceFile]*ScriptNodeDeserializer),
 		sourceFileSlab:                jutil.NewMaxSlab[SourceFile](64),
 		externProperties:              jutil.NewLinkedHashSet[string](),
@@ -268,7 +268,7 @@ func newTypedAstDeserializer_SyntheticExternsDeserializer(
 }
 
 // Java: TypedAstDeserializer.SyntheticExternsDeserializer.deserialize()
-func (s *typedAstDeserializer_SyntheticExternsDeserializer) Deserialize() *rhino.Node {
+func (s *typedAstDeserializer_SyntheticExternsDeserializer) Deserialize() rhino.Node {
 	script := rhino.IR_Script()
 	script.SetStaticSourceFile(s.syntheticExterns)
 	if s.syntheticExternsDeserializers != nil {
@@ -505,8 +505,8 @@ func typedAstDeserializer_addInputSourceMap(
 // typechecking and by definition a TypedAST has already been typechecked.
 //
 // Java: TypedAstDeserializer.createStubWeakScriptNode(SourceFile)
-func typedAstDeserializer_createStubWeakScriptNode(file *SourceFile) func() *rhino.Node {
-	return func() *rhino.Node {
+func typedAstDeserializer_createStubWeakScriptNode(file *SourceFile) func() rhino.Node {
+	return func() rhino.Node {
 		stubScript := rhino.IR_Script()
 		stubScript.SetStaticSourceFileFrom(file.getOrCreateSourceInfoTemplate())
 		stubScript.PutProp(rhino.Node_FEATURE_SET, parser.FeatureSet_BARE_MINIMUM)
@@ -1444,7 +1444,7 @@ func typedAstDeserializer_streamLargeShard(
 //
 // Java: public abstract static class TypedAstDeserializer.DeserializedAst
 type TypedAstDeserializer_DeserializedAst struct {
-	filesystem          *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
+	filesystem          *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
 	scriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
 	suppliersBound      bool
 	colorRegistry       *colors.ColorRegistry // Optional: nil when absent
@@ -1452,7 +1452,7 @@ type TypedAstDeserializer_DeserializedAst struct {
 	runtimeLibraries    *jutil.LinkedHashSet[string]
 }
 
-func (a *TypedAstDeserializer_DeserializedAst) rawFilesystem() *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node] {
+func (a *TypedAstDeserializer_DeserializedAst) rawFilesystem() *jutil.LinkedHashMap[*SourceFile, func() rhino.Node] {
 	return a.filesystem
 }
 
@@ -1463,7 +1463,7 @@ func (a *TypedAstDeserializer_DeserializedAst) rawFilesystem() *jutil.LinkedHash
 // be .equals)
 //
 // Java: TypedAstDeserializer.DeserializedAst.getFilesystem()
-func (a *TypedAstDeserializer_DeserializedAst) GetFilesystem() *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node] {
+func (a *TypedAstDeserializer_DeserializedAst) GetFilesystem() *jutil.LinkedHashMap[*SourceFile, func() rhino.Node] {
 	if !a.suppliersBound && len(a.scriptDeserializers) > 0 && a.filesystem != nil {
 		a.suppliersBound = true
 		for file, sd := range a.scriptDeserializers {
@@ -1504,7 +1504,7 @@ func (a *TypedAstDeserializer_DeserializedAst) GetRuntimeLibraries() *jutil.Link
 
 // Java: TypedAstDeserializer.DeserializedAst.create(ConcurrentMap<SourceFile, Supplier<Node>>, Optional<ColorRegistry>, ImmutableSet<String>, ImmutableSet<String>)
 func typedAstDeserializer_DeserializedAst_create(
-	filesystem *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node],
+	filesystem *jutil.LinkedHashMap[*SourceFile, func() rhino.Node],
 	colorRegistry *colors.ColorRegistry,
 	externProperties *jutil.LinkedHashSet[string],
 	runtimeLibraries *jutil.LinkedHashSet[string]) *TypedAstDeserializer_DeserializedAst {
@@ -1514,7 +1514,7 @@ func typedAstDeserializer_DeserializedAst_create(
 
 // Java: AutoValue_TypedAstDeserializer_DeserializedAst(ConcurrentMap<SourceFile, Supplier<Node>>, Optional<ColorRegistry>, ImmutableSet<String>, ImmutableSet<String>)
 func newAutoValue_TypedAstDeserializer_DeserializedAst(
-	filesystem *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node],
+	filesystem *jutil.LinkedHashMap[*SourceFile, func() rhino.Node],
 	colorRegistry *colors.ColorRegistry,
 	externProperties *jutil.LinkedHashSet[string],
 	runtimeLibraries *jutil.LinkedHashSet[string]) *TypedAstDeserializer_DeserializedAst {

@@ -65,13 +65,13 @@ func NewGatherRawExports(compiler AbstractCompiler) *GatherRawExports {
 }
 
 // Java: GatherRawExports.process(Node, Node)
-func (g *GatherRawExports) Process(externs *rhino.Node, root *rhino.Node) {
+func (g *GatherRawExports) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(g.compiler.GetLifeCycleStage().IsNormalized())
 	NodeTraversal_Traverse(g.compiler, root, g)
 }
 
 // Java: GatherRawExports.visit(NodeTraversal, Node, Node)
-func (g *GatherRawExports) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *GatherRawExports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsNormalOrOptChainGet(n) && GatherRawExports_IsGlobalThisObject(t, n.GetFirstChild()) {
 		if NodeUtil_IsNormalOrOptChainGetProp(n) {
 			g.exportedVariables.Add(n.GetString())
@@ -82,7 +82,7 @@ func (g *GatherRawExports) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.
 }
 
 // Java: GatherRawExports.isGlobalThisObject(NodeTraversal, Node)
-func GatherRawExports_IsGlobalThisObject(t *NodeTraversal, n *rhino.Node) bool {
+func GatherRawExports_IsGlobalThisObject(t *NodeTraversal, n rhino.Node) bool {
 	// We should consider using scopes or types to check for references to the "global this".
 	if n.IsThis() {
 		return t.InGlobalHoistScope()

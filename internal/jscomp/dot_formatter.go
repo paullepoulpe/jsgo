@@ -46,7 +46,7 @@ const dotFormatter_MAX_LABEL_NAME_LENGTH = 10
 // clauses have no Go counterpart.
 type DotFormatter struct {
 	// stores the current assignment of node to keys
-	assignments *jutil.LinkedHashMap[*rhino.Node, int]
+	assignments *jutil.LinkedHashMap[rhino.Node, int]
 
 	// key count in order to assign a unique key to each node
 	keyCount int
@@ -54,7 +54,7 @@ type DotFormatter struct {
 	// the builder used to generate the dot diagram
 	builder jutil.Appendable
 
-	cfg ControlFlowGraph[*rhino.Node] // nil is null
+	cfg ControlFlowGraph[rhino.Node] // nil is null
 
 	printAnnotations bool
 }
@@ -63,7 +63,7 @@ type DotFormatter struct {
 //
 // Java: DotFormatter()
 func NewDotFormatter() *DotFormatter {
-	f := &DotFormatter{assignments: jutil.NewLinkedHashMap[*rhino.Node, int](), keyCount: 0}
+	f := &DotFormatter{assignments: jutil.NewLinkedHashMap[rhino.Node, int](), keyCount: 0}
 	f.builder = jutil.NewStringBuilder()
 	f.cfg = nil
 	f.printAnnotations = false
@@ -72,8 +72,8 @@ func NewDotFormatter() *DotFormatter {
 
 // Java: DotFormatter(Node, ControlFlowGraph<Node>, Appendable, boolean)
 func NewDotFormatterWithGraph(
-	n *rhino.Node, cfg ControlFlowGraph[*rhino.Node], builder jutil.Appendable, printAnnotations bool) *DotFormatter {
-	f := &DotFormatter{assignments: jutil.NewLinkedHashMap[*rhino.Node, int](), keyCount: 0}
+	n rhino.Node, cfg ControlFlowGraph[rhino.Node], builder jutil.Appendable, printAnnotations bool) *DotFormatter {
+	f := &DotFormatter{assignments: jutil.NewLinkedHashMap[rhino.Node, int](), keyCount: 0}
 	f.cfg = cfg
 	f.builder = builder
 	f.printAnnotations = printAnnotations
@@ -90,7 +90,7 @@ func NewDotFormatterWithGraph(
 // the dot representation of the AST.
 //
 // Java: DotFormatter.toDot(Node)
-func DotFormatter_ToDot(n *rhino.Node) string {
+func DotFormatter_ToDot(n rhino.Node) string {
 	return DotFormatter_ToDotWithCfg(n, nil)
 }
 
@@ -100,7 +100,7 @@ func DotFormatter_ToDot(n *rhino.Node) string {
 // the Control Flow Graph. Returns the dot representation of the AST.
 //
 // Java: DotFormatter.toDot(Node, ControlFlowGraph<Node>)
-func DotFormatter_ToDotWithCfg(n *rhino.Node, inCFG ControlFlowGraph[*rhino.Node]) string {
+func DotFormatter_ToDotWithCfg(n rhino.Node, inCFG ControlFlowGraph[rhino.Node]) string {
 	builder := jutil.NewStringBuilder()
 	_ = NewDotFormatterWithGraph(n, inCFG, builder, false)
 	return builder.String()
@@ -189,7 +189,7 @@ func DotFormatter_ToDotOfGraphvizGraph(graph GraphvizGraph) string {
 // the Control Flow Graph; builder is a place to dump the graph.
 //
 // Java: DotFormatter.appendDot(Node, ControlFlowGraph<Node>, Appendable)
-func DotFormatter_AppendDot(n *rhino.Node, inCFG ControlFlowGraph[*rhino.Node], builder jutil.Appendable) {
+func DotFormatter_AppendDot(n rhino.Node, inCFG ControlFlowGraph[rhino.Node], builder jutil.Appendable) {
 	_ = NewDotFormatterWithGraph(n, inCFG, builder, false)
 }
 
@@ -202,12 +202,12 @@ func DotFormatter_NewInstanceForTesting() *DotFormatter {
 }
 
 // Java: DotFormatter.traverseNodes(Node)
-func (f *DotFormatter) TraverseNodes(parent *rhino.Node) {
+func (f *DotFormatter) TraverseNodes(parent rhino.Node) {
 	// key
 	keyParent := f.Key(parent)
 
 	// edges
-	for child := parent.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := parent.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		keyChild := f.Key(child)
 		f.builder.AppendCharSequence(dotFormatter_INDENT)
 		f.builder.AppendCharSequence(DotFormatter_FormatNodeName(keyParent))
@@ -254,7 +254,7 @@ func (f *DotFormatter) TraverseNodes(parent *rhino.Node) {
 }
 
 // Java: DotFormatter.key(Node)
-func (f *DotFormatter) Key(n *rhino.Node) int {
+func (f *DotFormatter) Key(n rhino.Node) int {
 	key, ok := f.assignments.Lookup(n)
 	if !ok {
 		key = f.keyCount
@@ -292,7 +292,7 @@ func (f *DotFormatter) Key(n *rhino.Node) int {
 }
 
 // Java: DotFormatter.getNodeLabel(Node)
-func DotFormatter_GetNodeLabel(n *rhino.Node) string {
+func DotFormatter_GetNodeLabel(n rhino.Node) string {
 	content := n.GetString()
 	if jutil.StringLength(content) > dotFormatter_MAX_LABEL_NAME_LENGTH {
 		content = jutil.StringSubstring(content, 0, dotFormatter_MAX_LABEL_NAME_LENGTH)

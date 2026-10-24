@@ -227,14 +227,14 @@ func serializationDump_addLines(out []string, s string) []string {
 	return out
 }
 
-func serializationDump_dumpTree(out []string, colorsSeen *jutil.LinkedHashMap[colors.ColorId, *colors.Color], n *rhino.Node, level int) []string {
+func serializationDump_dumpTree(out []string, colorsSeen *jutil.LinkedHashMap[colors.ColorId, *colors.Color], n rhino.Node, level int) []string {
 	line := strings.Repeat("    ", level) + n.ToStringWithFlags(true, true, false)
 	if c := n.GetColor(); c != nil {
 		line += " : " + c.GetId().String()
 		serializationDump_collectColor(colorsSeen, c)
 	}
 	out = append(out, line)
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		out = serializationDump_dumpTree(out, colorsSeen, child, level+1)
 	}
 	return out

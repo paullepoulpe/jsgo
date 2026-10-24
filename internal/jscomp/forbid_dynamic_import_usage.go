@@ -41,13 +41,13 @@ func NewForbidDynamicImportUsage(compiler AbstractCompiler) *ForbidDynamicImport
 }
 
 // Java: ForbidDynamicImportUsage.process(Node, Node)
-func (f *ForbidDynamicImportUsage) Process(externs *rhino.Node, root *rhino.Node) {
+func (f *ForbidDynamicImportUsage) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(f.compiler, root, f)
 	f.compiler.MarkFeatureNotAllowed(parser.FeatureSet_Feature_DYNAMIC_IMPORT)
 }
 
 // Java: ForbidDynamicImportUsage.shouldTraverse(NodeTraversal, Node, Node)
-func (f *ForbidDynamicImportUsage) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *ForbidDynamicImportUsage) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		// We only want to traverse scripts that contain dynamic imports, so we can generate error
 		// messages that point to them.
@@ -58,7 +58,7 @@ func (f *ForbidDynamicImportUsage) ShouldTraverse(t *NodeTraversal, n *rhino.Nod
 }
 
 // Java: ForbidDynamicImportUsage.getFeatureSetOfScript(Node)
-func (f *ForbidDynamicImportUsage) GetFeatureSetOfScript(n *rhino.Node) *parser.FeatureSet {
+func (f *ForbidDynamicImportUsage) GetFeatureSetOfScript(n rhino.Node) *parser.FeatureSet {
 	featureSet := NodeUtil_GetFeatureSetOfScript(n)
 	if featureSet == nil {
 		return parser.FeatureSet_BARE_MINIMUM
@@ -67,7 +67,7 @@ func (f *ForbidDynamicImportUsage) GetFeatureSetOfScript(n *rhino.Node) *parser.
 }
 
 // Java: ForbidDynamicImportUsage.visit(NodeTraversal, Node, Node)
-func (f *ForbidDynamicImportUsage) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *ForbidDynamicImportUsage) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_DYNAMIC_IMPORT:
 		t.Report(n, ForbidDynamicImportUsage_DYNAMIC_IMPORT_USAGE)

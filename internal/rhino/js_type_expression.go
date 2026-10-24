@@ -46,7 +46,7 @@ import (
 // During type checking, type ASTs are evaluated to JavaScript types.
 type JSTypeExpression struct {
 	// The root of the AST.
-	root *Node
+	root Node
 
 	// The source name where the type expression appears.
 	sourceName string
@@ -71,7 +71,7 @@ var JSTypeExpression_IMPLICIT_TEMPLATE_BOUND = func() *JSTypeExpression {
 }()
 
 // Java: JSTypeExpression(Node, String)
-func NewJSTypeExpression(root *Node, sourceName string) *JSTypeExpression {
+func NewJSTypeExpression(root Node, sourceName string) *JSTypeExpression {
 	return &JSTypeExpression{root: root, sourceName: sourceName}
 }
 
@@ -94,11 +94,11 @@ func (e *JSTypeExpression) ReplaceNamesWithUnknownType(names *jutil.LinkedHashSe
 // after replacing the names.
 //
 // Java: JSTypeExpression.replaceNames(Node, Set<String>)
-func JSTypeExpression_ReplaceNames(n *Node, names *jutil.LinkedHashSet[string]) *Node {
-	if n == nil {
-		return nil
+func JSTypeExpression_ReplaceNames(n Node, names *jutil.LinkedHashSet[string]) Node {
+	if n.IsNil() {
+		return Node{}
 	}
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
 		JSTypeExpression_ReplaceNames(child, names)
 		child = next
@@ -131,9 +131,9 @@ func JSTypeExpression_BaseName(name string) string {
 // GetAllTypeNodes returns a list of all type nodes in this type expression.
 //
 // Java: JSTypeExpression.getAllTypeNodes()
-func (e *JSTypeExpression) GetAllTypeNodes() []*Node {
-	var builder []*Node
-	JSTypeExpression_VisitAllTypeNodes(e.root, func(n *Node) { builder = append(builder, n) })
+func (e *JSTypeExpression) GetAllTypeNodes() []Node {
+	var builder []Node
+	JSTypeExpression_VisitAllTypeNodes(e.root, func(n Node) { builder = append(builder, n) })
 	return builder
 }
 
@@ -142,7 +142,7 @@ func (e *JSTypeExpression) GetAllTypeNodes() []*Node {
 // Java: JSTypeExpression.getAllTypeNames()
 func (e *JSTypeExpression) GetAllTypeNames() *jutil.LinkedHashSet[string] {
 	builder := jutil.NewLinkedHashSet[string]()
-	JSTypeExpression_VisitAllTypeNodes(e.root, func(n *Node) { builder.Add(n.GetString()) })
+	JSTypeExpression_VisitAllTypeNodes(e.root, func(n Node) { builder.Add(n.GetString()) })
 	return builder
 }
 
@@ -150,11 +150,11 @@ func (e *JSTypeExpression) GetAllTypeNames() *jutil.LinkedHashSet[string] {
 // visits all type nodes.
 //
 // Java: JSTypeExpression.visitAllTypeNodes(Node, Consumer<Node>)
-func JSTypeExpression_VisitAllTypeNodes(n *Node, visitor func(*Node)) {
-	if n == nil {
+func JSTypeExpression_VisitAllTypeNodes(n Node, visitor func(Node)) {
+	if n.IsNil() {
 		return
 	}
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		JSTypeExpression_VisitAllTypeNodes(child, visitor)
 	}
 	if n.IsStringLit() {
@@ -225,7 +225,7 @@ func (e *JSTypeExpression) IsEquivalentTo(other *JSTypeExpression) bool {
 // contain an expression if there's an @override tag.
 //
 // Java: JSTypeExpression.getRoot()
-func (e *JSTypeExpression) GetRoot() *Node {
+func (e *JSTypeExpression) GetRoot() Node {
 	return e.root
 }
 
@@ -265,12 +265,12 @@ func (e *JSTypeExpression) GetRecordPropertyNames() *jutil.LinkedHashSet[string]
 }
 
 // Java: JSTypeExpression.getRecordPropertyNamesRecursive(Node, ImmutableSet.Builder<String>)
-func JSTypeExpression_GetRecordPropertyNamesRecursive(n *Node, names *jutil.LinkedHashSet[string]) {
-	if n == nil {
+func JSTypeExpression_GetRecordPropertyNamesRecursive(n Node, names *jutil.LinkedHashSet[string]) {
+	if n.IsNil() {
 		return
 	}
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		JSTypeExpression_GetRecordPropertyNamesRecursive(child, names)
 	}
 	if n.IsStringKey() {

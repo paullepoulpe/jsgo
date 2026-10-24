@@ -171,7 +171,7 @@ const ExpressionDecomposer_MAX_ITERATIONS = 1000
 // See CanExposeExpression.
 //
 // Java: ExpressionDecomposer.maybeExposeExpression(Node)
-func (e *ExpressionDecomposer) MaybeExposeExpression(expression *rhino.Node) {
+func (e *ExpressionDecomposer) MaybeExposeExpression(expression rhino.Node) {
 	// If the expression needs to exposed.
 	i := 0
 	for ExpressionDecomposer_DecompositionType_DECOMPOSABLE == e.CanExposeExpression(expression) {
@@ -197,13 +197,13 @@ func (e *ExpressionDecomposer) MaybeExposeExpression(expression *rhino.Node) {
 // expression.
 //
 // Java: ExpressionDecomposer.exposeExpression(Node)
-func (e *ExpressionDecomposer) ExposeExpression(expression *rhino.Node) bool {
+func (e *ExpressionDecomposer) ExposeExpression(expression rhino.Node) bool {
 	// First rewrite all optional chains containing the expression.
 	// This must be done first, because the expression root may be an optional chain, and rewriting
 	// it creates a new node to be the expression root.
 	e.RewriteAllContainingOptionalChains(expression)
 	expressionRoot := ExpressionDecomposer_FindExpressionRoot(expression)
-	jutil.CheckNotNull(expressionRoot)
+	rhino.CheckNotNull(expressionRoot)
 	jutil.CheckStateMsg1(NodeUtil_IsStatement(expressionRoot), "%s", expressionRoot)
 	return e.ExposeExpressionWithRoot(expressionRoot, expression)
 }
@@ -233,7 +233,7 @@ func (e *ExpressionDecomposer) ExposeExpression(expression *rhino.Node) bool {
 // to the expression.
 //
 // Java: ExpressionDecomposer.exposeExpression(Node, Node)
-func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot *rhino.Node, subExpression *rhino.Node) bool {
+func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot rhino.Node, subExpression rhino.Node) bool {
 	exposedSomething := false
 
 	nodeWithNonconditionalParent := ExpressionDecomposer_FindNonconditionalParent(subExpression, expressionRoot)
@@ -247,7 +247,7 @@ func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot *rhino.No
 
 	// Extract expressions in the reverse order of their evaluation. This is roughly, traverse up
 	// the AST extracting any preceding expressions that may have side-effects or be side-effected.
-	var lastExposedSubexpression *rhino.Node = nil
+	var lastExposedSubexpression rhino.Node = rhino.Node{}
 	expressionToExpose := nodeWithNonconditionalParent
 	expressionParent := expressionToExpose.GetParent()
 	for expressionParent != expressionRoot {
@@ -279,7 +279,7 @@ func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot *rhino.No
 					// getObj().propName} = ...` as the RHS must execute first
 				case rhino.Token_GETELEM, rhino.Token_GETPROP:
 					exposedSomething =
-						e.DecomposeSubExpressions(left.GetFirstChild(), nil, state) || exposedSomething
+						e.DecomposeSubExpressions(left.GetFirstChild(), rhino.Node{}, state) || exposedSomething
 				default:
 					panic(jutil.NewIllegalStateExceptionMsg(
 						"Expected a property access or destructuring pattern: " + left.ToStringTree()))
@@ -340,7 +340,7 @@ func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot *rhino.No
 // containing the given subExpression.
 //
 // Java: ExpressionDecomposer.rewriteAllContainingOptionalChains(Node)
-func (e *ExpressionDecomposer) RewriteAllContainingOptionalChains(subExpression *rhino.Node) {
+func (e *ExpressionDecomposer) RewriteAllContainingOptionalChains(subExpression rhino.Node) {
 	optChainRewriterBuilder :=
 		OptionalChainRewriter_Builder_(e.compiler).
 			SetTmpVarNameCreator(OptionalChainRewriter_TmpVarNameCreatorFunc(e.GetTempConstantValueName)).
@@ -386,7 +386,7 @@ func (e *ExpressionDecomposer) RewriteAllContainingOptionalChains(subExpression 
 // See CanExposeExpression.
 //
 // Java: ExpressionDecomposer.moveExpression(Node)
-func (e *ExpressionDecomposer) MoveExpression(expression *rhino.Node) {
+func (e *ExpressionDecomposer) MoveExpression(expression rhino.Node) {
 	// TODO(johnlenz): This is not currently used by the function inliner,
 	// as moving the call out of the expression before the actual function call
 	// causes additional variables to be introduced.  As the variable
@@ -394,9 +394,9 @@ func (e *ExpressionDecomposer) MoveExpression(expression *rhino.Node) {
 
 	resultName := e.GetResultValueName()
 	injectionPoint := ExpressionDecomposer_FindInjectionPoint(expression)
-	jutil.CheckNotNull(injectionPoint)
+	rhino.CheckNotNull(injectionPoint)
 	injectionPointParent := injectionPoint.GetParent()
-	jutil.CheckNotNull(injectionPointParent)
+	rhino.CheckNotNull(injectionPointParent)
 	jutil.CheckState(NodeUtil_IsStatementBlock(injectionPointParent))
 
 	// Replace the expression with a reference to the new name.
@@ -441,7 +441,7 @@ func (e *ExpressionDecomposer) MoveExpression(expression *rhino.Node) {
 // of this one.
 //
 // Java: ExpressionDecomposer.findNonconditionalParent(Node, Node)
-func ExpressionDecomposer_FindNonconditionalParent(subExpression *rhino.Node, expressionRoot *rhino.Node) *rhino.Node {
+func ExpressionDecomposer_FindNonconditionalParent(subExpression rhino.Node, expressionRoot rhino.Node) rhino.Node {
 	result := subExpression
 
 	for child, parent := subExpression, subExpression.GetParent(); parent != expressionRoot; child, parent = parent, parent.GetParent() {
@@ -469,7 +469,7 @@ func ExpressionDecomposer_FindNonconditionalParent(subExpression *rhino.Node, ex
 // inserted
 type ExpressionDecomposer_DecompositionState struct {
 	sideEffects            bool
-	extractBeforeStatement *rhino.Node
+	extractBeforeStatement rhino.Node
 }
 
 // Java: ExpressionDecomposer.DecompositionState()
@@ -489,8 +489,8 @@ func (s *ExpressionDecomposer_DecompositionState) String() string {
 //
 // Java: ExpressionDecomposer.decomposeSubExpressions(Node, Node, ExpressionDecomposer.DecompositionState)
 func (e *ExpressionDecomposer) DecomposeSubExpressions(
-	n *rhino.Node, stopNode *rhino.Node, state *ExpressionDecomposer_DecompositionState) bool {
-	if n == nil || n == stopNode {
+	n rhino.Node, stopNode rhino.Node, state *ExpressionDecomposer_DecompositionState) bool {
+	if n.IsNil() || n == stopNode {
 		return false
 	}
 
@@ -562,7 +562,7 @@ func (e *ExpressionDecomposer) DecomposeSubExpressions(
 // extraction.
 //
 // Java: ExpressionDecomposer.extractConditional(Node, Node, boolean)
-func (e *ExpressionDecomposer) ExtractConditional(expr *rhino.Node, injectionPoint *rhino.Node, needResult bool) *rhino.Node {
+func (e *ExpressionDecomposer) ExtractConditional(expr rhino.Node, injectionPoint rhino.Node, needResult bool) rhino.Node {
 	parent := expr.GetParent()
 	tempName := e.GetTempValueName()
 
@@ -575,7 +575,7 @@ func (e *ExpressionDecomposer) ExtractConditional(expr *rhino.Node, injectionPoi
 	expr.DetachChildren()
 
 	// Transform the conditional to an IF statement.
-	var cond *rhino.Node = nil
+	var cond rhino.Node = rhino.Node{}
 	trueExpr := e.astFactory.CreateBlock().Srcref(expr)
 	falseExpr := e.astFactory.CreateBlock().Srcref(expr)
 	switch expr.GetToken() {
@@ -619,7 +619,7 @@ func (e *ExpressionDecomposer) ExtractConditional(expr *rhino.Node, injectionPoi
 		panic(jutil.NewIllegalStateExceptionMsg("Unexpected expression: " + expr.String()))
 	}
 
-	var ifNode *rhino.Node
+	var ifNode rhino.Node
 	if falseExpr.HasChildren() {
 		ifNode = e.astFactory.CreateIfWithElse(cond, trueExpr, falseExpr)
 	} else {
@@ -658,7 +658,7 @@ func (e *ExpressionDecomposer) ExtractConditional(expr *rhino.Node, injectionPoi
 // otherwise, simply: `expr`
 //
 // Java: ExpressionDecomposer.buildResultExpression(Node, boolean, String)
-func ExpressionDecomposer_BuildResultExpression(expr *rhino.Node, needResult bool, tempName string) *rhino.Node {
+func ExpressionDecomposer_BuildResultExpression(expr rhino.Node, needResult bool, tempName string) rhino.Node {
 	if needResult {
 		return rhino.IR_Assign(rhino.IR_Name(tempName).CopyTypeFrom(expr), expr).
 			CopyTypeFrom(expr).
@@ -669,7 +669,7 @@ func ExpressionDecomposer_BuildResultExpression(expr *rhino.Node, needResult boo
 }
 
 // Java: ExpressionDecomposer.isConstantNameNode(Node)
-func (e *ExpressionDecomposer) IsConstantNameNode(n *rhino.Node) bool {
+func (e *ExpressionDecomposer) IsConstantNameNode(n rhino.Node) bool {
 	// Non-constant names values may have been changed.
 	return n.IsName() &&
 		(NodeUtil_IsConstantVar(n, e.scope) || e.knownConstantFunctions.Contains(n.GetString()))
@@ -680,7 +680,7 @@ func (e *ExpressionDecomposer) IsConstantNameNode(n *rhino.Node) bool {
 // extracted statement node.
 //
 // Java: ExpressionDecomposer.extractExpression(Node, Node)
-func (e *ExpressionDecomposer) ExtractExpression(expr *rhino.Node, injectionPoint *rhino.Node) *rhino.Node {
+func (e *ExpressionDecomposer) ExtractExpression(expr rhino.Node, injectionPoint rhino.Node) rhino.Node {
 	// Since all instances of logical assignment ops are normalized into an expression that
 	// separates the logical operation from the assignment, logical assignment ops are
 	// never seen here, and its logical operation part is instead handled by extractConditional().
@@ -690,7 +690,7 @@ func (e *ExpressionDecomposer) ExtractExpression(expr *rhino.Node, injectionPoin
 	isLhsOfAssignOp :=
 		NodeUtil_IsAssignmentOp(parent) && !parent.IsAssign() && expr.IsFirstChildOf(parent)
 
-	var firstExtractedNode *rhino.Node = nil
+	var firstExtractedNode rhino.Node = rhino.Node{}
 
 	// Expressions on the LHS of an assignment-op must have any possible
 	// side-effects extracted as the value must be duplicated:
@@ -699,14 +699,14 @@ func (e *ExpressionDecomposer) ExtractExpression(expr *rhino.Node, injectionPoin
 	//    var t1 = next();
 	//    t1.foo = t1.foo + 2;
 	if isLhsOfAssignOp && NodeUtil_IsNormalGet(expr) {
-		var next *rhino.Node
-		for n := expr.GetFirstChild(); n != nil; n = next {
+		var next rhino.Node
+		for n := expr.GetFirstChild(); !n.IsNil(); n = next {
 			// Cache next before extracting n because n is mutated or replaced within the loop body
 			// during expression extraction.
 			next = n.GetNext()
 			if !n.IsStringLit() && !e.IsConstantNameNode(n) {
 				extractedNode := e.ExtractExpression(n, injectionPoint)
-				if firstExtractedNode == nil {
+				if firstExtractedNode.IsNil() {
 					firstExtractedNode = extractedNode
 				}
 			}
@@ -717,7 +717,7 @@ func (e *ExpressionDecomposer) ExtractExpression(expr *rhino.Node, injectionPoin
 	tempName := e.GetTempConstantValueName()
 	replacementValueNode := rhino.IR_Name(tempName).CopyTypeFrom(expr).Srcref(expr)
 
-	var tempNameValue *rhino.Node
+	var tempNameValue rhino.Node
 
 	// If it is ASSIGN_XXX and not a logical assignment operator keep the
 	// assignment in place and extract the original value of the LHS operand.
@@ -779,7 +779,7 @@ func (e *ExpressionDecomposer) ExtractExpression(expr *rhino.Node, injectionPoin
 
 	tempVarNode.InsertBefore(injectionPoint)
 
-	if firstExtractedNode == nil {
+	if firstExtractedNode.IsNil() {
 		firstExtractedNode = tempVarNode
 	}
 
@@ -797,7 +797,7 @@ func (e *ExpressionDecomposer) ExtractExpression(expr *rhino.Node, injectionPoin
 //	temp0.call(temp1,c);
 //
 // Java: ExpressionDecomposer.rewriteCallExpression(Node, ExpressionDecomposer.DecompositionState)
-func (e *ExpressionDecomposer) RewriteCallExpression(call *rhino.Node, state *ExpressionDecomposer_DecompositionState) {
+func (e *ExpressionDecomposer) RewriteCallExpression(call rhino.Node, state *ExpressionDecomposer_DecompositionState) {
 	jutil.CheckArgumentMsg1(call.IsCall(), "%s", call)
 	first := call.GetFirstChild()
 	jutil.CheckArgumentMsg1(NodeUtil_IsNormalGet(first), "%s", first)
@@ -830,7 +830,7 @@ func (e *ExpressionDecomposer) RewriteCallExpression(call *rhino.Node, state *Ex
 	getExprNode := getVarNode.GetFirstFirstChild()
 	jutil.CheckArgumentMsg1(NodeUtil_IsNormalGet(getExprNode), "%s", getExprNode)
 	origThisValue := getExprNode.GetFirstChild()
-	var receiverNode *rhino.Node
+	var receiverNode rhino.Node
 
 	if origThisValue.IsThis() {
 		// No need to create a variable for `this`, just clone it.
@@ -906,7 +906,7 @@ func (e *ExpressionDecomposer) GetTempConstantValueName() string {
 }
 
 // Java: ExpressionDecomposer.isTempConstantValueName(Node)
-func (e *ExpressionDecomposer) IsTempConstantValueName(name *rhino.Node) bool {
+func (e *ExpressionDecomposer) IsTempConstantValueName(name rhino.Node) bool {
 	return name.IsName() &&
 		strings.HasPrefix(
 			name.GetString(),
@@ -918,9 +918,9 @@ func (e *ExpressionDecomposer) IsTempConstantValueName(name *rhino.Node) bool {
 // such location can be found.
 //
 // Java: ExpressionDecomposer.findInjectionPoint(Node)
-func ExpressionDecomposer_FindInjectionPoint(subExpression *rhino.Node) *rhino.Node {
+func ExpressionDecomposer_FindInjectionPoint(subExpression rhino.Node) rhino.Node {
 	expressionRoot := ExpressionDecomposer_FindExpressionRoot(subExpression)
-	jutil.CheckNotNull(expressionRoot)
+	rhino.CheckNotNull(expressionRoot)
 
 	injectionPoint := expressionRoot
 
@@ -938,7 +938,7 @@ func ExpressionDecomposer_FindInjectionPoint(subExpression *rhino.Node) *rhino.N
 // conditional op.
 //
 // Java: ExpressionDecomposer.isConditionalOp(Node)
-func ExpressionDecomposer_IsConditionalOp(n *rhino.Node) bool {
+func ExpressionDecomposer_IsConditionalOp(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_HOOK, rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE,
 		rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_CALL:
@@ -956,7 +956,7 @@ func ExpressionDecomposer_IsConditionalOp(n *rhino.Node) bool {
 // of a WHILE loop.
 //
 // Java: ExpressionDecomposer.findExpressionRoot(Node)
-func ExpressionDecomposer_FindExpressionRoot(subExpression *rhino.Node) *rhino.Node {
+func ExpressionDecomposer_FindExpressionRoot(subExpression rhino.Node) rhino.Node {
 	child := subExpression
 	for current := range child.GetAncestors().All() {
 		parent := current.GetParent()
@@ -1007,7 +1007,7 @@ func ExpressionDecomposer_FindExpressionRoot(subExpression *rhino.Node) *rhino.N
 			// due to `case SCRIPT` above. This just makes class expressions behave the same way. Future
 			// optimizations may want to better handle class members and static blocks.
 			rhino.Token_CLASS:
-			return nil
+			return rhino.Node{}
 
 		default:
 		}
@@ -1049,9 +1049,9 @@ func ExpressionDecomposer_FindExpressionRoot(subExpression *rhino.Node) *rhino.N
 // would be made movable; UNDECOMPOSABLE otherwise.
 //
 // Java: ExpressionDecomposer.canExposeExpression(Node)
-func (e *ExpressionDecomposer) CanExposeExpression(subExpression *rhino.Node) ExpressionDecomposer_DecompositionType {
+func (e *ExpressionDecomposer) CanExposeExpression(subExpression rhino.Node) ExpressionDecomposer_DecompositionType {
 	expressionRoot := ExpressionDecomposer_FindExpressionRoot(subExpression)
-	if expressionRoot != nil {
+	if !expressionRoot.IsNil() {
 		return e.IsSubexpressionMovable(expressionRoot, subExpression)
 	}
 	return ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE
@@ -1061,7 +1061,7 @@ func (e *ExpressionDecomposer) CanExposeExpression(subExpression *rhino.Node) Ex
 //
 // Java: ExpressionDecomposer.isSubexpressionMovable(Node, Node)
 func (e *ExpressionDecomposer) IsSubexpressionMovable(
-	expressionRoot *rhino.Node, subExpression *rhino.Node) ExpressionDecomposer_DecompositionType {
+	expressionRoot rhino.Node, subExpression rhino.Node) ExpressionDecomposer_DecompositionType {
 	requiresDecomposition := false
 	seenSideEffects := e.astAnalyzer.MayHaveSideEffects(subExpression)
 
@@ -1126,7 +1126,7 @@ func (e *ExpressionDecomposer) IsSubexpressionMovable(
 			} else {
 				// Everything else.
 				direction := ExpressionDecomposer_GetEvaluationDirection(parent)
-				for n := e.GetFirstEvaluatedChild(parent, direction); n != nil; n = e.GetNextEvaluatedSibling(n, direction) {
+				for n := e.GetFirstEvaluatedChild(parent, direction); !n.IsNil(); n = e.GetNextEvaluatedSibling(n, direction) {
 					if n == child {
 						// None of the preceding siblings have side-effects.
 						// This is OK.
@@ -1188,7 +1188,7 @@ func (d ExpressionDecomposer_EvaluationDirection) Ordinal() int { return int(d) 
 // evaluation instead.
 //
 // Java: ExpressionDecomposer.getEvaluationDirection(Node)
-func ExpressionDecomposer_GetEvaluationDirection(node *rhino.Node) ExpressionDecomposer_EvaluationDirection {
+func ExpressionDecomposer_GetEvaluationDirection(node rhino.Node) ExpressionDecomposer_EvaluationDirection {
 	switch node.GetToken() {
 	case rhino.Token_DESTRUCTURING_LHS,
 		rhino.Token_ASSIGN,
@@ -1207,7 +1207,7 @@ func ExpressionDecomposer_GetEvaluationDirection(node *rhino.Node) ExpressionDec
 
 // Java: ExpressionDecomposer.getFirstEvaluatedChild(Node, ExpressionDecomposer.EvaluationDirection)
 func (e *ExpressionDecomposer) GetFirstEvaluatedChild(
-	parent *rhino.Node, direction ExpressionDecomposer_EvaluationDirection) *rhino.Node {
+	parent rhino.Node, direction ExpressionDecomposer_EvaluationDirection) rhino.Node {
 	if direction == ExpressionDecomposer_EvaluationDirection_FORWARD {
 		return parent.GetFirstChild()
 	}
@@ -1216,7 +1216,7 @@ func (e *ExpressionDecomposer) GetFirstEvaluatedChild(
 
 // Java: ExpressionDecomposer.getNextEvaluatedSibling(Node, ExpressionDecomposer.EvaluationDirection)
 func (e *ExpressionDecomposer) GetNextEvaluatedSibling(
-	node *rhino.Node, direction ExpressionDecomposer_EvaluationDirection) *rhino.Node {
+	node rhino.Node, direction ExpressionDecomposer_EvaluationDirection) rhino.Node {
 	if direction == ExpressionDecomposer_EvaluationDirection_FORWARD {
 		return node.GetNext()
 	}
@@ -1246,7 +1246,7 @@ func (e *ExpressionDecomposer) GetNextEvaluatedSibling(
 // side-effects.
 //
 // Java: ExpressionDecomposer.isSafeAssign(Node, boolean)
-func (e *ExpressionDecomposer) IsSafeAssign(n *rhino.Node, seenSideEffects bool) bool {
+func (e *ExpressionDecomposer) IsSafeAssign(n rhino.Node, seenSideEffects bool) bool {
 	if n.IsAssign() {
 		lhs := n.GetFirstChild()
 		switch lhs.GetToken() {
@@ -1276,7 +1276,7 @@ var ExpressionDecomposer_WINDOW_LOCATION_ASSIGN = rhino.QualifiedName_Of("window
 // if tree contains any subexpressions that would make movement incorrect.
 //
 // Java: ExpressionDecomposer.isExpressionTreeUnsafe(Node, boolean)
-func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree *rhino.Node, followingSideEffectsExist bool) bool {
+func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree rhino.Node, followingSideEffectsExist bool) bool {
 	if tree.IsSpread() {
 		// Spread expressions would cause recursive rewriting if not special cased here.
 		// When extracted, spreads can't be assigned to a single variable and instead are put into
@@ -1298,7 +1298,7 @@ func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree *rhino.Node, followin
 		// attempting to inline "fn".
 		parent := tree.GetParent()
 		if NodeUtil_IsObjectCallMethod(parent, "call") || parent.GetBooleanProp(rhino.Node_FREE_CALL) {
-			var callee *rhino.Node
+			var callee rhino.Node
 			if tree.IsGetProp() && tree.GetString() == "call" {
 				callee = tree.GetFirstChild()
 			} else {

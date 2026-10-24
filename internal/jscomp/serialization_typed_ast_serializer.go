@@ -212,12 +212,12 @@ func (s *TypedAstSerializer) allocTemplateStringValue(rawPtr, cookedPtr int32) *
 // serialized TypedAst object.
 //
 // Java: TypedAstSerializer.serializeRoots(Node, Node)
-func (s *TypedAstSerializer) SerializeRoots(externsRoot *rhino.Node, jsRoot *rhino.Node) *TypedAst {
+func (s *TypedAstSerializer) SerializeRoots(externsRoot rhino.Node, jsRoot rhino.Node) *TypedAst {
 	jutil.CheckArgument(externsRoot.IsRoot())
 	jutil.CheckArgument(jsRoot.IsRoot())
 
 	if s.compiler.HasOptimizationColors() {
-		if root := s.compiler.GetRoot(); root != nil && externsRoot.GetParent() == root {
+		if root := s.compiler.GetRoot(); !root.IsNil() && externsRoot.GetParent() == root {
 			s.usedPropBits = make([]uint64, 64)
 			s.recordUsedProps = true
 			colorSerializer := NewColorSerializer(
@@ -244,13 +244,13 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot *rhino.Node, jsRoot *rhi
 	}
 
 	builder := TypedAst_NewBuilder()
-	for script := externsRoot.GetFirstChild(); script != nil; script = script.GetNext() {
+	for script := externsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		if NodeUtil_IsFromTypeSummary(script) {
 			continue
 		}
 		builder.AddExternAst(s.SerializeScriptNode(script))
 	}
-	for script := jsRoot.GetFirstChild(); script != nil; script = script.GetNext() {
+	for script := jsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		if NodeUtil_IsFromTypeSummary(script) {
 			continue
 		}
@@ -282,7 +282,7 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot *rhino.Node, jsRoot *rhi
 }
 
 // Java: TypedAstSerializer.serializeScriptNode(Node)
-func (s *TypedAstSerializer) SerializeScriptNode(script *rhino.Node) *LazyAst {
+func (s *TypedAstSerializer) SerializeScriptNode(script rhino.Node) *LazyAst {
 	jutil.CheckState(script.IsScript())
 	s.previousColumn = 0
 	s.previousLine = s.previousColumn
@@ -331,7 +331,7 @@ func (s *TypedAstSerializer) SerializeScriptNode(script *rhino.Node) *LazyAst {
 }
 
 // Java: TypedAstSerializer.createWithPositionInfo(Node)
-func (s *TypedAstSerializer) CreateWithPositionInfo(n *rhino.Node) *AstNode_Builder {
+func (s *TypedAstSerializer) CreateWithPositionInfo(n rhino.Node) *AstNode_Builder {
 	jutil.CheckState(n.GetLength() >= 0)
 	currentLine := n.GetLineno()
 	currentColumn := n.GetCharno()
@@ -344,11 +344,11 @@ func (s *TypedAstSerializer) CreateWithPositionInfo(n *rhino.Node) *AstNode_Buil
 }
 
 // Java: TypedAstSerializer.visit(Node)
-func (s *TypedAstSerializer) Visit(n *rhino.Node) *AstNode {
+func (s *TypedAstSerializer) Visit(n rhino.Node) *AstNode {
 	return s.visitArena(n)
 }
 
-func (s *TypedAstSerializer) visitArena(n *rhino.Node) *AstNode {
+func (s *TypedAstSerializer) visitArena(n rhino.Node) *AstNode {
 	jutil.CheckState(n.GetLength() >= 0)
 	currentLine := n.GetLineno()
 	currentColumn := n.GetCharno()
@@ -389,12 +389,12 @@ func (s *TypedAstSerializer) visitArena(n *rhino.Node) *AstNode {
 
 	firstChild := n.GetFirstChild()
 	shadowedCode := n.GetClosureUnawareShadow()
-	if firstChild != nil || shadowedCode != nil {
+	if !firstChild.IsNil() || !shadowedCode.IsNil() {
 		childrenStart := len(s.childStack)
-		for child := firstChild; child != nil; child = child.GetNext() {
+		for child := firstChild; !child.IsNil(); child = child.GetNext() {
 			s.childStack = append(s.childStack, s.visitArena(child))
 		}
-		if shadowedCode != nil {
+		if !shadowedCode.IsNil() {
 			// For Closure shadow hosts, the ASTNode will get a boolean property bit set
 			// (CLOSURE_UNAWARE_SHADOW) that indicates this child ASTNode is not a normal child, but is
 			// the contents of the shadow.
@@ -451,7 +451,7 @@ func (s *TypedAstSerializer) peekLastSubtreeSourceFile() *SourceFile {
 }
 
 // Java: TypedAstSerializer.getSourceFilePointer(Node)
-func (s *TypedAstSerializer) GetSourceFilePointer(n *rhino.Node) int {
+func (s *TypedAstSerializer) GetSourceFilePointer(n rhino.Node) int {
 	var sourceFile *SourceFile
 	if ssf := n.GetStaticSourceFile(); ssf != nil {
 		sourceFile = ssf.(*SourceFile)
@@ -485,7 +485,7 @@ func (s *TypedAstSerializer) GetSourceFilePointer(n *rhino.Node) int {
 }
 
 // Java: TypedAstSerializer.addType(Node, AstNode.Builder)
-func (s *TypedAstSerializer) AddType(n *rhino.Node, builder *AstNode_Builder) {
+func (s *TypedAstSerializer) AddType(n rhino.Node, builder *AstNode_Builder) {
 	s.typeSerializer.AddTypeForNode(n, builder)
 }
 
@@ -512,7 +512,7 @@ func (s *TypedAstSerializer) lookupUsedPropIndex(prop string) (int, bool) {
 	return idx, true
 }
 
-func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n *rhino.Node) {
+func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP,
 		rhino.Token_OPTCHAIN_GETPROP:
@@ -568,7 +568,7 @@ func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n *rhino.Node) {
 }
 
 // Java: TypedAstSerializer.valueTranslator(AstNode.Builder, Node)
-func (s *TypedAstSerializer) ValueTranslator(builder *AstNode_Builder, n *rhino.Node) {
+func (s *TypedAstSerializer) ValueTranslator(builder *AstNode_Builder, n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP,
 		rhino.Token_OPTCHAIN_GETPROP,
@@ -610,7 +610,7 @@ func (s *TypedAstSerializer) ValueTranslator(builder *AstNode_Builder, n *rhino.
 }
 
 // Java: TypedAstSerializer.setOriginalName(AstNode.Builder, Node)
-func (s *TypedAstSerializer) SetOriginalName(builder *AstNode_Builder, n *rhino.Node) {
+func (s *TypedAstSerializer) SetOriginalName(builder *AstNode_Builder, n rhino.Node) {
 	origID := n.GetOriginalNameID()
 	if origID == 0 {
 		builder.SetOriginalNamePointer(0) // equivalent to 'not set'
@@ -621,7 +621,7 @@ func (s *TypedAstSerializer) SetOriginalName(builder *AstNode_Builder, n *rhino.
 }
 
 // Java: TypedAstSerializer.kindTranslator(Node)
-func (s *TypedAstSerializer) KindTranslator(n *rhino.Node) NodeKind {
+func (s *TypedAstSerializer) KindTranslator(n rhino.Node) NodeKind {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		return NodeKind_SOURCE_FILE
@@ -971,7 +971,7 @@ type TypedAstSerializer_TypeSerializer interface {
 	// `astNodeBuilder`.
 	//
 	// Java: TypedAstSerializer.TypeSerializer.addTypeForNode(Node, AstNode.Builder)
-	AddTypeForNode(node *rhino.Node, astNodeBuilder *AstNode_Builder)
+	AddTypeForNode(node rhino.Node, astNodeBuilder *AstNode_Builder)
 
 	// GenerateTypePool returns a `TypePool` containing the types used by
 	// `addTypeForNode()`.
@@ -994,7 +994,7 @@ func NewTypedAstSerializer_NoOpTypeSerializer() *TypedAstSerializer_NoOpTypeSeri
 }
 
 // Java: TypedAstSerializer.NoOpTypeSerializer.addTypeForNode(Node, AstNode.Builder)
-func (*TypedAstSerializer_NoOpTypeSerializer) AddTypeForNode(node *rhino.Node, astNodeBuilder *AstNode_Builder) {
+func (*TypedAstSerializer_NoOpTypeSerializer) AddTypeForNode(node rhino.Node, astNodeBuilder *AstNode_Builder) {
 	// Do nothing.
 }
 
@@ -1037,7 +1037,7 @@ func NewTypedAstSerializer_JSTypeSerializer(
 	return &TypedAstSerializer_JSTypeSerializer{typesToPointers: typesToPointers, typePool: typePool}
 }
 
-func (s *TypedAstSerializer_JSTypeSerializer) addTypeToNode(node *rhino.Node, m *AstNode) {
+func (s *TypedAstSerializer_JSTypeSerializer) addTypeToNode(node rhino.Node, m *AstNode) {
 	tb := node.GetJSTypeBase()
 	if tb == nil {
 		return
@@ -1061,7 +1061,7 @@ func (s *TypedAstSerializer_JSTypeSerializer) addTypeToNode(node *rhino.Node, m 
 }
 
 // Java: TypedAstSerializer.JSTypeSerializer.addTypeForNode(Node, AstNode.Builder)
-func (s *TypedAstSerializer_JSTypeSerializer) AddTypeForNode(node *rhino.Node, astNodeBuilder *AstNode_Builder) {
+func (s *TypedAstSerializer_JSTypeSerializer) AddTypeForNode(node rhino.Node, astNodeBuilder *AstNode_Builder) {
 	s.addTypeToNode(node, astNodeBuilder.m)
 }
 
@@ -1082,12 +1082,12 @@ func (s *TypedAstSerializer) CreateColorTypeSerializer(
 	usedPropertyNames := make(map[string]struct{}, 256)
 	var lastProp string
 	hasLastProp := false
-	var walk func(n *rhino.Node)
-	walk = func(n *rhino.Node) {
+	var walk func(n rhino.Node)
+	walk = func(n rhino.Node) {
 		if n.IsScript() && NodeUtil_IsFromTypeSummary(n) {
 			return
 		}
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			walk(c)
 		}
 		switch n.GetToken() {
@@ -1113,7 +1113,7 @@ func (s *TypedAstSerializer) CreateColorTypeSerializer(
 				}
 			}
 		case rhino.Token_NAME:
-			if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+			if shadow := n.GetClosureUnawareShadow(); !shadow.IsNil() {
 				walk(shadow.GetFirstFirstChild().GetFirstChild())
 			}
 		}
@@ -1146,7 +1146,7 @@ func NewTypedAstSerializer_ColorTypeSerializer(colorSerializer *ColorSerializer,
 }
 
 // Java: TypedAstSerializer.ColorTypeSerializer.addTypeForNode(Node, AstNode.Builder)
-func (s *TypedAstSerializer_ColorTypeSerializer) AddTypeForNode(node *rhino.Node, astNodeBuilder *AstNode_Builder) {
+func (s *TypedAstSerializer_ColorTypeSerializer) AddTypeForNode(node rhino.Node, astNodeBuilder *AstNode_Builder) {
 	color := node.GetColor()
 	if color != nil {
 		astNodeBuilder.SetType(int32(s.colorSerializer.AddColor(color)))

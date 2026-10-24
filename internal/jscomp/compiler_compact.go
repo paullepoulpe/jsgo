@@ -13,12 +13,12 @@ import (
 // Go-only: AST compaction (rhino/node_compact.go).
 //
 // Nodes link with ids, so dead nodes are reclaimed only by copying the live
-// tree into a fresh generation. This file decides when (after typesToColors,
+// tree into a fresh node store. This file decides when (after typesToColors,
 // then whenever the nodes allocated since the last compaction exceed half of
 // the live nodes, checked at the end of every optimization-loop iteration
 // and after every top-level optimization pass, and at the end of the
 // optimization stage) and keeps the forwarding registry: the explicit list
-// of every *rhino.Node the Compiler holds outside the tree across a pass
+// of every rhino.Node the Compiler holds outside the tree across a pass
 // boundary (docs/memory-research/node-holder-census.md, section 3.1).
 // Everything else that holds nodes is pass-local and dead between passes.
 //
@@ -35,7 +35,7 @@ type astCompaction struct {
 	enabled      bool
 	nested       bool // a NestedCompilerRunner compiler: shares nodes with the outer compilation, never compacts
 	allowed      bool // inside the optimization stage
-	chunksAtLast int
+	nodesAtLast  int // nodes in the store right after the last compaction
 	liveAtLast   int
 	count        int
 }
@@ -66,16 +66,16 @@ func (c *Compiler) initASTCompaction() {
 // maybeCompactAST compacts the AST after a pass when the policy says so.
 // externs and root are the caller's local root pointers (forwarded in
 // place); extra forwards holders the caller keeps in locals.
-func (c *Compiler) maybeCompactAST(after string, externs, root **rhino.Node, extra func(fwd func(*rhino.Node) *rhino.Node)) {
+func (c *Compiler) maybeCompactAST(after string, externs, root *rhino.Node, extra func(fwd func(rhino.Node) rhino.Node)) {
 	a := &c.astCompact
-	if !a.enabled || !a.allowed || c.externAndJsRoot == nil {
+	if !a.enabled || !a.allowed || c.externAndJsRoot.IsNil() {
 		return
 	}
 	if !c.GetLifeCycleStage().HasColorAndSimplifiedJSDoc() || c.typeRegistry != nil {
 		return
 	}
 	if after != "typesToColors" {
-		allocated := (rhino.NodeChunksAllocated() - a.chunksAtLast) * rhino.NodeChunkCapacity
+		allocated := c.nodeStore.NodeCount() - a.nodesAtLast
 		if allocated < max(a.liveAtLast/4, astCompactMinNodes) {
 			return
 		}
@@ -84,7 +84,7 @@ func (c *Compiler) maybeCompactAST(after string, externs, root **rhino.Node, ext
 }
 
 // compactAST copies the live AST and forwards every registered holder.
-func (c *Compiler) compactAST(after string, externs, root **rhino.Node, extra func(fwd func(*rhino.Node) *rhino.Node)) {
+func (c *Compiler) compactAST(after string, externs, root *rhino.Node, extra func(fwd func(rhino.Node) rhino.Node)) {
 	a := &c.astCompact
 	t0 := time.Now()
 	jutil.CheckStateMsg(c.typedScopeCreator == nil && c.topScope == nil, "AST compaction with typed scopes alive")
@@ -225,31 +225,33 @@ func (c *Compiler) compactAST(after string, externs, root **rhino.Node, extra fu
 	// 8. Go-only caches that may hold nodes.
 	c.evictPassArenaCaches()
 
-	released := k.Finish(c.nodeTables)
+	oldNodes := c.nodeStore.NodeCount()
+	k.Finish()
+	c.nodeStore = k.Store()
 	a.count++
-	a.chunksAtLast = rhino.NodeChunksAllocated()
+	a.nodesAtLast = c.nodeStore.NodeCount()
 	a.liveAtLast = k.Copied
 	if astCompactLog {
-		fmt.Fprintf(os.Stderr, "[ast-compact #%d after %s] %s, %d chunks released, %v\n",
-			a.count, after, k, released, time.Since(t0).Round(time.Millisecond))
+		fmt.Fprintf(os.Stderr, "[ast-compact #%d after %s] %s, old store had %d nodes, %v\n",
+			a.count, after, k, oldNodes, time.Since(t0).Round(time.Millisecond))
 	}
 }
 
 // forwardNodes forwards every node the namespace holds (roots, Name
 // declarations and refs, the refs' scopes, and the two node-keyed caches).
-func (g *GlobalNamespace) forwardNodes(fwd func(*rhino.Node) *rhino.Node) {
+func (g *GlobalNamespace) forwardNodes(fwd func(rhino.Node) rhino.Node) {
 	g.root = fwd(g.root)
 	g.externsRoot = fwd(g.externsRoot)
 	g.globalRoot = fwd(g.globalRoot)
 	if g.spreadSiblingCache != nil {
-		m := make(map[*rhino.Node]bool, len(g.spreadSiblingCache))
+		m := make(map[rhino.Node]bool, len(g.spreadSiblingCache))
 		for n, v := range g.spreadSiblingCache {
 			m[fwd(n)] = v
 		}
 		g.spreadSiblingCache = m
 	}
 	if g.defineCandidateScripts != nil {
-		m := make(map[*rhino.Node]struct{}, len(g.defineCandidateScripts))
+		m := make(map[rhino.Node]struct{}, len(g.defineCandidateScripts))
 		for n := range g.defineCandidateScripts {
 			m[fwd(n)] = struct{}{}
 		}
@@ -289,9 +291,9 @@ func (g *GlobalNamespace) forwardNodes(fwd func(*rhino.Node) *rhino.Node) {
 			ref(r)
 		}
 		if n.refsIndex != nil {
-			m := make(map[*rhino.Node]int, len(n.refsIndex))
+			m := make(map[rhino.Node]int, len(n.refsIndex))
 			for i, r := range n.refsSlice {
-				if r != nil && r.node != nil {
+				if r != nil && !r.node.IsNil() {
 					m[r.node] = i
 				}
 			}

@@ -83,12 +83,12 @@ func (b *CodePrinterTestBase) SetUp() {
 }
 
 // Java: CodePrinterTestBase.parse(String)
-func (b *CodePrinterTestBase) Parse(js string) *rhino.Node {
+func (b *CodePrinterTestBase) Parse(js string) rhino.Node {
 	return b.ParseTypeChecked(js /* typeChecked= */, false)
 }
 
 // Java: CodePrinterTestBase.parse(String, boolean)
-func (b *CodePrinterTestBase) ParseTypeChecked(js string, typeChecked bool) *rhino.Node {
+func (b *CodePrinterTestBase) ParseTypeChecked(js string, typeChecked bool) rhino.Node {
 	compiler := NewCompiler()
 	b.lastCompiler = compiler
 	options := NewCompilerOptions()
@@ -191,7 +191,7 @@ func (b *CodePrinterTestBase) NewCompilerOptions(builder CodePrinterTestBase_Com
 }
 
 // Java: CodePrinterTestBase.printNode(Node)
-func (b *CodePrinterTestBase) PrintNode(n *rhino.Node) string {
+func (b *CodePrinterTestBase) PrintNode(n rhino.Node) string {
 	options := NewCompilerOptions()
 	options.SetLineLengthThreshold(CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD)
 	options.SetLanguageOut(b.languageMode)
@@ -200,12 +200,12 @@ func (b *CodePrinterTestBase) PrintNode(n *rhino.Node) string {
 }
 
 // Java: CodePrinterTestBase.assertPrintNode(String, Node)
-func (b *CodePrinterTestBase) AssertPrintNode(expectedJs string, ast *rhino.Node) {
+func (b *CodePrinterTestBase) AssertPrintNode(expectedJs string, ast rhino.Node) {
 	AssertThat(b.PrintNode(ast)).IsEqualTo(expectedJs)
 }
 
 // Java: CodePrinterTestBase.prettyPrintNode(Node)
-func (b *CodePrinterTestBase) PrettyPrintNode(n *rhino.Node) string {
+func (b *CodePrinterTestBase) PrettyPrintNode(n rhino.Node) string {
 	options := NewCompilerOptions()
 	options.SetLineLengthThreshold(CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD)
 	options.SetLanguageOut(b.languageMode)
@@ -215,7 +215,7 @@ func (b *CodePrinterTestBase) PrettyPrintNode(n *rhino.Node) string {
 }
 
 // Java: CodePrinterTestBase.assertPrettyPrintNode(String, Node)
-func (b *CodePrinterTestBase) AssertPrettyPrintNode(expectedJs string, ast *rhino.Node) {
+func (b *CodePrinterTestBase) AssertPrettyPrintNode(expectedJs string, ast rhino.Node) {
 	AssertThat(b.PrettyPrintNode(ast)).IsEqualTo(expectedJs)
 }
 

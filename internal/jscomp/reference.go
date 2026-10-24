@@ -26,7 +26,7 @@ import (
 // Reference represents a single declaration or reference to a variable.
 // Note that references can only be used with untyped scopes and traversals.
 type Reference struct {
-	nameNode   *rhino.Node
+	nameNode   rhino.Node
 	basicBlock *BasicBlock
 	scope      *Scope
 	inputId    *rhino.InputId
@@ -43,13 +43,13 @@ var reference_DECLARATION_PARENTS = jutil.NewEnumSet(
 	rhino.Token_CATCH)
 
 // Java: Reference(Node, NodeTraversal, BasicBlock)
-func NewReference(nameNode *rhino.Node, t *NodeTraversal, basicBlock *BasicBlock) *Reference {
+func NewReference(nameNode rhino.Node, t *NodeTraversal, basicBlock *BasicBlock) *Reference {
 	return newReferenceWithScopeAndInputId(nameNode, basicBlock, t.GetScope(), t.GetInput().GetInputId())
 }
 
 // Java: Reference(Node, BasicBlock, Scope, InputId)
 func newReferenceWithScopeAndInputId(
-	nameNode *rhino.Node, basicBlock *BasicBlock, scope *Scope, inputId *rhino.InputId) *Reference {
+	nameNode rhino.Node, basicBlock *BasicBlock, scope *Scope, inputId *rhino.InputId) *Reference {
 	return &Reference{
 		nameNode:   nameNode,
 		basicBlock: basicBlock,
@@ -99,7 +99,7 @@ func (r *Reference) getSymbolV() *Var {
 }
 
 // Java: Reference.getNode()
-func (r *Reference) GetNode() *rhino.Node {
+func (r *Reference) GetNode() rhino.Node {
 	return r.nameNode
 }
 
@@ -119,7 +119,7 @@ func (r *Reference) IsDeclaration() bool {
 }
 
 // Java: Reference.isDeclarationHelper(Node)
-func reference_isDeclarationHelper(node *rhino.Node) bool {
+func reference_isDeclarationHelper(node rhino.Node) bool {
 	parent := node.GetParent()
 	parentToken := parent.GetToken()
 
@@ -130,7 +130,7 @@ func reference_isDeclarationHelper(node *rhino.Node) bool {
 
 	grandparent := parent.GetParent()
 	// This condition can be true during InlineVariables.
-	if grandparent == nil {
+	if grandparent.IsNil() {
 		return false
 	}
 
@@ -224,7 +224,7 @@ func (r *Reference) IsInitializingDeclaration() bool {
 // function declaration, the assigned value, otherwise null.
 //
 // Java: Reference.getAssignedValue()
-func (r *Reference) GetAssignedValue() *rhino.Node {
+func (r *Reference) GetAssignedValue() rhino.Node {
 	return NodeUtil_GetRValueOfLValue(r.nameNode)
 }
 
@@ -234,17 +234,17 @@ func (r *Reference) GetBasicBlock() *BasicBlock {
 }
 
 // Java: Reference.getParent()
-func (r *Reference) GetParent() *rhino.Node {
+func (r *Reference) GetParent() rhino.Node {
 	return r.GetNode().GetParent()
 }
 
 // Java: Reference.getGrandparent()
-func (r *Reference) GetGrandparent() *rhino.Node {
+func (r *Reference) GetGrandparent() rhino.Node {
 	return r.GetNode().GetGrandparent()
 }
 
 // Java: Reference.isLhsOfEnhancedForExpression(Node)
-func reference_isLhsOfEnhancedForExpression(n *rhino.Node) bool {
+func reference_isLhsOfEnhancedForExpression(n rhino.Node) bool {
 	parent := n.GetParent()
 	return NodeUtil_IsEnhancedFor(parent) && parent.GetFirstChild() == n
 }

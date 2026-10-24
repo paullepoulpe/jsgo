@@ -77,7 +77,7 @@ func NewConvertToTypedInterface(compiler AbstractCompiler) *ConvertToTypedInterf
 
 // Java: ConvertToTypedInterface.maybeReport(AbstractCompiler, Node, DiagnosticType, String...)
 func ConvertToTypedInterface_MaybeReport(
-	compiler AbstractCompiler, node *rhino.Node, diagnostic *DiagnosticType, fillers ...string) {
+	compiler AbstractCompiler, node rhino.Node, diagnostic *DiagnosticType, fillers ...string) {
 	sourceName := *NodeUtil_GetSourceName(node)
 	if strings.HasSuffix(sourceName, "_test.js") ||
 		strings.HasSuffix(sourceName, "_test.closure.js") ||
@@ -111,14 +111,14 @@ func ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(
 }
 
 // Java: ConvertToTypedInterface.process(Node, Node)
-func (c *ConvertToTypedInterface) Process(externs *rhino.Node, root *rhino.Node) {
-	for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+func (c *ConvertToTypedInterface) Process(externs rhino.Node, root rhino.Node) {
+	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		c.ProcessFile(script)
 	}
 }
 
 // Java: ConvertToTypedInterface.processFile(Node)
-func (c *ConvertToTypedInterface) ProcessFile(scriptNode *rhino.Node) {
+func (c *ConvertToTypedInterface) ProcessFile(scriptNode rhino.Node) {
 	jutil.CheckArgument(scriptNode.IsScript())
 	sourceFileName := scriptNode.GetSourceFileName()
 	if AbstractCompiler_IsFillFileName(*sourceFileName) {
@@ -143,7 +143,7 @@ func (c *ConvertToTypedInterface) ProcessFile(scriptNode *rhino.Node) {
 }
 
 // Java: ConvertToTypedInterface.findNameDeclaration(Scope, Node)
-func ConvertToTypedInterface_FindNameDeclaration(scope *Scope, rhs *rhino.Node) *Var {
+func ConvertToTypedInterface_FindNameDeclaration(scope *Scope, rhs rhino.Node) *Var {
 	if !rhs.IsName() {
 		return nil
 	}
@@ -164,7 +164,7 @@ func NewConvertToTypedInterface_RemoveNonDeclarations() *ConvertToTypedInterface
 }
 
 // Java: ConvertToTypedInterface.RemoveNonDeclarations.shouldTraverse(NodeTraversal, Node, Node)
-func (r *ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (r *ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		if !ClassUtil_IsConstructor(n) || !ClassUtil_HasNamedClass(n) {
@@ -278,7 +278,7 @@ func (r *ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTr
 }
 
 // Java: ConvertToTypedInterface.RemoveNonDeclarations.visit(NodeTraversal, Node, Node)
-func (r *ConvertToTypedInterface_RemoveNonDeclarations) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *ConvertToTypedInterface_RemoveNonDeclarations) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_TRY, rhino.Token_LABEL, rhino.Token_DEFAULT_CASE, rhino.Token_CASE, rhino.Token_DO, rhino.Token_WHILE,
 		rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_IF:
@@ -328,7 +328,7 @@ func (r *ConvertToTypedInterface_RemoveNonDeclarations) Visit(t *NodeTraversal, 
 //   - Moves inline JSDoc annotations onto the declaration nodes.
 //
 // Java: ConvertToTypedInterface.RemoveNonDeclarations.splitNameDeclarationsAndRemoveDestructuring(Node, NodeTraversal)
-func ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemoveDestructuring(n *rhino.Node, t *NodeTraversal) {
+func ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemoveDestructuring(n rhino.Node, t *NodeTraversal) {
 	jutil.CheckArgument(NodeUtil_IsNameDeclaration(n))
 	sharedJsdoc := n.GetJSDocInfo()
 	isExport := n.GetParent().IsExport()
@@ -346,7 +346,7 @@ func ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemov
 			return
 		}
 		// A name declaration with more than one LHS is split into separate declarations.
-		var rhs *rhino.Node
+		var rhs rhino.Node
 		if lhsToSplit.HasChildren() {
 			rhs = lhsToSplit.RemoveFirstChild()
 		}
@@ -375,7 +375,7 @@ func NewConvertToTypedInterface_PropagateConstJsdoc(currentFile *FileInfo) *Conv
 }
 
 // Java: ConvertToTypedInterface.PropagateConstJsdoc.processConstWithRhs(NodeTraversal, Node)
-func (p *ConvertToTypedInterface_PropagateConstJsdoc) ProcessConstWithRhs(t *NodeTraversal, nameNode *rhino.Node) {
+func (p *ConvertToTypedInterface_PropagateConstJsdoc) ProcessConstWithRhs(t *NodeTraversal, nameNode rhino.Node) {
 	jutil.CheckArgumentMsg1(
 		nameNode.IsQualifiedName() ||
 			nameNode.IsStringKey() ||
@@ -521,9 +521,9 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessDeclaration(name s
 		ConvertToTypedInterface_MaybeReport(s.compiler, decl.GetLhs(), ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE)
 	}
 
-	if decl.GetRhs() != nil && decl.GetRhs().IsFunction() {
+	if !decl.GetRhs().IsNil() && decl.GetRhs().IsFunction() {
 		s.ProcessFunction(decl.GetRhs())
-	} else if decl.GetRhs() != nil && ConvertToTypedInterface_SimplifyDeclarations_IsClass(decl.GetRhs()) {
+	} else if !decl.GetRhs().IsNil() && ConvertToTypedInterface_SimplifyDeclarations_IsClass(decl.GetRhs()) {
 		s.ProcessClass(decl.GetRhs())
 	}
 	s.SetUndeclaredToUnusableType(decl)
@@ -532,9 +532,9 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessDeclaration(name s
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.processClass(Node)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessClass(n *rhino.Node) {
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessClass(n rhino.Node) {
 	jutil.CheckArgument(ConvertToTypedInterface_SimplifyDeclarations_IsClass(n))
-	for member := n.GetLastChild().GetFirstChild(); member != nil; {
+	for member := n.GetLastChild().GetFirstChild(); !member.IsNil(); {
 		next := member.GetNext()
 		switch member.GetToken() {
 		case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
@@ -564,15 +564,15 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessClass(n *rhino.Nod
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.processFunction(Node)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunction(n *rhino.Node) {
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunction(n rhino.Node) {
 	jutil.CheckArgument(n.IsFunction())
 	s.ProcessFunctionParameters(n.GetSecondChild())
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.processFunctionParameters(Node)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunctionParameters(paramList *rhino.Node) {
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunctionParameters(paramList rhino.Node) {
 	jutil.CheckArgument(paramList.IsParamList())
-	for arg := paramList.GetFirstChild(); arg != nil; arg = arg.GetNext() {
+	for arg := paramList.GetFirstChild(); !arg.IsNil(); arg = arg.GetNext() {
 		if arg.IsDefaultValue() {
 			rhs := arg.GetLastChild()
 			if rhs.IsCall() &&
@@ -587,7 +587,7 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunctionParameters
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.isClass(Node)
-func ConvertToTypedInterface_SimplifyDeclarations_IsClass(n *rhino.Node) bool {
+func ConvertToTypedInterface_SimplifyDeclarations_IsClass(n rhino.Node) bool {
 	return n.IsClass()
 }
 
@@ -608,7 +608,7 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldRemove(name string,
 	if strings.HasPrefix(ConvertToTypedInterface_SimplifyDeclarations_RootName(name), "$jscomp") {
 		// These are created by goog.scope processing, but clash with each other
 		// and should not be depended on.
-		if (decl.GetRhs() != nil && decl.GetRhs().IsClass()) ||
+		if (!decl.GetRhs().IsNil() && decl.GetRhs().IsClass()) ||
 			(decl.GetJsDoc() != nil && decl.GetJsDoc().ContainsTypeDefinition()) {
 			ConvertToTypedInterface_MaybeReport(s.compiler, decl.GetLhs(), ConvertToTypedInterface_GOOG_SCOPE_HIDDEN_TYPE)
 		}
@@ -628,7 +628,7 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) SetUndeclaredToUnusableTy
 	jsdoc := decl.GetJsDoc()
 	if decl.ShouldPreserve() ||
 		NodeUtil_IsNamespaceDecl(nameNode) ||
-		(decl.GetRhs() != nil && NodeUtil_IsCallTo(decl.GetRhs(), "Symbol")) ||
+		(!decl.GetRhs().IsNil() && NodeUtil_IsCallTo(decl.GetRhs(), "Symbol")) ||
 		(jsdoc != nil && jsdoc.ContainsDeclaration() && !decl.IsConstToBeInferred()) {
 		return
 	}
@@ -672,12 +672,12 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldElidePrivateMemberT
 }
 
 // Java: ConvertToTypedInterface.isSymbolProp(Node)
-func ConvertToTypedInterface_IsSymbolProp(lhs *rhino.Node) bool {
+func ConvertToTypedInterface_IsSymbolProp(lhs rhino.Node) bool {
 	return lhs.IsGetProp() && lhs.GetFirstChild().MatchesName("Symbol")
 }
 
 // Java: ConvertToTypedInterface.shouldPreserveAssignment(Node, NodeTraversal)
-func ConvertToTypedInterface_ShouldPreserveAssignment(expr *rhino.Node, t *NodeTraversal) bool {
+func ConvertToTypedInterface_ShouldPreserveAssignment(expr rhino.Node, t *NodeTraversal) bool {
 	lhs := expr.GetFirstChild()
 	// Ignore assignments in function bodies, unless they're also a constructor with a this. prop.
 	if !t.InGlobalHoistScope() && !t.InModuleHoistScope() {

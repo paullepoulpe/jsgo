@@ -327,7 +327,7 @@ func (c *ClosureCodingConventionTest) AssertNotCachingCall(code string) {
 }
 
 // Java: ClosureCodingConventionTest.parseTestCode(String)
-func (c *ClosureCodingConventionTest) ParseTestCode(code string) *rhino.Node {
+func (c *ClosureCodingConventionTest) ParseTestCode(code string) rhino.Node {
 	compiler := NewCompiler()
 	return compiler.ParseTestCode(code).GetFirstChild()
 }

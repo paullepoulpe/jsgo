@@ -77,69 +77,69 @@ const (
 type l11optPass struct {
 	name  string
 	stage l11optStage
-	run   func(c *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string)
+	run   func(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]string)
 }
 
 // l11optPasses is L11OptimizeDump.passes(), in the same order.
 func l11optPasses() []l11optPass {
 	var p []l11optPass
 	// raw
-	p = append(p, l11optPass{"RemoveCastNodes", l11optRaw, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"RemoveCastNodes", l11optRaw, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewRemoveCastNodes(c).Process(externs, js)
 	}})
-	p = append(p, l11optPass{"RemovePropertyRenamingCalls", l11optRaw, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"RemovePropertyRenamingCalls", l11optRaw, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewRemovePropertyRenamingCalls(c).Process(externs, js)
 	}})
-	p = append(p, l11optPass{"RemoveUnnecessarySyntheticExterns", l11optRaw, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"RemoveUnnecessarySyntheticExterns", l11optRaw, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewRemoveUnnecessarySyntheticExterns(c).Process(externs, js)
 	}})
-	p = append(p, l11optPass{"RenameLabels", l11optRaw, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"RenameLabels", l11optRaw, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewRenameLabels(c).Process(externs, js)
 	}})
 	p = append(p, l11optPass{"RenameVars", l11optRaw, l11optRenameVars})
 	// normalized
-	p = append(p, l11optPass{"CollapseAnonymousFunctions", l11optNormalized, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"CollapseAnonymousFunctions", l11optNormalized, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewCollapseAnonymousFunctions(c).Process(externs, js)
 	}})
 	for _, pattern := range ExtractPrototypeMemberDeclarations_Pattern_values() {
-		p = append(p, l11optPass{"ExtractPrototypeMemberDeclarations/" + pattern.String(), l11optNormalized, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+		p = append(p, l11optPass{"ExtractPrototypeMemberDeclarations/" + pattern.String(), l11optNormalized, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 			NewExtractPrototypeMemberDeclarations(c, pattern).Process(externs, js)
 		}})
 	}
 	for _, mode := range []CompilerOptions_AliasStringsMode{
 		CompilerOptions_AliasStringsMode_ALL, CompilerOptions_AliasStringsMode_LARGE, CompilerOptions_AliasStringsMode_ALL_AGGRESSIVE,
 	} {
-		p = append(p, l11optPass{"AliasStrings/" + mode.String(), l11optNormalized, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+		p = append(p, l11optPass{"AliasStrings/" + mode.String(), l11optNormalized, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 			NewAliasStrings(c, c.GetChunkGraph(), false, mode).Process(externs, js)
 		}})
 	}
-	p = append(p, l11optPass{"InlineObjectLiterals", l11optNormalized, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"InlineObjectLiterals", l11optNormalized, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewInlineObjectLiterals(c, c.GetUniqueNameIdSupplier()).Process(externs, js)
 	}})
-	p = append(p, l11optPass{"DeadPropertyAssignmentElimination", l11optNormalizedWithProperties, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"DeadPropertyAssignmentElimination", l11optNormalizedWithProperties, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewDeadPropertyAssignmentElimination(c).Process(externs, js)
 	}})
 	p = append(p, l11optPass{"OptimizeCalls", l11optNormalizedWithProperties, l11optOptimizeCalls})
 	p = append(p, l11optPass{"AnalyzePrototypeProperties", l11optNormalized, l11optAnalyzePrototypeProperties})
-	p = append(p, l11optPass{"ConcretizeStaticInheritanceForInlining", l11optNormalized, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"ConcretizeStaticInheritanceForInlining", l11optNormalized, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewConcretizeStaticInheritanceForInlining(c).Process(externs, js)
 	}})
-	p = append(p, l11optPass{"InferConsts", l11optNormalized, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"InferConsts", l11optNormalized, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewInferConsts(c).Process(externs, js)
 		l11optDumpConsts(js, extra)
 	}})
-	p = append(p, l11optPass{"FunctionArgumentInjector", l11optNormalized, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"FunctionArgumentInjector", l11optNormalized, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		l11optFunctionArgumentInjector(c, js, extra)
 	}})
 	// late
-	p = append(p, l11optPass{"Denormalize", l11optLate, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"Denormalize", l11optLate, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewDenormalize(c, c.GetOptions().GetOutputFeatureSet()).Process(externs, js)
 	}})
-	p = append(p, l11optPass{"CollapseVariableDeclarations", l11optLate, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"CollapseVariableDeclarations", l11optLate, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewCollapseVariableDeclarations(c).Process(externs, js)
 	}})
 	// pipeline
-	p = append(p, l11optPass{"RenameVarsAndLabels", l11optPipeline, func(c *Compiler, externs, js *rhino.Node, extra *[]string) {
+	p = append(p, l11optPass{"RenameVarsAndLabels", l11optPipeline, func(c *Compiler, externs, js rhino.Node, extra *[]string) {
 		l11optRenameVars(c, externs, js, extra)
 		NewRenameLabels(c).Process(externs, js)
 	}})
@@ -148,7 +148,7 @@ func l11optPasses() []l11optPass {
 
 // l11optRenameVars is L11OptimizeDump.renameVars: RenameVars configured
 // like DefaultPassConfig.runVariableRenaming with default options.
-func l11optRenameVars(c *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+func l11optRenameVars(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 	options := c.GetOptions()
 	reservedChars := jutil.NewLinkedHashSet[uint16]()
 	reservedNames := jutil.NewLinkedHashSet[string]()
@@ -173,12 +173,12 @@ func l11optRenameVars(c *Compiler, externs *rhino.Node, js *rhino.Node, extra *[
 	}
 }
 
-func l11optOptimizeCalls(c *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+func l11optOptimizeCalls(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 	for _, considerExterns := range []bool{false, true} {
 		OptimizeCalls_Builder_().
 			SetCompiler(c).
 			SetConsiderExterns(considerExterns).
-			AddPass(OptimizeCalls_CallGraphCompilerPassFunc(func(e *rhino.Node, r *rhino.Node, references *OptimizeCalls_ReferenceMap) {
+			AddPass(OptimizeCalls_CallGraphCompilerPassFunc(func(e rhino.Node, r rhino.Node, references *OptimizeCalls_ReferenceMap) {
 				*extra = append(*extra, "references considerExterns="+strconv.FormatBool(considerExterns))
 				for k, refs := range references.GetNameReferences() {
 					*extra = append(*extra, "name "+k+l11optRefs(refs.Slice()))
@@ -190,7 +190,7 @@ func l11optOptimizeCalls(c *Compiler, externs *rhino.Node, js *rhino.Node, extra
 				}
 				for _, refs := range references.GetNameReferences() {
 					for _, n := range refs.Slice() {
-						if n.GetParent() != nil {
+						if !n.GetParent().IsNil() {
 							l11optCallTarget(n, extra)
 						}
 					}
@@ -201,7 +201,7 @@ func l11optOptimizeCalls(c *Compiler, externs *rhino.Node, js *rhino.Node, extra
 	}
 }
 
-func l11optRefs(nodes []*rhino.Node) string {
+func l11optRefs(nodes []rhino.Node) string {
 	var sb strings.Builder
 	for _, n := range nodes {
 		sb.WriteByte(' ')
@@ -210,14 +210,14 @@ func l11optRefs(nodes []*rhino.Node) string {
 	return sb.String()
 }
 
-func l11optFunctionNodes(nodes []*rhino.Node, extra *[]string) {
+func l11optFunctionNodes(nodes []rhino.Node, extra *[]string) {
 	fns := OptimizeCalls_ReferenceMap_GetFunctionNodes(nodes)
 	for k, v := range fns.Entries() {
 		*extra = append(*extra, "  fn "+l11optPos(k)+" -> "+l11optPos(v))
 	}
 }
 
-func l11optCallTarget(n *rhino.Node, extra *[]string) {
+func l11optCallTarget(n rhino.Node, extra *[]string) {
 	var sb strings.Builder
 	sb.WriteString("  target " + l11optPos(n))
 	found := false
@@ -225,7 +225,7 @@ func l11optCallTarget(n *rhino.Node, extra *[]string) {
 		found = true
 		sb.WriteString(" call=" + l11optPos(OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(n)))
 		arg := OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n)
-		if arg == nil {
+		if arg.IsNil() {
 			sb.WriteString(" arg0=null")
 		} else {
 			sb.WriteString(" arg0=" + l11optPos(arg))
@@ -251,7 +251,7 @@ func l11optChunkName(chunk *JSChunk) string {
 	return chunk.GetName()
 }
 
-func l11optAnalyzePrototypeProperties(c *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+func l11optAnalyzePrototypeProperties(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 	app := NewAnalyzePrototypeProperties(
 		c,
 		c.GetChunkGraph(),
@@ -268,7 +268,7 @@ func l11optAnalyzePrototypeProperties(c *Compiler, externs *rhino.Node, js *rhin
 				" chunk="+l11optChunkName(info.GetDeepestCommonChunkRef()))
 		for _, s := range info.GetDeclarations().Slice() {
 			var kind string
-			var node *rhino.Node
+			var node rhino.Node
 			switch d := s.(type) {
 			case *AnalyzePrototypeProperties_GlobalFunction:
 				kind = "GlobalFunction"
@@ -285,7 +285,7 @@ func l11optAnalyzePrototypeProperties(c *Compiler, externs *rhino.Node, js *rhin
 				node = d.GetValue()
 			}
 			line := "  decl " + kind
-			if node != nil {
+			if !node.IsNil() {
 				line += " node=" + l11optPos(node)
 			}
 			if v := s.GetRootVar(); v == nil {
@@ -299,7 +299,7 @@ func l11optAnalyzePrototypeProperties(c *Compiler, externs *rhino.Node, js *rhin
 	}
 }
 
-func l11optDumpConsts(n *rhino.Node, extra *[]string) {
+func l11optDumpConsts(n rhino.Node, extra *[]string) {
 	if (n.IsName() || n.IsImportStar()) &&
 		(n.IsDeclaredConstantVar() || n.IsInferredConstantVar()) {
 		*extra = append(*extra,
@@ -307,16 +307,16 @@ func l11optDumpConsts(n *rhino.Node, extra *[]string) {
 				" declared="+strconv.FormatBool(n.IsDeclaredConstantVar())+
 				" inferred="+strconv.FormatBool(n.IsInferredConstantVar()))
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		l11optDumpConsts(c, extra)
 	}
 }
 
 const l11optMaxInjectorPairs = 200
 
-func l11optFunctionArgumentInjector(c *Compiler, js *rhino.Node, extra *[]string) {
+func l11optFunctionArgumentInjector(c *Compiler, js rhino.Node, extra *[]string) {
 	injector := NewFunctionArgumentInjector(c.GetAstAnalyzer())
-	var fns, calls []*rhino.Node
+	var fns, calls []rhino.Node
 	l11optCollect(js, &fns, &calls)
 	pairs := 0
 	for _, fn := range fns {
@@ -353,10 +353,10 @@ func l11optFunctionArgumentInjector(c *Compiler, js *rhino.Node, extra *[]string
 	}
 }
 
-func l11optCollect(n *rhino.Node, fns *[]*rhino.Node, calls *[]*rhino.Node) {
+func l11optCollect(n rhino.Node, fns *[]rhino.Node, calls *[]rhino.Node) {
 	if NodeUtil_IsFunctionDeclaration(n) && n.GetFirstChild().GetString() != "" {
 		plain := true
-		for p := NodeUtil_GetFunctionParameters(n).GetFirstChild(); p != nil; p = p.GetNext() {
+		for p := NodeUtil_GetFunctionParameters(n).GetFirstChild(); !p.IsNil(); p = p.GetNext() {
 			if !(p.IsName() || (p.IsRest() && p.GetOnlyChild().IsName())) {
 				plain = false
 			}
@@ -368,12 +368,12 @@ func l11optCollect(n *rhino.Node, fns *[]*rhino.Node, calls *[]*rhino.Node) {
 	if n.IsCall() && n.GetFirstChild().IsName() {
 		*calls = append(*calls, n)
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		l11optCollect(c, fns, calls)
 	}
 }
 
-func l11optPos(n *rhino.Node) string {
+func l11optPos(n rhino.Node) string {
 	return n.GetToken().String() + "@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
 }
 

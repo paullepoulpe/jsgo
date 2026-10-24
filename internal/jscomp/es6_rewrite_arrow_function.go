@@ -47,7 +47,7 @@ func NewEs6RewriteArrowFunction(compiler AbstractCompiler) *Es6RewriteArrowFunct
 }
 
 // Java: Es6RewriteArrowFunction.process(Node, Node)
-func (e *Es6RewriteArrowFunction) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6RewriteArrowFunction) Process(externs rhino.Node, root rhino.Node) {
 	TranspilationPasses_ProcessTranspile(e.compiler, root, Es6RewriteArrowFunction_transpiledFeatures, e)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, Es6RewriteArrowFunction_transpiledFeatures)
 }
@@ -63,7 +63,7 @@ func (e *Es6RewriteArrowFunction) contextStackPeek() *ThisAndArgumentsReferenceU
 }
 
 // Java: Es6RewriteArrowFunction.shouldTraverse(NodeTraversal, Node, Node)
-func (e *Es6RewriteArrowFunction) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (e *Es6RewriteArrowFunction) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		e.contextStack = append(e.contextStack, e.ContextForScript(n, t.GetInput()))
@@ -86,15 +86,15 @@ func (e *Es6RewriteArrowFunction) ShouldTraverse(t *NodeTraversal, n *rhino.Node
 // and contains n.
 //
 // Java: Es6RewriteArrowFunction.getEnclosingStatement(Node, Node)
-func (e *Es6RewriteArrowFunction) GetEnclosingStatement(n *rhino.Node, block *rhino.Node) *rhino.Node {
-	for jutil.CheckNotNull(n.GetParent()) != block {
-		n = jutil.CheckNotNull(NodeUtil_GetEnclosingStatement(n.GetParent()))
+func (e *Es6RewriteArrowFunction) GetEnclosingStatement(n rhino.Node, block rhino.Node) rhino.Node {
+	for rhino.CheckNotNull(n.GetParent()) != block {
+		n = rhino.CheckNotNull(NodeUtil_GetEnclosingStatement(n.GetParent()))
 	}
 	return n
 }
 
 // Java: Es6RewriteArrowFunction.visit(NodeTraversal, Node, Node)
-func (e *Es6RewriteArrowFunction) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteArrowFunction) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	context := e.contextStackPeek()
 
 	if n.IsArrowFunction() {
@@ -106,7 +106,7 @@ func (e *Es6RewriteArrowFunction) Visit(t *NodeTraversal, n *rhino.Node, parent 
 }
 
 // Java: Es6RewriteArrowFunction.visitArrowFunction(NodeTraversal, Node, ThisAndArgumentsContext)
-func (e *Es6RewriteArrowFunction) VisitArrowFunction(t *NodeTraversal, n *rhino.Node, context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) {
+func (e *Es6RewriteArrowFunction) VisitArrowFunction(t *NodeTraversal, n rhino.Node, context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) {
 	n.SetIsArrowFunction(false)
 
 	body := n.GetLastChild()
@@ -120,7 +120,7 @@ func (e *Es6RewriteArrowFunction) VisitArrowFunction(t *NodeTraversal, n *rhino.
 }
 
 // Java: Es6RewriteArrowFunction.contextForFunction(Node, CompilerInput)
-func (e *Es6RewriteArrowFunction) ContextForFunction(functionNode *rhino.Node, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
+func (e *Es6RewriteArrowFunction) ContextForFunction(functionNode rhino.Node, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
 	scopeBody := functionNode.GetLastChild()
 	return NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
 		scopeBody,
@@ -129,7 +129,7 @@ func (e *Es6RewriteArrowFunction) ContextForFunction(functionNode *rhino.Node, i
 }
 
 // Java: Es6RewriteArrowFunction.contextForScript(Node, CompilerInput)
-func (e *Es6RewriteArrowFunction) ContextForScript(scriptNode *rhino.Node, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
+func (e *Es6RewriteArrowFunction) ContextForScript(scriptNode rhino.Node, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
 	return NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
 		scriptNode /* isConstructor= */, false, e.compiler.GetUniqueIdSupplier().GetUniqueId(input))
 }

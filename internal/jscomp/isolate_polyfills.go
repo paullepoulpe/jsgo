@@ -44,9 +44,9 @@ import (
 type IsolatePolyfills struct {
 	compiler              AbstractCompiler
 	polyfills             *PolyfillUsageFinder_Polyfills
-	jscompPolyfillsObject *rhino.Node
+	jscompPolyfillsObject rhino.Node
 
-	jscompLookupMethod *rhino.Node
+	jscompLookupMethod rhino.Node
 
 	usedPolyfillMethodLookup bool
 	isTempVarInitialized     bool
@@ -81,7 +81,7 @@ func NewIsolatePolyfillsWithPolyfills(compiler AbstractCompiler, polyfills *Poly
 // IsolatePolyfills_CreateCollapsedName returns a name `$jscomp$polyfills`
 //
 // Java: IsolatePolyfills.createCollapsedName()
-func IsolatePolyfills_CreateCollapsedName() *rhino.Node {
+func IsolatePolyfills_CreateCollapsedName() rhino.Node {
 	collapsedName := rhino.IR_Name("$jscomp$polyfills")
 	collapsedName.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 	return collapsedName
@@ -91,14 +91,14 @@ func IsolatePolyfills_CreateCollapsedName() *rhino.Node {
 // `$jscomp.polyfills`
 //
 // Java: IsolatePolyfills.createJSCompPolyfillsAccess()
-func IsolatePolyfills_CreateJSCompPolyfillsAccess() *rhino.Node {
+func IsolatePolyfills_CreateJSCompPolyfillsAccess() rhino.Node {
 	jscomp := rhino.IR_Name("$jscomp")
 	jscomp.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 	return rhino.IR_Getprop(jscomp, "polyfills")
 }
 
 // Java: IsolatePolyfills.process(Node, Node)
-func (i *IsolatePolyfills) Process(externs *rhino.Node, root *rhino.Node) {
+func (i *IsolatePolyfills) Process(externs rhino.Node, root rhino.Node) {
 	// Calculate the set of polyfills that are actually present in the AST. It may be a subset of
 	// the potential polyfills which PolyfillFindingCallback finds (it's fine if it's a superset.)
 	injectedPolyfills := i.FindAllInjectedPolyfills()
@@ -109,7 +109,7 @@ func (i *IsolatePolyfills) Process(externs *rhino.Node, root *rhino.Node) {
 			polyfillUsages = append(polyfillUsages, u)
 		})
 
-	visitedNodes := jutil.NewLinkedHashSet[*rhino.Node]()
+	visitedNodes := jutil.NewLinkedHashSet[rhino.Node]()
 	for _, usage := range polyfillUsages {
 		if
 		// Some nodes map to more than one polyfill usage. For example, `x.includes` maps to both
@@ -166,7 +166,7 @@ type isolatePolyfills_findAllInjectedPolyfillsCallback struct {
 }
 
 // Java: IsolatePolyfills.findAllInjectedPolyfills().new AbstractShallowCallback() {...}.visit(NodeTraversal, Node, Node)
-func (c *isolatePolyfills_findAllInjectedPolyfillsCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *isolatePolyfills_findAllInjectedPolyfillsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if c.outer.IsJSCompPolyfillCall(n) {
 		// CALL
 		//  GETPROP/NAME $jscomp.polyfill
@@ -178,7 +178,7 @@ func (c *isolatePolyfills_findAllInjectedPolyfillsCallback) Visit(t *NodeTravers
 }
 
 // Java: IsolatePolyfills.isJSCompPolyfillCall(Node)
-func (i *IsolatePolyfills) IsJSCompPolyfillCall(call *rhino.Node) bool {
+func (i *IsolatePolyfills) IsJSCompPolyfillCall(call rhino.Node) bool {
 	if !call.IsCall() {
 		return false
 	}
@@ -286,15 +286,15 @@ var isolatePolyfills_FILES_ALLOWED_UNQUALIFIED_POLYFILL_ACCESSES = jutil.NewLink
 // After: `(tmpNode = receiver, lookupPolyfilledValue(tmpNode, 'method')).call(tmpNode, arg)`
 //
 // Java: IsolatePolyfills.rewritePolyfillInCall(Node)
-func (i *IsolatePolyfills) RewritePolyfillInCall(callee *rhino.Node) {
+func (i *IsolatePolyfills) RewritePolyfillInCall(callee rhino.Node) {
 	methodName := rhino.IR_String(callee.GetString()).Srcref(callee)
 	receiver := callee.RemoveFirstChild()
 	isCalleeOptChain := NodeUtil_IsOptChainNode(callee)
 
 	requiresTemp := i.compiler.GetAstAnalyzer().MayEffectMutableState(receiver)
 
-	var polyfilledMethod *rhino.Node
-	var thisNode *rhino.Node
+	var polyfilledMethod rhino.Node
+	var thisNode rhino.Node
 
 	if requiresTemp {
 		// e.g. `sideEffects().includes(arg)`
@@ -312,7 +312,7 @@ func (i *IsolatePolyfills) RewritePolyfillInCall(callee *rhino.Node) {
 
 	// Fix the `this` type by using .call:
 	//   lookupMethod(receiver, 'includes', isOptChainNode).call(receiver, arg)
-	var receiverDotCall *rhino.Node
+	var receiverDotCall rhino.Node
 	if NodeUtil_IsOptChainNode(callee) {
 		// If optional chaining exists at this point, we can have it in the output
 		receiverDotCall = rhino.IR_StartOptChainGetprop(polyfilledMethod, "call").SrcrefTree(callee)
@@ -324,7 +324,7 @@ func (i *IsolatePolyfills) RewritePolyfillInCall(callee *rhino.Node) {
 }
 
 // Java: IsolatePolyfills.createTempName(Node)
-func (i *IsolatePolyfills) CreateTempName(srcref *rhino.Node) *rhino.Node {
+func (i *IsolatePolyfills) CreateTempName(srcref rhino.Node) rhino.Node {
 	if !i.isTempVarInitialized {
 		i.isTempVarInitialized = true
 		decl := rhino.IR_Var(rhino.IR_Name(isolatePolyfills_POLYFILL_TEMP)).SrcrefTree(srcref)
@@ -342,9 +342,9 @@ func (i *IsolatePolyfills) CreateTempName(srcref *rhino.Node) *rhino.Node {
 // `$jscomp$lookupPolyfilledValue(receiver, 'methodName', isOptChainNode)`
 //
 // Java: IsolatePolyfills.createPolyfillMethodLookup(Node, Node, boolean)
-func (i *IsolatePolyfills) CreatePolyfillMethodLookup(receiver *rhino.Node, methodName *rhino.Node, isOptChainNode bool) *rhino.Node {
+func (i *IsolatePolyfills) CreatePolyfillMethodLookup(receiver rhino.Node, methodName rhino.Node, isOptChainNode bool) rhino.Node {
 	i.usedPolyfillMethodLookup = true
-	var call *rhino.Node
+	var call rhino.Node
 	if isOptChainNode {
 		call = rhino.IR_Call(i.jscompLookupMethod.CloneTree(), receiver, methodName, rhino.IR_TrueNode())
 	} else {

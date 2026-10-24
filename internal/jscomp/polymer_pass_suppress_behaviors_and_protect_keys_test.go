@@ -76,7 +76,7 @@ func TestPolymerPassSuppressBehaviorsAndProtectKeysTest(t *testing.T) {
 
 // Java: PolymerPassSuppressBehaviorsAndProtectKeysTest.getProcessor(Compiler)
 func (c *PolymerPassSuppressBehaviorsAndProtectKeysTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		suppressBehaviorsCallback :=
 			NewPolymerPassSuppressBehaviorsAndProtectKeys(compiler)
 		NodeTraversal_Traverse(compiler, root, suppressBehaviorsCallback)

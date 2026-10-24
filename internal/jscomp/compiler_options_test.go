@@ -122,7 +122,7 @@ func TestCompilerOptions_Defines(t *testing.T) {
 	compilerOptionsTest_assertEquivalent(t, rhino.Node_NewString("str"), actual.Get("strVar"))
 }
 
-func compilerOptionsTest_assertEquivalent(t *testing.T, a *rhino.Node, b *rhino.Node) {
+func compilerOptionsTest_assertEquivalent(t *testing.T, a rhino.Node, b rhino.Node) {
 	t.Helper()
 	if !a.IsEquivalentTo(b) {
 		t.Errorf("%v is not equivalent to %v", a, b)

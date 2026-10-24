@@ -34,15 +34,15 @@ type PotentialDeclaration interface {
 	// Java: PotentialDeclaration.getFullyQualifiedName()
 	GetFullyQualifiedName() string
 	// Java: PotentialDeclaration.getLhs()
-	GetLhs() *rhino.Node
+	GetLhs() rhino.Node
 	// Java: PotentialDeclaration.getRhs()
-	GetRhs() *rhino.Node
+	GetRhs() rhino.Node
 	// Java: PotentialDeclaration.getJsDoc()
 	GetJsDoc() *rhino.JSDocInfo
 	// Java: PotentialDeclaration.isDetached()
 	IsDetached() bool
 	// Java: PotentialDeclaration.getRemovableNode()
-	GetRemovableNode() *rhino.Node
+	GetRemovableNode() rhino.Node
 	// Java: PotentialDeclaration.remove(AbstractCompiler)
 	Remove(compiler AbstractCompiler)
 	// Java: PotentialDeclaration.simplify(AbstractCompiler)
@@ -65,9 +65,9 @@ type PotentialDeclarationBase struct {
 	// The fully qualified name of the declaration.
 	fullyQualifiedName string
 	// The LHS node of the declaration.
-	lhs *rhino.Node
+	lhs rhino.Node
 	// The RHS node of the declaration, if it exists.
-	rhs *rhino.Node
+	rhs rhino.Node
 }
 
 // The threshold for trunctating string enum items. Any string literal longer
@@ -76,10 +76,10 @@ type PotentialDeclarationBase struct {
 const potentialDeclaration_STRING_ENUM_RETAIN_CAP = 10
 
 // Java: PotentialDeclaration(String, Node, Node)
-func (b *PotentialDeclarationBase) InitPotentialDeclarationBase(self PotentialDeclaration, fullyQualifiedName string, lhs *rhino.Node, rhs *rhino.Node) {
+func (b *PotentialDeclarationBase) InitPotentialDeclarationBase(self PotentialDeclaration, fullyQualifiedName string, lhs rhino.Node, rhs rhino.Node) {
 	b.self = self
 	b.fullyQualifiedName = fullyQualifiedName // checkNotNull: a Go string cannot be null
-	b.lhs = jutil.CheckNotNull(lhs)
+	b.lhs = rhino.CheckNotNull(lhs)
 	b.rhs = rhs
 }
 
@@ -87,7 +87,7 @@ func (b *PotentialDeclarationBase) InitPotentialDeclarationBase(self PotentialDe
 func (b *PotentialDeclarationBase) GetPotentialDeclarationBase() *PotentialDeclarationBase { return b }
 
 // Java: PotentialDeclaration.fromName(Node)
-func PotentialDeclaration_FromName(nameNode *rhino.Node) PotentialDeclaration {
+func PotentialDeclaration_FromName(nameNode rhino.Node) PotentialDeclaration {
 	jutil.CheckArgumentMsg1(nameNode.IsQualifiedName(), "%s", nameNode)
 	rhs := NodeUtil_GetRValueOfLValue(nameNode)
 	if ClassUtil_IsThisPropInsideClassWithName(nameNode) {
@@ -98,7 +98,7 @@ func PotentialDeclaration_FromName(nameNode *rhino.Node) PotentialDeclaration {
 }
 
 // Java: PotentialDeclaration.fromMemberFieldDef(Node)
-func PotentialDeclaration_FromMemberFieldDef(fieldNode *rhino.Node) PotentialDeclaration {
+func PotentialDeclaration_FromMemberFieldDef(fieldNode rhino.Node) PotentialDeclaration {
 	jutil.CheckArgument(fieldNode.IsMemberFieldDef())
 	rhs := NodeUtil_GetRValueOfLValue(fieldNode)
 	name := ClassUtil_GetFullyQualifiedNameOfMemberFieldDef(fieldNode)
@@ -107,14 +107,14 @@ func PotentialDeclaration_FromMemberFieldDef(fieldNode *rhino.Node) PotentialDec
 }
 
 // Java: PotentialDeclaration.fromMethod(Node)
-func PotentialDeclaration_FromMethod(functionNode *rhino.Node) PotentialDeclaration {
+func PotentialDeclaration_FromMethod(functionNode rhino.Node) PotentialDeclaration {
 	jutil.CheckArgument(ClassUtil_IsClassMethod(functionNode))
 	name := ClassUtil_GetFullyQualifiedNameOfMethod(functionNode)
 	return NewPotentialDeclaration_MethodDeclaration(name, functionNode)
 }
 
 // Java: PotentialDeclaration.fromStringKey(Node)
-func PotentialDeclaration_FromStringKey(stringKeyNode *rhino.Node) PotentialDeclaration {
+func PotentialDeclaration_FromStringKey(stringKeyNode rhino.Node) PotentialDeclaration {
 	jutil.CheckArgument(stringKeyNode.IsStringKey())
 	jutil.CheckArgument(stringKeyNode.GetParent().IsObjectLit())
 	name := "this." + stringKeyNode.GetString()
@@ -128,13 +128,13 @@ func PotentialDeclaration_FromStringKey(stringKeyNode *rhino.Node) PotentialDecl
 }
 
 // Java: PotentialDeclaration.fromDefine(Node)
-func PotentialDeclaration_FromDefine(callNode *rhino.Node) PotentialDeclaration {
+func PotentialDeclaration_FromDefine(callNode rhino.Node) PotentialDeclaration {
 	jutil.CheckArgument(NodeUtil_IsCallTo(callNode, "goog.define"))
 	return PotentialDeclaration_DefineDeclaration_From(callNode)
 }
 
 // Java: PotentialDeclaration.fromAlias(Node)
-func PotentialDeclaration_FromAlias(nameNode *rhino.Node) PotentialDeclaration {
+func PotentialDeclaration_FromAlias(nameNode rhino.Node) PotentialDeclaration {
 	jutil.CheckArgumentMsg1(nameNode.IsQualifiedName(), "%s", nameNode)
 	return NewPotentialDeclaration_AliasDeclaration(*nameNode.GetQualifiedName(), nameNode)
 }
@@ -145,12 +145,12 @@ func (b *PotentialDeclarationBase) GetFullyQualifiedName() string {
 }
 
 // Java: PotentialDeclaration.getLhs()
-func (b *PotentialDeclarationBase) GetLhs() *rhino.Node {
+func (b *PotentialDeclarationBase) GetLhs() rhino.Node {
 	return b.lhs
 }
 
 // Java: PotentialDeclaration.getRhs()
-func (b *PotentialDeclarationBase) GetRhs() *rhino.Node {
+func (b *PotentialDeclarationBase) GetRhs() rhino.Node {
 	return b.rhs
 }
 
@@ -161,7 +161,7 @@ func (b *PotentialDeclarationBase) GetJsDoc() *rhino.JSDocInfo {
 
 // Java: PotentialDeclaration.isDetached()
 func (b *PotentialDeclarationBase) IsDetached() bool {
-	for current := b.lhs; current != nil; current = current.GetParent() {
+	for current := b.lhs; !current.IsNil(); current = current.GetParent() {
 		if current.IsScript() {
 			return false
 		}
@@ -170,7 +170,7 @@ func (b *PotentialDeclarationBase) IsDetached() bool {
 }
 
 // Java: PotentialDeclaration.getRemovableNode()
-func (b *PotentialDeclarationBase) GetRemovableNode() *rhino.Node {
+func (b *PotentialDeclarationBase) GetRemovableNode() rhino.Node {
 	return NodeUtil_GetEnclosingStatement(b.lhs)
 }
 
@@ -210,7 +210,7 @@ type PotentialDeclaration_NameDeclaration struct {
 }
 
 // Java: PotentialDeclaration.NameDeclaration(String, Node, Node)
-func NewPotentialDeclaration_NameDeclaration(fullyQualifiedName string, lhs *rhino.Node, rhs *rhino.Node) *PotentialDeclaration_NameDeclaration {
+func NewPotentialDeclaration_NameDeclaration(fullyQualifiedName string, lhs rhino.Node, rhs rhino.Node) *PotentialDeclaration_NameDeclaration {
 	d := &PotentialDeclaration_NameDeclaration{}
 	d.InitPotentialDeclarationBase(d, fullyQualifiedName, lhs, rhs)
 	return d
@@ -236,7 +236,7 @@ func (d *PotentialDeclaration_NameDeclaration) SimplifySymbol(compiler AbstractC
 
 // Java: PotentialDeclaration.NameDeclaration.simplify(AbstractCompiler)
 func (d *PotentialDeclaration_NameDeclaration) Simplify(compiler AbstractCompiler) {
-	if d.GetRhs() == nil || d.ShouldPreserve() {
+	if d.GetRhs().IsNil() || d.ShouldPreserve() {
 		return
 	}
 	nameNode := d.GetLhs()
@@ -264,7 +264,7 @@ func (d *PotentialDeclaration_NameDeclaration) Simplify(compiler AbstractCompile
 	}
 	// Just completely remove the RHS, and replace with a getprop.
 	newStatement :=
-		NodeUtil_NewQNameDeclaration(compiler, *nameNode.GetQualifiedName(), nil, jsdoc)
+		NodeUtil_NewQNameDeclaration(compiler, *nameNode.GetQualifiedName(), rhino.Node{}, jsdoc)
 	newStatement.SrcrefTreeIfMissing(nameNode)
 	oldStatement := d.GetRemovableNode()
 	NodeUtil_DeleteChildren(oldStatement, compiler)
@@ -291,14 +291,14 @@ func (d *PotentialDeclaration_NameDeclaration) BreakDownDestructure(compiler Abs
 
 	definitionNode := rootTarget.GetGrandparent()
 
-	var prev *rhino.Node
+	var prev rhino.Node
 
-	var lhsNodes []*rhino.Node
-	NodeUtil_VisitLhsNodesInNode(rootTarget.GetParent(), func(n *rhino.Node) { lhsNodes = append(lhsNodes, n) })
+	var lhsNodes []rhino.Node
+	NodeUtil_VisitLhsNodesInNode(rootTarget.GetParent(), func(n rhino.Node) { lhsNodes = append(lhsNodes, n) })
 	for _, n := range lhsNodes {
 		n.Detach()
 		temp := rhino.IR_Var(n)
-		if prev == nil {
+		if prev.IsNil() {
 			definitionNode.ReplaceWith(temp)
 			compiler.ReportChangeToEnclosingScope(temp)
 		} else {
@@ -312,7 +312,7 @@ func (d *PotentialDeclaration_NameDeclaration) BreakDownDestructure(compiler Abs
 }
 
 // Java: PotentialDeclaration.NameDeclaration.replaceRhsWithUnknown(Node)
-func PotentialDeclaration_NameDeclaration_ReplaceRhsWithUnknown(rhs *rhino.Node) {
+func PotentialDeclaration_NameDeclaration_ReplaceRhsWithUnknown(rhs rhino.Node) {
 	rhs.ReplaceWith(rhino.IR_Cast(rhino.IR_Number(0), JsdocUtil_GetQmarkTypeJSDoc()).SrcrefTree(rhs))
 }
 
@@ -324,13 +324,13 @@ func (d *PotentialDeclaration_NameDeclaration) ShouldPreserve() bool {
 	isExport := PotentialDeclaration_IsExportLhs(nameNode)
 	return d.PotentialDeclarationBase.ShouldPreserve() ||
 		PotentialDeclaration_IsImportRhs(rhs) ||
-		(isExport && rhs != nil && (rhs.IsQualifiedName() || rhs.IsObjectLit())) ||
-		(jsdoc != nil && jsdoc.IsConstructor() && rhs != nil && rhs.IsQualifiedName()) ||
-		(rhs != nil &&
+		(isExport && !rhs.IsNil() && (rhs.IsQualifiedName() || rhs.IsObjectLit())) ||
+		(jsdoc != nil && jsdoc.IsConstructor() && !rhs.IsNil() && rhs.IsQualifiedName()) ||
+		(!rhs.IsNil() &&
 			rhs.IsObjectLit() &&
 			!rhs.HasChildren() &&
 			(jsdoc == nil || !JsdocUtil_HasAnnotatedType(jsdoc))) ||
-		(rhs != nil && NodeUtil_IsCallTo(rhs, "Polymer")) ||
+		(!rhs.IsNil() && NodeUtil_IsCallTo(rhs, "Polymer")) ||
 		d.IsPolymerBehaviorAliasOrArray()
 }
 
@@ -351,7 +351,7 @@ func (d *PotentialDeclaration_NameDeclaration) IsPolymerBehaviorAliasOrArray() b
 	rhs := d.GetRhs()
 	return jsdoc != nil &&
 		jsdoc.IsPolymerBehavior() &&
-		rhs != nil &&
+		!rhs.IsNil() &&
 		(rhs.IsName() || rhs.IsArrayLit())
 }
 
@@ -360,11 +360,11 @@ func (d *PotentialDeclaration_NameDeclaration) IsPolymerBehaviorAliasOrArray() b
 type PotentialDeclaration_ThisPropDeclaration struct {
 	PotentialDeclarationBase
 
-	insertionPoint *rhino.Node
+	insertionPoint rhino.Node
 }
 
 // Java: PotentialDeclaration.ThisPropDeclaration(String, Node, Node)
-func NewPotentialDeclaration_ThisPropDeclaration(fullyQualifiedName string, lhs *rhino.Node, rhs *rhino.Node) *PotentialDeclaration_ThisPropDeclaration {
+func NewPotentialDeclaration_ThisPropDeclaration(fullyQualifiedName string, lhs rhino.Node, rhs rhino.Node) *PotentialDeclaration_ThisPropDeclaration {
 	d := &PotentialDeclaration_ThisPropDeclaration{}
 	d.InitPotentialDeclarationBase(d, fullyQualifiedName, lhs, rhs)
 	thisPropDefinition := NodeUtil_GetEnclosingStatement(lhs)
@@ -379,7 +379,7 @@ func (d *PotentialDeclaration_ThisPropDeclaration) Simplify(compiler AbstractCom
 	}
 	// Just completely remove the RHS, if present, and replace with a getprop.
 	newStatement :=
-		NodeUtil_NewQNameDeclaration(compiler, d.GetFullyQualifiedName(), nil, d.GetJsDoc())
+		NodeUtil_NewQNameDeclaration(compiler, d.GetFullyQualifiedName(), rhino.Node{}, d.GetJsDoc())
 	newStatement.SrcrefTreeIfMissing(d.GetLhs())
 	NodeUtil_DeleteNode(d.GetRemovableNode(), compiler)
 	if d.insertionPoint.HasParent() {
@@ -397,7 +397,7 @@ type PotentialDeclaration_DefineDeclaration struct {
 }
 
 // Java: PotentialDeclaration.DefineDeclaration(String, Node, Node)
-func NewPotentialDeclaration_DefineDeclaration(qualifiedName string, lhs *rhino.Node, rhs *rhino.Node) *PotentialDeclaration_DefineDeclaration {
+func NewPotentialDeclaration_DefineDeclaration(qualifiedName string, lhs rhino.Node, rhs rhino.Node) *PotentialDeclaration_DefineDeclaration {
 	d := &PotentialDeclaration_DefineDeclaration{}
 	d.InitPotentialDeclarationBase(d, qualifiedName, lhs, rhs)
 	return d
@@ -408,7 +408,7 @@ func (d *PotentialDeclaration_DefineDeclaration) Simplify(compiler AbstractCompi
 	info := d.GetJsDoc()
 	if info != nil && info.GetType() != nil {
 		newRhs := PotentialDeclaration_DefineDeclaration_MakeEmptyValueNode(info.GetType())
-		if newRhs != nil {
+		if !newRhs.IsNil() {
 			d.GetRhs().ReplaceWith(newRhs)
 			compiler.ReportChangeToEnclosingScope(newRhs)
 			return
@@ -418,7 +418,7 @@ func (d *PotentialDeclaration_DefineDeclaration) Simplify(compiler AbstractCompi
 }
 
 // Java: PotentialDeclaration.DefineDeclaration.from(Node)
-func PotentialDeclaration_DefineDeclaration_From(callNode *rhino.Node) *PotentialDeclaration_DefineDeclaration {
+func PotentialDeclaration_DefineDeclaration_From(callNode rhino.Node) *PotentialDeclaration_DefineDeclaration {
 	// Match a few different forms, depending on the call node's parent:
 	//   1. EXPR_RESULT: goog.define('foo', 1);
 	//   2. ASSIGN: a.b = goog.define('c', 2);
@@ -441,13 +441,13 @@ func PotentialDeclaration_DefineDeclaration_From(callNode *rhino.Node) *Potentia
 }
 
 // Java: PotentialDeclaration.DefineDeclaration.makeEmptyValueNode(JSTypeExpression)
-func PotentialDeclaration_DefineDeclaration_MakeEmptyValueNode(type_ *rhino.JSTypeExpression) *rhino.Node {
+func PotentialDeclaration_DefineDeclaration_MakeEmptyValueNode(type_ *rhino.JSTypeExpression) rhino.Node {
 	n := type_.GetRoot()
-	for n != nil && !n.IsStringLit() && !n.IsName() {
+	for !n.IsNil() && !n.IsStringLit() && !n.IsName() {
 		n = n.GetFirstChild()
 	}
 	s := ""
-	if n != nil {
+	if !n.IsNil() {
 		s = n.GetString()
 	}
 	switch s {
@@ -458,7 +458,7 @@ func PotentialDeclaration_DefineDeclaration_MakeEmptyValueNode(type_ *rhino.JSTy
 	case "string":
 		return rhino.Node_NewString("")
 	default:
-		return nil
+		return rhino.Node{}
 	}
 }
 
@@ -470,7 +470,7 @@ type PotentialDeclaration_MethodDeclaration struct {
 }
 
 // Java: PotentialDeclaration.MethodDeclaration(String, Node)
-func NewPotentialDeclaration_MethodDeclaration(name string, functionNode *rhino.Node) *PotentialDeclaration_MethodDeclaration {
+func NewPotentialDeclaration_MethodDeclaration(name string, functionNode rhino.Node) *PotentialDeclaration_MethodDeclaration {
 	d := &PotentialDeclaration_MethodDeclaration{}
 	d.InitPotentialDeclarationBase(d, name, functionNode.GetParent(), functionNode)
 	return d
@@ -480,7 +480,7 @@ func NewPotentialDeclaration_MethodDeclaration(name string, functionNode *rhino.
 func (d *PotentialDeclaration_MethodDeclaration) Simplify(compiler AbstractCompiler) {}
 
 // Java: PotentialDeclaration.MethodDeclaration.getRemovableNode()
-func (d *PotentialDeclaration_MethodDeclaration) GetRemovableNode() *rhino.Node {
+func (d *PotentialDeclaration_MethodDeclaration) GetRemovableNode() rhino.Node {
 	return d.GetLhs()
 }
 
@@ -491,7 +491,7 @@ type PotentialDeclaration_MemberFieldDeclaration struct {
 }
 
 // Java: PotentialDeclaration.MemberFieldDeclaration(String, Node, Node)
-func NewPotentialDeclaration_MemberFieldDeclaration(name string, lhs *rhino.Node, rhs *rhino.Node) *PotentialDeclaration_MemberFieldDeclaration {
+func NewPotentialDeclaration_MemberFieldDeclaration(name string, lhs rhino.Node, rhs rhino.Node) *PotentialDeclaration_MemberFieldDeclaration {
 	d := &PotentialDeclaration_MemberFieldDeclaration{}
 	d.InitPotentialDeclarationBase(d, name, lhs, rhs)
 	return d
@@ -500,13 +500,13 @@ func NewPotentialDeclaration_MemberFieldDeclaration(name string, lhs *rhino.Node
 // Java: PotentialDeclaration.MemberFieldDeclaration.simplify(AbstractCompiler)
 func (d *PotentialDeclaration_MemberFieldDeclaration) Simplify(compiler AbstractCompiler) {
 	rhs := d.GetRhs()
-	if rhs != nil {
+	if !rhs.IsNil() {
 		NodeUtil_DeleteNode(rhs, compiler)
 	}
 }
 
 // Java: PotentialDeclaration.MemberFieldDeclaration.getRemovableNode()
-func (d *PotentialDeclaration_MemberFieldDeclaration) GetRemovableNode() *rhino.Node {
+func (d *PotentialDeclaration_MemberFieldDeclaration) GetRemovableNode() rhino.Node {
 	return d.GetLhs()
 }
 
@@ -517,7 +517,7 @@ type PotentialDeclaration_StringKeyDeclaration struct {
 }
 
 // Java: PotentialDeclaration.StringKeyDeclaration(String, Node)
-func NewPotentialDeclaration_StringKeyDeclaration(name string, stringKeyNode *rhino.Node) *PotentialDeclaration_StringKeyDeclaration {
+func NewPotentialDeclaration_StringKeyDeclaration(name string, stringKeyNode rhino.Node) *PotentialDeclaration_StringKeyDeclaration {
 	d := &PotentialDeclaration_StringKeyDeclaration{}
 	d.InitPotentialDeclarationBase(d, name, stringKeyNode, stringKeyNode.GetLastChild())
 	return d
@@ -551,7 +551,7 @@ func (d *PotentialDeclaration_StringKeyDeclaration) IsInNamespace() bool {
 	stringKey := d.GetLhs()
 	objLit := stringKey.GetParent()
 	lvalue := NodeUtil_GetBestLValue(objLit)
-	if lvalue == nil {
+	if lvalue.IsNil() {
 		return false
 	}
 	jsdoc := NodeUtil_GetBestJSDocInfo(lvalue)
@@ -561,7 +561,7 @@ func (d *PotentialDeclaration_StringKeyDeclaration) IsInNamespace() bool {
 }
 
 // Java: PotentialDeclaration.StringKeyDeclaration.getRemovableNode()
-func (d *PotentialDeclaration_StringKeyDeclaration) GetRemovableNode() *rhino.Node {
+func (d *PotentialDeclaration_StringKeyDeclaration) GetRemovableNode() rhino.Node {
 	return d.GetLhs()
 }
 
@@ -596,7 +596,7 @@ type PotentialDeclaration_PolymerBehaviorPropertiesDeclaration struct {
 }
 
 // Java: PotentialDeclaration.PolymerBehaviorPropertiesDeclaration(String, Node)
-func NewPotentialDeclaration_PolymerBehaviorPropertiesDeclaration(name string, stringKeyNode *rhino.Node) *PotentialDeclaration_PolymerBehaviorPropertiesDeclaration {
+func NewPotentialDeclaration_PolymerBehaviorPropertiesDeclaration(name string, stringKeyNode rhino.Node) *PotentialDeclaration_PolymerBehaviorPropertiesDeclaration {
 	d := &PotentialDeclaration_PolymerBehaviorPropertiesDeclaration{}
 	d.InitPotentialDeclarationBase(d, name, stringKeyNode, stringKeyNode.GetLastChild())
 	return d
@@ -611,14 +611,14 @@ func (d *PotentialDeclaration_PolymerBehaviorPropertiesDeclaration) Simplify(com
 	if !propertiesObject.IsObjectLit() || !propertiesObject.HasChildren() {
 		return
 	}
-	for propKey := propertiesObject.GetFirstChild(); propKey != nil; propKey = propKey.GetNext() {
+	for propKey := propertiesObject.GetFirstChild(); !propKey.IsNil(); propKey = propKey.GetNext() {
 		propDef := propKey.GetOnlyChild()
 		// A property definition is either a function reference (e.g. String, Number), or another
 		// object literal. If it's an object literal, only the "type" and "readOnly" sub-properties
 		// matters for type checking, so we can delete everything else (which may include e.g. a
 		// "value" sub-property with a function expression).
 		if propDef.IsObjectLit() {
-			for subProp := propDef.GetFirstChild(); subProp != nil; {
+			for subProp := propDef.GetFirstChild(); !subProp.IsNil(); {
 				next := subProp.GetNext()
 				if subProp.GetString() != "type" && subProp.GetString() != "readOnly" {
 					NodeUtil_DeleteNode(subProp, compiler)
@@ -635,7 +635,7 @@ func (d *PotentialDeclaration_PolymerBehaviorPropertiesDeclaration) ShouldPreser
 }
 
 // Java: PotentialDeclaration.PolymerBehaviorPropertiesDeclaration.getRemovableNode()
-func (d *PotentialDeclaration_PolymerBehaviorPropertiesDeclaration) GetRemovableNode() *rhino.Node {
+func (d *PotentialDeclaration_PolymerBehaviorPropertiesDeclaration) GetRemovableNode() rhino.Node {
 	return d.GetLhs()
 }
 
@@ -650,9 +650,9 @@ type PotentialDeclaration_AliasDeclaration struct {
 // alias.
 //
 // Java: PotentialDeclaration.AliasDeclaration(String, Node)
-func NewPotentialDeclaration_AliasDeclaration(name string, lhs *rhino.Node) *PotentialDeclaration_AliasDeclaration {
+func NewPotentialDeclaration_AliasDeclaration(name string, lhs rhino.Node) *PotentialDeclaration_AliasDeclaration {
 	d := &PotentialDeclaration_AliasDeclaration{}
-	d.InitPotentialDeclarationBase(d, name, lhs, nil)
+	d.InitPotentialDeclarationBase(d, name, lhs, rhino.Node{})
 	return d
 }
 
@@ -669,7 +669,7 @@ func (d *PotentialDeclaration_AliasDeclaration) Simplify(compiler AbstractCompil
 // {Bar} = x; Otherwise, returns the enclosing statement.
 //
 // Java: PotentialDeclaration.AliasDeclaration.getRemovableNode()
-func (d *PotentialDeclaration_AliasDeclaration) GetRemovableNode() *rhino.Node {
+func (d *PotentialDeclaration_AliasDeclaration) GetRemovableNode() rhino.Node {
 	lhs := d.GetLhs()
 	if lhs.GetParent().IsArrayPattern() && lhs.GetParent().HasMoreThanOneChild() {
 		return lhs
@@ -696,7 +696,7 @@ func (d *PotentialDeclaration_AliasDeclaration) ShouldPreserve() bool {
 func (b *PotentialDeclarationBase) SimplifyEnumValues(compiler AbstractCompiler) {
 	if b.self.GetRhs().IsObjectLit() && b.self.GetRhs().HasChildren() {
 		changed := false
-		for key := b.self.GetRhs().GetFirstChild(); key != nil; key = key.GetNext() {
+		for key := b.self.GetRhs().GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 			value := key.GetOnlyChild()
 			if !value.IsStringLit() {
 				PotentialDeclaration_RemoveStringKeyValue(key)
@@ -739,13 +739,13 @@ func (b *PotentialDeclarationBase) IsDefiniteDeclaration(compiler AbstractCompil
 	default:
 		return PotentialDeclaration_IsExportLhs(b.self.GetLhs()) ||
 			(b.self.GetJsDoc() != nil && b.self.GetJsDoc().ContainsDeclaration()) ||
-			(b.self.GetRhs() != nil && PotentialDeclaration_IsTypedRhs(b.self.GetRhs()))
+			(!b.self.GetRhs().IsNil() && PotentialDeclaration_IsTypedRhs(b.self.GetRhs()))
 	}
 }
 
 // Java: PotentialDeclaration.shouldPreserve()
 func (b *PotentialDeclarationBase) ShouldPreserve() bool {
-	return b.self.GetRhs() != nil && PotentialDeclaration_IsTypedRhs(b.self.GetRhs())
+	return !b.self.GetRhs().IsNil() && PotentialDeclaration_IsTypedRhs(b.self.GetRhs())
 }
 
 // Java: PotentialDeclaration.isConstToBeInferred()
@@ -754,7 +754,7 @@ func (b *PotentialDeclarationBase) IsConstToBeInferred() bool {
 }
 
 // Java: PotentialDeclaration.isConstToBeInferred(Node)
-func PotentialDeclaration_IsConstToBeInferred(nameNode *rhino.Node) bool {
+func PotentialDeclaration_IsConstToBeInferred(nameNode rhino.Node) bool {
 	jsdoc := NodeUtil_GetBestJSDocInfo(nameNode)
 	isConst :=
 		nameNode.GetParent().IsConst() ||
@@ -770,22 +770,22 @@ var potentialDeclaration_GOOG_FORWARDDECLARE = rhino.QualifiedName_Of("goog.forw
 var potentialDeclaration_MODULE_EXPORTS = rhino.QualifiedName_Of("module.exports")
 
 // Java: PotentialDeclaration.isTypedRhs(Node)
-func PotentialDeclaration_IsTypedRhs(rhs *rhino.Node) bool {
+func PotentialDeclaration_IsTypedRhs(rhs rhino.Node) bool {
 	return rhs.IsFunction() ||
 		rhs.IsClass() ||
 		(rhs.IsQualifiedName() && potentialDeclaration_GOOG_ABSTRACTMETHOD.Matches(rhs))
 }
 
 // Java: PotentialDeclaration.isExportLhs(Node)
-func PotentialDeclaration_IsExportLhs(lhs *rhino.Node) bool {
+func PotentialDeclaration_IsExportLhs(lhs rhino.Node) bool {
 	return (lhs.IsName() && lhs.MatchesName("exports")) ||
 		(lhs.IsGetProp() && lhs.GetFirstChild().MatchesName("exports")) ||
 		potentialDeclaration_MODULE_EXPORTS.Matches(lhs)
 }
 
 // Java: PotentialDeclaration.isImportRhs(Node)
-func PotentialDeclaration_IsImportRhs(rhs *rhino.Node) bool {
-	if rhs == nil || !rhs.IsCall() {
+func PotentialDeclaration_IsImportRhs(rhs rhino.Node) bool {
+	if rhs.IsNil() || !rhs.IsCall() {
 		return false
 	}
 	callee := rhs.GetFirstChild()
@@ -796,10 +796,10 @@ func PotentialDeclaration_IsImportRhs(rhs *rhino.Node) bool {
 }
 
 // Java: PotentialDeclaration.isAliasDeclaration(Node, Node)
-func PotentialDeclaration_IsAliasDeclaration(lhs *rhino.Node, rhs *rhino.Node) bool {
+func PotentialDeclaration_IsAliasDeclaration(lhs rhino.Node, rhs rhino.Node) bool {
 	return !ClassUtil_IsThisPropInsideClassWithName(lhs) &&
 		PotentialDeclaration_IsConstToBeInferred(lhs) &&
-		rhs != nil &&
+		!rhs.IsNil() &&
 		PotentialDeclaration_IsQualifiedAliasExpression(rhs)
 }
 
@@ -809,7 +809,7 @@ var potentialDeclaration_GOOG_MODULE_GET = rhino.QualifiedName_Of("goog.module.g
 // corresponds to a simple or a qualified name, such as x or a.b.c or this.a.
 //
 // Java: PotentialDeclaration.isQualifiedAliasExpression(Node)
-func PotentialDeclaration_IsQualifiedAliasExpression(n *rhino.Node) bool {
+func PotentialDeclaration_IsQualifiedAliasExpression(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		return n.GetString() != ""
@@ -832,14 +832,14 @@ func PotentialDeclaration_IsQualifiedAliasExpression(n *rhino.Node) bool {
 }
 
 // Java: PotentialDeclaration.removeStringKeyValue(Node)
-func PotentialDeclaration_RemoveStringKeyValue(stringKey *rhino.Node) {
+func PotentialDeclaration_RemoveStringKeyValue(stringKey rhino.Node) {
 	value := stringKey.GetOnlyChild()
 	replacementValue := rhino.IR_Number(0).SrcrefTree(value)
 	value.ReplaceWith(replacementValue)
 }
 
 // Java: PotentialDeclaration.truncateStringKeyValue(Node)
-func PotentialDeclaration_TruncateStringKeyValue(stringKey *rhino.Node) {
+func PotentialDeclaration_TruncateStringKeyValue(stringKey rhino.Node) {
 	value := stringKey.GetOnlyChild()
 	replacementValue :=
 		rhino.IR_String(jutil.StringSubstring(value.GetString(), 0, potentialDeclaration_STRING_ENUM_RETAIN_CAP-2) + "..").

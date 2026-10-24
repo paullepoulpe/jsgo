@@ -105,7 +105,7 @@ func (r *RewriteDynamicImports) AliasIsValid() bool {
 }
 
 // Java: RewriteDynamicImports.process(Node, Node)
-func (r *RewriteDynamicImports) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteDynamicImports) Process(externs rhino.Node, root rhino.Node) {
 	r.dynamicImportsRemoved = false
 	jutil.CheckArgumentMsg1(externs.IsRoot(), "%s", externs)
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
@@ -132,7 +132,7 @@ func (r *RewriteDynamicImports) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 // Java: RewriteDynamicImports.visit(NodeTraversal, Node, Node)
-func (r *RewriteDynamicImports) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *RewriteDynamicImports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.GetToken() != rhino.Token_DYNAMIC_IMPORT {
 		return
 	}
@@ -202,7 +202,7 @@ func (r *RewriteDynamicImports) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 //
 // Java: RewriteDynamicImports.replaceDynamicImportWithPromise(NodeTraversal, Node, Var)
 func (r *RewriteDynamicImports) ReplaceDynamicImportWithPromise(
-	t *NodeTraversal, dynamicImport *rhino.Node, targetModuleNS *Var) {
+	t *NodeTraversal, dynamicImport rhino.Node, targetModuleNS *Var) {
 	registry := r.compiler.GetTypeRegistry()
 	promiseDotResolve :=
 		r.astFactory.CreateQName(r.compiler.GetTranspilationNamespace(), "Promise.resolve")
@@ -259,7 +259,7 @@ func RewriteDynamicImports_GetChunkFileName(chunk *JSChunk) string {
 //	import('./chunk0.js');
 //
 // Java: RewriteDynamicImports.retargetImportSpecifier(NodeTraversal, Node, JSChunk)
-func (r *RewriteDynamicImports) RetargetImportSpecifier(t *NodeTraversal, dynamicImport *rhino.Node, targetChunk *JSChunk) {
+func (r *RewriteDynamicImports) RetargetImportSpecifier(t *NodeTraversal, dynamicImport rhino.Node, targetChunk *JSChunk) {
 	var retargetedSpecifier string
 	importingChunkFilename := RewriteDynamicImports_GetChunkFileName(t.GetInput().GetChunk())
 	targetChunkFilename := RewriteDynamicImports_GetChunkFileName(targetChunk)
@@ -298,7 +298,7 @@ func (r *RewriteDynamicImports) RetargetImportSpecifier(t *NodeTraversal, dynami
 //	import('./foo.js').then(() => module$foo);
 //
 // Java: RewriteDynamicImports.addChainedThen(NodeTraversal, Node, Var)
-func (r *RewriteDynamicImports) AddChainedThen(t *NodeTraversal, dynamicImport *rhino.Node, targetModuleNs *Var) {
+func (r *RewriteDynamicImports) AddChainedThen(t *NodeTraversal, dynamicImport rhino.Node, targetModuleNs *Var) {
 	registry := r.compiler.GetTypeRegistry()
 	importParent := dynamicImport.GetParent()
 	placeholder := rhino.IR_Empty()
@@ -347,7 +347,7 @@ func (r *RewriteDynamicImports) AddChainedThen(t *NodeTraversal, dynamicImport *
 //	aliasedName('./foo.js');
 //
 // Java: RewriteDynamicImports.aliasDynamicImport(NodeTraversal, Node)
-func (r *RewriteDynamicImports) AliasDynamicImport(t *NodeTraversal, dynamicImport *rhino.Node) {
+func (r *RewriteDynamicImports) AliasDynamicImport(t *NodeTraversal, dynamicImport rhino.Node) {
 	jutil.CheckNotNull(r.alias)
 	aliasNode := r.astFactory.CreateQNameWithUnknownType(*r.alias)
 	aliasNode.SetOriginalName(jutil.StringPtr("import"))
@@ -368,7 +368,7 @@ func (r *RewriteDynamicImports) AliasDynamicImport(t *NodeTraversal, dynamicImpo
 // module namespace export
 //
 // Java: RewriteDynamicImports.createModuleNamespaceNode(Var)
-func (r *RewriteDynamicImports) CreateModuleNamespaceNode(moduleVar *Var) *rhino.Node {
+func (r *RewriteDynamicImports) CreateModuleNamespaceNode(moduleVar *Var) rhino.Node {
 	moduleVarNode := moduleVar.GetNode()
 	moduleNamespace := moduleVarNode.CloneNode()
 	moduleNamespace.CopyTypeFrom(moduleVarNode)
@@ -413,7 +413,7 @@ func NewRewriteDynamicImports_AliasInjectingTraversal(outer *RewriteDynamicImpor
 }
 
 // Java: RewriteDynamicImports.AliasInjectingTraversal.shouldTraverse(NodeTraversal, Node, Node)
-func (a *RewriteDynamicImports_AliasInjectingTraversal) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (a *RewriteDynamicImports_AliasInjectingTraversal) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	r := a.outer
 	jutil.CheckState(r.AliasIsValid())
 	alias := *r.alias
@@ -465,7 +465,7 @@ func (a *RewriteDynamicImports_AliasInjectingTraversal) ShouldTraverse(t *NodeTr
 		for next < len(aliasNameParts) {
 			qName = r.astFactory.CreateGetPropWithUnknownType(qName.CloneTree(), aliasNameParts[next])
 			next++
-			var assignedValue *rhino.Node
+			var assignedValue rhino.Node
 			if next >= len(aliasNameParts) {
 				assignedValue =
 					r.astFactory.CreateFunction(

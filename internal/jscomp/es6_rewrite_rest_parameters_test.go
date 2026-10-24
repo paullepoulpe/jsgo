@@ -51,7 +51,7 @@ func TestEs6RewriteRestParametersTest(t *testing.T) {
 
 // Java: Es6RewriteRestParametersTest.getProcessor(Compiler)
 func (c *Es6RewriteRestParametersTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewInjectTranspilationRuntimeLibraries(compiler).Process(externs, root)
 		NewEs6RewriteRestParameters(compiler).Process(externs, root)
 	})

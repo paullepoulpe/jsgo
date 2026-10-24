@@ -208,7 +208,7 @@ func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowS
 
 // Java: LinkedFlowScope.inferQualifiedSlot(Node, String, JSType, JSType, boolean)
 func (l *LinkedFlowScope) InferQualifiedSlot(
-	node *rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declared bool) FlowScope {
+	node rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declared bool) FlowScope {
 	if l.functionScope.IsGlobal() {
 		// Do not infer qualified names on the global scope.  Ideally these would be
 		// added to the scope by TypedScopeCreator, but if they are not, adding them
@@ -271,7 +271,7 @@ func (l *LinkedFlowScope) GetTypeOfThis() rhino.JSType {
 }
 
 // Java: LinkedFlowScope.getRootNode()
-func (l *LinkedFlowScope) GetRootNode() *rhino.Node {
+func (l *LinkedFlowScope) GetRootNode() rhino.Node {
 	return l.syntacticScope.GetRootNode()
 }
 

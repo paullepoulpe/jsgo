@@ -38,15 +38,15 @@ func NewWhitespaceWrapGoogModules(compiler AbstractCompiler) *WhitespaceWrapGoog
 }
 
 // Java: WhitespaceWrapGoogModules.process(Node, Node)
-func (w *WhitespaceWrapGoogModules) Process(externs *rhino.Node, root *rhino.Node) {
-	for c := root.GetFirstChild(); c != nil; c = c.GetNext() {
+func (w *WhitespaceWrapGoogModules) Process(externs rhino.Node, root rhino.Node) {
+	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		jutil.CheckState(c.IsScript())
 		w.VisitScript(c)
 	}
 }
 
 // Java: WhitespaceWrapGoogModules.visitScript(Node)
-func (w *WhitespaceWrapGoogModules) VisitScript(scriptRoot *rhino.Node) {
+func (w *WhitespaceWrapGoogModules) VisitScript(scriptRoot rhino.Node) {
 	if !NodeUtil_IsGoogModuleFile(scriptRoot) {
 		return
 	}

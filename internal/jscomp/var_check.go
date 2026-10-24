@@ -143,7 +143,7 @@ func (v *VarCheck) CreateScopeCreator() *SyntacticScopeCreator {
 }
 
 // Java: VarCheck.process(Node, Node)
-func (v *VarCheck) Process(externs *rhino.Node, root *rhino.Node) {
+func (v *VarCheck) Process(externs rhino.Node, root rhino.Node) {
 	sc := v.CreateScopeCreator()
 	var scopeCreator ScopeCreator = sc
 
@@ -177,12 +177,12 @@ func (*VarCheck) noShouldTraverse() {}
 func (*VarCheck) onlyNameLeaves()   {}
 
 // Java: VarCheck.shouldTraverse(NodeTraversal, Node, Node)
-func (v *VarCheck) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (v *VarCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
 // Java: VarCheck.visit(NodeTraversal, Node, Node)
-func (v *VarCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (v *VarCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		v.CheckName(t, n, parent)
 	}
@@ -191,7 +191,7 @@ func (v *VarCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 // CheckName validates that a NAME node does not refer to an undefined name.
 //
 // Java: VarCheck.checkName(NodeTraversal, Node, Node)
-func (v *VarCheck) CheckName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (v *VarCheck) CheckName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	varName := n.GetString()
 
 	// Only a function can have an empty name.
@@ -275,7 +275,7 @@ func (v *VarCheck) CheckName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node
 }
 
 // Java: VarCheck.strengthOf(Node)
-func VarCheck_StrengthOf(n *rhino.Node) rhino.StaticSourceFile_SourceKind {
+func VarCheck_StrengthOf(n rhino.Node) rhino.StaticSourceFile_SourceKind {
 	source := n.GetStaticSourceFile()
 	if source == nil {
 		return rhino.StaticSourceFile_SourceKind_EXTERN
@@ -285,7 +285,7 @@ func VarCheck_StrengthOf(n *rhino.Node) rhino.StaticSourceFile_SourceKind {
 }
 
 // Java: VarCheck.handleUndeclaredVariableRef(NodeTraversal, Node)
-func (v *VarCheck) HandleUndeclaredVariableRef(t *NodeTraversal, n *rhino.Node) {
+func (v *VarCheck) HandleUndeclaredVariableRef(t *NodeTraversal, n rhino.Node) {
 	jutil.CheckState(n.IsName())
 
 	varName := n.GetString()
@@ -414,14 +414,14 @@ func NewVarCheck_NameRefInExternsCheck(outer *VarCheck) *VarCheck_NameRefInExter
 }
 
 // Java: VarCheck.NameRefInExternsCheck.shouldTraverse(NodeTraversal, Node, Node)
-func (c *VarCheck_NameRefInExternsCheck) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *VarCheck_NameRefInExternsCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Type summaries are generated from code rather than hand-written,
 	// so warning about name references there would usually not be helpful.
 	return !n.IsScript() || !NodeUtil_IsFromTypeSummary(n)
 }
 
 // Java: VarCheck.NameRefInExternsCheck.visit(NodeTraversal, Node, Node)
-func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		switch parent.GetToken() {
 		case rhino.Token_VAR,
@@ -492,7 +492,7 @@ func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n *rhino.Node, 
 //
 // Java: VarCheck.hasDuplicateDeclarationSuppression(AbstractCompiler, Node, Node)
 func VarCheck_HasDuplicateDeclarationSuppression(
-	compiler AbstractCompiler, n *rhino.Node, origVar *rhino.Node) bool {
+	compiler AbstractCompiler, n rhino.Node, origVar rhino.Node) bool {
 	// For VarCheck and VariableReferenceCheck, variables in externs do not generate duplicate
 	// warnings.
 	if VarCheck_IsExternNamespace(n) {
@@ -505,7 +505,7 @@ func VarCheck_HasDuplicateDeclarationSuppression(
 // declares a namespace in an externs file.
 //
 // Java: VarCheck.isExternNamespace(Node)
-func VarCheck_IsExternNamespace(n *rhino.Node) bool {
+func VarCheck_IsExternNamespace(n rhino.Node) bool {
 	return n.GetParent().IsVar() && n.IsFromExterns() && NodeUtil_IsNamespaceDecl(n)
 }
 
@@ -518,7 +518,7 @@ type VarCheck_RedeclarationCheckHandler struct {
 	// inner class.
 	outer *VarCheck
 
-	dupDeclNodes []*rhino.Node
+	dupDeclNodes []rhino.Node
 }
 
 // Java: VarCheck.RedeclarationCheckHandler()
@@ -528,13 +528,13 @@ func NewVarCheck_RedeclarationCheckHandler(outer *VarCheck) *VarCheck_Redeclarat
 
 // Java: VarCheck.RedeclarationCheckHandler.onRedeclaration(Scope, String, Node, CompilerInput)
 func (h *VarCheck_RedeclarationCheckHandler) OnRedeclaration(
-	s *Scope, name string, n *rhino.Node, input *CompilerInput) {
+	s *Scope, name string, n rhino.Node, input *CompilerInput) {
 	parent := NodeUtil_GetDeclaringParent(n)
 	origVar := s.GetVar(name)
 	// origNode will be null for `arguments`, since there's no node that declares it.
 	origNode := origVar.GetNode()
-	var origParent *rhino.Node
-	if origNode != nil {
+	var origParent rhino.Node
+	if !origNode.IsNil() {
 		origParent = NodeUtil_GetDeclaringParent(origNode)
 	}
 
@@ -545,7 +545,7 @@ func (h *VarCheck_RedeclarationCheckHandler) OnRedeclaration(
 	default:
 	}
 
-	if origParent != nil {
+	if !origParent.IsNil() {
 		switch origParent.GetToken() {
 		case rhino.Token_CLASS, rhino.Token_CONST, rhino.Token_LET:
 			h.outer.ReportBlockScopedMultipleDeclaration(n, name, origNode)
@@ -588,7 +588,7 @@ func (h *VarCheck_RedeclarationCheckHandler) OnRedeclaration(
 func (h *VarCheck_RedeclarationCheckHandler) RemoveDuplicates() {
 	for _, n := range h.dupDeclNodes {
 		parent := n.GetParent()
-		if parent != nil {
+		if !parent.IsNil() {
 			n.Detach()
 			h.outer.compiler.ReportChangeToEnclosingScope(parent)
 		}
@@ -597,21 +597,21 @@ func (h *VarCheck_RedeclarationCheckHandler) RemoveDuplicates() {
 
 // Java: VarCheck.reportVarMultiplyDeclared(AbstractCompiler, Node, String, Node)
 func VarCheck_ReportVarMultiplyDeclared(
-	compiler AbstractCompiler, current *rhino.Node, name string, original *rhino.Node) {
+	compiler AbstractCompiler, current rhino.Node, name string, original rhino.Node) {
 	compiler.Report(JSError_MakeWithNode(current, VarCheck_VAR_MULTIPLY_DECLARED_ERROR, name, VarCheck_LocationOf(original)))
 }
 
 // Java: VarCheck.reportBlockScopedMultipleDeclaration(Node, String, Node)
 func (v *VarCheck) ReportBlockScopedMultipleDeclaration(
-	current *rhino.Node, name string, original *rhino.Node) {
+	current rhino.Node, name string, original rhino.Node) {
 	v.compiler.Report(
 		JSError_MakeWithNode(
 			current, VarCheck_BLOCK_SCOPED_DECL_MULTIPLY_DECLARED_ERROR, name, VarCheck_LocationOf(original)))
 }
 
 // Java: VarCheck.locationOf(Node)
-func VarCheck_LocationOf(n *rhino.Node) string {
-	if n == nil {
+func VarCheck_LocationOf(n rhino.Node) string {
+	if n.IsNil() {
 		return "<unknown>"
 	}
 	return n.GetLocation()
@@ -621,6 +621,6 @@ func VarCheck_LocationOf(n *rhino.Node) string {
 // undeclared variables.
 //
 // Java: VarCheck.getSynthesizedExternsRoot(AbstractCompiler)
-func VarCheck_GetSynthesizedExternsRoot(compiler AbstractCompiler) *rhino.Node {
+func VarCheck_GetSynthesizedExternsRoot(compiler AbstractCompiler) rhino.Node {
 	return compiler.GetSynthesizedExternsInput().GetAstRoot(compiler)
 }

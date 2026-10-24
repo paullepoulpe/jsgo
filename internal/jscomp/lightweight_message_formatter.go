@@ -304,7 +304,7 @@ func lightweightMessageFormatter_appendPosition(
 //
 // Java: LightweightMessageFormatter.padLine(int, String, StringBuilder, int, Node)
 func (f *LightweightMessageFormatter) PadLine(
-	charno int, sourceExcerpt string, b *strings.Builder, errLength int, errorNode *rhino.Node) bool {
+	charno int, sourceExcerpt string, b *strings.Builder, errLength int, errorNode rhino.Node) bool {
 	// Fast path for pure-ASCII source lines (avoids allocating a []uint16 slice
 	// on the heap for every warning).
 	isASCII := true
@@ -327,7 +327,7 @@ func (f *LightweightMessageFormatter) PadLine(
 				b.WriteByte(' ')
 			}
 		}
-		if errorNode == nil {
+		if errorNode.IsNil() {
 			b.WriteByte('^')
 		} else {
 			length := max(1, min(errLength, len(sourceExcerpt)-charno))
@@ -372,7 +372,7 @@ func (f *LightweightMessageFormatter) PadLine(
 		b.WriteByte(' ')
 		utf16Pos++
 	}
-	if errorNode == nil {
+	if errorNode.IsNil() {
 		b.WriteByte('^')
 	} else {
 		length := max(1, min(errLength, unitsLen-charno))
@@ -399,15 +399,15 @@ func (f *LightweightMessageFormatter) PadLine(
 //
 // Java: LightweightMessageFormatter.padMultipleLines(int, String, StringBuilder, Node)
 func (f *LightweightMessageFormatter) PadMultipleLines(
-	startCharno int, sourceExcerpt string, b *strings.Builder, errorNode *rhino.Node) bool {
-	if errorNode == nil {
+	startCharno int, sourceExcerpt string, b *strings.Builder, errorNode rhino.Node) bool {
+	if errorNode.IsNil() {
 		charWithLineNumberOffset := startCharno + jutil.StringIndexOfChar(sourceExcerpt, '|') + 2
 		if charWithLineNumberOffset > jutil.StringLength(sourceExcerpt) {
 			return false
 		}
 		b.WriteString(sourceExcerpt)
 		b.WriteByte('\n')
-		return f.PadLine(charWithLineNumberOffset, sourceExcerpt, b, -1, nil)
+		return f.PadLine(charWithLineNumberOffset, sourceExcerpt, b, -1, rhino.Node{})
 	}
 	numLines := strings.Count(sourceExcerpt, "\n") + 1
 	requiresTruncation := numLines > lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH

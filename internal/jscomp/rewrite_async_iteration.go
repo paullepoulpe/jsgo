@@ -95,9 +95,9 @@ const (
 // this/arguments/super, if such a context exists.
 type RewriteAsyncIteration_LexicalContext struct {
 	// Node that creates the context
-	contextRoot *rhino.Node
+	contextRoot rhino.Node
 	// The current function, or null if root scope where we are not in a function.
-	function *rhino.Node
+	function rhino.Node
 	// The context of the most recent definition of this/super/arguments
 	thisSuperArgsContext *RewriteAsyncIteration_ThisSuperArgsContext
 }
@@ -106,10 +106,10 @@ type RewriteAsyncIteration_LexicalContext struct {
 // Should only exist on the bottom of the contextStack.
 //
 // Java: LexicalContext(Node)
-func newRewriteAsyncIteration_LexicalContext(contextRoot *rhino.Node) *RewriteAsyncIteration_LexicalContext {
+func newRewriteAsyncIteration_LexicalContext(contextRoot rhino.Node) *RewriteAsyncIteration_LexicalContext {
 	c := &RewriteAsyncIteration_LexicalContext{}
-	c.contextRoot = jutil.CheckNotNull(contextRoot)
-	c.function = nil
+	c.contextRoot = rhino.CheckNotNull(contextRoot)
+	c.function = rhino.Node{}
 	c.thisSuperArgsContext =
 		nil // no need for global context to have a this/super/args context
 	return c
@@ -124,12 +124,12 @@ func newRewriteAsyncIteration_LexicalContext(contextRoot *rhino.Node) *RewriteAs
 //
 // Java: LexicalContext(LexicalContext, Node, Node, AbstractCompiler)
 func newRewriteAsyncIteration_LexicalContextWithParent(
-	parent *RewriteAsyncIteration_LexicalContext, contextRoot *rhino.Node, function *rhino.Node, compiler AbstractCompiler) *RewriteAsyncIteration_LexicalContext {
+	parent *RewriteAsyncIteration_LexicalContext, contextRoot rhino.Node, function rhino.Node, compiler AbstractCompiler) *RewriteAsyncIteration_LexicalContext {
 	c := &RewriteAsyncIteration_LexicalContext{}
 	jutil.CheckNotNull(parent)
-	jutil.CheckNotNull(contextRoot)
+	rhino.CheckNotNull(contextRoot)
 	jutil.CheckArgumentMsg1(contextRoot == function || contextRoot.IsParamList(), "%s", contextRoot)
-	jutil.CheckNotNull(function)
+	rhino.CheckNotNull(function)
 	jutil.CheckArgumentMsg1(function.IsFunction(), "%s", function)
 	c.contextRoot = contextRoot
 	c.function = function
@@ -155,13 +155,13 @@ func newRewriteAsyncIteration_LexicalContextWithParent(
 }
 
 // Java: LexicalContext.newGlobalContext(Node)
-func RewriteAsyncIteration_LexicalContext_NewGlobalContext(contextRoot *rhino.Node) *RewriteAsyncIteration_LexicalContext {
+func RewriteAsyncIteration_LexicalContext_NewGlobalContext(contextRoot rhino.Node) *RewriteAsyncIteration_LexicalContext {
 	return newRewriteAsyncIteration_LexicalContext(contextRoot)
 }
 
 // Java: LexicalContext.newContextForFunction(LexicalContext, Node, AbstractCompiler)
 func RewriteAsyncIteration_LexicalContext_NewContextForFunction(
-	parent *RewriteAsyncIteration_LexicalContext, function *rhino.Node, compiler AbstractCompiler) *RewriteAsyncIteration_LexicalContext {
+	parent *RewriteAsyncIteration_LexicalContext, function rhino.Node, compiler AbstractCompiler) *RewriteAsyncIteration_LexicalContext {
 	// Functions need their own context because:
 	//     - async generator functions must be transpiled
 	//     - non-async generator functions must NOT be transpiled
@@ -173,14 +173,14 @@ func RewriteAsyncIteration_LexicalContext_NewContextForFunction(
 
 // Java: LexicalContext.newContextForParamList(LexicalContext, Node, AbstractCompiler)
 func RewriteAsyncIteration_LexicalContext_NewContextForParamList(
-	parent *RewriteAsyncIteration_LexicalContext, paramList *rhino.Node, compiler AbstractCompiler) *RewriteAsyncIteration_LexicalContext {
+	parent *RewriteAsyncIteration_LexicalContext, paramList rhino.Node, compiler AbstractCompiler) *RewriteAsyncIteration_LexicalContext {
 	// Parameter lists need their own context because `this`, `arguments`, and `super` must NOT be
 	// aliased for non-arrow function parameter lists, even for async generator functions.
 	return newRewriteAsyncIteration_LexicalContextWithParent(parent, paramList, parent.function, compiler)
 }
 
 // Java: LexicalContext.getFunctionDeclaringThisArgsSuper()
-func (c *RewriteAsyncIteration_LexicalContext) GetFunctionDeclaringThisArgsSuper() *rhino.Node {
+func (c *RewriteAsyncIteration_LexicalContext) GetFunctionDeclaringThisArgsSuper() rhino.Node {
 	return c.thisSuperArgsContext.ctx.function
 }
 
@@ -200,8 +200,8 @@ type RewriteAsyncIteration_ThisSuperArgsContext struct {
 	// The LexicalContext representing the function that declared this/super/args
 	ctx *RewriteAsyncIteration_LexicalContext
 
-	usedSuperProperties *jutil.LinkedHashSet[*rhino.Node]
-	thisNodeToAdd       *rhino.Node
+	usedSuperProperties *jutil.LinkedHashSet[rhino.Node]
+	thisNodeToAdd       rhino.Node
 	usedArguments       bool
 	// unique id to append to names in this context. This is used to ensure that names
 	// in different contexts don't collide (e.g. 2 functions don't get the same `let
@@ -212,8 +212,8 @@ type RewriteAsyncIteration_ThisSuperArgsContext struct {
 // Java: ThisSuperArgsContext(LexicalContext, String)
 func newRewriteAsyncIteration_ThisSuperArgsContext(ctx *RewriteAsyncIteration_LexicalContext, uniqueId string) *RewriteAsyncIteration_ThisSuperArgsContext {
 	c := &RewriteAsyncIteration_ThisSuperArgsContext{}
-	c.usedSuperProperties = jutil.NewLinkedHashSet[*rhino.Node]()
-	c.thisNodeToAdd = nil
+	c.usedSuperProperties = jutil.NewLinkedHashSet[rhino.Node]()
+	c.thisNodeToAdd = rhino.Node{}
 	c.usedArguments = false
 	c.ctx = ctx
 	c.uniqueId = uniqueId
@@ -272,18 +272,18 @@ func (r *RewriteAsyncIteration) contextStackPop() *RewriteAsyncIteration_Lexical
 }
 
 // Java: RewriteAsyncIteration.process(Node, Node)
-func (r *RewriteAsyncIteration) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteAsyncIteration) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(len(r.contextStack) == 0)
 	r.contextStack = append(r.contextStack, RewriteAsyncIteration_LexicalContext_NewGlobalContext(root))
 	TranspilationPasses_ProcessTranspile(r.compiler, root, RewriteAsyncIteration_transpiledFeatures, r)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(r.compiler, root, RewriteAsyncIteration_transpiledFeatures)
-	jutil.CheckState(r.contextStackGetFirst().function == nil)
+	jutil.CheckState(r.contextStackGetFirst().function.IsNil())
 	r.contextStackPop()
 	jutil.CheckState(len(r.contextStack) == 0)
 }
 
 // Java: RewriteAsyncIteration.shouldTraverse(NodeTraversal, Node, Node)
-func (r *RewriteAsyncIteration) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (r *RewriteAsyncIteration) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsFunction() {
 		r.contextStack = append(r.contextStack,
 			RewriteAsyncIteration_LexicalContext_NewContextForFunction(r.contextStackGetFirst(), n, r.compiler))
@@ -295,7 +295,7 @@ func (r *RewriteAsyncIteration) ShouldTraverse(nodeTraversal *NodeTraversal, n *
 }
 
 // Java: RewriteAsyncIteration.visit(NodeTraversal, Node, Node)
-func (r *RewriteAsyncIteration) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *RewriteAsyncIteration) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	ctx := r.contextStackGetFirst()
 	switch n.GetToken() {
 	case rhino.Token_PARAM_LIST:
@@ -312,24 +312,24 @@ func (r *RewriteAsyncIteration) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 		// Done handling function, so pop its context
 		r.contextStackPop()
 	case rhino.Token_AWAIT:
-		jutil.CheckNotNull(ctx.function)
+		rhino.CheckNotNull(ctx.function)
 		if ctx.function.IsAsyncGeneratorFunction() {
 			r.ConvertAwaitOfAsyncGenerator(ctx, n)
 		}
 	case rhino.Token_YIELD:
 		// Includes yield*
-		jutil.CheckNotNull(ctx.function)
+		rhino.CheckNotNull(ctx.function)
 		if ctx.function.IsAsyncGeneratorFunction() {
 			r.ConvertYieldOfAsyncGenerator(ctx, n)
 		}
 	case rhino.Token_RETURN:
-		jutil.CheckNotNull(ctx.function)
+		rhino.CheckNotNull(ctx.function)
 		if ctx.function.IsAsyncGeneratorFunction() {
 			r.ConvertReturnOfAsyncGenerator(ctx, n)
 		}
 		// For-Await-Of loops
 	case rhino.Token_FOR_AWAIT_OF:
-		jutil.CheckNotNull(ctx.function)
+		rhino.CheckNotNull(ctx.function)
 		jutil.CheckState(ctx.function.IsAsyncFunction())
 		r.ReplaceForAwaitOf(ctx, n)
 		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_CONST_DECLARATIONS, r.compiler)
@@ -370,8 +370,8 @@ func (r *RewriteAsyncIteration) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 // converted.
 //
 // Java: RewriteAsyncIteration.convertAsyncGenerator(Node)
-func (r *RewriteAsyncIteration) ConvertAsyncGenerator(originalFunction *rhino.Node) {
-	jutil.CheckNotNull(originalFunction)
+func (r *RewriteAsyncIteration) ConvertAsyncGenerator(originalFunction rhino.Node) {
+	rhino.CheckNotNull(originalFunction)
 	jutil.CheckState(originalFunction.IsAsyncGeneratorFunction())
 
 	asyncGeneratorWrapperRef := r.astFactory.CreateQNameOfField(r.namespace, r.asyncGeneratorWrapper)
@@ -411,14 +411,14 @@ func (r *RewriteAsyncIteration) ConvertAsyncGenerator(originalFunction *rhino.No
 // awaitNode is the original await Node to be converted
 //
 // Java: RewriteAsyncIteration.convertAwaitOfAsyncGenerator(LexicalContext, Node)
-func (r *RewriteAsyncIteration) ConvertAwaitOfAsyncGenerator(ctx *RewriteAsyncIteration_LexicalContext, awaitNode *rhino.Node) {
-	jutil.CheckNotNull(awaitNode)
+func (r *RewriteAsyncIteration) ConvertAwaitOfAsyncGenerator(ctx *RewriteAsyncIteration_LexicalContext, awaitNode rhino.Node) {
+	rhino.CheckNotNull(awaitNode)
 	jutil.CheckState(awaitNode.IsAwait())
-	jutil.CheckState(ctx != nil && ctx.function != nil)
+	jutil.CheckState(ctx != nil && !ctx.function.IsNil())
 	jutil.CheckState(ctx.function.IsAsyncGeneratorFunction())
 
 	expression := awaitNode.RemoveFirstChild()
-	jutil.CheckNotNullMsg(expression, "await needs an expression")
+	rhino.CheckNotNullMsg(expression, "await needs an expression")
 	newActionRecord :=
 		r.astFactory.CreateNewNode(
 			r.astFactory.CreateQNameOfField(r.namespace, r.actionRecordName),
@@ -445,10 +445,10 @@ func (r *RewriteAsyncIteration) ConvertAwaitOfAsyncGenerator(ctx *RewriteAsyncIt
 // yieldNode is the Node to be converted
 //
 // Java: RewriteAsyncIteration.convertYieldOfAsyncGenerator(LexicalContext, Node)
-func (r *RewriteAsyncIteration) ConvertYieldOfAsyncGenerator(ctx *RewriteAsyncIteration_LexicalContext, yieldNode *rhino.Node) {
-	jutil.CheckNotNull(yieldNode)
+func (r *RewriteAsyncIteration) ConvertYieldOfAsyncGenerator(ctx *RewriteAsyncIteration_LexicalContext, yieldNode rhino.Node) {
+	rhino.CheckNotNull(yieldNode)
 	jutil.CheckState(yieldNode.IsYield())
-	jutil.CheckState(ctx != nil && ctx.function != nil)
+	jutil.CheckState(ctx != nil && !ctx.function.IsNil())
 	jutil.CheckState(ctx.function.IsAsyncGeneratorFunction())
 
 	expression := yieldNode.RemoveFirstChild()
@@ -456,13 +456,13 @@ func (r *RewriteAsyncIteration) ConvertYieldOfAsyncGenerator(ctx *RewriteAsyncIt
 		r.astFactory.CreateNewNode(r.astFactory.CreateQNameOfField(r.namespace, r.actionRecordName))
 
 	if yieldNode.IsYieldAll() {
-		jutil.CheckNotNull(expression)
+		rhino.CheckNotNull(expression)
 		// yield* expression becomes new ActionRecord(YIELD_STAR, expression)
 		newActionRecord.AddChildToBack(r.astFactory.CreateQNameOfField(r.namespace, r.actionEnumYieldStar))
 		newActionRecord.AddChildToBack(expression)
 	} else {
-		if expression == nil {
-			expression = NodeUtil_NewUndefinedNode(nil)
+		if expression.IsNil() {
+			expression = NodeUtil_NewUndefinedNode(rhino.Node{})
 		}
 		// yield expression becomes new ActionRecord(YIELD, expression)
 		newActionRecord.AddChildToBack(r.astFactory.CreateQNameOfField(r.namespace, r.actionEnumYield))
@@ -488,18 +488,18 @@ func (r *RewriteAsyncIteration) ConvertYieldOfAsyncGenerator(ctx *RewriteAsyncIt
 // returnNode is the Node to be converted
 //
 // Java: RewriteAsyncIteration.convertReturnOfAsyncGenerator(LexicalContext, Node)
-func (r *RewriteAsyncIteration) ConvertReturnOfAsyncGenerator(ctx *RewriteAsyncIteration_LexicalContext, returnNode *rhino.Node) {
-	jutil.CheckNotNull(returnNode)
+func (r *RewriteAsyncIteration) ConvertReturnOfAsyncGenerator(ctx *RewriteAsyncIteration_LexicalContext, returnNode rhino.Node) {
+	rhino.CheckNotNull(returnNode)
 	jutil.CheckState(returnNode.IsReturn())
-	jutil.CheckState(ctx != nil && ctx.function != nil)
+	jutil.CheckState(ctx != nil && !ctx.function.IsNil())
 	jutil.CheckState(ctx.function.IsAsyncGeneratorFunction())
 
 	expression := returnNode.RemoveFirstChild()
 	newActionRecord :=
 		r.astFactory.CreateNewNode(r.astFactory.CreateQNameOfField(r.namespace, r.actionRecordName))
 
-	if expression == nil {
-		expression = NodeUtil_NewUndefinedNode(nil)
+	if expression.IsNil() {
+		expression = NodeUtil_NewUndefinedNode(rhino.Node{})
 	}
 	// return expression becomes new ActionRecord(YIELD, expression)
 	newActionRecord.AddChildToBack(r.astFactory.CreateQNameOfField(r.namespace, r.actionEnumYield))
@@ -537,7 +537,7 @@ func (r *RewriteAsyncIteration) ConvertReturnOfAsyncGenerator(ctx *RewriteAsyncI
 //	}
 //
 // Java: RewriteAsyncIteration.replaceForAwaitOf(LexicalContext, Node)
-func (r *RewriteAsyncIteration) ReplaceForAwaitOf(ctx *RewriteAsyncIteration_LexicalContext, forAwaitOf *rhino.Node) {
+func (r *RewriteAsyncIteration) ReplaceForAwaitOf(ctx *RewriteAsyncIteration_LexicalContext, forAwaitOf rhino.Node) {
 	forAwaitId := r.nextForAwaitId
 	r.nextForAwaitId++
 	id := strconv.Itoa(forAwaitId)
@@ -550,7 +550,7 @@ func (r *RewriteAsyncIteration) ReplaceForAwaitOf(ctx *RewriteAsyncIteration_Lex
 	jutil.CheckStateMsg(forAwaitOf.HasParent(), "Cannot replace parentless for-await-of")
 
 	forAwaitOfParent := forAwaitOf.GetParent()
-	var replacementPoint *rhino.Node
+	var replacementPoint rhino.Node
 	if forAwaitOfParent.IsLabel() {
 		// If the forAwaitOf is a label's statement child, then the label must move with the for upon
 		// rewriting.
@@ -584,7 +584,7 @@ func (r *RewriteAsyncIteration) ReplaceForAwaitOf(ctx *RewriteAsyncIteration_Lex
 			r.astFactory.CreateBlock(r.astFactory.CreateBreak()))
 
 	// Assignment statement to be moved from lhs into body of new for-loop
-	var lhsAssignment *rhino.Node
+	var lhsAssignment rhino.Node
 	var resultType AstFactory_Type
 	if lhs.IsValidAssignmentTarget() {
 		// In case of "for await (x of _)" just assign into the lhs.
@@ -698,7 +698,7 @@ func (r *RewriteAsyncIteration) ReplaceForAwaitOf(ctx *RewriteAsyncIteration_Lex
 // CreateOuterTry generates code `try { .. newForLoop .. }`
 //
 // Java: RewriteAsyncIteration.createOuterTry(Node)
-func (r *RewriteAsyncIteration) CreateOuterTry(newForLoop *rhino.Node) *rhino.Node {
+func (r *RewriteAsyncIteration) CreateOuterTry(newForLoop rhino.Node) rhino.Node {
 	tryNode := r.astFactory.CreateBlock()
 	tryNode.AddChildToBack(newForLoop)
 	return tryNode
@@ -707,7 +707,7 @@ func (r *RewriteAsyncIteration) CreateOuterTry(newForLoop *rhino.Node) *rhino.No
 // CreateOuterCatch generates code `catch(e) { errorRes = { error: e }; }`
 //
 // Java: RewriteAsyncIteration.createOuterCatch(String, String)
-func (r *RewriteAsyncIteration) CreateOuterCatch(catchErrorParamTempName string, errorResultTempName string) *rhino.Node {
+func (r *RewriteAsyncIteration) CreateOuterCatch(catchErrorParamTempName string, errorResultTempName string) rhino.Node {
 	// Generate `errorRes = { error: e };`
 	catchBodyStmt :=
 		r.astFactory.ExprResult(
@@ -742,7 +742,7 @@ func (r *RewriteAsyncIteration) CreateOuterFinally(
 	resultTempName string,
 	returnFuncTempName string,
 	iteratorTempName string,
-	errorResultTempName string) *rhino.Node {
+	errorResultTempName string) rhino.Node {
 	finallyNode := r.astFactory.CreateBlock()
 
 	// Generate `tmpRes`
@@ -767,7 +767,7 @@ func (r *RewriteAsyncIteration) CreateOuterFinally(
 
 	// Generate `(tmpRes && !tmpRes.done && (retFn = _tmpIterator.return))`
 	ifCond := r.astFactory.CreateAnd(and, assign)
-	var awaitOrYieldStmt *rhino.Node = nil
+	var awaitOrYieldStmt rhino.Node = rhino.Node{}
 	if ctx.function.IsAsyncGeneratorFunction() {
 		// We are in an AsyncGenerator and must instead yield an "await" ActionRecord
 		awaitOrYieldStmt =
@@ -826,7 +826,7 @@ func (r *RewriteAsyncIteration) CreateOuterFinally(
 }
 
 // Java: RewriteAsyncIteration.ensureBlock(Node)
-func (r *RewriteAsyncIteration) EnsureBlock(possiblyBlock *rhino.Node) *rhino.Node {
+func (r *RewriteAsyncIteration) EnsureBlock(possiblyBlock rhino.Node) rhino.Node {
 	if possiblyBlock.IsBlock() {
 		return possiblyBlock
 	}
@@ -838,9 +838,9 @@ func (r *RewriteAsyncIteration) ConstructAwaitNextResult(
 	ctx *RewriteAsyncIteration_LexicalContext,
 	iteratorTempName string,
 	iteratorType AstFactory_Type,
-	iterableResultType AstFactory_Type) *rhino.Node {
-	jutil.CheckNotNull(ctx.function)
-	var result *rhino.Node
+	iterableResultType AstFactory_Type) rhino.Node {
+	rhino.CheckNotNull(ctx.function)
+	var result rhino.Node
 
 	iteratorTemp := r.astFactory.CreateName(iteratorTempName, iteratorType)
 
@@ -867,10 +867,10 @@ func (r *RewriteAsyncIteration) ConstructAwaitNextResult(
 }
 
 // Java: RewriteAsyncIteration.replaceThis(LexicalContext, Node)
-func (r *RewriteAsyncIteration) ReplaceThis(ctx *RewriteAsyncIteration_LexicalContext, n *rhino.Node) {
+func (r *RewriteAsyncIteration) ReplaceThis(ctx *RewriteAsyncIteration_LexicalContext, n rhino.Node) {
 	jutil.CheckArgument(n.IsThis())
 	jutil.CheckArgument(ctx != nil && ctx.MustReplaceThisSuperArgs())
-	jutil.CheckArgumentMsg(ctx.function != nil, "Cannot prepend declarations to root scope")
+	jutil.CheckArgumentMsg(!ctx.function.IsNil(), "Cannot prepend declarations to root scope")
 	jutil.CheckNotNull(ctx.thisSuperArgsContext)
 
 	n.ReplaceWith(
@@ -882,10 +882,10 @@ func (r *RewriteAsyncIteration) ReplaceThis(ctx *RewriteAsyncIteration_LexicalCo
 }
 
 // Java: RewriteAsyncIteration.replaceArguments(LexicalContext, Node)
-func (r *RewriteAsyncIteration) ReplaceArguments(ctx *RewriteAsyncIteration_LexicalContext, n *rhino.Node) {
+func (r *RewriteAsyncIteration) ReplaceArguments(ctx *RewriteAsyncIteration_LexicalContext, n rhino.Node) {
 	jutil.CheckArgument(n.IsName() && "arguments" == n.GetString())
 	jutil.CheckArgument(ctx != nil && ctx.MustReplaceThisSuperArgs())
-	jutil.CheckArgumentMsg(ctx.function != nil, "Cannot prepend declarations to root scope")
+	jutil.CheckArgumentMsg(!ctx.function.IsNil(), "Cannot prepend declarations to root scope")
 	jutil.CheckNotNull(ctx.thisSuperArgsContext)
 
 	n.ReplaceWith(r.astFactory.CreateName(RewriteAsyncIteration_ARGUMENTS_VAR_NAME, AstFactory_Type_(n)).Srcref(n))
@@ -894,7 +894,7 @@ func (r *RewriteAsyncIteration) ReplaceArguments(ctx *RewriteAsyncIteration_Lexi
 }
 
 // Java: RewriteAsyncIteration.replaceSuper(LexicalContext, Node, Node)
-func (r *RewriteAsyncIteration) ReplaceSuper(ctx *RewriteAsyncIteration_LexicalContext, n *rhino.Node, parent *rhino.Node) {
+func (r *RewriteAsyncIteration) ReplaceSuper(ctx *RewriteAsyncIteration_LexicalContext, n rhino.Node, parent rhino.Node) {
 	if !parent.IsGetProp() {
 		r.compiler.Report(
 			JSError_MakeWithNode(
@@ -905,7 +905,7 @@ func (r *RewriteAsyncIteration) ReplaceSuper(ctx *RewriteAsyncIteration_LexicalC
 	}
 	jutil.CheckArgument(n.IsSuper())
 	jutil.CheckArgument(ctx != nil && ctx.MustReplaceThisSuperArgs())
-	jutil.CheckArgumentMsg(ctx.function != nil, "Cannot prepend declarations to root scope")
+	jutil.CheckArgumentMsg(!ctx.function.IsNil(), "Cannot prepend declarations to root scope")
 	jutil.CheckNotNull(ctx.thisSuperArgsContext)
 
 	propertyName := parent.GetString()
@@ -971,16 +971,16 @@ func (r *RewriteAsyncIteration) ReplaceSuper(ctx *RewriteAsyncIteration_LexicalC
 // Java: RewriteAsyncIteration.prependTempVarDeclarations(LexicalContext, NodeTraversal)
 func (r *RewriteAsyncIteration) PrependTempVarDeclarations(ctx *RewriteAsyncIteration_LexicalContext, t *NodeTraversal) {
 	jutil.CheckArgument(ctx != nil)
-	jutil.CheckArgumentMsg(ctx.function != nil, "Cannot prepend declarations to root scope")
+	jutil.CheckArgumentMsg(!ctx.function.IsNil(), "Cannot prepend declarations to root scope")
 	jutil.CheckNotNull(ctx.thisSuperArgsContext)
 
 	thisSuperArgsCtx := ctx.thisSuperArgsContext
 	function := ctx.function
 	block := function.GetLastChild()
-	jutil.CheckNotNullMsg1(block, "%s", function)
+	rhino.CheckNotNullMsg1(block, "%s", function)
 	prefixBlock := r.astFactory.CreateBlock() // Temporary block to hold all declarations
 
-	if thisSuperArgsCtx.thisNodeToAdd != nil {
+	if !thisSuperArgsCtx.thisNodeToAdd.IsNil() {
 		// { // prefixBlock
 		//   const $jscomp$asyncIter$this = this;
 		// }
@@ -1012,7 +1012,7 @@ func (r *RewriteAsyncIteration) PrependTempVarDeclarations(ctx *RewriteAsyncIter
 	// }
 	block.AddChildrenToFront(prefixBlock.RemoveChildren())
 
-	if thisSuperArgsCtx.thisNodeToAdd != nil ||
+	if !thisSuperArgsCtx.thisNodeToAdd.IsNil() ||
 		thisSuperArgsCtx.usedArguments ||
 		!thisSuperArgsCtx.usedSuperProperties.IsEmpty() {
 		r.compiler.ReportChangeToChangeScope(function)
@@ -1021,7 +1021,7 @@ func (r *RewriteAsyncIteration) PrependTempVarDeclarations(ctx *RewriteAsyncIter
 }
 
 // Java: RewriteAsyncIteration.createSuperMethodReferenceGetter(Node, NodeTraversal)
-func (r *RewriteAsyncIteration) CreateSuperMethodReferenceGetter(replacedMethodReference *rhino.Node, t *NodeTraversal) *rhino.Node {
+func (r *RewriteAsyncIteration) CreateSuperMethodReferenceGetter(replacedMethodReference rhino.Node, t *NodeTraversal) rhino.Node {
 	// const super$get$x = () => { return super.x; };
 	typeOfSuper := AstFactory_Type_(replacedMethodReference.GetFirstChild())
 	superReference := r.astFactory.CreateSuper(typeOfSuper)

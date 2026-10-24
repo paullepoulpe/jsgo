@@ -70,7 +70,7 @@ type Property struct {
 
 	// The node corresponding to this property, e.g., a GETPROP node that
 	// declares this property.
-	propertyNode *Node
+	propertyNode Node
 
 	// The JSDocInfo for this property.
 	docInfo *JSDocInfo
@@ -247,7 +247,7 @@ func (p *Property_OwnedProperty) IsOwnedByInterface() bool {
 const Property_serialVersionUID int64 = 1
 
 // Java: Property(String, JSType, boolean, Node)
-func NewProperty(name string, type_ JSType, inferred bool, propertyNode *Node) *Property {
+func NewProperty(name string, type_ JSType, inferred bool, propertyNode Node) *Property {
 	jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
 	p := &Property{}
 	p.nameID = rhinoStringPoolIntern(name)
@@ -258,7 +258,7 @@ func NewProperty(name string, type_ JSType, inferred bool, propertyNode *Node) *
 }
 
 // Java: Property(Key, JSType, boolean, Node)
-func NewPropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode *Node) *Property {
+func NewPropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode Node) *Property {
 	if jutil.IsNil(type_) {
 		jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
 	}
@@ -292,13 +292,13 @@ func (p *Property) GetName() string {
 }
 
 // Java: Property.getNode()
-func (p *Property) GetNode() *Node {
+func (p *Property) GetNode() Node {
 	return p.propertyNode
 }
 
 // Java: Property.getSourceFile()
 func (p *Property) GetSourceFile() StaticSourceFile {
-	if p.propertyNode == nil {
+	if p.propertyNode.IsNil() {
 		return nil
 	}
 	return p.propertyNode.GetStaticSourceFile()
@@ -317,7 +317,7 @@ func (p *Property) GetSymbol() StaticSlot {
 //
 // Java: Property.getDeclaration()
 func (p *Property) GetDeclaration() StaticRef {
-	if p.propertyNode == nil {
+	if p.propertyNode.IsNil() {
 		return nil
 	}
 	return p
@@ -335,7 +335,7 @@ func (p *Property) IsTypeInferred() bool {
 
 // Java: Property.isFromExterns()
 func (p *Property) IsFromExterns() bool {
-	if p.propertyNode == nil {
+	if p.propertyNode.IsNil() {
 		return false
 	}
 	return p.propertyNode.IsFromExterns()
@@ -360,7 +360,7 @@ func (p *Property) SetJSDocInfo(info *JSDocInfo) {
 }
 
 // Java: Property.setNode(Node)
-func (p *Property) SetNode(n *Node) {
+func (p *Property) SetNode(n Node) {
 	p.propertyNode = n
 }
 

@@ -25,16 +25,16 @@ import (
 
 // CodeSubTree represents a subtree of the output from a compilation.
 type CodeSubTree struct {
-	rootNode *rhino.Node
+	rootNode rhino.Node
 }
 
 // Java: CodeSubTree(Node)
-func newCodeSubTree(rootNode *rhino.Node) *CodeSubTree {
+func newCodeSubTree(rootNode rhino.Node) *CodeSubTree {
 	return &CodeSubTree{rootNode: rootNode}
 }
 
 // Java: CodeSubTree.getRootNode()
-func (t *CodeSubTree) GetRootNode() *rhino.Node {
+func (t *CodeSubTree) GetRootNode() rhino.Node {
 	return t.rootNode
 }
 
@@ -44,7 +44,7 @@ func (t *CodeSubTree) GetRootNode() *rhino.Node {
 // Java: CodeSubTree.findClassDefinition(String)
 func (t *CodeSubTree) FindClassDefinition(wantedClassName string) *CodeSubTree {
 	classNode := CodeSubTree_FindFirstNode(
-		t.rootNode, func(node *rhino.Node) bool {
+		t.rootNode, func(node rhino.Node) bool {
 			if !node.IsClass() {
 				return false
 			}
@@ -70,7 +70,7 @@ func CodeSubTree_FindClassDefinition(compiler AbstractCompiler, wantedClassName 
 func (t *CodeSubTree) FindMethodDefinition(wantedMethodName string) *CodeSubTree {
 	methodDefinitionNode := CodeSubTree_FindFirstNode(
 		t.rootNode,
-		func(node *rhino.Node) bool {
+		func(node rhino.Node) bool {
 			return node.IsMemberFunctionDef() && wantedMethodName == node.GetString()
 		})
 
@@ -85,7 +85,7 @@ func CodeSubTree_FindFunctionDefinition(
 	compiler AbstractCompiler, wantedMethodName string) *CodeSubTree {
 	functionDefinitionNode := CodeSubTree_FindFirstNode(
 		compiler.GetRoot(),
-		func(node *rhino.Node) bool {
+		func(node rhino.Node) bool {
 			return node.IsFunction() &&
 				node.GetFirstChild().IsName() &&
 				wantedMethodName == node.GetFirstChild().GetString()
@@ -98,19 +98,19 @@ func CodeSubTree_FindFunctionDefinition(
 // given qualified name.
 //
 // Java: CodeSubTree.findMatchingQNameReferences(String)
-func (t *CodeSubTree) FindMatchingQNameReferences(wantedQName string) []*rhino.Node {
-	return CodeSubTree_FindNodesAllowEmpty(t.rootNode, func(node *rhino.Node) bool { return node.MatchesQualifiedName(wantedQName) })
+func (t *CodeSubTree) FindMatchingQNameReferences(wantedQName string) []rhino.Node {
+	return CodeSubTree_FindNodesAllowEmpty(t.rootNode, func(node rhino.Node) bool { return node.MatchesQualifiedName(wantedQName) })
 }
 
 // CodeSubTree_FindNodesAllowEmpty returns a list of all Nodes matching the
 // given predicate starting at the given root.
 //
 // Java: CodeSubTree.findNodesAllowEmpty(Node, Predicate<Node>)
-func CodeSubTree_FindNodesAllowEmpty(rootNode *rhino.Node, predicate func(*rhino.Node) bool) []*rhino.Node {
-	listBuilder := []*rhino.Node{}
+func CodeSubTree_FindNodesAllowEmpty(rootNode rhino.Node, predicate func(rhino.Node) bool) []rhino.Node {
+	listBuilder := []rhino.Node{}
 	NodeUtil_VisitPreOrder(
 		rootNode,
-		NodeUtil_VisitorFunc(func(node *rhino.Node) {
+		NodeUtil_VisitorFunc(func(node rhino.Node) {
 			if predicate(node) {
 				listBuilder = append(listBuilder, node)
 			}
@@ -122,7 +122,7 @@ func CodeSubTree_FindNodesAllowEmpty(rootNode *rhino.Node, predicate func(*rhino
 // given predicate starting at the given root.
 //
 // Java: CodeSubTree.findNodesNonEmpty(Node, Predicate<Node>)
-func CodeSubTree_FindNodesNonEmpty(rootNode *rhino.Node, predicate func(*rhino.Node) bool) []*rhino.Node {
+func CodeSubTree_FindNodesNonEmpty(rootNode rhino.Node, predicate func(rhino.Node) bool) []rhino.Node {
 	results := CodeSubTree_FindNodesAllowEmpty(rootNode, predicate)
 	jutil.CheckStateMsg(len(results) != 0, "no nodes found")
 	return results
@@ -134,7 +134,7 @@ func CodeSubTree_FindNodesNonEmpty(rootNode *rhino.Node, predicate func(*rhino.N
 // Throws an exception if none found.
 //
 // Java: CodeSubTree.findFirstNode(Node, Predicate<Node>)
-func CodeSubTree_FindFirstNode(rootNode *rhino.Node, predicate func(*rhino.Node) bool) *rhino.Node {
+func CodeSubTree_FindFirstNode(rootNode rhino.Node, predicate func(rhino.Node) bool) rhino.Node {
 	allMatchingNodes := CodeSubTree_FindNodesNonEmpty(rootNode, predicate)
 	return allMatchingNodes[0]
 }

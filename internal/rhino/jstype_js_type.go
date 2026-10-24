@@ -374,10 +374,10 @@ const (
 const (
 	_ = uintptr(32) - unsafe.Sizeof(JSTypeBase{})
 	_ = uintptr(96) - unsafe.Sizeof(PrototypeObjectTypeBase{})
-	_ = uintptr(160) - unsafe.Sizeof(FunctionTypeBase{})
+	_ = uintptr(176) - unsafe.Sizeof(FunctionTypeBase{})
 	_ = uintptr(96) - unsafe.Sizeof(UnionType{})
 	_ = uintptr(96) - unsafe.Sizeof(TemplatizedType{})
-	_ = uintptr(32) - unsafe.Sizeof(Property{})
+	_ = uintptr(48) - unsafe.Sizeof(Property{})
 	_ = uintptr(16) - unsafe.Sizeof(FunctionType_Parameter{})
 )
 
@@ -408,7 +408,7 @@ func jsTypeEquals(a, b JSType) bool {
 }
 
 func jsTypeIsUnknown(t JSType, tb *JSTypeBase, kind uint8) bool {
-	if ((uint32(1) << kind) & jsKindMaybeUnknownMask) == 0 && !tb.unknown {
+	if ((uint32(1)<<kind)&jsKindMaybeUnknownMask) == 0 && !tb.unknown {
 		return false
 	}
 	if kind == objKindUnknown {
@@ -1182,7 +1182,7 @@ func (t *JSTypeBase) IsNominalConstructorOrInterface() bool {
 
 		// Programmer-defined constructors will have a link back to the original
 		// function in the source tree. Structural constructors will not.
-		if fn.GetSource() != nil {
+		if !fn.GetSource().IsNil() {
 			return true
 		}
 
@@ -2225,7 +2225,7 @@ func NewJSType_TypePair(typeA JSType, typeB JSType) *JSType_TypePair {
 // JSType_WithSourceRef is a type with source information.
 type JSType_WithSourceRef interface {
 	// GetSource returns the node representing the declaration of this type.
-	GetSource() *Node
+	GetSource() Node
 
 	// GetGoogModuleId returns the ID of the goog.module in which this type
 	// was declared.

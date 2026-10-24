@@ -41,12 +41,12 @@ func NewCheckEmptyStatements(compiler AbstractCompiler) *CheckEmptyStatements {
 }
 
 // Java: CheckEmptyStatements.process(Node, Node)
-func (c *CheckEmptyStatements) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckEmptyStatements) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckEmptyStatements.visit(NodeTraversal, Node, Node)
-func (c *CheckEmptyStatements) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckEmptyStatements) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsEmpty() && NodeUtil_IsStatement(n) {
 		t.Report(n, CheckEmptyStatements_USELESS_EMPTY_STATEMENT)
 	}

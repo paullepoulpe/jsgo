@@ -129,7 +129,7 @@ func (t *UnknownType) AppendTo(sb *TypeStringBuilder) {
 }
 
 // Java: UnknownType.defineProperty(Property.Key, JSType, boolean, Node)
-func (t *UnknownType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (t *UnknownType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	// nothing to define
 	return true
 }

@@ -16,9 +16,9 @@ import (
 // JSDoc and side-effects.
 //
 // Java: NodeSubject.isEqualTo(Node)
-func (s *nodeSubject) IsEqualTo(expected *rhino.Node) {
+func (s *nodeSubject) IsEqualTo(expected rhino.Node) {
 	s.t.Helper()
-	if s.actual == nil || expected == nil {
+	if s.actual.IsNil() || expected.IsNil() {
 		s.t.Fatalf("expected not to be null: actual %v, expected %v", s.actual, expected)
 	}
 	if m := nodeSubject_findFirstMismatch(s.actual, expected, false); m != nil {
@@ -31,16 +31,16 @@ func (s *nodeSubject) IsEqualTo(expected *rhino.Node) {
 // that is not equivalent, or nil.
 //
 // Java: NodeSubject.findFirstMismatch(Node, Node, boolean)
-func nodeSubject_findFirstMismatch(actual, expected *rhino.Node, jsDoc bool) []*rhino.Node {
+func nodeSubject_findFirstMismatch(actual, expected rhino.Node, jsDoc bool) []rhino.Node {
 	if !actual.IsEquivalentToWithFlagsAndSideEffect(
 		expected /* compareType= */, false /* recurse= */, false, jsDoc /* sideEffect= */, false) {
-		return []*rhino.Node{actual, expected}
+		return []rhino.Node{actual, expected}
 	}
 
 	// `isEquivalentTo` confirms that the number of children is the same.
 	actualChild := actual.GetFirstChild()
 	expectedChild := expected.GetFirstChild()
-	for actualChild != nil {
+	for !actualChild.IsNil() {
 		if mismatch := nodeSubject_findFirstMismatch(actualChild, expectedChild, jsDoc); mismatch != nil {
 			return mismatch
 		}
@@ -52,7 +52,7 @@ func nodeSubject_findFirstMismatch(actual, expected *rhino.Node, jsDoc bool) []*
 	// none do.
 	actualShadowAst := actual.GetClosureUnawareShadow()
 	expectedShadowAst := expected.GetClosureUnawareShadow()
-	if actualShadowAst != nil && expectedShadowAst != nil {
+	if !actualShadowAst.IsNil() && !expectedShadowAst.IsNil() {
 		if mismatch := nodeSubject_findFirstMismatch(actualShadowAst, expectedShadowAst, jsDoc); mismatch != nil {
 			return mismatch
 		}

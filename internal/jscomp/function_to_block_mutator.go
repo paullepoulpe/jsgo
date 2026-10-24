@@ -36,18 +36,18 @@ type FunctionToBlockMutator struct {
 	localRenamerStackBuf     [16]MakeDeclaredNamesUnique_Renamer
 	localScopeRootsCb        nodeTraversal_TraverseScopeRootsCallback
 	allowMoveCallArgs        bool
-	currentCallNode          *rhino.Node
-	onMovedArg               func(*rhino.Node)
-	errorNodes               map[*rhino.Node]struct{}
+	currentCallNode          rhino.Node
+	onMovedArg               func(rhino.Node)
+	errorNodes               map[rhino.Node]struct{}
 	lastDiagCount            int
 	paramNamesScratch        jutil.LinkedHashSet[string]
 	modifiedParamsScratch    jutil.LinkedHashSet[string]
 	argsScratch              jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
 	allNamesToAliasScratch   jutil.LinkedHashSet[string]
-	paramReplacementsScratch jutil.LinkedHashMap[string, *rhino.Node]
-	newAliasesToAddScratch   jutil.ArrayList[*rhino.Node]
-	scratchRoot              *rhino.Node
-	scratchScript            *rhino.Node
+	paramReplacementsScratch jutil.LinkedHashMap[string, rhino.Node]
+	newAliasesToAddScratch   jutil.ArrayList[rhino.Node]
+	scratchRoot              rhino.Node
+	scratchScript            rhino.Node
 	scratchReady             bool
 }
 
@@ -73,11 +73,11 @@ func NewFunctionToBlockMutator(compiler AbstractCompiler, safeNameIdSupplier fun
 // Java: FunctionToBlockMutator.mutate(String, Node, Node, String, boolean, boolean)
 func (m *FunctionToBlockMutator) Mutate(
 	fnName string,
-	fnNode *rhino.Node,
-	callNode *rhino.Node,
+	fnNode rhino.Node,
+	callNode rhino.Node,
 	resultName *string,
 	needsDefaultResult bool,
-	isCallInLoop bool) *rhino.Node {
+	isCallInLoop bool) rhino.Node {
 	if m.allowMoveCallArgs {
 		m.currentCallNode = callNode
 	}
@@ -89,7 +89,7 @@ func (m *FunctionToBlockMutator) Mutate(
 		needsDefaultResult,
 		isCallInLoop,
 		/* renameLocals= */ true)
-	m.currentCallNode = nil
+	m.currentCallNode = rhino.Node{}
 	return res
 }
 
@@ -108,11 +108,11 @@ func (m *FunctionToBlockMutator) Mutate(
 // Java: FunctionToBlockMutator.mutateWithoutRenaming(String, Node, Node, String, boolean, boolean)
 func (m *FunctionToBlockMutator) MutateWithoutRenaming(
 	fnName string,
-	fnNode *rhino.Node,
-	callNode *rhino.Node,
+	fnNode rhino.Node,
+	callNode rhino.Node,
 	resultName *string,
 	needsDefaultResult bool,
-	isCallInLoop bool) *rhino.Node {
+	isCallInLoop bool) rhino.Node {
 	return m.MutateInternal(
 		fnName,
 		fnNode,
@@ -136,12 +136,12 @@ func (m *FunctionToBlockMutator) MutateWithoutRenaming(
 // Java: FunctionToBlockMutator.mutateInternal(String, Node, Node, String, boolean, boolean, boolean)
 func (m *FunctionToBlockMutator) MutateInternal(
 	fnName string,
-	fnNode *rhino.Node,
-	callNode *rhino.Node,
+	fnNode rhino.Node,
+	callNode rhino.Node,
 	resultName *string,
 	needsDefaultResult bool,
 	isCallInLoop bool,
-	renameLocals bool) *rhino.Node {
+	renameLocals bool) rhino.Node {
 	newFnNode := fnNode.CloneTree()
 	// Wrap the clone in a script, in a root, so that makeLocalNamesUnique sees a coherent tree.
 	usedScratch := false
@@ -207,7 +207,7 @@ func (m *FunctionToBlockMutator) MutateInternal(
 
 	labelName := m.GetLabelNameForFunction(fnName)
 	injectableBlock := FunctionToBlockMutator_ReplaceReturns(newBlock, resultName, labelName, needsDefaultResult)
-	jutil.CheckState(injectableBlock != nil)
+	jutil.CheckState(!injectableBlock.IsNil())
 
 	return injectableBlock
 }
@@ -216,7 +216,7 @@ func (m *FunctionToBlockMutator) MutateInternal(
 // inspect.
 //
 // Java: FunctionToBlockMutator.rewriteFunctionDeclarations(Node)
-func FunctionToBlockMutator_RewriteFunctionDeclarations(n *rhino.Node) *rhino.Node {
+func FunctionToBlockMutator_RewriteFunctionDeclarations(n rhino.Node) rhino.Node {
 	if n.IsFunction() {
 		if NodeUtil_IsFunctionDeclaration(n) {
 			// Rewrite: function f() {} ==> var f = function() {}
@@ -233,19 +233,19 @@ func FunctionToBlockMutator_RewriteFunctionDeclarations(n *rhino.Node) *rhino.No
 
 			return var_
 		}
-		return nil
+		return rhino.Node{}
 	}
 
 	// Keep track of any rewritten functions and hoist them to the top
 	// of the block they are defined in. This isn't fully compliant hoisting
 	// but it does address a large set of use cases.
-	var hoistBuf [4]*rhino.Node
+	var hoistBuf [4]rhino.Node
 	functionsToHoist := hoistBuf[:0]
-	var next *rhino.Node
-	for c := n.GetFirstChild(); c != nil; c = next {
+	var next rhino.Node
+	for c := n.GetFirstChild(); !c.IsNil(); c = next {
 		next = c.GetNext() // We may rewrite "c"
 		fnVar := FunctionToBlockMutator_RewriteFunctionDeclarations(c)
-		if fnVar != nil {
+		if !fnVar.IsNil() {
 			functionsToHoist = append(functionsToHoist, fnVar)
 		}
 	}
@@ -257,7 +257,7 @@ func FunctionToBlockMutator_RewriteFunctionDeclarations(n *rhino.Node) *rhino.No
 		}
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // FunctionToBlockMutator_FixUninitializedVarDeclarations: for all VAR
@@ -270,13 +270,13 @@ func FunctionToBlockMutator_RewriteFunctionDeclarations(n *rhino.Node) *rhino.No
 // variables would otherwise retain their values across loop iterations.
 //
 // Java: FunctionToBlockMutator.fixUninitializedVarDeclarations(Node, Node)
-func FunctionToBlockMutator_FixUninitializedVarDeclarations(n *rhino.Node, containingBlock *rhino.Node) {
+func FunctionToBlockMutator_FixUninitializedVarDeclarations(n rhino.Node, containingBlock rhino.Node) {
 	FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(n, containingBlock /* inLoop= */, false)
 }
 
 // Java: FunctionToBlockMutator.fixUninitializedVarDeclarations(Node, Node, boolean)
 func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
-	n *rhino.Node, containingBlock *rhino.Node, inLoop bool) {
+	n rhino.Node, containingBlock rhino.Node, inLoop bool) {
 	// Nested functions introduce there own var hoisting scope
 	// thier `var` should not be hoisted out to the containing block.
 	if n.IsFunction() {
@@ -290,12 +290,12 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 	// do not need hoisting.
 	if NodeUtil_IsLoopStructure(n) {
 		body := NodeUtil_GetLoopCodeBlock(n)
-		if body != nil {
+		if !body.IsNil() {
 			FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(body, containingBlock /* inLoop= */, true)
 		}
 		if n.IsVanillaFor() {
 			init := n.GetFirstChild()
-			if init != nil && !init.IsEmpty() {
+			if !init.IsNil() && !init.IsEmpty() {
 				FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(init, containingBlock /* inLoop= */, true)
 			}
 		}
@@ -316,14 +316,14 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 			// the loop.
 			value := name.RemoveFirstChild()
 			assign := rhino.IR_Assign(name.Detach(), value).Srcref(n)
-			if parent != nil && parent.IsVanillaFor() && parent.GetFirstChild() == n {
+			if !parent.IsNil() && parent.IsVanillaFor() && parent.GetFirstChild() == n {
 				n.ReplaceWith(assign)
 			} else {
 				n.ReplaceWith(NodeUtil_NewExpr(assign))
 			}
 		} else {
 			// If uninitialized in the loop, remove the var declaration from the loop.
-			if parent != nil && parent.IsVanillaFor() && parent.GetFirstChild() == n {
+			if !parent.IsNil() && parent.IsVanillaFor() && parent.GetFirstChild() == n {
 				n.ReplaceWith(rhino.IR_Empty())
 			} else {
 				n.Detach()
@@ -340,7 +340,7 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 			undefinedNode := NodeUtil_NewUndefinedNode(srcLocation)
 			name.AddChildToBack(undefinedNode)
 			parent := n.GetParent()
-			if parent != nil && parent.IsVanillaFor() && parent.GetFirstChild() == n {
+			if !parent.IsNil() && parent.IsVanillaFor() && parent.GetFirstChild() == n {
 				n.ReplaceWith(rhino.IR_Empty())
 			} else {
 				n.Detach()
@@ -350,7 +350,7 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 		return
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(c, containingBlock, inLoop)
 	}
 }
@@ -400,7 +400,7 @@ func (m *FunctionToBlockMutator) formatInlineUniqueName(exported bool, baseName 
 // fnNode is a mutable instance of the function to be inlined.
 //
 // Java: FunctionToBlockMutator.makeLocalNamesUnique(Node, boolean)
-func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCallInLoop bool) {
+func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode rhino.Node, isCallInLoop bool) {
 	concreteCompiler, _ := m.compiler.(*Compiler)
 	var idSupplier func() string
 	if concreteCompiler == nil {
@@ -447,7 +447,7 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCall
 	clear(cb.renamerStack)
 	cb.renamerStack = nil
 	cb.rootRenamer = nil
-	scb.scopeNode = nil
+	scb.scopeNode = rhino.Node{}
 
 	// Make label names unique to this instance.
 	if hasLabelNode(fnNode) {
@@ -455,15 +455,15 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode *rhino.Node, isCall
 			idSupplier = m.compiler.GetUniqueNameIdSupplier()
 		}
 		NewRenameLabelsWithSupplier(m.compiler, NewFunctionToBlockMutator_LabelNameSupplier(idSupplier).Get, false, false).
-			Process(nil, fnNode)
+			Process(rhino.Node{}, fnNode)
 	}
 }
 
-func hasLabelNode(n *rhino.Node) bool {
+func hasLabelNode(n rhino.Node) bool {
 	if n.IsLabel() {
 		return true
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if hasLabelNode(c) {
 			return true
 		}
@@ -504,11 +504,11 @@ func (m *FunctionToBlockMutator) GetUniqueThisName() string {
 	return "JSCompiler_inline_this_" + m.safeNameIdSupplier()
 }
 
-func (m *FunctionToBlockMutator) rebindMovedArgFunctions(n *rhino.Node, deletedFnsHolder *rhino.Node) *rhino.Node {
+func (m *FunctionToBlockMutator) rebindMovedArgFunctions(n rhino.Node, deletedFnsHolder rhino.Node) rhino.Node {
 	if n.IsFunction() {
 		newFn := n.CloneNode()
 		newFn.AddChildrenToBack(n.RemoveChildren())
-		if n.GetParent() != nil {
+		if !n.GetParent().IsNil() {
 			n.ReplaceWith(newFn)
 		}
 		if m.onMovedArg != nil {
@@ -520,34 +520,34 @@ func (m *FunctionToBlockMutator) rebindMovedArgFunctions(n *rhino.Node, deletedF
 		if _, ok := m.errorNodes[n]; ok {
 			cloned := n.CloneNode()
 			cloned.AddChildrenToBack(n.RemoveChildren())
-			if n.GetParent() != nil {
+			if !n.GetParent().IsNil() {
 				n.ReplaceWith(cloned)
 			}
 			n = cloned
 		}
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		c = m.rebindMovedArgFunctions(c, deletedFnsHolder)
 	}
 	return n
 }
 
-func (m *FunctionToBlockMutator) takeOrCloneCallArg(origArg *rhino.Node) *rhino.Node {
-	if m.currentCallNode != nil && origArg.GetParent() == m.currentCallNode {
+func (m *FunctionToBlockMutator) takeOrCloneCallArg(origArg rhino.Node) rhino.Node {
+	if !m.currentCallNode.IsNil() && origArg.GetParent() == m.currentCallNode {
 		if m.compiler != nil {
 			if em := m.compiler.GetErrorManager(); em != nil {
 				if total := em.GetErrorCount() + em.GetWarningCount(); total > 0 && total != m.lastDiagCount {
 					m.lastDiagCount = total
 					if m.errorNodes == nil {
-						m.errorNodes = make(map[*rhino.Node]struct{}, total)
+						m.errorNodes = make(map[rhino.Node]struct{}, total)
 					}
 					for _, e := range em.GetErrors() {
-						if e.Node() != nil {
+						if !e.Node().IsNil() {
 							m.errorNodes[e.Node()] = struct{}{}
 						}
 					}
 					for _, w := range em.GetWarnings() {
-						if w.Node() != nil {
+						if !w.Node().IsNil() {
 							m.errorNodes[w.Node()] = struct{}{}
 						}
 					}
@@ -576,9 +576,9 @@ func (m *FunctionToBlockMutator) takeOrCloneCallArg(origArg *rhino.Node) *rhino.
 //
 // Java: FunctionToBlockMutator.aliasAndInlineArguments(Node, ImmutableMap<String, ParamArgPair>, Set<String>)
 func (m *FunctionToBlockMutator) AliasAndInlineArguments(
-	fnTemplateRoot *rhino.Node,
+	fnTemplateRoot rhino.Node,
 	paramToArgMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
-	namesToAlias *jutil.LinkedHashSet[string]) *rhino.Node {
+	namesToAlias *jutil.LinkedHashSet[string]) rhino.Node {
 
 	if namesToAlias == nil || namesToAlias.IsEmpty() {
 		// There are no names to alias. Just inline the arguments directly.
@@ -587,7 +587,7 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 		for key, value := range paramToArgMap.All() {
 			replacements.Put(key, value.Arg())
 		}
-		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, nil, replacements)
+		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, rhino.Node{}, replacements)
 		jutil.CheckState(result == fnTemplateRoot)
 		return result
 	} else {
@@ -642,7 +642,7 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 		}
 
 		// Inline the arguments.
-		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, nil, paramReplacements)
+		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, rhino.Node{}, paramReplacements)
 		jutil.CheckState(result == fnTemplateRoot)
 
 		// Now that the names have been replaced, add the new aliases for
@@ -665,8 +665,8 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 //
 // Java: FunctionToBlockMutator.replaceReturns(Node, String, String, boolean)
 func FunctionToBlockMutator_ReplaceReturns(
-	block *rhino.Node, resultName *string, labelName string, resultMustBeSet bool) *rhino.Node {
-	jutil.CheckNotNull(block)
+	block rhino.Node, resultName *string, labelName string, resultMustBeSet bool) rhino.Node {
+	rhino.CheckNotNull(block)
 
 	root := block
 
@@ -686,7 +686,7 @@ func FunctionToBlockMutator_ReplaceReturns(
 			// A label and breaks are needed.
 
 			// Add the breaks
-			FunctionToBlockMutator_ReplaceReturnWithBreak(block, nil, resultName, labelName)
+			FunctionToBlockMutator_ReplaceReturnWithBreak(block, rhino.Node{}, resultName, labelName)
 
 			// Add label
 			name := rhino.IR_LabelName(labelName).Srcref(block)
@@ -716,7 +716,7 @@ func FunctionToBlockMutator_ReplaceReturns(
 // FunctionToBlockMutator_AddDummyAssignment, example: a = (void) 0;
 //
 // Java: FunctionToBlockMutator.addDummyAssignment(Node, String)
-func FunctionToBlockMutator_AddDummyAssignment(node *rhino.Node, resultName string) {
+func FunctionToBlockMutator_AddDummyAssignment(node rhino.Node, resultName string) {
 	jutil.CheckArgument(node.IsBlock())
 
 	// A result is needed create a dummy value.
@@ -733,12 +733,12 @@ func FunctionToBlockMutator_AddDummyAssignment(node *rhino.Node, resultName stri
 // "resultName = foo()" "return" is removed or becomes "resultName = void 0".
 //
 // Java: FunctionToBlockMutator.convertLastReturnToStatement(Node, String)
-func FunctionToBlockMutator_ConvertLastReturnToStatement(block *rhino.Node, resultName *string) {
+func FunctionToBlockMutator_ConvertLastReturnToStatement(block rhino.Node, resultName *string) {
 	ret := block.GetLastChild()
 	jutil.CheckArgument(ret.IsReturn())
 	resultNode := FunctionToBlockMutator_GetReplacementReturnStatement(ret, resultName)
 
-	if resultNode == nil {
+	if resultNode.IsNil() {
 		ret.Detach()
 	} else {
 		resultNode.SrcrefTreeIfMissing(ret)
@@ -750,7 +750,7 @@ func FunctionToBlockMutator_ConvertLastReturnToStatement(block *rhino.Node, resu
 // Node containing an assignment to name of the given expression.
 //
 // Java: FunctionToBlockMutator.createAssignStatementNode(String, Node)
-func FunctionToBlockMutator_CreateAssignStatementNode(name string, expression *rhino.Node) *rhino.Node {
+func FunctionToBlockMutator_CreateAssignStatementNode(name string, expression rhino.Node) rhino.Node {
 	// Create 'name = result-expression;' statement.
 	// EXPR (ASSIGN (NAME, EXPRESSION))
 	nameNode := rhino.IR_Name(name)
@@ -765,10 +765,10 @@ func FunctionToBlockMutator_CreateAssignStatementNode(name string, expression *r
 // null is returned.
 //
 // Java: FunctionToBlockMutator.getReplacementReturnStatement(Node, String)
-func FunctionToBlockMutator_GetReplacementReturnStatement(node *rhino.Node, resultName *string) *rhino.Node {
-	var resultNode *rhino.Node
+func FunctionToBlockMutator_GetReplacementReturnStatement(node rhino.Node, resultName *string) rhino.Node {
+	var resultNode rhino.Node
 
-	var retVal *rhino.Node
+	var retVal rhino.Node
 	if node.HasChildren() {
 		// Clone the child as the child hasn't been removed
 		// from the node yet.
@@ -776,11 +776,11 @@ func FunctionToBlockMutator_GetReplacementReturnStatement(node *rhino.Node, resu
 	}
 
 	if resultName == nil {
-		if retVal != nil {
+		if !retVal.IsNil() {
 			resultNode = NodeUtil_NewExpr(retVal) // maybe null.
 		}
 	} else {
-		if retVal == nil {
+		if retVal.IsNil() {
 			// A result is needed create a dummy value.
 			srcLocation := node
 			retVal = NodeUtil_NewUndefinedNode(srcLocation)
@@ -796,7 +796,7 @@ func FunctionToBlockMutator_GetReplacementReturnStatement(node *rhino.Node, resu
 // with an return statement.
 //
 // Java: FunctionToBlockMutator.hasReturnAtExit(Node)
-func FunctionToBlockMutator_HasReturnAtExit(block *rhino.Node) bool {
+func FunctionToBlockMutator_HasReturnAtExit(block rhino.Node) bool {
 	// Only inline functions that return something (empty returns
 	// will be handled by ConstFolding+EmptyFunctionRemoval)
 	return block.GetLastChild().IsReturn()
@@ -809,7 +809,7 @@ func FunctionToBlockMutator_HasReturnAtExit(block *rhino.Node) bool {
 //
 // Java: FunctionToBlockMutator.replaceReturnWithBreak(Node, Node, String, String)
 func FunctionToBlockMutator_ReplaceReturnWithBreak(
-	current *rhino.Node, parent *rhino.Node, resultName *string, labelName string) *rhino.Node {
+	current rhino.Node, parent rhino.Node, resultName *string, labelName string) rhino.Node {
 
 	if current.IsFunction() || current.IsExprResult() {
 		// Don't recurse into functions definitions, and expressions can't
@@ -826,13 +826,13 @@ func FunctionToBlockMutator_ReplaceReturnWithBreak(
 		// Replace the node in parent, and reset current to the first new child.
 		breakNode.SrcrefTreeIfMissing(current)
 		current.ReplaceWith(breakNode)
-		if resultNode != nil {
+		if !resultNode.IsNil() {
 			resultNode.SrcrefTreeIfMissing(current)
 			resultNode.InsertBefore(breakNode)
 		}
 		current = breakNode
 	} else {
-		for c := current.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := current.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			// c may be replaced.
 			c = FunctionToBlockMutator_ReplaceReturnWithBreak(c, current, resultName, labelName)
 		}

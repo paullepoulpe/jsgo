@@ -60,11 +60,11 @@ var typedVar_NAME_NODE_TYPES = jutil.NewEnumSet(
 	rhino.Token_MODULE_BODY) // for the implicit exports object in a module
 
 // Java: TypedVar(boolean, String, Node, JSType, TypedScope, int, CompilerInput)
-func NewTypedVar(inferred bool, name string, nameNode *rhino.Node, type_ rhino.JSType,
+func NewTypedVar(inferred bool, name string, nameNode rhino.Node, type_ rhino.JSType,
 	scope *TypedScope, index int, input *CompilerInput) *TypedVar {
 	v := &TypedVar{name: name}
-	v.initAbstractVarBase(nameNode, scope, index, input, nil /* implicitGoogNamespaceDefinition */)
-	if nameNode != nil {
+	v.initAbstractVarBase(nameNode, scope, index, input, rhino.Node{} /* implicitGoogNamespaceDefinition */)
+	if !nameNode.IsNil() {
 		jutil.CheckArgumentMsg1(
 			typedVar_NAME_NODE_TYPES.Contains(nameNode.GetToken()),
 			"Invalid name node token %s",
@@ -89,7 +89,7 @@ func (v *TypedVar) GetSymbol() rhino.StaticSlot {
 
 // Java: AbstractVar.getDeclaration()
 func (v *TypedVar) GetDeclaration() rhino.StaticRef {
-	if v.nameNode == nil {
+	if v.nameNode.IsNil() {
 		return nil
 	}
 	return v

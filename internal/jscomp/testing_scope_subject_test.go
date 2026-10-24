@@ -230,11 +230,11 @@ func (d *ScopeSubject_DeclarationSubject) WithTypeThat() *rhinotesting.TypeSubje
 // exists.
 //
 // Java: ScopeSubject.getLabel(Node)
-func (s *ScopeSubject) getLabel(n *rhino.Node) *string {
+func (s *ScopeSubject) getLabel(n rhino.Node) *string {
 	// If the node is labeled it will be the second child of a LABEL and the first child
 	// will be a LABEL_NAME.
 	parent := n.GetParent()
-	if parent != nil && parent.IsLabel() {
+	if !parent.IsNil() && parent.IsLabel() {
 		labelNameNode := parent.GetFirstChild()
 		jutil.CheckStateMsg1(labelNameNode.IsLabelName(), "%s", labelNameNode)
 		jutil.CheckStateMsg1(labelNameNode.GetNext() == n, "%s", n)

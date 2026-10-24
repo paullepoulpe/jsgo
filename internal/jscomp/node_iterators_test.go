@@ -189,13 +189,13 @@ func (c *NodeIteratorsTest) testVarMotionWithCode(code string, expectedTokens ..
 
 // Java: NodeIteratorsTest.testVarMotionWithCode(String, List<Token>)
 func (c *NodeIteratorsTest) testVarMotionWithCodeOfList(code string, expectedTokens []rhino.Token) {
-	var ancestors []*rhino.Node
+	var ancestors []rhino.Node
 
 	// Add an empty node to the beginning of the code and start there.
 	compiler := NewCompiler()
 	root := compiler.ParseTestCode(";" + code)
-	for n := root; n != nil; n = n.GetFirstChild() {
-		ancestors = append([]*rhino.Node{n}, ancestors...)
+	for n := root; !n.IsNil(); n = n.GetFirstChild() {
+		ancestors = append([]rhino.Node{n}, ancestors...)
 	}
 
 	searchIt := NewNodeIterators_FunctionlessLocalScope(ancestors...)

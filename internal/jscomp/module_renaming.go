@@ -197,7 +197,7 @@ func (g *ModuleRenaming_GlobalizedModuleName) RootNameType() rhino.JSType { retu
 // name
 //
 // Java: ModuleRenaming.GlobalizedModuleName.toQname(AstFactory)
-func (g *ModuleRenaming_GlobalizedModuleName) ToQname(astFactory *AstFactory) *rhino.Node {
+func (g *ModuleRenaming_GlobalizedModuleName) ToQname(astFactory *AstFactory) rhino.Node {
 	rootName := astFactory.CreateName(g.AliasName().GetRoot(), AstFactory_Type_OfJSType(g.RootNameType()))
 	if g.AliasName().IsSimple() {
 		return rootName

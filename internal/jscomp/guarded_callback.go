@@ -102,7 +102,7 @@ type GuardedCallback[T comparable] interface {
 	// IsGuarded at least once.
 	//
 	// Java: GuardedCallback.visitGuarded(NodeTraversal, Node, Node)
-	VisitGuarded(traversal *NodeTraversal, n *rhino.Node, parent *rhino.Node)
+	VisitGuarded(traversal *NodeTraversal, n rhino.Node, parent rhino.Node)
 
 	// Java: GuardedCallback.isGuarded(T)
 	IsGuarded(resource T) bool
@@ -131,7 +131,7 @@ type GuardedCallbackBase[T comparable] struct {
 	// `guarded` (a multiset queried for membership) and `installedGuards`
 	// (whose lists only flow back into this multimap and into
 	// guarded.removeAll), and nothing iterates the keys.
-	registeredGuards map[*rhino.Node][]T
+	registeredGuards map[rhino.Node][]T
 	// Set of currently-guarded resources. Elements are added to this set
 	// just before traversing the second or later (i.e. "then" or "else")
 	// child of a short-circuiting conditional node, and then removed after
@@ -139,7 +139,7 @@ type GuardedCallbackBase[T comparable] struct {
 	guarded map[T]struct{}
 	// Resources that are currently installed as guarded but will need to be
 	// removed from `guarded` after visiting all the key nodes' children.
-	installedGuards map[*rhino.Node][]T
+	installedGuards map[rhino.Node][]T
 	// A stack of `Context` objects describing the current node's context:
 	// specifically, whether it is inherently safe, and a link to one or more
 	// conditional nodes in the current statement directly above it (for
@@ -173,13 +173,13 @@ func (b *GuardedCallbackBase[T]) InitGuardedCallbackBase(self GuardedCallback[T]
 	b.emptyDepth = 0
 }
 
-func (b *GuardedCallbackBase[T]) putRegisteredGuard(node *rhino.Node, resource T) {
+func (b *GuardedCallbackBase[T]) putRegisteredGuard(node rhino.Node, resource T) {
 	list := b.registeredGuards[node]
 	if slices.Contains(list, resource) {
 		return
 	}
 	if b.registeredGuards == nil {
-		b.registeredGuards = make(map[*rhino.Node][]T)
+		b.registeredGuards = make(map[rhino.Node][]T)
 	}
 	b.registeredGuards[node] = append(list, resource)
 }
@@ -231,7 +231,7 @@ func (b *GuardedCallbackBase[T]) popContext() *guardedCallback_Context {
 }
 
 // Java: GuardedCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Note that shouldTraverse() operates primarily on `parent`, while
 	// visit() uses `n`. This is intentional. To see why, consider traversing
 	// the following tree:
@@ -267,7 +267,7 @@ func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhi
 	//    a. the installed {`if`: "x"} guard is removed.
 	//    c. pop the final empty context from the stack.
 
-	if parent == nil {
+	if parent.IsNil() {
 		// The first node gets an empty context.
 		if len(b.contextStack) == 0 {
 			b.emptyDepth++
@@ -276,7 +276,7 @@ func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhi
 		}
 		return true
 	}
-	if b.onlyNameLeaves && n.GetFirstChild() == nil && len(b.registeredGuards) == 0 {
+	if b.onlyNameLeaves && n.GetFirstChild().IsNil() && len(b.registeredGuards) == 0 {
 		nt := n.GetToken()
 		if nt != rhino.Token_NAME {
 			if len(b.installedGuards) == 0 || (nt != rhino.Token_RETURN && nt != rhino.Token_THROW) {
@@ -319,7 +319,7 @@ func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhi
 				b.guarded = make(map[T]struct{})
 			}
 			if b.installedGuards == nil {
-				b.installedGuards = make(map[*rhino.Node][]T)
+				b.installedGuards = make(map[rhino.Node][]T)
 			}
 			for _, resource := range resources {
 				b.guarded[resource] = struct{}{}
@@ -331,14 +331,14 @@ func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhi
 }
 
 // Java: GuardedCallback.visit(NodeTraversal, Node, Node)
-func (b *GuardedCallbackBase[T]) Visit(traversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *GuardedCallbackBase[T]) Visit(traversal *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Remove any guards registered on this node by its children, which are
 	// no longer relevant. This happens first because these were registered
 	// on a "parent", but now this is that parent (i.e. `n` here vs `parent`
 	// in isGuarded).
 	ntok := n.GetToken()
 	if len(b.installedGuards) > 0 {
-		if parent != nil && uint(ntok) < 256 && guardedCallback_tokenFlags[ntok]&guardedCallback_flagCanHaveGuards != 0 {
+		if !parent.IsNil() && uint(ntok) < 256 && guardedCallback_tokenFlags[ntok]&guardedCallback_flagCanHaveGuards != 0 {
 			if resources, ok := b.installedGuards[n]; ok {
 				delete(b.installedGuards, n)
 				for _, r := range resources {
@@ -384,7 +384,7 @@ func (b *GuardedCallbackBase[T]) Visit(traversal *NodeTraversal, n *rhino.Node, 
 }
 
 // Java: GuardedCallback.promoteAbruptReturns(Node)
-func (b *GuardedCallbackBase[T]) PromoteAbruptReturns(parent *rhino.Node) {
+func (b *GuardedCallbackBase[T]) PromoteAbruptReturns(parent rhino.Node) {
 	// If the parent is a BLOCK (e.g. `if (x) { return; }`) then go up one
 	// level.
 	if parent.IsBlock() {
@@ -433,7 +433,7 @@ func (b *GuardedCallbackBase[T]) IsGuarded(resource T) bool {
 	}
 
 	// Loop over all the linked conditionals and register this as a guard.
-	for context != nil && context.conditional != nil {
+	for context != nil && !context.conditional.IsNil() {
 		b.putRegisteredGuard(context.conditional, resource)
 		context = context.linked
 	}
@@ -445,7 +445,7 @@ func (b *GuardedCallbackBase[T]) IsGuarded(resource T) bool {
 // any conditionals upstream in the tree.
 type guardedCallback_Context struct {
 	// The most recent conditional.
-	conditional *rhino.Node
+	conditional rhino.Node
 	// Whether this position is safe for an undefined type.
 	safe bool
 	// A very naive linked list for storing additional conditional nodes.
@@ -456,10 +456,10 @@ type guardedCallback_Context struct {
 // linked conditional nodes.
 //
 // Java: GuardedCallback.Context.EMPTY
-var guardedCallback_Context_EMPTY = newGuardedCallback_Context(nil, false, nil)
+var guardedCallback_Context_EMPTY = newGuardedCallback_Context(rhino.Node{}, false, nil)
 
 // Java: GuardedCallback.Context(Node, boolean, Context)
-func newGuardedCallback_Context(conditional *rhino.Node, safe bool, linked *guardedCallback_Context) *guardedCallback_Context {
+func newGuardedCallback_Context(conditional rhino.Node, safe bool, linked *guardedCallback_Context) *guardedCallback_Context {
 	return &guardedCallback_Context{conditional: conditional, safe: safe, linked: linked}
 }
 
@@ -468,13 +468,13 @@ func newGuardedCallback_Context(conditional *rhino.Node, safe bool, linked *guar
 // linked so that both can be marked when necessary.
 //
 // Java: GuardedCallback.Context.link(Node, boolean)
-func (c *guardedCallback_Context) Link(newConditional *rhino.Node, newSafe bool) *guardedCallback_Context {
+func (c *guardedCallback_Context) Link(newConditional rhino.Node, newSafe bool) *guardedCallback_Context {
 	return c.linkInto(newConditional, newSafe, nil)
 }
 
-func (c *guardedCallback_Context) linkInto(newConditional *rhino.Node, newSafe bool, slot *guardedCallback_Context) *guardedCallback_Context {
+func (c *guardedCallback_Context) linkInto(newConditional rhino.Node, newSafe bool, slot *guardedCallback_Context) *guardedCallback_Context {
 	var linked *guardedCallback_Context
-	if c.conditional != nil {
+	if !c.conditional.IsNil() {
 		linked = c
 	}
 	if slot != nil {
@@ -488,7 +488,7 @@ func (c *guardedCallback_Context) linkInto(newConditional *rhino.Node, newSafe b
 	return newGuardedCallback_Context(newConditional, newSafe, linked)
 }
 
-var guardedCallback_Context_SAFE_EMPTY = newGuardedCallback_Context(nil, true, nil)
+var guardedCallback_Context_SAFE_EMPTY = newGuardedCallback_Context(rhino.Node{}, true, nil)
 
 // Propagate returns a new Context with a different safety bit, but doesn't
 // change anything else.
@@ -502,7 +502,7 @@ func (c *guardedCallback_Context) propagateInto(newSafe bool, slot *guardedCallb
 	if newSafe == c.safe {
 		return c
 	}
-	if c.conditional == nil && c.linked == nil {
+	if c.conditional.IsNil() && c.linked == nil {
 		if newSafe {
 			return guardedCallback_Context_SAFE_EMPTY
 		}
@@ -524,11 +524,11 @@ func (c *guardedCallback_Context) propagateInto(newSafe bool, slot *guardedCallb
 // first child or not.
 //
 // Java: GuardedCallback.Context.descend(AbstractCompiler, Node, Node)
-func (c *guardedCallback_Context) Descend(compiler AbstractCompiler, parent *rhino.Node, child *rhino.Node) *guardedCallback_Context {
+func (c *guardedCallback_Context) Descend(compiler AbstractCompiler, parent rhino.Node, child rhino.Node) *guardedCallback_Context {
 	return c.descendInto(compiler, parent, child, nil)
 }
 
-func (c *guardedCallback_Context) descendInto(compiler AbstractCompiler, parent *rhino.Node, child *rhino.Node, slot *guardedCallback_Context) *guardedCallback_Context {
+func (c *guardedCallback_Context) descendInto(compiler AbstractCompiler, parent rhino.Node, child rhino.Node, slot *guardedCallback_Context) *guardedCallback_Context {
 	var cc CodingConvention
 	if compiler != nil {
 		cc = compiler.GetCodingConvention()
@@ -536,7 +536,7 @@ func (c *guardedCallback_Context) descendInto(compiler AbstractCompiler, parent 
 	return c.descendIntoWithToken(compiler, cc, parent, parent.GetToken(), child, slot)
 }
 
-func (c *guardedCallback_Context) descendIntoWithToken(compiler AbstractCompiler, cc CodingConvention, parent *rhino.Node, ptok rhino.Token, child *rhino.Node, slot *guardedCallback_Context) *guardedCallback_Context {
+func (c *guardedCallback_Context) descendIntoWithToken(compiler AbstractCompiler, cc CodingConvention, parent rhino.Node, ptok rhino.Token, child rhino.Node, slot *guardedCallback_Context) *guardedCallback_Context {
 	switch ptok {
 	case rhino.Token_CAST:
 		// Casts are irrelevant.
@@ -605,7 +605,7 @@ func (c *guardedCallback_Context) descendIntoWithToken(compiler AbstractCompiler
 		}
 	default:
 		// Expressions propagate linked conditionals; statements do not.
-		if c.conditional == nil || NodeUtil_IsStatement(parent) {
+		if c.conditional.IsNil() || NodeUtil_IsStatement(parent) {
 			return guardedCallback_Context_EMPTY
 		}
 		return c.propagateInto(false, slot)
@@ -613,7 +613,7 @@ func (c *guardedCallback_Context) descendIntoWithToken(compiler AbstractCompiler
 }
 
 // Java: GuardedCallback.isAbrupt(Node)
-func guardedCallback_isAbrupt(n *rhino.Node) bool {
+func guardedCallback_isAbrupt(n rhino.Node) bool {
 	return n.IsReturn() || n.IsThrow()
 }
 
@@ -621,7 +621,7 @@ func guardedCallback_isAbrupt(n *rhino.Node) bool {
 // idea of property test functions to also include String() and Boolean().
 //
 // Java: GuardedCallback.isPropertyTestFunction(AbstractCompiler, Node)
-func guardedCallback_isPropertyTestFunction(compiler AbstractCompiler, n *rhino.Node) bool {
+func guardedCallback_isPropertyTestFunction(compiler AbstractCompiler, n rhino.Node) bool {
 	var cc CodingConvention
 	if compiler != nil {
 		cc = compiler.GetCodingConvention()
@@ -629,7 +629,7 @@ func guardedCallback_isPropertyTestFunction(compiler AbstractCompiler, n *rhino.
 	return guardedCallback_isPropertyTestFunctionWithCC(compiler, cc, n)
 }
 
-func guardedCallback_isPropertyTestFunctionWithCC(compiler AbstractCompiler, cc CodingConvention, n *rhino.Node) bool {
+func guardedCallback_isPropertyTestFunctionWithCC(compiler AbstractCompiler, cc CodingConvention, n rhino.Node) bool {
 	if cc == nil && compiler != nil {
 		cc = compiler.GetCodingConvention()
 	}

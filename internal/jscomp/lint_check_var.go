@@ -40,12 +40,12 @@ func NewCheckVar(compiler AbstractCompiler) *CheckVar {
 }
 
 // Java: CheckVar.process(Node, Node)
-func (c *CheckVar) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckVar) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckVar.visit(NodeTraversal, Node, Node)
-func (c *CheckVar) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckVar) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsVar() {
 		t.Report(n, CheckVar_VAR)
 	}

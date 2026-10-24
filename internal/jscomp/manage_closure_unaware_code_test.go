@@ -32,7 +32,7 @@ type ManageClosureUnawareCodeTest struct {
 	CompilerTestCaseBase
 
 	runUnwrapPass          bool
-	gatheredShadowNodeRoot *rhino.Node
+	gatheredShadowNodeRoot rhino.Node
 	// nil is Optional.empty().
 	languageInOverride *CompilerOptions_LanguageMode
 }
@@ -88,14 +88,14 @@ func (c *ManageClosureUnawareCodeTest) GetProcessor(compiler *Compiler) Compiler
 			SetName("gatherShadowNodes").
 			SetInternalFactory(
 				func(x AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 						NodeUtil_VisitPreOrder(
 							root,
-							NodeUtil_VisitorFunc(func(node *rhino.Node) {
+							NodeUtil_VisitorFunc(func(node rhino.Node) {
 								shadow := node.GetClosureUnawareShadow()
-								if shadow != nil {
+								if !shadow.IsNil() {
 									if !c.runUnwrapPass {
-										node.SetClosureUnawareShadow(nil)
+										node.SetClosureUnawareShadow(rhino.Node{})
 									}
 									c.gatheredShadowNodeRoot.AddChildToBack(shadow.CloneTree())
 								}
@@ -127,7 +127,7 @@ func (c *ManageClosureUnawareCodeTest) DoTest(js string, expectedWrapped string,
 	}
 	AssertNode(c.gatheredShadowNodeRoot).
 		UsingSerializer(
-			func(n *rhino.Node) string {
+			func(n rhino.Node) string {
 				return NewCodePrinter_Builder(n).
 					SetCompilerOptions(c.GetLastCompiler().GetOptions()).
 					SetPrettyPrint(true).

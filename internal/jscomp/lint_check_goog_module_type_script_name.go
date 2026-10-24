@@ -58,19 +58,19 @@ func NewCheckGoogModuleTypeScriptName(compiler AbstractCompiler) *CheckGoogModul
 }
 
 // Java: CheckGoogModuleTypeScriptName.process(Node, Node)
-func (c *CheckGoogModuleTypeScriptName) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckGoogModuleTypeScriptName) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckGoogModuleTypeScriptName.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckGoogModuleTypeScriptName) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckGoogModuleTypeScriptName) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Traverse top-level statements until a `goog.module` statement is found.
 	return !c.finished &&
-		(parent == nil || parent.IsRoot() || parent.IsScript() || parent.IsModuleBody())
+		(parent.IsNil() || parent.IsRoot() || parent.IsScript() || parent.IsModuleBody())
 }
 
 // Java: CheckGoogModuleTypeScriptName.visit(NodeTraversal, Node, Node)
-func (c *CheckGoogModuleTypeScriptName) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckGoogModuleTypeScriptName) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsGoogModuleCall(n) {
 		c.CheckGoogModuleNamespace(t, n)
 		c.finished = true
@@ -78,7 +78,7 @@ func (c *CheckGoogModuleTypeScriptName) Visit(t *NodeTraversal, n *rhino.Node, p
 }
 
 // Java: CheckGoogModuleTypeScriptName.checkGoogModuleNamespace(NodeTraversal, Node)
-func (c *CheckGoogModuleTypeScriptName) CheckGoogModuleNamespace(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckGoogModuleTypeScriptName) CheckGoogModuleNamespace(t *NodeTraversal, n rhino.Node) {
 	originalNamespace := n.GetFirstChild().GetSecondChild().GetString()
 	sourceNamePtr := t.GetSourceName()
 	// Go-only: language-adapter — Node.getString() is a Go string, which

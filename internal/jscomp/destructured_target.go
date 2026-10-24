@@ -34,10 +34,10 @@ type DestructuredTarget struct {
 	registry *rhino.JSTypeRegistry
 	// Holds the STRING_KEY or COMPUTED_PROPERTY for a target in an object
 	// pattern. Null for targets in array patterns.
-	objectPatternKey *rhino.Node
+	objectPatternKey rhino.Node
 	// The target being assigned to. Can be a destructuring pattern or name,
 	// if from a declaration, or an arbitrary lhs expression in an assign.
-	node *rhino.Node
+	node rhino.Node
 	// A supplier to get the type of the pattern containing this target. e.g.
 	// for `a` in `const {a} = {a: 3}`, the supplier provides the record type
 	// `{a: number}`
@@ -47,21 +47,21 @@ type DestructuredTarget struct {
 
 	// The default value of this target, or null if none. e.g. for
 	// `[a = 3] = rhs`, this is `3`.
-	defaultValue *rhino.Node
+	defaultValue rhino.Node
 
 	// Whether this is a rest key
 	isRest bool
 
 	// The destructuring pattern containing this target
-	pattern *rhino.Node
+	pattern rhino.Node
 }
 
 // Java: DestructuredTarget(Node, Node, Node, Node, JSTypeRegistry, Supplier<JSType>, boolean)
 func newDestructuredTarget(
-	pattern *rhino.Node,
-	node *rhino.Node,
-	defaultValue *rhino.Node,
-	objectPatternKey *rhino.Node,
+	pattern rhino.Node,
+	node rhino.Node,
+	defaultValue rhino.Node,
+	objectPatternKey rhino.Node,
 	registry *rhino.JSTypeRegistry,
 	patternTypeSupplier func() rhino.JSType,
 	isRest bool) *DestructuredTarget {
@@ -79,45 +79,45 @@ func newDestructuredTarget(
 // GetComputedProperty returns a COMPUTED_PROP node or null
 //
 // Java: DestructuredTarget.getComputedProperty()
-func (d *DestructuredTarget) GetComputedProperty() *rhino.Node {
+func (d *DestructuredTarget) GetComputedProperty() rhino.Node {
 	if d.HasComputedProperty() {
 		return d.objectPatternKey
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: DestructuredTarget.hasComputedProperty()
 func (d *DestructuredTarget) HasComputedProperty() bool {
-	return d.objectPatternKey != nil && d.objectPatternKey.IsComputedProp()
+	return !d.objectPatternKey.IsNil() && d.objectPatternKey.IsComputedProp()
 }
 
 // Java: DestructuredTarget.hasStringKey()
 func (d *DestructuredTarget) HasStringKey() bool {
-	return d.objectPatternKey != nil && d.objectPatternKey.IsStringKey()
+	return !d.objectPatternKey.IsNil() && d.objectPatternKey.IsStringKey()
 }
 
 // GetStringKey returns a STRING_KEY node or null
 //
 // Java: DestructuredTarget.getStringKey()
-func (d *DestructuredTarget) GetStringKey() *rhino.Node {
+func (d *DestructuredTarget) GetStringKey() rhino.Node {
 	if d.HasStringKey() {
 		return d.objectPatternKey
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: DestructuredTarget.getDefaultValue()
-func (d *DestructuredTarget) GetDefaultValue() *rhino.Node {
+func (d *DestructuredTarget) GetDefaultValue() rhino.Node {
 	return d.defaultValue
 }
 
 // Java: DestructuredTarget.hasDefaultValue()
 func (d *DestructuredTarget) HasDefaultValue() bool {
-	return d.defaultValue != nil
+	return !d.defaultValue.IsNil()
 }
 
 // Java: DestructuredTarget.getNode()
-func (d *DestructuredTarget) GetNode() *rhino.Node {
+func (d *DestructuredTarget) GetNode() rhino.Node {
 	return d.node
 }
 
@@ -125,19 +125,19 @@ func (d *DestructuredTarget) GetNode() *rhino.Node {
 type DestructuredTarget_Builder struct {
 	registry            *rhino.JSTypeRegistry
 	patternTypeSupplier func() rhino.JSType
-	pattern             *rhino.Node
-	node                *rhino.Node
-	defaultValue        *rhino.Node
-	objectPatternKey    *rhino.Node
+	pattern             rhino.Node
+	node                rhino.Node
+	defaultValue        rhino.Node
+	objectPatternKey    rhino.Node
 	isRest              bool
 }
 
 // Java: DestructuredTarget.Builder(JSTypeRegistry, Node, Supplier<JSType>)
 func NewDestructuredTarget_Builder(
-	registry *rhino.JSTypeRegistry, pattern *rhino.Node, patternTypeSupplier func() rhino.JSType) *DestructuredTarget_Builder {
+	registry *rhino.JSTypeRegistry, pattern rhino.Node, patternTypeSupplier func() rhino.JSType) *DestructuredTarget_Builder {
 	b := &DestructuredTarget_Builder{}
-	b.defaultValue = nil
-	b.objectPatternKey = nil
+	b.defaultValue = rhino.Node{}
+	b.objectPatternKey = rhino.Node{}
 	b.isRest = false
 	b.registry = registry
 	b.patternTypeSupplier = patternTypeSupplier
@@ -146,19 +146,19 @@ func NewDestructuredTarget_Builder(
 }
 
 // Java: DestructuredTarget.Builder.setNode(Node)
-func (b *DestructuredTarget_Builder) SetNode(node *rhino.Node) *DestructuredTarget_Builder {
+func (b *DestructuredTarget_Builder) SetNode(node rhino.Node) *DestructuredTarget_Builder {
 	b.node = node
 	return b
 }
 
 // Java: DestructuredTarget.Builder.setDefaultValue(Node)
-func (b *DestructuredTarget_Builder) SetDefaultValue(defaultValue *rhino.Node) *DestructuredTarget_Builder {
+func (b *DestructuredTarget_Builder) SetDefaultValue(defaultValue rhino.Node) *DestructuredTarget_Builder {
 	b.defaultValue = defaultValue
 	return b
 }
 
 // Java: DestructuredTarget.Builder.setObjectPatternKey(Node)
-func (b *DestructuredTarget_Builder) SetObjectPatternKey(objectPatternKey *rhino.Node) *DestructuredTarget_Builder {
+func (b *DestructuredTarget_Builder) SetObjectPatternKey(objectPatternKey rhino.Node) *DestructuredTarget_Builder {
 	b.objectPatternKey = objectPatternKey
 	return b
 }
@@ -171,7 +171,7 @@ func (b *DestructuredTarget_Builder) SetIsRest(isRest bool) *DestructuredTarget_
 
 // Java: DestructuredTarget.Builder.build()
 func (b *DestructuredTarget_Builder) Build() *DestructuredTarget {
-	jutil.CheckNotNullMsg(b.node, "Must set a node")
+	rhino.CheckNotNullMsg(b.node, "Must set a node")
 
 	return newDestructuredTarget(
 		b.pattern, b.node, b.defaultValue, b.objectPatternKey, b.registry, b.patternTypeSupplier, b.isRest)
@@ -179,7 +179,7 @@ func (b *DestructuredTarget_Builder) Build() *DestructuredTarget {
 
 // Java: DestructuredTarget.createTarget(JSTypeRegistry, JSType, Node)
 func DestructuredTarget_CreateTarget(
-	registry *rhino.JSTypeRegistry, destructuringPatternType rhino.JSType, destructuringChild *rhino.Node) *DestructuredTarget {
+	registry *rhino.JSTypeRegistry, destructuringPatternType rhino.JSType, destructuringChild rhino.Node) *DestructuredTarget {
 	return DestructuredTarget_CreateTargetWithSupplier(
 		registry, func() rhino.JSType { return destructuringPatternType }, destructuringChild)
 }
@@ -191,11 +191,11 @@ func DestructuredTarget_CreateTarget(
 //
 // Java: DestructuredTarget.createTarget(JSTypeRegistry, Supplier<JSType>, Node)
 func DestructuredTarget_CreateTargetWithSupplier(
-	registry *rhino.JSTypeRegistry, destructuringPatternType func() rhino.JSType, destructuringChild *rhino.Node) *DestructuredTarget {
+	registry *rhino.JSTypeRegistry, destructuringPatternType func() rhino.JSType, destructuringChild rhino.Node) *DestructuredTarget {
 	jutil.CheckArgumentMsg1(destructuringChild.GetParent().IsDestructuringPattern(), "%s", destructuringChild)
 
 	builder := NewDestructuredTarget_Builder(registry, destructuringChild.GetParent(), destructuringPatternType)
-	var value *rhino.Node
+	var value rhino.Node
 	switch destructuringChild.GetToken() {
 	case rhino.Token_STRING_KEY:
 		// const {objectLiteralKey: x} = ...
@@ -246,7 +246,7 @@ func DestructuredTarget_CreateTargetWithSupplier(
 //
 // Java: DestructuredTarget.createAllNonEmptyTargetsInPattern(JSTypeRegistry, JSType, Node)
 func DestructuredTarget_CreateAllNonEmptyTargetsInPattern(
-	registry *rhino.JSTypeRegistry, patternType rhino.JSType, pattern *rhino.Node) []*DestructuredTarget {
+	registry *rhino.JSTypeRegistry, patternType rhino.JSType, pattern rhino.Node) []*DestructuredTarget {
 	return DestructuredTarget_CreateAllNonEmptyTargetsInPatternWithSupplier(
 		registry, func() rhino.JSType { return patternType }, pattern)
 }
@@ -258,10 +258,10 @@ func DestructuredTarget_CreateAllNonEmptyTargetsInPattern(
 //
 // Java: DestructuredTarget.createAllNonEmptyTargetsInPattern(JSTypeRegistry, Supplier<JSType>, Node)
 func DestructuredTarget_CreateAllNonEmptyTargetsInPatternWithSupplier(
-	registry *rhino.JSTypeRegistry, patternType func() rhino.JSType, pattern *rhino.Node) []*DestructuredTarget {
+	registry *rhino.JSTypeRegistry, patternType func() rhino.JSType, pattern rhino.Node) []*DestructuredTarget {
 	jutil.CheckArgumentMsg1(pattern.IsDestructuringPattern(), "%s", pattern)
 	builder := []*DestructuredTarget{}
-	for child := pattern.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := pattern.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsEmpty() {
 			continue
 		}

@@ -43,7 +43,7 @@ func TestJ2clUtilGetDefineRewriterPassTest(t *testing.T) {
 
 // Java: J2clUtilGetDefineRewriterPassTest.getProcessor(Compiler)
 func (c *J2clUtilGetDefineRewriterPassTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		// We require the ProcessDefines pass to run first, so run it in optimize mode so that we
 		// replicate the state we expect the code to be in when it reaches this pass.
 		NewProcessDefines_Builder(compiler).SetMode(ProcessDefines_Mode_OPTIMIZE).Build().Process(externs, root)

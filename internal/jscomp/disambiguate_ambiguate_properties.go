@@ -56,7 +56,7 @@ func newLinkedHashSetWithCapacity[T comparable](cap int) *jutil.LinkedHashSet[T]
 type AmbiguateProperties struct {
 	compiler AbstractCompiler
 
-	stringNodesToRename *jutil.ArrayList[*rhino.Node]
+	stringNodesToRename *jutil.ArrayList[rhino.Node]
 	// Can't use these to start property names.
 	reservedFirstCharacters jutil.Set[uint16]
 	// Can't use these at all in property names.
@@ -108,7 +108,7 @@ func NewAmbiguateProperties(
 	}
 	a := &AmbiguateProperties{
 		compiler:                   compiler,
-		stringNodesToRename:        jutil.NewArrayList[*rhino.Node](),
+		stringNodesToRename:        jutil.NewArrayList[rhino.Node](),
 		reservedFirstCharacters:    reservedFirstCharacters,
 		reservedNonFirstCharacters: reservedNonFirstCharacters,
 		propertyMap:                jutil.NewLinkedHashMapWithCapacity[string, *AmbiguateProperties_Property](2048),
@@ -140,9 +140,9 @@ func (a *AmbiguateProperties) GetRenamingMap() *jutil.LinkedHashMap[string, stri
 }
 
 // Java: AmbiguateProperties.process(Node, Node)
-func (a *AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	if a.stringNodesToRename == nil {
-		a.stringNodesToRename = jutil.NewArrayList[*rhino.Node]()
+		a.stringNodesToRename = jutil.NewArrayList[rhino.Node]()
 	}
 	a.graphNodeFactory = ColorGraphNodeFactory_CreateFactory(a.colorRegistry)
 
@@ -447,7 +447,7 @@ type AmbiguateProperties_ProcessPropertiesAndConstructors struct {
 func (*AmbiguateProperties_ProcessPropertiesAndConstructors) onlyNameLeaves() {}
 
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.visit(NodeTraversal, Node, Node)
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	a := p.outer
 	switch n.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
@@ -477,7 +477,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) Visit(t *NodeTrav
 }
 
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.processGetProp(Node)
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessGetProp(getProp *rhino.Node) {
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessGetProp(getProp rhino.Node) {
 	a := p.outer
 	type_ := a.GetColor(getProp.GetFirstChild())
 	p.MaybeMarkCandidate(getProp, type_)
@@ -487,7 +487,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessGetProp(ge
 }
 
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.processCall(Node)
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessCall(call *rhino.Node) {
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessCall(call rhino.Node) {
 	a := p.outer
 	target := call.GetFirstChild()
 	if !target.IsQualifiedName() {
@@ -496,7 +496,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessCall(call 
 
 	if a.compiler.GetCodingConvention().IsPropertyRenameFunction(target) {
 		propName := call.GetSecondChild()
-		if propName == nil || !propName.IsStringLit() {
+		if propName.IsNil() || !propName.IsStringLit() {
 			return
 		}
 
@@ -514,14 +514,14 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessCall(call 
 			return
 		}
 
-		for key := objectLiteral.GetFirstChild(); key != nil; key = key.GetNext() {
+		for key := objectLiteral.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 			p.ProcessObjectProperty(objectLiteral, key, type_)
 		}
 	}
 }
 
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.processObjectProperty(Node, Node, Color)
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessObjectProperty(objectLit *rhino.Node, key *rhino.Node, type_ *colors.Color) {
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessObjectProperty(objectLit rhino.Node, key rhino.Node, type_ *colors.Color) {
 	a := p.outer
 	jutil.CheckArgumentMsg1(objectLit.IsObjectLit() || objectLit.IsObjectPattern(), "%s", objectLit)
 	switch key.GetToken() {
@@ -551,7 +551,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessObjectProp
 }
 
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.processObjectLitOrPattern(Node)
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessObjectLitOrPattern(objectLit *rhino.Node) {
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessObjectLitOrPattern(objectLit rhino.Node) {
 	a := p.outer
 	// Object.defineProperties literals are handled at the CALL node, as we determine the type
 	// differently than for regular object literals.
@@ -563,13 +563,13 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessObjectLitO
 	// The children of an OBJECTLIT node are keys, where the values
 	// are the children of the keys.
 	type_ := a.GetColor(objectLit)
-	for key := objectLit.GetFirstChild(); key != nil; key = key.GetNext() {
+	for key := objectLit.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		p.ProcessObjectProperty(objectLit, key, type_)
 	}
 }
 
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.processGetElem(Node)
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessGetElem(n *rhino.Node) {
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessGetElem(n rhino.Node) {
 	// If this is a quoted property access (e.g. x['myprop']), we need to
 	// ensure that we never rename some other property in a way that
 	// could conflict with this quoted name.
@@ -580,7 +580,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessGetElem(n 
 }
 
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.processClass(Node)
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessClass(classNode *rhino.Node) {
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessClass(classNode rhino.Node) {
 	a := p.outer
 	classConstructorType := a.GetColor(classNode)
 	a.graphNodeFactory.CreateNode(classConstructorType)
@@ -594,7 +594,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessClass(clas
 	} else {
 		classPrototype = colors.Color_CreateUnion(possiblePrototypes)
 	}
-	for member := NodeUtil_GetClassMembers(classNode).GetFirstChild(); member != nil; member = member.GetNext() {
+	for member := NodeUtil_GetClassMembers(classNode).GetFirstChild(); !member.IsNil(); member = member.GetNext() {
 		if member.IsQuotedStringKey() {
 			// ignore get 'foo'() {} and prevent property name collisions
 			// Note that only getters/setters are represented as quoted strings, not 'foo'() {}
@@ -644,7 +644,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessClass(clas
 // n is the STRING node for a property.
 //
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.maybeMarkCandidate(Node, Color)
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) MaybeMarkCandidate(n *rhino.Node, type_ *colors.Color) {
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) MaybeMarkCandidate(n rhino.Node, type_ *colors.Color) {
 	a := p.outer
 	name := n.GetString()
 	if !a.externedNames.Contains(name) {
@@ -677,7 +677,7 @@ func (a *AmbiguateProperties) allocProperty(name string) *AmbiguateProperties_Pr
 // GetColor gets the Color from the Node argument or UNKNOWN if not present.
 //
 // Java: AmbiguateProperties.getColor(Node)
-func (a *AmbiguateProperties) GetColor(n *rhino.Node) *colors.Color {
+func (a *AmbiguateProperties) GetColor(n rhino.Node) *colors.Color {
 	type_ := n.GetColor()
 	if type_ == nil {
 		// TODO(bradfordcsmith): This branch indicates a compiler bug. It should throw an exception.

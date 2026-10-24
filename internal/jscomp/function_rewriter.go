@@ -56,7 +56,7 @@ func NewFunctionRewriter(compiler AbstractCompiler) *FunctionRewriter {
 }
 
 // Java: FunctionRewriter.process(Node, Node)
-func (f *FunctionRewriter) Process(externs *rhino.Node, root *rhino.Node) {
+func (f *FunctionRewriter) Process(externs rhino.Node, root rhino.Node) {
 	reducers := []FunctionRewriter_Reducer{
 		NewFunctionRewriter_ReturnConstantReducer(),
 		NewFunctionRewriter_GetterReducer(),
@@ -83,7 +83,7 @@ func (f *FunctionRewriter) Process(externs *rhino.Node, root *rhino.Node) {
 		}
 
 		helperCode := f.ParseHelperCode(reducer)
-		if helperCode == nil {
+		if helperCode.IsNil() {
 			continue
 		}
 
@@ -115,13 +115,13 @@ func (f *FunctionRewriter) Process(externs *rhino.Node, root *rhino.Node) {
 // Returns the helper code root. If parse fails, return null.
 //
 // Java: FunctionRewriter.parseHelperCode(Reducer)
-func (f *FunctionRewriter) ParseHelperCode(reducer FunctionRewriter_Reducer) *rhino.Node {
+func (f *FunctionRewriter) ParseHelperCode(reducer FunctionRewriter_Reducer) rhino.Node {
 	root :=
 		f.compiler.ParseSyntheticCode(functionRewriter_classString(reducer)+":helper", reducer.GetHelperSource())
-	if root != nil {
+	if !root.IsNil() {
 		return root.RemoveFirstChild()
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // functionRewriter_classString is `reducer.getClass()` in a string
@@ -146,7 +146,7 @@ func functionRewriter_classString(reducer FunctionRewriter_Reducer) string {
 }
 
 // Java: FunctionRewriter.isReduceableFunctionExpression(Node)
-func FunctionRewriter_IsReduceableFunctionExpression(n *rhino.Node) bool {
+func FunctionRewriter_IsReduceableFunctionExpression(n rhino.Node) bool {
 	parent := n.GetParent()
 	return NodeUtil_IsFunctionExpression(n) &&
 		!NodeUtil_IsGetOrSetKey(parent) &&
@@ -159,12 +159,12 @@ func FunctionRewriter_IsReduceableFunctionExpression(n *rhino.Node) bool {
 // FunctionRewriter_Reduction is information needed to apply a reduction.
 type FunctionRewriter_Reduction struct {
 	outer    *FunctionRewriter
-	oldChild *rhino.Node
-	newChild *rhino.Node
+	oldChild rhino.Node
+	newChild rhino.Node
 }
 
 // Java: FunctionRewriter.Reduction(Node, Node)
-func NewFunctionRewriter_Reduction(outer *FunctionRewriter, oldChild *rhino.Node, newChild *rhino.Node) *FunctionRewriter_Reduction {
+func NewFunctionRewriter_Reduction(outer *FunctionRewriter, oldChild rhino.Node, newChild rhino.Node) *FunctionRewriter_Reduction {
 	return &FunctionRewriter_Reduction{outer: outer, oldChild: oldChild, newChild: newChild}
 }
 
@@ -214,8 +214,8 @@ func NewFunctionRewriter_ReductionGatherer(outer *FunctionRewriter, reducers []F
 
 // Java: FunctionRewriter.ReductionGatherer.shouldTraverse(NodeTraversal, Node, Node)
 func (g *FunctionRewriter_ReductionGatherer) ShouldTraverse(raversal *NodeTraversal,
-	node *rhino.Node,
-	parent *rhino.Node) bool {
+	node rhino.Node,
+	parent rhino.Node) bool {
 	for _, reducer := range g.reducers {
 		replacement := reducer.Reduce(node)
 		if replacement != node {
@@ -227,7 +227,7 @@ func (g *FunctionRewriter_ReductionGatherer) ShouldTraverse(raversal *NodeTraver
 }
 
 // Java: FunctionRewriter.ReductionGatherer.visit(NodeTraversal, Node, Node)
-func (g *FunctionRewriter_ReductionGatherer) Visit(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (g *FunctionRewriter_ReductionGatherer) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 }
 
 // FunctionRewriter_Reducer is the interface implemented by the
@@ -243,7 +243,7 @@ type FunctionRewriter_Reducer interface {
 	// applied; otherwise returns the node argument.
 	//
 	// Java: FunctionRewriter.Reducer.reduce(Node)
-	Reduce(node *rhino.Node) *rhino.Node
+	Reduce(node rhino.Node) rhino.Node
 
 	GetFunctionRewriter_ReducerBase() *FunctionRewriter_ReducerBase
 }
@@ -268,10 +268,10 @@ func (b *FunctionRewriter_ReducerBase) GetFunctionRewriter_ReducerBase() *Functi
 //
 // Java: FunctionRewriter.Reducer.buildCallNode(String, Node, Node)
 func (b *FunctionRewriter_ReducerBase) BuildCallNode(
-	methodName string, argumentNode *rhino.Node, srcref *rhino.Node) *rhino.Node {
+	methodName string, argumentNode rhino.Node, srcref rhino.Node) rhino.Node {
 	call := rhino.IR_Call(rhino.IR_Name(methodName)).SrcrefTree(srcref)
 	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
-	if argumentNode != nil {
+	if !argumentNode.IsNil() {
 		call.AddChildToBack(argumentNode.CloneTree())
 	}
 	return call
@@ -309,9 +309,9 @@ func (r *FunctionRewriter_EmptyFunctionReducer) GetHelperSource() string {
 }
 
 // Java: FunctionRewriter.EmptyFunctionReducer.reduce(Node)
-func (r *FunctionRewriter_EmptyFunctionReducer) Reduce(node *rhino.Node) *rhino.Node {
+func (r *FunctionRewriter_EmptyFunctionReducer) Reduce(node rhino.Node) rhino.Node {
 	if FunctionRewriter_IsReduceableFunctionExpression(node) && NodeUtil_IsEmptyFunctionExpression(node) {
-		return r.BuildCallNode(FunctionRewriter_EmptyFunctionReducer_FACTORY_METHOD_NAME, nil, node)
+		return r.BuildCallNode(FunctionRewriter_EmptyFunctionReducer_FACTORY_METHOD_NAME, rhino.Node{}, node)
 	} else {
 		return node
 	}
@@ -341,17 +341,17 @@ func (b *FunctionRewriter_SingleReturnStatementReducerBase) GetFunctionRewriter_
 // function body contains a single return statement. Otherwise, null.
 //
 // Java: FunctionRewriter.SingleReturnStatementReducer.maybeGetSingleReturnRValue(Node)
-func (b *FunctionRewriter_SingleReturnStatementReducerBase) MaybeGetSingleReturnRValue(functionNode *rhino.Node) *rhino.Node {
+func (b *FunctionRewriter_SingleReturnStatementReducerBase) MaybeGetSingleReturnRValue(functionNode rhino.Node) rhino.Node {
 	body := functionNode.GetLastChild()
 	if !body.HasOneChild() {
-		return nil
+		return rhino.Node{}
 	}
 
 	statement := body.GetFirstChild()
 	if statement.IsReturn() {
 		return statement.GetFirstChild()
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // FunctionRewriter_IdentityReducer reduces property getter method
@@ -386,13 +386,13 @@ func (r *FunctionRewriter_IdentityReducer) GetHelperSource() string {
 }
 
 // Java: FunctionRewriter.IdentityReducer.reduce(Node)
-func (r *FunctionRewriter_IdentityReducer) Reduce(node *rhino.Node) *rhino.Node {
+func (r *FunctionRewriter_IdentityReducer) Reduce(node rhino.Node) rhino.Node {
 	if !FunctionRewriter_IsReduceableFunctionExpression(node) {
 		return node
 	}
 
 	if r.IsIdentityFunction(node) {
-		return r.BuildCallNode(FunctionRewriter_IdentityReducer_FACTORY_METHOD_NAME, nil, node)
+		return r.BuildCallNode(FunctionRewriter_IdentityReducer_FACTORY_METHOD_NAME, rhino.Node{}, node)
 	} else {
 		return node
 	}
@@ -405,16 +405,16 @@ func (r *FunctionRewriter_IdentityReducer) Reduce(node *rhino.Node) *rhino.Node 
 // Returns whether the function matches the pattern.
 //
 // Java: FunctionRewriter.IdentityReducer.isIdentityFunction(Node)
-func (r *FunctionRewriter_IdentityReducer) IsIdentityFunction(functionNode *rhino.Node) bool {
+func (r *FunctionRewriter_IdentityReducer) IsIdentityFunction(functionNode rhino.Node) bool {
 	argList := functionNode.GetSecondChild()
 	paramNode := argList.GetFirstChild()
-	if paramNode == nil || !paramNode.IsName() {
+	if paramNode.IsNil() || !paramNode.IsName() {
 		// no parameters, or first parameter uses destructuring or a default value
 		return false
 	}
 
 	value := r.MaybeGetSingleReturnRValue(functionNode)
-	return value != nil && value.IsName() && value.GetString() == paramNode.GetString()
+	return !value.IsNil() && value.IsName() && value.GetString() == paramNode.GetString()
 }
 
 // FunctionRewriter_ReturnConstantReducer reduces return immutable constant
@@ -450,13 +450,13 @@ func (r *FunctionRewriter_ReturnConstantReducer) GetHelperSource() string {
 }
 
 // Java: FunctionRewriter.ReturnConstantReducer.reduce(Node)
-func (r *FunctionRewriter_ReturnConstantReducer) Reduce(node *rhino.Node) *rhino.Node {
+func (r *FunctionRewriter_ReturnConstantReducer) Reduce(node rhino.Node) rhino.Node {
 	if !FunctionRewriter_IsReduceableFunctionExpression(node) {
 		return node
 	}
 
 	valueNode := r.GetValueNode(node)
-	if valueNode != nil {
+	if !valueNode.IsNil() {
 		return r.BuildCallNode(FunctionRewriter_ReturnConstantReducer_FACTORY_METHOD_NAME, valueNode, node)
 	} else {
 		return node
@@ -470,13 +470,13 @@ func (r *FunctionRewriter_ReturnConstantReducer) Reduce(node *rhino.Node) *rhino
 // Returns the immutable value node; or null.
 //
 // Java: FunctionRewriter.ReturnConstantReducer.getValueNode(Node)
-func (r *FunctionRewriter_ReturnConstantReducer) GetValueNode(functionNode *rhino.Node) *rhino.Node {
+func (r *FunctionRewriter_ReturnConstantReducer) GetValueNode(functionNode rhino.Node) rhino.Node {
 	value := r.MaybeGetSingleReturnRValue(functionNode)
-	if value != nil &&
+	if !value.IsNil() &&
 		NodeUtil_IsImmutableValue(value) {
 		return value
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // FunctionRewriter_GetterReducer reduces property getter method
@@ -511,13 +511,13 @@ func (r *FunctionRewriter_GetterReducer) GetHelperSource() string {
 }
 
 // Java: FunctionRewriter.GetterReducer.reduce(Node)
-func (r *FunctionRewriter_GetterReducer) Reduce(node *rhino.Node) *rhino.Node {
+func (r *FunctionRewriter_GetterReducer) Reduce(node rhino.Node) rhino.Node {
 	if !FunctionRewriter_IsReduceableFunctionExpression(node) || node.IsArrowFunction() {
 		return node
 	}
 
 	getprop := r.GetGetPropertyName(node)
-	if getprop != nil {
+	if !getprop.IsNil() {
 		if !getprop.IsGetProp() {
 			panic(jutil.NewIllegalStateExceptionMsg("Expected GETPROP, got " + getprop.GetToken().String()))
 		}
@@ -536,14 +536,14 @@ func (r *FunctionRewriter_GetterReducer) Reduce(node *rhino.Node) *rhino.Node {
 // Returns the STRING node that is the RHS of a this property get; or null.
 //
 // Java: FunctionRewriter.GetterReducer.getGetPropertyName(Node)
-func (r *FunctionRewriter_GetterReducer) GetGetPropertyName(functionNode *rhino.Node) *rhino.Node {
+func (r *FunctionRewriter_GetterReducer) GetGetPropertyName(functionNode rhino.Node) rhino.Node {
 	value := r.MaybeGetSingleReturnRValue(functionNode)
-	if value != nil &&
+	if !value.IsNil() &&
 		value.IsGetProp() &&
 		value.GetFirstChild().IsThis() {
 		return value
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // FunctionRewriter_SetterReducer reduces property setter method
@@ -580,13 +580,13 @@ func (r *FunctionRewriter_SetterReducer) GetHelperSource() string {
 }
 
 // Java: FunctionRewriter.SetterReducer.reduce(Node)
-func (r *FunctionRewriter_SetterReducer) Reduce(node *rhino.Node) *rhino.Node {
+func (r *FunctionRewriter_SetterReducer) Reduce(node rhino.Node) rhino.Node {
 	if !FunctionRewriter_IsReduceableFunctionExpression(node) || node.IsArrowFunction() {
 		return node
 	}
 
 	propName := r.GetSetPropertyName(node)
-	if propName != nil {
+	if !propName.IsNil() {
 		if !propName.IsStringLit() {
 			panic(jutil.NewIllegalStateExceptionMsg("Expected STRING, got " + propName.GetToken().String()))
 		}
@@ -604,22 +604,22 @@ func (r *FunctionRewriter_SetterReducer) Reduce(node *rhino.Node) *rhino.Node {
 // Returns the STRING node that is the RHS of a this property get; or null.
 //
 // Java: FunctionRewriter.SetterReducer.getSetPropertyName(Node)
-func (r *FunctionRewriter_SetterReducer) GetSetPropertyName(functionNode *rhino.Node) *rhino.Node {
+func (r *FunctionRewriter_SetterReducer) GetSetPropertyName(functionNode rhino.Node) rhino.Node {
 	body := functionNode.GetLastChild()
 	if !body.HasOneChild() {
-		return nil
+		return rhino.Node{}
 	}
 
 	argList := functionNode.GetSecondChild()
 	paramNode := argList.GetFirstChild()
-	if paramNode == nil || !paramNode.IsName() {
+	if paramNode.IsNil() || !paramNode.IsName() {
 		// no parameters, or first parameter uses destructuring or a default value
-		return nil
+		return rhino.Node{}
 	}
 
 	statement := body.GetFirstChild()
 	if !NodeUtil_IsExprAssign(statement) {
-		return nil
+		return rhino.Node{}
 	}
 
 	assign := statement.GetFirstChild()
@@ -630,5 +630,5 @@ func (r *FunctionRewriter_SetterReducer) GetSetPropertyName(functionNode *rhino.
 			return rhino.IR_String(lhs.GetString()).ClonePropsFrom(lhs).Srcref(lhs)
 		}
 	}
-	return nil
+	return rhino.Node{}
 }

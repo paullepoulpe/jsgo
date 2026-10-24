@@ -1617,7 +1617,7 @@ func (r *AbstractCommandLineRunnerBase) SaveState() {
 func (r *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunks []*JSChunk, options *CompilerOptions) int {
 	config := r.config
 	if config.printAst {
-		if r.compiler.GetRoot() == nil {
+		if r.compiler.GetRoot().IsNil() {
 			return 1
 		} else {
 			jsOutput := r.CreateDefaultOutput()
@@ -1630,7 +1630,7 @@ func (r *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunks []
 	}
 
 	if config.printTree {
-		if r.compiler.GetRoot() == nil {
+		if r.compiler.GetRoot().IsNil() {
 			r.compiler.Report(JSError_Make(AbstractCommandLineRunner_NO_TREE_GENERATED_ERROR))
 			return 1
 		} else {
@@ -1643,7 +1643,7 @@ func (r *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunks []
 	}
 
 	if config.printTreeJson {
-		if r.compiler.GetRoot() == nil {
+		if r.compiler.GetRoot().IsNil() {
 			r.compiler.Report(JSError_Make(AbstractCommandLineRunner_NO_TREE_GENERATED_ERROR))
 			return 1
 		} else {
@@ -1898,7 +1898,7 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 	numThreads := options.GetNumParallelThreads()
 	const batchSize = 256
 	type printedInput struct {
-		root *rhino.Node
+		root rhino.Node
 		sm   CodePrinter_SourceAndMappings
 		rec  compiler_ParallelScriptLicenseRecorder
 	}
@@ -1964,7 +1964,7 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			}
 			for i := 0; i < nInputs; i++ {
 				scriptNode := inputs[i].GetAstRoot(r.compiler)
-				if scriptNode == nil {
+				if scriptNode.IsNil() {
 					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + m.GetName()))
 				}
 				pi := &pc.inputs[i]
@@ -2008,7 +2008,7 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 						mlicenseTracker.trackLicensesForFileName(file)
 					}
 					r.compiler.appendSourceAndMappingsToCodeBuilder(cb, mlicenseTracker, i, pi.root, &pi.sm)
-					pi.root = nil
+					pi.root = rhino.Node{}
 				}
 				code = cb.String()
 			}

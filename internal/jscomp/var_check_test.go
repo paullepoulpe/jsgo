@@ -75,7 +75,7 @@ func (c *VarCheckTest) GetOptions() *CompilerOptions {
 
 // Java: VarCheckTest.getProcessor(Compiler)
 func (c *VarCheckTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewVarCheckWithValidityCheck(compiler, c.validityCheck).Process(externs, root)
 		if !c.validityCheck && !compiler.HasErrors() {
 			// If the original test turned off sanity check, make sure our synthesized
@@ -1214,7 +1214,7 @@ func NewVarCheckTest_VariableTestCheck(compiler AbstractCompiler) *VarCheckTest_
 }
 
 // Java: VarCheckTest.VariableTestCheck.process(Node, Node)
-func (v *VarCheckTest_VariableTestCheck) Process(externs *rhino.Node, root *rhino.Node) {
+func (v *VarCheckTest_VariableTestCheck) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(
 		v.compiler,
 		&varCheckTest_variableTestCheckCallback{},
@@ -1232,7 +1232,7 @@ type varCheckTest_variableTestCheckCallback struct {
 }
 
 // Java: VarCheckTest.VariableTestCheck.process(Node, Node).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (cb *varCheckTest_variableTestCheckCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *varCheckTest_variableTestCheckCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() && !parent.IsFunction() && !parent.IsLabel() {
 		ScopeSubject_AssertScope(t.GetScope()).Declares(n.GetString())
 	}

@@ -66,7 +66,7 @@ func (c *FlowSensitiveInlineVariablesTest) GetNumRepetitions() int {
 
 // Java: FlowSensitiveInlineVariablesTest.getProcessor(Compiler)
 func (c *FlowSensitiveInlineVariablesTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewPureFunctionIdentifier_Driver(compiler).Process(externs, root)
 		NewFlowSensitiveInlineVariables(compiler).Process(externs, root)
 	})

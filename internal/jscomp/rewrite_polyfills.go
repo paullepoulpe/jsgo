@@ -95,7 +95,7 @@ func NewRewritePolyfillsWithRuntimeJsLibManager(
 }
 
 // Java: RewritePolyfills.process(Node, Node)
-func (r *RewritePolyfills) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 	if r.isolatePolyfills {
 		// Polyfill isolation requires a pass to run near the end of optimizations. That pass may call
 		// into a library method injected in this pass. Adding an externs declaration of that library
@@ -141,14 +141,14 @@ func (r *RewritePolyfills) Process(externs *rhino.Node, root *rhino.Node) {
 
 // Java: RewritePolyfills.injectAll(Iterable<String>, boolean)
 func (r *RewritePolyfills) InjectAll(librariesToInject []string, forceInjection bool) {
-	var lastNode *rhino.Node
+	var lastNode rhino.Node
 	for _, library := range librariesToInject {
 		// Go-only: language-adapter — checkNotNull(library): a Go string
 		// cannot be null.
 		jutil.CheckStateMsg(library != "", "unexpected empty library")
 		lastNode = r.runtimeJsLibManager.EnsureLibraryInjected(library, forceInjection)
 	}
-	if lastNode != nil {
+	if !lastNode.IsNil() {
 		parent := lastNode.GetParent()
 		r.RemoveUnneededPolyfills(parent, lastNode.GetNext())
 		r.compiler.ReportChangeToEnclosingScope(parent)
@@ -160,11 +160,11 @@ func (r *RewritePolyfills) InjectAll(librariesToInject []string, forceInjection 
 // the same or lower than languageOut.
 //
 // Java: RewritePolyfills.removeUnneededPolyfills(Node, Node)
-func (r *RewritePolyfills) RemoveUnneededPolyfills(parent *rhino.Node, runtimeEnd *rhino.Node) {
+func (r *RewritePolyfills) RemoveUnneededPolyfills(parent rhino.Node, runtimeEnd rhino.Node) {
 	node := parent.GetFirstChild()
 	// The target environment is assumed to support the features in this set.
 	outputFeatureSet := r.compiler.GetOptions().GetOutputFeatureSet()
-	for node != nil && node != runtimeEnd {
+	for !node.IsNil() && node != runtimeEnd {
 		// look up the next node now, because we may be removing this one.
 		next := node.GetNext()
 		polyfillSupportedFeatureSet := r.GetPolyfillSupportedFeatureSet(node)
@@ -184,7 +184,7 @@ func (r *RewritePolyfills) RemoveUnneededPolyfills(parent *rhino.Node, runtimeEn
 // Otherwise, returns `null`.
 //
 // Java: RewritePolyfills.getPolyfillSupportedFeatureSet(Node)
-func (r *RewritePolyfills) GetPolyfillSupportedFeatureSet(maybePolyfill *rhino.Node) *parser.FeatureSet {
+func (r *RewritePolyfills) GetPolyfillSupportedFeatureSet(maybePolyfill rhino.Node) *parser.FeatureSet {
 	var polyfillSupportFeatureSet *parser.FeatureSet
 	if NodeUtil_IsExprCall(maybePolyfill) {
 		call := maybePolyfill.GetFirstChild()

@@ -93,26 +93,26 @@ import (
 //	NodeSubject_AssertNode(node1).HasType(rhino.Token_FUNCTION)
 type NodeSubject struct {
 	*Subject
-	actual                  *rhino.Node
-	serializer              func(*rhino.Node) string
+	actual                  rhino.Node
+	serializer              func(rhino.Node) string
 	genericNameReplacements *jutil.LinkedHashMap[string, string]
 }
 
 // NodeSubject_AssertNode is NodeSubject.assertNode(Node).
 //
 // Java: NodeSubject.assertNode(Node)
-func NodeSubject_AssertNode(node *rhino.Node) *NodeSubject {
+func NodeSubject_AssertNode(node rhino.Node) *NodeSubject {
 	return newNodeSubject(&Subject{actual: node}, node)
 }
 
 // AssertNode is NodeSubject_AssertNode for Java's
 // `import static ...NodeSubject.assertNode` (Go-only: language-adapter).
-func AssertNode(node *rhino.Node) *NodeSubject {
+func AssertNode(node rhino.Node) *NodeSubject {
 	return NodeSubject_AssertNode(node)
 }
 
 // Java: NodeSubject(FailureMetadata, Node)
-func newNodeSubject(s *Subject, node *rhino.Node) *NodeSubject {
+func newNodeSubject(s *Subject, node rhino.Node) *NodeSubject {
 	return &NodeSubject{Subject: s, actual: node, genericNameReplacements: jutil.NewLinkedHashMap[string, string]()}
 }
 
@@ -133,7 +133,7 @@ func (s *NodeSubject) check(format string, args ...any) *StandardSubjectBuilder 
 // JavaScript code.
 //
 // Java: NodeSubject.usingSerializer(Function<Node, String>)
-func (s *NodeSubject) UsingSerializer(serializer func(*rhino.Node) string) *NodeSubject {
+func (s *NodeSubject) UsingSerializer(serializer func(rhino.Node) string) *NodeSubject {
 	s.serializer = serializer
 	return s
 }
@@ -157,7 +157,7 @@ func (s *NodeSubject) WithGenericNameReplacements(genericNameReplacements *jutil
 // TODO(nickreid): This isn't really equality based. Use a different name.
 //
 // Java: NodeSubject.isEqualTo(Node)
-func (s *NodeSubject) IsEqualTo(expected *rhino.Node) {
+func (s *NodeSubject) IsEqualTo(expected rhino.Node) {
 	s.IsEqualToInternal(expected /* checkJsdoc= */, false)
 }
 
@@ -170,14 +170,14 @@ func (s *NodeSubject) IsEqualTo(expected *rhino.Node) {
 // TODO(nickreid): This isn't really equality based. Use a different name.
 //
 // Java: NodeSubject.isEqualIncludingJsDocTo(Node)
-func (s *NodeSubject) IsEqualIncludingJsDocTo(expected *rhino.Node) {
+func (s *NodeSubject) IsEqualIncludingJsDocTo(expected rhino.Node) {
 	s.IsEqualToInternal(expected /* checkJsdoc= */, true)
 }
 
 // TODO(nickreid): This isn't really equality based. Use a different name.
 //
 // Java: NodeSubject.isEqualToInternal(Node, boolean)
-func (s *NodeSubject) IsEqualToInternal(expected *rhino.Node, checkJsdoc bool) {
+func (s *NodeSubject) IsEqualToInternal(expected rhino.Node, checkJsdoc bool) {
 	s.IsNotNull()
 	NodeSubject_AssertNode(expected).IsNotNull()
 
@@ -264,12 +264,12 @@ func (s *NodeSubject) IsEqualToInternal(expected *rhino.Node, checkJsdoc bool) {
 
 // nodeSubject_NodeDiff is the record NodeDiff(Node expected, Node actual).
 type nodeSubject_NodeDiff struct {
-	expected *rhino.Node
-	actual   *rhino.Node
+	expected rhino.Node
+	actual   rhino.Node
 }
 
 // Java: NodeSubject.maybeExtractScriptsSeparately(Node, Node)
-func (s *NodeSubject) maybeExtractScriptsSeparately(expected *rhino.Node, actual *rhino.Node) []nodeSubject_NodeDiff {
+func (s *NodeSubject) maybeExtractScriptsSeparately(expected rhino.Node, actual rhino.Node) []nodeSubject_NodeDiff {
 	nodeDiffs := []nodeSubject_NodeDiff{}
 	if nodeSubject_isScriptSourceRoot(expected) &&
 		nodeSubject_isScriptSourceRoot(actual) &&
@@ -285,7 +285,7 @@ func (s *NodeSubject) maybeExtractScriptsSeparately(expected *rhino.Node, actual
 }
 
 // Java: NodeSubject.isScriptSourceRoot(Node)
-func nodeSubject_isScriptSourceRoot(node *rhino.Node) bool {
+func nodeSubject_isScriptSourceRoot(node rhino.Node) bool {
 	return node.IsRoot() &&
 		node.HasParent() &&
 		node.GetParent().IsRoot() &&
@@ -293,7 +293,7 @@ func nodeSubject_isScriptSourceRoot(node *rhino.Node) bool {
 }
 
 // Java: NodeSubject.maybeGetErrorPrefix(List<NodeDiff>, int, Node)
-func nodeSubject_maybeGetErrorPrefix(nodeDiffs []nodeSubject_NodeDiff, i int, actualNode *rhino.Node) string {
+func nodeSubject_maybeGetErrorPrefix(nodeDiffs []nodeSubject_NodeDiff, i int, actualNode rhino.Node) string {
 	if len(nodeDiffs) <= 1 {
 		return ""
 	}
@@ -316,13 +316,13 @@ func (s *NodeSubject) applyGenericNames(input string) string {
 }
 
 // Java: NodeSubject.isEquivalentTo(Node)
-func (s *NodeSubject) IsEquivalentTo(other *rhino.Node) *NodeSubject {
+func (s *NodeSubject) IsEquivalentTo(other rhino.Node) *NodeSubject {
 	s.check("isEquivalentTo(%s)", other).That(s.actual.IsEquivalentTo(other)).IsTrue()
 	return s
 }
 
 // Java: NodeSubject.isNotEquivalentTo(Node)
-func (s *NodeSubject) IsNotEquivalentTo(other *rhino.Node) *NodeSubject {
+func (s *NodeSubject) IsNotEquivalentTo(other rhino.Node) *NodeSubject {
 	s.check("isEquivalentTo(%s)", other).That(s.actual.IsEquivalentTo(other)).IsFalse()
 	return s
 }
@@ -573,7 +573,7 @@ func (s *NodeSubject) HasLength(length int) *NodeSubject {
 }
 
 // Java: NodeSubject.hasEqualSourceInfoTo(Node)
-func (s *NodeSubject) HasEqualSourceInfoTo(other *rhino.Node) *NodeSubject {
+func (s *NodeSubject) HasEqualSourceInfoTo(other rhino.Node) *NodeSubject {
 	return s.HasSourceFileName(other.GetSourceFileName()).
 		HasLineno(other.GetLineno()).
 		HasCharno(other.GetCharno()).
@@ -663,7 +663,7 @@ func (s *NodeSubject) showActual() string {
 
 // IsNotNull is Subject.isNotNull() with the node rendered by the serializer.
 func (s *NodeSubject) IsNotNull() {
-	if s.actual == nil {
+	if s.actual.IsNil() {
 		s.failf("expected not to be null")
 	}
 }
@@ -675,7 +675,7 @@ func (s *NodeSubject) IsNotNull() {
 // jsDoc: Whether to check for differences in JSDoc.
 //
 // Java: NodeSubject.findFirstMismatch(Node, Node, boolean)
-func nodeSubject_findFirstMismatch(actual *rhino.Node, expected *rhino.Node, jsDoc bool) *nodeSubject_NodeMismatch {
+func nodeSubject_findFirstMismatch(actual rhino.Node, expected rhino.Node, jsDoc bool) *nodeSubject_NodeMismatch {
 	if !actual.IsEquivalentToWithFlagsAndSideEffect(
 		expected /* compareType= */, false /* recurse= */, false, jsDoc /* sideEffect= */, false) {
 		return newNodeSubject_NodeMismatch(actual, expected)
@@ -684,7 +684,7 @@ func nodeSubject_findFirstMismatch(actual *rhino.Node, expected *rhino.Node, jsD
 	// `isEquivalentTo` confirms that the number of children is the same.
 	actualChild := actual.GetFirstChild()
 	expectedChild := expected.GetFirstChild()
-	for actualChild != nil {
+	for !actualChild.IsNil() {
 		mismatch := nodeSubject_findFirstMismatch(actualChild, expectedChild, jsDoc)
 		if mismatch != nil {
 			return mismatch
@@ -697,7 +697,7 @@ func nodeSubject_findFirstMismatch(actual *rhino.Node, expected *rhino.Node, jsD
 	// `isEquivalentTo` confirms that either both nodes have a shadow root or none do.
 	actualShadowAst := actual.GetClosureUnawareShadow()
 	expectedShadowAst := expected.GetClosureUnawareShadow()
-	if actualShadowAst != nil && expectedShadowAst != nil {
+	if !actualShadowAst.IsNil() && !expectedShadowAst.IsNil() {
 		mismatch := nodeSubject_findFirstMismatch(actualShadowAst, expectedShadowAst, jsDoc)
 		if mismatch != nil {
 			return mismatch
@@ -712,12 +712,12 @@ func nodeSubject_findFirstMismatch(actual *rhino.Node, expected *rhino.Node, jsD
 //
 // Java: NodeSubject.NodeMismatch
 type nodeSubject_NodeMismatch struct {
-	actual   *rhino.Node
-	expected *rhino.Node
+	actual   rhino.Node
+	expected rhino.Node
 }
 
 // Java: NodeSubject.NodeMismatch(Node, Node)
-func newNodeSubject_NodeMismatch(actual *rhino.Node, expected *rhino.Node) *nodeSubject_NodeMismatch {
+func newNodeSubject_NodeMismatch(actual rhino.Node, expected rhino.Node) *nodeSubject_NodeMismatch {
 	return &nodeSubject_NodeMismatch{actual: actual, expected: expected}
 }
 
@@ -729,7 +729,7 @@ var (
 )
 
 // Java: NodeSubject.serializeNode(Node)
-func (s *NodeSubject) serializeNode(node *rhino.Node) string {
+func (s *NodeSubject) serializeNode(node rhino.Node) string {
 	if s.serializer != nil {
 		out := s.serializer(node)
 		// Collapse empty blocks that span a newline.
@@ -738,7 +738,7 @@ func (s *NodeSubject) serializeNode(node *rhino.Node) string {
 		out = nodeSubject_trailingSpaces.ReplaceAllString(out, "$1")
 		return out
 	}
-	if node == nil {
+	if node.IsNil() {
 		return "<Java null>"
 	}
 	return node.ToStringTree()

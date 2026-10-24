@@ -54,7 +54,7 @@ func (c *ValidityCheckTest) SetUp() {
 
 // Java: ValidityCheckTest.getProcessor(Compiler)
 func (c *ValidityCheckTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		c.otherPass.Process(externs, root)
 		(NewValidityCheck(compiler)).Process(externs, root)
 	})
@@ -63,7 +63,7 @@ func (c *ValidityCheckTest) GetProcessor(compiler *Compiler) CompilerPass {
 // Java: ValidityCheckTest.testUnnormalizeNodeTypes()
 func (c *ValidityCheckTest) TestUnnormalizeNodeTypes() {
 	c.otherPass =
-		CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+		CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 			var compiler AbstractCompiler = c.GetLastCompiler()
 			script := root.GetFirstChild()
 			ifNode := rhino.NewNodeWith2Children(rhino.Token_IF, rhino.NewNode(rhino.Token_TRUE), rhino.NewNode(rhino.Token_EMPTY))
@@ -83,7 +83,7 @@ func (c *ValidityCheckTest) TestUnnormalizeNodeTypes() {
 // Java: ValidityCheckTest.testUnnormalized()
 func (c *ValidityCheckTest) TestUnnormalized() {
 	c.otherPass =
-		CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+		CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 			c.GetLastCompiler().SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 		})
 
@@ -98,7 +98,7 @@ func (c *ValidityCheckTest) TestUnnormalized() {
 // Java: ValidityCheckTest.testConstantAnnotationMismatch()
 func (c *ValidityCheckTest) TestConstantAnnotationMismatch() {
 	c.otherPass =
-		CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+		CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 			var compiler AbstractCompiler = c.GetLastCompiler()
 			script := root.GetFirstChild()
 			name := rhino.Node_NewStringWithToken(rhino.Token_NAME, "x")
@@ -127,7 +127,7 @@ func (c *ValidityCheckTest) TestSourceInfoCheck() {
 	script.AddChildToBack(n)
 
 	check := NewSourceInfoCheck(compiler)
-	check.Process(nil, rhino.NewNodeWithChild(rhino.Token_ROOT, script))
+	check.Process(rhino.Node{}, rhino.NewNodeWithChild(rhino.Token_ROOT, script))
 
 	AssertThat(compiler.GetErrors()).HasSize(1)
 	AssertThat(compiler.GetErrors()[0].Description()).
@@ -140,7 +140,7 @@ func (c *ValidityCheckTest) TestErrorPass() {
 	testError := DiagnosticType_Error("TEST_ERROR", "Test error description")
 	pass := NewErrorPass(compiler, testError)
 	script := compiler.ParseTestCode("var x = 1;")
-	pass.Process(nil, script)
+	pass.Process(rhino.Node{}, script)
 	AssertThat(compiler.GetErrors()).HasSize(1)
 	AssertThat(compiler.GetErrors()[0].Type()).IsEqualTo(testError)
 }

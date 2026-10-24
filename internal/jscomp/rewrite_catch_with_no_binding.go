@@ -64,7 +64,7 @@ func (r *RewriteCatchWithNoBinding) GetTranspiledAwayFeatures() *parser.FeatureS
 }
 
 // Java: RewriteCatchWithNoBinding.transpileSubtree(Node)
-func (r *RewriteCatchWithNoBinding) TranspileSubtree(n *rhino.Node) *rhino.Node {
+func (r *RewriteCatchWithNoBinding) TranspileSubtree(n rhino.Node) rhino.Node {
 	if !n.IsCatch() || !n.GetFirstChild().IsEmpty() {
 		return n
 	}

@@ -118,7 +118,7 @@ type CompilerTestCase interface {
 	// Java: CompilerTestCase.createAndInitializeCompiler(Externs, Sources)
 	CreateAndInitializeCompiler(externs *CompilerTestCase_Externs, inputs CompilerTestCase_Sources) *Compiler
 	// Java: CompilerTestCase.parseExpectedJs(String) / parseExpectedJs(Expected)
-	ParseExpectedJs(expected any) *rhino.Node
+	ParseExpectedJs(expected any) rhino.Node
 	// Java: CompilerTestCase.createCompiler()
 	CreateCompiler() *Compiler
 }
@@ -1287,7 +1287,7 @@ func (b *CompilerTestCaseBase) testInternalWithCompiler(
 
 	root := compiler.ParseInputs()
 
-	if root == nil {
+	if root.IsNil() {
 		// Might be an expected parse error.
 		AssertWithMessage("parse errors").
 			That(compiler.GetErrors()).
@@ -1581,7 +1581,7 @@ func (b *CompilerTestCaseBase) testInternalWithCompiler(
 }
 
 // Java: CompilerTestCase.rewriteEsModules(AbstractCompiler, Node, Node)
-func compilerTestCase_rewriteEsModules(compiler AbstractCompiler, externsRoot *rhino.Node, codeRoot *rhino.Node) {
+func compilerTestCase_rewriteEsModules(compiler AbstractCompiler, externsRoot rhino.Node, codeRoot rhino.Node) {
 	options := compiler.GetOptions()
 	factories := NewPassListBuilder(options)
 
@@ -1610,7 +1610,7 @@ func compilerTestCase_rewriteEsModules(compiler AbstractCompiler, externsRoot *r
 }
 
 // Java: CompilerTestCase.transpileToEs5(AbstractCompiler, Node, Node)
-func (b *CompilerTestCaseBase) transpileToEs5(compiler AbstractCompiler, externsRoot *rhino.Node, codeRoot *rhino.Node) {
+func (b *CompilerTestCaseBase) transpileToEs5(compiler AbstractCompiler, externsRoot rhino.Node, codeRoot rhino.Node) {
 	options := compiler.GetOptions()
 	factories := NewPassListBuilder(options)
 
@@ -1678,10 +1678,10 @@ func (b *CompilerTestCaseBase) validateWarnings(
 
 // Java: CompilerTestCase.validateCodeChangeReporting(Node, Node, Node, Node, Compiler, boolean)
 func (b *CompilerTestCaseBase) validateCodeChangeReporting(
-	mainRoot *rhino.Node,
-	externsRoot *rhino.Node,
-	mainRootClone *rhino.Node,
-	externsRootClone *rhino.Node,
+	mainRoot rhino.Node,
+	externsRoot rhino.Node,
+	mainRootClone rhino.Node,
+	externsRootClone rhino.Node,
 	compiler *Compiler,
 	wasCodeChangeReported bool) {
 	// NOTE: We have to use DEEP_NO_SHADOW here because the code change reporting logic is,
@@ -1722,7 +1722,7 @@ func (b *CompilerTestCaseBase) validateCodeChangeReporting(
 
 // Java: CompilerTestCase.compareExpectedToActualAsTree(Node, Node, Compiler, Map<String, String>)
 func (b *CompilerTestCaseBase) compareExpectedToActualAsTree(
-	mainRoot *rhino.Node, expectedRoot *rhino.Node, compiler *Compiler, genericNameMapping *jutil.LinkedHashMap[string, string]) {
+	mainRoot rhino.Node, expectedRoot rhino.Node, compiler *Compiler, genericNameMapping *jutil.LinkedHashMap[string, string]) {
 	if b.compareJsDoc {
 		NodeSubject_AssertNode(mainRoot).
 			UsingSerializer(compilerTestCase_createPrettyPrinter(compiler)).
@@ -1741,7 +1741,7 @@ var compilerTestCase_spacesBeforeNewline = regexp.MustCompile(" +\n")
 
 // Java: CompilerTestCase.compareExpectedToActualAsStrings(Node, Compiler, List<SourceFile>)
 func (b *CompilerTestCaseBase) compareExpectedToActualAsStrings(
-	mainRoot *rhino.Node, compiler *Compiler, expected []*SourceFile) {
+	mainRoot rhino.Node, compiler *Compiler, expected []*SourceFile) {
 	expectedSources := make([]string, len(expected))
 	for i := 0; i < len(expected); i++ {
 		expectedSources[i] = expected[i].GetCode()
@@ -1751,7 +1751,7 @@ func (b *CompilerTestCaseBase) compareExpectedToActualAsStrings(
 }
 
 // Java: CompilerTestCase.validateNormalizationInvariants(Node, Compiler)
-func (b *CompilerTestCaseBase) validateNormalizationInvariants(root *rhino.Node, compiler *Compiler) {
+func (b *CompilerTestCaseBase) validateNormalizationInvariants(root rhino.Node, compiler *Compiler) {
 	mainRoot := root.GetLastChild()
 
 	// Verify normalization is not invalidated.
@@ -1802,13 +1802,13 @@ func (b *CompilerTestCaseBase) validateSourceLocation(jserror *JSError) {
 }
 
 // Java: CompilerTestCase.normalizeActualCode(Compiler, Node, Node)
-func compilerTestCase_normalizeActualCode(compiler *Compiler, externsRoot *rhino.Node, mainRoot *rhino.Node) {
+func compilerTestCase_normalizeActualCode(compiler *Compiler, externsRoot rhino.Node, mainRoot rhino.Node) {
 	normalize := Normalize_CreateNormalizeForOptimizations(compiler)
 	normalize.Process(externsRoot, mainRoot)
 }
 
 // Java: CompilerTestCase.updateAccessorSummary(Compiler, Node)
-func (b *CompilerTestCaseBase) updateAccessorSummary(compiler *Compiler, mainRoot *rhino.Node) {
+func (b *CompilerTestCaseBase) updateAccessorSummary(compiler *Compiler, mainRoot rhino.Node) {
 	union := jutil.NewLinkedHashMapFrom(GatherGetterAndSetterProperties_Gather(compiler, mainRoot.GetParent()))
 	for k, v := range b.declaredAccessors.All() {
 		union.Put(k, v)
@@ -1817,7 +1817,7 @@ func (b *CompilerTestCaseBase) updateAccessorSummary(compiler *Compiler, mainRoo
 }
 
 // Java: CompilerTestCase.verifyAccessorSummary(Compiler, Node)
-func (b *CompilerTestCaseBase) verifyAccessorSummary(compiler *Compiler, mainRoot *rhino.Node) {
+func (b *CompilerTestCaseBase) verifyAccessorSummary(compiler *Compiler, mainRoot rhino.Node) {
 	if compiler.GetAccessorSummary() == nil {
 		return
 	}
@@ -1835,7 +1835,7 @@ func (b *CompilerTestCaseBase) verifyAccessorSummary(compiler *Compiler, mainRoo
 //
 // Java: CompilerTestCase.parseExpectedJs(String)
 // Java: CompilerTestCase.parseExpectedJs(Expected)
-func (b *CompilerTestCaseBase) ParseExpectedJs(expected any) *rhino.Node {
+func (b *CompilerTestCaseBase) ParseExpectedJs(expected any) rhino.Node {
 	switch expected := expected.(type) {
 	case string:
 		return b.parseExpectedJsList([]*SourceFile{SourceFile_FromCode(CompilerTestCase_GENERATED_SRC_NAME, expected)})
@@ -1843,14 +1843,14 @@ func (b *CompilerTestCaseBase) ParseExpectedJs(expected any) *rhino.Node {
 		return b.parseExpectedJsList(expected.expected)
 	}
 	compilerTestCase_noOverload("parseExpectedJs", []any{expected})
-	return nil
+	return rhino.Node{}
 }
 
 // parseExpectedJsList parses expected JS inputs and returns the root of the
 // parse tree.
 //
 // Java: CompilerTestCase.parseExpectedJs(List<SourceFile>)
-func (b *CompilerTestCaseBase) parseExpectedJsList(inputs []*SourceFile) *rhino.Node {
+func (b *CompilerTestCaseBase) parseExpectedJsList(inputs []*SourceFile) rhino.Node {
 	compiler := b.self.CreateCompiler()
 
 	compiler.Init(b.defaultExternsInputs, inputs, b.self.GetOptions())
@@ -1956,7 +1956,7 @@ func (b *CompilerTestCaseBase) testExternChangesInternal(
 		// Ignore and remove empty externs, so that if we start with an empty extern and only add
 		// to the synthetic externs, we can still enable compareAsTree.
 		if externs.HasMoreThanOneChild() {
-			for c := externs.GetFirstChild(); c != nil; c = c.GetNext() {
+			for c := externs.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 				if !c.HasChildren() {
 					c.Detach()
 				}
@@ -2015,7 +2015,7 @@ func (b *CompilerTestCaseBase) CreateCompiler() *Compiler {
 // post-traversal order.
 //
 // Java: CompilerTestCase.findQualifiedNameNode(String, Node)
-func (b *CompilerTestCaseBase) FindQualifiedNameNode(name string, root *rhino.Node) *rhino.Node {
+func (b *CompilerTestCaseBase) FindQualifiedNameNode(name string, root rhino.Node) rhino.Node {
 	return b.FindQualifiedNameNodes(name, root)[0]
 }
 
@@ -2023,11 +2023,11 @@ func (b *CompilerTestCaseBase) FindQualifiedNameNode(name string, root *rhino.No
 // post-traversal order.
 //
 // Java: CompilerTestCase.findQualifiedNameNodes(String, Node)
-func (b *CompilerTestCaseBase) FindQualifiedNameNodes(name string, root *rhino.Node) []*rhino.Node {
-	matches := []*rhino.Node{}
+func (b *CompilerTestCaseBase) FindQualifiedNameNodes(name string, root rhino.Node) []rhino.Node {
+	matches := []rhino.Node{}
 	NodeUtil_VisitPostOrder(
 		root,
-		NodeUtil_VisitorFunc(func(n *rhino.Node) {
+		NodeUtil_VisitorFunc(func(n rhino.Node) {
 			if n.MatchesQualifiedName(name) {
 				matches = append(matches, n)
 			}
@@ -2041,8 +2041,8 @@ func (b *CompilerTestCaseBase) FindQualifiedNameNodes(name string, root *rhino.N
 // Only nodes in the top-level script are traversed.
 //
 // Java: CompilerTestCase.findDefinition(Compiler, String)
-func CompilerTestCase_FindDefinition(compiler *Compiler, name string) *rhino.Node {
-	for node := compiler.GetJsRoot().GetFirstFirstChild(); node != nil; node = node.GetNext() {
+func CompilerTestCase_FindDefinition(compiler *Compiler, name string) rhino.Node {
+	for node := compiler.GetJsRoot().GetFirstFirstChild(); !node.IsNil(); node = node.GetNext() {
 		switch node.GetToken() {
 		case rhino.Token_FUNCTION:
 			if name == node.GetFirstChild().GetString() {
@@ -2060,7 +2060,7 @@ func CompilerTestCase_FindDefinition(compiler *Compiler, name string) *rhino.Nod
 		default:
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // CompilerTestCase_Srcs is every overload of Java's srcs(...):
@@ -2576,8 +2576,8 @@ func (CompilerTestCase_PostconditionFunc) isCompilerTestCase_TestPart() {}
 func (f CompilerTestCase_PostconditionFunc) Verify(compiler *Compiler) { f(compiler) }
 
 // Java: CompilerTestCase.createPrettyPrinter(Compiler)
-func compilerTestCase_createPrettyPrinter(compiler *Compiler) func(*rhino.Node) string {
-	return func(n *rhino.Node) string {
+func compilerTestCase_createPrettyPrinter(compiler *Compiler) func(rhino.Node) string {
+	return func(n rhino.Node) string {
 		return NewCodePrinter_Builder(n).
 			SetCompilerOptions(compiler.GetOptions()).
 			SetPrettyPrint(true).

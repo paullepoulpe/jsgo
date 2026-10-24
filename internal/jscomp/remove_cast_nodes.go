@@ -33,14 +33,14 @@ func NewRemoveCastNodes(compiler AbstractCompiler) *RemoveCastNodes {
 }
 
 // Java: RemoveCastNodes.process(Node, Node)
-func (r *RemoveCastNodes) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RemoveCastNodes) Process(externs rhino.Node, root rhino.Node) {
 	if r.processParallel(externs, root) {
 		return
 	}
 	NodeTraversal_TraverseRoots(r.compiler, &RemoveCastNodes_RemoveCastsCallback{outer: r}, externs, root)
 }
 
-func (r *RemoveCastNodes) processParallel(externs *rhino.Node, root *rhino.Node) bool {
+func (r *RemoveCastNodes) processParallel(externs rhino.Node, root rhino.Node) bool {
 	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
 	if !ok {
 		return false
@@ -81,7 +81,7 @@ type RemoveCastNodes_RemoveCastsCallback struct {
 }
 
 // Java: RemoveCastNodes.RemoveCastsCallback.visit(NodeTraversal, Node, Node)
-func (c *RemoveCastNodes_RemoveCastsCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *RemoveCastNodes_RemoveCastsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsCast() {
 		c.outer.compiler.ReportChangeToEnclosingScope(n)
 		n.ReplaceWith(n.RemoveFirstChild())

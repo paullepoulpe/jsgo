@@ -192,7 +192,7 @@ func newPolyfillUsageFinder_Polyfills(
 	return p
 }
 
-func (p *PolyfillUsageFinder_Polyfills) mightHaveStaticNode(n *rhino.Node) bool {
+func (p *PolyfillUsageFinder_Polyfills) mightHaveStaticNode(n rhino.Node) bool {
 	id := n.GetStringID()
 	if !rhino.RhinoStringPool_WasClearedForTest() && !polyfillBloomMayContain(&p.staticIDBloom, id) {
 		return false
@@ -200,7 +200,7 @@ func (p *PolyfillUsageFinder_Polyfills) mightHaveStaticNode(n *rhino.Node) bool 
 	return p.getStatic(rhino.RhinoStringPool_StringFromID(id)) != nil
 }
 
-func (p *PolyfillUsageFinder_Polyfills) mightHavePropNode(n *rhino.Node) bool {
+func (p *PolyfillUsageFinder_Polyfills) mightHavePropNode(n rhino.Node) bool {
 	id := n.GetStringID()
 	if !rhino.RhinoStringPool_WasClearedForTest() && !polyfillBloomMayContain(&p.propIDBloom, id) {
 		return false
@@ -277,7 +277,6 @@ func (p *PolyfillUsageFinder_Polyfills) mightHavePropPolyfill(name string) bool 
 //
 // The last line, WeakMap, does not have a polyfill available, so the
 // library token is empty.
-//
 var defaultPolyfillsText = sync.OnceValue(func() string {
 	return resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.PolyfillUsageFinder", "js/polyfills.txt")
 })
@@ -366,16 +365,16 @@ func PolyfillUsageFinder_GetPolyfillSupportedFeatureSet(nativeVersionStr string)
 // node, name, isExplicitGlobal).
 type PolyfillUsageFinder_PolyfillUsage struct {
 	polyfill         *PolyfillUsageFinder_Polyfill
-	node             *rhino.Node
+	node             rhino.Node
 	name             string
 	isExplicitGlobal bool
 }
 
 // Java: PolyfillUsageFinder.PolyfillUsage(Polyfill, Node, String, boolean)
 func NewPolyfillUsageFinder_PolyfillUsage(
-	polyfill *PolyfillUsageFinder_Polyfill, node *rhino.Node, name string, isExplicitGlobal bool) *PolyfillUsageFinder_PolyfillUsage {
+	polyfill *PolyfillUsageFinder_Polyfill, node rhino.Node, name string, isExplicitGlobal bool) *PolyfillUsageFinder_PolyfillUsage {
 	jutil.CheckNotNullMsg(polyfill, "polyfill")
-	jutil.CheckNotNullMsg(node, "node")
+	rhino.CheckNotNullMsg(node, "node")
 	// Go-only: language-adapter — requireNonNull(name): a Go string cannot
 	// be null.
 	return &PolyfillUsageFinder_PolyfillUsage{
@@ -392,7 +391,7 @@ func (u *PolyfillUsageFinder_PolyfillUsage) Polyfill() *PolyfillUsageFinder_Poly
 }
 
 // Java: PolyfillUsageFinder.PolyfillUsage.node()
-func (u *PolyfillUsageFinder_PolyfillUsage) Node() *rhino.Node { return u.node }
+func (u *PolyfillUsageFinder_PolyfillUsage) Node() rhino.Node { return u.node }
 
 // Java: PolyfillUsageFinder.PolyfillUsage.name()
 func (u *PolyfillUsageFinder_PolyfillUsage) Name() string { return u.name }
@@ -401,12 +400,12 @@ func (u *PolyfillUsageFinder_PolyfillUsage) Name() string { return u.name }
 func (u *PolyfillUsageFinder_PolyfillUsage) IsExplicitGlobal() bool { return u.isExplicitGlobal }
 
 // Java: PolyfillUsageFinder.PolyfillUsage.createExplicit(Polyfill, Node, String)
-func PolyfillUsageFinder_PolyfillUsage_CreateExplicit(polyfill *PolyfillUsageFinder_Polyfill, node *rhino.Node, name string) *PolyfillUsageFinder_PolyfillUsage {
+func PolyfillUsageFinder_PolyfillUsage_CreateExplicit(polyfill *PolyfillUsageFinder_Polyfill, node rhino.Node, name string) *PolyfillUsageFinder_PolyfillUsage {
 	return NewPolyfillUsageFinder_PolyfillUsage(polyfill, node, name /* isExplicitGlobal= */, true)
 }
 
 // Java: PolyfillUsageFinder.PolyfillUsage.createNonExplicit(Polyfill, Node, String)
-func PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill *PolyfillUsageFinder_Polyfill, node *rhino.Node, name string) *PolyfillUsageFinder_PolyfillUsage {
+func PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill *PolyfillUsageFinder_Polyfill, node rhino.Node, name string) *PolyfillUsageFinder_PolyfillUsage {
 	return NewPolyfillUsageFinder_PolyfillUsage(polyfill, node, name /* isExplicitGlobal= */, false)
 }
 
@@ -425,7 +424,7 @@ func NewPolyfillUsageFinder(compiler AbstractCompiler, polyfills *PolyfillUsageF
 // `if (Promise) return Promise.resolve('ok');`
 //
 // Java: PolyfillUsageFinder.traverseExcludingGuarded(Node, Consumer<PolyfillUsage>)
-func (f *PolyfillUsageFinder) TraverseExcludingGuarded(root *rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
+func (f *PolyfillUsageFinder) TraverseExcludingGuarded(root rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
 	sc := NewSyntacticScopeCreator(f.compiler)
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
@@ -441,7 +440,7 @@ func (f *PolyfillUsageFinder) TraverseExcludingGuarded(root *rhino.Node, polyfil
 // `if (Promise) return Promise.resolve('ok');`
 //
 // Java: PolyfillUsageFinder.traverseIncludingGuarded(Node, Consumer<PolyfillUsage>)
-func (f *PolyfillUsageFinder) TraverseIncludingGuarded(root *rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
+func (f *PolyfillUsageFinder) TraverseIncludingGuarded(root rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
 	sc := NewSyntacticScopeCreator(f.compiler)
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
@@ -457,7 +456,7 @@ func (f *PolyfillUsageFinder) TraverseIncludingGuarded(root *rhino.Node, polyfil
 // `if (Promise) return Promise.resolve('ok');`
 //
 // Java: PolyfillUsageFinder.traverseOnlyGuarded(Node, Consumer<PolyfillUsage>)
-func (f *PolyfillUsageFinder) TraverseOnlyGuarded(root *rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
+func (f *PolyfillUsageFinder) TraverseOnlyGuarded(root rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
 	sc := NewSyntacticScopeCreator(f.compiler)
 	NodeTraversal_Builder_().
 		SetCompiler(f.compiler).
@@ -519,7 +518,7 @@ func newPolyfillUsageFinder_Traverser(
 }
 
 // Java: PolyfillUsageFinder.Traverser.visitGuarded(NodeTraversal, Node, Node)
-func (tr *polyfillUsageFinder_Traverser) VisitGuarded(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (tr *polyfillUsageFinder_Traverser) VisitGuarded(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	if tr.includeGuardedUsages == polyfillUsageFinder_Guard_ONLY_GUARDED && !tr.canPossiblyBeGuarded() {
 		return
 	}
@@ -534,7 +533,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitGuarded(traversal *NodeTraversal, 
 }
 
 // Java: PolyfillUsageFinder.Traverser.visitName(NodeTraversal, Node)
-func (tr *polyfillUsageFinder_Traverser) VisitName(traversal *NodeTraversal, nameNode *rhino.Node) {
+func (tr *polyfillUsageFinder_Traverser) VisitName(traversal *NodeTraversal, nameNode rhino.Node) {
 	name := nameNode.GetString()
 	polyfill := tr.outer.polyfills.getStatic(name)
 	if polyfill == nil {
@@ -549,7 +548,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitName(traversal *NodeTraversal, nam
 }
 
 // Java: PolyfillUsageFinder.Traverser.visitGetPropChain(NodeTraversal, Node)
-func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraversal, getPropNode *rhino.Node) {
+func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraversal, getPropNode rhino.Node) {
 	propertyName := getPropNode.GetString()
 	if !tr.outer.polyfills.mightHavePropPolyfill(propertyName) {
 		return
@@ -582,7 +581,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraver
 
 // Java: PolyfillUsageFinder.maybeCreateStaticPolyfillUsageForGetPropChain(NodeTraversal, Node)
 func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
-	traversal *NodeTraversal, getPropNode *rhino.Node) *PolyfillUsageFinder_PolyfillUsage {
+	traversal *NodeTraversal, getPropNode rhino.Node) *PolyfillUsageFinder_PolyfillUsage {
 	jutil.CheckArgumentMsg1(getPropNode.IsGetProp() || getPropNode.IsOptChainGetProp(), "%s", getPropNode)
 	lastComponent := getPropNode.GetString()
 	if !f.polyfills.hasSuffix(lastComponent) {
@@ -631,7 +630,7 @@ func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 	reversedComponents := reversedComponentsBuf[:0]
 	reversedComponents = append(reversedComponents, lastComponent)
 	totalLen := len(lastComponent)
-	var ownerNode *rhino.Node
+	var ownerNode rhino.Node
 	for ownerNode = firstChild; ownerNode.IsGetProp() || ownerNode.IsOptChainGetProp(); ownerNode = ownerNode.GetFirstChild() {
 		comp := ownerNode.GetString()
 		reversedComponents = append(reversedComponents, comp)

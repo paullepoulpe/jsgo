@@ -58,8 +58,8 @@ type DestructuringGlobalNameExtractor struct{}
 //
 // Java: DestructuringGlobalNameExtractor.reassignDestructringLvalue(Node, Node, Set<AstChange>, Ref, AbstractCompiler)
 func DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
-	stringKey *rhino.Node,
-	newName *rhino.Node,
+	stringKey rhino.Node,
+	newName rhino.Node,
 	newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange],
 	ref *GlobalNamespace_Ref,
 	compiler AbstractCompiler) {
@@ -70,7 +70,7 @@ func DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
 	jutil.CheckState(originalRvalue.IsQualifiedName()) // don't handle rvalues with side effects
 
 	// Create a new assignment using the provided qualified name, e.g. `const y = new.name;`
-	var lvalueToReassign *rhino.Node
+	var lvalueToReassign rhino.Node
 	if stringKey.GetOnlyChild().IsDefaultValue() {
 		lvalueToReassign = stringKey.GetOnlyChild().GetFirstChild()
 	} else {
@@ -82,7 +82,7 @@ func DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
 	rvalue := DestructuringGlobalNameExtractor_MakeNewRvalueForDestructuringKey(stringKey, newName, newNodes, ref)
 
 	// Add that new assignment to the AST after the original destructuring pattern
-	if stringKey.GetPrevious() == nil && stringKey.GetNext() != nil {
+	if stringKey.GetPrevious().IsNil() && !stringKey.GetNext().IsNil() {
 		// Remove the original item completely if the given string key doesn't have any preceding
 		// string keys, /and/ it has succeeding string keys.
 		DestructuringGlobalNameExtractor_ReplaceDestructuringAssignment(pattern, lvalueToReassign.Detach(), rvalue)
@@ -93,12 +93,12 @@ func DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
 	// Remove any lvalues in the pattern that are after the given stringKey, and put them in
 	// a second destructuring pattern. This is necessary in case they depend on side effects from
 	// assigning `lvalueToReassign`. e.g. create `const {z} = original;`
-	if stringKey.GetNext() != nil {
+	if !stringKey.GetNext().IsNil() {
 		newPattern := DestructuringGlobalNameExtractor_CreateNewObjectPatternFromSuccessiveKeys(stringKey).Srcref(pattern)
 
 		// reuse the original rvalue if we don't need it for earlier keys, otherwise make a copy.
-		var newRvalue *rhino.Node
-		if stringKey.GetPrevious() == nil {
+		var newRvalue rhino.Node
+		if stringKey.GetPrevious().IsNil() {
 			newRvalue = originalRvalue.Detach()
 		} else {
 			newRvalue = originalRvalue.CloneTree()
@@ -117,7 +117,7 @@ func DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
 // declaration after the original assign or name declaration.
 //
 // Java: DestructuringGlobalNameExtractor.addAfter(Node, Node, Node)
-func DestructuringGlobalNameExtractor_AddAfter(originalLvalue *rhino.Node, newLvalue *rhino.Node, newRvalue *rhino.Node) {
+func DestructuringGlobalNameExtractor_AddAfter(originalLvalue rhino.Node, newLvalue rhino.Node, newRvalue rhino.Node) {
 	parent := originalLvalue.GetParent()
 	if parent.IsAssign() {
 		// create `(<originalLvalue = ...>, <newLvalue = newRvalue>)`
@@ -133,7 +133,7 @@ func DestructuringGlobalNameExtractor_AddAfter(originalLvalue *rhino.Node, newLv
 	} else {
 		newLvalue.AddChildToBack(newRvalue)
 	}
-	var declaration *rhino.Node
+	var declaration rhino.Node
 	if parent.IsDestructuringLhs() {
 		declaration = originalLvalue.GetGrandparent()
 	} else {
@@ -161,7 +161,7 @@ func DestructuringGlobalNameExtractor_AddAfter(originalLvalue *rhino.Node, newLv
 // pattern is a destructuring pattern in an ASSIGN or VAR/LET/CONST.
 //
 // Java: DestructuringGlobalNameExtractor.replaceDestructuringAssignment(Node, Node, Node)
-func DestructuringGlobalNameExtractor_ReplaceDestructuringAssignment(pattern *rhino.Node, newLvalue *rhino.Node, newRvalue *rhino.Node) {
+func DestructuringGlobalNameExtractor_ReplaceDestructuringAssignment(pattern rhino.Node, newLvalue rhino.Node, newRvalue rhino.Node) {
 	parent := pattern.GetParent()
 	if parent.IsAssign() {
 		newAssign := rhino.IR_Assign(newLvalue, newRvalue).Srcref(parent)
@@ -186,7 +186,7 @@ func DestructuringGlobalNameExtractor_ReplaceDestructuringAssignment(pattern *rh
 //
 // Java: DestructuringGlobalNameExtractor.makeNewRvalueForDestructuringKey(Node, Node, Set<AstChange>, Ref)
 func DestructuringGlobalNameExtractor_MakeNewRvalueForDestructuringKey(
-	stringKey *rhino.Node, rvalue *rhino.Node, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange], ref *GlobalNamespace_Ref) *rhino.Node {
+	stringKey rhino.Node, rvalue rhino.Node, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange], ref *GlobalNamespace_Ref) rhino.Node {
 	if stringKey.GetOnlyChild().IsDefaultValue() {
 		defaultValue := stringKey.GetFirstChild().GetSecondChild().Detach()
 		// Assume `rvalue` has no side effects since it's a qname, and we can create multiple
@@ -207,9 +207,9 @@ func DestructuringGlobalNameExtractor_MakeNewRvalueForDestructuringKey(
 // object pattern.
 //
 // Java: DestructuringGlobalNameExtractor.createNewObjectPatternFromSuccessiveKeys(Node)
-func DestructuringGlobalNameExtractor_CreateNewObjectPatternFromSuccessiveKeys(stringKey *rhino.Node) *rhino.Node {
+func DestructuringGlobalNameExtractor_CreateNewObjectPatternFromSuccessiveKeys(stringKey rhino.Node) rhino.Node {
 	newPattern := stringKey.GetParent().CloneNode() // copies the JSType
-	for next := stringKey.GetNext(); next != nil; {
+	for next := stringKey.GetNext(); !next.IsNil(); {
 		newKey := next
 		next = newKey.GetNext()
 		newPattern.AddChildToBack(newKey.Detach())

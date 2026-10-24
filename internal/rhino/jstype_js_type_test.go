@@ -91,8 +91,8 @@ func (s *jsTypeTest) SetUp() {
 		scope := rhinotesting.NewMapBasedScope(mapOf("goog", googObject))
 
 		builder := NewRecordTypeBuilder(s.Registry)
-		builder.AddProperty("a", s.NUMBER_TYPE, nil)
-		builder.AddProperty("b", s.STRING_TYPE, nil)
+		builder.AddProperty("a", s.NUMBER_TYPE, Node{})
+		builder.AddProperty("b", s.STRING_TYPE, Node{})
 		s.recordType = builder.Build()
 
 		s.enumType = EnumType_Builder_(s.Registry).SetName(ptr("Enum")).SetElementType(s.NUMBER_TYPE).Build()
@@ -121,21 +121,21 @@ func (s *jsTypeTest) SetUp() {
 		s.subInterfaceType.SetExtendedInterfaces([]ObjectType{s.interfaceInstType})
 		s.subInterfaceInstType = s.subInterfaceType.GetInstanceType()
 
-		s.googBar = s.Registry.CreateConstructorType(ptr("goog.Bar"), nil, nil, nil, nil, false)
-		s.googBar.GetPrototype().DefineDeclaredProperty("date", s.DATE_TYPE, nil)
+		s.googBar = s.Registry.CreateConstructorType(ptr("goog.Bar"), Node{}, nil, nil, nil, false)
+		s.googBar.GetPrototype().DefineDeclaredProperty("date", s.DATE_TYPE, Node{})
 		s.googBar.SetImplementedInterfaces([]ObjectType{s.interfaceInstType})
 		s.googBarInst = s.googBar.GetInstanceType()
 
-		s.googSubBar = s.Registry.CreateConstructorType(ptr("googSubBar"), nil, nil, nil, nil, false)
+		s.googSubBar = s.Registry.CreateConstructorType(ptr("googSubBar"), Node{}, nil, nil, nil, false)
 		s.googSubBar.SetPrototypeBasedOn(s.googBar.GetInstanceType())
 		s.googSubBarInst = s.googSubBar.GetInstanceType()
 
 		s.googSubSubBar =
-			s.Registry.CreateConstructorType(ptr("googSubSubBar"), nil, nil, nil, nil, false)
+			s.Registry.CreateConstructorType(ptr("googSubSubBar"), Node{}, nil, nil, nil, false)
 		s.googSubSubBar.SetPrototypeBasedOn(s.googSubBar.GetInstanceType())
 		s.googSubSubBarInst = s.googSubSubBar.GetInstanceType()
 
-		googObject.DefineDeclaredProperty("Bar", s.googBar, nil)
+		googObject.DefineDeclaredProperty("Bar", s.googBar, Node{})
 
 		s.forwardDeclaredNamedType = s.Registry.CreateNamedType(scope, "forwardDeclared", ptr("source"), 1, 0)
 	}()
@@ -2709,17 +2709,17 @@ func TestJSType_FunctionType(t *testing.T) {
 func TestJSType_RecordTypeSubtyping(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.NUMBER_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
-	builder.AddProperty("c", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
+	builder.AddProperty("c", s.STRING_TYPE, Node{})
 	subRecordType := builder.Build()
 
 	s.AssertThat(subRecordType.IsSubtypeOf(s.recordType)).IsTrue()
 	s.AssertThat(s.recordType.IsSubtypeOf(subRecordType)).IsFalse()
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.OBJECT_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.OBJECT_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
 	differentRecordType := builder.Build()
 
 	s.AssertThat(differentRecordType.IsSubtypeOf(s.recordType)).IsFalse()
@@ -2730,21 +2730,21 @@ func TestJSType_RecordTypeSubtyping(t *testing.T) {
 func TestJSType_RecordTypeSubtypingWithInferredProperties(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.googSubBarInst, nil)
+	builder.AddProperty("a", s.googSubBarInst, Node{})
 	record := builder.Build()
 
 	subtypeProp := s.Registry.CreateAnonymousObjectType(nil)
-	subtypeProp.DefineInferredProperty("a", s.googSubSubBarInst, nil)
+	subtypeProp.DefineInferredProperty("a", s.googSubSubBarInst, Node{})
 	s.AssertThat(subtypeProp.IsSubtypeOf(record)).IsTrue()
 	s.AssertThat(record.IsSubtypeOf(subtypeProp)).IsFalse()
 
 	supertypeProp := s.Registry.CreateAnonymousObjectType(nil)
-	supertypeProp.DefineInferredProperty("a", s.googBarInst, nil)
+	supertypeProp.DefineInferredProperty("a", s.googBarInst, Node{})
 	s.AssertThat(supertypeProp.IsSubtypeOf(record)).IsFalse()
 	s.AssertThat(record.IsSubtypeOf(supertypeProp)).IsFalse()
 
 	declaredSubtypeProp := s.Registry.CreateAnonymousObjectType(nil)
-	declaredSubtypeProp.DefineDeclaredProperty("a", s.googSubSubBarInst, nil)
+	declaredSubtypeProp.DefineDeclaredProperty("a", s.googSubSubBarInst, Node{})
 	s.AssertThat(declaredSubtypeProp.IsSubtypeOf(record)).IsTrue()
 	s.AssertThat(record.IsSubtypeOf(declaredSubtypeProp)).IsFalse()
 }
@@ -2753,9 +2753,9 @@ func TestJSType_RecordTypeSubtypingWithInferredProperties(t *testing.T) {
 func TestJSType_RecordTypeLeastSuperType1(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.NUMBER_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
-	builder.AddProperty("c", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
+	builder.AddProperty("c", s.STRING_TYPE, Node{})
 	subRecordType := builder.Build()
 
 	leastSupertype := s.recordType.GetLeastSupertype(subRecordType)
@@ -2765,9 +2765,9 @@ func TestJSType_RecordTypeLeastSuperType1(t *testing.T) {
 func TestJSType_RecordTypeLeastSuperType2(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("e", s.NUMBER_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
-	builder.AddProperty("c", s.STRING_TYPE, nil)
+	builder.AddProperty("e", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
+	builder.AddProperty("c", s.STRING_TYPE, Node{})
 	otherRecordType := builder.Build()
 
 	s.AssertTypeEquals(
@@ -2778,9 +2778,9 @@ func TestJSType_RecordTypeLeastSuperType2(t *testing.T) {
 func TestJSType_RecordTypeLeastSuperType3(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.NUMBER_TYPE, nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 	otherRecordType := builder.Build()
 
 	s.AssertTypeEquals(
@@ -2798,20 +2798,20 @@ func TestJSType_RecordTypeLeastSuperType4(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType1(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.NUMBER_TYPE, nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	subRecordType := builder.Build()
 
 	subtype := s.recordType.GetGreatestSubtype(subRecordType)
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.NUMBER_TYPE, nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
-	builder.AddProperty("a", s.NUMBER_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
+	builder.AddProperty("a", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
 
 	s.AssertTypeEquals(subtype, builder.Build())
 }
@@ -2825,8 +2825,8 @@ func TestJSType_RecordTypeGreatestSubType2(t *testing.T) {
 	subtype := s.recordType.GetGreatestSubtype(subRecordType)
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.NUMBER_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
 
 	s.AssertTypeEquals(subtype, builder.Build())
 }
@@ -2834,18 +2834,18 @@ func TestJSType_RecordTypeGreatestSubType2(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType3(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.NUMBER_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
-	builder.AddProperty("c", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
+	builder.AddProperty("c", s.STRING_TYPE, Node{})
 
 	subRecordType := builder.Build()
 
 	subtype := s.recordType.GetGreatestSubtype(subRecordType)
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.NUMBER_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
-	builder.AddProperty("c", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
+	builder.AddProperty("c", s.STRING_TYPE, Node{})
 
 	s.AssertTypeEquals(subtype, builder.Build())
 }
@@ -2853,9 +2853,9 @@ func TestJSType_RecordTypeGreatestSubType3(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType4(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.STRING_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
-	builder.AddProperty("c", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.STRING_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
+	builder.AddProperty("c", s.STRING_TYPE, Node{})
 
 	subRecordType := builder.Build()
 
@@ -2866,7 +2866,7 @@ func TestJSType_RecordTypeGreatestSubType4(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType5(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.STRING_TYPE, Node{})
 
 	recordType := builder.Build()
 
@@ -2874,7 +2874,7 @@ func TestJSType_RecordTypeGreatestSubType5(t *testing.T) {
 
 	// if Function is given a property "a" of type "string", then it's
 	// a subtype of the record type {a: string}.
-	s.FUNCTION_TYPE.DefineDeclaredProperty("a", s.STRING_TYPE, nil)
+	s.FUNCTION_TYPE.DefineDeclaredProperty("a", s.STRING_TYPE, Node{})
 	s.AssertTypeEquals(s.FUNCTION_TYPE, recordType.GetGreatestSubtype(s.FUNCTION_TYPE))
 	s.AssertTypeEquals(s.FUNCTION_TYPE, s.FUNCTION_TYPE.GetGreatestSubtype(recordType))
 }
@@ -2882,7 +2882,7 @@ func TestJSType_RecordTypeGreatestSubType5(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType6(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("x", s.UNKNOWN_TYPE, nil)
+	builder.AddProperty("x", s.UNKNOWN_TYPE, Node{})
 
 	recordType := builder.Build()
 
@@ -2890,7 +2890,7 @@ func TestJSType_RecordTypeGreatestSubType6(t *testing.T) {
 
 	// if Function is given a property "x" of type "string", then it's
 	// also a subtype of the record type {x: ?}.
-	s.FUNCTION_TYPE.DefineDeclaredProperty("x", s.STRING_TYPE, nil)
+	s.FUNCTION_TYPE.DefineDeclaredProperty("x", s.STRING_TYPE, Node{})
 	s.AssertTypeEquals(s.FUNCTION_TYPE, recordType.GetGreatestSubtype(s.FUNCTION_TYPE))
 	s.AssertTypeEquals(s.FUNCTION_TYPE, s.FUNCTION_TYPE.GetGreatestSubtype(recordType))
 }
@@ -2898,20 +2898,20 @@ func TestJSType_RecordTypeGreatestSubType6(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType7(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("x", s.NUMBER_TYPE, nil)
+	builder.AddProperty("x", s.NUMBER_TYPE, Node{})
 
 	recordType := builder.Build()
 
 	// if Function is given a property "x" of type "string", then it's
 	// not a subtype of the record type {x: number}.
-	s.FUNCTION_TYPE.DefineDeclaredProperty("x", s.STRING_TYPE, nil)
+	s.FUNCTION_TYPE.DefineDeclaredProperty("x", s.STRING_TYPE, Node{})
 	s.AssertTypeEquals(s.NO_OBJECT_TYPE, recordType.GetGreatestSubtype(s.FUNCTION_TYPE))
 }
 
 func TestJSType_RecordTypeGreatestSubType8(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("xyz", s.UNKNOWN_TYPE, nil)
+	builder.AddProperty("xyz", s.UNKNOWN_TYPE, Node{})
 
 	recordType := builder.Build()
 
@@ -2919,7 +2919,7 @@ func TestJSType_RecordTypeGreatestSubType8(t *testing.T) {
 
 	// if goog.Bar is given a property "xyz" of type "string", then it's
 	// also a subtype of the record type {x: ?}.
-	s.googBar.DefineDeclaredProperty("xyz", s.STRING_TYPE, nil)
+	s.googBar.DefineDeclaredProperty("xyz", s.STRING_TYPE, Node{})
 
 	s.AssertTypeEquals(s.googBar, recordType.GetGreatestSubtype(s.FUNCTION_TYPE))
 	s.AssertTypeEquals(s.googBar, s.FUNCTION_TYPE.GetGreatestSubtype(recordType))
@@ -2934,25 +2934,25 @@ func TestJSType_RecordTypeGreatestSubType8(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType9(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.googBar.GetPrototype(), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.googBar.GetPrototype(), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	recordType1 := builder.Build()
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.googBar.GetInstanceType(), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.googBar.GetInstanceType(), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	recordType2 := builder.Build()
 
 	subtype := recordType1.GetGreatestSubtype(recordType2)
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.googBar.GetInstanceType(), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.googBar.GetInstanceType(), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	s.AssertTypeEquals(subtype, builder.Build())
 }
@@ -2960,24 +2960,24 @@ func TestJSType_RecordTypeGreatestSubType9(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType10(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.googBar.GetPrototype(), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.googBar.GetPrototype(), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
 
 	recordType1 := builder.Build()
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.googBar.GetInstanceType(), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.googBar.GetInstanceType(), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	recordType2 := builder.Build()
 
 	subtype := recordType2.GetGreatestSubtype(recordType1)
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.googBar.GetInstanceType(), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.googBar.GetInstanceType(), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	s.AssertTypeEquals(subtype, builder.Build())
 }
@@ -2985,24 +2985,24 @@ func TestJSType_RecordTypeGreatestSubType10(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType11(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.CreateUnionType(s.NUMBER_TYPE, s.STRING_TYPE), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.CreateUnionType(s.NUMBER_TYPE, s.STRING_TYPE), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
 
 	recordType1 := builder.Build()
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.CreateUnionType(s.NUMBER_TYPE, s.BOOLEAN_TYPE), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.CreateUnionType(s.NUMBER_TYPE, s.BOOLEAN_TYPE), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	recordType2 := builder.Build()
 
 	subtype := recordType2.GetGreatestSubtype(recordType1)
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.NUMBER_TYPE, nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.NUMBER_TYPE, Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	s.AssertTypeEquals(subtype, builder.Build())
 }
@@ -3010,21 +3010,21 @@ func TestJSType_RecordTypeGreatestSubType11(t *testing.T) {
 func TestJSType_RecordTypeGreatestSubType12(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", s.googBar.GetPrototype(), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
+	builder.AddProperty("d", s.googBar.GetPrototype(), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
 
 	recordType1 := builder.Build()
 
 	googBarArgConstructor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("barArg"), nil, s.Registry.CreateParameters(s.googBar), nil, nil, false)
+				ptr("barArg"), Node{}, s.Registry.CreateParameters(s.googBar), nil, nil, false)
 		})
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("d", googBarArgConstructor, nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+	builder.AddProperty("d", googBarArgConstructor, Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	recordType2 := builder.Build()
 
@@ -3032,9 +3032,9 @@ func TestJSType_RecordTypeGreatestSubType12(t *testing.T) {
 
 	builder = NewRecordTypeBuilder(s.Registry)
 	builder.AddProperty("d", s.Registry.GetNativeObjectType(
-		JSTypeNative_NO_OBJECT_TYPE), nil)
-	builder.AddProperty("e", s.STRING_TYPE, nil)
-	builder.AddProperty("f", s.STRING_TYPE, nil)
+		JSTypeNative_NO_OBJECT_TYPE), Node{})
+	builder.AddProperty("e", s.STRING_TYPE, Node{})
+	builder.AddProperty("f", s.STRING_TYPE, Node{})
 
 	s.AssertTypeEquals(subtype, builder.Build())
 }
@@ -3286,14 +3286,14 @@ func TestJSType_FunctionPrototypeAndImplicitPrototype1(t *testing.T) {
 	constructor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("Foo") /* source= */, nil, nil, nil, nil /* isAbstract= */, false)
+				ptr("Foo") /* source= */, Node{}, nil, nil, nil /* isAbstract= */, false)
 		})
 	instance := constructor.GetInstanceType()
 
 	// adding one property on the prototype
 	prototype :=
 		constructor.GetPropertyType("prototype").(ObjectType)
-	prototype.DefineDeclaredProperty("foo", s.DATE_TYPE, nil)
+	prototype.DefineDeclaredProperty("foo", s.DATE_TYPE, Node{})
 
 	s.AssertThat(instance.GetPropertiesCount()).IsEqualTo(s.NATIVE_PROPERTIES_COUNT + 1)
 }
@@ -3309,7 +3309,7 @@ func TestJSType_FunctionPrototypeAndImplicitPrototype2(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
 				ptr("Bar"),
-				/* source= */ nil,
+				/* source= */ Node{},
 				s.Registry.CreateParameters(s.ALL_TYPE, s.ALL_TYPE, s.ALL_TYPE),
 				nil,
 				nil,
@@ -3319,8 +3319,8 @@ func TestJSType_FunctionPrototypeAndImplicitPrototype2(t *testing.T) {
 
 	// replacing the prototype
 	prototype := s.Registry.CreateAnonymousObjectType(nil)
-	prototype.DefineDeclaredProperty("foo", s.DATE_TYPE, nil)
-	constructor.DefineDeclaredProperty("prototype", prototype, nil)
+	prototype.DefineDeclaredProperty("foo", s.DATE_TYPE, Node{})
+	constructor.DefineDeclaredProperty("prototype", prototype, Node{})
 
 	s.AssertThat(instance.GetPropertiesCount()).IsEqualTo(s.NATIVE_PROPERTIES_COUNT + 1)
 }
@@ -3891,10 +3891,10 @@ func TestJSType_ObjectTypePropertiesCount(t *testing.T) {
 	sup := s.Registry.CreateAnonymousObjectType(nil)
 	nativeProperties := sup.GetPropertiesCount()
 
-	sup.DefineDeclaredProperty("a", s.DATE_TYPE, nil)
+	sup.DefineDeclaredProperty("a", s.DATE_TYPE, Node{})
 	s.AssertThat(sup.GetPropertiesCount()).IsEqualTo(nativeProperties + 1)
 
-	sup.DefineDeclaredProperty("b", s.DATE_TYPE, nil)
+	sup.DefineDeclaredProperty("b", s.DATE_TYPE, Node{})
 	s.AssertThat(sup.GetPropertiesCount()).IsEqualTo(nativeProperties + 2)
 
 	sub := s.Registry.CreateObjectType(nil, sup)
@@ -3910,28 +3910,28 @@ func TestJSType_DefineProperties(t *testing.T) {
 	s.AssertTypeEquals(instance.GetImplicitPrototype(), prototype)
 
 	// Test declarations.
-	s.AssertThat(prototype.DefineDeclaredProperty("declared", s.NUMBER_TYPE, nil)).IsTrue()
-	s.AssertThat(prototype.DefineDeclaredProperty("declared", s.NUMBER_TYPE, nil)).IsFalse()
-	s.AssertThat(instance.DefineDeclaredProperty("declared", s.NUMBER_TYPE, nil)).IsFalse()
+	s.AssertThat(prototype.DefineDeclaredProperty("declared", s.NUMBER_TYPE, Node{})).IsTrue()
+	s.AssertThat(prototype.DefineDeclaredProperty("declared", s.NUMBER_TYPE, Node{})).IsFalse()
+	s.AssertThat(instance.DefineDeclaredProperty("declared", s.NUMBER_TYPE, Node{})).IsFalse()
 	s.AssertTypeEquals(s.NUMBER_TYPE, instance.GetPropertyType("declared"))
 
 	// Test inferring different types.
-	s.AssertThat(prototype.DefineInferredProperty("inferred1", s.STRING_TYPE, nil)).IsTrue()
-	s.AssertThat(prototype.DefineInferredProperty("inferred1", s.NUMBER_TYPE, nil)).IsTrue()
+	s.AssertThat(prototype.DefineInferredProperty("inferred1", s.STRING_TYPE, Node{})).IsTrue()
+	s.AssertThat(prototype.DefineInferredProperty("inferred1", s.NUMBER_TYPE, Node{})).IsTrue()
 	s.AssertTypeEquals(
 		s.CreateUnionType(s.NUMBER_TYPE, s.STRING_TYPE),
 		instance.GetPropertyType("inferred1"))
 
 	// Test inferring different types on different objects.
-	s.AssertThat(prototype.DefineInferredProperty("inferred2", s.STRING_TYPE, nil)).IsTrue()
-	s.AssertThat(instance.DefineInferredProperty("inferred2", s.NUMBER_TYPE, nil)).IsTrue()
+	s.AssertThat(prototype.DefineInferredProperty("inferred2", s.STRING_TYPE, Node{})).IsTrue()
+	s.AssertThat(instance.DefineInferredProperty("inferred2", s.NUMBER_TYPE, Node{})).IsTrue()
 	s.AssertTypeEquals(
 		s.CreateUnionType(s.NUMBER_TYPE, s.STRING_TYPE),
 		instance.GetPropertyType("inferred2"))
 
 	// Test inferring on the supertype and declaring on the subtype.
-	s.AssertThat(prototype.DefineInferredProperty("prop", s.STRING_TYPE, nil)).IsTrue()
-	s.AssertThat(instance.DefineDeclaredProperty("prop", s.NUMBER_TYPE, nil)).IsTrue()
+	s.AssertThat(prototype.DefineInferredProperty("prop", s.STRING_TYPE, Node{})).IsTrue()
+	s.AssertThat(instance.DefineDeclaredProperty("prop", s.NUMBER_TYPE, Node{})).IsTrue()
 	s.AssertTypeEquals(s.NUMBER_TYPE, instance.GetPropertyType("prop"))
 	s.AssertTypeEquals(s.STRING_TYPE, prototype.GetPropertyType("prop"))
 }
@@ -3942,11 +3942,11 @@ func TestJSType_ObjectTypePropertiesCountWithShadowing(t *testing.T) {
 	sup := s.Registry.CreateAnonymousObjectType(nil)
 	nativeProperties := sup.GetPropertiesCount()
 
-	sup.DefineDeclaredProperty("a", s.OBJECT_TYPE, nil)
+	sup.DefineDeclaredProperty("a", s.OBJECT_TYPE, Node{})
 	s.AssertThat(sup.GetPropertiesCount()).IsEqualTo(nativeProperties + 1)
 
 	sub := s.Registry.CreateObjectType(nil, sup)
-	sub.DefineDeclaredProperty("a", s.OBJECT_TYPE, nil)
+	sub.DefineDeclaredProperty("a", s.OBJECT_TYPE, Node{})
 	s.AssertThat(sub.GetPropertiesCount()).IsEqualTo(nativeProperties + 1)
 }
 
@@ -4279,7 +4279,7 @@ func TestJSType_SubtypingFunctionPrototypeType(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
 				ptr("Foo1"),
-				/* source= */ nil,
+				/* source= */ Node{},
 				s.Registry.CreateParameters(s.ALL_TYPE),
 				nil,
 				nil,
@@ -4291,7 +4291,7 @@ func TestJSType_SubtypingFunctionPrototypeType(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
 				ptr("Foo2"),
-				/* source= */ nil,
+				/* source= */ Node{},
 				s.Registry.CreateParameters(s.ALL_TYPE),
 				nil,
 				nil,
@@ -4726,7 +4726,7 @@ func TestJSType_NamedTypeEquals2(t *testing.T) {
 	b := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "typeB", ptr("source"), 1, 0)
 
 	realA :=
-		s.Registry.CreateConstructorType(ptr("typeA"), nil, nil, nil, nil, false).GetInstanceType()
+		s.Registry.CreateConstructorType(ptr("typeA"), Node{}, nil, nil, nil, false).GetInstanceType()
 	realB :=
 		EnumType_Builder_(s.Registry).
 			SetName(ptr("typeB")).
@@ -4869,24 +4869,24 @@ func TestJSType_NamedSubtypeChain(t *testing.T) {
 func TestJSType_RecordSubtypeChain(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.STRING_TYPE, Node{})
 	aType := builder.Build()
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.STRING_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.STRING_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
 	abType := builder.Build()
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.STRING_TYPE, nil)
-	builder.AddProperty("c", s.STRING_TYPE, nil)
+	builder.AddProperty("a", s.STRING_TYPE, Node{})
+	builder.AddProperty("c", s.STRING_TYPE, Node{})
 	acType := builder.Build()
 	abOrAcType := s.Registry.CreateUnionType(abType, acType)
 
 	builder = NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("a", s.STRING_TYPE, nil)
-	builder.AddProperty("b", s.STRING_TYPE, nil)
-	builder.AddProperty("c", s.NUMBER_TYPE, nil)
+	builder.AddProperty("a", s.STRING_TYPE, Node{})
+	builder.AddProperty("b", s.STRING_TYPE, Node{})
+	builder.AddProperty("c", s.NUMBER_TYPE, Node{})
 	abcType := builder.Build()
 
 	typeChain :=
@@ -4906,7 +4906,7 @@ func TestJSType_RecordSubtypeChain(t *testing.T) {
 func TestJSType_RecordAndObjectChain2(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("date", s.DATE_TYPE, nil)
+	builder.AddProperty("date", s.DATE_TYPE, Node{})
 	hasDateProperty := builder.Build()
 
 	typeChain :=
@@ -4922,7 +4922,7 @@ func TestJSType_RecordAndObjectChain2(t *testing.T) {
 func TestJSType_RecordAndObjectChain3(t *testing.T) {
 	s := newJsTypeTest(t)
 	builder := NewRecordTypeBuilder(s.Registry)
-	builder.AddProperty("date", s.UNKNOWN_TYPE, nil)
+	builder.AddProperty("date", s.UNKNOWN_TYPE, Node{})
 	hasUnknownDateProperty := builder.Build()
 
 	typeChain :=
@@ -5032,7 +5032,7 @@ func TestJSType_ConstructorWithArgSubtypeChain(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
 				ptr("barArg"),
-				/* source= */ nil,
+				/* source= */ Node{},
 				s.Registry.CreateParameters(s.googBar),
 				nil,
 				nil,
@@ -5043,7 +5043,7 @@ func TestJSType_ConstructorWithArgSubtypeChain(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
 				ptr("subBarArg"),
-				/* source= */ nil,
+				/* source= */ Node{},
 				s.Registry.CreateParameters(s.googSubBar),
 				nil,
 				nil,
@@ -5081,7 +5081,7 @@ func TestJSType_InterfaceInheritanceSubtypeChain(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
 				ptr("goog.TempType"),
-				/* source= */ nil,
+				/* source= */ Node{},
 				nil,
 				nil,
 				nil,
@@ -5349,7 +5349,7 @@ func TestJSType_TemplatizedTypesWithBoundedGenerics(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
 				ptr("TestingType"),
-				/* source= */ nil,
+				/* source= */ Node{},
 				nil,
 				s.UNKNOWN_TYPE,
 				[]*TemplateType{
@@ -5738,7 +5738,7 @@ func TestJSType_GoodSetPrototypeBasedOn(t *testing.T) {
 	fun :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("fun") /* source= */, nil, nil, nil, nil /* isAbstract= */, false)
+				ptr("fun") /* source= */, Node{}, nil, nil, nil /* isAbstract= */, false)
 		})
 	fun.SetPrototypeBasedOn(s.unresolvedNamedType)
 	s.AssertThat(fun.GetInstanceType().IsUnknownType()).IsTrue()
@@ -5749,7 +5749,7 @@ func TestJSType_LateSetPrototypeBasedOn(t *testing.T) {
 	fun :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("fun") /* source= */, nil, nil, nil, nil /* isAbstract= */, false)
+				ptr("fun") /* source= */, Node{}, nil, nil, nil /* isAbstract= */, false)
 		})
 	s.AssertThat(fun.GetInstanceType().IsUnknownType()).IsFalse()
 
@@ -5933,17 +5933,17 @@ func TestJSType_CreateAnonymousObjectType2(t *testing.T) {
 	// anonymous
 	anonymous := s.Registry.CreateAnonymousObjectType(nil)
 	anonymous.DefineDeclaredProperty(
-		"a", s.NUMBER_TYPE, nil)
+		"a", s.NUMBER_TYPE, Node{})
 	anonymous.DefineDeclaredProperty(
-		"b", s.NUMBER_TYPE, nil)
+		"b", s.NUMBER_TYPE, Node{})
 	anonymous.DefineDeclaredProperty(
-		"c", s.NUMBER_TYPE, nil)
+		"c", s.NUMBER_TYPE, Node{})
 	anonymous.DefineDeclaredProperty(
-		"d", s.NUMBER_TYPE, nil)
+		"d", s.NUMBER_TYPE, Node{})
 	anonymous.DefineDeclaredProperty(
-		"e", s.NUMBER_TYPE, nil)
+		"e", s.NUMBER_TYPE, Node{})
 	anonymous.DefineDeclaredProperty(
-		"f", s.NUMBER_TYPE, nil)
+		"f", s.NUMBER_TYPE, Node{})
 	s.AssertThat(anonymous.String()).
 		IsEqualTo(
 			rhinotesting.BaseJSTypeTestCase_Lines(
@@ -6002,8 +6002,8 @@ func TestJSType_HasOwnProperty(t *testing.T) {
 		s.Registry.CreateObjectType(nil, s.Registry.CreateAnonymousObjectType(nil))
 	sub := s.Registry.CreateObjectType(nil, sup)
 
-	sup.DefineProperty("base", s.GetBottomType(), false, nil)
-	sub.DefineProperty("sub", s.GetBottomType(), false, nil)
+	sup.DefineProperty("base", s.GetBottomType(), false, Node{})
+	sub.DefineProperty("sub", s.GetBottomType(), false, Node{})
 
 	s.AssertThat(sup.HasProperty("base")).IsTrue()
 	s.AssertThat(sup.HasProperty("sub")).IsFalse()
@@ -6030,8 +6030,8 @@ func TestJSType_HasOwnProperty_symbol(t *testing.T) {
 	subSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "sub"))
 	noneSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "none"))
 
-	sup.DefinePropertyByKey(baseSymbol, s.GetBottomType(), false, nil)
-	sub.DefinePropertyByKey(subSymbol, s.GetBottomType(), false, nil)
+	sup.DefinePropertyByKey(baseSymbol, s.GetBottomType(), false, Node{})
+	sub.DefinePropertyByKey(subSymbol, s.GetBottomType(), false, Node{})
 
 	s.AssertThat(sup.HasPropertyByKey(baseSymbol)).IsTrue()
 	s.AssertThat(sup.HasPropertyByKey(subSymbol)).IsFalse()
@@ -6050,8 +6050,8 @@ func TestJSType_HasOwnProperty_symbol(t *testing.T) {
 
 func TestJSType_NamedTypeHasOwnProperty(t *testing.T) {
 	s := newJsTypeTest(t)
-	s.namedGoogBar.GetImplicitPrototype().DefineProperty("base", s.GetBottomType(), false, nil)
-	s.namedGoogBar.DefineProperty("sub", s.GetBottomType(), false, nil)
+	s.namedGoogBar.GetImplicitPrototype().DefineProperty("base", s.GetBottomType(), false, Node{})
+	s.namedGoogBar.DefineProperty("sub", s.GetBottomType(), false, Node{})
 
 	s.AssertThat(s.namedGoogBar.HasOwnProperty("base")).IsFalse()
 	s.AssertThat(s.namedGoogBar.HasProperty("base")).IsTrue()
@@ -6061,8 +6061,8 @@ func TestJSType_NamedTypeHasOwnProperty(t *testing.T) {
 
 func TestJSType_InterfaceHasOwnProperty(t *testing.T) {
 	s := newJsTypeTest(t)
-	s.interfaceInstType.DefineProperty("base", s.GetBottomType(), false, nil)
-	s.subInterfaceInstType.DefineProperty("sub", s.GetBottomType(), false, nil)
+	s.interfaceInstType.DefineProperty("base", s.GetBottomType(), false, Node{})
+	s.subInterfaceInstType.DefineProperty("sub", s.GetBottomType(), false, Node{})
 
 	s.AssertThat(s.interfaceInstType.HasProperty("base")).IsTrue()
 	s.AssertThat(s.interfaceInstType.HasProperty("sub")).IsFalse()
@@ -6082,8 +6082,8 @@ func TestJSType_InterfaceHasOwnProperty_symbol(t *testing.T) {
 	baseSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "base"))
 	subSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "sub"))
 	noneSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "none"))
-	s.interfaceInstType.DefinePropertyByKey(baseSymbol, s.GetBottomType(), false, nil)
-	s.subInterfaceInstType.DefinePropertyByKey(subSymbol, s.GetBottomType(), false, nil)
+	s.interfaceInstType.DefinePropertyByKey(baseSymbol, s.GetBottomType(), false, Node{})
+	s.subInterfaceInstType.DefinePropertyByKey(subSymbol, s.GetBottomType(), false, Node{})
 
 	s.AssertThat(s.interfaceInstType.HasPropertyByKey(baseSymbol)).IsTrue()
 	s.AssertThat(s.interfaceInstType.HasPropertyByKey(subSymbol)).IsFalse()
@@ -6107,8 +6107,8 @@ func TestJSType_GetPropertyNames(t *testing.T) {
 	sub := s.Registry.CreateObjectType(nil, sup)
 	bottomType := s.GetBottomType()
 
-	sup.DefineProperty("base", bottomType, false, nil)
-	sub.DefineProperty("sub", bottomType, false, nil)
+	sup.DefineProperty("base", bottomType, false, Node{})
+	sub.DefineProperty("sub", bottomType, false, Node{})
 
 	s.AssertThat(sub.GetPropertyNames()).
 		ContainsExactlyElementsIn(
@@ -6145,8 +6145,8 @@ func TestJSType_GetPropertyNames_symbol(t *testing.T) {
 	baseSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "base"))
 	subSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "sub"))
 
-	sup.DefinePropertyByKey(baseSymbol, bottomType, false, nil)
-	sub.DefinePropertyByKey(subSymbol, bottomType, false, nil)
+	sup.DefinePropertyByKey(baseSymbol, bottomType, false, Node{})
+	sub.DefinePropertyByKey(subSymbol, bottomType, false, Node{})
 
 	s.AssertThat(sub.GetPropertyNames()).
 		ContainsExactlyElementsIn(
@@ -6207,10 +6207,10 @@ func TestJSType_GetAndSetJSDocInfoWithObjectTypes(t *testing.T) {
 	builder.RecordVisibility(JSDocInfo_Visibility_PRIVATE)
 	privateInfo := builder.Build()
 
-	sup.DefineProperty("X", s.NUMBER_TYPE, true, nil)
+	sup.DefineProperty("X", s.NUMBER_TYPE, true, Node{})
 	sup.SetPropertyJSDocInfo("X", privateInfo)
 
-	sub.DefineProperty("X", s.NUMBER_TYPE, true, nil)
+	sub.DefineProperty("X", s.NUMBER_TYPE, true, Node{})
 	sub.SetPropertyJSDocInfo("X", deprecated)
 
 	s.AssertThat(sup.GetOwnPropertyJSDocInfo("X").IsDeprecated()).IsFalse()
@@ -6277,7 +6277,7 @@ func TestJSType_TemplatizedType(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
 				ptr("TestingType"),
-				/* source= */ nil,
+				/* source= */ Node{},
 				nil,
 				s.UNKNOWN_TYPE,
 				[]*TemplateType{
@@ -6316,7 +6316,7 @@ func TestJSType_PartiallyTemplatizedType(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
 				ptr("TestingType"),
-				/* source= */ nil,
+				/* source= */ Node{},
 				nil,
 				s.UNKNOWN_TYPE,
 				[]*TemplateType{
@@ -6578,7 +6578,7 @@ func TestJSType_RecordAndInterfaceObjectTypeNotEqualWithSameProperties(t *testin
 	secondTypeConstructor :=
 		FunctionType_Builder_(s.Registry).ForInterface().WithName(ptr("Foo")).Build()
 
-	secondTypeConstructor.GetPrototype().DefineProperty("x", s.NUMBER_TYPE, false, nil)
+	secondTypeConstructor.GetPrototype().DefineProperty("x", s.NUMBER_TYPE, false, Node{})
 	secondTypeConstructor.SetImplicitMatch(true)
 	secondType := secondTypeConstructor.GetInstanceType()
 
@@ -6593,7 +6593,7 @@ func TestJSType_RecordAndObjectLiteralWithSameProperties(t *testing.T) {
 	s.AssertType(firstType).ToStringIsEqualTo("{x: number}")
 	// the type inferred for `const obj = {x: 1};`
 	secondType := s.Registry.CreateAnonymousObjectType(nil)
-	secondType.DefineDeclaredProperty("x", s.NUMBER_TYPE, nil)
+	secondType.DefineDeclaredProperty("x", s.NUMBER_TYPE, Node{})
 	s.AssertType(secondType).ToStringIsEqualTo("{x: number}")
 
 	// These are neither equal nor structurally equivalent because the second type is not a

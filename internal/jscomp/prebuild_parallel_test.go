@@ -90,7 +90,7 @@ func TestPrebuildWorkersOverlapAndRespectLimit(t *testing.T) {
 					if !slices.Contains(input.GetProvides(), fmt.Sprintf("test.file%d", i)) {
 						t.Fatalf("missing dependency info for input %d", i)
 					}
-				} else if input.ast.root == nil || input.ast.root.GetStaticSourceFile() != rhino.StaticSourceFile(input.sourceFile) {
+				} else if input.ast.root.IsNil() || input.ast.root.GetStaticSourceFile() != rhino.StaticSourceFile(input.sourceFile) {
 					t.Fatalf("missing/misbound AST for input %d", i)
 				}
 			}

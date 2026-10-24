@@ -97,27 +97,27 @@ type ObjectType interface {
 	FindClosestDefinitionByKey(propertyName Property_Key) *Property_OwnedProperty
 	GetImplicitPrototype() ObjectType
 	GetImplicitPrototypeChain() iter.Seq[ObjectType]
-	DefineDeclaredProperty(propertyName string, type_ JSType, propertyNode *Node) bool
-	DefineDeclaredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode *Node) bool
-	DefineSynthesizedProperty(propertyName string, type_ JSType, propertyNode *Node) bool
-	DefineInferredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode *Node) bool
-	DefineInferredProperty(propertyName string, type_ JSType, propertyNode *Node) bool
-	DefineProperty(propertyName string, type_ JSType, inferred bool, propertyNode *Node) bool
-	DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool
-	GetPropertyNode(propertyName string) *Node
-	GetPropertyNodeByKey(propertyName Property_Key) *Node
-	GetPropertyDefSite(propertyName string) *Node
-	GetPropertyDefSiteByKey(propertyName Property_Key) *Node
+	DefineDeclaredProperty(propertyName string, type_ JSType, propertyNode Node) bool
+	DefineDeclaredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode Node) bool
+	DefineSynthesizedProperty(propertyName string, type_ JSType, propertyNode Node) bool
+	DefineInferredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode Node) bool
+	DefineInferredProperty(propertyName string, type_ JSType, propertyNode Node) bool
+	DefineProperty(propertyName string, type_ JSType, inferred bool, propertyNode Node) bool
+	DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool
+	GetPropertyNode(propertyName string) Node
+	GetPropertyNodeByKey(propertyName Property_Key) Node
+	GetPropertyDefSite(propertyName string) Node
+	GetPropertyDefSiteByKey(propertyName Property_Key) Node
 	GetPropertyJSDocInfo(propertyName string) *JSDocInfo
 	GetPropertyJSDocInfoByKey(propertyName Property_Key) *JSDocInfo
 	GetOwnPropertyJSDocInfo(propertyName string) *JSDocInfo
 	GetOwnPropertyJSDocInfoByKey(propertyName Property_Key) *JSDocInfo
-	GetOwnPropertyDefSite(propertyName string) *Node
-	GetOwnPropertyDefSiteByKey(propertyName Property_Key) *Node
+	GetOwnPropertyDefSite(propertyName string) Node
+	GetOwnPropertyDefSiteByKey(propertyName Property_Key) Node
 	SetPropertyJSDocInfo(propertyName string, info *JSDocInfo)
 	SetPropertyJSDocInfoByKey(propertyName Property_Key, info *JSDocInfo)
-	SetPropertyNode(propertyName string, defSite *Node)
-	SetPropertyNodeByKey(propertyName Property_Key, defSite *Node)
+	SetPropertyNode(propertyName string, defSite Node)
+	SetPropertyNodeByKey(propertyName Property_Key, defSite Node)
 	GetPropertyType(propertyName string) JSType
 	GetPropertyTypeByKey(propertyName Property_Key) JSType
 	GetOwnPropertyKind(propertyName string) JSType_HasPropertyKind
@@ -528,12 +528,12 @@ func (o *ObjectTypeBase) GetImplicitPrototypeChain() iter.Seq[ObjectType] {
 // accessed using getPropertyNode.
 //
 // Java: ObjectType.defineDeclaredProperty(String, JSType, Node)
-func (o *ObjectTypeBase) DefineDeclaredProperty(propertyName string, type_ JSType, propertyNode *Node) bool {
+func (o *ObjectTypeBase) DefineDeclaredProperty(propertyName string, type_ JSType, propertyNode Node) bool {
 	return o.selfObj().DefineDeclaredPropertyByKey(NewProperty_StringKey(propertyName), type_, propertyNode)
 }
 
 // Java: ObjectType.defineDeclaredProperty(Property.Key, JSType, Node)
-func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode *Node) bool {
+func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode Node) bool {
 	self := o.selfObj()
 	result := self.DefinePropertyByKey(propertyName, type_ /* inferred= */, false, propertyNode)
 	if propertyName.Kind() == Property_KeyKind_STRING {
@@ -551,14 +551,14 @@ func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, 
 // program. They're just used for bookkeeping in the type system.
 //
 // Java: ObjectType.defineSynthesizedProperty(String, JSType, Node)
-func (o *ObjectTypeBase) DefineSynthesizedProperty(propertyName string, type_ JSType, propertyNode *Node) bool {
+func (o *ObjectTypeBase) DefineSynthesizedProperty(propertyName string, type_ JSType, propertyNode Node) bool {
 	return o.selfObj().DefineProperty(propertyName, type_, false, propertyNode)
 }
 
 // DefineInferredPropertyByKey defines a property whose type is inferred.
 //
 // Java: ObjectType.defineInferredProperty(Property.Key, JSType, Node)
-func (o *ObjectTypeBase) DefineInferredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode *Node) bool {
+func (o *ObjectTypeBase) DefineInferredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode Node) bool {
 	// Java: checkArgument(propertyName.string() != null, ...); string() throws
 	// UnsupportedOperationException for a symbol key and is never null
 	// otherwise.
@@ -575,7 +575,7 @@ func (o *ObjectTypeBase) DefineInferredPropertyByKey(propertyName Property_Key, 
 // accessed using getPropertyNode.
 //
 // Java: ObjectType.defineInferredProperty(String, JSType, Node)
-func (o *ObjectTypeBase) DefineInferredProperty(propertyName string, type_ JSType, propertyNode *Node) bool {
+func (o *ObjectTypeBase) DefineInferredProperty(propertyName string, type_ JSType, propertyNode Node) bool {
 	self := o.selfObj()
 	if o.self().HasProperty(propertyName) {
 		if self.IsPropertyTypeDeclared(propertyName) {
@@ -616,7 +616,7 @@ func (o *ObjectTypeBase) DefineInferredProperty(propertyName string, type_ JSTyp
 // conflicts with a previous property type declaration.
 //
 // Java: ObjectType.defineProperty(String, JSType, boolean, Node)
-func (o *ObjectTypeBase) DefineProperty(propertyName string, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (o *ObjectTypeBase) DefineProperty(propertyName string, type_ JSType, inferred bool, propertyNode Node) bool {
 	return o.selfObj().DefinePropertyByKey(NewProperty_StringKey(propertyName), type_, inferred, propertyNode)
 }
 
@@ -631,26 +631,26 @@ func (o *ObjectTypeBase) DefineProperty(propertyName string, type_ JSType, infer
 // Returns the Node corresponding to the property or null.
 //
 // Java: ObjectType.getPropertyNode(String)
-func (o *ObjectTypeBase) GetPropertyNode(propertyName string) *Node {
+func (o *ObjectTypeBase) GetPropertyNode(propertyName string) Node {
 	return o.selfObj().GetPropertyNodeByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getPropertyNode(Property.Key)
-func (o *ObjectTypeBase) GetPropertyNodeByKey(propertyName Property_Key) *Node {
+func (o *ObjectTypeBase) GetPropertyNodeByKey(propertyName Property_Key) Node {
 	p := o.selfObj().GetSlotByKey(propertyName)
 	if p == nil {
-		return nil
+		return Node{}
 	}
 	return p.GetNode()
 }
 
 // Java: ObjectType.getPropertyDefSite(String)
-func (o *ObjectTypeBase) GetPropertyDefSite(propertyName string) *Node {
+func (o *ObjectTypeBase) GetPropertyDefSite(propertyName string) Node {
 	return o.selfObj().GetPropertyDefSiteByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getPropertyDefSite(Property.Key)
-func (o *ObjectTypeBase) GetPropertyDefSiteByKey(propertyName Property_Key) *Node {
+func (o *ObjectTypeBase) GetPropertyDefSiteByKey(propertyName Property_Key) Node {
 	return o.selfObj().GetPropertyNodeByKey(propertyName)
 }
 
@@ -688,15 +688,15 @@ func (o *ObjectTypeBase) GetOwnPropertyJSDocInfoByKey(propertyName Property_Key)
 }
 
 // Java: ObjectType.getOwnPropertyDefSite(String)
-func (o *ObjectTypeBase) GetOwnPropertyDefSite(propertyName string) *Node {
+func (o *ObjectTypeBase) GetOwnPropertyDefSite(propertyName string) Node {
 	return o.selfObj().GetOwnPropertyDefSiteByKey(NewProperty_StringKey(propertyName))
 }
 
 // Java: ObjectType.getOwnPropertyDefSite(Property.Key)
-func (o *ObjectTypeBase) GetOwnPropertyDefSiteByKey(propertyName Property_Key) *Node {
+func (o *ObjectTypeBase) GetOwnPropertyDefSiteByKey(propertyName Property_Key) Node {
 	p := o.selfObj().GetOwnSlotByKey(propertyName)
 	if p == nil {
-		return nil
+		return Node{}
 	}
 	return p.GetNode()
 }
@@ -717,12 +717,12 @@ func (o *ObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Property_Key, in
 // SetPropertyNode sets the node where the property was defined.
 //
 // Java: ObjectType.setPropertyNode(String, Node)
-func (o *ObjectTypeBase) SetPropertyNode(propertyName string, defSite *Node) {
+func (o *ObjectTypeBase) SetPropertyNode(propertyName string, defSite Node) {
 	o.selfObj().SetPropertyNodeByKey(NewProperty_StringKey(propertyName), defSite)
 }
 
 // Java: ObjectType.setPropertyNode(Property.Key, Node)
-func (o *ObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key, defSite *Node) {
+func (o *ObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key, defSite Node) {
 	// by default, do nothing
 }
 

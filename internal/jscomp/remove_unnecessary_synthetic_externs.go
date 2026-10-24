@@ -41,19 +41,19 @@ import (
 // allow mangling the name if it is not defined in externs.
 type RemoveUnnecessarySyntheticExterns struct {
 	compiler      AbstractCompiler
-	nodesToDetach *jutil.LinkedHashSet[*rhino.Node]
+	nodesToDetach *jutil.LinkedHashSet[rhino.Node]
 }
 
 // Java: RemoveUnnecessarySyntheticExterns(AbstractCompiler)
 func NewRemoveUnnecessarySyntheticExterns(compiler AbstractCompiler) *RemoveUnnecessarySyntheticExterns {
 	return &RemoveUnnecessarySyntheticExterns{
 		compiler:      compiler,
-		nodesToDetach: jutil.NewLinkedHashSet[*rhino.Node](),
+		nodesToDetach: jutil.NewLinkedHashSet[rhino.Node](),
 	}
 }
 
 // Java: RemoveUnnecessarySyntheticExterns.process(Node, Node)
-func (r *RemoveUnnecessarySyntheticExterns) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RemoveUnnecessarySyntheticExterns) Process(externs rhino.Node, root rhino.Node) {
 	globalRoot := externs.GetParent()
 	scopeCreator := NewSyntacticScopeCreatorWithTreatProvidesAsRedeclarations(
 		r.compiler, &RemoveUnnecessarySyntheticExterns_RedeclarationCheckHandler{outer: r}, true)
@@ -80,7 +80,7 @@ type RemoveUnnecessarySyntheticExterns_RedeclarationCheckHandler struct {
 }
 
 // Java: RemoveUnnecessarySyntheticExterns.RedeclarationCheckHandler.onRedeclaration(Scope, String, Node, CompilerInput)
-func (h *RemoveUnnecessarySyntheticExterns_RedeclarationCheckHandler) OnRedeclaration(s *Scope, name string, n *rhino.Node, input *CompilerInput) {
+func (h *RemoveUnnecessarySyntheticExterns_RedeclarationCheckHandler) OnRedeclaration(s *Scope, name string, n rhino.Node, input *CompilerInput) {
 	jutil.CheckArgumentMsg2(s.IsGlobal(), "Unexpected non-global redeclaration %s in scope %s", n, s)
 
 	isSynthetic := input == h.outer.compiler.GetSynthesizedExternsInput()
@@ -95,7 +95,7 @@ func (h *RemoveUnnecessarySyntheticExterns_RedeclarationCheckHandler) OnRedeclar
 		if n.GetParent().IsSynthesizedUnfulfilledNameDeclaration() {
 			h.outer.nodesToDetach.Add(n.GetParent())
 		}
-	} else if origNode != nil &&
+	} else if !origNode.IsNil() &&
 		origNode.GetParent().IsSynthesizedUnfulfilledNameDeclaration() {
 		// Found a synthetic extern declaration that's fulfilled by some non-synthetic code.
 		h.outer.nodesToDetach.Add(origNode.GetParent())

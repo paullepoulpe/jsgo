@@ -108,7 +108,7 @@ func (l SourceMap_DetailLevel) Ordinal() int { return int(l) }
 // Apply is Predicate<Node>.apply(Node).
 //
 // Java: SourceMap.DetailLevel.apply(Node)
-func (l SourceMap_DetailLevel) Apply(node *rhino.Node) bool {
+func (l SourceMap_DetailLevel) Apply(node rhino.Node) bool {
 	switch l {
 	case SourceMap_DetailLevel_ALL:
 		return true
@@ -192,7 +192,7 @@ func newSourceMap(generator sourcemap.SourceMapGenerator) *SourceMap {
 // typically relative to the source file the node is located in, but might be
 // adjusted if that source is being concatenated to other sources.
 type SourceMap_Mapping struct {
-	node  *rhino.Node
+	node  rhino.Node
 	start sourcemap.FilePosition
 	end   sourcemap.FilePosition
 }
@@ -218,12 +218,12 @@ func (s *SourceMap) AddMapping(mapping *SourceMap_Mapping) {
 
 // Java: SourceMap.addMapping(Node, FilePosition, FilePosition)
 func (s *SourceMap) AddMappingOfNode(
-	node *rhino.Node, outputStartPosition *sourcemap.FilePosition, outputEndPosition *sourcemap.FilePosition) {
+	node rhino.Node, outputStartPosition *sourcemap.FilePosition, outputEndPosition *sourcemap.FilePosition) {
 	s.AddMappingOfNodePositions(node, *outputStartPosition, *outputEndPosition)
 }
 
 func (s *SourceMap) AddMappingOfNodePositions(
-	node *rhino.Node, outputStartPosition sourcemap.FilePosition, outputEndPosition sourcemap.FilePosition) {
+	node rhino.Node, outputStartPosition sourcemap.FilePosition, outputEndPosition sourcemap.FilePosition) {
 	// If the node does not have an associated source file or
 	// its line number is -1, then the node does not have sufficient
 	// information for a mapping to be useful.
@@ -336,7 +336,7 @@ func (s *SourceMap) AddSourceFile(name string, code *string) {
 }
 
 // Java: SourceMap.getOriginalName(Node)
-func sourceMap_getOriginalName(node *rhino.Node) *string {
+func sourceMap_getOriginalName(node rhino.Node) *string {
 	if orig := node.GetOriginalName(); orig != nil {
 		return orig
 	}
@@ -349,7 +349,7 @@ func sourceMap_getOriginalName(node *rhino.Node) *string {
 	// original name to use.
 	if node.IsName() {
 		parent := node.GetParent()
-		if parent != nil && parent.IsFunction() && parent.GetFirstChild() == node {
+		if !parent.IsNil() && parent.IsFunction() && parent.GetFirstChild() == node {
 			return parent.GetOriginalName()
 		}
 		return nil

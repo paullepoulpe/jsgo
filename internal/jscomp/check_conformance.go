@@ -88,7 +88,7 @@ type CheckConformance_Rule interface {
 	GetPrecondition() CheckConformance_Precondition
 
 	// Check performs conformance check.
-	Check(t *NodeTraversal, n *rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior)
+	Check(t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior)
 }
 
 // CheckConformance_RuleDefaults holds Rule's default methods; implementations
@@ -109,7 +109,7 @@ func (CheckConformance_RuleDefaults) GetPrecondition() CheckConformance_Precondi
 // Grouping allows shared computation to be done only once per node, which is
 // a substantial performance improvement.
 type CheckConformance_Precondition interface {
-	ShouldCheck(n *rhino.Node) bool
+	ShouldCheck(n rhino.Node) bool
 }
 
 // CheckConformance_PreconditionFunc is the adapter for Precondition lambdas.
@@ -117,16 +117,16 @@ type CheckConformance_Precondition interface {
 // a pointer: a Go func value is not hashable.
 //
 // Go-only: language-adapter
-type CheckConformance_PreconditionFunc func(n *rhino.Node) bool
+type CheckConformance_PreconditionFunc func(n rhino.Node) bool
 
 // ShouldCheck calls f.
-func (f *CheckConformance_PreconditionFunc) ShouldCheck(n *rhino.Node) bool { return (*f)(n) }
+func (f *CheckConformance_PreconditionFunc) ShouldCheck(n rhino.Node) bool { return (*f)(n) }
 
 // NewCheckConformance_PreconditionFunc allocates a Precondition lambda
 // instance (one per Java lambda instance).
 //
 // Go-only: language-adapter
-func NewCheckConformance_PreconditionFunc(f func(n *rhino.Node) bool) *CheckConformance_PreconditionFunc {
+func NewCheckConformance_PreconditionFunc(f func(n rhino.Node) bool) *CheckConformance_PreconditionFunc {
 	p := CheckConformance_PreconditionFunc(f)
 	return &p
 }
@@ -138,7 +138,7 @@ type checkConformance_checkAll struct {
 }
 
 // Java: CheckConformance.Precondition.CHECK_ALL.new Precondition() {...}.shouldCheck(Node)
-func (*checkConformance_checkAll) ShouldCheck(n *rhino.Node) bool {
+func (*checkConformance_checkAll) ShouldCheck(n rhino.Node) bool {
 	return true
 }
 
@@ -147,7 +147,7 @@ var CheckConformance_Precondition_CHECK_ALL CheckConformance_Precondition = &che
 
 // Java: CheckConformance.Precondition.IS_CONSTRUCTOR_OR_CLASS
 var CheckConformance_Precondition_IS_CONSTRUCTOR_OR_CLASS CheckConformance_Precondition = NewCheckConformance_PreconditionFunc(
-	func(n *rhino.Node) bool { return n.IsClass() || NodeUtil_IsConstructor(n) })
+	func(n rhino.Node) bool { return n.IsClass() || NodeUtil_IsConstructor(n) })
 
 // Java: CheckConformance.Category
 type CheckConformance_Category struct {
@@ -186,14 +186,14 @@ func NewCheckConformanceWithConfigs(
 }
 
 // Java: CheckConformance.process(Node, Node)
-func (c *CheckConformance) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckConformance) Process(externs rhino.Node, root rhino.Node) {
 	if len(c.categories) != 0 {
 		NodeTraversal_TraverseRoots(c.compiler, c, externs, root)
 	}
 }
 
 // Java: CheckConformance.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckConformance) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckConformance) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Don't inspect extern files, *.tsmes.closure.js, weak sources, or @closureUnaware ASTs.
 	return !n.IsScript() ||
 		(c.IsScriptOfInterest(t.GetInput().GetSourceFile()) &&
@@ -206,7 +206,7 @@ func (c *CheckConformance) IsScriptOfInterest(sf *SourceFile) bool {
 }
 
 // Java: CheckConformance.visit(NodeTraversal, Node, Node)
-func (c *CheckConformance) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckConformance) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	/*
 	 * Use counted loops and backward iteration for performance.
 	 *

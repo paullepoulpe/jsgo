@@ -37,8 +37,8 @@ func NewJ2clSourceFileChecker(compiler AbstractCompiler) *J2clSourceFileChecker 
 }
 
 // Java: J2clSourceFileChecker.hasJ2cl(Node)
-func j2clSourceFileChecker_hasJ2cl(root *rhino.Node) bool {
-	for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+func j2clSourceFileChecker_hasJ2cl(root rhino.Node) bool {
+	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		jutil.CheckState(script.IsScript())
 		if J2clSourceUtils_IsJ2clSourceOfNode(script) {
 			return true
@@ -48,7 +48,7 @@ func j2clSourceFileChecker_hasJ2cl(root *rhino.Node) bool {
 }
 
 // Java: J2clSourceFileChecker.process(Node, Node)
-func (c *J2clSourceFileChecker) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *J2clSourceFileChecker) Process(externs rhino.Node, root rhino.Node) {
 	if j2clSourceFileChecker_hasJ2cl(root) {
 		J2clSourceFileChecker_MarkToRunJ2clPasses(c.compiler)
 	}

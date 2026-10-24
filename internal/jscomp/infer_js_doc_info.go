@@ -98,30 +98,30 @@ func NewInferJSDocInfo(compiler AbstractCompiler) *InferJSDocInfo {
 }
 
 // Java: InferJSDocInfo.process(Node, Node)
-func (p *InferJSDocInfo) Process(externs *rhino.Node, root *rhino.Node) {
-	if externs != nil {
+func (p *InferJSDocInfo) Process(externs rhino.Node, root rhino.Node) {
+	if !externs.IsNil() {
 		p.traverseRoot(externs)
 	}
-	if root != nil {
+	if !root.IsNil() {
 		p.traverseRoot(root)
 	}
 }
 
-func (p *InferJSDocInfo) traverseRoot(root *rhino.Node) {
+func (p *InferJSDocInfo) traverseRoot(root rhino.Node) {
 	jutil.CheckNotNull(p.compiler)
-	var currentNode *rhino.Node
-	var currentScript *rhino.Node
+	var currentNode rhino.Node
+	var currentScript rhino.Node
 	jutil.Try(func() {
 		if Platform_IsThreadInterrupted() {
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
 		currentNode = root
-		p.walk(root, nil, false, &currentNode, &currentScript)
+		p.walk(root, rhino.Node{}, false, &currentNode, &currentScript)
 	}, func(unexpectedException jutil.Throwable) {
 		b := NodeTraversal_Builder{compiler: p.compiler, callback: p}
 		t := newNodeTraversal(&b)
 		t.InitTraversal(root)
-		if currentScript != nil {
+		if !currentScript.IsNil() {
 			t.currentScript = currentScript
 		}
 		t.currentNode = currentNode
@@ -129,7 +129,7 @@ func (p *InferJSDocInfo) traverseRoot(root *rhino.Node) {
 	})
 }
 
-func (p *InferJSDocInfo) walk(n, parent *rhino.Node, parentHasDoc bool, currentNode, currentScript **rhino.Node) {
+func (p *InferJSDocInfo) walk(n, parent rhino.Node, parentHasDoc bool, currentNode, currentScript *rhino.Node) {
 	if n.GetToken() == rhino.Token_SCRIPT {
 		if Platform_IsThreadInterrupted() {
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
@@ -137,9 +137,9 @@ func (p *InferJSDocInfo) walk(n, parent *rhino.Node, parentHasDoc bool, currentN
 		*currentScript = n
 	}
 	hasDoc := n.GetJSDocInfo() != nil
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
-		if child.GetFirstChild() == nil && child.GetToken() != rhino.Token_SCRIPT {
+		if child.GetFirstChild().IsNil() && child.GetToken() != rhino.Token_SCRIPT {
 			if hasDoc || child.GetJSDocInfo() != nil {
 				*currentNode = child
 				p.Visit(nil, child, n)
@@ -156,7 +156,7 @@ func (p *InferJSDocInfo) walk(n, parent *rhino.Node, parentHasDoc bool, currentN
 }
 
 // Java: InferJSDocInfo.visit(NodeTraversal, Node, Node)
-func (p *InferJSDocInfo) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *InferJSDocInfo) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		// Infer JSDocInfo on types of all type declarations on variables.
@@ -180,8 +180,8 @@ func (p *InferJSDocInfo) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.No
 }
 
 // Java: InferJSDocInfo.inferJSDocForName(Node, Node)
-func (p *InferJSDocInfo) inferJSDocForName(n *rhino.Node, parent *rhino.Node) {
-	if parent == nil {
+func (p *InferJSDocInfo) inferJSDocForName(n rhino.Node, parent rhino.Node) {
+	if parent.IsNil() {
 		return
 	}
 
@@ -202,7 +202,7 @@ func (p *InferJSDocInfo) inferJSDocForName(n *rhino.Node, parent *rhino.Node) {
 		inferredType = n.GetJSType()
 		// Example: for `const y = x.y;`, the type of `x.y`.
 		value := n.GetFirstChild()
-		if value != nil && value.IsQualifiedName() {
+		if !value.IsNil() && value.IsQualifiedName() {
 			aliasedType = value.GetJSType()
 		}
 	} else if NodeUtil_IsFunctionDeclaration(parent) || NodeUtil_IsClassDeclaration(parent) {
@@ -234,7 +234,7 @@ func (p *InferJSDocInfo) inferJSDocForName(n *rhino.Node, parent *rhino.Node) {
 }
 
 // Java: InferJSDocInfo.inferJSDocForObjectKeyOrClassField(Node, Node)
-func (p *InferJSDocInfo) inferJSDocForObjectKeyOrClassField(n *rhino.Node, parent *rhino.Node) {
+func (p *InferJSDocInfo) inferJSDocForObjectKeyOrClassField(n rhino.Node, parent rhino.Node) {
 	typeDoc := n.GetJSDocInfo()
 	if typeDoc == nil {
 		return
@@ -281,7 +281,7 @@ func (p *InferJSDocInfo) inferJSDocForObjectKeyOrClassField(n *rhino.Node, paren
 }
 
 // Java: InferJSDocInfo.inferJSDocForProperty(Node, Node)
-func (p *InferJSDocInfo) inferJSDocForProperty(n *rhino.Node, parent *rhino.Node) {
+func (p *InferJSDocInfo) inferJSDocForProperty(n rhino.Node, parent rhino.Node) {
 	// Infer JSDocInfo on properties.
 	// There are two ways to write doc comments on a property.
 	var typeDoc *rhino.JSDocInfo
@@ -360,7 +360,7 @@ func inferJSDocInfo_shouldAttachJSDocToNominalTypeOrShape(
 //
 // Java: InferJSDocInfo.attachJSDocInfoToNominalTypeOrShape(ObjectType, JSDocInfo, String)
 func inferJSDocInfo_attachJSDocInfoToNominalTypeOrShape(
-	objType rhino.ObjectType, docInfo *rhino.JSDocInfo, n *rhino.Node) {
+	objType rhino.ObjectType, docInfo *rhino.JSDocInfo, n rhino.Node) {
 
 	if objType.IsConstructor() || objType.IsInterface() {
 		if !inferJSDocInfo_isReferenceNameOf(objType, n) {
@@ -388,8 +388,8 @@ func inferJSDocInfo_attachJSDocInfoToNominalTypeOrShape(
 }
 
 // Java: InferJSDocInfo.isReferenceNameOf(ObjectType, String)
-func inferJSDocInfo_isReferenceNameOf(type_ rhino.ObjectType, n *rhino.Node) bool {
-	if !type_.HasReferenceName() || n == nil {
+func inferJSDocInfo_isReferenceNameOf(type_ rhino.ObjectType, n rhino.Node) bool {
+	if !type_.HasReferenceName() || n.IsNil() {
 		return false
 	}
 	refName := *type_.GetReferenceName()

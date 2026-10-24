@@ -50,19 +50,19 @@ func NewCheckMissingSemicolon(compiler AbstractCompiler) *CheckMissingSemicolon 
 }
 
 // Java: CheckMissingSemicolon.process(Node, Node)
-func (c *CheckMissingSemicolon) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckMissingSemicolon) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckMissingSemicolon.visit(NodeTraversal, Node, Node)
-func (c *CheckMissingSemicolon) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckMissingSemicolon) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsScript() && NodeUtil_IsStatement(n) && c.ShouldHaveSemicolon(n) {
 		c.CheckSemicolon(t, n)
 	}
 }
 
 // Java: CheckMissingSemicolon.shouldHaveSemicolon(Node)
-func (c *CheckMissingSemicolon) ShouldHaveSemicolon(statement *rhino.Node) bool {
+func (c *CheckMissingSemicolon) ShouldHaveSemicolon(statement rhino.Node) bool {
 	if statement.IsFunction() ||
 		statement.IsClass() ||
 		statement.IsBlock() ||
@@ -78,7 +78,7 @@ func (c *CheckMissingSemicolon) ShouldHaveSemicolon(statement *rhino.Node) bool 
 }
 
 // Java: CheckMissingSemicolon.checkSemicolon(NodeTraversal, Node)
-func (c *CheckMissingSemicolon) CheckSemicolon(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckMissingSemicolon) CheckSemicolon(t *NodeTraversal, n rhino.Node) {
 	staticSourceFile := n.GetStaticSourceFile()
 	if sourceFile, ok := staticSourceFile.(*SourceFile); ok {
 

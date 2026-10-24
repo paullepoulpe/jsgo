@@ -41,7 +41,7 @@ package rhino
 type StaticScope interface {
 	// GetRootNode returns the root node associated with this scope. May be
 	// null.
-	GetRootNode() *Node
+	GetRootNode() Node
 
 	// GetParentScope returns the scope enclosing this one or null if none.
 	GetParentScope() StaticScope

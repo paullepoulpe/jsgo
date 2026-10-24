@@ -270,7 +270,7 @@ func (b *AstAnalyzer_Options_Builder) Build() *AstAnalyzer_Options {
 // See http://www.xkcd.com/326/ (XKCD Cartoon).
 //
 // Java: AstAnalyzer.mayEffectMutableState(Node)
-func (a *AstAnalyzer) MayEffectMutableState(n *rhino.Node) bool {
+func (a *AstAnalyzer) MayEffectMutableState(n rhino.Node) bool {
 	return a.CheckForStateChangeHelper(n /* checkForNewObjects= */, true)
 }
 
@@ -279,7 +279,7 @@ func (a *AstAnalyzer) MayEffectMutableState(n *rhino.Node) bool {
 // compiler object is not provided (RegExp have side-effects, etc).
 //
 // Java: AstAnalyzer.mayHaveSideEffects(Node)
-func (a *AstAnalyzer) MayHaveSideEffects(n *rhino.Node) bool {
+func (a *AstAnalyzer) MayHaveSideEffects(n rhino.Node) bool {
 	return a.CheckForStateChangeHelper(n /* checkForNewObjects= */, false)
 }
 
@@ -292,7 +292,7 @@ func (a *AstAnalyzer) MayHaveSideEffects(n *rhino.Node) bool {
 // callNode is the function call node.
 //
 // Java: AstAnalyzer.functionCallHasSideEffects(Node)
-func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode *rhino.Node) bool {
+func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 	jutil.CheckStateMsg1(
 		callNode.IsCall() || callNode.IsTaggedTemplateLit() || callNode.IsOptChainCall(), "%s", callNode)
 
@@ -388,7 +388,7 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode *rhino.Node) bool {
 				// to avoid leaking mutating global state changes, it is just necessary that
 				// the regex object can't be referenced.
 				param := callee.GetNext()
-				if param != nil {
+				if !param.IsNil() {
 					if param.IsStringLit() {
 						if AstAnalyzer_STRING_REGEXP_METHODS.Contains(method) {
 							return false
@@ -410,7 +410,7 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode *rhino.Node) bool {
 }
 
 // Java: AstAnalyzer.isTypedAsString(Node)
-func (a *AstAnalyzer) IsTypedAsString(n *rhino.Node) bool {
+func (a *AstAnalyzer) IsTypedAsString(n rhino.Node) bool {
 	if n.IsStringLit() {
 		return true
 	}
@@ -438,7 +438,7 @@ func (a *AstAnalyzer) IsTypedAsString(n *rhino.Node) bool {
 // Otherwise, we assume that they have no side effects.
 //
 // Java: AstAnalyzer.checkForStateChangeHelper(Node, boolean)
-func (a *AstAnalyzer) CheckForStateChangeHelper(n *rhino.Node, checkForNewObjects bool) bool {
+func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects bool) bool {
 	parent := n.GetParent()
 	// Rather than id which ops may have side effects, id the ones
 	// that we know to be safe
@@ -516,7 +516,7 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n *rhino.Node, checkForNewObject
 	case rhino.Token_COMPUTED_FIELD_DEF:
 		return a.CheckForStateChangeHelper(n.GetFirstChild(), checkForNewObjects) ||
 			(n.IsStaticMember() &&
-				n.GetSecondChild() != nil &&
+				!n.GetSecondChild().IsNil() &&
 				a.CheckForStateChangeHelper(n.GetSecondChild(), checkForNewObjects))
 	case rhino.Token_CLASS:
 		return checkForNewObjects ||
@@ -605,8 +605,8 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n *rhino.Node, checkForNewObject
 }
 
 // Java: AstAnalyzer.checkForChangeStateInChildren(Node, boolean)
-func (a *AstAnalyzer) CheckForChangeStateInChildren(n *rhino.Node, checkForNewObjects bool) bool {
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+func (a *AstAnalyzer) CheckForChangeStateInChildren(n rhino.Node, checkForNewObjects bool) bool {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if a.CheckForStateChangeHelper(c, checkForNewObjects) {
 			return true
 		}
@@ -616,7 +616,7 @@ func (a *AstAnalyzer) CheckForChangeStateInChildren(n *rhino.Node, checkForNewOb
 }
 
 // Java: AstAnalyzer.checkAssignmentForChangeState(Node, boolean)
-func (a *AstAnalyzer) CheckAssignmentForChangeState(assignOp *rhino.Node, checkForNewObjects bool) bool {
+func (a *AstAnalyzer) CheckAssignmentForChangeState(assignOp rhino.Node, checkForNewObjects bool) bool {
 	assignTarget := assignOp.GetFirstChild()
 
 	if assignTarget.IsName() {
@@ -666,7 +666,7 @@ func (a *AstAnalyzer) CheckAssignmentForChangeState(assignOp *rhino.Node, checkF
 // newNode is the constructor call node.
 //
 // Java: AstAnalyzer.constructorCallHasSideEffects(Node)
-func (a *AstAnalyzer) ConstructorCallHasSideEffects(newNode *rhino.Node) bool {
+func (a *AstAnalyzer) ConstructorCallHasSideEffects(newNode rhino.Node) bool {
 	jutil.CheckArgumentMsg1(newNode.IsNew(), "Expected NEW node, got %s", newNode.GetToken())
 
 	if newNode.IsNoSideEffectsCall() {
@@ -696,7 +696,7 @@ func (a *AstAnalyzer) ConstructorCallHasSideEffects(newNode *rhino.Node) bool {
 // subtree has side effects.
 //
 // Java: AstAnalyzer.nodeTypeMayHaveSideEffects(Node)
-func (a *AstAnalyzer) NodeTypeMayHaveSideEffects(n *rhino.Node) bool {
+func (a *AstAnalyzer) NodeTypeMayHaveSideEffects(n rhino.Node) bool {
 	if NodeUtil_IsAssignmentOp(n) {
 		return true
 	}

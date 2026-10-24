@@ -57,18 +57,18 @@ func (c *PeepholeOptimizationsPassTest) GetProcessor(compiler *Compiler) Compile
 // its optimizeSubtree override is the closure.
 type peepholeOptimizationsPassTest_anonymous struct {
 	AbstractPeepholeOptimizationBase
-	optimizeSubtree func(self *peepholeOptimizationsPassTest_anonymous, node *rhino.Node) *rhino.Node
+	optimizeSubtree func(self *peepholeOptimizationsPassTest_anonymous, node rhino.Node) rhino.Node
 }
 
 func newPeepholeOptimizationsPassTest_anonymous(
-	optimizeSubtree func(self *peepholeOptimizationsPassTest_anonymous, node *rhino.Node) *rhino.Node) *peepholeOptimizationsPassTest_anonymous {
+	optimizeSubtree func(self *peepholeOptimizationsPassTest_anonymous, node rhino.Node) rhino.Node) *peepholeOptimizationsPassTest_anonymous {
 	o := &peepholeOptimizationsPassTest_anonymous{optimizeSubtree: optimizeSubtree}
 	o.InitAbstractPeepholeOptimizationBase(o)
 	return o
 }
 
 // OptimizeSubtree is the anonymous class's optimizeSubtree(Node).
-func (o *peepholeOptimizationsPassTest_anonymous) OptimizeSubtree(node *rhino.Node) *rhino.Node {
+func (o *peepholeOptimizationsPassTest_anonymous) OptimizeSubtree(node rhino.Node) rhino.Node {
 	return o.optimizeSubtree(o, node)
 }
 
@@ -103,7 +103,7 @@ func (c *PeepholeOptimizationsPassTest) TestOptimizationOrder() {
 	visitationLog := jutil.NewArrayList[string]()
 
 	note1Applied :=
-		newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node *rhino.Node) *rhino.Node {
+		newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node rhino.Node) rhino.Node {
 			if node.IsName() {
 				visitationLog.Add(node.GetString() + "1")
 			}
@@ -112,7 +112,7 @@ func (c *PeepholeOptimizationsPassTest) TestOptimizationOrder() {
 		})
 
 	note2Applied :=
-		newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node *rhino.Node) *rhino.Node {
+		newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node rhino.Node) rhino.Node {
 			if node.IsName() {
 				visitationLog.Add(node.GetString() + "2")
 			}
@@ -144,11 +144,11 @@ func newPeepholeOptimizationsPassTest_RemoveNodesNamedXUnderVarOptimization() *p
 }
 
 // Java: PeepholeOptimizationsPassTest.RemoveNodesNamedXUnderVarOptimization.optimizeSubtree(Node)
-func (o *peepholeOptimizationsPassTest_RemoveNodesNamedXUnderVarOptimization) OptimizeSubtree(node *rhino.Node) *rhino.Node {
+func (o *peepholeOptimizationsPassTest_RemoveNodesNamedXUnderVarOptimization) OptimizeSubtree(node rhino.Node) rhino.Node {
 	if node.IsVar() {
-		nodesToRemove := jutil.NewLinkedHashSet[*rhino.Node]()
+		nodesToRemove := jutil.NewLinkedHashSet[rhino.Node]()
 
-		for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if "x" == child.GetString() {
 				nodesToRemove.Add(child)
 			}
@@ -177,12 +177,12 @@ func newPeepholeOptimizationsPassTest_RemoveNodesNamedXOptimization() *peepholeO
 }
 
 // Java: PeepholeOptimizationsPassTest.RemoveNodesNamedXOptimization.optimizeSubtree(Node)
-func (o *peepholeOptimizationsPassTest_RemoveNodesNamedXOptimization) OptimizeSubtree(node *rhino.Node) *rhino.Node {
+func (o *peepholeOptimizationsPassTest_RemoveNodesNamedXOptimization) OptimizeSubtree(node rhino.Node) rhino.Node {
 	if node.IsName() && "x" == node.GetString() {
 		o.ReportChangeToEnclosingScope(node)
 		node.Detach()
 
-		return nil
+		return rhino.Node{}
 	}
 
 	return node
@@ -202,13 +202,13 @@ func newPeepholeOptimizationsPassTest_RemoveParentVarsForNodesNamedX() *peephole
 }
 
 // Java: PeepholeOptimizationsPassTest.RemoveParentVarsForNodesNamedX.optimizeSubtree(Node)
-func (o *peepholeOptimizationsPassTest_RemoveParentVarsForNodesNamedX) OptimizeSubtree(node *rhino.Node) *rhino.Node {
+func (o *peepholeOptimizationsPassTest_RemoveParentVarsForNodesNamedX) OptimizeSubtree(node rhino.Node) rhino.Node {
 	if node.IsName() && "x" == node.GetString() {
 		parent := node.GetParent()
 		if parent.IsVar() {
 			o.ReportChangeToEnclosingScope(parent)
 			parent.Detach()
-			return nil
+			return rhino.Node{}
 		}
 	}
 	return node
@@ -228,7 +228,7 @@ func newPeepholeOptimizationsPassTest_RenameYToX() *peepholeOptimizationsPassTes
 }
 
 // Java: PeepholeOptimizationsPassTest.RenameYToX.optimizeSubtree(Node)
-func (o *peepholeOptimizationsPassTest_RenameYToX) OptimizeSubtree(node *rhino.Node) *rhino.Node {
+func (o *peepholeOptimizationsPassTest_RenameYToX) OptimizeSubtree(node rhino.Node) rhino.Node {
 	if node.IsName() && "y" == node.GetString() {
 		replacement := rhino.Node_NewStringWithToken(rhino.Token_NAME, "x")
 
@@ -291,7 +291,7 @@ func (c *PeepholeOptimizationsPassTest) TestOptimizationReplacingNode() {
 func (c *PeepholeOptimizationsPassTest) TestAddFeatureToEnclosingScript() {
 	c.currentPeepholePasses =
 		[]AbstractPeepholeOptimization{
-			newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node *rhino.Node) *rhino.Node {
+			newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node rhino.Node) rhino.Node {
 				if node.IsAdd() {
 					self.AddFeatureToEnclosingScript(parser.FeatureSet_Feature_LET_DECLARATIONS)
 					self.AddFeatureToEnclosingScript(parser.FeatureSet_Feature_LET_DECLARATIONS)
@@ -299,7 +299,7 @@ func (c *PeepholeOptimizationsPassTest) TestAddFeatureToEnclosingScript() {
 				}
 				return node
 			}),
-			newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node *rhino.Node) *rhino.Node {
+			newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node rhino.Node) rhino.Node {
 				if node.IsSub() {
 					self.AddFeatureToEnclosingScript(parser.FeatureSet_Feature_CONST_DECLARATIONS)
 				}
@@ -308,7 +308,7 @@ func (c *PeepholeOptimizationsPassTest) TestAddFeatureToEnclosingScript() {
 		}
 	c.TestSame("(3 + 4); function sub() { return 3 - 4; }")
 	compiler := c.GetLastCompiler()
-	script := jutil.CheckNotNull(compiler.GetScriptNode("testcode"))
+	script := rhino.CheckNotNull(compiler.GetScriptNode("testcode"))
 	AssertThat(script.GetProp(rhino.Node_FEATURE_SET)).
 		IsEqualTo(
 			parser.FeatureSet_BARE_MINIMUM.WithFeatures(

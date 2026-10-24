@@ -67,7 +67,7 @@ type makeDeclaredNamesUniqueTest_pass struct {
 }
 
 // Java: MakeDeclaredNamesUniqueTest.getProcessor(...).new CompilerPass() {...}.process(Node, Node)
-func (p *makeDeclaredNamesUniqueTest_pass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *makeDeclaredNamesUniqueTest_pass) Process(externs rhino.Node, root rhino.Node) {
 	renamer := MakeDeclaredNamesUnique_Builder_().WithAssertOnChange(p.c.assertOnChange)
 	if !p.c.useDefaultRenamer {
 		renamer =

@@ -64,7 +64,7 @@ func NewCheckArrayWithGoogObject(compiler AbstractCompiler) *CheckArrayWithGoogO
 }
 
 // Java: CheckArrayWithGoogObject.isGoogObjectIterationOverArray(Node)
-func (c *CheckArrayWithGoogObject) IsGoogObjectIterationOverArray(n *rhino.Node) bool {
+func (c *CheckArrayWithGoogObject) IsGoogObjectIterationOverArray(n rhino.Node) bool {
 	if !n.IsCall() {
 		return false
 	}
@@ -78,7 +78,7 @@ func (c *CheckArrayWithGoogObject) IsGoogObjectIterationOverArray(n *rhino.Node)
 	}
 
 	firstArg := n.GetSecondChild()
-	if firstArg == nil {
+	if firstArg.IsNil() {
 		return false
 	}
 	type_ := firstArg.GetJSType()
@@ -109,7 +109,7 @@ func (c *CheckArrayWithGoogObject) ContainsArray(type_ rhino.JSType) bool {
 }
 
 // Java: CheckArrayWithGoogObject.visit(NodeTraversal, Node, Node)
-func (c *CheckArrayWithGoogObject) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckArrayWithGoogObject) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if c.IsGoogObjectIterationOverArray(n) {
 		c.compiler.Report(
 			JSError_MakeWithNode(n, CheckArrayWithGoogObject_ARRAY_PASSED_TO_GOOG_OBJECT, *n.GetFirstChild().GetQualifiedName()))
@@ -117,6 +117,6 @@ func (c *CheckArrayWithGoogObject) Visit(unused *NodeTraversal, n *rhino.Node, p
 }
 
 // Java: CheckArrayWithGoogObject.process(Node, Node)
-func (c *CheckArrayWithGoogObject) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckArrayWithGoogObject) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }

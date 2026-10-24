@@ -95,7 +95,7 @@ func NewCheckSuper(compiler AbstractCompiler) *CheckSuper {
 }
 
 // Java: CheckSuper.process(Node, Node)
-func (c *CheckSuper) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckSuper) Process(externs rhino.Node, root rhino.Node) {
 	if c.processParallel(root) {
 		return
 	}
@@ -107,7 +107,7 @@ func (c *CheckSuper) Process(externs *rhino.Node, root *rhino.Node) {
 	}
 }
 
-func (c *CheckSuper) processParallel(root *rhino.Node) bool {
+func (c *CheckSuper) processParallel(root rhino.Node) bool {
 	scripts, ok := collectRootScripts(root)
 	if !ok {
 		return false
@@ -177,13 +177,13 @@ func (c *CheckSuper) popContext() CheckSuper_Context {
 	c.contextStack[len(c.contextStack)-1] = nil
 	c.contextStack = c.contextStack[:len(c.contextStack)-1]
 	if sna, ok := top.(*CheckSuper_SuperNotAllowedContext); ok {
-		sna.contextNode = nil
+		sna.contextNode = rhino.Node{}
 		c.superNotAllowedPool = append(c.superNotAllowedPool, sna)
 	}
 	return top
 }
 
-func (c *CheckSuper) acquireSuperNotAllowedContext(contextNode *rhino.Node) *CheckSuper_SuperNotAllowedContext {
+func (c *CheckSuper) acquireSuperNotAllowedContext(contextNode rhino.Node) *CheckSuper_SuperNotAllowedContext {
 	if n := len(c.superNotAllowedPool); n > 0 {
 		ctx := c.superNotAllowedPool[n-1]
 		c.superNotAllowedPool[n-1] = nil
@@ -195,7 +195,7 @@ func (c *CheckSuper) acquireSuperNotAllowedContext(contextNode *rhino.Node) *Che
 }
 
 // Java: CheckSuper.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckSuper) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckSuper) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_ROOT:
 		jutil.CheckState(len(c.contextStack) == 0)
@@ -226,7 +226,7 @@ func (c *CheckSuper) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhi
 }
 
 // Java: CheckSuper.getContextForFunctionNode(Context, Node)
-func (c *CheckSuper) GetContextForFunctionNode(currentContext CheckSuper_Context, fn *rhino.Node) CheckSuper_Context {
+func (c *CheckSuper) GetContextForFunctionNode(currentContext CheckSuper_Context, fn rhino.Node) CheckSuper_Context {
 	if NodeUtil_IsMethodDeclaration(fn) {
 		if NodeUtil_IsEs6Constructor(fn) {
 			return NewCheckSuper_ConstructorContext(fn)
@@ -244,7 +244,7 @@ func (c *CheckSuper) GetContextForFunctionNode(currentContext CheckSuper_Context
 }
 
 // Java: CheckSuper.visit(NodeTraversal, Node, Node)
-func (c *CheckSuper) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckSuper) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	currentContext := jutil.CheckNotNull(c.peekContext())
 
 	switch n.GetToken() {
@@ -280,14 +280,14 @@ func (c *CheckSuper) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 }
 
 // Java: CheckSuper.isSuperConstructorCall(Node)
-func (c *CheckSuper) IsSuperConstructorCall(superNode *rhino.Node) bool {
+func (c *CheckSuper) IsSuperConstructorCall(superNode rhino.Node) bool {
 	jutil.CheckStateMsg1(superNode.IsSuper(), "%s", superNode)
 	parent := superNode.GetParent()
 	return parent.IsCall() && superNode.IsFirstChildOf(parent)
 }
 
 // Java: CheckSuper.isSuperPropertyAccess(Node)
-func (c *CheckSuper) IsSuperPropertyAccess(superNode *rhino.Node) bool {
+func (c *CheckSuper) IsSuperPropertyAccess(superNode rhino.Node) bool {
 	jutil.CheckStateMsg1(superNode.IsSuper(), "%s", superNode)
 	parent := superNode.GetParent()
 	return NodeUtil_IsNormalGet(parent) && superNode.IsFirstChildOf(parent)
@@ -299,30 +299,30 @@ func (c *CheckSuper) IsSuperPropertyAccess(superNode *rhino.Node) bool {
 // Java: CheckSuper.Context
 type CheckSuper_Context interface {
 	// Java: CheckSuper.Context.getContextNode()
-	GetContextNode() *rhino.Node
+	GetContextNode() rhino.Node
 
 	// GetContextForArrowFunctionNode: the correct context for an arrow
 	// function depends on the enclosing context.
 	//
 	// Java: CheckSuper.Context.getContextForArrowFunctionNode(Node)
-	GetContextForArrowFunctionNode(arrowFn *rhino.Node) CheckSuper_Context
+	GetContextForArrowFunctionNode(arrowFn rhino.Node) CheckSuper_Context
 
 	// VisitSuperConstructorCall handles a super constructor call.
 	//
 	// Java: CheckSuper.Context.visitSuperConstructorCall(NodeTraversal, Node)
-	VisitSuperConstructorCall(t *NodeTraversal, superNode *rhino.Node)
+	VisitSuperConstructorCall(t *NodeTraversal, superNode rhino.Node)
 
 	// VisitSuperPropertyAccess handles a super property reference.
 	// (`super.prop` or `super[expr]`)
 	//
 	// Java: CheckSuper.Context.visitSuperPropertyAccess(NodeTraversal, Node)
-	VisitSuperPropertyAccess(t *NodeTraversal, superNode *rhino.Node)
+	VisitSuperPropertyAccess(t *NodeTraversal, superNode rhino.Node)
 
 	// Java: CheckSuper.Context.visitThis(NodeTraversal, Node)
-	VisitThis(t *NodeTraversal, thisNode *rhino.Node)
+	VisitThis(t *NodeTraversal, thisNode rhino.Node)
 
 	// Java: CheckSuper.Context.visitReturn(NodeTraversal, Node)
-	VisitReturn(t *NodeTraversal, returnNode *rhino.Node)
+	VisitReturn(t *NodeTraversal, returnNode rhino.Node)
 
 	// Java: CheckSuper.Context.visitContextNode(NodeTraversal)
 	VisitContextNode(t *NodeTraversal)
@@ -333,28 +333,28 @@ type CheckSuper_Context interface {
 // CheckSuper_ContextBase holds the fields and base implementations of
 // CheckSuper.Context.
 type CheckSuper_ContextBase struct {
-	contextNode *rhino.Node
+	contextNode rhino.Node
 }
 
 // Java: CheckSuper.Context(Node)
-func (b *CheckSuper_ContextBase) InitCheckSuper_ContextBase(contextNode *rhino.Node) {
-	b.contextNode = jutil.CheckNotNull(contextNode)
+func (b *CheckSuper_ContextBase) InitCheckSuper_ContextBase(contextNode rhino.Node) {
+	b.contextNode = rhino.CheckNotNull(contextNode)
 }
 
 func (b *CheckSuper_ContextBase) GetCheckSuper_ContextBase() *CheckSuper_ContextBase { return b }
 
 // Java: CheckSuper.Context.getContextNode()
-func (b *CheckSuper_ContextBase) GetContextNode() *rhino.Node {
+func (b *CheckSuper_ContextBase) GetContextNode() rhino.Node {
 	return b.contextNode
 }
 
 // Java: CheckSuper.Context.visitThis(NodeTraversal, Node)
-func (b *CheckSuper_ContextBase) VisitThis(t *NodeTraversal, thisNode *rhino.Node) {
+func (b *CheckSuper_ContextBase) VisitThis(t *NodeTraversal, thisNode rhino.Node) {
 	// Ignored except in constructor methods.
 }
 
 // Java: CheckSuper.Context.visitReturn(NodeTraversal, Node)
-func (b *CheckSuper_ContextBase) VisitReturn(t *NodeTraversal, returnNode *rhino.Node) {
+func (b *CheckSuper_ContextBase) VisitReturn(t *NodeTraversal, returnNode rhino.Node) {
 	// Ignored except in constructor methods.
 }
 
@@ -370,35 +370,35 @@ type CheckSuper_SuperPropertyAccessAllowedContext struct {
 }
 
 // Java: CheckSuper.SuperPropertyAccessAllowedContext(Node)
-func NewCheckSuper_SuperPropertyAccessAllowedContext(contextNode *rhino.Node) *CheckSuper_SuperPropertyAccessAllowedContext {
+func NewCheckSuper_SuperPropertyAccessAllowedContext(contextNode rhino.Node) *CheckSuper_SuperPropertyAccessAllowedContext {
 	c := &CheckSuper_SuperPropertyAccessAllowedContext{}
 	c.InitCheckSuper_ContextBase(contextNode)
 	return c
 }
 
 // Java: CheckSuper.SuperPropertyAccessAllowedContext.visitSuperPropertyAccess(NodeTraversal, Node)
-func (c *CheckSuper_SuperPropertyAccessAllowedContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode *rhino.Node) {
+func (c *CheckSuper_SuperPropertyAccessAllowedContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode rhino.Node) {
 	// Super property should be allowed on a public field and inside static blocks.
 }
 
 // Java: CheckSuper.SuperPropertyAccessAllowedContext.visitSuperConstructorCall(NodeTraversal, Node)
-func (c *CheckSuper_SuperPropertyAccessAllowedContext) VisitSuperConstructorCall(t *NodeTraversal, superNode *rhino.Node) {
+func (c *CheckSuper_SuperPropertyAccessAllowedContext) VisitSuperConstructorCall(t *NodeTraversal, superNode rhino.Node) {
 	// Super constructor calls are only allowed in constructor() methods.
 	t.Report(superNode, CheckSuper_INVALID_SUPER_CALL)
 }
 
 // Java: CheckSuper.SuperPropertyAccessAllowedContext.getContextForArrowFunctionNode(Node)
-func (c *CheckSuper_SuperPropertyAccessAllowedContext) GetContextForArrowFunctionNode(arrowFn *rhino.Node) CheckSuper_Context {
+func (c *CheckSuper_SuperPropertyAccessAllowedContext) GetContextForArrowFunctionNode(arrowFn rhino.Node) CheckSuper_Context {
 	return c
 }
 
 // Java: CheckSuper.createMemberFieldDefContext(Node)
-func (c *CheckSuper) CreateMemberFieldDefContext(fieldNode *rhino.Node) CheckSuper_Context {
+func (c *CheckSuper) CreateMemberFieldDefContext(fieldNode rhino.Node) CheckSuper_Context {
 	return NewCheckSuper_SuperPropertyAccessAllowedContext(fieldNode)
 }
 
 // Java: CheckSuper.createStaticBlockContext(Node)
-func (c *CheckSuper) CreateStaticBlockContext(staticBlock *rhino.Node) CheckSuper_Context {
+func (c *CheckSuper) CreateStaticBlockContext(staticBlock rhino.Node) CheckSuper_Context {
 	return NewCheckSuper_SuperPropertyAccessAllowedContext(staticBlock)
 }
 
@@ -411,27 +411,27 @@ type CheckSuper_SuperNotAllowedContext struct {
 }
 
 // Java: CheckSuper.SuperNotAllowedContext(Node)
-func NewCheckSuper_SuperNotAllowedContext(contextNode *rhino.Node) *CheckSuper_SuperNotAllowedContext {
+func NewCheckSuper_SuperNotAllowedContext(contextNode rhino.Node) *CheckSuper_SuperNotAllowedContext {
 	c := &CheckSuper_SuperNotAllowedContext{}
 	c.InitCheckSuper_ContextBase(contextNode)
 	return c
 }
 
 // Java: CheckSuper.SuperNotAllowedContext.getContextForArrowFunctionNode(Node)
-func (c *CheckSuper_SuperNotAllowedContext) GetContextForArrowFunctionNode(arrowFn *rhino.Node) CheckSuper_Context {
+func (c *CheckSuper_SuperNotAllowedContext) GetContextForArrowFunctionNode(arrowFn rhino.Node) CheckSuper_Context {
 	// Since super isn't allowed in this context, it isn't allowed in any of its arrow functions
 	// either.
 	return c
 }
 
 // Java: CheckSuper.SuperNotAllowedContext.visitSuperConstructorCall(NodeTraversal, Node)
-func (c *CheckSuper_SuperNotAllowedContext) VisitSuperConstructorCall(t *NodeTraversal, superNode *rhino.Node) {
+func (c *CheckSuper_SuperNotAllowedContext) VisitSuperConstructorCall(t *NodeTraversal, superNode rhino.Node) {
 	// We're not within a constructor method.
 	t.Report(superNode, CheckSuper_INVALID_SUPER_CALL)
 }
 
 // Java: CheckSuper.SuperNotAllowedContext.visitSuperPropertyAccess(NodeTraversal, Node)
-func (c *CheckSuper_SuperNotAllowedContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode *rhino.Node) {
+func (c *CheckSuper_SuperNotAllowedContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode rhino.Node) {
 	// We're not within a method.
 	t.Report(superNode, CheckSuper_INVALID_SUPER_ACCESS)
 }
@@ -447,12 +447,12 @@ type CheckSuper_MethodContext struct {
 }
 
 // Java: CheckSuper.MethodContext(Node)
-func NewCheckSuper_MethodContext(functionNode *rhino.Node) *CheckSuper_MethodContext {
+func NewCheckSuper_MethodContext(functionNode rhino.Node) *CheckSuper_MethodContext {
 	c := &CheckSuper_MethodContext{}
 	c.InitCheckSuper_ContextBase(functionNode)
 	jutil.CheckArgumentMsg1(
 		functionNode.IsFunction() && NodeUtil_IsMethodDeclaration(functionNode), "%s", functionNode)
-	objLitOrClassMembers := jutil.CheckNotNull(functionNode.GetGrandparent())
+	objLitOrClassMembers := rhino.CheckNotNull(functionNode.GetGrandparent())
 	if objLitOrClassMembers.IsObjectLit() {
 		c.isClassMethod = false
 	} else {
@@ -463,19 +463,19 @@ func NewCheckSuper_MethodContext(functionNode *rhino.Node) *CheckSuper_MethodCon
 }
 
 // Java: CheckSuper.MethodContext.getContextForArrowFunctionNode(Node)
-func (c *CheckSuper_MethodContext) GetContextForArrowFunctionNode(arrowFn *rhino.Node) CheckSuper_Context {
+func (c *CheckSuper_MethodContext) GetContextForArrowFunctionNode(arrowFn rhino.Node) CheckSuper_Context {
 	// In a method an arrow function keeps the same context as the method, but a non-arrow
 	// function creates a new non-method context.
 	return c
 }
 
 // Java: CheckSuper.MethodContext.visitSuperPropertyAccess(NodeTraversal, Node)
-func (c *CheckSuper_MethodContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode *rhino.Node) {
+func (c *CheckSuper_MethodContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode rhino.Node) {
 	// super property access in a method is perfectly valid, so do not report an error.
 }
 
 // Java: CheckSuper.MethodContext.visitSuperConstructorCall(NodeTraversal, Node)
-func (c *CheckSuper_MethodContext) VisitSuperConstructorCall(t *NodeTraversal, superNode *rhino.Node) {
+func (c *CheckSuper_MethodContext) VisitSuperConstructorCall(t *NodeTraversal, superNode rhino.Node) {
 	if c.isClassMethod {
 		// super() - not allowed in non-constructor methods.
 		propName := c.GetPropertyName()
@@ -497,7 +497,7 @@ func (c *CheckSuper_MethodContext) VisitSuperConstructorCall(t *NodeTraversal, s
 //
 // Java: CheckSuper.MethodContext.getPropertyName()
 func (c *CheckSuper_MethodContext) GetPropertyName() *string {
-	parent := jutil.CheckNotNull(c.GetContextNode().GetParent())
+	parent := rhino.CheckNotNull(c.GetContextNode().GetParent())
 	// ```
 	// class X {
 	//   propertyName() {}
@@ -524,21 +524,21 @@ type CheckSuper_ConstructorContext struct {
 	hasParentClass bool
 
 	// Will be set to the first `super()` call that appears lexically, if any.
-	firstSuperCall *rhino.Node
+	firstSuperCall rhino.Node
 	// Call to super() isn't required if the constructor returns a value.
 	returnsAValue                        bool
-	thisAccessedBeforeSuper              *rhino.Node
-	superPropertyAccessedBeforeSuperCall *rhino.Node
+	thisAccessedBeforeSuper              rhino.Node
+	superPropertyAccessedBeforeSuperCall rhino.Node
 }
 
 // Java: CheckSuper.ConstructorContext(Node)
-func NewCheckSuper_ConstructorContext(contextNode *rhino.Node) *CheckSuper_ConstructorContext {
+func NewCheckSuper_ConstructorContext(contextNode rhino.Node) *CheckSuper_ConstructorContext {
 	c := &CheckSuper_ConstructorContext{}
 	c.InitCheckSuper_ContextBase(contextNode)
-	c.firstSuperCall = nil
+	c.firstSuperCall = rhino.Node{}
 	c.returnsAValue = false
-	c.thisAccessedBeforeSuper = nil
-	c.superPropertyAccessedBeforeSuperCall = nil
+	c.thisAccessedBeforeSuper = rhino.Node{}
+	c.superPropertyAccessedBeforeSuperCall = rhino.Node{}
 	jutil.CheckArgumentMsg1(NodeUtil_IsEs6Constructor(contextNode), "%s", contextNode)
 	classNode := NodeUtil_GetEnclosingClass(contextNode)
 	c.hasParentClass = !classNode.GetSecondChild().IsEmpty()
@@ -546,7 +546,7 @@ func NewCheckSuper_ConstructorContext(contextNode *rhino.Node) *CheckSuper_Const
 }
 
 // Java: CheckSuper.ConstructorContext.getContextForArrowFunctionNode(Node)
-func (c *CheckSuper_ConstructorContext) GetContextForArrowFunctionNode(arrowFn *rhino.Node) CheckSuper_Context {
+func (c *CheckSuper_ConstructorContext) GetContextForArrowFunctionNode(arrowFn rhino.Node) CheckSuper_Context {
 	// Unlike normal methods, we need to create a separate context for arrow functions in
 	// constructors. We need to distinguish between return statements and `super()` calls
 	// that appear directly in the constructor and those that appear in arrow functions.
@@ -554,28 +554,28 @@ func (c *CheckSuper_ConstructorContext) GetContextForArrowFunctionNode(arrowFn *
 }
 
 // Java: CheckSuper.ConstructorContext.visitSuperConstructorCall(NodeTraversal, Node)
-func (c *CheckSuper_ConstructorContext) VisitSuperConstructorCall(t *NodeTraversal, superNode *rhino.Node) {
-	if c.firstSuperCall == nil {
+func (c *CheckSuper_ConstructorContext) VisitSuperConstructorCall(t *NodeTraversal, superNode rhino.Node) {
+	if c.firstSuperCall.IsNil() {
 		c.firstSuperCall = superNode
 	}
 }
 
 // Java: CheckSuper.ConstructorContext.visitSuperPropertyAccess(NodeTraversal, Node)
-func (c *CheckSuper_ConstructorContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode *rhino.Node) {
-	if c.firstSuperCall == nil {
+func (c *CheckSuper_ConstructorContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode rhino.Node) {
+	if c.firstSuperCall.IsNil() {
 		c.superPropertyAccessedBeforeSuperCall = superNode
 	}
 }
 
 // Java: CheckSuper.ConstructorContext.visitThis(NodeTraversal, Node)
-func (c *CheckSuper_ConstructorContext) VisitThis(t *NodeTraversal, thisNode *rhino.Node) {
-	if c.firstSuperCall == nil {
+func (c *CheckSuper_ConstructorContext) VisitThis(t *NodeTraversal, thisNode rhino.Node) {
+	if c.firstSuperCall.IsNil() {
 		c.thisAccessedBeforeSuper = thisNode
 	}
 }
 
 // Java: CheckSuper.ConstructorContext.visitReturn(NodeTraversal, Node)
-func (c *CheckSuper_ConstructorContext) VisitReturn(t *NodeTraversal, returnNode *rhino.Node) {
+func (c *CheckSuper_ConstructorContext) VisitReturn(t *NodeTraversal, returnNode rhino.Node) {
 	if returnNode.HasChildren() {
 		c.returnsAValue = true
 	}
@@ -585,22 +585,22 @@ func (c *CheckSuper_ConstructorContext) VisitReturn(t *NodeTraversal, returnNode
 func (c *CheckSuper_ConstructorContext) VisitContextNode(t *NodeTraversal) {
 	// We've now visited the entire constructor, so we can decide whether to report errors.
 	if !c.hasParentClass {
-		if c.firstSuperCall != nil {
+		if !c.firstSuperCall.IsNil() {
 			// calling `super()` only makes sense when there is a super class.
 			t.Report(c.firstSuperCall, CheckSuper_INVALID_SUPER_CALL)
 		}
 	} else {
 		// There is a parent class, so a call to `super()` is required unless the constructor
 		// returns a value.
-		if c.firstSuperCall == nil && !c.returnsAValue {
+		if c.firstSuperCall.IsNil() && !c.returnsAValue {
 			// The context node is the function itself , but ErrorToFixMapper expects the error to
 			// be reported on the MEMBER_FUNCTION_DEF that is its parent.
 			t.Report(c.GetContextNode().GetParent(), CheckSuper_MISSING_CALL_TO_SUPER)
 		}
-		if c.thisAccessedBeforeSuper != nil {
+		if !c.thisAccessedBeforeSuper.IsNil() {
 			t.Report(c.thisAccessedBeforeSuper, CheckSuper_THIS_BEFORE_SUPER)
 		}
-		if c.superPropertyAccessedBeforeSuperCall != nil {
+		if !c.superPropertyAccessedBeforeSuperCall.IsNil() {
 			t.Report(c.superPropertyAccessedBeforeSuperCall, CheckSuper_SUPER_ACCESS_BEFORE_SUPER_CONSTRUCTOR)
 		}
 	}
@@ -618,7 +618,7 @@ type CheckSuper_ConstructorArrowContext struct {
 
 // Java: CheckSuper.ConstructorArrowContext(ConstructorContext, Node)
 func NewCheckSuper_ConstructorArrowContext(
-	constructorContext *CheckSuper_ConstructorContext, arrowFn *rhino.Node) *CheckSuper_ConstructorArrowContext {
+	constructorContext *CheckSuper_ConstructorContext, arrowFn rhino.Node) *CheckSuper_ConstructorArrowContext {
 	c := &CheckSuper_ConstructorArrowContext{}
 	c.InitCheckSuper_ContextBase(arrowFn)
 	c.constructorContext = jutil.CheckNotNull(constructorContext)
@@ -626,13 +626,13 @@ func NewCheckSuper_ConstructorArrowContext(
 }
 
 // Java: CheckSuper.ConstructorArrowContext.getContextForArrowFunctionNode(Node)
-func (c *CheckSuper_ConstructorArrowContext) GetContextForArrowFunctionNode(arrowFn *rhino.Node) CheckSuper_Context {
+func (c *CheckSuper_ConstructorArrowContext) GetContextForArrowFunctionNode(arrowFn rhino.Node) CheckSuper_Context {
 	// Arrow functions within arrow functions share the same context behavior.
 	return c
 }
 
 // Java: CheckSuper.ConstructorArrowContext.visitSuperConstructorCall(NodeTraversal, Node)
-func (c *CheckSuper_ConstructorArrowContext) VisitSuperConstructorCall(t *NodeTraversal, superNode *rhino.Node) {
+func (c *CheckSuper_ConstructorArrowContext) VisitSuperConstructorCall(t *NodeTraversal, superNode rhino.Node) {
 	t.Report(superNode, CheckSuper_SUPER_CALL_IN_ARROW)
 	// Tell the constructor context about this `super()` call in order to avoid confusing and
 	// likely redundant error messages such as "missing super call" or "`this` accessed before
@@ -641,7 +641,7 @@ func (c *CheckSuper_ConstructorArrowContext) VisitSuperConstructorCall(t *NodeTr
 }
 
 // Java: CheckSuper.ConstructorArrowContext.visitSuperPropertyAccess(NodeTraversal, Node)
-func (c *CheckSuper_ConstructorArrowContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode *rhino.Node) {
+func (c *CheckSuper_ConstructorArrowContext) VisitSuperPropertyAccess(t *NodeTraversal, superNode rhino.Node) {
 	// We will pretend the arrow function is immediately called, so it's as if the super
 	// property reference appeared directly in the constructor.
 	// The result is that you get an error for code like the following, even though it isn't

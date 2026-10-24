@@ -39,13 +39,13 @@ func NewConvertToDottedProperties(compiler AbstractCompiler) *ConvertToDottedPro
 }
 
 // Java: ConvertToDottedProperties.process(Node, Node)
-func (c *ConvertToDottedProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ConvertToDottedProperties) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 	GatherGetterAndSetterProperties_Update(c.compiler, externs, root)
 }
 
 // Java: ConvertToDottedProperties.visit(NodeTraversal, Node, Node)
-func (c *ConvertToDottedProperties) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *ConvertToDottedProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
 		leftElem := n.GetFirstChild()
@@ -59,11 +59,11 @@ func (c *ConvertToDottedProperties) Visit(t *NodeTraversal, n *rhino.Node, paren
 			leftElem.GetString() != "constructor" &&
 			!(parent.IsObjectLit() && leftElem.GetString() == "__proto__") {
 			leftElem.Detach()
-			if rightElem != nil {
+			if !rightElem.IsNil() {
 				// A COMPUTED_FIELD_DEF has no second child when the field has no initializer.
 				rightElem.Detach()
 			}
-			var temp *rhino.Node
+			var temp rhino.Node
 			if n.IsComputedProp() {
 				if rightElem.IsFunction() {
 					if n.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) {
@@ -87,7 +87,7 @@ func (c *ConvertToDottedProperties) Visit(t *NodeTraversal, n *rhino.Node, paren
 				} else {
 					temp = rhino.IR_StringKeyWithValue(leftElem.GetString(), rightElem)
 				}
-			} else if rightElem == nil {
+			} else if rightElem.IsNil() {
 				// An uninitialized field, e.g. `class C { ['x']; }`, becomes a 0-child
 				// MEMBER_FIELD_DEF, matching how the parser represents `class C { x; }`.
 				temp = rhino.Node_NewStringWithToken(rhino.Token_MEMBER_FIELD_DEF, leftElem.GetString())
@@ -113,7 +113,7 @@ func (c *ConvertToDottedProperties) Visit(t *NodeTraversal, n *rhino.Node, paren
 			NodeUtil_IsValidPropertyName(parser.FeatureSet_ES3, right.GetString()) {
 			left.Detach()
 			right.Detach()
-			var newGetProp *rhino.Node
+			var newGetProp rhino.Node
 			if n.IsGetElem() {
 				newGetProp = rhino.IR_Getprop(left, right.GetString())
 			} else if n.IsOptionalChainStart() {

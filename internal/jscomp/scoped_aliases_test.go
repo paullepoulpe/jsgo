@@ -102,7 +102,7 @@ func (c *ScopedAliasesTest) GetProcessor(compiler *Compiler) CompilerPass {
 // ScopedAliasesTest_TypeVerifyingPass is ScopedAliasesTest.TypeVerifyingPass.
 type ScopedAliasesTest_TypeVerifyingPass struct {
 	compiler    *Compiler
-	actualTypes []*rhino.Node
+	actualTypes []rhino.Node
 }
 
 // Java: ScopedAliasesTest.TypeVerifyingPass(Compiler)
@@ -111,23 +111,23 @@ func NewScopedAliasesTest_TypeVerifyingPass(compiler *Compiler) *ScopedAliasesTe
 }
 
 // Java: ScopedAliasesTest.TypeVerifyingPass.process(Node, Node)
-func (p *ScopedAliasesTest_TypeVerifyingPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *ScopedAliasesTest_TypeVerifyingPass) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, p)
 }
 
 // Java: ScopedAliasesTest.TypeVerifyingPass.shouldTraverse(NodeTraversal, Node, Node)
-func (p *ScopedAliasesTest_TypeVerifyingPass) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (p *ScopedAliasesTest_TypeVerifyingPass) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
 // Java: ScopedAliasesTest.TypeVerifyingPass.visit(NodeTraversal, Node, Node)
-func (p *ScopedAliasesTest_TypeVerifyingPass) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *ScopedAliasesTest_TypeVerifyingPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	info := n.GetJSDocInfo()
 	if info != nil {
 		typeNodes := info.GetTypeNodes()
 		if len(typeNodes) != 0 {
 			if p.actualTypes != nil {
-				expectedTypes := append([]*rhino.Node{}, info.GetTypeNodes()...)
+				expectedTypes := append([]rhino.Node{}, info.GetTypeNodes()...)
 				AssertWithMessage("Wrong number of JsDoc types").
 					That(len(p.actualTypes)).
 					IsEqualTo(len(expectedTypes))
@@ -135,7 +135,7 @@ func (p *ScopedAliasesTest_TypeVerifyingPass) Visit(t *NodeTraversal, n *rhino.N
 					AssertNode(p.actualTypes[i]).IsEqualTo(expectedTypes[i])
 				}
 			} else {
-				p.actualTypes = append([]*rhino.Node{}, info.GetTypeNodes()...)
+				p.actualTypes = append([]rhino.Node{}, info.GetTypeNodes()...)
 			}
 		}
 	}

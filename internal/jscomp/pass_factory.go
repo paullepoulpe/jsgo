@@ -358,7 +358,7 @@ type passFactory_emptyPass struct{}
 var passFactory_emptyPassInstance = &passFactory_emptyPass{}
 
 // Java: PassFactory.createEmptyPass(String) (the CompilerPass lambda)
-func (*passFactory_emptyPass) Process(externs *rhino.Node, root *rhino.Node) {}
+func (*passFactory_emptyPass) Process(externs rhino.Node, root rhino.Node) {}
 
 // Create creates a new compiler pass to be run.
 //

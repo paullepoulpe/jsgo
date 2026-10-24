@@ -57,7 +57,7 @@ func NewEs6TemplateLiterals(compiler AbstractCompiler) *Es6TemplateLiterals {
 // n is a TEMPLATELIT node that is not prefixed with a tag.
 //
 // Java: Es6TemplateLiterals.visitTemplateLiteral(NodeTraversal, Node)
-func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n *rhino.Node) {
+func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n rhino.Node) {
 	length := n.GetChildCount()
 	if length == 0 {
 		n.ReplaceWith(e.astFactory.CreateString("\"\""))
@@ -83,7 +83,7 @@ func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n *rhino.No
 						add = add.GetSecondChild().Detach()
 					}
 				}
-				var right *rhino.Node
+				var right rhino.Node
 				if child.IsTemplateLitString() {
 					right = e.astFactory.CreateString(*child.GetCookedString())
 				} else {
@@ -122,12 +122,12 @@ func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n *rhino.No
 // n is a TAGGED_TEMPLATELIT node.
 //
 // Java: Es6TemplateLiterals.visitTaggedTemplateLiteral(NodeTraversal, Node, Node)
-func (e *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n *rhino.Node, insertBefore *rhino.Node) {
+func (e *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n rhino.Node, insertBefore rhino.Node) {
 	templateLit := n.GetLastChild()
 	siteObject := e.CreateCookedStringArray(templateLit)
 
 	// Node holding the function call to the runtime injected function
-	var callTemplateTagArgCreator *rhino.Node
+	var callTemplateTagArgCreator rhino.Node
 	if Es6TemplateLiterals_CookedAndRawStringsSame(templateLit) {
 		// The cooked and raw versions of the array are the same, so just call slice() on the
 		// cooked array at runtime to make the raw array a copy of the cooked array.
@@ -166,7 +166,7 @@ func (e *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n *rh
 	// Generate the call expression.
 	tagFnFirstArg := tagFnFirstArgDeclaration.GetFirstChild().CloneNode()
 	call := e.astFactory.CreateCall(n.RemoveFirstChild(), AstFactory_Type_(n), tagFnFirstArg)
-	for child := templateLit.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := templateLit.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if !child.IsTemplateLitString() {
 			call.AddChildToBack(child.RemoveFirstChild())
 		}
@@ -178,9 +178,9 @@ func (e *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n *rh
 }
 
 // Java: Es6TemplateLiterals.CreateRawStringArray(Node)
-func (e *Es6TemplateLiterals) CreateRawStringArray(n *rhino.Node) *rhino.Node {
+func (e *Es6TemplateLiterals) CreateRawStringArray(n rhino.Node) rhino.Node {
 	array := e.astFactory.CreateArraylit()
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsTemplateLitString() {
 			array.AddChildToBack(e.astFactory.CreateString(child.GetRawString()))
 		}
@@ -189,7 +189,7 @@ func (e *Es6TemplateLiterals) CreateRawStringArray(n *rhino.Node) *rhino.Node {
 }
 
 // Java: Es6TemplateLiterals.CreateCookedStringArray(Node)
-func (e *Es6TemplateLiterals) CreateCookedStringArray(n *rhino.Node) *rhino.Node {
+func (e *Es6TemplateLiterals) CreateCookedStringArray(n rhino.Node) rhino.Node {
 	var templateArrayType *colors.Color
 	if e.astFactory.IsAddingColors() {
 		templateArrayType = e.compiler.GetColorRegistry().Get(colors.StandardColors_I_TEMPLATE_ARRAY_ID)
@@ -197,7 +197,7 @@ func (e *Es6TemplateLiterals) CreateCookedStringArray(n *rhino.Node) *rhino.Node
 	array := e.astFactory.
 		CreateArraylit().
 		SetColor(templateArrayType) // tighten the type from Array to ITemplateArray
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsTemplateLitString() {
 			if child.GetCookedString() != nil {
 				array.AddChildToBack(e.astFactory.CreateString(*child.GetCookedString()))
@@ -211,8 +211,8 @@ func (e *Es6TemplateLiterals) CreateCookedStringArray(n *rhino.Node) *rhino.Node
 }
 
 // Java: Es6TemplateLiterals.cookedAndRawStringsSame(Node)
-func Es6TemplateLiterals_CookedAndRawStringsSame(n *rhino.Node) bool {
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+func Es6TemplateLiterals_CookedAndRawStringsSame(n rhino.Node) bool {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if !child.IsTemplateLitString() {
 			continue
 		}

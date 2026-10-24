@@ -60,12 +60,12 @@ func NewCheckEnums(compiler AbstractCompiler) *CheckEnums {
 }
 
 // Java: CheckEnums.process(Node, Node)
-func (c *CheckEnums) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckEnums) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckEnums.visit(NodeTraversal, Node, Node)
-func (c *CheckEnums) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckEnums) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsObjectLit() {
 		jsdoc := NodeUtil_GetBestJSDocInfo(n)
 		if jsdoc != nil && jsdoc.HasEnumParameterType() {
@@ -78,7 +78,7 @@ func (c *CheckEnums) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 
 // Java: CheckEnums.checkEnumTypeAndInitializerValues(NodeTraversal, Node, JSDocInfo)
 func CheckEnums_CheckEnumTypeAndInitializerValues(
-	t *NodeTraversal, n *rhino.Node, jsDocInfo *rhino.JSDocInfo) {
+	t *NodeTraversal, n rhino.Node, jsDocInfo *rhino.JSDocInfo) {
 	jutil.CheckArgumentMsg1(n.IsObjectLit(), "%s", n)
 	enumTypeExpr := jsDocInfo.GetEnumParameterType()
 
@@ -98,9 +98,9 @@ func CheckEnums_CheckEnumTypeAndInitializerValues(
 // string enum value is not statically initialized
 //
 // Java: CheckEnums.checkStringEnumInitializerValues(NodeTraversal, Node)
-func CheckEnums_CheckStringEnumInitializerValues(t *NodeTraversal, enumNode *rhino.Node) {
+func CheckEnums_CheckStringEnumInitializerValues(t *NodeTraversal, enumNode rhino.Node) {
 	jutil.CheckArgumentMsg1(enumNode.IsObjectLit(), "%s", enumNode)
-	for prop := enumNode.GetFirstChild(); prop != nil; prop = prop.GetNext() {
+	for prop := enumNode.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
 		// valueNode is guaranteed to exist by this time, as shorthand `{A}`s are converted to `{A:A}`
 		valueNode := prop.GetLastChild()
 		if !valueNode.IsStringLit() && !(valueNode.IsTemplateLit() && valueNode.HasOneChild()) {
@@ -111,14 +111,14 @@ func CheckEnums_CheckStringEnumInitializerValues(t *NodeTraversal, enumNode *rhi
 }
 
 // Java: CheckEnums.checkNamingAndAssignmentUsage(NodeTraversal, Node)
-func (c *CheckEnums) CheckNamingAndAssignmentUsage(t *NodeTraversal, objLit *rhino.Node) {
-	for child := objLit.GetFirstChild(); child != nil; child = child.GetNext() {
+func (c *CheckEnums) CheckNamingAndAssignmentUsage(t *NodeTraversal, objLit rhino.Node) {
+	for child := objLit.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		c.CheckName(t, child)
 	}
 }
 
 // Java: CheckEnums.checkName(NodeTraversal, Node)
-func (c *CheckEnums) CheckName(t *NodeTraversal, prop *rhino.Node) {
+func (c *CheckEnums) CheckName(t *NodeTraversal, prop rhino.Node) {
 	if prop.IsComputedProp() {
 		t.Report(prop, CheckEnums_COMPUTED_PROP_NAME_IN_ENUM)
 		return
@@ -134,12 +134,12 @@ func (c *CheckEnums) CheckName(t *NodeTraversal, prop *rhino.Node) {
 }
 
 // Java: CheckEnums.checkDuplicateEnumValues(NodeTraversal, Node)
-func CheckEnums_CheckDuplicateEnumValues(t *NodeTraversal, enumNode *rhino.Node) {
+func CheckEnums_CheckDuplicateEnumValues(t *NodeTraversal, enumNode rhino.Node) {
 	values := jutil.NewLinkedHashSet[string]()
-	for prop := enumNode.GetFirstChild(); prop != nil; prop = prop.GetNext() {
+	for prop := enumNode.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
 		valueNode := prop.GetLastChild()
 		var value string
-		if valueNode == nil {
+		if valueNode.IsNil() {
 			return
 		} else if valueNode.IsStringLit() {
 			value = valueNode.GetString()

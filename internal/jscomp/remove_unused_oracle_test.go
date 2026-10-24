@@ -57,7 +57,7 @@ var removeUnusedOracleExterns = strings.Join([]string{
 
 type removeUnusedOraclePass struct {
 	name string
-	run  func(c *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string)
+	run  func(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]string)
 }
 
 // removeUnusedOracleRucSimple is RemoveUnusedDump.rucSimple.
@@ -89,43 +89,43 @@ func removeUnusedOracleRucAdvanced(c *Compiler) *RemoveUnusedCode_Builder {
 // removeUnusedOraclePasses is RemoveUnusedDump.passes.
 func removeUnusedOraclePasses() []removeUnusedOraclePass {
 	return []removeUnusedOraclePass{
-		{"ruc-simple", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"ruc-simple", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			removeUnusedOracleRucSimple(c).Build().Process(ext, js)
 		}},
-		{"ruc-advanced", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"ruc-advanced", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			removeUnusedOracleRucAdvanced(c).Build().Process(ext, js)
 		}},
-		{"pfi-ruc-advanced", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"pfi-ruc-advanced", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewPureFunctionIdentifier_Driver(c).Process(ext, js)
 			removeUnusedOracleRucAdvanced(c).Build().Process(ext, js)
 		}},
-		{"pfi", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"pfi", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewPureFunctionIdentifier_Driver(c).Process(ext, js)
 			removeUnusedOracleCollectFlags(ext, extra)
 			removeUnusedOracleCollectFlags(js, extra)
 		}},
-		{"dae", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"dae", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewDeadAssignmentsElimination(c).Process(ext, js)
 		}},
-		{"cvn", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"cvn", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewCoalesceVariableNames(c, false).Process(ext, js)
 		}},
-		{"cvn-pseudo", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"cvn-pseudo", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewCoalesceVariableNames(c, true).Process(ext, js)
 		}},
-		{"lva", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"lva", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NodeTraversal_Traverse(c, js, newRemoveUnusedOracleLva(c, extra))
 		}},
-		{"optparams", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"optparams", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewOptimizeParameters(c).Process(ext, js)
 		}},
-		{"optreturns", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"optreturns", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewOptimizeReturns(c).Process(ext, js)
 		}},
-		{"optconstructors", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"optconstructors", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewOptimizeConstructors(c).Process(ext, js)
 		}},
-		{"devirtualize", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"devirtualize", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			OptimizeCalls_Builder_().
 				SetCompiler(c).
 				SetConsiderExterns(false).
@@ -133,7 +133,7 @@ func removeUnusedOraclePasses() []removeUnusedOraclePass {
 				Build().
 				Process(ext, js)
 		}},
-		{"rewrite-functions", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"rewrite-functions", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewFunctionRewriter(c).Process(ext, js)
 		}},
 	}
@@ -142,7 +142,7 @@ func removeUnusedOraclePasses() []removeUnusedOraclePass {
 // removeUnusedOracleChunkPasses is RemoveUnusedDump.chunkPasses.
 func removeUnusedOracleChunkPasses() []removeUnusedOraclePass {
 	return []removeUnusedOraclePass{
-		{"crosschunk-refs", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"crosschunk-refs", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			collector := NewCrossChunkReferenceCollector(c, NewSyntacticScopeCreator(c))
 			collector.ProcessRoot(js)
 			for _, s := range collector.GetTopLevelStatements() {
@@ -151,7 +151,7 @@ func removeUnusedOracleChunkPasses() []removeUnusedOraclePass {
 					" " + removeUnusedOraclePos(s.GetStatementNode()))
 				if s.IsDeclarationStatement() {
 					value := "-"
-					if s.GetDeclaredValueNode() != nil {
+					if !s.GetDeclaredValueNode().IsNil() {
 						value = removeUnusedOraclePos(s.GetDeclaredValueNode())
 					}
 					l.WriteString(" decl " + removeUnusedOraclePos(s.GetDeclaredNameReference().GetNode()) +
@@ -179,10 +179,10 @@ func removeUnusedOracleChunkPasses() []removeUnusedOraclePass {
 				*extra = append(*extra, l.String())
 			}
 		}},
-		{"crosschunk-code", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"crosschunk-code", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewCrossChunkCodeMotion(c, c.GetChunkGraph(), false).Process(ext, js)
 		}},
-		{"crosschunk-method", func(c *Compiler, ext, js *rhino.Node, extra *[]string) {
+		{"crosschunk-method", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewCrossChunkMethodMotion(c, NewIdGenerator(), false, false).Process(ext, js)
 		}},
 	}
@@ -230,7 +230,7 @@ func (l *removeUnusedOracleLva) ExitScopeWithCfg(t *NodeTraversal) {
 		state := dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode)
 		n := cfgNode.GetValue()
 		where := "IMPLICIT_RETURN"
-		if n != nil {
+		if !n.IsNil() {
 			where = removeUnusedOraclePos(n)
 		}
 		*l.extra = append(*l.extra, "node "+where+" in "+removeUnusedOracleBits(state.GetIn())+
@@ -255,16 +255,16 @@ func removeUnusedOracleBits(l *LiveVariablesAnalysis_LiveVariableLattice) string
 }
 
 // removeUnusedOracleCollectFlags is RemoveUnusedDump.collectFlags.
-func removeUnusedOracleCollectFlags(n *rhino.Node, extra *[]string) {
+func removeUnusedOracleCollectFlags(n rhino.Node, extra *[]string) {
 	if n.IsCall() || n.IsNew() || n.IsTaggedTemplateLit() || n.IsOptChainCall() {
 		*extra = append(*extra, "flags "+removeUnusedOraclePos(n)+" "+strconv.Itoa(int(n.GetSideEffectFlags())))
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		removeUnusedOracleCollectFlags(c, extra)
 	}
 }
 
-func removeUnusedOraclePos(n *rhino.Node) string {
+func removeUnusedOraclePos(n rhino.Node) string {
 	return n.GetToken().String() + "@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
 }
 
@@ -330,11 +330,11 @@ func removeUnusedOracleDropChangeTime(l string) string {
 }
 
 // removeUnusedOracleCollectChanges is RemoveUnusedDump.collectChanges.
-func removeUnusedOracleCollectChanges(n *rhino.Node, out *[]string) {
+func removeUnusedOracleCollectChanges(n rhino.Node, out *[]string) {
 	if (n.IsScript() || n.IsFunction()) && n.GetChangeTime() != 0 {
 		*out = append(*out, removeUnusedOraclePos(n))
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		removeUnusedOracleCollectChanges(c, out)
 	}
 }
@@ -345,8 +345,8 @@ func removeUnusedOracleChunkOffsets(parsed *Compiler) (offsets []int, skip strin
 	if script.HasChildren() && script.GetFirstChild().IsModuleBody() {
 		return nil, "module"
 	}
-	var statements []*rhino.Node
-	for c := script.GetFirstChild(); c != nil; c = c.GetNext() {
+	var statements []rhino.Node
+	for c := script.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		statements = append(statements, c)
 	}
 	n := len(statements)

@@ -288,7 +288,7 @@ func dumpJsDoc(name, src string, config *Config) string {
 // boolean) with useLicensesOnlyConfig = false.
 func testCreateJsDocInfoParser(
 	node *parser.Comment,
-	templateNode *rhino.Node,
+	templateNode rhino.Node,
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	state *jsdocFileState,
@@ -352,7 +352,7 @@ func testHandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser, state *js
 
 // testParseInlineTypeDoc mirrors IRFactory.parseInlineTypeDoc(Comment).
 func testParseInlineTypeDoc(
-	node *parser.Comment, templateNode *rhino.Node, config *Config, errorReporter rhino.ErrorReporter,
+	node *parser.Comment, templateNode rhino.Node, config *Config, errorReporter rhino.ErrorReporter,
 ) *rhino.JSDocInfo {
 	comment := node.Value
 	lineno := int(node.Location.Start.Line) + 1

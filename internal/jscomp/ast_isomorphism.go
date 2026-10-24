@@ -73,7 +73,7 @@ func VerifyAstAlphaIsomorphism(codeA, codeB string) (*AstIsomorphismStats, error
 	return &v.stats, nil
 }
 
-func parseForIsomorphism(name, src string) (*rhino.Node, *Compiler, error) {
+func parseForIsomorphism(name, src string) (rhino.Node, *Compiler, error) {
 	comp := NewCompiler()
 	opts := comp.NewCompilerOptions()
 	opts.SetLanguage(CompilerOptions_LanguageMode_UNSUPPORTED)
@@ -95,10 +95,10 @@ func parseForIsomorphism(name, src string) (*rhino.Node, *Compiler, error) {
 		caught = e
 	})
 	if caught != nil {
-		return nil, nil, fmt.Errorf("parser exception: %s", jutil.ToJavaString(caught))
+		return rhino.Node{}, nil, fmt.Errorf("parser exception: %s", jutil.ToJavaString(caught))
 	}
-	if res == nil || res.Ast == nil {
-		return nil, nil, fmt.Errorf("parser returned nil AST")
+	if res == nil || res.Ast.IsNil() {
+		return rhino.Node{}, nil, fmt.Errorf("parser returned nil AST")
 	}
 	script := res.Ast
 	script.SetInputId(rhino.NewInputId(name))
@@ -107,7 +107,7 @@ func parseForIsomorphism(name, src string) (*rhino.Node, *Compiler, error) {
 	return root, comp, nil
 }
 
-func countAstStatsOnly(n *rhino.Node, s *AstIsomorphismStats) {
+func countAstStatsOnly(n rhino.Node, s *AstIsomorphismStats) {
 	s.TotalNodes++
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
@@ -126,7 +126,7 @@ func countAstStatsOnly(n *rhino.Node, s *AstIsomorphismStats) {
 	case rhino.Token_NUMBER, rhino.Token_BIGINT:
 		s.NumberLiterals++
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		countAstStatsOnly(c, s)
 	}
 }
@@ -148,7 +148,7 @@ type astIsomorphismVerifier struct {
 	stats     AstIsomorphismStats
 }
 
-func (v *astIsomorphismVerifier) pushScope(nA, nB *rhino.Node) {
+func (v *astIsomorphismVerifier) pushScope(nA, nB rhino.Node) {
 	v.scopeA = v.scA.CreateScope(nA, v.scopeA).(*Scope)
 	v.scopeB = v.scB.CreateScope(nB, v.scopeB).(*Scope)
 	v.scopeAtoB[v.scopeA] = v.scopeB
@@ -159,7 +159,7 @@ func (v *astIsomorphismVerifier) popScope() {
 	v.scopeB = v.scopeB.parent
 }
 
-func (v *astIsomorphismVerifier) walk(nA, nB *rhino.Node) error {
+func (v *astIsomorphismVerifier) walk(nA, nB rhino.Node) error {
 	v.stats.TotalNodes++
 	tokA := nA.GetToken()
 	tokB := nB.GetToken()
@@ -328,10 +328,10 @@ func (v *astIsomorphismVerifier) walk(nA, nB *rhino.Node) error {
 	return err
 }
 
-func (v *astIsomorphismVerifier) walkChildren(nA, nB *rhino.Node) error {
+func (v *astIsomorphismVerifier) walkChildren(nA, nB rhino.Node) error {
 	cA := nA.GetFirstChild()
 	cB := nB.GetFirstChild()
-	for cA != nil && cB != nil {
+	for !cA.IsNil() && !cB.IsNil() {
 		if err := v.walk(cA, cB); err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (v *astIsomorphismVerifier) walkChildren(nA, nB *rhino.Node) error {
 	return nil
 }
 
-func (v *astIsomorphismVerifier) verifyNameNode(nA, nB *rhino.Node) error {
+func (v *astIsomorphismVerifier) verifyNameNode(nA, nB rhino.Node) error {
 	nameA := nA.GetString()
 	nameB := nB.GetString()
 	if nameA == "" || nameB == "" {

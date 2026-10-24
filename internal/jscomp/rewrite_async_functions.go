@@ -80,7 +80,7 @@ type RewriteAsyncFunctions_SuperPropertyWrapperInfo struct {
 	outer *RewriteAsyncFunctions
 	// The first `super.property` Node we come across during traversal.
 	// Information from this node will be used when creating the wrapper function.
-	firstInstanceOfSuperDotProperty *rhino.Node
+	firstInstanceOfSuperDotProperty rhino.Node
 	wrapperFunctionName             string
 	// The type to use for the wrapper function.
 	// Will be null if type checking has not run.
@@ -90,7 +90,7 @@ type RewriteAsyncFunctions_SuperPropertyWrapperInfo struct {
 // Java: SuperPropertyWrapperInfo(Node, String, AstFactory.Type)
 func newRewriteAsyncFunctions_SuperPropertyWrapperInfo(
 	outer *RewriteAsyncFunctions,
-	firstSuperDotPropertyNode *rhino.Node,
+	firstSuperDotPropertyNode rhino.Node,
 	wrapperFunctionName string,
 	wrapperFunctionReturnType AstFactory_Type) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
 	i := &RewriteAsyncFunctions_SuperPropertyWrapperInfo{outer: outer}
@@ -106,12 +106,12 @@ func (i *RewriteAsyncFunctions_SuperPropertyWrapperInfo) GetPropertyType() *colo
 }
 
 // Java: SuperPropertyWrapperInfo.createWrapperFunctionNameNode()
-func (i *RewriteAsyncFunctions_SuperPropertyWrapperInfo) CreateWrapperFunctionNameNode() *rhino.Node {
+func (i *RewriteAsyncFunctions_SuperPropertyWrapperInfo) CreateWrapperFunctionNameNode() rhino.Node {
 	return i.outer.astFactory.CreateName(i.wrapperFunctionName, AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT))
 }
 
 // Java: SuperPropertyWrapperInfo.createWrapperFunctionCallNode()
-func (i *RewriteAsyncFunctions_SuperPropertyWrapperInfo) CreateWrapperFunctionCallNode() *rhino.Node {
+func (i *RewriteAsyncFunctions_SuperPropertyWrapperInfo) CreateWrapperFunctionCallNode() rhino.Node {
 	return i.outer.astFactory.CreateCall(i.CreateWrapperFunctionNameNode(), i.wrapperFunctionReturnType)
 }
 
@@ -137,7 +137,7 @@ func newRewriteAsyncFunctions_SuperPropertyWrappers(outer *RewriteAsyncFunctions
 
 // Java: SuperPropertyWrappers.getOrCreateSuperPropertyWrapperInfo(Node)
 func (w *RewriteAsyncFunctions_SuperPropertyWrappers) GetOrCreateSuperPropertyWrapperInfo(
-	superDotPropertyNode *rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
+	superDotPropertyNode rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
 	jutil.CheckArgumentMsg1(superDotPropertyNode.IsGetProp(), "%s", superDotPropertyNode)
 	superNode := superDotPropertyNode.GetFirstChild()
 	jutil.CheckArgumentMsg1(superNode.IsSuper(), "%s", superNode)
@@ -163,7 +163,7 @@ func (w *RewriteAsyncFunctions_SuperPropertyWrappers) GetOrCreateSuperPropertyWr
 }
 
 // Java: SuperPropertyWrappers.createNewInfo(Node)
-func (w *RewriteAsyncFunctions_SuperPropertyWrappers) CreateNewInfo(firstSuperDotPropertyNode *rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
+func (w *RewriteAsyncFunctions_SuperPropertyWrappers) CreateNewInfo(firstSuperDotPropertyNode rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
 	jutil.CheckArgumentMsg1(firstSuperDotPropertyNode.IsGetProp(), "%s", firstSuperDotPropertyNode)
 	propertyName := firstSuperDotPropertyNode.GetString()
 	wrapperFunctionName :=
@@ -190,23 +190,23 @@ type RewriteAsyncFunctions_LexicalContext interface {
 	GetRewriteAsyncFunctions_LexicalContextBase() *RewriteAsyncFunctions_LexicalContextBase
 
 	// Java: LexicalContext.getContextRootNode()
-	GetContextRootNode() *rhino.Node
+	GetContextRootNode() rhino.Node
 
 	// GetContextForNode returns the LexicalContext to use for visiting a
 	// node: n is this context's root node or one of its descendents; the
 	// result is this context or a new one for a child context.
 	//
 	// Java: LexicalContext.getContextForNode(NodeTraversal, Node)
-	GetContextForNode(t *NodeTraversal, n *rhino.Node) RewriteAsyncFunctions_LexicalContext
+	GetContextForNode(t *NodeTraversal, n rhino.Node) RewriteAsyncFunctions_LexicalContext
 
 	// Java: LexicalContext.visit(NodeTraversal, Node)
-	Visit(t *NodeTraversal, n *rhino.Node)
+	Visit(t *NodeTraversal, n rhino.Node)
 }
 
 // RewriteAsyncFunctions_LexicalContextBase holds the fields of
 // LexicalContext.
 type RewriteAsyncFunctions_LexicalContextBase struct {
-	contextRootNode *rhino.Node
+	contextRootNode rhino.Node
 	// precomputed unique id to append to names in this context. This is used to ensure that names
 	// in different contexts don't collide (e.g. 2 functions don't get the same `let
 	// $jscomp$async$this` name declared in their bodies)
@@ -214,8 +214,8 @@ type RewriteAsyncFunctions_LexicalContextBase struct {
 }
 
 // Java: LexicalContext(Node, String)
-func (b *RewriteAsyncFunctions_LexicalContextBase) InitRewriteAsyncFunctions_LexicalContextBase(contextRootNode *rhino.Node, uniqueId string) {
-	b.contextRootNode = jutil.CheckNotNull(contextRootNode)
+func (b *RewriteAsyncFunctions_LexicalContextBase) InitRewriteAsyncFunctions_LexicalContextBase(contextRootNode rhino.Node, uniqueId string) {
+	b.contextRootNode = rhino.CheckNotNull(contextRootNode)
 	b.uniqueId = uniqueId
 }
 
@@ -228,7 +228,7 @@ func (b *RewriteAsyncFunctions_LexicalContextBase) GetRewriteAsyncFunctions_Lexi
 }
 
 // Java: LexicalContext.getContextRootNode()
-func (b *RewriteAsyncFunctions_LexicalContextBase) GetContextRootNode() *rhino.Node {
+func (b *RewriteAsyncFunctions_LexicalContextBase) GetContextRootNode() rhino.Node {
 	return b.contextRootNode
 }
 
@@ -240,14 +240,14 @@ type RewriteAsyncFunctions_RootContext struct {
 }
 
 // Java: RootContext(Node, String)
-func newRewriteAsyncFunctions_RootContext(outer *RewriteAsyncFunctions, contextRootNode *rhino.Node, uniqueId string) *RewriteAsyncFunctions_RootContext {
+func newRewriteAsyncFunctions_RootContext(outer *RewriteAsyncFunctions, contextRootNode rhino.Node, uniqueId string) *RewriteAsyncFunctions_RootContext {
 	c := &RewriteAsyncFunctions_RootContext{outer: outer}
 	c.InitRewriteAsyncFunctions_LexicalContextBase(contextRootNode, uniqueId)
 	return c
 }
 
 // Java: RootContext.getContextForNode(NodeTraversal, Node)
-func (c *RewriteAsyncFunctions_RootContext) GetContextForNode(t *NodeTraversal, n *rhino.Node) RewriteAsyncFunctions_LexicalContext {
+func (c *RewriteAsyncFunctions_RootContext) GetContextForNode(t *NodeTraversal, n rhino.Node) RewriteAsyncFunctions_LexicalContext {
 	if n.IsFunction() {
 		uniqueId := c.outer.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 		return newRewriteAsyncFunctions_FunctionContext(c.outer, n, uniqueId)
@@ -257,7 +257,7 @@ func (c *RewriteAsyncFunctions_RootContext) GetContextForNode(t *NodeTraversal, 
 }
 
 // Java: RootContext.visit(NodeTraversal, Node)
-func (c *RewriteAsyncFunctions_RootContext) Visit(t *NodeTraversal, n *rhino.Node) {
+func (c *RewriteAsyncFunctions_RootContext) Visit(t *NodeTraversal, n rhino.Node) {
 	// In root context we haven't entered an async function yet, so there's nothing to do.
 }
 
@@ -271,7 +271,7 @@ type RewriteAsyncFunctions_ParameterListContext struct {
 
 // Java: ParameterListContext(FunctionContext, Node, String)
 func newRewriteAsyncFunctions_ParameterListContext(
-	outer *RewriteAsyncFunctions, functionContext *RewriteAsyncFunctions_FunctionContext, contextRootNode *rhino.Node, uniqueId string) *RewriteAsyncFunctions_ParameterListContext {
+	outer *RewriteAsyncFunctions, functionContext *RewriteAsyncFunctions_FunctionContext, contextRootNode rhino.Node, uniqueId string) *RewriteAsyncFunctions_ParameterListContext {
 	c := &RewriteAsyncFunctions_ParameterListContext{outer: outer}
 	c.InitRewriteAsyncFunctions_LexicalContextBase(contextRootNode, uniqueId)
 	c.functionContext = jutil.CheckNotNull(functionContext)
@@ -279,7 +279,7 @@ func newRewriteAsyncFunctions_ParameterListContext(
 }
 
 // Java: ParameterListContext.getContextForNode(NodeTraversal, Node)
-func (c *RewriteAsyncFunctions_ParameterListContext) GetContextForNode(t *NodeTraversal, n *rhino.Node) RewriteAsyncFunctions_LexicalContext {
+func (c *RewriteAsyncFunctions_ParameterListContext) GetContextForNode(t *NodeTraversal, n rhino.Node) RewriteAsyncFunctions_LexicalContext {
 	if n.IsFunction() {
 		// Function defined within a parameter list.
 		// e.g. `() => something`
@@ -292,7 +292,7 @@ func (c *RewriteAsyncFunctions_ParameterListContext) GetContextForNode(t *NodeTr
 }
 
 // Java: ParameterListContext.visit(NodeTraversal, Node)
-func (c *RewriteAsyncFunctions_ParameterListContext) Visit(t *NodeTraversal, n *rhino.Node) {
+func (c *RewriteAsyncFunctions_ParameterListContext) Visit(t *NodeTraversal, n rhino.Node) {
 	if c.functionContext.asyncThisAndArgumentsContext != nil &&
 		c.functionContext.asyncThisAndArgumentsContext != c.functionContext {
 		// e.g.
@@ -331,7 +331,7 @@ type RewriteAsyncFunctions_FunctionContext struct {
 }
 
 // Java: FunctionContext(Node, String)
-func newRewriteAsyncFunctions_FunctionContext(outer *RewriteAsyncFunctions, contextRootNode *rhino.Node, uniqueId string) *RewriteAsyncFunctions_FunctionContext {
+func newRewriteAsyncFunctions_FunctionContext(outer *RewriteAsyncFunctions, contextRootNode rhino.Node, uniqueId string) *RewriteAsyncFunctions_FunctionContext {
 	c := &RewriteAsyncFunctions_FunctionContext{outer: outer}
 	c.InitRewriteAsyncFunctions_LexicalContextBase(contextRootNode, uniqueId)
 	c.superPropertyWrappers = newRewriteAsyncFunctions_SuperPropertyWrappers(outer)
@@ -348,7 +348,7 @@ func newRewriteAsyncFunctions_FunctionContext(outer *RewriteAsyncFunctions, cont
 
 // Java: FunctionContext(FunctionContext, Node, String)
 func newRewriteAsyncFunctions_FunctionContextWithOuter(
-	outerInstance *RewriteAsyncFunctions, outer *RewriteAsyncFunctions_FunctionContext, contextRootNode *rhino.Node, uniqueId string) *RewriteAsyncFunctions_FunctionContext {
+	outerInstance *RewriteAsyncFunctions, outer *RewriteAsyncFunctions_FunctionContext, contextRootNode rhino.Node, uniqueId string) *RewriteAsyncFunctions_FunctionContext {
 	c := &RewriteAsyncFunctions_FunctionContext{outer: outerInstance}
 	c.InitRewriteAsyncFunctions_LexicalContextBase(contextRootNode, uniqueId)
 	c.superPropertyWrappers = newRewriteAsyncFunctions_SuperPropertyWrappers(outerInstance)
@@ -383,7 +383,7 @@ func newRewriteAsyncFunctions_FunctionContextWithOuter(
 }
 
 // Java: FunctionContext.getContextForNode(NodeTraversal, Node)
-func (c *RewriteAsyncFunctions_FunctionContext) GetContextForNode(t *NodeTraversal, n *rhino.Node) RewriteAsyncFunctions_LexicalContext {
+func (c *RewriteAsyncFunctions_FunctionContext) GetContextForNode(t *NodeTraversal, n rhino.Node) RewriteAsyncFunctions_LexicalContext {
 	if n == c.contextRootNode {
 		return c
 	} else if n.IsFunction() {
@@ -405,7 +405,7 @@ func (c *RewriteAsyncFunctions_FunctionContext) RecordAsyncThisReplacementWasDon
 
 // Java: FunctionContext.getOrCreateSuperPropertyWrapperInfo(Node)
 func (c *RewriteAsyncFunctions_FunctionContext) GetOrCreateSuperPropertyWrapperInfo(
-	superDotPropertyNode *rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
+	superDotPropertyNode rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
 	return c.asyncThisAndArgumentsContext.superPropertyWrappers.GetOrCreateSuperPropertyWrapperInfo(
 		superDotPropertyNode)
 }
@@ -425,20 +425,20 @@ func (c *RewriteAsyncFunctions_FunctionContext) RecordAsyncNewTargetReplacementW
 // hold the value of `this` for async functions.
 //
 // Java: FunctionContext.createThisVariableReference(AstFactory.Type)
-func (c *RewriteAsyncFunctions_FunctionContext) CreateThisVariableReference(typeOfThis AstFactory_Type) *rhino.Node {
+func (c *RewriteAsyncFunctions_FunctionContext) CreateThisVariableReference(typeOfThis AstFactory_Type) rhino.Node {
 	c.RecordAsyncThisReplacementWasDone(typeOfThis)
 	return c.outer.astFactory.CreateName(RewriteAsyncFunctions_ASYNC_THIS+c.asyncThisAndArgumentsContext.uniqueId, typeOfThis)
 }
 
 // Java: FunctionContext.createNewTargetVariableReference(AstFactory.Type)
-func (c *RewriteAsyncFunctions_FunctionContext) CreateNewTargetVariableReference(typeOfNewTarget AstFactory_Type) *rhino.Node {
+func (c *RewriteAsyncFunctions_FunctionContext) CreateNewTargetVariableReference(typeOfNewTarget AstFactory_Type) rhino.Node {
 	c.RecordAsyncNewTargetReplacementWasDone(typeOfNewTarget)
 	return c.outer.astFactory.CreateName(
 		RewriteAsyncFunctions_ASYNC_NEW_TARGET+c.asyncThisAndArgumentsContext.uniqueId, typeOfNewTarget)
 }
 
 // Java: FunctionContext.createWrapperArrowFunction(SuperPropertyWrapperInfo)
-func (c *RewriteAsyncFunctions_FunctionContext) CreateWrapperArrowFunction(wrapperInfo *RewriteAsyncFunctions_SuperPropertyWrapperInfo) *rhino.Node {
+func (c *RewriteAsyncFunctions_FunctionContext) CreateWrapperArrowFunction(wrapperInfo *RewriteAsyncFunctions_SuperPropertyWrapperInfo) rhino.Node {
 	// super.propertyName
 	superDotProperty := wrapperInfo.firstInstanceOfSuperDotProperty.CloneTree()
 
@@ -448,7 +448,7 @@ func (c *RewriteAsyncFunctions_FunctionContext) CreateWrapperArrowFunction(wrapp
 }
 
 // Java: FunctionContext.visit(NodeTraversal, Node)
-func (c *RewriteAsyncFunctions_FunctionContext) Visit(t *NodeTraversal, n *rhino.Node) {
+func (c *RewriteAsyncFunctions_FunctionContext) Visit(t *NodeTraversal, n rhino.Node) {
 	r := c.outer
 	if c.contextRootNode == n && c.contextRootNode.IsAsyncFunction() {
 		// We're visiting an async function.
@@ -565,7 +565,7 @@ func RewriteAsyncFunctions_Create(compiler AbstractCompiler) *RewriteAsyncFuncti
 }
 
 // Java: RewriteAsyncFunctions.process(Node, Node)
-func (r *RewriteAsyncFunctions) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteAsyncFunctions) Process(externs rhino.Node, root rhino.Node) {
 	TranspilationPasses_ProcessTranspile(r.compiler, root, RewriteAsyncFunctions_transpiledFeatures, r)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(r.compiler, root, RewriteAsyncFunctions_transpiledFeatures)
 }
@@ -581,8 +581,8 @@ func (r *RewriteAsyncFunctions) contextStackPeek() RewriteAsyncFunctions_Lexical
 }
 
 // Java: RewriteAsyncFunctions.shouldTraverse(NodeTraversal, Node, Node)
-func (r *RewriteAsyncFunctions) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	if parent == nil {
+func (r *RewriteAsyncFunctions) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if parent.IsNil() {
 		jutil.CheckState(len(r.contextStack) == 0)
 		uniqueId := r.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 		r.contextStack = append(r.contextStack, newRewriteAsyncFunctions_RootContext(r, n, uniqueId))
@@ -597,7 +597,7 @@ func (r *RewriteAsyncFunctions) ShouldTraverse(t *NodeTraversal, n *rhino.Node, 
 }
 
 // Java: RewriteAsyncFunctions.visit(NodeTraversal, Node, Node)
-func (r *RewriteAsyncFunctions) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *RewriteAsyncFunctions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	context := r.contextStackPeek()
 	context.Visit(t, n)
 	if context.GetContextRootNode() == n {

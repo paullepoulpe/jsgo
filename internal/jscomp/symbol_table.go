@@ -73,14 +73,14 @@ import (
 type SymbolTable struct {
 	// All symbols in the program, uniquely identified by the node where
 	// they're declared and their name.
-	symbols *jutil.HashBasedTable[*rhino.Node, string, *SymbolTable_Symbol]
+	symbols *jutil.HashBasedTable[rhino.Node, string, *SymbolTable_Symbol]
 
 	// All syntactic scopes in the program, uniquely identified by the node
 	// where they're declared.
-	scopes *jutil.LinkedHashMap[*rhino.Node, *SymbolTable_SymbolScope]
+	scopes *jutil.LinkedHashMap[rhino.Node, *SymbolTable_SymbolScope]
 
 	// All Nodes with JSDocInfo in the program.
-	docInfos *jutil.ArrayList[*rhino.Node]
+	docInfos *jutil.ArrayList[rhino.Node]
 
 	globalScope *SymbolTable_SymbolScope
 
@@ -93,7 +93,7 @@ type SymbolTable struct {
 
 	// Comparators
 	sourceNameOrdering   func(a, b *string) int
-	nodeOrdering         func(a, b *rhino.Node) int
+	nodeOrdering         func(a, b rhino.Node) int
 	lexicalScopeOrdering func(a, b *SymbolTable_SymbolScope) int
 	symbolOrdering       func(a, b *SymbolTable_Symbol) int
 }
@@ -113,9 +113,9 @@ const SymbolTable_GLOBAL_THIS = "*global*"
 // Java: SymbolTable(AbstractCompiler, JSTypeRegistry)
 func NewSymbolTable(compiler AbstractCompiler, registry *rhino.JSTypeRegistry) *SymbolTable {
 	t := &SymbolTable{
-		symbols:                jutil.HashBasedTable_Create[*rhino.Node, string, *SymbolTable_Symbol](),
-		scopes:                 jutil.NewLinkedHashMap[*rhino.Node, *SymbolTable_SymbolScope](),
-		docInfos:               jutil.NewArrayList[*rhino.Node](),
+		symbols:                jutil.HashBasedTable_Create[rhino.Node, string, *SymbolTable_Symbol](),
+		scopes:                 jutil.NewLinkedHashMap[rhino.Node, *SymbolTable_SymbolScope](),
+		docInfos:               jutil.NewArrayList[rhino.Node](),
 		symbolThatDeclaresType: base.NewLinkedIdentityHashMap[rhino.JSType, *SymbolTable_Symbol](),
 		compiler:               compiler,
 		registry:               registry,
@@ -166,7 +166,7 @@ func (t *SymbolTable) GetScope(slot *SymbolTable_Symbol) *SymbolTable_SymbolScop
 }
 
 // Java: SymbolTable.getAllJSDocInfoNodes()
-func (t *SymbolTable) GetAllJSDocInfoNodes() []*rhino.Node {
+func (t *SymbolTable) GetAllJSDocInfoNodes() []rhino.Node {
 	return t.docInfos.Slice()
 }
 
@@ -175,13 +175,13 @@ func (t *SymbolTable) GetAllJSDocInfoNodes() []*rhino.Node {
 // function itself.
 //
 // Java: SymbolTable.getEnclosingScope(Node)
-func (t *SymbolTable) GetEnclosingScope(n *rhino.Node) *SymbolTable_SymbolScope {
+func (t *SymbolTable) GetEnclosingScope(n rhino.Node) *SymbolTable_SymbolScope {
 	current := n.GetParent()
 	if n.IsName() && n.GetParent().IsFunction() {
 		current = current.GetParent()
 	}
 
-	for ; current != nil; current = current.GetParent() {
+	for ; !current.IsNil(); current = current.GetParent() {
 		if t.scopes.ContainsKey(current) {
 			return t.scopes.Get(current)
 		}
@@ -194,13 +194,13 @@ func (t *SymbolTable) GetEnclosingScope(n *rhino.Node) *SymbolTable_SymbolScope 
 // function itself. The returned scope is either function or global scope.
 //
 // Java: SymbolTable.getEnclosingFunctionScope(Node)
-func (t *SymbolTable) GetEnclosingFunctionScope(n *rhino.Node) *SymbolTable_SymbolScope {
+func (t *SymbolTable) GetEnclosingFunctionScope(n rhino.Node) *SymbolTable_SymbolScope {
 	current := n.GetParent()
-	if n.IsName() && current != nil && current.IsFunction() {
+	if n.IsName() && !current.IsNil() && current.IsFunction() {
 		current = current.GetParent()
 	}
 
-	for ; current != nil; current = current.GetParent() {
+	for ; !current.IsNil(); current = current.GetParent() {
 		scope := t.scopes.Get(current)
 		if scope != nil && !scope.IsBlockScope() {
 			return scope
@@ -239,7 +239,7 @@ func (t *SymbolTable) GetScopeInFunction(sym *SymbolTable_Symbol) *SymbolTable_S
 	}
 
 	functionNode := type_.GetSource()
-	if functionNode == nil {
+	if functionNode.IsNil() {
 		return nil
 	}
 
@@ -265,7 +265,7 @@ func (t *SymbolTable) GetSymbolForScope(scope *SymbolTable_SymbolScope) *SymbolT
 // Java: SymbolTable.findSymbolForScope(SymbolScope)
 func (t *SymbolTable) FindSymbolForScope(scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	rootNode := scope.GetRootNode()
-	if rootNode.GetParent() == nil {
+	if rootNode.GetParent().IsNil() {
 		return t.globalScope.GetSlot(SymbolTable_GLOBAL_THIS)
 	}
 
@@ -337,14 +337,14 @@ func (t *SymbolTable) GetSymbolForInstancesOfFunction(fn rhino.FunctionType) *Sy
 }
 
 // Java: SymbolTable.getSymbolForName(Node, String)
-func (t *SymbolTable) GetSymbolForName(source *rhino.Node, name *string) *SymbolTable_Symbol {
+func (t *SymbolTable) GetSymbolForName(source rhino.Node, name *string) *SymbolTable_Symbol {
 	if name == nil || t.globalScope == nil {
 		return nil
 	}
 	nameStr := *name
 
 	var scope *SymbolTable_SymbolScope
-	if source == nil {
+	if source.IsNil() {
 		scope = t.globalScope
 	} else {
 		scope = t.GetEnclosingScope(source)
@@ -583,7 +583,7 @@ func SymbolTable_AddScopes[S rhino.StaticScope](t *SymbolTable, scopes []S) {
 // FindScopes finds all the scopes and adds them to this symbol table.
 //
 // Java: SymbolTable.findScopes(Node, Node)
-func (t *SymbolTable) FindScopes(externs *rhino.Node, root *rhino.Node) {
+func (t *SymbolTable) FindScopes(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(
 		t.compiler,
 		&symbolTable_scopeFinder{outer: t},
@@ -606,7 +606,7 @@ func (f *symbolTable_scopeFinder) EnterScope(t *NodeTraversal) {
 }
 
 // Java: SymbolTable.findScopes(...).new AbstractScopedCallback() {...}.visit(NodeTraversal, Node, Node)
-func (f *symbolTable_scopeFinder) Visit(t *NodeTraversal, n *rhino.Node, p *rhino.Node) {}
+func (f *symbolTable_scopeFinder) Visit(t *NodeTraversal, n rhino.Node, p rhino.Node) {}
 
 // GetAllScopes gets all the scopes in this symbol table.
 //
@@ -642,7 +642,7 @@ func (t *SymbolTable) addAnonymousFunctionsInScope(scope *SymbolTable_SymbolScop
 		rootNode := scope.GetRootNode()
 		if scope.IsLexicalScope() &&
 			!scope.IsGlobalScope() &&
-			rootNode != nil &&
+			!rootNode.IsNil() &&
 			!rootNode.IsFromExterns() &&
 			scope.GetParentScope() != nil &&
 			rootNode.IsFunction() {
@@ -725,7 +725,7 @@ func SymbolTable_AddSymbolsFrom[S rhino.StaticSlot, R rhino.StaticRef](
 // node and scope for the given name. If so, returns it.
 //
 // Java: SymbolTable.isAnySymbolDeclared(String, Node, SymbolScope)
-func (t *SymbolTable) isAnySymbolDeclared(name string, declNode *rhino.Node, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
+func (t *SymbolTable) isAnySymbolDeclared(name string, declNode rhino.Node, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	sym, _ := t.symbols.Get(declNode, name)
 	if sym == nil {
 		// Sometimes, our symbol tables will disagree on where the
@@ -763,7 +763,7 @@ func symbolTable_findBestDeclToAdd[S rhino.StaticSlot, R rhino.StaticRef](
 // Java: SymbolTable.isGoodRefToAdd(StaticRef)
 func (t *SymbolTable) isGoodRefToAdd(ref rhino.StaticRef) bool {
 	return !jutil.IsNil(ref) &&
-		ref.GetNode() != nil &&
+		!ref.GetNode().IsNil() &&
 		!jutil.IsNil(ref.GetNode().GetStaticSourceFile()) &&
 		!NodeUtil_IsInSyntheticScript(ref.GetNode()) &&
 		// Typechecking assigns implicitly goog.provided names a declaration node of the expr:
@@ -778,9 +778,9 @@ func (t *SymbolTable) copySymbolTo(sym rhino.StaticSlot, scope *SymbolTable_Symb
 }
 
 // Java: SymbolTable.copySymbolTo(StaticSlot, Node, SymbolScope)
-func (t *SymbolTable) copySymbolToWithDeclNode(sym rhino.StaticSlot, declNode *rhino.Node, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
+func (t *SymbolTable) copySymbolToWithDeclNode(sym rhino.StaticSlot, declNode rhino.Node, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	// All symbols must have declaration nodes.
-	jutil.CheckNotNull(declNode)
+	rhino.CheckNotNull(declNode)
 	return t.declareSymbol(
 		sym.GetName(), t.getType(sym), t.isTypeInferred(sym), scope, declNode, sym.GetJSDocInfo())
 }
@@ -796,7 +796,7 @@ func symbolTable_sanitizeSpecialChars(s string) string {
 
 // Java: SymbolTable.addSymbol(String, JSType, boolean, SymbolScope, Node)
 func (t *SymbolTable) addSymbol(
-	name string, type_ rhino.JSType, inferred bool, scope *SymbolTable_SymbolScope, declNode *rhino.Node) *SymbolTable_Symbol {
+	name string, type_ rhino.JSType, inferred bool, scope *SymbolTable_SymbolScope, declNode rhino.Node) *SymbolTable_Symbol {
 	name = symbolTable_sanitizeSpecialChars(name)
 
 	symbol := NewSymbolTable_Symbol(name, type_, inferred, scope)
@@ -816,7 +816,7 @@ func (t *SymbolTable) declareSymbol(
 	type_ rhino.JSType,
 	inferred bool,
 	scope *SymbolTable_SymbolScope,
-	declNode *rhino.Node,
+	declNode rhino.Node,
 	info *rhino.JSDocInfo) *SymbolTable_Symbol {
 	symbol := t.addSymbol(name, type_, inferred, scope, declNode)
 	symbol.SetJSDocInfo(info)
@@ -1140,14 +1140,14 @@ nextSymbol:
 // "Foo.prototype" are represented by the same symbol.
 //
 // Java: SymbolTable.fillPropertySymbols(Node, Node)
-func (t *SymbolTable) FillPropertySymbols(externs *rhino.Node, root *rhino.Node) {
+func (t *SymbolTable) FillPropertySymbols(externs rhino.Node, root rhino.Node) {
 	NewSymbolTable_PropertyRefCollector(t).Process(externs, root)
 }
 
 // FillJSDocInfo indexes JSDocInfo.
 //
 // Java: SymbolTable.fillJSDocInfo(Node, Node)
-func (t *SymbolTable) FillJSDocInfo(externs *rhino.Node, root *rhino.Node) {
+func (t *SymbolTable) FillJSDocInfo(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(
 		t.compiler, NewSymbolTable_JSDocInfoCollector(t, t.compiler.GetTypeRegistry()), externs, root)
 
@@ -1180,7 +1180,7 @@ func (t *SymbolTable) FillJSDocInfo(externs *rhino.Node, root *rhino.Node) {
 				if sym.docScope == nil {
 					sym.docScope =
 						NewSymbolTable_SymbolScope(
-							nil /* root */, nil /* parent scope */, nil /* type of this */, sym)
+							rhino.Node{} /* root */, nil /* parent scope */, nil /* type of this */, sym)
 				}
 
 				// Check to make sure there's no existing symbol. In theory, this
@@ -1201,7 +1201,7 @@ func (t *SymbolTable) FillJSDocInfo(externs *rhino.Node, root *rhino.Node) {
 // FillSymbolVisibility records the visibility of each symbol.
 //
 // Java: SymbolTable.fillSymbolVisibility(Node, Node)
-func (t *SymbolTable) FillSymbolVisibility(externs *rhino.Node, root *rhino.Node) {
+func (t *SymbolTable) FillSymbolVisibility(externs rhino.Node, root rhino.Node) {
 	collectPass := NewCollectFileOverviewVisibility(t.compiler)
 	collectPass.Process(externs, root)
 	visibilityMap := collectPass.GetFileOverviewVisibilityMap()
@@ -1250,7 +1250,7 @@ func (t *SymbolTable) createPropertyScopeFor(s *SymbolTable_Symbol) {
 	// Create an empty property scope for the given symbol, maybe with a parent scope if it has
 	// an implicit prototype.
 	parentPropertyScope := t.maybeGetParentPropertyScope(type_)
-	s.SetPropertyScope(NewSymbolTable_SymbolScope(nil, parentPropertyScope, type_, s))
+	s.SetPropertyScope(NewSymbolTable_SymbolScope(rhino.Node{}, parentPropertyScope, type_, s))
 
 	// If this symbol represents some 'a.b.c.prototype', add any instance properties of a.b.c
 	// into the symbol scope.
@@ -1355,21 +1355,21 @@ func (t *SymbolTable) maybeGetParentPropertyScope(symbolObjectType rhino.ObjectT
 // Java: SymbolTable.isEs6ClassConstructor(JSType)
 func (t *SymbolTable) isEs6ClassConstructor(type_ rhino.JSType) bool {
 	return type_.IsFunctionType() &&
-		type_.ToMaybeFunctionType().GetSource() != nil &&
+		!type_.ToMaybeFunctionType().GetSource().IsNil() &&
 		type_.ToMaybeFunctionType().GetSource().IsClass()
 }
 
 // FillThisReferences fills in references to "this" variables.
 //
 // Java: SymbolTable.fillThisReferences(Node, Node)
-func (t *SymbolTable) FillThisReferences(externs *rhino.Node, root *rhino.Node) {
+func (t *SymbolTable) FillThisReferences(externs rhino.Node, root rhino.Node) {
 	NewSymbolTable_ThisRefCollector(t).Process(externs, root)
 }
 
 // FillSuperReferences fills in references to "super" variables.
 //
 // Java: SymbolTable.fillSuperReferences(Node, Node)
-func (t *SymbolTable) FillSuperReferences(externs *rhino.Node, root *rhino.Node) {
+func (t *SymbolTable) FillSuperReferences(externs rhino.Node, root rhino.Node) {
 	collectSuper := &symbolTable_superCollector{outer: t}
 	NodeTraversal_TraverseRoots(t.compiler, collectSuper, externs, root)
 }
@@ -1384,7 +1384,7 @@ type symbolTable_superCollector struct {
 }
 
 // Java: SymbolTable.fillSuperReferences(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (c *symbolTable_superCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *symbolTable_superCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Process only 'super' nodes with types.
 	if !n.IsSuper() || jutil.IsNil(n.GetJSType()) {
 		return
@@ -1409,7 +1409,7 @@ func (c *symbolTable_superCollector) Visit(t *NodeTraversal, n *rhino.Node, pare
 // pointing to the `class Foo` in `some.Foo` module.
 //
 // Java: SymbolTable.addRefsInGoogRequireStatement(Node, Map<String, SymbolScope>)
-func (t *SymbolTable) addRefsInGoogRequireStatement(n *rhino.Node, googModuleScopes *jutil.LinkedHashMap[string, *SymbolTable_SymbolScope]) {
+func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScopes *jutil.LinkedHashMap[string, *SymbolTable_SymbolScope]) {
 	if t.compiler.GetOptions().ShouldRewriteModules() {
 		// When modules are rewritten - there is no need to connect imported names back to definitions
 		// as that was done with the help of Preprocessor tables in ClosureRewriteModule pass.
@@ -1450,7 +1450,7 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n *rhino.Node, googModuleSco
 			declaration = moduleScope.GetOwnSlot("exports")
 		case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
 			// For goog.provide `some.constant` should be defined in global namespace.
-			declaration = t.GetSymbolForName(nil, &moduleName)
+			declaration = t.GetSymbolForName(rhino.Node{}, &moduleName)
 		default:
 			// skip
 		}
@@ -1480,7 +1480,7 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n *rhino.Node, googModuleSco
 				varDeclaration = moduleScope.GetOwnSlot(varName)
 			case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
 				qname := moduleName + "." + varName
-				varDeclaration = t.GetSymbolForName(nil, &qname)
+				varDeclaration = t.GetSymbolForName(rhino.Node{}, &qname)
 			default:
 				// skip
 			}
@@ -1496,7 +1496,7 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n *rhino.Node, googModuleSco
 // creates a symbol and all goog.require/goog.requireType added as references.
 //
 // Java: SymbolTable.fillGoogProvideModuleRequires(Node, Node)
-func (t *SymbolTable) FillGoogProvideModuleRequires(externs *rhino.Node, root *rhino.Node) {
+func (t *SymbolTable) FillGoogProvideModuleRequires(externs rhino.Node, root rhino.Node) {
 	// small optimization to keep symbols created within this function for fast access instead of
 	// going through SymbolTable.getSymbolForName() every time.
 	declaredNamespaces := jutil.NewLinkedHashMap[string, *SymbolTable_Symbol]()
@@ -1504,7 +1504,7 @@ func (t *SymbolTable) FillGoogProvideModuleRequires(externs *rhino.Node, root *r
 	// namespaces there is no scope as elements of goog.provide are global.
 	moduleScopes := jutil.NewLinkedHashMap[string, *SymbolTable_SymbolScope]()
 	looksLikeGoogCall :=
-		func(n *rhino.Node) bool {
+		func(n rhino.Node) bool {
 			if !n.IsCall() {
 				return false
 			}
@@ -1514,14 +1514,14 @@ func (t *SymbolTable) FillGoogProvideModuleRequires(externs *rhino.Node, root *r
 			if !(left.IsGetProp() &&
 				left.GetFirstChild().IsName() &&
 				left.GetFirstChild().GetString() == "goog") ||
-				arg == nil ||
+				arg.IsNil() ||
 				!arg.IsStringLit() {
 				return false
 			}
 			return true
 		}
 	collectModuleScopes :=
-		&symbolTable_postOrderCallback{visit: func(nt *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+		&symbolTable_postOrderCallback{visit: func(nt *NodeTraversal, n rhino.Node, parent rhino.Node) {
 			if !looksLikeGoogCall(n) {
 				return
 			}
@@ -1546,7 +1546,7 @@ func (t *SymbolTable) FillGoogProvideModuleRequires(externs *rhino.Node, root *r
 			}
 		}}
 	processRequireStatements :=
-		&symbolTable_postOrderCallback{visit: func(nt *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+		&symbolTable_postOrderCallback{visit: func(nt *NodeTraversal, n rhino.Node, parent rhino.Node) {
 			if !looksLikeGoogCall(n) {
 				return
 			}
@@ -1612,7 +1612,7 @@ func (t *SymbolTable) FlattenGoogModuleExports() {
 // Java: SymbolTable.isSymbolAQuotedObjectKey(Symbol)
 func (t *SymbolTable) isSymbolAQuotedObjectKey(symbol *SymbolTable_Symbol) bool {
 	node := symbol.GetDeclarationNode()
-	return node != nil && node.IsStringKey() && node.IsQuotedStringKey()
+	return !node.IsNil() && node.IsStringKey() && node.IsQuotedStringKey()
 }
 
 // isSymbolDuplicatedExternOnWindow is a heuristic method to check whether
@@ -1649,7 +1649,7 @@ func (t *SymbolTable) mergeExternSymbolsDuplicatedOnWindow() {
 	// table.
 	externSymbols := jutil.HashBasedTable_Create[string, int, *SymbolTable_Symbol]()
 	for _, symbol := range t.symbols.ValueSlice() {
-		if symbol.GetDeclarationNode() == nil ||
+		if symbol.GetDeclarationNode().IsNil() ||
 			jutil.IsNil(symbol.GetDeclarationNode().GetStaticSourceFile()) ||
 			!symbol.GetDeclarationNode().GetStaticSourceFile().IsExtern() {
 			continue
@@ -1695,7 +1695,7 @@ func (t *SymbolTable) RemoveGeneratedSymbols() {
 			if !symbolAlreadyRemoved {
 				t.removeSymbol(symbol)
 			}
-		} else if symbol.GetDeclarationNode() != nil &&
+		} else if !symbol.GetDeclarationNode().IsNil() &&
 			symbol.GetDeclarationNode().IsModuleBody() {
 			// Symbols that represent whole module (goog.module) aren't needed for indexing. We already
 			// recorded imports/references of that module in fillGoogProvideModuleRequires() function.
@@ -1753,11 +1753,11 @@ func (t *SymbolTable) CreateScopeFrom(otherScope rhino.StaticScope) *SymbolTable
 // Go-only: language-adapter — an anonymous class.
 type symbolTable_postOrderCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	visit func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node)
+	visit func(t *NodeTraversal, n rhino.Node, parent rhino.Node)
 }
 
 // Java: SymbolTable.fillGoogProvideModuleRequires(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (c *symbolTable_postOrderCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *symbolTable_postOrderCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c.visit(t, n, parent)
 }
 
@@ -1769,7 +1769,7 @@ type SymbolTable_Symbol struct {
 
 	// Use a linked hash map, so that the results are deterministic
 	// (and so the declaration always comes first).
-	references *jutil.LinkedHashMap[*rhino.Node, *SymbolTable_Reference]
+	references *jutil.LinkedHashMap[rhino.Node, *SymbolTable_Reference]
 
 	scope *SymbolTable_SymbolScope
 
@@ -1790,7 +1790,7 @@ type SymbolTable_Symbol struct {
 // Java: SymbolTable.Symbol(String, JSType, boolean, SymbolScope)
 func NewSymbolTable_Symbol(name string, type_ rhino.JSType, inferred bool, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	s := &SymbolTable_Symbol{
-		references: jutil.NewLinkedHashMap[*rhino.Node, *SymbolTable_Reference](),
+		references: jutil.NewLinkedHashMap[rhino.Node, *SymbolTable_Reference](),
 		scope:      scope,
 	}
 	s.InitSimpleSlotBase(name, type_, inferred)
@@ -1832,8 +1832,8 @@ func (s *SymbolTable_Symbol) GetFunctionType() rhino.FunctionType {
 }
 
 // Java: SymbolTable.Symbol.defineReferenceAt(Node)
-func (s *SymbolTable_Symbol) DefineReferenceAt(n *rhino.Node) *SymbolTable_Reference {
-	return s.references.ComputeIfAbsent(n, func(k *rhino.Node) *SymbolTable_Reference { return NewSymbolTable_Reference(s, k) })
+func (s *SymbolTable_Symbol) DefineReferenceAt(n rhino.Node) *SymbolTable_Reference {
+	return s.references.ComputeIfAbsent(n, func(k rhino.Node) *SymbolTable_Reference { return NewSymbolTable_Reference(s, k) })
 }
 
 // SetDeclaration sets the declaration node. May only be called once.
@@ -1845,9 +1845,9 @@ func (s *SymbolTable_Symbol) SetDeclaration(ref *SymbolTable_Reference) {
 }
 
 // Java: SymbolTable.Symbol.getDeclarationNode()
-func (s *SymbolTable_Symbol) GetDeclarationNode() *rhino.Node {
+func (s *SymbolTable_Symbol) GetDeclarationNode() rhino.Node {
 	if s.declaration == nil {
-		return nil
+		return rhino.Node{}
 	}
 	return s.declaration.GetNode()
 }
@@ -1855,7 +1855,7 @@ func (s *SymbolTable_Symbol) GetDeclarationNode() *rhino.Node {
 // Java: SymbolTable.Symbol.getSourceFileName()
 func (s *SymbolTable_Symbol) GetSourceFileName() *string {
 	n := s.GetDeclarationNode()
-	if n == nil {
+	if n.IsNil() {
 		return nil
 	}
 	return n.GetSourceFileName()
@@ -1919,7 +1919,7 @@ func (s *SymbolTable_Symbol) IsDocOnlyParameter() bool {
 func (s *SymbolTable_Symbol) String() string {
 	n := s.GetDeclarationNode()
 	lineNo := -1
-	if n != nil {
+	if !n.IsNil() {
 		lineNo = n.GetLineno()
 	}
 	return s.GetName() + "@" + symbolTable_nullableString(s.GetSourceFileName()) + ":" + strconv.Itoa(lineNo)
@@ -1933,7 +1933,7 @@ type SymbolTable_Reference struct {
 }
 
 // Java: SymbolTable.Reference(Symbol, Node)
-func NewSymbolTable_Reference(symbol *SymbolTable_Symbol, node *rhino.Node) *SymbolTable_Reference {
+func NewSymbolTable_Reference(symbol *SymbolTable_Symbol, node rhino.Node) *SymbolTable_Reference {
 	r := &SymbolTable_Reference{}
 	r.InitSimpleReference(symbol, node)
 	return r
@@ -1943,7 +1943,7 @@ func NewSymbolTable_Reference(symbol *SymbolTable_Symbol, node *rhino.Node) *Sym
 //
 // Java: public static final class SymbolTable.SymbolScope
 type SymbolTable_SymbolScope struct {
-	rootNode   *rhino.Node
+	rootNode   rhino.Node
 	parent     *SymbolTable_SymbolScope
 	typeOfThis rhino.JSType
 	ownSymbols *jutil.LinkedHashMap[string, *SymbolTable_Symbol]
@@ -1961,7 +1961,7 @@ type SymbolTable_SymbolScope struct {
 
 // Java: SymbolTable.SymbolScope(Node, SymbolScope, JSType, Symbol)
 func NewSymbolTable_SymbolScope(
-	rootNode *rhino.Node,
+	rootNode rhino.Node,
 	parent *SymbolTable_SymbolScope,
 	typeOfThis rhino.JSType,
 	mySymbol *SymbolTable_Symbol) *SymbolTable_SymbolScope {
@@ -2012,7 +2012,7 @@ func (s *SymbolTable_SymbolScope) GetIndexOfSymbol(sym *SymbolTable_Symbol) int 
 }
 
 // Java: SymbolTable.SymbolScope.getRootNode()
-func (s *SymbolTable_SymbolScope) GetRootNode() *rhino.Node {
+func (s *SymbolTable_SymbolScope) GetRootNode() rhino.Node {
 	return s.rootNode
 }
 
@@ -2072,12 +2072,12 @@ func (s *SymbolTable_SymbolScope) GetTypeOfThis() rhino.JSType {
 
 // Java: SymbolTable.SymbolScope.isGlobalScope()
 func (s *SymbolTable_SymbolScope) IsGlobalScope() bool {
-	return s.GetParentScope() == nil && s.GetRootNode() != nil
+	return s.GetParentScope() == nil && !s.GetRootNode().IsNil()
 }
 
 // Java: SymbolTable.SymbolScope.isModuleScope()
 func (s *SymbolTable_SymbolScope) IsModuleScope() bool {
-	return s.GetRootNode() != nil && s.GetRootNode().IsModuleBody()
+	return !s.GetRootNode().IsNil() && s.GetRootNode().IsModuleBody()
 }
 
 // IsDocScope returns whether this is a doc scope. A doc scope is a table for
@@ -2085,22 +2085,22 @@ func (s *SymbolTable_SymbolScope) IsModuleScope() bool {
 //
 // Java: SymbolTable.SymbolScope.isDocScope()
 func (s *SymbolTable_SymbolScope) IsDocScope() bool {
-	return s.GetRootNode() == nil && s.mySymbol != nil && s.mySymbol.docScope == s
+	return s.GetRootNode().IsNil() && s.mySymbol != nil && s.mySymbol.docScope == s
 }
 
 // Java: SymbolTable.SymbolScope.isPropertyScope()
 func (s *SymbolTable_SymbolScope) IsPropertyScope() bool {
-	return s.GetRootNode() == nil && !s.IsDocScope()
+	return s.GetRootNode().IsNil() && !s.IsDocScope()
 }
 
 // Java: SymbolTable.SymbolScope.isLexicalScope()
 func (s *SymbolTable_SymbolScope) IsLexicalScope() bool {
-	return s.GetRootNode() != nil
+	return !s.GetRootNode().IsNil()
 }
 
 // Java: SymbolTable.SymbolScope.isBlockScope()
 func (s *SymbolTable_SymbolScope) IsBlockScope() bool {
-	return s.GetRootNode() != nil && NodeUtil_CreatesBlockScope(s.GetRootNode())
+	return !s.GetRootNode().IsNil() && NodeUtil_CreatesBlockScope(s.GetRootNode())
 }
 
 // Java: SymbolTable.SymbolScope.getScopeDepth()
@@ -2118,7 +2118,7 @@ func (s *SymbolTable_SymbolScope) String() string {
 	n := s.GetRootNode()
 	if s.IsGlobalScope() {
 		return "GlobalScope"
-	} else if n != nil {
+	} else if !n.IsNil() {
 		type_ := "Scope"
 		if s.IsModuleScope() {
 			type_ = "ModuleScope"
@@ -2151,12 +2151,12 @@ func NewSymbolTable_PropertyRefCollector(outer *SymbolTable) *SymbolTable_Proper
 }
 
 // Java: SymbolTable.PropertyRefCollector.process(Node, Node)
-func (c *SymbolTable_PropertyRefCollector) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *SymbolTable_PropertyRefCollector) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(c.outer.compiler, c, externs, root)
 }
 
 // Java: SymbolTable.PropertyRefCollector.maybeDefineReference(Node, String, Symbol)
-func (c *SymbolTable_PropertyRefCollector) maybeDefineReference(n *rhino.Node, propName string, ownerSymbol *SymbolTable_Symbol) bool {
+func (c *SymbolTable_PropertyRefCollector) maybeDefineReference(n rhino.Node, propName string, ownerSymbol *SymbolTable_Symbol) bool {
 	if ownerSymbol == nil {
 		return false
 	}
@@ -2189,7 +2189,7 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineReference(n *rhino.Node, p
 // qualified name.
 //
 // Java: SymbolTable.PropertyRefCollector.tryDefineLexicalQualifiedNameRef(String, Node)
-func (c *SymbolTable_PropertyRefCollector) tryDefineLexicalQualifiedNameRef(name *string, n *rhino.Node) bool {
+func (c *SymbolTable_PropertyRefCollector) tryDefineLexicalQualifiedNameRef(name *string, n rhino.Node) bool {
 	if name != nil {
 		lexicalSym := c.outer.GetEnclosingScope(n).GetQualifiedSlot(*name)
 		if lexicalSym != nil {
@@ -2204,7 +2204,7 @@ func (c *SymbolTable_PropertyRefCollector) tryDefineLexicalQualifiedNameRef(name
 // qualified name. If the symbol has no references left, remove it completely.
 //
 // Java: SymbolTable.PropertyRefCollector.tryRemoveLexicalQualifiedNameRef(String, Node)
-func (c *SymbolTable_PropertyRefCollector) tryRemoveLexicalQualifiedNameRef(name *string, n *rhino.Node) {
+func (c *SymbolTable_PropertyRefCollector) tryRemoveLexicalQualifiedNameRef(name *string, n rhino.Node) {
 	if name != nil {
 		lexicalSym := c.outer.GetEnclosingScope(n).GetQualifiedSlot(*name)
 		if lexicalSym != nil &&
@@ -2216,7 +2216,7 @@ func (c *SymbolTable_PropertyRefCollector) tryRemoveLexicalQualifiedNameRef(name
 }
 
 // Java: SymbolTable.PropertyRefCollector.maybeDefineTypedReference(Node, String, JSType)
-func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n *rhino.Node, propName string, owner rhino.JSType) bool {
+func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n rhino.Node, propName string, owner rhino.JSType) bool {
 	t := c.outer
 	if owner.IsGlobalThisType() {
 		sym := t.globalScope.GetSlot(propName)
@@ -2253,12 +2253,12 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n *rhino.No
 	// here n is foo, propName is doSomething and owner is module type.
 	if owner.IsObjectType() && !jutil.IsNil(owner.ToMaybeObjectType()) {
 		propNodeDecl := owner.AssertObjectType().GetPropertyNode(propName)
-		if propNodeDecl == nil {
+		if propNodeDecl.IsNil() {
 			return false
 		}
 		// There is no handy way to find symbol object the given property node. So we do
 		// property node => namespace node => namespace symbol => property symbol.
-		if propNodeDecl != nil &&
+		if !propNodeDecl.IsNil() &&
 			(propNodeDecl.IsGetProp() || propNodeDecl.IsOptChainGetProp()) {
 			namespace := propNodeDecl.GetFirstChild()
 			namespaceSym := t.GetSymbolForName(namespace, namespace.GetQualifiedName())
@@ -2296,7 +2296,7 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n *rhino.No
 }
 
 // Java: SymbolTable.PropertyRefCollector.visit(NodeTraversal, Node, Node)
-func (c *SymbolTable_PropertyRefCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *SymbolTable_PropertyRefCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// There are two ways to define a property reference:
 	// 1) As a fully qualified lexical symbol (e.g., x.y)
 	// 2) As a property of another object (e.g., x's y)
@@ -2356,7 +2356,7 @@ func NewSymbolTable_ThisRefCollector(outer *SymbolTable) *SymbolTable_ThisRefCol
 }
 
 // Java: SymbolTable.ThisRefCollector.process(Node, Node)
-func (c *SymbolTable_ThisRefCollector) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *SymbolTable_ThisRefCollector) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(c.outer.compiler, c, externs, root)
 }
 
@@ -2371,7 +2371,7 @@ func (c *SymbolTable_ThisRefCollector) EnterScope(t *NodeTraversal) {
 		// must have a path).
 		// Note that root.lastChild.firstChild is the first non-extern input.
 		firstInputRoot := t.GetScopeRoot().GetLastChild().GetFirstChild()
-		if firstInputRoot != nil {
+		if !firstInputRoot.IsNil() {
 			symbol =
 				st.addSymbol(
 					SymbolTable_GLOBAL_THIS,
@@ -2424,7 +2424,7 @@ func (c *SymbolTable_ThisRefCollector) ExitScope(t *NodeTraversal) {
 }
 
 // Java: SymbolTable.ThisRefCollector.visit(NodeTraversal, Node, Node)
-func (c *SymbolTable_ThisRefCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *SymbolTable_ThisRefCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsThis() {
 		return
 	}
@@ -2457,7 +2457,7 @@ func NewSymbolTable_JSDocInfoCollector(outer *SymbolTable, registry *rhino.JSTyp
 }
 
 // Java: SymbolTable.JSDocInfoCollector.visit(NodeTraversal, Node, Node)
-func (c *SymbolTable_JSDocInfoCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *SymbolTable_JSDocInfoCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	info := n.GetJSDocInfo()
 	if info == nil {
 		return
@@ -2485,7 +2485,7 @@ func (c *SymbolTable_JSDocInfoCollector) isNativeSourcelessType(name string) boo
 
 // Java: SymbolTable.JSDocInfoCollector.visitTypeNode(ImmutableMap<String, JSTypeExpression>, SymbolScope, Node)
 func (c *SymbolTable_JSDocInfoCollector) VisitTypeNode(
-	templateTypeNames *jutil.LinkedHashMap[string, *rhino.JSTypeExpression], scope *SymbolTable_SymbolScope, n *rhino.Node) {
+	templateTypeNames *jutil.LinkedHashMap[string, *rhino.JSTypeExpression], scope *SymbolTable_SymbolScope, n rhino.Node) {
 	if n.IsStringLit() &&
 		!c.isNativeSourcelessType(n.GetString()) &&
 		!templateTypeNames.ContainsKey(n.GetString()) {
@@ -2512,7 +2512,7 @@ func (c *SymbolTable_JSDocInfoCollector) VisitTypeNode(
 		}
 	}
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		c.VisitTypeNode(templateTypeNames, scope, child)
 	}
 }
@@ -2554,7 +2554,7 @@ func NewSymbolTable_VisibilityCollector(
 }
 
 // Java: SymbolTable.VisibilityCollector.visit(NodeTraversal, Node, Node)
-func (c *SymbolTable_VisibilityCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *SymbolTable_VisibilityCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		c.visitName(t, n)
 	} else if n.IsGetProp() || n.IsOptChainGetProp() {
@@ -2563,7 +2563,7 @@ func (c *SymbolTable_VisibilityCollector) Visit(t *NodeTraversal, n *rhino.Node,
 }
 
 // Java: SymbolTable.VisibilityCollector.visitName(NodeTraversal, Node)
-func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, n *rhino.Node) {
+func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, n rhino.Node) {
 	symbol, _ := c.outer.symbols.Get(n, n.GetString())
 	if symbol == nil {
 		return
@@ -2583,7 +2583,7 @@ func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, n *rhino.N
 }
 
 // Java: SymbolTable.VisibilityCollector.visitProperty(Node, Node)
-func (c *SymbolTable_VisibilityCollector) visitProperty(getprop *rhino.Node, parent *rhino.Node) {
+func (c *SymbolTable_VisibilityCollector) visitProperty(getprop rhino.Node, parent rhino.Node) {
 	propertyName := getprop.GetString()
 	symbol, _ := c.outer.symbols.Get(getprop, propertyName)
 	if symbol == nil {
@@ -2632,7 +2632,7 @@ func (t *SymbolTable) initOrderings() {
 		return jutil.StringCompareTo(*a, *b)
 	}
 
-	t.nodeOrdering = func(a, b *rhino.Node) int {
+	t.nodeOrdering = func(a, b rhino.Node) int {
 		result := t.sourceNameOrdering(a.GetSourceFileName(), b.GetSourceFileName())
 		if result != 0 {
 			return result

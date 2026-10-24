@@ -171,7 +171,7 @@ func (r *printDumpReporter) Error(message string, sourceName string, line int, l
 }
 
 // printDumpParse is PrintDump.parse; w may be nil.
-func printDumpParse(w *printDumpWriter, config *parsing.Config, name, src string) *rhino.Node {
+func printDumpParse(w *printDumpWriter, config *parsing.Config, name, src string) rhino.Node {
 	reporter := &printDumpReporter{}
 	var result *parsing.ParserRunner_ParseResult
 	var exception jutil.Throwable
@@ -185,13 +185,13 @@ func printDumpParse(w *printDumpWriter, config *parsing.Config, name, src string
 			class := strings.TrimSuffix(full, ": "+msg)
 			w.line("# parse exception " + class + ": " + msg)
 		}
-		return nil
+		return rhino.Node{}
 	}
-	if reporter.errors > 0 || result.Ast == nil {
+	if reporter.errors > 0 || result.Ast.IsNil() {
 		if w != nil {
 			w.line("# parse errors " + strconv.Itoa(reporter.errors))
 		}
-		return nil
+		return rhino.Node{}
 	}
 	if w != nil {
 		w.line("# parse ok")
@@ -204,11 +204,11 @@ func printDumpOne(o *printDumpOptions, name, src string) string {
 	w := &printDumpWriter{}
 	w.line(o.header())
 	root := printDumpParse(w, printDumpParserConfig(parsing.Config_JsDocParsing_TYPES_ONLY), name, src)
-	if root == nil {
+	if root.IsNil() {
 		return w.sb.String()
 	}
 
-	print := func(name string, root *rhino.Node, configure func(b *CodePrinter_Builder)) {
+	print := func(name string, root rhino.Node, configure func(b *CodePrinter_Builder)) {
 		if !o.selected(name) {
 			return
 		}
@@ -264,11 +264,11 @@ func printDumpOne(o *printDumpOptions, name, src string) string {
 	print("original-names", root, withOptions(func(o *CompilerOptions) { o.SetUseOriginalNamesInOutput(true) }))
 
 	// Comments: a parse that keeps every comment.
-	var allRoot *rhino.Node
+	var allRoot rhino.Node
 	if o.selected("pretty-comments") || o.selected("compact-comments") || o.selected("jsdoc-all") {
 		allRoot = printDumpParse(nil, printDumpParserConfig(parsing.Config_JsDocParsing_INCLUDE_ALL_COMMENTS), name, src)
 	}
-	if allRoot != nil {
+	if !allRoot.IsNil() {
 		print("pretty-comments", allRoot, withOptions(func(o *CompilerOptions) {
 			o.SetPreserveTypeAnnotations(true)
 			o.SetPreserveNonJSDocComments(true)
@@ -283,7 +283,7 @@ func printDumpOne(o *printDumpOptions, name, src string) string {
 	if o.selected("jsdoc-types") {
 		printDumpJsDoc(w, "types", root, NewJSDocInfoPrinter(false))
 	}
-	if allRoot != nil && o.selected("jsdoc-all") {
+	if !allRoot.IsNil() && o.selected("jsdoc-all") {
 		printDumpJsDoc(w, "all", allRoot, NewJSDocInfoPrinterWithPrintDesc(false, true))
 	}
 
@@ -295,7 +295,7 @@ func printDumpOne(o *printDumpOptions, name, src string) string {
 }
 
 // printDumpWithSourceMap is PrintDump.printWithSourceMap.
-func printDumpWithSourceMap(o *printDumpOptions, w *printDumpWriter, name string, root *rhino.Node,
+func printDumpWithSourceMap(o *printDumpOptions, w *printDumpWriter, name string, root rhino.Node,
 	pretty bool, lineBreak bool, threshold int, detail SourceMap_DetailLevel) {
 	if !o.selected(name) {
 		return
@@ -336,16 +336,16 @@ func printDumpWithSourceMap(o *printDumpOptions, w *printDumpWriter, name string
 }
 
 // printDumpJsDoc is PrintDump.dumpJsDoc.
-func printDumpJsDoc(w *printDumpWriter, parse string, n *rhino.Node, printer *JSDocInfoPrinter) {
+func printDumpJsDoc(w *printDumpWriter, parse string, n rhino.Node, printer *JSDocInfoPrinter) {
 	if info := n.GetJSDocInfo(); info != nil {
 		w.line("# jsdoc " + parse + " " + n.GetToken().String() + " " +
 			strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno()))
 		w.try(func() { w.lines(printer.Print(info)) })
 	}
-	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+	if shadow := n.GetClosureUnawareShadow(); !shadow.IsNil() {
 		printDumpJsDoc(w, parse, shadow, printer)
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		printDumpJsDoc(w, parse, c, printer)
 	}
 }

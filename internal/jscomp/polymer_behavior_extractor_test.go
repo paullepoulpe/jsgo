@@ -31,7 +31,7 @@ type PolymerBehaviorExtractorTest struct {
 	CompilerTypeTestCaseBase
 
 	extractor         *PolymerBehaviorExtractor
-	behaviorArray     *rhino.Node
+	behaviorArray     rhino.Node
 	moduleMetadataMap *ModuleMetadataMap
 }
 
@@ -49,7 +49,7 @@ func TestPolymerBehaviorExtractorTest(t *testing.T) {
 // Java: PolymerBehaviorExtractorTest.setUp()
 func (c *PolymerBehaviorExtractorTest) SetUp() {
 	c.CompilerTypeTestCaseBase.SetUp()
-	c.behaviorArray = nil
+	c.behaviorArray = rhino.Node{}
 }
 
 // Java: PolymerBehaviorExtractorTest.testArrayBehavior()
@@ -687,7 +687,7 @@ func (c *PolymerBehaviorExtractorTest) parseAndInitializeExtractor(code ...strin
 
 	NodeUtil_VisitPostOrder(
 		root,
-		NodeUtil_VisitorFunc(func(node *rhino.Node) {
+		NodeUtil_VisitorFunc(func(node rhino.Node) {
 			if c.isBehaviorArrayDeclaration(node) {
 				c.behaviorArray = node
 			}
@@ -697,7 +697,7 @@ func (c *PolymerBehaviorExtractorTest) parseAndInitializeExtractor(code ...strin
 }
 
 // Java: PolymerBehaviorExtractorTest.isBehaviorArrayDeclaration(Node)
-func (c *PolymerBehaviorExtractorTest) isBehaviorArrayDeclaration(node *rhino.Node) bool {
+func (c *PolymerBehaviorExtractorTest) isBehaviorArrayDeclaration(node rhino.Node) bool {
 	return node.IsArrayLit() &&
 		node.GetParent().IsStringKey() &&
 		node.GetParent().GetString() == "behaviors"

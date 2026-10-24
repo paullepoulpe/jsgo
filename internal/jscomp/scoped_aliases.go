@@ -227,7 +227,7 @@ func (b *ScopedAliases_Builder) Build() *ScopedAliases {
 }
 
 // Java: ScopedAliases.process(Node, Node)
-func (s *ScopedAliases) Process(externs *rhino.Node, root *rhino.Node) {
+func (s *ScopedAliases) Process(externs rhino.Node, root rhino.Node) {
 	traversal := s.NewTraversal()
 	NodeTraversal_Traverse(s.compiler, root, traversal)
 
@@ -294,11 +294,11 @@ type ScopedAliases_AliasUsage interface {
 // AliasUsage.
 type ScopedAliases_AliasUsageBase struct {
 	aliasVar       *Var
-	aliasReference *rhino.Node
+	aliasReference rhino.Node
 }
 
 // Java: ScopedAliases.AliasUsage(Var, Node)
-func (u *ScopedAliases_AliasUsageBase) InitScopedAliases_AliasUsageBase(aliasVar *Var, aliasReference *rhino.Node) {
+func (u *ScopedAliases_AliasUsageBase) InitScopedAliases_AliasUsageBase(aliasVar *Var, aliasReference rhino.Node) {
 	u.aliasVar = aliasVar
 	u.aliasReference = aliasReference
 }
@@ -324,7 +324,7 @@ func (u *ScopedAliases_AliasUsageBase) ReferencesOtherAlias(deletedAliasVars *ju
 }
 
 // Java: ScopedAliases.isValidAliasRhs(Node)
-func scopedAliases_isValidAliasRhs(rhs *rhino.Node) bool {
+func scopedAliases_isValidAliasRhs(rhs rhino.Node) bool {
 	switch rhs.GetToken() {
 	case rhino.Token_GETPROP:
 		return scopedAliases_isValidAliasRhs(rhs.GetFirstChild())
@@ -338,7 +338,7 @@ func scopedAliases_isValidAliasRhs(rhs *rhino.Node) bool {
 }
 
 // Java: ScopedAliases.isAliasDefinition(Node)
-func scopedAliases_isAliasDefinition(nameNode *rhino.Node) bool {
+func scopedAliases_isAliasDefinition(nameNode rhino.Node) bool {
 	if !nameNode.HasChildren() {
 		return false
 	}
@@ -347,7 +347,7 @@ func scopedAliases_isAliasDefinition(nameNode *rhino.Node) bool {
 }
 
 // Java: ScopedAliases.getAliasedNamespace(Node)
-func scopedAliases_getAliasedNamespace(rhs *rhino.Node) string {
+func scopedAliases_getAliasedNamespace(rhs rhino.Node) string {
 	switch rhs.GetToken() {
 	case rhino.Token_GETPROP:
 		return scopedAliases_getAliasedNamespace(rhs.GetFirstChild()) + "." + rhs.GetString()
@@ -368,7 +368,7 @@ type ScopedAliases_AliasedNode struct {
 }
 
 // Java: ScopedAliases.AliasedNode(Var, Node)
-func NewScopedAliases_AliasedNode(aliasVar *Var, aliasReference *rhino.Node) *ScopedAliases_AliasedNode {
+func NewScopedAliases_AliasedNode(aliasVar *Var, aliasReference rhino.Node) *ScopedAliases_AliasedNode {
 	a := &ScopedAliases_AliasedNode{}
 	a.InitScopedAliases_AliasUsageBase(aliasVar, aliasReference)
 	return a
@@ -398,7 +398,7 @@ type ScopedAliases_AliasedTypeNode struct {
 }
 
 // Java: ScopedAliases.AliasedTypeNode(Var, Node)
-func NewScopedAliases_AliasedTypeNode(aliasVar *Var, aliasReference *rhino.Node) *ScopedAliases_AliasedTypeNode {
+func NewScopedAliases_AliasedTypeNode(aliasVar *Var, aliasReference rhino.Node) *ScopedAliases_AliasedTypeNode {
 	a := &ScopedAliases_AliasedTypeNode{}
 	a.InitScopedAliases_AliasUsageBase(aliasVar, aliasReference)
 	return a
@@ -428,9 +428,9 @@ type ScopedAliases_Traversal struct {
 
 	// The job of this class is to collect these three data sets.
 
-	aliasDefinitionsToDelete *jutil.ArrayList[*rhino.Node]
+	aliasDefinitionsToDelete *jutil.ArrayList[rhino.Node]
 
-	scopeCalls *jutil.ArrayList[*rhino.Node]
+	scopeCalls *jutil.ArrayList[rhino.Node]
 
 	aliasUsages *jutil.ArrayList[ScopedAliases_AliasUsage]
 
@@ -438,7 +438,7 @@ type ScopedAliases_Traversal struct {
 	aliases *jutil.LinkedHashMap[string, *Var]
 
 	// Also temporary and cleared for each scope.
-	injectedDecls *jutil.LinkedHashSet[*rhino.Node]
+	injectedDecls *jutil.LinkedHashSet[rhino.Node]
 
 	// Persists across scopes.
 	deletedAliasVars *jutil.LinkedHashSet[*Var]
@@ -462,7 +462,7 @@ type ScopedAliases_Traversal struct {
 	// The body of the function that is passed to goog.scope.
 	// Set when the traversal enters the body, and set back to null when it
 	// exits.
-	scopeFunctionBody *rhino.Node
+	scopeFunctionBody rhino.Node
 }
 
 var _ NodeTraversal_ScopedCallback = (*ScopedAliases_Traversal)(nil)
@@ -471,18 +471,18 @@ var _ NodeTraversal_ScopedCallback = (*ScopedAliases_Traversal)(nil)
 func (s *ScopedAliases) NewTraversal() *ScopedAliases_Traversal {
 	return &ScopedAliases_Traversal{
 		outer:                    s,
-		aliasDefinitionsToDelete: jutil.NewArrayList[*rhino.Node](),
-		scopeCalls:               jutil.NewArrayList[*rhino.Node](),
+		aliasDefinitionsToDelete: jutil.NewArrayList[rhino.Node](),
+		scopeCalls:               jutil.NewArrayList[rhino.Node](),
 		aliasUsages:              jutil.NewArrayList[ScopedAliases_AliasUsage](),
 		aliases:                  jutil.NewLinkedHashMap[string, *Var](),
-		injectedDecls:            jutil.NewLinkedHashSet[*rhino.Node](),
+		injectedDecls:            jutil.NewLinkedHashSet[rhino.Node](),
 		deletedAliasVars:         jutil.NewLinkedHashSet[*Var](),
 		forbiddenLocals:          jutil.NewLinkedHashSet("$jscomp"),
 	}
 }
 
 // Java: ScopedAliases.Traversal.getAliasDefinitionsToDelete()
-func (v *ScopedAliases_Traversal) GetAliasDefinitionsToDelete() *jutil.ArrayList[*rhino.Node] {
+func (v *ScopedAliases_Traversal) GetAliasDefinitionsToDelete() *jutil.ArrayList[rhino.Node] {
 	return v.aliasDefinitionsToDelete
 }
 
@@ -492,7 +492,7 @@ func (v *ScopedAliases_Traversal) GetAliasUsages() *jutil.ArrayList[ScopedAliase
 }
 
 // Java: ScopedAliases.Traversal.getScopeCalls()
-func (v *ScopedAliases_Traversal) GetScopeCalls() *jutil.ArrayList[*rhino.Node] {
+func (v *ScopedAliases_Traversal) GetScopeCalls() *jutil.ArrayList[rhino.Node] {
 	return v.scopeCalls
 }
 
@@ -506,18 +506,18 @@ func (v *ScopedAliases_Traversal) HasErrors() bool {
 //
 // Java: ScopedAliases.Traversal.inGoogScopeBody()
 func (v *ScopedAliases_Traversal) InGoogScopeBody() bool {
-	return v.scopeFunctionBody != nil
+	return !v.scopeFunctionBody.IsNil()
 }
 
 // IsGoogScopeFunctionBody returns true if n is the goog.scope function body.
 //
 // Java: ScopedAliases.Traversal.isGoogScopeFunctionBody(Node)
-func (v *ScopedAliases_Traversal) IsGoogScopeFunctionBody(n *rhino.Node) bool {
+func (v *ScopedAliases_Traversal) IsGoogScopeFunctionBody(n rhino.Node) bool {
 	return v.InGoogScopeBody() && n == v.scopeFunctionBody
 }
 
 // Java: ScopedAliases.Traversal.isCallToScopeMethod(Node)
-func (v *ScopedAliases_Traversal) IsCallToScopeMethod(n *rhino.Node) bool {
+func (v *ScopedAliases_Traversal) IsCallToScopeMethod(n rhino.Node) bool {
 	return n.IsCall() && n.GetFirstChild().MatchesQualifiedName(ScopedAliases_SCOPING_METHOD_NAME)
 }
 
@@ -526,12 +526,12 @@ func (v *ScopedAliases_Traversal) IsCallToScopeMethod(n *rhino.Node) bool {
 // scopeRoot, or null if scopeRoot is not in a goog.scope() call.
 //
 // Java: ScopedAliases.Traversal.findScopeMethodCall(Node)
-func (v *ScopedAliases_Traversal) FindScopeMethodCall(scopeRoot *rhino.Node) *rhino.Node {
+func (v *ScopedAliases_Traversal) FindScopeMethodCall(scopeRoot rhino.Node) rhino.Node {
 	n := scopeRoot.GetGrandparent()
 	if v.IsCallToScopeMethod(n) {
 		return n
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: ScopedAliases.Traversal.enterScope(NodeTraversal)
@@ -540,7 +540,7 @@ func (v *ScopedAliases_Traversal) EnterScope(t *NodeTraversal) {
 		return
 	}
 	scopeMethodCall := v.FindScopeMethodCall(t.GetScopeRoot())
-	if scopeMethodCall != nil {
+	if !scopeMethodCall.IsNil() {
 		v.FindAliases(t.GetScope())
 		v.scopeFunctionBody = scopeMethodCall.GetLastChild().GetLastChild()
 	}
@@ -549,7 +549,7 @@ func (v *ScopedAliases_Traversal) EnterScope(t *NodeTraversal) {
 // Java: ScopedAliases.Traversal.exitScope(NodeTraversal)
 func (v *ScopedAliases_Traversal) ExitScope(t *NodeTraversal) {
 	if v.IsGoogScopeFunctionBody(t.GetScopeRoot()) {
-		v.scopeFunctionBody = nil
+		v.scopeFunctionBody = rhino.Node{}
 		v.RenameNamespaceShadows(t)
 		v.injectedDecls.Clear()
 		v.aliases.Clear()
@@ -583,7 +583,7 @@ func (v *ScopedAliases_Traversal) ReportInvalidVariables(t *NodeTraversal) {
 }
 
 // Java: ScopedAliases.Traversal.report(Node, DiagnosticType, String...)
-func (v *ScopedAliases_Traversal) Report(n *rhino.Node, error_ *DiagnosticType, arguments ...string) {
+func (v *ScopedAliases_Traversal) Report(n rhino.Node, error_ *DiagnosticType, arguments ...string) {
 	v.outer.compiler.Report(JSError_MakeWithNode(n, error_, arguments...))
 	v.hasErrors = true
 }
@@ -609,7 +609,7 @@ func (v *ScopedAliases_Traversal) FindAliases(scope *Scope) {
 			isHoisted := NodeUtil_IsHoistedFunctionDeclaration(parent)
 			grandparent := parent.GetParent()
 			value := var_.GetInitialValue()
-			var varNode *rhino.Node
+			var varNode rhino.Node
 
 			// Pull out inline type declaration if present.
 			if n.GetJSDocInfo() != nil {
@@ -644,7 +644,7 @@ func (v *ScopedAliases_Traversal) FindAliases(scope *Scope) {
 				//
 				// This will only cause problems if this is a hoisted, recursive
 				// function, and the programmer is using the hoisting.
-				var newName *rhino.Node
+				var newName rhino.Node
 				if isFunctionDecl {
 					newName = rhino.IR_Name("")
 				} else {
@@ -657,7 +657,7 @@ func (v *ScopedAliases_Traversal) FindAliases(scope *Scope) {
 				varNode = rhino.IR_Var(n).Srcref(n)
 				parent.ReplaceWith(varNode)
 			} else {
-				if value != nil {
+				if !value.IsNil() {
 					// If this is a VAR, we can just detach the expression and
 					// the tree will still be valid.
 					value.Detach()
@@ -679,7 +679,7 @@ func (v *ScopedAliases_Traversal) FindAliases(scope *Scope) {
 			} else {
 				newDecl.InsertBefore(varNode)
 			}
-			if value != nil {
+			if !value.IsNil() {
 				compiler.ReportChangeToEnclosingScope(newDecl)
 			}
 			v.injectedDecls.Add(newDecl)
@@ -741,7 +741,7 @@ func (v *ScopedAliases_Traversal) RecordAlias(aliasVar *Var) {
 // goog.module.get calls to inexistent namespaces.
 //
 // Java: ScopedAliases.Traversal.containsInvalidGoogModuleGet(Node)
-func (v *ScopedAliases_Traversal) ContainsInvalidGoogModuleGet(expression *rhino.Node) bool {
+func (v *ScopedAliases_Traversal) ContainsInvalidGoogModuleGet(expression rhino.Node) bool {
 	switch expression.GetToken() {
 	case rhino.Token_NAME:
 		return false
@@ -790,7 +790,7 @@ func (v *ScopedAliases_Traversal) RenameNamespaceShadows(t *NodeTraversal) {
 		uniquifier :=
 			MakeDeclaredNamesUnique_Builder_().WithRenamer(renamer).Build()
 		NodeTraversal_TraverseScopeRoots(
-			v.outer.compiler, []*rhino.Node{t.GetScopeRoot()}, uniquifier, true)
+			v.outer.compiler, []rhino.Node{t.GetScopeRoot()}, uniquifier, true)
 	}
 }
 
@@ -801,11 +801,11 @@ type scopedAliases_renameBleedingFunctionNameCallback struct {
 	compiler AbstractCompiler
 	name     string
 	suffix   string
-	fnName   *rhino.Node
+	fnName   rhino.Node
 }
 
 // Java: ScopedAliases.Traversal.renameBleedingFunctionName(NodeTraversal, Node).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (c *scopedAliases_renameBleedingFunctionNameCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *scopedAliases_renameBleedingFunctionNameCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() &&
 		n.GetString() == c.name &&
 		t.GetScope().GetVar(c.name).GetNode() == c.fnName {
@@ -815,7 +815,7 @@ func (c *scopedAliases_renameBleedingFunctionNameCallback) Visit(t *NodeTraversa
 }
 
 // Java: ScopedAliases.Traversal.renameBleedingFunctionName(NodeTraversal, Node)
-func (v *ScopedAliases_Traversal) RenameBleedingFunctionName(t *NodeTraversal, fnName *rhino.Node) {
+func (v *ScopedAliases_Traversal) RenameBleedingFunctionName(t *NodeTraversal, fnName rhino.Node) {
 	compiler := v.outer.compiler
 	name := fnName.GetString()
 	suffix := compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
@@ -830,14 +830,14 @@ func (v *ScopedAliases_Traversal) RenameBleedingFunctionName(t *NodeTraversal, f
 }
 
 // Java: ScopedAliases.Traversal.validateScopeCall(NodeTraversal, Node, Node)
-func (v *ScopedAliases_Traversal) ValidateScopeCall(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (v *ScopedAliases_Traversal) ValidateScopeCall(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if v.outer.preprocessorSymbolTable != nil {
 		v.outer.preprocessorSymbolTable.AddReference(n.GetFirstChild())
 	}
 	if !parent.IsExprResult() {
 		v.Report(n, ScopedAliases_GOOG_SCOPE_MUST_BE_ALONE)
 	}
-	if t.GetEnclosingFunction() != nil {
+	if !t.GetEnclosingFunction().IsNil() {
 		v.Report(n, ScopedAliases_GOOG_SCOPE_MUST_BE_IN_GLOBAL_SCOPE)
 	}
 	if !n.HasTwoChildren() {
@@ -857,7 +857,7 @@ func (v *ScopedAliases_Traversal) ValidateScopeCall(t *NodeTraversal, n *rhino.N
 }
 
 // Java: ScopedAliases.Traversal.visit(NodeTraversal, Node, Node)
-func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	compiler := v.outer.compiler
 	// grab the source file path to generate the unique id
 	v.outer.uniqueIdInput = t.GetInput()
@@ -940,7 +940,7 @@ func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n *rhino.Node, parent 
 }
 
 // Java: ScopedAliases.Traversal.fixTypeNode(Node)
-func (v *ScopedAliases_Traversal) FixTypeNode(typeNode *rhino.Node) {
+func (v *ScopedAliases_Traversal) FixTypeNode(typeNode rhino.Node) {
 	if typeNode.IsStringLit() {
 		name := typeNode.GetString()
 		endIndex := strings.IndexByte(name, '.')
@@ -959,7 +959,7 @@ func (v *ScopedAliases_Traversal) FixTypeNode(typeNode *rhino.Node) {
 			typeNode.SetOriginalName(&name)
 		}
 	}
-	for child := typeNode.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		v.FixTypeNode(child)
 	}
 }

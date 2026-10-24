@@ -127,12 +127,12 @@ func normalizeOracleDiag(level string, e *JSError) string {
 		strconv.Itoa(e.GetCharno()) + " \"" + e.GetDescription() + "\""
 }
 
-func normalizeOracleCollectChanges(n *rhino.Node, out *[]string) {
+func normalizeOracleCollectChanges(n rhino.Node, out *[]string) {
 	if (n.IsScript() || n.IsFunction()) && n.GetChangeTime() != 0 {
 		*out = append(*out, n.GetToken().String()+"@"+strconv.Itoa(n.GetLineno())+":"+
 			strconv.Itoa(n.GetCharno())+" "+strconv.Itoa(int(n.GetChangeTime())))
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		normalizeOracleCollectChanges(c, out)
 	}
 }

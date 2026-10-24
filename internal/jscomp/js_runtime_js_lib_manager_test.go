@@ -29,10 +29,10 @@ import (
 
 // stubResourceLoader is RuntimeJsLibManagerTest.StubResourceLoader.
 func stubResourceLoader(t *testing.T, resources map[string]string) RuntimeJsLibManager_ResourceProvider {
-	return func(resourceName string, unused string) *rhino.Node {
+	return func(resourceName string, unused string) rhino.Node {
 		code, ok := resources[resourceName]
 		if !ok {
-			return nil
+			return rhino.Node{}
 		}
 		compiler := NewCompiler()
 		return compiler.ParseSyntheticCode("lib.js", code)
@@ -40,18 +40,18 @@ func stubResourceLoader(t *testing.T, resources map[string]string) RuntimeJsLibM
 }
 
 // runtimeJsLibManagerTestJs is RuntimeJsLibManagerTest.js(String).
-func runtimeJsLibManagerTestJs(t *testing.T, code string) *rhino.Node {
+func runtimeJsLibManagerTestJs(t *testing.T, code string) rhino.Node {
 	compiler := NewCompiler()
 	return compiler.ParseSyntheticCode("lib.js", code)
 }
 
 var runtimeJsLibManagerTest_JSCOMP_INHERITS = rhino.IR_Getprop(rhino.IR_Name("$jscomp"), "inherits")
 
-func scriptSupplier(script *rhino.Node) func() *rhino.Node {
-	return func() *rhino.Node { return script }
+func scriptSupplier(script rhino.Node) func() rhino.Node {
+	return func() rhino.Node { return script }
 }
 
-func freshScript() *rhino.Node { return rhino.IR_Script() }
+func freshScript() rhino.Node { return rhino.IR_Script() }
 
 func TestRuntimeJsLibManager_NoOpModeDoesNotRecordOrInject(t *testing.T) {
 	script := rhino.IR_Script()
@@ -88,7 +88,7 @@ func TestRuntimeJsLibManager_RecordOnlyModeDoesNotInjectButRecordsLibraries(t *t
 
 	injected := manager.EnsureLibraryInjected("lib" /* force= */, false)
 
-	if injected != nil {
+	if !injected.IsNil() {
 		t.Errorf("injected %v, want null", injected)
 	}
 	assertSliceEqual(t, "injected", manager.GetInjectedLibraries(), []string{"lib"})
@@ -362,7 +362,7 @@ func TestRuntimeJsLibManager_ExternFieldNamesModeDoesNotInjectButRecordsLibrarie
 
 	injected := manager.EnsureLibraryInjected("lib" /* force= */, false)
 
-	if injected != nil {
+	if !injected.IsNil() {
 		t.Errorf("injected %v, want null", injected)
 	}
 	assertSliceEqual(t, "injected", manager.GetInjectedLibraries(), []string{"lib"})

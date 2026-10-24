@@ -130,7 +130,7 @@ func (h *astAnalyzerTest_ParseHelper) newCompiler() *Compiler {
 }
 
 // Java: AstAnalyzerTest.ParseHelper.parseInternal(String)
-func (h *astAnalyzerTest_ParseHelper) parseInternal(js string) *rhino.Node {
+func (h *astAnalyzerTest_ParseHelper) parseInternal(js string) rhino.Node {
 	h.t.Helper()
 	compiler := h.newCompiler()
 	n := compiler.ParseTestCode(js)
@@ -143,15 +143,15 @@ func (h *astAnalyzerTest_ParseHelper) parseInternal(js string) *rhino.Node {
 
 // parseFirst parses a string of JavaScript and returns the first node found
 // with the given token in a preorder DFS.
-func (h *astAnalyzerTest_ParseHelper) parseFirst(token rhino.Token, js string) *rhino.Node {
+func (h *astAnalyzerTest_ParseHelper) parseFirst(token rhino.Token, js string) rhino.Node {
 	n := astAnalyzerTest_findFirst(token, h.parseInternal(js))
-	if n == nil {
+	if n.IsNil() {
 		h.t.Fatalf("no %s node in %q", token, js)
 	}
 	return n
 }
 
-func (h *astAnalyzerTest_ParseHelper) parseCase(kase *astAnalyzerTest_AnalysisCase) *rhino.Node {
+func (h *astAnalyzerTest_ParseHelper) parseCase(kase *astAnalyzerTest_AnalysisCase) rhino.Node {
 	h.hasGlobalRegexpReferences = kase.globalRegExp
 	h.assumeGettersArePure = kase.assumeGettersArePure
 	h.assumeBuiltinsPure = kase.assumeBuiltinsPure
@@ -160,7 +160,7 @@ func (h *astAnalyzerTest_ParseHelper) parseCase(kase *astAnalyzerTest_AnalysisCa
 		return root.GetFirstChild()
 	}
 	n := astAnalyzerTest_findFirst(kase.token, root)
-	if n == nil {
+	if n.IsNil() {
 		h.t.Fatalf("no %s node in %q", kase.token, kase.js)
 	}
 	return n
@@ -180,8 +180,8 @@ func (h *astAnalyzerTest_ParseHelper) getAstAnalyzer() *AstAnalyzer {
 
 // astAnalyzerTest_findFirst does a preorder DFS, returning the first node
 // found that has the given token (nil for Optional.empty()).
-func astAnalyzerTest_findFirst(token rhino.Token, root *rhino.Node) *rhino.Node {
-	stack := []*rhino.Node{root}
+func astAnalyzerTest_findFirst(token rhino.Token, root rhino.Node) rhino.Node {
+	stack := []rhino.Node{root}
 
 	for len(stack) != 0 {
 		cur := stack[len(stack)-1]
@@ -190,16 +190,16 @@ func astAnalyzerTest_findFirst(token rhino.Token, root *rhino.Node) *rhino.Node 
 			return cur
 		}
 
-		for child := cur.GetLastChild(); child != nil; child = child.GetPrevious() {
+		for child := cur.GetLastChild(); !child.IsNil(); child = child.GetPrevious() {
 			stack = append(stack, child)
 		}
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 func astAnalyzerTest_runCases(
-	t *testing.T, cases []*astAnalyzerTest_AnalysisCase, query func(*AstAnalyzer, *rhino.Node) bool) {
+	t *testing.T, cases []*astAnalyzerTest_AnalysisCase, query func(*AstAnalyzer, rhino.Node) bool) {
 	for i, kase := range cases {
 		t.Run(fmt.Sprintf("#%d %s", i, kase), func(t *testing.T) {
 			helper := newAstAnalyzerTest_ParseHelper(t)

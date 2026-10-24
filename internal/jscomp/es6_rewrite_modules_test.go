@@ -103,7 +103,7 @@ func (c *Es6RewriteModulesTest) GetOptions() *CompilerOptions {
 
 // Java: Es6RewriteModulesTest.getProcessor(Compiler)
 func (c *Es6RewriteModulesTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		rai :=
 			NewSemanticReverseAbstractInterpreter(compiler.GetTypeRegistry())
 		globalTypedScope :=

@@ -69,11 +69,11 @@ func freezeGlobalScopeForParallelReads(gs *Scope) {
 type lazyGlobalScope struct {
 	once     sync.Once
 	compiler AbstractCompiler
-	root     *rhino.Node
+	root     rhino.Node
 	scope    *Scope
 }
 
-func newLazyGlobalScope(compiler AbstractCompiler, root *rhino.Node) *lazyGlobalScope {
+func newLazyGlobalScope(compiler AbstractCompiler, root rhino.Node) *lazyGlobalScope {
 	return &lazyGlobalScope{
 		compiler: compiler,
 		root:     root,
@@ -90,12 +90,12 @@ func (l *lazyGlobalScope) get() *Scope {
 	return l.scope
 }
 
-func collectRootScripts(root *rhino.Node) ([]*rhino.Node, bool) {
-	if root == nil || !root.IsRoot() {
+func collectRootScripts(root rhino.Node) ([]rhino.Node, bool) {
+	if root.IsNil() || !root.IsRoot() {
 		return nil, false
 	}
 	count := 0
-	for c := root.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.IsScript() {
 			return nil, false
 		}
@@ -104,36 +104,36 @@ func collectRootScripts(root *rhino.Node) ([]*rhino.Node, bool) {
 	if count == 0 {
 		return nil, true
 	}
-	scripts := make([]*rhino.Node, 0, count)
-	for c := root.GetFirstChild(); c != nil; c = c.GetNext() {
+	scripts := make([]rhino.Node, 0, count)
+	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		scripts = append(scripts, c)
 	}
 	return scripts, true
 }
 
 type scriptWithParent struct {
-	parent *rhino.Node
-	script *rhino.Node
+	parent rhino.Node
+	script rhino.Node
 }
 
-func collectExternAndRootScripts(externs *rhino.Node, root *rhino.Node) (*rhino.Node, []scriptWithParent, bool) {
-	if externs == nil || root == nil || !externs.IsRoot() || !root.IsRoot() {
-		return nil, nil, false
+func collectExternAndRootScripts(externs rhino.Node, root rhino.Node) (rhino.Node, []scriptWithParent, bool) {
+	if externs.IsNil() || root.IsNil() || !externs.IsRoot() || !root.IsRoot() {
+		return rhino.Node{}, nil, false
 	}
 	scopeRoot := externs.GetParent()
-	if scopeRoot == nil || root.GetParent() != scopeRoot {
-		return nil, nil, false
+	if scopeRoot.IsNil() || root.GetParent() != scopeRoot {
+		return rhino.Node{}, nil, false
 	}
 	count := 0
-	for c := externs.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := externs.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.IsScript() {
-			return nil, nil, false
+			return rhino.Node{}, nil, false
 		}
 		count++
 	}
-	for c := root.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.IsScript() {
-			return nil, nil, false
+			return rhino.Node{}, nil, false
 		}
 		count++
 	}
@@ -141,10 +141,10 @@ func collectExternAndRootScripts(externs *rhino.Node, root *rhino.Node) (*rhino.
 		return scopeRoot, nil, true
 	}
 	items := make([]scriptWithParent, 0, count)
-	for c := externs.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := externs.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		items = append(items, scriptWithParent{parent: externs, script: c})
 	}
-	for c := root.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		items = append(items, scriptWithParent{parent: root, script: c})
 	}
 	return scopeRoot, items, true
@@ -161,7 +161,7 @@ const (
 
 type recordedCompilerEvent struct {
 	kind recordedCompilerEventKind
-	node *rhino.Node
+	node rhino.Node
 	err  *JSError
 }
 
@@ -170,12 +170,12 @@ type parallelInternalError struct {
 	cause jutil.Throwable
 }
 
-func parallelChangeScopeForNode(n *rhino.Node) *rhino.Node {
+func parallelChangeScopeForNode(n rhino.Node) rhino.Node {
 	if n.IsScript() {
 		return n
 	}
 	enclosing := ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent())
-	if enclosing == nil {
+	if enclosing.IsNil() {
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"An enclosing scope is required for change reports but node " + n.String() + " doesn't have one."))
 	}
@@ -228,7 +228,7 @@ func (rc *recordingCompiler) HasHaltingErrors() bool {
 	return rc.baseHalted || rc.halted
 }
 
-func (rc *recordingCompiler) ReportChangeToEnclosingScope(n *rhino.Node) {
+func (rc *recordingCompiler) ReportChangeToEnclosingScope(n rhino.Node) {
 	scope := parallelChangeScopeForNode(n)
 	rc.events = append(rc.events, recordedCompilerEvent{
 		kind: recordedEventChangeScope,
@@ -236,7 +236,7 @@ func (rc *recordingCompiler) ReportChangeToEnclosingScope(n *rhino.Node) {
 	})
 }
 
-func (rc *recordingCompiler) ReportChangeToChangeScope(changeScopeRoot *rhino.Node) {
+func (rc *recordingCompiler) ReportChangeToChangeScope(changeScopeRoot rhino.Node) {
 	jutil.CheckState(changeScopeRoot.IsScript() || changeScopeRoot.IsFunction())
 	rc.events = append(rc.events, recordedCompilerEvent{
 		kind: recordedEventChangeScope,
@@ -244,7 +244,7 @@ func (rc *recordingCompiler) ReportChangeToChangeScope(changeScopeRoot *rhino.No
 	})
 }
 
-func (rc *recordingCompiler) ReportFunctionDeleted(node *rhino.Node) {
+func (rc *recordingCompiler) ReportFunctionDeleted(node rhino.Node) {
 	jutil.CheckState(node.IsFunction())
 	rc.events = append(rc.events, recordedCompilerEvent{
 		kind: recordedEventFunctionDeleted,
@@ -282,7 +282,7 @@ func (rc *recordingCompiler) GetChangeTracker() *ChangeTracker {
 	panic(jutil.NewUnsupportedOperationExceptionMsg("GetChangeTracker unsupported in parallel worker"))
 }
 
-func (rc *recordingCompiler) EnsureLibraryInjected(resourceName string, force bool) *rhino.Node {
+func (rc *recordingCompiler) EnsureLibraryInjected(resourceName string, force bool) rhino.Node {
 	panic(jutil.NewUnsupportedOperationExceptionMsg("EnsureLibraryInjected unsupported in parallel worker"))
 }
 

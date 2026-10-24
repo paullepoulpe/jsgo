@@ -50,31 +50,31 @@ func NewInlineObjectLiterals(compiler AbstractCompiler, safeNameIdSupplier func(
 
 type iolCandidateScanner struct {
 	candidateBloom       uint64
-	candidateScopeBlooms map[*rhino.Node]uint64
-	fnHasOwnCandidate    map[*rhino.Node]bool
-	hasCandSubtree       map[*rhino.Node]bool
+	candidateScopeBlooms map[rhino.Node]uint64
+	fnHasOwnCandidate    map[rhino.Node]bool
+	hasCandSubtree       map[rhino.Node]bool
 	hasNonFnCandidate    bool
 	anyCandFnInHoistedFn bool
 	hasInvalidDecl       bool
-	candFns              []*rhino.Node
+	candFns              []rhino.Node
 }
 
-func iolHasParamName(fn *rhino.Node, nameID uint32) bool {
-	if fn == nil || !fn.IsFunction() {
+func iolHasParamName(fn rhino.Node, nameID uint32) bool {
+	if fn.IsNil() || !fn.IsFunction() {
 		return false
 	}
 	args := fn.GetSecondChild()
-	if args == nil || !args.IsParamList() {
+	if args.IsNil() || !args.IsParamList() {
 		return false
 	}
-	for a := args.GetFirstChild(); a != nil; a = a.GetNext() {
+	for a := args.GetFirstChild(); !a.IsNil(); a = a.GetNext() {
 		switch a.GetToken() {
 		case rhino.Token_NAME:
 			if a.GetStringID() == nameID {
 				return true
 			}
 		case rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST:
-			if first := a.GetFirstChild(); first != nil && first.IsName() && first.GetStringID() == nameID {
+			if first := a.GetFirstChild(); !first.IsNil() && first.IsName() && first.GetStringID() == nameID {
 				return true
 			}
 		}
@@ -82,11 +82,11 @@ func iolHasParamName(fn *rhino.Node, nameID uint32) bool {
 	return false
 }
 
-func iolHasDirectNameDecl(block *rhino.Node, nameID uint32, includeVar bool) bool {
-	for c := block.GetFirstChild(); c != nil; c = c.GetNext() {
+func iolHasDirectNameDecl(block rhino.Node, nameID uint32, includeVar bool) bool {
+	for c := block.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		tok := c.GetToken()
 		if tok == rhino.Token_LET || tok == rhino.Token_CONST || (includeVar && tok == rhino.Token_VAR) {
-			for lhs := c.GetFirstChild(); lhs != nil; lhs = lhs.GetNext() {
+			for lhs := c.GetFirstChild(); !lhs.IsNil(); lhs = lhs.GetNext() {
 				if lhs.IsName() && lhs.GetStringID() == nameID {
 					return true
 				}
@@ -96,25 +96,25 @@ func iolHasDirectNameDecl(block *rhino.Node, nameID uint32, includeVar bool) boo
 	return false
 }
 
-func (s *iolCandidateScanner) addScopeCandidate(scopeRoot *rhino.Node, mask uint64) {
+func (s *iolCandidateScanner) addScopeCandidate(scopeRoot rhino.Node, mask uint64) {
 	if s.candidateScopeBlooms == nil {
-		s.candidateScopeBlooms = make(map[*rhino.Node]uint64, 16)
-		s.fnHasOwnCandidate = make(map[*rhino.Node]bool, 16)
-		s.hasCandSubtree = make(map[*rhino.Node]bool, 64)
+		s.candidateScopeBlooms = make(map[rhino.Node]uint64, 16)
+		s.fnHasOwnCandidate = make(map[rhino.Node]bool, 16)
+		s.hasCandSubtree = make(map[rhino.Node]bool, 64)
 	}
 	s.candidateBloom |= mask
 	s.candidateScopeBlooms[scopeRoot] |= mask
-	var ownerFn *rhino.Node
-	for p := scopeRoot; p != nil; p = p.GetParent() {
+	var ownerFn rhino.Node
+	for p := scopeRoot; !p.IsNil(); p = p.GetParent() {
 		if p.IsFunction() {
 			ownerFn = p
 			break
 		}
 	}
-	if ownerFn != nil {
+	if !ownerFn.IsNil() {
 		if !s.fnHasOwnCandidate[ownerFn] {
 			s.fnHasOwnCandidate[ownerFn] = true
-			for p := ownerFn; p != nil; p = p.GetParent() {
+			for p := ownerFn; !p.IsNil(); p = p.GetParent() {
 				if p.IsFunction() && rcIsHoistedFunctionDeclaration(p) {
 					s.anyCandFnInHoistedFn = true
 				}
@@ -129,32 +129,32 @@ func (s *iolCandidateScanner) addScopeCandidate(scopeRoot *rhino.Node, mask uint
 	}
 }
 
-func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
+func (s *iolCandidateScanner) checkObjectLit(objLit rhino.Node) {
 	parent := objLit.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return
 	}
 	var varNameID uint32
 	var isDecl bool
-	var gp *rhino.Node
+	var gp rhino.Node
 	if parent.IsName() && parent.GetFirstChild() == objLit {
 		gp = parent.GetParent()
-		if gp == nil || !NodeUtil_IsNameDeclaration(gp) {
+		if gp.IsNil() || !NodeUtil_IsNameDeclaration(gp) {
 			return
 		}
 		ggp := gp.GetParent()
-		if ggp == nil || NodeUtil_IsAnyFor(ggp) {
+		if ggp.IsNil() || NodeUtil_IsAnyFor(ggp) {
 			return
 		}
 		varNameID = parent.GetStringID()
 		isDecl = true
 	} else if parent.IsAssign() && parent.GetLastChild() == objLit {
 		lhs := parent.GetFirstChild()
-		if lhs == nil || !lhs.IsName() {
+		if lhs.IsNil() || !lhs.IsName() {
 			return
 		}
 		gp = parent.GetParent()
-		if gp == nil || !gp.IsExprResult() {
+		if gp.IsNil() || !gp.IsExprResult() {
 			return
 		}
 		varNameID = lhs.GetStringID()
@@ -162,7 +162,7 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 		return
 	}
 
-	for child := objLit.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := objLit.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		switch child.GetToken() {
 		case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_OBJECT_SPREAD:
 			return
@@ -172,7 +172,7 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 	mask := scopeBloomFromID(varNameID)
 	if isDecl {
 		if gp.IsVar() {
-			for anc := gp.GetParent(); anc != nil && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
+			for anc := gp.GetParent(); !anc.IsNil() && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
 				if NodeUtil_IsFunctionBlock(anc) {
 					if !iolHasParamName(anc.GetParent(), varNameID) {
 						s.addScopeCandidate(anc, mask)
@@ -185,7 +185,7 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 				}
 			}
 		} else {
-			for anc := gp.GetParent(); anc != nil && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
+			for anc := gp.GetParent(); !anc.IsNil() && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
 				if (anc.IsBlock() && scanVarsBlockCreatesScope(anc)) || anc.IsSwitchBody() || NodeUtil_IsAnyFor(anc) || anc.IsModuleBody() {
 					s.addScopeCandidate(anc, mask)
 				}
@@ -195,7 +195,7 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 			}
 		}
 	} else {
-		for anc := gp.GetParent(); anc != nil && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
+		for anc := gp.GetParent(); !anc.IsNil() && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
 			if NodeUtil_IsFunctionBlock(anc) {
 				if iolHasParamName(anc.GetParent(), varNameID) {
 					break
@@ -219,19 +219,19 @@ func (s *iolCandidateScanner) checkObjectLit(objLit *rhino.Node) {
 	}
 }
 
-func (s *iolCandidateScanner) scan(n *rhino.Node) {
+func (s *iolCandidateScanner) scan(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_OBJECTLIT:
 		s.checkObjectLit(n)
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if !c.IsName() && !c.IsDestructuringLhs() {
 				s.hasInvalidDecl = true
 			}
 		}
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		if c.GetFirstChild() == nil {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.GetFirstChild().IsNil() {
 			if c.GetToken() == rhino.Token_OBJECTLIT {
 				s.checkObjectLit(c)
 			}
@@ -241,7 +241,7 @@ func (s *iolCandidateScanner) scan(n *rhino.Node) {
 	}
 }
 
-func (s *iolCandidateScanner) collectCandFns(n *rhino.Node) {
+func (s *iolCandidateScanner) collectCandFns(n rhino.Node) {
 	if !s.hasCandSubtree[n] {
 		return
 	}
@@ -258,12 +258,12 @@ func (s *iolCandidateScanner) collectCandFns(n *rhino.Node) {
 		s.collectCandFns(className)
 		s.collectCandFns(body)
 	case rhino.Token_CLASS_MEMBERS:
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if c.IsComputedProp() || c.IsComputedFieldDef() {
 				s.collectCandFns(c.GetFirstChild())
 			}
 		}
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if c.IsComputedProp() || c.IsComputedFieldDef() {
 				if c.HasTwoChildren() {
 					s.collectCandFns(c.GetLastChild())
@@ -273,15 +273,15 @@ func (s *iolCandidateScanner) collectCandFns(n *rhino.Node) {
 			}
 		}
 	default:
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			s.collectCandFns(c)
 		}
 	}
 }
 
 // Java: InlineObjectLiterals.process(Node, Node)
-func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
-	if root == nil {
+func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
+	if root.IsNil() {
 		return
 	}
 	var s iolCandidateScanner
@@ -295,11 +295,11 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 			return false
 		}
 		nameNode := v.nameNode
-		if nameNode == nil {
+		if nameNode.IsNil() {
 			return false
 		}
 		parent := nameNode.GetParent()
-		if parent == nil || !NodeUtil_IsNameDeclaration(parent) {
+		if parent.IsNil() || !NodeUtil_IsNameDeclaration(parent) {
 			return false
 		}
 		bloom := scopeBloomFromID(v.nameID)
@@ -320,7 +320,7 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 		if fastMode && len(s.candFns) >= 2 && opts.GetNumParallelThreads() > 1 {
 			numWorkers := min(opts.GetNumParallelThreads(), len(s.candFns))
 			runPrefix := o.safeNameIdSupplier()
-			changedPerFn := make([][]*rhino.Node, len(s.candFns))
+			changedPerFn := make([][]rhino.Node, len(s.candFns))
 			var nextIdx atomic.Int32
 			var wg sync.WaitGroup
 			wg.Add(numWorkers)
@@ -347,13 +347,13 @@ func (o *InlineObjectLiterals) Process(externs *rhino.Node, root *rhino.Node) {
 							localCounter++
 							return id
 						}
-						behavior.reportChange = func(n *rhino.Node) {
-							if n == nil {
+						behavior.reportChange = func(n rhino.Node) {
+							if n.IsNil() {
 								return
 							}
 							if n.IsScript() {
 								changedPerFn[fnIdx] = append(changedPerFn[fnIdx], n)
-							} else if cs := ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent()); cs != nil {
+							} else if cs := ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent()); !cs.IsNil() {
 								changedPerFn[fnIdx] = append(changedPerFn[fnIdx], cs)
 							}
 						}
@@ -470,7 +470,7 @@ type InlineObjectLiterals_InliningBehavior struct {
 
 	scanner      *iolCandidateScanner
 	idSupplier   func() string
-	reportChange func(*rhino.Node)
+	reportChange func(rhino.Node)
 }
 
 // Java: InlineObjectLiterals.InliningBehavior()
@@ -539,12 +539,12 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 // ReferenceCollection invalid.
 //
 // Java: InlineObjectLiterals.InliningBehavior.recordStaleVarReferencesInTree(Node, Scope)
-func (b *InlineObjectLiterals_InliningBehavior) RecordStaleVarReferencesInTree(root *rhino.Node, scope *Scope) {
+func (b *InlineObjectLiterals_InliningBehavior) RecordStaleVarReferencesInTree(root rhino.Node, scope *Scope) {
 	if root.IsName() {
 		b.staleVars.Add(scope.GetVar(root.GetString()))
 	}
 	if !root.IsFunction() {
-		for c := root.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			b.RecordStaleVarReferencesInTree(c, scope)
 		}
 	}
@@ -640,7 +640,7 @@ func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs *jutil.Ar
 		}
 
 		val := ref.GetAssignedValue()
-		if val == nil {
+		if val.IsNil() {
 			// A var with no assignment.
 			continue
 		}
@@ -658,7 +658,7 @@ func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs *jutil.Ar
 		// but x = {a: 1, b: x.a} is.
 		//
 		// Also, ES5 getters/setters aren't handled by this pass.
-		for child := val.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := val.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			switch child.GetToken() {
 			case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_OBJECT_SPREAD:
 				// ES5 get/set not supported.
@@ -699,7 +699,7 @@ func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs *jutil.Ar
 }
 
 // Java: InlineObjectLiterals.InliningBehavior.isVarOrAssignExprLhs(Node)
-func (b *InlineObjectLiterals_InliningBehavior) IsVarOrAssignExprLhs(n *rhino.Node) bool {
+func (b *InlineObjectLiterals_InliningBehavior) IsVarOrAssignExprLhs(n rhino.Node) bool {
 	parent := n.GetParent()
 	return NodeUtil_IsNameDeclaration(parent) ||
 		(parent.IsAssign() &&
@@ -717,9 +717,9 @@ func (b *InlineObjectLiterals_InliningBehavior) ComputeVarList(referenceInfo *Re
 	for _, ref := range referenceInfo.references.Slice() {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
 			val := ref.GetAssignedValue()
-			if val != nil {
+			if !val.IsNil() {
 				jutil.CheckStateMsg1(val.IsObjectLit(), "%s", val)
-				for child := val.GetFirstChild(); child != nil; child = child.GetNext() {
+				for child := val.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 					varname := child.GetString()
 					if varmap.ContainsKey(varname) {
 						continue
@@ -757,10 +757,10 @@ func (b *InlineObjectLiterals_InliningBehavior) ComputeVarList(referenceInfo *Re
 // result.
 //
 // Java: InlineObjectLiterals.InliningBehavior.fillInitialValues(Reference, Map<String, Node>)
-func (b *InlineObjectLiterals_InliningBehavior) FillInitialValues(init *Reference, initvals *jutil.LinkedHashMap[string, *rhino.Node]) {
+func (b *InlineObjectLiterals_InliningBehavior) FillInitialValues(init *Reference, initvals *jutil.LinkedHashMap[string, rhino.Node]) {
 	object := init.GetAssignedValue()
 	jutil.CheckStateMsg1(object.IsObjectLit(), "%s", object)
-	for key := object.GetFirstChild(); key != nil; key = key.GetNext() {
+	for key := object.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		initvals.Put(key.GetString(), key.RemoveFirstChild())
 	}
 }
@@ -772,12 +772,12 @@ func (b *InlineObjectLiterals_InliningBehavior) FillInitialValues(init *Referenc
 // Java: InlineObjectLiterals.InliningBehavior.replaceAssignmentExpression(Var, Reference, Map<String, String>)
 func (b *InlineObjectLiterals_InliningBehavior) ReplaceAssignmentExpression(v *Var, ref *Reference, varmap *jutil.LinkedHashMap[string, string]) {
 	// Compute all of the assignments necessary
-	var nodes []*rhino.Node
+	var nodes []rhino.Node
 	val := ref.GetAssignedValue()
 	b.RecordStaleVarReferencesInTree(val, v.GetScope().(*Scope))
 	jutil.CheckStateMsg1(val.IsObjectLit(), "%s", val)
 	all := jutil.NewLinkedHashSet(varmap.KeySlice()...)
-	for key := val.GetFirstChild(); key != nil; key = key.GetNext() {
+	for key := val.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		var_ := key.GetString()
 		value := key.RemoveFirstChild()
 		// TODO(user): Copy type information.
@@ -787,10 +787,10 @@ func (b *InlineObjectLiterals_InliningBehavior) ReplaceAssignmentExpression(v *V
 
 	// TODO(user): Better source information.
 	for var_ := range all.All() {
-		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(var_)), NodeUtil_NewUndefinedNode(nil)))
+		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(var_)), NodeUtil_NewUndefinedNode(rhino.Node{})))
 	}
 
-	var replacement *rhino.Node
+	var replacement rhino.Node
 	if len(nodes) == 0 {
 		replacement = rhino.IR_TrueNode()
 	} else {
@@ -835,11 +835,11 @@ func (b *InlineObjectLiterals_InliningBehavior) SplitObject(v *Var, init *Refere
 	// can all be properly set as necessary.
 	varmap := b.ComputeVarList(referenceInfo)
 
-	initvals := jutil.NewLinkedHashMap[string, *rhino.Node]()
+	initvals := jutil.NewLinkedHashMap[string, rhino.Node]()
 	// Figure out the top-level of the var assign node. If it's a plain
 	// ASSIGN, then there's an EXPR_STATEMENT above it, if it's a
 	// VAR then it should be directly replaced.
-	var vnode *rhino.Node
+	var vnode rhino.Node
 	defined := referenceInfo.IsWellDefined() && NodeUtil_IsNameDeclaration(init.GetParent())
 	if defined {
 		vnode = init.GetParent()
@@ -866,7 +866,7 @@ func (b *InlineObjectLiterals_InliningBehavior) SplitObject(v *Var, init *Refere
 	for key, value := range varmap.All() {
 		val := initvals.Get(key)
 		newVarNode := NodeUtil_NewVarNode(value, val)
-		if val == nil {
+		if val.IsNil() {
 			// is this right?
 			newVarNode.SrcrefTreeIfMissing(vnode)
 		} else {

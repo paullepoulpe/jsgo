@@ -54,8 +54,8 @@ func cfaTestCfg(t *testing.T, input string, expected string, shouldTraverseFunct
 // cfaGetAllEdges gets all the edges of the graph.
 //
 // Java: ControlFlowAnalysisTest.getAllEdges(ControlFlowGraph<Node>)
-func cfaGetAllEdges(cfg ControlFlowGraph[*rhino.Node]) []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch] {
-	var edges []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]
+func cfaGetAllEdges(cfg ControlFlowGraph[rhino.Node]) []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
+	var edges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	for _, n := range cfg.GetDiGraphNodes() {
 		edges = append(edges, cfg.GetOutEdges(n.GetValue())...)
 	}
@@ -67,13 +67,13 @@ func cfaGetAllEdges(cfg ControlFlowGraph[*rhino.Node]) []DiGraph_DiGraphEdge[*rh
 //
 // Java: ControlFlowAnalysisTest.getAllEdges(ControlFlowGraph<Node>, Token, Token)
 func cfaGetAllEdgesBetween(
-	cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token) []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch] {
-	var edges []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]
+	cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token) []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
+	var edges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	for _, edge := range cfaGetAllEdges(cfg) {
 		startNode := edge.GetSource().GetValue()
 		endNode := edge.GetDestination().GetValue()
-		if startNode == nil ||
-			endNode == nil ||
+		if startNode.IsNil() ||
+			endNode.IsNil() ||
 			startNode.GetToken() != startToken ||
 			endNode.GetToken() != endToken {
 			continue
@@ -88,8 +88,8 @@ func cfaGetAllEdgesBetween(
 //
 // Java: ControlFlowAnalysisTest.getAllEdges(ControlFlowGraph<Node>, Token, Token, Branch)
 func cfaGetAllEdgesOfType(
-	cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch] {
-	var edges []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]
+	cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
+	var edges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	for _, elem := range cfaGetAllEdgesBetween(cfg, startToken, endToken) {
 		if type_ == elem.GetValue() {
 			edges = append(edges, elem)
@@ -99,8 +99,8 @@ func cfaGetAllEdgesOfType(
 }
 
 // Java: ControlFlowAnalysisTest.isAncestor(Node, Node)
-func cfaIsAncestor(n *rhino.Node, maybeDescendant *rhino.Node) bool {
-	for current := n.GetFirstChild(); current != nil; current = current.GetNext() {
+func cfaIsAncestor(n rhino.Node, maybeDescendant rhino.Node) bool {
+	for current := n.GetFirstChild(); !current.IsNil(); current = current.GetNext() {
 		if current == maybeDescendant || cfaIsAncestor(current, maybeDescendant) {
 			return true
 		}
@@ -115,8 +115,8 @@ func cfaIsAncestor(n *rhino.Node, maybeDescendant *rhino.Node) bool {
 //
 // Java: ControlFlowAnalysisTest.getAllDownEdges(ControlFlowGraph<Node>, Token, Token, Branch)
 func cfaGetAllDownEdges(
-	cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch] {
-	var edges []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]
+	cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
+	var edges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	for _, edge := range cfaGetAllEdgesOfType(cfg, startToken, endToken, type_) {
 		source := edge.GetSource().GetValue()
 		dest := edge.GetDestination().GetValue()
@@ -133,7 +133,7 @@ func cfaGetAllDownEdges(
 // second token.
 //
 // Java: ControlFlowAnalysisTest.assertNoEdge(ControlFlowGraph<Node>, Token, Token)
-func cfaAssertNoEdge(t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token) {
+func cfaAssertNoEdge(t *testing.T, cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token) {
 	t.Helper()
 	if edges := cfaGetAllEdgesBetween(cfg, startToken, endToken); len(edges) != 0 {
 		t.Errorf("expected no edge %v -> %v, found %d", startToken, endToken, len(edges))
@@ -142,7 +142,7 @@ func cfaAssertNoEdge(t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken
 
 // Java: ControlFlowAnalysisTest.assertNoEdge(ControlFlowGraph<Node>, Token, Token, Branch)
 func cfaAssertNoEdgeOfType(
-	t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
+	t *testing.T, cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
 	t.Helper()
 	if edges := cfaGetAllEdgesOfType(cfg, startToken, endToken, type_); len(edges) != 0 {
 		t.Errorf("expected no edge %v -%v-> %v, found %d", startToken, type_, endToken, len(edges))
@@ -155,7 +155,7 @@ func cfaAssertNoEdgeOfType(
 //
 // Java: ControlFlowAnalysisTest.assertDownEdge(ControlFlowGraph<Node>, Token, Token, Branch)
 func cfaAssertDownEdge(
-	t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
+	t *testing.T, cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
 	t.Helper()
 	if len(cfaGetAllDownEdges(cfg, startToken, endToken, type_)) == 0 {
 		t.Errorf("No down edge found (%v -%v-> %v)", startToken, type_, endToken)
@@ -168,7 +168,7 @@ func cfaAssertDownEdge(
 //
 // Java: ControlFlowAnalysisTest.assertEdge(ControlFlowGraph<Node>, Token, Token, Branch)
 func cfaAssertEdge(
-	t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
+	t *testing.T, cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
 	t.Helper()
 	if len(cfaGetAllEdgesOfType(cfg /* startToken= */, startToken /* endToken= */, endToken, type_)) == 0 {
 		t.Errorf("No up edge found. (%v -%v-> %v)", startToken, type_, endToken)
@@ -181,7 +181,7 @@ func cfaAssertEdge(
 //
 // Java: ControlFlowAnalysisTest.assertUpEdge(ControlFlowGraph<Node>, Token, Token, Branch)
 func cfaAssertUpEdge(
-	t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
+	t *testing.T, cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
 	t.Helper()
 	if len(cfaGetAllDownEdges(cfg /* startToken= */, endToken /* endToken= */, startToken, type_)) == 0 {
 		t.Errorf("No up edge found. (%v -%v-> %v)", startToken, type_, endToken)
@@ -195,7 +195,7 @@ func cfaAssertUpEdge(
 //
 // Java: ControlFlowAnalysisTest.assertCrossEdge(ControlFlowGraph<Node>, Token, Token, Branch)
 func cfaAssertCrossEdge(
-	t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
+	t *testing.T, cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
 	t.Helper()
 	numDownEdges := len(cfaGetAllDownEdges(cfg, startToken, endToken, type_))
 	numUpEdges := len(cfaGetAllDownEdges(cfg, endToken, startToken, type_))
@@ -209,7 +209,7 @@ func cfaAssertCrossEdge(
 // given type from some node with the first token to the return node.
 //
 // Java: ControlFlowAnalysisTest.assertReturnEdge(ControlFlowGraph<Node>, Token)
-func cfaAssertReturnEdge(t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token) {
+func cfaAssertReturnEdge(t *testing.T, cfg ControlFlowGraph[rhino.Node], startToken rhino.Token) {
 	t.Helper()
 	edges := cfaGetAllEdges(cfg)
 	for _, edge := range edges {
@@ -227,7 +227,7 @@ func cfaAssertReturnEdge(t *testing.T, cfg ControlFlowGraph[*rhino.Node], startT
 // the given type from some node with the first token to the return node.
 //
 // Java: ControlFlowAnalysisTest.assertNoReturnEdge(ControlFlowGraph<Node>, Token)
-func cfaAssertNoReturnEdge(t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token) {
+func cfaAssertNoReturnEdge(t *testing.T, cfg ControlFlowGraph[rhino.Node], startToken rhino.Token) {
 	t.Helper()
 	edges := cfaGetAllEdges(cfg)
 	for _, edge := range edges {
@@ -246,13 +246,13 @@ func cfaAssertNoReturnEdge(t *testing.T, cfg ControlFlowGraph[*rhino.Node], star
 // for it.
 //
 // Java: ControlFlowAnalysisTest.createCfg(String, boolean), createCfg(String)
-func cfaTestCreateCfg(t *testing.T, input string, runSynBlockPass bool) ControlFlowGraph[*rhino.Node] {
+func cfaTestCreateCfg(t *testing.T, input string, runSynBlockPass bool) ControlFlowGraph[rhino.Node] {
 	t.Helper()
 	compiler := NewCompiler()
 	root := compiler.ParseSyntheticCode("cfgtest", input)
 	if runSynBlockPass {
 		pass := NewCreateSyntheticBlocks(compiler, "START", "END")
-		pass.Process(nil, root)
+		pass.Process(rhino.Node{}, root)
 	}
 	return ControlFlowAnalysis_Builder_().
 		SetCompiler(compiler).
@@ -266,15 +266,15 @@ func cfaTestCreateCfg(t *testing.T, input string, runSynBlockPass bool) ControlF
 // nodes matching predicate, in preorder (NodeUtil.visitPreOrder).
 //
 // Go-only: test-helper — CodeSubTree lives in com.google.javascript.jscomp.testing.
-func cfaFindNodes(t *testing.T, rootNode *rhino.Node, predicate func(*rhino.Node) bool) []*rhino.Node {
+func cfaFindNodes(t *testing.T, rootNode rhino.Node, predicate func(rhino.Node) bool) []rhino.Node {
 	t.Helper()
-	var results []*rhino.Node
-	var visit func(n *rhino.Node)
-	visit = func(n *rhino.Node) {
+	var results []rhino.Node
+	var visit func(n rhino.Node)
+	visit = func(n rhino.Node) {
 		if predicate(n) {
 			results = append(results, n)
 		}
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			visit(c)
 		}
 	}
@@ -292,7 +292,7 @@ func cfaFindNodes(t *testing.T, rootNode *rhino.Node, predicate func(*rhino.Node
 // element of the list, and so on.
 //
 // Java: ControlFlowAnalysisTest.assertNodeOrder(ControlFlowGraph<Node>, List<Token>)
-func cfaAssertNodeOrder(t *testing.T, cfg ControlFlowGraph[*rhino.Node], nodeTypes []rhino.Token) {
+func cfaAssertNodeOrder(t *testing.T, cfg ControlFlowGraph[rhino.Node], nodeTypes []rhino.Token) {
 	t.Helper()
 	cfgNodes := cfg.GetDiGraphNodes()
 	slices.SortStableFunc(cfgNodes, cfg.GetOptionalNodeComparator(true))
@@ -300,7 +300,7 @@ func cfaAssertNodeOrder(t *testing.T, cfg ControlFlowGraph[*rhino.Node], nodeTyp
 	// IMPLICIT RETURN must always be last.
 	implicitReturn := cfgNodes[len(cfgNodes)-1].GetValue()
 	cfgNodes = cfgNodes[:len(cfgNodes)-1]
-	if implicitReturn != nil {
+	if !implicitReturn.IsNil() {
 		t.Errorf("%s: expected the implicit return last", implicitReturn.ToStringTree())
 	}
 
@@ -1767,7 +1767,7 @@ func TestControlFlowAnalysis_CfgRootedAtEmptyFunctionDeclaration(t *testing.T) {
 	src := "function fn() {}"
 	compiler := NewCompiler()
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
-	fnRoot := cfaFindNodes(t, globalRoot, (*rhino.Node).IsFunction)[0]
+	fnRoot := cfaFindNodes(t, globalRoot, (rhino.Node).IsFunction)[0]
 
 	cfg := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(fnRoot).ComputeCfg()
 
@@ -1779,7 +1779,7 @@ func TestControlFlowAnalysis_CfgRootedAtFunctionDeclarationWithSingleStatement(t
 	src := "function fn() {  alert(3); }"
 	compiler := NewCompiler()
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
-	fnRoot := cfaFindNodes(t, globalRoot, (*rhino.Node).IsFunction)[0]
+	fnRoot := cfaFindNodes(t, globalRoot, (rhino.Node).IsFunction)[0]
 
 	cfg := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(fnRoot).ComputeCfg()
 
@@ -1792,7 +1792,7 @@ func TestControlFlowAnalysis_CfgRootedAtEmptyClassStaticBlock(t *testing.T) {
 	src := "class C { static {} }"
 	compiler := NewCompiler()
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
-	staticBlock := cfaFindNodes(t, globalRoot, (*rhino.Node).IsBlock)[0]
+	staticBlock := cfaFindNodes(t, globalRoot, (rhino.Node).IsBlock)[0]
 
 	cfg := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(staticBlock).ComputeCfg()
 
@@ -1803,7 +1803,7 @@ func TestControlFlowAnalysis_CfgRootedAtClassStaticBlockSingleStatementAndSubseq
 	src := "class C { static { alert(0); } x = 0; fn() {} }"
 	compiler := NewCompiler()
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
-	staticBlock := cfaFindNodes(t, globalRoot, (*rhino.Node).IsBlock)[0]
+	staticBlock := cfaFindNodes(t, globalRoot, (rhino.Node).IsBlock)[0]
 
 	cfg := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(staticBlock).ComputeCfg()
 

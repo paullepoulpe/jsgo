@@ -36,14 +36,14 @@ type CompilerPass interface {
 	// externs is the top of external JS tree; root is the top of JS tree.
 	//
 	// Java: CompilerPass.process(Node, Node)
-	Process(externs *rhino.Node, root *rhino.Node)
+	Process(externs rhino.Node, root rhino.Node)
 }
 
 // CompilerPassFunc lets a Go closure stand for a Java lambda or method
 // reference implementing CompilerPass, e.g. `(externs, root) -> ...`.
 //
 // Go-only: language-adapter — functional interface implemented by a lambda.
-type CompilerPassFunc func(externs *rhino.Node, root *rhino.Node)
+type CompilerPassFunc func(externs rhino.Node, root rhino.Node)
 
 // Process calls f(externs, root).
-func (f CompilerPassFunc) Process(externs *rhino.Node, root *rhino.Node) { f(externs, root) }
+func (f CompilerPassFunc) Process(externs rhino.Node, root rhino.Node) { f(externs, root) }

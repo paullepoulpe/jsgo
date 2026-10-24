@@ -85,7 +85,7 @@ func (c *GatherModuleMetadataTest) GetOptions() *CompilerOptions {
 
 // Java: GatherModuleMetadataTest.getProcessor(Compiler)
 func (c *GatherModuleMetadataTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		if c.rewriteScriptsToModules {
 			NewEs6RewriteScriptsToModules(compiler).Process(externs, root)
 		}

@@ -395,20 +395,20 @@ func (tc *TypeCheck) ReportUnknownTypes(report bool) *TypeCheck {
 // input parse tree to be checked.
 //
 // Java: TypeCheck.process(Node, Node)
-func (tc *TypeCheck) Process(externsRoot *rhino.Node, jsRoot *rhino.Node) {
+func (tc *TypeCheck) Process(externsRoot rhino.Node, jsRoot rhino.Node) {
 	jutil.CheckNotNull(tc.scopeCreator)
 	jutil.CheckNotNull(tc.topScope)
 
 	externsAndJs := jsRoot.GetParent()
-	jutil.CheckState(externsAndJs != nil)
-	jutil.CheckState(externsRoot == nil || externsAndJs.HasChild(externsRoot))
+	jutil.CheckState(!externsAndJs.IsNil())
+	jutil.CheckState(externsRoot.IsNil() || externsAndJs.HasChild(externsRoot))
 
 	func() {
 		debugTypeLogger := NewTypeCheck_DebugTypeLogger(tc)
 		defer debugTypeLogger.Close()
 		tc.debugTypeLogger = debugTypeLogger
 
-		if externsRoot != nil {
+		if !externsRoot.IsNil() {
 			tc.Check(externsRoot, true)
 		}
 		tc.Check(jsRoot, false)
@@ -423,16 +423,16 @@ func (tc *TypeCheck) Process(externsRoot *rhino.Node, jsRoot *rhino.Node) {
 // global ROOT.
 //
 // Java: TypeCheck.processForTesting(Node, Node)
-func (tc *TypeCheck) ProcessForTesting(externsRoot *rhino.Node, jsRoot *rhino.Node) *TypedScope {
+func (tc *TypeCheck) ProcessForTesting(externsRoot rhino.Node, jsRoot rhino.Node) *TypedScope {
 	jutil.CheckState(tc.scopeCreator == nil)
 	jutil.CheckState(tc.topScope == nil)
 
-	jutil.CheckArgumentMsg1(externsRoot == nil || externsRoot.IsRoot(), "%s", externsRoot)
+	jutil.CheckArgumentMsg1(externsRoot.IsNil() || externsRoot.IsRoot(), "%s", externsRoot)
 	jutil.CheckArgumentMsg1(jsRoot.IsRoot(), "%s", jsRoot)
 
 	jutil.CheckStateMsg1(jsRoot.HasParent() && jsRoot.GetParent().IsRoot(), "%s", jsRoot.GetParent())
 	jutil.CheckStateMsg(
-		externsRoot == nil || externsRoot.GetNext() == jsRoot,
+		externsRoot.IsNil() || externsRoot.GetNext() == jsRoot,
 		"externs root must be the preceding sibling of the js root")
 
 	tc.scopeCreator = NewTypedScopeCreator(tc.compiler)
@@ -450,8 +450,8 @@ func (tc *TypeCheck) ProcessForTesting(externsRoot *rhino.Node, jsRoot *rhino.No
 }
 
 // Java: TypeCheck.check(Node, boolean)
-func (tc *TypeCheck) Check(node *rhino.Node, externs bool) {
-	jutil.CheckNotNull(node)
+func (tc *TypeCheck) Check(node rhino.Node, externs bool) {
+	rhino.CheckNotNull(node)
 	tc.inExterns = externs
 	b := NodeTraversal_Builder{
 		compiler:     tc.compiler,
@@ -460,19 +460,19 @@ func (tc *TypeCheck) Check(node *rhino.Node, externs bool) {
 	}
 	b.TraverseWithScope(node, tc.topScope)
 	if externs {
-		tc.inferJSDocInfo.Process(node, nil)
+		tc.inferJSDocInfo.Process(node, rhino.Node{})
 	} else {
-		tc.inferJSDocInfo.Process(nil, node)
+		tc.inferJSDocInfo.Process(rhino.Node{}, node)
 	}
 }
 
 // Java: TypeCheck.report(Node, DiagnosticType, String...)
-func (tc *TypeCheck) Report(n *rhino.Node, diagnosticType *DiagnosticType, arguments ...string) {
+func (tc *TypeCheck) Report(n rhino.Node, diagnosticType *DiagnosticType, arguments ...string) {
 	tc.compiler.Report(JSError_MakeWithNode(n, diagnosticType, arguments...))
 }
 
 // Java: TypeCheck.shouldTraverse(NodeTraversal, Node, Node)
-func (tc *TypeCheck) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (tc *TypeCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Start logging types if we're in debug mode and this node was annotated.
 	tc.debugTypeLogger.MaybeStartLoggingAt(n)
 
@@ -530,12 +530,12 @@ func typeCheck_isFunctionType(type_ rhino.JSType) bool {
 // visited; parent the parent of the node n.
 //
 // Java: TypeCheck.visit(NodeTraversal, Node, Node)
-func (tc *TypeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	var childType rhino.JSType
 	var leftType rhino.JSType
 	var rightType rhino.JSType
-	var left *rhino.Node
-	var right *rhino.Node
+	var left rhino.Node
+	var right rhino.Node
 	// To be explicitly set to false if the node is not typeable.
 	typeable := true
 
@@ -852,7 +852,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 		typeable = false
 	case rhino.Token_CLASS_MEMBERS:
 		typ := parent.GetJSType().ToMaybeFunctionType().GetInstanceType()
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			tc.VisitObjectOrClassLiteralKey(child, n.GetParent(), typ)
 			if child.IsSetterDef() || child.IsGetterDef() {
 				tc.CheckGetterOrSetterType(child, parent.GetJSType().ToMaybeFunctionType())
@@ -880,7 +880,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 			tc.EnsureTyped(n)
 		}
 		typ := tc.GetJSType(n)
-		for key := n.GetFirstChild(); key != nil; key = key.GetNext() {
+		for key := n.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 			tc.VisitObjectOrClassLiteralKey(key, n, typ)
 		}
 	case rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD:
@@ -891,7 +891,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 		tc.EnsureTyped(n)
 	}
 
-	if p := n.GetParent(); p != nil {
+	if p := n.GetParent(); !p.IsNil() {
 		// Visit the body of blockless arrow functions
 		if p.IsFunction() && n == p.GetLastChild() && !n.IsBlock() {
 			tc.VisitImplicitReturnExpression(t, n)
@@ -922,7 +922,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 }
 
 // Java: TypeCheck.visitUnaryPlus(Node)
-func (tc *TypeCheck) VisitUnaryPlus(n *rhino.Node) {
+func (tc *TypeCheck) VisitUnaryPlus(n rhino.Node) {
 	if tc.GetJSType(n).IsNoType() {
 		tc.Report(
 			n,
@@ -935,7 +935,7 @@ func (tc *TypeCheck) VisitUnaryPlus(n *rhino.Node) {
 }
 
 // Java: TypeCheck.visitUnaryMinus(Node)
-func (tc *TypeCheck) VisitUnaryMinus(n *rhino.Node) {
+func (tc *TypeCheck) VisitUnaryMinus(n rhino.Node) {
 	operatorType := tc.GetJSType(n)
 	childType := tc.GetJSType(n.GetFirstChild())
 	if operatorType.IsNumber() {
@@ -948,7 +948,7 @@ func (tc *TypeCheck) VisitUnaryMinus(n *rhino.Node) {
 }
 
 // Java: TypeCheck.visitBitwiseNOT(Node)
-func (tc *TypeCheck) VisitBitwiseNOT(n *rhino.Node) {
+func (tc *TypeCheck) VisitBitwiseNOT(n rhino.Node) {
 	operatorType := tc.GetJSType(n)
 	childType := tc.GetJSType(n.GetFirstChild())
 	if operatorType.IsNumber() {
@@ -965,7 +965,7 @@ func (tc *TypeCheck) VisitBitwiseNOT(n *rhino.Node) {
 }
 
 // Java: TypeCheck.checkSpread(Node)
-func (tc *TypeCheck) CheckSpread(spreadNode *rhino.Node) {
+func (tc *TypeCheck) CheckSpread(spreadNode rhino.Node) {
 	target := spreadNode.GetOnlyChild()
 	tc.EnsureTyped(target)
 	targetType := tc.GetJSType(target)
@@ -987,7 +987,7 @@ func (tc *TypeCheck) CheckSpread(spreadNode *rhino.Node) {
 }
 
 // Java: TypeCheck.checkTypeofString(Node, String)
-func (tc *TypeCheck) CheckTypeofString(n *rhino.Node, s string) {
+func (tc *TypeCheck) CheckTypeofString(n rhino.Node, s string) {
 	if !(s == "number" ||
 		s == "string" ||
 		s == "boolean" ||
@@ -1006,7 +1006,7 @@ func (tc *TypeCheck) CheckTypeofString(n *rhino.Node, s string) {
 // n is a node that should be typed.
 //
 // Java: TypeCheck.doPercentTypedAccounting(Node)
-func (tc *TypeCheck) DoPercentTypedAccounting(n *rhino.Node) {
+func (tc *TypeCheck) DoPercentTypedAccounting(n rhino.Node) {
 	type_ := n.GetJSType()
 	if type_ == nil {
 		tc.nullCount++
@@ -1025,7 +1025,7 @@ func (tc *TypeCheck) DoPercentTypedAccounting(n *rhino.Node) {
 // first of the types if different.
 //
 // Java: TypeCheck.checkGetterOrSetterType(Node, FunctionType)
-func (tc *TypeCheck) CheckGetterOrSetterType(child *rhino.Node, classType rhino.FunctionType) {
+func (tc *TypeCheck) CheckGetterOrSetterType(child rhino.Node, classType rhino.FunctionType) {
 	propertyName := child.GetString()
 
 	methodType := child.GetLastChild().GetJSType().ToMaybeFunctionType()
@@ -1106,7 +1106,7 @@ func (tc *TypeCheck) DetermineGetterType(methodType rhino.FunctionType) rhino.JS
 // implicit invariant).
 //
 // Java: TypeCheck.visitAssign(NodeTraversal, Node)
-func (tc *TypeCheck) VisitAssign(t *NodeTraversal, assign *rhino.Node) {
+func (tc *TypeCheck) VisitAssign(t *NodeTraversal, assign rhino.Node) {
 	info := assign.GetJSDocInfo()
 	lvalue := assign.GetFirstChild()
 	rvalue := assign.GetLastChild()
@@ -1129,8 +1129,8 @@ func (tc *TypeCheck) VisitAssign(t *NodeTraversal, assign *rhino.Node) {
 // Java: TypeCheck.checkCanAssignToWithScope(NodeTraversal, Node, Node, JSType, JSDocInfo, String)
 func (tc *TypeCheck) CheckCanAssignToWithScope(
 	t *NodeTraversal,
-	nodeToWarn *rhino.Node,
-	lvalue *rhino.Node,
+	nodeToWarn rhino.Node,
+	lvalue rhino.Node,
 	rightType rhino.JSType,
 	info *rhino.JSDocInfo,
 	msg string) {
@@ -1147,7 +1147,7 @@ func (tc *TypeCheck) CheckCanAssignToWithScope(
 //
 // Java: TypeCheck.checkDestructuringAssignment(NodeTraversal, Node, Node, JSType, String)
 func (tc *TypeCheck) CheckDestructuringAssignment(
-	t *NodeTraversal, nodeToWarn *rhino.Node, pattern *rhino.Node, rightType rhino.JSType, msg string) {
+	t *NodeTraversal, nodeToWarn rhino.Node, pattern rhino.Node, rightType rhino.JSType, msg string) {
 	for _, target := range DestructuredTarget_CreateAllNonEmptyTargetsInPattern(tc.typeRegistry, rightType, pattern) {
 
 		// TODO(b/77597706): this is not very efficient because it re-infers the types below,
@@ -1171,7 +1171,7 @@ func (tc *TypeCheck) CheckDestructuringAssignment(
 //
 // Java: TypeCheck.checkCanAssignToNameGetpropOrGetelem(NodeTraversal, Node, Node, JSType, JSDocInfo, String)
 func (tc *TypeCheck) CheckCanAssignToNameGetpropOrGetelem(
-	t *NodeTraversal, nodeToWarn *rhino.Node, lvalue *rhino.Node, rightType rhino.JSType, info *rhino.JSDocInfo, msg string) {
+	t *NodeTraversal, nodeToWarn rhino.Node, lvalue rhino.Node, rightType rhino.JSType, info *rhino.JSDocInfo, msg string) {
 	jutil.CheckArgumentMsg1(
 		lvalue.IsName() || lvalue.IsGetProp() || lvalue.IsGetElem() || lvalue.IsCast(), "%s", lvalue)
 
@@ -1265,7 +1265,7 @@ func (tc *TypeCheck) CheckCanAssignToNameGetpropOrGetelem(
 }
 
 // Java: TypeCheck.checkPropCreation(Node)
-func (tc *TypeCheck) CheckPropCreation(lvalue *rhino.Node) {
+func (tc *TypeCheck) CheckPropCreation(lvalue rhino.Node) {
 	if lvalue.IsGetProp() {
 		objType := tc.GetJSType(lvalue.GetFirstChild())
 		if !objType.IsEmptyType() && !objType.IsUnknownType() {
@@ -1296,7 +1296,7 @@ func (tc *TypeCheck) CheckPropCreation(lvalue *rhino.Node) {
 
 // Java: TypeCheck.checkPropertyInheritanceOnAssignment(Node, Node, Property.Key, JSDocInfo, JSType)
 func (tc *TypeCheck) CheckPropertyInheritanceOnAssignment(
-	assign *rhino.Node, object *rhino.Node, property rhino.Property_Key, info *rhino.JSDocInfo, propertyType rhino.JSType) {
+	assign rhino.Node, object rhino.Node, property rhino.Property_Key, info *rhino.JSDocInfo, propertyType rhino.JSType) {
 	// Inheritance checks for prototype properties.
 	//
 	// TODO(nicksantos): This isn't the right place to do this check. We
@@ -1348,7 +1348,7 @@ func (tc *TypeCheck) CheckPropertyInheritanceOnAssignment(
 
 // Java: TypeCheck.checkPropertyInheritanceOnPrototypeLitKey(Node, Property.Key, ObjectType)
 func (tc *TypeCheck) CheckPropertyInheritanceOnPrototypeLitKey(
-	key *rhino.Node, propertyName rhino.Property_Key, type_ rhino.ObjectType) {
+	key rhino.Node, propertyName rhino.Property_Key, type_ rhino.ObjectType) {
 	// Inheritance checks for prototype objlit properties.
 	//
 	// TODO(nicksantos): This isn't the right place to do this check. We
@@ -1365,7 +1365,7 @@ func (tc *TypeCheck) CheckPropertyInheritanceOnPrototypeLitKey(
 
 // Java: TypeCheck.checkPropertyInheritanceOnClassMember(Node, Property.Key, FunctionType)
 func (tc *TypeCheck) CheckPropertyInheritanceOnClassMember(
-	key *rhino.Node, propertyName rhino.Property_Key, ctorType rhino.FunctionType) {
+	key rhino.Node, propertyName rhino.Property_Key, ctorType rhino.FunctionType) {
 	if key.IsStaticMember() {
 		tc.CheckDeclaredPropertyAgainstPrototypalInheritance(
 			key, ctorType, propertyName, key.GetJSDocInfo(), ctorType.GetPropertyTypeByKey(propertyName))
@@ -1376,7 +1376,7 @@ func (tc *TypeCheck) CheckPropertyInheritanceOnClassMember(
 
 // Java: TypeCheck.checkPropertyInheritance(Node, Property.Key, FunctionType, ObjectType)
 func (tc *TypeCheck) CheckPropertyInheritance(
-	key *rhino.Node, propertyName rhino.Property_Key, ctorType rhino.FunctionType, type_ rhino.ObjectType) {
+	key rhino.Node, propertyName rhino.Property_Key, ctorType rhino.FunctionType, type_ rhino.ObjectType) {
 	if ctorType == nil || !ctorType.HasInstanceType() {
 		return
 	}
@@ -1396,10 +1396,10 @@ func (tc *TypeCheck) CheckPropertyInheritance(
 // the ASSIGN/VAR/PARAM_LIST/etc. node.
 //
 // Java: TypeCheck.visitObjectPattern(Node)
-func (tc *TypeCheck) VisitObjectPattern(pattern *rhino.Node) {
+func (tc *TypeCheck) VisitObjectPattern(pattern rhino.Node) {
 	patternType := tc.GetJSType(pattern)
 	tc.validator.ExpectObject(pattern, patternType, "cannot destructure 'null' or 'undefined'")
-	for child := pattern.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := pattern.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		target := DestructuredTarget_CreateTarget(tc.typeRegistry, patternType, child)
 
 		if target.HasComputedProperty() {
@@ -1435,7 +1435,7 @@ func (tc *TypeCheck) VisitObjectPattern(pattern *rhino.Node) {
 // of the enclosing object/class.
 //
 // Java: TypeCheck.visitObjectOrClassLiteralKey(Node, Node, JSType)
-func (tc *TypeCheck) VisitObjectOrClassLiteralKey(key *rhino.Node, owner *rhino.Node, ownerType rhino.JSType) {
+func (tc *TypeCheck) VisitObjectOrClassLiteralKey(key rhino.Node, owner rhino.Node, ownerType rhino.JSType) {
 	// Do not validate object lit value types in externs. We don't really care,
 	// and it makes it easier to generate externs.
 	if owner.IsFromExterns() {
@@ -1511,7 +1511,7 @@ func (tc *TypeCheck) VisitObjectOrClassLiteralKey(key *rhino.Node, owner *rhino.
 	// For getter and setter property definitions the
 	// r-value type != the property type.
 	rvalue := key.GetFirstChild()
-	if rvalue == nil {
+	if rvalue.IsNil() {
 		tc.EnsureTyped(key)
 		return
 	}
@@ -1575,7 +1575,7 @@ func TypeCheck_PropertyIsImplicitCast(type_ rhino.ObjectType, prop string) bool 
 //
 // Java: TypeCheck.checkDeclaredPropertyAgainstNominalInheritance(Node, FunctionType, Property.Key, JSDocInfo, JSType)
 func (tc *TypeCheck) CheckDeclaredPropertyAgainstNominalInheritance(
-	n *rhino.Node,
+	n rhino.Node,
 	ctorType rhino.FunctionType,
 	propertyName rhino.Property_Key,
 	info *rhino.JSDocInfo,
@@ -1672,7 +1672,7 @@ func TypeCheck_IsDeclaredLocally(ctorType rhino.FunctionType, propertyName rhino
 //
 // Java: TypeCheck.checkDeclaredPropertyAgainstPrototypalInheritance(Node, ObjectType, Property.Key, JSDocInfo, JSType)
 func (tc *TypeCheck) CheckDeclaredPropertyAgainstPrototypalInheritance(
-	n *rhino.Node,
+	n rhino.Node,
 	receiverType rhino.ObjectType,
 	propertyName rhino.Property_Key,
 	info *rhino.JSDocInfo,
@@ -1728,7 +1728,7 @@ func (tc *TypeCheck) CheckDeclaredPropertyAgainstPrototypalInheritance(
 }
 
 // Java: TypeCheck.checkAbstractMethodInConcreteClass(Node, FunctionType, JSDocInfo)
-func (tc *TypeCheck) CheckAbstractMethodInConcreteClass(n *rhino.Node, ctorType rhino.FunctionType, info *rhino.JSDocInfo) {
+func (tc *TypeCheck) CheckAbstractMethodInConcreteClass(n rhino.Node, ctorType rhino.FunctionType, info *rhino.JSDocInfo) {
 	if info == nil || !info.IsAbstract() {
 		return
 	}
@@ -1770,7 +1770,7 @@ func TypeCheck_HasUnknownOrEmptySupertype(ctor rhino.FunctionType) bool {
 // key is a OBJECTLIT key node.
 //
 // Java: TypeCheck.getObjectLitKeyTypeFromValueType(Node, JSType)
-func TypeCheck_GetObjectLitKeyTypeFromValueType(key *rhino.Node, valueType rhino.JSType) rhino.JSType {
+func TypeCheck_GetObjectLitKeyTypeFromValueType(key rhino.Node, valueType rhino.JSType) rhino.JSType {
 	if valueType != nil {
 		switch key.GetToken() {
 		case rhino.Token_GETTER_DEF:
@@ -1802,7 +1802,7 @@ func TypeCheck_GetObjectLitKeyTypeFromValueType(key *rhino.Node, valueType rhino
 //	interface.prototype.property = ...;
 //
 // Java: TypeCheck.visitInterfacePropertyAssignment(Node, Node)
-func (tc *TypeCheck) VisitInterfacePropertyAssignment(object *rhino.Node, lvalue *rhino.Node) {
+func (tc *TypeCheck) VisitInterfacePropertyAssignment(object rhino.Node, lvalue rhino.Node) {
 	if !lvalue.GetParent().IsAssign() {
 		// assignments to interface properties cannot be in destructuring patterns or for-of loops
 		tc.ReportInvalidInterfaceMemberDeclaration(object)
@@ -1829,7 +1829,7 @@ func (tc *TypeCheck) VisitInterfacePropertyAssignment(object *rhino.Node, lvalue
 }
 
 // Java: TypeCheck.reportInvalidInterfaceMemberDeclaration(Node)
-func (tc *TypeCheck) ReportInvalidInterfaceMemberDeclaration(interfaceNode *rhino.Node) {
+func (tc *TypeCheck) ReportInvalidInterfaceMemberDeclaration(interfaceNode rhino.Node) {
 	abstractMethodName := tc.compiler.GetCodingConvention().GetAbstractMethodName()
 	// This is bad i18n style but we don't localize our compiler errors.
 	abstractMethodMessage := ""
@@ -1847,7 +1847,7 @@ func (tc *TypeCheck) ReportInvalidInterfaceMemberDeclaration(interfaceNode *rhin
 // visited. Returns whether the node is typeable or not.
 //
 // Java: TypeCheck.visitName(NodeTraversal, Node, Node)
-func (tc *TypeCheck) VisitName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (tc *TypeCheck) VisitName(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Skip empty function expression names. They don't need a type.
 	isFunctionName := n.GetParent().IsFunction() && n.IsFirstChildOf(parent)
 	if isFunctionName && n.GetString() == "" {
@@ -1893,7 +1893,7 @@ func (tc *TypeCheck) VisitName(t *NodeTraversal, n *rhino.Node, parent *rhino.No
 // verifies the type being assigned to it.
 //
 // Java: TypeCheck.checkForOfTypes(NodeTraversal, Node)
-func (tc *TypeCheck) CheckForOfTypes(t *NodeTraversal, forOf *rhino.Node) {
+func (tc *TypeCheck) CheckForOfTypes(t *NodeTraversal, forOf rhino.Node) {
 	lhs := forOf.GetFirstChild()
 	iterable := forOf.GetSecondChild()
 	iterableType := tc.GetJSType(iterable)
@@ -1951,7 +1951,7 @@ func (tc *TypeCheck) CheckForOfTypes(t *NodeTraversal, forOf *rhino.Node) {
 // visited.
 //
 // Java: TypeCheck.visitGetProp(NodeTraversal, Node)
-func (tc *TypeCheck) VisitGetProp(t *NodeTraversal, n *rhino.Node) {
+func (tc *TypeCheck) VisitGetProp(t *NodeTraversal, n rhino.Node) {
 	// obj.prop or obj.method()
 	// Lots of types can appear on the left, a call to a void function can
 	// never be on the left. getPropertyType will decide what is acceptable
@@ -1971,7 +1971,7 @@ func (tc *TypeCheck) VisitGetProp(t *NodeTraversal, n *rhino.Node) {
 // VisitOptChainGetProp visits a OPTCHAIN_GETPROP node.
 //
 // Java: TypeCheck.visitOptChainGetProp(Node)
-func (tc *TypeCheck) VisitOptChainGetProp(optChainGetProp *rhino.Node) {
+func (tc *TypeCheck) VisitOptChainGetProp(optChainGetProp rhino.Node) {
 	// obj?.prop
 	// Unlike GETPROP, a call to a void function can also be on the lhs for an OPTCHAIN_GETPROP.
 	property := optChainGetProp.GetLastChild()
@@ -1987,7 +1987,7 @@ func (tc *TypeCheck) VisitOptChainGetProp(optChainGetProp *rhino.Node) {
 }
 
 // Java: TypeCheck.checkPropertyAccessForGetProp(Node)
-func (tc *TypeCheck) CheckPropertyAccessForGetProp(getProp *rhino.Node) {
+func (tc *TypeCheck) CheckPropertyAccessForGetProp(getProp rhino.Node) {
 	jutil.CheckArgumentMsg1(getProp.IsGetProp() || getProp.IsOptChainGetProp(), "%s", getProp)
 	objNode := getProp.GetFirstChild()
 	objType := tc.GetJSType(objNode)
@@ -1999,7 +1999,7 @@ func (tc *TypeCheck) CheckPropertyAccessForGetProp(getProp *rhino.Node) {
 
 // Java: TypeCheck.checkPropertyAccessForDestructuring(Node, JSType, Node, JSType)
 func (tc *TypeCheck) CheckPropertyAccessForDestructuring(
-	pattern *rhino.Node, objectType rhino.JSType, stringKey *rhino.Node, inferredPropType rhino.JSType) {
+	pattern rhino.Node, objectType rhino.JSType, stringKey rhino.Node, inferredPropType rhino.JSType) {
 	jutil.CheckArgumentMsg1(pattern.IsDestructuringPattern(), "%s", pattern)
 	jutil.CheckArgumentMsg1(stringKey.IsStringKey(), "%s", stringKey)
 
@@ -2009,10 +2009,10 @@ func (tc *TypeCheck) CheckPropertyAccessForDestructuring(
 	// while these do not:
 	//    for (const {a} of arrayOfObjects) {
 	//    const {{a}} = obj;
-	var objNode *rhino.Node
+	var objNode rhino.Node
 	patternParent := pattern.GetParent()
 	if (patternParent.IsAssign() || patternParent.IsDestructuringLhs()) &&
-		pattern.GetNext() != nil {
+		!pattern.GetNext().IsNil() {
 		objNode = pattern.GetNext()
 	}
 	tc.CheckPropertyAccess(objectType, stringKey, inferredPropType, objNode)
@@ -2038,7 +2038,7 @@ func (tc *TypeCheck) CheckPropertyAccessForDestructuring(
 //   - (c) the function is transpiled from a goog.base superclass reference
 //
 // Java: TypeCheck.checkAbstractPropertyAccess(Node)
-func (tc *TypeCheck) CheckAbstractPropertyAccess(method *rhino.Node) {
+func (tc *TypeCheck) CheckAbstractPropertyAccess(method rhino.Node) {
 
 	if NodeUtil_IsLhsOfAssign(method) {
 		// Allow declaring abstract methods. (This assumes they are never re-assigned)
@@ -2084,7 +2084,7 @@ func (tc *TypeCheck) CheckAbstractPropertyAccess(method *rhino.Node) {
 //
 // Java: TypeCheck.checkPropertyAccess(JSType, Node, JSType, Node)
 func (tc *TypeCheck) CheckPropertyAccess(
-	childType rhino.JSType, propNode *rhino.Node, propType rhino.JSType, objNode *rhino.Node) {
+	childType rhino.JSType, propNode rhino.Node, propType rhino.JSType, objNode rhino.Node) {
 	isGetprop := NodeUtil_IsNormalOrOptChainGetProp(propNode)
 	propName := propNode.GetString()
 
@@ -2113,7 +2113,7 @@ func (tc *TypeCheck) CheckPropertyAccess(
 }
 
 // Java: TypeCheck.isLValueGetProp(Node)
-func (tc *TypeCheck) IsLValueGetProp(n *rhino.Node) bool {
+func (tc *TypeCheck) IsLValueGetProp(n rhino.Node) bool {
 	parent := n.GetParent()
 	// TODO(b/77597706): this won't work for destructured lvalues
 	return (NodeUtil_IsUpdateOperator(parent) || NodeUtil_IsAssignmentOp(parent)) &&
@@ -2125,7 +2125,7 @@ func (tc *TypeCheck) IsLValueGetProp(n *rhino.Node) bool {
 //
 // Java: TypeCheck.checkPropertyAccessHelper(JSType, Node, Node, boolean)
 func (tc *TypeCheck) CheckPropertyAccessHelper(
-	objectType rhino.JSType, propNode *rhino.Node, objNode *rhino.Node, strictCheck bool) {
+	objectType rhino.JSType, propNode rhino.Node, objNode rhino.Node, strictCheck bool) {
 	isGetprop := NodeUtil_IsNormalOrOptChainGetProp(propNode)
 	propName := propNode.GetString()
 
@@ -2164,9 +2164,9 @@ func (tc *TypeCheck) CheckPropertyAccessHelper(
 
 // Java: TypeCheck.reportMissingProperty(Node, JSType, Node, PropDefinitionKind, boolean)
 func (tc *TypeCheck) ReportMissingProperty(
-	objNode *rhino.Node,
+	objNode rhino.Node,
 	objectType rhino.JSType,
-	propNode *rhino.Node,
+	propNode rhino.Node,
 	kind rhino.JSTypeRegistry_PropDefinitionKind,
 	strictReport bool) {
 	propName := propNode.GetString()
@@ -2181,7 +2181,7 @@ func (tc *TypeCheck) ReportMissingProperty(
 		pair = TypeCheck_GetClosestPropertySuggestion(objectType, propName, (jutil.StringLength(propName)-1)/4)
 	}
 	var objectTypeName string
-	if objNode != nil {
+	if !objNode.IsNil() {
 		objectTypeName = tc.typeRegistry.GetReadableTypeName(objNode)
 	} else {
 		objectTypeName = objectType.String()
@@ -2221,7 +2221,7 @@ func (tc *TypeCheck) ReportMissingProperty(
 }
 
 // Java: TypeCheck.allowStrictPropertyAccessOnNode(Node)
-func (tc *TypeCheck) AllowStrictPropertyAccessOnNode(n *rhino.Node) bool {
+func (tc *TypeCheck) AllowStrictPropertyAccessOnNode(n rhino.Node) bool {
 	return n.GetParent().IsTypeOf()
 }
 
@@ -2233,7 +2233,7 @@ func (tc *TypeCheck) AllowStrictPropertyAccessOnNode(n *rhino.Node) bool {
 // the opposite, `if (x.y == null) return; use(x.y);`).
 //
 // Java: TypeCheck.allowLoosePropertyAccessOnNode(Node)
-func (tc *TypeCheck) AllowLoosePropertyAccessOnNode(n *rhino.Node) bool {
+func (tc *TypeCheck) AllowLoosePropertyAccessOnNode(n rhino.Node) bool {
 	parent := n.GetParent()
 	return NodeUtil_IsPropertyTest(tc.compiler, n) ||
 		NodeUtil_IsPropertyAbsenceTest(n) ||
@@ -2242,7 +2242,7 @@ func (tc *TypeCheck) AllowLoosePropertyAccessOnNode(n *rhino.Node) bool {
 }
 
 // Java: TypeCheck.isQNameAssignmentTarget(Node)
-func (tc *TypeCheck) IsQNameAssignmentTarget(n *rhino.Node) bool {
+func (tc *TypeCheck) IsQNameAssignmentTarget(n rhino.Node) bool {
 	parent := n.GetParent()
 	return n.IsQualifiedName() && parent.IsAssign() && parent.GetFirstChild() == n
 }
@@ -2256,7 +2256,7 @@ func TypeCheck_GetClosestPropertySuggestion(
 // VisitGetElem visits a GETELEM node.
 //
 // Java: TypeCheck.visitGetElem(Node)
-func (tc *TypeCheck) VisitGetElem(n *rhino.Node) {
+func (tc *TypeCheck) VisitGetElem(n rhino.Node) {
 	tc.validator.ExpectIndexMatch(n, tc.GetJSType(n.GetFirstChild()), tc.GetJSType(n.GetLastChild()))
 	tc.EnsureTyped(n)
 }
@@ -2264,7 +2264,7 @@ func (tc *TypeCheck) VisitGetElem(n *rhino.Node) {
 // VisitOptChainGetElem visits a OPTCHAIN_GETELEM node.
 //
 // Java: TypeCheck.visitOptChainGetElem(Node)
-func (tc *TypeCheck) VisitOptChainGetElem(optChainGetElem *rhino.Node) {
+func (tc *TypeCheck) VisitOptChainGetElem(optChainGetElem rhino.Node) {
 	obj := optChainGetElem.GetFirstChild()
 	objType := tc.GetJSType(obj)
 	if objType.IsNullType() || objType.IsVoidType() {
@@ -2283,7 +2283,7 @@ func (tc *TypeCheck) VisitOptChainGetElem(optChainGetElem *rhino.Node) {
 // visited.
 //
 // Java: TypeCheck.visitVar(NodeTraversal, Node)
-func (tc *TypeCheck) VisitVar(t *NodeTraversal, n *rhino.Node) {
+func (tc *TypeCheck) VisitVar(t *NodeTraversal, n rhino.Node) {
 	// Handle var declarations in for-of loops separately from regular var declarations.
 	if n.GetParent().IsForOf() || n.GetParent().IsForIn() || n.GetParent().IsForAwaitOf() {
 		return
@@ -2296,11 +2296,11 @@ func (tc *TypeCheck) VisitVar(t *NodeTraversal, n *rhino.Node) {
 	if n.HasOneChild() {
 		varInfo = n.GetJSDocInfo()
 	}
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsName() {
 			value := child.GetFirstChild()
 
-			if value != nil {
+			if !value.IsNil() {
 				valueType := tc.GetJSType(value)
 				info := child.GetJSDocInfo()
 				if info == nil {
@@ -2324,7 +2324,7 @@ func (tc *TypeCheck) VisitVar(t *NodeTraversal, n *rhino.Node) {
 // VisitNew visits a NEW node.
 //
 // Java: TypeCheck.visitNew(Node)
-func (tc *TypeCheck) VisitNew(n *rhino.Node) {
+func (tc *TypeCheck) VisitNew(n rhino.Node) {
 	constructor := n.GetFirstChild()
 	type_ := tc.GetJSType(constructor).RestrictByNotNullOrUndefined()
 	if !tc.CouldBeAConstructor(type_) ||
@@ -2369,7 +2369,7 @@ func (tc *TypeCheck) CouldBeAConstructor(type_ rhino.JSType) bool {
 //
 // Java: TypeCheck.checkInterfaceConflictProperties(Node, String, Map<Property.Key, ObjectType>, Map<Property.Key, ObjectType>, ObjectType)
 func (tc *TypeCheck) CheckInterfaceConflictProperties(
-	n *rhino.Node,
+	n rhino.Node,
 	functionName string,
 	properties *jutil.ObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType],
 	currentProperties *jutil.ObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType],
@@ -2416,7 +2416,7 @@ func (tc *TypeCheck) CheckInterfaceConflictProperties(
 // VisitFunction visits a FUNCTION node.
 //
 // Java: TypeCheck.visitFunction(Node)
-func (tc *TypeCheck) VisitFunction(n *rhino.Node) {
+func (tc *TypeCheck) VisitFunction(n rhino.Node) {
 	if NodeUtil_IsEs6Constructor(n) {
 		return // These will be checked via the CLASS node.
 	}
@@ -2447,7 +2447,7 @@ func (tc *TypeCheck) VisitFunction(n *rhino.Node) {
 // VisitClass visits a CLASS node.
 //
 // Java: TypeCheck.visitClass(Node)
-func (tc *TypeCheck) VisitClass(n *rhino.Node) {
+func (tc *TypeCheck) VisitClass(n rhino.Node) {
 	functionType := rhino.JSType_ToMaybeFunctionType(n.GetJSType())
 	extendsClause := n.GetSecondChild()
 	if !extendsClause.IsEmpty() {
@@ -2484,7 +2484,7 @@ func (tc *TypeCheck) VisitClass(n *rhino.Node) {
 // FUNCTION node, or a CLASS node.
 //
 // Java: TypeCheck.checkConstructor(Node, FunctionType)
-func (tc *TypeCheck) CheckConstructor(n *rhino.Node, functionType rhino.FunctionType) {
+func (tc *TypeCheck) CheckConstructor(n rhino.Node, functionType rhino.FunctionType) {
 	baseConstructor := functionType.GetSuperClassConstructor()
 	if !jutil.ObjectsEquals(baseConstructor, tc.GetNativeType(rhino.JSTypeNative_OBJECT_FUNCTION_TYPE)) &&
 		baseConstructor != nil &&
@@ -2495,7 +2495,7 @@ func (tc *TypeCheck) CheckConstructor(n *rhino.Node, functionType rhino.Function
 	} else {
 		if n.IsFunction() &&
 			baseConstructor != nil &&
-			baseConstructor.GetSource() != nil &&
+			!baseConstructor.GetSource().IsNil() &&
 			baseConstructor.GetSource().IsClass() &&
 			!functionType.GetSource().IsClass() {
 			// Warn if an ES5 class extends an ES6 class.
@@ -2557,7 +2557,7 @@ func (tc *TypeCheck) NormalizeTemplatizedType(maybeTemplatizedType rhino.JSType)
 }
 
 // Java: TypeCheck.checkStructDictSubtyping(Node, FunctionType, FunctionType)
-func (tc *TypeCheck) CheckStructDictSubtyping(n *rhino.Node, subtype rhino.FunctionType, supertype rhino.FunctionType) {
+func (tc *TypeCheck) CheckStructDictSubtyping(n rhino.Node, subtype rhino.FunctionType, supertype rhino.FunctionType) {
 	if subtype.MakesDicts() && supertype.MakesStructs() {
 		tc.compiler.Report(
 			JSError_MakeWithNode(
@@ -2573,7 +2573,7 @@ func (tc *TypeCheck) CheckStructDictSubtyping(n *rhino.Node, subtype rhino.Funct
 // FUNCTION node, or a CLASS node.
 //
 // Java: TypeCheck.checkInterface(Node, FunctionType)
-func (tc *TypeCheck) CheckInterface(n *rhino.Node, functionType rhino.FunctionType) {
+func (tc *TypeCheck) CheckInterface(n rhino.Node, functionType rhino.FunctionType) {
 	// Interface must extend only interfaces
 	for _, extInterface := range functionType.GetExtendedInterfaces() {
 		if extInterface.GetConstructor() != nil && !extInterface.GetConstructor().IsInterface() {
@@ -2612,7 +2612,7 @@ func (tc *TypeCheck) CheckInterface(n *rhino.Node, functionType rhino.FunctionTy
 }
 
 // Java: TypeCheck.getBestFunctionName(Node)
-func (tc *TypeCheck) GetBestFunctionName(n *rhino.Node) string {
+func (tc *TypeCheck) GetBestFunctionName(n rhino.Node) string {
 	jutil.CheckState(n.IsClass() || n.IsFunction())
 	name := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
 	if name != nil {
@@ -2627,7 +2627,7 @@ var TypeCheck_GOOG_INHERITS = rhino.QualifiedName_Of("goog.inherits")
 // 'native' syntax for defining classes, we need to do this manually.
 //
 // Java: TypeCheck.checkCallConventions(NodeTraversal, Node)
-func (tc *TypeCheck) CheckCallConventions(t *NodeTraversal, n *rhino.Node) {
+func (tc *TypeCheck) CheckCallConventions(t *NodeTraversal, n rhino.Node) {
 	relationship := tc.compiler.GetCodingConvention().GetClassesDefinedByCall(n)
 	scope := t.GetTypedScope()
 	if relationship != nil {
@@ -2643,7 +2643,7 @@ func (tc *TypeCheck) CheckCallConventions(t *NodeTraversal, n *rhino.Node) {
 			if n.GetFirstChild().IsQualifiedName() &&
 				TypeCheck_GOOG_INHERITS.Matches(n.GetFirstChild()) &&
 				subClass.ToMaybeFunctionType() != nil &&
-				subClass.ToMaybeFunctionType().GetSource() != nil &&
+				!subClass.ToMaybeFunctionType().GetSource().IsNil() &&
 				subClass.ToMaybeFunctionType().GetSource().IsClass() {
 				tc.compiler.Report(JSError_MakeWithNode(n, TypeCheck_ES6_CLASS_EXTENDING_CLASS_WITH_GOOG_INHERITS))
 			}
@@ -2659,7 +2659,7 @@ func (tc *TypeCheck) CheckCallConventions(t *NodeTraversal, n *rhino.Node) {
 // visited.
 //
 // Java: TypeCheck.visitCall(NodeTraversal, Node)
-func (tc *TypeCheck) VisitCall(t *NodeTraversal, n *rhino.Node) {
+func (tc *TypeCheck) VisitCall(t *NodeTraversal, n rhino.Node) {
 	tc.CheckCallConventions(t, n)
 
 	child := n.GetFirstChild()
@@ -2713,13 +2713,13 @@ func (tc *TypeCheck) VisitCall(t *NodeTraversal, n *rhino.Node) {
 // VisitArgumentList visits the parameters of a CALL or a NEW node.
 //
 // Java: TypeCheck.visitArgumentList(Node, FunctionType)
-func (tc *TypeCheck) VisitArgumentList(call *rhino.Node, functionType rhino.FunctionType) {
+func (tc *TypeCheck) VisitArgumentList(call rhino.Node, functionType rhino.FunctionType) {
 	parameters := functionType.GetParameters()
 	tc.checkInvocationArgumentsMatchParameters(call, functionType, parameters, 0)
 }
 
 func (tc *TypeCheck) checkInvocationArgumentsMatchParameters(
-	call *rhino.Node,
+	call rhino.Node,
 	functionType rhino.FunctionType,
 	parameters []*rhino.FunctionType_Parameter,
 	firstParameterIndex int) {
@@ -2728,24 +2728,24 @@ func (tc *TypeCheck) checkInvocationArgumentsMatchParameters(
 	normalArgumentCount := firstParameterIndex
 	checkArgumentTypeAgainstParameter := true
 	var parameter *rhino.FunctionType_Parameter
-	var argument *rhino.Node
+	var argument rhino.Node
 	nextParameter := 0
 
-	var curArg *rhino.Node
+	var curArg rhino.Node
 	isTaggedTemplateLit := call.IsTaggedTemplateLit()
 	if isTaggedTemplateLit {
-		for curArg = call.GetLastChild().GetFirstChild(); curArg != nil && !curArg.IsTemplateLitSub(); curArg = curArg.GetNext() {
+		for curArg = call.GetLastChild().GetFirstChild(); !curArg.IsNil() && !curArg.IsTemplateLitSub(); curArg = curArg.GetNext() {
 		}
 	} else {
 		curArg = call.GetSecondChild()
 	}
 
-	for curArg != nil {
+	for !curArg.IsNil() {
 		argument = curArg
 		curArg = curArg.GetNext()
 		if isTaggedTemplateLit {
 			argument = argument.GetFirstChild()
-			for curArg != nil && !curArg.IsTemplateLitSub() {
+			for !curArg.IsNil() && !curArg.IsTemplateLitSub() {
 				curArg = curArg.GetNext()
 			}
 		}
@@ -2834,9 +2834,9 @@ func (tc *TypeCheck) checkInvocationArgumentsMatchParameters(
 //
 // Java: TypeCheck.checkArgumentsMatchParameters(Node, FunctionType, Iterator<Node>, Iterator<Parameter>, int)
 func (tc *TypeCheck) CheckArgumentsMatchParameters(
-	call *rhino.Node,
+	call rhino.Node,
 	functionType rhino.FunctionType,
-	arguments []*rhino.Node,
+	arguments []rhino.Node,
 	parameters []*rhino.FunctionType_Parameter,
 	firstParameterIndex int) {
 
@@ -2844,7 +2844,7 @@ func (tc *TypeCheck) CheckArgumentsMatchParameters(
 	normalArgumentCount := firstParameterIndex
 	checkArgumentTypeAgainstParameter := true
 	var parameter *rhino.FunctionType_Parameter
-	var argument *rhino.Node
+	var argument rhino.Node
 	nextParameter := 0
 	for _, nextArgument := range arguments {
 		// get the next argument
@@ -2921,7 +2921,7 @@ func (tc *TypeCheck) CheckArgumentsMatchParameters(
 // VisitImplicitReturnExpression visits an arrow function expression body.
 //
 // Java: TypeCheck.visitImplicitReturnExpression(NodeTraversal, Node)
-func (tc *TypeCheck) VisitImplicitReturnExpression(t *NodeTraversal, exprNode *rhino.Node) {
+func (tc *TypeCheck) VisitImplicitReturnExpression(t *NodeTraversal, exprNode rhino.Node) {
 	enclosingFunction := t.GetEnclosingFunction()
 	jsType := tc.GetJSType(enclosingFunction)
 	if jsType.IsFunctionType() {
@@ -2952,7 +2952,7 @@ func (tc *TypeCheck) VisitImplicitReturnExpression(t *NodeTraversal, exprNode *r
 // visited.
 //
 // Java: TypeCheck.visitReturn(NodeTraversal, Node)
-func (tc *TypeCheck) VisitReturn(t *NodeTraversal, n *rhino.Node) {
+func (tc *TypeCheck) VisitReturn(t *NodeTraversal, n rhino.Node) {
 	enclosingFunction := t.GetEnclosingFunction()
 
 	jsType := tc.GetJSType(enclosingFunction)
@@ -2997,7 +2997,7 @@ func (tc *TypeCheck) VisitReturn(t *NodeTraversal, n *rhino.Node) {
 		// fetching the returned value's type
 		valueNode := n.GetFirstChild()
 		var actualReturnType rhino.JSType
-		if valueNode == nil {
+		if valueNode.IsNil() {
 			actualReturnType = tc.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
 			valueNode = n
 		} else {
@@ -3013,7 +3013,7 @@ func (tc *TypeCheck) VisitReturn(t *NodeTraversal, n *rhino.Node) {
 // VisitYield visits a YIELD node.
 //
 // Java: TypeCheck.visitYield(NodeTraversal, Node)
-func (tc *TypeCheck) VisitYield(t *NodeTraversal, n *rhino.Node) {
+func (tc *TypeCheck) VisitYield(t *NodeTraversal, n rhino.Node) {
 	jsType := tc.GetJSType(t.GetEnclosingFunction())
 
 	declaredYieldType := tc.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
@@ -3035,7 +3035,7 @@ func (tc *TypeCheck) VisitYield(t *NodeTraversal, n *rhino.Node) {
 	// fetching the yielded value's type
 	valueNode := n.GetFirstChild()
 	var actualYieldType rhino.JSType
-	if valueNode == nil {
+	if valueNode.IsNil() {
 		actualYieldType = tc.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
 		valueNode = n
 	} else {
@@ -3073,7 +3073,7 @@ func (tc *TypeCheck) VisitYield(t *NodeTraversal, n *rhino.Node) {
 }
 
 // Java: TypeCheck.visitTaggedTemplateLit(Node)
-func (tc *TypeCheck) VisitTaggedTemplateLit(n *rhino.Node) {
+func (tc *TypeCheck) VisitTaggedTemplateLit(n rhino.Node) {
 	tag := n.GetFirstChild()
 	tagType := tag.GetJSType().RestrictByNotNullOrUndefined()
 
@@ -3127,7 +3127,7 @@ func (tc *TypeCheck) VisitTaggedTemplateLit(n *rhino.Node) {
 // op is the operator; n the node being checked.
 //
 // Java: TypeCheck.visitBinaryOperator(Token, Node)
-func (tc *TypeCheck) VisitBinaryOperator(op rhino.Token, n *rhino.Node) {
+func (tc *TypeCheck) VisitBinaryOperator(op rhino.Token, n rhino.Node) {
 	operatorType := tc.GetJSType(n)
 	left := n.GetFirstChild()
 	leftType := tc.GetJSType(left)
@@ -3217,7 +3217,7 @@ func (p typeCheck_inputProvider) GetInput(*rhino.InputId) *CompilerInput {
 // legacy goog.module.
 //
 // Java: TypeCheck.visitModuleBody(NodeTraversal, Node)
-func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, moduleBody *rhino.Node) {
+func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, moduleBody rhino.Node) {
 	associatedModule :=
 		ModuleImportResolver_GetModuleFromScopeRoot(
 			tc.compiler.GetModuleMap(), typeCheck_inputProvider{t}, moduleBody)
@@ -3253,7 +3253,7 @@ func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, moduleBody *rhino.Node) {
 // child of type string.
 //
 // Java: TypeCheck.visitDynamicImport(NodeTraversal, Node)
-func (tc *TypeCheck) VisitDynamicImport(t *NodeTraversal, dynamicImport *rhino.Node) {
+func (tc *TypeCheck) VisitDynamicImport(t *NodeTraversal, dynamicImport rhino.Node) {
 	tc.EnsureTypedWithType(dynamicImport, tc.GetNativeType(rhino.JSTypeNative_PROMISE_TYPE))
 
 	importSpecifier := dynamicImport.GetFirstChild()
@@ -3287,7 +3287,7 @@ func (tc *TypeCheck) VisitDynamicImport(t *NodeTraversal, dynamicImport *rhino.N
 //
 // Java: TypeCheck.checkEnumAlias(NodeTraversal, JSDocInfo, JSType, Node)
 func (tc *TypeCheck) CheckEnumAlias(
-	t *NodeTraversal, declInfo *rhino.JSDocInfo, valueType rhino.JSType, nodeToWarn *rhino.Node) {
+	t *NodeTraversal, declInfo *rhino.JSDocInfo, valueType rhino.JSType, nodeToWarn rhino.Node) {
 	if declInfo == nil || !declInfo.HasEnumParameterType() {
 		return
 	}
@@ -3309,7 +3309,7 @@ func (tc *TypeCheck) CheckEnumAlias(
 // present.
 //
 // Java: TypeCheck.getJSType(Node)
-func (tc *TypeCheck) GetJSType(n *rhino.Node) rhino.JSType {
+func (tc *TypeCheck) GetJSType(n rhino.Node) rhino.JSType {
 	jsType := n.GetJSType()
 	if jsType == nil {
 		// TODO(nicksantos): This branch indicates a compiler bug, not worthy of
@@ -3346,12 +3346,12 @@ func (tc *TypeCheck) GetPropertyTypeIfDeclared(
 // one, attach the UNKNOWN_TYPE.
 //
 // Java: TypeCheck.ensureTyped(Node)
-func (tc *TypeCheck) EnsureTyped(n *rhino.Node) {
+func (tc *TypeCheck) EnsureTyped(n rhino.Node) {
 	tc.EnsureTypedWithType(n, tc.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE))
 }
 
 // Java: TypeCheck.ensureTyped(Node, JSTypeNative)
-func (tc *TypeCheck) EnsureTypedWithNative(n *rhino.Node, type_ rhino.JSTypeNative) {
+func (tc *TypeCheck) EnsureTypedWithNative(n rhino.Node, type_ rhino.JSTypeNative) {
 	tc.EnsureTypedWithType(n, tc.GetNativeType(type_))
 }
 
@@ -3361,7 +3361,7 @@ func (tc *TypeCheck) EnsureTypedWithNative(n *rhino.Node, type_ rhino.JSTypeNati
 // assigned.
 //
 // Java: TypeCheck.ensureTyped(Node, JSType)
-func (tc *TypeCheck) EnsureTypedWithType(n *rhino.Node, type_ rhino.JSType) {
+func (tc *TypeCheck) EnsureTypedWithType(n rhino.Node, type_ rhino.JSType) {
 	// Make sure FUNCTION nodes always get function type.
 	jutil.CheckState(!n.IsFunction() || type_.IsFunctionType() || type_.IsUnknownType())
 	if n.GetJSType() == nil {
@@ -3393,13 +3393,13 @@ func (tc *TypeCheck) GetNativeType(typeId rhino.JSTypeNative) rhino.JSType {
 // such type is found, a warning is reported for the current node.
 //
 // Java: TypeCheck.checkJsdocInfoContainsObjectWithBadKey(Node)
-func (tc *TypeCheck) CheckJsdocInfoContainsObjectWithBadKey(n *rhino.Node) {
+func (tc *TypeCheck) CheckJsdocInfoContainsObjectWithBadKey(n rhino.Node) {
 	if info := n.GetJSDocInfo(); info != nil {
 		tc.checkJsdocInfoContainsObjectWithBadKeySlow(n, info)
 	}
 }
 
-func (tc *TypeCheck) checkJsdocInfoContainsObjectWithBadKeySlow(n *rhino.Node, info *rhino.JSDocInfo) {
+func (tc *TypeCheck) checkJsdocInfoContainsObjectWithBadKeySlow(n rhino.Node, info *rhino.JSDocInfo) {
 	tc.CheckTypeContainsObjectWithBadKey(n, info.GetType())
 	tc.CheckTypeContainsObjectWithBadKey(n, info.GetReturnType())
 	tc.CheckTypeContainsObjectWithBadKey(n, info.GetTypedefType())
@@ -3410,7 +3410,7 @@ func (tc *TypeCheck) checkJsdocInfoContainsObjectWithBadKeySlow(n *rhino.Node, i
 }
 
 // Java: TypeCheck.checkTypeContainsObjectWithBadKey(Node, JSTypeExpression)
-func (tc *TypeCheck) CheckTypeContainsObjectWithBadKey(n *rhino.Node, type_ *rhino.JSTypeExpression) {
+func (tc *TypeCheck) CheckTypeContainsObjectWithBadKey(n rhino.Node, type_ *rhino.JSTypeExpression) {
 	if type_ != nil && type_.GetRoot().GetJSType() != nil {
 		realType := type_.GetRoot().GetJSType()
 		if !realType.IsTemplatizedType() && !realType.IsUnionType() && !realType.IsOrdinaryFunction() {
@@ -3605,7 +3605,7 @@ func (tc *TypeCheck) ClassHasToString(type_ rhino.ObjectType) bool {
 // basic errors.
 //
 // Java: TypeCheck.checkNotReadonlyPropertyAssignment(Node)
-func (tc *TypeCheck) CheckNotReadonlyPropertyAssignment(lhs *rhino.Node) {
+func (tc *TypeCheck) CheckNotReadonlyPropertyAssignment(lhs rhino.Node) {
 	// We only care about element or property assignments.
 	if !lhs.IsGetProp() && !lhs.IsGetElem() {
 		return
@@ -3666,7 +3666,7 @@ type TypeCheck_DebugTypeLogger struct {
 	typeLogFile diagnostic.LogFile
 
 	// The node where we started logging, if we're logging.
-	parentNode *rhino.Node
+	parentNode rhino.Node
 }
 
 // Suppress MustBeClosedChecker because `.close` is called by our `close` method.
@@ -3681,9 +3681,9 @@ func NewTypeCheck_DebugTypeLogger(outer *TypeCheck) *TypeCheck_DebugTypeLogger {
 }
 
 // Java: TypeCheck.DebugTypeLogger.maybeStartLoggingAt(Node)
-func (l *TypeCheck_DebugTypeLogger) MaybeStartLoggingAt(n *rhino.Node) {
+func (l *TypeCheck_DebugTypeLogger) MaybeStartLoggingAt(n rhino.Node) {
 	// We don't log outside debug mode, or if we're already logging.
-	if l.typeLogFile == nil || l.parentNode != nil {
+	if l.typeLogFile == nil || !l.parentNode.IsNil() {
 		return
 	}
 
@@ -3695,9 +3695,9 @@ func (l *TypeCheck_DebugTypeLogger) MaybeStartLoggingAt(n *rhino.Node) {
 }
 
 // Java: TypeCheck.DebugTypeLogger.stopLoggingIfThisIsWhereWeStarted(Node)
-func (l *TypeCheck_DebugTypeLogger) StopLoggingIfThisIsWhereWeStarted(n *rhino.Node) {
+func (l *TypeCheck_DebugTypeLogger) StopLoggingIfThisIsWhereWeStarted(n rhino.Node) {
 	if n == l.parentNode {
-		l.parentNode = nil
+		l.parentNode = rhino.Node{}
 	}
 }
 
@@ -3709,9 +3709,9 @@ func (l *TypeCheck_DebugTypeLogger) Close() {
 }
 
 // Java: TypeCheck.DebugTypeLogger.maybeLogTypeOfNode(Node)
-func (l *TypeCheck_DebugTypeLogger) MaybeLogTypeOfNode(n *rhino.Node) {
+func (l *TypeCheck_DebugTypeLogger) MaybeLogTypeOfNode(n rhino.Node) {
 	// If we have no parent, we're not logging.
-	if l.parentNode == nil {
+	if l.parentNode.IsNil() {
 		return
 	}
 

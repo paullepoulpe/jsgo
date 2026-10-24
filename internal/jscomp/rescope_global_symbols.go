@@ -114,7 +114,7 @@ func (r *RescopeGlobalSymbols) AddExternForGlobalSymbolNamespace() {
 }
 
 // Java: RescopeGlobalSymbols.process(Node, Node)
-func (r *RescopeGlobalSymbols) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RescopeGlobalSymbols) Process(externs rhino.Node, root rhino.Node) {
 	// Make the name of the globalSymbolNamespace an extern.
 	if r.addExtern {
 		r.AddExternForGlobalSymbolNamespace()
@@ -203,7 +203,7 @@ func NewRescopeGlobalSymbols_RewriteGlobalClassFunctionDeclarationsToVarAssignme
 }
 
 // Java: RescopeGlobalSymbols.RewriteGlobalClassFunctionDeclarationsToVarAssignmentsCallback.visit(NodeTraversal, Node, Node)
-func (c *RescopeGlobalSymbols_RewriteGlobalClassFunctionDeclarationsToVarAssignmentsCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *RescopeGlobalSymbols_RewriteGlobalClassFunctionDeclarationsToVarAssignmentsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Ignore block scopes within the global scope, as class and function declarations are
 	// block-scoped.
 	// Note that we should never find block-scoped function declarations if outputting ES5
@@ -228,7 +228,7 @@ func (c *RescopeGlobalSymbols_RewriteGlobalClassFunctionDeclarationsToVarAssignm
 	prev := n.GetPrevious()
 	n.Detach()
 	var_ := NodeUtil_NewVarNode(name, n)
-	if prev == nil {
+	if prev.IsNil() {
 		parent.AddChildToFront(var_)
 	} else {
 		var_.InsertAfter(prev)
@@ -273,7 +273,7 @@ func NewRescopeGlobalSymbols_FindCrossChunkNamesCallback(trackLocalAccessSets bo
 }
 
 // Java: RescopeGlobalSymbols.FindCrossChunkNamesCallback.visit(NodeTraversal, Node, Node)
-func (c *RescopeGlobalSymbols_FindCrossChunkNamesCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *RescopeGlobalSymbols_FindCrossChunkNamesCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		name := n.GetString()
 		if name == "" || (!c.trackLocalAccessSets && c.crossChunkNames.Contains(name)) {
@@ -339,13 +339,13 @@ func NewRescopeGlobalSymbols_FindNamesReferencingThis() *RescopeGlobalSymbols_Fi
 }
 
 // Java: RescopeGlobalSymbols.FindNamesReferencingThis.visit(NodeTraversal, Node, Node)
-func (c *RescopeGlobalSymbols_FindNamesReferencingThis) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *RescopeGlobalSymbols_FindNamesReferencingThis) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		name := n.GetString()
 		if name == "" {
 			return
 		}
-		var value *rhino.Node
+		var value rhino.Node
 		if parent.IsAssign() && n == parent.GetFirstChild() {
 			value = parent.GetLastChild()
 		} else if NodeUtil_IsNameDeclaration(parent) {
@@ -353,7 +353,7 @@ func (c *RescopeGlobalSymbols_FindNamesReferencingThis) Visit(t *NodeTraversal, 
 		} else if parent.IsFunction() {
 			value = parent
 		}
-		if value == nil && !NodeUtil_IsLhsByDestructuring(n) {
+		if value.IsNil() && !NodeUtil_IsLhsByDestructuring(n) {
 			// If n is assigned in a destructuring pattern, don't bother finding its value and just
 			// assume it may reference this.
 			return
@@ -372,7 +372,7 @@ func (c *RescopeGlobalSymbols_FindNamesReferencingThis) Visit(t *NodeTraversal, 
 		// a function referencing this is being assigned. Otherwise we
 		// check whether the function assigned is a) an arrow function, which has a
 		// lexically-scoped this, or b) a non-arrow function that does not reference this.
-		if value == nil || !value.IsFunction() || NodeUtil_ReferencesOwnReceiver(value) {
+		if value.IsNil() || !value.IsFunction() || NodeUtil_ReferencesOwnReceiver(value) {
 			c.maybeReferencesThis.Add(name)
 		}
 	}
@@ -415,19 +415,19 @@ func NewRescopeGlobalSymbols_RemoveGlobalVarCallback(compiler AbstractCompiler) 
 }
 
 // Java: RescopeGlobalSymbols.RemoveGlobalVarCallback.visit(NodeTraversal, Node, Node)
-func (c *RescopeGlobalSymbols_RemoveGlobalVarCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *RescopeGlobalSymbols_RemoveGlobalVarCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !NodeUtil_IsNameDeclaration(n) {
 		return
 	}
 
-	var commas []*rhino.Node
-	var interestingChildren []*rhino.Node
+	var commas []rhino.Node
+	var interestingChildren []rhino.Node
 	// Filter out declarations without assignments.
 	// As opposed to regular var nodes, there are always assignments
 	// because the previous traversal in RescopeGlobalSymbolsRewriteCallback creates
 	// them.
 	allNameOrDestructuring := true
-	for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 		if !ch.IsName() && !ch.IsDestructuringLhs() {
 			allNameOrDestructuring = false
 		}
@@ -462,7 +462,7 @@ func (c *RescopeGlobalSymbols_RemoveGlobalVarCallback) Visit(t *NodeTraversal, n
 }
 
 // Java: RescopeGlobalSymbols.RemoveGlobalVarCallback.joinOnComma(List<Node>, Node)
-func (c *RescopeGlobalSymbols_RemoveGlobalVarCallback) JoinOnComma(commas []*rhino.Node, source *rhino.Node) *rhino.Node {
+func (c *RescopeGlobalSymbols_RemoveGlobalVarCallback) JoinOnComma(commas []rhino.Node, source rhino.Node) rhino.Node {
 	comma := commas[0]
 	for i := 1; i < len(commas); i++ {
 		nextComma := rhino.IR_Comma(comma, commas[i])

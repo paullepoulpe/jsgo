@@ -32,7 +32,7 @@ import (
 // Java: final class TypeTransformationParser
 type TypeTransformationParser struct {
 	typeTransformationString string
-	typeTransformationAst    *rhino.Node
+	typeTransformationAst    rhino.Node
 	sourceFile               rhino.StaticSourceFile
 	errorReporter            rhino.ErrorReporter
 	templateLineno           int
@@ -323,7 +323,7 @@ func NewTypeTransformationParser(typeTransformationString string,
 }
 
 // Java: TypeTransformationParser.getTypeTransformationAst()
-func (p *TypeTransformationParser) GetTypeTransformationAst() *rhino.Node {
+func (p *TypeTransformationParser) GetTypeTransformationAst() rhino.Node {
 	return p.typeTransformationAst
 }
 
@@ -375,7 +375,7 @@ func (p *TypeTransformationParser) IsValidTypevarPredicate(name string) bool {
 }
 
 // Java: TypeTransformationParser.isBooleanOperation(Node)
-func (p *TypeTransformationParser) IsBooleanOperation(n *rhino.Node) bool {
+func (p *TypeTransformationParser) IsBooleanOperation(n rhino.Node) bool {
 	return n.IsAnd() || n.IsOr() || n.IsNot()
 }
 
@@ -387,52 +387,52 @@ func (p *TypeTransformationParser) IsValidPredicate(name string) bool {
 }
 
 // Java: TypeTransformationParser.getFunctionParamCount(Node)
-func (p *TypeTransformationParser) GetFunctionParamCount(n *rhino.Node) int {
+func (p *TypeTransformationParser) GetFunctionParamCount(n rhino.Node) int {
 	jutil.CheckArgumentMsg1(n.IsFunction(),
 		"Expected a function node, found %s", n)
 	return n.GetSecondChild().GetChildCount()
 }
 
 // Java: TypeTransformationParser.getFunctionBody(Node)
-func (p *TypeTransformationParser) GetFunctionBody(n *rhino.Node) *rhino.Node {
+func (p *TypeTransformationParser) GetFunctionBody(n rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(n.IsFunction(),
 		"Expected a function node, found %s", n)
 	return n.GetChildAtIndex(2)
 }
 
 // Java: TypeTransformationParser.getCallName(Node)
-func (p *TypeTransformationParser) GetCallName(n *rhino.Node) string {
+func (p *TypeTransformationParser) GetCallName(n rhino.Node) string {
 	jutil.CheckArgumentMsg1(n.IsCall(),
 		"Expected a call node, found %s", n)
 	return n.GetFirstChild().GetString()
 }
 
 // Java: TypeTransformationParser.getCallArgument(Node, int)
-func (p *TypeTransformationParser) GetCallArgument(n *rhino.Node, i int) *rhino.Node {
+func (p *TypeTransformationParser) GetCallArgument(n rhino.Node, i int) rhino.Node {
 	jutil.CheckArgumentMsg1(n.IsCall(),
 		"Expected a call node, found %s", n)
 	return n.GetChildAtIndex(i + 1)
 }
 
 // Java: TypeTransformationParser.getCallParamCount(Node)
-func (p *TypeTransformationParser) GetCallParamCount(n *rhino.Node) int {
+func (p *TypeTransformationParser) GetCallParamCount(n rhino.Node) int {
 	jutil.CheckArgumentMsg1(n.IsCall(),
 		"Expected a call node, found %s", n)
 	return n.GetChildCount() - 1
 }
 
 // Java: TypeTransformationParser.isTypeVar(Node)
-func (p *TypeTransformationParser) IsTypeVar(n *rhino.Node) bool {
+func (p *TypeTransformationParser) IsTypeVar(n rhino.Node) bool {
 	return n.IsName()
 }
 
 // Java: TypeTransformationParser.isTypeName(Node)
-func (p *TypeTransformationParser) IsTypeName(n *rhino.Node) bool {
+func (p *TypeTransformationParser) IsTypeName(n rhino.Node) bool {
 	return n.IsStringLit()
 }
 
 // Java: TypeTransformationParser.isOperation(Node)
-func (p *TypeTransformationParser) IsOperation(n *rhino.Node) bool {
+func (p *TypeTransformationParser) IsOperation(n rhino.Node) bool {
 	return n.IsCall()
 }
 
@@ -442,7 +442,7 @@ func (p *TypeTransformationParser) IsOperation(n *rhino.Node) bool {
 //   - CALL for the other expressions
 //
 // Java: TypeTransformationParser.isValidExpression(Node)
-func (p *TypeTransformationParser) IsValidExpression(e *rhino.Node) bool {
+func (p *TypeTransformationParser) IsValidExpression(e rhino.Node) bool {
 	return p.IsTypeVar(e) || p.IsTypeName(e) || p.IsOperation(e)
 }
 
@@ -472,7 +472,7 @@ func (p *TypeTransformationParser) WarnInvalidInside(msg string) {
 }
 
 // Java: TypeTransformationParser.checkParameterCount(Node, Keywords)
-func (p *TypeTransformationParser) CheckParameterCount(expr *rhino.Node, keyword TypeTransformationParser_Keywords) bool {
+func (p *TypeTransformationParser) CheckParameterCount(expr rhino.Node, keyword TypeTransformationParser_Keywords) bool {
 	paramCount := p.GetCallParamCount(expr)
 	if paramCount < keyword.MinParamCount() {
 		p.WarnMissingParam(keyword.KeywordName())
@@ -503,7 +503,7 @@ func (p *TypeTransformationParser) ParseTypeTransformation() bool {
 		p.sourceFile, p.typeTransformationString, config, p.errorReporter)
 	ast := result.Ast
 	// Check that the expression is a script with an expression result
-	if ast == nil ||
+	if ast.IsNil() ||
 		!ast.IsScript() ||
 		!ast.HasChildren() ||
 		!ast.GetFirstChild().IsExprResult() {
@@ -541,10 +541,10 @@ func (p *TypeTransformationParser) ParseTypeTransformation() bool {
 // of "@" to safely highlight which JSDoc annotation an error occurs in.
 //
 // Java: TypeTransformationParser.fixTTLNodeLineNoCharNoAndLength(Node)
-func (p *TypeTransformationParser) FixTTLNodeLineNoCharNoAndLength(expr *rhino.Node) {
+func (p *TypeTransformationParser) FixTTLNodeLineNoCharNoAndLength(expr rhino.Node) {
 	expr.SetLinenoCharno(p.templateLineno, p.templateCharno)
 	expr.SetLength(TypeTransformationParser_TTL_NODE_LENGTH)
-	for child := expr.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := expr.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		p.FixTTLNodeLineNoCharNoAndLength(child)
 	}
 }
@@ -553,7 +553,7 @@ func (p *TypeTransformationParser) FixTTLNodeLineNoCharNoAndLength(expr *rhino.N
 // form type(typename, TTLExp,...) or type(typevar, TTLExp...).
 //
 // Java: TypeTransformationParser.validTemplateTypeExpression(Node)
-func (p *TypeTransformationParser) ValidTemplateTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidTemplateTypeExpression(expr rhino.Node) bool {
 	// The expression must have at least three children the type keyword,
 	// a type name (or type variable) and a type expression
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_TYPE) {
@@ -581,7 +581,7 @@ func (p *TypeTransformationParser) ValidTemplateTypeExpression(expr *rhino.Node)
 // variable or a union(TTLExp, TTLExp, ...).
 //
 // Java: TypeTransformationParser.validUnionTypeExpression(Node)
-func (p *TypeTransformationParser) ValidUnionTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidUnionTypeExpression(expr rhino.Node) bool {
 	// The expression must have at least three children: The union keyword
 	// and two type expressions
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_UNION) {
@@ -602,7 +602,7 @@ func (p *TypeTransformationParser) ValidUnionTypeExpression(expr *rhino.Node) bo
 // none().
 //
 // Java: TypeTransformationParser.validNoneTypeExpression(Node)
-func (p *TypeTransformationParser) ValidNoneTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidNoneTypeExpression(expr rhino.Node) bool {
 	// The expression must have no children
 	return p.CheckParameterCount(expr, TypeTransformationParser_Keywords_NONE)
 }
@@ -610,7 +610,7 @@ func (p *TypeTransformationParser) ValidNoneTypeExpression(expr *rhino.Node) boo
 // ValidAllTypeExpression: an all type expression must be of the form: all().
 //
 // Java: TypeTransformationParser.validAllTypeExpression(Node)
-func (p *TypeTransformationParser) ValidAllTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidAllTypeExpression(expr rhino.Node) bool {
 	// The expression must have no children
 	return p.CheckParameterCount(expr, TypeTransformationParser_Keywords_ALL)
 }
@@ -619,7 +619,7 @@ func (p *TypeTransformationParser) ValidAllTypeExpression(expr *rhino.Node) bool
 // form: unknown().
 //
 // Java: TypeTransformationParser.validUnknownTypeExpression(Node)
-func (p *TypeTransformationParser) ValidUnknownTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidUnknownTypeExpression(expr rhino.Node) bool {
 	// The expression must have no children
 	return p.CheckParameterCount(expr, TypeTransformationParser_Keywords_UNKNOWN)
 }
@@ -628,7 +628,7 @@ func (p *TypeTransformationParser) ValidUnknownTypeExpression(expr *rhino.Node) 
 // rawTypeOf(TTLExp).
 //
 // Java: TypeTransformationParser.validRawTypeOfTypeExpression(Node)
-func (p *TypeTransformationParser) ValidRawTypeOfTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidRawTypeOfTypeExpression(expr rhino.Node) bool {
 	// The expression must have two children. The rawTypeOf keyword and the
 	// parameter
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_RAWTYPEOF) {
@@ -646,7 +646,7 @@ func (p *TypeTransformationParser) ValidRawTypeOfTypeExpression(expr *rhino.Node
 // the form templateTypeOf(TTLExp, index).
 //
 // Java: TypeTransformationParser.validTemplateTypeOfExpression(Node)
-func (p *TypeTransformationParser) ValidTemplateTypeOfExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidTemplateTypeOfExpression(expr rhino.Node) bool {
 	// The expression must have three children. The templateTypeOf keyword, a
 	// templatized type and an index
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_TEMPLATETYPEOF) {
@@ -677,10 +677,10 @@ func (p *TypeTransformationParser) ValidTemplateTypeOfExpression(expr *rhino.Nod
 // expressions.
 //
 // Java: TypeTransformationParser.validRecordParam(Node)
-func (p *TypeTransformationParser) ValidRecordParam(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidRecordParam(expr rhino.Node) bool {
 	if expr.IsObjectLit() {
 		// Each value of a property must be a valid expression
-		for prop := expr.GetFirstChild(); prop != nil; prop = prop.GetNext() {
+		for prop := expr.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
 			if prop.IsShorthandProperty() {
 				p.WarnInvalid("property, missing type")
 				return false
@@ -698,7 +698,7 @@ func (p *TypeTransformationParser) ValidRecordParam(expr *rhino.Node) bool {
 // record(RecordExp, RecordExp, ...).
 //
 // Java: TypeTransformationParser.validRecordTypeExpression(Node)
-func (p *TypeTransformationParser) ValidRecordTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidRecordTypeExpression(expr rhino.Node) bool {
 	// The expression must have at least two children. The record keyword and
 	// a record expression
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_RECORD) {
@@ -715,7 +715,7 @@ func (p *TypeTransformationParser) ValidRecordTypeExpression(expr *rhino.Node) b
 }
 
 // Java: TypeTransformationParser.validNativeTypeExpr(Node)
-func (p *TypeTransformationParser) ValidNativeTypeExpr(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidNativeTypeExpr(expr rhino.Node) bool {
 	// The expression must have two children:
 	// - The typeExpr keyword
 	// - A string
@@ -739,7 +739,7 @@ func (p *TypeTransformationParser) ValidNativeTypeExpr(expr *rhino.Node) bool {
 // rawTypeOf, templateTypeOf).
 //
 // Java: TypeTransformationParser.validTypeExpression(Node)
-func (p *TypeTransformationParser) ValidTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidTypeExpression(expr rhino.Node) bool {
 	name := p.GetCallName(expr)
 	keyword := p.NameToKeyword(name)
 	switch keyword {
@@ -767,7 +767,7 @@ func (p *TypeTransformationParser) ValidTypeExpression(expr *rhino.Node) bool {
 }
 
 // Java: TypeTransformationParser.validTypePredicate(Node, int)
-func (p *TypeTransformationParser) ValidTypePredicate(expr *rhino.Node, paramCount int) bool {
+func (p *TypeTransformationParser) ValidTypePredicate(expr rhino.Node, paramCount int) bool {
 	// All the types must be valid type expressions
 	for i := 0; i < paramCount; i++ {
 		if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, i)) {
@@ -779,7 +779,7 @@ func (p *TypeTransformationParser) ValidTypePredicate(expr *rhino.Node, paramCou
 }
 
 // Java: TypeTransformationParser.isValidStringParam(Node)
-func (p *TypeTransformationParser) IsValidStringParam(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) IsValidStringParam(expr rhino.Node) bool {
 	if !expr.IsName() && !expr.IsStringLit() {
 		p.WarnInvalid("string")
 		return false
@@ -792,7 +792,7 @@ func (p *TypeTransformationParser) IsValidStringParam(expr *rhino.Node) bool {
 }
 
 // Java: TypeTransformationParser.validStringPredicate(Node, int)
-func (p *TypeTransformationParser) ValidStringPredicate(expr *rhino.Node, paramCount int) bool {
+func (p *TypeTransformationParser) ValidStringPredicate(expr rhino.Node, paramCount int) bool {
 	// Each parameter must be valid string parameter
 	for i := 0; i < paramCount; i++ {
 		if !p.IsValidStringParam(p.GetCallArgument(expr, i)) {
@@ -804,7 +804,7 @@ func (p *TypeTransformationParser) ValidStringPredicate(expr *rhino.Node, paramC
 }
 
 // Java: TypeTransformationParser.validTypevarParam(Node)
-func (p *TypeTransformationParser) ValidTypevarParam(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidTypevarParam(expr rhino.Node) bool {
 	if !p.IsTypeVar(expr) {
 		p.WarnInvalid("name")
 		return false
@@ -813,7 +813,7 @@ func (p *TypeTransformationParser) ValidTypevarParam(expr *rhino.Node) bool {
 }
 
 // Java: TypeTransformationParser.validTypevarPredicate(Node, int)
-func (p *TypeTransformationParser) ValidTypevarPredicate(expr *rhino.Node, paramCount int) bool {
+func (p *TypeTransformationParser) ValidTypevarPredicate(expr rhino.Node, paramCount int) bool {
 	// Each parameter must be valid string parameter
 	for i := 0; i < paramCount; i++ {
 		if !p.ValidTypevarParam(p.GetCallArgument(expr, i)) {
@@ -825,7 +825,7 @@ func (p *TypeTransformationParser) ValidTypevarPredicate(expr *rhino.Node, param
 }
 
 // Java: TypeTransformationParser.validBooleanOperation(Node)
-func (p *TypeTransformationParser) ValidBooleanOperation(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidBooleanOperation(expr rhino.Node) bool {
 	var valid bool
 	if expr.IsNot() {
 		valid = p.ValidBooleanExpression(expr.GetFirstChild())
@@ -844,7 +844,7 @@ func (p *TypeTransformationParser) ValidBooleanOperation(expr *rhino.Node) bool 
 // or a boolean type predicate.
 //
 // Java: TypeTransformationParser.validBooleanExpression(Node)
-func (p *TypeTransformationParser) ValidBooleanExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidBooleanExpression(expr rhino.Node) bool {
 	if p.IsBooleanOperation(expr) {
 		return p.ValidBooleanOperation(expr)
 	}
@@ -877,7 +877,7 @@ func (p *TypeTransformationParser) ValidBooleanExpression(expr *rhino.Node) bool
 // must be of the form cond(BoolExp, TTLExp, TTLExp).
 //
 // Java: TypeTransformationParser.validConditionalExpression(Node)
-func (p *TypeTransformationParser) ValidConditionalExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidConditionalExpression(expr rhino.Node) bool {
 	// The expression must have four children:
 	// - The cond keyword
 	// - A boolean expression
@@ -906,7 +906,7 @@ func (p *TypeTransformationParser) ValidConditionalExpression(expr *rhino.Node) 
 // be of the form mapunion(TTLExp, (typevar) => TTLExp).
 //
 // Java: TypeTransformationParser.validMapunionExpression(Node)
-func (p *TypeTransformationParser) ValidMapunionExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidMapunionExpression(expr rhino.Node) bool {
 	// The expression must have four children:
 	// - The mapunion keyword
 	// - A union type expression
@@ -951,7 +951,7 @@ func (p *TypeTransformationParser) ValidMapunionExpression(expr *rhino.Node) boo
 // be of the form maprecord(TTLExp, (typevar, typevar) => TTLExp).
 //
 // Java: TypeTransformationParser.validMaprecordExpression(Node)
-func (p *TypeTransformationParser) ValidMaprecordExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidMaprecordExpression(expr rhino.Node) bool {
 	// The expression must have four children:
 	// - The maprecord keyword
 	// - A type expression
@@ -996,7 +996,7 @@ func (p *TypeTransformationParser) ValidMaprecordExpression(expr *rhino.Node) bo
 // typeOfVar('name').
 //
 // Java: TypeTransformationParser.validTypeOfVarExpression(Node)
-func (p *TypeTransformationParser) ValidTypeOfVarExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidTypeOfVarExpression(expr rhino.Node) bool {
 	// The expression must have two children:
 	// - The typeOfVar keyword
 	// - A string
@@ -1015,7 +1015,7 @@ func (p *TypeTransformationParser) ValidTypeOfVarExpression(expr *rhino.Node) bo
 // instanceOf('name').
 //
 // Java: TypeTransformationParser.validInstanceOfExpression(Node)
-func (p *TypeTransformationParser) ValidInstanceOfExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidInstanceOfExpression(expr rhino.Node) bool {
 	// The expression must have two children:
 	// - The instanceOf keyword
 	// - A string
@@ -1030,7 +1030,7 @@ func (p *TypeTransformationParser) ValidInstanceOfExpression(expr *rhino.Node) b
 }
 
 // Java: TypeTransformationParser.validPrintTypeExpression(Node)
-func (p *TypeTransformationParser) ValidPrintTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidPrintTypeExpression(expr rhino.Node) bool {
 	// The expression must have three children. The printType keyword, a
 	// message and a type transformation expression
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_PRINTTYPE) {
@@ -1049,7 +1049,7 @@ func (p *TypeTransformationParser) ValidPrintTypeExpression(expr *rhino.Node) bo
 }
 
 // Java: TypeTransformationParser.validPropTypeExpression(Node)
-func (p *TypeTransformationParser) ValidPropTypeExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidPropTypeExpression(expr rhino.Node) bool {
 	// The expression must have three children. The propType keyword, a
 	// a string and a type transformation expression
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_PROPTYPE) {
@@ -1071,7 +1071,7 @@ func (p *TypeTransformationParser) ValidPropTypeExpression(expr *rhino.Node) boo
 // mapunion.
 //
 // Java: TypeTransformationParser.validOperationExpression(Node)
-func (p *TypeTransformationParser) ValidOperationExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidOperationExpression(expr rhino.Node) bool {
 	name := p.GetCallName(expr)
 	keyword := p.NameToKeyword(name)
 	switch keyword {
@@ -1098,7 +1098,7 @@ func (p *TypeTransformationParser) ValidOperationExpression(expr *rhino.Node) bo
 // type transformation expression in @template T := TTLExp =:.
 //
 // Java: TypeTransformationParser.validTypeTransformationExpression(Node)
-func (p *TypeTransformationParser) ValidTypeTransformationExpression(expr *rhino.Node) bool {
+func (p *TypeTransformationParser) ValidTypeTransformationExpression(expr rhino.Node) bool {
 	if !p.IsValidExpression(expr) {
 		p.WarnInvalidExpression("type transformation")
 		return false

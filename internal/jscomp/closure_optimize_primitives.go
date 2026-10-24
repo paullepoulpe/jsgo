@@ -63,7 +63,7 @@ func newClosureOptimizePrimitives_FindPrimitives(outer *ClosureOptimizePrimitive
 }
 
 // Java: ClosureOptimizePrimitives.FindPrimitives.visit(NodeTraversal, Node, Node)
-func (f *ClosureOptimizePrimitives_FindPrimitives) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *ClosureOptimizePrimitives_FindPrimitives) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsCall() {
 		fn := n.GetFirstChild()
 		// TODO(user): Once goog.object becomes a goog.module, remove "goog$object$create" and
@@ -93,7 +93,7 @@ func NewClosureOptimizePrimitives(compiler AbstractCompiler, canUseEs6Syntax boo
 }
 
 // Java: ClosureOptimizePrimitives.process(Node, Node)
-func (c *ClosureOptimizePrimitives) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ClosureOptimizePrimitives) Process(externs rhino.Node, root rhino.Node) {
 	pass := newClosureOptimizePrimitives_FindPrimitives(c)
 	NodeTraversal_Traverse(c.compiler, root, pass)
 }
@@ -102,11 +102,11 @@ func (c *ClosureOptimizePrimitives) Process(externs *rhino.Node, root *rhino.Nod
 // literals that are safe to do so.
 //
 // Java: ClosureOptimizePrimitives.processObjectCreateCall(Node)
-func (c *ClosureOptimizePrimitives) ProcessObjectCreateCall(callNode *rhino.Node) {
+func (c *ClosureOptimizePrimitives) ProcessObjectCreateCall(callNode rhino.Node) {
 	curParam := callNode.GetSecondChild()
 	if c.CanOptimizeObjectCreate(curParam) {
 		objNode := rhino.IR_Objectlit().Srcref(callNode)
-		for curParam != nil {
+		for !curParam.IsNil() {
 			keyNode := curParam
 			valueNode := curParam.GetNext()
 			curParam = valueNode.GetNext()
@@ -125,7 +125,7 @@ func (c *ClosureOptimizePrimitives) ProcessObjectCreateCall(callNode *rhino.Node
 // literals that are safe to do so.
 //
 // Java: ClosureOptimizePrimitives.processRenamePropertyCall(Node)
-func (c *ClosureOptimizePrimitives) ProcessRenamePropertyCall(callNode *rhino.Node) {
+func (c *ClosureOptimizePrimitives) ProcessRenamePropertyCall(callNode rhino.Node) {
 	nameNode := callNode.GetFirstChild()
 	if nameNode.MatchesQualifiedName(NodeUtil_JSC_PROPERTY_NAME_FN) {
 		return
@@ -143,16 +143,16 @@ func (c *ClosureOptimizePrimitives) ProcessRenamePropertyCall(callNode *rhino.No
 // goog.object.create can be converted to an object literal.
 //
 // Java: ClosureOptimizePrimitives.canOptimizeObjectCreate(Node)
-func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreate(firstParam *rhino.Node) bool {
+func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreate(firstParam rhino.Node) bool {
 	curParam := firstParam
-	for curParam != nil {
+	for !curParam.IsNil() {
 		if !c.IsOptimizableKey(curParam) {
 			return false
 		}
 		curParam = curParam.GetNext()
 
 		// Check for an odd number of parameters.
-		if curParam == nil {
+		if curParam.IsNil() {
 			return false
 		}
 		curParam = curParam.GetNext()
@@ -164,11 +164,11 @@ func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreate(firstParam *rhino.No
 // literals that are safe to do so.
 //
 // Java: ClosureOptimizePrimitives.processObjectCreateSetCall(Node)
-func (c *ClosureOptimizePrimitives) ProcessObjectCreateSetCall(callNode *rhino.Node) {
+func (c *ClosureOptimizePrimitives) ProcessObjectCreateSetCall(callNode rhino.Node) {
 	curParam := callNode.GetSecondChild()
 	if c.CanOptimizeObjectCreateSet(curParam) {
 		objNode := rhino.IR_Objectlit().Srcref(callNode)
-		for curParam != nil {
+		for !curParam.IsNil() {
 			keyNode := curParam
 			valueNode := rhino.IR_TrueNode().Srcref(keyNode)
 
@@ -186,9 +186,9 @@ func (c *ClosureOptimizePrimitives) ProcessObjectCreateSetCall(callNode *rhino.N
 // goog.object.createSet can be converted to an object literal.
 //
 // Java: ClosureOptimizePrimitives.canOptimizeObjectCreateSet(Node)
-func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreateSet(firstParam *rhino.Node) bool {
-	if firstParam != nil &&
-		firstParam.GetNext() == nil &&
+func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreateSet(firstParam rhino.Node) bool {
+	if !firstParam.IsNil() &&
+		firstParam.GetNext().IsNil() &&
 		!(firstParam.IsNumber() || firstParam.IsStringLit()) {
 		// if there is only one argument, and it's an array, then the method uses the array elements
 		// as keys. Don't optimize it to {[arr]: true}. We only special-case number and string
@@ -198,7 +198,7 @@ func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreateSet(firstParam *rhino
 
 	curParam := firstParam
 	keys := jutil.NewLinkedHashSet[string]()
-	for curParam != nil {
+	for !curParam.IsNil() {
 		// All keys must be strings or numbers, otherwise we can't optimize the call.
 		if !c.IsOptimizableKey(curParam) {
 			return false
@@ -221,7 +221,7 @@ func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreateSet(firstParam *rhino
 }
 
 // Java: ClosureOptimizePrimitives.addKeyValueToObjLit(Node, Node, Node, Node)
-func (c *ClosureOptimizePrimitives) AddKeyValueToObjLit(objNode *rhino.Node, keyNode *rhino.Node, valueNode *rhino.Node, scriptNode *rhino.Node) {
+func (c *ClosureOptimizePrimitives) AddKeyValueToObjLit(objNode rhino.Node, keyNode rhino.Node, valueNode rhino.Node, scriptNode rhino.Node) {
 	if keyNode.IsNumber() || keyNode.IsStringLit() {
 		if keyNode.IsNumber() {
 			keyNode = rhino.IR_String(dtoa.DToA_NumberToString(keyNode.GetDouble())).Srcref(keyNode)
@@ -238,7 +238,7 @@ func (c *ClosureOptimizePrimitives) AddKeyValueToObjLit(objNode *rhino.Node, key
 }
 
 // Java: ClosureOptimizePrimitives.isOptimizableKey(Node)
-func (c *ClosureOptimizePrimitives) IsOptimizableKey(curParam *rhino.Node) bool {
+func (c *ClosureOptimizePrimitives) IsOptimizableKey(curParam rhino.Node) bool {
 	if c.canUseEs6Syntax {
 		return !NodeUtil_IsStatement(curParam)
 	} else {

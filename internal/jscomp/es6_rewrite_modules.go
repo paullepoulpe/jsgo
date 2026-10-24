@@ -161,7 +161,7 @@ func NewEs6RewriteModulesWithChunkOutputType(
 // node represents an ES6 module file.
 //
 // Java: Es6RewriteModules.isEs6ModuleRoot(Node)
-func Es6RewriteModules_IsEs6ModuleRoot(scriptNode *rhino.Node) bool {
+func Es6RewriteModules_IsEs6ModuleRoot(scriptNode rhino.Node) bool {
 	jutil.CheckArgumentMsg1(scriptNode.IsScript(), "%s", scriptNode)
 	if scriptNode.GetBooleanProp(rhino.Node_GOOG_MODULE) {
 		return false
@@ -170,7 +170,7 @@ func Es6RewriteModules_IsEs6ModuleRoot(scriptNode *rhino.Node) bool {
 }
 
 // Java: Es6RewriteModules.process(Node, Node)
-func (e *Es6RewriteModules) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6RewriteModules) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckArgumentMsg1(externs.IsRoot(), "%s", externs)
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
 	NodeTraversal_TraverseRoots(e.compiler, e, externs, root)
@@ -207,7 +207,7 @@ type Es6RewriteModules_RewriteRequiresForEs6Modules struct {
 	// An (s, old, new) entry indicates that occurrences of `old` in scope `s`
 	// should be rewritten as `new`. This is used to rewrite namespaces that
 	// appear in calls to goog.requireType and goog.forwardDeclare.
-	renameTable *jutil.HashBasedTable[*rhino.Node, string, string]
+	renameTable *jutil.HashBasedTable[rhino.Node, string, string]
 }
 
 // Java: Es6RewriteModules.RewriteRequiresForEs6Modules()
@@ -216,8 +216,8 @@ func NewEs6RewriteModules_RewriteRequiresForEs6Modules(outer *Es6RewriteModules)
 }
 
 // Java: Es6RewriteModules.RewriteRequiresForEs6Modules.rewrite(Node)
-func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Rewrite(scriptNode *rhino.Node) {
-	r.renameTable = jutil.HashBasedTable_Create[*rhino.Node, string, string]()
+func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Rewrite(scriptNode rhino.Node) {
+	r.renameTable = jutil.HashBasedTable_Create[rhino.Node, string, string]()
 	NodeTraversal_Traverse(r.outer.compiler, scriptNode, r)
 
 	if !r.renameTable.IsEmpty() {
@@ -226,7 +226,7 @@ func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Rewrite(scriptNode *rhi
 }
 
 // Java: Es6RewriteModules.RewriteRequiresForEs6Modules.visit(NodeTraversal, Node, Node)
-func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	e := r.outer
 	if !n.IsCall() {
 		return
@@ -289,7 +289,7 @@ func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit(t *NodeTraversal,
 					return
 				}
 				// const {a, c:b} = goog.requireType('an.es6.namespace');
-				for child := statementNode.GetFirstFirstChild().GetFirstChild(); child != nil; child = child.GetNext() {
+				for child := statementNode.GetFirstFirstChild().GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 					jutil.CheckState(child.IsStringKey())
 					jutil.CheckState(child.GetFirstChild().IsName())
 					r.renameTable.Put(
@@ -306,7 +306,7 @@ func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit(t *NodeTraversal,
 				// const {a, c:b} = goog.require('an.es6.namespace');
 				// const a = module$es6.a;
 				// const b = module$es6.c;
-				for child := statementNode.GetFirstFirstChild().GetFirstChild(); child != nil; child = child.GetNext() {
+				for child := statementNode.GetFirstFirstChild().GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 					jutil.CheckState(child.IsStringKey())
 					jutil.CheckState(child.GetFirstChild().IsName())
 					globalName :=
@@ -375,7 +375,7 @@ func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit(t *NodeTraversal,
 }
 
 // Java: Es6RewriteModules.shouldTraverse(NodeTraversal, Node, Node)
-func (e *Es6RewriteModules) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (e *Es6RewriteModules) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		// Trigger creation of the global scope before inserting any synthetic code.
 		nodeTraversal.GetScope()
@@ -390,7 +390,7 @@ func (e *Es6RewriteModules) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhin
 }
 
 // Java: Es6RewriteModules.visit(NodeTraversal, Node, Node)
-func (e *Es6RewriteModules) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteModules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsImport() {
 		e.MaybeWarnExternModule(t, n, parent)
 		e.VisitImport(t, n, parent)
@@ -416,7 +416,7 @@ func (e *Es6RewriteModules) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino
 }
 
 // Java: Es6RewriteModules.maybeWarnExternModule(NodeTraversal, Node, Node)
-func (e *Es6RewriteModules) MaybeWarnExternModule(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteModules) MaybeWarnExternModule(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	jutil.CheckState(parent.IsModuleBody())
 	if parent.IsFromExterns() && !NodeUtil_IsFromTypeSummary(parent.GetParent()) {
 		t.Report(n, TranspilationUtil_CANNOT_CONVERT_YET, "ES6 modules in externs")
@@ -424,7 +424,7 @@ func (e *Es6RewriteModules) MaybeWarnExternModule(t *NodeTraversal, n *rhino.Nod
 }
 
 // Java: Es6RewriteModules.visitImport(NodeTraversal, Node, Node)
-func (e *Es6RewriteModules) VisitImport(t *NodeTraversal, importDecl *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteModules) VisitImport(t *NodeTraversal, importDecl rhino.Node, parent rhino.Node) {
 	jutil.CheckArgumentMsg1(parent.IsModuleBody(), "%s", parent)
 	importName := importDecl.GetLastChild().GetString()
 	isNamespaceImport := strings.HasPrefix(importName, "goog:")
@@ -459,9 +459,9 @@ func (e *Es6RewriteModules) VisitImport(t *NodeTraversal, importDecl *rhino.Node
 		// if not give a better error.
 	}
 
-	for child := importDecl.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := importDecl.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsImportSpecs() {
-			for grandChild := child.GetFirstChild(); grandChild != nil; grandChild = grandChild.GetNext() {
+			for grandChild := child.GetFirstChild(); !grandChild.IsNil(); grandChild = grandChild.GetNext() {
 				e.MaybeAddAliasToSymbolTable(grandChild.GetFirstChild(), jutil.ToJavaString(t.GetSourceName()))
 				jutil.CheckState(grandChild.HasTwoChildren())
 			}
@@ -476,7 +476,7 @@ func (e *Es6RewriteModules) VisitImport(t *NodeTraversal, importDecl *rhino.Node
 }
 
 // Java: Es6RewriteModules.visitExport(NodeTraversal, Node, Node)
-func (e *Es6RewriteModules) VisitExport(t *NodeTraversal, export *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteModules) VisitExport(t *NodeTraversal, export rhino.Node, parent rhino.Node) {
 	jutil.CheckArgumentMsg1(parent.IsModuleBody(), "%s", parent)
 	if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
 		// export default
@@ -529,16 +529,16 @@ func (e *Es6RewriteModules) VisitExport(t *NodeTraversal, export *rhino.Node, pa
 }
 
 // Java: Es6RewriteModules.visitExportNameDeclaration(Node)
-func (e *Es6RewriteModules) VisitExportNameDeclaration(declaration *rhino.Node) {
+func (e *Es6RewriteModules) VisitExportNameDeclaration(declaration rhino.Node) {
 	if declaration.GetJSDocInfo() != nil && declaration.GetJSDocInfo().HasTypedefType() {
 		//    export var Foo;
 		//    export let {a, b:[c,d]} = {};
-		NodeUtil_VisitLhsNodesInNode(declaration, func(lhs *rhino.Node) { e.typedefs.Add(lhs.GetString()) })
+		NodeUtil_VisitLhsNodesInNode(declaration, func(lhs rhino.Node) { e.typedefs.Add(lhs.GetString()) })
 	}
 }
 
 // Java: Es6RewriteModules.visitExportDeclaration(NodeTraversal, Node)
-func (e *Es6RewriteModules) VisitExportDeclaration(t *NodeTraversal, export *rhino.Node) {
+func (e *Es6RewriteModules) VisitExportDeclaration(t *NodeTraversal, export rhino.Node) {
 	//    export var Foo;
 	//    export function Foo() {}
 	// etc.
@@ -553,7 +553,7 @@ func (e *Es6RewriteModules) VisitExportDeclaration(t *NodeTraversal, export *rhi
 }
 
 // Java: Es6RewriteModules.inlineModuleToGlobalScope(Node)
-func (e *Es6RewriteModules) InlineModuleToGlobalScope(moduleNode *rhino.Node) {
+func (e *Es6RewriteModules) InlineModuleToGlobalScope(moduleNode rhino.Node) {
 	jutil.CheckState(moduleNode.IsModuleBody())
 	scriptNode := moduleNode.GetParent()
 	moduleNode.Detach()
@@ -561,7 +561,7 @@ func (e *Es6RewriteModules) InlineModuleToGlobalScope(moduleNode *rhino.Node) {
 }
 
 // Java: Es6RewriteModules.visitScript(NodeTraversal, Node)
-func (e *Es6RewriteModules) VisitScript(t *NodeTraversal, script *rhino.Node) {
+func (e *Es6RewriteModules) VisitScript(t *NodeTraversal, script rhino.Node) {
 	moduleBody := script.GetFirstChild()
 	// TypedScopeCreator sets the module object type on the MODULE_BODY during type checking.
 	moduleObjectType := AstFactory_Type_(moduleBody)
@@ -599,7 +599,7 @@ func (e *Es6RewriteModules) VisitScript(t *NodeTraversal, script *rhino.Node) {
 
 // Java: Es6RewriteModules.createExportsObject(String, NodeTraversal, Node, AstFactory.Type)
 func (e *Es6RewriteModules) CreateExportsObject(
-	moduleName string, t *NodeTraversal, script *rhino.Node, moduleObjectType AstFactory_Type) *rhino.Node {
+	moduleName string, t *NodeTraversal, script rhino.Node, moduleObjectType AstFactory_Type) rhino.Node {
 	moduleObject := e.astFactory.CreateObjectLitWithType(moduleObjectType)
 	// Going to get renamed by RenameGlobalVars, so the name we choose here doesn't matter as long
 	// as it doesn't collide with an existing variable. (We can't use `moduleName` since then
@@ -682,7 +682,7 @@ func (e *Es6RewriteModules) CreateExportsObject(
 
 // Java: Es6RewriteModules.addGetterExport(Node, Node, Node, String, Node)
 func (e *Es6RewriteModules) AddGetterExport(
-	script *rhino.Node, forSourceInfo *rhino.Node, objLit *rhino.Node, exportedName string, value *rhino.Node) {
+	script rhino.Node, forSourceInfo rhino.Node, objLit rhino.Node, exportedName string, value rhino.Node) {
 	getter := e.astFactory.CreateGetterDef(exportedName, value)
 	getter.PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
 	objLit.AddChildToBack(getter)
@@ -707,11 +707,11 @@ func (e *Es6RewriteModules) AddGetterExport(
 }
 
 // Java: Es6RewriteModules.rewriteRequires(Node)
-func (e *Es6RewriteModules) RewriteRequires(script *rhino.Node) {
+func (e *Es6RewriteModules) RewriteRequires(script rhino.Node) {
 	NodeTraversal_Builder_().
 		SetCompiler(e.compiler).
 		SetCallbackFunc(
-			func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+			func(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 				if n.IsCall() {
 					fn := n.GetFirstChild()
 					if es6RewriteModules_GOOG_REQUIRE.Matches(fn) || es6RewriteModules_GOOG_REQUIRETYPE.Matches(fn) {
@@ -729,7 +729,7 @@ func (e *Es6RewriteModules) RewriteRequires(script *rhino.Node) {
 	NodeTraversal_Builder_().
 		SetCompiler(e.compiler).
 		SetCallbackFunc(
-			func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+			func(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 				info := n.GetJSDocInfo()
 				if info != nil {
 					for it := info.TypeExprIter(); it.Next(); {
@@ -750,7 +750,7 @@ func (e *Es6RewriteModules) RewriteRequires(script *rhino.Node) {
 }
 
 // Java: Es6RewriteModules.inlineAliasedTypes(NodeTraversal, Node)
-func (e *Es6RewriteModules) InlineAliasedTypes(t *NodeTraversal, typeNode *rhino.Node) {
+func (e *Es6RewriteModules) InlineAliasedTypes(t *NodeTraversal, typeNode rhino.Node) {
 	if typeNode.IsStringLit() {
 		name := typeNode.GetString()
 		split := es6RewriteModules_DOT_SPLITTER_limit2_splitToList(name)
@@ -769,13 +769,13 @@ func (e *Es6RewriteModules) InlineAliasedTypes(t *NodeTraversal, typeNode *rhino
 			}
 		}
 	}
-	for child := typeNode.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		e.InlineAliasedTypes(t, child)
 	}
 }
 
 // Java: Es6RewriteModules.visitGoogModuleGet(NodeTraversal, Node, Node)
-func (e *Es6RewriteModules) VisitGoogModuleGet(t *NodeTraversal, getCall *rhino.Node, parent *rhino.Node) {
+func (e *Es6RewriteModules) VisitGoogModuleGet(t *NodeTraversal, getCall rhino.Node, parent rhino.Node) {
 	if !getCall.HasTwoChildren() || !getCall.GetLastChild().IsStringLit() {
 		t.Report(getCall, ClosurePrimitiveErrors_INVALID_GET_NAMESPACE)
 		return
@@ -812,7 +812,7 @@ func (e *Es6RewriteModules) GetFallbackMetadataForNamespace(namespace string) *M
 
 // Java: Es6RewriteModules.visitRequireOrGet(NodeTraversal, Node, Node, boolean)
 func (e *Es6RewriteModules) VisitRequireOrGet(
-	t *NodeTraversal, requireCall *rhino.Node, parent *rhino.Node, isRequire bool) {
+	t *NodeTraversal, requireCall rhino.Node, parent rhino.Node, isRequire bool) {
 	if !requireCall.HasTwoChildren() || !requireCall.GetLastChild().IsStringLit() {
 		t.Report(requireCall, ClosurePrimitiveErrors_INVALID_REQUIRE_NAMESPACE)
 		return
@@ -842,12 +842,12 @@ func (e *Es6RewriteModules) VisitRequireOrGet(
 
 	if isStoredInDeclaration {
 		if isRequire {
-			var toDetach *rhino.Node
+			var toDetach rhino.Node
 
 			if parent.IsDestructuringLhs() {
 				jutil.CheckState(parent.GetFirstChild().IsObjectPattern())
 				toDetach = parent.GetParent()
-				for child := parent.GetFirstFirstChild(); child != nil; child = child.GetNext() {
+				for child := parent.GetFirstFirstChild(); !child.IsNil(); child = child.GetNext() {
 					jutil.CheckStateMsg1(child.IsStringKey() && child.GetFirstChild().IsName(), "%s", child)
 					rep :=
 						e.GetGlobalNameAndType(m, jutil.StringPtr(namespace), isFromFallbackMetadata).
@@ -915,7 +915,7 @@ func NewEs6RewriteModules_RenameGlobalVars(outer *Es6RewriteModules, thisModule 
 }
 
 // Java: Es6RewriteModules.RenameGlobalVars.visit(NodeTraversal, Node, Node)
-func (r *Es6RewriteModules_RenameGlobalVars) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *Es6RewriteModules_RenameGlobalVars) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	info := n.GetJSDocInfo()
 	if info != nil {
 		for it := info.TypeExprIter(); it.Next(); {
@@ -989,7 +989,7 @@ func (r *Es6RewriteModules_RenameGlobalVars) Visit(t *NodeTraversal, n *rhino.No
 // n is the node to replace; binding the binding nameNode is a reference to.
 //
 // Java: Es6RewriteModules.RenameGlobalVars.replace(Node, Binding)
-func (r *Es6RewriteModules_RenameGlobalVars) Replace(n *rhino.Node, binding *Binding) *rhino.Node {
+func (r *Es6RewriteModules_RenameGlobalVars) Replace(n rhino.Node, binding *Binding) rhino.Node {
 	e := r.outer
 	jutil.CheckState(n.IsName())
 
@@ -1010,7 +1010,7 @@ func (r *Es6RewriteModules_RenameGlobalVars) Replace(n *rhino.Node, binding *Bin
 	}
 
 	globalName := ModuleRenaming_GetGlobalNameWithBinding(binding)
-	var newNode *rhino.Node
+	var newNode rhino.Node
 	if !globalName.IsSimple() {
 		root := globalName.GetRoot()
 		// we might encounter a name not in the global scope when requiring a missing symbol.
@@ -1039,7 +1039,7 @@ func (r *Es6RewriteModules_RenameGlobalVars) Replace(n *rhino.Node, binding *Bin
 // {module$test.Foo}.
 //
 // Java: Es6RewriteModules.RenameGlobalVars.fixTypeNode(NodeTraversal, Node)
-func (r *Es6RewriteModules_RenameGlobalVars) FixTypeNode(t *NodeTraversal, typeNode *rhino.Node) {
+func (r *Es6RewriteModules_RenameGlobalVars) FixTypeNode(t *NodeTraversal, typeNode rhino.Node) {
 	e := r.outer
 	if typeNode.IsStringLit() {
 		thisModule := e.moduleMap.GetModuleByPath(t.GetInput().GetPath())
@@ -1082,13 +1082,13 @@ func (r *Es6RewriteModules_RenameGlobalVars) FixTypeNode(t *NodeTraversal, typeN
 		typeNode.SetOriginalName(jutil.StringPtr(name))
 	}
 
-	for child := typeNode.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		r.FixTypeNode(t, child)
 	}
 }
 
 // Java: Es6RewriteModules.RenameGlobalVars.maybeSetNewName(NodeTraversal, Node, String, String)
-func (r *Es6RewriteModules_RenameGlobalVars) MaybeSetNewName(t *NodeTraversal, node *rhino.Node, name string, newName string) {
+func (r *Es6RewriteModules_RenameGlobalVars) MaybeSetNewName(t *NodeTraversal, node rhino.Node, name string, newName string) {
 	if name != newName {
 		node.SetString(newName)
 		node.SetOriginalName(jutil.StringPtr(name))
@@ -1108,7 +1108,7 @@ func (r *Es6RewriteModules_RenameGlobalVars) MaybeSetNewName(t *NodeTraversal, n
 // doBar. module is the name of the module currently being processed.
 //
 // Java: Es6RewriteModules.maybeAddAliasToSymbolTable(Node, String)
-func (e *Es6RewriteModules) MaybeAddAliasToSymbolTable(n *rhino.Node, module string) {
+func (e *Es6RewriteModules) MaybeAddAliasToSymbolTable(n rhino.Node, module string) {
 	if e.preprocessorSymbolTable == nil {
 		return
 	}
@@ -1142,7 +1142,7 @@ func (e *Es6RewriteModules) MaybeAddAliasToSymbolTable(n *rhino.Node, module str
 //
 // Java: Es6RewriteModules.maybeAddImportedFileReferenceToSymbolTable(Node, String)
 func (e *Es6RewriteModules) MaybeAddImportedFileReferenceToSymbolTable(
-	importStringNode *rhino.Node, importedFilePath string) {
+	importStringNode rhino.Node, importedFilePath string) {
 	if e.preprocessorSymbolTable == nil {
 		return
 	}
@@ -1151,7 +1151,7 @@ func (e *Es6RewriteModules) MaybeAddImportedFileReferenceToSymbolTable(
 	// node for the imported file.
 	if e.preprocessorSymbolTable.GetSlot(importedFilePath) == nil {
 		scriptNode := e.compiler.GetScriptNode(importedFilePath)
-		if scriptNode != nil {
+		if !scriptNode.IsNil() {
 			e.preprocessorSymbolTable.AddReferenceWithName(scriptNode, importedFilePath)
 		}
 	}
@@ -1160,7 +1160,7 @@ func (e *Es6RewriteModules) MaybeAddImportedFileReferenceToSymbolTable(
 }
 
 // Java: Es6RewriteModules.declareGlobalVariable(Node, NodeTraversal)
-func (e *Es6RewriteModules) DeclareGlobalVariable(n *rhino.Node, t *NodeTraversal) {
+func (e *Es6RewriteModules) DeclareGlobalVariable(n rhino.Node, t *NodeTraversal) {
 	jutil.CheckState(n.IsName())
 	if !e.astFactory.IsAddingTypes() {
 		return

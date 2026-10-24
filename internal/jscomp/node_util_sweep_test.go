@@ -51,9 +51,9 @@ func nodeUtilSweepConfig() *parsing.Config {
 }
 
 type nodeUtilSweeper struct {
-	index    map[*rhino.Node]int
+	index    map[rhino.Node]int
 	compiler AbstractCompiler
-	script   *rhino.Node
+	script   rhino.Node
 	mutate   bool
 }
 
@@ -80,12 +80,12 @@ func (s *nodeUtilSweeper) sweepFile(sb *strings.Builder, config *parsing.Config,
 		sb.WriteString("# exception " + nodeUtilSweepClassName(exception) + "\n")
 		return
 	}
-	if result.Ast == nil {
+	if result.Ast.IsNil() {
 		sb.WriteString("# tree null\n")
 		return
 	}
-	s.index = map[*rhino.Node]int{}
-	var nodes []*rhino.Node
+	s.index = map[rhino.Node]int{}
+	var nodes []rhino.Node
 	nodes = s.collect(result.Ast, nodes)
 	s.script = result.Ast
 	s.mutate = len(nodes) <= nodeUtilSweepMaxNodesForMutations
@@ -95,10 +95,10 @@ func (s *nodeUtilSweeper) sweepFile(sb *strings.Builder, config *parsing.Config,
 	s.sweepScript(sb, result.Ast)
 }
 
-func (s *nodeUtilSweeper) collect(n *rhino.Node, nodes []*rhino.Node) []*rhino.Node {
+func (s *nodeUtilSweeper) collect(n rhino.Node, nodes []rhino.Node) []rhino.Node {
 	s.index[n] = len(nodes)
 	nodes = append(nodes, n)
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		nodes = s.collect(c, nodes)
 	}
 	return nodes
@@ -176,8 +176,8 @@ func nodeUtilSweepField(sb *strings.Builder, applicable bool, p func() string) {
 	sb.WriteString(nodeUtilSweepEscape(s))
 }
 
-func (s *nodeUtilSweeper) idx(n *rhino.Node) string {
-	if n == nil {
+func (s *nodeUtilSweeper) idx(n rhino.Node) string {
+	if n.IsNil() {
 		return "-"
 	}
 	i, ok := s.index[n]
@@ -187,7 +187,7 @@ func (s *nodeUtilSweeper) idx(n *rhino.Node) string {
 	return strconv.Itoa(i)
 }
 
-func (s *nodeUtilSweeper) list(nodes []*rhino.Node) string {
+func (s *nodeUtilSweeper) list(nodes []rhino.Node) string {
 	var b strings.Builder
 	b.WriteByte('[')
 	for i, n := range nodes {
@@ -251,7 +251,7 @@ func nodeUtilSweepEscape(s string) string {
 }
 
 // nodeUtilSweepCompact is NodeUtilSweep.compact(Node).
-func nodeUtilSweepCompact(n *rhino.Node) string {
+func nodeUtilSweepCompact(n rhino.Node) string {
 	var b strings.Builder
 	b.WriteString(n.GetToken().Name())
 	if n.IsName() || n.IsGetProp() || n.IsStringLit() || n.IsStringKey() {
@@ -267,7 +267,7 @@ func nodeUtilSweepCompact(n *rhino.Node) string {
 	}
 	if n.HasChildren() {
 		b.WriteByte('(')
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if c != n.GetFirstChild() {
 				b.WriteByte(',')
 			}
@@ -283,27 +283,27 @@ const nodeUtilSweepMaxNodesForMutations = 1000
 
 // mutated is NodeUtilSweep.mutated: the mutation runs on the node with the
 // same pre-order index in a fresh clone of the script.
-func (s *nodeUtilSweeper) mutated(i int, m func(clone, c *rhino.Node) string) string {
+func (s *nodeUtilSweeper) mutated(i int, m func(clone, c rhino.Node) string) string {
 	clone := s.script.CloneTree()
-	var cloneNodes []*rhino.Node
+	var cloneNodes []rhino.Node
 	cloneNodes = nodeUtilSweepCollectInto(clone, cloneNodes)
 	r := m(clone, cloneNodes[i])
 	return r + ":" + strconv.Itoa(int(jutil.StringHashCode(nodeUtilSweepCompact(clone))))
 }
 
-func nodeUtilSweepCollectInto(n *rhino.Node, nodes []*rhino.Node) []*rhino.Node {
+func nodeUtilSweepCollectInto(n rhino.Node, nodes []rhino.Node) []rhino.Node {
 	nodes = append(nodes, n)
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		nodes = nodeUtilSweepCollectInto(c, nodes)
 	}
 	return nodes
 }
 
-func nodeUtilSweepHasString(n *rhino.Node) bool {
+func nodeUtilSweepHasString(n rhino.Node) bool {
 	return n.IsName() || n.IsStringKey() || n.IsGetProp() || n.IsStringLit()
 }
 
-func nodeUtilSweepIsObjectOrClassLitKeyToken(n *rhino.Node) bool {
+func nodeUtilSweepIsObjectOrClassLitKeyToken(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF,
 		rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
@@ -312,8 +312,8 @@ func nodeUtilSweepIsObjectOrClassLitKeyToken(n *rhino.Node) bool {
 	return false
 }
 
-func nodeUtilSweepFirstKey(n *rhino.Node) string {
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+func nodeUtilSweepFirstKey(n rhino.Node) string {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.IsStringKey() || c.IsMemberFunctionDef() || c.IsGetterDef() || c.IsSetterDef() {
 			return c.GetString()
 		}
@@ -321,7 +321,7 @@ func nodeUtilSweepFirstKey(n *rhino.Node) string {
 	return "x"
 }
 
-func nodeUtilSweepIsAssigningParent(n *rhino.Node) bool {
+func nodeUtilSweepIsAssigningParent(n rhino.Node) bool {
 	return NodeUtil_IsNameDeclaration(n) ||
 		n.IsParamList() ||
 		NodeUtil_IsAssignmentOp(n) ||
@@ -333,7 +333,7 @@ func nodeUtilSweepIsAssigningParent(n *rhino.Node) bool {
 }
 
 // sweepNode is NodeUtilSweep.sweepNode: the probes in the same order.
-func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
+func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	parent := n.GetParent()
 	t := n.GetToken()
 	var line strings.Builder
@@ -341,7 +341,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 
 	isFn := n.IsFunction()
 	isFnOrClass := n.IsFunction() || n.IsClass()
-	hasParent := parent != nil
+	hasParent := !parent.IsNil()
 	isName := n.IsName()
 	isGet := NodeUtil_IsNormalOrOptChainGet(n)
 	isQName := n.IsQualifiedName()
@@ -611,13 +611,13 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 	})
 	field(n.IsStringLit(), func() string { return nodeUtilSweepQuote(NodeUtil_TrimJsWhiteSpace(n.GetString())) })
 	field(nodeUtilSweepIsAssigningParent(n), func() string {
-		var lhs []*rhino.Node
-		NodeUtil_VisitLhsNodesInNode(n, func(x *rhino.Node) { lhs = append(lhs, x) })
+		var lhs []rhino.Node
+		NodeUtil_VisitLhsNodesInNode(n, func(x rhino.Node) { lhs = append(lhs, x) })
 		return s.list(lhs)
 	})
 	field(n.IsDestructuringPattern(), func() string {
-		var lhs []*rhino.Node
-		NodeUtil_VisitLhsNodesInDestructuringPattern(n, func(x *rhino.Node) { lhs = append(lhs, x) })
+		var lhs []rhino.Node
+		NodeUtil_VisitLhsNodesInDestructuringPattern(n, func(x rhino.Node) { lhs = append(lhs, x) })
 		return s.list(lhs)
 	})
 	field(NodeUtil_IsObjectDefinePropertiesDefinition(n),
@@ -668,7 +668,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 	field(true, func() string { return nodeUtilSweepStr(NodeUtil_GetBestLValueName(n)) })
 	field(true, func() string { return s.idx(NodeUtil_GetBestLValueRoot(n)) })
 	field(NodeUtil_IsInvocation(n), func() string {
-		var args []*rhino.Node
+		var args []rhino.Node
 		for a := range NodeUtil_GetInvocationArgsAsIterable(n) {
 			args = append(args, a)
 		}
@@ -691,8 +691,8 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 	})
 	field(n.IsScript(), func() string { return strconv.Itoa(NodeUtil_EstimateNumLines(n)) })
 	field(n.IsParamList() || n.IsDestructuringPattern(), func() string {
-		var names []*rhino.Node
-		NodeUtil_GetParamOrPatternNames(n, func(x *rhino.Node) { names = append(names, x) })
+		var names []rhino.Node
+		NodeUtil_GetParamOrPatternNames(n, func(x rhino.Node) { names = append(names, x) })
 		return s.list(names)
 	})
 	field(n.IsScript() || n.IsBlock(), func() string { return s.list(NodeUtil_GetVarsDeclaredInBranch(n)) })
@@ -703,15 +703,15 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 			"," + strconv.Itoa(NodeUtil_GetNameReferenceCount(n, "a"))
 	})
 	field(isFn || n.IsScript(), func() string {
-		var pre []*rhino.Node
+		var pre []rhino.Node
 		for x := range NodeUtil_PreOrderIterableWithPred(n, NodeUtil_MATCH_NOT_FUNCTION) {
 			pre = append(pre, x)
 		}
-		var post []*rhino.Node
-		NodeUtil_VisitPostOrderWithPred(n, NodeUtil_VisitorFunc(func(x *rhino.Node) { post = append(post, x) }),
+		var post []rhino.Node
+		NodeUtil_VisitPostOrderWithPred(n, NodeUtil_VisitorFunc(func(x rhino.Node) { post = append(post, x) }),
 			NodeUtil_MATCH_NOT_FUNCTION)
-		var pre2 []*rhino.Node
-		NodeUtil_VisitPreOrder(n, NodeUtil_VisitorFunc(func(x *rhino.Node) { pre2 = append(pre2, x) }))
+		var pre2 []rhino.Node
+		NodeUtil_VisitPreOrder(n, NodeUtil_VisitorFunc(func(x rhino.Node) { pre2 = append(pre2, x) }))
 		var h int64
 		for _, x := range pre {
 			h = h*31 + int64(s.indexOrMinusOne(x))
@@ -724,36 +724,36 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 	})
 	field(isFn || n.IsScript(),
 		func() string {
-			return s.idx(NodeUtil_FindPreorder(n, (*rhino.Node).IsName, NodeUtil_MATCH_NOT_FUNCTION))
+			return s.idx(NodeUtil_FindPreorder(n, (rhino.Node).IsName, NodeUtil_MATCH_NOT_FUNCTION))
 		})
 
 	// Mutations, each on a fresh clone of the script.
 	field(s.mutate && hasParent, func() string {
-		return s.mutated(i, func(clone, c *rhino.Node) string { NodeUtil_RemoveChild(c.GetParent(), c); return "" })
+		return s.mutated(i, func(clone, c rhino.Node) string { NodeUtil_RemoveChild(c.GetParent(), c); return "" })
 	})
 	field(s.mutate && n.IsBlock() && hasParent, func() string {
-		return s.mutated(i, func(clone, c *rhino.Node) string { return nodeUtilSweepB(NodeUtil_TryMergeBlock(c, false)) })
+		return s.mutated(i, func(clone, c rhino.Node) string { return nodeUtilSweepB(NodeUtil_TryMergeBlock(c, false)) })
 	})
 	field(s.mutate && n.IsBlock() && hasParent, func() string {
-		return s.mutated(i, func(clone, c *rhino.Node) string { return nodeUtilSweepB(NodeUtil_TryMergeBlock(c, true)) })
+		return s.mutated(i, func(clone, c rhino.Node) string { return nodeUtilSweepB(NodeUtil_TryMergeBlock(c, true)) })
 	})
 	field(s.mutate && hasParent, func() string {
-		return s.mutated(i, func(clone, c *rhino.Node) string { NodeUtil_RedeclareVarsInsideBranch(c); return "" })
+		return s.mutated(i, func(clone, c rhino.Node) string { NodeUtil_RedeclareVarsInsideBranch(c); return "" })
 	})
 	field(s.mutate && NodeUtil_IsEndOfOptChainSegment(n), func() string {
-		return s.mutated(i, func(clone, c *rhino.Node) string { NodeUtil_ConvertToNonOptionalChainSegment(c); return "" })
+		return s.mutated(i, func(clone, c rhino.Node) string { NodeUtil_ConvertToNonOptionalChainSegment(c); return "" })
 	})
 	field(s.mutate && hasParent && NodeUtil_IsNameDeclaration(parent), func() string {
-		return s.mutated(i, func(clone, c *rhino.Node) string {
+		return s.mutated(i, func(clone, c rhino.Node) string {
 			NodeUtil_ReplaceDeclarationChild(c, rhino.IR_ExprResult(rhino.IR_Number(1)))
 			return ""
 		})
 	})
 	field(s.mutate && isFnOrClass, func() string {
-		return s.mutated(i, func(clone, c *rhino.Node) string { NodeUtil_RemoveName(c); return "" })
+		return s.mutated(i, func(clone, c rhino.Node) string { NodeUtil_RemoveName(c); return "" })
 	})
 	field(s.mutate && n.IsTry(), func() string {
-		return s.mutated(i, func(clone, c *rhino.Node) string { NodeUtil_MaybeAddFinally(c); return "" })
+		return s.mutated(i, func(clone, c rhino.Node) string { NodeUtil_MaybeAddFinally(c); return "" })
 	})
 
 	// Constructions (the AST is not changed).
@@ -767,7 +767,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 	field(n.IsNumber() || n.IsName(), func() string { return nodeUtilSweepCompact(NodeUtil_NewUndefinedNode(n)) })
 	isOuterQName := isQName && !(hasParent && parent.IsGetProp() && parent.GetFirstChild() == n)
 	field(isOuterQName, func() string {
-		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclaration(s.compiler, *n.GetQualifiedName(), nil, nil))
+		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclaration(s.compiler, *n.GetQualifiedName(), rhino.Node{}, nil))
 	})
 	field(isOuterQName, func() string {
 		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclarationWithType(
@@ -792,7 +792,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 	sb.WriteByte('\n')
 }
 
-func (s *nodeUtilSweeper) indexOrMinusOne(n *rhino.Node) int {
+func (s *nodeUtilSweeper) indexOrMinusOne(n rhino.Node) int {
 	if i, ok := s.index[n]; ok {
 		return i
 	}
@@ -800,7 +800,7 @@ func (s *nodeUtilSweeper) indexOrMinusOne(n *rhino.Node) int {
 }
 
 // sweepScript is NodeUtilSweep.sweepScript.
-func (s *nodeUtilSweeper) sweepScript(sb *strings.Builder, script *rhino.Node) {
+func (s *nodeUtilSweeper) sweepScript(sb *strings.Builder, script rhino.Node) {
 	var line strings.Builder
 	line.WriteString("# file-summary")
 	field := func(applicable bool, p func() string) { nodeUtilSweepField(&line, applicable, p) }
@@ -813,15 +813,15 @@ func (s *nodeUtilSweeper) sweepScript(sb *strings.Builder, script *rhino.Node) {
 	})
 	field(true, func() string {
 		count := 0
-		NodeUtil_VisitPostOrder(script, NodeUtil_VisitorFunc(func(*rhino.Node) { count++ }))
+		NodeUtil_VisitPostOrder(script, NodeUtil_VisitorFunc(func(rhino.Node) { count++ }))
 		return strconv.Itoa(count)
 	})
 	field(true, func() string { return strconv.Itoa(NodeUtil_CountAstSize(script)) })
 	field(true, func() string {
-		return strconv.Itoa(NodeUtil_GetCount(script, (*rhino.Node).IsName, NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION))
+		return strconv.Itoa(NodeUtil_GetCount(script, (rhino.Node).IsName, NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION))
 	})
 	field(true, func() string {
-		return nodeUtilSweepB(NodeUtil_Has(script, (*rhino.Node).IsThis, NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION))
+		return nodeUtilSweepB(NodeUtil_Has(script, (rhino.Node).IsThis, NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION))
 	})
 	sb.WriteString(line.String())
 	sb.WriteByte('\n')

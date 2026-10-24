@@ -40,7 +40,7 @@ var TranspilationUtil_CANNOT_CONVERT_YET = DiagnosticType_Error(
 	"JSC_CANNOT_CONVERT_YET", "Transpilation of ''{0}'' is not yet implemented.")
 
 // Java: TranspilationUtil.cannotConvert(AbstractCompiler, Node, String)
-func TranspilationUtil_CannotConvert(compiler AbstractCompiler, n *rhino.Node, message string) {
+func TranspilationUtil_CannotConvert(compiler AbstractCompiler, n rhino.Node, message string) {
 	compiler.Report(JSError_MakeWithNode(n, TranspilationUtil_CANNOT_CONVERT, message))
 }
 
@@ -50,7 +50,7 @@ func TranspilationUtil_CannotConvert(compiler AbstractCompiler, n *rhino.Node, m
 // feature" comment.
 //
 // Java: TranspilationUtil.cannotConvertYet(AbstractCompiler, Node, String)
-func TranspilationUtil_CannotConvertYet(compiler AbstractCompiler, n *rhino.Node, feature string) {
+func TranspilationUtil_CannotConvertYet(compiler AbstractCompiler, n rhino.Node, feature string) {
 	compiler.Report(JSError_MakeWithNode(n, TranspilationUtil_CANNOT_CONVERT_YET, feature))
 }
 

@@ -43,7 +43,7 @@ func TestCheckMissingRequiresTest(t *testing.T) {
 
 // Java: CheckMissingRequiresTest.getProcessor(Compiler)
 func (c *CheckMissingRequiresTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		gatherModuleMetadata :=
 			NewGatherModuleMetadata(
 				compiler /* processCommonJsModules= */, false, ModuleLoader_ResolutionMode_BROWSER)

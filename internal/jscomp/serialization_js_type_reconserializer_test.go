@@ -103,7 +103,7 @@ type jsTypeReconserializerTest_labelFinder struct {
 }
 
 // Java: JSTypeReconserializerTest.getProcessor(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (f *jsTypeReconserializerTest_labelFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *jsTypeReconserializerTest_labelFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.GetJSType() != nil {
 		pointer := f.serializer.SerializeType(n.GetJSType())
 
@@ -119,7 +119,7 @@ func (c *JSTypeReconserializerTest) GetProcessor(compiler *Compiler) CompilerPas
 	c.stringPoolBuilder = StringPool_Builder_()
 	c.labelToPointer = jutil.NewLinkedHashMap[string, int]()
 
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		serializer :=
 			JSTypeReconserializer_Create(
 				compiler.GetTypeRegistry(),

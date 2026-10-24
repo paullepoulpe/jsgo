@@ -71,7 +71,7 @@ type CodingConvention interface {
 	// should be treated as an optional parameter.
 	//
 	// Java: CodingConvention.isOptionalParameter(Node)
-	IsOptionalParameter(parameter *rhino.Node) bool
+	IsOptionalParameter(parameter rhino.Node) bool
 
 	// IsVarArgsParameter checks whether a given parameter should be treated
 	// as a marker for a variable argument list function. A VarArgs parameter
@@ -81,14 +81,14 @@ type CodingConvention interface {
 	// should be treated as a variable length parameter.
 	//
 	// Java: CodingConvention.isVarArgsParameter(Node)
-	IsVarArgsParameter(parameter *rhino.Node) bool
+	IsVarArgsParameter(parameter rhino.Node) bool
 
 	// IsFunctionCallThatAlwaysThrows is used by CheckMissingReturn. When a
 	// function call always throws an error, it can be the last stm of a
 	// block and we don't warn about missing return.
 	//
 	// Java: CodingConvention.isFunctionCallThatAlwaysThrows(Node)
-	IsFunctionCallThatAlwaysThrows(n *rhino.Node) bool
+	IsFunctionCallThatAlwaysThrows(n rhino.Node) bool
 
 	// IsExportedWithLocal checks whether a global variable or function name
 	// should be treated as exported, or externally referenceable.
@@ -142,7 +142,7 @@ type CodingConvention interface {
 	// callNode is a CALL node.
 	//
 	// Java: CodingConvention.getClassesDefinedByCall(Node)
-	GetClassesDefinedByCall(callNode *rhino.Node) *CodingConvention_SubclassRelationship
+	GetClassesDefinedByCall(callNode rhino.Node) *CodingConvention_SubclassRelationship
 
 	// IsClassFactoryCall checks if the given method is a call to a class
 	// factory, such a factory returns a unique class.
@@ -150,7 +150,7 @@ type CodingConvention interface {
 	// callNode is a CALL node.
 	//
 	// Java: CodingConvention.isClassFactoryCall(Node)
-	IsClassFactoryCall(callNode *rhino.Node) bool
+	IsClassFactoryCall(callNode rhino.Node) bool
 
 	// IsSuperClassReference returns true if passed a string referring to the
 	// superclass. The string will usually be from the string node at the
@@ -164,19 +164,19 @@ type CodingConvention interface {
 	// symbols are not in global scope).
 	//
 	// Java: CodingConvention.extractIsModuleFile(Node, Node)
-	ExtractIsModuleFile(node *rhino.Node, parent *rhino.Node) bool
+	ExtractIsModuleFile(node rhino.Node, parent rhino.Node) bool
 
 	// ExtractClassNameIfProvide is a convenience method for determining
 	// provided dependencies amongst different JS scripts.
 	//
 	// Java: CodingConvention.extractClassNameIfProvide(Node, Node)
-	ExtractClassNameIfProvide(node *rhino.Node, parent *rhino.Node) *string
+	ExtractClassNameIfProvide(node rhino.Node, parent rhino.Node) *string
 
 	// ExtractClassNameIfRequire is a convenience method for determining
 	// required dependencies amongst different JS scripts.
 	//
 	// Java: CodingConvention.extractClassNameIfRequire(Node, Node)
-	ExtractClassNameIfRequire(node *rhino.Node, parent *rhino.Node) *string
+	ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) *string
 
 	// GetExportPropertyFunction is the function name used when exporting
 	// properties. Signature: fn(object, publicName, symbol).
@@ -195,7 +195,7 @@ type CodingConvention interface {
 	// is.
 	//
 	// Java: CodingConvention.identifyTypeDeclarationCall(Node)
-	IdentifyTypeDeclarationCall(n *rhino.Node) []string
+	IdentifyTypeDeclarationCall(n rhino.Node) []string
 
 	// ApplySubclassRelationship: in many JS libraries, the function that
 	// produces inheritance also adds properties to the superclass and/or
@@ -226,7 +226,7 @@ type CodingConvention interface {
 	// callNode is a CALL node.
 	//
 	// Java: CodingConvention.getSingletonGetterClassName(Node)
-	GetSingletonGetterClassName(callNode *rhino.Node) *string
+	GetSingletonGetterClassName(callNode rhino.Node) *string
 
 	// ApplySingletonGetter: in many JS libraries, the function that adds a
 	// singleton getter to a class adds properties to the class.
@@ -247,7 +247,7 @@ type CodingConvention interface {
 	// checkTypes: check that the bound node has a function type.
 	//
 	// Java: CodingConvention.describeFunctionBind(Node, boolean)
-	DescribeFunctionBind(n *rhino.Node, checkTypes bool) *CodingConvention_Bind
+	DescribeFunctionBind(n rhino.Node, checkTypes bool) *CodingConvention_Bind
 
 	// DescribeCachingCall builds a Cache instance from the given call node
 	// and returns that instance, or null if the Node does not resemble a
@@ -258,26 +258,26 @@ type CodingConvention interface {
 	// something on a cache object would be seen as a side-effect.
 	//
 	// Java: CodingConvention.describeCachingCall(Node)
-	DescribeCachingCall(node *rhino.Node) *CodingConvention_Cache
+	DescribeCachingCall(node rhino.Node) *CodingConvention_Cache
 
 	// IsPropertyTestFunction: whether this CALL function is testing for the
 	// existence of a property.
 	//
 	// Java: CodingConvention.isPropertyTestFunction(Node)
-	IsPropertyTestFunction(call *rhino.Node) bool
+	IsPropertyTestFunction(call rhino.Node) bool
 
 	// IsPrototypeAlias: whether this GETPROP node is an alias for an object
 	// prototype.
 	//
 	// Java: CodingConvention.isPrototypeAlias(Node)
-	IsPrototypeAlias(getProp *rhino.Node) bool
+	IsPrototypeAlias(getProp rhino.Node) bool
 
 	// IsPropertyRenameFunction: whether this GETPROP or NAME node is the
 	// function is returning the string name for a property, but allows
 	// renaming.
 	//
 	// Java: CodingConvention.isPropertyRenameFunction(Node)
-	IsPropertyRenameFunction(nameNode *rhino.Node) bool
+	IsPropertyRenameFunction(nameNode rhino.Node) bool
 
 	// GetObjectLiteralCast checks if the given method performs a object
 	// literal cast, and if it does, returns information on the cast. By
@@ -286,7 +286,7 @@ type CodingConvention interface {
 	// callNode is a CALL node.
 	//
 	// Java: CodingConvention.getObjectLiteralCast(Node)
-	GetObjectLiteralCast(callNode *rhino.Node) *CodingConvention_ObjectLiteralCast
+	GetObjectLiteralCast(callNode rhino.Node) *CodingConvention_ObjectLiteralCast
 
 	// GetAssertionFunctions returns the set of AssertionFunction.
 	//
@@ -313,15 +313,15 @@ func CodingConvention_BlockRenamingForProperty(c CodingConvention, name string) 
 // CodingConvention_Bind is the Bind class.
 type CodingConvention_Bind struct {
 	// The target of the bind action
-	target *rhino.Node
+	target rhino.Node
 	// The node representing the "this" value, maybe null
-	thisValue *rhino.Node
+	thisValue rhino.Node
 	// The head of a Node list representing the parameters
-	parameters *rhino.Node
+	parameters rhino.Node
 }
 
 // Java: CodingConvention.Bind(Node, Node, Node)
-func NewCodingConvention_Bind(target *rhino.Node, thisValue *rhino.Node, parameters *rhino.Node) *CodingConvention_Bind {
+func NewCodingConvention_Bind(target rhino.Node, thisValue rhino.Node, parameters rhino.Node) *CodingConvention_Bind {
 	b := &CodingConvention_Bind{}
 	b.target = target
 	b.thisValue = thisValue
@@ -334,7 +334,7 @@ func NewCodingConvention_Bind(target *rhino.Node, thisValue *rhino.Node, paramet
 //
 // Java: CodingConvention.Bind.getBoundParameterCount()
 func (b *CodingConvention_Bind) GetBoundParameterCount() int {
-	if b.parameters == nil {
+	if b.parameters.IsNil() {
 		return 0
 	}
 	paramParent := b.parameters.GetParent()
@@ -343,14 +343,14 @@ func (b *CodingConvention_Bind) GetBoundParameterCount() int {
 
 // CodingConvention_Cache is the Cache class.
 type CodingConvention_Cache struct {
-	cacheObj *rhino.Node
-	key      *rhino.Node
-	valueFn  *rhino.Node
-	keyFn    *rhino.Node
+	cacheObj rhino.Node
+	key      rhino.Node
+	valueFn  rhino.Node
+	keyFn    rhino.Node
 }
 
 // Java: CodingConvention.Cache(Node, Node, Node, Node)
-func NewCodingConvention_Cache(cacheObj *rhino.Node, key *rhino.Node, valueFn *rhino.Node, keyFn *rhino.Node) *CodingConvention_Cache {
+func NewCodingConvention_Cache(cacheObj rhino.Node, key rhino.Node, valueFn rhino.Node, keyFn rhino.Node) *CodingConvention_Cache {
 	c := &CodingConvention_Cache{}
 	c.cacheObj = cacheObj
 	c.key = key
@@ -402,7 +402,7 @@ var subclassRelSlabPool = sync.Pool{
 
 // Java: CodingConvention.SubclassRelationship(SubclassType, Node, Node)
 func NewCodingConvention_SubclassRelationship(
-	type_ CodingConvention_SubclassType, subclassNode *rhino.Node, superclassNode *rhino.Node) *CodingConvention_SubclassRelationship {
+	type_ CodingConvention_SubclassType, subclassNode rhino.Node, superclassNode rhino.Node) *CodingConvention_SubclassRelationship {
 	subName, subOk := subclassNode.GetQualifiedNameString()
 	if !subOk {
 		jutil.CheckArgumentMsg1(false, "Expected qualified name, found: %s", subclassNode)
@@ -431,7 +431,7 @@ type CodingConvention_ObjectLiteralCast struct {
 	typeName *string
 
 	// Object to cast.
-	objectNode *rhino.Node
+	objectNode rhino.Node
 
 	// Error message
 	diagnosticType *DiagnosticType
@@ -439,7 +439,7 @@ type CodingConvention_ObjectLiteralCast struct {
 
 // Java: CodingConvention.ObjectLiteralCast(String, Node, DiagnosticType)
 func NewCodingConvention_ObjectLiteralCast(
-	typeName *string, objectNode *rhino.Node, diagnosticType *DiagnosticType) *CodingConvention_ObjectLiteralCast {
+	typeName *string, objectNode rhino.Node, diagnosticType *DiagnosticType) *CodingConvention_ObjectLiteralCast {
 	c := &CodingConvention_ObjectLiteralCast{}
 	c.typeName = typeName
 	c.objectNode = objectNode
@@ -721,12 +721,12 @@ func (s *CodingConvention_AssertionFunctionSpec) GetId() any {
 // if fewer args than expected
 //
 // Java: CodingConvention.AssertionFunctionSpec.getAssertedArg(Node)
-func (s *CodingConvention_AssertionFunctionSpec) GetAssertedArg(firstArg *rhino.Node) *rhino.Node {
+func (s *CodingConvention_AssertionFunctionSpec) GetAssertedArg(firstArg rhino.Node) rhino.Node {
 	for i := 0; i < s.GetParamIndex(); i++ {
-		if firstArg == nil {
+		if firstArg.IsNil() {
 			// If there are fewer arguments than expected, return null instead of crashing in this
 			// function.
-			return nil
+			return rhino.Node{}
 		}
 		firstArg = firstArg.GetNext()
 	}
@@ -804,7 +804,7 @@ func CodingConvention_AssertionFunctionLookup_Of(
 // qualified name
 //
 // Java: CodingConvention.AssertionFunctionLookup.lookupByCallee(Node)
-func (l *CodingConvention_AssertionFunctionLookup) LookupByCallee(callee *rhino.Node) *CodingConvention_AssertionFunctionSpec {
+func (l *CodingConvention_AssertionFunctionLookup) LookupByCallee(callee rhino.Node) *CodingConvention_AssertionFunctionSpec {
 	fnType := rhino.JSType_ToMaybeFunctionType(callee.GetJSType())
 	if fnType != nil && fnType.GetClosurePrimitive() != nil {
 		spec := l.byPrimitive[*fnType.GetClosurePrimitive()]

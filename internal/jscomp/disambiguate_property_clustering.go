@@ -26,7 +26,7 @@ import (
 )
 
 type PropertyUseSite struct {
-	site  *rhino.Node
+	site  rhino.Node
 	owner *ColorGraphNode
 }
 
@@ -61,7 +61,7 @@ func (u *PropertyUseSites) Clear() {
 	u.tailUsed = 0
 }
 
-func (u *PropertyUseSites) PutNew(site *rhino.Node, owner *ColorGraphNode) {
+func (u *PropertyUseSites) PutNew(site rhino.Node, owner *ColorGraphNode) {
 	c := u.count
 	u.count = c + 1
 	if c < int32(len(u.inline)) {
@@ -92,7 +92,7 @@ func (u *PropertyUseSites) PutNew(site *rhino.Node, owner *ColorGraphNode) {
 	u.tailUsed = 1
 }
 
-func (u *PropertyUseSites) Put(site *rhino.Node, owner *ColorGraphNode) *ColorGraphNode {
+func (u *PropertyUseSites) Put(site rhino.Node, owner *ColorGraphNode) *ColorGraphNode {
 	nInline := int(u.count)
 	if nInline > len(u.inline) {
 		nInline = len(u.inline)
@@ -121,7 +121,7 @@ func (u *PropertyUseSites) Put(site *rhino.Node, owner *ColorGraphNode) *ColorGr
 	return nil
 }
 
-func (u *PropertyUseSites) Get(site *rhino.Node) *ColorGraphNode {
+func (u *PropertyUseSites) Get(site rhino.Node) *ColorGraphNode {
 	nInline := int(u.count)
 	if nInline > len(u.inline) {
 		nInline = len(u.inline)
@@ -145,8 +145,8 @@ func (u *PropertyUseSites) Get(site *rhino.Node) *ColorGraphNode {
 	return nil
 }
 
-func (u *PropertyUseSites) All() iter.Seq2[*rhino.Node, *ColorGraphNode] {
-	return func(yield func(*rhino.Node, *ColorGraphNode) bool) {
+func (u *PropertyUseSites) All() iter.Seq2[rhino.Node, *ColorGraphNode] {
+	return func(yield func(rhino.Node, *ColorGraphNode) bool) {
 		nInline := int(u.count)
 		if nInline > len(u.inline) {
 			nInline = len(u.inline)
@@ -172,8 +172,8 @@ func (u *PropertyUseSites) All() iter.Seq2[*rhino.Node, *ColorGraphNode] {
 	}
 }
 
-func (u *PropertyUseSites) Keys() iter.Seq[*rhino.Node] {
-	return func(yield func(*rhino.Node) bool) {
+func (u *PropertyUseSites) Keys() iter.Seq[rhino.Node] {
+	return func(yield func(rhino.Node) bool) {
 		for k := range u.All() {
 			if !yield(k) {
 				return
@@ -182,11 +182,11 @@ func (u *PropertyUseSites) Keys() iter.Seq[*rhino.Node] {
 	}
 }
 
-func (u *PropertyUseSites) KeySlice() []*rhino.Node {
+func (u *PropertyUseSites) KeySlice() []rhino.Node {
 	if u.count == 0 {
 		return nil
 	}
-	out := make([]*rhino.Node, 0, u.count)
+	out := make([]rhino.Node, 0, u.count)
 	for k := range u.All() {
 		out = append(out, k)
 	}

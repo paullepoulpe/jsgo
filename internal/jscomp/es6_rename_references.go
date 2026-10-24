@@ -33,18 +33,18 @@ type Es6RenameReferences struct {
 	// An entry in this map means we should rename a variable that was
 	// originally declared in the scope with the given root and had the
 	// original variable name to the new name.
-	renameTable *jutil.HashBasedTable[*rhino.Node, string, string]
+	renameTable *jutil.HashBasedTable[rhino.Node, string, string]
 }
 
 // Java: Es6RenameReferences(Table<Node, String, String>)
-func NewEs6RenameReferences(renameTable *jutil.HashBasedTable[*rhino.Node, string, string]) *Es6RenameReferences {
+func NewEs6RenameReferences(renameTable *jutil.HashBasedTable[rhino.Node, string, string]) *Es6RenameReferences {
 	e := &Es6RenameReferences{}
 	e.renameTable = renameTable
 	return e
 }
 
 // Java: Es6RenameReferences.visit(NodeTraversal, Node, Node)
-func (e *Es6RenameReferences) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6RenameReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsReferenceName(n) {
 		e.RenameReference(t, n, n.GetString())
 	}
@@ -54,7 +54,7 @@ func (e *Es6RenameReferences) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 // qualified name.
 //
 // Java: Es6RenameReferences.renameReference(NodeTraversal, Node, String)
-func (e *Es6RenameReferences) RenameReference(t *NodeTraversal, n *rhino.Node, oldName string) {
+func (e *Es6RenameReferences) RenameReference(t *NodeTraversal, n rhino.Node, oldName string) {
 	current := t.GetScope()
 	// You should be wondering:
 	//

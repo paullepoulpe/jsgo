@@ -71,7 +71,7 @@ func MakeNominalTypeBuilder(constructor FunctionType, instance ObjectType) Nomin
 // prototype.
 //
 // Java: NominalTypeBuilder.declarePrototypeProperty(String, JSType, Node)
-func (b *NominalTypeBuilder) DeclarePrototypeProperty(name string, type_ JSType, defSite *Node) {
+func (b *NominalTypeBuilder) DeclarePrototypeProperty(name string, type_ JSType, defSite Node) {
 	b.prototype.DefineDeclaredProperty(name, type_, defSite)
 }
 
@@ -79,7 +79,7 @@ func (b *NominalTypeBuilder) DeclarePrototypeProperty(name string, type_ JSType,
 // type.
 //
 // Java: NominalTypeBuilder.declareInstanceProperty(String, JSType, Node)
-func (b *NominalTypeBuilder) DeclareInstanceProperty(name string, type_ JSType, defSite *Node) {
+func (b *NominalTypeBuilder) DeclareInstanceProperty(name string, type_ JSType, defSite Node) {
 	b.instance.DefineDeclaredProperty(name, type_, defSite)
 }
 
@@ -87,7 +87,7 @@ func (b *NominalTypeBuilder) DeclareInstanceProperty(name string, type_ JSType, 
 // type's constructor.
 //
 // Java: NominalTypeBuilder.declareConstructorProperty(String, JSType, Node)
-func (b *NominalTypeBuilder) DeclareConstructorProperty(name string, type_ JSType, defSite *Node) {
+func (b *NominalTypeBuilder) DeclareConstructorProperty(name string, type_ JSType, defSite Node) {
 	b.constructor.DefineDeclaredProperty(name, type_, defSite)
 }
 

@@ -99,7 +99,11 @@ func NewTimeline[T comparable]() *Timeline[T] {
 
 // Java: Timeline.add(T)
 func (tl *Timeline[T]) Add(value T) {
-	jutil.CheckNotNull(value)
+	var zero T
+	if value == zero {
+		// Preconditions.checkNotNull, without boxing value in an any.
+		panic(jutil.NewNullPointerException())
+	}
 	id := tl.eventsByValue[value]
 	if tl.headEvent == id {
 		return

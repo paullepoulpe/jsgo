@@ -61,7 +61,7 @@ func NewThisAndArgumentsReferenceUpdater(
 }
 
 // Java: ThisAndArgumentsReferenceUpdater.visit(NodeTraversal, Node, Node)
-func (u *ThisAndArgumentsReferenceUpdater) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (u *ThisAndArgumentsReferenceUpdater) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsThis() {
 		u.context.SetNeedsThisVarWithType(AstFactory_Type_(n))
 
@@ -90,11 +90,11 @@ func (u *ThisAndArgumentsReferenceUpdater) Visit(t *NodeTraversal, n *rhino.Node
 }
 
 // Java: ThisAndArgumentsReferenceUpdater.shouldTraverse(NodeTraversal, Node, Node)
-func (u *ThisAndArgumentsReferenceUpdater) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (u *ThisAndArgumentsReferenceUpdater) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsMemberFieldDef() {
 		return false
 	}
-	if parent != nil && parent.IsComputedFieldDef() && n != parent.GetFirstChild() {
+	if !parent.IsNil() && parent.IsComputedFieldDef() && n != parent.GetFirstChild() {
 		return false
 	}
 	return !n.IsFunction() || n.IsArrowFunction()
@@ -107,9 +107,9 @@ func (u *ThisAndArgumentsReferenceUpdater) ShouldTraverse(t *NodeTraversal, n *r
 // Es6RewriteArrowFunction. They can't be immutable because a context isn't
 // fully defined by a single node (`super()` makes this hard).
 type ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext struct {
-	scopeBody          *rhino.Node
+	scopeBody          rhino.Node
 	isConstructor      bool
-	lastSuperStatement *rhino.Node // Last statement in the body that refers to super().
+	lastSuperStatement rhino.Node // Last statement in the body that refers to super().
 	// An object of ThisAndArgumentsContext exists for each Script and each Function. Store a
 	// uniqueId string based on the script node's filename's hash. This gets used to generate a
 	// unique name when rewriting `this` to `$jscomp$this`.
@@ -123,9 +123,9 @@ type ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext struct {
 
 // Java: ThisAndArgumentsContext(Node, boolean, String)
 func NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
-	scopeBody *rhino.Node, isConstructor bool, uniqueId string) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
+	scopeBody rhino.Node, isConstructor bool, uniqueId string) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
 	c := &ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext{
-		lastSuperStatement: nil,
+		lastSuperStatement: rhino.Node{},
 		uniqueId:           "",
 		needsThisVar:       false,
 		needsArgumentsVar:  false,
@@ -156,7 +156,7 @@ func (c *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) SetNeedsArgum
 
 // Java: ThisAndArgumentsContext.addVarDeclarations(AbstractCompiler, AstFactory, Node)
 func (c *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) AddVarDeclarations(
-	compiler AbstractCompiler, astFactory *AstFactory, script *rhino.Node) {
+	compiler AbstractCompiler, astFactory *AstFactory, script rhino.Node) {
 	if c.needsThisVar {
 		name := astFactory.CreateName(ThisAndArgumentsReferenceUpdater_THIS_VAR+"$"+c.uniqueId, c.GetThisType())
 		thisVar := rhino.IR_ConstNode(name, astFactory.CreateThis(c.GetThisType()))
@@ -164,7 +164,7 @@ func (c *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) AddVarDeclara
 		thisVar.SrcrefTreeIfMissing(c.scopeBody)
 		ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext_MakeTreeNonIndexable(thisVar)
 
-		if c.lastSuperStatement == nil {
+		if c.lastSuperStatement.IsNil() {
 			ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext_InsertVarDeclaration(thisVar, c.scopeBody)
 		} else {
 			// Not safe to reference `this` until after super() has been called.
@@ -188,11 +188,11 @@ func (c *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) AddVarDeclara
 }
 
 // Java: ThisAndArgumentsContext.insertVarDeclaration(Node, Node)
-func ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext_InsertVarDeclaration(varDeclaration *rhino.Node, scopeBody *rhino.Node) {
+func ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext_InsertVarDeclaration(varDeclaration rhino.Node, scopeBody rhino.Node) {
 	if scopeBody.GetParent().IsFunction() {
 		// for functions, we must find the correct insertion point to preserve normalization
 		insertBeforePoint := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(scopeBody)
-		if insertBeforePoint != nil {
+		if !insertBeforePoint.IsNil() {
 			varDeclaration.InsertBefore(insertBeforePoint)
 		} else {
 			// functionBody only contains hoisted function declarations
@@ -204,9 +204,9 @@ func ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext_InsertVarDeclarati
 }
 
 // Java: ThisAndArgumentsContext.makeTreeNonIndexable(Node)
-func ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext_MakeTreeNonIndexable(n *rhino.Node) {
+func ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext_MakeTreeNonIndexable(n rhino.Node) {
 	n.MakeNonIndexable()
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext_MakeTreeNonIndexable(child)
 	}
 }

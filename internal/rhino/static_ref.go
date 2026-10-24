@@ -40,7 +40,7 @@ type StaticRef interface {
 	GetSymbol() StaticSlot
 
 	// GetNode returns the node where the reference lives.
-	GetNode() *Node
+	GetNode() Node
 
 	// GetSourceFile returns the source file where the reference lives.
 	GetSourceFile() StaticSourceFile

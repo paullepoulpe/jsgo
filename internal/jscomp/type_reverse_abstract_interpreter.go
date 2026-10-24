@@ -41,5 +41,5 @@ type ReverseAbstractInterpreter interface {
 	//
 	// Java: ReverseAbstractInterpreter.getPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 	GetPreciserScopeKnowingConditionOutcome(
-		condition *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope
+		condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope
 }

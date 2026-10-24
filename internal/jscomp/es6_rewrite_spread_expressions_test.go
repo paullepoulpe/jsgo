@@ -51,7 +51,7 @@ func TestEs6RewriteSpreadExpressionsTest(t *testing.T) {
 
 // Java: Es6RewriteSpreadExpressionsTest.getProcessor(Compiler)
 func (c *Es6RewriteSpreadExpressionsTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewInjectTranspilationRuntimeLibraries(compiler).Process(externs, root)
 		NewEs6RewriteSpreadExpressions(compiler).Process(externs, root)
 	})

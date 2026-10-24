@@ -52,18 +52,18 @@ func NewRewriteObjectSpread(compiler AbstractCompiler) *RewriteObjectSpread {
 }
 
 // Java: RewriteObjectSpread.process(Node, Node)
-func (r *RewriteObjectSpread) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteObjectSpread) Process(externs rhino.Node, root rhino.Node) {
 	TranspilationPasses_ProcessTranspile(r.compiler, root, RewriteObjectSpread_transpiledFeatures, r)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(r.compiler, root, RewriteObjectSpread_transpiledFeatures)
 }
 
 // Java: RewriteObjectSpread.shouldTraverse(NodeTraversal, Node, Node)
-func (r *RewriteObjectSpread) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (r *RewriteObjectSpread) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
 // Java: RewriteObjectSpread.visit(NodeTraversal, Node, Node)
-func (r *RewriteObjectSpread) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *RewriteObjectSpread) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_OBJECTLIT:
 		r.VisitObject(n)
@@ -72,8 +72,8 @@ func (r *RewriteObjectSpread) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 }
 
 // Java: RewriteObjectSpread.visitObject(Node)
-func (r *RewriteObjectSpread) VisitObject(obj *rhino.Node) {
-	for child := obj.GetFirstChild(); child != nil; child = child.GetNext() {
+func (r *RewriteObjectSpread) VisitObject(obj rhino.Node) {
+	for child := obj.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsSpread() {
 			r.VisitObjectWithSpread(obj)
 			return
@@ -86,7 +86,7 @@ func (r *RewriteObjectSpread) VisitObject(obj *rhino.Node) {
 // Object.assign({}, {first:b, c}, spread, {d:e, last});
 //
 // Java: RewriteObjectSpread.visitObjectWithSpread(Node)
-func (r *RewriteObjectSpread) VisitObjectWithSpread(obj *rhino.Node) {
+func (r *RewriteObjectSpread) VisitObjectWithSpread(obj rhino.Node) {
 	jutil.CheckArgument(obj.IsObjectLit())
 
 	// Add an empty target object literal so changes made by Object.assign will not affect any other
@@ -97,9 +97,9 @@ func (r *RewriteObjectSpread) VisitObjectWithSpread(obj *rhino.Node) {
 	// An indicator whether the current last thing in the param list is an object literal to which
 	// properties may be added.  Initialized to null since nothing should be added to the empty
 	// object literal in first position of the param list.
-	var trailingObjectLiteral *rhino.Node = nil
+	var trailingObjectLiteral rhino.Node = rhino.Node{}
 
-	for child := obj.GetFirstChild(); child != nil; {
+	for child := obj.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
 		if child.IsSpread() {
 			// Add the object directly to the param list.
@@ -107,9 +107,9 @@ func (r *RewriteObjectSpread) VisitObjectWithSpread(obj *rhino.Node) {
 			result.AddChildToBack(spreaded)
 
 			// Properties should not be added to the trailing object.
-			trailingObjectLiteral = nil
+			trailingObjectLiteral = rhino.Node{}
 		} else {
-			if trailingObjectLiteral == nil {
+			if trailingObjectLiteral.IsNil() {
 				// Add a new object to which properties may be added.
 				trailingObjectLiteral = r.astFactory.CreateObjectLit()
 				result.AddChildToBack(trailingObjectLiteral)

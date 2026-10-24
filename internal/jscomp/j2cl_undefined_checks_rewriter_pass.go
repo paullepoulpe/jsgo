@@ -46,19 +46,19 @@ func (p *J2clUndefinedChecksRewriterPass) BeginTraversal(compiler AbstractCompil
 }
 
 // Java: J2clUndefinedChecksRewriterPass.optimizeSubtree(Node)
-func (p *J2clUndefinedChecksRewriterPass) OptimizeSubtree(subtree *rhino.Node) *rhino.Node {
+func (p *J2clUndefinedChecksRewriterPass) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	if !p.shouldRunJ2clPasses {
 		return subtree
 	}
 
-	var replacement *rhino.Node
+	var replacement rhino.Node
 	if j2clUndefinedChecksRewriterPass_isUtilCall(subtree, "$isUndefined") && subtree.HasXChildren(2) {
 		replacement = j2clUndefinedChecksRewriterPass_maybeOptimizeIsUndefinedCall(subtree)
 	} else if j2clUndefinedChecksRewriterPass_isUtilCall(subtree, "$coerceToNull") && subtree.HasXChildren(2) {
 		replacement = j2clUndefinedChecksRewriterPass_maybeOptimizeCoerceToNullCall(subtree)
 	}
 
-	if replacement != nil {
+	if !replacement.IsNil() {
 		jutil.CheckState(replacement != subtree)
 		replacement.SrcrefTreeIfMissing(subtree)
 		subtree.ReplaceWith(replacement)
@@ -70,20 +70,20 @@ func (p *J2clUndefinedChecksRewriterPass) OptimizeSubtree(subtree *rhino.Node) *
 }
 
 // Java: J2clUndefinedChecksRewriterPass.maybeOptimizeIsUndefinedCall(Node)
-func j2clUndefinedChecksRewriterPass_maybeOptimizeIsUndefinedCall(node *rhino.Node) *rhino.Node {
-	valueExpression := jutil.CheckNotNull(node.GetSecondChild())
+func j2clUndefinedChecksRewriterPass_maybeOptimizeIsUndefinedCall(node rhino.Node) rhino.Node {
+	valueExpression := rhino.CheckNotNull(node.GetSecondChild())
 	if NodeUtil_IsUndefined(valueExpression) {
 		return rhino.IR_TrueNode()
 	} else if NodeUtil_IsDefinedValue(valueExpression) {
 		return rhino.IR_Comma(valueExpression.Detach(), rhino.IR_FalseNode())
 	} else {
-		return nil
+		return rhino.Node{}
 	}
 }
 
 // Java: J2clUndefinedChecksRewriterPass.maybeOptimizeCoerceToNullCall(Node)
-func j2clUndefinedChecksRewriterPass_maybeOptimizeCoerceToNullCall(node *rhino.Node) *rhino.Node {
-	valueExpression := jutil.CheckNotNull(node.GetSecondChild())
+func j2clUndefinedChecksRewriterPass_maybeOptimizeCoerceToNullCall(node rhino.Node) rhino.Node {
+	valueExpression := rhino.CheckNotNull(node.GetSecondChild())
 	if NodeUtil_IsUndefined(valueExpression) {
 		return rhino.IR_NullNode()
 	}
@@ -93,11 +93,11 @@ func j2clUndefinedChecksRewriterPass_maybeOptimizeCoerceToNullCall(node *rhino.N
 		return valueExpression.Detach()
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // Java: J2clUndefinedChecksRewriterPass.isUtilCall(Node, String)
-func j2clUndefinedChecksRewriterPass_isUtilCall(node *rhino.Node, methodName string) bool {
+func j2clUndefinedChecksRewriterPass_isUtilCall(node rhino.Node, methodName string) bool {
 	if !node.IsCall() || !node.GetFirstChild().IsQualifiedName() {
 		return false
 	}

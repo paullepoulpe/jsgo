@@ -174,7 +174,7 @@ func (c *SerializeTypesToPointersTest) getGlobalType(typeName string) rhino.JSTy
 }
 
 // Java: SerializeTypesToPointersTest.parseAndTypecheckFiles(String...)
-func (c *SerializeTypesToPointersTest) parseAndTypecheckFiles(files ...string) *rhino.Node {
+func (c *SerializeTypesToPointersTest) parseAndTypecheckFiles(files ...string) rhino.Node {
 	root := rhino.IR_Root()
 	index := 0
 	for _, file := range files {
@@ -187,7 +187,7 @@ func (c *SerializeTypesToPointersTest) parseAndTypecheckFiles(files ...string) *
 		c.compiler,
 		NewClosureReverseAbstractInterpreter(c.compiler.GetTypeRegistry()),
 		c.compiler.GetTypeRegistry()).
-		ProcessForTesting(nil, root)
+		ProcessForTesting(rhino.Node{}, root)
 	return root
 }
 

@@ -57,7 +57,7 @@ func (c *JsFlumeCallback) GetFixes() *jutil.ArrayList[*SuggestedFix] {
 }
 
 // Java: JsFlumeCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *JsFlumeCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *JsFlumeCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsFromExterns() {
 		return false
 	}
@@ -73,7 +73,7 @@ func (c *JsFlumeCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.
 }
 
 // Java: JsFlumeCallback.visit(NodeTraversal, Node, Node)
-func (c *JsFlumeCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *JsFlumeCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	metadata := NodeMetadata_FromTraversal(t)
 	if c.scanner.Matches(n, metadata) {
 		match := NewMatch(n, metadata)

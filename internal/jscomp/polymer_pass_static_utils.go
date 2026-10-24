@@ -39,8 +39,8 @@ type PolymerPassStaticUtils struct{}
 // call to the Polymer function.
 //
 // Java: PolymerPassStaticUtils.isPolymerCall(Node)
-func PolymerPassStaticUtils_IsPolymerCall(call *rhino.Node) bool {
-	if call == nil || !call.IsCall() {
+func PolymerPassStaticUtils_IsPolymerCall(call rhino.Node) bool {
+	if call.IsNil() || !call.IsCall() {
 		return false
 	}
 	name := call.GetFirstChild()
@@ -60,8 +60,8 @@ func PolymerPassStaticUtils_IsPolymerCall(call *rhino.Node) bool {
 // PolymerElement.
 //
 // Java: PolymerPassStaticUtils.isPolymerClass(Node)
-func PolymerPassStaticUtils_IsPolymerClass(cls *rhino.Node) bool {
-	if cls == nil || !cls.IsClass() {
+func PolymerPassStaticUtils_IsPolymerClass(cls rhino.Node) bool {
+	if cls.IsNil() || !cls.IsClass() {
 		return false
 	}
 	// A class with the @polymer annotation is always considered a Polymer element.
@@ -86,7 +86,7 @@ func PolymerPassStaticUtils_IsPolymerClass(cls *rhino.Node) bool {
 }
 
 // Java: PolymerPassStaticUtils.matches(Node, String)
-func polymerPassStaticUtils_matches(n *rhino.Node, name string) bool {
+func polymerPassStaticUtils_matches(n rhino.Node, name string) bool {
 	if n.MatchesName(name) {
 		return true
 	}
@@ -104,14 +104,14 @@ func polymerPassStaticUtils_matches(n *rhino.Node, name string) bool {
 // a "$" member.
 //
 // Java: PolymerPassStaticUtils.switchDollarSignPropsToBrackets(Node, AbstractCompiler)
-func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def *rhino.Node, compiler AbstractCompiler) {
+func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def rhino.Node, compiler AbstractCompiler) {
 	jutil.CheckState(def.IsObjectLit() || def.IsClassMembers())
-	for keyNode := def.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := def.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		value := keyNode.GetFirstChild()
-		if value != nil && value.IsFunction() {
+		if !value.IsNil() && value.IsFunction() {
 			NodeUtil_VisitPostOrder(
 				value.GetLastChild(),
-				NodeUtil_VisitorFunc(func(n *rhino.Node) {
+				NodeUtil_VisitorFunc(func(n rhino.Node) {
 					if !n.IsGetProp() {
 						return
 					}
@@ -141,9 +141,9 @@ func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def *rhino.Node, com
 // renaming.
 //
 // Java: PolymerPassStaticUtils.quoteListenerAndHostAttributeKeys(Node, AbstractCompiler)
-func PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit *rhino.Node, compiler AbstractCompiler) {
+func PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit rhino.Node, compiler AbstractCompiler) {
 	jutil.CheckState(objLit.IsObjectLit())
-	for keyNode := objLit.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := objLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		if !keyNode.IsStringKey() {
 			// We should only quote string keys. If this is not a string key, then we should skip it.
 			continue
@@ -151,7 +151,7 @@ func PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit *rhino.Node
 		if keyNode.GetString() != "listeners" && keyNode.GetString() != "hostAttributes" {
 			continue
 		}
-		for keyToQuote := keyNode.GetFirstFirstChild(); keyToQuote != nil; keyToQuote = keyToQuote.GetNext() {
+		for keyToQuote := keyNode.GetFirstFirstChild(); !keyToQuote.IsNil(); keyToQuote = keyToQuote.GetNext() {
 			if !keyToQuote.IsQuotedStringKey() {
 				keyToQuote.SetQuotedStringKey()
 				compiler.ReportChangeToEnclosingScope(keyToQuote)
@@ -166,14 +166,14 @@ func PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit *rhino.Node
 // block declaration are exported and marked `@noCollapse`.
 //
 // Java: PolymerPassStaticUtils.protectObserverAndPropertyFunctionKeys(Node)
-func PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(behaviorObjLit *rhino.Node) {
+func PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(behaviorObjLit rhino.Node) {
 	jutil.CheckState(behaviorObjLit.IsObjectLit())
 
 	methodsToProtect := jutil.NewLinkedHashSet[string]()
 	methodsToProtect.AddAll(polymerPassStaticUtils_addObserverMethodsToProtect(behaviorObjLit).ToSlice()...)
 	methodsToProtect.AddAll(polymerPassStaticUtils_addPropertyMethodsToProtect(behaviorObjLit).ToSlice()...)
 
-	for keyNode := behaviorObjLit.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := behaviorObjLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		// Note: This also is true for object literal methods.
 		if !NodeUtil_IsObjectLitKey(keyNode) {
 			continue
@@ -192,11 +192,11 @@ func PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(behaviorObjLi
 // referenced in the 'observers' property and returns them as a Set.
 //
 // Java: PolymerPassStaticUtils.addObserverMethodsToProtect(Node)
-func polymerPassStaticUtils_addObserverMethodsToProtect(behaviorObjLit *rhino.Node) *jutil.LinkedHashSet[string] {
+func polymerPassStaticUtils_addObserverMethodsToProtect(behaviorObjLit rhino.Node) *jutil.LinkedHashSet[string] {
 	methodsToProtect := jutil.NewLinkedHashSet[string]()
 	observers := NodeUtil_GetFirstPropMatchingKey(behaviorObjLit, "observers")
-	if observers != nil && observers.IsArrayLit() {
-		for child := observers.GetFirstChild(); child != nil; child = child.GetNext() {
+	if !observers.IsNil() && observers.IsArrayLit() {
+		for child := observers.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if !child.IsStringLit() {
 				continue
 			}
@@ -214,22 +214,22 @@ func polymerPassStaticUtils_addObserverMethodsToProtect(behaviorObjLit *rhino.No
 // referenced in the 'properties' property and returns them as a Set.
 //
 // Java: PolymerPassStaticUtils.addPropertyMethodsToProtect(Node)
-func polymerPassStaticUtils_addPropertyMethodsToProtect(behaviorObjLit *rhino.Node) *jutil.LinkedHashSet[string] {
+func polymerPassStaticUtils_addPropertyMethodsToProtect(behaviorObjLit rhino.Node) *jutil.LinkedHashSet[string] {
 	methodsToProtect := jutil.NewLinkedHashSet[string]()
 	properties := NodeUtil_GetFirstPropMatchingKey(behaviorObjLit, "properties")
-	if properties != nil && properties.IsObjectLit() {
-		for prop := properties.GetFirstChild(); prop != nil; prop = prop.GetNext() {
+	if !properties.IsNil() && properties.IsObjectLit() {
+		for prop := properties.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
 			if !prop.GetLastChild().IsObjectLit() {
 				continue
 			}
 
 			observer := NodeUtil_GetFirstPropMatchingKey(prop.GetLastChild(), "observer")
-			if observer != nil && observer.IsStringLit() {
+			if !observer.IsNil() && observer.IsStringLit() {
 				methodsToProtect.Add(observer.GetString())
 			}
 
 			computed := NodeUtil_GetFirstPropMatchingKey(prop.GetLastChild(), "computed")
-			if computed != nil && computed.IsStringLit() {
+			if !computed.IsNil() && computed.IsStringLit() {
 				name := polymerPassStaticUtils_extractMethodName(computed.GetString())
 				if name != nil {
 					methodsToProtect.Add(*name)
@@ -257,7 +257,7 @@ func polymerPassStaticUtils_extractMethodName(signature string) *string {
 // keyNode is the key node from an object literal.
 //
 // Java: PolymerPassStaticUtils.addExportAndNoCollapseToKey(Node)
-func polymerPassStaticUtils_addExportAndNoCollapseToKey(keyNode *rhino.Node) {
+func polymerPassStaticUtils_addExportAndNoCollapseToKey(keyNode rhino.Node) {
 	newDocs := rhino.JSDocInfo_Builder_MaybeCopyFrom(keyNode.GetJSDocInfo())
 	newDocs.RecordNoCollapse()
 	newDocs.RecordExport()
@@ -275,26 +275,26 @@ func polymerPassStaticUtils_addExportAndNoCollapseToKey(keyNode *rhino.Node) {
 //
 // Java: PolymerPassStaticUtils.extractProperties(Node, PolymerClassDefinition.DefinitionType, AbstractCompiler, Node)
 func PolymerPassStaticUtils_ExtractProperties(
-	descriptor *rhino.Node,
+	descriptor rhino.Node,
 	defType PolymerClassDefinition_DefinitionType,
 	compiler AbstractCompiler,
-	constructor *rhino.Node) []*PolymerPass_MemberDefinition {
+	constructor rhino.Node) []*PolymerPass_MemberDefinition {
 	properties := descriptor
 	if defType == PolymerClassDefinition_DefinitionType_ObjectLiteral {
 		properties = NodeUtil_GetFirstPropMatchingKey(descriptor, "properties")
 	}
-	if properties == nil {
+	if properties.IsNil() {
 		return nil
 	}
 
 	constructorPropertyJsDoc := jutil.NewLinkedHashMap[string, *rhino.JSDocInfo]()
-	if constructor != nil {
+	if !constructor.IsNil() {
 		polymerPassStaticUtils_collectConstructorPropertyJsDoc(constructor, constructorPropertyJsDoc)
 	}
 	enclosingModule := NodeUtil_GetEnclosingModuleIfPresent(descriptor)
 
 	var members []*PolymerPass_MemberDefinition
-	for keyNode := properties.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := properties.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		// The JSDoc for a Polymer property in the constructor should win over the JSDoc in the
 		// Polymer properties configuration object.
 		constructorJsDoc := constructorPropertyJsDoc.Get(keyNode.GetString())
@@ -323,9 +323,9 @@ func PolymerPassStaticUtils_ExtractProperties(
 // name to JSDoc.
 //
 // Java: PolymerPassStaticUtils.collectConstructorPropertyJsDoc(Node, Map<String, JSDocInfo>)
-func polymerPassStaticUtils_collectConstructorPropertyJsDoc(node *rhino.Node, m *jutil.LinkedHashMap[string, *rhino.JSDocInfo]) {
-	jutil.CheckNotNull(node)
-	for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+func polymerPassStaticUtils_collectConstructorPropertyJsDoc(node rhino.Node, m *jutil.LinkedHashMap[string, *rhino.JSDocInfo]) {
+	rhino.CheckNotNull(node)
+	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsGetProp() && child.GetFirstChild().IsThis() {
 			// We found a "this.foo" expression. Map "foo" to its JSDoc.
 			m.Put(child.GetString(), NodeUtil_GetBestJSDocInfo(child))
@@ -352,26 +352,26 @@ func PolymerPassStaticUtils_GetTypeFromProperty(
 		return property.info.GetType().Copy()
 	}
 
-	var typeValue *rhino.Node
+	var typeValue rhino.Node
 	if property.value.IsObjectLit() {
 		typeValue = NodeUtil_GetFirstPropMatchingKey(property.value, "type")
-		if typeValue == nil || !typeValue.IsName() {
+		if typeValue.IsNil() || !typeValue.IsName() {
 			compiler.Report(JSError_MakeWithNode(property.name, PolymerPassErrors_POLYMER_INVALID_PROPERTY))
 			return nil
 		}
 	} else if property.value.IsName() {
 		typeValue = property.value
 	} else {
-		typeValue = nil
+		typeValue = rhino.Node{}
 	}
 
-	if typeValue == nil {
+	if typeValue.IsNil() {
 		compiler.Report(JSError_MakeWithNode(property.value, PolymerPassErrors_POLYMER_INVALID_PROPERTY))
 		return nil
 	}
 
 	typeString := typeValue.GetString()
-	var typeNode *rhino.Node
+	var typeNode rhino.Node
 	switch typeString {
 	case "Boolean", "String", "Number":
 		typeNode = rhino.IR_String(jutil.StringToLowerCaseASCII(typeString))

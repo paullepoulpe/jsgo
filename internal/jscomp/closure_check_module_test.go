@@ -41,7 +41,7 @@ func TestClosureCheckModuleTest(t *testing.T) {
 
 // Java: ClosureCheckModuleTest.getProcessor(Compiler)
 func (c *ClosureCheckModuleTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		gatherModuleMetadata :=
 			NewGatherModuleMetadata(
 				compiler /* processCommonJsModules= */, false, ModuleLoader_ResolutionMode_BROWSER)

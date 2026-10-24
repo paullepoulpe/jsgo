@@ -108,14 +108,14 @@ func (jt *jsDocInfoParserTest) testParseType(type_ string, typeExpected ...strin
 }
 
 // Java: JsDocInfoParserTest.checkTokenPosition(Node, Token, int, int)
-func checkTokenPosition(t *testing.T, n *rhino.Node, tok rhino.Token, lineno int, charno int) {
+func checkTokenPosition(t *testing.T, n rhino.Node, tok rhino.Token, lineno int, charno int) {
 	t.Helper()
 	assertNode(t, n).HasType(tok)
 	assertNode(t, n).HasLineno(lineno)
 	assertNode(t, n).HasCharno(charno)
 }
 
-func (jt *jsDocInfoParserTest) checkTokenPosition(n *rhino.Node, tok rhino.Token, lineno int, charno int) {
+func (jt *jsDocInfoParserTest) checkTokenPosition(n rhino.Node, tok rhino.Token, lineno int, charno int) {
 	jt.t.Helper()
 	checkTokenPosition(jt.t, n, tok, lineno, charno)
 }
@@ -238,7 +238,7 @@ func (jt *jsDocInfoParserTest) assertAnnotationMarker(
 }
 
 // Java: JsDocInfoParserTest.parseFull(String, String...)
-func (jt *jsDocInfoParserTest) parseFull(code string, warnings ...string) *rhino.Node {
+func (jt *jsDocInfoParserTest) parseFull(code string, warnings ...string) rhino.Node {
 	jt.t.Helper()
 	testErrorReporter := newTestErrorReporter().expectAllWarnings(warnings...)
 	config := Config_Builder_().
@@ -360,9 +360,9 @@ func (jt *jsDocInfoParserTest) parseWith(
 
 // testGetSourceName is NodeUtil.getSourceName(Node) (jscomp, not ported
 // yet).
-func testGetSourceName(n *rhino.Node) *string {
+func testGetSourceName(n rhino.Node) *string {
 	var sourceName *string
-	for sourceName == nil && n != nil {
+	for sourceName == nil && !n.IsNil() {
 		sourceName = n.GetSourceFileName()
 		n = n.GetParent()
 	}
@@ -370,7 +370,7 @@ func testGetSourceName(n *rhino.Node) *string {
 }
 
 // Java: JsDocInfoParserTest.parseType(String)
-func (jt *jsDocInfoParserTest) parseType(typeComment string) *rhino.Node {
+func (jt *jsDocInfoParserTest) parseType(typeComment string) rhino.Node {
 	return JsDocInfoParser_ParseTypeString(typeComment)
 }
 
@@ -749,16 +749,16 @@ func (s *subject) ContainsEntry(k, v any) {
 // nodeSubject is a subset of rhino/testing/NodeSubject.
 type nodeSubject struct {
 	t      *testing.T
-	actual *rhino.Node
+	actual rhino.Node
 }
 
-func assertNode(t *testing.T, n *rhino.Node) *nodeSubject {
+func assertNode(t *testing.T, n rhino.Node) *nodeSubject {
 	return &nodeSubject{t: t, actual: n}
 }
 
 func (s *nodeSubject) HasToken(tok rhino.Token) *nodeSubject {
 	s.t.Helper()
-	if s.actual == nil {
+	if s.actual.IsNil() {
 		s.t.Fatalf("expected a node with token %v, was null", tok)
 	}
 	if s.actual.GetToken() != tok {
@@ -944,7 +944,7 @@ func TestTypedefType4(t *testing.T) {
 			"@typedef {{\n *  boo: ?,\n *  goo: ?\n * }}\n */\n")
 	assertThat(t, info.HasTypedefType()).IsTrue()
 
-	recordType := jt.CreateRecordTypeBuilder().AddProperty("boo", jt.UNKNOWN_TYPE, nil).AddProperty("goo", jt.UNKNOWN_TYPE, nil).Build()
+	recordType := jt.CreateRecordTypeBuilder().AddProperty("boo", jt.UNKNOWN_TYPE, rhino.Node{}).AddProperty("goo", jt.UNKNOWN_TYPE, rhino.Node{}).Build()
 	jt.AssertTypeEqualsExpr(recordType, info.GetTypedefType())
 }
 
@@ -5984,7 +5984,7 @@ func TestAllowlistedAnnotations(t *testing.T) {
 // instance, for the external test package.
 //
 // Go-only: test-helper — exported to parsing_test (see above).
-func JsDocInfoParserTest_ParseFull(t *testing.T, code string) *rhino.Node {
+func JsDocInfoParserTest_ParseFull(t *testing.T, code string) rhino.Node {
 	t.Helper()
 	return newJsDocInfoParserTest(t).parseFull(code)
 }

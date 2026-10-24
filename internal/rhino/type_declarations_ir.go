@@ -45,7 +45,7 @@ type TypeDeclarationsIR struct{}
 // built-in type.
 //
 // Java: TypeDeclarationsIR.stringType()
-func TypeDeclarationsIR_StringType() *Node {
+func TypeDeclarationsIR_StringType() Node {
 	return NewNode(Token_STRING_TYPE)
 }
 
@@ -53,7 +53,7 @@ func TypeDeclarationsIR_StringType() *Node {
 // built-in type.
 //
 // Java: TypeDeclarationsIR.numberType()
-func TypeDeclarationsIR_NumberType() *Node {
+func TypeDeclarationsIR_NumberType() Node {
 	return NewNode(Token_NUMBER_TYPE)
 }
 
@@ -61,7 +61,7 @@ func TypeDeclarationsIR_NumberType() *Node {
 // boolean built-in type.
 //
 // Java: TypeDeclarationsIR.booleanType()
-func TypeDeclarationsIR_BooleanType() *Node {
+func TypeDeclarationsIR_BooleanType() Node {
 	return NewNode(Token_BOOLEAN_TYPE)
 }
 
@@ -70,7 +70,7 @@ func TypeDeclarationsIR_BooleanType() *Node {
 // checking.
 //
 // Java: TypeDeclarationsIR.anyType()
-func TypeDeclarationsIR_AnyType() *Node {
+func TypeDeclarationsIR_AnyType() Node {
 	return NewNode(Token_ANY_TYPE)
 }
 
@@ -78,7 +78,7 @@ func TypeDeclarationsIR_AnyType() *Node {
 // as defined by TypeScript.
 //
 // Java: TypeDeclarationsIR.voidType()
-func TypeDeclarationsIR_VoidType() *Node {
+func TypeDeclarationsIR_VoidType() Node {
 	return NewNode(Token_VOID_TYPE)
 }
 
@@ -86,7 +86,7 @@ func TypeDeclarationsIR_VoidType() *Node {
 // Undefined type as defined by TypeScript.
 //
 // Java: TypeDeclarationsIR.undefinedType()
-func TypeDeclarationsIR_UndefinedType() *Node {
+func TypeDeclarationsIR_UndefinedType() Node {
 	return NewNode(Token_UNDEFINED_TYPE)
 }
 
@@ -97,7 +97,7 @@ func TypeDeclarationsIR_UndefinedType() *Node {
 // representing the type
 //
 // Java: TypeDeclarationsIR.namedType(String)
-func TypeDeclarationsIR_NamedType(typeName string) *Node {
+func TypeDeclarationsIR_NamedType(typeName string) Node {
 	return TypeDeclarationsIR_NamedTypeOfSegments(JSTypeRegistry_DOT_SPLITTER_Split(typeName))
 }
 
@@ -113,7 +113,7 @@ func TypeDeclarationsIR_NamedType(typeName string) *Node {
 //	      STRING Window
 //
 // Java: TypeDeclarationsIR.namedType(Iterable<String>)
-func TypeDeclarationsIR_NamedTypeOfSegments(segments []string) *Node {
+func TypeDeclarationsIR_NamedTypeOfSegments(segments []string) Node {
 	if len(segments) == 0 {
 		panic(jutil.NewNoSuchElementException())
 	}
@@ -138,12 +138,12 @@ func TypeDeclarationsIR_NamedTypeOfSegments(segments []string) *Node {
 // representing the record type
 //
 // Java: TypeDeclarationsIR.recordType(LinkedHashMap<String, Node>)
-func TypeDeclarationsIR_RecordType(properties *jutil.LinkedHashMap[string, *Node]) *Node {
+func TypeDeclarationsIR_RecordType(properties *jutil.LinkedHashMap[string, Node]) Node {
 	node := NewNode(Token_RECORD_TYPE)
 	for key, value := range properties.All() {
 		stringKey := IR_StringKey(key)
 		node.AddChildToBack(stringKey)
-		if value != nil {
+		if !value.IsNil() {
 			stringKey.AddChildToFront(value)
 		}
 	}
@@ -151,8 +151,8 @@ func TypeDeclarationsIR_RecordType(properties *jutil.LinkedHashMap[string, *Node
 }
 
 // Java: TypeDeclarationsIR.maybeAddType(Node, Node)
-func TypeDeclarationsIR_MaybeAddType(node *Node, type_ *Node) *Node {
-	if type_ != nil {
+func TypeDeclarationsIR_MaybeAddType(node Node, type_ Node) Node {
+	if !type_.IsNil() {
 		node.SetDeclaredTypeExpression(type_)
 	}
 	return node
@@ -178,11 +178,11 @@ func TypeDeclarationsIR_MaybeAddType(node *Node, type_ *Node) *Node {
 //
 // Java: TypeDeclarationsIR.functionType(Node, LinkedHashMap<String, Node>, LinkedHashMap<String, Node>, String, Node)
 func TypeDeclarationsIR_FunctionType(
-	returnType *Node,
-	requiredParams *jutil.LinkedHashMap[string, *Node],
-	optionalParams *jutil.LinkedHashMap[string, *Node],
+	returnType Node,
+	requiredParams *jutil.LinkedHashMap[string, Node],
+	optionalParams *jutil.LinkedHashMap[string, Node],
 	restName *string,
-	restType *Node) *Node {
+	restType Node) Node {
 	node := NewNodeWithChild(Token_FUNCTION_TYPE, returnType)
 	jutil.CheckNotNull(requiredParams)
 	jutil.CheckNotNull(optionalParams)
@@ -218,7 +218,7 @@ func TypeDeclarationsIR_FunctionType(
 //	  NUMBER_TYPE
 //
 // Java: TypeDeclarationsIR.parameterizedType(Node, Iterable<Node>)
-func TypeDeclarationsIR_ParameterizedType(baseType *Node, typeParameters []*Node) *Node {
+func TypeDeclarationsIR_ParameterizedType(baseType Node, typeParameters []Node) Node {
 	if len(typeParameters) == 0 {
 		return baseType
 	}
@@ -239,7 +239,7 @@ func TypeDeclarationsIR_ParameterizedType(baseType *Node, typeParameters []*Node
 //	  elementType
 //
 // Java: TypeDeclarationsIR.arrayType(Node)
-func TypeDeclarationsIR_ArrayType(elementType *Node) *Node {
+func TypeDeclarationsIR_ArrayType(elementType Node) Node {
 	return NewNodeWithChild(Token_ARRAY_TYPE, elementType)
 }
 
@@ -256,7 +256,7 @@ func TypeDeclarationsIR_ArrayType(elementType *Node) *Node {
 // union type
 //
 // Java: TypeDeclarationsIR.unionType(Iterable<Node>)
-func TypeDeclarationsIR_UnionType(options []*Node) *Node {
+func TypeDeclarationsIR_UnionType(options []Node) Node {
 	jutil.CheckArgumentMsg(len(options) != 0, "union must have at least one option")
 	node := NewNode(Token_UNION_TYPE)
 	for _, option := range options {
@@ -266,7 +266,7 @@ func TypeDeclarationsIR_UnionType(options []*Node) *Node {
 }
 
 // Java: TypeDeclarationsIR.unionType(Node...)
-func TypeDeclarationsIR_UnionTypeOfNodes(options ...*Node) *Node {
+func TypeDeclarationsIR_UnionTypeOfNodes(options ...Node) Node {
 	return TypeDeclarationsIR_UnionType(options)
 }
 
@@ -278,7 +278,7 @@ func TypeDeclarationsIR_UnionTypeOfNodes(options ...*Node) *Node {
 // the function parameter type
 //
 // Java: TypeDeclarationsIR.optionalParameter(Node)
-func TypeDeclarationsIR_OptionalParameter(parameterType *Node) *Node {
+func TypeDeclarationsIR_OptionalParameter(parameterType Node) Node {
 	return NewNodeWithChild(Token_OPTIONAL_PARAMETER, parameterType)
 }
 

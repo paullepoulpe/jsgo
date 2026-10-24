@@ -28,7 +28,7 @@ import (
 // CheckEs6Modules: miscellaneous checks for style in ES6 modules.
 type CheckEs6Modules struct {
 	compiler         AbstractCompiler
-	importSpecifiers *jutil.LinkedHashMap[string, *rhino.Node]
+	importSpecifiers *jutil.LinkedHashMap[string, rhino.Node]
 }
 
 var CheckEs6Modules_DUPLICATE_IMPORT = DiagnosticType_Warning(
@@ -45,19 +45,19 @@ var CheckEs6Modules_NO_DEFAULT_EXPORT = DiagnosticType_Warning(
 func NewCheckEs6Modules(compiler AbstractCompiler) *CheckEs6Modules {
 	return &CheckEs6Modules{
 		compiler:         compiler,
-		importSpecifiers: jutil.NewLinkedHashMap[string, *rhino.Node](),
+		importSpecifiers: jutil.NewLinkedHashMap[string, rhino.Node](),
 	}
 }
 
 // Java: CheckEs6Modules.visit(NodeTraversal, Node, Node)
-func (c *CheckEs6Modules) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckEs6Modules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsModuleBody() {
 		c.importSpecifiers.Clear()
 	}
 }
 
 // Java: CheckEs6Modules.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckEs6Modules) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckEs6Modules) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_ROOT, rhino.Token_MODULE_BODY:
 		return true
@@ -75,10 +75,10 @@ func (c *CheckEs6Modules) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent
 }
 
 // Java: CheckEs6Modules.visitImport(NodeTraversal, Node)
-func (c *CheckEs6Modules) VisitImport(t *NodeTraversal, importNode *rhino.Node) {
+func (c *CheckEs6Modules) VisitImport(t *NodeTraversal, importNode rhino.Node) {
 	specifier := importNode.GetLastChild().GetString()
 	duplicateImport := c.importSpecifiers.PutIfAbsent(specifier, importNode)
-	if duplicateImport != nil {
+	if !duplicateImport.IsNil() {
 		t.Report(
 			importNode,
 			CheckEs6Modules_DUPLICATE_IMPORT,
@@ -89,13 +89,13 @@ func (c *CheckEs6Modules) VisitImport(t *NodeTraversal, importNode *rhino.Node) 
 }
 
 // Java: CheckEs6Modules.visitExport(NodeTraversal, Node)
-func (c *CheckEs6Modules) VisitExport(t *NodeTraversal, export *rhino.Node) {
+func (c *CheckEs6Modules) VisitExport(t *NodeTraversal, export rhino.Node) {
 	if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
 		t.Report(export, CheckEs6Modules_NO_DEFAULT_EXPORT)
 	}
 }
 
 // Java: CheckEs6Modules.process(Node, Node)
-func (c *CheckEs6Modules) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckEs6Modules) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }

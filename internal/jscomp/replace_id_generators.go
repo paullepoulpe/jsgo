@@ -361,7 +361,7 @@ func NewReplaceIdGenerators_GatherGenerators(outer *ReplaceIdGenerators) *Replac
 }
 
 // Java: GatherGenerators.visit(NodeTraversal, Node, Node)
-func (g *ReplaceIdGenerators_GatherGenerators) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *ReplaceIdGenerators_GatherGenerators) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	r := g.this_
 	doc := n.GetJSDocInfo()
 	if doc == nil || !doc.IsAnyIdGenerator() {
@@ -413,7 +413,7 @@ func (g *ReplaceIdGenerators_GatherGenerators) Visit(unused *NodeTraversal, n *r
 }
 
 // Java: ReplaceIdGenerators.process(Node, Node)
-func (r *ReplaceIdGenerators) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *ReplaceIdGenerators) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, NewReplaceIdGenerators_GatherGenerators(r))
 	if !r.nameGenerators.IsEmpty() {
 		NodeTraversal_Traverse(r.compiler, root, NewReplaceIdGenerators_ReplaceGenerators(r))
@@ -449,7 +449,7 @@ func NewReplaceIdGenerators_ReplaceGenerators(outer *ReplaceIdGenerators) *Repla
 }
 
 // Java: ReplaceGenerators.visit(NodeTraversal, Node, Node)
-func (g *ReplaceIdGenerators_ReplaceGenerators) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *ReplaceIdGenerators_ReplaceGenerators) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	r := g.this_
 	if !n.IsCall() && !n.IsTaggedTemplateLit() {
 		return
@@ -509,11 +509,11 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) Visit(t *NodeTraversal, n *rhino
 
 // Java: ReplaceGenerators.maybeReplaceTaggedTemplateLit(NodeTraversal, Node, String, NameSupplier)
 func (g *ReplaceIdGenerators_ReplaceGenerators) MaybeReplaceTaggedTemplateLit(
-	t *NodeTraversal, n *rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier) {
+	t *NodeTraversal, n rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier) {
 	r := g.this_
 	arg := n.GetLastChild()
 
-	if arg == nil || !arg.IsTemplateLit() {
+	if arg.IsNil() || !arg.IsTemplateLit() {
 		panic(jutil.NewIllegalStateException())
 	} else if arg.HasOneChild() {
 		cooked := arg.GetFirstChild().GetCookedString()
@@ -531,7 +531,7 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) MaybeReplaceTaggedTemplateLit(
 		// There is an alternating sequence of template literals and expressions, in this case we
 		// need to preserve the function call but obfuscate the literals.
 		newTemplateLit := rhino.IR_TemplateLiteral()
-		for child := arg.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := arg.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if child.IsTemplateLitString() {
 				cooked := child.GetCookedString()
 				if cooked == nil {
@@ -553,10 +553,10 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) MaybeReplaceTaggedTemplateLit(
 
 // Java: ReplaceGenerators.maybeReplaceCall(NodeTraversal, Node, String, NameSupplier)
 func (g *ReplaceIdGenerators_ReplaceGenerators) MaybeReplaceCall(
-	t *NodeTraversal, n *rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier) {
+	t *NodeTraversal, n rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier) {
 	r := g.this_
 	arg := n.GetSecondChild()
-	if arg == nil {
+	if arg.IsNil() {
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER))
 	} else if arg.IsStringLit() {
 		rename := g.GetObfuscatedName(arg, callName, nameGenerator, arg.GetString())
@@ -572,7 +572,7 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) MaybeReplaceCall(
 			t.ReportCodeChange()
 		}
 	} else if arg.IsObjectLit() {
-		for key := arg.GetFirstChild(); key != nil; key = key.GetNext() {
+		for key := arg.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 			if key.IsMemberFunctionDef() {
 				r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_SHORTHAND_FUNCTION_NOT_SUPPORTED_IN_ID_GEN))
 				return
@@ -595,7 +595,7 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) MaybeReplaceCall(
 		// The pass always injects it at the current script root, typically at the top, but not
 		// always.
 		ttlVar := g.FindTtlVar(t, arg)
-		if ttlVar == nil {
+		if ttlVar.IsNil() {
 			// This could be some other call to the ttl function not using ttl syntax.  These are
 			// weird but not illegal.
 			r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER))
@@ -603,7 +603,7 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) MaybeReplaceCall(
 		}
 		ttlFunctionCall := ttlVar.GetFirstFirstChild()
 		paramsArrayLiteral := ttlFunctionCall.GetSecondChild()
-		if paramsArrayLiteral == nil || !paramsArrayLiteral.IsArrayLit() {
+		if paramsArrayLiteral.IsNil() || !paramsArrayLiteral.IsArrayLit() {
 			panic(jutil.NewIllegalStateExceptionMsg("bad transpiled structure"))
 		}
 		// 2 cases, if there is exactly 1 element we can just replace everything
@@ -618,7 +618,7 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) MaybeReplaceCall(
 		} else {
 			// We have parameters, so we need to rewrite the TTL array in place and leave the function
 			// call.
-			for param := paramsArrayLiteral.GetFirstChild(); param != nil; param = param.GetNext() {
+			for param := paramsArrayLiteral.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
 				originalName := param.GetString()
 				rename := g.GetObfuscatedName(arg, callName, nameGenerator, originalName)
 				param.SetString(rename)
@@ -631,14 +631,14 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) MaybeReplaceCall(
 }
 
 // Java: ReplaceGenerators.findTtlVar(NodeTraversal, Node)
-func (g *ReplaceIdGenerators_ReplaceGenerators) FindTtlVar(t *NodeTraversal, arg *rhino.Node) *rhino.Node {
+func (g *ReplaceIdGenerators_ReplaceGenerators) FindTtlVar(t *NodeTraversal, arg rhino.Node) rhino.Node {
 	name := arg.GetString()
 	ttlVarName := t.GetScope().GetVar(name).GetNode()
 	parent := ttlVarName.GetParent()
 	// We are only interested in top level var definitions since that is what the transpiler
 	// creates
 	if !parent.IsVar() || !parent.GetParent().IsScript() {
-		return nil
+		return rhino.Node{}
 	}
 	// Because the AST is normalized there is only one child
 	jutil.CheckStateMsg(
@@ -646,7 +646,7 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) FindTtlVar(t *NodeTraversal, arg
 		"The AST is normalized so there should only be one name per var")
 	callNode := ttlVarName.GetFirstChild()
 	if !callNode.IsCall() {
-		return nil
+		return rhino.Node{}
 	}
 	callExpr := callNode.GetFirstChild()
 	if callExpr.MatchesName("$jscomp$createTemplateTagFirstArg") ||
@@ -655,12 +655,12 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) FindTtlVar(t *NodeTraversal, arg
 		return ttlVarName.GetParent()
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // Java: ReplaceGenerators.getObfuscatedName(Node, String, NameSupplier, String)
 func (g *ReplaceIdGenerators_ReplaceGenerators) GetObfuscatedName(
-	id *rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier, name string) string {
+	id rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier, name string) string {
 	r := g.this_
 	var rename string
 	idGeneratorMap := r.idGeneratorMaps.Get(callName)
@@ -690,7 +690,7 @@ func (r *ReplaceIdGenerators) GetSerializedIdMappings() string {
 }
 
 // Java: ReplaceIdGenerators.getIdForGeneratorNode(boolean, Node, String)
-func ReplaceIdGenerators_GetIdForGeneratorNode(consistent bool, n *rhino.Node, name string) string {
+func ReplaceIdGenerators_GetIdForGeneratorNode(consistent bool, n rhino.Node, name string) string {
 	if consistent {
 		return name
 	} else {

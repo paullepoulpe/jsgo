@@ -5064,11 +5064,11 @@ func (c *TypeCheckTest) TestEnum20() {
 
 // Java: TypeCheckTest.testEnum21()
 func (c *TypeCheckTest) TestEnum21() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`/** @enum {string} */ var E = {A : 'a', B : 'b'};
+	var n rhino.Node = c.ParseAndTypeCheck(`/** @enum {string} */ var E = {A : 'a', B : 'b'};
 /** @param {!E} x
 @return {!E} */ function f(x) { return x; }
 `)
-	var nodeX *rhino.Node = n.GetLastChild().GetLastChild().
+	var nodeX rhino.Node = n.GetLastChild().GetLastChild().
 		GetLastChild().
 		GetLastChild()
 	var typeE rhino.JSType = nodeX.GetJSType()
@@ -5646,12 +5646,12 @@ func (c *TypeCheckTest) TestGoodExtends3() {
 
 // Java: TypeCheckTest.testGoodExtends4()
 func (c *TypeCheckTest) TestGoodExtends4() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`var goog = {};
+	var n rhino.Node = c.ParseAndTypeCheck(`var goog = {};
 /** @constructor */goog.Base = function(){};
 /** @constructor
   * @extends {goog.Base} */goog.Derived = function(){};
 `)
-	var subTypeName *rhino.Node = n.GetLastChild().GetLastChild().
+	var subTypeName rhino.Node = n.GetLastChild().GetLastChild().
 		GetFirstChild()
 	AssertThat(subTypeName.GetQualifiedName()).IsEqualTo("goog.Derived")
 	var subCtorType rhino.FunctionType = subTypeName.GetNext().GetJSType().(rhino.FunctionType)
@@ -11154,36 +11154,36 @@ required: string
 
 // Java: TypeCheckTest.testNumberNode()
 func (c *TypeCheckTest) TestNumberNode() {
-	var n *rhino.Node = rhino.IR_Number(0)
+	var n rhino.Node = rhino.IR_Number(0)
 	c.TypeCheck(rhino.IR_ExprResult(n))
 	c.AssertTypeEquals(c.GetNativeNumberType(), n.GetJSType())
 }
 
 // Java: TypeCheckTest.testStringNode()
 func (c *TypeCheckTest) TestStringNode() {
-	var n *rhino.Node = rhino.IR_String("hello")
+	var n rhino.Node = rhino.IR_String("hello")
 	c.TypeCheck(rhino.IR_ExprResult(n))
 	c.AssertTypeEquals(c.GetNativeStringType(), n.GetJSType())
 }
 
 // Java: TypeCheckTest.testBooleanNodeTrue()
 func (c *TypeCheckTest) TestBooleanNodeTrue() {
-	var trueNode *rhino.Node = rhino.IR_TrueNode()
+	var trueNode rhino.Node = rhino.IR_TrueNode()
 	c.TypeCheck(rhino.IR_ExprResult(trueNode))
 	c.AssertTypeEquals(c.GetNativeBooleanType(), trueNode.GetJSType())
 }
 
 // Java: TypeCheckTest.testBooleanNodeFalse()
 func (c *TypeCheckTest) TestBooleanNodeFalse() {
-	var falseNode *rhino.Node = rhino.IR_FalseNode()
+	var falseNode rhino.Node = rhino.IR_FalseNode()
 	c.TypeCheck(rhino.IR_ExprResult(falseNode))
 	c.AssertTypeEquals(c.GetNativeBooleanType(), falseNode.GetJSType())
 }
 
 // Java: TypeCheckTest.testUndefinedNode()
 func (c *TypeCheckTest) TestUndefinedNode() {
-	var p *rhino.Node = rhino.NewNode(rhino.Token_ADD)
-	var n *rhino.Node = rhino.Node_NewStringWithToken(rhino.Token_NAME, "undefined")
+	var p rhino.Node = rhino.NewNode(rhino.Token_ADD)
+	var n rhino.Node = rhino.Node_NewStringWithToken(rhino.Token_NAME, "undefined")
 	p.AddChildToBack(n)
 	p.AddChildToBack(rhino.Node_NewNumber(5))
 	c.TypeCheck(rhino.IR_ExprResult(p))
@@ -11708,7 +11708,7 @@ Bar.prototype.bar = function() {
 
 // Java: TypeCheckTest.testSheqRefinedScope()
 func (c *TypeCheckTest) TestSheqRefinedScope() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`/** @constructor */function A() {}
+	var n rhino.Node = c.ParseAndTypeCheck(`/** @constructor */function A() {}
 /** @constructor 
  @extends A */ function B() {}
 /** @return {number} */
@@ -11722,34 +11722,34 @@ function f(a, b) {
   }
 }
 `)
-	var nodeC *rhino.Node = n.GetLastChild().GetLastChild().
+	var nodeC rhino.Node = n.GetLastChild().GetLastChild().
 		GetLastChild().
 		GetLastChild().
 		GetLastChild().
 		GetLastChild()
 	var typeC rhino.JSType = nodeC.GetJSType()
 	AssertThat(typeC.IsNumber()).IsTrue()
-	var nodeB *rhino.Node = nodeC.GetFirstFirstChild()
+	var nodeB rhino.Node = nodeC.GetFirstFirstChild()
 	var typeB rhino.JSType = nodeB.GetJSType()
 	AssertThat(typeB.String()).IsEqualTo("B")
 }
 
 // Java: TypeCheckTest.testAssignToUntypedVariable()
 func (c *TypeCheckTest) TestAssignToUntypedVariable() {
-	var n *rhino.Node = c.ParseAndTypeCheck("var z; z = 1;")
-	var assign *rhino.Node = n.GetLastChild().GetFirstChild()
-	var node *rhino.Node = assign.GetFirstChild()
+	var n rhino.Node = c.ParseAndTypeCheck("var z; z = 1;")
+	var assign rhino.Node = n.GetLastChild().GetFirstChild()
+	var node rhino.Node = assign.GetFirstChild()
 	AssertThat(node.GetJSType().IsUnknownType()).IsFalse()
 	AssertThat(node.GetJSType().String()).IsEqualTo("number")
 }
 
 // Java: TypeCheckTest.testAssignToUntypedProperty()
 func (c *TypeCheckTest) TestAssignToUntypedProperty() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`/** @constructor */ function Foo() {}
+	var n rhino.Node = c.ParseAndTypeCheck(`/** @constructor */ function Foo() {}
 Foo.prototype.a = 1;
 (new Foo).a;
 `)
-	var node *rhino.Node = n.GetLastChild().GetFirstChild()
+	var node rhino.Node = n.GetLastChild().GetFirstChild()
 	AssertThat(node.GetJSType().IsUnknownType()).IsFalse()
 	AssertThat(node.GetJSType().IsNumber()).IsTrue()
 }
@@ -11969,12 +11969,12 @@ func (c *TypeCheckTest) TestName5() {
 
 // Java: TypeCheckTest.testNameNode(String)
 func (c *TypeCheckTest) TestNameNode(name string) rhino.JSType {
-	var node *rhino.Node = rhino.Node_NewStringWithToken(rhino.Token_NAME, name)
-	var parent *rhino.Node = rhino.NewNodeWithChild(rhino.Token_SCRIPT, node)
+	var node rhino.Node = rhino.Node_NewStringWithToken(rhino.Token_NAME, name)
+	var parent rhino.Node = rhino.NewNodeWithChild(rhino.Token_SCRIPT, node)
 	parent.SetInputId(rhino.NewInputId("code"))
-	var externs *rhino.Node = rhino.NewNode(rhino.Token_SCRIPT)
+	var externs rhino.Node = rhino.NewNode(rhino.Token_SCRIPT)
 	externs.SetInputId(rhino.NewInputId("externs"))
-	var root *rhino.Node = rhino.IR_Root(rhino.IR_Root(externs), rhino.IR_Root(parent))
+	var root rhino.Node = rhino.IR_Root(rhino.IR_Root(externs), rhino.IR_Root(parent))
 	c.MakeTypeCheck().ProcessForTesting(root.GetFirstChild(), root.GetSecondChild())
 	return node.GetJSType()
 }
@@ -12518,13 +12518,13 @@ func (c *TypeCheckTest) TestCast4() {
 
 // Java: TypeCheckTest.testCast4Types()
 func (c *TypeCheckTest) TestCast4Types() {
-	var root *rhino.Node = c.ParseAndTypeCheck(`/** @constructor */function base() {}
+	var root rhino.Node = c.ParseAndTypeCheck(`/** @constructor */function base() {}
 /** @constructor
  * @extends {base} */function derived() {}
 /** @type {!derived} */ var baz =
 /** @type {!derived} */(new base());
 `)
-	var castedExprNode *rhino.Node = root.GetLastChild().GetFirstFirstChild().
+	var castedExprNode rhino.Node = root.GetLastChild().GetFirstFirstChild().
 		GetFirstChild()
 	AssertThat(castedExprNode.GetJSType().String()).IsEqualTo("derived")
 	AssertThat(castedExprNode.GetJSTypeBeforeCast().String()).IsEqualTo("base")
@@ -13510,7 +13510,7 @@ function inst(co) {
 
 // Java: TypeCheckTest.testNamespacedConstructor()
 func (c *TypeCheckTest) TestNamespacedConstructor() {
-	var root *rhino.Node = c.ParseAndTypeCheck(`var goog = {};
+	var root rhino.Node = c.ParseAndTypeCheck(`var goog = {};
 /** @constructor */ goog.MyClass = function() {};
 /** @return {!goog.MyClass} */
 function foo() { return new goog.MyClass(); }
@@ -13535,12 +13535,12 @@ goog.foo.bar = 5;
 		IsTrue()
 	AssertWithMessage("bar property present on goog type").That(googScopeType.HasProperty("bar")).
 		IsFalse()
-	var varNode *rhino.Node = p.root.GetFirstChild()
+	var varNode rhino.Node = p.root.GetFirstChild()
 	NodeSubject_AssertNode(varNode).HasToken(rhino.Token_VAR)
 	var googNodeType rhino.JSType = varNode.GetFirstChild().GetJSType()
 	IsInstanceOf[rhino.ObjectType](AssertThat(googNodeType))
 	AssertThat(googScopeType).IsSameInstanceAs(googNodeType)
-	var getpropFoo1 *rhino.Node = varNode.GetNext().GetFirstFirstChild()
+	var getpropFoo1 rhino.Node = varNode.GetNext().GetFirstFirstChild()
 	NodeSubject_AssertNode(getpropFoo1).HasToken(rhino.Token_GETPROP)
 	AssertThat(getpropFoo1.GetFirstChild().GetString()).IsEqualTo("goog")
 	var googGetpropFoo1Type rhino.JSType = getpropFoo1.GetFirstChild().GetJSType()
@@ -13548,7 +13548,7 @@ goog.foo.bar = 5;
 	AssertThat(googGetpropFoo1Type).IsSameInstanceAs(googScopeType)
 	var googFooType rhino.JSType = (googScopeType.(rhino.ObjectType)).GetPropertyType("foo")
 	IsInstanceOf[rhino.ObjectType](AssertThat(googFooType))
-	var getpropFoo2 *rhino.Node = varNode.GetNext().GetNext().
+	var getpropFoo2 rhino.Node = varNode.GetNext().GetNext().
 		GetFirstFirstChild().
 		GetFirstChild()
 	NodeSubject_AssertNode(getpropFoo2).HasToken(rhino.Token_GETPROP)
@@ -13568,7 +13568,7 @@ goog.foo.bar = 5;
 
 // Java: TypeCheckTest.testAddingMethodsUsingPrototypeIdiomSimpleNamespace()
 func (c *TypeCheckTest) TestAddingMethodsUsingPrototypeIdiomSimpleNamespace() {
-	var js1Node *rhino.Node = c.ParseAndTypeCheckWithExterns(CompilerTypeTestCase_DEFAULT_EXTERNS, `/** @constructor */function A() {}
+	var js1Node rhino.Node = c.ParseAndTypeCheckWithExterns(CompilerTypeTestCase_DEFAULT_EXTERNS, `/** @constructor */function A() {}
 A.prototype.m1 = 5
 `)
 	var instanceType rhino.ObjectType = TypeCheckTestCase_GetInstanceType(js1Node)
@@ -13609,7 +13609,7 @@ func (c *TypeCheckTest) TestAddingMethodsUsingPrototypeIdiomComplexNamespace(p *
 
 // Java: TypeCheckTest.testAddingMethodsPrototypeIdiomAndObjectLiteralSimpleNamespace()
 func (c *TypeCheckTest) TestAddingMethodsPrototypeIdiomAndObjectLiteralSimpleNamespace() {
-	var js1Node *rhino.Node = c.ParseAndTypeCheckWithExterns(CompilerTypeTestCase_DEFAULT_EXTERNS, `/** @constructor */function A() {}
+	var js1Node rhino.Node = c.ParseAndTypeCheckWithExterns(CompilerTypeTestCase_DEFAULT_EXTERNS, `/** @constructor */function A() {}
 A.prototype = {m1: 5, m2: true}
 `)
 	var instanceType rhino.ObjectType = TypeCheckTestCase_GetInstanceType(js1Node)
@@ -13620,7 +13620,7 @@ A.prototype = {m1: 5, m2: true}
 
 // Java: TypeCheckTest.testDontAddMethodsIfNoConstructor()
 func (c *TypeCheckTest) TestDontAddMethodsIfNoConstructor() {
-	var js1Node *rhino.Node = c.ParseAndTypeCheck(`function A() {}
+	var js1Node rhino.Node = c.ParseAndTypeCheck(`function A() {}
 A.prototype = {m1: 5, m2: true}
 `)
 	var functionAType rhino.JSType = js1Node.GetFirstChild().GetJSType()
@@ -13645,7 +13645,7 @@ var MSG_CALENDAR_ADD_ERROR = MSG_CALENDAR_ACCESS_ERROR;
 
 // Java: TypeCheckTest.testAddMethodsPrototypeTwoWays()
 func (c *TypeCheckTest) TestAddMethodsPrototypeTwoWays() {
-	var js1Node *rhino.Node = c.ParseAndTypeCheckWithExterns(CompilerTypeTestCase_DEFAULT_EXTERNS, `/** @constructor */function A() {}
+	var js1Node rhino.Node = c.ParseAndTypeCheckWithExterns(CompilerTypeTestCase_DEFAULT_EXTERNS, `/** @constructor */function A() {}
 A.prototype = {m1: 5, m2: true};
 A.prototype.m3 = 'third property!';
 `)
@@ -13659,7 +13659,7 @@ A.prototype.m3 = 'third property!';
 
 // Java: TypeCheckTest.testPrototypePropertyTypes()
 func (c *TypeCheckTest) TestPrototypePropertyTypes() {
-	var js1Node *rhino.Node = c.ParseAndTypeCheckWithExterns(CompilerTypeTestCase_DEFAULT_EXTERNS, `/** @constructor */function A() {
+	var js1Node rhino.Node = c.ParseAndTypeCheckWithExterns(CompilerTypeTestCase_DEFAULT_EXTERNS, `/** @constructor */function A() {
   /** @type {string} */ this.m1;
   /** @type {Object?} */ this.m2 = {};
   /** @type {boolean} */ this.m3;
@@ -13680,13 +13680,13 @@ func (c *TypeCheckTest) TestPrototypePropertyTypes() {
 
 // Java: TypeCheckTest.testValueTypeBuiltInPrototypePropertyType()
 func (c *TypeCheckTest) TestValueTypeBuiltInPrototypePropertyType() {
-	var node *rhino.Node = c.ParseAndTypeCheckWithExterns(NewTestExternsBuilder().AddString().Build(), "\"x\".charAt(0)")
+	var node rhino.Node = c.ParseAndTypeCheckWithExterns(NewTestExternsBuilder().AddString().Build(), "\"x\".charAt(0)")
 	c.AssertTypeEquals(c.GetNativeStringType(), node.GetFirstFirstChild().GetJSType())
 }
 
 // Java: TypeCheckTest.testDeclareBuiltInConstructor()
 func (c *TypeCheckTest) TestDeclareBuiltInConstructor() {
-	var node *rhino.Node = c.ParseAndTypeCheckWithExterns(NewTestExternsBuilder().AddString().Build(), `/** @constructor */ var String = function(opt_str) {};
+	var node rhino.Node = c.ParseAndTypeCheckWithExterns(NewTestExternsBuilder().AddString().Build(), `/** @constructor */ var String = function(opt_str) {};
 (new String("x")).charAt(0)
 `)
 	c.AssertTypeEquals(c.GetNativeStringType(), node.GetLastChild().GetFirstChild().
@@ -13703,7 +13703,7 @@ func (c *TypeCheckTest) TestExtendBuiltInType1() {
 */
 String.prototype.substr = function(start, opt_length) {};
 `
-	var n1 *rhino.Node = c.ParseAndTypeCheck(externs + "(new String(\"x\")).substr(0,1);")
+	var n1 rhino.Node = c.ParseAndTypeCheck(externs + "(new String(\"x\")).substr(0,1);")
 	c.AssertTypeEquals(c.GetNativeStringType(), n1.GetLastChild().GetFirstChild().
 		GetJSType())
 }
@@ -13718,14 +13718,14 @@ func (c *TypeCheckTest) TestExtendBuiltInType2() {
 */
 String.prototype.substr = function(start, opt_length) {};
 `
-	var n2 *rhino.Node = c.ParseAndTypeCheck(externs + "\"x\".substr(0,1);")
+	var n2 rhino.Node = c.ParseAndTypeCheck(externs + "\"x\".substr(0,1);")
 	c.AssertTypeEquals(c.GetNativeStringType(), n2.GetLastChild().GetFirstChild().
 		GetJSType())
 }
 
 // Java: TypeCheckTest.testExtendFunction1()
 func (c *TypeCheckTest) TestExtendFunction1() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`/**@return {number}*/Function.prototype.f = function() { return 1; };
+	var n rhino.Node = c.ParseAndTypeCheck(`/**@return {number}*/Function.prototype.f = function() { return 1; };
 (new Function()).f();
 `)
 	var type_ rhino.JSType = n.GetLastChild().GetLastChild().
@@ -13735,7 +13735,7 @@ func (c *TypeCheckTest) TestExtendFunction1() {
 
 // Java: TypeCheckTest.testExtendFunction2()
 func (c *TypeCheckTest) TestExtendFunction2() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`/**@return {number}*/Function.prototype.f = function() { return 1; };
+	var n rhino.Node = c.ParseAndTypeCheck(`/**@return {number}*/Function.prototype.f = function() { return 1; };
 (function() {}).f();
 `)
 	var type_ rhino.JSType = n.GetLastChild().GetLastChild().
@@ -14370,9 +14370,9 @@ Int.prototype.foo = function() {};
 
 // Java: TypeCheckTest.testObjectLiteral()
 func (c *TypeCheckTest) TestObjectLiteral() {
-	var n *rhino.Node = c.ParseAndTypeCheck("var a = {m1: 7, m2: 'hello'}")
-	var nameNode *rhino.Node = n.GetFirstFirstChild()
-	var objectNode *rhino.Node = nameNode.GetFirstChild()
+	var n rhino.Node = c.ParseAndTypeCheck("var a = {m1: 7, m2: 'hello'}")
+	var nameNode rhino.Node = n.GetFirstFirstChild()
+	var objectNode rhino.Node = nameNode.GetFirstChild()
 	NodeSubject_AssertNode(nameNode).HasToken(rhino.Token_NAME)
 	NodeSubject_AssertNode(objectNode).HasToken(rhino.Token_OBJECTLIT)
 	var objectType rhino.ObjectType = objectNode.GetJSType().(rhino.ObjectType)
@@ -14479,7 +14479,7 @@ x = {
 
 // Java: TypeCheckTest.testCallDateConstructorAsFunction()
 func (c *TypeCheckTest) TestCallDateConstructorAsFunction() {
-	var n *rhino.Node = c.ParseAndTypeCheck("Date()")
+	var n rhino.Node = c.ParseAndTypeCheck("Date()")
 	c.AssertTypeEquals(c.GetNativeStringType(), n.GetFirstFirstChild().GetJSType())
 }
 
@@ -14490,8 +14490,8 @@ func (c *TypeCheckTest) TestCallErrorConstructorAsFunction() {
     @return {!Error} */
 function Error(message) {}
 `
-	var n *rhino.Node = c.ParseAndTypeCheckWithExterns(externs, "Error('x')")
-	var call *rhino.Node = n.GetFirstFirstChild()
+	var n rhino.Node = c.ParseAndTypeCheckWithExterns(externs, "Error('x')")
+	var call rhino.Node = n.GetFirstFirstChild()
 	AssertThat(call.IsCall()).IsTrue()
 	c.AssertTypeEquals(call.GetFirstChild().GetJSType().
 		ToMaybeFunctionType().
@@ -14500,7 +14500,7 @@ function Error(message) {}
 
 // Java: TypeCheckTest.testCallArrayConstructorAsFunction()
 func (c *TypeCheckTest) TestCallArrayConstructorAsFunction() {
-	var n *rhino.Node = c.ParseAndTypeCheck("Array()")
+	var n rhino.Node = c.ParseAndTypeCheck("Array()")
 	c.AssertTypeEquals(c.GetNativeArrayType(), n.GetFirstFirstChild().GetJSType())
 }
 
@@ -15208,7 +15208,7 @@ required: u.A.A
 
 // Java: TypeCheckTest.testResolutionViaRegistry5()
 func (c *TypeCheckTest) TestResolutionViaRegistry5() {
-	var n *rhino.Node = c.ParseAndTypeCheck("/** @constructor */ u.T = function() {}; u.T")
+	var n rhino.Node = c.ParseAndTypeCheck("/** @constructor */ u.T = function() {}; u.T")
 	var type_ rhino.JSType = n.GetLastChild().GetLastChild().
 		GetJSType()
 	AssertThat(type_.IsUnknownType()).IsFalse()
@@ -15218,7 +15218,7 @@ func (c *TypeCheckTest) TestResolutionViaRegistry5() {
 
 // Java: TypeCheckTest.testGatherProperyWithoutAnnotation1()
 func (c *TypeCheckTest) TestGatherProperyWithoutAnnotation1() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`/** @constructor */ var T = function() {};
+	var n rhino.Node = c.ParseAndTypeCheck(`/** @constructor */ var T = function() {};
 /** @type {!T} */var t; t.x; t;
 `)
 	var type_ rhino.JSType = n.GetLastChild().GetLastChild().
@@ -15232,7 +15232,7 @@ func (c *TypeCheckTest) TestGatherProperyWithoutAnnotation1() {
 // Java: TypeCheckTest.testGatherProperyWithoutAnnotation2()
 func (c *TypeCheckTest) TestGatherProperyWithoutAnnotation2() {
 	var ns *TypeCheckTestCase_TypeCheckResult = c.ParseAndTypeCheckWithScope("/** @type {!Object} */var t; t.x; t;")
-	var n *rhino.Node = ns.root
+	var n rhino.Node = ns.root
 	var type_ rhino.JSType = n.GetLastChild().GetLastChild().
 		GetJSType()
 	AssertThat(type_.IsUnknownType()).IsFalse()
@@ -16626,19 +16626,19 @@ extend(Foo, /** @lends {!Foo} */ ({bar: 1}));
 
 // Java: TypeCheckTest.testDeclaredNativeTypeEquality()
 func (c *TypeCheckTest) TestDeclaredNativeTypeEquality() {
-	var n *rhino.Node = c.ParseAndTypeCheck("/** @constructor */ function Object() {};")
+	var n rhino.Node = c.ParseAndTypeCheck("/** @constructor */ function Object() {};")
 	c.AssertTypeEquals(c.registry.GetNativeType(rhino.JSTypeNative_OBJECT_FUNCTION_TYPE), n.GetFirstChild().GetJSType())
 }
 
 // Java: TypeCheckTest.testUndefinedVar()
 func (c *TypeCheckTest) TestUndefinedVar() {
-	var n *rhino.Node = c.ParseAndTypeCheck("var undefined;")
+	var n rhino.Node = c.ParseAndTypeCheck("var undefined;")
 	c.AssertTypeEquals(c.registry.GetNativeType(rhino.JSTypeNative_VOID_TYPE), n.GetFirstFirstChild().GetJSType())
 }
 
 // Java: TypeCheckTest.testFlowScopeBug1()
 func (c *TypeCheckTest) TestFlowScopeBug1() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`/** @param {number} a
+	var n rhino.Node = c.ParseAndTypeCheck(`/** @param {number} a
 * @param {number} b */
 function f(a, b) {
 /** @type {number} */
@@ -16655,7 +16655,7 @@ for (; (i + a) < b; ++i) {}}
 
 // Java: TypeCheckTest.testFlowScopeBug2()
 func (c *TypeCheckTest) TestFlowScopeBug2() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`/** @constructor */ function Foo() {};
+	var n rhino.Node = c.ParseAndTypeCheck(`/** @constructor */ function Foo() {};
 Foo.prototype.hi = false;
 function foo(a, b) {
   /** @type {Array} */
@@ -16679,7 +16679,7 @@ function foo(a, b) {
 
 // Java: TypeCheckTest.testAddSingletonGetter()
 func (c *TypeCheckTest) TestAddSingletonGetter() {
-	var n *rhino.Node = c.ParseAndTypeCheck(`/** @constructor */ function Foo() {};
+	var n rhino.Node = c.ParseAndTypeCheck(`/** @constructor */ function Foo() {};
 goog.addSingletonGetter(Foo);
 `)
 	var o rhino.ObjectType = n.GetFirstChild().GetJSType().(rhino.ObjectType)
@@ -16689,13 +16689,13 @@ goog.addSingletonGetter(Foo);
 
 // Java: TypeCheckTest.testTypeCheckStandaloneAST()
 func (c *TypeCheckTest) TestTypeCheckStandaloneAST() {
-	var externs *rhino.Node = rhino.IR_Root()
-	var firstScript *rhino.Node = c.compiler.ParseTestCode("function Foo() { }")
+	var externs rhino.Node = rhino.IR_Root()
+	var firstScript rhino.Node = c.compiler.ParseTestCode("function Foo() { }")
 	c.TypeCheck(firstScript)
-	var root *rhino.Node = rhino.IR_Root(externs, rhino.IR_Root(firstScript.Detach()))
+	var root rhino.Node = rhino.IR_Root(externs, rhino.IR_Root(firstScript.Detach()))
 	var scopeCreator *TypedScopeCreator = NewTypedScopeCreator(c.compiler)
 	var topScope *TypedScope = scopeCreator.CreateScope(root, nil).(*TypedScope)
-	var secondScript *rhino.Node = c.compiler.ParseTestCode("new Foo")
+	var secondScript rhino.Node = c.compiler.ParseTestCode("new Foo")
 	firstScript.ReplaceWith(secondScript)
 	NewTypeCheckWithScope(c.compiler, NewSemanticReverseAbstractInterpreter(c.registry), c.registry, topScope, scopeCreator).Process(externs, secondScript.GetParent())
 	AssertThat(c.compiler.GetWarningCount()).IsEqualTo(1)
@@ -22747,8 +22747,8 @@ func (c *TypeCheckTest) TestClosureTypes(js string, description *string) {
 // Java: TypeCheckTest.testClosureTypesMultipleWarnings(String, List<String>)
 func (c *TypeCheckTest) TestClosureTypesMultipleWarnings(js string, descriptions []string) {
 	c.compiler.InitOptions(c.compiler.GetOptions())
-	var jsRoot *rhino.Node = rhino.IR_Root(c.compiler.ParseTestCode(js))
-	var externs *rhino.Node = rhino.IR_Root(c.compiler.ParseTestCode(NewTestExternsBuilder().AddString().AddClosureExterns().
+	var jsRoot rhino.Node = rhino.IR_Root(c.compiler.ParseTestCode(js))
+	var externs rhino.Node = rhino.IR_Root(c.compiler.ParseTestCode(NewTestExternsBuilder().AddString().AddClosureExterns().
 		AddExtra(CompilerTypeTestCase_CLOSURE_DEFS).
 		Build()))
 	rhino.IR_Root(externs, jsRoot)

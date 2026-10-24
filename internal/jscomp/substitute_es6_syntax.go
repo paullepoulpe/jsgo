@@ -41,12 +41,12 @@ func NewSubstituteEs6Syntax(compiler AbstractCompiler) *SubstituteEs6Syntax {
 }
 
 // Java: SubstituteEs6Syntax.process(Node, Node)
-func (s *SubstituteEs6Syntax) Process(externs *rhino.Node, root *rhino.Node) {
+func (s *SubstituteEs6Syntax) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(s.compiler, root, s)
 }
 
 // Java: SubstituteEs6Syntax.visit(NodeTraversal, Node, Node)
-func (s *SubstituteEs6Syntax) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (s *SubstituteEs6Syntax) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		if n.IsArrowFunction() {
@@ -70,14 +70,14 @@ func (s *SubstituteEs6Syntax) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 // form ()=>{ return x; } with ()=>x
 //
 // Java: SubstituteEs6Syntax.maybeSimplifyArrowFunctionBody(Node, Node)
-func (s *SubstituteEs6Syntax) MaybeSimplifyArrowFunctionBody(arrowFunction *rhino.Node, body *rhino.Node) {
+func (s *SubstituteEs6Syntax) MaybeSimplifyArrowFunctionBody(arrowFunction rhino.Node, body rhino.Node) {
 	jutil.CheckArgument(arrowFunction.IsArrowFunction())
 	if !body.IsBlock() || !body.HasOneChild() || !body.GetFirstChild().IsReturn() {
 		return
 	}
 	returnValue := body.GetFirstChild().RemoveFirstChild()
-	var replacement *rhino.Node
-	if returnValue != nil {
+	var replacement rhino.Node
+	if !returnValue.IsNil() {
 		replacement = returnValue
 	} else {
 		replacement = rhino.IR_Name("undefined")

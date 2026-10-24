@@ -40,7 +40,7 @@ func NewOptimizeLetAndConstPeephole(assumeOutputIsWrapped bool) *OptimizeLetAndC
 }
 
 // Java: OptimizeLetAndConstPeephole.optimizeSubtree(Node)
-func (p *OptimizeLetAndConstPeephole) OptimizeSubtree(subtree *rhino.Node) *rhino.Node {
+func (p *OptimizeLetAndConstPeephole) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	switch subtree.GetToken() {
 	case rhino.Token_LET:
 		return p.ProcessLet(subtree)
@@ -52,7 +52,7 @@ func (p *OptimizeLetAndConstPeephole) OptimizeSubtree(subtree *rhino.Node) *rhin
 }
 
 // Java: OptimizeLetAndConstPeephole.processLet(Node)
-func (p *OptimizeLetAndConstPeephole) ProcessLet(n *rhino.Node) *rhino.Node {
+func (p *OptimizeLetAndConstPeephole) ProcessLet(n rhino.Node) rhino.Node {
 	if !p.assumeOutputIsWrapped && n.GetParent().IsScript() {
 		return n
 	}
@@ -65,7 +65,7 @@ func (p *OptimizeLetAndConstPeephole) ProcessLet(n *rhino.Node) *rhino.Node {
 }
 
 // Java: OptimizeLetAndConstPeephole.processConst(Node)
-func (p *OptimizeLetAndConstPeephole) ProcessConst(n *rhino.Node) *rhino.Node {
+func (p *OptimizeLetAndConstPeephole) ProcessConst(n rhino.Node) rhino.Node {
 	if !p.assumeOutputIsWrapped && n.GetParent().IsScript() {
 		return n
 	}
@@ -81,12 +81,12 @@ func (p *OptimizeLetAndConstPeephole) ProcessConst(n *rhino.Node) *rhino.Node {
 }
 
 // Java: OptimizeLetAndConstPeephole.isDirectlyInHoistScope(Node)
-func (p *OptimizeLetAndConstPeephole) IsDirectlyInHoistScope(n *rhino.Node) bool {
+func (p *OptimizeLetAndConstPeephole) IsDirectlyInHoistScope(n rhino.Node) bool {
 	parent := n.GetParent()
-	for parent != nil && parent.IsLabel() {
+	for !parent.IsNil() && parent.IsLabel() {
 		parent = parent.GetParent()
 	}
-	if parent == nil {
+	if parent.IsNil() {
 		return false
 	}
 
@@ -96,7 +96,7 @@ func (p *OptimizeLetAndConstPeephole) IsDirectlyInHoistScope(n *rhino.Node) bool
 
 	if parent.IsBlock() {
 		grandparent := parent.GetParent()
-		if grandparent != nil && (grandparent.IsFunction() || grandparent.IsClassMembers()) {
+		if !grandparent.IsNil() && (grandparent.IsFunction() || grandparent.IsClassMembers()) {
 			return true
 		}
 	}

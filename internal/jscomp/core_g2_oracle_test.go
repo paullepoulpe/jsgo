@@ -113,29 +113,29 @@ func (r *coreG2ErrorFlag) Error(message string, sourceName string, line int, lin
 
 // coreG2Parse is CoreG2Dump.parse: nil when the parse reports an error or
 // throws.
-func coreG2Parse(config *parsing.Config, name string, src string) *rhino.Node {
+func coreG2Parse(config *parsing.Config, name string, src string) rhino.Node {
 	reporter := &coreG2ErrorFlag{}
 	var result *parsing.ParserRunner_ParseResult
 	if coreG2Try(func() {
 		result = parsing.ParserRunner_Parse(SourceFile_FromCode(name, src), src, config, reporter)
 	}) != nil {
-		return nil
+		return rhino.Node{}
 	}
-	if reporter.hadError || result.Ast == nil {
-		return nil
+	if reporter.hadError || result.Ast.IsNil() {
+		return rhino.Node{}
 	}
 	return result.Ast
 }
 
 // coreG2Preorder is CoreG2Dump.preorder.
-func coreG2Preorder(root *rhino.Node) []*rhino.Node {
-	var result []*rhino.Node
-	stack := []*rhino.Node{root}
+func coreG2Preorder(root rhino.Node) []rhino.Node {
+	var result []rhino.Node
+	stack := []rhino.Node{root}
 	for len(stack) != 0 {
 		n := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		result = append(result, n)
-		for c := n.GetLastChild(); c != nil; c = c.GetPrevious() {
+		for c := n.GetLastChild(); !c.IsNil(); c = c.GetPrevious() {
 			stack = append(stack, c)
 		}
 	}
@@ -147,7 +147,7 @@ func coreG2NewCompiler() AbstractCompiler {
 	return newTestCompiler(NewCompilerOptions())
 }
 
-func (o *coreG2Out) printTree(n *rhino.Node) {
+func (o *coreG2Out) printTree(n rhino.Node) {
 	for _, l := range strings.Split(n.ToStringTree(), "\n") {
 		if l != "" {
 			o.line(l)
@@ -224,7 +224,7 @@ func coreG2Decomposers(compiler AbstractCompiler) []*ExpressionDecomposer {
 
 var coreG2QueryNames = []string{"MHSE", "MEMS", "NTMHSE", "FCHSE", "CCHSE"}
 
-var coreG2Queries = []func(*AstAnalyzer, *rhino.Node) bool{
+var coreG2Queries = []func(*AstAnalyzer, rhino.Node) bool{
 	(*AstAnalyzer).MayHaveSideEffects,
 	(*AstAnalyzer).MayEffectMutableState,
 	(*AstAnalyzer).NodeTypeMayHaveSideEffects,
@@ -232,7 +232,7 @@ var coreG2Queries = []func(*AstAnalyzer, *rhino.Node) bool{
 	(*AstAnalyzer).ConstructorCallHasSideEffects,
 }
 
-func (o *coreG2Out) analysis(script *rhino.Node) {
+func (o *coreG2Out) analysis(script rhino.Node) {
 	compiler := coreG2NewCompiler()
 	analyzers := coreG2Analyzers(compiler)
 	decomposers := coreG2Decomposers(compiler)
@@ -293,10 +293,10 @@ func (o *coreG2Out) analysis(script *rhino.Node) {
 const coreG2RegionLines = 60
 
 // printRegion is CoreG2Dump.printRegion.
-func (o *coreG2Out) printRegion(block *rhino.Node, from int, count int) {
+func (o *coreG2Out) printRegion(block rhino.Node, from int, count int) {
 	var lines []string
 	c := block.GetChildAtIndex(from)
-	for i := 0; i < count && c != nil; i, c = i+1, c.GetNext() {
+	for i := 0; i < count && !c.IsNil(); i, c = i+1, c.GetNext() {
 		for _, l := range strings.Split(c.ToStringTree(), "\n") {
 			if l != "" {
 				lines = append(lines, coreG2Escape(l))
@@ -316,7 +316,7 @@ func (o *coreG2Out) printRegion(block *rhino.Node, from int, count int) {
 	}
 }
 
-func (o *coreG2Out) mutate(script *rhino.Node) {
+func (o *coreG2Out) mutate(script rhino.Node) {
 	nodes := coreG2Preorder(script)
 	// ExpressionDecomposer.maybeExposeExpression / moveExpression
 	{
@@ -352,7 +352,7 @@ func (o *coreG2Out) mutate(script *rhino.Node) {
 			target := coreG2Preorder(clone)[i]
 			decomposer := compiler.CreateExpressionDecomposer(
 				coreG2Counter(), jutil.NewLinkedHashSet[string](), Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)))
-			var block *rhino.Node
+			var block rhino.Node
 			var from, before int
 			if e := coreG2Try(func() {
 				injectionPoint := ExpressionDecomposer_FindInjectionPoint(target)
@@ -394,7 +394,7 @@ func (o *coreG2Out) mutate(script *rhino.Node) {
 			if rewritten%2 == 0 {
 				builder.SetScope(Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)))
 			}
-			var block *rhino.Node
+			var block rhino.Node
 			var from, before int
 			if e := coreG2Try(func() {
 				rewriter := builder.Build(target)
@@ -415,7 +415,7 @@ func (o *coreG2Out) mutate(script *rhino.Node) {
 // mdnu
 
 // printRenames is CoreG2Dump.printRenames.
-func (o *coreG2Out) printRenames(orig []*rhino.Node, tree *rhino.Node) {
+func (o *coreG2Out) printRenames(orig []rhino.Node, tree rhino.Node) {
 	now := coreG2Preorder(tree)
 	for i, n := range orig {
 		if n.IsName() || n.IsImportStar() {
@@ -428,7 +428,7 @@ func (o *coreG2Out) printRenames(orig []*rhino.Node, tree *rhino.Node) {
 	}
 }
 
-func (o *coreG2Out) mdnu(script *rhino.Node) {
+func (o *coreG2Out) mdnu(script rhino.Node) {
 	orig := coreG2Preorder(script)
 	var convention CodingConvention = CodingConventions_GetDefault()
 	// ContextualRenamer, then the inverter, then the assertOnChange check.
@@ -440,7 +440,7 @@ func (o *coreG2Out) mdnu(script *rhino.Node) {
 			NodeTraversal_Traverse(compiler, clone, MakeDeclaredNamesUnique_Builder_().Build())
 			o.printRenames(orig, clone)
 			o.line("## inverted")
-			MakeDeclaredNamesUnique_GetContextualRenameInverter(compiler).Process(nil, clone)
+			MakeDeclaredNamesUnique_GetContextualRenameInverter(compiler).Process(rhino.Node{}, clone)
 			o.printRenames(orig, clone)
 			o.line("## assert")
 			again := clone.CloneTree()
@@ -465,7 +465,7 @@ func (o *coreG2Out) mdnu(script *rhino.Node) {
 			if e := coreG2Try(func() {
 				NodeTraversal_TraverseScopeRoots(
 					compiler,
-					[]*rhino.Node{fn},
+					[]rhino.Node{fn},
 					MakeDeclaredNamesUnique_Builder_().
 						WithRenamer(NewMakeDeclaredNamesUnique_InlineRenamer(
 							convention, coreG2Counter(), "inline_", done%2 == 0, true, nil)).
@@ -538,7 +538,7 @@ func coreG2Dump(mode string, root string, files []string) (map[string]string, er
 		o := &coreG2Out{}
 		o.line("# file " + rel)
 		script := coreG2Parse(config, rel, coreG2DecodeUTF8(b))
-		if script == nil {
+		if script.IsNil() {
 			o.line("# parse-error")
 		} else {
 			switch mode {
@@ -705,24 +705,24 @@ func TestCoreG2OracleCorpus(t *testing.T) {
 // coreG2TestScope is CoreG2Dump.TestScope: a StaticScope whose slots are
 // declared by NAME nodes.
 type coreG2TestScope struct {
-	declarations *jutil.LinkedHashMap[string, *rhino.Node]
+	declarations *jutil.LinkedHashMap[string, rhino.Node]
 }
 
 func newCoreG2TestScope() *coreG2TestScope {
-	return &coreG2TestScope{declarations: jutil.NewLinkedHashMap[string, *rhino.Node]()}
+	return &coreG2TestScope{declarations: jutil.NewLinkedHashMap[string, rhino.Node]()}
 }
 
-func (s *coreG2TestScope) declare(name string, declaration *rhino.Node) *coreG2TestScope {
+func (s *coreG2TestScope) declare(name string, declaration rhino.Node) *coreG2TestScope {
 	s.declarations.Put(name, declaration)
 	return s
 }
 
-func (s *coreG2TestScope) GetRootNode() *rhino.Node             { return nil }
+func (s *coreG2TestScope) GetRootNode() rhino.Node              { return rhino.Node{} }
 func (s *coreG2TestScope) GetParentScope() rhino.StaticScope    { return nil }
 func (s *coreG2TestScope) GetSlot(name string) rhino.StaticSlot { return s.GetOwnSlot(name) }
 func (s *coreG2TestScope) GetOwnSlot(name string) rhino.StaticSlot {
 	declaration := s.declarations.Get(name)
-	if declaration == nil {
+	if declaration.IsNil() {
 		return nil
 	}
 	return &coreG2TestSlot{name: name, node: declaration, scope: s}
@@ -737,7 +737,7 @@ func (s *coreG2TestScope) String() string {
 // coreG2TestSlot is CoreG2Dump.TestSlot.
 type coreG2TestSlot struct {
 	name  string
-	node  *rhino.Node
+	node  rhino.Node
 	scope rhino.StaticScope
 }
 
@@ -746,7 +746,7 @@ func (s *coreG2TestSlot) GetDeclaration() rhino.StaticRef       { return s }
 func (s *coreG2TestSlot) GetJSDocInfo() *rhino.JSDocInfo        { return nil }
 func (s *coreG2TestSlot) GetScope() rhino.StaticScope           { return s.scope }
 func (s *coreG2TestSlot) GetSymbol() rhino.StaticSlot           { return s }
-func (s *coreG2TestSlot) GetNode() *rhino.Node                  { return s.node }
+func (s *coreG2TestSlot) GetNode() rhino.Node                   { return s.node }
 func (s *coreG2TestSlot) GetSourceFile() rhino.StaticSourceFile { return nil }
 func (s *coreG2TestSlot) String() string                        { return "TestSlot(" + s.name + ")" }
 
@@ -770,11 +770,11 @@ func coreG2FactorySweep() string {
 			colorRegistry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
 			libs := RuntimeJsLibManager_Create(
 				RuntimeJsLibManager_RuntimeLibraryMode_RECORD_AND_VALIDATE_FIELDS,
-				func(unused1 string, unused2 string) *rhino.Node {
+				func(unused1 string, unused2 string) rhino.Node {
 					panic(jutil.NewUnsupportedOperationException())
 				},
 				NewChangeTracker(),
-				func() *rhino.Node { panic(jutil.NewUnsupportedOperationException()) })
+				func() rhino.Node { panic(jutil.NewUnsupportedOperationException()) })
 			var f *AstFactory
 			switch mode {
 			case "NONE":
@@ -791,21 +791,21 @@ func coreG2FactorySweep() string {
 	return o.sb.String()
 }
 
-func (s *coreG2Factory) c(name string, body func() *rhino.Node) {
+func (s *coreG2Factory) c(name string, body func() rhino.Node) {
 	s.o.line("## " + name)
-	var n *rhino.Node
+	var n rhino.Node
 	if e := coreG2Try(func() { n = body() }); e != nil {
 		s.o.line("! " + coreG2Exc(e))
 		return
 	}
-	if n == nil {
+	if n.IsNil() {
 		s.o.line("null")
 	} else {
 		s.o.printTree(n)
 	}
 }
 
-func (s *coreG2Factory) typed(n *rhino.Node, nativeType rhino.JSTypeNative, color *colors.Color) *rhino.Node {
+func (s *coreG2Factory) typed(n rhino.Node, nativeType rhino.JSTypeNative, color *colors.Color) rhino.Node {
 	switch s.mode {
 	case "JSTYPE":
 		n.SetJSType(s.registry.GetNativeType(nativeType))
@@ -815,19 +815,19 @@ func (s *coreG2Factory) typed(n *rhino.Node, nativeType rhino.JSTypeNative, colo
 	return n
 }
 
-func (s *coreG2Factory) num(d float64) *rhino.Node {
+func (s *coreG2Factory) num(d float64) rhino.Node {
 	return s.typed(rhino.IR_Number(d), rhino.JSTypeNative_NUMBER_TYPE, colors.StandardColors_NUMBER)
 }
 
-func (s *coreG2Factory) str(v string) *rhino.Node {
+func (s *coreG2Factory) str(v string) rhino.Node {
 	return s.typed(rhino.IR_String(v), rhino.JSTypeNative_STRING_TYPE, colors.StandardColors_STRING)
 }
 
-func (s *coreG2Factory) name(v string) *rhino.Node {
+func (s *coreG2Factory) name(v string) rhino.Node {
 	return s.typed(rhino.IR_Name(v), rhino.JSTypeNative_NUMBER_TYPE, colors.StandardColors_NUMBER)
 }
 
-func (s *coreG2Factory) untypedName(v string) *rhino.Node { return rhino.IR_Name(v) }
+func (s *coreG2Factory) untypedName(v string) rhino.Node { return rhino.IR_Name(v) }
 
 func (s *coreG2Factory) scope() *coreG2TestScope {
 	objectDecl := s.typed(rhino.IR_Name("Object"), rhino.JSTypeNative_OBJECT_FUNCTION_TYPE, colors.StandardColors_TOP_OBJECT)
@@ -866,227 +866,227 @@ func (s *coreG2Factory) functionType() AstFactory_Type {
 func (s *coreG2Factory) sweep() {
 	f := s.f
 	c := s.c
-	c("exprResult", func() *rhino.Node { return f.ExprResult(s.num(1)) })
-	c("createEmpty", func() *rhino.Node { return f.CreateEmpty() })
-	c("createBlock", func() *rhino.Node { return f.CreateBlock(f.ExprResult(s.num(1)), f.CreateEmpty()) })
-	c("createIf", func() *rhino.Node { return f.CreateIf(s.name("x"), f.CreateBlock()) })
-	c("createIfElse", func() *rhino.Node { return f.CreateIfWithElse(s.name("x"), f.CreateBlock(), f.CreateBlock()) })
-	c("createFor", func() *rhino.Node {
+	c("exprResult", func() rhino.Node { return f.ExprResult(s.num(1)) })
+	c("createEmpty", func() rhino.Node { return f.CreateEmpty() })
+	c("createBlock", func() rhino.Node { return f.CreateBlock(f.ExprResult(s.num(1)), f.CreateEmpty()) })
+	c("createIf", func() rhino.Node { return f.CreateIf(s.name("x"), f.CreateBlock()) })
+	c("createIfElse", func() rhino.Node { return f.CreateIfWithElse(s.name("x"), f.CreateBlock(), f.CreateBlock()) })
+	c("createFor", func() rhino.Node {
 		return f.CreateFor(f.CreateEmpty(), s.name("x"), f.CreateEmpty(), f.CreateBlock())
 	})
-	c("createBreak", func() *rhino.Node { return f.CreateBreak() })
-	c("createLabel", func() *rhino.Node { return f.CreateLabel(rhino.IR_LabelName("L"), f.CreateBlock()) })
-	c("createCatch", func() *rhino.Node { return f.CreateCatch(s.name("e"), f.CreateBlock()) })
-	c("createTryFinally", func() *rhino.Node { return f.CreateTryFinally(f.CreateBlock(), f.CreateBlock()) })
-	c("createTryCatchFinally", func() *rhino.Node {
+	c("createBreak", func() rhino.Node { return f.CreateBreak() })
+	c("createLabel", func() rhino.Node { return f.CreateLabel(rhino.IR_LabelName("L"), f.CreateBlock()) })
+	c("createCatch", func() rhino.Node { return f.CreateCatch(s.name("e"), f.CreateBlock()) })
+	c("createTryFinally", func() rhino.Node { return f.CreateTryFinally(f.CreateBlock(), f.CreateBlock()) })
+	c("createTryCatchFinally", func() rhino.Node {
 		return f.CreateTryCatchFinally(f.CreateBlock(), f.CreateCatch(s.name("e"), f.CreateBlock()), f.CreateBlock())
 	})
-	c("createTryCatchFinally/bad", func() *rhino.Node {
+	c("createTryCatchFinally/bad", func() rhino.Node {
 		return f.CreateTryCatchFinally(f.CreateBlock(), f.CreateBlock(), f.CreateBlock())
 	})
-	c("createThrow", func() *rhino.Node { return f.CreateThrow(s.str("x")) })
-	c("createReturn", func() *rhino.Node { return f.CreateReturn(s.num(2)) })
-	c("createYield", func() *rhino.Node { return f.CreateYield(s.numberType(), s.num(1)) })
-	c("createAwait", func() *rhino.Node { return f.CreateAwait(AstFactory_Type_(s.name("p")), s.name("p")) })
-	c("createString", func() *rhino.Node { return f.CreateString("hello") })
-	c("createString/unicode", func() *rhino.Node { return f.CreateString("h\u00e9\U0001F600") })
-	c("createNumber", func() *rhino.Node { return f.CreateNumber(0.5) })
-	c("createNumber/negative", func() *rhino.Node { return f.CreateNumber(-0.5) })
-	c("createBoolean/true", func() *rhino.Node { return f.CreateBoolean(true) })
-	c("createBoolean/false", func() *rhino.Node { return f.CreateBoolean(false) })
-	c("createNull", func() *rhino.Node { return f.CreateNull() })
-	c("createVoid", func() *rhino.Node { return f.CreateVoid(s.name("x")) })
-	c("createUndefinedValue", func() *rhino.Node { return f.CreateUndefinedValue() })
-	c("createNot", func() *rhino.Node { return f.CreateNot(s.name("x")) })
-	c("createThis", func() *rhino.Node { return f.CreateThis(s.numberType()) })
-	c("createSuper", func() *rhino.Node { return f.CreateSuper(AstFactory_Type_(s.name("s"))) })
-	c("createThisForEs6Class/notClass", func() *rhino.Node { return f.CreateThisForEs6Class(s.name("x")) })
-	c("createSingleNameDeclaration/let", func() *rhino.Node {
+	c("createThrow", func() rhino.Node { return f.CreateThrow(s.str("x")) })
+	c("createReturn", func() rhino.Node { return f.CreateReturn(s.num(2)) })
+	c("createYield", func() rhino.Node { return f.CreateYield(s.numberType(), s.num(1)) })
+	c("createAwait", func() rhino.Node { return f.CreateAwait(AstFactory_Type_(s.name("p")), s.name("p")) })
+	c("createString", func() rhino.Node { return f.CreateString("hello") })
+	c("createString/unicode", func() rhino.Node { return f.CreateString("h\u00e9\U0001F600") })
+	c("createNumber", func() rhino.Node { return f.CreateNumber(0.5) })
+	c("createNumber/negative", func() rhino.Node { return f.CreateNumber(-0.5) })
+	c("createBoolean/true", func() rhino.Node { return f.CreateBoolean(true) })
+	c("createBoolean/false", func() rhino.Node { return f.CreateBoolean(false) })
+	c("createNull", func() rhino.Node { return f.CreateNull() })
+	c("createVoid", func() rhino.Node { return f.CreateVoid(s.name("x")) })
+	c("createUndefinedValue", func() rhino.Node { return f.CreateUndefinedValue() })
+	c("createNot", func() rhino.Node { return f.CreateNot(s.name("x")) })
+	c("createThis", func() rhino.Node { return f.CreateThis(s.numberType()) })
+	c("createSuper", func() rhino.Node { return f.CreateSuper(AstFactory_Type_(s.name("s"))) })
+	c("createThisForEs6Class/notClass", func() rhino.Node { return f.CreateThisForEs6Class(s.name("x")) })
+	c("createSingleNameDeclaration/let", func() rhino.Node {
 		return f.CreateSingleNameDeclaration(rhino.Token_LET, "v", s.num(1))
 	})
-	c("createSingleNameDeclaration/var", func() *rhino.Node {
+	c("createSingleNameDeclaration/var", func() rhino.Node {
 		return f.CreateSingleNameDeclaration(rhino.Token_VAR, "v", s.num(1))
 	})
-	c("createSingleNameDeclaration/const", func() *rhino.Node {
+	c("createSingleNameDeclaration/const", func() rhino.Node {
 		return f.CreateSingleNameDeclaration(rhino.Token_CONST, "v", s.num(1))
 	})
-	c("createSingleNameDeclaration/bad", func() *rhino.Node {
+	c("createSingleNameDeclaration/bad", func() rhino.Node {
 		return f.CreateSingleNameDeclaration(rhino.Token_NAME, "v", s.num(1))
 	})
-	c("createSingleLetNameDeclaration", func() *rhino.Node { return f.CreateSingleLetNameDeclaration("v") })
-	c("createSingleLetNameDeclaration/value", func() *rhino.Node {
+	c("createSingleLetNameDeclaration", func() rhino.Node { return f.CreateSingleLetNameDeclaration("v") })
+	c("createSingleLetNameDeclaration/value", func() rhino.Node {
 		return f.CreateSingleLetNameDeclarationWithValue("v", s.str("s"))
 	})
-	c("createSingleVarNameDeclaration", func() *rhino.Node { return f.CreateSingleVarNameDeclaration("v") })
-	c("createSingleVarNameDeclaration/value", func() *rhino.Node {
+	c("createSingleVarNameDeclaration", func() rhino.Node { return f.CreateSingleVarNameDeclaration("v") })
+	c("createSingleVarNameDeclaration/value", func() rhino.Node {
 		return f.CreateSingleVarNameDeclarationWithValue("$jscomp$v", s.str("s"))
 	})
-	c("createSingleConstNameDeclaration", func() *rhino.Node {
+	c("createSingleConstNameDeclaration", func() rhino.Node {
 		return f.CreateSingleConstNameDeclaration("v", s.str("s"))
 	})
-	c("createSingleConstObjectPatternDeclaration", func() *rhino.Node {
+	c("createSingleConstObjectPatternDeclaration", func() rhino.Node {
 		return f.CreateSingleConstObjectPatternDeclaration(rhino.IR_ObjectPattern(rhino.IR_StringKey("Foo")), s.name("x"))
 	})
-	c("createSingleConstObjectPatternDeclaration/bad", func() *rhino.Node {
+	c("createSingleConstObjectPatternDeclaration/bad", func() rhino.Node {
 		return f.CreateSingleConstObjectPatternDeclaration(s.name("y"), s.name("x"))
 	})
-	c("createArgumentsReference", func() *rhino.Node { return f.CreateArgumentsReference() })
-	c("createArgumentsAliasDeclaration", func() *rhino.Node { return f.CreateArgumentsAliasDeclaration("args") })
-	c("createName", func() *rhino.Node { return f.CreateName("n", s.numberType()) })
-	c("createName/jscompPrefix", func() *rhino.Node { return f.CreateName("$jscomp$x", s.numberType()) })
-	c("createName/jscomp", func() *rhino.Node { return f.CreateName("$jscomp", s.numberType()) })
-	c("createConstantName", func() *rhino.Node { return f.CreateConstantName("n", s.numberType()) })
-	c("createConstantName/jscomp", func() *rhino.Node { return f.CreateConstantName("$jscomp", s.numberType()) })
-	c("createName/scope", func() *rhino.Node { return f.CreateNameInScope(s.scope(), "a") })
-	c("createName/scope/const", func() *rhino.Node { return f.CreateNameInScope(s.scope(), "k") })
-	c("createName/scope/untyped", func() *rhino.Node { return f.CreateNameInScope(s.scope(), "untyped") })
-	c("createName/scope/missing", func() *rhino.Node { return f.CreateNameInScope(s.scope(), "missing") })
-	c("createName/nullScope", func() *rhino.Node { return f.CreateNameInScope(nil, "a") })
-	c("createName/scope/jscomp", func() *rhino.Node { return f.CreateNameInScope(s.scope(), "$jscomp") })
-	c("createNameWithUnknownType", func() *rhino.Node { return f.CreateNameWithUnknownType("u") })
-	c("createQName/dotted", func() *rhino.Node { return f.CreateQName(s.scope(), "a.b.c") })
-	c("createQName/missing", func() *rhino.Node { return f.CreateQName(s.scope(), "a.b.missing") })
-	c("createQName/iterable", func() *rhino.Node { return f.CreateQNameOfNames(s.scope(), []string{"a", "b"}) })
-	c("createQName/varargs", func() *rhino.Node { return f.CreateQNameWithProperties(s.scope(), "a", "b", "c") })
-	c("createQName/baseAndIterable", func() *rhino.Node {
+	c("createArgumentsReference", func() rhino.Node { return f.CreateArgumentsReference() })
+	c("createArgumentsAliasDeclaration", func() rhino.Node { return f.CreateArgumentsAliasDeclaration("args") })
+	c("createName", func() rhino.Node { return f.CreateName("n", s.numberType()) })
+	c("createName/jscompPrefix", func() rhino.Node { return f.CreateName("$jscomp$x", s.numberType()) })
+	c("createName/jscomp", func() rhino.Node { return f.CreateName("$jscomp", s.numberType()) })
+	c("createConstantName", func() rhino.Node { return f.CreateConstantName("n", s.numberType()) })
+	c("createConstantName/jscomp", func() rhino.Node { return f.CreateConstantName("$jscomp", s.numberType()) })
+	c("createName/scope", func() rhino.Node { return f.CreateNameInScope(s.scope(), "a") })
+	c("createName/scope/const", func() rhino.Node { return f.CreateNameInScope(s.scope(), "k") })
+	c("createName/scope/untyped", func() rhino.Node { return f.CreateNameInScope(s.scope(), "untyped") })
+	c("createName/scope/missing", func() rhino.Node { return f.CreateNameInScope(s.scope(), "missing") })
+	c("createName/nullScope", func() rhino.Node { return f.CreateNameInScope(nil, "a") })
+	c("createName/scope/jscomp", func() rhino.Node { return f.CreateNameInScope(s.scope(), "$jscomp") })
+	c("createNameWithUnknownType", func() rhino.Node { return f.CreateNameWithUnknownType("u") })
+	c("createQName/dotted", func() rhino.Node { return f.CreateQName(s.scope(), "a.b.c") })
+	c("createQName/missing", func() rhino.Node { return f.CreateQName(s.scope(), "a.b.missing") })
+	c("createQName/iterable", func() rhino.Node { return f.CreateQNameOfNames(s.scope(), []string{"a", "b"}) })
+	c("createQName/varargs", func() rhino.Node { return f.CreateQNameWithProperties(s.scope(), "a", "b", "c") })
+	c("createQName/baseAndIterable", func() rhino.Node {
 		return f.CreateQNameWithPropertyList(s.scope(), "a", []string{"b", "c"})
 	})
-	c("createQName/field/notInjected", func() *rhino.Node {
+	c("createQName/field/notInjected", func() rhino.Node {
 		return f.CreateQNameOfField(s.scope(), s.libs.GetJsLibField("$jscomp.global"))
 	})
-	c("createQName/field", func() *rhino.Node {
+	c("createQName/field", func() rhino.Node {
 		s.libs.InjectLibForField("$jscomp.global")
 		return f.CreateQNameOfField(s.scope(), s.libs.GetJsLibField("$jscomp.global"))
 	})
-	c("createQNameWithUnknownType", func() *rhino.Node { return f.CreateQNameWithUnknownType("p.q.r") })
-	c("createQNameWithUnknownType/field", func() *rhino.Node {
+	c("createQNameWithUnknownType", func() rhino.Node { return f.CreateQNameWithUnknownType("p.q.r") })
+	c("createQNameWithUnknownType/field", func() rhino.Node {
 		return f.CreateQNameWithUnknownTypeOfField(s.libs.GetJsLibField("$jscomp.global"))
 	})
-	c("createQNameWithUnknownType/baseAndIterable", func() *rhino.Node {
+	c("createQNameWithUnknownType/baseAndIterable", func() rhino.Node {
 		return f.CreateQNameWithUnknownTypeWithPropertyList("p", []string{"q", "r"})
 	})
-	c("createPrototypeAccess", func() *rhino.Node { return f.CreatePrototypeAccess(s.name("Foo")) })
-	c("createPrototypeAccess/untyped", func() *rhino.Node { return f.CreatePrototypeAccess(s.untypedName("Foo")) })
-	c("createJSCompDotGlobalAccess", func() *rhino.Node { return f.CreateJSCompDotGlobalAccess(s.scope(), "Math.max") })
-	c("createGetPropWithoutColor", func() *rhino.Node { return f.CreateGetPropWithoutColor(s.name("o"), "p") })
-	c("createGetPropWithoutColor/jscompGlobal", func() *rhino.Node {
+	c("createPrototypeAccess", func() rhino.Node { return f.CreatePrototypeAccess(s.name("Foo")) })
+	c("createPrototypeAccess/untyped", func() rhino.Node { return f.CreatePrototypeAccess(s.untypedName("Foo")) })
+	c("createJSCompDotGlobalAccess", func() rhino.Node { return f.CreateJSCompDotGlobalAccess(s.scope(), "Math.max") })
+	c("createGetPropWithoutColor", func() rhino.Node { return f.CreateGetPropWithoutColor(s.name("o"), "p") })
+	c("createGetPropWithoutColor/jscompGlobal", func() rhino.Node {
 		return f.CreateGetPropWithoutColor(s.untypedName("$jscomp"), "global")
 	})
-	c("createGetPropWithoutColor/string", func() *rhino.Node {
+	c("createGetPropWithoutColor/string", func() rhino.Node {
 		return f.CreateGetPropWithoutColor(s.str("s"), "length")
 	})
-	c("createGetProp", func() *rhino.Node { return f.CreateGetProp(s.name("o"), "p", s.numberType()) })
-	c("createGetPropsWithoutColors", func() *rhino.Node {
+	c("createGetProp", func() rhino.Node { return f.CreateGetProp(s.name("o"), "p", s.numberType()) })
+	c("createGetPropsWithoutColors", func() rhino.Node {
 		return f.CreateGetPropsWithoutColors(s.name("o"), []string{"p", "q"})
 	})
-	c("createGetPropsWithUnknownType", func() *rhino.Node {
+	c("createGetPropsWithUnknownType", func() rhino.Node {
 		return f.CreateGetPropsWithUnknownType(s.name("o"), []string{"p", "q"})
 	})
-	c("createGetPropWithUnknownType", func() *rhino.Node { return f.CreateGetPropWithUnknownType(s.name("o"), "p") })
-	c("createStartOptChainGetprop", func() *rhino.Node {
+	c("createGetPropWithUnknownType", func() rhino.Node { return f.CreateGetPropWithUnknownType(s.name("o"), "p") })
+	c("createStartOptChainGetprop", func() rhino.Node {
 		return f.CreateStartOptChainGetprop(s.name("o"), "p", s.numberType())
 	})
-	c("createContinueOptChainGetprop", func() *rhino.Node {
+	c("createContinueOptChainGetprop", func() rhino.Node {
 		return f.CreateContinueOptChainGetprop(
 			f.CreateStartOptChainGetprop(s.name("o"), "p", s.numberType()), "q", s.numberType())
 	})
-	c("createStartOptChainGetelem", func() *rhino.Node {
+	c("createStartOptChainGetelem", func() rhino.Node {
 		return f.CreateStartOptChainGetelem(s.name("o"), s.num(0), s.numberType())
 	})
-	c("createContinueOptChainGetelem", func() *rhino.Node {
+	c("createContinueOptChainGetelem", func() rhino.Node {
 		return f.CreateContinueOptChainGetelem(
 			f.CreateStartOptChainGetelem(s.name("o"), s.num(0), s.numberType()), s.num(1), s.numberType())
 	})
-	c("createStartOptChainCall", func() *rhino.Node {
+	c("createStartOptChainCall", func() rhino.Node {
 		return f.CreateStartOptChainCall(s.name("o"), s.numberType(), s.num(1), s.str("x"))
 	})
-	c("createContinueOptChainCall", func() *rhino.Node {
+	c("createContinueOptChainCall", func() rhino.Node {
 		return f.CreateContinueOptChainCall(
 			f.CreateStartOptChainGetprop(s.name("o"), "p", s.numberType()), s.numberType())
 	})
-	c("createGetElem", func() *rhino.Node { return f.CreateGetElem(s.name("o"), s.num(0)) })
-	c("createDelProp", func() *rhino.Node { return f.CreateDelProp(f.CreateGetPropWithUnknownType(s.name("o"), "p")) })
-	c("createStringKey", func() *rhino.Node { return f.CreateStringKey("k", s.str("v")) })
-	c("createComputedProperty", func() *rhino.Node { return f.CreateComputedProperty(s.str("k"), s.num(1)) })
-	c("createGetterDef", func() *rhino.Node { return f.CreateGetterDef("g", s.num(1)) })
-	c("createIn", func() *rhino.Node { return f.CreateIn(s.str("k"), s.name("o")) })
-	c("createComma", func() *rhino.Node { return f.CreateComma(s.name("a"), s.str("b")) })
-	c("createCommas", func() *rhino.Node { return f.CreateCommas(s.name("a"), s.str("b"), s.num(1), s.name("c")) })
-	c("createAnd", func() *rhino.Node { return f.CreateAnd(s.name("a"), s.str("b")) })
-	c("createAnd/untyped", func() *rhino.Node { return f.CreateAnd(s.untypedName("a"), s.str("b")) })
-	c("createOr", func() *rhino.Node { return f.CreateOr(s.str("a"), s.num(1)) })
-	c("createAdd", func() *rhino.Node { return f.CreateAdd(s.str("a"), s.num(1)) })
-	c("createSub", func() *rhino.Node { return f.CreateSub(s.name("a"), s.num(1)) })
-	c("createInc/pre", func() *rhino.Node { return f.CreateInc(s.name("a"), false) })
-	c("createInc/post", func() *rhino.Node { return f.CreateInc(s.name("a"), true) })
-	c("createLessThan", func() *rhino.Node { return f.CreateLessThan(s.name("a"), s.num(1)) })
-	c("createBitwiseAnd", func() *rhino.Node { return f.CreateBitwiseAnd(s.name("a"), s.num(1)) })
-	c("createRightShift", func() *rhino.Node { return f.CreateRightShift(s.name("a"), s.num(1)) })
-	c("createCall", func() *rhino.Node { return f.CreateCall(s.name("fn"), s.numberType(), s.num(1), s.str("x")) })
-	c("createCall/getprop", func() *rhino.Node {
+	c("createGetElem", func() rhino.Node { return f.CreateGetElem(s.name("o"), s.num(0)) })
+	c("createDelProp", func() rhino.Node { return f.CreateDelProp(f.CreateGetPropWithUnknownType(s.name("o"), "p")) })
+	c("createStringKey", func() rhino.Node { return f.CreateStringKey("k", s.str("v")) })
+	c("createComputedProperty", func() rhino.Node { return f.CreateComputedProperty(s.str("k"), s.num(1)) })
+	c("createGetterDef", func() rhino.Node { return f.CreateGetterDef("g", s.num(1)) })
+	c("createIn", func() rhino.Node { return f.CreateIn(s.str("k"), s.name("o")) })
+	c("createComma", func() rhino.Node { return f.CreateComma(s.name("a"), s.str("b")) })
+	c("createCommas", func() rhino.Node { return f.CreateCommas(s.name("a"), s.str("b"), s.num(1), s.name("c")) })
+	c("createAnd", func() rhino.Node { return f.CreateAnd(s.name("a"), s.str("b")) })
+	c("createAnd/untyped", func() rhino.Node { return f.CreateAnd(s.untypedName("a"), s.str("b")) })
+	c("createOr", func() rhino.Node { return f.CreateOr(s.str("a"), s.num(1)) })
+	c("createAdd", func() rhino.Node { return f.CreateAdd(s.str("a"), s.num(1)) })
+	c("createSub", func() rhino.Node { return f.CreateSub(s.name("a"), s.num(1)) })
+	c("createInc/pre", func() rhino.Node { return f.CreateInc(s.name("a"), false) })
+	c("createInc/post", func() rhino.Node { return f.CreateInc(s.name("a"), true) })
+	c("createLessThan", func() rhino.Node { return f.CreateLessThan(s.name("a"), s.num(1)) })
+	c("createBitwiseAnd", func() rhino.Node { return f.CreateBitwiseAnd(s.name("a"), s.num(1)) })
+	c("createRightShift", func() rhino.Node { return f.CreateRightShift(s.name("a"), s.num(1)) })
+	c("createCall", func() rhino.Node { return f.CreateCall(s.name("fn"), s.numberType(), s.num(1), s.str("x")) })
+	c("createCall/getprop", func() rhino.Node {
 		return f.CreateCall(f.CreateGetPropWithUnknownType(s.name("o"), "m"), s.numberType())
 	})
-	c("createCallWithUnknownType", func() *rhino.Node { return f.CreateCallWithUnknownType(s.name("fn"), s.num(1)) })
-	c("createObjectDotAssignCall", func() *rhino.Node {
+	c("createCallWithUnknownType", func() rhino.Node { return f.CreateCallWithUnknownType(s.name("fn"), s.num(1)) })
+	c("createObjectDotAssignCall", func() rhino.Node {
 		return f.CreateObjectDotAssignCall(s.scope(), s.numberType(), f.CreateObjectLit(), s.name("a"))
 	})
-	c("createNewNode/unknownCtor", func() *rhino.Node { return f.CreateNewNode(s.untypedName("C"), s.num(1)) })
-	c("createNewNode/objectCtor", func() *rhino.Node {
+	c("createNewNode/unknownCtor", func() rhino.Node { return f.CreateNewNode(s.untypedName("C"), s.num(1)) })
+	c("createNewNode/objectCtor", func() rhino.Node {
 		return f.CreateNewNode(
 			s.typed(rhino.IR_Name("Object"), rhino.JSTypeNative_OBJECT_FUNCTION_TYPE, s.colorRegistry.Get(colors.StandardColors_ARRAY_ID)),
 			s.num(1))
 	})
-	c("createConstructorCall", func() *rhino.Node {
+	c("createConstructorCall", func() rhino.Node {
 		return f.CreateConstructorCall(
 			AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_OBJECT_FUNCTION_TYPE, colors.StandardColors_TOP_OBJECT),
 			rhino.IR_SuperNode(),
 			s.num(1))
 	})
-	c("createAssignStatement", func() *rhino.Node { return f.CreateAssignStatement(s.name("a"), s.str("b")) })
-	c("createAssign", func() *rhino.Node { return f.CreateAssign(s.name("a"), s.str("b")) })
-	c("createAssign/name", func() *rhino.Node { return f.CreateAssignToName("a", s.str("b")) })
-	c("createObjectLit", func() *rhino.Node { return f.CreateObjectLit(f.CreateStringKey("k", s.num(1))) })
-	c("createObjectLit/type", func() *rhino.Node {
+	c("createAssignStatement", func() rhino.Node { return f.CreateAssignStatement(s.name("a"), s.str("b")) })
+	c("createAssign", func() rhino.Node { return f.CreateAssign(s.name("a"), s.str("b")) })
+	c("createAssign/name", func() rhino.Node { return f.CreateAssignToName("a", s.str("b")) })
+	c("createObjectLit", func() rhino.Node { return f.CreateObjectLit(f.CreateStringKey("k", s.num(1))) })
+	c("createObjectLit/type", func() rhino.Node {
 		return f.CreateObjectLitWithType(s.numberType(), f.CreateStringKey("k", s.num(1)))
 	})
-	c("createQuotedStringKey", func() *rhino.Node { return f.CreateQuotedStringKey("k", s.num(1)) })
-	c("createEmptyFunction", func() *rhino.Node { return f.CreateEmptyFunction(s.functionType()) })
-	c("createEmptyGeneratorFunction", func() *rhino.Node { return f.CreateEmptyGeneratorFunction(s.functionType()) })
-	c("createFunction", func() *rhino.Node {
+	c("createQuotedStringKey", func() rhino.Node { return f.CreateQuotedStringKey("k", s.num(1)) })
+	c("createEmptyFunction", func() rhino.Node { return f.CreateEmptyFunction(s.functionType()) })
+	c("createEmptyGeneratorFunction", func() rhino.Node { return f.CreateEmptyGeneratorFunction(s.functionType()) })
+	c("createFunction", func() rhino.Node {
 		return f.CreateFunction("fn", f.CreateParamList("p", "q"), f.CreateBlock(), s.functionType())
 	})
-	c("createParamList", func() *rhino.Node { return f.CreateParamList("p", "$jscomp$q") })
-	c("createZeroArgFunction", func() *rhino.Node {
+	c("createParamList", func() rhino.Node { return f.CreateParamList("p", "$jscomp$q") })
+	c("createZeroArgFunction", func() rhino.Node {
 		return f.CreateZeroArgFunction(
 			"z", f.CreateBlock(f.CreateReturn(s.num(1))), s.registry.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE))
 	})
-	c("createZeroArgFunction/nullReturn", func() *rhino.Node {
+	c("createZeroArgFunction/nullReturn", func() rhino.Node {
 		return f.CreateZeroArgFunction("z", f.CreateBlock(), nil)
 	})
-	c("createZeroArgGeneratorFunction", func() *rhino.Node {
+	c("createZeroArgGeneratorFunction", func() rhino.Node {
 		return f.CreateZeroArgGeneratorFunction("g", f.CreateBlock(), nil)
 	})
-	c("createZeroArgArrowFunctionForExpression", func() *rhino.Node {
+	c("createZeroArgArrowFunctionForExpression", func() rhino.Node {
 		return f.CreateZeroArgArrowFunctionForExpression(s.num(1))
 	})
-	c("createZeroArgArrowFunctionForExpression/untyped", func() *rhino.Node {
+	c("createZeroArgArrowFunctionForExpression/untyped", func() rhino.Node {
 		return f.CreateZeroArgArrowFunctionForExpression(s.untypedName("u"))
 	})
-	c("createMemberFunctionDef", func() *rhino.Node {
+	c("createMemberFunctionDef", func() rhino.Node {
 		return f.CreateMemberFunctionDef("m", f.CreateEmptyFunction(s.functionType()))
 	})
-	c("createMemberFunctionDef/named", func() *rhino.Node {
+	c("createMemberFunctionDef/named", func() rhino.Node {
 		return f.CreateMemberFunctionDef("m", f.CreateFunction("n", rhino.IR_ParamList(), f.CreateBlock(), s.functionType()))
 	})
-	c("createSheq", func() *rhino.Node { return f.CreateSheq(s.name("a"), s.num(1)) })
-	c("createEq", func() *rhino.Node { return f.CreateEq(s.name("a"), f.CreateNull()) })
-	c("createNe", func() *rhino.Node { return f.CreateNe(s.name("a"), f.CreateNull()) })
-	c("createHook", func() *rhino.Node { return f.CreateHook(s.name("a"), s.str("b"), s.num(1)) })
-	c("createHook/untyped", func() *rhino.Node { return f.CreateHook(s.name("a"), s.untypedName("b"), s.num(1)) })
-	c("createArraylit", func() *rhino.Node { return f.CreateArraylit(s.num(1), s.str("b")) })
-	c("createArraylit/iterable", func() *rhino.Node {
-		elems := []*rhino.Node{s.num(1), s.name("c")}
-		return f.CreateArraylitOfIterable(func(yield func(*rhino.Node) bool) {
+	c("createSheq", func() rhino.Node { return f.CreateSheq(s.name("a"), s.num(1)) })
+	c("createEq", func() rhino.Node { return f.CreateEq(s.name("a"), f.CreateNull()) })
+	c("createNe", func() rhino.Node { return f.CreateNe(s.name("a"), f.CreateNull()) })
+	c("createHook", func() rhino.Node { return f.CreateHook(s.name("a"), s.str("b"), s.num(1)) })
+	c("createHook/untyped", func() rhino.Node { return f.CreateHook(s.name("a"), s.untypedName("b"), s.num(1)) })
+	c("createArraylit", func() rhino.Node { return f.CreateArraylit(s.num(1), s.str("b")) })
+	c("createArraylit/iterable", func() rhino.Node {
+		elems := []rhino.Node{s.num(1), s.name("c")}
+		return f.CreateArraylitOfIterable(func(yield func(rhino.Node) bool) {
 			for _, e := range elems {
 				if !yield(e) {
 					return
@@ -1094,45 +1094,45 @@ func (s *coreG2Factory) sweep() {
 			}
 		})
 	})
-	c("createJSCompMakeIteratorCall/notInjected", func() *rhino.Node {
+	c("createJSCompMakeIteratorCall/notInjected", func() rhino.Node {
 		return f.CreateJSCompMakeIteratorCall(s.name("arr"), s.scope())
 	})
-	c("createJSCompMakeIteratorCall", func() *rhino.Node {
+	c("createJSCompMakeIteratorCall", func() rhino.Node {
 		s.libs.InjectLibForField("$jscomp.makeIterator")
 		return f.CreateJSCompMakeIteratorCall(s.name("arr"), s.scope())
 	})
-	c("createJscompArrayFromIteratorCall", func() *rhino.Node {
+	c("createJscompArrayFromIteratorCall", func() rhino.Node {
 		s.libs.InjectLibForField("$jscomp.arrayFromIterator")
 		return f.CreateJscompArrayFromIteratorCall(s.name("it"), s.scope())
 	})
-	c("createJscompArrayFromIterableCall", func() *rhino.Node {
+	c("createJscompArrayFromIterableCall", func() rhino.Node {
 		s.libs.InjectLibForField("$jscomp.arrayFromIterable")
 		return f.CreateJscompArrayFromIterableCall(s.name("it"), s.scope())
 	})
-	c("createJSCompMakeAsyncIteratorCall", func() *rhino.Node {
+	c("createJSCompMakeAsyncIteratorCall", func() rhino.Node {
 		s.libs.InjectLibForField("$jscomp.makeAsyncIterator")
 		return f.CreateJSCompMakeAsyncIteratorCall(s.name("it"), s.scope())
 	})
-	c("createEmptyAsyncGeneratorWrapperArgument/unknown", func() *rhino.Node {
+	c("createEmptyAsyncGeneratorWrapperArgument/unknown", func() rhino.Node {
 		return f.CreateEmptyAsyncGeneratorWrapperArgument(s.registry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE))
 	})
-	c("createEmptyAsyncGeneratorWrapperArgument/function", func() *rhino.Node {
+	c("createEmptyAsyncGeneratorWrapperArgument/function", func() rhino.Node {
 		return f.CreateEmptyAsyncGeneratorWrapperArgument(
 			s.registry.CreateFunctionType(
 				s.registry.GetNativeType(rhino.JSTypeNative_VOID_TYPE),
 				s.registry.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)))
 	})
-	c("createJscompAsyncExecutePromiseGeneratorFunctionCall", func() *rhino.Node {
+	c("createJscompAsyncExecutePromiseGeneratorFunctionCall", func() rhino.Node {
 		s.libs.InjectLibForField("$jscomp.asyncExecutePromiseGeneratorFunction")
 		return f.CreateJscompAsyncExecutePromiseGeneratorFunctionCall(
 			s.scope(), f.CreateEmptyGeneratorFunction(s.functionType()))
 	})
-	c("type/colorId", func() *rhino.Node { return f.CreateThis(AstFactory_Type_OfColorId(colors.StandardColors_ARRAY_ID)) })
-	c("type/jstypeNative", func() *rhino.Node {
+	c("type/colorId", func() rhino.Node { return f.CreateThis(AstFactory_Type_OfColorId(colors.StandardColors_ARRAY_ID)) })
+	c("type/jstypeNative", func() rhino.Node {
 		return f.CreateThis(AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_STRING_TYPE))
 	})
-	c("type/color", func() *rhino.Node { return f.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_STRING)) })
-	c("type/jstype", func() *rhino.Node {
+	c("type/color", func() rhino.Node { return f.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_STRING)) })
+	c("type/jstype", func() rhino.Node {
 		return f.CreateThis(AstFactory_Type_OfJSType(s.registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE)))
 	})
 	s.o.line("## isAddingTypes " + jutil.ToJavaString(f.IsAddingTypes()) + " isAddingColors " + jutil.ToJavaString(f.IsAddingColors()))

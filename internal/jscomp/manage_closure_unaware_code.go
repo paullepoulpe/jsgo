@@ -46,7 +46,7 @@ func ManageClosureUnawareCode_Unwrap(compiler AbstractCompiler) *ManageClosureUn
 }
 
 // Java: ManageClosureUnawareCode.process(Node, Node)
-func (m *ManageClosureUnawareCode) Process(externs *rhino.Node, root *rhino.Node) {
+func (m *ManageClosureUnawareCode) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(m.compiler, root, NewManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode())
 }
 
@@ -65,8 +65,8 @@ func NewManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode() *ManageClos
 }
 
 // Java: UnwrapConcealedClosureUnawareCode.shouldTraverse(NodeTraversal, Node, Node)
-func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	if parent == nil || !parent.IsScript() {
+func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if parent.IsNil() || !parent.IsScript() {
 		return true // keep going
 	}
 
@@ -80,14 +80,14 @@ func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) ShouldTrave
 }
 
 // Java: UnwrapConcealedClosureUnawareCode.visit(NodeTraversal, Node, Node)
-func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	u.TryUnwrapClosureUnawareShadowedCode(n)
 }
 
 // Java: UnwrapConcealedClosureUnawareCode.tryUnwrapClosureUnawareShadowedCode(Node)
-func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) TryUnwrapClosureUnawareShadowedCode(n *rhino.Node) {
+func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) TryUnwrapClosureUnawareShadowedCode(n rhino.Node) {
 	shadowAstRoot := n.GetClosureUnawareShadow()
-	if shadowAstRoot == nil {
+	if shadowAstRoot.IsNil() {
 		return
 	}
 

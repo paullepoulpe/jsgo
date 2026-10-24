@@ -39,7 +39,7 @@ import (
 // types in the type registry.
 type typedScopeCreator_ScopedNameKey struct {
 	name      string
-	scopeRoot *rhino.Node
+	scopeRoot rhino.Node
 }
 
 const (
@@ -57,16 +57,16 @@ type TypedScopeCreator struct {
 	metadataMap              *ModuleMetadataMap
 	moduleImportResolver     *ModuleImportResolver
 	processClosurePrimitives bool
-	memoized                 *jutil.LinkedHashMap[*rhino.Node, *TypedScope]
+	memoized                 *jutil.LinkedHashMap[rhino.Node, *TypedScope]
 
 	// Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
 	// reserve names before the TypedScope is populated.
-	reservedNamesForScope map[*rhino.Node][]string
+	reservedNamesForScope map[rhino.Node][]string
 
 	scopeCount int
 
 	// Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
-	functionsWithNonEmptyReturns map[*rhino.Node]struct{}
+	functionsWithNonEmptyReturns map[rhino.Node]struct{}
 	// Tracks escaped variables (simple and qualified) and local variables not assigned exactly once.
 	varFlags map[typedScopeCreator_ScopedNameKey]uint8
 
@@ -76,16 +76,16 @@ type TypedScopeCreator struct {
 	// All names imported through goog.requireType. Resolve these after all scopes are created.
 	weakImports []*TypedScopeCreator_WeakModuleImport
 
-	unresolvedNodes []*rhino.Node
+	unresolvedNodes []rhino.Node
 
 	// Set of NAME, GETPROP, and STRING_KEY lvalues which should be treated as const declarations when
 	// assigned. Treat simple names in this list as if they were declared `const`. E.g. treat `exports
 	// = class {};` as `const exports = class {};`. Treat GETPROP and STRING_KEY nodes as if they were
 	// annotated @const.
-	undeclaredNamesForClosure map[*rhino.Node]struct{}
+	undeclaredNamesForClosure map[rhino.Node]struct{}
 
 	// Maps EXPR_RESULT nodes from goog.provides to all implicitly provided names from the call
-	providedNamesFromCall *jutil.LinkedHashMultimap[*rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]
+	providedNamesFromCall *jutil.LinkedHashMultimap[rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]
 
 	normalScopeBuilderPool   []*TypedScopeCreator_NormalScopeBuilder
 	functionScopeBuilderPool []*TypedScopeCreator_FunctionScopeBuilder
@@ -159,13 +159,13 @@ type TypedScopeCreator_WeakModuleImport struct {
 	// this inner class.
 	outer *TypedScopeCreator
 
-	moduleLocalNode  *rhino.Node // the NAME or IMPORT_STAR representing the assignee
+	moduleLocalNode  rhino.Node  // the NAME or IMPORT_STAR representing the assignee
 	scopedImport     ScopedName  // the name (possibly qualified) & scope being imported
 	localModuleScope *TypedScope // the scope containing the import
 }
 
 // Java: TypedScopeCreator.WeakModuleImport(Node, ScopedName, TypedScope)
-func NewTypedScopeCreator_WeakModuleImport(outer *TypedScopeCreator, moduleLocalNode *rhino.Node, scopedImport ScopedName, localModuleScope *TypedScope) *TypedScopeCreator_WeakModuleImport {
+func NewTypedScopeCreator_WeakModuleImport(outer *TypedScopeCreator, moduleLocalNode rhino.Node, scopedImport ScopedName, localModuleScope *TypedScope) *TypedScopeCreator_WeakModuleImport {
 	w := &TypedScopeCreator_WeakModuleImport{outer: outer}
 	jutil.CheckStateMsg1(moduleLocalNode.IsName() || moduleLocalNode.IsImportStar(), "%s", moduleLocalNode)
 	w.moduleLocalNode = moduleLocalNode
@@ -247,7 +247,7 @@ func NewTypedScopeCreator(compiler AbstractCompiler) *TypedScopeCreator {
 // Java: TypedScopeCreator(AbstractCompiler, CodingConvention)
 func NewTypedScopeCreatorWithCodingConvention(compiler AbstractCompiler, codingConvention CodingConvention) *TypedScopeCreator {
 	c := &TypedScopeCreator{}
-	c.memoized = jutil.NewLinkedHashMap[*rhino.Node, *TypedScope]()
+	c.memoized = jutil.NewLinkedHashMap[rhino.Node, *TypedScope]()
 	c.stage = TypedScopeCreator_Stage_BUILDING
 	c.compiler = compiler
 	c.validator = compiler.GetTypeValidator()
@@ -306,7 +306,7 @@ func (c *TypedScopeCreator) GetAllSymbols() iter.Seq[*TypedVar] {
 // -> scope.
 //
 // Java: TypedScopeCreator.getNodeToScopeMapper()
-func (c *TypedScopeCreator) GetNodeToScopeMapper() func(*rhino.Node) *TypedScope {
+func (c *TypedScopeCreator) GetNodeToScopeMapper() func(rhino.Node) *TypedScope {
 	return c.memoized.Get
 }
 
@@ -326,7 +326,7 @@ func (c *TypedScopeCreator) GetAllMemoizedScopes() []*TypedScope {
 // apart from the ScopeCreator method CreateScope(Node, AbstractScope).
 //
 // Java: TypedScopeCreator.createScope(Node)
-func (c *TypedScopeCreator) CreateScopeOfNode(n *rhino.Node) *TypedScope {
+func (c *TypedScopeCreator) CreateScopeOfNode(n rhino.Node) *TypedScope {
 	s := c.memoized.Get(n)
 	if s != nil {
 		return s
@@ -338,7 +338,7 @@ func (c *TypedScopeCreator) CreateScopeOfNode(n *rhino.Node) *TypedScope {
 // discovered types and type properties in the type registry.
 //
 // Java: TypedScopeCreator.createScope(Node, AbstractScope)
-func (c *TypedScopeCreator) CreateScope(root *rhino.Node, parent AbstractScope) AbstractScope {
+func (c *TypedScopeCreator) CreateScope(root rhino.Node, parent AbstractScope) AbstractScope {
 	_, parentIsTyped := parent.(*TypedScope)
 	jutil.CheckArgument(parent == nil || parentIsTyped)
 	var typedParent *TypedScope
@@ -357,7 +357,7 @@ func (c *TypedScopeCreator) CreateScope(root *rhino.Node, parent AbstractScope) 
 }
 
 // Java: TypedScopeCreator.createScopeInternal(Node, TypedScope)
-func (c *TypedScopeCreator) CreateScopeInternal(root *rhino.Node, typedParent *TypedScope) *TypedScope {
+func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *TypedScope) *TypedScope {
 	jutil.CheckStateMsg1(
 		c.stage == TypedScopeCreator_Stage_BUILDING,
 		"Cannot create scope for %s after TypedScopeCreator is frozen",
@@ -486,10 +486,10 @@ func (c *TypedScopeCreator) CreateScopeInternal(root *rhino.Node, typedParent *T
 //   - `exports.Foo = Foo;` adds the GETPROP node `exports.Foo`
 //
 // Java: TypedScopeCreator.markGoogModuleExportsAsConst(Node)
-func (c *TypedScopeCreator) MarkGoogModuleExportsAsConst(moduleBody *rhino.Node) {
+func (c *TypedScopeCreator) MarkGoogModuleExportsAsConst(moduleBody rhino.Node) {
 	// TODO(lharker): Use the source nodes from the Bindings once we no longer rewrite before
 	// typechecking. This is not feasible currently because a few places will rewrite exports = ...
-	for statement := moduleBody.GetFirstChild(); statement != nil; statement = statement.GetNext() {
+	for statement := moduleBody.GetFirstChild(); !statement.IsNil(); statement = statement.GetNext() {
 		if !NodeUtil_IsExprAssign(statement) {
 			continue
 		}
@@ -498,7 +498,7 @@ func (c *TypedScopeCreator) MarkGoogModuleExportsAsConst(moduleBody *rhino.Node)
 			c.undeclaredNamesForClosure[lhs] = struct{}{}
 			// If this is full of named exports, add all the string key nodes.
 			if NodeUtil_IsNamedExportsLiteral(lhs.GetNext()) {
-				for key := lhs.GetNext().GetFirstChild(); key != nil; key = key.GetNext() {
+				for key := lhs.GetNext().GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 					c.undeclaredNamesForClosure[key] = struct{}{}
 				}
 			}
@@ -518,7 +518,7 @@ func (c *TypedScopeCreator) MarkGoogModuleExportsAsConst(moduleBody *rhino.Node)
 // root is the global ROOT or a SCRIPT.
 //
 // Java: TypedScopeCreator.gatherAllProvides(Node)
-func (c *TypedScopeCreator) GatherAllProvides(root *rhino.Node) {
+func (c *TypedScopeCreator) GatherAllProvides(root rhino.Node) {
 	if !c.processClosurePrimitives {
 		return
 	}
@@ -533,7 +533,7 @@ func (c *TypedScopeCreator) GatherAllProvides(root *rhino.Node) {
 		if name.HasImplicitInitialization() {
 			continue
 		}
-		if name.GetCandidateDefinition() != nil {
+		if !name.GetCandidateDefinition().IsNil() {
 			// This name will be defined eventually in the source code.
 			firstDefinitionNode := name.GetCandidateDefinition()
 			if NodeUtil_IsExprAssign(firstDefinitionNode) &&
@@ -541,7 +541,7 @@ func (c *TypedScopeCreator) GatherAllProvides(root *rhino.Node) {
 				// Treat assignments of provided names as declarations.
 				c.undeclaredNamesForClosure[firstDefinitionNode.GetFirstFirstChild()] = struct{}{}
 			}
-		} else if name.GetFirstProvideCall() != nil &&
+		} else if !name.GetFirstProvideCall().IsNil() &&
 			NodeUtil_IsExprCall(name.GetFirstProvideCall()) &&
 			!name.IsFromLegacyModule() {
 			// This name is implicitly created by a goog.provide call; declare it in the scope once
@@ -562,7 +562,7 @@ func (c *TypedScopeCreator) GatherAllProvides(root *rhino.Node) {
 // root is the global ROOT node.
 //
 // Java: TypedScopeCreator.createInitialScope(Node)
-func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
+func (c *TypedScopeCreator) CreateInitialScope(root rhino.Node) *TypedScope {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
 
 	// Gather global information used in typed scope creation.
@@ -601,7 +601,7 @@ func (c *TypedScopeCreator) CreateInitialScope(root *rhino.Node) *TypedScope {
 	// AbstractScopeBuilder#shouldTraverse - modules are traversed early, as if they were always
 	// executed when control flow reaches the module body.
 	if c.memoized.IsEmpty() && c.scopeCount > 8 {
-		*c.memoized = *jutil.NewLinkedHashMapWithCapacity[*rhino.Node, *TypedScope](c.scopeCount + 16)
+		*c.memoized = *jutil.NewLinkedHashMapWithCapacity[rhino.Node, *TypedScope](c.scopeCount + 16)
 	}
 	c.memoized.Put(root, s)
 
@@ -655,7 +655,7 @@ func (c *TypedScopeCreator) DeclareNativeValueType(scope *TypedScope, name strin
 
 // Java: TypedScopeCreator.declareNativeType(TypedScope, String, JSType)
 func TypedScopeCreator_DeclareNativeType(scope *TypedScope, name string, t rhino.JSType) {
-	scope.Declare(name, nil, t, nil, false)
+	scope.Declare(name, rhino.Node{}, t, nil, false)
 }
 
 // SetDeferredType sets the type for a node now.
@@ -664,7 +664,7 @@ func TypedScopeCreator_DeclareNativeType(scope *TypedScope, name string, t rhino
 // later.
 //
 // Java: TypedScopeCreator.setDeferredType(Node, JSType)
-func (c *TypedScopeCreator) SetDeferredType(node *rhino.Node, type_ rhino.JSType) {
+func (c *TypedScopeCreator) SetDeferredType(node rhino.Node, type_ rhino.JSType) {
 	// Other parts of this pass may read the not-yet-resolved type off the node.
 	// (like when we set the LHS of an assign with a typed RHS function.)
 	node.SetJSType(type_)
@@ -723,14 +723,14 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 
 // Java: TypedScopeCreator.clearCommonState()
 func (c *TypedScopeCreator) ClearCommonState() {
-	c.reservedNamesForScope = make(map[*rhino.Node][]string)
+	c.reservedNamesForScope = make(map[rhino.Node][]string)
 	c.scopeCount = 0
-	c.functionsWithNonEmptyReturns = make(map[*rhino.Node]struct{})
+	c.functionsWithNonEmptyReturns = make(map[rhino.Node]struct{})
 	c.varFlags = make(map[typedScopeCreator_ScopedNameKey]uint8)
 	c.weakImports = nil
 	c.unresolvedNodes = nil
-	c.undeclaredNamesForClosure = make(map[*rhino.Node]struct{})
-	c.providedNamesFromCall = jutil.NewLinkedHashMultimap[*rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]()
+	c.undeclaredNamesForClosure = make(map[rhino.Node]struct{})
+	c.providedNamesFromCall = jutil.NewLinkedHashMultimap[rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]()
 	c.normalScopeBuilderPool = nil
 	c.functionScopeBuilderPool = nil
 }
@@ -750,10 +750,10 @@ func NewTypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable(registry *rhino.
 }
 
 // Java: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable.visit(NodeTraversal, Node, Node)
-func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	switch node.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
-		for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			// TODO(b/116853368): make this work for destructuring aliases as well.
 			v.IdentifyEnumOrTypedefDeclaration(
 				t, child, child.GetFirstChild(), NodeUtil_GetBestJSDocInfo(child))
@@ -766,7 +766,7 @@ func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit(t *NodeT
 				t, assign.GetFirstChild(), assign.GetSecondChild(), assign.GetJSDocInfo())
 		} else if firstChild.IsGetProp() {
 			v.IdentifyEnumOrTypedefDeclaration(
-				t, firstChild /* rvalue= */, nil, firstChild.GetJSDocInfo())
+				t, firstChild /* rvalue= */, rhino.Node{}, firstChild.GetJSDocInfo())
 		}
 	default:
 	}
@@ -774,7 +774,7 @@ func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit(t *NodeT
 
 // Java: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable.identifyEnumOrTypedefDeclaration(NodeTraversal, Node, Node, JSDocInfo)
 func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) IdentifyEnumOrTypedefDeclaration(
-	t *NodeTraversal, nameNode *rhino.Node, rvalue *rhino.Node, info *rhino.JSDocInfo) {
+	t *NodeTraversal, nameNode rhino.Node, rvalue rhino.Node, info *rhino.JSDocInfo) {
 	nameQname, ok := nameNode.GetQualifiedNameString()
 	if !ok {
 		return
@@ -783,7 +783,7 @@ func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) IdentifyEnumOr
 		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), nameQname)
 	} else if info != nil && info.HasTypedefType() {
 		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), nameQname)
-	} else if rvalue != nil && NodeUtil_IsConstantDeclaration(info, nameNode) {
+	} else if !rvalue.IsNil() && NodeUtil_IsConstantDeclaration(info, nameNode) {
 		if rvalQname, ok := rvalue.GetQualifiedNameString(); ok {
 			scope := t.resolveLookupScope(len(t.scopes) - 1)
 			if v.registry.IsNonNullableName(scope, rvalQname) {
@@ -812,12 +812,12 @@ type TypedScopeCreator_AbstractScopeBuilder interface {
 	// inputId is set.
 	//
 	// Java: TypedScopeCreator.AbstractScopeBuilder.visitPreorder(NodeTraversal, Node, Node)
-	VisitPreorder(t *NodeTraversal, n *rhino.Node, parent *rhino.Node)
+	VisitPreorder(t *NodeTraversal, n rhino.Node, parent rhino.Node)
 
 	// VisitPostorder is called by visit on nodes after updating the inputId.
 	//
 	// Java: TypedScopeCreator.AbstractScopeBuilder.visitPostorder(NodeTraversal, Node, Node)
-	VisitPostorder(t *NodeTraversal, n *rhino.Node, parent *rhino.Node)
+	VisitPostorder(t *NodeTraversal, n rhino.Node, parent rhino.Node)
 
 	// GetTypedScopeCreator_AbstractScopeBuilderBase gives access to the
 	// fields of the base class.
@@ -856,11 +856,11 @@ type TypedScopeCreator_AbstractScopeBuilderBase struct {
 	//
 	// Go-only: language-adapter — a Runnable is a *func(): every Java lambda
 	// is a distinct object, which the pointer to a fresh func value keeps.
-	deferredActions *jutil.LinkedHashMultimap[*rhino.Node, *func()]
+	deferredActions *jutil.LinkedHashMultimap[rhino.Node, *func()]
 
 	slotDefiner TypedScopeCreator_AbstractScopeBuilder_SlotDefiner
 
-	lastOwnerNode *rhino.Node
+	lastOwnerNode rhino.Node
 	lastOwnerName string
 
 	scratchSuperBuilder rhino.NominalTypeBuilder
@@ -882,12 +882,12 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) InitTypedScopeCreator_Abstr
 	b.input = nil
 	b.inputResolved = false
 	b.deferredActions = nil
-	b.lastOwnerNode = nil
+	b.lastOwnerNode = rhino.Node{}
 	b.lastOwnerName = ""
 }
 
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) getOwnerLValueNameString(ownerNode *rhino.Node) (string, bool) {
-	if ownerNode == nil {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) getOwnerLValueNameString(ownerNode rhino.Node) (string, bool) {
+	if ownerNode.IsNil() {
 		return "", false
 	}
 	if ownerNode == b.lastOwnerNode {
@@ -901,9 +901,9 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) getOwnerLValueNameString(ow
 	return ownerName, ok
 }
 
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) deferAction(key *rhino.Node, action *func()) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) deferAction(key rhino.Node, action *func()) {
 	if b.deferredActions == nil {
-		b.deferredActions = jutil.NewLinkedHashMultimap[*rhino.Node, *func()]()
+		b.deferredActions = jutil.NewLinkedHashMultimap[rhino.Node, *func()]()
 	}
 	b.deferredActions.Put(key, action)
 }
@@ -957,7 +957,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) Build() {
 // an ES module or a goog.module.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.initializeModuleScope(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) InitializeModuleScope(moduleBody *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) InitializeModuleScope(moduleBody rhino.Node) {
 	if b.GetModule() == nil {
 		return
 	}
@@ -993,8 +993,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) InitializeModuleScope(modul
 // treat exports as implicitly declared.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.declareExportsInGoogModuleScope(Module, Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareExportsInGoogModuleScope(googModule *Module, moduleBody *rhino.Node) {
-	for statement := moduleBody.GetFirstChild(); statement != nil; statement = statement.GetNext() {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareExportsInGoogModuleScope(googModule *Module, moduleBody rhino.Node) {
+	for statement := moduleBody.GetFirstChild(); !statement.IsNil(); statement = statement.GetNext() {
 		if !NodeUtil_IsExprAssign(statement) {
 			continue
 		}
@@ -1091,14 +1091,14 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FinishDeclaringGoogModule()
 // ShouldTraverse is final in Java.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.shouldTraverse(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	b.setInputId(t.GetInputId())
 
-	if n.IsFunction() || n.IsScript() || (parent == nil && b.inputId != nil) {
+	if n.IsFunction() || n.IsScript() || (parent.IsNil() && b.inputId != nil) {
 		jutil.CheckNotNull(b.inputId)
 		b.sourceName = NodeUtil_GetSourceName(n)
 	}
-	if parent == nil || b.InCurrentScope(t) {
+	if parent.IsNil() || b.InCurrentScope(t) {
 		b.self.VisitPreorder(t, n, parent)
 		return true
 	} else if n.IsModuleBody() {
@@ -1120,8 +1120,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) InCurrentScope(t *NodeTrave
 // Visit is final in Java.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.visit(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	isScopeRoot := parent == nil
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	isScopeRoot := parent.IsNil()
 	b.setInputId(t.GetInputId())
 	if !isScopeRoot || !n.IsClass() {
 		// Do not type literals or visit class scope roots
@@ -1146,17 +1146,17 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) Visit(t *NodeTraversal, n *
 // inputId is set.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.visitPreorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) VisitPreorder(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) VisitPreorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 // VisitPostorder is called by visit on nodes after updating the inputId.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.visitPostorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) VisitPostorder(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) VisitPostorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.attachLiteralTypes(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) AttachLiteralTypes(n *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) AttachLiteralTypes(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NULL:
 		n.SetJSType(b.outer.GetNativeType(rhino.JSTypeNative_NULL_TYPE))
@@ -1204,7 +1204,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) AttachLiteralTypes(n *rhino
 }
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineObjectLiteral(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineObjectLiteral(objectLit *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineObjectLiteral(objectLit rhino.Node) {
 	// Handle the @lends annotation.
 	var type_ rhino.JSType
 	info := objectLit.GetJSDocInfo()
@@ -1255,14 +1255,14 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineObjectLiteral(objectL
 // If false, the caller should take care of this.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.processObjectLitProperties(Node, ObjectType, boolean)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitProperties(objLit *rhino.Node, objLitType rhino.ObjectType, declareOnOwner bool) {
-	if objLit.GetFirstChild() == nil {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitProperties(objLit rhino.Node, objLitType rhino.ObjectType, declareOnOwner bool) {
+	if objLit.GetFirstChild().IsNil() {
 		return
 	}
 	objOwner := NodeUtil_GetBestLValue(objLit)
 	objOwnerName, hasObjOwnerName := nodeUtil_getBestLValueNameString(objOwner)
 	var objRootScope *TypedScope
-	for keyNode := objLit.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := objLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		if keyNode.IsSpread() {
 			// Don't try defining computed or spread properties on an object. Note that for spread
 			// type inference will try to determine the properties and types. We cannot do it here as
@@ -1270,7 +1270,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitProperties(
 			continue
 		}
 		var memberName rhino.Property_Key
-		var value *rhino.Node
+		var value rhino.Node
 		var qualifiedName string
 		var hasQualifiedName bool
 		if keyNode.IsComputedProp() {
@@ -1334,7 +1334,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitProperties(
 // Extracts type information from the @type tag.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.getDeclaredTypeInAnnotation(Node, JSDocInfo)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredTypeInAnnotation(node *rhino.Node, info *rhino.JSDocInfo) rhino.JSType {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredTypeInAnnotation(node rhino.Node, info *rhino.JSDocInfo) rhino.JSType {
 	jutil.CheckArgumentMsg1(info.HasType(), "%s", info)
 	ownerTypeKeys := b.FindOwnerTypeKeys(node)
 
@@ -1348,8 +1348,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredTypeInAnnotation
 }
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.findOwnerTypeKeys(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindOwnerTypeKeys(node *rhino.Node) []*rhino.TemplateType {
-	if node != nil && !node.IsStaticMember() && node.GetParent().IsClassMembers() {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindOwnerTypeKeys(node rhino.Node) []*rhino.TemplateType {
+	if !node.IsNil() && !node.IsStaticMember() && node.GetParent().IsClassMembers() {
 		classType := node.GetGrandparent().GetJSType()
 		if classType != nil {
 			return classType.ToMaybeFunctionType().GetTemplateTypeMap().GetTemplateKeys()
@@ -1373,7 +1373,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindOwnerTypeKeys(node *rhi
 // node should have a source name and be of the specified type.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.assertDefinitionNode(Node, Token)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) AssertDefinitionNode(n *rhino.Node, type_ rhino.Token) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) AssertDefinitionNode(n rhino.Node, type_ rhino.Token) {
 	jutil.CheckState(b.sourceName != nil)
 	jutil.CheckStateMsg1(n.GetToken() == type_, "%s", n)
 }
@@ -1381,15 +1381,15 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) AssertDefinitionNode(n *rhi
 // DefineCatch defines a catch parameter.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineCatch(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineCatch(n *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineCatch(n rhino.Node) {
 	b.AssertDefinitionNode(n, rhino.Token_CATCH)
 	// Though almost certainly a terrible idea, it is possible to do destructuring in
 	// the catch declaration.
 	// e.g. `} catch ({message, errno}) {`
 	NodeUtil_VisitLhsNodesInNode(
 		n,
-		func(catchName *rhino.Node) {
-			type_ := b.GetDeclaredType(catchName.GetJSDocInfo(), catchName, nil, nil)
+		func(catchName rhino.Node) {
+			type_ := b.GetDeclaredType(catchName.GetJSDocInfo(), catchName, rhino.Node{}, nil)
 			NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(b).
 				ForDeclarationNode(catchName).
 				ForVariableName(catchName.GetString()).
@@ -1404,7 +1404,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineCatch(n *rhino.Node) 
 // were an actual `var` declaration.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineAssignAsIfVarDeclaration(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineAssignAsIfVarDeclaration(assignment *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineAssignAsIfVarDeclaration(assignment rhino.Node) {
 	info := assignment.GetJSDocInfo()
 	name := assignment.GetFirstChild()
 	jutil.CheckArgumentMsg1(name.IsName(), "%s", name)
@@ -1415,7 +1415,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineAssignAsIfVarDeclarat
 // DefineVars defines a variable declared with `var`, `let`, or `const`.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineVars(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineVars(n *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineVars(n rhino.Node) {
 	jutil.CheckState(b.sourceName != nil)
 	jutil.CheckState(NodeUtil_IsNameDeclaration(n))
 	info := n.GetJSDocInfo()
@@ -1429,7 +1429,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineVars(n *rhino.Node) {
 		b.outer.Report(JSError_MakeWithNode(n, TypeCheck_MULTIPLE_VAR_DEF))
 	}
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		b.DefineVarChild(info, child, scope)
 	}
 	if n.HasOneChild() && b.IsValidTypedefDeclaration(n.GetOnlyChild(), n.GetJSDocInfo()) {
@@ -1440,7 +1440,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineVars(n *rhino.Node) {
 // DefineVarChild defines a variable declared with `var`, `let`, or `const`.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineVarChild(JSDocInfo, Node, TypedScope)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineVarChild(declarationInfo *rhino.JSDocInfo, child *rhino.Node, scope *TypedScope) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineVarChild(declarationInfo *rhino.JSDocInfo, child rhino.Node, scope *TypedScope) {
 	if child.IsName() {
 		if declarationInfo == nil {
 			declarationInfo = child.GetJSDocInfo()
@@ -1457,7 +1457,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineVarChild(declarationI
 			// Define destructuring names here, since goog.require destructuring patterns can only
 			// have one level and require some special handling.
 			defaultImport := b.outer.moduleImportResolver.GetClosureNamespaceTypeFromCall(value)
-			for key := pattern.GetFirstChild(); key != nil; key = key.GetNext() {
+			for key := pattern.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 				b.DefineModuleImport(key.GetFirstChild(), defaultImport, jutil.StringPtr(key.GetString()), scope)
 			}
 			return
@@ -1469,9 +1469,9 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineVarChild(declarationI
 			func() *TypedScopeCreator_RValueInfo {
 				// Note that value will be null if we are in an enhanced for loop
 				//   for (const {x, y} of data) {
-				if value != nil {
+				if !value.IsNil() {
 					return NewTypedScopeCreator_RValueInfo(
-						b.GetDeclaredRValueType( /* lValue= */ nil, value),
+						b.GetDeclaredRValueType( /* lValue= */ rhino.Node{}, value),
 						value.GetQualifiedNameObject())
 				}
 				return NewTypedScopeCreator_RValueInfo(b.outer.unknownType /* qualifiedName= */, nil)
@@ -1518,7 +1518,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) InferTypeForDestructuredTar
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineDestructuringPatternInVarDeclaration(Node, TypedScope, Supplier)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineDestructuringPatternInVarDeclaration(
-	pattern *rhino.Node, scope *TypedScope, patternTypeSupplier func() *TypedScopeCreator_RValueInfo) {
+	pattern rhino.Node, scope *TypedScope, patternTypeSupplier func() *TypedScopeCreator_RValueInfo) {
 	for _, target := range DestructuredTarget_CreateAllNonEmptyTargetsInPatternWithSupplier(
 		b.outer.typeRegistry, func() rhino.JSType { return patternTypeSupplier().type_ }, pattern) {
 
@@ -1533,7 +1533,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineDestructuringPatternI
 			jutil.CheckStateMsg1(name.IsName(), "This method is only for declaring variables: %s", name)
 
 			// variable's type
-			type_ := b.GetDeclaredType(name.GetJSDocInfo(), name /* rValue= */, nil, typeSupplier)
+			type_ := b.GetDeclaredType(name.GetJSDocInfo(), name /* rValue= */, rhino.Node{}, typeSupplier)
 			if type_ == nil {
 				// The variable's type will be inferred.
 				if name.IsFromExterns() {
@@ -1563,7 +1563,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineDestructuringPatternI
 //   - Callbacks: `foo(class { ... })`
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineClassLiteral(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineClassLiteral(n *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineClassLiteral(n rhino.Node) {
 	b.AssertDefinitionNode(n, rhino.Token_CLASS)
 
 	// Determine the name and JSDocInfo and l-value for the class.
@@ -1593,7 +1593,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineClassLiteral(n *rhino
 }
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.getBestTypeName(Node, String)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetBestTypeName(lvalue *rhino.Node, syntacticLvalueName *string) *string {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetBestTypeName(lvalue rhino.Node, syntacticLvalueName *string) *string {
 	if syntacticLvalueName == nil {
 		return nil
 	}
@@ -1606,7 +1606,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetBestTypeName(lvalue *rhi
 // DefineFunctionLiteral defines a function literal.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineFunctionLiteral(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineFunctionLiteral(n *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineFunctionLiteral(n rhino.Node) {
 	b.AssertDefinitionNode(n, rhino.Token_FUNCTION)
 
 	// Determine the name and JSDocInfo and l-value for the function.
@@ -1614,7 +1614,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineFunctionLiteral(n *rh
 	lValue := NodeUtil_GetBestLValue(n)
 	info := NodeUtil_GetBestJSDocInfo(n)
 	var functionName *string
-	if lValue != nil && lValue.IsGetProp() {
+	if !lValue.IsNil() && lValue.IsGetProp() {
 		if origName := n.GetOriginalName(); origName != nil && lValue.MatchesQualifiedName(*origName) {
 			functionName = origName
 		}
@@ -1647,7 +1647,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineFunctionLiteral(n *rh
 // node; info the JSDocInfo information relating to this name node.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineName(Node, Node, TypedScope, JSDocInfo)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineName(name *rhino.Node, value *rhino.Node, scope *TypedScope, info *rhino.JSDocInfo) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineName(name rhino.Node, value rhino.Node, scope *TypedScope, info *rhino.JSDocInfo) {
 	if ModuleImportResolver_IsGoogModuleDependencyCall(value) {
 		b.DefineModuleImport(
 			name, b.outer.moduleImportResolver.GetClosureNamespaceTypeFromCall(value), nil, scope)
@@ -1684,7 +1684,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineName(name *rhino.Node
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.defineModuleImport(Node, ScopedName, String, TypedScope)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineModuleImport(
-	localNameNode *rhino.Node,
+	localNameNode rhino.Node,
 	importedModuleObject ScopedName,
 	optionalProperty *string,
 	scopeToDeclareIn *TypedScope) {
@@ -1729,7 +1729,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineModuleImport(
 	//   - Someone has requireType'd or forwardDeclare'd a module that exists, but does not have
 	//     an associated scope yet.
 	var exportScope *TypedScope
-	if exportedName.GetScopeRoot() != nil {
+	if !exportedName.GetScopeRoot().IsNil() {
 		exportScope = b.outer.memoized.Get(exportedName.GetScopeRoot())
 	}
 
@@ -1764,11 +1764,11 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineModuleImport(
 // function is inferred.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.shouldUseFunctionLiteralType(FunctionType, JSDocInfo, Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) ShouldUseFunctionLiteralType(type_ rhino.FunctionType, info *rhino.JSDocInfo, lValue *rhino.Node) bool {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) ShouldUseFunctionLiteralType(type_ rhino.FunctionType, info *rhino.JSDocInfo, lValue rhino.Node) bool {
 	if info != nil {
 		return true
 	}
-	if lValue != nil && NodeUtil_MayBeObjectLitKey(lValue) {
+	if !lValue.IsNil() && NodeUtil_MayBeObjectLitKey(lValue) {
 		return false
 	}
 	// TODO(johnlenz): consider unifying global and local behavior
@@ -1781,15 +1781,15 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) ShouldUseFunctionLiteralTyp
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.createClassTypeFromNodes(Node, String, String, JSDocInfo, Node)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateClassTypeFromNodes(
-	clazz *rhino.Node,
+	clazz rhino.Node,
 	name *string,
 	syntacticName *string,
 	info *rhino.JSDocInfo,
-	lvalueNode *rhino.Node) rhino.FunctionType {
+	lvalueNode rhino.Node) rhino.FunctionType {
 	jutil.CheckArgumentMsg1(clazz.IsClass(), "%s", clazz)
 
 	declarationScope := b.currentScope
-	if lvalueNode != nil {
+	if !lvalueNode.IsNil() {
 		declarationScope = b.GetLValueRootScope(lvalueNode)
 	}
 	builder := NewFunctionTypeBuilder(name, b.outer.compiler, clazz, b.currentScope).
@@ -1809,11 +1809,11 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateClassTypeFromNodes(
 
 	// Look for an explicit constructor.
 	constructor := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(clazz)
-	if constructor != nil {
+	if !constructor.IsNil() {
 		constructor = constructor.GetOnlyChild() // We want the FUNCTION, not the member.
 	}
 
-	if constructor != nil {
+	if !constructor.IsNil() {
 		// Note: constructor should have the following structure:
 		//   MEMBER_FUNCTION_DEF [jsdoc_info]
 		//     FUNCTION
@@ -1872,7 +1872,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateClassTypeFromNodes(
 		classPrototype := classType.GetSlot("prototype")
 		// SymbolTable users expect the class prototype and actual class to have the same
 		// declaration node.
-		if lvalueNode != nil {
+		if !lvalueNode.IsNil() {
 			classPrototype.SetNode(lvalueNode)
 		} else {
 			classPrototype.SetNode(classPrototype.GetNode())
@@ -1887,7 +1887,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateClassTypeFromNodes(
 // if the type cannot be determined.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.findSuperClassFromNodes(Node, JSDocInfo)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindSuperClassFromNodes(extendsNode *rhino.Node, info *rhino.JSDocInfo) rhino.ObjectType {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindSuperClassFromNodes(extendsNode rhino.Node, info *rhino.JSDocInfo) rhino.ObjectType {
 	if extendsNode.IsEmpty() {
 		// No extends clause: return null.
 		return nil
@@ -1951,7 +1951,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindSuperClassFromNodes(ext
 }
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.isGoogModuleGetProperty(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsGoogModuleGetProperty(extendsClause *rhino.Node) bool {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsGoogModuleGetProperty(extendsClause rhino.Node) bool {
 	if extendsClause.IsCall() {
 		return ModuleImportResolver_IsGoogModuleDependencyCall(extendsClause)
 	} else if extendsClause.IsGetProp() {
@@ -1968,7 +1968,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsGoogModuleGetProperty(ext
 // `goog.module.get('x').y.z`.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.getCtorForGoogModuleGet(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetCtorForGoogModuleGet(extendsNode *rhino.Node) rhino.JSType {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetCtorForGoogModuleGet(extendsNode rhino.Node) rhino.JSType {
 	call := extendsNode
 	properties := []string{}
 	for !call.IsCall() {
@@ -2009,12 +2009,12 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetCtorForGoogModuleGet(ext
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.createFunctionTypeFromNodes(Node, String, JSDocInfo, Node)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes(
-	rValue *rhino.Node,
+	rValue rhino.Node,
 	name *string,
 	info *rhino.JSDocInfo,
-	lvalueNode *rhino.Node) rhino.FunctionType {
+	lvalueNode rhino.Node) rhino.FunctionType {
 	// Check for an alias.
-	if rValue != nil && lvalueNode != nil {
+	if !rValue.IsNil() && !lvalueNode.IsNil() {
 		if rvalQname, ok := rValue.GetQualifiedNameString(); ok {
 			var_ := b.currentScope.GetVar(rvalQname)
 			if var_ != nil && var_.GetType() != nil && var_.GetType().IsFunctionType() {
@@ -2046,12 +2046,12 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 
 	// No alias or explicit @type, so look for a function literal, or @param/@return.
 	errorRoot := rValue
-	if rValue == nil {
+	if rValue.IsNil() {
 		errorRoot = lvalueNode
 	}
-	isFnLiteral := rValue != nil && rValue.IsFunction()
-	var fnRoot *rhino.Node
-	var parametersNode *rhino.Node
+	isFnLiteral := !rValue.IsNil() && rValue.IsFunction()
+	var fnRoot rhino.Node
+	var parametersNode rhino.Node
 	if isFnLiteral {
 		fnRoot = rValue
 		parametersNode = rValue.GetSecondChild()
@@ -2062,8 +2062,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	// This is easy to do for class members because the owner type is on the CLASS node and
 	// the property name is the MEMBER_FUNCTION_DEF/GETTER_DEF/SETTER_DEF string.
 	// For other functions, we rely on NodeUtil.getBestLValueOwner.
-	var classRoot *rhino.Node
-	if lvalueNode != nil && lvalueNode.GetParent().IsClassMembers() {
+	var classRoot rhino.Node
+	if !lvalueNode.IsNil() && lvalueNode.GetParent().IsClassMembers() {
 		classRoot = lvalueNode.GetGrandparent()
 	}
 	ownerNode := NodeUtil_GetBestLValueOwner(lvalueNode)
@@ -2071,7 +2071,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	var ownerType rhino.ObjectType
 	var propName string
 	var hasPropName bool
-	if classRoot != nil {
+	if !classRoot.IsNil() {
 		// Static members are owned by the constructor, non-statics are owned by the prototype.
 		if ownerFn := rhino.JSType_ToMaybeFunctionType(classRoot.GetJSType()); ownerFn != nil {
 			ownerType = ownerFn
@@ -2086,7 +2086,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	} else {
 		var ownerName string
 		var hasOwnerName bool
-		if name != nil && lvalueNode != nil && lvalueNode.IsGetProp() && ownerNode == lvalueNode.GetFirstChild() {
+		if name != nil && !lvalueNode.IsNil() && lvalueNode.IsGetProp() && ownerNode == lvalueNode.GetFirstChild() {
 			propName = lvalueNode.GetString()
 			if len(*name) > len(propName)+1 && (*name)[len(*name)-len(propName)-1] == '.' {
 				ownerName = (*name)[:len(*name)-len(propName)-1]
@@ -2151,13 +2151,13 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	}
 
 	var hasNonEmptyReturn bool
-	if fnRoot != nil {
+	if !fnRoot.IsNil() {
 		_, hasNonEmptyReturn = b.outer.functionsWithNonEmptyReturns[fnRoot]
 	}
 
 	bestTypeName := b.GetBestTypeName(lvalueNode, name)
 	declarationScope := b.currentScope
-	if lvalueNode != nil {
+	if !lvalueNode.IsNil() {
 		declarationScope = b.GetLValueRootScope(lvalueNode)
 	}
 	// Go-only: language-adapter — a nil ObjectType must be passed as a nil
@@ -2178,7 +2178,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 
 	if info == nil || !info.HasReturnType() {
 		// when there is no @return annotation, look for inline return type declaration
-		if rValue != nil && rValue.IsFunction() && rValue.HasChildren() {
+		if !rValue.IsNil() && rValue.IsFunction() && rValue.HasChildren() {
 			nameDocInfo := rValue.GetFirstChild().GetJSDocInfo()
 			builder.InferReturnType(nameDocInfo, true)
 		}
@@ -2195,14 +2195,14 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	} else if ownerType != nil &&
 		ownerType.IsFunctionType() &&
 		ownerType.ToMaybeFunctionType().HasInstanceType() &&
-		lvalueNode != nil &&
+		!lvalueNode.IsNil() &&
 		lvalueNode.IsStaticMember() {
 		// Limit this case to members of ctors and interfaces decalared using `static`. Most
 		// namespaces, like object literals, are assumed to declare free functions, so we exclude
 		// them. Additionally, methods *assigned* to a ctor, especially an ES5 ctor, were never
 		// designed with static polymorphism in mind, so excluding them preserves their assumptions.
 		fallbackReceiverType = ownerType
-	} else if ownerNode != nil && ownerNode.IsThis() {
+	} else if !ownerNode.IsNil() && ownerNode.IsThis() {
 		fallbackReceiverType = b.currentScope.GetTypeOfThis()
 	}
 
@@ -2213,7 +2213,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 	builder.Release()
 
 	// Do some additional validation for constructors and interfaces.
-	if fnType.HasInstanceType() && lvalueNode != nil {
+	if fnType.HasInstanceType() && !lvalueNode.IsNil() {
 		prototypeSlot := fnType.GetSlot("prototype")
 
 		// We want to make sure that the function and its prototype are declared at the same node.
@@ -2229,7 +2229,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 // should be the qualified name node.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.checkFunctionAliasAnnotations(Node, FunctionType, JSDocInfo)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckFunctionAliasAnnotations(n *rhino.Node, type_ rhino.FunctionType, info *rhino.JSDocInfo) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckFunctionAliasAnnotations(n rhino.Node, type_ rhino.FunctionType, info *rhino.JSDocInfo) {
 	if info == nil {
 		return
 	}
@@ -2318,15 +2318,15 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindOverriddenProperty(
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.createEnumTypeFromNodes(Node, String, Node, JSDocInfo)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateEnumTypeFromNodes(
-	rValue *rhino.Node, name *string, lValue *rhino.Node, info *rhino.JSDocInfo) *rhino.EnumType {
+	rValue rhino.Node, name *string, lValue rhino.Node, info *rhino.JSDocInfo) *rhino.EnumType {
 	jutil.CheckNotNull(info)
 	jutil.CheckState(info.HasEnumParameterType())
 	jutil.CheckStateMsg(
-		lValue != nil || rValue != nil,
+		!lValue.IsNil() || !rValue.IsNil(),
 		"An enum initializer should come from either an lvalue or rvalue")
 
 	var enumType *rhino.EnumType
-	if rValue != nil {
+	if !rValue.IsNil() {
 		if rvalQname, ok := rValue.GetQualifiedNameString(); ok {
 			// Handle an aliased enum. Note that putting @enum on an enum alias is optional. If the
 			// rValue is not an enum, then this assignment errors during TypeCheck.
@@ -2345,10 +2345,10 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateEnumTypeFromNodes(
 			SetElementType(info.GetEnumParameterType().Evaluate(b.currentScope, b.outer.typeRegistry)).
 			Build()
 
-		if rValue != nil && rValue.IsObjectLit() {
+		if !rValue.IsNil() && rValue.IsObjectLit() {
 			// collect enum elements
 			key := rValue.GetFirstChild()
-			for key != nil {
+			for !key.IsNil() {
 				if key.IsComputedProp() {
 					b.outer.Report(JSError_MakeWithNode(key, TypedScopeCreator_INVALID_ENUM_KEY))
 					key = key.GetNext()
@@ -2366,9 +2366,9 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateEnumTypeFromNodes(
 		b.outer.typeRegistry.DeclareType(b.currentScope, *name, enumType.GetElementsType())
 	}
 
-	if rValue == nil || !(rValue.IsObjectLit() || rValue.IsQualifiedName()) {
+	if rValue.IsNil() || !(rValue.IsObjectLit() || rValue.IsQualifiedName()) {
 		errorNode := rValue
-		if lValue != nil {
+		if !lValue.IsNil() {
 			errorNode = lValue
 		}
 		b.outer.Report(JSError_MakeWithNode(errorNode, TypedScopeCreator_ENUM_INITIALIZER))
@@ -2383,7 +2383,7 @@ type TypedScopeCreator_AbstractScopeBuilder_SlotDefiner struct {
 	// of this inner class.
 	outer *TypedScopeCreator_AbstractScopeBuilderBase
 
-	declarationNode *rhino.Node
+	declarationNode rhino.Node
 	variableName    string
 	hasVariableName bool
 	scope           *TypedScope
@@ -2414,7 +2414,7 @@ func NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(outer *TypedScopeCrea
 // node.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.SlotDefiner.forDeclarationNode(Node)
-func (d *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner) ForDeclarationNode(declarationNode *rhino.Node) *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner {
+func (d *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner) ForDeclarationNode(declarationNode rhino.Node) *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner {
 	d.declarationNode = declarationNode
 	return d
 }
@@ -2489,7 +2489,7 @@ func (d *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner) ForGoogProvidedName
 // Java: TypedScopeCreator.AbstractScopeBuilder.SlotDefiner.defineSlot()
 func (d *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner) DefineSlot() {
 	b := d.outer
-	jutil.CheckNotNullMsg(d.declarationNode, "declarationNode not set")
+	rhino.CheckNotNullMsg(d.declarationNode, "declarationNode not set")
 	jutil.CheckStateMsg1(
 		d.declarationNode.IsName() ||
 			d.declarationNode.IsGetProp() ||
@@ -2618,7 +2618,7 @@ func typedScopeCreator_sourceNameArg(sourceName *string) string {
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.declare(TypedScope, String, Node, JSType, CompilerInput, boolean)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) Declare(
-	scope *TypedScope, name string, n *rhino.Node, type_ rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
+	scope *TypedScope, name string, n rhino.Node, type_ rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
 	var_, wasReserved := scope.declareWithReserved(name, n, type_, input, inferred)
 	if !scope.IsGlobal() {
 		var flags uint8
@@ -2638,7 +2638,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) Declare(
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.finishConstructorDefinition(Node, String, FunctionType, TypedScope, CompilerInput)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) FinishConstructorDefinition(
-	declarationNode *rhino.Node,
+	declarationNode rhino.Node,
 	variableName string,
 	fnType rhino.FunctionType,
 	scopeToDeclareIn *TypedScope,
@@ -2671,16 +2671,16 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FinishConstructorDefinition
 // name in the global scope.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.isLValueRootedInGlobalScope(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsLValueRootedInGlobalScope(n *rhino.Node) bool {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsLValueRootedInGlobalScope(n rhino.Node) bool {
 	return b.GetLValueRootScope(n).IsGlobal()
 }
 
 // GetLValueRootScope returns the scope for the name of the given node.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.getLValueRootScope(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetLValueRootScope(n *rhino.Node) *TypedScope {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetLValueRootScope(n rhino.Node) *TypedScope {
 	root := NodeUtil_GetBestLValueRoot(n)
-	if root != nil {
+	if !root.IsNil() {
 		if root.IsName() {
 			nameParent := root.GetParent()
 			switch nameParent.GetToken() {
@@ -2722,8 +2722,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetLValueRootScope(n *rhino
 // Java: TypedScopeCreator.AbstractScopeBuilder.getDeclaredType(JSDocInfo, Node, Node, Supplier)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(
 	info *rhino.JSDocInfo,
-	lValue *rhino.Node,
-	rValue *rhino.Node,
+	lValue rhino.Node,
+	rValue rhino.Node,
 	declaredRValueTypeSupplier func() *TypedScopeCreator_RValueInfo) rhino.JSType {
 	if info != nil && info.HasType() {
 		type_ := b.GetDeclaredTypeInAnnotation(lValue, info)
@@ -2750,16 +2750,16 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(
 			return rhino.NewKnownSymbolType(b.outer.typeRegistry, lvalQname)
 		}
 		return type_
-	} else if rValue != nil &&
+	} else if !rValue.IsNil() &&
 		rValue.IsFunction() &&
 		b.ShouldUseFunctionLiteralType(
 			rhino.JSType_ToMaybeFunctionType(rValue.GetJSType()), info, lValue) {
 		return rValue.GetJSType()
-	} else if rValue != nil && rValue.IsClass() {
+	} else if !rValue.IsNil() && rValue.IsClass() {
 		return rValue.GetJSType()
 	} else if info != nil {
 		if info.HasEnumParameterType() {
-			if rValue != nil && rValue.IsObjectLit() {
+			if !rValue.IsNil() && rValue.IsObjectLit() {
 				return rValue.GetJSType()
 			} else {
 				return b.CreateEnumTypeFromNodes(rValue, lValue.GetQualifiedName(), lValue, info)
@@ -2767,7 +2767,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(
 		} else if info.IsConstructorOrInterface() {
 			fnType :=
 				b.CreateFunctionTypeFromNodes(rValue, lValue.GetQualifiedName(), info, lValue)
-			if rValue == nil && !lValue.IsFromExterns() {
+			if rValue.IsNil() && !lValue.IsFromExterns() {
 				diagnostic := TypedScopeCreator_IFACE_INITIALIZER
 				if fnType.IsConstructor() {
 					diagnostic = TypedScopeCreator_CTOR_INITIALIZER
@@ -2786,7 +2786,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(
 	if (lValue.IsExport() && lValue.GetBooleanProp(rhino.Node_EXPORT_DEFAULT)) ||
 		NodeUtil_IsConstantDeclaration(info, lValue) ||
 		b.IsGoogModuleExports(lValue) {
-		if rValue != nil {
+		if !rValue.IsNil() {
 			rValueType := b.GetDeclaredRValueType(lValue, rValue)
 			b.DeclareAliasTypeIfRvalueIsAliasable(
 				lValue, rValue.GetQualifiedNameObject(), rValueType, b.currentScope)
@@ -2805,7 +2805,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(
 		}
 	}
 
-	if rValue != nil && rValue.IsAssign() {
+	if !rValue.IsNil() && rValue.IsAssign() {
 		// Handle nested assignments. For example, TypeScript generates code like this:
 		//   var Foo_1;
 		//   let Foo = Foo_1 = class Foo {}
@@ -2815,7 +2815,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(
 
 	if info != nil && FunctionTypeBuilder_IsFunctionTypeDeclaration(info) {
 		fnName := lValue.GetQualifiedName()
-		return b.CreateFunctionTypeFromNodes(nil, fnName, info, lValue)
+		return b.CreateFunctionTypeFromNodes(rhino.Node{}, fnName, info, lValue)
 	}
 
 	if b.IsValidTypedefDeclaration(lValue, info) {
@@ -2839,7 +2839,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.declareAliasTypeIfRvalueIsAliasable(Node, QualifiedName, JSType, TypedScope)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareAliasTypeIfRvalueIsAliasable(
-	lValue *rhino.Node,
+	lValue rhino.Node,
 	rValue rhino.QualifiedName,
 	rValueType rhino.JSType,
 	rValueLookupScope *TypedScope) {
@@ -2868,7 +2868,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareAliasTypeIfRvalueIsA
 // Java: TypedScopeCreator.AbstractScopeBuilder.declareAliasTypeIfRvalueIsAliasable(String, Node, QualifiedName, JSType, TypedScope, TypedScope)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareAliasTypeIfRvalueIsAliasableWithLValueName(
 	lValueName *string,
-	actualLvalueNode *rhino.Node,
+	actualLvalueNode rhino.Node,
 	rValue rhino.QualifiedName,
 	rValueType rhino.JSType,
 	rValueLookupScope *TypedScope,
@@ -2883,7 +2883,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareAliasTypeIfRvalueIsA
 
 	// Look for a @typedef annotation on the definition node
 	definitionNode := b.GetDefinitionNode(rValue, rValueLookupScope)
-	if definitionNode != nil {
+	if !definitionNode.IsNil() {
 		typedefType := definitionNode.GetTypedefTypeProp()
 		if typedefType != nil {
 			// Propagate typedef type to typedef aliases.
@@ -2925,8 +2925,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareAliasTypeIfRvalueIsA
 // `exports.x`, or a string key in `exports = {x}`.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.isGoogModuleExports(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsGoogModuleExports(lValue *rhino.Node) bool {
-	if b.GetModule() == nil || lValue == nil {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsGoogModuleExports(lValue rhino.Node) bool {
+	if b.GetModule() == nil || lValue.IsNil() {
 		return false
 	}
 	if _, ok := b.outer.undeclaredNamesForClosure[lValue]; ok {
@@ -2953,19 +2953,19 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsGoogModuleExports(lValue 
 // any.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.getDefinitionNode(QualifiedName, TypedScope)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDefinitionNode(qname rhino.QualifiedName, scope *TypedScope) *rhino.Node {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDefinitionNode(qname rhino.QualifiedName, scope *TypedScope) rhino.Node {
 	if qname.IsSimple() {
 		var_ := scope.GetVar(qname.GetComponent())
 		if var_ != nil {
 			return var_.GetNameNode()
 		}
-		return nil
+		return rhino.Node{}
 	}
 	parent := rhino.ObjectType_Cast(scope.LookupQualifiedName(qname.GetOwner()))
 	if parent != nil {
 		return parent.GetPropertyDefSite(qname.GetComponent())
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // GetDeclaredRValueType checks for common idioms of a typed R-value
@@ -2980,7 +2980,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDefinitionNode(qname rhi
 // destructuring.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.getDeclaredRValueType(Node, Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredRValueType(lValue *rhino.Node, rValue *rhino.Node) rhino.JSType {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredRValueType(lValue rhino.Node, rValue rhino.Node) rhino.JSType {
 	// If rValue has a type-cast, we use the type in the type-cast.
 	rValueInfo := rValue.GetJSDocInfo()
 	if rValue.IsCast() && rValueInfo != nil && rValueInfo.HasType() {
@@ -3046,7 +3046,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredRValueType(lValu
 		secondClause := firstClause.GetNext()
 		namesMatch :=
 			firstClause.IsName() &&
-				lValue != nil &&
+				!lValue.IsNil() &&
 				lValue.IsName() &&
 				firstClause.GetString() == lValue.GetString()
 		if namesMatch {
@@ -3065,7 +3065,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredRValueType(lValu
 // coding-convention dependent and business-logic heavy.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.checkForClassDefiningCalls(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(n *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(n rhino.Node) {
 	relationship := b.outer.codingConvention.GetClassesDefinedByCall(n)
 	if relationship != nil {
 		superClass :=
@@ -3132,7 +3132,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(
 // is being initialized to, or null if this is a stub declaration.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.maybeDeclareGetElem(JSDocInfo, Node, Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareGetElem(info *rhino.JSDocInfo, n *rhino.Node, rhsValue *rhino.Node) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareGetElem(info *rhino.JSDocInfo, n rhino.Node, rhsValue rhino.Node) {
 	jutil.CheckArgumentMsg1(n.IsGetElem(), "%s", n)
 	ownerNode := n.GetFirstChild()
 	key := n.GetSecondChild()
@@ -3171,7 +3171,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareGetElem(info *r
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.maybeDeclareQualifiedName(NodeTraversal, JSDocInfo, Node, Node, Node)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
-	t *NodeTraversal, info *rhino.JSDocInfo, n *rhino.Node, parent *rhino.Node, rhsValue *rhino.Node) {
+	t *NodeTraversal, info *rhino.JSDocInfo, n rhino.Node, parent rhino.Node, rhsValue rhino.Node) {
 	isTypedef := b.IsValidTypedefDeclaration(n, info)
 	if isTypedef {
 		b.DeclareTypedefType(n, info)
@@ -3180,7 +3180,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 	ownerNode := n.GetFirstChild()
 	var qName string
 	var hasQName bool
-	if rhsValue != nil && rhsValue.IsFunction() {
+	if !rhsValue.IsNil() && rhsValue.IsFunction() {
 		if origID := rhsValue.GetOriginalNameID(); origID != 0 {
 			origStr := rhino.RhinoStringPool_StringFromID(origID)
 			if n.MatchesQualifiedName(origStr) {
@@ -3213,7 +3213,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 
 	// Determining type for #1 + #2 + #3 + #4
 	valueType := b.GetDeclaredType(info, n, rhsValue, nil)
-	if valueType == nil && rhsValue != nil {
+	if valueType == nil && !rhsValue.IsNil() {
 		// Determining type for #5
 		valueType = rhsValue.GetJSType()
 	}
@@ -3232,7 +3232,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 			// implicit prototype is set up appropriately. We just obey
 			// the @extends tag.
 			qVarType := rhino.ObjectType_Cast(qVar.GetType())
-			if qVarType != nil && rhsValue != nil && rhsValue.IsObjectLit() {
+			if qVarType != nil && !rhsValue.IsNil() && rhsValue.IsObjectLit() {
 				b.outer.typeRegistry.ResetImplicitPrototype(
 					rhsValue.GetJSType(), qVarType.GetImplicitPrototype())
 			} else if !qVar.IsTypeInferred() {
@@ -3312,9 +3312,9 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsQualifiedNameInferred(
 	qName string,
 	hasQName bool,
-	n *rhino.Node,
+	n rhino.Node,
 	info *rhino.JSDocInfo,
-	rhsValue *rhino.Node,
+	rhsValue rhino.Node,
 	valueType rhino.JSType) bool {
 	// Prototypes of constructors and interfaces are always declared.
 	if hasQName && strings.HasSuffix(qName, ".prototype") {
@@ -3337,7 +3337,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsQualifiedNameInferred(
 			info.HasEnumParameterType() ||
 			b.IsValidTypedefDeclaration(n, info) ||
 			FunctionTypeBuilder_IsFunctionTypeDeclaration(info) ||
-			(rhsValue != nil && rhsValue.IsFunction()))) ||
+			(!rhsValue.IsNil() && rhsValue.IsFunction()))) ||
 		b.IsTypedConstantDeclaration(info, n, valueType) {
 		return false
 	}
@@ -3352,7 +3352,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsQualifiedNameInferred(
 	//   (4) escaped to a closure,
 	// then we treat it as if it is declared, rather than inferred.
 	// Stubs and other values are always considered inferred at this point.
-	if rhsValue == nil || (!rhsValue.IsFunction() && !rhsValue.IsClass()) {
+	if rhsValue.IsNil() || (!rhsValue.IsFunction() && !rhsValue.IsClass()) {
 		return true
 	}
 
@@ -3385,8 +3385,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsQualifiedNameInferred(
 }
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.unwrapIfAssign(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) UnwrapIfAssign(maybeAssign *rhino.Node) *rhino.Node {
-	if maybeAssign == nil || !maybeAssign.IsAssign() {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) UnwrapIfAssign(maybeAssign rhino.Node) rhino.Node {
+	if maybeAssign.IsNil() || !maybeAssign.IsAssign() {
 		return maybeAssign
 	}
 	return b.UnwrapIfAssign(maybeAssign.GetSecondChild())
@@ -3396,7 +3396,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) UnwrapIfAssign(maybeAssign 
 // and implicit ProvidedName, declares the name in the global scope.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.declareProvidedNs(Node, ProvidedName)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareProvidedNs(provideCall *rhino.Node, providedName *ProcessClosureProvidesAndRequires_ProvidedName) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareProvidedNs(provideCall rhino.Node, providedName *ProcessClosureProvidesAndRequires_ProvidedName) {
 	// Redefine this name if we haven't already added a provide definition.
 	// Note: in some cases, this will cause a redefinition error.
 	anonymousObjectType := b.outer.typeRegistry.CreateAnonymousObjectType(nil)
@@ -3421,13 +3421,13 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareProvidedNs(provideCa
 }
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.isTypedConstantDeclaration(JSDocInfo, Node, JSType)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsTypedConstantDeclaration(info *rhino.JSDocInfo, n *rhino.Node, valueType rhino.JSType) bool {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsTypedConstantDeclaration(info *rhino.JSDocInfo, n rhino.Node, valueType rhino.JSType) bool {
 	return (NodeUtil_IsConstantDeclaration(info, n) || b.IsGoogModuleExports(n)) &&
 		valueType != nil
 }
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.hasControlStructureAncestor(Node)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) HasControlStructureAncestor(n *rhino.Node) bool {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) HasControlStructureAncestor(n rhino.Node) bool {
 	for !(n.IsScript() || n.IsFunction()) {
 		if NodeUtil_IsControlStructure(n) {
 			return true
@@ -3476,7 +3476,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetInheritedInterfaceProper
 // method is only called as a deferred action after the root node is visted.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.resolveStubDeclaration(Node, boolean, String)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) ResolveStubDeclaration(n *rhino.Node, isExtern bool, ownerName string) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) ResolveStubDeclaration(n rhino.Node, isExtern bool, ownerName string) {
 	qName, ok := n.GetQualifiedNameString()
 	propName := n.GetString()
 	if !ok {
@@ -3527,7 +3527,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) ResolveStubDeclaration(n *r
 // candidate is a qualified name node; info JSDoc comments.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.isValidTypedefDeclaration(Node, JSDocInfo)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsValidTypedefDeclaration(candidate *rhino.Node, info *rhino.JSDocInfo) bool {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsValidTypedefDeclaration(candidate rhino.Node, info *rhino.JSDocInfo) bool {
 	if info == nil || !info.HasTypedefType() {
 		return false
 	}
@@ -3538,7 +3538,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) IsValidTypedefDeclaration(c
 // DeclareTypedefType declares a typedef'd name in the JSTypeRegistry.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.declareTypedefType(Node, JSDocInfo)
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareTypedefType(candidate *rhino.Node, info *rhino.JSDocInfo) {
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareTypedefType(candidate rhino.Node, info *rhino.JSDocInfo) {
 	typedef, ok := candidate.GetQualifiedNameString()
 	if !ok {
 		panic(jutil.NewNullPointerException())
@@ -3562,10 +3562,10 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclareTypedefType(candidat
 // Java: TypedScopeCreator.AbstractScopeBuilder.declarePropertyIfNamespaceType(ObjectType, Node, Property.Key, JSType, Node, JSDocInfo)
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) DeclarePropertyIfNamespaceType(
 	ownerType rhino.ObjectType,
-	ownerNode *rhino.Node,
+	ownerNode rhino.Node,
 	propName rhino.Property_Key,
 	valueType rhino.JSType,
-	declarationNode *rhino.Node,
+	declarationNode rhino.Node,
 	jsdocInfo *rhino.JSDocInfo) {
 	// Only declare this as an official property if it has not been
 	// declared yet.
@@ -3605,7 +3605,7 @@ func NewTypedScopeCreator_NormalScopeBuilder(outer *TypedScopeCreator, scope *Ty
 }
 
 // Java: TypedScopeCreator.NormalScopeBuilder.visitPreorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_NormalScopeBuilder) VisitPreorder(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *TypedScopeCreator_NormalScopeBuilder) VisitPreorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Create any child block scopes "pre-order" as we see them.
 	//
 	// This is required because hoisted or qualified names defined in earlier blocks might be
@@ -3617,7 +3617,7 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPreorder(t *NodeTraversal, n
 	// We don't traverse into CLASSes because we haven't yet have created the class-type on which
 	// to assign members. We'll do this on the way back up (post-order) instead, after the
 	// class-type has been attached to the AST.
-	if parent != nil && NodeUtil_CreatesBlockScope(n) && !n.IsClass() {
+	if !parent.IsNil() && NodeUtil_CreatesBlockScope(n) && !n.IsClass() {
 		b.outer.CreateScope(n, b.currentScope)
 	}
 
@@ -3628,7 +3628,7 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPreorder(t *NodeTraversal, n
 }
 
 // Java: TypedScopeCreator.NormalScopeBuilder.visitPostorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CALL:
 		b.CheckForClassDefiningCalls(n)
@@ -3656,12 +3656,12 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, 
 	case rhino.Token_GETPROP:
 		// Handle stubbed properties.
 		if parent.IsExprResult() && n.IsQualifiedName() {
-			b.MaybeDeclareQualifiedName(t, n.GetJSDocInfo(), n, parent, nil)
+			b.MaybeDeclareQualifiedName(t, n.GetJSDocInfo(), n, parent, rhino.Node{})
 		}
 	case rhino.Token_GETELEM:
 		// Handle stubbed properties.
 		if parent.IsExprResult() && n.GetFirstChild().IsQualifiedName() {
-			b.MaybeDeclareGetElem(n.GetJSDocInfo(), n, nil)
+			b.MaybeDeclareGetElem(n.GetJSDocInfo(), n, rhino.Node{})
 		}
 	case rhino.Token_CLASS:
 		// Analyse CLASS child-scopes now because later code in this scope may assign
@@ -3711,8 +3711,8 @@ func NewTypedScopeCreator_FunctionScopeBuilder(outer *TypedScopeCreator, scope *
 }
 
 // Java: TypedScopeCreator.FunctionScopeBuilder.visitPreorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_FunctionScopeBuilder) VisitPreorder(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	if parent == nil {
+func (b *TypedScopeCreator_FunctionScopeBuilder) VisitPreorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if parent.IsNil() {
 		b.HandleFunctionInputs()
 	} else if n.IsFunction() {
 		b.DefineFunctionLiteral(n)
@@ -3746,7 +3746,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) HandleFunctionInputs() {
 // function's scope.
 //
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareParameters(Node)
-func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode *rhino.Node) {
+func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode rhino.Node) {
 	if NodeUtil_IsBundledGoogModuleCall(functionNode.GetParent()) {
 		// Skip declaring 'exports' for a goog.loadModule(function(exports) {.
 		// We pretend that any assignments to 'exports' in the body are actually declarations.
@@ -3754,7 +3754,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode 
 	}
 
 	astParameters := functionNode.GetSecondChild()
-	var iifeArgumentNode *rhino.Node
+	var iifeArgumentNode rhino.Node
 
 	if NodeUtil_IsInvocationTarget(functionNode) {
 		iifeArgumentNode = functionNode.GetNext()
@@ -3772,11 +3772,11 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode 
 			jsdocParametersIndex++
 		}
 
-		for astParameter := astParameters.GetFirstChild(); astParameter != nil; astParameter = astParameter.GetNext() {
-			if iifeArgumentNode != nil && iifeArgumentNode.IsSpread() {
+		for astParameter := astParameters.GetFirstChild(); !astParameter.IsNil(); astParameter = astParameter.GetNext() {
+			if !iifeArgumentNode.IsNil() && iifeArgumentNode.IsSpread() {
 				// don't try inferring types from spreads in iifes because we don't know how
 				// many items are in the iterable.
-				iifeArgumentNode = nil
+				iifeArgumentNode = rhino.Node{}
 			}
 			var declaredType rhino.JSType
 			if jsDocParameter == nil {
@@ -3792,7 +3792,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode 
 					jsdocParametersIndex++
 				}
 			}
-			if iifeArgumentNode != nil {
+			if !iifeArgumentNode.IsNil() {
 				iifeArgumentNode = iifeArgumentNode.GetNext()
 			}
 		}
@@ -3802,7 +3802,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode 
 } // end declareParameters
 
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareTemplatesInFunctionBody(Node, FunctionType)
-func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(functionNode *rhino.Node, functionType rhino.FunctionType) {
+func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(functionNode rhino.Node, functionType rhino.FunctionType) {
 	// Add template params to the scope.
 	// This lets JSTypeRegistry resolve references to template types within the function body
 	// scope. (they were already registered as types by FunctionTypeBuilder, but they need to be
@@ -3821,7 +3821,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(
 		//   }
 		// We want to declare 'T' in the scope of 'bar'
 		ownerNode := NodeUtil_GetBestLValue(functionNode)
-		if ownerNode != nil {
+		if !ownerNode.IsNil() {
 			ownerKeys := b.FindOwnerTypeKeys(ownerNode)
 			if len(ownerKeys) > 0 {
 				templateNames = jutil.NewLinkedHashSet[string]()
@@ -3889,11 +3889,11 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(
 //
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareNamesInPositionalParameter(Node, JSType, Node)
 func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareNamesInPositionalParameter(
-	astParameter *rhino.Node, declaredParameterType rhino.JSType, iifeArgumentNode *rhino.Node) {
+	astParameter rhino.Node, declaredParameterType rhino.JSType, iifeArgumentNode rhino.Node) {
 	paramType := declaredParameterType
 	isInferred := paramType.Equals(b.outer.unknownType)
 
-	if iifeArgumentNode != nil && isInferred {
+	if !iifeArgumentNode.IsNil() && isInferred {
 		var argumentVar *TypedVar
 		if b.currentScope.GetParent() != nil {
 			if argumentName, ok := iifeArgumentNode.GetQualifiedNameString(); ok {
@@ -3961,7 +3961,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareNamesInPositionalParamet
 //
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareDestructuringParameter(boolean, Node, JSType)
 func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareDestructuringParameter(
-	isInferred bool, pattern *rhino.Node, patternType rhino.JSType) {
+	isInferred bool, pattern rhino.Node, patternType rhino.JSType) {
 
 	for _, target := range DestructuredTarget_CreateAllNonEmptyTargetsInPattern(
 		b.outer.typeRegistry, patternType, pattern) {
@@ -3996,7 +3996,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareDestructuringParameter(
 }
 
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareSingleParameterName(boolean, Node, JSType)
-func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareSingleParameterName(isInferred bool, name *rhino.Node, type_ rhino.JSType) {
+func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareSingleParameterName(isInferred bool, name rhino.Node, type_ rhino.JSType) {
 	NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(&b.TypedScopeCreator_AbstractScopeBuilderBase).
 		ForDeclarationNode(name).
 		ForVariableName(name.GetString()).
@@ -4023,7 +4023,7 @@ func NewTypedScopeCreator_ClassScopeBuilder(outer *TypedScopeCreator, scope *Typ
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.visitPreorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) VisitPreorder(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *TypedScopeCreator_ClassScopeBuilder) VisitPreorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// These are not descended into, so must be done preorder
 	if !n.IsFunction() {
 		return
@@ -4038,7 +4038,7 @@ func (b *TypedScopeCreator_ClassScopeBuilder) VisitPreorder(t *NodeTraversal, n 
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.visitPostorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) VisitPostorder(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (b *TypedScopeCreator_ClassScopeBuilder) VisitPostorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() &&
 		parent == b.currentScope.GetRootNode() &&
 		NodeUtil_IsClassExpression(parent) {
@@ -4070,13 +4070,13 @@ func (b *TypedScopeCreator_ClassScopeBuilder) VisitPostorder(t *NodeTraversal, n
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.defineMemberFunction(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberFunction(n *rhino.Node) {
+func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberFunction(n rhino.Node) {
 	ownerType := b.DetermineOwnerTypeForClassMember(n)
 	ownerType.DefineDeclaredProperty(n.GetString(), n.GetLastChild().GetJSType(), n)
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.defineMemberField(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberField(n *rhino.Node) {
+func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberField(n rhino.Node) {
 	rhs := n.GetLastChild()
 	declaredType := b.GetDeclaredType(n.GetJSDocInfo(), n, rhs, nil)
 	// When there's no JSDoc type declaration for a field:
@@ -4084,8 +4084,8 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberField(n *rhino.Node) {
 	// Otherwise, set the field's type to the ALL type ('*')
 	if declaredType == nil {
 		var rhsType rhino.JSType
-		if rhs != nil {
-			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(nil, rhs)
+		if !rhs.IsNil() {
+			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(rhino.Node{}, rhs)
 		}
 		if rhsType != nil && !rhsType.IsUnknownType() {
 			declaredType = rhsType
@@ -4101,7 +4101,7 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberField(n *rhino.Node) {
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.defineComputedMemberField(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n *rhino.Node) {
+func (b *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n rhino.Node) {
 	key := n.GetFirstChild()
 	if !key.IsQualifiedName() {
 		return
@@ -4117,8 +4117,8 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n *rhino
 	// Otherwise, set the field's type to the ALL type ('*')
 	if declaredType == nil {
 		var rhsType rhino.JSType
-		if rhs != nil {
-			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(nil, rhs)
+		if !rhs.IsNil() {
+			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(rhino.Node{}, rhs)
 		}
 		if rhsType != nil && !rhsType.IsUnknownType() {
 			declaredType = rhsType
@@ -4134,7 +4134,7 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n *rhino
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.defineGetterSetter(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DefineGetterSetter(n *rhino.Node) {
+func (b *TypedScopeCreator_ClassScopeBuilder) DefineGetterSetter(n rhino.Node) {
 	name := n.GetString()
 	methodType := n.GetLastChild().GetJSType().ToMaybeFunctionType()
 
@@ -4172,7 +4172,7 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineGetterSetter(n *rhino.Node) 
 // `C.prototype` for a nonstatic member.
 //
 // Java: TypedScopeCreator.ClassScopeBuilder.determineOwnerTypeForClassMember(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DetermineOwnerTypeForClassMember(member *rhino.Node) rhino.ObjectType {
+func (b *TypedScopeCreator_ClassScopeBuilder) DetermineOwnerTypeForClassMember(member rhino.Node) rhino.ObjectType {
 	// MEMBER_FUNCTION_DEF -> CLASS_MEMBERS -> CLASS or
 	// MEMBER_FIELD_DEF -> CLASS_MEMBERS -> CLASS or
 	// GETTER_DEF -> CLASS_MEMBERS -> CLASS or
@@ -4311,7 +4311,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 }
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.visit(NodeTraversal, Node, Node)
-func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if a.identifyEnumsAndTypedefs.registry != nil {
 		a.identifyEnumsAndTypedefs.Visit(t, n, parent)
 	}
@@ -4414,7 +4414,7 @@ func TypedScopeCreator_ContainingGoogModuleIdOf(scope *TypedScope) *string {
 }
 
 // Java: TypedScopeCreator.extractKnownSymbolKey(TypedScope, Node)
-func TypedScopeCreator_ExtractKnownSymbolKey(currentScope *TypedScope, key *rhino.Node) *rhino.KnownSymbolType {
+func TypedScopeCreator_ExtractKnownSymbolKey(currentScope *TypedScope, key rhino.Node) *rhino.KnownSymbolType {
 	if !key.IsQualifiedName() {
 		return nil
 	}

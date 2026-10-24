@@ -43,18 +43,18 @@ func NewSynthesizeExplicitConstructors(compiler AbstractCompiler) *SynthesizeExp
 // given class if no constructor is present.
 //
 // Java: SynthesizeExplicitConstructors.synthesizeClassConstructorIfMissing(NodeTraversal, Node)
-func (s *SynthesizeExplicitConstructors) SynthesizeClassConstructorIfMissing(t *NodeTraversal, classNode *rhino.Node) {
+func (s *SynthesizeExplicitConstructors) SynthesizeClassConstructorIfMissing(t *NodeTraversal, classNode rhino.Node) {
 	jutil.CheckArgument(classNode.IsClass())
-	if NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode) == nil {
+	if NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode).IsNil() {
 		s.AddSyntheticConstructor(t, classNode)
 	}
 }
 
 // Java: SynthesizeExplicitConstructors.addSyntheticConstructor(NodeTraversal, Node)
-func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversal, classNode *rhino.Node) {
+func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversal, classNode rhino.Node) {
 	superClass := classNode.GetSecondChild()
 	classMembers := classNode.GetLastChild()
-	var memberDef *rhino.Node
+	var memberDef rhino.Node
 	if superClass.IsEmpty() {
 		function := s.astFactory.CreateEmptyFunction(AstFactory_Type_(classNode))
 		s.compiler.ReportChangeToChangeScope(function)
@@ -97,7 +97,7 @@ func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversa
 }
 
 // Java: SynthesizeExplicitConstructors.isInterface(Node)
-func (s *SynthesizeExplicitConstructors) IsInterface(classNode *rhino.Node) bool {
+func (s *SynthesizeExplicitConstructors) IsInterface(classNode rhino.Node) bool {
 	classJsDocInfo := NodeUtil_GetBestJSDocInfo(classNode)
 	return classJsDocInfo != nil && classJsDocInfo.IsInterface()
 }

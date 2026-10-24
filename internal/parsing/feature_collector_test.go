@@ -26,13 +26,13 @@ import (
 
 // collectFeatures is FeatureCollectorDump's per-file line.
 func collectFeatures(rel, src string) string {
-	var ast *rhino.Node
+	var ast rhino.Node
 	jutil.Try(func() {
 		ast = ParserRunner_Parse(
 			rhino.NewSimpleSourceFile(rel, rhino.StaticSourceFile_SourceKind_STRONG), src, defaultDumpConfig(),
 			rhino.ErrorReporter_NULL_INSTANCE).Ast
-	}, func(e jutil.IRuntimeException) { ast = nil })
-	if ast == nil {
+	}, func(e jutil.IRuntimeException) { ast = rhino.Node{} })
+	if ast.IsNil() {
 		return rel + "\tnull"
 	}
 	fc := NewFeatureCollector()

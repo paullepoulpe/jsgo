@@ -311,7 +311,7 @@ func (c *ChangeVerifierTest) TestChangeVerification() {
 // the script node
 //
 // Java: ChangeVerifierTest.parse(String)
-func (c *ChangeVerifierTest) parse(js string) *rhino.Node {
+func (c *ChangeVerifierTest) parse(js string) rhino.Node {
 	c.compiler = NewCompiler()
 	c.compiler.InitCompilerOptionsIfTesting()
 	n := c.compiler.ParseTestCode(js)
@@ -323,15 +323,15 @@ func (c *ChangeVerifierTest) parse(js string) *rhino.Node {
 // the first call node it finds
 //
 // Java: ChangeVerifierTest.getCallNode(Node)
-func changeVerifierTest_getCallNode(n *rhino.Node) *rhino.Node {
+func changeVerifierTest_getCallNode(n rhino.Node) rhino.Node {
 	if n.IsCall() {
 		return n
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		result := changeVerifierTest_getCallNode(c)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }

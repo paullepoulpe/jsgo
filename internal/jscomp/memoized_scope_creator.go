@@ -32,7 +32,7 @@ import (
 // doing. Scopes are memoized stupidly, so if the underlying tree changes, the
 // scope may be out of sync.
 type MemoizedScopeCreator struct {
-	scopesByScopeRoot map[*rhino.Node]AbstractScope
+	scopesByScopeRoot map[rhino.Node]AbstractScope
 	delegate          ScopeCreator
 }
 
@@ -41,13 +41,13 @@ type MemoizedScopeCreator struct {
 // Java: MemoizedScopeCreator(ScopeCreator)
 func NewMemoizedScopeCreator(delegate ScopeCreator) *MemoizedScopeCreator {
 	return &MemoizedScopeCreator{
-		scopesByScopeRoot: make(map[*rhino.Node]AbstractScope),
+		scopesByScopeRoot: make(map[rhino.Node]AbstractScope),
 		delegate:          delegate,
 	}
 }
 
 // Java: MemoizedScopeCreator.createScope(Node, AbstractScope<?, ?>)
-func (m *MemoizedScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope) AbstractScope {
+func (m *MemoizedScopeCreator) CreateScope(n rhino.Node, parent AbstractScope) AbstractScope {
 	scope := m.scopesByScopeRoot[n]
 	if scope == nil {
 		scope = m.delegate.CreateScope(n, parent)

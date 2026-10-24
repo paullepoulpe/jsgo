@@ -32,7 +32,7 @@ type ProcessDefinesTest struct {
 
 	// Go-only: test-helper — a Java HashMap with String keys that
 	// putReplacements iterates, hence Java's hash order.
-	overrides               *jutil.JavaHashMap[string, *rhino.Node]
+	overrides               *jutil.JavaHashMap[string, rhino.Node]
 	namespace               *GlobalNamespace
 	mode                    ProcessDefines_Mode
 	recognizeClosureDefines bool
@@ -46,7 +46,7 @@ type ProcessDefinesTest struct {
 // Java: ProcessDefinesTest()
 func NewProcessDefinesTest() *ProcessDefinesTest {
 	c := &ProcessDefinesTest{
-		overrides:               jutil.NewJavaHashMap[string, *rhino.Node](),
+		overrides:               jutil.NewJavaHashMap[string, rhino.Node](),
 		recognizeClosureDefines: true,
 		enableJ2clPasses:        false,
 		outputFeatureSet:        parser.FeatureSet_ES2017,
@@ -115,7 +115,7 @@ func (c *ProcessDefinesTest) NewProcessDefinesWithInjectedNamespace(compiler *Co
 }
 
 // Java: ProcessDefinesTest.ProcessDefinesWithInjectedNamespace.process(Node, Node)
-func (p *ProcessDefinesTest_ProcessDefinesWithInjectedNamespace) Process(externs *rhino.Node, js *rhino.Node) {
+func (p *ProcessDefinesTest_ProcessDefinesWithInjectedNamespace) Process(externs rhino.Node, js rhino.Node) {
 	c := p.outer
 	c.namespace = NewGlobalNamespaceWithRoots(p.compiler, externs, js)
 	NewProcessDefines_Builder(p.compiler).

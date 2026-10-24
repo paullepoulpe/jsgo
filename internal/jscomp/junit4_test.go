@@ -24,6 +24,7 @@ package jscomp
 
 import (
 	"fmt"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"reflect"
 	"runtime/debug"
 	"sort"
@@ -64,6 +65,9 @@ func RunJUnit4(t *testing.T, newTest func() JUnitTestCase) {
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
+			// Each test allocates its nodes in a fresh store, freed after
+			// it (rhino/node_store.go).
+			rhino.SetCurrentNodeStore(rhino.NewNodeStore())
 			runJUnit4Method(t, newTest(), name)
 		})
 	}

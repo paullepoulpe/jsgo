@@ -180,11 +180,11 @@ func (d *peepholeOracleDumper) diagnostics(compiler *Compiler, skipWarnings int)
 	}
 }
 
-func (d *peepholeOracleDumper) bigints(n *rhino.Node) {
+func (d *peepholeOracleDumper) bigints(n rhino.Node) {
 	if n.IsBigInt() {
 		d.line(strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno()) + " " + n.GetBigInt().String())
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		d.bigints(c)
 	}
 }
@@ -215,7 +215,7 @@ func peepholeOracleDumpOne(rel string, src string, config string) string {
 		[]*SourceFile{SourceFile_FromCode(rel, src)},
 		options)
 	root := compiler.ParseInputs()
-	if root == nil || compiler.GetErrorCount() > 0 {
+	if root.IsNil() || compiler.GetErrorCount() > 0 {
 		d.line("# parse errors")
 		for _, e := range compiler.GetErrors() {
 			d.line(peepholeOracleError("ERROR", e))

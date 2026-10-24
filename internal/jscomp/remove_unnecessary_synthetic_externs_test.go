@@ -29,7 +29,7 @@ type RemoveUnnecessarySyntheticExternsTest struct {
 	CompilerTestCaseBase
 
 	// use this set to simulate an earlier compiler pass declaring a synthetic extern
-	syntheticExternsToAdd *jutil.LinkedHashSet[*rhino.Node]
+	syntheticExternsToAdd *jutil.LinkedHashSet[rhino.Node]
 }
 
 // Java: RemoveUnnecessarySyntheticExternsTest()
@@ -47,12 +47,12 @@ func TestRemoveUnnecessarySyntheticExternsTest(t *testing.T) {
 func (c *RemoveUnnecessarySyntheticExternsTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.EnableMultistageCompilation()
-	c.syntheticExternsToAdd = jutil.NewLinkedHashSet[*rhino.Node]()
+	c.syntheticExternsToAdd = jutil.NewLinkedHashSet[rhino.Node]()
 }
 
 // Java: RemoveUnnecessarySyntheticExternsTest.getProcessor(Compiler)
 func (c *RemoveUnnecessarySyntheticExternsTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, js *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
 		syntheticRoot := compiler.GetSynthesizedExternsInput().GetAstRoot(compiler)
 		for declaration := range c.syntheticExternsToAdd.All() {
 			syntheticRoot.AddChildToBack(declaration.CloneTree())
@@ -183,7 +183,7 @@ func (c *RemoveUnnecessarySyntheticExternsTest) TestRemovesOnlyUnfulfilledSynthe
 }
 
 // Java: RemoveUnnecessarySyntheticExternsTest.createUnfulfilledDeclaration(String)
-func (c *RemoveUnnecessarySyntheticExternsTest) CreateUnfulfilledDeclaration(name string) *rhino.Node {
+func (c *RemoveUnnecessarySyntheticExternsTest) CreateUnfulfilledDeclaration(name string) rhino.Node {
 	// only VAR nodes are allowed to be marked "synthesized unfulfilled" so no need to test other
 	// kinds of declarations.
 	declaration := rhino.IR_Var(rhino.IR_Name(name))

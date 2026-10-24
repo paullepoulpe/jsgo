@@ -122,7 +122,7 @@ func NewPeepholeReplaceKnownMethods(late bool, useTypes bool) *PeepholeReplaceKn
 }
 
 // Java: PeepholeReplaceKnownMethods.optimizeSubtree(Node)
-func (p *PeepholeReplaceKnownMethods) OptimizeSubtree(subtree *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	if p.late && NodeUtil_IsGoogWeakUsageCall(subtree) {
 		// goog.weakUsage(x) -> x.
 		name := subtree.GetSecondChild().Detach()
@@ -136,7 +136,7 @@ func (p *PeepholeReplaceKnownMethods) OptimizeSubtree(subtree *rhino.Node) *rhin
 }
 
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownMethods(Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldKnownMethods(subtree *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldKnownMethods(subtree rhino.Node) rhino.Node {
 	// For now we only support string methods .join(),
 	// .indexOf(), .substring() and .substr()
 	// array method concat()
@@ -148,7 +148,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMethods(subtree *rhino.Node) *
 	if subtree.IsCall() {
 		subtree = p.TryToFoldArrayConcat(subtree)
 		jutil.CheckStateMsg1(subtree.IsCall(), "%s", subtree)
-		callTarget := jutil.CheckNotNull(subtree.GetFirstChild())
+		callTarget := rhino.CheckNotNull(subtree.GetFirstChild())
 
 		if callTarget.IsGetProp() {
 			if targetFirst := callTarget.GetFirstChild(); targetFirst.IsName() {
@@ -180,7 +180,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMethods(subtree *rhino.Node) *
 // TryFoldKnownArrayMethods tries to evaluate a method on the Array object.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownArrayMethods(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldKnownArrayMethods(subtree *rhino.Node, callTarget *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldKnownArrayMethods(subtree rhino.Node, callTarget rhino.Node) rhino.Node {
 	jutil.CheckArgument(subtree.IsCall() && callTarget.IsGetProp())
 
 	// Method node might not be a string if callTarget is a GETELEM.
@@ -213,11 +213,11 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownArrayMethods(subtree *rhino.No
 //	Array.isArray() -> false
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldArrayIsArray(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldArrayIsArray(subtree *rhino.Node, callTarget *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldArrayIsArray(subtree rhino.Node, callTarget rhino.Node) rhino.Node {
 	jutil.CheckArgument(subtree.IsCall() && callTarget.IsGetProp())
 
 	firstArg := callTarget.GetNext()
-	if firstArg == nil {
+	if firstArg.IsNil() {
 		// Array.isArray() with 0 arguments evaluates to Array.isArray(undefined) -> false.
 		newNode := NodeUtil_BooleanNode(false).Srcref(subtree)
 		subtree.ReplaceWith(newNode)
@@ -225,7 +225,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayIsArray(subtree *rhino.Node, c
 		return newNode
 	}
 
-	if firstArg.GetNext() != nil {
+	if !firstArg.GetNext().IsNil() {
 		// 2 or more arguments: preserve call to avoid dropping potential side effects or arguments.
 		return subtree
 	}
@@ -255,13 +255,13 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayIsArray(subtree *rhino.Node, c
 }
 
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownNumberMethods(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(subtree *rhino.Node, callTarget *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(subtree rhino.Node, callTarget rhino.Node) rhino.Node {
 	jutil.CheckArgument(subtree.IsCall() && callTarget.IsGetProp())
 	methodName := callTarget.GetString()
 	switch methodName {
 	case "parseInt", "parseFloat":
 		firstArg := callTarget.GetNext()
-		if (firstArg != nil && firstArg.IsStringLit()) || NodeUtil_IsNumericLiteral(firstArg) {
+		if (!firstArg.IsNil() && firstArg.IsStringLit()) || NodeUtil_IsNumericLiteral(firstArg) {
 			return p.TryFoldParseNumber(subtree, methodName, firstArg)
 		}
 		return subtree
@@ -270,11 +270,11 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(subtree *rhino.N
 
 	// Get the only number arg as a double as long as it is the only argument
 	valueNode := callTarget.GetNext()
-	if valueNode == nil || valueNode.GetNext() != nil {
+	if valueNode.IsNil() || !valueNode.GetNext().IsNil() {
 		return subtree
 	}
 	onlyArg, ok := p.GetSideEffectFreeNumberValueNoConversionVal(valueNode)
-	var replacement *rhino.Node
+	var replacement rhino.Node
 	if ok {
 		switch methodName {
 		case "isFinite":
@@ -297,7 +297,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(subtree *rhino.N
 		default:
 		}
 	}
-	if replacement != nil {
+	if !replacement.IsNil() {
 		subtree.ReplaceWith(replacement)
 		p.ReportChangeToEnclosingScope(replacement)
 		return replacement
@@ -308,12 +308,12 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(subtree *rhino.N
 // TryFoldKnownMathMethods tries to evaluate a method on the Math object.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownMathMethods(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(subtree *rhino.Node, callTarget *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(subtree rhino.Node, callTarget rhino.Node) rhino.Node {
 	jutil.CheckArgument(subtree.IsCall() && callTarget.IsGetProp())
 
 	// first collect the arguments, if they are all numbers then we proceed
 	var args []float64
-	for arg := callTarget.GetNext(); arg != nil; arg = arg.GetNext() {
+	for arg := callTarget.GetNext(); !arg.IsNil(); arg = arg.GetNext() {
 		d, ok := p.GetSideEffectFreeNumberValueVal(arg)
 		if ok {
 			// lazily allocate, most calls will not be optimizable
@@ -426,7 +426,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(subtree *rhino.Nod
 // .indexOf(), .substr(), .substring()
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownStringMethods(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree *rhino.Node, callTarget *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree rhino.Node, callTarget rhino.Node) rhino.Node {
 	jutil.CheckArgument(subtree.IsCall() && callTarget.IsGetProp())
 
 	// check if this is a call on a string method
@@ -442,7 +442,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree *rhino.N
 	if isStringLiteral {
 		if functionNameString == "split" {
 			return p.TryFoldStringSplit(subtree, stringNode, firstArg)
-		} else if firstArg == nil {
+		} else if firstArg.IsNil() {
 			switch functionNameString {
 			case "toLowerCase":
 				return p.TryFoldStringToLowerCase(subtree, stringNode)
@@ -451,7 +451,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree *rhino.N
 			case "trim", "trimStart", "trimEnd", "trimLeft", "trimRight":
 				return p.TryFoldStringTrim(subtree, stringNode, functionNameString)
 			case "at":
-				return p.TryFoldStringAt(subtree, stringNode, nil)
+				return p.TryFoldStringAt(subtree, stringNode, rhino.Node{})
 			default:
 			}
 		} else {
@@ -485,7 +485,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree *rhino.N
 		}
 	}
 	if p.useTypes &&
-		firstArg != nil &&
+		!firstArg.IsNil() &&
 		(isStringLiteral || colors.StandardColors_STRING.Equals(stringNode.GetColor())) {
 		if subtree.HasXChildren(3) {
 			maybeStart, ok := p.GetSideEffectFreeNumberValueVal(firstArg)
@@ -518,13 +518,13 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree *rhino.N
 // parseInt(), parseFloat()
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownNumericMethods(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumericMethods(subtree *rhino.Node, callTarget *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumericMethods(subtree rhino.Node, callTarget rhino.Node) rhino.Node {
 	jutil.CheckArgument(subtree.IsCall())
 
 	functionNameString := callTarget.GetString()
 	if functionNameString == "parseInt" || functionNameString == "parseFloat" {
 		firstArgument := callTarget.GetNext()
-		if firstArgument != nil &&
+		if !firstArgument.IsNil() &&
 			(firstArgument.IsStringLit() || NodeUtil_IsNumericLiteral(firstArgument)) &&
 			p.IsASTNormalized() {
 			subtree = p.TryFoldParseNumber(subtree, functionNameString, firstArgument)
@@ -544,7 +544,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumericMethods(subtree *rhino.
 // https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#toLowerCase-java.util.Locale-
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringToLowerCase(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringToLowerCase(subtree *rhino.Node, stringNode *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringToLowerCase(subtree rhino.Node, stringNode rhino.Node) rhino.Node {
 	lowered := jutil.StringToLowerCaseRoot(stringNode.GetString())
 	replacement := rhino.IR_String(lowered)
 	subtree.ReplaceWith(replacement)
@@ -563,7 +563,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringToLowerCase(subtree *rhino.No
 // https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#toUpperCase-java.util.Locale-
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringToUpperCase(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringToUpperCase(subtree *rhino.Node, stringNode *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringToUpperCase(subtree rhino.Node, stringNode rhino.Node) rhino.Node {
 	upped := jutil.StringToUpperCaseRoot(stringNode.GetString())
 	replacement := rhino.IR_String(upped)
 	subtree.ReplaceWith(replacement)
@@ -574,7 +574,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringToUpperCase(subtree *rhino.No
 // TryFoldStringTrim returns The trimmed string Node.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringTrim(Node, Node, String)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringTrim(subtree *rhino.Node, stringNode *rhino.Node, functionName string) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringTrim(subtree rhino.Node, stringNode rhino.Node, functionName string) rhino.Node {
 	// See ECMA-262 § 22.1.3.32 (trim), § 22.1.3.34 (trimStart), § 22.1.3.33 (trimEnd),
 	// Annex B.2.2.15 (trimLeft), Annex B.2.2.16 (trimRight), § 12.2, and § 12.3
 	// All Unicode whitespace + LineTerminator + BOM
@@ -644,7 +644,7 @@ func PeepholeReplaceKnownMethods_NormalizeNumericString(input string) string {
 //	parseFloat("1.11") -> 1.11
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldParseNumber(Node, String, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(n *rhino.Node, functionName string, firstArg *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(n rhino.Node, functionName string, firstArg rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 
 	isParseInt := functionName == "parseInt"
@@ -652,13 +652,13 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(n *rhino.Node, function
 
 	// Second argument is only used as the radix for parseInt
 	radix := 0
-	if secondArg != nil {
+	if !secondArg.IsNil() {
 		if !isParseInt {
 			return n
 		}
 
 		// Third-argument and non-numeric second arg are problematic. Discard.
-		if secondArg.GetNext() != nil || !secondArg.IsNumber() {
+		if !secondArg.GetNext().IsNil() || !secondArg.IsNumber() {
 			return n
 		} else {
 			tmpRadix := secondArg.GetDouble()
@@ -701,7 +701,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(n *rhino.Node, function
 				return newNode
 			}
 			normalizedNewVal := "0"
-			var result *rhino.Node
+			var result rhino.Node
 			jutil.Try(func() {
 				newVal := jutil.DoubleParseDouble(stringVal)
 				newNode := NodeUtil_NumberNode(newVal, n)
@@ -823,7 +823,7 @@ func PeepholeReplaceKnownMethods_GetRadixDigit(c uint16, radix int) int {
 //	"abcdefbc".indexOf("bc", 3) -> 6
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringIndexOf(Node, String, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringIndexOf(n *rhino.Node, functionName string, lstringNode *rhino.Node, firstArg *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringIndexOf(n rhino.Node, functionName string, lstringNode rhino.Node, firstArg rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(lstringNode.IsStringLit())
 
@@ -839,9 +839,9 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringIndexOf(n *rhino.Node, functi
 	if !isIndexOf {
 		fromIndex = jutil.StringLength(lstring)
 	}
-	if secondArg != nil {
+	if !secondArg.IsNil() {
 		// Third-argument and non-numeric second arg are problematic. Discard.
-		if secondArg.GetNext() != nil || !secondArg.IsNumber() {
+		if !secondArg.GetNext().IsNil() || !secondArg.IsNumber() {
 			return n
 		} else {
 			fromIndex = int(jutil.D2I(secondArg.GetDouble()))
@@ -866,7 +866,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringIndexOf(n *rhino.Node, functi
 //	"abcdef".includes("bc", 2) -> false
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringIncludes(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringIncludes(n *rhino.Node, lstringNode *rhino.Node, firstArg *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringIncludes(n rhino.Node, lstringNode rhino.Node, firstArg rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(lstringNode.IsStringLit())
 
@@ -882,8 +882,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringIncludes(n *rhino.Node, lstri
 
 	secondArg := firstArg.GetNext()
 	fromIndex := 0
-	if secondArg != nil {
-		if secondArg.GetNext() != nil || p.MayHaveSideEffects(secondArg) {
+	if !secondArg.IsNil() {
+		if !secondArg.GetNext().IsNil() || p.MayHaveSideEffects(secondArg) {
 			return n
 		}
 		if NodeUtil_IsNumericLiteral(secondArg) {
@@ -907,7 +907,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringIncludes(n *rhino.Node, lstri
 //	"abcdef".startsWith("bc", 1) -> true
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringStartsWith(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringStartsWith(n *rhino.Node, lstringNode *rhino.Node, firstArg *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringStartsWith(n rhino.Node, lstringNode rhino.Node, firstArg rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(lstringNode.IsStringLit())
 
@@ -923,8 +923,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringStartsWith(n *rhino.Node, lst
 
 	secondArg := firstArg.GetNext()
 	start := 0
-	if secondArg != nil {
-		if secondArg.GetNext() != nil || p.MayHaveSideEffects(secondArg) {
+	if !secondArg.IsNil() {
+		if !secondArg.GetNext().IsNil() || p.MayHaveSideEffects(secondArg) {
 			return n
 		}
 		if NodeUtil_IsNumericLiteral(secondArg) {
@@ -949,7 +949,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringStartsWith(n *rhino.Node, lst
 //	"abcdef".endsWith("de", 5) -> true
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringEndsWith(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringEndsWith(n *rhino.Node, lstringNode *rhino.Node, firstArg *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringEndsWith(n rhino.Node, lstringNode rhino.Node, firstArg rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(lstringNode.IsStringLit())
 
@@ -965,8 +965,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringEndsWith(n *rhino.Node, lstri
 
 	secondArg := firstArg.GetNext()
 	end := jutil.StringLength(lstring)
-	if secondArg != nil {
-		if secondArg.GetNext() != nil || p.MayHaveSideEffects(secondArg) {
+	if !secondArg.IsNil() {
+		if !secondArg.GetNext().IsNil() || p.MayHaveSideEffects(secondArg) {
 			return n
 		}
 		if NodeUtil_IsNumericLiteral(secondArg) {
@@ -998,15 +998,15 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringEndsWith(n *rhino.Node, lstri
 //	"abcdef".at(10) -> void 0
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringAt(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringAt(n *rhino.Node, stringNode *rhino.Node, firstArg *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringAt(n rhino.Node, stringNode rhino.Node, firstArg rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(stringNode.IsStringLit())
 
 	var posVal float64
-	if firstArg == nil {
+	if firstArg.IsNil() {
 		posVal = 0.0
 	} else {
-		if firstArg.GetNext() != nil {
+		if !firstArg.GetNext().IsNil() {
 			return n
 		}
 		maybePos, ok := p.GetSideEffectFreeNumberValueVal(firstArg)
@@ -1023,7 +1023,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringAt(n *rhino.Node, stringNode 
 	stringVal := stringNode.GetString()
 	len_ := jutil.StringLength(stringVal)
 
-	var replacement *rhino.Node
+	var replacement rhino.Node
 	if math.IsInf(posVal, 0) || posVal >= float64(len_) || posVal <= float64(-(len_+1)) {
 		replacement = NodeUtil_NewUndefinedNode(n)
 	} else {
@@ -1050,11 +1050,11 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringAt(n *rhino.Node, stringNode 
 // 'abc';
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldArrayJoin(Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(n *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(n rhino.Node) rhino.Node {
 	jutil.CheckStateMsg1(n.IsCall(), "%s", n)
 	callTarget := n.GetFirstChild()
 
-	if callTarget == nil || !callTarget.IsGetProp() {
+	if callTarget.IsNil() || !callTarget.IsGetProp() {
 		return n
 	}
 
@@ -1065,13 +1065,13 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(n *rhino.Node) *rhino.Nod
 	}
 
 	right := callTarget.GetNext()
-	if right != nil {
-		if right.GetNext() != nil || !NodeUtil_IsImmutableValue(right) {
+	if !right.IsNil() {
+		if !right.GetNext().IsNil() || !NodeUtil_IsImmutableValue(right) {
 			return n
 		}
 	}
 
-	if right != nil &&
+	if !right.IsNil() &&
 		(NodeUtil_IsUndefined(right) ||
 			(right.IsStringLit() && "," == right.GetString())) {
 		// "," is the default, it doesn't need to be explicit
@@ -1082,19 +1082,19 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(n *rhino.Node) *rhino.Nod
 	// logic above ensures that `right` is immutable, so no need to check for
 	// side effects with getSideEffectFreeStringValue(right)
 	var joinString *string
-	if right == nil || NodeUtil_IsUndefined(right) {
+	if right.IsNil() || NodeUtil_IsUndefined(right) {
 		comma := ","
 		joinString = &comma
 	} else {
 		joinString = NodeUtil_GetStringValue(right)
 	}
-	var arrayFoldedChildren []*rhino.Node
+	var arrayFoldedChildren []rhino.Node
 	var sb *jutil.StringBuilder
 	foldedSize := 0
-	var prev *rhino.Node
+	var prev rhino.Node
 	elem := arrayNode.GetFirstChild()
 	// Merges adjacent String nodes.
-	for elem != nil {
+	for !elem.IsNil() {
 		if NodeUtil_IsImmutableValue(elem) || elem.IsEmpty() {
 			if sb == nil {
 				sb = jutil.NewStringBuilder()
@@ -1108,7 +1108,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(n *rhino.Node) *rhino.Nod
 			sb.Append(*elementStr)
 		} else {
 			if sb != nil {
-				jutil.CheckNotNull(prev)
+				rhino.CheckNotNull(prev)
 				// + 2 for the quotes.
 				foldedSize += sb.Length() + 2
 				arrayFoldedChildren = append(arrayFoldedChildren, rhino.IR_String(sb.String()).SrcrefIfMissing(prev))
@@ -1122,7 +1122,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(n *rhino.Node) *rhino.Nod
 	}
 
 	if sb != nil {
-		jutil.CheckNotNull(prev)
+		rhino.CheckNotNull(prev)
 		// + 2 for the quotes.
 		foldedSize += sb.Length() + 2
 		arrayFoldedChildren = append(arrayFoldedChildren, rhino.IR_String(sb.String()).SrcrefIfMissing(prev))
@@ -1163,7 +1163,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(n *rhino.Node) *rhino.Nod
 		}
 		kJoinOverhead := len("[].join()")
 		foldedSize += kJoinOverhead
-		if right != nil {
+		if !right.IsNil() {
 			foldedSize += InlineCostEstimator_GetCost(right)
 		}
 		if foldedSize > originalSize {
@@ -1182,10 +1182,10 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(n *rhino.Node) *rhino.Nod
 // TryFoldStringSubstr tries to fold .substr() calls on strings.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringSubstr(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstr(n *rhino.Node, stringNode *rhino.Node, arg1 *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstr(n rhino.Node, stringNode rhino.Node, arg1 rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(stringNode.IsStringLit())
-	jutil.CheckArgument(arg1 != nil)
+	jutil.CheckArgument(!arg1.IsNil())
 
 	var start int
 	var length int
@@ -1199,7 +1199,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstr(n *rhino.Node, stringN
 	}
 
 	arg2 := arg1.GetNext()
-	if arg2 != nil {
+	if !arg2.IsNil() {
 		maybeLength, ok := p.GetSideEffectFreeNumberValueVal(arg2)
 		if ok {
 			length = int(jutil.D2I(maybeLength))
@@ -1207,7 +1207,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstr(n *rhino.Node, stringN
 			return n
 		}
 
-		if arg2.GetNext() != nil {
+		if !arg2.GetNext().IsNil() {
 			// If we got more args than we expected, bail out.
 			return n
 		}
@@ -1237,10 +1237,10 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstr(n *rhino.Node, stringN
 // on strings.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringSubstringOrSlice(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstringOrSlice(n *rhino.Node, stringNode *rhino.Node, arg1 *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstringOrSlice(n rhino.Node, stringNode rhino.Node, arg1 rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(stringNode.IsStringLit())
-	jutil.CheckArgument(arg1 != nil)
+	jutil.CheckArgument(!arg1.IsNil())
 
 	var start int
 	var end int
@@ -1254,7 +1254,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstringOrSlice(n *rhino.Nod
 	}
 
 	arg2 := arg1.GetNext()
-	if arg2 != nil {
+	if !arg2.IsNil() {
 		maybeEnd, ok := p.GetSideEffectFreeNumberValueVal(arg2)
 		if ok {
 			end = int(jutil.D2I(maybeEnd))
@@ -1262,7 +1262,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstringOrSlice(n *rhino.Nod
 			return n
 		}
 
-		if arg2.GetNext() != nil {
+		if !arg2.GetNext().IsNil() {
 			// If we got more args than we expected, bail out.
 			return n
 		}
@@ -1293,7 +1293,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstringOrSlice(n *rhino.Nod
 }
 
 // Java: PeepholeReplaceKnownMethods.replaceWithCharAt(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) ReplaceWithCharAt(n *rhino.Node, callTarget *rhino.Node, firstArg *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) ReplaceWithCharAt(n rhino.Node, callTarget rhino.Node, firstArg rhino.Node) rhino.Node {
 	// TODO(moz): Maybe correct the arity of the function type here.
 	callTarget.SetString("charAt")
 	firstArg.GetNext().Detach()
@@ -1304,14 +1304,14 @@ func (p *PeepholeReplaceKnownMethods) ReplaceWithCharAt(n *rhino.Node, callTarge
 // TryFoldStringCharAt tries to fold .charAt() calls on strings.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringCharAt(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringCharAt(n *rhino.Node, stringNode *rhino.Node, arg1 *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringCharAt(n rhino.Node, stringNode rhino.Node, arg1 rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(stringNode.IsStringLit())
 
 	var index int
 	stringAsString := stringNode.GetString()
 
-	if arg1 != nil && arg1.IsNumber() && arg1.GetNext() == nil {
+	if !arg1.IsNil() && arg1.IsNumber() && arg1.GetNext().IsNil() {
 		index = int(jutil.D2I(arg1.GetDouble()))
 	} else {
 		return n
@@ -1333,12 +1333,12 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringCharAt(n *rhino.Node, stringN
 // TryFoldStringReplace tries to fold .replace() calls on strings.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringReplace(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringReplace(n *rhino.Node, stringNode *rhino.Node, arg1 *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringReplace(n rhino.Node, stringNode rhino.Node, arg1 rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(stringNode.IsStringLit())
 
 	arg2 := arg1.GetNext()
-	if arg2 == nil || arg2.GetNext() != nil {
+	if arg2.IsNil() || !arg2.GetNext().IsNil() {
 		// too few or too many parameters
 		return n
 	}
@@ -1379,12 +1379,12 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringReplace(n *rhino.Node, string
 // TryFoldStringReplaceAll tries to fold .replaceAll() calls on strings.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringReplaceAll(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringReplaceAll(n *rhino.Node, stringNode *rhino.Node, arg1 *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringReplaceAll(n rhino.Node, stringNode rhino.Node, arg1 rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(stringNode.IsStringLit())
 
 	arg2 := arg1.GetNext()
-	if arg2 == nil || arg2.GetNext() != nil {
+	if arg2.IsNil() || !arg2.GetNext().IsNil() {
 		// too few or too many parameters
 		return n
 	}
@@ -1414,14 +1414,14 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringReplaceAll(n *rhino.Node, str
 // TryFoldStringCharCodeAt tries to fold .charCodeAt() calls on strings.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringCharCodeAt(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringCharCodeAt(n *rhino.Node, stringNode *rhino.Node, arg1 *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringCharCodeAt(n rhino.Node, stringNode rhino.Node, arg1 rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsCall())
 	jutil.CheckArgument(stringNode.IsStringLit())
 
 	var index int
 	stringAsString := stringNode.GetString()
 
-	if arg1 != nil && arg1.IsNumber() && arg1.GetNext() == nil {
+	if !arg1.IsNil() && arg1.IsNumber() && arg1.GetNext().IsNil() {
 		index = int(jutil.D2I(arg1.GetDouble()))
 	} else {
 		return n
@@ -1513,7 +1513,7 @@ func (p *PeepholeReplaceKnownMethods) JsSplit(stringValue string, separator *str
 // TryFoldStringSplit tries to fold .split() calls on strings.
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringSplit(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(n *rhino.Node, stringNode *rhino.Node, arg1 *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(n rhino.Node, stringNode rhino.Node, arg1 rhino.Node) rhino.Node {
 	if p.late {
 		return n
 	}
@@ -1527,7 +1527,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(n *rhino.Node, stringNo
 	// Maximum number of possible splits
 	limit := jutil.StringLength(stringValue) + 1
 
-	if arg1 != nil {
+	if !arg1.IsNil() {
 		if arg1.IsStringLit() {
 			s := arg1.GetString()
 			separator = &s
@@ -1536,7 +1536,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(n *rhino.Node, stringNo
 		}
 
 		arg2 := arg1.GetNext()
-		if arg2 != nil {
+		if !arg2.IsNil() {
 			if arg2.IsNumber() {
 				limit = min(int(jutil.D2I(arg2.GetDouble())), limit)
 				if limit < 0 {
@@ -1562,7 +1562,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(n *rhino.Node, stringNo
 }
 
 // Java: PeepholeReplaceKnownMethods.tryToFoldArrayConcat(Node)
-func (p *PeepholeReplaceKnownMethods) TryToFoldArrayConcat(n *rhino.Node) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryToFoldArrayConcat(n rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(n.IsCall(), "%s", n)
 
 	if !p.IsASTNormalized() || !p.useTypes {
@@ -1610,7 +1610,7 @@ func (p *PeepholeReplaceKnownMethods) TryToRemoveArrayLiteralFromFrontOfConcat(
 // `arr.concat(a,b)`.
 //
 // Java: PeepholeReplaceKnownMethods.tryToFoldConcatChaining(ConcatFunctionCall)
-func (p *PeepholeReplaceKnownMethods) TryToFoldConcatChaining(concatFunctionCall *peepholeReplaceKnownMethods_ConcatFunctionCall) *rhino.Node {
+func (p *PeepholeReplaceKnownMethods) TryToFoldConcatChaining(concatFunctionCall *peepholeReplaceKnownMethods_ConcatFunctionCall) rhino.Node {
 	jutil.CheckNotNull(concatFunctionCall)
 
 	concatCallNode := concatFunctionCall.callNode
@@ -1631,7 +1631,7 @@ func (p *PeepholeReplaceKnownMethods) TryToFoldConcatChaining(concatFunctionCall
 	// var a = [];
 	// a.concat(1).concat(a.push(1)); -> [1,1]
 	// a.concat(1,a.push(1)); -> [1,1,1]
-	for arg := concatFunctionCall.firstArgumentNode; arg != nil; arg = arg.GetNext() {
+	for arg := concatFunctionCall.firstArgumentNode; !arg.IsNil(); arg = arg.GetNext() {
 		if p.MayHaveSideEffects(arg) {
 			return concatCallNode
 		}
@@ -1640,7 +1640,7 @@ func (p *PeepholeReplaceKnownMethods) TryToFoldConcatChaining(concatFunctionCall
 	// perform folding
 	previousConcatCallNode := previousConcatFunctionCall.callNode
 	arg := concatFunctionCall.firstArgumentNode
-	for arg != nil {
+	for !arg.IsNil() {
 		currentArg := arg
 		arg = arg.GetNext()
 		previousConcatCallNode.AddChildToBack(currentArg.Detach())
@@ -1657,16 +1657,16 @@ func (p *PeepholeReplaceKnownMethods) TryToFoldConcatChaining(concatFunctionCall
 // instantiated as an empty anonymous subclass (`new ConcatFunctionCall(...)
 // {}`), which adds nothing; one struct stands for both.
 type peepholeReplaceKnownMethods_ConcatFunctionCall struct {
-	callNode          *rhino.Node
-	calleeNode        *rhino.Node
-	firstArgumentNode *rhino.Node
+	callNode          rhino.Node
+	calleeNode        rhino.Node
+	firstArgumentNode rhino.Node
 }
 
 // Java: PeepholeReplaceKnownMethods.ConcatFunctionCall(Node, Node, Node)
-func newPeepholeReplaceKnownMethods_ConcatFunctionCall(callNode *rhino.Node, calleeNode *rhino.Node, firstArgumentNode *rhino.Node) *peepholeReplaceKnownMethods_ConcatFunctionCall {
+func newPeepholeReplaceKnownMethods_ConcatFunctionCall(callNode rhino.Node, calleeNode rhino.Node, firstArgumentNode rhino.Node) *peepholeReplaceKnownMethods_ConcatFunctionCall {
 	c := &peepholeReplaceKnownMethods_ConcatFunctionCall{}
-	c.callNode = jutil.CheckNotNull(callNode)
-	c.calleeNode = jutil.CheckNotNull(calleeNode)
+	c.callNode = rhino.CheckNotNull(callNode)
+	c.calleeNode = rhino.CheckNotNull(calleeNode)
 	c.firstArgumentNode = firstArgumentNode
 	return c
 }
@@ -1676,9 +1676,9 @@ func newPeepholeReplaceKnownMethods_ConcatFunctionCall(callNode *rhino.Node, cal
 // `ConcatFunctionCall` object for it, otherwise `null`.
 //
 // Java: PeepholeReplaceKnownMethods.createConcatFunctionCallForNode(Node)
-func PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode(n *rhino.Node) *peepholeReplaceKnownMethods_ConcatFunctionCall {
+func PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode(n rhino.Node) *peepholeReplaceKnownMethods_ConcatFunctionCall {
 	jutil.CheckArgumentMsg1(n.IsCall(), "%s", n)
-	callTarget := jutil.CheckNotNull(n.GetFirstChild())
+	callTarget := rhino.CheckNotNull(n.GetFirstChild())
 	if !callTarget.IsGetProp() || callTarget.GetString() != "concat" {
 		return nil
 	}
@@ -1694,8 +1694,8 @@ func PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode(n *rhino.Node) 
 // known array. Checks for array literals and nested .concat calls.
 //
 // Java: PeepholeReplaceKnownMethods.containsExactlyArray(Node)
-func PeepholeReplaceKnownMethods_ContainsExactlyArray(n *rhino.Node) bool {
-	if n == nil {
+func PeepholeReplaceKnownMethods_ContainsExactlyArray(n rhino.Node) bool {
+	if n.IsNil() {
 		return false
 	}
 

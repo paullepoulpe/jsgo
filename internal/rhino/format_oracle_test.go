@@ -44,17 +44,17 @@ func (o *formatOracle) line(s string) { o.sb.WriteString(s + "\n") }
 
 func (o *formatOracle) rec(label, value string) { o.line(label + "\t" + oracleEsc(value)) }
 
-func (o *formatOracle) dumpNodes(n *Node, depth int) {
+func (o *formatOracle) dumpNodes(n Node, depth int) {
 	o.rec("node"+strconv.Itoa(depth), n.ToStringWithFlags(true, true, false))
 	if info := n.GetJSDocInfo(); info != nil {
 		o.rec("jsdoc"+strconv.Itoa(depth), info.ToStringVerbose())
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		o.dumpNodes(c, depth+1)
 	}
 }
 
-func (o *formatOracle) tree(name string, root *Node) {
+func (o *formatOracle) tree(name string, root Node) {
 	o.line("=== " + name)
 	o.rec("tree", root.ToStringTree())
 	o.rec("str", root.String())

@@ -140,7 +140,7 @@ func moduleMetadataMap_immutableMapCopyOf(
 // AutoValue_ModuleMetadataMap_ModuleMetadata is folded into this struct.
 type ModuleMetadataMap_ModuleMetadata struct {
 	moduleType                        ModuleMetadataMap_ModuleType
-	rootNode                          *rhino.Node
+	rootNode                          rhino.Node
 	usesClosure                       bool
 	isTestOnly                        bool
 	googNamespaces                    *jutil.ImmutableMultiset[string]
@@ -217,7 +217,7 @@ func (m *ModuleMetadataMap_ModuleMetadata) IsModule() bool {
 // something used as a fallback.
 //
 // Java: ModuleMetadataMap.ModuleMetadata.rootNode()
-func (m *ModuleMetadataMap_ModuleMetadata) RootNode() *rhino.Node {
+func (m *ModuleMetadataMap_ModuleMetadata) RootNode() rhino.Node {
 	return m.rootNode
 }
 
@@ -354,7 +354,7 @@ func (m *ModuleMetadataMap_ModuleMetadata) HashCode() int32 {
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.toString()
 func (m *ModuleMetadataMap_ModuleMetadata) String() string {
 	rootNode := "null"
-	if m.rootNode != nil {
+	if !m.rootNode.IsNil() {
 		rootNode = m.rootNode.String()
 	}
 	path := "null"
@@ -382,7 +382,7 @@ func (m *ModuleMetadataMap_ModuleMetadata) String() string {
 // ModuleMetadata (AutoValue_ModuleMetadataMap_ModuleMetadata.Builder).
 type ModuleMetadataMap_ModuleMetadata_Builder struct {
 	moduleType                                *ModuleMetadataMap_ModuleType
-	rootNode                                  *rhino.Node
+	rootNode                                  rhino.Node
 	usesClosure                               bool
 	isTestOnly                                bool
 	googNamespacesBuilder_                    *jutil.ImmutableMultiset_Builder[string]
@@ -435,7 +435,7 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) GetModuleType() ModuleMetadat
 // RootNode takes a possibly-nil root.
 //
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.rootNode(Node)
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) RootNode(rootNode *rhino.Node) *ModuleMetadataMap_ModuleMetadata_Builder {
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) RootNode(rootNode rhino.Node) *ModuleMetadataMap_ModuleMetadata_Builder {
 	b.rootNode = rootNode
 	return b
 }

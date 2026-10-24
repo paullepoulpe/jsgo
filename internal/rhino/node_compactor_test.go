@@ -1,13 +1,13 @@
 package rhino
 
 import (
-	"strings"
 	"testing"
 )
 
 // Go-only: copying compaction of the node store (node_compact.go).
 func TestCompactorCopiesTreeAndForwardsHolders(t *testing.T) {
-	NewNodeGeneration()
+	prev := SetCurrentNodeStore(NewNodeStore())
+	defer SetCurrentNodeStore(prev)
 	script := IR_ScriptOfNodes(
 		IR_Var(IR_Name("a")),
 		IR_ExprResult(IR_Call(IR_Name("f"), IR_Name("a"), Node_NewNumber(1))),
@@ -36,23 +36,23 @@ func TestCompactorCopiesTreeAndForwardsHolders(t *testing.T) {
 	if k.Forward(newFn) != newFn || k.Forward(fn) != newFn {
 		t.Fatal("Forward is not idempotent")
 	}
+	if CurrentNodeStore() != k.Store() || newRoot.Store() != k.Store() || root.Store() == k.Store() {
+		t.Fatal("the copy is not in the compactor's new, current store")
+	}
 	old := NodePoisonMode
 	NodePoisonMode = true
-	released := k.Finish(nil)
+	k.Finish()
 	NodePoisonMode = old
-	if released == 0 {
-		t.Fatal("no chunk released")
-	}
 	if !newRoot.IsEquivalentTo(expected) {
 		t.Fatalf("copy differs:\n%s\nvs\n%s", newRoot.ToStringTree(), expected.ToStringTree())
 	}
 	if newFn.GetParent().GetParent() != newRoot || newFn.GetFirstChild().GetString() != "g" {
 		t.Fatal("forwarded function is not in the copied tree")
 	}
-	if newInterior.GetParent() == nil || !newInterior.GetParent().IsVar() || newInterior.GetString() != "d" {
+	if newInterior.GetParent().IsNil() || !newInterior.GetParent().IsVar() || newInterior.GetString() != "d" {
 		t.Fatal("interior holder was not forwarded with its detached subtree")
 	}
-	if newHeld.GetString() != "h" || newHeld.GetParent() != nil {
+	if newHeld.GetString() != "h" || !newHeld.GetParent().IsNil() {
 		t.Fatal("detached holder was not forwarded")
 	}
 	if nt := newFn.GetJSDocInfo().GetType().GetRoot(); nt == typeRoot || nt.GetString() != "number" {
@@ -64,9 +64,8 @@ func TestCompactorCopiesTreeAndForwardsHolders(t *testing.T) {
 	// Stale use of an old node fails loudly in poison mode.
 	func() {
 		defer func() {
-			r := recover()
-			if r == nil || !strings.Contains(r.(string), "stale node id") {
-				t.Fatalf("expected a stale-node panic, got %v", r)
+			if recover() == nil {
+				t.Fatal("expected a panic from a stale node")
 			}
 		}()
 		fn.GetNext()

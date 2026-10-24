@@ -70,7 +70,7 @@ type FunctionType interface {
 	GetPrototypeProperty() ObjectType
 	GetPrototype() ObjectType
 	SetPrototypeBasedOn(baseType ObjectType)
-	SetPrototype(prototype ObjectType, propertyNode *Node) bool
+	SetPrototype(prototype ObjectType, propertyNode Node) bool
 	GetAllImplementedInterfaces() []ObjectType
 	GetAncestorInterfaces() []ObjectType
 	GetImplementedInterfaces() []ObjectType
@@ -84,7 +84,7 @@ type FunctionType interface {
 	HasEqualCallType(that FunctionType) bool
 	GetInstanceType() ObjectType
 	HasInstanceType() bool
-	SetSource(source *Node)
+	SetSource(source Node)
 	HasProperties() bool
 	SetImplicitMatch(flag bool)
 	IsAbstract() bool
@@ -143,7 +143,7 @@ type FunctionTypeBase struct {
 	typeOfThis *JSTypeBase
 
 	// The function node which this type represents. It may be null.
-	source *Node
+	source Node
 
 	ext *functionTypeExt
 }
@@ -258,7 +258,7 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 	self.SetPrettyPrint(true)
 
 	source := builder.sourceNode
-	jutil.CheckArgument(source == nil || source.IsFunction() || source.IsClass())
+	jutil.CheckArgument(source.IsNil() || source.IsFunction() || source.IsClass())
 	f.source = source
 	if builder.googModuleId != nil {
 		f.ensureExt().googModuleId = builder.googModuleId
@@ -598,7 +598,7 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			// Someone is trying to access the prototype of a structural function.
 			// We don't want to give real properties to this prototype, because
 			// then it would propagate to all structural functions.
-			f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), nil)
+			f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), Node{})
 		} else {
 			name := jutil.ToJavaString(refName) + ".prototype"
 			fields := PrototypeObjectType_BuilderFields{
@@ -610,7 +610,7 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			}
 			f.selfFunc().SetPrototype(
 				NewPrototypeObjectType(&fields),
-				nil)
+				Node{})
 		}
 	}
 	return f.prototypeSlot().GetType().(ObjectType)
@@ -621,17 +621,17 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 //
 // Java: FunctionType.setPrototypeBasedOn(ObjectType)
 func (f *FunctionTypeBase) SetPrototypeBasedOn(baseType ObjectType) {
-	f.SetPrototypeBasedOnWithPropertyNode(baseType, nil)
+	f.SetPrototypeBasedOnWithPropertyNode(baseType, Node{})
 }
 
 // Java: FunctionType.setPrototypeBasedOn(ObjectType, Node)
-func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectType, propertyNode *Node) {
+func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectType, propertyNode Node) {
 	if f.selfFunc().IsNativeObjectType() {
 		return
 	}
 	// First handle class-side inheritance for ES6 classes, before reassigning
 	// baseType.
-	if f.source != nil && f.source.IsClass() {
+	if !f.source.IsNil() && f.source.IsClass() {
 		superCtor := baseType.GetConstructor()
 		if superCtor != nil {
 			f.selfFunc().SetImplicitPrototype(superCtor)
@@ -675,7 +675,7 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 // is null it will silently be discarded.
 //
 // Java: FunctionType.setPrototype(ObjectType, Node)
-func (f *FunctionTypeBase) SetPrototype(prototype ObjectType, propertyNode *Node) bool {
+func (f *FunctionTypeBase) SetPrototype(prototype ObjectType, propertyNode Node) bool {
 	if prototype == nil {
 		return false
 	}
@@ -689,7 +689,7 @@ func (f *FunctionTypeBase) SetPrototype(prototype ObjectType, propertyNode *Node
 // setPrototypeNoCheck sets the prototype without doing any sanity checks.
 //
 // Java: FunctionType.SetPrototypeNoCheck(ObjectType, Node)
-func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNode *Node) bool {
+func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNode Node) bool {
 	var oldPrototype ObjectType
 	if slot := f.prototypeSlot(); slot != nil {
 		oldPrototype = slot.GetType().(ObjectType)
@@ -697,7 +697,7 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 	replacedPrototype := oldPrototype != nil
 
 	slotNode := propertyNode
-	if propertyNode == nil {
+	if propertyNode.IsNil() {
 		slotNode = f.source
 	}
 	f.setPrototypeSlot(NewProperty("prototype", prototype, true, slotNode))
@@ -980,7 +980,7 @@ func (f *FunctionTypeBase) GetCallOrBindSignature(isCall bool) FunctionType {
 }
 
 // Java: FunctionType.defineProperty(Property.Key, JSType, boolean, Node)
-func (f *FunctionTypeBase) DefinePropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (f *FunctionTypeBase) DefinePropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	if name.Matches("prototype") {
 		objType := type_.ToObjectType()
 		if objType != nil {
@@ -1195,7 +1195,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 		return
 	}
 
-	if f.selfFunc().HasInstanceType() && f.selfFunc().GetSource() != nil {
+	if f.selfFunc().HasInstanceType() && !f.selfFunc().GetSource().IsNil() {
 		// Render function types known to be type definitions as "(typeof
 		// Foo)". This includes types defined like "/** @constructor */ function
 		// Foo() { }" but not to those defined like "@param
@@ -1313,7 +1313,7 @@ func (f *FunctionTypeBase) GetTypeOfThis() JSType {
 // GetSource gets the source node or null if this is an unknown function.
 //
 // Java: FunctionType.getSource()
-func (f *FunctionTypeBase) GetSource() *Node {
+func (f *FunctionTypeBase) GetSource() Node {
 	return f.source
 }
 
@@ -1328,14 +1328,14 @@ func (f *FunctionTypeBase) GetGoogModuleId() *string {
 // SetSource sets the source node.
 //
 // Java: FunctionType.setSource(Node)
-func (f *FunctionTypeBase) SetSource(source *Node) {
+func (f *FunctionTypeBase) SetSource(source Node) {
 	if slot := f.prototypeSlot(); slot != nil {
 		// NOTE(bashir): On one hand when source is null we want to drop any
 		// references to old nodes retained in prototypeSlot. On the other hand
 		// we cannot simply drop prototypeSlot, so we retain all information
 		// except the propertyNode for which we use an approximation! These
 		// details mostly matter in hot-swap passes.
-		if source == nil || slot.GetNode() == nil {
+		if source.IsNil() || slot.GetNode().IsNil() {
 			f.setPrototypeSlot(NewProperty(
 				slot.GetName(),
 				slot.GetType(),
@@ -1635,7 +1635,7 @@ func (f *FunctionTypeBase) GetConstructorOnlyTemplateParameters() []*TemplateTyp
 
 	// Structural constructor types (e.g `function(new:Foo<T>)`) cannot have
 	// template params of their own.
-	if f.source == nil {
+	if f.source.IsNil() {
 		return []*TemplateType{}
 	}
 
@@ -1674,7 +1674,7 @@ func (f *FunctionTypeBase) CalculateConstructorAmbiguity() FunctionType_Construc
 		} else if superConstructor.IsAmbiguousConstructor() {
 			// Subclasses of ambiguous objects are also ambiguous
 			constructorAmbiguity = FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
-		} else if f.source != nil {
+		} else if !f.source.IsNil() {
 			// We can see the definition of the class, so we know all properties it
 			// directly declares or references. The same is true for its superclass
 			// (previous condition).
@@ -1769,7 +1769,7 @@ func (f *FunctionTypeBase) ToBuilder() *FunctionType_Builder {
 type FunctionType_Builder struct {
 	PrototypeObjectType_Builder[*FunctionType_Builder]
 
-	sourceNode   *Node
+	sourceNode   Node
 	googModuleId *string
 	// Go: nil is Java null (unknown parameters).
 	parameters              []*FunctionType_Parameter
@@ -1808,7 +1808,7 @@ func (b *FunctionType_Builder) WithName(name *string) *FunctionType_Builder {
 // WithSourceNode sets the source node of the function type.
 //
 // Java: FunctionType.Builder.withSourceNode(Node)
-func (b *FunctionType_Builder) WithSourceNode(sourceNode *Node) *FunctionType_Builder {
+func (b *FunctionType_Builder) WithSourceNode(sourceNode Node) *FunctionType_Builder {
 	b.sourceNode = sourceNode
 	return b
 }

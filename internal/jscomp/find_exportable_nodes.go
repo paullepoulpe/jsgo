@@ -39,12 +39,12 @@ type FindExportableNodes struct {
 
 	// The set of node with @export annotations and their associated fully
 	// qualified names
-	exports *jutil.LinkedHashMap[string, *rhino.Node]
+	exports *jutil.LinkedHashMap[string, rhino.Node]
 
 	// The set of class member function nodes with @export annotations and
 	// the fully qualified name of the owning class (not including the member
 	// fn name).
-	es6ClassExports *jutil.LinkedHashMap[*rhino.Node, string]
+	es6ClassExports *jutil.LinkedHashMap[rhino.Node, string]
 
 	// The set of property names associated with @export annotations that do
 	// not have an associated fully qualified name.
@@ -65,8 +65,8 @@ var FindExportableNodes_EXPORT_ANNOTATION_NOT_ALLOWED = DiagnosticType_Error(
 // Java: FindExportableNodes(AbstractCompiler, boolean)
 func NewFindExportableNodes(compiler AbstractCompiler, allowLocalExports bool) *FindExportableNodes {
 	f := &FindExportableNodes{}
-	f.exports = jutil.NewLinkedHashMap[string, *rhino.Node]()
-	f.es6ClassExports = jutil.NewLinkedHashMap[*rhino.Node, string]()
+	f.exports = jutil.NewLinkedHashMap[string, rhino.Node]()
+	f.es6ClassExports = jutil.NewLinkedHashMap[rhino.Node, string]()
 	f.localExports = jutil.NewLinkedHashSet[string]()
 	f.compiler = compiler
 	f.allowLocalExports = allowLocalExports
@@ -74,7 +74,7 @@ func NewFindExportableNodes(compiler AbstractCompiler, allowLocalExports bool) *
 }
 
 // Java: FindExportableNodes.visit(NodeTraversal, Node, Node)
-func (f *FindExportableNodes) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *FindExportableNodes) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	docInfo := n.GetJSDocInfo()
 	if docInfo == nil || !docInfo.IsExport() {
 		return
@@ -91,7 +91,7 @@ func (f *FindExportableNodes) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 
 	mode := findExportableNodes_Mode_null
 	var export *string = nil
-	var context *rhino.Node = nil
+	var context rhino.Node = rhino.Node{}
 
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION, rhino.Token_CLASS:
@@ -105,7 +105,7 @@ func (f *FindExportableNodes) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 		grandparent := parent.GetParent()
 		child := n.GetFirstChild()
 		if parent.IsExprResult() && !n.GetLastChild().IsAssign() {
-			if grandparent != nil && grandparent.IsScript() && child.IsQualifiedName() {
+			if !grandparent.IsNil() && grandparent.IsScript() && child.IsQualifiedName() {
 				export = child.GetQualifiedName()
 				context = n
 				mode = FindExportableNodes_Mode_EXPORT
@@ -185,10 +185,10 @@ func (f *FindExportableNodes) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 
 	if export != nil {
 		if mode == FindExportableNodes_Mode_EXPORT {
-			jutil.CheckNotNull(context)
+			rhino.CheckNotNull(context)
 			f.exports.Put(*export, context)
 		} else {
-			jutil.CheckState(context == nil)
+			jutil.CheckState(context.IsNil())
 			jutil.CheckState(mode == FindExportableNodes_Mode_EXTERN)
 			jutil.CheckState(!(*export == ""))
 			f.localExports.Add(*export)
@@ -211,7 +211,7 @@ func (f *FindExportableNodes) Visit(t *NodeTraversal, n *rhino.Node, parent *rhi
 }
 
 // Java: FindExportableNodes.getExports()
-func (f *FindExportableNodes) GetExports() *jutil.LinkedHashMap[string, *rhino.Node] {
+func (f *FindExportableNodes) GetExports() *jutil.LinkedHashMap[string, rhino.Node] {
 	return f.exports
 }
 
@@ -221,7 +221,7 @@ func (f *FindExportableNodes) GetLocalExports() *jutil.LinkedHashSet[string] {
 }
 
 // Java: FindExportableNodes.getEs6ClassExports()
-func (f *FindExportableNodes) GetEs6ClassExports() *jutil.LinkedHashMap[*rhino.Node, string] {
+func (f *FindExportableNodes) GetEs6ClassExports() *jutil.LinkedHashMap[rhino.Node, string] {
 	return f.es6ClassExports
 }
 

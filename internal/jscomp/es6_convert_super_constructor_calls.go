@@ -54,15 +54,15 @@ const es6ConvertSuperConstructorCalls_SUPER_THIS = "$jscomp$super$this"
 // es6ConvertSuperConstructorCalls_ConstructorData stores superCalls for a
 // constructor.
 type es6ConvertSuperConstructorCalls_ConstructorData struct {
-	constructor *rhino.Node
-	superCalls  []*rhino.Node
+	constructor rhino.Node
+	superCalls  []rhino.Node
 }
 
 // Java: Es6ConvertSuperConstructorCalls.ConstructorData(Node)
-func newEs6ConvertSuperConstructorCalls_ConstructorData(constructor *rhino.Node) *es6ConvertSuperConstructorCalls_ConstructorData {
+func newEs6ConvertSuperConstructorCalls_ConstructorData(constructor rhino.Node) *es6ConvertSuperConstructorCalls_ConstructorData {
 	c := &es6ConvertSuperConstructorCalls_ConstructorData{}
 	c.constructor = constructor
-	c.superCalls = []*rhino.Node{}
+	c.superCalls = []rhino.Node{}
 	return c
 }
 
@@ -92,7 +92,7 @@ func (e *Es6ConvertSuperConstructorCalls) peekConstructorData() *es6ConvertSuper
 }
 
 // Java: Es6ConvertSuperConstructorCalls.shouldTraverse(NodeTraversal, Node, Node)
-func (e *Es6ConvertSuperConstructorCalls) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (e *Es6ConvertSuperConstructorCalls) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() && !NodeUtil_GetFeatureSetOfScript(n).ContainsFeature(parser.FeatureSet_Feature_SUPER) {
 		// If a script contains Feature.SUPER, only then process super constructor calls for it
 		return false
@@ -119,7 +119,7 @@ func (e *Es6ConvertSuperConstructorCalls) ShouldTraverse(t *NodeTraversal, n *rh
 }
 
 // Java: Es6ConvertSuperConstructorCalls.visit(NodeTraversal, Node, Node)
-func (e *Es6ConvertSuperConstructorCalls) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6ConvertSuperConstructorCalls) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	constructorData := e.peekConstructorData()
 	if constructorData != nil && n == constructorData.constructor {
 		e.constructorDataStack[len(e.constructorDataStack)-1] = nil
@@ -188,9 +188,9 @@ func (e *Es6ConvertSuperConstructorCalls) VisitSuper(t *NodeTraversal, construct
 }
 
 // Java: Es6ConvertSuperConstructorCalls.replaceSuperCallsWithThis(List<Node>, AstFactory.Type)
-func (e *Es6ConvertSuperConstructorCalls) ReplaceSuperCallsWithThis(superCalls []*rhino.Node, thisType AstFactory_Type) {
+func (e *Es6ConvertSuperConstructorCalls) ReplaceSuperCallsWithThis(superCalls []rhino.Node, thisType AstFactory_Type) {
 	for _, superCall := range superCalls {
-		sideEffectArgs := []*rhino.Node{}
+		sideEffectArgs := []rhino.Node{}
 		callee := superCall.RemoveFirstChild()
 		jutil.CheckStateMsg1(callee.IsSuper(), "%s", callee)
 		for superCall.HasChildren() {
@@ -238,17 +238,17 @@ func (e *Es6ConvertSuperConstructorCalls) ReplaceSuperCallsWithThis(superCalls [
 //
 // Java: Es6ConvertSuperConstructorCalls.rewriteSuperCallsToJsCompConstructCalls(Node, List<Node>, Node, AstFactory.Type, String)
 func (e *Es6ConvertSuperConstructorCalls) RewriteSuperCallsToJsCompConstructCalls(
-	constructor *rhino.Node,
-	superCalls []*rhino.Node,
-	superClassNameNode *rhino.Node,
+	constructor rhino.Node,
+	superCalls []rhino.Node,
+	superClassNameNode rhino.Node,
 	thisType AstFactory_Type,
 	uniqueSuperThisName string) {
-	constructorBody := jutil.CheckNotNull(constructor.GetChildAtIndex(2))
+	constructorBody := rhino.CheckNotNull(constructor.GetChildAtIndex(2))
 	firstStatement := constructorBody.GetFirstChild()
 	// A constructor body with no call to `super()` is a syntax error for a class that has an
 	// extends clause. An error should have been reported and we should never reach this point
 	// for an empty constructor body.
-	jutil.CheckNotNullMsg(firstStatement, "Empty constructor body")
+	rhino.CheckNotNullMsg(firstStatement, "Empty constructor body")
 	firstSuperCall := superCalls[0]
 
 	if constructorBody.HasOneChild() &&
@@ -272,7 +272,7 @@ func (e *Es6ConvertSuperConstructorCalls) RewriteSuperCallsToJsCompConstructCall
 			CreateSingleVarNameDeclaration(uniqueSuperThisName).
 			SrcrefTree(constructorBody)
 		insertBeforePoint := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(constructorBody)
-		if insertBeforePoint != nil {
+		if !insertBeforePoint.IsNil() {
 			declaration.InsertBefore(insertBeforePoint)
 		} else {
 			// functionBody only contains hoisted function declarations
@@ -299,7 +299,7 @@ func (e *Es6ConvertSuperConstructorCalls) RewriteSuperCallsToJsCompConstructCall
 
 // Java: Es6ConvertSuperConstructorCalls.rewriteNativeErrorSuperCalls(NodeTraversal, List<Node>, Node, AstFactory.Type)
 func (e *Es6ConvertSuperConstructorCalls) RewriteNativeErrorSuperCalls(
-	t *NodeTraversal, superCalls []*rhino.Node, superClassNameNode *rhino.Node, thisType AstFactory_Type) {
+	t *NodeTraversal, superCalls []rhino.Node, superClassNameNode rhino.Node, thisType AstFactory_Type) {
 	for _, superCall := range superCalls {
 		newSuperCall :=
 			e.CreateNewSuperCall(superClassNameNode, superCall, thisType, AstFactory_Type_(superCall))
@@ -309,7 +309,7 @@ func (e *Es6ConvertSuperConstructorCalls) RewriteNativeErrorSuperCalls(
 
 // Java: Es6ConvertSuperConstructorCalls.rewriteSuperCalls(List<Node>, Node, AstFactory.Type)
 func (e *Es6ConvertSuperConstructorCalls) RewriteSuperCalls(
-	superCalls []*rhino.Node, superClassNameNode *rhino.Node, thisType AstFactory_Type) {
+	superCalls []rhino.Node, superClassNameNode rhino.Node, thisType AstFactory_Type) {
 	// super() will not change the value of `this`.
 	for _, superCall := range superCalls {
 		newSuperCall :=
@@ -332,9 +332,9 @@ func (e *Es6ConvertSuperConstructorCalls) RewriteSuperCalls(
 
 // Java: Es6ConvertSuperConstructorCalls.rewriteSuperAndPreserveReturnedThis(Node, List<Node>, Node, AstFactory.Type, String)
 func (e *Es6ConvertSuperConstructorCalls) RewriteSuperAndPreserveReturnedThis(
-	constructor *rhino.Node,
-	superCalls []*rhino.Node,
-	superClassNameNode *rhino.Node,
+	constructor rhino.Node,
+	superCalls []rhino.Node,
+	superClassNameNode rhino.Node,
 	thisType AstFactory_Type,
 	uniqueSuperThisName string) {
 	// Either the superclass constructor returns a value, or we cannot find its definition in
@@ -354,7 +354,7 @@ func (e *Es6ConvertSuperConstructorCalls) RewriteSuperAndPreserveReturnedThis(
 	// break if we're extending an ES6 class (#2), because it calls the superclass constructor
 	// without using `new` or `Reflect.construct()`
 	// TODO(b/36789413): we should always use `$jscomp.construct`.
-	constructorBody := jutil.CheckNotNull(constructor.GetChildAtIndex(2))
+	constructorBody := rhino.CheckNotNull(constructor.GetChildAtIndex(2))
 	firstStatement := constructorBody.GetFirstChild()
 	firstSuperCall := superCalls[0]
 
@@ -382,7 +382,7 @@ func (e *Es6ConvertSuperConstructorCalls) RewriteSuperAndPreserveReturnedThis(
 			rhino.IR_Var(e.astFactory.CreateName(uniqueSuperThisName, typeOfThis)).
 				SrcrefTree(constructorBody)
 		insertBeforePoint := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(constructorBody)
-		if insertBeforePoint != nil {
+		if !insertBeforePoint.IsNil() {
 			declaration.InsertBefore(insertBeforePoint)
 		} else {
 			// functionBody only contains hoisted function declarations
@@ -449,19 +449,19 @@ func (e *Es6ConvertSuperConstructorCalls) IsKnownToReturnOnlyUndefined(functionQ
 	}
 
 	declaration := declaredVarOrProp.GetParent()
-	var declaredValue *rhino.Node
+	var declaredValue rhino.Node
 	if declaration.IsFunction() {
 		declaredValue = declaration
 	} else if NodeUtil_IsNameDeclaration(declaration) && declaredVarOrProp.IsName() {
 		if declaredVarOrProp.HasChildren() {
-			declaredValue = jutil.CheckNotNull(declaredVarOrProp.GetFirstChild())
+			declaredValue = rhino.CheckNotNull(declaredVarOrProp.GetFirstChild())
 		} else {
 			return false // Declaration without an assigned value.
 		}
 	} else if declaration.IsAssign() && declaration.GetFirstChild() == declaredVarOrProp {
-		declaredValue = jutil.CheckNotNull(declaration.GetSecondChild())
+		declaredValue = rhino.CheckNotNull(declaration.GetSecondChild())
 	} else if declaration.IsObjectLit() && declaredVarOrProp.HasOneChild() {
-		declaredValue = jutil.CheckNotNull(declaredVarOrProp.GetFirstChild())
+		declaredValue = rhino.CheckNotNull(declaredVarOrProp.GetFirstChild())
 	} else {
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"Unexpected declaration format:\n" + declaration.ToStringTree()))
@@ -470,9 +470,9 @@ func (e *Es6ConvertSuperConstructorCalls) IsKnownToReturnOnlyUndefined(functionQ
 }
 
 // Java: Es6ConvertSuperConstructorCalls.isNodeKnownToOnlyReturnUndefined(Node)
-func (e *Es6ConvertSuperConstructorCalls) IsNodeKnownToOnlyReturnUndefined(node *rhino.Node) bool {
+func (e *Es6ConvertSuperConstructorCalls) IsNodeKnownToOnlyReturnUndefined(node rhino.Node) bool {
 	if node.IsFunction() {
-		functionBody := jutil.CheckNotNull(node.GetChildAtIndex(2))
+		functionBody := rhino.CheckNotNull(node.GetChildAtIndex(2))
 		return !newEs6ConvertSuperConstructorCalls_UndefinedReturnValueCheck(e).MayReturnDefinedValue(functionBody)
 	} else if node.IsQualifiedName() {
 		return e.IsKnownToReturnOnlyUndefined(*node.GetQualifiedName())
@@ -499,7 +499,7 @@ func newEs6ConvertSuperConstructorCalls_UndefinedReturnValueCheck(outer *Es6Conv
 }
 
 // Java: Es6ConvertSuperConstructorCalls.UndefinedReturnValueCheck.mayReturnDefinedValue(Node)
-func (u *es6ConvertSuperConstructorCalls_UndefinedReturnValueCheck) MayReturnDefinedValue(functionBody *rhino.Node) bool {
+func (u *es6ConvertSuperConstructorCalls_UndefinedReturnValueCheck) MayReturnDefinedValue(functionBody rhino.Node) bool {
 	u.foundNonEmptyReturn = false
 	checkForDefinedReturnValue := &es6ConvertSuperConstructorCalls_checkForDefinedReturnValue{outer: u}
 	NodeTraversal_Traverse(u.outer.compiler, functionBody, checkForDefinedReturnValue)
@@ -515,7 +515,7 @@ type es6ConvertSuperConstructorCalls_checkForDefinedReturnValue struct {
 }
 
 // Java: Es6ConvertSuperConstructorCalls.UndefinedReturnValueCheck.mayReturnDefinedValue(Node).new AbstractShallowCallback() {...}.visit(NodeTraversal, Node, Node)
-func (c *es6ConvertSuperConstructorCalls_checkForDefinedReturnValue) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *es6ConvertSuperConstructorCalls_checkForDefinedReturnValue) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !c.outer.foundNonEmptyReturn {
 		if n.IsReturn() &&
 			n.HasChildren() &&
@@ -534,17 +534,17 @@ func (c *es6ConvertSuperConstructorCalls_checkForDefinedReturnValue) Visit(t *No
 //
 // Java: Es6ConvertSuperConstructorCalls.createNewSuperCall(Node, Node, AstFactory.Type, AstFactory.Type)
 func (e *Es6ConvertSuperConstructorCalls) CreateNewSuperCall(
-	superClassQNameNode *rhino.Node,
-	superCall *rhino.Node,
+	superClassQNameNode rhino.Node,
+	superCall rhino.Node,
 	thisType AstFactory_Type,
-	resultType AstFactory_Type) *rhino.Node {
+	resultType AstFactory_Type) rhino.Node {
 	jutil.CheckArgumentMsg1(superClassQNameNode.IsQualifiedName(), "%s", superClassQNameNode)
 	jutil.CheckArgumentMsg1(superCall.IsCall(), "%s", superCall)
 
 	callee := superCall.RemoveFirstChild()
 	jutil.CheckStateMsg1(callee.IsSuper(), "%s", callee)
 
-	args := []*rhino.Node{}
+	args := []rhino.Node{}
 	hasSpreadArg := false
 	for superCall.HasChildren() {
 		arg := superCall.RemoveFirstChild()
@@ -616,11 +616,11 @@ func (e *Es6ConvertSuperConstructorCalls) CreateNewSuperCall(
 //
 // Java: Es6ConvertSuperConstructorCalls.createJSCompConstructorCall(Node, Node, AstFactory.Type)
 func (e *Es6ConvertSuperConstructorCalls) CreateJSCompConstructorCall(
-	superClassQNameNode *rhino.Node, superCall *rhino.Node, thisType AstFactory_Type) *rhino.Node {
+	superClassQNameNode rhino.Node, superCall rhino.Node, thisType AstFactory_Type) rhino.Node {
 	jutil.CheckArgumentMsg1(superClassQNameNode.IsQualifiedName(), "%s", superClassQNameNode)
 	jutil.CheckArgumentMsg1(superCall.IsCall(), "%s", superCall)
 
-	callee := jutil.CheckNotNullMsg1(superCall.RemoveFirstChild(), "%s", superCall)
+	callee := rhino.CheckNotNullMsg1(superCall.RemoveFirstChild(), "%s", superCall)
 	jutil.CheckStateMsg1(callee.IsSuper(), "%s", callee)
 
 	// `$jscomp.construct`
@@ -631,7 +631,7 @@ func (e *Es6ConvertSuperConstructorCalls) CreateJSCompConstructorCall(
 
 	// extract the arguments from the super() call and create the arguments list to pass to
 	// $jscomp.construct()
-	superCallArgList := []*rhino.Node{}
+	superCallArgList := []rhino.Node{}
 	for superCall.HasChildren() {
 		superCallArgList = append(superCallArgList, superCall.RemoveFirstChild())
 	}
@@ -641,7 +641,7 @@ func (e *Es6ConvertSuperConstructorCalls) CreateJSCompConstructorCall(
 	// `$jscomp.construct(SuperClass, arguments, this.constructor)` here rather than relying on
 	// later optimizations to
 	// convert `[...arguments]` to `arguments`.
-	var superArgs *rhino.Node
+	var superArgs rhino.Node
 	if Es6ConvertSuperConstructorCalls_IsSingleSpreadOfArguments(superCallArgList) {
 		// pull out `arguments` from `...arguments`
 		superArgs = superCallArgList[0].GetOnlyChild().Detach()
@@ -665,18 +665,18 @@ func (e *Es6ConvertSuperConstructorCalls) CreateJSCompConstructorCall(
 }
 
 // Java: Es6ConvertSuperConstructorCalls.isSingleSpreadOfArguments(List<Node>)
-func Es6ConvertSuperConstructorCalls_IsSingleSpreadOfArguments(nodeList []*rhino.Node) bool {
+func Es6ConvertSuperConstructorCalls_IsSingleSpreadOfArguments(nodeList []rhino.Node) bool {
 	return len(nodeList) == 1 && Es6ConvertSuperConstructorCalls_IsSpreadOfArguments(nodeList[0])
 }
 
 // Java: Es6ConvertSuperConstructorCalls.isSpreadOfArguments(Node)
-func Es6ConvertSuperConstructorCalls_IsSpreadOfArguments(node *rhino.Node) bool {
+func Es6ConvertSuperConstructorCalls_IsSpreadOfArguments(node rhino.Node) bool {
 	return node.IsSpread() && node.GetOnlyChild().MatchesName("arguments")
 }
 
 // Java: Es6ConvertSuperConstructorCalls.replaceNativeErrorSuperCall(Node, Node, CompilerInput)
 func (e *Es6ConvertSuperConstructorCalls) ReplaceNativeErrorSuperCall(
-	superCall *rhino.Node, newSuperCall *rhino.Node, compilerInput *CompilerInput) {
+	superCall rhino.Node, newSuperCall rhino.Node, compilerInput *CompilerInput) {
 	// The native error class constructors always return a new object instead of initializing
 	// `this`, so a workaround is needed.
 	superStatement := NodeUtil_GetEnclosingStatement(superCall)
@@ -818,8 +818,8 @@ func (e *Es6ConvertSuperConstructorCalls) IsDefinedInSources(t *NodeTraversal, v
 // Java: Es6ConvertSuperConstructorCalls.updateThisToSuperThis(AstFactory.Type, Node, List<Node>, String)
 func (e *Es6ConvertSuperConstructorCalls) UpdateThisToSuperThis(
 	typeOfThis AstFactory_Type,
-	constructorBody *rhino.Node,
-	superCalls []*rhino.Node,
+	constructorBody rhino.Node,
+	superCalls []rhino.Node,
 	uniqueSuperThisName string) {
 	replaceThisWithSuperThis := &es6ConvertSuperConstructorCalls_replaceThisWithSuperThis{
 		outer:               e,
@@ -835,12 +835,12 @@ func (e *Es6ConvertSuperConstructorCalls) UpdateThisToSuperThis(
 type es6ConvertSuperConstructorCalls_replaceThisWithSuperThis struct {
 	outer               *Es6ConvertSuperConstructorCalls
 	typeOfThis          AstFactory_Type
-	superCalls          []*rhino.Node
+	superCalls          []rhino.Node
 	uniqueSuperThisName string
 }
 
 // Java: Es6ConvertSuperConstructorCalls.updateThisToSuperThis(...).new Callback() {...}.shouldTraverse(NodeTraversal, Node, Node)
-func (c *es6ConvertSuperConstructorCalls_replaceThisWithSuperThis) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *es6ConvertSuperConstructorCalls_replaceThisWithSuperThis) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if slices.Contains(c.superCalls, n) {
 		return false // Leave `this` intact on super calls.
 	} else if n.IsFunction() && !n.IsArrowFunction() {
@@ -852,7 +852,7 @@ func (c *es6ConvertSuperConstructorCalls_replaceThisWithSuperThis) ShouldTravers
 }
 
 // Java: Es6ConvertSuperConstructorCalls.updateThisToSuperThis(...).new Callback() {...}.visit(NodeTraversal, Node, Node)
-func (c *es6ConvertSuperConstructorCalls_replaceThisWithSuperThis) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *es6ConvertSuperConstructorCalls_replaceThisWithSuperThis) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsThis() {
 		superThis := c.outer.astFactory.CreateName(c.uniqueSuperThisName, AstFactory_Type_(n)).Srcref(n)
 		n.ReplaceWith(superThis)
@@ -863,7 +863,7 @@ func (c *es6ConvertSuperConstructorCalls_replaceThisWithSuperThis) Visit(t *Node
 }
 
 // Java: Es6ConvertSuperConstructorCalls.getTypeOfThisForConstructor(Node)
-func (e *Es6ConvertSuperConstructorCalls) GetTypeOfThisForConstructor(constructor *rhino.Node) AstFactory_Type {
+func (e *Es6ConvertSuperConstructorCalls) GetTypeOfThisForConstructor(constructor rhino.Node) AstFactory_Type {
 	jutil.CheckArgumentMsg1(constructor.IsFunction(), "%s", constructor)
 	constructorType := constructor.GetColor()
 	if constructorType != nil && !constructorType.GetInstanceColors().IsEmpty() {
@@ -873,41 +873,41 @@ func (e *Es6ConvertSuperConstructorCalls) GetTypeOfThisForConstructor(constructo
 }
 
 // Java: Es6ConvertSuperConstructorCalls.getSuperClassQNameNode(Node)
-func (e *Es6ConvertSuperConstructorCalls) GetSuperClassQNameNode(constructor *rhino.Node) *rhino.Node {
+func (e *Es6ConvertSuperConstructorCalls) GetSuperClassQNameNode(constructor rhino.Node) rhino.Node {
 	className := NodeUtil_GetNameNode(constructor).GetQualifiedName()
-	constructorStatement := jutil.CheckNotNull(NodeUtil_GetEnclosingStatement(constructor))
+	constructorStatement := rhino.CheckNotNull(NodeUtil_GetEnclosingStatement(constructor))
 
-	var superClassNameNode *rhino.Node
-	for statement := constructorStatement.GetNext(); statement != nil; statement = statement.GetNext() {
+	var superClassNameNode rhino.Node
+	for statement := constructorStatement.GetNext(); !statement.IsNil(); statement = statement.GetNext() {
 		superClassNameNode = e.GetSuperClassNameNodeIfIsInheritsStatement(statement, className)
-		if superClassNameNode != nil {
+		if !superClassNameNode.IsNil() {
 			break
 		}
 	}
 
-	return jutil.CheckNotNullMsg(superClassNameNode, "$jscomp.inherits() call not found.")
+	return rhino.CheckNotNullMsg(superClassNameNode, "$jscomp.inherits() call not found.")
 }
 
 // Java: Es6ConvertSuperConstructorCalls.getSuperClassNameNodeIfIsInheritsStatement(Node, String)
 func (e *Es6ConvertSuperConstructorCalls) GetSuperClassNameNodeIfIsInheritsStatement(
-	statement *rhino.Node, className *string) *rhino.Node {
+	statement rhino.Node, className *string) rhino.Node {
 	// $jscomp.inherits(ChildClass, SuperClass);
 	if !statement.IsExprResult() {
-		return nil
+		return rhino.Node{}
 	}
 	callNode := statement.GetFirstChild()
 	if !callNode.IsCall() {
-		return nil
+		return rhino.Node{}
 	}
 	jscompDotInherits := callNode.GetFirstChild()
 	if !e.jscompInherits.Matches(jscompDotInherits) {
-		return nil
+		return rhino.Node{}
 	}
-	classNameNode := jutil.CheckNotNull(jscompDotInherits.GetNext())
+	classNameNode := rhino.CheckNotNull(jscompDotInherits.GetNext())
 	if classNameNode.MatchesQualifiedName(*className) {
-		return jutil.CheckNotNull(classNameNode.GetNext())
+		return rhino.CheckNotNull(classNameNode.GetNext())
 	} else {
-		return nil
+		return rhino.Node{}
 	}
 }
 

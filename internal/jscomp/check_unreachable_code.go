@@ -29,7 +29,7 @@ type CheckUnreachableCode struct {
 	NodeTraversal_AbstractCfgCallbackBase
 
 	compiler             AbstractCompiler
-	reachability         GraphReachability[*rhino.Node, ControlFlowGraph_Branch]
+	reachability         GraphReachability[rhino.Node, ControlFlowGraph_Branch]
 	hasUnreachableStack  []bool
 	hasUnreachableBuf    [8]bool
 	scriptCheckCfg       ReusableCfg
@@ -51,10 +51,10 @@ func NewCheckUnreachableCode(compiler AbstractCompiler) *CheckUnreachableCode {
 
 func (*CheckUnreachableCode) nodeTraversalNoVisit() {}
 
-func hasUnreachableCfgNode(cfg ControlFlowGraph[*rhino.Node]) bool {
+func hasUnreachableCfgNode(cfg ControlFlowGraph[rhino.Node]) bool {
 	if base := cfg.GetControlFlowGraphBase(); base != nil {
 		for n, gNode := range base.nodes.All() {
-			if n != nil && gNode.GetAnnotation() != GraphReachability_REACHABLE &&
+			if !n.IsNil() && gNode.GetAnnotation() != GraphReachability_REACHABLE &&
 				n.GetLineno() != -1 && !n.IsEmpty() && !n.IsBreak() {
 				return true
 			}
@@ -63,7 +63,7 @@ func hasUnreachableCfgNode(cfg ControlFlowGraph[*rhino.Node]) bool {
 	}
 	for _, gNode := range cfg.GetNodes() {
 		n := gNode.GetValue()
-		if n != nil && gNode.GetAnnotation() != GraphReachability_REACHABLE &&
+		if !n.IsNil() && gNode.GetAnnotation() != GraphReachability_REACHABLE &&
 			n.GetLineno() != -1 && !n.IsEmpty() && !n.IsBreak() {
 			return true
 		}
@@ -80,25 +80,25 @@ func (c *CheckUnreachableCode) CurrentScopeHasNoUnreachable() bool {
 // isStraightLineFunction reports whether fn's parameter list and block body
 // contain only straight-line statements that cannot create unreachable code,
 // and whether the body ends with an explicit return statement.
-func isStraightLineFunction(fn *rhino.Node) (straightLine bool, endsWithReturn bool) {
-	if fn == nil || !fn.IsFunction() {
+func isStraightLineFunction(fn rhino.Node) (straightLine bool, endsWithReturn bool) {
+	if fn.IsNil() || !fn.IsFunction() {
 		return false, false
 	}
 	paramList := fn.GetSecondChild()
-	if paramList == nil {
+	if paramList.IsNil() {
 		return false, false
 	}
-	for p := paramList.GetFirstChild(); p != nil; p = p.GetNext() {
+	for p := paramList.GetFirstChild(); !p.IsNil(); p = p.GetNext() {
 		if !p.IsName() {
 			return false, false
 		}
 	}
 	body := paramList.GetNext()
-	if body == nil || !body.IsBlock() || body.IsSyntheticBlock() {
+	if body.IsNil() || !body.IsBlock() || body.IsSyntheticBlock() {
 		return false, false
 	}
 	terminated := false
-	for child := body.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := body.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		tok := child.GetToken()
 		if tok == rhino.Token_FUNCTION {
 			continue
@@ -120,12 +120,12 @@ func isStraightLineFunction(fn *rhino.Node) (straightLine bool, endsWithReturn b
 	return true, endsWithReturn
 }
 
-func isStraightLineScript(script *rhino.Node) bool {
+func isStraightLineScript(script rhino.Node) bool {
 	container := script
 	if script.HasOneChild() && script.GetFirstChild().IsModuleBody() {
 		container = script.GetFirstChild()
 	}
-	for child := container.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := container.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		switch child.GetToken() {
 		case rhino.Token_EXPR_RESULT, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
 			rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_EMPTY,
@@ -137,14 +137,14 @@ func isStraightLineScript(script *rhino.Node) bool {
 	return true
 }
 
-func hasTopLevelReturn(n *rhino.Node) bool {
+func hasTopLevelReturn(n rhino.Node) bool {
 	if n.IsFunction() {
 		return false
 	}
 	if n.IsReturn() {
 		return true
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if hasTopLevelReturn(c) {
 			return true
 		}
@@ -152,7 +152,7 @@ func hasTopLevelReturn(n *rhino.Node) bool {
 	return false
 }
 
-func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot *rhino.Node) bool {
+func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot rhino.Node) bool {
 	switch scopeRoot.GetToken() {
 	case rhino.Token_FUNCTION:
 		straightLine, _ := isStraightLineFunction(scopeRoot)
@@ -163,7 +163,7 @@ func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot *rhino.Node) b
 		if c.rootHasNoUnreachable {
 			return true
 		}
-		for s := scopeRoot.GetFirstChild(); s != nil; s = s.GetNext() {
+		for s := scopeRoot.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
 			if !s.IsScript() {
 				return false
 			}
@@ -223,7 +223,7 @@ func (c *CheckUnreachableCode) ExitScopeWithCfg(t *NodeTraversal) {
 }
 
 // Java: CheckUnreachableCode.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if len(c.hasUnreachableStack) > 0 && !c.hasUnreachableStack[len(c.hasUnreachableStack)-1] {
 		return true
 	}
@@ -252,14 +252,14 @@ func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n *rhino.Node, p
 }
 
 // Java: CheckUnreachableCode.initScope(ControlFlowGraph<Node>)
-func (c *CheckUnreachableCode) InitScope(controlFlowGraph ControlFlowGraph[*rhino.Node]) {
+func (c *CheckUnreachableCode) InitScope(controlFlowGraph ControlFlowGraph[rhino.Node]) {
 	c.reachability.graph = controlFlowGraph
 	c.reachability.edgePredicate = CheckUnreachableCode_IsReachable
 	c.reachability.Compute(controlFlowGraph.GetEntry().GetValue())
 }
 
 // Java: CheckUnreachableCode.isReachable(EdgeTuple<Node, Branch>)
-func CheckUnreachableCode_IsReachable(input *GraphReachability_EdgeTuple[*rhino.Node, ControlFlowGraph_Branch]) bool {
+func CheckUnreachableCode_IsReachable(input *GraphReachability_EdgeTuple[rhino.Node, ControlFlowGraph_Branch]) bool {
 	branch := input.edge
 	if !branch.IsConditional() {
 		return true
@@ -269,7 +269,7 @@ func CheckUnreachableCode_IsReachable(input *GraphReachability_EdgeTuple[*rhino.
 
 	// TODO(user): Handle more complicated expression like true == true,
 	// etc....
-	if condition != nil {
+	if !condition.IsNil() {
 		val := NodeUtil_GetBooleanValue(condition)
 		if val != base.Tri_UNKNOWN {
 			return val.ToBoolean(true) == (branch == ControlFlowGraph_Branch_ON_TRUE)

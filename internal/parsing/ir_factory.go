@@ -67,10 +67,9 @@ type IRFactory struct {
 	// that should have the IS_IN_CLOSURE_UNAWARE_SUBTREE property are created.
 	// An alternative was to directly update the templateNode's propListHead,
 	// but we don't want to expose the propListHead outside of the Node class.
-	templateNode               *rhino.Node
-	defaultTemplateNode        *rhino.Node
-	closureUnawareTemplateNode *rhino.Node
-	defaultTemplateNodeVal     rhino.Node
+	templateNode               rhino.Node
+	defaultTemplateNode        rhino.Node
+	closureUnawareTemplateNode rhino.Node
 
 	jsdocTracker       *IRFactory_CommentTracker
 	nonJsdocTracker    *IRFactory_CommentTracker
@@ -81,7 +80,7 @@ type IRFactory struct {
 	currentFileIsExterns bool
 
 	features   *parser.FeatureSet
-	resultNode *rhino.Node
+	resultNode rhino.Node
 
 	closureUnawareCodeRanges *jutil.TreeRangeSet[IRFactory_LineAndColumn]
 
@@ -369,15 +368,15 @@ func (t *IRFactory_CommentTracker) HasPendingCommentBefore(pos parser.SourcePosi
 // O(nodes) to O(files).
 //
 // Java: IRFactory.createTemplateNode()
-func (f *IRFactory) CreateTemplateNode() *rhino.Node {
+func (f *IRFactory) CreateTemplateNode() rhino.Node {
 	// The Node type choice is arbitrary.
-	templateNode := f.defaultTemplateNodeVal.Init(rhino.Token_SCRIPT)
+	templateNode := rhino.NewNode(rhino.Token_SCRIPT)
 	templateNode.SetStaticSourceFile(f.sourceFile)
 	return templateNode
 }
 
 // Java: IRFactory.createClosureUnawareTemplateNode()
-func (f *IRFactory) CreateClosureUnawareTemplateNode() *rhino.Node {
+func (f *IRFactory) CreateClosureUnawareTemplateNode() rhino.Node {
 	// We clone the default template node, so that the source file property,
 	// and other potential properties are shared
 	closureUnawareTemplateNode := f.defaultTemplateNode.CloneNode()
@@ -438,7 +437,7 @@ func IRFactory_TransformTree(
 }
 
 // Java: IRFactory.getResultNode()
-func (f *IRFactory) GetResultNode() *rhino.Node {
+func (f *IRFactory) GetResultNode() rhino.Node {
 	return f.resultNode
 }
 
@@ -448,28 +447,28 @@ func (f *IRFactory) GetFeatures() *parser.FeatureSet {
 }
 
 // Java: IRFactory.validateAll(Node)
-func (f *IRFactory) ValidateAll(n *rhino.Node) {
+func (f *IRFactory) ValidateAll(n rhino.Node) {
 	// Go-only: language-adapter — the ArrayDeque used as a stack (push/poll at
 	// the head) is a slice used as a stack.
-	var workBuf [32]*rhino.Node
+	var workBuf [32]rhino.Node
 	work := workBuf[:0]
-	for n != nil {
+	for !n.IsNil() {
 		f.Validate(n)
 		nextSibling := n.GetNext()
 		firstChild := n.GetFirstChild()
-		if firstChild != nil {
-			if nextSibling != nil {
+		if !firstChild.IsNil() {
+			if !nextSibling.IsNil() {
 				// handle the siblings later
 				work = append(work, nextSibling)
 			}
 			n = firstChild
-		} else if nextSibling != nil {
+		} else if !nextSibling.IsNil() {
 			// no children, handle the next sibling
 			n = nextSibling
 		} else {
 			// no siblings, continue with work we have saved on the work queue
 			if len(work) == 0 {
-				n = nil
+				n = rhino.Node{}
 			} else {
 				n = work[len(work)-1]
 				work = work[:len(work)-1]
@@ -480,7 +479,7 @@ func (f *IRFactory) ValidateAll(n *rhino.Node) {
 }
 
 // Java: IRFactory.validate(Node)
-func (f *IRFactory) Validate(n *rhino.Node) {
+func (f *IRFactory) Validate(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_PARAM_LIST:
 		f.ValidateParameters(n)
@@ -504,8 +503,8 @@ func (f *IRFactory) Validate(n *rhino.Node) {
 }
 
 // Java: IRFactory.validateShadowHost(Node)
-func (f *IRFactory) ValidateShadowHost(n *rhino.Node) {
-	if n.GetClosureUnawareShadow() == nil {
+func (f *IRFactory) ValidateShadowHost(n rhino.Node) {
+	if n.GetClosureUnawareShadow().IsNil() {
 		return
 	}
 
@@ -524,7 +523,7 @@ func (f *IRFactory) ValidateShadowHost(n *rhino.Node) {
 	//  - FUNCTION nodes that are children of a GETPROP node that is a direct
 	//    CALL callee (e.g. fn.call or fn.apply can be the CALL callee)
 	grandparent := parent.GetParent()
-	if parent.IsGetProp() && grandparent != nil && grandparent.IsCall() {
+	if parent.IsGetProp() && !grandparent.IsNil() && grandparent.IsCall() {
 		calledFn := parent.GetString()
 		if calledFn == "call" || calledFn == "apply" {
 			return
@@ -534,7 +533,7 @@ func (f *IRFactory) ValidateShadowHost(n *rhino.Node) {
 }
 
 // Java: IRFactory.validateAwait(Node)
-func (f *IRFactory) ValidateAwait(n *rhino.Node) {
+func (f *IRFactory) ValidateAwait(n rhino.Node) {
 	var errorMsg string
 	if n.IsAwait() {
 		errorMsg = IRFactory_UNEXPECTED_AWAIT
@@ -547,7 +546,7 @@ func (f *IRFactory) ValidateAwait(n *rhino.Node) {
 	parent := n
 	for {
 		parent = parent.GetParent()
-		if parent == nil {
+		if parent.IsNil() {
 			break
 		}
 		// The await is in a class static block or a field initializer.
@@ -576,7 +575,7 @@ func (f *IRFactory) ValidateAwait(n *rhino.Node) {
 }
 
 // Java: IRFactory.validateYield(Node)
-func (f *IRFactory) ValidateYield(n *rhino.Node) {
+func (f *IRFactory) ValidateYield(n rhino.Node) {
 	if !n.IsYield() {
 		return
 	}
@@ -584,7 +583,7 @@ func (f *IRFactory) ValidateYield(n *rhino.Node) {
 	parent := n
 	for {
 		parent = parent.GetParent()
-		if parent == nil {
+		if parent.IsNil() {
 			break
 		}
 		// The yield is in a class static block.
@@ -600,7 +599,7 @@ func (f *IRFactory) ValidateYield(n *rhino.Node) {
 }
 
 // Java: IRFactory.validateReturn(Node)
-func (f *IRFactory) ValidateReturn(n *rhino.Node) {
+func (f *IRFactory) ValidateReturn(n rhino.Node) {
 	if !n.IsReturn() {
 		return
 	}
@@ -608,7 +607,7 @@ func (f *IRFactory) ValidateReturn(n *rhino.Node) {
 	parent := n
 	for {
 		parent = parent.GetParent()
-		if parent == nil {
+		if parent.IsNil() {
 			break
 		}
 		// The return is in a class static block.
@@ -625,7 +624,7 @@ func (f *IRFactory) ValidateReturn(n *rhino.Node) {
 }
 
 // Java: IRFactory.validateNewDotTarget(Node)
-func (f *IRFactory) ValidateNewDotTarget(n *rhino.Node) {
+func (f *IRFactory) ValidateNewDotTarget(n rhino.Node) {
 	if n.GetToken() != rhino.Token_NEW_TARGET {
 		return
 	}
@@ -633,7 +632,7 @@ func (f *IRFactory) ValidateNewDotTarget(n *rhino.Node) {
 	parent := n
 	for {
 		parent = parent.GetParent()
-		if parent == nil {
+		if parent.IsNil() {
 			break
 		}
 		if parent.IsFunction() {
@@ -644,13 +643,13 @@ func (f *IRFactory) ValidateNewDotTarget(n *rhino.Node) {
 }
 
 // Java: IRFactory.validateBreakContinue(Node)
-func (f *IRFactory) ValidateBreakContinue(n *rhino.Node) {
+func (f *IRFactory) ValidateBreakContinue(n rhino.Node) {
 	if !n.IsBreak() && !n.IsContinue() {
 		return
 	}
 
 	labelName := n.GetFirstChild()
-	if labelName != nil {
+	if !labelName.IsNil() {
 		parent := n.GetParent()
 		for !parent.IsLabel() || !IRFactory_LabelsMatch(parent, labelName) {
 			if parent.IsFunction() || parent.IsScript() || parent.IsClassMembers() {
@@ -696,7 +695,7 @@ func (f *IRFactory) ValidateBreakContinue(n *rhino.Node) {
 }
 
 // Java: IRFactory.isBreakTarget(Node)
-func IRFactory_IsBreakTarget(n *rhino.Node) bool {
+func IRFactory_IsBreakTarget(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF,
 		rhino.Token_WHILE, rhino.Token_DO, rhino.Token_SWITCH:
@@ -707,7 +706,7 @@ func IRFactory_IsBreakTarget(n *rhino.Node) bool {
 }
 
 // Java: IRFactory.isContinueTarget(Node)
-func IRFactory_IsContinueTarget(n *rhino.Node) bool {
+func IRFactory_IsContinueTarget(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF,
 		rhino.Token_WHILE, rhino.Token_DO:
@@ -718,18 +717,18 @@ func IRFactory_IsContinueTarget(n *rhino.Node) bool {
 }
 
 // Java: IRFactory.labelsMatch(Node, Node)
-func IRFactory_LabelsMatch(label *rhino.Node, labelName *rhino.Node) bool {
+func IRFactory_LabelsMatch(label rhino.Node, labelName rhino.Node) bool {
 	return label.GetFirstChild().GetString() == labelName.GetString()
 }
 
 // Java: IRFactory.validateLabel(Node)
-func (f *IRFactory) ValidateLabel(n *rhino.Node) {
+func (f *IRFactory) ValidateLabel(n rhino.Node) {
 	if !n.IsLabel() {
 		return
 	}
 
 	labelName := n.GetFirstChild()
-	for parent := n.GetParent(); parent != nil && !parent.IsFunction(); parent = parent.GetParent() {
+	for parent := n.GetParent(); !parent.IsNil() && !parent.IsFunction(); parent = parent.GetParent() {
 		if parent.IsLabel() && IRFactory_LabelsMatch(parent, labelName) {
 			f.errorReporter.Error(
 				jutil.StringFormat(IRFactory_DUPLICATE_LABEL, labelName.GetString()),
@@ -742,24 +741,24 @@ func (f *IRFactory) ValidateLabel(n *rhino.Node) {
 }
 
 // Java: IRFactory.validateParameters(Node)
-func (f *IRFactory) ValidateParameters(n *rhino.Node) {
+func (f *IRFactory) ValidateParameters(n rhino.Node) {
 	if !n.IsParamList() {
 		return
 	}
 	first := n.GetFirstChild()
-	if first == nil {
+	if first.IsNil() {
 		return
 	}
 	if first.IsName() {
 		second := first.GetNext()
-		if second == nil {
+		if second.IsNil() {
 			return
 		}
 		var seen [8]string
 		seen[0] = first.GetString()
 		count := 1
 		allSimple := true
-		for c := second; c != nil; c = c.GetNext() {
+		for c := second; !c.IsNil(); c = c.GetNext() {
 			if !c.IsName() || count >= len(seen) {
 				allSimple = false
 				break
@@ -788,12 +787,12 @@ func (f *IRFactory) ValidateParameters(n *rhino.Node) {
 	f.validateParametersSlow(n)
 }
 
-func (f *IRFactory) validateParametersSlow(n *rhino.Node) {
+func (f *IRFactory) validateParametersSlow(n rhino.Node) {
 	seenNames := jutil.NewLinkedHashSet[string]()
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		ParsingUtil_GetParamOrPatternNames(
 			c,
-			func(param *rhino.Node) {
+			func(param rhino.Node) {
 				paramName := param.GetString()
 				if !seenNames.Add(paramName) {
 					f.errorReporter.Warning(
@@ -807,14 +806,14 @@ func (f *IRFactory) validateParametersSlow(n *rhino.Node) {
 }
 
 // Java: IRFactory.validateBlockScopedFunctions(Node)
-func (f *IRFactory) ValidateBlockScopedFunctions(n *rhino.Node) {
+func (f *IRFactory) ValidateBlockScopedFunctions(n rhino.Node) {
 	if n.IsFunction() && n.GetParent().IsBlock() && !n.GetGrandparent().IsFunction() {
 		f.MaybeWarnForFeatureNode(n, parser.FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION)
 	}
 }
 
 // Java: IRFactory.setFileOverviewJsDoc(Node)
-func (f *IRFactory) SetFileOverviewJsDoc(irNode *rhino.Node) {
+func (f *IRFactory) SetFileOverviewJsDoc(irNode rhino.Node) {
 	var fileoverview *rhino.JSDocInfo_Builder
 	if f.firstFileoverview == nil {
 		fileoverview = rhino.JSDocInfo_Builder_()
@@ -834,13 +833,13 @@ func (f *IRFactory) SetFileOverviewJsDoc(irNode *rhino.Node) {
 }
 
 // Java: IRFactory.transformBlock(ParseTree)
-func (f *IRFactory) TransformBlock(node parser.ParseTree) *rhino.Node {
+func (f *IRFactory) TransformBlock(node parser.ParseTree) rhino.Node {
 	irNode := f.Transform(node)
 	if irNode.IsBlock() {
 		return irNode
 	}
 
-	var newBlock *rhino.Node
+	var newBlock rhino.Node
 	if irNode.IsEmpty() {
 		newBlock = f.NewNode(rhino.Token_BLOCK)
 	} else {
@@ -1166,13 +1165,13 @@ func IRFactory_FindNearestNode(tree parser.ParseTree) parser.ParseTree {
 }
 
 // Java: IRFactory.transform(ParseTree)
-func (f *IRFactory) Transform(tree parser.ParseTree) *rhino.Node {
+func (f *IRFactory) Transform(tree parser.ParseTree) rhino.Node {
 	info := f.ParseJSDocInfoOnTree(tree)
 	comment := f.ParseNonJSDocCommentAt(tree.GetStart(), false)
 	isRootOfClosureUnawareSubTree := info != nil && info.IsClosureUnawareCode()
 
 	if isRootOfClosureUnawareSubTree {
-		if f.closureUnawareTemplateNode == nil {
+		if f.closureUnawareTemplateNode.IsNil() {
 			f.closureUnawareTemplateNode = f.CreateClosureUnawareTemplateNode()
 		}
 		if f.closureUnawareCodeRanges == nil {
@@ -1208,7 +1207,7 @@ const IRFactory_JSCOMP_CLOSURE_UNAWARE_CODE_SHADOW_HOST_NAME = "$jscomp_wrap_clo
 const IRFactory_JSCOMP_CLOSURE_UNAWARE_SINK_VALUE = "$jscomp_sink_closure_unaware_impl"
 
 // Java: IRFactory.hideClosureUnawareCodeRoot(Node)
-func (f *IRFactory) HideClosureUnawareCodeRoot(fn *rhino.Node) *rhino.Node {
+func (f *IRFactory) HideClosureUnawareCodeRoot(fn rhino.Node) rhino.Node {
 	if !fn.IsFunction() {
 		f.Error(fn, "@closureUnaware root must be function")
 		return fn
@@ -1244,7 +1243,7 @@ func (f *IRFactory) WithinClosureUnawareCodeRange(line int, lineColumnNo int) bo
 }
 
 // Java: IRFactory.maybeInjectCastNode(ParseTree, JSDocInfo, Node)
-func (f *IRFactory) MaybeInjectCastNode(node parser.ParseTree, info *rhino.JSDocInfo, irNode *rhino.Node) *rhino.Node {
+func (f *IRFactory) MaybeInjectCastNode(node parser.ParseTree, info *rhino.JSDocInfo, irNode rhino.Node) rhino.Node {
 	if node.GetParseTreeBase().Type == parser.ParseTreeType_PAREN_EXPRESSION && info.HasType() {
 		irNode = f.NewNodeWithChild(rhino.Token_CAST, irNode)
 	}
@@ -1263,7 +1262,7 @@ func (f *IRFactory) MaybeInjectCastNode(node parser.ParseTree, info *rhino.JSDoc
 // (http://code.google.com/p/jsdoc-toolkit/wiki/InlineDocs)
 //
 // Java: IRFactory.transformNodeWithInlineComments(ParseTree)
-func (f *IRFactory) TransformNodeWithInlineComments(tree parser.ParseTree) *rhino.Node {
+func (f *IRFactory) TransformNodeWithInlineComments(tree parser.ParseTree) rhino.Node {
 	info := f.ParseInlineJSDocAt(tree.GetStart())
 	comment := f.ParseNonJSDocCommentAt(tree.GetStart(), true)
 
@@ -1359,7 +1358,7 @@ func (f *IRFactory) MaybeWarnForFeatureToken(token parser.Token, feature parser.
 }
 
 // Java: IRFactory.maybeWarnForFeature(Node, Feature)
-func (f *IRFactory) MaybeWarnForFeatureNode(node *rhino.Node, feature parser.FeatureSet_Feature) {
+func (f *IRFactory) MaybeWarnForFeatureNode(node rhino.Node, feature parser.FeatureSet_Feature) {
 	f.features = f.features.With(feature)
 	if f.WithinClosureUnawareCodeRange(node.GetLineno(), node.GetCharno()) {
 		return
@@ -1375,13 +1374,13 @@ func (f *IRFactory) MaybeWarnForFeatureNode(node *rhino.Node, feature parser.Fea
 }
 
 // Java: IRFactory.setSourceInfo(Node, Node)
-func (f *IRFactory) SetSourceInfoFromNode(node *rhino.Node, ref *rhino.Node) {
+func (f *IRFactory) SetSourceInfoFromNode(node rhino.Node, ref rhino.Node) {
 	node.SetLinenoCharno(ref.GetLineno(), ref.GetCharno())
 	f.SetLengthFrom(node, ref)
 }
 
 // Java: IRFactory.setSourceInfo(Node, ParseTree)
-func (f *IRFactory) SetSourceInfo(irNode *rhino.Node, node parser.ParseTree) {
+func (f *IRFactory) SetSourceInfo(irNode rhino.Node, node parser.ParseTree) {
 	if irNode.GetLineno() == -1 {
 		location := node.GetParseTreeBase().Location
 		f.SetSourceInfoFromPositions(irNode, location.Start, location.End)
@@ -1389,13 +1388,13 @@ func (f *IRFactory) SetSourceInfo(irNode *rhino.Node, node parser.ParseTree) {
 }
 
 // Java: IRFactory.setSourceInfo(Node, parser.Token)
-func (f *IRFactory) SetSourceInfoFromToken(irNode *rhino.Node, token parser.Token) {
+func (f *IRFactory) SetSourceInfoFromToken(irNode rhino.Node, token parser.Token) {
 	location := token.GetTokenBase().Location
 	f.SetSourceInfoFromPositions(irNode, location.Start, location.End)
 }
 
 // Java: IRFactory.setSourceInfo(Node, SourcePosition, SourcePosition)
-func (f *IRFactory) SetSourceInfoFromPositions(node *rhino.Node, start parser.SourcePosition, end parser.SourcePosition) {
+func (f *IRFactory) SetSourceInfoFromPositions(node rhino.Node, start parser.SourcePosition, end parser.SourcePosition) {
 	if node.GetLineno() == -1 {
 		// If we didn't already set the line, then set it now. This avoids
 		// cases like ParenthesizedExpression where we just return a previous
@@ -1492,12 +1491,12 @@ func (f *IRFactory) ParseInlineTypeDoc(node *parser.Comment) *rhino.JSDocInfo {
 // SetLength sets the length on the node if we're in IDE mode.
 //
 // Java: IRFactory.setLength(Node, SourcePosition, SourcePosition)
-func (f *IRFactory) SetLength(node *rhino.Node, start parser.SourcePosition, end parser.SourcePosition) {
+func (f *IRFactory) SetLength(node rhino.Node, start parser.SourcePosition, end parser.SourcePosition) {
 	node.SetLength(int(end.Offset - start.Offset))
 }
 
 // Java: IRFactory.setLengthFrom(Node, Node)
-func (f *IRFactory) SetLengthFrom(node *rhino.Node, ref *rhino.Node) {
+func (f *IRFactory) SetLengthFrom(node rhino.Node, ref rhino.Node) {
 	node.SetLength(ref.GetLength())
 }
 
@@ -1634,7 +1633,7 @@ func (t IRFactory_TransformDispatcher_IdentifierType) String() string {
 //
 // Java: IRFactory.TransformDispatcher.newStringNodeFromIdentifier(Token, IdentifierType, IdentifierToken)
 func (d *IRFactory_TransformDispatcher) NewStringNodeFromIdentifier(
-	type_ rhino.Token, identifierType IRFactory_TransformDispatcher_IdentifierType, identifierToken *parser.IdentifierToken) *rhino.Node {
+	type_ rhino.Token, identifierType IRFactory_TransformDispatcher_IdentifierType, identifierToken *parser.IdentifierToken) rhino.Node {
 	// Private properties can only ever be referenced from within the scope of
 	// a class. If we're not in a class, we always use STANDARD rules.
 	if !d.classScope.InScope() {
@@ -1681,7 +1680,7 @@ func (d *IRFactory_TransformDispatcher) NewStringNodeFromIdentifier(
 func (d *IRFactory_TransformDispatcher) ProcessObjectLitKey(
 	input parser.Token,
 	output rhino.Token,
-	identifierType IRFactory_TransformDispatcher_IdentifierType) *rhino.Node {
+	identifierType IRFactory_TransformDispatcher_IdentifierType) rhino.Node {
 	if input == nil {
 		return d.CreateMissingExpressionNode()
 	}
@@ -1694,7 +1693,7 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectLitKey(
 	jsDocInfo := d.ParseJSDocInfoOnToken(literal)
 	comment := d.ParseNonJSDocCommentAt(literal.GetStart(), true)
 
-	var node *rhino.Node
+	var node rhino.Node
 	switch input.GetTokenBase().Type {
 	case parser.TokenType_NUMBER:
 		node = d.NewStringNodeWithToken(output, dtoa.DToA_NumberToString(d.NormalizeNumber(literal)))
@@ -1717,22 +1716,22 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectLitKey(
 }
 
 // Java: IRFactory.TransformDispatcher.processComprehension(ComprehensionTree)
-func (d *IRFactory_TransformDispatcher) ProcessComprehension(tree *parser.ComprehensionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessComprehension(tree *parser.ComprehensionTree) rhino.Node {
 	return d.UnsupportedLanguageFeature(tree, "array/generator comprehensions")
 }
 
 // Java: IRFactory.TransformDispatcher.processComprehensionFor(ComprehensionForTree)
-func (d *IRFactory_TransformDispatcher) ProcessComprehensionFor(tree *parser.ComprehensionForTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessComprehensionFor(tree *parser.ComprehensionForTree) rhino.Node {
 	return d.UnsupportedLanguageFeature(tree, "array/generator comprehensions")
 }
 
 // Java: IRFactory.TransformDispatcher.processComprehensionIf(ComprehensionIfTree)
-func (d *IRFactory_TransformDispatcher) ProcessComprehensionIf(tree *parser.ComprehensionIfTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessComprehensionIf(tree *parser.ComprehensionIfTree) rhino.Node {
 	return d.UnsupportedLanguageFeature(tree, "array/generator comprehensions")
 }
 
 // Java: IRFactory.TransformDispatcher.processArrayLiteral(ArrayLiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessArrayLiteral(tree *parser.ArrayLiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessArrayLiteral(tree *parser.ArrayLiteralExpressionTree) rhino.Node {
 	node := d.NewNode(rhino.Token_ARRAYLIT)
 	node.SetTrailingComma(tree.HasTrailingComma)
 	for _, child := range tree.Elements {
@@ -1743,12 +1742,12 @@ func (d *IRFactory_TransformDispatcher) ProcessArrayLiteral(tree *parser.ArrayLi
 }
 
 // Java: IRFactory.TransformDispatcher.processArrayPattern(ArrayPatternTree)
-func (d *IRFactory_TransformDispatcher) ProcessArrayPattern(tree *parser.ArrayPatternTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessArrayPattern(tree *parser.ArrayPatternTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_ARRAY_DESTRUCTURING)
 
 	node := d.NewNode(rhino.Token_ARRAY_PATTERN)
 	for _, child := range tree.Elements {
-		var elementNode *rhino.Node
+		var elementNode rhino.Node
 		switch child.GetParseTreeBase().Type {
 		case parser.ParseTreeType_DEFAULT_PARAMETER:
 			// processDefaultParameter() knows how to find and apply inline
@@ -1766,7 +1765,7 @@ func (d *IRFactory_TransformDispatcher) ProcessArrayPattern(tree *parser.ArrayPa
 }
 
 // Java: IRFactory.TransformDispatcher.processObjectPattern(ObjectPatternTree)
-func (d *IRFactory_TransformDispatcher) ProcessObjectPattern(tree *parser.ObjectPatternTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessObjectPattern(tree *parser.ObjectPatternTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_OBJECT_DESTRUCTURING)
 
 	node := d.NewNode(rhino.Token_OBJECT_PATTERN)
@@ -1778,7 +1777,7 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectPattern(tree *parser.Object
 }
 
 // Java: IRFactory.TransformDispatcher.processObjectPatternElement(ParseTree)
-func (d *IRFactory_TransformDispatcher) ProcessObjectPatternElement(child parser.ParseTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessObjectPatternElement(child parser.ParseTree) rhino.Node {
 	switch child.GetParseTreeBase().Type {
 	case parser.ParseTreeType_DEFAULT_PARAMETER:
 		// shorthand with a default value
@@ -1810,7 +1809,7 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectPatternElement(child parser
 //	let { /** inlineType * / name = default } = something;
 //
 // Java: IRFactory.TransformDispatcher.processObjectPatternShorthandWithDefault(DefaultParameterTree)
-func (d *IRFactory_TransformDispatcher) ProcessObjectPatternShorthandWithDefault(defaultParameter *parser.DefaultParameterTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessObjectPatternShorthandWithDefault(defaultParameter *parser.DefaultParameterTree) rhino.Node {
 	defaultValueNode := d.ProcessDefaultParameter(defaultParameter)
 	// Store in AST as non-shorthand form & just note it was originally
 	// shorthand {name: /**inlineType */ name = default }
@@ -1834,11 +1833,11 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectPatternShorthandWithDefault
 //
 // Java: IRFactory.TransformDispatcher.processObjectPatternPropertyNameAssignment(PropertyNameAssignmentTree)
 func (d *IRFactory_TransformDispatcher) ProcessObjectPatternPropertyNameAssignment(
-	propertyNameAssignment *parser.PropertyNameAssignmentTree) *rhino.Node {
+	propertyNameAssignment *parser.PropertyNameAssignmentTree) rhino.Node {
 	key := d.ProcessObjectLitKey(
 		propertyNameAssignment.Name, rhino.Token_STRING_KEY, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 	targetTree := propertyNameAssignment.Value
-	var valueNode *rhino.Node
+	var valueNode rhino.Node
 	if targetTree == nil {
 		// `let { /** inlineType */ key } = something;`
 		// The key is also the target name.
@@ -1853,8 +1852,8 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectPatternPropertyNameAssignme
 }
 
 // Java: IRFactory.TransformDispatcher.processDestructuringElementTarget(ParseTree)
-func (d *IRFactory_TransformDispatcher) ProcessDestructuringElementTarget(targetTree parser.ParseTree) *rhino.Node {
-	var valueNode *rhino.Node
+func (d *IRFactory_TransformDispatcher) ProcessDestructuringElementTarget(targetTree parser.ParseTree) rhino.Node {
+	var valueNode rhino.Node
 	if targetTree.GetParseTreeBase().Type == parser.ParseTreeType_DEFAULT_PARAMETER {
 		// let {key: /** inlineType */ name = default} = something;
 		// let [/** inlineType */ name = default] = something;
@@ -1888,7 +1887,7 @@ func (d *IRFactory_TransformDispatcher) ProcessDestructuringElementTarget(target
 //
 // Java: IRFactory.TransformDispatcher.processObjectPatternComputedPropertyDefinition(ComputedPropertyDefinitionTree)
 func (d *IRFactory_TransformDispatcher) ProcessObjectPatternComputedPropertyDefinition(
-	computedPropertyDefinition *parser.ComputedPropertyDefinitionTree) *rhino.Node {
+	computedPropertyDefinition *parser.ComputedPropertyDefinitionTree) rhino.Node {
 	d.MaybeWarnForFeature(computedPropertyDefinition, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 
 	expressionNode := d.Transform(computedPropertyDefinition.Property)
@@ -1901,7 +1900,7 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectPatternComputedPropertyDefi
 }
 
 // Java: IRFactory.TransformDispatcher.processAstRoot(ProgramTree)
-func (d *IRFactory_TransformDispatcher) ProcessAstRoot(rootNode *parser.ProgramTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessAstRoot(rootNode *parser.ProgramTree) rhino.Node {
 	scriptNode := d.NewNode(rhino.Token_SCRIPT)
 	for _, child := range rootNode.SourceElements {
 		scriptNode.AddChildToBack(d.Transform(child))
@@ -1923,7 +1922,7 @@ func (d *IRFactory_TransformDispatcher) ProcessAstRoot(rootNode *parser.ProgramT
 }
 
 // Java: IRFactory.TransformDispatcher.isGoogModuleFile(Node)
-func (d *IRFactory_TransformDispatcher) IsGoogModuleFile(scriptNode *rhino.Node) bool {
+func (d *IRFactory_TransformDispatcher) IsGoogModuleFile(scriptNode rhino.Node) bool {
 	jutil.CheckArgument(scriptNode.IsScript())
 	if !scriptNode.HasChildren() {
 		return false
@@ -1949,11 +1948,11 @@ func (d *IRFactory_TransformDispatcher) IsGoogModuleFile(scriptNode *rhino.Node)
 // For information on ES5 directives, see section 14.1 of ECMA-262, Edition 5.
 //
 // Java: IRFactory.TransformDispatcher.parseDirectives(Node)
-func (d *IRFactory_TransformDispatcher) ParseDirectives(node *rhino.Node) {
+func (d *IRFactory_TransformDispatcher) ParseDirectives(node rhino.Node) {
 	useStrict := false
 	for {
 		statement := node.GetFirstChild()
-		if statement == nil || !statement.IsExprResult() {
+		if statement.IsNil() || !statement.IsExprResult() {
 			break
 		}
 
@@ -1974,7 +1973,7 @@ func (d *IRFactory_TransformDispatcher) ParseDirectives(node *rhino.Node) {
 }
 
 // Java: IRFactory.TransformDispatcher.processBlock(BlockTree)
-func (d *IRFactory_TransformDispatcher) ProcessBlock(blockNode *parser.BlockTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessBlock(blockNode *parser.BlockTree) rhino.Node {
 	node := d.NewNode(rhino.Token_BLOCK)
 	for i, child := range blockNode.Statements {
 		childNode := d.Transform(child)
@@ -1993,7 +1992,7 @@ func (d *IRFactory_TransformDispatcher) ProcessBlock(blockNode *parser.BlockTree
 }
 
 // Java: IRFactory.TransformDispatcher.processBreakStatement(BreakStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessBreakStatement(statementNode *parser.BreakStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessBreakStatement(statementNode *parser.BreakStatementTree) rhino.Node {
 	node := d.NewNode(rhino.Token_BREAK)
 	if statementNode.HasLabel() {
 		labelName := d.TransformLabelName(statementNode.Name)
@@ -2003,7 +2002,7 @@ func (d *IRFactory_TransformDispatcher) ProcessBreakStatement(statementNode *par
 }
 
 // Java: IRFactory.TransformDispatcher.transformLabelName(IdentifierToken)
-func (d *IRFactory_TransformDispatcher) TransformLabelName(token *parser.IdentifierToken) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) TransformLabelName(token *parser.IdentifierToken) rhino.Node {
 	label := d.MaybeAddNonJsDocComment(
 		d.NewStringNodeFromIdentifier(rhino.Token_LABEL_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD, token),
 		token.GetStart())
@@ -2012,7 +2011,7 @@ func (d *IRFactory_TransformDispatcher) TransformLabelName(token *parser.Identif
 }
 
 // Java: IRFactory.TransformDispatcher.processConditionalExpression(ConditionalExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessConditionalExpression(exprNode *parser.ConditionalExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessConditionalExpression(exprNode *parser.ConditionalExpressionTree) rhino.Node {
 	return d.NewNodeWith3Children(
 		rhino.Token_HOOK,
 		d.Transform(exprNode.Condition),
@@ -2021,7 +2020,7 @@ func (d *IRFactory_TransformDispatcher) ProcessConditionalExpression(exprNode *p
 }
 
 // Java: IRFactory.TransformDispatcher.processContinueStatement(ContinueStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessContinueStatement(statementNode *parser.ContinueStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessContinueStatement(statementNode *parser.ContinueStatementTree) rhino.Node {
 	node := d.NewNode(rhino.Token_CONTINUE)
 	if statementNode.HasLabel() {
 		labelName := d.TransformLabelName(statementNode.Name)
@@ -2031,18 +2030,18 @@ func (d *IRFactory_TransformDispatcher) ProcessContinueStatement(statementNode *
 }
 
 // Java: IRFactory.TransformDispatcher.processDoLoop(DoWhileStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessDoLoop(loopNode *parser.DoWhileStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessDoLoop(loopNode *parser.DoWhileStatementTree) rhino.Node {
 	return d.NewNodeWith2Children(rhino.Token_DO, d.TransformBlock(loopNode.Body), d.Transform(loopNode.Condition))
 }
 
 // Java: IRFactory.TransformDispatcher.processElementGet(MemberLookupExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessElementGet(getNode *parser.MemberLookupExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessElementGet(getNode *parser.MemberLookupExpressionTree) rhino.Node {
 	return d.NewNodeWith2Children(
 		rhino.Token_GETELEM, d.Transform(getNode.Operand), d.Transform(getNode.MemberExpression))
 }
 
 // Java: IRFactory.TransformDispatcher.processOptChainElementGet(OptionalMemberLookupExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessOptChainElementGet(getNode *parser.OptionalMemberLookupExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessOptChainElementGet(getNode *parser.OptionalMemberLookupExpressionTree) rhino.Node {
 	d.MaybeWarnForFeature(getNode, parser.FeatureSet_Feature_OPTIONAL_CHAINING)
 	getElem := d.NewNodeWith2Children(
 		rhino.Token_OPTCHAIN_GETELEM,
@@ -2053,19 +2052,19 @@ func (d *IRFactory_TransformDispatcher) ProcessOptChainElementGet(getNode *parse
 }
 
 // Java: IRFactory.TransformDispatcher.processEmptyStatement(EmptyStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessEmptyStatement(unused *parser.EmptyStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessEmptyStatement(unused *parser.EmptyStatementTree) rhino.Node {
 	return d.NewNode(rhino.Token_EMPTY)
 }
 
 // Java: IRFactory.TransformDispatcher.processExpressionStatement(ExpressionStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessExpressionStatement(statementNode *parser.ExpressionStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessExpressionStatement(statementNode *parser.ExpressionStatementTree) rhino.Node {
 	node := d.NewNode(rhino.Token_EXPR_RESULT)
 	node.AddChildToBack(d.Transform(statementNode.Expression))
 	return node
 }
 
 // Java: IRFactory.TransformDispatcher.processForInLoop(ForInStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessForInLoop(loopNode *parser.ForInStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessForInLoop(loopNode *parser.ForInStatementTree) rhino.Node {
 	// TODO(bradfordcsmith): Rename initializer to something more intuitive
 	// like "lhs"
 	initializer := d.Transform(loopNode.Initializer)
@@ -2074,7 +2073,7 @@ func (d *IRFactory_TransformDispatcher) ProcessForInLoop(loopNode *parser.ForInS
 }
 
 // Java: IRFactory.TransformDispatcher.processForOf(ForOfStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessForOf(loopNode *parser.ForOfStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessForOf(loopNode *parser.ForOfStatementTree) rhino.Node {
 	d.MaybeWarnForFeature(loopNode, parser.FeatureSet_Feature_FOR_OF)
 	initializer := d.Transform(loopNode.Initializer)
 	return d.NewNodeWith3Children(
@@ -2082,7 +2081,7 @@ func (d *IRFactory_TransformDispatcher) ProcessForOf(loopNode *parser.ForOfState
 }
 
 // Java: IRFactory.TransformDispatcher.processForAwaitOf(ForAwaitOfStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessForAwaitOf(loopNode *parser.ForAwaitOfStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessForAwaitOf(loopNode *parser.ForAwaitOfStatementTree) rhino.Node {
 	d.MaybeWarnForFeature(loopNode, parser.FeatureSet_Feature_FOR_AWAIT_OF)
 	initializer := d.Transform(loopNode.Initializer)
 	return d.NewNodeWith3Children(
@@ -2093,7 +2092,7 @@ func (d *IRFactory_TransformDispatcher) ProcessForAwaitOf(loopNode *parser.ForAw
 }
 
 // Java: IRFactory.TransformDispatcher.processForLoop(ForStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessForLoop(loopNode *parser.ForStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessForLoop(loopNode *parser.ForStatementTree) rhino.Node {
 	node := d.NewNodeWith3Children(
 		rhino.Token_FOR,
 		d.TransformOrEmpty(loopNode.Initializer, loopNode),
@@ -2104,7 +2103,7 @@ func (d *IRFactory_TransformDispatcher) ProcessForLoop(loopNode *parser.ForState
 }
 
 // Java: IRFactory.TransformDispatcher.transformOrEmpty(ParseTree, ParseTree)
-func (d *IRFactory_TransformDispatcher) TransformOrEmpty(tree parser.ParseTree, parent parser.ParseTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) TransformOrEmpty(tree parser.ParseTree, parent parser.ParseTree) rhino.Node {
 	if tree == nil {
 		n := d.NewNode(rhino.Token_EMPTY)
 		d.SetSourceInfo(n, parent)
@@ -2114,7 +2113,7 @@ func (d *IRFactory_TransformDispatcher) TransformOrEmpty(tree parser.ParseTree, 
 }
 
 // Java: IRFactory.TransformDispatcher.transformOrEmpty(IdentifierToken, ParseTree)
-func (d *IRFactory_TransformDispatcher) TransformOrEmptyIdentifier(token *parser.IdentifierToken, parent parser.ParseTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) TransformOrEmptyIdentifier(token *parser.IdentifierToken, parent parser.ParseTree) rhino.Node {
 	if token == nil {
 		n := d.NewNode(rhino.Token_EMPTY)
 		d.SetSourceInfo(n, parent)
@@ -2124,7 +2123,7 @@ func (d *IRFactory_TransformDispatcher) TransformOrEmptyIdentifier(token *parser
 }
 
 // Java: IRFactory.TransformDispatcher.processFunctionCall(CallExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessFunctionCall(callNode *parser.CallExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessFunctionCall(callNode *parser.CallExpressionTree) rhino.Node {
 	node := d.NewNodeWithChild(rhino.Token_CALL, d.Transform(callNode.Operand))
 	node.SetTrailingComma(callNode.Arguments.HasTrailingComma)
 	argumentsTree := callNode.Arguments
@@ -2148,7 +2147,7 @@ func (d *IRFactory_TransformDispatcher) ProcessFunctionCall(callNode *parser.Cal
 // call to eval.
 //
 // Java: IRFactory.TransformDispatcher.annotateCalls(Node)
-func (d *IRFactory_TransformDispatcher) AnnotateCalls(n *rhino.Node) {
+func (d *IRFactory_TransformDispatcher) AnnotateCalls(n rhino.Node) {
 	jutil.CheckStateMsg1(n.IsCall() || n.IsOptChainCall() || n.IsTaggedTemplateLit(), "%s", n)
 
 	// Keep track of of the "this" context of a call.  A call without an
@@ -2192,7 +2191,7 @@ func (d *IRFactory_TransformDispatcher) AnnotateCalls(n *rhino.Node) {
 // OPTCHAIN_GETELEM?
 //
 // Java: IRFactory.TransformDispatcher.isNormalOrOptChainGet(Node)
-func (d *IRFactory_TransformDispatcher) IsNormalOrOptChainGet(n *rhino.Node) bool {
+func (d *IRFactory_TransformDispatcher) IsNormalOrOptChainGet(n rhino.Node) bool {
 	return n.IsGetProp() || n.IsGetElem() || n.IsOptChainGetProp() || n.IsOptChainGetElem()
 }
 
@@ -2250,7 +2249,7 @@ func (d *IRFactory_TransformDispatcher) GetEndOfArgCommentZones(
 // The end location until which we fetch pending comments for attachment.
 //
 // Java: IRFactory.TransformDispatcher.attachPossibleTrailingCommentsForArg(Node, SourcePosition)
-func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingCommentsForArg(paramNode *rhino.Node, endZone parser.SourcePosition) {
+func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingCommentsForArg(paramNode rhino.Node, endZone parser.SourcePosition) {
 	trailingComment := d.ParseNonJSDocCommentAt(endZone, true)
 	if trailingComment == nil {
 		return
@@ -2259,7 +2258,7 @@ func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingCommentsForArg(par
 }
 
 func (d *IRFactory_TransformDispatcher) attachPossibleTrailingCommentsForArgAt(
-	paramNode *rhino.Node,
+	paramNode rhino.Node,
 	args []parser.ParseTree,
 	commaCount int,
 	commaPositions []parser.SourcePosition,
@@ -2290,7 +2289,7 @@ func (d *IRFactory_TransformDispatcher) attachPossibleTrailingCommentsForArgAt(
 // end location after which we're looking for a trailing comment.
 //
 // Java: IRFactory.TransformDispatcher.attachPossibleTrailingComment(Node, SourcePosition)
-func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingComment(node *rhino.Node, tokenEnd parser.SourcePosition) {
+func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingComment(node rhino.Node, tokenEnd parser.SourcePosition) {
 	// Check for pending comments on the rest of the current line.
 	nextLine := parser.SourcePosition{Offset: math.MaxInt32, Line: tokenEnd.Line + 1, Column: 0}
 	trailingComment := d.ParseTrailingNonJSDocCommentAt(tokenEnd, nextLine)
@@ -2301,7 +2300,7 @@ func (d *IRFactory_TransformDispatcher) AttachPossibleTrailingComment(node *rhin
 }
 
 // Java: IRFactory.TransformDispatcher.addExtraTrailingComment(Node, NonJSDocComment)
-func (d *IRFactory_TransformDispatcher) AddExtraTrailingComment(node *rhino.Node, lastComment *rhino.NonJSDocComment) {
+func (d *IRFactory_TransformDispatcher) AddExtraTrailingComment(node rhino.Node, lastComment *rhino.NonJSDocComment) {
 	if lastComment == nil {
 		return
 	}
@@ -2355,7 +2354,7 @@ func (d *IRFactory_TransformDispatcher) AddExtraTrailingComment(node *rhino.Node
 }
 
 // Java: IRFactory.TransformDispatcher.processOptChainFunctionCall(OptChainCallExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessOptChainFunctionCall(callNode *parser.OptChainCallExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessOptChainFunctionCall(callNode *parser.OptChainCallExpressionTree) rhino.Node {
 	d.MaybeWarnForFeature(callNode, parser.FeatureSet_Feature_OPTIONAL_CHAINING)
 	node := d.NewNodeWithChild(rhino.Token_OPTCHAIN_CALL, d.Transform(callNode.Operand))
 	node.SetTrailingComma(callNode.HasTrailingComma)
@@ -2368,7 +2367,7 @@ func (d *IRFactory_TransformDispatcher) ProcessOptChainFunctionCall(callNode *pa
 }
 
 // Java: IRFactory.TransformDispatcher.processFunction(FunctionDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessFunction(functionTree *parser.FunctionDeclarationTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessFunction(functionTree *parser.FunctionDeclarationTree) rhino.Node {
 	isDeclaration := functionTree.Kind == parser.FunctionDeclarationTree_Kind_DECLARATION
 	isMember := functionTree.Kind == parser.FunctionDeclarationTree_Kind_MEMBER
 	isArrow := functionTree.Kind == parser.FunctionDeclarationTree_Kind_ARROW
@@ -2402,7 +2401,7 @@ func (d *IRFactory_TransformDispatcher) ProcessFunction(functionTree *parser.Fun
 	}
 
 	name := functionTree.Name
-	var newName *rhino.Node
+	var newName rhino.Node
 	if name != nil {
 		newName = d.ProcessNameWithInlineCommentsOfToken(name, identifierType)
 	} else {
@@ -2446,7 +2445,7 @@ func (d *IRFactory_TransformDispatcher) ProcessFunction(functionTree *parser.Fun
 
 	d.AttachPossibleTrailingComment(node, functionTree.GetEnd())
 
-	var result *rhino.Node
+	var result rhino.Node
 
 	if isMember {
 		d.SetSourceInfo(node, functionTree)
@@ -2467,7 +2466,7 @@ func (d *IRFactory_TransformDispatcher) ProcessFunction(functionTree *parser.Fun
 // ProcessField processes class fields: general case.
 //
 // Java: IRFactory.TransformDispatcher.processField(FieldDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessField(tree *parser.FieldDeclarationTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessField(tree *parser.FieldDeclarationTree) rhino.Node {
 	if tree.Name.IsPrivateIdentifier() {
 		d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 	} else {
@@ -2493,12 +2492,12 @@ func (d *IRFactory_TransformDispatcher) ProcessField(tree *parser.FieldDeclarati
 // fields.
 //
 // Java: IRFactory.TransformDispatcher.processComputedPropertyField(ComputedPropertyFieldTree)
-func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyField(tree *parser.ComputedPropertyFieldTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyField(tree *parser.ComputedPropertyFieldTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
 
 	key := d.Transform(tree.Property)
 
-	var node *rhino.Node
+	var node rhino.Node
 	if tree.Initializer != nil {
 		node = d.NewNodeWith2Children(rhino.Token_COMPUTED_FIELD_DEF, key, d.Transform(tree.Initializer))
 	} else {
@@ -2511,7 +2510,7 @@ func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyField(tree *parse
 }
 
 // Java: IRFactory.TransformDispatcher.processFormalParameterList(FormalParameterListTree)
-func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.FormalParameterListTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.FormalParameterListTree) rhino.Node {
 	params := d.NewNode(rhino.Token_PARAM_LIST)
 	params.SetTrailingComma(tree.HasTrailingComma)
 	if !d.CheckParameters(tree) {
@@ -2522,7 +2521,7 @@ func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.
 	argCount := 0
 
 	for _, param := range parameters {
-		var paramNode *rhino.Node
+		var paramNode rhino.Node
 		switch param.GetParseTreeBase().Type {
 		case parser.ParseTreeType_DEFAULT_PARAMETER:
 			// processDefaultParameter() knows how to find and apply inline
@@ -2555,10 +2554,10 @@ func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.
 }
 
 // Java: IRFactory.TransformDispatcher.processDefaultParameter(DefaultParameterTree)
-func (d *IRFactory_TransformDispatcher) ProcessDefaultParameter(tree *parser.DefaultParameterTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessDefaultParameter(tree *parser.DefaultParameterTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_DEFAULT_PARAMETERS)
 	targetTree := tree.Lhs
-	var targetNode *rhino.Node
+	var targetNode rhino.Node
 	if targetTree.GetParseTreeBase().Type == parser.ParseTreeType_IDENTIFIER_EXPRESSION {
 		// allow inline JSDoc on an identifier
 		// let { /** inlineType */ x = defaultValue } = someObject;
@@ -2581,27 +2580,27 @@ func (d *IRFactory_TransformDispatcher) ProcessDefaultParameter(tree *parser.Def
 }
 
 // Java: IRFactory.TransformDispatcher.processIterRest(IterRestTree)
-func (d *IRFactory_TransformDispatcher) ProcessIterRest(tree *parser.IterRestTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessIterRest(tree *parser.IterRestTree) rhino.Node {
 	target := d.TransformNodeWithInlineComments(tree.AssignmentTarget)
 	return d.NewNodeWithChild(rhino.Token_ITER_REST, target)
 }
 
 // Java: IRFactory.TransformDispatcher.processIterSpread(IterSpreadTree)
-func (d *IRFactory_TransformDispatcher) ProcessIterSpread(tree *parser.IterSpreadTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessIterSpread(tree *parser.IterSpreadTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_SPREAD_EXPRESSIONS)
 
 	return d.NewNodeWithChild(rhino.Token_ITER_SPREAD, d.Transform(tree.Expression))
 }
 
 // Java: IRFactory.TransformDispatcher.processObjectSpread(ObjectSpreadTree)
-func (d *IRFactory_TransformDispatcher) ProcessObjectSpread(tree *parser.ObjectSpreadTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessObjectSpread(tree *parser.ObjectSpreadTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD)
 
 	return d.NewNodeWithChild(rhino.Token_OBJECT_SPREAD, d.Transform(tree.Expression))
 }
 
 // Java: IRFactory.TransformDispatcher.processIfStatement(IfStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessIfStatement(statementNode *parser.IfStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessIfStatement(statementNode *parser.IfStatementTree) rhino.Node {
 	node := d.NewNode(rhino.Token_IF)
 	node.AddChildToBack(d.Transform(statementNode.Condition))
 	node.AddChildToBack(d.TransformBlock(statementNode.IfClause))
@@ -2628,7 +2627,7 @@ func (d *IRFactory_TransformDispatcher) MarkBinaryExpressionFeatures(exprNode *p
 }
 
 // Java: IRFactory.TransformDispatcher.processBinaryExpression(BinaryOperatorTree)
-func (d *IRFactory_TransformDispatcher) ProcessBinaryExpression(exprNode *parser.BinaryOperatorTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessBinaryExpression(exprNode *parser.BinaryOperatorTree) rhino.Node {
 	if d.jsdocTracker.HasPendingCommentBefore(exprNode.Right.GetParseTreeBase().Location.Start) ||
 		d.nonJsdocTracker.HasPendingCommentBefore(exprNode.Right.GetParseTreeBase().Location.Start) {
 		d.MarkBinaryExpressionFeatures(exprNode)
@@ -2647,10 +2646,10 @@ func (d *IRFactory_TransformDispatcher) ProcessBinaryExpression(exprNode *parser
 // and loop instead.
 //
 // Java: IRFactory.TransformDispatcher.processBinaryExpressionHelper(BinaryOperatorTree)
-func (d *IRFactory_TransformDispatcher) ProcessBinaryExpressionHelper(exprTree *parser.BinaryOperatorTree) *rhino.Node {
-	var root *rhino.Node
-	var current *rhino.Node
-	var previous *rhino.Node
+func (d *IRFactory_TransformDispatcher) ProcessBinaryExpressionHelper(exprTree *parser.BinaryOperatorTree) rhino.Node {
+	var root rhino.Node
+	var current rhino.Node
+	var previous rhino.Node
 	for exprTree != nil {
 		d.MarkBinaryExpressionFeatures(exprTree)
 		previous = current
@@ -2665,7 +2664,7 @@ func (d *IRFactory_TransformDispatcher) ProcessBinaryExpressionHelper(exprTree *
 		d.SetSourceInfo(current, exprTree)
 
 		// As the iteration continues add the left operand.
-		if previous != nil {
+		if !previous.IsNil() {
 			previous.AddChildToFront(current)
 		}
 
@@ -2681,7 +2680,7 @@ func (d *IRFactory_TransformDispatcher) ProcessBinaryExpressionHelper(exprTree *
 		}
 
 		// Save the top binary op, this is the result to return.
-		if root == nil {
+		if root.IsNil() {
 			root = current
 		}
 	}
@@ -2689,7 +2688,7 @@ func (d *IRFactory_TransformDispatcher) ProcessBinaryExpressionHelper(exprTree *
 }
 
 // Java: IRFactory.TransformDispatcher.transformLhsOfBinaryTree(BinaryOperatorTree)
-func (d *IRFactory_TransformDispatcher) TransformLhsOfBinaryTree(exprTree *parser.BinaryOperatorTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) TransformLhsOfBinaryTree(exprTree *parser.BinaryOperatorTree) rhino.Node {
 	_, leftIsIdentifierExpression := exprTree.Left.(*parser.IdentifierExpressionTree)
 	lhsOfInIsPrivateId := exprTree.Operator.GetTokenBase().Type == parser.TokenType_IN &&
 		leftIsIdentifierExpression &&
@@ -2701,17 +2700,17 @@ func (d *IRFactory_TransformDispatcher) TransformLhsOfBinaryTree(exprTree *parse
 }
 
 // Java: IRFactory.TransformDispatcher.processDebuggerStatement(DebuggerStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessDebuggerStatement(unused *parser.DebuggerStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessDebuggerStatement(unused *parser.DebuggerStatementTree) rhino.Node {
 	return d.NewNode(rhino.Token_DEBUGGER)
 }
 
 // Java: IRFactory.TransformDispatcher.processThisExpression(ThisExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessThisExpression(unused *parser.ThisExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessThisExpression(unused *parser.ThisExpressionTree) rhino.Node {
 	return d.NewNode(rhino.Token_THIS)
 }
 
 // Java: IRFactory.TransformDispatcher.processLabeledStatement(LabelledStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessLabeledStatement(labelTree *parser.LabelledStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessLabeledStatement(labelTree *parser.LabelledStatementTree) rhino.Node {
 	statement := d.Transform(labelTree.Statement)
 	if statement.IsFunction() ||
 		statement.IsClass() ||
@@ -2728,13 +2727,13 @@ func (d *IRFactory_TransformDispatcher) ProcessLabeledStatement(labelTree *parse
 }
 
 // Java: IRFactory.TransformDispatcher.processName(IdentifierExpressionTree, IdentifierType)
-func (d *IRFactory_TransformDispatcher) ProcessName(nameNode *parser.IdentifierExpressionTree, identifierType IRFactory_TransformDispatcher_IdentifierType) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessName(nameNode *parser.IdentifierExpressionTree, identifierType IRFactory_TransformDispatcher_IdentifierType) rhino.Node {
 	return d.ProcessNameOfToken(nameNode.IdentifierToken, rhino.Token_NAME, identifierType)
 }
 
 // Java: IRFactory.TransformDispatcher.processName(IdentifierToken, Token, IdentifierType)
 func (d *IRFactory_TransformDispatcher) ProcessNameOfToken(
-	identifierToken *parser.IdentifierToken, output rhino.Token, identifierType IRFactory_TransformDispatcher_IdentifierType) *rhino.Node {
+	identifierToken *parser.IdentifierToken, output rhino.Token, identifierType IRFactory_TransformDispatcher_IdentifierType) rhino.Node {
 	comment := d.ParseNonJSDocCommentAt(identifierToken.GetStart(), true)
 
 	node := d.NewStringNodeFromIdentifier(output, identifierType, identifierToken)
@@ -2756,7 +2755,7 @@ func (d *IRFactory_TransformDispatcher) ProcessNameOfToken(
 }
 
 // Java: IRFactory.TransformDispatcher.processString(LiteralToken)
-func (d *IRFactory_TransformDispatcher) ProcessString(token parser.LiteralToken) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessString(token parser.LiteralToken) rhino.Node {
 	jutil.CheckArgument(token.GetTokenBase().Type == parser.TokenType_STRING)
 	comment := d.ParseNonJSDocCommentAt(token.GetStart(), true)
 
@@ -2770,13 +2769,13 @@ func (d *IRFactory_TransformDispatcher) ProcessString(token parser.LiteralToken)
 }
 
 // Java: IRFactory.TransformDispatcher.processTemplateLiteralToken(TemplateLiteralToken)
-func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteralToken(token *parser.TemplateLiteralToken) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteralToken(token *parser.TemplateLiteralToken) rhino.Node {
 	jutil.CheckArgument(
 		token.Type == parser.TokenType_NO_SUBSTITUTION_TEMPLATE ||
 			token.Type == parser.TokenType_TEMPLATE_HEAD ||
 			token.Type == parser.TokenType_TEMPLATE_MIDDLE ||
 			token.Type == parser.TokenType_TEMPLATE_TAIL)
-	var node *rhino.Node
+	var node rhino.Node
 	if token.HasError() {
 		node = d.NewTemplateLitStringNode(nil, token.Value)
 	} else {
@@ -2789,13 +2788,13 @@ func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteralToken(token *parse
 
 // Java: IRFactory.TransformDispatcher.processNameWithInlineComments(IdentifierExpressionTree, IdentifierType)
 func (d *IRFactory_TransformDispatcher) ProcessNameWithInlineComments(
-	identifierExpression *parser.IdentifierExpressionTree, identifierType IRFactory_TransformDispatcher_IdentifierType) *rhino.Node {
+	identifierExpression *parser.IdentifierExpressionTree, identifierType IRFactory_TransformDispatcher_IdentifierType) rhino.Node {
 	return d.ProcessNameWithInlineCommentsOfToken(identifierExpression.IdentifierToken, identifierType)
 }
 
 // Java: IRFactory.TransformDispatcher.processNameWithInlineComments(IdentifierToken, IdentifierType)
 func (d *IRFactory_TransformDispatcher) ProcessNameWithInlineCommentsOfToken(
-	identifierToken *parser.IdentifierToken, identifierType IRFactory_TransformDispatcher_IdentifierType) *rhino.Node {
+	identifierToken *parser.IdentifierToken, identifierType IRFactory_TransformDispatcher_IdentifierType) rhino.Node {
 	info := d.ParseInlineJSDocAt(identifierToken.GetStart())
 	comment := d.ParseNonJSDocCommentAt(identifierToken.GetStart(), false)
 
@@ -2813,7 +2812,7 @@ func (d *IRFactory_TransformDispatcher) ProcessNameWithInlineCommentsOfToken(
 }
 
 // Java: IRFactory.TransformDispatcher.maybeWarnKeywordProperty(Node)
-func (d *IRFactory_TransformDispatcher) MaybeWarnKeywordProperty(node *rhino.Node) {
+func (d *IRFactory_TransformDispatcher) MaybeWarnKeywordProperty(node rhino.Node) {
 	if d.currentFileIsExterns {
 		return
 	}
@@ -2853,7 +2852,7 @@ func (d *IRFactory_TransformDispatcher) MaybeWarnReservedKeyword(token *parser.I
 }
 
 // Java: IRFactory.TransformDispatcher.processNewExpression(NewExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessNewExpression(exprNode *parser.NewExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessNewExpression(exprNode *parser.NewExpressionTree) rhino.Node {
 	node := d.NewNodeWithChild(rhino.Token_NEW, d.Transform(exprNode.Operand))
 	node.SetTrailingComma(exprNode.HasTrailingComma)
 	if exprNode.Arguments != nil {
@@ -2865,7 +2864,7 @@ func (d *IRFactory_TransformDispatcher) ProcessNewExpression(exprNode *parser.Ne
 }
 
 // Java: IRFactory.TransformDispatcher.processNumberLiteral(LiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessNumberLiteral(literalNode *parser.LiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessNumberLiteral(literalNode *parser.LiteralExpressionTree) rhino.Node {
 	value := d.NormalizeNumber(literalNode.LiteralToken.(parser.LiteralToken))
 	number := d.NewNumberNode(value)
 	d.SetSourceInfo(number, literalNode)
@@ -2873,7 +2872,7 @@ func (d *IRFactory_TransformDispatcher) ProcessNumberLiteral(literalNode *parser
 }
 
 // Java: IRFactory.TransformDispatcher.processBigIntLiteral(LiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessBigIntLiteral(literalNode *parser.LiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessBigIntLiteral(literalNode *parser.LiteralExpressionTree) rhino.Node {
 	d.MaybeWarnForFeature(literalNode, parser.FeatureSet_Feature_BIGINT)
 	value := d.NormalizeBigInt(literalNode.LiteralToken.(parser.LiteralToken))
 	bigint := d.NewBigIntNode(value)
@@ -2882,7 +2881,7 @@ func (d *IRFactory_TransformDispatcher) ProcessBigIntLiteral(literalNode *parser
 }
 
 // Java: IRFactory.TransformDispatcher.processObjectLiteral(ObjectLiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessObjectLiteral(objTree *parser.ObjectLiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessObjectLiteral(objTree *parser.ObjectLiteralExpressionTree) rhino.Node {
 	node := d.NewNode(rhino.Token_OBJECTLIT)
 	node.SetTrailingComma(objTree.HasTrailingComma)
 	maybeWarn := false
@@ -2922,14 +2921,14 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectLiteral(objTree *parser.Obj
 }
 
 // Java: IRFactory.TransformDispatcher.processComputedPropertyDefinition(ComputedPropertyDefinitionTree)
-func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyDefinition(tree *parser.ComputedPropertyDefinitionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyDefinition(tree *parser.ComputedPropertyDefinitionTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 
 	return d.NewNodeWith2Children(rhino.Token_COMPUTED_PROP, d.Transform(tree.Property), d.Transform(tree.Value))
 }
 
 // Java: IRFactory.TransformDispatcher.processComputedPropertyMethod(ComputedPropertyMethodTree)
-func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyMethod(tree *parser.ComputedPropertyMethodTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyMethod(tree *parser.ComputedPropertyMethodTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 
 	n := d.NewNodeWith2Children(rhino.Token_COMPUTED_PROP, d.Transform(tree.Property), d.Transform(tree.Method))
@@ -2941,7 +2940,7 @@ func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyMethod(tree *pars
 }
 
 // Java: IRFactory.TransformDispatcher.processComputedPropertyGetter(ComputedPropertyGetterTree)
-func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyGetter(tree *parser.ComputedPropertyGetterTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyGetter(tree *parser.ComputedPropertyGetterTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 
 	key := d.Transform(tree.Property)
@@ -2955,7 +2954,7 @@ func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyGetter(tree *pars
 }
 
 // Java: IRFactory.TransformDispatcher.processComputedPropertySetter(ComputedPropertySetterTree)
-func (d *IRFactory_TransformDispatcher) ProcessComputedPropertySetter(tree *parser.ComputedPropertySetterTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessComputedPropertySetter(tree *parser.ComputedPropertySetterTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 
 	key := d.Transform(tree.Property)
@@ -2975,7 +2974,7 @@ func (d *IRFactory_TransformDispatcher) ProcessComputedPropertySetter(tree *pars
 }
 
 // Java: IRFactory.TransformDispatcher.processGetAccessor(GetAccessorTree)
-func (d *IRFactory_TransformDispatcher) ProcessGetAccessor(tree *parser.GetAccessorTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessGetAccessor(tree *parser.GetAccessorTree) rhino.Node {
 	identifierType := IRFactory_TransformDispatcher_IdentifierType_STANDARD
 	if tree.IsClassMember {
 		identifierType = IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE
@@ -2994,7 +2993,7 @@ func (d *IRFactory_TransformDispatcher) ProcessGetAccessor(tree *parser.GetAcces
 }
 
 // Java: IRFactory.TransformDispatcher.processSetAccessor(SetAccessorTree)
-func (d *IRFactory_TransformDispatcher) ProcessSetAccessor(tree *parser.SetAccessorTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessSetAccessor(tree *parser.SetAccessorTree) rhino.Node {
 	identifierType := IRFactory_TransformDispatcher_IdentifierType_STANDARD
 	if tree.IsClassMember {
 		identifierType = IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE
@@ -3018,7 +3017,7 @@ func (d *IRFactory_TransformDispatcher) ProcessSetAccessor(tree *parser.SetAcces
 }
 
 // Java: IRFactory.TransformDispatcher.processPropertyNameAssignment(PropertyNameAssignmentTree)
-func (d *IRFactory_TransformDispatcher) ProcessPropertyNameAssignment(tree *parser.PropertyNameAssignmentTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessPropertyNameAssignment(tree *parser.PropertyNameAssignmentTree) rhino.Node {
 	key := d.ProcessObjectLitKey(tree.Name, rhino.Token_STRING_KEY, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 	if tree.Value != nil {
 		key.AddChildToFront(d.Transform(tree.Value))
@@ -3048,7 +3047,7 @@ func (d *IRFactory_TransformDispatcher) CheckParenthesizedExpression(exprNode *p
 }
 
 // Java: IRFactory.TransformDispatcher.processParenthesizedExpression(ParenExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessParenthesizedExpression(exprNode *parser.ParenExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessParenthesizedExpression(exprNode *parser.ParenExpressionTree) rhino.Node {
 	d.CheckParenthesizedExpression(exprNode)
 	expr := d.Transform(exprNode.Expression)
 	expr.SetIsParenthesized(true)
@@ -3056,7 +3055,7 @@ func (d *IRFactory_TransformDispatcher) ProcessParenthesizedExpression(exprNode 
 }
 
 // Java: IRFactory.TransformDispatcher.processPropertyGet(MemberExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessPropertyGet(getNode *parser.MemberExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessPropertyGet(getNode *parser.MemberExpressionTree) rhino.Node {
 	leftChild := d.Transform(getNode.Operand)
 	propName := getNode.MemberName
 	if propName == nil {
@@ -3078,7 +3077,7 @@ func (d *IRFactory_TransformDispatcher) ProcessPropertyGet(getNode *parser.Membe
 }
 
 // Java: IRFactory.TransformDispatcher.processOptChainPropertyGet(OptionalMemberExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessOptChainPropertyGet(getNode *parser.OptionalMemberExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessOptChainPropertyGet(getNode *parser.OptionalMemberExpressionTree) rhino.Node {
 	d.MaybeWarnForFeature(getNode, parser.FeatureSet_Feature_OPTIONAL_CHAINING)
 
 	leftChild := d.Transform(getNode.Operand)
@@ -3103,7 +3102,7 @@ func (d *IRFactory_TransformDispatcher) ProcessOptChainPropertyGet(getNode *pars
 }
 
 // Java: IRFactory.TransformDispatcher.processRegExpLiteral(LiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessRegExpLiteral(literalTree *parser.LiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessRegExpLiteral(literalTree *parser.LiteralExpressionTree) rhino.Node {
 	token := literalTree.LiteralToken.(parser.LiteralToken)
 	literalStringNode := d.NewStringNode(d.NormalizeRegex(token))
 	// TODO(johnlenz): fix the source location.
@@ -3152,7 +3151,7 @@ func (d *IRFactory_TransformDispatcher) ValidateRegExpFlags(tree *parser.Literal
 }
 
 // Java: IRFactory.TransformDispatcher.processReturnStatement(ReturnStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessReturnStatement(statementNode *parser.ReturnStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessReturnStatement(statementNode *parser.ReturnStatementTree) rhino.Node {
 	node := d.NewNode(rhino.Token_RETURN)
 	if statementNode.Expression != nil {
 		node.AddChildToBack(d.Transform(statementNode.Expression))
@@ -3161,17 +3160,17 @@ func (d *IRFactory_TransformDispatcher) ProcessReturnStatement(statementNode *pa
 }
 
 // Java: IRFactory.TransformDispatcher.processStringLiteral(LiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessStringLiteral(literalTree *parser.LiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessStringLiteral(literalTree *parser.LiteralExpressionTree) rhino.Node {
 	token := literalTree.LiteralToken.(parser.LiteralToken)
 	return d.ProcessString(token)
 }
 
 // Java: IRFactory.TransformDispatcher.processTemplateLiteral(TemplateLiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteral(tree *parser.TemplateLiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteral(tree *parser.TemplateLiteralExpressionTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_TEMPLATE_LITERALS)
 	templateLitNode := d.NewNode(rhino.Token_TEMPLATELIT)
 	d.SetSourceInfo(templateLitNode, tree)
-	var node *rhino.Node
+	var node rhino.Node
 	if tree.Operand == nil {
 		node = templateLitNode
 	} else {
@@ -3187,17 +3186,17 @@ func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteral(tree *parser.Temp
 }
 
 // Java: IRFactory.TransformDispatcher.processTemplateLiteralPortion(TemplateLiteralPortionTree)
-func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteralPortion(tree *parser.TemplateLiteralPortionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessTemplateLiteralPortion(tree *parser.TemplateLiteralPortionTree) rhino.Node {
 	return d.ProcessTemplateLiteralToken(tree.Value.(*parser.TemplateLiteralToken))
 }
 
 // Java: IRFactory.TransformDispatcher.processTemplateSubstitution(TemplateSubstitutionTree)
-func (d *IRFactory_TransformDispatcher) ProcessTemplateSubstitution(tree *parser.TemplateSubstitutionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessTemplateSubstitution(tree *parser.TemplateSubstitutionTree) rhino.Node {
 	return d.NewNodeWithChild(rhino.Token_TEMPLATELIT_SUB, d.Transform(tree.Expression))
 }
 
 // Java: IRFactory.TransformDispatcher.processSwitchCase(CaseClauseTree)
-func (d *IRFactory_TransformDispatcher) ProcessSwitchCase(caseNode *parser.CaseClauseTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessSwitchCase(caseNode *parser.CaseClauseTree) rhino.Node {
 	expr := caseNode.Expression
 	node := d.NewNodeWithChild(rhino.Token_CASE, d.Transform(expr))
 	block := d.NewNode(rhino.Token_BLOCK)
@@ -3213,7 +3212,7 @@ func (d *IRFactory_TransformDispatcher) ProcessSwitchCase(caseNode *parser.CaseC
 }
 
 // Java: IRFactory.TransformDispatcher.processSwitchDefault(DefaultClauseTree)
-func (d *IRFactory_TransformDispatcher) ProcessSwitchDefault(caseNode *parser.DefaultClauseTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessSwitchDefault(caseNode *parser.DefaultClauseTree) rhino.Node {
 	node := d.NewNode(rhino.Token_DEFAULT_CASE)
 	block := d.NewNode(rhino.Token_BLOCK)
 	block.SetIsAddedBlock(true)
@@ -3228,7 +3227,7 @@ func (d *IRFactory_TransformDispatcher) ProcessSwitchDefault(caseNode *parser.De
 }
 
 // Java: IRFactory.TransformDispatcher.processSwitchStatement(SwitchStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessSwitchStatement(statementNode *parser.SwitchStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessSwitchStatement(statementNode *parser.SwitchStatementTree) rhino.Node {
 	node := d.NewNodeWithChild(rhino.Token_SWITCH, d.Transform(statementNode.Expression))
 	switchBody := d.NewNode(rhino.Token_SWITCH_BODY)
 	d.SetSourceInfo(switchBody, statementNode)
@@ -3240,12 +3239,12 @@ func (d *IRFactory_TransformDispatcher) ProcessSwitchStatement(statementNode *pa
 }
 
 // Java: IRFactory.TransformDispatcher.processThrowStatement(ThrowStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessThrowStatement(statementNode *parser.ThrowStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessThrowStatement(statementNode *parser.ThrowStatementTree) rhino.Node {
 	return d.NewNodeWithChild(rhino.Token_THROW, d.Transform(statementNode.Value))
 }
 
 // Java: IRFactory.TransformDispatcher.processTryStatement(TryStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessTryStatement(statementNode *parser.TryStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessTryStatement(statementNode *parser.TryStatementTree) rhino.Node {
 	node := d.NewNodeWithChild(rhino.Token_TRY, d.TransformBlock(statementNode.Body))
 	block := d.NewNode(rhino.Token_BLOCK)
 	lineSet := false
@@ -3277,7 +3276,7 @@ func (d *IRFactory_TransformDispatcher) ProcessTryStatement(statementNode *parse
 }
 
 // Java: IRFactory.TransformDispatcher.processCatchClause(CatchTree)
-func (d *IRFactory_TransformDispatcher) ProcessCatchClause(clauseNode *parser.CatchTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessCatchClause(clauseNode *parser.CatchTree) rhino.Node {
 	if clauseNode.Exception.GetParseTreeBase().Type == parser.ParseTreeType_EMPTY_STATEMENT {
 		d.MaybeWarnForFeature(clauseNode, parser.FeatureSet_Feature_OPTIONAL_CATCH_BINDING)
 	}
@@ -3287,12 +3286,12 @@ func (d *IRFactory_TransformDispatcher) ProcessCatchClause(clauseNode *parser.Ca
 }
 
 // Java: IRFactory.TransformDispatcher.processFinally(FinallyTree)
-func (d *IRFactory_TransformDispatcher) ProcessFinally(finallyNode *parser.FinallyTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessFinally(finallyNode *parser.FinallyTree) rhino.Node {
 	return d.TransformBlock(finallyNode.Block)
 }
 
 // Java: IRFactory.TransformDispatcher.processUnaryExpression(UnaryExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessUnaryExpression(exprNode *parser.UnaryExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessUnaryExpression(exprNode *parser.UnaryExpressionTree) rhino.Node {
 	type_ := IRFactory_TransformUnaryTokenType(exprNode.Operator.GetTokenBase().Type)
 	operand := d.Transform(exprNode.Operand)
 
@@ -3318,7 +3317,7 @@ func (d *IRFactory_TransformDispatcher) ProcessUnaryExpression(exprNode *parser.
 }
 
 // Java: IRFactory.TransformDispatcher.processUpdateExpression(UpdateExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessUpdateExpression(updateExpr *parser.UpdateExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessUpdateExpression(updateExpr *parser.UpdateExpressionTree) rhino.Node {
 	type_ := IRFactory_TransformUpdateTokenType(updateExpr.Operator.GetTokenBase().Type)
 	operand := d.Transform(updateExpr.Operand)
 	return d.CreateUpdateNode(
@@ -3326,7 +3325,7 @@ func (d *IRFactory_TransformDispatcher) ProcessUpdateExpression(updateExpr *pars
 }
 
 // Java: IRFactory.TransformDispatcher.createUpdateNode(Token, boolean, Node)
-func (d *IRFactory_TransformDispatcher) CreateUpdateNode(type_ rhino.Token, postfix bool, operand *rhino.Node) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) CreateUpdateNode(type_ rhino.Token, postfix bool, operand rhino.Node) rhino.Node {
 	assignTarget := operand
 	if operand.IsCast() {
 		assignTarget = operand.GetFirstChild()
@@ -3352,13 +3351,13 @@ func (d *IRFactory_TransformDispatcher) CreateUpdateNode(type_ rhino.Token, post
 }
 
 // Java: IRFactory.TransformDispatcher.processVariableStatement(VariableStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessVariableStatement(stmt *parser.VariableStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessVariableStatement(stmt *parser.VariableStatementTree) rhino.Node {
 	// TODO(moz): Figure out why we still need the special handling
 	return d.transformDispatcher.Process(stmt.Declarations)
 }
 
 // Java: IRFactory.TransformDispatcher.processVariableDeclarationList(VariableDeclarationListTree)
-func (d *IRFactory_TransformDispatcher) ProcessVariableDeclarationList(decl *parser.VariableDeclarationListTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessVariableDeclarationList(decl *parser.VariableDeclarationListTree) rhino.Node {
 	var declType rhino.Token
 	switch decl.DeclarationType {
 	case parser.TokenType_CONST:
@@ -3383,7 +3382,7 @@ func (d *IRFactory_TransformDispatcher) ProcessVariableDeclarationList(decl *par
 }
 
 // Java: IRFactory.TransformDispatcher.processVariableDeclaration(VariableDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessVariableDeclaration(decl *parser.VariableDeclarationTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessVariableDeclaration(decl *parser.VariableDeclarationTree) rhino.Node {
 	node := d.TransformNodeWithInlineComments(decl.Lvalue)
 	lhs := node
 	if node.IsDestructuringPattern() {
@@ -3398,17 +3397,17 @@ func (d *IRFactory_TransformDispatcher) ProcessVariableDeclaration(decl *parser.
 }
 
 // Java: IRFactory.TransformDispatcher.processWhileLoop(WhileStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessWhileLoop(stmt *parser.WhileStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessWhileLoop(stmt *parser.WhileStatementTree) rhino.Node {
 	return d.NewNodeWith2Children(rhino.Token_WHILE, d.Transform(stmt.Condition), d.TransformBlock(stmt.Body))
 }
 
 // Java: IRFactory.TransformDispatcher.processWithStatement(WithStatementTree)
-func (d *IRFactory_TransformDispatcher) ProcessWithStatement(stmt *parser.WithStatementTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessWithStatement(stmt *parser.WithStatementTree) rhino.Node {
 	return d.NewNodeWith2Children(rhino.Token_WITH, d.Transform(stmt.Expression), d.TransformBlock(stmt.Body))
 }
 
 // Java: IRFactory.TransformDispatcher.processMissingExpression(MissingPrimaryExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessMissingExpression(unused *parser.MissingPrimaryExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessMissingExpression(unused *parser.MissingPrimaryExpressionTree) rhino.Node {
 	// This will already have been reported as an error by the parser.
 	// Try to create something valid that ide mode might be able to
 	// continue with.
@@ -3416,17 +3415,17 @@ func (d *IRFactory_TransformDispatcher) ProcessMissingExpression(unused *parser.
 }
 
 // Java: IRFactory.TransformDispatcher.createMissingNameNode()
-func (d *IRFactory_TransformDispatcher) CreateMissingNameNode() *rhino.Node {
+func (d *IRFactory_TransformDispatcher) CreateMissingNameNode() rhino.Node {
 	return d.NewStringNodeWithToken(rhino.Token_NAME, "__missing_name__")
 }
 
 // Java: IRFactory.TransformDispatcher.createMissingExpressionNode()
-func (d *IRFactory_TransformDispatcher) CreateMissingExpressionNode() *rhino.Node {
+func (d *IRFactory_TransformDispatcher) CreateMissingExpressionNode() rhino.Node {
 	return d.NewStringNodeWithToken(rhino.Token_NAME, "__missing_expression__")
 }
 
 // Java: IRFactory.TransformDispatcher.processIllegalToken(ParseTree)
-func (d *IRFactory_TransformDispatcher) ProcessIllegalToken(node parser.ParseTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessIllegalToken(node parser.ParseTree) rhino.Node {
 	d.errorReporter.Error("Unsupported syntax: "+node.GetParseTreeBase().Type.String(), d.sourceName, IRFactory_Lineno(node), 0)
 	return d.NewNode(rhino.Token_EMPTY)
 }
@@ -3458,24 +3457,24 @@ func (d *IRFactory_TransformDispatcher) MaybeReportSetter(node parser.ParseTree)
 }
 
 // Java: IRFactory.TransformDispatcher.processBooleanLiteral(LiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessBooleanLiteral(literal *parser.LiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessBooleanLiteral(literal *parser.LiteralExpressionTree) rhino.Node {
 	return d.NewNode(IRFactory_TransformBooleanTokenType(literal.LiteralToken.GetTokenBase().Type))
 }
 
 // Java: IRFactory.TransformDispatcher.processNullLiteral(LiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessNullLiteral(unused *parser.LiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessNullLiteral(unused *parser.LiteralExpressionTree) rhino.Node {
 	return d.NewNode(rhino.Token_NULL)
 }
 
 // Java: IRFactory.TransformDispatcher.processNull(NullTree)
-func (d *IRFactory_TransformDispatcher) ProcessNull(unused *parser.NullTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessNull(unused *parser.NullTree) rhino.Node {
 	// NOTE: This is not a NULL literal but a placeholder node such as in
 	// an array with "holes".
 	return d.NewNode(rhino.Token_EMPTY)
 }
 
 // Java: IRFactory.TransformDispatcher.processCommaExpression(CommaExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessCommaExpression(tree *parser.CommaExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessCommaExpression(tree *parser.CommaExpressionTree) rhino.Node {
 	root := d.NewNode(rhino.Token_COMMA)
 	start := tree.Expressions[0].GetParseTreeBase().Location.Start
 	end := tree.Expressions[1].GetParseTreeBase().Location.End
@@ -3494,7 +3493,7 @@ func (d *IRFactory_TransformDispatcher) ProcessCommaExpression(tree *parser.Comm
 }
 
 // Java: IRFactory.TransformDispatcher.processClassDeclaration(ClassDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessClassDeclaration(tree *parser.ClassDeclarationTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessClassDeclaration(tree *parser.ClassDeclarationTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_CLASSES)
 
 	name := d.TransformOrEmptyIdentifier(tree.Name, tree)
@@ -3556,14 +3555,14 @@ func (d *IRFactory_TransformDispatcher) ProcessClassDeclaration(tree *parser.Cla
 // that outer class private properties are available to inner classes.
 //
 // Java: IRFactory.TransformDispatcher.validatePrivatePropertyUsage(Set<String>, Node)
-func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privatePropNames *jutil.TreeSet[string], classMembers *rhino.Node) {
+func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privatePropNames *jutil.TreeSet[string], classMembers rhino.Node) {
 	jutil.CheckState(classMembers.IsClassMembers())
 	if !classMembers.HasChildren() {
 		return
 	}
 
 	// Uses a stack object instead of recursion to avoid a stack overflow.
-	var visitStack []*rhino.Node
+	var visitStack []rhino.Node
 	visitStack = append(visitStack, classMembers.GetFirstChild())
 	for len(visitStack) != 0 {
 		node := visitStack[len(visitStack)-1]
@@ -3596,7 +3595,7 @@ func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privateProp
 		//   delete x.#privateProp
 		//   delete x?.#privateProp
 		if node.IsDelProp() {
-			firstChild := jutil.CheckNotNull(node.GetFirstChild())
+			firstChild := rhino.CheckNotNull(node.GetFirstChild())
 			if firstChild.IsPrivateIdentifier() &&
 				(firstChild.IsGetProp() || firstChild.IsOptChainGetProp()) {
 				d.errorReporter.Error(
@@ -3611,7 +3610,7 @@ func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privateProp
 			innerClassPrivatePropNames.AddAll(privatePropNames.All())
 			d.ValidatePrivatePropertyUsage(innerClassPrivatePropNames, node)
 		} else {
-			if node.GetNext() != nil {
+			if !node.GetNext().IsNil() {
 				visitStack = append(visitStack, node.GetNext())
 			}
 			if node.HasChildren() {
@@ -3630,7 +3629,7 @@ func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privateProp
 // non-static modifier.
 //
 // Java: IRFactory.TransformDispatcher.getPrivatePropsAndValidateUniqueness(Node)
-func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(classMembers *rhino.Node) *jutil.TreeSet[string] {
+func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(classMembers rhino.Node) *jutil.TreeSet[string] {
 	// Track all this to ensure we don't have duplicate private getters and
 	// setters.
 	privateGetterNames := jutil.NewTreeSet(jutil.StringCompareTo)
@@ -3640,7 +3639,7 @@ func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(cla
 	privateFieldAndMethodNames := jutil.NewTreeSet(jutil.StringCompareTo)
 
 	privatePropNames := jutil.NewTreeSet(jutil.StringCompareTo)
-	for curNode := classMembers.GetFirstChild(); curNode != nil; curNode = curNode.GetNext() {
+	for curNode := classMembers.GetFirstChild(); !curNode.IsNil(); curNode = curNode.GetNext() {
 		if !curNode.IsPrivateIdentifier() {
 			continue
 		}
@@ -3789,19 +3788,19 @@ func (d *IRFactory_TransformDispatcher) ValidateClassConstructorMember(member pa
 }
 
 // Java: IRFactory.TransformDispatcher.processSuper(SuperExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessSuper(tree *parser.SuperExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessSuper(tree *parser.SuperExpressionTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_SUPER)
 	return d.NewNode(rhino.Token_SUPER)
 }
 
 // Java: IRFactory.TransformDispatcher.processNewTarget(NewTargetExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessNewTarget(tree *parser.NewTargetExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessNewTarget(tree *parser.NewTargetExpressionTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_NEW_TARGET)
 	return d.NewNode(rhino.Token_NEW_TARGET)
 }
 
 // Java: IRFactory.TransformDispatcher.processYield(YieldExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessYield(tree *parser.YieldExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessYield(tree *parser.YieldExpressionTree) rhino.Node {
 	yield := d.NewNode(rhino.Token_YIELD)
 	if tree.Expression != nil {
 		yield.AddChildToBack(d.Transform(tree.Expression))
@@ -3811,7 +3810,7 @@ func (d *IRFactory_TransformDispatcher) ProcessYield(tree *parser.YieldExpressio
 }
 
 // Java: IRFactory.TransformDispatcher.processAwait(AwaitExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessAwait(tree *parser.AwaitExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessAwait(tree *parser.AwaitExpressionTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_ASYNC_FUNCTIONS)
 	await := d.NewNode(rhino.Token_AWAIT)
 	await.AddChildToBack(d.Transform(tree.Expression))
@@ -3819,9 +3818,9 @@ func (d *IRFactory_TransformDispatcher) ProcessAwait(tree *parser.AwaitExpressio
 }
 
 // Java: IRFactory.TransformDispatcher.processExportDecl(ExportDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessExportDecl(tree *parser.ExportDeclarationTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessExportDecl(tree *parser.ExportDeclarationTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_MODULES)
-	var decls *rhino.Node
+	var decls rhino.Node
 	if tree.IsExportAll {
 		jutil.CheckState(tree.Declaration == nil && tree.ExportSpecifierList == nil)
 	} else if tree.Declaration != nil {
@@ -3830,7 +3829,7 @@ func (d *IRFactory_TransformDispatcher) ProcessExportDecl(tree *parser.ExportDec
 	} else {
 		decls = d.TransformList(rhino.Token_EXPORT_SPECS, tree.ExportSpecifierList)
 	}
-	if decls == nil {
+	if decls.IsNil() {
 		decls = d.NewNode(rhino.Token_EMPTY)
 	}
 	d.SetSourceInfo(decls, tree)
@@ -3846,7 +3845,7 @@ func (d *IRFactory_TransformDispatcher) ProcessExportDecl(tree *parser.ExportDec
 }
 
 // Java: IRFactory.TransformDispatcher.processExportSpec(ExportSpecifierTree)
-func (d *IRFactory_TransformDispatcher) ProcessExportSpec(tree *parser.ExportSpecifierTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessExportSpec(tree *parser.ExportSpecifierTree) rhino.Node {
 	importedName := d.ProcessNameOfToken(tree.ImportedName, rhino.Token_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 	exportSpec := d.NewNodeWithChild(rhino.Token_EXPORT_SPEC, importedName)
 	if tree.DestinationName == nil {
@@ -3860,11 +3859,11 @@ func (d *IRFactory_TransformDispatcher) ProcessExportSpec(tree *parser.ExportSpe
 }
 
 // Java: IRFactory.TransformDispatcher.processImportDecl(ImportDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessImportDecl(tree *parser.ImportDeclarationTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessImportDecl(tree *parser.ImportDeclarationTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_MODULES)
 
 	firstChild := d.TransformOrEmptyIdentifier(tree.DefaultBindingIdentifier, tree)
-	var secondChild *rhino.Node
+	var secondChild rhino.Node
 	if tree.NameSpaceImportIdentifier == nil {
 		secondChild = d.TransformListOrEmpty(rhino.Token_IMPORT_SPECS, tree.ImportSpecifierList)
 		// Currently source info is "import {foo} from '...';" expression. If
@@ -3881,7 +3880,7 @@ func (d *IRFactory_TransformDispatcher) ProcessImportDecl(tree *parser.ImportDec
 }
 
 // Java: IRFactory.TransformDispatcher.processImportSpec(ImportSpecifierTree)
-func (d *IRFactory_TransformDispatcher) ProcessImportSpec(tree *parser.ImportSpecifierTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessImportSpec(tree *parser.ImportSpecifierTree) rhino.Node {
 	importedName := d.ProcessNameOfToken(tree.ImportedName, rhino.Token_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 	importSpec := d.NewNodeWithChild(rhino.Token_IMPORT_SPEC, importedName)
 	if tree.DestinationName == nil {
@@ -3895,14 +3894,14 @@ func (d *IRFactory_TransformDispatcher) ProcessImportSpec(tree *parser.ImportSpe
 }
 
 // Java: IRFactory.TransformDispatcher.processDynamicImport(DynamicImportTree)
-func (d *IRFactory_TransformDispatcher) ProcessDynamicImport(dynamicImportNode *parser.DynamicImportTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessDynamicImport(dynamicImportNode *parser.DynamicImportTree) rhino.Node {
 	d.MaybeWarnForFeature(dynamicImportNode, parser.FeatureSet_Feature_DYNAMIC_IMPORT)
 	argument := d.Transform(dynamicImportNode.Argument)
 	return d.NewNodeWithChild(rhino.Token_DYNAMIC_IMPORT, argument)
 }
 
 // Java: IRFactory.TransformDispatcher.processImportMeta(ImportMetaExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessImportMeta(tree *parser.ImportMetaExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessImportMeta(tree *parser.ImportMetaExpressionTree) rhino.Node {
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_MODULES)
 	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_IMPORT_META)
 	return d.NewNode(rhino.Token_IMPORT_META)
@@ -3936,7 +3935,7 @@ func (d *IRFactory_TransformDispatcher) CheckParameters(tree *parser.FormalParam
 }
 
 // Java: IRFactory.TransformDispatcher.transformList(Token, ImmutableList<ParseTree>)
-func (d *IRFactory_TransformDispatcher) TransformList(type_ rhino.Token, list []parser.ParseTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) TransformList(type_ rhino.Token, list []parser.ParseTree) rhino.Node {
 	n := d.NewNode(type_)
 	// Go-only: language-adapter — a nil slice is Java null (the parser keeps
 	// empty lists non-nil), and an enhanced for statement over a null list
@@ -3954,7 +3953,7 @@ func (d *IRFactory_TransformDispatcher) TransformList(type_ rhino.Token, list []
 }
 
 // Java: IRFactory.TransformDispatcher.transformListOrEmpty(Token, ImmutableList<ParseTree>)
-func (d *IRFactory_TransformDispatcher) TransformListOrEmpty(type_ rhino.Token, list []parser.ParseTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) TransformListOrEmpty(type_ rhino.Token, list []parser.ParseTree) rhino.Node {
 	if list == nil || len(list) == 0 {
 		return d.NewNode(rhino.Token_EMPTY)
 	} else {
@@ -3963,14 +3962,14 @@ func (d *IRFactory_TransformDispatcher) TransformListOrEmpty(type_ rhino.Token, 
 }
 
 // Java: IRFactory.TransformDispatcher.unsupportedLanguageFeature(ParseTree, String)
-func (d *IRFactory_TransformDispatcher) UnsupportedLanguageFeature(node parser.ParseTree, feature string) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) UnsupportedLanguageFeature(node parser.ParseTree, feature string) rhino.Node {
 	d.errorReporter.Error(
 		"unsupported language feature: "+feature, d.sourceName, IRFactory_Lineno(node), IRFactory_Charno(node))
 	return d.CreateMissingExpressionNode()
 }
 
 // Java: IRFactory.TransformDispatcher.processLiteralExpression(LiteralExpressionTree)
-func (d *IRFactory_TransformDispatcher) ProcessLiteralExpression(expr *parser.LiteralExpressionTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) ProcessLiteralExpression(expr *parser.LiteralExpressionTree) rhino.Node {
 	switch expr.LiteralToken.GetTokenBase().Type {
 	case parser.TokenType_NUMBER:
 		return d.ProcessNumberLiteral(expr)
@@ -4007,7 +4006,7 @@ func irFactory_javaClassOf(token parser.Token) string {
 }
 
 // Java: IRFactory.TransformDispatcher.process(ParseTree)
-func (d *IRFactory_TransformDispatcher) Process(node parser.ParseTree) *rhino.Node {
+func (d *IRFactory_TransformDispatcher) Process(node parser.ParseTree) rhino.Node {
 	switch node.GetParseTreeBase().Type {
 	case parser.ParseTreeType_BINARY_OPERATOR:
 		return d.ProcessBinaryExpression(node.(*parser.BinaryOperatorTree))
@@ -4190,9 +4189,9 @@ func (d *IRFactory_TransformDispatcher) Process(node parser.ParseTree) *rhino.No
 }
 
 // Java: IRFactory.reportErrorIfYieldOrAwaitInDefaultValue(Node)
-func (f *IRFactory) ReportErrorIfYieldOrAwaitInDefaultValue(defaultValueNode *rhino.Node) {
+func (f *IRFactory) ReportErrorIfYieldOrAwaitInDefaultValue(defaultValueNode rhino.Node) {
 	yieldNode := IRFactory_FindNodeTypeInExpression(defaultValueNode, rhino.Token_YIELD)
-	if yieldNode != nil {
+	if !yieldNode.IsNil() {
 		f.errorReporter.Error(
 			"`yield` is illegal in parameter default value.",
 			irFactory_nullableString(yieldNode.GetSourceFileName()),
@@ -4200,7 +4199,7 @@ func (f *IRFactory) ReportErrorIfYieldOrAwaitInDefaultValue(defaultValueNode *rh
 			yieldNode.GetCharno())
 	}
 	awaitNode := IRFactory_FindNodeTypeInExpression(defaultValueNode, rhino.Token_AWAIT)
-	if awaitNode != nil {
+	if !awaitNode.IsNil() {
 		f.errorReporter.Error(
 			"`await` is illegal in parameter default value.",
 			irFactory_nullableString(awaitNode.GetSourceFileName()),
@@ -4227,22 +4226,22 @@ func irFactory_nullableString(s *string) string {
 // class expressions.
 //
 // Java: IRFactory.findNodeTypeInExpression(Node, Token)
-func IRFactory_FindNodeTypeInExpression(expressionNode *rhino.Node, token rhino.Token) *rhino.Node {
+func IRFactory_FindNodeTypeInExpression(expressionNode rhino.Node, token rhino.Token) rhino.Node {
 	// Go-only: language-adapter — the ArrayDeque used as a FIFO queue
 	// (add at the tail, remove at the head) is a slice with a head index.
-	worklist := []*rhino.Node{expressionNode}
+	worklist := []rhino.Node{expressionNode}
 	for head := 0; head < len(worklist); {
 		node := worklist[head]
 		head++
 		if node.GetToken() == token {
 			return node
 		} else if !node.IsFunction() && !node.IsClass() {
-			for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+			for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 				worklist = append(worklist, child)
 			}
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // irFactory_substring is String.substring(begin, end) on a string given as
@@ -4874,32 +4873,32 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 // properties.
 //
 // Java: IRFactory.newNode(Token)
-func (f *IRFactory) NewNode(type_ rhino.Token) *rhino.Node {
+func (f *IRFactory) NewNode(type_ rhino.Token) rhino.Node {
 	return rhino.AllocNode().InitFromTemplate(type_, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node)
-func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 *rhino.Node) *rhino.Node {
+func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 rhino.Node) rhino.Node {
 	return rhino.AllocNode().InitWithChildFromTemplate(type_, child1, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node)
-func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node) *rhino.Node {
+func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 rhino.Node, child2 rhino.Node) rhino.Node {
 	return rhino.AllocNode().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node, Node)
-func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 *rhino.Node, child2 *rhino.Node, child3 *rhino.Node) *rhino.Node {
+func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 rhino.Node, child2 rhino.Node, child3 rhino.Node) rhino.Node {
 	return rhino.AllocNode().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(String)
-func (f *IRFactory) NewStringNode(value string) *rhino.Node {
+func (f *IRFactory) NewStringNode(value string) rhino.Node {
 	return rhino.AllocNode().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(Token, String)
-func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) *rhino.Node {
+func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) rhino.Node {
 	return rhino.AllocNode().InitStringFromTemplate(type_, value, f.templateNode)
 }
 
@@ -4907,7 +4906,7 @@ func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) *rhi
 // node.
 //
 // Java: IRFactory.maybeAddNonJsDocComment(Node, SourcePosition)
-func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start parser.SourcePosition) *rhino.Node {
+func (f *IRFactory) MaybeAddNonJsDocComment(node rhino.Node, start parser.SourcePosition) rhino.Node {
 	comment := f.ParseNonJSDocCommentAt(start, false)
 	if comment != nil {
 		node.SetNonJSDocComment(comment)
@@ -4916,22 +4915,22 @@ func (f *IRFactory) MaybeAddNonJsDocComment(node *rhino.Node, start parser.Sourc
 }
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
-func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) *rhino.Node {
+func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) rhino.Node {
 	return rhino.AllocNode().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
 }
 
 // Java: IRFactory.newNumberNode(Double)
-func (f *IRFactory) NewNumberNode(value float64) *rhino.Node {
+func (f *IRFactory) NewNumberNode(value float64) rhino.Node {
 	return rhino.AllocNode().InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)
-func (f *IRFactory) NewBigIntNode(value *big.Int) *rhino.Node {
+func (f *IRFactory) NewBigIntNode(value *big.Int) rhino.Node {
 	return rhino.AllocNode().InitBigIntFromTemplate(value, f.templateNode)
 }
 
 // Java: IRFactory.error(Node, String)
-func (f *IRFactory) Error(rhinoNode *rhino.Node, message string) {
+func (f *IRFactory) Error(rhinoNode rhino.Node, message string) {
 	f.errorReporter.Error(
 		message, irFactory_nullableString(rhinoNode.GetSourceFileName()), rhinoNode.GetLineno(), rhinoNode.GetCharno())
 }

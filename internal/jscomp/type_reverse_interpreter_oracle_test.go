@@ -107,9 +107,9 @@ func (r *raiTestReporter) Error(message string, sourceName string, line int, lin
 	r.d.line("ERROR\t" + raiEsc(message))
 }
 
-type raiTestScope struct{ root *rhino.Node }
+type raiTestScope struct{ root rhino.Node }
 
-func (s *raiTestScope) GetRootNode() *rhino.Node             { return s.root }
+func (s *raiTestScope) GetRootNode() rhino.Node              { return s.root }
 func (s *raiTestScope) GetParentScope() rhino.StaticScope    { return nil }
 func (s *raiTestScope) GetSlot(name string) rhino.StaticSlot { return nil }
 func (s *raiTestScope) GetOwnSlot(name string) rhino.StaticSlot {
@@ -148,14 +148,14 @@ func (s *raiFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowScop
 }
 
 func (s *raiFlowScope) InferQualifiedSlot(
-	node *rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declare bool) FlowScope {
+	node rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declare bool) FlowScope {
 	c := raiCopySlots(s.slots)
 	c.Put(symbol, rhino.NewSimpleSlot(symbol, inferredType, true))
 	return &raiFlowScope{slots: c}
 }
 
 func (s *raiFlowScope) GetDeclarationScope() rhino.StaticTypedScope { return nil }
-func (s *raiFlowScope) GetRootNode() *rhino.Node                    { return nil }
+func (s *raiFlowScope) GetRootNode() rhino.Node                     { return rhino.Node{} }
 func (s *raiFlowScope) GetParentScope() rhino.StaticScope           { return nil }
 func (s *raiFlowScope) GetSlot(name string) rhino.StaticSlot {
 	if slot, ok := s.slots.Lookup(name); ok {
@@ -192,7 +192,7 @@ func (d *raiDump) add(label string, t rhino.JSType) {
 	d.line("type\t" + strconv.Itoa(len(d.types)) + "\t" + raiEsc(label) + "\t" + raiStr(t))
 }
 
-func raiFn(name string) *rhino.Node {
+func raiFn(name string) rhino.Node {
 	return rhino.IR_Function(rhino.IR_Name(name), rhino.IR_ParamList(), rhino.IR_Block())
 }
 
@@ -211,32 +211,32 @@ func (d *raiDump) buildTypes(typeStrings []string) {
 	fooCtor := r.CreateConstructorType(
 		jutil.StringPtr("Foo"), raiFn("Foo"), r.CreateParameters(number), nil, nil, false)
 	foo := fooCtor.GetInstanceType()
-	fooCtor.GetPrototype().DefineDeclaredProperty("bar", number, nil)
-	foo.DefineDeclaredProperty("p", str, nil)
+	fooCtor.GetPrototype().DefineDeclaredProperty("bar", number, rhino.Node{})
+	foo.DefineDeclaredProperty("p", str, rhino.Node{})
 	r.DeclareType(d.scope, "Foo", foo)
 
 	subFooCtor := r.CreateConstructorType(
 		jutil.StringPtr("SubFoo"), raiFn("SubFoo"), r.CreateParameters(), nil, nil, false)
 	subFooCtor.SetPrototypeBasedOn(foo)
 	subFoo := subFooCtor.GetInstanceType()
-	subFoo.DefineDeclaredProperty("qux", boolean, nil)
+	subFoo.DefineDeclaredProperty("qux", boolean, rhino.Node{})
 	r.DeclareType(d.scope, "SubFoo", subFoo)
 
 	iCtor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("I")).WithSourceNode(raiFn("I")).Build()
-	iCtor.GetPrototype().DefineDeclaredProperty("bar", number, nil)
+	iCtor.GetPrototype().DefineDeclaredProperty("bar", number, rhino.Node{})
 	iface := iCtor.GetInstanceType()
 	r.DeclareType(d.scope, "I", iface)
 
 	implCtor := r.CreateConstructorType(
 		jutil.StringPtr("Impl"), raiFn("Impl"), r.CreateParameters(), nil, nil, false)
 	implCtor.SetImplementedInterfaces([]rhino.ObjectType{iface})
-	implCtor.GetPrototype().DefineDeclaredProperty("bar", number, nil)
+	implCtor.GetPrototype().DefineDeclaredProperty("bar", number, rhino.Node{})
 	impl := implCtor.GetInstanceType()
 	r.DeclareType(d.scope, "Impl", impl)
 
 	recCtor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("Rec")).WithSourceNode(raiFn("Rec")).Build()
 	recCtor.SetImplicitMatch(true)
-	recCtor.GetPrototype().DefineDeclaredProperty("bar", number, nil)
+	recCtor.GetPrototype().DefineDeclaredProperty("bar", number, rhino.Node{})
 	rec := recCtor.GetInstanceType()
 	r.DeclareType(d.scope, "Rec", rec)
 
@@ -248,24 +248,24 @@ func (d *raiDump) buildTypes(typeStrings []string) {
 		WithParametersOfList(r.CreateParameters(tKey)).
 		WithTemplateKeys(tKey).
 		Build()
-	boxCtor.GetPrototype().DefineDeclaredProperty("value", tKey, nil)
+	boxCtor.GetPrototype().DefineDeclaredProperty("value", tKey, rhino.Node{})
 	box := boxCtor.GetInstanceType()
 	r.DeclareType(d.scope, "Box", box)
 
 	numEnum := rhino.EnumType_Builder_(r).SetName(jutil.StringPtr("E")).SetElementType(number).Build()
-	numEnum.DefineElement("A", nil)
+	numEnum.DefineElement("A", rhino.Node{})
 	r.DeclareType(d.scope, "E", numEnum.GetElementsType())
 	strEnum := rhino.EnumType_Builder_(r).SetName(jutil.StringPtr("S")).SetElementType(str).Build()
-	strEnum.DefineElement("X", nil)
+	strEnum.DefineElement("X", rhino.Node{})
 	r.DeclareType(d.scope, "S", strEnum.GetElementsType())
 	unionEnum := rhino.EnumType_Builder_(r).
 		SetName(jutil.StringPtr("U")).
 		SetElementType(r.CreateUnionType(str, number)).
 		Build()
-	unionEnum.DefineElement("Y", nil)
+	unionEnum.DefineElement("Y", rhino.Node{})
 	r.DeclareType(d.scope, "U", unionEnum.GetElementsType())
 	objEnum := rhino.EnumType_Builder_(r).SetName(jutil.StringPtr("O")).SetElementType(foo).Build()
-	objEnum.DefineElement("Z", nil)
+	objEnum.DefineElement("Z", rhino.Node{})
 	r.DeclareType(d.scope, "O", objEnum.GetElementsType())
 
 	for _, n := range rhino.JSTypeNative_values() {
@@ -314,7 +314,7 @@ func (d *raiDump) buildTypes(typeStrings []string) {
 	templateScope := r.CreateScopeWithTemplates(d.scope, []*rhino.TemplateType{tKey})
 	for _, s := range typeStrings {
 		n := parsing.JsDocInfoParser_ParseTypeString(s)
-		if n == nil {
+		if n.IsNil() {
 			d.line("unparsed\t" + raiEsc(s))
 			continue
 		}
@@ -381,45 +381,45 @@ func (c *raiCase) declare(name string, t rhino.JSType) {
 }
 
 // var_ is a declared variable whose NAME node is typed like its slot.
-func (c *raiCase) var_(name string, t rhino.JSType) *rhino.Node {
+func (c *raiCase) var_(name string, t rhino.JSType) rhino.Node {
 	c.declare(name, t)
 	return raiTyped(rhino.Node_NewStringWithToken(rhino.Token_NAME, name), t)
 }
 
-func raiTyped(n *rhino.Node, t rhino.JSType) *rhino.Node {
+func raiTyped(n rhino.Node, t rhino.JSType) rhino.Node {
 	if t != nil {
 		n.SetJSType(t)
 	}
 	return n
 }
 
-func raiName(name string) *rhino.Node { return rhino.Node_NewStringWithToken(rhino.Token_NAME, name) }
+func raiName(name string) rhino.Node { return rhino.Node_NewStringWithToken(rhino.Token_NAME, name) }
 
-func (d *raiDump) num(v float64) *rhino.Node {
+func (d *raiDump) num(v float64) rhino.Node {
 	return raiTyped(rhino.Node_NewNumber(v), d.nat(rhino.JSTypeNative_NUMBER_TYPE))
 }
 
-func (d *raiDump) strLit(s string) *rhino.Node {
+func (d *raiDump) strLit(s string) rhino.Node {
 	return raiTyped(rhino.Node_NewString(s), d.nat(rhino.JSTypeNative_STRING_TYPE))
 }
 
-func (d *raiDump) nul() *rhino.Node {
+func (d *raiDump) nul() rhino.Node {
 	return raiTyped(rhino.NewNode(rhino.Token_NULL), d.nat(rhino.JSTypeNative_NULL_TYPE))
 }
 
-func (d *raiDump) undef() *rhino.Node {
+func (d *raiDump) undef() rhino.Node {
 	return raiTyped(raiName("undefined"), d.nat(rhino.JSTypeNative_VOID_TYPE))
 }
 
-func (d *raiDump) voidZero() *rhino.Node {
+func (d *raiDump) voidZero() rhino.Node {
 	return raiTyped(rhino.NewNodeWithChild(rhino.Token_VOID, d.num(0)), d.nat(rhino.JSTypeNative_VOID_TYPE))
 }
 
-func (d *raiDump) tru() *rhino.Node {
+func (d *raiDump) tru() rhino.Node {
 	return raiTyped(rhino.NewNode(rhino.Token_TRUE), d.nat(rhino.JSTypeNative_BOOLEAN_TYPE))
 }
 
-func (d *raiDump) literal(k int) *rhino.Node {
+func (d *raiDump) literal(k int) rhino.Node {
 	switch k {
 	case 0:
 		return d.strLit("x")
@@ -436,39 +436,39 @@ func (d *raiDump) literal(k int) *rhino.Node {
 	}
 }
 
-func raiNode2(op rhino.Token, a, b *rhino.Node) *rhino.Node {
+func raiNode2(op rhino.Token, a, b rhino.Node) rhino.Node {
 	return rhino.NewNodeWith2Children(op, a, b)
 }
 
-func raiBinop(op rhino.Token, a, b *rhino.Node, swap bool) *rhino.Node {
+func raiBinop(op rhino.Token, a, b rhino.Node, swap bool) rhino.Node {
 	if swap {
 		return raiNode2(op, b, a)
 	}
 	return raiNode2(op, a, b)
 }
 
-func (d *raiDump) typeofStr(operand *rhino.Node, op rhino.Token, s string, swap bool) *rhino.Node {
+func (d *raiDump) typeofStr(operand rhino.Node, op rhino.Token, s string, swap bool) rhino.Node {
 	return raiBinop(op, rhino.NewNodeWithChild(rhino.Token_TYPEOF, operand), d.strLit(s), swap)
 }
 
-func raiCall(callee, arg *rhino.Node) *rhino.Node { return raiNode2(rhino.Token_CALL, callee, arg) }
+func raiCall(callee, arg rhino.Node) rhino.Node { return raiNode2(rhino.Token_CALL, callee, arg) }
 
-func raiGetprop(obj *rhino.Node, prop string) *rhino.Node { return rhino.IR_Getprop(obj, prop) }
+func raiGetprop(obj rhino.Node, prop string) rhino.Node { return rhino.IR_Getprop(obj, prop) }
 
 // raiGoog is goog.<fn>(arg).
-func raiGoog(fn string, arg *rhino.Node) *rhino.Node {
+func raiGoog(fn string, arg rhino.Node) rhino.Node {
 	return raiCall(raiGetprop(raiName("goog"), fn), arg)
 }
 
 // raiSwitchCase is `switch (cond) { case expr: }`; returns the CASE node.
-func raiSwitchCase(cond, expr *rhino.Node) *rhino.Node {
+func raiSwitchCase(cond, expr rhino.Node) rhino.Node {
 	c := raiNode2(rhino.Token_CASE, expr, rhino.NewNode(rhino.Token_BLOCK))
 	raiNode2(rhino.Token_SWITCH, cond, rhino.NewNodeWithChild(rhino.Token_SWITCH_BODY, c))
 	return c
 }
 
 // qualified is o.p with its slot and node type chosen by variant.
-func (d *raiDump) qualified(c *raiCase, obj, prop string, t rhino.JSType) *rhino.Node {
+func (d *raiDump) qualified(c *raiCase, obj, prop string, t rhino.JSType) rhino.Node {
 	variant := d.nextInt(3)
 	n := raiGetprop(raiName(obj), prop)
 	if variant != 1 {
@@ -486,7 +486,7 @@ func (d *raiDump) randomType() rhino.JSType {
 
 const raiUNARY = 37
 
-func (d *raiDump) unary(c *raiCase, tmpl int, t rhino.JSType) *rhino.Node {
+func (d *raiDump) unary(c *raiCase, tmpl int, t rhino.JSType) rhino.Node {
 	switch tmpl {
 	case 0:
 		return c.var_("a", t)
@@ -503,7 +503,7 @@ func (d *raiDump) unary(c *raiCase, tmpl int, t rhino.JSType) *rhino.Node {
 	case 4, 5, 6, 7, 8, 9:
 		op := raiEQ_OPS[d.nextInt(4)]
 		swap := d.nextInt(2) == 1
-		var lit *rhino.Node
+		var lit rhino.Node
 		switch tmpl {
 		case 4:
 			lit = d.nul()
@@ -620,7 +620,7 @@ func (d *raiDump) unary(c *raiCase, tmpl int, t rhino.JSType) *rhino.Node {
 
 const raiBINARY = 20
 
-func (d *raiDump) binary(c *raiCase, tmpl int, t1, t2 rhino.JSType) *rhino.Node {
+func (d *raiDump) binary(c *raiCase, tmpl int, t1, t2 rhino.JSType) rhino.Node {
 	switch tmpl {
 	case 0:
 		op := raiEQ_OPS[d.nextInt(4)]
@@ -701,7 +701,7 @@ func (d *raiDump) binary(c *raiCase, tmpl int, t1, t2 rhino.JSType) *rhino.Node 
 }
 
 // raiSexp serializes a condition: (TOKEN[ "string"][:type] child...).
-func raiSexp(n *rhino.Node, sb *strings.Builder) {
+func raiSexp(n rhino.Node, sb *strings.Builder) {
 	sb.WriteByte('(')
 	sb.WriteString(n.GetToken().Name())
 	if n.IsName() || n.IsStringLit() || n.IsGetProp() {
@@ -712,7 +712,7 @@ func raiSexp(n *rhino.Node, sb *strings.Builder) {
 	if n.GetJSType() != nil {
 		sb.WriteString(" :" + raiStr(n.GetJSType()))
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		sb.WriteByte(' ')
 		raiSexp(c, sb)
 	}
@@ -742,7 +742,7 @@ func raiDiff(blind *raiFlowScope, result FlowScope) string {
 	return sb.String()
 }
 
-func (d *raiDump) runCase(kind string, c *raiCase, cond *rhino.Node) {
+func (d *raiDump) runCase(kind string, c *raiCase, cond rhino.Node) {
 	var sb strings.Builder
 	// A CASE is shown with its switch.
 	shown := cond
@@ -851,7 +851,7 @@ func raiBoxed(m *JsIterables_MaybeBoxedType) string {
 // destructure is const {p: x, ['k']: y = 1, ...r} or [a, b = 1, , ...c],
 // typed by t.
 func (d *raiDump) destructure(t rhino.JSType, object bool) string {
-	var pattern *rhino.Node
+	var pattern rhino.Node
 	if object {
 		k := raiNode2(rhino.Token_COMPUTED_PROP, d.strLit("k"), raiNode2(rhino.Token_DEFAULT_VALUE, raiName("y"), d.num(1)))
 		pattern = raiNode2(

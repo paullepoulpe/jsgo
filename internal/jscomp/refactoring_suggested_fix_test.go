@@ -1325,7 +1325,7 @@ function foo_() {};
 // produced from the compiled JS input.
 //
 // Java: SuggestedFixTest.compileToScriptRoot(Compiler)
-func suggestedFixTest_compileToScriptRoot(compiler *Compiler) *rhino.Node {
+func suggestedFixTest_compileToScriptRoot(compiler *Compiler) rhino.Node {
 	root := compiler.GetRoot()
 	// The last child of the compiler root is a Block node, and the first
 	// child of that is the Script node.
@@ -1347,7 +1347,7 @@ func suggestedFixTest_getCompiler(jsInput string) *Compiler {
 // suggestedFixTest_getOnlyElement is Iterables.getOnlyElement.
 //
 // Go-only: test-helper.
-func suggestedFixTest_getOnlyElement(nodes []*rhino.Node) *rhino.Node {
+func suggestedFixTest_getOnlyElement(nodes []rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(len(nodes) == 1, "expected one element but was: %s", len(nodes))
 	return nodes[0]
 }

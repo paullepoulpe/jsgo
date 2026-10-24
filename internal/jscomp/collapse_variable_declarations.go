@@ -55,14 +55,14 @@ type CollapseVariableDeclarations struct {
 
 	// Collapses to do in this pass.
 	collapses     *jutil.ArrayList[*CollapseVariableDeclarations_Collapse]
-	collapseNodes []*rhino.Node
-	collapseBuf   [32]*rhino.Node
+	collapseNodes []rhino.Node
+	collapseBuf   [32]rhino.Node
 
 	// Nodes we've already looked at for collapsing, so that we don't look at
 	// them again (we look ahead when examining what nodes can be collapsed,
 	// and the node traversal may give them to us again)
-	nodesToCollapse *jutil.LinkedHashSet[*rhino.Node]
-	collapsedSet    map[*rhino.Node]struct{}
+	nodesToCollapse *jutil.LinkedHashSet[rhino.Node]
+	collapsedSet    map[rhino.Node]struct{}
 }
 
 // CollapseVariableDeclarations_Collapse is the encapsulation of information
@@ -70,11 +70,11 @@ type CollapseVariableDeclarations struct {
 type CollapseVariableDeclarations_Collapse struct {
 	// Variable declaration that any following var nodes should be collapsed
 	// into
-	startNode *rhino.Node
+	startNode rhino.Node
 }
 
 // Java: CollapseVariableDeclarations.Collapse(Node)
-func NewCollapseVariableDeclarations_Collapse(startNode *rhino.Node) *CollapseVariableDeclarations_Collapse {
+func NewCollapseVariableDeclarations_Collapse(startNode rhino.Node) *CollapseVariableDeclarations_Collapse {
 	return &CollapseVariableDeclarations_Collapse{startNode: startNode}
 }
 
@@ -89,7 +89,7 @@ func NewCollapseVariableDeclarations(compiler AbstractCompiler) *CollapseVariabl
 }
 
 // Java: CollapseVariableDeclarations.process(Node, Node)
-func (c *CollapseVariableDeclarations) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CollapseVariableDeclarations) Process(externs rhino.Node, root rhino.Node) {
 	c.collapseNodes = c.collapseNodes[:0]
 	clear(c.collapsedSet)
 
@@ -111,7 +111,7 @@ type CollapseVariableDeclarations_GatherCollapses struct {
 }
 
 // Java: CollapseVariableDeclarations.GatherCollapses.visit(NodeTraversal, Node, Node)
-func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	nType := n.GetToken()
 	if nType != rhino.Token_VAR && nType != rhino.Token_LET && nType != rhino.Token_CONST {
 		return
@@ -132,14 +132,14 @@ func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n
 	}
 
 	next := n.GetNext()
-	if next == nil || next.GetToken() != nType {
+	if next.IsNil() || next.GetToken() != nType {
 		return
 	}
 
 	if outer.collapsedSet == nil {
-		outer.collapsedSet = make(map[*rhino.Node]struct{}, 32)
+		outer.collapsedSet = make(map[rhino.Node]struct{}, 32)
 	}
-	for next != nil && next.GetToken() == nType {
+	for !next.IsNil() && next.GetToken() == nType {
 		outer.collapsedSet[next] = struct{}{}
 		next = next.GetNext()
 	}
@@ -152,7 +152,7 @@ func (c *CollapseVariableDeclarations) ApplyCollapses() {
 		c.compiler.ReportChangeToEnclosingScope(var_)
 
 		varTok := var_.GetToken()
-		for var_.GetNext() != nil && var_.GetNext().GetToken() == varTok {
+		for !var_.GetNext().IsNil() && var_.GetNext().GetToken() == varTok {
 			next := var_.GetNext().Detach()
 
 			// Move all children of the next var node into the first one.

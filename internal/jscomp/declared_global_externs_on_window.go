@@ -31,7 +31,7 @@ type DeclaredGlobalExternsOnWindow struct {
 	NodeTraversal_AbstractShallowStatementCallbackBase
 
 	compiler AbstractCompiler
-	nodes    *jutil.LinkedHashSet[*rhino.Node]
+	nodes    *jutil.LinkedHashSet[rhino.Node]
 
 	// Whether there is a "var window" declaration in the externs.
 	windowInExterns bool
@@ -43,7 +43,7 @@ const DeclaredGlobalExternsOnWindow_WINDOW_NAME = "window"
 // Java: DeclaredGlobalExternsOnWindow(AbstractCompiler)
 func NewDeclaredGlobalExternsOnWindow(compiler AbstractCompiler) *DeclaredGlobalExternsOnWindow {
 	d := &DeclaredGlobalExternsOnWindow{
-		nodes:           jutil.NewLinkedHashSet[*rhino.Node](),
+		nodes:           jutil.NewLinkedHashSet[rhino.Node](),
 		windowInExterns: false,
 	}
 	d.compiler = compiler
@@ -51,7 +51,7 @@ func NewDeclaredGlobalExternsOnWindow(compiler AbstractCompiler) *DeclaredGlobal
 }
 
 // Java: DeclaredGlobalExternsOnWindow.process(Node, Node)
-func (d *DeclaredGlobalExternsOnWindow) Process(externs *rhino.Node, root *rhino.Node) {
+func (d *DeclaredGlobalExternsOnWindow) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(d.compiler, externs, d)
 	d.AddWindowProperties()
 }
@@ -67,11 +67,11 @@ func (d *DeclaredGlobalExternsOnWindow) AddWindowProperties() {
 }
 
 // Java: DeclaredGlobalExternsOnWindow.addExtern(Node, boolean)
-func DeclaredGlobalExternsOnWindow_AddExtern(node *rhino.Node, defineOnWindow bool) {
+func DeclaredGlobalExternsOnWindow_AddExtern(node rhino.Node, defineOnWindow bool) {
 	name := node.GetString()
 	oldJSDocInfo := NodeUtil_GetBestJSDocInfo(node)
 
-	var globalRef *rhino.Node
+	var globalRef rhino.Node
 	if defineOnWindow {
 		globalRef = rhino.IR_Name(DeclaredGlobalExternsOnWindow_WINDOW_NAME)
 	} else {
@@ -107,7 +107,7 @@ func DeclaredGlobalExternsOnWindow_AddExtern(node *rhino.Node, defineOnWindow bo
 			} else {
 				rhs := NodeUtil_GetRValueOfLValue(node)
 				// Type-aliasing definition
-				if oldJSDocInfo.HasConstAnnotation() && rhs != nil && rhs.IsQualifiedName() {
+				if oldJSDocInfo.HasConstAnnotation() && !rhs.IsNil() && rhs.IsQualifiedName() {
 					newNode = rhino.IR_Assign(getprop, rhs.CloneTree())
 				}
 			}
@@ -127,11 +127,11 @@ func DeclaredGlobalExternsOnWindow_AddExtern(node *rhino.Node, defineOnWindow bo
 }
 
 // Java: DeclaredGlobalExternsOnWindow.visit(NodeTraversal, Node, Node)
-func (d *DeclaredGlobalExternsOnWindow) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (d *DeclaredGlobalExternsOnWindow) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsFunction() {
 		d.nodes.Add(n.GetFirstChild())
 	} else if n.IsVar() {
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if c.GetString() == DeclaredGlobalExternsOnWindow_WINDOW_NAME {
 				d.windowInExterns = true
 				continue

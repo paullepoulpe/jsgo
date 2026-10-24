@@ -100,7 +100,7 @@ func NewCheckEs6ModuleFileStructure(compiler AbstractCompiler) *CheckEs6ModuleFi
 }
 
 // Java: CheckEs6ModuleFileStructure.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckEs6ModuleFileStructure) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckEs6ModuleFileStructure) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_ROOT:
 		return true
@@ -117,7 +117,7 @@ func (c *CheckEs6ModuleFileStructure) ShouldTraverse(t *NodeTraversal, n *rhino.
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		return c.VisitDeclaration(t, n, parent)
 	default:
-		if parent != nil && parent.IsModuleBody() {
+		if !parent.IsNil() && parent.IsModuleBody() {
 			c.CheckOrder(t, n, CheckEs6ModuleFileStructure_OrderedStatement_OTHER)
 		}
 		return false
@@ -125,7 +125,7 @@ func (c *CheckEs6ModuleFileStructure) ShouldTraverse(t *NodeTraversal, n *rhino.
 }
 
 // Java: CheckEs6ModuleFileStructure.checkOrder(NodeTraversal, Node, OrderedStatement)
-func (c *CheckEs6ModuleFileStructure) CheckOrder(t *NodeTraversal, n *rhino.Node, statement CheckEs6ModuleFileStructure_OrderedStatement) {
+func (c *CheckEs6ModuleFileStructure) CheckOrder(t *NodeTraversal, n rhino.Node, statement CheckEs6ModuleFileStructure_OrderedStatement) {
 	c.orderedStatements.Add(statement)
 	// Go-only: language-adapter — orderedStatements.tailSet(statement, /* inclusive= */ false):
 	// the elements of the sorted set strictly greater than statement, in order.
@@ -149,7 +149,7 @@ var checkEs6ModuleFileStructure_GOOG_DECLAREMODULEID = rhino.QualifiedName_Of("g
 var checkEs6ModuleFileStructure_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
 
 // Java: CheckEs6ModuleFileStructure.visitExprResult(NodeTraversal, Node, Node)
-func (c *CheckEs6ModuleFileStructure) VisitExprResult(t *NodeTraversal, exprResult *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckEs6ModuleFileStructure) VisitExprResult(t *NodeTraversal, exprResult rhino.Node, parent rhino.Node) bool {
 	if parent.IsModuleBody() && exprResult.GetFirstChild().IsCall() {
 		call := exprResult.GetFirstChild()
 		if checkEs6ModuleFileStructure_GOOG_DECLAREMODULEID.Matches(call.GetFirstChild()) {
@@ -166,7 +166,7 @@ func (c *CheckEs6ModuleFileStructure) VisitExprResult(t *NodeTraversal, exprResu
 }
 
 // Java: CheckEs6ModuleFileStructure.visitDeclaration(NodeTraversal, Node, Node)
-func (c *CheckEs6ModuleFileStructure) VisitDeclaration(t *NodeTraversal, declaration *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckEs6ModuleFileStructure) VisitDeclaration(t *NodeTraversal, declaration rhino.Node, parent rhino.Node) bool {
 	if parent.IsModuleBody() &&
 		declaration.HasOneChild() &&
 		declaration.GetFirstChild().HasOneChild() &&
@@ -183,11 +183,11 @@ func (c *CheckEs6ModuleFileStructure) VisitDeclaration(t *NodeTraversal, declara
 }
 
 // Java: CheckEs6ModuleFileStructure.visitImport(NodeTraversal, Node)
-func (c *CheckEs6ModuleFileStructure) VisitImport(t *NodeTraversal, importNode *rhino.Node) {
+func (c *CheckEs6ModuleFileStructure) VisitImport(t *NodeTraversal, importNode rhino.Node) {
 	c.CheckOrder(t, importNode, CheckEs6ModuleFileStructure_OrderedStatement_IMPORT)
 }
 
 // Java: CheckEs6ModuleFileStructure.process(Node, Node)
-func (c *CheckEs6ModuleFileStructure) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckEs6ModuleFileStructure) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }

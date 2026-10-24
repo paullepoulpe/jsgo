@@ -88,23 +88,23 @@ func trExc(e jutil.Throwable) string {
 }
 
 // trTreeLines is TranspileRuntimeDump.treeLines.
-func trTreeLines(lines []string, n *rhino.Node, level int) []string {
+func trTreeLines(lines []string, n rhino.Node, level int) []string {
 	indent := strings.Repeat("    ", level)
 	lines = append(lines, trEscape(indent+n.ToStringWithFlags(true, true, false)))
 	if info := n.GetJSDocInfo(); info != nil {
 		lines = append(lines, trEscape(indent+"  @jsdoc "+info.ToStringVerbose()))
 	}
-	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+	if shadow := n.GetClosureUnawareShadow(); !shadow.IsNil() {
 		lines = append(lines, trEscape(indent+"  @shadow"))
 		lines = trTreeLines(lines, shadow, level+1)
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		lines = trTreeLines(lines, c, level+1)
 	}
 	return lines
 }
 
-func trTree(n *rhino.Node) []string { return trTreeLines(nil, n, 0) }
+func trTree(n rhino.Node) []string { return trTreeLines(nil, n, 0) }
 
 func trCrc(lines []string) uint32 {
 	var c uint32
@@ -143,7 +143,7 @@ func (d *trDumper) raw(s string) {
 }
 
 // printTree is TranspileRuntimeDump.printTree.
-func (d *trDumper) printTree(before []string, n *rhino.Node) {
+func (d *trDumper) printTree(before []string, n rhino.Node) {
 	after := trTree(n)
 	same := trSameLines(after, before)
 	state := "changed"
@@ -202,7 +202,7 @@ func (d *trDumper) printDiagnostics(compiler *Compiler, skipErrors int, skipWarn
 
 // trSection runs a section: it appends its result lines and returns the tree
 // to print (nil for none).
-type trSection func(c *Compiler, results *[]string) *rhino.Node
+type trSection func(c *Compiler, results *[]string) rhino.Node
 
 // trDumpFile is TranspileRuntimeDump.dumpFile.
 func trDumpFile(rel string, src string, sections []string, full bool) string {
@@ -239,7 +239,7 @@ func trDumpFile(rel string, src string, sections []string, full bool) string {
 			before = externsBefore
 		}
 		var results []string
-		var printed *rhino.Node
+		var printed rhino.Node
 		var thrown jutil.Throwable
 		run := trSectionNamed(section)
 		jutil.Try(func() { printed = run(compiler, &results) }, func(e jutil.Throwable) { thrown = e })
@@ -251,7 +251,7 @@ func trDumpFile(rel string, src string, sections []string, full bool) string {
 		for _, r := range results {
 			d.line(r)
 		}
-		if printed != nil {
+		if !printed.IsNil() {
 			d.printTree(before, printed)
 		}
 	}
@@ -312,7 +312,7 @@ type trAccessCallback struct {
 	crc          uint32
 }
 
-func (a *trAccessCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (a *trAccessCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	var v rhino.JSDocInfo_Visibility
 	if n.IsName() && n.GetString() != "" {
 		var_ := t.GetScope().GetVar(n.GetString())
@@ -333,17 +333,17 @@ func (a *trAccessCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.
 // trTemplateCallback is the template section's traversal.
 type trTemplateCallback struct {
 	converter      *Es6TemplateLiterals
-	insertionPoint *rhino.Node
+	insertionPoint rhino.Node
 }
 
-func (cb *trTemplateCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (cb *trTemplateCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		cb.insertionPoint = n.GetFirstChild()
 	}
 	return true
 }
 
-func (cb *trTemplateCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *trTemplateCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsTaggedTemplateLit() {
 		cb.converter.VisitTaggedTemplateLiteral(t, n, cb.insertionPoint)
 	} else if n.IsTemplateLit() && !parent.IsTaggedTemplateLit() {
@@ -357,7 +357,7 @@ type trLogicalCallback struct {
 	helper *RewriteLogicalAssignmentOperatorsHelper
 }
 
-func (cb *trLogicalCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *trLogicalCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
 		cb.helper.VisitLogicalAssignmentOperator(t, n)
@@ -371,7 +371,7 @@ type trCtorsCallback struct {
 	synthesizer *SynthesizeExplicitConstructors
 }
 
-func (cb *trCtorsCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *trCtorsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsClass() && (n.GetSecondChild().IsEmpty() || n.GetSecondChild().IsQualifiedName()) {
 		cb.synthesizer.SynthesizeClassConstructorIfMissing(t, n)
 	}
@@ -392,7 +392,7 @@ func (cb *trArrowsCallback) peek() *ThisAndArgumentsReferenceUpdater_ThisAndArgu
 	return cb.contextStack[len(cb.contextStack)-1]
 }
 
-func (cb *trArrowsCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (cb *trArrowsCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		cb.contextStack = append(cb.contextStack, NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
@@ -416,7 +416,7 @@ func (cb *trArrowsCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, pare
 	return true
 }
 
-func (cb *trArrowsCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *trArrowsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	context := cb.peek()
 	if n.IsArrowFunction() {
 		if n.GetLastChild().IsBlock() {
@@ -434,58 +434,58 @@ func (cb *trArrowsCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino
 func trSectionNamed(name string) trSection {
 	switch name {
 	case "substitute":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NewSubstituteEs6Syntax(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 			return c.GetJsRoot()
 		}
 	case "shorthand":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			p := NewEs6NormalizeShorthandProperties(c)
-			NodeUtil_VisitPostOrder(c.GetJsRoot(), NodeUtil_VisitorFunc(func(n *rhino.Node) { p.TranspileSubtree(n) }))
+			NodeUtil_VisitPostOrder(c.GetJsRoot(), NodeUtil_VisitorFunc(func(n rhino.Node) { p.TranspileSubtree(n) }))
 			return c.GetJsRoot()
 		}
 	case "catch":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			p := NewRewriteCatchWithNoBinding(c)
-			NodeUtil_VisitPostOrder(c.GetJsRoot(), NodeUtil_VisitorFunc(func(n *rhino.Node) { p.TranspileSubtree(n) }))
+			NodeUtil_VisitPostOrder(c.GetJsRoot(), NodeUtil_VisitorFunc(func(n rhino.Node) { p.TranspileSubtree(n) }))
 			return c.GetJsRoot()
 		}
 	case "trycatch":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NewRewriteGlobalDeclarationsForTryCatchWrapping(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 			return c.GetJsRoot()
 		}
 	case "inject-es5", "inject-es2015", "inject-es2017", "inject-es2017-async", "inject-es2019":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NewInjectTranspilationRuntimeLibraries(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 			trAddInjected(c, r)
-			return nil
+			return rhino.Node{}
 		}
 	case "inject-tree":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NewInjectTranspilationRuntimeLibraries(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 			trAddInjected(c, r)
 			return c.GetJsRoot()
 		}
 	case "force":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NewInjectRuntimeLibraries(c, jutil.NewLinkedHashSet("es6/util/inherits", "es6/symbol")).
 				Process(c.GetExternsRoot(), c.GetJsRoot())
 			trAddInjected(c, r)
 			return c.GetJsRoot()
 		}
 	case "unwrap":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			ManageClosureUnawareCode_Unwrap(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 			return c.GetJsRoot()
 		}
 	case "caller":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NewRewriteCallerCodeLocation(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 			return c.GetJsRoot()
 		}
 	case "strip":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			c.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 			NewStripCode(
 				c,
@@ -514,7 +514,7 @@ func trSectionNamed(name string) trSection {
 			return c.GetJsRoot()
 		}
 	case "ids":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			idTestMap := &replaceIdGeneratorsTest_idTestMap{
 				map_: jutil.NewImmutableMapBuilder[string, string]().
 					Put("foo", ":foo:").
@@ -540,48 +540,48 @@ func trSectionNamed(name string) trSection {
 			return c.GetJsRoot()
 		}
 	case "toggles":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NewReplaceToggles(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 			return c.GetJsRoot()
 		}
 	case "window":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NewDeclaredGlobalExternsOnWindow(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 			return c.GetExternsRoot()
 		}
 	case "externprops":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NewGatherExternProperties(c, GatherExternProperties_Mode_CHECK_AND_OPTIMIZE).
 				Process(c.GetExternsRoot(), c.GetJsRoot())
 			for p := range c.GetExternProperties().All() {
 				*r = append(*r, "prop "+p)
 			}
-			return nil
+			return rhino.Node{}
 		}
 	case "accessors":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			for k, v := range GatherGetterAndSetterProperties_Gather(c, c.GetRoot()).All() {
 				*r = append(*r, "accessor "+k+" "+v.String())
 			}
-			return nil
+			return rhino.Node{}
 		}
 	case "visibility":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			for k, v := range trVisibilityMap(c).All() {
 				*r = append(*r, "visibility "+k.GetName()+" "+v.String())
 			}
-			return nil
+			return rhino.Node{}
 		}
 	case "access":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			cb := &trAccessCallback{visibilities: jutil.NewLinkedHashMapFrom(trVisibilityMap(c))}
 			NodeTraversal_Traverse(c, c.GetJsRoot(), cb)
 			*r = append(*r, "access "+strconv.Itoa(cb.names)+" "+strconv.Itoa(cb.getprops)+" "+
 				strconv.FormatUint(uint64(cb.crc), 16))
-			return nil
+			return rhino.Node{}
 		}
 	case "template":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			libs := c.GetRuntimeJsLibManager()
 			libs.InjectLibForField("$jscomp.createTemplateTagFirstArg")
 			libs.InjectLibForField("$jscomp.createTemplateTagFirstArgWithRaw")
@@ -589,18 +589,18 @@ func trSectionNamed(name string) trSection {
 			return c.GetJsRoot()
 		}
 	case "logical":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			helper := NewRewriteLogicalAssignmentOperatorsHelper(c, c.CreateAstFactory(), c.GetUniqueIdSupplier())
 			NodeTraversal_Traverse(c, c.GetJsRoot(), &trLogicalCallback{helper: helper})
 			return c.GetJsRoot()
 		}
 	case "ctors":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NodeTraversal_Traverse(c, c.GetJsRoot(), &trCtorsCallback{synthesizer: NewSynthesizeExplicitConstructors(c)})
 			return c.GetJsRoot()
 		}
 	case "arrows":
-		return func(c *Compiler, r *[]string) *rhino.Node {
+		return func(c *Compiler, r *[]string) rhino.Node {
 			NodeTraversal_Traverse(c, c.GetJsRoot(), &trArrowsCallback{c: c, astFactory: c.CreateAstFactory()})
 			return c.GetJsRoot()
 		}

@@ -51,13 +51,13 @@ type InjectClosureUnawareRuntimeLibraries struct {
 // InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite is the Java
 // record ClosureUnawareCallSite(Node callNode, Node closureUnawareFunction).
 type InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite struct {
-	callNode               *rhino.Node
-	closureUnawareFunction *rhino.Node
+	callNode               rhino.Node
+	closureUnawareFunction rhino.Node
 }
 
 // Java: ClosureUnawareCallSite(Node, Node)
 func NewInjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite(
-	callNode *rhino.Node, closureUnawareFunction *rhino.Node) *InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite {
+	callNode rhino.Node, closureUnawareFunction rhino.Node) *InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite {
 	jutil.CheckArgumentMsg1(callNode.IsCall(), "%s", callNode)
 	jutil.CheckArgumentMsg1(closureUnawareFunction.IsFunction(), "%s", closureUnawareFunction)
 	return &InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite{
@@ -67,12 +67,12 @@ func NewInjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite(
 }
 
 // Java: ClosureUnawareCallSite.callNode()
-func (c *InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite) CallNode() *rhino.Node {
+func (c *InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite) CallNode() rhino.Node {
 	return c.callNode
 }
 
 // Java: ClosureUnawareCallSite.closureUnawareFunction()
-func (c *InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite) ClosureUnawareFunction() *rhino.Node {
+func (c *InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite) ClosureUnawareFunction() rhino.Node {
 	return c.closureUnawareFunction
 }
 
@@ -89,7 +89,7 @@ func NewInjectClosureUnawareRuntimeLibraries(
 }
 
 // Java: InjectClosureUnawareRuntimeLibraries.process(Node, Node)
-func (i *InjectClosureUnawareRuntimeLibraries) Process(externs *rhino.Node, root *rhino.Node) {
+func (i *InjectClosureUnawareRuntimeLibraries) Process(externs rhino.Node, root rhino.Node) {
 	i.InjectLibrariesIntoMainAst()
 	i.InjectFieldsIntoCallSites()
 }
@@ -152,9 +152,9 @@ func (i *InjectClosureUnawareRuntimeLibraries) InjectAll(
 //
 // Java: InjectClosureUnawareRuntimeLibraries.gatherRuntimeFields(Node, ImmutableMap<String, ExternedField>)
 func InjectClosureUnawareRuntimeLibraries_GatherRuntimeFields(
-	root *rhino.Node, allKnownFields *jutil.LinkedHashMap[string, RuntimeJsLibManager_ExternedField]) *jutil.LinkedHashSet[RuntimeJsLibManager_ExternedField] {
+	root rhino.Node, allKnownFields *jutil.LinkedHashMap[string, RuntimeJsLibManager_ExternedField]) *jutil.LinkedHashSet[RuntimeJsLibManager_ExternedField] {
 	seen := jutil.NewLinkedHashSet[RuntimeJsLibManager_ExternedField]()
-	visitor := NodeUtil_VisitorFunc(func(n *rhino.Node) {
+	visitor := NodeUtil_VisitorFunc(func(n rhino.Node) {
 		if !n.IsName() {
 			return
 		}

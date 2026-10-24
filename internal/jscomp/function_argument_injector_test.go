@@ -68,15 +68,15 @@ func (c *FunctionArgumentInjectorTest) SetUp() {
 // functionArgumentInjectorTest_mapOf is ImmutableMap.of(k, v).
 //
 // Go-only: test-helper — ImmutableMap is a jutil.LinkedHashMap in the port.
-func functionArgumentInjectorTest_mapOf(k string, v *rhino.Node) *jutil.LinkedHashMap[string, *rhino.Node] {
-	return jutil.NewImmutableMapBuilder[string, *rhino.Node]().Put(k, v).BuildOrThrow()
+func functionArgumentInjectorTest_mapOf(k string, v rhino.Node) *jutil.LinkedHashMap[string, rhino.Node] {
+	return jutil.NewImmutableMapBuilder[string, rhino.Node]().Put(k, v).BuildOrThrow()
 }
 
 // functionArgumentInjectorTest_mapOf2 is ImmutableMap.of(k1, v1, k2, v2).
 //
 // Go-only: test-helper — ImmutableMap is a jutil.LinkedHashMap in the port.
-func functionArgumentInjectorTest_mapOf2(k1 string, v1 *rhino.Node, k2 string, v2 *rhino.Node) *jutil.LinkedHashMap[string, *rhino.Node] {
-	return jutil.NewImmutableMapBuilder[string, *rhino.Node]().Put(k1, v1).Put(k2, v2).BuildOrThrow()
+func functionArgumentInjectorTest_mapOf2(k1 string, v1 rhino.Node, k2 string, v2 rhino.Node) *jutil.LinkedHashMap[string, rhino.Node] {
+	return jutil.NewImmutableMapBuilder[string, rhino.Node]().Put(k1, v1).Put(k2, v2).BuildOrThrow()
 }
 
 // Java: FunctionArgumentInjectorTest.testInject0()
@@ -85,7 +85,7 @@ func (c *FunctionArgumentInjectorTest) TestInject0() {
 		c.functionArgumentInjector.Inject(
 			c.compiler,
 			NodeUtil_GetFunctionBody(c.ParseFunction("function f(x) { alert(x); }")),
-			nil,
+			rhino.Node{},
 			functionArgumentInjectorTest_mapOf("x", c.Parse("null").GetFirstFirstChild()))
 	AssertNode(result).IsEqualTo(NodeUtil_GetFunctionBody(c.ParseFunction("function f(x) { alert(null); }")))
 }
@@ -95,7 +95,7 @@ func (c *FunctionArgumentInjectorTest) TestInject1_thisRef() {
 	result := c.functionArgumentInjector.Inject(
 		c.compiler,
 		NodeUtil_GetFunctionBody(c.ParseFunction("function f() { alert(this); }")),
-		nil,
+		rhino.Node{},
 		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
 	AssertNode(result).IsEqualTo(NodeUtil_GetFunctionBody(c.ParseFunction("function f() { alert(null); }")))
 }
@@ -105,7 +105,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_instance() 
 	result := c.functionArgumentInjector.Inject(
 		c.compiler,
 		NodeUtil_GetFunctionBody(c.ParseFunction("function f() { return class { field = this; }; }")),
-		nil,
+		rhino.Node{},
 		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -119,7 +119,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_static() {
 		c.compiler,
 		NodeUtil_GetFunctionBody(
 			c.ParseFunction("function f() { return class { static field = this; }; }")),
-		nil,
+		rhino.Node{},
 		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -133,7 +133,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_computed() 
 	result := c.functionArgumentInjector.Inject(
 		c.compiler,
 		NodeUtil_GetFunctionBody(c.ParseFunction("function f() { return class { [this.k] = this.v; }; }")),
-		nil,
+		rhino.Node{},
 		functionArgumentInjectorTest_mapOf("this", c.Parse("x").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -147,7 +147,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_staticCompu
 		c.compiler,
 		NodeUtil_GetFunctionBody(
 			c.ParseFunction("function f() { return class { static [this.k] = this.v; }; }")),
-		nil,
+		rhino.Node{},
 		functionArgumentInjectorTest_mapOf("this", c.Parse("x").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -162,7 +162,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classStaticBlock() {
 		c.compiler,
 		NodeUtil_GetFunctionBody(
 			c.ParseFunction("function f() { return class { static { alert(this); } }; }")),
-		nil,
+		rhino.Node{},
 		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -177,7 +177,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_paramSubsti
 		c.compiler,
 		NodeUtil_GetFunctionBody(
 			c.ParseFunction("function f(val) { return class { field = val; [val] = this; }; }")),
-		nil,
+		rhino.Node{},
 		functionArgumentInjectorTest_mapOf2(
 			"val", c.Parse("123").GetFirstFirstChild(),
 			"this", c.Parse("null").GetFirstFirstChild()))
@@ -869,7 +869,7 @@ func (c *FunctionArgumentInjectorTest) TestNeededTemps(code string, fnName strin
 
 // Java: FunctionArgumentInjectorTest.getAndValidateFunctionCallParameterMap(Node, Node)
 func (c *FunctionArgumentInjectorTest) GetAndValidateFunctionCallParameterMap(
-	fn *rhino.Node, call *rhino.Node) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
+	fn rhino.Node, call rhino.Node) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
 	map_ := c.functionArgumentInjector.GetFunctionCallParameterMap(fn, call, FunctionArgumentInjectorTest_GetNameSupplier())
 	// Verify that all nodes in the map have source info, so they are valid to add to the AST
 	for name, value := range map_.All() {
@@ -893,9 +893,9 @@ func FunctionArgumentInjectorTest_GetNameSupplier() func() string {
 }
 
 // Java: FunctionArgumentInjectorTest.findCall(Node, String)
-func FunctionArgumentInjectorTest_FindCall(n *rhino.Node, name string) *rhino.Node {
+func FunctionArgumentInjectorTest_FindCall(n rhino.Node, name string) rhino.Node {
 	if NodeUtil_IsNormalOrOptChainCall(n) {
-		var callee *rhino.Node
+		var callee rhino.Node
 		if NodeUtil_IsNormalOrOptChainGetProp(n.GetFirstChild()) {
 			callee = n.GetFirstFirstChild()
 			// Only "call" is supported at this point.
@@ -909,41 +909,41 @@ func FunctionArgumentInjectorTest_FindCall(n *rhino.Node, name string) *rhino.No
 		}
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		result := FunctionArgumentInjectorTest_FindCall(c, name)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // Java: FunctionArgumentInjectorTest.findFunction(Node, String)
-func FunctionArgumentInjectorTest_FindFunction(n *rhino.Node, name string) *rhino.Node {
+func FunctionArgumentInjectorTest_FindFunction(n rhino.Node, name string) rhino.Node {
 	if n.IsFunction() {
 		if n.GetFirstChild().GetString() == name {
 			return n
 		}
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		result := FunctionArgumentInjectorTest_FindFunction(c, name)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // Java: FunctionArgumentInjectorTest.parseFunction(String)
-func (c *FunctionArgumentInjectorTest) ParseFunction(js string) *rhino.Node {
+func (c *FunctionArgumentInjectorTest) ParseFunction(js string) rhino.Node {
 	return c.Parse(js).GetFirstChild()
 }
 
 // Java: FunctionArgumentInjectorTest.parse(String)
-func (c *FunctionArgumentInjectorTest) Parse(js string) *rhino.Node {
+func (c *FunctionArgumentInjectorTest) Parse(js string) rhino.Node {
 	n := c.compiler.ParseTestCode(js)
 	AssertThat(c.compiler.GetErrors()).IsEmpty()
 	return n

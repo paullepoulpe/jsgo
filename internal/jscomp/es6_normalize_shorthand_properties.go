@@ -37,7 +37,7 @@ func NewEs6NormalizeShorthandProperties(compiler AbstractCompiler) *Es6Normalize
 }
 
 // Java: Es6NormalizeShorthandProperties.transpileSubtree(Node)
-func (e *Es6NormalizeShorthandProperties) TranspileSubtree(subtree *rhino.Node) *rhino.Node {
+func (e *Es6NormalizeShorthandProperties) TranspileSubtree(subtree rhino.Node) rhino.Node {
 	if subtree.IsStringKey() {
 		subtree.SetShorthandProperty(false)
 	}

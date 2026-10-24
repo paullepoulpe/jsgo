@@ -70,7 +70,7 @@ type astValidatorTest_handler struct {
 }
 
 // Java: AstValidatorTest.createValidator(Compiler).new ViolationHandler() {...}.handleViolation(String, Node)
-func (h *astValidatorTest_handler) HandleViolation(message string, n *rhino.Node) {
+func (h *astValidatorTest_handler) HandleViolation(message string, n rhino.Node) {
 	h.messages.Add(message)
 }
 
@@ -537,7 +537,7 @@ func (c *AstValidatorTest) TestForAwaitOf() {
 	c.typeInfoValidationMode = AstValidator_TypeInfoValidation_NONE
 
 	wrapInEs6Script :=
-		func(n *rhino.Node) *rhino.Node {
+		func(n rhino.Node) rhino.Node {
 			script := rhino.IR_ScriptOfNodes(n)
 			script.PutBooleanProp(rhino.Node_ES6_MODULE, true)
 			c.setTestSourceLocationForTree(script)
@@ -867,7 +867,7 @@ func (c *AstValidatorTest) TestNoAwaitExpressionInDefaultParams() {
 	awaitNode := rhino.NewNode(rhino.Token_AWAIT)
 	awaitNode.AddChildToBack(rhino.IR_Number(1))
 	nodeToReplace :=
-		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(scriptNode), func(node *rhino.Node) bool { return node.IsName() && node.GetString() == ("replaceWithAwait") })
+		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(scriptNode), func(node rhino.Node) bool { return node.IsName() && node.GetString() == ("replaceWithAwait") })
 	nodeToReplace.ReplaceWith(awaitNode)
 	c.expectInvalid(awaitNode, astValidatorTest_Check_EXPRESSION)
 }
@@ -885,7 +885,7 @@ func (c *AstValidatorTest) TestNoYieldExpressionInDefaultParams() {
 	yieldNode := rhino.NewNode(rhino.Token_YIELD)
 	yieldNode.AddChildToBack(rhino.IR_Number(1))
 	nodeToReplace :=
-		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(scriptNode), func(node *rhino.Node) bool { return node.IsName() && node.GetString() == ("replaceWithYield") })
+		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(scriptNode), func(node rhino.Node) bool { return node.IsName() && node.GetString() == ("replaceWithYield") })
 	nodeToReplace.ReplaceWith(yieldNode)
 	c.expectInvalid(yieldNode, astValidatorTest_Check_EXPRESSION)
 }
@@ -1310,7 +1310,7 @@ class C extends D {
 `)
 
 	nodeToReplace :=
-		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(scriptNode), func(node *rhino.Node) bool { return node.IsName() && node.GetString() == ("replaceWithSuper") })
+		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(scriptNode), func(node rhino.Node) bool { return node.IsName() && node.GetString() == ("replaceWithSuper") })
 	nodeToReplace.ReplaceWith(rhino.IR_SuperNode())
 
 	c.expectInvalid(scriptNode, astValidatorTest_Check_SCRIPT)
@@ -1329,7 +1329,7 @@ func (c *AstValidatorTest) TestSuperInvalidIfTypeInfoIsMissing() {
 `)
 
 	superNode :=
-		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(scriptNode), (*rhino.Node).IsSuper)
+		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(scriptNode), (rhino.Node).IsSuper)
 	// Erase the type information to make the super node invalid
 	superNode.SetJSType(nil)
 
@@ -1779,7 +1779,7 @@ func (c *AstValidatorTest) TestSwitchStatement() {
 	blockNode := rhino.IR_Block()
 
 	firstCaseNode :=
-		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(rootScriptNode), (*rhino.Node).IsCase)
+		astValidatorTest_findFirst(NodeUtil_PreOrderIterable(rootScriptNode), (rhino.Node).IsCase)
 
 	firstCaseNode.AddChildToFront(blockNode)
 	// A CASE node is only allowed to have 2 children, 1 expression and 1 block.
@@ -1854,7 +1854,7 @@ func (c *AstValidatorTest) valid(code string) {
 // valid. Returns the SCRIPT Node created by the parsing.
 //
 // Java: AstValidatorTest.parseValidScript(String)
-func (c *AstValidatorTest) parseValidScript(scriptCode string) *rhino.Node {
+func (c *AstValidatorTest) parseValidScript(scriptCode string) rhino.Node {
 	c.TestSame(scriptCode)
 	AssertThat(c.lastCheckViolationMessages).IsEmpty()
 	return c.GetLastCompiler().GetJsRoot().GetFirstChild()
@@ -1880,7 +1880,7 @@ const (
 // violations.
 //
 // Java: AstValidatorTest.doCheck(Node, Check)
-func (c *AstValidatorTest) doCheck(n *rhino.Node, level astValidatorTest_Check) *jutil.ArrayList[string] {
+func (c *AstValidatorTest) doCheck(n rhino.Node, level astValidatorTest_Check) *jutil.ArrayList[string] {
 	compiler := c.CreateCompiler()
 	compiler.InitOptions(c.GetOptions())
 	validator := c.createValidator(compiler)
@@ -1904,7 +1904,7 @@ func (c *AstValidatorTest) doCheck(n *rhino.Node, level astValidatorTest_Check) 
 //
 // Java: AstValidatorTest.expectInvalid(Node, Check)
 // Java: AstValidatorTest.expectInvalid(Node, Check, String...)
-func (c *AstValidatorTest) expectInvalid(n *rhino.Node, level astValidatorTest_Check, validationMessages ...string) {
+func (c *AstValidatorTest) expectInvalid(n rhino.Node, level astValidatorTest_Check, validationMessages ...string) {
 	if len(validationMessages) == 0 {
 		AssertThat(c.doCheck(n, level)).IsNotEmpty()
 		return
@@ -1913,7 +1913,7 @@ func (c *AstValidatorTest) expectInvalid(n *rhino.Node, level astValidatorTest_C
 }
 
 // Java: AstValidatorTest.expectValid(Node, Check)
-func (c *AstValidatorTest) expectValid(n *rhino.Node, level astValidatorTest_Check) {
+func (c *AstValidatorTest) expectValid(n rhino.Node, level astValidatorTest_Check) {
 	AssertThat(c.doCheck(n, level)).IsEmpty()
 }
 
@@ -1925,7 +1925,7 @@ func (c *AstValidatorTest) expectValid(n *rhino.Node, level astValidatorTest_Che
 // this tree to avoid property validation violations.
 //
 // Java: AstValidatorTest.setTestSourceLocationForTree(Node)
-func (c *AstValidatorTest) setTestSourceLocationForTree(n *rhino.Node) {
+func (c *AstValidatorTest) setTestSourceLocationForTree(n rhino.Node) {
 	jutil.CheckStateMsg(!n.IsRoot(), "ROOT nodes don't get source files")
 	n.SetSourceFileForTesting("testcode")
 	// make sure all child nodes get the same source file.
@@ -1958,7 +1958,7 @@ func (c *AstValidatorTest) testFeatureValidation(code string, feature parser.Fea
 //
 // Go-only: test-helper — Optional.get() throws NoSuchElementException when
 // nothing matches.
-func astValidatorTest_findFirst(nodes iter.Seq[*rhino.Node], predicate func(*rhino.Node) bool) *rhino.Node {
+func astValidatorTest_findFirst(nodes iter.Seq[rhino.Node], predicate func(rhino.Node) bool) rhino.Node {
 	for n := range nodes {
 		if predicate(n) {
 			return n

@@ -33,13 +33,13 @@ import (
 // required types.
 type CompilerInput struct {
 	// Info about where the file lives.
-	chunk      *JSChunk
+	chunk *JSChunk
 	// Go-only: the InputId is its own allocation, never a field of the
 	// CompilerInput: the SCRIPT node keeps it as a property, and an interior
 	// pointer would keep the CompilerInput (and through it the Compiler)
 	// alive from rhino's node tables for as long as the node's cold data
 	// is registered there (see rhino/node_tables.go).
-	id *rhino.InputId
+	id         *rhino.InputId
 	sourceFile *SourceFile
 
 	// The lazily constructed AST.
@@ -186,8 +186,8 @@ func (c *CompilerInput) GetPathRelativeToClosureBase() string {
 }
 
 // Java: CompilerInput.getAstRoot(AbstractCompiler)
-func (c *CompilerInput) GetAstRoot(compiler AbstractCompiler) *rhino.Node {
-	root := jutil.CheckNotNull(c.ast.GetAstRoot(compiler))
+func (c *CompilerInput) GetAstRoot(compiler AbstractCompiler) rhino.Node {
+	root := rhino.CheckNotNull(c.ast.GetAstRoot(compiler))
 	jutil.CheckState(root.IsScript())
 	jutil.CheckNotNull(root.GetInputId())
 	return root
@@ -199,7 +199,7 @@ func (c *CompilerInput) ClearAst() {
 }
 
 // Java: CompilerInput.initShadowAst(Node)
-func (c *CompilerInput) InitShadowAst(shadowScript *rhino.Node) {
+func (c *CompilerInput) InitShadowAst(shadowScript rhino.Node) {
 	jutil.CheckArgumentMsg1(shadowScript.IsScript(), "%s", shadowScript)
 	jutil.CheckStateMsg1(shadowScript.GetIsInClosureUnawareSubtree(), "%s", shadowScript)
 	c.ast.root = shadowScript
@@ -439,7 +439,7 @@ func (c *CompilerInput) generateDependencyInfo() DependencyInfo {
 	} else {
 		// Otherwise, just look at the AST.
 		root := c.GetAstRoot(c.compiler)
-		if root == nil {
+		if root.IsNil() {
 			return SimpleDependencyInfo_EMPTY
 		}
 
@@ -498,8 +498,8 @@ func newCompilerInput_DepsFinder(modulePath *ModuleLoader_ModulePath) *CompilerI
 }
 
 // Java: CompilerInput.DepsFinder.visitTree(Node)
-func (f *CompilerInput_DepsFinder) VisitTree(n *rhino.Node) {
-	f.VisitSubtree(n, nil)
+func (f *CompilerInput_DepsFinder) VisitTree(n rhino.Node) {
+	f.VisitSubtree(n, rhino.Node{})
 	jutil.CheckArgument(n.IsScript())
 	var features *parser.FeatureSet
 	if p := n.GetProp(rhino.Node_FEATURE_SET); p != nil {
@@ -525,7 +525,7 @@ func (f *CompilerInput_DepsFinder) containsRequire(r *DependencyInfo_Require) bo
 }
 
 // Java: CompilerInput.DepsFinder.visitSubtree(Node, Node)
-func (f *CompilerInput_DepsFinder) VisitSubtree(n *rhino.Node, parent *rhino.Node) {
+func (f *CompilerInput_DepsFinder) VisitSubtree(n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CALL:
 		if n.HasTwoChildren() &&
@@ -611,13 +611,13 @@ func (f *CompilerInput_DepsFinder) VisitSubtree(n *rhino.Node, parent *rhino.Nod
 		return
 	}
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		f.VisitSubtree(child, n)
 	}
 }
 
 // Java: CompilerInput.DepsFinder.visitEs6ModuleName(Node, Node)
-func (f *CompilerInput_DepsFinder) VisitEs6ModuleName(n *rhino.Node, parent *rhino.Node) {
+func (f *CompilerInput_DepsFinder) VisitEs6ModuleName(n rhino.Node, parent rhino.Node) {
 	jutil.CheckArgument(n.IsStringLit())
 	jutil.CheckArgument(parent.IsExport() || parent.IsImport())
 
@@ -800,7 +800,7 @@ type CompilerInput_JsAst struct {
 	// Go-only: language-adapter — the enclosing CompilerInput of this
 	// (non-static) inner class.
 	outer    *CompilerInput
-	root     *rhino.Node
+	root     rhino.Node
 	features *parser.FeatureSet
 }
 
@@ -809,7 +809,7 @@ func newCompilerInput_JsAst(outer *CompilerInput) *CompilerInput_JsAst {
 }
 
 // Java: CompilerInput.JsAst.getAstRoot(AbstractCompiler)
-func (a *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) *rhino.Node {
+func (a *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) rhino.Node {
 	if a.isParsed() {
 		return a.root
 	}
@@ -829,7 +829,7 @@ func (a *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) *rhino.Node 
 	return a.root
 }
 
-func (a *CompilerInput_JsAst) installDeserializedRoot(root *rhino.Node) {
+func (a *CompilerInput_JsAst) installDeserializedRoot(root rhino.Node) {
 	a.root = root
 	if p := a.root.GetProp(rhino.Node_FEATURE_SET); p != nil {
 		a.features = p.(*parser.FeatureSet)
@@ -840,7 +840,7 @@ func (a *CompilerInput_JsAst) installDeserializedRoot(root *rhino.Node) {
 
 // Java: CompilerInput.JsAst.clearAst()
 func (a *CompilerInput_JsAst) ClearAst() {
-	a.root = nil
+	a.root = rhino.Node{}
 	// While we're at it, clear out any saved text in the source file on
 	// the assumption that if we're dumping the parse tree, then we probably
 	// assume regenerating everything else is a smart idea also.
@@ -849,7 +849,7 @@ func (a *CompilerInput_JsAst) ClearAst() {
 
 // Java: CompilerInput.JsAst.isParsed()
 func (a *CompilerInput_JsAst) isParsed() bool {
-	return a.root != nil
+	return !a.root.IsNil()
 }
 
 // Java: CompilerInput.JsAst.parse(AbstractCompiler)
@@ -896,7 +896,7 @@ func (a *CompilerInput_JsAst) installParseResult(compiler AbstractCompiler, resu
 
 func (a *CompilerInput_JsAst) ensureScriptRoot() {
 	sourceFile := a.outer.sourceFile
-	if a.root == nil {
+	if a.root.IsNil() {
 		a.root = rhino.IR_Script()
 	}
 

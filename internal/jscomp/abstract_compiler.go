@@ -71,7 +71,7 @@ type AbstractCompiler interface {
 	// CompilerPass's constructor.
 
 	// Java: AbstractCompiler.getTypedAstDeserializer(SourceFile)
-	GetTypedAstDeserializer(file *SourceFile) func() *rhino.Node
+	GetTypedAstDeserializer(file *SourceFile) func() rhino.Node
 
 	// GetSourceFileByName looks up a source file by name. May return nil.
 	//
@@ -79,7 +79,7 @@ type AbstractCompiler interface {
 	GetSourceFileByName(sourceName string) *SourceFile
 
 	// Java: AbstractCompiler.getScriptNode(String)
-	GetScriptNode(filename string) *rhino.Node
+	GetScriptNode(filename string) rhino.Node
 
 	// GetChunkGraph gets the chunk graph.
 	//
@@ -270,21 +270,21 @@ type AbstractCompiler interface {
 	// InlineVariables and many others)
 	//
 	// Java: AbstractCompiler.reportChangeToEnclosingScope(Node)
-	ReportChangeToEnclosingScope(n *rhino.Node)
+	ReportChangeToEnclosingScope(n rhino.Node)
 
 	// ReportChangeToChangeScope: mark modifications in a scope that is
 	// different than the Compiler.currentScope use this (eg, InlineVariables
 	// and many others)
 	//
 	// Java: AbstractCompiler.reportChangeToChangeScope(Node)
-	ReportChangeToChangeScope(changeScopeRoot *rhino.Node)
+	ReportChangeToChangeScope(changeScopeRoot rhino.Node)
 
 	// ReportFunctionDeleted marks a specific function node as known to be
 	// deleted. Is part of having accurate change tracking which is necessary
 	// to streamline optimizations.
 	//
 	// Java: AbstractCompiler.reportFunctionDeleted(Node)
-	ReportFunctionDeleted(node *rhino.Node)
+	ReportFunctionDeleted(node rhino.Node)
 
 	// ReportDisambiguatePropertiesSummary is used by
 	// `DisambiguateProperties` to record a one-line summary of the work it
@@ -316,7 +316,7 @@ type AbstractCompiler interface {
 	// chunks. The result is a SCRIPT node (never nil).
 	//
 	// Java: AbstractCompiler.getNodeForCodeInsertion(JSChunk)
-	GetNodeForCodeInsertion(chunk *JSChunk) *rhino.Node
+	GetNodeForCodeInsertion(chunk *JSChunk) rhino.Node
 
 	// Java: AbstractCompiler.getTypeValidator()
 	GetTypeValidator() *TypeValidator
@@ -333,17 +333,17 @@ type AbstractCompiler interface {
 	// given source file.
 	//
 	// Java: AbstractCompiler.parseSyntheticCode(String, String)
-	ParseSyntheticCode(filename string, code string) *rhino.Node
+	ParseSyntheticCode(filename string, code string) rhino.Node
 
 	// ParseTestCode parses code for testing.
 	//
 	// Java: AbstractCompiler.parseTestCode(String)
-	ParseTestCode(code string) *rhino.Node
+	ParseTestCode(code string) rhino.Node
 
 	// ParseTestCodeOfList parses code for testing.
 	//
 	// Java: AbstractCompiler.parseTestCode(ImmutableList<String>)
-	ParseTestCodeOfList(code []string) *rhino.Node
+	ParseTestCodeOfList(code []string) rhino.Node
 
 	// ToSource prints a node to source code.
 	//
@@ -353,7 +353,7 @@ type AbstractCompiler interface {
 	// ToSourceOfNode prints a node to source code.
 	//
 	// Java: AbstractCompiler.toSource(Node)
-	ToSourceOfNode(root *rhino.Node) string
+	ToSourceOfNode(root rhino.Node) string
 
 	// PreferRegexParser reports whether to prefer using JsFileRegexParser
 	// when calculating DependencyInfo as opposed to triggering an AST-based
@@ -445,13 +445,13 @@ type AbstractCompiler interface {
 	// GetJsRoot returns the root of the source tree, ignoring externs
 	//
 	// Java: AbstractCompiler.getJsRoot()
-	GetJsRoot() *rhino.Node
+	GetJsRoot() rhino.Node
 
 	// HasScopeChanged: true iff a function changed since the last time a
 	// pass was run
 	//
 	// Java: AbstractCompiler.hasScopeChanged(Node)
-	HasScopeChanged(n *rhino.Node) bool
+	HasScopeChanged(n rhino.Node) bool
 
 	// GetParserConfig returns the parser configuration for the specified
 	// context.
@@ -474,7 +474,7 @@ type AbstractCompiler interface {
 	// checked.
 	//
 	// Java: AbstractCompiler.areNodesEqualForInlining(Node, Node)
-	AreNodesEqualForInlining(n1 *rhino.Node, n2 *rhino.Node) bool
+	AreNodesEqualForInlining(n1 rhino.Node, n2 rhino.Node) bool
 
 	// SetHasRegExpGlobalReferences sets if RegExp global properties are
 	// used.
@@ -508,7 +508,7 @@ type AbstractCompiler interface {
 	// and source.
 	//
 	// Java: AbstractCompiler.getRoot()
-	GetRoot() *rhino.Node
+	GetRoot() rhino.Node
 
 	// Java: AbstractCompiler.getOptions()
 	GetOptions() *CompilerOptions

@@ -201,7 +201,7 @@ func (f ProcessTweaks_TweakFunction) GetExpectedTypeName() *string {
 }
 
 // Java: ProcessTweaks.TweakFunction.createDefaultValueNode()
-func (f ProcessTweaks_TweakFunction) CreateDefaultValueNode() *rhino.Node {
+func (f ProcessTweaks_TweakFunction) CreateDefaultValueNode() rhino.Node {
 	switch f {
 	case ProcessTweaks_TweakFunction_REGISTER_BOOLEAN:
 		return rhino.IR_FalseNode()
@@ -232,7 +232,7 @@ func NewProcessTweaks(compiler AbstractCompiler, stripTweaks bool) *ProcessTweak
 }
 
 // Java: ProcessTweaks.process(Node, Node)
-func (p *ProcessTweaks) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *ProcessTweaks) Process(externs rhino.Node, root rhino.Node) {
 	result := p.CollectTweaks(root)
 
 	if p.stripTweaks {
@@ -251,7 +251,7 @@ func (p *ProcessTweaks) StripAllCalls(tweakInfos *jutil.LinkedHashMap[string, *P
 			callNode := functionCall.callNode
 			parent := callNode.GetParent()
 			if functionCall.tweakFunc.IsGetterFunction() {
-				var newValue *rhino.Node
+				var newValue rhino.Node
 				if isRegistered {
 					newValue = tweakInfo.GetDefaultValueNode().CloneNode()
 				} else {
@@ -278,7 +278,7 @@ func (p *ProcessTweaks) StripAllCalls(tweakInfos *jutil.LinkedHashMap[string, *P
 // Returns a map of TweakInfo structures, keyed by tweak ID.
 //
 // Java: ProcessTweaks.collectTweaks(Node)
-func (p *ProcessTweaks) CollectTweaks(root *rhino.Node) *ProcessTweaks_CollectTweaksResult {
+func (p *ProcessTweaks) CollectTweaks(root rhino.Node) *ProcessTweaks_CollectTweaksResult {
 	pass := newProcessTweaks_CollectTweaks(p)
 	NodeTraversal_Traverse(p.compiler, root, pass)
 
@@ -318,7 +318,7 @@ func newProcessTweaks_CollectTweaks(outer *ProcessTweaks) *ProcessTweaks_Collect
 }
 
 // Java: ProcessTweaks.CollectTweaks.visit(NodeTraversal, Node, Node)
-func (c *ProcessTweaks_CollectTweaks) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *ProcessTweaks_CollectTweaks) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsCall() {
 		return
 	}
@@ -377,17 +377,17 @@ func (c *ProcessTweaks_CollectTweaks) Visit(t *NodeTraversal, n *rhino.Node, par
 // goog.tweak function.
 type ProcessTweaks_TweakFunctionCall struct {
 	tweakFunc ProcessTweaks_TweakFunction
-	callNode  *rhino.Node
-	valueNode *rhino.Node
+	callNode  rhino.Node
+	valueNode rhino.Node
 }
 
 // Java: ProcessTweaks.TweakFunctionCall(TweakFunction, Node)
-func newProcessTweaks_TweakFunctionCall(tweakFunc ProcessTweaks_TweakFunction, callNode *rhino.Node) *ProcessTweaks_TweakFunctionCall {
-	return newProcessTweaks_TweakFunctionCallWithValueNode(tweakFunc, callNode, nil)
+func newProcessTweaks_TweakFunctionCall(tweakFunc ProcessTweaks_TweakFunction, callNode rhino.Node) *ProcessTweaks_TweakFunctionCall {
+	return newProcessTweaks_TweakFunctionCallWithValueNode(tweakFunc, callNode, rhino.Node{})
 }
 
 // Java: ProcessTweaks.TweakFunctionCall(TweakFunction, Node, Node)
-func newProcessTweaks_TweakFunctionCallWithValueNode(tweakFunc ProcessTweaks_TweakFunction, callNode *rhino.Node, valueNode *rhino.Node) *ProcessTweaks_TweakFunctionCall {
+func newProcessTweaks_TweakFunctionCallWithValueNode(tweakFunc ProcessTweaks_TweakFunction, callNode rhino.Node, valueNode rhino.Node) *ProcessTweaks_TweakFunctionCall {
 	c := &ProcessTweaks_TweakFunctionCall{}
 	c.callNode = callNode
 	c.tweakFunc = tweakFunc
@@ -402,7 +402,7 @@ type ProcessTweaks_TweakInfo struct {
 	tweakId          string
 	functionCalls    *jutil.ArrayList[*ProcessTweaks_TweakFunctionCall]
 	registerCall     *ProcessTweaks_TweakFunctionCall
-	defaultValueNode *rhino.Node
+	defaultValueNode rhino.Node
 }
 
 // Java: ProcessTweaks.TweakInfo(String)
@@ -434,7 +434,7 @@ func (i *ProcessTweaks_TweakInfo) EmitAllTypeWarnings() {
 		valueNode := call.valueNode
 		tweakFunc := call.tweakFunc
 		registerFunc := i.registerCall.tweakFunc
-		if valueNode != nil {
+		if !valueNode.IsNil() {
 			// For register* and overrideDefaultValue calls, ensure the default
 			// value is a literal of the correct type.
 			if !registerFunc.IsValidNodeType(valueNode.GetToken()) {
@@ -461,13 +461,13 @@ func (i *ProcessTweaks_TweakInfo) EmitAllTypeWarnings() {
 }
 
 // Java: ProcessTweaks.TweakInfo.addRegisterCall(TweakFunction, Node, Node)
-func (i *ProcessTweaks_TweakInfo) AddRegisterCall(tweakFunc ProcessTweaks_TweakFunction, callNode *rhino.Node, defaultValueNode *rhino.Node) {
+func (i *ProcessTweaks_TweakInfo) AddRegisterCall(tweakFunc ProcessTweaks_TweakFunction, callNode rhino.Node, defaultValueNode rhino.Node) {
 	i.registerCall = newProcessTweaks_TweakFunctionCallWithValueNode(tweakFunc, callNode, defaultValueNode)
 	i.functionCalls.Add(i.registerCall)
 }
 
 // Java: ProcessTweaks.TweakInfo.addGetterCall(TweakFunction, Node)
-func (i *ProcessTweaks_TweakInfo) AddGetterCall(tweakFunc ProcessTweaks_TweakFunction, callNode *rhino.Node) {
+func (i *ProcessTweaks_TweakInfo) AddGetterCall(tweakFunc ProcessTweaks_TweakFunction, callNode rhino.Node) {
 	i.functionCalls.Add(newProcessTweaks_TweakFunctionCall(tweakFunc, callNode))
 }
 
@@ -477,14 +477,14 @@ func (i *ProcessTweaks_TweakInfo) IsRegistered() bool {
 }
 
 // Java: ProcessTweaks.TweakInfo.getDefaultValueNode()
-func (i *ProcessTweaks_TweakInfo) GetDefaultValueNode() *rhino.Node {
+func (i *ProcessTweaks_TweakInfo) GetDefaultValueNode() rhino.Node {
 	jutil.CheckState(i.IsRegistered())
 	// Use calls to goog.tweak.overrideDefaultValue() first.
-	if i.defaultValueNode != nil {
+	if !i.defaultValueNode.IsNil() {
 		return i.defaultValueNode
 	}
 	// Use the value passed to the register function next.
-	if i.registerCall.valueNode != nil {
+	if !i.registerCall.valueNode.IsNil() {
 		return i.registerCall.valueNode
 	}
 	// Otherwise, use the default value for the tweak's type.

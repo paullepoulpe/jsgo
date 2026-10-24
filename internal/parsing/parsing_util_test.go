@@ -28,7 +28,7 @@ import (
 
 // parsingUtilTest_NAME_EQUALITY is the Correspondence NAME_EQUALITY: a node
 // corresponds to the string of a NAME node (anything else to null).
-func parsingUtilTest_NAME_EQUALITY(n *rhino.Node) *string {
+func parsingUtilTest_NAME_EQUALITY(n rhino.Node) *string {
 	if n.IsName() {
 		s := n.GetString()
 		return &s
@@ -109,8 +109,8 @@ func parsingUtilTest_assertPatternDeclaresNames(t *testing.T, pattern string, ex
 // instead of throwing it (so that assertThrows can be expressed).
 func parsingUtilTest_patternDeclaresNames(t *testing.T, pattern string, expected *jutil.LinkedHashSet[string]) error {
 	t.Helper()
-	seen := jutil.NewLinkedHashSet[*rhino.Node]()
-	ParsingUtil_GetParamOrPatternNames(parsingUtilTest_parsePattern(t, pattern), func(n *rhino.Node) { seen.Add(n) })
+	seen := jutil.NewLinkedHashSet[rhino.Node]()
+	ParsingUtil_GetParamOrPatternNames(parsingUtilTest_parsePattern(t, pattern), func(n rhino.Node) { seen.Add(n) })
 
 	// containsExactlyElementsIn: every expected element corresponds to a
 	// distinct actual element, and no actual element is left over.
@@ -146,7 +146,7 @@ func parsingUtilTest_patternDeclaresNames(t *testing.T, pattern string, expected
 // list and returns the Node that pattern parses to.
 //
 // Java: ParsingUtilTest.parsePattern(String)
-func parsingUtilTest_parsePattern(t *testing.T, pattern string) *rhino.Node {
+func parsingUtilTest_parsePattern(t *testing.T, pattern string) rhino.Node {
 	t.Helper()
 	script := parsingUtilTest_parse(t, "function foo("+pattern+"){}")
 	assertThat(t, script.IsScript()).IsTrue()
@@ -158,7 +158,7 @@ func parsingUtilTest_parsePattern(t *testing.T, pattern string) *rhino.Node {
 }
 
 // Java: ParsingUtilTest.parse(String, String...)
-func parsingUtilTest_parse(t *testing.T, source string, warnings ...string) *rhino.Node {
+func parsingUtilTest_parse(t *testing.T, source string, warnings ...string) rhino.Node {
 	t.Helper()
 	testErrorReporter := newTestErrorReporter().expectAllWarnings(warnings...)
 	config := ParserRunner_CreateConfigWithModes(

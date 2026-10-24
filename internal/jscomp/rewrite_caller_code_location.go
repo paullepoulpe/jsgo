@@ -84,7 +84,7 @@ func NewRewriteCallerCodeLocation(compiler AbstractCompiler) *RewriteCallerCodeL
 }
 
 // Java: RewriteCallerCodeLocation.process(Node, Node)
-func (r *RewriteCallerCodeLocation) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteCallerCodeLocation) Process(externs rhino.Node, root rhino.Node) {
 	// Find all functions that have goog.callerLocation as a default parameter. We want to traverse
 	// the root node as well as the externs because the function that contains `goog.callerLocation`
 	// parameter could be an
@@ -112,7 +112,7 @@ func NewRewriteCallerCodeLocation_FindCallerLocationFunctions(outer *RewriteCall
 }
 
 // Java: FindCallerLocationFunctions.visit(NodeTraversal, Node, Node)
-func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if f.IsGoogCallerLocationMisused(n, parent) {
 		f.this_.compiler.Report(JSError_MakeWithNode(parent.GetParent(), RewriteCallerCodeLocation_JSC_CALLER_LOCATION_MISUSE_ERROR))
 		return
@@ -131,7 +131,7 @@ func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) Visit(t *NodeTra
 // goog.callerLocation is misused, false otherwise.
 //
 // Java: FindCallerLocationFunctions.isGoogCallerLocationMisused(Node, Node)
-func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) IsGoogCallerLocationMisused(n *rhino.Node, parent *rhino.Node) bool {
+func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) IsGoogCallerLocationMisused(n rhino.Node, parent rhino.Node) bool {
 	if !RewriteCallerCodeLocation_GOOG_CALLER_LOCATION_QUALIFIED_NAME.Matches(n) {
 		// not a `goog.callerLocation` node
 		return false
@@ -158,7 +158,7 @@ func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) IsGoogCallerLoca
 		return false
 	}
 
-	if parent.IsAssign() && n.GetNext() != nil && n.GetNext().IsFunction() {
+	if parent.IsAssign() && !n.GetNext().IsNil() && n.GetNext().IsFunction() {
 		// This is the definition of goog.callerLocation, so this is not a misuse.
 		// i.e: `goog.callerLocation = function(...) { ... }`
 		return false
@@ -181,7 +181,7 @@ func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) IsGoogCallerLoca
 // n is the param list node.
 //
 // Java: FindCallerLocationFunctions.visitParamListAndAddCallerLocationFunctionNames(Node, NodeTraversal)
-func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) VisitParamListAndAddCallerLocationFunctionNames(n *rhino.Node, t *NodeTraversal) {
+func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) VisitParamListAndAddCallerLocationFunctionNames(n rhino.Node, t *NodeTraversal) {
 	jutil.CheckStateMsg1(n.IsParamList(), "%s", n)
 	// function foo(<params>) ...
 	// Each item in <params> is scanned for having a default value.
@@ -189,7 +189,7 @@ func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) VisitParamListAn
 	// Check if there is another optional argument that comes before the goog.callerLocation arg.
 	defaultValuesCount := 0
 	paramPosition := 0 // keep track of the position of the param in the param list.
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		paramPosition++
 		if !c.IsDefaultValue() {
 			continue
@@ -235,7 +235,7 @@ func NewRewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls(outer *Rewr
 }
 
 // Java: RewriteCallerLocationFunctionCalls.visit(NodeTraversal, Node, Node)
-func (w *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (w *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsCall() {
 		w.VisitCallNodeAndRewrite(n, t)
 	}
@@ -251,9 +251,9 @@ func (w *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) Visit(t *
 // n is the call node.
 //
 // Java: RewriteCallerLocationFunctionCalls.visitCallNodeAndRewrite(Node, NodeTraversal)
-func (w *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) VisitCallNodeAndRewrite(n *rhino.Node, t *NodeTraversal) {
+func (w *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) VisitCallNodeAndRewrite(n rhino.Node, t *NodeTraversal) {
 	firstChild := n.GetFirstChild()
-	if firstChild == nil ||
+	if firstChild.IsNil() ||
 		(!firstChild.IsName() && !firstChild.IsGetProp()) ||
 		firstChild.GetQualifiedName() == nil {
 		return
@@ -319,7 +319,7 @@ func (w *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) VisitCall
 // "goog.callerLocationIdInternalDoNotCallOrElse(path/to/file.ts:lineno:charno)"
 //
 // Java: RewriteCallerLocationFunctionCalls.createGoogXidFilePathNode(Node)
-func (w *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) CreateGoogXidFilePathNode(n *rhino.Node) *rhino.Node {
+func (w *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) CreateGoogXidFilePathNode(n rhino.Node) rhino.Node {
 	// googNode is "goog"
 	googNode := rhino.IR_Name("goog")
 	googNode.SrcrefIfMissing(n)

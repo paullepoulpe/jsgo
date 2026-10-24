@@ -175,12 +175,12 @@ func (r *ReplaceStrings) GetStringMap() *VariableMap {
 }
 
 // Java: ReplaceStrings.process(Node, Node)
-func (r *ReplaceStrings) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *ReplaceStrings) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, r)
 }
 
 // Java: ReplaceStrings.visit(NodeTraversal, Node, Node)
-func (r *ReplaceStrings) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *ReplaceStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// TODO(johnlenz): Determine if it is necessary to support ".call" or ".apply".
 	switch n.GetToken() {
 	case rhino.Token_NEW, // e.g. new Error('msg');
@@ -230,7 +230,7 @@ func (r *ReplaceStrings) FindMatching(name string, callsiteSourceFileName *strin
 // possible.
 //
 // Java: ReplaceStrings.doSubstitutions(NodeTraversal, ReplaceStrings.Config, Node)
-func (r *ReplaceStrings) DoSubstitutions(t *NodeTraversal, config *ReplaceStrings_Config, n *rhino.Node) {
+func (r *ReplaceStrings) DoSubstitutions(t *NodeTraversal, config *ReplaceStrings_Config, n rhino.Node) {
 	if n.IsTaggedTemplateLit() {
 		// This is currently not supported, since tagged template literals have a different calling
 		// convention than ordinary functions, so it's unclear which arguments are expected to be
@@ -245,14 +245,14 @@ func (r *ReplaceStrings) DoSubstitutions(t *NodeTraversal, config *ReplaceString
 		// Note: the first child is the function, but the parameter id is 1 based.
 		for _, parameter := range config.parameters {
 			arg := n.GetChildAtIndex(parameter)
-			if arg != nil {
+			if !arg.IsNil() {
 				r.ReplaceExpression(t, arg)
 			}
 		}
 	} else {
 		// Replace all parameters.
 		firstParam := n.GetSecondChild()
-		for arg := firstParam; arg != nil; arg = arg.GetNext() {
+		for arg := firstParam; !arg.IsNil(); arg = arg.GetNext() {
 			arg = r.ReplaceExpression(t, arg)
 		}
 	}
@@ -263,8 +263,8 @@ func (r *ReplaceStrings) DoSubstitutions(t *NodeTraversal, config *ReplaceString
 // no replacement is made).
 //
 // Java: ReplaceStrings.replaceExpression(NodeTraversal, Node)
-func (r *ReplaceStrings) ReplaceExpression(t *NodeTraversal, expr *rhino.Node) *rhino.Node {
-	var replacement *rhino.Node
+func (r *ReplaceStrings) ReplaceExpression(t *NodeTraversal, expr rhino.Node) rhino.Node {
+	var replacement rhino.Node
 	var key string
 	var replacementString string
 	switch expr.GetToken() {
@@ -336,7 +336,7 @@ func (r *ReplaceStrings) RecordReplacement(key string) {
 // that should replace expr.
 //
 // Java: ReplaceStrings.buildReplacement(NodeTraversal, Node, Node, StringBuilder)
-func (r *ReplaceStrings) BuildReplacement(t *NodeTraversal, expr *rhino.Node, prefix *rhino.Node, keyBuilder *strings.Builder) *rhino.Node {
+func (r *ReplaceStrings) BuildReplacement(t *NodeTraversal, expr rhino.Node, prefix rhino.Node, keyBuilder *strings.Builder) rhino.Node {
 	switch expr.GetToken() {
 	case rhino.Token_ADD:
 		left := expr.GetFirstChild()
@@ -344,7 +344,7 @@ func (r *ReplaceStrings) BuildReplacement(t *NodeTraversal, expr *rhino.Node, pr
 		prefix = r.BuildReplacement(t, left, prefix, keyBuilder)
 		return r.BuildReplacement(t, right, prefix, keyBuilder)
 	case rhino.Token_TEMPLATELIT:
-		for child := expr.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := expr.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			switch child.GetToken() {
 			case rhino.Token_TEMPLATELIT_STRING:
 				keyBuilder.WriteString(jutil.ToJavaString(child.GetCookedString()))
@@ -363,7 +363,7 @@ func (r *ReplaceStrings) BuildReplacement(t *NodeTraversal, expr *rhino.Node, pr
 		var_ := t.GetScope().GetVar(expr.GetString())
 		if var_ != nil && (var_.IsDeclaredOrInferredConst() || var_.IsConst()) {
 			initialValue := var_.GetInitialValue()
-			if initialValue != nil {
+			if !initialValue.IsNil() {
 				newKeyNode := rhino.IR_String("")
 				var newKeyBuilder strings.Builder
 				replacement := r.BuildReplacement(t, initialValue, newKeyNode, &newKeyBuilder)

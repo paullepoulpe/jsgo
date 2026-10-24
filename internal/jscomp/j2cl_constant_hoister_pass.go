@@ -26,8 +26,8 @@ import (
 )
 
 type j2clFieldAssignments struct {
-	first  *rhino.Node
-	second *rhino.Node
+	first  rhino.Node
+	second rhino.Node
 	count  int32
 }
 
@@ -36,9 +36,9 @@ type j2clConstantHoisterCollector struct {
 	outer *J2clConstantHoisterPass
 }
 
-func (c *j2clConstantHoisterCollector) Visit(t *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (c *j2clConstantHoisterCollector) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	p := c.outer
-	if parent != nil && NodeUtil_IsLValue(node) {
+	if !parent.IsNil() && NodeUtil_IsLValue(node) {
 		if q := node.GetQualifiedName(); q != nil {
 			key := *q
 			entry := p.fieldAssignments[key]
@@ -70,7 +70,7 @@ type J2clConstantHoisterPass struct {
 	compiler           AbstractCompiler
 	fieldAssignments   map[string]j2clFieldAssignments
 	fieldOrder         []string
-	hoistableFunctions *jutil.LinkedHashSet[*rhino.Node]
+	hoistableFunctions *jutil.LinkedHashSet[rhino.Node]
 	collector          j2clConstantHoisterCollector
 }
 
@@ -82,14 +82,14 @@ func NewJ2clConstantHoisterPass(compiler AbstractCompiler) *J2clConstantHoisterP
 }
 
 // Java: J2clConstantHoisterPass.process(Node, Node)
-func (p *J2clConstantHoisterPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *J2clConstantHoisterPass) Process(externs rhino.Node, root rhino.Node) {
 	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
 		return
 	}
 
 	if p.fieldAssignments == nil {
 		p.fieldAssignments = make(map[string]j2clFieldAssignments, 64)
-		p.hoistableFunctions = jutil.NewLinkedHashSet[*rhino.Node]()
+		p.hoistableFunctions = jutil.NewLinkedHashSet[rhino.Node]()
 	} else {
 		clear(p.fieldAssignments)
 		p.fieldOrder = p.fieldOrder[:0]
@@ -98,7 +98,7 @@ func (p *J2clConstantHoisterPass) Process(externs *rhino.Node, root *rhino.Node)
 
 	NodeTraversal_Traverse(p.compiler, root, &p.collector)
 
-	var pair [2]*rhino.Node
+	var pair [2]rhino.Node
 	for _, key := range p.fieldOrder {
 		entry := p.fieldAssignments[key]
 		if entry.count == 2 {
@@ -114,7 +114,7 @@ func (p *J2clConstantHoisterPass) Process(externs *rhino.Node, root *rhino.Node)
 // containing scope, and is thus 'hoistable'.
 //
 // Java: J2clConstantHoisterPass.isHoistableFunction(NodeTraversal, Node)
-func j2clConstantHoisterPass_isHoistableFunction(t *NodeTraversal, node *rhino.Node) bool {
+func j2clConstantHoisterPass_isHoistableFunction(t *NodeTraversal, node rhino.Node) bool {
 	// TODO(michaelthomas): This could be improved slightly by not assuming that any variable in the
 	// outer scope is used in the function.
 	return node.IsFunction() && t.GetScope().GetVarCount() == 0
@@ -122,7 +122,7 @@ func j2clConstantHoisterPass_isHoistableFunction(t *NodeTraversal, node *rhino.N
 
 // Java: J2clConstantHoisterPass.maybeHoistClassField(Collection<Node>, Collection<Node>)
 func (p *J2clConstantHoisterPass) maybeHoistClassField(
-	assignments []*rhino.Node, hoistableFunctions *jutil.LinkedHashSet[*rhino.Node]) {
+	assignments []rhino.Node, hoistableFunctions *jutil.LinkedHashSet[rhino.Node]) {
 	// The field is only assigned twice:
 	if len(assignments) != 2 {
 		return
@@ -165,7 +165,7 @@ func (p *J2clConstantHoisterPass) maybeHoistClassField(
 }
 
 // Java: J2clConstantHoisterPass.hoistConstantLikeField(Node, Node)
-func (p *J2clConstantHoisterPass) hoistConstantLikeField(clinitAssignment *rhino.Node, topLevelDeclaration *rhino.Node) {
+func (p *J2clConstantHoisterPass) hoistConstantLikeField(clinitAssignment rhino.Node, topLevelDeclaration rhino.Node) {
 	clinitAssignedValue := clinitAssignment.GetSecondChild()
 	declarationInClass := topLevelDeclaration.GetFirstChild()
 	declarationAssignedValue := declarationInClass.GetFirstChild()
@@ -176,7 +176,7 @@ func (p *J2clConstantHoisterPass) hoistConstantLikeField(clinitAssignment *rhino
 
 	clinitAssignedValue.Detach()
 	p.compiler.ReportChangeToChangeScope(clinitChangeScope)
-	if declarationAssignedValue == nil {
+	if declarationAssignedValue.IsNil() {
 		// Add the value from clinit to the stub declaration
 		declarationInClass.AddChildToFront(clinitAssignedValue)
 		p.compiler.ReportChangeToEnclosingScope(topLevelDeclaration)
@@ -193,17 +193,17 @@ func (p *J2clConstantHoisterPass) hoistConstantLikeField(clinitAssignment *rhino
 // declarations `var foo = 3;` or stub declarations like `var bar;`.
 //
 // Java: J2clConstantHoisterPass.isClassFieldDeclaration(Node)
-func j2clConstantHoisterPass_isClassFieldDeclaration(node *rhino.Node) bool {
+func j2clConstantHoisterPass_isClassFieldDeclaration(node rhino.Node) bool {
 	return node.GetParent().IsScript() &&
 		node.IsVar() &&
 		(!node.GetFirstChild().HasChildren() ||
-			(node.GetFirstFirstChild() != nil &&
+			(!node.GetFirstFirstChild().IsNil() &&
 				NodeUtil_IsLiteralValue(
 					node.GetFirstFirstChild() /* includeFunctions= */, false)))
 }
 
 // Java: J2clConstantHoisterPass.isClinitFieldAssignment(Node)
-func j2clConstantHoisterPass_isClinitFieldAssignment(node *rhino.Node) bool {
+func j2clConstantHoisterPass_isClinitFieldAssignment(node rhino.Node) bool {
 	return node.GetParent().IsExprResult() &&
 		node.GetGrandparent().IsBlock() &&
 		j2clConstantHoisterPass_isClinitMethod(node.GetGrandparent().GetParent())
@@ -212,7 +212,7 @@ func j2clConstantHoisterPass_isClinitFieldAssignment(node *rhino.Node) bool {
 // TODO(goktug): Create a utility to share this logic and start using getQualifiedOriginalName.
 //
 // Java: J2clConstantHoisterPass.isClinitMethod(Node)
-func j2clConstantHoisterPass_isClinitMethod(fnNode *rhino.Node) bool {
+func j2clConstantHoisterPass_isClinitMethod(fnNode rhino.Node) bool {
 	if !fnNode.IsFunction() {
 		return false
 	}

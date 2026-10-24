@@ -169,7 +169,7 @@ func (t *NamedType) GetTemplateTypes() []JSType {
 }
 
 // Java: NamedType.defineProperty(Property.Key, JSType, boolean, Node)
-func (t *NamedType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (t *NamedType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	if !t.IsResolved() {
 		// If this is an unresolved object type, we need to save all its
 		// properties and define them when it is resolved.
@@ -481,12 +481,12 @@ type NamedType_PropertyContinuation struct {
 	propertyName Property_Key
 	type_        JSType
 	inferred     bool
-	propertyNode *Node
+	propertyNode Node
 }
 
 // Java: NamedType.PropertyContinuation(Property.Key, JSType, boolean, Node)
 func NewNamedType_PropertyContinuation(
-	propertyName Property_Key, type_ JSType, inferred bool, propertyNode *Node) *NamedType_PropertyContinuation {
+	propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) *NamedType_PropertyContinuation {
 	return &NamedType_PropertyContinuation{
 		propertyName: propertyName,
 		type_:        type_,
@@ -605,7 +605,7 @@ func (b *NamedType_Builder) SetErrorReportingLocation(sourceName *string, lineno
 }
 
 // Java: NamedType.Builder.setErrorReportingLocationFrom(Node)
-func (b *NamedType_Builder) SetErrorReportingLocationFrom(source *Node) *NamedType_Builder {
+func (b *NamedType_Builder) SetErrorReportingLocationFrom(source Node) *NamedType_Builder {
 	b.sourceName = source.GetSourceFileName()
 	b.lineno = source.GetLineno()
 	b.charno = source.GetCharno()

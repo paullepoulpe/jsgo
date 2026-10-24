@@ -105,13 +105,13 @@ func NewSemanticReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *
 
 // Java: SemanticReverseAbstractInterpreter.getPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOutcome(
-	condition *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+	condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	// Check for the typeof operator.
 	operatorToken := condition.GetToken()
 	switch operatorToken {
 	case rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_CASE:
-		var left *rhino.Node
-		var right *rhino.Node
+		var left rhino.Node
+		var right rhino.Node
 		if operatorToken == rhino.Token_CASE {
 			left = condition.GetParent().GetPrevious() // the switch condition
 			jutil.CheckStateMsg1(condition.GetParent().IsSwitchBody(), "%s", condition.GetParent())
@@ -121,8 +121,8 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 			right = condition.GetLastChild()
 		}
 
-		var typeOfNode *rhino.Node
-		var stringNode *rhino.Node
+		var typeOfNode rhino.Node
+		var stringNode rhino.Node
 		if left.IsTypeOf() && right.IsStringLit() {
 			typeOfNode = left
 			stringNode = right
@@ -130,7 +130,7 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 			typeOfNode = right
 			stringNode = left
 		}
-		if typeOfNode != nil && stringNode != nil {
+		if !typeOfNode.IsNil() && !stringNode.IsNil() {
 			operandNode := typeOfNode.GetFirstChild()
 			operandType := s.GetTypeIfRefinable(operandNode, blindScope)
 			if operandType != nil {
@@ -220,7 +220,7 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 		}
 	case rhino.Token_CALL:
 		left := condition.GetFirstChild()
-		if left.MatchesQualifiedName("Array.isArray") && left.GetNext() != nil {
+		if left.MatchesQualifiedName("Array.isArray") && !left.GetNext().IsNil() {
 			return s.CaseIsArray(left.GetNext(), blindScope, outcome)
 		}
 	default:
@@ -230,7 +230,7 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 }
 
 // Java: SemanticReverseAbstractInterpreter.caseIsArray(Node, FlowScope, Outcome)
-func (s *SemanticReverseAbstractInterpreter) CaseIsArray(value *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+func (s *SemanticReverseAbstractInterpreter) CaseIsArray(value rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	type_ := s.GetTypeIfRefinable(value, blindScope)
 	if type_ != nil {
 		var visitor rhino.Visitor
@@ -255,7 +255,7 @@ const (
 )
 
 func (s *SemanticReverseAbstractInterpreter) caseEqualityMode(
-	left *rhino.Node, right *rhino.Node, blindScope FlowScope, mode sraiEqualityMode) FlowScope {
+	left rhino.Node, right rhino.Node, blindScope FlowScope, mode sraiEqualityMode) FlowScope {
 	leftType := s.GetTypeIfRefinable(left, blindScope)
 	leftIsRefineable := leftType != nil
 	if !leftIsRefineable {
@@ -323,13 +323,13 @@ func (s *SemanticReverseAbstractInterpreter) caseEqualityMode(
 
 // Java: SemanticReverseAbstractInterpreter.caseEquality(Node, FlowScope, Function<TypePair, TypePair>)
 func (s *SemanticReverseAbstractInterpreter) CaseEquality(
-	condition *rhino.Node, blindScope FlowScope, merging func(*rhino.JSType_TypePair) *rhino.JSType_TypePair) FlowScope {
+	condition rhino.Node, blindScope FlowScope, merging func(*rhino.JSType_TypePair) *rhino.JSType_TypePair) FlowScope {
 	return s.CaseEqualityOfLeftAndRight(condition.GetFirstChild(), condition.GetLastChild(), blindScope, merging)
 }
 
 // Java: SemanticReverseAbstractInterpreter.caseEquality(Node, Node, FlowScope, Function<TypePair, TypePair>)
 func (s *SemanticReverseAbstractInterpreter) CaseEqualityOfLeftAndRight(
-	left *rhino.Node, right *rhino.Node, blindScope FlowScope,
+	left rhino.Node, right rhino.Node, blindScope FlowScope,
 	merging func(*rhino.JSType_TypePair) *rhino.JSType_TypePair) FlowScope {
 	// left type
 	leftType := s.GetTypeIfRefinable(left, blindScope)
@@ -377,7 +377,7 @@ func (s *SemanticReverseAbstractInterpreter) CaseEqualityOfLeftAndRight(
 
 // Java: SemanticReverseAbstractInterpreter.caseAndOrNotShortCircuiting(Node, Node, FlowScope, Outcome)
 func (s *SemanticReverseAbstractInterpreter) CaseAndOrNotShortCircuiting(
-	left *rhino.Node, right *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+	left rhino.Node, right rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	// left type
 	leftType := s.GetTypeIfRefinable(left, blindScope)
 	var leftIsRefineable bool
@@ -431,7 +431,7 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrNotShortCircuiting(
 
 // Java: SemanticReverseAbstractInterpreter.caseAndOrMaybeShortCircuiting(Node, Node, FlowScope, Outcome)
 func (s *SemanticReverseAbstractInterpreter) CaseAndOrMaybeShortCircuiting(
-	left *rhino.Node, right *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+	left rhino.Node, right rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	// Perform two separate refinements, one for if short-circuiting occurred, and one for if it did
 	// not.  Because it's not clear whether short-circuiting occurred, we actually have to ignore
 	// both separate result flow scopes individually, but if they both refined the same slot, we
@@ -491,7 +491,7 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrMaybeShortCircuiting(
 //
 // Java: SemanticReverseAbstractInterpreter.maybeRestrictName(FlowScope, Node, JSType, JSType)
 func (s *SemanticReverseAbstractInterpreter) MaybeRestrictName(
-	blindScope FlowScope, node *rhino.Node, originalType rhino.JSType, restrictedType rhino.JSType) FlowScope {
+	blindScope FlowScope, node rhino.Node, originalType rhino.JSType, restrictedType rhino.JSType) FlowScope {
 	if restrictedType != nil && !base.JSCompObjects_Identical(restrictedType, originalType) {
 		return s.DeclareNameInScope(blindScope, node, restrictedType)
 	}
@@ -503,10 +503,10 @@ func (s *SemanticReverseAbstractInterpreter) MaybeRestrictName(
 // Java: SemanticReverseAbstractInterpreter.maybeRestrictTwoNames(FlowScope, Node, JSType, JSType, Node, JSType, JSType)
 func (s *SemanticReverseAbstractInterpreter) MaybeRestrictTwoNames(
 	blindScope FlowScope,
-	left *rhino.Node,
+	left rhino.Node,
 	originalLeftType rhino.JSType,
 	restrictedLeftType rhino.JSType,
-	right *rhino.Node,
+	right rhino.Node,
 	originalRightType rhino.JSType,
 	restrictedRightType rhino.JSType) FlowScope {
 	shouldRefineLeft := restrictedLeftType != nil && !base.JSCompObjects_Identical(restrictedLeftType, originalLeftType)
@@ -525,7 +525,7 @@ func (s *SemanticReverseAbstractInterpreter) MaybeRestrictTwoNames(
 }
 
 // Java: SemanticReverseAbstractInterpreter.caseNameOrGetProp(Node, FlowScope, Outcome)
-func (s *SemanticReverseAbstractInterpreter) CaseNameOrGetProp(name *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+func (s *SemanticReverseAbstractInterpreter) CaseNameOrGetProp(name rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	type_ := s.GetTypeIfRefinable(name, blindScope)
 	if type_ != nil {
 		restrictedType := type_.GetRestrictedTypeGivenOutcome(outcome)
@@ -536,14 +536,14 @@ func (s *SemanticReverseAbstractInterpreter) CaseNameOrGetProp(name *rhino.Node,
 
 // Java: SemanticReverseAbstractInterpreter.caseTypeOf(Node, JSType, String, boolean, FlowScope)
 func (s *SemanticReverseAbstractInterpreter) CaseTypeOf(
-	node *rhino.Node, type_ rhino.JSType, value string, resultEqualsValue bool, blindScope FlowScope) FlowScope {
+	node rhino.Node, type_ rhino.JSType, value string, resultEqualsValue bool, blindScope FlowScope) FlowScope {
 	return s.MaybeRestrictName(
 		blindScope, node, type_, s.GetRestrictedByTypeOfResult(type_, value, resultEqualsValue))
 }
 
 // Java: SemanticReverseAbstractInterpreter.caseInstanceOf(Node, Node, FlowScope, Outcome)
 func (s *SemanticReverseAbstractInterpreter) CaseInstanceOf(
-	left *rhino.Node, right *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+	left rhino.Node, right rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	leftType := s.GetTypeIfRefinable(left, blindScope)
 	if leftType == nil {
 		return blindScope
@@ -570,7 +570,7 @@ func (s *SemanticReverseAbstractInterpreter) CaseInstanceOf(
 // string of the left-side of the in.
 //
 // Java: SemanticReverseAbstractInterpreter.caseIn(Node, String, FlowScope)
-func (s *SemanticReverseAbstractInterpreter) CaseIn(object *rhino.Node, propertyName string, blindScope FlowScope) FlowScope {
+func (s *SemanticReverseAbstractInterpreter) CaseIn(object rhino.Node, propertyName string, blindScope FlowScope) FlowScope {
 	jsType := object.GetJSType()
 	if jsType != nil {
 		jsType = jsType.RestrictByNotNullOrUndefined()
@@ -801,7 +801,7 @@ func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferSl
 
 // Java: RefinementTrackingFlowScope.inferQualifiedSlot(Node, String, JSType, JSType, boolean)
 func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferQualifiedSlot(
-	node *rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declare bool) FlowScope {
+	node rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declare bool) FlowScope {
 	r.tracker.add(symbol)
 	return r.Wrap(r.delegate.InferQualifiedSlot(node, symbol, bottomType, inferredType, declare))
 }
@@ -820,7 +820,7 @@ func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetDecl
 }
 
 // Java: RefinementTrackingFlowScope.getRootNode()
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetRootNode() *rhino.Node {
+func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetRootNode() rhino.Node {
 	return r.delegate.GetRootNode()
 }
 

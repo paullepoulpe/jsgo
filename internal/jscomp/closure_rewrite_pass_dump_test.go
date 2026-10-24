@@ -41,7 +41,7 @@ type closureRewriteDump struct {
 }
 
 // closureRewriteRun is the Run interface of the Java tool.
-type closureRewriteRun func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string)
+type closureRewriteRun func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string)
 
 func closureRewriteNewCompiler(inputs []*SourceFile) *Compiler {
 	compiler := NewCompilerWithOutStream(jutil.NewPrintStream(io.Discard))
@@ -62,20 +62,20 @@ func closureRewriteExceptionText(e jutil.IRuntimeException) string {
 	return e.Error()
 }
 
-func closureRewriteGatherModuleMetadata(compiler *Compiler, externs *rhino.Node, js *rhino.Node) {
+func closureRewriteGatherModuleMetadata(compiler *Compiler, externs rhino.Node, js rhino.Node) {
 	// Force creation of the synthetic input so that we create metadata for it (as
 	// DefaultPassConfig.gatherModuleMetadataPass does).
 	compiler.GetSynthesizedExternsInput()
 	NewGatherModuleMetadata(compiler, false, ModuleLoader_ResolutionMode_BROWSER).Process(externs, js)
 }
 
-func closureRewriteCreateModuleMap(compiler *Compiler, externs *rhino.Node, js *rhino.Node) {
+func closureRewriteCreateModuleMap(compiler *Compiler, externs rhino.Node, js rhino.Node) {
 	NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap()).Process(externs, js)
 }
 
 // closureRewriteDefineReplacements is the Java tool's define map.
-func closureRewriteDefineReplacements() *jutil.LinkedHashMap[string, *rhino.Node] {
-	m := jutil.NewLinkedHashMap[string, *rhino.Node]()
+func closureRewriteDefineReplacements() *jutil.LinkedHashMap[string, rhino.Node] {
+	m := jutil.NewLinkedHashMap[string, rhino.Node]()
 	m.Put("COMPILED", rhino.NewNode(rhino.Token_TRUE))
 	m.Put("goog.DEBUG", rhino.NewNode(rhino.Token_FALSE))
 	m.Put("goog.LOCALE", rhino.IR_String("de"))
@@ -255,24 +255,24 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 		closureModulesLine(sb, diag)
 	}
 
-	d.pass(inputs, parseDiags, "moduleMap", func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+	d.pass(inputs, parseDiags, "moduleMap", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
 		closureRewriteModuleMap(compiler.GetModuleMap(), extra)
 	})
-	d.pass(inputs, parseDiags, "checkClosureImports", func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+	d.pass(inputs, parseDiags, "checkClosureImports", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
 		NewCheckClosureImports(compiler, compiler.GetModuleMetadataMap()).Process(externs, js)
 	})
-	d.pass(inputs, parseDiags, "rewriteGoogJsImports", func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+	d.pass(inputs, parseDiags, "rewriteGoogJsImports", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
 		NewRewriteGoogJsImports(compiler, RewriteGoogJsImports_Mode_LINT_AND_REWRITE, compiler.GetModuleMap()).
 			Process(externs, js)
 		closureRewriteModuleMap(compiler.GetModuleMap(), extra)
 	})
-	d.pass(inputs, parseDiags, "closureGoogScopeAliases", func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+	d.pass(inputs, parseDiags, "closureGoogScopeAliases", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
 		ScopedAliases_Builder_(compiler).
@@ -282,17 +282,17 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 			Build().
 			Process(externs, js)
 	})
-	d.pass(inputs, parseDiags, "closureGoogScopeAliasesForIjs", func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+	d.pass(inputs, parseDiags, "closureGoogScopeAliasesForIjs", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
 		ScopedAliases_Builder_(compiler).Build().Process(externs, js)
 	})
-	d.pass(inputs, parseDiags, "closureRewriteModule", func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+	d.pass(inputs, parseDiags, "closureRewriteModule", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
 		NewClosureRewriteModule(compiler, nil, compiler.GetTopScope()).Process(externs, js)
 	})
-	d.pass(inputs, parseDiags, "closureGoogScopeAliases+closureRewriteModule", func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+	d.pass(inputs, parseDiags, "closureGoogScopeAliases+closureRewriteModule", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
 		ScopedAliases_Builder_(compiler).
@@ -303,7 +303,7 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 		NewClosureRewriteModule(compiler, nil, compiler.GetTopScope()).Process(externs, js)
 	})
 	for _, mode := range ProcessDefines_Mode_values() {
-		d.pass(inputs, parseDiags, "processDefines_"+mode.String(), func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+		d.pass(inputs, parseDiags, "processDefines_"+mode.String(), func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 			NewProcessDefines_Builder(compiler).
 				PutReplacements(closureRewriteDefineReplacements()).
 				SetMode(mode).
@@ -316,17 +316,17 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 			*extra = append(*extra, "defineNames "+compiler.GetDefineNames().String())
 		})
 	}
-	d.pass(inputs, parseDiags, "closureCodeRemoval", func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+	d.pass(inputs, parseDiags, "closureCodeRemoval", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		NewClosureCodeRemoval(compiler, true, true).Process(externs, js)
 	})
 	for _, allowNonGlobalExports := range []bool{false, true} {
-		d.pass(inputs, parseDiags, "generateExports nonGlobal="+strconv.FormatBool(allowNonGlobalExports), func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+		d.pass(inputs, parseDiags, "generateExports nonGlobal="+strconv.FormatBool(allowNonGlobalExports), func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 			g := NewGenerateExports(compiler, allowNonGlobalExports, jutil.StringPtr("goog.exportSymbol"), jutil.StringPtr("goog.exportProperty"))
 			g.Process(externs, js)
 			*extra = append(*extra, "exported "+g.GetExportedVariableNames().String())
 		})
 	}
-	d.pass(inputs, parseDiags, "externExports", func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string) {
+	d.pass(inputs, parseDiags, "externExports", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		NewExternExportsPass(compiler).Process(externs, js)
 		result := compiler.GetResult().externExport
 		if result == nil {

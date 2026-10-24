@@ -190,7 +190,7 @@ func NewRescopeGlobalSymbolsRewriteCallback(
 	globalSymbolNamespace string,
 	assumeCrossChunkNames bool,
 	optimizeLocalAccess CompilerOptions_OptimizeLocalAccess,
-	externs *rhino.Node,
+	externs rhino.Node,
 	symbolInfo *RescopeGlobalSymbolsRewriteCallback_SymbolInformation) *RescopeGlobalSymbolsRewriteCallback {
 	c := &RescopeGlobalSymbolsRewriteCallback{
 		localAliasesForUnwrappedCrossChunkNames: jutil.NewLinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]](),
@@ -241,7 +241,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) CollectWrappedReassignableCrossChu
 }
 
 // Java: RescopeGlobalSymbolsRewriteCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *RescopeGlobalSymbolsRewriteCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *RescopeGlobalSymbolsRewriteCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if NodeUtil_IsNameDeclaration(n) {
 		c.VisitNameDeclaration(t, n)
 	}
@@ -249,16 +249,16 @@ func (c *RescopeGlobalSymbolsRewriteCallback) ShouldTraverse(t *NodeTraversal, n
 }
 
 // Java: RescopeGlobalSymbolsRewriteCallback.visit(NodeTraversal, Node, Node)
-func (c *RescopeGlobalSymbolsRewriteCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *RescopeGlobalSymbolsRewriteCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		c.VisitName(t, n, parent)
 	}
 }
 
 // Java: RescopeGlobalSymbolsRewriteCallback.visitNameDeclaration(NodeTraversal, Node)
-func (c *RescopeGlobalSymbolsRewriteCallback) VisitNameDeclaration(t *NodeTraversal, declaration *rhino.Node) {
-	var allLhsNodes []*rhino.Node
-	NodeUtil_VisitLhsNodesInNode(declaration, func(n *rhino.Node) { allLhsNodes = append(allLhsNodes, n) })
+func (c *RescopeGlobalSymbolsRewriteCallback) VisitNameDeclaration(t *NodeTraversal, declaration rhino.Node) {
+	var allLhsNodes []rhino.Node
+	NodeUtil_VisitLhsNodesInNode(declaration, func(n rhino.Node) { allLhsNodes = append(allLhsNodes, n) })
 	if len(allLhsNodes) == 0 {
 		return
 	}
@@ -290,7 +290,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) VisitNameDeclaration(t *NodeTraver
 //
 // Java: RescopeGlobalSymbolsRewriteCallback.rewriteNameDeclaration(NodeTraversal, Node, List<Node>, boolean)
 func (c *RescopeGlobalSymbolsRewriteCallback) RewriteNameDeclaration(
-	t *NodeTraversal, declaration *rhino.Node, allLhsNodes []*rhino.Node, isGlobalDeclaration bool) {
+	t *NodeTraversal, declaration rhino.Node, allLhsNodes []rhino.Node, isGlobalDeclaration bool) {
 	input := t.GetInput()
 
 	// Add pre-declarations for all LHS variables that are neither global/cross-chunk names nor
@@ -332,7 +332,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) RewriteNameDeclaration(
 	//    ASSIGN
 	//      NAME foo
 	//      NUMBER 3
-	for child := declaration.GetFirstChild(); child != nil; {
+	for child := declaration.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
 		if child.IsName() && child.HasChildren() {
 			assign := rhino.IR_Assign(child.CloneNode(), child.RemoveFirstChild())
@@ -377,8 +377,8 @@ func (c *RescopeGlobalSymbolsRewriteCallback) RewriteNameDeclaration(
 // variables in it.
 //
 // Java: RescopeGlobalSymbolsRewriteCallback.containsRescopedOrInitializedVars(Node, boolean)
-func (c *RescopeGlobalSymbolsRewriteCallback) ContainsRescopedOrInitializedVars(declaration *rhino.Node, isGlobalDeclaration bool) bool {
-	for child := declaration.GetFirstChild(); child != nil; child = child.GetNext() {
+func (c *RescopeGlobalSymbolsRewriteCallback) ContainsRescopedOrInitializedVars(declaration rhino.Node, isGlobalDeclaration bool) bool {
+	for child := declaration.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if isGlobalDeclaration &&
 			child.IsName() &&
 			(c.symbolInfo.CrossChunkNamesWithWriteFromOtherChunk().Contains(child.GetString()) ||
@@ -393,7 +393,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) ContainsRescopedOrInitializedVars(
 }
 
 // Java: RescopeGlobalSymbolsRewriteCallback.visitName(NodeTraversal, Node, Node)
-func (c *RescopeGlobalSymbolsRewriteCallback) VisitName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *RescopeGlobalSymbolsRewriteCallback) VisitName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	name := n.GetString()
 
 	// Ignore anonymous functions
@@ -481,7 +481,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) VisitName(t *NodeTraversal, n *rhi
 // ReplaceSymbol replaces a symbol with an access to the replacement.
 //
 // Java: RescopeGlobalSymbolsRewriteCallback.replaceSymbol(Node, String, Node)
-func (c *RescopeGlobalSymbolsRewriteCallback) ReplaceSymbol(node *rhino.Node, name string, replacement *rhino.Node) {
+func (c *RescopeGlobalSymbolsRewriteCallback) ReplaceSymbol(node rhino.Node, name string, replacement rhino.Node) {
 	parent := node.GetParent()
 	replacement.SrcrefTree(node)
 	node.ReplaceWith(replacement)
@@ -504,9 +504,9 @@ func (c *RescopeGlobalSymbolsRewriteCallback) ReplaceSymbol(node *rhino.Node, na
 // assignment statement after the current one (e.g. appends `_.a = a;`).
 //
 // Java: RescopeGlobalSymbolsRewriteCallback.addGlobalNamespaceAlias(Node, String)
-func (c *RescopeGlobalSymbolsRewriteCallback) AddGlobalNamespaceAlias(n *rhino.Node, name string) {
+func (c *RescopeGlobalSymbolsRewriteCallback) AddGlobalNamespaceAlias(n rhino.Node, name string) {
 	stmt := NodeUtil_GetEnclosingStatement(n)
-	if stmt == nil {
+	if stmt.IsNil() {
 		return
 	}
 	parent := n.GetParent()
@@ -691,9 +691,9 @@ func (c *RescopeGlobalSymbolsRewriteCallback) DeclareLocalAliasesAndWrappersForC
 }
 
 // Java: RescopeGlobalSymbolsRewriteCallback.addDeclaration(Node, Node, Node)
-func rescopeGlobalSymbolsRewriteCallback_addDeclaration(script *rhino.Node, insertionPoint *rhino.Node, decl *rhino.Node) {
+func rescopeGlobalSymbolsRewriteCallback_addDeclaration(script rhino.Node, insertionPoint rhino.Node, decl rhino.Node) {
 	decl.SrcrefTree(script)
-	if insertionPoint == nil {
+	if insertionPoint.IsNil() {
 		script.AddChildToBack(decl)
 	} else {
 		decl.InsertBefore(insertionPoint)
@@ -705,11 +705,11 @@ func rescopeGlobalSymbolsRewriteCallback_addDeclaration(script *rhino.Node, inse
 //
 // Java: private static class RescopeGlobalSymbolsRewriteCallback.ChunkGlobal
 type RescopeGlobalSymbolsRewriteCallback_ChunkGlobal struct {
-	root *rhino.Node
-	name *rhino.Node
+	root rhino.Node
+	name rhino.Node
 }
 
 // Java: RescopeGlobalSymbolsRewriteCallback.ChunkGlobal(Node, Node)
-func NewRescopeGlobalSymbolsRewriteCallback_ChunkGlobal(root *rhino.Node, name *rhino.Node) *RescopeGlobalSymbolsRewriteCallback_ChunkGlobal {
+func NewRescopeGlobalSymbolsRewriteCallback_ChunkGlobal(root rhino.Node, name rhino.Node) *RescopeGlobalSymbolsRewriteCallback_ChunkGlobal {
 	return &RescopeGlobalSymbolsRewriteCallback_ChunkGlobal{root: root, name: name}
 }

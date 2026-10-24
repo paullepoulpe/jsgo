@@ -41,7 +41,7 @@ type syntacticScopeCreatorTest_RecordingRedeclarationHandler struct {
 }
 
 func (h *syntacticScopeCreatorTest_RecordingRedeclarationHandler) OnRedeclaration(
-	s *Scope, name string, n *rhino.Node, input *CompilerInput) {
+	s *Scope, name string, n rhino.Node, input *CompilerInput) {
 	h.s.redeclarations[name]++
 }
 
@@ -51,7 +51,7 @@ func newSyntacticScopeCreatorTest_RecordingRedeclarationHandler(
 }
 
 // Java: SyntacticScopeCreatorTest.getRoot(String)
-func (s *syntacticScopeCreatorTest) getRoot(js string) *rhino.Node {
+func (s *syntacticScopeCreatorTest) getRoot(js string) rhino.Node {
 	s.t.Helper()
 	root := s.compiler.ParseTestCode(js)
 	if errors := s.compiler.GetErrors(); len(errors) != 0 {

@@ -471,7 +471,7 @@ func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *Refere
 // this class as a callback.
 //
 // Java: CrossChunkReferenceCollector.process(Node, Node)
-func (c *CrossChunkReferenceCollector) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CrossChunkReferenceCollector) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckStateMsg(len(c.topLevelStatements) == 0 && c.statementCounter == 0, "process() called more than once")
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
@@ -487,7 +487,7 @@ func (c *CrossChunkReferenceCollector) Process(externs *rhino.Node, root *rhino.
 // name because it implements CompilerPass.process(Node, Node).
 //
 // Java: CrossChunkReferenceCollector.process(Node)
-func (c *CrossChunkReferenceCollector) ProcessRoot(root *rhino.Node) {
+func (c *CrossChunkReferenceCollector) ProcessRoot(root rhino.Node) {
 	jutil.CheckStateMsg(len(c.topLevelStatements) == 0 && c.statementCounter == 0, "process() called more than once")
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
@@ -555,7 +555,7 @@ func (c *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() *jutil.Linked
 // appropriate.
 //
 // Java: CrossChunkReferenceCollector.visit(NodeTraversal, Node, Node)
-func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if c.topLevelStatementDraft != nil {
 		if n == c.topLevelStatementDraft.statementNode {
 			c.topLevelStatements = append(c.topLevelStatements, c.allocTopLevelStatement(c.topLevelStatementDraft))
@@ -629,8 +629,8 @@ func (c *CrossChunkReferenceCollector) ExitScope(t *NodeTraversal) {
 }
 
 // Java: CrossChunkReferenceCollector.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	if parent != nil && NodeUtil_IsTopLevel(parent) {
+func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if !parent.IsNil() && NodeUtil_IsTopLevel(parent) {
 		jutil.CheckStateMsg1(c.topLevelStatementDraft == nil, "%s", n)
 		c.topLevelStatementDraft = c.InitializeDraftStatement(t.GetChunk(), n)
 	}
@@ -642,7 +642,7 @@ func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n *rhino
 }
 
 // Java: CrossChunkReferenceCollector.initializeDraftStatement(JSChunk, Node)
-func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, statementNode *rhino.Node) *CrossChunkReferenceCollector_TopLevelStatementDraft {
+func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, statementNode rhino.Node) *CrossChunkReferenceCollector_TopLevelStatementDraft {
 	draft := &c.draftVal
 	refs := draft.nonDeclarationReferences[:0]
 	vars := draft.nonDeclarationVars[:0]
@@ -668,18 +668,18 @@ func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, 
 		draft.declaredNameNode = statementNode.GetFirstChild()
 		draft.declaredValueNode = statementNode
 	} else if statementNode.IsExprResult() {
-		expr := jutil.CheckNotNull(statementNode.GetFirstChild())
+		expr := rhino.CheckNotNull(statementNode.GetFirstChild())
 		if expr.IsAssign() {
-			lhs := jutil.CheckNotNull(expr.GetFirstChild())
-			rhs := jutil.CheckNotNull(expr.GetSecondChild())
+			lhs := rhino.CheckNotNull(expr.GetFirstChild())
+			rhs := rhino.CheckNotNull(expr.GetSecondChild())
 			if lhs.IsName() {
 				// `varName = value;`
 				draft.declaredNameNode = lhs
 				draft.declaredValueNode = rhs
 			} else if lhs.IsGetProp() || CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(lhs) {
-				nameNode := jutil.CheckNotNull(lhs.GetFirstChild())
+				nameNode := rhino.CheckNotNull(lhs.GetFirstChild())
 				for nameNode.IsGetProp() {
-					nameNode = jutil.CheckNotNull(nameNode.GetFirstChild())
+					nameNode = rhino.CheckNotNull(nameNode.GetFirstChild())
 				}
 				if nameNode.IsName() {
 					// `varName.some.property = value;`
@@ -690,14 +690,14 @@ func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, 
 				}
 			}
 		} else if expr.IsCall() {
-			var nameNode *rhino.Node
-			var valueNode *rhino.Node
+			var nameNode rhino.Node
+			var valueNode rhino.Node
 			relationship :=
 				c.compiler.GetCodingConvention().GetClassesDefinedByCall(expr)
 			if relationship != nil {
 				// Check for $jscomp.inherits(SubC, SuperC), goog.inherits(Sub, SuperC), etc.
 				declaredName := relationship.subclassName
-				for callArg := expr.GetSecondChild(); callArg != nil; callArg = callArg.GetNext() {
+				for callArg := expr.GetSecondChild(); !callArg.IsNil(); callArg = callArg.GetNext() {
 					// We're assuming that the child class must be an argument to the function that
 					// establishes its inheritance, which is true for `goog.inherits()` and
 					// `$jscomp.inherits()`
@@ -723,7 +723,7 @@ func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, 
 				valueNode = targetObject.GetNext()
 			}
 
-			if nameNode != nil {
+			if !nameNode.IsNil() {
 				draft.declaredNameNode = nameNode
 				draft.declaredValueNode = valueNode
 			}
@@ -733,7 +733,7 @@ func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, 
 }
 
 // Java: CrossChunkReferenceCollector.isPotentiallyMoveableGetElem(Node)
-func CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(maybeGetElem *rhino.Node) bool {
+func CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(maybeGetElem rhino.Node) bool {
 	if !maybeGetElem.IsGetElem() {
 		return false
 	}
@@ -800,8 +800,8 @@ var crossChunkParentBoundaryKind = [256]uint8{
 // marks the start of a new basic block.
 //
 // Java: CrossChunkReferenceCollector.isBlockBoundary(Node, Node)
-func CrossChunkReferenceCollector_IsBlockBoundary(n *rhino.Node, parent *rhino.Node) bool {
-	if parent != nil {
+func CrossChunkReferenceCollector_IsBlockBoundary(n rhino.Node, parent rhino.Node) bool {
+	if !parent.IsNil() {
 		switch crossChunkParentBoundaryKind[uint8(parent.GetToken())] {
 		case 1:
 			return true
@@ -841,7 +841,7 @@ func (c *CrossChunkReferenceCollector) GetTopLevelStatements() []*CrossChunkRefe
 // across chunks.
 //
 // Java: CrossChunkReferenceCollector.canMoveValue(Scope, Node)
-func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode *rhino.Node) bool {
+func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode rhino.Node) bool {
 	// the value is only movable if it's
 	// - nothing,
 	// - a constant literal,
@@ -850,7 +850,7 @@ func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode *rhi
 	// - an array/object literal of movable values
 	// - a template literal with movable substitutions
 	// - a function stub generated by CrossChunkMethodMotion.
-	if valueNode == nil || NodeUtil_IsLiteralValue(valueNode, true) || valueNode.IsFunction() {
+	if valueNode.IsNil() || NodeUtil_IsLiteralValue(valueNode, true) || valueNode.IsFunction() {
 		return true
 	}
 
@@ -866,7 +866,7 @@ func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode *rhi
 		{
 			// NOTE: Why aren't class extends expressions checked here?
 			classMembers := valueNode.GetLastChild()
-			for member := classMembers.GetFirstChild(); member != nil; member = member.GetNext() {
+			for member := classMembers.GetFirstChild(); !member.IsNil(); member = member.GetNext() {
 				if member.IsComputedProp() {
 					keyExpr := member.GetFirstChild()
 					method := member.GetLastChild()
@@ -899,13 +899,13 @@ func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode *rhi
 			// In general it is not safe to move function calls, but we carve out an exception
 			// for the special stub method calls used for CrossChunkMethodMotion.
 			// Case: `JSCompiler_stubMethod(x)`
-			functionName := jutil.CheckNotNull(valueNode.GetFirstChild())
+			functionName := rhino.CheckNotNull(valueNode.GetFirstChild())
 			return functionName.IsName() &&
 				functionName.GetString() == CrossChunkMethodMotion_STUB_METHOD_NAME
 		}
 	case rhino.Token_ARRAYLIT:
 		// Movable if all of the array values are movable.
-		for child := valueNode.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := valueNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if !c.CanMoveValue(scope, child) {
 				return false
 			}
@@ -914,7 +914,7 @@ func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode *rhi
 		return true
 	case rhino.Token_OBJECTLIT:
 		// Movable if all of the keys and values are movable.
-		for child := valueNode.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := valueNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			switch child.GetToken() {
 			case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
 
@@ -952,7 +952,7 @@ func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode *rhi
 		}
 	case rhino.Token_TEMPLATELIT:
 		// A template literal is movable if all of the substitutions it contains are movable.
-		for child := valueNode.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := valueNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if child.IsTemplateLitSub() {
 				if !c.CanMoveValue(scope, child.GetFirstChild()) {
 					return false
@@ -967,7 +967,7 @@ func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode *rhi
 			// `Symbol` is a built-in JavaScript object that is guaranteed to be unique. Therefore it
 			// is movable. Any properties on `Symbol` are also movable (e.g `Symbol.iterator`).
 			child := valueNode.GetFirstChild()
-			if child != nil && child.IsName() {
+			if !child.IsNil() && child.IsName() {
 				symbol := child.GetString()
 				if symbol == "Symbol" {
 					return true
@@ -990,12 +990,12 @@ type CrossChunkReferenceCollector_TopLevelStatement struct {
 	originalOrder int
 
 	chunk                    *JSChunk
-	statementNode            *rhino.Node
+	statementNode            rhino.Node
 	nonDeclarationReferences []*Reference
 	nonDeclarationVars       []*Var
 	declaredNameReference    *Reference
 	declaredVar              *Var
-	declaredValueNode        *rhino.Node
+	declaredValueNode        rhino.Node
 }
 
 // Java: CrossChunkReferenceCollector.TopLevelStatement(TopLevelStatementDraft)
@@ -1024,7 +1024,7 @@ func (s *CrossChunkReferenceCollector_TopLevelStatement) GetChunk() *JSChunk {
 }
 
 // Java: CrossChunkReferenceCollector.TopLevelStatement.getStatementNode()
-func (s *CrossChunkReferenceCollector_TopLevelStatement) GetStatementNode() *rhino.Node {
+func (s *CrossChunkReferenceCollector_TopLevelStatement) GetStatementNode() rhino.Node {
 	return s.statementNode
 }
 
@@ -1044,7 +1044,7 @@ func (s *CrossChunkReferenceCollector_TopLevelStatement) GetDeclaredNameReferenc
 }
 
 // Java: CrossChunkReferenceCollector.TopLevelStatement.getDeclaredValueNode()
-func (s *CrossChunkReferenceCollector_TopLevelStatement) GetDeclaredValueNode() *rhino.Node {
+func (s *CrossChunkReferenceCollector_TopLevelStatement) GetDeclaredValueNode() rhino.Node {
 	return s.declaredValueNode
 }
 
@@ -1061,17 +1061,17 @@ type CrossChunkReferenceCollector_TopLevelStatementDraft struct {
 	originalOrder int
 
 	chunk                    *JSChunk
-	statementNode            *rhino.Node
+	statementNode            rhino.Node
 	nonDeclarationReferences []*Reference
 	nonDeclarationVars       []*Var
-	declaredValueNode        *rhino.Node
-	declaredNameNode         *rhino.Node
+	declaredValueNode        rhino.Node
+	declaredNameNode         rhino.Node
 	declaredNameReference    *Reference
 	declaredVar              *Var
 }
 
 // Java: CrossChunkReferenceCollector.TopLevelStatementDraft(int, JSChunk, Node)
-func NewCrossChunkReferenceCollector_TopLevelStatementDraft(originalOrder int, chunk *JSChunk, statementNode *rhino.Node) *CrossChunkReferenceCollector_TopLevelStatementDraft {
+func NewCrossChunkReferenceCollector_TopLevelStatementDraft(originalOrder int, chunk *JSChunk, statementNode rhino.Node) *CrossChunkReferenceCollector_TopLevelStatementDraft {
 	return &CrossChunkReferenceCollector_TopLevelStatementDraft{
 		originalOrder:            originalOrder,
 		chunk:                    chunk,

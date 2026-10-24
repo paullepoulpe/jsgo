@@ -29,7 +29,7 @@ import (
 type PolymerClassDefinitionTest struct {
 	CompilerTypeTestCaseBase
 
-	polymerCall *rhino.Node
+	polymerCall rhino.Node
 }
 
 // Java: PolymerClassDefinitionTest()
@@ -46,7 +46,7 @@ func TestPolymerClassDefinitionTest(t *testing.T) {
 // Java: PolymerClassDefinitionTest.setUp()
 func (c *PolymerClassDefinitionTest) SetUp() {
 	c.CompilerTypeTestCaseBase.SetUp()
-	c.polymerCall = nil
+	c.polymerCall = rhino.Node{}
 }
 
 // TODO(jlklein): Add more complex test cases and verify behaviors and descriptors.
@@ -217,7 +217,7 @@ func (c *PolymerClassDefinitionTest) parseAndExtractClassDefFromCall(code string
 
 	NodeUtil_VisitPostOrder(
 		rootNode,
-		NodeUtil_VisitorFunc(func(node *rhino.Node) {
+		NodeUtil_VisitorFunc(func(node rhino.Node) {
 			if PolymerPassStaticUtils_IsPolymerCall(node) {
 				c.polymerCall = node
 			}
@@ -241,7 +241,7 @@ func (c *PolymerClassDefinitionTest) parseAndExtractClassDefFromClass(code strin
 
 	NodeUtil_VisitPostOrder(
 		rootNode,
-		NodeUtil_VisitorFunc(func(node *rhino.Node) {
+		NodeUtil_VisitorFunc(func(node rhino.Node) {
 			if PolymerPassStaticUtils_IsPolymerClass(node) {
 				c.polymerCall = node
 			}

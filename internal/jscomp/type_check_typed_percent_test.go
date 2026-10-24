@@ -125,8 +125,8 @@ func (c *TypeCheckTypedPercentTest) GetTypedPercent(js string) float64 {
 func (c *TypeCheckTypedPercentTest) GetTypedPercentWithExterns(externs string, js string) float64 {
 	var compiler *Compiler = NewCompiler()
 	var registry *rhino.JSTypeRegistry = compiler.GetTypeRegistry()
-	var jsRoot *rhino.Node = rhino.IR_Root(compiler.ParseTestCode(js))
-	var externsRoot *rhino.Node = rhino.IR_Root(compiler.ParseTestCode(externs))
+	var jsRoot rhino.Node = rhino.IR_Root(compiler.ParseTestCode(js))
+	var externsRoot rhino.Node = rhino.IR_Root(compiler.ParseTestCode(externs))
 	rhino.IR_Root(externsRoot, jsRoot)
 	var t *TypeCheck = NewTypeCheck(compiler, NewSemanticReverseAbstractInterpreter(registry), registry)
 	t.ProcessForTesting(externsRoot, jsRoot)

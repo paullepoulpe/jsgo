@@ -96,17 +96,17 @@ func NewTypeTransformation(compiler AbstractCompiler, typeEnv rhino.StaticTypedS
 }
 
 // Java: TypeTransformation.isTypeVar(Node)
-func (t *TypeTransformation) isTypeVar(n *rhino.Node) bool {
+func (t *TypeTransformation) isTypeVar(n rhino.Node) bool {
 	return n.IsName()
 }
 
 // Java: TypeTransformation.isTypeName(Node)
-func (t *TypeTransformation) isTypeName(n *rhino.Node) bool {
+func (t *TypeTransformation) isTypeName(n rhino.Node) bool {
 	return n.IsStringLit()
 }
 
 // Java: TypeTransformation.isBooleanOperation(Node)
-func (t *TypeTransformation) isBooleanOperation(n *rhino.Node) bool {
+func (t *TypeTransformation) isBooleanOperation(n rhino.Node) bool {
 	return n.IsAnd() || n.IsOr() || n.IsNot()
 }
 
@@ -177,7 +177,7 @@ func (t *TypeTransformation) createRecordType(props *jutil.LinkedHashMap[string,
 }
 
 // Java: TypeTransformation.reportWarning(Node, DiagnosticType, String...)
-func (t *TypeTransformation) reportWarning(n *rhino.Node, msg *DiagnosticType, param ...string) {
+func (t *TypeTransformation) reportWarning(n rhino.Node, msg *DiagnosticType, param ...string) {
 	t.compiler.Report(JSError_MakeWithNode(n, msg, param...))
 }
 
@@ -192,25 +192,25 @@ func typeTransformation_addNewEntry[T any](
 }
 
 // Java: TypeTransformation.getFunctionParameter(Node, int)
-func (t *TypeTransformation) getFunctionParameter(n *rhino.Node, i int) string {
+func (t *TypeTransformation) getFunctionParameter(n rhino.Node, i int) string {
 	jutil.CheckArgumentMsg1(n.IsFunction(), "Expected a function node, found %s", n)
 	return n.GetSecondChild().GetChildAtIndex(i).GetString()
 }
 
 // Java: TypeTransformation.getCallName(Node)
-func (t *TypeTransformation) getCallName(n *rhino.Node) string {
+func (t *TypeTransformation) getCallName(n rhino.Node) string {
 	jutil.CheckArgumentMsg1(n.IsCall(), "Expected a call node, found %s", n)
 	return n.GetFirstChild().GetString()
 }
 
 // Java: TypeTransformation.getCallArgument(Node, int)
-func (t *TypeTransformation) getCallArgument(n *rhino.Node, i int) *rhino.Node {
+func (t *TypeTransformation) getCallArgument(n rhino.Node, i int) rhino.Node {
 	jutil.CheckArgumentMsg1(n.IsCall(), "Expected a call node, found %s", n)
 	return n.GetChildAtIndex(i + 1)
 }
 
 // Java: TypeTransformation.getCallParamCount(Node)
-func (t *TypeTransformation) getCallParamCount(n *rhino.Node) int {
+func (t *TypeTransformation) getCallParamCount(n rhino.Node) int {
 	jutil.CheckArgumentMsg1(n.IsCall(), "Expected a call node, found %s", n)
 	return n.GetChildCount() - 1
 }
@@ -219,9 +219,9 @@ func (t *TypeTransformation) getCallParamCount(n *rhino.Node) int {
 // siblings() and delete it. Copying is unnecessarily inefficient.
 //
 // Java: TypeTransformation.getCallParams(Node)
-func (t *TypeTransformation) getCallParams(n *rhino.Node) []*rhino.Node {
+func (t *TypeTransformation) getCallParams(n rhino.Node) []rhino.Node {
 	jutil.CheckArgumentMsg1(n.IsCall(), "Expected a call node, found %s", n)
-	var builder []*rhino.Node
+	var builder []rhino.Node
 	for i := 0; i < t.getCallParamCount(n); i++ {
 		builder = append(builder, t.getCallArgument(n, i))
 	}
@@ -229,14 +229,14 @@ func (t *TypeTransformation) getCallParams(n *rhino.Node) []*rhino.Node {
 }
 
 // Java: TypeTransformation.getComputedPropValue(Node)
-func (t *TypeTransformation) getComputedPropValue(n *rhino.Node) *rhino.Node {
+func (t *TypeTransformation) getComputedPropValue(n rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(
 		n.IsComputedProp(), "Expected a computed property node, found %s", n)
 	return n.GetSecondChild()
 }
 
 // Java: TypeTransformation.getComputedPropName(Node)
-func (t *TypeTransformation) getComputedPropName(n *rhino.Node) string {
+func (t *TypeTransformation) getComputedPropName(n rhino.Node) string {
 	jutil.CheckArgumentMsg1(
 		n.IsComputedProp(), "Expected a computed property node, found %s", n)
 	return n.GetFirstChild().GetString()
@@ -250,7 +250,7 @@ func (t *TypeTransformation) getComputedPropName(n *rhino.Node) string {
 // variables. Returns the resulting type after the transformation
 //
 // Java: TypeTransformation.eval(Node, ImmutableMap<String, JSType>)
-func (t *TypeTransformation) Eval(ttlAst *rhino.Node, typeVars *jutil.LinkedHashMap[string, rhino.JSType]) rhino.JSType {
+func (t *TypeTransformation) Eval(ttlAst rhino.Node, typeVars *jutil.LinkedHashMap[string, rhino.JSType]) rhino.JSType {
 	return t.EvalWithNameVars(ttlAst, typeVars, jutil.NewLinkedHashMap[string, string]())
 }
 
@@ -264,7 +264,7 @@ func (t *TypeTransformation) Eval(ttlAst *rhino.Node, typeVars *jutil.LinkedHash
 //
 // Java: TypeTransformation.eval(Node, ImmutableMap<String, JSType>, ImmutableMap<String, String>)
 func (t *TypeTransformation) EvalWithNameVars(
-	ttlAst *rhino.Node, typeVars *jutil.LinkedHashMap[string, rhino.JSType], nameVars *jutil.LinkedHashMap[string, string]) rhino.JSType {
+	ttlAst rhino.Node, typeVars *jutil.LinkedHashMap[string, rhino.JSType], nameVars *jutil.LinkedHashMap[string, string]) rhino.JSType {
 	result := t.evalInternal(ttlAst, newTypeTransformation_NameResolver(typeVars, nameVars))
 	if result.IsEmptyType() {
 		return t.getUnknownType()
@@ -273,7 +273,7 @@ func (t *TypeTransformation) EvalWithNameVars(
 }
 
 // Java: TypeTransformation.evalInternal(Node, NameResolver)
-func (t *TypeTransformation) evalInternal(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalInternal(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	if t.isTypeName(ttlAst) {
 		return t.evalTypeName(ttlAst)
 	}
@@ -293,11 +293,11 @@ func (t *TypeTransformation) evalInternal(ttlAst *rhino.Node, nameResolver *type
 }
 
 // Java: TypeTransformation.evalOperationExpression(Node, NameResolver)
-func (t *TypeTransformation) evalOperationExpression(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalOperationExpression(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	return t.evalOperationExpressionWithKeyword(ttlAst, t.nameToKeyword(t.getCallName(ttlAst)), nameResolver)
 }
 
-func (t *TypeTransformation) evalOperationExpressionWithKeyword(ttlAst *rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalOperationExpressionWithKeyword(ttlAst rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	switch keyword {
 	case parsing.TypeTransformationParser_Keywords_COND:
 		return t.evalConditional(ttlAst, nameResolver)
@@ -319,11 +319,11 @@ func (t *TypeTransformation) evalOperationExpressionWithKeyword(ttlAst *rhino.No
 }
 
 // Java: TypeTransformation.evalTypeExpression(Node, NameResolver)
-func (t *TypeTransformation) evalTypeExpression(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalTypeExpression(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	return t.evalTypeExpressionWithKeyword(ttlAst, t.nameToKeyword(t.getCallName(ttlAst)), nameResolver)
 }
 
-func (t *TypeTransformation) evalTypeExpressionWithKeyword(ttlAst *rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalTypeExpressionWithKeyword(ttlAst rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	switch keyword {
 	case parsing.TypeTransformationParser_Keywords_TYPE:
 		return t.evalTemplatizedType(ttlAst, nameResolver)
@@ -349,7 +349,7 @@ func (t *TypeTransformation) evalTypeExpressionWithKeyword(ttlAst *rhino.Node, k
 }
 
 // Java: TypeTransformation.evalTypeName(Node)
-func (t *TypeTransformation) evalTypeName(ttlAst *rhino.Node) rhino.JSType {
+func (t *TypeTransformation) evalTypeName(ttlAst rhino.Node) rhino.JSType {
 	typeName := ttlAst.GetString()
 	resultingType := t.getType(typeName)
 	// If the type name is not defined then return UNKNOWN and report a warning
@@ -361,7 +361,7 @@ func (t *TypeTransformation) evalTypeName(ttlAst *rhino.Node) rhino.JSType {
 }
 
 // Java: TypeTransformation.evalTemplatizedType(Node, NameResolver)
-func (t *TypeTransformation) evalTemplatizedType(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalTemplatizedType(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	firstArgNode := ttlAst.GetFirstChild().GetNext()
 	firstParam := t.evalInternal(firstArgNode, nameResolver)
@@ -374,12 +374,12 @@ func (t *TypeTransformation) evalTemplatizedType(ttlAst *rhino.Node, nameResolve
 	// a templatized type. For instance, if the base type is Array then there
 	// must be just one parameter.
 	restCount := 0
-	for arg := firstArgNode.GetNext(); arg != nil; arg = arg.GetNext() {
+	for arg := firstArgNode.GetNext(); !arg.IsNil(); arg = arg.GetNext() {
 		restCount++
 	}
 	templatizedTypes := make([]rhino.JSType, restCount)
 	i := 0
-	for arg := firstArgNode.GetNext(); arg != nil; arg = arg.GetNext() {
+	for arg := firstArgNode.GetNext(); !arg.IsNil(); arg = arg.GetNext() {
 		templatizedTypes[i] = t.evalInternal(arg, nameResolver)
 		i++
 	}
@@ -388,7 +388,7 @@ func (t *TypeTransformation) evalTemplatizedType(ttlAst *rhino.Node, nameResolve
 }
 
 // Java: TypeTransformation.evalTypeVar(Node, NameResolver)
-func (t *TypeTransformation) evalTypeVar(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalTypeVar(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	typeVar := ttlAst.GetString()
 	resultingType := nameResolver.typeVars.Get(typeVar)
 	// If the type variable is not defined then return UNKNOWN and report a warning
@@ -400,17 +400,17 @@ func (t *TypeTransformation) evalTypeVar(ttlAst *rhino.Node, nameResolver *typeT
 }
 
 // Java: TypeTransformation.evalUnionType(Node, NameResolver)
-func (t *TypeTransformation) evalUnionType(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalUnionType(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	firstArg := ttlAst.GetFirstChild().GetNext()
 	paramCount := 0
-	for arg := firstArg; arg != nil; arg = arg.GetNext() {
+	for arg := firstArg; !arg.IsNil(); arg = arg.GetNext() {
 		paramCount++
 	}
 	// Create an array of types after evaluating each parameter
 	basicTypes := make([]rhino.JSType, paramCount)
 	i := 0
-	for arg := firstArg; arg != nil; arg = arg.GetNext() {
+	for arg := firstArg; !arg.IsNil(); arg = arg.GetNext() {
 		basicTypes[i] = t.evalInternal(arg, nameResolver)
 		i++
 	}
@@ -418,16 +418,16 @@ func (t *TypeTransformation) evalUnionType(ttlAst *rhino.Node, nameResolver *typ
 }
 
 // Java: TypeTransformation.evalTypeParams(Node, NameResolver)
-func (t *TypeTransformation) evalTypeParams(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) []rhino.JSType {
+func (t *TypeTransformation) evalTypeParams(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) []rhino.JSType {
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	firstArg := ttlAst.GetFirstChild().GetNext()
 	paramCount := 0
-	for arg := firstArg; arg != nil; arg = arg.GetNext() {
+	for arg := firstArg; !arg.IsNil(); arg = arg.GetNext() {
 		paramCount++
 	}
 	result := make([]rhino.JSType, paramCount)
 	i := 0
-	for arg := firstArg; arg != nil; arg = arg.GetNext() {
+	for arg := firstArg; !arg.IsNil(); arg = arg.GetNext() {
 		result[i] = t.evalInternal(arg, nameResolver)
 		i++
 	}
@@ -435,7 +435,7 @@ func (t *TypeTransformation) evalTypeParams(ttlAst *rhino.Node, nameResolver *ty
 }
 
 // Java: TypeTransformation.evalString(Node, NameResolver)
-func (t *TypeTransformation) evalString(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) string {
+func (t *TypeTransformation) evalString(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) string {
 	if ttlAst.IsName() {
 		// Return the empty string if the name variable cannot be resolved
 		if !nameResolver.nameVars.ContainsKey(ttlAst.GetString()) {
@@ -448,7 +448,7 @@ func (t *TypeTransformation) evalString(ttlAst *rhino.Node, nameResolver *typeTr
 }
 
 // Java: TypeTransformation.evalStringParams(Node, NameResolver)
-func (t *TypeTransformation) evalStringParams(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) []string {
+func (t *TypeTransformation) evalStringParams(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) []string {
 	params := t.getCallParams(ttlAst)
 	paramCount := len(params)
 	result := make([]string, paramCount)
@@ -459,18 +459,18 @@ func (t *TypeTransformation) evalStringParams(ttlAst *rhino.Node, nameResolver *
 }
 
 // Java: TypeTransformation.evalTypePredicate(Node, NameResolver)
-func (t *TypeTransformation) evalTypePredicate(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) bool {
+func (t *TypeTransformation) evalTypePredicate(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) bool {
 	return t.evalTypePredicateWithKeyword(ttlAst, t.nameToKeyword(t.getCallName(ttlAst)), nameResolver)
 }
 
-func (t *TypeTransformation) evalTypePredicateWithKeyword(ttlAst *rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) bool {
+func (t *TypeTransformation) evalTypePredicateWithKeyword(ttlAst rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) bool {
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	arg0 := ttlAst.GetFirstChild().GetNext()
 	type_ := t.evalInternal(arg0, nameResolver)
 	var type1 rhino.JSType
-	if arg1 := arg0.GetNext(); arg1 != nil {
+	if arg1 := arg0.GetNext(); !arg1.IsNil() {
 		type1 = t.evalInternal(arg1, nameResolver)
-		for extra := arg1.GetNext(); extra != nil; extra = extra.GetNext() {
+		for extra := arg1.GetNext(); !extra.IsNil(); extra = extra.GetNext() {
 			t.evalInternal(extra, nameResolver)
 		}
 	}
@@ -493,19 +493,19 @@ func (t *TypeTransformation) evalTypePredicateWithKeyword(ttlAst *rhino.Node, ke
 }
 
 // Java: TypeTransformation.evalStringPredicate(Node, NameResolver)
-func (t *TypeTransformation) evalStringPredicate(ttlAst *rhino.Node,
+func (t *TypeTransformation) evalStringPredicate(ttlAst rhino.Node,
 	nameResolver *typeTransformation_NameResolver) bool {
 	return t.evalStringPredicateWithKeyword(ttlAst, t.nameToKeyword(t.getCallName(ttlAst)), nameResolver)
 }
 
-func (t *TypeTransformation) evalStringPredicateWithKeyword(ttlAst *rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) bool {
+func (t *TypeTransformation) evalStringPredicateWithKeyword(ttlAst rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) bool {
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	arg0 := ttlAst.GetFirstChild().GetNext()
 	arg1 := arg0.GetNext()
 	s0 := t.evalString(arg0, nameResolver)
 	s1 := t.evalString(arg1, nameResolver)
 	hasEmpty := s0 == "" || s1 == ""
-	for extra := arg1.GetNext(); extra != nil; extra = extra.GetNext() {
+	for extra := arg1.GetNext(); !extra.IsNil(); extra = extra.GetNext() {
 		if t.evalString(extra, nameResolver) == "" {
 			hasEmpty = true
 		}
@@ -522,11 +522,11 @@ func (t *TypeTransformation) evalStringPredicateWithKeyword(ttlAst *rhino.Node, 
 }
 
 // Java: TypeTransformation.evalTypevarPredicate(Node, NameResolver)
-func (t *TypeTransformation) evalTypevarPredicate(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) bool {
+func (t *TypeTransformation) evalTypevarPredicate(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) bool {
 	return t.evalTypevarPredicateWithKeyword(ttlAst, t.nameToKeyword(t.getCallName(ttlAst)), nameResolver)
 }
 
-func (t *TypeTransformation) evalTypevarPredicateWithKeyword(ttlAst *rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) bool {
+func (t *TypeTransformation) evalTypevarPredicateWithKeyword(ttlAst rhino.Node, keyword parsing.TypeTransformationParser_Keywords, nameResolver *typeTransformation_NameResolver) bool {
 	switch keyword {
 	case parsing.TypeTransformationParser_Keywords_ISDEFINED:
 		return nameResolver.typeVars.ContainsKey(t.getCallArgument(ttlAst, 0).GetString())
@@ -536,7 +536,7 @@ func (t *TypeTransformation) evalTypevarPredicateWithKeyword(ttlAst *rhino.Node,
 }
 
 // Java: TypeTransformation.evalBooleanOperation(Node, NameResolver)
-func (t *TypeTransformation) evalBooleanOperation(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) bool {
+func (t *TypeTransformation) evalBooleanOperation(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) bool {
 	param0 := t.evalBoolean(ttlAst.GetFirstChild(), nameResolver)
 	if ttlAst.IsNot() {
 		return !param0
@@ -552,7 +552,7 @@ func (t *TypeTransformation) evalBooleanOperation(ttlAst *rhino.Node, nameResolv
 }
 
 // Java: TypeTransformation.evalBoolean(Node, NameResolver)
-func (t *TypeTransformation) evalBoolean(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) bool {
+func (t *TypeTransformation) evalBoolean(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) bool {
 	if t.isBooleanOperation(ttlAst) {
 		return t.evalBooleanOperation(ttlAst, nameResolver)
 	}
@@ -571,7 +571,7 @@ func (t *TypeTransformation) evalBoolean(ttlAst *rhino.Node, nameResolver *typeT
 }
 
 // Java: TypeTransformation.evalConditional(Node, NameResolver)
-func (t *TypeTransformation) evalConditional(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalConditional(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	p0 := ttlAst.GetFirstChild().GetNext()
 	p1 := p0.GetNext()
@@ -584,7 +584,7 @@ func (t *TypeTransformation) evalConditional(ttlAst *rhino.Node, nameResolver *t
 }
 
 // Java: TypeTransformation.evalMapunion(Node, NameResolver)
-func (t *TypeTransformation) evalMapunion(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalMapunion(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	unionParam := ttlAst.GetFirstChild().GetNext()
 	mapFunction := unionParam.GetNext()
@@ -626,7 +626,7 @@ func (t *TypeTransformation) evalMapunion(ttlAst *rhino.Node, nameResolver *type
 }
 
 // Java: TypeTransformation.evalRawTypeOf(Node, NameResolver)
-func (t *TypeTransformation) evalRawTypeOf(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalRawTypeOf(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	type_ := t.evalInternal(ttlAst.GetFirstChild().GetNext(), nameResolver)
 	if !type_.IsTemplatizedType() {
@@ -637,7 +637,7 @@ func (t *TypeTransformation) evalRawTypeOf(ttlAst *rhino.Node, nameResolver *typ
 }
 
 // Java: TypeTransformation.evalTemplateTypeOf(Node, NameResolver)
-func (t *TypeTransformation) evalTemplateTypeOf(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalTemplateTypeOf(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	p0 := ttlAst.GetFirstChild().GetNext()
 	p1 := p0.GetNext()
@@ -657,9 +657,9 @@ func (t *TypeTransformation) evalTemplateTypeOf(ttlAst *rhino.Node, nameResolver
 }
 
 // Java: TypeTransformation.evalRecord(Node, NameResolver)
-func (t *TypeTransformation) evalRecord(record *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalRecord(record rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	props := jutil.NewLinkedHashMap[string, rhino.JSType]()
-	for propNode := record.GetFirstChild(); propNode != nil; propNode = propNode.GetNext() {
+	for propNode := record.GetFirstChild(); !propNode.IsNil(); propNode = propNode.GetNext() {
 		// If it is a computed property then find the property name using the resolver
 		if propNode.IsComputedProp() {
 			compPropName := t.getComputedPropName(propNode)
@@ -684,7 +684,7 @@ func (t *TypeTransformation) evalRecord(record *rhino.Node, nameResolver *typeTr
 }
 
 // Java: TypeTransformation.evalRecordParam(Node, NameResolver)
-func (t *TypeTransformation) evalRecordParam(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalRecordParam(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	if ttlAst.IsObjectLit() {
 		return t.evalRecord(ttlAst, nameResolver)
 	}
@@ -693,7 +693,7 @@ func (t *TypeTransformation) evalRecordParam(ttlAst *rhino.Node, nameResolver *t
 }
 
 // Java: TypeTransformation.evalRecordType(Node, NameResolver)
-func (t *TypeTransformation) evalRecordType(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalRecordType(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	paramCount := t.getCallParamCount(ttlAst)
 	var recTypesBuilder []rhino.ObjectType
 	for i := 0; i < paramCount; i++ {
@@ -770,7 +770,7 @@ func (t *TypeTransformation) joinRecordTypes(recTypes []rhino.ObjectType) rhino.
 }
 
 // Java: TypeTransformation.evalMaprecord(Node, NameResolver)
-func (t *TypeTransformation) evalMaprecord(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalMaprecord(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	recordNode := ttlAst.GetSecondChild()
 	mapFunction := ttlAst.GetChildAtIndex(2)
 	type_ := t.evalInternal(recordNode, nameResolver)
@@ -845,7 +845,7 @@ func (t *TypeTransformation) evalMaprecord(ttlAst *rhino.Node, nameResolver *typ
 }
 
 // Java: TypeTransformation.evalTypeOfVar(Node)
-func (t *TypeTransformation) evalTypeOfVar(ttlAst *rhino.Node) rhino.JSType {
+func (t *TypeTransformation) evalTypeOfVar(ttlAst rhino.Node) rhino.JSType {
 	name := t.getCallArgument(ttlAst, 0).GetString()
 	slot, _ := t.typeEnv.GetSlot(name).(rhino.StaticTypedSlot)
 	var type_ rhino.JSType
@@ -860,7 +860,7 @@ func (t *TypeTransformation) evalTypeOfVar(ttlAst *rhino.Node) rhino.JSType {
 }
 
 // Java: TypeTransformation.evalInstanceOf(Node, NameResolver)
-func (t *TypeTransformation) evalInstanceOf(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalInstanceOf(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	type_ := t.evalInternal(t.getCallArgument(ttlAst, 0), nameResolver)
 	if type_.IsUnknownType() || !type_.IsConstructor() {
 		t.reportWarning(ttlAst, TypeTransformation_INVALID_CTOR, jutil.ToJavaString(type_.GetDisplayName()))
@@ -870,13 +870,13 @@ func (t *TypeTransformation) evalInstanceOf(ttlAst *rhino.Node, nameResolver *ty
 }
 
 // Java: TypeTransformation.evalNativeTypeExpr(Node)
-func (t *TypeTransformation) evalNativeTypeExpr(ttlAst *rhino.Node) rhino.JSType {
+func (t *TypeTransformation) evalNativeTypeExpr(ttlAst rhino.Node) rhino.JSType {
 	expr := rhino.NewJSTypeExpression(t.getCallArgument(ttlAst, 0), typeTransformation_VIRTUAL_FILE)
 	return t.registry.EvaluateTypeExpression(expr, t.typeEnv)
 }
 
 // Java: TypeTransformation.evalPrintType(Node, NameResolver)
-func (t *TypeTransformation) evalPrintType(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalPrintType(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	type_ := t.evalInternal(t.getCallArgument(ttlAst, 1), nameResolver)
 	msg := t.getCallArgument(ttlAst, 0).GetString() + type_.String()
 	jutil.System_Out().Println(msg)
@@ -884,7 +884,7 @@ func (t *TypeTransformation) evalPrintType(ttlAst *rhino.Node, nameResolver *typ
 }
 
 // Java: TypeTransformation.evalPropType(Node, NameResolver)
-func (t *TypeTransformation) evalPropType(ttlAst *rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
+func (t *TypeTransformation) evalPropType(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	type_ := t.evalInternal(t.getCallArgument(ttlAst, 1), nameResolver)
 	objType := type_.ToMaybeObjectType()
 	if objType == nil {

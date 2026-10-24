@@ -46,11 +46,11 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // GetTypedSymbol returns the T.
 type SimpleReference[T StaticTypedSlot] struct {
 	symbol T
-	node   *Node
+	node   Node
 }
 
 // Java: SimpleReference(T, Node)
-func NewSimpleReference[T StaticTypedSlot](symbol T, node *Node) *SimpleReference[T] {
+func NewSimpleReference[T StaticTypedSlot](symbol T, node Node) *SimpleReference[T] {
 	r := &SimpleReference[T]{}
 	r.InitSimpleReference(symbol, node)
 	return r
@@ -59,7 +59,7 @@ func NewSimpleReference[T StaticTypedSlot](symbol T, node *Node) *SimpleReferenc
 // InitSimpleReference is the Go form of the constructor for subclasses.
 //
 // Java: SimpleReference(T, Node)
-func (r *SimpleReference[T]) InitSimpleReference(symbol T, node *Node) {
+func (r *SimpleReference[T]) InitSimpleReference(symbol T, node Node) {
 	r.symbol = symbol
 	r.node = node
 }
@@ -80,7 +80,7 @@ func (r *SimpleReference[T]) GetTypedSymbol() T {
 }
 
 // Java: SimpleReference.getNode()
-func (r *SimpleReference[T]) GetNode() *Node {
+func (r *SimpleReference[T]) GetNode() Node {
 	return r.node
 }
 
@@ -92,11 +92,11 @@ func (r *SimpleReference[T]) GetSourceFile() StaticSourceFile {
 // Java: SimpleReference.toString()
 func (r *SimpleReference[T]) String() string {
 	var sourceName *string
-	if r.node != nil {
+	if !r.node.IsNil() {
 		sourceName = r.node.GetSourceFileName()
 	}
 	lineNo := -1
-	if r.node != nil {
+	if !r.node.IsNil() {
 		lineNo = r.node.GetLineno()
 	}
 	return jutil.ToJavaString(r.node.GetQualifiedName()) + "@" + jutil.ToJavaString(sourceName) + ":" + jutil.ToJavaString(lineNo)

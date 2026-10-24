@@ -60,7 +60,7 @@ func (c *CollapsePropertiesAndModuleRewritingTest) SetUp() {
 // Java: CollapsePropertiesAndModuleRewritingTest.getProcessor(Compiler)
 func (c *CollapsePropertiesAndModuleRewritingTest) GetProcessor(compiler *Compiler) CompilerPass {
 	options := compiler.GetOptions()
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		factories := NewPassListBuilder(options)
 		gatherModuleMetadata :=
 			NewGatherModuleMetadata(compiler, false, options.GetModuleResolutionMode())

@@ -93,7 +93,7 @@ type cfaDumper struct {
 	compiler AbstractCompiler
 	config   *parsing.Config
 	sb       strings.Builder
-	ids      map[*rhino.Node]int
+	ids      map[rhino.Node]int
 }
 
 func (d *cfaDumper) line(s string) {
@@ -101,8 +101,8 @@ func (d *cfaDumper) line(s string) {
 	d.sb.WriteByte('\n')
 }
 
-func (d *cfaDumper) id(n *rhino.Node) string {
-	if n == nil {
+func (d *cfaDumper) id(n rhino.Node) string {
+	if n.IsNil() {
 		return "R"
 	}
 	if i, ok := d.ids[n]; ok {
@@ -139,7 +139,7 @@ func (d *cfaDumper) dumpOne(name, src string) string {
 		d.line("# parse-exception")
 		return d.sb.String()
 	}
-	if reporter.hasError || result.Ast == nil {
+	if reporter.hasError || result.Ast.IsNil() {
 		d.line("# parse-error")
 		return d.sb.String()
 	}
@@ -148,13 +148,13 @@ func (d *cfaDumper) dumpOne(name, src string) string {
 	jsRoot := rhino.IR_Root(script)
 	globalRoot := rhino.IR_Root(externsRoot, jsRoot)
 
-	d.ids = map[*rhino.Node]int{}
-	var preorder []*rhino.Node
-	var number func(n *rhino.Node)
-	number = func(n *rhino.Node) {
+	d.ids = map[rhino.Node]int{}
+	var preorder []rhino.Node
+	var number func(n rhino.Node)
+	number = func(n rhino.Node) {
 		d.ids[n] = len(preorder)
 		preorder = append(preorder, n)
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			number(c)
 		}
 	}
@@ -193,7 +193,7 @@ func (d *cfaDumper) dumpOne(name, src string) string {
 
 // dumpCfg mirrors ControlFlowAnalysisDump.dumpCfg: it runs exactly what
 // Builder.computeCfg runs, keeping the analysis to look at its finallyMap.
-func (d *cfaDumper) dumpCfg(root *rhino.Node, mode string, traverseFunctions, edgeAnnotations bool) {
+func (d *cfaDumper) dumpCfg(root rhino.Node, mode string, traverseFunctions, edgeAnnotations bool) {
 	d.line("cfg " + d.id(root) + " " + mode)
 	cfa := newControlFlowAnalysis(d.compiler, traverseFunctions, edgeAnnotations)
 	var exception jutil.Throwable
@@ -209,7 +209,7 @@ func (d *cfaDumper) dumpCfg(root *rhino.Node, mode string, traverseFunctions, ed
 	for _, gn := range cfg.GetDiGraphNodes() {
 		v := gn.GetValue()
 		var desc string
-		if v == nil {
+		if v.IsNil() {
 			desc = "N R - -"
 		} else {
 			desc = "N " + d.id(v) + " " + v.GetToken().String() + " " +

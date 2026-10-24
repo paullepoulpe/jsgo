@@ -65,12 +65,12 @@ func (c *AstFactoryTest) SetUp() {
 }
 
 // Java: AstFactoryTest.alwaysThrowNodeSupplier()
-func astFactoryTest_alwaysThrowNodeSupplier() *rhino.Node {
+func astFactoryTest_alwaysThrowNodeSupplier() rhino.Node {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
 // Java: AstFactoryTest.TestResourceProvider.parse(String, String)
-func astFactoryTest_TestResourceProvider(unused1 string, unused2 string) *rhino.Node {
+func astFactoryTest_TestResourceProvider(unused1 string, unused2 string) rhino.Node {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
@@ -85,12 +85,12 @@ func (c *AstFactoryTest) getNativeType(nativeType rhino.JSTypeNative) rhino.JSTy
 }
 
 // Java: AstFactoryTest.parseWithoutTypes(String)
-func (c *AstFactoryTest) parseWithoutTypes(source string) *rhino.Node {
+func (c *AstFactoryTest) parseWithoutTypes(source string) rhino.Node {
 	return c.parseWithoutTypesWithExterns("", source)
 }
 
 // Java: AstFactoryTest.parseWithoutTypes(String, String)
-func (c *AstFactoryTest) parseWithoutTypesWithExterns(externs string, source string) *rhino.Node {
+func (c *AstFactoryTest) parseWithoutTypesWithExterns(externs string, source string) rhino.Node {
 	// parse the test code
 	options := NewCompilerOptions()
 	c.compiler.Init(
@@ -104,12 +104,12 @@ func (c *AstFactoryTest) parseWithoutTypesWithExterns(externs string, source str
 }
 
 // Java: AstFactoryTest.parseAndAddTypes(String)
-func (c *AstFactoryTest) parseAndAddTypes(source string) *rhino.Node {
+func (c *AstFactoryTest) parseAndAddTypes(source string) rhino.Node {
 	return c.parseAndAddTypesWithExterns("", source)
 }
 
 // Java: AstFactoryTest.parseAndAddTypes(String, String)
-func (c *AstFactoryTest) parseAndAddTypesWithExterns(externs string, source string) *rhino.Node {
+func (c *AstFactoryTest) parseAndAddTypesWithExterns(externs string, source string) rhino.Node {
 	c.parseWithoutTypesWithExterns(externs, source)
 
 	// then add types to the AST & do type checks
@@ -123,12 +123,12 @@ func (c *AstFactoryTest) parseAndAddTypesWithExterns(externs string, source stri
 }
 
 // Java: AstFactoryTest.parseAndAddColors(String)
-func (c *AstFactoryTest) parseAndAddColors(source string) *rhino.Node {
+func (c *AstFactoryTest) parseAndAddColors(source string) rhino.Node {
 	return c.parseAndAddColorsWithExterns("", source)
 }
 
 // Java: AstFactoryTest.parseAndAddColors(String, String)
-func (c *AstFactoryTest) parseAndAddColorsWithExterns(externs string, source string) *rhino.Node {
+func (c *AstFactoryTest) parseAndAddColorsWithExterns(externs string, source string) rhino.Node {
 	c.parseAndAddTypesWithExterns(externs, source)
 	NewConvertTypesToColors(
 		c.compiler, SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build()).
@@ -165,11 +165,11 @@ type astFactoryTest_redeclarationHandler struct {
 	_ byte // Go-only: language-adapter — distinct identity
 }
 
-func (*astFactoryTest_redeclarationHandler) OnRedeclaration(s *Scope, name string, n *rhino.Node, input *CompilerInput) {
+func (*astFactoryTest_redeclarationHandler) OnRedeclaration(s *Scope, name string, n rhino.Node, input *CompilerInput) {
 }
 
 // Java: AstFactoryTest.getScope(Node)
-func (c *AstFactoryTest) getScope(root *rhino.Node) *Scope {
+func (c *AstFactoryTest) getScope(root rhino.Node) *Scope {
 	// Normal passes use SyntacticScopeCreator, so that's what we use here.
 	var redeclarationHandler SyntacticScopeCreator_RedeclarationHandler = &astFactoryTest_redeclarationHandler{}
 	scopeCreator := NewSyntacticScopeCreatorWithRedeclarationHandler(c.compiler, redeclarationHandler)
@@ -1292,7 +1292,7 @@ func (c *AstFactoryTest) TestCreateQNameFromDottedStringAndTypedScope() {
 	scope := TypedScope_CreateGlobalScope(rhino.IR_Root())
 	// Declare a global "x" with the type "{y: number}".
 	objectWithYProp := c.getRegistry().CreateAnonymousObjectType(nil)
-	objectWithYProp.DefineDeclaredProperty("y", c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), nil)
+	objectWithYProp.DefineDeclaredProperty("y", c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), rhino.Node{})
 	scope.Declare("x", rhino.IR_Name("x"), objectWithYProp, nil, true)
 	name := astFactory.CreateQNameUsingJSTypeInfo(scope, "x.y")
 	AssertNode(name).MatchesQualifiedName("x.y")
@@ -1800,7 +1800,7 @@ func (c *AstFactoryTest) TestCreateRuntimeField_inExternMode_succeeds_andUsesUnd
 			RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES,
 			astFactoryTest_TestResourceProvider,
 			c.compiler.GetChangeTracker(),
-			func() *rhino.Node { return externs })
+			func() rhino.Node { return externs })
 	astFactory := c.createTestAstFactoryWithoutTypes()
 	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
 	field := c.runtimeJsLibManager.GetJsLibField("$jscomp.global")
@@ -1869,9 +1869,9 @@ func (c *AstFactoryTest) TestCreateJscompIteratorCloseCall_succeeds() {
 }
 
 // Java: AstFactoryTest.childList(Node)
-func astFactoryTest_childList(parent *rhino.Node) []*rhino.Node {
-	list := []*rhino.Node{}
-	for child := parent.GetFirstChild(); child != nil; child = child.GetNext() {
+func astFactoryTest_childList(parent rhino.Node) []rhino.Node {
+	list := []rhino.Node{}
+	for child := parent.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		list = append(list, child)
 	}
 	return list

@@ -67,13 +67,13 @@ func NewProcessCommonJSModules(compiler AbstractCompiler) *ProcessCommonJSModule
 }
 
 // Java: ProcessCommonJSModules.process(Node, Node)
-func (p *ProcessCommonJSModules) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *ProcessCommonJSModules) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, p)
 	NodeTraversal_Traverse(p.compiler, externs, p)
 }
 
 // Java: ProcessCommonJSModules.shouldTraverse(NodeTraversal, Node, Node)
-func (p *ProcessCommonJSModules) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (p *ProcessCommonJSModules) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsRoot() {
 		return true
 	} else if n.IsScript() {
@@ -145,7 +145,7 @@ func ProcessCommonJSModules_GetModuleNameWithModulePath(input *ModuleLoader_Modu
 }
 
 // Java: ProcessCommonJSModules.getBasePropertyImport(String, Node)
-func (p *ProcessCommonJSModules) GetBasePropertyImportWithRequireCall(moduleName string, requireCall *rhino.Node) string {
+func (p *ProcessCommonJSModules) GetBasePropertyImportWithRequireCall(moduleName string, requireCall rhino.Node) string {
 	jutil.CheckArgument(requireCall.IsCall())
 	if p.compiler.GetOptions().GetModuleResolutionMode() == ModuleLoader_ResolutionMode_WEBPACK &&
 		requireCall.GetFirstChild().MatchesQualifiedName(processCommonJSModules_WEBPACK_REQUIRE_NAMESPACE) {
@@ -166,7 +166,7 @@ func (p *ProcessCommonJSModules) GetBasePropertyImport(moduleName string) string
 }
 
 // Java: ProcessCommonJSModules.isCommonJsImport(Node)
-func (p *ProcessCommonJSModules) IsCommonJsImport(requireCall *rhino.Node) bool {
+func (p *ProcessCommonJSModules) IsCommonJsImport(requireCall rhino.Node) bool {
 	return ProcessCommonJSModules_IsCommonJsImport(requireCall, p.compiler.GetOptions().GetModuleResolutionMode())
 }
 
@@ -179,7 +179,7 @@ func (p *ProcessCommonJSModules) IsCommonJsImport(requireCall *rhino.Node) bool 
 //
 // Java: ProcessCommonJSModules.isCommonJsImport(Node, ModuleLoader.ResolutionMode)
 func ProcessCommonJSModules_IsCommonJsImport(
-	requireCall *rhino.Node, resolutionMode ModuleLoader_ResolutionMode) bool {
+	requireCall rhino.Node, resolutionMode ModuleLoader_ResolutionMode) bool {
 	if requireCall.IsCall() && requireCall.HasTwoChildren() {
 		if resolutionMode == ModuleLoader_ResolutionMode_WEBPACK &&
 			(requireCall.GetFirstChild().MatchesQualifiedName(processCommonJSModules_WEBPACK_REQUIRE) ||
@@ -203,15 +203,15 @@ func ProcessCommonJSModules_IsCommonJsImport(
 }
 
 // Java: ProcessCommonJSModules.getCommonJsImportPath(Node)
-func (p *ProcessCommonJSModules) GetCommonJsImportPath(requireCall *rhino.Node) string {
+func (p *ProcessCommonJSModules) GetCommonJsImportPath(requireCall rhino.Node) string {
 	return ProcessCommonJSModules_GetCommonJsImportPath(requireCall, p.compiler.GetOptions().GetModuleResolutionMode())
 }
 
 // Java: ProcessCommonJSModules.getCommonJsImportPath(Node, ModuleLoader.ResolutionMode)
 func ProcessCommonJSModules_GetCommonJsImportPath(
-	requireCall *rhino.Node, resolutionMode ModuleLoader_ResolutionMode) string {
+	requireCall rhino.Node, resolutionMode ModuleLoader_ResolutionMode) string {
 	if resolutionMode == ModuleLoader_ResolutionMode_WEBPACK {
-		var pathArgument *rhino.Node
+		var pathArgument rhino.Node
 		if requireCall.GetChildCount() >= 3 {
 			pathArgument = requireCall.GetChildAtIndex(2)
 		} else {
@@ -228,12 +228,12 @@ func ProcessCommonJSModules_GetCommonJsImportPath(
 }
 
 // Java: ProcessCommonJSModules.getImportedModuleName(NodeTraversal, Node)
-func (p *ProcessCommonJSModules) GetImportedModuleName(t *NodeTraversal, requireCall *rhino.Node) string {
+func (p *ProcessCommonJSModules) GetImportedModuleName(t *NodeTraversal, requireCall rhino.Node) string {
 	return p.GetImportedModuleNameWithImportPath(t, requireCall, p.GetCommonJsImportPath(requireCall))
 }
 
 // Java: ProcessCommonJSModules.getImportedModuleName(NodeTraversal, Node, String)
-func (p *ProcessCommonJSModules) GetImportedModuleNameWithImportPath(t *NodeTraversal, n *rhino.Node, importPath string) string {
+func (p *ProcessCommonJSModules) GetImportedModuleNameWithImportPath(t *NodeTraversal, n rhino.Node, importPath string) string {
 	modulePath :=
 		t.GetInput().
 			GetPath().
@@ -250,7 +250,7 @@ func (p *ProcessCommonJSModules) GetImportedModuleNameWithImportPath(t *NodeTrav
 //
 // Go-only: language-adapter — Node.getSourceFileName() is a nullable
 // String; ModulePath.resolveJsModule takes a Go string.
-func processCommonJSModules_sourceFileName(n *rhino.Node) string {
+func processCommonJSModules_sourceFileName(n rhino.Node) string {
 	if s := n.GetSourceFileName(); s != nil {
 		return *s
 	}
@@ -269,7 +269,7 @@ func processCommonJSModules_sourceFileName(n *rhino.Node) string {
 //
 // Java: ProcessCommonJSModules.isCommonJsExport(NodeTraversal, Node, ModuleLoader.ResolutionMode)
 func ProcessCommonJSModules_IsCommonJsExport(
-	t *NodeTraversal, export *rhino.Node, resolutionMode ModuleLoader_ResolutionMode) bool {
+	t *NodeTraversal, export rhino.Node, resolutionMode ModuleLoader_ResolutionMode) bool {
 	if export.MatchesQualifiedName(processCommonJSModules_MODULE+"."+processCommonJSModules_EXPORTS) ||
 		(export.IsGetElem() &&
 			export.GetFirstChild().MatchesQualifiedName(processCommonJSModules_MODULE) &&
@@ -289,7 +289,7 @@ func ProcessCommonJSModules_IsCommonJsExport(
 }
 
 // Java: ProcessCommonJSModules.isCommonJsExport(NodeTraversal, Node)
-func (p *ProcessCommonJSModules) IsCommonJsExport(t *NodeTraversal, export *rhino.Node) bool {
+func (p *ProcessCommonJSModules) IsCommonJsExport(t *NodeTraversal, export rhino.Node) bool {
 	return ProcessCommonJSModules_IsCommonJsExport(
 		t, export, p.compiler.GetOptions().GetModuleResolutionMode())
 }
@@ -304,8 +304,8 @@ func (p *ProcessCommonJSModules) IsCommonJsExport(t *NodeTraversal, export *rhin
 //
 // Java: ProcessCommonJSModules.isCommonJsDynamicImportCallback(Node, ModuleLoader.ResolutionMode)
 func ProcessCommonJSModules_IsCommonJsDynamicImportCallback(
-	n *rhino.Node, resolutionMode ModuleLoader_ResolutionMode) bool {
-	if n == nil || resolutionMode != ModuleLoader_ResolutionMode_WEBPACK {
+	n rhino.Node, resolutionMode ModuleLoader_ResolutionMode) bool {
+	if n.IsNil() || resolutionMode != ModuleLoader_ResolutionMode_WEBPACK {
 		return false
 	}
 	if n.IsFunction() && ProcessCommonJSModules_IsWebpackRequireEnsureCallback(n) {
@@ -326,9 +326,9 @@ var processCommonJSModules_PROMISE_ALL = rhino.QualifiedName_Of("Promise.all")
 //     __webpack_require__(4);})
 //
 // Java: ProcessCommonJSModules.isWebpackRequireEnsureCallback(Node)
-func ProcessCommonJSModules_IsWebpackRequireEnsureCallback(fnc *rhino.Node) bool {
+func ProcessCommonJSModules_IsWebpackRequireEnsureCallback(fnc rhino.Node) bool {
 	jutil.CheckArgument(fnc.IsFunction())
-	if fnc.GetParent() == nil {
+	if fnc.GetParent().IsNil() {
 		return false
 	}
 
@@ -348,10 +348,10 @@ func ProcessCommonJSModules_IsWebpackRequireEnsureCallback(fnc *rhino.Node) bool
 		callParent.GetFirstChild().GetString() == "then" {
 		return true
 	} else if processCommonJSModules_PROMISE_ALL.Matches(callParentTarget) &&
-		callParentTarget.GetNext() != nil &&
+		!callParentTarget.GetNext().IsNil() &&
 		callParentTarget.GetNext().IsArrayLit() {
 		allElementsAreDynamicImports := false
-		for arrayItem := callParentTarget.GetNext().GetFirstChild(); arrayItem != nil; arrayItem = arrayItem.GetNext() {
+		for arrayItem := callParentTarget.GetNext().GetFirstChild(); !arrayItem.IsNil(); arrayItem = arrayItem.GetNext() {
 			if !(arrayItem.IsCall() &&
 				arrayItem.HasTwoChildren() &&
 				arrayItem.GetFirstChild().MatchesQualifiedName(processCommonJSModules_WEBPACK_REQUIRE+".e")) {
@@ -368,12 +368,12 @@ func ProcessCommonJSModules_IsWebpackRequireEnsureCallback(fnc *rhino.Node) bool
 // Definition A UMD is an IF statement and a reference to which branch
 // contains the commonjs export
 type ProcessCommonJSModules_UmdPattern struct {
-	ifRoot       *rhino.Node
-	activeBranch *rhino.Node
+	ifRoot       rhino.Node
+	activeBranch rhino.Node
 }
 
 // Java: ProcessCommonJSModules.UmdPattern(Node, Node)
-func NewProcessCommonJSModules_UmdPattern(ifRoot *rhino.Node, activeBranch *rhino.Node) *ProcessCommonJSModules_UmdPattern {
+func NewProcessCommonJSModules_UmdPattern(ifRoot rhino.Node, activeBranch rhino.Node) *ProcessCommonJSModules_UmdPattern {
 	u := &ProcessCommonJSModules_UmdPattern{}
 	u.ifRoot = ifRoot
 	u.activeBranch = activeBranch
@@ -383,26 +383,26 @@ func NewProcessCommonJSModules_UmdPattern(ifRoot *rhino.Node, activeBranch *rhin
 // ProcessCommonJSModules_ExportInfo is the nested class
 // ProcessCommonJSModules.ExportInfo (identity equality).
 type ProcessCommonJSModules_ExportInfo struct {
-	node               *rhino.Node
+	node               rhino.Node
 	scope              *Scope
 	isInSupportedScope bool
 }
 
 // Java: ProcessCommonJSModules.ExportInfo(Node, Scope)
-func NewProcessCommonJSModules_ExportInfo(node *rhino.Node, scope *Scope) *ProcessCommonJSModules_ExportInfo {
+func NewProcessCommonJSModules_ExportInfo(node rhino.Node, scope *Scope) *ProcessCommonJSModules_ExportInfo {
 	e := &ProcessCommonJSModules_ExportInfo{}
 	e.node = node
 	e.scope = scope
 
 	disqualifyingParent :=
 		NodeUtil_GetEnclosingNode(
-			node, func(n *rhino.Node) bool { return n.IsIf() || n.IsHook() || n.IsFunction() || n.IsArrowFunction() })
-	e.isInSupportedScope = disqualifyingParent == nil
+			node, func(n rhino.Node) bool { return n.IsIf() || n.IsHook() || n.IsFunction() || n.IsArrowFunction() })
+	e.isInSupportedScope = disqualifyingParent.IsNil()
 	return e
 }
 
 // Java: ProcessCommonJSModules.getBaseQualifiedNameNode(Node)
-func (p *ProcessCommonJSModules) GetBaseQualifiedNameNode(n *rhino.Node) *rhino.Node {
+func (p *ProcessCommonJSModules) GetBaseQualifiedNameNode(n rhino.Node) rhino.Node {
 	refParent := n
 	for refParent.HasParent() && refParent.GetParent().IsQualifiedName() {
 		refParent = refParent.GetParent()
@@ -416,19 +416,19 @@ func (p *ProcessCommonJSModules) GetBaseQualifiedNameNode(n *rhino.Node) *rhino.
 // Returns whether an IIFE wrapper was found and removed.
 //
 // Java: ProcessCommonJSModules.removeIIFEWrapper(Node)
-func (p *ProcessCommonJSModules) RemoveIIFEWrapper(root *rhino.Node) bool {
+func (p *ProcessCommonJSModules) RemoveIIFEWrapper(root rhino.Node) bool {
 	jutil.CheckState(root.IsScript())
 	n := root.GetFirstChild()
 
 	// Sometimes scripts start with a semicolon for easy concatenation.
 	// Skip any empty statements from those
-	for n != nil && n.IsEmpty() {
+	for !n.IsNil() && n.IsEmpty() {
 		n = n.GetNext()
 	}
 
 	// An IIFE wrapper must be the only non-empty statement in the script,
 	// and it must be an expression statement.
-	if n == nil || !n.IsExprResult() || n.GetNext() != nil {
+	if n.IsNil() || !n.IsExprResult() || !n.GetNext().IsNil() {
 		return false
 	}
 
@@ -436,17 +436,17 @@ func (p *ProcessCommonJSModules) RemoveIIFEWrapper(root *rhino.Node) bool {
 	// TODO(ChadKillingsworth):
 	//   Expression could also be forced with: + - ~ void
 	//   ! ~ void can be repeated any number of times
-	if n != nil && n.HasChildren() && n.GetFirstChild().IsNot() {
+	if !n.IsNil() && n.HasChildren() && n.GetFirstChild().IsNot() {
 		n = n.GetFirstChild()
 	}
 
 	call := n.GetFirstChild()
-	if call == nil || !call.IsCall() {
+	if call.IsNil() || !call.IsCall() {
 		return false
 	}
 
 	// Find the IIFE call and function nodes
-	var fnc *rhino.Node
+	var fnc rhino.Node
 	if call.GetFirstChild().IsFunction() {
 		fnc = n.GetFirstFirstChild()
 	} else if call.GetFirstChild().IsGetProp() &&
@@ -455,7 +455,7 @@ func (p *ProcessCommonJSModules) RemoveIIFEWrapper(root *rhino.Node) bool {
 		fnc = call.GetFirstFirstChild()
 
 		// We only support explicitly binding "this" to the parent "this" or "exports"
-		if !(call.GetSecondChild() != nil &&
+		if !(!call.GetSecondChild().IsNil() &&
 			(call.GetSecondChild().IsThis() ||
 				call.GetSecondChild().MatchesQualifiedName(processCommonJSModules_EXPORTS))) {
 			return false
@@ -491,24 +491,24 @@ func (p *ProcessCommonJSModules) RemoveIIFEWrapper(root *rhino.Node) bool {
 // "module" variable. We need that to be a free var so we remove the shim.
 //
 // Java: ProcessCommonJSModules.removeWebpackModuleShim(Node)
-func (p *ProcessCommonJSModules) RemoveWebpackModuleShim(root *rhino.Node) {
+func (p *ProcessCommonJSModules) RemoveWebpackModuleShim(root rhino.Node) {
 	jutil.CheckState(root.IsScript())
 	n := root.GetFirstChild()
 
 	// Sometimes scripts start with a semicolon for easy concatenation.
 	// Skip any empty statements from those
-	for n != nil && n.IsEmpty() {
+	for !n.IsNil() && n.IsEmpty() {
 		n = n.GetNext()
 	}
 
 	// An IIFE wrapper must be the only non-empty statement in the script,
 	// and it must be an expression statement.
-	if n == nil || !n.IsExprResult() || n.GetNext() != nil {
+	if n.IsNil() || !n.IsExprResult() || !n.GetNext().IsNil() {
 		return
 	}
 
 	call := n.GetFirstChild()
-	if call == nil || !call.IsCall() {
+	if call.IsNil() || !call.IsCall() {
 		return
 	}
 
@@ -522,10 +522,10 @@ func (p *ProcessCommonJSModules) RemoveWebpackModuleShim(root *rhino.Node) {
 	fnc := callTarget
 
 	params := NodeUtil_GetFunctionParameters(fnc)
-	var moduleParam *rhino.Node
+	var moduleParam rhino.Node
 	param := params.GetFirstChild()
 	paramNumber := 0
-	for param != nil {
+	for !param.IsNil() {
 		paramNumber++
 		if param.IsName() && param.GetString() == processCommonJSModules_MODULE {
 			moduleParam = param
@@ -533,7 +533,7 @@ func (p *ProcessCommonJSModules) RemoveWebpackModuleShim(root *rhino.Node) {
 		}
 		param = param.GetNext()
 	}
-	if moduleParam == nil {
+	if moduleParam.IsNil() {
 		return
 	}
 
@@ -543,7 +543,7 @@ func (p *ProcessCommonJSModules) RemoveWebpackModuleShim(root *rhino.Node) {
 		argIndex = paramNumber
 	}
 	arg := call.GetChildAtIndex(argIndex)
-	if arg == nil {
+	if arg.IsNil() {
 		return
 	}
 
@@ -590,7 +590,7 @@ type ProcessCommonJSModules_FindImportsAndExports struct {
 	outer *ProcessCommonJSModules // the enclosing instance
 
 	hasGoogProvideOrModule bool
-	script                 *rhino.Node
+	script                 rhino.Node
 
 	umdPatterns   []*ProcessCommonJSModules_UmdPattern
 	moduleExports []*ProcessCommonJSModules_ExportInfo
@@ -602,7 +602,7 @@ type ProcessCommonJSModules_FindImportsAndExports struct {
 func NewProcessCommonJSModules_FindImportsAndExports(outer *ProcessCommonJSModules) *ProcessCommonJSModules_FindImportsAndExports {
 	f := &ProcessCommonJSModules_FindImportsAndExports{outer: outer}
 	f.hasGoogProvideOrModule = false
-	f.script = nil
+	f.script = rhino.Node{}
 	f.umdPatterns = []*ProcessCommonJSModules_UmdPattern{}
 	f.moduleExports = []*ProcessCommonJSModules_ExportInfo{}
 	f.exports = []*ProcessCommonJSModules_ExportInfo{}
@@ -631,21 +631,21 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) GetExports() []*ProcessCo
 }
 
 // Java: ProcessCommonJSModules.FindImportsAndExports.shouldTraverse(NodeTraversal, Node, Node)
-func (f *ProcessCommonJSModules_FindImportsAndExports) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *ProcessCommonJSModules_FindImportsAndExports) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
-		jutil.CheckState(f.script == nil)
+		jutil.CheckState(f.script.IsNil())
 		f.script = n
 	}
 	return true
 }
 
 // Java: ProcessCommonJSModules.FindImportsAndExports.visit(NodeTraversal, Node, Node)
-func (f *ProcessCommonJSModules_FindImportsAndExports) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *ProcessCommonJSModules_FindImportsAndExports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Check for goog.provide or goog.module statements
 	if NodeUtil_IsShallowStatementTree(parent) {
 		if n.IsExprResult() {
 			maybeGetProp := n.GetFirstFirstChild()
-			if maybeGetProp != nil &&
+			if !maybeGetProp.IsNil() &&
 				(processCommonJSModules_GOOG_PROVIDE.Matches(maybeGetProp) || processCommonJSModules_GOOG_MODULE.Matches(maybeGetProp)) {
 				f.hasGoogProvideOrModule = true
 			}
@@ -684,8 +684,8 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) Visit(t *NodeTraversal, n
 		umdTestAncestor := f.GetOutermostUmdTest(parent)
 		if umdTestAncestor != nil && f.IsInIfTest(n) {
 			existingPattern := ProcessCommonJSModules_FindUmdPattern(f.umdPatterns, umdTestAncestor.enclosingIf)
-			if existingPattern == nil && umdTestAncestor.enclosingIf.GetChildAtIndex(2) == nil {
-				f.umdPatterns = append(f.umdPatterns, NewProcessCommonJSModules_UmdPattern(umdTestAncestor.enclosingIf, nil))
+			if existingPattern == nil && umdTestAncestor.enclosingIf.GetChildAtIndex(2).IsNil() {
+				f.umdPatterns = append(f.umdPatterns, NewProcessCommonJSModules_UmdPattern(umdTestAncestor.enclosingIf, rhino.Node{}))
 			}
 		}
 	}
@@ -694,13 +694,13 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) Visit(t *NodeTraversal, n
 		v := t.GetScope().GetVar(processCommonJSModules_EXPORTS)
 		if v == nil || v.IsGlobal() {
 			qNameRoot := f.outer.GetBaseQualifiedNameNode(n)
-			if qNameRoot != nil &&
+			if !qNameRoot.IsNil() &&
 				qNameRoot.MatchesQualifiedName(processCommonJSModules_EXPORTS) &&
 				NodeUtil_IsLValue(qNameRoot) {
 				// Match the special assignment
 				// exports = module.exports
 				if n.GetGrandparent().IsExprResult() &&
-					n.GetNext() != nil &&
+					!n.GetNext().IsNil() &&
 					((n.GetNext().IsGetProp() &&
 						n.GetNext().MatchesQualifiedName(processCommonJSModules_MODULE+"."+processCommonJSModules_EXPORTS)) ||
 						(n.GetNext().IsAssign() &&
@@ -713,7 +713,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) Visit(t *NodeTraversal, n
 					// var exports = exports
 				} else if !f.hasGoogProvideOrModule &&
 					(v == nil ||
-						(v.GetNameNode() == nil && v.GetNameNode().GetFirstChild() != n)) {
+						(v.GetNameNode().IsNil() && v.GetNameNode().GetFirstChild() != n)) {
 					f.errors = append(f.errors, JSError_MakeWithNode(qNameRoot, ProcessCommonJSModules_SUSPICIOUS_EXPORTS_ASSIGNMENT))
 				}
 			} else {
@@ -744,7 +744,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) Visit(t *NodeTraversal, n
 // VisitRequireCall visits require calls.
 //
 // Java: ProcessCommonJSModules.FindImportsAndExports.visitRequireCall(NodeTraversal, Node, Node)
-func (f *ProcessCommonJSModules_FindImportsAndExports) VisitRequireCall(t *NodeTraversal, require *rhino.Node, parent *rhino.Node) {
+func (f *ProcessCommonJSModules_FindImportsAndExports) VisitRequireCall(t *NodeTraversal, require rhino.Node, parent rhino.Node) {
 	// When require("name") is used as a standalone statement (the result isn't used)
 	// it indicates that a module is being loaded for the side effects it produces.
 	// In this case the require statement should just be removed as the dependency
@@ -773,7 +773,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) VisitRequireCall(t *NodeT
 // require.ensure(['module1', ...], function(require) {})
 //
 // Java: ProcessCommonJSModules.FindImportsAndExports.visitRequireEnsureCall(NodeTraversal, Node)
-func (f *ProcessCommonJSModules_FindImportsAndExports) VisitRequireEnsureCall(t *NodeTraversal, call *rhino.Node) {
+func (f *ProcessCommonJSModules_FindImportsAndExports) VisitRequireEnsureCall(t *NodeTraversal, call rhino.Node) {
 	if !call.HasXChildren(3) {
 		f.outer.compiler.Report(
 			JSError_MakeWithNode(
@@ -794,7 +794,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) VisitRequireEnsureCall(t 
 		return
 	}
 
-	for dep := dependencies.GetFirstChild(); dep != nil; dep = dep.GetNext() {
+	for dep := dependencies.GetFirstChild(); !dep.IsNil(); dep = dep.GetNext() {
 		if !dep.IsStringLit() {
 			f.outer.compiler.Report(
 				JSError_MakeWithNode(
@@ -857,7 +857,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) InitializeModule() bool {
 
 	var exportsToRemove []*ProcessCommonJSModules_ExportInfo
 	for _, export := range f.exports {
-		if NodeUtil_GetEnclosingScript(export.node) == nil {
+		if NodeUtil_GetEnclosingScript(export.node).IsNil() {
 			exportsToRemove = append(exportsToRemove, export)
 			continue
 		}
@@ -865,8 +865,8 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) InitializeModule() bool {
 		if export.node == qNameBase &&
 			export.node.GetParent().IsAssign() &&
 			export.node.GetGrandparent().IsExprResult() &&
-			export.node.GetPrevious() == nil &&
-			export.node.GetNext() != nil {
+			export.node.GetPrevious().IsNil() &&
+			!export.node.GetNext().IsNil() {
 
 			// Find any identity assignments and just remove them
 			// exports = module.exports;
@@ -903,7 +903,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) InitializeModule() bool {
 			export.node.GetNext().IsStringLit() &&
 			export.node.GetNext().GetString() == processCommonJSModules_EXPORT_PROPERTY_NAME &&
 			export.node.GetGrandparent().IsAssign() &&
-			export.node.GetParent().GetPrevious() != nil &&
+			!export.node.GetParent().GetPrevious().IsNil() &&
 			export.node.GetParent().GetPrevious().MatchesQualifiedName(processCommonJSModules_MODULE+"."+processCommonJSModules_EXPORTS) {
 			parent := export.node.GetParent()
 			grandparent := parent.GetParent()
@@ -919,7 +919,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) InitializeModule() bool {
 	exportsToRemove = exportsToRemove[:0]
 	exportsToReplace := jutil.NewLinkedHashMap[*ProcessCommonJSModules_ExportInfo, *ProcessCommonJSModules_ExportInfo]()
 	for _, export := range f.moduleExports {
-		if NodeUtil_GetEnclosingScript(export.node) == nil {
+		if NodeUtil_GetEnclosingScript(export.node).IsNil() {
 			exportsToRemove = append(exportsToRemove, export)
 		} else if export.node.IsGetElem() {
 			prop := export.node.GetSecondChild().Detach()
@@ -942,17 +942,17 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) InitializeModule() bool {
 	// are properties, initialize the variable as well.
 	directAssignments := 0
 	for _, export := range f.moduleExports {
-		if NodeUtil_GetEnclosingScript(export.node) == nil {
+		if NodeUtil_GetEnclosingScript(export.node).IsNil() {
 			continue
 		}
 
 		base := f.outer.GetBaseQualifiedNameNode(export.node)
 		if base == export.node && export.node.GetParent().IsAssign() {
 			rValue := NodeUtil_GetRValueOfLValue(export.node)
-			if rValue == nil || !rValue.IsObjectLit() {
+			if rValue.IsNil() || !rValue.IsObjectLit() {
 				directAssignments++
 			} else if rValue.IsObjectLit() {
-				for key := rValue.GetFirstChild(); key != nil; key = key.GetNext() {
+				for key := rValue.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 					if (!key.IsStringKey() || key.IsQuotedStringKey()) && !key.IsMemberFunctionDef() {
 						directAssignments++
 						break
@@ -998,12 +998,12 @@ func processCommonJSModules_removeAll(
 // ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo is the private
 // static nested class FindImportsAndExports.UmdTestInfo.
 type ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo struct {
-	enclosingIf  *rhino.Node
-	activeBranch *rhino.Node
+	enclosingIf  rhino.Node
+	activeBranch rhino.Node
 }
 
 // Java: ProcessCommonJSModules.FindImportsAndExports.UmdTestInfo(Node, Node)
-func NewProcessCommonJSModules_FindImportsAndExports_UmdTestInfo(enclosingIf *rhino.Node, activeBranch *rhino.Node) *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo {
+func NewProcessCommonJSModules_FindImportsAndExports_UmdTestInfo(enclosingIf rhino.Node, activeBranch rhino.Node) *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo {
 	u := &ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo{}
 	u.enclosingIf = enclosingIf
 	u.activeBranch = activeBranch
@@ -1015,12 +1015,12 @@ func NewProcessCommonJSModules_FindImportsAndExports_UmdTestInfo(enclosingIf *rh
 // statement must reference "module" or "define" names.
 //
 // Java: ProcessCommonJSModules.FindImportsAndExports.getOutermostUmdTest(Node)
-func (f *ProcessCommonJSModules_FindImportsAndExports) GetOutermostUmdTest(n *rhino.Node) *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo {
-	if n == nil || NodeUtil_IsTopLevel(n) || n.IsFunction() {
+func (f *ProcessCommonJSModules_FindImportsAndExports) GetOutermostUmdTest(n rhino.Node) *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo {
+	if n.IsNil() || NodeUtil_IsTopLevel(n) || n.IsFunction() {
 		return nil
 	}
 	parent := n.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return nil
 	}
 
@@ -1035,7 +1035,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) GetOutermostUmdTest(n *rh
 				parent.GetSecondChild() == n &&
 				parent.HasParent() &&
 				parent.GetParent().IsBlock() &&
-				parent.GetNext() == nil &&
+				parent.GetNext().IsNil() &&
 				umdTestInfo.activeBranch == parent.GetParent() {
 				return NewProcessCommonJSModules_FindImportsAndExports_UmdTestInfo(umdTestInfo.enclosingIf, n)
 			}
@@ -1043,10 +1043,10 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) GetOutermostUmdTest(n *rh
 			return umdTestInfo
 		}
 
-		umdTests := []*rhino.Node{}
+		umdTests := []rhino.Node{}
 		NodeUtil_VisitPreOrder(
 			parent.GetFirstChild(),
-			NodeUtil_VisitorFunc(func(node *rhino.Node) {
+			NodeUtil_VisitorFunc(func(node rhino.Node) {
 				switch node.GetToken() {
 				case rhino.Token_NAME:
 					if node.GetString() == processCommonJSModules_MODULE || node.GetString() == "define" {
@@ -1088,12 +1088,12 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) GetOutermostUmdTest(n *rh
 // statement
 //
 // Java: ProcessCommonJSModules.FindImportsAndExports.isInIfTest(Node)
-func (f *ProcessCommonJSModules_FindImportsAndExports) IsInIfTest(n *rhino.Node) bool {
-	if n == nil || NodeUtil_IsTopLevel(n) || n.IsFunction() {
+func (f *ProcessCommonJSModules_FindImportsAndExports) IsInIfTest(n rhino.Node) bool {
+	if n.IsNil() || NodeUtil_IsTopLevel(n) || n.IsFunction() {
 		return false
 	}
 	parent := n.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return false
 	}
 
@@ -1111,9 +1111,9 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) IsInIfTest(n *rhino.Node)
 func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool {
 	compiler := f.outer.compiler
 	needsRetraverse := false
-	var changeScope *rhino.Node
+	var changeScope rhino.Node
 	for _, umdPattern := range f.umdPatterns {
-		if NodeUtil_GetEnclosingScript(umdPattern.ifRoot) == nil {
+		if NodeUtil_GetEnclosingScript(umdPattern.ifRoot).IsNil() {
 			f.outer.ReportNestedScopesDeleted(umdPattern.ifRoot)
 			continue
 		}
@@ -1121,7 +1121,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 		parent := umdPattern.ifRoot.GetParent()
 		newNode := umdPattern.activeBranch
 
-		if newNode == nil {
+		if newNode.IsNil() {
 			umdPattern.ifRoot.Detach()
 			f.outer.ReportNestedScopesDeleted(umdPattern.ifRoot)
 			compiler.ReportChangeToEnclosingScope(parent)
@@ -1139,7 +1139,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 		umdPattern.ifRoot.ReplaceWith(newNode)
 		f.outer.ReportNestedScopesDeleted(umdPattern.ifRoot)
 		changeScope = ChangeTracker_GetEnclosingChangeScopeRoot(newNode)
-		if changeScope != nil {
+		if !changeScope.IsNil() {
 			compiler.ReportChangeToEnclosingScope(newNode)
 		}
 
@@ -1156,7 +1156,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 			fn := block.GetParent()
 
 			enclosingScript := NodeUtil_GetEnclosingScript(enclosingFnCall)
-			if enclosingScript == nil {
+			if enclosingScript.IsNil() {
 				continue
 			}
 			ci := compiler.GetInput(
@@ -1198,7 +1198,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 				newStatements.GetSecondChild().IsExprResult() {
 				inlinedFn := newStatements.GetFirstFirstChild().GetFirstChild()
 				expr := newStatements.GetSecondChild().GetFirstChild()
-				var call *rhino.Node
+				var call rhino.Node
 				var assignedName *string
 				if expr.IsAssign() && expr.GetSecondChild().IsCall() {
 					call = expr.GetSecondChild()
@@ -1210,7 +1210,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 					call = expr
 				}
 
-				if call != nil {
+				if !call.IsNil() {
 					newStatements =
 						mutator.MutateWithoutRenaming(
 							factoryLabel, inlinedFn, call, assignedName, false, false)
@@ -1267,10 +1267,10 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 }
 
 // Java: ProcessCommonJSModules.reportNestedScopesDeleted(Node)
-func (p *ProcessCommonJSModules) ReportNestedScopesDeleted(n *rhino.Node) {
+func (p *ProcessCommonJSModules) ReportNestedScopesDeleted(n rhino.Node) {
 	NodeUtil_VisitPreOrder(
 		n,
-		NodeUtil_VisitorFunc(func(n *rhino.Node) {
+		NodeUtil_VisitorFunc(func(n rhino.Node) {
 			if n.IsFunction() {
 				p.compiler.ReportFunctionDeleted(n)
 			}
@@ -1278,10 +1278,10 @@ func (p *ProcessCommonJSModules) ReportNestedScopesDeleted(n *rhino.Node) {
 }
 
 // Java: ProcessCommonJSModules.reportNestedScopesChanged(Node)
-func (p *ProcessCommonJSModules) ReportNestedScopesChanged(n *rhino.Node) {
+func (p *ProcessCommonJSModules) ReportNestedScopesChanged(n rhino.Node) {
 	NodeUtil_VisitPreOrder(
 		n,
-		NodeUtil_VisitorFunc(func(n *rhino.Node) {
+		NodeUtil_VisitorFunc(func(n rhino.Node) {
 			if n.IsFunction() {
 				p.compiler.ReportChangeToChangeScope(n)
 			}
@@ -1289,7 +1289,7 @@ func (p *ProcessCommonJSModules) ReportNestedScopesChanged(n *rhino.Node) {
 }
 
 // Java: ProcessCommonJSModules.findUmdPattern(List<UmdPattern>, Node)
-func ProcessCommonJSModules_FindUmdPattern(umdPatterns []*ProcessCommonJSModules_UmdPattern, n *rhino.Node) *ProcessCommonJSModules_UmdPattern {
+func ProcessCommonJSModules_FindUmdPattern(umdPatterns []*ProcessCommonJSModules_UmdPattern, n rhino.Node) *ProcessCommonJSModules_UmdPattern {
 	for _, umd := range umdPatterns {
 		if umd.ifRoot == n {
 			return umd
@@ -1310,9 +1310,9 @@ type ProcessCommonJSModules_RewriteModule struct {
 
 	allowFullRewrite          bool
 	exports                   []*ProcessCommonJSModules_ExportInfo
-	imports                   []*rhino.Node
-	rewrittenClassExpressions []*rhino.Node
-	functionsToHoist          []*rhino.Node
+	imports                   []rhino.Node
+	rewrittenClassExpressions []rhino.Node
+	functionsToHoist          []rhino.Node
 	defaultExportIsConst      bool
 }
 
@@ -1323,9 +1323,9 @@ func NewProcessCommonJSModules_RewriteModule(
 	exports []*ProcessCommonJSModules_ExportInfo,
 	defaultExportIsConst bool) *ProcessCommonJSModules_RewriteModule {
 	r := &ProcessCommonJSModules_RewriteModule{outer: outer}
-	r.imports = []*rhino.Node{}
-	r.rewrittenClassExpressions = []*rhino.Node{}
-	r.functionsToHoist = []*rhino.Node{}
+	r.imports = []rhino.Node{}
+	r.rewrittenClassExpressions = []rhino.Node{}
+	r.functionsToHoist = []rhino.Node{}
 	r.allowFullRewrite = allowFullRewrite
 	r.exports = exports
 	r.defaultExportIsConst = defaultExportIsConst
@@ -1333,7 +1333,7 @@ func NewProcessCommonJSModules_RewriteModule(
 }
 
 // Java: ProcessCommonJSModules.RewriteModule.visit(NodeTraversal, Node, Node)
-func (r *ProcessCommonJSModules_RewriteModule) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *ProcessCommonJSModules_RewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	compiler := r.outer.compiler
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
@@ -1365,13 +1365,13 @@ func (r *ProcessCommonJSModules_RewriteModule) Visit(t *NodeTraversal, n *rhino.
 			functionExpr := r.functionsToHoist[i]
 			scopeRoot := t.GetClosestHoistScopeRoot()
 			insertionPoint := scopeRoot.GetFirstChild()
-			if insertionPoint == nil ||
+			if insertionPoint.IsNil() ||
 				!(insertionPoint.IsVar() &&
 					insertionPoint.GetFirstChild().GetString() == moduleName) {
-				insertionPoint = nil
+				insertionPoint = rhino.Node{}
 			}
 
-			if insertionPoint == nil {
+			if insertionPoint.IsNil() {
 				if scopeRoot.GetFirstChild() != functionExpr {
 					scopeRoot.AddChildToFront(functionExpr.Detach())
 				}
@@ -1431,16 +1431,16 @@ func (r *ProcessCommonJSModules_RewriteModule) Visit(t *NodeTraversal, n *rhino.
 		if nameDeclaration != nil {
 			if NodeUtil_IsLhsByDestructuring(n) {
 				r.MaybeUpdateName(t, n, nameDeclaration)
-			} else if nameDeclaration.GetNode() != nil &&
+			} else if !nameDeclaration.GetNode().IsNil() &&
 				jutil.ObjectsEquals(nameDeclaration.GetNode().GetInputId(), n.GetInputId()) {
 				// Avoid renaming a shadowed global
 				//
 				// var angular = angular;  // value is global ref
 				enclosingDeclaration :=
 					NodeUtil_GetEnclosingNode(
-						n, func(node *rhino.Node) bool { return node == nameDeclaration.GetNameNode() })
+						n, func(node rhino.Node) bool { return node == nameDeclaration.GetNameNode() })
 
-				if enclosingDeclaration == nil ||
+				if enclosingDeclaration.IsNil() ||
 					enclosingDeclaration == n ||
 					nameDeclaration.GetScope().(*Scope) != t.GetScope() {
 					r.MaybeUpdateName(t, n, nameDeclaration)
@@ -1489,7 +1489,7 @@ func (r *ProcessCommonJSModules_RewriteModule) Visit(t *NodeTraversal, n *rhino.
 }
 
 // Java: ProcessCommonJSModules.RewriteModule.fixTypeAnnotationsForNode(NodeTraversal, Node)
-func (r *ProcessCommonJSModules_RewriteModule) FixTypeAnnotationsForNode(t *NodeTraversal, n *rhino.Node) {
+func (r *ProcessCommonJSModules_RewriteModule) FixTypeAnnotationsForNode(t *NodeTraversal, n rhino.Node) {
 	info := n.GetJSDocInfo()
 	if info != nil {
 		for it := info.TypeExprIter(); it.Next(); {
@@ -1503,7 +1503,7 @@ func (r *ProcessCommonJSModules_RewriteModule) FixTypeAnnotationsForNode(t *Node
 // to the import alias should have already been renamed.
 //
 // Java: ProcessCommonJSModules.RewriteModule.visitRequireCall(NodeTraversal, Node)
-func (r *ProcessCommonJSModules_RewriteModule) VisitRequireCall(t *NodeTraversal, require *rhino.Node) {
+func (r *ProcessCommonJSModules_RewriteModule) VisitRequireCall(t *NodeTraversal, require rhino.Node) {
 	moduleName := r.outer.GetImportedModuleName(t, require)
 	moduleRef :=
 		NodeUtil_NewQName(r.outer.compiler, r.outer.GetBasePropertyImportWithRequireCall(moduleName, require)).
@@ -1533,7 +1533,7 @@ func (r *ProcessCommonJSModules_RewriteModule) VisitExport(t *NodeTraversal, exp
 	//     module.exports = {};
 	//     module.exports.foo = bar;
 	if processCommonJSModules_MODULE_EXPORTS.Matches(root) {
-		if rValue != nil &&
+		if !rValue.IsNil() &&
 			rValue.IsObjectLit() &&
 			root.GetParent().IsAssign() &&
 			root.GetGrandparent().IsExprResult() {
@@ -1549,19 +1549,19 @@ func (r *ProcessCommonJSModules_RewriteModule) VisitExport(t *NodeTraversal, exp
 	// If this is an assignment to module.exports or exports, renaming
 	// has already handled this case. Remove the export.
 	var rValueVar *Var
-	if rValue != nil && rValue.IsQualifiedName() {
+	if !rValue.IsNil() && rValue.IsQualifiedName() {
 		rValueVar = export.scope.GetVar(*rValue.GetQualifiedName())
 	}
 
 	if root.GetParent().IsAssign() &&
 		root.GetGrandparent().IsExprResult() &&
-		(root.GetNext() != nil && (root.GetNext().IsName() || root.GetNext().IsGetProp())) &&
+		(!root.GetNext().IsNil() && (root.GetNext().IsName() || root.GetNext().IsGetProp())) &&
 		root.GetGrandparent().IsExprResult() &&
 		rValueVar != nil &&
-		(NodeUtil_GetEnclosingScript(rValueVar.GetNameNode()) == nil ||
+		(NodeUtil_GetEnclosingScript(rValueVar.GetNameNode()).IsNil() ||
 			(rValueVar.GetNameNode().HasParent() && !rValueVar.IsParam())) &&
 		export.isInSupportedScope &&
-		(rValueVar.GetNameNode().GetParent() == nil ||
+		(rValueVar.GetNameNode().GetParent().IsNil() ||
 			!NodeUtil_IsLhsByDestructuring(rValueVar.GetNameNode())) {
 		root.GetGrandparent().Detach()
 		t.ReportCodeChange()
@@ -1580,10 +1580,10 @@ func (r *ProcessCommonJSModules_RewriteModule) VisitExport(t *NodeTraversal, exp
 			root == export.node &&
 			NodeUtil_IsLValue(export.node)
 
-	var changeScope *rhino.Node
+	var changeScope rhino.Node
 
 	if processCommonJSModules_MODULE_EXPORTS.Matches(root) &&
-		rValue != nil &&
+		!rValue.IsNil() &&
 		export.scope.GetVar("module.exports") == nil &&
 		root.GetParent().IsAssign() &&
 		root.GetGrandparent().IsExprResult() &&
@@ -1598,12 +1598,12 @@ func (r *ProcessCommonJSModules_RewriteModule) VisitExport(t *NodeTraversal, exp
 		}
 		parent.GetParent().ReplaceWith(exportName.SrcrefTree(root.GetParent()))
 		changeScope = ChangeTracker_GetEnclosingChangeScopeRoot(parent)
-	} else if root.GetNext() != nil &&
+	} else if !root.GetNext().IsNil() &&
 		root.GetNext().IsName() &&
 		rValueVar != nil &&
 		rValueVar.IsGlobal() &&
 		export.isInSupportedScope &&
-		(rValueVar.GetNameNode().GetParent() == nil ||
+		(rValueVar.GetNameNode().GetParent().IsNil() ||
 			!NodeUtil_IsLhsByDestructuring(rValueVar.GetNameNode())) {
 		// This is a where a module export assignment is used in a complex expression.
 		// Before: `SOME_VALUE !== undefined && module.exports = SOME_VALUE`
@@ -1629,7 +1629,7 @@ func (r *ProcessCommonJSModules_RewriteModule) VisitExport(t *NodeTraversal, exp
 		changeScope = ChangeTracker_GetEnclosingChangeScopeRoot(updatedExport)
 	}
 
-	if changeScope != nil {
+	if !changeScope.IsNil() {
 		compiler.ReportChangeToChangeScope(changeScope)
 	}
 }
@@ -1648,25 +1648,25 @@ func (r *ProcessCommonJSModules_RewriteModule) VisitExport(t *NodeTraversal, exp
 // module.exports.foo = bar; // removed later module.exports.baz = function() {};
 //
 // Java: ProcessCommonJSModules.RewriteModule.expandObjectLitAssignment(NodeTraversal, Node, Scope)
-func (r *ProcessCommonJSModules_RewriteModule) ExpandObjectLitAssignment(t *NodeTraversal, export *rhino.Node, scope *Scope) bool {
+func (r *ProcessCommonJSModules_RewriteModule) ExpandObjectLitAssignment(t *NodeTraversal, export rhino.Node, scope *Scope) bool {
 	jutil.CheckState(export.GetParent().IsAssign())
 	insertionRef := export.GetGrandparent()
 	jutil.CheckState(insertionRef.IsExprResult())
 	insertionParent := insertionRef.GetParent()
-	jutil.CheckNotNull(insertionParent)
+	rhino.CheckNotNull(insertionParent)
 
 	rValue := NodeUtil_GetRValueOfLValue(export)
 	key := rValue.GetFirstChild()
 
 	removedNodes := false
-	for key != nil {
+	for !key.IsNil() {
 		if (!key.IsStringKey() || key.IsQuotedStringKey()) && !key.IsMemberFunctionDef() {
 			key = key.GetNext()
 			continue
 		}
 
 		lhs := rhino.IR_Getprop(export.CloneTree(), key.GetString())
-		var value *rhino.Node
+		var value rhino.Node
 		if key.IsStringKey() {
 			value = key.RemoveFirstChild()
 		} else if key.IsMemberFunctionDef() {
@@ -1679,7 +1679,7 @@ func (r *ProcessCommonJSModules_RewriteModule) ExpandObjectLitAssignment(t *Node
 		r.VisitExport(t, newExport)
 
 		// Export statements can be removed in visitExport
-		if expr != nil && expr.HasParent() {
+		if !expr.IsNil() && expr.HasParent() {
 			insertionRef = expr
 		}
 
@@ -1713,7 +1713,7 @@ func (r *ProcessCommonJSModules_RewriteModule) ExpandObjectLitAssignment(t *Node
 // be done if this file is a commonjs module.
 //
 // Java: ProcessCommonJSModules.RewriteModule.maybeUpdateName(NodeTraversal, Node, Var)
-func (r *ProcessCommonJSModules_RewriteModule) MaybeUpdateName(t *NodeTraversal, n *rhino.Node, var_ *Var) {
+func (r *ProcessCommonJSModules_RewriteModule) MaybeUpdateName(t *NodeTraversal, n rhino.Node, var_ *Var) {
 	jutil.CheckNotNull(var_)
 	jutil.CheckState(n.IsName() || n.IsGetProp())
 	jutil.CheckState(n.HasParent())
@@ -1733,7 +1733,7 @@ func (r *ProcessCommonJSModules_RewriteModule) MaybeUpdateName(t *NodeTraversal,
 		if (n != var_.GetNode() || n.GetParent().IsClass()) &&
 			exportedName == nil &&
 			(var_ == nil ||
-				var_.GetNameNode().GetParent() == nil ||
+				var_.GetNameNode().GetParent().IsNil() ||
 				!NodeUtil_IsLhsByDestructuring(var_.GetNameNode())) {
 			// The name is actually the export reference itself.
 			// This will be handled later by visitExports.
@@ -1749,7 +1749,7 @@ func (r *ProcessCommonJSModules_RewriteModule) MaybeUpdateName(t *NodeTraversal,
 			exportedName != nil &&
 			*exportedName != name &&
 			!var_.IsParam() &&
-			(var_.GetNameNode().GetParent() == nil ||
+			(var_.GetNameNode().GetParent().IsNil() ||
 				!NodeUtil_IsLhsByDestructuring(var_.GetNameNode())) {
 			exportPropIsConst :=
 				r.defaultExportIsConst &&
@@ -1790,14 +1790,14 @@ func (r *ProcessCommonJSModules_RewriteModule) MaybeUpdateName(t *NodeTraversal,
 // Java: ProcessCommonJSModules.RewriteModule.updateNameReference(NodeTraversal, Node, String, String, boolean, boolean)
 func (r *ProcessCommonJSModules_RewriteModule) UpdateNameReference(
 	t *NodeTraversal,
-	nameRef *rhino.Node,
+	nameRef rhino.Node,
 	originalName string,
 	newName string,
 	requireFunctionExpressions bool,
 	qualifiedNameIsConst bool) {
 	compiler := r.outer.compiler
 	parent := nameRef.GetParent()
-	jutil.CheckNotNull(parent)
+	rhino.CheckNotNull(parent)
 	// checkNotNull(newName): a Go string cannot be null.
 	newNameIsQualified := strings.IndexByte(newName, '.') >= 0
 	newNameIsModuleExport :=
@@ -1818,7 +1818,7 @@ func (r *ProcessCommonJSModules_RewriteModule) UpdateNameReference(
 				newNameRef.PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
 			}
 
-			var expr *rhino.Node
+			var expr rhino.Node
 			if !newNameIsQualified && newNameDeclaration == nil {
 				expr = rhino.IR_LetWithValue(newNameRef, rhino.IR_NullNode()).SrcrefTreeIfMissing(nameRef)
 			} else {
@@ -1862,7 +1862,7 @@ func (r *ProcessCommonJSModules_RewriteModule) UpdateNameReference(
 			}
 			nameRef.SetString("")
 
-			var expr *rhino.Node
+			var expr rhino.Node
 			if !newNameIsQualified && newNameDeclaration == nil {
 				expr = rhino.IR_VarWithValue(newNameRef, rhino.IR_NullNode()).SrcrefTreeIfMissing(nameRef)
 			} else {
@@ -1955,7 +1955,7 @@ func (r *ProcessCommonJSModules_RewriteModule) UpdateNameReference(
 			nameRef.SetString(newName)
 			nameRef.SetOriginalName(jutil.StringPtr(originalName))
 		} else {
-			var name *rhino.Node
+			var name rhino.Node
 			if newNameIsQualified {
 				name = NodeUtil_NewQNameWithOriginalName(compiler, newName, nameRef, originalName)
 			} else {
@@ -1986,7 +1986,7 @@ func (r *ProcessCommonJSModules_RewriteModule) UpdateNameReference(
 // the name node is actually the export target itself, nil.
 //
 // Java: ProcessCommonJSModules.RewriteModule.getExportedName(NodeTraversal, Node, Var)
-func (r *ProcessCommonJSModules_RewriteModule) GetExportedName(t *NodeTraversal, n *rhino.Node, var_ *Var) *string {
+func (r *ProcessCommonJSModules_RewriteModule) GetExportedName(t *NodeTraversal, n rhino.Node, var_ *Var) *string {
 	if var_ == nil || !jutil.ObjectsEquals(var_.GetNode().GetInputId(), n.GetInputId()) {
 		return n.GetQualifiedName()
 	}
@@ -1997,7 +1997,7 @@ func (r *ProcessCommonJSModules_RewriteModule) GetExportedName(t *NodeTraversal,
 		exportBase := r.outer.GetBaseQualifiedNameNode(export.node)
 		exportRValue := NodeUtil_GetRValueOfLValue(exportBase)
 
-		if exportRValue == nil {
+		if exportRValue.IsNil() {
 			continue
 		}
 
@@ -2020,7 +2020,7 @@ func (r *ProcessCommonJSModules_RewriteModule) GetExportedName(t *NodeTraversal,
 
 			key := exportRValue.GetFirstChild()
 			keyIsExport := false
-			for key != nil {
+			for !key.IsNil() {
 				if key.IsStringKey() &&
 					!key.IsQuotedStringKey() &&
 					NodeUtil_IsValidPropertyName(
@@ -2040,7 +2040,7 @@ func (r *ProcessCommonJSModules_RewriteModule) GetExportedName(t *NodeTraversal,
 
 				key = key.GetNext()
 			}
-			if key != nil && keyIsExport {
+			if !key.IsNil() && keyIsExport {
 				if export.isInSupportedScope {
 					return jutil.StringPtr(baseExportName + "." + key.GetString())
 				} else {
@@ -2071,12 +2071,12 @@ func (r *ProcessCommonJSModules_RewriteModule) GetExportedName(t *NodeTraversal,
 }
 
 // Java: ProcessCommonJSModules.RewriteModule.getExportedNameNode(ExportInfo)
-func (r *ProcessCommonJSModules_RewriteModule) GetExportedNameNode(info *ProcessCommonJSModules_ExportInfo) *rhino.Node {
+func (r *ProcessCommonJSModules_RewriteModule) GetExportedNameNode(info *ProcessCommonJSModules_ExportInfo) rhino.Node {
 	qNameBase := r.outer.GetBaseQualifiedNameNode(info.node)
 	rValue := NodeUtil_GetRValueOfLValue(qNameBase)
 
-	if rValue == nil {
-		return nil
+	if rValue.IsNil() {
+		return rhino.Node{}
 	}
 
 	if NodeUtil_IsFunctionExpression(rValue) {
@@ -2088,12 +2088,12 @@ func (r *ProcessCommonJSModules_RewriteModule) GetExportedNameNode(info *Process
 	}
 
 	if !rValue.IsName() {
-		return nil
+		return rhino.Node{}
 	}
 
 	var_ := info.scope.GetVar(rValue.GetString())
 	if var_ == nil {
-		return nil
+		return rhino.Node{}
 	}
 
 	return var_.GetNameNode()
@@ -2104,22 +2104,22 @@ func (r *ProcessCommonJSModules_RewriteModule) GetExportedNameNode(info *Process
 // name.
 //
 // Java: ProcessCommonJSModules.RewriteModule.getModuleImportName(NodeTraversal, Node)
-func (r *ProcessCommonJSModules_RewriteModule) GetModuleImportName(t *NodeTraversal, n *rhino.Node) *string {
-	var rValue *rhino.Node
+func (r *ProcessCommonJSModules_RewriteModule) GetModuleImportName(t *NodeTraversal, n rhino.Node) *string {
+	var rValue rhino.Node
 	propSuffix := ""
 	parent := n.GetParent()
-	if parent != nil && parent.IsStringKey() {
+	if !parent.IsNil() && parent.IsStringKey() {
 		grandparent := parent.GetParent()
 		if grandparent.IsObjectPattern() && grandparent.GetParent().IsDestructuringLhs() {
 			rValue = grandparent.GetNext()
 			propSuffix = "." + parent.GetString()
 		}
 	}
-	if propSuffix == "" && parent != nil {
+	if propSuffix == "" && !parent.IsNil() {
 		rValue = NodeUtil_GetRValueOfLValue(n)
 	}
 
-	if rValue == nil {
+	if rValue.IsNil() {
 		return nil
 	}
 
@@ -2143,7 +2143,7 @@ func (r *ProcessCommonJSModules_RewriteModule) GetModuleImportName(t *NodeTraver
 // for all the rewriting we've done.
 //
 // Java: ProcessCommonJSModules.RewriteModule.fixTypeNode(NodeTraversal, Node)
-func (r *ProcessCommonJSModules_RewriteModule) FixTypeNode(t *NodeTraversal, typeNode *rhino.Node) {
+func (r *ProcessCommonJSModules_RewriteModule) FixTypeNode(t *NodeTraversal, typeNode rhino.Node) {
 	if typeNode.IsStringLit() {
 		name := typeNode.GetString()
 		// Type nodes can be module paths.
@@ -2185,7 +2185,7 @@ func (r *ProcessCommonJSModules_RewriteModule) FixTypeNode(t *NodeTraversal, typ
 				typeDeclaration := t.GetScope().GetVar(baseName)
 
 				// Make sure we can find a variable declaration (and it's in this file)
-				if typeDeclaration != nil && typeDeclaration.GetNode() != nil &&
+				if typeDeclaration != nil && !typeDeclaration.GetNode().IsNil() &&
 					jutil.ObjectsEquals(typeDeclaration.GetNode().GetInputId(), typeNode.GetInputId()) {
 					importedModuleName := r.GetModuleImportName(t, typeDeclaration.GetNode())
 
@@ -2233,17 +2233,17 @@ func (r *ProcessCommonJSModules_RewriteModule) FixTypeNode(t *NodeTraversal, typ
 		}
 	}
 
-	for child := typeNode.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		r.FixTypeNode(t, child)
 	}
 }
 
 // Java: ProcessCommonJSModules.RewriteModule.splitMultipleDeclarations(Node)
-func (r *ProcessCommonJSModules_RewriteModule) SplitMultipleDeclarations(var_ *rhino.Node) []*rhino.Node {
+func (r *ProcessCommonJSModules_RewriteModule) SplitMultipleDeclarations(var_ rhino.Node) []rhino.Node {
 	jutil.CheckState(NodeUtil_IsNameDeclaration(var_))
-	vars := []*rhino.Node{}
+	vars := []rhino.Node{}
 	info := var_.GetJSDocInfo()
-	for var_.GetSecondChild() != nil {
+	for !var_.GetSecondChild().IsNil() {
 		newVar := rhino.NewNodeWithChild(var_.GetToken(), var_.RemoveFirstChild())
 
 		if info != nil {

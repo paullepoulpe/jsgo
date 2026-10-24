@@ -167,9 +167,9 @@ func renamingDump_dumpVariant(sb *strings.Builder, variant string, externsFile, 
 }
 
 // renamingDump_dumpTree is RenamingDump.dumpTree.
-func renamingDump_dumpTree(out []string, n *rhino.Node, level int) []string {
+func renamingDump_dumpTree(out []string, n rhino.Node, level int) []string {
 	out = append(out, strings.Repeat("  ", level)+n.ToStringWithFlags(true, true, false))
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		out = renamingDump_dumpTree(out, c, level+1)
 	}
 	return out

@@ -98,7 +98,7 @@ func NewRemoveUnusedCodeNameAnalyzerTest_MarkNoSideEffectCallsAndRemoveUnusedCod
 }
 
 // Java: RemoveUnusedCodeNameAnalyzerTest.MarkNoSideEffectCallsAndRemoveUnusedCodeRunner.process(Node, Node)
-func (r *RemoveUnusedCodeNameAnalyzerTest_MarkNoSideEffectCallsAndRemoveUnusedCodeRunner) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RemoveUnusedCodeNameAnalyzerTest_MarkNoSideEffectCallsAndRemoveUnusedCodeRunner) Process(externs rhino.Node, root rhino.Node) {
 	r.pureFunctionIdentifier.Process(externs, root)
 	r.removeUnusedCode.Process(externs, root)
 }

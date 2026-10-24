@@ -283,7 +283,7 @@ func (p *PeepholeOptimizationsPass) SetRetraverseOnChange(retraverse bool) {
 }
 
 // Java: PeepholeOptimizationsPass.process(Node, Node)
-func (p *PeepholeOptimizationsPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *PeepholeOptimizationsPass) Process(externs rhino.Node, root rhino.Node) {
 	if p.canCloneForParallel() && parallelThreadCount(p.compiler, 2) > 1 {
 		p.processParallelLoop(root)
 		return
@@ -371,20 +371,20 @@ func (p *PeepholeOptimizationsPass) cloneForWorker(rc *recordingCompiler) *Peeph
 	return cp
 }
 
-func enclosingScriptForPeephole(n *rhino.Node) *rhino.Node {
-	for cur := n; cur != nil; cur = cur.GetParent() {
+func enclosingScriptForPeephole(n rhino.Node) rhino.Node {
+	for cur := n; !cur.IsNil(); cur = cur.GetParent() {
 		if cur.IsScript() {
 			return cur
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 type peepholeScriptBucket struct {
 	origIndices []int
 }
 
-func (p *PeepholeOptimizationsPass) processParallelLoop(root *rhino.Node) {
+func (p *PeepholeOptimizationsPass) processParallelLoop(root rhino.Node) {
 	prewarmCompilerForParallelReads(p.compiler)
 	restoreReg := enableParallelTypeRegistryReads(p.compiler)
 	defer restoreReg()
@@ -417,7 +417,7 @@ func (p *PeepholeOptimizationsPass) processParallelLoop(root *rhino.Node) {
 	p.EndTraversal()
 }
 
-func (p *PeepholeOptimizationsPass) processFullRootParallel(root *rhino.Node) bool {
+func (p *PeepholeOptimizationsPass) processFullRootParallel(root rhino.Node) bool {
 	scripts, ok := collectRootScripts(root)
 	if !ok {
 		return false
@@ -456,15 +456,15 @@ func (p *PeepholeOptimizationsPass) processFullRootParallel(root *rhino.Node) bo
 	return true
 }
 
-func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNodes []*rhino.Node) bool {
+func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNodes []rhino.Node) bool {
 	if len(changedScopeNodes) < 2 {
 		return false
 	}
-	bucketByScript := make(map[*rhino.Node]int, len(changedScopeNodes))
+	bucketByScript := make(map[rhino.Node]int, len(changedScopeNodes))
 	var buckets []peepholeScriptBucket
 	for origIdx, scopeNode := range changedScopeNodes {
 		script := enclosingScriptForPeephole(scopeNode)
-		if script == nil {
+		if script.IsNil() {
 			return false
 		}
 		bIdx, exists := bucketByScript[script]
@@ -562,13 +562,13 @@ func newPeepholeOptimizationsPass_PeepCallback(outer *PeepholeOptimizationsPass)
 }
 
 // Java: PeepholeOptimizationsPass.PeepCallback.visit(NodeTraversal, Node, Node)
-func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	p := c.this
 	if !p.useActiveMask {
 		currentNode := n
 		for _, optim := range p.peepholeOptimizations {
 			currentNode = optim.OptimizeSubtree(currentNode)
-			if currentNode == nil {
+			if currentNode.IsNil() {
 				return
 			}
 		}
@@ -687,12 +687,12 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhin
 				}
 			}
 		case rhino.Token_VAR:
-			if first := currentNode.GetFirstChild(); first == nil || !first.IsDestructuringLhs() {
+			if first := currentNode.GetFirstChild(); first.IsNil() || !first.IsDestructuringLhs() {
 				return
 			}
 		case rhino.Token_LET, rhino.Token_CONST:
 			if !p.hasOptimizeLetAndConst {
-				if first := currentNode.GetFirstChild(); first == nil || !first.IsDestructuringLhs() {
+				if first := currentNode.GetFirstChild(); first.IsNil() || !first.IsDestructuringLhs() {
 					return
 				}
 			}
@@ -701,15 +701,15 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhin
 				return
 			}
 		case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT:
-			if currentNode.GetFirstChild() == nil {
+			if currentNode.GetFirstChild().IsNil() {
 				return
 			}
 		case rhino.Token_VOID:
-			if first := currentNode.GetFirstChild(); first != nil && first.IsNumber() && first.GetDouble() == 0 {
+			if first := currentNode.GetFirstChild(); !first.IsNil() && first.IsNumber() && first.GetDouble() == 0 {
 				return
 			}
 		case rhino.Token_NEG:
-			if first := currentNode.GetFirstChild(); first != nil && first.IsNumber() {
+			if first := currentNode.GetFirstChild(); !first.IsNil() && first.IsNumber() {
 				return
 			}
 		}
@@ -720,7 +720,7 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n *rhin
 		bit := uint16(1) << idx
 		mask &^= bit
 		currentNode = p.peepholeOptimizations[idx].OptimizeSubtree(currentNode)
-		if currentNode == nil {
+		if currentNode.IsNil() {
 			return
 		}
 		if newTok := currentNode.GetToken(); newTok != tok {

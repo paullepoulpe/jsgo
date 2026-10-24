@@ -70,7 +70,7 @@ type ColorFindPropertyReferences struct {
 // Go-only: language-adapter — a @FunctionalInterface, so a Go func type.
 //
 // Java: ColorFindPropertyReferences.IsPropertyReflector.test(Node)
-type ColorFindPropertyReferences_IsPropertyReflector func(nameNode *rhino.Node) bool
+type ColorFindPropertyReferences_IsPropertyReflector func(nameNode rhino.Node) bool
 
 // Java: ColorFindPropertyReferences(ColorGraphNodeFactory, IsPropertyReflector)
 func NewColorFindPropertyReferences(
@@ -110,7 +110,7 @@ func (r *ColorFindPropertyReferences) GetPropertyIndex() *jutil.LinkedHashMap[st
 }
 
 // Java: ColorFindPropertyReferences.visit(NodeTraversal, Node, Node)
-func (r *ColorFindPropertyReferences) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *ColorFindPropertyReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
 		r.registerPropertyUse(t, n, n.GetFirstChild().GetColor())
@@ -129,7 +129,7 @@ func (r *ColorFindPropertyReferences) Visit(t *NodeTraversal, n *rhino.Node, par
 }
 
 // Java: ColorFindPropertyReferences.handleObjectLit(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleObjectLit(t *NodeTraversal, n *rhino.Node) {
+func (r *ColorFindPropertyReferences) handleObjectLit(t *NodeTraversal, n rhino.Node) {
 	// Object.defineProperties literals are handled at the CALL node.
 	if n.GetParent().IsCall() && NodeUtil_IsObjectDefinePropertiesDefinition(n.GetParent()) {
 		return
@@ -141,7 +141,7 @@ func (r *ColorFindPropertyReferences) handleObjectLit(t *NodeTraversal, n *rhino
 // handleCall examines calls in case they are Object.defineProperties calls
 //
 // Java: ColorFindPropertyReferences.handleCall(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleCall(t *NodeTraversal, call *rhino.Node) {
+func (r *ColorFindPropertyReferences) handleCall(t *NodeTraversal, call rhino.Node) {
 	target := call.GetFirstChild()
 	if !target.IsQualifiedName() {
 		return
@@ -155,14 +155,14 @@ func (r *ColorFindPropertyReferences) handleCall(t *NodeTraversal, call *rhino.N
 }
 
 // Java: ColorFindPropertyReferences.handleClass(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleClass(t *NodeTraversal, classNode *rhino.Node) {
+func (r *ColorFindPropertyReferences) handleClass(t *NodeTraversal, classNode rhino.Node) {
 	classType := classNode.GetColor()
 	members := NodeUtil_GetClassMembers(classNode)
 	jutil.CheckState(members.IsObjectLit() || members.IsObjectPattern() || members.IsClassMembers())
 
 	var instanceOwner *colors.Color
 	var protoOwner *colors.Color
-	for child := members.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := members.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		switch child.GetToken() {
 		case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
 			continue
@@ -205,7 +205,7 @@ func (r *ColorFindPropertyReferences) handleClass(t *NodeTraversal, classNode *r
 }
 
 // Java: ColorFindPropertyReferences.handleFunction(Node)
-func (r *ColorFindPropertyReferences) handleFunction(fnNode *rhino.Node) {
+func (r *ColorFindPropertyReferences) handleFunction(fnNode rhino.Node) {
 	// Ensure the flattener knows about the class constructor and instance. Even if we don't see any
 	// direct property references off either type, it's possible that a property is referenced
 	// via a superclass or implemented interface.
@@ -217,27 +217,27 @@ func (r *ColorFindPropertyReferences) handleFunction(fnNode *rhino.Node) {
 }
 
 // Java: ColorFindPropertyReferences.handleObjectPattern(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleObjectPattern(t *NodeTraversal, pattern *rhino.Node) {
+func (r *ColorFindPropertyReferences) handleObjectPattern(t *NodeTraversal, pattern rhino.Node) {
 	r.traverseObjectlitWithOwner(t, pattern, pattern.GetColor())
 }
 
 // Java: ColorFindPropertyReferences.handlePropertyReflectorCall(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handlePropertyReflectorCall(t *NodeTraversal, call *rhino.Node) {
+func (r *ColorFindPropertyReferences) handlePropertyReflectorCall(t *NodeTraversal, call rhino.Node) {
 	name := call.GetSecondChild()
-	if name == nil || !name.IsStringLit() {
+	if name.IsNil() || !name.IsStringLit() {
 		return
 	}
 
 	obj := name.GetNext()
 	var objColor *colors.Color
-	if obj != nil {
+	if !obj.IsNil() {
 		objColor = obj.GetColor()
 	}
 	r.registerPropertyUse(t, name, objColor)
 }
 
 // Java: ColorFindPropertyReferences.handleObjectDefineProperties(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleObjectDefineProperties(t *NodeTraversal, call *rhino.Node) {
+func (r *ColorFindPropertyReferences) handleObjectDefineProperties(t *NodeTraversal, call rhino.Node) {
 	typeObj := call.GetSecondChild()
 	objectLiteral := typeObj.GetNext()
 	if !objectLiteral.IsObjectLit() {
@@ -247,10 +247,10 @@ func (r *ColorFindPropertyReferences) handleObjectDefineProperties(t *NodeTraver
 	r.traverseObjectlitWithOwner(t, objectLiteral, typeObj.GetColor())
 }
 
-func (r *ColorFindPropertyReferences) traverseObjectlitWithOwner(t *NodeTraversal, n *rhino.Node, owner *colors.Color) {
+func (r *ColorFindPropertyReferences) traverseObjectlitWithOwner(t *NodeTraversal, n rhino.Node, owner *colors.Color) {
 	jutil.CheckState(n.IsObjectLit() || n.IsObjectPattern() || n.IsClassMembers())
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		switch child.GetToken() {
 		case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
 			continue
@@ -268,11 +268,11 @@ func (r *ColorFindPropertyReferences) traverseObjectlitWithOwner(t *NodeTraversa
 }
 
 // Java: ColorFindPropertyReferences.traverseObjectlitLike(NodeTraversal, Node, Function<Node, Color>)
-func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n *rhino.Node, memberOwnerFn func(*rhino.Node) *colors.Color) {
+func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n rhino.Node, memberOwnerFn func(rhino.Node) *colors.Color) {
 	// The keys in an object pattern are r-values, not l-values, but they are still accesses.
 	jutil.CheckState(n.IsObjectLit() || n.IsObjectPattern() || n.IsClassMembers())
 
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		switch child.GetToken() {
 		case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
 			continue
@@ -293,7 +293,7 @@ func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n 
 // property use `site` from type `owner`.
 //
 // Java: ColorFindPropertyReferences.registerPropertyUse(NodeTraversal, Node, Color)
-func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site *rhino.Node, owner *colors.Color) {
+func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site rhino.Node, owner *colors.Color) {
 	propName := site.GetString()
 	var prop *PropertyClustering
 	if r.lastProp != nil && propName == r.lastPropName {
@@ -367,7 +367,7 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 	}
 }
 
-func (r *ColorFindPropertyReferences) addUseSiteSlow(u *PropertyUseSites, site *rhino.Node, owner *ColorGraphNode) {
+func (r *ColorFindPropertyReferences) addUseSiteSlow(u *PropertyUseSites, site rhino.Node, owner *ColorGraphNode) {
 	prevCount := int(u.count - 1)
 	chunkSize := 4
 	if prevCount >= 62 {

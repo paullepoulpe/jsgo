@@ -59,7 +59,7 @@ import (
 //  4. Removes killed(unconditionally redefined) variables from upward
 //     exposed set in the output lattice
 type MaybeReachingVariableUse struct {
-	DataFlowAnalysisBase[*rhino.Node, *MaybeReachingVariableUse_ReachingUses]
+	DataFlowAnalysisBase[rhino.Node, *MaybeReachingVariableUse_ReachingUses]
 
 	// The scope of the function that we are analyzing.
 	//
@@ -75,18 +75,18 @@ type MaybeReachingVariableUse struct {
 	emptyLattice MaybeReachingVariableUse_ReachingUses
 	joinOp       MaybeReachingVariableUse_ReachingUsesJoinOp
 
-	varMapArena  rhino.HamtPMapArena[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]
-	nodeMapArena rhino.HamtPMapArena[*rhino.Node, *rhino.Node]
+	varMapArena  rhino.HamtPMapArena[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]
+	nodeMapArena rhino.HamtPMapArena[rhino.Node, rhino.Node]
 }
 
 var (
-	maybeReachingUse_EMPTY_VARS  = rhino.HamtPMap_Empty[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]()
-	maybeReachingUse_EMPTY_NODES = rhino.HamtPMap_Empty[*rhino.Node, *rhino.Node]()
+	maybeReachingUse_EMPTY_VARS  = rhino.HamtPMap_Empty[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]()
+	maybeReachingUse_EMPTY_NODES = rhino.HamtPMap_Empty[rhino.Node, rhino.Node]()
 )
 
 // Java: MaybeReachingVariableUse(ControlFlowGraph<Node>, Set<Var>, Map<String, Var>)
 func NewMaybeReachingVariableUse(
-	cfg ControlFlowGraph[*rhino.Node],
+	cfg ControlFlowGraph[rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) *MaybeReachingVariableUse {
 	u := &MaybeReachingVariableUse{}
@@ -97,7 +97,7 @@ func NewMaybeReachingVariableUse(
 // Reset resets u for reuse on a new function scope while retaining its
 // storage.
 func (u *MaybeReachingVariableUse) Reset(
-	cfg ControlFlowGraph[*rhino.Node],
+	cfg ControlFlowGraph[rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
 	u.InitDataFlowAnalysisBase(u, cfg)
@@ -149,7 +149,7 @@ func (u *MaybeReachingVariableUse) lookupUnescapedLocal(name string) *Var {
 	return u.unescapedByName[name]
 }
 
-func (u *MaybeReachingVariableUse) allocLattice(m *rhino.HamtPMap[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]) *MaybeReachingVariableUse_ReachingUses {
+func (u *MaybeReachingVariableUse) allocLattice(m *rhino.HamtPMap[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]) *MaybeReachingVariableUse_ReachingUses {
 	return &MaybeReachingVariableUse_ReachingUses{u: u, mayUsePMap: m}
 }
 
@@ -179,7 +179,7 @@ type MaybeReachingVariableUse_ReachingUses struct {
 	u *MaybeReachingVariableUse
 	// Maps variables to all their uses that are upward exposed at the
 	// current cfgNode.
-	mayUsePMap *rhino.HamtPMap[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]
+	mayUsePMap *rhino.HamtPMap[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]
 }
 
 // Java: MaybeReachingVariableUse.ReachingUses()
@@ -202,17 +202,17 @@ func NewMaybeReachingVariableUse_ReachingUsesCopy(other *MaybeReachingVariableUs
 }
 
 // Java: MaybeReachingVariableUse.ReachingUses.get(Var)
-func (r *MaybeReachingVariableUse_ReachingUses) Get(v *Var) iter.Seq[*rhino.Node] {
+func (r *MaybeReachingVariableUse_ReachingUses) Get(v *Var) iter.Seq[rhino.Node] {
 	uses := r.mayUsePMap.Get(v)
 	if uses != nil {
 		return uses.Keys()
 	}
-	return func(func(*rhino.Node) bool) {}
+	return func(func(rhino.Node) bool) {}
 }
 
 // Java: MaybeReachingVariableUse.ReachingUses.removeAll(Var)
 func (r *MaybeReachingVariableUse_ReachingUses) RemoveAll(v *Var) {
-	var varArena *rhino.HamtPMapArena[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]
+	var varArena *rhino.HamtPMapArena[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]
 	if r.u != nil {
 		varArena = &r.u.varMapArena
 	}
@@ -220,13 +220,13 @@ func (r *MaybeReachingVariableUse_ReachingUses) RemoveAll(v *Var) {
 }
 
 // Java: MaybeReachingVariableUse.ReachingUses.put(Var, Node)
-func (r *MaybeReachingVariableUse_ReachingUses) Put(v *Var, n *rhino.Node) {
+func (r *MaybeReachingVariableUse_ReachingUses) Put(v *Var, n rhino.Node) {
 	values := r.mayUsePMap.Get(v)
 	if values == nil {
 		values = maybeReachingUse_EMPTY_NODES
 	}
-	var nodeArena *rhino.HamtPMapArena[*rhino.Node, *rhino.Node]
-	var varArena *rhino.HamtPMapArena[*Var, *rhino.HamtPMap[*rhino.Node, *rhino.Node]]
+	var nodeArena *rhino.HamtPMapArena[rhino.Node, rhino.Node]
+	var varArena *rhino.HamtPMapArena[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]
 	if r.u != nil {
 		nodeArena = &r.u.nodeMapArena
 		varArena = &r.u.varMapArena
@@ -237,11 +237,11 @@ func (r *MaybeReachingVariableUse_ReachingUses) Put(v *Var, n *rhino.Node) {
 	}
 }
 
-func maybeReachingUse_reconcileNodes(node *rhino.Node, unused1 *rhino.Node, unused2 *rhino.Node) *rhino.Node {
+func maybeReachingUse_reconcileNodes(node rhino.Node, unused1 rhino.Node, unused2 rhino.Node) rhino.Node {
 	return node
 }
 
-func maybeReachingUse_reconcileVars(var_ *Var, thisVal *rhino.HamtPMap[*rhino.Node, *rhino.Node], thatVal *rhino.HamtPMap[*rhino.Node, *rhino.Node]) *rhino.HamtPMap[*rhino.Node, *rhino.Node] {
+func maybeReachingUse_reconcileVars(var_ *Var, thisVal *rhino.HamtPMap[rhino.Node, rhino.Node], thatVal *rhino.HamtPMap[rhino.Node, rhino.Node]) *rhino.HamtPMap[rhino.Node, rhino.Node] {
 	if thisVal == nil {
 		return thatVal
 	}
@@ -270,7 +270,7 @@ func (r *MaybeReachingVariableUse_ReachingUses) Join(other *MaybeReachingVariabl
 		r.mayUsePMap = r.mayUsePMap.ReconcileMapWithArena(
 			&u.varMapArena,
 			other.mayUsePMap,
-			func(var_ *Var, thisVal *rhino.HamtPMap[*rhino.Node, *rhino.Node], thatVal *rhino.HamtPMap[*rhino.Node, *rhino.Node]) *rhino.HamtPMap[*rhino.Node, *rhino.Node] {
+			func(var_ *Var, thisVal *rhino.HamtPMap[rhino.Node, rhino.Node], thatVal *rhino.HamtPMap[rhino.Node, rhino.Node]) *rhino.HamtPMap[rhino.Node, rhino.Node] {
 				if thisVal == nil {
 					return thatVal
 				}
@@ -293,12 +293,12 @@ func (r *MaybeReachingVariableUse_ReachingUses) Equals(other any) bool {
 }
 
 // Java: MaybeReachingVariableUse.ReachingUses.equalMaps(PMap<Node, Node>, PMap<Node, Node>)
-func MaybeReachingVariableUse_ReachingUses_EqualMaps(map1 *rhino.HamtPMap[*rhino.Node, *rhino.Node], map2 *rhino.HamtPMap[*rhino.Node, *rhino.Node]) bool {
+func MaybeReachingVariableUse_ReachingUses_EqualMaps(map1 *rhino.HamtPMap[rhino.Node, rhino.Node], map2 *rhino.HamtPMap[rhino.Node, rhino.Node]) bool {
 	return map1 == map2 || map1.EquivalentMap(map2, MaybeReachingVariableUse_ReachingUses_EqualNodes)
 }
 
 // Java: MaybeReachingVariableUse.ReachingUses.equalNodes(Node, Node)
-func MaybeReachingVariableUse_ReachingUses_EqualNodes(n1 *rhino.Node, n2 *rhino.Node) bool {
+func MaybeReachingVariableUse_ReachingUses_EqualNodes(n1 rhino.Node, n2 rhino.Node) bool {
 	return n1 == n2
 }
 
@@ -376,7 +376,7 @@ func (u *MaybeReachingVariableUse) CreateFlowJoiner() DataFlowAnalysis_FlowJoine
 // first iteration.
 //
 // Java: MaybeReachingVariableUse.flowThrough(Node, ReachingUses)
-func (u *MaybeReachingVariableUse) FlowThrough(n *rhino.Node, input *MaybeReachingVariableUse_ReachingUses) *MaybeReachingVariableUse_ReachingUses {
+func (u *MaybeReachingVariableUse) FlowThrough(n rhino.Node, input *MaybeReachingVariableUse_ReachingUses) *MaybeReachingVariableUse_ReachingUses {
 	temp := MaybeReachingVariableUse_ReachingUses{u: u, mayUsePMap: input.mayUsePMap}
 
 	// If there's an ON_EX edge, this cfgNode may or may not get executed.
@@ -391,8 +391,8 @@ func (u *MaybeReachingVariableUse) FlowThrough(n *rhino.Node, input *MaybeReachi
 }
 
 // Java: MaybeReachingVariableUse.hasExceptionHandler(Node)
-func (u *MaybeReachingVariableUse) HasExceptionHandler(cfgNode *rhino.Node) bool {
-	var branchEdges []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]
+func (u *MaybeReachingVariableUse) HasExceptionHandler(cfgNode rhino.Node) bool {
+	var branchEdges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	if u.curDiGraphNode != nil && u.curDiGraphNode.GetValue() == cfgNode {
 		branchEdges = u.curDiGraphNode.GetOutEdges()
 	} else {
@@ -417,7 +417,7 @@ func (u *MaybeReachingVariableUse) HasExceptionHandler(cfgNode *rhino.Node) bool
 // reaching uses set.
 //
 // Java: MaybeReachingVariableUse.computeMayUse(Node, Node, ReachingUses, boolean)
-func (u *MaybeReachingVariableUse) ComputeMayUse(n *rhino.Node, cfgNode *rhino.Node, output *MaybeReachingVariableUse_ReachingUses, conditional bool) {
+func (u *MaybeReachingVariableUse) ComputeMayUse(n rhino.Node, cfgNode rhino.Node, output *MaybeReachingVariableUse_ReachingUses, conditional bool) {
 	switch n.GetToken() {
 	case rhino.Token_BLOCK, rhino.Token_ROOT, rhino.Token_FUNCTION:
 		return
@@ -521,7 +521,7 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n *rhino.Node, cfgNode *rhino.N
 			 * We want to traverse in reverse order because we want the LAST
 			 * definition in the sub-tree.
 			 */
-			for c := n.GetLastChild(); c != nil; c = c.GetPrevious() {
+			for c := n.GetLastChild(); !c.IsNil(); c = c.GetPrevious() {
 				u.ComputeMayUse(c, cfgNode, output, conditional)
 			}
 		}
@@ -533,7 +533,7 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n *rhino.Node, cfgNode *rhino.N
 // escaped variable.
 //
 // Java: MaybeReachingVariableUse.addToUseIfLocal(String, Node, ReachingUses)
-func (u *MaybeReachingVariableUse) AddToUseIfLocal(name string, node *rhino.Node, use *MaybeReachingVariableUse_ReachingUses) {
+func (u *MaybeReachingVariableUse) AddToUseIfLocal(name string, node rhino.Node, use *MaybeReachingVariableUse_ReachingUses) {
 	if var_ := u.lookupUnescapedLocal(name); var_ != nil {
 		use.Put(var_, node)
 	}
@@ -560,7 +560,7 @@ func (u *MaybeReachingVariableUse) RemoveFromUseIfLocal(name string, use *MaybeR
 // defNode.
 //
 // Java: MaybeReachingVariableUse.getUses(String, Node)
-func (u *MaybeReachingVariableUse) GetUses(name string, defNode *rhino.Node) iter.Seq[*rhino.Node] {
+func (u *MaybeReachingVariableUse) GetUses(name string, defNode rhino.Node) iter.Seq[rhino.Node] {
 	n := u.GetCfg().GetNode(defNode)
 	jutil.CheckNotNull(n)
 	state := n.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*MaybeReachingVariableUse_ReachingUses])

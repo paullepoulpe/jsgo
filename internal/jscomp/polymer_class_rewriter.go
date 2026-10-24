@@ -51,7 +51,7 @@ var (
 // Java: final class PolymerClassRewriter
 type PolymerClassRewriter struct {
 	compiler                   AbstractCompiler
-	externsInsertionRef        *rhino.Node
+	externsInsertionRef        rhino.Node
 	propertySinkExternInjected bool
 }
 
@@ -65,18 +65,18 @@ func NewPolymerClassRewriter(compiler AbstractCompiler) *PolymerClassRewriter {
 }
 
 // Java: PolymerClassRewriter.isIIFE(Node)
-func PolymerClassRewriter_IsIIFE(n *rhino.Node) bool {
+func PolymerClassRewriter_IsIIFE(n rhino.Node) bool {
 	return n.IsCall() && n.GetFirstChild().IsFunction()
 }
 
 // Java: PolymerClassRewriter.isFunctionArgInGoogLoadModule(Node)
-func PolymerClassRewriter_IsFunctionArgInGoogLoadModule(n *rhino.Node) bool {
+func PolymerClassRewriter_IsFunctionArgInGoogLoadModule(n rhino.Node) bool {
 	if !n.IsFunction() {
 		return false
 	}
 
 	parent := n.GetParent()
-	return parent != nil && NodeUtil_IsBundledGoogModuleCall(parent)
+	return !parent.IsNil() && NodeUtil_IsBundledGoogModuleCall(parent)
 }
 
 // insertGeneratedDeclarationCodeToGlobalScope accepts declaration code
@@ -89,7 +89,7 @@ func PolymerClassRewriter_IsFunctionArgInGoogLoadModule(n *rhino.Node) bool {
 //
 // Java: PolymerClassRewriter.insertGeneratedDeclarationCodeToGlobalScope(Node, Node)
 func (r *PolymerClassRewriter) insertGeneratedDeclarationCodeToGlobalScope(
-	enclosingNode *rhino.Node, declarationCode *rhino.Node) {
+	enclosingNode rhino.Node, declarationCode rhino.Node) {
 	switch enclosingNode.GetToken() {
 	case rhino.Token_MODULE_BODY:
 		{
@@ -107,7 +107,7 @@ func (r *PolymerClassRewriter) insertGeneratedDeclarationCodeToGlobalScope(
 			// This case represents only the Polymer calls which are enclosed inside an IIFE
 			jutil.CheckState(PolymerClassRewriter_IsIIFE(enclosingNode))
 			enclosingNodeForIIFE := NodeUtil_GetEnclosingNode(
-				enclosingNode.GetParent(), func(node *rhino.Node) bool { return node.IsScript() || node.IsModuleBody() })
+				enclosingNode.GetParent(), func(node rhino.Node) bool { return node.IsScript() || node.IsModuleBody() })
 			if enclosingNodeForIIFE.IsScript() {
 				enclosingNodeForIIFE.AddChildToFront(declarationCode)
 				r.compiler.ReportChangeToChangeScope(NodeUtil_GetEnclosingScript(enclosingNodeForIIFE))
@@ -140,7 +140,7 @@ func (r *PolymerClassRewriter) insertGeneratedDeclarationCodeToGlobalScope(
 // source code otherwise.
 //
 // Java: PolymerClassRewriter.getNodeForInsertion(Node)
-func (r *PolymerClassRewriter) getNodeForInsertion(enclosingScript *rhino.Node) *rhino.Node {
+func (r *PolymerClassRewriter) getNodeForInsertion(enclosingScript rhino.Node) rhino.Node {
 	if NodeUtil_IsFromTypeSummary(enclosingScript) {
 		return r.compiler.GetSynthesizedTypeSummaryInput().GetAstRoot(r.compiler)
 	} else {
@@ -157,7 +157,7 @@ func (r *PolymerClassRewriter) getNodeForInsertion(enclosingScript *rhino.Node) 
 // and behavior.
 //
 // Java: PolymerClassRewriter.insertGeneratedPropsAndBehaviorCode(Node, Node)
-func (r *PolymerClassRewriter) insertGeneratedPropsAndBehaviorCode(enclosingNode *rhino.Node, statements *rhino.Node) {
+func (r *PolymerClassRewriter) insertGeneratedPropsAndBehaviorCode(enclosingNode rhino.Node, statements rhino.Node) {
 	switch enclosingNode.GetToken() {
 	case rhino.Token_MODULE_BODY:
 		{
@@ -192,7 +192,7 @@ func (r *PolymerClassRewriter) insertGeneratedPropsAndBehaviorCode(enclosingNode
 		// Node insertionPoint will be null here if functionBlock does not contain a goog.module()
 		// Missing goog.module inside the loadModule's functionBlock is semantically incorrect
 		// That will cause the compiler to crash in closureRewriteModule pass.
-		if insertionPoint != nil {
+		if !insertionPoint.IsNil() {
 			functionBlock.AddChildrenAfter(statements, insertionPoint)
 		}
 	default:
@@ -215,7 +215,7 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 		exprRoot = callParent
 	}
 	jutil.CheckStateMsg1(NodeUtil_IsStatementParent(exprRoot.GetParent()), "%s", exprRoot.GetParent())
-	objLit := jutil.CheckNotNull(cls.descriptor)
+	objLit := rhino.CheckNotNull(cls.descriptor)
 
 	// Add {@code @lends} to the object literal.
 	objLitDoc := rhino.JSDocInfo_Builder_().ParseDocumentation()
@@ -243,7 +243,7 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 
 	// Remove the original constructor JS docs from the objlit.
 	ctorKey := cls.constructor.value.GetParent()
-	if ctorKey != nil {
+	if !ctorKey.IsNil() {
 		ctorKey.SetJSDocInfo(nil)
 	}
 
@@ -283,7 +283,7 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 	if !traversal.InGlobalScope() && cls.hasGeneratedLhs && !cls.target.IsGetProp() {
 		enclosingNode := NodeUtil_GetEnclosingNode(
 			parent,
-			func(node *rhino.Node) bool {
+			func(node rhino.Node) bool {
 				return node.IsScript() ||
 					node.IsModuleBody() ||
 					PolymerClassRewriter_IsIIFE(node) ||
@@ -295,25 +295,25 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 		// the AST. We want to insert the generated declarations to global scope, and insert the
 		// propsAndbehaviorCode in the same scope. Hence, dealing with them separately.
 		r.insertGeneratedDeclarationCodeToGlobalScope(enclosingNode, declarationCode)
-		if propsAndBehaviorCode != nil {
+		if !propsAndBehaviorCode.IsNil() {
 			r.insertGeneratedPropsAndBehaviorCode(enclosingNode, propsAndBehaviorCode)
 		}
 	} else {
 		beforeRoot := exprRoot.GetPrevious()
-		if beforeRoot == nil {
-			if propsAndBehaviorCode != nil {
+		if beforeRoot.IsNil() {
+			if !propsAndBehaviorCode.IsNil() {
 				parent.AddChildrenToFront(propsAndBehaviorCode)
 			}
 			parent.AddChildToFront(declarationCode)
 		} else {
-			if propsAndBehaviorCode != nil {
+			if !propsAndBehaviorCode.IsNil() {
 				parent.AddChildrenAfter(propsAndBehaviorCode, beforeRoot)
 			}
 			declarationCode.InsertAfter(beforeRoot)
 		}
 		r.compiler.ReportChangeToEnclosingScope(parent)
 	}
-	if propsAndBehaviorCode != nil {
+	if !propsAndBehaviorCode.IsNil() {
 		r.compiler.ReportChangeToEnclosingScope(propsAndBehaviorCode)
 	}
 
@@ -338,9 +338,9 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 	// If property renaming is enabled, wrap the properties object literal
 	// in a reflection call so that the properties are renamed consistently
 	// with the class members.
-	if cls.descriptor != nil {
+	if !cls.descriptor.IsNil() {
 		props := NodeUtil_GetFirstPropMatchingKey(cls.descriptor, "properties")
-		if props != nil && props.IsObjectLit() {
+		if !props.IsNil() && props.IsObjectLit() {
 			r.addPropertiesConfigObjectReflection(cls, props)
 		}
 	}
@@ -355,9 +355,9 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 //
 // Java: PolymerClassRewriter.rewritePolymerClassDeclaration(Node, NodeTraversal, PolymerClassDefinition)
 func (r *PolymerClassRewriter) RewritePolymerClassDeclaration(
-	clazz *rhino.Node, traversal *NodeTraversal, cls *PolymerClassDefinition) {
+	clazz rhino.Node, traversal *NodeTraversal, cls *PolymerClassDefinition) {
 
-	if cls.descriptor != nil {
+	if !cls.descriptor.IsNil() {
 		r.addTypesToFunctions(cls.descriptor, *cls.target.GetQualifiedName(), cls.defType)
 	}
 	PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(
@@ -423,12 +423,12 @@ func (r *PolymerClassRewriter) RewritePolymerClassDeclaration(
 	//
 	// Also add reflection and sinks for computed properties and complex observers
 	// and switch simple observers to direct function references.
-	if cls.descriptor != nil {
+	if !cls.descriptor.IsNil() {
 		r.convertSimpleObserverStringsToReferences(cls)
 		r.addPropertiesConfigObjectReflection(cls, cls.descriptor)
 	}
 
-	if cls.descriptor != nil {
+	if !cls.descriptor.IsNil() {
 		r.validateComputedPropertiesReflectionCalls(cls)
 		r.validateComplexObserverReflectionCalls(cls)
 	}
@@ -442,7 +442,7 @@ func polymerClassRewriter_addReturnTypeIfMissing(
 	cls *PolymerClassDefinition, getterPropName string, jsType *rhino.JSTypeExpression) {
 	classMembers := NodeUtil_GetClassMembers(cls.definition)
 	getter := NodeUtil_GetFirstGetterMatchingKey(classMembers, getterPropName)
-	if getter != nil {
+	if !getter.IsNil() {
 		info := NodeUtil_GetBestJSDocInfo(getter)
 		if info == nil || !info.HasReturnType() {
 			builder := rhino.JSDocInfo_Builder_MaybeCopyFrom(info)
@@ -458,8 +458,8 @@ func polymerClassRewriter_addReturnTypeIfMissing(
 //
 // Java: PolymerClassRewriter.addPropertiesConfigObjectReflection(PolymerClassDefinition, Node)
 func (r *PolymerClassRewriter) addPropertiesConfigObjectReflection(
-	cls *PolymerClassDefinition, propertiesLiteral *rhino.Node) {
-	jutil.CheckNotNull(propertiesLiteral)
+	cls *PolymerClassDefinition, propertiesLiteral rhino.Node) {
+	rhino.CheckNotNull(propertiesLiteral)
 	jutil.CheckState(propertiesLiteral.IsObjectLit())
 
 	parent := propertiesLiteral.GetParent()
@@ -479,11 +479,11 @@ func (r *PolymerClassRewriter) addPropertiesConfigObjectReflection(
 //
 // Java: PolymerClassRewriter.addTypesToFunctions(Node, String, PolymerClassDefinition.DefinitionType)
 func (r *PolymerClassRewriter) addTypesToFunctions(
-	objLit *rhino.Node, thisType string, defType PolymerClassDefinition_DefinitionType) {
+	objLit rhino.Node, thisType string, defType PolymerClassDefinition_DefinitionType) {
 	jutil.CheckState(objLit.IsObjectLit())
-	for keyNode := objLit.GetFirstChild(); keyNode != nil; keyNode = keyNode.GetNext() {
+	for keyNode := objLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		value := keyNode.GetLastChild()
-		if value != nil && value.IsFunction() {
+		if !value.IsNil() && value.IsFunction() {
 			fnDoc := rhino.JSDocInfo_Builder_MaybeCopyFrom(keyNode.GetJSDocInfo())
 			fnDoc.RecordThisType(
 				rhino.NewJSTypeExpression(
@@ -494,13 +494,13 @@ func (r *PolymerClassRewriter) addTypesToFunctions(
 
 	// Add @this and @return to default property values.
 	for _, property := range PolymerPassStaticUtils_ExtractProperties(
-		objLit, defType, r.compiler /* constructor= */, nil) {
+		objLit, defType, r.compiler /* constructor= */, rhino.Node{}) {
 		if !property.value.IsObjectLit() {
 			continue
 		}
 
 		defaultValue := NodeUtil_GetFirstPropMatchingKey(property.value, "value")
-		if defaultValue == nil || !defaultValue.IsFunction() {
+		if defaultValue.IsNil() || !defaultValue.IsFunction() {
 			continue
 		}
 		defaultValueKey := defaultValue.GetParent()
@@ -520,7 +520,7 @@ func (r *PolymerClassRewriter) addTypesToFunctions(
 //
 // Java: PolymerClassRewriter.parseReadOnlyProperties(PolymerClassDefinition, Node)
 func (r *PolymerClassRewriter) parseReadOnlyProperties(
-	cls *PolymerClassDefinition, block *rhino.Node) []*PolymerPass_MemberDefinition {
+	cls *PolymerClassDefinition, block rhino.Node) []*PolymerPass_MemberDefinition {
 	qualifiedPath := *cls.target.GetQualifiedName() + ".prototype."
 	var readOnlyProps []*PolymerPass_MemberDefinition
 
@@ -528,7 +528,7 @@ func (r *PolymerClassRewriter) parseReadOnlyProperties(
 		// Generate the setter for readOnly properties.
 		if prop.value.IsObjectLit() {
 			readOnlyValue := NodeUtil_GetFirstPropMatchingKey(prop.value, "readOnly")
-			if readOnlyValue != nil && readOnlyValue.IsTrue() {
+			if !readOnlyValue.IsNil() && readOnlyValue.IsTrue() {
 				setter := r.makeReadOnlySetter(prop, qualifiedPath)
 				setter.SrcrefTreeIfMissing(prop.name)
 				block.AddChildToBack(setter)
@@ -542,7 +542,7 @@ func (r *PolymerClassRewriter) parseReadOnlyProperties(
 			// Generate the setter for readOnly properties.
 			if prop.value.IsObjectLit() {
 				readOnlyValue := NodeUtil_GetFirstPropMatchingKey(prop.value, "readOnly")
-				if readOnlyValue != nil && readOnlyValue.IsTrue() {
+				if !readOnlyValue.IsNil() && readOnlyValue.IsTrue() {
 					setter := r.makeReadOnlySetter(prop, qualifiedPath)
 					setter.SrcrefTreeIfMissing(prop.name)
 					block.AddChildToBack(setter)
@@ -581,10 +581,10 @@ func (r *PolymerClassRewriter) getConstructorDoc(cls *PolymerClassDefinition) *r
 //
 // Java: PolymerClassRewriter.generateDeclarationCode(Node, PolymerClassDefinition, JSDocInfo.Builder, NodeTraversal)
 func (r *PolymerClassRewriter) generateDeclarationCode(
-	exprRoot *rhino.Node,
+	exprRoot rhino.Node,
 	cls *PolymerClassDefinition,
 	constructorDoc *rhino.JSDocInfo_Builder,
-	traversal *NodeTraversal) *rhino.Node {
+	traversal *NodeTraversal) rhino.Node {
 	if cls.target.IsGetProp() {
 		// foo.bar = Polymer({...});
 		assign := rhino.IR_Assign(cls.target.CloneTree(), cls.constructor.value.CloneTree())
@@ -616,7 +616,7 @@ func (r *PolymerClassRewriter) generateDeclarationCode(
 //
 // Java: PolymerClassRewriter.replaceJSDocAndAddNewVars(MemberDefinition, JSTypeExpression, Node)
 func (r *PolymerClassRewriter) replaceJSDocAndAddNewVars(
-	prop *PolymerPass_MemberDefinition, propType *rhino.JSTypeExpression, block *rhino.Node) *rhino.JSDocInfo {
+	prop *PolymerPass_MemberDefinition, propType *rhino.JSTypeExpression, block rhino.Node) *rhino.JSDocInfo {
 	infoBuilder := rhino.JSDocInfo_Builder_MaybeCopyFrom(prop.info)
 	infoBuilder.RecordType(propType)
 	origInfo := infoBuilder.Build()
@@ -631,10 +631,10 @@ func (r *PolymerClassRewriter) replaceJSDocAndAddNewVars(
 // element or behavior
 //
 // Java: PolymerClassRewriter.getPropertyNode(MemberDefinition, String)
-func (r *PolymerClassRewriter) getPropertyNode(prop *PolymerPass_MemberDefinition, basePath string) *rhino.Node {
+func (r *PolymerClassRewriter) getPropertyNode(prop *PolymerPass_MemberDefinition, basePath string) rhino.Node {
 	// If a property string is quoted, make sure the added prototype properties are also quoted
 	if prop.name.IsQuotedStringKey() {
-		return nil
+		return rhino.Node{}
 	}
 	propertyNode := rhino.IR_ExprResult(NodeUtil_NewQName(r.compiler, basePath+prop.name.GetString()))
 	propertyNode.SrcrefTreeIfMissing(prop.name)
@@ -648,14 +648,14 @@ func (r *PolymerClassRewriter) getPropertyNode(prop *PolymerPass_MemberDefinitio
 //
 // Java: PolymerClassRewriter.appendBehaviorPropertiesToBlock(PolymerClassDefinition, Node, String, boolean)
 func (r *PolymerClassRewriter) appendBehaviorPropertiesToBlock(
-	cls *PolymerClassDefinition, block *rhino.Node, basePath string, isExternsBlock bool) {
+	cls *PolymerClassDefinition, block rhino.Node, basePath string, isExternsBlock bool) {
 	if len(cls.behaviors) == 0 || cls.behaviorProps == nil {
 		return
 	}
 
 	for prop, behavior := range cls.behaviorProps.All() {
 		propertyNode := r.getPropertyNode(prop, basePath)
-		if propertyNode == nil {
+		if propertyNode.IsNil() {
 			continue
 		}
 
@@ -682,11 +682,11 @@ func (r *PolymerClassRewriter) appendBehaviorPropertiesToBlock(
 //
 // Java: PolymerClassRewriter.appendPropertiesToBlock(List<MemberDefinition>, Node, String, boolean)
 func (r *PolymerClassRewriter) appendPropertiesToBlock(
-	props []*PolymerPass_MemberDefinition, block *rhino.Node, basePath string, isExternsBlock bool) {
+	props []*PolymerPass_MemberDefinition, block rhino.Node, basePath string, isExternsBlock bool) {
 	for _, prop := range props {
 
 		propertyNode := r.getPropertyNode(prop, basePath)
-		if propertyNode == nil {
+		if propertyNode.IsNil() {
 			continue
 		}
 
@@ -720,7 +720,7 @@ func (r *PolymerClassRewriter) appendPropertiesToBlock(
 //
 // Java: PolymerClassRewriter.createVarsInExternsBlock(Node, ImmutableSet<String>, JSTypeExpression, MemberDefinition)
 func (r *PolymerClassRewriter) createVarsInExternsBlock(
-	block *rhino.Node,
+	block rhino.Node,
 	propertyNames *jutil.LinkedHashSet[string],
 	propType *rhino.JSTypeExpression,
 	prop *PolymerPass_MemberDefinition) {
@@ -768,9 +768,9 @@ func polymerClassRewriter_createNewTypeExpressionForExtern(
 //
 // Java: PolymerClassRewriter.removePropertyDocs(Node, PolymerClassDefinition.DefinitionType)
 func (r *PolymerClassRewriter) removePropertyDocs(
-	objLit *rhino.Node, defType PolymerClassDefinition_DefinitionType) {
+	objLit rhino.Node, defType PolymerClassDefinition_DefinitionType) {
 	for _, prop := range PolymerPassStaticUtils_ExtractProperties(
-		objLit, defType, r.compiler /* constructor= */, nil) {
+		objLit, defType, r.compiler /* constructor= */, rhino.Node{}) {
 		prop.name.SetJSDocInfo(nil)
 	}
 }
@@ -783,7 +783,7 @@ func (r *PolymerClassRewriter) getJSDocInfoBuilderForBehavior(
 		behaviorFunctionOrProp.info != nil &&
 		behaviorFunctionOrProp.info.ContainsTypeDeclaration() {
 
-		if behavior.behaviorModule != nil {
+		if !behavior.behaviorModule.IsNil() {
 			// Replace module local names in @type, @return and @param with unknown type
 			info = rhino.JSDocInfo_Builder_MaybeCopyFromAndReplaceNames(
 				behaviorFunctionOrProp.info, behavior.GetModuleLocalNames(r.compiler))
@@ -800,14 +800,14 @@ func (r *PolymerClassRewriter) getJSDocInfoBuilderForBehavior(
 // non-property members to the given block.
 //
 // Java: PolymerClassRewriter.appendBehaviorMembersToBlock(PolymerClassDefinition, Node)
-func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDefinition, block *rhino.Node) {
+func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDefinition, block rhino.Node) {
 	qualifiedPath := *cls.target.GetQualifiedName() + ".prototype."
-	nameToExprResult := jutil.NewLinkedHashMap[string, *rhino.Node]()
+	nameToExprResult := jutil.NewLinkedHashMap[string, rhino.Node]()
 	for _, behavior := range cls.behaviors {
 		for _, behaviorFunction := range behavior.functionsToCopy {
 			fnName := behaviorFunction.name.GetString()
 			// Don't copy functions already defined by the element itself.
-			if NodeUtil_GetFirstPropMatchingKey(cls.descriptor, fnName) != nil {
+			if !NodeUtil_GetFirstPropMatchingKey(cls.descriptor, fnName).IsNil() {
 				continue
 			}
 
@@ -843,7 +843,7 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 				}
 				// Remove any non-named parameters, which may reference locals.
 				paramIndex := 0
-				for param := NodeUtil_GetFunctionParameters(fnValue).GetFirstChild(); param != nil; {
+				for param := NodeUtil_GetFunctionParameters(fnValue).GetFirstChild(); !param.IsNil(); {
 					next := param.GetNext()
 					polymerClassRewriter_makeParamSafe(param, paramIndex)
 					paramIndex++
@@ -879,7 +879,7 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 				info = rhino.JSDocInfo_Builder_().ParseDocumentation()
 				if behaviorProp.info != nil && behaviorProp.info.GetReturnType() != nil {
 					info.RecordType(behaviorProp.info.GetReturnType())
-					if behaviorProp.enclosingModule != nil {
+					if !behaviorProp.enclosingModule.IsNil() {
 						info = rhino.JSDocInfo_Builder_MaybeCopyFromAndReplaceNames(
 							info.Build(), behavior.GetModuleLocalNames(r.compiler))
 					}
@@ -897,7 +897,7 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 // referenced within a formal parameter
 //
 // Java: PolymerClassRewriter.makeParamSafe(Node, int)
-func polymerClassRewriter_makeParamSafe(param *rhino.Node, index int) {
+func polymerClassRewriter_makeParamSafe(param rhino.Node, index int) {
 	if param.IsRest() {
 		// The lhs may be a destructuring pattern.
 		param = param.GetOnlyChild()
@@ -918,7 +918,7 @@ func polymerClassRewriter_makeParamSafe(param *rhino.Node, index int) {
 // See https://www.polymer-project.org/0.8/docs/devguide/properties.html#read-only
 //
 // Java: PolymerClassRewriter.makeReadOnlySetter(MemberDefinition, String)
-func (r *PolymerClassRewriter) makeReadOnlySetter(prop *PolymerPass_MemberDefinition, qualifiedPath string) *rhino.Node {
+func (r *PolymerClassRewriter) makeReadOnlySetter(prop *PolymerPass_MemberDefinition, qualifiedPath string) rhino.Node {
 	propName := prop.name.GetString()
 	setterName :=
 		"_set" + jutil.StringToUpperCaseRoot(jutil.StringSubstring(propName, 0, 1)) + jutil.StringSubstringFrom(propName, 1)
@@ -1032,7 +1032,7 @@ func (r *PolymerClassRewriter) createExportsAndExterns(
 		block.AddChildToBack(setterExprNode)
 	}
 
-	var stmts *rhino.Node
+	var stmts rhino.Node
 	if NodeUtil_IsFromTypeSummary(cls.input.GetAstRoot(r.compiler)) {
 		typeSummaryInsertionRef := r.compiler.GetSynthesizedTypeSummaryInput().GetAstRoot(r.compiler)
 		block.SrcrefTreeIfMissing(typeSummaryInsertionRef)
@@ -1085,7 +1085,7 @@ func (r *PolymerClassRewriter) addMethodToObjectExternsUsingExportAnnotation(
 // equivalent var or let declaration.
 //
 // Java: PolymerClassRewriter.varToAssign(Node)
-func polymerClassRewriter_varToAssign(var_ *rhino.Node) *rhino.Node {
+func polymerClassRewriter_varToAssign(var_ rhino.Node) rhino.Node {
 	assign := rhino.IR_Assign(var_.GetFirstChild().CloneNode(), var_.GetFirstChild().RemoveFirstChild())
 	return rhino.IR_ExprResult(assign).SrcrefTreeIfMissing(var_)
 }
@@ -1101,7 +1101,7 @@ func (r *PolymerClassRewriter) convertSimpleObserverStringsToReferences(cls *Pol
 	for _, prop := range cls.props {
 		if prop.value.IsObjectLit() {
 			observer := NodeUtil_GetFirstPropMatchingKey(prop.value, "observer")
-			if observer != nil && observer.IsStringLit() {
+			if !observer.IsNil() && observer.IsStringLit() {
 				observerDirectReference := rhino.IR_GetpropWithMoreProps(cls.target.CloneTree(), "prototype", observer.GetString()).
 					Srcref(observer)
 
@@ -1121,7 +1121,7 @@ func (r *PolymerClassRewriter) validateComputedPropertiesReflectionCalls(cls *Po
 	for _, prop := range cls.props {
 		if prop.value.IsObjectLit() {
 			computed := NodeUtil_GetFirstPropMatchingKey(prop.value, "computed")
-			if computed != nil && computed.IsStringLit() {
+			if !computed.IsNil() && computed.IsStringLit() {
 				r.validateReflectedString(computed)
 			}
 		}
@@ -1136,9 +1136,9 @@ func (r *PolymerClassRewriter) validateComputedPropertiesReflectionCalls(cls *Po
 func (r *PolymerClassRewriter) validateComplexObserverReflectionCalls(cls *PolymerClassDefinition) {
 	classMembers := NodeUtil_GetClassMembers(cls.definition)
 	getter := NodeUtil_GetFirstGetterMatchingKey(classMembers, "observers")
-	if getter != nil {
-		var complexObservers *rhino.Node
-		for child := NodeUtil_GetFunctionBody(getter.GetFirstChild()).GetFirstChild(); child != nil; child = child.GetNext() {
+	if !getter.IsNil() {
+		var complexObservers rhino.Node
+		for child := NodeUtil_GetFunctionBody(getter.GetFirstChild()).GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if child.IsReturn() {
 				if child.HasChildren() && child.GetFirstChild().IsArrayLit() {
 					complexObservers = child.GetFirstChild()
@@ -1146,8 +1146,8 @@ func (r *PolymerClassRewriter) validateComplexObserverReflectionCalls(cls *Polym
 				}
 			}
 		}
-		if complexObservers != nil {
-			for complexObserver := complexObservers.GetFirstChild(); complexObserver != nil; {
+		if !complexObservers.IsNil() {
+			for complexObserver := complexObservers.GetFirstChild(); !complexObserver.IsNil(); {
 				next := complexObserver.GetNext()
 				if complexObserver.IsStringLit() {
 					r.validateReflectedString(complexObserver)
@@ -1163,7 +1163,7 @@ func (r *PolymerClassRewriter) validateComplexObserverReflectionCalls(cls *Polym
 // method name and arguments and reports errors on invalid syntax.
 //
 // Java: PolymerClassRewriter.validateReflectedString(Node)
-func (r *PolymerClassRewriter) validateReflectedString(methodSignature *rhino.Node) {
+func (r *PolymerClassRewriter) validateReflectedString(methodSignature rhino.Node) {
 	jutil.CheckArgument(methodSignature.IsStringLit())
 	methodSignatureString := jutil.StringTrim(methodSignature.GetString())
 	openParenIndex := jutil.StringIndexOfChar(methodSignatureString, '(')
@@ -1188,7 +1188,7 @@ func (r *PolymerClassRewriter) validateReflectedString(methodSignature *rhino.No
 // syntax.
 //
 // Java: PolymerClassRewriter.parseMethodParams(String, Node)
-func (r *PolymerClassRewriter) parseMethodParams(methodParameters string, methodSignature *rhino.Node) {
+func (r *PolymerClassRewriter) parseMethodParams(methodParameters string, methodSignature rhino.Node) {
 	// The delimiters are ASCII, which never occurs inside a multi-byte
 	// sequence: scanning the bytes sees the same delimiters as the chars.
 	nextDelimeter := byte(',')
@@ -1207,7 +1207,7 @@ func (r *PolymerClassRewriter) parseMethodParams(methodParameters string, method
 }
 
 // Java: PolymerClassRewriter.getInsertionPointForGoogModule(Node)
-func polymerClassRewriter_getInsertionPointForGoogModule(moduleBody *rhino.Node) *rhino.Node {
+func polymerClassRewriter_getInsertionPointForGoogModule(moduleBody rhino.Node) rhino.Node {
 	insertionPoint := moduleBody.GetFirstChild() // goog.module('ns');
 	next := insertionPoint.GetNext()
 	for polymerClassRewriter_isGoogRequireExpr(next) ||
@@ -1220,7 +1220,7 @@ func polymerClassRewriter_getInsertionPointForGoogModule(moduleBody *rhino.Node)
 }
 
 // Java: PolymerClassRewriter.isGoogRequireExpr(Node)
-func polymerClassRewriter_isGoogRequireExpr(statement *rhino.Node) bool {
+func polymerClassRewriter_isGoogRequireExpr(statement rhino.Node) bool {
 	if NodeUtil_IsExprCall(statement) &&
 		ModuleImportResolver_IsGoogModuleDependencyCall(statement.GetOnlyChild()) {
 		// `goog.require('a.b.c');`
@@ -1229,7 +1229,7 @@ func polymerClassRewriter_isGoogRequireExpr(statement *rhino.Node) bool {
 	if !NodeUtil_IsNameDeclaration(statement) {
 		return false
 	}
-	var rhs *rhino.Node
+	var rhs rhino.Node
 	if statement.GetFirstChild().IsName() {
 		// `const c = goog.require('a.b.c');`
 		rhs = statement.GetFirstFirstChild()

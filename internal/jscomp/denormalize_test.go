@@ -384,7 +384,7 @@ func NewDenormalizeTest_NormalizeAndDenormalizePass(compiler AbstractCompiler, o
 }
 
 // Java: DenormalizeTest.NormalizeAndDenormalizePass.process(Node, Node)
-func (p *DenormalizeTest_NormalizeAndDenormalizePass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *DenormalizeTest_NormalizeAndDenormalizePass) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, p.normalizePass)
 	p.denormalizePass.Process(externs, root)
 }

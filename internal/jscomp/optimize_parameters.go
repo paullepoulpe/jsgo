@@ -42,9 +42,9 @@ type OptimizeParameters struct {
 
 	// Allocated & cleaned up by process()
 	decisionsLog      diagnostic.LogFile
-	fnNodes           []*rhino.Node
-	defNodes          []*rhino.Node
-	ttlList           jutil.ArrayList[*rhino.Node]
+	fnNodes           []rhino.Node
+	defNodes          []rhino.Node
+	ttlList           jutil.ArrayList[rhino.Node]
 	fixedParams       jutil.ArrayList[*OptimizeParameters_Parameter]
 	paramSlab         []OptimizeParameters_Parameter
 	candidateBuilder  OptimizeParameters_CandidateAnalysisBuilder
@@ -67,7 +67,7 @@ func NewOptimizeParameters(compiler AbstractCompiler) *OptimizeParameters {
 // ProcessWithReferenceMap, and AsCallGraphCompilerPass adapts it.
 //
 // Java: OptimizeParameters.process(Node, Node)
-func (o *OptimizeParameters) Process(externs *rhino.Node, root *rhino.Node) {
+func (o *OptimizeParameters) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(o.compiler.GetLifeCycleStage() == AbstractCompiler_LifeCycleStage_NORMALIZED)
 
 	OptimizeCalls_Builder_().
@@ -87,7 +87,7 @@ func (o *OptimizeParameters) AsCallGraphCompilerPass() OptimizeCalls_CallGraphCo
 }
 
 // Java: OptimizeParameters.process(Node, Node, ReferenceMap)
-func (o *OptimizeParameters) ProcessWithReferenceMap(externs *rhino.Node, root *rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
+func (o *OptimizeParameters) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
 	decisionsLog :=
 		o.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[OptimizeParameters](), "decisions.log")
 	defer decisionsLog.Close()
@@ -107,7 +107,7 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs *rhino.Node, root *
 	o.globalScope = refMap.GetGlobalScope()
 
 	// Find all function nodes that are possible candidates for parameter removal.
-	var toOptimize []*jutil.ArrayList[*rhino.Node]
+	var toOptimize []*jutil.ArrayList[rhino.Node]
 
 	for key, refs := range refMap.GetNameReferences() {
 		candidateAnalysis := o.AnalyzeCandidateName(key, refs)
@@ -169,8 +169,8 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs *rhino.Node, root *
 // optimizeParameters_values is ImmutableListMultimap.values().
 //
 // Go-only: language-adapter — collects the multimap's values in order.
-func optimizeParameters_values(fns *jutil.ListMultimap[*rhino.Node, *rhino.Node]) []*rhino.Node {
-	var values []*rhino.Node
+func optimizeParameters_values(fns *jutil.ListMultimap[rhino.Node, rhino.Node]) []rhino.Node {
+	var values []rhino.Node
 	for _, fn := range fns.Entries() {
 		values = append(values, fn)
 	}
@@ -181,8 +181,8 @@ func optimizeParameters_values(fns *jutil.ListMultimap[*rhino.Node, *rhino.Node]
 // UnusedParameterOptimizer.
 type OptimizeParameters_UnusedParameterOptimizer struct {
 	outer             *OptimizeParameters
-	toRemove          []*rhino.Node
-	toReplaceWithZero []*rhino.Node
+	toRemove          []rhino.Node
+	toReplaceWithZero []rhino.Node
 	used              jutil.BitSet
 	unused            jutil.BitSet
 	unremovable       jutil.BitSet
@@ -203,7 +203,7 @@ func NewOptimizeParameters_UnusedParameterOptimizer(outer *OptimizeParameters) *
 // by #analyzeCandidate.
 //
 // Java: OptimizeParameters.UnusedParameterOptimizer.tryEliminateUnusedArgs(ArrayList<Node>)
-func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(refs *jutil.ArrayList[*rhino.Node]) {
+func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(refs *jutil.ArrayList[rhino.Node]) {
 	// An argument is unused if its position is greater than the number of declared parameters
 	// or if it marked as unused.
 	fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(u.outer.fnNodes[:0], refs.Slice())
@@ -225,7 +225,7 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 	for _, fn := range fns {
 		paramList := NodeUtil_GetFunctionParameters(fn)
 		index := -1
-		for c := paramList.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := paramList.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			index++
 			if !c.IsUnusedParameter() {
 				used.Set(index)
@@ -295,7 +295,7 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 			}
 			param := OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n)
 			paramIndex := 0
-			for param != nil {
+			for !param.IsNil() {
 				if paramIndex >= maxFormalsCount {
 					break
 				}
@@ -361,9 +361,9 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) RecordRemovalCallArguments
 	removeAllAfterIndex int,
 	unused *jutil.BitSet,
 	unremovable *jutil.BitSet,
-	arg *rhino.Node,
+	arg rhino.Node,
 	index int) bool {
-	if arg == nil {
+	if arg.IsNil() {
 		// base case
 		return true
 	}
@@ -416,7 +416,7 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) RecordRemovalCallArguments
 // operator recursively.
 //
 // Java: OptimizeParameters.UnusedParameterOptimizer.removeFromCommaIfNoSideEffects(Node)
-func (u *OptimizeParameters_UnusedParameterOptimizer) RemoveFromCommaIfNoSideEffects(arg *rhino.Node) {
+func (u *OptimizeParameters_UnusedParameterOptimizer) RemoveFromCommaIfNoSideEffects(arg rhino.Node) {
 	if arg.IsComma() {
 		secondChild := arg.GetSecondChild()
 		if !u.outer.astAnalyzer.MayHaveSideEffects(secondChild) {
@@ -430,7 +430,7 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) RemoveFromCommaIfNoSideEff
 // RecordReplaceWithZero records node to be replaced with zero.
 //
 // Java: OptimizeParameters.UnusedParameterOptimizer.recordReplaceWithZero(Node)
-func (u *OptimizeParameters_UnusedParameterOptimizer) RecordReplaceWithZero(arg *rhino.Node) {
+func (u *OptimizeParameters_UnusedParameterOptimizer) RecordReplaceWithZero(arg rhino.Node) {
 	if !arg.IsNumber() || arg.GetDouble() != 0 {
 		u.toReplaceWithZero = append(u.toReplaceWithZero, arg)
 	}
@@ -439,8 +439,8 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) RecordReplaceWithZero(arg 
 // RemoveArgAndFollowing returns true if all following args were removed.
 //
 // Java: OptimizeParameters.UnusedParameterOptimizer.removeArgAndFollowing(Node)
-func (u *OptimizeParameters_UnusedParameterOptimizer) RemoveArgAndFollowing(arg *rhino.Node) bool {
-	if arg != nil {
+func (u *OptimizeParameters_UnusedParameterOptimizer) RemoveArgAndFollowing(arg rhino.Node) bool {
+	if !arg.IsNil() {
 		removedAll := u.RemoveArgAndFollowing(arg.GetNext())
 		if !u.outer.astAnalyzer.MayHaveSideEffects(arg) {
 			u.toRemove = append(u.toRemove, arg)
@@ -452,8 +452,8 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) RemoveArgAndFollowing(arg 
 }
 
 // Java: OptimizeParameters.UnusedParameterOptimizer.removeUnusedFunctionParameters(BitSet, Node, int)
-func (u *OptimizeParameters_UnusedParameterOptimizer) RemoveUnusedFunctionParameters(unremovable *jutil.BitSet, param *rhino.Node, index int) {
-	if param != nil {
+func (u *OptimizeParameters_UnusedParameterOptimizer) RemoveUnusedFunctionParameters(unremovable *jutil.BitSet, param rhino.Node, index int) {
+	if !param.IsNil() {
 		u.RemoveUnusedFunctionParameters(unremovable, param.GetNext(), index+1)
 		if !unremovable.Get(index) {
 			jutil.CheckState(param.IsName()) // update for ES6
@@ -490,9 +490,9 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) ApplyChanges() {
 }
 
 // Java: OptimizeParameters.alreadyRemoved(Node)
-func OptimizeParameters_AlreadyRemoved(n *rhino.Node) bool {
+func OptimizeParameters_AlreadyRemoved(n rhino.Node) bool {
 	parent := n.GetParent()
-	for parent != nil {
+	for !parent.IsNil() {
 		n = parent
 		parent = n.GetParent()
 	}
@@ -500,12 +500,12 @@ func OptimizeParameters_AlreadyRemoved(n *rhino.Node) bool {
 }
 
 // Java: OptimizeParameters.analyzeCandidateName(String, ArrayList<Node>)
-func (o *OptimizeParameters) AnalyzeCandidateName(key string, refs *jutil.ArrayList[*rhino.Node]) *OptimizeParameters_CandidateAnalysis {
+func (o *OptimizeParameters) AnalyzeCandidateName(key string, refs *jutil.ArrayList[rhino.Node]) *OptimizeParameters_CandidateAnalysis {
 	return o.AnalyzeCandidate("name", key, refs)
 }
 
 // Java: OptimizeParameters.analyzeCandidateProperty(String, ArrayList<Node>)
-func (o *OptimizeParameters) AnalyzeCandidateProperty(key string, refs *jutil.ArrayList[*rhino.Node]) *OptimizeParameters_CandidateAnalysis {
+func (o *OptimizeParameters) AnalyzeCandidateProperty(key string, refs *jutil.ArrayList[rhino.Node]) *OptimizeParameters_CandidateAnalysis {
 	return o.AnalyzeCandidate("property", key, refs)
 }
 
@@ -519,7 +519,7 @@ func (o *OptimizeParameters) AnalyzeCandidateProperty(key string, refs *jutil.Ar
 //     argument is unused
 //
 // Java: OptimizeParameters.analyzeCandidate(String, String, ArrayList<Node>)
-func (o *OptimizeParameters) AnalyzeCandidate(refKind string, key string, refs *jutil.ArrayList[*rhino.Node]) *OptimizeParameters_CandidateAnalysis {
+func (o *OptimizeParameters) AnalyzeCandidate(refKind string, key string, refs *jutil.ArrayList[rhino.Node]) *OptimizeParameters_CandidateAnalysis {
 	o.ttlList.Clear()
 	analysisBuilder := &o.candidateBuilder
 	analysisBuilder.outer = o
@@ -570,7 +570,7 @@ func (o *OptimizeParameters) AnalyzeCandidate(refKind string, key string, refs *
 
 		for _, functionNode := range functionNodes {
 			firstParam := NodeUtil_GetFunctionParameters(functionNode).GetFirstChild()
-			if firstParam != nil && !firstParam.IsUnusedParameter() {
+			if !firstParam.IsNil() && !firstParam.IsUnusedParameter() {
 				if o.decisionsLog.IsLogging() {
 					o.decisionsLog.LogFormat(
 						"%s\t%s\twill not optimize parameters for tagged template literals", refKind, key)
@@ -601,7 +601,7 @@ func (o *OptimizeParameters) AnalyzeCandidate(refKind string, key string, refs *
 // candidate function's definition and references.
 type OptimizeParameters_CandidateAnalysis struct {
 	outer                  *OptimizeParameters
-	taggedTemplateLiterals *jutil.ArrayList[*rhino.Node]
+	taggedTemplateLiterals *jutil.ArrayList[rhino.Node]
 	isSafeToOptimize       bool
 }
 
@@ -636,7 +636,7 @@ func (c *OptimizeParameters_CandidateAnalysis) IsSafeToOptimize() bool {
 // CandidateAnalysis.
 type OptimizeParameters_CandidateAnalysisBuilder struct {
 	outer                  *OptimizeParameters
-	taggedTemplateLiterals *jutil.ArrayList[*rhino.Node]
+	taggedTemplateLiterals *jutil.ArrayList[rhino.Node]
 	isSafeToOptimize       bool
 }
 
@@ -644,7 +644,7 @@ type OptimizeParameters_CandidateAnalysisBuilder struct {
 func NewOptimizeParameters_CandidateAnalysisBuilder(outer *OptimizeParameters) *OptimizeParameters_CandidateAnalysisBuilder {
 	return &OptimizeParameters_CandidateAnalysisBuilder{
 		outer:                  outer,
-		taggedTemplateLiterals: jutil.NewArrayList[*rhino.Node](),
+		taggedTemplateLiterals: jutil.NewArrayList[rhino.Node](),
 		isSafeToOptimize:       false,
 	}
 }
@@ -656,7 +656,7 @@ func (b *OptimizeParameters_CandidateAnalysisBuilder) SetIsSafeToOptimize(isSafe
 }
 
 // Java: OptimizeParameters.CandidateAnalysisBuilder.addTaggedTemplateLiteral(Node)
-func (b *OptimizeParameters_CandidateAnalysisBuilder) AddTaggedTemplateLiteral(ttlNode *rhino.Node) *OptimizeParameters_CandidateAnalysisBuilder {
+func (b *OptimizeParameters_CandidateAnalysisBuilder) AddTaggedTemplateLiteral(ttlNode rhino.Node) *OptimizeParameters_CandidateAnalysisBuilder {
 	b.taggedTemplateLiterals.Add(ttlNode)
 	return b
 }
@@ -678,13 +678,13 @@ func (b *OptimizeParameters_CandidateAnalysisBuilder) Build() *OptimizeParameter
 // ${1} literal ${2}`" to `tagFunction([], 1, 2)`.
 //
 // Java: OptimizeParameters.convertTaggedTemplateLiteralToNormalCall(Node)
-func (o *OptimizeParameters) ConvertTaggedTemplateLiteralToNormalCall(ttlNode *rhino.Node) {
-	callee := jutil.CheckNotNull(ttlNode.GetFirstChild())
+func (o *OptimizeParameters) ConvertTaggedTemplateLiteralToNormalCall(ttlNode rhino.Node) {
+	callee := rhino.CheckNotNull(ttlNode.GetFirstChild())
 	templateLiteral := callee.GetNext()
 	firstArg := rhino.IR_Arraylit().Srcref(templateLiteral)
 	callee.Detach()
 	callNode := NodeUtil_NewCallNode(callee, firstArg).Srcref(ttlNode)
-	for tlChild := templateLiteral.GetFirstChild(); tlChild != nil; tlChild = tlChild.GetNext() {
+	for tlChild := templateLiteral.GetFirstChild(); !tlChild.IsNil(); tlChild = tlChild.GetNext() {
 		if tlChild.IsTemplateLitSub() {
 			arg := tlChild.GetOnlyChild()
 			arg.Detach()
@@ -696,10 +696,10 @@ func (o *OptimizeParameters) ConvertTaggedTemplateLiteralToNormalCall(ttlNode *r
 }
 
 // Java: OptimizeParameters.isCandidateDefinition(Node)
-func (o *OptimizeParameters) IsCandidateDefinition(n *rhino.Node) bool {
+func (o *OptimizeParameters) IsCandidateDefinition(n rhino.Node) bool {
 	parent := n.GetParent()
 
-	var functionExpr *rhino.Node
+	var functionExpr rhino.Node
 	if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
 		functionExpr = parent
 	} else if OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n) {
@@ -720,7 +720,7 @@ func (o *OptimizeParameters) IsCandidateDefinition(n *rhino.Node) bool {
 }
 
 // Java: OptimizeParameters.isClassMemberDefinition(Node)
-func (o *OptimizeParameters) IsClassMemberDefinition(n *rhino.Node) bool {
+func (o *OptimizeParameters) IsClassMemberDefinition(n rhino.Node) bool {
 	return n.IsMemberFunctionDef() && n.GetParent().IsClassMembers()
 }
 
@@ -742,11 +742,11 @@ func (o *OptimizeParameters) IsClassMemberDefinition(n *rhino.Node) bool {
 // So, if there are any RHS side effects, we skip the optimization.
 //
 // Java: OptimizeParameters.classContainsClassFieldWithRHSSideEffects(Node)
-func (o *OptimizeParameters) ClassContainsClassFieldWithRHSSideEffects(classNode *rhino.Node) bool {
+func (o *OptimizeParameters) ClassContainsClassFieldWithRHSSideEffects(classNode rhino.Node) bool {
 	classMembersNode := NodeUtil_GetClassMembers(classNode)
-	for member := classMembersNode.GetFirstChild(); member != nil; member = member.GetNext() {
+	for member := classMembersNode.GetFirstChild(); !member.IsNil(); member = member.GetNext() {
 		initializer := member.GetLastChild()
-		if initializer != nil &&
+		if !initializer.IsNil() &&
 			NodeUtil_IsNonStaticClassFieldInitializer(initializer) &&
 			o.astAnalyzer.MayHaveSideEffects(initializer) {
 			return true
@@ -756,7 +756,7 @@ func (o *OptimizeParameters) ClassContainsClassFieldWithRHSSideEffects(classNode
 }
 
 // Java: OptimizeParameters.allDefinitionsAreCandidateFunctions(Node)
-func (o *OptimizeParameters) AllDefinitionsAreCandidateFunctions(n *rhino.Node) bool {
+func (o *OptimizeParameters) AllDefinitionsAreCandidateFunctions(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
 		if NodeUtil_IsNamedClassExpression(n) {
@@ -766,7 +766,7 @@ func (o *OptimizeParameters) AllDefinitionsAreCandidateFunctions(n *rhino.Node) 
 			// `class NameNode {`
 			// find the constructor
 			constructorMemberFunctionDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-			if constructorMemberFunctionDef == nil {
+			if constructorMemberFunctionDef.IsNil() {
 				// unable to find the constructor
 				// TODO(bradfordcsmith): Ideally we should find the parent class constructor.
 				return false
@@ -812,7 +812,7 @@ func (o *OptimizeParameters) AllDefinitionsAreCandidateFunctions(n *rhino.Node) 
 // cannot detect which parameters are used via calls through .constructor.
 //
 // Java: OptimizeParameters.isUsedViaDotConstructor(Node)
-func OptimizeParameters_IsUsedViaDotConstructor(function *rhino.Node) bool {
+func OptimizeParameters_IsUsedViaDotConstructor(function rhino.Node) bool {
 	docInfo := NodeUtil_GetBestJSDocInfo(function)
 	return docInfo != nil && docInfo.IsUsedViaDotConstructor()
 }
@@ -829,7 +829,7 @@ func OptimizeParameters_IsUsedViaDotConstructor(function *rhino.Node) bool {
 // back-off only for the dangerous params.
 //
 // Java: OptimizeParameters.mayReferenceParamBeforeBody(Node)
-func OptimizeParameters_MayReferenceParamBeforeBody(function *rhino.Node) bool {
+func OptimizeParameters_MayReferenceParamBeforeBody(function rhino.Node) bool {
 	paramList := function.GetSecondChild()
 	if !paramList.HasChildren() {
 		return false // Fast path; there can't possibly be back-refs.
@@ -837,7 +837,7 @@ func OptimizeParameters_MayReferenceParamBeforeBody(function *rhino.Node) bool {
 
 	allSimpleNames := true
 	count := 0
-	for c := paramList.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := paramList.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.IsName() || c.HasChildren() {
 			allSimpleNames = false
 			break
@@ -849,9 +849,9 @@ func OptimizeParameters_MayReferenceParamBeforeBody(function *rhino.Node) bool {
 			return false
 		}
 		if count <= 16 {
-			for a := paramList.GetFirstChild(); a != nil; a = a.GetNext() {
+			for a := paramList.GetFirstChild(); !a.IsNil(); a = a.GetNext() {
 				aStr := a.GetString()
-				for b := a.GetNext(); b != nil; b = b.GetNext() {
+				for b := a.GetNext(); !b.IsNil(); b = b.GetNext() {
 					if aStr == b.GetString() {
 						return true
 					}
@@ -864,10 +864,10 @@ func OptimizeParameters_MayReferenceParamBeforeBody(function *rhino.Node) bool {
 	// Go-only: language-adapter — an ArrayListMultimap (HashMap of String
 	// keys) whose iteration order cannot reach the result (any group
 	// qualifies), so insertion order is used.
-	namesByNames := jutil.ArrayListMultimap_Create[string, *rhino.Node]()
+	namesByNames := jutil.ArrayListMultimap_Create[string, rhino.Node]()
 	NodeUtil_VisitPostOrder(
 		paramList,
-		NodeUtil_VisitorFunc(func(n *rhino.Node) {
+		NodeUtil_VisitorFunc(func(n rhino.Node) {
 			if n.IsName() {
 				namesByNames.Put(n.GetString(), n)
 			}
@@ -892,7 +892,7 @@ func OptimizeParameters_MayReferenceParamBeforeBody(function *rhino.Node) bool {
 // specifies it as an argument.
 //
 // Java: OptimizeParameters.tryEliminateOptionalArgs(ArrayList<Node>)
-func (o *OptimizeParameters) TryEliminateOptionalArgs(refs *jutil.ArrayList[*rhino.Node]) {
+func (o *OptimizeParameters) TryEliminateOptionalArgs(refs *jutil.ArrayList[rhino.Node]) {
 	// Count the maximum number of arguments passed into this function all
 	// all points of the program.
 	maxArgs := -1
@@ -906,7 +906,7 @@ func (o *OptimizeParameters) TryEliminateOptionalArgs(refs *jutil.ArrayList[*rhi
 			}
 			numArgs := 0
 			firstArg := OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n)
-			for c := firstArg; c != nil; c = c.GetNext() {
+			for c := firstArg; !c.IsNil(); c = c.GetNext() {
 				numArgs++
 				if c.IsSpread() {
 					// Bail: with spread we must assume all parameters are used, don't waste
@@ -938,7 +938,7 @@ func (o *OptimizeParameters) TryEliminateOptionalArgs(refs *jutil.ArrayList[*rhi
 // by #analyzeCandidate.
 //
 // Java: OptimizeParameters.tryEliminateConstantArgs(ArrayList<Node>)
-func (o *OptimizeParameters) TryEliminateConstantArgs(refs *jutil.ArrayList[*rhino.Node]) {
+func (o *OptimizeParameters) TryEliminateConstantArgs(refs *jutil.ArrayList[rhino.Node]) {
 	parameters := o.FindFixedArguments(refs)
 	if parameters == nil {
 		return
@@ -978,8 +978,7 @@ func (o *OptimizeParameters) TryEliminateConstantArgs(refs *jutil.ArrayList[*rhi
 // objects, in the declaration order, which represent potentially movable
 // values fixed values from all call sites or null if there are no candidate
 // values.
-//
-func (o *OptimizeParameters) allocParam(arg *rhino.Node, shouldRemove bool) *OptimizeParameters_Parameter {
+func (o *OptimizeParameters) allocParam(arg rhino.Node, shouldRemove bool) *OptimizeParameters_Parameter {
 	if len(o.paramSlab) == cap(o.paramSlab) {
 		nextCap := max(cap(o.paramSlab)*2, 16)
 		o.paramSlab = make([]OptimizeParameters_Parameter, 0, nextCap)
@@ -992,7 +991,7 @@ func (o *OptimizeParameters) allocParam(arg *rhino.Node, shouldRemove bool) *Opt
 }
 
 // Java: OptimizeParameters.findFixedArguments(ArrayList<Node>)
-func (o *OptimizeParameters) FindFixedArguments(refs *jutil.ArrayList[*rhino.Node]) *jutil.ArrayList[*OptimizeParameters_Parameter] {
+func (o *OptimizeParameters) FindFixedArguments(refs *jutil.ArrayList[rhino.Node]) *jutil.ArrayList[*OptimizeParameters_Parameter] {
 	parameters := &o.fixedParams
 	parameters.Clear()
 	clear(o.paramSlab)
@@ -1045,11 +1044,11 @@ func (o *OptimizeParameters) FindFixedArguments(refs *jutil.ArrayList[*rhino.Nod
 // we cannot safely optimize any parameters.
 //
 // Java: OptimizeParameters.hasSpreadInFirstCallParam(Node)
-func OptimizeParameters_HasSpreadInFirstCallParam(n *rhino.Node) bool {
+func OptimizeParameters_HasSpreadInFirstCallParam(n rhino.Node) bool {
 	call := OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(n)
 	if NodeUtil_IsFunctionObjectCall(call) {
 		firstDotCallParam := call.GetSecondChild()
-		return firstDotCallParam != nil && firstDotCallParam.IsSpread()
+		return !firstDotCallParam.IsNil() && firstDotCallParam.IsSpread()
 	}
 	return false
 }
@@ -1064,7 +1063,7 @@ func OptimizeParameters_HasSpreadInFirstCallParam(n *rhino.Node) bool {
 // movable parameters.
 //
 // Java: OptimizeParameters.adjustForConstraints(Node, List<Parameter>)
-func OptimizeParameters_AdjustForConstraints(fn *rhino.Node, parameters []*OptimizeParameters_Parameter) bool {
+func OptimizeParameters_AdjustForConstraints(fn rhino.Node, parameters []*OptimizeParameters_Parameter) bool {
 	info := NodeUtil_GetBestJSDocInfo(fn)
 	if info != nil && info.IsNoInline() {
 		return false
@@ -1075,7 +1074,7 @@ func OptimizeParameters_AdjustForConstraints(fn *rhino.Node, parameters []*Optim
 	restIndex := math.MaxInt32
 	lastNonRestFormal := paramList.GetChildCount() - 1
 	formal := lastFormal
-	if lastFormal != nil && lastFormal.IsRest() {
+	if !lastFormal.IsNil() && lastFormal.IsRest() {
 		restIndex = lastNonRestFormal
 		lastNonRestFormal--
 		formal = formal.GetPrevious()
@@ -1159,10 +1158,10 @@ func OptimizeParameters_AdjustForConstraints(fn *rhino.Node, parameters []*Optim
 // Returns whether any parameter was found that can be updated.
 //
 // Java: OptimizeParameters.findFixedParameters(List<Parameter>, Node)
-func (o *OptimizeParameters) FindFixedParameters(parameters *jutil.ArrayList[*OptimizeParameters_Parameter], cur *rhino.Node) bool {
+func (o *OptimizeParameters) FindFixedParameters(parameters *jutil.ArrayList[*OptimizeParameters_Parameter], cur rhino.Node) bool {
 	anyMovable := false
 	index := 0
-	for cur != nil {
+	for !cur.IsNil() {
 		var p *OptimizeParameters_Parameter
 		if index >= parameters.Size() {
 			p = o.allocParam(cur, false)
@@ -1199,9 +1198,9 @@ func (o *OptimizeParameters) FindFixedParameters(parameters *jutil.ArrayList[*Op
 // BuildInitialParameterList returns whether any parameter was movable.
 //
 // Java: OptimizeParameters.buildInitialParameterList(List<Parameter>, Node)
-func (o *OptimizeParameters) BuildInitialParameterList(parameters *jutil.ArrayList[*OptimizeParameters_Parameter], cur *rhino.Node) bool {
+func (o *OptimizeParameters) BuildInitialParameterList(parameters *jutil.ArrayList[*OptimizeParameters_Parameter], cur rhino.Node) bool {
 	anyMovable := false
-	for cur != nil {
+	for !cur.IsNil() {
 		movable := OptimizeParameters_IsMovableValue(cur, o.globalScope)
 		p := o.allocParam(cur, movable)
 		o.SetParameterSideEffectInfo(p, cur)
@@ -1219,7 +1218,7 @@ func (o *OptimizeParameters) BuildInitialParameterList(parameters *jutil.ArrayLi
 }
 
 // Java: OptimizeParameters.setParameterSideEffectInfo(Parameter, Node)
-func (o *OptimizeParameters) SetParameterSideEffectInfo(p *OptimizeParameters_Parameter, value *rhino.Node) {
+func (o *OptimizeParameters) SetParameterSideEffectInfo(p *OptimizeParameters_Parameter, value rhino.Node) {
 	p.SetHasSideEffects(o.astAnalyzer.MayHaveSideEffects(value))
 	p.SetCanBeSideEffected(NodeUtil_CanBeSideEffected(value))
 	if !value.IsSpread() {
@@ -1231,7 +1230,7 @@ func (o *OptimizeParameters) SetParameterSideEffectInfo(p *OptimizeParameters_Pa
 // safely moved to another function in another scope.
 //
 // Java: OptimizeParameters.isMovableValue(Node, Scope)
-func OptimizeParameters_IsMovableValue(n *rhino.Node, globalScope *Scope) bool {
+func OptimizeParameters_IsMovableValue(n rhino.Node, globalScope *Scope) bool {
 	// Things that can change value or are inaccessible can't be moved, these
 	// are "this", "arguments", local names, and functions that capture local
 	// values.
@@ -1257,7 +1256,7 @@ func OptimizeParameters_IsMovableValue(n *rhino.Node, globalScope *Scope) bool {
 	default:
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !OptimizeParameters_IsMovableValue(c, globalScope) {
 			return false
 		}
@@ -1266,11 +1265,11 @@ func OptimizeParameters_IsMovableValue(n *rhino.Node, globalScope *Scope) bool {
 }
 
 // Java: OptimizeParameters.optimizeFunctionDefinition(List<Parameter>, Node)
-func (o *OptimizeParameters) OptimizeFunctionDefinition(parameters []*OptimizeParameters_Parameter, fn *rhino.Node) {
+func (o *OptimizeParameters) OptimizeFunctionDefinition(parameters []*OptimizeParameters_Parameter, fn rhino.Node) {
 	paramList := NodeUtil_GetFunctionParameters(fn)
 	maybeRest := paramList.GetLastChild()
 	lastParameter := len(parameters) - 1
-	if maybeRest != nil && maybeRest.IsRest() {
+	if !maybeRest.IsNil() && maybeRest.IsRest() {
 		restIndex := paramList.GetChildCount() - 1
 		// If the rest parameter is removable they all are.
 		if len(parameters) < restIndex ||
@@ -1295,7 +1294,7 @@ func (o *OptimizeParameters) OptimizeFunctionDefinition(parameters []*OptimizePa
 		parameter := parameters[i]
 		if parameter.ShouldRemove() {
 			formalParam := NodeUtil_GetArgumentForFunction(fn, i)
-			if formalParam != nil {
+			if !formalParam.IsNil() {
 				formalParam.Detach()
 				if formalParam.IsDefaultValue() {
 					// Drop the default value as we should only get here if the default value isn't going
@@ -1307,7 +1306,7 @@ func (o *OptimizeParameters) OptimizeFunctionDefinition(parameters []*OptimizePa
 
 			value := parameters[i].GetArg()
 
-			if formalParam != nil {
+			if !formalParam.IsNil() {
 				o.AddVariableDeclarationToFunction(fn, formalParam, value)
 			} else {
 				// no formal param, just add the value to the function body. This is the case when the
@@ -1320,7 +1319,7 @@ func (o *OptimizeParameters) OptimizeFunctionDefinition(parameters []*OptimizePa
 }
 
 // Java: OptimizeParameters.optimizeCallSite(List<Parameter>, Node)
-func (o *OptimizeParameters) OptimizeCallSite(parameters []*OptimizeParameters_Parameter, target *rhino.Node) {
+func (o *OptimizeParameters) OptimizeCallSite(parameters []*OptimizeParameters_Parameter, target rhino.Node) {
 	call := OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(target)
 	callMayMutateArgs := call.MayMutateArguments()
 	callMayMutateGlobalsOrThrow := call.MayMutateGlobalStateOrThrow()
@@ -1351,7 +1350,7 @@ func (o *OptimizeParameters) OptimizeCallSite(parameters []*OptimizeParameters_P
 // OptimizeParameters_Parameter is a simple container class that keeps
 // tracks of a parameter and whether it should be removed.
 type OptimizeParameters_Parameter struct {
-	arg               *rhino.Node
+	arg               rhino.Node
 	shouldRemove      bool
 	hasSideEffects    bool
 	canBeSideEffected bool
@@ -1359,12 +1358,12 @@ type OptimizeParameters_Parameter struct {
 }
 
 // Java: OptimizeParameters.Parameter(Node, boolean)
-func NewOptimizeParameters_Parameter(arg *rhino.Node, shouldRemove bool) *OptimizeParameters_Parameter {
+func NewOptimizeParameters_Parameter(arg rhino.Node, shouldRemove bool) *OptimizeParameters_Parameter {
 	return &OptimizeParameters_Parameter{shouldRemove: shouldRemove, arg: arg}
 }
 
 // Java: OptimizeParameters.Parameter.getArg()
-func (p *OptimizeParameters_Parameter) GetArg() *rhino.Node {
+func (p *OptimizeParameters_Parameter) GetArg() rhino.Node {
 	return p.arg
 }
 
@@ -1404,8 +1403,8 @@ func (p *OptimizeParameters_Parameter) SetMayBeUndefined(mayBeUndefined bool) {
 }
 
 // Java: OptimizeParameters.addRestVariableToFunction(Node, Node, Node)
-func (o *OptimizeParameters) AddRestVariableToFunction(function *rhino.Node, lhs *rhino.Node, value *rhino.Node) {
-	jutil.CheckState(lhs.GetParent() == nil)
+func (o *OptimizeParameters) AddRestVariableToFunction(function rhino.Node, lhs rhino.Node, value rhino.Node) {
+	jutil.CheckState(lhs.GetParent().IsNil())
 	o.AddVariableDeclarationToFunction(function, lhs, value)
 }
 
@@ -1416,11 +1415,11 @@ func (o *OptimizeParameters) AddRestVariableToFunction(function *rhino.Node, lhs
 // value of the variable.
 //
 // Java: OptimizeParameters.addVariableDeclarationToFunction(Node, Node, Node)
-func (o *OptimizeParameters) AddVariableDeclarationToFunction(function *rhino.Node, lhs *rhino.Node, value *rhino.Node) {
-	jutil.CheckStateMsg(value.GetParent() == nil, "Value must be detached")
-	jutil.CheckStateMsg(lhs != nil, "formal parameter being declared must not be null")
-	jutil.CheckStateMsg(lhs.GetParent() == nil, "formal parameter being declared must be detached")
-	var stmts []*rhino.Node
+func (o *OptimizeParameters) AddVariableDeclarationToFunction(function rhino.Node, lhs rhino.Node, value rhino.Node) {
+	jutil.CheckStateMsg(value.GetParent().IsNil(), "Value must be detached")
+	jutil.CheckStateMsg(!lhs.IsNil(), "formal parameter being declared must not be null")
+	jutil.CheckStateMsg(lhs.GetParent().IsNil(), "formal parameter being declared must be detached")
+	var stmts []rhino.Node
 	if lhs.IsDestructuringPattern() {
 		o.RewriteDestructuringPattern(lhs, value, &stmts)
 	} else {
@@ -1433,8 +1432,8 @@ func (o *OptimizeParameters) AddVariableDeclarationToFunction(function *rhino.No
 // all hoisted functions.
 //
 // Java: OptimizeParameters.addExpressionToFunction(Node, Node)
-func (o *OptimizeParameters) AddExpressionToFunction(function *rhino.Node, value *rhino.Node) {
-	var stmts []*rhino.Node
+func (o *OptimizeParameters) AddExpressionToFunction(function rhino.Node, value rhino.Node) {
+	var stmts []rhino.Node
 	stmts = append(stmts, rhino.IR_ExprResult(value).Srcref(value))
 	o.InsertStatements(function, stmts)
 }
@@ -1444,13 +1443,13 @@ func (o *OptimizeParameters) AddExpressionToFunction(function *rhino.Node, value
 // normalized.
 //
 // Java: OptimizeParameters.insertStatements(Node, List<Node>)
-func (o *OptimizeParameters) InsertStatements(function *rhino.Node, stmts []*rhino.Node) {
+func (o *OptimizeParameters) InsertStatements(function rhino.Node, stmts []rhino.Node) {
 	if len(stmts) == 0 {
 		return
 	}
 	block := NodeUtil_GetFunctionBody(function)
 	insertionPoint := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(block)
-	if insertionPoint == nil {
+	if insertionPoint.IsNil() {
 		o.AddStatementsToBack(block, stmts)
 	} else {
 		o.AddStatementsBefore(insertionPoint, stmts)
@@ -1459,14 +1458,14 @@ func (o *OptimizeParameters) InsertStatements(function *rhino.Node, stmts []*rhi
 }
 
 // Java: OptimizeParameters.addStatementsToBack(Node, List<Node>)
-func (o *OptimizeParameters) AddStatementsToBack(block *rhino.Node, stmts []*rhino.Node) {
+func (o *OptimizeParameters) AddStatementsToBack(block rhino.Node, stmts []rhino.Node) {
 	for _, stmt := range stmts {
 		block.AddChildToBack(stmt)
 	}
 }
 
 // Java: OptimizeParameters.addStatementsBefore(Node, List<Node>)
-func (o *OptimizeParameters) AddStatementsBefore(insertionPoint *rhino.Node, stmts []*rhino.Node) {
+func (o *OptimizeParameters) AddStatementsBefore(insertionPoint rhino.Node, stmts []rhino.Node) {
 	// Lists.reverse(stmts)
 	for i := len(stmts) - 1; i >= 0; i-- {
 		stmts[i].InsertBefore(insertionPoint)
@@ -1476,9 +1475,9 @@ func (o *OptimizeParameters) AddStatementsBefore(insertionPoint *rhino.Node, stm
 // EliminateParamsAfter removes all formal parameters starting at argIndex.
 //
 // Java: OptimizeParameters.eliminateParamsAfter(Node, int)
-func (o *OptimizeParameters) EliminateParamsAfter(fnNode *rhino.Node, argIndex int) {
+func (o *OptimizeParameters) EliminateParamsAfter(fnNode rhino.Node, argIndex int) {
 	formalArgPtr := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild()
-	for argIndex != 0 && formalArgPtr != nil {
+	for argIndex != 0 && !formalArgPtr.IsNil() {
 		formalArgPtr = formalArgPtr.GetNext()
 		argIndex--
 	}
@@ -1486,14 +1485,14 @@ func (o *OptimizeParameters) EliminateParamsAfter(fnNode *rhino.Node, argIndex i
 }
 
 // Java: OptimizeParameters.eliminateParamsAfter(Node, Node)
-func (o *OptimizeParameters) EliminateParamsAfterNode(fnNode *rhino.Node, formal *rhino.Node) {
-	if formal != nil {
+func (o *OptimizeParameters) EliminateParamsAfterNode(fnNode rhino.Node, formal rhino.Node) {
+	if !formal.IsNil() {
 		// Keep the args in the same order, do the last first.
 		o.EliminateParamsAfterNode(fnNode, formal.GetNext())
-		var stmts []*rhino.Node
+		var stmts []rhino.Node
 		formal.Detach()
 		if formal.IsRest() {
-			jutil.CheckState(formal.GetNext() == nil)
+			jutil.CheckState(formal.GetNext().IsNil())
 			lhs := formal.RemoveFirstChild()
 			value := rhino.IR_Arraylit().Srcref(formal)
 			o.AddVariableDeclarationToFunction(fnNode, lhs, value)
@@ -1523,14 +1522,14 @@ func (o *OptimizeParameters) EliminateParamsAfterNode(fnNode *rhino.Node, formal
 //
 // Java: OptimizeParameters.rewriteDestructuringPattern(Node, Node, List<Node>)
 func (o *OptimizeParameters) RewriteDestructuringPattern(
-	destructuringPattern *rhino.Node, value *rhino.Node, stmts *[]*rhino.Node) {
+	destructuringPattern rhino.Node, value rhino.Node, stmts *[]rhino.Node) {
 	jutil.CheckState(destructuringPattern.IsDestructuringPattern())
 	jutil.CheckStateMsg(
 		!destructuringPattern.HasParent(), "Formal parameter must be detached for rewriting")
 
 	NodeUtil_VisitLhsNodesInDestructuringPattern(
 		destructuringPattern,
-		func(name *rhino.Node) {
+		func(name rhino.Node) {
 			// Add a declaration outside the array pattern for the given name.
 			jutil.CheckStateMsg1(
 				name.IsName(),
@@ -1550,9 +1549,9 @@ func (o *OptimizeParameters) RewriteDestructuringPattern(
 // EliminateCallTargetArgAt eliminates the parameter from a function call.
 //
 // Java: OptimizeParameters.eliminateCallTargetArgAt(Node, int)
-func (o *OptimizeParameters) EliminateCallTargetArgAt(ref *rhino.Node, argIndex int) {
+func (o *OptimizeParameters) EliminateCallTargetArgAt(ref rhino.Node, argIndex int) {
 	callArgNode := OptimizeCalls_ReferenceMap_GetArgumentForCallOrNewOrDotCall(ref, argIndex)
-	if callArgNode != nil {
+	if !callArgNode.IsNil() {
 		NodeUtil_DeleteNode(callArgNode, o.compiler)
 	}
 }

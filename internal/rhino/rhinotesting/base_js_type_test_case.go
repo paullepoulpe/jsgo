@@ -232,7 +232,7 @@ func BaseJSTypeTestCase_AddNativeProperties(registry *rhino.JSTypeRegistry) {
 	baseJSTypeTestCase_addMethod(registry, arrayPrototype, "sort", arrayType)
 	baseJSTypeTestCase_addMethod(registry, arrayPrototype, "splice", arrayType)
 	baseJSTypeTestCase_addMethod(registry, arrayPrototype, "unshift", numberType)
-	arrayType.DefineDeclaredProperty("length", numberType, nil)
+	arrayType.DefineDeclaredProperty("length", numberType, rhino.Node{})
 
 	booleanPrototype := registry.GetNativeFunctionType(rhino.JSTypeNative_BOOLEAN_OBJECT_FUNCTION_TYPE).GetPrototype()
 	baseJSTypeTestCase_addMethod(registry, booleanPrototype, "constructor", booleanObjectType)
@@ -298,11 +298,11 @@ func BaseJSTypeTestCase_AddNativeProperties(registry *rhino.JSTypeRegistry) {
 	baseJSTypeTestCase_addMethod(registry, regexpPrototype, "exec", registry.CreateNullableType(arrayType))
 	baseJSTypeTestCase_addMethod(registry, regexpPrototype, "test", booleanType)
 	baseJSTypeTestCase_addMethod(registry, regexpPrototype, "toString", stringType)
-	regexpType.DefineDeclaredProperty("source", stringType, nil)
-	regexpType.DefineDeclaredProperty("global", booleanType, nil)
-	regexpType.DefineDeclaredProperty("ignoreCase", booleanType, nil)
-	regexpType.DefineDeclaredProperty("multiline", booleanType, nil)
-	regexpType.DefineDeclaredProperty("lastIndex", numberType, nil)
+	regexpType.DefineDeclaredProperty("source", stringType, rhino.Node{})
+	regexpType.DefineDeclaredProperty("global", booleanType, rhino.Node{})
+	regexpType.DefineDeclaredProperty("ignoreCase", booleanType, rhino.Node{})
+	regexpType.DefineDeclaredProperty("multiline", booleanType, rhino.Node{})
+	regexpType.DefineDeclaredProperty("lastIndex", numberType, rhino.Node{})
 
 	stringPrototype := registry.GetNativeFunctionType(rhino.JSTypeNative_STRING_OBJECT_FUNCTION_TYPE).GetPrototype()
 	baseJSTypeTestCase_addMethod(registry, stringPrototype, "constructor", stringObjectType)
@@ -325,14 +325,14 @@ func BaseJSTypeTestCase_AddNativeProperties(registry *rhino.JSTypeRegistry) {
 	baseJSTypeTestCase_addMethod(registry, stringPrototype, "toLocaleLowerCase", stringType)
 	baseJSTypeTestCase_addMethod(registry, stringPrototype, "toUpperCase", stringType)
 	baseJSTypeTestCase_addMethod(registry, stringPrototype, "toLocaleUpperCase", stringType)
-	stringObjectType.DefineDeclaredProperty("length", numberType, nil)
+	stringObjectType.DefineDeclaredProperty("length", numberType, rhino.Node{})
 }
 
 // Java: BaseJSTypeTestCase.addMethod(JSTypeRegistry, ObjectType, String, JSType)
 func baseJSTypeTestCase_addMethod(
 	registry *rhino.JSTypeRegistry, receivingType rhino.ObjectType, methodName string, returnType rhino.JSType) {
 	receivingType.DefineDeclaredProperty(
-		methodName, rhino.FunctionType_Builder_(registry).WithReturnType(returnType).Build(), nil)
+		methodName, rhino.FunctionType_Builder_(registry).WithReturnType(returnType).Build(), rhino.Node{})
 }
 
 // Java: BaseJSTypeTestCase.createUnionType(JSType...)
@@ -369,7 +369,7 @@ func (b *BaseJSTypeTestCase) CreateTemplatizedType(baseType rhino.ObjectType, te
 // correct JSType.
 //
 // Java: BaseJSTypeTestCase.assertTypeEquals(JSType, Node)
-func (b *BaseJSTypeTestCase) AssertTypeEqualsNode(expected rhino.JSType, actual *rhino.Node) {
+func (b *BaseJSTypeTestCase) AssertTypeEqualsNode(expected rhino.JSType, actual rhino.Node) {
 	b.T.Helper()
 	b.AssertTypeEqualsExpr(expected, rhino.NewJSTypeExpression(actual, "<BaseJSTypeTestCase.java>"))
 }

@@ -176,7 +176,7 @@ func InlineAndCollapseProperties_Builder_(compiler AbstractCompiler) *InlineAndC
 }
 
 // Java: InlineAndCollapseProperties.process(Node, Node)
-func (p *InlineAndCollapseProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *InlineAndCollapseProperties) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckStateMsg1(
 		!p.testAggressiveInliningOnly || p.propertyCollapseLevel == CompilerOptions_PropertyCollapseLevel_ALL,
 		"testAggressiveInlining is invalid for: %s",
@@ -208,13 +208,13 @@ func (p *InlineAndCollapseProperties) Process(externs *rhino.Node, root *rhino.N
 }
 
 // Java: InlineAndCollapseProperties.performMinimalInliningAndNoCollapsing(Node, Node)
-func (p *InlineAndCollapseProperties) PerformMinimalInliningAndNoCollapsing(externs *rhino.Node, root *rhino.Node) {
+func (p *InlineAndCollapseProperties) PerformMinimalInliningAndNoCollapsing(externs rhino.Node, root rhino.Node) {
 	// TODO(b/124915436): Remove InlineAliases completely after cleaning up the codebase.
 	NewInlineAndCollapseProperties_InlineAliases(p).Process(externs, root)
 }
 
 // Java: InlineAndCollapseProperties.performMinimalInliningAndModuleExportCollapsing(Node, Node)
-func (p *InlineAndCollapseProperties) PerformMinimalInliningAndModuleExportCollapsing(externs *rhino.Node, root *rhino.Node) {
+func (p *InlineAndCollapseProperties) PerformMinimalInliningAndModuleExportCollapsing(externs rhino.Node, root rhino.Node) {
 	// TODO(b/124915436): Remove InlineAliases completely after cleaning up the codebase.
 	NewInlineAndCollapseProperties_InlineAliases(p).Process(externs, root)
 	// CollapseProperties needs this namespace.
@@ -228,7 +228,7 @@ func (p *InlineAndCollapseProperties) PerformMinimalInliningAndModuleExportColla
 }
 
 // Java: InlineAndCollapseProperties.performAggressiveInliningAndCollapsing(Node, Node)
-func (p *InlineAndCollapseProperties) PerformAggressiveInliningAndCollapsing(externs *rhino.Node, root *rhino.Node) {
+func (p *InlineAndCollapseProperties) PerformAggressiveInliningAndCollapsing(externs rhino.Node, root rhino.Node) {
 	NewConcretizeStaticInheritanceForInlining(p.compiler).Process(externs, root)
 	NewInlineAndCollapseProperties_AggressiveInlineAliases(p).Process(externs, root)
 
@@ -236,7 +236,7 @@ func (p *InlineAndCollapseProperties) PerformAggressiveInliningAndCollapsing(ext
 }
 
 // Java: InlineAndCollapseProperties.performAggressiveInliningForTest(Node, Node)
-func (p *InlineAndCollapseProperties) PerformAggressiveInliningForTest(externs *rhino.Node, root *rhino.Node) {
+func (p *InlineAndCollapseProperties) PerformAggressiveInliningForTest(externs rhino.Node, root rhino.Node) {
 	aggressiveInlineAliases := NewInlineAndCollapseProperties_AggressiveInlineAliases(p)
 	aggressiveInlineAliases.Process(externs, root)
 	if p.optionalGlobalNamespaceTester == nil {
@@ -277,7 +277,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) GetLastUsedGlobalN
 }
 
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.process(Node, Node)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) Process(externs *rhino.Node, root *rhino.Node) {
+func (a *InlineAndCollapseProperties_AggressiveInlineAliases) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(a.outer.compiler, root, NewInlineAndCollapseProperties_RewriteSimpleDestructuringAliases())
 
 	// Building the `GlobalNamespace` dominates the cost of this pass, so it is built once and
@@ -405,14 +405,14 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasesForNa
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.maybeInlineInnerName(Name)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerName(globalName *GlobalNamespace_Name) {
 	globalNameDeclaration := jutil.CheckNotNullMsg1(globalName.getDeclarationRef(), "%s", globalName)
-	globalDeclarationNode := jutil.CheckNotNullMsg1(globalNameDeclaration.GetNode(), "%s", globalNameDeclaration)
+	globalDeclarationNode := rhino.CheckNotNullMsg1(globalNameDeclaration.GetNode(), "%s", globalNameDeclaration)
 	valueNode := NodeUtil_GetRValueOfLValue(globalDeclarationNode)
-	if valueNode == nil {
+	if valueNode.IsNil() {
 		// no function or class expression, so no inner name
 		return
 	}
 	innerNameNode := InlineAndCollapseProperties_MaybeGetInnerNameNode(valueNode)
-	if innerNameNode == nil {
+	if innerNameNode.IsNil() {
 		// no inner name to require inlining
 		return
 	}
@@ -469,7 +469,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 		// usages of `this` in the method
 	}
 	subclass := InlineAndCollapseProperties_GetSubclassForEs6Superclass(superclassRef.GetNode())
-	if subclass == nil {
+	if subclass.IsNil() {
 		return false
 	}
 	subclassName, ok := namespace.qnameStringCached(subclass)
@@ -538,22 +538,22 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) IsInlineableModule
 		return false
 	}
 	// the first rhs value Node we find assigned to the name
-	var firstRhs *rhino.Node
+	var firstRhs rhino.Node
 	size := aliasRefs.references.Size()
 	for i := 0; i < size; i++ {
 		ref := aliasRefs.references.Get(i)
 		if ref.IsVarDeclaration() || ref.GetParent().IsAssign() {
-			var rhs *rhino.Node
+			var rhs rhino.Node
 			if ref.GetParent().IsAssign() {
 				rhs = ref.GetParent().GetSecondChild()
 			} else {
 				rhs = ref.GetNode().GetFirstChild()
 			}
 
-			if rhs != nil {
+			if !rhs.IsNil() {
 				// Make sure that every time a value is assigned to the alias, it is
 				// the aliased name we expect. If not, we cannot inline this alias.
-				if firstRhs == nil {
+				if firstRhs.IsNil() {
 					// NOTE: comparing with a string is slower, but necessary the first time.
 					if !rhs.MatchesQualifiedName(aliasedNameStr) {
 						return false
@@ -598,7 +598,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 	// Otherwise if the parent is an assign, we are in a "a = alias" case.
 	aliasParent := alias.GetNode().GetParent()
 	if aliasParent.IsName() || aliasParent.IsAssign() {
-		var aliasLhsNode *rhino.Node
+		var aliasLhsNode rhino.Node
 		if aliasParent.IsName() {
 			aliasLhsNode = aliasParent
 		} else {
@@ -676,7 +676,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) PartiallyInlineAli
 	aliasingName *GlobalNamespace_Name,
 	namespace *GlobalNamespace,
 	aliasRefs *ReferenceCollection,
-	aliasLhsNode *rhino.Node) bool {
+	aliasLhsNode rhino.Node) bool {
 	var aliasBlock *BasicBlock
 	// This initial iteration through all the alias references does two things:
 	// a) Find the control flow block in which the alias is assigned.
@@ -741,7 +741,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) PartiallyInlineAli
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.tryReplacingAliasingAssignment(Ref, Name, Node)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) TryReplacingAliasingAssignment(
-	alias *GlobalNamespace_Ref, aliasName *GlobalNamespace_Name, aliasLhsNode *rhino.Node) bool {
+	alias *GlobalNamespace_Ref, aliasName *GlobalNamespace_Name, aliasLhsNode rhino.Node) bool {
 	// either VAR/CONST/LET or ASSIGN.
 	assignment := aliasLhsNode.GetParent()
 	if !NodeUtil_IsNameDeclaration(assignment) && NodeUtil_IsExpressionResultUsed(assignment) {
@@ -772,7 +772,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) ReplaceAliasRefere
 	// const origName = value;
 	// If we use cloneTree() for that we'll clone the value, which we don't want.
 	// Otherwise, we do want to clone the tree of GETPROP nodes.
-	var newNode *rhino.Node
+	var newNode rhino.Node
 	if originalRefNode.IsName() {
 		newNode = originalRefNode.CloneNode()
 	} else {
@@ -805,7 +805,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 		// We do this because constructor properties are always collapsed,
 		// so we want to inline the aliases also to avoid breakages.
 		(aliasParent.IsName() && name.IsConstructor()) {
-		var lvalue *rhino.Node
+		var lvalue rhino.Node
 		if aliasParent.IsName() {
 			lvalue = aliasParent
 		} else {
@@ -941,7 +941,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasRefere
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteAliasProps(Name, Node, int, Set<AstChange>)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
-	name *GlobalNamespace_Name, value *rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange]) {
+	name *GlobalNamespace_Name, value rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange]) {
 	if name.props == nil {
 		return
 	}
@@ -973,7 +973,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteNestedAliasReference(Node, int, Set<AstChange>, Name)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAliasReference(
-	value *rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange], prop *GlobalNamespace_Name) {
+	value rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange], prop *GlobalNamespace_Name) {
 	a.RewriteAliasProps(prop, value, depth+1, newNodes)
 	var refsBuf [8]*GlobalNamespace_Ref
 	refs := iacpSnapshotRefs(prop.GetRefs(), &refsBuf)
@@ -1060,7 +1060,7 @@ func NewInlineAndCollapseProperties_RewriteSimpleDestructuringAliases() *InlineA
 }
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.isSimpleDestructuringAlias(Node)
-func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringAlias(n *rhino.Node) bool {
+func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringAlias(n rhino.Node) bool {
 	if !NodeUtil_IsStatement(n) || !n.IsConst() {
 		return false
 	}
@@ -1081,9 +1081,9 @@ func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestr
 }
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.isSimpleDestructuringPattern(Node)
-func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(objectPattern *rhino.Node) bool {
+func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(objectPattern rhino.Node) bool {
 	jutil.CheckArgument(objectPattern.IsObjectPattern())
-	for key := objectPattern.GetFirstChild(); key != nil; key = key.GetNext() {
+	for key := objectPattern.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		if !key.IsStringKey() || key.IsQuotedStringKey() {
 			return false
 		}
@@ -1100,7 +1100,7 @@ func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestr
 }
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.visit(NodeTraversal, Node, Node)
-func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringAlias(n) {
 		return
 	}
@@ -1118,10 +1118,10 @@ func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) Visit(t 
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.expandObjectPattern(NodeTraversal, Node, Node, Node)
 func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) ExpandObjectPattern(
-	t *NodeTraversal, insertionPoint *rhino.Node, objectPattern *rhino.Node, rhs *rhino.Node) *rhino.Node {
-	for key := objectPattern.GetFirstChild(); key != nil; key = key.GetNext() {
+	t *NodeTraversal, insertionPoint rhino.Node, objectPattern rhino.Node, rhs rhino.Node) rhino.Node {
+	for key := objectPattern.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		keyChild := key.GetFirstChild()
-		var nameNode *rhino.Node
+		var nameNode rhino.Node
 		if keyChild.IsName() {
 			nameNode = keyChild.Detach()
 		} else {
@@ -1142,13 +1142,13 @@ func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) ExpandOb
 }
 
 // Java: InlineAndCollapseProperties.maybeGetInnerNameNode(Node)
-func InlineAndCollapseProperties_MaybeGetInnerNameNode(maybeFunctionOrClassNode *rhino.Node) *rhino.Node {
+func InlineAndCollapseProperties_MaybeGetInnerNameNode(maybeFunctionOrClassNode rhino.Node) rhino.Node {
 	if NodeUtil_IsFunctionExpression(maybeFunctionOrClassNode) {
 		nameNode := maybeFunctionOrClassNode.GetFirstChild()
 		jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
 		// functions with no name have a NAME node with an empty string
 		if nameNode.GetString() == "" {
-			return nil
+			return rhino.Node{}
 		}
 		return nameNode
 	} else if NodeUtil_IsClassExpression(maybeFunctionOrClassNode) {
@@ -1157,9 +1157,9 @@ func InlineAndCollapseProperties_MaybeGetInnerNameNode(maybeFunctionOrClassNode 
 		if nameNode.IsName() {
 			return nameNode
 		}
-		return nil
+		return rhino.Node{}
 	} else {
-		return nil // not a function or class expression
+		return rhino.Node{} // not a function or class expression
 	}
 }
 
@@ -1257,7 +1257,7 @@ func InlineAndCollapseProperties_MayBeGlobalAlias(alias *GlobalNamespace_Ref) bo
 		// Only handle variable assignments and initializing declarations.
 		return true
 	}
-	var aliasLhsNode *rhino.Node
+	var aliasLhsNode rhino.Node
 	if aliasParent.IsName() {
 		aliasLhsNode = aliasParent
 	} else {
@@ -1286,7 +1286,7 @@ func InlineAndCollapseProperties_MayBeGlobalAlias(alias *GlobalNamespace_Ref) bo
 func InlineAndCollapseProperties_ReferencesCollapsibleProperty(
 	aliasRefs *ReferenceCollection, aliasedName *GlobalNamespace_Name, namespace *GlobalNamespace) bool {
 	for ref := range aliasRefs.references.All() {
-		if ref.GetParent() == nil {
+		if ref.GetParent().IsNil() {
 			continue
 		}
 		if NodeUtil_IsNormalOrOptChainGetProp(ref.GetParent()) {
@@ -1337,7 +1337,7 @@ func InlineAndCollapseProperties_IsUnsafelyReassigned(name *GlobalNamespace_Name
 // expression in an assignment or name declaration. Otherwise returns null.
 //
 // Java: InlineAndCollapseProperties.getSubclassForEs6Superclass(Node)
-func InlineAndCollapseProperties_GetSubclassForEs6Superclass(superclass *rhino.Node) *rhino.Node {
+func InlineAndCollapseProperties_GetSubclassForEs6Superclass(superclass rhino.Node) rhino.Node {
 	classNode := superclass.GetParent()
 	jutil.CheckArgumentMsg1(classNode.IsClass(), "%s", classNode)
 	if NodeUtil_IsNameDeclaration(classNode.GetGrandparent()) {
@@ -1350,7 +1350,7 @@ func InlineAndCollapseProperties_GetSubclassForEs6Superclass(superclass *rhino.N
 		// class Clazz extends Super {
 		return classNode.GetFirstChild()
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // InlineAndCollapseProperties_CollapseProperties flattens global
@@ -1404,7 +1404,7 @@ func NewInlineAndCollapseProperties_CollapseProperties(outer *InlineAndCollapseP
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.process(Node, Node)
-func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs rhino.Node, root rhino.Node) {
 	if c.outer.propertyCollapseLevel == CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT ||
 		c.outer.chunkOutputType == CompilerOptions_ChunkOutputType_ES_MODULES {
 		NodeTraversal_Traverse(
@@ -1452,13 +1452,13 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CanCollapse(name *Globa
 // assigned to the name from the AST.
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.canEliminate(Name, Node)
-func (c *InlineAndCollapseProperties_CollapseProperties) CanEliminate(name *GlobalNamespace_Name, rvalue *rhino.Node) bool {
+func (c *InlineAndCollapseProperties_CollapseProperties) CanEliminate(name *GlobalNamespace_Name, rvalue rhino.Node) bool {
 	if !name.CanEliminate() {
 		return false
 	}
 
 	if rvalue.IsObjectLit() {
-		for child := rvalue.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := rvalue.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			switch child.GetToken() {
 			case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_OBJECT_SPREAD:
 				// We cannot completely eliminate the object literal, because it contains
@@ -1508,7 +1508,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() *juti
 					if propDeclaration == nil {
 						continue
 					}
-					if propDeclaration.GetNode() != nil {
+					if !propDeclaration.GetNode().IsNil() {
 						// ES Module rewriting creates aliases on the module namespace object. These aliased
 						// names also escape and their properties may not be collapsed.
 						//
@@ -1724,8 +1724,8 @@ func inlineAndCollapseProperties_onlyElementMessage(refs []*GlobalNamespace_Ref)
 // Validity checks in unit tests will otherwise throw an exception.
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.shouldAddConstantName(Node, String)
-func (c *InlineAndCollapseProperties_CollapseProperties) ShouldAddConstantName(declarationNode *rhino.Node, collapsedName string) bool {
-	if declarationNode == nil {
+func (c *InlineAndCollapseProperties_CollapseProperties) ShouldAddConstantName(declarationNode rhino.Node, collapsedName string) bool {
+	if declarationNode.IsNil() {
 		return false
 	}
 	info := NodeUtil_GetBestJSDocInfo(declarationNode.GetParent())
@@ -1757,7 +1757,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesTo(n *
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 	n *GlobalNamespace_Name, alias string, escaped *jutil.LinkedHashSet[*GlobalNamespace_Name]) {
 	originalName := n.GetFullName()
-	var declarationNode *rhino.Node
+	var declarationNode rhino.Node
 	if n.GetDeclaration() != nil {
 		declarationNode = n.getDeclarationRef().GetNode()
 	}
@@ -1798,7 +1798,7 @@ func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
 		return true
 	}
 	decl := n.getDeclarationRef()
-	if decl != nil && decl.GetNode() != nil && decl.GetNode().IsGetProp() {
+	if decl != nil && !decl.GetNode().IsNil() && decl.GetNode().IsGetProp() {
 		return true
 	}
 	refs := n.GetRefs()
@@ -1863,7 +1863,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	hasOrig := false
 
 	decl := n.getDeclarationRef()
-	if decl != nil && decl.GetNode() != nil && decl.GetNode().IsGetProp() {
+	if decl != nil && !decl.GetNode().IsNil() && decl.GetNode().IsGetProp() {
 		c.flattenNameRefAtDepthLazy(alias, decl.GetNode(), depth, baseOriginalName, n, extraDepth, &cachedOrig, &hasOrig, isConstantName)
 	}
 
@@ -1890,7 +1890,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLazy(
 	alias string,
-	n *rhino.Node,
+	n rhino.Node,
 	depth int,
 	baseOriginalName string,
 	nameObj *GlobalNamespace_Name,
@@ -1926,7 +1926,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLa
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenNameRefAtDepth(String, Node, int, String, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRefAtDepth(
-	alias string, n *rhino.Node, depth int, originalName string, isConstantName bool) {
+	alias string, n rhino.Node, depth int, originalName string, isConstantName bool) {
 	// This method has to work for both GETPROP chains and, in rare cases,
 	// OBJLIT keys, possibly nested. That's why we check for children before
 	// proceeding. In the OBJLIT case, we don't need to do anything.
@@ -1953,7 +1953,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRefAtDepth(
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenNameRef(String, Node, Node, String, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRef(
-	alias string, n *rhino.Node, parent *rhino.Node, originalName string, isConstantName bool) {
+	alias string, n rhino.Node, parent rhino.Node, originalName string, isConstantName bool) {
 	jutil.CheckArgumentMsg2(
 		n.IsGetProp(), "Expected GETPROP, found %s. Node: %s", n.GetToken(), n)
 
@@ -2056,7 +2056,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateTwinnedDeclaratio
 	parent := ref.GetNode().GetParent()
 	grandparent := parent.GetParent()
 
-	if rvalue != nil && rvalue.IsFunction() {
+	if !rvalue.IsNil() && rvalue.IsFunction() {
 		c.CheckForReceiverAffectedByCollapse(rvalue, refName.GetJSDocInfo(), refName)
 	}
 
@@ -2144,7 +2144,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.logDeclarationAction(Name, Node, String)
-func (c *InlineAndCollapseProperties_CollapseProperties) LogDeclarationAction(name *GlobalNamespace_Name, declarationNode *rhino.Node, message string) {
+func (c *InlineAndCollapseProperties_CollapseProperties) LogDeclarationAction(name *GlobalNamespace_Name, declarationNode rhino.Node, message string) {
 	if c.outer.decisionsLog.IsLogging() {
 		c.LogDecisionForNameSupplier(name, func() string { return declarationNode.String() + ": " + message })
 	}
@@ -2161,7 +2161,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) MoveDeclarationIntoHigh
 	jutil.CheckStateMsg1(varNode.IsVar(), "Unexpected declaration %s", varNode)
 
 	newRoot := commonAncestor.GetFirst().GetAstRoot(c.outer.compiler)
-	if initializer == nil {
+	if initializer.IsNil() {
 		// Already a stub declaration - "var a$b;". Move it to the ancestor chunk.
 		newRoot.AddChildToFront(varNode.Detach())
 	} else {
@@ -2206,18 +2206,18 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	varParent := grandparent.GetParent()
 	isObjLit := rvalue.IsObjectLit()
 	insertedVarNode := false
-	var varNode *rhino.Node
+	var varNode rhino.Node
 
 	if isObjLit && c.CanEliminate(n, rvalue) {
 		// Eliminate the object literal altogether.
 		if grandparent.CanResetInPlace() {
-			grandparent.MutateAttachedToFreshVarInPlace(nil, nil)
+			grandparent.MutateAttachedToFreshVarInPlace(rhino.Node{}, nil)
 			varNode = grandparent
 		} else {
 			varNode = rhino.NewNode(rhino.Token_VAR)
 			grandparent.ReplaceWith(varNode)
 		}
-		n.UpdateRefNode(ref, nil)
+		n.UpdateRefNode(ref, rhino.Node{})
 		insertedVarNode = true
 		c.outer.compiler.ReportChangeToEnclosingScope(varNode)
 	} else if !n.IsSimpleName() {
@@ -2231,7 +2231,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 
 		isConstName := c.ShouldAddConstantName(refNode, alias)
 		info := NodeUtil_GetBestJSDocInfo(assignNode)
-		var nameNode *rhino.Node
+		var nameNode rhino.Node
 		if assignNode.CanResetInPlace() && grandparent.CanResetInPlace() {
 			assignNode.Detach()
 			nameNode = assignNode.ResetDetachedToNameWithOriginalNameInPlace(alias, n.GetFullName(), grandparent, isConstName)
@@ -2278,7 +2278,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 // will change.
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.checkForReceiverAffectedByCollapse(Node, JSDocInfo, Name)
-func (c *InlineAndCollapseProperties_CollapseProperties) CheckForReceiverAffectedByCollapse(function *rhino.Node, docInfo *rhino.JSDocInfo, name *GlobalNamespace_Name) {
+func (c *InlineAndCollapseProperties_CollapseProperties) CheckForReceiverAffectedByCollapse(function rhino.Node, docInfo *rhino.JSDocInfo, name *GlobalNamespace_Name) {
 	jutil.CheckState(function.IsFunction())
 
 	if docInfo != nil {
@@ -2340,7 +2340,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 
 		// Clear out the object reference, since we've eliminated it from the
 		// parse tree.
-		n.UpdateRefNode(ref, nil)
+		n.UpdateRefNode(ref, rhino.Node{})
 	}
 }
 
@@ -2406,7 +2406,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 
 	// detach `static m() {}` from `class Foo { static m() {} }`
 	member := declaration.GetNode().Detach()
-	var varDecl *rhino.Node
+	var varDecl rhino.Node
 	if member.HasChildren() {
 		memberVal := member.GetOnlyChild()
 		c.CheckForReceiverAffectedByCollapse(memberVal, member.GetJSDocInfo(), n)
@@ -2440,12 +2440,12 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.declareVariablesForObjLitValues(Name, String, Node, Node, Node)
 func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjLitValues(
-	objlitName *GlobalNamespace_Name, alias string, objlit *rhino.Node, varNode *rhino.Node, nameToAddAfter *rhino.Node) {
+	objlitName *GlobalNamespace_Name, alias string, objlit rhino.Node, varNode rhino.Node, nameToAddAfter rhino.Node) {
 	arbitraryNameCounter := 0
 	discardKeys := !objlitName.ShouldKeepKeys()
 
-	var nextKey *rhino.Node
-	for key := objlit.GetFirstChild(); key != nil; key = nextKey {
+	var nextKey rhino.Node
+	for key := objlit.GetFirstChild(); !key.IsNil(); key = nextKey {
 		value := key.GetFirstChild()
 		nextKey = key.GetNext()
 
@@ -2481,7 +2481,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 		}
 
 		propAlias := c.AppendPropForAlias(alias, propName)
-		var refNode *rhino.Node
+		var refNode rhino.Node
 		isConstantName := c.ShouldAddConstantName(key, propAlias)
 		keyDoc := key.GetJSDocInfo()
 		if discardKeys {
@@ -2505,7 +2505,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 		if isConstantName {
 			nameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 		}
-		var newVar *rhino.Node
+		var newVar rhino.Node
 		if discardKeys && key.CanResetInPlace() && (p == nil || p.getDeclarationRef() == nil || p.getDeclarationRef().GetNode() == key) {
 			nameNode.SrcrefTreeIfMissing(key)
 			key.MutateAttachedStmtToVarFromSrcref(nameNode, key, nil)
@@ -2513,7 +2513,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 		} else {
 			newVar = rhino.IR_Var(nameNode).SrcrefTreeIfMissing(key)
 		}
-		if nameToAddAfter != nil {
+		if !nameToAddAfter.IsNil() {
 			newVar.InsertAfter(nameToAddAfter)
 		} else {
 			newVar.InsertBefore(varNode)
@@ -2550,10 +2550,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.addStubsForUndeclaredProperties(Name, String, Node, Node)
 func (c *InlineAndCollapseProperties_CollapseProperties) AddStubsForUndeclaredProperties(
-	n *GlobalNamespace_Name, alias string, parent *rhino.Node, addAfter *rhino.Node) {
+	n *GlobalNamespace_Name, alias string, parent rhino.Node, addAfter rhino.Node) {
 	jutil.CheckStateMsg1(n.CanCollapseUnannotatedChildNames(), "%s", n)
 	jutil.CheckArgumentMsg1(NodeUtil_IsStatementBlock(parent), "%s", parent)
-	jutil.CheckNotNull(addAfter)
+	rhino.CheckNotNull(addAfter)
 	if n.props == nil {
 		return
 	}
@@ -2625,7 +2625,7 @@ func NewInlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedMo
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.FindDynamicallyImportedModules.visit(NodeTraversal, Node, Node)
-func (f *InlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *InlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// After rewriting, CommonJS dynamic imports are of the form
 	// __webpack_require__.e(2).then(function() { return module$mod1.default; })
 	//
@@ -2633,20 +2633,20 @@ func (f *InlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedM
 	if f.processCommonJSModules &&
 		n.IsGetProp() &&
 		n.IsQualifiedName() &&
-		n.GetParent() != nil &&
+		!n.GetParent().IsNil() &&
 		n.GetParent().IsReturn() &&
 		n.GetGrandparent().IsBlock() &&
 		n.GetGrandparent().HasOneChild() &&
 		n.GetGrandparent().GetParent().IsFunction() {
 		potentialCallback := NodeUtil_GetEnclosingFunction(n)
-		if potentialCallback != nil &&
+		if !potentialCallback.IsNil() &&
 			ProcessCommonJSModules_IsCommonJsDynamicImportCallback(
 				NodeUtil_GetEnclosingFunction(potentialCallback), f.moduleResolutionMode) {
 			f.outer.dynamicallyImportedModules.Add(NodeUtil_GetRootOfQualifiedNameString(*n.GetQualifiedName()))
 		}
 	} else if ConvertChunksToESModules_IsDynamicImportCallback(n) {
 		moduleNamespace := ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(f.outer.outer.compiler, n)
-		if moduleNamespace != nil {
+		if !moduleNamespace.IsNil() {
 			f.outer.dynamicallyImportedModules.Add(*moduleNamespace.GetQualifiedName())
 		}
 	}
@@ -2657,7 +2657,7 @@ func InlineAndCollapseProperties_IsSafeNamespaceReinit(ref *GlobalNamespace_Ref)
 	// allow "a = a || {}" or "var a = a || {}" or "var a;"
 	valParent := InlineAndCollapseProperties_GetValueParent(ref)
 	val := valParent.GetLastChild()
-	if val != nil && val.IsOr() {
+	if !val.IsNil() && val.IsOr() {
 		maybeName := val.GetFirstChild()
 		if ref.GetNode().MatchesQualifiedNameNode(maybeName) {
 			return true
@@ -2672,10 +2672,10 @@ func InlineAndCollapseProperties_IsSafeNamespaceReinit(ref *GlobalNamespace_Ref)
 // = 3;` the parent would be the NAME node.
 //
 // Java: InlineAndCollapseProperties.getValueParent(Ref)
-func InlineAndCollapseProperties_GetValueParent(ref *GlobalNamespace_Ref) *rhino.Node {
+func InlineAndCollapseProperties_GetValueParent(ref *GlobalNamespace_Ref) rhino.Node {
 	// there are four types of declarations: VARs, LETs, CONSTs, and ASSIGNs
 	n := ref.GetNode().GetParent()
-	if n != nil && NodeUtil_IsNameDeclaration(n) {
+	if !n.IsNil() && NodeUtil_IsNameDeclaration(n) {
 		return ref.GetNode()
 	}
 	return ref.GetNode().GetParent()
@@ -2715,7 +2715,7 @@ func NewInlineAndCollapseProperties_InlineAliases(outer *InlineAndCollapseProper
 }
 
 // Java: InlineAndCollapseProperties.InlineAliases.process(Node, Node)
-func (a *InlineAndCollapseProperties_InlineAliases) Process(externs *rhino.Node, root *rhino.Node) {
+func (a *InlineAndCollapseProperties_InlineAliases) Process(externs rhino.Node, root rhino.Node) {
 	a.namespace = NewGlobalNamespaceWithRoots(a.outer.compiler, externs, root)
 	defer func() {
 		a.namespace.Release()
@@ -2740,14 +2740,14 @@ func NewInlineAndCollapseProperties_InlineAliases_AliasesCollector(outer *Inline
 }
 
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesCollector.visit(NodeTraversal, Node, Node)
-func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
 		if n.HasOneChild() && t.InGlobalScope() {
 			c.VisitAliasDefinition(n.GetFirstChild(), NodeUtil_GetBestJSDocInfo(n.GetFirstChild()))
 		}
 	case rhino.Token_ASSIGN:
-		if parent != nil && parent.IsExprResult() && t.InGlobalScope() {
+		if !parent.IsNil() && parent.IsExprResult() && t.InGlobalScope() {
 			c.VisitAliasDefinition(n.GetFirstChild(), n.GetJSDocInfo())
 		}
 	default:
@@ -2760,7 +2760,7 @@ func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) Visit(t *No
 // been substituted by the time we record the new alias.
 //
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesCollector.visitAliasDefinition(Node, JSDocInfo)
-func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) VisitAliasDefinition(lhs *rhino.Node, info *rhino.JSDocInfo) {
+func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) VisitAliasDefinition(lhs rhino.Node, info *rhino.JSDocInfo) {
 	if c.IsDeclaredConst(lhs, info) &&
 		(info == nil || !info.HasTypeInformation()) {
 		if lhsQName, ok := c.outer.namespace.qnameStringCached(lhs); ok {
@@ -2780,7 +2780,7 @@ func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) VisitAliasD
 }
 
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesCollector.isDeclaredConst(Node, JSDocInfo)
-func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) IsDeclaredConst(lhs *rhino.Node, info *rhino.JSDocInfo) bool {
+func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) IsDeclaredConst(lhs rhino.Node, info *rhino.JSDocInfo) bool {
 	if info != nil && info.HasConstAnnotation() {
 		return true
 	}
@@ -2800,7 +2800,7 @@ func NewInlineAndCollapseProperties_InlineAliases_AliasesInliner(outer *InlineAn
 }
 
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesInliner.visit(NodeTraversal, Node, Node)
-func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NAME, rhino.Token_GETPROP:
 		if i.outer.aliases.IsEmpty() {
@@ -2839,7 +2839,7 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *Node
 }
 
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesInliner.isLeftmostNameLocal(NodeTraversal, Node)
-func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) IsLeftmostNameLocal(t *NodeTraversal, n *rhino.Node) bool {
+func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) IsLeftmostNameLocal(t *NodeTraversal, n rhino.Node) bool {
 	jutil.CheckState(n.IsQualifiedName())
 	leftmostName := NodeUtil_GetRootOfQualifiedName(n).GetString()
 	v := t.LookupVar(leftmostName)
@@ -2851,7 +2851,7 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) IsLeftmostNam
 // resolved.
 //
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesInliner.resolveAlias(String, Node)
-func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) ResolveAlias(name string, n *rhino.Node) string {
+func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) ResolveAlias(name string, n rhino.Node) string {
 	aliasPath := jutil.NewLinkedHashSet[string]()
 	for i.outer.aliases.ContainsKey(name) {
 		if !aliasPath.Add(name) {

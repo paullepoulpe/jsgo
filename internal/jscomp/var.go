@@ -46,25 +46,25 @@ const (
 // Java: Var(String, Node, Scope, int, CompilerInput, Node)
 func NewVar(
 	name string,
-	nameNode *rhino.Node,
+	nameNode rhino.Node,
 	scope *Scope,
 	index int,
 	input *CompilerInput,
-	implicitGoogNamespaceDefinition *rhino.Node) *Var {
+	implicitGoogNamespaceDefinition rhino.Node) *Var {
 	return newVarWithID(rhino.RhinoStringPool_InternID(name), nameNode, scope, index, input, implicitGoogNamespaceDefinition)
 }
 
 // newVarWithID is NewVar for an interned name.
 func newVarWithID(
 	nameID uint32,
-	nameNode *rhino.Node,
+	nameNode rhino.Node,
 	scope *Scope,
 	index int,
 	input *CompilerInput,
-	implicitGoogNamespaceDefinition *rhino.Node) *Var {
+	implicitGoogNamespaceDefinition rhino.Node) *Var {
 	v := &Var{nameID: nameID}
 	v.initAbstractVarBase(nameNode, scope, index, input, implicitGoogNamespaceDefinition)
-	if nameNode != nil {
+	if !nameNode.IsNil() {
 		switch nameNode.GetToken() {
 		case rhino.Token_MODULE_BODY, rhino.Token_NAME, rhino.Token_IMPORT_STAR:
 		default:
@@ -94,15 +94,15 @@ func (v *Var) GetSymbol() rhino.StaticSlot {
 
 // Java: AbstractVar.getDeclaration()
 func (v *Var) GetDeclaration() rhino.StaticRef {
-	if v.nameNode == nil {
+	if v.nameNode.IsNil() {
 		return nil
 	}
 	return v
 }
 
 // Java: Var.createImplicitGoogNamespace(String, Scope, Node)
-func Var_CreateImplicitGoogNamespace(name string, scope *Scope, definition *rhino.Node) *Var {
-	return NewVar(name, nil /* nameNode */, scope, -1, nil /* input */, definition)
+func Var_CreateImplicitGoogNamespace(name string, scope *Scope, definition rhino.Node) *Var {
+	return NewVar(name, rhino.Node{} /* nameNode */, scope, -1, nil /* input */, definition)
 }
 
 // Java: Var.toString()

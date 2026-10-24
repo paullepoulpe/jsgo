@@ -39,7 +39,7 @@ func newJsMessageVisitorTest_RenameMessagesVisitor() *jsMessageVisitorTest_Renam
 }
 
 // Java: JsMessageVisitorTest.RenameMessagesVisitor.visit(NodeTraversal, Node, Node)
-func (v *jsMessageVisitorTest_RenameMessagesVisitor) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (v *jsMessageVisitorTest_RenameMessagesVisitor) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Node.getString() is never null for a NAME (the Java null check is kept as a no-op).
 	if n.IsName() && strings.HasPrefix(n.GetString(), "MSG_") {
 		originalName := n.GetString()
@@ -1451,7 +1451,7 @@ func (c *JsMessageVisitorTest) extractMessages(input string) {
 		renameMessagesVisitor := newJsMessageVisitorTest_RenameMessagesVisitor()
 		NodeTraversal_Traverse(c.compiler, root, renameMessagesVisitor)
 	}
-	visitor.Process(nil, root)
+	visitor.Process(rhino.Node{}, root)
 }
 
 // Java: private class JsMessageVisitorTest.CollectMessages extends JsMessageVisitor

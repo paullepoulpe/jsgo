@@ -49,7 +49,7 @@ type guardedCallbackTest_pass struct {
 }
 
 // Java: GuardedCallbackTest.getProcessor(Compiler).new CompilerPass() {...}.process(Node, Node)
-func (p *guardedCallbackTest_pass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *guardedCallbackTest_pass) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, newGuardedCallbackTest_GuardSwitchingCallback(p.compiler))
 }
 
@@ -73,7 +73,7 @@ func newGuardedCallbackTest_GuardSwitchingCallback(compiler AbstractCompiler) *g
 }
 
 // Java: GuardedCallbackTest.GuardSwitchingCallback.visitGuarded(NodeTraversal, Node, Node)
-func (cb *guardedCallbackTest_GuardSwitchingCallback) VisitGuarded(traversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *guardedCallbackTest_GuardSwitchingCallback) VisitGuarded(traversal *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() && cb.IsGuarded(n.GetString()) {
 		n.SetString("GUARDED_NAME")
 		traversal.ReportCodeChange()

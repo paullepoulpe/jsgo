@@ -46,7 +46,7 @@ func NewCheckTypeImportCodeReferences(compiler AbstractCompiler) *CheckTypeImpor
 	return c
 }
 
-func collectRequireTypeNames(n *rhino.Node, names *map[string]struct{}) {
+func collectRequireTypeNames(n rhino.Node, names *map[string]struct{}) {
 	if NodeUtil_IsNameDeclaration(n) && n.HasOneChild() {
 		first := n.GetFirstChild()
 		if first.HasChildren() {
@@ -58,10 +58,10 @@ func collectRequireTypeNames(n *rhino.Node, names *map[string]struct{}) {
 				if first.IsName() {
 					(*names)[first.GetString()] = struct{}{}
 				} else {
-					for pat := first.GetFirstChild(); pat != nil; pat = pat.GetNext() {
-						for key := pat.GetFirstChild(); key != nil; key = key.GetNext() {
+					for pat := first.GetFirstChild(); !pat.IsNil(); pat = pat.GetNext() {
+						for key := pat.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 							if key.IsStringKey() {
-								for child := key.GetFirstChild(); child != nil; child = child.GetNext() {
+								for child := key.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 									if child.IsName() {
 										(*names)[child.GetString()] = struct{}{}
 									}
@@ -73,13 +73,13 @@ func collectRequireTypeNames(n *rhino.Node, names *map[string]struct{}) {
 			}
 		}
 	}
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		collectRequireTypeNames(child, names)
 	}
 }
 
 // Java: CheckTypeImportCodeReferences.process(Node, Node)
-func (c *CheckTypeImportCodeReferences) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckTypeImportCodeReferences) Process(externs rhino.Node, root rhino.Node) {
 	c.requireTypeNames = nil
 	collectRequireTypeNames(root, &c.requireTypeNames)
 	if len(c.requireTypeNames) == 0 {
@@ -96,7 +96,7 @@ func (c *CheckTypeImportCodeReferences) Process(externs *rhino.Node, root *rhino
 }
 
 // Java: CheckTypeImportCodeReferences.visit(NodeTraversal, Node, Node)
-func (c *CheckTypeImportCodeReferences) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckTypeImportCodeReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsName() {
 		return
 	}
@@ -113,11 +113,11 @@ func (c *CheckTypeImportCodeReferences) Visit(t *NodeTraversal, n *rhino.Node, p
 
 	declNameNode := var_.GetNameNode()
 
-	if declNameNode == nil || declNameNode == n || !NodeUtil_IsDeclarationLValue(declNameNode) {
+	if declNameNode.IsNil() || declNameNode == n || !NodeUtil_IsDeclarationLValue(declNameNode) {
 		return
 	}
 
-	var decl *rhino.Node
+	var decl rhino.Node
 	if declNameNode.GetParent().IsStringKey() {
 		decl = declNameNode.GetGrandparent().GetGrandparent()
 	} else {

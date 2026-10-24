@@ -52,7 +52,7 @@ func (c *CoalesceVariableNamesTest) SetUp() {
 
 // Java: CoalesceVariableNamesTest.getProcessor(Compiler)
 func (c *CoalesceVariableNamesTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		// enableNormalize would require output of CoalesceVariableNames to be normalized,
 		// so we just manually normalize the input instead.
 		normalize := Normalize_CreateNormalizeForOptimizations(compiler)

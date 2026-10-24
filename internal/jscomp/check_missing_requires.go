@@ -126,13 +126,13 @@ func NewCheckMissingRequires(compiler AbstractCompiler, moduleMetadataMap *Modul
 }
 
 // Java: CheckMissingRequires.process(Node, Node)
-func (c *CheckMissingRequires) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckMissingRequires) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckMissingRequires.shouldTraverse(NodeTraversal, Node, ModuleMetadata, Node)
 func (c *CheckMissingRequires) ShouldTraverseWithModule(
-	t *NodeTraversal, n *rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, scopeRoot *rhino.Node) bool {
+	t *NodeTraversal, n rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, scopeRoot rhino.Node) bool {
 	if NodeUtil_IsValidCfgRoot(n) && !c.IsInGlobalControlFlowScope(n) {
 		c.controlFlowScopeDepth++
 	}
@@ -150,7 +150,7 @@ func (c *CheckMissingRequires) ShouldTraverseWithModule(
 // scope" from the parent scope (the global scope).
 //
 // Java: CheckMissingRequires.isInGlobalControlFlowScope(Node)
-func (c *CheckMissingRequires) IsInGlobalControlFlowScope(n *rhino.Node) bool {
+func (c *CheckMissingRequires) IsInGlobalControlFlowScope(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT, rhino.Token_ROOT:
 		return true
@@ -173,13 +173,13 @@ func (c *CheckMissingRequires) IsInGlobalControlFlowScope(n *rhino.Node) bool {
 }
 
 // Java: CheckMissingRequires.isIIFE(Node)
-func CheckMissingRequires_IsIIFE(n *rhino.Node) bool {
+func CheckMissingRequires_IsIIFE(n rhino.Node) bool {
 	return n.IsFunction() && n.GetParent().IsCall() && n.IsFirstChildOf(n.GetParent())
 }
 
 // Java: CheckMissingRequires.visit(NodeTraversal, Node, ModuleMetadata, Node)
 func (c *CheckMissingRequires) VisitWithModule(
-	t *NodeTraversal, n *rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, scopeRoot *rhino.Node) {
+	t *NodeTraversal, n rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, scopeRoot rhino.Node) {
 	if NodeUtil_IsValidCfgRoot(n) && !c.IsInGlobalControlFlowScope(n) {
 		c.controlFlowScopeDepth--
 	}
@@ -190,7 +190,7 @@ func (c *CheckMissingRequires) VisitWithModule(
 }
 
 // Java: CheckMissingRequires.visitNode(NodeTraversal, Node, ModuleMetadata)
-func (c *CheckMissingRequires) VisitNode(t *NodeTraversal, n *rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata) {
+func (c *CheckMissingRequires) VisitNode(t *NodeTraversal, n rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata) {
 	info := n.GetJSDocInfo()
 	if info != nil {
 		c.VisitJsDocInfo(t, currentModule, info)
@@ -272,7 +272,7 @@ func (c *CheckMissingRequires) VisitJsDocExpr(
 var checkMissingRequires_GOOG_SCOPE = rhino.QualifiedName_Of("goog.scope")
 
 // Java: CheckMissingRequires.isGoogScopeBody(Node)
-func CheckMissingRequires_IsGoogScopeBody(hoistScopeRoot *rhino.Node) bool {
+func CheckMissingRequires_IsGoogScopeBody(hoistScopeRoot rhino.Node) bool {
 	return hoistScopeRoot.IsBlock() &&
 		hoistScopeRoot.GetParent().IsFunction() &&
 		hoistScopeRoot.GetGrandparent().IsCall() &&
@@ -290,7 +290,7 @@ func CheckMissingRequires_IsGoogScopeBody(hoistScopeRoot *rhino.Node) bool {
 //
 // Java: CheckMissingRequires.visitMaybeGoogModuleGet(NodeTraversal, Node, ModuleMetadata)
 func (c *CheckMissingRequires) VisitMaybeGoogModuleGet(
-	t *NodeTraversal, googModuleGet *rhino.Node, currentFile *ModuleMetadataMap_ModuleMetadata) {
+	t *NodeTraversal, googModuleGet rhino.Node, currentFile *ModuleMetadataMap_ModuleMetadata) {
 	jutil.CheckState(googModuleGet.IsCall())
 	if !NodeUtil_IsGoogModuleGetCall(googModuleGet) {
 		return
@@ -308,7 +308,7 @@ func (c *CheckMissingRequires) VisitMaybeGoogModuleGet(
 }
 
 // Java: CheckMissingRequires.visitMaybeDeclaration(NodeTraversal, Node, ModuleMetadata)
-func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n *rhino.Node, currentFile *ModuleMetadataMap_ModuleMetadata) {
+func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n rhino.Node, currentFile *ModuleMetadataMap_ModuleMetadata) {
 	if !currentFile.IsModule() {
 		// This check only makes sense in goog.module files
 		return
@@ -378,14 +378,14 @@ func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n *rhino.
 }
 
 // Java: CheckMissingRequires.isTypeScriptSource(Node)
-func (c *CheckMissingRequires) IsTypeScriptSource(n *rhino.Node) bool {
+func (c *CheckMissingRequires) IsTypeScriptSource(n rhino.Node) bool {
 	return n.GetStaticSourceFile().IsTypeScriptSource()
 }
 
 // Java: CheckMissingRequires.visitQualifiedName(NodeTraversal, Node, ModuleMetadata, QualifiedName, Strength)
 func (c *CheckMissingRequires) VisitQualifiedName(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	currentFile *ModuleMetadataMap_ModuleMetadata,
 	qualifiedName rhino.QualifiedName,
 	referenceStrength CheckMissingRequires_Strength) {
@@ -428,7 +428,7 @@ func (c *CheckMissingRequires) VisitQualifiedName(
 // Java: CheckMissingRequires.checkMissingRequireThroughShortName(NodeTraversal, Node, Var, ModuleMetadata, QualifiedName, Strength)
 func (c *CheckMissingRequires) CheckMissingRequireThroughShortName(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	localVar *Var,
 	currentFile *ModuleMetadataMap_ModuleMetadata,
 	qualifiedName rhino.QualifiedName,
@@ -470,13 +470,13 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughShortName(
 // Java: CheckMissingRequires.checkMissingRequireThroughShortNameInGoogScope(NodeTraversal, Node, Var, ModuleMetadata, QualifiedName, Strength)
 func (c *CheckMissingRequires) CheckMissingRequireThroughShortNameInGoogScope(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	localVar *Var,
 	currentFile *ModuleMetadataMap_ModuleMetadata,
 	qualifiedName rhino.QualifiedName,
 	referenceStrength CheckMissingRequires_Strength) {
 	initialValue := localVar.GetInitialValue()
-	if initialValue == nil {
+	if initialValue.IsNil() {
 		return
 	}
 	// There are two cases we have to handle (assume 'foo.bar' is a module or provide, below);
@@ -548,7 +548,7 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughShortNameInGoogScope(
 // Java: CheckMissingRequires.checkMissingRequireThroughShortNameInModule(NodeTraversal, Node, NodeUtil.GoogRequire, ModuleMetadata, QualifiedName, Strength)
 func (c *CheckMissingRequires) CheckMissingRequireThroughShortNameInModule(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	require *NodeUtil_GoogRequire,
 	currentFile *ModuleMetadataMap_ModuleMetadata,
 	qualifiedName rhino.QualifiedName,
@@ -584,7 +584,7 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughShortNameInModule(
 // Java: CheckMissingRequires.checkNormalizedShortNameImport(NodeTraversal, Node, ModuleMetadata, ModuleMetadata, QualifiedName, QualifiedName, Strength)
 func (c *CheckMissingRequires) CheckNormalizedShortNameImport(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	currentFile *ModuleMetadataMap_ModuleMetadata,
 	originalImport *ModuleMetadataMap_ModuleMetadata,
 	originalQualifiedName rhino.QualifiedName,
@@ -689,7 +689,7 @@ func (c *CheckMissingRequires) CheckNormalizedShortNameImport(
 // Java: CheckMissingRequires.checkMissingRequireThroughFullyQualifiedName(NodeTraversal, Node, ModuleMetadata, QualifiedName, Strength)
 func (c *CheckMissingRequires) CheckMissingRequireThroughFullyQualifiedName(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	currentFile *ModuleMetadataMap_ModuleMetadata,
 	qualifiedName rhino.QualifiedName,
 	referenceStrength CheckMissingRequires_Strength) {

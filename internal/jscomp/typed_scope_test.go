@@ -64,7 +64,7 @@ func (v *typedScopeVectors) describe(tv *TypedVar) string {
 		return "null"
 	}
 	node := "null"
-	if tv.GetNode() != nil {
+	if !tv.GetNode().IsNil() {
 		node = tv.GetNode().GetToken().String()
 	}
 	scope, _ := tv.GetScope().(*TypedScope)

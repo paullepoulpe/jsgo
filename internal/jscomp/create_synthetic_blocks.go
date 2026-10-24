@@ -47,7 +47,7 @@ type CreateSyntheticBlocks struct {
 	// Go-only: language-adapter — the ArrayDeque used as a stack
 	// (push/pop/iteration at the front): the top of the stack is the last
 	// element of the slice.
-	markerStack []*rhino.Node
+	markerStack []rhino.Node
 
 	validMarkers *jutil.ArrayList[*createSyntheticBlocks_Marker]
 }
@@ -63,12 +63,12 @@ var CreateSyntheticBlocks_INVALID_MARKER_USAGE = DiagnosticType_Error(
 	"JSC_INVALID_MARKER_USAGE", "Marker {0} can only be used in a simple call expression")
 
 type createSyntheticBlocks_Marker struct {
-	startMarker *rhino.Node
-	endMarker   *rhino.Node
+	startMarker rhino.Node
+	endMarker   rhino.Node
 }
 
 // Java: CreateSyntheticBlocks.Marker(Node, Node)
-func newCreateSyntheticBlocks_Marker(startMarker *rhino.Node, endMarker *rhino.Node) *createSyntheticBlocks_Marker {
+func newCreateSyntheticBlocks_Marker(startMarker rhino.Node, endMarker rhino.Node) *createSyntheticBlocks_Marker {
 	return &createSyntheticBlocks_Marker{startMarker: startMarker, endMarker: endMarker}
 }
 
@@ -83,7 +83,7 @@ func NewCreateSyntheticBlocks(compiler AbstractCompiler, startMarkerName string,
 }
 
 // Java: CreateSyntheticBlocks.process(Node, Node)
-func (p *CreateSyntheticBlocks) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *CreateSyntheticBlocks) Process(externs rhino.Node, root rhino.Node) {
 	// Find and validate the markers.
 	NodeTraversal_Traverse(p.compiler, root, p)
 
@@ -104,7 +104,7 @@ func (p *CreateSyntheticBlocks) Process(externs *rhino.Node, root *rhino.Node) {
 // {}; VAR NAME x FUNCTION NAME (w/ empty string) PARAM_LIST BLOCK
 //
 // Java: CreateSyntheticBlocks.rewriteFunctionDeclaration(Node)
-func (p *CreateSyntheticBlocks) RewriteFunctionDeclaration(n *rhino.Node) {
+func (p *CreateSyntheticBlocks) RewriteFunctionDeclaration(n rhino.Node) {
 	// Prepare a variable for the function.
 	oldNameNode := n.GetFirstChild()
 	fnNameNode := oldNameNode.CloneNode()
@@ -123,11 +123,11 @@ func (p *CreateSyntheticBlocks) RewriteFunctionDeclaration(n *rhino.Node) {
 }
 
 // Java: CreateSyntheticBlocks.rewriteFunctionDeclarationsInBlock(Node)
-func (p *CreateSyntheticBlocks) RewriteFunctionDeclarationsInBlock(block *rhino.Node) {
+func (p *CreateSyntheticBlocks) RewriteFunctionDeclarationsInBlock(block rhino.Node) {
 	jutil.CheckState(block.IsBlock())
 
-	var next *rhino.Node
-	for current := block.GetFirstChild(); current != nil; current = next {
+	var next rhino.Node
+	for current := block.GetFirstChild(); !current.IsNil(); current = next {
 		// Get the next node now, because the current node will move and that
 		// will change its next sibling.
 		next = current.GetNext()
@@ -192,9 +192,9 @@ func (p *CreateSyntheticBlocks) AddBlocks(marker *createSyntheticBlocks_Marker) 
 // child of the block. If end is null, move the last child of the block.
 //
 // Java: CreateSyntheticBlocks.moveSiblingExclusive(Node, Node, Node)
-func (p *CreateSyntheticBlocks) MoveSiblingExclusive(dest *rhino.Node, start *rhino.Node, end *rhino.Node) {
-	jutil.CheckNotNull(start)
-	jutil.CheckNotNull(end)
+func (p *CreateSyntheticBlocks) MoveSiblingExclusive(dest rhino.Node, start rhino.Node, end rhino.Node) {
+	rhino.CheckNotNull(start)
+	rhino.CheckNotNull(end)
 	for start.GetNext() != end {
 		child := start.GetNext().Detach()
 		dest.AddChildToBack(child)
@@ -202,7 +202,7 @@ func (p *CreateSyntheticBlocks) MoveSiblingExclusive(dest *rhino.Node, start *rh
 }
 
 // Java: CreateSyntheticBlocks.visit(NodeTraversal, Node, Node)
-func (p *CreateSyntheticBlocks) Visit(unused *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *CreateSyntheticBlocks) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsCall() || !n.GetFirstChild().IsName() {
 		return
 	}

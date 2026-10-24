@@ -42,8 +42,8 @@ func NewEs6RelativizeImportPaths(compiler AbstractCompiler) *Es6RelativizeImport
 }
 
 // Java: Es6RelativizeImportPaths.process(Node, Node)
-func (e *Es6RelativizeImportPaths) Process(externs *rhino.Node, root *rhino.Node) {
-	for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+func (e *Es6RelativizeImportPaths) Process(externs rhino.Node, root rhino.Node) {
+	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		if Es6RewriteModules_IsEs6ModuleRoot(script) {
 			NodeTraversal_Traverse(e.compiler, script, NewEs6RelativizeImportPaths_Rewriter())
 		}
@@ -62,7 +62,7 @@ func NewEs6RelativizeImportPaths_Rewriter() *Es6RelativizeImportPaths_Rewriter {
 }
 
 // Java: Es6RelativizeImportPaths.Rewriter.shouldTraverse(NodeTraversal, Node, Node)
-func (r *Es6RelativizeImportPaths_Rewriter) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (r *Es6RelativizeImportPaths_Rewriter) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_ROOT, rhino.Token_MODULE_BODY, rhino.Token_SCRIPT:
 		return true
@@ -78,7 +78,7 @@ func (r *Es6RelativizeImportPaths_Rewriter) ShouldTraverse(nodeTraversal *NodeTr
 }
 
 // Java: Es6RelativizeImportPaths.Rewriter.visitImport(NodeTraversal, Node)
-func (r *Es6RelativizeImportPaths_Rewriter) VisitImport(t *NodeTraversal, importDecl *rhino.Node) {
+func (r *Es6RelativizeImportPaths_Rewriter) VisitImport(t *NodeTraversal, importDecl rhino.Node) {
 	specifierNode := importDecl.GetLastChild()
 	specifier := specifierNode.GetString()
 
@@ -136,7 +136,7 @@ func (r *Es6RelativizeImportPaths_Rewriter) VisitImport(t *NodeTraversal, import
 }
 
 // Java: Es6RelativizeImportPaths.Rewriter.visitExport(NodeTraversal, Node)
-func (r *Es6RelativizeImportPaths_Rewriter) VisitExport(t *NodeTraversal, export *rhino.Node) {
+func (r *Es6RelativizeImportPaths_Rewriter) VisitExport(t *NodeTraversal, export rhino.Node) {
 	if export.HasTwoChildren() {
 		// export from
 		r.VisitImport(t, export)

@@ -48,7 +48,7 @@ func NewLocaleDataPasses_ProtectGoogLocale(compiler AbstractCompiler) *LocaleDat
 }
 
 // Java: LocaleDataPasses.ProtectGoogLocale.process(Node, Node)
-func (p *LocaleDataPasses_ProtectGoogLocale) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *LocaleDataPasses_ProtectGoogLocale) Process(externs rhino.Node, root rhino.Node) {
 	// Create the extern symbols
 	NodeUtil_CreateSynthesizedExternsSymbol(p.compiler, LocaleDataPasses_GOOG_LOCALE_REPLACEMENT)
 	protectLocaleCallback := newLocaleDataPasses_ProtectCurrentLocale(p.compiler)
@@ -75,7 +75,7 @@ func newLocaleDataPasses_ProtectCurrentLocale(compiler AbstractCompiler) *locale
 }
 
 // Java: LocaleDataPasses.ProtectCurrentLocale.visit(NodeTraversal, Node, Node)
-func (c *localeDataPasses_ProtectCurrentLocale) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *localeDataPasses_ProtectCurrentLocale) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if localeDataPasses_isGoogDotLocaleReference(n) {
 		// We will replace the RHS of `goog.LOCALE = goog.define(...);`, but everywhere
 		// else we will replace `goog.LOCALE` itself, so we don't have to waste time
@@ -96,7 +96,7 @@ func (c *localeDataPasses_ProtectCurrentLocale) Visit(t *NodeTraversal, n *rhino
 var localeDataPasses_QNAME_FOR_GOOG_LOCALE = rhino.IR_Getprop(rhino.IR_Name("goog"), "LOCALE")
 
 // Java: LocaleDataPasses.isGoogDotLocaleReference(Node)
-func localeDataPasses_isGoogDotLocaleReference(n *rhino.Node) bool {
+func localeDataPasses_isGoogDotLocaleReference(n rhino.Node) bool {
 	// NOTE: Theoretically there could be a local variable named `goog`, but it's not worth checking
 	// for that.
 	return n.MatchesQualifiedNameNode(localeDataPasses_QNAME_FOR_GOOG_LOCALE)
@@ -111,7 +111,7 @@ const localeDataPasses_LocaleSubstitutions_DEFAULT_LOCALE = "en"
 type LocaleDataPasses_LocaleSubstitutions struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	qnameForLocale *rhino.Node
+	qnameForLocale rhino.Node
 
 	compiler   AbstractCompiler
 	astFactory *AstFactory
@@ -134,13 +134,13 @@ func NewLocaleDataPasses_LocaleSubstitutions(compiler AbstractCompiler, locale *
 }
 
 // Java: LocaleDataPasses.LocaleSubstitutions.process(Node, Node)
-func (s *LocaleDataPasses_LocaleSubstitutions) Process(externs *rhino.Node, root *rhino.Node) {
+func (s *LocaleDataPasses_LocaleSubstitutions) Process(externs rhino.Node, root rhino.Node) {
 	// Create the extern symbol
 	NodeTraversal_Traverse(s.compiler, root, s)
 }
 
 // Java: LocaleDataPasses.LocaleSubstitutions.visit(NodeTraversal, Node, Node)
-func (s *LocaleDataPasses_LocaleSubstitutions) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (s *LocaleDataPasses_LocaleSubstitutions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.MatchesNameNode(s.qnameForLocale) {
 		replacement := s.astFactory.CreateString(*jutil.CheckNotNull(s.locale)).Srcref(n)
 		n.ReplaceWith(replacement)

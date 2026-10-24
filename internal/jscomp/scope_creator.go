@@ -37,7 +37,7 @@ type ScopeCreator interface {
 	// TypedScope) keep this signature; callers assert (`.(*Scope)`).
 	//
 	// Java: ScopeCreator.createScope(Node, AbstractScope<?, ?>)
-	CreateScope(n *rhino.Node, parent AbstractScope) AbstractScope
+	CreateScope(n rhino.Node, parent AbstractScope) AbstractScope
 }
 
 // ScopeCreator_ASSERT_NO_SCOPES_CREATED is a scope creator that can be
@@ -53,7 +53,7 @@ type scopeCreator_assertNoScopesCreated struct {
 }
 
 // Java: ScopeCreator.ASSERT_NO_SCOPES_CREATED.createScope(Node, AbstractScope<?, ?>)
-func (*scopeCreator_assertNoScopesCreated) CreateScope(n *rhino.Node, parent AbstractScope) AbstractScope {
+func (*scopeCreator_assertNoScopesCreated) CreateScope(n rhino.Node, parent AbstractScope) AbstractScope {
 	panic(jutil.NewIllegalStateExceptionMsg(
 		"ScopeCreator.ASSERT_NO_SCOPES_CREATED cannot create child scopes."))
 }

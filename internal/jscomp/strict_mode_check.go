@@ -110,7 +110,7 @@ func NewStrictModeCheck(compiler AbstractCompiler, defaultLevel CheckLevel) *Str
 }
 
 // Java: StrictModeCheck.process(Node, Node)
-func (c *StrictModeCheck) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *StrictModeCheck) Process(externs rhino.Node, root rhino.Node) {
 	if c.processParallel(externs, root) {
 		return
 	}
@@ -118,7 +118,7 @@ func (c *StrictModeCheck) Process(externs *rhino.Node, root *rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, NewStrictModeCheck_NonExternChecks(c))
 }
 
-func (c *StrictModeCheck) processParallel(externs *rhino.Node, root *rhino.Node) bool {
+func (c *StrictModeCheck) processParallel(externs rhino.Node, root rhino.Node) bool {
 	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
 	if !ok {
 		return false
@@ -182,7 +182,7 @@ func (c *StrictModeCheck) processParallel(externs *rhino.Node, root *rhino.Node)
 }
 
 // Java: StrictModeCheck.visit(NodeTraversal, Node, Node)
-func (c *StrictModeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *StrictModeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsAssign() {
 		c.CheckAssignment(n)
 	} else if n.IsDelProp() {
@@ -199,7 +199,7 @@ func (c *StrictModeCheck) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.N
 // CheckWith reports a warning for with statements.
 //
 // Java: StrictModeCheck.checkWith(Node)
-func (c *StrictModeCheck) CheckWith(n *rhino.Node) {
+func (c *StrictModeCheck) CheckWith(n rhino.Node) {
 	info := n.GetJSDocInfo()
 	allowWith := info != nil && info.HasSuppression("with")
 	if !allowWith {
@@ -212,7 +212,7 @@ func (c *StrictModeCheck) CheckWith(n *rhino.Node) {
 // argument.
 //
 // Java: StrictModeCheck.isDeclaration(Node)
-func StrictModeCheck_IsDeclaration(n *rhino.Node) bool {
+func StrictModeCheck_IsDeclaration(n rhino.Node) bool {
 	switch n.GetParent().GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR, rhino.Token_CATCH:
 		return true
@@ -228,7 +228,7 @@ func StrictModeCheck_IsDeclaration(n *rhino.Node) bool {
 // CheckAssignment checks that an assignment is not to the "arguments" object.
 //
 // Java: StrictModeCheck.checkAssignment(Node)
-func (c *StrictModeCheck) CheckAssignment(n *rhino.Node) {
+func (c *StrictModeCheck) CheckAssignment(n rhino.Node) {
 	if n.GetFirstChild().IsName() {
 		if "arguments" == n.GetFirstChild().GetString() {
 			c.Report(n, StrictModeCheck_ARGUMENTS_ASSIGNMENT)
@@ -244,7 +244,7 @@ func (c *StrictModeCheck) CheckAssignment(n *rhino.Node) {
 // deleted.
 //
 // Java: StrictModeCheck.checkDelete(NodeTraversal, Node)
-func (c *StrictModeCheck) CheckDelete(t *NodeTraversal, n *rhino.Node) {
+func (c *StrictModeCheck) CheckDelete(t *NodeTraversal, n rhino.Node) {
 	if n.GetFirstChild().IsName() {
 		v := t.GetScope().GetVar(n.GetFirstChild().GetString())
 		if v != nil {
@@ -257,7 +257,7 @@ func (c *StrictModeCheck) CheckDelete(t *NodeTraversal, n *rhino.Node) {
 // names are valid.
 //
 // Java: StrictModeCheck.checkObjectLiteralOrClass(Node)
-func (c *StrictModeCheck) CheckObjectLiteralOrClass(n *rhino.Node) {
+func (c *StrictModeCheck) CheckObjectLiteralOrClass(n rhino.Node) {
 	if n.GetFirstChild() == n.GetLastChild() {
 		return
 	}
@@ -270,7 +270,7 @@ func (c *StrictModeCheck) CheckObjectLiteralOrClass(n *rhino.Node) {
 	 * Iterate backwards because the last duplicate is the one that will be used in sloppy or ES6
 	 * code. The earlier duplicates are the ones that should be removed.
 	 */
-	for key := n.GetLastChild(); key != nil; key = key.GetPrevious() {
+	for key := n.GetLastChild(); !key.IsNil(); key = key.GetPrevious() {
 		if key.IsEmpty() ||
 			key.IsComputedProp() ||
 			key.IsSpread() ||
@@ -361,7 +361,7 @@ func NewStrictModeCheck_NonExternChecks(outer *StrictModeCheck) *StrictModeCheck
 }
 
 // Java: StrictModeCheck.NonExternChecks.visit(NodeTraversal, Node, Node)
-func (c *StrictModeCheck_NonExternChecks) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *StrictModeCheck_NonExternChecks) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() && StrictModeCheck_IsDeclaration(n) {
 		c.CheckDeclaration(n)
 	} else if n.IsGetProp() {
@@ -372,7 +372,7 @@ func (c *StrictModeCheck_NonExternChecks) Visit(t *NodeTraversal, n *rhino.Node,
 // CheckDeclaration checks for illegal declarations.
 //
 // Java: StrictModeCheck.NonExternChecks.checkDeclaration(Node)
-func (c *StrictModeCheck_NonExternChecks) CheckDeclaration(n *rhino.Node) {
+func (c *StrictModeCheck_NonExternChecks) CheckDeclaration(n rhino.Node) {
 	if "eval" == n.GetString() {
 		c.outer.Report(n, StrictModeCheck_EVAL_DECLARATION)
 	} else if "arguments" == n.GetString() {
@@ -383,7 +383,7 @@ func (c *StrictModeCheck_NonExternChecks) CheckDeclaration(n *rhino.Node) {
 // CheckGetProp checks that the arguments.callee is not used.
 //
 // Java: StrictModeCheck.NonExternChecks.checkGetProp(Node)
-func (c *StrictModeCheck_NonExternChecks) CheckGetProp(n *rhino.Node) {
+func (c *StrictModeCheck_NonExternChecks) CheckGetProp(n rhino.Node) {
 	target := n.GetFirstChild()
 	name := n.GetString()
 	if name == "callee" {
@@ -402,13 +402,13 @@ func (c *StrictModeCheck_NonExternChecks) CheckGetProp(n *rhino.Node) {
 }
 
 // Java: StrictModeCheck.isFunctionType(Node)
-func StrictModeCheck_IsFunctionType(n *rhino.Node) bool {
+func StrictModeCheck_IsFunctionType(n rhino.Node) bool {
 	type_ := n.GetJSType()
 	return type_ != nil && type_.IsFunctionType()
 }
 
 // Java: StrictModeCheck.report(Node, DiagnosticType, String...)
-func (c *StrictModeCheck) Report(n *rhino.Node, diagnostic *DiagnosticType, args ...string) {
+func (c *StrictModeCheck) Report(n rhino.Node, diagnostic *DiagnosticType, args ...string) {
 	c.compiler.Report(
 		JSError_Builder_(diagnostic, args...).SetLevel(c.defaultLevel).SetNode(n).Build())
 }

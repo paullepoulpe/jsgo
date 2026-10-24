@@ -34,8 +34,8 @@ func NewRemoveWeakSources(compiler AbstractCompiler) *RemoveWeakSources {
 }
 
 // Java: RemoveWeakSources.process(Node, Node)
-func (r *RemoveWeakSources) Process(externs *rhino.Node, root *rhino.Node) {
-	for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+func (r *RemoveWeakSources) Process(externs rhino.Node, root rhino.Node) {
+	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		jutil.CheckState(script.IsScript())
 		if script.GetStaticSourceFile().IsWeak() {
 			// Keep the file but remove the contents, since some users expect the number of input and

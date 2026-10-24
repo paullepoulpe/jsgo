@@ -66,7 +66,7 @@ func branchCoverageInstrumentationCallback_stringsEqual(a, b *string) bool {
 }
 
 // Java: BranchCoverageInstrumentationCallback.visit(NodeTraversal, Node, Node)
-func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	fileNamePtr := traversal.GetSourceName()
 
 	// If origin of node is not from sourceFile, do not instrument. This typically occurs when
@@ -103,9 +103,9 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 		for _, outEdge := range cfg.GetOutEdges(node) {
 			if outEdge.GetValue() == ControlFlowGraph_Branch_ON_FALSE {
 				destination := outEdge.GetDestination().GetValue()
-				if destination != nil &&
+				if !destination.IsNil() &&
 					destination.IsBlock() &&
-					destination.GetParent() != nil &&
+					!destination.GetParent().IsNil() &&
 					destination.GetParent().IsIf() {
 					hasDefaultBlock = true
 				}
@@ -126,11 +126,11 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 		for _, outEdge := range cfg.GetOutEdges(node) {
 			if outEdge.GetValue() == ControlFlowGraph_Branch_ON_FALSE {
 				destination := outEdge.GetDestination().GetValue()
-				if destination != nil && destination.IsBlock() {
+				if !destination.IsNil() && destination.IsBlock() {
 					blocks.Add(destination)
 				} else {
 					exitBlock := rhino.IR_Block()
-					if destination != nil && destination.GetParent().IsBlock() {
+					if !destination.IsNil() && destination.GetParent().IsBlock() {
 						// When the destination of an outEdge of the CFG is not null and the source node's
 						// parent is a block. If parent is not a block it may result in an illegal state
 						// exception
@@ -153,9 +153,9 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 }
 
 // Java: BranchCoverageInstrumentationCallback.getChildrenBlocks(Node)
-func (c *BranchCoverageInstrumentationCallback) GetChildrenBlocks(node *rhino.Node) *jutil.ArrayList[*rhino.Node] {
-	blocks := jutil.NewArrayList[*rhino.Node]()
-	for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+func (c *BranchCoverageInstrumentationCallback) GetChildrenBlocks(node rhino.Node) *jutil.ArrayList[rhino.Node] {
+	blocks := jutil.NewArrayList[rhino.Node]()
+	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsBlock() {
 			blocks.Add(child)
 		}
@@ -190,7 +190,7 @@ func (c *BranchCoverageInstrumentationCallback) InstrumentBranchCoverage(travers
 // Returns the newly constructed assignment node.
 //
 // Java: BranchCoverageInstrumentationCallback.newBranchInstrumentationNode(NodeTraversal, Node, int)
-func (c *BranchCoverageInstrumentationCallback) NewBranchInstrumentationNode(traversal *NodeTraversal, node *rhino.Node, idx int) *rhino.Node {
+func (c *BranchCoverageInstrumentationCallback) NewBranchInstrumentationNode(traversal *NodeTraversal, node rhino.Node, idx int) rhino.Node {
 	arrayName := BranchCoverageInstrumentationCallback_CreateArrayName(traversal)
 
 	// Create instrumentation Node
@@ -207,7 +207,7 @@ func (c *BranchCoverageInstrumentationCallback) NewBranchInstrumentationNode(tra
 // ProcessBranchInfo adds branch instrumentation information for each block.
 //
 // Java: BranchCoverageInstrumentationCallback.processBranchInfo(Node, FileInstrumentationData, List<Node>)
-func (c *BranchCoverageInstrumentationCallback) ProcessBranchInfo(branchNode *rhino.Node, data *FileInstrumentationData, blocks *jutil.ArrayList[*rhino.Node]) {
+func (c *BranchCoverageInstrumentationCallback) ProcessBranchInfo(branchNode rhino.Node, data *FileInstrumentationData, blocks *jutil.ArrayList[rhino.Node]) {
 	lineNumber := branchNode.GetLineno()
 	data.SetBranchPresent(lineNumber)
 
@@ -224,14 +224,14 @@ func (c *BranchCoverageInstrumentationCallback) ProcessBranchInfo(branchNode *rh
 // Switch.
 //
 // Java: BranchCoverageInstrumentationCallback.addDefaultBlock(Node)
-func (c *BranchCoverageInstrumentationCallback) AddDefaultBlock(node *rhino.Node) *rhino.Node {
+func (c *BranchCoverageInstrumentationCallback) AddDefaultBlock(node rhino.Node) rhino.Node {
 	defaultBlock := rhino.IR_Block()
 	node.AddChildToBack(defaultBlock)
 	return defaultBlock.SrcrefTreeIfMissing(node)
 }
 
 // Java: BranchCoverageInstrumentationCallback.newHeaderNode(NodeTraversal, Node)
-func (c *BranchCoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTraversal, srcref *rhino.Node) *rhino.Node {
+func (c *BranchCoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTraversal, srcref rhino.Node) rhino.Node {
 	fileName := CoverageInstrumentationCallback_GetFileName(traversal)
 	data := c.instrumentationData.Get(fileName)
 	jutil.CheckNotNull(data)
@@ -239,7 +239,7 @@ func (c *BranchCoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTra
 	// var JSCompiler_lcov_branch_data_xx = [];
 	// __jscov['branchesTaken'].push(JSCompiler_lcov_branch_data_xx);
 	objName := CoverageInstrumentationPass_JS_INSTRUMENTATION_OBJECT_NAME
-	var nodes []*rhino.Node
+	var nodes []rhino.Node
 	nodes = append(nodes, c.NewArrayDeclarationNode(traversal))
 	nodes = append(nodes,
 		rhino.IR_ExprResult(
@@ -269,13 +269,13 @@ func (c *BranchCoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTra
 }
 
 // Java: BranchCoverageInstrumentationCallback.newArrayDeclarationNode(NodeTraversal)
-func (c *BranchCoverageInstrumentationCallback) NewArrayDeclarationNode(traversal *NodeTraversal) *rhino.Node {
+func (c *BranchCoverageInstrumentationCallback) NewArrayDeclarationNode(traversal *NodeTraversal) rhino.Node {
 	return rhino.IR_VarWithValue(rhino.IR_Name(BranchCoverageInstrumentationCallback_CreateArrayName(traversal)), rhino.IR_Arraylit())
 }
 
 // Java: BranchCoverageInstrumentationCallback.newBranchesInLineNode(String, FileInstrumentationData)
-func (c *BranchCoverageInstrumentationCallback) NewBranchesInLineNode(name string, data *FileInstrumentationData) *rhino.Node {
-	var assignments []*rhino.Node
+func (c *BranchCoverageInstrumentationCallback) NewBranchesInLineNode(name string, data *FileInstrumentationData) rhino.Node {
+	var assignments []rhino.Node
 	// var JSCompiler_lcov_branchesInLine = [];
 	assignments = append(assignments, rhino.IR_VarWithValue(rhino.IR_Name(name), rhino.IR_Arraylit()))
 	lineWithBranch := 0

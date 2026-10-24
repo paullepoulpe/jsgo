@@ -120,8 +120,8 @@ func l11msgMessage(sb *strings.Builder, m *JsMessage) {
 	sb.WriteString("  originalCode=" + l11msgEscape(l11msgMap(m.GetPlaceholderNameToOriginalCodeMap())) + "\n")
 }
 
-func l11msgNode(n *rhino.Node) string {
-	if n == nil {
+func l11msgNode(n rhino.Node) string {
+	if n.IsNil() {
 		return "<null>"
 	}
 	return n.GetToken().String() + "@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
@@ -149,7 +149,7 @@ func (v *l11msgCollectMessages) ProcessIcuTemplateDefinition(definition IcuTempl
 	l11msgMessage(v.found, definition.GetMessage())
 }
 
-func (v *l11msgCollectMessages) ProcessMessageFallback(callNode *rhino.Node, message1 *JsMessage, message2 *JsMessage) {
+func (v *l11msgCollectMessages) ProcessMessageFallback(callNode rhino.Node, message1 *JsMessage, message2 *JsMessage) {
 	v.found.WriteString("fallback " + l11msgNode(callNode) + " " + l11msgEscape(message1.GetKey()) + " " +
 		l11msgEscape(message2.GetKey()) + "\n")
 }
@@ -162,7 +162,7 @@ func l11msgDumpMessages(sb *strings.Builder, code string) {
 	found := &strings.Builder{}
 	visitor := &l11msgCollectMessages{found: found}
 	visitor.InitJsMessageVisitorBase(visitor, compiler, NewGoogleJsMessageIdGenerator(nil))
-	visitor.Process(nil, root)
+	visitor.Process(rhino.Node{}, root)
 	sb.WriteString(found.String())
 	l11msgDiagnosticsFrom(sb, compiler, parseErrors, parseWarnings)
 }
@@ -224,7 +224,7 @@ const l11msgExtraTypeDefs = "/** @type {number} */ Array.prototype.length;\n" +
 func l11msgRecord(registry *rhino.JSTypeRegistry, propsAndTypes ...any) rhino.JSType {
 	builder := rhino.NewRecordTypeBuilder(registry)
 	for i := 0; i < len(propsAndTypes); i += 2 {
-		builder.AddProperty(propsAndTypes[i].(string), propsAndTypes[i+1].(rhino.JSType), nil)
+		builder.AddProperty(propsAndTypes[i].(string), propsAndTypes[i+1].(rhino.JSType), rhino.Node{})
 	}
 	return builder.Build()
 }
@@ -331,7 +331,7 @@ func l11msgDumpPass(sb *strings.Builder, mode string, code string) {
 		pass = NewChromePass(compiler)
 	}
 	jutil.Try(func() {
-		pass.Process(nil, root)
+		pass.Process(rhino.Node{}, root)
 	}, func(e jutil.IRuntimeException) {
 		message := "<null>"
 		if strings.Contains(e.Error(), ": ") {
@@ -349,26 +349,26 @@ func l11msgDumpPass(sb *strings.Builder, mode string, code string) {
 }
 
 // l11msgDiffTree is MessagesTypesMiscDump.diffTree.
-func l11msgDiffTree(sb *strings.Builder, before *rhino.Node, after *rhino.Node, path string) {
+func l11msgDiffTree(sb *strings.Builder, before rhino.Node, after rhino.Node, path string) {
 	afterLine := after.String()
 	if before.String() != afterLine {
 		sb.WriteString("changed " + path + " " + l11msgEscape(afterLine) + "\n")
 	}
 	if before.GetChildCount() == after.GetChildCount() {
 		i := 0
-		for b, a := before.GetFirstChild(), after.GetFirstChild(); b != nil; b, a = b.GetNext(), a.GetNext() {
+		for b, a := before.GetFirstChild(), after.GetFirstChild(); !b.IsNil(); b, a = b.GetNext(), a.GetNext() {
 			l11msgDiffTree(sb, b, a, path+"/"+strconv.Itoa(i))
 			i++
 		}
 		return
 	}
 	unmatched := map[string]int{}
-	for b := before.GetFirstChild(); b != nil; b = b.GetNext() {
+	for b := before.GetFirstChild(); !b.IsNil(); b = b.GetNext() {
 		unmatched[b.ToStringTree()]++
 	}
 	left := before.GetChildCount()
 	i := 0
-	for a := after.GetFirstChild(); a != nil; a = a.GetNext() {
+	for a := after.GetFirstChild(); !a.IsNil(); a = a.GetNext() {
 		tree := a.ToStringTree()
 		if unmatched[tree] > 0 {
 			unmatched[tree]--

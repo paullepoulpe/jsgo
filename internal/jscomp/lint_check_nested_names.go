@@ -134,12 +134,12 @@ func NewCheckNestedNames(compiler AbstractCompiler) *CheckNestedNames {
 }
 
 // Java: CheckNestedNames.process(Node, Node)
-func (c *CheckNestedNames) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckNestedNames) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckNestedNames.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckNestedNames) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckNestedNames) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		// only traverse inside goog.modules
 		return n.GetBooleanProp(rhino.Node_GOOG_MODULE)
@@ -149,7 +149,7 @@ func (c *CheckNestedNames) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino
 }
 
 // Java: CheckNestedNames.visit(NodeTraversal, Node, Node)
-func (c *CheckNestedNames) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckNestedNames) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	jutil.CheckArgument(t.InGlobalOrModuleScope())
 	if !n.IsGetProp() || !n.IsQualifiedName() {
 		return
@@ -175,7 +175,7 @@ func (c *CheckNestedNames) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.
 // CheckNestedNames_GetTargetGetProp gives `a.b` from `a.b.c.d...`.
 //
 // Java: CheckNestedNames.getTargetGetProp(Node)
-func CheckNestedNames_GetTargetGetProp(n *rhino.Node) *rhino.Node {
+func CheckNestedNames_GetTargetGetProp(n rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(n.IsGetProp(), "%s", n)
 	if n.GetFirstChild().IsGetProp() {
 		return CheckNestedNames_GetTargetGetProp(n.GetFirstChild())
@@ -186,12 +186,12 @@ func CheckNestedNames_GetTargetGetProp(n *rhino.Node) *rhino.Node {
 // CheckNestedNames_IsDotPrototype: true for `someExpression.prototype`.
 //
 // Java: CheckNestedNames.isDotPrototype(Node)
-func CheckNestedNames_IsDotPrototype(getProp *rhino.Node) bool {
+func CheckNestedNames_IsDotPrototype(getProp rhino.Node) bool {
 	return getProp.IsGetProp() && getProp.GetString() == "prototype"
 }
 
 // Java: CheckNestedNames.getNestedDeclarationKind(Node, Node)
-func (c *CheckNestedNames) GetNestedDeclarationKind(lhs *rhino.Node, parent *rhino.Node) *CheckNestedNames_DeclarationKind {
+func (c *CheckNestedNames) GetNestedDeclarationKind(lhs rhino.Node, parent rhino.Node) *CheckNestedNames_DeclarationKind {
 	jutil.CheckArgumentMsg1(lhs.IsFirstChildOf(parent), "%s", lhs)
 	// Handle `/** @typedef {...} */` X.Y` or `/** @const */ X.Y = SomeTypeDefName`
 	if lhs.GetTypedefTypeProp() != nil {

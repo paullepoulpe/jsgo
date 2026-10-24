@@ -44,13 +44,13 @@ func NewRewriteNullishCoalesceOperator(compiler AbstractCompiler) *RewriteNullis
 }
 
 // Java: RewriteNullishCoalesceOperator.process(Node, Node)
-func (r *RewriteNullishCoalesceOperator) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteNullishCoalesceOperator) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, r)
 	TranspilationPasses_MaybeMarkFeatureAsTranspiledAway(r.compiler, root, parser.FeatureSet_Feature_NULL_COALESCE_OP)
 }
 
 // Java: RewriteNullishCoalesceOperator.shouldTraverse(NodeTraversal, Node, Node)
-func (r *RewriteNullishCoalesceOperator) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (r *RewriteNullishCoalesceOperator) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
 		return scriptFeatures == nil || scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_NULL_COALESCE_OP)
@@ -59,7 +59,7 @@ func (r *RewriteNullishCoalesceOperator) ShouldTraverse(t *NodeTraversal, n *rhi
 }
 
 // Java: RewriteNullishCoalesceOperator.visit(NodeTraversal, Node, Node)
-func (r *RewriteNullishCoalesceOperator) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (r *RewriteNullishCoalesceOperator) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsNullishCoalesce() {
 		r.VisitNullishCoalesce(t, n)
 		t.ReportCodeChange()
@@ -67,7 +67,7 @@ func (r *RewriteNullishCoalesceOperator) Visit(t *NodeTraversal, n *rhino.Node, 
 }
 
 // Java: RewriteNullishCoalesceOperator.visitNullishCoalesce(NodeTraversal, Node)
-func (r *RewriteNullishCoalesceOperator) VisitNullishCoalesce(t *NodeTraversal, n *rhino.Node) {
+func (r *RewriteNullishCoalesceOperator) VisitNullishCoalesce(t *NodeTraversal, n rhino.Node) {
 	// a() ?? b()
 	// let temp;
 	// ((temp = a()) != null) ? temp : b()

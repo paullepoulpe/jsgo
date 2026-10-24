@@ -41,7 +41,7 @@ type closureModulesDump struct {
 }
 
 // closureModulesRun is the Run interface of the Java tool.
-type closureModulesRun func(compiler *Compiler, externs *rhino.Node, js *rhino.Node, extra *[]string)
+type closureModulesRun func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string)
 
 func closureModulesEscape(s string) string {
 	var b strings.Builder
@@ -93,14 +93,14 @@ func closureModulesDiagnostics(compiler *Compiler) []string {
 	return out
 }
 
-func closureModulesNodeRef(n *rhino.Node) string {
-	if n == nil {
+func closureModulesNodeRef(n rhino.Node) string {
+	if n.IsNil() {
 		return "null"
 	}
 	return n.GetToken().String() + "@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
 }
 
-func closureModulesGatherModuleMetadata(compiler *Compiler, externs *rhino.Node, js *rhino.Node) {
+func closureModulesGatherModuleMetadata(compiler *Compiler, externs rhino.Node, js rhino.Node) {
 	NewGatherModuleMetadata(compiler, false, ModuleLoader_ResolutionMode_BROWSER).Process(externs, js)
 }
 
@@ -109,7 +109,7 @@ func closureModulesGatherModuleMetadata(compiler *Compiler, externs *rhino.Node,
 type closureModulesRenameCallback struct {
 	NodeTraversal_AbstractScopedCallbackBase
 
-	table           *jutil.HashBasedTable[*rhino.Node, string, string]
+	table           *jutil.HashBasedTable[rhino.Node, string, string]
 	moduleRootsOnly bool
 }
 
@@ -124,10 +124,10 @@ func (c *closureModulesRenameCallback) EnterScope(t *NodeTraversal) {
 	}
 }
 
-func (c *closureModulesRenameCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {}
+func (c *closureModulesRenameCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {}
 
-func closureModulesRenameTable(compiler *Compiler, js *rhino.Node, moduleRootsOnly bool) *jutil.HashBasedTable[*rhino.Node, string, string] {
-	table := jutil.HashBasedTable_Create[*rhino.Node, string, string]()
+func closureModulesRenameTable(compiler *Compiler, js rhino.Node, moduleRootsOnly bool) *jutil.HashBasedTable[rhino.Node, string, string] {
+	table := jutil.HashBasedTable_Create[rhino.Node, string, string]()
 	NodeTraversal_Traverse(compiler, js, &closureModulesRenameCallback{table: table, moduleRootsOnly: moduleRootsOnly})
 	return table
 }
@@ -199,15 +199,15 @@ func (d *closureModulesDump) dumpFile(rel string, src string, sampled bool) {
 		closureModulesLine(sb, diag)
 	}
 
-	d.pass(rel, src, parseDiags, "closureCheckModule", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "closureCheckModule", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		closureModulesGatherModuleMetadata(compiler, externs, js)
 		NewClosureCheckModule(compiler, compiler.GetModuleMetadataMap()).Process(externs, js)
 	})
-	d.pass(rel, src, parseDiags, "processClosurePrimitives", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "processClosurePrimitives", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		closureModulesGatherModuleMetadata(compiler, externs, js)
 		NewProcessClosurePrimitives(compiler).Process(externs, js)
 	})
-	d.pass(rel, src, parseDiags, "collectProvidedNames", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "collectProvidedNames", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		p := NewProcessClosureProvidesAndRequires(compiler, true)
 		names := p.CollectProvidedNames(externs, js)
 		for key, pn := range names.All() {
@@ -220,33 +220,33 @@ func (d *closureModulesDump) dumpFile(rel string, src string, sampled bool) {
 		}
 		*extra = append(*extra, "exported "+p.GetExportedVariableNames().String())
 	})
-	d.pass(rel, src, parseDiags, "processClosureProvidesAndRequires", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "processClosureProvidesAndRequires", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		p := NewProcessClosureProvidesAndRequires(compiler, false)
 		p.Process(externs, js)
 		*extra = append(*extra, "exported "+p.GetExportedVariableNames().String())
 	})
-	d.pass(rel, src, parseDiags, "closureOptimizePrimitives", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "closureOptimizePrimitives", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewClosureOptimizePrimitives(compiler, true).Process(externs, js)
 	})
-	d.pass(rel, src, parseDiags, "closureOptimizePrimitivesEs5", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "closureOptimizePrimitivesEs5", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewClosureOptimizePrimitives(compiler, false).Process(externs, js)
 	})
-	d.pass(rel, src, parseDiags, "extraRequireRemover", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "extraRequireRemover", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewExtraRequireRemover(compiler).Process(externs, js)
 	})
-	d.pass(rel, src, parseDiags, "es6CheckModule", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "es6CheckModule", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewEs6CheckModule(compiler).Process(externs, js)
 	})
-	d.pass(rel, src, parseDiags, "processTweaks", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "processTweaks", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewProcessTweaks(compiler, true).Process(externs, js)
 	})
-	d.pass(rel, src, parseDiags, "exportTestFunctions", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "exportTestFunctions", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		exportSymbol := "goog.exportSymbol"
 		exportProperty := "goog.exportProperty"
 		NewExportTestFunctions(compiler, &exportSymbol, &exportProperty).Process(externs, js)
 	})
 	for _, allowLocalExports := range []bool{false, true} {
-		d.pass(rel, src, parseDiags, "findExportableNodes local="+strconv.FormatBool(allowLocalExports), func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+		d.pass(rel, src, parseDiags, "findExportableNodes local="+strconv.FormatBool(allowLocalExports), func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 			f := NewFindExportableNodes(compiler, allowLocalExports)
 			NodeTraversal_Traverse(compiler, js, f)
 			for k, v := range f.GetExports().All() {
@@ -260,41 +260,41 @@ func (d *closureModulesDump) dumpFile(rel string, src string, sampled bool) {
 			}
 		})
 	}
-	d.pass(rel, src, parseDiags, "gatherRawExports", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "gatherRawExports", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 		g := NewGatherRawExports(compiler)
 		g.Process(externs, js)
 		*extra = append(*extra, "exported "+g.GetExportedVariableNames().String())
 	})
-	d.pass(rel, src, parseDiags, "whitespaceWrapGoogModules", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "whitespaceWrapGoogModules", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		NewWhitespaceWrapGoogModules(compiler).Process(externs, js)
 	})
 	if sampled {
-		d.pass(rel, src, parseDiags, "convertChunksToESModules", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+		d.pass(rel, src, parseDiags, "convertChunksToESModules", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 			NewConvertChunksToESModules(compiler).Process(externs, js)
 		})
 	}
-	d.pass(rel, src, parseDiags, "es6RenameReferences", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "es6RenameReferences", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		NodeTraversal_Traverse(compiler, js, NewEs6RenameReferences(closureModulesRenameTable(compiler, js, false)))
 	})
-	d.pass(rel, src, parseDiags, "es6RenameTypeReferences", func(compiler *Compiler, externs, js *rhino.Node, extra *[]string) {
+	d.pass(rel, src, parseDiags, "es6RenameTypeReferences", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 		NodeTraversal_Traverse(compiler, js, NewEs6RenameTypeReferences(closureModulesRenameTable(compiler, js, true)))
 	})
 	d.conventions(parsed.GetJsRoot())
 	d.deps(rel, src)
 }
 
-func (d *closureModulesDump) conventions(js *rhino.Node) {
+func (d *closureModulesDump) conventions(js rhino.Node) {
 	sb := d.sb
 	closureModulesLine(sb, "## conventions")
 	c := CodingConventions_GetDefault()
-	for script := js.GetFirstChild(); script != nil; script = script.GetNext() {
+	for script := js.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		closureModulesLine(sb, "package "+jutil.ToJavaString(c.GetPackageName(script.GetStaticSourceFile())))
 	}
-	NodeUtil_VisitPreOrder(js, NodeUtil_VisitorFunc(func(n *rhino.Node) { d.conventionsAt(c, n) }))
+	NodeUtil_VisitPreOrder(js, NodeUtil_VisitorFunc(func(n rhino.Node) { d.conventionsAt(c, n) }))
 }
 
-func (d *closureModulesDump) conventionsAt(c CodingConvention, n *rhino.Node) {
+func (d *closureModulesDump) conventionsAt(c CodingConvention, n rhino.Node) {
 	sb := d.sb
 	at := closureModulesNodeRef(n)
 	if n.IsCall() {
@@ -345,7 +345,7 @@ func (d *closureModulesDump) conventionsAt(c CodingConvention, n *rhino.Node) {
 		}
 	}
 	if n.IsParamList() {
-		for p := n.GetFirstChild(); p != nil; p = p.GetNext() {
+		for p := n.GetFirstChild(); !p.IsNil(); p = p.GetNext() {
 			if c.IsVarArgsParameter(p) {
 				closureModulesLine(sb, closureModulesNodeRef(p)+" varArgs")
 			}

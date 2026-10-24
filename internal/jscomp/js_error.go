@@ -41,7 +41,7 @@ type JSError struct {
 	lineno       int
 	charno       int
 	length       int
-	node         *rhino.Node
+	node         rhino.Node
 	defaultLevel CheckLevel
 	requirement  *Requirement
 }
@@ -54,13 +54,13 @@ func NewJSError(
 	lineno int,
 	charno int,
 	length int,
-	node *rhino.Node,
+	node rhino.Node,
 	defaultLevel CheckLevel,
 	requirement *Requirement) *JSError {
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
-	if node != nil {
+	if !node.IsNil() {
 		node.PinForDiagnostic()
 	}
 	return &JSError{
@@ -95,7 +95,7 @@ func (e *JSError) Charno() int { return e.charno }
 func (e *JSError) Length() int { return e.length }
 
 // Java: JSError.node()
-func (e *JSError) Node() *rhino.Node { return e.node }
+func (e *JSError) Node() rhino.Node { return e.node }
 
 // Java: JSError.defaultLevel()
 func (e *JSError) DefaultLevel() CheckLevel { return e.defaultLevel }
@@ -122,7 +122,7 @@ func (e *JSError) GetCharno() int { return e.Charno() }
 func (e *JSError) GetLength() int { return e.Length() }
 
 // Java: JSError.getNode()
-func (e *JSError) GetNode() *rhino.Node { return e.Node() }
+func (e *JSError) GetNode() rhino.Node { return e.Node() }
 
 // Java: JSError.getDefaultLevel()
 func (e *JSError) GetDefaultLevel() CheckLevel { return e.DefaultLevel() }
@@ -146,7 +146,7 @@ func JSError_Make(type_ *DiagnosticType, arguments ...string) *JSError {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
 	return NewJSError(
-		type_, type_.Format(arguments...), nil, jSError_DEFAULT_LINENO, jSError_DEFAULT_CHARNO, jSError_DEFAULT_LENGTH, nil, type_.level, nil)
+		type_, type_.Format(arguments...), nil, jSError_DEFAULT_LINENO, jSError_DEFAULT_CHARNO, jSError_DEFAULT_LENGTH, rhino.Node{}, type_.level, nil)
 }
 
 // JSError_MakeWithSourceLocation creates a JSError at a given source
@@ -160,13 +160,13 @@ func JSError_MakeWithSourceLocation(
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
 	return NewJSError(
-		type_, type_.Format(arguments...), sourceName, lineno, charno, jSError_DEFAULT_LENGTH, nil, type_.level, nil)
+		type_, type_.Format(arguments...), sourceName, lineno, charno, jSError_DEFAULT_LENGTH, rhino.Node{}, type_.level, nil)
 }
 
 // JSError_MakeWithNode creates a JSError from a file and Node position.
 //
 // Java: JSError.make(Node, DiagnosticType, String...)
-func JSError_MakeWithNode(n *rhino.Node, type_ *DiagnosticType, arguments ...string) *JSError {
+func JSError_MakeWithNode(n rhino.Node, type_ *DiagnosticType, arguments ...string) *JSError {
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
@@ -179,7 +179,7 @@ func JSError_MakeWithNode(n *rhino.Node, type_ *DiagnosticType, arguments ...str
 // determines the length of the error region.
 //
 // Java: JSError.make(Node, Node, DiagnosticType, String...)
-func JSError_MakeWithNodeRange(start *rhino.Node, end *rhino.Node, type_ *DiagnosticType, arguments ...string) *JSError {
+func JSError_MakeWithNodeRange(start rhino.Node, end rhino.Node, type_ *DiagnosticType, arguments ...string) *JSError {
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
@@ -198,7 +198,7 @@ func JSError_MakeWithNodeRange(start *rhino.Node, end *rhino.Node, type_ *Diagno
 //
 // Java: JSError.make(Requirement, Node, DiagnosticType, String...)
 func JSError_MakeWithRequirement(
-	requirement *Requirement, n *rhino.Node, type_ *DiagnosticType, arguments ...string) *JSError {
+	requirement *Requirement, n rhino.Node, type_ *DiagnosticType, arguments ...string) *JSError {
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
@@ -213,7 +213,7 @@ type JSError_Builder struct {
 	args  []string
 
 	level       CheckLevel
-	n           *rhino.Node
+	n           rhino.Node
 	sourceName  *string
 	lineno      int
 	charno      int
@@ -237,7 +237,7 @@ func newJSError_Builder(type_ *DiagnosticType, args ...string) *JSError_Builder 
 // Incompatible with SetSourceLocation.
 //
 // Java: JSError.Builder.setNode(Node)
-func (b *JSError_Builder) SetNode(n *rhino.Node) *JSError_Builder {
+func (b *JSError_Builder) SetNode(n rhino.Node) *JSError_Builder {
 	jutil.CheckStateMsg(b.sourceName == nil, "Cannot provide a Node when there's already a source name")
 	b.n = n
 	b.sourceName = n.GetSourceFileName()
@@ -248,7 +248,7 @@ func (b *JSError_Builder) SetNode(n *rhino.Node) *JSError_Builder {
 }
 
 // Java: JSError.Builder.setNodeRange(Node, Node)
-func (b *JSError_Builder) SetNodeRange(start *rhino.Node, end *rhino.Node) *JSError_Builder {
+func (b *JSError_Builder) SetNodeRange(start rhino.Node, end rhino.Node) *JSError_Builder {
 	jutil.CheckStateMsg(b.sourceName == nil, "Cannot provide a Node when there's already a source name")
 	b.n = start
 	b.sourceName = b.n.GetSourceFileName()
@@ -291,7 +291,7 @@ func (b *JSError_Builder) SetRequirement(requirement *Requirement) *JSError_Buil
 //
 // Java: JSError.Builder.setSourceLocation(String, int, int)
 func (b *JSError_Builder) SetSourceLocation(sourceName *string, lineno int, charno int) *JSError_Builder {
-	jutil.CheckStateMsg(b.n == nil, "Cannot provide a source location when there is already a Node")
+	jutil.CheckStateMsg(b.n.IsNil(), "Cannot provide a source location when there is already a Node")
 	b.sourceName = sourceName
 	b.lineno = lineno
 	b.charno = charno
@@ -364,7 +364,7 @@ func (e *JSError) Format(level CheckLevel, formatter MessageFormatter) *string {
 //
 // Java: JSError.getNodeSourceOffset()
 func (e *JSError) GetNodeSourceOffset() int {
-	if e.Node() != nil {
+	if !e.Node().IsNil() {
 		return e.Node().GetSourceOffset()
 	}
 	return -1

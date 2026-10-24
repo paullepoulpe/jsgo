@@ -198,7 +198,7 @@ func NewCheckClosureImports(compiler AbstractCompiler, moduleMetadataMap *Module
 }
 
 // Java: CheckClosureImports.process(Node, Node)
-func (c *CheckClosureImports) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckClosureImports) Process(externs rhino.Node, root rhino.Node) {
 	sc := NewSyntacticScopeCreator(c.compiler)
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
@@ -228,7 +228,7 @@ func (c *CheckClosureImports) NewChecker(compiler AbstractCompiler, moduleMetada
 }
 
 // Java: CheckClosureImports.Checker.enterModule(ModuleMetadata, Node)
-func (k *CheckClosureImports_Checker) EnterModule(currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot *rhino.Node) {
+func (k *CheckClosureImports_Checker) EnterModule(currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node) {
 	for ns := range currentModule.GoogNamespaces().ElementSet().All() {
 		k.outer.namespacesSeen.Add(ns)
 	}
@@ -237,9 +237,9 @@ func (k *CheckClosureImports_Checker) EnterModule(currentModule *ModuleMetadataM
 // Java: CheckClosureImports.Checker.visit(NodeTraversal, Node, ModuleMetadata, Node)
 func (k *CheckClosureImports_Checker) VisitWithModule(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	currentModule *ModuleMetadataMap_ModuleMetadata,
-	moduleScopeRoot *rhino.Node) {
+	moduleScopeRoot rhino.Node) {
 	// currentModule is null on ROOT nodes.
 	if currentModule == nil {
 		return
@@ -262,7 +262,7 @@ func (k *CheckClosureImports_Checker) VisitWithModule(
 // is. Returns null if not a ClosureImport.
 //
 // Java: CheckClosureImports.Checker.kindOfCall(Node)
-func (k *CheckClosureImports_Checker) KindOfCall(callNode *rhino.Node) *CheckClosureImports_ClosureImport {
+func (k *CheckClosureImports_Checker) KindOfCall(callNode rhino.Node) *CheckClosureImports_ClosureImport {
 	kind, ok := k.kindOfCallValue(callNode)
 	if !ok {
 		return nil
@@ -270,7 +270,7 @@ func (k *CheckClosureImports_Checker) KindOfCall(callNode *rhino.Node) *CheckClo
 	return &kind
 }
 
-func (k *CheckClosureImports_Checker) kindOfCallValue(callNode *rhino.Node) (CheckClosureImports_ClosureImport, bool) {
+func (k *CheckClosureImports_Checker) kindOfCallValue(callNode rhino.Node) (CheckClosureImports_ClosureImport, bool) {
 	jutil.CheckState(callNode.IsCall())
 	callee := callNode.GetFirstChild()
 	if callee.MatchesQualifiedNameNode(checkClosureImports_GOOG_REQUIRE) {
@@ -286,11 +286,11 @@ func (k *CheckClosureImports_Checker) kindOfCallValue(callNode *rhino.Node) (Che
 }
 
 // Java: CheckClosureImports.Checker.checkValidImportCodeReference(NodeTraversal, Node)
-func (k *CheckClosureImports_Checker) CheckValidImportCodeReference(t *NodeTraversal, nameNode *rhino.Node) {
+func (k *CheckClosureImports_Checker) CheckValidImportCodeReference(t *NodeTraversal, nameNode rhino.Node) {
 }
 
 // Java: CheckClosureImports.Checker.checkGoogModuleGet(NodeTraversal, Node, ModuleMetadata)
-func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call *rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata) {
+func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata) {
 	if t.InModuleHoistScope() {
 		t.Report(call, ClosurePrimitiveErrors_MODULE_USES_GOOG_MODULE_GET)
 		return
@@ -362,7 +362,7 @@ func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call 
 		//   let x = goog.forwardDeclare('a.namespace');
 		aliasVarNodeRhs := NodeUtil_GetRValueOfLValue(aliasVar.GetNode())
 
-		if aliasVarNodeRhs == nil || !NodeUtil_IsCallToNode(aliasVarNodeRhs, checkClosureImports_GOOG_FORWARD_DECLARE) {
+		if aliasVarNodeRhs.IsNil() || !NodeUtil_IsCallToNode(aliasVarNodeRhs, checkClosureImports_GOOG_FORWARD_DECLARE) {
 			t.Report(call, ClosureRewriteModule_INVALID_GET_ALIAS)
 			return
 		}
@@ -375,13 +375,13 @@ func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call 
 }
 
 // Java: CheckClosureImports.Checker.isValidDestructuringImport(Node)
-func (k *CheckClosureImports_Checker) IsValidDestructuringImport(destructuringLhs *rhino.Node) bool {
+func (k *CheckClosureImports_Checker) IsValidDestructuringImport(destructuringLhs rhino.Node) bool {
 	jutil.CheckArgument(destructuringLhs.IsDestructuringLhs())
 	objectPattern := destructuringLhs.GetFirstChild()
 	if !objectPattern.IsObjectPattern() {
 		return false
 	}
-	for stringKey := objectPattern.GetFirstChild(); stringKey != nil; stringKey = stringKey.GetNext() {
+	for stringKey := objectPattern.GetFirstChild(); !stringKey.IsNil(); stringKey = stringKey.GetNext() {
 		if !stringKey.IsStringKey() {
 			return false
 		}
@@ -393,7 +393,7 @@ func (k *CheckClosureImports_Checker) IsValidDestructuringImport(destructuringLh
 }
 
 // Java: CheckClosureImports.Checker.checkShortName(NodeTraversal, Node, String)
-func (k *CheckClosureImports_Checker) CheckShortName(t *NodeTraversal, shortNameNode *rhino.Node, namespace string) {
+func (k *CheckClosureImports_Checker) CheckShortName(t *NodeTraversal, shortNameNode rhino.Node, namespace string) {
 	shortName := shortNameNode.GetString()
 	lastSegment := jutil.StringSubstringFrom(namespace, jutil.StringLastIndexOf(namespace, ".")+1)
 	if shortName == lastSegment || lastSegment == "" {
@@ -415,8 +415,8 @@ func (k *CheckClosureImports_Checker) CheckShortName(t *NodeTraversal, shortName
 // Java: CheckClosureImports.Checker.checkImport(NodeTraversal, Node, Node, ModuleMetadata, ClosureImport)
 func (k *CheckClosureImports_Checker) CheckImport(
 	t *NodeTraversal,
-	call *rhino.Node,
-	parent *rhino.Node,
+	call rhino.Node,
+	parent rhino.Node,
 	currentModule *ModuleMetadataMap_ModuleMetadata,
 	importType CheckClosureImports_ClosureImport) {
 	atTopLevelScope := t.InGlobalHoistScope() || t.InModuleScope()
@@ -500,13 +500,13 @@ func (k *CheckClosureImports_Checker) CheckImport(
 
 // Java: CheckClosureImports.verifyRequireOrder(String, Node, NodeTraversal, ModuleMetadata)
 func (c *CheckClosureImports) VerifyRequireOrder(
-	namespace string, call *rhino.Node, t *NodeTraversal, requiredModule *ModuleMetadataMap_ModuleMetadata) {
+	namespace string, call rhino.Node, t *NodeTraversal, requiredModule *ModuleMetadataMap_ModuleMetadata) {
 	if !c.namespacesSeen.Contains(namespace) {
 		t.Report(call, CheckClosureImports_LATE_PROVIDE_ERROR, namespace)
 		return
 	}
 
-	if requiredModule.RootNode() == nil || requiredModule.RootNode().IsFromExterns() {
+	if requiredModule.RootNode().IsNil() || requiredModule.RootNode().IsFromExterns() {
 		return // synthetic metadata for tests may have no root node.
 	}
 

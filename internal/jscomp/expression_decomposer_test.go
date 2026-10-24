@@ -73,7 +73,7 @@ func (c *ExpressionDecomposerTest) SetUp() {
 
 // expressionDecomposerTest_nodeFinder is the tests'
 // Function<AbstractCompiler, Function<Node, Node>>.
-type expressionDecomposerTest_nodeFinder func(compiler AbstractCompiler) func(root *rhino.Node) *rhino.Node
+type expressionDecomposerTest_nodeFinder func(compiler AbstractCompiler) func(root rhino.Node) rhino.Node
 
 // Java: ExpressionDecomposerTest.testWindowLocationAssign()
 func (c *ExpressionDecomposerTest) TestWindowLocationAssign() {
@@ -345,8 +345,8 @@ func (c *ExpressionDecomposerTest) TestCanExposeExpression7() {
     return ret
   }());
 `,
-		func(compiler AbstractCompiler) func(*rhino.Node) *rhino.Node {
-			return func(rootNode *rhino.Node) *rhino.Node {
+		func(compiler AbstractCompiler) func(rhino.Node) rhino.Node {
+			return func(rootNode rhino.Node) rhino.Node {
 				// Dig out the inner IIFE call and return it as the expression we want to ensure is
 				// movable.
 				AssertNode(rootNode).HasToken(rhino.Token_SCRIPT)
@@ -1662,7 +1662,7 @@ func (c *ExpressionDecomposerTest) TestMoveClass1() {
 	// TODO(bradfordcsmith): See TODO in helperMoveExpression()
 	c.helperMoveExpression(
 		"alert(class X {});",
-		func(compiler AbstractCompiler) func(*rhino.Node) *rhino.Node {
+		func(compiler AbstractCompiler) func(rhino.Node) rhino.Node {
 			return expressionDecomposerTest_findClass
 		},
 		"var result$jscomp$0 = class X {}; alert(result$jscomp$0);")
@@ -1675,7 +1675,7 @@ func (c *ExpressionDecomposerTest) TestMoveClass2() {
 	// TODO(bradfordcsmith): See TODO in helperMoveExpression()
 	c.helperMoveExpression(
 		"console.log(1, 2, class X {});",
-		func(compiler AbstractCompiler) func(*rhino.Node) *rhino.Node {
+		func(compiler AbstractCompiler) func(rhino.Node) rhino.Node {
 			return expressionDecomposerTest_findClass
 		},
 		"var result$jscomp$0 = class X {}; console.log(1, 2, result$jscomp$0);")
@@ -2271,11 +2271,11 @@ func (c *ExpressionDecomposerTest) helperCanExposeExpression(
 // Java: ExpressionDecomposerTest.NodeToSource
 type expressionDecomposerTest_NodeToSource struct {
 	compiler AbstractCompiler
-	node     *rhino.Node
+	node     rhino.Node
 }
 
 // Java: ExpressionDecomposerTest.NodeToSource(AbstractCompiler, Node)
-func newExpressionDecomposerTest_NodeToSource(compiler AbstractCompiler, node *rhino.Node) *expressionDecomposerTest_NodeToSource {
+func newExpressionDecomposerTest_NodeToSource(compiler AbstractCompiler, node rhino.Node) *expressionDecomposerTest_NodeToSource {
 	return &expressionDecomposerTest_NodeToSource{compiler: compiler, node: node}
 }
 
@@ -2295,20 +2295,20 @@ func (n *expressionDecomposerTest_NodeToSource) String() string {
 }
 
 // Java: ExpressionDecomposerTest.nodeToSource(AbstractCompiler, Node)
-func expressionDecomposerTest_nodeToSource(compiler AbstractCompiler, node *rhino.Node) string {
+func expressionDecomposerTest_nodeToSource(compiler AbstractCompiler, node rhino.Node) string {
 	return newExpressionDecomposerTest_NodeToSource(compiler, node).String()
 }
 
 // Java: ExpressionDecomposerTest.exprMatchesStr(String)
 func exprMatchesStr(exprString string) expressionDecomposerTest_nodeFinder {
-	return func(compiler AbstractCompiler) func(root *rhino.Node) *rhino.Node {
-		return func(root *rhino.Node) *rhino.Node {
+	return func(compiler AbstractCompiler) func(root rhino.Node) rhino.Node {
+		return func(root rhino.Node) rhino.Node {
 			// When matching trim off the trailing newline added by the compiler's pretty-print
 			// option.
-			isAMatch := func(node *rhino.Node) bool {
+			isAMatch := func(node rhino.Node) bool {
 				return exprString == jutil.StringTrim(expressionDecomposerTest_nodeToSource(compiler, node))
 			}
-			containsAMatch := func(node *rhino.Node) bool {
+			containsAMatch := func(node rhino.Node) bool {
 				return strings.Contains(expressionDecomposerTest_nodeToSource(compiler, node), exprString)
 			}
 			matchingNode := NodeUtil_FindPreorder(root, isAMatch, containsAMatch)
@@ -2323,7 +2323,7 @@ func exprMatchesStr(exprString string) expressionDecomposerTest_nodeFinder {
 
 // Java: ExpressionDecomposerTest.helperExposeExpressionThenTypeCheck(String, Function<Node, Node>)
 func (c *ExpressionDecomposerTest) helperExposeExpressionThenTypeCheck(
-	code string, nodeFinder func(*rhino.Node) *rhino.Node) *rhino.Node {
+	code string, nodeFinder func(rhino.Node) rhino.Node) rhino.Node {
 	compiler := c.getCompiler()
 	tree := expressionDecomposerTest_parse(compiler, code)
 	AssertThat(tree).IsNotNull()
@@ -2422,7 +2422,7 @@ func (c *ExpressionDecomposerTest) helperMoveExpression(
 }
 
 // Java: ExpressionDecomposerTest.checkTypeStringsEqualAsTree(Node, Node)
-func (c *ExpressionDecomposerTest) checkTypeStringsEqualAsTree(rootExpected *rhino.Node, rootActual *rhino.Node) {
+func (c *ExpressionDecomposerTest) checkTypeStringsEqualAsTree(rootExpected rhino.Node, rootActual rhino.Node) {
 	expectedType := rootExpected.GetJSType()
 	actualType := rootActual.GetJSType()
 
@@ -2442,7 +2442,7 @@ func (c *ExpressionDecomposerTest) checkTypeStringsEqualAsTree(rootExpected *rhi
 
 	child1 := rootExpected.GetFirstChild()
 	child2 := rootActual.GetFirstChild()
-	for child1 != nil {
+	for !child1.IsNil() {
 		c.checkTypeStringsEqualAsTree(child1, child2)
 		child1 = child1.GetNext()
 		child2 = child2.GetNext()
@@ -2470,7 +2470,7 @@ func (c *ExpressionDecomposerTest) getCompiler() *Compiler {
 }
 
 // Java: ExpressionDecomposerTest.processForTypecheck(AbstractCompiler, Node)
-func (c *ExpressionDecomposerTest) processForTypecheck(compiler AbstractCompiler, jsRoot *rhino.Node) {
+func (c *ExpressionDecomposerTest) processForTypecheck(compiler AbstractCompiler, jsRoot rhino.Node) {
 	root := rhino.IR_Root(rhino.IR_Root(), rhino.IR_Root(jsRoot))
 	registry := compiler.GetTypeRegistry()
 	NewTypeCheck(compiler, NewSemanticReverseAbstractInterpreter(registry), registry).
@@ -2479,28 +2479,28 @@ func (c *ExpressionDecomposerTest) processForTypecheck(compiler AbstractCompiler
 }
 
 // Java: ExpressionDecomposerTest.findClass(Node)
-func expressionDecomposerTest_findClass(n *rhino.Node) *rhino.Node {
+func expressionDecomposerTest_findClass(n rhino.Node) rhino.Node {
 	if n.IsClass() {
 		return n
 	}
-	for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		maybeClass := expressionDecomposerTest_findClass(child)
-		if maybeClass != nil {
+		if !maybeClass.IsNil() {
 			return maybeClass
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: ExpressionDecomposerTest.validateSourceInfo(Compiler, Node)
-func (c *ExpressionDecomposerTest) validateSourceInfo(compiler *Compiler, subtree *rhino.Node) {
+func (c *ExpressionDecomposerTest) validateSourceInfo(compiler *Compiler, subtree rhino.Node) {
 	NewSourceInfoCheck(compiler).SetCheckSubTree(subtree)
 	// Source information problems are reported as compiler errors.
 	AssertThat(compiler.GetErrors()).IsEmpty()
 }
 
 // Java: ExpressionDecomposerTest.parse(Compiler, String)
-func expressionDecomposerTest_parse(compiler *Compiler, js string) *rhino.Node {
+func expressionDecomposerTest_parse(compiler *Compiler, js string) rhino.Node {
 	n := compiler.ParseTestCode(js)
 	NodeTraversal_Traverse(compiler, n, NewNormalize_NormalizeStatements(compiler, false, nil))
 	AssertThat(compiler.GetErrors()).IsEmpty()

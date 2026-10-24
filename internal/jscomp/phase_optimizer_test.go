@@ -31,8 +31,8 @@ import (
 type PhaseOptimizerTest struct {
 	t           *testing.T
 	passesRun   []string
-	dummyRoot   *rhino.Node
-	dummyScript *rhino.Node
+	dummyRoot   rhino.Node
+	dummyScript rhino.Node
 	optimizer   *PhaseOptimizer
 	compiler    *Compiler
 	tracker     *PerformanceTracker
@@ -101,7 +101,7 @@ func (c *PhaseOptimizerTest) TestCapLoopIterations() {
 func (c *PhaseOptimizerTest) TestNotInfiniteLoop() {
 	loop := c.optimizer.AddFixedPointLoop()
 	c.AddLoopedPass(loop, "x", PhaseOptimizer_MAX_LOOPS-2)
-	c.optimizer.Process(nil, c.dummyRoot)
+	c.optimizer.Process(rhino.Node{}, c.dummyRoot)
 	AssertWithMessage("There should be no errors.").That(c.compiler.GetErrorCount()).IsEqualTo(0)
 }
 
@@ -110,7 +110,7 @@ func (c *PhaseOptimizerTest) TestInfiniteLoop() {
 	loop := c.optimizer.AddFixedPointLoop()
 	c.AddLoopedPass(loop, "x", PhaseOptimizer_MAX_LOOPS+1)
 	jutil.Try(func() {
-		c.optimizer.Process(nil, c.dummyRoot)
+		c.optimizer.Process(rhino.Node{}, c.dummyRoot)
 		AssertWithMessage("Expected RuntimeException").Fail()
 	}, func(e jutil.IRuntimeException) {
 		AssertWithMessage(e.GetMessage()).
@@ -218,7 +218,7 @@ func (c *PhaseOptimizerTest) TestPreconditionCheck_failure() {
 
 // Java: PhaseOptimizerTest.assertPasses(String...)
 func (c *PhaseOptimizerTest) AssertPasses(names ...string) {
-	c.optimizer.Process(nil, c.dummyRoot)
+	c.optimizer.Process(rhino.Node{}, c.dummyRoot)
 	AssertThat(c.passesRun).IsEqualTo(names)
 }
 
@@ -250,7 +250,7 @@ func (c *PhaseOptimizerTest) CreatePassFactoryWithPass(name string, pass Compile
 func (c *PhaseOptimizerTest) CreatePass(name string, numChanges int) CompilerPass {
 	self := c
 	numChangesClosure := []int{numChanges}
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		c.passesRun = append(c.passesRun, name)
 		if numChangesClosure[0] > 0 {
 			numChangesClosure[0] = numChangesClosure[0] - 1

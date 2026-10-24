@@ -75,7 +75,7 @@ func (c *InferJSDocInfoTest) GetOptions() *CompilerOptions {
 
 // Java: InferJSDocInfoTest.getProcessor(Compiler)
 func (c *InferJSDocInfoTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		scopeCreator := NewTypedScopeCreator(compiler)
 
 		NewTypeInferencePass(compiler, compiler.GetReverseAbstractInterpreter(), scopeCreator).
@@ -1360,9 +1360,9 @@ func (c *InferJSDocInfoTest) inferredTypeOfName(name string) rhino.JSType {
 // under root AST node..
 //
 // Java: InferJSDocInfoTest.inferredTypeOfLocalName(String, Node)
-func (c *InferJSDocInfoTest) inferredTypeOfLocalName(name string, root *rhino.Node) rhino.JSType {
+func (c *InferJSDocInfoTest) inferredTypeOfLocalName(name string, root rhino.Node) rhino.JSType {
 	// ArrayDeque used as a stack (push / pop at the head).
-	queue := []*rhino.Node{}
+	queue := []rhino.Node{}
 	queue = append(queue, root)
 
 	for len(queue) != 0 {
@@ -1372,7 +1372,7 @@ func (c *InferJSDocInfoTest) inferredTypeOfLocalName(name string, root *rhino.No
 			return current.GetJSType()
 		}
 
-		for child := current.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := current.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			queue = append(queue, child)
 		}
 	}

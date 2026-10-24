@@ -3,100 +3,98 @@ package rhino
 import (
 	"fmt"
 	"os"
-	"sync"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// Go-only: copying compaction of the node store (see node_store.go).
+// Go-only: copying compaction of the AST (see node_store.go).
 //
-// Links are ids, so the garbage collector never frees a dead node: a chunk
-// lives as long as its generation. A Compactor copies the live tree in
-// pre-order into a fresh generation (so the copy is also laid out in walk
-// order), then every *Node held outside the tree is forwarded with Forward
-// (a holder of a detached subtree gets that subtree copied as an extra
-// root), and Finish releases the generations the live nodes came from.
+// Links are ids, so the garbage collector never frees a dead node: a store
+// keeps every node allocated in it. A Compactor copies the live tree in
+// pre-order into a fresh store (so the copy is also laid out in walk order)
+// and makes that store current; then every Node held outside the tree is
+// forwarded with Forward (a holder of a detached subtree gets that subtree
+// copied as an extra root). Once nothing refers to the old store any more,
+// the GC frees it with all its dead nodes.
 //
-// An old node remembers its copy: after copyNode, old.next is the id of the
-// copy and old.previous is nodeForwardMarker; Forward reads that, so it is
-// idempotent and holders can be forwarded in any order.
+// An old node remembers its copy: copyNode sets kindFlagForwarded and puts
+// the copy's id in old.next (the copy is in old.store.forwardedTo); Forward
+// reads that, so it is idempotent and holders can be forwarded in any
+// order.
 //
-// Poison mode (JSGO_AST_POISON=1, for tests): the old chunks are kept alive
-// forever, their table slots are cleared (any id into them panics in nodeAt
-// with "stale node id") and every old node is overwritten with links and an
-// id that can never resolve, so a holder that was not forwarded fails on
-// its first use instead of reading a dead node.
-
-// nodeForwardMarker is an id that is never allocated (the last chunk index
-// is reserved, see addChunk).
-const nodeForwardMarker nodeID = 0xFFFFFFFF
+// Poison mode (JSGO_AST_POISON=1, for tests): Finish overwrites every copied
+// node with links and handles that can never resolve, so a holder that was
+// not forwarded fails on its first use instead of reading a dead node.
 
 // NodePoisonMode reports whether compaction poisons the old nodes.
 var NodePoisonMode = os.Getenv("JSGO_AST_POISON") == "1"
 
-// Compactor copies a live AST into a fresh generation.
+// Compactor copies a live AST into a fresh store.
 type Compactor struct {
-	gen        *nodeGen
-	aux        handleAlloc // the aux entries of the copied nodes (node_tables.go)
-	old        map[*nodeGen]struct{}
+	dst        *NodeStore
+	srcs       map[*NodeStore]struct{}
 	docs       map[*JSDocInfo]struct{}
-	lastChunk  *nodeChunk
-	Copied     int // nodes copied
-	ExtraRoots int // detached subtrees copied for holders
-	ExtraNodes int // nodes in those subtrees
+	Copied     int    // nodes copied
+	ExtraRoots int    // detached subtrees copied for holders
+	ExtraNodes int    // nodes in those subtrees
 	inExtra    bool
 }
 
-// NewCompactor starts a new generation (new nodes are allocated in it from
-// now on) and returns the compactor that fills it.
+// NewCompactor creates a new store, makes it current (new nodes are
+// allocated in it from now on) and returns the compactor that fills it.
 func NewCompactor() *Compactor {
+	dst := NewNodeStore()
+	SetCurrentNodeStore(dst)
 	return &Compactor{
-		gen:  NewNodeGeneration().g,
-		aux:  handleAlloc{tab: &nodeAuxTable},
-		old:  make(map[*nodeGen]struct{}, 4),
+		dst:  dst,
+		srcs: make(map[*NodeStore]struct{}, 2),
 		docs: make(map[*JSDocInfo]struct{}, 1024),
 	}
 }
 
-func (k *Compactor) genOf(n *Node) *nodeGen {
-	c := k.lastChunk
-	if c == nil || c.hdr.index != uint32(n.self)>>nodeChunkShift {
-		c = nodeChunkSlot(uint32(n.self) >> nodeChunkShift).Load()
-		if c == nil {
-			staleNodeID(n.self)
-		}
-		k.lastChunk = c
-	}
-	return c.hdr.owner
+// Store returns the store the compactor copies into.
+func (k *Compactor) Store() *NodeStore {
+	return k.dst
 }
 
-// copyNode copies n into the new generation (links cleared), forwards the
-// side trees it owns, and marks n as forwarded.
-func (k *Compactor) copyNode(old *Node) *Node {
-	g := k.genOf(old)
-	if _, seen := k.old[g]; !seen {
-		if g == nodeInitialGen && NodePoisonMode {
+// copyNode copies old into the new store (links cleared), forwards the side
+// trees it owns, and marks old as forwarded.
+func (k *Compactor) copyNode(old Node) Node {
+	src := old.store
+	if _, seen := k.srcs[src]; !seen {
+		if src.static {
 			r := old
-			for r.parent != 0 {
-				r = nodeAt(r.parent)
+			for r.rec.parent != 0 {
+				r = r.parentNode()
 			}
-			src := ""
+			name := ""
 			if p := r.GetSourceFileName(); p != nil {
-				src = *p
+				name = *p
 			}
-			panic(fmt.Sprintf("rhino.Compactor: a node of the initial generation (a package-level sentinel) is in the compacted tree: %s (root %s, source %s, extra root: %v)",
-				old, r, src, k.inExtra))
+			panic(fmt.Sprintf("rhino.Compactor: a package-level node or template is in the compacted tree: %s (root %s, source %s, extra root: %v)",
+				old, r, name, k.inExtra))
 		}
-		k.old[g] = struct{}{}
+		if src.forwardedTo != nil && src.forwardedTo != k.dst {
+			panic("rhino.Compactor: a node of an already compacted store was not forwarded by that compaction")
+		}
+		src.forwardedTo = k.dst
+		k.srcs[src] = struct{}{}
 	}
-	nw := allocNode()
-	self := nw.self
-	*nw = *old
-	nw.self = self
-	nw.next, nw.first, nw.parent, nw.previous = 0, 0, 0, 0
+	nw := k.dst.alloc()
+	self := nw.rec.self
+	*nw.rec = *old.rec
+	nw.rec.self = self
+	nw.rec.next, nw.rec.first, nw.rec.parent, nw.rec.previous = 0, 0, 0, 0
+	nw.rec.tc = k.dst.translateTC(src, old.rec.tc, old.rec.kindFlags&kindFlagTypeIsColor != 0)
+	nw.rec.aux = 0
+	if a := old.auxValue(); a != (nodeAux{}) {
+		if a.ext != nil && a.ext.typeBeforeCast != 0 {
+			a.ext.typeBeforeCast = k.dst.translateTypeHandle(src, a.ext.typeBeforeCast)
+		}
+		nw.setAux(a)
+	}
 	k.Copied++
-	if (nw.propFlags & propFlagHasJSDoc) != 0 {
+	if (nw.rec.propFlags & propFlagHasJSDoc) != 0 {
 		if info := nw.GetJSDocInfo(); info != nil {
 			if _, done := k.docs[info]; !done {
 				k.docs[info] = struct{}{}
@@ -104,34 +102,26 @@ func (k *Compactor) copyNode(old *Node) *Node {
 			}
 		}
 	}
-	if (nw.kindFlags & kindFlagHasExtBox) != 0 {
+	if (nw.rec.kindFlags & kindFlagHasExtBox) != 0 {
 		k.forwardNodeProps(nw)
 	}
-	if nw.aux != 0 {
-		// The cold data moves to a fresh aux block; Finish releases the
-		// old ones, which also drops the cold data of every dead node.
-		if v := nodeAuxTable.get(nw.aux); v != nil {
-			nw.aux = k.aux.alloc(v)
-		} else {
-			nw.aux = 0
-		}
-	}
-	old.next = nw.self
-	old.previous = nodeForwardMarker
-	old.first = 0
-	old.parent = 0
+	old.rec.kindFlags |= kindFlagForwarded
+	old.rec.next = nw.rec.self
+	old.rec.first = 0
+	old.rec.parent = 0
+	old.rec.previous = 0
 	return nw
 }
 
 // forwardNodeProps forwards the subtrees hung off object props
 // (DECLARED_TYPE_EXPR, CLOSURE_UNAWARE_SHADOW).
-func (k *Compactor) forwardNodeProps(n *Node) {
+func (k *Compactor) forwardNodeProps(n Node) {
 	var props [4]Node_Prop
-	var vals [4]*Node
+	var vals [4]Node
 	cnt := 0
 	for x := n.coldPropListHead(); x != nil; x = x.next {
 		if x.isObject {
-			if v, ok := x.objectValue.(*Node); ok && v != nil {
+			if v, ok := x.objectValue.(Node); ok && !v.IsNil() {
 				if cnt == len(props) {
 					panic("rhino.Compactor: too many node-valued props")
 				}
@@ -147,66 +137,74 @@ func (k *Compactor) forwardNodeProps(n *Node) {
 }
 
 // copyTree copies the subtree rooted at old in pre-order.
-func (k *Compactor) copyTree(old *Node) *Node {
-	child := old.first
+func (k *Compactor) copyTree(old Node) Node {
+	src := old.store
+	child := old.rec.first
 	nw := k.copyNode(old)
-	var last *Node
+	var last Node
 	for child != 0 {
-		c := nodeAt(child)
-		child = c.next
+		c := src.node(child)
+		child = c.rec.next
 		cc := k.copyTree(c)
-		cc.parent = nw.self
-		if last == nil {
-			nw.first = cc.self
+		cc.rec.parent = nw.rec.self
+		if last.IsNil() {
+			nw.rec.first = cc.rec.self
 		} else {
-			last.next = cc.self
-			cc.previous = last.self
+			last.rec.next = cc.rec.self
+			cc.rec.previous = last.rec.self
 		}
 		last = cc
 	}
-	if last != nil {
-		nodeAt(nw.first).previous = last.self
+	if !last.IsNil() {
+		nw.firstNode().rec.previous = last.rec.self
 	}
 	return nw
 }
 
+// forwarded returns the copy of a forwarded node (following the copies of
+// earlier compactions too).
+func forwarded(n Node) Node {
+	for n.rec.kindFlags&kindFlagForwarded != 0 {
+		n = n.store.forwardedTo.node(n.rec.next)
+	}
+	return n
+}
+
 // CopyTree copies the tree rooted at root (which must be detached) and
 // returns the copy.
-func (k *Compactor) CopyTree(root *Node) *Node {
-	if root == nil {
-		return nil
+func (k *Compactor) CopyTree(root Node) Node {
+	if root.IsNil() {
+		return Node{}
 	}
-	if root.previous == nodeForwardMarker {
-		return nodeAt(root.next)
+	if root.rec.kindFlags&kindFlagForwarded != 0 {
+		return forwarded(root)
 	}
-	if root.self == 0 || k.genOf(root) == k.gen {
+	if root.store == k.dst || root.store.static {
 		return root
 	}
-	if root.parent != 0 {
+	if root.rec.parent != 0 {
 		panic("rhino.Compactor: CopyTree of an attached node")
 	}
 	return k.copyTree(root)
 }
 
 // Forward returns the copy of n: n itself when it is already in the new
-// generation (or not in any chunk), its copy when it was copied, and
+// store (or a package-level node), its copy when it was copied, and
 // otherwise copies the detached subtree n belongs to as an extra root.
-func (k *Compactor) Forward(n *Node) *Node {
-	if n == nil || n.self == 0 {
+func (k *Compactor) Forward(n Node) Node {
+	if n.IsNil() {
 		return n
 	}
-	if n.previous == nodeForwardMarker {
-		return nodeAt(n.next)
+	if n.rec.kindFlags&kindFlagForwarded != 0 {
+		return forwarded(n)
 	}
-	if g := k.genOf(n); g == k.gen || g == nodeInitialGen {
-		// Already copied, or a package-level sentinel (the initial
-		// generation is never released, so holders may keep it).
+	if n.store == k.dst || n.store.static {
 		return n
 	}
 	r := n
-	for r.parent != 0 {
-		r = nodeAt(r.parent)
-		if r.previous == nodeForwardMarker {
+	for r.rec.parent != 0 {
+		r = r.parentNode()
+		if r.rec.kindFlags&kindFlagForwarded != 0 {
 			panic("rhino.Compactor: an ancestor was forwarded but the node was not copied")
 		}
 	}
@@ -216,64 +214,48 @@ func (k *Compactor) Forward(n *Node) *Node {
 	k.inExtra = false
 	k.ExtraRoots++
 	k.ExtraNodes += k.Copied - before
-	return nodeAt(n.next)
+	return forwarded(n)
 }
 
 // ForwardSlice forwards every element of s in place.
-func (k *Compactor) ForwardSlice(s []*Node) {
+func (k *Compactor) ForwardSlice(s []Node) {
 	for i, n := range s {
 		s[i] = k.Forward(n)
 	}
 }
 
-var (
-	nodePoisonMu     sync.Mutex
-	nodePoisonChunks []*nodeChunk // kept alive forever in poison mode
-)
+// poisonID is an id no store ever hands out (beyond maxSegments).
+const poisonID nodeID = 0xFFFFFFF0
 
-// Finish releases the generations the copied nodes came from and returns
-// the number of chunks released. tables, when not nil, is the compilation's
-// NodeTables: its aux blocks are replaced by the ones holding the copied
-// nodes' entries (entries of dead nodes are dropped with the old blocks).
-func (k *Compactor) Finish(tables *NodeTables) int {
-	released := 0
-	for g := range k.old {
-		if g == k.gen || g == nodeInitialGen {
-			continue
-		}
-		g.mu.Lock()
-		chunks := g.chunks
-		g.chunks = nil
-		g.mu.Unlock()
-		for _, c := range chunks {
-			setNodeChunkSlot(c.hdr.index, nil)
-			released++
-			if NodePoisonMode {
-				poisonChunk(c)
+// Finish ends the compaction: the old stores release their segments and
+// tables, so a holder that was not forwarded pins at most the segment its
+// node is in, and following one of its links panics. In poison mode every
+// copied node is also overwritten so that such a holder fails on its first
+// use.
+func (k *Compactor) Finish() {
+	if NodePoisonMode {
+		for s := range k.srcs {
+			for i := range s.segs {
+				seg := s.segs[i].Load()
+				if seg == nil {
+					continue
+				}
+				for j := range seg {
+					if r := &seg[j]; r.kindFlags&kindFlagForwarded != 0 {
+						r.next, r.first, r.parent, r.previous, r.self = poisonID, poisonID, poisonID, poisonID, poisonID
+						r.tc, r.aux = 0xFFFFFFF0, 0xFFFFFFF0
+						r.token = Token(0xFF)
+						r.kindFlags &^= kindFlagForwarded
+					}
+				}
 			}
 		}
-		if NodePoisonMode {
-			nodePoisonMu.Lock()
-			nodePoisonChunks = append(nodePoisonChunks, chunks...)
-			nodePoisonMu.Unlock()
-		}
 	}
-	if tables != nil {
-		tables.rotateAux(&k.aux)
+	for s := range k.srcs {
+		s.release()
 	}
-	k.old = nil
+	k.srcs = nil
 	k.docs = nil
-	k.lastChunk = nil
-	return released
-}
-
-func poisonChunk(c *nodeChunk) {
-	for i := 1; i < nodeChunkNodes; i++ {
-		n := (*Node)(unsafe.Add(unsafe.Pointer(c), uintptr(i)*nodeSize))
-		n.next, n.first, n.parent, n.previous, n.self = nodeForwardMarker, nodeForwardMarker, nodeForwardMarker, nodeForwardMarker, nodeForwardMarker
-		n.tc, n.aux = 0xFFFFFFFF, 0xFFFFFFFF
-		n.token = Token(0xFF)
-	}
 }
 
 // String describes the compaction (for logs).
@@ -283,14 +265,14 @@ func (k *Compactor) String() string {
 
 // forwardTypeNodes forwards the roots of the type-expression trees and type
 // transformations the JSDocInfo holds.
-func (i *JSDocInfo) forwardTypeNodes(fwd func(*Node) *Node) {
+func (i *JSDocInfo) forwardTypeNodes(fwd func(Node) Node) {
 	for it := i.TypeExprIter(); it.Next(); {
 		e := it.Expr()
-		if e.root != nil {
+		if !e.root.IsNil() {
 			e.root = fwd(e.root)
 		}
 	}
-	if m := jsdocGet[*jutil.LinkedHashMap[string, *Node]](JSDocInfo_TYPE_TRANSFORMATIONS.Get(i)); m != nil {
+	if m := jsdocGet[*jutil.LinkedHashMap[string, Node]](JSDocInfo_TYPE_TRANSFORMATIONS.Get(i)); m != nil {
 		for _, key := range m.KeySlice() {
 			m.Put(key, fwd(m.Get(key)))
 		}

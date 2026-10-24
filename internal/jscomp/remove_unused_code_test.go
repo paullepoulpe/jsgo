@@ -96,7 +96,7 @@ func (c *RemoveUnusedCodeTest) GetOptions() *CompilerOptions {
 
 // Java: RemoveUnusedCodeTest.getProcessor(Compiler)
 func (c *RemoveUnusedCodeTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewRemoveUnusedCode_Builder(compiler).
 			RemoveLocalVars(true).
 			RemoveGlobals(c.removeGlobal).

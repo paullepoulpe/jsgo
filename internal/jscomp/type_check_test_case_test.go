@@ -68,7 +68,7 @@ func (b *TypeCheckTestCaseBase) SetUp() {
 }
 
 // Java: TypeCheckTestCase.getInstanceType(Node)
-func TypeCheckTestCase_GetInstanceType(js1Node *rhino.Node) rhino.ObjectType {
+func TypeCheckTestCase_GetInstanceType(js1Node rhino.Node) rhino.ObjectType {
 	type_ := js1Node.GetFirstChild().GetJSType()
 	AssertThat(type_).IsNotNull()
 	IsInstanceOf[rhino.FunctionType](AssertThat(type_))
@@ -241,12 +241,12 @@ func (b *TypeCheckTestCase_TypeTestBuilder) Run() {
 // ParseAndTypeCheck parses and type checks the JavaScript code.
 //
 // Java: TypeCheckTestCase.parseAndTypeCheck(String)
-func (b *TypeCheckTestCaseBase) ParseAndTypeCheck(js string) *rhino.Node {
+func (b *TypeCheckTestCaseBase) ParseAndTypeCheck(js string) rhino.Node {
 	return b.ParseAndTypeCheckWithExterns("", js)
 }
 
 // Java: TypeCheckTestCase.parseAndTypeCheck(String, String)
-func (b *TypeCheckTestCaseBase) ParseAndTypeCheckWithExterns(externs string, js string) *rhino.Node {
+func (b *TypeCheckTestCaseBase) ParseAndTypeCheckWithExterns(externs string, js string) rhino.Node {
 	return b.ParseAndTypeCheckWithScopeWithSourceNameExtension(externs, js, "").root
 }
 
@@ -308,8 +308,8 @@ func TypeCheckTestCase_ParseAndTypeCheckWithScopeWithCompiler(
 // TypeCheck: n is a valid statement node, SCRIPT, or ROOT node.
 //
 // Java: TypeCheckTestCase.typeCheck(Node)
-func (b *TypeCheckTestCaseBase) TypeCheck(n *rhino.Node) *rhino.Node {
-	var jsRoot *rhino.Node
+func (b *TypeCheckTestCaseBase) TypeCheck(n rhino.Node) rhino.Node {
+	var jsRoot rhino.Node
 	if n.IsRoot() {
 		// This is fine as is.
 		jsRoot = n
@@ -371,12 +371,12 @@ func (b *TypeCheckTestCaseBase) GetNativeObjectPropertiesCount() int {
 // TypeCheckTestCase_TypeCheckResult is the root and top scope of a
 // type-checked program.
 type TypeCheckTestCase_TypeCheckResult struct {
-	root  *rhino.Node
+	root  rhino.Node
 	scope *TypedScope
 }
 
 // Java: TypeCheckTestCase.TypeCheckResult(Node, TypedScope)
-func NewTypeCheckTestCase_TypeCheckResult(root *rhino.Node, scope *TypedScope) *TypeCheckTestCase_TypeCheckResult {
+func NewTypeCheckTestCase_TypeCheckResult(root rhino.Node, scope *TypedScope) *TypeCheckTestCase_TypeCheckResult {
 	return &TypeCheckTestCase_TypeCheckResult{root: root, scope: scope}
 }
 

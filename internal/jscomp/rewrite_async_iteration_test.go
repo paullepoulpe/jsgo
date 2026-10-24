@@ -98,7 +98,7 @@ func (c *RewriteAsyncIterationTest) GetGlobalColor(colorId colors.ColorId) *colo
 func (c *RewriteAsyncIterationTest) GetJSCompAsyncGeneratorWrapperClassColor() *colors.Color {
 	return CodeSubTree_FindFirstNode(
 		c.GetLastCompiler().GetExternsRoot(),
-		func(n *rhino.Node) bool { return n.MatchesQualifiedName("$jscomp.AsyncGeneratorWrapper") }).
+		func(n rhino.Node) bool { return n.MatchesQualifiedName("$jscomp.AsyncGeneratorWrapper") }).
 		GetNext().
 		GetColor()
 }

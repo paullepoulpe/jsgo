@@ -1943,7 +1943,7 @@ func (c *OptimizeParametersTest) TestInliningSideEffectfulArg_updatesInvocationS
 	jsRoot := c.GetLastCompiler().GetJsRoot()
 	calls :=
 		CodeSubTree_FindNodesNonEmpty(
-			jsRoot, func(n *rhino.Node) bool { return n.IsCall() && n.GetFirstChild().MatchesName("foo") })
+			jsRoot, func(n rhino.Node) bool { return n.IsCall() && n.GetFirstChild().MatchesName("foo") })
 	for _, call := range calls {
 		AssertThat(call.GetSideEffectFlags()).
 			IsEqualTo(

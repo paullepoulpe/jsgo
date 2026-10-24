@@ -38,7 +38,7 @@ import (
 // variables can escape the function. These variables will be considered as
 // global and they can be retrieved with GetEscapedLocals().
 type LiveVariablesAnalysis struct {
-	DataFlowAnalysisBase[*rhino.Node, *LiveVariablesAnalysis_LiveVariableLattice]
+	DataFlowAnalysisBase[rhino.Node, *LiveVariablesAnalysis_LiveVariableLattice]
 
 	// The scope of the function that we are analyzing.
 	jsScope *Scope
@@ -175,7 +175,7 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) HashCode() int32 {
 //
 // Java: LiveVariablesAnalysis(ControlFlowGraph<Node>, Scope, Scope, AbstractCompiler, ScopeCreator, AllVarsDeclaredInFunction)
 func NewLiveVariablesAnalysis(
-	cfg ControlFlowGraph[*rhino.Node],
+	cfg ControlFlowGraph[rhino.Node],
 	jsScope *Scope,
 	jsScopeChild *Scope,
 	compiler AbstractCompiler,
@@ -189,7 +189,7 @@ func NewLiveVariablesAnalysis(
 // Reset resets l for reuse on a new function scope while retaining slab,
 // queue, set, and map capacities.
 func (l *LiveVariablesAnalysis) Reset(
-	cfg ControlFlowGraph[*rhino.Node],
+	cfg ControlFlowGraph[rhino.Node],
 	jsScope *Scope,
 	jsScopeChild *Scope,
 	compiler AbstractCompiler,
@@ -229,11 +229,11 @@ func (f *lvaAllVarsFinder) EnterScope(t *NodeTraversal) {
 
 func (f *lvaAllVarsFinder) ExitScope(t *NodeTraversal) {}
 
-func (f *lvaAllVarsFinder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *lvaAllVarsFinder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return f.finder.ShouldTraverse(t, n, parent)
 }
 
-func (f *lvaAllVarsFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {}
+func (f *lvaAllVarsFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {}
 
 func (*lvaAllVarsFinder) nodeTraversalNoVisit() {}
 
@@ -266,7 +266,7 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 
 	fnRoot := scope.GetRootNode()
 	fnBody := fnRoot.GetLastChild()
-	if fnBody != nil && fnBody.IsBlock() && !fsivHasNestedBlockScopeDecls(fnRoot, fnBody) {
+	if !fnBody.IsNil() && fnBody.IsBlock() && !fsivHasNestedBlockScopeDecls(fnRoot, fnBody) {
 		var bodyScope *Scope
 		if fnBody.HasChildren() {
 			bodyScope = scopeCreator.CreateScope(fnBody, scope).(*Scope)
@@ -407,14 +407,14 @@ func (l *LiveVariablesAnalysis) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*
 }
 
 // Java: LiveVariablesAnalysis.flowThrough(Node, LiveVariableLattice)
-func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
+func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
 	size := input.liveSet.Size()
 	l.genScratch.InitWithSize(size)
 	l.killScratch.InitWithSize(size)
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
-	var edgeList []DiGraph_DiGraphEdge[*rhino.Node, ControlFlowGraph_Branch]
+	var edgeList []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	if l.curLinkedNode != nil && l.curLinkedNode.value == node {
 		edgeList = l.curLinkedNode.outEdgeList.Slice()
 	} else if l.curDiGraphNode != nil && l.curDiGraphNode.GetValue() == node {
@@ -449,7 +449,7 @@ func (l *LiveVariablesAnalysis) FlowThrough(node *rhino.Node, input *LiveVariabl
 // executed. These assignments might not kill a variable.
 //
 // Java: LiveVariablesAnalysis.computeGenKill(Node, BitSet, BitSet, boolean)
-func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet, kill *jutil.BitSet, conditional bool) {
+func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, kill *jutil.BitSet, conditional bool) {
 
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
@@ -475,7 +475,7 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet,
 			return
 		}
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if c.IsName() {
 				if c.HasChildren() {
 					l.ComputeGenKill(c.GetFirstChild(), gen, kill, conditional)
@@ -486,7 +486,7 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet,
 			} else {
 				jutil.CheckStateMsg1(c.IsDestructuringLhs(), "%s", c)
 				if !conditional {
-					NodeUtil_VisitLhsNodesInNode(c, func(lhsNode *rhino.Node) { l.AddToSetIfLocal(lhsNode, kill) })
+					NodeUtil_VisitLhsNodesInNode(c, func(lhsNode rhino.Node) { l.AddToSetIfLocal(lhsNode, kill) })
 				}
 				l.ComputeGenKill(c.GetFirstChild(), gen, kill, conditional)
 				l.ComputeGenKill(c.GetSecondChild(), gen, kill, conditional)
@@ -502,7 +502,7 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet,
 		l.ComputeGenKill(n.GetFirstChild(), gen, kill, conditional)
 		// Unlike OPTCHAIN_GETPROP and OPTCHAIN_GETELEM, the OPTCHAIN_CALLs can have multiple
 		// children on rhs which get executed conditionally
-		for c := n.GetSecondChild(); c != nil; c = c.GetNext() {
+		for c := n.GetSecondChild(); !c.IsNil(); c = c.GetNext() {
 			l.ComputeGenKill(c, gen, kill, true)
 		}
 		return
@@ -536,7 +536,7 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet,
 			if !conditional {
 				NodeUtil_VisitLhsNodesInNode(
 					n,
-					func(child *rhino.Node) {
+					func(child rhino.Node) {
 						if child.IsName() {
 							l.AddToSetIfLocal(child, kill)
 						}
@@ -545,7 +545,7 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet,
 			l.ComputeGenKill(n.GetFirstChild(), gen, kill, conditional)
 			l.ComputeGenKill(n.GetSecondChild(), gen, kill, conditional)
 		} else {
-			for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 				l.ComputeGenKill(c, gen, kill, conditional)
 			}
 		}
@@ -554,7 +554,7 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n *rhino.Node, gen *jutil.BitSet,
 }
 
 // Java: LiveVariablesAnalysis.addToSetIfLocal(Node, BitSet)
-func (l *LiveVariablesAnalysis) AddToSetIfLocal(node *rhino.Node, set *jutil.BitSet) {
+func (l *LiveVariablesAnalysis) AddToSetIfLocal(node rhino.Node, set *jutil.BitSet) {
 	jutil.CheckStateMsg1(node.IsName(), "%s", node)
 	idx, ok := l.lookupVarIndex(node.GetString())
 	if !ok || l.escapedBits.Get(idx) {
@@ -590,7 +590,7 @@ func LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(scope *Scope, na
 // Java: LiveVariablesAnalysis.markAllParametersEscaped()
 func (l *LiveVariablesAnalysis) MarkAllParametersEscaped() {
 	paramList := NodeUtil_GetFunctionParameters(l.jsScope.GetRootNode())
-	for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
+	for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
 		if param.IsName() {
 			name := param.GetString()
 			l.escaped.Add(l.jsScope.GetVar(name))

@@ -107,7 +107,7 @@ func NewSyntacticScopeCreatorWithTreatProvidesAsRedeclarations(
 // (see ScopeCreator).
 //
 // Java: SyntacticScopeCreator.createScope(Node, AbstractScope<?, ?>)
-func (c *SyntacticScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope) AbstractScope {
+func (c *SyntacticScopeCreator) CreateScope(n rhino.Node, parent AbstractScope) AbstractScope {
 	// Go-only: language-adapter — the cast (Scope) parent, which lets null
 	// through.
 	var p *Scope
@@ -118,7 +118,7 @@ func (c *SyntacticScopeCreator) CreateScope(n *rhino.Node, parent AbstractScope)
 }
 
 // Java: SyntacticScopeCreator.createScope(Node, Scope)
-func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope) *Scope {
+func (c *SyntacticScopeCreator) CreateScopeOfScope(n rhino.Node, parent *Scope) *Scope {
 	var scope *Scope
 	if parent == nil {
 		scope = newScope(n)
@@ -150,7 +150,7 @@ func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope)
 	return scope
 }
 
-func syntacticScopeChildHasBlockDecls(c *rhino.Node) bool {
+func syntacticScopeChildHasBlockDecls(c rhino.Node) bool {
 	switch c.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH, rhino.Token_EXPORT:
 		return true
@@ -162,14 +162,14 @@ func syntacticScopeChildHasBlockDecls(c *rhino.Node) bool {
 		if !c.IsSyntheticBlock() {
 			return false
 		}
-		for gc := c.GetFirstChild(); gc != nil; gc = gc.GetNext() {
+		for gc := c.GetFirstChild(); !gc.IsNil(); gc = gc.GetNext() {
 			if syntacticScopeChildHasBlockDecls(gc) {
 				return true
 			}
 		}
 		return false
 	case rhino.Token_LABEL, rhino.Token_IF, rhino.Token_DO, rhino.Token_WHILE, rhino.Token_WITH:
-		for gc := c.GetFirstChild(); gc != nil; gc = gc.GetNext() {
+		for gc := c.GetFirstChild(); !gc.IsNil(); gc = gc.GetNext() {
 			if scanVarsTokenKind[uint8(gc.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(gc) {
 				return true
 			}
@@ -180,23 +180,23 @@ func syntacticScopeChildHasBlockDecls(c *rhino.Node) bool {
 	}
 }
 
-func syntacticScopeHasBlockDecls(n *rhino.Node) bool {
+func syntacticScopeHasBlockDecls(n rhino.Node) bool {
 	if n.HasNoBlockScopeDecls() {
 		return false
 	}
 	if NodeUtil_IsAnyFor(n) {
 		first := n.GetFirstChild()
-		if first != nil && (first.IsLet() || first.IsConst()) {
+		if !first.IsNil() && (first.IsLet() || first.IsConst()) {
 			return true
 		}
-		if last := n.GetLastChild(); last != nil && !last.IsBlock() && syntacticScopeChildHasBlockDecls(last) {
+		if last := n.GetLastChild(); !last.IsNil() && !last.IsBlock() && syntacticScopeChildHasBlockDecls(last) {
 			return true
 		}
 		n.SetNoBlockScopeDecls()
 		return false
 	}
 	if n.IsBlock() {
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if scanVarsTokenKind[uint8(c.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(c) {
 				return true
 			}
@@ -207,11 +207,11 @@ func syntacticScopeHasBlockDecls(n *rhino.Node) bool {
 	return true
 }
 
-func syntacticFunctionBlockHasNoDecls(n *rhino.Node) bool {
+func syntacticFunctionBlockHasNoDecls(n rhino.Node) bool {
 	if n.HasNoBlockScopeDecls() {
 		return true
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if scanVarsTokenKind[uint8(c.GetToken())] == 1 {
 			return false
 		}
@@ -235,7 +235,7 @@ type SyntacticScopeCreator_ScopeScanner struct {
 	input           *CompilerInput
 	inputIdResolved bool
 	inputResolved   bool
-	changeRootSet   *jutil.LinkedHashSet[*rhino.Node]
+	changeRootSet   *jutil.LinkedHashSet[rhino.Node]
 }
 
 // initSyntacticScopeCreator_ScopeScanner is the body of the ScopeScanner
@@ -247,7 +247,7 @@ func initSyntacticScopeCreator_ScopeScanner(
 	compiler AbstractCompiler,
 	redeclarationHandler SyntacticScopeCreator_RedeclarationHandler,
 	scope *Scope,
-	changeRootSet *jutil.LinkedHashSet[*rhino.Node],
+	changeRootSet *jutil.LinkedHashSet[rhino.Node],
 	treatProvidesAsRedeclarations bool) {
 	s.compiler = compiler
 	s.redeclarationHandler = redeclarationHandler
@@ -307,7 +307,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
 
 		// Args: Declare function variables
 		jutil.CheckState(args.IsParamList())
-		for a := args.GetFirstChild(); a != nil; a = a.GetNext() {
+		for a := args.GetFirstChild(); !a.IsNil(); a = a.GetNext() {
 			if a.IsName() {
 				s.DeclareVar(s.scope, a)
 			} else {
@@ -346,14 +346,14 @@ func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
 			return
 		}
 		first := n.GetFirstChild()
-		if first != nil && (first.IsLet() || first.IsConst()) {
+		if !first.IsNil() && (first.IsLet() || first.IsConst()) {
 			s.DeclareLHS(s.scope, first)
 		}
 		last := n.GetLastChild()
-		if last != nil && !last.IsBlock() && syntacticScopeChildHasBlockDecls(last) {
+		if !last.IsNil() && !last.IsBlock() && syntacticScopeChildHasBlockDecls(last) {
 			s.ScanVars(last, nil, s.scope)
 		}
-		if len(s.scope.varList) == 0 && (last == nil || last.IsBlock()) {
+		if len(s.scope.varList) == 0 && (last.IsNil() || last.IsBlock()) {
 			n.SetNoBlockScopeDecls()
 		}
 		return
@@ -370,7 +370,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
 				return
 			}
 			canCacheNoDecls := true
-			for c := n.GetFirstChild(); c != nil; {
+			for c := n.GetFirstChild(); !c.IsNil(); {
 				next := c.GetNext()
 				if scanVarsTokenKind[uint8(c.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(c) {
 					canCacheNoDecls = false
@@ -393,7 +393,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
 }
 
 // Java: SyntacticScopeCreator.ScopeScanner.declareLHS(Scope, Node)
-func (s *SyntacticScopeCreator_ScopeScanner) DeclareLHS(sc *Scope, n *rhino.Node) {
+func (s *SyntacticScopeCreator_ScopeScanner) DeclareLHS(sc *Scope, n rhino.Node) {
 	if n.HasOneChild() && n.GetFirstChild().IsName() {
 		// NAME is most common and trivial case.  This code is hot so it is worth special casing.
 		// to avoid extra GC and cpu cycles.
@@ -414,14 +414,14 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareLHS(sc *Scope, n *rhino.Node
 	}
 }
 
-func (s *SyntacticScopeCreator_ScopeScanner) declareLhsNodesHelper(sc *Scope, n *rhino.Node) {
+func (s *SyntacticScopeCreator_ScopeScanner) declareLhsNodesHelper(sc *Scope, n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_IMPORT:
 		s.declareLhsNodesHelper(sc, n.GetFirstChild())
 		s.declareLhsNodesHelper(sc, n.GetSecondChild())
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET, rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN,
 		rhino.Token_PARAM_LIST, rhino.Token_IMPORT_SPECS:
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if child.IsName() {
 				s.DeclareVar(sc, child)
 			} else {
@@ -477,9 +477,9 @@ var scanVarsTokenKind = [256]uint8{
 	rhino.Token_EXPR_RESULT:  2,
 }
 
-func scanVarsBlockCreatesScope(n *rhino.Node) bool {
+func scanVarsBlockCreatesScope(n rhino.Node) bool {
 	parent := n.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return false
 	}
 	pt := parent.GetToken()
@@ -497,7 +497,7 @@ func scanVarsBlockCreatesScope(n *rhino.Node) bool {
 // declarations.
 //
 // Java: SyntacticScopeCreator.ScopeScanner.scanVars(Node, Scope, Scope)
-func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope *Scope, blockScope *Scope) {
+func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *Scope, blockScope *Scope) {
 	switch n.GetToken() {
 	case rhino.Token_VAR:
 		if hoistScope != nil {
@@ -559,13 +559,13 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 			return
 		}
 		s.setInputId(n.GetInputId())
-		for child := n.GetFirstChild(); child != nil; {
+		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
 			ctok := child.GetToken()
 			if scanVarsTokenKind[uint8(ctok)] != 0 {
 				switch ctok {
 				case rhino.Token_EXPR_RESULT:
-					if expr := child.GetFirstChild(); expr != nil && expr.GetToken() == rhino.Token_CALL {
+					if expr := child.GetFirstChild(); !expr.IsNil() && expr.GetToken() == rhino.Token_CALL {
 						if NodeUtil_IsGoogProvideCall(child) {
 							s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), child)
 						} else if NodeUtil_IsBundledGoogModuleCall(expr) && expr.GetSecondChild().IsFunction() {
@@ -578,7 +578,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 					}
 				case rhino.Token_VAR:
 					if hoistScope != nil {
-						if first := child.GetFirstChild(); first != nil && first.GetNext() == nil && first.IsName() {
+						if first := child.GetFirstChild(); !first.IsNil() && first.GetNext().IsNil() && first.IsName() {
 							s.DeclareVar(hoistScope, first)
 						} else {
 							s.DeclareLHS(hoistScope, child)
@@ -586,7 +586,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 					}
 				case rhino.Token_LET, rhino.Token_CONST:
 					if blockScope != nil {
-						if first := child.GetFirstChild(); first != nil && first.GetNext() == nil && first.IsName() {
+						if first := child.GetFirstChild(); !first.IsNil() && first.GetNext().IsNil() && first.IsName() {
 							s.DeclareVar(blockScope, first)
 						} else {
 							s.DeclareLHS(blockScope, child)
@@ -615,7 +615,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 		// Module bodies are not part of global scope, but may declare an implicit goog namespace.
 		if hoistScope.IsGlobal() {
 			expr := n.GetFirstChild()
-			if expr != nil && syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(expr) {
+			if !expr.IsNil() && syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(expr) {
 				s.DeclareImplicitGoogNamespaceFromCall(hoistScope, expr)
 			}
 			return
@@ -665,14 +665,14 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 		return
 	}
 
-	for child := n.GetFirstChild(); child != nil; {
+	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
 		ctok := child.GetToken()
 		if scanVarsTokenKind[uint8(ctok)] == 1 {
 			switch ctok {
 			case rhino.Token_VAR:
 				if hoistScope != nil {
-					if first := child.GetFirstChild(); first != nil && first.GetNext() == nil && first.IsName() {
+					if first := child.GetFirstChild(); !first.IsNil() && first.GetNext().IsNil() && first.IsName() {
 						s.DeclareVar(hoistScope, first)
 					} else {
 						s.DeclareLHS(hoistScope, child)
@@ -680,7 +680,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 				}
 			case rhino.Token_LET, rhino.Token_CONST:
 				if blockScope != nil {
-					if first := child.GetFirstChild(); first != nil && first.GetNext() == nil && first.IsName() {
+					if first := child.GetFirstChild(); !first.IsNil() && first.GetNext().IsNil() && first.IsName() {
 						s.DeclareVar(blockScope, first)
 					} else {
 						s.DeclareLHS(blockScope, child)
@@ -720,7 +720,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n *rhino.Node, hoistScope 
 // the variable name.
 //
 // Java: SyntacticScopeCreator.ScopeScanner.declareVar(Scope, Node)
-func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node) {
+func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n rhino.Node) {
 	if !n.IsName() && !n.IsImportStar() {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Invalid node for declareVar: %s", n)))
 	}
@@ -761,7 +761,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 		}
 		var_ := s.creator.vars.New()
 		var_.nameID = id
-		var_.initAbstractVarBase(n, sc, len(sc.varList), input, nil)
+		var_.initAbstractVarBase(n, sc, len(sc.varList), input, rhino.Node{})
 		sc.addVar(var_)
 	}
 }
@@ -775,9 +775,9 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n *rhino.Node
 // exprCall is a goog.module or goog.provide call.
 //
 // Java: SyntacticScopeCreator.ScopeScanner.declareImplicitGoogNamespaceFromCall(Scope, Node)
-func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCall(sc *Scope, exprCall *rhino.Node) {
+func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCall(sc *Scope, exprCall rhino.Node) {
 	namespaceNode := exprCall.GetFirstChild().GetSecondChild()
-	if namespaceNode == nil || !namespaceNode.IsString() {
+	if namespaceNode.IsNil() || !namespaceNode.IsString() {
 		// invalid call missing an argument, we warn elsewhere
 		return
 	}
@@ -812,18 +812,18 @@ func syntacticScopeCreator_ScopeScanner_isShadowingAllowed(name string, s *Scope
 }
 
 // Java: SyntacticScopeCreator.ScopeScanner.isLegacyGoogModule(Node)
-func syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(n *rhino.Node) bool {
+func syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(n rhino.Node) bool {
 	if !NodeUtil_IsGoogModuleCall(n) {
 		return false
 	}
-	return n.GetNext() != nil && NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(n.GetNext())
+	return !n.GetNext().IsNil() && NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(n.GetNext())
 }
 
 // SyntacticScopeCreator_RedeclarationHandler is the interface for
 // injectable duplicate handling.
 type SyntacticScopeCreator_RedeclarationHandler interface {
 	// Java: SyntacticScopeCreator.RedeclarationHandler.onRedeclaration(Scope, String, Node, CompilerInput)
-	OnRedeclaration(s *Scope, name string, n *rhino.Node, input *CompilerInput)
+	OnRedeclaration(s *Scope, name string, n rhino.Node, input *CompilerInput)
 }
 
 // SyntacticScopeCreator_DefaultRedeclarationHandler is the default handler
@@ -839,5 +839,5 @@ func NewSyntacticScopeCreator_DefaultRedeclarationHandler() *SyntacticScopeCreat
 
 // Java: SyntacticScopeCreator.DefaultRedeclarationHandler.onRedeclaration(Scope, String, Node, CompilerInput)
 func (h *SyntacticScopeCreator_DefaultRedeclarationHandler) OnRedeclaration(
-	s *Scope, name string, n *rhino.Node, input *CompilerInput) {
+	s *Scope, name string, n rhino.Node, input *CompilerInput) {
 }

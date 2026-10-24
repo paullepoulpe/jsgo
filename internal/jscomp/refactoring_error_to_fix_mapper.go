@@ -31,7 +31,7 @@ import (
 // Java: public final class ErrorToFixMapper
 type ErrorToFixMapper struct {
 	compiler              AbstractCompiler
-	metadataForEachScript *jutil.LinkedHashMap[*rhino.Node, *ScriptMetadata]
+	metadataForEachScript *jutil.LinkedHashMap[rhino.Node, *ScriptMetadata]
 }
 
 var errorToFixMapper_DID_YOU_MEAN = jutil.Pattern_Compile(".*Did you mean (.*)\\?")
@@ -51,7 +51,7 @@ var errorToFixMapper_USE_SHORT_NAME = jutil.Pattern_Compile(".*Please use the sh
 // Java: ErrorToFixMapper(AbstractCompiler)
 func NewErrorToFixMapper(compiler AbstractCompiler) *ErrorToFixMapper {
 	m := &ErrorToFixMapper{
-		metadataForEachScript: jutil.NewLinkedHashMap[*rhino.Node, *ScriptMetadata](),
+		metadataForEachScript: jutil.NewLinkedHashMap[rhino.Node, *ScriptMetadata](),
 	}
 	m.compiler = compiler
 	return m
@@ -138,7 +138,7 @@ func (m *ErrorToFixMapper) GetFixForRedeclaration(error *JSError) *SuggestedFix 
 	fix := NewSuggestedFix_Builder().AttachMatchedNodeInfo(name, m.compiler)
 
 	if !name.HasChildren() {
-		var nodeToDelete *rhino.Node
+		var nodeToDelete rhino.Node
 		if parent.HasOneChild() {
 			nodeToDelete = parent
 		} else {
@@ -166,8 +166,8 @@ func (m *ErrorToFixMapper) GetFixForRedeclaration(error *JSError) *SuggestedFix 
 	// var a = 0;  // This is the "added" var statement.
 	// b = 1;
 	// var c = 2;  // This is the original var statement.
-	childrenOfAddedVarStatement := jutil.NewArrayList[*rhino.Node]()
-	for n := parent.GetFirstChild(); n != nil; n = n.GetNext() {
+	childrenOfAddedVarStatement := jutil.NewArrayList[rhino.Node]()
+	for n := parent.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if n == name {
 			break
 		}
@@ -184,7 +184,7 @@ func (m *ErrorToFixMapper) GetFixForRedeclaration(error *JSError) *SuggestedFix 
 		fix.InsertBeforeNodeWithSortKey(parent, var_, m.compiler, "1")
 	}
 
-	if name.GetNext() != nil {
+	if !name.GetNext().IsNil() {
 		// Keep the original var statement, just remove the names that will
 		// be put in the added one.
 		for n := range childrenOfAddedVarStatement.All() {
@@ -403,7 +403,7 @@ func (m *ErrorToFixMapper) GetFixForExtraRequire(error *JSError) *SuggestedFix {
 	node := error.Node()
 
 	fix := NewSuggestedFix_Builder().AttachMatchedNodeInfo(node, m.compiler)
-	destructuring := NodeUtil_GetEnclosingType(node, rhino.Token_OBJECT_PATTERN) != nil
+	destructuring := !NodeUtil_GetEnclosingType(node, rhino.Token_OBJECT_PATTERN).IsNil()
 	if destructuring {
 		fix.SetDescription("Delete unused symbol")
 		if node.IsStringKey() {
@@ -503,8 +503,8 @@ func (m *ErrorToFixMapper) GetFixForConstantCaseErrors(error *JSError) *Suggeste
 }
 
 // Java: ErrorToFixMapper.getMetadataForScript(Node)
-func (m *ErrorToFixMapper) GetMetadataForScript(script *rhino.Node) *ScriptMetadata {
+func (m *ErrorToFixMapper) GetMetadataForScript(script rhino.Node) *ScriptMetadata {
 	jutil.CheckArgument(script.IsScript())
 	return m.metadataForEachScript.ComputeIfAbsent(
-		script, func(s *rhino.Node) *ScriptMetadata { return ScriptMetadata_Create(s, m.compiler) })
+		script, func(s rhino.Node) *ScriptMetadata { return ScriptMetadata_Create(s, m.compiler) })
 }

@@ -66,7 +66,7 @@ type QualifiedName interface {
 	AppendTo(sb *strings.Builder, separator uint16)
 
 	// Matches checks whether the given node matches this name.
-	Matches(n *Node) bool
+	Matches(n Node) bool
 
 	GetRoot() string
 	Components() []string
@@ -292,12 +292,12 @@ func (q *QualifiedName_StringListQname) GetComponentCount() int {
 }
 
 // Java: QualifiedName.StringListQname.matches(Node)
-func (q *QualifiedName_StringListQname) Matches(n *Node) bool {
+func (q *QualifiedName_StringListQname) Matches(n Node) bool {
 	pos := q.size - 1
 	if !rhinoStringPoolCleared {
-		for pos > 0 && n.token == Token_GETPROP {
+		for pos > 0 && n.rec.token == Token_GETPROP {
 			n.node_castKind(node_kindString)
-			if rhinoStringID(n.payload) != q.termIDs[pos] {
+			if rhinoStringID(n.rec.payload) != q.termIDs[pos] {
 				return false
 			}
 			pos--
@@ -307,10 +307,10 @@ func (q *QualifiedName_StringListQname) Matches(n *Node) bool {
 			return false
 		}
 		termID := q.termIDs[0]
-		switch n.token {
+		switch n.rec.token {
 		case Token_NAME, Token_MEMBER_FUNCTION_DEF:
 			n.node_castKind(node_kindString)
-			return rhinoStringID(n.payload) == termID
+			return rhinoStringID(n.rec.payload) == termID
 		case Token_THIS:
 			return termID == qualifiedName_THIS_ID
 		case Token_SUPER:
@@ -394,13 +394,13 @@ func (q *QualifiedName_GetpropQname) AppendTo(sb *strings.Builder, separator uin
 }
 
 // Java: QualifiedName.GetpropQname.matches(Node)
-func (q *QualifiedName_GetpropQname) Matches(n *Node) bool {
+func (q *QualifiedName_GetpropQname) Matches(n Node) bool {
 	if !rhinoStringPoolCleared {
-		if n.token != Token_GETPROP {
+		if n.rec.token != Token_GETPROP {
 			return false
 		}
 		n.node_castKind(node_kindString)
-		return rhinoStringID(n.payload) == q.propID &&
+		return rhinoStringID(n.rec.payload) == q.propID &&
 			q.owner.Matches(n.firstNode())
 	}
 	return n.IsGetProp() &&
@@ -426,11 +426,11 @@ func (q *QualifiedName_GetpropQname) String() string {
 // though it will throw IllegalStateException eventually if it is not.
 type QualifiedName_NodeQname struct {
 	QualifiedNameBase
-	node *Node
+	node Node
 }
 
 // Java: QualifiedName.NodeQname(Node)
-func NewQualifiedName_NodeQname(n *Node) *QualifiedName_NodeQname {
+func NewQualifiedName_NodeQname(n Node) *QualifiedName_NodeQname {
 	q := &QualifiedName_NodeQname{}
 	q.InitQualifiedNameBase(q)
 	q.node = n
@@ -485,7 +485,7 @@ func (q *QualifiedName_NodeQname) Join() string {
 }
 
 // Java: QualifiedName.NodeQname.matches(Node)
-func (q *QualifiedName_NodeQname) Matches(n *Node) bool {
+func (q *QualifiedName_NodeQname) Matches(n Node) bool {
 	return n.MatchesQualifiedNameNode(q.node)
 }
 

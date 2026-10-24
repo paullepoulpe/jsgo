@@ -78,7 +78,7 @@ func SerializeTypesToPointers_Create(
 }
 
 // Java: SerializeTypesToPointers.gatherTypesOnAst(Node)
-func (s *SerializeTypesToPointers) GatherTypesOnAst(root *rhino.Node) {
+func (s *SerializeTypesToPointers) GatherTypesOnAst(root rhino.Node) {
 	jutil.CheckStateMsg(s.typePool == nil, "Cannot call process() twice")
 	s.gatherPropertiesAndTypesWalk(root)
 
@@ -94,11 +94,11 @@ func (s *SerializeTypesToPointers) GatherTypesOnAst(root *rhino.Node) {
 	s.logSerializationDebugInfo(s.jstypeReconserializer, s.typePool)
 }
 
-func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n *rhino.Node) {
+func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n rhino.Node) {
 	if n.IsScript() && NodeUtil_IsFromTypeSummary(n) {
 		return
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		s.gatherPropertiesAndTypesWalk(c)
 	}
 	switch n.GetToken() {
@@ -132,7 +132,7 @@ func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n *rhino.Node) {
 		if tb := n.GetJSTypeBase(); tb != nil && !s.jstypeReconserializer.hasTypePointer(tb) {
 			s.jstypeReconserializer.SerializeType(tb.Self())
 		}
-		if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+		if shadow := n.GetClosureUnawareShadow(); !shadow.IsNil() {
 			// Shadow roots are structured as
 			// ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
 			s.gatherTypesWalk(shadow.GetFirstFirstChild().GetFirstChild())
@@ -144,11 +144,11 @@ func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n *rhino.Node) {
 	}
 }
 
-func (s *SerializeTypesToPointers) gatherTypesWalk(n *rhino.Node) {
+func (s *SerializeTypesToPointers) gatherTypesWalk(n rhino.Node) {
 	if n.IsScript() && NodeUtil_IsFromTypeSummary(n) {
 		return
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		s.gatherTypesWalk(c)
 	}
 	if n.IsRoot() {
@@ -158,7 +158,7 @@ func (s *SerializeTypesToPointers) gatherTypesWalk(n *rhino.Node) {
 		s.jstypeReconserializer.SerializeType(tb.Self())
 	}
 	if n.IsName() {
-		if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+		if shadow := n.GetClosureUnawareShadow(); !shadow.IsNil() {
 			s.gatherTypesWalk(shadow.GetFirstFirstChild().GetFirstChild())
 		}
 	}

@@ -41,7 +41,7 @@ type OptimizeReturns struct {
 
 	// Allocated & cleaned up by process()
 	decisionsLog diagnostic.LogFile
-	fnNodes      []*rhino.Node
+	fnNodes      []rhino.Node
 }
 
 // Java: OptimizeReturns(AbstractCompiler)
@@ -57,7 +57,7 @@ func NewOptimizeReturns(compiler AbstractCompiler) *OptimizeReturns {
 // ProcessWithReferenceMap, and AsCallGraphCompilerPass adapts it.
 //
 // Java: OptimizeReturns.process(Node, Node)
-func (o *OptimizeReturns) Process(externs *rhino.Node, root *rhino.Node) {
+func (o *OptimizeReturns) Process(externs rhino.Node, root rhino.Node) {
 	OptimizeCalls_Builder_().
 		SetCompiler(o.compiler).
 		SetConsiderExterns(false).
@@ -75,7 +75,7 @@ func (o *OptimizeReturns) AsCallGraphCompilerPass() OptimizeCalls_CallGraphCompi
 }
 
 // Java: OptimizeReturns.process(Node, Node, ReferenceMap)
-func (o *OptimizeReturns) ProcessWithReferenceMap(externs *rhino.Node, root *rhino.Node, definitions *OptimizeCalls_ReferenceMap) {
+func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, definitions *OptimizeCalls_ReferenceMap) {
 	logFile := o.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[OptimizeReturns](), "decisions.log")
 	defer logFile.Close()
 	defer func() {
@@ -85,7 +85,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs *rhino.Node, root *rhi
 	}()
 	o.decisionsLog = logFile // avoid passing the log file through a bunch of methods
 	// Find all function nodes whose callers ignore the return values.
-	var toOptimize []*jutil.ArrayList[*rhino.Node]
+	var toOptimize []*jutil.ArrayList[rhino.Node]
 
 	// Find all the candidates before modifying the AST.
 	for key, refs := range definitions.GetNameReferences() {
@@ -123,7 +123,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs *rhino.Node, root *rhi
 // definitions are allowed, as only known definitions will be removed.
 //
 // Java: OptimizeReturns.isCandidate(String, List<Node>)
-func (o *OptimizeReturns) IsCandidate(name string, refs []*rhino.Node) bool {
+func (o *OptimizeReturns) IsCandidate(name string, refs []rhino.Node) bool {
 	if !OptimizeCalls_MayBeOptimizableName(o.compiler, name) {
 		if o.decisionsLog.IsLogging() {
 			o.decisionsLog.LogFormat("%s\tnot an optimizable name", name)
@@ -179,7 +179,7 @@ func (o *OptimizeReturns) IsCandidate(name string, refs []*rhino.Node) bool {
 }
 
 // Java: OptimizeReturns.isCandidateDefinition(Node)
-func (o *OptimizeReturns) IsCandidateDefinition(n *rhino.Node) bool {
+func (o *OptimizeReturns) IsCandidateDefinition(n rhino.Node) bool {
 	parent := n.GetParent()
 	if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
 		return true
@@ -199,12 +199,12 @@ func (o *OptimizeReturns) IsCandidateDefinition(n *rhino.Node) bool {
 }
 
 // Java: OptimizeReturns.isClassMemberDefinition(Node)
-func (o *OptimizeReturns) IsClassMemberDefinition(n *rhino.Node) bool {
+func (o *OptimizeReturns) IsClassMemberDefinition(n rhino.Node) bool {
 	return n.IsMemberFunctionDef() && n.GetParent().IsClassMembers()
 }
 
 // Java: OptimizeReturns.isCandidateFunction(Node)
-func OptimizeReturns_IsCandidateFunction(n *rhino.Node) bool {
+func OptimizeReturns_IsCandidateFunction(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		// Named function expression can be recursive, this creates an alias of the name, meaning
@@ -226,16 +226,16 @@ func OptimizeReturns_IsCandidateFunction(n *rhino.Node) bool {
 // will be removed later by the peephole optimization passes.
 //
 // Java: OptimizeReturns.rewriteReturns(Node)
-func (o *OptimizeReturns) RewriteReturns(fnNode *rhino.Node) {
+func (o *OptimizeReturns) RewriteReturns(fnNode rhino.Node) {
 	jutil.CheckState(fnNode.IsFunction())
 	body := fnNode.GetLastChild()
 	o.rewriteReturnsInSubtree(body, body)
 }
 
-func (o *OptimizeReturns) rewriteReturnsInSubtree(n *rhino.Node, body *rhino.Node) {
+func (o *OptimizeReturns) rewriteReturnsInSubtree(n rhino.Node, body rhino.Node) {
 	parent := n.GetParent()
 	if n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(parent)) {
-		for c := n.GetFirstChild(); c != nil; {
+		for c := n.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
 			o.rewriteReturnsInSubtree(c, body)
 			c = next
@@ -259,10 +259,10 @@ func (o *OptimizeReturns) rewriteReturnsInSubtree(n *rhino.Node, body *rhino.Nod
 // graph.
 //
 // Java: OptimizeReturns.isRemovableValue(Node)
-func (o *OptimizeReturns) IsRemovableValue(n *rhino.Node) bool {
+func (o *OptimizeReturns) IsRemovableValue(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_TEMPLATELIT, rhino.Token_ARRAYLIT:
-		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if (!child.IsEmpty()) && !o.IsRemovableValue(child) {
 				return false
 			}

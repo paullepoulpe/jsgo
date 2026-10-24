@@ -28,7 +28,7 @@ import (
 )
 
 type renameVarsNodeRef struct {
-	node       *rhino.Node
+	node       rhino.Node
 	assignment *RenameVars_Assignment
 }
 
@@ -39,20 +39,20 @@ type RenameVars struct {
 	convention CodingConvention
 
 	// List of global NAME nodes
-	globalNameNodes *jutil.ArrayList[*rhino.Node]
+	globalNameNodes *jutil.ArrayList[rhino.Node]
 
 	// List of local NAME nodes
-	localNameNodes *jutil.ArrayList[*rhino.Node]
+	localNameNodes *jutil.ArrayList[rhino.Node]
 
 	globalRefChunks [][]renameVarsNodeRef
 	localRefChunks  [][]renameVarsNodeRef
 
 	// Mapping of original names for change detection
-	originalNameByNode *jutil.LinkedHashMap[*rhino.Node, string]
+	originalNameByNode *jutil.LinkedHashMap[rhino.Node, string]
 
 	// Maps a name node to its pseudo name, null if we are not generating so
 	// there will be no overhead unless we are debugging.
-	pseudoNameMap *jutil.LinkedHashMap[*rhino.Node, string]
+	pseudoNameMap *jutil.LinkedHashMap[rhino.Node, string]
 
 	// Set of extern variable names
 	externNames *jutil.LinkedHashSet[string]
@@ -130,7 +130,7 @@ func (r *RenameVars) allocAssignment(name string, isLocal bool) *RenameVars_Assi
 	return a
 }
 
-func (r *RenameVars) appendLocalRef(n *rhino.Node, a *RenameVars_Assignment) {
+func (r *RenameVars) appendLocalRef(n rhino.Node, a *RenameVars_Assignment) {
 	nChunks := len(r.localRefChunks)
 	if nChunks == 0 || len(r.localRefChunks[nChunks-1]) == cap(r.localRefChunks[nChunks-1]) {
 		newCap := 1024
@@ -143,7 +143,7 @@ func (r *RenameVars) appendLocalRef(n *rhino.Node, a *RenameVars_Assignment) {
 	r.localRefChunks[nChunks-1] = append(r.localRefChunks[nChunks-1], renameVarsNodeRef{node: n, assignment: a})
 }
 
-func (r *RenameVars) appendGlobalRef(n *rhino.Node, a *RenameVars_Assignment) {
+func (r *RenameVars) appendGlobalRef(n rhino.Node, a *RenameVars_Assignment) {
 	nChunks := len(r.globalRefChunks)
 	if nChunks == 0 || len(r.globalRefChunks[nChunks-1]) == cap(r.globalRefChunks[nChunks-1]) {
 		newCap := 512
@@ -197,7 +197,7 @@ func NewRenameVars(
 	}
 	r.localRenamingOnly = localRenamingOnly
 	if generatePseudoNames {
-		r.pseudoNameMap = jutil.NewLinkedHashMap[*rhino.Node, string]()
+		r.pseudoNameMap = jutil.NewLinkedHashMap[rhino.Node, string]()
 	} else {
 		r.pseudoNameMap = nil
 	}
@@ -279,7 +279,7 @@ func (p *RenameVars_ProcessVars) EnterScope(t *NodeTraversal) {
 func (p *RenameVars_ProcessVars) ExitScope(t *NodeTraversal) {}
 
 // Java: RenameVars.ProcessVars.visit(NodeTraversal, Node, Node)
-func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	tok := n.GetToken()
 	if tok != rhino.Token_NAME && tok != rhino.Token_IMPORT_STAR {
 		return
@@ -451,7 +451,7 @@ var RenameVars_ORDER_OF_OCCURRENCE_COMPARATOR = func(a1 *RenameVars_Assignment, 
 }
 
 // Java: RenameVars.process(Node, Node)
-func (r *RenameVars) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 	r.externNames = NodeUtil_CollectExternVariableNames(r.compiler, externs)
 
 	r.globalRefChunks = nil
@@ -550,7 +550,7 @@ func (r *RenameVars) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 // Java: RenameVars.setNameAndReport(Node, String)
-func (r *RenameVars) SetNameAndReport(n *rhino.Node, newName *string) {
+func (r *RenameVars) SetNameAndReport(n rhino.Node, newName *string) {
 	// A null newName, indicates it should not be renamed.
 	if newName != nil && *newName != n.GetString() {
 		n.SetString(*newName)
@@ -570,7 +570,7 @@ func (r *RenameVars) SetNameAndReport(n *rhino.Node, newName *string) {
 }
 
 // Java: RenameVars.getNewGlobalName(Node)
-func (r *RenameVars) GetNewGlobalName(n *rhino.Node) *string {
+func (r *RenameVars) GetNewGlobalName(n rhino.Node) *string {
 	oldName := n.GetString()
 	a := r.assignments.Get(oldName)
 	if a.newName != nil && *a.newName != oldName {
@@ -584,7 +584,7 @@ func (r *RenameVars) GetNewGlobalName(n *rhino.Node) *string {
 }
 
 // Java: RenameVars.getNewLocalName(Node)
-func (r *RenameVars) GetNewLocalName(n *rhino.Node) *string {
+func (r *RenameVars) GetNewLocalName(n rhino.Node) *string {
 	oldTempName := n.GetString()
 	a := r.assignments.Get(oldTempName)
 	if *a.newName != oldTempName {
@@ -599,7 +599,7 @@ func (r *RenameVars) GetNewLocalName(n *rhino.Node) *string {
 // pseudoNameMapGet is pseudoNameMap.get(n): null when absent.
 //
 // Go-only: language-adapter — Map.get returning a nullable String.
-func (r *RenameVars) pseudoNameMapGet(n *rhino.Node) *string {
+func (r *RenameVars) pseudoNameMapGet(n rhino.Node) *string {
 	if v, ok := r.pseudoNameMap.Lookup(n); ok {
 		return &v
 	}
@@ -607,7 +607,7 @@ func (r *RenameVars) pseudoNameMapGet(n *rhino.Node) *string {
 }
 
 // Java: RenameVars.recordPseudoName(Node)
-func (r *RenameVars) RecordPseudoName(n *rhino.Node) {
+func (r *RenameVars) RecordPseudoName(n rhino.Node) {
 	// Variable names should be in a different name space than
 	// property pseudo names.
 	r.pseudoNameMap.Put(n, "$"+n.GetString()+"$$")

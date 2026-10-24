@@ -721,15 +721,15 @@ func TestOptionalChainTypeCheckTest_OptChainTestsNonParameterized(t *testing.T) 
 func (c *OptionalChainTypeCheckTest_OptChainTestsNonParameterized) TestOptChainGetElemExpressions_nonNullObject() {
 	js := "/** @type {({b:number})} */ var a; var x; x = a?.[b]"
 
-	var script *rhino.Node = c.ParseAndTypeCheck(js)
-	var assign *rhino.Node = script.GetLastChild().GetFirstChild()
+	var script rhino.Node = c.ParseAndTypeCheck(js)
+	var assign rhino.Node = script.GetLastChild().GetFirstChild()
 	AssertThat(assign.IsAssign()).IsTrue()
 
-	var xName *rhino.Node = assign.GetFirstChild()
+	var xName rhino.Node = assign.GetFirstChild()
 	AssertThat(xName.IsName()).IsTrue()
 	AssertThat(xName.GetJSType().IsUnknownType()).IsTrue()
 
-	var getElem *rhino.Node = assign.GetSecondChild()
+	var getElem rhino.Node = assign.GetSecondChild()
 	AssertThat(getElem.IsOptChainGetElem() || getElem.IsGetElem()).IsTrue()
 	AssertThat(getElem.GetJSType().IsUnknownType()).IsTrue()
 }

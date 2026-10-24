@@ -69,7 +69,7 @@ func NewRewriteOptionalChainingOperatorWithTmpVarNameCreator(
 }
 
 // Java: RewriteOptionalChainingOperator.process(Node, Node)
-func (r *RewriteOptionalChainingOperator) Process(externs *rhino.Node, root *rhino.Node) {
+func (r *RewriteOptionalChainingOperator) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(r.compiler, NewRewriteOptionalChainingOperator_TranspilationCallback(r), externs, root)
 	TranspilationPasses_MaybeMarkFeatureAsTranspiledAway(r.compiler, root, parser.FeatureSet_Feature_OPTIONAL_CHAINING)
 }
@@ -91,7 +91,7 @@ func NewRewriteOptionalChainingOperator_TranspilationCallback(outer *RewriteOpti
 }
 
 // Java: RewriteOptionalChainingOperator.TranspilationCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *RewriteOptionalChainingOperator_TranspilationCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *RewriteOptionalChainingOperator_TranspilationCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		// Set the TmpVarNameCreator to be used when rewriting optional chains in this script.
 		c.rewriterBuilder.SetTmpVarNameCreator(c.outer.getTmpVarNameCreatorForInput(t.GetInput()))
@@ -103,7 +103,7 @@ func (c *RewriteOptionalChainingOperator_TranspilationCallback) ShouldTraverse(t
 }
 
 // Java: RewriteOptionalChainingOperator.TranspilationCallback.visit(NodeTraversal, Node, Node)
-func (c *RewriteOptionalChainingOperator_TranspilationCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *RewriteOptionalChainingOperator_TranspilationCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsEndOfFullOptChain(n) {
 		c.optChains.Add(c.rewriterBuilder.Build(n))
 	} else if n.IsScript() {

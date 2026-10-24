@@ -2261,33 +2261,33 @@ const rest = $jscomp$destructuring$var1;
 
 // Returns a list of all nodes in the given AST that matches the given qualified name
 // Java: Es6RewriteDestructuringTest.getAllNodesMatchingQName(Node, String)
-func (c *Es6RewriteDestructuringTest) GetAllNodesMatchingQName(root *rhino.Node, qname string) []*rhino.Node {
-	builder := []*rhino.Node{}
+func (c *Es6RewriteDestructuringTest) GetAllNodesMatchingQName(root rhino.Node, qname string) []rhino.Node {
+	builder := []rhino.Node{}
 	c.AddAllNodesMatchingQNameHelper(root, qname, &builder)
 	return builder
 }
 
 // Java: Es6RewriteDestructuringTest.addAllNodesMatchingQNameHelper(Node, String, ImmutableList.Builder<Node>)
-func (c *Es6RewriteDestructuringTest) AddAllNodesMatchingQNameHelper(root *rhino.Node, qname string, nodesSoFar *[]*rhino.Node) {
+func (c *Es6RewriteDestructuringTest) AddAllNodesMatchingQNameHelper(root rhino.Node, qname string, nodesSoFar *[]rhino.Node) {
 	if root.MatchesQualifiedName(qname) {
 		*nodesSoFar = append(*nodesSoFar, root)
 	}
-	for child := root.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := root.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		c.AddAllNodesMatchingQNameHelper(child, qname, nodesSoFar)
 	}
 }
 
 // Returns the first node (preorder) in the given AST that matches the given qualified name
 // Java: Es6RewriteDestructuringTest.getNodeMatchingQName(Node, String)
-func (c *Es6RewriteDestructuringTest) GetNodeMatchingQName(root *rhino.Node, qname string) *rhino.Node {
+func (c *Es6RewriteDestructuringTest) GetNodeMatchingQName(root rhino.Node, qname string) rhino.Node {
 	if root.MatchesQualifiedName(qname) {
 		return root
 	}
-	for child := root.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := root.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		result := c.GetNodeMatchingQName(child, qname)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }

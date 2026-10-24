@@ -34,7 +34,7 @@ import (
 // represents a GETPROP with a first child THIS inside a named class.
 //
 // Java: ClassUtil.isThisPropInsideClassWithName(Node)
-func ClassUtil_IsThisPropInsideClassWithName(maybeGetProp *rhino.Node) bool {
+func ClassUtil_IsThisPropInsideClassWithName(maybeGetProp rhino.Node) bool {
 	return classUtil_getClassNameOfThisProp(maybeGetProp) != nil
 }
 
@@ -43,19 +43,19 @@ func ClassUtil_IsThisPropInsideClassWithName(maybeGetProp *rhino.Node) bool {
 // be called if `isThisPropInsideClassWithName` returns true.
 //
 // Java: ClassUtil.getFullyQualifiedNameOfThisProp(Node)
-func ClassUtil_GetFullyQualifiedNameOfThisProp(getProp *rhino.Node) string {
+func ClassUtil_GetFullyQualifiedNameOfThisProp(getProp rhino.Node) string {
 	jutil.CheckArgument(ClassUtil_IsThisPropInsideClassWithName(getProp))
 	className := classUtil_getClassNameOfThisProp(getProp)
 	return *className + ".prototype." + getProp.GetString()
 }
 
 // Java: ClassUtil.getClassNameOfThisProp(Node)
-func classUtil_getClassNameOfThisProp(getprop *rhino.Node) *string {
+func classUtil_getClassNameOfThisProp(getprop rhino.Node) *string {
 	if !getprop.IsGetProp() || !getprop.GetFirstChild().IsThis() {
 		return nil
 	}
 	function := NodeUtil_GetEnclosingFunction(getprop)
-	if function == nil {
+	if function.IsNil() {
 		return nil
 	}
 	className := classUtil_getMemberFunctionClassName(function)
@@ -69,7 +69,7 @@ func classUtil_getClassNameOfThisProp(getprop *rhino.Node) *string {
 // node represents a MEMBER_FIELD_DEF that is inside a class with a name.
 //
 // Java: ClassUtil.isMemberFieldDefInsideClassWithName(Node)
-func ClassUtil_IsMemberFieldDefInsideClassWithName(fieldNode *rhino.Node) bool {
+func ClassUtil_IsMemberFieldDefInsideClassWithName(fieldNode rhino.Node) bool {
 	return classUtil_getMemberFieldDefClassName(fieldNode) != nil
 }
 
@@ -77,7 +77,7 @@ func ClassUtil_IsMemberFieldDefInsideClassWithName(fieldNode *rhino.Node) bool {
 // node represents a MEMBER_FIELD_DEF that is inside a class with a name.
 //
 // Java: ClassUtil.isComputedMemberInsideClassWithName(Node)
-func ClassUtil_IsComputedMemberInsideClassWithName(fieldNode *rhino.Node) bool {
+func ClassUtil_IsComputedMemberInsideClassWithName(fieldNode rhino.Node) bool {
 	return fieldNode.GetParent().IsClassMembers() &&
 		fieldNode.GetFirstChild().IsGetProp() &&
 		fieldNode.GetFirstFirstChild().MatchesName("Symbol")
@@ -88,7 +88,7 @@ func ClassUtil_IsComputedMemberInsideClassWithName(fieldNode *rhino.Node) bool {
 // for a field that belongs to a nameless class.
 //
 // Java: ClassUtil.getFullyQualifiedNameOfMemberFieldDef(Node)
-func ClassUtil_GetFullyQualifiedNameOfMemberFieldDef(fieldNode *rhino.Node) string {
+func ClassUtil_GetFullyQualifiedNameOfMemberFieldDef(fieldNode rhino.Node) string {
 	jutil.CheckArgument(ClassUtil_IsMemberFieldDefInsideClassWithName(fieldNode))
 	className := classUtil_getMemberFieldDefClassName(fieldNode)
 	if fieldNode.IsStaticMember() {
@@ -98,7 +98,7 @@ func ClassUtil_GetFullyQualifiedNameOfMemberFieldDef(fieldNode *rhino.Node) stri
 }
 
 // Java: ClassUtil.getMemberFieldDefClassName(Node)
-func classUtil_getMemberFieldDefClassName(fieldNode *rhino.Node) *string {
+func classUtil_getMemberFieldDefClassName(fieldNode rhino.Node) *string {
 	jutil.CheckArgument(fieldNode.IsMemberFieldDef())
 	classNode := fieldNode.GetGrandparent()
 	jutil.CheckState(classNode.IsClass())
@@ -106,7 +106,7 @@ func classUtil_getMemberFieldDefClassName(fieldNode *rhino.Node) *string {
 }
 
 // Java: ClassUtil.getFullyQualifiedNameOfMethod(Node)
-func ClassUtil_GetFullyQualifiedNameOfMethod(function *rhino.Node) string {
+func ClassUtil_GetFullyQualifiedNameOfMethod(function rhino.Node) string {
 	jutil.CheckArgument(ClassUtil_IsClassMethod(function))
 	className := classUtil_getMemberFunctionClassName(function)
 	jutil.CheckState(className != nil && *className != "")
@@ -119,7 +119,7 @@ func ClassUtil_GetFullyQualifiedNameOfMethod(function *rhino.Node) string {
 }
 
 // Java: ClassUtil.isClassMethod(Node)
-func ClassUtil_IsClassMethod(functionNode *rhino.Node) bool {
+func ClassUtil_IsClassMethod(functionNode rhino.Node) bool {
 	jutil.CheckArgument(functionNode.IsFunction())
 	parent := functionNode.GetParent()
 	return parent.IsMemberFunctionDef() && parent.GetParent().IsClassMembers()
@@ -129,13 +129,13 @@ func ClassUtil_IsClassMethod(functionNode *rhino.Node) bool {
 // function belongs to a named class, as opposed to an anonymous class.
 //
 // Java: ClassUtil.hasNamedClass(Node)
-func ClassUtil_HasNamedClass(functionNode *rhino.Node) bool {
+func ClassUtil_HasNamedClass(functionNode rhino.Node) bool {
 	jutil.CheckArgument(functionNode.IsFunction())
 	return classUtil_getMemberFunctionClassName(functionNode) != nil
 }
 
 // Java: ClassUtil.getMemberFunctionClassName(Node)
-func classUtil_getMemberFunctionClassName(functionNode *rhino.Node) *string {
+func classUtil_getMemberFunctionClassName(functionNode rhino.Node) *string {
 	jutil.CheckArgument(functionNode.IsFunction())
 	if ClassUtil_IsClassMethod(functionNode) {
 		parent := functionNode.GetParent()
@@ -149,7 +149,7 @@ func classUtil_getMemberFunctionClassName(functionNode *rhino.Node) *string {
 }
 
 // Java: ClassUtil.isConstructor(Node)
-func ClassUtil_IsConstructor(functionNode *rhino.Node) bool {
+func ClassUtil_IsConstructor(functionNode rhino.Node) bool {
 	if ClassUtil_IsClassMethod(functionNode) {
 		return NodeUtil_IsEs6Constructor(functionNode)
 	}

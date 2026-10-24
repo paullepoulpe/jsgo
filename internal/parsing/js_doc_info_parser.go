@@ -40,7 +40,7 @@ type JsDocInfoParser struct {
 
 	// Use a template node for properties set on all nodes to minimize the
 	// memory footprint associated with these (similar to IRFactory).
-	templateNode *rhino.Node
+	templateNode rhino.Node
 
 	// The DocInfo with the fileoverview tag for the whole file.
 	fileOverviewJSDocInfo *rhino.JSDocInfo
@@ -244,7 +244,7 @@ func NewJsDocInfoParser(
 	stream *JsDocTokenStream,
 	comment string,
 	commentPosition int,
-	templateNode *rhino.Node,
+	templateNode rhino.Node,
 	config *Config,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
 	errorReporter rhino.ErrorReporter,
@@ -259,7 +259,7 @@ func (p *JsDocInfoParser) Init(
 	stream *JsDocTokenStream,
 	comment string,
 	commentPosition int,
-	templateNode *rhino.Node,
+	templateNode rhino.Node,
 	config *Config,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
 	errorReporter rhino.ErrorReporter,
@@ -283,7 +283,7 @@ func (p *JsDocInfoParser) Init(
 	p.onlyParseLicenseJsDoc = config.JsDocParsingMode() == Config_JsDocParsing_LICENSE_COMMENTS_ONLY
 
 	p.errorReporter = errorReporter
-	if templateNode == nil {
+	if templateNode.IsNil() {
 		p.templateNode = rhino.IR_Script()
 	} else {
 		p.templateNode = templateNode
@@ -331,8 +331,8 @@ func (p *JsDocInfoParser) ParseInlineTypeDoc() *rhino.JSDocInfo {
 }
 
 // Java: JsDocInfoParser.recordTypeNode(int, int, Node, boolean)
-func (p *JsDocInfoParser) RecordTypeNode(lineno int, startCharno int, typeAst *rhino.Node, matchingLC bool) {
-	if typeAst != nil {
+func (p *JsDocInfoParser) RecordTypeNode(lineno int, startCharno int, typeAst rhino.Node, matchingLC bool) {
+	if !typeAst.IsNil() {
 		endLineno := p.stream.GetLineno()
 		endCharno := p.stream.GetCharno()
 		p.jsdocBuilder.MarkTypeNode(typeAst, lineno, startCharno, endLineno, endCharno, matchingLC)
@@ -344,7 +344,7 @@ func (p *JsDocInfoParser) RecordTypeNode(lineno int, startCharno int, typeAst *r
 // failed.
 //
 // Java: JsDocInfoParser.parseTypeString(String)
-func JsDocInfoParser_ParseTypeString(typeString string) *rhino.Node {
+func JsDocInfoParser_ParseTypeString(typeString string) rhino.Node {
 	parser := JsDocInfoParser_GetParser(typeString)
 	return parser.ParseTopLevelTypeExpression(parser.Next())
 }
@@ -378,7 +378,7 @@ func JsDocInfoParser_GetParser(toParse string) *JsDocInfoParser {
 		NewJsDocTokenStream(toParse),
 		toParse,
 		0,
-		nil,
+		rhino.Node{},
 		config,
 		JsDocInfoParser_JsDocSourceKind_NORMAL,
 		rhino.ErrorReporter_NULL_INSTANCE)
@@ -683,7 +683,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 			type_ = nil
 			if token != JsDocToken_EOL && token != JsDocToken_EOC {
 				typeNode := p.ParseAndRecordTypeNode(token)
-				if typeNode != nil && typeNode.IsStringLit() {
+				if !typeNode.IsNil() && typeNode.IsStringLit() {
 					typeName := typeNode.GetString()
 					if !JsDocInfoParser_primitiveTypes.Contains(typeName) {
 						typeNode = p.WrapNode(rhino.Token_BANG, typeNode)
@@ -1075,7 +1075,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 				p.AddParserWarningAt(rhino.Msg_JSDOC_TEMPLATE_BOUNDEDGENERICS_USED, lineno, charno)
 
 				boundTypeNode := p.ParseTypeExpressionAnnotation(p.Next())
-				if boundTypeNode != nil {
+				if !boundTypeNode.IsNil() {
 					boundTypeExpression = p.CreateJSTypeExpression(boundTypeNode)
 				}
 			}
@@ -1088,7 +1088,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 				for {
 					nameNode := p.ParseNameExpression(p.Next())
 					var templateName *string
-					if nameNode != nil {
+					if !nameNode.IsNil() {
 						s := nameNode.GetString()
 						templateName = &s
 					}
@@ -1103,7 +1103,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 			}
 
 			// Look for some TTL. Always use TRIM for template TTL expressions.
-			var ttlAst *rhino.Node
+			var ttlAst rhino.Node
 			if p.Match(JsDocToken_COLON) {
 				// TODO(nickreid): Fix `extractMultilineTextualBlock` so the result includes the
 				// current token. At present, it reads the stream directly and bypasses any previously
@@ -1122,18 +1122,18 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 				return token // There's nothing we can connect a bound or TTL to.
 			case 1:
 			default:
-				if boundTypeExpression != nil || ttlAst != nil {
+				if boundTypeExpression != nil || !ttlAst.IsNil() {
 					p.AddTypeWarningAt(rhino.Msg_JSDOC_TEMPLATE_MULTIPLEDECLARATION, lineno, charno)
 				}
 			}
 
-			if boundTypeExpression != nil && ttlAst != nil {
+			if boundTypeExpression != nil && !ttlAst.IsNil() {
 				p.AddTypeWarningAt(rhino.Msg_JSDOC_TEMPLATE_BOUNDSWITHTTL, lineno, charno)
 				return token // It's undecidable what the user intent was.
 			}
 
 			// Based on the form form of the declaration, record the information in the JsDocInfo.
-			if ttlAst != nil {
+			if !ttlAst.IsNil() {
 				if !p.jsdocBuilder.RecordTypeTransformation(templateNames[0], ttlAst) {
 					p.AddTypeWarningAt(rhino.Msg_JSDOC_TEMPLATE_NAME_REDECLARATION, lineno, charno)
 				}
@@ -1194,7 +1194,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 			lineno = p.stream.GetLineno()
 			charno = p.stream.GetCharno()
 
-			var typeNode *rhino.Node
+			var typeNode rhino.Node
 			hasType := p.LookAheadForType()
 			isAlternateTypeAnnotation := annotation == Annotation_PACKAGE ||
 				annotation == Annotation_PRIVATE ||
@@ -1351,10 +1351,10 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 }
 
 // Java: JsDocInfoParser.parseTtlAst(ExtractionInfo, int, int)
-func (p *JsDocInfoParser) ParseTtlAst(ttlExtraction JsDocInfoParser_ExtractionInfo, lineno int, charno int) *rhino.Node {
+func (p *JsDocInfoParser) ParseTtlAst(ttlExtraction JsDocInfoParser_ExtractionInfo, lineno int, charno int) rhino.Node {
 	ttlExpression := ttlExtraction.string_
 	if !strings.HasPrefix(ttlExpression, JsDocInfoParser_TTL_START_DELIMITER) {
-		return nil
+		return rhino.Node{}
 	}
 
 	// (Both delimiters are ASCII, so byte offsets are char boundaries.)
@@ -1370,13 +1370,13 @@ func (p *JsDocInfoParser) ParseTtlAst(ttlExtraction JsDocInfoParser_ExtractionIn
 
 	if ttlExpression == "" {
 		p.AddTypeWarningAt(rhino.Msg_JSDOC_TEMPLATE_TYPETRANSFORMATION_EXPRESSIONMISSING, lineno, charno)
-		return nil
+		return rhino.Node{}
 	}
 
 	// Build the AST for the type transformation
 	ttlParser := NewTypeTransformationParser(ttlExpression, p.GetSourceFile(), p.errorReporter, lineno, charno)
 	if !ttlParser.ParseTypeTransformation() {
-		return nil
+		return rhino.Node{}
 	}
 
 	return ttlParser.GetTypeTransformationAst()
@@ -1663,7 +1663,7 @@ func (p *JsDocInfoParser) ParseIdGeneratorTag(token JsDocToken) JsDocToken {
 // token: The current token. Returns the type expression found or nil if none.
 //
 // Java: JsDocInfoParser.parseAndRecordTypeNode(JsDocToken)
-func (p *JsDocInfoParser) ParseAndRecordTypeNode(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseAndRecordTypeNode(token JsDocToken) rhino.Node {
 	return p.ParseAndRecordTypeNodeWithPosition(
 		token, p.stream.GetLineno(), p.stream.GetCharno(), token == JsDocToken_LEFT_CURLY, false)
 }
@@ -1686,8 +1686,8 @@ func (p *JsDocInfoParser) ParseAndRecordTypeNodeWithPosition(
 	startCharno int,
 	matchingLC bool,
 	onlyParseSimpleNames bool,
-) *rhino.Node {
-	var typeNode *rhino.Node
+) rhino.Node {
+	var typeNode rhino.Node
 
 	if onlyParseSimpleNames {
 		typeNode = p.ParseTypeNameAnnotation(token)
@@ -1709,7 +1709,7 @@ func (p *JsDocInfoParser) ParseAndRecordTypeNodeWithPosition(
 //
 // Java: JsDocInfoParser.parseAndRecordTypeNameNode(JsDocToken, int, int, boolean)
 func (p *JsDocInfoParser) ParseAndRecordTypeNameNode(
-	token JsDocToken, lineno int, startCharno int, matchingLC bool) *rhino.Node {
+	token JsDocToken, lineno int, startCharno int, matchingLC bool) rhino.Node {
 	return p.ParseAndRecordTypeNodeWithPosition(token, lineno, startCharno, matchingLC, true)
 }
 
@@ -1724,7 +1724,7 @@ func (p *JsDocInfoParser) ParseAndRecordTypeNameNode(
 // token: The current token. Returns the type expression found or nil if none.
 //
 // Java: JsDocInfoParser.parseAndRecordParamTypeNode(JsDocToken)
-func (p *JsDocInfoParser) ParseAndRecordParamTypeNode(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseAndRecordParamTypeNode(token JsDocToken) rhino.Node {
 	jutil.CheckArgument(token == JsDocToken_LEFT_CURLY)
 	lineno := p.stream.GetLineno()
 	startCharno := p.stream.GetCharno()
@@ -1785,8 +1785,8 @@ func (p *JsDocInfoParser) ToStringToken(token JsDocToken) string {
 // n: A node. May be nil.
 //
 // Java: JsDocInfoParser.createJSTypeExpression(Node)
-func (p *JsDocInfoParser) CreateJSTypeExpression(n *rhino.Node) *rhino.JSTypeExpression {
-	if n == nil {
+func (p *JsDocInfoParser) CreateJSTypeExpression(n rhino.Node) *rhino.JSTypeExpression {
+	if n.IsNil() {
 		return nil
 	}
 	return rhino.NewJSTypeExpression(n, p.GetSourceName())
@@ -2117,11 +2117,11 @@ func JsDocInfoParser_TrimEnd(s string) string {
 // TypeExpressionAnnotation := TypeExpression | '{' TopLevelTypeExpression '}'
 //
 // Java: JsDocInfoParser.parseTypeExpressionAnnotation(JsDocToken)
-func (p *JsDocInfoParser) ParseTypeExpressionAnnotation(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseTypeExpressionAnnotation(token JsDocToken) rhino.Node {
 	if token == JsDocToken_LEFT_CURLY {
 		p.SkipEOLs()
 		typeNode := p.ParseTopLevelTypeExpression(p.Next())
-		if typeNode != nil {
+		if !typeNode.IsNil() {
 			p.SkipEOLs()
 			if !p.Match(JsDocToken_RIGHT_CURLY) {
 				if typeNode.IsStringLit() && "import" == typeNode.GetString() {
@@ -2153,7 +2153,7 @@ func (p *JsDocInfoParser) ParseTypeExpressionAnnotation(token JsDocToken) *rhino
 //	    TopLevelTypeExpression '='
 //
 // Java: JsDocInfoParser.parseParamTypeExpression(JsDocToken)
-func (p *JsDocInfoParser) ParseParamTypeExpression(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseParamTypeExpression(token JsDocToken) rhino.Node {
 	restArg := false
 	if token == JsDocToken_ITER_REST {
 		token = p.Next()
@@ -2166,7 +2166,7 @@ func (p *JsDocInfoParser) ParseParamTypeExpression(token JsDocToken) *rhino.Node
 	}
 
 	typeNode := p.ParseTopLevelTypeExpression(token)
-	if typeNode != nil {
+	if !typeNode.IsNil() {
 		p.SkipEOLs()
 		if restArg {
 			typeNode = p.WrapNode(rhino.Token_ITER_REST, typeNode)
@@ -2184,13 +2184,13 @@ func (p *JsDocInfoParser) ParseParamTypeExpression(token JsDocToken) *rhino.Node
 // ParamTypeExpressionAnnotation := '{' ParamTypeExpression '}'
 //
 // Java: JsDocInfoParser.parseParamTypeExpressionAnnotation(JsDocToken)
-func (p *JsDocInfoParser) ParseParamTypeExpressionAnnotation(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseParamTypeExpressionAnnotation(token JsDocToken) rhino.Node {
 	jutil.CheckArgument(token == JsDocToken_LEFT_CURLY)
 
 	p.SkipEOLs()
 
 	typeNode := p.ParseParamTypeExpression(p.Next())
-	if typeNode != nil {
+	if !typeNode.IsNil() {
 		if !p.Match(JsDocToken_RIGHT_CURLY) {
 			p.ReportTypeSyntaxWarning(rhino.Msg_JSDOC_MISSING_RC)
 		} else {
@@ -2204,11 +2204,11 @@ func (p *JsDocInfoParser) ParseParamTypeExpressionAnnotation(token JsDocToken) *
 // ParseTypeNameAnnotation parses TypeNameAnnotation := TypeName | '{' TypeName '}'
 //
 // Java: JsDocInfoParser.parseTypeNameAnnotation(JsDocToken)
-func (p *JsDocInfoParser) ParseTypeNameAnnotation(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseTypeNameAnnotation(token JsDocToken) rhino.Node {
 	if token == JsDocToken_LEFT_CURLY {
 		p.SkipEOLs()
 		typeNode := p.ParseTypeName(p.Next())
-		if typeNode != nil {
+		if !typeNode.IsNil() {
 			p.SkipEOLs()
 			if !p.Match(JsDocToken_RIGHT_CURLY) {
 				p.ReportTypeSyntaxWarning(rhino.Msg_JSDOC_MISSING_RC)
@@ -2229,9 +2229,9 @@ func (p *JsDocInfoParser) ParseTypeNameAnnotation(token JsDocToken) *rhino.Node 
 // We made this rule up, for the sake of backwards compatibility.
 //
 // Java: JsDocInfoParser.parseTopLevelTypeExpression(JsDocToken)
-func (p *JsDocInfoParser) ParseTopLevelTypeExpression(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseTopLevelTypeExpression(token JsDocToken) rhino.Node {
 	typeExpr := p.ParseTypeExpression(token)
-	if typeExpr != nil {
+	if !typeExpr.IsNil() {
 		// top-level unions are allowed
 		if p.Match(JsDocToken_PIPE) {
 			p.Next()
@@ -2247,10 +2247,10 @@ func (p *JsDocInfoParser) ParseTopLevelTypeExpression(token JsDocToken) *rhino.N
 // TypeExpressionList := TopLevelTypeExpression | TopLevelTypeExpression ',' TypeExpressionList
 //
 // Java: JsDocInfoParser.parseTypeExpressionList(String, JsDocToken)
-func (p *JsDocInfoParser) ParseTypeExpressionList(typeName string, token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseTypeExpressionList(typeName string, token JsDocToken) rhino.Node {
 	typeExpr := p.ParseTopLevelTypeExpression(token)
-	if typeExpr == nil {
-		return nil
+	if typeExpr.IsNil() {
+		return rhino.Node{}
 	}
 	typeList := p.NewNode(rhino.Token_BLOCK)
 	numTypeExprs := 1
@@ -2259,8 +2259,8 @@ func (p *JsDocInfoParser) ParseTypeExpressionList(typeName string, token JsDocTo
 		p.Next()
 		p.SkipEOLs()
 		typeExpr = p.ParseTopLevelTypeExpression(p.Next())
-		if typeExpr == nil {
-			return nil
+		if typeExpr.IsNil() {
+			return rhino.Node{}
 		}
 		numTypeExprs++
 		typeList.AddChildToBack(typeExpr)
@@ -2277,7 +2277,7 @@ func (p *JsDocInfoParser) ParseTypeExpressionList(typeName string, token JsDocTo
 // BasicTypeExpression '?' | BasicTypeExpression '!' | '?'
 //
 // Java: JsDocInfoParser.parseTypeExpression(JsDocToken)
-func (p *JsDocInfoParser) ParseTypeExpression(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseTypeExpression(token JsDocToken) rhino.Node {
 	// Save the source position before we consume additional tokens.
 	lineno := p.stream.GetLineno()
 	charno := p.stream.GetCharno()
@@ -2318,7 +2318,7 @@ func (p *JsDocInfoParser) ParseTypeExpression(token JsDocToken) *rhino.Node {
 		basicTypeExpr := p.ParseBasicTypeExpression(token)
 		lineno = p.stream.GetLineno()
 		charno = p.stream.GetCharno()
-		if basicTypeExpr != nil {
+		if !basicTypeExpr.IsNil() {
 			if p.Match(JsDocToken_QMARK) {
 				p.Next()
 				return p.WrapNodeAt(rhino.Token_QMARK, basicTypeExpr, lineno, charno)
@@ -2337,7 +2337,7 @@ func (p *JsDocInfoParser) ParseTypeExpression(token JsDocToken) *rhino.Node {
 // right hand side of a this: or new:
 //
 // Java: JsDocInfoParser.parseContextTypeExpression(JsDocToken)
-func (p *JsDocInfoParser) ParseContextTypeExpression(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseContextTypeExpression(token JsDocToken) rhino.Node {
 	if token == JsDocToken_QMARK {
 		return p.NewNode(rhino.Token_QMARK)
 	} else {
@@ -2350,7 +2350,7 @@ func (p *JsDocInfoParser) ParseContextTypeExpression(token JsDocToken) *rhino.No
 // RecordType | TypeofType
 //
 // Java: JsDocInfoParser.parseBasicTypeExpression(JsDocToken)
-func (p *JsDocInfoParser) ParseBasicTypeExpression(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseBasicTypeExpression(token JsDocToken) rhino.Node {
 	if token == JsDocToken_STAR {
 		return p.NewNode(rhino.Token_STAR)
 	} else if token == JsDocToken_LEFT_CURLY {
@@ -2380,10 +2380,10 @@ func (p *JsDocInfoParser) ParseBasicTypeExpression(token JsDocToken) *rhino.Node
 }
 
 // Java: JsDocInfoParser.parseNameExpression(JsDocToken)
-func (p *JsDocInfoParser) ParseNameExpression(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseNameExpression(token JsDocToken) rhino.Node {
 	if token != JsDocToken_STRING {
 		p.AddParserWarningAt(rhino.Msg_JSDOC_NAME_SYNTAX, p.stream.GetLineno(), p.stream.GetCharno())
-		return nil
+		return rhino.Node{}
 	}
 
 	startLineno := p.stream.GetLineno()
@@ -2419,14 +2419,14 @@ func (p *JsDocInfoParser) ParseNameExpression(token JsDocToken) *rhino.Node {
 //	TypeApplication := '.'? '<' TypeExpressionList '>'
 //
 // Java: JsDocInfoParser.parseTypeName(JsDocToken)
-func (p *JsDocInfoParser) ParseTypeName(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseTypeName(token JsDocToken) rhino.Node {
 	typeNameNode := p.ParseNameExpression(token)
 
 	if p.Match(JsDocToken_LEFT_ANGLE) {
 		p.Next()
 		p.SkipEOLs()
 		memberType := p.ParseTypeExpressionList(typeNameNode.GetString(), p.Next())
-		if memberType != nil {
+		if !memberType.IsNil() {
 			typeNameNode.AddChildToFront(memberType)
 
 			p.SkipEOLs()
@@ -2444,15 +2444,15 @@ func (p *JsDocInfoParser) ParseTypeName(token JsDocToken) *rhino.Node {
 // TypeofType := 'typeof' NameExpression | 'typeof' '(' NameExpression ')'
 //
 // Java: JsDocInfoParser.parseTypeofType(JsDocToken)
-func (p *JsDocInfoParser) ParseTypeofType(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseTypeofType(token JsDocToken) rhino.Node {
 	if token == JsDocToken_LEFT_CURLY {
 		return p.ReportTypeSyntaxWarning(rhino.Msg_JSDOC_UNNECESSARY_BRACES)
 	}
 
 	typeofType := p.NewNode(rhino.Token_TYPEOF)
 	name := p.ParseNameExpression(token)
-	if name == nil {
-		return nil
+	if name.IsNil() {
+		return rhino.Node{}
 	}
 
 	p.SkipEOLs()
@@ -2474,7 +2474,7 @@ func (p *JsDocInfoParser) ParseTypeofType(token JsDocToken) *rhino.Node {
 // return type could be the first, second, or third child.
 //
 // Java: JsDocInfoParser.parseFunctionType(JsDocToken)
-func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) rhino.Node {
 	// NOTE(nicksantos): We're not implementing generics at the moment, so
 	// just throw out TypeParameters.
 	if token != JsDocToken_LEFT_PAREN {
@@ -2483,7 +2483,7 @@ func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) *rhino.Node {
 	}
 
 	functionType := p.NewNode(rhino.Token_FUNCTION)
-	var parameters *rhino.Node
+	var parameters rhino.Node
 	p.SkipEOLs()
 	if !p.Match(JsDocToken_RIGHT_PAREN) {
 		token = p.Next()
@@ -2502,8 +2502,8 @@ func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) *rhino.Node {
 						contextTypeToken = rhino.Token_THIS
 					}
 					contextType := p.WrapNode(contextTypeToken, p.ParseContextTypeExpression(p.Next()))
-					if contextType == nil {
-						return nil
+					if contextType.IsNil() {
+						return rhino.Node{}
 					}
 
 					functionType.AddChildToFront(contextType)
@@ -2523,13 +2523,13 @@ func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) *rhino.Node {
 
 		if hasParams {
 			parameters = p.ParseParametersType(token)
-			if parameters == nil {
-				return nil
+			if parameters.IsNil() {
+				return rhino.Node{}
 			}
 		}
 	}
 
-	if parameters != nil {
+	if !parameters.IsNil() {
 		functionType.AddChildToBack(parameters)
 	}
 
@@ -2541,8 +2541,8 @@ func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) *rhino.Node {
 	p.SkipEOLs()
 	p.Next()
 	resultType := p.ParseResultType()
-	if resultType == nil {
-		return nil
+	if resultType.IsNil() {
+		return rhino.Node{}
 	} else {
 		functionType.AddChildToBack(resultType)
 	}
@@ -2574,13 +2574,13 @@ func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) *rhino.Node {
 // order-checking in two places, we just do all of it in type resolution.
 //
 // Java: JsDocInfoParser.parseParametersType(JsDocToken)
-func (p *JsDocInfoParser) ParseParametersType(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseParametersType(token JsDocToken) rhino.Node {
 	paramsType := p.NewNode(rhino.Token_PARAM_LIST)
 	isVarArgs := false
-	var paramType *rhino.Node
+	var paramType rhino.Node
 	if token != JsDocToken_RIGHT_PAREN {
 		for {
-			if paramType != nil {
+			if !paramType.IsNil() {
 				// skip past the comma
 				p.Next()
 				p.SkipEOLs()
@@ -2610,8 +2610,8 @@ func (p *JsDocInfoParser) ParseParametersType(token JsDocToken) *rhino.Node {
 				}
 			}
 
-			if paramType == nil {
-				return nil
+			if paramType.IsNil() {
+				return rhino.Node{}
 			}
 			paramsType.AddChildToBack(paramType)
 			if isVarArgs {
@@ -2635,7 +2635,7 @@ func (p *JsDocInfoParser) ParseParametersType(token JsDocToken) *rhino.Node {
 // ParseResultType parses ResultType := <empty> | ':' void | ':' TypeExpression
 //
 // Java: JsDocInfoParser.parseResultType()
-func (p *JsDocInfoParser) ParseResultType() *rhino.Node {
+func (p *JsDocInfoParser) ParseResultType() rhino.Node {
 	p.SkipEOLs()
 	if !p.Match(JsDocToken_COLON) {
 		return p.NewNode(rhino.Token_EMPTY)
@@ -2658,23 +2658,23 @@ func (p *JsDocInfoParser) ParseResultType() *rhino.Node {
 // We've removed the empty union type.
 //
 // Java: JsDocInfoParser.parseUnionType(JsDocToken)
-func (p *JsDocInfoParser) ParseUnionType(token JsDocToken) *rhino.Node {
-	return p.ParseUnionTypeWithAlternate(token, nil)
+func (p *JsDocInfoParser) ParseUnionType(token JsDocToken) rhino.Node {
+	return p.ParseUnionTypeWithAlternate(token, rhino.Node{})
 }
 
 // ParseUnionTypeWithAlternate creates a new union type, with an alternate
 // that has already been parsed. The alternate may be nil.
 //
 // Java: JsDocInfoParser.parseUnionTypeWithAlternate(JsDocToken, Node)
-func (p *JsDocInfoParser) ParseUnionTypeWithAlternate(token JsDocToken, alternate *rhino.Node) *rhino.Node {
+func (p *JsDocInfoParser) ParseUnionTypeWithAlternate(token JsDocToken, alternate rhino.Node) rhino.Node {
 	union := p.NewNode(rhino.Token_PIPE)
-	if alternate != nil {
+	if !alternate.IsNil() {
 		union.AddChildToBack(alternate)
 	}
 
-	var expr *rhino.Node
+	var expr rhino.Node
 	for {
-		if expr != nil {
+		if !expr.IsNil() {
 			p.SkipEOLs()
 			token = p.Next()
 			jutil.CheckState(token == JsDocToken_PIPE)
@@ -2683,8 +2683,8 @@ func (p *JsDocInfoParser) ParseUnionTypeWithAlternate(token JsDocToken, alternat
 			token = p.Next()
 		}
 		expr = p.ParseTypeExpression(token)
-		if expr == nil {
-			return nil
+		if expr.IsNil() {
+			return rhino.Node{}
 		}
 
 		union.AddChildToBack(expr)
@@ -2693,7 +2693,7 @@ func (p *JsDocInfoParser) ParseUnionTypeWithAlternate(token JsDocToken, alternat
 		}
 	}
 
-	if alternate == nil {
+	if alternate.IsNil() {
 		p.SkipEOLs()
 		if !p.Match(JsDocToken_RIGHT_PAREN) {
 			return p.ReportTypeSyntaxWarning(rhino.Msg_JSDOC_MISSING_RP)
@@ -2711,11 +2711,11 @@ func (p *JsDocInfoParser) ParseUnionTypeWithAlternate(token JsDocToken, alternat
 // ParseRecordType parses RecordType := '{' FieldTypeList '}'
 //
 // Java: JsDocInfoParser.parseRecordType(JsDocToken)
-func (p *JsDocInfoParser) ParseRecordType(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseRecordType(token JsDocToken) rhino.Node {
 	recordType := p.NewNode(rhino.Token_LC)
 	fieldTypeList := p.ParseFieldTypeList(token)
 
-	if fieldTypeList == nil {
+	if fieldTypeList.IsNil() {
 		return p.ReportGenericTypeSyntaxWarning()
 	}
 
@@ -2733,7 +2733,7 @@ func (p *JsDocInfoParser) ParseRecordType(token JsDocToken) *rhino.Node {
 // ParseFieldTypeList parses FieldTypeList := FieldType | FieldType ',' FieldTypeList
 //
 // Java: JsDocInfoParser.parseFieldTypeList(JsDocToken)
-func (p *JsDocInfoParser) ParseFieldTypeList(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseFieldTypeList(token JsDocToken) rhino.Node {
 	fieldTypeList := p.NewNode(rhino.Token_LB)
 
 	names := jutil.NewLinkedHashSet[string]()
@@ -2741,8 +2741,8 @@ func (p *JsDocInfoParser) ParseFieldTypeList(token JsDocToken) *rhino.Node {
 	for {
 		fieldType := p.ParseFieldType(token)
 
-		if fieldType == nil {
-			return nil
+		if fieldType.IsNil() {
+			return rhino.Node{}
 		}
 
 		var name string
@@ -2782,11 +2782,11 @@ func (p *JsDocInfoParser) ParseFieldTypeList(token JsDocToken) *rhino.Node {
 // ParseFieldType parses FieldType := FieldName | FieldName ':' TypeExpression
 //
 // Java: JsDocInfoParser.parseFieldType(JsDocToken)
-func (p *JsDocInfoParser) ParseFieldType(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseFieldType(token JsDocToken) rhino.Node {
 	fieldName := p.ParseFieldName(token)
 
-	if fieldName == nil {
-		return nil
+	if fieldName.IsNil() {
+		return rhino.Node{}
 	}
 
 	p.SkipEOLs()
@@ -2802,8 +2802,8 @@ func (p *JsDocInfoParser) ParseFieldType(token JsDocToken) *rhino.Node {
 	p.SkipEOLs()
 	typeExpression := p.ParseTypeExpression(p.Next())
 
-	if typeExpression == nil {
-		return nil
+	if typeExpression.IsNil() {
+		return rhino.Node{}
 	}
 
 	fieldType := p.NewNode(rhino.Token_COLON)
@@ -2816,9 +2816,9 @@ func (p *JsDocInfoParser) ParseFieldType(token JsDocToken) *rhino.Node {
 // FieldName := NameExpression | StringLiteral | NumberLiteral | ReservedIdentifier
 //
 // Java: JsDocInfoParser.parseFieldName(JsDocToken)
-func (p *JsDocInfoParser) ParseFieldName(token JsDocToken) *rhino.Node {
+func (p *JsDocInfoParser) ParseFieldName(token JsDocToken) rhino.Node {
 	if token != JsDocToken_STRING {
-		return nil
+		return rhino.Node{}
 	}
 	s := p.stream.GetString()
 	n := rhino.AllocNode().InitStringFromTemplate(rhino.Token_STRING_KEY, s, p.templateNode)
@@ -2828,29 +2828,29 @@ func (p *JsDocInfoParser) ParseFieldName(token JsDocToken) *rhino.Node {
 }
 
 // Java: JsDocInfoParser.wrapNode(Token, Node)
-func (p *JsDocInfoParser) WrapNode(type_ rhino.Token, n *rhino.Node) *rhino.Node {
-	if n == nil {
-		return nil
+func (p *JsDocInfoParser) WrapNode(type_ rhino.Token, n rhino.Node) rhino.Node {
+	if n.IsNil() {
+		return rhino.Node{}
 	}
 	return p.WrapNodeAt(type_, n, n.GetLineno(), n.GetCharno())
 }
 
 // Java: JsDocInfoParser.wrapNode(Token, Node, int, int)
-func (p *JsDocInfoParser) WrapNodeAt(type_ rhino.Token, n *rhino.Node, lineno int, charno int) *rhino.Node {
-	if n == nil {
-		return nil
+func (p *JsDocInfoParser) WrapNodeAt(type_ rhino.Token, n rhino.Node, lineno int, charno int) rhino.Node {
+	if n.IsNil() {
+		return rhino.Node{}
 	}
 	return rhino.AllocNode().InitWithChildFromTemplate(type_, n, p.templateNode).SetLinenoCharno(lineno, charno)
 }
 
 // Java: JsDocInfoParser.newNode(Token)
-func (p *JsDocInfoParser) NewNode(type_ rhino.Token) *rhino.Node {
+func (p *JsDocInfoParser) NewNode(type_ rhino.Token) rhino.Node {
 	return rhino.AllocNode().InitFromTemplate(type_, p.templateNode).
 		SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
 }
 
 // Java: JsDocInfoParser.newStringNode(String)
-func (p *JsDocInfoParser) NewStringNode(s string) *rhino.Node {
+func (p *JsDocInfoParser) NewStringNode(s string) rhino.Node {
 	n := rhino.AllocNode().InitStringFromTemplate(rhino.Token_STRINGLIT, s, p.templateNode)
 	n.SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
 	n.SetLength(jutil.StringLength(s))
@@ -2858,13 +2858,13 @@ func (p *JsDocInfoParser) NewStringNode(s string) *rhino.Node {
 }
 
 // Java: JsDocInfoParser.reportTypeSyntaxWarning(Msg)
-func (p *JsDocInfoParser) ReportTypeSyntaxWarning(warning rhino.Msg) *rhino.Node {
+func (p *JsDocInfoParser) ReportTypeSyntaxWarning(warning rhino.Msg) rhino.Node {
 	p.AddTypeWarningAt(warning, p.stream.GetLineno(), p.stream.GetCharno())
-	return nil
+	return rhino.Node{}
 }
 
 // Java: JsDocInfoParser.reportGenericTypeSyntaxWarning()
-func (p *JsDocInfoParser) ReportGenericTypeSyntaxWarning() *rhino.Node {
+func (p *JsDocInfoParser) ReportGenericTypeSyntaxWarning() rhino.Node {
 	return p.ReportTypeSyntaxWarning(rhino.Msg_JSDOC_TYPE_SYNTAX)
 }
 

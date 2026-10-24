@@ -101,7 +101,7 @@ func (c *TypedAstSerializerTest) SetUp() {
 
 // Java: TypedAstSerializerTest.getProcessor(Compiler)
 func (c *TypedAstSerializerTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		// In general we avoid serializing types and properties of types that are not referenced by
 		// AST nodes. In practice this avoids serializing properties and types that have been entirely
 		// removed due to optimizations.
@@ -109,7 +109,7 @@ func (c *TypedAstSerializerTest) GetProcessor(compiler *Compiler) CompilerPass {
 		// We will simulate this behavior here by clearing the externs so only types and
 		// properties that are referenced in the sources branch of the AST will be serialized.
 		externsRoot := compiler.GetRoot().GetFirstChild()
-		for externsScript := externsRoot.GetFirstChild(); externsScript != nil; externsScript = externsScript.GetNext() {
+		for externsScript := externsRoot.GetFirstChild(); !externsScript.IsNil(); externsScript = externsScript.GetNext() {
 			externsScript.RemoveChildren()
 			compiler.ReportChangeToChangeScope(externsScript)
 		}

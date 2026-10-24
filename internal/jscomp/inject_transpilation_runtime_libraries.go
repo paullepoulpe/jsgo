@@ -60,9 +60,9 @@ func NewInjectTranspilationRuntimeLibrariesWithInstrumentAsyncContext(
 }
 
 // Java: InjectTranspilationRuntimeLibraries.process(Node, Node)
-func (i *InjectTranspilationRuntimeLibraries) Process(externs *rhino.Node, root *rhino.Node) {
+func (i *InjectTranspilationRuntimeLibraries) Process(externs rhino.Node, root rhino.Node) {
 	used := parser.FeatureSet_ES3
-	for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		used = used.WithFeatureSet(InjectTranspilationRuntimeLibraries_GetScriptFeatures(script))
 	}
 
@@ -71,7 +71,7 @@ func (i *InjectTranspilationRuntimeLibraries) Process(externs *rhino.Node, root 
 	// Check for references to class `extends` clauses
 	if !outputFeatures.Contains(used) {
 		NodeUtil_VisitPostOrderWithPred(
-			root, NodeUtil_VisitorFunc(i.CheckForClassExtends), func(unused *rhino.Node) bool { return !i.injectedClassExtendsLibraries })
+			root, NodeUtil_VisitorFunc(i.CheckForClassExtends), func(unused rhino.Node) bool { return !i.injectedClassExtendsLibraries })
 	}
 
 	mustBeCompiledAway := used.Without(outputFeatures)
@@ -175,7 +175,7 @@ func (i *InjectTranspilationRuntimeLibraries) Process(externs *rhino.Node, root 
 }
 
 // Java: InjectTranspilationRuntimeLibraries.getScriptFeatures(Node)
-func InjectTranspilationRuntimeLibraries_GetScriptFeatures(script *rhino.Node) *parser.FeatureSet {
+func InjectTranspilationRuntimeLibraries_GetScriptFeatures(script rhino.Node) *parser.FeatureSet {
 	features := NodeUtil_GetFeatureSetOfScript(script)
 	if features != nil {
 		return features
@@ -184,7 +184,7 @@ func InjectTranspilationRuntimeLibraries_GetScriptFeatures(script *rhino.Node) *
 }
 
 // Java: InjectTranspilationRuntimeLibraries.checkForClassExtends(Node)
-func (i *InjectTranspilationRuntimeLibraries) CheckForClassExtends(n *rhino.Node) {
+func (i *InjectTranspilationRuntimeLibraries) CheckForClassExtends(n rhino.Node) {
 	if !n.IsClass() {
 		return
 	}

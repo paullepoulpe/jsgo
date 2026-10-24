@@ -29,8 +29,8 @@ const polymerPassFindExterns_POLYMER_ELEMENT_NAME = "PolymerElement"
 //
 // Java: final class PolymerPassFindExterns implements NodeTraversal.Callback
 type PolymerPassFindExterns struct {
-	polymerElementExterns *rhino.Node
-	polymerElementProps   []*rhino.Node
+	polymerElementExterns rhino.Node
+	polymerElementProps   []rhino.Node
 }
 
 // Java: PolymerPassFindExterns()
@@ -41,7 +41,7 @@ func NewPolymerPassFindExterns() *PolymerPassFindExterns {
 }
 
 // Java: PolymerPassFindExterns.shouldTraverse(NodeTraversal, Node, Node)
-func (f *PolymerPassFindExterns) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *PolymerPassFindExterns) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	/*
 	 * The externs subtree also includes @typeSummary files, which are slightly different from
 	 * normal externs. The Polymer externs may exist in either file type. However,
@@ -52,7 +52,7 @@ func (f *PolymerPassFindExterns) ShouldTraverse(t *NodeTraversal, n *rhino.Node,
 }
 
 // Java: PolymerPassFindExterns.visit(NodeTraversal, Node, Node)
-func (f *PolymerPassFindExterns) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *PolymerPassFindExterns) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if polymerPassFindExterns_isPolymerElementExterns(n) {
 		f.polymerElementExterns = n
 	} else if polymerPassFindExterns_isPolymerElementPropExpr(n) {
@@ -64,16 +64,16 @@ func (f *PolymerPassFindExterns) Visit(t *NodeTraversal, n *rhino.Node, parent *
 // in externs.
 //
 // Java: PolymerPassFindExterns.getPolymerElementProps()
-func (f *PolymerPassFindExterns) GetPolymerElementProps() []*rhino.Node {
+func (f *PolymerPassFindExterns) GetPolymerElementProps() []rhino.Node {
 	// ImmutableList.Builder.build() snapshots the elements added so far.
-	return append([]*rhino.Node(nil), f.polymerElementProps...)
+	return append([]rhino.Node(nil), f.polymerElementProps...)
 }
 
 // GetPolymerElementExterns returns the root Node PolymerElement class in
 // externs.
 //
 // Java: PolymerPassFindExterns.getPolymerElementExterns()
-func (f *PolymerPassFindExterns) GetPolymerElementExterns() *rhino.Node {
+func (f *PolymerPassFindExterns) GetPolymerElementExterns() rhino.Node {
 	return f.polymerElementExterns
 }
 
@@ -81,7 +81,7 @@ func (f *PolymerPassFindExterns) GetPolymerElementExterns() *rhino.Node {
 // the declaration of PolymerElement.
 //
 // Java: PolymerPassFindExterns.isPolymerElementExterns(Node)
-func polymerPassFindExterns_isPolymerElementExterns(value *rhino.Node) bool {
+func polymerPassFindExterns_isPolymerElementExterns(value rhino.Node) bool {
 	// Explicitly allow var, let or const.
 	return NodeUtil_IsNameDeclaration(value) &&
 		value.GetFirstChild().MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
@@ -91,10 +91,10 @@ func polymerPassFindExterns_isPolymerElementExterns(value *rhino.Node) bool {
 // an expression result of an assignment to a property of PolymerElement.
 //
 // Java: PolymerPassFindExterns.isPolymerElementPropExpr(Node)
-func polymerPassFindExterns_isPolymerElementPropExpr(value *rhino.Node) bool {
-	return value != nil &&
+func polymerPassFindExterns_isPolymerElementPropExpr(value rhino.Node) bool {
+	return !value.IsNil() &&
 		value.IsExprResult() &&
-		value.GetFirstFirstChild() != nil &&
+		!value.GetFirstFirstChild().IsNil() &&
 		value.GetFirstFirstChild().IsGetProp() &&
 		value.GetFirstFirstChild().IsQualifiedName() &&
 		NodeUtil_GetRootOfQualifiedName(

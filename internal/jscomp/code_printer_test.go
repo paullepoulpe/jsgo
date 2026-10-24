@@ -2728,7 +2728,7 @@ func (c *CodePrinterTest) TestNegNoCollapse() {
 }
 
 // Java: CodePrinterTest.defaultBuilder(Node)
-func (c *CodePrinterTest) DefaultBuilder(jsRoot *rhino.Node) *CodePrinter_Builder {
+func (c *CodePrinterTest) DefaultBuilder(jsRoot rhino.Node) *CodePrinter_Builder {
 	return NewCodePrinter_Builder(jsRoot).
 		SetCompilerOptions(
 			c.NewCompilerOptions(

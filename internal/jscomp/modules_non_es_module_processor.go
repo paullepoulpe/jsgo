@@ -58,12 +58,12 @@ type NonEsModuleProcessor_NonEsModule struct {
 	processor  *NonEsModuleProcessor
 	metadata   *ModuleMetadataMap_ModuleMetadata
 	path       *ModuleLoader_ModulePath
-	scriptNode *rhino.Node
+	scriptNode rhino.Node
 }
 
 // Java: NonEsModuleProcessor.NonEsModule(ModuleMetadata, ModulePath, Node)
 func NewNonEsModuleProcessor_NonEsModule(
-	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, scriptNode *rhino.Node) *NonEsModuleProcessor_NonEsModule {
+	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, scriptNode rhino.Node) *NonEsModuleProcessor_NonEsModule {
 	m := &NonEsModuleProcessor_NonEsModule{}
 	m.InitUnresolvedModuleBase(m)
 	m.metadata = metadata
@@ -167,7 +167,7 @@ func (m *NonEsModuleProcessor_NonEsModule) GetExportedNamesWithVisited(
 
 // Java: NonEsModuleProcessor.process(ModuleMetadata, ModulePath, Node)
 func (p *NonEsModuleProcessor) Process(
-	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script *rhino.Node) UnresolvedModule {
+	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule {
 	if len(p.nonEsSlab) == cap(p.nonEsSlab) {
 		newCap := max(16, min(max(cap(p.nonEsSlab)*2, 64), jscompMaxSmallAlloc/int(unsafe.Sizeof(NonEsModuleProcessor_NonEsModule{}))))
 		p.nonEsSlab = make([]NonEsModuleProcessor_NonEsModule, 0, newCap)

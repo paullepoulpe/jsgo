@@ -111,12 +111,21 @@ type abiType struct {
 	kind       uint8
 }
 
-// IsNil reports whether v is Java null: a nil interface, or a nil pointer,
-// map, slice, func or chan stored in an interface.
+// IsNil reports whether v is Java null: a nil interface, a nil pointer,
+// map, slice, func or chan stored in an interface, or a value handle whose
+// IsNil method says so (rhino.Node).
 func IsNil(v any) bool {
 	e := *(*eface)(unsafe.Pointer(&v))
 	if e.data != nil {
-		return e.typ.kind&31 == uint8(reflect.Slice) && *(*unsafe.Pointer)(e.data) == nil
+		switch e.typ.kind & 31 {
+		case uint8(reflect.Slice):
+			return *(*unsafe.Pointer)(e.data) == nil
+		case uint8(reflect.Struct):
+			if h, ok := v.(interface{ IsNil() bool }); ok {
+				return h.IsNil()
+			}
+		}
+		return false
 	}
 	return e.typ == nil || e.typ.kind&31-uint8(reflect.Chan) <= uint8(reflect.Pointer-reflect.Chan)
 }

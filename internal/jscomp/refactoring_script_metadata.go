@@ -30,19 +30,19 @@ import (
 // Instances are mutable so that changes to a script caused by one fix cen be
 // reflected during subseuqent fixes.
 type ScriptMetadata struct {
-	script                 *rhino.Node
+	script                 rhino.Node
 	supportsRequireAliases bool
 	requireAliases         *jutil.LinkedHashMap[string, string]
 	namesInUse             *jutil.LinkedHashSet[string]
 }
 
 // Java: ScriptMetadata.create(Node, NodeMetadata)
-func ScriptMetadata_CreateFromNodeMetadata(script *rhino.Node, metadata *NodeMetadata) *ScriptMetadata {
+func ScriptMetadata_CreateFromNodeMetadata(script rhino.Node, metadata *NodeMetadata) *ScriptMetadata {
 	return ScriptMetadata_Create(script, metadata.GetCompiler())
 }
 
 // Java: ScriptMetadata.create(Node, AbstractCompiler)
-func ScriptMetadata_Create(script *rhino.Node, compiler AbstractCompiler) *ScriptMetadata {
+func ScriptMetadata_Create(script rhino.Node, compiler AbstractCompiler) *ScriptMetadata {
 	jutil.CheckArgument(script.IsScript())
 
 	toFill := newScriptMetadata(script)
@@ -57,7 +57,7 @@ func ScriptMetadata_Create(script *rhino.Node, compiler AbstractCompiler) *Scrip
 }
 
 // Java: ScriptMetadata(Node)
-func newScriptMetadata(script *rhino.Node) *ScriptMetadata {
+func newScriptMetadata(script rhino.Node) *ScriptMetadata {
 	return &ScriptMetadata{
 		script:         script,
 		requireAliases: jutil.NewLinkedHashMap[string, string](),
@@ -66,7 +66,7 @@ func newScriptMetadata(script *rhino.Node) *ScriptMetadata {
 }
 
 // Java: ScriptMetadata.getScript()
-func (m *ScriptMetadata) GetScript() *rhino.Node {
+func (m *ScriptMetadata) GetScript() rhino.Node {
 	return m.script
 }
 
@@ -131,14 +131,14 @@ func newScriptMetadata_FillerCallback(toFill *ScriptMetadata) *scriptMetadata_Fi
 }
 
 // Java: ScriptMetadata.FillerCallback.visit(NodeTraversal, Node, Node)
-func (c *scriptMetadata_FillerCallback) Visit(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *scriptMetadata_FillerCallback) Visit(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c.updateSupportsRequireAlias(n)
 	c.maybeCollectRequirelikeAlias(n)
 	c.maybeCollectNames(n)
 }
 
 // Java: ScriptMetadata.FillerCallback.updateSupportsRequireAlias(Node)
-func (c *scriptMetadata_FillerCallback) updateSupportsRequireAlias(n *rhino.Node) {
+func (c *scriptMetadata_FillerCallback) updateSupportsRequireAlias(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_MODULE_BODY:
 	case rhino.Token_CALL:
@@ -155,7 +155,7 @@ func (c *scriptMetadata_FillerCallback) updateSupportsRequireAlias(n *rhino.Node
 }
 
 // Java: ScriptMetadata.FillerCallback.maybeCollectRequirelikeAlias(Node)
-func (c *scriptMetadata_FillerCallback) maybeCollectRequirelikeAlias(n *rhino.Node) {
+func (c *scriptMetadata_FillerCallback) maybeCollectRequirelikeAlias(n rhino.Node) {
 	if !NodeUtil_IsNameDeclaration(n) {
 		return
 	}
@@ -184,8 +184,8 @@ func (c *scriptMetadata_FillerCallback) maybeCollectRequirelikeAlias(n *rhino.No
 }
 
 // Java: ScriptMetadata.FillerCallback.isRequirelikeCall(Node)
-func (c *scriptMetadata_FillerCallback) isRequirelikeCall(call *rhino.Node) bool {
-	if call == nil ||
+func (c *scriptMetadata_FillerCallback) isRequirelikeCall(call rhino.Node) bool {
+	if call.IsNil() ||
 		!call.IsCall() ||
 		call.GetChildCount() != 2 ||
 		!call.GetSecondChild().IsStringLit() {
@@ -199,7 +199,7 @@ func (c *scriptMetadata_FillerCallback) isRequirelikeCall(call *rhino.Node) bool
 }
 
 // Java: ScriptMetadata.FillerCallback.maybeCollectNames(Node)
-func (c *scriptMetadata_FillerCallback) maybeCollectNames(n *rhino.Node) {
+func (c *scriptMetadata_FillerCallback) maybeCollectNames(n rhino.Node) {
 	if n.IsName() {
 		c.toFill.namesInUse.Add(n.GetString())
 	}

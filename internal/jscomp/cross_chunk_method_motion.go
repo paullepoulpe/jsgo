@@ -79,7 +79,7 @@ func NewCrossChunkMethodMotion(
 }
 
 // Java: CrossChunkMethodMotion.process(Node, Node)
-func (m *CrossChunkMethodMotion) Process(externRoot *rhino.Node, root *rhino.Node) {
+func (m *CrossChunkMethodMotion) Process(externRoot rhino.Node, root rhino.Node) {
 	// If there are < 2 chunks, then we will never move anything,
 	// so we're done.
 	if m.chunkGraph.GetChunkCount() > 1 {
@@ -203,7 +203,7 @@ func (m *CrossChunkMethodMotion) TryToMovePrototypeMethod(
 //
 // Java: CrossChunkMethodMotion.movePrototypeObjectLiteralProperty(String, Node, Node)
 func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralProperty(
-	propName string, destParent *rhino.Node, functionNode *rhino.Node) {
+	propName string, destParent rhino.Node, functionNode rhino.Node) {
 	jutil.CheckStateMsg1(functionNode.IsFunction(), "%s", functionNode)
 	stringKey := functionNode.GetParent()
 	jutil.CheckStateMsg1(stringKey.IsStringKey(), "%s", stringKey)
@@ -261,7 +261,7 @@ func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralProperty(
 //	Foo.prototype.propName = function() {};
 //
 // Java: CrossChunkMethodMotion.movePrototypeDotMethodAssignment(Node, Node)
-func (m *CrossChunkMethodMotion) MovePrototypeDotMethodAssignment(destParent *rhino.Node, functionNode *rhino.Node) {
+func (m *CrossChunkMethodMotion) MovePrototypeDotMethodAssignment(destParent rhino.Node, functionNode rhino.Node) {
 	jutil.CheckStateMsg1(functionNode.IsFunction(), "%s", functionNode)
 	assignNode := functionNode.GetParent()
 	jutil.CheckStateMsg1(assignNode.IsAssign() && functionNode.IsSecondChildOf(assignNode), "%s", assignNode)
@@ -313,7 +313,7 @@ func (m *CrossChunkMethodMotion) MovePrototypeDotMethodAssignment(destParent *rh
 //
 // Java: CrossChunkMethodMotion.movePrototypeObjectLiteralMethodShorthand(String, Node, Node)
 func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralMethodShorthand(
-	propName string, destParent *rhino.Node, functionNode *rhino.Node) {
+	propName string, destParent rhino.Node, functionNode rhino.Node) {
 	jutil.CheckStateMsg1(functionNode.IsFunction(), "%s", functionNode)
 	memberFunctionDef := functionNode.GetParent()
 	jutil.CheckStateMsg1(memberFunctionDef.IsMemberFunctionDef(), "%s", memberFunctionDef)
@@ -378,7 +378,7 @@ func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralMethodShorthand(
 // that looks like JSCompiler_stubMethod(0).
 //
 // Java: CrossChunkMethodMotion.createStubCall(Node, int)
-func (m *CrossChunkMethodMotion) CreateStubCall(originalDefinition *rhino.Node, stubId int) *rhino.Node {
+func (m *CrossChunkMethodMotion) CreateStubCall(originalDefinition rhino.Node, stubId int) rhino.Node {
 	return m.astFactory.
 		CreateCall(
 			// We can't look up the type of the stub creating method, because we add its
@@ -397,7 +397,7 @@ func (m *CrossChunkMethodMotion) CreateStubCall(originalDefinition *rhino.Node, 
 // a Node that looks like JSCompiler_unstubMethod(0, function() {}).
 //
 // Java: CrossChunkMethodMotion.createUnstubCall(Node, int)
-func (m *CrossChunkMethodMotion) CreateUnstubCall(functionNode *rhino.Node, stubId int) *rhino.Node {
+func (m *CrossChunkMethodMotion) CreateUnstubCall(functionNode rhino.Node, stubId int) rhino.Node {
 	return m.astFactory.
 		CreateCall(
 			// We can't look up the type of the stub creating method, because we add its
@@ -470,9 +470,9 @@ func (m *CrossChunkMethodMotion) TryToMoveMemberFunction(
 
 // Java: CrossChunkMethodMotion.moveClassInstanceMethodWithoutStub(Node, Node, Node)
 func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithoutStub(
-	classNameNode *rhino.Node, methodDefinition *rhino.Node, destinationParent *rhino.Node) {
+	classNameNode rhino.Node, methodDefinition rhino.Node, destinationParent rhino.Node) {
 	jutil.CheckArgumentMsg1(methodDefinition.IsMemberFunctionDef(), "%s", methodDefinition)
-	classMembers := jutil.CheckNotNull(methodDefinition.GetParent())
+	classMembers := rhino.CheckNotNull(methodDefinition.GetParent())
 	jutil.CheckStateMsg1(classMembers.IsClassMembers(), "%s", classMembers)
 	classNode := classMembers.GetParent()
 	jutil.CheckStateMsg1(classNode.IsClass(), "%s", classNode)
@@ -482,7 +482,7 @@ func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithoutStub(
 	m.compiler.ReportChangeToEnclosingScope(classMembers)
 
 	// ClassName.prototype.propertyName = function() {};
-	functionNode := jutil.CheckNotNull(methodDefinition.GetOnlyChild())
+	functionNode := rhino.CheckNotNull(methodDefinition.GetOnlyChild())
 	clonedNameNode := classNameNode.CloneNode().CopyTypeFrom(classNode)
 	classNameDotPrototypeDotPropName :=
 		m.astFactory.CreateGetProp(
@@ -502,9 +502,9 @@ func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithoutStub(
 
 // Java: CrossChunkMethodMotion.moveClassInstanceMethodWithStub(Node, Node, Node)
 func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithStub(
-	classNameNode *rhino.Node, methodDefinition *rhino.Node, destinationParent *rhino.Node) {
+	classNameNode rhino.Node, methodDefinition rhino.Node, destinationParent rhino.Node) {
 	jutil.CheckArgumentMsg1(methodDefinition.IsMemberFunctionDef(), "%s", methodDefinition)
-	classMembers := jutil.CheckNotNull(methodDefinition.GetParent())
+	classMembers := rhino.CheckNotNull(methodDefinition.GetParent())
 	jutil.CheckStateMsg1(classMembers.IsClassMembers(), "%s", classMembers)
 	classNode := classMembers.GetParent()
 	jutil.CheckStateMsg1(classNode.IsClass(), "%s", classNode)
@@ -537,7 +537,7 @@ func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithStub(
 	// Prepend unstub definition to the new location.
 	// ClassName.prototype.propertyName = JSCompiler_unstubMethod(id, function(...) {...});
 	classNameDotPrototypeDotPropName2 := classNameDotPrototypeDotPropName.CloneTree()
-	functionNode := jutil.CheckNotNull(methodDefinition.GetOnlyChild())
+	functionNode := rhino.CheckNotNull(methodDefinition.GetOnlyChild())
 	functionNode.Detach()
 	unstubCall := m.CreateUnstubCall(functionNode, stubId)
 	statementNode :=

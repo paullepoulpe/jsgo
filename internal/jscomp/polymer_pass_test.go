@@ -2494,7 +2494,7 @@ func newPolymerPassTest_DoSomethingFunFinder() *PolymerPassTest_DoSomethingFunFi
 }
 
 // Java: PolymerPassTest.DoSomethingFunFinder.visit(Node)
-func (f *PolymerPassTest_DoSomethingFunFinder) Visit(n *rhino.Node) {
+func (f *PolymerPassTest_DoSomethingFunFinder) Visit(n rhino.Node) {
 	if n.MatchesQualifiedName("A.prototype.doSomethingFun") {
 		AssertNode(n).HasLineno(21)
 		f.found = true

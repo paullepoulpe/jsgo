@@ -229,7 +229,7 @@ func (c *PolyfillUsageFinderTest) TestOptChainCoverageTest() {
 // to find polyfill usages in source code for testing.
 type PolyfillUsageFinderTest_TestPolyfillUsageFinder struct {
 	polyfillUsageFinder *PolyfillUsageFinder
-	rootNode            *rhino.Node
+	rootNode            rhino.Node
 }
 
 // Java: PolyfillUsageFinderTest.TestPolyfillUsageFinder.builder()
@@ -243,7 +243,7 @@ type PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder struct {
 	polyfillsTable      *PolyfillUsageFinder_Polyfills
 	compiler            *Compiler
 	polyfillUsageFinder *PolyfillUsageFinder
-	rootNode            *rhino.Node
+	rootNode            rhino.Node
 }
 
 // Java: PolyfillUsageFinderTest.TestPolyfillUsageFinder.Builder.withPolyfillTableLines(String)

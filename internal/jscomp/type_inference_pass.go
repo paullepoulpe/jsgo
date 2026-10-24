@@ -72,7 +72,7 @@ func NewTypeInferencePass(
 // inference.
 //
 // Java: TypeInferencePass.inferAllScopes(Node)
-func (p *TypeInferencePass) InferAllScopes(inferenceRoot *rhino.Node) *TypedScope {
+func (p *TypeInferencePass) InferAllScopes(inferenceRoot rhino.Node) *TypedScope {
 	// Type analysis happens in two major phases.
 	// 1) Finding all the symbols.
 	// 2) Propagating all the inferred types.
@@ -100,7 +100,7 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot *rhino.Node) *TypedScop
 		closer := p.registry.GetResolver().OpenForDefinition()
 		defer closer.Close()
 		jutil.CheckState(inferenceRoot.IsRoot())
-		jutil.CheckState(inferenceRoot.GetParent() == nil)
+		jutil.CheckState(inferenceRoot.GetParent().IsNil())
 		jutil.CheckState(p.topScope == nil)
 		p.topScope = p.scopeCreator.CreateScope(inferenceRoot, nil).(*TypedScope)
 
@@ -169,7 +169,7 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot *rhino.Node) *TypedScop
 }
 
 // Java: TypeInferencePass.inferScope(Node, TypedScope)
-func (p *TypeInferencePass) InferScope(n *rhino.Node, scope *TypedScope) {
+func (p *TypeInferencePass) InferScope(n rhino.Node, scope *TypedScope) {
 	cfg := p.ComputeCfg(n)
 	typeInference := &p.reusableTypeInference
 	typeInference.initTypeInference(
@@ -213,7 +213,7 @@ func (c *TypeInferencePass_FirstScopeBuildingCallback) EnterScope(t *NodeTravers
 }
 
 // Java: TypeInferencePass.FirstScopeBuildingCallback.visit(NodeTraversal, Node, Node)
-func (c *TypeInferencePass_FirstScopeBuildingCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *TypeInferencePass_FirstScopeBuildingCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Do nothing
 }
 
@@ -242,12 +242,12 @@ func (c *TypeInferencePass_SecondScopeBuildingCallback) EnterScope(t *NodeTraver
 }
 
 // Java: TypeInferencePass.SecondScopeBuildingCallback.visit(NodeTraversal, Node, Node)
-func (c *TypeInferencePass_SecondScopeBuildingCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *TypeInferencePass_SecondScopeBuildingCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Do nothing
 }
 
 // Java: TypeInferencePass.computeCfg(Node)
-func (p *TypeInferencePass) ComputeCfg(n *rhino.Node) ControlFlowGraph[*rhino.Node] {
+func (p *TypeInferencePass) ComputeCfg(n rhino.Node) ControlFlowGraph[rhino.Node] {
 	return p.reusableCfg.Compute(
 		p.compiler,
 		n,

@@ -95,7 +95,7 @@ type jsTypeColorIdHasherTest_LabeledTypeFinder struct {
 }
 
 // Java: JSTypeColorIdHasherTest.LabeledTypeFinder.visit(NodeTraversal, Node, Node)
-func (f *jsTypeColorIdHasherTest_LabeledTypeFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *jsTypeColorIdHasherTest_LabeledTypeFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsLabel() {
 		return
 	}
@@ -120,7 +120,7 @@ func (c *JSTypeColorIdHasherTest) GetProcessor(compiler *Compiler) CompilerPass 
 	c.labelToColorId = jutil.NewLinkedHashMap[string, colors.ColorId]()
 	c.colorIdToJSTypes = jutil.NewLinkedHashMultimap[colors.ColorId, rhino.JSType]()
 
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NodeTraversal_TraverseRoots(compiler, &jsTypeColorIdHasherTest_LabeledTypeFinder{outer: c}, externs, root)
 	})
 }

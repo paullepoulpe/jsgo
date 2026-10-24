@@ -53,7 +53,7 @@ import (
 //	}
 //
 //	// Java: PeepholeFoo.optimizeSubtree(Node)
-//	func (p *PeepholeFoo) OptimizeSubtree(subtree *rhino.Node) *rhino.Node { ... }
+//	func (p *PeepholeFoo) OptimizeSubtree(subtree rhino.Node) rhino.Node { ... }
 //
 // The subclass calls the protected helpers on itself (p.MayHaveSideEffects(n),
 // p.ReportChangeToEnclosingScope(n), p.GetSideEffectFreeBooleanValue(n), ...);
@@ -77,13 +77,13 @@ type AbstractPeepholeOptimization interface {
 	// must return subtree.
 	//
 	// Java: AbstractPeepholeOptimization.optimizeSubtree(Node)
-	OptimizeSubtree(subtree *rhino.Node) *rhino.Node
+	OptimizeSubtree(subtree rhino.Node) rhino.Node
 
 	// Java: AbstractPeepholeOptimization.report(DiagnosticType, Node)
-	Report(diagnostic *DiagnosticType, n *rhino.Node)
+	Report(diagnostic *DiagnosticType, n rhino.Node)
 
 	// Java: AbstractPeepholeOptimization.areNodesEqualForInlining(Node, Node)
-	AreNodesEqualForInlining(n1 *rhino.Node, n2 *rhino.Node) bool
+	AreNodesEqualForInlining(n1 rhino.Node, n2 rhino.Node) bool
 
 	// Java: AbstractPeepholeOptimization.isASTNormalized()
 	IsASTNormalized() bool
@@ -95,30 +95,30 @@ type AbstractPeepholeOptimization interface {
 	EndTraversal()
 
 	// Java: AbstractPeepholeOptimization.mayEffectMutableState(Node)
-	MayEffectMutableState(n *rhino.Node) bool
+	MayEffectMutableState(n rhino.Node) bool
 
 	// Java: AbstractPeepholeOptimization.mayHaveSideEffects(Node)
-	MayHaveSideEffects(n *rhino.Node) bool
+	MayHaveSideEffects(n rhino.Node) bool
 
 	// Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValue(Node)
-	GetSideEffectFreeNumberValue(n *rhino.Node) *float64
-	GetSideEffectFreeNumberValueVal(n *rhino.Node) (float64, bool)
+	GetSideEffectFreeNumberValue(n rhino.Node) *float64
+	GetSideEffectFreeNumberValueVal(n rhino.Node) (float64, bool)
 
 	// Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValueNoConversion(Node)
-	GetSideEffectFreeNumberValueNoConversion(n *rhino.Node) *float64
-	GetSideEffectFreeNumberValueNoConversionVal(n *rhino.Node) (float64, bool)
+	GetSideEffectFreeNumberValueNoConversion(n rhino.Node) *float64
+	GetSideEffectFreeNumberValueNoConversionVal(n rhino.Node) (float64, bool)
 
 	// Java: AbstractPeepholeOptimization.getSideEffectFreeBigIntValue(Node)
-	GetSideEffectFreeBigIntValue(n *rhino.Node) *big.Int
+	GetSideEffectFreeBigIntValue(n rhino.Node) *big.Int
 
 	// Java: AbstractPeepholeOptimization.getSideEffectFreeStringValue(Node)
-	GetSideEffectFreeStringValue(n *rhino.Node) *string
+	GetSideEffectFreeStringValue(n rhino.Node) *string
 
 	// Java: AbstractPeepholeOptimization.getSideEffectFreeBooleanValue(Node)
-	GetSideEffectFreeBooleanValue(n *rhino.Node) base.Tri
+	GetSideEffectFreeBooleanValue(n rhino.Node) base.Tri
 
 	// Java: AbstractPeepholeOptimization.nodeTypeMayHaveSideEffects(Node)
-	NodeTypeMayHaveSideEffects(n *rhino.Node) bool
+	NodeTypeMayHaveSideEffects(n rhino.Node) bool
 
 	// Java: AbstractPeepholeOptimization.isEcmaScript5OrGreater()
 	IsEcmaScript5OrGreater() bool
@@ -127,16 +127,16 @@ type AbstractPeepholeOptimization interface {
 	GetCodingConvention() CodingConvention
 
 	// Java: AbstractPeepholeOptimization.reportChangeToEnclosingScope(Node)
-	ReportChangeToEnclosingScope(n *rhino.Node)
+	ReportChangeToEnclosingScope(n rhino.Node)
 
 	// Java: AbstractPeepholeOptimization.deleteNode(Node)
-	DeleteNode(property *rhino.Node)
+	DeleteNode(property rhino.Node)
 
 	// Java: AbstractPeepholeOptimization.markFunctionsDeleted(Node)
-	MarkFunctionsDeleted(function *rhino.Node)
+	MarkFunctionsDeleted(function rhino.Node)
 
 	// Java: AbstractPeepholeOptimization.markNewScopesChanged(Node)
-	MarkNewScopesChanged(n *rhino.Node)
+	MarkNewScopesChanged(n rhino.Node)
 
 	// Java: AbstractPeepholeOptimization.addFeatureToEnclosingScript(Feature)
 	AddFeatureToEnclosingScript(feature parser.FeatureSet_Feature)
@@ -196,7 +196,7 @@ func (b *AbstractPeepholeOptimizationBase) GetAbstractPeepholeOptimizationBase()
 // reported.
 //
 // Java: AbstractPeepholeOptimization.report(DiagnosticType, Node)
-func (b *AbstractPeepholeOptimizationBase) Report(diagnostic *DiagnosticType, n *rhino.Node) {
+func (b *AbstractPeepholeOptimizationBase) Report(diagnostic *DiagnosticType, n rhino.Node) {
 	error_ := JSError_MakeWithNode(n, diagnostic, n.String())
 	b.compiler.Report(error_)
 }
@@ -206,7 +206,7 @@ func (b *AbstractPeepholeOptimizationBase) Report(diagnostic *DiagnosticType, n 
 // checked.
 //
 // Java: AbstractPeepholeOptimization.areNodesEqualForInlining(Node, Node)
-func (b *AbstractPeepholeOptimizationBase) AreNodesEqualForInlining(n1 *rhino.Node, n2 *rhino.Node) bool {
+func (b *AbstractPeepholeOptimizationBase) AreNodesEqualForInlining(n1 rhino.Node, n2 rhino.Node) bool {
 	/* Our implementation delegates to the compiler. We provide this
 	 * method because we don't want to expose Compiler to PeepholeOptimizations.
 	 */
@@ -271,7 +271,7 @@ func (c abstractPeepholeOptimization_className) String() string {
 // state, or change existing state.
 //
 // Java: AbstractPeepholeOptimization.mayEffectMutableState(Node)
-func (b *AbstractPeepholeOptimizationBase) MayEffectMutableState(n *rhino.Node) bool {
+func (b *AbstractPeepholeOptimizationBase) MayEffectMutableState(n rhino.Node) bool {
 	return b.astAnalyzer.MayEffectMutableState(n)
 }
 
@@ -279,7 +279,7 @@ func (b *AbstractPeepholeOptimizationBase) MayEffectMutableState(n *rhino.Node) 
 // executed.
 //
 // Java: AbstractPeepholeOptimization.mayHaveSideEffects(Node)
-func (b *AbstractPeepholeOptimizationBase) MayHaveSideEffects(n *rhino.Node) bool {
+func (b *AbstractPeepholeOptimizationBase) MayHaveSideEffects(n rhino.Node) bool {
 	return b.astAnalyzer.MayHaveSideEffects(n)
 }
 
@@ -289,7 +289,7 @@ func (b *AbstractPeepholeOptimizationBase) MayHaveSideEffects(n *rhino.Node) boo
 // Returns null otherwise.
 //
 // Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValue(Node)
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValue(n *rhino.Node) *float64 {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValue(n rhino.Node) *float64 {
 	v, ok := b.GetSideEffectFreeNumberValueVal(n)
 	if !ok {
 		return nil
@@ -297,7 +297,7 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValue(n *rhino
 	return &v
 }
 
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueVal(n *rhino.Node) (float64, bool) {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueVal(n rhino.Node) (float64, bool) {
 	// Calculating the number value, if any, is likely to be faster than calculating side effects,
 	// and there are only a very few cases where we can compute a number value, but there could
 	// also be side effects. e.g. `void doSomething()` has value NaN, regardless of the behavior
@@ -310,7 +310,7 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueVal(n *rh
 }
 
 // Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValueNoConversion(Node)
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConversion(n *rhino.Node) *float64 {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConversion(n rhino.Node) *float64 {
 	v, ok := b.GetSideEffectFreeNumberValueNoConversionVal(n)
 	if !ok {
 		return nil
@@ -318,7 +318,7 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConvers
 	return &v
 }
 
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConversionVal(n *rhino.Node) (float64, bool) {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConversionVal(n rhino.Node) (float64, bool) {
 	v, ok := nodeUtil_doGetNumberValue(n, false)
 	if !ok || b.astAnalyzer.MayHaveSideEffects(n) {
 		return 0, false
@@ -332,7 +332,7 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConvers
 // Returns null otherwise.
 //
 // Java: AbstractPeepholeOptimization.getSideEffectFreeBigIntValue(Node)
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeBigIntValue(n *rhino.Node) *big.Int {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeBigIntValue(n rhino.Node) *big.Int {
 	value := NodeUtil_GetBigIntValue(n)
 	// Calculating the bigint value, if any, is likely to be faster than calculating side effects,
 	// and there are only a very few cases where we can compute a bigint value, but there could
@@ -352,7 +352,7 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeBigIntValue(n *rhino
 // null.
 //
 // Java: AbstractPeepholeOptimization.getSideEffectFreeStringValue(Node)
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeStringValue(n *rhino.Node) *string {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeStringValue(n rhino.Node) *string {
 	value := NodeUtil_GetStringValue(n)
 	// Calculating the string value, if any, is likely to be faster than calculating side effects,
 	// and there are only a very few cases where we can compute a string value, but there could
@@ -371,7 +371,7 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeStringValue(n *rhino
 // statically determined.
 //
 // Java: AbstractPeepholeOptimization.getSideEffectFreeBooleanValue(Node)
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeBooleanValue(n *rhino.Node) base.Tri {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeBooleanValue(n rhino.Node) base.Tri {
 	value := NodeUtil_GetBooleanValue(n)
 	// Calculating the boolean value, if any, is likely to be faster than calculating side effects,
 	// and there are only a very few cases where we can compute a boolean value, but there could
@@ -391,7 +391,7 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeBooleanValue(n *rhin
 // subtree has side effects.
 //
 // Java: AbstractPeepholeOptimization.nodeTypeMayHaveSideEffects(Node)
-func (b *AbstractPeepholeOptimizationBase) NodeTypeMayHaveSideEffects(n *rhino.Node) bool {
+func (b *AbstractPeepholeOptimizationBase) NodeTypeMayHaveSideEffects(n rhino.Node) bool {
 	return b.astAnalyzer.NodeTypeMayHaveSideEffects(n)
 }
 
@@ -414,14 +414,14 @@ func (b *AbstractPeepholeOptimizationBase) GetCodingConvention() CodingConventio
 }
 
 // Java: AbstractPeepholeOptimization.reportChangeToEnclosingScope(Node)
-func (b *AbstractPeepholeOptimizationBase) ReportChangeToEnclosingScope(n *rhino.Node) {
+func (b *AbstractPeepholeOptimizationBase) ReportChangeToEnclosingScope(n rhino.Node) {
 	b.compiler.ReportChangeToEnclosingScope(n)
 }
 
 // DeleteNode calls NodeUtil#deleteNode(Node, AbstractCompiler).
 //
 // Java: AbstractPeepholeOptimization.deleteNode(Node)
-func (b *AbstractPeepholeOptimizationBase) DeleteNode(property *rhino.Node) {
+func (b *AbstractPeepholeOptimizationBase) DeleteNode(property rhino.Node) {
 	jutil.CheckNotNull(b.compiler)
 	NodeUtil_DeleteNode(property, b.compiler)
 }
@@ -430,7 +430,7 @@ func (b *AbstractPeepholeOptimizationBase) DeleteNode(property *rhino.Node) {
 // AbstractCompiler).
 //
 // Java: AbstractPeepholeOptimization.markFunctionsDeleted(Node)
-func (b *AbstractPeepholeOptimizationBase) MarkFunctionsDeleted(function *rhino.Node) {
+func (b *AbstractPeepholeOptimizationBase) MarkFunctionsDeleted(function rhino.Node) {
 	jutil.CheckNotNull(b.compiler)
 	NodeUtil_MarkFunctionsDeleted(function, b.compiler)
 }
@@ -439,7 +439,7 @@ func (b *AbstractPeepholeOptimizationBase) MarkFunctionsDeleted(function *rhino.
 // AbstractCompiler).
 //
 // Java: AbstractPeepholeOptimization.markNewScopesChanged(Node)
-func (b *AbstractPeepholeOptimizationBase) MarkNewScopesChanged(n *rhino.Node) {
+func (b *AbstractPeepholeOptimizationBase) MarkNewScopesChanged(n rhino.Node) {
 	jutil.CheckNotNull(b.compiler)
 	NodeUtil_MarkNewScopesChanged(n, b.compiler)
 }

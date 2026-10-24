@@ -129,11 +129,11 @@ func (p *CombinedCompilerPass) hasHaltingErrors() bool {
 }
 
 // Java: CombinedCompilerPass.traverse(AbstractCompiler, Node, List<NodeTraversal.Callback>)
-func CombinedCompilerPass_Traverse(compiler AbstractCompiler, root *rhino.Node, callbacks []NodeTraversal_Callback) {
+func CombinedCompilerPass_Traverse(compiler AbstractCompiler, root rhino.Node, callbacks []NodeTraversal_Callback) {
 	if len(callbacks) == 1 {
 		NodeTraversal_Traverse(compiler, root, callbacks[0])
 	} else {
-		NewCombinedCompilerPassOfList(compiler, callbacks).Process(nil, root)
+		NewCombinedCompilerPassOfList(compiler, callbacks).Process(rhino.Node{}, root)
 	}
 }
 
@@ -154,7 +154,7 @@ type combinedCompilerPass_CallbackWrapper struct {
 	// The node that Callback#shouldTraverse(NodeTraversal, Node, Node)
 	// returned false for. The wrapped callback doesn't receive messages until
 	// after this node is revisited in the post-order traversal.
-	waiting *rhino.Node
+	waiting rhino.Node
 
 	noShouldTraverse bool
 	noVisit          bool
@@ -178,18 +178,18 @@ func initCombinedCompilerPass_CallbackWrapper(callback NodeTraversal_Callback) c
 // inactive. Activates the callback if appropriate.
 //
 // Java: CombinedCompilerPass.CallbackWrapper.visitOrMaybeActivate(NodeTraversal, Node, Node)
-func (w *combinedCompilerPass_CallbackWrapper) VisitOrMaybeActivate(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (w *combinedCompilerPass_CallbackWrapper) VisitOrMaybeActivate(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if w.IsActive() {
 		if !w.noVisit {
 			w.callback.Visit(t, n, parent)
 		}
 	} else if w.waiting == n {
-		w.waiting = nil
+		w.waiting = rhino.Node{}
 	}
 }
 
 // Java: CombinedCompilerPass.CallbackWrapper.shouldTraverseIfActive(NodeTraversal, Node, Node)
-func (w *combinedCompilerPass_CallbackWrapper) ShouldTraverseIfActive(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (w *combinedCompilerPass_CallbackWrapper) ShouldTraverseIfActive(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if w.IsActive() && !w.noShouldTraverse && !w.callback.ShouldTraverse(t, n, parent) {
 		w.waiting = n
 	}
@@ -211,11 +211,11 @@ func (w *combinedCompilerPass_CallbackWrapper) ExitScopeIfActive(t *NodeTraversa
 
 // Java: CombinedCompilerPass.CallbackWrapper.isActive()
 func (w *combinedCompilerPass_CallbackWrapper) IsActive() bool {
-	return w.waiting == nil
+	return w.waiting.IsNil()
 }
 
 // Java: CombinedCompilerPass.process(Node, Node)
-func (p *CombinedCompilerPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *CombinedCompilerPass) Process(externs rhino.Node, root rhino.Node) {
 	p.inactiveCount = 0
 	p.refreshErrorState()
 	if p.processParallel(root) {
@@ -224,7 +224,7 @@ func (p *CombinedCompilerPass) Process(externs *rhino.Node, root *rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, p)
 }
 
-func (p *CombinedCompilerPass) canCloneForParallel(root *rhino.Node) (rootClean bool, ok bool) {
+func (p *CombinedCompilerPass) canCloneForParallel(root rhino.Node) (rootClean bool, ok bool) {
 	for i := range p.callbacks {
 		switch cb := p.callbacks[i].callback.(type) {
 		case *CheckJSDoc,
@@ -289,7 +289,7 @@ func (p *CombinedCompilerPass) cloneForWorker(rc *recordingCompiler, rootClean b
 	return NewCombinedCompilerPassOfList(rc, cloned)
 }
 
-func (p *CombinedCompilerPass) processParallel(root *rhino.Node) bool {
+func (p *CombinedCompilerPass) processParallel(root rhino.Node) bool {
 	scripts, ok := collectRootScripts(root)
 	if !ok {
 		return false
@@ -326,7 +326,7 @@ func (p *CombinedCompilerPass) processParallel(root *rhino.Node) bool {
 			} else {
 				workerPass.inactiveCount = 0
 				for i := range workerPass.callbacks {
-					workerPass.callbacks[i].waiting = nil
+					workerPass.callbacks[i].waiting = rhino.Node{}
 				}
 			}
 			b := NodeTraversal_Builder{
@@ -344,7 +344,7 @@ func (p *CombinedCompilerPass) processParallel(root *rhino.Node) bool {
 }
 
 // Java: CombinedCompilerPass.shouldTraverse(NodeTraversal, Node, Node)
-func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if p.hasHaltingErrors() {
 		return false
 	}
@@ -360,7 +360,7 @@ func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, p
 	} else {
 		for _, idx := range p.shouldTraverseIndices {
 			w := &p.callbacks[idx]
-			if w.waiting == nil && !w.callback.ShouldTraverse(t, n, parent) {
+			if w.waiting.IsNil() && !w.callback.ShouldTraverse(t, n, parent) {
 				w.waiting = n
 				p.inactiveCount++
 			}
@@ -379,7 +379,7 @@ func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, p
 }
 
 // Java: CombinedCompilerPass.visit(NodeTraversal, Node, Node)
-func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if p.allNoVisit && p.inactiveCount == 0 {
 		return
 	}
@@ -396,12 +396,12 @@ func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n *rhino.Node, parent *rh
 
 	for i := range p.callbacks {
 		callback := &p.callbacks[i]
-		if callback.waiting == nil {
+		if callback.waiting.IsNil() {
 			if !callback.noVisit {
 				callback.callback.Visit(t, n, parent)
 			}
 		} else if callback.waiting == n {
-			callback.waiting = nil
+			callback.waiting = rhino.Node{}
 			p.inactiveCount--
 		}
 	}

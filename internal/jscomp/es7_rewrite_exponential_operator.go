@@ -35,7 +35,7 @@ type Es7RewriteExponentialOperator struct {
 	//
 	// Go-only: language-adapter — Suppliers.memoize(this::createMathPowCall)
 	// is the lazily set mathPowCallValue, read through mathPowCall().
-	mathPowCallValue *rhino.Node
+	mathPowCallValue rhino.Node
 }
 
 // Java: Es7RewriteExponentialOperator.TRANSPILE_EXPONENT_USING_BIGINT
@@ -62,21 +62,21 @@ func NewEs7RewriteExponentialOperator(compiler AbstractCompiler) *Es7RewriteExpo
 // mathPowCall is mathPowCall.get() of the memoizing supplier.
 //
 // Go-only: language-adapter — Suppliers.memoize.
-func (e *Es7RewriteExponentialOperator) mathPowCall() *rhino.Node {
-	if e.mathPowCallValue == nil {
+func (e *Es7RewriteExponentialOperator) mathPowCall() rhino.Node {
+	if e.mathPowCallValue.IsNil() {
 		e.mathPowCallValue = e.CreateMathPowCall()
 	}
 	return e.mathPowCallValue
 }
 
 // Java: Es7RewriteExponentialOperator.process(Node, Node)
-func (e *Es7RewriteExponentialOperator) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es7RewriteExponentialOperator) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(e.compiler, root, e)
 	TranspilationPasses_MaybeMarkFeatureAsTranspiledAway(e.compiler, root, parser.FeatureSet_Feature_EXPONENT_OP)
 }
 
 // Java: Es7RewriteExponentialOperator.shouldTraverse(NodeTraversal, Node, Node)
-func (e *Es7RewriteExponentialOperator) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (e *Es7RewriteExponentialOperator) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
 		// Runs only if features exist in the script
@@ -86,7 +86,7 @@ func (e *Es7RewriteExponentialOperator) ShouldTraverse(t *NodeTraversal, n *rhin
 }
 
 // Java: Es7RewriteExponentialOperator.visit(NodeTraversal, Node, Node)
-func (e *Es7RewriteExponentialOperator) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es7RewriteExponentialOperator) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_EXPONENT:
 		if e.CheckOperatorType(n) {
@@ -101,7 +101,7 @@ func (e *Es7RewriteExponentialOperator) Visit(t *NodeTraversal, n *rhino.Node, p
 }
 
 // Java: Es7RewriteExponentialOperator.visitExponentiationOperator(Node)
-func (e *Es7RewriteExponentialOperator) VisitExponentiationOperator(operator *rhino.Node) {
+func (e *Es7RewriteExponentialOperator) VisitExponentiationOperator(operator rhino.Node) {
 	callClone := e.mathPowCall().CloneTree()
 	callClone.AddChildToBack(operator.RemoveFirstChild()) // Base argument.
 	callClone.AddChildToBack(operator.RemoveFirstChild()) // Exponent argument.
@@ -113,12 +113,12 @@ func (e *Es7RewriteExponentialOperator) VisitExponentiationOperator(operator *rh
 }
 
 // Java: Es7RewriteExponentialOperator.visitExponentiationAssignmentOperator(NodeTraversal, Node)
-func (e *Es7RewriteExponentialOperator) VisitExponentiationAssignmentOperator(t *NodeTraversal, operator *rhino.Node) {
+func (e *Es7RewriteExponentialOperator) VisitExponentiationAssignmentOperator(t *NodeTraversal, operator rhino.Node) {
 	enclosingStatement := NodeUtil_GetEnclosingStatement(operator)
 
 	left := operator.RemoveFirstChild()
 
-	var replacement *rhino.Node
+	var replacement rhino.Node
 
 	if left.IsName() {
 		replacement = e.HandleLHSName(operator, left)
@@ -133,7 +133,7 @@ func (e *Es7RewriteExponentialOperator) VisitExponentiationAssignmentOperator(t 
 }
 
 // Java: Es7RewriteExponentialOperator.handleLHSName(Node, Node)
-func (e *Es7RewriteExponentialOperator) HandleLHSName(operator *rhino.Node, left *rhino.Node) *rhino.Node {
+func (e *Es7RewriteExponentialOperator) HandleLHSName(operator rhino.Node, left rhino.Node) rhino.Node {
 	// handle name case
 	// e.g. convert `name **= value` to
 	// `name = Math.pow(name, value)`
@@ -146,14 +146,14 @@ func (e *Es7RewriteExponentialOperator) HandleLHSName(operator *rhino.Node, left
 
 // Java: Es7RewriteExponentialOperator.handleLHSPropertyReference(NodeTraversal, Node, Node, Node)
 func (e *Es7RewriteExponentialOperator) HandleLHSPropertyReference(
-	t *NodeTraversal, operator *rhino.Node, left *rhino.Node, enclosingStatement *rhino.Node) *rhino.Node {
+	t *NodeTraversal, operator rhino.Node, left rhino.Node, enclosingStatement rhino.Node) rhino.Node {
 	// handle getprop case and getelem case
 	input := t.GetInput()
 	uniqueId := e.uniqueIdSupplier.GetUniqueId(input)
 	tempVarName := Es7RewriteExponentialOperator_TEMP_VAR_NAME_PREFIX + uniqueId
 
-	var newLHS *rhino.Node
-	var tempPropOrElem *rhino.Node
+	var newLHS rhino.Node
+	var tempPropOrElem rhino.Node
 
 	objectNode := left.RemoveFirstChild()
 
@@ -226,7 +226,7 @@ func (e *Es7RewriteExponentialOperator) HandleLHSPropertyReference(
 }
 
 // Java: Es7RewriteExponentialOperator.createMathPowCall()
-func (e *Es7RewriteExponentialOperator) CreateMathPowCall() *rhino.Node {
+func (e *Es7RewriteExponentialOperator) CreateMathPowCall() rhino.Node {
 	return e.astFactory.CreateCall(
 		e.astFactory.CreateQName(e.compiler.GetTranspilationNamespace(), "Math.pow"),
 		AstFactory_Type_OfColor(colors.StandardColors_NUMBER))
@@ -236,7 +236,7 @@ func (e *Es7RewriteExponentialOperator) CreateMathPowCall() *rhino.Node {
 // `Math.pow()`is of BIGINT type
 //
 // Java: Es7RewriteExponentialOperator.checkOperatorType(Node)
-func (e *Es7RewriteExponentialOperator) CheckOperatorType(operator *rhino.Node) bool {
+func (e *Es7RewriteExponentialOperator) CheckOperatorType(operator rhino.Node) bool {
 	jutil.CheckArgumentMsg1(operator.IsExponent() || operator.IsAssignExponent(), "%s", operator)
 	if e.compiler.HasTypeCheckingRun() {
 		if operator.GetColor().Equals(colors.StandardColors_BIGINT) {

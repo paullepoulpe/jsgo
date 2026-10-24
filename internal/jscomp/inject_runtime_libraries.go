@@ -42,7 +42,7 @@ func NewInjectRuntimeLibraries(compiler AbstractCompiler, forceInjectedLibraries
 }
 
 // Java: InjectRuntimeLibraries.process(Node, Node)
-func (i *InjectRuntimeLibraries) Process(externs *rhino.Node, root *rhino.Node) {
+func (i *InjectRuntimeLibraries) Process(externs rhino.Node, root rhino.Node) {
 	i.InjectLibraries()
 }
 

@@ -28,7 +28,7 @@ import (
 //
 // This logic can be used by both goog.modules and ES modules
 type ClosureRequireProcessor struct {
-	nameDeclaration *rhino.Node
+	nameDeclaration rhino.Node
 	requireKind     Binding_CreatedBy
 }
 
@@ -93,7 +93,7 @@ func (r *ClosureRequireProcessor_Require) String() string {
 }
 
 // Java: ClosureRequireProcessor(Node, CreatedBy)
-func newClosureRequireProcessor(nameDeclaration *rhino.Node, requireKind Binding_CreatedBy) *ClosureRequireProcessor {
+func newClosureRequireProcessor(nameDeclaration rhino.Node, requireKind Binding_CreatedBy) *ClosureRequireProcessor {
 	p := &ClosureRequireProcessor{}
 	jutil.CheckArgument(NodeUtil_IsNameDeclaration(nameDeclaration))
 	p.nameDeclaration = nameDeclaration
@@ -108,8 +108,8 @@ func newClosureRequireProcessor(nameDeclaration *rhino.Node, requireKind Binding
 // this declaration
 //
 // Java: ClosureRequireProcessor.getAllRequires(Node)
-func ClosureRequireProcessor_GetAllRequires(nameDeclaration *rhino.Node) []*ClosureRequireProcessor_Require {
-	var rhs *rhino.Node
+func ClosureRequireProcessor_GetAllRequires(nameDeclaration rhino.Node) []*ClosureRequireProcessor_Require {
+	var rhs rhino.Node
 	if nameDeclaration.GetFirstChild().IsDestructuringLhs() {
 		rhs = nameDeclaration.GetFirstChild().GetSecondChild()
 	} else {
@@ -140,8 +140,8 @@ var closureRequireProcessor_GOOG_DEPENDENCY_CALLS = func() *jutil.LinkedHashMap[
 // null.
 //
 // Java: ClosureRequireProcessor.getModuleDependencyTypeFromRhs(Node)
-func ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(value *rhino.Node) *Binding_CreatedBy {
-	if value == nil ||
+func ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(value rhino.Node) *Binding_CreatedBy {
+	if value.IsNil() ||
 		!value.IsCall() ||
 		!value.HasTwoChildren() ||
 		!value.GetSecondChild().IsStringLit() {
@@ -166,7 +166,7 @@ func ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(value *rhino.Node) *
 //
 // Java: ClosureRequireProcessor.getAllRequiresInDeclaration()
 func (p *ClosureRequireProcessor) GetAllRequiresInDeclaration() []*ClosureRequireProcessor_Require {
-	var rhs *rhino.Node
+	var rhs rhino.Node
 	if p.nameDeclaration.GetFirstChild().IsDestructuringLhs() {
 		rhs = p.nameDeclaration.GetFirstChild().GetSecondChild()
 	} else {
@@ -206,9 +206,9 @@ func (p *ClosureRequireProcessor) GetAllRequiresInDeclaration() []*ClosureRequir
 //
 // Java: ClosureRequireProcessor.getAllRequiresFromDestructuring(Node, String)
 func (p *ClosureRequireProcessor) GetAllRequiresFromDestructuring(
-	objectPattern *rhino.Node, namespace string) []*ClosureRequireProcessor_Require {
+	objectPattern rhino.Node, namespace string) []*ClosureRequireProcessor_Require {
 	requireBuilder := jutil.ImmutableList_Builder_[*ClosureRequireProcessor_Require]()
-	for key := objectPattern.GetFirstChild(); key != nil; key = key.GetNext() {
+	for key := objectPattern.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		if !key.IsStringKey() {
 			// Bad code, just ignore. We warn elsewhere.
 			continue

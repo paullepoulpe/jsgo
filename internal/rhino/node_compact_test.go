@@ -3,17 +3,14 @@ package rhino
 import (
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func TestCompactNodeLayoutAndGCRoots(t *testing.T) {
-	if unsafe.Sizeof(Node{}) != 56 {
-		t.Fatalf("node occupies %d bytes, expected 56", unsafe.Sizeof(Node{}))
-	}
 	registry := NewJSTypeRegistry(nil)
 	typ := registry.GetNativeType(JSTypeNative_NUMBER_TYPE)
 	n := Node_NewStringWithToken(Token_NAME, "distinct_compact_node_name")
@@ -51,7 +48,7 @@ func TestNodeExtBoxLengthAndOriginalName(t *testing.T) {
 	n.SetOriginalName(jutil.StringPtr("answer"))
 	info := NewJSDocInfo_Builder().BuildWithAlways(true)
 	n.SetJSDocInfo(info)
-	for _, c := range []*Node{n, n.CloneNode(), NewNode(Token_NUMBER).Srcref(n)} {
+	for _, c := range []Node{n, n.CloneNode(), NewNode(Token_NUMBER).Srcref(n)} {
 		if c.GetLength() != 100000 || c.GetOriginalName() == nil || *c.GetOriginalName() != "answer" {
 			t.Fatalf("lost length %d or original name %v", c.GetLength(), c.GetOriginalName())
 		}
@@ -69,49 +66,43 @@ func TestNodeExtBoxLengthAndOriginalName(t *testing.T) {
 	if n.GetLength() != 7 || n.GetOriginalName() != nil || n.GetJSDocInfo() != nil {
 		t.Fatal("cleared fields are still set")
 	}
-	if n.kindFlags&kindFlagHasExtBox != 0 || n.aux != 0 {
+	if n.rec.kindFlags&kindFlagHasExtBox != 0 || n.rec.aux != 0 {
 		t.Fatal("empty nodeExtBox was not released")
 	}
 }
 
-// The node holds no pointer at all: the tree links are 32-bit ids into the
-// chunk table (node_store.go) and types, colors and cold data are reached
-// through 32-bit handles into the node tables, so the GC never traces a
-// node (a chunk's only pointer is its header's owner).
+// The node record holds no pointer at all: the tree links are 32-bit ids
+// into its store (node_store.go) and types, colors and cold data are reached
+// through 32-bit handles into the store's tables, so the GC never traces the
+// AST (a segment of records is a pointer-free object).
 func TestNodeHasNoPointers(t *testing.T) {
-	typ := reflect.TypeOf(Node{})
+	typ := reflect.TypeOf(nodeData{})
 	for i := 0; i < typ.NumField(); i++ {
 		f := typ.Field(i)
 		if f.Type.Kind() == reflect.Pointer || f.Type.Kind() == reflect.UnsafePointer {
 			t.Errorf("field %s is a pointer", f.Name)
 		}
 	}
-	if unsafe.Sizeof(Node{}) != 56 {
-		t.Errorf("Node is %d bytes, want 56", unsafe.Sizeof(Node{}))
+	if typ.Size() != 56 {
+		t.Errorf("nodeData is %d bytes, want 56", typ.Size())
 	}
-	if unsafe.Sizeof(nodeExtBox{}) != 32 {
-		t.Errorf("nodeExtBox is %d bytes, want 32", unsafe.Sizeof(nodeExtBox{}))
+	if s := reflect.TypeOf(nodeExtBox{}).Size(); s != 32 {
+		t.Errorf("nodeExtBox is %d bytes, want 32", s)
 	}
-	if unsafe.Sizeof(JSTypeBase{}) != 32 {
-		t.Errorf("JSTypeBase is %d bytes, want 32", unsafe.Sizeof(JSTypeBase{}))
+	if s := reflect.TypeOf(JSTypeBase{}).Size(); s != 32 {
+		t.Errorf("JSTypeBase is %d bytes, want 32", s)
+	}
+	if s := reflect.TypeOf(Node{}).Size(); s != 16 {
+		t.Errorf("Node is %d bytes, want 16", s)
 	}
 }
 
-// Releasing the tables (what the Compiler does when it is collected, and
-// ClearJSTypeRegistry does for types) makes every handle read as absent;
-// types, colors and JSDoc set afterwards work again, and a Color or JSType
-// registered under a released owner is re-registered on its next use.
-func TestNodeTablesRelease(t *testing.T) {
-	prev := currentNodeTables.Load()
-	defer currentNodeTables.Store(prev)
-	nodeTablesMu.Lock()
-	older := nodeTablesLive
-	nodeTablesMu.Unlock()
-	for _, o := range older {
-		o.Release() // this test's tables must be the oldest live ones
-	}
-	tables := NewNodeTables()
-	tables.Install()
+// ReleaseNodeTypeHandles (what ClearJSTypeRegistry calls) makes every type
+// handle of the registry read as absent; a type set afterwards works again.
+// Colors and cold data live as long as the store.
+func TestNodeTypeRelease(t *testing.T) {
+	prev := SetCurrentNodeStore(NewNodeStore())
+	defer SetCurrentNodeStore(prev)
 
 	registry := NewJSTypeRegistry(nil)
 	num := registry.GetNativeType(JSTypeNative_NUMBER_TYPE)
@@ -130,23 +121,52 @@ func TestNodeTablesRelease(t *testing.T) {
 	if typed.GetJSType() != nil || typed.GetJSTypeBase() != nil {
 		t.Fatal("type still resolves after the registry released its handles")
 	}
+	if colored.GetColor() != color || documented.GetJSDocInfo() != info {
+		t.Fatal("releasing types dropped a color or JSDoc")
+	}
 	typed.SetJSType(nil)
 	typed.SetJSType(num)
 	if typed.GetJSType() != num {
 		t.Fatal("type cannot be re-registered after release")
 	}
 
-	tables.Release()
-	if colored.GetColor() != nil || documented.GetJSDocInfo() != nil || documented.GetLength() != 0 {
-		t.Fatal("color or cold data still resolve after the tables were released")
+	// A node copied into another store keeps its type and color.
+	other := SetCurrentNodeStore(NewNodeStore())
+	moved := typed.CloneNode()
+	movedColor := colored.CloneNode()
+	SetCurrentNodeStore(other)
+	if moved.Store() == typed.Store() || moved.GetJSType() != num || movedColor.GetColor() != color {
+		t.Fatal("a clone into another store lost its type or color")
 	}
-	if currentNodeTables.Load() == tables {
-		t.Fatal("released tables are still current")
+}
+
+// Nodes of different stores cannot be linked; the static store (package-level
+// nodes, templates) is never current once a compilation store exists.
+func TestNodeStoreIsolation(t *testing.T) {
+	prev := SetCurrentNodeStore(NewNodeStore())
+	defer SetCurrentNodeStore(prev)
+	a := IR_Block()
+	SetCurrentNodeStore(NewNodeStore())
+	b := IR_Empty()
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil || !strings.Contains(r.(string), "different node stores") {
+				t.Fatalf("expected a cross-store panic, got %v", r)
+			}
+		}()
+		a.AddChildToBack(b)
+	}()
+	tmpl := NewTemplateNode(Token_SCRIPT)
+	if !tmpl.Store().IsStatic() || CurrentNodeStore().IsStatic() {
+		t.Fatal("template is not in the static store")
 	}
-	colored.SetColor(nil)
-	colored.SetColor(color)
-	documented.SetJSDocInfo(info)
-	if colored.GetColor() != color || documented.GetJSDocInfo() != info {
-		t.Fatal("color or JSDoc cannot be set again after release")
+	var zero Node
+	if !zero.IsNil() || IR_Empty().IsNil() || IR_Empty() == IR_Empty() {
+		t.Fatal("nil handle or handle equality is wrong")
+	}
+	n := IR_Name("x")
+	if n.GetFirstChild() != zero || n.GetParent() != zero {
+		t.Fatal("absent links are not the nil handle")
 	}
 }

@@ -37,14 +37,14 @@ type JsSourceMatcher struct {
 //
 // Java: JsSourceMatcher(AbstractCompiler, Node, TypeMatchingStrategy)
 func NewJsSourceMatcher(
-	compiler AbstractCompiler, templateNode *rhino.Node, typeMatchingStrategy TypeMatchingStrategy) *JsSourceMatcher {
+	compiler AbstractCompiler, templateNode rhino.Node, typeMatchingStrategy TypeMatchingStrategy) *JsSourceMatcher {
 	m := &JsSourceMatcher{}
 	m.matcher = NewTemplateAstMatcher(compiler, templateNode, typeMatchingStrategy)
 	return m
 }
 
 // Java: JsSourceMatcher.matches(Node, NodeMetadata)
-func (m *JsSourceMatcher) Matches(n *rhino.Node, metadata *NodeMetadata) bool {
+func (m *JsSourceMatcher) Matches(n rhino.Node, metadata *NodeMetadata) bool {
 	return m.matcher.Matches(n)
 }
 
@@ -52,6 +52,6 @@ func (m *JsSourceMatcher) Matches(n *rhino.Node, metadata *NodeMetadata) bool {
 // Nodes that were the equivalent matches from the last matched template.
 //
 // Java: JsSourceMatcher.getTemplateNodeToMatchMap()
-func (m *JsSourceMatcher) GetTemplateNodeToMatchMap() *jutil.LinkedHashMap[string, *rhino.Node] {
+func (m *JsSourceMatcher) GetTemplateNodeToMatchMap() *jutil.LinkedHashMap[string, rhino.Node] {
 	return m.matcher.GetTemplateNodeToMatchMap()
 }

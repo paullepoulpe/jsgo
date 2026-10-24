@@ -51,18 +51,18 @@ func NewCheckPrimitiveAsObject(compiler AbstractCompiler) *CheckPrimitiveAsObjec
 }
 
 // Java: CheckPrimitiveAsObject.process(Node, Node)
-func (c *CheckPrimitiveAsObject) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckPrimitiveAsObject) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckPrimitiveAsObject.visit(NodeTraversal, Node, Node)
-func (c *CheckPrimitiveAsObject) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckPrimitiveAsObject) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c.CheckForPrimitiveObjectConstructor(t, n)
 	c.CheckForPrimitiveObjectDeclaration(t, n)
 }
 
 // Java: CheckPrimitiveAsObject.checkForPrimitiveObjectDeclaration(NodeTraversal, Node)
-func (c *CheckPrimitiveAsObject) CheckForPrimitiveObjectDeclaration(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckPrimitiveAsObject) CheckForPrimitiveObjectDeclaration(t *NodeTraversal, n rhino.Node) {
 	jsDocInfo := n.GetJSDocInfo()
 
 	if jsDocInfo != nil {
@@ -73,10 +73,10 @@ func (c *CheckPrimitiveAsObject) CheckForPrimitiveObjectDeclaration(t *NodeTrave
 }
 
 // Java: CheckPrimitiveAsObject.checkTypeNodeForPrimitiveObjectDeclaration(NodeTraversal, Node)
-func (c *CheckPrimitiveAsObject) CheckTypeNodeForPrimitiveObjectDeclaration(t *NodeTraversal, typeRoot *rhino.Node) {
+func (c *CheckPrimitiveAsObject) CheckTypeNodeForPrimitiveObjectDeclaration(t *NodeTraversal, typeRoot rhino.Node) {
 	NodeUtil_VisitPreOrder(
 		typeRoot,
-		NodeUtil_VisitorFunc(func(node *rhino.Node) {
+		NodeUtil_VisitorFunc(func(node rhino.Node) {
 			if node.IsStringLit() {
 				typeName := node.GetString()
 				if checkPrimitiveAsObject_PRIMITIVE_OBJECT_CONSTRUCTORS.Contains(typeName) {
@@ -87,7 +87,7 @@ func (c *CheckPrimitiveAsObject) CheckTypeNodeForPrimitiveObjectDeclaration(t *N
 }
 
 // Java: CheckPrimitiveAsObject.checkForPrimitiveObjectConstructor(NodeTraversal, Node)
-func (c *CheckPrimitiveAsObject) CheckForPrimitiveObjectConstructor(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckPrimitiveAsObject) CheckForPrimitiveObjectConstructor(t *NodeTraversal, n rhino.Node) {
 	if n.IsNew() {
 		constructorFunction := n.GetFirstChild()
 		if constructorFunction.IsName() {

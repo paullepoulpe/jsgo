@@ -47,15 +47,15 @@ func NewTypedCodeGenerator(consumer CodeConsumer, options *CompilerOptions, regi
 }
 
 // Java: TypedCodeGenerator.add(Node, Context)
-func (t *TypedCodeGenerator) AddNodeWithContext(n *rhino.Node, context CodeGenerator_Context) {
+func (t *TypedCodeGenerator) AddNodeWithContext(n rhino.Node, context CodeGenerator_Context) {
 	t.MaybeAddTypeAnnotation(n)
 	t.CodeGeneratorBase.AddNodeWithContext(n, context)
 }
 
 // Java: TypedCodeGenerator.maybeAddTypeAnnotation(Node)
-func (t *TypedCodeGenerator) MaybeAddTypeAnnotation(n *rhino.Node) {
+func (t *TypedCodeGenerator) MaybeAddTypeAnnotation(n rhino.Node) {
 	parent := n.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		// root node cannot have a type annotation.
 		return
 	}
@@ -73,7 +73,7 @@ func (t *TypedCodeGenerator) MaybeAddTypeAnnotation(n *rhino.Node) {
 				rhs := assign.GetLastChild()
 				t.Add(t.GetTypeAnnotation(rhs))
 			}
-		} else if NodeUtil_IsNameDeclaration(n) && n.GetFirstFirstChild() != nil {
+		} else if NodeUtil_IsNameDeclaration(n) && !n.GetFirstFirstChild().IsNil() {
 			// All namespace declarations except `const x = {};` are signified
 			// by @const JSDoc.
 			if NodeUtil_IsNamespaceDecl(n.GetFirstChild()) && n.GetJSDocInfo() != nil {
@@ -86,7 +86,7 @@ func (t *TypedCodeGenerator) MaybeAddTypeAnnotation(n *rhino.Node) {
 }
 
 // Java: TypedCodeGenerator.getTypeAnnotation(Node)
-func (t *TypedCodeGenerator) GetTypeAnnotation(node *rhino.Node) string {
+func (t *TypedCodeGenerator) GetTypeAnnotation(node rhino.Node) string {
 	if node.IsMemberFunctionDef() {
 		// For a member function the type information is actually on the
 		// function it contains, so just generate the type annotation for
@@ -130,7 +130,7 @@ func (t *TypedCodeGenerator) GetTypeAnnotation(node *rhino.Node) string {
 // generate a type annotation.
 //
 // Java: TypedCodeGenerator.getFunctionAnnotation(Node)
-func (t *TypedCodeGenerator) GetFunctionAnnotation(fnNode *rhino.Node) string {
+func (t *TypedCodeGenerator) GetFunctionAnnotation(fnNode rhino.Node) string {
 	type_ := fnNode.GetJSType()
 	jutil.CheckState(fnNode.IsFunction() || type_.IsFunctionType())
 
@@ -144,7 +144,7 @@ func (t *TypedCodeGenerator) GetFunctionAnnotation(fnNode *rhino.Node) string {
 	}
 	var sb strings.Builder
 	sb.WriteString("/**\n")
-	var paramNode *rhino.Node
+	var paramNode rhino.Node
 	// We need to use the child nodes of the function as the nodes for the
 	// parameters of the function type do not have the real parameter names.
 	// FUNCTION
@@ -152,7 +152,7 @@ func (t *TypedCodeGenerator) GetFunctionAnnotation(fnNode *rhino.Node) string {
 	//   PARAM_LIST
 	//     NAME param1
 	//     NAME param2
-	if fnNode != nil && fnNode.IsFunction() {
+	if !fnNode.IsNil() && fnNode.IsFunction() {
 		paramNode = NodeUtil_GetFunctionParameters(fnNode).GetFirstChild()
 	}
 
@@ -183,7 +183,7 @@ func (t *TypedCodeGenerator) GetFunctionAnnotation(fnNode *rhino.Node) string {
 	} else {
 		thisType := funType.GetTypeOfThis()
 		if thisType != nil && !thisType.IsUnknownType() && !thisType.IsVoidType() {
-			if fnNode == nil || !thisType.Equals(typedCodeGenerator_objectTypeOrNull(t.FindMethodOwner(fnNode))) {
+			if fnNode.IsNil() || !thisType.Equals(typedCodeGenerator_objectTypeOrNull(t.FindMethodOwner(fnNode))) {
 				sb.WriteString(" * ")
 				TypedCodeGenerator_AppendAnnotation(&sb, "this", thisType.ToAnnotationString(rhino.JSType_Nullability_EXPLICIT))
 				sb.WriteString("\n")
@@ -212,7 +212,7 @@ func typedCodeGenerator_objectTypeOrNull(t rhino.ObjectType) any {
 // MEMBER_FUNCTION_DEF.
 //
 // Java: TypedCodeGenerator.getMemberFunctionAnnotation(Node)
-func (t *TypedCodeGenerator) GetMemberFunctionAnnotation(fnNode *rhino.Node) string {
+func (t *TypedCodeGenerator) GetMemberFunctionAnnotation(fnNode rhino.Node) string {
 	jutil.CheckStateMsg1(fnNode.IsFunction() && fnNode.GetParent().IsMemberFunctionDef(), "%s", fnNode)
 	type_ := fnNode.GetJSType()
 
@@ -262,7 +262,7 @@ func (t *TypedCodeGenerator) GetMemberFunctionAnnotation(fnNode *rhino.Node) str
 //
 // Java: TypedCodeGenerator.appendFunctionParamAnnotations(StringBuilder, FunctionType, Node)
 func (t *TypedCodeGenerator) AppendFunctionParamAnnotations(
-	sb *strings.Builder, funType rhino.FunctionType, paramNode *rhino.Node) {
+	sb *strings.Builder, funType rhino.FunctionType, paramNode rhino.Node) {
 	minArity := funType.GetMinArity()
 	maxArity := funType.GetMaxArity()
 	formals := funType.GetParameters()
@@ -273,7 +273,7 @@ func (t *TypedCodeGenerator) AppendFunctionParamAnnotations(
 		sb.WriteString(" ")
 		sb.WriteString(parameterName)
 		sb.WriteString("\n")
-		if paramNode != nil {
+		if !paramNode.IsNil() {
 			paramNode = paramNode.GetNext()
 		}
 	}
@@ -332,9 +332,9 @@ func (t *TypedCodeGenerator) AppendTemplateAnnotations(
 // of the child in the list. Returns the name to use in JSDoc.
 //
 // Java: TypedCodeGenerator.getParameterJSDocName(Node, int)
-func (t *TypedCodeGenerator) GetParameterJSDocName(paramNode *rhino.Node, paramIndex int) string {
-	var nameNode *rhino.Node
-	if paramNode != nil {
+func (t *TypedCodeGenerator) GetParameterJSDocName(paramNode rhino.Node, paramIndex int) string {
+	var nameNode rhino.Node
+	if !paramNode.IsNil() {
 		jutil.CheckArgumentMsg1(paramNode.GetParent().IsParamList(), "%s", paramNode)
 		if paramNode.IsRest() {
 			// use `restParam` of `...restParam`
@@ -349,10 +349,10 @@ func (t *TypedCodeGenerator) GetParameterJSDocName(paramNode *rhino.Node, paramI
 			nameNode = paramNode
 		} else {
 			jutil.CheckStateMsg1(paramNode.IsObjectPattern() || paramNode.IsArrayPattern(), "%s", paramNode)
-			nameNode = nil // must generate a fake name
+			nameNode = rhino.Node{} // must generate a fake name
 		}
 	}
-	if nameNode == nil {
+	if nameNode.IsNil() {
 		return "p" + strconv.Itoa(paramIndex)
 	} else {
 		jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
@@ -418,8 +418,8 @@ func (t *TypedCodeGenerator) AppendInterfaceAnnotations(sb *strings.Builder, fun
 // a prototype method.
 //
 // Java: TypedCodeGenerator.findMethodOwner(Node)
-func (t *TypedCodeGenerator) FindMethodOwner(n *rhino.Node) rhino.ObjectType {
-	if n == nil {
+func (t *TypedCodeGenerator) FindMethodOwner(n rhino.Node) rhino.ObjectType {
+	if n.IsNil() {
 		return nil
 	}
 	parent := n.GetParent()

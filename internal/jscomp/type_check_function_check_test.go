@@ -45,7 +45,7 @@ func TestTypeCheckFunctionCheckTest(t *testing.T) {
 
 // Java: TypeCheckFunctionCheckTest.getProcessor(Compiler)
 func (c *TypeCheckFunctionCheckTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {})
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {})
 }
 
 // Java: TypeCheckFunctionCheckTest.getCodingConvention()

@@ -52,32 +52,32 @@ func (f *FileInfo) IsFromTypeScript() bool {
 }
 
 // Java: FileInfo.recordNameDeclaration(Node)
-func (f *FileInfo) RecordNameDeclaration(qualifiedNameNode *rhino.Node) {
+func (f *FileInfo) RecordNameDeclaration(qualifiedNameNode rhino.Node) {
 	f.RecordDeclaration(PotentialDeclaration_FromName(qualifiedNameNode))
 }
 
 // Java: FileInfo.recordMemberFieldDef(Node)
-func (f *FileInfo) RecordMemberFieldDef(fieldNode *rhino.Node) {
+func (f *FileInfo) RecordMemberFieldDef(fieldNode rhino.Node) {
 	f.RecordDeclaration(PotentialDeclaration_FromMemberFieldDef(fieldNode))
 }
 
 // Java: FileInfo.recordMethod(Node)
-func (f *FileInfo) RecordMethod(functionNode *rhino.Node) {
+func (f *FileInfo) RecordMethod(functionNode rhino.Node) {
 	f.RecordDeclaration(PotentialDeclaration_FromMethod(functionNode))
 }
 
 // Java: FileInfo.recordStringKeyDeclaration(Node)
-func (f *FileInfo) RecordStringKeyDeclaration(stringKeyNode *rhino.Node) {
+func (f *FileInfo) RecordStringKeyDeclaration(stringKeyNode rhino.Node) {
 	f.RecordDeclaration(PotentialDeclaration_FromStringKey(stringKeyNode))
 }
 
 // Java: FileInfo.recordDefine(Node)
-func (f *FileInfo) RecordDefine(callNode *rhino.Node) {
+func (f *FileInfo) RecordDefine(callNode rhino.Node) {
 	f.RecordDeclaration(PotentialDeclaration_FromDefine(callNode))
 }
 
 // Java: FileInfo.recordAliasDeclaration(Node)
-func (f *FileInfo) RecordAliasDeclaration(nameNode *rhino.Node) {
+func (f *FileInfo) RecordAliasDeclaration(nameNode rhino.Node) {
 	f.RecordDeclaration(PotentialDeclaration_FromAlias(nameNode))
 }
 

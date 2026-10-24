@@ -2104,7 +2104,7 @@ func (c *FunctionInjectorTest) HelperCanInlineReferenceToFunction(
 
 	// can-inline tester
 	tester :=
-		func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+		func(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 			ref := NewFunctionInjector_Reference(n, t.GetScope(), t.GetChunk(), mode)
 			fnBody := NodeUtil_GetFunctionBody(fnNode)
 			result :=
@@ -2126,7 +2126,7 @@ func (c *FunctionInjectorTest) HelperCanInlineReferenceToFunction(
 }
 
 // Java: FunctionInjectorTest.validateSourceInfo(Compiler, Node)
-func (c *FunctionInjectorTest) ValidateSourceInfo(compiler *Compiler, subtree *rhino.Node) {
+func (c *FunctionInjectorTest) ValidateSourceInfo(compiler *Compiler, subtree rhino.Node) {
 	NewSourceInfoCheck(compiler).SetCheckSubTree(subtree)
 	// Source information problems are reported as compiler errors.
 	if compiler.GetErrorCount() != 0 {
@@ -2182,7 +2182,7 @@ func (c *FunctionInjectorTest) HelperInlineReferenceToFunction(
 
 	// inline tester
 	tester :=
-		func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+		func(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 			ref := NewFunctionInjector_Reference(n, t.GetScope(), t.GetChunk(), mode)
 			fnBody := NodeUtil_GetFunctionBody(fnNode)
 			canInline :=
@@ -2249,7 +2249,7 @@ func (c *FunctionInjectorTest) DoesFunctionMeetMinimumRequirements(code string, 
 }
 
 // FunctionInjectorTest_Method is the interface Method.
-type FunctionInjectorTest_Method func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool
+type FunctionInjectorTest_Method func(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool
 
 // FunctionInjectorTest_TestCallback is the static class TestCallback.
 type FunctionInjectorTest_TestCallback struct {
@@ -2264,14 +2264,14 @@ func NewFunctionInjectorTest_TestCallback(callname string, method FunctionInject
 }
 
 // Java: FunctionInjectorTest.TestCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (cb *FunctionInjectorTest_TestCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (cb *FunctionInjectorTest_TestCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return !cb.complete
 }
 
 // Java: FunctionInjectorTest.TestCallback.visit(NodeTraversal, Node, Node)
-func (cb *FunctionInjectorTest_TestCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *FunctionInjectorTest_TestCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsCall() {
-		var callee *rhino.Node
+		var callee rhino.Node
 		if NodeUtil_IsNormalGet(n.GetFirstChild()) {
 			callee = n.GetFirstFirstChild()
 		} else {
@@ -2283,31 +2283,31 @@ func (cb *FunctionInjectorTest_TestCallback) Visit(t *NodeTraversal, n *rhino.No
 		}
 	}
 
-	if parent == nil {
+	if parent.IsNil() {
 		AssertThat(cb.complete).IsTrue()
 	}
 }
 
 // Java: FunctionInjectorTest.findFunction(Node, String)
-func FunctionInjectorTest_FindFunction(n *rhino.Node, name string) *rhino.Node {
+func FunctionInjectorTest_FindFunction(n rhino.Node, name string) rhino.Node {
 	if n.IsFunction() {
 		if n.GetFirstChild().GetString() == name {
 			return n
 		}
 	}
 
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		result := FunctionInjectorTest_FindFunction(c, name)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // Java: FunctionInjectorTest.prep(String)
-func FunctionInjectorTest_Prep(js string) *rhino.Node {
+func FunctionInjectorTest_Prep(js string) rhino.Node {
 	compiler := NewCompiler()
 	n := compiler.ParseTestCode(js)
 	AssertThat(compiler.GetErrorCount()).IsEqualTo(0)
@@ -2315,14 +2315,14 @@ func FunctionInjectorTest_Prep(js string) *rhino.Node {
 }
 
 // Java: FunctionInjectorTest.parse(Compiler, String)
-func FunctionInjectorTest_Parse(compiler *Compiler, js string) *rhino.Node {
+func FunctionInjectorTest_Parse(compiler *Compiler, js string) rhino.Node {
 	n := compiler.ParseTestCode(js)
 	AssertThat(compiler.GetErrorCount()).IsEqualTo(0)
 	return n
 }
 
 // Java: FunctionInjectorTest.parseExpected(Compiler, String)
-func FunctionInjectorTest_ParseExpected(compiler *Compiler, js string) *rhino.Node {
+func FunctionInjectorTest_ParseExpected(compiler *Compiler, js string) rhino.Node {
 	n := compiler.ParseTestCode(js)
 	message := "Unexpected errors: "
 	errs := compiler.GetErrors()
@@ -2334,9 +2334,9 @@ func FunctionInjectorTest_ParseExpected(compiler *Compiler, js string) *rhino.No
 }
 
 // functionInjectorTest_alwaysTrue is Guava's Predicates.alwaysTrue().
-func functionInjectorTest_alwaysTrue(*rhino.Node) bool { return true }
+func functionInjectorTest_alwaysTrue(rhino.Node) bool { return true }
 
 // Java: FunctionInjectorTest.toSource(Node)
-func FunctionInjectorTest_ToSource(n *rhino.Node) string {
+func FunctionInjectorTest_ToSource(n rhino.Node) string {
 	return NewCodePrinter_Builder(n).SetPrettyPrint(true).SetLineBreak(true).Build()
 }

@@ -33,7 +33,7 @@ import (
 type ProcessDefines struct {
 	compiler                   AbstractCompiler
 	registry                   *rhino.JSTypeRegistry
-	replacementValuesFromFlags *jutil.LinkedHashMap[string, *rhino.Node]
+	replacementValuesFromFlags *jutil.LinkedHashMap[string, rhino.Node]
 	mode                       ProcessDefines_Mode
 	namespaceSupplier          func() *GlobalNamespace
 	recognizeClosureDefines    bool
@@ -42,11 +42,11 @@ type ProcessDefines struct {
 	unknownDefinesToIgnore     *jutil.LinkedHashSet[string]
 
 	knownDefineJsdocs    *jutil.LinkedHashSet[*rhino.JSDocInfo]
-	knownGoogDefineCalls *jutil.LinkedHashSet[*rhino.Node]
+	knownGoogDefineCalls *jutil.LinkedHashSet[rhino.Node]
 	defineByDefineName   *jutil.LinkedHashMap[string, *ProcessDefines_Define]
 	// from var CLOSURE_DEFINES = {
-	replacementValuesFromClosureDefines *jutil.LinkedHashMap[string, *rhino.Node]
-	validDefineValueExpressions         *jutil.LinkedHashSet[*rhino.Node]
+	replacementValuesFromClosureDefines *jutil.LinkedHashMap[string, rhino.Node]
+	validDefineValueExpressions         *jutil.LinkedHashSet[rhino.Node]
 	hasZoneInput                        bool
 
 	namespace *GlobalNamespace
@@ -133,10 +133,10 @@ var ProcessDefines_DEFINE_WITHOUT_GOOG_DEFINE = DiagnosticType_Disabled(
 func newProcessDefines(builder *ProcessDefines_Builder) *ProcessDefines {
 	p := &ProcessDefines{
 		knownDefineJsdocs:                   jutil.NewLinkedHashSet[*rhino.JSDocInfo](),
-		knownGoogDefineCalls:                jutil.NewLinkedHashSet[*rhino.Node](),
+		knownGoogDefineCalls:                jutil.NewLinkedHashSet[rhino.Node](),
 		defineByDefineName:                  jutil.NewLinkedHashMap[string, *ProcessDefines_Define](),
-		replacementValuesFromClosureDefines: jutil.NewLinkedHashMap[string, *rhino.Node](),
-		validDefineValueExpressions:         jutil.NewLinkedHashSet[*rhino.Node](),
+		replacementValuesFromClosureDefines: jutil.NewLinkedHashMap[string, rhino.Node](),
+		validDefineValueExpressions:         jutil.NewLinkedHashSet[rhino.Node](),
 	}
 	p.mode = builder.mode
 	p.compiler = builder.compiler
@@ -184,7 +184,7 @@ func (m ProcessDefines_Mode) Optimize() bool { return processDefines_Mode_optimi
 // ProcessDefines_Builder is the builder for ProcessDefines.
 type ProcessDefines_Builder struct {
 	compiler                AbstractCompiler
-	replacementValues       *jutil.LinkedHashMap[string, *rhino.Node]
+	replacementValues       *jutil.LinkedHashMap[string, rhino.Node]
 	mode                    ProcessDefines_Mode
 	namespaceSupplier       func() *GlobalNamespace
 	recognizeClosureDefines bool
@@ -197,14 +197,14 @@ type ProcessDefines_Builder struct {
 func NewProcessDefines_Builder(compiler AbstractCompiler) *ProcessDefines_Builder {
 	return &ProcessDefines_Builder{
 		compiler:                compiler,
-		replacementValues:       jutil.NewLinkedHashMap[string, *rhino.Node](),
+		replacementValues:       jutil.NewLinkedHashMap[string, rhino.Node](),
 		recognizeClosureDefines: true,
 		unknownDefinesToIgnore:  []string{},
 	}
 }
 
 // Java: ProcessDefines.Builder.putReplacements(Map<String, Node>)
-func (b *ProcessDefines_Builder) PutReplacements(replacementValues jutil.MapSource[string, *rhino.Node]) *ProcessDefines_Builder {
+func (b *ProcessDefines_Builder) PutReplacements(replacementValues jutil.MapSource[string, rhino.Node]) *ProcessDefines_Builder {
 	for k, v := range replacementValues.All() {
 		b.replacementValues.Put(k, v)
 	}
@@ -257,7 +257,7 @@ func (b *ProcessDefines_Builder) Build() *ProcessDefines {
 }
 
 // Java: ProcessDefines.process(Node, Node)
-func (p *ProcessDefines) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *ProcessDefines) Process(externs rhino.Node, root rhino.Node) {
 	if p.namespaceSupplier != nil {
 		p.namespace = p.namespaceSupplier()
 	}
@@ -278,7 +278,7 @@ func (p *ProcessDefines) Process(externs *rhino.Node, root *rhino.Node) {
 }
 
 // Java: ProcessDefines.initNamespace(Node, Node)
-func (p *ProcessDefines) InitNamespace(externs *rhino.Node, root *rhino.Node) {
+func (p *ProcessDefines) InitNamespace(externs rhino.Node, root rhino.Node) {
 	if p.namespace == nil && p.namespaceSupplier != nil {
 		p.namespace = p.namespaceSupplier()
 	}
@@ -293,21 +293,21 @@ func (p *ProcessDefines) InitNamespace(externs *rhino.Node, root *rhino.Node) {
 func (p *ProcessDefines) OverrideDefines() {
 	if p.mode.Optimize() {
 		for define := range p.defineByDefineName.Values() {
-			if define.valueParent == nil {
+			if define.valueParent.IsNil() {
 				continue
 			}
 
 			inputValue := p.GetReplacementForDefine(define)
-			if inputValue == nil || inputValue == define.value {
+			if inputValue.IsNil() || inputValue == define.value {
 				continue
 			}
 
 			changed :=
-				define.value == nil ||
+				define.value.IsNil() ||
 					inputValue.GetToken() != define.value.GetToken() ||
 					!inputValue.IsEquivalentTo(define.value)
 			if changed {
-				if define.value == nil {
+				if define.value.IsNil() {
 					define.valueParent.AddChildToBack(inputValue.CloneTree())
 				} else {
 					define.value.ReplaceWith(inputValue.CloneTree())
@@ -330,7 +330,7 @@ func (p *ProcessDefines) OverrideDefines() {
 					globalDefineName :=
 						NodeUtil_NewNameWithSrcref(
 							p.compiler, ProcessDefines_GetGlobalDefineAlias(define.defineName), define.valueParent)
-					var defineLhs *rhino.Node
+					var defineLhs rhino.Node
 					if define.valueParent.IsAssign() {
 						defineLhs = define.valueParent.GetFirstChild().CloneTree()
 					} else {
@@ -394,9 +394,9 @@ func ProcessDefines_GetGlobalDefineAlias(defineName string) string {
 //     replace the call with the default value.
 //
 // Java: ProcessDefines.getReplacementForDefine(ProcessDefines.Define)
-func (p *ProcessDefines) GetReplacementForDefine(define *ProcessDefines_Define) *rhino.Node {
+func (p *ProcessDefines) GetReplacementForDefine(define *ProcessDefines_Define) rhino.Node {
 	replacement := p.GetReplacementForDefineName(&define.defineName)
-	if replacement != nil {
+	if !replacement.IsNil() {
 		return replacement
 	}
 
@@ -404,7 +404,7 @@ func (p *ProcessDefines) GetReplacementForDefine(define *ProcessDefines_Define) 
 		// Return the second argument of goog.define('name', false);
 		return define.value.GetChildAtIndex(2)
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // GetReplacementForDefineName returns the replacement value for a @define,
@@ -416,22 +416,22 @@ func (p *ProcessDefines) GetReplacementForDefine(define *ProcessDefines_Define) 
 //  3. If still not found, returns `null`.
 //
 // Java: ProcessDefines.getReplacementForDefineName(String)
-func (p *ProcessDefines) GetReplacementForDefineName(defineName *string) *rhino.Node {
+func (p *ProcessDefines) GetReplacementForDefineName(defineName *string) rhino.Node {
 	// Go-only: language-adapter — a null key finds nothing in either map.
 	if defineName == nil {
-		return nil
+		return rhino.Node{}
 	}
 	replacementFromFlags := p.replacementValuesFromFlags.Get(*defineName)
-	if replacementFromFlags != nil {
+	if !replacementFromFlags.IsNil() {
 		return replacementFromFlags
 	}
 
 	replacementFromClosureDefines := p.replacementValuesFromClosureDefines.Get(*defineName)
-	if replacementFromClosureDefines != nil {
+	if !replacementFromClosureDefines.IsNil() {
 		return replacementFromClosureDefines
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // IsValidDefineType: only defines of literal number, string, or boolean are
@@ -447,8 +447,8 @@ func (p *ProcessDefines) IsValidDefineType(expression *rhino.JSTypeExpression) b
 // each one.
 //
 // Java: ProcessDefines.collectDefines(Node)
-func (p *ProcessDefines) CollectDefines(root *rhino.Node) {
-	if p.recognizeClosureDefines && root != nil {
+func (p *ProcessDefines) CollectDefines(root rhino.Node) {
+	if p.recognizeClosureDefines && !root.IsNil() {
 		c := ProcessDefines_ClosureDefinesCollector{outer: p}
 		c.walk(root)
 	}
@@ -460,8 +460,8 @@ func (p *ProcessDefines) CollectDefines(root *rhino.Node) {
 
 		totalSets := name.GetTotalSets()
 		valueParent := processDefines_getValueParentForDefine(declaration)
-		var value *rhino.Node
-		if valueParent != nil {
+		var value rhino.Node
+		if !valueParent.IsNil() {
 			value = valueParent.GetLastChild()
 		}
 
@@ -535,7 +535,7 @@ func (p *ProcessDefines) SelectDefineDeclaration(name *GlobalNamespace_Name) *Gl
 }
 
 // Java: ProcessDefines.getValueParentForDefine(GlobalNamespace.Ref)
-func processDefines_getValueParentForDefine(declaration *GlobalNamespace_Ref) *rhino.Node {
+func processDefines_getValueParentForDefine(declaration *GlobalNamespace_Ref) rhino.Node {
 	// Note: this may be a NAME, a GETPROP, or even STRING_KEY or GETTER_DEF.
 	// We only care about the first two, in which case the parent should be
 	// either VAR/CONST or ASSIGN. We could accept STRING_KEY (i.e. `@define`
@@ -556,7 +556,7 @@ func processDefines_getValueParentForDefine(declaration *GlobalNamespace_Ref) *r
 		// allow assignment before it's declared).
 		return declarationParent
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: ProcessDefines.collectValidDefineValueExpressions()
@@ -578,7 +578,7 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 
 	hasUnknownDefineValue := false
 	for define := range p.defineByDefineName.Values() {
-		if define.valueParent != nil && !define.valueParent.IsFromExterns() && p.IsValidDefineValue(define.value) == base.Tri_UNKNOWN {
+		if !define.valueParent.IsNil() && !define.valueParent.IsFromExterns() && p.IsValidDefineValue(define.value) == base.Tri_UNKNOWN {
 			hasUnknownDefineValue = true
 			break
 		}
@@ -596,7 +596,7 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 			continue
 		}
 		declValue := processDefines_getConstantDeclValue(name.getDeclarationRef().GetNode())
-		if declValue == nil {
+		if declValue.IsNil() {
 			continue
 		}
 		switch p.IsValidDefineValue(declValue) {
@@ -648,10 +648,10 @@ func (p *ProcessDefines) ValidateDefineDeclarations() {
 			!processDefines_KNOWN_DEFINES.Contains(define.defineName) &&
 			!strings.HasPrefix(define.defineName, "$jscomp.") {
 			errorNode := define.value
-			if errorNode == nil {
+			if errorNode.IsNil() {
 				errorNode = define.valueParent
-				if errorNode == nil {
-					errorNode = jutil.CheckNotNull(declarationNode)
+				if errorNode.IsNil() {
+					errorNode = rhino.CheckNotNull(declarationNode)
 				}
 			}
 			p.compiler.Report(
@@ -664,10 +664,10 @@ func (p *ProcessDefines) ValidateDefineDeclarations() {
 
 		if !p.HasValidValue(define) {
 			errorNode := define.value
-			if errorNode == nil {
+			if errorNode.IsNil() {
 				errorNode = define.valueParent
-				if errorNode == nil {
-					errorNode = jutil.CheckNotNull(declarationNode)
+				if errorNode.IsNil() {
+					errorNode = rhino.CheckNotNull(declarationNode)
 				}
 			}
 			p.compiler.Report(
@@ -692,7 +692,7 @@ func (p *ProcessDefines) ValidateDefineDeclarations() {
 // calls.
 //
 // Java: ProcessDefines.reportInvalidDefineLocations(Node)
-func (p *ProcessDefines) ReportInvalidDefineLocations(root *rhino.Node) {
+func (p *ProcessDefines) ReportInvalidDefineLocations(root rhino.Node) {
 	if !p.mode.Check() {
 		return
 	}
@@ -703,7 +703,7 @@ func (p *ProcessDefines) ReportInvalidDefineLocations(root *rhino.Node) {
 	 *
 	 * <p>We don't check the externs because they can't contain local vars.
 	 */
-	cb := func(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	cb := func(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		jsdoc := n.GetJSDocInfo()
 		if jsdoc != nil && jsdoc.IsDefine() && p.knownDefineJsdocs.Add(jsdoc) {
 			p.compiler.Report(JSError_MakeWithNode(n, ProcessDefines_INVALID_DEFINE_LOCATION))
@@ -720,12 +720,12 @@ func (p *ProcessDefines) ReportInvalidDefineLocations(root *rhino.Node) {
 			p.compiler.Report(JSError_MakeWithNode(n, ProcessDefines_NON_GLOBAL_CLOSURE_DEFINES_ERROR))
 		}
 	}
-	if p.namespace != nil && p.namespace.forProcessDefines && p.namespace.generated && root != nil && root.IsRoot() && !p.namespace.hasNonScriptDefineCand {
+	if p.namespace != nil && p.namespace.forProcessDefines && p.namespace.generated && !root.IsNil() && root.IsRoot() && !p.namespace.hasNonScriptDefineCand {
 		if len(p.namespace.defineCandidateScripts) == 0 {
 			return
 		}
 		b := NodeTraversal_Builder_().SetCompiler(p.compiler).SetCallbackFunc(cb)
-		for s := root.GetFirstChild(); s != nil; s = s.GetNext() {
+		for s := root.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
 			if _, ok := p.namespace.defineCandidateScripts[s]; ok {
 				b.Traverse(s)
 			}
@@ -744,14 +744,14 @@ type ProcessDefines_ClosureDefinesCollector struct {
 	outer *ProcessDefines
 }
 
-func (c *ProcessDefines_ClosureDefinesCollector) walk(n *rhino.Node) {
+func (c *ProcessDefines_ClosureDefinesCollector) walk(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_ROOT, rhino.Token_EXPR_RESULT:
-		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			c.walk(ch)
 		}
 	case rhino.Token_SCRIPT:
-		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			c.walk(ch)
 		}
 		p := c.outer
@@ -762,20 +762,20 @@ func (c *ProcessDefines_ClosureDefinesCollector) walk(n *rhino.Node) {
 			}
 		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			c.walk(ch)
 		}
-		if first := n.GetFirstChild(); first != nil && first.MatchesName("CLOSURE_DEFINES") {
+		if first := n.GetFirstChild(); !first.IsNil() && first.MatchesName("CLOSURE_DEFINES") {
 			valueNode := first.GetFirstChild()
-			if valueNode != nil && valueNode.IsObjectLit() {
+			if !valueNode.IsNil() && valueNode.IsObjectLit() {
 				p := c.outer
-				for ch := valueNode.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+				for ch := valueNode.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 					p.HandleClosureDefinesValue(ch, ch.GetFirstChild(), n)
 				}
 			}
 		}
 	case rhino.Token_ASSIGN:
-		for ch := n.GetFirstChild(); ch != nil; ch = ch.GetNext() {
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			c.walk(ch)
 		}
 		lhs := n.GetFirstChild()
@@ -786,7 +786,7 @@ func (c *ProcessDefines_ClosureDefinesCollector) walk(n *rhino.Node) {
 }
 
 // Java: ProcessDefines.ClosureDefinesCollector.shouldTraverse(NodeTraversal, Node, Node)
-func (c *ProcessDefines_ClosureDefinesCollector) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *ProcessDefines_ClosureDefinesCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// In particular, don't traverse into modules or functions - only script
 	// top level scopes.
 	return n.IsRoot() ||
@@ -797,7 +797,7 @@ func (c *ProcessDefines_ClosureDefinesCollector) ShouldTraverse(t *NodeTraversal
 }
 
 // Java: ProcessDefines.ClosureDefinesCollector.visit(NodeTraversal, Node, Node)
-func (c *ProcessDefines_ClosureDefinesCollector) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *ProcessDefines_ClosureDefinesCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	p := c.outer
 	if n.IsScript() && p.zoneInputPattern != nil {
 		source := n.GetSourceFileName()
@@ -809,8 +809,8 @@ func (c *ProcessDefines_ClosureDefinesCollector) Visit(t *NodeTraversal, n *rhin
 	if NodeUtil_IsNameDeclaration(n) && n.GetFirstChild().MatchesName("CLOSURE_DEFINES") {
 		// var CLOSURE_DEFINES = {...};
 		valueNode := n.GetFirstFirstChild()
-		if valueNode != nil && valueNode.IsObjectLit() {
-			for c := valueNode.GetFirstChild(); c != nil; c = c.GetNext() {
+		if !valueNode.IsNil() && valueNode.IsObjectLit() {
+			for c := valueNode.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 				p.HandleClosureDefinesValue(c, c.GetFirstChild(), n)
 			}
 		}
@@ -824,7 +824,7 @@ func (c *ProcessDefines_ClosureDefinesCollector) Visit(t *NodeTraversal, n *rhin
 }
 
 // Java: ProcessDefines.handleClosureDefinesValue(Node, Node, Node)
-func (p *ProcessDefines) HandleClosureDefinesValue(stringNode *rhino.Node, valueNode *rhino.Node, errorNode *rhino.Node) {
+func (p *ProcessDefines) HandleClosureDefinesValue(stringNode rhino.Node, valueNode rhino.Node, errorNode rhino.Node) {
 	if (stringNode.IsStringKey() || stringNode.IsStringLit()) &&
 		processDefines_isValidClosureDefinesValue(valueNode) {
 		key := stringNode.GetString()
@@ -843,7 +843,7 @@ func (p *ProcessDefines) HandleClosureDefinesValue(stringNode *rhino.Node, value
 }
 
 // Java: ProcessDefines.isValidClosureDefinesValue(Node)
-func processDefines_isValidClosureDefinesValue(val *rhino.Node) bool {
+func processDefines_isValidClosureDefinesValue(val rhino.Node) bool {
 	// Values allowed in 'var CLOSURE_DEFINES = {'
 	// Must be a subset of the values allowed for <val> in
 	// /** @define {...} */ var DEF = <val>
@@ -859,7 +859,7 @@ func processDefines_isValidClosureDefinesValue(val *rhino.Node) bool {
 
 // Java: ProcessDefines.hasValidValue(ProcessDefines.Define)
 func (p *ProcessDefines) HasValidValue(define *ProcessDefines_Define) bool {
-	if define.valueParent == nil {
+	if define.valueParent.IsNil() {
 		return false
 	} else if define.valueParent.IsFromExterns() {
 		return true
@@ -881,8 +881,8 @@ func processDefines_isGlobalConst(name *GlobalNamespace_Name) bool {
 // define. val is the value being assigned.
 //
 // Java: ProcessDefines.isValidDefineValue(Node)
-func (p *ProcessDefines) IsValidDefineValue(val *rhino.Node) base.Tri {
-	if val == nil {
+func (p *ProcessDefines) IsValidDefineValue(val rhino.Node) base.Tri {
+	if val.IsNil() {
 		return base.Tri_FALSE
 	}
 
@@ -952,30 +952,30 @@ func (p *ProcessDefines) IsValidDefineValue(val *rhino.Node) base.Tri {
 // otherwise returns null.
 //
 // Java: ProcessDefines.getConstantDeclValue(Node)
-func processDefines_getConstantDeclValue(name *rhino.Node) *rhino.Node {
+func processDefines_getConstantDeclValue(name rhino.Node) rhino.Node {
 	parent := name.GetParent()
-	if parent == nil {
-		return nil
+	if parent.IsNil() {
+		return rhino.Node{}
 	}
 	if name.IsName() {
 		if parent.IsConst() {
 			return name.GetFirstChild()
 		} else if !parent.IsVar() {
-			return nil
+			return rhino.Node{}
 		}
 		jsdoc := NodeUtil_GetBestJSDocInfo(name)
 		if jsdoc != nil && jsdoc.IsConstant() {
 			return name.GetFirstChild()
 		}
-		return nil
+		return rhino.Node{}
 	} else if name.IsGetProp() && parent.IsAssign() {
 		jsdoc := NodeUtil_GetBestJSDocInfo(name)
 		if jsdoc != nil && jsdoc.IsConstant() {
 			return name.GetNext()
 		}
-		return nil
+		return rhino.Node{}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: ProcessDefines.validateDefines()
@@ -993,7 +993,7 @@ func (p *ProcessDefines) ValidateDefines() {
 func (p *ProcessDefines) IsZoneEnabled() bool {
 	enableZonesDefault := true
 	zoneEnabled := p.GetReplacementForDefineName(p.enableZonesDefineName)
-	if zoneEnabled == nil {
+	if zoneEnabled.IsNil() {
 		return enableZonesDefault
 	}
 
@@ -1010,8 +1010,8 @@ type ProcessDefines_Define struct {
 	// This may not be the same as `name.getDeclaration()`.
 	declaration *GlobalNamespace_Ref
 
-	valueParent *rhino.Node
-	value       *rhino.Node
+	valueParent rhino.Node
+	value       rhino.Node
 }
 
 // Java: ProcessDefines.Define(String, GlobalNamespace.Name, GlobalNamespace.Ref, Node, Node)
@@ -1019,9 +1019,9 @@ func NewProcessDefines_Define(
 	defineName string,
 	name *GlobalNamespace_Name,
 	declaration *GlobalNamespace_Ref,
-	valueParent *rhino.Node,
-	value *rhino.Node) *ProcessDefines_Define {
-	jutil.CheckState(valueParent == nil || value == nil || value.GetParent() == valueParent)
+	valueParent rhino.Node,
+	value rhino.Node) *ProcessDefines_Define {
+	jutil.CheckState(valueParent.IsNil() || value.IsNil() || value.GetParent() == valueParent)
 	jutil.CheckState(declaration.IsSet())
 
 	return &ProcessDefines_Define{
@@ -1034,12 +1034,12 @@ func NewProcessDefines_Define(
 }
 
 // Java: ProcessDefines.isGoogDefineCall(Node)
-func (p *ProcessDefines) IsGoogDefineCall(node *rhino.Node) bool {
+func (p *ProcessDefines) IsGoogDefineCall(node rhino.Node) bool {
 	if !p.recognizeClosureDefines {
 		return false
 	}
 
-	if node == nil || !node.IsCall() {
+	if node.IsNil() || !node.IsCall() {
 		return false
 	}
 	return node.GetFirstChild().MatchesQualifiedNameNode(processDefines_GOOG_DEFINE)
@@ -1051,7 +1051,7 @@ func (p *ProcessDefines) IsGoogDefineCall(node *rhino.Node) bool {
 // argument checked out okay.
 //
 // Java: ProcessDefines.verifyGoogDefine(Node)
-func (p *ProcessDefines) VerifyGoogDefine(callNode *rhino.Node) bool {
+func (p *ProcessDefines) VerifyGoogDefine(callNode rhino.Node) bool {
 	p.knownGoogDefineCalls.Add(callNode)
 
 	parent := callNode.GetParent()
@@ -1060,7 +1060,7 @@ func (p *ProcessDefines) VerifyGoogDefine(callNode *rhino.Node) bool {
 
 	// Calls to goog.define must be in the global hoist scope after module
 	// rewriting
-	if NodeUtil_GetEnclosingFunction(callNode) != nil {
+	if !NodeUtil_GetEnclosingFunction(callNode).IsNil() {
 		p.compiler.Report(JSError_MakeWithNode(methodName.GetParent(), ClosurePrimitiveErrors_INVALID_CLOSURE_CALL_SCOPE_ERROR))
 		return false
 	}
@@ -1111,8 +1111,8 @@ func (p *ProcessDefines) VerifyGoogDefine(callNode *rhino.Node) bool {
 // VerifyNotNull returns whether the argument checked out okay.
 //
 // Java: ProcessDefines.verifyNotNull(Node, Node)
-func (p *ProcessDefines) VerifyNotNull(methodName *rhino.Node, arg *rhino.Node) bool {
-	if arg == nil {
+func (p *ProcessDefines) VerifyNotNull(methodName rhino.Node, arg rhino.Node) bool {
+	if arg.IsNil() {
 		p.compiler.Report(
 			JSError_MakeWithNode(
 				methodName,
@@ -1126,8 +1126,8 @@ func (p *ProcessDefines) VerifyNotNull(methodName *rhino.Node, arg *rhino.Node) 
 // VerifyIsLast returns whether the argument checked out okay.
 //
 // Java: ProcessDefines.verifyIsLast(Node, Node)
-func (p *ProcessDefines) VerifyIsLast(methodName *rhino.Node, arg *rhino.Node) bool {
-	if arg.GetNext() != nil {
+func (p *ProcessDefines) VerifyIsLast(methodName rhino.Node, arg rhino.Node) bool {
+	if !arg.GetNext().IsNil() {
 		p.compiler.Report(
 			JSError_MakeWithNode(
 				methodName,
@@ -1141,7 +1141,7 @@ func (p *ProcessDefines) VerifyIsLast(methodName *rhino.Node, arg *rhino.Node) b
 // VerifyOfType returns whether the argument checked out okay.
 //
 // Java: ProcessDefines.verifyOfType(Node, Node, Token)
-func (p *ProcessDefines) VerifyOfType(methodName *rhino.Node, arg *rhino.Node, desiredType rhino.Token) bool {
+func (p *ProcessDefines) VerifyOfType(methodName rhino.Node, arg rhino.Node, desiredType rhino.Token) bool {
 	if arg.GetToken() != desiredType {
 		p.compiler.Report(
 			JSError_MakeWithNode(

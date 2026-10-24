@@ -194,7 +194,7 @@ func (v *TypeValidator) SetSubtypingMode(mode rhino.JSType_SubtypingMode) {
 // a warning and attempt to correct the mismatch, when possible.
 
 // Java: TypeValidator.expectValidTypeofName(Node, String)
-func (v *TypeValidator) ExpectValidTypeofName(n *rhino.Node, found string) {
+func (v *TypeValidator) ExpectValidTypeofName(n rhino.Node, found string) {
 	v.compiler.Report(JSError_MakeWithNode(n, TypeValidator_UNKNOWN_TYPEOF_VALUE, found))
 }
 
@@ -205,7 +205,7 @@ func (v *TypeValidator) ExpectValidTypeofName(n *rhino.Node, found string) {
 // Returns true if there was no warning, false if there was a mismatch.
 //
 // Java: TypeValidator.expectObject(Node, JSType, String)
-func (v *TypeValidator) ExpectObject(n *rhino.Node, type_ rhino.JSType, msg string) bool {
+func (v *TypeValidator) ExpectObject(n rhino.Node, type_ rhino.JSType, msg string) bool {
 	if !type_.MatchesObjectContext() {
 		v.MismatchNative(n, msg, type_, rhino.JSTypeNative_OBJECT_TYPE)
 		return false
@@ -217,7 +217,7 @@ func (v *TypeValidator) ExpectObject(n *rhino.Node, type_ rhino.JSType, msg stri
 // a type convertible to object is not acceptable.
 //
 // Java: TypeValidator.expectActualObject(Node, JSType, String)
-func (v *TypeValidator) ExpectActualObject(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectActualObject(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.IsObject() {
 		v.MismatchNative(n, msg, type_, rhino.JSTypeNative_OBJECT_TYPE)
 	}
@@ -228,7 +228,7 @@ func (v *TypeValidator) ExpectActualObject(n *rhino.Node, type_ rhino.JSType, ms
 // code position.
 //
 // Java: TypeValidator.expectAnyObject(Node, JSType, String)
-func (v *TypeValidator) ExpectAnyObject(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectAnyObject(n rhino.Node, type_ rhino.JSType, msg string) {
 	anyObjectType := v.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
 	if !anyObjectType.IsSubtypeOf(type_) && !type_.IsEmptyType() {
 		v.Mismatch(n, msg, type_, anyObjectType)
@@ -240,7 +240,7 @@ func (v *TypeValidator) ExpectAnyObject(n *rhino.Node, type_ rhino.JSType, msg s
 // Returns true if there was no warning, false if there was a mismatch.
 //
 // Java: TypeValidator.expectAutoboxesToIterable(Node, JSType, String)
-func (v *TypeValidator) ExpectAutoboxesToIterable(n *rhino.Node, type_ rhino.JSType, msg string) bool {
+func (v *TypeValidator) ExpectAutoboxesToIterable(n rhino.Node, type_ rhino.JSType, msg string) bool {
 	// Note: we don't just use JSType.autobox() here because that removes null and undefined.
 	// We want to keep null and undefined around.
 	if type_.IsUnionType() {
@@ -274,7 +274,7 @@ func (v *TypeValidator) ExpectAutoboxesToIterable(n *rhino.Node, type_ rhino.JST
 // iterable (Go: nil for Optional.empty()).
 //
 // Java: TypeValidator.expectAutoboxesToIterableOrAsyncIterable(Node, JSType, String)
-func (v *TypeValidator) ExpectAutoboxesToIterableOrAsyncIterable(n *rhino.Node, type_ rhino.JSType, msg string) rhino.JSType {
+func (v *TypeValidator) ExpectAutoboxesToIterableOrAsyncIterable(n rhino.Node, type_ rhino.JSType, msg string) rhino.JSType {
 	maybeBoxed := JsIterables_MaybeBoxIterableOrAsyncIterable(type_, v.typeRegistry)
 
 	if maybeBoxed.IsMatch() {
@@ -291,7 +291,7 @@ func (v *TypeValidator) ExpectAutoboxesToIterableOrAsyncIterable(n *rhino.Node, 
 // of Generator.
 //
 // Java: TypeValidator.expectGeneratorSupertype(Node, JSType, String)
-func (v *TypeValidator) ExpectGeneratorSupertype(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectGeneratorSupertype(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !v.GetNativeType(rhino.JSTypeNative_GENERATOR_TYPE).IsSubtypeOf(type_) {
 		v.MismatchNative(n, msg, type_, rhino.JSTypeNative_GENERATOR_TYPE)
 	}
@@ -301,7 +301,7 @@ func (v *TypeValidator) ExpectGeneratorSupertype(n *rhino.Node, type_ rhino.JSTy
 // supertype of AsyncGenerator.
 //
 // Java: TypeValidator.expectAsyncGeneratorSupertype(Node, JSType, String)
-func (v *TypeValidator) ExpectAsyncGeneratorSupertype(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectAsyncGeneratorSupertype(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !v.GetNativeType(rhino.JSTypeNative_ASYNC_GENERATOR_TYPE).IsSubtypeOf(type_) {
 		v.MismatchNative(n, msg, type_, rhino.JSTypeNative_ASYNC_GENERATOR_TYPE)
 	}
@@ -315,7 +315,7 @@ func (v *TypeValidator) ExpectAsyncGeneratorSupertype(n *rhino.Node, type_ rhino
 // a more specific type.
 //
 // Java: TypeValidator.expectValidAsyncReturnType(Node, JSType)
-func (v *TypeValidator) ExpectValidAsyncReturnType(n *rhino.Node, type_ rhino.JSType) {
+func (v *TypeValidator) ExpectValidAsyncReturnType(n rhino.Node, type_ rhino.JSType) {
 	if v.promiseOfUnknownType.IsSubtypeOf(type_) {
 		return
 	}
@@ -328,7 +328,7 @@ func (v *TypeValidator) ExpectValidAsyncReturnType(n *rhino.Node, type_ rhino.JS
 // supertype of ITemplateArray.
 //
 // Java: TypeValidator.expectITemplateArraySupertype(Node, JSType, String)
-func (v *TypeValidator) ExpectITemplateArraySupertype(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectITemplateArraySupertype(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !v.GetNativeType(rhino.JSTypeNative_I_TEMPLATE_ARRAY_TYPE).IsSubtypeOf(type_) {
 		v.MismatchNative(n, msg, type_, rhino.JSTypeNative_I_TEMPLATE_ARRAY_TYPE)
 	}
@@ -339,7 +339,7 @@ func (v *TypeValidator) ExpectITemplateArraySupertype(n *rhino.Node, type_ rhino
 // node's source code position.
 //
 // Java: TypeValidator.expectString(Node, JSType, String)
-func (v *TypeValidator) ExpectString(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectString(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.MatchesStringContext() {
 		v.MismatchNative(n, msg, type_, rhino.JSTypeNative_STRING_TYPE)
 	}
@@ -350,7 +350,7 @@ func (v *TypeValidator) ExpectString(n *rhino.Node, type_ rhino.JSType, msg stri
 // node's source code position.
 //
 // Java: TypeValidator.expectNumber(Node, JSType, String)
-func (v *TypeValidator) ExpectNumber(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectNumber(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.MatchesNumberContext() {
 		v.MismatchNative(n, msg, type_, rhino.JSTypeNative_NUMBER_TYPE)
 	} else {
@@ -361,7 +361,7 @@ func (v *TypeValidator) ExpectNumber(n *rhino.Node, type_ rhino.JSType, msg stri
 // ExpectNumberStrict expects the type to be a number or a subtype.
 //
 // Java: TypeValidator.expectNumberStrict(Node, JSType, String)
-func (v *TypeValidator) ExpectNumberStrict(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectNumberStrict(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.IsSubtypeOf(v.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)) {
 		v.RegisterMismatchAndReportWithDiagnostic(
 			n, TypeValidator_INVALID_OPERAND_TYPE, msg, type_, v.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE), nil, nil)
@@ -369,7 +369,7 @@ func (v *TypeValidator) ExpectNumberStrict(n *rhino.Node, type_ rhino.JSType, ms
 }
 
 // Java: TypeValidator.expectMatchingTypesStrict(Node, JSType, JSType, String)
-func (v *TypeValidator) ExpectMatchingTypesStrict(n *rhino.Node, left rhino.JSType, right rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectMatchingTypesStrict(n rhino.Node, left rhino.JSType, right rhino.JSType, msg string) {
 	if !left.IsSubtypeOf(right) && !right.IsSubtypeOf(left) {
 		v.RegisterMismatchAndReportWithDiagnostic(n, TypeValidator_INVALID_OPERAND_TYPE, msg, right, left, nil, nil)
 	}
@@ -380,7 +380,7 @@ func (v *TypeValidator) ExpectMatchingTypesStrict(n *rhino.Node, left rhino.JSTy
 // other primitive type (undefined|null|boolean|string).
 //
 // Java: TypeValidator.expectBitwiseable(Node, JSType, String)
-func (v *TypeValidator) ExpectBitwiseable(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectBitwiseable(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.MatchesNumberContext() && !type_.IsSubtypeOf(v.allBitwisableValueTypes) {
 		v.Mismatch(n, msg, type_, v.allBitwisableValueTypes)
 	} else {
@@ -393,7 +393,7 @@ func (v *TypeValidator) ExpectBitwiseable(n *rhino.Node, type_ rhino.JSType, msg
 // warning at the provided node's source code position.
 //
 // Java: TypeValidator.expectNumberOrSymbol(Node, JSType, String)
-func (v *TypeValidator) ExpectNumberOrSymbol(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectNumberOrSymbol(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.MatchesNumberContext() && !type_.MatchesSymbolContext() {
 		v.MismatchNative(n, msg, type_, rhino.JSTypeNative_NUMBER_SYMBOL)
 	}
@@ -404,7 +404,7 @@ func (v *TypeValidator) ExpectNumberOrSymbol(n *rhino.Node, type_ rhino.JSType, 
 // the provided node's source code position.
 //
 // Java: TypeValidator.expectStringOrSymbol(Node, JSType, String)
-func (v *TypeValidator) ExpectStringOrSymbol(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectStringOrSymbol(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.MatchesStringContext() && !type_.MatchesSymbolContext() {
 		v.MismatchNative(n, msg, type_, rhino.JSTypeNative_STRING_SYMBOL)
 	}
@@ -414,7 +414,7 @@ func (v *TypeValidator) ExpectStringOrSymbol(n *rhino.Node, type_ rhino.JSType, 
 // type (bigint, number, or string)
 //
 // Java: TypeValidator.expectUnknownOrComparable(Node, JSType, String)
-func (v *TypeValidator) ExpectUnknownOrComparable(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectUnknownOrComparable(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.IsSubtypeOf(v.GetNativeType(rhino.JSTypeNative_BIGINT_NUMBER_STRING)) &&
 		!type_.IsSubtypeOf(v.GetNativeType(rhino.JSTypeNative_BIGINT_NUMBER_STRING_OBJECT)) {
 		if type_.MatchesNumberContext() || type_.MatchesStringContext() {
@@ -432,7 +432,7 @@ func (v *TypeValidator) ExpectUnknownOrComparable(n *rhino.Node, type_ rhino.JST
 // not met, issue a warning at the provided node's source code position.
 //
 // Java: TypeValidator.expectStringOrNumberOrSymbol(Node, JSType, String)
-func (v *TypeValidator) ExpectStringOrNumberOrSymbol(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectStringOrNumberOrSymbol(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.MatchesNumberContext() &&
 		!type_.MatchesStringContext() &&
 		!type_.MatchesSymbolContext() {
@@ -443,7 +443,7 @@ func (v *TypeValidator) ExpectStringOrNumberOrSymbol(n *rhino.Node, type_ rhino.
 }
 
 // Java: TypeValidator.expectStringOrNumberOrSymbolStrict(Node, JSType, String)
-func (v *TypeValidator) ExpectStringOrNumberOrSymbolStrict(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectStringOrNumberOrSymbolStrict(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.IsSubtypeOf(v.GetNativeType(rhino.JSTypeNative_NUMBER_STRING_SYMBOL)) {
 		v.RegisterMismatchAndReportWithDiagnostic(
 			n, TypeValidator_INVALID_OPERAND_TYPE, msg, type_, v.GetNativeType(rhino.JSTypeNative_NUMBER_STRING_SYMBOL), nil, nil)
@@ -455,7 +455,7 @@ func (v *TypeValidator) ExpectStringOrNumberOrSymbolStrict(n *rhino.Node, type_ 
 // the provided node's source code position.
 //
 // Java: TypeValidator.expectBigIntOrNumber(Node, JSType, String)
-func (v *TypeValidator) ExpectBigIntOrNumber(n *rhino.Node, type_ rhino.JSType, msg string) {
+func (v *TypeValidator) ExpectBigIntOrNumber(n rhino.Node, type_ rhino.JSType, msg string) {
 	if !type_.IsSubtypeOf(v.GetNativeType(rhino.JSTypeNative_BIGINT_NUMBER)) &&
 		!type_.IsSubtypeOf(v.GetNativeType(rhino.JSTypeNative_BIGINT_NUMBER_OBJECT)) {
 		if type_.MatchesNumberContext() {
@@ -477,7 +477,7 @@ func (v *TypeValidator) ExpectBigIntOrNumber(n *rhino.Node, type_ rhino.JSType, 
 //
 // Java: TypeValidator.expectNotNullOrUndefined(NodeTraversal, Node, JSType, String, JSType)
 func (v *TypeValidator) ExpectNotNullOrUndefined(
-	t *NodeTraversal, n *rhino.Node, type_ rhino.JSType, msg string, expectedType rhino.JSType) bool {
+	t *NodeTraversal, n rhino.Node, type_ rhino.JSType, msg string, expectedType rhino.JSType) bool {
 	if !type_.IsNoType() &&
 		!type_.IsUnknownType() &&
 		type_.IsSubtypeOf(v.nullOrUndefined) &&
@@ -520,7 +520,7 @@ func TypeValidator_ContainsForwardDeclaredUnresolvedName(type_ rhino.JSType) boo
 // matches the type of its case condition.
 //
 // Java: TypeValidator.expectSwitchMatchesCase(Node, JSType, JSType)
-func (v *TypeValidator) ExpectSwitchMatchesCase(n *rhino.Node, switchType rhino.JSType, caseType rhino.JSType) {
+func (v *TypeValidator) ExpectSwitchMatchesCase(n rhino.Node, switchType rhino.JSType, caseType rhino.JSType) {
 	// ECMA-262, page 68, step 3 of evaluation of CaseBlock
 	if !switchType.CanTestForShallowEqualityWith(caseType) {
 		v.Mismatch(n.GetFirstChild(), "case expression doesn't match switch", caseType, switchType)
@@ -536,10 +536,10 @@ func (v *TypeValidator) ExpectSwitchMatchesCase(n *rhino.Node, switchType rhino.
 // the type inside the brackets of the GETELEM/COMPUTED_PROP.
 //
 // Java: TypeValidator.expectIndexMatch(Node, JSType, JSType)
-func (v *TypeValidator) ExpectIndexMatch(n *rhino.Node, objType rhino.JSType, indexType rhino.JSType) {
+func (v *TypeValidator) ExpectIndexMatch(n rhino.Node, objType rhino.JSType, indexType rhino.JSType) {
 	jutil.CheckStateMsg1(
 		n.IsGetElem() || n.IsOptChainGetElem() || n.IsComputedProp() || n.IsComputedFieldDef(), "%s", n)
-	var indexNode *rhino.Node
+	var indexNode rhino.Node
 	if n.IsGetElem() {
 		indexNode = n.GetLastChild()
 	} else {
@@ -587,7 +587,7 @@ func (v *TypeValidator) ExpectIndexMatch(n *rhino.Node, objType rhino.JSType, in
 //
 // Java: TypeValidator.expectCanAssignToPropertyOf(Node, JSType, JSType, Node, String)
 func (v *TypeValidator) ExpectCanAssignToPropertyOf(
-	n *rhino.Node, rightType rhino.JSType, leftType rhino.JSType, owner *rhino.Node, propName string) bool {
+	n rhino.Node, rightType rhino.JSType, leftType rhino.JSType, owner rhino.Node, propName string) bool {
 	var typeNameSupplier func() string
 	if n.IsMemberFieldDef() {
 		classType := n.GetGrandparent().GetJSType().AssertFunctionType()
@@ -610,7 +610,7 @@ func (v *TypeValidator) ExpectCanAssignToPropertyOf(
 //
 // Java: TypeValidator.expectCanAssignToPropertyOf(Node, JSType, JSType, JSType, Supplier<String>, String)
 func (v *TypeValidator) ExpectCanAssignToPropertyOfOwnerType(
-	n *rhino.Node,
+	n rhino.Node,
 	rightType rhino.JSType,
 	leftType rhino.JSType,
 	ownerType rhino.JSType,
@@ -668,7 +668,7 @@ func (v *TypeValidator) ExpectCanAssignToPropertyOfOwnerType(
 // true if the types matched, false otherwise.
 //
 // Java: TypeValidator.expectCanAssignTo(Node, JSType, JSType, String)
-func (v *TypeValidator) ExpectCanAssignTo(n *rhino.Node, rightType rhino.JSType, leftType rhino.JSType, msg string) bool {
+func (v *TypeValidator) ExpectCanAssignTo(n rhino.Node, rightType rhino.JSType, leftType rhino.JSType, msg string) bool {
 	if leftType.IsTemplateType() {
 		left := leftType.ToMaybeTemplateType()
 		if rightType.ContainsReferenceAncestor(left) ||
@@ -708,7 +708,7 @@ func (v *TypeValidator) ExpectCanAssignTo(n *rhino.Node, rightType rhino.JSType,
 //
 // Java: TypeValidator.expectArgumentMatchesParameter(Node, JSType, JSType, Node, int)
 func (v *TypeValidator) ExpectArgumentMatchesParameter(
-	n *rhino.Node, argType rhino.JSType, paramType rhino.JSType, callNode *rhino.Node, ordinal int) {
+	n rhino.Node, argType rhino.JSType, paramType rhino.JSType, callNode rhino.Node, ordinal int) {
 	if !argType.IsSubtypeOf(paramType) {
 		v.Mismatch(
 			n,
@@ -729,7 +729,7 @@ func (v *TypeValidator) ExpectArgumentMatchesParameter(
 // super instance type; subObject is the sub instance type.
 //
 // Java: TypeValidator.expectSuperType(Node, ObjectType, ObjectType)
-func (v *TypeValidator) ExpectSuperType(n *rhino.Node, superObject rhino.ObjectType, subObject rhino.ObjectType) {
+func (v *TypeValidator) ExpectSuperType(n rhino.Node, superObject rhino.ObjectType, subObject rhino.ObjectType) {
 	subCtor := subObject.GetConstructor()
 	implicitProto := subObject.GetImplicitPrototype()
 	var declaredSuper rhino.ObjectType
@@ -769,7 +769,7 @@ func (v *TypeValidator) ExpectSuperType(n *rhino.Node, superObject rhino.ObjectT
 // extends node in the AST.
 //
 // Java: TypeValidator.expectExtends(Node, FunctionType, FunctionType)
-func (v *TypeValidator) ExpectExtends(n *rhino.Node, subCtor rhino.FunctionType, astSuperCtor rhino.FunctionType) {
+func (v *TypeValidator) ExpectExtends(n rhino.Node, subCtor rhino.FunctionType, astSuperCtor rhino.FunctionType) {
 	if astSuperCtor == nil || (!astSuperCtor.IsConstructor() && !astSuperCtor.IsInterface()) {
 		// toMaybeFunctionType failed, or we've got a loose type.  Let it go for now.
 		return
@@ -816,7 +816,7 @@ func (v *TypeValidator) ExpectExtends(n *rhino.Node, subCtor rhino.FunctionType,
 // `number` above).
 //
 // Java: TypeValidator.expectCanAssignToPrototype(JSType, Node, JSType)
-func (v *TypeValidator) ExpectCanAssignToPrototype(ownerType rhino.JSType, node *rhino.Node, rightType rhino.JSType) {
+func (v *TypeValidator) ExpectCanAssignToPrototype(ownerType rhino.JSType, node rhino.Node, rightType rhino.JSType) {
 	if ownerType.IsFunctionType() {
 		functionType := ownerType.ToMaybeFunctionType()
 		if functionType.IsConstructor() {
@@ -832,7 +832,7 @@ func (v *TypeValidator) ExpectCanAssignToPrototype(ownerType rhino.JSType, node 
 // cast to; sourceType is the type being cast from.
 //
 // Java: TypeValidator.expectCanCast(Node, JSType, JSType)
-func (v *TypeValidator) ExpectCanCast(n *rhino.Node, targetType rhino.JSType, sourceType rhino.JSType) {
+func (v *TypeValidator) ExpectCanCast(n rhino.Node, targetType rhino.JSType, sourceType rhino.JSType) {
 	if !sourceType.CanCastTo(targetType) {
 		v.RegisterMismatchAndReport(
 			sourceType,
@@ -860,8 +860,8 @@ func (v *TypeValidator) ExpectCanCast(n *rhino.Node, targetType rhino.JSType, so
 func (v *TypeValidator) ExpectUndeclaredVariable(
 	sourceName string,
 	input *CompilerInput,
-	n *rhino.Node,
-	parent *rhino.Node,
+	n rhino.Node,
+	parent rhino.Node,
 	var_ *TypedVar,
 	variableName string,
 	newType rhino.JSType) *TypedVar {
@@ -939,7 +939,7 @@ func (v *TypeValidator) ExpectUndeclaredVariable(
 // that this type implements are implemented and correctly typed.
 //
 // Java: TypeValidator.expectAllInterfaceProperties(Node, FunctionType)
-func (v *TypeValidator) ExpectAllInterfaceProperties(n *rhino.Node, type_ rhino.FunctionType) {
+func (v *TypeValidator) ExpectAllInterfaceProperties(n rhino.Node, type_ rhino.FunctionType) {
 	instance := type_.GetInstanceType()
 	for _, implemented := range type_.GetAllImplementedInterfaces() {
 		v.ExpectInterfaceProperties(n, instance, implemented)
@@ -951,7 +951,7 @@ func (v *TypeValidator) ExpectAllInterfaceProperties(n *rhino.Node, type_ rhino.
 
 // Java: TypeValidator.expectInterfaceProperties(Node, ObjectType, ObjectType)
 func (v *TypeValidator) ExpectInterfaceProperties(
-	n *rhino.Node, instance rhino.ObjectType, ancestorInterface rhino.ObjectType) {
+	n rhino.Node, instance rhino.ObjectType, ancestorInterface rhino.ObjectType) {
 	// Case: `/** @interface */ class Foo { constructor() { this.prop; } }`
 	for _, prop := range ancestorInterface.GetOwnPropertyKeys() {
 		v.ExpectInterfaceProperty(n, instance, ancestorInterface, prop)
@@ -969,7 +969,7 @@ func (v *TypeValidator) ExpectInterfaceProperties(
 //
 // Java: TypeValidator.expectInterfaceProperty(Node, ObjectType, ObjectType, Property.Key)
 func (v *TypeValidator) ExpectInterfaceProperty(
-	n *rhino.Node, instance rhino.ObjectType, implementedInterface rhino.ObjectType, propName rhino.Property_Key) {
+	n rhino.Node, instance rhino.ObjectType, implementedInterface rhino.ObjectType, propName rhino.Property_Key) {
 	propSlot := instance.FindClosestDefinitionByKey(propName)
 	if propSlot == nil ||
 		(!instance.GetConstructor().IsInterface() && propSlot.IsOwnedByInterface()) {
@@ -1000,12 +1000,12 @@ func (v *TypeValidator) ExpectInterfaceProperty(
 		}
 
 		prop := propSlot.GetValue()
-		var propNode *rhino.Node
+		var propNode rhino.Node
 		if prop.GetDeclaration() != nil {
 			propNode = prop.GetDeclaration().GetNode()
 		}
 		// Fall back on the constructor node if we can't find a node for the property.
-		if propNode == nil {
+		if propNode.IsNil() {
 			propNode = n
 		}
 
@@ -1018,7 +1018,7 @@ func (v *TypeValidator) ExpectInterfaceProperty(
 //
 // Java: TypeValidator.checkPropertyType(Node, JSType, ObjectType, Property.Key, JSType)
 func (v *TypeValidator) CheckPropertyType(
-	n *rhino.Node, instance rhino.JSType, parent rhino.ObjectType, propertyName rhino.Property_Key, found rhino.JSType) {
+	n rhino.Node, instance rhino.JSType, parent rhino.ObjectType, propertyName rhino.Property_Key, found rhino.JSType) {
 	required := parent.GetPropertyTypeByKey(propertyName)
 	typeMap := instance.GetTemplateTypeMap()
 	if !typeMap.IsEmpty() && required.HasAnyTemplateTypes() {
@@ -1053,7 +1053,7 @@ func (v *TypeValidator) CheckPropertyType(
 // on the inheritance chain are implemented.
 //
 // Java: TypeValidator.expectAbstractMethodsImplemented(Node, FunctionType)
-func (v *TypeValidator) ExpectAbstractMethodsImplemented(n *rhino.Node, ctorType rhino.FunctionType) {
+func (v *TypeValidator) ExpectAbstractMethodsImplemented(n rhino.Node, ctorType rhino.FunctionType) {
 	jutil.CheckArgument(ctorType.IsConstructor())
 
 	// Go-only: language-adapter — an ObjectLinkedHashMap, since Property.Key
@@ -1095,12 +1095,12 @@ func (v *TypeValidator) ExpectAbstractMethodsImplemented(n *rhino.Node, ctorType
 }
 
 // Java: TypeValidator.mismatch(Node, String, JSType, JSTypeNative)
-func (v *TypeValidator) MismatchNative(n *rhino.Node, msg string, found rhino.JSType, required rhino.JSTypeNative) {
+func (v *TypeValidator) MismatchNative(n rhino.Node, msg string, found rhino.JSType, required rhino.JSTypeNative) {
 	v.Mismatch(n, msg, found, v.GetNativeType(required))
 }
 
 // Java: TypeValidator.mismatch(Node, String, JSType, JSType)
-func (v *TypeValidator) Mismatch(n *rhino.Node, msg string, found rhino.JSType, required rhino.JSType) {
+func (v *TypeValidator) Mismatch(n rhino.Node, msg string, found rhino.JSType, required rhino.JSType) {
 	if !found.IsSubtypeOfWithMode(required, v.subtypingMode) {
 		var missing jutil.Set[string]
 		var mismatch jutil.Set[string]
@@ -1149,7 +1149,7 @@ func (v *TypeValidator) Mismatch(n *rhino.Node, msg string, found rhino.JSType, 
 //
 // Java: TypeValidator.registerMismatchAndReport(Node, DiagnosticType, String, JSType, JSType, Set<String>, Set<String>)
 func (v *TypeValidator) RegisterMismatchAndReportWithDiagnostic(
-	n *rhino.Node,
+	n rhino.Node,
 	diagnostic *DiagnosticType,
 	msg string,
 	found rhino.JSType,
@@ -1174,7 +1174,7 @@ func (v *TypeValidator) RegisterMismatchAndReport(found rhino.JSType, required r
 // String.format("%s:%s:%s", node.getSourceFileName(), node.getLineno(), node.getCharno()).
 //
 // Java: TypeValidator.formatNodeLocation(Node)
-func TypeValidator_FormatNodeLocation(node *rhino.Node) string {
+func TypeValidator_FormatNodeLocation(node rhino.Node) string {
 	return jutil.ToJavaString(node.GetSourceFileName()) + ":" +
 		strconv.Itoa(node.GetLineno()) + ":" + strconv.Itoa(node.GetCharno())
 }
@@ -1247,7 +1247,7 @@ func typeValidator_joinComma(set jutil.Set[string]) string {
 // present.
 //
 // Java: TypeValidator.getJSType(Node)
-func (v *TypeValidator) GetJSType(n *rhino.Node) rhino.JSType {
+func (v *TypeValidator) GetJSType(n rhino.Node) rhino.JSType {
 	return jutil.CheckNotNullMsg1(n.GetJSType(), "%s has no JSType attached", n)
 }
 
@@ -1262,7 +1262,7 @@ func (v *TypeValidator) GetNativeType(typeId rhino.JSTypeNative) rhino.JSType {
 // decl is the declaration to check.
 //
 // Java: TypeValidator.hasDuplicateDeclarationSuppression(AbstractCompiler, Node)
-func TypeValidator_HasDuplicateDeclarationSuppression(compiler AbstractCompiler, decl *rhino.Node) bool {
+func TypeValidator_HasDuplicateDeclarationSuppression(compiler AbstractCompiler, decl rhino.Node) bool {
 	// NB: DUP_VAR_DECLARATION is somewhat arbitrary here, but it must be one of the errors
 	// suppressed by the "duplicate" group.
 	originalDeclLevel := compiler.GetErrorLevel(JSError_MakeWithNode(decl, TypeValidator_DUP_VAR_DECLARATION, "dummy", "dummy"))
@@ -1276,7 +1276,7 @@ func TypeValidator_HasDuplicateDeclarationSuppression(compiler AbstractCompiler,
 // allocations. One is reused: the call takes the spare verifier, or makes
 // one if a call that has not returned holds it, and leaves its verifier as
 // the spare when it returns.
-func (v *TypeValidator) ExpectWellFormedTemplatizedType(n *rhino.Node) {
+func (v *TypeValidator) ExpectWellFormedTemplatizedType(n rhino.Node) {
 	verifier := v.spareWellFormedTemplatizedTypeVerifier
 	if verifier != nil {
 		v.spareWellFormedTemplatizedTypeVerifier = nil
@@ -1287,7 +1287,7 @@ func (v *TypeValidator) ExpectWellFormedTemplatizedType(n *rhino.Node) {
 	if n.GetJSType() != nil {
 		n.GetJSType().Visit(verifier)
 	}
-	verifier.node = nil
+	verifier.node = rhino.Node{}
 	v.spareWellFormedTemplatizedTypeVerifier = verifier
 }
 
@@ -1299,11 +1299,11 @@ type TypeValidator_WellFormedTemplatizedTypeVerifier struct {
 
 	outer *TypeValidator
 
-	node *rhino.Node
+	node rhino.Node
 }
 
 // Java: TypeValidator.WellFormedTemplatizedTypeVerifier(Node)
-func NewTypeValidator_WellFormedTemplatizedTypeVerifier(outer *TypeValidator, node *rhino.Node) *TypeValidator_WellFormedTemplatizedTypeVerifier {
+func NewTypeValidator_WellFormedTemplatizedTypeVerifier(outer *TypeValidator, node rhino.Node) *TypeValidator_WellFormedTemplatizedTypeVerifier {
 	w := &TypeValidator_WellFormedTemplatizedTypeVerifier{outer: outer}
 	w.InitVisitor_WithDefaultCaseBase(w)
 	w.node = node

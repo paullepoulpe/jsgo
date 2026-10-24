@@ -42,7 +42,7 @@ type ScopedName interface {
 	// defined.
 	//
 	// Java: ScopedName.getScopeRoot()
-	GetScopeRoot() *rhino.Node
+	GetScopeRoot() rhino.Node
 
 	// Java: ScopedName.equals(Object)
 	Equals(other any) bool
@@ -64,7 +64,7 @@ func (b *ScopedNameBase) InitScopedNameBase(self ScopedName) { b.self = self }
 func (b *ScopedNameBase) GetScopedNameBase() *ScopedNameBase { return b }
 
 // Java: ScopedName.of(String, Node)
-func ScopedName_Of(name string, scopeRoot *rhino.Node) ScopedName {
+func ScopedName_Of(name string, scopeRoot rhino.Node) ScopedName {
 	return newScopedName_Simple(name, scopeRoot)
 }
 
@@ -72,12 +72,12 @@ func ScopedName_Of(name string, scopeRoot *rhino.Node) ScopedName {
 // semantics.
 type ScopedName_Simple struct {
 	name      string
-	scopeRoot *rhino.Node
+	scopeRoot rhino.Node
 	hash      int32
 }
 
 // Java: ScopedName.Simple(String, Node)
-func newScopedName_Simple(name string, scopeRoot *rhino.Node) *ScopedName_Simple {
+func newScopedName_Simple(name string, scopeRoot rhino.Node) *ScopedName_Simple {
 	return &ScopedName_Simple{
 		name:      name,
 		scopeRoot: scopeRoot,
@@ -90,7 +90,7 @@ func (s *ScopedName_Simple) GetName() string {
 }
 
 // Java: ScopedName.Simple.getScopeRoot()
-func (s *ScopedName_Simple) GetScopeRoot() *rhino.Node {
+func (s *ScopedName_Simple) GetScopeRoot() rhino.Node {
 	return s.scopeRoot
 }
 
@@ -114,10 +114,10 @@ func (s *ScopedName_Simple) HashCode() int32 {
 
 //go:noinline
 func (s *ScopedName_Simple) computeHashCode() int32 {
-	if s.scopeRoot == nil {
+	if s.scopeRoot.IsNil() {
 		panic(jutil.NewNullPointerException())
 	}
-	h := 31*(31+jutil.StringHashCode(s.name)) + jutil.IdentityHashCodeOfPointer(s.scopeRoot)
+	h := 31*(31+jutil.StringHashCode(s.name)) + s.scopeRoot.IdentityHashCode()
 	atomic.StoreInt32(&s.hash, h)
 	return h
 }
@@ -135,8 +135,8 @@ func (b *ScopedNameBase) Equals(other any) bool {
 }
 
 // scopedName_nodeEquals is a.equals(b) for Nodes (identity; null a throws).
-func scopedName_nodeEquals(a, b *rhino.Node) bool {
-	if a == nil {
+func scopedName_nodeEquals(a, b rhino.Node) bool {
+	if a.IsNil() {
 		scopedName_failNull()
 	}
 	return a == b
@@ -156,11 +156,11 @@ func (b *ScopedNameBase) HashCode() int32 {
 	// varargs function is enough that we want to avoid it.
 	name := b.self.GetName()
 	root := b.self.GetScopeRoot()
-	if root == nil {
+	if root.IsNil() {
 		panic(jutil.NewNullPointerException())
 	}
 	var result int32 = 1
 	result = 31*result + jutil.StringHashCode(name)
-	result = 31*result + jutil.IdentityHashCodeOfPointer(root) // Go-only: performance — IdentityHashCode(root), unboxed
+	result = 31*result + root.IdentityHashCode() // Go-only: performance — IdentityHashCode(root), unboxed
 	return result
 }

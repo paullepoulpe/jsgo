@@ -39,7 +39,7 @@ func TestSourceInformationAnnotatorTest(t *testing.T) {
 	RunJUnit4(t, func() JUnitTestCase { return &SourceInformationAnnotatorTest{} })
 }
 
-func sourceInformationAnnotatorTestOriginalName(n *rhino.Node) string {
+func sourceInformationAnnotatorTestOriginalName(n rhino.Node) string {
 	if n.GetOriginalName() == nil {
 		return "<null>"
 	}

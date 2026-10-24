@@ -28,13 +28,13 @@ import (
 )
 
 type basicBlockEntry struct {
-	root  *rhino.Node
+	root  rhino.Node
 	block *BasicBlock
 }
 
 // scopedVarKey is what makes two Vars equal (ScopedName equality).
 type scopedVarKey struct {
-	scopeRoot *rhino.Node
+	scopeRoot rhino.Node
 	nameID    uint32
 }
 
@@ -114,7 +114,7 @@ type ReferenceCollector struct {
 	callback            ReferenceCollector_CollectorCallback
 	referenceMapWrapper ReferenceCollector_ReferenceMapWrapper
 
-	collectedHoistedFunctions map[*rhino.Node]struct{}
+	collectedHoistedFunctions map[rhino.Node]struct{}
 
 	narrowScope *Scope
 }
@@ -240,7 +240,7 @@ func (c *ReferenceCollector) addToCollection(col *ReferenceCollection, r *Refere
 	col.references.Add(r)
 }
 
-func (c *ReferenceCollector) getReferencesByScopedNameID(scopeRoot *rhino.Node, nameID uint32) *ReferenceCollection {
+func (c *ReferenceCollector) getReferencesByScopedNameID(scopeRoot rhino.Node, nameID uint32) *ReferenceCollection {
 	return c.refs[scopedVarKey{scopeRoot: scopeRoot, nameID: nameID}]
 }
 
@@ -257,7 +257,7 @@ func (c *ReferenceCollector) builderVal() NodeTraversal_Builder {
 // this class as a callback.
 //
 // Java: ReferenceCollector.process(Node, Node)
-func (c *ReferenceCollector) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ReferenceCollector) Process(externs rhino.Node, root rhino.Node) {
 	b := c.builderVal()
 	b.TraverseRoots(externs, root)
 }
@@ -268,7 +268,7 @@ func (c *ReferenceCollector) Process(externs *rhino.Node, root *rhino.Node) {
 // to the two-argument overload.
 //
 // Java: ReferenceCollector.process(Node)
-func (c *ReferenceCollector) ProcessRoot(root *rhino.Node) {
+func (c *ReferenceCollector) ProcessRoot(root rhino.Node) {
 	b := c.builderVal()
 	b.Traverse(root)
 }
@@ -389,19 +389,19 @@ func (t referenceCollector_staticSymbolTable) GetAllSymbols() iter.Seq[*Var] {
 	return t.c.GetAllSymbols()
 }
 
-func rcIsHoistedFunctionDeclaration(fnNode *rhino.Node) bool {
+func rcIsHoistedFunctionDeclaration(fnNode rhino.Node) bool {
 	parent := fnNode.GetParent()
-	if parent == nil {
+	if parent.IsNil() {
 		return false
 	}
 	switch parent.GetToken() {
 	case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_EXPORT:
 		first := fnNode.GetFirstChild()
-		return first != nil && first.IsName() && first.GetString() != ""
+		return !first.IsNil() && first.IsName() && first.GetString() != ""
 	case rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_DECLARE, rhino.Token_NAMESPACE_ELEMENTS:
-		if gp := parent.GetParent(); gp != nil && gp.IsFunction() {
+		if gp := parent.GetParent(); !gp.IsNil() && gp.IsFunction() {
 			first := fnNode.GetFirstChild()
-			return first != nil && first.IsName() && first.GetString() != ""
+			return !first.IsNil() && first.IsName() && first.GetString() != ""
 		}
 	}
 	return false
@@ -410,11 +410,11 @@ func rcIsHoistedFunctionDeclaration(fnNode *rhino.Node) bool {
 // Java: ReferenceCollector.maybeJumpToHoistedFunction(Var, NodeTraversal)
 func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraversal) {
 	nameNode := var_.nameNode
-	if nameNode == nil {
+	if nameNode.IsNil() {
 		return
 	}
 	fnNode := nameNode.GetParent()
-	if fnNode == nil || !fnNode.IsFunction() {
+	if fnNode.IsNil() || !fnNode.IsFunction() {
 		return
 	}
 	if _, ok := c.collectedHoistedFunctions[fnNode]; ok || !rcIsHoistedFunctionDeclaration(fnNode) {
@@ -515,8 +515,8 @@ type ReferenceCollector_CollectorCallback struct {
 // ShouldTraverse updates block stack.
 //
 // Java: ReferenceCollector.CollectorCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	if n.GetFirstChild() == nil {
+func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if n.GetFirstChild().IsNil() {
 		switch n.GetToken() {
 		case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
 			if referenceCollector_isBlockBoundary(n, parent) {
@@ -539,7 +539,7 @@ func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *No
 			return false
 		}
 		if c.collectedHoistedFunctions == nil {
-			c.collectedHoistedFunctions = make(map[*rhino.Node]struct{})
+			c.collectedHoistedFunctions = make(map[rhino.Node]struct{})
 		}
 		c.collectedHoistedFunctions[n] = struct{}{}
 	}
@@ -587,9 +587,9 @@ func (cb *ReferenceCollector_CollectorCallback) ExitScope(t *NodeTraversal) {
 // appropriate.
 //
 // Java: ReferenceCollector.CollectorCallback.visit(NodeTraversal, Node, Node)
-func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if tok := n.GetToken(); tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
-		if parent != nil {
+		if !parent.IsNil() {
 			if pt := parent.GetToken(); (pt == rhino.Token_IMPORT_SPEC && n != parent.GetLastChild()) ||
 				(pt == rhino.Token_EXPORT_SPEC && n != parent.GetFirstChild()) {
 				// The n in `import {n as x}` or `export {x as n}` are not references, even though
@@ -621,12 +621,12 @@ func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n *rhino
 }
 
 // Java: ReferenceCollector.pushNewBlock(Node)
-func (c *ReferenceCollector) PushNewBlock(root *rhino.Node) {
+func (c *ReferenceCollector) PushNewBlock(root rhino.Node) {
 	c.blockStack = append(c.blockStack, basicBlockEntry{root: root})
 }
 
 // Java: ReferenceCollector.popLastBlock(Node)
-func (c *ReferenceCollector) PopLastBlock(root *rhino.Node) {
+func (c *ReferenceCollector) PopLastBlock(root rhino.Node) {
 	if len(c.blockStack) == 0 {
 		panic(jutil.NewNoSuchElementException()) // ArrayDeque.removeLast()
 	}
@@ -666,8 +666,8 @@ var refCollectorParentBoundaryKind = [256]uint8{
 // start of a new basic block
 //
 // Java: ReferenceCollector.isBlockBoundary(Node, Node)
-func referenceCollector_isBlockBoundary(n *rhino.Node, parent *rhino.Node) bool {
-	if parent != nil {
+func referenceCollector_isBlockBoundary(n rhino.Node, parent rhino.Node) bool {
+	if !parent.IsNil() {
 		switch refCollectorParentBoundaryKind[uint8(parent.GetToken())] {
 		case 1:
 			return true
@@ -680,11 +680,11 @@ func referenceCollector_isBlockBoundary(n *rhino.Node, parent *rhino.Node) bool 
 }
 
 // Java: ReferenceCollector.addReference(Var, Node, NodeTraversal)
-func (c *ReferenceCollector) AddReference(v *Var, n *rhino.Node, t *NodeTraversal) {
+func (c *ReferenceCollector) AddReference(v *Var, n rhino.Node, t *NodeTraversal) {
 	c.addReferenceWithScope(v, n, t, nil)
 }
 
-func (c *ReferenceCollector) addReferenceWithScope(v *Var, n *rhino.Node, t *NodeTraversal, scope *Scope) {
+func (c *ReferenceCollector) addReferenceWithScope(v *Var, n rhino.Node, t *NodeTraversal, scope *Scope) {
 	if v != c.lastVar && c.varFilter != nil {
 		if v == c.lastRejectedVar || !c.varFilter(v) {
 			c.lastRejectedVar = v
@@ -734,7 +734,7 @@ func (w *ReferenceCollector_ReferenceMapWrapper) GetReferences(var_ *Var) *Refer
 	return w.referenceMap.Get(var_)
 }
 
-func (w *ReferenceCollector_ReferenceMapWrapper) getReferencesByScopedName(scopeRoot *rhino.Node, name string) *ReferenceCollection {
+func (w *ReferenceCollector_ReferenceMapWrapper) getReferencesByScopedName(scopeRoot rhino.Node, name string) *ReferenceCollection {
 	if w.c != nil {
 		id := rhino.RhinoStringPool_LookupID(name)
 		if id == 0 {

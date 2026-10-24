@@ -49,7 +49,7 @@ type rewriteJsonToModuleTest_noopPass struct {
 }
 
 // Java: RewriteJsonToModuleTest.getProcessor(Compiler).new CompilerPass() {...}.process(Node, Node)
-func (p *rewriteJsonToModuleTest_noopPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *rewriteJsonToModuleTest_noopPass) Process(externs rhino.Node, root rhino.Node) {
 	// No-op, RewriteJsonToModule handling is done directly after parsing.
 }
 

@@ -747,8 +747,8 @@ func (s *DataFlowAnalysis_LinearFlowState[L]) String() string {
 	return jutil.StringFormat("IN: %s OUT: %s", s.in, s.out)
 }
 
-func dfaHasNestedFunctionOrClass(n *rhino.Node) bool {
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+func dfaHasNestedFunctionOrClass(n rhino.Node) bool {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		tok := c.GetToken()
 		if tok == rhino.Token_FUNCTION || tok == rhino.Token_CLASS {
 			return true
@@ -821,15 +821,15 @@ func DataFlowAnalysis_ComputeEscaped(
 	fnBody := args.GetNext()
 	argsHasFnOrClass := dfaHasNestedFunctionOrClass(args)
 
-	var firstEscapingStmt *rhino.Node
+	var firstEscapingStmt rhino.Node
 	if !argsHasFnOrClass && fnBody.IsBlock() {
-		for stmt := fnBody.GetFirstChild(); stmt != nil; stmt = stmt.GetNext() {
+		for stmt := fnBody.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
 			if stmt.IsFunction() || stmt.IsClass() || dfaHasNestedFunctionOrClass(stmt) {
 				firstEscapingStmt = stmt
 				break
 			}
 		}
-		if firstEscapingStmt == nil {
+		if firstEscapingStmt.IsNil() {
 			return
 		}
 	} else if !argsHasFnOrClass && !dfaHasNestedFunctionOrClass(fnBody) {
@@ -838,8 +838,8 @@ func DataFlowAnalysis_ComputeEscaped(
 
 	hasDuplicateVarNames := allVarsInFn == nil || hasNestedScopeVars || fnNameShadowed || argsHasFnOrClass
 	nonEscapingDepth := jsScope.GetDepth()
-	var skipArgs *rhino.Node
-	var filterFnBody *rhino.Node
+	var skipArgs rhino.Node
+	var filterFnBody rhino.Node
 	if !argsHasFnOrClass {
 		skipArgs = args
 		if fnBody.IsBlock() {
@@ -877,22 +877,22 @@ type dataFlowAnalysis_escapedFinder struct {
 	nonEscapingDepth     int
 	escaped              *jutil.ObjectLinkedHashSet[*Var]
 	allVarsInFn          *jutil.LinkedHashMap[string, *Var]
-	skipArgs             *rhino.Node
-	fnBody               *rhino.Node
-	firstEscapingStmt    *rhino.Node
+	skipArgs             rhino.Node
+	fnBody               rhino.Node
+	firstEscapingStmt    rhino.Node
 	reachedFirstEscaping bool
 	hasDuplicateVarNames bool
 	escapedStartedEmpty  bool
 }
 
-func (f *dataFlowAnalysis_escapedFinder) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *dataFlowAnalysis_escapedFinder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if !f.hasDuplicateVarNames && f.escapedStartedEmpty && f.escaped.Size() >= f.allVarsInFn.Size() {
 		return false
 	}
 	if n == f.skipArgs {
 		return false
 	}
-	if parent != nil && parent == f.fnBody {
+	if !parent.IsNil() && parent == f.fnBody {
 		if !f.reachedFirstEscaping {
 			if n != f.firstEscapingStmt {
 				return false
@@ -927,7 +927,7 @@ func (f *dataFlowAnalysis_escapedFinder) isInsideEscapingScope(t *NodeTraversal)
 func (*dataFlowAnalysis_escapedFinder) onlyNameLeaves() {}
 
 // Java: DataFlowAnalysis.computeEscaped(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
-func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 
 	if !n.IsName() || parent.IsFunction() || len(t.scopes)-1 <= f.nonEscapingDepth || !f.isInsideEscapingScope(t) {
 		return

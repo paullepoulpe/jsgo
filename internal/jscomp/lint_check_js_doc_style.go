@@ -113,13 +113,13 @@ func NewCheckJSDocStyle(compiler AbstractCompiler) *CheckJSDocStyle {
 }
 
 // Java: CheckJSDocStyle.process(Node, Node)
-func (c *CheckJSDocStyle) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckJSDocStyle) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 	NodeTraversal_Traverse(c.compiler, externs, &CheckJSDocStyle_ExternsCallback{})
 }
 
 // Java: CheckJSDocStyle.visit(NodeTraversal, Node, Node)
-func (c *CheckJSDocStyle) Visit(t *NodeTraversal, n *rhino.Node, unused *rhino.Node) {
+func (c *CheckJSDocStyle) Visit(t *NodeTraversal, n rhino.Node, unused rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		c.VisitFunction(t, n)
@@ -131,7 +131,7 @@ func (c *CheckJSDocStyle) Visit(t *NodeTraversal, n *rhino.Node, unused *rhino.N
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
 		// Don't need to call visitFunction because this JSDoc will be visited when the function is
 		// visited.
-		if NodeUtil_GetEnclosingClass(n) != nil {
+		if !NodeUtil_GetEnclosingClass(n).IsNil() {
 			c.CheckStyleForPrivateProperties(t, n)
 		}
 	case rhino.Token_SCRIPT:
@@ -142,7 +142,7 @@ func (c *CheckJSDocStyle) Visit(t *NodeTraversal, n *rhino.Node, unused *rhino.N
 }
 
 // Java: CheckJSDocStyle.checkForAtSignCodePresence(NodeTraversal, Node, JSDocInfo)
-func (c *CheckJSDocStyle) CheckForAtSignCodePresence(t *NodeTraversal, n *rhino.Node, jsDoc *rhino.JSDocInfo) {
+func (c *CheckJSDocStyle) CheckForAtSignCodePresence(t *NodeTraversal, n rhino.Node, jsDoc *rhino.JSDocInfo) {
 	if jsDoc == nil {
 		return
 	}
@@ -152,21 +152,21 @@ func (c *CheckJSDocStyle) CheckForAtSignCodePresence(t *NodeTraversal, n *rhino.
 }
 
 // Java: CheckJSDocStyle.visitNonFunction(NodeTraversal, Node)
-func (c *CheckJSDocStyle) VisitNonFunction(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckJSDocStyle) VisitNonFunction(t *NodeTraversal, n rhino.Node) {
 	jsDoc := n.GetJSDocInfo()
 
 	c.CheckForAtSignCodePresence(t, n, jsDoc)
 }
 
 // Java: CheckJSDocStyle.checkStyleForPrivateProperties(NodeTraversal, Node)
-func (c *CheckJSDocStyle) CheckStyleForPrivateProperties(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckJSDocStyle) CheckStyleForPrivateProperties(t *NodeTraversal, n rhino.Node) {
 	jsDoc := NodeUtil_GetBestJSDocInfo(n)
 	c.CheckForAtSignCodePresence(t, n, jsDoc)
 }
 
 // Java: CheckJSDocStyle.checkNoTypeOnGettersAndSetters(NodeTraversal, Node, JSDocInfo)
 func CheckJSDocStyle_CheckNoTypeOnGettersAndSetters(
-	t *NodeTraversal, function *rhino.Node, jsDoc *rhino.JSDocInfo) {
+	t *NodeTraversal, function rhino.Node, jsDoc *rhino.JSDocInfo) {
 	if function.GetGrandparent().IsClassMembers() {
 		memberNode := function.GetParent()
 		if memberNode.IsSetterDef() || memberNode.IsGetterDef() {
@@ -178,7 +178,7 @@ func CheckJSDocStyle_CheckNoTypeOnGettersAndSetters(
 }
 
 // Java: CheckJSDocStyle.visitFunction(NodeTraversal, Node)
-func (c *CheckJSDocStyle) VisitFunction(t *NodeTraversal, function *rhino.Node) {
+func (c *CheckJSDocStyle) VisitFunction(t *NodeTraversal, function rhino.Node) {
 	jsDoc := NodeUtil_GetBestJSDocInfo(function)
 
 	c.CheckForAtSignCodePresence(t, function, jsDoc)
@@ -199,7 +199,7 @@ func (c *CheckJSDocStyle) VisitFunction(t *NodeTraversal, function *rhino.Node) 
 }
 
 // Java: CheckJSDocStyle.visitClass(NodeTraversal, Node)
-func (c *CheckJSDocStyle) VisitClass(t *NodeTraversal, cls *rhino.Node) {
+func (c *CheckJSDocStyle) VisitClass(t *NodeTraversal, cls rhino.Node) {
 	jsDoc := NodeUtil_GetBestJSDocInfo(cls)
 
 	c.CheckForAtSignCodePresence(t, cls, jsDoc)
@@ -213,7 +213,7 @@ func (c *CheckJSDocStyle) VisitClass(t *NodeTraversal, cls *rhino.Node) {
 }
 
 // Java: CheckJSDocStyle.checkMissingJsDoc(NodeTraversal, Node)
-func (c *CheckJSDocStyle) CheckMissingJsDoc(t *NodeTraversal, function *rhino.Node) {
+func (c *CheckJSDocStyle) CheckMissingJsDoc(t *NodeTraversal, function rhino.Node) {
 	if c.IsFunctionThatShouldHaveJsDoc(t, function) && !c.IsTestMethod(function) {
 		t.Report(function, CheckJSDocStyle_MISSING_JSDOC)
 	}
@@ -224,7 +224,7 @@ func (c *CheckJSDocStyle) CheckMissingJsDoc(t *NodeTraversal, function *rhino.No
 // method on a class which is declared in the global scope.
 //
 // Java: CheckJSDocStyle.isFunctionThatShouldHaveJsDoc(NodeTraversal, Node)
-func (c *CheckJSDocStyle) IsFunctionThatShouldHaveJsDoc(t *NodeTraversal, function *rhino.Node) bool {
+func (c *CheckJSDocStyle) IsFunctionThatShouldHaveJsDoc(t *NodeTraversal, function rhino.Node) bool {
 	if !(t.InGlobalHoistScope() || t.InModuleScope()) {
 		// TODO(b/233631820): this should check for the module hoist scope instead
 		return false
@@ -258,23 +258,23 @@ func (c *CheckJSDocStyle) IsFunctionThatShouldHaveJsDoc(t *NodeTraversal, functi
 // setup/teardown) that does not require JSDoc.
 //
 // Java: CheckJSDocStyle.isTestMethod(Node)
-func (c *CheckJSDocStyle) IsTestMethod(function *rhino.Node) bool {
+func (c *CheckJSDocStyle) IsTestMethod(function rhino.Node) bool {
 	bestLValue := NodeUtil_GetBestLValue(function)
 	var name *string
-	if bestLValue != nil {
+	if !bestLValue.IsNil() {
 		name = NodeUtil_GetBestLValueName(bestLValue)
 	}
 	return name != nil && ExportTestFunctions_IsTestFunction(name)
 }
 
 // Java: CheckJSDocStyle.isConstructorWithoutParameters(Node)
-func (c *CheckJSDocStyle) IsConstructorWithoutParameters(function *rhino.Node) bool {
+func (c *CheckJSDocStyle) IsConstructorWithoutParameters(function rhino.Node) bool {
 	return NodeUtil_IsEs6Constructor(function) &&
 		!NodeUtil_GetFunctionParameters(function).HasChildren()
 }
 
 // Java: CheckJSDocStyle.checkParams(NodeTraversal, Node, JSDocInfo)
-func (c *CheckJSDocStyle) CheckParams(t *NodeTraversal, function *rhino.Node, jsDoc *rhino.JSDocInfo) {
+func (c *CheckJSDocStyle) CheckParams(t *NodeTraversal, function rhino.Node, jsDoc *rhino.JSDocInfo) {
 	if jsDoc != nil && jsDoc.GetType() != nil {
 		// Sometimes functions are declared with @type {function(Foo, Bar)} instead of
 		//   @param {Foo} foo
@@ -326,10 +326,10 @@ func (c *CheckJSDocStyle) CheckParams(t *NodeTraversal, function *rhino.Node, js
 // CheckInlineParams checks that the inline type annotations are correct.
 //
 // Java: CheckJSDocStyle.checkInlineParams(NodeTraversal, Node, JSDocInfo)
-func (c *CheckJSDocStyle) CheckInlineParams(t *NodeTraversal, function *rhino.Node, fnJSDoc *rhino.JSDocInfo) {
+func (c *CheckJSDocStyle) CheckInlineParams(t *NodeTraversal, function rhino.Node, fnJSDoc *rhino.JSDocInfo) {
 	paramList := NodeUtil_GetFunctionParameters(function)
 
-	for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
+	for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
 		var jsDoc *rhino.JSDocInfo
 		if param.IsDefaultValue() {
 			jsDoc = param.GetFirstChild().GetJSDocInfo()
@@ -366,7 +366,7 @@ func (c *CheckJSDocStyle) CheckInlineParams(t *NodeTraversal, function *rhino.No
 //
 // Java: CheckJSDocStyle.checkParam(NodeTraversal, Node, String, JSTypeExpression)
 func (c *CheckJSDocStyle) CheckParam(
-	t *NodeTraversal, param *rhino.Node, name *string, paramType *rhino.JSTypeExpression) bool {
+	t *NodeTraversal, param rhino.Node, name *string, paramType *rhino.JSTypeExpression) bool {
 	var nameOptional bool
 	nodeToCheck := param
 	if param.IsDefaultValue() {
@@ -406,7 +406,7 @@ func (c *CheckJSDocStyle) CheckParam(
 }
 
 // Java: CheckJSDocStyle.isDefaultAssignedParamWithInlineJsDoc(Node)
-func CheckJSDocStyle_IsDefaultAssignedParamWithInlineJsDoc(param *rhino.Node) bool {
+func CheckJSDocStyle_IsDefaultAssignedParamWithInlineJsDoc(param rhino.Node) bool {
 	if param.IsDefaultValue() {
 		if param.HasChildren() && param.GetFirstChild().IsName() {
 			return param.GetFirstChild().GetJSDocInfo() != nil
@@ -416,12 +416,12 @@ func CheckJSDocStyle_IsDefaultAssignedParamWithInlineJsDoc(param *rhino.Node) bo
 }
 
 // Java: CheckJSDocStyle.hasAnyInlineJsDoc(Node)
-func (c *CheckJSDocStyle) HasAnyInlineJsDoc(function *rhino.Node) bool {
+func (c *CheckJSDocStyle) HasAnyInlineJsDoc(function rhino.Node) bool {
 	if function.GetFirstChild().GetJSDocInfo() != nil {
 		// Inline return annotation.
 		return true
 	}
-	for param := NodeUtil_GetFunctionParameters(function).GetFirstChild(); param != nil; param = param.GetNext() {
+	for param := NodeUtil_GetFunctionParameters(function).GetFirstChild(); !param.IsNil(); param = param.GetNext() {
 		if param.GetJSDocInfo() != nil || CheckJSDocStyle_IsDefaultAssignedParamWithInlineJsDoc(param) {
 			return true
 		}
@@ -430,7 +430,7 @@ func (c *CheckJSDocStyle) HasAnyInlineJsDoc(function *rhino.Node) bool {
 }
 
 // Java: CheckJSDocStyle.checkReturn(Node, JSDocInfo)
-func (c *CheckJSDocStyle) CheckReturn(function *rhino.Node, jsDoc *rhino.JSDocInfo) {
+func (c *CheckJSDocStyle) CheckReturn(function rhino.Node, jsDoc *rhino.JSDocInfo) {
 	if jsDoc != nil && (jsDoc.HasType() || jsDoc.IsConstructor() || jsDoc.HasReturnType()) {
 		return
 	}
@@ -469,7 +469,7 @@ type CheckJSDocStyle_FindNonTrivialReturn struct {
 }
 
 // Java: CheckJSDocStyle.FindNonTrivialReturn.shouldTraverse(NodeTraversal, Node, Node)
-func (f *CheckJSDocStyle_FindNonTrivialReturn) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (f *CheckJSDocStyle_FindNonTrivialReturn) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if f.found {
 		return false
 	}
@@ -489,12 +489,12 @@ func (f *CheckJSDocStyle_FindNonTrivialReturn) ShouldTraverse(t *NodeTraversal, 
 type CheckJSDocStyle_ExternsCallback struct{}
 
 // Java: CheckJSDocStyle.ExternsCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (*CheckJSDocStyle_ExternsCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	return parent == nil || n.IsScript()
+func (*CheckJSDocStyle_ExternsCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	return parent.IsNil() || n.IsScript()
 }
 
 // Java: CheckJSDocStyle.ExternsCallback.visit(NodeTraversal, Node, Node)
-func (*CheckJSDocStyle_ExternsCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (*CheckJSDocStyle_ExternsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsScript() {
 		info := n.GetJSDocInfo()
 		if info == nil || !info.IsExterns() {
@@ -504,7 +504,7 @@ func (*CheckJSDocStyle_ExternsCallback) Visit(t *NodeTraversal, n *rhino.Node, p
 }
 
 // Java: CheckJSDocStyle.checkLicenseComment(NodeTraversal, Node)
-func (c *CheckJSDocStyle) CheckLicenseComment(t *NodeTraversal, n *rhino.Node) {
+func (c *CheckJSDocStyle) CheckLicenseComment(t *NodeTraversal, n rhino.Node) {
 	if n.GetJSDocInfo() == nil || n.GetJSDocInfo().GetLicense() == nil {
 		return
 	}

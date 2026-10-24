@@ -30,7 +30,7 @@ import (
 type CheckUnusedPrivateProperties struct {
 	compiler                  AbstractCompiler
 	used                      *jutil.LinkedHashSet[string]
-	candidates                []*rhino.Node
+	candidates                []rhino.Node
 	constructorsAndInterfaces *jutil.LinkedHashSet[string]
 }
 
@@ -48,7 +48,7 @@ func NewCheckUnusedPrivateProperties(compiler AbstractCompiler) *CheckUnusedPriv
 }
 
 // Java: CheckUnusedPrivateProperties.process(Node, Node)
-func (c *CheckUnusedPrivateProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckUnusedPrivateProperties) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
@@ -63,7 +63,7 @@ func (c *CheckUnusedPrivateProperties) ReportUnused(t *NodeTraversal) {
 }
 
 // Java: CheckUnusedPrivateProperties.getPropName(Node)
-func (c *CheckUnusedPrivateProperties) GetPropName(n *rhino.Node) string {
+func (c *CheckUnusedPrivateProperties) GetPropName(n rhino.Node) string {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_MEMBER_FUNCTION_DEF:
 		return n.GetString()
@@ -73,7 +73,7 @@ func (c *CheckUnusedPrivateProperties) GetPropName(n *rhino.Node) string {
 }
 
 // Java: CheckUnusedPrivateProperties.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckUnusedPrivateProperties) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CheckUnusedPrivateProperties) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		c.used.Clear()
 		// Even if a constructor is unused , we still want to prevent the construction of the class
@@ -86,7 +86,7 @@ func (c *CheckUnusedPrivateProperties) ShouldTraverse(t *NodeTraversal, n *rhino
 }
 
 // Java: CheckUnusedPrivateProperties.visit(NodeTraversal, Node, Node)
-func (c *CheckUnusedPrivateProperties) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckUnusedPrivateProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		// exiting the script, report any privates not used in the file.
@@ -109,7 +109,7 @@ func (c *CheckUnusedPrivateProperties) Visit(t *NodeTraversal, n *rhino.Node, pa
 	case rhino.Token_OBJECTLIT:
 		// Assume any object literal definition might be a reflection on the
 		// class property.
-		for c2 := n.GetFirstChild(); c2 != nil; c2 = c2.GetNext() {
+		for c2 := n.GetFirstChild(); !c2.IsNil(); c2 = c2.GetNext() {
 			if c2.IsStringKey() || c2.IsGetterDef() || c2.IsSetterDef() || c2.IsMemberFunctionDef() {
 				c.used.Add(c2.GetString())
 			}
@@ -136,7 +136,7 @@ func (c *CheckUnusedPrivateProperties) Visit(t *NodeTraversal, n *rhino.Node, pa
 }
 
 // Java: CheckUnusedPrivateProperties.recordConstructorOrInterface(Node)
-func (c *CheckUnusedPrivateProperties) RecordConstructorOrInterface(n *rhino.Node) {
+func (c *CheckUnusedPrivateProperties) RecordConstructorOrInterface(n rhino.Node) {
 	className := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
 	if className != nil {
 		// If className is null, then this pass won't report any diagnostics on static members of this
@@ -146,7 +146,7 @@ func (c *CheckUnusedPrivateProperties) RecordConstructorOrInterface(n *rhino.Nod
 }
 
 // Java: CheckUnusedPrivateProperties.isPrivatePropDecl(Node)
-func (c *CheckUnusedPrivateProperties) IsPrivatePropDecl(n *rhino.Node) bool {
+func (c *CheckUnusedPrivateProperties) IsPrivatePropDecl(n rhino.Node) bool {
 	// TODO(johnlenz): add support private by convention property definitions without JSDoc.
 	// TODO(johnlenz): add support for checking protected properties in final classes
 	// TODO(johnlenz): add support for checking "package" properties when checking an entire
@@ -156,7 +156,7 @@ func (c *CheckUnusedPrivateProperties) IsPrivatePropDecl(n *rhino.Node) bool {
 }
 
 // Java: CheckUnusedPrivateProperties.isCheckablePrivatePropDecl(Node)
-func (c *CheckUnusedPrivateProperties) IsCheckablePrivatePropDecl(n *rhino.Node) bool {
+func (c *CheckUnusedPrivateProperties) IsCheckablePrivatePropDecl(n rhino.Node) bool {
 	// TODO(tbreisacher): Look for uses of the typedef/interface in type expressions; warn if there
 	// are no uses.
 	info := NodeUtil_GetBestJSDocInfo(n)
@@ -164,7 +164,7 @@ func (c *CheckUnusedPrivateProperties) IsCheckablePrivatePropDecl(n *rhino.Node)
 }
 
 // Java: CheckUnusedPrivateProperties.isCandidatePropertyDefinition(Node)
-func (c *CheckUnusedPrivateProperties) IsCandidatePropertyDefinition(n *rhino.Node) bool {
+func (c *CheckUnusedPrivateProperties) IsCandidatePropertyDefinition(n rhino.Node) bool {
 	jutil.CheckStateMsg1(n.IsGetProp(), "%s", n)
 	target := n.GetFirstChild()
 	return target.IsThis() ||
@@ -177,7 +177,7 @@ func (c *CheckUnusedPrivateProperties) IsCandidatePropertyDefinition(n *rhino.No
 //
 // Go-only: language-adapter — getQualifiedName() may be null (*string here),
 // and a Java set of non-null strings never contains null.
-func (c *CheckUnusedPrivateProperties) containsQualifiedName(target *rhino.Node) bool {
+func (c *CheckUnusedPrivateProperties) containsQualifiedName(target rhino.Node) bool {
 	qname := target.GetQualifiedName()
 	return qname != nil && c.constructorsAndInterfaces.Contains(*qname)
 }
@@ -186,7 +186,7 @@ func (c *CheckUnusedPrivateProperties) containsQualifiedName(target *rhino.Node)
 // property is used in a way that prevents its removal.
 //
 // Java: CheckUnusedPrivateProperties.isPinningPropertyUse(Node)
-func CheckUnusedPrivateProperties_IsPinningPropertyUse(n *rhino.Node) bool {
+func CheckUnusedPrivateProperties_IsPinningPropertyUse(n rhino.Node) bool {
 	// Rather than looking for cases that are uses, we assume all references are
 	// pinning uses unless they are:
 	//  - a simple assignment (x.a = 1)

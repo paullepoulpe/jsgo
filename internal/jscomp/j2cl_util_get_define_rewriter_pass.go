@@ -41,7 +41,7 @@ func NewJ2clUtilGetDefineRewriterPass(compiler AbstractCompiler) *J2clUtilGetDef
 }
 
 // Java: J2clUtilGetDefineRewriterPass.process(Node, Node)
-func (p *J2clUtilGetDefineRewriterPass) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *J2clUtilGetDefineRewriterPass) Process(externs rhino.Node, root rhino.Node) {
 	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
 		return
 	}
@@ -55,14 +55,14 @@ func (p *J2clUtilGetDefineRewriterPass) Process(externs *rhino.Node, root *rhino
 }
 
 // Java: J2clUtilGetDefineRewriterPass.visit(NodeTraversal, Node, Node)
-func (p *J2clUtilGetDefineRewriterPass) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (p *J2clUtilGetDefineRewriterPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if j2clUtilGetDefineRewriterPass_isUtilGetDefineCall(n) {
 		p.rewriteUtilGetDefine(t, n)
 	}
 }
 
 // Java: J2clUtilGetDefineRewriterPass.rewriteUtilGetDefine(NodeTraversal, Node)
-func (p *J2clUtilGetDefineRewriterPass) rewriteUtilGetDefine(t *NodeTraversal, callNode *rhino.Node) {
+func (p *J2clUtilGetDefineRewriterPass) rewriteUtilGetDefine(t *NodeTraversal, callNode rhino.Node) {
 	firstExpr := callNode.GetSecondChild()
 	secondExpr := callNode.GetLastChild()
 
@@ -80,7 +80,7 @@ func (p *J2clUtilGetDefineRewriterPass) rewriteUtilGetDefine(t *NodeTraversal, c
 }
 
 // Java: J2clUtilGetDefineRewriterPass.getDefineReplacement(Node, Node)
-func (p *J2clUtilGetDefineRewriterPass) getDefineReplacement(firstExpr *rhino.Node, secondExpr *rhino.Node) *rhino.Node {
+func (p *J2clUtilGetDefineRewriterPass) getDefineReplacement(firstExpr rhino.Node, secondExpr rhino.Node) rhino.Node {
 	defineName := firstExpr.GetString()
 	if p.defines.Contains(defineName) {
 		define := NodeUtil_NewQName(p.compiler, ProcessDefines_GetGlobalDefineAlias(defineName))
@@ -92,7 +92,7 @@ func (p *J2clUtilGetDefineRewriterPass) getDefineReplacement(firstExpr *rhino.No
 }
 
 // Java: J2clUtilGetDefineRewriterPass.isUtilGetDefineCall(Node)
-func j2clUtilGetDefineRewriterPass_isUtilGetDefineCall(n *rhino.Node) bool {
+func j2clUtilGetDefineRewriterPass_isUtilGetDefineCall(n rhino.Node) bool {
 	return n.IsCall() && j2clUtilGetDefineRewriterPass_isUtilGetDefineMethodName(n.GetFirstChild().GetQualifiedName())
 }
 
@@ -125,21 +125,21 @@ var (
 type J2clUtilGetDefineRewriterPass_CheckGetDefineCalls struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer                             *J2clUtilGetDefineRewriterPass
-	defineNameToAddSystemPropertyCall *jutil.LinkedHashMap[string, *rhino.Node]
-	defineNameToGetDefineCall         *jutil.LinkedHashMap[string, *rhino.Node]
+	defineNameToAddSystemPropertyCall *jutil.LinkedHashMap[string, rhino.Node]
+	defineNameToGetDefineCall         *jutil.LinkedHashMap[string, rhino.Node]
 }
 
 // Java: J2clUtilGetDefineRewriterPass.CheckGetDefineCalls()
 func (p *J2clUtilGetDefineRewriterPass) newCheckGetDefineCalls() *J2clUtilGetDefineRewriterPass_CheckGetDefineCalls {
 	return &J2clUtilGetDefineRewriterPass_CheckGetDefineCalls{
 		outer:                             p,
-		defineNameToAddSystemPropertyCall: jutil.NewLinkedHashMap[string, *rhino.Node](),
-		defineNameToGetDefineCall:         jutil.NewLinkedHashMap[string, *rhino.Node](),
+		defineNameToAddSystemPropertyCall: jutil.NewLinkedHashMap[string, rhino.Node](),
+		defineNameToGetDefineCall:         jutil.NewLinkedHashMap[string, rhino.Node](),
 	}
 }
 
 // Java: J2clUtilGetDefineRewriterPass.CheckGetDefineCalls.visit(NodeTraversal, Node, Node)
-func (c *J2clUtilGetDefineRewriterPass_CheckGetDefineCalls) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *J2clUtilGetDefineRewriterPass_CheckGetDefineCalls) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	compiler := c.outer.compiler
 	if j2clUtilGetDefineRewriterPass_CheckGetDefineCalls_isAddSystemPropertyFromGoogDefine(n) {
 		defineName := j2clUtilGetDefineRewriterPass_CheckGetDefineCalls_getDefineNameParameter(n)
@@ -190,9 +190,9 @@ func (c *J2clUtilGetDefineRewriterPass_CheckGetDefineCalls) validateRegisteredDe
 }
 
 // Java: J2clUtilGetDefineRewriterPass.CheckGetDefineCalls.getDefineNameParameter(Node)
-func j2clUtilGetDefineRewriterPass_CheckGetDefineCalls_getDefineNameParameter(callNode *rhino.Node) *string {
+func j2clUtilGetDefineRewriterPass_CheckGetDefineCalls_getDefineNameParameter(callNode rhino.Node) *string {
 	nameNode := callNode.GetSecondChild()
-	if nameNode == nil || !nameNode.IsString() {
+	if nameNode.IsNil() || !nameNode.IsString() {
 		return nil
 	}
 	name := nameNode.GetString()
@@ -200,7 +200,7 @@ func j2clUtilGetDefineRewriterPass_CheckGetDefineCalls_getDefineNameParameter(ca
 }
 
 // Java: J2clUtilGetDefineRewriterPass.CheckGetDefineCalls.isAddSystemPropertyFromGoogDefine(Node)
-func j2clUtilGetDefineRewriterPass_CheckGetDefineCalls_isAddSystemPropertyFromGoogDefine(n *rhino.Node) bool {
+func j2clUtilGetDefineRewriterPass_CheckGetDefineCalls_isAddSystemPropertyFromGoogDefine(n rhino.Node) bool {
 	return n.IsCall() &&
 		n.GetFirstChild().GetQualifiedName() != nil &&
 		strings.HasSuffix(*n.GetFirstChild().GetQualifiedName(), "addSystemPropertyFromGoogDefine")

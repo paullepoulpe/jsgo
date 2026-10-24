@@ -55,7 +55,7 @@ type functionTypeBuilderTest_noopPass struct {
 	_ byte // Go-only: language-adapter — distinct identity
 }
 
-func (p *functionTypeBuilderTest_noopPass) Process(externs *rhino.Node, js *rhino.Node) {}
+func (p *functionTypeBuilderTest_noopPass) Process(externs rhino.Node, js rhino.Node) {}
 
 // Java: FunctionTypeBuilderTest.getProcessor(Compiler)
 func (c *FunctionTypeBuilderTest) GetProcessor(compiler *Compiler) CompilerPass {

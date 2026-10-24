@@ -217,7 +217,7 @@ func (c *GoogleCodingConventionTest) AssertDefinesClasses(code string, subclassN
 }
 
 // Java: GoogleCodingConventionTest.parseTestCode(String)
-func (c *GoogleCodingConventionTest) ParseTestCode(code string) *rhino.Node {
+func (c *GoogleCodingConventionTest) ParseTestCode(code string) rhino.Node {
 	compiler := NewCompiler()
 	return compiler.ParseTestCode(code).GetFirstChild()
 }

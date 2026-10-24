@@ -150,20 +150,20 @@ type ClosureCheckModule_ModuleInfo struct {
 	// Go-only: language-adapter — the Java map may receive a null key (the
 	// first argument of a malformed goog.require call); it is only ever read
 	// with non-null keys, so null keys are not stored.
-	importsByLongRequiredName *jutil.LinkedHashMap[string, *rhino.Node]
+	importsByLongRequiredName *jutil.LinkedHashMap[string, rhino.Node]
 	// Module-local short names for goog.required symbols.
 	shortImportNames *jutil.LinkedHashSet[string]
 	// A map from the export names "exports.name" to the nodes of those named
 	// exports. The default export is keyed with just "exports"
-	exportNodesByName *jutil.LinkedHashMap[string, *rhino.Node]
+	exportNodesByName *jutil.LinkedHashMap[string, rhino.Node]
 }
 
 // Java: ClosureCheckModule.ModuleInfo(String)
 func newClosureCheckModule_ModuleInfo(moduleName string) *ClosureCheckModule_ModuleInfo {
 	i := &ClosureCheckModule_ModuleInfo{}
-	i.importsByLongRequiredName = jutil.NewLinkedHashMap[string, *rhino.Node]()
+	i.importsByLongRequiredName = jutil.NewLinkedHashMap[string, rhino.Node]()
 	i.shortImportNames = jutil.NewLinkedHashSet[string]()
-	i.exportNodesByName = jutil.NewLinkedHashMap[string, *rhino.Node]()
+	i.exportNodesByName = jutil.NewLinkedHashMap[string, rhino.Node]()
 	i.name = moduleName
 	return i
 }
@@ -177,14 +177,14 @@ func NewClosureCheckModule(compiler AbstractCompiler, moduleMetadataMap *ModuleM
 }
 
 // Java: ClosureCheckModule.process(Node, Node)
-func (c *ClosureCheckModule) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ClosureCheckModule) Process(externs rhino.Node, root rhino.Node) {
 	if c.processParallel(root) {
 		return
 	}
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
-func (c *ClosureCheckModule) processParallel(root *rhino.Node) bool {
+func (c *ClosureCheckModule) processParallel(root rhino.Node) bool {
 	scripts, ok := collectRootScripts(root)
 	if !ok {
 		return false
@@ -222,7 +222,7 @@ func (c *ClosureCheckModule) processParallel(root *rhino.Node) bool {
 }
 
 // Java: ClosureCheckModule.enterModule(ModuleMetadata, Node)
-func (c *ClosureCheckModule) EnterModule(currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot *rhino.Node) {
+func (c *ClosureCheckModule) EnterModule(currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node) {
 	if !currentModule.IsGoogModule() {
 		return
 	}
@@ -238,16 +238,16 @@ func (c *ClosureCheckModule) EnterModule(currentModule *ModuleMetadataMap_Module
 }
 
 // Java: ClosureCheckModule.exitModule(ModuleMetadata, Node)
-func (c *ClosureCheckModule) ExitModule(currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot *rhino.Node) {
+func (c *ClosureCheckModule) ExitModule(currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node) {
 	c.currentModuleInfo = nil
 }
 
 // Java: ClosureCheckModule.visit(NodeTraversal, Node, ModuleMetadata, Node)
 func (c *ClosureCheckModule) VisitWithModule(
 	t *NodeTraversal,
-	n *rhino.Node,
+	n rhino.Node,
 	currentModule *ModuleMetadataMap_ModuleMetadata,
-	moduleScopeRoot *rhino.Node) {
+	moduleScopeRoot rhino.Node) {
 	parent := n.GetParent()
 	if c.currentModuleInfo == nil {
 		if NodeUtil_IsCallToQualifiedName(n, closureCheckModule_GOOG_MODULE) {
@@ -298,8 +298,8 @@ func (c *ClosureCheckModule) VisitWithModule(
 		fallthrough
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		if t.InModuleHoistScope() &&
-			(n.IsClass() || NodeUtil_GetEnclosingClass(n) == nil) &&
-			NodeUtil_GetEnclosingType(n, rhino.Token_OBJECTLIT) == nil {
+			(n.IsClass() || NodeUtil_GetEnclosingClass(n).IsNil()) &&
+			NodeUtil_GetEnclosingType(n, rhino.Token_OBJECTLIT).IsNil() {
 			jsdoc := NodeUtil_GetBestJSDocInfo(n)
 			if jsdoc != nil && jsdoc.IsExport() {
 				t.Report(n, ClosureCheckModule_AT_EXPORT_IN_GOOG_MODULE)
@@ -338,7 +338,7 @@ func (c *ClosureCheckModule) VisitWithModule(
 					nextQnamePart = &nextPart
 					qname = qname[:len(qname)-1-len(nextPart)]
 					node = node.GetOnlyChild()
-					if node == nil {
+					if node.IsNil() {
 						return
 					}
 				}
@@ -363,7 +363,7 @@ type closureCheckModule_checkTypeExpressionVisitor struct {
 }
 
 // Java: ClosureCheckModule.checkTypeExpression(NodeTraversal, Node).new Visitor() {...}.visit(Node)
-func (v *closureCheckModule_checkTypeExpressionVisitor) Visit(node *rhino.Node) {
+func (v *closureCheckModule_checkTypeExpressionVisitor) Visit(node rhino.Node) {
 	if !node.IsStringLit() {
 		return
 	}
@@ -383,7 +383,7 @@ func (v *closureCheckModule_checkTypeExpressionVisitor) Visit(node *rhino.Node) 
 }
 
 // Java: ClosureCheckModule.checkTypeExpression(NodeTraversal, Node)
-func (c *ClosureCheckModule) CheckTypeExpression(t *NodeTraversal, typeNode *rhino.Node) {
+func (c *ClosureCheckModule) CheckTypeExpression(t *NodeTraversal, typeNode rhino.Node) {
 	NodeUtil_VisitPreOrder(
 		typeNode,
 		&closureCheckModule_checkTypeExpressionVisitor{outer: c, t: t})
@@ -402,13 +402,13 @@ func ClosureCheckModule_IsLocalVar(v *Var) bool {
 //
 // Java: ClosureCheckModule.checkImproperReferenceToImport(NodeTraversal, Node, String, String)
 func (c *ClosureCheckModule) CheckImproperReferenceToImport(
-	t *NodeTraversal, n *rhino.Node, qname *string, nextQnamePart *string) bool {
+	t *NodeTraversal, n rhino.Node, qname *string, nextQnamePart *string) bool {
 	if qname == nil {
 		return true
 	}
 
 	importLhs := c.currentModuleInfo.importsByLongRequiredName.Get(*qname)
-	if importLhs == nil {
+	if importLhs.IsNil() {
 		return true
 	}
 
@@ -427,7 +427,7 @@ func (c *ClosureCheckModule) CheckImproperReferenceToImport(
 	} else if importLhs.IsDestructuringLhs() && nextQnamePart != nil {
 		objPattern := importLhs.GetFirstChild()
 		if objPattern.IsObjectPattern() {
-			for strKey := objPattern.GetFirstChild(); strKey != nil; strKey = strKey.GetNext() {
+			for strKey := objPattern.GetFirstChild(); !strKey.IsNil(); strKey = strKey.GetNext() {
 				// const {foo: barFoo} = goog.require('ns.bar');
 				// Should use the short name "barFoo" instead of "ns.bar.foo".
 				if strKey.IsStringKey() &&
@@ -436,7 +436,7 @@ func (c *ClosureCheckModule) CheckImproperReferenceToImport(
 					strKey.GetString() == *nextQnamePart {
 					parent := n.GetParent()
 					reportNode := n
-					if parent != nil && parent.IsGetProp() {
+					if !parent.IsNil() && parent.IsGetProp() {
 						reportNode = parent
 					}
 					c.compiler.Report(
@@ -467,7 +467,7 @@ func (c *ClosureCheckModule) CheckImproperReferenceToImport(
 // i.e. Either "exports" or "exports.name"
 //
 // Java: ClosureCheckModule.isExportLhs(Node)
-func ClosureCheckModule_IsExportLhs(lhs *rhino.Node) bool {
+func ClosureCheckModule_IsExportLhs(lhs rhino.Node) bool {
 	if !lhs.IsQualifiedName() {
 		return false
 	}
@@ -476,13 +476,13 @@ func ClosureCheckModule_IsExportLhs(lhs *rhino.Node) bool {
 }
 
 // Java: ClosureCheckModule.checkModuleExport(NodeTraversal, Node, Node)
-func (c *ClosureCheckModule) CheckModuleExport(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *ClosureCheckModule) CheckModuleExport(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	jutil.CheckArgument(n.IsAssign())
 	lhs := n.GetFirstChild()
 	jutil.CheckState(ClosureCheckModule_IsExportLhs(lhs))
 	// Check multiple exports of the same name
 	previousDefinition := c.currentModuleInfo.exportNodesByName.Get(*lhs.GetQualifiedName())
-	if previousDefinition != nil {
+	if !previousDefinition.IsNil() {
 		previousLine := previousDefinition.GetLineno()
 		t.Report(n, ClosureCheckModule_EXPORT_REPEATED_ERROR, strconv.Itoa(previousLine))
 	}
@@ -490,7 +490,7 @@ func (c *ClosureCheckModule) CheckModuleExport(t *NodeTraversal, n *rhino.Node, 
 	defaultExportNode := c.currentModuleInfo.exportNodesByName.Get("exports")
 	// If we have never seen an `exports =` default export assignment, or this is the
 	// default export, then treat this assignment as an export and do the checks it is well formed.
-	if defaultExportNode == nil || lhs.MatchesName("exports") {
+	if defaultExportNode.IsNil() || lhs.MatchesName("exports") {
 		c.currentModuleInfo.exportNodesByName.Put(*lhs.GetQualifiedName(), lhs)
 		if !t.InModuleScope() {
 			t.Report(n, ClosureCheckModule_EXPORT_NOT_AT_MODULE_SCOPE)
@@ -509,9 +509,9 @@ func (c *ClosureCheckModule) CheckModuleExport(t *NodeTraversal, n *rhino.Node, 
 }
 
 // Java: ClosureCheckModule.extractFirstArgumentName(Node)
-func ClosureCheckModule_ExtractFirstArgumentName(callNode *rhino.Node) *string {
+func ClosureCheckModule_ExtractFirstArgumentName(callNode rhino.Node) *string {
 	firstArg := callNode.GetSecondChild()
-	if firstArg != nil && firstArg.IsStringLit() {
+	if !firstArg.IsNil() && firstArg.IsStringLit() {
 		s := firstArg.GetString()
 		return &s
 	}
@@ -519,7 +519,7 @@ func ClosureCheckModule_ExtractFirstArgumentName(callNode *rhino.Node) *string {
 }
 
 // Java: ClosureCheckModule.checkRequireCall(NodeTraversal, Node, Node)
-func (c *ClosureCheckModule) CheckRequireCall(t *NodeTraversal, callNode *rhino.Node, parent *rhino.Node) {
+func (c *ClosureCheckModule) CheckRequireCall(t *NodeTraversal, callNode rhino.Node, parent rhino.Node) {
 	jutil.CheckState(callNode.IsCall())
 	jutil.CheckState(callNode.GetLastChild().IsStringLit())
 	switch parent.GetToken() {
@@ -542,7 +542,7 @@ func (c *ClosureCheckModule) CheckRequireCall(t *NodeTraversal, callNode *rhino.
 }
 
 // Java: ClosureCheckModule.checkShortGoogRequireCall(NodeTraversal, Node, Node)
-func (c *ClosureCheckModule) CheckShortGoogRequireCall(t *NodeTraversal, callNode *rhino.Node, declaration *rhino.Node) {
+func (c *ClosureCheckModule) CheckShortGoogRequireCall(t *NodeTraversal, callNode rhino.Node, declaration rhino.Node) {
 	if declaration.IsLet() && !closureCheckModule_GOOG_FORWARD_DECLARE.Matches(callNode.GetFirstChild()) {
 		t.Report(declaration, ClosureCheckModule_LET_GOOG_REQUIRE)
 	}
@@ -566,7 +566,7 @@ func (c *ClosureCheckModule) CheckShortGoogRequireCall(t *NodeTraversal, callNod
 	}
 	NodeUtil_VisitLhsNodesInNode(
 		declaration,
-		func(nameNode *rhino.Node) {
+		func(nameNode rhino.Node) {
 			name := nameNode.GetString()
 			if !c.currentModuleInfo.shortImportNames.Add(name) {
 				t.Report(nameNode, ClosureCheckModule_DUPLICATE_NAME_SHORT_REQUIRE, name)
@@ -602,7 +602,7 @@ func closureCheckModule_asciiToUpperCase(c uint16) uint16 {
 }
 
 // Java: ClosureCheckModule.checkShortName(NodeTraversal, Node, String)
-func ClosureCheckModule_CheckShortName(t *NodeTraversal, shortNameNode *rhino.Node, namespace string) {
+func ClosureCheckModule_CheckShortName(t *NodeTraversal, shortNameNode rhino.Node, namespace string) {
 	nextQnamePart := shortNameNode.GetString()
 	if jutil.StringStartsWith(namespace, "google3.") {
 		// `google3` namespaces don't provide capitalization context for the import name
@@ -627,13 +627,13 @@ func ClosureCheckModule_CheckShortName(t *NodeTraversal, shortNameNode *rhino.No
 }
 
 // Java: ClosureCheckModule.isValidDestructuringImport(Node)
-func ClosureCheckModule_IsValidDestructuringImport(destructuringLhs *rhino.Node) bool {
+func ClosureCheckModule_IsValidDestructuringImport(destructuringLhs rhino.Node) bool {
 	jutil.CheckArgument(destructuringLhs.IsDestructuringLhs())
 	objectPattern := destructuringLhs.GetFirstChild()
 	if !objectPattern.IsObjectPattern() {
 		return false
 	}
-	for stringKey := objectPattern.GetFirstChild(); stringKey != nil; stringKey = stringKey.GetNext() {
+	for stringKey := objectPattern.GetFirstChild(); !stringKey.IsNil(); stringKey = stringKey.GetNext() {
 		if !stringKey.IsStringKey() {
 			return false
 		} else if !stringKey.HasChildren() || !stringKey.GetFirstChild().IsName() {
@@ -647,7 +647,7 @@ func ClosureCheckModule_IsValidDestructuringImport(destructuringLhs *rhino.Node)
 // goog.module.declareLegacyNamespace(); call
 //
 // Java: ClosureCheckModule.checkLegacyNamespaceCall(NodeTraversal, Node, Node)
-func ClosureCheckModule_CheckLegacyNamespaceCall(t *NodeTraversal, callNode *rhino.Node, parent *rhino.Node) {
+func ClosureCheckModule_CheckLegacyNamespaceCall(t *NodeTraversal, callNode rhino.Node, parent rhino.Node) {
 	jutil.CheckArgument(callNode.IsCall())
 	if callNode.GetChildCount() > 1 {
 		t.Report(callNode, ClosureCheckModule_LEGACY_NAMESPACE_ARGUMENT)
@@ -657,7 +657,7 @@ func ClosureCheckModule_CheckLegacyNamespaceCall(t *NodeTraversal, callNode *rhi
 		return
 	}
 	prev := parent.GetPrevious()
-	if prev == nil || !NodeUtil_IsGoogModuleCall(prev) {
+	if prev.IsNil() || !NodeUtil_IsGoogModuleCall(prev) {
 		t.Report(callNode, ClosureCheckModule_LEGACY_NAMESPACE_NOT_AFTER_GOOG_MODULE)
 	}
 }
@@ -666,8 +666,8 @@ func ClosureCheckModule_CheckLegacyNamespaceCall(t *NodeTraversal, callNode *rhi
 // first statement in a module
 //
 // Java: ClosureCheckModule.isFirstExpressionInGoogModule(Node)
-func ClosureCheckModule_IsFirstExpressionInGoogModule(node *rhino.Node) bool {
-	if !node.IsExprResult() || node.GetPrevious() != nil {
+func ClosureCheckModule_IsFirstExpressionInGoogModule(node rhino.Node) bool {
+	if !node.IsExprResult() || !node.GetPrevious().IsNil() {
 		return false
 	}
 	statementBlock := node.GetParent()

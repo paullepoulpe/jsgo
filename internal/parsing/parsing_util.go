@@ -38,8 +38,8 @@ func NewParsingUtil() *ParsingUtil { return &ParsingUtil{} }
 // PARAM_LIST or destructuring pattern.
 //
 // Java: ParsingUtil.getParamOrPatternNames(Node, Consumer<Node>)
-func ParsingUtil_GetParamOrPatternNames(n *rhino.Node, cb func(*rhino.Node)) {
-	jutil.CheckNotNull(n)
+func ParsingUtil_GetParamOrPatternNames(n rhino.Node, cb func(rhino.Node)) {
+	rhino.CheckNotNull(n)
 	switch n.GetToken() {
 	case rhino.Token_EMPTY, rhino.Token_GETELEM, rhino.Token_GETPROP:
 		// let [,] = ...
@@ -69,7 +69,7 @@ func ParsingUtil_GetParamOrPatternNames(n *rhino.Node, cb func(*rhino.Node)) {
 		// Each item in the destructuring pattern is scanned for assignments.
 		// Although PARAM_LIST isn't technically a pattern, we know how to
 		// handle it anyway.
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			ParsingUtil_GetParamOrPatternNames(c, cb)
 		}
 	default:

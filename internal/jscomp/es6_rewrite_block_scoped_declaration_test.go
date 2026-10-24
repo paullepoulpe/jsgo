@@ -68,7 +68,7 @@ func (c *Es6RewriteBlockScopedDeclarationTest) CustomSetUp() {
 
 // Java: Es6RewriteBlockScopedDeclarationTest.getProcessor(Compiler)
 func (c *Es6RewriteBlockScopedDeclarationTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		if c.runVarCheck {
 			// Adds a Synthetic definition of $jscomp$lookupPolyfilledValue
 			NewVarCheck(compiler).Process(externs, root)

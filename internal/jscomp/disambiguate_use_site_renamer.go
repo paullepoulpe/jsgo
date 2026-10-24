@@ -29,7 +29,7 @@ import (
 // UseSiteRenamer applies renaming to property use sites following cluster
 // computation.
 type UseSiteRenamer struct {
-	mutationCb func(*rhino.Node)
+	mutationCb func(rhino.Node)
 
 	// ImmutableSetMultimap.Builder: keys and values in insertion order.
 	renamingIndex       *jutil.SetMultimap[string, string]
@@ -42,7 +42,7 @@ type UseSiteRenamer struct {
 const useSiteRenamer_INVALIDATED_NAME_VALUE = "<INVALIDATED>"
 
 // Java: UseSiteRenamer(Consumer<Node>)
-func NewUseSiteRenamer(mutationCb func(*rhino.Node)) *UseSiteRenamer {
+func NewUseSiteRenamer(mutationCb func(rhino.Node)) *UseSiteRenamer {
 	return &UseSiteRenamer{
 		mutationCb:         mutationCb,
 		renamingIndex:      jutil.NewSetMultimap[string, string](),

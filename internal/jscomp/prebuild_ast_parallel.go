@@ -27,8 +27,8 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 	needParserConfig := compiler.typedAstFilesystem == nil
 	type outcome struct {
 		scriptDeserializer *ScriptNodeDeserializer
-		deserializer       func() *rhino.Node
-		deserializedRoot   *rhino.Node
+		deserializer       func() rhino.Node
+		deserializedRoot   rhino.Node
 		parsed             *parsing.ParserRunner_ParseResult
 		errors             parseBufferedErrors
 		failure            jutil.Throwable

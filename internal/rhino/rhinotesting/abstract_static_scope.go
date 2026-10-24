@@ -53,8 +53,8 @@ func (s *AbstractStaticScopeBase) InitAbstractStaticScopeBase(self AbstractStati
 }
 
 // Java: AbstractStaticScope.getRootNode()
-func (s *AbstractStaticScopeBase) GetRootNode() *rhino.Node {
-	return nil
+func (s *AbstractStaticScopeBase) GetRootNode() rhino.Node {
+	return rhino.Node{}
 }
 
 // Java: AbstractStaticScope.getParentScope()

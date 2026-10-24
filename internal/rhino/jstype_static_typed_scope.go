@@ -113,10 +113,9 @@ func StaticTypedScope_LookupQualifiedNameString(s StaticTypedScope, name string)
 
 // StaticTypedScope_LookupQualifiedNameNode looks up n's qualified name in s
 // without allocating a QualifiedName_NodeQname wrapper.
-func StaticTypedScope_LookupQualifiedNameNode(s StaticTypedScope, n *Node) JSType {
+func StaticTypedScope_LookupQualifiedNameNode(s StaticTypedScope, n Node) JSType {
 	if name, ok := n.getQualifiedNameString(); ok {
 		return StaticTypedScope_LookupQualifiedNameString(s, name)
 	}
 	return StaticTypedScope_LookupQualifiedNameString(s, "null")
 }
-

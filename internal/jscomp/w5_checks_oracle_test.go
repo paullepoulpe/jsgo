@@ -176,7 +176,7 @@ func w5ChecksDump_dumpOne(sb *strings.Builder, setup *w5ChecksDump_setup, rel st
 	options := w5ChecksDump_options()
 	compiler.Init(setup.externs, w5ChecksDump_inputs(rel, src), options)
 	checksDumpLine(sb, "## parse")
-	var root *rhino.Node
+	var root rhino.Node
 	threw := false
 	jutil.Try(func() {
 		root = compiler.ParseInputs()
@@ -187,7 +187,7 @@ func w5ChecksDump_dumpOne(sb *strings.Builder, setup *w5ChecksDump_setup, rel st
 	if threw {
 		return
 	}
-	if root == nil || compiler.GetErrorCount() > 0 {
+	if root.IsNil() || compiler.GetErrorCount() > 0 {
 		checksDumpLine(sb, "# parse-errors")
 		return
 	}
@@ -207,21 +207,21 @@ func w5ChecksDump_dumpOne(sb *strings.Builder, setup *w5ChecksDump_setup, rel st
 		})
 	}
 
-	run("modules", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("modules", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewGatherModuleMetadata(c /* processCommonJsModules= */, false, ModuleLoader_ResolutionMode_BROWSER).
 			Process(e, m)
 		NewModuleMapCreator(c, c.GetModuleMetadataMap()).Process(e, m)
 	})
-	run("CheckJSDoc", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckJSDoc", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NodeTraversal_Traverse(c, m, NewCheckJSDoc(c))
 	})
-	run("CheckJSDocStyle", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckJSDocStyle", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NodeTraversal_Traverse(c, m, NewCheckJSDocStyle(c))
 	})
-	run("VariableReferenceCheck", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("VariableReferenceCheck", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewVariableReferenceCheck(c).Process(e, m)
 	})
-	run("CheckSideEffects", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckSideEffects", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewCheckSideEffects(c, true, true).Process(e, m)
 		w5ChecksDump_protectors(out, m)
 		synthesized := c.GetSynthesizedExternsInput().GetAstRoot(c)
@@ -231,7 +231,7 @@ func w5ChecksDump_dumpOne(sb *strings.Builder, setup *w5ChecksDump_setup, rel st
 			}
 		}
 	})
-	run("TypeCheck", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("TypeCheck", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewInferConsts(c).Process(e, m)
 		// DefaultPassConfig.inferTypes
 		inferencePass :=
@@ -254,11 +254,11 @@ func w5ChecksDump_dumpOne(sb *strings.Builder, setup *w5ChecksDump_setup, rel st
 		check.Process(e, m)
 		c.GetErrorManager().SetTypedPercent(check.GetTypedPercent())
 	})
-	run("CheckAccessControls", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("CheckAccessControls", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewCheckAccessControls(c).Process(e, m)
 	})
 	for _, config := range setup.configs {
-		run("CheckConformance "+config.name, func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+		run("CheckConformance "+config.name, func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 			var diagnostics strings.Builder
 			em.sb = &diagnostics
 			defer func() {
@@ -281,37 +281,37 @@ func w5ChecksDump_dumpOne(sb *strings.Builder, setup *w5ChecksDump_setup, rel st
 			NewCheckConformanceWithConfigs(c, []*ConformanceConfig{config.config}, &reportingMode).Process(e, m)
 		})
 	}
-	run("StripProtection", func(c *Compiler, e, m *rhino.Node, out *strings.Builder) {
+	run("StripProtection", func(c *Compiler, e, m rhino.Node, out *strings.Builder) {
 		NewCheckSideEffects_StripProtection(c).Process(e, m)
 		checksDumpLine(out, "= protectors "+strconv.Itoa(w5ChecksDump_countProtectors(m)))
 	})
 }
 
 // w5ChecksDump_isProtector is W5ChecksDump.isProtector.
-func w5ChecksDump_isProtector(n *rhino.Node) bool {
+func w5ChecksDump_isProtector(n rhino.Node) bool {
 	return n.IsCall() &&
 		n.GetFirstChild().IsName() &&
 		n.GetFirstChild().GetString() == "JSCOMPILER_PRESERVE"
 }
 
 // w5ChecksDump_protectors is W5ChecksDump.protectors.
-func w5ChecksDump_protectors(out *strings.Builder, n *rhino.Node) {
+func w5ChecksDump_protectors(out *strings.Builder, n rhino.Node) {
 	if w5ChecksDump_isProtector(n) {
 		checksDumpLine(out, "= protector "+jutil.ToJavaString(n.GetSourceFileName())+":"+
 			strconv.Itoa(n.GetLineno())+":"+strconv.Itoa(n.GetCharno()))
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		w5ChecksDump_protectors(out, c)
 	}
 }
 
 // w5ChecksDump_countProtectors is W5ChecksDump.countProtectors.
-func w5ChecksDump_countProtectors(n *rhino.Node) int {
+func w5ChecksDump_countProtectors(n rhino.Node) int {
 	count := 0
 	if w5ChecksDump_isProtector(n) {
 		count = 1
 	}
-	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		count += w5ChecksDump_countProtectors(c)
 	}
 	return count

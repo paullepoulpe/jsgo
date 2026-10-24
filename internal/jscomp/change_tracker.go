@@ -32,7 +32,7 @@ type ChangeTracker struct {
 	// custom attribute on a node hasn't been set.
 	changeStamp int32
 
-	changeTimeline *Timeline[*rhino.Node]
+	changeTimeline *Timeline[rhino.Node]
 
 	recentChange *RecentChange
 
@@ -43,7 +43,7 @@ type ChangeTracker struct {
 func NewChangeTracker() *ChangeTracker {
 	return &ChangeTracker{
 		changeStamp:        1,
-		changeTimeline:     NewTimeline[*rhino.Node](),
+		changeTimeline:     NewTimeline[rhino.Node](),
 		recentChange:       NewRecentChange(),
 		codeChangeHandlers: jutil.NewArrayList[CodeChangeHandler](),
 	}
@@ -72,7 +72,7 @@ func (c *ChangeTracker) GetRecentChange() *RecentChange {
 // scope, as defined by isChangeScopeRoot(Node).
 //
 // Java: ChangeTracker.reportChangeToEnclosingScope(Node)
-func (c *ChangeTracker) ReportChangeToEnclosingScope(n *rhino.Node) {
+func (c *ChangeTracker) ReportChangeToEnclosingScope(n rhino.Node) {
 	c.recordChange(c.getChangeScopeForNode(n))
 	c.notifyChangeHandlers()
 }
@@ -81,7 +81,7 @@ func (c *ChangeTracker) ReportChangeToEnclosingScope(n *rhino.Node) {
 // node.
 //
 // Java: ChangeTracker.reportChangeToChangeScope(Node)
-func (c *ChangeTracker) ReportChangeToChangeScope(changeScopeRoot *rhino.Node) {
+func (c *ChangeTracker) ReportChangeToChangeScope(changeScopeRoot rhino.Node) {
 	jutil.CheckState(changeScopeRoot.IsScript() || changeScopeRoot.IsFunction())
 	c.recordChange(changeScopeRoot)
 	c.notifyChangeHandlers()
@@ -91,11 +91,11 @@ func (c *ChangeTracker) ReportChangeToChangeScope(changeScopeRoot *rhino.Node) {
 // as changed.
 //
 // Java: ChangeTracker.markNewScopesChanged(Node)
-func (c *ChangeTracker) MarkNewScopesChanged(node *rhino.Node) {
+func (c *ChangeTracker) MarkNewScopesChanged(node rhino.Node) {
 	if node.IsFunction() {
 		c.ReportChangeToChangeScope(node)
 	}
-	for child := node.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		c.MarkNewScopesChanged(child)
 	}
 }
@@ -105,7 +105,7 @@ func (c *ChangeTracker) MarkNewScopesChanged(node *rhino.Node) {
 // to streamline optimizations.
 //
 // Java: ChangeTracker.reportFunctionDeleted(Node)
-func (c *ChangeTracker) ReportFunctionDeleted(n *rhino.Node) {
+func (c *ChangeTracker) ReportFunctionDeleted(n rhino.Node) {
 	jutil.CheckState(n.IsFunction())
 	n.SetDeleted(true)
 	c.changeTimeline.Remove(n)
@@ -119,7 +119,7 @@ func (c *ChangeTracker) ReportFunctionDeleted(n *rhino.Node) {
 // run.
 //
 // Java: ChangeTracker.getChangedScopeNodesForPass(String)
-func (c *ChangeTracker) GetChangedScopeNodesForPass(passName string) []*rhino.Node {
+func (c *ChangeTracker) GetChangedScopeNodesForPass(passName string) []rhino.Node {
 	changedScopeNodes := c.changeTimeline.GetSince(passName)
 	c.changeTimeline.Mark(passName)
 	return changedScopeNodes
@@ -154,15 +154,15 @@ func (c *ChangeTracker) ResetChangeStamp() {
 // Returns whether the node represents a change scope root.
 //
 // Java: ChangeTracker.isChangeScopeRoot(Node)
-func ChangeTracker_IsChangeScopeRoot(n *rhino.Node) bool {
+func ChangeTracker_IsChangeScopeRoot(n rhino.Node) bool {
 	return n.IsScript() || n.IsFunction()
 }
 
 // ChangeTracker_GetEnclosingChangeScopeRoot returns the change scope root.
 //
 // Java: ChangeTracker.getEnclosingChangeScopeRoot(Node)
-func ChangeTracker_GetEnclosingChangeScopeRoot(n *rhino.Node) *rhino.Node {
-	for n != nil && !ChangeTracker_IsChangeScopeRoot(n) {
+func ChangeTracker_GetEnclosingChangeScopeRoot(n rhino.Node) rhino.Node {
+	for !n.IsNil() && !ChangeTracker_IsChangeScopeRoot(n) {
 		n = n.GetParent()
 	}
 	return n
@@ -176,7 +176,7 @@ func (c *ChangeTracker) notifyChangeHandlers() {
 }
 
 // Java: ChangeTracker.getChangeScopeForNode(Node)
-func (c *ChangeTracker) getChangeScopeForNode(n *rhino.Node) *rhino.Node {
+func (c *ChangeTracker) getChangeScopeForNode(n rhino.Node) rhino.Node {
 	// Compiler change reporting usually occurs after the AST change has
 	// already occurred. In the case of node removals those nodes are
 	// already removed from the tree and so have no parent chain to walk. In
@@ -189,7 +189,7 @@ func (c *ChangeTracker) getChangeScopeForNode(n *rhino.Node) *rhino.Node {
 	}
 
 	enclosingScopeNode := ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent())
-	if enclosingScopeNode == nil {
+	if enclosingScopeNode.IsNil() {
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"An enclosing scope is required for change reports but node " + n.String() + " doesn't have one."))
 	}
@@ -197,7 +197,7 @@ func (c *ChangeTracker) getChangeScopeForNode(n *rhino.Node) *rhino.Node {
 }
 
 // Java: ChangeTracker.recordChange(Node)
-func (c *ChangeTracker) recordChange(n *rhino.Node) {
+func (c *ChangeTracker) recordChange(n rhino.Node) {
 	if n.IsDeleted() {
 		// Some complicated passes (like SmartNameRemoval) might both change
 		// and delete a scope in the same pass, and they might even perform

@@ -87,7 +87,7 @@ type PureFunctionIdentifier struct {
 	//
 	// Go-only: language-adapter — an ArrayListMultimap keyed by
 	// identity-hashed Nodes that is only looked up, so insertion order.
-	summariesForAllNamesOfFunctionByNode map[*rhino.Node][]*PureFunctionIdentifier_AmbiguatedFunctionSummary
+	summariesForAllNamesOfFunctionByNode map[rhino.Node][]*PureFunctionIdentifier_AmbiguatedFunctionSummary
 
 	// Set of FUNCTION nodes which are artificially marked as pure, via a
 	// `@nosideeffects` JSDoc tag in source code, which triggers the compiler
@@ -98,12 +98,12 @@ type PureFunctionIdentifier struct {
 	// on it for side effect analysis and 2) we expect the set of functions
 	// with artificial purity annotations to be small and not scale linearly
 	// with the size of the application.
-	artificiallyPureLiteralsForDebugging *jutil.LinkedHashSet[*rhino.Node]
+	artificiallyPureLiteralsForDebugging *jutil.LinkedHashSet[rhino.Node]
 
 	// List of all function call sites. Storing them here during the function
 	// analysis traversal prevents us from doing a second traversal to annotate
 	// them with side-effects. We can just iterate the list.
-	allFunctionCalls []*rhino.Node
+	allFunctionCalls []rhino.Node
 
 	// A graph linking the summary of a function callee to the summaries of
 	// its callers.
@@ -127,7 +127,7 @@ type PureFunctionIdentifier struct {
 
 	summarySlab           []PureFunctionIdentifier_AmbiguatedFunctionSummary
 	propSlab              []PureFunctionIdentifier_SideEffectPropagation
-	scratchCallableLeaves []*rhino.Node
+	scratchCallableLeaves []rhino.Node
 
 	assumeGettersArePure bool
 
@@ -159,11 +159,11 @@ var PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION = DiagnosticType_Di
 func NewPureFunctionIdentifier(
 	compiler AbstractCompiler, assumeGettersArePure bool, validateArtificialPurity bool) *PureFunctionIdentifier {
 	p := &PureFunctionIdentifier{}
-	p.artificiallyPureLiteralsForDebugging = jutil.NewLinkedHashSet[*rhino.Node]()
+	p.artificiallyPureLiteralsForDebugging = jutil.NewLinkedHashSet[rhino.Node]()
 	p.reverseCallGraph = LinkedDirectedGraph_CreateWithoutAnnotations[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]()
 	p.unknownFunctionSummary =
 		p.createSummaryInGraph("<unknown>").
-			SetMutatesGlobalStateAndAllOtherFlags(nil)
+			SetMutatesGlobalStateAndAllOtherFlags(rhino.Node{})
 	p.unknownFunctionSummarySlice = p.unknownFunctionSummary.selfSlice[:]
 	p.hasProcessed = false
 	p.compiler = jutil.CheckNotNull(compiler)
@@ -187,7 +187,7 @@ func (p *PureFunctionIdentifier) createSummaryInGraph(name string) *PureFunction
 	return s
 }
 
-func (p *PureFunctionIdentifier) putSummaryForFunctionNode(fn *rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+func (p *PureFunctionIdentifier) putSummaryForFunctionNode(fn rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
 	existing := p.summariesForAllNamesOfFunctionByNode[fn]
 	if len(existing) == 0 {
 		p.summariesForAllNamesOfFunctionByNode[fn] = summary.selfSlice[:1:1]
@@ -203,7 +203,7 @@ func (p *PureFunctionIdentifier) getSummaryOrDefault(name string) *PureFunctionI
 	return p.unknownFunctionSummary
 }
 
-func (p *PureFunctionIdentifier) getSummaryForReference(nameRef *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+func (p *PureFunctionIdentifier) getSummaryForReference(nameRef rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	switch nameRef.GetToken() {
 	case rhino.Token_NAME:
 		return p.summariesByName[nameRef.GetString()]
@@ -214,7 +214,7 @@ func (p *PureFunctionIdentifier) getSummaryForReference(nameRef *rhino.Node) *Pu
 	}
 }
 
-func (p *PureFunctionIdentifier) getSummaryForReferenceOrDefault(nameRef *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+func (p *PureFunctionIdentifier) getSummaryForReferenceOrDefault(nameRef rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	if s := p.getSummaryForReference(nameRef); s != nil {
 		return s
 	}
@@ -222,7 +222,7 @@ func (p *PureFunctionIdentifier) getSummaryForReferenceOrDefault(nameRef *rhino.
 }
 
 func (p *PureFunctionIdentifier) allocPropagationForInvocation(
-	invocation *rhino.Node, callerIsArrowFunction bool, propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
+	invocation rhino.Node, callerIsArrowFunction bool, propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
 	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
 	if len(p.propSlab) == 0 {
 		p.propSlab = make([]PureFunctionIdentifier_SideEffectPropagation, 256)
@@ -237,7 +237,7 @@ func (p *PureFunctionIdentifier) allocPropagationForInvocation(
 }
 
 // Java: PureFunctionIdentifier.process(Node, Node, ReferenceMap)
-func (p *PureFunctionIdentifier) Process(externs *rhino.Node, root *rhino.Node, references *OptimizeCalls_ReferenceMap) {
+func (p *PureFunctionIdentifier) Process(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap) {
 	jutil.CheckState(p.compiler.GetLifeCycleStage().IsNormalized())
 	jutil.CheckStateMsg(
 		!p.hasProcessed, "PureFunctionIdentifier::process may only be called once per instance.")
@@ -289,7 +289,7 @@ func (p *PureFunctionIdentifier) ValidateArtificialPurity() {
 				// renaming well. So don't report this error, as it's not particularly helpful.
 				continue
 			}
-			var reasons []*rhino.Node
+			var reasons []rhino.Node
 			if summary.impureFunctionReasonsForDebugging != nil {
 				reasons = summary.impureFunctionReasonsForDebugging.ToSlice()
 			} else {
@@ -314,7 +314,7 @@ func (p *PureFunctionIdentifier) ValidateArtificialPurity() {
 
 // PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR is
 // Comparator.comparing(Node::getSourceFileName).thenComparingInt(Node::getLineno).thenComparingInt(Node::getCharno).
-func PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR(a, b *rhino.Node) int {
+func PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR(a, b rhino.Node) int {
 	aName, bName := a.GetSourceFileName(), b.GetSourceFileName()
 	if aName == nil || bName == nil {
 		// String.compareTo on a null source file name.
@@ -338,7 +338,7 @@ func PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR(a, b *rhino.Node) int {
 }
 
 // Java: PureFunctionIdentifier.formatSourceLocation(Node)
-func PureFunctionIdentifier_FormatSourceLocation(node *rhino.Node) string {
+func PureFunctionIdentifier_FormatSourceLocation(node rhino.Node) string {
 	name := "null"
 	if n := node.GetSourceFileName(); n != nil {
 		name = *n
@@ -355,8 +355,8 @@ func PureFunctionIdentifier_FormatSourceLocation(node *rhino.Node) string {
 //
 // Java: PureFunctionIdentifier.collectCallableLeaves(Node, AstAnalyzer)
 func PureFunctionIdentifier_CollectCallableLeaves(
-	expr *rhino.Node, astAnalyzer *AstAnalyzer) []*rhino.Node {
-	var callables []*rhino.Node
+	expr rhino.Node, astAnalyzer *AstAnalyzer) []rhino.Node {
+	var callables []rhino.Node
 	if pureFunctionIdentifier_collectCallableLeavesSlice(expr, &callables, astAnalyzer) {
 		return callables
 	}
@@ -364,22 +364,22 @@ func PureFunctionIdentifier_CollectCallableLeaves(
 }
 
 func pureFunctionIdentifier_collectCallableLeavesSlice(
-	expr *rhino.Node, results *[]*rhino.Node, astAnalyzer *AstAnalyzer) bool {
+	expr rhino.Node, results *[]rhino.Node, astAnalyzer *AstAnalyzer) bool {
 	switch expr.GetToken() {
 	case rhino.Token_FUNCTION, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_NAME:
 		*results = append(*results, expr)
 		return true
 
 	case rhino.Token_SUPER:
-		clazz := jutil.CheckNotNull(NodeUtil_GetEnclosingClass(expr))
+		clazz := rhino.CheckNotNull(NodeUtil_GetEnclosingClass(expr))
 		return pureFunctionIdentifier_collectCallableLeavesSlice(clazz.GetSecondChild(), results, astAnalyzer)
 
 	case rhino.Token_CLASS:
 		members := expr.GetLastChild()
-		if members != nil && members.IsClassMembers() {
-			for member := members.GetFirstChild(); member != nil; member = member.GetNext() {
+		if !members.IsNil() && members.IsClassMembers() {
+			for member := members.GetFirstChild(); !member.IsNil(); member = member.GetNext() {
 				initializer := member.GetLastChild()
-				if initializer != nil &&
+				if !initializer.IsNil() &&
 					NodeUtil_IsNonStaticClassFieldInitializer(initializer) &&
 					astAnalyzer.MayHaveSideEffects(initializer) {
 					return false
@@ -388,7 +388,7 @@ func pureFunctionIdentifier_collectCallableLeavesSlice(
 		}
 
 		ctorDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(expr)
-		if ctorDef != nil {
+		if !ctorDef.IsNil() {
 			return pureFunctionIdentifier_collectCallableLeavesSlice(ctorDef.GetOnlyChild(), results, astAnalyzer)
 		} else if expr.GetSecondChild().IsEmpty() {
 			*results = append(*results, PureFunctionIdentifier_IMPLICIT_PURE_FN)
@@ -441,7 +441,7 @@ func pureFunctionIdentifier_collectCallableLeavesSlice(
 //
 // Java: PureFunctionIdentifier.collectCallableLeavesInternal(Node, ArrayList<Node>, AstAnalyzer)
 func PureFunctionIdentifier_CollectCallableLeavesInternal(
-	expr *rhino.Node, results *jutil.ArrayList[*rhino.Node], astAnalyzer *AstAnalyzer) bool {
+	expr rhino.Node, results *jutil.ArrayList[rhino.Node], astAnalyzer *AstAnalyzer) bool {
 	switch expr.GetToken() {
 	case rhino.Token_FUNCTION, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_NAME:
 		results.Add(expr)
@@ -450,7 +450,7 @@ func PureFunctionIdentifier_CollectCallableLeavesInternal(
 	case rhino.Token_SUPER:
 		{
 			// Pretend that `super` is an alias for the superclass reference.
-			clazz := jutil.CheckNotNull(NodeUtil_GetEnclosingClass(expr))
+			clazz := rhino.CheckNotNull(NodeUtil_GetEnclosingClass(expr))
 			return PureFunctionIdentifier_CollectCallableLeavesInternal(clazz.GetSecondChild(), results, astAnalyzer)
 		}
 
@@ -461,10 +461,10 @@ func PureFunctionIdentifier_CollectCallableLeavesInternal(
 			// invocation impure. Static field initializers run when the class definition itself is
 			// evaluated, not upon constructor invocation.
 			members := expr.GetLastChild()
-			if members != nil && members.IsClassMembers() {
-				for member := members.GetFirstChild(); member != nil; member = member.GetNext() {
+			if !members.IsNil() && members.IsClassMembers() {
+				for member := members.GetFirstChild(); !member.IsNil(); member = member.GetNext() {
 					initializer := member.GetLastChild()
-					if initializer != nil &&
+					if !initializer.IsNil() &&
 						NodeUtil_IsNonStaticClassFieldInitializer(initializer) &&
 						astAnalyzer.MayHaveSideEffects(initializer) {
 						return false
@@ -474,7 +474,7 @@ func PureFunctionIdentifier_CollectCallableLeavesInternal(
 
 			// Collect the constructor function, or failing that, the superclass reference.
 			ctorDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(expr)
-			if ctorDef != nil {
+			if !ctorDef.IsNil() {
 				return PureFunctionIdentifier_CollectCallableLeavesInternal(ctorDef.GetOnlyChild(), results, astAnalyzer)
 			} else if expr.GetSecondChild().IsEmpty() {
 				results.Add(PureFunctionIdentifier_IMPLICIT_PURE_FN)
@@ -520,7 +520,7 @@ func PureFunctionIdentifier_CollectCallableLeavesInternal(
 // They just have to be verified as always R-values.
 //
 // Java: PureFunctionIdentifier.isDefinitelyRValue(Node)
-func PureFunctionIdentifier_IsDefinitelyRValue(rvalue *rhino.Node) bool {
+func PureFunctionIdentifier_IsDefinitelyRValue(rvalue rhino.Node) bool {
 	parent := rvalue.GetParent()
 
 	switch parent.GetToken() {
@@ -566,7 +566,7 @@ func PureFunctionIdentifier_IsDefinitelyRValue(rvalue *rhino.Node) bool {
 }
 
 // Java: PureFunctionIdentifier.getGoogCacheCallableExpression(Cache)
-func (p *PureFunctionIdentifier) GetGoogCacheCallableExpression(cacheCall *CodingConvention_Cache) []*rhino.Node {
+func (p *PureFunctionIdentifier) GetGoogCacheCallableExpression(cacheCall *CodingConvention_Cache) []rhino.Node {
 	jutil.CheckNotNull(cacheCall)
 
 	valueFnCallables := PureFunctionIdentifier_CollectCallableLeaves(cacheCall.valueFn, p.astAnalyzer)
@@ -574,8 +574,8 @@ func (p *PureFunctionIdentifier) GetGoogCacheCallableExpression(cacheCall *Codin
 		// ImmutableList.Builder.addAll(null)
 		panic(jutil.NewNullPointerException())
 	}
-	builder := append([]*rhino.Node(nil), valueFnCallables...)
-	if cacheCall.keyFn != nil {
+	builder := append([]rhino.Node(nil), valueFnCallables...)
+	if !cacheCall.keyFn.IsNil() {
 		keyFnCallables := PureFunctionIdentifier_CollectCallableLeaves(cacheCall.keyFn, p.astAnalyzer)
 		if keyFnCallables == nil {
 			// ImmutableList.Builder.addAll(null)
@@ -587,13 +587,13 @@ func (p *PureFunctionIdentifier) GetGoogCacheCallableExpression(cacheCall *Codin
 }
 
 // Java: PureFunctionIdentifier.getSummariesForCallee(Node)
-func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) []*PureFunctionIdentifier_AmbiguatedFunctionSummary {
+func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation rhino.Node) []*PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
 
 	cacheCall := p.compiler.GetCodingConvention().DescribeCachingCall(invocation)
 
 	if cacheCall == nil {
-		var singleCallee *rhino.Node
+		var singleCallee rhino.Node
 		if PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation) {
 			singleCallee = invocation.GetFirstFirstChild()
 		} else {
@@ -603,7 +603,7 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) [
 				singleCallee = first
 			}
 		}
-		if singleCallee != nil {
+		if !singleCallee.IsNil() {
 			if singleCallee.IsFunction() {
 				summariesForFunction := p.summariesForAllNamesOfFunctionByNode[singleCallee]
 				jutil.CheckStateMsg1(len(summariesForFunction) != 0, "Function missed during analysis: %s", singleCallee)
@@ -616,7 +616,7 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) [
 		}
 	}
 
-	var callees []*rhino.Node
+	var callees []rhino.Node
 	if cacheCall != nil {
 		callees = p.GetGoogCacheCallableExpression(cacheCall)
 	} else {
@@ -675,7 +675,7 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 	totalRefs := referenceMap.names.Size() + referenceMap.props.Size()
 	p.summariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, totalRefs)
 	p.propSummariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, referenceMap.props.Size())
-	p.summariesForAllNamesOfFunctionByNode = make(map[*rhino.Node][]*PureFunctionIdentifier_AmbiguatedFunctionSummary, max(totalRefs/2, 16))
+	p.summariesForAllNamesOfFunctionByNode = make(map[rhino.Node][]*PureFunctionIdentifier_AmbiguatedFunctionSummary, max(totalRefs/2, 16))
 	p.ensureReverseCallGraphCapacity(totalRefs + 2)
 
 	hasDotNameCollision := false
@@ -770,7 +770,7 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 			}
 		}
 	} else {
-		referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.ArrayList[*rhino.Node]](max(totalRefs, 12))
+		referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.ArrayList[rhino.Node]](max(totalRefs, 12))
 		for key, value := range referenceMap.GetNameReferences() {
 			if value.IsEmpty() {
 				continue
@@ -783,7 +783,7 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 			}
 			propKey := p.allocPropKey(key)
 			if existing := referencesByName.Get(propKey); existing != nil {
-				combined := jutil.NewArrayListWithCapacity[*rhino.Node](existing.Size() + value.Size())
+				combined := jutil.NewArrayListWithCapacity[rhino.Node](existing.Size() + value.Size())
 				combined.AddAll(existing.Slice()...)
 				combined.AddAll(value.Slice()...)
 				referencesByName.Put(propKey, combined)
@@ -823,12 +823,12 @@ func (p *PureFunctionIdentifier) allocPropKey(key string) string {
 // representing R- and L-value references to name.
 //
 // Java: PureFunctionIdentifier.populateFunctionDefinitions(String, List<Node>)
-func (p *PureFunctionIdentifier) PopulateFunctionDefinitions(name string, references []*rhino.Node) {
+func (p *PureFunctionIdentifier) PopulateFunctionDefinitions(name string, references []rhino.Node) {
 	summaryForName := jutil.CheckNotNull(p.summariesByName[name])
 	p.populateFunctionDefinitionsWithSummary(summaryForName, references)
 }
 
-func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryForName *PureFunctionIdentifier_AmbiguatedFunctionSummary, references []*rhino.Node) {
+func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryForName *PureFunctionIdentifier_AmbiguatedFunctionSummary, references []rhino.Node) {
 	// Make sure we get absolutely every R-value assigned to `name` or at the very least detect
 	// there are some we're missing. Overlooking a single R-value would invalidate the analysis.
 
@@ -841,7 +841,7 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 		if !PureFunctionIdentifier_IsDefinitelyRValue(reference) {
 			// For anything that might be an L-reference, get the expression being assigned to it.
 			rvalue := NodeUtil_GetRValueOfLValue(reference)
-			if rvalue == nil {
+			if rvalue.IsNil() {
 				invalid = true
 				break
 			} else {
@@ -873,7 +873,7 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 		// - There are no L-values with this name.
 		// - There's a an L-value and we can't find the associated R-values.
 		// - There's a an L-value with R-values are not all known to be callable.
-		summaryForName.SetMutatesGlobalStateAndAllOtherFlags(nil)
+		summaryForName.SetMutatesGlobalStateAndAllOtherFlags(rhino.Node{})
 	} else {
 		for _, rvalue := range rvaluesAssignedToName {
 			if rvalue.IsFunction() {
@@ -992,12 +992,12 @@ func NewPureFunctionIdentifier_ExternFunctionAnnotationAnalyzer(outer *PureFunct
 }
 
 // Java: PureFunctionIdentifier.ExternFunctionAnnotationAnalyzer.shouldTraverse(NodeTraversal, Node, Node)
-func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) ShouldTraverse(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) bool {
+func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) ShouldTraverse(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
 // Java: PureFunctionIdentifier.ExternFunctionAnnotationAnalyzer.visit(NodeTraversal, Node, Node)
-func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) Visit(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	if !node.IsFunction() {
 		return
 	}
@@ -1009,7 +1009,7 @@ func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) Visit(traversa
 
 // Java: PureFunctionIdentifier.ExternFunctionAnnotationAnalyzer.updateSideEffectsForExternFunction(Node, AmbiguatedFunctionSummary)
 func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) UpdateSideEffectsForExternFunction(
-	externFunction *rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+	externFunction rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
 	jutil.CheckArgument(externFunction.IsFunction())
 	jutil.CheckArgument(externFunction.IsFromExterns())
 
@@ -1037,15 +1037,15 @@ func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) UpdateSideEffe
 }
 
 // Java: PureFunctionIdentifier.RHS_IS_ALWAYS_LOCAL
-func PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL(lhs *rhino.Node) bool { return true }
+func PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL(lhs rhino.Node) bool { return true }
 
 // Java: PureFunctionIdentifier.RHS_IS_NEVER_LOCAL
-func PureFunctionIdentifier_RHS_IS_NEVER_LOCAL(lhs *rhino.Node) bool { return false }
+func PureFunctionIdentifier_RHS_IS_NEVER_LOCAL(lhs rhino.Node) bool { return false }
 
 // Java: PureFunctionIdentifier.FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE
-func PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE(lhs *rhino.Node) bool {
+func PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE(lhs rhino.Node) bool {
 	rhs := NodeUtil_GetRValueOfLValue(lhs)
-	return rhs == nil || NodeUtil_EvaluatesToLocalValue(rhs)
+	return rhs.IsNil() || NodeUtil_EvaluatesToLocalValue(rhs)
 }
 
 // PureFunctionIdentifier_FunctionBodyAnalyzer inspects function bodies for
@@ -1088,9 +1088,9 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) functionScopeStackGetLast(
 // when entering a new function literal, and pop the entry when leaving the
 // function literal.
 type PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry struct {
-	root                *rhino.Node
+	root                rhino.Node
 	skiplistedVars      []*Var
-	skiplistedNameNodes []*rhino.Node
+	skiplistedNameNodes []rhino.Node
 	taintedVars         []*Var
 	// Whether this function was marked as artificially pure, i.e. had a
 	// `@nosideeffects` annotation. This tells the compiler to ignore side
@@ -1111,7 +1111,7 @@ type PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry struct {
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.FunctionStackEntry(Node, boolean)
-func NewPureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry(root *rhino.Node, isArtificiallyPure bool) *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry {
+func NewPureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry(root rhino.Node, isArtificiallyPure bool) *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry {
 	return &PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry{
 		catchDepth:         0,
 		root:               root,
@@ -1166,13 +1166,13 @@ func (e *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry) IsLocal
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.shouldTraverse(NodeTraversal, Node, Node)
-func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ShouldTraverse(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) bool {
+func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ShouldTraverse(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
 	b.AddToCatchDepthIfTryBlock(node, 1)
 	return true
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.visit(NodeTraversal, Node, Node)
-func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) Visit(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	b.AddToCatchDepthIfTryBlock(node, -1)
 
 	if NodeUtil_IsInvocation(node) {
@@ -1184,7 +1184,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) Visit(traversal *NodeTrave
 
 	enclosingFunction := b.functionScopeStackGetLast()
 	root := enclosingFunction.root
-	if root == nil || enclosingFunction.isArtificiallyPure {
+	if root.IsNil() || enclosingFunction.isArtificiallyPure {
 		// Within artificially pure function literal bodies, we do not ever need to call
 		// updateSideEffectsForNode because we intentionally ignore any side effects, and still
 		// consider the function as a whole to be pure.
@@ -1207,7 +1207,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) Visit(traversal *NodeTrave
 //
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.updateSideEffectsForNode(AmbiguatedFunctionSummary, NodeTraversal, Node)
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
-	encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary, traversal *NodeTraversal, node *rhino.Node) {
+	encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary, traversal *NodeTraversal, node rhino.Node) {
 	if encloserSummary.MutatesGlobalState() {
 		return // Functions with MUTATES_GLOBAL_STATE already have all side-effects set.
 	}
@@ -1223,7 +1223,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 			if lhs.IsDestructuringPattern() {
 				NodeUtil_VisitLhsNodesInNode(
 					node,
-					func(lhsNode *rhino.Node) {
+					func(lhsNode rhino.Node) {
 						b.visitLhsNode(encloserSummary, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
 					})
 			} else {
@@ -1251,7 +1251,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 		// for ({prop1: x.p1, prop2: x.p2} of iterable) {...}
 		NodeUtil_VisitLhsNodesInNode(
 			node,
-			func(lhsNode *rhino.Node) {
+			func(lhsNode rhino.Node) {
 				b.visitLhsNode(
 					encloserSummary,
 					traversal,
@@ -1270,7 +1270,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 		// for ([char1, char2, ...x.rest] in obj) {...}
 		NodeUtil_VisitLhsNodesInNode(
 			node,
-			func(lhsNode *rhino.Node) {
+			func(lhsNode rhino.Node) {
 				b.visitLhsNode(
 					encloserSummary,
 					traversal,
@@ -1291,7 +1291,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 		// conservative but necessary because in the common case the rhs is not a literal.
 		NodeUtil_VisitLhsNodesInNode(
 			node.GetParent(),
-			func(lhsNode *rhino.Node) {
+			func(lhsNode rhino.Node) {
 				b.visitLhsNode(encloserSummary, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
 			})
 
@@ -1302,7 +1302,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 			// Assignment to local, if the value isn't a safe local value,
 			// new object creation or literal or known primitive result
 			// value, add it to the local skiplist.
-			if value != nil && !NodeUtil_EvaluatesToLocalValue(value) {
+			if !value.IsNil() && !NodeUtil_EvaluatesToLocalValue(value) {
 				e := b.functionScopeStackGetLast()
 				e.skiplistedNameNodes = append(e.skiplistedNameNodes, node)
 			}
@@ -1373,7 +1373,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 // assigns the appropriate side-effects to encloserSummary if so.
 //
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.checkIteratesImpureIterable(Node, AmbiguatedFunctionSummary)
-func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) CheckIteratesImpureIterable(node *rhino.Node, encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) CheckIteratesImpureIterable(node rhino.Node, encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
 	if !NodeUtil_IteratesImpureIterable(node) {
 		return
 	}
@@ -1404,7 +1404,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) RecordThrowsBasedOnContext
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTraversal) {
 	function := t.GetScopeRoot()
 	if !function.IsFunction() {
-		if b.functionScopeStackGetLast().root == nil {
+		if b.functionScopeStackGetLast().root.IsNil() {
 			// Variables declared outside all functions can never share a container
 			// scope with any scope inside a function. Pre-populating an empty
 			// Scope avoids scanning the global/module AST in SyntacticScopeCreator.
@@ -1448,7 +1448,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTraversa
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal) {
 	idx := len(b.functionScopeStack) - 1
 	functionEntry := &b.functionScopeStack[idx]
-	if functionEntry.root == nil {
+	if functionEntry.root.IsNil() {
 		return
 	}
 	if t.GetScopeRoot() == functionEntry.root {
@@ -1518,8 +1518,8 @@ func PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerSco
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) visitLhsNode(
 	encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary,
 	traversal *NodeTraversal,
-	lhs *rhino.Node,
-	hasLocalRhs func(*rhino.Node) bool) {
+	lhs rhino.Node,
+	hasLocalRhs func(rhino.Node) bool) {
 	if NodeUtil_IsNormalOrOptChainGet(lhs) {
 		objectNode := lhs.GetFirstChild()
 		if objectNode.IsThis() {
@@ -1568,8 +1568,8 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) visitLhsNode(
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitLhsNode(
 	encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary,
 	scope *Scope,
-	lhs *rhino.Node,
-	hasLocalRhs func(*rhino.Node) bool) {
+	lhs rhino.Node,
+	hasLocalRhs func(rhino.Node) bool) {
 	if NodeUtil_IsNormalOrOptChainGet(lhs) {
 		// Although OPTCHAIN_GETPROP can not be an LHS of an assign, it can be a child to DELPROP.
 		// e.g. `delete obj?.prop` <==> `obj == null ?  true : delete obj.prop;`
@@ -1617,7 +1617,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitLhsNode(
 // VisitCall records information about a call site.
 //
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.visitCall(AmbiguatedFunctionSummary, Node)
-func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitCall(callerInfo *PureFunctionIdentifier_AmbiguatedFunctionSummary, invocation *rhino.Node) {
+func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitCall(callerInfo *PureFunctionIdentifier_AmbiguatedFunctionSummary, invocation rhino.Node) {
 	// Handle special cases (Math, RegExp)
 	// TODO: This logic can probably be replaced with @nosideeffects annotations in externs.
 	if invocation.IsCall() && !b.outer.astAnalyzer.FunctionCallHasSideEffects(invocation) {
@@ -1631,7 +1631,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitCall(callerInfo *Pure
 
 	calleeSummaries := b.outer.GetSummariesForCallee(invocation)
 	if len(calleeSummaries) == 0 {
-		callerInfo.SetMutatesGlobalStateAndAllOtherFlags(nil)
+		callerInfo.SetMutatesGlobalStateAndAllOtherFlags(rhino.Node{})
 		return
 	}
 
@@ -1645,14 +1645,14 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitCall(callerInfo *Pure
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.addToCatchDepthIfTryBlock(Node, int)
-func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) AddToCatchDepthIfTryBlock(n *rhino.Node, delta int) {
+func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) AddToCatchDepthIfTryBlock(n rhino.Node, delta int) {
 	parent := n.GetParent()
 	if !n.IsBlock() || !parent.IsTry() || !n.IsFirstChildOf(parent) {
 		return
 	}
 
 	jsCatch := n.GetNext().GetFirstChild()
-	if jsCatch == nil {
+	if jsCatch.IsNil() {
 		return
 	}
 
@@ -1660,9 +1660,9 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) AddToCatchDepthIfTryBlock(
 }
 
 // Java: PureFunctionIdentifier.isInvocationViaCallOrApply(Node)
-func PureFunctionIdentifier_IsInvocationViaCallOrApply(callSite *rhino.Node) bool {
+func PureFunctionIdentifier_IsInvocationViaCallOrApply(callSite rhino.Node) bool {
 	receiver := callSite.GetFirstFirstChild()
-	if receiver == nil ||
+	if receiver.IsNil() ||
 		!(receiver.IsName() || receiver.IsGetProp() || receiver.IsOptChainGetProp()) {
 		return false
 	}
@@ -1671,7 +1671,7 @@ func PureFunctionIdentifier_IsInvocationViaCallOrApply(callSite *rhino.Node) boo
 }
 
 // Java: PureFunctionIdentifier.isCallOrTaggedTemplateLit(Node)
-func PureFunctionIdentifier_IsCallOrTaggedTemplateLit(invocation *rhino.Node) bool {
+func PureFunctionIdentifier_IsCallOrTaggedTemplateLit(invocation rhino.Node) bool {
 	return invocation.IsCall() || invocation.IsOptChainCall() || invocation.IsTaggedTemplateLit()
 }
 
@@ -1682,7 +1682,7 @@ func PureFunctionIdentifier_IsCallOrTaggedTemplateLit(invocation *rhino.Node) bo
 // including a leading dot.
 //
 // Java: PureFunctionIdentifier.nameForReference(Node)
-func PureFunctionIdentifier_NameForReference(nameRef *rhino.Node) string {
+func PureFunctionIdentifier_NameForReference(nameRef rhino.Node) string {
 	switch nameRef.GetToken() {
 	case rhino.Token_NAME:
 		return nameRef.GetString()
@@ -1726,7 +1726,7 @@ type PureFunctionIdentifier_SideEffectPropagation struct {
 	propagateThrows bool
 
 	// The token used to invoke the callee by the caller.
-	invocation *rhino.Node
+	invocation rhino.Node
 }
 
 // Java: PureFunctionIdentifier.SideEffectPropagation(boolean, boolean, boolean, boolean, Node)
@@ -1735,8 +1735,8 @@ func NewPureFunctionIdentifier_SideEffectPropagation(
 	allArgsUnescapedLocal bool,
 	calleeThisEqualsCallerThis bool,
 	propagateThrows bool,
-	invocation *rhino.Node) *PureFunctionIdentifier_SideEffectPropagation {
-	jutil.CheckArgumentMsg1(invocation == nil || NodeUtil_IsInvocation(invocation), "%s", invocation)
+	invocation rhino.Node) *PureFunctionIdentifier_SideEffectPropagation {
+	jutil.CheckArgumentMsg1(invocation.IsNil() || NodeUtil_IsInvocation(invocation), "%s", invocation)
 
 	return &PureFunctionIdentifier_SideEffectPropagation{
 		callerIsAlias:              callerIsAlias,
@@ -1759,7 +1759,7 @@ func PureFunctionIdentifier_SideEffectPropagation_ForAlias() *PureFunctionIdenti
 
 // Java: PureFunctionIdentifier.SideEffectPropagation.forInvocation(Node, boolean)
 func PureFunctionIdentifier_SideEffectPropagation_ForInvocation(
-	invocation *rhino.Node, callerIsArrowFunction bool, propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
+	invocation rhino.Node, callerIsArrowFunction bool, propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
 	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
 
 	return NewPureFunctionIdentifier_SideEffectPropagation(
@@ -1773,7 +1773,7 @@ func PureFunctionIdentifier_SideEffectPropagation_ForInvocation(
 }
 
 // Java: PureFunctionIdentifier.SideEffectPropagation.calleeAndCallerShareThis(Node)
-func PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation *rhino.Node) bool {
+func PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation rhino.Node) bool {
 	if !PureFunctionIdentifier_IsCallOrTaggedTemplateLit(invocation) {
 		return false // Calling a constructor creates a new object bound to `this`.
 	}
@@ -1783,17 +1783,17 @@ func PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invoc
 		return true
 	}
 
-	var thisArg *rhino.Node
+	var thisArg rhino.Node
 	if PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation) {
 		// If the call site is actually a `.call` or `.apply`, then `this` will be an argument.
 		thisArg = invocation.GetSecondChild()
 	} else if callee.IsGetProp() || callee.IsOptChainGetProp() {
 		thisArg = callee.GetFirstChild()
 	} else {
-		thisArg = nil
+		thisArg = rhino.Node{}
 	}
 
-	if thisArg == nil {
+	if thisArg.IsNil() {
 		return false // No `this` is being passed.
 	} else if thisArg.IsThis() || thisArg.IsSuper() {
 		return true
@@ -1867,7 +1867,7 @@ type PureFunctionIdentifier_AmbiguatedFunctionSummary struct {
 	// true, and if PureFunctionIdentifier finds that this summary has a
 	// non-extern function that's "artificially pure", i.e. has a
 	// @nosideeffects annotation.
-	impureFunctionReasonsForDebugging *jutil.LinkedHashSet[*rhino.Node] // lazily initialized
+	impureFunctionReasonsForDebugging *jutil.LinkedHashSet[rhino.Node] // lazily initialized
 	selfSlice                         [1]*PureFunctionIdentifier_AmbiguatedFunctionSummary
 }
 
@@ -1910,12 +1910,12 @@ func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) GetMask(mask int) boo
 }
 
 // Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.maybeCollectImpureDebuggingReason(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MaybeCollectImpureDebuggingReason(debuggingReason *rhino.Node) {
-	if !s.collectImpureDebuggingReason || debuggingReason == nil {
+func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MaybeCollectImpureDebuggingReason(debuggingReason rhino.Node) {
+	if !s.collectImpureDebuggingReason || debuggingReason.IsNil() {
 		return
 	}
 	if s.impureFunctionReasonsForDebugging == nil {
-		s.impureFunctionReasonsForDebugging = jutil.NewLinkedHashSet[*rhino.Node]()
+		s.impureFunctionReasonsForDebugging = jutil.NewLinkedHashSet[rhino.Node]()
 	}
 	s.impureFunctionReasonsForDebugging.Add(NodeUtil_GetEnclosingFunction(debuggingReason))
 }
@@ -1929,7 +1929,7 @@ func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesThis() bool {
 // SetMutatesThis marks the function as having "modifies this" side effects.
 //
 // Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesThis(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesThis(debuggingReason *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesThis(debuggingReason rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	s.MaybeCollectImpureDebuggingReason(debuggingReason)
 	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_THIS)
 }
@@ -1945,7 +1945,7 @@ func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) FunctionThrows() bool
 // SetThrows marks the function as having "throw" side effects.
 //
 // Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setThrows(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetThrows(debuggingReason *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetThrows(debuggingReason rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	s.MaybeCollectImpureDebuggingReason(debuggingReason)
 	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_THROWS)
 }
@@ -1961,7 +1961,7 @@ func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesGlobalState() 
 // "modifies globals" side effects.
 //
 // Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesGlobalStateAndAllOtherFlags(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesGlobalStateAndAllOtherFlags(debuggingReason *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesGlobalStateAndAllOtherFlags(debuggingReason rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	s.MaybeCollectImpureDebuggingReason(debuggingReason)
 	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_THROWS | PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_THIS | PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS | PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_GLOBAL_STATE)
 }
@@ -1978,7 +1978,7 @@ func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesArguments() bo
 // side effects.
 //
 // Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesArguments(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesArguments(debuggingReason *rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesArguments(debuggingReason rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	s.MaybeCollectImpureDebuggingReason(debuggingReason)
 	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS)
 }
@@ -2040,7 +2040,7 @@ func NewPureFunctionIdentifier_Driver(compiler AbstractCompiler) *PureFunctionId
 }
 
 // Java: PureFunctionIdentifier.Driver.process(Node, Node)
-func (d *PureFunctionIdentifier_Driver) Process(externs *rhino.Node, root *rhino.Node) {
+func (d *PureFunctionIdentifier_Driver) Process(externs rhino.Node, root rhino.Node) {
 	shouldValidate :=
 		d.compiler.
 			GetOptions().

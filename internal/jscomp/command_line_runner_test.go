@@ -3501,7 +3501,7 @@ func (c *CommandLineRunnerTest) testExpectedDiagnostics(input string, expectedDi
 }
 
 // Java: CommandLineRunnerTest.parse(String[])
-func (c *CommandLineRunnerTest) parse(original []string) *rhino.Node {
+func (c *CommandLineRunnerTest) parse(original []string) rhino.Node {
 	argStrings := append([]string{}, c.args...)
 	runner := NewCommandLineRunner(argStrings)
 	compiler := runner.CreateCompiler()
@@ -3513,7 +3513,7 @@ func (c *CommandLineRunnerTest) parse(original []string) *rhino.Node {
 	compiler.Init(c.externs, inputs, options)
 	all := compiler.ParseInputs()
 	AssertThat(compiler.GetErrors()).IsEmpty()
-	jutil.CheckNotNull(all)
+	rhino.CheckNotNull(all)
 	return all.GetLastChild()
 }
 

@@ -46,7 +46,7 @@ func NewValidityCheck(compiler AbstractCompiler) *ValidityCheck {
 }
 
 // Java: ValidityCheck.process(Node, Node)
-func (v *ValidityCheck) Process(externs *rhino.Node, root *rhino.Node) {
+func (v *ValidityCheck) Process(externs rhino.Node, root rhino.Node) {
 	v.CheckAst(externs, root)
 	v.CheckNormalization(externs, root)
 	v.CheckVars(externs, root)
@@ -56,13 +56,13 @@ func (v *ValidityCheck) Process(externs *rhino.Node, root *rhino.Node) {
 // CheckAst checks that the AST is structurally accurate.
 //
 // Java: ValidityCheck.checkAst(Node, Node)
-func (v *ValidityCheck) CheckAst(externs *rhino.Node, root *rhino.Node) {
+func (v *ValidityCheck) CheckAst(externs rhino.Node, root rhino.Node) {
 	v.astValidator.ValidateCodeRoot(externs)
 	v.astValidator.ValidateCodeRoot(root)
 }
 
 // Java: ValidityCheck.checkVars(Node, Node)
-func (v *ValidityCheck) CheckVars(externs *rhino.Node, root *rhino.Node) {
+func (v *ValidityCheck) CheckVars(externs rhino.Node, root rhino.Node) {
 	if v.compiler.GetLifeCycleStage().IsNormalized() {
 		// TODO(rishipal): Why is VarCheck only run when AST is normalized?
 		(NewVarCheckWithValidityCheck(v.compiler, true)).Process(externs, root)
@@ -73,7 +73,7 @@ func (v *ValidityCheck) CheckVars(externs *rhino.Node, root *rhino.Node) {
 // already-normalized tree.
 //
 // Java: ValidityCheck.checkNormalization(Node, Node)
-func (v *ValidityCheck) CheckNormalization(externs *rhino.Node, root *rhino.Node) {
+func (v *ValidityCheck) CheckNormalization(externs rhino.Node, root rhino.Node) {
 	// Verify nothing has inappropriately denormalize the AST.
 	var handler CodeChangeHandler = NewForbiddenChange()
 	v.changeTracker.AddChangeHandler(handler)
@@ -95,13 +95,13 @@ func (v *ValidityCheck) CheckNormalization(externs *rhino.Node, root *rhino.Node
 }
 
 // Java: ValidityCheck.checkExternProperties(Node)
-func (v *ValidityCheck) CheckExternProperties(externs *rhino.Node) {
+func (v *ValidityCheck) CheckExternProperties(externs rhino.Node) {
 	externProperties := v.compiler.GetExternProperties()
 	if externProperties == nil {
 		// GatherExternProperties hasn't run yet. Don't report a violation.
 		return
 	}
-	NewGatherExternProperties(v.compiler, GatherExternProperties_Mode_CHECK).Process(externs, nil)
+	NewGatherExternProperties(v.compiler, GatherExternProperties_Mode_CHECK).Process(externs, rhino.Node{})
 	if !v.compiler.GetExternProperties().Equals(externProperties) {
 		v.compiler.Report(
 			JSError_Make(
@@ -138,15 +138,15 @@ func NewValidityCheck_VerifyConstants(compiler AbstractCompiler, checkUserDeclar
 }
 
 // Java: ValidityCheck.VerifyConstants.process(Node, Node)
-func (c *ValidityCheck_VerifyConstants) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *ValidityCheck_VerifyConstants) Process(externs rhino.Node, root rhino.Node) {
 	externsAndJs := root.GetParent()
-	jutil.CheckState(externsAndJs != nil)
+	jutil.CheckState(!externsAndJs.IsNil())
 	jutil.CheckState(externsAndJs.HasChild(externs))
 	NodeTraversal_TraverseRoots(c.compiler, c, externs, root)
 }
 
 // Java: ValidityCheck.VerifyConstants.visit(NodeTraversal, Node, Node)
-func (c *ValidityCheck_VerifyConstants) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *ValidityCheck_VerifyConstants) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		name := n.GetString()
 		if n.GetString() == "" {

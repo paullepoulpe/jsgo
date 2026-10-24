@@ -63,7 +63,7 @@ func NewDisambiguateProperties(
 }
 
 // Java: DisambiguateProperties.process(Node, Node)
-func (d *DisambiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
+func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckArgument(externs.GetParent() == root.GetParent())
 
 	flattener := ColorGraphNodeFactory_CreateFactory(d.registry)
@@ -468,7 +468,7 @@ type disambiguateProperties_PropertyReferenceJson struct {
 }
 
 // Java: DisambiguateProperties.PropertyReferenceJson(Node, ColorGraphNode)
-func newDisambiguateProperties_PropertyReferenceJson(location *rhino.Node, receiver *ColorGraphNode) *disambiguateProperties_PropertyReferenceJson {
+func newDisambiguateProperties_PropertyReferenceJson(location rhino.Node, receiver *ColorGraphNode) *disambiguateProperties_PropertyReferenceJson {
 	return &disambiguateProperties_PropertyReferenceJson{
 		location:      location.GetLocation(),
 		receiverIndex: receiver.GetIndex(),

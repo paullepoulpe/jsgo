@@ -113,7 +113,7 @@ func NewCheckJSDoc(compiler AbstractCompiler) *CheckJSDoc {
 }
 
 // Java: CheckJSDoc.process(Node, Node)
-func (c *CheckJSDoc) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckJSDoc) Process(externs rhino.Node, root rhino.Node) {
 	c.inExterns = true
 	NodeTraversal_Traverse(c.compiler, externs, c)
 	c.inExterns = false
@@ -145,7 +145,7 @@ func (c *CheckJSDoc) CheckJsDocInBlockComments(fileName *string) {
 }
 
 // Java: CheckJSDoc.visit(NodeTraversal, Node, Node)
-func (c *CheckJSDoc) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckJSDoc) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsScript() {
 		c.CheckJsDocInBlockComments(n.GetSourceFileName())
 	}
@@ -173,7 +173,7 @@ func (c *CheckJSDoc) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) 
 }
 
 // Java: CheckJSDoc.validateSuppress(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateSuppress(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateSuppress(n rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || !info.HasAnySuppressions() {
 		return
 	}
@@ -230,7 +230,7 @@ func CheckJSDoc_ContainsOnlySuppressionFor(jsdoc *rhino.JSDocInfo, allowedSuppre
 }
 
 // Java: CheckJSDoc.validateTypedefs(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateTypedefs(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateTypedefs(n rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || !info.HasTypedefType() {
 		return
 	}
@@ -256,13 +256,13 @@ func (c *CheckJSDoc) ValidateTypedefs(n *rhino.Node, info *rhino.JSDocInfo) {
 }
 
 // Java: CheckJSDoc.validateTemplates(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateTemplates(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateTemplates(n rhino.Node, info *rhino.JSDocInfo) {
 	if info != nil &&
 		len(info.GetTemplateTypeNames()) != 0 &&
 		!info.IsConstructorOrInterface() &&
 		!c.IsClassDecl(n) &&
 		!info.ContainsFunctionDeclaration() &&
-		CheckJSDoc_GetFunctionDecl(n) == nil {
+		CheckJSDoc_GetFunctionDecl(n).IsNil() {
 		c.ReportMisplaced(
 			n,
 			"template",
@@ -276,7 +276,7 @@ func (c *CheckJSDoc) ValidateTemplates(n *rhino.Node, info *rhino.JSDocInfo) {
 // function exists.
 //
 // Java: CheckJSDoc.getFunctionDecl(Node)
-func CheckJSDoc_GetFunctionDecl(n *rhino.Node) *rhino.Node {
+func CheckJSDoc_GetFunctionDecl(n rhino.Node) rhino.Node {
 	if n.IsFunction() {
 		return n
 	}
@@ -284,7 +284,7 @@ func CheckJSDoc_GetFunctionDecl(n *rhino.Node) *rhino.Node {
 		return n.GetFirstChild()
 	}
 	if NodeUtil_IsNameDeclaration(n) &&
-		n.GetFirstFirstChild() != nil &&
+		!n.GetFirstFirstChild().IsNil() &&
 		n.GetFirstFirstChild().IsFunction() {
 		return n.GetFirstFirstChild()
 	}
@@ -301,11 +301,11 @@ func CheckJSDoc_GetFunctionDecl(n *rhino.Node) *rhino.Node {
 		return n.GetLastChild()
 	}
 
-	return nil
+	return rhino.Node{}
 }
 
 // Java: CheckJSDoc.isClassDecl(Node)
-func (c *CheckJSDoc) IsClassDecl(n *rhino.Node) bool {
+func (c *CheckJSDoc) IsClassDecl(n rhino.Node) bool {
 	return c.IsClass(n) ||
 		(n.IsAssign() && c.IsClass(n.GetLastChild())) ||
 		(NodeUtil_IsNameDeclaration(n) && c.IsNameInitializeWithClass(n.GetFirstChild())) ||
@@ -313,17 +313,17 @@ func (c *CheckJSDoc) IsClassDecl(n *rhino.Node) bool {
 }
 
 // Java: CheckJSDoc.isNameInitializeWithClass(Node)
-func (c *CheckJSDoc) IsNameInitializeWithClass(n *rhino.Node) bool {
-	return n != nil && n.IsName() && n.HasChildren() && c.IsClassDecl(n.GetFirstChild())
+func (c *CheckJSDoc) IsNameInitializeWithClass(n rhino.Node) bool {
+	return !n.IsNil() && n.IsName() && n.HasChildren() && c.IsClassDecl(n.GetFirstChild())
 }
 
 // Java: CheckJSDoc.isClass(Node)
-func (c *CheckJSDoc) IsClass(n *rhino.Node) bool {
+func (c *CheckJSDoc) IsClass(n rhino.Node) bool {
 	return n.IsClass() || (n.IsCall() && c.compiler.GetCodingConvention().IsClassFactoryCall(n))
 }
 
 // Java: CheckJSDoc.isPrototypeOrInstanceDecl(Node)
-func CheckJSDoc_IsPrototypeOrInstanceDecl(n *rhino.Node) bool {
+func CheckJSDoc_IsPrototypeOrInstanceDecl(n rhino.Node) bool {
 	if n.IsStringKey() {
 		return false
 	}
@@ -338,14 +338,14 @@ func CheckJSDoc_IsPrototypeOrInstanceDecl(n *rhino.Node) bool {
 // @interface/@extends are not used on member functions.
 //
 // Java: CheckJSDoc.validateClassLevelJsDoc(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateClassLevelJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateClassLevelJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 	if info != nil && n.IsMemberFunctionDef() && CheckJSDoc_HasClassLevelJsDoc(info) {
 		c.Report(n, CheckJSDoc_DISALLOWED_MEMBER_JSDOC)
 	}
 }
 
 // Java: CheckJSDoc.validateAbstractJsDoc(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateAbstractJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateAbstractJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || !info.IsAbstract() {
 		return
 	}
@@ -376,7 +376,7 @@ func (c *CheckJSDoc) ValidateAbstractJsDoc(n *rhino.Node, info *rhino.JSDocInfo)
 
 	// @abstract annotation on a non-function
 	functionNode := CheckJSDoc_GetFunctionDecl(n)
-	if functionNode == nil {
+	if functionNode.IsNil() {
 		c.Report(
 			n,
 			CheckJSDoc_MISPLACED_ANNOTATION,
@@ -436,7 +436,7 @@ func CheckJSDoc_HasClassLevelJsDoc(info *rhino.JSDocInfo) bool {
 // which are not eligible for property collapsing.
 //
 // Java: CheckJSDoc.validateNoCollapse(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateNoCollapse(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateNoCollapse(n rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || !info.IsNoCollapse() {
 		return
 	}
@@ -467,7 +467,7 @@ func (c *CheckJSDoc) ValidateNoCollapse(n *rhino.Node, info *rhino.JSDocInfo) {
 // attached to a function.
 //
 // Java: CheckJSDoc.validateFunctionJsDoc(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateFunctionJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateFunctionJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil {
 		return
 	}
@@ -490,7 +490,7 @@ func (c *CheckJSDoc) ValidateFunctionJsDoc(n *rhino.Node, info *rhino.JSDocInfo)
 // goog.abstractMethod.
 //
 // Java: CheckJSDoc.isJSDocOnFunctionNode(Node, JSDocInfo)
-func (c *CheckJSDoc) IsJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo) bool {
+func (c *CheckJSDoc) IsJSDocOnFunctionNode(n rhino.Node, info *rhino.JSDocInfo) bool {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION,
 		rhino.Token_GETTER_DEF,
@@ -511,7 +511,7 @@ func (c *CheckJSDoc) IsJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo)
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_ASSIGN:
 		lhs := n.GetFirstChild()
 		rhs := NodeUtil_GetRValueOfLValue(lhs)
-		if rhs != nil && c.IsClass(rhs) && !info.IsConstructor() {
+		if !rhs.IsNil() && c.IsClass(rhs) && !info.IsConstructor() {
 			return false
 		}
 
@@ -530,7 +530,7 @@ func (c *CheckJSDoc) IsJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo)
 // pass checks that the right side is a call to goog.getMsg.
 //
 // Java: CheckJSDoc.validateMsgJsDoc(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateMsgJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateMsgJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil {
 		return
 	}
@@ -563,7 +563,7 @@ func (c *CheckJSDoc) ValidateMsgJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
 // target for the result of goog.getMsg.
 //
 // Java: CheckJSDoc.isValidMsgName(Node)
-func CheckJSDoc_IsValidMsgName(nameNode *rhino.Node) bool {
+func CheckJSDoc_IsValidMsgName(nameNode rhino.Node) bool {
 	if nameNode.IsName() || nameNode.IsStringKey() {
 		return strings.HasPrefix(nameNode.GetString(), "MSG_")
 	} else if nameNode.IsQualifiedName() {
@@ -577,7 +577,7 @@ func CheckJSDoc_IsValidMsgName(nameNode *rhino.Node) bool {
 // valid place.
 //
 // Java: CheckJSDoc.validateTypeAnnotations(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateTypeAnnotations(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateTypeAnnotations(n rhino.Node, info *rhino.JSDocInfo) {
 	if info != nil && info.HasType() {
 		valid := false
 		switch n.GetToken() {
@@ -630,7 +630,7 @@ func (c *CheckJSDoc) ValidateTypeAnnotations(n *rhino.Node, info *rhino.JSDocInf
 // annotation on the given NAME node?
 //
 // Java: CheckJSDoc.isTypeAnnotationAllowedForName(Node)
-func CheckJSDoc_IsTypeAnnotationAllowedForName(n *rhino.Node) bool {
+func CheckJSDoc_IsTypeAnnotationAllowedForName(n rhino.Node) bool {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 	// Only allow type annotations on nodes used as an lvalue.
 	if !NodeUtil_IsLValue(n) {
@@ -643,12 +643,12 @@ func CheckJSDoc_IsTypeAnnotationAllowedForName(n *rhino.Node) bool {
 }
 
 // Java: CheckJSDoc.reportMisplaced(Node, String, String)
-func (c *CheckJSDoc) ReportMisplaced(n *rhino.Node, annotationName string, note string) {
+func (c *CheckJSDoc) ReportMisplaced(n rhino.Node, annotationName string, note string) {
 	c.compiler.Report(JSError_MakeWithNode(n, CheckJSDoc_MISPLACED_ANNOTATION, annotationName, note))
 }
 
 // Java: CheckJSDoc.report(Node, DiagnosticType, String...)
-func (c *CheckJSDoc) Report(n *rhino.Node, type_ *DiagnosticType, arguments ...string) {
+func (c *CheckJSDoc) Report(n rhino.Node, type_ *DiagnosticType, arguments ...string) {
 	c.compiler.Report(JSError_MakeWithNode(n, type_, arguments...))
 }
 
@@ -656,7 +656,7 @@ func (c *CheckJSDoc) Report(n *rhino.Node, type_ *DiagnosticType, arguments ...s
 // {@constructor}.
 //
 // Java: CheckJSDoc.validateArrowFunction(Node)
-func (c *CheckJSDoc) ValidateArrowFunction(n *rhino.Node) {
+func (c *CheckJSDoc) ValidateArrowFunction(n rhino.Node) {
 	if n.IsArrowFunction() {
 		info := NodeUtil_GetBestJSDocInfo(n)
 		if info != nil && info.IsConstructorOrInterface() {
@@ -669,7 +669,7 @@ func (c *CheckJSDoc) ValidateArrowFunction(n *rhino.Node) {
 // variadic.
 //
 // Java: CheckJSDoc.validateRestParameter(Node)
-func (c *CheckJSDoc) ValidateRestParameter(restParam *rhino.Node) {
+func (c *CheckJSDoc) ValidateRestParameter(restParam rhino.Node) {
 	if !restParam.IsRest() || !restParam.GetParent().IsParamList() {
 		return
 	}
@@ -710,7 +710,7 @@ func (c *CheckJSDoc) ValidateRestParameter(restParam *rhino.Node) {
 // it.
 //
 // Java: CheckJSDoc.validateDefaultValue(Node)
-func (c *CheckJSDoc) ValidateDefaultValue(n *rhino.Node) {
+func (c *CheckJSDoc) ValidateDefaultValue(n rhino.Node) {
 	if n.IsDefaultValue() && n.GetParent().IsParamList() {
 		targetNode := n.GetFirstChild()
 		info := targetNode.GetJSDocInfo()
@@ -734,7 +734,7 @@ func (c *CheckJSDoc) ValidateDefaultValue(n *rhino.Node) {
 // externs.
 //
 // Java: CheckJSDoc.validateNoSideEffects(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateNoSideEffects(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateNoSideEffects(n rhino.Node, info *rhino.JSDocInfo) {
 	// Cannot have @modifies in regular (non externs) js. Report errors.
 	if info == nil {
 		return
@@ -753,7 +753,7 @@ func (c *CheckJSDoc) ValidateNoSideEffects(n *rhino.Node, info *rhino.JSDocInfo)
 // {@defines}.
 //
 // Java: CheckJSDoc.validateDefinesDeclaration(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateDefinesDeclaration(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateDefinesDeclaration(n rhino.Node, info *rhino.JSDocInfo) {
 	if info != nil && info.IsDefine() && n.IsLet() {
 		c.Report(n, CheckJSDoc_INVALID_DEFINE_ON_LET)
 	}
@@ -763,7 +763,7 @@ func (c *CheckJSDoc) ValidateDefinesDeclaration(n *rhino.Node, info *rhino.JSDoc
 // externs.
 //
 // Java: CheckJSDoc.validateImplicitCast(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateImplicitCast(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateImplicitCast(n rhino.Node, info *rhino.JSDocInfo) {
 	if !c.inExterns && info != nil && info.IsImplicitCast() {
 		c.Report(n, TypeCheck_ILLEGAL_IMPLICIT_CAST)
 	}
@@ -773,7 +773,7 @@ func (c *CheckJSDoc) ValidateImplicitCast(n *rhino.Node, info *rhino.JSDocInfo) 
 // function.
 //
 // Java: CheckJSDoc.validateClosurePrimitive(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateClosurePrimitive(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateClosurePrimitive(n rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || !info.HasClosurePrimitiveId() {
 		return
 	}
@@ -786,7 +786,7 @@ func (c *CheckJSDoc) ValidateClosurePrimitive(n *rhino.Node, info *rhino.JSDocIn
 // ValidateReturnJsDoc checks that there are no annotations on return.
 //
 // Java: CheckJSDoc.validateReturnJsDoc(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateReturnJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateReturnJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 	if !n.IsReturn() || info == nil {
 		return
 	}
@@ -799,7 +799,7 @@ func (c *CheckJSDoc) ValidateReturnJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
 // ValidateTsType checks that a @tsType is on a function in a supported file.
 //
 // Java: CheckJSDoc.validateTsType(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateTsType(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateTsType(n rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || len(info.GetTsTypes()) == 0 {
 		return
 	}
@@ -810,7 +810,7 @@ func (c *CheckJSDoc) ValidateTsType(n *rhino.Node, info *rhino.JSDocInfo) {
 }
 
 // Java: CheckJSDoc.isFromTs(Node)
-func CheckJSDoc_IsFromTs(n *rhino.Node) bool {
+func CheckJSDoc_IsFromTs(n rhino.Node) bool {
 	return n.GetStaticSourceFile().IsTypeScriptSource()
 }
 
@@ -829,7 +829,7 @@ func (c *CheckJSDoc) ValidateJsDocTypeNames(info *rhino.JSDocInfo) {
 type CheckJSDoc_CheckJsdocTypes struct{}
 
 // Java: CheckJSDoc.CheckJsdocTypes.visit(Node)
-func (*CheckJSDoc_CheckJsdocTypes) Visit(typeRefNode *rhino.Node) {
+func (*CheckJSDoc_CheckJsdocTypes) Visit(typeRefNode rhino.Node) {
 	if !typeRefNode.IsStringLit() {
 		return
 	}
@@ -863,7 +863,7 @@ func (*CheckJSDoc_CheckJsdocTypes) Visit(typeRefNode *rhino.Node) {
 // used on constructors.
 //
 // Java: CheckJSDoc.validateIsUsedViaDotConstructor(Node, JSDocInfo)
-func (c *CheckJSDoc) ValidateIsUsedViaDotConstructor(n *rhino.Node, info *rhino.JSDocInfo) {
+func (c *CheckJSDoc) ValidateIsUsedViaDotConstructor(n rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || !info.IsUsedViaDotConstructor() {
 		return
 	}

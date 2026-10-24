@@ -50,7 +50,7 @@ type EnumType struct {
 	// the elements' names (they all have the same type)
 	elements *jutil.LinkedHashSet[string]
 	// the node representing rhs of the enum
-	source       *Node
+	source       Node
 	googModuleId *string
 }
 
@@ -67,7 +67,7 @@ type EnumType_Builder struct {
 	PrototypeObjectType_Builder[*EnumType_Builder]
 
 	elementName  *string
-	source       *Node
+	source       Node
 	googModuleId *string
 	elementType  JSType
 }
@@ -91,7 +91,7 @@ func (b *EnumType_Builder) SetName(x *string) *EnumType_Builder {
 // another enum, or null.
 //
 // Java: EnumType.Builder.setSource(Node)
-func (b *EnumType_Builder) SetSource(x *Node) *EnumType_Builder {
+func (b *EnumType_Builder) SetSource(x Node) *EnumType_Builder {
 	b.source = x
 	return b
 }
@@ -166,7 +166,7 @@ func (t *EnumType) GetElements() []string {
 // this new element. Returns true iff the new element is added successfully
 //
 // Java: EnumType.defineElement(String, Node)
-func (t *EnumType) DefineElement(name string, definingNode *Node) bool {
+func (t *EnumType) DefineElement(name string, definingNode Node) bool {
 	t.elements.Add(name)
 	return t.DefineDeclaredProperty(name, t.elementType, definingNode)
 }
@@ -243,7 +243,7 @@ func (t *EnumType) MatchesObjectContext() bool {
 }
 
 // Java: EnumType.getSource()
-func (t *EnumType) GetSource() *Node {
+func (t *EnumType) GetSource() Node {
 	return t.source
 }
 

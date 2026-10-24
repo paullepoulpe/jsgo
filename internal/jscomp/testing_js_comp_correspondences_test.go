@@ -22,7 +22,6 @@ import (
 	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -43,7 +42,7 @@ var JSCompCorrespondences_INPUT_NAME_EQUALITY = Correspondence_Transforming((*Co
 
 // Java: JSCompCorrespondences.EQUALITY_WHEN_PARSED_AS_EXPRESSION
 var JSCompCorrespondences_EQUALITY_WHEN_PARSED_AS_EXPRESSION = Correspondence_From(
-	func(actual *rhino.Node, expected string) bool {
+	func(actual rhino.Node, expected string) bool {
 		return jsCompCorrespondences_parseExpr(expected).IsEquivalentTo(actual)
 	},
 	"matches nodes parsed from")
@@ -68,9 +67,9 @@ var jsCompCorrespondences_COMPILER_FOR_PARSING = sync.OnceValue(func() *Compiler
 // leniently as possible.
 //
 // Java: JSCompCorrespondences.parseExpr(String)
-func jsCompCorrespondences_parseExpr(expr string) *rhino.Node {
+func jsCompCorrespondences_parseExpr(expr string) rhino.Node {
 	exprRoot := jsCompCorrespondences_COMPILER_FOR_PARSING().
 		ParseOfSourceFile(SourceFile_FromCode("expr", "("+expr+")")). // SCRIPT
 		GetFirstFirstChild()                                          // EXPR_RESULT > expr
-	return jutil.CheckNotNullMsg(exprRoot, "Failed to parse expression")
+	return rhino.CheckNotNullMsg(exprRoot, "Failed to parse expression")
 }

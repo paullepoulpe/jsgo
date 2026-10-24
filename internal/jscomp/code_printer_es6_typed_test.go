@@ -46,7 +46,7 @@ func TestCodePrinterEs6TypedTest(t *testing.T) {
 }
 
 // Java: CodePrinterEs6TypedTest.assertPrettyPrint(Node, String)
-func (c *CodePrinterEs6TypedTest) AssertPrettyPrint(root *rhino.Node, js string) {
+func (c *CodePrinterEs6TypedTest) AssertPrettyPrint(root rhino.Node, js string) {
 	parsed := NewCodePrinter_Builder(root).
 		SetCompilerOptions(
 			c.NewCompilerOptions(
@@ -74,7 +74,7 @@ func (c *CodePrinterEs6TypedTest) TestVariableDeclaration() {
 // `var foo: <typeName> = "hello"`.
 //
 // Java: CodePrinterEs6TypedTest.constructVarDeclarationWithType(String)
-func CodePrinterEs6TypedTest_ConstructVarDeclarationWithType(typeName string) *rhino.Node {
+func CodePrinterEs6TypedTest_ConstructVarDeclarationWithType(typeName string) rhino.Node {
 	lhs := rhino.IR_Name("foo")
 	lhs.SetDeclaredTypeExpression(rhino.TypeDeclarationsIR_NamedType(typeName))
 	return rhino.IR_VarWithValue(lhs, rhino.IR_String("hello"))
@@ -166,7 +166,7 @@ func (c *CodePrinterEs6TypedTest) TestArrayType_qualifiedType() {
 func (c *CodePrinterEs6TypedTest) TestParameterizedType() {
 	type_ := rhino.TypeDeclarationsIR_ParameterizedType(
 		rhino.TypeDeclarationsIR_NamedType("my.parameterized.Type"),
-		[]*rhino.Node{rhino.TypeDeclarationsIR_NamedType("ns.A"), rhino.TypeDeclarationsIR_NamedType("ns.B")})
+		[]rhino.Node{rhino.TypeDeclarationsIR_NamedType("ns.A"), rhino.TypeDeclarationsIR_NamedType("ns.B")})
 	lhs := rhino.IR_Name("x")
 	lhs.SetDeclaredTypeExpression(type_)
 	var_ := rhino.IR_Var(lhs)

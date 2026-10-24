@@ -50,7 +50,7 @@ func JsdocUtil_GetQmarkTypeJSDoc() *rhino.JSDocInfo {
 }
 
 // Java: JsdocUtil.makeBuilderWithType(JSDocInfo, Node)
-func jsdocUtil_makeBuilderWithType(oldJSDoc *rhino.JSDocInfo, typeAst *rhino.Node) *rhino.JSDocInfo_Builder {
+func jsdocUtil_makeBuilderWithType(oldJSDoc *rhino.JSDocInfo, typeAst rhino.Node) *rhino.JSDocInfo_Builder {
 	builder := rhino.JSDocInfo_Builder_MaybeCopyFrom(oldJSDoc)
 	builder.RecordType(
 		rhino.NewJSTypeExpression(typeAst.SrcrefTree(jsdocUtil_SYNTETIC_SRCINFO_NODE), jsdocUtil_SYNTHETIC_FILE_NAME))
@@ -80,7 +80,7 @@ func jsdocUtil_replaceWithUnusableType(original *rhino.JSTypeExpression) *rhino.
 }
 
 // Java: JsdocUtil.newTypeExpr(Node)
-func jsdocUtil_newTypeExpr(typeAst *rhino.Node) *rhino.JSTypeExpression {
+func jsdocUtil_newTypeExpr(typeAst rhino.Node) *rhino.JSTypeExpression {
 	return rhino.NewJSTypeExpression(typeAst.SrcrefTree(jsdocUtil_SYNTETIC_SRCINFO_NODE), jsdocUtil_SYNTHETIC_FILE_NAME)
 }
 
@@ -90,7 +90,7 @@ func jsdocUtil_getConstJSDoc(oldJSDoc *rhino.JSDocInfo, contents string) *rhino.
 }
 
 // Java: JsdocUtil.getConstJSDoc(JSDocInfo, Node)
-func jsdocUtil_getConstJSDocOfNode(oldJSDoc *rhino.JSDocInfo, typeAst *rhino.Node) *rhino.JSDocInfo {
+func jsdocUtil_getConstJSDocOfNode(oldJSDoc *rhino.JSDocInfo, typeAst rhino.Node) *rhino.JSDocInfo {
 	builder := jsdocUtil_makeBuilderWithType(oldJSDoc, typeAst)
 	builder.RecordConstancy()
 	return builder.Build()
@@ -174,7 +174,7 @@ func JsdocUtil_HasAnnotatedType(jsdoc *rhino.JSDocInfo) bool {
 }
 
 // Java: JsdocUtil.getJSDocForRhs(Node, JSDocInfo)
-func JsdocUtil_GetJSDocForRhs(rhs *rhino.Node, oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+func JsdocUtil_GetJSDocForRhs(rhs rhino.Node, oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
 	switch NodeUtil_GetKnownValueType(rhs) {
 	case NodeUtil_ValueType_BOOLEAN:
 		return jsdocUtil_getConstJSDoc(oldJSDoc, "boolean")

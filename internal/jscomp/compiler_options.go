@@ -1606,16 +1606,16 @@ func (o *CompilerOptions) SetRemoveUnusedClassProperties(removeUnusedClassProper
 // Returns the map of define replacements.
 //
 // Java: CompilerOptions.getDefineReplacements()
-func (o *CompilerOptions) GetDefineReplacements() *jutil.LinkedHashMap[string, *rhino.Node] {
-	m := jutil.NewLinkedHashMap[string, *rhino.Node]()
+func (o *CompilerOptions) GetDefineReplacements() *jutil.LinkedHashMap[string, rhino.Node] {
+	m := jutil.NewLinkedHashMap[string, rhino.Node]()
 	for name, value := range o.defineReplacements.All() {
 		switch v := value.(type) {
 		case bool:
 			m.Put(name, NodeUtil_BooleanNode(v))
 		case int32:
-			m.Put(name, NodeUtil_NumberNode(float64(v), nil))
+			m.Put(name, NodeUtil_NumberNode(float64(v), rhino.Node{}))
 		case float64:
-			m.Put(name, NodeUtil_NumberNode(v, nil))
+			m.Put(name, NodeUtil_NumberNode(v, rhino.Node{}))
 		case string:
 			m.Put(name, rhino.IR_String(v))
 		default:

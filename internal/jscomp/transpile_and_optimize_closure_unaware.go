@@ -43,7 +43,7 @@ func NewTranspileAndOptimizeClosureUnaware(original AbstractCompiler, mode Neste
 }
 
 // Java: TranspileAndOptimizeClosureUnaware.process(Node, Node)
-func (p *TranspileAndOptimizeClosureUnaware) Process(externs *rhino.Node, root *rhino.Node) {
+func (p *TranspileAndOptimizeClosureUnaware) Process(externs rhino.Node, root rhino.Node) {
 	collector := newTranspileAndOptimizeClosureUnaware_CollectShadowAsts()
 	NodeTraversal_Traverse(p.original, root, collector)
 	if collector.shadowAsts.IsEmpty() {
@@ -66,26 +66,26 @@ func (p *TranspileAndOptimizeClosureUnaware) Process(externs *rhino.Node, root *
 // transpileAndOptimizeClosureUnaware_ShadowAst is the record
 // ShadowAst(Node originalRoot, Node callNode, Node script).
 type transpileAndOptimizeClosureUnaware_ShadowAst struct {
-	originalRoot *rhino.Node
-	callNode     *rhino.Node
-	script       *rhino.Node
+	originalRoot rhino.Node
+	callNode     rhino.Node
+	script       rhino.Node
 }
 
 // Java: TranspileAndOptimizeClosureUnaware.ShadowAst(Node, Node, Node)
-func newTranspileAndOptimizeClosureUnaware_ShadowAst(originalRoot *rhino.Node, callNode *rhino.Node, script *rhino.Node) *transpileAndOptimizeClosureUnaware_ShadowAst {
+func newTranspileAndOptimizeClosureUnaware_ShadowAst(originalRoot rhino.Node, callNode rhino.Node, script rhino.Node) *transpileAndOptimizeClosureUnaware_ShadowAst {
 	return &transpileAndOptimizeClosureUnaware_ShadowAst{originalRoot: originalRoot, callNode: callNode, script: script}
 }
 
 // Java: TranspileAndOptimizeClosureUnaware.ShadowAst.originalRoot()
-func (a *transpileAndOptimizeClosureUnaware_ShadowAst) OriginalRoot() *rhino.Node {
+func (a *transpileAndOptimizeClosureUnaware_ShadowAst) OriginalRoot() rhino.Node {
 	return a.originalRoot
 }
 
 // Java: TranspileAndOptimizeClosureUnaware.ShadowAst.callNode()
-func (a *transpileAndOptimizeClosureUnaware_ShadowAst) CallNode() *rhino.Node { return a.callNode }
+func (a *transpileAndOptimizeClosureUnaware_ShadowAst) CallNode() rhino.Node { return a.callNode }
 
 // Java: TranspileAndOptimizeClosureUnaware.ShadowAst.script()
-func (a *transpileAndOptimizeClosureUnaware_ShadowAst) Script() *rhino.Node { return a.script }
+func (a *transpileAndOptimizeClosureUnaware_ShadowAst) Script() rhino.Node { return a.script }
 
 // Equals is the record's equals: the components are equal.
 //
@@ -137,7 +137,7 @@ func newTranspileAndOptimizeClosureUnaware_CollectShadowAsts() *transpileAndOpti
 }
 
 // Java: TranspileAndOptimizeClosureUnaware.CollectShadowAsts.shouldTraverse(NodeTraversal, Node, Node)
-func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if !n.IsScript() {
 		return true
 	}
@@ -163,9 +163,9 @@ func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) ShouldTraverse(t 
 }
 
 // Java: TranspileAndOptimizeClosureUnaware.CollectShadowAsts.visit(NodeTraversal, Node, Node)
-func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	shadow := n.GetClosureUnawareShadow()
-	if shadow == nil {
+	if shadow.IsNil() {
 		return
 	}
 	// CALL
@@ -180,7 +180,7 @@ func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) Visit(t *NodeTrav
 	//   or
 	// CALL
 	//   NAME $jscomp_wrap_closure_unaware_code
-	var callNode *rhino.Node
+	var callNode rhino.Node
 	if n.GetParent().IsCall() {
 		callNode = n.GetParent()
 	} else {
@@ -269,7 +269,7 @@ func (p *TranspileAndOptimizeClosureUnaware) createInjectRuntimeLibrariesPass(sh
 	var callSites []*InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite
 	for _, shadowAst := range shadowAsts {
 		closureUnawareFunction :=
-			NodeUtil_FindPreorder(shadowAst.Script(), (*rhino.Node).IsFunction, func(childToVisit *rhino.Node) bool { return true })
+			NodeUtil_FindPreorder(shadowAst.Script(), (rhino.Node).IsFunction, func(childToVisit rhino.Node) bool { return true })
 		callSites = append(callSites,
 			NewInjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite(
 				shadowAst.CallNode(), closureUnawareFunction))

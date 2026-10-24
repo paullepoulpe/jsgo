@@ -110,22 +110,22 @@ const obj = Object.assign({}, {first}, spread)
 		IsEqualTo(
 			CodeSubTree_FindFirstNode(
 				c.GetLastCompiler().GetExternsRoot(),
-				func(node *rhino.Node) bool { return node.MatchesQualifiedName("Object.assign") }).
+				func(node rhino.Node) bool { return node.MatchesQualifiedName("Object.assign") }).
 				GetNext().
 				GetColor())
 }
 
 // Returns the first node (preorder) in the given AST that matches the given qualified name
 // Java: RewriteObjectSpreadTest.getNodeMatchingQName(Node, String)
-func (c *RewriteObjectSpreadTest) GetNodeMatchingQName(root *rhino.Node, qname string) *rhino.Node {
+func (c *RewriteObjectSpreadTest) GetNodeMatchingQName(root rhino.Node, qname string) rhino.Node {
 	if root.MatchesQualifiedName(qname) {
 		return root
 	}
-	for child := root.GetFirstChild(); child != nil; child = child.GetNext() {
+	for child := root.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		result := c.GetNodeMatchingQName(child, qname)
-		if result != nil {
+		if !result.IsNil() {
 			return result
 		}
 	}
-	return nil
+	return rhino.Node{}
 }

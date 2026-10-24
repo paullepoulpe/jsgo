@@ -259,7 +259,7 @@ type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] str
 	// stores null); nil is the ImmutableMap.of() sentinel.
 	implicitVars *[4]V
 
-	rootNode *rhino.Node
+	rootNode rhino.Node
 
 	depth           int32
 	varsInitialized bool
@@ -301,14 +301,14 @@ func abstractScope_of[S abstractScopeBound[S, V], V abstractVarBound[S, V]](s S)
 // concrete scope.
 //
 // Java: AbstractScope(Node)
-func (b *AbstractScopeBase[S, V]) InitAbstractScopeBase(_ S, rootNode *rhino.Node) {
+func (b *AbstractScopeBase[S, V]) InitAbstractScopeBase(_ S, rootNode rhino.Node) {
 	b.varsInitialized = false
 	b.isBottom = false
 	b.hasImplicitVars = false
 	b.scanDone = false
 	b.depth = 0
 	b.implicitVars = nil
-	b.rootNode = jutil.CheckNotNull(rootNode)
+	b.rootNode = rhino.CheckNotNull(rootNode)
 }
 
 // String is final in Java.
@@ -349,7 +349,7 @@ func (b *AbstractScopeBase[S, V]) Contains(other S) bool {
 // FUNCTION node or the global BLOCK/SCRIPT node.
 //
 // Java: AbstractScope.getRootNode()
-func (b *AbstractScopeBase[S, V]) GetRootNode() *rhino.Node {
+func (b *AbstractScopeBase[S, V]) GetRootNode() rhino.Node {
 	return b.rootNode
 }
 
@@ -513,7 +513,7 @@ func (b *AbstractScopeBase[S, V]) IsBleedingFunctionName(name string) bool {
 	var null V
 	var_ := b.selfS().GetVar(name)
 	return var_ != null &&
-		var_.GetNode() != nil &&
+		!var_.GetNode().IsNil() &&
 		var_.GetNode().GetParent().IsFunction()
 }
 

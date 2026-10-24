@@ -45,23 +45,23 @@ func NewCheckDuplicateCase(compiler AbstractCompiler) *CheckDuplicateCase {
 }
 
 // Java: CheckDuplicateCase.process(Node, Node)
-func (c *CheckDuplicateCase) Process(externs *rhino.Node, root *rhino.Node) {
+func (c *CheckDuplicateCase) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckDuplicateCase.visit(NodeTraversal, Node, Node)
-func (c *CheckDuplicateCase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (c *CheckDuplicateCase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsSwitch() {
 		switchBody := n.GetSecondChild()
 		first := switchBody.GetFirstChild()
-		if first == nil || first.GetNext() == nil {
+		if first.IsNil() || first.GetNext().IsNil() {
 			return
 		}
 		if checkDuplicateCaseFast(first) {
 			return
 		}
 		cases := jutil.NewLinkedHashSet[string]()
-		for curr := first; curr != nil; curr = curr.GetNext() {
+		for curr := first; !curr.IsNil(); curr = curr.GetNext() {
 			source := c.compiler.ToSourceOfNode(curr.GetFirstChild())
 			if !cases.Add(source) {
 				t.Report(curr, CheckDuplicateCase_DUPLICATE_CASE)
@@ -73,14 +73,14 @@ func (c *CheckDuplicateCase) Visit(t *NodeTraversal, n *rhino.Node, parent *rhin
 // checkDuplicateCaseFast returns true if all switch cases are simple distinct
 // integer or string literals (with at most one default case), avoiding
 // CodePrinter invocations on the common path.
-func checkDuplicateCaseFast(first *rhino.Node) bool {
+func checkDuplicateCaseFast(first rhino.Node) bool {
 	var intBuf [32]int64
 	intCount := 0
 	var strBuf [32]string
 	strCount := 0
 	hasDefault := false
 
-	for curr := first; curr != nil; curr = curr.GetNext() {
+	for curr := first; !curr.IsNil(); curr = curr.GetNext() {
 		if curr.IsDefaultCase() {
 			if hasDefault {
 				return false
@@ -92,7 +92,7 @@ func checkDuplicateCaseFast(first *rhino.Node) bool {
 			return false
 		}
 		expr := curr.GetFirstChild()
-		if expr == nil {
+		if expr.IsNil() {
 			return false
 		}
 		switch expr.GetToken() {

@@ -212,7 +212,7 @@ func (t *EnumElementType) VisitRelationship(visitor RelationshipVisitor, that JS
 }
 
 // Java: EnumElementType.defineProperty(Property.Key, JSType, boolean, Node)
-func (t *EnumElementType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode *Node) bool {
+func (t *EnumElementType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	// nothing
 	return true
 }

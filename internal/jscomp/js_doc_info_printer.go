@@ -393,7 +393,7 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 }
 
 // Java: JSDocInfoPrinter.stripBang(Node)
-func (p *JSDocInfoPrinter) StripBang(typeNode *rhino.Node) *rhino.Node {
+func (p *JSDocInfoPrinter) StripBang(typeNode rhino.Node) rhino.Node {
 	if typeNode.GetToken() == rhino.Token_BANG {
 		typeNode = typeNode.GetFirstChild()
 	}
@@ -412,13 +412,13 @@ func (p *JSDocInfoPrinter) BuildAnnotationWithTypeAndDescription(
 }
 
 // Java: JSDocInfoPrinter.buildAnnotationWithType(String, Node)
-func (p *JSDocInfoPrinter) BuildAnnotationWithTypeNode(annotation string, type_ *rhino.Node) string {
+func (p *JSDocInfoPrinter) BuildAnnotationWithTypeNode(annotation string, type_ rhino.Node) string {
 	return p.BuildAnnotationWithTypeNodeAndDescription(annotation, type_, nil)
 }
 
 // Java: JSDocInfoPrinter.buildAnnotationWithType(String, Node, String)
 func (p *JSDocInfoPrinter) BuildAnnotationWithTypeNodeAndDescription(
-	annotation string, type_ *rhino.Node, description *string) string {
+	annotation string, type_ rhino.Node, description *string) string {
 	var sb strings.Builder
 	sb.WriteString("@")
 	sb.WriteString(annotation)
@@ -451,14 +451,14 @@ func (p *JSDocInfoPrinter) BuildParamType(info *rhino.JSDocInfo, name string) st
 }
 
 // Java: JSDocInfoPrinter.typeNode(Node)
-func (p *JSDocInfoPrinter) TypeNode(typeNode *rhino.Node) string {
+func (p *JSDocInfoPrinter) TypeNode(typeNode rhino.Node) string {
 	var sb strings.Builder
 	p.AppendTypeNode(&sb, typeNode)
 	return sb.String()
 }
 
 // Java: JSDocInfoPrinter.appendTypeNode(StringBuilder, Node)
-func (p *JSDocInfoPrinter) AppendTypeNode(sb *strings.Builder, typeNode *rhino.Node) {
+func (p *JSDocInfoPrinter) AppendTypeNode(sb *strings.Builder, typeNode rhino.Node) {
 	if p.useOriginalName && typeNode.GetOriginalName() != nil {
 		sb.WriteString(*typeNode.GetOriginalName())
 		return
@@ -473,7 +473,7 @@ func (p *JSDocInfoPrinter) AppendTypeNode(sb *strings.Builder, typeNode *rhino.N
 	case rhino.Token_PIPE:
 		sb.WriteString("(")
 		lastChild := typeNode.GetLastChild()
-		for child := typeNode.GetFirstChild(); child != nil; child = child.GetNext() {
+		for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			p.AppendTypeNode(sb, child)
 			if child != lastChild {
 				sb.WriteString("|")
@@ -498,7 +498,7 @@ func (p *JSDocInfoPrinter) AppendTypeNode(sb *strings.Builder, typeNode *rhino.N
 		sb.WriteString("{")
 		lb := typeNode.GetFirstChild()
 		lastColon := lb.GetLastChild()
-		for colon := lb.GetFirstChild(); colon != nil; colon = colon.GetNext() {
+		for colon := lb.GetFirstChild(); !colon.IsNil(); colon = colon.GetNext() {
 			if colon.HasChildren() {
 				sb.WriteString(colon.GetFirstChild().GetString())
 				sb.WriteString(":")
@@ -519,7 +519,7 @@ func (p *JSDocInfoPrinter) AppendTypeNode(sb *strings.Builder, typeNode *rhino.N
 	case rhino.Token_BLOCK:
 		sb.WriteString("<")
 		last := typeNode.GetLastChild()
-		for type_ := typeNode.GetFirstChild(); type_ != nil; type_ = type_.GetNext() {
+		for type_ := typeNode.GetFirstChild(); !type_.IsNil(); type_ = type_.GetNext() {
 			p.AppendTypeNode(sb, type_)
 			if type_ != last {
 				sb.WriteString(",")
@@ -537,7 +537,7 @@ func (p *JSDocInfoPrinter) AppendTypeNode(sb *strings.Builder, typeNode *rhino.N
 }
 
 // Java: JSDocInfoPrinter.appendFunctionNode(StringBuilder, Node)
-func (p *JSDocInfoPrinter) AppendFunctionNode(sb *strings.Builder, function *rhino.Node) {
+func (p *JSDocInfoPrinter) AppendFunctionNode(sb *strings.Builder, function rhino.Node) {
 	hasNewOrThis := false
 	sb.WriteString("function(")
 	first := function.GetFirstChild()
@@ -557,15 +557,15 @@ func (p *JSDocInfoPrinter) AppendFunctionNode(sb *strings.Builder, function *rhi
 		p.AppendTypeNode(sb, first)
 		return
 	}
-	var paramList *rhino.Node
+	var paramList rhino.Node
 	if first.IsParamList() {
 		paramList = first
 	} else if first.GetNext().IsParamList() {
 		paramList = first.GetNext()
 	}
-	if paramList != nil {
+	if !paramList.IsNil() {
 		firstParam := true
-		for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
+		for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
 			if !firstParam || hasNewOrThis {
 				sb.WriteString(",")
 			}

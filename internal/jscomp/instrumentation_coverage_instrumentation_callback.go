@@ -80,7 +80,7 @@ func (c *CoverageInstrumentationCallback) CreateArrayName(traversal *NodeTravers
 // encodings.
 //
 // Java: CoverageInstrumentationCallback.newInstrumentationNode(NodeTraversal, Node)
-func (c *CoverageInstrumentationCallback) NewInstrumentationNode(traversal *NodeTraversal, node *rhino.Node) *rhino.Node {
+func (c *CoverageInstrumentationCallback) NewInstrumentationNode(traversal *NodeTraversal, node rhino.Node) rhino.Node {
 	lineNumber := node.GetLineno()
 	arrayName := c.CreateArrayName(traversal)
 
@@ -104,7 +104,7 @@ func (c *CoverageInstrumentationCallback) NewInstrumentationNode(traversal *Node
 // is of the form: "var arrayNameUsedInFile = [];"
 //
 // Java: CoverageInstrumentationCallback.newArrayDeclarationNode(NodeTraversal)
-func (c *CoverageInstrumentationCallback) NewArrayDeclarationNode(traversal *NodeTraversal) *rhino.Node {
+func (c *CoverageInstrumentationCallback) NewArrayDeclarationNode(traversal *NodeTraversal) rhino.Node {
 	return rhino.IR_VarWithValue(
 		rhino.IR_Name(c.CreateArrayName(traversal)),
 		rhino.IR_Arraylit())
@@ -113,7 +113,7 @@ func (c *CoverageInstrumentationCallback) NewArrayDeclarationNode(traversal *Nod
 // NewHeaderNode returns a Node containing file specific setup logic.
 //
 // Java: CoverageInstrumentationCallback.newHeaderNode(NodeTraversal, Node)
-func (c *CoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTraversal, srcref *rhino.Node) *rhino.Node {
+func (c *CoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTraversal, srcref rhino.Node) rhino.Node {
 	fileName := CoverageInstrumentationCallback_GetFileName(traversal)
 	arrayName := c.CreateArrayName(traversal)
 	data := c.instrumentationData.Get(fileName)
@@ -146,7 +146,7 @@ func (c *CoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTraversal
 // ShouldTraverse is final in Java.
 //
 // Java: CoverageInstrumentationCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CoverageInstrumentationCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (c *CoverageInstrumentationCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Skip scripts that are marked with @nocoverage.
 	return !n.IsScript() || n.GetJSDocInfo() == nil || !n.GetJSDocInfo().IsNoCoverage()
 }
@@ -155,7 +155,7 @@ func (c *CoverageInstrumentationCallback) ShouldTraverse(nodeTraversal *NodeTrav
 // The instrumentation logic is tuned to collect "line coverage" data only.
 //
 // Java: CoverageInstrumentationCallback.visit(NodeTraversal, Node, Node)
-func (c *CoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node *rhino.Node, parent *rhino.Node) {
+func (c *CoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	// SCRIPT node is special - it is the root of the AST for code from a file.
 	// Append code to declare and initialize structures used in instrumentation.
 	if node.IsScript() {
@@ -173,7 +173,7 @@ func (c *CoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node *
 
 	// Don't instrument global statements
 	if c.reach == CoverageInstrumentationPass_CoverageReach_CONDITIONAL &&
-		parent != nil && parent.IsScript() {
+		!parent.IsNil() && parent.IsScript() {
 		return
 	}
 
@@ -210,7 +210,7 @@ func (c *CoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node *
 	}
 
 	// For any other statement, add instrumentation code just before it.
-	if parent != nil && NodeUtil_IsStatementBlock(parent) && !node.IsModuleBody() {
+	if !parent.IsNil() && NodeUtil_IsStatementBlock(parent) && !node.IsModuleBody() {
 		c.NewInstrumentationNode(traversal, node).InsertBefore(node)
 		traversal.ReportCodeChange()
 		return

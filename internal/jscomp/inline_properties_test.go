@@ -72,7 +72,7 @@ func (c *InlinePropertiesTest) GetProcessor(compiler *Compiler) CompilerPass {
 			RemoveUnusedThisProperties(true).
 			RemoveUnusedObjectDefinePropertiesDefinitions(true).
 			Build()
-		return CompilerPassFunc(func(externs *rhino.Node, root *rhino.Node) {
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 			removalPass.Process(externs, root)
 			pass.Process(externs, root)
 		})

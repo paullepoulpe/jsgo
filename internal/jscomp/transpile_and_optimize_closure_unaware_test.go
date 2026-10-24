@@ -76,7 +76,7 @@ func (c *TranspileAndOptimizeClosureUnawareTest) GetOptions() *CompilerOptions {
 }
 
 // Java: TranspileAndOptimizeClosureUnawareTest.createPrettyPrinter(Node)
-func (c *TranspileAndOptimizeClosureUnawareTest) createPrettyPrinter(n *rhino.Node) string {
+func (c *TranspileAndOptimizeClosureUnawareTest) createPrettyPrinter(n rhino.Node) string {
 	return NewCodePrinter_Builder(n).
 		SetCompilerOptions(c.GetLastCompiler().GetOptions()).
 		SetPrettyPrint(true).
@@ -734,6 +734,6 @@ func (c *TranspileAndOptimizeClosureUnawareTest) TestInjectClosureUnawareRuntime
 	pass :=
 		NewInjectClosureUnawareRuntimeLibraries(
 			mainCompiler, shadowCompiler, []*InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite{callSite})
-	pass.Process(nil, rhino.IR_Root())
+	pass.Process(rhino.Node{}, rhino.IR_Root())
 	AssertThat(callSite.CallNode()).IsEqualTo(call)
 }

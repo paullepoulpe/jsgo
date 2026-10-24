@@ -40,14 +40,14 @@ type ChainableReverseAbstractInterpreter interface {
 	GetFirst() ChainableReverseAbstractInterpreter
 	// Java: ChainableReverseAbstractInterpreter.firstPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 	FirstPreciserScopeKnowingConditionOutcome(
-		condition *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope
+		condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope
 	// Java: ChainableReverseAbstractInterpreter.nextPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 	NextPreciserScopeKnowingConditionOutcome(
-		condition *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope
+		condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope
 	// Java: ChainableReverseAbstractInterpreter.getTypeIfRefinable(Node, FlowScope)
-	GetTypeIfRefinable(node *rhino.Node, scope FlowScope) rhino.JSType
+	GetTypeIfRefinable(node rhino.Node, scope FlowScope) rhino.JSType
 	// Java: ChainableReverseAbstractInterpreter.declareNameInScope(FlowScope, Node, JSType)
-	DeclareNameInScope(scope FlowScope, node *rhino.Node, type_ rhino.JSType) FlowScope
+	DeclareNameInScope(scope FlowScope, node rhino.Node, type_ rhino.JSType) FlowScope
 	// Java: ChainableReverseAbstractInterpreter.getRestrictedByTypeOfResult(JSType, String, boolean)
 	GetRestrictedByTypeOfResult(type_ rhino.JSType, value string, resultEqualsValue bool) rhino.JSType
 	// Java: ChainableReverseAbstractInterpreter.getNativeType(JSTypeNative)
@@ -131,7 +131,7 @@ func (b *ChainableReverseAbstractInterpreterBase) GetFirst() ChainableReverseAbs
 //
 // Java: ChainableReverseAbstractInterpreter.firstPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 func (b *ChainableReverseAbstractInterpreterBase) FirstPreciserScopeKnowingConditionOutcome(
-	condition *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+	condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	return b.firstLink.GetPreciserScopeKnowingConditionOutcome(
 		condition, blindScope, outcome)
 }
@@ -142,7 +142,7 @@ func (b *ChainableReverseAbstractInterpreterBase) FirstPreciserScopeKnowingCondi
 //
 // Java: ChainableReverseAbstractInterpreter.nextPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 func (b *ChainableReverseAbstractInterpreterBase) NextPreciserScopeKnowingConditionOutcome(
-	condition *rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+	condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	if b.nextLink != nil {
 		return b.nextLink.GetPreciserScopeKnowingConditionOutcome(
 			condition, blindScope, outcome)
@@ -157,7 +157,7 @@ func (b *ChainableReverseAbstractInterpreterBase) NextPreciserScopeKnowingCondit
 // otherwise.
 //
 // Java: ChainableReverseAbstractInterpreter.getTypeIfRefinable(Node, FlowScope)
-func (b *ChainableReverseAbstractInterpreterBase) GetTypeIfRefinable(node *rhino.Node, scope FlowScope) rhino.JSType {
+func (b *ChainableReverseAbstractInterpreterBase) GetTypeIfRefinable(node rhino.Node, scope FlowScope) rhino.JSType {
 	switch node.GetToken() {
 	case rhino.Token_NAME:
 		nameVar, _ := scope.GetSlot(node.GetString()).(rhino.StaticTypedSlot)
@@ -199,7 +199,7 @@ func (b *ChainableReverseAbstractInterpreterBase) GetTypeIfRefinable(node *rhino
 //
 // Java: ChainableReverseAbstractInterpreter.declareNameInScope(FlowScope, Node, JSType)
 func (b *ChainableReverseAbstractInterpreterBase) DeclareNameInScope(
-	scope FlowScope, node *rhino.Node, type_ rhino.JSType) FlowScope {
+	scope FlowScope, node rhino.Node, type_ rhino.JSType) FlowScope {
 	switch node.GetToken() {
 	case rhino.Token_NAME:
 		return scope.InferSlotType(node.GetString(), type_)

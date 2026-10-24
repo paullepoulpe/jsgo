@@ -31,7 +31,7 @@ import (
 // Java: final class refactoring.RefactoringDriver
 type RefactoringDriver struct {
 	compiler *Compiler
-	rootNode *rhino.Node
+	rootNode rhino.Node
 }
 
 // Java: RefactoringDriver(List<SourceFile>, List<SourceFile>, CompilerOptions)

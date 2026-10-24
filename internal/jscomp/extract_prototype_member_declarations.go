@@ -160,7 +160,7 @@ func NewExtractPrototypeMemberDeclarations(compiler AbstractCompiler, pattern Ex
 }
 
 // Java: ExtractPrototypeMemberDeclarations.process(Node, Node)
-func (e *ExtractPrototypeMemberDeclarations) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *ExtractPrototypeMemberDeclarations) Process(externs rhino.Node, root rhino.Node) {
 	extractionInfo := NewExtractPrototypeMemberDeclarations_GatherExtractionInfo(e)
 	NodeTraversal_Traverse(e.compiler, root, extractionInfo)
 	e.MaybeDoExtraction(extractionInfo)
@@ -178,7 +178,7 @@ func (e *ExtractPrototypeMemberDeclarations) MaybeDoExtraction(info *ExtractProt
 	if e.pattern == ExtractPrototypeMemberDeclarations_Pattern_USE_GLOBAL_TEMP {
 		injectionPoint := e.compiler.GetNodeForCodeInsertion(nil)
 
-		var_ := NodeUtil_NewVarNode(ExtractPrototypeMemberDeclarations_PROTOTYPE_ALIAS, nil).SrcrefTreeIfMissing(injectionPoint)
+		var_ := NodeUtil_NewVarNode(ExtractPrototypeMemberDeclarations_PROTOTYPE_ALIAS, rhino.Node{}).SrcrefTreeIfMissing(injectionPoint)
 
 		injectionPoint.AddChildToFront(var_)
 		e.compiler.ReportChangeToEnclosingScope(var_)
@@ -193,7 +193,7 @@ func (e *ExtractPrototypeMemberDeclarations) MaybeDoExtraction(info *ExtractProt
 			if info.ShouldExtractChunk(entryKey) {
 				injectionPoint := e.compiler.GetNodeForCodeInsertion(entryKey)
 				alias = ExtractPrototypeMemberDeclarations_PROTOTYPE_ALIAS + jutil.ToJavaString(entryKey.GetIndex())
-				var_ := NodeUtil_NewVarNode(alias, nil).SrcrefTreeIfMissing(injectionPoint)
+				var_ := NodeUtil_NewVarNode(alias, rhino.Node{}).SrcrefTreeIfMissing(injectionPoint)
 
 				injectionPoint.AddChildToFront(var_)
 				e.compiler.ReportChangeToEnclosingScope(var_)
@@ -333,13 +333,13 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) allocDecls(src
 }
 
 // Java: ExtractPrototypeMemberDeclarations.GatherExtractionInfo.visit(NodeTraversal, Node, Node)
-func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 
 	if !n.IsScript() && !n.IsBlock() {
 		return
 	}
 
-	for cur := n.GetFirstChild(); cur != nil; cur = cur.GetNext() {
+	for cur := n.GetFirstChild(); !cur.IsNil(); cur = cur.GetNext() {
 		if !ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePropertyDeclaration(cur) {
 			continue
 		}
@@ -349,7 +349,7 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit(t *NodeT
 		delta := extractPrototypeMemberDeclarations_Pattern_perExtractionOverhead[g.outer.pattern] +
 			extractPrototypeMemberDeclarations_Pattern_perMemberOverhead[g.outer.pattern]
 
-		for next := head.node.GetNext(); next != nil; next = next.GetNext() {
+		for next := head.node.GetNext(); !next.IsNil(); next = next.GetNext() {
 			if next.IsFunction() {
 				continue
 			}
@@ -413,12 +413,12 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) ShouldExtractC
 type ExtractPrototypeMemberDeclarations_ExtractionInstance struct {
 	declarations []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration
 	delta        int
-	parent       *rhino.Node
+	parent       rhino.Node
 }
 
 // Java: ExtractPrototypeMemberDeclarations.ExtractionInstance(PrototypeMemberDeclaration, Node)
 func NewExtractPrototypeMemberDeclarations_ExtractionInstance(
-	outer *ExtractPrototypeMemberDeclarations, head *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, parent *rhino.Node) *ExtractPrototypeMemberDeclarations_ExtractionInstance {
+	outer *ExtractPrototypeMemberDeclarations, head *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, parent rhino.Node) *ExtractPrototypeMemberDeclarations_ExtractionInstance {
 	i := &ExtractPrototypeMemberDeclarations_ExtractionInstance{
 		parent: parent,
 	}
@@ -426,7 +426,7 @@ func NewExtractPrototypeMemberDeclarations_ExtractionInstance(
 	i.delta = extractPrototypeMemberDeclarations_Pattern_perExtractionOverhead[outer.pattern] +
 		extractPrototypeMemberDeclarations_Pattern_perMemberOverhead[outer.pattern]
 
-	for cur := head.node.GetNext(); cur != nil; cur = cur.GetNext() {
+	for cur := head.node.GetNext(); !cur.IsNil(); cur = cur.GetNext() {
 
 		// We can skip over any named functions because they have no effect on
 		// the control flow. In fact, they are lifted to the beginning of the
@@ -459,13 +459,13 @@ func (i *ExtractPrototypeMemberDeclarations_ExtractionInstance) IsFavorable() bo
 // `a.b.c.prototype.d = ....`
 type ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration struct {
 	memberName string
-	node       *rhino.Node
-	classNode  *rhino.Node
-	lhs        *rhino.Node
+	node       rhino.Node
+	classNode  rhino.Node
+	lhs        rhino.Node
 	constant   bool
 }
 
-func makePrototypeMemberDeclaration(lhs *rhino.Node, node *rhino.Node) ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
+func makePrototypeMemberDeclaration(lhs rhino.Node, node rhino.Node) ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
 	jutil.CheckStateMsg1(NodeUtil_IsExprAssign(node), "%s", node)
 	classNode := ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_GetPrototypeClassName(lhs)
 	return ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration{
@@ -478,7 +478,7 @@ func makePrototypeMemberDeclaration(lhs *rhino.Node, node *rhino.Node) ExtractPr
 }
 
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration(Node, Node)
-func NewExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration(lhs *rhino.Node, node *rhino.Node) *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
+func NewExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration(lhs rhino.Node, node rhino.Node) *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
 	d := makePrototypeMemberDeclaration(lhs, node)
 	return &d
 }
@@ -486,11 +486,11 @@ func NewExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration(lhs *rhino
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.isSameClass(PrototypeMemberDeclaration)
 func (d *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) IsSameClass(other *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) bool {
 	// String.equals(Object): other's name may be null.
-	return d.classNode != nil && other.classNode != nil && d.classNode.MatchesQualifiedNameNode(other.classNode)
+	return !d.classNode.IsNil() && !other.classNode.IsNil() && d.classNode.MatchesQualifiedNameNode(other.classNode)
 }
 
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.getPrototypeClassName(Node)
-func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_GetPrototypeClassName(qName *rhino.Node) *rhino.Node {
+func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_GetPrototypeClassName(qName rhino.Node) rhino.Node {
 	cur := qName
 	for cur.IsGetProp() {
 		if cur.GetString() == "prototype" {
@@ -499,11 +499,11 @@ func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_GetPrototypeC
 			cur = cur.GetFirstChild()
 		}
 	}
-	return nil
+	return rhino.Node{}
 }
 
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.isPrototypePropertyDeclaration(Node)
-func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePropertyDeclaration(n *rhino.Node) bool {
+func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePropertyDeclaration(n rhino.Node) bool {
 	if !NodeUtil_IsExprAssign(n) {
 		return false
 	}
@@ -525,7 +525,7 @@ func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePr
 // it returns null.
 //
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.extractDeclaration(Node)
-func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_ExtractDeclaration(n *rhino.Node) *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
+func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_ExtractDeclaration(n rhino.Node) *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
 	if !ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePropertyDeclaration(n) {
 		return nil
 	}

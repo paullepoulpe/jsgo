@@ -43,7 +43,7 @@ func NewEs6CheckModule(compiler AbstractCompiler) *Es6CheckModule {
 }
 
 // Java: Es6CheckModule.process(Node, Node)
-func (e *Es6CheckModule) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6CheckModule) Process(externs rhino.Node, root rhino.Node) {
 	sc := NewSyntacticScopeCreator(e.compiler)
 	b := NodeTraversal_Builder{
 		compiler:     e.compiler,
@@ -53,14 +53,14 @@ func (e *Es6CheckModule) Process(externs *rhino.Node, root *rhino.Node) {
 	b.Traverse(root)
 }
 
-func (e *Es6CheckModule) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+func (e *Es6CheckModule) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		hasModule := false
 		hasImports := false
-		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if c.IsModuleBody() {
 				hasModule = true
-				for mc := c.GetFirstChild(); mc != nil; mc = mc.GetNext() {
+				for mc := c.GetFirstChild(); !mc.IsNil(); mc = mc.GetNext() {
 					if mc.IsImport() {
 						hasImports = true
 						break
@@ -78,7 +78,7 @@ func (e *Es6CheckModule) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent 
 }
 
 // Java: Es6CheckModule.visit(NodeTraversal, Node, Node)
-func (e *Es6CheckModule) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6CheckModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		e.noImportsInCurrentScript = false
@@ -94,7 +94,7 @@ func (e *Es6CheckModule) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.No
 			var_ := t.GetScope().GetVar(n.GetFirstChild().GetString())
 			if var_ != nil {
 				nameNode := var_.GetNameNode()
-				if nameNode != nil && nameNode.IsImportStar() {
+				if !nameNode.IsNil() && nameNode.IsImportStar() {
 					// import * as M from '';
 					// M.x = 2;
 					e.compiler.Report(JSError_MakeWithNode(n, Es6CheckModule_IMPORT_CANNOT_BE_REASSIGNED, nameNode.GetString()))
@@ -107,7 +107,7 @@ func (e *Es6CheckModule) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.No
 			var_ := t.GetScope().GetVar(n.GetString())
 			if var_ != nil {
 				nameNode := var_.GetNameNode()
-				if nameNode != nil && nameNode != n {
+				if !nameNode.IsNil() && nameNode != n {
 					if NodeUtil_IsImportedName(nameNode) {
 						// import { x } from '';
 						// x = 2;

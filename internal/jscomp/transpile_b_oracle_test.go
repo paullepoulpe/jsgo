@@ -292,7 +292,7 @@ func (d *transpileBOracleDumper) dumpFile(rel string, src string) {
 		d.line("libs " + strconv.Itoa(len(libs)) + " " + strings.Join(libs, ","))
 		d.line("stage " + c.GetLifeCycleStage().String())
 		d.line("tree " + transpileBOracleSha16(transpileBOracleTreeLines(tree)))
-		for script := c.GetJsRoot().GetFirstChild(); script != nil; script = script.GetNext() {
+		for script := c.GetJsRoot().GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 			lines := transpileBOracleTreeLines(script.ToStringTree())
 			name := jutil.ToJavaString(script.GetSourceFileName())
 			d.line("script " + name + " " + transpileBOracleSha16(lines))

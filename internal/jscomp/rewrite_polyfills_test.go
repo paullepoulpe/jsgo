@@ -116,11 +116,11 @@ func (c *RewritePolyfillsTest) CreateRuntimeJsLibManager(compiler *Compiler) *Ru
 		RuntimeJsLibManager_Create(
 			RuntimeJsLibManager_RuntimeLibraryMode_INJECT,
 			// stub out the resource parsing
-			func(resource string, path string) *rhino.Node {
+			func(resource string, path string) rhino.Node {
 				return compiler.ParseTestCode(c.injectableLibraries.Get(resource))
 			},
 			compiler.GetChangeTracker(),
-			func() *rhino.Node { return compiler.GetNodeForCodeInsertion(nil) })
+			func() rhino.Node { return compiler.GetNodeForCodeInsertion(nil) })
 	for toInject := range c.injectBeforePass.All() {
 		runtimeLibs.EnsureLibraryInjected(toInject /* force= */, false)
 	}

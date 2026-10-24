@@ -37,10 +37,10 @@ import (
 
 // matchers_matcherFunc is a Matcher implemented by a closure (the anonymous
 // `new Matcher() {...}` classes and Matcher lambdas of Matchers).
-type matchers_matcherFunc func(node *rhino.Node, metadata *NodeMetadata) bool
+type matchers_matcherFunc func(node rhino.Node, metadata *NodeMetadata) bool
 
 // Matches calls f.
-func (f matchers_matcherFunc) Matches(node *rhino.Node, metadata *NodeMetadata) bool {
+func (f matchers_matcherFunc) Matches(node rhino.Node, metadata *NodeMetadata) bool {
 	return f(node, metadata)
 }
 
@@ -48,7 +48,7 @@ func (f matchers_matcherFunc) Matches(node *rhino.Node, metadata *NodeMetadata) 
 //
 // Java: Matchers.anything()
 func Matchers_Anything() Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		return true
 	})
 }
@@ -58,7 +58,7 @@ func Matchers_Anything() Matcher {
 //
 // Java: Matchers.allOf(Matcher...)
 func Matchers_AllOf(matchers ...Matcher) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		for _, m := range matchers {
 			if !m.Matches(node, metadata) {
 				return false
@@ -73,7 +73,7 @@ func Matchers_AllOf(matchers ...Matcher) Matcher {
 //
 // Java: Matchers.anyOf(Matcher...)
 func Matchers_AnyOf(matchers ...Matcher) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		for _, m := range matchers {
 			if m.Matches(node, metadata) {
 				return true
@@ -88,7 +88,7 @@ func Matchers_AnyOf(matchers ...Matcher) Matcher {
 //
 // Java: Matchers.not(Matcher)
 func Matchers_Not(matcher Matcher) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		return !matcher.Matches(node, metadata)
 	})
 }
@@ -108,7 +108,7 @@ func Matchers_Constructor() Matcher {
 //
 // Java: Matchers.constructor(String)
 func Matchers_ConstructorWithName(name *string) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		info := node.GetJSDocInfo()
 		if info != nil && info.IsConstructor() {
 			firstChild := node.GetFirstChild()
@@ -134,7 +134,7 @@ func Matchers_ConstructorWithName(name *string) Matcher {
 //
 // Java: Matchers.newClass()
 func Matchers_NewClass() Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		return node.IsNew()
 	})
 }
@@ -147,7 +147,7 @@ func Matchers_NewClass() Matcher {
 //
 // Java: Matchers.newClass(String)
 func Matchers_NewClassWithName(className string) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		if !node.IsNew() {
 			return false
 		}
@@ -182,7 +182,7 @@ func Matchers_FunctionCall() Matcher {
 //
 // Java: Matchers.functionCall(String)
 func Matchers_FunctionCallWithName(name *string) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		// TODO(mknichel): Handle the case when functions are applied through .call or .apply.
 		return node.IsCall() && Matchers_PropertyAccessWithName(name).Matches(node.GetFirstChild(), metadata)
 	})
@@ -193,7 +193,7 @@ func Matchers_FunctionCallWithName(name *string) Matcher {
 //
 // Java: Matchers.functionCallWithNumArgs(int)
 func Matchers_FunctionCallWithNumArgs(numArgs int) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		return node.IsCall() && node.HasXChildren(numArgs+1)
 	})
 }
@@ -213,7 +213,7 @@ func Matchers_FunctionCallWithNumArgsAndName(name string, numArgs int) Matcher {
 
 // Java: Matchers.googRequirelike(String)
 func Matchers_GoogRequirelikeWithNamespace(namespace string) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		return Matchers_GoogRequirelike().Matches(node, metadata) &&
 			node.GetSecondChild().IsStringLit() &&
 			node.GetSecondChild().GetString() == namespace
@@ -268,7 +268,7 @@ func Matchers_PropertyAccess() Matcher {
 //
 // Java: Matchers.propertyAccess(String)
 func Matchers_PropertyAccessWithName(name *string) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		if node.IsGetProp() {
 			if name == nil {
 				return true
@@ -288,7 +288,7 @@ func Matchers_PropertyAccessWithName(name *string) Matcher {
 //
 // Java: Matchers.enumDefinition()
 func Matchers_EnumDefinition() Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		jsType := node.GetJSType()
 		return jsType != nil && jsType.IsEnumType()
 	})
@@ -299,7 +299,7 @@ func Matchers_EnumDefinition() Matcher {
 //
 // Java: Matchers.enumDefinitionOfType(String)
 func Matchers_EnumDefinitionOfType(type_ string) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		providedJsType := matchers_getJsType(metadata, type_)
 		if providedJsType == nil {
 			return false
@@ -318,7 +318,7 @@ func Matchers_EnumDefinitionOfType(type_ string) Matcher {
 //
 // Java: Matchers.assignmentWithRhs(Matcher)
 func Matchers_AssignmentWithRhs(rhsMatcher Matcher) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		return node.IsAssign() && rhsMatcher.Matches(node.GetLastChild(), metadata)
 	})
 }
@@ -344,7 +344,7 @@ func Matchers_PrototypeMethodDeclaration() Matcher {
 //
 // Java: Matchers.jsDocType(String)
 func Matchers_JsDocType(type_ string) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		providedJsType := matchers_getJsType(metadata, type_)
 		if providedJsType == nil {
 			return false
@@ -372,7 +372,7 @@ func Matchers_JsDocType(type_ string) Matcher {
 //
 // Java: Matchers.constructorPropertyDeclaration()
 func Matchers_ConstructorPropertyDeclaration() Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		// This will match against code that looks like:
 		// /** @constructor */
 		// function constructor() {
@@ -383,10 +383,10 @@ func Matchers_ConstructorPropertyDeclaration() Matcher {
 			!node.GetFirstFirstChild().IsThis() {
 			return false
 		}
-		for node != nil && !node.IsFunction() {
+		for !node.IsNil() && !node.IsFunction() {
 			node = node.GetParent()
 		}
-		if node != nil && node.IsFunction() {
+		if !node.IsNil() && node.IsFunction() {
 			jsDoc := NodeUtil_GetBestJSDocInfo(node)
 			if jsDoc != nil {
 				return jsDoc.IsConstructor()
@@ -401,7 +401,7 @@ func Matchers_ConstructorPropertyDeclaration() Matcher {
 //
 // Java: Matchers.isPrivate()
 func Matchers_IsPrivate() Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		jsDoc := NodeUtil_GetBestJSDocInfo(node)
 		if jsDoc != nil {
 			return jsDoc.GetVisibility() == rhino.JSDocInfo_Visibility_PRIVATE
@@ -447,7 +447,7 @@ var matchers_PROTOTYPE_SPLIT_RE = regexp.MustCompile(`[^\n\r\x{85}\x{2028}\x{202
 // object.
 //
 // Java: Matchers.matchesPrototypeInstanceVar(Node, NodeMetadata, String)
-func matchers_matchesPrototypeInstanceVar(node *rhino.Node, metadata *NodeMetadata,
+func matchers_matchesPrototypeInstanceVar(node rhino.Node, metadata *NodeMetadata,
 	name string) bool {
 	parts := jutil.StringSplitRegexp(name, matchers_PROTOTYPE_SPLIT_RE)
 	className := parts[0]
@@ -478,7 +478,7 @@ func matchers_matchesPrototypeInstanceVar(node *rhino.Node, metadata *NodeMetada
 
 // Java: Matchers.matcherForPrototypeDeclaration(boolean)
 func matchers_matcherForPrototypeDeclaration(requireFunctionType bool) Matcher {
-	return matchers_matcherFunc(func(node *rhino.Node, metadata *NodeMetadata) bool {
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		// TODO(mknichel): Figure out which node is the best to return for this
 		// function: the GETPROP node, or the ASSIGN node when the property is
 		// being assigned to.

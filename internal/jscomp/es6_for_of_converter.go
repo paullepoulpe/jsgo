@@ -56,13 +56,13 @@ func NewEs6ForOfConverter(compiler AbstractCompiler) *Es6ForOfConverter {
 }
 
 // Java: Es6ForOfConverter.process(Node, Node)
-func (e *Es6ForOfConverter) Process(externs *rhino.Node, root *rhino.Node) {
+func (e *Es6ForOfConverter) Process(externs rhino.Node, root rhino.Node) {
 	TranspilationPasses_ProcessTranspile(e.compiler, root, Es6ForOfConverter_transpiledFeatures, e)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, Es6ForOfConverter_transpiledFeatures)
 }
 
 // Java: Es6ForOfConverter.visit(NodeTraversal, Node, Node)
-func (e *Es6ForOfConverter) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+func (e *Es6ForOfConverter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsForOf() {
 		e.VisitForOf(t, n)
 	}
@@ -71,7 +71,7 @@ func (e *Es6ForOfConverter) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino
 // TODO(lharker): break up this method
 //
 // Java: Es6ForOfConverter.visitForOf(NodeTraversal, Node)
-func (e *Es6ForOfConverter) VisitForOf(t *NodeTraversal, node *rhino.Node) {
+func (e *Es6ForOfConverter) VisitForOf(t *NodeTraversal, node rhino.Node) {
 	// `var v` or `let v` or v any valid lhs
 	variable := node.RemoveFirstChild()
 	iterable := node.RemoveFirstChild()
@@ -122,7 +122,7 @@ func (e *Es6ForOfConverter) VisitForOf(t *NodeTraversal, node *rhino.Node) {
 	// $jscomp$key$extraName = $jscomp$iter$0.next()
 	incr := e.astFactory.CreateAssign(iterResult.CloneTree(), getNext.CloneTree())
 
-	var declarationOrAssign *rhino.Node
+	var declarationOrAssign rhino.Node
 	if !NodeUtil_IsNameDeclaration(variable) {
 		// e.g. `for(a.b of []) {}`
 		declarationOrAssign =
@@ -165,9 +165,9 @@ func (e *Es6ForOfConverter) VisitForOf(t *NodeTraversal, node *rhino.Node) {
 	finallyBlock := e.astFactory.CreateBlock(e.astFactory.ExprResult(callIteratorClose))
 
 	// Check if the for loop has a parent that is a label i.e. `loop1: for(...of ...)`
-	labelNames := []*rhino.Node{}
+	labelNames := []rhino.Node{}
 	insertionPoint := node
-	for insertionPoint.GetParent() != nil && insertionPoint.GetParent().IsLabel() {
+	for !insertionPoint.GetParent().IsNil() && insertionPoint.GetParent().IsLabel() {
 		insertionPoint = insertionPoint.GetParent()
 		labelNames = append(labelNames, insertionPoint.GetFirstChild().CloneNode())
 	}
