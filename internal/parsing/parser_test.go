@@ -4164,26 +4164,6 @@ func TestDestructuringNoRHS(t *testing.T) {
 	pt.parseError("const [x, y];", "const variables must have an initializer")
 }
 
-// Java: ParserTest.testComprehensions()
-func TestComprehensions(t *testing.T) {
-	pt := newParserTest(t)
-
-	pt.strictMode = Config_StrictMode_SLOPPY
-	error := "unsupported language feature:" + " array/generator comprehensions"
-
-	// array comprehensions
-	pt.parseError("[for (x of y) z];", error)
-	pt.parseError("[for ({x,y} of z) x+y];", error)
-	pt.parseError("[for (x of y) if (x<10) z];", error)
-	pt.parseError("[for (a = 5 of v) a];", "'identifier' expected")
-
-	// generator comprehensions
-	pt.parseError("(for (x of y) z);", error)
-	pt.parseError("(for ({x,y} of z) x+y);", error)
-	pt.parseError("(for (x of y) if (x<10) z);", error)
-	pt.parseError("(for (a = 5 of v) a);", "'identifier' expected")
-}
-
 // Java: ParserTest.testLetForbidden1()
 func TestLetForbidden1(t *testing.T) {
 	pt := newParserTest(t)

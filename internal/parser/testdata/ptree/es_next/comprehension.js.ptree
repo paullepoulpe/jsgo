@@ -1,5 +1,25 @@
 # config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
 # diagnostics
+ERROR 0:9@9 "']' expected"
+ERROR 0:16@16 "',' expected"
+ERROR 0:22@22 "Semi-colon expected"
+ERROR 0:27@27 "Semi-colon expected"
+ERROR 0:28@28 "primary expression expected"
+ERROR 1:9@39 "']' expected"
+ERROR 1:16@46 "',' expected"
+ERROR 1:22@52 "Semi-colon expected"
+ERROR 1:30@60 "Semi-colon expected"
+ERROR 1:31@61 "primary expression expected"
+ERROR 2:12@75 "primary expression expected"
+ERROR 2:16@79 "',' expected"
+ERROR 2:22@85 "')' expected"
+ERROR 2:23@86 "Semi-colon expected"
+ERROR 2:24@87 "primary expression expected"
+ERROR 3:9@98 "']' expected"
+ERROR 3:18@107 "',' expected"
+ERROR 3:24@113 "Semi-colon expected"
+ERROR 3:25@114 "Semi-colon expected"
+ERROR 3:26@115 "primary expression expected"
 # features "[]"
 # sourceMapURL null
 # comments
@@ -7,117 +27,141 @@
 # tree
 ProgramTree PROGRAM 0:0@0-4:0@117
  sourceComments=[]
- sourceElements=[4]
-  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:29@29
-   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:28@28
+ sourceElements=[11]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:21@21
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:21@21
     declarationType=VAR
     declarations=[1]
-     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:28@28
-      initializer=ComprehensionTree COMPREHENSION 0:8@8-0:28@28
-       children=[1]
-        ComprehensionForTree COMPREHENSION_FOR 0:9@9-0:21@21
-         collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:19@19-0:20@20
-          identifierToken=IdentifierToken IDENTIFIER 0:19@19-0:20@20
-           privateIdentifier=false
-           value="y"
-         initializer=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:14@14-0:15@15
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:21@21
+      initializer=CallExpressionTree CALL_EXPRESSION 0:8@8-0:21@21
+       arguments=ArgumentListTree ARGUMENT_LIST 0:13@13-0:21@21
+        arguments=[2]
+         IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:14@14-0:15@15
           identifierToken=IdentifierToken IDENTIFIER 0:14@14-0:15@15
            privateIdentifier=false
            value="x"
-       tailExpression=BinaryOperatorTree BINARY_OPERATOR 0:22@22-0:27@27
-        left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:22@22-0:23@23
-         identifierToken=IdentifierToken IDENTIFIER 0:22@22-0:23@23
-          privateIdentifier=false
-          value="x"
-        operator=Token STAR 0:24@24-0:25@25
-        right=LiteralExpressionTree LITERAL_EXPRESSION 0:26@26-0:27@27
-         literalToken=LiteralToken NUMBER 0:26@26-0:27@27
-          value="2"
-       type=ARRAY
+         IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:19@19-0:20@20
+          identifierToken=IdentifierToken IDENTIFIER 0:19@19-0:20@20
+           privateIdentifier=false
+           value="y"
+        commaPositions=[]
+        hasTrailingComma=false
+       operand=ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 0:8@8-0:12@12
+        elements=[]
+        hasTrailingComma=false
       lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
        identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
         privateIdentifier=false
         value="a"
-  VariableStatementTree VARIABLE_STATEMENT 1:0@30-1:32@62
-   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@30-1:31@61
+  ExpressionStatementTree EXPRESSION_STATEMENT 0:22@22-0:27@27
+   expression=BinaryOperatorTree BINARY_OPERATOR 0:22@22-0:27@27
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:22@22-0:23@23
+     identifierToken=IdentifierToken IDENTIFIER 0:22@22-0:23@23
+      privateIdentifier=false
+      value="x"
+    operator=Token STAR 0:24@24-0:25@25
+    right=LiteralExpressionTree LITERAL_EXPRESSION 0:26@26-0:27@27
+     literalToken=LiteralToken NUMBER 0:26@26-0:27@27
+      value="2"
+  ExpressionStatementTree EXPRESSION_STATEMENT 0:27@27-0:29@29
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 0:27@27-0:28@28
+  VariableStatementTree VARIABLE_STATEMENT 1:0@30-1:21@51
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@30-1:21@51
     declarationType=VAR
     declarations=[1]
-     VariableDeclarationTree VARIABLE_DECLARATION 1:4@34-1:31@61
-      initializer=ComprehensionTree COMPREHENSION 1:8@38-1:31@61
-       children=[2]
-        ComprehensionForTree COMPREHENSION_FOR 1:9@39-1:21@51
-         collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:19@49-1:20@50
-          identifierToken=IdentifierToken IDENTIFIER 1:19@49-1:20@50
-           privateIdentifier=false
-           value="y"
-         initializer=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:14@44-1:15@45
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@34-1:21@51
+      initializer=CallExpressionTree CALL_EXPRESSION 1:8@38-1:21@51
+       arguments=ArgumentListTree ARGUMENT_LIST 1:13@43-1:21@51
+        arguments=[2]
+         IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:14@44-1:15@45
           identifierToken=IdentifierToken IDENTIFIER 1:14@44-1:15@45
            privateIdentifier=false
            value="x"
-        ComprehensionIfTree COMPREHENSION_IF 1:22@52-1:28@58
-         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:26@56-1:27@57
-          identifierToken=IdentifierToken IDENTIFIER 1:26@56-1:27@57
+         IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:19@49-1:20@50
+          identifierToken=IdentifierToken IDENTIFIER 1:19@49-1:20@50
            privateIdentifier=false
-           value="x"
-       tailExpression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:29@59-1:30@60
-        identifierToken=IdentifierToken IDENTIFIER 1:29@59-1:30@60
-         privateIdentifier=false
-         value="x"
-       type=ARRAY
+           value="y"
+        commaPositions=[]
+        hasTrailingComma=false
+       operand=ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:8@38-1:12@42
+        elements=[]
+        hasTrailingComma=false
       lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@34-1:5@35
        identifierToken=IdentifierToken IDENTIFIER 1:4@34-1:5@35
         privateIdentifier=false
         value="b"
-  VariableStatementTree VARIABLE_STATEMENT 2:0@63-2:25@88
-   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@63-2:24@87
+  IfStatementTree IF_STATEMENT 1:22@52-1:30@60
+   condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:26@56-1:27@57
+    identifierToken=IdentifierToken IDENTIFIER 1:26@56-1:27@57
+     privateIdentifier=false
+     value="x"
+   elseClause=null
+   ifClause=ExpressionStatementTree EXPRESSION_STATEMENT 1:29@59-1:30@60
+    expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:29@59-1:30@60
+     identifierToken=IdentifierToken IDENTIFIER 1:29@59-1:30@60
+      privateIdentifier=false
+      value="x"
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:30@60-1:32@62
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 1:30@60-1:31@61
+  VariableStatementTree VARIABLE_STATEMENT 2:0@63-2:23@86
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@63-2:23@86
     declarationType=VAR
     declarations=[1]
-     VariableDeclarationTree VARIABLE_DECLARATION 2:4@67-2:24@87
-      initializer=ComprehensionTree COMPREHENSION 2:8@71-2:24@87
-       children=[1]
-        ComprehensionForTree COMPREHENSION_FOR 2:9@72-2:21@84
-         collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:19@82-2:20@83
-          identifierToken=IdentifierToken IDENTIFIER 2:19@82-2:20@83
-           privateIdentifier=false
-           value="y"
-         initializer=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:14@77-2:15@78
-          identifierToken=IdentifierToken IDENTIFIER 2:14@77-2:15@78
-           privateIdentifier=false
-           value="x"
-       tailExpression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:22@85-2:23@86
-        identifierToken=IdentifierToken IDENTIFIER 2:22@85-2:23@86
-         privateIdentifier=false
-         value="x"
-       type=GENERATOR
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@67-2:23@86
+      initializer=ParenExpressionTree PAREN_EXPRESSION 2:8@71-2:23@86
+       expression=CallExpressionTree CALL_EXPRESSION 2:9@72-2:21@84
+        arguments=ArgumentListTree ARGUMENT_LIST 2:13@76-2:21@84
+         arguments=[2]
+          IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:14@77-2:15@78
+           identifierToken=IdentifierToken IDENTIFIER 2:14@77-2:15@78
+            privateIdentifier=false
+            value="x"
+          IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:19@82-2:20@83
+           identifierToken=IdentifierToken IDENTIFIER 2:19@82-2:20@83
+            privateIdentifier=false
+            value="y"
+         commaPositions=[]
+         hasTrailingComma=false
+        operand=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 2:9@72-2:12@75
       lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@67-2:5@68
        identifierToken=IdentifierToken IDENTIFIER 2:4@67-2:5@68
         privateIdentifier=false
         value="c"
-  VariableStatementTree VARIABLE_STATEMENT 3:0@89-3:27@116
-   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@89-3:26@115
+  ExpressionStatementTree EXPRESSION_STATEMENT 2:23@86-2:25@88
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 2:23@86-2:24@87
+  VariableStatementTree VARIABLE_STATEMENT 3:0@89-3:23@112
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@89-3:23@112
     declarationType=VAR
     declarations=[1]
-     VariableDeclarationTree VARIABLE_DECLARATION 3:4@93-3:26@115
-      initializer=ComprehensionTree COMPREHENSION 3:8@97-3:26@115
-       children=[1]
-        ComprehensionForTree COMPREHENSION_FOR 3:9@98-3:23@112
-         collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:21@110-3:22@111
-          identifierToken=IdentifierToken IDENTIFIER 3:21@110-3:22@111
-           privateIdentifier=false
-           value="y"
-         initializer=ObjectPatternTree OBJECT_PATTERN 3:14@103-3:17@106
-          fields=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@93-3:23@112
+      initializer=CallExpressionTree CALL_EXPRESSION 3:8@97-3:23@112
+       arguments=ArgumentListTree ARGUMENT_LIST 3:13@102-3:23@112
+        arguments=[2]
+         ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 3:14@103-3:17@106
+          hasTrailingComma=false
+          propertyNameAndValues=[1]
            PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 3:15@104-3:16@105
             name=IdentifierToken IDENTIFIER 3:15@104-3:16@105
              privateIdentifier=false
              value="a"
             value=null
-       tailExpression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:24@113-3:25@114
-        identifierToken=IdentifierToken IDENTIFIER 3:24@113-3:25@114
-         privateIdentifier=false
-         value="a"
-       type=ARRAY
+         IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:21@110-3:22@111
+          identifierToken=IdentifierToken IDENTIFIER 3:21@110-3:22@111
+           privateIdentifier=false
+           value="y"
+        commaPositions=[]
+        hasTrailingComma=false
+       operand=ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 3:8@97-3:12@101
+        elements=[]
+        hasTrailingComma=false
       lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@93-3:5@94
        identifierToken=IdentifierToken IDENTIFIER 3:4@93-3:5@94
         privateIdentifier=false
         value="d"
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:24@113-3:25@114
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:24@113-3:25@114
+    identifierToken=IdentifierToken IDENTIFIER 3:24@113-3:25@114
+     privateIdentifier=false
+     value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:25@114-3:27@116
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 3:25@114-3:26@115

@@ -1716,21 +1716,6 @@ func (d *IRFactory_TransformDispatcher) ProcessObjectLitKey(
 	return node
 }
 
-// Java: IRFactory.TransformDispatcher.processComprehension(ComprehensionTree)
-func (d *IRFactory_TransformDispatcher) ProcessComprehension(tree *parser.ComprehensionTree) *rhino.Node {
-	return d.UnsupportedLanguageFeature(tree, "array/generator comprehensions")
-}
-
-// Java: IRFactory.TransformDispatcher.processComprehensionFor(ComprehensionForTree)
-func (d *IRFactory_TransformDispatcher) ProcessComprehensionFor(tree *parser.ComprehensionForTree) *rhino.Node {
-	return d.UnsupportedLanguageFeature(tree, "array/generator comprehensions")
-}
-
-// Java: IRFactory.TransformDispatcher.processComprehensionIf(ComprehensionIfTree)
-func (d *IRFactory_TransformDispatcher) ProcessComprehensionIf(tree *parser.ComprehensionIfTree) *rhino.Node {
-	return d.UnsupportedLanguageFeature(tree, "array/generator comprehensions")
-}
-
 // Java: IRFactory.TransformDispatcher.processArrayLiteral(ArrayLiteralExpressionTree)
 func (d *IRFactory_TransformDispatcher) ProcessArrayLiteral(tree *parser.ArrayLiteralExpressionTree) *rhino.Node {
 	node := d.NewNode(rhino.Token_ARRAYLIT)
@@ -3962,13 +3947,6 @@ func (d *IRFactory_TransformDispatcher) TransformListOrEmpty(type_ rhino.Token, 
 	}
 }
 
-// Java: IRFactory.TransformDispatcher.unsupportedLanguageFeature(ParseTree, String)
-func (d *IRFactory_TransformDispatcher) UnsupportedLanguageFeature(node parser.ParseTree, feature string) *rhino.Node {
-	d.errorReporter.Error(
-		"unsupported language feature: "+feature, d.sourceName, IRFactory_Lineno(node), IRFactory_Charno(node))
-	return d.CreateMissingExpressionNode()
-}
-
 // Java: IRFactory.TransformDispatcher.processLiteralExpression(LiteralExpressionTree)
 func (d *IRFactory_TransformDispatcher) ProcessLiteralExpression(expr *parser.LiteralExpressionTree) *rhino.Node {
 	switch expr.LiteralToken.GetTokenBase().Type {
@@ -4160,12 +4138,6 @@ func (d *IRFactory_TransformDispatcher) Process(node parser.ParseTree) *rhino.No
 		return d.ProcessArrayPattern(node.(*parser.ArrayPatternTree))
 	case parser.ParseTreeType_OBJECT_PATTERN:
 		return d.ProcessObjectPattern(node.(*parser.ObjectPatternTree))
-	case parser.ParseTreeType_COMPREHENSION:
-		return d.ProcessComprehension(node.(*parser.ComprehensionTree))
-	case parser.ParseTreeType_COMPREHENSION_FOR:
-		return d.ProcessComprehensionFor(node.(*parser.ComprehensionForTree))
-	case parser.ParseTreeType_COMPREHENSION_IF:
-		return d.ProcessComprehensionIf(node.(*parser.ComprehensionIfTree))
 	case parser.ParseTreeType_DEFAULT_PARAMETER:
 		return d.ProcessDefaultParameter(node.(*parser.DefaultParameterTree))
 	case parser.ParseTreeType_ITER_REST:
