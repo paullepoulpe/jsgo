@@ -3,7 +3,6 @@ package jscomp
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"time"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -12,12 +11,13 @@ import (
 
 // Go-only: AST compaction (rhino/node_compact.go).
 //
-// Nodes link with ids, so dead nodes are reclaimed only by copying the live
-// tree into a fresh node store. This file decides when (after typesToColors,
-// then whenever the nodes allocated since the last compaction exceed half of
-// the live nodes, checked at the end of every optimization-loop iteration
-// and after every top-level optimization pass, and at the end of the
-// optimization stage) and keeps the forwarding registry: the explicit list
+// Nodes link with ids, so dead nodes are reclaimed only by compacting the
+// node store: keeping its live nodes, under new ids. This file decides when
+// (after typesToColors, then whenever the nodes allocated since the last
+// compaction exceed a quarter of the live nodes, checked at the end of every
+// optimization-loop iteration and after every top-level optimization pass,
+// and at the end of the optimization stage) and keeps the forwarding
+// registry: the explicit list
 // of every rhino.Node the Compiler holds outside the tree across a pass
 // boundary (docs/memory-research/node-holder-census.md, section 3.1).
 // Everything else that holds nodes is pass-local and dead between passes.
@@ -28,16 +28,15 @@ import (
 // compiler (its tree is spliced into, and held by, the outer compilation).
 //
 // JSGO_AST_COMPACT=0|1 overrides the default (on), JSGO_AST_COMPACT_LOG=1
-// logs each compaction to stderr, JSGO_AST_POISON=1 poisons the old nodes
-// (rhino.NodePoisonMode).
+// logs each compaction to stderr.
 
 type astCompaction struct {
-	enabled      bool
-	nested       bool // a NestedCompilerRunner compiler: shares nodes with the outer compilation, never compacts
-	allowed      bool // inside the optimization stage
-	nodesAtLast  int // nodes in the store right after the last compaction
-	liveAtLast   int
-	count        int
+	enabled     bool
+	nested      bool // a NestedCompilerRunner compiler: shares nodes with the outer compilation, never compacts
+	allowed     bool // inside the optimization stage
+	nodesAtLast int  // nodes in the store right after the last compaction
+	liveAtLast  int
+	count       int
 }
 
 var (
@@ -83,21 +82,35 @@ func (c *Compiler) maybeCompactAST(after string, externs, root *rhino.Node, extr
 	c.compactAST(after, externs, root, extra)
 }
 
-// compactAST copies the live AST and forwards every registered holder.
+// compactAST keeps only the live nodes of the store (rhino/node_compact.go):
+// it marks what every registered holder refers to, slides the live nodes
+// down, and forwards the holders to the nodes' new ids.
 func (c *Compiler) compactAST(after string, externs, root *rhino.Node, extra func(fwd func(rhino.Node) rhino.Node)) {
 	a := &c.astCompact
 	t0 := time.Now()
 	jutil.CheckStateMsg(c.typedScopeCreator == nil && c.topScope == nil, "AST compaction with typed scopes alive")
-	if after == "typesToColors" {
-		// The type graph was just dropped; collect it first so that the copy
-		// reuses its pages instead of growing the heap by a second AST.
-		runtime.GC()
-	}
 	k := rhino.NewCompactor()
-	fwd := k.Forward
+	c.forwardASTHolders(k.Mark, externs, root, extra)
+	k.Slide()
+	c.forwardASTHolders(k.Forward, externs, root, extra)
+	c.evictPassArenaCaches() // Go-only caches that may hold nodes
+	k.Finish()
 
+	a.count++
+	a.nodesAtLast = c.nodeStore.NodeCount()
+	a.liveAtLast = k.Live
+	if astCompactLog {
+		fmt.Fprintf(os.Stderr, "[ast-compact #%d after %s] %s, %v\n", a.count, after, k, time.Since(t0).Round(time.Millisecond))
+	}
+}
+
+// forwardASTHolders replaces every node the compiler holds outside the tree
+// across a pass boundary (and the caller's locals externs, root and those
+// extra forwards) with fwd(node). compactAST calls it twice: to mark the
+// nodes, then to forward them.
+func (c *Compiler) forwardASTHolders(fwd func(rhino.Node) rhino.Node, externs, root *rhino.Node, extra func(fwd func(rhino.Node) rhino.Node)) {
 	// 1. Roots.
-	c.externAndJsRoot = k.CopyTree(c.externAndJsRoot)
+	c.externAndJsRoot = fwd(c.externAndJsRoot)
 	c.externsRoot = fwd(c.externsRoot)
 	c.jsRoot = fwd(c.jsRoot)
 	if externs != nil {
@@ -220,20 +233,6 @@ func (c *Compiler) compactAST(after string, externs, root *rhino.Node, extra fun
 	// 7. Caller locals.
 	if extra != nil {
 		extra(fwd)
-	}
-
-	// 8. Go-only caches that may hold nodes.
-	c.evictPassArenaCaches()
-
-	oldNodes := c.nodeStore.NodeCount()
-	k.Finish()
-	c.nodeStore = k.Store()
-	a.count++
-	a.nodesAtLast = c.nodeStore.NodeCount()
-	a.liveAtLast = k.Copied
-	if astCompactLog {
-		fmt.Fprintf(os.Stderr, "[ast-compact #%d after %s] %s, old store had %d nodes, %v\n",
-			a.count, after, k, oldNodes, time.Since(t0).Round(time.Millisecond))
 	}
 }
 

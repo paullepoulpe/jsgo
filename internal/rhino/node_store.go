@@ -30,14 +30,14 @@ import (
 // with a second compiler). Tests give each test a fresh store. Only one
 // store is current at a time: one compilation runs at a time per process.
 //
-// The directory holds the blocks of the static store, of the current store
-// and, during compaction, of the store being copied; switching stores takes
-// the old one's blocks out, so the GC can free it. Ids are never reused: a
-// new store's ids start after every block an earlier store used. So an id
-// from a store that is no longer current (one compaction replaced, or a
-// previous test's) finds an empty directory entry and fails like a nil
-// pointer instead of reading another node, and so does the nil node (id 0:
-// block 0 is never used).
+// The directory holds the blocks of the static store and of the current
+// store; switching stores takes the old one's blocks out, so the GC can
+// free it. Ids are never reused: a new store's ids start after every block
+// an earlier store used, and compaction (node_compact.go) gives the live
+// nodes ids in a fresh range too. So an id from before (a previous test's
+// store, or one kept across a compaction without being forwarded) finds an
+// empty directory entry and fails like a nil pointer instead of reading
+// another node, and so does the nil node (id 0: block 0 is never used).
 //
 // Concurrency: allocation is safe from several goroutines (parallel
 // parsing and passes): ids come from an atomic counter, and a block is
@@ -89,10 +89,6 @@ var (
 
 	// current is the store new nodes go to; written between passes only.
 	current *NodeStore
-
-	// compactSource is the store a compaction copies from, readable while
-	// the copy (the current store) is filled (node_compact.go).
-	compactSource *NodeStore
 )
 
 func init() {
@@ -168,9 +164,7 @@ func SetCurrentNodeStore(s *NodeStore) *NodeStore {
 	}
 	if prev != nil {
 		raiseNextBlock(prev.blockEnd())
-		if prev != compactSource {
-			prev.unregister()
-		}
+		prev.unregister()
 	}
 	if s != nil {
 		if s.base == 0 {
@@ -266,8 +260,6 @@ func (n Node) store() *NodeStore {
 		return current
 	case id&staticBit != 0 && staticStore.contains(id):
 		return staticStore
-	case compactSource.contains(id):
-		return compactSource
 	case id == 0:
 		// Java's NullPointerException, like a nil pointer dereference.
 		panic(jutil.NewNullPointerException())

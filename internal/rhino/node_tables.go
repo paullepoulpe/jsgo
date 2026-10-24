@@ -290,6 +290,30 @@ func (s *NodeStore) addTCColumn(id uint32) *tcColumn {
 	return s.tcs[k]
 }
 
+// tcAt returns the tc handle of the node at index i of s.
+func (s *NodeStore) tcAt(i uint32) uint32 {
+	if k := int(i >> blockShift); k < len(s.tcs) && s.tcs[k] != nil {
+		return s.tcs[k][i&blockMask]
+	}
+	return 0
+}
+
+// setTCAt sets the tc handle of the node at index i of s (for compaction:
+// the column is not registered in the directory yet).
+func (s *NodeStore) setTCAt(i uint32, h uint32) {
+	k := int(i >> blockShift)
+	if k >= len(s.tcs) || s.tcs[k] == nil {
+		if h == 0 {
+			return
+		}
+		for len(s.tcs) <= k {
+			s.tcs = append(s.tcs, nil)
+		}
+		s.tcs[k] = new(tcColumn)
+	}
+	s.tcs[k][i&blockMask] = h
+}
+
 // translateTC returns the tc handle in s for the JSType or Color that tc
 // names in from (the same handle when from is s).
 func (s *NodeStore) translateTC(from *NodeStore, tc uint32, isColor bool) uint32 {

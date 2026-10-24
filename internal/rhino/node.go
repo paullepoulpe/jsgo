@@ -405,9 +405,6 @@ const (
 	// property that is normally stored inline (e.g. an int value other than
 	// 1 for a boolean property, or CHANGE_TIME of a non-Node kind).
 	kindFlagHasExtra uint8 = 1 << 5
-	// kindFlagForwarded: compaction copied the node; next is the id of the
-	// copy in the store's forwardedTo (node_compact.go).
-	kindFlagForwarded uint8 = 1 << 6
 	// kindFlagHasExtBox: the aux entry holds a *nodeExtBox (otherwise the
 	// *JSDocInfo when propFlagHasJSDoc is set).
 	kindFlagHasExtBox uint8 = 1 << 7
@@ -3117,7 +3114,7 @@ type nodeData struct {
 	linenoCharno int32  // line (upper 20 bits) and column (low 12 bits)
 	length16     uint16 // code length (0..65534 inline; 65535: in the nodeExtBox)
 	token        Token  // token kind (uint8)
-	kindFlags    uint8  // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: forwarded (compaction); bit 7: hasExtBox
+	kindFlags    uint8  // bits 0..2: node_kind; bit 3: typeIsColor; bit 4: noBlockDecls; bit 5: hasExtra; bit 6: unused; bit 7: hasExtBox
 }
 
 func (n Node) HasNoBlockScopeDecls() bool {
