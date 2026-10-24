@@ -191,3 +191,62 @@ func TestInvalidUnicodeEscape(t *testing.T) {
 	assertRegexThrowsExceptionWithMessage(t, "\\u{FF00FFFF}", "u",
 		"Cannot parse hexadecimal encoding wider than 28 bits: FF00FFFF")
 }
+
+// Java: RegExpTreeTest.testDecomposedCharsetEqualsAndHashCode()
+func TestDecomposedCharsetEqualsAndHashCode(t *testing.T) {
+	empty1 := NewRegExpTree_DecomposedCharset(false, CharRanges_EMPTY, "")
+	empty2 := NewRegExpTree_DecomposedCharset(false, CharRanges_EMPTY, "")
+	invertedEmpty := NewRegExpTree_DecomposedCharset(true, CharRanges_EMPTY, "")
+
+	rangesA := CharRanges_WithMembers('a', 'b')
+	rangesB := CharRanges_WithMembers('a', 'c')
+	charsetA1 := NewRegExpTree_DecomposedCharset(false, rangesA, "\\d")
+	charsetA2 := NewRegExpTree_DecomposedCharset(false, rangesA, "\\d")
+	charsetAInverted := NewRegExpTree_DecomposedCharset(true, rangesA, "\\d")
+	charsetDiffRanges := NewRegExpTree_DecomposedCharset(false, rangesB, "\\d")
+	charsetDiffGroups := NewRegExpTree_DecomposedCharset(false, rangesA, "\\s")
+
+	isEqualTo := func(what string, a, b *RegExpTree_DecomposedCharset) {
+		t.Helper()
+		if !a.Equals(b) {
+			t.Errorf("%s: not equal", what)
+		}
+	}
+	isNotEqualTo := func(what string, a, b *RegExpTree_DecomposedCharset) {
+		t.Helper()
+		if a.Equals(b) {
+			t.Errorf("%s: equal", what)
+		}
+	}
+	sameHash := func(what string, a, b *RegExpTree_DecomposedCharset) {
+		t.Helper()
+		if a.HashCode() != b.HashCode() {
+			t.Errorf("%s: hash codes %d and %d", what, a.HashCode(), b.HashCode())
+		}
+	}
+
+	// Symmetric equality
+	isEqualTo("empty1, empty2", empty1, empty2)
+	isEqualTo("empty2, empty1", empty2, empty1)
+	sameHash("empty1, empty2", empty1, empty2)
+
+	isEqualTo("charsetA1, charsetA2", charsetA1, charsetA2)
+	isEqualTo("charsetA2, charsetA1", charsetA2, charsetA1)
+	sameHash("charsetA1, charsetA2", charsetA1, charsetA2)
+
+	// Inverted true equality
+	charsetAInverted2 := NewRegExpTree_DecomposedCharset(true, rangesA, "\\d")
+	isEqualTo("charsetAInverted, charsetAInverted2", charsetAInverted, charsetAInverted2)
+	sameHash("charsetAInverted, charsetAInverted2", charsetAInverted, charsetAInverted2)
+
+	// Inequality across inverted, ranges, and namedGroups
+	isNotEqualTo("empty1, invertedEmpty", empty1, invertedEmpty)
+	isNotEqualTo("invertedEmpty, empty1", invertedEmpty, empty1)
+	isNotEqualTo("charsetA1, charsetAInverted", charsetA1, charsetAInverted)
+	isNotEqualTo("charsetAInverted, charsetA1", charsetAInverted, charsetA1)
+	isNotEqualTo("charsetA1, charsetDiffRanges", charsetA1, charsetDiffRanges)
+	isNotEqualTo("charsetA1, charsetDiffGroups", charsetA1, charsetDiffGroups)
+	if charsetA1 == nil {
+		t.Error("charsetA1 is null")
+	}
+}
