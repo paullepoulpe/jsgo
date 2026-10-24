@@ -19,15 +19,18 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast): a handler per
+// node kind instead of one Visit that switches on the token.
 
 // ConvertToDottedProperties converts property accesses from quoted string or
 // bracket access syntax to dot or unquoted string syntax, where possible. Dot
 // syntax is more compact.
 type ConvertToDottedProperties struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler AbstractCompiler
 }
 
@@ -40,90 +43,130 @@ func NewConvertToDottedProperties(compiler AbstractCompiler) *ConvertToDottedPro
 
 // Java: ConvertToDottedProperties.process(Node, Node)
 func (c *ConvertToDottedProperties) Process(externs rhino.Node, root rhino.Node) {
-	NodeTraversal_Traverse(c.compiler, root, c)
+	NodeTraversal_TraverseVisitor(c.compiler, root, &ast.Visitor[*NodeTraversal]{
+		ComputedProp:     c.visitComputedProp,
+		ComputedFieldDef: c.visitComputedFieldDef,
+		GetterDef:        func(_ *NodeTraversal, x ast.GetterDef) { c.unquote(x.Node(), x.Key()) },
+		SetterDef:        func(_ *NodeTraversal, x ast.SetterDef) { c.unquote(x.Node(), x.Key()) },
+		StringKey:        func(_ *NodeTraversal, x ast.StringKey) { c.unquote(x.Node(), x.Key()) },
+		GetElem: func(_ *NodeTraversal, x ast.GetElem) {
+			c.convertGetElem(x.Node(), x.Object(), x.Index(), rhino.IR_Getprop)
+		},
+		OptChainGetElem: func(_ *NodeTraversal, x ast.OptChainGetElem) {
+			getProp := rhino.IR_ContinueOptChainGetprop
+			if x.Node().IsOptionalChainStart() {
+				getProp = rhino.IR_StartOptChainGetprop
+			}
+			c.convertGetElem(x.Node(), x.Object(), x.Index(), getProp)
+		},
+	})
 	GatherGetterAndSetterProperties_Update(c.compiler, externs, root)
 }
 
-// Java: ConvertToDottedProperties.visit(NodeTraversal, Node, Node)
-func (c *ConvertToDottedProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-		leftElem := n.GetFirstChild()
-		rightElem := leftElem.GetNext()
-
-		// not convert property named constructor or __proto__ in object literals.
-		// ['constructor']() and constructor() are different.
-		// {['__proto__']: v} defines an own property; {__proto__: v} sets prototype.
-		if leftElem.IsStringLit() &&
-			NodeUtil_IsValidPropertyName(parser.FeatureSet_ES3, leftElem.GetString()) &&
-			leftElem.GetString() != "constructor" &&
-			!(parent.IsObjectLit() && leftElem.GetString() == "__proto__") {
-			leftElem.Detach()
-			if !rightElem.IsNil() {
-				// A COMPUTED_FIELD_DEF has no second child when the field has no initializer.
-				rightElem.Detach()
-			}
-			var temp rhino.Node
-			if n.IsComputedProp() {
-				if rightElem.IsFunction() {
-					if n.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) {
-
-						temp = rhino.IR_GetterDef(leftElem.GetString(), rightElem)
-
-					} else if n.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
-						temp = rhino.IR_SetterDef(leftElem.GetString(), rightElem)
-					} else {
-						if n.GetParent().IsClassMembers() {
-
-							temp = rhino.IR_MemberFunctionDef(leftElem.GetString(), rightElem)
-							NodeUtil_AddFeatureToScript(
-								t.GetCurrentScript(), parser.FeatureSet_Feature_MEMBER_DECLARATIONS, c.compiler)
-						} else {
-							// TODO - further optimize this code to a member function
-							temp = rhino.IR_StringKeyWithValue(leftElem.GetString(), rightElem)
-						}
-					}
-
-				} else {
-					temp = rhino.IR_StringKeyWithValue(leftElem.GetString(), rightElem)
-				}
-			} else if rightElem.IsNil() {
-				// An uninitialized field, e.g. `class C { ['x']; }`, becomes a 0-child
-				// MEMBER_FIELD_DEF, matching how the parser represents `class C { x; }`.
-				temp = rhino.Node_NewStringWithToken(rhino.Token_MEMBER_FIELD_DEF, leftElem.GetString())
-			} else {
-				temp = rhino.IR_MemberFieldDef(leftElem.GetString(), rightElem)
-			}
-
-			temp.SetStaticMember(n.IsStaticMember())
-			n.ReplaceWith(temp)
-			c.compiler.ReportChangeToEnclosingScope(temp)
-		}
-	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_STRING_KEY:
-		if NodeUtil_IsValidPropertyName(parser.FeatureSet_ES3, n.GetString()) {
-			if n.GetBooleanProp(rhino.Node_QUOTED_PROP) {
-				n.PutBooleanProp(rhino.Node_QUOTED_PROP, false)
-				c.compiler.ReportChangeToEnclosingScope(n)
-			}
-		}
-	case rhino.Token_OPTCHAIN_GETELEM, rhino.Token_GETELEM:
-		left := n.GetFirstChild()
-		right := left.GetNext()
-		if right.IsStringLit() &&
-			NodeUtil_IsValidPropertyName(parser.FeatureSet_ES3, right.GetString()) {
-			left.Detach()
-			right.Detach()
-			var newGetProp rhino.Node
-			if n.IsGetElem() {
-				newGetProp = rhino.IR_Getprop(left, right.GetString())
-			} else if n.IsOptionalChainStart() {
-				newGetProp = rhino.IR_StartOptChainGetprop(left, right.GetString())
-			} else {
-				newGetProp = rhino.IR_ContinueOptChainGetprop(left, right.GetString())
-			}
-			n.ReplaceWith(newGetProp)
-			c.compiler.ReportChangeToEnclosingScope(newGetProp)
-		}
-	default:
+// dottableKey returns the name of a computed key that can be written as a
+// plain key: ['x'] can become x. Not ['constructor'], since
+// ['constructor']() and constructor() are different, nor, in an object
+// literal, ['__proto__'], since {['__proto__']: v} defines an own property
+// and {__proto__: v} sets the prototype.
+func dottableKey(key ast.Expr, parent rhino.Node) (string, bool) {
+	lit, ok := key.AsStringLit()
+	if !ok {
+		return "", false
 	}
+	name := lit.Value()
+	if !NodeUtil_IsValidPropertyName(parser.FeatureSet_ES3, name) ||
+		name == "constructor" ||
+		(parent.IsObjectLit() && name == "__proto__") {
+		return "", false
+	}
+	return name, true
+}
+
+// visitComputedProp turns ['x']: v into x: v, and a method, getter or
+// setter with a computed key into one with a plain key.
+//
+// Java: ConvertToDottedProperties.visit(NodeTraversal, Node, Node) (COMPUTED_PROP)
+func (c *ConvertToDottedProperties) visitComputedProp(t *NodeTraversal, x ast.ComputedProp) {
+	n := x.Node()
+	name, ok := dottableKey(x.Key(), n.GetParent())
+	if !ok {
+		return
+	}
+	value, hasValue := x.Value() // read before the key is detached
+	x.Key().Node().Detach()
+	if hasValue {
+		value.Node().Detach()
+	}
+
+	var temp rhino.Node
+	fn, isFunction := value.AsFunction()
+	switch {
+	case isFunction && n.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER):
+		temp = rhino.IR_GetterDef(name, fn.Node())
+	case isFunction && n.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER):
+		temp = rhino.IR_SetterDef(name, fn.Node())
+	case isFunction && n.GetParent().IsClassMembers():
+		temp = rhino.IR_MemberFunctionDef(name, fn.Node())
+		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_MEMBER_DECLARATIONS, c.compiler)
+	default:
+		// TODO - further optimize a function value to a member function
+		temp = rhino.IR_StringKeyWithValue(name, value.Node())
+	}
+	c.replaceKey(n, temp)
+}
+
+// visitComputedFieldDef turns the class field ['x'] = v into x = v.
+//
+// Java: ConvertToDottedProperties.visit(NodeTraversal, Node, Node) (COMPUTED_FIELD_DEF)
+func (c *ConvertToDottedProperties) visitComputedFieldDef(_ *NodeTraversal, x ast.ComputedFieldDef) {
+	n := x.Node()
+	name, ok := dottableKey(x.Key(), n.GetParent())
+	if !ok {
+		return
+	}
+	value, hasValue := x.Value() // read before the key is detached
+	x.Key().Node().Detach()
+	var temp rhino.Node
+	if hasValue {
+		value.Node().Detach()
+		temp = rhino.IR_MemberFieldDef(name, value.Node())
+	} else {
+		// An uninitialized field, e.g. `class C { ['x']; }`, becomes a 0-child
+		// MEMBER_FIELD_DEF, matching how the parser represents `class C { x; }`.
+		temp = rhino.Node_NewStringWithToken(rhino.Token_MEMBER_FIELD_DEF, name)
+	}
+	c.replaceKey(n, temp)
+}
+
+// replaceKey replaces the member n with temp.
+func (c *ConvertToDottedProperties) replaceKey(n, temp rhino.Node) {
+	temp.SetStaticMember(n.IsStaticMember())
+	n.ReplaceWith(temp)
+	c.compiler.ReportChangeToEnclosingScope(temp)
+}
+
+// unquote turns 'x': v into x: v (and the same for getters and setters).
+//
+// Java: ConvertToDottedProperties.visit(NodeTraversal, Node, Node) (GETTER_DEF, SETTER_DEF, STRING_KEY)
+func (c *ConvertToDottedProperties) unquote(n rhino.Node, key string) {
+	if NodeUtil_IsValidPropertyName(parser.FeatureSet_ES3, key) && n.GetBooleanProp(rhino.Node_QUOTED_PROP) {
+		n.PutBooleanProp(rhino.Node_QUOTED_PROP, false)
+		c.compiler.ReportChangeToEnclosingScope(n)
+	}
+}
+
+// convertGetElem turns object['x'] (n) into object.x, made by getProp.
+//
+// Java: ConvertToDottedProperties.visit(NodeTraversal, Node, Node) (GETELEM, OPTCHAIN_GETELEM)
+func (c *ConvertToDottedProperties) convertGetElem(n rhino.Node, object, index ast.Expr,
+	getProp func(object rhino.Node, name string) rhino.Node) {
+	lit, ok := index.AsStringLit()
+	if !ok || !NodeUtil_IsValidPropertyName(parser.FeatureSet_ES3, lit.Value()) {
+		return
+	}
+	object.Node().Detach()
+	lit.Node().Detach()
+	newGetProp := getProp(object.Node(), lit.Value())
+	n.ReplaceWith(newGetProp)
+	c.compiler.ReportChangeToEnclosingScope(newGetProp)
 }

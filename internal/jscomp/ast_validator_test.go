@@ -47,6 +47,10 @@ func NewAstValidatorTest() *AstValidatorTest {
 	return c
 }
 
+// Go-only: every test's trees are also checked against the typed AST
+// grammar (see astValidatorChecksGrammar).
+func init() { astValidatorChecksGrammar = true }
+
 func TestAstValidatorTest(t *testing.T) {
 	RunJUnit4(t, func() JUnitTestCase { return NewAstValidatorTest() })
 }

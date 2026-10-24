@@ -1,7 +1,8 @@
 # A typed view of the AST
 
 Status: prototype. Package `internal/ast`, generated from
-`internal/ast/grammar.txt`; one pass (`MinimizeExitPoints`) uses it.
+`internal/ast/grammar.txt`; two passes use it (`MinimizeExitPoints`, and
+`ConvertToDottedProperties` with a typed visitor).
 
 ## Why
 
@@ -77,10 +78,30 @@ express are hand-written in `custom.go` (`Try.Catch()`, `Function.Name()`,
 `Loop.Body()`). A test fails if `nodes.gen.go` is out of date.
 
 **The grammar is checked.** `ast.Check` walks a tree and reports every node
-that does not follow the grammar. The `AstValidator` (which every
-`CompilerTestCase` runs after each pass, and every optimized compile runs once
-at the end) now calls it, so a grammar that drifts from the trees the
-compiler builds fails the tests.
+that does not follow the grammar. In tests, the `AstValidator` (which every
+`CompilerTestCase` runs after each pass) also calls it, so a grammar that
+drifts from the trees the compiler builds fails the tests. A normal compile
+does not (it would add one more walk, about 20 ms on bundle, to the final
+validity check); `JSGO_AST_GRAMMAR_CHECK=1` turns it on there.
+
+The types also catch grammar mistakes at compile time: changing `If`'s
+`then` to `Expr` in the grammar breaks the build of `MinimizeExitPoints`.
+
+**Typed traversal.** `ast.Visitor` has an optional handler per kind;
+`NodeTraversal_TraverseVisitor` runs it as a post-order callback:
+
+```go
+NodeTraversal_TraverseVisitor(c.compiler, root, &ast.Visitor[*NodeTraversal]{
+	ComputedProp: c.visitComputedProp,   // func(t *NodeTraversal, x ast.ComputedProp)
+	GetElem: func(_ *NodeTraversal, x ast.GetElem) {
+		c.convertGetElem(x.Node(), x.Object(), x.Index(), rhino.IR_Getprop)
+	},
+	...
+})
+```
+
+A pass lists the kinds it handles instead of switching on tokens in one
+`Visit`, and each handler gets its node already typed.
 
 ## How the grammar was validated
 
@@ -148,6 +169,55 @@ Results:
   -gcflags=-m`), except `Block.LastStatement` and the hand-written
   `Try.Catch` and `Loop.Body`, which are just over Go's inlining budget.
 
+## Second pilot: ConvertToDottedProperties with a typed visitor
+
+The pass handled seven kinds in one `Visit` with a token switch; it now
+registers one handler per kind (or a shared helper for kinds with the same
+shape). Results: the 21 test methods pass, output is
+byte-identical on all four workloads, and the pass takes the same time
+(about 60 ms on bundle).
+
+One trap showed up while porting: accessors are positional underneath, so
+`x.Value()` (the second child) is wrong once `x.Key()` (the first) has been
+detached. Read the children you need before editing the node: the same rule
+as with the rhino API, but less visible when the positions are hidden.
+
+## Performance outlook
+
+The typed view compiles to the same code as before, so on its own it neither
+speeds up nor slows down the compiler. What it can enable was measured on the
+bundle and typed-full workloads:
+
+- **Where the time goes.** Reading node records (`Node.rec` and the block
+  directory load) is 16% of the CPU on bundle and 11% on typed-full;
+  resolving string ids to strings (`GetString`) another 8% and 6.5%; the
+  traversal functions themselves about 6%.
+- **Callback dispatch is a small lever.** A compile makes 84 M (bundle) and
+  225 M (typed-full) traversal callbacks. Letting a visitor declare its kinds
+  (`Visitor.Tokens`) so that the traversal skips the others saves a few
+  nanoseconds per skipped callback: about 1-3% at best. The traversal already
+  has ad-hoc versions of this (marker interfaces such as `onlyNameLeaves`,
+  used by about 28 passes); declared kinds would replace them with one
+  mechanism.
+- **The layout is the big lever.** Walking the whole tree costs 13-15 ns per
+  node through today's linked records (two dependent loads per hop: the block
+  directory, then the 40-byte record). The same recursive walk over a compact
+  array in visit order (token and subtree size, first child next to its
+  parent, next sibling after the subtree) costs 8-10 ns, and a linear scan
+  1-1.6 ns. Walking is about 1.1 s of the 10 s bundle compile (84 M visits),
+  so a compact layout could save on the order of 5%, more for passes that can
+  scan instead of recursing, plus less memory and GC work.
+- **Why the typed view matters for the layout.** Changes inside the linked
+  model (smaller records, hot/cold field splits) are possible today, behind
+  the rhino accessors. Changing the model itself (fixed child slots per kind,
+  child arrays, a flat array for read-only phases) is not, because code walks
+  siblings with `GetNext` and expects it to be O(1). Code written against
+  `ifs.Else()` and `block.Statements()` does not care how children are
+  stored, so the more passes use the typed view, the more of the layout
+  becomes free to change.
+- **Fewer checks.** Shapes the grammar guarantees need no defensive code
+  (three of the four cases in `TryMinimizeIfBlockExits`); small, but free.
+
 ## What we learned
 
 - **The types expose dead code.** Defensive branches for shapes the tree
@@ -171,8 +241,9 @@ Results:
 
 ## Next steps
 
-1. **Typed traversal.** Generate a dispatcher so a pass can write
-   `VisitIf(t, ifs ast.If)` instead of switching on tokens.
+1. **Pre-order handlers and declared kinds** in the typed visitor
+   (`ShouldTraverse` per kind; skip the callbacks of other kinds), replacing
+   the traversal's marker interfaces.
 2. **Port more passes**, starting with those that are mostly about shapes
    (peephole passes, `Normalize`, `ControlFlowAnalysis`), and measure each.
 3. **Change the storage behind the API.** Callers ask for `ifs.Else()`, not

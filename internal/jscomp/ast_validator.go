@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"os"
 	"slices"
 	"strconv"
 
@@ -161,12 +162,21 @@ func (v *AstValidator) Process(externs rhino.Node, root rhino.Node) {
 	}
 }
 
-// checkGrammar reports the nodes that do not follow the grammar of the
-// typed AST view (internal/ast/grammar.txt), so that the grammar stays true
-// to the trees the compiler builds.
+// astValidatorChecksGrammar makes the AstValidator also check the trees
+// against the grammar of the typed AST view (internal/ast/grammar.txt), so
+// that the grammar stays true to the trees the compiler builds. The tests
+// turn it on (ast_validator_test.go), and so does JSGO_AST_GRAMMAR_CHECK=1;
+// a normal compilation does not pay for the extra walk.
+var astValidatorChecksGrammar = os.Getenv("JSGO_AST_GRAMMAR_CHECK") == "1"
+
+// checkGrammar reports the nodes under root that do not follow the grammar
+// (see astValidatorChecksGrammar).
 //
 // Go-only: the typed view is not in Java.
 func (v *AstValidator) checkGrammar(root rhino.Node) {
+	if !astValidatorChecksGrammar {
+		return
+	}
 	ast.Check(root, func(n rhino.Node, problem string) {
 		v.Violation("AST grammar (internal/ast/grammar.txt): "+problem, n)
 	})

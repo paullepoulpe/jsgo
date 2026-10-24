@@ -7344,59 +7344,901 @@ func (x ExportSpec) Next() (ExportSpec, bool) { c := x.node.GetNext(); return As
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x ExportSpec) Previous() (ExportSpec, bool) { c := x.node.GetPrevious(); return AsExportSpec(c) }
 
+// Visitor calls, for each node it is given, the handler of the node's kind,
+// if it has one. T is the type of the traversal (jscomp passes
+// *NodeTraversal): see jscomp.NodeTraversal_TraverseVisitor.
+type Visitor[T any] struct {
+	Root              func(t T, x Root)
+	Script            func(t T, x Script)
+	ModuleBody        func(t T, x ModuleBody)
+	Block             func(t T, x Block)
+	Label             func(t T, x Label)
+	LabelName         func(t T, x LabelName)
+	If                func(t T, x If)
+	For               func(t T, x For)
+	ForIn             func(t T, x ForIn)
+	ForOf             func(t T, x ForOf)
+	ForAwaitOf        func(t T, x ForAwaitOf)
+	While             func(t T, x While)
+	Do                func(t T, x Do)
+	With              func(t T, x With)
+	Switch            func(t T, x Switch)
+	SwitchBody        func(t T, x SwitchBody)
+	Case              func(t T, x Case)
+	DefaultCase       func(t T, x DefaultCase)
+	Try               func(t T, x Try)
+	Catch             func(t T, x Catch)
+	NameDeclaration   func(t T, x NameDeclaration)
+	DestructuringLhs  func(t T, x DestructuringLhs)
+	ExprStmt          func(t T, x ExprStmt)
+	Return            func(t T, x Return)
+	Throw             func(t T, x Throw)
+	Break             func(t T, x Break)
+	Continue          func(t T, x Continue)
+	Empty             func(t T, x Empty)
+	Debugger          func(t T, x Debugger)
+	Function          func(t T, x Function)
+	ParamList         func(t T, x ParamList)
+	DefaultValue      func(t T, x DefaultValue)
+	IterRest          func(t T, x IterRest)
+	ObjectRest        func(t T, x ObjectRest)
+	IterSpread        func(t T, x IterSpread)
+	ObjectSpread      func(t T, x ObjectSpread)
+	ArrayPattern      func(t T, x ArrayPattern)
+	ObjectPattern     func(t T, x ObjectPattern)
+	Class             func(t T, x Class)
+	ClassBody         func(t T, x ClassBody)
+	MemberFunctionDef func(t T, x MemberFunctionDef)
+	GetterDef         func(t T, x GetterDef)
+	SetterDef         func(t T, x SetterDef)
+	MemberFieldDef    func(t T, x MemberFieldDef)
+	ComputedFieldDef  func(t T, x ComputedFieldDef)
+	ComputedProp      func(t T, x ComputedProp)
+	MemberVariableDef func(t T, x MemberVariableDef)
+	IndexSignature    func(t T, x IndexSignature)
+	CallSignature     func(t T, x CallSignature)
+	Name              func(t T, x Name)
+	This              func(t T, x This)
+	Super             func(t T, x Super)
+	True              func(t T, x True)
+	False             func(t T, x False)
+	Null              func(t T, x Null)
+	NewTarget         func(t T, x NewTarget)
+	ImportMeta        func(t T, x ImportMeta)
+	StringLit         func(t T, x StringLit)
+	Number            func(t T, x Number)
+	BigInt            func(t T, x BigInt)
+	RegExp            func(t T, x RegExp)
+	TemplateLit       func(t T, x TemplateLit)
+	TemplateLitString func(t T, x TemplateLitString)
+	TemplateLitSub    func(t T, x TemplateLitSub)
+	TaggedTemplateLit func(t T, x TaggedTemplateLit)
+	ArrayLit          func(t T, x ArrayLit)
+	ObjectLit         func(t T, x ObjectLit)
+	StringKey         func(t T, x StringKey)
+	Unary             func(t T, x Unary)
+	Cast              func(t T, x Cast)
+	DynamicImport     func(t T, x DynamicImport)
+	IncDec            func(t T, x IncDec)
+	Assign            func(t T, x Assign)
+	AssignOp          func(t T, x AssignOp)
+	Binary            func(t T, x Binary)
+	Hook              func(t T, x Hook)
+	GetProp           func(t T, x GetProp)
+	OptChainGetProp   func(t T, x OptChainGetProp)
+	GetElem           func(t T, x GetElem)
+	OptChainGetElem   func(t T, x OptChainGetElem)
+	Call              func(t T, x Call)
+	OptChainCall      func(t T, x OptChainCall)
+	New               func(t T, x New)
+	Yield             func(t T, x Yield)
+	Await             func(t T, x Await)
+	Import            func(t T, x Import)
+	ImportSpecs       func(t T, x ImportSpecs)
+	ImportSpec        func(t T, x ImportSpec)
+	ImportStar        func(t T, x ImportStar)
+	Export            func(t T, x Export)
+	ExportSpecs       func(t T, x ExportSpecs)
+	ExportSpec        func(t T, x ExportSpec)
+	Interface         func(t T, x Interface)
+	Enum              func(t T, x Enum)
+	TypeAlias         func(t T, x TypeAlias)
+	Declare           func(t T, x Declare)
+	Namespace         func(t T, x Namespace)
+}
+
+// Visit calls the handler of n's kind, if v has one.
+func (v *Visitor[T]) Visit(t T, n rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_ROOT:
+		if v.Root != nil {
+			v.Root(t, Root{n})
+		}
+	case rhino.Token_SCRIPT:
+		if v.Script != nil {
+			v.Script(t, Script{n})
+		}
+	case rhino.Token_MODULE_BODY:
+		if v.ModuleBody != nil {
+			v.ModuleBody(t, ModuleBody{n})
+		}
+	case rhino.Token_BLOCK:
+		if v.Block != nil {
+			v.Block(t, Block{n})
+		}
+	case rhino.Token_LABEL:
+		if v.Label != nil {
+			v.Label(t, Label{n})
+		}
+	case rhino.Token_LABEL_NAME:
+		if v.LabelName != nil {
+			v.LabelName(t, LabelName{n})
+		}
+	case rhino.Token_IF:
+		if v.If != nil {
+			v.If(t, If{n})
+		}
+	case rhino.Token_FOR:
+		if v.For != nil {
+			v.For(t, For{n})
+		}
+	case rhino.Token_FOR_IN:
+		if v.ForIn != nil {
+			v.ForIn(t, ForIn{n})
+		}
+	case rhino.Token_FOR_OF:
+		if v.ForOf != nil {
+			v.ForOf(t, ForOf{n})
+		}
+	case rhino.Token_FOR_AWAIT_OF:
+		if v.ForAwaitOf != nil {
+			v.ForAwaitOf(t, ForAwaitOf{n})
+		}
+	case rhino.Token_WHILE:
+		if v.While != nil {
+			v.While(t, While{n})
+		}
+	case rhino.Token_DO:
+		if v.Do != nil {
+			v.Do(t, Do{n})
+		}
+	case rhino.Token_WITH:
+		if v.With != nil {
+			v.With(t, With{n})
+		}
+	case rhino.Token_SWITCH:
+		if v.Switch != nil {
+			v.Switch(t, Switch{n})
+		}
+	case rhino.Token_SWITCH_BODY:
+		if v.SwitchBody != nil {
+			v.SwitchBody(t, SwitchBody{n})
+		}
+	case rhino.Token_CASE:
+		if v.Case != nil {
+			v.Case(t, Case{n})
+		}
+	case rhino.Token_DEFAULT_CASE:
+		if v.DefaultCase != nil {
+			v.DefaultCase(t, DefaultCase{n})
+		}
+	case rhino.Token_TRY:
+		if v.Try != nil {
+			v.Try(t, Try{n})
+		}
+	case rhino.Token_CATCH:
+		if v.Catch != nil {
+			v.Catch(t, Catch{n})
+		}
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+		if v.NameDeclaration != nil {
+			v.NameDeclaration(t, NameDeclaration{n})
+		}
+	case rhino.Token_DESTRUCTURING_LHS:
+		if v.DestructuringLhs != nil {
+			v.DestructuringLhs(t, DestructuringLhs{n})
+		}
+	case rhino.Token_EXPR_RESULT:
+		if v.ExprStmt != nil {
+			v.ExprStmt(t, ExprStmt{n})
+		}
+	case rhino.Token_RETURN:
+		if v.Return != nil {
+			v.Return(t, Return{n})
+		}
+	case rhino.Token_THROW:
+		if v.Throw != nil {
+			v.Throw(t, Throw{n})
+		}
+	case rhino.Token_BREAK:
+		if v.Break != nil {
+			v.Break(t, Break{n})
+		}
+	case rhino.Token_CONTINUE:
+		if v.Continue != nil {
+			v.Continue(t, Continue{n})
+		}
+	case rhino.Token_EMPTY:
+		if v.Empty != nil {
+			v.Empty(t, Empty{n})
+		}
+	case rhino.Token_DEBUGGER:
+		if v.Debugger != nil {
+			v.Debugger(t, Debugger{n})
+		}
+	case rhino.Token_FUNCTION:
+		if v.Function != nil {
+			v.Function(t, Function{n})
+		}
+	case rhino.Token_PARAM_LIST:
+		if v.ParamList != nil {
+			v.ParamList(t, ParamList{n})
+		}
+	case rhino.Token_DEFAULT_VALUE:
+		if v.DefaultValue != nil {
+			v.DefaultValue(t, DefaultValue{n})
+		}
+	case rhino.Token_ITER_REST:
+		if v.IterRest != nil {
+			v.IterRest(t, IterRest{n})
+		}
+	case rhino.Token_OBJECT_REST:
+		if v.ObjectRest != nil {
+			v.ObjectRest(t, ObjectRest{n})
+		}
+	case rhino.Token_ITER_SPREAD:
+		if v.IterSpread != nil {
+			v.IterSpread(t, IterSpread{n})
+		}
+	case rhino.Token_OBJECT_SPREAD:
+		if v.ObjectSpread != nil {
+			v.ObjectSpread(t, ObjectSpread{n})
+		}
+	case rhino.Token_ARRAY_PATTERN:
+		if v.ArrayPattern != nil {
+			v.ArrayPattern(t, ArrayPattern{n})
+		}
+	case rhino.Token_OBJECT_PATTERN:
+		if v.ObjectPattern != nil {
+			v.ObjectPattern(t, ObjectPattern{n})
+		}
+	case rhino.Token_CLASS:
+		if v.Class != nil {
+			v.Class(t, Class{n})
+		}
+	case rhino.Token_CLASS_MEMBERS:
+		if v.ClassBody != nil {
+			v.ClassBody(t, ClassBody{n})
+		}
+	case rhino.Token_MEMBER_FUNCTION_DEF:
+		if v.MemberFunctionDef != nil {
+			v.MemberFunctionDef(t, MemberFunctionDef{n})
+		}
+	case rhino.Token_GETTER_DEF:
+		if v.GetterDef != nil {
+			v.GetterDef(t, GetterDef{n})
+		}
+	case rhino.Token_SETTER_DEF:
+		if v.SetterDef != nil {
+			v.SetterDef(t, SetterDef{n})
+		}
+	case rhino.Token_MEMBER_FIELD_DEF:
+		if v.MemberFieldDef != nil {
+			v.MemberFieldDef(t, MemberFieldDef{n})
+		}
+	case rhino.Token_COMPUTED_FIELD_DEF:
+		if v.ComputedFieldDef != nil {
+			v.ComputedFieldDef(t, ComputedFieldDef{n})
+		}
+	case rhino.Token_COMPUTED_PROP:
+		if v.ComputedProp != nil {
+			v.ComputedProp(t, ComputedProp{n})
+		}
+	case rhino.Token_MEMBER_VARIABLE_DEF:
+		if v.MemberVariableDef != nil {
+			v.MemberVariableDef(t, MemberVariableDef{n})
+		}
+	case rhino.Token_INDEX_SIGNATURE:
+		if v.IndexSignature != nil {
+			v.IndexSignature(t, IndexSignature{n})
+		}
+	case rhino.Token_CALL_SIGNATURE:
+		if v.CallSignature != nil {
+			v.CallSignature(t, CallSignature{n})
+		}
+	case rhino.Token_NAME:
+		if v.Name != nil {
+			v.Name(t, Name{n})
+		}
+	case rhino.Token_THIS:
+		if v.This != nil {
+			v.This(t, This{n})
+		}
+	case rhino.Token_SUPER:
+		if v.Super != nil {
+			v.Super(t, Super{n})
+		}
+	case rhino.Token_TRUE:
+		if v.True != nil {
+			v.True(t, True{n})
+		}
+	case rhino.Token_FALSE:
+		if v.False != nil {
+			v.False(t, False{n})
+		}
+	case rhino.Token_NULL:
+		if v.Null != nil {
+			v.Null(t, Null{n})
+		}
+	case rhino.Token_NEW_TARGET:
+		if v.NewTarget != nil {
+			v.NewTarget(t, NewTarget{n})
+		}
+	case rhino.Token_IMPORT_META:
+		if v.ImportMeta != nil {
+			v.ImportMeta(t, ImportMeta{n})
+		}
+	case rhino.Token_STRINGLIT:
+		if v.StringLit != nil {
+			v.StringLit(t, StringLit{n})
+		}
+	case rhino.Token_NUMBER:
+		if v.Number != nil {
+			v.Number(t, Number{n})
+		}
+	case rhino.Token_BIGINT:
+		if v.BigInt != nil {
+			v.BigInt(t, BigInt{n})
+		}
+	case rhino.Token_REGEXP:
+		if v.RegExp != nil {
+			v.RegExp(t, RegExp{n})
+		}
+	case rhino.Token_TEMPLATELIT:
+		if v.TemplateLit != nil {
+			v.TemplateLit(t, TemplateLit{n})
+		}
+	case rhino.Token_TEMPLATELIT_STRING:
+		if v.TemplateLitString != nil {
+			v.TemplateLitString(t, TemplateLitString{n})
+		}
+	case rhino.Token_TEMPLATELIT_SUB:
+		if v.TemplateLitSub != nil {
+			v.TemplateLitSub(t, TemplateLitSub{n})
+		}
+	case rhino.Token_TAGGED_TEMPLATELIT:
+		if v.TaggedTemplateLit != nil {
+			v.TaggedTemplateLit(t, TaggedTemplateLit{n})
+		}
+	case rhino.Token_ARRAYLIT:
+		if v.ArrayLit != nil {
+			v.ArrayLit(t, ArrayLit{n})
+		}
+	case rhino.Token_OBJECTLIT:
+		if v.ObjectLit != nil {
+			v.ObjectLit(t, ObjectLit{n})
+		}
+	case rhino.Token_STRING_KEY:
+		if v.StringKey != nil {
+			v.StringKey(t, StringKey{n})
+		}
+	case rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT:
+		if v.Unary != nil {
+			v.Unary(t, Unary{n})
+		}
+	case rhino.Token_CAST:
+		if v.Cast != nil {
+			v.Cast(t, Cast{n})
+		}
+	case rhino.Token_DYNAMIC_IMPORT:
+		if v.DynamicImport != nil {
+			v.DynamicImport(t, DynamicImport{n})
+		}
+	case rhino.Token_INC, rhino.Token_DEC:
+		if v.IncDec != nil {
+			v.IncDec(t, IncDec{n})
+		}
+	case rhino.Token_ASSIGN:
+		if v.Assign != nil {
+			v.Assign(t, Assign{n})
+		}
+	case rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
+		if v.AssignOp != nil {
+			v.AssignOp(t, AssignOp{n})
+		}
+	case rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT:
+		if v.Binary != nil {
+			v.Binary(t, Binary{n})
+		}
+	case rhino.Token_HOOK:
+		if v.Hook != nil {
+			v.Hook(t, Hook{n})
+		}
+	case rhino.Token_GETPROP:
+		if v.GetProp != nil {
+			v.GetProp(t, GetProp{n})
+		}
+	case rhino.Token_OPTCHAIN_GETPROP:
+		if v.OptChainGetProp != nil {
+			v.OptChainGetProp(t, OptChainGetProp{n})
+		}
+	case rhino.Token_GETELEM:
+		if v.GetElem != nil {
+			v.GetElem(t, GetElem{n})
+		}
+	case rhino.Token_OPTCHAIN_GETELEM:
+		if v.OptChainGetElem != nil {
+			v.OptChainGetElem(t, OptChainGetElem{n})
+		}
+	case rhino.Token_CALL:
+		if v.Call != nil {
+			v.Call(t, Call{n})
+		}
+	case rhino.Token_OPTCHAIN_CALL:
+		if v.OptChainCall != nil {
+			v.OptChainCall(t, OptChainCall{n})
+		}
+	case rhino.Token_NEW:
+		if v.New != nil {
+			v.New(t, New{n})
+		}
+	case rhino.Token_YIELD:
+		if v.Yield != nil {
+			v.Yield(t, Yield{n})
+		}
+	case rhino.Token_AWAIT:
+		if v.Await != nil {
+			v.Await(t, Await{n})
+		}
+	case rhino.Token_IMPORT:
+		if v.Import != nil {
+			v.Import(t, Import{n})
+		}
+	case rhino.Token_IMPORT_SPECS:
+		if v.ImportSpecs != nil {
+			v.ImportSpecs(t, ImportSpecs{n})
+		}
+	case rhino.Token_IMPORT_SPEC:
+		if v.ImportSpec != nil {
+			v.ImportSpec(t, ImportSpec{n})
+		}
+	case rhino.Token_IMPORT_STAR:
+		if v.ImportStar != nil {
+			v.ImportStar(t, ImportStar{n})
+		}
+	case rhino.Token_EXPORT:
+		if v.Export != nil {
+			v.Export(t, Export{n})
+		}
+	case rhino.Token_EXPORT_SPECS:
+		if v.ExportSpecs != nil {
+			v.ExportSpecs(t, ExportSpecs{n})
+		}
+	case rhino.Token_EXPORT_SPEC:
+		if v.ExportSpec != nil {
+			v.ExportSpec(t, ExportSpec{n})
+		}
+	case rhino.Token_INTERFACE:
+		if v.Interface != nil {
+			v.Interface(t, Interface{n})
+		}
+	case rhino.Token_ENUM:
+		if v.Enum != nil {
+			v.Enum(t, Enum{n})
+		}
+	case rhino.Token_TYPE_ALIAS:
+		if v.TypeAlias != nil {
+			v.TypeAlias(t, TypeAlias{n})
+		}
+	case rhino.Token_DECLARE:
+		if v.Declare != nil {
+			v.Declare(t, Declare{n})
+		}
+	case rhino.Token_NAMESPACE:
+		if v.Namespace != nil {
+			v.Namespace(t, Namespace{n})
+		}
+	}
+}
+
+// Tokens returns the tokens of the kinds v has a handler for.
+func (v *Visitor[T]) Tokens() TokenSet {
+	var s TokenSet
+	if v.Root != nil {
+		s.Add(rhino.Token_ROOT)
+	}
+	if v.Script != nil {
+		s.Add(rhino.Token_SCRIPT)
+	}
+	if v.ModuleBody != nil {
+		s.Add(rhino.Token_MODULE_BODY)
+	}
+	if v.Block != nil {
+		s.Add(rhino.Token_BLOCK)
+	}
+	if v.Label != nil {
+		s.Add(rhino.Token_LABEL)
+	}
+	if v.LabelName != nil {
+		s.Add(rhino.Token_LABEL_NAME)
+	}
+	if v.If != nil {
+		s.Add(rhino.Token_IF)
+	}
+	if v.For != nil {
+		s.Add(rhino.Token_FOR)
+	}
+	if v.ForIn != nil {
+		s.Add(rhino.Token_FOR_IN)
+	}
+	if v.ForOf != nil {
+		s.Add(rhino.Token_FOR_OF)
+	}
+	if v.ForAwaitOf != nil {
+		s.Add(rhino.Token_FOR_AWAIT_OF)
+	}
+	if v.While != nil {
+		s.Add(rhino.Token_WHILE)
+	}
+	if v.Do != nil {
+		s.Add(rhino.Token_DO)
+	}
+	if v.With != nil {
+		s.Add(rhino.Token_WITH)
+	}
+	if v.Switch != nil {
+		s.Add(rhino.Token_SWITCH)
+	}
+	if v.SwitchBody != nil {
+		s.Add(rhino.Token_SWITCH_BODY)
+	}
+	if v.Case != nil {
+		s.Add(rhino.Token_CASE)
+	}
+	if v.DefaultCase != nil {
+		s.Add(rhino.Token_DEFAULT_CASE)
+	}
+	if v.Try != nil {
+		s.Add(rhino.Token_TRY)
+	}
+	if v.Catch != nil {
+		s.Add(rhino.Token_CATCH)
+	}
+	if v.NameDeclaration != nil {
+		s.Add(rhino.Token_VAR)
+		s.Add(rhino.Token_LET)
+		s.Add(rhino.Token_CONST)
+	}
+	if v.DestructuringLhs != nil {
+		s.Add(rhino.Token_DESTRUCTURING_LHS)
+	}
+	if v.ExprStmt != nil {
+		s.Add(rhino.Token_EXPR_RESULT)
+	}
+	if v.Return != nil {
+		s.Add(rhino.Token_RETURN)
+	}
+	if v.Throw != nil {
+		s.Add(rhino.Token_THROW)
+	}
+	if v.Break != nil {
+		s.Add(rhino.Token_BREAK)
+	}
+	if v.Continue != nil {
+		s.Add(rhino.Token_CONTINUE)
+	}
+	if v.Empty != nil {
+		s.Add(rhino.Token_EMPTY)
+	}
+	if v.Debugger != nil {
+		s.Add(rhino.Token_DEBUGGER)
+	}
+	if v.Function != nil {
+		s.Add(rhino.Token_FUNCTION)
+	}
+	if v.ParamList != nil {
+		s.Add(rhino.Token_PARAM_LIST)
+	}
+	if v.DefaultValue != nil {
+		s.Add(rhino.Token_DEFAULT_VALUE)
+	}
+	if v.IterRest != nil {
+		s.Add(rhino.Token_ITER_REST)
+	}
+	if v.ObjectRest != nil {
+		s.Add(rhino.Token_OBJECT_REST)
+	}
+	if v.IterSpread != nil {
+		s.Add(rhino.Token_ITER_SPREAD)
+	}
+	if v.ObjectSpread != nil {
+		s.Add(rhino.Token_OBJECT_SPREAD)
+	}
+	if v.ArrayPattern != nil {
+		s.Add(rhino.Token_ARRAY_PATTERN)
+	}
+	if v.ObjectPattern != nil {
+		s.Add(rhino.Token_OBJECT_PATTERN)
+	}
+	if v.Class != nil {
+		s.Add(rhino.Token_CLASS)
+	}
+	if v.ClassBody != nil {
+		s.Add(rhino.Token_CLASS_MEMBERS)
+	}
+	if v.MemberFunctionDef != nil {
+		s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+	}
+	if v.GetterDef != nil {
+		s.Add(rhino.Token_GETTER_DEF)
+	}
+	if v.SetterDef != nil {
+		s.Add(rhino.Token_SETTER_DEF)
+	}
+	if v.MemberFieldDef != nil {
+		s.Add(rhino.Token_MEMBER_FIELD_DEF)
+	}
+	if v.ComputedFieldDef != nil {
+		s.Add(rhino.Token_COMPUTED_FIELD_DEF)
+	}
+	if v.ComputedProp != nil {
+		s.Add(rhino.Token_COMPUTED_PROP)
+	}
+	if v.MemberVariableDef != nil {
+		s.Add(rhino.Token_MEMBER_VARIABLE_DEF)
+	}
+	if v.IndexSignature != nil {
+		s.Add(rhino.Token_INDEX_SIGNATURE)
+	}
+	if v.CallSignature != nil {
+		s.Add(rhino.Token_CALL_SIGNATURE)
+	}
+	if v.Name != nil {
+		s.Add(rhino.Token_NAME)
+	}
+	if v.This != nil {
+		s.Add(rhino.Token_THIS)
+	}
+	if v.Super != nil {
+		s.Add(rhino.Token_SUPER)
+	}
+	if v.True != nil {
+		s.Add(rhino.Token_TRUE)
+	}
+	if v.False != nil {
+		s.Add(rhino.Token_FALSE)
+	}
+	if v.Null != nil {
+		s.Add(rhino.Token_NULL)
+	}
+	if v.NewTarget != nil {
+		s.Add(rhino.Token_NEW_TARGET)
+	}
+	if v.ImportMeta != nil {
+		s.Add(rhino.Token_IMPORT_META)
+	}
+	if v.StringLit != nil {
+		s.Add(rhino.Token_STRINGLIT)
+	}
+	if v.Number != nil {
+		s.Add(rhino.Token_NUMBER)
+	}
+	if v.BigInt != nil {
+		s.Add(rhino.Token_BIGINT)
+	}
+	if v.RegExp != nil {
+		s.Add(rhino.Token_REGEXP)
+	}
+	if v.TemplateLit != nil {
+		s.Add(rhino.Token_TEMPLATELIT)
+	}
+	if v.TemplateLitString != nil {
+		s.Add(rhino.Token_TEMPLATELIT_STRING)
+	}
+	if v.TemplateLitSub != nil {
+		s.Add(rhino.Token_TEMPLATELIT_SUB)
+	}
+	if v.TaggedTemplateLit != nil {
+		s.Add(rhino.Token_TAGGED_TEMPLATELIT)
+	}
+	if v.ArrayLit != nil {
+		s.Add(rhino.Token_ARRAYLIT)
+	}
+	if v.ObjectLit != nil {
+		s.Add(rhino.Token_OBJECTLIT)
+	}
+	if v.StringKey != nil {
+		s.Add(rhino.Token_STRING_KEY)
+	}
+	if v.Unary != nil {
+		s.Add(rhino.Token_DELPROP)
+		s.Add(rhino.Token_POS)
+		s.Add(rhino.Token_NEG)
+		s.Add(rhino.Token_NOT)
+		s.Add(rhino.Token_TYPEOF)
+		s.Add(rhino.Token_VOID)
+		s.Add(rhino.Token_BITNOT)
+	}
+	if v.Cast != nil {
+		s.Add(rhino.Token_CAST)
+	}
+	if v.DynamicImport != nil {
+		s.Add(rhino.Token_DYNAMIC_IMPORT)
+	}
+	if v.IncDec != nil {
+		s.Add(rhino.Token_INC)
+		s.Add(rhino.Token_DEC)
+	}
+	if v.Assign != nil {
+		s.Add(rhino.Token_ASSIGN)
+	}
+	if v.AssignOp != nil {
+		s.Add(rhino.Token_ASSIGN_BITOR)
+		s.Add(rhino.Token_ASSIGN_BITXOR)
+		s.Add(rhino.Token_ASSIGN_BITAND)
+		s.Add(rhino.Token_ASSIGN_LSH)
+		s.Add(rhino.Token_ASSIGN_RSH)
+		s.Add(rhino.Token_ASSIGN_URSH)
+		s.Add(rhino.Token_ASSIGN_ADD)
+		s.Add(rhino.Token_ASSIGN_SUB)
+		s.Add(rhino.Token_ASSIGN_MUL)
+		s.Add(rhino.Token_ASSIGN_DIV)
+		s.Add(rhino.Token_ASSIGN_MOD)
+		s.Add(rhino.Token_ASSIGN_EXPONENT)
+		s.Add(rhino.Token_ASSIGN_OR)
+		s.Add(rhino.Token_ASSIGN_AND)
+		s.Add(rhino.Token_ASSIGN_COALESCE)
+	}
+	if v.Binary != nil {
+		s.Add(rhino.Token_COMMA)
+		s.Add(rhino.Token_OR)
+		s.Add(rhino.Token_AND)
+		s.Add(rhino.Token_COALESCE)
+		s.Add(rhino.Token_BITOR)
+		s.Add(rhino.Token_BITXOR)
+		s.Add(rhino.Token_BITAND)
+		s.Add(rhino.Token_EQ)
+		s.Add(rhino.Token_NE)
+		s.Add(rhino.Token_SHEQ)
+		s.Add(rhino.Token_SHNE)
+		s.Add(rhino.Token_LT)
+		s.Add(rhino.Token_GT)
+		s.Add(rhino.Token_LE)
+		s.Add(rhino.Token_GE)
+		s.Add(rhino.Token_INSTANCEOF)
+		s.Add(rhino.Token_IN)
+		s.Add(rhino.Token_LSH)
+		s.Add(rhino.Token_RSH)
+		s.Add(rhino.Token_URSH)
+		s.Add(rhino.Token_SUB)
+		s.Add(rhino.Token_ADD)
+		s.Add(rhino.Token_MUL)
+		s.Add(rhino.Token_MOD)
+		s.Add(rhino.Token_DIV)
+		s.Add(rhino.Token_EXPONENT)
+	}
+	if v.Hook != nil {
+		s.Add(rhino.Token_HOOK)
+	}
+	if v.GetProp != nil {
+		s.Add(rhino.Token_GETPROP)
+	}
+	if v.OptChainGetProp != nil {
+		s.Add(rhino.Token_OPTCHAIN_GETPROP)
+	}
+	if v.GetElem != nil {
+		s.Add(rhino.Token_GETELEM)
+	}
+	if v.OptChainGetElem != nil {
+		s.Add(rhino.Token_OPTCHAIN_GETELEM)
+	}
+	if v.Call != nil {
+		s.Add(rhino.Token_CALL)
+	}
+	if v.OptChainCall != nil {
+		s.Add(rhino.Token_OPTCHAIN_CALL)
+	}
+	if v.New != nil {
+		s.Add(rhino.Token_NEW)
+	}
+	if v.Yield != nil {
+		s.Add(rhino.Token_YIELD)
+	}
+	if v.Await != nil {
+		s.Add(rhino.Token_AWAIT)
+	}
+	if v.Import != nil {
+		s.Add(rhino.Token_IMPORT)
+	}
+	if v.ImportSpecs != nil {
+		s.Add(rhino.Token_IMPORT_SPECS)
+	}
+	if v.ImportSpec != nil {
+		s.Add(rhino.Token_IMPORT_SPEC)
+	}
+	if v.ImportStar != nil {
+		s.Add(rhino.Token_IMPORT_STAR)
+	}
+	if v.Export != nil {
+		s.Add(rhino.Token_EXPORT)
+	}
+	if v.ExportSpecs != nil {
+		s.Add(rhino.Token_EXPORT_SPECS)
+	}
+	if v.ExportSpec != nil {
+		s.Add(rhino.Token_EXPORT_SPEC)
+	}
+	if v.Interface != nil {
+		s.Add(rhino.Token_INTERFACE)
+	}
+	if v.Enum != nil {
+		s.Add(rhino.Token_ENUM)
+	}
+	if v.TypeAlias != nil {
+		s.Add(rhino.Token_TYPE_ALIAS)
+	}
+	if v.Declare != nil {
+		s.Add(rhino.Token_DECLARE)
+	}
+	if v.Namespace != nil {
+		s.Add(rhino.Token_NAMESPACE)
+	}
+	return s
+}
+
 // grammarKinds is the grammar's node kinds, for Check.
 var grammarKinds = []kindSpec{
-	{name: "Root", context: false, tokens: []rhino.Token{rhino.Token_ROOT}, children: []childSpec{{"items", "RootItem", list}}},
-	{name: "Script", context: false, tokens: []rhino.Token{rhino.Token_SCRIPT}, children: []childSpec{{"items", "ScriptItem", list}}},
-	{name: "ModuleBody", context: false, tokens: []rhino.Token{rhino.Token_MODULE_BODY}, children: []childSpec{{"statements", "Statement", list}}},
-	{name: "Block", context: false, tokens: []rhino.Token{rhino.Token_BLOCK}, children: []childSpec{{"statements", "Statement", list}}},
-	{name: "Label", context: false, tokens: []rhino.Token{rhino.Token_LABEL}, children: []childSpec{{"name", "LabelName", required}, {"body", "Statement", required}}},
+	{name: "Root", context: false, tokens: []rhino.Token{rhino.Token_ROOT}, children: []childSpec{{role: "items", typ: "RootItem", mode: list}}},
+	{name: "Script", context: false, tokens: []rhino.Token{rhino.Token_SCRIPT}, children: []childSpec{{role: "items", typ: "ScriptItem", mode: list}}},
+	{name: "ModuleBody", context: false, tokens: []rhino.Token{rhino.Token_MODULE_BODY}, children: []childSpec{{role: "statements", typ: "Statement", mode: list}}},
+	{name: "Block", context: false, tokens: []rhino.Token{rhino.Token_BLOCK}, children: []childSpec{{role: "statements", typ: "Statement", mode: list}}},
+	{name: "Label", context: false, tokens: []rhino.Token{rhino.Token_LABEL}, children: []childSpec{{role: "name", typ: "LabelName", mode: required}, {role: "body", typ: "Statement", mode: required}}},
 	{name: "LabelName", context: false, tokens: []rhino.Token{rhino.Token_LABEL_NAME}, children: []childSpec{}},
-	{name: "If", context: false, tokens: []rhino.Token{rhino.Token_IF}, children: []childSpec{{"cond", "Expr", required}, {"then", "Block", required}, {"else", "Block", optional}}},
-	{name: "For", context: false, tokens: []rhino.Token{rhino.Token_FOR}, children: []childSpec{{"init", "ForInit", emptyOr}, {"cond", "Expr", emptyOr}, {"update", "Expr", emptyOr}, {"body", "Block", required}}},
-	{name: "ForIn", context: false, tokens: []rhino.Token{rhino.Token_FOR_IN}, children: []childSpec{{"target", "ForTarget", required}, {"object", "Expr", required}, {"body", "Block", required}}},
-	{name: "ForOf", context: false, tokens: []rhino.Token{rhino.Token_FOR_OF}, children: []childSpec{{"target", "ForTarget", required}, {"iterable", "Expr", required}, {"body", "Block", required}}},
-	{name: "ForAwaitOf", context: false, tokens: []rhino.Token{rhino.Token_FOR_AWAIT_OF}, children: []childSpec{{"target", "ForTarget", required}, {"iterable", "Expr", required}, {"body", "Block", required}}},
-	{name: "While", context: false, tokens: []rhino.Token{rhino.Token_WHILE}, children: []childSpec{{"cond", "Expr", required}, {"body", "Block", required}}},
-	{name: "Do", context: false, tokens: []rhino.Token{rhino.Token_DO}, children: []childSpec{{"body", "Block", required}, {"cond", "Expr", required}}},
-	{name: "With", context: false, tokens: []rhino.Token{rhino.Token_WITH}, children: []childSpec{{"object", "Expr", required}, {"body", "Block", required}}},
-	{name: "Switch", context: false, tokens: []rhino.Token{rhino.Token_SWITCH}, children: []childSpec{{"discriminant", "Expr", required}, {"body", "SwitchBody", required}}},
-	{name: "SwitchBody", context: false, tokens: []rhino.Token{rhino.Token_SWITCH_BODY}, children: []childSpec{{"cases", "SwitchCase", list}}},
-	{name: "Case", context: false, tokens: []rhino.Token{rhino.Token_CASE}, children: []childSpec{{"value", "Expr", required}, {"body", "Block", required}}},
-	{name: "DefaultCase", context: false, tokens: []rhino.Token{rhino.Token_DEFAULT_CASE}, children: []childSpec{{"body", "Block", required}}},
-	{name: "Try", context: false, tokens: []rhino.Token{rhino.Token_TRY}, children: []childSpec{{"body", "Block", required}, {"catches", "TryCatches", required}, {"finally", "Block", optional}}},
-	{name: "TryCatches", context: true, tokens: []rhino.Token{rhino.Token_BLOCK}, children: []childSpec{{"catch", "Catch", optional}}},
-	{name: "Catch", context: false, tokens: []rhino.Token{rhino.Token_CATCH}, children: []childSpec{{"param", "CatchParam", emptyOr}, {"body", "Block", required}}},
-	{name: "NameDeclaration", context: false, tokens: []rhino.Token{rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST}, children: []childSpec{{"declarators", "Declarator", list}}},
-	{name: "DestructuringLhs", context: false, tokens: []rhino.Token{rhino.Token_DESTRUCTURING_LHS}, children: []childSpec{{"pattern", "Pattern", required}, {"init", "Expr", optional}}},
-	{name: "ExprStmt", context: false, tokens: []rhino.Token{rhino.Token_EXPR_RESULT}, children: []childSpec{{"expr", "Expr", required}}},
-	{name: "Return", context: false, tokens: []rhino.Token{rhino.Token_RETURN}, children: []childSpec{{"value", "Expr", optional}}},
-	{name: "Throw", context: false, tokens: []rhino.Token{rhino.Token_THROW}, children: []childSpec{{"value", "Expr", required}}},
-	{name: "Break", context: false, tokens: []rhino.Token{rhino.Token_BREAK}, children: []childSpec{{"label", "LabelName", optional}}},
-	{name: "Continue", context: false, tokens: []rhino.Token{rhino.Token_CONTINUE}, children: []childSpec{{"label", "LabelName", optional}}},
+	{name: "If", context: false, tokens: []rhino.Token{rhino.Token_IF}, children: []childSpec{{role: "cond", typ: "Expr", mode: required}, {role: "then", typ: "Block", mode: required}, {role: "else", typ: "Block", mode: optional}}},
+	{name: "For", context: false, tokens: []rhino.Token{rhino.Token_FOR}, children: []childSpec{{role: "init", typ: "ForInit", mode: emptyOr}, {role: "cond", typ: "Expr", mode: emptyOr}, {role: "update", typ: "Expr", mode: emptyOr}, {role: "body", typ: "Block", mode: required}}},
+	{name: "ForIn", context: false, tokens: []rhino.Token{rhino.Token_FOR_IN}, children: []childSpec{{role: "target", typ: "ForTarget", mode: required}, {role: "object", typ: "Expr", mode: required}, {role: "body", typ: "Block", mode: required}}},
+	{name: "ForOf", context: false, tokens: []rhino.Token{rhino.Token_FOR_OF}, children: []childSpec{{role: "target", typ: "ForTarget", mode: required}, {role: "iterable", typ: "Expr", mode: required}, {role: "body", typ: "Block", mode: required}}},
+	{name: "ForAwaitOf", context: false, tokens: []rhino.Token{rhino.Token_FOR_AWAIT_OF}, children: []childSpec{{role: "target", typ: "ForTarget", mode: required}, {role: "iterable", typ: "Expr", mode: required}, {role: "body", typ: "Block", mode: required}}},
+	{name: "While", context: false, tokens: []rhino.Token{rhino.Token_WHILE}, children: []childSpec{{role: "cond", typ: "Expr", mode: required}, {role: "body", typ: "Block", mode: required}}},
+	{name: "Do", context: false, tokens: []rhino.Token{rhino.Token_DO}, children: []childSpec{{role: "body", typ: "Block", mode: required}, {role: "cond", typ: "Expr", mode: required}}},
+	{name: "With", context: false, tokens: []rhino.Token{rhino.Token_WITH}, children: []childSpec{{role: "object", typ: "Expr", mode: required}, {role: "body", typ: "Block", mode: required}}},
+	{name: "Switch", context: false, tokens: []rhino.Token{rhino.Token_SWITCH}, children: []childSpec{{role: "discriminant", typ: "Expr", mode: required}, {role: "body", typ: "SwitchBody", mode: required}}},
+	{name: "SwitchBody", context: false, tokens: []rhino.Token{rhino.Token_SWITCH_BODY}, children: []childSpec{{role: "cases", typ: "SwitchCase", mode: list}}},
+	{name: "Case", context: false, tokens: []rhino.Token{rhino.Token_CASE}, children: []childSpec{{role: "value", typ: "Expr", mode: required}, {role: "body", typ: "Block", mode: required}}},
+	{name: "DefaultCase", context: false, tokens: []rhino.Token{rhino.Token_DEFAULT_CASE}, children: []childSpec{{role: "body", typ: "Block", mode: required}}},
+	{name: "Try", context: false, tokens: []rhino.Token{rhino.Token_TRY}, children: []childSpec{{role: "body", typ: "Block", mode: required}, {role: "catches", typ: "TryCatches", mode: required}, {role: "finally", typ: "Block", mode: optional}}},
+	{name: "TryCatches", context: true, tokens: []rhino.Token{rhino.Token_BLOCK}, children: []childSpec{{role: "catch", typ: "Catch", mode: optional}}},
+	{name: "Catch", context: false, tokens: []rhino.Token{rhino.Token_CATCH}, children: []childSpec{{role: "param", typ: "CatchParam", mode: emptyOr}, {role: "body", typ: "Block", mode: required}}},
+	{name: "NameDeclaration", context: false, tokens: []rhino.Token{rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST}, children: []childSpec{{role: "declarators", typ: "Declarator", mode: list}}},
+	{name: "DestructuringLhs", context: false, tokens: []rhino.Token{rhino.Token_DESTRUCTURING_LHS}, children: []childSpec{{role: "pattern", typ: "Pattern", mode: required}, {role: "init", typ: "Expr", mode: optional}}},
+	{name: "ExprStmt", context: false, tokens: []rhino.Token{rhino.Token_EXPR_RESULT}, children: []childSpec{{role: "expr", typ: "Expr", mode: required}}},
+	{name: "Return", context: false, tokens: []rhino.Token{rhino.Token_RETURN}, children: []childSpec{{role: "value", typ: "Expr", mode: optional}}},
+	{name: "Throw", context: false, tokens: []rhino.Token{rhino.Token_THROW}, children: []childSpec{{role: "value", typ: "Expr", mode: required}}},
+	{name: "Break", context: false, tokens: []rhino.Token{rhino.Token_BREAK}, children: []childSpec{{role: "label", typ: "LabelName", mode: optional}}},
+	{name: "Continue", context: false, tokens: []rhino.Token{rhino.Token_CONTINUE}, children: []childSpec{{role: "label", typ: "LabelName", mode: optional}}},
 	{name: "Empty", context: false, tokens: []rhino.Token{rhino.Token_EMPTY}, children: []childSpec{}},
 	{name: "Debugger", context: false, tokens: []rhino.Token{rhino.Token_DEBUGGER}, children: []childSpec{}},
-	{name: "Function", context: false, tokens: []rhino.Token{rhino.Token_FUNCTION}, children: []childSpec{{"name", "Name", required}, {"params", "ParamList", required}, {"body", "FunctionBody", required}}},
-	{name: "ParamList", context: false, tokens: []rhino.Token{rhino.Token_PARAM_LIST}, children: []childSpec{{"params", "Param", list}}},
-	{name: "DefaultValue", context: false, tokens: []rhino.Token{rhino.Token_DEFAULT_VALUE}, children: []childSpec{{"target", "Target", required}, {"value", "Expr", required}}},
-	{name: "IterRest", context: false, tokens: []rhino.Token{rhino.Token_ITER_REST}, children: []childSpec{{"target", "Target", required}}},
-	{name: "ObjectRest", context: false, tokens: []rhino.Token{rhino.Token_OBJECT_REST}, children: []childSpec{{"target", "Target", required}}},
-	{name: "IterSpread", context: false, tokens: []rhino.Token{rhino.Token_ITER_SPREAD}, children: []childSpec{{"expr", "Expr", required}}},
-	{name: "ObjectSpread", context: false, tokens: []rhino.Token{rhino.Token_OBJECT_SPREAD}, children: []childSpec{{"expr", "Expr", required}}},
-	{name: "ArrayPattern", context: false, tokens: []rhino.Token{rhino.Token_ARRAY_PATTERN}, children: []childSpec{{"elements", "ArrayPatternElem", list}}},
-	{name: "ObjectPattern", context: false, tokens: []rhino.Token{rhino.Token_OBJECT_PATTERN}, children: []childSpec{{"props", "ObjectPatternProp", list}}},
-	{name: "Class", context: false, tokens: []rhino.Token{rhino.Token_CLASS}, children: []childSpec{{"name", "Name", emptyOr}, {"extends", "Expr", emptyOr}, {"body", "ClassBody", required}}},
-	{name: "ClassBody", context: false, tokens: []rhino.Token{rhino.Token_CLASS_MEMBERS}, children: []childSpec{{"members", "ClassMember", list}}},
-	{name: "MemberFunctionDef", context: false, tokens: []rhino.Token{rhino.Token_MEMBER_FUNCTION_DEF}, children: []childSpec{{"function", "Function", required}}},
-	{name: "GetterDef", context: false, tokens: []rhino.Token{rhino.Token_GETTER_DEF}, children: []childSpec{{"function", "Function", required}}},
-	{name: "SetterDef", context: false, tokens: []rhino.Token{rhino.Token_SETTER_DEF}, children: []childSpec{{"function", "Function", required}}},
-	{name: "MemberFieldDef", context: false, tokens: []rhino.Token{rhino.Token_MEMBER_FIELD_DEF}, children: []childSpec{{"value", "Expr", optional}}},
-	{name: "ComputedFieldDef", context: false, tokens: []rhino.Token{rhino.Token_COMPUTED_FIELD_DEF}, children: []childSpec{{"key", "Expr", required}, {"value", "Expr", optional}}},
-	{name: "ComputedProp", context: false, tokens: []rhino.Token{rhino.Token_COMPUTED_PROP}, children: []childSpec{{"key", "Expr", required}, {"value", "PropValue", optional}}},
+	{name: "Function", context: false, tokens: []rhino.Token{rhino.Token_FUNCTION}, children: []childSpec{{role: "name", typ: "Name", mode: required}, {role: "params", typ: "ParamList", mode: required}, {role: "body", typ: "FunctionBody", mode: required}}},
+	{name: "ParamList", context: false, tokens: []rhino.Token{rhino.Token_PARAM_LIST}, children: []childSpec{{role: "params", typ: "Param", mode: list}}},
+	{name: "DefaultValue", context: false, tokens: []rhino.Token{rhino.Token_DEFAULT_VALUE}, children: []childSpec{{role: "target", typ: "Target", mode: required}, {role: "value", typ: "Expr", mode: required}}},
+	{name: "IterRest", context: false, tokens: []rhino.Token{rhino.Token_ITER_REST}, children: []childSpec{{role: "target", typ: "Target", mode: required}}},
+	{name: "ObjectRest", context: false, tokens: []rhino.Token{rhino.Token_OBJECT_REST}, children: []childSpec{{role: "target", typ: "Target", mode: required}}},
+	{name: "IterSpread", context: false, tokens: []rhino.Token{rhino.Token_ITER_SPREAD}, children: []childSpec{{role: "expr", typ: "Expr", mode: required}}},
+	{name: "ObjectSpread", context: false, tokens: []rhino.Token{rhino.Token_OBJECT_SPREAD}, children: []childSpec{{role: "expr", typ: "Expr", mode: required}}},
+	{name: "ArrayPattern", context: false, tokens: []rhino.Token{rhino.Token_ARRAY_PATTERN}, children: []childSpec{{role: "elements", typ: "ArrayPatternElem", mode: list}}},
+	{name: "ObjectPattern", context: false, tokens: []rhino.Token{rhino.Token_OBJECT_PATTERN}, children: []childSpec{{role: "props", typ: "ObjectPatternProp", mode: list}}},
+	{name: "Class", context: false, tokens: []rhino.Token{rhino.Token_CLASS}, children: []childSpec{{role: "name", typ: "Name", mode: emptyOr}, {role: "extends", typ: "Expr", mode: emptyOr}, {role: "body", typ: "ClassBody", mode: required}}},
+	{name: "ClassBody", context: false, tokens: []rhino.Token{rhino.Token_CLASS_MEMBERS}, children: []childSpec{{role: "members", typ: "ClassMember", mode: list}}},
+	{name: "MemberFunctionDef", context: false, tokens: []rhino.Token{rhino.Token_MEMBER_FUNCTION_DEF}, children: []childSpec{{role: "function", typ: "Function", mode: required}}},
+	{name: "GetterDef", context: false, tokens: []rhino.Token{rhino.Token_GETTER_DEF}, children: []childSpec{{role: "function", typ: "Function", mode: required}}},
+	{name: "SetterDef", context: false, tokens: []rhino.Token{rhino.Token_SETTER_DEF}, children: []childSpec{{role: "function", typ: "Function", mode: required}}},
+	{name: "MemberFieldDef", context: false, tokens: []rhino.Token{rhino.Token_MEMBER_FIELD_DEF}, children: []childSpec{{role: "value", typ: "Expr", mode: optional}}},
+	{name: "ComputedFieldDef", context: false, tokens: []rhino.Token{rhino.Token_COMPUTED_FIELD_DEF}, children: []childSpec{{role: "key", typ: "Expr", mode: required}, {role: "value", typ: "Expr", mode: optional}}},
+	{name: "ComputedProp", context: false, tokens: []rhino.Token{rhino.Token_COMPUTED_PROP}, children: []childSpec{{role: "key", typ: "Expr", mode: required}, {role: "value", typ: "PropValue", mode: optional}}},
 	{name: "MemberVariableDef", context: false, tokens: []rhino.Token{rhino.Token_MEMBER_VARIABLE_DEF}, children: []childSpec{}},
-	{name: "IndexSignature", context: false, tokens: []rhino.Token{rhino.Token_INDEX_SIGNATURE}, children: []childSpec{{"children", "Node", list}}},
-	{name: "CallSignature", context: false, tokens: []rhino.Token{rhino.Token_CALL_SIGNATURE}, children: []childSpec{{"children", "Node", list}}},
-	{name: "Name", context: false, tokens: []rhino.Token{rhino.Token_NAME}, children: []childSpec{{"init", "Expr", optional}}},
+	{name: "IndexSignature", context: false, tokens: []rhino.Token{rhino.Token_INDEX_SIGNATURE}, children: []childSpec{{role: "children", typ: "Node", mode: list}}},
+	{name: "CallSignature", context: false, tokens: []rhino.Token{rhino.Token_CALL_SIGNATURE}, children: []childSpec{{role: "children", typ: "Node", mode: list}}},
+	{name: "Name", context: false, tokens: []rhino.Token{rhino.Token_NAME}, children: []childSpec{{role: "init", typ: "Expr", mode: optional}}},
 	{name: "This", context: false, tokens: []rhino.Token{rhino.Token_THIS}, children: []childSpec{}},
 	{name: "Super", context: false, tokens: []rhino.Token{rhino.Token_SUPER}, children: []childSpec{}},
 	{name: "True", context: false, tokens: []rhino.Token{rhino.Token_TRUE}, children: []childSpec{}},
@@ -7407,43 +8249,43 @@ var grammarKinds = []kindSpec{
 	{name: "StringLit", context: false, tokens: []rhino.Token{rhino.Token_STRINGLIT}, children: []childSpec{}},
 	{name: "Number", context: false, tokens: []rhino.Token{rhino.Token_NUMBER}, children: []childSpec{}},
 	{name: "BigInt", context: false, tokens: []rhino.Token{rhino.Token_BIGINT}, children: []childSpec{}},
-	{name: "RegExp", context: false, tokens: []rhino.Token{rhino.Token_REGEXP}, children: []childSpec{{"pattern", "StringLit", required}, {"flags", "StringLit", optional}}},
-	{name: "TemplateLit", context: false, tokens: []rhino.Token{rhino.Token_TEMPLATELIT}, children: []childSpec{{"parts", "TemplatePart", list}}},
+	{name: "RegExp", context: false, tokens: []rhino.Token{rhino.Token_REGEXP}, children: []childSpec{{role: "pattern", typ: "StringLit", mode: required}, {role: "flags", typ: "StringLit", mode: optional}}},
+	{name: "TemplateLit", context: false, tokens: []rhino.Token{rhino.Token_TEMPLATELIT}, children: []childSpec{{role: "parts", typ: "TemplatePart", mode: list}}},
 	{name: "TemplateLitString", context: false, tokens: []rhino.Token{rhino.Token_TEMPLATELIT_STRING}, children: []childSpec{}},
-	{name: "TemplateLitSub", context: false, tokens: []rhino.Token{rhino.Token_TEMPLATELIT_SUB}, children: []childSpec{{"expr", "Expr", required}}},
-	{name: "TaggedTemplateLit", context: false, tokens: []rhino.Token{rhino.Token_TAGGED_TEMPLATELIT}, children: []childSpec{{"tag", "Expr", required}, {"template", "TemplateLit", required}}},
-	{name: "ArrayLit", context: false, tokens: []rhino.Token{rhino.Token_ARRAYLIT}, children: []childSpec{{"elements", "ArrayElem", list}}},
-	{name: "ObjectLit", context: false, tokens: []rhino.Token{rhino.Token_OBJECTLIT}, children: []childSpec{{"members", "ObjectMember", list}}},
-	{name: "StringKey", context: false, tokens: []rhino.Token{rhino.Token_STRING_KEY}, children: []childSpec{{"value", "PropValue", required}}},
-	{name: "Unary", context: false, tokens: []rhino.Token{rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT}, children: []childSpec{{"operand", "Expr", required}}},
-	{name: "Cast", context: false, tokens: []rhino.Token{rhino.Token_CAST}, children: []childSpec{{"expr", "Expr", required}}},
-	{name: "DynamicImport", context: false, tokens: []rhino.Token{rhino.Token_DYNAMIC_IMPORT}, children: []childSpec{{"specifier", "Expr", required}}},
-	{name: "IncDec", context: false, tokens: []rhino.Token{rhino.Token_INC, rhino.Token_DEC}, children: []childSpec{{"target", "Target", required}}},
-	{name: "Assign", context: false, tokens: []rhino.Token{rhino.Token_ASSIGN}, children: []childSpec{{"target", "Target", required}, {"value", "Expr", required}}},
-	{name: "AssignOp", context: false, tokens: []rhino.Token{rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE}, children: []childSpec{{"target", "Target", required}, {"value", "Expr", required}}},
-	{name: "Binary", context: false, tokens: []rhino.Token{rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT}, children: []childSpec{{"left", "Expr", required}, {"right", "Expr", required}}},
-	{name: "Hook", context: false, tokens: []rhino.Token{rhino.Token_HOOK}, children: []childSpec{{"cond", "Expr", required}, {"then", "Expr", required}, {"else", "Expr", required}}},
-	{name: "GetProp", context: false, tokens: []rhino.Token{rhino.Token_GETPROP}, children: []childSpec{{"object", "Expr", required}}},
-	{name: "OptChainGetProp", context: false, tokens: []rhino.Token{rhino.Token_OPTCHAIN_GETPROP}, children: []childSpec{{"object", "Expr", required}}},
-	{name: "GetElem", context: false, tokens: []rhino.Token{rhino.Token_GETELEM}, children: []childSpec{{"object", "Expr", required}, {"index", "Expr", required}}},
-	{name: "OptChainGetElem", context: false, tokens: []rhino.Token{rhino.Token_OPTCHAIN_GETELEM}, children: []childSpec{{"object", "Expr", required}, {"index", "Expr", required}}},
-	{name: "Call", context: false, tokens: []rhino.Token{rhino.Token_CALL}, children: []childSpec{{"callee", "Expr", required}, {"args", "Arg", list}}},
-	{name: "OptChainCall", context: false, tokens: []rhino.Token{rhino.Token_OPTCHAIN_CALL}, children: []childSpec{{"callee", "Expr", required}, {"args", "Arg", list}}},
-	{name: "New", context: false, tokens: []rhino.Token{rhino.Token_NEW}, children: []childSpec{{"callee", "Expr", required}, {"args", "Arg", list}}},
-	{name: "Yield", context: false, tokens: []rhino.Token{rhino.Token_YIELD}, children: []childSpec{{"value", "Expr", optional}}},
-	{name: "Await", context: false, tokens: []rhino.Token{rhino.Token_AWAIT}, children: []childSpec{{"value", "Expr", required}}},
-	{name: "Import", context: false, tokens: []rhino.Token{rhino.Token_IMPORT}, children: []childSpec{{"default", "Name", emptyOr}, {"bindings", "ImportBindings", emptyOr}, {"source", "StringLit", required}}},
-	{name: "ImportSpecs", context: false, tokens: []rhino.Token{rhino.Token_IMPORT_SPECS}, children: []childSpec{{"specs", "ImportSpec", list}}},
-	{name: "ImportSpec", context: false, tokens: []rhino.Token{rhino.Token_IMPORT_SPEC}, children: []childSpec{{"imported", "Name", required}, {"local", "Name", required}}},
+	{name: "TemplateLitSub", context: false, tokens: []rhino.Token{rhino.Token_TEMPLATELIT_SUB}, children: []childSpec{{role: "expr", typ: "Expr", mode: required}}},
+	{name: "TaggedTemplateLit", context: false, tokens: []rhino.Token{rhino.Token_TAGGED_TEMPLATELIT}, children: []childSpec{{role: "tag", typ: "Expr", mode: required}, {role: "template", typ: "TemplateLit", mode: required}}},
+	{name: "ArrayLit", context: false, tokens: []rhino.Token{rhino.Token_ARRAYLIT}, children: []childSpec{{role: "elements", typ: "ArrayElem", mode: list}}},
+	{name: "ObjectLit", context: false, tokens: []rhino.Token{rhino.Token_OBJECTLIT}, children: []childSpec{{role: "members", typ: "ObjectMember", mode: list}}},
+	{name: "StringKey", context: false, tokens: []rhino.Token{rhino.Token_STRING_KEY}, children: []childSpec{{role: "value", typ: "PropValue", mode: required}}},
+	{name: "Unary", context: false, tokens: []rhino.Token{rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT}, children: []childSpec{{role: "operand", typ: "Expr", mode: required}}},
+	{name: "Cast", context: false, tokens: []rhino.Token{rhino.Token_CAST}, children: []childSpec{{role: "expr", typ: "Expr", mode: required}}},
+	{name: "DynamicImport", context: false, tokens: []rhino.Token{rhino.Token_DYNAMIC_IMPORT}, children: []childSpec{{role: "specifier", typ: "Expr", mode: required}}},
+	{name: "IncDec", context: false, tokens: []rhino.Token{rhino.Token_INC, rhino.Token_DEC}, children: []childSpec{{role: "target", typ: "Target", mode: required}}},
+	{name: "Assign", context: false, tokens: []rhino.Token{rhino.Token_ASSIGN}, children: []childSpec{{role: "target", typ: "Target", mode: required}, {role: "value", typ: "Expr", mode: required}}},
+	{name: "AssignOp", context: false, tokens: []rhino.Token{rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE}, children: []childSpec{{role: "target", typ: "Target", mode: required}, {role: "value", typ: "Expr", mode: required}}},
+	{name: "Binary", context: false, tokens: []rhino.Token{rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT}, children: []childSpec{{role: "left", typ: "Expr", mode: required}, {role: "right", typ: "Expr", mode: required}}},
+	{name: "Hook", context: false, tokens: []rhino.Token{rhino.Token_HOOK}, children: []childSpec{{role: "cond", typ: "Expr", mode: required}, {role: "then", typ: "Expr", mode: required}, {role: "else", typ: "Expr", mode: required}}},
+	{name: "GetProp", context: false, tokens: []rhino.Token{rhino.Token_GETPROP}, children: []childSpec{{role: "object", typ: "Expr", mode: required}}},
+	{name: "OptChainGetProp", context: false, tokens: []rhino.Token{rhino.Token_OPTCHAIN_GETPROP}, children: []childSpec{{role: "object", typ: "Expr", mode: required}}},
+	{name: "GetElem", context: false, tokens: []rhino.Token{rhino.Token_GETELEM}, children: []childSpec{{role: "object", typ: "Expr", mode: required}, {role: "index", typ: "Expr", mode: required}}},
+	{name: "OptChainGetElem", context: false, tokens: []rhino.Token{rhino.Token_OPTCHAIN_GETELEM}, children: []childSpec{{role: "object", typ: "Expr", mode: required}, {role: "index", typ: "Expr", mode: required}}},
+	{name: "Call", context: false, tokens: []rhino.Token{rhino.Token_CALL}, children: []childSpec{{role: "callee", typ: "Expr", mode: required}, {role: "args", typ: "Arg", mode: list}}},
+	{name: "OptChainCall", context: false, tokens: []rhino.Token{rhino.Token_OPTCHAIN_CALL}, children: []childSpec{{role: "callee", typ: "Expr", mode: required}, {role: "args", typ: "Arg", mode: list}}},
+	{name: "New", context: false, tokens: []rhino.Token{rhino.Token_NEW}, children: []childSpec{{role: "callee", typ: "Expr", mode: required}, {role: "args", typ: "Arg", mode: list}}},
+	{name: "Yield", context: false, tokens: []rhino.Token{rhino.Token_YIELD}, children: []childSpec{{role: "value", typ: "Expr", mode: optional}}},
+	{name: "Await", context: false, tokens: []rhino.Token{rhino.Token_AWAIT}, children: []childSpec{{role: "value", typ: "Expr", mode: required}}},
+	{name: "Import", context: false, tokens: []rhino.Token{rhino.Token_IMPORT}, children: []childSpec{{role: "default", typ: "Name", mode: emptyOr}, {role: "bindings", typ: "ImportBindings", mode: emptyOr}, {role: "source", typ: "StringLit", mode: required}}},
+	{name: "ImportSpecs", context: false, tokens: []rhino.Token{rhino.Token_IMPORT_SPECS}, children: []childSpec{{role: "specs", typ: "ImportSpec", mode: list}}},
+	{name: "ImportSpec", context: false, tokens: []rhino.Token{rhino.Token_IMPORT_SPEC}, children: []childSpec{{role: "imported", typ: "Name", mode: required}, {role: "local", typ: "Name", mode: required}}},
 	{name: "ImportStar", context: false, tokens: []rhino.Token{rhino.Token_IMPORT_STAR}, children: []childSpec{}},
-	{name: "Export", context: false, tokens: []rhino.Token{rhino.Token_EXPORT}, children: []childSpec{{"body", "ExportBody", required}, {"source", "StringLit", optional}}},
-	{name: "ExportSpecs", context: false, tokens: []rhino.Token{rhino.Token_EXPORT_SPECS}, children: []childSpec{{"specs", "ExportSpec", list}}},
-	{name: "ExportSpec", context: false, tokens: []rhino.Token{rhino.Token_EXPORT_SPEC}, children: []childSpec{{"local", "Name", required}, {"exported", "Name", required}}},
-	{name: "Interface", context: false, tokens: []rhino.Token{rhino.Token_INTERFACE}, children: []childSpec{{"children", "Node", list}}},
-	{name: "Enum", context: false, tokens: []rhino.Token{rhino.Token_ENUM}, children: []childSpec{{"children", "Node", list}}},
-	{name: "TypeAlias", context: false, tokens: []rhino.Token{rhino.Token_TYPE_ALIAS}, children: []childSpec{{"children", "Node", list}}},
-	{name: "Declare", context: false, tokens: []rhino.Token{rhino.Token_DECLARE}, children: []childSpec{{"children", "Node", list}}},
-	{name: "Namespace", context: false, tokens: []rhino.Token{rhino.Token_NAMESPACE}, children: []childSpec{{"children", "Node", list}}},
+	{name: "Export", context: false, tokens: []rhino.Token{rhino.Token_EXPORT}, children: []childSpec{{role: "body", typ: "ExportBody", mode: required}, {role: "source", typ: "StringLit", mode: optional}}},
+	{name: "ExportSpecs", context: false, tokens: []rhino.Token{rhino.Token_EXPORT_SPECS}, children: []childSpec{{role: "specs", typ: "ExportSpec", mode: list}}},
+	{name: "ExportSpec", context: false, tokens: []rhino.Token{rhino.Token_EXPORT_SPEC}, children: []childSpec{{role: "local", typ: "Name", mode: required}, {role: "exported", typ: "Name", mode: required}}},
+	{name: "Interface", context: false, tokens: []rhino.Token{rhino.Token_INTERFACE}, children: []childSpec{{role: "children", typ: "Node", mode: list}}},
+	{name: "Enum", context: false, tokens: []rhino.Token{rhino.Token_ENUM}, children: []childSpec{{role: "children", typ: "Node", mode: list}}},
+	{name: "TypeAlias", context: false, tokens: []rhino.Token{rhino.Token_TYPE_ALIAS}, children: []childSpec{{role: "children", typ: "Node", mode: list}}},
+	{name: "Declare", context: false, tokens: []rhino.Token{rhino.Token_DECLARE}, children: []childSpec{{role: "children", typ: "Node", mode: list}}},
+	{name: "Namespace", context: false, tokens: []rhino.Token{rhino.Token_NAMESPACE}, children: []childSpec{{role: "children", typ: "Node", mode: list}}},
 }
 
 // grammarCategories maps each category to its kinds, for Check.

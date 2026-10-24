@@ -29,9 +29,10 @@ const (
 )
 
 type childSpec struct {
-	role string
-	typ  string // a kind, a category, or Node
-	mode childMode
+	role    string
+	typ     string // a kind, a category, or Node
+	mode    childMode
+	allowed *allowedKinds // typ, compiled by initSpecs (nil for Node)
 }
 
 type kindSpec struct {
@@ -41,72 +42,70 @@ type kindSpec struct {
 	children []childSpec
 }
 
+// allowedKinds gives, for each token, the kind a node with that token has
+// in a place of some type (nil: not allowed there).
+type allowedKinds [256]*kindSpec
+
 var (
 	specsOnce   sync.Once
-	specByName  map[string]*kindSpec
-	specByToken map[rhino.Token]*kindSpec            // kinds recognized by their token
-	catByToken  map[string]map[rhino.Token]*kindSpec // category -> token -> kind
+	specByToken allowedKinds // kinds recognized by their token alone
 )
 
 func initSpecs() {
 	specsOnce.Do(func() {
-		specByName = map[string]*kindSpec{}
-		specByToken = map[rhino.Token]*kindSpec{}
+		byName := map[string]*kindSpec{}
 		for i := range grammarKinds {
 			k := &grammarKinds[i]
-			specByName[k.name] = k
+			byName[k.name] = k
 			if !k.context {
 				for _, t := range k.tokens {
 					specByToken[t] = k
 				}
 			}
 		}
-		catByToken = map[string]map[rhino.Token]*kindSpec{}
-		for c, kinds := range grammarCategories {
-			m := map[rhino.Token]*kindSpec{}
-			for _, kn := range kinds {
-				for _, t := range specByName[kn].tokens {
-					m[t] = specByName[kn]
-				}
+		types := map[string]*allowedKinds{}
+		allow := func(a *allowedKinds, k *kindSpec) {
+			for _, t := range k.tokens {
+				a[t] = k
 			}
-			catByToken[c] = m
+		}
+		for name, k := range byName {
+			a := &allowedKinds{}
+			allow(a, k)
+			types[name] = a
+		}
+		for c, kinds := range grammarCategories {
+			a := &allowedKinds{}
+			for _, kn := range kinds {
+				allow(a, byName[kn])
+			}
+			types[c] = a
+		}
+		for i := range grammarKinds {
+			for j := range grammarKinds[i].children {
+				ch := &grammarKinds[i].children[j]
+				ch.allowed = types[ch.typ] // nil for Node
+			}
 		}
 	})
 }
 
-// kindFor returns the kind n has as a child of type typ (nil: n is not a
-// typ; typ Node gives nil too, and the caller does not look further).
-func kindFor(n rhino.Node, typ string) (k *kindSpec, ok bool) {
-	if typ == "Node" {
-		return nil, true
+func checkChild(c rhino.Node, s *childSpec, parent *kindSpec, report func(rhino.Node, string)) {
+	if s.allowed == nil {
+		return // Node: anything, not checked further
 	}
-	if m, isCat := catByToken[typ]; isCat {
-		k = m[n.GetToken()]
-		return k, k != nil
-	}
-	k = specByName[typ]
-	for _, t := range k.tokens {
-		if t == n.GetToken() {
-			return k, true
-		}
-	}
-	return nil, false
-}
-
-func checkChild(c rhino.Node, s childSpec, parent *kindSpec, report func(rhino.Node, string)) {
-	k, ok := kindFor(c, s.typ)
-	if !ok {
+	k := s.allowed[c.GetToken()]
+	if k == nil {
 		report(c, fmt.Sprintf("%s.%s is a %s, want %s", parent.name, s.role, c.GetToken(), s.typ))
 		return
 	}
-	if k != nil {
-		checkKind(c, k, report)
-	}
+	checkKind(c, k, report)
 }
 
 func checkKind(n rhino.Node, k *kindSpec, report func(rhino.Node, string)) {
 	c := n.GetFirstChild()
-	for _, s := range k.children {
+	for i := range k.children {
+		s := &k.children[i]
 		switch s.mode {
 		case required:
 			if c == rhino.NilNode {

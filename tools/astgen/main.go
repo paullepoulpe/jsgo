@@ -300,6 +300,7 @@ func generate(g *grammar) []byte {
 		w.category(c)
 	}
 	w.elementNavigation()
+	w.visitor()
 	w.tables()
 	return w.buf.Bytes()
 }
@@ -757,6 +758,48 @@ func (w *gen) elementNavigation() {
 	}
 }
 
+// visitor writes Visitor: a handler per kind, and the dispatch.
+func (w *gen) visitor() {
+	var kinds []*kind
+	for _, k := range w.g.kinds {
+		if !k.context {
+			kinds = append(kinds, k)
+		}
+	}
+	w.p("// Visitor calls, for each node it is given, the handler of the node's kind,")
+	w.p("// if it has one. T is the type of the traversal (jscomp passes")
+	w.p("// *NodeTraversal): see jscomp.NodeTraversal_TraverseVisitor.")
+	w.p("type Visitor[T any] struct {")
+	for _, k := range kinds {
+		w.p("%s func(t T, x %s)", k.name, k.name)
+	}
+	w.p("}")
+	w.p("")
+	w.p("// Visit calls the handler of n's kind, if v has one.")
+	w.p("func (v *Visitor[T]) Visit(t T, n rhino.Node) {")
+	w.p("switch n.GetToken() {")
+	for _, k := range kinds {
+		w.p("case %s:", joinTokens(k.tokens))
+		w.p("if v.%s != nil { v.%s(t, %s{n}) }", k.name, k.name, k.name)
+	}
+	w.p("}")
+	w.p("}")
+	w.p("")
+	w.p("// Tokens returns the tokens of the kinds v has a handler for.")
+	w.p("func (v *Visitor[T]) Tokens() TokenSet {")
+	w.p("var s TokenSet")
+	for _, k := range kinds {
+		w.p("if v.%s != nil {", k.name)
+		for _, t := range k.tokens {
+			w.p("s.Add(%s)", tokenConst(t))
+		}
+		w.p("}")
+	}
+	w.p("return s")
+	w.p("}")
+	w.p("")
+}
+
 // tables writes the grammar as data, for Check (check.go).
 func (w *gen) tables() {
 	modes := map[mode]string{required: "required", optional: "optional", emptyOr: "emptyOr", list: "list"}
@@ -765,7 +808,7 @@ func (w *gen) tables() {
 	for _, k := range w.g.kinds {
 		var ch []string
 		for _, c := range k.children {
-			ch = append(ch, fmt.Sprintf("{%q, %q, %s}", c.role, c.typ, modes[c.mode]))
+			ch = append(ch, fmt.Sprintf("{role: %q, typ: %q, mode: %s}", c.role, c.typ, modes[c.mode]))
 		}
 		w.p("{name: %q, context: %v, tokens: []rhino.Token{%s}, children: []childSpec{%s}},", k.name, k.context, joinTokens(k.tokens), strings.Join(ch, ", "))
 	}
