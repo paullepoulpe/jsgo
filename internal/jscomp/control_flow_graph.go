@@ -265,7 +265,7 @@ func ControlFlowGraph_IsEnteringNewCfgNode(n *rhino.Node) bool {
 		// for(var x = 0; x < 10; x++) { } has a graph that is isomorphic to
 		// var x = 0; while(x<10) {  x++; }
 		return NodeUtil_GetConditionExpression(parent) != n
-	case rhino.Token_FOR_IN:
+	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// TODO(user): Investigate how we should handle the case where
 		// we have a very complex expression inside the FOR-IN header.
 		return n != parent.GetFirstChild()
@@ -386,4 +386,3 @@ func walkCfgNodeBranch[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](n, p
 var (
 	_ ControlFlowGraph[*rhino.Node] = (*ControlFlowGraphBase[*rhino.Node])(nil)
 )
-

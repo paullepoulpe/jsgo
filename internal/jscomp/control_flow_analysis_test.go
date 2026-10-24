@@ -1763,6 +1763,46 @@ alert(action)
 	cfaAssertNoEdge(t, cfg, rhino.Token_BREAK, rhino.Token_BLOCK)
 }
 
+func TestControlFlowAnalysis_TryFinallyDeterminism(t *testing.T) {
+	src := `a: {
+  b: {
+    try {
+      if (x) { break a; } else { break b; }
+    } finally {
+      fin();
+    }
+  }
+  afterB();
+}
+afterA();
+`
+	cfg := cfaTestCreateCfg(t, src, false)
+
+	var finExpr *LinkedDirectedGraph_LinkedDiGraphNode[*rhino.Node, ControlFlowGraph_Branch]
+	for _, n := range cfg.GetLinkedDiGraphNodes() {
+		if n.GetValue() != nil &&
+			n.GetValue().IsExprResult() &&
+			n.GetValue().GetFirstChild().GetFirstChild().MatchesName("fin") {
+			finExpr = n
+			break
+		}
+	}
+	if finExpr == nil {
+		t.Fatal("no fin() node")
+	}
+
+	var onExTargets []string
+	for _, e := range cfg.GetOutEdges(finExpr.GetValue()) {
+		if e.GetValue() == ControlFlowGraph_Branch_ON_EX && e.GetDestination().GetValue() != nil {
+			onExTargets = append(onExTargets, e.GetDestination().GetValue().GetFirstChild().GetFirstChild().GetString())
+		}
+	}
+
+	if want := []string{"afterA", "afterB"}; !slices.Equal(onExTargets, want) {
+		t.Errorf("ON_EX targets %v, want %v", onExTargets, want)
+	}
+}
+
 func TestControlFlowAnalysis_CfgRootedAtEmptyFunctionDeclaration(t *testing.T) {
 	src := "function fn() {}"
 	compiler := NewCompiler()
@@ -1846,4 +1886,39 @@ func TestControlFlowAnalysis_CfgRootedAtClassStaticBlockMultipleStatementAndSubs
 	cfaAssertDownEdge(t, cfg2, rhino.Token_BLOCK, rhino.Token_EXPR_RESULT, ControlFlowGraph_Branch_UNCOND)
 	cfaAssertNoEdge(t, cfg2, rhino.Token_EXPR_RESULT, rhino.Token_MEMBER_FIELD_DEF)
 	cfaAssertReturnEdge(t, cfg2, rhino.Token_EXPR_RESULT)
+}
+
+func TestControlFlowAnalysis_IsEnteringNewCfgNode_enhancedForLoops(t *testing.T) {
+	compiler := NewCompiler()
+
+	check := func(root *rhino.Node, predicate func(*rhino.Node) bool) {
+		t.Helper()
+		loop := cfaFindNodes(t, root, predicate)[0]
+		item := loop.GetFirstChild()
+		collection := item.GetNext()
+		body := collection.GetNext()
+
+		if ControlFlowGraph_IsEnteringNewCfgNode(item) {
+			t.Errorf("%s: item is entering a new CFG node", loop.GetToken())
+		}
+		if !ControlFlowGraph_IsEnteringNewCfgNode(collection) {
+			t.Errorf("%s: collection is not entering a new CFG node", loop.GetToken())
+		}
+		if !ControlFlowGraph_IsEnteringNewCfgNode(body) {
+			t.Errorf("%s: body is not entering a new CFG node", loop.GetToken())
+		}
+	}
+
+	// FOR_IN
+	check(compiler.ParseSyntheticCode("for_in", "for (var item in collection) { body(); }"), (*rhino.Node).IsForIn)
+
+	// FOR_OF
+	check(compiler.ParseSyntheticCode("for_of", "for (var item of collection) { body(); }"), (*rhino.Node).IsForOf)
+
+	// FOR_AWAIT_OF
+	check(
+		compiler.ParseSyntheticCode(
+			"for_await_of",
+			"async function f() { for await (var item of collection) { body(); } }"),
+		(*rhino.Node).IsForAwaitOf)
 }
