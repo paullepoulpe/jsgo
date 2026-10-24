@@ -186,3 +186,27 @@ order to clean it up:
 Each row is its own change with a benchmark before/after and the
 byte-identical gate, so a row whose plain version costs too much can be
 kept with a comment instead.
+
+## 7. This branch vs main after merging main (2026-10-24)
+
+`main` (e6f5f084, includes Round 3A) against this branch with main merged
+(fcf890c9: round 2 + the `nodeAt` inline fix + Round 3A). Linux amd64,
+4 cores, default flags (`--num_parallel_threads` is 1 by default and the
+tasks do not set it), medians of 5 interleaved runs, outputs identical.
+
+| Task | Wall | CPU | Peak RSS |
+|---|---|---|---|
+| typed-app | 3.50 → 3.35 s (−4.3 %) | 3.95 → 3.49 s (−11.6 %) | 179 → 169 MB (−5.6 %) |
+| checks-only | 5.84 → 5.58 s (−4.5 %) | 6.79 → 5.70 s (−16.0 %) | 338 → 303 MB (−10.3 %) |
+| bundle | 11.88 → 10.80 s (−9.1 %) | 13.65 → 11.14 s (−18.4 %) | 276 → 277 MB (0 %) |
+| typed-full | 29.72 → 25.34 s (−14.8 %) | 33.90 → 25.93 s (−23.5 %) | 550 → 460 MB (−16.3 %) |
+
+On this machine the branch is faster as well as smaller, unlike the macOS
+8-core measurement in round2-results.md (+2 to +36 % wall, before the
+inline fix): with 4 cores main's GC work (CPU minus wall: 4 s on
+typed-full, 0.6 s on the branch) competes with the mutator, and the
+`nodeAt` fix recovers ~6 %. The RSS gap is smaller than on macOS
+(typed-full −16 % here vs −49 % there); not investigated yet.
+
+Race check: a `-race` build with `--num_parallel_threads=4` on typed-app
+and bundle reports no race and matches main's serial output.
