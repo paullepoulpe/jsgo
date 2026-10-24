@@ -60,13 +60,6 @@ type CheckAccessControls struct {
 	lastHoistScopeDeprecated bool
 	lastVarNode              *rhino.Node
 	lastVar                  *Var
-	varCache                 [256][2]cacVarCacheEntry
-}
-
-type cacVarCacheEntry struct {
-	scope *Scope
-	name  string
-	v     *Var
 }
 
 var checkAccessControlsActiveToken = func() [256]bool {
@@ -220,7 +213,6 @@ func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
 	defer func() {
 		c.lastVarNode = nil
 		c.lastVar = nil
-		clear(c.varCache[:])
 	}()
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
@@ -231,12 +223,10 @@ func (c *CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
 	c.lastHoistScopeRoot = nil
 	c.lastVarNode = nil
 	c.lastVar = nil
-	clear(c.varCache[:])
 	b.Traverse(externs)
 	c.lastHoistScopeRoot = nil
 	c.lastVarNode = nil
 	c.lastVar = nil
-	clear(c.varCache[:])
 	b.Traverse(root)
 }
 
@@ -244,27 +234,7 @@ func (c *CheckAccessControls) lookupVar(scope *Scope, name string) *Var {
 	if name == "" {
 		return nil
 	}
-	h := uint32(len(name))
-	h = h*31 + uint32(name[0])
-	h = h*31 + uint32(name[len(name)-1])
-	if len(name) > 2 {
-		h = h*31 + uint32(name[len(name)/2])
-	}
-	idx := (h ^ (h >> 8)) & uint32(len(c.varCache)-1)
-	bucket := &c.varCache[idx]
-	if e := &bucket[0]; e.scope == scope && e.name == name {
-		return e.v
-	}
-	if e := &bucket[1]; e.scope == scope && e.name == name {
-		v := e.v
-		*e = bucket[0]
-		bucket[0] = cacVarCacheEntry{scope: scope, name: name, v: v}
-		return v
-	}
-	v := scope.GetVar(name)
-	bucket[1] = bucket[0]
-	bucket[0] = cacVarCacheEntry{scope: scope, name: name, v: v}
-	return v
+	return scope.GetVar(name)
 }
 
 // Java: CheckAccessControls.enterAccessControlScope(Node)

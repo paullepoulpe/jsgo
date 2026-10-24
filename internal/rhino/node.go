@@ -4242,6 +4242,9 @@ func (n *Node) GetQualifiedName() *string {
 // GetQualifiedNameString is the body of GetQualifiedName; ok is false
 // where Java returns null.
 func (n *Node) GetQualifiedNameString() (string, bool) {
+	if n == nil {
+		return "", false
+	}
 	return n.getQualifiedNameString()
 }
 

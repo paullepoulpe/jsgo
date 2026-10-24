@@ -749,12 +749,6 @@ type InlineFunctions_CallVisitor interface {
 	GetInlineFunctions_CallVisitorBase() *InlineFunctions_CallVisitorBase
 }
 
-type ifLookupCacheEntry struct {
-	name  string
-	state *InlineFunctions_FunctionState
-	valid bool
-}
-
 // InlineFunctions_CallVisitorBase holds CallVisitor's fields and its visit.
 type InlineFunctions_CallVisitorBase struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
@@ -762,33 +756,6 @@ type InlineFunctions_CallVisitorBase struct {
 	callback        InlineFunctions_CallVisitorCallback
 	functionMap     *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
 	anonFunctionMap *jutil.LinkedHashMap[*rhino.Node, string]
-	lookupCache     [512]ifLookupCacheEntry
-	lastMissName    string
-	hasLastMiss     bool
-}
-
-func (v *InlineFunctions_CallVisitorBase) lookupFunctionState(name string) *InlineFunctions_FunctionState {
-	if v.hasLastMiss && name == v.lastMissName {
-		return nil
-	}
-	if name != "" {
-		idx := ocCacheIdx(name)
-		if e := &v.lookupCache[idx]; e.valid && e.name == name {
-			if e.state == nil {
-				v.lastMissName = name
-				v.hasLastMiss = true
-			}
-			return e.state
-		}
-		fs := v.functionMap.Get(name)
-		v.lookupCache[idx] = ifLookupCacheEntry{name: name, state: fs, valid: true}
-		if fs == nil {
-			v.lastMissName = name
-			v.hasLastMiss = true
-		}
-		return fs
-	}
-	return v.functionMap.Get(name)
 }
 
 // Java: InlineFunctions.CallVisitor(Map<String, FunctionState>, Map<Node, String>, CallVisitorCallback)
@@ -884,7 +851,7 @@ func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n *rhino.Node,
 		}
 
 		if hasName {
-			functionState := v.lookupFunctionState(name)
+			functionState := v.functionMap.Get(name)
 
 			// Only visit call-sites for functions that can be inlined.
 			if functionState != nil {
@@ -1053,7 +1020,7 @@ func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n *rhino.Node,
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
 	name := n.GetString()
-	if name == "" || (r.hasLastMiss && name == r.lastMissName) {
+	if name == "" {
 		return
 	}
 
@@ -1062,7 +1029,7 @@ func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n *rhino.Node,
 	}
 
 	// Other refs to a function name remove its candidacy for inlining
-	functionState := r.lookupFunctionState(name)
+	functionState := r.functionMap.Get(name)
 	if functionState == nil {
 		return
 	}
@@ -1582,13 +1549,13 @@ func (r *ifPhase2RefCallback) checkNameUsage(n *rhino.Node, parent *rhino.Node) 
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
 	name := n.GetString()
-	if name == "" || (r.hasLastMiss && name == r.lastMissName) {
+	if name == "" {
 		return
 	}
 	if InlineFunctions_IsCandidateUsage(n) {
 		return
 	}
-	functionState := r.lookupFunctionState(name)
+	functionState := r.functionMap.Get(name)
 	if functionState == nil {
 		return
 	}

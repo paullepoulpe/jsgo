@@ -472,11 +472,11 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 	if subclass == nil {
 		return false
 	}
-	subclassName, ok := namespace.qnameStringCached(subclass)
+	subclassName, ok := subclass.GetQualifiedNameString()
 	if !ok {
 		return false
 	}
-	subclassQualifiedPropName := namespace.concatDotCached(subclassName, prop.GetBaseName())
+	subclassQualifiedPropName := subclassName + "." + prop.GetBaseName()
 	subclassPropNameObj, _ := namespace.GetOwnSlot(subclassQualifiedPropName).(*GlobalNamespace_Name)
 	// Don't rewrite if the subclass ever shadows the parent static property.
 	// This may also back off on cases where the subclass first accesses the parent property, then
@@ -811,7 +811,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 		} else {
 			lvalue = aliasParent.GetFirstChild()
 		}
-		lvalueName, ok := namespace.qnameStringCached(lvalue)
+		lvalueName, ok := lvalue.GetQualifiedNameString()
 		if !ok {
 			return
 		}
@@ -1228,9 +1228,6 @@ func inlineAndCollapseProperties_getProperty(
 			}
 		}
 		return nil
-	}
-	if parent.outer != nil {
-		return nameMap.Get(parent.outer.concatDotCached(parent.GetFullName(), propName))
 	}
 	return nameMap.Get(parent.GetFullName() + "." + propName)
 }
@@ -2763,9 +2760,9 @@ func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) Visit(t *No
 func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) VisitAliasDefinition(lhs *rhino.Node, info *rhino.JSDocInfo) {
 	if c.IsDeclaredConst(lhs, info) &&
 		(info == nil || !info.HasTypeInformation()) {
-		if lhsQName, ok := c.outer.namespace.qnameStringCached(lhs); ok {
+		if lhsQName, ok := lhs.GetQualifiedNameString(); ok {
 			rhs := NodeUtil_GetRValueOfLValue(lhs)
-			if rhsQName, ok := c.outer.namespace.qnameStringCached(rhs); ok {
+			if rhsQName, ok := rhs.GetQualifiedNameString(); ok {
 				lhsName, _ := c.outer.namespace.GetOwnSlot(lhsQName).(*GlobalNamespace_Name)
 				rhsName, _ := c.outer.namespace.GetOwnSlot(rhsQName).(*GlobalNamespace_Name)
 				if lhsName != nil &&
@@ -2806,7 +2803,7 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *Node
 		if i.outer.aliases.IsEmpty() {
 			return
 		}
-		qname, ok := i.outer.namespace.qnameStringCached(n)
+		qname, ok := n.GetQualifiedNameString()
 		if ok && i.outer.aliases.ContainsKey(qname) {
 			if i.IsLeftmostNameLocal(t, n) {
 				// The alias is shadowed by a local variable. Don't rewrite.
