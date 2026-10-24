@@ -129,6 +129,7 @@ const IRFactory_UNEXPECTED_YIELD = "yield must be inside generator function"
 const IRFactory_UNEXPECTED_AWAIT = "await must be inside asynchronous function"
 const IRFactory_UNEXPECTED_FOR_AWAIT_OF = "'for-await-of' used in a non-async function context"
 const IRFactory_UNEXPECTED_NEW_DOT_TARGET = "new.target must be inside a function"
+const IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK = "new.target is not supported in class field initializers or static blocks"
 const IRFactory_UNDEFINED_LABEL = "undefined label \"%s\""
 
 var IRFactory_ES5_RESERVED_KEYWORDS = jutil.NewLinkedHashSet(
@@ -630,13 +631,22 @@ func (f *IRFactory) ValidateNewDotTarget(n *rhino.Node) {
 		return
 	}
 
-	parent := n
-	for {
-		parent = parent.GetParent()
-		if parent == nil {
-			break
+	child := n
+	for parent := n.GetParent(); parent != nil; child, parent = parent, parent.GetParent() {
+		// Skip arrow functions, which use the `new.target` of the code around them.
+		if parent.IsFunction() && !parent.IsArrowFunction() {
+			return
 		}
-		if parent.IsFunction() {
+		if parent.IsMemberFieldDef() ||
+			(parent.IsComputedFieldDef() && child.IsSecondChildOf(parent)) ||
+			(parent.IsClassMembers() && child.IsBlock()) {
+			// Class field initializers and static blocks run with no [[NewTarget]], so `new.target` is
+			// always `undefined` there. That is rarely what the code means, so it is an error.
+			f.errorReporter.Error(
+				IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK,
+				f.sourceName,
+				n.GetLineno(),
+				n.GetCharno())
 			return
 		}
 	}
@@ -4372,7 +4382,11 @@ func (f *IRFactory) NormalizeString(token parser.LiteralToken, templateLiteral b
 			var numDigits int
 
 			if cur+1 < len(units) && IRFactory_IsOctalDigit(units[cur+1]) {
-				if cur+2 < len(units) && IRFactory_IsOctalDigit(units[cur+2]) {
+				// A three digit escape is only legal when the leading digit is 0-3; with a leading
+				// digit of 4-7 the value would exceed \377, so only two digits are consumed and the
+				// third octal digit is a literal character (ECMAScript Annex B.1.2
+				// LegacyOctalEscapeSequence).
+				if c <= '3' && cur+2 < len(units) && IRFactory_IsOctalDigit(units[cur+2]) {
 					numDigits = 3
 				} else {
 					numDigits = 2

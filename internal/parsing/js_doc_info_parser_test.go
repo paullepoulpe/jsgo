@@ -3747,9 +3747,10 @@ func TestSuppressMultiline(t *testing.T) {
  * } Auto-added to unblock migration
  */
 `
-	info := jt.parse(jsDocComment /* parseDocumentation= */, true, "malformed @suppress tag")
-	assertThat(t, info.GetSuppressions()).IsEmpty()
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).IsEmpty()
+	info := jt.parse(jsDocComment /* parseDocumentation= */, true)
+	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y", "z"))
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).
+		ContainsExactly(setOf("x", "y", "z"), "Auto-added to unblock migration")
 }
 
 func TestSuppressMultilineWithPipesAndLeadingSeparator(t *testing.T) {
@@ -3760,8 +3761,8 @@ func TestSuppressMultilineWithPipesAndLeadingSeparator(t *testing.T) {
  *   , z}
  */
 `
-	info := jt.parse(jsDocComment, "malformed @suppress tag")
-	assertThat(t, info).IsNull()
+	info := jt.parse(jsDocComment)
+	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y", "z"))
 }
 
 func TestJsDocAfterSuppress(t *testing.T) {
