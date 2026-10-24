@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/graph/LatticeElement.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/graph/LatticeElement.java @ closure-compiler v20261021
 
 /*
  * Copyright 2010 The Closure Compiler Authors.

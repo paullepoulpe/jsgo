@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/resources/ResourceLoader.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/resources/ResourceLoader.java @ closure-compiler v20261021
 
 /*
  * Copyright 2015 The Closure Compiler Authors.

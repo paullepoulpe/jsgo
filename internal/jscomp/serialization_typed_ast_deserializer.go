@@ -1,5 +1,5 @@
 // Port of com/google/javascript/jscomp/serialization/TypedAstDeserializer.java (with the
-// AutoValue-generated AutoValue_TypedAstDeserializer_DeserializedAst.java) @ closure-compiler v20261015
+// AutoValue-generated AutoValue_TypedAstDeserializer_DeserializedAst.java) @ closure-compiler v20261021
 
 /*
  * Copyright 2021 The Closure Compiler Authors.

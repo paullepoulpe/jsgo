@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/base/JSCompObjects.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/base/JSCompObjects.java @ closure-compiler v20261021
 
 /*
  * Copyright 2020 The Closure Compiler Authors.

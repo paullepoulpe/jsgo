@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/StaticRef.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/StaticRef.java @ closure-compiler v20261021
 
 /*
  *

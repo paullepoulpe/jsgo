@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodingConvention.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CodingConvention.java @ closure-compiler v20261021
 // (with com/google/javascript/jscomp/AutoValue_CodingConvention_AssertionFunctionSpec.java
 // folded in)
 

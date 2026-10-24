@@ -1,7 +1,7 @@
 # Porting conventions
 
 This is the contract for translating Closure Compiler (Java, pinned at
-**v20261015**, see `tools/oracle/pin.env`) into Go. Every ported file
+**v20261021**, see `tools/oracle/pin.env`) into Go. Every ported file
 follows it, so that files ported independently (by different people or
 agents, in parallel) fit together without negotiation, and so that a Java
 reader can find any Go symbol mechanically.
@@ -84,7 +84,7 @@ List each such file in `NOTICE`. `go run ./tools/licenses -check`, run by
   forward-declared.
 - Each file starts with:
   ```go
-  // Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261015
+  // Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261021
   ```
 - Every Go function carries a `// Java: <Class>.<method>(<param types>)`
   line in its doc comment, which makes overload mapping greppable. Java doc

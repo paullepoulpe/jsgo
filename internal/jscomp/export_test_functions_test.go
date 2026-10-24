@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ExportTestFunctionsTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/ExportTestFunctionsTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/ExportTestFunctionsTest.java)
 
 /*

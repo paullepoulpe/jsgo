@@ -412,7 +412,6 @@ public final class CoreG3Dump {
     boolOp("setPreferSingleQuotes", CompilerOptions::setPreferSingleQuotes);
     boolOp("setQuoteKeywordProperties", CompilerOptions::setQuoteKeywordProperties);
     boolOp("setAssumeStrictThis", CompilerOptions::setAssumeStrictThis);
-    boolOp("setAssumeClosuresOnlyCaptureReferences", CompilerOptions::setAssumeClosuresOnlyCaptureReferences);
     boolOp("setProtectHiddenSideEffects", CompilerOptions::setProtectHiddenSideEffects);
     boolOp("setAssumeGettersArePure", CompilerOptions::setAssumeGettersArePure);
     op(

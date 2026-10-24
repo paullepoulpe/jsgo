@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6ConvertSuper.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/Es6ConvertSuper.java @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

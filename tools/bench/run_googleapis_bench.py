@@ -107,7 +107,7 @@ def main() -> None:
     )
     ap.add_argument(
         "--java-jar",
-        default=os.path.join(ROOT_DIR, ".cache", "closure-compiler-v20261015-maven.jar"),
+        default=os.path.join(ROOT_DIR, ".cache", "closure-compiler-v20261021-maven.jar"),
         help="Path to Java Closure Compiler jar",
     )
     ap.add_argument(

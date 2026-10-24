@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/parser/TokenType.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/parsing/parser/TokenType.java @ closure-compiler v20261021
 
 /*
  * Copyright 2011 The Closure Compiler Authors.

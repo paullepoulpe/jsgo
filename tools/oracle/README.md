@@ -1,13 +1,13 @@
 # Oracle tooling
 
-The pinned Java Closure Compiler (v20261015) is the specification. These tools
+The pinned Java Closure Compiler (v20261021) is the specification. These tools
 extract ground truth from it, layer by layer, for any JavaScript input, so the
 Go port can be diffed against Java on arbitrarily large corpora instead of a
 fixed set of hand-picked fixtures.
 
 The release and its jar are named in one place, [`pin.env`](pin.env):
 `CLOSURE_VERSION`, `CLOSURE_JAR` (the jar's file name in `.cache/`, today
-`closure-compiler-v20261015-maven.jar`), and the sha256 digests the jar and
+`closure-compiler-v20261021-maven.jar`), and the sha256 digests the jar and
 the sources jar must have.
 `fetch.sh`, `build.sh`, `xtb_oracle.sh`, `tools/clie2e` (`build-java.sh` and
 the `-jar` default) and `tools/bench/bench.py` all read it.
