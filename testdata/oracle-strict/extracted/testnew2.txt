@@ -1,4 +1,4 @@
-testdata/fixtures/extracted/testnew2.js:1:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable Math declared more than once. First occurrence: externs.zip//es3.js:1308:4
+testdata/fixtures/extracted/testnew2.js:1:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable Math declared more than once. First occurrence: externs.zip//es3.js:1279:4
   1| var Math = {}; new Math()
          ^^^^^^^^^
 

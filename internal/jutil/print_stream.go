@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 	"unicode/utf8"
-	"unsafe"
 )
 
 // Go-only: language-adapter — java.io.PrintStream over a Go io.Writer,
@@ -24,13 +23,13 @@ func NewPrintStream(out io.Writer) *PrintStream {
 }
 
 func (p *PrintStream) write(s string) {
-	var b []byte
 	if utf8.ValidString(s) {
-		b = unsafe.Slice(unsafe.StringData(s), len(s))
-	} else {
-		b = StringGetBytesUTF8(s)
+		if _, err := io.WriteString(p.out, s); err != nil {
+			p.errorOccurred = true
+		}
+		return
 	}
-	if _, err := p.out.Write(b); err != nil {
+	if _, err := p.out.Write(StringGetBytesUTF8(s)); err != nil {
 		p.errorOccurred = true
 	}
 }

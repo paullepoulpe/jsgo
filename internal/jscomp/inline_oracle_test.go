@@ -93,7 +93,6 @@ func inlineOracleNewPass(name string, c *Compiler) CompilerPass {
 			c.GetUniqueNameIdSupplier(),
 			CompilerOptions_Reach_ALL,
 			/* assumeStrictThis= */ false,
-			/* assumeMinimumCapture= */ false,
 			CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING)
 	case "collapse-all":
 		return InlineAndCollapseProperties_Builder_(c).
@@ -373,7 +372,7 @@ func TestInlineGolden(t *testing.T) {
 	if n := inlineOracleCompare(t, golden, jsDir, func(rel string) bool { return hand[rel] }); n != len(hand) {
 		t.Errorf("compared %d hand-written files, want %d", n, len(hand))
 	}
-	corpus := "/home/user/jsgo/.cache/corpus"
+	corpus := oracleTestCorpusRoot(t)
 	if _, err := os.Stat(corpus); err != nil {
 		t.Logf("corpus not present; golden corpus files skipped")
 		return
@@ -388,7 +387,7 @@ func TestInlineOracle(t *testing.T) {
 	}
 	root := os.Getenv("INLINE_ROOT")
 	if root == "" {
-		root = "/home/user/jsgo/.cache/corpus"
+		root = oracleTestCorpusRoot(t)
 	}
 	n := inlineOracleCompare(t, dump, root, nil)
 	t.Logf("compared %d files", n)

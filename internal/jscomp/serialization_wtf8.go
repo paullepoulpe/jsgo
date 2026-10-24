@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/Wtf8.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/serialization/Wtf8.java @ closure-compiler v20261021
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -20,9 +20,9 @@ package jscomp
 
 import (
 	"strconv"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // Wtf8 is an encoder/decoder into https://simonsapin.github.io/wtf-8/
@@ -92,24 +92,6 @@ func Wtf8_Decoder_(maxLength int) *Wtf8_Decoder {
 type Wtf8_Decoder struct {
 	codepointBuffer []int32
 	unitBuffer      []uint16
-	byteSlab        []byte
-}
-
-func (d *Wtf8_Decoder) allocASCIIString(b []byte) string {
-	n := len(b)
-	if n == 0 {
-		return ""
-	}
-	if n > 4096 {
-		return string(b)
-	}
-	if len(d.byteSlab) < n {
-		d.byteSlab = make([]byte, 32760)
-	}
-	buf := d.byteSlab[:n]
-	d.byteSlab = d.byteSlab[n:]
-	copy(buf, b)
-	return unsafe.String(&buf[0], n)
 }
 
 func newWtf8_Decoder(maxLength int) *Wtf8_Decoder {
@@ -127,12 +109,9 @@ func newWtf8_Decoder(maxLength int) *Wtf8_Decoder {
 
 func wtf8_isASCIIBytes(b []byte) bool {
 	i := 0
-	if len(b) >= 8 {
-		p := unsafe.Pointer(unsafe.SliceData(b))
-		for ; i+8 <= len(b); i += 8 {
-			if *(*uint64)(unsafe.Add(p, i))&0x8080808080808080 != 0 {
-				return false
-			}
+	for ; i+8 <= len(b); i += 8 {
+		if (b[i]|b[i+1]|b[i+2]|b[i+3]|b[i+4]|b[i+5]|b[i+6]|b[i+7])&0x80 != 0 {
+			return false
 		}
 	}
 	for ; i < len(b); i++ {
@@ -151,24 +130,19 @@ func wtf8_byteAt(encoded []byte, i int) int32 {
 	return int32(int8(encoded[i]))
 }
 
-// DecodeView decodes encoded WTF8 bytes into a string, returning a zero-copy
-// string view over encoded when it is pure ASCII within maxLength.
-func (d *Wtf8_Decoder) DecodeView(encoded []byte) string {
-	encodedByteCount := len(encoded)
-	if encodedByteCount <= len(d.codepointBuffer) && wtf8_isASCIIBytes(encoded) {
-		if encodedByteCount == 0 {
-			return ""
-		}
-		return unsafe.String(unsafe.SliceData(encoded), encodedByteCount)
+// DecodeInternID decodes encoded WTF8 bytes and returns their interned RhinoStringPool ID.
+func (d *Wtf8_Decoder) DecodeInternID(encoded []byte) uint32 {
+	if len(encoded) <= len(d.codepointBuffer) && wtf8_isASCIIBytes(encoded) {
+		return rhino.RhinoStringPool_InternBytesID(encoded)
 	}
-	return d.Decode(encoded)
+	return rhino.RhinoStringPool_InternID(d.Decode(encoded))
 }
 
 // Java: Wtf8.Decoder.decode(ByteString)
 func (d *Wtf8_Decoder) Decode(encoded []byte) string {
 	encodedByteCount := len(encoded)
 	if encodedByteCount <= len(d.codepointBuffer) && wtf8_isASCIIBytes(encoded) {
-		return d.allocASCIIString(encoded)
+		return string(encoded)
 	}
 	codepointCount := 0
 

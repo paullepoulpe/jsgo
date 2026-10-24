@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CommandLineRunnerTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CommandLineRunnerTest.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -1886,6 +1886,24 @@ func (c *CommandLineRunnerTest) TestES5StrictUseStrictMultipleInputs() {
 	outputSource := compiler.ToSource()
 	AssertThat(outputSource).StartsWith("'use strict'")
 	AssertThat(jutil.StringSubstringFrom(outputSource, 13)).DoesNotContain("'use strict'")
+}
+
+func (c *CommandLineRunnerTest) TestEs5OutputRunsClassCodeInSloppyMode() {
+	// Won't fix (b/573608886): class code is strict mode code, so natively `this.ro = 2` throws a
+	// TypeError, because `ro` only has a getter. With --language_out=ECMASCRIPT5, unlike
+	// ECMASCRIPT5_STRICT, the output has no 'use strict', so the transpiled class code runs in
+	// sloppy mode and the write is silently ignored. We decided not to change this, since the
+	// compiler isn't required to preserve errors in code that is already broken.
+	c.argsAdd("--language_in=ECMASCRIPT_2015")
+	c.argsAdd("--language_out=ECMASCRIPT5")
+	compiler :=
+		c.compile(
+			[]string{
+				"class C { get ro() { return 1; } write() { this.ro = 2; } } new C().write();",
+			})
+	outputSource := compiler.ToSource()
+	AssertThat(outputSource).DoesNotContain("use strict")
+	AssertThat(outputSource).Contains("this.ro=2")
 }
 
 func (c *CommandLineRunnerTest) TestWithKeywordWithEs5ChecksOff() {

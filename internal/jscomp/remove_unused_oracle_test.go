@@ -604,7 +604,7 @@ func TestRemoveUnusedGolden(t *testing.T) {
 	if n := removeUnusedOracleCompare(t, golden, handRoot, func(rel string) bool { return hand[rel] }); n != len(hand) {
 		t.Errorf("compared %d hand-written files, want %d", n, len(hand))
 	}
-	corpus := "/home/user/jsgo/.cache/corpus"
+	corpus := oracleTestCorpusRoot(t)
 	if _, err := os.Stat(corpus); err != nil {
 		t.Logf("corpus not present; golden corpus files skipped")
 		return
@@ -619,7 +619,7 @@ func TestRemoveUnusedOracle(t *testing.T) {
 	}
 	root := os.Getenv("REMOVE_UNUSED_ROOT")
 	if root == "" {
-		root = "/home/user/jsgo/.cache/corpus"
+		root = oracleTestCorpusRoot(t)
 	}
 	n := removeUnusedOracleCompare(t, dump, func(string) string { return root }, nil)
 	t.Logf("compared %d files", n)

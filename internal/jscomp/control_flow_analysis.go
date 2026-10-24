@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ControlFlowAnalysis.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/ControlFlowAnalysis.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -108,11 +108,7 @@ type ControlFlowAnalysis struct {
 	//	foo() -> bar()
 	//	bar() -> END
 	//
-	// Go-only: language-adapter — Java HashMap order: a HashMultimap keyed by
-	// Nodes, which hash by identity, so Java iterates the values of a key
-	// (the ON_EX edges created when leaving a FINALLY block) in an order that
-	// differs from run to run. The port iterates them in insertion order
-	// (like IdentityHashMap → LinkedHashMap, PORTING.md §6).
+	// A LinkedHashMultimap: the values of a key iterate in insertion order.
 	finallyMap *jutil.SetMultimap[rhino.Node, rhino.Node]
 }
 

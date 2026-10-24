@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/SymbolTableTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/SymbolTableTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/SymbolTableTest.java)
 
 /*
@@ -1983,6 +1983,58 @@ func (c *SymbolTableTest) GetVars(table *SymbolTable) []*SymbolTable_Symbol {
 		}
 	}
 	return result
+}
+
+// Java: SymbolTableTest.testDeterministicSymbolOrdering()
+func (c *SymbolTableTest) TestDeterministicSymbolOrdering() {
+	table := c.CreateSymbolTable(
+		`function f1() { var x = 1; }
+function f2() { var x = 2; }
+function f3() { var x = 3; }
+var x = 4;
+`)
+
+	// We have four symbols named "x".
+	// 1 global "x"
+	// 3 local "x"
+
+	// We expect them to be sorted by scope depth, then by name, then by declaration node.
+	allSorted := table.GetAllSymbolsSorted()
+	xSymbols := []*SymbolTable_Symbol{}
+	for _, s := range allSorted {
+		if s.GetName() == "x" {
+			xSymbols = append(xSymbols, s)
+		}
+	}
+
+	AssertThat(xSymbols).HasSize(4)
+
+	// Global x is at depth 0
+	AssertThat(xSymbols[0].GetDeclarationNode().GetLineno()).IsEqualTo(4)
+	// f1's x
+	AssertThat(xSymbols[1].GetDeclarationNode().GetLineno()).IsEqualTo(1)
+	// f2's x
+	AssertThat(xSymbols[2].GetDeclarationNode().GetLineno()).IsEqualTo(2)
+	// f3's x
+	AssertThat(xSymbols[3].GetDeclarationNode().GetLineno()).IsEqualTo(3)
+
+	// getAllSymbols() should also be deterministic now (it iterates values() which comes from
+	// LinkedHashMap).
+	// The exact insertion order into `symbols` depends on the traversal order.
+	// In our traversal, we traverse line 1, then line 2, then line 3, then line 4.
+	allIterated := table.GetAllSymbols()
+	xIterated := []*SymbolTable_Symbol{}
+	for _, s := range allIterated {
+		if s.GetName() == "x" {
+			xIterated = append(xIterated, s)
+		}
+	}
+
+	AssertThat(xIterated).HasSize(4)
+	AssertThat(xIterated[0].GetDeclarationNode().GetLineno()).IsEqualTo(4)
+	AssertThat(xIterated[1].GetDeclarationNode().GetLineno()).IsEqualTo(1)
+	AssertThat(xIterated[2].GetDeclarationNode().GetLineno()).IsEqualTo(2)
+	AssertThat(xIterated[3].GetDeclarationNode().GetLineno()).IsEqualTo(3)
 }
 
 // Java: SymbolTableTest.createSymbolTableWithDefaultExterns(String)

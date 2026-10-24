@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/TypedAstSerializer.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/serialization/TypedAstSerializer.java @ closure-compiler v20261021
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -97,7 +95,7 @@ func (s *TypedAstSerializer) resetScriptSlabs() {
 }
 
 func (s *TypedAstSerializer) allocAstNode() *AstNode {
-	const chunkSize = jscompMaxSmallAlloc / int(unsafe.Sizeof(AstNode{}))
+	const chunkSize = 256
 	if s.nodeSlabIdx >= len(s.nodeSlabs) {
 		s.nodeSlabs = append(s.nodeSlabs, make([]AstNode, chunkSize))
 	}
@@ -117,7 +115,7 @@ func (s *TypedAstSerializer) allocAstNode() *AstNode {
 }
 
 func (s *TypedAstSerializer) allocChildren(children []*AstNode) []*AstNode {
-	const chunkSize = jscompMaxSmallAlloc / int(unsafe.Sizeof((*AstNode)(nil)))
+	const chunkSize = 4096
 	n := len(children)
 	if n == 0 {
 		return nil
@@ -142,7 +140,7 @@ func (s *TypedAstSerializer) allocChildren(children []*AstNode) []*AstNode {
 }
 
 func (s *TypedAstSerializer) allocJsdoc(src OptimizationJsdoc) *OptimizationJsdoc {
-	const chunkSize = jscompMaxSmallAlloc / int(unsafe.Sizeof(OptimizationJsdoc{}))
+	const chunkSize = 512
 	if s.jsdocSlabIdx >= len(s.jsdocSlabs) {
 		s.jsdocSlabs = append(s.jsdocSlabs, make([]OptimizationJsdoc, chunkSize))
 	}

@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/CompilerOptionsTest.java @ closure-compiler v20261015
+// Port of test/com/google/javascript/jscomp/CompilerOptionsTest.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -220,4 +220,28 @@ func TestCompilerOptions_TranspilePublicClassFields(t *testing.T) {
 	if !options.GetOutputFeatureSet().Has(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS) {
 		t.Error("getOutputFeatureSet().has(PUBLIC_CLASS_FIELDS): got false, want true")
 	}
+}
+
+// Java: CompilerOptionsTest.testRequiresTypesForOptimization()
+func TestCompilerOptions_RequiresTypesForOptimization(t *testing.T) {
+	options := NewCompilerOptions()
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), false)
+
+	options.SetClosurePass(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), false)
+
+	options.SetClosurePass(false)
+	options.SetRemoveClosureAsserts(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), false)
+
+	options.SetRemoveClosureAsserts(false)
+	options.SetRemoveAbstractMethods(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), false)
+
+	options.SetClosurePass(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), true)
+
+	options.SetRemoveAbstractMethods(false)
+	options.SetRemoveClosureAsserts(true)
+	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), true)
 }

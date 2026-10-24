@@ -93,7 +93,6 @@ func (c *Compiler) compactAST(after string, externs, root *rhino.Node, extra fun
 	c.forwardASTHolders(k.Mark, externs, root, extra)
 	k.Slide()
 	c.forwardASTHolders(k.Forward, externs, root, extra)
-	c.evictPassArenaCaches() // Go-only caches that may hold nodes
 	k.Finish()
 
 	a.count++
@@ -113,10 +112,10 @@ func (c *Compiler) forwardASTHolders(fwd func(rhino.Node) rhino.Node, externs, r
 	c.externAndJsRoot = fwd(c.externAndJsRoot)
 	c.externsRoot = fwd(c.externsRoot)
 	c.jsRoot = fwd(c.jsRoot)
-	if externs != nil {
+	if !externs.IsNil() {
 		*externs = fwd(*externs)
 	}
-	if root != nil {
+	if !root.IsNil() {
 		*root = fwd(*root)
 	}
 	for _, name := range c.scriptNodeByFilename.KeySlice() {

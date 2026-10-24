@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AnalyzePrototypeProperties.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/AnalyzePrototypeProperties.java @ closure-compiler v20261021
 
 /*
  * Copyright 2006 The Closure Compiler Authors.
@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -69,10 +67,9 @@ type AnalyzePrototypeProperties struct {
 
 	scopeCreator *SyntacticScopeCreator
 
-	nameInfoChunks [][]AnalyzePrototypeProperties_NameInfo
-	nameInfoIdx    int
-	globalFuncSlab []AnalyzePrototypeProperties_GlobalFunction
-	assignPropSlab []AnalyzePrototypeProperties_AssignmentPrototypeProperty
+	nameInfoSlab   jutil.Slab[AnalyzePrototypeProperties_NameInfo]
+	globalFuncSlab jutil.Slab[AnalyzePrototypeProperties_GlobalFunction]
+	assignPropSlab jutil.Slab[AnalyzePrototypeProperties_AssignmentPrototypeProperty]
 	edgeSlab       []analyzeProtoPropEdge
 }
 
@@ -81,22 +78,14 @@ func (a *AnalyzePrototypeProperties) allocGlobalFunction(nameNode rhino.Node, va
 	jutil.CheckState(
 		(NodeUtil_IsNameDeclaration(parent) && var_.IsGlobal()) ||
 			NodeUtil_IsFunctionDeclaration(parent))
-	if len(a.globalFuncSlab) == 0 {
-		a.globalFuncSlab = make([]AnalyzePrototypeProperties_GlobalFunction, jscompMaxSmallAlloc/int(unsafe.Sizeof(AnalyzePrototypeProperties_GlobalFunction{})))
-	}
-	g := &a.globalFuncSlab[0]
-	a.globalFuncSlab = a.globalFuncSlab[1:]
+	g := a.globalFuncSlab.New()
 	g.var_ = var_
 	g.chunk = chunk
 	return g
 }
 
 func (a *AnalyzePrototypeProperties) allocAssignmentPrototypeProperty(node rhino.Node, rootVar *Var, chunk *JSChunk) *AnalyzePrototypeProperties_AssignmentPrototypeProperty {
-	if len(a.assignPropSlab) == 0 {
-		a.assignPropSlab = make([]AnalyzePrototypeProperties_AssignmentPrototypeProperty, jscompMaxSmallAlloc/int(unsafe.Sizeof(AnalyzePrototypeProperties_AssignmentPrototypeProperty{})))
-	}
-	p := &a.assignPropSlab[0]
-	a.assignPropSlab = a.assignPropSlab[1:]
+	p := a.assignPropSlab.New()
 	p.exprNode = node
 	p.rootVar = rootVar
 	p.chunk = chunk
@@ -104,20 +93,7 @@ func (a *AnalyzePrototypeProperties) allocAssignmentPrototypeProperty(node rhino
 }
 
 func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototypeProperties_NameInfo {
-	if len(a.nameInfoChunks) == 0 || a.nameInfoIdx == len(a.nameInfoChunks[len(a.nameInfoChunks)-1]) {
-		nextCap := 64
-		if len(a.nameInfoChunks) > 0 {
-			nextCap = len(a.nameInfoChunks[len(a.nameInfoChunks)-1]) * 2
-			if nextCap > 112 {
-				nextCap = 112
-			}
-		}
-		a.nameInfoChunks = append(a.nameInfoChunks, make([]AnalyzePrototypeProperties_NameInfo, nextCap))
-		a.nameInfoIdx = 0
-	}
-	chunk := a.nameInfoChunks[len(a.nameInfoChunks)-1]
-	info := &chunk[a.nameInfoIdx]
-	a.nameInfoIdx++
+	info := a.nameInfoSlab.New()
 	info.outer = a
 	info.name = name
 	info.declarations.InitWithBuffer(info.declBuf[:])
@@ -164,7 +140,7 @@ func (a *AnalyzePrototypeProperties) connectSymbolNodes(src *AnalyzePrototypePro
 		newCap := max(cap(src.outEdges)*2, 8)
 		if newCap <= 256 {
 			if len(a.edgeSlab) < newCap {
-				a.edgeSlab = make([]analyzeProtoPropEdge, jscompMaxSmallAlloc/int(unsafe.Sizeof(analyzeProtoPropEdge{})))
+				a.edgeSlab = make([]analyzeProtoPropEdge, 1024)
 			}
 			newBuf := a.edgeSlab[:len(src.outEdges):newCap]
 			a.edgeSlab = a.edgeSlab[newCap:]

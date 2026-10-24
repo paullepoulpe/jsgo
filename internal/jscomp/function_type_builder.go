@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FunctionTypeBuilder.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/FunctionTypeBuilder.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -30,11 +28,6 @@ var (
 	emptyTemplateTypeSlice       = []*rhino.TemplateType{}
 	emptyFunctionParametersSlice = []*rhino.FunctionType_Parameter{}
 	emptyFunctionNameString      = ""
-	functionTypeBuilderPool      = sync.Pool{
-		New: func() any {
-			return &FunctionTypeBuilder{}
-		},
-	}
 )
 
 // FunctionTypeBuilder is a builder for FunctionTypes, because FunctionTypes
@@ -273,8 +266,7 @@ func (v *FunctionTypeBuilder_ImplementedTypeValidator) Apply(type_ rhino.JSType)
 // Java: FunctionTypeBuilder(String, AbstractCompiler, Node, TypedScope)
 func NewFunctionTypeBuilder(fnName *string, compiler AbstractCompiler, errorRoot rhino.Node, scope *TypedScope) *FunctionTypeBuilder {
 	rhino.CheckNotNull(errorRoot)
-	f := functionTypeBuilderPool.Get().(*FunctionTypeBuilder)
-	*f = FunctionTypeBuilder{
+	f := &FunctionTypeBuilder{
 		contents:                     functionTypeBuilder_UnknownFunctionContents_singleton,
 		templateTypeNames:            emptyTemplateTypeSlice,
 		constructorTemplateTypeNames: emptyTemplateTypeSlice,
@@ -295,12 +287,6 @@ func NewFunctionTypeBuilder(fnName *string, compiler AbstractCompiler, errorRoot
 		f.templateScope = scope
 	}
 	return f
-}
-
-// Release returns f to the pool.
-func (f *FunctionTypeBuilder) Release() {
-	*f = FunctionTypeBuilder{}
-	functionTypeBuilderPool.Put(f)
 }
 
 // functionTypeBuilder_nullToEmpty is Guava's Strings.nullToEmpty.

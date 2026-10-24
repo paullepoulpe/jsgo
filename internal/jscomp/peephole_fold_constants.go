@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeFoldConstants.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PeepholeFoldConstants.java @ closure-compiler v20261021
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -21,6 +21,7 @@ package jscomp
 import (
 	"math"
 	"math/big"
+	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -1865,6 +1866,20 @@ func (p *PeepholeFoldConstants) TryFoldGetProp(n rhino.Node) rhino.Node {
 	return n
 }
 
+// PeepholeFoldConstants_IsFoldableElementIndexKey returns true if right
+// represents a valid key for folding element reads. For string keys, only
+// canonical decimal array index spellings (e.g. "0", "1") match. For number
+// keys, any number-typed expression is accepted so callers can emit warnings
+// for non-integers or fold out-of-bounds index reads to undefined.
+//
+// Java: PeepholeFoldConstants.isFoldableElementIndexKey(Node, int)
+func PeepholeFoldConstants_IsFoldableElementIndexKey(right rhino.Node, intIndex int32) bool {
+	if right.IsStringLit() {
+		return intIndex >= 0 && right.GetString() == strconv.Itoa(int(intIndex))
+	}
+	return NodeUtil_IsNumericResult(right)
+}
+
 // Java: PeepholeFoldConstants.tryFoldArrayAccess(Node, Node, Node)
 func (p *PeepholeFoldConstants) TryFoldArrayAccess(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	// If GETPROP/GETELEM is used as assignment target the array literal is
@@ -1881,16 +1896,19 @@ func (p *PeepholeFoldConstants) TryFoldArrayAccess(n rhino.Node, left rhino.Node
 		return n
 	}
 
+	intIndex := jutil.D2I(index)
+	if !PeepholeFoldConstants_IsFoldableElementIndexKey(right, intIndex) {
+		return n
+	}
+
 	if !base.JSCompDoubles_IsExactInt32(index) {
 		// Ideally this should be caught in the check passes.
 		p.Report(PeepholeFoldConstants_INVALID_GETELEM_INDEX_ERROR, right)
 		return n
 	}
-
-	intIndex := int(jutil.D2I(index))
 	current := left.GetFirstChild()
 	var elem rhino.Node
-	for i := 0; !current.IsNil(); i++ {
+	for i := int32(0); !current.IsNil(); i++ {
 		if current.IsSpread() {
 			// The only time we can fold getelems with spread is for spread arrays literals, and
 			// `tryFlattenArray` already flattens those.
@@ -1994,6 +2012,10 @@ func (p *PeepholeFoldConstants) TryFoldStringArrayAccess(n rhino.Node, left rhin
 	}
 
 	intIndex := jutil.D2I(index)
+	if !PeepholeFoldConstants_IsFoldableElementIndexKey(right, intIndex) {
+		return n
+	}
+
 	if float64(intIndex) != index {
 		p.Report(PeepholeFoldConstants_INVALID_GETELEM_INDEX_ERROR, right)
 		return n

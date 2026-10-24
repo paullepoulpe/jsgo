@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AbstractScope.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/AbstractScope.java @ closure-compiler v20261021
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"iter"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -251,7 +250,7 @@ type abstractScopeBound[S any, V any] interface {
 }
 
 // AbstractScopeBase holds the fields and the implementations of
-// AbstractScope; Scope and TypedScope embed it at offset 0 and call
+// AbstractScope; Scope and TypedScope embed it and call
 // InitAbstractScopeBase with themselves.
 type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
 	// Go-only: language-adapter — the EnumMap<ImplicitVar, V>, indexed by
@@ -268,27 +267,11 @@ type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] str
 	scanDone        bool
 }
 
-var (
-	_ [0]struct{} = [unsafe.Offsetof(Scope{}.AbstractScopeBase)]struct{}{}
-	_ [0]struct{} = [unsafe.Offsetof(TypedScope{}.AbstractScopeBase)]struct{}{}
-	_ [0]struct{} = [unsafe.Sizeof((*Scope)(nil)) - unsafe.Sizeof(uintptr(0))]struct{}{}
-	_ [0]struct{} = [unsafe.Sizeof((*TypedScope)(nil)) - unsafe.Sizeof(uintptr(0))]struct{}{}
-)
-
-func (b *AbstractScopeBase[S, V]) selfS() S {
-	p := unsafe.Pointer(b)
-	return *(*S)(unsafe.Pointer(&p))
-}
-
 // Java: AbstractScope.getDepth()
 func (b *AbstractScopeBase[S, V]) GetDepth() int {
 	return int(b.depth)
 }
 
-// abstractScope_of is the implicit conversion of an S to AbstractScope<?, ?>.
-//
-// Go-only: language-adapter — see abstractScopeBound; every S is an
-// AbstractScope, so the assertion cannot fail on a non-null S.
 func abstractScope_of[S abstractScopeBound[S, V], V abstractVarBound[S, V]](s S) AbstractScope {
 	var null S
 	if s == null {
@@ -328,13 +311,9 @@ func (b *AbstractScopeBase[S, V]) Typed() *TypedScope {
 	panic(jutil.NewIllegalStateExceptionMsg("typed() called, but not a typed scope."))
 }
 
-// Contains returns true if this scope contains other, or is the same scope
-// as other.
-//
 // Java: AbstractScope.contains(S)
-func (b *AbstractScopeBase[S, V]) Contains(other S) bool {
+func (b *AbstractScopeBase[S, V]) contains(self S, other S) bool {
 	var null S
-	self := b.selfS()
 	s := jutil.CheckNotNull(other)
 	for s != null {
 		if s == self {
@@ -356,42 +335,22 @@ func (b *AbstractScopeBase[S, V]) GetRootNode() rhino.Node {
 // GetGlobalScope walks up the tree to find the global scope.
 //
 // Java: AbstractScope.getGlobalScope()
-func (b *AbstractScopeBase[S, V]) GetGlobalScope() S {
+func (b *AbstractScopeBase[S, V]) getGlobalScope(self S) S {
 	var null S
-	result := b.ThisScope()
+	result := self
 	for result.GetParent() != null {
 		result = result.GetParent()
 	}
 	return result
 }
 
-// GetParentScope is final in Java and returns S; see the note at the top of
-// this file.
-//
-// Java: AbstractScope.getParentScope()
-func (b *AbstractScopeBase[S, V]) GetParentScope() rhino.StaticScope {
-	var null S
-	if p := b.selfS().GetParent(); p != null {
-		return p
-	}
-	return nil
-}
-
-// HasOwnImplicitSlot returns true iff this scope implies a slot with the
-// given name.
-//
-// Java: AbstractScope.hasOwnImplicitSlot(ImplicitVar)
-func (b *AbstractScopeBase[S, V]) HasOwnImplicitSlot(name *AbstractScope_ImplicitVar) bool {
-	return name != nil && name.IsMadeByScope(abstractScope_of(b.selfS()))
-}
-
 // HasSlot returns true if a variable is declared in this or any parent
 // scope.
 //
 // Java: AbstractScope.hasSlot(String)
-func (b *AbstractScopeBase[S, V]) HasSlot(name string) bool {
+func (b *AbstractScopeBase[S, V]) hasSlot(self S, name string) bool {
 	var null S
-	for scope := b.ThisScope(); scope != null; scope = scope.GetParent() {
+	for scope := self; scope != null; scope = scope.GetParent() {
 		if scope.HasOwnSlot(name) {
 			return true
 		}
@@ -400,8 +359,7 @@ func (b *AbstractScopeBase[S, V]) HasSlot(name string) bool {
 }
 
 // Java: AbstractScope.getOwnImplicitSlot(ImplicitVar)
-func (b *AbstractScopeBase[S, V]) GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) V {
-	self := b.selfS()
+func (b *AbstractScopeBase[S, V]) getOwnImplicitSlot(self S, name *AbstractScope_ImplicitVar) V {
 	if !self.HasOwnImplicitSlot(name) {
 		var null V
 		return null
@@ -423,65 +381,11 @@ func (b *AbstractScopeBase[S, V]) GetOwnImplicitSlot(name *AbstractScope_Implici
 	return v
 }
 
-// GetOwnSlot is final in Java and returns V; see the note at the top of
-// this file.
-//
-// Java: AbstractScope.getOwnSlot(String)
-func (b *AbstractScopeBase[S, V]) GetOwnSlot(name string) rhino.StaticSlot {
-	var null V
-	if v := b.selfS().getOwnSlotV(name); v != null {
-		return v
-	}
-	return nil
-}
-
-// GetSlot is final in Java and returns V; see the note at the top of this
-// file.
-//
-// Java: AbstractScope.getSlot(String)
-func (b *AbstractScopeBase[S, V]) GetSlot(name string) rhino.StaticSlot {
-	var null V
-	if v := b.getSlotV(name); v != null {
-		return v
-	}
-	return nil
-}
-
-// getSlotV is getSlot with its Java return type V.
-//
-// Go-only: language-adapter — see GetSlot.
-func (b *AbstractScopeBase[S, V]) getSlotV(name string) V {
-	return b.selfS().GetVar(name)
-}
-
-// GetVar returns the variable, may be null.
-//
-// Non-final for TypedScope which needs to handle qualified names.
-//
-// Java: AbstractScope.getVar(String)
-func (b *AbstractScopeBase[S, V]) GetVar(name string) V {
-	var nullS S
-	var null V
-	for scope := b.ThisScope(); scope != nullS; scope = scope.GetParent() {
-		if var_ := scope.getOwnSlotV(name); var_ != null {
-			return var_
-		}
-	}
-	return null
-}
-
-// GetArgumentsVar gets a unique Var object to represent "arguments" within
-// this scope.
-//
-// This explicitly excludes user declared variables that are names
-// "arguments". It only returns special "arguments" variable that is inherent
-// to a function.
-//
 // Java: AbstractScope.getArgumentsVar()
-func (b *AbstractScopeBase[S, V]) GetArgumentsVar() V {
+func (b *AbstractScopeBase[S, V]) getArgumentsVar(self S) V {
 	var nullS S
 	var null V
-	for scope := b.ThisScope(); scope != nullS; scope = scope.GetParent() {
+	for scope := self; scope != nullS; scope = scope.GetParent() {
 		if arguments := scope.GetOwnImplicitSlot(AbstractScope_ImplicitVar_ARGUMENTS.ptr()); arguments != null {
 			return arguments
 		}
@@ -489,51 +393,28 @@ func (b *AbstractScopeBase[S, V]) GetArgumentsVar() V {
 	return null
 }
 
-// CanDeclare returns true if the name can be declared on this scope without
-// causing illegal shadowing. Specifically, this is aware of the connection
-// between function container scopes and function block scopes and returns
-// false for redeclaring parameters on the block scope.
-//
 // Java: AbstractScope.canDeclare(String)
-func (b *AbstractScopeBase[S, V]) CanDeclare(name string) bool {
-	self := b.selfS()
+func (b *AbstractScopeBase[S, V]) canDeclare(self S, name string) bool {
 	return !self.HasOwnSlot(name) &&
 		(!self.IsFunctionBlockScope() ||
 			!self.GetParent().HasOwnSlot(name) ||
-			b.IsBleedingFunctionName(name))
+			b.isBleedingFunctionName(self, name))
 }
 
-// IsBleedingFunctionName returns true if the given name is a bleeding
-// function name in this scope. Local variables in the function block are not
-// allowed to shadow parameters, but they are allowed to shadow a bleeding
-// function name.
-//
 // Java: AbstractScope.isBleedingFunctionName(String)
-func (b *AbstractScopeBase[S, V]) IsBleedingFunctionName(name string) bool {
+func (b *AbstractScopeBase[S, V]) isBleedingFunctionName(self S, name string) bool {
 	var null V
-	var_ := b.selfS().GetVar(name)
+	var_ := self.GetVar(name)
 	return var_ != null &&
 		!var_.GetNode().IsNil() &&
 		var_.GetNode().GetParent().IsFunction()
 }
 
-// GetAllAccessibleVariables returns an iterable over all of the variables
-// accessible to this scope (i.e. the variables in this scope and its parent
-// scopes). Any variables declared in the local scope with the same name as a
-// variable declared in a parent scope gain precedence - if let x exists in
-// the block scope, a declaration let x from the parent scope would not be
-// included because the parent scope's variable gets shadowed.
-//
-// The iterable contains variables from inner scopes before adding variables
-// from outer parent scopes.
-//
-// We do not include the special 'arguments' variable.
-//
 // Java: AbstractScope.getAllAccessibleVariables()
-func (b *AbstractScopeBase[S, V]) GetAllAccessibleVariables() iter.Seq[V] {
+func (b *AbstractScopeBase[S, V]) getAllAccessibleVariables(self S) iter.Seq[V] {
 	accessibleVars := jutil.NewLinkedHashMap[string, V]()
 	var null S
-	s := b.ThisScope()
+	s := self
 
 	for s != null {
 		for v := range s.GetVarIterable() {
@@ -542,22 +423,6 @@ func (b *AbstractScopeBase[S, V]) GetAllAccessibleVariables() iter.Seq[V] {
 		s = s.GetParent()
 	}
 	return accessibleVars.Values()
-}
-
-// IsGlobal returns whether this is the global scope.
-//
-// Java: AbstractScope.isGlobal()
-func (b *AbstractScopeBase[S, V]) IsGlobal() bool {
-	var null S
-	return b.selfS().GetParent() == null
-}
-
-// IsLocal returns whether this is a local scope (i.e. not the global scope).
-//
-// Java: AbstractScope.isLocal()
-func (b *AbstractScopeBase[S, V]) IsLocal() bool {
-	var null S
-	return b.selfS().GetParent() != null
 }
 
 // Java: AbstractScope.isBlockScope()
@@ -607,17 +472,8 @@ func (b *AbstractScopeBase[S, V]) IsCfgRootScope() bool {
 	return NodeUtil_IsValidCfgRoot(b.rootNode)
 }
 
-// IsHoistScope reports whether, if a var were declared in this scope, it
-// would belong to this scope (as opposed to some enclosing scope).
-//
-// We consider function scopes to be hoist scopes. Even though it's
-// impossible to declare a var inside function parameters, it would make less
-// sense to say that if you did declare one in the function parameters, it
-// would be hoisted somewhere else.
-//
 // Java: AbstractScope.isHoistScope()
-func (b *AbstractScopeBase[S, V]) IsHoistScope() bool {
-	self := b.selfS()
+func (b *AbstractScopeBase[S, V]) isHoistScope(self S) bool {
 	return self.IsFunctionScope() ||
 		self.IsFunctionBlockScope() ||
 		self.IsGlobal() ||
@@ -625,18 +481,10 @@ func (b *AbstractScopeBase[S, V]) IsHoistScope() bool {
 		self.IsStaticBlockScope()
 }
 
-// GetClosestHoistScope returns, if a var were declared in this scope, the
-// scope it would be hoisted to.
-//
-// For function scopes, we return back the scope itself, since even though
-// there is no way to declare a var inside function parameters, it would make
-// even less sense to say that such declarations would be "hoisted" somewhere
-// else.
-//
 // Java: AbstractScope.getClosestHoistScope()
-func (b *AbstractScopeBase[S, V]) GetClosestHoistScope() S {
+func (b *AbstractScopeBase[S, V]) getClosestHoistScope(self S) S {
 	var null S
-	current := b.ThisScope()
+	current := self
 	for current != null {
 		if current.IsHoistScope() {
 			return current
@@ -647,21 +495,17 @@ func (b *AbstractScopeBase[S, V]) GetClosestHoistScope() S {
 }
 
 // Java: AbstractScope.getClosestCfgRootScope()
-func (b *AbstractScopeBase[S, V]) GetClosestCfgRootScope() S {
-	current := b.ThisScope()
+func (b *AbstractScopeBase[S, V]) getClosestCfgRootScope(self S) S {
+	current := self
 	for !current.IsCfgRootScope() {
 		current = current.GetParent()
 	}
 	return current
 }
 
-// GetClosestContainerScope returns the closest container scope. This is
-// equivalent to what the current scope would have been for non-ES6 scope
-// creators, and is thus useful for migrating code to use block scopes.
-//
 // Java: AbstractScope.getClosestContainerScope()
-func (b *AbstractScopeBase[S, V]) GetClosestContainerScope() S {
-	scope := b.GetClosestHoistScope()
+func (b *AbstractScopeBase[S, V]) getClosestContainerScope(self S) S {
+	scope := b.getClosestHoistScope(self)
 	if scope.IsFunctionBlockScope() {
 		scope = scope.GetParent()
 		if scope.IsBlockScope() {
@@ -669,16 +513,6 @@ func (b *AbstractScopeBase[S, V]) GetClosestContainerScope() S {
 		}
 	}
 	return scope
-}
-
-// ThisScope is safe because any concrete subclass of AbstractScope<S>
-// should be assignable to S. While it's theoretically possible to do
-// otherwise, such a class would be very awkward to implement, and is
-// therefore not worth worrying about.
-//
-// Java: AbstractScope.thisScope()
-func (b *AbstractScopeBase[S, V]) ThisScope() S {
-	return b.selfS()
 }
 
 // CheckChildScope performs simple validity checks on when constructing a
@@ -710,12 +544,10 @@ func (b *AbstractScopeBase[S, V]) CheckRootScope() {
 	}
 }
 
-// GetCommonParent returns the nearest common parent between two scopes.
-//
 // Java: AbstractScope.getCommonParent(S)
-func (b *AbstractScopeBase[S, V]) GetCommonParent(other S) S {
+func (b *AbstractScopeBase[S, V]) getCommonParent(self S, other S) S {
 	var null S
-	left := b.ThisScope()
+	left := self
 	right := other
 	for left != null && right != null && left != right {
 		leftDepth := left.GetDepth()
@@ -732,35 +564,18 @@ func (b *AbstractScopeBase[S, V]) GetCommonParent(other S) S {
 	return left
 }
 
-// HasSameContainerScope reports whether this and the other scope have the
-// same container scope (i.e. are in the same function, or else both in the
-// global hoist scope). This is equivalent to asking whether the two scopes
-// would be equivalent in a pre-ES2015-block-scopes view of the world.
-//
 // Java: AbstractScope.hasSameContainerScope(S)
-func (b *AbstractScopeBase[S, V]) HasSameContainerScope(other S) bool {
-	// Do identity check first as a shortcut.
-	return b.selfS() == other || b.GetClosestContainerScope() == other.GetClosestContainerScope()
+func (b *AbstractScopeBase[S, V]) hasSameContainerScope(self S, other S) bool {
+	return self == other || self.GetClosestContainerScope() == other.GetClosestContainerScope()
 }
 
-// GetScopeOfThis returns the closest scope upon which `this` is defined,
-// which is either the global scope or a non-arrow-function scope.
-//
 // Java: AbstractScope.getScopeOfThis()
-func (b *AbstractScopeBase[S, V]) GetScopeOfThis() S {
-	scope := b.GetClosestContainerScope()
+func (b *AbstractScopeBase[S, V]) getScopeOfThis(self S) S {
+	scope := self.GetClosestContainerScope()
 	for !scope.IsGlobal() && !NodeUtil_IsNonArrowFunction(scope.GetRootNode()) {
 		scope = scope.GetParent().GetClosestContainerScope()
 	}
 	return scope
-}
-
-// GetTopmostScopeOfEventualDeclaration is the rhino.StaticScope default
-// method, which AbstractScope inherits (TypedScope overrides it).
-//
-// Java: StaticScope.getTopmostScopeOfEventualDeclaration(String) (default method)
-func (b *AbstractScopeBase[S, V]) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
-	return rhino.StaticScope_GetTopmostScopeOfEventualDeclaration(b.selfS(), name)
 }
 
 // AbstractScope_ImplicitVar is the three implicit var types, which are

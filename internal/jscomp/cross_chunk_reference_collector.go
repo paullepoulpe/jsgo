@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CrossChunkReferenceCollector.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CrossChunkReferenceCollector.java @ closure-compiler v20261021
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -21,57 +21,10 @@ package jscomp
 import (
 	"iter"
 	"slices"
-	"sync"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
-
-type crossChunkArena struct {
-	topLevelStatements []*CrossChunkReferenceCollector_TopLevelStatement
-	stmtChunks         [][]CrossChunkReferenceCollector_TopLevelStatement
-	stmtChunkIdx       int
-	stmtRefsChunks     [][]*Reference
-	stmtRefsChunkIdx   int
-	stmtVarsChunks     [][]*Var
-	stmtVarsChunkIdx   int
-	symbolsByVarIndex  []*CrossChunkCodeMotion_GlobalSymbol
-	symSlab            []CrossChunkCodeMotion_GlobalSymbol
-	symChunks          [][]CrossChunkCodeMotion_GlobalSymbol
-	symChunkIdx        int
-	dsgSlab            []CrossChunkCodeMotion_DeclarationStatementGroup
-	dsgChunks          [][]CrossChunkCodeMotion_DeclarationStatementGroup
-	dsgChunkIdx        int
-	cycleSlab          []CrossChunkCodeMotion_GlobalSymbolCycle
-	cycleChunks        [][]CrossChunkCodeMotion_GlobalSymbolCycle
-	cycleChunkIdx      int
-	componentContents  []*CrossChunkCodeMotion_GlobalSymbol
-	componentRoots     []*CrossChunkCodeMotion_GlobalSymbol
-	cycles             []*CrossChunkCodeMotion_GlobalSymbolCycle
-}
-
-var cachedCCAArena atomic.Pointer[crossChunkArena]
-
-var crossChunkArenaPool = sync.Pool{
-	New: func() any {
-		return &crossChunkArena{}
-	},
-}
-
-func acquireCCArena() *crossChunkArena {
-	if a := cachedCCAArena.Swap(nil); a != nil {
-		return a
-	}
-	return crossChunkArenaPool.Get().(*crossChunkArena)
-}
-
-func releaseCCArena(a *crossChunkArena) {
-	if cachedCCAArena.CompareAndSwap(nil, a) {
-		return
-	}
-	crossChunkArenaPool.Put(a)
-}
 
 // CrossChunkReferenceCollector collects global variable references for use
 // by CrossChunkCodeMotion.
@@ -91,17 +44,16 @@ type CrossChunkReferenceCollector struct {
 	lastVar        *Var
 	lastCollection *ReferenceCollection
 	maxVarIndex    int
-	ccArena        *crossChunkArena
-	poolable       bool
 
 	// The stack of basic blocks and scopes the current traversal is in.
 	blockStack    []*BasicBlock
 	blockStackBuf [16]*BasicBlock
 
-	// Go-only: performance — one collection's blocks and references die
-	// together with it (see jutil.Slab).
-	blocks  jutil.Slab[BasicBlock]
-	refSlab jutil.Slab[Reference]
+	// Go-only: performance — one collection's blocks, references, and top-level
+	// statements die together with it (see jutil.Slab).
+	blocks   jutil.Slab[BasicBlock]
+	refSlab  jutil.Slab[Reference]
+	stmtSlab jutil.Slab[CrossChunkReferenceCollector_TopLevelStatement]
 
 	// List of all top-level statements in the order they appear in the AST.
 	topLevelStatements []*CrossChunkReferenceCollector_TopLevelStatement
@@ -117,8 +69,6 @@ type CrossChunkReferenceCollector struct {
 	draftRefsBuf           [16]*Reference
 	draftVarsBuf           [16]*Var
 
-	stmtSlab     []CrossChunkReferenceCollector_TopLevelStatement
-	stmtBuf      [4]CrossChunkReferenceCollector_TopLevelStatement
 	stmtRefsSlab []*Reference
 	stmtVarsSlab []*Var
 }
@@ -137,270 +87,35 @@ func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCre
 	c.blockStack = c.blockStackBuf[:0]
 	c.draftVal.nonDeclarationReferences = c.draftRefsBuf[:0]
 	c.draftVal.nonDeclarationVars = c.draftVarsBuf[:0]
-	c.stmtSlab = c.stmtBuf[:0]
 	return c
 }
 
-func (c *CrossChunkReferenceCollector) enableArenaPool() {
-	c.poolable = true
-	ca := c.getCCArena()
-	if cap(ca.topLevelStatements) > 0 {
-		c.topLevelStatements = ca.topLevelStatements[:0]
-	}
-}
-
-func (c *CrossChunkReferenceCollector) getCCArena() *crossChunkArena {
-	if c.ccArena == nil {
-		c.ccArena = acquireCCArena()
-	}
-	return c.ccArena
-}
-
-func (c *CrossChunkReferenceCollector) release() {
+func (c *CrossChunkReferenceCollector) resetVarHashes() {
 	for _, kv := range c.vars {
 		kv.nameHash = 0
-	}
-	if ca := c.ccArena; ca != nil {
-		c.ccArena = nil
-		if cap(c.topLevelStatements) > 0 {
-			if cap(c.topLevelStatements) <= 524288 {
-				clear(c.topLevelStatements)
-				ca.topLevelStatements = c.topLevelStatements[:0]
-			} else {
-				ca.topLevelStatements = nil
-			}
-		}
-		c.topLevelStatements = nil
-		const (
-			maxRetainedStmtChunks     = 256
-			maxRetainedStmtRefsChunks = 128
-			maxRetainedSymChunks      = 128
-			maxRetainedDsgChunks      = 128
-			maxRetainedCycleChunks    = 64
-		)
-		if ca.stmtChunkIdx > 0 {
-			ca.stmtChunks[ca.stmtChunkIdx-1] = c.stmtSlab
-		}
-		for i := 0; i < ca.stmtChunkIdx && i < maxRetainedStmtChunks; i++ {
-			ch := ca.stmtChunks[i]
-			clear(ch)
-			ca.stmtChunks[i] = ch[:0]
-		}
-		if len(ca.stmtChunks) > maxRetainedStmtChunks {
-			clear(ca.stmtChunks[maxRetainedStmtChunks:])
-			ca.stmtChunks = ca.stmtChunks[:maxRetainedStmtChunks]
-		}
-		if ca.stmtRefsChunkIdx > 0 {
-			ca.stmtRefsChunks[ca.stmtRefsChunkIdx-1] = c.stmtRefsSlab
-		}
-		for i := 0; i < ca.stmtRefsChunkIdx && i < maxRetainedStmtRefsChunks; i++ {
-			ch := ca.stmtRefsChunks[i]
-			clear(ch)
-			ca.stmtRefsChunks[i] = ch[:0]
-		}
-		if len(ca.stmtRefsChunks) > maxRetainedStmtRefsChunks {
-			clear(ca.stmtRefsChunks[maxRetainedStmtRefsChunks:])
-			ca.stmtRefsChunks = ca.stmtRefsChunks[:maxRetainedStmtRefsChunks]
-		}
-		if ca.stmtVarsChunkIdx > 0 {
-			ca.stmtVarsChunks[ca.stmtVarsChunkIdx-1] = c.stmtVarsSlab
-		}
-		for i := 0; i < ca.stmtVarsChunkIdx && i < maxRetainedStmtRefsChunks; i++ {
-			ch := ca.stmtVarsChunks[i]
-			clear(ch)
-			ca.stmtVarsChunks[i] = ch[:0]
-		}
-		if len(ca.stmtVarsChunks) > maxRetainedStmtRefsChunks {
-			clear(ca.stmtVarsChunks[maxRetainedStmtRefsChunks:])
-			ca.stmtVarsChunks = ca.stmtVarsChunks[:maxRetainedStmtRefsChunks]
-		}
-		if ca.symChunkIdx > 0 {
-			ca.symChunks[ca.symChunkIdx-1] = ca.symSlab
-		}
-		for i := 0; i < ca.symChunkIdx && i < maxRetainedSymChunks; i++ {
-			ch := ca.symChunks[i]
-			clear(ch)
-			ca.symChunks[i] = ch[:0]
-		}
-		if len(ca.symChunks) > maxRetainedSymChunks {
-			clear(ca.symChunks[maxRetainedSymChunks:])
-			ca.symChunks = ca.symChunks[:maxRetainedSymChunks]
-		}
-		ca.symSlab = nil
-		if ca.dsgChunkIdx > 0 {
-			ca.dsgChunks[ca.dsgChunkIdx-1] = ca.dsgSlab
-		}
-		for i := 0; i < ca.dsgChunkIdx && i < maxRetainedDsgChunks; i++ {
-			ch := ca.dsgChunks[i]
-			clear(ch)
-			ca.dsgChunks[i] = ch[:0]
-		}
-		if len(ca.dsgChunks) > maxRetainedDsgChunks {
-			clear(ca.dsgChunks[maxRetainedDsgChunks:])
-			ca.dsgChunks = ca.dsgChunks[:maxRetainedDsgChunks]
-		}
-		ca.dsgSlab = nil
-		if ca.cycleChunkIdx > 0 {
-			ca.cycleChunks[ca.cycleChunkIdx-1] = ca.cycleSlab
-		}
-		for i := 0; i < ca.cycleChunkIdx && i < maxRetainedCycleChunks; i++ {
-			ch := ca.cycleChunks[i]
-			clear(ch)
-			ca.cycleChunks[i] = ch[:0]
-		}
-		if len(ca.cycleChunks) > maxRetainedCycleChunks {
-			clear(ca.cycleChunks[maxRetainedCycleChunks:])
-			ca.cycleChunks = ca.cycleChunks[:maxRetainedCycleChunks]
-		}
-		ca.cycleSlab = nil
-		if len(ca.symbolsByVarIndex) > 0 {
-			if cap(ca.symbolsByVarIndex) <= 262144 {
-				clear(ca.symbolsByVarIndex)
-				ca.symbolsByVarIndex = ca.symbolsByVarIndex[:0]
-			} else {
-				ca.symbolsByVarIndex = nil
-			}
-		}
-		if cap(ca.componentContents) > 262144 {
-			ca.componentContents = nil
-		}
-		if cap(ca.componentRoots) > 262144 {
-			ca.componentRoots = nil
-		}
-		if len(ca.cycles) > 0 {
-			if cap(ca.cycles) <= 262144 {
-				clear(ca.cycles)
-				ca.cycles = ca.cycles[:0]
-			} else {
-				ca.cycles = nil
-			}
-		}
-		ca.stmtChunkIdx = 0
-		ca.stmtRefsChunkIdx = 0
-		ca.stmtVarsChunkIdx = 0
-		ca.symChunkIdx = 0
-		ca.dsgChunkIdx = 0
-		ca.cycleChunkIdx = 0
-		releaseCCArena(ca)
 	}
 }
 
 func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
-	if cap(c.stmtRefsSlab)-len(c.stmtRefsSlab) < n {
-		if c.poolable {
-			ca := c.getCCArena()
-			if ca.stmtRefsChunkIdx > 0 {
-				ca.stmtRefsChunks[ca.stmtRefsChunkIdx-1] = c.stmtRefsSlab
-			}
-			if ca.stmtRefsChunkIdx < len(ca.stmtRefsChunks) {
-				ch := ca.stmtRefsChunks[ca.stmtRefsChunkIdx]
-				if cap(ch) < n {
-					ch = make([]*Reference, 0, max(n, 4096))
-					ca.stmtRefsChunks[ca.stmtRefsChunkIdx] = ch
-				}
-				c.stmtRefsSlab = ch[:0]
-				ca.stmtRefsChunkIdx++
-			} else {
-				newCap := 256
-				if cap(c.stmtRefsSlab) >= 256 {
-					newCap = min(cap(c.stmtRefsSlab)*2, 4096)
-				}
-				if newCap < n {
-					newCap = n
-				}
-				c.stmtRefsSlab = make([]*Reference, 0, newCap)
-				ca.stmtRefsChunks = append(ca.stmtRefsChunks, c.stmtRefsSlab)
-				ca.stmtRefsChunkIdx++
-			}
-		} else {
-			newCap := 256
-			if cap(c.stmtRefsSlab) >= 256 {
-				newCap = min(cap(c.stmtRefsSlab)*2, 4096)
-			}
-			if newCap < n {
-				newCap = n
-			}
-			c.stmtRefsSlab = make([]*Reference, 0, newCap)
-		}
+	if len(c.stmtRefsSlab) < n {
+		c.stmtRefsSlab = jutil.SlabChunk[*Reference](max(n, 256))
 	}
-	off := len(c.stmtRefsSlab)
-	c.stmtRefsSlab = c.stmtRefsSlab[:off+n]
-	return c.stmtRefsSlab[off : off+n : off+n]
+	out := c.stmtRefsSlab[:n:n]
+	c.stmtRefsSlab = c.stmtRefsSlab[n:]
+	return out
 }
 
 func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
-	if cap(c.stmtVarsSlab)-len(c.stmtVarsSlab) < n {
-		if c.poolable {
-			ca := c.getCCArena()
-			if ca.stmtVarsChunkIdx > 0 {
-				ca.stmtVarsChunks[ca.stmtVarsChunkIdx-1] = c.stmtVarsSlab
-			}
-			if ca.stmtVarsChunkIdx < len(ca.stmtVarsChunks) {
-				ch := ca.stmtVarsChunks[ca.stmtVarsChunkIdx]
-				if cap(ch) < n {
-					ch = make([]*Var, 0, max(n, 4096))
-					ca.stmtVarsChunks[ca.stmtVarsChunkIdx] = ch
-				}
-				c.stmtVarsSlab = ch[:0]
-				ca.stmtVarsChunkIdx++
-			} else {
-				newCap := 256
-				if cap(c.stmtVarsSlab) >= 256 {
-					newCap = min(cap(c.stmtVarsSlab)*2, 4096)
-				}
-				if newCap < n {
-					newCap = n
-				}
-				c.stmtVarsSlab = make([]*Var, 0, newCap)
-				ca.stmtVarsChunks = append(ca.stmtVarsChunks, c.stmtVarsSlab)
-				ca.stmtVarsChunkIdx++
-			}
-		} else {
-			newCap := 256
-			if cap(c.stmtVarsSlab) >= 256 {
-				newCap = min(cap(c.stmtVarsSlab)*2, 4096)
-			}
-			if newCap < n {
-				newCap = n
-			}
-			c.stmtVarsSlab = make([]*Var, 0, newCap)
-		}
+	if len(c.stmtVarsSlab) < n {
+		c.stmtVarsSlab = jutil.SlabChunk[*Var](max(n, 256))
 	}
-	off := len(c.stmtVarsSlab)
-	c.stmtVarsSlab = c.stmtVarsSlab[:off+n]
-	return c.stmtVarsSlab[off : off+n : off+n]
+	out := c.stmtVarsSlab[:n:n]
+	c.stmtVarsSlab = c.stmtVarsSlab[n:]
+	return out
 }
 
 func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkReferenceCollector_TopLevelStatementDraft) *CrossChunkReferenceCollector_TopLevelStatement {
-	if len(c.stmtSlab) == cap(c.stmtSlab) {
-		if c.poolable {
-			ca := c.getCCArena()
-			if ca.stmtChunkIdx > 0 {
-				ca.stmtChunks[ca.stmtChunkIdx-1] = c.stmtSlab
-			}
-			if ca.stmtChunkIdx < len(ca.stmtChunks) {
-				c.stmtSlab = ca.stmtChunks[ca.stmtChunkIdx][:0]
-				ca.stmtChunkIdx++
-			} else {
-				newCap := 64
-				if cap(c.stmtSlab) >= 64 {
-					newCap = min(cap(c.stmtSlab)*2, 2048)
-				}
-				c.stmtSlab = make([]CrossChunkReferenceCollector_TopLevelStatement, 0, newCap)
-				ca.stmtChunks = append(ca.stmtChunks, c.stmtSlab)
-				ca.stmtChunkIdx++
-			}
-		} else {
-			newCap := 64
-			if cap(c.stmtSlab) >= 64 {
-				newCap = min(cap(c.stmtSlab)*2, 2048)
-			}
-			c.stmtSlab = make([]CrossChunkReferenceCollector_TopLevelStatement, 0, newCap)
-		}
-	}
-	idx := len(c.stmtSlab)
-	c.stmtSlab = c.stmtSlab[:idx+1]
-	s := &c.stmtSlab[idx]
+	s := c.stmtSlab.New()
 	var refs []*Reference
 	var vars []*Var
 	if n := len(draft.nonDeclarationReferences); n > 0 {

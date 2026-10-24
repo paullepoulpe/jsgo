@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/VarCheck.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/VarCheck.java @ closure-compiler v20261021
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -173,8 +173,8 @@ func (v *VarCheck) Process(externs rhino.Node, root rhino.Node) {
 	}
 }
 
-func (*VarCheck) noShouldTraverse() {}
-func (*VarCheck) onlyNameLeaves()   {}
+func (*VarCheck) nodeTraversalNoShouldTraverse() {}
+func (*VarCheck) onlyNameLeaves()                {}
 
 // Java: VarCheck.shouldTraverse(NodeTraversal, Node, Node)
 func (v *VarCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {

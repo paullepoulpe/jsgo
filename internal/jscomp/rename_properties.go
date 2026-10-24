@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RenameProperties.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/RenameProperties.java @ closure-compiler v20261021
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -163,7 +163,7 @@ func NewRenamePropertiesWithFilter(
 	if externProperties == nil {
 		panic(jutil.NewNullPointerException()) // externedNames.addAll(null)
 	}
-	externedNames := newLinkedHashSetWithCapacity[string](externProperties.Size() + 1)
+	externedNames := jutil.NewLinkedHashSetWithCapacity[string](externProperties.Size() + 1)
 	externedNames.Add("prototype")
 	for name := range externProperties.All() {
 		externedNames.Add(name)
@@ -179,7 +179,7 @@ func NewRenamePropertiesWithFilter(
 		reservedNonFirstCharacters:      reservedNonFirstCharacters,
 		propertyMap:                     jutil.NewLinkedHashMapWithCapacity[string, *RenameProperties_Property](4096),
 		externedNames:                   externedNames,
-		quotedNames:                     newLinkedHashSetWithCapacity[string](512),
+		quotedNames:                     jutil.NewLinkedHashSetWithCapacity[string](512),
 		nameGenerator:                   nameGenerator,
 		propertyRenameEligibilityFilter: propertyRenameEligibilityFilter,
 		filteredOutNames:                jutil.NewLinkedHashSet[string](),
@@ -198,7 +198,7 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 
 	// Sets.newLinkedHashSetWithExpectedSize(externedNames.size() + quotedNames.size())
 	numProperties := r.propertyMap.Size()
-	reservedNames := newLinkedHashSetWithCapacity[string](r.externedNames.Size() + r.quotedNames.Size() + numProperties + 256)
+	reservedNames := jutil.NewLinkedHashSetWithCapacity[string](r.externedNames.Size() + r.quotedNames.Size() + numProperties + 256)
 	for name := range r.externedNames.All() {
 		reservedNames.Add(name)
 	}

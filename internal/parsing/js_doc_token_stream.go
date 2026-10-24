@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/JsDocTokenStream.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/parsing/JsDocTokenStream.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.

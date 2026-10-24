@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteClassMembersTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/RewriteClassMembersTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/RewriteClassMembersTest.java)
 
 /*
@@ -6110,10 +6110,132 @@ class Foo {
 `)
 }
 
+// Java: RewriteClassMembersTest.testBaseConstructorParamDefaultReadsField()
+func (c *RewriteClassMembersTest) TestBaseConstructorParamDefaultReadsField() {
+	// A base class initializes its fields before it binds the constructor's parameters, so
+	// `y = this.a` reads 1. The parameter default moves into an assignment that runs after the
+	// fields are initialized.
+	c.Test(
+		`class C {
+  a = 1;
+  constructor(x, y = this.a) {
+    this.x = x;
+    this.y = y;
+  }
+}
+`,
+		`class C {
+  constructor(x, y) {
+    this.a = 1;
+    y = y === void 0 ? this.a : y;
+    this.x = x;
+    this.y = y;
+  }
+}
+`)
+	// `this` in a nested non-arrow function is not the instance being constructed.
+	c.Test(
+		`class D {
+  a = 1;
+  constructor(f = function() { return this; }) {
+    this.f = f;
+  }
+}
+`,
+		`class D {
+  constructor(f = function() { return this; }) {
+    this.a = 1;
+    this.f = f;
+  }
+}
+`)
+	// `super.hasOwnProperty('b')` passes `this` as the receiver, so the parameter default moves
+	// after the fields too, and sees the field `b`.
+	c.Test(
+		`class E {
+  b = 2;
+  constructor(z = super.hasOwnProperty('b')) {
+    this.z = z;
+  }
+}
+`,
+		`class E {
+  constructor(z) {
+    this.b = 2;
+    z = z === void 0 ? super.hasOwnProperty('b') : z;
+    this.z = z;
+  }
+}
+`)
+	// Destructuring parameters move into `let` declarations after the fields.
+	c.Test(
+		`class F {
+  x = 1;
+  constructor({a, b = this.x}) {
+    this.a = a;
+    this.b = b;
+  }
+}
+`,
+		`class F {
+  constructor(TMP$0) {
+    this.x = 1;
+    let {a, b = this.x} = TMP$0;
+    this.a = a;
+    this.b = b;
+  }
+}
+`)
+	c.Test(
+		`class G {
+  x = {a: 1, b: 2};
+  constructor({a, b} = this.x, ...[c = this.x]) {
+    this.a = a;
+    this.b = b;
+    this.c = c;
+  }
+}
+`,
+		`class G {
+  constructor(TMP$0, ...TMP$1) {
+    this.x = {a: 1, b: 2};
+    let {a, b} = TMP$0 === void 0 ? this.x : TMP$0;
+    let [c = this.x] = TMP$1;
+    this.a = a;
+    this.b = b;
+    this.c = c;
+  }
+}
+`)
+	// A local declaration in the constructor body that shadows a name referenced by a parameter
+	// default is renamed by Normalize, so moving the default into the body still references the
+	// outer variable.
+	c.Test(
+		`const x = 1;
+class H {
+  a = 2;
+  constructor(y = x + this.a) {
+    const x = 3;
+    this.y = y + x;
+  }
+}
+`,
+		`const x = 1;
+class H {
+  constructor(y) {
+    this.a = 2;
+    y = y === void 0 ? x + this.a : y;
+    const x$jscomp$1 = 3;
+    this.y = y + x$jscomp$1;
+  }
+}
+`)
+}
+
 // Java: RewriteClassMembersTest.testBaseClassParameterDefaultsOrder()
 func (c *RewriteClassMembersTest) TestBaseClassParameterDefaultsOrder() {
-	// TODO(b/572052294): lowered base-class instance fields execute after constructor parameter
-	// default initializers
+	// b/572052294: A parameter default reads `this`, so all the defaults move into assignments
+	// after the instance fields are initialized, as in a native base class constructor.
 	c.Test(
 		`class A {
   x = alert(1);
@@ -6123,9 +6245,28 @@ func (c *RewriteClassMembersTest) TestBaseClassParameterDefaultsOrder() {
 }
 `,
 		`class A {
-  constructor(a = alert(2), b = this.x) {
+  constructor(a, b) {
     this.x = alert(1);
+    a = a === void 0 ? alert(2) : a;
+    b = b === void 0 ? this.x : b;
     alert(a, b);
+  }
+}
+`)
+	// TODO(b/572052294): Defaults that don't read `this` run before the fields, so `alert(2)` runs
+	// before `alert(1)`.
+	c.Test(
+		`class A {
+  x = alert(1);
+  constructor(a = alert(2)) {
+    alert(a);
+  }
+}
+`,
+		`class A {
+  constructor(a = alert(2)) {
+    this.x = alert(1);
+    alert(a);
   }
 }
 `)

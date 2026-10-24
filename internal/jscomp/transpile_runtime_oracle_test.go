@@ -759,7 +759,7 @@ func TestTranspileRuntimeOracleCorpus(t *testing.T) {
 	}
 	root := os.Getenv("TRANSPILE_RUNTIME_ROOT")
 	if root == "" {
-		root = "/home/user/jsgo/.cache/corpus"
+		root = oracleTestCorpusRoot(t)
 	}
 	for _, dump := range strings.Split(dumps, ",") {
 		trCompare(t, root, trReadJavaDump(t, dump), os.Getenv("TRANSPILE_RUNTIME_DIFF_DIR"))

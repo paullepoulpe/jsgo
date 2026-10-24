@@ -493,6 +493,34 @@ Done:
     fixtures suite (`tools/clie2e -suite fixtures`) matches 2,974 of
     2,976 recorded Java outputs; the other two are one fixture on which
     Java throws StackOverflowError, a fatal error in Go.
+- **Upgraded from v20261015 to v20261021** (the second "track upstream"
+  step), on JDK 27 (OpenJDK 27.0.1) as the oracle's runtime.
+  - The 52 changed Java sources (+642/−448 lines, 3 parser tree classes
+    removed with array and generator comprehensions), 3 builtin externs
+    files and `ParserConfig.properties` were ported file by file in three
+    groups (core, options and parsing; checks, types and transpilation;
+    optimizations), each with the changes of its 44 Java test classes
+    (+2,066/−659 lines), then merged. Round 3A's parallel paths
+    (PeepholeOptimizationsPass, InlineFunctions, CheckSuper) follow the
+    sequential changes. The `jscomp.integration` tests and MultiPassTest
+    have no Go port, so their changes were not ported.
+  - The embedded `externs.zip` and `runtime_libs.typedast` are the new
+    jar's; its `js/` resources and protos are unchanged.
+  - Every oracle golden was regenerated from the v20261021 jar: the
+    families whose Java output changed were committed (fixture CLI
+    oracles, parse, JSDoc, print, ptree, cfa, peephole, typecheck,
+    node_util sweep, core_g3, w5_checks, map_diagnostic_to_suppression,
+    the jscomp_a/b and message-format vectors), every other one was found
+    identical. Vectors that only exercise JDK classes keep their JDK 21
+    baseline: on JDK 27, `java.lang.Character` has newer Unicode tables,
+    `new File("").exists()` is true and a few `Math.pow` results move by
+    one ulp, so the port deliberately stays on JDK 21's behaviour there.
+  - `go test` passes in every package. `tools/clie2e -suite fixtures`
+    matches 2,974 of 2,976 recorded Java outputs (the same
+    StackOverflowError fixture as before). Every whole-program bench task
+    is byte-identical to the v20261021 jar at `--num_parallel_threads=1`
+    and `4`, and so is the staged googleapis build (all three stages) at
+    `4`.
 - **End-to-end benchmark against v20261015 (§6, the M9 report):**
   [docs/benchmarks.md](docs/benchmarks.md#end-to-end-v20261015). It ran
   on a quiet machine.
@@ -570,7 +598,7 @@ Decided by the repository owner:
 - **Track upstream:** keep the port current with Closure releases while the
   structure is still 1:1, porting each release's diff file by file, before
   larger performance or idiomatic rewrites make that harder. First step:
-  v20260415 → v20261015 (done; see above).
+  v20260415 → v20261015, then v20261021 (done; see above).
 - **Out of scope:** the instrumentation report tool
   (`ReportDecoder`/`ProfilingReport`), a separate binary.
 - **Compressed output:** jsgo writes gzip (`--typed_ast_output_file`, a

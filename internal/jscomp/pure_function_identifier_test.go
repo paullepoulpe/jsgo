@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PureFunctionIdentifierTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PureFunctionIdentifierTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/PureFunctionIdentifierTest.java)
 
 /*
@@ -2275,6 +2275,154 @@ func (c *PureFunctionIdentifierTest) TestMutatesArguments3() {
 			"function g(x) { f(x); }\n" +
 			"g({});\n"
 	c.AssertNoPureCalls(source)
+}
+
+// Java: PureFunctionIdentifierTest.testMutatesThis_localReceiver()
+func (c *PureFunctionIdentifierTest) TestMutatesThis_localReceiver() {
+	source :=
+		`/** @constructor */
+function Foo() {}
+Foo.prototype.initFoo = function(v) { this.v = v; };
+Foo.createFoo = function(v) {
+  var instance = /** @type {!Foo} */ ({});
+  instance.initFoo(v);
+  return instance;
+};
+Foo.createFoo(1);
+`
+	c.AssertPureCallsMarked(source, []string{"Foo.createFoo"})
+	// The devirtualized form, e.g. `$ctor($instance, v)`: only `instance` needs to be local.
+	c.AssertPureCallsMarked(
+		`/** @constructor */
+function Foo() {}
+/**
+ * @param {!Foo} self
+ * @param {number} v
+ */
+Foo.initFoo = function(self, v) { self.v = v; };
+Foo.createFoo = function(v) {
+  var instance = /** @type {!Foo} */ ({});
+  Foo.initFoo(instance, v);
+  return instance;
+};
+Foo.createFoo(1);
+`,
+		[]string{"Foo.createFoo"})
+}
+
+// Java: PureFunctionIdentifierTest.testMutatesThis_localReceiver_notLocal()
+func (c *PureFunctionIdentifierTest) TestMutatesThis_localReceiver_notLocal() {
+	c.DisableTypeCheck()
+	prefix :=
+		`/** @constructor */
+function Foo() {}
+Foo.prototype.init = function() { this.x = 1; };
+`
+	// Reassigned to a non-local value.
+	c.AssertNoPureCalls(
+		prefix +
+			`function f() {
+  var o = {};
+  for (var i = 0; i < 2; i++) { o.init(); o = window; }
+}
+f();
+`)
+	// Parameter.
+	c.AssertNoPureCalls(
+		prefix +
+			`function f(o) { o.init(); }
+f({});
+`)
+	// Catch variable.
+	c.AssertNoPureCalls(
+		prefix +
+			`function f() { try { throw window; } catch (e) { e.init(); } }
+f();
+`)
+	// `this` is not the receiver when invoked via `.call`.
+	c.AssertNoPureCalls(
+		prefix +
+			`function f() { var o = Foo.prototype.init; o.call(window); }
+f();
+`)
+}
+
+// Java: PureFunctionIdentifierTest.testMutatesArguments_localVariable()
+func (c *PureFunctionIdentifierTest) TestMutatesArguments_localVariable() {
+	c.DisableTypeCheck()
+	c.AssertPureCallsMarked(
+		`function setX(o) { o.x = 1; }
+function g() { var o = {}; setX(o); }
+g();
+`,
+		[]string{"g"})
+	// Reassigned to a non-local value.
+	c.AssertNoPureCalls(
+		`function setX(o) { o.x = 1; }
+function g() { var o = {}; o = window; setX(o); }
+g();
+`)
+	// The arguments passed via `.apply` are the elements of the array.
+	c.AssertNoPureCalls(
+		`function setX(o) { o.x = 1; }
+function g() { var a = [window]; setX.apply(null, a); }
+g();
+`)
+}
+
+// Java: PureFunctionIdentifierTest.testMutatesArguments_perParameter()
+func (c *PureFunctionIdentifierTest) TestMutatesArguments_perParameter() {
+	c.DisableTypeCheck()
+	c.AssertPureCallsMarked(
+		`function setX(o, v) { o.x = v; }
+function g(v) { var o = {}; setX(o, v); }
+g(window);
+`,
+		[]string{"g"})
+	c.AssertNoPureCalls(
+		`function setX(o, v) { o.x = v; }
+function g(v) { var o = {}; setX(v, o); }
+g(window);
+`)
+	// The mutated parameters of all definitions of an ambiguated name are combined.
+	c.AssertNoPureCalls(
+		`A.a = function(x, y) { x.p = 1; };
+B.a = function(x, y) { y.p = 1; };
+function g() { C.a({}, window); }
+g();
+`)
+	// Via the alias `f = A.a`, `f` also mutates its second parameter. This must reach the callers
+	// of `f`, even though `f` was already known to mutate its first parameter.
+	c.AssertNoPureCalls(
+		`var f = function(x, y) { x.p = 1; };
+f = A.a;
+A.a = function(x, y) { y.p = 1; };
+function g() { f({}, window); }
+g();
+`)
+	// The arguments following a spread don't correspond to the parameter at their position.
+	c.AssertNoPureCalls(
+		`function setY(x, y) { y.p = 1; }
+function g() { setY(...[window, window], {}); }
+g();
+`)
+	// The callees of `goog.reflect.cache` are invoked with the key, not the first argument.
+	c.AssertNoPureCalls(
+		`function g() { goog.reflect.cache({}, window, function(k) { k.x = 1; }); }
+g();
+`)
+}
+
+// Java: PureFunctionIdentifierTest.testMutatesArguments_restParameter()
+func (c *PureFunctionIdentifierTest) TestMutatesArguments_restParameter() {
+	c.DisableTypeCheck()
+	// Rest parameters are treated like destructured parameters, which don't directly correspond
+	// to an argument.
+	c.AssertNoPureCalls(
+		`function f(a, ...r) { r.x = 1; }
+function g() { f({}, {}); }
+g();
+`)
 }
 
 // Java: PureFunctionIdentifierTest.testMutatesArguments4()

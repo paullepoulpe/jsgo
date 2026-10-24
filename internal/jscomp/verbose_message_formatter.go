@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/VerboseMessageFormatter.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/VerboseMessageFormatter.java @ closure-compiler v20261021
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -64,9 +64,9 @@ func (f *VerboseMessageFormatter) Format(message *JSError) string {
 	if sourceName != nil && *sourceName != "" {
 		source = *sourceName
 	}
-	line := "(unknown line)"
+	line := strconv.Itoa(lineNumber)
 	if lineNumber < 0 {
-		line = strconv.Itoa(lineNumber)
+		line = "(unknown line)"
 	}
 	excerpt := "."
 	if lineSource != nil {

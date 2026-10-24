@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/GatherGetterAndSetterProperties.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/GatherGetterAndSetterProperties.java @ closure-compiler v20261021
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -103,7 +103,8 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) Visit(t *NodeTraversal,
 	case rhino.Token_CALL:
 		if NodeUtil_IsObjectDefinePropertyDefinition(n) {
 			c.VisitDefineProperty(n)
-		} else if NodeUtil_IsObjectDefinePropertiesDefinition(n) {
+		} else if NodeUtil_IsObjectDefinePropertiesDefinition(n) ||
+			NodeUtil_IsObjectCreateWithPropertiesDefinition(n) {
 			c.VisitDefineProperties(n)
 		}
 	default:

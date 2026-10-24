@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ClosureRewriteModuleTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/ClosureRewriteModuleTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/ClosureRewriteModuleTest.java)
 
 /*
@@ -3873,6 +3873,77 @@ exports = class Foo {};
 			`goog.provide('a.b.c');
 /** @const */
 a.b.c = class Foo {};
+`,
+			`async function f() {
+  await goog.importHandler_('sG5M4c');
+  const {Foo} = a.b.c;
+}
+`))
+}
+
+// Java: ClosureRewriteModuleTest.testUntypedLegacyNamespace_referenceToExports_normalized()
+func (c *ClosureRewriteModuleTest) TestUntypedLegacyNamespace_referenceToExports_normalized() {
+	c.EnableNormalize()
+	c.runTypeCheck = false
+	c.DisableTypeInfoValidation()
+	c.Test(
+		`goog.module('a.b.c');
+goog.module.declareLegacyNamespace();
+exports = class {};
+function useExports() {
+  return exports;
+}
+`,
+		`goog.provide('a.b.c');
+/** @const */
+a.b.c = class {};
+function module$contents$a$b$c_useExports() {
+  return a.b.c;
+}
+`)
+}
+
+// Java: ClosureRewriteModuleTest.testUntypedLegacyNamespace_referenceToExportProperty_normalized()
+func (c *ClosureRewriteModuleTest) TestUntypedLegacyNamespace_referenceToExportProperty_normalized() {
+	c.EnableNormalize()
+	c.runTypeCheck = false
+	c.DisableTypeInfoValidation()
+	c.Test(
+		`goog.module('a.b.c');
+goog.module.declareLegacyNamespace();
+exports.Foo = class {};
+function useExports() {
+  return exports.Foo;
+}
+`,
+		`goog.provide('a.b.c');
+/** @const */
+a.b.c.Foo = class {};
+function module$contents$a$b$c_useExports() {
+  return a.b.c.Foo;
+}
+`)
+}
+
+// Java: ClosureRewriteModuleTest.testUntypedGoogRequireDynamicInAwait_legacyNamespace_normalized()
+func (c *ClosureRewriteModuleTest) TestUntypedGoogRequireDynamicInAwait_legacyNamespace_normalized() {
+	c.EnableNormalize()
+	c.runTypeCheck = false
+	c.DisableTypeInfoValidation()
+	c.Test(
+		c.Srcs(
+			`goog.module('a.b.c');
+goog.module.declareLegacyNamespace();
+exports = class {};
+`,
+			`async function f() {
+  const {Foo} = await goog.requireDynamic('a.b.c');
+}
+`),
+		c.Expected(
+			`goog.provide('a.b.c');
+/** @const */
+a.b.c = class {};
 `,
 			`async function f() {
   await goog.importHandler_('sG5M4c');

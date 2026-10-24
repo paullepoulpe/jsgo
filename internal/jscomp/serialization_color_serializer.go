@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/ColorSerializer.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/serialization/ColorSerializer.java @ closure-compiler v20261021
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -56,10 +54,10 @@ type ColorSerializer struct {
 	// This is used as a worklist when the `TypePool` is generated.
 	colorsInSerializedOrder *jutil.ArrayList[*colors.Color]
 
-	typeProtoSlab  []TypeProto
-	objProtoSlab   []ObjectTypeProto
-	unionProtoSlab []UnionTypeProto
-	edgeSlab       []SubtypingEdge
+	typeProtoSlab  jutil.Slab[TypeProto]
+	objProtoSlab   jutil.Slab[ObjectTypeProto]
+	unionProtoSlab jutil.Slab[UnionTypeProto]
+	edgeSlab       jutil.Slab[SubtypingEdge]
 	int32Slab      []int32
 	scratchInt32s  []int32
 }
@@ -140,38 +138,19 @@ func colorSerializer_int32s(xs []int) []int32 {
 }
 
 func (s *ColorSerializer) allocTypeProto() *TypeProto {
-	if len(s.typeProtoSlab) == 0 {
-		s.typeProtoSlab = make([]TypeProto, jscompMaxSmallAlloc/int(unsafe.Sizeof(TypeProto{})))
-	}
-	p := &s.typeProtoSlab[0]
-	s.typeProtoSlab = s.typeProtoSlab[1:]
-	return p
+	return s.typeProtoSlab.New()
 }
 
 func (s *ColorSerializer) allocObjectTypeProto() *ObjectTypeProto {
-	if len(s.objProtoSlab) == 0 {
-		s.objProtoSlab = make([]ObjectTypeProto, jscompMaxSmallAlloc/int(unsafe.Sizeof(ObjectTypeProto{})))
-	}
-	p := &s.objProtoSlab[0]
-	s.objProtoSlab = s.objProtoSlab[1:]
-	return p
+	return s.objProtoSlab.New()
 }
 
 func (s *ColorSerializer) allocUnionTypeProto() *UnionTypeProto {
-	if len(s.unionProtoSlab) == 0 {
-		s.unionProtoSlab = make([]UnionTypeProto, jscompMaxSmallAlloc/int(unsafe.Sizeof(UnionTypeProto{})))
-	}
-	p := &s.unionProtoSlab[0]
-	s.unionProtoSlab = s.unionProtoSlab[1:]
-	return p
+	return s.unionProtoSlab.New()
 }
 
 func (s *ColorSerializer) allocSubtypingEdge(subtype, supertype int32) *SubtypingEdge {
-	if len(s.edgeSlab) == 0 {
-		s.edgeSlab = make([]SubtypingEdge, jscompMaxSmallAlloc/int(unsafe.Sizeof(SubtypingEdge{})))
-	}
-	e := &s.edgeSlab[0]
-	s.edgeSlab = s.edgeSlab[1:]
+	e := s.edgeSlab.New()
 	edgeSize := 0
 	if subtype != 0 {
 		edgeSize += 1 + protoVarintLen(uint64(int64(subtype)))

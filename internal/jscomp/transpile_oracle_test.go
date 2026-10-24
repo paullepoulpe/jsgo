@@ -410,7 +410,7 @@ func TestTranspileGolden(t *testing.T) {
 	if n := transpileOracleCompare(t, golden, jsDir, func(rel string) bool { return hand[rel] }); n != len(hand) {
 		t.Errorf("compared %d hand-written files, want %d", n, len(hand))
 	}
-	corpus := "/home/user/jsgo/.cache/corpus"
+	corpus := oracleTestCorpusRoot(t)
 	if _, err := os.Stat(corpus); err != nil {
 		t.Logf("corpus not present; golden corpus files skipped")
 		return
@@ -425,7 +425,7 @@ func TestTranspileOracle(t *testing.T) {
 	}
 	root := os.Getenv("TRANSPILE_ROOT")
 	if root == "" {
-		root = "/home/user/jsgo/.cache/corpus"
+		root = oracleTestCorpusRoot(t)
 	}
 	n := transpileOracleCompare(t, dump, root, nil)
 	t.Logf("compared %d files", n)

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ClosureCheckModule.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/ClosureCheckModule.java @ closure-compiler v20261021
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -212,9 +212,7 @@ func (c *ClosureCheckModule) processParallel(root rhino.Node) bool {
 				callback:     workerPass,
 				scopeCreator: sc,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, root, root, scripts[idx], lazyGlobal)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
 		}
 		return runItem, nil
 	}, false)

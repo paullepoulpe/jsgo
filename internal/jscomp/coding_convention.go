@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodingConvention.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CodingConvention.java @ closure-compiler v20261021
 // (with com/google/javascript/jscomp/AutoValue_CodingConvention_AssertionFunctionSpec.java
 // folded in)
 
@@ -23,7 +23,6 @@ package jscomp
 import (
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -392,14 +391,6 @@ type CodingConvention_SubclassRelationship struct {
 	superclassName string
 }
 
-type pooledSubclassRelSlab struct {
-	chunk []CodingConvention_SubclassRelationship
-}
-
-var subclassRelSlabPool = sync.Pool{
-	New: func() any { return &pooledSubclassRelSlab{} },
-}
-
 // Java: CodingConvention.SubclassRelationship(SubclassType, Node, Node)
 func NewCodingConvention_SubclassRelationship(
 	type_ CodingConvention_SubclassType, subclassNode rhino.Node, superclassNode rhino.Node) *CodingConvention_SubclassRelationship {
@@ -411,17 +402,11 @@ func NewCodingConvention_SubclassRelationship(
 	if !supOk {
 		jutil.CheckArgumentMsg1(false, "Expected qualified name, found: %s", superclassNode)
 	}
-	s := subclassRelSlabPool.Get().(*pooledSubclassRelSlab)
-	if len(s.chunk) == 0 {
-		s.chunk = make([]CodingConvention_SubclassRelationship, 512) // 20 KiB <= 32 KiB
+	return &CodingConvention_SubclassRelationship{
+		type_:          type_,
+		subclassName:   subName,
+		superclassName: supName,
 	}
-	r := &s.chunk[0]
-	s.chunk = s.chunk[1:]
-	subclassRelSlabPool.Put(s)
-	r.type_ = type_
-	r.subclassName = subName
-	r.superclassName = supName
-	return r
 }
 
 // CodingConvention_ObjectLiteralCast: an object literal cast provides a

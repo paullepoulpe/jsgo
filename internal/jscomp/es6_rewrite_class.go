@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/Es6RewriteClass.java @ closure-compiler v20261015
-// Port of com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.java @ closure-compiler v20261015
-// Port of com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassProperty_Builder.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/Es6RewriteClass.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassProperty_Builder.java @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -47,6 +47,11 @@ var es6RewriteClass_noCollapseJSDoc = func() *rhino.JSDocInfo {
 // Java: Es6RewriteClass.features
 var es6RewriteClass_features = parser.FeatureSet_BARE_MINIMUM.WithFeatures(
 	parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_CLASS_GETTER_SETTER, parser.FeatureSet_Feature_NEW_TARGET, parser.FeatureSet_Feature_SUPER)
+
+// Java: Es6RewriteClass.CONSTRUCTOR_PRIMITIVE_RETURN
+var Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN = DiagnosticType_Error(
+	"JSC_CONSTRUCTOR_PRIMITIVE_RETURN",
+	"Class constructors may only return an object or undefined")
 
 // Java: Es6RewriteClass(AbstractCompiler, Es6SubclassTranspilation)
 func NewEs6RewriteClass(
@@ -149,6 +154,9 @@ func (e *Es6RewriteClass) VisitClass(t *NodeTraversal, classNode rhino.Node, par
 			(member.IsGetterDef() || member.IsSetterDef()) {
 			e.VisitNonMethodMember(member, metadata)
 		} else if NodeUtil_IsEs6ConstructorMemberFunctionDef(member) {
+			if !classNode.IsFromExterns() {
+				e.ReportPrimitiveReturns(member.GetFirstChild())
+			}
 			constructor = member.RemoveFirstChild().SetColor(classNode.GetColor())
 			if !metadata.Anonymous() {
 				// Turns class Foo { constructor: function() {} } into function Foo() {},
@@ -229,6 +237,36 @@ func (e *Es6RewriteClass) VisitClass(t *NodeTraversal, classNode rhino.Node, par
 	}
 
 	t.ReportCodeChange()
+}
+
+// ReportPrimitiveReturns reports an error for each primitive value returned
+// from a class constructor. A native class constructor ignores such a value
+// in a base class and throws a TypeError in a derived class (ES2022 §
+// 10.2.2). After transpilation the constructor is a plain function, so a
+// subclass's `Base.call(this) || this` can evaluate to the value, and a
+// derived class constructor returns the new object instead of throwing.
+//
+// Only side-effect-free primitive values (NodeUtil.isImmutableValue) are
+// recognized, except `undefined`, which both kinds of constructor may
+// return. A computed return value would need a runtime check in every
+// constructor.
+//
+// Java: Es6RewriteClass.reportPrimitiveReturns(Node)
+func (e *Es6RewriteClass) ReportPrimitiveReturns(constructor rhino.Node) {
+	// TODO(b/573571176): A derived constructor that returns `undefined`, explicitly or by reaching
+	// the end of its body, before calling `super()` must throw a ReferenceError.
+	NodeUtil_VisitPostOrderWithPred(
+		NodeUtil_GetFunctionBody(constructor),
+		NodeUtil_VisitorFunc(func(n rhino.Node) {
+			if n.IsReturn() &&
+				n.HasChildren() &&
+				NodeUtil_IsImmutableValue(n.GetFirstChild()) &&
+				NodeUtil_GetKnownValueType(n.GetFirstChild()) != NodeUtil_ValueType_VOID {
+				e.compiler.Report(JSError_MakeWithNode(n, Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN))
+			}
+		}),
+		// A `return` in a nested function belongs to that function.
+		func(n rhino.Node) bool { return !n.IsFunction() })
 }
 
 // Java: Es6RewriteClass.createObjectDotDefineProperties()

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RescopeGlobalSymbols.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/RescopeGlobalSymbols.java @ closure-compiler v20261021
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -131,8 +131,7 @@ func (r *RescopeGlobalSymbols) Process(externs rhino.Node, root rhino.Node) {
 	// Find global names that are used in more than one chunk. Those that
 	// are have to be rewritten.
 	findCrossChunkNames :=
-		NewRescopeGlobalSymbols_FindCrossChunkNamesCallback(
-			r.optimizeLocalAccess != CompilerOptions_OptimizeLocalAccess_DISABLED)
+		NewRescopeGlobalSymbols_FindCrossChunkNamesCallback(r.optimizeLocalAccess.ShouldOptimize())
 
 	// And find names that may refer to functions that reference this.
 	findNamesReferencingThis := NewRescopeGlobalSymbols_FindNamesReferencingThis()

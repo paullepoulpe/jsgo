@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DataFlowAnalysis.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/DataFlowAnalysis.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -865,9 +865,7 @@ func DataFlowAnalysis_ComputeEscaped(
 		callback:     &finder,
 		scopeCreator: scopeCreator,
 	}
-	t := acquireNodeTraversal(&b)
-	t.TraverseAtScope(jsScope)
-	releaseNodeTraversal(t)
+	b.TraverseAtScope(jsScope)
 }
 
 // dataFlowAnalysis_escapedFinder is the anonymous AbstractPostOrderCallback

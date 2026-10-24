@@ -90,8 +90,8 @@ func TestNodeHasNoPointers(t *testing.T) {
 	if s := reflect.TypeOf(nodeExtBox{}).Size(); s != 32 {
 		t.Errorf("nodeExtBox is %d bytes, want 32", s)
 	}
-	if s := reflect.TypeOf(JSTypeBase{}).Size(); s != 32 {
-		t.Errorf("JSTypeBase is %d bytes, want 32", s)
+	if s := reflect.TypeOf(JSTypeBase{}).Size(); s != 40 {
+		t.Errorf("JSTypeBase is %d bytes, want 40", s)
 	}
 	if s := reflect.TypeOf(NilNode).Size(); s != 4 {
 		t.Errorf("Node is %d bytes, want 4", s)

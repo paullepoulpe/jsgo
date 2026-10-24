@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/J2clPass.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/J2clPass.java @ closure-compiler v20261021
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -177,7 +177,6 @@ func (p *J2clPass) getOrCreateInliner(root rhino.Node, inlineSpecs []*J2clPass_I
 		c.injector = NewFunctionInjector_Builder(p.compiler).
 			SafeNameIdSupplier(p.safeNameIdSupplier).
 			AssumeStrictThis(true).
-			AssumeMinimumCapture(true).
 			Build()
 		c.injector.SetKnownConstantFunctions(j2clPass_defaultFnNamesToInline)
 		c.collector.outer = c
@@ -202,7 +201,6 @@ func (p *J2clPass) newClassStaticFunctionsInliner(root rhino.Node, inlineSpecs [
 	c.injector = NewFunctionInjector_Builder(p.compiler).
 		SafeNameIdSupplier(p.safeNameIdSupplier).
 		AssumeStrictThis(true).
-		AssumeMinimumCapture(true).
 		Build()
 	fnNamesToInline := jutil.NewLinkedHashSet[string]()
 	for _, b := range inlineSpecs {

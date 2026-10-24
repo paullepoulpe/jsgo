@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Normalize.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/Normalize.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -159,10 +159,9 @@ func (n *Normalize) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (*Normalize_PropagateConstantPropertyOverVars) onlyNameLeaves()                {}
-func (*Normalize_PropagateConstantPropertyOverVars) noShouldTraverse()              {}
 func (*Normalize_PropagateConstantPropertyOverVars) nodeTraversalNoShouldTraverse() {}
 func (*ValidityCheck_VerifyConstants) onlyNameLeaves()                              {}
-func (*ValidityCheck_VerifyConstants) noShouldTraverse()                            {}
+func (*ValidityCheck_VerifyConstants) nodeTraversalNoShouldTraverse()               {}
 
 // Normalize_PropagateConstantPropertyOverVars propagates constant
 // annotations and IS_CONSTANT_NAME property over the Var graph.
@@ -1060,6 +1059,7 @@ func (s *Normalize_NormalizeStatements) NormalizeAssignShorthand(shorthand rhino
 
 	// Change the original ASSIGN_X to an ASSIGN.
 	shorthand.SetToken(rhino.Token_ASSIGN)
+	lhs.CopyTypeFrom(shorthand)
 	shorthand.AddChildToBack(lhs)
 	shorthand.AddChildToBack(opNode)
 

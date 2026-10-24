@@ -3,7 +3,6 @@ package jutil
 import (
 	"os"
 	"unicode/utf8"
-	"unsafe"
 )
 
 // Go-only: language-adapter — the reading methods of java.nio.file.Files
@@ -23,7 +22,7 @@ func Files_ReadStringRaw(pathStr string, cs *Charset) string {
 		panic(IOExceptionFromError(err, pathStr))
 	}
 	if (cs == nil || cs == StandardCharsets_UTF_8) && utf8.Valid(b) {
-		return unsafe.String(unsafe.SliceData(b), len(b))
+		return string(b)
 	}
 	return cs.DecodeStrict(b)
 }

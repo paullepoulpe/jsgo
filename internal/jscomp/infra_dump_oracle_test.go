@@ -40,8 +40,6 @@ import (
 	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
-const infraCorpusRoot = "/home/user/jsgo/.cache/corpus"
-
 // infraEscape is InfraDump.escape (ParsingDump's escaping).
 func infraEscape(s string) string {
 	var b strings.Builder
@@ -761,13 +759,14 @@ func TestInfraDumpGolden(t *testing.T) {
 			golden[l] = true
 		}
 	}
-	_, corpusErr := os.Stat(infraCorpusRoot)
+	corpusRoot := oracleTestCorpusRoot(t)
+	_, corpusErr := os.Stat(corpusRoot)
 	infraCompare(t, filepath.Join("testdata", "infra", "golden.txt.gz"), func(name string) string {
 		if golden[name] {
 			if corpusErr != nil {
 				return ""
 			}
-			return infraCorpusRoot
+			return corpusRoot
 		}
 		return jsDir
 	}, "")
@@ -780,7 +779,7 @@ func TestInfraDumpOracle(t *testing.T) {
 	}
 	root := os.Getenv("INFRA_ROOT")
 	if root == "" {
-		root = infraCorpusRoot
+		root = oracleTestCorpusRoot(t)
 	}
 	infraCompare(t, oracle, func(string) string { return root }, os.Getenv("INFRA_DIFF_DIR"))
 }

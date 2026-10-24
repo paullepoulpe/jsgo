@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodeConsumer.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CodeConsumer.java @ closure-compiler v20261021
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -444,14 +444,17 @@ func (c *CodeConsumerBase) AddNumber(x float64, n rhino.Node) {
 		// checkState(isPositive(x), x)
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.DoubleToString(x)))
 	}
+	c.self.AddConstant(CodeConsumer_FormatNumber(x))
+}
 
+// Java: CodeConsumer.formatNumber(double)
+func CodeConsumer_FormatNumber(x float64) string {
 	if float64(jutil.D2L(x)) != x {
 		s := strings.ReplaceAll(jutil.DoubleToString(x), ".0E", "E")
 		if strings.HasPrefix(s, "0.") {
 			s = "." + s[2:]
 		}
-		c.self.AddConstant(s)
-		return
+		return s
 	}
 
 	value := jutil.D2L(x)
@@ -465,22 +468,20 @@ func (c *CodeConsumerBase) AddNumber(x float64, n rhino.Node) {
 	}
 
 	if exp > 2 {
-		c.self.AddConstant(strconv.FormatInt(mantissa, 10) + "E" + strconv.Itoa(exp))
-		return
+		return strconv.FormatInt(mantissa, 10) + "E" + strconv.Itoa(exp)
 	}
 
 	decValueString := strconv.FormatInt(value, 10)
 	if value <= 1000000000000 {
 		// Values <1E12 are shorter in decimal
-		c.self.AddConstant(decValueString)
-		return
+		return decValueString
 	}
 
 	hexValueString := jutil.LongToHexString(value)
 	if len(hexValueString)+2 < len(decValueString) {
-		c.self.AddConstant("0x" + hexValueString)
+		return "0x" + hexValueString
 	} else {
-		c.self.AddConstant(decValueString)
+		return decValueString
 	}
 }
 

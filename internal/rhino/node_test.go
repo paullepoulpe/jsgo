@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/NodeTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/NodeTest.java @ closure-compiler v20261021
 
 /*
  *
@@ -1065,4 +1065,50 @@ func TestNode_IsPos(t *testing.T) {
 	assertTrue(t, "POS.isPos()", NewNode(Token_POS).IsPos())
 	assertFalse(t, "NEG.isPos()", NewNode(Token_NEG).IsPos())
 	assertFalse(t, "1.0.isPos()", Node_NewNumber(1.0).IsPos())
+}
+
+func TestNode_ReplaceWithPropagatesSrcrefIfMissing(t *testing.T) {
+	parent := NewNode(Token_BLOCK)
+	target := NewNode(Token_NAME)
+	target.SetLinenoCharno(10, 5)
+	target.SetSourceFileForTesting("target.js")
+	parent.AddChildToBack(target)
+
+	check := func(what string, n Node, lineno, charno int, file *string) {
+		t.Helper()
+		if got := n.GetLineno(); got != lineno {
+			t.Errorf("%s lineno: got %d, want %d", what, got, lineno)
+		}
+		if got := n.GetCharno(); got != charno {
+			t.Errorf("%s charno: got %d, want %d", what, got, charno)
+		}
+		got := n.GetSourceFileName()
+		switch {
+		case file == nil && got != nil:
+			t.Errorf("%s source file name: got %q, want null", what, *got)
+		case file != nil && (got == nil || *got != *file):
+			t.Errorf("%s source file name: got %v, want %q", what, got, *file)
+		}
+	}
+	str := func(s string) *string { return &s }
+
+	// Case (a): replacement has no source info
+	replacement1 := NewNode(Token_NAME)
+	target.ReplaceWith(replacement1)
+	check("replacement1", replacement1, 10, 5, str("target.js"))
+
+	// Case (b): replacement already has source info
+	replacement2 := NewNode(Token_NAME)
+	replacement2.SetLinenoCharno(20, 8)
+	replacement2.SetSourceFileForTesting("replacement.js")
+	replacement1.ReplaceWith(replacement2)
+	check("replacement2", replacement2, 20, 8, str("replacement.js"))
+
+	// Case (c): child of replacement has no source info
+	replacement3 := NewNode(Token_NAME)
+	child := NewNode(Token_NAME)
+	replacement3.AddChildToBack(child)
+	replacement2.ReplaceWith(replacement3)
+	check("replacement3", replacement3, 20, 8, str("replacement.js"))
+	check("child", child, -1, -1, nil)
 }

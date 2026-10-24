@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethods.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethods.java @ closure-compiler v20261021
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -356,6 +356,11 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(subtree rhino.Node
 		case "round":
 			if math.IsNaN(arg) || math.IsInf(arg, 0) {
 				r := arg
+				replacement = &r
+			} else if arg >= -0.5 &&
+				(arg < 0.0 || (arg == 0.0 && int64(math.Float64bits(arg)) < 0)) {
+				// Go-only: language-adapter — the Go constant -0.0 is +0.
+				r := math.Copysign(0, -1)
 				replacement = &r
 			} else {
 				r := float64(jutil.MathRound(arg))
@@ -1537,11 +1542,11 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(n rhino.Node, stringNod
 
 		arg2 := arg1.GetNext()
 		if !arg2.IsNil() {
-			if arg2.IsNumber() {
-				limit = min(int(jutil.D2I(arg2.GetDouble())), limit)
-				if limit < 0 {
-					return n
-				}
+			if NodeUtil_IsNumericLiteral(arg2) {
+				// Integer.toUnsignedLong(int)
+				uint32Limit :=
+					int64(uint32(base.JSCompDoubles_EcmascriptToUint32(NodeUtil_GetNumericLiteralValue(arg2))))
+				limit = int(min(uint32Limit, int64(limit)))
 			} else {
 				return n
 			}

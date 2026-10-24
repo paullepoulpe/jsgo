@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineVariablesTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/InlineVariablesTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/InlineVariablesTest.java)
 
 /*
@@ -20,6 +20,8 @@
 package jscomp
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -2443,6 +2445,21 @@ func (c *InlineVariablesTest) TestClassDeclaration_notInlined() {
 // Java: InlineVariablesTest.testClassExpressionInlined()
 func (c *InlineVariablesTest) TestClassExpressionInlined() {
 	c.Test("var C = class {}; use(C);", "use(class {});")
+	c.Test("const C = class {}; use(C);", "use(class {});")
+	c.Test("let C = class {}; use(C);", "use(class {});")
+}
+
+// Java: InlineVariablesTest.testModerateMotionStepLimit_doesNotInlinedAcrossTooManyNodes()
+func (c *InlineVariablesTest) TestModerateMotionStepLimit_doesNotInlinedAcrossTooManyNodes() {
+	var sb strings.Builder
+	sb.WriteString("var C = class {};\n")
+	// Generate enough side-effect-free class declarations to exceed MAX_MODERATE_MOTION_STEPS
+	// (5000)
+	for i := 0; i < 1000; i++ {
+		sb.WriteString("class Extra" + strconv.Itoa(i) + " { foo() {} }\n")
+	}
+	sb.WriteString("use(C);\n")
+	c.TestSame(sb.String())
 }
 
 // Java: InlineVariablesTest.testClassExpressionWithExtendsInlined()
@@ -2512,5 +2529,49 @@ func (c *InlineVariablesTest) TestClassWithImpureExtendsNotMovedAcrossCalls() {
 		`var C = class extends getBase() {};
 doSomething();
 use(C);
+`)
+}
+
+// Java: InlineVariablesTest.testField_declaredConstAssignedInsideInstanceFieldInitializer()
+func (c *InlineVariablesTest) TestField_declaredConstAssignedInsideInstanceFieldInitializer() {
+	// TODO(b/572004916): @const assigned in field initializer is inlined before instantiation
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
+	c.Test(
+		`/** @const */ var a;
+class C {
+  x = (a = 1);
+}
+alert(a);
+new C();
+`,
+		`class C {
+  x = 1;
+}
+alert(1);
+new C();
+`)
+}
+
+// Java: InlineVariablesTest.testField_declaredConstAssignedInsideInstanceFieldInitializer_local()
+func (c *InlineVariablesTest) TestField_declaredConstAssignedInsideInstanceFieldInitializer_local() {
+	// TODO(b/572004916): local @const assigned in field initializer is inlined before instantiation
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
+	c.Test(
+		`function f() {
+  /** @const */ var a;
+  class C {
+    x = (a = 1);
+  }
+  alert(a);
+  return new C();
+}
+`,
+		`function f() {
+  class C {
+    x = 1;
+  }
+  alert(1);
+  return new C();
+}
 `)
 }

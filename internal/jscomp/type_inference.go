@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TypeInference.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/TypeInference.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -80,18 +78,6 @@ type TypeInference struct {
 	lastScopeRoot           rhino.Node
 	lastModule              *Module
 	lastSyntacticBlockScope *TypedScope
-
-	qnameCache     [4096][2]tiQNameCacheEntry
-	qnameNodeCache [64][2]tiNodeQNameEntry
-}
-
-type tiQNameCacheEntry struct {
-	a, b, res string
-}
-
-type tiNodeQNameEntry struct {
-	node  rhino.Node
-	qname string
 }
 
 var TypeInference_REASSIGN_CLASS_PROTOTYPE = DiagnosticType_Error(
@@ -1051,9 +1037,10 @@ func (ti *TypeInference) TraverseNewTarget(newTargetNode rhino.Node) {
 		scope = scope.GetParent()
 	}
 	if scope == nil {
-		// NOTE: we already have a parse error for new.target outside a function.  The only other case
-		// where this might happen is a top-level arrow function, which is a parse error in the VM,
-		// but allowed by our parser.
+		// `new.target` is not inside any non-arrow function. The loop above skips arrow functions
+		// because they use the `new.target` of the code around them, so this also covers arrow
+		// functions with no non-arrow function around them, e.g. a top-level `() => new.target`.
+		// IRFactory already reports a parse error for all of these, so just use the unknown type.
 		newTargetNode.SetJSType(ti.unknownType)
 		return
 	}
@@ -1357,7 +1344,7 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 			var_.SetType(resultType)
 		}
 	case rhino.Token_GETPROP:
-		qualifiedName, isQName := ti.getQualifiedNameString(target)
+		qualifiedName, isQName := target.GetQualifiedNameString()
 		if isQName {
 			declaredSlotType := false
 			rawObjType := target.GetFirstChild().GetJSType()
@@ -1393,7 +1380,7 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 //
 // Java: TypeInference.ensurePropertyDefined(Node, JSType, FlowScope)
 func (ti *TypeInference) EnsurePropertyDefined(getprop rhino.Node, rightType rhino.JSType, scope FlowScope) {
-	qName, isQName := ti.getQualifiedNameString(getprop)
+	qName, isQName := getprop.GetQualifiedNameString()
 	ti.ensurePropertyDefined(getprop, qName, isQName, rightType, scope)
 }
 
@@ -1491,7 +1478,7 @@ func (ti *TypeInference) DefineDeclaredProperty(
 // Java: TypeInference.ensurePropertyDeclaredHelper(Node, ObjectType, FlowScope)
 func (ti *TypeInference) EnsurePropertyDeclaredHelper(
 	getprop rhino.Node, objectType rhino.ObjectType, scope FlowScope) bool {
-	qName, isQName := ti.getQualifiedNameString(getprop)
+	qName, isQName := getprop.GetQualifiedNameString()
 	return ti.ensurePropertyDeclaredHelper(getprop, qName, isQName, objectType, scope)
 }
 
@@ -1977,7 +1964,7 @@ func (ti *TypeInference) TraverseObjectLiteral(n rhino.Node, scope FlowScope) Fl
 
 		// Do normal flow inference if this is a direct property assignment.
 		if hasQObjName && key.IsStringKey() {
-			qKeyName := ti.concatQName(qObjName, memberName)
+			qKeyName := qObjName + "." + memberName
 			var_ := TypeInference_GetDeclaredVar(scope, qKeyName)
 			var oldType rhino.JSType
 			if var_ != nil {
@@ -2034,10 +2021,9 @@ func (ti *TypeInference) TraverseAdd(n rhino.Node, scope FlowScope) FlowScope {
 	n.SetJSType(type_)
 
 	if n.IsAssignAdd() {
-		// TODO(johnlenz): this should not update the type of the lhs as that is use as a
-		// input and need to be preserved for type checking.
-		// Instead call this overload `updateScopeForAssignment(scope, left, leftType, type, null);`
-		scope = ti.UpdateScopeForAssignment(scope, left, type_, TypeInference_AssignmentType_ASSIGN)
+		scope =
+			ti.UpdateScopeForAssignmentWithUpdateNode(
+				scope, left, type_, rhino.NilNode /* updateNode= */, TypeInference_AssignmentType_ASSIGN)
 	}
 
 	return scope
@@ -2253,7 +2239,7 @@ func (ti *TypeInference) NarrowScope(scope FlowScope, node rhino.Node, narrowed 
 	}
 
 	if node.IsGetProp() {
-		qName, _ := ti.getQualifiedNameString(node)
+		qName, _ := node.GetQualifiedNameString()
 		return scope.InferQualifiedSlot(
 			node, qName, ti.GetJSType(node), narrowed, false)
 	}
@@ -3135,7 +3121,7 @@ func (ti *TypeInference) TightenTypeAfterDereference(n rhino.Node, scope FlowSco
 		type_ := ti.GetJSType(n)
 		narrowed := type_.RestrictByNotNullOrUndefined()
 		if type_ != narrowed && !type_.Equals(narrowed) {
-			if qName, ok := ti.getQualifiedNameString(n); ok {
+			if qName, ok := n.GetQualifiedNameString(); ok {
 				scope = scope.InferQualifiedSlot(n, qName, type_, narrowed, false)
 			}
 		}
@@ -3149,50 +3135,6 @@ func (ti *TypeInference) TightenTypeAfterDereference(n rhino.Node, scope FlowSco
 	return scope
 }
 
-func (ti *TypeInference) lookupQNameCache(a, b string) (string, bool) {
-	h := gnConcatHash(a, b)
-	idx := (h ^ (h >> 11)) & uint32(len(ti.qnameCache)-1)
-	bucket := &ti.qnameCache[idx]
-	if e := &bucket[0]; e.res != "" && scopeNameEq(e.a, a) && scopeNameEq(e.b, b) {
-		return e.res, true
-	}
-	if e := &bucket[1]; e.res != "" && scopeNameEq(e.a, a) && scopeNameEq(e.b, b) {
-		res := e.res
-		*e = bucket[0]
-		bucket[0] = tiQNameCacheEntry{a: a, b: b, res: res}
-		return res, true
-	}
-	return "", false
-}
-
-func (ti *TypeInference) putQNameCache(a, b, res string) {
-	h := gnConcatHash(a, b)
-	idx := (h ^ (h >> 11)) & uint32(len(ti.qnameCache)-1)
-	bucket := &ti.qnameCache[idx]
-	bucket[1] = bucket[0]
-	bucket[0] = tiQNameCacheEntry{a: a, b: b, res: res}
-}
-
-func (ti *TypeInference) concatQName(a, b string) string {
-	if res, ok := ti.lookupQNameCache(a, b); ok {
-		return res
-	}
-	res := a + "." + b
-	ti.putQNameCache(a, b, res)
-	return res
-}
-
-func (ti *TypeInference) putNodeQNameCache(n rhino.Node, qname string) {
-	nh := n.ID() * 0x9E3779B1 >> 26
-	bucket := &ti.qnameNodeCache[nh&uint32(len(ti.qnameNodeCache)-1)]
-	if bucket[0].node == n {
-		bucket[0].qname = qname
-		return
-	}
-	bucket[1] = bucket[0]
-	bucket[0] = tiNodeQNameEntry{node: n, qname: qname}
-}
-
 func (ti *TypeInference) getBestLValueNameString(lValue rhino.Node) (string, bool) {
 	if lValue.IsNil() || lValue.GetParent().IsObjectLit() {
 		return "", false
@@ -3204,139 +3146,11 @@ func (ti *TypeInference) getBestLValueNameString(lValue rhino.Node) (string, boo
 		objectLit := lValue.GetParent()
 		owner, ok := ti.getBestLValueNameString(NodeUtil_GetBestLValue(objectLit))
 		if ok {
-			return ti.concatQName(owner, NodeUtil_GetObjectOrClassLitKeyName(lValue)), true
+			return owner + "." + NodeUtil_GetObjectOrClassLitKeyName(lValue), true
 		}
 		return "", false
 	}
-	return ti.getQualifiedNameString(lValue)
-}
-
-func (ti *TypeInference) getQualifiedNameString(n rhino.Node) (string, bool) {
-	switch n.GetToken() {
-	case rhino.Token_GETPROP:
-		nh := n.ID() * 0x9E3779B1 >> 26
-		bucket := &ti.qnameNodeCache[nh&uint32(len(ti.qnameNodeCache)-1)]
-		if bucket[0].node == n {
-			return bucket[0].qname, true
-		}
-		if bucket[1].node == n {
-			res := bucket[1].qname
-			bucket[1] = bucket[0]
-			bucket[0] = tiNodeQNameEntry{node: n, qname: res}
-			return res, true
-		}
-
-		var chain [32]rhino.Node
-		depth := 0
-		cur := n
-		for cur.IsGetProp() {
-			if cur.GetString() == "" {
-				return "", false
-			}
-			if depth >= len(chain) {
-				a, ok := ti.getQualifiedNameString(n.GetFirstChild())
-				if !ok {
-					return "", false
-				}
-				res := ti.concatQName(a, n.GetString())
-				ti.putNodeQNameCache(n, res)
-				return res, true
-			}
-			chain[depth] = cur
-			depth++
-			cur = cur.GetFirstChild()
-		}
-		var rootStr string
-		switch cur.GetToken() {
-		case rhino.Token_NAME:
-			rootStr = cur.GetString()
-			if rootStr == "" {
-				return "", false
-			}
-		case rhino.Token_THIS:
-			rootStr = "this"
-		case rhino.Token_SUPER:
-			rootStr = "super"
-		default:
-			return "", false
-		}
-
-		var upChain [32]rhino.Node
-		upDepth := 0
-		outer := n
-		for upDepth < len(upChain) {
-			p := outer.GetParent()
-			if p.IsNil() || !p.IsGetProp() || p.GetFirstChild() != outer || p.GetString() == "" {
-				break
-			}
-			upChain[upDepth] = p
-			upDepth++
-			outer = p
-		}
-
-		totalDepth := depth + upDepth
-		if totalDepth == 1 {
-			res := ti.concatQName(rootStr, n.GetString())
-			ti.putNodeQNameCache(n, res)
-			return res, true
-		}
-
-		nodeAt := func(i int) rhino.Node {
-			if i < depth {
-				return chain[depth-1-i]
-			}
-			return upChain[i-depth]
-		}
-
-		var result string
-		acc := rootStr
-		for j := 0; j < totalDepth; j++ {
-			nodeJ := nodeAt(j)
-			propJ := nodeJ.GetString()
-			if cached, ok := ti.lookupQNameCache(acc, propJ); ok {
-				acc = cached
-				ti.putNodeQNameCache(nodeJ, acc)
-				if j == depth-1 {
-					result = acc
-				}
-				continue
-			}
-			totalLen := len(acc) + (totalDepth - j)
-			for m := j; m < totalDepth; m++ {
-				totalLen += len(nodeAt(m).GetString())
-			}
-			buf := make([]byte, totalLen)
-			pos := copy(buf, acc)
-			for m := j; m < totalDepth; m++ {
-				nodeM := nodeAt(m)
-				propM := nodeM.GetString()
-				buf[pos] = '.'
-				pos++
-				pos += copy(buf[pos:], propM)
-				prefixM := unsafe.String(unsafe.SliceData(buf), pos)
-				ti.putQNameCache(acc, propM, prefixM)
-				ti.putNodeQNameCache(nodeM, prefixM)
-				if m == depth-1 {
-					result = prefixM
-				}
-				acc = prefixM
-			}
-			break
-		}
-		return result, true
-	case rhino.Token_NAME:
-		name := n.GetString()
-		if name == "" {
-			return "", false
-		}
-		return name, true
-	case rhino.Token_THIS:
-		return "this", true
-	case rhino.Token_SUPER:
-		return "super", true
-	default:
-		return "", false
-	}
+	return lValue.GetQualifiedNameString()
 }
 
 // Java: TypeInference.getPropertyType(JSType, String, Node, FlowScope)
@@ -3351,7 +3165,7 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 	isLocallyInferred := false
 
 	// Scopes sometimes contain inferred type info about qualified names.
-	qualifiedName, hasQName := ti.getQualifiedNameString(n)
+	qualifiedName, hasQName := n.GetQualifiedNameString()
 	var var_ rhino.StaticTypedSlot
 	if hasQName {
 		var_, _ = scope.GetSlot(qualifiedName).(rhino.StaticTypedSlot)

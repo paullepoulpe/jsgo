@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteAsyncFunctions.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/RewriteAsyncFunctions.java @ closure-compiler v20261021
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -285,16 +285,33 @@ func (c *RewriteAsyncFunctions_ParameterListContext) GetContextForNode(t *NodeTr
 		// e.g. `() => something`
 		// function someFunc(callback = () => something) {}
 		uniqueId := c.outer.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
-		return newRewriteAsyncFunctions_FunctionContextWithOuter(c.outer, c.functionContext, n, uniqueId)
+		return newRewriteAsyncFunctions_FunctionContextWithOuter(c.outer, c.GetAsyncContextForParameterList(), n, uniqueId)
 	} else {
 		return c
 	}
 }
 
+// GetAsyncContextForParameterList returns the async context that `this`,
+// `arguments`, `new.target`, and `super` refer to in this parameter list, or
+// nil if they should be left unchanged.
+//
+// When the function owning this parameter list is itself the async context,
+// the parameter list stays on the outer function and is not moved into the
+// generator body, so references here (including inside nested arrow
+// functions) must not be aliased.
+//
+// Java: ParameterListContext.getAsyncContextForParameterList()
+func (c *RewriteAsyncFunctions_ParameterListContext) GetAsyncContextForParameterList() *RewriteAsyncFunctions_FunctionContext {
+	asyncContext := c.functionContext.asyncThisAndArgumentsContext
+	if asyncContext == c.functionContext {
+		return nil
+	}
+	return asyncContext
+}
+
 // Java: ParameterListContext.visit(NodeTraversal, Node)
 func (c *RewriteAsyncFunctions_ParameterListContext) Visit(t *NodeTraversal, n rhino.Node) {
-	if c.functionContext.asyncThisAndArgumentsContext != nil &&
-		c.functionContext.asyncThisAndArgumentsContext != c.functionContext {
+	if c.GetAsyncContextForParameterList() != nil {
 		// e.g.
 		// async function outer(outerT = this) {
 		//   // `this` in outer parameter list must remain unchanged
@@ -346,9 +363,13 @@ func newRewriteAsyncFunctions_FunctionContext(outer *RewriteAsyncFunctions, cont
 	return c
 }
 
+// outerAsyncContext is the async context that `this`, `arguments`, etc.
+// refer to at the point where this function is defined, or nil if there is
+// none.
+//
 // Java: FunctionContext(FunctionContext, Node, String)
 func newRewriteAsyncFunctions_FunctionContextWithOuter(
-	outerInstance *RewriteAsyncFunctions, outer *RewriteAsyncFunctions_FunctionContext, contextRootNode rhino.Node, uniqueId string) *RewriteAsyncFunctions_FunctionContext {
+	outerInstance *RewriteAsyncFunctions, outerAsyncContext *RewriteAsyncFunctions_FunctionContext, contextRootNode rhino.Node, uniqueId string) *RewriteAsyncFunctions_FunctionContext {
 	c := &RewriteAsyncFunctions_FunctionContext{outer: outerInstance}
 	c.InitRewriteAsyncFunctions_LexicalContextBase(contextRootNode, uniqueId)
 	c.superPropertyWrappers = newRewriteAsyncFunctions_SuperPropertyWrappers(outerInstance)
@@ -358,12 +379,12 @@ func newRewriteAsyncFunctions_FunctionContextWithOuter(
 	jutil.CheckStateMsg1(contextRootNode.IsFunction(), "%s", contextRootNode)
 	if contextRootNode.IsAsyncFunction() {
 		if contextRootNode.IsArrowFunction() {
-			// An async arrow function context points to outer.asyncThisAndArgumentsContext
+			// An async arrow function context points to outerAsyncContext
 			// if non-null, otherwise to itself.
-			if outer.asyncThisAndArgumentsContext == nil {
+			if outerAsyncContext == nil {
 				c.asyncThisAndArgumentsContext = c
 			} else {
-				c.asyncThisAndArgumentsContext = outer.asyncThisAndArgumentsContext
+				c.asyncThisAndArgumentsContext = outerAsyncContext
 			}
 		} else {
 			// An async non-arrow function context always points to itself
@@ -371,9 +392,8 @@ func newRewriteAsyncFunctions_FunctionContextWithOuter(
 		}
 	} else {
 		if contextRootNode.IsArrowFunction() {
-			// A non-async arrow function context always points to
-			// outer.asyncThisAndArgumentsContext
-			c.asyncThisAndArgumentsContext = outer.asyncThisAndArgumentsContext
+			// A non-async arrow function context always points to outerAsyncContext
+			c.asyncThisAndArgumentsContext = outerAsyncContext
 		} else {
 			// A non-async, non-arrow function has no async context.
 			c.asyncThisAndArgumentsContext = nil
@@ -388,7 +408,7 @@ func (c *RewriteAsyncFunctions_FunctionContext) GetContextForNode(t *NodeTravers
 		return c
 	} else if n.IsFunction() {
 		uniqueId := c.outer.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
-		return newRewriteAsyncFunctions_FunctionContextWithOuter(c.outer, c, n, uniqueId)
+		return newRewriteAsyncFunctions_FunctionContextWithOuter(c.outer, c.asyncThisAndArgumentsContext, n, uniqueId)
 	} else if n.IsParamList() {
 		uniqueId := c.outer.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 		return newRewriteAsyncFunctions_ParameterListContext(c.outer, c, n, uniqueId)

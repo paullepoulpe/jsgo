@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/ScriptNodeDeserializer.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/serialization/ScriptNodeDeserializer.java @ closure-compiler v20261021
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -21,7 +21,6 @@ package jscomp
 import (
 	"bytes"
 	"math"
-	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -63,47 +62,23 @@ func NewScriptNodeDeserializer(
 	}
 }
 
-var scriptNodeDeserializerRunnerPool = sync.Pool{
-	New: func() any {
-		return &scriptNodeDeserializer_Runner{
-			childBytes:   make([][]byte, 0, 256),
-			contextStack: jutil.NewArrayListWithCapacity[parsing.FeatureCollector_FeatureContext](32),
-		}
-	},
-}
-
 // Java: ScriptNodeDeserializer.deserializeNew()
 func (d *ScriptNodeDeserializer) DeserializeNew() rhino.Node {
-	r := scriptNodeDeserializerRunnerPool.Get().(*scriptNodeDeserializer_Runner)
-	r.owner_ = d
-	r.featureCollectorVal.Reset()
-	r.featureCollector = &r.featureCollectorVal
-	r.previousLine = 0
-	r.previousColumn = 0
-	r.childBytes = r.childBytes[:0]
-	defer func() {
-		r.owner_ = nil
-		r.featureCollector = nil
-		clear(r.childBytes)
-		r.childBytes = r.childBytes[:0]
-		r.jsdoc = OptimizationJsdoc{}
-		scriptNodeDeserializerRunnerPool.Put(r)
-	}()
-	return r.Run()
+	return newScriptNodeDeserializer_Runner(d).Run()
 }
 
 // Java: ScriptNodeDeserializer.Runner
 type scriptNodeDeserializer_Runner struct {
-	owner_              *ScriptNodeDeserializer
-	featureCollector    *parsing.FeatureCollector
-	featureCollectorVal parsing.FeatureCollector
-	previousLine        int
-	previousColumn      int
-	childBytes          [][]byte
-	contextStack        *jutil.ArrayList[parsing.FeatureCollector_FeatureContext]
-	jsdoc               OptimizationJsdoc
-	jsdocKindBuf        [16]int32
-	jsdocBuilder        rhino.JSDocInfo_Builder
+	owner_           *ScriptNodeDeserializer
+	featureCollector *parsing.FeatureCollector
+	templateNodeVal  rhino.Node
+	previousLine     int
+	previousColumn   int
+	childBytes       [][]byte
+	contextStack     *jutil.ArrayList[parsing.FeatureCollector_FeatureContext]
+	jsdoc            OptimizationJsdoc
+	jsdocKindBuf     [16]int32
+	jsdocBuilder     rhino.JSDocInfo_Builder
 }
 
 func newScriptNodeDeserializer_Runner(owner *ScriptNodeDeserializer) *scriptNodeDeserializer_Runner {

@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/deps/JsFileLineParserTest.java @ closure-compiler v20261015
+// Port of test/com/google/javascript/jscomp/deps/JsFileLineParserTest.java @ closure-compiler v20261021
 
 /*
  * Copyright 2010 The Closure Compiler Authors.
@@ -112,10 +112,22 @@ func TestJsFileLineParser_MultipleBlockComments(t *testing.T) {
 		"/** first */\n/**\n * second\n */\n")
 }
 
+func TestJsFileLineParser_ParseJsString_escapedQuotes(t *testing.T) {
+	parser := newJsFileLineParserTest_TestParser()
+	assertEqual(t, "parseJsString", parser.ParseJsString("'foo\\'bar'"), "foo\\'bar")
+	assertEqual(t, "parseJsString", parser.ParseJsString("\"foo\\\"bar\""), "foo\\\"bar")
+}
+
+func TestJsFileLineParser_ParseJsString_unterminatedEscapedQuote_throwsParseException(t *testing.T) {
+	parser := newJsFileLineParserTest_TestParser()
+	assertThrows[*JsFileLineParser_ParseException](t, func() { parser.ParseJsString("'foo\\'") })
+	assertThrows[*JsFileLineParser_ParseException](t, func() { parser.ParseJsString("\"foo\\\"") })
+}
+
 func jsFileLineParserTest_assertStrip(t *testing.T, expected string, input string) {
 	t.Helper()
 	errorManager := NewPrintStreamErrorManager(jutil.System_Err())
-	parser := newJsFileLineParserTest_TestParser(errorManager)
+	parser := newJsFileLineParserTest_TestParserWithErrorManager(errorManager)
 	parser.DoParse("file", jutil.NewStringReader(input))
 	if got := parser.String(); got != expected {
 		t.Errorf("strip %q: got %q, want %q", input, got, expected)
@@ -125,7 +137,7 @@ func jsFileLineParserTest_assertStrip(t *testing.T, expected string, input strin
 func jsFileLineParserTest_assertBlocks(t *testing.T, expected string, input string) {
 	t.Helper()
 	errorManager := NewPrintStreamErrorManager(jutil.System_Err())
-	parser := newJsFileLineParserTest_TestParser(errorManager)
+	parser := newJsFileLineParserTest_TestParserWithErrorManager(errorManager)
 	parser.DoParse("file", jutil.NewStringReader(input))
 	if got := parser.comments.String(); got != expected {
 		t.Errorf("blocks %q: got %q, want %q", input, got, expected)
@@ -138,7 +150,13 @@ type jsFileLineParserTest_TestParser struct {
 	comments *jutil.StringBuilder
 }
 
-func newJsFileLineParserTest_TestParser(errorManager ErrorManager) *jsFileLineParserTest_TestParser {
+// Java: JsFileLineParserTest.TestParser()
+func newJsFileLineParserTest_TestParser() *jsFileLineParserTest_TestParser {
+	return newJsFileLineParserTest_TestParserWithErrorManager(nil /* errorManager */)
+}
+
+// Java: JsFileLineParserTest.TestParser(ErrorManager)
+func newJsFileLineParserTest_TestParserWithErrorManager(errorManager ErrorManager) *jsFileLineParserTest_TestParser {
 	p := &jsFileLineParserTest_TestParser{sb: jutil.NewStringBuilder(), comments: jutil.NewStringBuilder()}
 	p.InitJsFileLineParserBase(p, errorManager)
 	return p

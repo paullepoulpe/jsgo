@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DefaultNameGenerator.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/DefaultNameGenerator.java @ closure-compiler v20261021
 
 /*
  * Copyright 2005 The Closure Compiler Authors.
@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"slices"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -368,17 +367,19 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 
 		if asciiOK {
 			g.nameCount++
-			cand := unsafe.String(&buf[0], n)
+			if n == 1 {
+				b := buf[0]
+				cand := asciiByteTable[b : b+1]
+				if rhino.TokenStream_IsKeyword(cand) || g.reservedNames.Contains(cand) || DefaultNameGenerator_IsBadName(cand) {
+					continue
+				}
+				return cand
+			}
+			cand := string(buf[:n])
 			if rhino.TokenStream_IsKeyword(cand) || g.reservedNames.Contains(cand) || DefaultNameGenerator_IsBadName(cand) {
 				continue
 			}
-			if n == 1 {
-				b := buf[0]
-				return asciiByteTable[b : b+1]
-			}
-			out := make([]byte, n)
-			copy(out, buf[:n])
-			return unsafe.String(&out[0], n)
+			return cand
 		}
 
 		sb := jutil.NewStringBuilder()

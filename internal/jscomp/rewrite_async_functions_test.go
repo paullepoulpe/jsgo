@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteAsyncFunctionsTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/RewriteAsyncFunctionsTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/RewriteAsyncFunctionsTest.java)
 
 /*
@@ -865,34 +865,28 @@ func (c *RewriteAsyncFunctionsTest) TestNonAsyncClassMethodWithAsyncArrowUsingNe
 
 // Java: RewriteAsyncFunctionsTest.testDefaultParamArrowUsingThisArgumentsNewTarget()
 func (c *RewriteAsyncFunctionsTest) TestDefaultParamArrowUsingThisArgumentsNewTarget() {
-	// TODO(b/572972833): Default-param arrow functions rewrite this/arguments/new.target to
-	// out-of-scope body temporaries.
 	c.Test(
 		`async function f(a = () => this, b = () => arguments, c = () => new.target) {
   return a();
 }
 `,
 		`function f(a = () => {
-  return ASYNC_THIS$1;
+  return this;
 }, b = () => {
-  return ASYNC_ARGUMENTS$1;
+  return arguments;
 }, c = () => {
-  return ASYNC_NEW_TARGET$1;
+  return new.target;
 }) {
-  const ASYNC_THIS$1 = this;
-  const ASYNC_ARGUMENTS$1 = arguments;
-  const ASYNC_NEW_TARGET$1 = new.target;
-  return (0,$jscomp.asyncExecutePromiseGeneratorFunction)(function*() {
-    return a();
-  });
+  return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(
+      function* () {
+        return a();
+      });
 }
 `)
 }
 
 // Java: RewriteAsyncFunctionsTest.testDefaultParamArrowUsingSuperProp()
 func (c *RewriteAsyncFunctionsTest) TestDefaultParamArrowUsingSuperProp() {
-	// TODO(b/572972833): Default-param arrow functions rewrite super.prop to out-of-scope body
-	// temporaries.
 	c.Test(
 		`class A {
   prop() {
@@ -912,16 +906,80 @@ class B extends A {
 }
 class B extends A {
   m(a = () => {
-    return ASYNC_SUPER_GET$7$prop().call(ASYNC_THIS$3);
+    return super.prop();
   }) {
-    const ASYNC_THIS$3 = this;
-    const ASYNC_SUPER_GET$7$prop = () => {
-      return super.prop;
-    };
-    return (0,$jscomp.asyncExecutePromiseGeneratorFunction)(function*() {
-      return a();
-    });
+    return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(
+        function* () {
+          return a();
+        });
   }
+}
+`)
+}
+
+// Java: RewriteAsyncFunctionsTest.testDefaultParamAsyncArrowUsingThis()
+func (c *RewriteAsyncFunctionsTest) TestDefaultParamAsyncArrowUsingThis() {
+	c.Test(
+		`async function f(a = async () => this) {
+  return a();
+}
+`,
+		`function f(a = () => {
+  const ASYNC_THIS$3 = this;
+  return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(function*() {
+    return ASYNC_THIS$3;
+  });
+}) {
+  return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(function*() {
+    return a();
+  });
+}
+`)
+}
+
+// Java: RewriteAsyncFunctionsTest.testDefaultParamArrowInNestedAsyncArrowUsingThis()
+func (c *RewriteAsyncFunctionsTest) TestDefaultParamArrowInNestedAsyncArrowUsingThis() {
+	c.Test(
+		`async function f() {
+  const g = async (a = () => this) => a();
+  return g();
+}
+`,
+		`function f() {
+  const ASYNC_THIS$1 = this;
+  return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(function*() {
+    const g = (a = () => {
+      return ASYNC_THIS$1;
+    }) => {
+      return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(function*() {
+        return a();
+      });
+    };
+    return g();
+  });
+}
+`)
+}
+
+// Java: RewriteAsyncFunctionsTest.testDefaultParamArrowInNonAsyncFunctionInAsyncFunction()
+func (c *RewriteAsyncFunctionsTest) TestDefaultParamArrowInNonAsyncFunctionInAsyncFunction() {
+	c.Test(
+		`async function f() {
+  function g(a = () => this) {
+    return a();
+  }
+  return g();
+}
+`,
+		`function f() {
+  return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(function*() {
+    function g(a = () => {
+      return this;
+    }) {
+      return a();
+    }
+    return g();
+  });
 }
 `)
 }

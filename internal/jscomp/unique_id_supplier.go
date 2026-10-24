@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/UniqueIdSupplier.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/UniqueIdSupplier.java @ closure-compiler v20261021
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -33,15 +33,15 @@ import (
 //
 // Java: UniqueIdSupplier
 type UniqueIdSupplier struct {
-	// Go-only: language-adapter — Multiset<Integer> (a HashMultiset, whose
-	// entrySet toProto iterates in the JDK HashMap order of its Integer
-	// elements) is a JavaHashMap from element to count.
-	counter *jutil.JavaHashMap[int32, int]
+	// Go-only: language-adapter — Multiset<Integer> (a LinkedHashMultiset,
+	// whose entrySet toProto iterates in the order the elements were first
+	// added) is a LinkedHashMap from element to count.
+	counter *jutil.LinkedHashMap[int32, int]
 }
 
 // Java: UniqueIdSupplier()
 func NewUniqueIdSupplier() *UniqueIdSupplier {
-	return &UniqueIdSupplier{counter: jutil.NewJavaHashMap[int32, int]()}
+	return &UniqueIdSupplier{counter: jutil.NewLinkedHashMap[int32, int]()}
 }
 
 // GetUniqueId creates and returns a unique Id across all compiler input

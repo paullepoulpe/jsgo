@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckSuper.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CheckSuper.java @ closure-compiler v20261021
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -47,6 +47,16 @@ type CheckSuper struct {
 
 // Java: CheckSuper.MISSING_CALL_TO_SUPER
 var CheckSuper_MISSING_CALL_TO_SUPER = DiagnosticType_Error("JSC_MISSING_CALL_TO_SUPER", "constructor is missing a call to super()")
+
+// For a derived class constructor that has a `super()` call or returns a value, but might still
+// return without calling `super()`. Unlike MISSING_CALL_TO_SUPER, this can be suppressed, since
+// the constructor might intentionally return a different object.
+//
+// Java: CheckSuper.MISSING_ROOT_LEVEL_CALL_TO_SUPER
+var CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER = DiagnosticType_Error(
+	"JSC_MISSING_ROOT_LEVEL_CALL_TO_SUPER",
+	"constructor must unconditionally call super() in a root-level statement before any"+
+		" return")
 
 // Java: CheckSuper.THIS_BEFORE_SUPER
 var CheckSuper_THIS_BEFORE_SUPER = DiagnosticType_Error("JSC_THIS_BEFORE_SUPER", "cannot access this before calling super()")
@@ -129,9 +139,7 @@ func (c *CheckSuper) processParallel(root rhino.Node) bool {
 				compiler: rc,
 				callback: workerPass,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, root, root, scripts[idx], nil)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(root, root, scripts[idx], nil)
 			if len(workerPass.contextStack) != 0 {
 				jutil.CheckStateMsg1(false, "%s", "["+workerPass.contextStackString()+"]")
 			}

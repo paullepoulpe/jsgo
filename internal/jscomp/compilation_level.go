@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CompilationLevel.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CompilationLevel.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -177,7 +177,6 @@ func CompilationLevel_ApplySafeCompilationOptions(options *CompilerOptions) {
 	options.SetRenamingPolicy(VariableRenamingPolicy_LOCAL, PropertyRenamingPolicy_OFF)
 	options.SetInlineVariablesOfReach(CompilerOptions_Reach_LOCAL_ONLY)
 	options.SetInlineFunctions(CompilerOptions_Reach_LOCAL_ONLY)
-	options.SetAssumeClosuresOnlyCaptureReferences(false)
 	options.SetWarningLevel(DiagnosticGroups_GLOBAL_THIS, CheckLevel_OFF)
 	options.SetFoldConstants(true)
 	options.SetCoalesceVariableNames(true)
@@ -231,7 +230,6 @@ func CompilationLevel_ApplyFullCompilationOptions(options *CompilerOptions) {
 	options.SetSmartNameRemoval(true)
 	options.SetInlineConstantVars(true)
 	options.SetInlineFunctions(CompilerOptions_Reach_ALL)
-	options.SetAssumeClosuresOnlyCaptureReferences(false)
 	options.SetInlineVariablesOfReach(CompilerOptions_Reach_ALL)
 	options.SetComputeFunctionSideEffects(true)
 	options.SetAssumeStrictThis(true)

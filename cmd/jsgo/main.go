@@ -12,11 +12,9 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 func main() {
-	rhino.SetSingleProcessCLI()
 	if cpuProf := os.Getenv("JSGO_CPU_PROFILE"); cpuProf != "" {
 		if f, err := os.Create(cpuProf); err == nil {
 			_ = pprof.StartCPUProfile(f)

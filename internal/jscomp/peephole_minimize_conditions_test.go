@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeMinimizeConditionsTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PeepholeMinimizeConditionsTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/PeepholeMinimizeConditionsTest.java)
 
 /*
@@ -273,7 +273,7 @@ func (c *PeepholeMinimizeConditionsTest) TestFoldNot() {
 	c.Fold("x = !(y() && true)", "x = !y()")
 	// This will be further optimized by PeepholeFoldConstants.
 	c.Fold("x = !true", "x = !1")
-	c.FoldSame("x = !!(a < b)")
+	c.Fold("x = !!(a < b)", "x = a < b")
 	c.FoldSame("x = !!a")
 }
 
@@ -391,27 +391,27 @@ func (c *PeepholeMinimizeConditionsTest) TestMinimizeHook() {
 	c.Fold("while(!(x ? y : z)) foo();", "while(x ? !y : !z) foo();")
 	c.Fold("(x ? !y : !z) ? foo() : bar()", "(x ? y : z) ? bar() : foo()")
 
-	c.FoldSame("y = x ? true : false")
-	c.FoldSame("y = x ? !0 : !1")
-	c.FoldSame("y = x ? false : true")
-	c.FoldSame("y = x ? !1 : !0")
-	c.Fold("y = !x ? true : false", "y = x ? false : true")
-	c.Fold("y = !x ? false : true", "y = x ? true : false")
-	c.FoldSame("y = (a === b) ? true : false")
-	c.FoldSame("y = (a === b) ? false : true")
-	c.Fold("y = !(a === b) ? true : false", "y = a !== b ? true : false")
-	c.FoldSame("y = (a < b) ? true : false")
-	c.FoldSame("y = (a < b) ? false : true")
-	c.Fold("y = !(a < b) ? true : false", "y = a < b ? false : true")
-	c.Fold("y = !(a < b) ? false : true", "y = a < b ? true : false")
-	c.Fold("y = !!(a < b) ? true : false", "y = a < b ? true : false")
-	c.Fold("y = (!a || !b) ? true : false", "y = a && b ? false : true")
-	c.Fold("y = !(a && !b) ? true : false", "y = !a || b ? true : false")
-	c.Fold("y = !(a && !b) ? false : true", "y = !a || b ? false : true")
-	c.Fold("y = !(a === 1 && !b) ? false : true", "y = a !== 1 || b ? false : true")
-	c.Fold("y = (inc(), !test()) ? true : false", "y = (inc(), test()) ? false : true")
-	c.FoldSame("y = x ? (function(){}, true) : false")
-	c.FoldSame("y = (a === b) ? (function(){}, true) : false")
+	c.Fold("y = x ? true : false", "y = !!x")
+	c.Fold("y = x ? !0 : !1", "y = !!x")
+	c.Fold("y = x ? false : true", "y = !x")
+	c.Fold("y = x ? !1 : !0", "y = !x")
+	c.Fold("y = !x ? true : false", "y = !x")
+	c.Fold("y = !x ? false : true", "y = !!x")
+	c.Fold("y = (a === b) ? true : false", "y = a === b")
+	c.Fold("y = (a === b) ? false : true", "y = a !== b")
+	c.Fold("y = !(a === b) ? true : false", "y = a !== b")
+	c.Fold("y = (a < b) ? true : false", "y = a < b")
+	c.Fold("y = (a < b) ? false : true", "y = !(a < b)")
+	c.Fold("y = !(a < b) ? true : false", "y = !(a < b)")
+	c.Fold("y = !(a < b) ? false : true", "y = a < b")
+	c.Fold("y = !!(a < b) ? true : false", "y = a < b")
+	c.Fold("y = (!a || !b) ? true : false", "y = !a || !b")
+	c.Fold("y = !(a && !b) ? true : false", "y = !(a && !b)")
+	c.Fold("y = !(a && !b) ? false : true", "y = !!(a && !b)")
+	c.Fold("y = !(a === 1 && !b) ? false : true", "y = a === 1 && !b")
+	c.Fold("y = (inc(), !test()) ? true : false", "y = (inc(), !test())")
+	c.Fold("y = x ? (function(){}, true) : false", "y = !!x")
+	c.Fold("y = (a === b) ? (function(){}, true) : false", "y = a === b")
 	c.FoldSame("y = x ? 1 : 0")
 	c.FoldSame("y = x ? 'a' : ''")
 }
@@ -1041,4 +1041,19 @@ func (c *PeepholeMinimizeConditionsTest) TestBatchE_booleanAbsorptionAndContextS
 	c.TestSame("x = a && (a || b);")
 	c.TestSame("x = foo() || (foo() && b);")
 	c.TestSame("function f(Boolean) { Boolean(x) ? a : b; }")
+}
+
+// Go-only: PeepholeOptimizationsPass's prefilter skips assignment statements
+// that certainly change state, and must let the others through: Java folds
+// a side-effect-free assignment to a property of a literal (the test262
+// files pass/d96153b59454dddd.js and pass-explicit/687f678cde900411.js);
+// the expectations are PeepholeDump's output with the v20261015 jar.
+func (c *PeepholeMinimizeConditionsTest) TestGoOnlyPrefilterLetsSideEffectFreeAssignmentsThrough() {
+	c.Fold("[1].a = 2", "1")
+	c.Fold("([1]).a = (2)", "1")
+	c.Fold("/x/.lastIndex = 0", "0")
+	c.FoldSame("({x: 1}).y += 3")
+	c.FoldSame("x.y.z = 1")
+	c.FoldSame("this.q = 2")
+	c.FoldSame("[1][0] = f()")
 }

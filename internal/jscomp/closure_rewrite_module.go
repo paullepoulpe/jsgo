@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ClosureRewriteModule.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/ClosureRewriteModule.java @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"strings"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -77,7 +76,7 @@ type ClosureRewriteModule struct {
 	googRequireDynamicCalls           *jutil.ArrayList[rhino.Node]
 
 	globalTypedScope *TypedScope
-	scriptDescSlab   []ClosureRewriteModule_ScriptDescription
+	scriptDescSlab   jutil.Slab[ClosureRewriteModule_ScriptDescription]
 }
 
 var _ CompilerPass = (*ClosureRewriteModule)(nil)
@@ -358,13 +357,7 @@ func NewClosureRewriteModule_ScriptDescription() *ClosureRewriteModule_ScriptDes
 }
 
 func (m *ClosureRewriteModule) allocScriptDescription() *ClosureRewriteModule_ScriptDescription {
-	if len(m.scriptDescSlab) == cap(m.scriptDescSlab) {
-		newCap := max(16, min(max(cap(m.scriptDescSlab)*2, 64), jscompMaxSmallAlloc/int(unsafe.Sizeof(ClosureRewriteModule_ScriptDescription{}))))
-		m.scriptDescSlab = make([]ClosureRewriteModule_ScriptDescription, 0, newCap)
-	}
-	idx := len(m.scriptDescSlab)
-	m.scriptDescSlab = m.scriptDescSlab[:idx+1]
-	return &m.scriptDescSlab[idx]
+	return m.scriptDescSlab.New()
 }
 
 // Java: ClosureRewriteModule.ScriptDescription.addChildScript(ScriptDescription)
@@ -1693,7 +1686,9 @@ func (m *ClosureRewriteModule) UpdateGoogRequireDynamicCallInAwait(call rhino.No
 
 	// `module$exports$a$b$c`
 	exportedNamespaceNameNode :=
-		m.astFactory.CreateQName(m.globalTypedStaticScope(), *exportedNamespace).SrcrefTree(call)
+		m.astFactory.
+			CreateQNameUsingJSTypeInfo(m.globalTypedScope, *exportedNamespace).
+			SrcrefTree(call)
 	exportedNamespaceNameNode.SetJSType(m.rewriteState.GetGoogModuleNamespaceType(namespaceId))
 	exportedNamespaceNameNode.SetOriginalName(&namespaceId)
 
@@ -2015,7 +2010,7 @@ func (m *ClosureRewriteModule) MaybeUpdateExportNameRef(t *NodeTraversal, n rhin
 	if m.currentScript.declareLegacyNamespace {
 		legacyQname :=
 			m.astFactory.
-				CreateQName(m.globalTypedStaticScope(), *m.currentScript.namespaceId).
+				CreateQNameUsingJSTypeInfo(m.globalTypedScope, *m.currentScript.namespaceId).
 				SrcrefTree(n)
 		legacyQname.SetJSType(n.GetJSType())
 		n.ReplaceWith(legacyQname)

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeCalls.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/OptimizeCalls.java @ closure-compiler v20261021
 
 /*
  * Copyright 2010 The Closure Compiler Authors.
@@ -181,23 +181,15 @@ func (o *OptimizeCalls) EliminateAccessorsFrom(references *OptimizeCalls_Referen
 	for name := range o.compiler.GetAccessorSummary().GetAccessors().Keys() {
 		references.props.Remove(name)
 	}
-	references.lastPropList = nil
-	references.lastPropID = 0
 }
 
 // OptimizeCalls_ReferenceMap is a reference map for global symbols and
 // properties.
 type OptimizeCalls_ReferenceMap struct {
-	globalScope  *Scope
-	names        *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]]
-	props        *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]]
-	lastNameKey  string
-	lastNameID   uint32
-	lastNameList *jutil.ArrayList[rhino.Node]
-	lastPropKey  string
-	lastPropID   uint32
-	refLists     jutil.Slab[optimizeCalls_refList] // one pass's lists die together
-	lastPropList *jutil.ArrayList[rhino.Node]
+	globalScope *Scope
+	names       *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]]
+	props       *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]]
+	refLists    jutil.Slab[optimizeCalls_refList] // one pass's lists die together
 }
 
 // Java: OptimizeCalls.ReferenceMap()
@@ -254,36 +246,12 @@ func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[stri
 
 // Java: OptimizeCalls.ReferenceMap.addNameReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n rhino.Node) {
-	if m.lastNameList != nil && m.lastNameKey != "" && name == m.lastNameKey {
-		listAddDoubling(m.lastNameList, n)
-		return
-	}
-	refs := m.names.Get(name)
-	if refs == nil {
-		refs = m.newRefList()
-		m.names.PutNew(name, refs)
-	}
-	m.lastNameKey = name
-	m.lastNameID = 0
-	m.lastNameList = refs
-	listAddDoubling(refs, n)
+	m.AddReference(m.names, name, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addPropReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n rhino.Node) {
-	if m.lastPropList != nil && m.lastPropKey != "" && name == m.lastPropKey {
-		listAddDoubling(m.lastPropList, n)
-		return
-	}
-	refs := m.props.Get(name)
-	if refs == nil {
-		refs = m.newRefList()
-		m.props.PutNew(name, refs)
-	}
-	m.lastPropKey = name
-	m.lastPropID = 0
-	m.lastPropList = refs
-	listAddDoubling(refs, n)
+	m.AddReference(m.props, name, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.getGlobalScope()
@@ -757,41 +725,14 @@ func OptimizeCalls_SafeSet(set *jutil.LinkedHashSet[string]) *jutil.LinkedHashSe
 	return optimizeCalls_emptyStringSet
 }
 
-type ocRefCacheEntry struct {
-	id   uint32
-	skip bool
-	list *jutil.ArrayList[rhino.Node]
-}
-
-func ocCacheIdx(s string) uint32 {
-	n := len(s)
-	h := uint32(n)*2654435761 ^ uint32(s[0])*374761393 ^ uint32(s[n-1])*668265263
-	if n > 2 {
-		h ^= uint32(s[n>>1]) * 2246822519
-	}
-	return (h ^ (h >> 9)) & 511
-}
-
-func ocIDCacheIdx(id uint32) uint32 {
-	h := id * 0x9e3779b1
-	return (h ^ (h >> 15)) & 511
-}
-
 // OptimizeCalls_ReferenceMapBuildingCallback is the inner class
 // ReferenceMapBuildingCallback.
 type OptimizeCalls_ReferenceMapBuildingCallback struct {
-	outer             *OptimizeCalls
-	codingConvention  CodingConvention
-	externProps       *jutil.LinkedHashSet[string]
-	references        *OptimizeCalls_ReferenceMap
-	globalScope       *Scope
-	lastSkippedName   string
-	lastSkippedNameID uint32
-	lastExternProp    string
-	lastExternPropID  uint32
-	hasExternProp     bool
-	nameCache         [512]ocRefCacheEntry
-	propCache         [512]ocRefCacheEntry
+	outer            *OptimizeCalls
+	codingConvention CodingConvention
+	externProps      *jutil.LinkedHashSet[string]
+	references       *OptimizeCalls_ReferenceMap
+	globalScope      *Scope
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback(ReferenceMap)
@@ -806,7 +747,6 @@ func NewOptimizeCalls_ReferenceMapBuildingCallback(outer *OptimizeCalls, referen
 }
 
 func (*OptimizeCalls_ReferenceMapBuildingCallback) onlyNameLeaves()                {}
-func (*OptimizeCalls_ReferenceMapBuildingCallback) noShouldTraverse()              {}
 func (*OptimizeCalls_ReferenceMapBuildingCallback) nodeTraversalNoShouldTraverse() {}
 
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) initGlobalScope(s *Scope) {
@@ -962,166 +902,37 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) VisitSuper(superNode rhino.
 
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) maybeAddNameReferenceNode(nameNode rhino.Node, n rhino.Node) {
 	id := nameNode.GetStringID()
-	if id <= rhino.RhinoStringPool_EmptyID || id == c.lastSkippedNameID {
-		return
-	}
-	if c.references.lastNameList != nil && id == c.references.lastNameID {
-		listAddDoubling(c.references.lastNameList, n)
-		return
-	}
-	idx := ocIDCacheIdx(id)
-	if e := &c.nameCache[idx]; e.id == id {
-		if e.skip {
-			c.lastSkippedNameID = id
-			return
-		}
-		c.references.lastNameID = id
-		c.references.lastNameKey = ""
-		c.references.lastNameList = e.list
-		listAddDoubling(e.list, n)
+	if id <= rhino.RhinoStringPool_EmptyID {
 		return
 	}
 	var_ := c.globalScope.GetVarByID(id)
 	if var_ != nil && (c.outer.considerExterns || !var_.IsExtern()) {
 		c.references.AddNameReference(nameNode.GetString(), n)
-		c.references.lastNameID = id
-		c.nameCache[idx] = ocRefCacheEntry{id: id, list: c.references.lastNameList}
-	} else {
-		c.lastSkippedNameID = id
-		c.nameCache[idx] = ocRefCacheEntry{id: id, skip: true}
 	}
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddNameReference(String, Node)
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddNameReference(name string, n rhino.Node) {
-	if name == "" || name == c.lastSkippedName {
-		return
-	}
-	if c.references.lastNameList != nil && c.references.lastNameKey != "" && name == c.references.lastNameKey {
-		listAddDoubling(c.references.lastNameList, n)
-		return
-	}
-	id := rhino.RhinoStringPool_LookupID(name)
-	if id == 0 {
-		c.lastSkippedName = name
-		return
-	}
-	if id == c.lastSkippedNameID {
-		c.lastSkippedName = name
-		return
-	}
-	idx := ocIDCacheIdx(id)
-	if e := &c.nameCache[idx]; e.id == id {
-		if e.skip {
-			c.lastSkippedName = name
-			c.lastSkippedNameID = id
-			return
-		}
-		c.references.lastNameID = id
-		c.references.lastNameKey = name
-		c.references.lastNameList = e.list
-		listAddDoubling(e.list, n)
+	if name == "" {
 		return
 	}
 	// TODO(b/129503101): Why are we limiting ourselves to global names?
-	var_ := c.globalScope.GetVarByID(id)
+	var_ := c.globalScope.GetVar(name)
 	if var_ != nil && (c.outer.considerExterns || !var_.IsExtern()) {
 		// As every name declaration is unique due to normalizations, it is only necessary to build
 		// the global scope and ask it if it knows about a name as it can never be shadowed.
 		c.references.AddNameReference(name, n)
-		c.references.lastNameID = id
-		c.nameCache[idx] = ocRefCacheEntry{id: id, list: c.references.lastNameList}
-	} else {
-		c.lastSkippedName = name
-		c.lastSkippedNameID = id
-		c.nameCache[idx] = ocRefCacheEntry{id: id, skip: true}
 	}
 }
 
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) maybeAddPropReferenceOnNode(propNode rhino.Node, n rhino.Node) {
-	id := propNode.GetStringID()
-	if id <= rhino.RhinoStringPool_EmptyID {
-		c.MaybeAddPropReference(propNode.GetString(), n)
-		return
-	}
-	if c.references.lastPropList != nil && id == c.references.lastPropID {
-		listAddDoubling(c.references.lastPropList, n)
-		return
-	}
-	if !c.outer.considerExterns && id == c.lastExternPropID {
-		return
-	}
-	idx := ocIDCacheIdx(id)
-	if e := &c.propCache[idx]; e.id == id {
-		if e.skip {
-			c.lastExternPropID = id
-			return
-		}
-		c.references.lastPropID = id
-		c.references.lastPropKey = ""
-		c.references.lastPropList = e.list
-		listAddDoubling(e.list, n)
-		return
-	}
-	name := propNode.GetString()
-	if !c.outer.considerExterns && c.externProps.Contains(name) {
-		c.lastExternPropID = id
-		c.propCache[idx] = ocRefCacheEntry{id: id, skip: true}
-		return
-	}
-	c.references.AddPropReference(name, n)
-	c.references.lastPropID = id
-	c.propCache[idx] = ocRefCacheEntry{id: id, list: c.references.lastPropList}
+	c.MaybeAddPropReference(propNode.GetString(), n)
 }
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddPropReference(String, Node)
 func (c *OptimizeCalls_ReferenceMapBuildingCallback) MaybeAddPropReference(name string, n rhino.Node) {
-	if c.references.lastPropList != nil && c.references.lastPropKey != "" && name == c.references.lastPropKey {
-		listAddDoubling(c.references.lastPropList, n)
+	if !c.outer.considerExterns && c.externProps.Contains(name) {
 		return
-	}
-	if name != "" {
-		id := rhino.RhinoStringPool_InternID(name)
-		idx := ocIDCacheIdx(id)
-		if e := &c.propCache[idx]; e.id == id {
-			if e.skip {
-				c.lastExternProp = name
-				c.lastExternPropID = id
-				c.hasExternProp = true
-				return
-			}
-			c.references.lastPropKey = name
-			c.references.lastPropID = id
-			c.references.lastPropList = e.list
-			listAddDoubling(e.list, n)
-			return
-		}
-		if !c.outer.considerExterns {
-			if (c.hasExternProp && name == c.lastExternProp) || id == c.lastExternPropID {
-				return
-			}
-			if c.externProps.Contains(name) {
-				c.lastExternProp = name
-				c.lastExternPropID = id
-				c.hasExternProp = true
-				c.propCache[idx] = ocRefCacheEntry{id: id, skip: true}
-				return
-			}
-		}
-		c.references.AddPropReference(name, n)
-		c.references.lastPropID = id
-		c.propCache[idx] = ocRefCacheEntry{id: id, list: c.references.lastPropList}
-		return
-	}
-	if !c.outer.considerExterns {
-		if c.hasExternProp && name == c.lastExternProp {
-			return
-		}
-		if c.externProps.Contains(name) {
-			c.lastExternProp = name
-			c.hasExternProp = true
-			return
-		}
 	}
 	c.references.AddPropReference(name, n)
 }

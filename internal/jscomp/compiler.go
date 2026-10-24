@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Compiler.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/Compiler.java @ closure-compiler v20261021
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -29,7 +29,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unsafe"
 	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -1300,7 +1299,6 @@ func (c *Compiler) Stage1Passes() {
 	Compiler_RunInCompilerThread(c,
 		func() any {
 			c.performChecks()
-			c.evictPassArenaCaches()
 			return nil
 		})
 }
@@ -1339,7 +1337,6 @@ func (c *Compiler) Stage2Passes(segmentOfCompilationToRun CompilerOptions_Segmen
 			if c.options.ShouldOptimize() {
 				c.PerformTranspilationAndOptimizations(segmentOfCompilationToRun)
 			}
-			c.evictPassArenaCaches()
 			return nil
 		})
 }
@@ -1364,7 +1361,6 @@ func (c *Compiler) Stage3Passes() {
 			if c.options.ShouldOptimize() {
 				c.PerformFinalizations()
 			}
-			c.evictPassArenaCaches()
 			return nil
 		})
 }
@@ -2421,7 +2417,7 @@ func (c *Compiler) GetTranspilationNamespace() rhino.StaticScope {
 		gn.SetShouldTraverseScriptPredicate(
 			func(script rhino.Node) bool { return script.IsFromExterns() || script.IsFirstChildOf(c.GetJsRoot()) })
 		gn.GetNameForest() // ensure namespace is generated
-		gn.ReleaseScopeArena()
+		gn.Release()
 		// wrap GlobalNamespace to prevent looking up extra information in GlobalNamespace
 		c.transpilationNamespace = gn
 	}
@@ -3065,19 +3061,12 @@ func (c *Compiler) GetDefaultErrorReporter() rhino.ErrorReporter {
 // Convert back to source code
 // ------------------------------------------------------------------------
 
-func (c *Compiler) evictPassArenaCaches() {
-	if a := cachedCCAArena.Swap(nil); a != nil {
-		crossChunkArenaPool.Put(a)
-	}
-}
-
 // ToSource converts the main parse tree back to JS code.
 //
 // Java: Compiler.toSource()
 func (c *Compiler) ToSource() string {
 	return Compiler_RunInCompilerThread(c,
 		func() string {
-			c.evictPassArenaCaches()
 			tracer := c.NewTracer("toSource")
 			defer c.StopTracer(tracer, "toSource")
 			cb := NewCompiler_CodeBuilder()
@@ -3890,7 +3879,6 @@ func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) 
 func (c *Compiler) ToSourceArray(licenseTracker CodePrinter_LicenseTracker, chunk *JSChunk) []string {
 	return Compiler_RunInCompilerThread(c,
 		func() []string {
-			c.evictPassArenaCaches()
 			inputs := chunk.GetInputs()
 			numInputs := len(inputs)
 			if numInputs == 0 {
@@ -3919,11 +3907,10 @@ func (c *Compiler) ToSourceArray(licenseTracker CodePrinter_LicenseTracker, chun
 //
 // Java: Compiler.CodeBuilder
 type Compiler_CodeBuilder struct {
-	buf         []byte
-	utf16Len    int
-	lineCount   int
-	colCount    int
-	stringTaken bool
+	sb        strings.Builder
+	utf16Len  int
+	lineCount int
+	colCount  int
 }
 
 // Java: Compiler.CodeBuilder()
@@ -3935,12 +3922,7 @@ func NewCompiler_CodeBuilder() *Compiler_CodeBuilder {
 //
 // Java: Compiler.CodeBuilder.reset()
 func (b *Compiler_CodeBuilder) Reset() {
-	if b.stringTaken {
-		b.buf = nil
-		b.stringTaken = false
-	} else {
-		b.buf = b.buf[:0]
-	}
+	b.sb.Reset()
 	b.utf16Len = 0
 }
 
@@ -3951,19 +3933,7 @@ func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
 	if len(str) == 0 {
 		return b
 	}
-	if b.stringTaken {
-		newCap := max(len(b.buf)+len(str), max(cap(b.buf)*2, 4096))
-		newBuf := make([]byte, len(b.buf), newCap)
-		copy(newBuf, b.buf)
-		b.buf = newBuf
-		b.stringTaken = false
-	} else if len(b.buf)+len(str) > cap(b.buf) {
-		newCap := max(len(b.buf)+len(str), max(cap(b.buf)*2, 4096))
-		newBuf := make([]byte, len(b.buf), newCap)
-		copy(newBuf, b.buf)
-		b.buf = newBuf
-	}
-	b.buf = append(b.buf, str...)
+	b.sb.WriteString(str)
 
 	// Adjust the line and column information for the new text.
 	//
@@ -3993,11 +3963,7 @@ func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
 //
 // Java: Compiler.CodeBuilder.toString()
 func (b *Compiler_CodeBuilder) String() string {
-	if len(b.buf) == 0 {
-		return ""
-	}
-	b.stringTaken = true
-	return unsafe.String(unsafe.SliceData(b.buf), len(b.buf))
+	return b.sb.String()
 }
 
 // GetLength returns the length of the text buffer.
@@ -4027,9 +3993,7 @@ func (b *Compiler_CodeBuilder) GetColumnIndex() int {
 //
 // Java: Compiler.CodeBuilder.endsWith(String)
 func (b *Compiler_CodeBuilder) EndsWith(suffix string) bool {
-	return b.utf16Len > jutil.StringLength(suffix) &&
-		len(b.buf) >= len(suffix) &&
-		unsafe.String(unsafe.SliceData(b.buf[len(b.buf)-len(suffix):]), len(suffix)) == suffix
+	return b.utf16Len > jutil.StringLength(suffix) && strings.HasSuffix(b.sb.String(), suffix)
 }
 
 // ------------------------------------------------------------------------
@@ -5350,7 +5314,6 @@ func (c *Compiler) SaveState(outputStream io.Writer) {
 	// Do not close the outputstream, caller is responsible for closing it.
 	Compiler_RunInCompilerThread(c,
 		func() any {
-			c.evictPassArenaCaches()
 			tracer := c.NewTracer("serializeCompilerState")
 			nonClosingOut := NewCompiler_NonClosingOutputStream(outputStream)
 			var compressionStream io.Writer

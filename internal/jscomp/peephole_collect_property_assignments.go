@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeCollectPropertyAssignments.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PeepholeCollectPropertyAssignments.java @ closure-compiler v20261021
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -314,6 +314,11 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 		} else if currentProperty.IsGetterDef() || currentProperty.IsSetterDef() {
 			currentPropertyName := currentProperty.GetString()
 			if propertyName != nil && currentPropertyName == *propertyName {
+				return false
+			}
+		} else if currentProperty.IsComputedProp() {
+			keyNode := currentProperty.GetFirstChild()
+			if !keyNode.IsStringLit() || (propertyName != nil && keyNode.GetString() == *propertyName) {
 				return false
 			}
 		}

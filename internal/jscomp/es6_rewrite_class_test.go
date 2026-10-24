@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteClassTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/Es6RewriteClassTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/Es6RewriteClassTest.java)
 
 /*
@@ -146,6 +146,22 @@ C.prototype.method = function() {};
 	function := cPrototypeMethod.GetNext()
 	AssertNode(function).HasToken(rhino.Token_FUNCTION)
 	AssertNode(function).HasColorThat().IsEqualTo(cPrototypeMethod.GetColor())
+}
+
+// Java: Es6RewriteClassTest.testEs5MethodsAreEnumerable()
+func (c *Es6RewriteClassTest) TestEs5MethodsAreEnumerable() {
+	// Won't fix (b/573609265): natively, class methods are non-enumerable, but the transpiled code
+	// assigns them to the prototype and to the constructor, which makes them enumerable. For
+	// example, `Object.keys(C.prototype)` is `["m"]` instead of `[]`. We decided to keep this
+	// output, since defining every method as non-enumerable would cost code size.
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.Test(
+		"class C { m() {} static s() {} }",
+		`/** @constructor */
+let C = function() {};
+C.prototype.m = function() {};
+C.s = function() {};
+`)
 }
 
 // Java: Es6RewriteClassTest.testClassStatementWithConstructorReferencingThis()
@@ -684,6 +700,47 @@ let C = function(word) {
   D.call(this, word);
 }
 $jscomp.inherits(C, D);
+`)
+}
+
+// Java: Es6RewriteClassTest.testDerivedConstructorCompletesWithUndefinedBeforeSuperCall()
+func (c *Es6RewriteClassTest) TestDerivedConstructorCompletesWithUndefinedBeforeSuperCall() {
+	// Won't fix (b/573571176): natively, `new RetUndef()`, `new EarlyReturn(true)` and
+	// `new MaybeObj(false)` throw a ReferenceError, because the constructor completes with
+	// `undefined` before calling `super()`. The transpiled constructors are plain functions, so
+	// `new` returns an instance on which `Base` never ran. We decided not to fix this, since the
+	// compiler isn't required to preserve errors in code that is already broken.
+	// The type checker reports these returns as inconsistent with the constructor type.
+	c.DisableTypeCheck()
+	c.DisableTypeInfoValidation()
+	c.Test(
+		`class Base { constructor() {} }
+class RetUndef extends Base { constructor() { return undefined; } }
+class EarlyReturn extends Base { constructor(w) { if (w) return; super(); } }
+class MaybeObj extends Base { constructor(w) { if (w) return {}; } }
+`,
+		`/** @constructor */
+let Base = function() {};
+/** @constructor */
+let RetUndef = function() {
+  return undefined;
+};
+$jscomp.inherits(RetUndef, Base);
+/** @constructor */
+let EarlyReturn = function(w) {
+  if (w) {
+    return;
+  }
+  Base.call(this);
+};
+$jscomp.inherits(EarlyReturn, Base);
+/** @constructor */
+let MaybeObj = function(w$jscomp$1) {
+  if (w$jscomp$1) {
+    return {};
+  }
+};
+$jscomp.inherits(MaybeObj, Base);
 `)
 }
 
@@ -1327,6 +1384,80 @@ let C = function(strArg, n) {
   return $jscomp$super$this$m1146332801$0;
 }
 $jscomp.inherits(C, D);
+`)
+}
+
+// Java: Es6RewriteClassTest.testPrimitiveConstructorReturns()
+func (c *Es6RewriteClassTest) TestPrimitiveConstructorReturns() {
+	// A base constructor ignores a primitive return value, but the transpiled function returns it,
+	// so `Base.call(this, 0) || this` in a subclass can evaluate to `42`. Each such return is
+	// reported as an error. A `return` in a nested function belongs to that function, so it isn't
+	// reported.
+	c.IgnoreWarnings(TypeValidator_TYPE_MISMATCH_WARNING)
+	c.Test(
+		c.Srcs(
+			`class Base {
+  constructor(v) {
+    if (v === 1) return 42;
+    if (v === 2) return null;
+    this.f = function() { return -1; };
+  }
+}
+class Sub extends Base {
+  constructor() {
+    super(0);
+    this.g = function() { return 's'; };
+  }
+}
+`),
+		c.Error(Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN),
+		c.Error(Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN))
+	// A derived constructor that returns a primitive, before or after `super()`, throws a
+	// TypeError, so it is reported as an error.
+	c.Test(
+		c.Srcs(
+			`class Base {}
+class NoSuper extends Base {
+  constructor(w) { if (w) return 42; super(); }
+}
+class AfterSuper extends Base {
+  constructor() { super(); return 's'; }
+}
+class ReturnsNull extends Base {
+  constructor() { super(); return null; }
+}
+`),
+		c.Error(Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN),
+		c.Error(Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN),
+		c.Error(Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN))
+}
+
+// Java: Es6RewriteClassTest.testUndefinedConstructorReturnsAreKept()
+func (c *Es6RewriteClassTest) TestUndefinedConstructorReturnsAreKept() {
+	// Both base and derived constructors may return `undefined`.
+	c.IgnoreWarnings(TypeValidator_TYPE_MISMATCH_WARNING)
+	c.Test(
+		`class Base {
+  constructor(v) { if (v) return undefined; }
+}
+class Sub extends Base {
+  constructor(w) { super(0); if (w) return void 0; }
+}
+`,
+		`/** @constructor */
+let Base = function(v) {
+  if (v) {
+    return undefined;
+  }
+};
+/** @constructor */
+let Sub = function(w) {
+  Base.call(this, 0);
+  if (w) {
+    return void 0;
+  }
+};
+$jscomp.inherits(Sub, Base);
 `)
 }
 

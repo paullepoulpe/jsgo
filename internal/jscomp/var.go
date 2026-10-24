@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Var.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/Var.java @ closure-compiler v20261021
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -79,12 +79,40 @@ func (v *Var) GetName() string {
 	return rhino.RhinoStringPool_StringFromID(v.nameID)
 }
 
+// Java: ScopedName.hashCode()
+func (v *Var) HashCode() int32 {
+	return v.hashCode(v.GetName)
+}
+
 // Java: ScopedName.equals(Object)
 func (v *Var) Equals(other any) bool {
 	if o, ok := other.(*Var); ok {
 		return o != nil && v.nameID == o.nameID && scopedName_nodeEquals(v.GetScopeRoot(), o.GetScopeRoot())
 	}
-	return v.AbstractVarBase.Equals(other)
+	return v.equals(v.GetName(), other)
+}
+
+func (v *Var) IsVar() bool       { return v.isDeclarationType(v, v.GetName(), rhino.Token_VAR) }
+func (v *Var) IsCatch() bool     { return v.isDeclarationType(v, v.GetName(), rhino.Token_CATCH) }
+func (v *Var) IsLet() bool       { return v.isDeclarationType(v, v.GetName(), rhino.Token_LET) }
+func (v *Var) IsConst() bool     { return v.isDeclarationType(v, v.GetName(), rhino.Token_CONST) }
+func (v *Var) IsClass() bool     { return v.isDeclarationType(v, v.GetName(), rhino.Token_CLASS) }
+func (v *Var) IsParam() bool     { return v.isDeclarationType(v, v.GetName(), rhino.Token_PARAM_LIST) }
+func (v *Var) IsImport() bool    { return v.isDeclarationType(v, v.GetName(), rhino.Token_IMPORT) }
+func (v *Var) IsArguments() bool { return v.nameID == implicitArgumentsID && v.scope.IsFunctionScope() }
+func (v *Var) IsGoogModuleExports() bool {
+	return v.nameID == implicitExportsID && v.scope.IsModuleScope() && v.IsImplicit()
+}
+func (v *Var) IsThis() bool     { return v.nameID == implicitThisID && v.scope.IsFunctionScope() }
+func (v *Var) IsImplicit() bool { return v.isImplicit(v.GetName()) }
+func (v *Var) DeclarationType() *rhino.Token {
+	return v.declarationType(v, v.GetName())
+}
+func (v *Var) AddImplicitGoogNamespaceDefinition(definition rhino.Node) {
+	v.addImplicitGoogNamespaceDefinition(v, definition)
+}
+func (v *Var) GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind {
+	return v.getImplicitGoogNamespaceStrength(v)
 }
 
 // Java: AbstractVar.getSymbol()

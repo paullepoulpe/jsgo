@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/PropertyMap.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/jstype/PropertyMap.java @ closure-compiler v20261021
 
 /*
  *
@@ -37,15 +37,11 @@ package rhino
 
 import (
 	"slices"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-const _ = -uint(unsafe.Offsetof(PrototypeObjectTypeBase{}.ObjectTypeBase))
-
 type propMapExt struct {
-	parentSource             ObjectType
 	byID                     map[rhinoStringID]*Property
 	knownSymbols             *jutil.ObjectLinkedHashMap[*KnownSymbolType, *Property]
 	cachedKeySet             []string
@@ -59,13 +55,9 @@ type PropertyMap struct {
 	// scan entries directly by 32-bit rhinoStringID; larger maps maintain
 	// ext.byID for O(1) lookup and sort entries by StringCompareTo lazily when
 	// key-ordered iteration is requested.
-	//
-	// Go-only: performance — the slice is held as its data pointer and two
-	// 32-bit lengths (16 bytes instead of 24), which keeps the prototype
-	// object types, which embed a PropertyMap, a size class smaller.
-	entryData          **Property
-	entryLen, entryCap uint32
-	ext                *propMapExt
+	entries_     []*Property
+	parentSource *ObjectTypeBase
+	ext          *propMapExt
 
 	// A "timestamp" for map mutations to validate cachedKeySet and
 	// cachedKnownSymbolsKeySet.
@@ -78,39 +70,25 @@ type PropertyMap struct {
 
 	// Go-only: language-adapter — EMPTY_MAP is built from ImmutableMaps,
 	// whose put() throws UnsupportedOperationException.
-	immutable       bool
-	sorted          bool
-	hasNonASCII     bool
-	embeddedInProto bool
+	immutable   bool
+	sorted      bool
+	hasNonASCII bool
 }
 
 // entries is the slice of own string properties.
 func (m *PropertyMap) entries() []*Property {
-	if m.entryData == nil {
-		return nil
-	}
-	return unsafe.Slice(m.entryData, m.entryCap)[:m.entryLen]
+	return m.entries_
 }
 
 func (m *PropertyMap) setEntries(entries []*Property) {
-	if cap(entries) == 0 {
-		m.entryData, m.entryLen, m.entryCap = nil, 0, 0
-		return
-	}
-	m.entryData = unsafe.SliceData(entries)
-	m.entryLen = uint32(len(entries))
-	m.entryCap = uint32(cap(entries))
+	m.entries_ = entries
 }
 
 func (m *PropertyMap) getParentSource() ObjectType {
-	if m.embeddedInProto {
-		o := (*ObjectTypeBase)(unsafe.Add(unsafe.Pointer(m), -int(unsafe.Offsetof(PrototypeObjectTypeBase{}.properties))))
-		return o.selfObj()
+	if m.parentSource == nil {
+		return nil
 	}
-	if m.ext != nil {
-		return m.ext.parentSource
-	}
-	return nil
+	return m.parentSource.selfObj()
 }
 
 func (m *PropertyMap) ensureExt() *propMapExt {
@@ -167,22 +145,13 @@ func (m *PropertyMap) SetParentSource(ownerType ObjectType) {
 	if m == PropertyMap_EMPTY_MAP {
 		return
 	}
-	if m.embeddedInProto {
-		o := (*ObjectTypeBase)(unsafe.Add(unsafe.Pointer(m), -int(unsafe.Offsetof(PrototypeObjectTypeBase{}.properties))))
-		if o.selfObj() == ownerType {
-			m.IncrementCachedKeySetCounter()
-			return
-		}
-		m.embeddedInProto = false
-	}
-	m.ensureExt().parentSource = ownerType
+	m.parentSource = objTypeBase(ownerType)
 	m.IncrementCachedKeySetCounter()
 }
 
 // Java: PropertyMap.setParentForTesting(PropertyMap)
 func (m *PropertyMap) SetParentForTesting(parent *PropertyMap) {
-	m.embeddedInProto = false
-	m.ensureExt().parentSource = parent.getParentSource()
+	m.parentSource = parent.parentSource
 	m.IncrementCachedKeySetCounter()
 }
 
@@ -190,22 +159,6 @@ func (m *PropertyMap) SetParentForTesting(parent *PropertyMap) {
 //
 // Java: PropertyMap.getPrimaryParent()
 func (m *PropertyMap) GetPrimaryParent() *PropertyMap {
-	if m.embeddedInProto {
-		p := (*PrototypeObjectTypeBase)(unsafe.Add(unsafe.Pointer(m), -int(unsafe.Offsetof(PrototypeObjectTypeBase{}.properties))))
-		var iProto ObjectType
-		switch p.objFlags & objKindMask {
-		case objKindPrototype, objKindFunction:
-			iProto = objectTypeOf(p.implicitPrototypeFallback)
-		case objKindInstance:
-			iProto = (*InstanceObjectType)(unsafe.Pointer(p)).GetImplicitPrototype()
-		default:
-			iProto = p.selfObj().GetImplicitPrototype()
-		}
-		if iProto == nil {
-			return nil
-		}
-		return iProto.GetPropertyMap()
-	}
 	parentSource := m.getParentSource()
 	if parentSource == nil {
 		return nil

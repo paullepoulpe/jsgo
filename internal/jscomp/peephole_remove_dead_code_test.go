@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeRemoveDeadCodeTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PeepholeRemoveDeadCodeTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/PeepholeRemoveDeadCodeTest.java)
 
 /*
@@ -22,6 +22,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -2154,9 +2155,58 @@ func (c *PeepholeRemoveDeadCodeTest) TestBatchE_pureExpressionStatementAndBlockE
 	c.FoldSame("for (let x = 1; x < 10; x++) {}")
 }
 
+// Java: PeepholeRemoveDeadCodeTest.testUnusedClassWithUninitializedField()
+func (c *PeepholeRemoveDeadCodeTest) TestUnusedClassWithUninitializedField() {
+	c.Test("(class { x; });", "")
+}
+
 // Java: PeepholeRemoveDeadCodeTest.testUnusedClassWithInstanceFieldSideEffects()
 func (c *PeepholeRemoveDeadCodeTest) TestUnusedClassWithInstanceFieldSideEffects() {
-	// TODO(b/573195636): Hoists side effects out of non-static class field initializers on unused
-	// class expressions.
-	c.Test("(class { x = alert(1); });", "alert(1);")
+	c.Test("(class { x = alert(1); });", "")
+	c.Test("(class { x = alert(1); y = alert(2); });", "")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testUnusedClassWithInstanceFieldSideEffects_thisAndSuper()
+func (c *PeepholeRemoveDeadCodeTest) TestUnusedClassWithInstanceFieldSideEffects_thisAndSuper() {
+	c.Test("(class { x = this.y(); });", "")
+	c.Test("(class extends Object { x = super.toString(); });", "")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testUnusedClassWithComputedInstanceFieldSideEffects()
+func (c *PeepholeRemoveDeadCodeTest) TestUnusedClassWithComputedInstanceFieldSideEffects() {
+	c.Test("(class { [alert(1)] = alert(2); });", "alert(1);")
+	c.Test("(class { ['x'] = alert(2); });", "")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testUnusedClassWithComputedInstanceFieldSideEffects_uninitialized()
+func (c *PeepholeRemoveDeadCodeTest) TestUnusedClassWithComputedInstanceFieldSideEffects_uninitialized() {
+	c.Test("(class { [alert(1)]; });", "alert(1);")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testUnusedClassWithStaticField_uninitialized()
+func (c *PeepholeRemoveDeadCodeTest) TestUnusedClassWithStaticField_uninitialized() {
+	c.Test("(class { static x; });", "")
+	c.Test("(class { static [alert(1)]; });", "alert(1);")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testUnusedClassWithStaticFieldSideEffects()
+func (c *PeepholeRemoveDeadCodeTest) TestUnusedClassWithStaticFieldSideEffects() {
+	c.Test("(class { static x = alert(1); });", "alert(1);")
+	c.Test("(class { static x = alert(1); static y = alert(2); });", "alert(1), alert(2);")
+	c.Test("(class { static [alert(1)] = alert(2); });", "alert(1), alert(2);")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testUnusedClassWithStaticFieldSideEffects_thisAndSuper()
+func (c *PeepholeRemoveDeadCodeTest) TestUnusedClassWithStaticFieldSideEffects_thisAndSuper() {
+	// TODO(b/574118308): fix the `super.y()` and `this.y()` inlining.
+	c.Test("(class extends Parent { static x = this.y(); } );", "this.y();")
+	ex :=
+		AssertThrows[jutil.Throwable](
+			func() { c.TestSame("(class extends Parent { static x = super.y(); });") })
+	AssertThat(ex.GetMessage()).
+		Contains(
+			"super property references are only allowed in methods, class static blocks and class" +
+				" fields")
+	// This is correct - we know `super.toString()` has no side-effects so is safe to remove.
+	c.Test("(class extends Object { static x = super.toString(); });", "")
 }

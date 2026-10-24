@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/J2clPropertyInlinerPass.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/J2clPropertyInlinerPass.java @ closure-compiler v20261021
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -530,7 +530,6 @@ func (i *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlineProperties
 	if i.injector == nil {
 		i.injector = NewFunctionInjector_Builder(i.outer.outer.compiler).
 			AssumeStrictThis(true).
-			AssumeMinimumCapture(true).
 			Build()
 	}
 	return i.injector

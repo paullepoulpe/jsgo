@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DevirtualizeMethods.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/DevirtualizeMethods.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -19,9 +19,6 @@
 package jscomp
 
 import (
-	"sync"
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -509,7 +506,7 @@ func (d *DevirtualizeMethods) RewriteDefinition(
 			recv.DetachChildren()
 
 			methodNameID := rhino.RhinoStringPool_InternID(newMethodName)
-			selfName := allocPooledStringConcat2(newMethodName, "$self")
+			selfName := newMethodName + "$self"
 			selfNameID := rhino.RhinoStringPool_InternID(selfName)
 
 			definitionSite.ResetDetachedGetPropToNameID(methodNameID, isConstantName)
@@ -564,7 +561,7 @@ func (d *DevirtualizeMethods) RewriteDefinition(
 	newNameNode.AddChildToFront(function)
 
 	// Create the `this` param.
-	selfName := allocPooledStringConcat2(newMethodName, "$self")
+	selfName := newMethodName + "$self"
 	selfNameID := rhino.RhinoStringPool_InternID(selfName)
 	paramList := function.GetSecondChild()
 	paramList.AddChildToFront(rhino.IR_Name(selfName).SrcrefIfMissing(function))
@@ -640,37 +637,9 @@ func (d *DevirtualizeMethods) ChunkForNode(node rhino.Node) *JSChunk {
 	return input.GetChunk()
 }
 
-type devirtStrSlab struct {
-	buf []byte
-}
-
-var devirtStrSlabPool = sync.Pool{
-	New: func() any { return &devirtStrSlab{} },
-}
-
-func allocPooledStringConcat2(prefix, suffix string) string {
-	n := len(prefix) + len(suffix)
-	if n == 0 {
-		return ""
-	}
-	if n > 2048 {
-		return prefix + suffix
-	}
-	s := devirtStrSlabPool.Get().(*devirtStrSlab)
-	if len(s.buf) < n {
-		s.buf = make([]byte, 32760) // <= maxSmallSize - MallocHeaderSize noscan
-	}
-	b := s.buf[:n:n]
-	s.buf = s.buf[n:]
-	devirtStrSlabPool.Put(s)
-	copy(b, prefix)
-	copy(b[len(prefix):], suffix)
-	return unsafe.String(&b[0], n)
-}
-
 // Java: DevirtualizeMethods.rewrittenMethodNameOf(String)
 func DevirtualizeMethods_RewrittenMethodNameOf(originalMethodName string) string {
-	return allocPooledStringConcat2("JSCompiler_StaticMethods_", originalMethodName)
+	return "JSCompiler_StaticMethods_" + originalMethodName
 }
 
 // DevirtualizeMethods_IsScopingOrBranchingConstruct returns true iff a node

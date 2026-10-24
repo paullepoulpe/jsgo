@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20261021
 
 /*
  *
@@ -39,8 +39,6 @@ import (
 	"iter"
 	"math/bits"
 	"strings"
-	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -68,14 +66,10 @@ type JSDocInfo struct {
 	propertyKeysBitset int64
 
 	// This value will be `null` if there is no property, a literal value if
-	// there is only one, or an `Object[]` if there are multiple.
+	// there is only one, or an `[]any` (`Object[]`) if there are multiple.
 	//
 	// This is meant to elide eager allocation of single-valued or empty
 	// lists.
-	//
-	// Go-only: performance — the Object[] is a *any to the first element of
-	// an exact-size array (its length is the popcount of
-	// propertyKeysBitset), so no slice header is boxed.
 	propertyValues any
 }
 
@@ -2353,11 +2347,11 @@ func (i *JSDocInfo) GetPropertyValueByIndex(index int) any {
 	}
 
 	if (i.propertyKeysBitset & (i.propertyKeysBitset - 1)) != 0 {
-		n := bits.OnesCount64(uint64(i.propertyKeysBitset))
-		if index < 0 || index >= n {
-			panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(index, n))
+		vals := i.propertyValues.([]any)
+		if index < 0 || index >= len(vals) {
+			panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(index, len(vals)))
 		}
-		return unsafe.Slice(i.propertyValues.(*any), n)[index]
+		return vals[index]
 	}
 
 	if index != 0 {
@@ -2377,7 +2371,7 @@ func JSDocInfo_PackPropertyValues(values []any) any {
 	}
 	out := make([]any, len(values))
 	copy(out, values)
-	return &out[0]
+	return out
 }
 
 // JSDocInfo_Builder is a builder for JSDocInfo objects. This builder is
@@ -2880,111 +2874,17 @@ func (b *JSDocInfo_Builder) IsDeprecationReasonRecorded() bool {
 	return b.GetProp(JSDocInfo_DEPRECATION_REASON) != nil
 }
 
-// Go-only: performance — the sets and maps recorded for @suppress are
-// immutable, so identical name lists share one interned set and
-// one-entry map (a direct-mapped cache), instead of each annotated
-// declaration keeping its own.
-const suppressionInternCacheSize = 2048
-
-type internedSuppressionEntry struct {
-	names []string
-	set   *jutil.LinkedHashSet[string]
-	mp    *jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]
-}
-
-var suppressionInternCache [suppressionInternCacheSize]atomic.Pointer[internedSuppressionEntry]
-
-func internSuppressionSlice(rawNames []string) *internedSuppressionEntry {
-	var uniqBuf [8]string
-	var uniq []string
-	if len(rawNames) <= 1 {
-		uniq = rawNames
-	} else {
-		if len(rawNames) <= len(uniqBuf) {
-			uniq = uniqBuf[:0]
-		} else {
-			uniq = make([]string, 0, len(rawNames))
-		}
-		for _, s := range rawNames {
-			dup := false
-			for _, u := range uniq {
-				if u == s {
-					dup = true
-					break
-				}
-			}
-			if !dup {
-				uniq = append(uniq, s)
-			}
-		}
-	}
-
-	h := uint32(2166136261)
-	for _, s := range uniq {
-		h = (h ^ uint32(jutil.StringHashCode(s))) * 16777619
-	}
-	idx := h & (suppressionInternCacheSize - 1)
-	if cached := suppressionInternCache[idx].Load(); cached != nil && len(cached.names) == len(uniq) {
-		match := true
-		for i, u := range uniq {
-			if cached.names[i] != u {
-				match = false
-				break
-			}
-		}
-		if match {
-			return cached
-		}
-	}
-
-	namesCopy := make([]string, len(uniq))
-	set := jutil.NewLinkedHashSet[string]()
-	for i, u := range uniq {
-		interned := RhinoStringPool_AddOrGet(u)
-		namesCopy[i] = interned
-		set.Add(interned)
-	}
-	mp := jutil.NewObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]()
-	mp.Put(set, "")
-	entry := &internedSuppressionEntry{names: namesCopy, set: set, mp: mp}
-	suppressionInternCache[idx].Store(entry)
-	return entry
-}
-
-// RecordSuppressionSliceWithDescription records a parsed @suppress slice without
-// allocating temporary LinkedHashSets or ObjectLinkedHashMaps on the common path.
+// RecordSuppressionSliceWithDescription records a parsed @suppress slice.
 func (b *JSDocInfo_Builder) RecordSuppressionSliceWithDescription(rawNames []string, description string) {
-	b.populated = true
-	entry := internSuppressionSlice(rawNames)
-	current := jsdocGet[*jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]](b.GetProp(JSDocInfo_SUPPRESSIONS))
-	if current == nil && description == "" {
-		b.SetProp(JSDocInfo_SUPPRESSIONS, entry.mp)
-		return
+	set := jutil.NewLinkedHashSet[string]()
+	for _, s := range rawNames {
+		set.Add(RhinoStringPool_AddOrGet(s))
 	}
-	if current != nil && current.ContainsKey(entry.set) {
-		return
-	}
-	mapBuilder := jutil.NewObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]()
-	if current != nil {
-		for k, v := range current.All() {
-			mapBuilder.Put(k, v)
-		}
-	}
-	mapBuilder.Put(entry.set, description)
-	b.SetProp(JSDocInfo_SUPPRESSIONS, mapBuilder)
+	b.RecordSuppressionsWithDescription(set, description)
 }
 
 // Java: JSDocInfo.Builder.recordSuppressions(ImmutableSet<String>, String)
 func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions *jutil.LinkedHashSet[string], description string) {
-	if suppressions != nil && suppressions.Size() <= 8 {
-		var buf [8]string
-		names := buf[:0]
-		for s := range suppressions.All() {
-			names = append(names, s)
-		}
-		b.RecordSuppressionSliceWithDescription(names, description)
-		return
-	}
 	b.populated = true
 	mapBuilder := jutil.NewObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]()
 	current := jsdocGet[*jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]](b.GetProp(JSDocInfo_SUPPRESSIONS))
@@ -3018,9 +2918,9 @@ func (b *JSDocInfo_Builder) RecordSuppressions(suppressions *jutil.LinkedHashSet
 
 // Java: JSDocInfo.Builder.recordSuppression(String)
 func (b *JSDocInfo_Builder) RecordSuppression(suppression string) {
-	var single [1]string
-	single[0] = suppression
-	b.RecordSuppressionSliceWithDescription(single[:], "")
+	set := jutil.NewLinkedHashSet[string]()
+	set.Add(suppression)
+	b.RecordSuppressions(set)
 }
 
 // RecordModifies records the list of modifies warnings.

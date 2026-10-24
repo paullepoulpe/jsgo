@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/VarCheckTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/VarCheckTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/VarCheckTest.java)
 
 /*
@@ -707,6 +707,33 @@ func (c *VarCheckTest) TestInnerFunctionLocalVar() {
 // Java: VarCheckTest.testNoCreateVarsForLabels()
 func (c *VarCheckTest) TestNoCreateVarsForLabels() {
 	c.CheckSynthesizedExtern(c.Srcs("x:var y"), CompilerTestCase_VAR_CHECK_EXTERNS)
+}
+
+// Java: VarCheckTest.testJSCompiler_renamePropertyInRequiredSymbols()
+func (c *VarCheckTest) TestJSCompiler_renamePropertyInRequiredSymbols() {
+	AssertThat(VarCheck_REQUIRED_SYMBOLS).Contains("JSCompiler_renameProperty")
+}
+
+// Java: VarCheckTest.testJSCompiler_renamePropertySynthesizedExtern()
+func (c *VarCheckTest) TestJSCompiler_renamePropertySynthesizedExtern() {
+	c.CheckSynthesizedExtern(c.Srcs(""), CompilerTestCase_VAR_CHECK_EXTERNS)
+	AssertThat(CompilerTestCase_VAR_CHECK_EXTERNS).Contains("var JSCompiler_renameProperty;\n")
+}
+
+// Java: VarCheckTest.testJSCompiler_renamePropertySynthesizedExternAllowsLaterPasses()
+func (c *VarCheckTest) TestJSCompiler_renamePropertySynthesizedExternAllowsLaterPasses() {
+	compiler := c.CreateAndInitializeCompiler(c.Externs(""), c.Srcs("var placeholder = 1;"))
+	compiler.ParseInputs()
+	externs := compiler.GetExternsRoot()
+	root := compiler.GetJsRoot()
+	NewVarCheckWithValidityCheck(compiler /* validityCheck= */, false).Process(externs, root)
+	// Simulate a pass like ClosureOptimizePrimitives or DartSuperAccessorsPass adding a call
+	// to JSCompiler_renameProperty without an explicit extern declaration.
+	syntheticCall :=
+		rhino.IR_ExprResult(rhino.IR_Call(rhino.IR_Name("JSCompiler_renameProperty"), rhino.IR_String("foo")))
+	root.GetFirstChild().AddChildToBack(syntheticCall)
+	// ValidityCheck runs VarCheck with validityCheck = true, which must pass without throwing.
+	NewVarCheckWithValidityCheck(compiler /* validityCheck= */, true).Process(externs, root)
 }
 
 // Java: VarCheckTest.testVariableInNormalCodeUsedInExterns1()

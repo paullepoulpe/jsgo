@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/SourceInformationAnnotator.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/SourceInformationAnnotator.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -100,56 +98,6 @@ func (a *SourceInformationAnnotator) AnnotateTree(n rhino.Node) {
 	}
 }
 
-func appendQualifiedNameTo(dst []byte, n rhino.Node) ([]byte, bool) {
-	switch n.GetToken() {
-	case rhino.Token_NAME:
-		s := n.GetString()
-		if s == "" {
-			return dst, false
-		}
-		return append(dst, s...), true
-	case rhino.Token_THIS:
-		return append(dst, "this"...), true
-	case rhino.Token_SUPER:
-		return append(dst, "super"...), true
-	case rhino.Token_GETPROP:
-		var parts [16]string
-		depth := 0
-		cur := n
-		for cur.IsGetProp() {
-			if depth >= len(parts) {
-				var ok bool
-				dst, ok = appendQualifiedNameTo(dst, cur.GetFirstChild())
-				if !ok {
-					return dst, false
-				}
-				dst = append(dst, '.')
-				dst = append(dst, cur.GetString()...)
-				for i := depth - 1; i >= 0; i-- {
-					dst = append(dst, '.')
-					dst = append(dst, parts[i]...)
-				}
-				return dst, true
-			}
-			parts[depth] = cur.GetString()
-			depth++
-			cur = cur.GetFirstChild()
-		}
-		var ok bool
-		dst, ok = appendQualifiedNameTo(dst, cur)
-		if !ok {
-			return dst, false
-		}
-		for i := depth - 1; i >= 0; i-- {
-			dst = append(dst, '.')
-			dst = append(dst, parts[i]...)
-		}
-		return dst, true
-	default:
-		return dst, false
-	}
-}
-
 func annotateFunctionOriginalName(n rhino.Node) {
 	if n.GetOriginalName() != nil {
 		return
@@ -165,9 +113,8 @@ func annotateFunctionOriginalName(n rhino.Node) {
 			SourceInformationAnnotator_SetOriginalNameFromNode(n, firstChild)
 			return
 		}
-		var stackBuf [256]byte
-		if buf, ok := appendQualifiedNameTo(stackBuf[:0], firstChild); ok && len(buf) > 0 {
-			n.SetOriginalNameString(unsafe.String(unsafe.SliceData(buf), len(buf)))
+		if qname, ok := firstChild.GetQualifiedNameString(); ok && qname != "" {
+			n.SetOriginalNameString(qname)
 		}
 		return
 	default:

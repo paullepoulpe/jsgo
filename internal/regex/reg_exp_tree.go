@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/regex/RegExpTree.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/regex/RegExpTree.java @ closure-compiler v20261021
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -2642,7 +2642,7 @@ func (c *RegExpTree_Charset) HashCode() int32 {
 // RegExpTree_DecomposedCharset is the internal representation for []
 // charsets.
 //
-// Java: static final class RegExpTree.DecomposedCharset
+// Java: record RegExpTree.DecomposedCharset(boolean, CharRanges, String)
 type RegExpTree_DecomposedCharset struct {
 	inverted    bool
 	ranges      *CharRanges
@@ -2787,30 +2787,41 @@ func RegExpTree_DecomposedCharset_Complexity(ranges *CharRanges) int {
 	return complexity
 }
 
-// Equals compares the decompositions. Like the Java original, it assigns the
-// comparison result to d.inverted.
+// Equals is the record's equals: the same class and equal components
+// (Objects.equals for the references).
 //
 // Java: DecomposedCharset.equals(Object)
 func (d *RegExpTree_DecomposedCharset) Equals(o any) bool {
 	that, ok := o.(*RegExpTree_DecomposedCharset)
-	if !ok {
+	if !ok || that == nil {
 		return false
 	}
-	d.inverted = that.inverted &&
-		d.ranges.Equals(that.ranges) &&
-		d.namedGroups == that.namedGroups
-	return d.inverted
+	rangesEqual := d.ranges == that.ranges ||
+		(d.ranges != nil && that.ranges != nil && d.ranges.Equals(that.ranges))
+	return d.inverted == that.inverted && rangesEqual && d.namedGroups == that.namedGroups
 }
 
-// HashCode hashes the decomposition.
+// HashCode is the record's hashCode: a combination of the components'
+// hash codes.
+//
+// Go-only: language-adapter — java.lang.Record leaves the combination
+// unspecified, and nothing hashes a DecomposedCharset, so this one only
+// keeps equal records at equal hash codes: 31 * (31 * h(inverted) +
+// h(ranges)) + h(namedGroups), with Boolean.hashCode's 1231/1237 and 0 for
+// null.
 //
 // Java: DecomposedCharset.hashCode()
 func (d *RegExpTree_DecomposedCharset) HashCode() int32 {
-	inverted := int32(0)
+	h := int32(1237)
 	if d.inverted {
-		inverted = 1
+		h = 1231
 	}
-	return d.ranges.HashCode() + 31*(jutil.StringHashCode(d.namedGroups)+inverted)
+	rangesHash := int32(0)
+	if d.ranges != nil {
+		rangesHash = d.ranges.HashCode()
+	}
+	h = 31*h + rangesHash
+	return 31*h + jutil.StringHashCode(d.namedGroups)
 }
 
 // RegExpTree_Concatenation represents a series of nodes chained one after

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineVariables.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/InlineVariables.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -1525,6 +1525,19 @@ func (b *InlineVariables_InliningBehavior) CanMoveAggressively(value rhino.Node)
 	return NodeUtil_IsLiteralValue(value, true) || value.IsFunction()
 }
 
+// InlineVariables_InliningBehavior_MAX_MODERATE_MOTION_STEPS is the maximum
+// number of AST steps LocalVarMotion will traverse before giving up. Prevents
+// quadratic traversal in large monolithic scopes with many definitions
+// (b/545160233).
+//
+// 5000 steps is large enough to span massive side-effect-free AST structures
+// like protobuf descriptor arrays without regressing code size, while
+// bounding worst-case traversal time in huge monolithic scopes to fractions
+// of a second.
+//
+// Java: InlineVariables.InliningBehavior.MAX_MODERATE_MOTION_STEPS
+const InlineVariables_InliningBehavior_MAX_MODERATE_MOTION_STEPS = 5000
+
 // CanMoveModerately: if the value of a variable is not constant, then it may
 // read or modify state. Therefore it cannot be moved past anything else that
 // may modify the value being read or read values that are modified.
@@ -1553,10 +1566,15 @@ func (b *InlineVariables_InliningBehavior) CanMoveModerately(initialization *Ref
 			"Unexpected initialization parent\n" + initialization.GetParent().ToStringTree()))
 	}
 	targetName := reference.GetNode()
+	steps := 0
 	for it.HasNext() {
 		curNode := it.Next()
 		if curNode == targetName {
 			return true
+		}
+		steps++
+		if steps > InlineVariables_InliningBehavior_MAX_MODERATE_MOTION_STEPS {
+			return false
 		}
 	}
 

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java)
 
 /*
@@ -742,7 +742,7 @@ func (c *PeepholeReplaceKnownMethodsTest) TestFoldStringSplit() {
 	c.Fold("x = 'aaa'.split('aaa')", "x = ['','']")
 	c.Fold("x = ' '.split(' ')", "x = ['','']")
 	c.FoldSame("x = 'abcde'.split(/ /)")
-	c.FoldSame("x = 'abcde'.split(' ', -1)")
+	c.Fold("x = 'abcde'.split(' ', -1)", "x = ['abcde']")
 	// Template strings
 	c.FoldSame("x = `abcdef`.split()")
 	c.FoldSame("x = `abcdef ${abc}`.split()")
@@ -917,6 +917,11 @@ func (c *PeepholeReplaceKnownMethodsTest) TestFoldMathFunctions_round() {
 	c.Fold("Math.round(NaN)", "NaN")
 	c.Fold("Math.round(3.5)", "4")
 	c.Fold("Math.round(-3.5)", "-3")
+	c.Fold("x = Math.round(-0.5)", "x = -0.0")
+	c.Fold("x = Math.round(-0.1)", "x = -0.0")
+	c.Fold("x = Math.round(-0.0)", "x = -0.0")
+	c.Fold("x = Math.round(0.0)", "x = 0")
+	c.Fold("x = Math.round(-0.51)", "x = -1")
 }
 
 // Java: PeepholeReplaceKnownMethodsTest.testFoldMathFunctions_sign()
@@ -1365,4 +1370,13 @@ func (c *PeepholeReplaceKnownMethodsTest) FoldStringTyped(js string, expected st
 	c.Test(
 		"function f(/** string */ a) {"+js+"}",
 		"function f(/** string */ a) {"+expected+"}")
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testStringSplit_uint32Limit()
+func (c *PeepholeReplaceKnownMethodsTest) TestStringSplit_uint32Limit() {
+	c.late = false
+	c.Fold("x = 'a,b'.split(',', 4294967296)", "x = []")
+	c.Fold("x = 'a,b'.split(',', 0)", "x = []")
+	c.Fold("x = 'a,b'.split(',', 1)", "x = ['a']")
+	c.Fold("x = 'a,b'.split(',', -1)", "x = ['a', 'b']")
 }

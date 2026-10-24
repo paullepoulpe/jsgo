@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
-	"unsafe"
 )
 
 // Go-only: language-adapter — java.util / Guava collections with Java
@@ -214,7 +213,7 @@ func (s *LhmSlot[K, V]) Value() V { return s.value }
 // lookups scan the contiguous slots slice, comparing keys with == as a Go
 // map does.
 type LinkedHashMap[K comparable, V any] struct {
-	m     *lhmIndex // nil until len(slots) exceeds lhmSmallSize or a non-front slot is removed
+	m     atomic.Pointer[lhmIndex] // nil until len(slots) exceeds lhmSmallSize or a non-front slot is removed
 	slots []LhmSlot[K, V]
 	size  int32
 	first int32
@@ -335,10 +334,26 @@ func NewLinkedHashMapWithCapacity[K comparable, V any](cap int) *LinkedHashMap[K
 // InitWithBuffer makes h an empty map that stores its first len(buf) entries
 // in buf; it grows into a new slice past that.
 func (h *LinkedHashMap[K, V]) InitWithBuffer(buf []LhmSlot[K, V]) {
-	h.m = nil
+	h.m.Store(nil)
 	h.slots = buf[:0:len(buf)]
 	h.size = 0
 	h.first = 0
+}
+
+// Reset drops all entries and releases the backing slice and index.
+func (h *LinkedHashMap[K, V]) Reset() {
+	h.m.Store(nil)
+	h.slots = nil
+	h.size = 0
+	h.first = 0
+}
+
+// EnsureCapacity grows h's backing slot slice so it can hold at least totalCap
+// entries without reallocating.
+func (h *LinkedHashMap[K, V]) EnsureCapacity(totalCap int) {
+	if rem := totalCap - len(h.slots); rem > 0 {
+		h.slots = slices.Grow(h.slots, rem)
+	}
 }
 
 // CompactLen returns len(h.slots) when every slot is live (no entry was
@@ -359,7 +374,7 @@ func (h *LinkedHashMap[K, V]) ValueAtSlot(i int) V {
 }
 
 func (h *LinkedHashMap[K, V]) loadIndex() *lhmIndex {
-	return (*lhmIndex)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&h.m))))
+	return h.m.Load()
 }
 
 // find returns k's slot index in h.slots, or -1 if absent.
@@ -380,7 +395,7 @@ func (h *LinkedHashMap[K, V]) find(k K) int {
 
 // lookup is find through the index.
 func (h *LinkedHashMap[K, V]) lookup(k K) int {
-	return h.lookupIn(h.m, k)
+	return h.lookupIn(h.m.Load(), k)
 }
 
 func (h *LinkedHashMap[K, V]) lookupIn(m *lhmIndex, k K) int {
@@ -475,7 +490,7 @@ func (h *LinkedHashMap[K, V]) Cap() int {
 
 // add appends an entry for k, which must be absent.
 func (h *LinkedHashMap[K, V]) add(k K, v V) {
-	if len(h.slots) < cap(h.slots) && h.m == nil {
+	if len(h.slots) < cap(h.slots) && h.m.Load() == nil {
 		h.slots = append(h.slots, LhmSlot[K, V]{key: k, value: v})
 		h.size++
 		return
@@ -494,11 +509,11 @@ func (h *LinkedHashMap[K, V]) addSlow(k K, v V) {
 	idx := len(h.slots)
 	h.slots = append(h.slots, LhmSlot[K, V]{key: k, value: v})
 	h.size++
-	if h.m != nil {
-		if h.m.needsGrow() {
+	if m := h.m.Load(); m != nil {
+		if m.needsGrow() {
 			h.reindex()
 		} else {
-			h.m.insert(lhmHash(k), idx)
+			m.insert(lhmHash(k), idx)
 		}
 	}
 }
@@ -512,7 +527,7 @@ func (h *LinkedHashMap[K, V]) buildIndex() {
 	for i := int(h.first); i < len(h.slots); i++ {
 		x.insert(lhmHash(h.slots[i].key), i)
 	}
-	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&h.m)), unsafe.Pointer(x))
+	h.m.Store(x)
 }
 
 // buildIndexShared builds an index of h's live slots and publishes it
@@ -525,16 +540,15 @@ func (h *LinkedHashMap[K, V]) buildIndexShared() *lhmIndex {
 	for i := int(h.first); i < len(h.slots); i++ {
 		x.insert(lhmHash(h.slots[i].key), i)
 	}
-	p := (*unsafe.Pointer)(unsafe.Pointer(&h.m))
-	if atomic.CompareAndSwapPointer(p, nil, unsafe.Pointer(x)) {
+	if h.m.CompareAndSwap(nil, x) {
 		return x
 	}
-	return (*lhmIndex)(atomic.LoadPointer(p))
+	return h.m.Load()
 }
 
 // reindex rebuilds the index table from the live slots, sized for them.
 func (h *LinkedHashMap[K, V]) reindex() {
-	x := h.m
+	x := h.m.Load()
 	x.reset(lhmTableLen(int(h.size)))
 	for i := int(h.first); i < len(h.slots); i++ {
 		if !x.isRemoved(i) {
@@ -547,9 +561,10 @@ func (h *LinkedHashMap[K, V]) reindex() {
 //
 //go:noinline
 func (h *LinkedHashMap[K, V]) compact() {
+	m := h.m.Load()
 	w := 0
 	for i := int(h.first); i < len(h.slots); i++ {
-		if h.m == nil || !h.m.isRemoved(i) {
+		if m == nil || !m.isRemoved(i) {
 			h.slots[w] = h.slots[i]
 			w++
 		}
@@ -557,9 +572,9 @@ func (h *LinkedHashMap[K, V]) compact() {
 	clear(h.slots[w:])
 	h.slots = h.slots[:w]
 	h.first = 0
-	if h.m != nil {
-		clear(h.m.removed)
-		h.m.removed = h.m.removed[:0]
+	if m != nil {
+		clear(m.removed)
+		m.removed = m.removed[:0]
 		h.reindex()
 	}
 }
@@ -621,14 +636,15 @@ func (h *LinkedHashMap[K, V]) removeSlot(i int) {
 		h.removeSlotMiddle(i)
 		return
 	}
-	if h.m != nil {
-		h.m.erase(lhmHash(h.slots[i].key), i)
+	m := h.m.Load()
+	if m != nil {
+		m.erase(lhmHash(h.slots[i].key), i)
 	}
 	h.size--
 	h.slots[i] = LhmSlot[K, V]{}
 	first := i + 1
-	if h.m != nil {
-		for first < len(h.slots) && h.m.isRemoved(first) {
+	if m != nil {
+		for first < len(h.slots) && m.isRemoved(first) {
 			first++
 		}
 	}
@@ -637,29 +653,31 @@ func (h *LinkedHashMap[K, V]) removeSlot(i int) {
 
 //go:noinline
 func (h *LinkedHashMap[K, V]) removeSlotMiddle(i int) {
-	if h.m == nil {
+	m := h.m.Load()
+	if m == nil {
 		h.buildIndex()
+		m = h.m.Load()
 	}
-	h.m.erase(lhmHash(h.slots[i].key), i)
+	m.erase(lhmHash(h.slots[i].key), i)
 	h.size--
 	h.slots[i] = LhmSlot[K, V]{}
-	if i >= len(h.m.removed) {
-		newLen := max(i+1, len(h.m.removed)*2, len(h.slots))
+	if i >= len(m.removed) {
+		newLen := max(i+1, len(m.removed)*2, len(h.slots))
 		newRemoved := make([]bool, newLen)
-		copy(newRemoved, h.m.removed)
-		h.m.removed = newRemoved
+		copy(newRemoved, m.removed)
+		m.removed = newRemoved
 	}
-	h.m.removed[i] = true
+	m.removed[i] = true
 }
 
 // Clear is Map.clear.
 func (h *LinkedHashMap[K, V]) Clear() {
 	clear(h.slots)
 	h.slots = h.slots[:0]
-	if h.m != nil {
-		h.m.reset(len(h.m.table))
-		clear(h.m.removed)
-		h.m.removed = h.m.removed[:0]
+	if m := h.m.Load(); m != nil {
+		m.reset(len(m.table))
+		clear(m.removed)
+		m.removed = m.removed[:0]
 	}
 	h.size = 0
 	h.first = 0
@@ -872,6 +890,18 @@ func NewLinkedHashSet[T comparable](elems ...T) *LinkedHashSet[T] {
 		s.Add(e)
 	}
 	return s
+}
+
+// NewLinkedHashSetWithCapacity returns an empty set pre-sized for cap elements.
+func NewLinkedHashSetWithCapacity[T comparable](cap int) *LinkedHashSet[T] {
+	if cap > 0 {
+		return &LinkedHashSet[T]{
+			m: LinkedHashMap[T, struct{}]{
+				slots: slices.Grow([]LhmSlot[T, struct{}](nil), cap),
+			},
+		}
+	}
+	return &LinkedHashSet[T]{}
 }
 
 // InitWithBuffer makes s an empty set that stores its first len(buf) elements

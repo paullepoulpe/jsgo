@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineFunctionsTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/InlineFunctionsTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/InlineFunctionsTest.java)
 
 /*
@@ -36,7 +36,6 @@ type InlineFunctionsTest struct {
 
 	inliningReach        CompilerOptions_Reach
 	assumeStrictThis     bool
-	assumeMinimumCapture bool
 	maxSizeAfterInlining int
 
 	uniqueIdSupplier *InlineFunctionsTest_UniqueIdSupplier
@@ -77,7 +76,6 @@ func (c *InlineFunctionsTest) SetUp() {
 	c.EnableComputeSideEffects()
 	c.inliningReach = CompilerOptions_Reach_ALL
 	c.assumeStrictThis = false
-	c.assumeMinimumCapture = false
 	c.maxSizeAfterInlining = CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING
 	c.uniqueIdSupplier = NewInlineFunctionsTest_UniqueIdSupplier()
 }
@@ -89,7 +87,6 @@ func (c *InlineFunctionsTest) GetProcessor(compiler *Compiler) CompilerPass {
 		c.uniqueIdSupplier.Get,
 		c.inliningReach,
 		c.assumeStrictThis,
-		c.assumeMinimumCapture,
 		c.maxSizeAfterInlining)
 }
 
@@ -663,7 +660,6 @@ var d=b()+foo()
 
 // Java: InlineFunctionsTest.testInlineFunctions15b()
 func (c *InlineFunctionsTest) TestInlineFunctions15b() {
-	c.assumeMinimumCapture = false
 	// closure factories: don't inline closure with locals into global scope.
 	c.Test(
 		`function foo(){var x; return function(a){ return a+1; };}
@@ -671,26 +667,10 @@ var b = function() { return c; };
 var d = b() + foo()
 `,
 		"function foo() { var x; return function(a){return a+1}; } var d = c+foo();")
-	c.assumeMinimumCapture = true
-	c.Test(
-		`function foo() { var x; return function(a) { return a + 1; }; }
-var b = function() { return c; };
-var d = b() + foo()
-`,
-		`var JSCompiler_inline_result$jscomp$v0;
-{
-  var x$jscomp$inline_0;
-  JSCompiler_inline_result$jscomp$v0 = function(a$jscomp$inline_1) {
-    return a$jscomp$inline_1 + 1;
-  };
-}
-var d = c+JSCompiler_inline_result$jscomp$v0;
-`)
 }
 
 // Java: InlineFunctionsTest.testInlineFunctions15c()
 func (c *InlineFunctionsTest) TestInlineFunctions15c() {
-	c.assumeMinimumCapture = false
 	// closure factories: don't inline into non-global scope.
 	c.Test(
 		`function foo(){return function(a){return a+1}}
@@ -700,19 +680,10 @@ function _x(){ var d=b()+foo() }
 		`function foo(){return function(a){return a+1}}
 function _x(){ var d=c+foo() }
 `)
-	c.assumeMinimumCapture = true
-	// closure factories: don't inline into non-global scope.
-	c.Test(
-		`function foo(){return function(a){return a+1}}
-var b=function(){return c};
-function _x(){ var d=b()+foo() }
-`,
-		"function _x(){var d=c+function(a){return a+1}}")
 }
 
 // Java: InlineFunctionsTest.testInlineFunctions15d()
 func (c *InlineFunctionsTest) TestInlineFunctions15d() {
-	c.assumeMinimumCapture = false
 	// closure factories: don't inline functions with vars.
 	c.Test(
 		`function foo() { var x; return function(a) { return a+1; }; }
@@ -725,38 +696,11 @@ function _x(){ var d = b()+foo() }
 }
 function _x() { var d = c + foo(); }
 `)
-	c.assumeMinimumCapture = true
-	// closure factories: inline functions with vars.
-	c.Test(
-		`function foo(){var x; return function(a){return a+1}}
-var b = function(){return c};
-function _x(){ var d=b()+foo() }
-`,
-		`function _x() {
-  var JSCompiler_inline_result$jscomp$v0;
-  {
-    var x$jscomp$inline_0;
-    JSCompiler_inline_result$jscomp$v0 = function(a$jscomp$inline_1) {
-      return a$jscomp$inline_1+1
-    };
-  }
-  var d = c + JSCompiler_inline_result$jscomp$v0;
-}
-`)
 }
 
 // Java: InlineFunctionsTest.testInlineFunctions16a()
 func (c *InlineFunctionsTest) TestInlineFunctions16a() {
-	c.assumeMinimumCapture = false
 	c.TestSame("function foo(b){return window.bar(function(){c(b)})} var d=foo(e)")
-	c.assumeMinimumCapture = true
-	c.Test(
-		`function foo(b){return window.bar(function(){c(b)})}
-var d=foo(e)
-`,
-		`var d;{var b$jscomp$inline_0=e;
-d=window.bar(function(){c(b$jscomp$inline_0)})}
-`)
 }
 
 // Java: InlineFunctionsTest.testInlineFunctions16b()
@@ -1410,24 +1354,8 @@ func (c *InlineFunctionsTest) TestInlineMutableArgsReferencedOnce() {
 	c.Test("function foo(x){return x;}foo([])", "[]")
 }
 
-// Java: InlineFunctionsTest.testInlineMutableArgsReferencedOnce2()
-func (c *InlineFunctionsTest) TestInlineMutableArgsReferencedOnce2() {
-	c.assumeMinimumCapture = true
-	// Don't inline a mutable value that will be reused.
-	c.Test(
-		"function foo(x){return function(){ return x; }} repeat(foo([]))",
-		`var JSCompiler_inline_result$jscomp$v0;
-{
-var x$jscomp$inline_0=[];
-JSCompiler_inline_result$jscomp$v0=function(){return x$jscomp$inline_0};
-}
-repeat(JSCompiler_inline_result$jscomp$v0)
-`)
-}
-
 // Java: InlineFunctionsTest.testInlineMutableArgsReferencedOnce3()
 func (c *InlineFunctionsTest) TestInlineMutableArgsReferencedOnce3() {
-	c.assumeMinimumCapture = true
 	// Don't inline a mutable value that will be reused.
 	c.Test(
 		`function f(a) {
@@ -1566,16 +1494,6 @@ function _bar(a$jscomp$2) {
 
 // Java: InlineFunctionsTest.testShadowVariables7()
 func (c *InlineFunctionsTest) TestShadowVariables7() {
-	c.assumeMinimumCapture = false
-	c.Test(
-		`var a=3;
-function foo(){return a}
-(function(){var a=5;(function(){foo()})()})()
-`,
-		`var a=3;
-{var a$jscomp$inline_0=5;{a}}
-`)
-	c.assumeMinimumCapture = true
 	c.Test(
 		`var a=3;
 function foo(){return a}
@@ -1691,17 +1609,6 @@ function _bar(){var c=a+a;alert(c+a)}
 
 // Java: InlineFunctionsTest.testShadowVariables16()
 func (c *InlineFunctionsTest) TestShadowVariables16() {
-	c.assumeMinimumCapture = false
-	// Inline functions defined as a child of the CALL node.
-	c.Test(
-		`var a=3;
-function foo(){return a}
-(function(){var a=5;(function(){foo()})()})()
-`,
-		`var a=3;
-{var a$jscomp$inline_0=5;{a}}
-`)
-	c.assumeMinimumCapture = true
 	// Inline functions defined as a child of the CALL node.
 	c.Test(
 		`var a=3;
@@ -2578,7 +2485,6 @@ func (c *InlineFunctionsTest) TestComplexFunctionWithFunctionDefinition1() {
 
 // Java: InlineFunctionsTest.testComplexFunctionWithFunctionDefinition2()
 func (c *InlineFunctionsTest) TestComplexFunctionWithFunctionDefinition2() {
-	c.assumeMinimumCapture = false
 	// Don't inline if local names might be captured.
 	c.TestSame(
 		`function f(a) {
@@ -2586,25 +2492,10 @@ func (c *InlineFunctionsTest) TestComplexFunctionWithFunctionDefinition2() {
 }
 f();
 `)
-	c.assumeMinimumCapture = true
-	c.Test(
-		`(function() {
-  var f = function(a) { call(function(){return a}); };
-  f();
-})();
-`,
-		`{
-  {
-    var a$jscomp$inline_2 = void 0;
-    call(function() { return a$jscomp$inline_2; });
-  }
-}
-`)
 }
 
 // Java: InlineFunctionsTest.testComplexFunctionWithFunctionDefinition2a()
 func (c *InlineFunctionsTest) TestComplexFunctionWithFunctionDefinition2a() {
-	c.assumeMinimumCapture = false
 	// Don't inline if local names might be captured.
 	c.TestSame(
 		`(function() {
@@ -2612,31 +2503,12 @@ func (c *InlineFunctionsTest) TestComplexFunctionWithFunctionDefinition2a() {
   f();
 })()
 `)
-	c.assumeMinimumCapture = true
-	c.Test(
-		`(function() {
-  var f = function(a) { call(function(){return a}); };
-  f();
-})()
-`,
-		`{
-  {
-    var a$jscomp$inline_2 = void 0;
-    call(function() { return a$jscomp$inline_2; });
-  }
-}
-`)
 }
 
 // Java: InlineFunctionsTest.testComplexFunctionWithFunctionDefinition3()
 func (c *InlineFunctionsTest) TestComplexFunctionWithFunctionDefinition3() {
-	c.assumeMinimumCapture = false
 	// Don't inline if local names might need to be captured.
 	c.TestSame("function f(){var a; call(function(){return a})}f()")
-	c.assumeMinimumCapture = true
-	c.Test(
-		"function f(){var a; call(function(){return a})}f()",
-		"{var a$jscomp$inline_0;call(function(){return a$jscomp$inline_0})}")
 }
 
 // Java: InlineFunctionsTest.testDecomposePlusEquals()
@@ -2791,36 +2663,16 @@ func (c *InlineFunctionsTest) TestFunctionExpressionCallInlining11a() {
 
 // Java: InlineFunctionsTest.testFunctionExpressionCallInlining11b()
 func (c *InlineFunctionsTest) TestFunctionExpressionCallInlining11b() {
-	c.assumeMinimumCapture = false
 	// Can't inline functions that return inner functions and have local names.
 	c.TestSame("((function(){var a; return function(){foo()}})())();")
-	c.assumeMinimumCapture = true
-	c.Test(
-		"((function(){var a; return function(){foo()}})())();",
-		`var JSCompiler_inline_result$jscomp$v0;
-{var a$jscomp$inline_0;
-JSCompiler_inline_result$jscomp$v0=function(){foo()};}
-JSCompiler_inline_result$jscomp$v0()
-`)
 }
 
 // Java: InlineFunctionsTest.testFunctionExpressionCallInlining11c()
 func (c *InlineFunctionsTest) TestFunctionExpressionCallInlining11c() {
 	// TODO(johnlenz): Can inline, not temps needed.
-	c.assumeMinimumCapture = false
 	c.TestSame(
 		`function _x() {
   ((function(){return function(){foo()}})())();
-}
-`)
-	c.assumeMinimumCapture = true
-	c.Test(
-		`function _x() {
-  ((function(){return function(){foo()}})())();
-}
-`,
-		`function _x() {
-  {foo()}
 }
 `)
 }
@@ -2829,23 +2681,10 @@ func (c *InlineFunctionsTest) TestFunctionExpressionCallInlining11c() {
 func (c *InlineFunctionsTest) TestFunctionExpressionCallInlining11d() {
 	// TODO(johnlenz): Can inline into a function containing eval, if
 	// no names are introduced.
-	c.assumeMinimumCapture = false
 	c.TestSame(
 		`function _x() {
   eval();
   ((function(){return function(){foo()}})())();
-}
-`)
-	c.assumeMinimumCapture = true
-	c.Test(
-		`function _x() {
-  eval();
-  ((function(){return function(){foo()}})())();
-}
-`,
-		`function _x() {
-  eval();
-  {foo()}
 }
 `)
 }
@@ -2854,23 +2693,10 @@ func (c *InlineFunctionsTest) TestFunctionExpressionCallInlining11d() {
 func (c *InlineFunctionsTest) TestFunctionExpressionCallInlining11e() {
 	// No, don't inline into a function containing eval,
 	// if temps are introduced.
-	c.assumeMinimumCapture = false
 	c.TestSame(
 		`function _x() {
   eval();
   ((function(a){return function(){foo()}})())();
-}
-`)
-	c.assumeMinimumCapture = true
-	c.Test(
-		`function _x() {
-  eval();
-  ((function(a){return function(){foo()}})())();
-}
-`,
-		`function _x() {
-  eval();
-  {foo();}
 }
 `)
 }
@@ -3051,7 +2877,6 @@ func (c *InlineFunctionsTest) TestInlineWithThis7() {
 // http://en.wikipedia.org/wiki/Fixed_point_combinator#Y_combinator
 // Java: InlineFunctionsTest.testFunctionExpressionYCombinator()
 func (c *InlineFunctionsTest) TestFunctionExpressionYCombinator() {
-	c.assumeMinimumCapture = false
 	c.TestSame(
 		`var factorial = ((function(M) {
       return ((function(f) {
@@ -3075,55 +2900,6 @@ func (c *InlineFunctionsTest) TestFunctionExpressionYCombinator() {
      }));
 
 factorial(5)
-`)
-	c.assumeMinimumCapture = true
-	c.Test(
-		`var factorial = ((function(M) {
-      return ((function(f) {
-                 return M(function(arg) {
-                            return (f(f))(arg);
-                            })
-               })
-              (function(f) {
-                 return M(function(arg) {
-                            return (f(f))(arg);
-                           })
-                 }));
-     })
-    (function(f) {
-       return function(n) {
-        if (n === 0)
-          return 1;
-        else
-          return n * f(n - 1);
-       };
-     }));
-
-factorial(5)
-`,
-		`var factorial;
-{
-  var M$jscomp$inline_2 = function(f$jscomp$2) {
-    return function(n) {
-      if (n === 0) {
-        return 1;
-      } else {
-        return n * f$jscomp$2(n - 1);
-      }
-    };
-  };
-  {
-    var f$jscomp$inline_7 = function(f$jscomp$inline_5) {
-      return M$jscomp$inline_2(function(arg$jscomp$inline_6) {
-        return f$jscomp$inline_5(f$jscomp$inline_5)(arg$jscomp$inline_6);
-      });
-    };
-    factorial = M$jscomp$inline_2(function(arg$jscomp$inline_8) {
-      return f$jscomp$inline_7(f$jscomp$inline_7)(arg$jscomp$inline_8);
-    });
-  }
-}
-factorial(5);
 `)
 }
 
@@ -3202,7 +2978,6 @@ func (c *InlineFunctionsTest) TestInlineObject() {
 	c.EnableComputeSideEffects()
 	c.inliningReach = CompilerOptions_Reach_LOCAL_ONLY
 	c.assumeStrictThis = true
-	c.assumeMinimumCapture = true
 	// TODO(johnlenz): normalize the AST so an AST comparison can be done.
 	// As is, the expected AST does not match the actual correct result:
 	// The AST matches "g.a()" with a FREE_CALL annotation, but this as
@@ -3350,7 +3125,6 @@ HangoutStarter.prototype.launchHangout = function() {
 // http://blickly.github.io/closure-compiler-issues/#423
 // Java: InlineFunctionsTest.testIssue423()
 func (c *InlineFunctionsTest) TestIssue423() {
-	c.assumeMinimumCapture = false
 	c.Test(
 		`(function($) {
   $.fn.multicheck = function(options) {
@@ -3380,41 +3154,6 @@ func (c *InlineFunctionsTest) TestIssue423() {
 `)
 }
 
-// http://blickly.github.io/closure-compiler-issues/#423
-// Java: InlineFunctionsTest.testIssue423_minCap()
-func (c *InlineFunctionsTest) TestIssue423_minCap() {
-	c.assumeMinimumCapture = true
-	c.Test(
-		`(function($) {
-  $.fn.multicheck = function(options) {
-    initialize.call(this, options);
-  };
-
-  function initialize(options) {
-    options.checkboxes = $(this).siblings(':checkbox');
-    preload_check_all.call(this);
-  }
-
-  function preload_check_all() {
-    $(this).data('checkboxes');
-  }
-})(jQuery)
-`,
-		`{
-  var $$jscomp$inline_0=jQuery;
-  $$jscomp$inline_0.fn.multicheck=function(options$jscomp$inline_4) {
-    {
-      options$jscomp$inline_4.checkboxes =
-          $$jscomp$inline_0(this).siblings(':checkbox');
-      {
-         $$jscomp$inline_0(this).data('checkboxes')
-      }
-    }
-  }
-}
-`)
-}
-
 // http://blickly.github.io/closure-compiler-issues/#728
 // Java: InlineFunctionsTest.testIssue728()
 func (c *InlineFunctionsTest) TestIssue728() {
@@ -3430,7 +3169,6 @@ func (c *InlineFunctionsTest) TestIssue728() {
 
 // Java: InlineFunctionsTest.testAnonymous1()
 func (c *InlineFunctionsTest) TestAnonymous1() {
-	c.assumeMinimumCapture = false
 	c.Test(
 		"(function(){var a=10;(function(){var b=a;a++;alert(b)})()})();",
 		`{
@@ -3439,18 +3177,6 @@ func (c *InlineFunctionsTest) TestAnonymous1() {
     var b$jscomp$inline_2 = a$jscomp$inline_1;
     a$jscomp$inline_1++;
     alert(b$jscomp$inline_2);
-  }
-}
-`)
-	c.assumeMinimumCapture = true
-	c.Test(
-		"(function(){var a=10;(function(){var b=a;a++;alert(b)})()})();",
-		`{
-  var a$jscomp$inline_1 = 10;
-  {
-    var b$jscomp$inline_3 = a$jscomp$inline_1;
-    a$jscomp$inline_1++;
-    alert(b$jscomp$inline_3);
   }
 }
 `)
@@ -3473,81 +3199,20 @@ func (c *InlineFunctionsTest) TestAnonymous2() {
 // Java: InlineFunctionsTest.testAnonymous3()
 func (c *InlineFunctionsTest) TestAnonymous3() {
 	// Introducing a new value into is tricky
-	c.assumeMinimumCapture = false
 	c.TestSame("(function(){var a=10;(function(){arguments;})()})();")
-	c.assumeMinimumCapture = true
-	c.Test(
-		"(function(){var a=10;(function(){arguments;})()})();",
-		"{var a$jscomp$inline_0=10;(function(){arguments;})();}")
+
 	c.Test("(function(){(function(){arguments;})()})();", "{(function(){arguments;})()}")
 }
 
 // Java: InlineFunctionsTest.testLoopWithFunctionWithFunction()
 func (c *InlineFunctionsTest) TestLoopWithFunctionWithFunction() {
-	c.assumeMinimumCapture = true
-	c.Test(
-		`function _testLocalVariableInLoop_() {
-  var result = 0;
-  function foo() {
-    var arr = [1, 2, 3, 4, 5];
-    for (var i = 0, l = arr.length; i < l; i++) {
-      var j = arr[i];
-      // Don't inline this function; the correct behavior depends on captured values.
-      (function() {
-        var k = j;
-        setTimeout(function() { result += k; }, 5 * i);
-      })();
-    }
-  }
-  foo();
+	// Don't inline a function containing a closure inside a loop.
+	c.TestSame(
+		`function foo() {
+  return function() { return 1; };
 }
-`,
-		`function _testLocalVariableInLoop_() {
-  var result = 0;
-  {
-    var arr$jscomp$inline_0 = [1,2,3,4,5];
-    var i$jscomp$inline_1 = 0;
-    var l$jscomp$inline_2 = arr$jscomp$inline_0.length;
-    for(; i$jscomp$inline_1 < l$jscomp$inline_2; i$jscomp$inline_1++) {
-      var j$jscomp$inline_3 = arr$jscomp$inline_0[i$jscomp$inline_1];
-      (function(){
-        var k$jscomp$inline_4 = j$jscomp$inline_3;
-        setTimeout(function() {
-          result += k$jscomp$inline_4;
-        }, 5 * i$jscomp$inline_1)
-      })()
-    }
-  }
-}
-`)
-}
-
-// Java: InlineFunctionsTest.testMethodWithFunctionWithFunction()
-func (c *InlineFunctionsTest) TestMethodWithFunctionWithFunction() {
-	c.assumeMinimumCapture = true
-	c.Test(
-		`function _testLocalVariable_() {
-  var result = 0;
-  function foo() {
-      var j = [i];
-      (function(j) {
-        setTimeout(function() { result += j; }, 5 * i);
-      })(j);
-      j = null;
-  }
-  foo();
-}
-`,
-		`function _testLocalVariable_(){
-  var result = 0;
-  {
-    var j$jscomp$inline_1 = [i];
-    {
-      var j$jscomp$inline_3 = j$jscomp$inline_1; // this temp is needed.
-      setTimeout(function(){ result += j$jscomp$inline_3; }, 5*i);
-    }
-    j$jscomp$inline_1 = null; // because this value can be modified later.
-  }
+for (var i = 0; i < 10; i++) {
+  var x = foo();
 }
 `)
 }
@@ -4857,53 +4522,14 @@ alert(new C().x);
 `)
 }
 
-// Java: InlineFunctionsTest.testClassField_paramCapturedByInstanceFieldInitializer_assumeMinimumCapture()
-func (c *InlineFunctionsTest) TestClassField_paramCapturedByInstanceFieldInitializer_assumeMinimumCapture() {
-	c.assumeMinimumCapture = true
-	c.Test(
-		`function f(a) {
-  return class { x = a; };
-}
-let y = 1;
-const C = f(y);
-y = 2;
-alert(new C().x);
-`,
-		`let y = 1;
-var JSCompiler_inline_result$jscomp$v0;
-{
-  var a$jscomp$inline_0 = y;
-  JSCompiler_inline_result$jscomp$v0 = class {
-    x = a$jscomp$inline_0;
-  };
-}
-const C = JSCompiler_inline_result$jscomp$v0;
-y = 2;
-alert(new C().x);
-`)
-}
-
-// Java: InlineFunctionsTest.testClassField_paramCapturedByComputedInstanceFieldInitializer_assumeMinimumCapture()
-func (c *InlineFunctionsTest) TestClassField_paramCapturedByComputedInstanceFieldInitializer_assumeMinimumCapture() {
-	c.assumeMinimumCapture = true
-	c.Test(
+// Java: InlineFunctionsTest.testClassField_paramCapturedByComputedInstanceFieldInitializer_notInlined()
+func (c *InlineFunctionsTest) TestClassField_paramCapturedByComputedInstanceFieldInitializer_notInlined() {
+	c.TestSame(
 		`function f(a) {
   return class { ['x'] = a; };
 }
 let y = 1;
 const C = f(y);
-y = 2;
-alert(new C()['x']);
-`,
-		`let y = 1;
-var JSCompiler_inline_result$jscomp$v0;
-{
-  var a$jscomp$inline_0 = y;
-  JSCompiler_inline_result$jscomp$v0 = class {
-    ["x"] = a$jscomp$inline_0;
-  };
-}
-const C = JSCompiler_inline_result$jscomp$v0;
 y = 2;
 alert(new C()['x']);
 `)
@@ -5283,6 +4909,37 @@ for (sanitize of getStrictSanitizers()) {
   el.innerHTML = sanitize(untrusted);
 }
 `)
+}
+
+// Java: InlineFunctionsTest.testInline_optChainContinuesAfterCall_block()
+func (c *InlineFunctionsTest) TestInline_optChainContinuesAfterCall_block() {
+	// TODO(b/571219735): block-mode inlining leaves callee reference un-inlined after temp hoisting
+	e :=
+		AssertThrows[jutil.IRuntimeException](
+			func() { c.TestSame("function foo(a) { return {x: a, y: a}; } var y = foo?.(z()).x;") })
+	// Throwables.getRootCause(e)
+	var root jutil.Throwable = e
+	for root.GetCause() != nil {
+		root = root.GetCause()
+	}
+	IsInstanceOf[jutil.IIllegalStateException](AssertThat(root))
+	AssertThat(root.GetMessage()).Contains("Call site missed")
+}
+
+// Java: InlineFunctionsTest.testInline_optChainContinuesAfterCall_direct()
+func (c *InlineFunctionsTest) TestInline_optChainContinuesAfterCall_direct() {
+	// TODO(b/571219735): DIRECT-mode inlining orphans the trailing chain segment
+	e :=
+		AssertThrows[jutil.IRuntimeException](
+			func() { c.TestSame("function foo() { return {x: 1}; } foo?.().x;") })
+	// Throwables.getRootCause(e)
+	var root jutil.Throwable = e
+	for root.GetCause() != nil {
+		root = root.GetCause()
+	}
+	IsInstanceOf[jutil.IIllegalStateException](AssertThat(root))
+	AssertThat(root.GetMessage()).
+		Contains("Start of optional chain node OPTCHAIN_GETPROP is not marked as the start")
 }
 
 // inlineFunctionsTest_test6671158Tester is the anonymous subclass of

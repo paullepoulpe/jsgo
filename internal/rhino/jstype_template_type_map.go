@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/TemplateTypeMap.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/jstype/TemplateTypeMap.java @ closure-compiler v20261021
 
 /*
  *
@@ -251,7 +251,7 @@ func resolveSimpleTemplateValue(t JSType, registry *JSTypeRegistry) (JSType, boo
 			return registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE), true
 		}
 		return t, true
-	case *NamedType, *NumberType, *StringType, *BooleanType, *NullType, *VoidType, *AllType, *BigIntType, *NoType, *NoObjectTypeBase, *EnumType, *NoResolvedType, *EnumElementType, *InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *SymbolTypeBase, *KnownSymbolType, NoObjectType, PrototypeObjectType:
+	case *NamedType, *NumberType, *StringType, *BooleanType, *NullType, *VoidType, *AllType, *BigIntType, *NoType, *NoObjectTypeBase, *EnumType, *NoResolvedType, *EnumElementType, *InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *SymbolTypeBase, *KnownSymbolType, NoObjectType:
 		return t, true
 	case *UnionType:
 		alts := x.GetAlternates()

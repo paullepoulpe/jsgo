@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CommandLineRunner.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CommandLineRunner.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -209,7 +209,7 @@ type commandLineRunner_Flags struct {
 	isolatePolyfills                   bool
 	printSourceAfterEachPass           bool
 	moduleResolutionMode               ModuleLoader_ResolutionMode
-	browserResolverPrefixReplacements  *jutil.JavaHashMap[string, *string]
+	browserResolverPrefixReplacements  *jutil.LinkedHashMap[string, *string]
 	packageJsonEntryNames              *string
 	errorFormat                        AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption
 	renaming                           bool
@@ -348,7 +348,7 @@ func newCommandLineRunner_Flags() *commandLineRunner_Flags {
 		isolatePolyfills:                   false,
 		printSourceAfterEachPass:           false,
 		moduleResolutionMode:               ModuleLoader_ResolutionMode_BROWSER,
-		browserResolverPrefixReplacements:  jutil.NewJavaHashMap[string, *string](),
+		browserResolverPrefixReplacements:  jutil.NewLinkedHashMap[string, *string](),
 		packageJsonEntryNames:              nil,
 		errorFormat:                        AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_STANDARD,
 		renaming:                           true,
@@ -557,7 +557,7 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 		{Option: &args4j.Option{Name: "--module_resolution", Usage: "Specifies how the compiler locates modules. BROWSER requires all module imports to begin with a '.' or '/' and have a file extension. NODE uses the node module rules. WEBPACK looks up modules from a special lookup map."},
 			Field: args4j.EnumField(c, "moduleResolutionMode", commandLineRunner_ModuleLoader_ResolutionMode_class, &f.moduleResolutionMode)},
 		{Option: &args4j.Option{Name: "--browser_resolver_prefix_replacements", Usage: "Prefixes to replace in ES6 import paths before resolving. module_resolution must be BROWSER_WITH_TRANSFORMED_PREFIXES to take effect."},
-			Field: args4j.StringMapField(c, "browserResolverPrefixReplacements", &f.browserResolverPrefixReplacements)},
+			Field: args4j.LinkedStringMapField(c, "browserResolverPrefixReplacements", &f.browserResolverPrefixReplacements)},
 		{Option: &args4j.Option{Name: "--package_json_entry_names", Usage: "Ordered list of entries to look for in package.json files when processing modules with the NODE module resolution strategy (i.e. esnext:main,browser,main). Defaults to a list with the following entries: \"browser\", \"module\", \"main\"."},
 			Field: args4j.NullableStringField(c, "packageJsonEntryNames", &f.packageJsonEntryNames)},
 		{Option: &args4j.Option{Name: "--error_format", Usage: "Specifies format for error messages."},
@@ -886,16 +886,8 @@ func commandLineRunner_Flags_printShortUsageAfterErrors(ps *jutil.PrintStream) {
 func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
 	mixedSources := make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 0, len(commandLineRunner_Flags_mixedJsSources)+len(f.arguments))
 	var excludes *jutil.LinkedHashSet[string]
-	var entrySlab []AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]
 	allocJsEntry := func(filename string) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
-		if len(entrySlab) == 0 {
-			entrySlab = make([]AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 512) // 12 KiB <= 32 KiB
-		}
-		e := &entrySlab[0]
-		entrySlab = entrySlab[1:]
-		e.flag = AbstractCommandLineRunner_JsSourceType_JS
-		e.value = filename
-		return e
+		return NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, filename)
 	}
 	for _, source := range commandLineRunner_Flags_mixedJsSources {
 		val := source.GetValue()
@@ -1123,10 +1115,9 @@ func newCommandLineRunner_Flags_JsZipOptionHandler(
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter<T>
 type commandLineRunner_Flags_MultiFlagSetter[T abstractCommandLineRunner_flag] struct {
-	proxy     args4j.Setter
-	flag      T
-	entries   *[]*AbstractCommandLineRunner_FlagEntry[T]
-	entrySlab []AbstractCommandLineRunner_FlagEntry[T]
+	proxy   args4j.Setter
+	flag    T
+	entries *[]*AbstractCommandLineRunner_FlagEntry[T]
 }
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter(Setter<? super String>, T, List<FlagEntry<T>>)
@@ -1145,17 +1136,6 @@ func (s *commandLineRunner_Flags_MultiFlagSetter[T]) GetType() *args4j.Class {
 	return s.proxy.GetType()
 }
 
-func (s *commandLineRunner_Flags_MultiFlagSetter[T]) allocEntry(val string) *AbstractCommandLineRunner_FlagEntry[T] {
-	if len(s.entrySlab) == 0 {
-		s.entrySlab = make([]AbstractCommandLineRunner_FlagEntry[T], 512) // 12 KiB <= 32 KiB
-	}
-	e := &s.entrySlab[0]
-	s.entrySlab = s.entrySlab[1:]
-	e.flag = s.flag
-	e.value = val
-	return e
-}
-
 // AddStringValue implements args4j.StringSetter without interface boxing.
 func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddStringValue(value string) {
 	normalizedValue := value
@@ -1171,14 +1151,14 @@ func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddStringValue(value string
 	} else {
 		s.proxy.AddValue(normalizedValue)
 	}
-	*s.entries = append(*s.entries, s.allocEntry(normalizedValue))
+	*s.entries = append(*s.entries, NewAbstractCommandLineRunner_FlagEntry(s.flag, normalizedValue))
 }
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter.addValue(String)
 func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddValue(v any) {
 	if v == nil {
 		s.proxy.AddValue("")
-		*s.entries = append(*s.entries, s.allocEntry(""))
+		*s.entries = append(*s.entries, NewAbstractCommandLineRunner_FlagEntry(s.flag, ""))
 		return
 	}
 	value, _ := v.(string)
@@ -1864,11 +1844,11 @@ func commandLineRunner_j2clPassModeValueOf(name string) CompilerOptions_J2clPass
 }
 
 // commandLineRunner_immutableMapCopyOf is ImmutableMap.copyOf(Map) of a
-// HashMap<String, String>: its entries in the HashMap's iteration order.
+// LinkedHashMap<String, String>: its entries in insertion order.
 //
 // Go-only: language-adapter — args4j's MapOptionHandler stores String
 // values boxed (*string).
-func commandLineRunner_immutableMapCopyOf(m *jutil.JavaHashMap[string, *string]) *jutil.LinkedHashMap[string, string] {
+func commandLineRunner_immutableMapCopyOf(m *jutil.LinkedHashMap[string, *string]) *jutil.LinkedHashMap[string, string] {
 	result := jutil.NewImmutableMapBuilder[string, string]()
 	for k, v := range m.All() {
 		if v == nil {

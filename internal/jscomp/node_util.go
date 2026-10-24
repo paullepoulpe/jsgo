@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20261021
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -3473,10 +3473,20 @@ func NodeUtil_IsDeclarationLValue(n rhino.Node) bool {
 	case rhino.Token_IMPORT_SPEC, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_PARAM_LIST,
 		rhino.Token_IMPORT, rhino.Token_CATCH, rhino.Token_CLASS, rhino.Token_FUNCTION:
 		return true
-	case rhino.Token_STRING_KEY:
-		return NodeUtil_IsNameDeclaration(parent.GetParent().GetGrandparent())
-	case rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN:
-		return NodeUtil_IsNameDeclaration(parent.GetGrandparent())
+	case rhino.Token_STRING_KEY,
+		rhino.Token_OBJECT_PATTERN,
+		rhino.Token_ARRAY_PATTERN,
+		rhino.Token_COMPUTED_PROP,
+		rhino.Token_DEFAULT_VALUE,
+		rhino.Token_ITER_REST,
+		rhino.Token_OBJECT_REST:
+		rootTargetParent := NodeUtil_GetRootTarget(n).GetParent()
+		if rootTargetParent.IsRest() || rootTargetParent.IsDefaultValue() {
+			return rootTargetParent.GetParent().IsParamList()
+		} else if rootTargetParent.IsDestructuringLhs() {
+			return NodeUtil_IsNameDeclaration(rootTargetParent.GetParent())
+		}
+		return rootTargetParent.IsParamList() || rootTargetParent.IsCatch()
 	default:
 		return false
 	}
@@ -4416,6 +4426,20 @@ func NodeUtil_IsObjectDefinePropertiesDefinition(n rhino.Node) bool {
 		return false
 	}
 	return getprop.GetString() == "defineProperties" &&
+		NodeUtil_IsKnownGlobalObjectReference(getprop.GetFirstChild())
+}
+
+// NodeUtil_IsObjectCreateWithPropertiesDefinition returns true if the node is
+// a 2-argument Object.create(proto, descriptors).
+//
+// Java: NodeUtil.isObjectCreateWithPropertiesDefinition(Node)
+func NodeUtil_IsObjectCreateWithPropertiesDefinition(n rhino.Node) bool {
+	if !n.IsCall() || !n.HasXChildren(3) {
+		return false
+	}
+	getprop := n.GetFirstChild()
+	return getprop.IsGetProp() &&
+		getprop.GetString() == "create" &&
 		NodeUtil_IsKnownGlobalObjectReference(getprop.GetFirstChild())
 }
 
@@ -6633,9 +6657,7 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 		callback:     finder,
 		scopeCreator: scopeCreator,
 	}
-	t := acquireNodeTraversal(&b)
-	t.TraverseAtScope(scope)
-	releaseNodeTraversal(t)
+	b.TraverseAtScope(scope)
 
 	jutil.CheckState(finder.result.allVarsInFn.IsEmpty() == (len(finder.result.orderedVars) == 0))
 	return &finder.result

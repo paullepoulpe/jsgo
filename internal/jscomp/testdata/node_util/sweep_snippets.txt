@@ -1517,3 +1517,67 @@ tag`literal`
 (async () => { await p; })
 #### nodeutiltest/0681.js
 import('m')
+#### nodeutiltest/0682.js
+const [x] = arr;
+#### nodeutiltest/0683.js
+const [[x]] = arr;
+#### nodeutiltest/0684.js
+const {y: x} = obj;
+#### nodeutiltest/0685.js
+const {z: {y: x}} = obj;
+#### nodeutiltest/0686.js
+const [x = 1] = arr;
+#### nodeutiltest/0687.js
+const [...x] = arr;
+#### nodeutiltest/0688.js
+const {...x} = obj;
+#### nodeutiltest/0689.js
+const {[k]: x} = obj;
+#### nodeutiltest/0690.js
+const {[k]: [x = 1]} = obj;
+#### nodeutiltest/0691.js
+for (const [x] of arr) {}
+#### nodeutiltest/0692.js
+for (const [[x]] of arr) {}
+#### nodeutiltest/0693.js
+function f(x = 1) {}
+#### nodeutiltest/0694.js
+function f(...x) {}
+#### nodeutiltest/0695.js
+function f({z: [x = 1]} = {}) {}
+#### nodeutiltest/0696.js
+try {} catch ({y: [x]}) {}
+#### nodeutiltest/0697.js
+x = 1;
+#### nodeutiltest/0698.js
+([x] = arr);
+#### nodeutiltest/0699.js
+([[x]] = arr);
+#### nodeutiltest/0700.js
+({y: x} = obj);
+#### nodeutiltest/0701.js
+({z: {y: x}} = obj);
+#### nodeutiltest/0702.js
+([x = 1] = arr);
+#### nodeutiltest/0703.js
+([...x] = arr);
+#### nodeutiltest/0704.js
+({...x} = obj);
+#### nodeutiltest/0705.js
+({[k]: x} = obj);
+#### nodeutiltest/0706.js
+for ([x] of arr) {}
+#### nodeutiltest/0707.js
+for ([[x]] of arr) {}
+#### nodeutiltest/0708.js
+const [a = x] = arr;
+#### nodeutiltest/0709.js
+const {[x]: a} = obj;
+#### nodeutiltest/0710.js
+Object.create(null, {});
+#### nodeutiltest/0711.js
+$jscomp.global.Object.create(proto, foo);
+#### nodeutiltest/0712.js
+Object.create(proto);
+#### nodeutiltest/0713.js
+other.Object.create(proto, {});

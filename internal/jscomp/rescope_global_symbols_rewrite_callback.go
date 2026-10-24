@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RescopeGlobalSymbolsRewriteCallback.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/RescopeGlobalSymbolsRewriteCallback.java @ closure-compiler v20261021
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -226,7 +226,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) IsExternVar(varname string, t *Nod
 
 // Java: RescopeGlobalSymbolsRewriteCallback.collectWrappedReassignableCrossChunkNames()
 func (c *RescopeGlobalSymbolsRewriteCallback) CollectWrappedReassignableCrossChunkNames() *jutil.LinkedHashSet[string] {
-	if c.optimizeLocalAccess != CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS {
+	if !c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
 		return jutil.NewLinkedHashSet[string]()
 	}
 
@@ -295,7 +295,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) RewriteNameDeclaration(
 
 	// Add pre-declarations for all LHS variables that are neither global/cross-chunk names nor
 	// externs.
-	if c.optimizeLocalAccess != CompilerOptions_OptimizeLocalAccess_DISABLED {
+	if c.optimizeLocalAccess.ShouldOptimize() {
 		// If we are optimizing local accesses, we only want to pre-declare variables if the
 		// declaration will be converted to assignments/property accesses and removed by
 		// RemoveGlobalVarCallback. We don't want to add a new var declaration otherwise to avoid
@@ -424,7 +424,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) VisitName(t *NodeTraversal, n rhin
 
 	currentChunk := t.GetChunk()
 
-	if c.optimizeLocalAccess != CompilerOptions_OptimizeLocalAccess_DISABLED {
+	if c.optimizeLocalAccess.ShouldOptimize() {
 		definingChunk := var_.GetInput().GetChunk()
 		if currentChunk == definingChunk {
 			if !c.symbolInfo.CrossChunkNamesWithWriteFromOtherChunk().Contains(name) &&
@@ -440,9 +440,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) VisitName(t *NodeTraversal, n rhin
 				// Early return to skip replacing the symbol.
 				return
 			}
-		} else if c.optimizeLocalAccess == CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS ||
-			c.optimizeLocalAccess ==
-				CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS {
+		} else if c.optimizeLocalAccess.ShouldOptimizeAllChunks() {
 			// Variables defined in a different chunk are still safe for local aliasing if all of the
 			// following conditions are met.
 			// 1. The variable is not written to in any other chunk than in the defining chunk.
@@ -541,9 +539,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) AddGlobalNamespaceAlias(n rhino.No
 // Java: RescopeGlobalSymbolsRewriteCallback.addDeclarations()
 func (c *RescopeGlobalSymbolsRewriteCallback) AddDeclarations() {
 	c.DeclareChunkGlobals()
-	if c.optimizeLocalAccess == CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS ||
-		c.optimizeLocalAccess ==
-			CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS {
+	if c.optimizeLocalAccess.ShouldOptimizeAllChunks() {
 		c.DeclareLocalAliasesAndWrappers()
 	}
 }
@@ -617,8 +613,7 @@ func (c *RescopeGlobalSymbolsRewriteCallback) DeclareLocalAliasesAndWrappersForC
 	changed := false
 
 	wrappedReassignableLocalAliases := jutil.NewLinkedHashSet[string]()
-	if c.optimizeLocalAccess ==
-		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS {
+	if c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
 		wrappedReassignableLocalAliases = jutil.NewLinkedHashSet[string]()
 
 		for name := range c.wrappedReassignableCrossChunkNames.All() {

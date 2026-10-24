@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AbstractVar.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/AbstractVar.java @ closure-compiler v20261021
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -172,17 +171,6 @@ type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struc
 	nameHash int32
 }
 
-var (
-	_ [0]struct{} = [unsafe.Offsetof(Var{}.AbstractVarBase)]struct{}{}
-	_ [0]struct{} = [unsafe.Offsetof(TypedVar{}.AbstractVarBase)]struct{}{}
-)
-
-// self is this var as a V.
-func (b *AbstractVarBase[S, V]) self() V {
-	p := unsafe.Pointer(b)
-	return *(*V)(unsafe.Pointer(&p))
-}
-
 // initAbstractVarBase is the AbstractVar constructor, but for the name,
 // which Var and TypedVar set.
 //
@@ -225,20 +213,20 @@ func (b *AbstractVarBase[S, V]) GetScopeRoot() rhino.Node {
 // Go-only: performance — indexAndFlags is 32 bits, leaving room for the cached
 // hash without increasing the size of Var or TypedVar.
 // Java: ScopedName.hashCode()
-func (b *AbstractVarBase[S, V]) HashCode() int32 {
+func (b *AbstractVarBase[S, V]) hashCode(name func() string) int32 {
 	if h := atomic.LoadInt32(&b.nameHash); h != 0 {
 		return h
 	}
-	return b.computeHashCode()
+	return b.computeHashCode(name())
 }
 
 //go:noinline
-func (b *AbstractVarBase[S, V]) computeHashCode() int32 {
+func (b *AbstractVarBase[S, V]) computeHashCode(name string) int32 {
 	root := b.scope.GetRootNode()
 	if root.IsNil() {
 		panic(jutil.NewNullPointerException())
 	}
-	h := 31*(31+jutil.StringHashCode(b.self().GetName())) + root.IdentityHashCode()
+	h := 31*(31+jutil.StringHashCode(name)) + root.IdentityHashCode()
 	atomic.StoreInt32(&b.nameHash, h)
 	return h
 }
@@ -369,39 +357,9 @@ func (b *AbstractVarBase[S, V]) GetJSDocInfo() *rhino.JSDocInfo {
 // compared with ==, so null never matches).
 //
 // Go-only: language-adapter — DeclarationType returns a nullable *Token.
-func (b *AbstractVarBase[S, V]) isDeclarationType(token rhino.Token) bool {
-	t := b.DeclarationType()
+func (b *AbstractVarBase[S, V]) isDeclarationType(self V, name string, token rhino.Token) bool {
+	t := b.declarationType(self, name)
 	return t != nil && *t == token
-}
-
-// Java: AbstractVar.isVar()
-func (b *AbstractVarBase[S, V]) IsVar() bool {
-	return b.isDeclarationType(rhino.Token_VAR)
-}
-
-// Java: AbstractVar.isCatch()
-func (b *AbstractVarBase[S, V]) IsCatch() bool {
-	return b.isDeclarationType(rhino.Token_CATCH)
-}
-
-// Java: AbstractVar.isLet()
-func (b *AbstractVarBase[S, V]) IsLet() bool {
-	return b.isDeclarationType(rhino.Token_LET)
-}
-
-// Java: AbstractVar.isConst()
-func (b *AbstractVarBase[S, V]) IsConst() bool {
-	return b.isDeclarationType(rhino.Token_CONST)
-}
-
-// Java: AbstractVar.isClass()
-func (b *AbstractVarBase[S, V]) IsClass() bool {
-	return b.isDeclarationType(rhino.Token_CLASS)
-}
-
-// Java: AbstractVar.isParam()
-func (b *AbstractVarBase[S, V]) IsParam() bool {
-	return b.isDeclarationType(rhino.Token_PARAM_LIST)
 }
 
 // Java: AbstractVar.isDefaultParam()
@@ -411,32 +369,23 @@ func (b *AbstractVarBase[S, V]) IsDefaultParam() bool {
 		parent.GetFirstChild() == b.nameNode
 }
 
-// Java: AbstractVar.isImport()
-func (b *AbstractVarBase[S, V]) IsImport() bool {
-	return b.isDeclarationType(rhino.Token_IMPORT)
+func (b *AbstractVarBase[S, V]) isArguments(name string) bool {
+	return name == Var_ARGUMENTS && b.scope.IsFunctionScope()
 }
 
-// Java: AbstractVar.isArguments()
-func (b *AbstractVarBase[S, V]) IsArguments() bool {
-	return b.self().GetName() == Var_ARGUMENTS && b.scope.IsFunctionScope()
+func (b *AbstractVarBase[S, V]) isGoogModuleExports(name string) bool {
+	return name == Var_EXPORTS && b.scope.IsModuleScope() && b.isImplicit(name)
 }
 
-// Java: AbstractVar.isGoogModuleExports()
-func (b *AbstractVarBase[S, V]) IsGoogModuleExports() bool {
-	return b.self().GetName() == Var_EXPORTS && b.scope.IsModuleScope() && b.IsImplicit()
+func (b *AbstractVarBase[S, V]) isThis(name string) bool {
+	return name == "this" && b.scope.IsFunctionScope()
 }
 
-// Java: AbstractVar.isThis()
-func (b *AbstractVarBase[S, V]) IsThis() bool {
-	return b.self().GetName() == "this" && b.scope.IsFunctionScope()
-}
-
-// Java: AbstractVar.isImplicit()
-func (b *AbstractVarBase[S, V]) IsImplicit() bool {
+func (b *AbstractVarBase[S, V]) isImplicit(name string) bool {
 	if b.IsImplicitGoogNamespace() {
 		return true
 	}
-	var_ := AbstractScope_ImplicitVar_Of(b.self().GetName())
+	var_ := AbstractScope_ImplicitVar_Of(name)
 	return var_ != nil && var_.IsMadeByScope(abstractScope_of(b.scope))
 }
 
@@ -455,8 +404,7 @@ var abstractVar_DECLARATION_TYPES = jutil.NewEnumSet(
 // table so that no call allocates.
 var abstractVar_tokenPtrs = rhino.Token_values()
 
-// Java: AbstractVar.declarationType()
-func (b *AbstractVarBase[S, V]) DeclarationType() *rhino.Token {
+func (b *AbstractVarBase[S, V]) declarationType(self V, name string) *rhino.Token {
 	if b.IsImplicitGoogNamespace() {
 		return nil
 	}
@@ -466,8 +414,8 @@ func (b *AbstractVarBase[S, V]) DeclarationType() *rhino.Token {
 		}
 	}
 	jutil.CheckStateMsg2(
-		b.IsImplicit(),
-		"The nameNode for %s must be a descendant of one of: %s", b.self(), abstractVar_DECLARATION_TYPES)
+		b.isImplicit(name),
+		"The nameNode for %s must be a descendant of one of: %s", self, abstractVar_DECLARATION_TYPES)
 	return nil
 }
 
@@ -480,24 +428,15 @@ func (b *AbstractVarBase[S, V]) IsImplicitGoogNamespace() bool {
 	return b.indexAndFlags&varImplicitStrengthMask != 0
 }
 
-// AddImplicitGoogNamespaceDefinition indicates this namespace was provided
-// at the given node; definition is the STRINGLIT in a goog.provide or
-// goog.module call.
-//
-// Java: AbstractVar.addImplicitGoogNamespaceDefinition(Node)
-func (b *AbstractVarBase[S, V]) AddImplicitGoogNamespaceDefinition(definition rhino.Node) {
-	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b.self())
+func (b *AbstractVarBase[S, V]) addImplicitGoogNamespaceDefinition(self V, definition rhino.Node) {
+	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", self)
 	cur := rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
 	strength := abstractVar_strongerOf(cur, abstractVar_strengthOf(definition))
 	b.indexAndFlags = (b.indexAndFlags &^ varImplicitStrengthMask) | ((uint32(strength) + 1) << varImplicitStrengthShift)
 }
 
-// GetImplicitGoogNamespaceStrength returns the strongest kind of all
-// definitions of this namespace
-//
-// Java: AbstractVar.getImplicitGoogNamespaceStrength()
-func (b *AbstractVarBase[S, V]) GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind {
-	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", b.self())
+func (b *AbstractVarBase[S, V]) getImplicitGoogNamespaceStrength(self V) rhino.StaticSourceFile_SourceKind {
+	jutil.CheckStateMsg1(b.IsImplicitGoogNamespace(), "%s", self)
 	return rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
 }
 
@@ -522,13 +461,10 @@ func abstractVar_strongerOf(left, right rhino.StaticSourceFile_SourceKind) rhino
 	return rhino.StaticSourceFile_SourceKind_WEAK
 }
 
-// Equals is ScopedName's final equality.
-//
-// Java: ScopedName.equals(Object)
-func (b *AbstractVarBase[S, V]) Equals(other any) bool {
+func (b *AbstractVarBase[S, V]) equals(name string, other any) bool {
 	scoped, ok := other.(ScopedName)
 	if !ok || jutil.IsNil(scoped) {
 		return false
 	}
-	return b.self().GetName() == scoped.GetName() && scopedName_nodeEquals(b.GetScopeRoot(), scoped.GetScopeRoot())
+	return name == scoped.GetName() && scopedName_nodeEquals(b.GetScopeRoot(), scoped.GetScopeRoot())
 }

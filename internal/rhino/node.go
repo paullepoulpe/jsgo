@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261021
 
 /*
  *
@@ -47,7 +47,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -609,18 +608,6 @@ type nodeExtBox struct {
 	length         int32              // the length, when Node.length16 is 0xFFFF
 	cookedID       rhinoStringID      // the cooked string of a TEMPLATELIT_STRING, when it is not the raw one
 	cookedNil      bool               // the TEMPLATELIT_STRING has no cooked string
-}
-
-var singleProcessCLI atomic.Bool
-
-// SetSingleProcessCLI marks the process as a single-invocation CLI run.
-func SetSingleProcessCLI() {
-	singleProcessCLI.Store(true)
-}
-
-// IsSingleProcessCLI reports whether single-invocation CLI pooling is enabled.
-func IsSingleProcessCLI() bool {
-	return singleProcessCLI.Load()
 }
 
 var (
@@ -4209,6 +4196,9 @@ func (n Node) GetQualifiedName() *string {
 // GetQualifiedNameString is the body of GetQualifiedName; ok is false
 // where Java returns null.
 func (n Node) GetQualifiedNameString() (string, bool) {
+	if n.IsNil() {
+		return "", false
+	}
 	return n.getQualifiedNameString()
 }
 
@@ -4223,13 +4213,36 @@ func (n Node) getQualifiedNameString() (string, bool) {
 		}
 		return name, true
 	case Token_GETPROP:
-		builder := n.GetQualifiedNameForGetProp(0)
-		if builder != nil {
-			// Go-only: performance — builder.toString() without a copy, as
-			// strings.Builder.String does: nothing writes to builder after.
-			return unsafe.String(unsafe.SliceData(builder), len(builder)), true
+		first := n.firstNode()
+		if !first.IsGetProp() {
+			left, ok := first.getQualifiedNameString()
+			if !ok {
+				return "", false
+			}
+			return left + "." + n.GetString(), true
 		}
-		return "", false
+		var partsBuf [8]string
+		parts := partsBuf[:0]
+		totalLen := 0
+		cur := n
+		for cur.IsGetProp() {
+			p := cur.GetString()
+			parts = append(parts, p)
+			totalLen += 1 + len(p)
+			cur = cur.firstNode()
+		}
+		left, ok := cur.getQualifiedNameString()
+		if !ok {
+			return "", false
+		}
+		var builder strings.Builder
+		builder.Grow(len(left) + totalLen)
+		builder.WriteString(left)
+		for i := len(parts) - 1; i >= 0; i-- {
+			builder.WriteByte('.')
+			builder.WriteString(parts[i])
+		}
+		return builder.String(), true
 	case Token_THIS:
 		return "this", true
 	case Token_SUPER:
@@ -4245,41 +4258,6 @@ func (n Node) GetQualifiedNameObject() QualifiedName {
 		return NewQualifiedName_NodeQname(n)
 	}
 	return nil
-}
-
-// GetQualifiedNameForGetProp is a helper method for getQualifiedName to
-// handle GETPROP nodes.
-//
-// reserve: the number of characters of space to reserve in the
-// StringBuilder. Returns null if this is not a qualified name or a
-// StringBuilder if it is a complex qualified name.
-//
-// Go-only: performance — the StringBuilder is a byte slice (nil for null),
-// filled with append: one allocation, made at the full size, instead of a
-// heap strings.Builder and its buffer; the left name is read without
-// boxing it (getQualifiedNameString).
-//
-// Java: Node.getQualifiedNameForGetProp(int)
-func (n Node) GetQualifiedNameForGetProp(reserve int) []byte {
-	propName := n.GetString()
-	reserve += 1 + len(propName) // +1 for the '.'
-	var builder []byte
-	if n.firstNode().IsGetProp() {
-		builder = n.firstNode().GetQualifiedNameForGetProp(reserve)
-		if builder == nil {
-			return nil
-		}
-	} else {
-		left, ok := n.firstNode().getQualifiedNameString()
-		if !ok {
-			return nil
-		}
-		builder = make([]byte, 0, len(left)+reserve)
-		builder = append(builder, left...)
-	}
-	builder = append(builder, '.')
-	builder = append(builder, propName...)
-	return builder
 }
 
 // GetOriginalQualifiedName takes a set of GETPROP nodes and produces a

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/colors/Color.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/colors/Color.java @ closure-compiler v20261021
 // (with the AutoValue-generated AutoValue_Color.java and $AutoValue_Color.java)
 
 /*

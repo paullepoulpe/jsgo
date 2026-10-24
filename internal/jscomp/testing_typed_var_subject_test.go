@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/testing/TypedVarSubject.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/testing/TypedVarSubject.java @ closure-compiler v20261021
 // (src/com/google/javascript/jscomp/testing/TypedVarSubject.java)
 
 /*

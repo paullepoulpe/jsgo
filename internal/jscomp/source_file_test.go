@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/SourceFileTest.java @ closure-compiler v20261015
+// Port of test/com/google/javascript/jscomp/SourceFileTest.java @ closure-compiler v20261021
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -93,9 +93,8 @@ func TestSourceFile_LineOffset(t *testing.T) {
 	jsaEq(t, f3.GetNumBytes(), 903)
 	jsaEq(t, f3.GetNumLines(), 4)
 
-	// TODO(nickreid): This seems like a bug.
-	jsaEq(t, f3.GetLineOfOffset(-1), 0)
-	jsaThrows[jutil.Throwable](t, func() { f3.GetColumnOfOffset(-1) })
+	jsaThrows[jutil.IIllegalArgumentException](t, func() { f3.GetLineOfOffset(-1) })
+	jsaThrows[jutil.IIllegalArgumentException](t, func() { f3.GetColumnOfOffset(-1) })
 
 	startsWithNewline := factory("\n'a'\n'b'")
 	jsaEq(t, startsWithNewline.GetLineOffset(1), 0)
@@ -567,10 +566,47 @@ func TestSourceFile_RestoreCachedState_treatsProtoNumLinesAsCanonical(t *testing
 		SourceFileProto_NewBuilder().
 			SetFilename("file.js").
 			SetNumLinesPlusOne(1000).
-			SetNumBytesPlusOne(-1).
 			Build())
 
 	jsaEq(t, sourceFile.GetNumLines(), 999)
+	jsaEq(t, sourceFile.GetNumBytes(), 2)
+}
+
+func TestSourceFile_RestoreCachedState_throwsOnNegativeCounts(t *testing.T) {
+	sourceFile := SourceFile_FromCode("file.js", "42")
+	linesProto :=
+		SourceFileProto_NewBuilder().
+			SetFilename("file.js").
+			SetNumLinesPlusOne(-1).
+			Build()
+	jsaThrows[jutil.IIllegalStateException](t, func() { sourceFile.RestoreCachedStateFrom(linesProto) })
+
+	bytesProto :=
+		SourceFileProto_NewBuilder().
+			SetFilename("file.js").
+			SetNumBytesPlusOne(-1).
+			Build()
+	jsaThrows[jutil.IIllegalStateException](t, func() { sourceFile.RestoreCachedStateFrom(bytesProto) })
+}
+
+func TestSourceFile_FromProto_throwsOnNegativeCounts(t *testing.T) {
+	linesProto :=
+		SourceFileProto_NewBuilder().
+			SetFilename("file.js").
+			SetSourceKind(SourceFileProto_SourceKind_CODE).
+			SetPreloadedContents("42").
+			SetNumLinesPlusOne(-1).
+			Build()
+	jsaThrows[jutil.IIllegalStateException](t, func() { SourceFile_FromProto(linesProto) })
+
+	bytesProto :=
+		SourceFileProto_NewBuilder().
+			SetFilename("file.js").
+			SetSourceKind(SourceFileProto_SourceKind_CODE).
+			SetPreloadedContents("42").
+			SetNumBytesPlusOne(-1).
+			Build()
+	jsaThrows[jutil.IIllegalStateException](t, func() { SourceFile_FromProto(bytesProto) })
 }
 
 func TestSourceFile_StripConfigSegment_barePrefixes(t *testing.T) {

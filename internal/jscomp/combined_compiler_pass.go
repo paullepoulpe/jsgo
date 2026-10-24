@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CombinedCompilerPass.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CombinedCompilerPass.java @ closure-compiler v20261021
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -334,9 +334,7 @@ func (p *CombinedCompilerPass) processParallel(root rhino.Node) bool {
 				callback:     workerPass,
 				scopeCreator: sc,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, root, root, scripts[idx], lazyGlobal)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
 		}
 		return runItem, nil
 	}, stopOnHalting)

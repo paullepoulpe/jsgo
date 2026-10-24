@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FunctionInjector.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/FunctionInjector.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -33,7 +33,6 @@ type FunctionInjector struct {
 	allowDecomposition     bool
 	knownConstantFunctions *jutil.LinkedHashSet[string]
 	assumeStrictThis       bool
-	assumeMinimumCapture   bool
 	safeNameIdSupplier     func() string
 	throwawayNameSupplier  func() string
 
@@ -76,7 +75,6 @@ func NewFunctionInjector(builder *FunctionInjector_Builder) *FunctionInjector {
 	f.compiler = jutil.CheckNotNull(builder.compiler)
 	f.safeNameIdSupplier = jutil.CheckNotNull(builder.safeNameIdSupplier)
 	f.assumeStrictThis = builder.assumeStrictThis
-	f.assumeMinimumCapture = builder.assumeMinimumCapture
 	f.allowDecomposition = builder.allowDecomposition
 	f.functionArgumentInjector = jutil.CheckNotNull(builder.functionArgumentInjector)
 	f.mutator = FunctionToBlockMutator{
@@ -92,7 +90,6 @@ type FunctionInjector_Builder struct {
 	compiler                 AbstractCompiler
 	safeNameIdSupplier       func() string
 	assumeStrictThis         bool
-	assumeMinimumCapture     bool
 	allowDecomposition       bool
 	functionArgumentInjector *FunctionArgumentInjector
 }
@@ -102,7 +99,6 @@ func NewFunctionInjector_Builder(compiler AbstractCompiler) *FunctionInjector_Bu
 	b := &FunctionInjector_Builder{
 		safeNameIdSupplier:       nil,
 		assumeStrictThis:         true,
-		assumeMinimumCapture:     true,
 		allowDecomposition:       true,
 		functionArgumentInjector: nil,
 	}
@@ -134,12 +130,6 @@ func (b *FunctionInjector_Builder) AllowDecomposition(allowDecomposition bool) *
 // Java: FunctionInjector.Builder.assumeStrictThis(boolean)
 func (b *FunctionInjector_Builder) AssumeStrictThis(assumeStrictThis bool) *FunctionInjector_Builder {
 	b.assumeStrictThis = assumeStrictThis
-	return b
-}
-
-// Java: FunctionInjector.Builder.assumeMinimumCapture(boolean)
-func (b *FunctionInjector_Builder) AssumeMinimumCapture(assumeMinimumCapture bool) *FunctionInjector_Builder {
-	b.assumeMinimumCapture = assumeMinimumCapture
 	return b
 }
 
@@ -299,10 +289,10 @@ func functionInjector_blocksMinimumRequirements(n rhino.Node, fnName, fnRecursio
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		s := n.GetString()
-		if (checkArguments && scopeNameEq(s, "arguments")) ||
-			scopeNameEq(s, "eval") ||
-			(fnName != "" && scopeNameEq(s, fnName)) ||
-			(fnRecursionName != "" && scopeNameEq(s, fnRecursionName)) {
+		if (checkArguments && s == "arguments") ||
+			s == "eval" ||
+			(fnName != "" && s == fnName) ||
+			(fnRecursionName != "" && s == fnRecursionName) {
 			return true
 		}
 	case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
@@ -317,10 +307,10 @@ func functionInjector_blocksMinimumRequirements(n rhino.Node, fnName, fnRecursio
 			switch c.GetToken() {
 			case rhino.Token_NAME:
 				s := c.GetString()
-				if (checkArguments && scopeNameEq(s, "arguments")) ||
-					scopeNameEq(s, "eval") ||
-					(fnName != "" && scopeNameEq(s, fnName)) ||
-					(fnRecursionName != "" && scopeNameEq(s, fnRecursionName)) {
+				if (checkArguments && s == "arguments") ||
+					s == "eval" ||
+					(fnName != "" && s == fnName) ||
+					(fnRecursionName != "" && s == fnRecursionName) {
 					return true
 				}
 			case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
@@ -354,7 +344,7 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 
 	fnRecursionName := fnNode.GetFirstChild().GetString()
 	// Java checkState(fnRecursionName != null): a Go string is never null.
-	if scopeNameEq(fnRecursionName, fnName) {
+	if fnRecursionName == fnName {
 		fnRecursionName = ""
 	}
 
@@ -393,7 +383,7 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 	// a memory leak.  This isn't a problem in the global scope as those values
 	// last until explicitly cleared.
 	if containsClosures {
-		if !f.assumeMinimumCapture && !ref.GetFunctionInjector_ReferenceBase().inGlobalScope() {
+		if !ref.GetFunctionInjector_ReferenceBase().inGlobalScope() {
 			// TODO(johnlenz): Allow inlining into any scope without local names or inner functions.
 			return FunctionInjector_CanInlineResult_NO
 		} else if NodeUtil_IsWithinLoop(callNode) {
@@ -924,7 +914,7 @@ func functionInjector_countShallowReturns(n rhino.Node) int {
 }
 
 func functionInjector_referencesEval(n rhino.Node, rootFn rhino.Node) bool {
-	if n.IsName() && scopeNameEq(n.GetString(), "eval") {
+	if n.IsName() && n.GetString() == "eval" {
 		return true
 	}
 	if n.IsFunction() && n != rootFn {
@@ -932,7 +922,7 @@ func functionInjector_referencesEval(n rhino.Node, rootFn rhino.Node) bool {
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetFirstChild().IsNil() {
-			if c.IsName() && scopeNameEq(c.GetString(), "eval") {
+			if c.IsName() && c.GetString() == "eval" {
 				return true
 			}
 			continue
@@ -1068,7 +1058,7 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 		// that contains functions (excluding the function being inlined).
 		if f.ReferencesEval(callerFn) {
 			forbidTemps = true
-		} else if !f.assumeMinimumCapture {
+		} else {
 			innerFn := f.InnerFunctionOf(callerFn)
 			calleeIsOnlyInnerFn := innerFn == FunctionInjector_NO_FUNCTIONS || innerFn == calleeFn
 			forbidTemps = !calleeIsOnlyInnerFn

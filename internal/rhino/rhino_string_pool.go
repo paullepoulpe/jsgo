@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/RhinoStringPool.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/RhinoStringPool.java @ closure-compiler v20261021
 
 /*
  *
@@ -35,7 +35,9 @@
 package rhino
 
 import (
+	"hash/maphash"
 	"iter"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -83,39 +85,11 @@ var (
 	rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
 	rhinoStringPoolCleared bool
 	rhinoEmptyString       = ""
+	rhinoStringPoolSeed    = maphash.MakeSeed()
 )
 
 func rhinoStringPoolHash(s string) uint64 {
-	n := len(s)
-	if n == 0 {
-		return 0
-	}
-	p := unsafe.Pointer(unsafe.StringData(s))
-	var h uint64
-	if n >= 8 {
-		v0 := *(*uint64)(p)
-		v1 := *(*uint64)(unsafe.Add(p, n-8))
-		if n <= 16 {
-			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) + uint64(n)*0x94d049bb133111eb
-		} else {
-			v2 := *(*uint64)(unsafe.Add(p, n-16))
-			v3 := *(*uint64)(unsafe.Add(p, n>>1))
-			h = (v0*0x9e3779b97f4a7c15 ^ v1*0xbf58476d1ce4e5b9) +
-				(v2*0x94d049bb133111eb ^ v3*0x2545f4914f6cdd1d) + uint64(n)
-		}
-	} else if n >= 4 {
-		v0 := uint64(*(*uint32)(p))
-		v1 := uint64(*(*uint32)(unsafe.Add(p, n-4)))
-		h = ((v0 << 32) | v1) ^ (uint64(n) * 0x9e3779b97f4a7c15)
-	} else {
-		u := uint64(uint32(s[0])|(uint32(s[n>>1])<<8)|(uint32(s[n-1])<<16)|(uint32(n)<<24)) * 0x9e3779b97f4a7c15
-		u ^= u >> 33
-		u *= 0xff51afd7ed558ccd
-		return u ^ (u >> 32)
-	}
-	h ^= h >> 33
-	h *= 0xff51afd7ed558ccd
-	return h ^ (h >> 32)
+	return maphash.String(rhinoStringPoolSeed, s)
 }
 
 func (s *rhinoStringPoolShard) stringAtLocked(localIdx uint32) string {
@@ -140,9 +114,7 @@ func (s *rhinoStringPoolShard) allocSpan(str string) uint32 {
 	if n > rhinoStringPageSize || (s.hasCurPage && int(s.curPageOff)+n > rhinoStringPageSize && int(s.curPageIdx)+1 >= len(s.pages)) {
 		largeIdx := uint32(len(s.largeStrings))
 		// Copy string bytes so substring slices don't pin large source buffers.
-		b := make([]byte, n)
-		copy(b, str)
-		s.largeStrings = append(s.largeStrings, unsafe.String(unsafe.SliceData(b), n))
+		s.largeStrings = append(s.largeStrings, strings.Clone(str))
 		s.spanChunks[chunkIdx][localIdx&2047] = (uint64(1) << 63) | uint64(largeIdx)
 		return localIdx
 	}
@@ -401,6 +373,40 @@ func RhinoStringPool_InternID(s string) uint32 {
 	return uint32(rhinoStringPoolIntern(s))
 }
 
+// RhinoStringPool_InternBytesID interns b and returns its 32-bit pointer-free ID
+// without allocating a string when b is already interned.
+func RhinoStringPool_InternBytesID(b []byte) uint32 {
+	if len(b) == 0 {
+		return 1
+	}
+	h := maphash.Bytes(rhinoStringPoolSeed, b)
+	shardIdx := uint32(h) & (rhinoStringPool_SHARDS - 1)
+	hash32 := uint32(h >> 32)
+	shard := &rhinoStringPool_shards[shardIdx]
+
+	shard.mu.RLock()
+	if tbl := shard.table; len(tbl) > 0 {
+		mask := uint32(len(tbl) - 1)
+		slot := hash32 & mask
+		for {
+			entry := tbl[slot]
+			if entry == 0 {
+				break
+			}
+			if uint32(entry>>32) == hash32 {
+				localIdx := uint32(entry) - 1
+				if shard.stringAtLocked(localIdx) == string(b) {
+					shard.mu.RUnlock()
+					return ((localIdx << 6) | shardIdx) + 2
+				}
+			}
+			slot = (slot + 1) & mask
+		}
+	}
+	shard.mu.RUnlock()
+	return uint32(rhinoStringPoolIntern(string(b)))
+}
+
 // RhinoStringPool_LookupID returns the 32-bit ID of s if already interned, or 0 if not.
 func RhinoStringPool_LookupID(s string) uint32 {
 	return uint32(rhinoStringPoolLookup(s))
@@ -428,7 +434,7 @@ func NewRhinoStringPool() *RhinoStringPool { return &RhinoStringPool{} }
 // string.
 type RhinoStringPool_LazyInternedStringList struct {
 	pool       *jutil.ArrayList[string]
-	ids        []rhinoStringID
+	ids        []uint32
 	isInterned *RhinoStringPool_WriteOnlyBitset
 }
 
@@ -436,7 +442,7 @@ type RhinoStringPool_LazyInternedStringList struct {
 func NewRhinoStringPool_LazyInternedStringList(pool []string) *RhinoStringPool_LazyInternedStringList {
 	return &RhinoStringPool_LazyInternedStringList{
 		pool:       jutil.NewArrayListFrom(pool),
-		ids:        make([]rhinoStringID, len(pool)),
+		ids:        make([]uint32, len(pool)),
 		isInterned: NewRhinoStringPool_WriteOnlyBitset(len(pool)),
 	}
 }
@@ -447,9 +453,8 @@ func NewRhinoStringPool_LazyInternedStringListFromIDs(ids []uint32) *RhinoString
 	if len(ids) == 0 {
 		_ = NewRhinoStringPool_WriteOnlyBitset(0)
 	}
-	idSlice := unsafe.Slice((*rhinoStringID)(unsafe.SliceData(ids)), len(ids))
 	return &RhinoStringPool_LazyInternedStringList{
-		ids: idSlice,
+		ids: ids,
 	}
 }
 
@@ -461,7 +466,7 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 		panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(wordIdx, wordLen))
 	}
 	if uint(offset) < uint(len(l.ids)) {
-		if id := atomic.LoadUint32((*uint32)(&l.ids[offset])); id != 0 {
+		if id := atomic.LoadUint32(&l.ids[offset]); id != 0 {
 			return rhinoStringID(id)
 		}
 	} else {
@@ -469,7 +474,7 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 	}
 	uninterned := l.pool.Get(offset)
 	id := rhinoStringPoolIntern(uninterned)
-	atomic.StoreUint32((*uint32)(&l.ids[offset]), uint32(id))
+	atomic.StoreUint32(&l.ids[offset], uint32(id))
 	l.isInterned.Set(offset)
 	return id
 }
@@ -477,7 +482,7 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 // GetID returns the interned rhinoStringID at offset, interning on first access.
 func (l *RhinoStringPool_LazyInternedStringList) GetID(offset int) rhinoStringID {
 	if l.pool == nil && uint(offset) < uint(len(l.ids)) {
-		return l.ids[offset]
+		return rhinoStringID(l.ids[offset])
 	}
 	return l.getIDSlow(offset)
 }
@@ -501,7 +506,7 @@ func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
 	}
 	return func(yield func(string) bool) {
 		for _, id := range l.ids {
-			if !yield(rhinoStringFromID(id)) {
+			if !yield(rhinoStringFromID(rhinoStringID(id))) {
 				return
 			}
 		}
@@ -515,7 +520,7 @@ func (l *RhinoStringPool_LazyInternedStringList) Slice() []string {
 	}
 	out := make([]string, len(l.ids))
 	for i, id := range l.ids {
-		out[i] = rhinoStringFromID(id)
+		out[i] = rhinoStringFromID(rhinoStringID(id))
 	}
 	return out
 }

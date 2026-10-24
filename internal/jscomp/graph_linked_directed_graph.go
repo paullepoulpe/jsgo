@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/graph/LinkedDirectedGraph.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/graph/LinkedDirectedGraph.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -124,7 +124,7 @@ func (g *LinkedDirectedGraph[N, E]) clearForReuse() {
 	g.nodeAnnotationStack = nil
 	g.edgeAnnotationStack = nil
 	if g.nodes.Size() > linkedDirectedGraphReuseMaxNodes {
-		g.nodes = jutil.LinkedHashMap[N, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]]{}
+		g.nodes.Reset()
 	} else {
 		g.nodes.Clear()
 	}

@@ -321,7 +321,7 @@ func TestControlFlowAnalysisGolden(t *testing.T) {
 		}
 		root := os.Getenv("CFA_CORPUS")
 		if root == "" {
-			root = "/home/user/jsgo/.cache/corpus"
+			root = oracleTestCorpusRoot(t)
 		}
 		if _, err := os.Stat(root); err != nil {
 			t.Skipf("corpus not available (%v)", err)
@@ -337,7 +337,7 @@ func TestControlFlowAnalysisOracle(t *testing.T) {
 	}
 	root := os.Getenv("CFA_ROOT")
 	if root == "" {
-		root = "/home/user/jsgo/.cache/corpus"
+		root = oracleTestCorpusRoot(t)
 	}
 	cfaCompare(t, dump, func(string) string { return root })
 }

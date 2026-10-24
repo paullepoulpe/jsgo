@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeIntegrationTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PeepholeIntegrationTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/PeepholeIntegrationTest.java)
 
 /*
@@ -173,8 +173,8 @@ func (c *PeepholeIntegrationTest) TestHookIfIntegration() {
 	c.Test("!x?void 0:y()", "x&&y()")
 	c.Test("x?y():void 0", "x&&y()")
 
-	c.TestSame("window.f = x => x ? true : false;")
-	c.TestSame("window.f = x => x ? false : true;")
+	c.Test("window.f = x => x ? true : false;", "window.f = x => !!x;")
+	c.Test("window.f = x => x ? false : true;", "window.f = x => !x;")
 }
 
 // Java: PeepholeIntegrationTest.testRemoveDuplicateStatementsIntegration()

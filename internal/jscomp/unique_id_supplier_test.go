@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/UniqueIdSupplierTest.java @ closure-compiler v20261015
+// Port of test/com/google/javascript/jscomp/UniqueIdSupplierTest.java @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -108,5 +108,39 @@ func TestUniqueIdSupplier_GeneratedIdsAreDeterministicAcrossRuns(t *testing.T) {
 	assertEqual(t, "same input, different compilers", uniqueId1, uniqueId2)
 	if uniqueId1 == differentUniqueId1 {
 		t.Errorf("same input, same compiler: %q twice", uniqueId1)
+	}
+}
+
+// Java: UniqueIdSupplierTest.testProtoRoundTripPreservesInsertionOrder()
+func TestUniqueIdSupplier_ProtoRoundTripPreservesInsertionOrder(t *testing.T) {
+	uniqueIdSupplier := NewUniqueIdSupplier()
+	input1 := NewCompilerInput(SourceFile_FromCode("fileA.js", ""))
+	input2 := NewCompilerInput(SourceFile_FromCode("fileB.js", ""))
+	input3 := NewCompilerInput(SourceFile_FromCode("fileC.js", ""))
+
+	_ = uniqueIdSupplier.GetUniqueId(input1)
+	_ = uniqueIdSupplier.GetUniqueId(input2)
+	_ = uniqueIdSupplier.GetUniqueId(input3)
+	_ = uniqueIdSupplier.GetUniqueId(input1) // increment counter for fileA
+
+	protos := uniqueIdSupplier.ToProto()
+
+	assertEqual(t, "protos size", len(protos), 3)
+	assertEqual(t, "protos[0] hash", protos[0].GetHash(), jutil.StringHashCode("fileA.js"))
+	assertEqual(t, "protos[0] counter", protos[0].GetCounter(), int32(2))
+	assertEqual(t, "protos[1] hash", protos[1].GetHash(), jutil.StringHashCode("fileB.js"))
+	assertEqual(t, "protos[1] counter", protos[1].GetCounter(), int32(1))
+	assertEqual(t, "protos[2] hash", protos[2].GetHash(), jutil.StringHashCode("fileC.js"))
+	assertEqual(t, "protos[2] counter", protos[2].GetCounter(), int32(1))
+
+	restored := UniqueIdSupplier_FromProto(protos)
+	restoredProtos := restored.ToProto()
+	if len(restoredProtos) != len(protos) {
+		t.Fatalf("restored.toProto(): got %d protos, want %d", len(restoredProtos), len(protos))
+	}
+	for i := range protos {
+		if !restoredProtos[i].Equals(protos[i]) {
+			t.Errorf("restored.toProto()[%d]: got %v, want %v", i, restoredProtos[i], protos[i])
+		}
 	}
 }

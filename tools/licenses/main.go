@@ -70,7 +70,7 @@ import (
 	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
-const tag = "v20261015"
+const tag = "v20261021"
 
 // srcDir holds the main Java sources of the pinned release (the sources
 // jar), and testSrcDir caches its test sources, fetched from GitHub. Both

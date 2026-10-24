@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/PrototypeObjectType.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/jstype/PrototypeObjectType.java @ closure-compiler v20261021
 
 /*
  *
@@ -136,7 +136,7 @@ func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObje
 	p.anonymousType = builder.anonymousType
 
 	p.properties.sorted = true
-	p.properties.embeddedInProto = true
+	p.properties.parentSource = &p.ObjectTypeBase
 	p.properties.cachedKeySetCounter = 1
 
 	if p.nativeType || builder.implicitPrototype != nil {

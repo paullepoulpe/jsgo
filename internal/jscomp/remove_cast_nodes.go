@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RemoveCastNodes.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/RemoveCastNodes.java @ closure-compiler v20261021
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -65,9 +65,7 @@ func (r *RemoveCastNodes) processParallel(externs rhino.Node, root rhino.Node) b
 				compiler: rc,
 				callback: workerCb,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, scopeRoot, item.parent, item.script, nil)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(scopeRoot, item.parent, item.script, nil)
 		}
 		return runItem, nil
 	}, false)

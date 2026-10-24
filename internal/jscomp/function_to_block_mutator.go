@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FunctionToBlockMutator.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/FunctionToBlockMutator.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -441,9 +441,7 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode rhino.Node, isCallI
 		callback:     scb,
 		scopeCreator: &m.localScopeCreator,
 	}
-	t := acquireNodeTraversal(&b)
-	t.TraverseScopeRoot(fnNode)
-	releaseNodeTraversal(t)
+	b.TraverseScopeRoot(fnNode)
 	clear(cb.renamerStack)
 	cb.renamerStack = nil
 	cb.rootRenamer = nil

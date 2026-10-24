@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TypeInferenceTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/TypeInferenceTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/TypeInferenceTest.java)
 
 /*
@@ -2473,6 +2473,19 @@ func (c *TypeInferenceTest) TestAssignAdd() {
 	c.AssumingNative("x", rhino.JSTypeNative_NUMBER_TYPE)
 	c.InFunction("x += '5';")
 	c.VerifyNative("x", rhino.JSTypeNative_STRING_TYPE)
+}
+
+// Java: TypeInferenceTest.testAssignAdd_lhsNodeInputType()
+func (c *TypeInferenceTest) TestAssignAdd_lhsNodeInputType() {
+	c.InFunction("L: { /** @type {*} */ let data; data += ''; }")
+	block := c.GetLabeledStatement("L").statementNode
+	// In L: { let data; data += ''; }, the block has two children: LET and EXPR_RESULT.
+	exprResult := block.GetLastChild()
+	assignAdd := exprResult.GetFirstChild()
+	lhs := assignAdd.GetFirstChild()
+	// Pre-fix: LHS node under ASSIGN_ADD gets overwritten with the result type (STRING_TYPE).
+	// Post-fix: LHS node preserves its input type (UNKNOWN_TYPE / ALL_TYPE).
+	NodeSubject_AssertNode(lhs).HasJSTypeThat().IsEqualTo(c.GetNativeType(rhino.JSTypeNative_ALL_TYPE))
 }
 
 // Java: TypeInferenceTest.testAssignOrToNumeric()

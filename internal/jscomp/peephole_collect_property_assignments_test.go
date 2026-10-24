@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeCollectPropertyAssignmentsTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PeepholeCollectPropertyAssignmentsTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/PeepholeCollectPropertyAssignmentsTest.java)
 
 /*
@@ -62,6 +62,25 @@ func (c *PeepholeCollectPropertyAssignmentsTest) Test36122565a() {
 			"foo.bar = 3;\n"+
 			"console.log(foo.bar);\n"+
 			"console.log(foo.baz);\n")
+}
+
+// Java: PeepholeCollectPropertyAssignmentsTest.testComputedPropertyShadowing()
+func (c *PeepholeCollectPropertyAssignmentsTest) TestComputedPropertyShadowing() {
+	c.TestSame(
+		`var called = false;
+var x = { set ['a'](v) { called = true; } };
+x.a = 2;
+`)
+	c.TestSame(
+		`var called = false;
+var x = { get ['a']() { return 1; } };
+x.a = 2;
+`)
+}
+
+// Java: PeepholeCollectPropertyAssignmentsTest.testObjectSpreadDoesNotBlockFolding()
+func (c *PeepholeCollectPropertyAssignmentsTest) TestObjectSpreadDoesNotBlockFolding() {
+	c.Test("var x = { ...c }; x.a = 1;", "var x = { ...c, a: 1 };")
 }
 
 // Java: PeepholeCollectPropertyAssignmentsTest.testArrayOptimization1()

@@ -45,7 +45,6 @@ var javaEnums = map[string][]enumValue{
 	"Parser$PatternKind":                    enumValues(Parser_PatternKind_values()),
 	"ParseTreeType":                         enumValues(ParseTreeType_values()),
 	"Comment$Type":                          enumValues(Comment_Type_values()),
-	"ComprehensionTree$ComprehensionType":   enumValues(ComprehensionTree_ComprehensionType_values()),
 	"FunctionDeclarationTree$Kind":          enumValues(FunctionDeclarationTree_Kind_values()),
 	"UpdateExpressionTree$OperatorPosition": enumValues(UpdateExpressionTree_OperatorPosition_values()),
 }

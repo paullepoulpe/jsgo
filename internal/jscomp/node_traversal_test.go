@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/NodeTraversalTest.java @ closure-compiler v20261015
+// Port of test/com/google/javascript/jscomp/NodeTraversalTest.java @ closure-compiler v20261021
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -909,4 +909,44 @@ func (c *nodeTraversalTest_AccessibleCallback) ExitScope(t *NodeTraversal) {}
 
 func (c *nodeTraversalTest_AccessibleCallback) ShouldTraverse(t *NodeTraversal, n, parent rhino.Node) bool {
 	return true
+}
+
+func TestNodeTraversal_CanonicalTraverseEntryPoints(t *testing.T) {
+	compiler := NewCompiler()
+	externs := rhino.NewNode(rhino.Token_BLOCK)
+	root := rhino.NewNode(rhino.Token_BLOCK)
+	scopeRoot := rhino.NewNodeWith2Children(rhino.Token_ROOT, externs, root)
+
+	var visited []rhino.Node
+	var cb NodeTraversal_AbstractPostOrderCallbackInterface = func(nt *NodeTraversal, n, parent rhino.Node) {
+		visited = append(visited, n)
+	}
+
+	// test traverse
+	NodeTraversal_Traverse(compiler, root, cb)
+	if !slices.Equal(visited, []rhino.Node{root}) {
+		t.Errorf("traverse visited %v, want [root]", visited)
+	}
+	visited = nil
+
+	// test traverseRoots
+	NodeTraversal_TraverseRoots(compiler, cb, externs, root)
+	if !slices.Equal(visited, []rhino.Node{externs, root}) {
+		t.Errorf("traverseRoots visited %v, want [externs root]", visited)
+	}
+	visited = nil
+
+	// test traverseScopeRoots
+	NodeTraversal_TraverseScopeRoots(compiler, []rhino.Node{root}, cb, false)
+	if !slices.Equal(visited, []rhino.Node{root}) {
+		t.Errorf("traverseScopeRoots visited %v, want [root]", visited)
+	}
+	visited = nil
+
+	// test traverseAtScope
+	NodeTraversal_TraverseAtScope(
+		compiler, cb, NewSyntacticScopeCreator(compiler).CreateScope(scopeRoot, nil))
+	if !slices.Equal(visited, []rhino.Node{externs, root, scopeRoot}) {
+		t.Errorf("traverseAtScope visited %v, want [externs root scopeRoot]", visited)
+	}
 }

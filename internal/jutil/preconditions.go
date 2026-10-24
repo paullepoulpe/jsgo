@@ -3,7 +3,6 @@ package jutil
 import (
 	"reflect"
 	"strings"
-	"unsafe"
 )
 
 // Go-only: language-adapter — Guava com.google.common.base.Preconditions.
@@ -96,45 +95,34 @@ func failArgument(template string, args ...any) {
 	panic(NewIllegalArgumentExceptionMsg(LenientFormat(template, args...)))
 }
 
-type eface struct {
-	typ  *abiType
-	data unsafe.Pointer
-}
-
-type abiType struct {
-	size       uintptr
-	ptrBytes   uintptr
-	hash       uint32
-	tflag      uint8
-	align      uint8
-	fieldAlign uint8
-	kind       uint8
-}
-
 // IsNil reports whether v is Java null: a nil interface, a nil pointer,
 // map, slice, func or chan stored in an interface, or a node id whose IsNil
-// method says so (rhino.Node).
+// method says so (rhino.Node, which is nil when 0).
 func IsNil(v any) bool {
-	e := *(*eface)(unsafe.Pointer(&v))
-	if e.data != nil {
-		switch e.typ.kind & 31 {
-		case uint8(reflect.Slice):
-			return *(*unsafe.Pointer)(e.data) == nil
-		case uint8(reflect.Uint32):
-			// rhino.Node: a node id, nil when 0.
-			if h, ok := v.(interface{ IsNil() bool }); ok {
-				return h.IsNil()
-			}
-		}
-		return false
+	if v == nil {
+		return true
 	}
-	return e.typ == nil || e.typ.kind&31-uint8(reflect.Chan) <= uint8(reflect.Pointer-reflect.Chan)
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice, reflect.UnsafePointer:
+		return rv.IsNil()
+	case reflect.Uint32:
+		if h, ok := v.(interface{ IsNil() bool }); ok {
+			return h.IsNil()
+		}
+	}
+	return false
+}
+
+//go:noinline
+func failNull() {
+	panic(&NullPointerException{RuntimeException{ThrowableBase{className: "java.lang.NullPointerException"}}})
 }
 
 // CheckNotNull is Preconditions.checkNotNull(T).
 func CheckNotNull[T any](reference T) T {
 	if IsNil(reference) {
-		panic(&NullPointerException{RuntimeException{ThrowableBase{className: "java.lang.NullPointerException"}}})
+		failNull()
 	}
 	return reference
 }

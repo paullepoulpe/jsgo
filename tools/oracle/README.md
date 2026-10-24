@@ -1,13 +1,13 @@
 # Oracle tooling
 
-The pinned Java Closure Compiler (v20261015) is the specification. These tools
+The pinned Java Closure Compiler (v20261021) is the specification. These tools
 extract ground truth from it, layer by layer, for any JavaScript input, so the
 Go port can be diffed against Java on arbitrarily large corpora instead of a
 fixed set of hand-picked fixtures.
 
 The release and its jar are named in one place, [`pin.env`](pin.env):
 `CLOSURE_VERSION`, `CLOSURE_JAR` (the jar's file name in `.cache/`, today
-`closure-compiler-v20261015-maven.jar`), and the sha256 digests the jar and
+`closure-compiler-v20261021-maven.jar`), and the sha256 digests the jar and
 the sources jar must have.
 `fetch.sh`, `build.sh`, `xtb_oracle.sh`, `tools/clie2e` (`build-java.sh` and
 the `-jar` default) and `tools/bench/bench.py` all read it.
@@ -20,7 +20,12 @@ source tools/oracle/pin.env && CP=.cache/$CLOSURE_JAR:.cache/oracle-build
 ```
 
 The golden-file comments in the Go tests write the jar as
-`closure-compiler.jar`; read it as `.cache/$CLOSURE_JAR`.
+`closure-compiler.jar`; read it as `.cache/$CLOSURE_JAR`. They also name the
+corpus as `/home/user/jsgo/.cache/corpus`, the default root of the corpus
+half of the jscomp golden tests (skipped when it is missing); set
+`JSGO_ORACLE_CORPUS` to another corpus directory, e.g. this checkout's
+`.cache/corpus`, to run those halves there (the tests fail if it is set but
+not a directory).
 
 | Tool | Layer | What it emits |
 |---|---|---|

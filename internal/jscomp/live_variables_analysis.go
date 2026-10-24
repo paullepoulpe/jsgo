@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/LiveVariablesAnalysis.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/LiveVariablesAnalysis.java @ closure-compiler v20261021
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -287,9 +287,7 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 		callback:     f,
 		scopeCreator: scopeCreator,
 	}
-	t := acquireNodeTraversal(&b)
-	t.TraverseAtScope(scope)
-	releaseNodeTraversal(t)
+	b.TraverseAtScope(scope)
 
 	if maxVars > 0 && len(f.finder.result.orderedVars) >= maxVars {
 		return nil

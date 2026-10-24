@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CoalesceVariableNames.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CoalesceVariableNames.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -728,7 +728,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 		lrc.isReadFromList = c.readFromBuf[:0]
 	}
 
-	cfgNodes := cfg.GetControlFlowGraphBase().nodes
+	cfgNodes := &cfg.GetControlFlowGraphBase().nodes
 	if interferenceBits != nil {
 		// Go through every CFG node in the program and look at variables that are live.
 		// Set the pair of live variables in interferenceBits so we can add an edge between them.

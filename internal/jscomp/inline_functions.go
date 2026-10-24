@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineFunctions.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/InlineFunctions.java @ closure-compiler v20261021
 
 /*
  * Copyright 2005 The Closure Compiler Authors.
@@ -67,8 +67,7 @@ type InlineFunctions struct {
 	injector                 *FunctionInjector
 	functionArgumentInjector *FunctionArgumentInjector
 
-	reach                CompilerOptions_Reach
-	assumeMinimumCapture bool
+	reach CompilerOptions_Reach
 
 	enforceMaxSizeAfterInlining bool
 	maxSizeAfterInlining        int
@@ -86,13 +85,12 @@ var InlineFunctions_MISSED_REQUIRED_INLINING = DiagnosticType_Warning(
 	"JSC_MISSED_REQUIRED_INLINING",
 	"function {1} annotated @requireInlining could not be inlined here")
 
-// Java: InlineFunctions(AbstractCompiler, Supplier<String>, Reach, boolean, boolean, int)
+// Java: InlineFunctions(AbstractCompiler, Supplier<String>, Reach, boolean, int)
 func NewInlineFunctions(
 	compiler AbstractCompiler,
 	safeNameIdSupplier func() string,
 	reach CompilerOptions_Reach,
 	assumeStrictThis bool,
-	assumeMinimumCapture bool,
 	maxSizeAfterInlining int) *InlineFunctions {
 	jutil.CheckArgument(compiler != nil)
 	jutil.CheckArgument(safeNameIdSupplier != nil)
@@ -102,7 +100,6 @@ func NewInlineFunctions(
 	f.compiler = compiler
 
 	f.reach = reach
-	f.assumeMinimumCapture = assumeMinimumCapture
 
 	f.maxSizeAfterInlining = maxSizeAfterInlining
 	f.enforceMaxSizeAfterInlining =
@@ -118,7 +115,6 @@ func NewInlineFunctions(
 	f.injector = NewFunctionInjector_Builder(compiler).
 		SafeNameIdSupplier(safeNameIdSupplier).
 		AssumeStrictThis(assumeStrictThis).
-		AssumeMinimumCapture(assumeMinimumCapture).
 		FunctionArgumentInjector(f.functionArgumentInjector).
 		Build()
 	f.injector.mutator.onMovedArg = func(arg rhino.Node) {
@@ -166,9 +162,7 @@ func (f *InlineFunctions) GetOrCreateFunctionState(fnName string) *InlineFunctio
 
 func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root rhino.Node, cb NodeTraversal_Callback, sc ScopeCreator) {
 	b := NodeTraversal_Builder{compiler: compiler, callback: cb, scopeCreator: sc}
-	t := acquireNodeTraversal(&b)
-	t.Traverse(root)
-	releaseNodeTraversal(t)
+	b.Traverse(root)
 }
 
 // Java: InlineFunctions.process(Node, Node)
@@ -519,7 +513,7 @@ func (f *InlineFunctions) UpdateFunctionStateForInlining(
 				// TODO(johnlenz): this can be improved by looking at the possible
 				// values for locals.  If there are simple values, or constants
 				// we could still inline.
-				if !f.assumeMinimumCapture && InlineFunctions_HasLocalNames(fnNode) {
+				if InlineFunctions_HasLocalNames(fnNode) {
 					functionState.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES)
 				}
 			}
@@ -617,7 +611,7 @@ func inlineFunctions_analyzeBodyNode(
 			name := n.GetString()
 			if m := scopeBloomMask(name); paramBloom&m == m {
 				for _, p := range paramNames {
-					if scopeNameEq(p, name) {
+					if p == name {
 						if inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n) {
 							if res.namesToAlias == nil {
 								res.namesToAlias = jutil.NewLinkedHashSet[string]()
@@ -643,7 +637,7 @@ func inlineFunctions_analyzeBodyNode(
 					name := c.GetString()
 					if m := scopeBloomMask(name); paramBloom&m == m {
 						for _, p := range paramNames {
-							if scopeNameEq(p, name) {
+							if p == name {
 								if inInnerClosure || FunctionArgumentInjector_CanNameValueChange(c) {
 									if res.namesToAlias == nil {
 										res.namesToAlias = jutil.NewLinkedHashSet[string]()
@@ -755,12 +749,6 @@ type InlineFunctions_CallVisitor interface {
 	GetInlineFunctions_CallVisitorBase() *InlineFunctions_CallVisitorBase
 }
 
-type ifLookupCacheEntry struct {
-	name  string
-	state *InlineFunctions_FunctionState
-	valid bool
-}
-
 // InlineFunctions_CallVisitorBase holds CallVisitor's fields and its visit.
 type InlineFunctions_CallVisitorBase struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
@@ -768,33 +756,6 @@ type InlineFunctions_CallVisitorBase struct {
 	callback        InlineFunctions_CallVisitorCallback
 	functionMap     *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
 	anonFunctionMap *jutil.LinkedHashMap[rhino.Node, string]
-	lookupCache     [512]ifLookupCacheEntry
-	lastMissName    string
-	hasLastMiss     bool
-}
-
-func (v *InlineFunctions_CallVisitorBase) lookupFunctionState(name string) *InlineFunctions_FunctionState {
-	if v.hasLastMiss && name == v.lastMissName {
-		return nil
-	}
-	if name != "" {
-		idx := ocCacheIdx(name)
-		if e := &v.lookupCache[idx]; e.valid && e.name == name {
-			if e.state == nil {
-				v.lastMissName = name
-				v.hasLastMiss = true
-			}
-			return e.state
-		}
-		fs := v.functionMap.Get(name)
-		v.lookupCache[idx] = ifLookupCacheEntry{name: name, state: fs, valid: true}
-		if fs == nil {
-			v.lastMissName = name
-			v.hasLastMiss = true
-		}
-		return fs
-	}
-	return v.functionMap.Get(name)
 }
 
 // Java: InlineFunctions.CallVisitor(Map<String, FunctionState>, Map<Node, String>, CallVisitorCallback)
@@ -890,7 +851,7 @@ func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n rhino.Node, 
 		}
 
 		if hasName {
-			functionState := v.lookupFunctionState(name)
+			functionState := v.functionMap.Get(name)
 
 			// Only visit call-sites for functions that can be inlined.
 			if functionState != nil {
@@ -1059,7 +1020,7 @@ func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n rhino.Node, 
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
 	name := n.GetString()
-	if name == "" || (r.hasLastMiss && name == r.lastMissName) {
+	if name == "" {
 		return
 	}
 
@@ -1068,7 +1029,7 @@ func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n rhino.Node, 
 	}
 
 	// Other refs to a function name remove its candidacy for inlining
-	functionState := r.lookupFunctionState(name)
+	functionState := r.functionMap.Get(name)
 	if functionState == nil {
 		return
 	}
@@ -1231,7 +1192,7 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.No
 	cand.referencesThis = referencesThis
 	if hasInnerClosures {
 		cand.hasInnerClosures = true
-		if !f.assumeMinimumCapture && InlineFunctions_HasLocalNames(fnNode) {
+		if InlineFunctions_HasLocalNames(fnNode) {
 			cand.hasDisallow = true
 			cand.disallowReason = InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES
 			return cand
@@ -1588,13 +1549,13 @@ func (r *ifPhase2RefCallback) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
 	name := n.GetString()
-	if name == "" || (r.hasLastMiss && name == r.lastMissName) {
+	if name == "" {
 		return
 	}
 	if InlineFunctions_IsCandidateUsage(n) {
 		return
 	}
-	functionState := r.lookupFunctionState(name)
+	functionState := r.functionMap.Get(name)
 	if functionState == nil {
 		return
 	}
@@ -1677,7 +1638,6 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 					SafeNameIdSupplier(localSafeSupplier).
 					AllowDecomposition(f.injector.allowDecomposition).
 					AssumeStrictThis(f.injector.assumeStrictThis).
-					AssumeMinimumCapture(f.injector.assumeMinimumCapture).
 					FunctionArgumentInjector(NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer()))
 				cb.injector = injBuilder.Build()
 				cb.injector.SetKnownConstantFunctions(f.injector.knownConstantFunctions)
@@ -1694,9 +1654,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 				callback:     cb,
 				scopeCreator: sc,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, root, root, scripts[idx], lazyGlobal)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
 			ifEventsByScript[idx] = cb.events
 		}
 		return runItem, cleanup

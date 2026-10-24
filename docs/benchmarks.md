@@ -348,6 +348,43 @@ compilation benchmark (macOS arm64, Go 1.27.1 with `default.pgo`, OpenJDK
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | **3.78 s** / **3.40 s** *(`3.34 s` fast)* | 12.50 s `[12.36, 12.56]` | 6.97 s `[6.95, 7.05]` | **3.67×** / **2.05×** *(`3.75×` / `2.09×`)* | **412 MiB** vs. 1,809 / 2,861 MiB *(peak 4,586)* (**4.39× / 6.94× lower**, **11.13×** vs. JVM peak) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | **3.03 s** / **2.75 s** | 11.35 s `[11.25, 11.45]` | 5.79 s `[5.75, 5.82]` | **4.12×** / **2.10×** | **328 MiB** vs. 2,291 / 2,037 MiB *(peak 2,872)* (**6.98× / 6.21× lower**, **8.76×** vs. JVM peak) |
 
+### Round 3A + Memory/GC Optimizations ($N = 5$ Counterbalanced Interleaved Suite with 95% CIs)
+
+Measured at commit `30771cf2` against `closure-compiler-v20261015.jar` on Apple M2 (macOS arm64, 24 GiB RAM; Go 1.27.3 with PGO enabled via `cmd/jsgo/default.pgo`, OpenJDK 26.0.2.1), with both `jsgo` (`t=4`) and Java running `--num_parallel_threads=4`, gated on 100% byte-identical output on every run.
+
+**Statistical methodology ($N = 5$):** Every benchmark runs **$N = 5$ counterbalanced (`AB / BA`) interleaved blocks** to cancel linear thermal and background drift. Wall times and Peak RSS report sample means; speedups and memory ratios (`Java / jsgo`) report geometric means with **two-sided 95% confidence intervals** (`[lo, hi]`): paired Student-$t$ ($df = 4$) on log-ratios for Cold, Batch, Staged, and Peak RSS comparisons, and two-sample Welch-$t$ on log-times for Warm JVM comparisons (5 measured iterations after 5 in-JVM JIT warmup iterations).
+
+#### 1. Production-Scale Staged Compilation (`googleapis-bench`: 43,917 Files, 35.6M Parsed AST Nodes, 7,460 Chunks)
+
+| Stage | `jsgo` (`t=4`) | `--fast_mode` | Java (`t=4`, `-Xmx20g`) | Speedup vs. Java (`[95% CI]`) | `jsgo` Peak RSS | Java Peak RSS | Memory Ratio vs. Java (`[95% CI]`) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **`CHECKS`** | **50.08 s** | **48.53 s** | 98.76 s | **1.97×** `[1.93, 2.02]` *(2.03× `[1.96, 2.11]`)* | **6,610 MiB** *(6,291)* | 13,272 MiB | **2.01×** `[1.93, 2.09]` *(−6.51 GiB)* |
+| **`OPTIMIZATIONS`** | **42.03 s** | **41.46 s** | 88.90 s | **2.12×** `[2.09, 2.14]` *(2.14× `[2.10, 2.19]`)* | **4,540 MiB** *(4,518)* | 14,424 MiB | **3.18×** `[3.00, 3.37]` *(−9.65 GiB)* |
+| **`FINALIZATIONS`** | **6.27 s** | 6.32 s | 20.22 s | **3.22×** `[3.18, 3.26]` *(3.20× `[3.17, 3.22]`)* | **1,325 MiB** *(1,349)* | 6,884 MiB | **5.20×** `[4.94, 5.48]` *(−5.43 GiB)* |
+| **Total** | **98.38 s** | **96.31 s** | **207.88 s** | **2.11×** `[2.08, 2.14]` *(2.16× `[2.12, 2.20]`)* | **6,610 MiB** *(6,291)* | **14,424 MiB** | **2.18×** `[2.11, 2.25]` *(−7.63 GiB)* |
+
+#### 2. Large & Mega Whole-Program `ADVANCED` Workloads
+
+| Benchmark | Parsed Nodes & Input | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`bundle-mega`** | 4.19M nodes *(36.1 MB, 26 UMD libs)* | **23.08 s** / **20.59 s** *(`20.17 s` fast)* | 49.91 s / 40.82 s | **2.42×** `[2.40, 2.45]` *(2.47× `[2.44, 2.51]`)* | **1.98×** `[1.97, 1.99]` *(2.02× `[2.02, 2.03]`)* | **888 MiB** vs. 5,232 / 8,709 MiB — **5.89×** `[5.53, 6.27]` *(9.8× warm)* |
+| **`typed-mega`** | 3.55M nodes *(44.6 MB, 4,385 files)* | **17.97 s** / **15.41 s** *(`14.81 s` fast)* | 34.94 s / 26.74 s | **2.27×** `[2.24, 2.29]` *(2.36× `[2.33, 2.38]`)* | **1.73×** `[1.71, 1.76]` *(1.81× `[1.78, 1.83]`)* | **862 MiB** vs. 3,800 / 4,634 MiB — **4.41×** `[4.32, 4.50]` *(5.4× warm)* |
+| **`typed-full`** | 1.90M nodes *(25.9 MB, 1,820 files)* | **10.96 s** / **9.48 s** *(`9.06 s` fast)* | 24.45 s / 15.73 s | **2.58×** `[2.44, 2.73]` *(2.70× `[2.56, 2.85]`)* | **1.66×** `[1.55, 1.78]` *(1.74× `[1.63, 1.85]`)* | **540 MiB** vs. 3,523 / 3,620 MiB — **6.53×** `[6.15, 6.92]` *(6.7× warm)* |
+| **`bundle-advanced-ts`** | 1.11M nodes *(11.9 MB, 4 libs)* | **6.70 s** / **6.57 s** | 17.89 s / 13.57 s | **2.73×** `[2.52, 2.96]` | **2.07×** `[1.87, 2.29]` | **306 MiB** vs. 1,907 / 3,091 MiB — **6.22×** `[5.73, 6.75]` *(10.1× warm)* |
+| **`shaka-blockly`** | 618k nodes *(8.5 MB, 848 files)* | **4.57 s** / **4.03 s** *(`3.78 s` fast)* | 14.73 s / 9.50 s | **3.66×** `[3.58, 3.73]` *(3.90× `[3.87, 3.93]`)* | **2.34×** `[1.97, 2.77]` *(2.49× `[2.10, 2.96]`)* | **267 MiB** vs. 1,627 / 3,440 MiB — **6.06×** `[5.34, 6.86]` *(12.9× warm)* |
+| **`bundle-advanced`** | 573k nodes *(5.7 MB, 11 UMD libs)* | **3.33 s** / **2.94 s** | 13.14 s / 8.62 s | **4.42×** `[3.82, 5.13]` | **2.93×** `[2.61, 3.29]` | **184 MiB** vs. 1,597 / 3,494 MiB — **8.65×** `[7.67, 9.76]` *(19.0× warm)* |
+
+#### 3. Standard Whole-Program & CLI Suite
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`typed-app`** | `ADVANCED` + types *(1.29M nodes)* | **1.40 s** / **1.26 s** *(`1.23 s` fast)* | 7.42 s / 2.21 s | **5.91×** `[5.88, 5.94]` *(6.06× `[5.89, 6.23]`)* | **1.76×** `[1.70, 1.83]` *(1.80× `[1.74, 1.87]`)* | **182 MiB** vs. 893 / 3,368 MiB — **4.91×** `[4.66, 5.18]` *(18.5× warm)* |
+| **`checks-only`** | `--checks_only` + types *(1.29M nodes)* | **2.22 s** / **1.72 s** | 7.01 s / 2.86 s | **4.07×** `[3.95, 4.19]` | **1.66×** `[1.59, 1.73]` | **336 MiB** vs. 1,402 / 3,507 MiB — **4.18×** `[3.91, 4.47]` *(10.4× warm)* |
+| **`bundle`** | `SIMPLE` *(1.11M nodes)* | **4.17 s** / **3.81 s** | 12.77 s / 8.68 s | **3.35×** `[3.30, 3.40]` | **2.28×** `[2.26, 2.29]` | **293 MiB** vs. 2,180 / 3,826 MiB — **7.22×** `[5.29, 9.86]` *(13.1× warm)* |
+| **`single-files`** | 1,000 CLI runs, `SIMPLE` *(306k nodes)* | **98.54 s** | — / 112.88 s *(batch)* | — | **1.15×** `[1.13, 1.16]` *(vs. batch)* | **72.5 MiB** vs. 1,569 MiB — **21.5×** `[17.8, 25.8]` |
+| **`downlevel-simple`** | `SIMPLE` → ES5 *(232k nodes)* | **0.96 s** / **0.83 s** | 4.67 s / 1.50 s | **5.64×** `[5.47, 5.82]` | **1.81×** `[1.74, 1.89]` | **132 MiB** vs. 629 / 1,485 MiB — **4.78×** `[4.66, 4.89]` *(11.3× warm)* |
+| **`downlevel-whitespace`** | `WHITESPACE_ONLY` → ES5 *(232k nodes)* | **0.47 s** / **0.40 s** | 2.34 s / 0.50 s | **5.88×** `[5.79, 5.96]` | **1.26×** `[1.18, 1.36]` | **106 MiB** vs. 559 / 1,431 MiB — **5.27×** `[4.98, 5.58]` *(13.5× warm)* |
+
 ## M1 — parser (`internal/parser` vs `parsing.parser.Parser.parseProgram`)
 
 Harnesses:

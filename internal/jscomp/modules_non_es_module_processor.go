@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/modules/NonEsModuleProcessor.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/modules/NonEsModuleProcessor.java @ closure-compiler v20261021
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"unsafe"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -40,8 +38,8 @@ var (
 // and figure out their exported keys. At least, assuming we're rigid with
 // what we allow (no dynamic exports).
 type NonEsModuleProcessor struct {
-	nonEsSlab  []NonEsModuleProcessor_NonEsModule
-	moduleSlab []Module
+	nonEsSlab  jutil.Slab[NonEsModuleProcessor_NonEsModule]
+	moduleSlab jutil.Slab[Module]
 }
 
 var _ ModuleMapCreator_ModuleProcessor = (*NonEsModuleProcessor)(nil)
@@ -124,13 +122,7 @@ func (m *NonEsModuleProcessor_NonEsModule) ResolveWithModuleSpecifier(
 	}
 	jutil.CheckNotNullMsg(m.metadata, "Null metadata")
 	if m.processor != nil {
-		if len(m.processor.moduleSlab) == cap(m.processor.moduleSlab) {
-			newCap := max(16, min(max(cap(m.processor.moduleSlab)*2, 64), jscompMaxSmallAlloc/int(unsafe.Sizeof(Module{}))))
-			m.processor.moduleSlab = make([]Module, 0, newCap)
-		}
-		idx := len(m.processor.moduleSlab)
-		m.processor.moduleSlab = m.processor.moduleSlab[:idx+1]
-		mod := &m.processor.moduleSlab[idx]
+		mod := m.processor.moduleSlab.New()
 		mod.metadata = m.metadata
 		mod.path = m.path
 		mod.namespace = nonEsEmptyBindingMap
@@ -168,13 +160,7 @@ func (m *NonEsModuleProcessor_NonEsModule) GetExportedNamesWithVisited(
 // Java: NonEsModuleProcessor.process(ModuleMetadata, ModulePath, Node)
 func (p *NonEsModuleProcessor) Process(
 	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule {
-	if len(p.nonEsSlab) == cap(p.nonEsSlab) {
-		newCap := max(16, min(max(cap(p.nonEsSlab)*2, 64), jscompMaxSmallAlloc/int(unsafe.Sizeof(NonEsModuleProcessor_NonEsModule{}))))
-		p.nonEsSlab = make([]NonEsModuleProcessor_NonEsModule, 0, newCap)
-	}
-	idx := len(p.nonEsSlab)
-	p.nonEsSlab = p.nonEsSlab[:idx+1]
-	m := &p.nonEsSlab[idx]
+	m := p.nonEsSlab.New()
 	m.InitUnresolvedModuleBase(m)
 	m.processor = p
 	m.metadata = metadata

@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/ConformanceAllowlisterTest.java @ closure-compiler v20261015
+// Port of test/com/google/javascript/jscomp/ConformanceAllowlisterTest.java @ closure-compiler v20261021
 
 /*
  * Copyright 2018 The Closure Compiler Authors.

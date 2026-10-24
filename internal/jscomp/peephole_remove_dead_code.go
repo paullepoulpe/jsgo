@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeRemoveDeadCode.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/PeepholeRemoveDeadCode.java @ closure-compiler v20261021
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -514,7 +514,16 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree rhino.Node
 	case rhino.Token_FUNCTION:
 		// Functions that aren't being invoked are dead. If they were invoked we'd see the CALL
 		// before arriving here. We don't want to look at any children since they'll never execute.
-		return false
+	case rhino.Token_MEMBER_FIELD_DEF:
+		if tree.IsStaticMember() && tree.HasChildren() {
+			p.TrySimplifyUnusedResultInternal(tree.GetFirstChild(), sideEffectRoots)
+		}
+	case rhino.Token_COMPUTED_FIELD_DEF:
+		// Computed key initializers run once when the class is defined, even on non-static fields.
+		p.TrySimplifyUnusedResultInternal(tree.GetFirstChild(), sideEffectRoots)
+		if tree.IsStaticMember() && tree.HasTwoChildren() {
+			p.TrySimplifyUnusedResultInternal(tree.GetLastChild(), sideEffectRoots)
+		}
 	default:
 		// This is the meat of this function. It covers the general case of nodes which are unused
 		if p.NodeTypeMayHaveSideEffects(tree) {
@@ -530,6 +539,7 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree rhino.Node
 		}
 		return atFixedPoint
 	}
+	return false
 }
 
 // PeepholeRemoveDeadCode_AsDetachedExpression returns an expression

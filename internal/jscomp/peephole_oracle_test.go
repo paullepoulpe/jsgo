@@ -413,7 +413,7 @@ func TestPeepholeGolden(t *testing.T) {
 	if len(entries) < 1000 {
 		t.Fatalf("only %d golden blocks", len(entries))
 	}
-	corpus := "/home/user/jsgo/.cache/corpus"
+	corpus := oracleTestCorpusRoot(t)
 	roots := []string{"testdata/peephole/js"}
 	if _, err := os.Stat(corpus); err == nil {
 		roots = append(roots, corpus)
@@ -428,7 +428,7 @@ func TestPeepholeOracle(t *testing.T) {
 	}
 	root := os.Getenv("PEEPHOLE_ROOT")
 	if root == "" {
-		root = "/home/user/jsgo/.cache/corpus"
+		root = oracleTestCorpusRoot(t)
 	}
 	every := 1
 	if s := os.Getenv("PEEPHOLE_EVERY"); s != "" {

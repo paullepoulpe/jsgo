@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/VariableMap.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/VariableMap.java @ closure-compiler v20261021
 
 /*
  * Copyright 2005 The Closure Compiler Authors.
@@ -191,11 +191,7 @@ func VariableMap_FromLines(s string) *VariableMap {
 		}
 
 		endOfLine := newLine
-		if newLine == 0 {
-			// Java: string.charAt(-1) throws.
-			jutil.StringCharAt(s, newLine-1)
-		}
-		if s[newLine-1] == '\r' {
+		if newLine > 0 && s[newLine-1] == '\r' {
 			newLine--
 		}
 
@@ -235,11 +231,7 @@ func variableMap_findIndexOfUnescapedChar(value string, stopChar byte) int {
 			return -1
 		}
 		stopCharIndex += i
-		if stopCharIndex == 0 {
-			// Java: value.charAt(-1) throws.
-			jutil.StringCharAt(value, stopCharIndex-1)
-		}
-		if value[stopCharIndex-1] != '\\' {
+		if stopCharIndex == 0 || value[stopCharIndex-1] != '\\' {
 			// it isn't escaped, return
 			return stopCharIndex
 		}

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/ObjectType.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/jstype/ObjectType.java @ closure-compiler v20261021
 
 /*
  *
@@ -37,7 +37,6 @@ package rhino
 
 import (
 	"iter"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -162,30 +161,11 @@ type ObjectTypeBase struct {
 	JSTypeBase
 }
 
-const (
-	_ = -uint(unsafe.Offsetof(FunctionTypeBase{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(PrototypeObjectTypeBase{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(InstanceObjectType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(NamedType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(TemplatizedType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(RecordType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(EnumType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(UnknownType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(NoObjectTypeBase{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(NoType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(NoResolvedType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(EnumElementType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(TemplateType{}.ObjectTypeBase))
-	_ = -uint(unsafe.Offsetof(ProxyObjectTypeBase{}.ObjectTypeBase))
-)
-
-type objTypeIface struct {
-	tab  unsafe.Pointer
-	data *ObjectTypeBase
-}
-
 func objTypeBase(x ObjectType) *ObjectTypeBase {
-	return (*(*objTypeIface)(unsafe.Pointer(&x))).data
+	if x == nil {
+		return nil
+	}
+	return x.GetObjectTypeBase()
 }
 
 // objectTypeOf returns the ObjectType whose base is b, or nil for nil.
@@ -193,28 +173,11 @@ func objectTypeOf(b *JSTypeBase) ObjectType {
 	if b == nil {
 		return nil
 	}
-	return (*ObjectTypeBase)(unsafe.Pointer(b)).selfObj()
+	return b.self_.(ObjectType)
 }
 
 func (o *ObjectTypeBase) selfObj() ObjectType {
-	switch o.objFlags & objKindMask {
-	case objKindFunction:
-		return (*FunctionTypeBase)(unsafe.Pointer(o))
-	case objKindPrototype:
-		return (*PrototypeObjectTypeBase)(unsafe.Pointer(o))
-	case objKindInstance:
-		return (*InstanceObjectType)(unsafe.Pointer(o))
-	case objKindNamed:
-		return (*NamedType)(unsafe.Pointer(o))
-	case objKindTemplatized:
-		return (*TemplatizedType)(unsafe.Pointer(o))
-	case objKindRecord:
-		return (*RecordType)(unsafe.Pointer(o))
-	case objKindEnum:
-		return (*EnumType)(unsafe.Pointer(o))
-	default:
-		return o.self().(ObjectType)
-	}
+	return o.self_.(ObjectType)
 }
 
 // InitObjectTypeBase is the Go form of the ObjectType(JSTypeRegistry)
@@ -969,16 +932,7 @@ func (o *ObjectTypeBase) IsImplicitPrototypeOf(other ObjectType) bool {
 		if unwrappedThisBase == ob {
 			return true
 		}
-		var next ObjectType
-		switch ob.objFlags & objKindMask {
-		case objKindPrototype, objKindFunction:
-			next = objectTypeOf((*PrototypeObjectTypeBase)(unsafe.Pointer(ob)).implicitPrototypeFallback)
-		case objKindInstance:
-			next = (*InstanceObjectType)(unsafe.Pointer(ob)).GetImplicitPrototype()
-		default:
-			next = other.GetImplicitPrototype()
-		}
-		other = ObjectType_DeeplyUnwrap(next)
+		other = ObjectType_DeeplyUnwrap(other.GetImplicitPrototype())
 	}
 }
 
@@ -1001,15 +955,15 @@ func ObjectType_DeeplyUnwrap(original ObjectType) ObjectType {
 			objKindUnknown, objKindNoObject, objKindNo, objKindNoResolved, objKindEnumElement:
 			return current
 		case objKindTemplatized:
-			current = (*TemplatizedType)(unsafe.Pointer(cb)).GetReferencedType()
+			current = current.(*TemplatizedType).GetReferencedType()
 		case objKindNamed:
-			nt := (*NamedType)(unsafe.Pointer(cb))
+			nt := current.(*NamedType)
 			if !nt.IsSuccessfullyResolved() {
 				return current
 			}
 			current = nt.referencedObjType
 		case objKindTemplate, objKindProxy:
-			current = (*ProxyObjectTypeBase)(unsafe.Pointer(cb)).referencedObjType
+			current = current.(ProxyObjectType).GetProxyObjectTypeBase().referencedObjType
 		default:
 			proxy, ok := current.(ProxyObjectType)
 			if !ok {

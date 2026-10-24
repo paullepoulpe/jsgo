@@ -113,8 +113,8 @@ func TestEmbeddedRuntimeLibsTypedAst(t *testing.T) {
 		t.Fatal("/runtime_libs.typedast is not embedded")
 	}
 	sum := sha256.Sum256(data)
-	if got := hex.EncodeToString(sum[:]); len(data) != 3526864 ||
-		got != "0e2849e6d965f4b89f4e5650b75ccb0eca23fe1babbd8f3cc6c9ae1904b88059" {
+	if got := hex.EncodeToString(sum[:]); len(data) != 3530744 ||
+		got != "feb246c5d2a4074923caa36814fba7913094789f5fe3aa119a528271e4dad601" {
 		t.Errorf("runtime_libs.typedast: %d bytes, sha256 %s", len(data), got)
 	}
 }

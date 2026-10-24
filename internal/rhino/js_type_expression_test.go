@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/JSTypeExpressionTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/rhino/JSTypeExpressionTest.java @ closure-compiler v20261021
 
 /*
  *
@@ -37,6 +37,8 @@ package rhino
 import (
 	"slices"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // assertContainsExactly is Truth's containsExactly (any order).
@@ -103,5 +105,69 @@ func getTestExpression() *JSTypeExpression {
 	f.AddChildToBack(c)
 	f.AddChildToBack(d)
 	f.AddChildToBack(e)
-	return NewJSTypeExpression(f, "")
+	return NewJSTypeExpression(f, "<JSTypeExpressionTest>")
+}
+
+func TestJSTypeExpression_MakeOptionalArgAndVarArgsDoesNotMutateRoot(t *testing.T) {
+	root := NewNode(Token_NAME)
+	expr := NewJSTypeExpression(root, "source.js")
+
+	optArg := JSTypeExpression_MakeOptionalArg(expr)
+	if got := optArg.GetRoot().GetToken(); got != Token_EQUALS {
+		t.Errorf("optArg root token: got %v, want EQUALS", got)
+	}
+	if !optArg.GetRoot().GetParent().IsNil() {
+		t.Error("optArg root has a parent")
+	}
+
+	varArg := JSTypeExpression_MakeVarArgs(expr)
+	if got := varArg.GetRoot().GetToken(); got != Token_ITER_REST {
+		t.Errorf("varArg root token: got %v, want ITER_REST", got)
+	}
+	if !varArg.GetRoot().GetParent().IsNil() {
+		t.Error("varArg root has a parent")
+	}
+
+	// root remains detached
+	if !expr.GetRoot().GetParent().IsNil() {
+		t.Error("expr root has a parent")
+	}
+
+	// We can call it multiple times on the same expression without throwing
+	optArg2 := JSTypeExpression_MakeOptionalArg(expr)
+	if got := optArg2.GetRoot().GetToken(); got != Token_EQUALS {
+		t.Errorf("optArg2 root token: got %v, want EQUALS", got)
+	}
+	if !optArg2.GetRoot().GetParent().IsNil() {
+		t.Error("optArg2 root has a parent")
+	}
+
+	// replaceNamesWithUnknownType does not mutate the original root
+	replaced := expr.ReplaceNamesWithUnknownType(jutil.NewLinkedHashSet("foo"))
+	if !replaced.GetRoot().GetParent().IsNil() {
+		t.Error("replaced root has a parent")
+	}
+	if !expr.GetRoot().GetParent().IsNil() {
+		t.Error("expr root has a parent after replaceNamesWithUnknownType")
+	}
+}
+
+func TestJSTypeExpression_ConstructWithAttachedNodeClonesRoot(t *testing.T) {
+	parent := NewNode(Token_BLOCK)
+	child := NewNode(Token_NAME)
+	parent.AddChildToBack(child)
+	if child.GetParent() != parent {
+		t.Fatal("child's parent is not parent")
+	}
+
+	expr := NewJSTypeExpression(child, "source.js")
+	if expr.GetRoot() == child {
+		t.Error("expr root is the attached child")
+	}
+	if !expr.GetRoot().GetParent().IsNil() {
+		t.Error("expr root has a parent")
+	}
+	if child.GetParent() != parent {
+		t.Error("child's parent changed")
+	}
 }

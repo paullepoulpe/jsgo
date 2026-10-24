@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckConformanceTest.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CheckConformanceTest.java @ closure-compiler v20261021
 // (test/com/google/javascript/jscomp/CheckConformanceTest.java)
 
 /*
@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // CheckConformanceTest tests for CheckConformance.
@@ -83,24 +82,6 @@ func TestCheckConformanceTest(t *testing.T) {
 	RunJUnit4(t, func() JUnitTestCase { return NewCheckConformanceTest() })
 }
 
-// The nested test classes that the requirements' java_class names, for
-// CustomRuleProxy's Class.forName (Go-only: language-adapter — see
-// ConformanceRules_JavaClass).
-func init() {
-	conformanceRules_javaClasses["com.google.javascript.jscomp.CheckConformanceTest"] = &ConformanceRules_JavaClass{}
-	// CustomRuleMissingPublicConstructor's constructor is package-private.
-	conformanceRules_javaClasses["com.google.javascript.jscomp.CheckConformanceTest$CustomRuleMissingPublicConstructor"] =
-		&ConformanceRules_JavaClass{isRule: true}
-	conformanceRules_javaClasses["com.google.javascript.jscomp.CheckConformanceTest$CustomRule"] = conformanceRules_ruleClass(
-		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
-			return NewCheckConformanceTest_CustomRule(c, r)
-		})
-	conformanceRules_javaClasses["com.google.javascript.jscomp.CheckConformanceTest$CustomRuleReport"] = conformanceRules_ruleClass(
-		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
-			return NewCheckConformanceTest_CustomRuleReport(c, r)
-		})
-}
-
 // Java: CheckConformanceTest.getProcessor(Compiler)
 func (c *CheckConformanceTest) GetProcessor(compiler *Compiler) CompilerPass {
 	builder := ConformanceConfig_NewBuilder()
@@ -157,73 +138,6 @@ func (c *CheckConformanceTest) TestConformance(args ...any) {
 		}
 	}
 	panic(jutil.NewIllegalArgumentExceptionMsg("testConformance: no overload"))
-}
-
-// CheckConformanceTest_CustomRuleMissingPublicConstructor is a custom rule
-// missing a callable constructor.
-type CheckConformanceTest_CustomRuleMissingPublicConstructor struct {
-	ConformanceRules_AbstractRuleBase
-}
-
-// Java: CheckConformanceTest.CustomRuleMissingPublicConstructor(AbstractCompiler, Requirement)
-func NewCheckConformanceTest_CustomRuleMissingPublicConstructor(compiler AbstractCompiler, requirement *Requirement) *CheckConformanceTest_CustomRuleMissingPublicConstructor {
-	r := &CheckConformanceTest_CustomRuleMissingPublicConstructor{}
-	r.InitConformanceRules_AbstractRuleBase(r, compiler, requirement)
-	if requirement.GetValueCount() == 0 {
-		panic(NewCheckConformance_InvalidRequirementSpec("missing value"))
-	}
-	return r
-}
-
-// Java: CheckConformanceTest.CustomRuleMissingPublicConstructor.checkConformance(NodeTraversal, Node)
-func (r *CheckConformanceTest_CustomRuleMissingPublicConstructor) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	// Everything is ok.
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// CheckConformanceTest_CustomRule is a valid custom rule.
-type CheckConformanceTest_CustomRule struct {
-	ConformanceRules_AbstractRuleBase
-}
-
-// Java: CheckConformanceTest.CustomRule(AbstractCompiler, Requirement)
-func NewCheckConformanceTest_CustomRule(compiler AbstractCompiler, requirement *Requirement) *CheckConformanceTest_CustomRule {
-	r := &CheckConformanceTest_CustomRule{}
-	r.InitConformanceRules_AbstractRuleBase(r, compiler, requirement)
-	if requirement.GetValueCount() == 0 {
-		panic(NewCheckConformance_InvalidRequirementSpec("missing value"))
-	}
-	return r
-}
-
-// Java: CheckConformanceTest.CustomRule.checkConformance(NodeTraversal, Node)
-func (r *CheckConformanceTest_CustomRule) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	// Everything is ok.
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// CheckConformanceTest_CustomRuleReport is a valid custom rule.
-type CheckConformanceTest_CustomRuleReport struct {
-	ConformanceRules_AbstractRuleBase
-}
-
-// Java: CheckConformanceTest.CustomRuleReport(AbstractCompiler, Requirement)
-func NewCheckConformanceTest_CustomRuleReport(compiler AbstractCompiler, requirement *Requirement) *CheckConformanceTest_CustomRuleReport {
-	r := &CheckConformanceTest_CustomRuleReport{}
-	r.InitConformanceRules_AbstractRuleBase(r, compiler, requirement)
-	if requirement.GetValueCount() == 0 {
-		panic(NewCheckConformance_InvalidRequirementSpec("missing value"))
-	}
-	return r
-}
-
-// Java: CheckConformanceTest.CustomRuleReport.checkConformance(NodeTraversal, Node)
-func (r *CheckConformanceTest_CustomRuleReport) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	// Everything is ok.
-	if n.IsScript() {
-		return ConformanceRules_ConformanceResult_VIOLATION
-	}
-	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
 // Java: CheckConformanceTest.config(String, String, String...) (static)
@@ -2138,118 +2052,6 @@ type: CUSTOM
 `)
 }
 
-// Java: CheckConformanceTest.testCustom2()
-func (c *CheckConformanceTest) TestCustom2() {
-	c.AllowSourcelessWarnings()
-	c.configuration =
-		`requirement: {
-  type: CUSTOM
-  java_class: 'MissingClass'
-  error_message: 'placeholder'
-}
-`
-	c.TestError(
-		"anything;",
-		CheckConformance_INVALID_REQUIREMENT_SPEC,
-		`Invalid requirement. Reason: JavaClass not found.
-Requirement spec:
-error_message: "placeholder"
-type: CUSTOM
-java_class: "MissingClass"
-`)
-}
-
-// Java: CheckConformanceTest.testCustom3()
-func (c *CheckConformanceTest) TestCustom3() {
-	c.AllowSourcelessWarnings()
-	c.configuration =
-		`requirement: {
-  type: CUSTOM
-  java_class: 'com.google.javascript.jscomp.CheckConformanceTest'
-  error_message: 'placeholder'
-}
-`
-	c.TestError(
-		"anything;",
-		CheckConformance_INVALID_REQUIREMENT_SPEC,
-		`Invalid requirement. Reason: JavaClass is not a rule.
-Requirement spec:
-error_message: "placeholder"
-type: CUSTOM
-java_class: "com.google.javascript.jscomp.CheckConformanceTest"
-`)
-}
-
-// Java: CheckConformanceTest.testCustom4()
-func (c *CheckConformanceTest) TestCustom4() {
-	c.AllowSourcelessWarnings()
-	c.configuration =
-		`requirement: {
-  type: CUSTOM
-  java_class: 'com.google.javascript.jscomp.CheckConformanceTest$CustomRuleMissingPublicConstructor'
-  error_message: 'placeholder'
-}
-`
-	c.TestError(
-		"anything;",
-		CheckConformance_INVALID_REQUIREMENT_SPEC,
-		`Invalid requirement. Reason: No valid class constructors found.
-Requirement spec:
-error_message: "placeholder"
-type: CUSTOM
-java_class: "com.google.javascript.jscomp.CheckConformanceTest$CustomRuleMissingPublicConstructor"
-`)
-}
-
-// Java: CheckConformanceTest.testCustom5()
-func (c *CheckConformanceTest) TestCustom5() {
-	c.AllowSourcelessWarnings()
-	c.configuration =
-		`requirement: {
-  type: CUSTOM
-  java_class: 'com.google.javascript.jscomp.CheckConformanceTest$CustomRule'
-  error_message: 'placeholder'
-}
-`
-	c.TestError(
-		"anything;",
-		CheckConformance_INVALID_REQUIREMENT_SPEC,
-		`Invalid requirement. Reason: missing value
-Requirement spec:
-error_message: "placeholder"
-type: CUSTOM
-java_class: "com.google.javascript.jscomp.CheckConformanceTest$CustomRule"
-`)
-}
-
-// Java: CheckConformanceTest.testCustom6()
-func (c *CheckConformanceTest) TestCustom6() {
-	c.AllowSourcelessWarnings()
-	c.configuration =
-		`requirement: {
-  type: CUSTOM
-  java_class: 'com.google.javascript.jscomp.CheckConformanceTest$CustomRule'
-  value: 'placeholder'
-  error_message: 'placeholder'
-}
-`
-	c.TestNoWarning("anything;")
-}
-
-// Java: CheckConformanceTest.testCustom7()
-func (c *CheckConformanceTest) TestCustom7() {
-	c.configuration =
-		`requirement: {
-  type: CUSTOM
-  java_class: 'com.google.javascript.jscomp.CheckConformanceTest$CustomRuleReport'
-  value: 'placeholder'
-  error_message: 'CustomRule Message'
-}
-`
-	c.TestWarning(
-		"anything;", CheckConformance_CONFORMANCE_VIOLATION, "Violation: CustomRule Message")
-}
-
 // Java: CheckConformanceTest.testCustomBanForOf()
 func (c *CheckConformanceTest) TestCustomBanForOf() {
 	c.configuration =
@@ -4159,4 +3961,90 @@ Foo.bar = function() {
   }
 }
 `)
+}
+
+// Java: CheckConformanceTest.testInvalidCustomRuleJavaClass()
+func (c *CheckConformanceTest) TestInvalidCustomRuleJavaClass() {
+	c.AllowSourcelessWarnings()
+	c.configuration =
+		`requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$NoSuchClass'
+  error_message: 'Should fail'
+}
+`
+	c.TestError(
+		"var x;",
+		CheckConformance_INVALID_REQUIREMENT_SPEC,
+		`Invalid requirement. Reason: Unknown conformance rule: com.google.javascript.jscomp.ConformanceRules$NoSuchClass
+Requirement spec:
+error_message: "Should fail"
+type: CUSTOM
+java_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchClass"
+`)
+}
+
+// Java: CheckConformanceTest.testAllCustomRulesRegistered()
+func (c *CheckConformanceTest) TestAllCustomRulesRegistered() {
+	c.AllowSourcelessWarnings()
+	rules := []string{
+		"NoOp",
+		"InferredConstCheck",
+		"BannedDependency",
+		"BannedDependencyRegex",
+		"BannedName",
+		"BannedProperty",
+		"BannedStringRegex",
+		"RestrictedNameCall",
+		"RestrictedMethodCall",
+		"RestrictedPropertyWrite",
+		"BannedCodePattern",
+		"BanForOf",
+		"RequireUseStrict",
+		"BanThrowOfNonErrorTypes",
+		"BanNullDeref",
+		"BanUnknownThis",
+		"BanUnknownDirectThisPropsReferences",
+		"BanUnknownTypedClassPropsReferences",
+		"BanUnresolvedType",
+		"StrictBanUnresolvedType",
+		"BanGlobalVars",
+		"BannedEnhance",
+		"BannedModsRegex",
+		"BanCreateElement",
+		"BanCreateDom",
+		"BanElementSetAttribute",
+		"BanSettingAttributes",
+		"BanExecCommand",
+		"BanStaticThis",
+	}
+	for _, rule := range rules {
+		c.configuration =
+			"requirement: {\n" +
+				"  type: CUSTOM\n" +
+				"  java_class: 'com.google.javascript.jscomp.ConformanceRules$" +
+				rule +
+				"'\n" +
+				"  error_message: 'msg'\n" +
+				"  value: 'value'\n" +
+				"}\n"
+		// Go-only: language-adapter — the two catch clauses of one try: a
+		// Throwable is caught once and dispatched on its class, so that a
+		// failure in the first handler is not caught by the second.
+		var thrown jutil.Throwable
+		jutil.Try(func() {
+			c.TestNoWarning("var x;")
+		}, func(e jutil.Throwable) {
+			thrown = e
+		})
+		switch e := thrown.(type) {
+		case nil:
+		case jutil.IRuntimeException:
+			AssertThat(e.GetMessage()).DoesNotContain("Unknown conformance rule")
+		case *jutil.AssertionError:
+			// Assertions are expected if the rule requires specific values
+		default:
+			panic(e)
+		}
+	}
 }

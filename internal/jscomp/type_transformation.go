@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TypeTransformation.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/TypeTransformation.java @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -871,7 +871,8 @@ func (t *TypeTransformation) evalInstanceOf(ttlAst rhino.Node, nameResolver *typ
 
 // Java: TypeTransformation.evalNativeTypeExpr(Node)
 func (t *TypeTransformation) evalNativeTypeExpr(ttlAst rhino.Node) rhino.JSType {
-	expr := rhino.NewJSTypeExpression(t.getCallArgument(ttlAst, 0), typeTransformation_VIRTUAL_FILE)
+	expr :=
+		rhino.NewJSTypeExpression(t.getCallArgument(ttlAst, 0).CloneTree(), typeTransformation_VIRTUAL_FILE)
 	return t.registry.EvaluateTypeExpression(expr, t.typeEnv)
 }
 

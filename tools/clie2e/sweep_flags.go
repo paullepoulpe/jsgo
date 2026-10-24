@@ -53,7 +53,7 @@ func variants(ss ...string) [][]string {
 // --jscomp_warning and --jscomp_off accept besides "*".
 var diagnosticGroups = split(`untranspilableFeatures moduleLoad moduleImport globalThis deprecated underscore visibility
 accessControls nonStandardJsDocs invalidCasts strictModuleDepCheck violatedModuleDep
-externsValidation unknownDefines defineWithoutGoogDefine tweakValidation missingOverride
+externsValidation unknownDefines defineWithoutGoogDefine tweakValidation missingCallToSuper missingOverride
 missingProperties globallyMissingProperties j2clChecks missingReturn undefinedVars
 checkDebuggerStatement checkRegExp checkTypes checkEs5InheritanceCorrectnessConditions
 checkPrototypalTypes tooManyTypeParams strictMissingProperties strictPrimitiveOperators

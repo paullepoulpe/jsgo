@@ -97,8 +97,8 @@ func TestLinkedHashMapTombstoneChurn(t *testing.T) {
 				gone = append(gone, live[j])
 				live = slices.Delete(live, j, j+1)
 			}
-			if h.m != nil && len(h.m.table) > 128 {
-				t.Fatalf("fromFront=%v step %d: table of %d buckets for %d entries", fromFront, i, len(h.m.table), h.Size())
+			if m := h.m.Load(); m != nil && len(m.table) > 128 {
+				t.Fatalf("fromFront=%v step %d: table of %d buckets for %d entries", fromFront, i, len(m.table), h.Size())
 			}
 		}
 		checkLinkedHashMapKeys(t, fmt.Sprint("fromFront=", fromFront), h, live, gone)
@@ -259,7 +259,7 @@ func TestLinkedHashMapConcurrentReadsLazyIndex(t *testing.T) {
 			h.PutNew(k, i)
 			s.AddNew(k)
 		}
-		if h.m != nil || s.m.m != nil {
+		if h.m.Load() != nil || s.m.m.Load() != nil {
 			t.Fatal("expected nil index before first lookup")
 		}
 

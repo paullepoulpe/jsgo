@@ -222,7 +222,6 @@ public final class InlineDump {
             c.getUniqueNameIdSupplier(),
             Reach.ALL,
             /* assumeStrictThis= */ false,
-            /* assumeMinimumCapture= */ false,
             CompilerOptions.UNLIMITED_FUN_SIZE_AFTER_INLINING);
       case "collapse-all":
         return InlineAndCollapseProperties.builder(c)

@@ -610,7 +610,7 @@ func TestL11OptimizeGolden(t *testing.T) {
 		}
 		root := os.Getenv("L11OPT_CORPUS")
 		if root == "" {
-			root = "/home/user/jsgo/.cache/corpus"
+			root = oracleTestCorpusRoot(t)
 		}
 		if _, err := os.Stat(root); err != nil {
 			t.Skipf("corpus not available (%v)", err)
@@ -626,7 +626,7 @@ func TestL11OptimizeOracle(t *testing.T) {
 	}
 	root := os.Getenv("L11OPT_ROOT")
 	if root == "" {
-		root = "/home/user/jsgo/.cache/corpus"
+		root = oracleTestCorpusRoot(t)
 	}
 	l11optCompare(t, dump, false, func(string) string { return root })
 }

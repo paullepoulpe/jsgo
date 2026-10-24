@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckSideEffects.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/CheckSideEffects.java @ closure-compiler v20261021
 
 /*
  * Copyright 2006 The Closure Compiler Authors.
@@ -143,9 +143,7 @@ func (c *CheckSideEffects) processRootParallel(root rhino.Node) bool {
 				callback:     workerPass,
 				scopeCreator: sc,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, root, root, scripts[idx], lazyGlobal)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
 			if len(workerPass.problemNodes) != 0 {
 				copied := make([]rhino.Node, len(workerPass.problemNodes))
 				copy(copied, workerPass.problemNodes)
@@ -333,9 +331,7 @@ func (s *CheckSideEffects_StripProtection) processParallel(root rhino.Node) bool
 				compiler: rc,
 				callback: workerPass,
 			}
-			t := acquireNodeTraversal(&b)
-			traverseScriptUnderRoot(t, root, root, scripts[idx], nil)
-			releaseNodeTraversal(t)
+			b.traverseScriptUnderRoot(root, root, scripts[idx], nil)
 		}
 		return runItem, nil
 	}, false)

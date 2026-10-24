@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/SourceFile.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/SourceFile.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -459,6 +459,7 @@ func (f *SourceFile) MarkAsClosureUnawareCode() {
 
 // Java: SourceFile.getLineOfOffset(int)
 func (f *SourceFile) GetLineOfOffset(offset int) int {
+	jutil.CheckArgumentMsg1(offset >= 0, "offset must be non-negative: %s", offset)
 	f.FindLineOffsets()
 	search := jutil.ArraysBinarySearchInts(f.lineOffsets, offset)
 	if search >= 0 {
@@ -854,6 +855,8 @@ func (f *SourceFile) RestoreCachedStateFrom(protoSourceFile *SourceFileProto) {
 	// value is 0, where as in SourceFile we use "-1"
 	protoNumLines := int(protoSourceFile.GetNumLinesPlusOne()) - 1
 	protoNumBytes := int(protoSourceFile.GetNumBytesPlusOne()) - 1
+	jutil.CheckStateMsg1(protoNumLines >= -1, "protoNumLines must be >= -1: %s", protoNumLines)
+	jutil.CheckStateMsg1(protoNumBytes >= -1, "protoNumBytes must be >= -1: %s", protoNumBytes)
 	// It's possible that this.numLines and protoNumLines are both not "-1"
 	// but contain conflicting values. This would happen if a file changes on
 	// disk after TypedAST proto serialization. We choose the proto value over
@@ -878,8 +881,12 @@ func sourceFileFromProtoWithSlab(protoSourceFile *SourceFileProto, slab *jutil.S
 	sourceKind := sourceFile_getSourceKindFromProto(protoSourceFile)
 	sourceFile := sourceFile_fromProtoWithKindAndSlab(protoSourceFile, sourceKind, slab)
 	// Restore the number of lines/bytes, which are offset by 1 in the proto.
-	sourceFile.numLines = int(protoSourceFile.GetNumLinesPlusOne()) - 1
-	sourceFile.numBytes = int(protoSourceFile.GetNumBytesPlusOne()) - 1
+	protoNumLines := int(protoSourceFile.GetNumLinesPlusOne()) - 1
+	protoNumBytes := int(protoSourceFile.GetNumBytesPlusOne()) - 1
+	jutil.CheckStateMsg1(protoNumLines >= -1, "protoNumLines must be >= -1: %s", protoNumLines)
+	jutil.CheckStateMsg1(protoNumBytes >= -1, "protoNumBytes must be >= -1: %s", protoNumBytes)
+	sourceFile.numLines = protoNumLines
+	sourceFile.numBytes = protoNumBytes
 	if protoSourceFile.GetIsClosureUnawareCode() {
 		sourceFile.MarkAsClosureUnawareCode()
 	}

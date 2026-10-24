@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ClosureUnawareOptions.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/ClosureUnawareOptions.java @ closure-compiler v20261021
 
 /*
  * Copyright 2025 The Closure Compiler Authors.
@@ -109,7 +109,6 @@ func (c *ClosureUnawareOptions) SetSafeOptimizationAssumptions() {
 	c.shadowOptions.SetCodingConvention(CodingConventions_GetDefault())
 	c.shadowOptions.SetRemoveClosureAsserts(false)
 
-	c.shadowOptions.SetAssumeClosuresOnlyCaptureReferences(false)
 	c.shadowOptions.SetAssumeGettersArePure(false)
 	c.shadowOptions.SetAssumePropertiesAreStaticallyAnalyzable(false)
 	c.shadowOptions.SetAssumeStaticInheritanceIsNotUsed(false)

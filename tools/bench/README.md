@@ -23,7 +23,7 @@ It takes several hours on 4 cores, most of it in the 1,000-invocation task
 Everything uses the `.cache/` of the main checkout, shared by all worktrees;
 `$JSGO_CACHE` overrides it. It holds the jar (`CLOSURE_JAR` of
 [tools/oracle/pin.env](../oracle/pin.env), the one place that names the
-pinned release, v20261015, and its jar), the corpus, `bench-inputs/` and
+pinned release, v20261021, and its jar), the corpus, `bench-inputs/` and
 `bench-build/`.
 
 ## Files

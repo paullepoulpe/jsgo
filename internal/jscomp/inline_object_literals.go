@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineObjectLiterals.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/InlineObjectLiterals.java @ closure-compiler v20261021
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -363,14 +363,13 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 							return true
 						})
 						tb := rc.builderVal()
-						t := acquireNodeTraversal(&tb)
+						t := newNodeTraversal(&tb)
 						t.currentNode = root
 						t.PushScopeOfScope(dummyGlobalScope)
 						t.currentScript = t.GetEnclosingScript(candFn)
 						t.ClearScriptState()
 						t.TraverseBranch(candFn, candFn.GetParent())
 						t.PopScope()
-						releaseNodeTraversal(t)
 					}
 				}()
 			}
@@ -406,14 +405,13 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 						return true
 					})
 					tb := rc.builderVal()
-					t := acquireNodeTraversal(&tb)
+					t := newNodeTraversal(&tb)
 					t.currentNode = root
 					t.PushScopeOfScope(dummyGlobalScope)
 					t.currentScript = t.GetEnclosingScript(candFn)
 					t.ClearScriptState()
 					t.TraverseBranch(candFn, candFn.GetParent())
 					t.PopScope()
-					releaseNodeTraversal(t)
 				}
 				return
 			}
@@ -426,8 +424,7 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 			dummyGlobalScope.scanDone = true
 			dummyGlobalScope.hasImplicitVars = false
 			tb := callback.builderVal()
-			t := acquireNodeTraversal(&tb)
-			defer releaseNodeTraversal(t)
+			t := newNodeTraversal(&tb)
 			t.currentNode = root
 			t.PushScopeOfScope(dummyGlobalScope)
 			for _, candFn := range s.candFns {
@@ -510,12 +507,15 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 		if v == nil {
 			continue
 		}
-		referenceInfo := referenceMap.GetReferences(v)
-		if referenceInfo == nil {
+		if b.IsVarInlineForbidden(v) {
 			continue
 		}
 
-		if b.IsVarInlineForbidden(v) {
+		referenceInfo := referenceMap.GetReferences(v)
+		// ReferenceMap only creates collections for variables that have references.
+		// A variable declared in a scope (e.g. unreferenced catch parameter or block-scoped
+		// function declaration) without references will return null.
+		if referenceInfo == nil {
 			continue
 		}
 

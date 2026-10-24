@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ReplaceCssNames.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/ReplaceCssNames.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -94,7 +94,7 @@ type ReplaceCssNames struct {
 
 	partsScratch    []string
 	replacedScratch []string
-	instanceSlab    []ReplaceCssNames_GetCssNameInstance
+	instanceSlab    jutil.Slab[ReplaceCssNames_GetCssNameInstance]
 }
 
 // This is used only for qualified name comparison, so it's OK to build it with IR instead of
@@ -363,12 +363,7 @@ func (r *ReplaceCssNames) IsGetCssNameCall(node rhino.Node) bool {
 func (r *ReplaceCssNames) CreateGetCssNameInstance(
 	n rhino.Node, cssClosureClassesQualifiedName *string) *ReplaceCssNames_GetCssNameInstance {
 	validationError := r.ValidateGetCssNameCall(n)
-	if len(r.instanceSlab) == cap(r.instanceSlab) {
-		r.instanceSlab = make([]ReplaceCssNames_GetCssNameInstance, 0, 256)
-	}
-	idx := len(r.instanceSlab)
-	r.instanceSlab = r.instanceSlab[:idx+1]
-	inst := &r.instanceSlab[idx]
+	inst := r.instanceSlab.New()
 	inst.outer = r
 	inst.callNode = n
 	inst.validationError = validationError

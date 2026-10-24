@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6NormalizeClasses.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/Es6NormalizeClasses.java @ closure-compiler v20261021
 
 /*
  * Copyright 2025 The Closure Compiler Authors.
@@ -1340,7 +1340,10 @@ func (e *Es6NormalizeClasses) RewriteInstanceMembers(t *NodeTraversal, record *e
 	}
 	e.ctorCreator.SynthesizeClassConstructorIfMissing(t, record.classNode)
 	ctor := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(record.classNode)
-	ctorBlock := ctor.GetFirstChild().GetLastChild()
+	ctorFn := ctor.GetFirstChild()
+	ctorBlock := ctorFn.GetLastChild()
+	isDerived := !record.classNode.GetSecondChild().IsEmpty()
+
 	insertionPoint := e.AddTemporaryInsertionPoint(ctorBlock, record)
 
 	if hasPriv {
@@ -1449,11 +1452,107 @@ func (e *Es6NormalizeClasses) RewriteInstanceMembers(t *NodeTraversal, record *e
 		}
 	}
 
+	// ES2022 § 10.2.2 ([[Construct]]) runs InitializeInstanceElements before
+	// OrdinaryCallEvaluateBody, which binds the parameters. So when a base constructor's parameters
+	// read `this` (or `super`, which passes `this` as the receiver), move its parameter default
+	// initializers into statements after the field initializations. In a derived constructor
+	// `this` is unbound until super() returns, so there a parameter that reads `this` throws both
+	// natively and after lowering.
+	if !isDerived && NodeUtil_ReferencesEnclosingReceiver(ctorFn.GetSecondChild()) {
+		e.MoveConstructorParamDefaultsAfterFields(t, ctorFn, insertionPoint)
+	}
+
 	insertionPoint.Detach()
 
 	// We moved the field from the class body to the constructor, so we need both.
 	t.ReportCodeChange()
 	t.ReportCodeChangeWithNode(ctorBlock)
+}
+
+// MoveConstructorParamDefaultsAfterFields moves a constructor's parameter
+// default initializers and destructuring patterns into statements before
+// insertionPoint, so that the instance elements installed before
+// insertionPoint are initialized before the defaults run.
+//
+//	constructor(a, b = this.x, {c = this.y}) { body }
+//	// becomes
+//	constructor(a, b, TMP$0) {
+//	  this.x = ...;
+//	  this.y = ...;
+//	  b = b === void 0 ? this.x : b;
+//	  let {c = this.y} = TMP$0;
+//	  body
+//	}
+//
+// Normalize has already run MakeDeclaredNamesUnique, so any variable
+// declared in the constructor body that shadowed a name referenced by a
+// parameter default has already been renamed.
+//
+// Java: Es6NormalizeClasses.moveConstructorParamDefaultsAfterFields(NodeTraversal, Node, Node)
+func (e *Es6NormalizeClasses) MoveConstructorParamDefaultsAfterFields(
+	t *NodeTraversal, ctorFn rhino.Node, insertionPoint rhino.Node) {
+	paramList := ctorFn.GetSecondChild()
+	for param := paramList.GetFirstChild(); !param.IsNil(); {
+		next := param.GetNext()
+		if param.IsDefaultValue() {
+			lhs := param.RemoveFirstChild()
+			jsDoc := lhs.GetJSDocInfo()
+			lhs.SetJSDocInfo(nil)
+			defaultValue := param.RemoveFirstChild()
+			if lhs.IsName() {
+				// A name with a default, e.g. `b = this.x`, becomes the parameter `b` and the statement
+				// `b = b === void 0 ? this.x : b;` after the fields.
+				rhs := e.CreateDefaultValueHook(lhs, defaultValue)
+				assignStmt :=
+					e.astFactory.CreateAssignStatement(lhs.CloneNode(), rhs).SrcrefTreeIfMissing(param)
+				assignStmt.InsertBefore(insertionPoint)
+				param.ReplaceWith(lhs)
+				lhs.SetJSDocInfo(jsDoc)
+			} else {
+				// A destructuring pattern with a default, e.g. `{c} = this.y`, becomes a temporary
+				// parameter `TMP$0` and the statement `let {c} = TMP$0 === void 0 ? this.y : TMP$0;`
+				// after the fields.
+				jutil.CheckStateMsg1(lhs.IsDestructuringPattern(), "%s", lhs)
+				tempParam := e.astFactory.CreateName(e.GenerateUniqueTmpVarName(t), AstFactory_Type_(lhs))
+				rhs := e.CreateDefaultValueHook(tempParam, defaultValue)
+				letStmt := rhino.IR_LetWithValue(lhs, rhs).SrcrefTreeIfMissing(param)
+				letStmt.InsertBefore(insertionPoint)
+				NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
+				param.ReplaceWith(tempParam)
+				tempParam.SetJSDocInfo(jsDoc)
+			}
+		} else if param.IsDestructuringPattern() ||
+			(param.IsRest() && param.GetOnlyChild().IsDestructuringPattern()) {
+			// A destructuring pattern without a default, e.g. `{c = this.y}`, becomes a temporary
+			// parameter `TMP$0` and the statement `let {c = this.y} = TMP$0;` after the fields. In a
+			// rest parameter, `...[d = this.y]` becomes `...TMP$0` and `let [d = this.y] = TMP$0;`.
+			var pattern rhino.Node
+			if param.IsRest() {
+				pattern = param.GetOnlyChild()
+			} else {
+				pattern = param
+			}
+			jsDoc := pattern.GetJSDocInfo()
+			pattern.SetJSDocInfo(nil)
+			tempParam := e.astFactory.CreateName(e.GenerateUniqueTmpVarName(t), AstFactory_Type_(pattern))
+			pattern.ReplaceWith(tempParam)
+			tempParam.SetJSDocInfo(jsDoc)
+			letStmt := rhino.IR_LetWithValue(pattern, tempParam.CloneNode()).SrcrefTreeIfMissing(param)
+			letStmt.InsertBefore(insertionPoint)
+			NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
+		}
+		param = next
+	}
+}
+
+// Java: Es6NormalizeClasses.createDefaultValueHook(Node, Node)
+func (e *Es6NormalizeClasses) CreateDefaultValueHook(paramName rhino.Node, defaultValue rhino.Node) rhino.Node {
+	undefined := e.astFactory.CreateUndefinedValue()
+	undefined.MakeNonIndexable()
+	return e.astFactory.CreateHook(
+		e.astFactory.CreateSheq(paramName.CloneNode(), undefined),
+		defaultValue,
+		paramName.CloneNode())
 }
 
 // AddTemporaryInsertionPoint finds the location of super() call in the
