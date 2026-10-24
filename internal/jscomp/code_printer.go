@@ -23,7 +23,6 @@ import (
 	"math"
 	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -91,14 +90,13 @@ type CodePrinter_MappedCodePrinterBase struct {
 	codeASCIIBuf         [128]byte
 	codeASCII            []byte
 	codeUTF16            *jutil.StringBuilder
-	codeFrozen           bool
 	lineLengthThreshold  int
 	lineLength           int
 	lineIndex            int
 	cg                   CodeGeneratorBase
 }
 
-const codePrinter_mappingSlabSize = jscompMaxSmallAlloc / int(unsafe.Sizeof(SourceMap_Mapping{}))
+const codePrinter_mappingSlabSize = 512
 
 var codePrinter_mappingSlabPool = sync.Pool{
 	New: func() any {
@@ -156,13 +154,12 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	m.cutChunkIdx = 0
 	m.cutElemIdx = 0
 	m.cutStackDepth = 0
-	if cap(m.codeASCII) == 0 || m.codeFrozen {
+	if cap(m.codeASCII) == 0 {
 		m.codeASCII = m.codeASCIIBuf[:0:len(m.codeASCIIBuf)]
 	} else {
 		m.codeASCII = m.codeASCII[:0]
 	}
 	m.codeUTF16 = nil
-	m.codeFrozen = false
 	m.lineLength = 0
 	m.lineIndex = 0
 	// checkState(sourceMapDetailLevel != null)
@@ -193,24 +190,15 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 func (m *CodePrinter_MappedCodePrinterBase) resetForPool() {
 	if m.createSrcMap {
 		m.releaseMappingSlabs()
-		if len(m.mappings) > 0 {
-			clear(m.mappings)
-		}
-		if unsafe.SliceData(m.mappings) != &m.mappingsBuf[0] {
-			clear(m.mappingsBuf[:])
-		}
+		clear(m.mappings)
+		clear(m.mappingsBuf[:])
 		m.mappings = nil
-		if len(m.completeMappings) > 0 {
-			clear(m.completeMappings)
-		}
-		if unsafe.SliceData(m.completeMappings) != &m.completeMappingsBuf[0] {
-			clear(m.completeMappingsBuf[:])
-		}
+		clear(m.completeMappings)
+		clear(m.completeMappingsBuf[:])
 		m.completeMappings = nil
 	}
-	if cap(m.codeASCII) > 1<<20 || m.codeFrozen {
+	if cap(m.codeASCII) > 1<<20 {
 		m.codeASCII = nil
-		m.codeFrozen = false
 	} else {
 		m.codeASCII = m.codeASCII[:0]
 	}
@@ -237,8 +225,7 @@ func returnPooledPrinter(pooledCompact *CodePrinter_CompactCodePrinter, pooledPr
 }
 
 func (m *CodePrinter_MappedCodePrinterBase) codeGrowASCII(n int) {
-	if need := len(m.codeASCII) + n; need > cap(m.codeASCII) || m.codeFrozen {
-		m.codeFrozen = false
+	if need := len(m.codeASCII) + n; need > cap(m.codeASCII) {
 		newCap := max(2*cap(m.codeASCII), max(need, 1024))
 		buf := make([]byte, len(m.codeASCII), newCap)
 		copy(buf, m.codeASCII)
@@ -255,14 +242,9 @@ func (m *CodePrinter_MappedCodePrinterBase) codeAppend(str string) int {
 		}
 		m.codeUTF16 = jutil.NewStringBuilderWithCapacity(max(len(m.codeASCII)+len(str), 1024))
 		if len(m.codeASCII) > 0 {
-			m.codeUTF16.Append(unsafe.String(unsafe.SliceData(m.codeASCII), len(m.codeASCII)))
+			m.codeUTF16.Append(string(m.codeASCII))
 		}
-		if m.codeFrozen {
-			m.codeASCII = nil
-			m.codeFrozen = false
-		} else {
-			m.codeASCII = m.codeASCII[:0]
-		}
+		m.codeASCII = m.codeASCII[:0]
 	}
 	before := m.codeUTF16.Length()
 	m.codeUTF16.Append(str)
@@ -1027,7 +1009,7 @@ func (p *CodePrinter_PrettyCodePrinter) GetNumberFromSource(n *rhino.Node) *stri
 //
 // Go-only: language-adapter — see the numberSource fields.
 func (p *CodePrinter_PrettyCodePrinter) numberSourceLength(srcCode string) int {
-	if unsafe.StringData(srcCode) != unsafe.StringData(p.numberSourceCode) || len(srcCode) != len(p.numberSourceCode) {
+	if srcCode != p.numberSourceCode {
 		p.numberSourceCode = srcCode
 		p.numberSourceASCII = true
 		for i := 0; i < len(srcCode); i++ {

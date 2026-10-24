@@ -29,7 +29,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unsafe"
 	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -3942,11 +3941,10 @@ func (c *Compiler) ToSourceArray(licenseTracker CodePrinter_LicenseTracker, chun
 //
 // Java: Compiler.CodeBuilder
 type Compiler_CodeBuilder struct {
-	buf         []byte
-	utf16Len    int
-	lineCount   int
-	colCount    int
-	stringTaken bool
+	sb        strings.Builder
+	utf16Len  int
+	lineCount int
+	colCount  int
 }
 
 // Java: Compiler.CodeBuilder()
@@ -3958,12 +3956,7 @@ func NewCompiler_CodeBuilder() *Compiler_CodeBuilder {
 //
 // Java: Compiler.CodeBuilder.reset()
 func (b *Compiler_CodeBuilder) Reset() {
-	if b.stringTaken {
-		b.buf = nil
-		b.stringTaken = false
-	} else {
-		b.buf = b.buf[:0]
-	}
+	b.sb.Reset()
 	b.utf16Len = 0
 }
 
@@ -3974,19 +3967,7 @@ func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
 	if len(str) == 0 {
 		return b
 	}
-	if b.stringTaken {
-		newCap := max(len(b.buf)+len(str), max(cap(b.buf)*2, 4096))
-		newBuf := make([]byte, len(b.buf), newCap)
-		copy(newBuf, b.buf)
-		b.buf = newBuf
-		b.stringTaken = false
-	} else if len(b.buf)+len(str) > cap(b.buf) {
-		newCap := max(len(b.buf)+len(str), max(cap(b.buf)*2, 4096))
-		newBuf := make([]byte, len(b.buf), newCap)
-		copy(newBuf, b.buf)
-		b.buf = newBuf
-	}
-	b.buf = append(b.buf, str...)
+	b.sb.WriteString(str)
 
 	// Adjust the line and column information for the new text.
 	//
@@ -4016,11 +3997,7 @@ func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
 //
 // Java: Compiler.CodeBuilder.toString()
 func (b *Compiler_CodeBuilder) String() string {
-	if len(b.buf) == 0 {
-		return ""
-	}
-	b.stringTaken = true
-	return unsafe.String(unsafe.SliceData(b.buf), len(b.buf))
+	return b.sb.String()
 }
 
 // GetLength returns the length of the text buffer.
@@ -4050,9 +4027,7 @@ func (b *Compiler_CodeBuilder) GetColumnIndex() int {
 //
 // Java: Compiler.CodeBuilder.endsWith(String)
 func (b *Compiler_CodeBuilder) EndsWith(suffix string) bool {
-	return b.utf16Len > jutil.StringLength(suffix) &&
-		len(b.buf) >= len(suffix) &&
-		unsafe.String(unsafe.SliceData(b.buf[len(b.buf)-len(suffix):]), len(suffix)) == suffix
+	return b.utf16Len > jutil.StringLength(suffix) && strings.HasSuffix(b.sb.String(), suffix)
 }
 
 // ------------------------------------------------------------------------

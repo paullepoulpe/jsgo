@@ -20,7 +20,6 @@ package sourcemap
 
 import (
 	"io"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -89,7 +88,7 @@ func Base64VLQ_FromVLQSigned(value int32) int32 {
 func Base64VLQ_Encode(out io.StringWriter, value int32) {
 	var buf [8]byte
 	n := base64VLQ_encodeToBytes(&buf, value)
-	appendString(out, unsafe.String(&buf[0], n))
+	appendBytes(out, buf[:n])
 }
 
 func base64VLQ_encodeToBytes(buf *[8]byte, value int32) int {
@@ -151,6 +150,28 @@ func appendString(out io.StringWriter, s string) {
 	if _, err := out.WriteString(s); err != nil {
 		panic(jutil.NewIOException(err.Error()))
 	}
+}
+
+func appendBytes(out io.StringWriter, b []byte) {
+	if w, ok := out.(io.Writer); ok {
+		if _, err := w.Write(b); err != nil {
+			panic(jutil.NewIOException(err.Error()))
+		}
+		return
+	}
+	appendString(out, string(b))
+}
+
+func appendByte(out io.StringWriter, b byte) {
+	if bw, ok := out.(io.ByteWriter); ok {
+		if err := bw.WriteByte(b); err != nil {
+			panic(jutil.NewIOException(err.Error()))
+		}
+		return
+	}
+	var tmp [1]byte
+	tmp[0] = b
+	appendBytes(out, tmp[:])
 }
 
 func appendChar(out io.StringWriter, c uint16) {

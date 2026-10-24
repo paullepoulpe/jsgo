@@ -22,7 +22,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -63,7 +62,6 @@ type PureFunctionIdentifier struct {
 	// See AmbiguatedFunctionSummary.
 	summariesByName     map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary
 	propSummariesByName map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary
-	propKeyBuf          []byte
 
 	// Mapping from function node to summaries for all names associated with
 	// that node.
@@ -652,11 +650,7 @@ func (p *PureFunctionIdentifier) ensureReverseCallGraphCapacity(totalNodes int) 
 	if totalNodes <= 8 {
 		return
 	}
-	newNodes := jutil.NewLinkedHashMapWithCapacity[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *LinkedDirectedGraph_LinkedDiGraphNode[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]](totalNodes)
-	for k, v := range p.reverseCallGraph.nodes.All() {
-		newNodes.PutNew(k, v)
-	}
-	p.reverseCallGraph.nodes = *newNodes
+	p.reverseCallGraph.nodes.EnsureCapacity(totalNodes)
 	if len(p.summarySlab) < totalNodes {
 		p.summarySlab = make([]PureFunctionIdentifier_AmbiguatedFunctionSummary, totalNodes)
 	}
@@ -802,17 +796,7 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 }
 
 func (p *PureFunctionIdentifier) allocPropKey(key string) string {
-	need := 1 + len(key)
-	if need > jscompMaxSmallAlloc {
-		return PureFunctionIdentifier_PROP_NAME_PREFIX + key
-	}
-	if cap(p.propKeyBuf)-len(p.propKeyBuf) < need {
-		p.propKeyBuf = make([]byte, 0, jscompMaxSmallAlloc)
-	}
-	off := len(p.propKeyBuf)
-	p.propKeyBuf = append(p.propKeyBuf, '.')
-	p.propKeyBuf = append(p.propKeyBuf, key...)
-	return unsafe.String(&p.propKeyBuf[off], need)
+	return PureFunctionIdentifier_PROP_NAME_PREFIX + key
 }
 
 // PopulateFunctionDefinitions, for a name and its set of references, records

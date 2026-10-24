@@ -687,3 +687,37 @@ func (s *TypedScope) GetTopmostScopeOfEventualDeclaration(name string) rhino.Sta
 func (s *TypedScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType {
 	return rhino.StaticTypedScope_LookupQualifiedName(s, qname)
 }
+
+func (s *TypedScope) ThisScope() *TypedScope          { return s }
+func (s *TypedScope) Contains(other *TypedScope) bool { return s.contains(s, other) }
+func (s *TypedScope) GetGlobalScope() *TypedScope     { return s.getGlobalScope(s) }
+func (s *TypedScope) HasSlot(name string) bool        { return s.hasSlot(s, name) }
+func (s *TypedScope) GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) *TypedVar {
+	return s.getOwnImplicitSlot(s, name)
+}
+func (s *TypedScope) getSlotV(name string) *TypedVar { return s.GetVar(name) }
+func (s *TypedScope) GetSlot(name string) rhino.StaticSlot {
+	if v := s.GetVar(name); v != nil {
+		return v
+	}
+	return nil
+}
+func (s *TypedScope) GetArgumentsVar() *TypedVar  { return s.getArgumentsVar(s) }
+func (s *TypedScope) CanDeclare(name string) bool { return s.canDeclare(s, name) }
+func (s *TypedScope) IsBleedingFunctionName(name string) bool {
+	return s.isBleedingFunctionName(s, name)
+}
+func (s *TypedScope) GetAllAccessibleVariables() iter.Seq[*TypedVar] {
+	return s.getAllAccessibleVariables(s)
+}
+func (s *TypedScope) IsHoistScope() bool                    { return s.isHoistScope(s) }
+func (s *TypedScope) GetClosestHoistScope() *TypedScope     { return s.getClosestHoistScope(s) }
+func (s *TypedScope) GetClosestCfgRootScope() *TypedScope   { return s.getClosestCfgRootScope(s) }
+func (s *TypedScope) GetClosestContainerScope() *TypedScope { return s.getClosestContainerScope(s) }
+func (s *TypedScope) GetCommonParent(other *TypedScope) *TypedScope {
+	return s.getCommonParent(s, other)
+}
+func (s *TypedScope) HasSameContainerScope(other *TypedScope) bool {
+	return s.hasSameContainerScope(s, other)
+}
+func (s *TypedScope) GetScopeOfThis() *TypedScope { return s.getScopeOfThis(s) }

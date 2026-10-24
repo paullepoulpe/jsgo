@@ -44,7 +44,7 @@ func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
 	if n == 0 {
 		if !b.built {
 			b.built = true
-			b.out = LinkedHashMap[K, V]{}
+			b.out.Reset()
 			return &b.out
 		}
 		return &LinkedHashMap[K, V]{}
@@ -65,10 +65,10 @@ func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
 			b.built = true
 			slots := src[:n:n]
 			b.slots = slots
-			b.out = LinkedHashMap[K, V]{
-				slots: slots,
-				size:  int32(n),
-			}
+			b.out.m.Store(nil)
+			b.out.slots = slots
+			b.out.size = int32(n)
+			b.out.first = 0
 			return &b.out
 		}
 		slots := make([]LhmSlot[K, V], n)
@@ -78,15 +78,21 @@ func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
 			size:  int32(n),
 		}
 	}
-	idx := &lhmIndex{table: make([]uint32, lhmTableLen(n))}
-	h := LinkedHashMap[K, V]{
-		m:     idx,
-		slots: src,
-		size:  int32(n),
+	var out *LinkedHashMap[K, V]
+	if !b.built {
+		out = &b.out
+	} else {
+		out = &LinkedHashMap[K, V]{}
 	}
+	idx := &lhmIndex{table: make([]uint32, lhmTableLen(n))}
+	out.m.Store(idx)
+	out.slots = src
+	out.size = int32(n)
+	out.first = 0
 	for i := n - 1; i >= 0; i-- {
 		k := src[i].key
-		if later := h.lookup(k); later >= 0 {
+		if later := out.lookupIn(idx, k); later >= 0 {
+			out.Reset()
 			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
 				ToJavaString(k) + "=" + ToJavaString(src[later].value) + " and " +
 				ToJavaString(k) + "=" + ToJavaString(src[i].value)))
@@ -95,15 +101,13 @@ func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
 	}
 	if !b.built {
 		b.built = true
-		h.slots = src[:n:n]
-		b.slots = h.slots
-		b.out = h
-		return &b.out
+		out.slots = src[:n:n]
+		b.slots = out.slots
+		return out
 	}
-	h.slots = make([]LhmSlot[K, V], n)
-	copy(h.slots, src)
-	out := h
-	return &out
+	out.slots = make([]LhmSlot[K, V], n)
+	copy(out.slots, src)
+	return out
 }
 
 // PutAll is ImmutableMap.Builder.putAll(Map): puts each entry of m, in its

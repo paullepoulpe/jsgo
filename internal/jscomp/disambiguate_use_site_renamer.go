@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"strconv"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -36,7 +35,6 @@ type UseSiteRenamer struct {
 	trackRenamingIndex  bool
 	scratchReps         []*ColorGraphNode
 	scratchClusterNames map[*ColorGraphNode]string
-	nameByteSlab        []byte
 }
 
 const useSiteRenamer_INVALIDATED_NAME_VALUE = "<INVALIDATED>"
@@ -54,20 +52,7 @@ func (r *UseSiteRenamer) allocClusterName(origRep *ColorGraphNode, propName stri
 	if origRep == rep {
 		return propName
 	}
-	// Format "JSC$" + strconv.Itoa(rep.GetIndex()) + "_" + propName into noscan slab.
-	maxLen := 4 + 20 + 1 + len(propName)
-	if len(r.nameByteSlab) < maxLen {
-		r.nameByteSlab = make([]byte, max(maxLen, 16384))
-	}
-	buf := r.nameByteSlab[:0]
-	buf = append(buf, "JSC$"...)
-	buf = strconv.AppendInt(buf, int64(rep.GetIndex()), 10)
-	buf = append(buf, '_')
-	buf = append(buf, propName...)
-	n := len(buf)
-	s := unsafe.String(&r.nameByteSlab[0], n)
-	r.nameByteSlab = r.nameByteSlab[n:]
-	return s
+	return "JSC$" + strconv.Itoa(int(rep.GetIndex())) + "_" + propName
 }
 
 // RenameUses renames all references to prop.
