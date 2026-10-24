@@ -141,3 +141,17 @@ func TestVariableMap_ReverseLookupOfNullFindsNoName(t *testing.T) {
 		t.Errorf("got %q, want null", *got)
 	}
 }
+
+// Java: VariableMapTest.testFromLines_leadingNewline()
+func TestVariableMap_FromLines_leadingNewline(t *testing.T) {
+	vm := VariableMap_FromBytes(jutil.StringGetBytesUTF8("\na:b\n"))
+	assertEqual(t, "lookup", strPtrValue(vm.LookupNewName("a")), "b")
+
+	vmCrlf := VariableMap_FromBytes(jutil.StringGetBytesUTF8("\r\na:b\r\n"))
+	assertEqual(t, "lookup", strPtrValue(vmCrlf.LookupNewName("a")), "b")
+}
+
+// Java: VariableMapTest.testFromLines_colonAtStartThrowsParseException()
+func TestVariableMap_FromLines_colonAtStartThrowsParseException(t *testing.T) {
+	assertThrows[*jutil.ParseException](t, func() { VariableMap_FromBytes(jutil.StringGetBytesUTF8(":foo\n")) })
+}
