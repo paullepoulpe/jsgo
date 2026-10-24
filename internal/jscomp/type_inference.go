@@ -1051,9 +1051,10 @@ func (ti *TypeInference) TraverseNewTarget(newTargetNode *rhino.Node) {
 		scope = scope.GetParent()
 	}
 	if scope == nil {
-		// NOTE: we already have a parse error for new.target outside a function.  The only other case
-		// where this might happen is a top-level arrow function, which is a parse error in the VM,
-		// but allowed by our parser.
+		// `new.target` is not inside any non-arrow function. The loop above skips arrow functions
+		// because they use the `new.target` of the code around them, so this also covers arrow
+		// functions with no non-arrow function around them, e.g. a top-level `() => new.target`.
+		// IRFactory already reports a parse error for all of these, so just use the unknown type.
 		newTargetNode.SetJSType(ti.unknownType)
 		return
 	}
@@ -2034,10 +2035,9 @@ func (ti *TypeInference) TraverseAdd(n *rhino.Node, scope FlowScope) FlowScope {
 	n.SetJSType(type_)
 
 	if n.IsAssignAdd() {
-		// TODO(johnlenz): this should not update the type of the lhs as that is use as a
-		// input and need to be preserved for type checking.
-		// Instead call this overload `updateScopeForAssignment(scope, left, leftType, type, null);`
-		scope = ti.UpdateScopeForAssignment(scope, left, type_, TypeInference_AssignmentType_ASSIGN)
+		scope =
+			ti.UpdateScopeForAssignmentWithUpdateNode(
+				scope, left, type_, nil /* updateNode= */, TypeInference_AssignmentType_ASSIGN)
 	}
 
 	return scope

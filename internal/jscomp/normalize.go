@@ -1060,6 +1060,7 @@ func (s *Normalize_NormalizeStatements) NormalizeAssignShorthand(shorthand *rhin
 
 	// Change the original ASSIGN_X to an ASSIGN.
 	shorthand.SetToken(rhino.Token_ASSIGN)
+	lhs.CopyTypeFrom(shorthand)
 	shorthand.AddChildToBack(lhs)
 	shorthand.AddChildToBack(opNode)
 
