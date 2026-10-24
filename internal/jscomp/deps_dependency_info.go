@@ -21,7 +21,6 @@ package jscomp
 
 import (
 	"strings"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -143,24 +142,14 @@ func DependencyInfo_Require_AsSymbolList(requires []*DependencyInfo_Require) []s
 	return out
 }
 
-const googRequireCacheSize = 8192
-
-var googRequireCache [googRequireCacheSize]atomic.Pointer[DependencyInfo_Require]
-
 // Java: DependencyInfo.Require.googRequireSymbol(String)
 func DependencyInfo_Require_GoogRequireSymbol(symbol string) *DependencyInfo_Require {
-	idx := uint32(jutil.StringHashCode(symbol)) & (googRequireCacheSize - 1)
-	if cached := googRequireCache[idx].Load(); cached != nil && cached.symbol == symbol {
-		return cached
-	}
 	interned := rhino.RhinoStringPool_AddOrGet(symbol)
-	req := &DependencyInfo_Require{
+	return &DependencyInfo_Require{
 		symbol:  interned,
 		rawText: interned,
 		type_:   DependencyInfo_Require_Type_GOOG_REQUIRE_SYMBOL,
 	}
-	googRequireCache[idx].Store(req)
-	return req
 }
 
 // Java: DependencyInfo.Require.es6Import(String, String)

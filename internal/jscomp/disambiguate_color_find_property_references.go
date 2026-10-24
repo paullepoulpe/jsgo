@@ -24,11 +24,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-type cfprPropCacheEntry struct {
-	name string
-	prop *PropertyClustering
-}
-
 // ColorFindPropertyReferences traverses the AST, collecting connections
 // between JSTypes, property accesses, and their accociated Nodes.
 //
@@ -47,7 +42,6 @@ type ColorFindPropertyReferences struct {
 	useSiteUsed      int
 	lastPropName     string
 	lastProp         *PropertyClustering
-	propCache        [512]cfprPropCacheEntry
 
 	lastOwnerColor *colors.Color
 	lastFlatOwner  *ColorGraphNode
@@ -295,25 +289,8 @@ func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n 
 // Java: ColorFindPropertyReferences.registerPropertyUse(NodeTraversal, Node, Color)
 func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site *rhino.Node, owner *colors.Color) {
 	propName := site.GetString()
-	var prop *PropertyClustering
-	if r.lastProp != nil && propName == r.lastPropName {
-		prop = r.lastProp
-	} else if propName != "" {
-		idx := ocCacheIdx(propName)
-		if e := &r.propCache[idx]; e.prop != nil && e.name == propName {
-			prop = e.prop
-		} else {
-			prop = r.propIndex.Get(propName)
-			if prop == nil {
-				prop = new(PropertyClustering)
-				prop.init(propName)
-				r.propIndex.PutNew(propName, prop)
-			}
-			r.propCache[idx] = cfprPropCacheEntry{name: propName, prop: prop}
-		}
-		r.lastPropName = propName
-		r.lastProp = prop
-	} else {
+	prop := r.lastProp
+	if prop == nil || propName != r.lastPropName {
 		prop = r.propIndex.Get(propName)
 		if prop == nil {
 			prop = new(PropertyClustering)
