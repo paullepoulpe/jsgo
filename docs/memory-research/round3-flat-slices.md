@@ -141,3 +141,48 @@ Add the per-file mode for script-local phases afterwards, when main's
 parallel passes are merged and allocation contention or per-file rebuilds
 show up in profiles; the pass code does not change for it. Before the
 migration, ship the `nodeAt` inline fix (section 4).
+
+## 6. Goal: type-safe, plain Go (2026-10-24)
+
+Direction from the project owner: move towards code that is type safe and
+unsurprising, so that a junior developer can read and explore it. Speed
+and memory still matter, but an unusual construct has to earn its place.
+
+Rule of thumb for new and existing code:
+
+- No `unsafe`, `uintptr` addresses, `runtime.AddCleanup`/finalizers or
+  weak pointers unless a benchmark shows a clear win (several percent on a
+  benchmark task) that a plain version cannot get, and then only behind a
+  small typed API in one file, with a comment saying why.
+- Prefer distinct named types over raw integers (`type NodeID uint32`,
+  not `uint32`), so the compiler catches mixed-up handles.
+- Prefer plain slices and maps owned by one object (a Compiler, a
+  NodeStore) over process-wide tables, so lifetime follows ordinary
+  ownership and the GC frees things without help.
+- One mode over two: add a second mode (per-file stores) only when a
+  profile asks for it.
+
+How the slice design serves this. The NodeStore migration removes the
+most unusual code on the branch: the chunk table of untraced addresses,
+generations with `AddCleanup` and cross-generation ties, the `unsafe`
+handle tables for types, colors and JSDoc, and the GC-lifetime rules in
+`node_store.go`/`node_tables.go`. A node's type, color and JSDoc become
+typed per-store columns indexed by `NodeID` (`types []*JSTypeBase`,
+cleared wholesale at typesToColors; `colors []*colors.Color`;
+`jsdoc []*JSDocInfo`), and the store is freed like any other value. The
+per-file mode is deferred under the one-mode rule.
+
+Inventory of the remaining unusual code (non-test, at 2d9eaf68), in the
+order to clean it up:
+
+| Area | Where | What | Plain replacement |
+|---|---|---|---|
+| AST storage | `rhino/node_store.go`, `node_tables.go`, `node_compact.go`, `node.go` (aux) | chunk table of `uintptr`, `unsafe.Pointer` handle tables, `AddCleanup` generations, weak reporter in `jscomp/compiler.go` | NodeStore with typed columns (above) |
+| JSType casts | `rhino/jstype_*.go` (~50 uses) | interface value → embedded `*JSTypeBase` through `unsafe` offsets | a `base() *JSTypeBase` method on the interface; measure the type-checking cost |
+| Scope/var casts | `jscomp/abstract_scope.go`, `abstract_var.go` | `unsafe` cast from base struct to outer struct | generics or an interface method |
+| String tricks | `jscomp/scope.go` (hand-written hash), `rhino_string_pool.go`, `jutil/jstring.go`, `code_printer.go`, `compiler.go`, `default_name_generator.go`, `sourcemap/` | zero-copy `unsafe.String`, pointer-equality fast paths, custom hashing | `strings.Builder`, `map[string]`, `hash/maphash`; keep only what a benchmark defends |
+| Pools | `sync.Pool` in 10 files | object reuse | delete where the allocation rate no longer shows in profiles (round 1 removed most) |
+
+Each row is its own change with a benchmark before/after and the
+byte-identical gate, so a row whose plain version costs too much can be
+kept with a comment instead.
