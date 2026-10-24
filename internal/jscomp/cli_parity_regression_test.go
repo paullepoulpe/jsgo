@@ -195,3 +195,32 @@ func TestCliParity_SuperInObjectLiteralTranspiled(t *testing.T) {
 		wantExit: 1,
 	}.run(t)
 }
+
+// A function type as the type argument of an @extends, mentioning the
+// subclass's own template: Java resolves FnBox<string>'s T to
+// function(string): string and reports both mismatches. The template map's
+// fast path used to return function types unchanged (they matched the
+// PrototypeObjectType case), leaving T as function(U): U, and the port
+// reported nothing.
+func TestCliParity_FunctionTypeTemplateArgumentOfSupertype(t *testing.T) {
+	cliParityCase{
+		files: map[string]string{"t2.js": `/** @constructor @template T */
+function Box() {}
+/** @constructor @extends {Box<function(U): U>} @template U */
+function FnBox() { Box.call(this); }
+/** @type {!FnBox<string>} */
+var b = new FnBox();
+/** @type {!Box<function(number): number>} */
+var x = b;
+/** @type {!Box<function(string): string>} */
+var y = b;
+/** @param {!Box<function(number): number>} p */
+function take(p) {}
+take(b);
+`},
+		args: []string{"--checks_only", "--jscomp_warning=checkTypes", "--js", "t2.js"},
+		wantErr: "t2.js:8:8: WARNING - [JSC_TYPE_MISMATCH] initializing variable\nfound   : FnBox<string>\nrequired: Box<function(number): number>\n  8| var x = b;\n             ^\n\n" +
+			"t2.js:13:5: WARNING - [JSC_TYPE_MISMATCH] actual parameter 1 of take does not match formal parameter\nfound   : FnBox<string>\nrequired: Box<function(number): number>\n  13| take(b);\n           ^\n\n" +
+			"0 error(s), 2 warning(s), 100.0% typed\n",
+	}.run(t)
+}

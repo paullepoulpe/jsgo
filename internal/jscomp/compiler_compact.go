@@ -222,9 +222,6 @@ func (c *Compiler) compactAST(after string, externs, root **rhino.Node, extra fu
 		extra(fwd)
 	}
 
-	// 8. Go-only caches that may hold nodes.
-	c.evictPassArenaCaches()
-
 	released := k.Finish(c.nodeTables)
 	a.count++
 	a.chunksAtLast = rhino.NodeChunksAllocated()

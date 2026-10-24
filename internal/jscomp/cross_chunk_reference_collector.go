@@ -22,7 +22,6 @@ import (
 	"iter"
 	"slices"
 	"sync"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -51,8 +50,6 @@ type crossChunkArena struct {
 	cycles             []*CrossChunkCodeMotion_GlobalSymbolCycle
 }
 
-var cachedCCAArena atomic.Pointer[crossChunkArena]
-
 var crossChunkArenaPool = sync.Pool{
 	New: func() any {
 		return &crossChunkArena{}
@@ -60,16 +57,10 @@ var crossChunkArenaPool = sync.Pool{
 }
 
 func acquireCCArena() *crossChunkArena {
-	if a := cachedCCAArena.Swap(nil); a != nil {
-		return a
-	}
 	return crossChunkArenaPool.Get().(*crossChunkArena)
 }
 
 func releaseCCArena(a *crossChunkArena) {
-	if cachedCCAArena.CompareAndSwap(nil, a) {
-		return
-	}
 	crossChunkArenaPool.Put(a)
 }
 

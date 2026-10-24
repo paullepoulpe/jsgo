@@ -27,12 +27,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// jscompMaxSmallAlloc is the largest allocation (in bytes) the Go runtime
-// serves from its small-object size classes: runtime.maxSmallSize (32768)
-// minus gc.MallocHeaderSize (8). Chunked buffers elsewhere in the package
-// cap their chunk size by it.
-const jscompMaxSmallAlloc = 32760
-
 // TypedScope contains information about variables and their types. Scopes
 // can be nested; a scope points back to its parent scope.
 //

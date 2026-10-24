@@ -38,7 +38,6 @@ package rhino
 import (
 	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -342,10 +341,10 @@ func (r *JSTypeRegistry) releaseUnionBuilder(b *UnionType_Builder) {
 }
 
 func jsTypeBasePairHash(a, b *JSTypeBase) uintptr {
-	pa := uintptr(unsafe.Pointer(a)) >> 4
-	pb := uintptr(unsafe.Pointer(b)) >> 4
+	pa := uint64(uint32(jutil.IdentityHashCodeOfPointer(a))) >> 4
+	pb := uint64(uint32(jutil.IdentityHashCodeOfPointer(b))) >> 4
 	h := pa*0x9e3779b97f4a7c15 ^ pb*0xbf58476d1ce4e5b9
-	return h ^ (h >> 29)
+	return uintptr(h ^ (h >> 29))
 }
 
 func (r *JSTypeRegistry) lookupLeastSupertype(a, b *JSTypeBase) JSType {
@@ -372,11 +371,11 @@ func (r *JSTypeRegistry) storeLeastSupertype(a, b *JSTypeBase, res JSType) {
 }
 
 func (r *JSTypeRegistry) templateTypeMapCacheIndex(base *TemplateTypeMap, t0, t1 *JSTypeBase) uintptr {
-	p0 := uintptr(unsafe.Pointer(base)) >> 4
-	p1 := uintptr(unsafe.Pointer(t0)) >> 4
-	p2 := uintptr(unsafe.Pointer(t1)) >> 4
+	p0 := uint64(uint32(jutil.IdentityHashCodeOfPointer(base))) >> 4
+	p1 := uint64(uint32(jutil.IdentityHashCodeOfPointer(t0))) >> 4
+	p2 := uint64(uint32(jutil.IdentityHashCodeOfPointer(t1))) >> 4
 	h := p0*0x9e3779b97f4a7c15 ^ p1*0xbf58476d1ce4e5b9 ^ p2*0x94d049bb133111eb
-	return (h ^ (h >> 29)) & (jsTypeRegistryTemplatizedCacheSize - 1)
+	return uintptr(h^(h>>29)) & (jsTypeRegistryTemplatizedCacheSize - 1)
 }
 
 // Java: JSTypeRegistry.DOT_SPLITTER (Splitter.on('.'))

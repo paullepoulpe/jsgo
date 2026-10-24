@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"runtime"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -760,16 +758,6 @@ func (c *DefaultPassConfig) initFields() {
 						for _, compilerInput := range compiler.GetInputsInOrder() {
 							compilerInput.SetTypedScope(nil)
 						}
-						if comp, ok := compiler.(*Compiler); ok {
-							comp.evictPassArenaCaches()
-						}
-						if rhino.IsSingleProcessCLI() {
-							var ms runtime.MemStats
-							runtime.ReadMemStats(&ms)
-							if ms.HeapAlloc > 2<<30 {
-								runtime.GC()
-							}
-						}
 					})
 				}).
 			Build()
@@ -781,9 +769,6 @@ func (c *DefaultPassConfig) initFields() {
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
 					return CompilerPassFunc(func(unused *rhino.Node, srcRoot *rhino.Node) {
-						if comp, ok := compiler.(*Compiler); ok {
-							comp.evictPassArenaCaches()
-						}
 						globalRoot := srcRoot.GetParent()
 
 						inferencePass :=
@@ -793,17 +778,6 @@ func (c *DefaultPassConfig) initFields() {
 								compiler.GetTypedScopeCreator().(*TypedScopeCreator))
 						compiler.SetTypeCheckingHasRun(true)
 						compiler.SetTopScope(inferencePass.InferAllScopes(globalRoot))
-						inferencePass = nil
-						if comp, ok := compiler.(*Compiler); ok {
-							comp.evictPassArenaCaches()
-						}
-						if rhino.IsSingleProcessCLI() {
-							var ms runtime.MemStats
-							runtime.ReadMemStats(&ms)
-							if ms.HeapAlloc > 2<<30 {
-								runtime.GC()
-							}
-						}
 					})
 				}).
 			Build()

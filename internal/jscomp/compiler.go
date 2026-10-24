@@ -1327,7 +1327,6 @@ func (c *Compiler) Stage1Passes() {
 	Compiler_RunInCompilerThread(c,
 		func() any {
 			c.performChecks()
-			c.evictPassArenaCaches()
 			return nil
 		})
 }
@@ -1366,7 +1365,6 @@ func (c *Compiler) Stage2Passes(segmentOfCompilationToRun CompilerOptions_Segmen
 			if c.options.ShouldOptimize() {
 				c.PerformTranspilationAndOptimizations(segmentOfCompilationToRun)
 			}
-			c.evictPassArenaCaches()
 			return nil
 		})
 }
@@ -1391,7 +1389,6 @@ func (c *Compiler) Stage3Passes() {
 			if c.options.ShouldOptimize() {
 				c.PerformFinalizations()
 			}
-			c.evictPassArenaCaches()
 			return nil
 		})
 }
@@ -2448,7 +2445,7 @@ func (c *Compiler) GetTranspilationNamespace() rhino.StaticScope {
 		gn.SetShouldTraverseScriptPredicate(
 			func(script *rhino.Node) bool { return script.IsFromExterns() || script.IsFirstChildOf(c.GetJsRoot()) })
 		gn.GetNameForest() // ensure namespace is generated
-		gn.ReleaseScopeArena()
+		gn.Release()
 		// wrap GlobalNamespace to prevent looking up extra information in GlobalNamespace
 		c.transpilationNamespace = gn
 	}
@@ -3092,19 +3089,12 @@ func (c *Compiler) GetDefaultErrorReporter() rhino.ErrorReporter {
 // Convert back to source code
 // ------------------------------------------------------------------------
 
-func (c *Compiler) evictPassArenaCaches() {
-	if a := cachedCCAArena.Swap(nil); a != nil {
-		crossChunkArenaPool.Put(a)
-	}
-}
-
 // ToSource converts the main parse tree back to JS code.
 //
 // Java: Compiler.toSource()
 func (c *Compiler) ToSource() string {
 	return Compiler_RunInCompilerThread(c,
 		func() string {
-			c.evictPassArenaCaches()
 			tracer := c.NewTracer("toSource")
 			defer c.StopTracer(tracer, "toSource")
 			cb := NewCompiler_CodeBuilder()
@@ -3917,7 +3907,6 @@ func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) 
 func (c *Compiler) ToSourceArray(licenseTracker CodePrinter_LicenseTracker, chunk *JSChunk) []string {
 	return Compiler_RunInCompilerThread(c,
 		func() []string {
-			c.evictPassArenaCaches()
 			inputs := chunk.GetInputs()
 			numInputs := len(inputs)
 			if numInputs == 0 {
@@ -5353,7 +5342,6 @@ func (c *Compiler) SaveState(outputStream io.Writer) {
 	// Do not close the outputstream, caller is responsible for closing it.
 	Compiler_RunInCompilerThread(c,
 		func() any {
-			c.evictPassArenaCaches()
 			tracer := c.NewTracer("serializeCompilerState")
 			nonClosingOut := NewCompiler_NonClosingOutputStream(outputStream)
 			var compressionStream io.Writer

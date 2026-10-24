@@ -291,14 +291,7 @@ type GlobalNamespace struct {
 // Callers must only invoke Release once no references from this
 // GlobalNamespace are needed anymore.
 func (g *GlobalNamespace) Release() {
-	if g == nil {
-		return
-	}
-	g.ReleaseScopeArena()
-}
-
-func (g *GlobalNamespace) ReleaseScopeArena() {
-	if g != nil && g.scopeCreator != nil {
+	if g != nil {
 		g.scopeCreator = nil
 	}
 }

@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"strings"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -77,7 +76,7 @@ type ClosureRewriteModule struct {
 	googRequireDynamicCalls           *jutil.ArrayList[*rhino.Node]
 
 	globalTypedScope *TypedScope
-	scriptDescSlab   []ClosureRewriteModule_ScriptDescription
+	scriptDescSlab   jutil.Slab[ClosureRewriteModule_ScriptDescription]
 }
 
 var _ CompilerPass = (*ClosureRewriteModule)(nil)
@@ -358,13 +357,7 @@ func NewClosureRewriteModule_ScriptDescription() *ClosureRewriteModule_ScriptDes
 }
 
 func (m *ClosureRewriteModule) allocScriptDescription() *ClosureRewriteModule_ScriptDescription {
-	if len(m.scriptDescSlab) == cap(m.scriptDescSlab) {
-		newCap := max(16, min(max(cap(m.scriptDescSlab)*2, 64), jscompMaxSmallAlloc/int(unsafe.Sizeof(ClosureRewriteModule_ScriptDescription{}))))
-		m.scriptDescSlab = make([]ClosureRewriteModule_ScriptDescription, 0, newCap)
-	}
-	idx := len(m.scriptDescSlab)
-	m.scriptDescSlab = m.scriptDescSlab[:idx+1]
-	return &m.scriptDescSlab[idx]
+	return m.scriptDescSlab.New()
 }
 
 // Java: ClosureRewriteModule.ScriptDescription.addChildScript(ScriptDescription)
