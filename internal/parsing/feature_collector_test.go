@@ -31,7 +31,7 @@ func collectFeatures(rel, src string) string {
 		ast = ParserRunner_Parse(
 			rhino.NewSimpleSourceFile(rel, rhino.StaticSourceFile_SourceKind_STRONG), src, defaultDumpConfig(),
 			rhino.ErrorReporter_NULL_INSTANCE).Ast
-	}, func(e jutil.IRuntimeException) { ast = rhino.Node{} })
+	}, func(e jutil.IRuntimeException) { ast = rhino.NilNode })
 	if ast.IsNil() {
 		return rel + "\tnull"
 	}

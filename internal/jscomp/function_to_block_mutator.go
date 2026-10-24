@@ -89,7 +89,7 @@ func (m *FunctionToBlockMutator) Mutate(
 		needsDefaultResult,
 		isCallInLoop,
 		/* renameLocals= */ true)
-	m.currentCallNode = rhino.Node{}
+	m.currentCallNode = rhino.NilNode
 	return res
 }
 
@@ -233,7 +233,7 @@ func FunctionToBlockMutator_RewriteFunctionDeclarations(n rhino.Node) rhino.Node
 
 			return var_
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	// Keep track of any rewritten functions and hoist them to the top
@@ -257,7 +257,7 @@ func FunctionToBlockMutator_RewriteFunctionDeclarations(n rhino.Node) rhino.Node
 		}
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // FunctionToBlockMutator_FixUninitializedVarDeclarations: for all VAR
@@ -447,7 +447,7 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode rhino.Node, isCallI
 	clear(cb.renamerStack)
 	cb.renamerStack = nil
 	cb.rootRenamer = nil
-	scb.scopeNode = rhino.Node{}
+	scb.scopeNode = rhino.NilNode
 
 	// Make label names unique to this instance.
 	if hasLabelNode(fnNode) {
@@ -455,7 +455,7 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode rhino.Node, isCallI
 			idSupplier = m.compiler.GetUniqueNameIdSupplier()
 		}
 		NewRenameLabelsWithSupplier(m.compiler, NewFunctionToBlockMutator_LabelNameSupplier(idSupplier).Get, false, false).
-			Process(rhino.Node{}, fnNode)
+			Process(rhino.NilNode, fnNode)
 	}
 }
 
@@ -587,7 +587,7 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 		for key, value := range paramToArgMap.All() {
 			replacements.Put(key, value.Arg())
 		}
-		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, rhino.Node{}, replacements)
+		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, rhino.NilNode, replacements)
 		jutil.CheckState(result == fnTemplateRoot)
 		return result
 	} else {
@@ -642,7 +642,7 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 		}
 
 		// Inline the arguments.
-		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, rhino.Node{}, paramReplacements)
+		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, rhino.NilNode, paramReplacements)
 		jutil.CheckState(result == fnTemplateRoot)
 
 		// Now that the names have been replaced, add the new aliases for
@@ -686,7 +686,7 @@ func FunctionToBlockMutator_ReplaceReturns(
 			// A label and breaks are needed.
 
 			// Add the breaks
-			FunctionToBlockMutator_ReplaceReturnWithBreak(block, rhino.Node{}, resultName, labelName)
+			FunctionToBlockMutator_ReplaceReturnWithBreak(block, rhino.NilNode, resultName, labelName)
 
 			// Add label
 			name := rhino.IR_LabelName(labelName).Srcref(block)

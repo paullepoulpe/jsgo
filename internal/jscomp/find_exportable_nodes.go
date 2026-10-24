@@ -91,7 +91,7 @@ func (f *FindExportableNodes) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 
 	mode := findExportableNodes_Mode_null
 	var export *string = nil
-	var context rhino.Node = rhino.Node{}
+	var context rhino.Node = rhino.NilNode
 
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION, rhino.Token_CLASS:

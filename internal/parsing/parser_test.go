@@ -1341,7 +1341,7 @@ func TestJSDocAttachment11(t *testing.T) {
 	assertNode(t, varNode).HasType(rhino.Token_VAR)
 	pt.assertNodeHasJSDocInfoWithJSType(
 		varNode,
-		pt.CreateRecordTypeBuilder().AddProperty("x", pt.NUMBER_TYPE, rhino.Node{}).AddProperty("y", pt.STRING_TYPE, rhino.Node{}).AddProperty("z", pt.UNKNOWN_TYPE, rhino.Node{}).Build())
+		pt.CreateRecordTypeBuilder().AddProperty("x", pt.NUMBER_TYPE, rhino.NilNode).AddProperty("y", pt.STRING_TYPE, rhino.NilNode).AddProperty("z", pt.UNKNOWN_TYPE, rhino.NilNode).Build())
 
 	// NAME
 	nameNode := varNode.GetFirstChild()
@@ -2949,7 +2949,7 @@ func TestInlineJSDocAttachment6(t *testing.T) {
 	info := fn.GetSecondChild().GetFirstChild().GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
 	pt.AssertTypeEqualsExpr(
-		pt.CreateRecordTypeBuilder().AddProperty("attr", pt.NUMBER_TYPE, rhino.Node{}).Build(), info.GetType())
+		pt.CreateRecordTypeBuilder().AddProperty("attr", pt.NUMBER_TYPE, rhino.NilNode).Build(), info.GetType())
 }
 
 // Java: ParserTest.testInlineJSDocWithOptionalType()

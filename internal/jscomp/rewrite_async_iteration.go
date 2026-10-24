@@ -109,7 +109,7 @@ type RewriteAsyncIteration_LexicalContext struct {
 func newRewriteAsyncIteration_LexicalContext(contextRoot rhino.Node) *RewriteAsyncIteration_LexicalContext {
 	c := &RewriteAsyncIteration_LexicalContext{}
 	c.contextRoot = rhino.CheckNotNull(contextRoot)
-	c.function = rhino.Node{}
+	c.function = rhino.NilNode
 	c.thisSuperArgsContext =
 		nil // no need for global context to have a this/super/args context
 	return c
@@ -213,7 +213,7 @@ type RewriteAsyncIteration_ThisSuperArgsContext struct {
 func newRewriteAsyncIteration_ThisSuperArgsContext(ctx *RewriteAsyncIteration_LexicalContext, uniqueId string) *RewriteAsyncIteration_ThisSuperArgsContext {
 	c := &RewriteAsyncIteration_ThisSuperArgsContext{}
 	c.usedSuperProperties = jutil.NewLinkedHashSet[rhino.Node]()
-	c.thisNodeToAdd = rhino.Node{}
+	c.thisNodeToAdd = rhino.NilNode
 	c.usedArguments = false
 	c.ctx = ctx
 	c.uniqueId = uniqueId
@@ -462,7 +462,7 @@ func (r *RewriteAsyncIteration) ConvertYieldOfAsyncGenerator(ctx *RewriteAsyncIt
 		newActionRecord.AddChildToBack(expression)
 	} else {
 		if expression.IsNil() {
-			expression = NodeUtil_NewUndefinedNode(rhino.Node{})
+			expression = NodeUtil_NewUndefinedNode(rhino.NilNode)
 		}
 		// yield expression becomes new ActionRecord(YIELD, expression)
 		newActionRecord.AddChildToBack(r.astFactory.CreateQNameOfField(r.namespace, r.actionEnumYield))
@@ -499,7 +499,7 @@ func (r *RewriteAsyncIteration) ConvertReturnOfAsyncGenerator(ctx *RewriteAsyncI
 		r.astFactory.CreateNewNode(r.astFactory.CreateQNameOfField(r.namespace, r.actionRecordName))
 
 	if expression.IsNil() {
-		expression = NodeUtil_NewUndefinedNode(rhino.Node{})
+		expression = NodeUtil_NewUndefinedNode(rhino.NilNode)
 	}
 	// return expression becomes new ActionRecord(YIELD, expression)
 	newActionRecord.AddChildToBack(r.astFactory.CreateQNameOfField(r.namespace, r.actionEnumYield))
@@ -767,7 +767,7 @@ func (r *RewriteAsyncIteration) CreateOuterFinally(
 
 	// Generate `(tmpRes && !tmpRes.done && (retFn = _tmpIterator.return))`
 	ifCond := r.astFactory.CreateAnd(and, assign)
-	var awaitOrYieldStmt rhino.Node = rhino.Node{}
+	var awaitOrYieldStmt rhino.Node = rhino.NilNode
 	if ctx.function.IsAsyncGeneratorFunction() {
 		// We are in an AsyncGenerator and must instead yield an "await" ActionRecord
 		awaitOrYieldStmt =

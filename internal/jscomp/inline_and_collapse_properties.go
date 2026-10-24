@@ -1148,7 +1148,7 @@ func InlineAndCollapseProperties_MaybeGetInnerNameNode(maybeFunctionOrClassNode 
 		jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
 		// functions with no name have a NAME node with an empty string
 		if nameNode.GetString() == "" {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		return nameNode
 	} else if NodeUtil_IsClassExpression(maybeFunctionOrClassNode) {
@@ -1157,9 +1157,9 @@ func InlineAndCollapseProperties_MaybeGetInnerNameNode(maybeFunctionOrClassNode 
 		if nameNode.IsName() {
 			return nameNode
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	} else {
-		return rhino.Node{} // not a function or class expression
+		return rhino.NilNode // not a function or class expression
 	}
 }
 
@@ -1350,7 +1350,7 @@ func InlineAndCollapseProperties_GetSubclassForEs6Superclass(superclass rhino.No
 		// class Clazz extends Super {
 		return classNode.GetFirstChild()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // InlineAndCollapseProperties_CollapseProperties flattens global
@@ -2211,13 +2211,13 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	if isObjLit && c.CanEliminate(n, rvalue) {
 		// Eliminate the object literal altogether.
 		if grandparent.CanResetInPlace() {
-			grandparent.MutateAttachedToFreshVarInPlace(rhino.Node{}, nil)
+			grandparent.MutateAttachedToFreshVarInPlace(rhino.NilNode, nil)
 			varNode = grandparent
 		} else {
 			varNode = rhino.NewNode(rhino.Token_VAR)
 			grandparent.ReplaceWith(varNode)
 		}
-		n.UpdateRefNode(ref, rhino.Node{})
+		n.UpdateRefNode(ref, rhino.NilNode)
 		insertedVarNode = true
 		c.outer.compiler.ReportChangeToEnclosingScope(varNode)
 	} else if !n.IsSimpleName() {
@@ -2340,7 +2340,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 
 		// Clear out the object reference, since we've eliminated it from the
 		// parse tree.
-		n.UpdateRefNode(ref, rhino.Node{})
+		n.UpdateRefNode(ref, rhino.NilNode)
 	}
 }
 

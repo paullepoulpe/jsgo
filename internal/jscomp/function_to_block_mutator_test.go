@@ -450,5 +450,5 @@ func FunctionToBlockMutatorTest_FindFunction(n rhino.Node, name string) rhino.No
 		}
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }

@@ -602,7 +602,7 @@ type ProcessCommonJSModules_FindImportsAndExports struct {
 func NewProcessCommonJSModules_FindImportsAndExports(outer *ProcessCommonJSModules) *ProcessCommonJSModules_FindImportsAndExports {
 	f := &ProcessCommonJSModules_FindImportsAndExports{outer: outer}
 	f.hasGoogProvideOrModule = false
-	f.script = rhino.Node{}
+	f.script = rhino.NilNode
 	f.umdPatterns = []*ProcessCommonJSModules_UmdPattern{}
 	f.moduleExports = []*ProcessCommonJSModules_ExportInfo{}
 	f.exports = []*ProcessCommonJSModules_ExportInfo{}
@@ -685,7 +685,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) Visit(t *NodeTraversal, n
 		if umdTestAncestor != nil && f.IsInIfTest(n) {
 			existingPattern := ProcessCommonJSModules_FindUmdPattern(f.umdPatterns, umdTestAncestor.enclosingIf)
 			if existingPattern == nil && umdTestAncestor.enclosingIf.GetChildAtIndex(2).IsNil() {
-				f.umdPatterns = append(f.umdPatterns, NewProcessCommonJSModules_UmdPattern(umdTestAncestor.enclosingIf, rhino.Node{}))
+				f.umdPatterns = append(f.umdPatterns, NewProcessCommonJSModules_UmdPattern(umdTestAncestor.enclosingIf, rhino.NilNode))
 			}
 		}
 	}
@@ -1368,7 +1368,7 @@ func (r *ProcessCommonJSModules_RewriteModule) Visit(t *NodeTraversal, n rhino.N
 			if insertionPoint.IsNil() ||
 				!(insertionPoint.IsVar() &&
 					insertionPoint.GetFirstChild().GetString() == moduleName) {
-				insertionPoint = rhino.Node{}
+				insertionPoint = rhino.NilNode
 			}
 
 			if insertionPoint.IsNil() {
@@ -2076,7 +2076,7 @@ func (r *ProcessCommonJSModules_RewriteModule) GetExportedNameNode(info *Process
 	rValue := NodeUtil_GetRValueOfLValue(qNameBase)
 
 	if rValue.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	if NodeUtil_IsFunctionExpression(rValue) {
@@ -2088,12 +2088,12 @@ func (r *ProcessCommonJSModules_RewriteModule) GetExportedNameNode(info *Process
 	}
 
 	if !rValue.IsName() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	var_ := info.scope.GetVar(rValue.GetString())
 	if var_ == nil {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	return var_.GetNameNode()

@@ -83,7 +83,7 @@ func (d *DestructuredTarget) GetComputedProperty() rhino.Node {
 	if d.HasComputedProperty() {
 		return d.objectPatternKey
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: DestructuredTarget.hasComputedProperty()
@@ -103,7 +103,7 @@ func (d *DestructuredTarget) GetStringKey() rhino.Node {
 	if d.HasStringKey() {
 		return d.objectPatternKey
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: DestructuredTarget.getDefaultValue()
@@ -136,8 +136,8 @@ type DestructuredTarget_Builder struct {
 func NewDestructuredTarget_Builder(
 	registry *rhino.JSTypeRegistry, pattern rhino.Node, patternTypeSupplier func() rhino.JSType) *DestructuredTarget_Builder {
 	b := &DestructuredTarget_Builder{}
-	b.defaultValue = rhino.Node{}
-	b.objectPatternKey = rhino.Node{}
+	b.defaultValue = rhino.NilNode
+	b.objectPatternKey = rhino.NilNode
 	b.isRest = false
 	b.registry = registry
 	b.patternTypeSupplier = patternTypeSupplier

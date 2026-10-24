@@ -301,7 +301,7 @@ func traverseCfgNode[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](compil
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
 		currentNode = root
-		walkCfgNodeBranch(root, rhino.Node{}, cb, &currentNode)
+		walkCfgNodeBranch(root, rhino.NilNode, cb, &currentNode)
 	}, func(unexpectedException jutil.Throwable) {
 		b := NodeTraversal_Builder{compiler: compiler, callback: cb}
 		t := newNodeTraversal(&b)

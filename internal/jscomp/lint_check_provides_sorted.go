@@ -82,8 +82,8 @@ func (m CheckProvidesSorted_Mode) Ordinal() int { return int(m) }
 // Java: CheckProvidesSorted(CheckProvidesSorted.Mode)
 func NewCheckProvidesSorted(mode CheckProvidesSorted_Mode) *CheckProvidesSorted {
 	return &CheckProvidesSorted{
-		firstNode:   rhino.Node{},
-		lastNode:    rhino.Node{},
+		firstNode:   rhino.NilNode,
+		lastNode:    rhino.NilNode,
 		finished:    false,
 		replacement: nil,
 		needsFix:    false,

@@ -110,7 +110,7 @@ func (p *J2clClinitPrunerPass) traverseScopeRootsWithFallback(
 // Java: J2clClinitPrunerPass.resolveReplacement(Node)
 func (p *J2clClinitPrunerPass) resolveReplacement(node rhino.Node) rhino.Node {
 	if node.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	clinitName := j2clClinitPrunerPass_getClinitMethodName(node)
 	if clinitName != nil && p.emptiedClinitMethods.ContainsKey(*clinitName) {
@@ -398,7 +398,7 @@ func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) isParameter(t *Nod
 // Java: J2clClinitPrunerPass.LookAheadRedundantClinitPruner.getCallOrNewNode(Node)
 func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) getCallOrNewNode(n rhino.Node) rhino.Node {
 	if n.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	switch n.GetToken() {
 	case rhino.Token_EXPR_RESULT, rhino.Token_RETURN:
@@ -409,9 +409,9 @@ func (l *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) getCallOrNewNode(n
 		if n.HasOneChild() {
 			return l.getCallOrNewNode(n.GetFirstFirstChild())
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	default:
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -480,7 +480,7 @@ func (e *J2clClinitPrunerPass_EmptyClinitPruner) trySubstituteEmptyFunction(fnNo
 	var replaceReferencesWith rhino.Node
 	if secondExpr.IsNil() {
 		// There are no expressions in clinit so it is noop; remove all references.
-		replaceReferencesWith = rhino.Node{}
+		replaceReferencesWith = rhino.NilNode
 	} else if secondExpr.GetNext().IsNil() &&
 		secondExpr.IsExprResult() &&
 		j2clClinitPrunerPass_getClinitMethodName(secondExpr.GetFirstChild()) != nil {

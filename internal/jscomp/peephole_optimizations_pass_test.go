@@ -182,7 +182,7 @@ func (o *peepholeOptimizationsPassTest_RemoveNodesNamedXOptimization) OptimizeSu
 		o.ReportChangeToEnclosingScope(node)
 		node.Detach()
 
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	return node
@@ -208,7 +208,7 @@ func (o *peepholeOptimizationsPassTest_RemoveParentVarsForNodesNamedX) OptimizeS
 		if parent.IsVar() {
 			o.ReportChangeToEnclosingScope(parent)
 			parent.Detach()
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	}
 	return node

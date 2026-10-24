@@ -460,9 +460,9 @@ func (tc *TypeCheck) Check(node rhino.Node, externs bool) {
 	}
 	b.TraverseWithScope(node, tc.topScope)
 	if externs {
-		tc.inferJSDocInfo.Process(node, rhino.Node{})
+		tc.inferJSDocInfo.Process(node, rhino.NilNode)
 	} else {
-		tc.inferJSDocInfo.Process(rhino.Node{}, node)
+		tc.inferJSDocInfo.Process(rhino.NilNode, node)
 	}
 }
 
@@ -3697,7 +3697,7 @@ func (l *TypeCheck_DebugTypeLogger) MaybeStartLoggingAt(n rhino.Node) {
 // Java: TypeCheck.DebugTypeLogger.stopLoggingIfThisIsWhereWeStarted(Node)
 func (l *TypeCheck_DebugTypeLogger) StopLoggingIfThisIsWhereWeStarted(n rhino.Node) {
 	if n == l.parentNode {
-		l.parentNode = rhino.Node{}
+		l.parentNode = rhino.NilNode
 	}
 }
 

@@ -235,7 +235,7 @@ func nuGetNodeOrNull(root rhino.Node, token rhino.Token) rhino.Node {
 			return potentialMatch
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // nuAssertThatDouble is assertThat(Double): a nullable double compares like
@@ -984,7 +984,7 @@ func nuh_findParentOfFuncOrClassDescendant(t *testing.T, n rhino.Node, token rhi
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 func nuh_getFuncOrClassChild(t *testing.T, n rhino.Node, token rhino.Token) rhino.Node {
@@ -994,7 +994,7 @@ func nuh_getFuncOrClassChild(t *testing.T, n rhino.Node, token rhino.Token) rhin
 			return c
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 func TestNodeUtil_AssortedTests_TestGetNodeTypeReferenceCount(t *testing.T) {
@@ -2110,7 +2110,7 @@ func TestNodeUtil_AssortedTests_TestIsNumericLiteral(t *testing.T) {
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+0x10"))).IsTrue()
 
 	// False cases
-	nuAssertThat(t, NodeUtil_IsNumericLiteral(rhino.Node{})).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(rhino.NilNode)).IsFalse()
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "null"))).IsFalse()
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "undefined"))).IsFalse()
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "void 0"))).IsFalse()
@@ -2190,7 +2190,7 @@ func TestNodeUtil_AssortedTests_TestGetNumericLiteralValue(t *testing.T) {
 	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-1e5"))).IsEqualTo(-100000.0)
 	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "+1e5"))).IsEqualTo(100000.0)
 
-	assertThrows[jutil.IIllegalArgumentException](t, func() { NodeUtil_GetNumericLiteralValue(rhino.Node{}) })
+	assertThrows[jutil.IIllegalArgumentException](t, func() { NodeUtil_GetNumericLiteralValue(rhino.NilNode) })
 	assertThrows[jutil.IIllegalArgumentException](t,
 		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "\"1\"")) })
 	assertThrows[jutil.IIllegalArgumentException](t,
@@ -5318,7 +5318,7 @@ func nuh_getStringNode(t *testing.T, n rhino.Node, name string, nodeType rhino.T
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: NodeUtilTest.getStringLitNode(Node, String)
@@ -5344,7 +5344,7 @@ func nuh_getNumberNode(t *testing.T, n rhino.Node, number float64) rhino.Node {
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // nuh_getPattern returns the first node in tree that is an array pattern or
@@ -5361,7 +5361,7 @@ func nuh_getPattern(t *testing.T, tree rhino.Node) rhino.Node {
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: NodeUtilTest.isValidPropertyName(String)

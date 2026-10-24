@@ -200,7 +200,7 @@ func (x *ExportTestFunctions_ExportTestFunctionsNodes) RewriteMemberDefInObjLit(
 // Java: ExportTestFunctions.ExportTestFunctionsNodes.getNameDeclaredGrandchild(Node)
 func (x *ExportTestFunctions_ExportTestFunctionsNodes) GetNameDeclaredGrandchild(node rhino.Node) rhino.Node {
 	if !NodeUtil_IsNameDeclaration(node) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return node.GetFirstFirstChild()
 }

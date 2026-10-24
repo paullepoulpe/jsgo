@@ -177,7 +177,7 @@ func (m *TemplateAstMatcher) InitTemplate(templateFunctionNode rhino.Node) rhino
 	}
 	for i := 0; i < m.templateParams.Size(); i++ {
 		// reserve space in the params array.
-		m.paramNodeMatches.Add(rhino.Node{})
+		m.paramNodeMatches.Add(rhino.NilNode)
 	}
 
 	return startNode
@@ -279,7 +279,7 @@ func (m *TemplateAstMatcher) Reset() {
 		m.localVarMatches.Set(i, nil)
 	}
 	for i := 0; i < m.paramNodeMatches.Size(); i++ {
-		m.paramNodeMatches.Set(i, rhino.Node{})
+		m.paramNodeMatches.Set(i, rhino.NilNode)
 	}
 }
 

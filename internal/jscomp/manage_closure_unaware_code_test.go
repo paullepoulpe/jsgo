@@ -95,7 +95,7 @@ func (c *ManageClosureUnawareCodeTest) GetProcessor(compiler *Compiler) Compiler
 								shadow := node.GetClosureUnawareShadow()
 								if !shadow.IsNil() {
 									if !c.runUnwrapPass {
-										node.SetClosureUnawareShadow(rhino.Node{})
+										node.SetClosureUnawareShadow(rhino.NilNode)
 									}
 									c.gatheredShadowNodeRoot.AddChildToBack(shadow.CloneTree())
 								}

@@ -101,7 +101,7 @@ func (v *ValidityCheck) CheckExternProperties(externs rhino.Node) {
 		// GatherExternProperties hasn't run yet. Don't report a violation.
 		return
 	}
-	NewGatherExternProperties(v.compiler, GatherExternProperties_Mode_CHECK).Process(externs, rhino.Node{})
+	NewGatherExternProperties(v.compiler, GatherExternProperties_Mode_CHECK).Process(externs, rhino.NilNode)
 	if !v.compiler.GetExternProperties().Equals(externProperties) {
 		v.compiler.Report(
 			JSError_Make(

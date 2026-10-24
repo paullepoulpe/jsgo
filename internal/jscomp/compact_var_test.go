@@ -16,7 +16,7 @@ func TestCompactVarCrossClassEquality(t *testing.T) {
 	}
 	root := rhino.IR_Root()
 	scope := Scope_CreateGlobalScope(root)
-	a, b := NewVar("x", rhino.Node{}, scope, 0, nil, rhino.Node{}), NewVar("x", rhino.Node{}, scope, 1, nil, rhino.Node{})
+	a, b := NewVar("x", rhino.NilNode, scope, 0, nil, rhino.NilNode), NewVar("x", rhino.NilNode, scope, 1, nil, rhino.NilNode)
 	named := ScopedName_Of("x", root)
 	for _, other := range []ScopedName{a, b, named} {
 		if !a.Equals(other) || !other.Equals(a) || a.HashCode() != other.HashCode() {
@@ -24,7 +24,7 @@ func TestCompactVarCrossClassEquality(t *testing.T) {
 		}
 	}
 	// Hash zero is a valid value; a lazy-cache sentinel must not alter it.
-	zero := NewVar("", rhino.Node{}, scope, -1, nil, rhino.Node{})
+	zero := NewVar("", rhino.NilNode, scope, -1, nil, rhino.NilNode)
 	for i := 0; i < 5; i++ {
 		if zero.HashCode() != ScopedName_Of("", root).HashCode() {
 			t.Fatal("zero name hash changed value")

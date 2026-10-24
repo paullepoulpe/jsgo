@@ -181,7 +181,7 @@ func (c *CheckNullabilityModifiers) ShouldReport(n rhino.Node) bool {
 
 // Java: CheckNullabilityModifiers.visitTypeExpression(JSTypeExpression, boolean)
 func (c *CheckNullabilityModifiers) VisitTypeExpression(expr *rhino.JSTypeExpression, hasArtificialTopLevelBang bool) {
-	c.VisitTypeExpressionWithRValue(expr, hasArtificialTopLevelBang, rhino.Node{} /* rValue= */)
+	c.VisitTypeExpressionWithRValue(expr, hasArtificialTopLevelBang, rhino.NilNode /* rValue= */)
 }
 
 // Java: CheckNullabilityModifiers.visitTypeExpression(JSTypeExpression, boolean, Node)

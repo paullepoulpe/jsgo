@@ -217,7 +217,7 @@ func (c *CheckAccessControls) Process(externs rhino.Node, root rhino.Node) {
 
 	sc := NewSyntacticScopeCreator(c.compiler)
 	defer func() {
-		c.lastVarNode = rhino.Node{}
+		c.lastVarNode = rhino.NilNode
 		c.lastVar = nil
 		clear(c.varCache[:])
 	}()
@@ -227,13 +227,13 @@ func (c *CheckAccessControls) Process(externs rhino.Node, root rhino.Node) {
 		scopeCreator: sc,
 	}
 
-	c.lastHoistScopeRoot = rhino.Node{}
-	c.lastVarNode = rhino.Node{}
+	c.lastHoistScopeRoot = rhino.NilNode
+	c.lastVarNode = rhino.NilNode
 	c.lastVar = nil
 	clear(c.varCache[:])
 	b.Traverse(externs)
-	c.lastHoistScopeRoot = rhino.Node{}
-	c.lastVarNode = rhino.Node{}
+	c.lastHoistScopeRoot = rhino.NilNode
+	c.lastVarNode = rhino.NilNode
 	c.lastVar = nil
 	clear(c.varCache[:])
 	b.Traverse(root)
@@ -315,7 +315,7 @@ func CheckAccessControls_PrimaryAccessControlScopeRootFor(node rhino.Node) rhino
 	} else if CheckAccessControls_IsFunctionOrClass(node) {
 		return node
 	} else {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -1934,7 +1934,7 @@ func (c *CheckAccessControls) CreatePropertyReference(sourceNode rhino.Node) *Ch
 			ref.override = jsdoc != nil
 			ref.readableTypeName = nil
 			ref.typeRegistry = nil
-			ref.readableTypeNode = rhino.Node{}
+			ref.readableTypeNode = rhino.NilNode
 			ref.jsdoc = jsdoc
 			ref.hasJSDoc = true
 			return ref

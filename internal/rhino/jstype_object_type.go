@@ -639,7 +639,7 @@ func (o *ObjectTypeBase) GetPropertyNode(propertyName string) Node {
 func (o *ObjectTypeBase) GetPropertyNodeByKey(propertyName Property_Key) Node {
 	p := o.selfObj().GetSlotByKey(propertyName)
 	if p == nil {
-		return Node{}
+		return NilNode
 	}
 	return p.GetNode()
 }
@@ -696,7 +696,7 @@ func (o *ObjectTypeBase) GetOwnPropertyDefSite(propertyName string) Node {
 func (o *ObjectTypeBase) GetOwnPropertyDefSiteByKey(propertyName Property_Key) Node {
 	p := o.selfObj().GetOwnSlotByKey(propertyName)
 	if p == nil {
-		return Node{}
+		return NilNode
 	}
 	return p.GetNode()
 }

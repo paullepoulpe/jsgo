@@ -263,7 +263,7 @@ func (r *changeVerifier_EqualsResult) ErrorMessage() func() *string { return r.e
 
 // Java: ChangeVerifier.EqualsResult.equal()
 func changeVerifier_EqualsResult_equal() *changeVerifier_EqualsResult {
-	return &changeVerifier_EqualsResult{true, rhino.Node{}, func() *string { return nil }}
+	return &changeVerifier_EqualsResult{true, rhino.NilNode, func() *string { return nil }}
 }
 
 // Java: ChangeVerifier.EqualsResult.notEqual(Node, String, Object, Object)

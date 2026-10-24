@@ -119,10 +119,10 @@ func coreG2Parse(config *parsing.Config, name string, src string) rhino.Node {
 	if coreG2Try(func() {
 		result = parsing.ParserRunner_Parse(SourceFile_FromCode(name, src), src, config, reporter)
 	}) != nil {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	if reporter.hadError || result.Ast.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return result.Ast
 }
@@ -440,7 +440,7 @@ func (o *coreG2Out) mdnu(script rhino.Node) {
 			NodeTraversal_Traverse(compiler, clone, MakeDeclaredNamesUnique_Builder_().Build())
 			o.printRenames(orig, clone)
 			o.line("## inverted")
-			MakeDeclaredNamesUnique_GetContextualRenameInverter(compiler).Process(rhino.Node{}, clone)
+			MakeDeclaredNamesUnique_GetContextualRenameInverter(compiler).Process(rhino.NilNode, clone)
 			o.printRenames(orig, clone)
 			o.line("## assert")
 			again := clone.CloneTree()
@@ -717,7 +717,7 @@ func (s *coreG2TestScope) declare(name string, declaration rhino.Node) *coreG2Te
 	return s
 }
 
-func (s *coreG2TestScope) GetRootNode() rhino.Node              { return rhino.Node{} }
+func (s *coreG2TestScope) GetRootNode() rhino.Node              { return rhino.NilNode }
 func (s *coreG2TestScope) GetParentScope() rhino.StaticScope    { return nil }
 func (s *coreG2TestScope) GetSlot(name string) rhino.StaticSlot { return s.GetOwnSlot(name) }
 func (s *coreG2TestScope) GetOwnSlot(name string) rhino.StaticSlot {

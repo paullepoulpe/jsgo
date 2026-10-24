@@ -254,11 +254,11 @@ func polymerPass_exportTsickleProps(classNode rhino.Node, classQualifiedName str
 // Java: PolymerPass.maybeGetTsicklePropTypesIfBlock(Node)
 func polymerPass_maybeGetTsicklePropTypesIfBlock(node rhino.Node) rhino.Node {
 	if !node.IsIf() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	condition := node.GetFirstChild()
 	if !condition.IsFalse() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	block := condition.GetNext()
 	jutil.CheckStateMsg1(!block.IsNil() && block.IsBlock(), "Expected block but got %s", block)
@@ -272,19 +272,19 @@ func polymerPass_maybeGetTsicklePropTypesIfBlock(node rhino.Node) rhino.Node {
 // Java: PolymerPass.getTsickleClassPrototypeProp(Node, String)
 func polymerPass_getTsickleClassPrototypeProp(stmt rhino.Node, classQualifiedName string) rhino.Node {
 	if !stmt.IsExprResult() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	expr := stmt.GetFirstChild()
 	if !expr.IsGetProp() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	owner := expr.GetFirstChild()
 	if !owner.IsGetProp() || owner.GetString() != "prototype" {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	classRef := owner.GetFirstChild()
 	if !classRef.MatchesQualifiedName(classQualifiedName) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return expr
 }

@@ -89,10 +89,10 @@ func (d *tvDump) buildExtraTypes() {
 	numberOrUndefined := r.CreateUnionType(number, d.nat(rhino.JSTypeNative_VOID_TYPE))
 
 	i2Ctor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("I2")).WithSourceNode(raiFn("I2")).Build()
-	i2Ctor.GetPrototype().DefineDeclaredProperty("m", number, rhino.Node{})
-	i2Ctor.GetPrototype().DefineDeclaredProperty("opt", numberOrUndefined, rhino.Node{})
+	i2Ctor.GetPrototype().DefineDeclaredProperty("m", number, rhino.NilNode)
+	i2Ctor.GetPrototype().DefineDeclaredProperty("opt", numberOrUndefined, rhino.NilNode)
 	i2 := i2Ctor.GetInstanceType()
-	i2.DefineDeclaredProperty("own", str, rhino.Node{})
+	i2.DefineDeclaredProperty("own", str, rhino.NilNode)
 
 	badImplCtor := r.CreateConstructorType(
 		jutil.StringPtr("BadImpl"), raiFn("BadImpl"), r.CreateParameters(), nil, nil, false)
@@ -101,18 +101,18 @@ func (d *tvDump) buildExtraTypes() {
 	wrongImplCtor := r.CreateConstructorType(
 		jutil.StringPtr("WrongImpl"), raiFn("WrongImpl"), r.CreateParameters(), nil, nil, false)
 	wrongImplCtor.SetImplementedInterfaces([]rhino.ObjectType{i2})
-	wrongImplCtor.GetPrototype().DefineDeclaredProperty("m", str, rhino.Node{})
-	wrongImplCtor.GetInstanceType().DefineDeclaredProperty("own", number, rhino.Node{})
+	wrongImplCtor.GetPrototype().DefineDeclaredProperty("m", str, rhino.NilNode)
+	wrongImplCtor.GetInstanceType().DefineDeclaredProperty("own", number, rhino.NilNode)
 
 	goodImplCtor := r.CreateConstructorType(
 		jutil.StringPtr("GoodImpl"), raiFn("GoodImpl"), r.CreateParameters(), nil, nil, false)
 	goodImplCtor.SetImplementedInterfaces([]rhino.ObjectType{i2})
-	goodImplCtor.GetPrototype().DefineDeclaredProperty("m", number, rhino.Node{})
-	goodImplCtor.GetInstanceType().DefineDeclaredProperty("own", str, rhino.Node{})
+	goodImplCtor.GetPrototype().DefineDeclaredProperty("m", number, rhino.NilNode)
+	goodImplCtor.GetInstanceType().DefineDeclaredProperty("own", str, rhino.NilNode)
 
 	i3Ctor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("I3")).WithSourceNode(raiFn("I3")).Build()
 	i3Ctor.SetExtendedInterfaces([]rhino.ObjectType{i2})
-	i3Ctor.GetPrototype().DefineDeclaredProperty("n", str, rhino.Node{})
+	i3Ctor.GetPrototype().DefineDeclaredProperty("n", str, rhino.NilNode)
 
 	abstractMethod := rhino.FunctionType_Builder_(r).WithReturnType(number).WithIsAbstract(true).Build()
 	concreteMethod := rhino.FunctionType_Builder_(r).WithReturnType(number).Build()
@@ -122,8 +122,8 @@ func (d *tvDump) buildExtraTypes() {
 		WithSourceNode(raiFn("Abs")).
 		WithIsAbstract(true).
 		Build()
-	absCtor.GetPrototype().DefineDeclaredProperty("am", abstractMethod, rhino.Node{})
-	absCtor.GetPrototype().DefineDeclaredProperty("cm", concreteMethod, rhino.Node{})
+	absCtor.GetPrototype().DefineDeclaredProperty("am", abstractMethod, rhino.NilNode)
+	absCtor.GetPrototype().DefineDeclaredProperty("cm", concreteMethod, rhino.NilNode)
 	abs2Ctor := rhino.FunctionType_Builder_(r).
 		ForConstructor().
 		WithName(jutil.StringPtr("Abs2")).
@@ -131,20 +131,20 @@ func (d *tvDump) buildExtraTypes() {
 		WithIsAbstract(true).
 		Build()
 	abs2Ctor.SetPrototypeBasedOn(absCtor.GetInstanceType())
-	abs2Ctor.GetPrototype().DefineDeclaredProperty("am2", abstractMethod, rhino.Node{})
+	abs2Ctor.GetPrototype().DefineDeclaredProperty("am2", abstractMethod, rhino.NilNode)
 	concreteCtor := r.CreateConstructorType(
 		jutil.StringPtr("Concrete"), raiFn("Concrete"), r.CreateParameters(), nil, nil, false)
 	concreteCtor.SetPrototypeBasedOn(abs2Ctor.GetInstanceType())
-	concreteCtor.GetPrototype().DefineDeclaredProperty("am2", concreteMethod, rhino.Node{})
+	concreteCtor.GetPrototype().DefineDeclaredProperty("am2", concreteMethod, rhino.NilNode)
 	concrete2Ctor := r.CreateConstructorType(
 		jutil.StringPtr("Concrete2"), raiFn("Concrete2"), r.CreateParameters(), nil, nil, false)
 	concrete2Ctor.SetPrototypeBasedOn(absCtor.GetInstanceType())
-	concrete2Ctor.GetPrototype().DefineDeclaredProperty("am", concreteMethod, rhino.Node{})
+	concrete2Ctor.GetPrototype().DefineDeclaredProperty("am", concreteMethod, rhino.NilNode)
 
 	structCtor := r.CreateConstructorType(
 		jutil.StringPtr("Struct"), raiFn("Struct"), r.CreateParameters(), nil, nil, false)
 	structCtor.SetStruct()
-	structCtor.GetPrototype().DefineDeclaredProperty("s", number, rhino.Node{})
+	structCtor.GetPrototype().DefineDeclaredProperty("s", number, rhino.NilNode)
 
 	d.add("I2", i2)
 	d.add("ctor:I2", i2Ctor)

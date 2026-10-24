@@ -349,7 +349,7 @@ func (t *TypedCodeGenerator) GetParameterJSDocName(paramNode rhino.Node, paramIn
 			nameNode = paramNode
 		} else {
 			jutil.CheckStateMsg1(paramNode.IsObjectPattern() || paramNode.IsArrayPattern(), "%s", paramNode)
-			nameNode = rhino.Node{} // must generate a fake name
+			nameNode = rhino.NilNode // must generate a fake name
 		}
 	}
 	if nameNode.IsNil() {

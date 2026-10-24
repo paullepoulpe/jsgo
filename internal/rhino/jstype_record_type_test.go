@@ -54,9 +54,9 @@ func TestRecordType_RecursiveRecord(t *testing.T) {
 	s := newRecordTypeTest(t)
 	loop := NewProxyObjectType(s.Registry, s.NUMBER_TYPE)
 	record := NewRecordTypeBuilder(s.Registry).
-		AddProperty("loop", loop, Node{}).
-		AddProperty("number", s.NUMBER_TYPE, Node{}).
-		AddProperty("string", s.STRING_TYPE, Node{}).
+		AddProperty("loop", loop, NilNode).
+		AddProperty("number", s.NUMBER_TYPE, NilNode).
+		AddProperty("string", s.STRING_TYPE, NilNode).
 		Build()
 	s.AssertThat(record.String()).
 		IsEqualTo("{\n  loop: number,\n  number: number,\n  string: string\n}")
@@ -73,17 +73,17 @@ func TestRecordType_RecursiveRecord(t *testing.T) {
 func TestRecordType_ToString_largeRecord(t *testing.T) {
 	s := newRecordTypeTest(t)
 	record := NewRecordTypeBuilder(s.Registry).
-		AddProperty("a01", s.NUMBER_TYPE, Node{}).
-		AddProperty("a02", s.NUMBER_TYPE, Node{}).
-		AddProperty("a03", s.NUMBER_TYPE, Node{}).
-		AddProperty("a04", s.NUMBER_TYPE, Node{}).
-		AddProperty("a05", s.NUMBER_TYPE, Node{}).
-		AddProperty("a06", s.NUMBER_TYPE, Node{}).
-		AddProperty("a07", s.NUMBER_TYPE, Node{}).
-		AddProperty("a08", s.NUMBER_TYPE, Node{}).
-		AddProperty("a09", s.NUMBER_TYPE, Node{}).
-		AddProperty("a10", s.NUMBER_TYPE, Node{}).
-		AddProperty("a11", s.NUMBER_TYPE, Node{}).
+		AddProperty("a01", s.NUMBER_TYPE, NilNode).
+		AddProperty("a02", s.NUMBER_TYPE, NilNode).
+		AddProperty("a03", s.NUMBER_TYPE, NilNode).
+		AddProperty("a04", s.NUMBER_TYPE, NilNode).
+		AddProperty("a05", s.NUMBER_TYPE, NilNode).
+		AddProperty("a06", s.NUMBER_TYPE, NilNode).
+		AddProperty("a07", s.NUMBER_TYPE, NilNode).
+		AddProperty("a08", s.NUMBER_TYPE, NilNode).
+		AddProperty("a09", s.NUMBER_TYPE, NilNode).
+		AddProperty("a10", s.NUMBER_TYPE, NilNode).
+		AddProperty("a11", s.NUMBER_TYPE, NilNode).
 		Build()
 
 	s.AssertThat(record.String()).
@@ -119,15 +119,15 @@ func TestRecordType_ToString_nestedRecordIndentation(t *testing.T) {
 					AddProperty(
 						"aa",
 						NewRecordTypeBuilder(s.Registry).
-							AddProperty("aaa", s.NUMBER_TYPE, Node{}).
-							AddProperty("aab", s.NUMBER_TYPE, Node{}).
-							AddProperty("aac", s.NUMBER_TYPE, Node{}).
+							AddProperty("aaa", s.NUMBER_TYPE, NilNode).
+							AddProperty("aab", s.NUMBER_TYPE, NilNode).
+							AddProperty("aac", s.NUMBER_TYPE, NilNode).
 							Build(),
-						Node{}).
-					AddProperty("ab", s.NUMBER_TYPE, Node{}).
+						NilNode).
+					AddProperty("ab", s.NUMBER_TYPE, NilNode).
 					Build(),
-				Node{}).
-			AddProperty("b", s.NUMBER_TYPE, Node{}).
+				NilNode).
+			AddProperty("b", s.NUMBER_TYPE, NilNode).
 			Build()
 
 	s.AssertThat(record.String()).
@@ -153,16 +153,16 @@ func TestRecordType_ToString_nestedRecordIndentation_throughUnion(t *testing.T) 
 	s := newRecordTypeTest(t)
 	record :=
 		NewRecordTypeBuilder(s.Registry).
-			AddProperty("a", s.NUMBER_TYPE, Node{}).
+			AddProperty("a", s.NUMBER_TYPE, NilNode).
 			AddProperty(
 				"b",
 				s.Registry.CreateUnionType(
 					s.NUMBER_TYPE,
 					NewRecordTypeBuilder(s.Registry).
-						AddProperty("ba", s.NUMBER_TYPE, Node{}).
-						AddProperty("bb", s.NUMBER_TYPE, Node{}).
+						AddProperty("ba", s.NUMBER_TYPE, NilNode).
+						AddProperty("bb", s.NUMBER_TYPE, NilNode).
 						Build()),
-				Node{}).
+				NilNode).
 			Build()
 
 	s.AssertThat(record.String()).
@@ -184,17 +184,17 @@ func TestRecordType_ToString_nestedRecordIndentation_throughTemplateParam(t *tes
 	s := newRecordTypeTest(t)
 	record :=
 		NewRecordTypeBuilder(s.Registry).
-			AddProperty("a", s.NUMBER_TYPE, Node{}).
+			AddProperty("a", s.NUMBER_TYPE, NilNode).
 			AddProperty(
 				"b",
 				s.Registry.CreateTemplatizedTypeOfList(
 					s.ARRAY_TYPE,
 					[]JSType{
 						NewRecordTypeBuilder(s.Registry).
-							AddProperty("ba", s.NUMBER_TYPE, Node{}).
-							AddProperty("bb", s.NUMBER_TYPE, Node{}).
+							AddProperty("ba", s.NUMBER_TYPE, NilNode).
+							AddProperty("bb", s.NUMBER_TYPE, NilNode).
 							Build()}),
-				Node{}).
+				NilNode).
 			Build()
 
 	s.AssertThat(record.String()).
@@ -215,20 +215,20 @@ func TestRecordType_ToString_nestedRecordIndentation_throughTemplateParam(t *tes
 func TestRecordType_SupAndInf(t *testing.T) {
 	s := newRecordTypeTest(t)
 	recordA := NewRecordTypeBuilder(s.Registry).
-		AddProperty("a", s.NUMBER_TYPE, Node{}).
-		AddProperty("b", s.NUMBER_TYPE, Node{}).
+		AddProperty("a", s.NUMBER_TYPE, NilNode).
+		AddProperty("b", s.NUMBER_TYPE, NilNode).
 		Build()
 	recordC := NewRecordTypeBuilder(s.Registry).
-		AddProperty("b", s.NUMBER_TYPE, Node{}).
-		AddProperty("c", s.NUMBER_TYPE, Node{}).
+		AddProperty("b", s.NUMBER_TYPE, NilNode).
+		AddProperty("c", s.NUMBER_TYPE, NilNode).
 		Build()
 	proxyRecordA := NewProxyObjectType(s.Registry, recordA)
 	proxyRecordC := NewProxyObjectType(s.Registry, recordC)
 
 	aInfC := NewRecordTypeBuilder(s.Registry).
-		AddProperty("a", s.NUMBER_TYPE, Node{}).
-		AddProperty("b", s.NUMBER_TYPE, Node{}).
-		AddProperty("c", s.NUMBER_TYPE, Node{}).
+		AddProperty("a", s.NUMBER_TYPE, NilNode).
+		AddProperty("b", s.NUMBER_TYPE, NilNode).
+		AddProperty("c", s.NUMBER_TYPE, NilNode).
 		Build()
 
 	aSupC := s.Registry.CreateUnionType(recordA, recordC)
@@ -243,10 +243,10 @@ func TestRecordType_SupAndInf(t *testing.T) {
 func TestRecordType_SubtypeWithUnknowns(t *testing.T) {
 	s := newRecordTypeTest(t)
 	recordA := NewRecordTypeBuilder(s.Registry).
-		AddProperty("a", s.NUMBER_TYPE, Node{}).
+		AddProperty("a", s.NUMBER_TYPE, NilNode).
 		Build()
 	recordB := NewRecordTypeBuilder(s.Registry).
-		AddProperty("a", s.UNKNOWN_TYPE, Node{}).
+		AddProperty("a", s.UNKNOWN_TYPE, NilNode).
 		Build()
 	s.AssertThat(recordA.IsSubtypeOf(recordB)).IsTrue()
 	s.AssertThat(recordB.IsSubtypeOf(recordA)).IsTrue()
@@ -257,12 +257,12 @@ func TestRecordType_SubtypeWithUnknowns2(t *testing.T) {
 	recordA :=
 		NewRecordTypeBuilder(s.Registry).
 			AddProperty(
-				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.NUMBER_TYPE).Build(), Node{}).
+				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.NUMBER_TYPE).Build(), NilNode).
 			Build()
 	recordB :=
 		NewRecordTypeBuilder(s.Registry).
 			AddProperty(
-				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.UNKNOWN_TYPE).Build(), Node{}).
+				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.UNKNOWN_TYPE).Build(), NilNode).
 			Build()
 	s.AssertThat(recordA.IsSubtypeOf(recordB)).IsTrue()
 	s.AssertThat(recordB.IsSubtypeOf(recordA)).IsTrue()
@@ -273,12 +273,12 @@ func TestRecordType_SubtypeWithFunctionProps(t *testing.T) {
 	recordA :=
 		NewRecordTypeBuilder(s.Registry).
 			AddProperty(
-				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.NUMBER_TYPE).Build(), Node{}).
+				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.NUMBER_TYPE).Build(), NilNode).
 			Build()
 	recordB :=
 		NewRecordTypeBuilder(s.Registry).
 			AddProperty(
-				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.STRING_TYPE).Build(), Node{}).
+				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.STRING_TYPE).Build(), NilNode).
 			Build()
 	s.AssertThat(recordA.IsSubtypeOf(recordB)).IsFalse()
 	s.AssertThat(recordB.IsSubtypeOf(recordA)).IsFalse()
@@ -287,17 +287,17 @@ func TestRecordType_SubtypeWithFunctionProps(t *testing.T) {
 func TestRecordType_SubtypeWithManyProps(t *testing.T) {
 	s := newRecordTypeTest(t)
 	recordA := NewRecordTypeBuilder(s.Registry).
-		AddProperty("a", s.NUMBER_TYPE, Node{}).
-		AddProperty("b", s.NUMBER_TYPE, Node{}).
+		AddProperty("a", s.NUMBER_TYPE, NilNode).
+		AddProperty("b", s.NUMBER_TYPE, NilNode).
 		Build()
 	recordB := NewRecordTypeBuilder(s.Registry).
-		AddProperty("a", s.NUMBER_TYPE, Node{}).
-		AddProperty("b", s.STRING_TYPE, Node{}).
+		AddProperty("a", s.NUMBER_TYPE, NilNode).
+		AddProperty("b", s.STRING_TYPE, NilNode).
 		Build()
 	recordC := NewRecordTypeBuilder(s.Registry).
-		AddProperty("a", s.NUMBER_TYPE, Node{}).
+		AddProperty("a", s.NUMBER_TYPE, NilNode).
 		AddProperty("b",
-			s.Registry.CreateUnionType(s.NUMBER_TYPE, s.STRING_TYPE), Node{}).
+			s.Registry.CreateUnionType(s.NUMBER_TYPE, s.STRING_TYPE), NilNode).
 		Build()
 	s.AssertThat(recordA.IsSubtypeOf(recordB)).IsFalse()
 	s.AssertThat(recordB.IsSubtypeOf(recordA)).IsFalse()
@@ -310,11 +310,11 @@ func TestRecordType_Equality_onlyCompares_ownProperties(t *testing.T) {
 	s := newRecordTypeTest(t)
 	// Given
 	recordA := //
-		NewRecordTypeBuilder(s.Registry).AddProperty("a", s.NUMBER_TYPE, Node{}).Build().(*RecordType)
+		NewRecordTypeBuilder(s.Registry).AddProperty("a", s.NUMBER_TYPE, NilNode).Build().(*RecordType)
 	recordB :=
 		NewRecordTypeBuilder(s.Registry).
-			AddProperty("a", s.NUMBER_TYPE, Node{}).
-			AddProperty("toString", s.OBJECT_TYPE.GetPropertyType("toString"), Node{}).
+			AddProperty("a", s.NUMBER_TYPE, NilNode).
+			AddProperty("toString", s.OBJECT_TYPE.GetPropertyType("toString"), NilNode).
 			Build().(*RecordType)
 
 	s.AssertType(recordA.GetPropertyType("toString")).IsEqualTo(recordB.GetPropertyType("toString"))

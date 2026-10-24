@@ -185,13 +185,13 @@ func printDumpParse(w *printDumpWriter, config *parsing.Config, name, src string
 			class := strings.TrimSuffix(full, ": "+msg)
 			w.line("# parse exception " + class + ": " + msg)
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	if reporter.errors > 0 || result.Ast.IsNil() {
 		if w != nil {
 			w.line("# parse errors " + strconv.Itoa(reporter.errors))
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	if w != nil {
 		w.line("# parse ok")

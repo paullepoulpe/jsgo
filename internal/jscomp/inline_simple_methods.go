@@ -243,16 +243,16 @@ func InlineSimpleMethods_ReplaceThis(expectedGetprop rhino.Node, replacement rhi
 func InlineSimpleMethods_ReturnedExpression(fn rhino.Node) rhino.Node {
 	expectedBlock := NodeUtil_GetFunctionBody(fn)
 	if !expectedBlock.HasOneChild() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	expectedReturn := expectedBlock.GetFirstChild()
 	if !expectedReturn.IsReturn() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	if !expectedReturn.HasOneChild() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	return expectedReturn.GetOnlyChild()

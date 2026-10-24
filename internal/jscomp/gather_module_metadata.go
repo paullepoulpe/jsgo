@@ -336,7 +336,7 @@ func (f *GatherModuleMetadata_Finder) Visit(t *NodeTraversal, n rhino.Node, pare
 	case rhino.Token_CALL:
 		if f.outer.loadModuleCall == n {
 			f.LeaveModule()
-			f.outer.loadModuleCall = rhino.Node{}
+			f.outer.loadModuleCall = rhino.NilNode
 		} else {
 			f.VisitGoogCall(t, n)
 		}

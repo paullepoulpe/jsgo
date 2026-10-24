@@ -95,7 +95,7 @@ func (i *InstrumentAsyncContext) Process(externs rhino.Node, root rhino.Node) {
 // Go-only: language-adapter — the ArrayDeque operation on the slice stack.
 func (i *InstrumentAsyncContext) tryFunctionStackPeek() rhino.Node {
 	if len(i.tryFunctionStack) == 0 {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return i.tryFunctionStack[len(i.tryFunctionStack)-1]
 }
@@ -172,7 +172,7 @@ func (i *InstrumentAsyncContext) Visit(t *NodeTraversal, n rhino.Node, parent rh
 func (i *InstrumentAsyncContext) InstrumentReentrance(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	enclosingTry := i.tryFunctionStackPeek()
 	if !enclosingTry.IsNil() && !enclosingTry.IsTry() {
-		enclosingTry = rhino.Node{} // not a try
+		enclosingTry = rhino.NilNode // not a try
 	}
 	enclosingFunction := t.GetEnclosingFunction()
 	if enclosingFunction.IsNil() {
@@ -391,8 +391,8 @@ func (i *InstrumentAsyncContext) InstrumentGeneratorMethod(t *NodeTraversal, f r
 	// Look for references to `arguments`.  If found, add an extra parameter to the inner method.
 	// We need to save a reference to the parameter in order to replace it in the function call
 	// arguments.
-	var argumentsParam rhino.Node = rhino.Node{}
-	var argumentsReference rhino.Node = rhino.Node{}
+	var argumentsParam rhino.Node = rhino.NilNode
+	var argumentsReference rhino.Node = rhino.NilNode
 	renamer := NewInstrumentAsyncContext_ArgumentsRenamer(i)
 	NodeTraversal_Traverse(i.compiler, generatorBody, renamer)
 	if renamer.argumentsName != nil {

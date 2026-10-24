@@ -96,7 +96,7 @@ func (e *JSTypeExpression) ReplaceNamesWithUnknownType(names *jutil.LinkedHashSe
 // Java: JSTypeExpression.replaceNames(Node, Set<String>)
 func JSTypeExpression_ReplaceNames(n Node, names *jutil.LinkedHashSet[string]) Node {
 	if n.IsNil() {
-		return Node{}
+		return NilNode
 	}
 	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()

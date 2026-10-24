@@ -1451,7 +1451,7 @@ func (c *JsMessageVisitorTest) extractMessages(input string) {
 		renameMessagesVisitor := newJsMessageVisitorTest_RenameMessagesVisitor()
 		NodeTraversal_Traverse(c.compiler, root, renameMessagesVisitor)
 	}
-	visitor.Process(rhino.Node{}, root)
+	visitor.Process(rhino.NilNode, root)
 }
 
 // Java: private class JsMessageVisitorTest.CollectMessages extends JsMessageVisitor

@@ -529,8 +529,8 @@ var checkRequiresSorted_GOOG_FORWARDDECLARE = rhino.QualifiedName_Of("goog.forwa
 func NewCheckRequiresSorted(mode CheckRequiresSorted_Mode) *CheckRequiresSorted {
 	return &CheckRequiresSorted{
 		importsByNamespace: jutil.NewLinkedHashMap[string, []*CheckRequiresSorted_ImportStatement](),
-		firstNode:          rhino.Node{},
-		lastNode:           rhino.Node{},
+		firstNode:          rhino.NilNode,
+		lastNode:           rhino.NilNode,
 		finished:           false,
 		needsFix:           false,
 		replacement:        nil,

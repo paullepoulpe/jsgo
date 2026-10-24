@@ -69,7 +69,7 @@ var CheckGlobalThis_GLOBAL_THIS = DiagnosticType_Warning(
 // Java: CheckGlobalThis(AbstractCompiler)
 func NewCheckGlobalThis(compiler AbstractCompiler) *CheckGlobalThis {
 	c := &CheckGlobalThis{}
-	c.assignLhsChild = rhino.Node{}
+	c.assignLhsChild = rhino.NilNode
 	c.compiler = compiler
 	return c
 }
@@ -191,7 +191,7 @@ func (c *CheckGlobalThis) Visit(unused *NodeTraversal, n rhino.Node, parent rhin
 		c.compiler.Report(JSError_MakeWithNode(n, CheckGlobalThis_GLOBAL_THIS))
 	}
 	if n == c.assignLhsChild {
-		c.assignLhsChild = rhino.Node{}
+		c.assignLhsChild = rhino.NilNode
 	}
 }
 

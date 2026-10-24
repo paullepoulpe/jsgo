@@ -178,7 +178,7 @@ func NewEs6RewriteModulesToCommonJsModules_Rewriter(compiler AbstractCompiler, s
 	r := &Es6RewriteModulesToCommonJsModules_Rewriter{}
 	r.compiler = compiler
 	r.script = script
-	r.requireInsertSpot = rhino.Node{}
+	r.requireInsertSpot = rhino.NilNode
 	// TreeMap because ES6 orders the export key using natural ordering.
 	r.exportedNameToLocalQName = jutil.NewTreeMap[string, *Es6RewriteModulesToCommonJsModules_LocalQName](jutil.StringCompareTo)
 	r.importRequests = jutil.NewObjectLinkedHashSet[*Es6RewriteModulesToCommonJsModules_ModuleRequest]()

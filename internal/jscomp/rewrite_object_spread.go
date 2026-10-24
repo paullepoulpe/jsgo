@@ -97,7 +97,7 @@ func (r *RewriteObjectSpread) VisitObjectWithSpread(obj rhino.Node) {
 	// An indicator whether the current last thing in the param list is an object literal to which
 	// properties may be added.  Initialized to null since nothing should be added to the empty
 	// object literal in first position of the param list.
-	var trailingObjectLiteral rhino.Node = rhino.Node{}
+	var trailingObjectLiteral rhino.Node = rhino.NilNode
 
 	for child := obj.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
@@ -107,7 +107,7 @@ func (r *RewriteObjectSpread) VisitObjectWithSpread(obj rhino.Node) {
 			result.AddChildToBack(spreaded)
 
 			// Properties should not be added to the trailing object.
-			trailingObjectLiteral = rhino.Node{}
+			trailingObjectLiteral = rhino.NilNode
 		} else {
 			if trailingObjectLiteral.IsNil() {
 				// Add a new object to which properties may be added.

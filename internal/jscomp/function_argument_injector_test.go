@@ -85,7 +85,7 @@ func (c *FunctionArgumentInjectorTest) TestInject0() {
 		c.functionArgumentInjector.Inject(
 			c.compiler,
 			NodeUtil_GetFunctionBody(c.ParseFunction("function f(x) { alert(x); }")),
-			rhino.Node{},
+			rhino.NilNode,
 			functionArgumentInjectorTest_mapOf("x", c.Parse("null").GetFirstFirstChild()))
 	AssertNode(result).IsEqualTo(NodeUtil_GetFunctionBody(c.ParseFunction("function f(x) { alert(null); }")))
 }
@@ -95,7 +95,7 @@ func (c *FunctionArgumentInjectorTest) TestInject1_thisRef() {
 	result := c.functionArgumentInjector.Inject(
 		c.compiler,
 		NodeUtil_GetFunctionBody(c.ParseFunction("function f() { alert(this); }")),
-		rhino.Node{},
+		rhino.NilNode,
 		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
 	AssertNode(result).IsEqualTo(NodeUtil_GetFunctionBody(c.ParseFunction("function f() { alert(null); }")))
 }
@@ -105,7 +105,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_instance() 
 	result := c.functionArgumentInjector.Inject(
 		c.compiler,
 		NodeUtil_GetFunctionBody(c.ParseFunction("function f() { return class { field = this; }; }")),
-		rhino.Node{},
+		rhino.NilNode,
 		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -119,7 +119,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_static() {
 		c.compiler,
 		NodeUtil_GetFunctionBody(
 			c.ParseFunction("function f() { return class { static field = this; }; }")),
-		rhino.Node{},
+		rhino.NilNode,
 		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -133,7 +133,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_computed() 
 	result := c.functionArgumentInjector.Inject(
 		c.compiler,
 		NodeUtil_GetFunctionBody(c.ParseFunction("function f() { return class { [this.k] = this.v; }; }")),
-		rhino.Node{},
+		rhino.NilNode,
 		functionArgumentInjectorTest_mapOf("this", c.Parse("x").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -147,7 +147,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_staticCompu
 		c.compiler,
 		NodeUtil_GetFunctionBody(
 			c.ParseFunction("function f() { return class { static [this.k] = this.v; }; }")),
-		rhino.Node{},
+		rhino.NilNode,
 		functionArgumentInjectorTest_mapOf("this", c.Parse("x").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -162,7 +162,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classStaticBlock() {
 		c.compiler,
 		NodeUtil_GetFunctionBody(
 			c.ParseFunction("function f() { return class { static { alert(this); } }; }")),
-		rhino.Node{},
+		rhino.NilNode,
 		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
 
 	AssertNode(result).
@@ -177,7 +177,7 @@ func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_paramSubsti
 		c.compiler,
 		NodeUtil_GetFunctionBody(
 			c.ParseFunction("function f(val) { return class { field = val; [val] = this; }; }")),
-		rhino.Node{},
+		rhino.NilNode,
 		functionArgumentInjectorTest_mapOf2(
 			"val", c.Parse("123").GetFirstFirstChild(),
 			"this", c.Parse("null").GetFirstFirstChild()))
@@ -916,7 +916,7 @@ func FunctionArgumentInjectorTest_FindCall(n rhino.Node, name string) rhino.Node
 		}
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: FunctionArgumentInjectorTest.findFunction(Node, String)
@@ -934,7 +934,7 @@ func FunctionArgumentInjectorTest_FindFunction(n rhino.Node, name string) rhino.
 		}
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: FunctionArgumentInjectorTest.parseFunction(String)

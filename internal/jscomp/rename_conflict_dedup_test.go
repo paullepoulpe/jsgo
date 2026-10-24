@@ -23,7 +23,7 @@ func newConflictTestGraph() *conflictTestGraph {
 		declared := make([]*MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo, []int{3, 12, 24, 3}[level])
 		for i := range declared {
 			current := fmt.Sprintf("v%d$jscomp$%d", i, level)
-			v := NewVar(current, rhino.Node{}, scope, i, nil, rhino.Node{})
+			v := NewVar(current, rhino.NilNode, scope, i, nil, rhino.NilNode)
 			info := NewMakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo(v, NewMakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo(inverter, current, fmt.Sprintf("v%d", i)))
 			g.ids[info] = len(g.vars)
 			g.vars = append(g.vars, info)

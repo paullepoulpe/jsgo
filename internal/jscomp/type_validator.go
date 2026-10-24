@@ -1287,7 +1287,7 @@ func (v *TypeValidator) ExpectWellFormedTemplatizedType(n rhino.Node) {
 	if n.GetJSType() != nil {
 		n.GetJSType().Visit(verifier)
 	}
-	verifier.node = rhino.Node{}
+	verifier.node = rhino.NilNode
 	v.spareWellFormedTemplatizedTypeVerifier = verifier
 }
 

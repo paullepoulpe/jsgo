@@ -56,10 +56,10 @@ func TestPrototypeObjectType_ToString(t *testing.T) {
 	type_ := s.Registry.CreateAnonymousObjectType(nil)
 	s.AssertThat(type_.String()).IsEqualTo("{}")
 
-	type_.DefineDeclaredProperty("foo", s.NUMBER_TYPE, rhino.Node{})
+	type_.DefineDeclaredProperty("foo", s.NUMBER_TYPE, rhino.NilNode)
 	s.AssertThat(type_.String()).IsEqualTo("{foo: number}")
 
-	type_.DefineDeclaredProperty("bar", type_, rhino.Node{})
+	type_.DefineDeclaredProperty("bar", type_, rhino.NilNode)
 	s.AssertThat(type_.String()).
 		IsEqualTo(
 			strings.Join([]string{

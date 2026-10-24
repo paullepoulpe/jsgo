@@ -480,7 +480,7 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
 		// TODO(b/70730762): Passes that add references to this should ensure it is declared.
 		// NOTE: null input makes this an extern var.
 		scope.Declare(
-			NodeUtil_JSC_PROPERTY_NAME_FN /* no declaration node */, rhino.Node{} /* no input */, nil)
+			NodeUtil_JSC_PROPERTY_NAME_FN /* no declaration node */, rhino.NilNode /* no input */, nil)
 	}
 
 	r.root = root
@@ -821,7 +821,7 @@ func (r *RemoveUnusedCode) TraverseIncrementOrDecrementOp(incOrDecOp rhino.Node,
 		} else if getPropObj.IsThis() {
 			// this.propName++
 			builder := NewRemoveUnusedCode_RemovableBuilder(r).SetIsThisDotPropertyReference(true)
-			r.ConsiderForIndependentRemoval(builder.BuildIncOrDepOp(incOrDecOp, arg, rhino.Node{}))
+			r.ConsiderForIndependentRemoval(builder.BuildIncOrDepOp(incOrDecOp, arg, rhino.NilNode))
 		} else if RemoveUnusedCode_IsDotPrototype(getPropObj) {
 			// someExpression.prototype.propName++
 			exprObj := getPropObj.GetFirstChild()
@@ -829,7 +829,7 @@ func (r *RemoveUnusedCode) TraverseIncrementOrDecrementOp(incOrDecOp rhino.Node,
 			if exprObj.IsName() {
 				// varName.prototype.propName++
 				varInfo := r.TraverseNameNode(exprObj, scope)
-				varInfo.AddRemovable(builder.BuildIncOrDepOp(incOrDecOp, arg, rhino.Node{}))
+				varInfo.AddRemovable(builder.BuildIncOrDepOp(incOrDecOp, arg, rhino.NilNode))
 			} else {
 				// (someExpression).prototype.propName++
 				var toPreserve rhino.Node
@@ -1390,7 +1390,7 @@ func (r *RemoveUnusedCode) TraverseAssign(assignNode rhino.Node, scope *Scope) {
 		} else if r.IsNameDotPrototype(getElemObj) {
 			varNameNode = getElemObj.GetFirstChild()
 		} else {
-			varNameNode = rhino.Node{}
+			varNameNode = rhino.NilNode
 		}
 
 		if !varNameNode.IsNil() {
@@ -2133,7 +2133,7 @@ func RemoveUnusedCode_NameOfParam(param rhino.Node) rhino.Node {
 	case rhino.Token_ITER_REST:
 		return RemoveUnusedCode_NameOfParam(param.GetOnlyChild())
 	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
-		return rhino.Node{}
+		return rhino.NilNode
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"Unexpected child of PARAM_LIST: " + param.ToStringTree()))
@@ -2510,35 +2510,35 @@ func (b *RemoveUnusedCode_RemovableBase) GetLocalAssignedValue() rhino.Node {
 		nameNode := b.targetNode.GetOnlyChild()
 		initialValueNode := nameNode.GetFirstChild()
 		if initialValueNode.IsNil() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		valueNode := RemoveUnusedCode_MaybeUnwrapQnameOrDefaultValueNode(nameNode, initialValueNode)
 		if NodeUtil_EvaluatesToLocalValue(valueNode) {
 			return valueNode
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case remKindVanillaForNameDecl:
 		initialValueNode := b.targetNode.GetFirstChild()
 		if initialValueNode.IsNil() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		valueNode := RemoveUnusedCode_MaybeUnwrapQnameOrDefaultValueNode(b.targetNode, initialValueNode)
 		if NodeUtil_EvaluatesToLocalValue(valueNode) {
 			return valueNode
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case remKindAssignVar, remKindAssignNamedProp, remKindAssignComputedProp:
 		if NodeUtil_IsExpressionResultUsed(b.targetNode) {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		valueNode := RemoveUnusedCode_MaybeUnwrapQnameOrDefaultValueNode(
 			b.targetNode.GetFirstChild(), b.targetNode.GetLastChild())
 		if NodeUtil_EvaluatesToLocalValue(valueNode) {
 			return valueNode
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	default:
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -3000,7 +3000,7 @@ func (b *RemoveUnusedCode_RemovableBuilder) BuildComputedPropertyAssign(assignNo
 
 // Java: RemoveUnusedCode.RemovableBuilder.buildVariableAssign(Node, VarInfo)
 func (b *RemoveUnusedCode_RemovableBuilder) BuildVariableAssign(assignNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_Assign(b.outer, b, assignNode, RemoveUnusedCode_Kind_VARIABLE /* propertyNode= */, rhino.Node{}, varInfo)
+	return NewRemoveUnusedCode_Assign(b.outer, b, assignNode, RemoveUnusedCode_Kind_VARIABLE /* propertyNode= */, rhino.NilNode, varInfo)
 }
 
 // Java: RemoveUnusedCode.RemovableBuilder.buildClassSetupCall(Node)

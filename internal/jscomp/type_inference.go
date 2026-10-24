@@ -127,7 +127,7 @@ func (ti *TypeInference) initTypeInference(
 	ti.InitDataFlowAnalysisBase(ti, cfg)
 	ti.flowScopeArena.reset()
 	// Field initializers.
-	ti.lastScopeRoot = rhino.Node{}
+	ti.lastScopeRoot = rhino.NilNode
 	ti.lastModule = nil
 	ti.lastSyntacticBlockScope = nil
 	ti.inferredUnboundVarScope = nil
@@ -297,7 +297,7 @@ func (ti *TypeInference) InferParameters(entryFlowScope FlowScope) FlowScope {
 		if !iifeArgumentNode.IsNil() && iifeArgumentNode.IsSpread() {
 			// block inference on all parameters that might possibly be set by a spread, e.g. `z` in
 			// (function f(x, y, z = 1))(...[1, 2], 'foo')
-			iifeArgumentNode = rhino.Node{}
+			iifeArgumentNode = rhino.NilNode
 		}
 
 		// Running variable for the type of the param within the body of the function. We use the
@@ -467,7 +467,7 @@ func typeInference_getEnclosingScopeRoot(n rhino.Node) rhino.Node {
 			return n
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: TypeInference.flowThrough(Node, FlowScope)
@@ -609,7 +609,7 @@ func (ti *TypeInference) CreateFlowBrancher(source rhino.Node, output FlowScope)
 	// worthwhile.
 	ti.branchSource = source
 	ti.branchOutput = output
-	ti.branchCondition = rhino.Node{}
+	ti.branchCondition = rhino.NilNode
 	ti.branchConditionFlowScope = nil
 	ti.branchConditionOutcomes = nil
 	if ti.flowBrancher == nil {
@@ -969,7 +969,7 @@ func (ti *TypeInference) TraverseAssignUnsignedRightShift(n rhino.Node, scope Fl
 	left := n.GetFirstChild()
 	scope = ti.TraverseUnsignedRightShift(n, scope)
 	return ti.UpdateScopeForAssignmentWithUpdateNode(
-		scope, left, ti.GetJSType(n) /* updateNode= */, rhino.Node{}, TypeInference_AssignmentType_ASSIGN)
+		scope, left, ti.GetJSType(n) /* updateNode= */, rhino.NilNode, TypeInference_AssignmentType_ASSIGN)
 }
 
 // Java: TypeInference.traverseCall(Node, FlowScope)
@@ -1162,7 +1162,7 @@ func (ti *TypeInference) TraverseAssignOp(n rhino.Node, scope FlowScope) FlowSco
 
 	// The lhs is both an input and an output, so don't update the input type here.
 	return ti.UpdateScopeForAssignmentWithUpdateNode(
-		scope, left, ti.GetJSType(n) /* updateNode= */, rhino.Node{}, TypeInference_AssignmentType_ASSIGN)
+		scope, left, ti.GetJSType(n) /* updateNode= */, rhino.NilNode, TypeInference_AssignmentType_ASSIGN)
 }
 
 // Java: TypeInference.isInExternFile(Node)
@@ -1200,7 +1200,7 @@ func TypeInference_AddMissingInterfaceProperties(constructor rhino.JSType) {
 	for _, interf := range f.GetImplementedInterfaces() {
 		for _, pname := range interf.GetPropertyNames() {
 			if !proto.HasProperty(pname) {
-				proto.DefineDeclaredProperty(pname, interf.GetPropertyType(pname), rhino.Node{})
+				proto.DefineDeclaredProperty(pname, interf.GetPropertyType(pname), rhino.NilNode)
 			}
 		}
 	}
@@ -1616,7 +1616,7 @@ func (ti *TypeInference) TraverseName(n rhino.Node, scope FlowScope) FlowScope {
 	}
 
 	if NodeUtil_IsNameDeclaration(n.GetParent()) &&
-		TypeInference_IsPossibleMixinApplication(n /* rvalue= */, rhino.Node{}) {
+		TypeInference_IsPossibleMixinApplication(n /* rvalue= */, rhino.NilNode) {
 		TypeInference_AddMissingInterfaceProperties(type_)
 	}
 
@@ -1895,12 +1895,12 @@ func TypeInference_GetRhsOfField(fieldNode rhino.Node) rhino.Node {
 		if fieldNode.HasOneChild() {
 			return fieldNode.GetFirstChild()
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case rhino.Token_COMPUTED_FIELD_DEF:
 		if fieldNode.HasTwoChildren() {
 			return fieldNode.GetSecondChild()
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	default:
 		panic(jutil.NewAssertionErrorNoMessage())
 	}
@@ -2321,7 +2321,7 @@ func (ti *TypeInference) UpdateBind(n rhino.Node) {
 			callTargetFn =
 				callTargetFn.ToBuilder().
 					WithTypeOfThis(thisType.ToObjectType()).
-					WithSourceNode(rhino.Node{}).
+					WithSourceNode(rhino.NilNode).
 					BuildAndResolve()
 			target.SetJSType(callTargetFn)
 		}
@@ -2335,7 +2335,7 @@ func (ti *TypeInference) UpdateBind(n rhino.Node) {
 	if bindType != nil && n.GetFirstChild() != target {
 		// Update the type of the
 		bindType =
-			bindType.ToBuilder().WithReturnType(returnType).WithSourceNode(rhino.Node{}).BuildAndResolve()
+			bindType.ToBuilder().WithReturnType(returnType).WithSourceNode(rhino.NilNode).BuildAndResolve()
 		n.GetFirstChild().SetJSType(bindType)
 	}
 

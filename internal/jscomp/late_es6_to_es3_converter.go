@@ -64,7 +64,7 @@ const LateEs6ToEs3Converter_FRESH_COMP_PROP_VAR = "$jscomp$compprop"
 // Java: LateEs6ToEs3Converter(AbstractCompiler)
 func NewLateEs6ToEs3Converter(compiler AbstractCompiler) *LateEs6ToEs3Converter {
 	l := &LateEs6ToEs3Converter{}
-	l.templateLitInsertionPoint = rhino.Node{}
+	l.templateLitInsertionPoint = rhino.NilNode
 	l.compiler = compiler
 	l.astFactory = compiler.CreateAstFactory()
 	l.templateLiteralConverter = NewEs6TemplateLiterals(compiler)

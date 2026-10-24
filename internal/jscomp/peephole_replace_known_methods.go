@@ -451,7 +451,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(subtree rhino.No
 			case "trim", "trimStart", "trimEnd", "trimLeft", "trimRight":
 				return p.TryFoldStringTrim(subtree, stringNode, functionNameString)
 			case "at":
-				return p.TryFoldStringAt(subtree, stringNode, rhino.Node{})
+				return p.TryFoldStringAt(subtree, stringNode, rhino.NilNode)
 			default:
 			}
 		} else {

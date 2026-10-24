@@ -133,7 +133,7 @@ func CombinedCompilerPass_Traverse(compiler AbstractCompiler, root rhino.Node, c
 	if len(callbacks) == 1 {
 		NodeTraversal_Traverse(compiler, root, callbacks[0])
 	} else {
-		NewCombinedCompilerPassOfList(compiler, callbacks).Process(rhino.Node{}, root)
+		NewCombinedCompilerPassOfList(compiler, callbacks).Process(rhino.NilNode, root)
 	}
 }
 
@@ -184,7 +184,7 @@ func (w *combinedCompilerPass_CallbackWrapper) VisitOrMaybeActivate(t *NodeTrave
 			w.callback.Visit(t, n, parent)
 		}
 	} else if w.waiting == n {
-		w.waiting = rhino.Node{}
+		w.waiting = rhino.NilNode
 	}
 }
 
@@ -326,7 +326,7 @@ func (p *CombinedCompilerPass) processParallel(root rhino.Node) bool {
 			} else {
 				workerPass.inactiveCount = 0
 				for i := range workerPass.callbacks {
-					workerPass.callbacks[i].waiting = rhino.Node{}
+					workerPass.callbacks[i].waiting = rhino.NilNode
 				}
 			}
 			b := NodeTraversal_Builder{
@@ -401,7 +401,7 @@ func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 				callback.callback.Visit(t, n, parent)
 			}
 		} else if callback.waiting == n {
-			callback.waiting = rhino.Node{}
+			callback.waiting = rhino.NilNode
 			p.inactiveCount--
 		}
 	}

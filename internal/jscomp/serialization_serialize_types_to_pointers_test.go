@@ -187,7 +187,7 @@ func (c *SerializeTypesToPointersTest) parseAndTypecheckFiles(files ...string) r
 		c.compiler,
 		NewClosureReverseAbstractInterpreter(c.compiler.GetTypeRegistry()),
 		c.compiler.GetTypeRegistry()).
-		ProcessForTesting(rhino.Node{}, root)
+		ProcessForTesting(rhino.NilNode, root)
 	return root
 }
 

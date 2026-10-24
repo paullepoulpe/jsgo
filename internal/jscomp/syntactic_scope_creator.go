@@ -761,7 +761,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n rhino.Node)
 		}
 		var_ := s.creator.vars.New()
 		var_.nameID = id
-		var_.initAbstractVarBase(n, sc, len(sc.varList), input, rhino.Node{})
+		var_.initAbstractVarBase(n, sc, len(sc.varList), input, rhino.NilNode)
 		sc.addVar(var_)
 	}
 }

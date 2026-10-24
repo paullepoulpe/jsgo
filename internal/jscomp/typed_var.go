@@ -63,7 +63,7 @@ var typedVar_NAME_NODE_TYPES = jutil.NewEnumSet(
 func NewTypedVar(inferred bool, name string, nameNode rhino.Node, type_ rhino.JSType,
 	scope *TypedScope, index int, input *CompilerInput) *TypedVar {
 	v := &TypedVar{name: name}
-	v.initAbstractVarBase(nameNode, scope, index, input, rhino.Node{} /* implicitGoogNamespaceDefinition */)
+	v.initAbstractVarBase(nameNode, scope, index, input, rhino.NilNode /* implicitGoogNamespaceDefinition */)
 	if !nameNode.IsNil() {
 		jutil.CheckArgumentMsg1(
 			typedVar_NAME_NODE_TYPES.Contains(nameNode.GetToken()),

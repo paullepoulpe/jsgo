@@ -356,7 +356,7 @@ func (c *ClosureCodingConvention) GetObjectLiteralCast(callNode rhino.Node) *Cod
 
 	objectNode := typeNode.GetNext()
 	if !objectNode.IsObjectLit() {
-		return NewCodingConvention_ObjectLiteralCast(nil, rhino.Node{}, ClosureCodingConvention_OBJECTLIT_EXPECTED)
+		return NewCodingConvention_ObjectLiteralCast(nil, rhino.NilNode, ClosureCodingConvention_OBJECTLIT_EXPECTED)
 	}
 
 	return NewCodingConvention_ObjectLiteralCast(typeNode.GetQualifiedName(), typeNode.GetNext(), nil)
@@ -471,5 +471,5 @@ func ClosureCodingConvention_SafeNext(n rhino.Node) rhino.Node {
 	if !n.IsNil() {
 		return n.GetNext()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }

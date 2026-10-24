@@ -248,18 +248,18 @@ func (r *FunctionInjector_ReferenceBase) closestHoistScopeRoot() rhino.Node {
 	if r.scope != nil {
 		hs := r.scope.GetClosestHoistScope()
 		if hs == nil || hs.IsGlobal() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		return hs.GetRootNode()
 	}
 	if r.t != nil {
 		root := r.t.GetClosestHoistScopeRoot()
 		if root.IsNil() || root.IsRoot() || root.IsScript() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		return root
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 func (r *FunctionInjector_ReferenceBase) lookupScope() *Scope {
@@ -510,7 +510,7 @@ func (f *FunctionInjector) InlineReturnValue(ref FunctionInjector_Reference, fnN
 
 		// Clone the return node first.
 		safeReturnNode := returnNode.CloneTree()
-		inlineResult := f.functionArgumentInjector.Inject(nil, safeReturnNode, rhino.Node{}, paramReplacements)
+		inlineResult := f.functionArgumentInjector.Inject(nil, safeReturnNode, rhino.NilNode, paramReplacements)
 		jutil.CheckArgument(safeReturnNode == inlineResult)
 		newExpression = safeReturnNode.RemoveFirstChild()
 		NodeUtil_MarkNewScopesChanged(newExpression, f.compiler)

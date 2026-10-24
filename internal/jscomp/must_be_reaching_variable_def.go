@@ -609,7 +609,7 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 			// We pass null for the def node because an enhanced for-loop conditionally assigns
 			// elements from the collection at runtime (or doesn't execute if empty), so there is no
 			// unconditional reaching definition from the loop header.
-			d.AddToDefIfLocal(lhs.GetString(), rhino.Node{}, rhs, output)
+			d.AddToDefIfLocal(lhs.GetString(), rhino.NilNode, rhs, output)
 		} else if lhs.IsDestructuringLhs() {
 			lhs = lhs.GetFirstChild()
 		}
@@ -663,7 +663,7 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 			if !conditional {
 				defNode = cfgNode
 			}
-			d.AddToDefIfLocal(n.GetFirstChild().GetString(), defNode, rhino.Node{}, output)
+			d.AddToDefIfLocal(n.GetFirstChild().GetString(), defNode, rhino.NilNode, output)
 		} else {
 			d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
 			d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, true)
@@ -674,7 +674,7 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 			if !conditional {
 				defNode = cfgNode
 			}
-			d.AddToDefIfLocal(n.GetString(), defNode, rhino.Node{}, output)
+			d.AddToDefIfLocal(n.GetString(), defNode, rhino.NilNode, output)
 		} else if "arguments" == n.GetString() {
 			d.EscapeParameters(output)
 		}
@@ -715,7 +715,7 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 				if !conditional {
 					defNode = cfgNode
 				}
-				d.AddToDefIfLocal(target.GetString(), defNode, rhino.Node{}, output)
+				d.AddToDefIfLocal(target.GetString(), defNode, rhino.NilNode, output)
 				return
 			}
 		}
@@ -931,7 +931,7 @@ func (d *MustBeReachingVariableDef) ComputeDependence(def *MustBeReachingVariabl
 		d.depCallback.def = nil
 		return
 	}
-	d.computeDependenceWalk(def, rValue, rhino.Node{})
+	d.computeDependenceWalk(def, rValue, rhino.NilNode)
 }
 
 // mustBeReachingVariableDef_dependenceCallback is the anonymous
@@ -985,7 +985,7 @@ func (d *MustBeReachingVariableDef) GetDef(name string, useNode rhino.Node) *Mus
 func (d *MustBeReachingVariableDef) GetDefNode(name string, useNode rhino.Node) rhino.Node {
 	def := d.GetDef(name, useNode)
 	if def == nil {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return def.node
 }

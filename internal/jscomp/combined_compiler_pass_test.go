@@ -193,7 +193,7 @@ func combinedCompilerPassTest_createStringTests() []*combinedCompilerPassTest_Te
 func (c *CombinedCompilerPassTest) TestIndividualPasses() {
 	for _, test := range combinedCompilerPassTest_createStringTests() {
 		pass := NewCombinedCompilerPass(c.compiler, test.GetTraversal())
-		pass.Process(rhino.Node{}, combinedCompilerPassTest_createPostOrderAlphabet())
+		pass.Process(rhino.NilNode, combinedCompilerPassTest_createPostOrderAlphabet())
 		test.CheckResults()
 	}
 }
@@ -208,7 +208,7 @@ func (c *CombinedCompilerPassTest) TestCombinedPasses() {
 		i++
 	}
 	pass := NewCombinedCompilerPass(c.compiler, callbacks...)
-	pass.Process(rhino.Node{}, combinedCompilerPassTest_createPostOrderAlphabet())
+	pass.Process(rhino.NilNode, combinedCompilerPassTest_createPostOrderAlphabet())
 	for _, test := range tests {
 		test.CheckResults()
 	}
@@ -267,7 +267,7 @@ func (c *CombinedCompilerPassTest) TestScopes() {
 	c3 := newCombinedCompilerPassTest_ScopeRecordingCallback()
 
 	pass := NewCombinedCompilerPass(c.compiler, c1, c2, c3)
-	pass.Process(rhino.Node{}, root)
+	pass.Process(rhino.NilNode, root)
 
 	AssertThat(c1.GetVisitedScopes().Size()).IsEqualTo(1)
 	AssertThat(c2.GetVisitedScopes().Size()).IsEqualTo(3)

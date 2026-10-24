@@ -157,7 +157,7 @@ func (rc *ReusableCfg) release() {
 	rc.cfg.clearForReuse()
 	rc.cfa.compiler = nil
 	rc.cfa.cfg = nil
-	rc.cfa.root = rhino.Node{}
+	rc.cfa.root = rhino.NilNode
 	rc.cfa.finallyMap = cfaEmptyFinallyMap
 }
 
@@ -287,7 +287,7 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowAn
 
 	// Insert an implicit return last.
 	c.astPositionCounter++
-	c.astPosition[rhino.Node{}] = c.astPositionCounter
+	c.astPosition[rhino.NilNode] = c.astPositionCounter
 
 	// Now, generate the priority of nodes by doing a depth-first
 	// search on the CFG.
@@ -346,7 +346,7 @@ func (c *ControlFlowAnalysis) traverse(root rhino.Node) {
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
 		currentNode = root
-		c.walkBranch(root, rhino.Node{}, &currentNode, &currentScript)
+		c.walkBranch(root, rhino.NilNode, &currentNode, &currentScript)
 	}, func(unexpectedException jutil.Throwable) {
 		b := NodeTraversal_Builder{compiler: c.compiler, callback: newControlFlowAnalysis(c.compiler, c.shouldTraverseFunctions, c.edgeAnnotations)}
 		t := newNodeTraversal(&b)
@@ -581,7 +581,7 @@ func (c *ControlFlowAnalysis) exceptionHandlerPush(n rhino.Node) {
 // exceptionHandlerPeek is ArrayDeque.peek(): the top, or null when empty.
 func (c *ControlFlowAnalysis) exceptionHandlerPeek() rhino.Node {
 	if len(c.exceptionHandler) == 0 {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return c.exceptionHandler[len(c.exceptionHandler)-1]
 }
@@ -593,7 +593,7 @@ func (c *ControlFlowAnalysis) exceptionHandlerPop() rhino.Node {
 		panic(jutil.NewNoSuchElementException())
 	}
 	top := c.exceptionHandler[len(c.exceptionHandler)-1]
-	c.exceptionHandler[len(c.exceptionHandler)-1] = rhino.Node{}
+	c.exceptionHandler[len(c.exceptionHandler)-1] = rhino.NilNode
 	c.exceptionHandler = c.exceptionHandler[:len(c.exceptionHandler)-1]
 	return top
 }
@@ -1066,9 +1066,9 @@ func (c *ControlFlowAnalysis) handleReturn(node rhino.Node) {
 	}
 
 	if lastJump.IsNil() {
-		c.createEdge(node, ControlFlowGraph_Branch_UNCOND, rhino.Node{})
+		c.createEdge(node, ControlFlowGraph_Branch_UNCOND, rhino.NilNode)
 	} else {
-		c.putFinally(lastJump, rhino.Node{})
+		c.putFinally(lastJump, rhino.NilNode)
 	}
 }
 
@@ -1120,7 +1120,7 @@ func ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode rhino.Node, node rhino.N
 	 */
 	parent := node.GetParent()
 	if parent.IsNil() || parent.IsFunction() || (cfa != nil && node == cfa.root) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	// If we are just before a IF/WHILE/DO/FOR:
@@ -1316,7 +1316,7 @@ func ControlFlowAnalysis_GetNextSiblingOfType(first rhino.Node, types ...rhino.T
 			}
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // ControlFlowAnalysis_IsBreakTarget checks if target is actually the break
@@ -1418,7 +1418,7 @@ func ControlFlowAnalysis_GetExceptionHandler(n rhino.Node) rhino.Node {
 			return catchNode
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // ControlFlowAnalysis_GetCatchHandlerForBlock locates the catch BLOCK given
@@ -1437,7 +1437,7 @@ func ControlFlowAnalysis_GetCatchHandlerForBlock(block rhino.Node) rhino.Node {
 			}
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // ControlFlowAnalysis_AstControlFlowGraph is a ControlFlowGraph which

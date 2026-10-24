@@ -459,7 +459,7 @@ func trSectionNamed(name string) trSection {
 		return func(c *Compiler, r *[]string) rhino.Node {
 			NewInjectTranspilationRuntimeLibraries(c).Process(c.GetExternsRoot(), c.GetJsRoot())
 			trAddInjected(c, r)
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	case "inject-tree":
 		return func(c *Compiler, r *[]string) rhino.Node {
@@ -556,21 +556,21 @@ func trSectionNamed(name string) trSection {
 			for p := range c.GetExternProperties().All() {
 				*r = append(*r, "prop "+p)
 			}
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	case "accessors":
 		return func(c *Compiler, r *[]string) rhino.Node {
 			for k, v := range GatherGetterAndSetterProperties_Gather(c, c.GetRoot()).All() {
 				*r = append(*r, "accessor "+k+" "+v.String())
 			}
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	case "visibility":
 		return func(c *Compiler, r *[]string) rhino.Node {
 			for k, v := range trVisibilityMap(c).All() {
 				*r = append(*r, "visibility "+k.GetName()+" "+v.String())
 			}
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	case "access":
 		return func(c *Compiler, r *[]string) rhino.Node {
@@ -578,7 +578,7 @@ func trSectionNamed(name string) trSection {
 			NodeTraversal_Traverse(c, c.GetJsRoot(), cb)
 			*r = append(*r, "access "+strconv.Itoa(cb.names)+" "+strconv.Itoa(cb.getprops)+" "+
 				strconv.FormatUint(uint64(cb.crc), 16))
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	case "template":
 		return func(c *Compiler, r *[]string) rhino.Node {

@@ -449,7 +449,7 @@ func jsaWgFindNameNode(root rhino.Node, name string) rhino.Node {
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: WarningsGuardTest.findGetPropNode(Node, String)
@@ -464,7 +464,7 @@ func jsaWgFindGetPropNode(root rhino.Node, name string) rhino.Node {
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 func jsaWgMakeError(sourcePath *string) *JSError {

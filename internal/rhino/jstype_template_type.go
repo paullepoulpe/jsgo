@@ -55,12 +55,12 @@ const TemplateType_TYPE_CLASS = JSTypeClass_TEMPLATE
 
 // Java: TemplateType(JSTypeRegistry, String)
 func NewTemplateType(registry *JSTypeRegistry, name string) *TemplateType {
-	return NewTemplateTypeWithBoundAndTransformation(registry, name, nil, Node{})
+	return NewTemplateTypeWithBoundAndTransformation(registry, name, nil, NilNode)
 }
 
 // Java: TemplateType(JSTypeRegistry, String, JSType)
 func NewTemplateTypeWithBound(registry *JSTypeRegistry, name string, bound JSType) *TemplateType {
-	return NewTemplateTypeWithBoundAndTransformation(registry, name, bound, Node{})
+	return NewTemplateTypeWithBoundAndTransformation(registry, name, bound, NilNode)
 }
 
 // Java: TemplateType(JSTypeRegistry, String, Node)

@@ -638,7 +638,7 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) FindTtlVar(t *NodeTraversal, arg
 	// We are only interested in top level var definitions since that is what the transpiler
 	// creates
 	if !parent.IsVar() || !parent.GetParent().IsScript() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	// Because the AST is normalized there is only one child
 	jutil.CheckStateMsg(
@@ -646,7 +646,7 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) FindTtlVar(t *NodeTraversal, arg
 		"The AST is normalized so there should only be one name per var")
 	callNode := ttlVarName.GetFirstChild()
 	if !callNode.IsCall() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	callExpr := callNode.GetFirstChild()
 	if callExpr.MatchesName("$jscomp$createTemplateTagFirstArg") ||
@@ -655,7 +655,7 @@ func (g *ReplaceIdGenerators_ReplaceGenerators) FindTtlVar(t *NodeTraversal, arg
 		return ttlVarName.GetParent()
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: ReplaceGenerators.getObfuscatedName(Node, String, NameSupplier, String)

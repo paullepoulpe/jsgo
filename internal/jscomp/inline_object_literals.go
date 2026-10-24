@@ -787,7 +787,7 @@ func (b *InlineObjectLiterals_InliningBehavior) ReplaceAssignmentExpression(v *V
 
 	// TODO(user): Better source information.
 	for var_ := range all.All() {
-		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(var_)), NodeUtil_NewUndefinedNode(rhino.Node{})))
+		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(var_)), NodeUtil_NewUndefinedNode(rhino.NilNode)))
 	}
 
 	var replacement rhino.Node

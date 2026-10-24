@@ -362,7 +362,7 @@ func PolymerPassStaticUtils_GetTypeFromProperty(
 	} else if property.value.IsName() {
 		typeValue = property.value
 	} else {
-		typeValue = rhino.Node{}
+		typeValue = rhino.NilNode
 	}
 
 	if typeValue.IsNil() {

@@ -146,7 +146,7 @@ func JSError_Make(type_ *DiagnosticType, arguments ...string) *JSError {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
 	return NewJSError(
-		type_, type_.Format(arguments...), nil, jSError_DEFAULT_LINENO, jSError_DEFAULT_CHARNO, jSError_DEFAULT_LENGTH, rhino.Node{}, type_.level, nil)
+		type_, type_.Format(arguments...), nil, jSError_DEFAULT_LINENO, jSError_DEFAULT_CHARNO, jSError_DEFAULT_LENGTH, rhino.NilNode, type_.level, nil)
 }
 
 // JSError_MakeWithSourceLocation creates a JSError at a given source
@@ -160,7 +160,7 @@ func JSError_MakeWithSourceLocation(
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
 	return NewJSError(
-		type_, type_.Format(arguments...), sourceName, lineno, charno, jSError_DEFAULT_LENGTH, rhino.Node{}, type_.level, nil)
+		type_, type_.Format(arguments...), sourceName, lineno, charno, jSError_DEFAULT_LENGTH, rhino.NilNode, type_.level, nil)
 }
 
 // JSError_MakeWithNode creates a JSError from a file and Node position.

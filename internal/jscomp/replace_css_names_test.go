@@ -455,7 +455,7 @@ func (c *ReplaceCssNamesTest) TestNoSymbolMapStripsCallAndDoesntIssueWarnings() 
 	root := compiler.ParseTestCode(input)
 	c.useReplacementMap = false
 	replacer := NewReplaceCssNames(compiler, nil, ReplaceCssNames_CssNameCollectorFunc(func(unused string) {}), nil)
-	replacer.Process(rhino.Node{}, root)
+	replacer.Process(rhino.NilNode, root)
 	AssertThat(compiler.ToSourceOfNode(root)).IsEqualTo("[\"test\",base+\"-active\"]")
 	AssertWithMessage("There should be no errors").That(errorMan.GetErrorCount()).IsEqualTo(0)
 	AssertWithMessage("There should be no warnings").That(errorMan.GetWarningCount()).IsEqualTo(0)

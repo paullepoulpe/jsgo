@@ -904,7 +904,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamerBase) InitMakeDeclaredNamesUni
 	self MakeDeclaredNamesUnique_ContextualRenamer) {
 	c.self = self
 	c.declarations = jutil.NewLinkedHashMap[string, *string]()
-	c.scopeRoot = rhino.Node{}
+	c.scopeRoot = rhino.NilNode
 	c.global = true
 	c.nameUsage = newMakeDeclaredNamesUniqueMultiset()
 

@@ -334,7 +334,7 @@ func (p *PeepholeMinimizeConditions) TryRemoveRedundantExit(n rhino.Node) rhino.
 	if follow.IsNil() || p.AreMatchingExits(n, follow) {
 		p.ReportChangeToEnclosingScope(n)
 		n.Detach()
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	return n

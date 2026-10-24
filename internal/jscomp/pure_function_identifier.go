@@ -163,7 +163,7 @@ func NewPureFunctionIdentifier(
 	p.reverseCallGraph = LinkedDirectedGraph_CreateWithoutAnnotations[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]()
 	p.unknownFunctionSummary =
 		p.createSummaryInGraph("<unknown>").
-			SetMutatesGlobalStateAndAllOtherFlags(rhino.Node{})
+			SetMutatesGlobalStateAndAllOtherFlags(rhino.NilNode)
 	p.unknownFunctionSummarySlice = p.unknownFunctionSummary.selfSlice[:]
 	p.hasProcessed = false
 	p.compiler = jutil.CheckNotNull(compiler)
@@ -873,7 +873,7 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 		// - There are no L-values with this name.
 		// - There's a an L-value and we can't find the associated R-values.
 		// - There's a an L-value with R-values are not all known to be callable.
-		summaryForName.SetMutatesGlobalStateAndAllOtherFlags(rhino.Node{})
+		summaryForName.SetMutatesGlobalStateAndAllOtherFlags(rhino.NilNode)
 	} else {
 		for _, rvalue := range rvaluesAssignedToName {
 			if rvalue.IsFunction() {
@@ -1631,7 +1631,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitCall(callerInfo *Pure
 
 	calleeSummaries := b.outer.GetSummariesForCallee(invocation)
 	if len(calleeSummaries) == 0 {
-		callerInfo.SetMutatesGlobalStateAndAllOtherFlags(rhino.Node{})
+		callerInfo.SetMutatesGlobalStateAndAllOtherFlags(rhino.NilNode)
 		return
 	}
 
@@ -1790,7 +1790,7 @@ func PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invoc
 	} else if callee.IsGetProp() || callee.IsOptChainGetProp() {
 		thisArg = callee.GetFirstChild()
 	} else {
-		thisArg = rhino.Node{}
+		thisArg = rhino.NilNode
 	}
 
 	if thisArg.IsNil() {

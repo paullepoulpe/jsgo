@@ -723,5 +723,5 @@ func (p *templateAstMatcherTest_TestNodePair) GetTestExprResultRoot() rhino.Node
 	if p.testNode.GetFirstChild().IsExprResult() {
 		return p.testNode.GetFirstChild()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }

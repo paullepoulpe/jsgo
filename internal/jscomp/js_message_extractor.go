@@ -136,7 +136,7 @@ func (e *JsMessageExtractor) ExtractMessagesFromIterable(inputs []*SourceFile) [
 
 	extractCompilerPass := newJsMessageExtractor_ExtractMessagesVisitor(e, compiler)
 	if len(compiler.GetErrors()) == 0 {
-		extractCompilerPass.Process(rhino.Node{}, compiler.GetRoot())
+		extractCompilerPass.Process(rhino.NilNode, compiler.GetRoot())
 	}
 
 	errors := compiler.GetErrors()

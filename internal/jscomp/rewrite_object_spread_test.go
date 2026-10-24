@@ -127,5 +127,5 @@ func (c *RewriteObjectSpreadTest) GetNodeMatchingQName(root rhino.Node, qname st
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }

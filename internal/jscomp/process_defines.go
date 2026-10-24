@@ -404,7 +404,7 @@ func (p *ProcessDefines) GetReplacementForDefine(define *ProcessDefines_Define) 
 		// Return the second argument of goog.define('name', false);
 		return define.value.GetChildAtIndex(2)
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // GetReplacementForDefineName returns the replacement value for a @define,
@@ -419,7 +419,7 @@ func (p *ProcessDefines) GetReplacementForDefine(define *ProcessDefines_Define) 
 func (p *ProcessDefines) GetReplacementForDefineName(defineName *string) rhino.Node {
 	// Go-only: language-adapter — a null key finds nothing in either map.
 	if defineName == nil {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	replacementFromFlags := p.replacementValuesFromFlags.Get(*defineName)
 	if !replacementFromFlags.IsNil() {
@@ -431,7 +431,7 @@ func (p *ProcessDefines) GetReplacementForDefineName(defineName *string) rhino.N
 		return replacementFromClosureDefines
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // IsValidDefineType: only defines of literal number, string, or boolean are
@@ -556,7 +556,7 @@ func processDefines_getValueParentForDefine(declaration *GlobalNamespace_Ref) rh
 		// allow assignment before it's declared).
 		return declarationParent
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: ProcessDefines.collectValidDefineValueExpressions()
@@ -955,27 +955,27 @@ func (p *ProcessDefines) IsValidDefineValue(val rhino.Node) base.Tri {
 func processDefines_getConstantDeclValue(name rhino.Node) rhino.Node {
 	parent := name.GetParent()
 	if parent.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	if name.IsName() {
 		if parent.IsConst() {
 			return name.GetFirstChild()
 		} else if !parent.IsVar() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		jsdoc := NodeUtil_GetBestJSDocInfo(name)
 		if jsdoc != nil && jsdoc.IsConstant() {
 			return name.GetFirstChild()
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	} else if name.IsGetProp() && parent.IsAssign() {
 		jsdoc := NodeUtil_GetBestJSDocInfo(name)
 		if jsdoc != nil && jsdoc.IsConstant() {
 			return name.GetNext()
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: ProcessDefines.validateDefines()

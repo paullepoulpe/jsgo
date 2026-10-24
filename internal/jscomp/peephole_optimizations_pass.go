@@ -377,7 +377,7 @@ func enclosingScriptForPeephole(n rhino.Node) rhino.Node {
 			return cur
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 type peepholeScriptBucket struct {

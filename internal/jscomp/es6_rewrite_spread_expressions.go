@@ -122,7 +122,7 @@ func (e *Es6RewriteSpreadExpressions) ExtractSpreadGroups(spreadParent rhino.Nod
 	jutil.CheckArgument(spreadParent.IsCall() || spreadParent.IsArrayLit() || spreadParent.IsNew())
 
 	groups := []rhino.Node{}
-	var currGroup rhino.Node = rhino.Node{}
+	var currGroup rhino.Node = rhino.NilNode
 
 	for currElement := spreadParent.RemoveFirstChild(); !currElement.IsNil(); currElement = spreadParent.RemoveFirstChild() {
 		if currElement.IsSpread() {
@@ -143,7 +143,7 @@ func (e *Es6RewriteSpreadExpressions) ExtractSpreadGroups(spreadParent rhino.Nod
 				if !currGroup.IsNil() {
 					// finish off and add the group we were collecting before
 					groups = append(groups, currGroup)
-					currGroup = rhino.Node{}
+					currGroup = rhino.NilNode
 				}
 
 				groups = append(groups,

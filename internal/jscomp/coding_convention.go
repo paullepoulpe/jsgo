@@ -726,7 +726,7 @@ func (s *CodingConvention_AssertionFunctionSpec) GetAssertedArg(firstArg rhino.N
 		if firstArg.IsNil() {
 			// If there are fewer arguments than expected, return null instead of crashing in this
 			// function.
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		firstArg = firstArg.GetNext()
 	}

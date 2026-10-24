@@ -2504,7 +2504,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 	for input := range c.externs.All() {
 		n := rhino.CheckNotNull(input.GetAstRoot(c))
 		if c.HasErrors() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		c.externsRoot.AddChildToBack(n)
 		c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), n)
@@ -2564,7 +2564,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 
 	// If in IDE mode, we ignore the error and keep going.
 	if c.HasErrors() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	// Build the AST.
@@ -2598,7 +2598,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 		if devMode {
 			c.runValidityCheck()
 			if c.HasErrors() {
-				return rhino.Node{}
+				return rhino.NilNode
 			}
 		}
 
@@ -2623,7 +2623,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 	}
 
 	if c.HasErrors() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	// Save on memory. Any future calls to "createInputConsideringTypedAstFilesystem" will throw.
 	// TODO(lharker): do we actually need the synthetic externs file in stage 2?
@@ -2961,7 +2961,7 @@ func (c *Compiler) ProcessJsonInputs(inputsToProcess []*CompilerInput) *jutil.Li
 
 		root := rhino.CheckNotNull(input.GetAstRoot(c))
 		input.SetJsModuleType(CompilerInput_ModuleType_JSON)
-		rewriteJson.Process(rhino.Node{}, root)
+		rewriteJson.Process(rhino.NilNode, root)
 	}
 	return rewriteJson.GetPackageJsonMainEntries()
 }

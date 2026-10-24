@@ -101,7 +101,7 @@ func (c *PhaseOptimizerTest) TestCapLoopIterations() {
 func (c *PhaseOptimizerTest) TestNotInfiniteLoop() {
 	loop := c.optimizer.AddFixedPointLoop()
 	c.AddLoopedPass(loop, "x", PhaseOptimizer_MAX_LOOPS-2)
-	c.optimizer.Process(rhino.Node{}, c.dummyRoot)
+	c.optimizer.Process(rhino.NilNode, c.dummyRoot)
 	AssertWithMessage("There should be no errors.").That(c.compiler.GetErrorCount()).IsEqualTo(0)
 }
 
@@ -110,7 +110,7 @@ func (c *PhaseOptimizerTest) TestInfiniteLoop() {
 	loop := c.optimizer.AddFixedPointLoop()
 	c.AddLoopedPass(loop, "x", PhaseOptimizer_MAX_LOOPS+1)
 	jutil.Try(func() {
-		c.optimizer.Process(rhino.Node{}, c.dummyRoot)
+		c.optimizer.Process(rhino.NilNode, c.dummyRoot)
 		AssertWithMessage("Expected RuntimeException").Fail()
 	}, func(e jutil.IRuntimeException) {
 		AssertWithMessage(e.GetMessage()).
@@ -218,7 +218,7 @@ func (c *PhaseOptimizerTest) TestPreconditionCheck_failure() {
 
 // Java: PhaseOptimizerTest.assertPasses(String...)
 func (c *PhaseOptimizerTest) AssertPasses(names ...string) {
-	c.optimizer.Process(rhino.Node{}, c.dummyRoot)
+	c.optimizer.Process(rhino.NilNode, c.dummyRoot)
 	AssertThat(c.passesRun).IsEqualTo(names)
 }
 

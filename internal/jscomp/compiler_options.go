@@ -1613,9 +1613,9 @@ func (o *CompilerOptions) GetDefineReplacements() *jutil.LinkedHashMap[string, r
 		case bool:
 			m.Put(name, NodeUtil_BooleanNode(v))
 		case int32:
-			m.Put(name, NodeUtil_NumberNode(float64(v), rhino.Node{}))
+			m.Put(name, NodeUtil_NumberNode(float64(v), rhino.NilNode))
 		case float64:
-			m.Put(name, NodeUtil_NumberNode(v, rhino.Node{}))
+			m.Put(name, NodeUtil_NumberNode(v, rhino.NilNode))
 		case string:
 			m.Put(name, rhino.IR_String(v))
 		default:

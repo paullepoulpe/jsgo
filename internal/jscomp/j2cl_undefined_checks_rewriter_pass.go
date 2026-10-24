@@ -77,7 +77,7 @@ func j2clUndefinedChecksRewriterPass_maybeOptimizeIsUndefinedCall(node rhino.Nod
 	} else if NodeUtil_IsDefinedValue(valueExpression) {
 		return rhino.IR_Comma(valueExpression.Detach(), rhino.IR_FalseNode())
 	} else {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -93,7 +93,7 @@ func j2clUndefinedChecksRewriterPass_maybeOptimizeCoerceToNullCall(node rhino.No
 		return valueExpression.Detach()
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: J2clUndefinedChecksRewriterPass.isUtilCall(Node, String)

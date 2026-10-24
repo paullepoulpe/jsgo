@@ -2303,7 +2303,7 @@ func FunctionInjectorTest_FindFunction(n rhino.Node, name string) rhino.Node {
 		}
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: FunctionInjectorTest.prep(String)

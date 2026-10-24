@@ -162,7 +162,7 @@ func l11msgDumpMessages(sb *strings.Builder, code string) {
 	found := &strings.Builder{}
 	visitor := &l11msgCollectMessages{found: found}
 	visitor.InitJsMessageVisitorBase(visitor, compiler, NewGoogleJsMessageIdGenerator(nil))
-	visitor.Process(rhino.Node{}, root)
+	visitor.Process(rhino.NilNode, root)
 	sb.WriteString(found.String())
 	l11msgDiagnosticsFrom(sb, compiler, parseErrors, parseWarnings)
 }
@@ -224,7 +224,7 @@ const l11msgExtraTypeDefs = "/** @type {number} */ Array.prototype.length;\n" +
 func l11msgRecord(registry *rhino.JSTypeRegistry, propsAndTypes ...any) rhino.JSType {
 	builder := rhino.NewRecordTypeBuilder(registry)
 	for i := 0; i < len(propsAndTypes); i += 2 {
-		builder.AddProperty(propsAndTypes[i].(string), propsAndTypes[i+1].(rhino.JSType), rhino.Node{})
+		builder.AddProperty(propsAndTypes[i].(string), propsAndTypes[i+1].(rhino.JSType), rhino.NilNode)
 	}
 	return builder.Build()
 }
@@ -331,7 +331,7 @@ func l11msgDumpPass(sb *strings.Builder, mode string, code string) {
 		pass = NewChromePass(compiler)
 	}
 	jutil.Try(func() {
-		pass.Process(rhino.Node{}, root)
+		pass.Process(rhino.NilNode, root)
 	}, func(e jutil.IRuntimeException) {
 		message := "<null>"
 		if strings.Contains(e.Error(), ": ") {

@@ -1452,7 +1452,7 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node rhino.Node, conte
 // Go-only: language-adapter — Java's reference cast of a property value.
 func codeGenerator_nodeProp(value any) rhino.Node {
 	if value == nil {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return value.(rhino.Node)
 }
@@ -2511,7 +2511,7 @@ func CodeGenerator_GetFirstNonEmptyChild(n rhino.Node) rhino.Node {
 			return c
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // CodeGenerator_Context is information on the current context. Used for

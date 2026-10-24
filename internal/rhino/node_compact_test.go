@@ -66,13 +66,13 @@ func TestNodeExtBoxLengthAndOriginalName(t *testing.T) {
 	if n.GetLength() != 7 || n.GetOriginalName() != nil || n.GetJSDocInfo() != nil {
 		t.Fatal("cleared fields are still set")
 	}
-	if n.rec.kindFlags&kindFlagHasExtBox != 0 || n.rec.aux != 0 {
+	if n.rec().kindFlags&kindFlagHasExtBox != 0 || n.rec().aux != 0 {
 		t.Fatal("empty nodeExtBox was not released")
 	}
 }
 
-// The node record holds no pointer at all: the tree links are 32-bit ids
-// into its store (node_store.go) and types, colors and cold data are reached
+// The node record holds no pointer at all: the tree links are 32-bit node
+// ids (node_store.go) and types, colors and cold data are reached
 // through 32-bit handles into the store's tables, so the GC never traces the
 // AST (a segment of records is a pointer-free object).
 func TestNodeHasNoPointers(t *testing.T) {
@@ -83,8 +83,8 @@ func TestNodeHasNoPointers(t *testing.T) {
 			t.Errorf("field %s is a pointer", f.Name)
 		}
 	}
-	if typ.Size() != 56 {
-		t.Errorf("nodeData is %d bytes, want 56", typ.Size())
+	if typ.Size() != 48 {
+		t.Errorf("nodeData is %d bytes, want 48", typ.Size())
 	}
 	if s := reflect.TypeOf(nodeExtBox{}).Size(); s != 32 {
 		t.Errorf("nodeExtBox is %d bytes, want 32", s)
@@ -92,8 +92,8 @@ func TestNodeHasNoPointers(t *testing.T) {
 	if s := reflect.TypeOf(JSTypeBase{}).Size(); s != 32 {
 		t.Errorf("JSTypeBase is %d bytes, want 32", s)
 	}
-	if s := reflect.TypeOf(Node{}).Size(); s != 16 {
-		t.Errorf("Node is %d bytes, want 16", s)
+	if s := reflect.TypeOf(NilNode).Size(); s != 4 {
+		t.Errorf("Node is %d bytes, want 4", s)
 	}
 }
 
@@ -129,44 +129,38 @@ func TestNodeTypeRelease(t *testing.T) {
 	if typed.GetJSType() != num {
 		t.Fatal("type cannot be re-registered after release")
 	}
-
-	// A node copied into another store keeps its type and color.
-	other := SetCurrentNodeStore(NewNodeStore())
-	moved := typed.CloneNode()
-	movedColor := colored.CloneNode()
-	SetCurrentNodeStore(other)
-	if moved.Store() == typed.Store() || moved.GetJSType() != num || movedColor.GetColor() != color {
-		t.Fatal("a clone into another store lost its type or color")
-	}
 }
 
-// Nodes of different stores cannot be linked; the static store (package-level
-// nodes, templates) is never current once a compilation store exists.
+// A node of a store that is no longer current cannot be used, and a
+// package-level node or template (the static store) cannot be linked.
 func TestNodeStoreIsolation(t *testing.T) {
 	prev := SetCurrentNodeStore(NewNodeStore())
 	defer SetCurrentNodeStore(prev)
 	a := IR_Block()
 	SetCurrentNodeStore(NewNodeStore())
-	b := IR_Empty()
-	func() {
+	expectPanic := func(what, msg string, f func()) {
+		t.Helper()
 		defer func() {
+			t.Helper()
 			r := recover()
-			if r == nil || !strings.Contains(r.(string), "different node stores") {
-				t.Fatalf("expected a cross-store panic, got %v", r)
+			if s, _ := r.(string); !strings.Contains(s, msg) {
+				t.Fatalf("%s: expected a panic containing %q, got %v", what, msg, r)
 			}
 		}()
-		a.AddChildToBack(b)
-	}()
+		f()
+	}
+	expectPanic("stale node", "not in the current node store", func() { a.GetFirstChild() })
 	tmpl := NewTemplateNode(Token_SCRIPT)
 	if !tmpl.Store().IsStatic() || CurrentNodeStore().IsStatic() {
 		t.Fatal("template is not in the static store")
 	}
-	var zero Node
-	if !zero.IsNil() || IR_Empty().IsNil() || IR_Empty() == IR_Empty() {
+	expectPanic("linking a template", "must never be linked", func() { IR_Block().AddChildToBack(tmpl) })
+	expectPanic("nil node", "nil node", func() { NilNode.GetToken() })
+	if !NilNode.IsNil() || IR_Empty().IsNil() || IR_Empty() == IR_Empty() {
 		t.Fatal("nil handle or handle equality is wrong")
 	}
 	n := IR_Name("x")
-	if n.GetFirstChild() != zero || n.GetParent() != zero {
-		t.Fatal("absent links are not the nil handle")
+	if n.GetFirstChild() != NilNode || n.GetParent() != NilNode {
+		t.Fatal("absent links are not the nil node")
 	}
 }

@@ -49,7 +49,7 @@ func TestPolymerBehaviorExtractorTest(t *testing.T) {
 // Java: PolymerBehaviorExtractorTest.setUp()
 func (c *PolymerBehaviorExtractorTest) SetUp() {
 	c.CompilerTypeTestCaseBase.SetUp()
-	c.behaviorArray = rhino.Node{}
+	c.behaviorArray = rhino.NilNode
 }
 
 // Java: PolymerBehaviorExtractorTest.testArrayBehavior()

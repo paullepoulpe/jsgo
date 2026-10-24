@@ -73,7 +73,7 @@ func TestNamedType_ResolutionPropagatesNamedTypePropertiesToResolvedType(t *test
 		defer closer.Close()
 		namedFooType = s.NamedTypeBuilder("Foo").SetScope(fooToFooScope).Build()
 
-		namedFooType.DefineDeclaredProperty("myProperty", s.NUMBER_TYPE, Node{})
+		namedFooType.DefineDeclaredProperty("myProperty", s.NUMBER_TYPE, NilNode)
 
 		// The property should not be typed yet.
 		s.AssertTypeNotEquals(s.NUMBER_TYPE, s.fooType.GetPropertyType("myProperty"))
@@ -239,7 +239,7 @@ func TestNamedType_ActiveXObjectResolve(t *testing.T) {
 
 func TestNamedType_ResolveToGoogModule(t *testing.T) {
 	s := newNamedTypeTest(t)
-	s.Registry.RegisterNonLegacyClosureNamespace("mod.Foo", Node{}, s.fooCtorType)
+	s.Registry.RegisterNonLegacyClosureNamespace("mod.Foo", NilNode, s.fooCtorType)
 	modDotFoo := s.NamedTypeBuilder("mod.Foo").Build()
 
 	modDotFoo.Resolve(ErrorReporter_NULL_INSTANCE)
@@ -249,7 +249,7 @@ func TestNamedType_ResolveToGoogModule(t *testing.T) {
 func TestNamedType_ResolveToPropertyOnGoogModule(t *testing.T) {
 	s := newNamedTypeTest(t)
 	exportsType := s.Registry.CreateRecordType(mapOf("Foo", s.fooCtorType))
-	s.Registry.RegisterNonLegacyClosureNamespace("mod.Bar", Node{}, exportsType)
+	s.Registry.RegisterNonLegacyClosureNamespace("mod.Bar", NilNode, exportsType)
 	modBarFoo := s.NamedTypeBuilder("mod.Bar.Foo").Build()
 
 	modBarFoo.Resolve(ErrorReporter_NULL_INSTANCE)
@@ -264,7 +264,7 @@ func TestNamedType_ResolveToGoogModule_failsIfLegacyNamespaceIsLongerPrefix(t *t
 		closer := s.Registry.GetResolver().OpenForDefinition()
 		defer closer.Close()
 		exportsType := s.Registry.CreateRecordType(mapOf("Foo", s.fooCtorType))
-		s.Registry.RegisterNonLegacyClosureNamespace("mod.Bar", Node{}, exportsType)
+		s.Registry.RegisterNonLegacyClosureNamespace("mod.Bar", NilNode, exportsType)
 		modDotFoo = s.NamedTypeBuilder("mod.Bar.Foo").Build()
 		s.Registry.RegisterLegacyClosureNamespace("mod.Bar.Foo")
 	}()
@@ -276,8 +276,8 @@ func TestNamedType_ResolveToGoogModule_usesLongestModulePrefix(t *testing.T) {
 	s := newNamedTypeTest(t)
 	barType := s.CreateNominalType("Bar" /* resolve= */)
 	s.Registry.RegisterNonLegacyClosureNamespace(
-		"mod.Foo", Node{}, s.Registry.CreateRecordType(mapOf("Bar", s.fooCtorType)))
-	s.Registry.RegisterNonLegacyClosureNamespace("mod.Foo.Bar", Node{}, barType.GetConstructor())
+		"mod.Foo", NilNode, s.Registry.CreateRecordType(mapOf("Bar", s.fooCtorType)))
+	s.Registry.RegisterNonLegacyClosureNamespace("mod.Foo.Bar", NilNode, barType.GetConstructor())
 	scope := rhinotesting.NewMapBasedScope(mapOf())
 	modDotFoo := s.NamedTypeBuilder("mod.Foo.Bar").SetScope(scope).Build()
 
@@ -289,7 +289,7 @@ func TestNamedType_ReferenceGoogModuleByType_resolvesToModuleRatherThanRegistryT
 	s := newNamedTypeTest(t)
 	// Note: this logic was put in place to mimic the semantics of type resolution when
 	// modules are rewritten before typechecking.
-	s.Registry.RegisterNonLegacyClosureNamespace("mod.Foo", Node{}, s.fooCtorType)
+	s.Registry.RegisterNonLegacyClosureNamespace("mod.Foo", NilNode, s.fooCtorType)
 	scope := rhinotesting.NewMapBasedScope(mapOf())
 	modDotFoo := s.NamedTypeBuilder("mod.Foo").SetScope(scope).Build()
 	s.Registry.DeclareType(scope, "mod.Foo", s.CreateNominalType("other.mod.Foo"))

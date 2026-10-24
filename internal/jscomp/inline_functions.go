@@ -181,14 +181,14 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 		f.runState = nil
 		f.fns = nil
 		f.anonFns = nil
-		f.lastCheckedBlock = rhino.Node{}
-		f.lastContainingFn = rhino.Node{}
+		f.lastCheckedBlock = rhino.NilNode
+		f.lastContainingFn = rhino.NilNode
 	}()
 
 	if !root.IsNil() {
 		if !f.findCandidateFunctionsParallel(root) {
 			findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}
-			findCandidates.walk(root, rhino.Node{}, nil, false)
+			findCandidates.walk(root, rhino.NilNode, nil, false)
 		}
 	}
 	if f.fns.IsEmpty() {
@@ -200,7 +200,7 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 		findRefs.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &findRefs)
 		inlineFunctions_traverseWithScopeCreator(f.compiler, root, &findRefs, sc)
 	}
-	f.lastContainingFn = rhino.Node{}
+	f.lastContainingFn = rhino.NilNode
 	f.TrimCandidatesNotMeetingMinimumRequirements()
 	if f.fns.IsEmpty() {
 		return // Nothing left to do.
@@ -231,7 +231,7 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	callVisitor := InlineFunctions_CallVisitorBase{}
 	callVisitor.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, &inlineCb)
 	if !root.IsNil() {
-		callVisitor.inlineWalk(root, rhino.Node{})
+		callVisitor.inlineWalk(root, rhino.NilNode)
 	}
 
 	f.RemoveInlinedFunctions()
@@ -1364,7 +1364,7 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 					return
 				}
 				worker.cands = nil
-				worker.lastCheckedBlock = rhino.Node{}
+				worker.lastCheckedBlock = rhino.NilNode
 				func() {
 					defer func() {
 						if r := recover(); r != nil {
@@ -1684,7 +1684,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 				sc = NewSyntacticScopeCreator(rc)
 			} else {
 				cb.events = nil
-				cb.lastContainingFn = rhino.Node{}
+				cb.lastContainingFn = rhino.NilNode
 				if cb.localDisallowed != nil {
 					clear(cb.localDisallowed)
 				}
@@ -2205,7 +2205,7 @@ type InlineFunctions_FunctionState struct {
 func NewInlineFunctions_FunctionState() *InlineFunctions_FunctionState {
 	return &InlineFunctions_FunctionState{
 		fn:             nil,
-		safeFnNode:     rhino.Node{},
+		safeFnNode:     rhino.NilNode,
 		inline:         true,
 		remove:         true,
 		inlineDirectly: false,
@@ -2358,7 +2358,7 @@ func (s *InlineFunctions_FunctionState) SetRemove(
 	compiler AbstractCompiler,
 	reason InlineFunctions_CannotRemoveReason,
 	shouldWarnIfRequireInlining InlineFunctions_ShouldWarnWhenRequireInliningCannotInline) {
-	s.SetRemoveWithContext(remove, compiler, reason, shouldWarnIfRequireInlining /* contextNode= */, rhino.Node{})
+	s.SetRemoveWithContext(remove, compiler, reason, shouldWarnIfRequireInlining /* contextNode= */, rhino.NilNode)
 }
 
 // Java: InlineFunctions.FunctionState.setRemove(boolean, AbstractCompiler, CannotRemoveReason, ShouldWarnWhenRequireInliningCannotInline, Node)
@@ -2615,7 +2615,7 @@ func (e *InlineFunctions_FunctionExpression) Remove() {
 
 // Java: InlineFunctions.FunctionExpression.getDeclaringBlock()
 func (e *InlineFunctions_FunctionExpression) GetDeclaringBlock() rhino.Node {
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // InlineFunctions_Reference is InlineFunctions.Reference, a subclass of

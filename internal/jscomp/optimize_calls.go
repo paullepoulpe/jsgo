@@ -427,7 +427,7 @@ func OptimizeCalls_ReferenceMap_GetSingleFunctionNode(definitionSites []rhino.No
 	if count == 1 {
 		return fn
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 func optimizeCalls_getSingleFunctionNode(definitionSites []rhino.Node) (rhino.Node, int) {
@@ -436,7 +436,7 @@ func optimizeCalls_getSingleFunctionNode(definitionSites []rhino.Node) (rhino.No
 	for _, def := range definitionSites {
 		single, count = optimizeCalls_collectSingleDefinitionFunctionNode(def, single, count)
 		if count > 1 {
-			return rhino.Node{}, count
+			return rhino.NilNode, count
 		}
 	}
 	return single, count
@@ -500,13 +500,13 @@ func optimizeCalls_collectSingleValueFunctionNode(n rhino.Node, single rhino.Nod
 	case rhino.Token_HOOK:
 		single, count = optimizeCalls_collectSingleValueFunctionNode(n.GetSecondChild(), single, count)
 		if count > 1 {
-			return rhino.Node{}, count
+			return rhino.NilNode, count
 		}
 		return optimizeCalls_collectSingleValueFunctionNode(n.GetLastChild(), single, count)
 	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
 		single, count = optimizeCalls_collectSingleValueFunctionNode(n.GetFirstChild(), single, count)
 		if count > 1 {
-			return rhino.Node{}, count
+			return rhino.NilNode, count
 		}
 		return optimizeCalls_collectSingleValueFunctionNode(n.GetLastChild(), single, count)
 	case rhino.Token_CAST, rhino.Token_COMMA:

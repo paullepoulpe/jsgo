@@ -95,10 +95,10 @@ func parseForIsomorphism(name, src string) (rhino.Node, *Compiler, error) {
 		caught = e
 	})
 	if caught != nil {
-		return rhino.Node{}, nil, fmt.Errorf("parser exception: %s", jutil.ToJavaString(caught))
+		return rhino.NilNode, nil, fmt.Errorf("parser exception: %s", jutil.ToJavaString(caught))
 	}
 	if res == nil || res.Ast.IsNil() {
-		return rhino.Node{}, nil, fmt.Errorf("parser returned nil AST")
+		return rhino.NilNode, nil, fmt.Errorf("parser returned nil AST")
 	}
 	script := res.Ast
 	script.SetInputId(rhino.NewInputId(name))

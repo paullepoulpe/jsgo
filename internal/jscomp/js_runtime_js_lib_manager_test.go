@@ -32,7 +32,7 @@ func stubResourceLoader(t *testing.T, resources map[string]string) RuntimeJsLibM
 	return func(resourceName string, unused string) rhino.Node {
 		code, ok := resources[resourceName]
 		if !ok {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		compiler := NewCompiler()
 		return compiler.ParseSyntheticCode("lib.js", code)

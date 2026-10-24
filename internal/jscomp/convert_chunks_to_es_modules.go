@@ -282,7 +282,7 @@ func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(
 				call,
 				ConvertChunksToESModules_UNRECOGNIZED_DYNAMIC_IMPORT_CALLBACK,
 				" Unable to find valid callback function."))
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	callbackBody := NodeUtil_GetFunctionBody(callbackFn)
 
@@ -302,7 +302,7 @@ func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(
 			call,
 			ConvertChunksToESModules_UNRECOGNIZED_DYNAMIC_IMPORT_CALLBACK,
 			" Unable to find valid namespace reference."))
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // RewriteDynamicImportCallbacks: the RewriteDynamicImports pass adds direct

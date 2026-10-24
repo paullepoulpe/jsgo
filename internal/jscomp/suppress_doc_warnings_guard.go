@@ -163,12 +163,12 @@ func (g *SuppressDocWarningsGuard) GetCheckLevelFromInfo(error *JSError, info *r
 // Java: SuppressDocWarningsGuard.getScriptNodeBySourceName(JSError)
 func (g *SuppressDocWarningsGuard) GetScriptNodeBySourceName(error *JSError) rhino.Node {
 	if error.SourceName() == nil {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	scriptNode := g.compiler.GetScriptNode(*error.SourceName())
 	if scriptNode.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	jutil.CheckState(scriptNode.IsScript())

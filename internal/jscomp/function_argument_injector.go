@@ -52,8 +52,8 @@ const FunctionArgumentInjector_REST_MARKER = "rest param"
 func NewFunctionArgumentInjector(astAnalyzer *AstAnalyzer) *FunctionArgumentInjector {
 	f := &FunctionArgumentInjector{
 		astAnalyzer:           astAnalyzer,
-		sentinelUndefinedNode: NodeUtil_NewUndefinedNode(rhino.Node{}),
-		templateUndefinedNode: NodeUtil_NewUndefinedNode(rhino.Node{}),
+		sentinelUndefinedNode: NodeUtil_NewUndefinedNode(rhino.NilNode),
+		templateUndefinedNode: NodeUtil_NewUndefinedNode(rhino.NilNode),
 		sentinelThisNode:      rhino.IR_ThisNode(),
 		scratchArgMap:         jutil.NewLinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair](),
 		scratchLocals:         jutil.NewLinkedHashSet[string](),

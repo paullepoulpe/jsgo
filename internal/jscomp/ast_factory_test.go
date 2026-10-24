@@ -1292,7 +1292,7 @@ func (c *AstFactoryTest) TestCreateQNameFromDottedStringAndTypedScope() {
 	scope := TypedScope_CreateGlobalScope(rhino.IR_Root())
 	// Declare a global "x" with the type "{y: number}".
 	objectWithYProp := c.getRegistry().CreateAnonymousObjectType(nil)
-	objectWithYProp.DefineDeclaredProperty("y", c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), rhino.Node{})
+	objectWithYProp.DefineDeclaredProperty("y", c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), rhino.NilNode)
 	scope.Declare("x", rhino.IR_Name("x"), objectWithYProp, nil, true)
 	name := astFactory.CreateQNameUsingJSTypeInfo(scope, "x.y")
 	AssertNode(name).MatchesQualifiedName("x.y")

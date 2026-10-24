@@ -407,7 +407,7 @@ func (f *LightweightMessageFormatter) PadMultipleLines(
 		}
 		b.WriteString(sourceExcerpt)
 		b.WriteByte('\n')
-		return f.PadLine(charWithLineNumberOffset, sourceExcerpt, b, -1, rhino.Node{})
+		return f.PadLine(charWithLineNumberOffset, sourceExcerpt, b, -1, rhino.NilNode)
 	}
 	numLines := strings.Count(sourceExcerpt, "\n") + 1
 	requiresTruncation := numLines > lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH

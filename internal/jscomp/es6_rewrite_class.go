@@ -256,7 +256,7 @@ func (e *Es6RewriteClass) FlushDefinePropertiesForPrototype(
 					metadata.definePropertiesObjForPrototype))
 		definePropsCall.SrcrefTreeIfMissing(srcrefNode)
 		metadata.InsertNodeAndAdvance(definePropsCall)
-		metadata.definePropertiesObjForPrototype = rhino.Node{}
+		metadata.definePropertiesObjForPrototype = rhino.NilNode
 	}
 }
 
@@ -272,7 +272,7 @@ func (e *Es6RewriteClass) FlushDefinePropertiesForClass(metadata *Es6RewriteClas
 					metadata.definePropertiesObjForClass))
 		definePropsCall.SrcrefTreeIfMissing(srcrefNode)
 		metadata.InsertNodeAndAdvance(definePropsCall)
-		metadata.definePropertiesObjForClass = rhino.Node{}
+		metadata.definePropertiesObjForClass = rhino.NilNode
 	}
 }
 
@@ -309,7 +309,7 @@ func (e *Es6RewriteClass) AddToDefinePropertiesObject(metadata *Es6RewriteClass_
 		} else {
 			obj = metadata.DefinePropertiesObjForPrototype()
 		}
-		prop = rhino.Node{}
+		prop = rhino.NilNode
 	}
 	if prop.IsNil() {
 		prop = e.CreatePropertyDescriptor()
@@ -1100,8 +1100,8 @@ func es6RewriteClass_ClassDeclarationMetadata_CreateInto(
 	m.insertionPointVal.insertionPoint = insertionStart
 	m.insertionPoint = &m.insertionPointVal
 	m.astFactory = astFactory
-	m.definePropertiesObjForPrototype = rhino.Node{}
-	m.definePropertiesObjForClass = rhino.Node{}
+	m.definePropertiesObjForPrototype = rhino.NilNode
+	m.definePropertiesObjForClass = rhino.NilNode
 	m.classMembersToDeclare = nil
 	m.fullClassNameNode = fullClassNameNode
 	m.classPrototypeNode = astFactory.CreatePrototypeAccess(fullClassNameNode.CloneTree())

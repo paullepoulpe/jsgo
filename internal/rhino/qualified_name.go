@@ -295,9 +295,9 @@ func (q *QualifiedName_StringListQname) GetComponentCount() int {
 func (q *QualifiedName_StringListQname) Matches(n Node) bool {
 	pos := q.size - 1
 	if !rhinoStringPoolCleared {
-		for pos > 0 && n.rec.token == Token_GETPROP {
+		for pos > 0 && n.rec().token == Token_GETPROP {
 			n.node_castKind(node_kindString)
-			if rhinoStringID(n.rec.payload) != q.termIDs[pos] {
+			if rhinoStringID(n.rec().payload) != q.termIDs[pos] {
 				return false
 			}
 			pos--
@@ -307,10 +307,10 @@ func (q *QualifiedName_StringListQname) Matches(n Node) bool {
 			return false
 		}
 		termID := q.termIDs[0]
-		switch n.rec.token {
+		switch n.rec().token {
 		case Token_NAME, Token_MEMBER_FUNCTION_DEF:
 			n.node_castKind(node_kindString)
-			return rhinoStringID(n.rec.payload) == termID
+			return rhinoStringID(n.rec().payload) == termID
 		case Token_THIS:
 			return termID == qualifiedName_THIS_ID
 		case Token_SUPER:
@@ -396,11 +396,11 @@ func (q *QualifiedName_GetpropQname) AppendTo(sb *strings.Builder, separator uin
 // Java: QualifiedName.GetpropQname.matches(Node)
 func (q *QualifiedName_GetpropQname) Matches(n Node) bool {
 	if !rhinoStringPoolCleared {
-		if n.rec.token != Token_GETPROP {
+		if n.rec().token != Token_GETPROP {
 			return false
 		}
 		n.node_castKind(node_kindString)
-		return rhinoStringID(n.rec.payload) == q.propID &&
+		return rhinoStringID(n.rec().payload) == q.propID &&
 			q.owner.Matches(n.firstNode())
 	}
 	return n.IsGetProp() &&

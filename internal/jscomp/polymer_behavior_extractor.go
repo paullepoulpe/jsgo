@@ -117,7 +117,7 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 						behaviorName,
 						PolymerClassDefinition_DefinitionType_ObjectLiteral,
 						e.compiler,
-						/* constructor= */ rhino.Node{}),
+						/* constructor= */ rhino.NilNode),
 					polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorName),
 					polymerBehaviorExtractor_getNonPropertyMembersToCopy(behaviorName),
 					/* isGlobalDeclaration= */ NodeUtil_GetEnclosingScopeRoot(behaviorName).IsRoot(),
@@ -155,7 +155,7 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 						behaviorValue,
 						PolymerClassDefinition_DefinitionType_ObjectLiteral,
 						e.compiler,
-						/* constructor= */ rhino.Node{}),
+						/* constructor= */ rhino.NilNode),
 					polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorValue),
 					polymerBehaviorExtractor_getNonPropertyMembersToCopy(behaviorValue),
 					resolveResult.isGlobalDeclaration,
@@ -185,7 +185,7 @@ func NewPolymerBehaviorExtractor_ResolveBehaviorNameResult(
 	}
 }
 
-var polymerBehaviorExtractor_FAILED_RESOLVE_RESULT = NewPolymerBehaviorExtractor_ResolveBehaviorNameResult(rhino.Node{}, false, nil)
+var polymerBehaviorExtractor_FAILED_RESOLVE_RESULT = NewPolymerBehaviorExtractor_ResolveBehaviorNameResult(rhino.NilNode, false, nil)
 
 // resolveBehaviorName resolves an identifier, which is presumed to refer to a
 // Polymer Behavior declaration, using the global namespace. Recurses to

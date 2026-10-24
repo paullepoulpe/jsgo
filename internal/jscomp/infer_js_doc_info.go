@@ -116,7 +116,7 @@ func (p *InferJSDocInfo) traverseRoot(root rhino.Node) {
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
 		currentNode = root
-		p.walk(root, rhino.Node{}, false, &currentNode, &currentScript)
+		p.walk(root, rhino.NilNode, false, &currentNode, &currentScript)
 	}, func(unexpectedException jutil.Throwable) {
 		b := NodeTraversal_Builder{compiler: p.compiler, callback: p}
 		t := newNodeTraversal(&b)

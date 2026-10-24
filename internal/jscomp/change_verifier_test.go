@@ -333,5 +333,5 @@ func changeVerifierTest_getCallNode(n rhino.Node) rhino.Node {
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }

@@ -125,7 +125,7 @@ type ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext struct {
 func NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
 	scopeBody rhino.Node, isConstructor bool, uniqueId string) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
 	c := &ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext{
-		lastSuperStatement: rhino.Node{},
+		lastSuperStatement: rhino.NilNode,
 		uniqueId:           "",
 		needsThisVar:       false,
 		needsArgumentsVar:  false,

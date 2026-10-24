@@ -153,7 +153,7 @@ func DevirtualizeMethodsTest_GetLabelledExpressionIfPresent(label string, root r
 			return possibleMatch
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: DevirtualizeMethodsTest.testRewriteChained()

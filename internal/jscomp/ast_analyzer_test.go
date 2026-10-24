@@ -195,7 +195,7 @@ func astAnalyzerTest_findFirst(token rhino.Token, root rhino.Node) rhino.Node {
 		}
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 func astAnalyzerTest_runCases(

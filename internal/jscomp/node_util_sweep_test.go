@@ -767,7 +767,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	field(n.IsNumber() || n.IsName(), func() string { return nodeUtilSweepCompact(NodeUtil_NewUndefinedNode(n)) })
 	isOuterQName := isQName && !(hasParent && parent.IsGetProp() && parent.GetFirstChild() == n)
 	field(isOuterQName, func() string {
-		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclaration(s.compiler, *n.GetQualifiedName(), rhino.Node{}, nil))
+		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclaration(s.compiler, *n.GetQualifiedName(), rhino.NilNode, nil))
 	})
 	field(isOuterQName, func() string {
 		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclarationWithType(

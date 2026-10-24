@@ -527,7 +527,7 @@ func (e *Es6NormalizeClasses) GetStatementDeclaringClass(classNode rhino.Node, c
 		jutil.CheckState(NodeUtil_IsStatement(classNameNode.GetGrandparent()))
 		return classNameNode.GetGrandparent()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: Es6NormalizeClasses.enterScope(NodeTraversal)
@@ -997,7 +997,7 @@ func (e *Es6NormalizeClasses) RewritePrivateMemberAccess(
 func (e *Es6NormalizeClasses) ExtractReceiverTmpIfNecessary(
 	t *NodeTraversal, receiver rhino.Node, getPropNode rhino.Node, isOptChain bool) rhino.Node {
 	if !isOptChain || !e.ReceiverNeedsTempVar(receiver) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	tempName := e.GenerateUniqueTmpVarName(t)
 	insertionBlock := e.GetDeclarationInsertionPoint(getPropNode, t)
@@ -1269,7 +1269,7 @@ func es6NormalizeClasses_dequeRemove(deque *[]rhino.Node) rhino.Node {
 		panic(jutil.NewNoSuchElementException())
 	}
 	first := (*deque)[0]
-	(*deque)[0] = rhino.Node{}
+	(*deque)[0] = rhino.NilNode
 	*deque = (*deque)[1:]
 	return first
 }
@@ -1647,7 +1647,7 @@ func (e *Es6NormalizeClasses) CreateFieldInitializationStatement(
 	// we're not transpiling class fields.
 	if fieldValue.IsNil() {
 		if !e.transpileClassFields {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 
 		// If we are transpiling class fields, we want an explicit undefined value so we properly
@@ -2148,7 +2148,7 @@ func (m *es6NormalizeClasses_ClassRecord_PrivateMember) GetPrimaryDeclarationNod
 	}
 	// Iterables.getFirst(declarationNodes, null)
 	if len(m.declarationNodes) == 0 {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return m.declarationNodes[0]
 }

@@ -655,7 +655,7 @@ func (c *TypedScopeCreator) DeclareNativeValueType(scope *TypedScope, name strin
 
 // Java: TypedScopeCreator.declareNativeType(TypedScope, String, JSType)
 func TypedScopeCreator_DeclareNativeType(scope *TypedScope, name string, t rhino.JSType) {
-	scope.Declare(name, rhino.Node{}, t, nil, false)
+	scope.Declare(name, rhino.NilNode, t, nil, false)
 }
 
 // SetDeferredType sets the type for a node now.
@@ -766,7 +766,7 @@ func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit(t *NodeT
 				t, assign.GetFirstChild(), assign.GetSecondChild(), assign.GetJSDocInfo())
 		} else if firstChild.IsGetProp() {
 			v.IdentifyEnumOrTypedefDeclaration(
-				t, firstChild /* rvalue= */, rhino.Node{}, firstChild.GetJSDocInfo())
+				t, firstChild /* rvalue= */, rhino.NilNode, firstChild.GetJSDocInfo())
 		}
 	default:
 	}
@@ -882,7 +882,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) InitTypedScopeCreator_Abstr
 	b.input = nil
 	b.inputResolved = false
 	b.deferredActions = nil
-	b.lastOwnerNode = rhino.Node{}
+	b.lastOwnerNode = rhino.NilNode
 	b.lastOwnerName = ""
 }
 
@@ -1389,7 +1389,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineCatch(n rhino.Node) {
 	NodeUtil_VisitLhsNodesInNode(
 		n,
 		func(catchName rhino.Node) {
-			type_ := b.GetDeclaredType(catchName.GetJSDocInfo(), catchName, rhino.Node{}, nil)
+			type_ := b.GetDeclaredType(catchName.GetJSDocInfo(), catchName, rhino.NilNode, nil)
 			NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(b).
 				ForDeclarationNode(catchName).
 				ForVariableName(catchName.GetString()).
@@ -1471,7 +1471,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineVarChild(declarationI
 				//   for (const {x, y} of data) {
 				if !value.IsNil() {
 					return NewTypedScopeCreator_RValueInfo(
-						b.GetDeclaredRValueType( /* lValue= */ rhino.Node{}, value),
+						b.GetDeclaredRValueType( /* lValue= */ rhino.NilNode, value),
 						value.GetQualifiedNameObject())
 				}
 				return NewTypedScopeCreator_RValueInfo(b.outer.unknownType /* qualifiedName= */, nil)
@@ -1533,7 +1533,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineDestructuringPatternI
 			jutil.CheckStateMsg1(name.IsName(), "This method is only for declaring variables: %s", name)
 
 			// variable's type
-			type_ := b.GetDeclaredType(name.GetJSDocInfo(), name /* rValue= */, rhino.Node{}, typeSupplier)
+			type_ := b.GetDeclaredType(name.GetJSDocInfo(), name /* rValue= */, rhino.NilNode, typeSupplier)
 			if type_ == nil {
 				// The variable's type will be inferred.
 				if name.IsFromExterns() {
@@ -2815,7 +2815,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(
 
 	if info != nil && FunctionTypeBuilder_IsFunctionTypeDeclaration(info) {
 		fnName := lValue.GetQualifiedName()
-		return b.CreateFunctionTypeFromNodes(rhino.Node{}, fnName, info, lValue)
+		return b.CreateFunctionTypeFromNodes(rhino.NilNode, fnName, info, lValue)
 	}
 
 	if b.IsValidTypedefDeclaration(lValue, info) {
@@ -2959,13 +2959,13 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) GetDefinitionNode(qname rhi
 		if var_ != nil {
 			return var_.GetNameNode()
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	parent := rhino.ObjectType_Cast(scope.LookupQualifiedName(qname.GetOwner()))
 	if parent != nil {
 		return parent.GetPropertyDefSite(qname.GetComponent())
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // GetDeclaredRValueType checks for common idioms of a typed R-value
@@ -3656,12 +3656,12 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, 
 	case rhino.Token_GETPROP:
 		// Handle stubbed properties.
 		if parent.IsExprResult() && n.IsQualifiedName() {
-			b.MaybeDeclareQualifiedName(t, n.GetJSDocInfo(), n, parent, rhino.Node{})
+			b.MaybeDeclareQualifiedName(t, n.GetJSDocInfo(), n, parent, rhino.NilNode)
 		}
 	case rhino.Token_GETELEM:
 		// Handle stubbed properties.
 		if parent.IsExprResult() && n.GetFirstChild().IsQualifiedName() {
-			b.MaybeDeclareGetElem(n.GetJSDocInfo(), n, rhino.Node{})
+			b.MaybeDeclareGetElem(n.GetJSDocInfo(), n, rhino.NilNode)
 		}
 	case rhino.Token_CLASS:
 		// Analyse CLASS child-scopes now because later code in this scope may assign
@@ -3776,7 +3776,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode 
 			if !iifeArgumentNode.IsNil() && iifeArgumentNode.IsSpread() {
 				// don't try inferring types from spreads in iifes because we don't know how
 				// many items are in the iterable.
-				iifeArgumentNode = rhino.Node{}
+				iifeArgumentNode = rhino.NilNode
 			}
 			var declaredType rhino.JSType
 			if jsDocParameter == nil {
@@ -4085,7 +4085,7 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberField(n rhino.Node) {
 	if declaredType == nil {
 		var rhsType rhino.JSType
 		if !rhs.IsNil() {
-			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(rhino.Node{}, rhs)
+			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(rhino.NilNode, rhs)
 		}
 		if rhsType != nil && !rhsType.IsUnknownType() {
 			declaredType = rhsType
@@ -4118,7 +4118,7 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n rhino.
 	if declaredType == nil {
 		var rhsType rhino.JSType
 		if !rhs.IsNil() {
-			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(rhino.Node{}, rhs)
+			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(rhino.NilNode, rhs)
 		}
 		if rhsType != nil && !rhsType.IsUnknownType() {
 			declaredType = rhsType

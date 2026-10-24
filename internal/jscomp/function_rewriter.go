@@ -121,7 +121,7 @@ func (f *FunctionRewriter) ParseHelperCode(reducer FunctionRewriter_Reducer) rhi
 	if !root.IsNil() {
 		return root.RemoveFirstChild()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // functionRewriter_classString is `reducer.getClass()` in a string
@@ -311,7 +311,7 @@ func (r *FunctionRewriter_EmptyFunctionReducer) GetHelperSource() string {
 // Java: FunctionRewriter.EmptyFunctionReducer.reduce(Node)
 func (r *FunctionRewriter_EmptyFunctionReducer) Reduce(node rhino.Node) rhino.Node {
 	if FunctionRewriter_IsReduceableFunctionExpression(node) && NodeUtil_IsEmptyFunctionExpression(node) {
-		return r.BuildCallNode(FunctionRewriter_EmptyFunctionReducer_FACTORY_METHOD_NAME, rhino.Node{}, node)
+		return r.BuildCallNode(FunctionRewriter_EmptyFunctionReducer_FACTORY_METHOD_NAME, rhino.NilNode, node)
 	} else {
 		return node
 	}
@@ -344,14 +344,14 @@ func (b *FunctionRewriter_SingleReturnStatementReducerBase) GetFunctionRewriter_
 func (b *FunctionRewriter_SingleReturnStatementReducerBase) MaybeGetSingleReturnRValue(functionNode rhino.Node) rhino.Node {
 	body := functionNode.GetLastChild()
 	if !body.HasOneChild() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	statement := body.GetFirstChild()
 	if statement.IsReturn() {
 		return statement.GetFirstChild()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // FunctionRewriter_IdentityReducer reduces property getter method
@@ -392,7 +392,7 @@ func (r *FunctionRewriter_IdentityReducer) Reduce(node rhino.Node) rhino.Node {
 	}
 
 	if r.IsIdentityFunction(node) {
-		return r.BuildCallNode(FunctionRewriter_IdentityReducer_FACTORY_METHOD_NAME, rhino.Node{}, node)
+		return r.BuildCallNode(FunctionRewriter_IdentityReducer_FACTORY_METHOD_NAME, rhino.NilNode, node)
 	} else {
 		return node
 	}
@@ -476,7 +476,7 @@ func (r *FunctionRewriter_ReturnConstantReducer) GetValueNode(functionNode rhino
 		NodeUtil_IsImmutableValue(value) {
 		return value
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // FunctionRewriter_GetterReducer reduces property getter method
@@ -543,7 +543,7 @@ func (r *FunctionRewriter_GetterReducer) GetGetPropertyName(functionNode rhino.N
 		value.GetFirstChild().IsThis() {
 		return value
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // FunctionRewriter_SetterReducer reduces property setter method
@@ -607,19 +607,19 @@ func (r *FunctionRewriter_SetterReducer) Reduce(node rhino.Node) rhino.Node {
 func (r *FunctionRewriter_SetterReducer) GetSetPropertyName(functionNode rhino.Node) rhino.Node {
 	body := functionNode.GetLastChild()
 	if !body.HasOneChild() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	argList := functionNode.GetSecondChild()
 	paramNode := argList.GetFirstChild()
 	if paramNode.IsNil() || !paramNode.IsName() {
 		// no parameters, or first parameter uses destructuring or a default value
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	statement := body.GetFirstChild()
 	if !NodeUtil_IsExprAssign(statement) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	assign := statement.GetFirstChild()
@@ -630,5 +630,5 @@ func (r *FunctionRewriter_SetterReducer) GetSetPropertyName(functionNode rhino.N
 			return rhino.IR_String(lhs.GetString()).ClonePropsFrom(lhs).Srcref(lhs)
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }

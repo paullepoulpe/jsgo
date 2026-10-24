@@ -114,7 +114,7 @@ func (p *PolymerPassSuppressBehaviorsAndProtectKeys) stripPropertyTypes(behavior
 		behaviorValue,
 		PolymerClassDefinition_DefinitionType_ObjectLiteral,
 		p.compiler,
-		/* constructor= */ rhino.Node{})
+		/* constructor= */ rhino.NilNode)
 	for _, property := range properties {
 		property.name.SetJSDocInfo(nil)
 	}
@@ -126,7 +126,7 @@ func (p *PolymerPassSuppressBehaviorsAndProtectKeys) suppressDefaultValues(behav
 		behaviorValue,
 		PolymerClassDefinition_DefinitionType_ObjectLiteral,
 		p.compiler,
-		/* constructor= */ rhino.Node{}) {
+		/* constructor= */ rhino.NilNode) {
 		if !property.value.IsObjectLit() {
 			continue
 		}

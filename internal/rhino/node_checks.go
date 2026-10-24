@@ -8,7 +8,7 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 
 // CheckNotNull is Preconditions.checkNotNull(T) for a Node.
 func CheckNotNull(n Node) Node {
-	if n.rec == nil {
+	if n == 0 {
 		panic(jutil.NewNullPointerException())
 	}
 	return n
@@ -16,7 +16,7 @@ func CheckNotNull(n Node) Node {
 
 // CheckNotNullMsg is Preconditions.checkNotNull(T, String, Object...) for a Node.
 func CheckNotNullMsg(n Node, template string, args ...any) Node {
-	if n.rec == nil {
+	if n == 0 {
 		failNotNull(template, args...)
 	}
 	return n
@@ -24,7 +24,7 @@ func CheckNotNullMsg(n Node, template string, args ...any) Node {
 
 // CheckNotNullMsg1 is Preconditions.checkNotNull(T, String, Object) for a Node.
 func CheckNotNullMsg1[A any](n Node, template string, p1 A) Node {
-	if n.rec == nil {
+	if n == 0 {
 		failNotNull(template, p1)
 	}
 	return n
@@ -32,7 +32,7 @@ func CheckNotNullMsg1[A any](n Node, template string, p1 A) Node {
 
 // CheckNotNullMsg2 is Preconditions.checkNotNull(T, String, Object, Object) for a Node.
 func CheckNotNullMsg2[A, B any](n Node, template string, p1 A, p2 B) Node {
-	if n.rec == nil {
+	if n == 0 {
 		failNotNull(template, p1, p2)
 	}
 	return n

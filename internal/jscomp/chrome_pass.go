@@ -171,7 +171,7 @@ func (p *ChromePass) visitPropertyDefinition(call rhino.Node, parent rhino.Node)
 func (p *ChromePass) getTypeByCrPropertyKind(propertyKind rhino.Node) rhino.Node {
 	if propertyKind.IsNil() || chromePass_CR_PROPERTYKIND_JS.Matches(propertyKind) {
 		// This is valid, it just doesn't tell us much about the type.
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	if chromePass_CR_PROPERTYKIND_ATTR.Matches(propertyKind) {
 		return rhino.IR_String("string")
@@ -184,7 +184,7 @@ func (p *ChromePass) getTypeByCrPropertyKind(propertyKind rhino.Node) rhino.Node
 			propertyKind,
 			ChromePass_CR_DEFINE_PROPERTY_INVALID_PROPERTY_KIND,
 			jutil.ToJavaString(propertyKind.GetQualifiedName())))
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: ChromePass.setJsDocWithType(Node, Node)

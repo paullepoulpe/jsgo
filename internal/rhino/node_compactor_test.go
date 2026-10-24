@@ -39,10 +39,7 @@ func TestCompactorCopiesTreeAndForwardsHolders(t *testing.T) {
 	if CurrentNodeStore() != k.Store() || newRoot.Store() != k.Store() || root.Store() == k.Store() {
 		t.Fatal("the copy is not in the compactor's new, current store")
 	}
-	old := NodePoisonMode
-	NodePoisonMode = true
 	k.Finish()
-	NodePoisonMode = old
 	if !newRoot.IsEquivalentTo(expected) {
 		t.Fatalf("copy differs:\n%s\nvs\n%s", newRoot.ToStringTree(), expected.ToStringTree())
 	}
@@ -61,7 +58,7 @@ func TestCompactorCopiesTreeAndForwardsHolders(t *testing.T) {
 	if k.ExtraRoots != 4 { // the two held subtrees, expected, and the JSDoc type expression
 		t.Fatalf("expected 4 extra roots, got %d", k.ExtraRoots)
 	}
-	// Stale use of an old node fails loudly in poison mode.
+	// Stale use of an old node fails loudly.
 	func() {
 		defer func() {
 			if recover() == nil {

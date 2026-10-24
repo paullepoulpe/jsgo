@@ -301,7 +301,7 @@ func (p *PrototypeObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Propert
 			// defined anywhere, then we consider this an explicit declaration of
 			// the property.
 			self := p.selfObj()
-			self.DefineInferredPropertyByKey(propertyName, self.GetPropertyTypeByKey(propertyName), Node{})
+			self.DefineInferredPropertyByKey(propertyName, self.GetPropertyTypeByKey(propertyName), NilNode)
 			property = p.properties.GetOwnPropertyByKey(propertyName)
 		}
 
@@ -651,7 +651,7 @@ func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj Object
 			if !p.self().HasProperty(prop) {
 				typeToInfer = p.GetNativeType(JSTypeNative_VOID_TYPE).GetLeastSupertype(propType)
 			}
-			self.DefineInferredProperty(prop, typeToInfer, Node{})
+			self.DefineInferredProperty(prop, typeToInfer, NilNode)
 		}
 	}
 }

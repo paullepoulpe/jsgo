@@ -264,7 +264,7 @@ func (d *PotentialDeclaration_NameDeclaration) Simplify(compiler AbstractCompile
 	}
 	// Just completely remove the RHS, and replace with a getprop.
 	newStatement :=
-		NodeUtil_NewQNameDeclaration(compiler, *nameNode.GetQualifiedName(), rhino.Node{}, jsdoc)
+		NodeUtil_NewQNameDeclaration(compiler, *nameNode.GetQualifiedName(), rhino.NilNode, jsdoc)
 	newStatement.SrcrefTreeIfMissing(nameNode)
 	oldStatement := d.GetRemovableNode()
 	NodeUtil_DeleteChildren(oldStatement, compiler)
@@ -379,7 +379,7 @@ func (d *PotentialDeclaration_ThisPropDeclaration) Simplify(compiler AbstractCom
 	}
 	// Just completely remove the RHS, if present, and replace with a getprop.
 	newStatement :=
-		NodeUtil_NewQNameDeclaration(compiler, d.GetFullyQualifiedName(), rhino.Node{}, d.GetJsDoc())
+		NodeUtil_NewQNameDeclaration(compiler, d.GetFullyQualifiedName(), rhino.NilNode, d.GetJsDoc())
 	newStatement.SrcrefTreeIfMissing(d.GetLhs())
 	NodeUtil_DeleteNode(d.GetRemovableNode(), compiler)
 	if d.insertionPoint.HasParent() {
@@ -458,7 +458,7 @@ func PotentialDeclaration_DefineDeclaration_MakeEmptyValueNode(type_ *rhino.JSTy
 	case "string":
 		return rhino.Node_NewString("")
 	default:
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -652,7 +652,7 @@ type PotentialDeclaration_AliasDeclaration struct {
 // Java: PotentialDeclaration.AliasDeclaration(String, Node)
 func NewPotentialDeclaration_AliasDeclaration(name string, lhs rhino.Node) *PotentialDeclaration_AliasDeclaration {
 	d := &PotentialDeclaration_AliasDeclaration{}
-	d.InitPotentialDeclarationBase(d, name, lhs, rhino.Node{})
+	d.InitPotentialDeclarationBase(d, name, lhs, rhino.NilNode)
 	return d
 }
 

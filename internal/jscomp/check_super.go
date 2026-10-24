@@ -177,7 +177,7 @@ func (c *CheckSuper) popContext() CheckSuper_Context {
 	c.contextStack[len(c.contextStack)-1] = nil
 	c.contextStack = c.contextStack[:len(c.contextStack)-1]
 	if sna, ok := top.(*CheckSuper_SuperNotAllowedContext); ok {
-		sna.contextNode = rhino.Node{}
+		sna.contextNode = rhino.NilNode
 		c.superNotAllowedPool = append(c.superNotAllowedPool, sna)
 	}
 	return top
@@ -535,10 +535,10 @@ type CheckSuper_ConstructorContext struct {
 func NewCheckSuper_ConstructorContext(contextNode rhino.Node) *CheckSuper_ConstructorContext {
 	c := &CheckSuper_ConstructorContext{}
 	c.InitCheckSuper_ContextBase(contextNode)
-	c.firstSuperCall = rhino.Node{}
+	c.firstSuperCall = rhino.NilNode
 	c.returnsAValue = false
-	c.thisAccessedBeforeSuper = rhino.Node{}
-	c.superPropertyAccessedBeforeSuperCall = rhino.Node{}
+	c.thisAccessedBeforeSuper = rhino.NilNode
+	c.superPropertyAccessedBeforeSuperCall = rhino.NilNode
 	jutil.CheckArgumentMsg1(NodeUtil_IsEs6Constructor(contextNode), "%s", contextNode)
 	classNode := NodeUtil_GetEnclosingClass(contextNode)
 	c.hasParentClass = !classNode.GetSecondChild().IsEmpty()

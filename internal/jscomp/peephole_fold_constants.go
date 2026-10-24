@@ -569,7 +569,7 @@ func (p *PeepholeFoldConstants) TryFoldAndOr(n rhino.Node, left rhino.Node, righ
 			// like "x() || false || z()".
 			n.DetachChildren()
 			result = rhino.IR_Comma(left, right)
-			dropped = rhino.Node{}
+			dropped = rhino.NilNode
 		}
 	} else if parent.GetToken() == type_ && n == parent.GetFirstChild() {
 		rightValue := NodeUtil_GetBooleanValue(right)
@@ -751,7 +751,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n rhino.Node, left rhino.Nod
 	if n.IsAdd() &&
 		(NodeUtil_MayBeStringWithUseType(left, p.shouldUseTypes) ||
 			NodeUtil_MayBeStringWithUseType(right, p.shouldUseTypes)) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	if p.IsBigInt(left) && p.IsBigInt(right) {
@@ -767,7 +767,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n rhino.Node, left rhino.Nod
 	rval, rOk := p.GetSideEffectFreeNumberValueVal(right)
 	// at least one of the two operands must have a value and both must be numeric
 	if (!lOk && !rOk) || !p.IsNumeric(left) || !p.IsNumeric(right) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	// handle the operations that have algebraic identities, since we can simplify the tree without
 	// actually knowing the value statically.
@@ -781,7 +781,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n rhino.Node, left rhino.Nod
 		} else if rOk && rval == 0 {
 			return left.CloneTreeWithTypeExprs(true)
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case rhino.Token_SUB:
 		if lOk && rOk {
 			return p.MaybeReplaceBinaryOpWithNumericResult(lval-rval, lval, rval)
@@ -795,7 +795,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n rhino.Node, left rhino.Nod
 			// x - 0 -> x
 			return left.CloneTreeWithTypeExprs(true)
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case rhino.Token_MUL:
 		if lOk && rOk {
 			return p.MaybeReplaceBinaryOpWithNumericResult(lval*rval, lval, rval)
@@ -811,11 +811,11 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n rhino.Node, left rhino.Nod
 				return left.CloneTreeWithTypeExprs(true)
 			}
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case rhino.Token_DIV:
 		if lOk && rOk {
 			if rval == 0 {
-				return rhino.Node{}
+				return rhino.NilNode
 			}
 			return p.MaybeReplaceBinaryOpWithNumericResult(lval/rval, lval, rval)
 		}
@@ -826,17 +826,17 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n rhino.Node, left rhino.Nod
 				return left.CloneTreeWithTypeExprs(true)
 			}
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case rhino.Token_EXPONENT:
 		if lOk && rOk {
 			return p.MaybeReplaceBinaryOpWithNumericResult(
 				jutil.MathPow(lval, rval), lval, rval)
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	default:
 	}
 	if !lOk || !rOk {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	switch n.GetToken() {
 	case rhino.Token_BITAND:
@@ -847,7 +847,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n rhino.Node, left rhino.Nod
 		result = float64(base.JSCompDoubles_EcmascriptToInt32(lval) ^ base.JSCompDoubles_EcmascriptToInt32(rval))
 	case rhino.Token_MOD:
 		if rval == 0 {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		result = jutil.DRem(lval, rval)
 	default:
@@ -872,14 +872,14 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n rhino.Node, left rhi
 			if !jutil.BigIntegerEquals(rVal, jutil.BigInteger_ZERO) {
 				return PeepholeFoldConstants_BigintNode(new(big.Int).Quo(lVal, rVal), n)
 			} else {
-				return rhino.Node{}
+				return rhino.NilNode
 			}
 		case rhino.Token_EXPONENT:
 			var result rhino.Node
 			jutil.Try(func() {
 				result = PeepholeFoldConstants_BigintNode(jutil.BigIntegerPow(lVal, jutil.BigIntegerIntValueExact(rVal)), n)
 			}, func(exception jutil.IArithmeticException) {
-				result = rhino.Node{}
+				result = rhino.NilNode
 			})
 			return result
 		case rhino.Token_MOD:
@@ -891,7 +891,7 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n rhino.Node, left rhi
 		case rhino.Token_BITXOR:
 			return PeepholeFoldConstants_BigintNode(new(big.Int).Xor(lVal, rVal), n)
 		default:
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	}
 
@@ -904,7 +904,7 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n rhino.Node, left rhi
 		} else if rVal != nil && jutil.BigIntegerEquals(rVal, jutil.BigInteger_ZERO) {
 			return left.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case rhino.Token_SUB:
 		if lVal != nil && jutil.BigIntegerEquals(lVal, jutil.BigInteger_ZERO) {
 			// 0n - x -> -x
@@ -913,21 +913,21 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n rhino.Node, left rhi
 			// x - 0n -> x
 			return left.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case rhino.Token_MUL:
 		if lVal != nil && jutil.BigIntegerEquals(lVal, jutil.BigInteger_ONE) {
 			return right.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		} else if rVal != nil && jutil.BigIntegerEquals(rVal, jutil.BigInteger_ONE) {
 			return left.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	case rhino.Token_DIV:
 		if rVal != nil && jutil.BigIntegerEquals(rVal, jutil.BigInteger_ONE) {
 			return left.CloneTreeWithTypeExprs( /* cloneTypeExprs= */ true)
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	default:
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -968,9 +968,9 @@ func (p *PeepholeFoldConstants) MaybeReplaceBinaryOpWithNumericResult(
 		math.IsNaN(result) ||
 		result == math.Inf(1) ||
 		result == math.Inf(-1) {
-		return NodeUtil_NumberNode(result, rhino.Node{})
+		return NodeUtil_NumberNode(result, rhino.NilNode)
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // TryFoldLeftChildOp folds expressions such as [foo() && 10 && 20] that
@@ -2064,8 +2064,8 @@ func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n rhino.Node, left rhino
 		case rhino.Token_SETTER_DEF:
 		case rhino.Token_OBJECT_SPREAD:
 			// Reset the search because spread could overwrite any previous result.
-			key = rhino.Node{}
-			value = rhino.Node{}
+			key = rhino.NilNode
+			value = rhino.NilNode
 		case rhino.Token_COMPUTED_PROP:
 			// don't handle computed properties unless the input is a simple string
 			prop := c.GetFirstChild()

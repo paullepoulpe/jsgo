@@ -92,7 +92,7 @@ func (c *CheckUselessBlocks) AllowLoneBlock(parent rhino.Node) {
 // Go-only: language-adapter — see loneBlocks.
 func (c *CheckUselessBlocks) popLoneBlock() {
 	last := len(c.loneBlocks) - 1
-	c.loneBlocks[last] = rhino.Node{}
+	c.loneBlocks[last] = rhino.NilNode
 	c.loneBlocks = c.loneBlocks[:last]
 }
 

@@ -456,7 +456,7 @@ type guardedCallback_Context struct {
 // linked conditional nodes.
 //
 // Java: GuardedCallback.Context.EMPTY
-var guardedCallback_Context_EMPTY = newGuardedCallback_Context(rhino.Node{}, false, nil)
+var guardedCallback_Context_EMPTY = newGuardedCallback_Context(rhino.NilNode, false, nil)
 
 // Java: GuardedCallback.Context(Node, boolean, Context)
 func newGuardedCallback_Context(conditional rhino.Node, safe bool, linked *guardedCallback_Context) *guardedCallback_Context {
@@ -488,7 +488,7 @@ func (c *guardedCallback_Context) linkInto(newConditional rhino.Node, newSafe bo
 	return newGuardedCallback_Context(newConditional, newSafe, linked)
 }
 
-var guardedCallback_Context_SAFE_EMPTY = newGuardedCallback_Context(rhino.Node{}, true, nil)
+var guardedCallback_Context_SAFE_EMPTY = newGuardedCallback_Context(rhino.NilNode, true, nil)
 
 // Propagate returns a new Context with a different safety bit, but doesn't
 // change anything else.

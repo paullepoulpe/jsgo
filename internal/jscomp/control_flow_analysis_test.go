@@ -252,7 +252,7 @@ func cfaTestCreateCfg(t *testing.T, input string, runSynBlockPass bool) ControlF
 	root := compiler.ParseSyntheticCode("cfgtest", input)
 	if runSynBlockPass {
 		pass := NewCreateSyntheticBlocks(compiler, "START", "END")
-		pass.Process(rhino.Node{}, root)
+		pass.Process(rhino.NilNode, root)
 	}
 	return ControlFlowAnalysis_Builder_().
 		SetCompiler(compiler).

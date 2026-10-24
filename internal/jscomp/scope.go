@@ -585,7 +585,7 @@ func (s *Scope) Declare(name string, nameNode rhino.Node, input *CompilerInput) 
 	if s.getOwnSlotByID(id) != nil {
 		panic(jutil.NewIllegalStateException())
 	}
-	var_ := newVarWithID(id, nameNode, s, len(s.varList), input, rhino.Node{})
+	var_ := newVarWithID(id, nameNode, s, len(s.varList), input, rhino.NilNode)
 	if s.IsFunctionBlockScope() && s.parent.hasOwnSlotByID(id) && !s.isBleedingFunctionNameID(id) {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
 	}
@@ -621,7 +621,7 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition rhi
 	id := rhino.RhinoStringPool_InternID(name)
 	var_ := s.getOwnSlotByID(id)
 	if var_ == nil {
-		var_ = newVarWithID(id, rhino.Node{}, s, -1, nil, definition)
+		var_ = newVarWithID(id, rhino.NilNode, s, -1, nil, definition)
 		s.addVar(var_)
 	} else if var_.IsImplicitGoogNamespace() {
 		var_.AddImplicitGoogNamespaceDefinition(definition)
@@ -631,5 +631,5 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition rhi
 
 // Java: Scope.makeImplicitVar(ImplicitVar)
 func (s *Scope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *Var {
-	return newVarWithID(var_.nameID(), rhino.Node{}, s, -1, nil, rhino.Node{})
+	return newVarWithID(var_.nameID(), rhino.NilNode, s, -1, nil, rhino.NilNode)
 }

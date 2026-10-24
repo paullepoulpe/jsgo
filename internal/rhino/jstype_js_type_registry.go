@@ -736,7 +736,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 		WithTypeOfThis(unknownType).
 		WithReturnType(unknownType).
 		Build()
-	functionType.SetPrototype(functionInstancePrototype, Node{})
+	functionType.SetPrototype(functionInstancePrototype, NilNode)
 	r.RegisterNativeType(JSTypeNative_FUNCTION_TYPE, functionType)
 
 	// `(typeof Function)`
@@ -751,7 +751,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 		WithTypeOfThis(functionType).
 		// TODO(nickreid): .withReturnsOwnInstanceType()
 		Build()
-	functionFunctionType.SetPrototype(functionPrototype, Node{})
+	functionFunctionType.SetPrototype(functionPrototype, NilNode)
 	r.RegisterNativeType(JSTypeNative_FUNCTION_FUNCTION_TYPE, functionFunctionType)
 
 	// `Object.prototype`
@@ -768,7 +768,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 		WithReturnsOwnInstanceType().
 		WithTemplateKeys(r.iObjectIndexTemplateKey, r.iObjectElementTemplateKey).
 		Build()
-	objectFunctionType.SetPrototype(objectPrototype, Node{})
+	objectFunctionType.SetPrototype(objectPrototype, NilNode)
 	r.RegisterNativeType(JSTypeNative_OBJECT_FUNCTION_TYPE, objectFunctionType)
 
 	objectType := objectFunctionType.GetInstanceType()
@@ -909,7 +909,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 		SetNative(true).
 		SetImplicitPrototype(arrayOfString).
 		Build()
-	iTemplateArrayFunctionType.SetPrototype(iTemplateArrayPrototype, Node{})
+	iTemplateArrayFunctionType.SetPrototype(iTemplateArrayPrototype, NilNode)
 	iTemplateArrayFunctionType.GetInstanceType().MergeSupertypeTemplateTypes(arrayOfString)
 	r.RegisterNativeType(
 		JSTypeNative_I_TEMPLATE_ARRAY_TYPE, iTemplateArrayFunctionType.GetInstanceType())
@@ -1476,7 +1476,7 @@ func (r *JSTypeRegistry) ResolveViaProperties(declarationScope StaticTypedScope,
 		}
 	}
 	slotType := slot.GetType()
-	return r.ResolveViaPropertyGivenSlot(slotType, Node{}, componentNames)
+	return r.ResolveViaPropertyGivenSlot(slotType, NilNode, componentNames)
 }
 
 // ResolveViaPropertyGivenSlot resolves a type using a given StaticTypedSlot
@@ -2388,7 +2388,7 @@ func (r *JSTypeRegistry) BuildRecordTypeFromObject(objType ObjectType) JSType {
 func (r *JSTypeRegistry) CreateRecordType(props *jutil.LinkedHashMap[string, JSType]) JSType {
 	builder := NewRecordTypeBuilder(r)
 	for k, v := range props.All() {
-		builder.AddProperty(k, v, Node{})
+		builder.AddProperty(k, v, NilNode)
 	}
 	return builder.Build()
 }
@@ -3036,7 +3036,7 @@ func (r *JSTypeRegistry) RegisterNonLegacyClosureNamespace(moduleName string, de
 //
 // Java: JSTypeRegistry.registerLegacyClosureNamespace(String)
 func (r *JSTypeRegistry) RegisterLegacyClosureNamespace(moduleName string) {
-	r.closureNamespaces.Put(moduleName, JSTypeRegistry_ClosureNamespace_Create( /* isLegacy= */ true, Node{}, nil))
+	r.closureNamespaces.Put(moduleName, JSTypeRegistry_ClosureNamespace_Create( /* isLegacy= */ true, NilNode, nil))
 }
 
 // JSTypeRegistry_ClosureNamespace stores information about a Closure

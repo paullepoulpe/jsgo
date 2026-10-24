@@ -118,22 +118,22 @@ type scriptWithParent struct {
 
 func collectExternAndRootScripts(externs rhino.Node, root rhino.Node) (rhino.Node, []scriptWithParent, bool) {
 	if externs.IsNil() || root.IsNil() || !externs.IsRoot() || !root.IsRoot() {
-		return rhino.Node{}, nil, false
+		return rhino.NilNode, nil, false
 	}
 	scopeRoot := externs.GetParent()
 	if scopeRoot.IsNil() || root.GetParent() != scopeRoot {
-		return rhino.Node{}, nil, false
+		return rhino.NilNode, nil, false
 	}
 	count := 0
 	for c := externs.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.IsScript() {
-			return rhino.Node{}, nil, false
+			return rhino.NilNode, nil, false
 		}
 		count++
 	}
 	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.IsScript() {
-			return rhino.Node{}, nil, false
+			return rhino.NilNode, nil, false
 		}
 		count++
 	}

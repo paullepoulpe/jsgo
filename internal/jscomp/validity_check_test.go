@@ -127,7 +127,7 @@ func (c *ValidityCheckTest) TestSourceInfoCheck() {
 	script.AddChildToBack(n)
 
 	check := NewSourceInfoCheck(compiler)
-	check.Process(rhino.Node{}, rhino.NewNodeWithChild(rhino.Token_ROOT, script))
+	check.Process(rhino.NilNode, rhino.NewNodeWithChild(rhino.Token_ROOT, script))
 
 	AssertThat(compiler.GetErrors()).HasSize(1)
 	AssertThat(compiler.GetErrors()[0].Description()).
@@ -140,7 +140,7 @@ func (c *ValidityCheckTest) TestErrorPass() {
 	testError := DiagnosticType_Error("TEST_ERROR", "Test error description")
 	pass := NewErrorPass(compiler, testError)
 	script := compiler.ParseTestCode("var x = 1;")
-	pass.Process(rhino.Node{}, script)
+	pass.Process(rhino.NilNode, script)
 	AssertThat(compiler.GetErrors()).HasSize(1)
 	AssertThat(compiler.GetErrors()[0].Type()).IsEqualTo(testError)
 }

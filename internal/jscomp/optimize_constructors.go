@@ -283,14 +283,14 @@ func (o *OptimizeConstructors) GetClassDefinitionOrFunction(n rhino.Node) rhino.
 	} else if parent.IsClass() && n.IsFirstChildOf(parent) {
 		expr = parent
 	} else {
-		return rhino.Node{} // Couldn't find a function.
+		return rhino.NilNode // Couldn't find a function.
 	}
 
 	expr = o.Unwrap(expr)
 	if OptimizeConstructors_IsDefinitionClassLiteralOrFunction(expr) {
 		return expr
 	} else {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -481,7 +481,7 @@ func OptimizeConstructors_GetOnlySuperCall(fn rhino.Node) rhino.Node {
 			}
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // RemoveConstructorMethod removes any candidate constructor if the callers

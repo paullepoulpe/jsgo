@@ -301,7 +301,7 @@ func CheckJSDoc_GetFunctionDecl(n rhino.Node) rhino.Node {
 		return n.GetLastChild()
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: CheckJSDoc.isClassDecl(Node)

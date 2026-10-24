@@ -598,7 +598,7 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			// Someone is trying to access the prototype of a structural function.
 			// We don't want to give real properties to this prototype, because
 			// then it would propagate to all structural functions.
-			f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), Node{})
+			f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), NilNode)
 		} else {
 			name := jutil.ToJavaString(refName) + ".prototype"
 			fields := PrototypeObjectType_BuilderFields{
@@ -610,7 +610,7 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			}
 			f.selfFunc().SetPrototype(
 				NewPrototypeObjectType(&fields),
-				Node{})
+				NilNode)
 		}
 	}
 	return f.prototypeSlot().GetType().(ObjectType)
@@ -621,7 +621,7 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 //
 // Java: FunctionType.setPrototypeBasedOn(ObjectType)
 func (f *FunctionTypeBase) SetPrototypeBasedOn(baseType ObjectType) {
-	f.SetPrototypeBasedOnWithPropertyNode(baseType, Node{})
+	f.SetPrototypeBasedOnWithPropertyNode(baseType, NilNode)
 }
 
 // Java: FunctionType.setPrototypeBasedOn(ObjectType, Node)

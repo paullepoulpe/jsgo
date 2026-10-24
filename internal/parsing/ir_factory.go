@@ -468,7 +468,7 @@ func (f *IRFactory) ValidateAll(n rhino.Node) {
 		} else {
 			// no siblings, continue with work we have saved on the work queue
 			if len(work) == 0 {
-				n = rhino.Node{}
+				n = rhino.NilNode
 			} else {
 				n = work[len(work)-1]
 				work = work[:len(work)-1]
@@ -4241,7 +4241,7 @@ func IRFactory_FindNodeTypeInExpression(expressionNode rhino.Node, token rhino.T
 			}
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // irFactory_substring is String.substring(begin, end) on a string given as

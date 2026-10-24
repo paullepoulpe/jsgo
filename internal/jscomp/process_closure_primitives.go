@@ -527,7 +527,7 @@ func ProcessClosurePrimitives_FindGoogInheritsCall(ctorDeclarationNode rhino.Nod
 		// e.g. "exports = Ctor;" in a goog.module.
 		maybeInheritsExpr = maybeInheritsExpr.GetNext()
 	}
-	var baseClassNode rhino.Node = rhino.Node{}
+	var baseClassNode rhino.Node = rhino.NilNode
 	if !maybeInheritsExpr.IsNil() && NodeUtil_IsExprCall(maybeInheritsExpr) {
 		callNode := maybeInheritsExpr.GetFirstChild()
 		if processClosurePrimitives_GOOG_INHERITS.Matches(callNode.GetFirstChild()) &&
@@ -561,7 +561,7 @@ func (p *ProcessClosurePrimitives) ProcessInheritsCall(n rhino.Node) {
 func ProcessClosurePrimitives_GetEnclosingDeclNameNode(n rhino.Node) rhino.Node {
 	fn := NodeUtil_GetEnclosingFunction(n)
 	if fn.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return NodeUtil_GetNameNode(fn)
 }

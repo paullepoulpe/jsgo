@@ -203,7 +203,7 @@ func (b *AbstractVarBase[S, V]) initAbstractVarBase(
 	jutil.CheckArgumentMsg1(index >= -1, "%s", index)
 	flags := uint32(index+1) & varIndexMask
 	if !implicitGoogNamespaceDefinition.IsNil() {
-		b.nameNode = rhino.Node{}
+		b.nameNode = rhino.NilNode
 		strength := abstractVar_strengthOf(implicitGoogNamespaceDefinition)
 		flags |= (uint32(strength) + 1) << varImplicitStrengthShift
 	} else {
@@ -265,7 +265,7 @@ func (b *AbstractVarBase[S, V]) GetSourceFile() rhino.StaticSourceFile {
 // Java: AbstractVar.getParentNode()
 func (b *AbstractVarBase[S, V]) GetParentNode() rhino.Node {
 	if b.GetNode().IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return b.GetNode().GetParent()
 }
@@ -347,7 +347,7 @@ func (b *AbstractVarBase[S, V]) IsDefine() bool {
 // Java: AbstractVar.getInitialValue()
 func (b *AbstractVarBase[S, V]) GetInitialValue() rhino.Node {
 	if b.GetNode().IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return NodeUtil_GetRValueOfLValue(b.GetNode())
 }

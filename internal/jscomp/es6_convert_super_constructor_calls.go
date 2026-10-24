@@ -893,21 +893,21 @@ func (e *Es6ConvertSuperConstructorCalls) GetSuperClassNameNodeIfIsInheritsState
 	statement rhino.Node, className *string) rhino.Node {
 	// $jscomp.inherits(ChildClass, SuperClass);
 	if !statement.IsExprResult() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	callNode := statement.GetFirstChild()
 	if !callNode.IsCall() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	jscompDotInherits := callNode.GetFirstChild()
 	if !e.jscompInherits.Matches(jscompDotInherits) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	classNameNode := rhino.CheckNotNull(jscompDotInherits.GetNext())
 	if classNameNode.MatchesQualifiedName(*className) {
 		return rhino.CheckNotNull(classNameNode.GetNext())
 	} else {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 

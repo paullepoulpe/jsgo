@@ -276,7 +276,7 @@ func (st *StripCode_Strip) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 // Java: Strip.removeVarDeclarationsByNameOrRvalue(NodeTraversal, Node, Node)
 func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	s := st.this_
-	var next rhino.Node = rhino.Node{}
+	var next rhino.Node = rhino.NilNode
 	for nameNode := n.GetFirstChild(); !nameNode.IsNil(); nameNode = next {
 		next = nameNode.GetNext()
 		if nameNode.IsDestructuringLhs() {

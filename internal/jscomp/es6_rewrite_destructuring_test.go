@@ -2289,5 +2289,5 @@ func (c *Es6RewriteDestructuringTest) GetNodeMatchingQName(root rhino.Node, qnam
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }

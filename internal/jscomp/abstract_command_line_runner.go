@@ -2008,7 +2008,7 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 						mlicenseTracker.trackLicensesForFileName(file)
 					}
 					r.compiler.appendSourceAndMappingsToCodeBuilder(cb, mlicenseTracker, i, pi.root, &pi.sm)
-					pi.root = rhino.Node{}
+					pi.root = rhino.NilNode
 				}
 				code = cb.String()
 			}

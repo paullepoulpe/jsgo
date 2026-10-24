@@ -499,7 +499,7 @@ func newCompilerInput_DepsFinder(modulePath *ModuleLoader_ModulePath) *CompilerI
 
 // Java: CompilerInput.DepsFinder.visitTree(Node)
 func (f *CompilerInput_DepsFinder) VisitTree(n rhino.Node) {
-	f.VisitSubtree(n, rhino.Node{})
+	f.VisitSubtree(n, rhino.NilNode)
 	jutil.CheckArgument(n.IsScript())
 	var features *parser.FeatureSet
 	if p := n.GetProp(rhino.Node_FEATURE_SET); p != nil {
@@ -840,7 +840,7 @@ func (a *CompilerInput_JsAst) installDeserializedRoot(root rhino.Node) {
 
 // Java: CompilerInput.JsAst.clearAst()
 func (a *CompilerInput_JsAst) ClearAst() {
-	a.root = rhino.Node{}
+	a.root = rhino.NilNode
 	// While we're at it, clear out any saved text in the source file on
 	// the assumption that if we're dumping the parse tree, then we probably
 	// assume regenerating everything else is a smart idea also.

@@ -306,7 +306,7 @@ func (r *RewriteGoogJsImports) FindGoogImportNode(scriptRoot rhino.Node) rhino.N
 	}
 
 	if !valid {
-		return rhino.Node{}
+		return rhino.NilNode
 	} else if !googImportNode.IsNil() {
 		return googImportNode
 	}
@@ -325,7 +325,7 @@ func (r *RewriteGoogJsImports) FindGoogImportNode(scriptRoot rhino.Node) rhino.N
 				RewriteGoogJsImports_CANNOT_HAVE_MODULE_VAR_NAMED_GOOG))
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: RewriteGoogJsImports.rewriteImports(Node)
@@ -385,7 +385,7 @@ func (r *RewriteGoogJsImports) FindGoogJsScriptNode(root rhino.Node) rhino.Node 
 		return googScriptNode
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: RewriteGoogJsImports.process(Node, Node)

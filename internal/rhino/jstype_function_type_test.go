@@ -215,7 +215,7 @@ func TestFunctionType_CtorWithPrototypeSet(t *testing.T) {
 	closer := s.Registry.GetResolver().OpenForDefinition()
 	defer closer.Close()
 	{
-		ctor := s.Registry.CreateConstructorType(ptr("Foo"), Node{}, nil, nil, nil, false)
+		ctor := s.Registry.CreateConstructorType(ptr("Foo"), NilNode, nil, nil, nil, false)
 		s.AssertThat(ctor.GetInstanceType().IsUnknownType()).IsFalse()
 
 		node := NewNode(Token_OBJECTLIT)
@@ -240,7 +240,7 @@ func TestFunctionType_CtorWithInstanceInheritance(t *testing.T) {
 		barCtor :=
 			FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Bar")).Build()
 		barCtor.SetPrototypeBasedOn(fooCtor.GetInstanceType())
-		fooCtor.GetPrototype().DefineDeclaredProperty("bar", s.STRING_TYPE, Node{})
+		fooCtor.GetPrototype().DefineDeclaredProperty("bar", s.STRING_TYPE, NilNode)
 
 		s.AssertThat(barCtor.GetPrototype().GetImplicitPrototype()).
 			IsEqualTo(fooCtor.GetInstanceType())
@@ -264,7 +264,7 @@ func TestFunctionType_CtorWithClassSideInheritance(t *testing.T) {
 				WithName(ptr("Bar")).
 				Build()
 		barCtor.SetPrototypeBasedOn(fooCtor.GetInstanceType())
-		fooCtor.DefineDeclaredProperty("foo", s.NUMBER_TYPE, Node{})
+		fooCtor.DefineDeclaredProperty("foo", s.NUMBER_TYPE, NilNode)
 
 		s.AssertThat(barCtor.GetImplicitPrototype()).IsEqualTo(fooCtor)
 		s.AssertThat(barCtor.GetSlot("foo").GetType()).IsEqualTo(s.NUMBER_TYPE)
@@ -347,7 +347,7 @@ func TestFunctionType_InterfacePrototypeChain2(t *testing.T) {
 	s := newFunctionTypeTest(t)
 	iface := s.CreateInterfaceType("I", []*TemplateType{}, false)
 	iface.GetPrototype().DefineDeclaredProperty(
-		"numberProp", s.NUMBER_TYPE, Node{})
+		"numberProp", s.NUMBER_TYPE, NilNode)
 
 	subIface := s.CreateInterfaceType("SubI", []*TemplateType{}, false)
 	subIface.SetExtendedInterfaces(
@@ -370,7 +370,7 @@ func TestFunctionType_InterfacePrototypeChain3(t *testing.T) {
 	templateT := s.Registry.CreateTemplateType("T")
 	iface := s.CreateInterfaceType("I", []*TemplateType{templateT}, false)
 	iface.GetPrototype().DefineDeclaredProperty(
-		"genericProp", templateT, Node{})
+		"genericProp", templateT, NilNode)
 
 	subIface := s.CreateInterfaceType("SubI", []*TemplateType{}, false)
 	subIface.SetExtendedInterfaces(

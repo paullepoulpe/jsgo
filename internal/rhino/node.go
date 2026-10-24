@@ -348,7 +348,7 @@ func (n Node) SetIsParenthesized(b bool) {
 //
 // Java: Node.getIsParenthesized()
 func (n Node) GetIsParenthesized() bool {
-	return (n.rec.propFlags & propFlag_IS_PARENTHESIZED) != 0
+	return (n.rec().propFlags & propFlag_IS_PARENTHESIZED) != 0
 }
 
 // TODO(sdh): Get rid of these by using accessor methods instead.
@@ -687,7 +687,7 @@ func (n Node) jsDocAux() *JSDocInfo {
 // extBoxOrNil is the node's ext box, or nil if the node has none. Read
 // paths use it; mutators use extBox.
 func (n Node) extBoxOrNil() *nodeExtBox {
-	if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
+	if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 		return nil
 	}
 	if a := n.auxOf(); a != nil {
@@ -707,14 +707,14 @@ func (n Node) extBox() *nodeExtBox {
 }
 
 func (n Node) ensureExtBox() *nodeExtBox {
-	if (n.rec.kindFlags & kindFlagHasExtBox) != 0 {
+	if (n.rec().kindFlags & kindFlagHasExtBox) != 0 {
 		return n.extBox()
 	}
 	box := &nodeExtBox{}
-	if (n.rec.propFlags & propFlagHasJSDoc) != 0 {
+	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
 		box.jsDocInfo = n.jsDocAux()
 	}
-	n.rec.kindFlags |= kindFlagHasExtBox
+	n.rec().kindFlags |= kindFlagHasExtBox
 	n.setAux(nodeAux{ext: box})
 	return box
 }
@@ -725,8 +725,8 @@ func (n Node) maybeCollapseExtBox(box *nodeExtBox) {
 	if box.typeBeforeCast != 0 || box.propListHead != nil || n.extBoxHoldsNodeFields(box) {
 		return
 	}
-	n.rec.kindFlags &^= kindFlagHasExtBox
-	if (n.rec.propFlags&propFlagHasJSDoc) != 0 && box.jsDocInfo != nil {
+	n.rec().kindFlags &^= kindFlagHasExtBox
+	if (n.rec().propFlags&propFlagHasJSDoc) != 0 && box.jsDocInfo != nil {
 		n.setAux(nodeAux{jsDoc: box.jsDocInfo})
 	} else {
 		n.setAux(nodeAux{})
@@ -736,7 +736,7 @@ func (n Node) maybeCollapseExtBox(box *nodeExtBox) {
 // extBoxHoldsNodeFields reports whether box holds a length or an original
 // name that does not fit in the Node itself.
 func (n Node) extBoxHoldsNodeFields(box *nodeExtBox) bool {
-	return n.rec.length16 == 0xFFFF || box.origNameID != 0
+	return n.rec().length16 == 0xFFFF || box.origNameID != 0
 }
 
 func (n Node) coldPropListHead() *Node_PropListItem {
@@ -748,7 +748,7 @@ func (n Node) coldPropListHead() *Node_PropListItem {
 
 func (n Node) setColdPropListHead(head *Node_PropListItem) {
 	if head == nil {
-		if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
+		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 			return
 		}
 		box := n.extBox()
@@ -762,7 +762,7 @@ func (n Node) setColdPropListHead(head *Node_PropListItem) {
 
 func (n Node) typeBeforeCastBase() *JSTypeBase {
 	if box := n.extBoxOrNil(); box != nil {
-		return n.store.typeAt(box.typeBeforeCast)
+		return n.store().typeAt(box.typeBeforeCast)
 	}
 	return nil
 }
@@ -779,22 +779,22 @@ func (n Node) copyTemplateColdProps(template Node) {
 		if tbox.jsDocInfo != nil || tbox.typeBeforeCast != 0 || tbox.propListHead != nil {
 			box := n.ensureExtBox()
 			box.jsDocInfo = tbox.jsDocInfo
-			box.typeBeforeCast = n.store.translateTypeHandle(template.store, tbox.typeBeforeCast)
+			box.typeBeforeCast = n.store().translateTypeHandle(template.store(), tbox.typeBeforeCast)
 			box.propListHead = tbox.propListHead
 		}
 		return
 	}
-	if (template.rec.propFlags & propFlagHasJSDoc) != 0 {
+	if (template.rec().propFlags & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{jsDoc: template.jsDocAux()})
 	}
 }
 
 func (n Node) nodeKind() node_kind {
-	return node_kind(n.rec.kindFlags & kindMask)
+	return node_kind(n.rec().kindFlags & kindMask)
 }
 
 func (n Node) setNodeKind(k node_kind) {
-	n.rec.kindFlags = (n.rec.kindFlags &^ kindMask) | uint8(k)
+	n.rec().kindFlags = (n.rec().kindFlags &^ kindMask) | uint8(k)
 }
 
 var node_kindClassNames = [...]string{
@@ -853,7 +853,7 @@ func node_cast[T any](value any) T {
 // Java: Node.NumberNode(double)
 func newNode_NumberNode(number float64) Node {
 	n := NewNode(Token_NUMBER)
-	n.rec.kindFlags = uint8(node_kindNumber)
+	n.rec().kindFlags = uint8(node_kindNumber)
 	n.SetDouble(number)
 	return n
 }
@@ -863,7 +863,7 @@ func newNode_NumberNode(number float64) Node {
 // Java: Node.BigIntNode(BigInteger)
 func newNode_BigIntNode(bigint *big.Int) Node {
 	n := NewNode(Token_BIGINT)
-	n.rec.kindFlags = uint8(node_kindBigInt)
+	n.rec().kindFlags = uint8(node_kindBigInt)
 	n.SetBigInt(bigint)
 	return n
 }
@@ -873,14 +873,14 @@ func newNode_BigIntNode(bigint *big.Int) Node {
 // Java: Node.StringNode(Token)
 func newNode_StringNodeForClone(token Token) Node {
 	n := NewNode(token)
-	n.rec.kindFlags = uint8(node_kindString)
+	n.rec().kindFlags = uint8(node_kindString)
 	return n
 }
 
 // Java: Node.StringNode(Token, String)
 func newNode_StringNode(token Token, str string) Node {
 	n := NewNode(token)
-	n.rec.kindFlags = uint8(node_kindString)
+	n.rec().kindFlags = uint8(node_kindString)
 	n.SetString(str)
 	return n
 }
@@ -888,7 +888,7 @@ func newNode_StringNode(token Token, str string) Node {
 // Java: Node.StringNode(Token, RhinoStringPool.LazyInternedStringList, int)
 func newNode_StringNodeFromStringPool(token Token, stringPool *RhinoStringPool_LazyInternedStringList, offset int) Node {
 	n := NewNode(token)
-	n.rec.kindFlags = uint8(node_kindString)
+	n.rec().kindFlags = uint8(node_kindString)
 	n.SetStringFromStringPool(stringPool, offset)
 	return n
 }
@@ -896,13 +896,13 @@ func newNode_StringNodeFromStringPool(token Token, stringPool *RhinoStringPool_L
 // Java: Node.TemplateLiteralSubstringNode(String, String)
 func newNode_TemplateLiteralSubstringNode(cooked *string, raw string) Node {
 	n := NewNode(Token_TEMPLATELIT_STRING)
-	n.rec.kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
 	var cookedID rhinoStringID
 	if cooked != nil {
 		cookedID = rhinoStringPoolIntern(*cooked)
 	}
 	rawID := rhinoStringPoolIntern(raw)
-	n.rec.payload = (uint64(cookedID) << 32) | uint64(rawID)
+	n.rec().payload = (uint64(cookedID) << 32) | uint64(rawID)
 	return n
 }
 
@@ -913,13 +913,13 @@ func newNode_TemplateLiteralSubstringNodeFromStringPool(
 	rawOffset int,
 ) Node {
 	n := NewNode(Token_TEMPLATELIT_STRING)
-	n.rec.kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
 	var cookedID rhinoStringID
 	if cookedOffsetOrNegativeOne != -1 {
 		cookedID = stringPool.GetID(cookedOffsetOrNegativeOne)
 	}
 	rawID := stringPool.GetID(rawOffset)
-	n.rec.payload = (uint64(cookedID) << 32) | uint64(rawID)
+	n.rec().payload = (uint64(cookedID) << 32) | uint64(rawID)
 	return n
 }
 
@@ -1032,8 +1032,8 @@ func (p *Node_PropListItem) Chain(next *Node_PropListItem) *Node_PropListItem {
 // Java: Node(Token)
 func NewNode(token Token) Node {
 	n := allocNode()
-	n.rec.token = token
-	n.rec.linenoCharno = -1
+	n.rec().token = token
+	n.rec().linenoCharno = -1
 	return n
 }
 
@@ -1045,17 +1045,17 @@ func AllocNode() Node {
 
 // Init initializes a zero Node with token and default source position.
 func (n Node) Init(token Token) Node {
-	n.rec.token = token
-	n.rec.linenoCharno = -1
+	n.rec().token = token
+	n.rec().linenoCharno = -1
 	return n
 }
 
 // InitFromTemplate initializes a zero Node from a slab with token and template properties.
 func (n Node) InitFromTemplate(token Token, template Node) Node {
-	n.rec.token = token
-	n.rec.linenoCharno = -1
-	n.rec.propFlags = template.rec.propFlags
-	if template.rec.aux != 0 {
+	n.rec().token = token
+	n.rec().linenoCharno = -1
+	n.rec().propFlags = template.rec().propFlags
+	if template.rec().aux != 0 {
 		n.copyTemplateColdProps(template)
 	}
 	return n
@@ -1063,109 +1063,109 @@ func (n Node) InitFromTemplate(token Token, template Node) Node {
 
 // InitWithChildFromTemplate initializes a zero Node from a slab with 1 child and template properties.
 func (n Node) InitWithChildFromTemplate(token Token, child Node, template Node) Node {
-	if child.rec.parent != 0 || child.rec.next != 0 || child.rec.previous != 0 || template.rec.aux != 0 {
+	if child.rec().parent != 0 || child.rec().next != 0 || child.rec().previous != 0 || template.rec().aux != 0 {
 		return n.initWithChildFromTemplateSlow(token, child, template)
 	}
-	n.rec.token = token
-	n.rec.linenoCharno = -1
-	n.rec.propFlags = template.rec.propFlags
-	n.rec.first = n.ref(child)
-	child.rec.previous = child.ref(child)
-	child.rec.parent = child.ref(n)
+	n.rec().token = token
+	n.rec().linenoCharno = -1
+	n.rec().propFlags = template.rec().propFlags
+	n.rec().first = n.ref(child)
+	child.rec().previous = child.ref(child)
+	child.rec().parent = child.ref(n)
 	return n
 }
 
 //go:noinline
 func (n Node) initWithChildFromTemplateSlow(token Token, child Node, template Node) Node {
-	n.rec.token = token
-	n.rec.linenoCharno = -1
-	n.rec.propFlags = template.rec.propFlags
-	if template.rec.aux != 0 {
+	n.rec().token = token
+	n.rec().linenoCharno = -1
+	n.rec().propFlags = template.rec().propFlags
+	if template.rec().aux != 0 {
 		n.copyTemplateColdProps(template)
 	}
-	n.rec.first = n.ref(child)
+	n.rec().first = n.ref(child)
 	child.CheckDetached()
-	child.rec.previous = child.ref(child)
-	child.rec.parent = child.ref(n)
+	child.rec().previous = child.ref(child)
+	child.rec().parent = child.ref(n)
 	return n
 }
 
 // InitWith2ChildrenFromTemplate initializes a zero Node from a slab with 2 children and template properties.
 func (n Node) InitWith2ChildrenFromTemplate(token Token, left Node, right Node, template Node) Node {
-	n.rec.token = token
-	n.rec.linenoCharno = -1
-	n.rec.propFlags = template.rec.propFlags
-	if template.rec.aux != 0 {
+	n.rec().token = token
+	n.rec().linenoCharno = -1
+	n.rec().propFlags = template.rec().propFlags
+	if template.rec().aux != 0 {
 		n.copyTemplateColdProps(template)
 	}
-	n.rec.first = n.ref(left)
+	n.rec().first = n.ref(left)
 
 	left.CheckDetached()
-	left.rec.next = left.ref(right)
-	left.rec.previous = left.ref(right)
-	left.rec.parent = left.ref(n)
+	left.rec().next = left.ref(right)
+	left.rec().previous = left.ref(right)
+	left.rec().parent = left.ref(n)
 
 	right.CheckDetached()
-	right.rec.previous = right.ref(left)
-	right.rec.parent = right.ref(n)
+	right.rec().previous = right.ref(left)
+	right.rec().parent = right.ref(n)
 	return n
 }
 
 // InitWith3ChildrenFromTemplate initializes a zero Node from a slab with 3 children and template properties.
 func (n Node) InitWith3ChildrenFromTemplate(token Token, left Node, mid Node, right Node, template Node) Node {
-	n.rec.token = token
-	n.rec.linenoCharno = -1
-	n.rec.propFlags = template.rec.propFlags
-	if template.rec.aux != 0 {
+	n.rec().token = token
+	n.rec().linenoCharno = -1
+	n.rec().propFlags = template.rec().propFlags
+	if template.rec().aux != 0 {
 		n.copyTemplateColdProps(template)
 	}
-	n.rec.first = n.ref(left)
+	n.rec().first = n.ref(left)
 
 	left.CheckDetached()
-	left.rec.next = left.ref(mid)
-	left.rec.previous = left.ref(right)
-	left.rec.parent = left.ref(n)
+	left.rec().next = left.ref(mid)
+	left.rec().previous = left.ref(right)
+	left.rec().parent = left.ref(n)
 
 	mid.CheckDetached()
-	mid.rec.next = mid.ref(right)
-	mid.rec.previous = mid.ref(left)
-	mid.rec.parent = mid.ref(n)
+	mid.rec().next = mid.ref(right)
+	mid.rec().previous = mid.ref(left)
+	mid.rec().parent = mid.ref(n)
 
 	right.CheckDetached()
-	right.rec.previous = right.ref(mid)
-	right.rec.parent = right.ref(n)
+	right.rec().previous = right.ref(mid)
+	right.rec().parent = right.ref(n)
 	return n
 }
 
 //go:noinline
 func (n Node) initStringPayloadAndCold(str string, template Node) {
-	if template.rec.aux != 0 {
+	if template.rec().aux != 0 {
 		n.copyTemplateColdProps(template)
 	}
-	n.rec.payload = uint64(rhinoStringPoolIntern(str))
+	n.rec().payload = uint64(rhinoStringPoolIntern(str))
 }
 
 // InitStringFromTemplate initializes a zero Node from a slab as a StringNode with template properties.
 func (n Node) InitStringFromTemplate(token Token, str string, template Node) Node {
-	n.rec.token = token
-	n.rec.linenoCharno = -1
-	n.rec.kindFlags = uint8(node_kindString)
-	n.rec.propFlags = template.rec.propFlags
+	n.rec().token = token
+	n.rec().linenoCharno = -1
+	n.rec().kindFlags = uint8(node_kindString)
+	n.rec().propFlags = template.rec().propFlags
 	n.initStringPayloadAndCold(str, template)
 	return n
 }
 
 // SetStringID sets the interned string payload on a freshly initialized Node.
 func (n Node) SetStringID(id rhinoStringID) Node {
-	n.rec.kindFlags |= uint8(node_kindString)
-	n.rec.payload = uint64(id)
+	n.rec().kindFlags |= uint8(node_kindString)
+	n.rec().payload = uint64(id)
 	return n
 }
 
 // SetNumberRaw sets the float64 payload on a freshly initialized Node.
 func (n Node) SetNumberRaw(number float64) Node {
-	n.rec.kindFlags |= uint8(node_kindNumber)
-	n.rec.payload = math.Float64bits(number)
+	n.rec().kindFlags |= uint8(node_kindNumber)
+	n.rec().payload = math.Float64bits(number)
 	return n
 }
 
@@ -1182,11 +1182,11 @@ func (n Node) InitTemplateLitStringFromStringPool(
 	rawOffset int,
 	template Node,
 ) Node {
-	n.rec.token = Token_TEMPLATELIT_STRING
-	n.rec.linenoCharno = -1
-	n.rec.kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	n.rec.propFlags = template.rec.propFlags
-	if template.rec.aux != 0 {
+	n.rec().token = Token_TEMPLATELIT_STRING
+	n.rec().linenoCharno = -1
+	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	n.rec().propFlags = template.rec().propFlags
+	if template.rec().aux != 0 {
 		n.copyTemplateColdProps(template)
 	}
 	var cookedID rhinoStringID
@@ -1194,25 +1194,25 @@ func (n Node) InitTemplateLitStringFromStringPool(
 		cookedID = stringPool.GetID(cookedOffsetOrNegativeOne)
 	}
 	rawID := stringPool.GetID(rawOffset)
-	n.rec.payload = (uint64(cookedID) << 32) | uint64(rawID)
+	n.rec().payload = (uint64(cookedID) << 32) | uint64(rawID)
 	return n
 }
 
 // InitNumberFromTemplate initializes a zero Node from a slab as a NumberNode with template properties.
 func (n Node) InitNumberFromTemplate(number float64, template Node) Node {
 	n.InitFromTemplate(Token_NUMBER, template)
-	n.rec.kindFlags |= uint8(node_kindNumber)
-	n.rec.payload = math.Float64bits(number)
+	n.rec().kindFlags |= uint8(node_kindNumber)
+	n.rec().payload = math.Float64bits(number)
 	return n
 }
 
 // InitBigIntFromTemplate initializes a zero Node from a slab as a BigIntNode with template properties.
 func (n Node) InitBigIntFromTemplate(bigint *big.Int, template Node) Node {
-	n.rec.token = Token_BIGINT
-	n.rec.linenoCharno = -1
-	n.rec.kindFlags = uint8(node_kindBigInt)
-	n.rec.propFlags = template.rec.propFlags
-	if template.rec.aux != 0 {
+	n.rec().token = Token_BIGINT
+	n.rec().linenoCharno = -1
+	n.rec().kindFlags = uint8(node_kindBigInt)
+	n.rec().propFlags = template.rec().propFlags
+	if template.rec().aux != 0 {
 		n.copyTemplateColdProps(template)
 	}
 	n.SetBigInt(bigint)
@@ -1221,11 +1221,11 @@ func (n Node) InitBigIntFromTemplate(bigint *big.Int, template Node) Node {
 
 // InitTemplateLitStringFromTemplate initializes a zero Node from a slab as a TemplateLiteralSubstringNode with template properties.
 func (n Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, template Node) Node {
-	n.rec.token = Token_TEMPLATELIT_STRING
-	n.rec.linenoCharno = -1
-	n.rec.kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	n.rec.propFlags = template.rec.propFlags
-	if template.rec.aux != 0 {
+	n.rec().token = Token_TEMPLATELIT_STRING
+	n.rec().linenoCharno = -1
+	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	n.rec().propFlags = template.rec().propFlags
+	if template.rec().aux != 0 {
 		n.copyTemplateColdProps(template)
 	}
 	var cookedID rhinoStringID
@@ -1233,58 +1233,58 @@ func (n Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, temp
 		cookedID = rhinoStringPoolIntern(*cooked)
 	}
 	rawID := rhinoStringPoolIntern(raw)
-	n.rec.payload = (uint64(cookedID) << 32) | uint64(rawID)
+	n.rec().payload = (uint64(cookedID) << 32) | uint64(rawID)
 	return n
 }
 
 // Java: Node(Token, Node)
 func NewNodeWithChild(token Token, child Node) Node {
 	n := NewNode(token)
-	n.rec.first = n.ref(child)
+	n.rec().first = n.ref(child)
 
 	child.CheckDetached()
 	// child.next remains null;
-	child.rec.previous = child.ref(child)
-	child.rec.parent = child.ref(n)
+	child.rec().previous = child.ref(child)
+	child.rec().parent = child.ref(n)
 	return n
 }
 
 // Java: Node(Token, Node, Node)
 func NewNodeWith2Children(token Token, left Node, right Node) Node {
 	n := NewNode(token)
-	n.rec.first = n.ref(left)
+	n.rec().first = n.ref(left)
 
 	left.CheckDetached()
-	left.rec.next = left.ref(right)
-	left.rec.previous = left.ref(right)
-	left.rec.parent = left.ref(n)
+	left.rec().next = left.ref(right)
+	left.rec().previous = left.ref(right)
+	left.rec().parent = left.ref(n)
 
 	right.CheckDetached()
 	// right.next remains null;
-	right.rec.previous = right.ref(left)
-	right.rec.parent = right.ref(n)
+	right.rec().previous = right.ref(left)
+	right.rec().parent = right.ref(n)
 	return n
 }
 
 // Java: Node(Token, Node, Node, Node)
 func NewNodeWith3Children(token Token, left Node, mid Node, right Node) Node {
 	n := NewNode(token)
-	n.rec.first = n.ref(left)
+	n.rec().first = n.ref(left)
 
 	left.CheckDetached()
-	left.rec.next = left.ref(mid)
-	left.rec.previous = left.ref(right)
-	left.rec.parent = left.ref(n)
+	left.rec().next = left.ref(mid)
+	left.rec().previous = left.ref(right)
+	left.rec().parent = left.ref(n)
 
 	mid.CheckDetached()
-	mid.rec.next = mid.ref(right)
-	mid.rec.previous = mid.ref(left)
-	mid.rec.parent = mid.ref(n)
+	mid.rec().next = mid.ref(right)
+	mid.rec().previous = mid.ref(left)
+	mid.rec().parent = mid.ref(n)
 
 	right.CheckDetached()
 	// right.next remains null;
-	right.rec.previous = right.ref(mid)
-	right.rec.parent = right.ref(n)
+	right.rec().previous = right.ref(mid)
+	right.rec().parent = right.ref(n)
 	return n
 }
 
@@ -1329,21 +1329,21 @@ func Node_NewTemplateLitStringFromStringPool(
 
 // Java: Node.getToken()
 func (n Node) GetToken() Token {
-	return n.rec.token
+	return n.rec().token
 }
 
 // Java: Node.setToken(Token)
 func (n Node) SetToken(token Token) {
-	n.rec.token = token
-	n.rec.kindFlags &^= kindFlagNoBlockDecl
-	if n.rec.parent != 0 {
-		n.parentNode().rec.kindFlags &^= kindFlagNoBlockDecl
+	n.rec().token = token
+	n.rec().kindFlags &^= kindFlagNoBlockDecl
+	if n.rec().parent != 0 {
+		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
 }
 
 // Java: Node.hasChildren()
 func (n Node) HasChildren() bool {
-	return n.rec.first != 0
+	return n.rec().first != 0
 }
 
 // Java: Node.getOnlyChild()
@@ -1372,10 +1372,10 @@ func (n Node) GetSecondChild() Node {
 
 // Java: Node.getLastChild()
 func (n Node) GetLastChild() Node {
-	if n.rec.first != 0 {
+	if n.rec().first != 0 {
 		return n.firstNode().prevNode()
 	}
-	return Node{}
+	return NilNode
 }
 
 // Java: Node.getNext()
@@ -1385,38 +1385,38 @@ func (n Node) GetNext() Node {
 
 // Java: Node.getPrevious()
 func (n Node) GetPrevious() Node {
-	if n.rec.self == n.parentNode().rec.first {
-		return Node{}
+	if uint32(n) == n.parentNode().rec().first {
+		return NilNode
 	}
 	return n.prevNode()
 }
 
 // Java: Node.setClosureUnawareShadow(Node)
 func (n Node) SetClosureUnawareShadow(shadowRoot Node) {
-	jutil.CheckStateMsg(n.rec.first == 0, "Cannot set shadow root on a node with children")
-	jutil.CheckStateMsg(n.rec.token == Token_NAME, "Only NAME nodes can be used as shadows")
+	jutil.CheckStateMsg(n.rec().first == 0, "Cannot set shadow root on a node with children")
+	jutil.CheckStateMsg(n.rec().token == Token_NAME, "Only NAME nodes can be used as shadows")
 	n.PutProp(Node_Prop_CLOSURE_UNAWARE_SHADOW, shadowRoot)
 }
 
 // Java: Node.getClosureUnawareShadow()
 func (n Node) GetClosureUnawareShadow() Node {
-	if n.rec.token != Token_NAME || (n.rec.kindFlags&kindFlagHasExtBox) == 0 {
+	if n.rec().token != Token_NAME || (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
 		// As checked in setClosureUnawareShadow, only NAME nodes can have shadow
 		// content. We short-circuit the getProp call here because that can be
 		// very expensive for nodes that have long proplists (and we know it
 		// wouldn't find this prop anyways).
-		return Node{}
+		return NilNode
 	}
 	return node_cast[Node](n.GetProp(Node_Prop_CLOSURE_UNAWARE_SHADOW))
 }
 
 // Java: Node.setIsInClosureUnawareSubtree(boolean)
 func (n Node) SetIsInClosureUnawareSubtree(value bool) {
-	sfID := uint32(n.rec.propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
 	cold := n.coldPropListHead()
-	hasOnlySourceFile := (n.rec.propFlags&nodePropAllNonSourceFileMask) == 0 &&
+	hasOnlySourceFile := (n.rec().propFlags&nodePropAllNonSourceFileMask) == 0 &&
 		n.typeBeforeCastBase() == nil &&
-		(n.nodeKind() != node_kindNode || uint32(n.rec.payload) == 0) &&
+		(n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) &&
 		((sfID != 0 && sfID != nodePropSourceFileOverflow && cold == nil) ||
 			(sfID == nodePropSourceFileOverflow && cold != nil && int(cold.propType) == Node_Prop_SOURCE_FILE.Ordinal() && cold.next == nil))
 	if !hasOnlySourceFile {
@@ -1431,7 +1431,7 @@ func (n Node) SetIsInClosureUnawareSubtree(value bool) {
 
 // Java: Node.getIsInClosureUnawareSubtree()
 func (n Node) GetIsInClosureUnawareSubtree() bool {
-	return (n.rec.propFlags & propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0
+	return (n.rec().propFlags & propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0
 }
 
 // GetChildAtIndex gets the ith child, note that this is O(N) where N is the
@@ -1467,51 +1467,51 @@ func (n Node) GetIndexOfChild(child Node) int {
 
 // Java: Node.addChildToFront(Node)
 func (n Node) AddChildToFront(child Node) {
-	jutil.CheckArgument(child.rec.parent == 0)
-	jutil.CheckArgument(child.rec.next == 0)
-	jutil.CheckArgument(child.rec.previous == 0)
-	n.rec.kindFlags &^= kindFlagNoBlockDecl
-	child.rec.parent = child.ref(n)
-	child.rec.next = child.ref(n.firstNode())
-	if n.rec.first == 0 {
+	jutil.CheckArgument(child.rec().parent == 0)
+	jutil.CheckArgument(child.rec().next == 0)
+	jutil.CheckArgument(child.rec().previous == 0)
+	n.rec().kindFlags &^= kindFlagNoBlockDecl
+	child.rec().parent = child.ref(n)
+	child.rec().next = child.ref(n.firstNode())
+	if n.rec().first == 0 {
 		// NOTE: child.next remains null
-		child.rec.previous = child.ref(child)
+		child.rec().previous = child.ref(child)
 	} else {
 		last := n.firstNode().prevNode()
 		// NOTE: last.next remains null
-		child.rec.previous = child.ref(last)
-		child.rec.next = child.ref(n.firstNode())
-		n.firstNode().rec.previous = n.firstNode().ref(child)
+		child.rec().previous = child.ref(last)
+		child.rec().next = child.ref(n.firstNode())
+		n.firstNode().rec().previous = n.firstNode().ref(child)
 	}
-	n.rec.first = n.ref(child)
+	n.rec().first = n.ref(child)
 }
 
 // Java: Node.addChildToBack(Node)
 func (n Node) AddChildToBack(child Node) {
 	jutil.CheckArgumentMsg3(
-		child.rec.parent == 0,
+		child.rec().parent == 0,
 		"Cannot add already-owned child node.\nChild: %s\nExisting parent: %s\nNew parent: %s",
 		child,
 		child.parentNode(),
 		n)
 
-	jutil.CheckArgument(child.rec.next == 0)
-	jutil.CheckArgument(child.rec.previous == 0)
-	n.rec.kindFlags &^= kindFlagNoBlockDecl
+	jutil.CheckArgument(child.rec().next == 0)
+	jutil.CheckArgument(child.rec().previous == 0)
+	n.rec().kindFlags &^= kindFlagNoBlockDecl
 
-	if n.rec.first == 0 {
+	if n.rec().first == 0 {
 		// NOTE: child.next remains null
-		child.rec.previous = child.ref(child)
-		n.rec.first = n.ref(child)
+		child.rec().previous = child.ref(child)
+		n.rec().first = n.ref(child)
 	} else {
 		last := n.firstNode().prevNode()
-		last.rec.next = last.ref(child)
+		last.rec().next = last.ref(child)
 		// NOTE: child.next remains null
-		child.rec.previous = child.ref(last)
-		n.firstNode().rec.previous = n.firstNode().ref(child)
+		child.rec().previous = child.ref(last)
+		n.firstNode().rec().previous = n.firstNode().ref(child)
 	}
 
-	child.rec.parent = child.ref(n)
+	child.rec().parent = child.ref(n)
 }
 
 // AddChildrenToFront adds all children to the front of this node.
@@ -1529,26 +1529,26 @@ func (n Node) AddChildrenToFront(children Node) {
 	// NOTE: If there is only one sibling, its previous pointer must point to
 	// itself. Null indicates a fully detached node.
 	CheckNotNullMsg1(children.prevNode(), "%s", children)
-	n.rec.kindFlags &^= kindFlagNoBlockDecl
+	n.rec().kindFlags &^= kindFlagNoBlockDecl
 	for child := children; !child.IsNil(); child = child.nextNode() {
-		jutil.CheckArgument(child.rec.parent == 0)
-		child.rec.parent = child.ref(n)
+		jutil.CheckArgument(child.rec().parent == 0)
+		child.rec().parent = child.ref(n)
 	}
 
 	lastSib := children.prevNode()
-	if n.rec.first != 0 {
+	if n.rec().first != 0 {
 		last := n.firstNode().prevNode()
 		// NOTE: last.next remains null
-		children.rec.previous = children.ref(last)
-		lastSib.rec.next = lastSib.ref(n.firstNode())
-		n.firstNode().rec.previous = n.firstNode().ref(lastSib)
+		children.rec().previous = children.ref(last)
+		lastSib.rec().next = lastSib.ref(n.firstNode())
+		n.firstNode().rec().previous = n.firstNode().ref(lastSib)
 	}
-	n.rec.first = n.ref(children)
+	n.rec().first = n.ref(children)
 }
 
 // Java: Node.addChildrenToBack(Node)
 func (n Node) AddChildrenToBack(children Node) {
-	n.rec.kindFlags &^= kindFlagNoBlockDecl
+	n.rec().kindFlags &^= kindFlagNoBlockDecl
 	n.AddChildrenAfter(children, n.GetLastChild())
 }
 
@@ -1559,19 +1559,19 @@ func (n Node) InsertAfter(existing Node) {
 
 	existingParent := existing.parentNode()
 	existingNext := existing.nextNode()
-	existingParent.rec.kindFlags &^= kindFlagNoBlockDecl
+	existingParent.rec().kindFlags &^= kindFlagNoBlockDecl
 
-	n.rec.parent = n.ref(existingParent)
+	n.rec().parent = n.ref(existingParent)
 
-	existing.rec.next = existing.ref(n)
-	n.rec.previous = n.ref(existing)
+	existing.rec().next = existing.ref(n)
+	n.rec().previous = n.ref(existing)
 
 	if existingNext.IsNil() {
-		existingParent.firstNode().rec.previous = existingParent.firstNode().ref(n)
+		existingParent.firstNode().rec().previous = existingParent.firstNode().ref(n)
 		// this.next remains null
 	} else {
-		existingNext.rec.previous = existingNext.ref(n)
-		n.rec.next = n.ref(existingNext)
+		existingNext.rec().previous = existingNext.ref(n)
+		n.rec().next = n.ref(existingNext)
 	}
 }
 
@@ -1582,20 +1582,20 @@ func (n Node) InsertBefore(existing Node) {
 
 	existingParent := existing.parentNode()
 	existingPrevious := existing.prevNode()
-	existingParent.rec.kindFlags &^= kindFlagNoBlockDecl
+	existingParent.rec().kindFlags &^= kindFlagNoBlockDecl
 
-	n.rec.parent = n.ref(existingParent)
+	n.rec().parent = n.ref(existingParent)
 
-	n.rec.next = n.ref(existing)
-	existing.rec.previous = existing.ref(n)
+	n.rec().next = n.ref(existing)
+	existing.rec().previous = existing.ref(n)
 
-	n.rec.previous = n.ref(existingPrevious)
-	if existingPrevious.rec.next == 0 {
-		existingParent.rec.first = existingParent.ref(n)
+	n.rec().previous = n.ref(existingPrevious)
+	if existingPrevious.rec().next == 0 {
+		existingParent.rec().first = existingParent.ref(n)
 		// existingPrevious.next remains null
 	} else {
 		// existingParent.first remains existing
-		existingPrevious.rec.next = existingPrevious.ref(n)
+		existingPrevious.rec().next = existingPrevious.ref(n)
 	}
 }
 
@@ -1620,23 +1620,23 @@ func (n Node) AddChildrenAfter(children Node, node Node) {
 		n.AddChildrenToFront(children)
 		return
 	}
-	n.rec.kindFlags &^= kindFlagNoBlockDecl
+	n.rec().kindFlags &^= kindFlagNoBlockDecl
 
 	for child := children; !child.IsNil(); child = child.nextNode() {
-		jutil.CheckArgument(child.rec.parent == 0)
-		child.rec.parent = child.ref(n)
+		jutil.CheckArgument(child.rec().parent == 0)
+		child.rec().parent = child.ref(n)
 	}
 
 	lastSibling := children.prevNode()
 	nodeAfter := node.nextNode()
-	lastSibling.rec.next = lastSibling.ref(nodeAfter)
+	lastSibling.rec().next = lastSibling.ref(nodeAfter)
 	if nodeAfter.IsNil() {
-		n.firstNode().rec.previous = n.firstNode().ref(lastSibling)
+		n.firstNode().rec().previous = n.firstNode().ref(lastSibling)
 	} else {
-		nodeAfter.rec.previous = nodeAfter.ref(lastSibling)
+		nodeAfter.rec().previous = nodeAfter.ref(lastSibling)
 	}
-	node.rec.next = node.ref(children)
-	children.rec.previous = children.ref(node)
+	node.rec().next = node.ref(children)
+	children.rec().previous = children.ref(node)
 }
 
 // ReplaceWith swaps `replacement` and its subtree into the position of
@@ -1650,7 +1650,7 @@ func (n Node) ReplaceWith(replacement Node) {
 	existingParent := n.parentNode()
 	existingNext := n.nextNode()
 	existingPrevious := n.prevNode()
-	existingParent.rec.kindFlags &^= kindFlagNoBlockDecl
+	existingParent.rec().kindFlags &^= kindFlagNoBlockDecl
 
 	// Copy over important information.
 	// TODO(nickreid): Stop doing this. It's totally unexpected.
@@ -1659,27 +1659,27 @@ func (n Node) ReplaceWith(replacement Node) {
 	// The sequence below also has to work when `this` is an only child, ehich
 	// can cause many of the variables to point to the same object.
 
-	n.rec.parent = 0
-	replacement.rec.parent = replacement.ref(existingParent)
+	n.rec().parent = 0
+	replacement.rec().parent = replacement.ref(existingParent)
 
-	n.rec.previous = 0
-	replacement.rec.previous = replacement.ref(existingPrevious)
-	if existingPrevious.rec.next == 0 {
-		existingParent.rec.first = existingParent.ref(replacement)
+	n.rec().previous = 0
+	replacement.rec().previous = replacement.ref(existingPrevious)
+	if existingPrevious.rec().next == 0 {
+		existingParent.rec().first = existingParent.ref(replacement)
 		// existingPrevious.next remains null
 	} else {
 		// existingParent.first is unchanged;
-		existingPrevious.rec.next = existingPrevious.ref(replacement)
+		existingPrevious.rec().next = existingPrevious.ref(replacement)
 	}
 
 	if existingNext.IsNil() {
 		// this.next remains null;
-		existingParent.firstNode().rec.previous = existingParent.firstNode().ref(replacement)
+		existingParent.firstNode().rec().previous = existingParent.firstNode().ref(replacement)
 		// replacement.next remains null
 	} else {
-		n.rec.next = 0
-		existingNext.rec.previous = existingNext.ref(replacement)
-		replacement.rec.next = replacement.ref(existingNext)
+		n.rec().next = 0
+		existingNext.rec().previous = existingNext.ref(replacement)
+		replacement.rec().next = replacement.ref(existingNext)
 	}
 }
 
@@ -1692,29 +1692,29 @@ func (n Node) Detach() Node {
 	existingParent := n.parentNode()
 	existingNext := n.nextNode()
 	existingPrevious := n.prevNode()
-	existingParent.rec.kindFlags &^= kindFlagNoBlockDecl
+	existingParent.rec().kindFlags &^= kindFlagNoBlockDecl
 
 	// The sequence below also has to work when `this` is an only child or has
 	// a single sibling, which can cause many of the variables to point to the
 	// same object.
 
-	n.rec.parent = 0
+	n.rec().parent = 0
 
 	if existingNext.IsNil() {
 		// this.next remains null;
-		existingParent.firstNode().rec.previous = existingParent.firstNode().ref(existingPrevious)
+		existingParent.firstNode().rec().previous = existingParent.firstNode().ref(existingPrevious)
 	} else {
-		n.rec.next = 0
-		existingNext.rec.previous = existingNext.ref(existingPrevious)
+		n.rec().next = 0
+		existingNext.rec().previous = existingNext.ref(existingPrevious)
 	}
 
-	n.rec.previous = 0
-	if existingPrevious.rec.next == 0 {
-		existingParent.rec.first = existingParent.ref(existingNext)
+	n.rec().previous = 0
+	if existingPrevious.rec().next == 0 {
+		existingParent.rec().first = existingParent.ref(existingNext)
 		// existingPrevious.next remains null
 	} else {
 		// existingParent.first is unchanged;
-		existingPrevious.rec.next = existingPrevious.ref(existingNext)
+		existingPrevious.rec().next = existingPrevious.ref(existingNext)
 	}
 
 	return n
@@ -1722,14 +1722,14 @@ func (n Node) Detach() Node {
 
 // Java: Node.CheckAttached()
 func (n Node) CheckAttached() {
-	jutil.CheckStateMsg1(n.rec.parent != 0, "Has no parent: %s", n)
+	jutil.CheckStateMsg1(n.rec().parent != 0, "Has no parent: %s", n)
 }
 
 // Java: Node.CheckDetached()
 func (n Node) CheckDetached() {
-	jutil.CheckStateMsg1(n.rec.parent == 0, "Has parent: %s", n)
-	jutil.CheckStateMsg1(n.rec.next == 0, "Has next: %s", n)
-	jutil.CheckStateMsg1(n.rec.previous == 0, "Has previous: %s", n)
+	jutil.CheckStateMsg1(n.rec().parent == 0, "Has parent: %s", n)
+	jutil.CheckStateMsg1(n.rec().next == 0, "Has next: %s", n)
+	jutil.CheckStateMsg1(n.rec().previous == 0, "Has previous: %s", n)
 }
 
 // RemoveFirstChild removes the first child of Node. Equivalent to:
@@ -1749,12 +1749,12 @@ func (n Node) RemoveFirstChild() Node {
 //
 // Java: Node.removeChildren()
 func (n Node) RemoveChildren() Node {
-	n.rec.kindFlags &^= kindFlagNoBlockDecl
+	n.rec().kindFlags &^= kindFlagNoBlockDecl
 	children := n.firstNode()
 	for child := n.firstNode(); !child.IsNil(); child = child.nextNode() {
-		child.rec.parent = 0
+		child.rec().parent = 0
 	}
-	n.rec.first = 0
+	n.rec().first = 0
 	return children
 }
 
@@ -1763,15 +1763,15 @@ func (n Node) RemoveChildren() Node {
 //
 // Java: Node.detachChildren()
 func (n Node) DetachChildren() {
-	n.rec.kindFlags &^= kindFlagNoBlockDecl
+	n.rec().kindFlags &^= kindFlagNoBlockDecl
 	for child := n.firstNode(); !child.IsNil(); {
 		nextChild := child.nextNode()
-		child.rec.parent = 0
-		child.rec.next = 0
-		child.rec.previous = 0
+		child.rec().parent = 0
+		child.rec().next = 0
+		child.rec().previous = 0
 		child = nextChild
 	}
-	n.rec.first = 0
+	n.rec().first = 0
 }
 
 func (n Node) lookupPropListHead(prop Node_Prop) *Node_PropListItem {
@@ -1787,10 +1787,10 @@ func (n Node) lookupPropListHead(prop Node_Prop) *Node_PropListItem {
 // Java: Node.lookupProperty(Prop)
 func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 	if mask := nodePropBitMask[prop]; mask != 0 {
-		if (n.rec.propFlags & mask) == 0 {
+		if (n.rec().propFlags & mask) == 0 {
 			return nil
 		}
-		if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 			if x := n.lookupPropListHead(prop); x != nil {
 				return x
 			}
@@ -1799,7 +1799,7 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 	}
 	switch prop {
 	case Node_Prop_SOURCE_FILE:
-		sfID := uint32(n.rec.propFlags >> nodePropSourceFileShift)
+		sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
 		if sfID == 0 {
 			return nil
 		}
@@ -1807,25 +1807,25 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 			return sourceFilePropItem(sfID)
 		}
 	case Node_Prop_CONSTANT_VAR_FLAGS:
-		if v := (n.rec.propFlags >> nodePropConstVarShift) & 3; v != 0 {
+		if v := (n.rec().propFlags >> nodePropConstVarShift) & 3; v != 0 {
 			return &staticConstVarPropItems[v]
 		}
-		if (n.rec.kindFlags & kindFlagHasExtra) == 0 {
+		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return nil
 		}
 	case Node_Prop_SIDE_EFFECT_FLAGS:
-		if v := (n.rec.propFlags >> nodePropSideEffectShift) & 15; v != 0 {
+		if v := (n.rec().propFlags >> nodePropSideEffectShift) & 15; v != 0 {
 			return &staticSideEffectPropItems[v]
 		}
-		if (n.rec.kindFlags & kindFlagHasExtra) == 0 {
+		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return nil
 		}
 	case Node_Prop_JSDOC_INFO:
-		if (n.rec.propFlags & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
 			return nil
 		}
 		var jsdoc *JSDocInfo
-		if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
+		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 			jsdoc = n.jsDocAux()
 		} else if box := n.extBoxOrNil(); box != nil {
 			jsdoc = box.jsDocInfo
@@ -1843,7 +1843,7 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 		if box == nil {
 			return nil
 		}
-		if tbc := n.store.typeAt(box.typeBeforeCast); tbc != nil {
+		if tbc := n.store().typeAt(box.typeBeforeCast); tbc != nil {
 			return &Node_PropListItem{
 				propType:    int8(Node_Prop_TYPE_BEFORE_CAST),
 				objectValue: tbc.self(),
@@ -1853,14 +1853,14 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 		}
 	case Node_Prop_CHANGE_TIME:
 		if n.nodeKind() == node_kindNode {
-			if v := int32(uint32(n.rec.payload)); v != 0 {
+			if v := int32(uint32(n.rec().payload)); v != 0 {
 				return &Node_PropListItem{
 					propType: int8(Node_Prop_CHANGE_TIME),
 					intValue: v,
 					shared:   true,
 				}
 			}
-			if (n.rec.kindFlags & kindFlagHasExtra) == 0 {
+			if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 				return nil
 			}
 		}
@@ -1875,38 +1875,38 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 // Java: Node.clonePropsFrom(Node)
 func (n Node) ClonePropsFrom(other Node) Node {
 	jutil.CheckStateMsg(
-		n.coldPropListHead() == nil && n.typeBeforeCastBase() == nil && n.rec.propFlags == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec.payload) == 0),
+		n.coldPropListHead() == nil && n.typeBeforeCastBase() == nil && n.rec().propFlags == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0),
 		"Node has existing properties.")
 	if otherBox := other.extBoxOrNil(); otherBox != nil {
 		if otherBox.propListHead != nil {
 			otherBox.propListHead.markShared()
 		}
-		if otherBox.jsDocInfo != nil && otherBox.typeBeforeCast == 0 && otherBox.propListHead == nil && (n.rec.kindFlags&kindFlagHasExtBox) == 0 {
+		if otherBox.jsDocInfo != nil && otherBox.typeBeforeCast == 0 && otherBox.propListHead == nil && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
 			n.setAux(nodeAux{jsDoc: otherBox.jsDocInfo})
 		} else if otherBox.jsDocInfo != nil || otherBox.typeBeforeCast != 0 || otherBox.propListHead != nil {
 			box := n.ensureExtBox()
 			box.jsDocInfo = otherBox.jsDocInfo
-			box.typeBeforeCast = n.store.translateTypeHandle(other.store, otherBox.typeBeforeCast)
+			box.typeBeforeCast = n.store().translateTypeHandle(other.store(), otherBox.typeBeforeCast)
 			box.propListHead = otherBox.propListHead
 		}
-	} else if (other.rec.propFlags & propFlagHasJSDoc) != 0 {
-		if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
+	} else if (other.rec().propFlags & propFlagHasJSDoc) != 0 {
+		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 			n.setAux(nodeAux{jsDoc: other.jsDocAux()})
 		} else {
 			n.ensureExtBox().jsDocInfo = other.jsDocAux()
 		}
 	}
-	n.rec.propFlags = other.rec.propFlags
-	if (other.rec.kindFlags&kindFlagHasExtra) != 0 && other.coldPropListHead() != nil {
-		n.rec.kindFlags |= kindFlagHasExtra
+	n.rec().propFlags = other.rec().propFlags
+	if (other.rec().kindFlags&kindFlagHasExtra) != 0 && other.coldPropListHead() != nil {
+		n.rec().kindFlags |= kindFlagHasExtra
 	}
 	if other.nodeKind() == node_kindNode {
-		if ct := int32(uint32(other.rec.payload)); ct != 0 {
+		if ct := int32(uint32(other.rec().payload)); ct != 0 {
 			n.SetChangeTime(ct)
 		}
 	} else if n.nodeKind() == node_kindNode && other.coldPropListHead() != nil {
 		if x := n.lookupPropListHead(Node_Prop_CHANGE_TIME); x != nil && !x.isObject {
-			n.rec.payload = (n.rec.payload & 0xFFFFFFFF00000000) | uint64(uint32(x.intValue))
+			n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(uint32(x.intValue))
 			n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), Node_Prop_CHANGE_TIME))
 		}
 	}
@@ -1930,16 +1930,16 @@ const nodeValidatedPropsMask = propFlag_IS_PARENTHESIZED |
 //
 // Java: Node.validateProperties(Consumer<String>)
 func (n Node) ValidateProperties(violationMessageConsumer func(string)) {
-	if n.rec.propFlags == 0 && (n.rec.kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec.payload) == 0) {
+	if n.rec().propFlags == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
 		return
 	}
 
-	if n.rec.token == Token_ROOT {
+	if n.rec().token == Token_ROOT {
 		// ROOT tokens should never have properties
 		violationMessageConsumer("ROOT has properties")
 	}
 
-	flags := n.rec.propFlags
+	flags := n.rec().propFlags
 	if (flags & nodeValidatedPropsMask) != 0 {
 		if (flags&propFlag_IS_PARENTHESIZED) != 0 && !IR_MayBeExpression(n) {
 			violationMessageConsumer("non-expression is parenthesized")
@@ -1967,7 +1967,7 @@ func (n Node) ValidateProperties(violationMessageConsumer func(string)) {
 				"Expected all synthetic unfulfilled declarations to be `var <name>`")
 		}
 	}
-	if (n.rec.kindFlags & kindFlagHasExtBox) != 0 {
+	if (n.rec().kindFlags & kindFlagHasExtBox) != 0 {
 		for x := n.coldPropListHead(); x != nil; x = x.next {
 			switch Node_Prop(x.propType) {
 			case Node_Prop_CONSTANT_VAR_FLAGS:
@@ -2009,7 +2009,7 @@ func Node_RebuildListWithoutProp(item *Node_PropListItem, prop Node_Prop) *Node_
 // Java: Node.getProp(Prop)
 func (n Node) GetProp(propType Node_Prop) any {
 	if propType == Node_Prop_SOURCE_FILE {
-		sfID := uint32(n.rec.propFlags >> nodePropSourceFileShift)
+		sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
 		if sfID == 0 {
 			return nil
 		}
@@ -2017,10 +2017,10 @@ func (n Node) GetProp(propType Node_Prop) any {
 			return sourceFilePropItem(sfID).objectValue
 		}
 	} else if propType == Node_Prop_JSDOC_INFO {
-		if (n.rec.propFlags & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
 			return nil
 		}
-		if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
+		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 			if jsdoc := n.jsDocAux(); jsdoc != nil {
 				return jsdoc
 			}
@@ -2034,28 +2034,28 @@ func (n Node) GetProp(propType Node_Prop) any {
 		if box == nil {
 			return nil
 		}
-		if tbc := n.store.typeAt(box.typeBeforeCast); tbc != nil {
+		if tbc := n.store().typeAt(box.typeBeforeCast); tbc != nil {
 			return tbc.self()
 		}
 	} else if mask := nodePropBitMask[propType]; mask != 0 {
-		if (n.rec.propFlags & mask) == 0 {
+		if (n.rec().propFlags & mask) == 0 {
 			return nil
 		}
-		if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 			if x := n.lookupPropListHead(propType); x != nil {
 				return x.GetObjectValue()
 			}
 		}
 		panic(jutil.NewUnsupportedOperationException())
 	} else if propType == Node_Prop_CONSTANT_VAR_FLAGS {
-		if (n.rec.propFlags & nodePropConstVarMask) != 0 {
+		if (n.rec().propFlags & nodePropConstVarMask) != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 	} else if propType == Node_Prop_SIDE_EFFECT_FLAGS {
-		if (n.rec.propFlags & nodePropSideEffectMask) != 0 {
+		if (n.rec().propFlags & nodePropSideEffectMask) != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
-	} else if propType == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode && uint32(n.rec.payload) != 0 {
+	} else if propType == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode && uint32(n.rec().payload) != 0 {
 		panic(jutil.NewUnsupportedOperationException())
 	}
 	if x := n.lookupPropListHead(propType); x != nil {
@@ -2067,7 +2067,7 @@ func (n Node) GetProp(propType Node_Prop) any {
 // Java: Node.getBooleanProp(Prop)
 func (n Node) GetBooleanProp(propType Node_Prop) bool {
 	if mask := nodePropBitMask[propType]; mask != 0 {
-		return (n.rec.propFlags & mask) != 0
+		return (n.rec().propFlags & mask) != 0
 	}
 	return n.GetIntProp(propType) != 0
 }
@@ -2078,10 +2078,10 @@ func (n Node) GetBooleanProp(propType Node_Prop) bool {
 // Java: Node.getIntProp(Prop)
 func (n Node) GetIntProp(propType Node_Prop) int32 {
 	if mask := nodePropBitMask[propType]; mask != 0 {
-		if (n.rec.propFlags & mask) == 0 {
+		if (n.rec().propFlags & mask) == 0 {
 			return 0
 		}
-		if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 			if x := n.lookupPropListHead(propType); x != nil {
 				return x.GetIntValue()
 			}
@@ -2089,36 +2089,36 @@ func (n Node) GetIntProp(propType Node_Prop) int32 {
 		return 1
 	}
 	if propType == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
-		if v := int32(uint32(n.rec.payload)); v != 0 {
+		if v := int32(uint32(n.rec().payload)); v != 0 {
 			return v
 		}
-		if (n.rec.kindFlags & kindFlagHasExtra) == 0 {
+		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return 0
 		}
 	} else if propType == Node_Prop_CONSTANT_VAR_FLAGS {
-		if v := int32((n.rec.propFlags >> nodePropConstVarShift) & 3); v != 0 {
+		if v := int32((n.rec().propFlags >> nodePropConstVarShift) & 3); v != 0 {
 			return v
 		}
-		if (n.rec.kindFlags & kindFlagHasExtra) == 0 {
+		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return 0
 		}
 	} else if propType == Node_Prop_SIDE_EFFECT_FLAGS {
-		if v := int32((n.rec.propFlags >> nodePropSideEffectShift) & 15); v != 0 {
+		if v := int32((n.rec().propFlags >> nodePropSideEffectShift) & 15); v != 0 {
 			return v
 		}
-		if (n.rec.kindFlags & kindFlagHasExtra) == 0 {
+		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return 0
 		}
 	} else if propType == Node_Prop_SOURCE_FILE {
-		if (n.rec.propFlags >> nodePropSourceFileShift) != 0 {
+		if (n.rec().propFlags >> nodePropSourceFileShift) != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 		return 0
 	} else if propType == Node_Prop_JSDOC_INFO {
-		if (n.rec.propFlags & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
 			return 0
 		}
-		if box := n.extBoxOrNil(); (n.rec.kindFlags&kindFlagHasExtBox) == 0 || (box != nil && box.jsDocInfo != nil) {
+		if box := n.extBoxOrNil(); (n.rec().kindFlags&kindFlagHasExtBox) == 0 || (box != nil && box.jsDocInfo != nil) {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 	} else if propType == Node_Prop_TYPE_BEFORE_CAST {
@@ -2149,13 +2149,13 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 	}
 	if prop == Node_Prop_SOURCE_FILE {
 		if id, ok := allocSourceFilePropID(value); ok {
-			if (n.rec.propFlags >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
+			if (n.rec().propFlags >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
 				n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), prop))
 			}
-			n.rec.propFlags = (n.rec.propFlags & nodePropAllNonSourceFileMask) | (uint64(id) << nodePropSourceFileShift)
+			n.rec().propFlags = (n.rec().propFlags & nodePropAllNonSourceFileMask) | (uint64(id) << nodePropSourceFileShift)
 			return
 		}
-		n.rec.propFlags = (n.rec.propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+		n.rec().propFlags = (n.rec().propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	} else if prop == Node_Prop_JSDOC_INFO {
 		if info, ok := value.(*JSDocInfo); ok {
 			n.SetJSDocInfo(info)
@@ -2163,7 +2163,7 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 		}
 		box := n.ensureExtBox()
 		box.jsDocInfo = nil
-		n.rec.propFlags |= propFlagHasJSDoc
+		n.rec().propFlags |= propFlagHasJSDoc
 	} else if prop == Node_Prop_TYPE_BEFORE_CAST {
 		if t, ok := value.(JSType); ok {
 			n.SetJSTypeBeforeCast(t)
@@ -2172,11 +2172,11 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 		box := n.ensureExtBox()
 		box.typeBeforeCast = 0
 	} else if prop == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
-		n.rec.payload &= 0xFFFFFFFF00000000
-		n.rec.kindFlags |= kindFlagHasExtra
+		n.rec().payload &= 0xFFFFFFFF00000000
+		n.rec().kindFlags |= kindFlagHasExtra
 	} else if mask := nodePropBitMask[prop]; mask != 0 {
-		n.rec.propFlags |= mask
-		n.rec.kindFlags |= kindFlagHasExtra
+		n.rec().propFlags |= mask
+		n.rec().kindFlags |= kindFlagHasExtra
 	}
 	head := n.coldPropListHead()
 	for cur := head; cur != nil && !cur.shared; cur = cur.next {
@@ -2193,18 +2193,18 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 func (n Node) PutBooleanProp(propType Node_Prop, value bool) {
 	if mask := nodePropBitMask[propType]; mask != 0 {
 		if value {
-			n.rec.propFlags |= mask
-			if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+			n.rec().propFlags |= mask
+			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, propType))
 				}
 			}
 		} else {
-			if (n.rec.propFlags & mask) == 0 {
+			if (n.rec().propFlags & mask) == 0 {
 				return
 			}
-			n.rec.propFlags &^= mask
-			if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+			n.rec().propFlags &^= mask
+			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, propType))
 				}
@@ -2223,11 +2223,11 @@ func (n Node) PutBooleanProp(propType Node_Prop, value bool) {
 func (n Node) PutIntProp(prop Node_Prop, value int32) {
 	if mask := nodePropBitMask[prop]; mask != 0 {
 		if value == 0 {
-			if (n.rec.propFlags & mask) == 0 {
+			if (n.rec().propFlags & mask) == 0 {
 				return
 			}
-			n.rec.propFlags &^= mask
-			if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+			n.rec().propFlags &^= mask
+			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
 				}
@@ -2235,19 +2235,19 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 			return
 		}
 		if value == 1 {
-			n.rec.propFlags |= mask
-			if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+			n.rec().propFlags |= mask
+			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
 				}
 			}
 			return
 		}
-		n.rec.propFlags |= mask
-		n.rec.kindFlags |= kindFlagHasExtra
+		n.rec().propFlags |= mask
+		n.rec().kindFlags |= kindFlagHasExtra
 	} else if prop == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
-		n.rec.payload = (n.rec.payload & 0xFFFFFFFF00000000) | uint64(uint32(value))
-		if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+		n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(uint32(value))
+		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 			if head := n.coldPropListHead(); head != nil {
 				n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
 			}
@@ -2255,8 +2255,8 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 		return
 	} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
 		if value == 0 {
-			n.rec.propFlags &^= nodePropConstVarMask
-			if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+			n.rec().propFlags &^= nodePropConstVarMask
+			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
 				}
@@ -2264,20 +2264,20 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 			return
 		}
 		if value&^3 == 0 {
-			n.rec.propFlags = (n.rec.propFlags &^ nodePropConstVarMask) | (uint64(value) << nodePropConstVarShift)
-			if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+			n.rec().propFlags = (n.rec().propFlags &^ nodePropConstVarMask) | (uint64(value) << nodePropConstVarShift)
+			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
 				}
 			}
 			return
 		}
-		n.rec.propFlags &^= nodePropConstVarMask
-		n.rec.kindFlags |= kindFlagHasExtra
+		n.rec().propFlags &^= nodePropConstVarMask
+		n.rec().kindFlags |= kindFlagHasExtra
 	} else if prop == Node_Prop_SIDE_EFFECT_FLAGS {
 		if value == 0 {
-			n.rec.propFlags &^= nodePropSideEffectMask
-			if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+			n.rec().propFlags &^= nodePropSideEffectMask
+			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
 				}
@@ -2285,20 +2285,20 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 			return
 		}
 		if value&^15 == 0 {
-			n.rec.propFlags = (n.rec.propFlags &^ nodePropSideEffectMask) | (uint64(value) << nodePropSideEffectShift)
-			if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+			n.rec().propFlags = (n.rec().propFlags &^ nodePropSideEffectMask) | (uint64(value) << nodePropSideEffectShift)
+			if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 				if head := n.coldPropListHead(); head != nil {
 					n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
 				}
 			}
 			return
 		}
-		n.rec.propFlags &^= nodePropSideEffectMask
-		n.rec.kindFlags |= kindFlagHasExtra
+		n.rec().propFlags &^= nodePropSideEffectMask
+		n.rec().kindFlags |= kindFlagHasExtra
 	} else if prop == Node_Prop_SOURCE_FILE {
-		n.rec.propFlags &= nodePropAllNonSourceFileMask
+		n.rec().propFlags &= nodePropAllNonSourceFileMask
 		if value != 0 {
-			n.rec.propFlags |= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+			n.rec().propFlags |= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
 		}
 	} else if prop == Node_Prop_JSDOC_INFO {
 		if value == 0 {
@@ -2307,7 +2307,7 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 		}
 		box := n.ensureExtBox()
 		box.jsDocInfo = nil
-		n.rec.propFlags |= propFlagHasJSDoc
+		n.rec().propFlags |= propFlagHasJSDoc
 	} else if prop == Node_Prop_TYPE_BEFORE_CAST {
 		if value == 0 {
 			n.RemoveProp(prop)
@@ -2331,11 +2331,11 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 // Java: Node.removeProp(Prop)
 func (n Node) RemoveProp(prop Node_Prop) {
 	if mask := nodePropBitMask[prop]; mask != 0 {
-		if (n.rec.propFlags & mask) == 0 {
+		if (n.rec().propFlags & mask) == 0 {
 			return
 		}
-		n.rec.propFlags &^= mask
-		if (n.rec.kindFlags & kindFlagHasExtra) != 0 {
+		n.rec().propFlags &^= mask
+		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
 			if head := n.coldPropListHead(); head != nil {
 				n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
 			}
@@ -2344,37 +2344,37 @@ func (n Node) RemoveProp(prop Node_Prop) {
 	}
 	switch prop {
 	case Node_Prop_SOURCE_FILE:
-		sfID := uint32(n.rec.propFlags >> nodePropSourceFileShift)
+		sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
 		if sfID == 0 {
 			return
 		}
-		n.rec.propFlags &= nodePropAllNonSourceFileMask
+		n.rec().propFlags &= nodePropAllNonSourceFileMask
 		if sfID != nodePropSourceFileOverflow {
 			return
 		}
 	case Node_Prop_CHANGE_TIME:
 		if n.nodeKind() == node_kindNode {
-			n.rec.payload &= 0xFFFFFFFF00000000
-			if (n.rec.kindFlags & kindFlagHasExtra) == 0 {
+			n.rec().payload &= 0xFFFFFFFF00000000
+			if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 				return
 			}
 		}
 	case Node_Prop_CONSTANT_VAR_FLAGS:
-		n.rec.propFlags &^= nodePropConstVarMask
-		if (n.rec.kindFlags & kindFlagHasExtra) == 0 {
+		n.rec().propFlags &^= nodePropConstVarMask
+		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return
 		}
 	case Node_Prop_SIDE_EFFECT_FLAGS:
-		n.rec.propFlags &^= nodePropSideEffectMask
-		if (n.rec.kindFlags & kindFlagHasExtra) == 0 {
+		n.rec().propFlags &^= nodePropSideEffectMask
+		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return
 		}
 	case Node_Prop_JSDOC_INFO:
-		if (n.rec.propFlags & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
 			return
 		}
-		n.rec.propFlags &^= propFlagHasJSDoc
-		if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
+		n.rec().propFlags &^= propFlagHasJSDoc
+		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 			n.setAux(nodeAux{})
 			return
 		}
@@ -2385,7 +2385,7 @@ func (n Node) RemoveProp(prop Node_Prop) {
 			return
 		}
 	case Node_Prop_TYPE_BEFORE_CAST:
-		if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
+		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 			return
 		}
 		box := n.extBox()
@@ -2401,29 +2401,29 @@ func (n Node) RemoveProp(prop Node_Prop) {
 }
 
 func (n Node) presentNodePropsMask() uint64 {
-	if n.rec.propFlags == 0 && (n.rec.kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec.payload) == 0) {
+	if n.rec().propFlags == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
 		return 0
 	}
 	var mask uint64
-	boolBits := n.rec.propFlags & nodePropBoolMask
+	boolBits := n.rec().propFlags & nodePropBoolMask
 	for boolBits != 0 {
 		b := bits.TrailingZeros64(boolBits)
 		boolBits &^= uint64(1) << uint(b)
 		mask |= uint64(1) << uint(nodeBitToProp[b])
 	}
-	if (n.rec.propFlags & propFlagHasJSDoc) != 0 {
+	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_JSDOC_INFO)
 	}
-	if (n.rec.propFlags & nodePropConstVarMask) != 0 {
+	if (n.rec().propFlags & nodePropConstVarMask) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_CONSTANT_VAR_FLAGS)
 	}
-	if (n.rec.propFlags & nodePropSideEffectMask) != 0 {
+	if (n.rec().propFlags & nodePropSideEffectMask) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_SIDE_EFFECT_FLAGS)
 	}
-	if (n.rec.propFlags >> nodePropSourceFileShift) != 0 {
+	if (n.rec().propFlags >> nodePropSourceFileShift) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_SOURCE_FILE)
 	}
-	if n.nodeKind() == node_kindNode && uint32(n.rec.payload) != 0 {
+	if n.nodeKind() == node_kindNode && uint32(n.rec().payload) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_CHANGE_TIME)
 	}
 	if box := n.extBoxOrNil(); box != nil {
@@ -2476,7 +2476,7 @@ const nodePropNonSerializedMask = (uint64(1) << uint(Node_Prop_SOURCE_FILE)) |
 
 // Java: Node.serializeProperties()
 func (n Node) SerializeProperties() int64 {
-	if (n.rec.propFlags&nodePropAllNonSourceFileMask) == 0 && (n.rec.kindFlags&kindFlagHasExtBox) == 0 {
+	if (n.rec().propFlags&nodePropAllNonSourceFileMask) == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
 		return 0
 	}
 	bitsMask := n.presentNodePropsMask() &^ nodePropNonSerializedMask
@@ -2580,7 +2580,7 @@ func (n Node) GetPropListDebugString() string {
 // Java: Node.deserializeProperties(long, boolean)
 func (n Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree bool) {
 	if n.IsRoot() {
-		jutil.CheckStateMsg1(n.coldPropListHead() == nil && n.rec.propFlags == 0 && uint32(n.rec.payload) == 0, "%s", n.coldPropListHead())
+		jutil.CheckStateMsg1(n.coldPropListHead() == nil && n.rec().propFlags == 0 && uint32(n.rec().payload) == 0, "%s", n.coldPropListHead())
 	} else {
 		jutil.CheckStateMsg(
 			n.ValidatePropListTailOrdering(isInClosureUnawareSubtree),
@@ -2621,7 +2621,7 @@ func (n Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree boo
 				panic(jutil.NewIllegalStateExceptionMsg("Can not translate " + nodeProperty.String() + " to AST Prop"))
 			}
 			if mask := nodePropBitMask[*prop]; mask != 0 {
-				n.rec.propFlags |= mask
+				n.rec().propFlags |= mask
 			} else {
 				n.PutBooleanProp(*prop, true)
 			}
@@ -2629,12 +2629,12 @@ func (n Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree boo
 	}
 
 	if constantVarFlags != 0 {
-		n.rec.propFlags = (n.rec.propFlags &^ nodePropConstVarMask) |
+		n.rec().propFlags = (n.rec().propFlags &^ nodePropConstVarMask) |
 			(uint64(constantVarFlags&3) << nodePropConstVarShift)
 	}
 
 	if sideEffectFlags != 0 {
-		n.rec.propFlags = (n.rec.propFlags &^ nodePropSideEffectMask) |
+		n.rec().propFlags = (n.rec().propFlags &^ nodePropSideEffectMask) |
 			(uint64(sideEffectFlags&15) << nodePropSideEffectShift)
 	}
 
@@ -2674,7 +2674,7 @@ func (n Node) SetJSTypeBeforeCast(type_ JSType) {
 	if box.typeBeforeCast == 0 && box.propListHead != nil {
 		box.propListHead = Node_RebuildListWithoutProp(box.propListHead, Node_Prop_TYPE_BEFORE_CAST)
 	}
-	box.typeBeforeCast = n.store.typeHandle(jsTypeBase(type_))
+	box.typeBeforeCast = n.store().typeHandle(jsTypeBase(type_))
 }
 
 // GetJSTypeBeforeCast returns the type of this node before casting. This
@@ -2683,7 +2683,7 @@ func (n Node) SetJSTypeBeforeCast(type_ JSType) {
 //
 // Java: Node.getJSTypeBeforeCast()
 func (n Node) GetJSTypeBeforeCast() JSType {
-	if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
+	if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 		return nil
 	}
 	return n.getJSTypeBeforeCastBoxed()
@@ -2696,7 +2696,7 @@ func (n Node) getJSTypeBeforeCastBoxed() JSType {
 		return nil
 	}
 	if box.typeBeforeCast != 0 {
-		return jsTypeOf(n.store.typeAt(box.typeBeforeCast))
+		return jsTypeOf(n.store().typeAt(box.typeBeforeCast))
 	}
 	if box.propListHead != nil {
 		return node_cast[JSType](n.GetProp(Node_Prop_TYPE_BEFORE_CAST))
@@ -2751,7 +2751,7 @@ func (n Node) SetDouble(x float64) {
 	jutil.CheckStateMsg1(!math.IsNaN(x), "%s", x)
 	jutil.CheckStateMsg1(base.JSCompDoubles_IsPositive(x), "%s", x)
 	n.node_castKind(node_kindNumber)
-	n.rec.payload = math.Float64bits(x)
+	n.rec().payload = math.Float64bits(x)
 }
 
 var (
@@ -2780,7 +2780,7 @@ func rhinoBigIntFromID(id uint32) *big.Int {
 // Java: Node.getBigInt()
 func (n Node) GetBigInt() *big.Int {
 	n.node_castKind(node_kindBigInt)
-	return rhinoBigIntFromID(uint32(n.rec.payload))
+	return rhinoBigIntFromID(uint32(n.rec().payload))
 }
 
 // Java: Node.setBigInt(BigInteger)
@@ -2789,7 +2789,7 @@ func (n Node) SetBigInt(number *big.Int) {
 	jutil.CheckStateMsg1(number.Sign() >= 0, "%s", number)
 	n.node_castKind(node_kindBigInt)
 	id := rhinoInternBigInt(number)
-	n.rec.payload = (n.rec.payload & 0xFFFFFFFF00000000) | uint64(id)
+	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(id)
 }
 
 // Java: Node.getString()
@@ -2816,8 +2816,8 @@ func (n Node) failGetRawStringID() {
 
 // GetStringID returns the 32-bit interned string ID of a StringNode.
 func (n Node) GetStringID() uint32 {
-	id := uint32(n.rec.payload)
-	if n.rec.kindFlags&kindMask != uint8(node_kindString) || id == 0 {
+	id := uint32(n.rec().payload)
+	if n.rec().kindFlags&kindMask != uint8(node_kindString) || id == 0 {
 		n.failGetStringID()
 	}
 	return id
@@ -2827,14 +2827,14 @@ func (n Node) GetStringID() uint32 {
 func (n Node) SetString(str string) {
 	n.node_castKind(node_kindString)
 	id := rhinoStringPoolIntern(str)
-	n.rec.payload = (n.rec.payload & 0xFFFFFFFF00000000) | uint64(id)
+	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(id)
 }
 
 // Java: Node.setStringFromStringPool(RhinoStringPool.LazyInternedStringList, int)
 func (n Node) SetStringFromStringPool(stringPool *RhinoStringPool_LazyInternedStringList, offset int) {
 	n.node_castKind(node_kindString)
 	id := stringPool.GetID(offset)
-	n.rec.payload = (n.rec.payload & 0xFFFFFFFF00000000) | uint64(id)
+	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(id)
 }
 
 // Java: Node.getRawString()
@@ -2845,8 +2845,8 @@ func (n Node) GetRawString() string {
 
 // GetRawStringID returns the 32-bit interned raw string ID of a TemplateLiteralSubstringNode.
 func (n Node) GetRawStringID() uint32 {
-	id := uint32(n.rec.payload)
-	if n.rec.kindFlags&kindMask != uint8(node_kindTemplateLiteralSubstring) || id == 0 {
+	id := uint32(n.rec().payload)
+	if n.rec().kindFlags&kindMask != uint8(node_kindTemplateLiteralSubstring) || id == 0 {
 		n.failGetRawStringID()
 	}
 	return id
@@ -2861,7 +2861,7 @@ func (n Node) GetCookedString() *string {
 // GetCookedStringID returns the 32-bit interned cooked string ID of a TemplateLiteralSubstringNode, or 0 if unset.
 func (n Node) GetCookedStringID() uint32 {
 	n.node_castKind(node_kindTemplateLiteralSubstring)
-	return uint32(n.rec.payload >> 32)
+	return uint32(n.rec().payload >> 32)
 }
 
 // Java: Node.toString()
@@ -2878,21 +2878,21 @@ func (n Node) ToStringWithFlags(printSource bool, printAnnotations bool, printTy
 
 // Java: Node.toString(StringBuilder, boolean, boolean, boolean)
 func (n Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotations bool, printType bool) {
-	sb.WriteString(n.rec.token.String())
+	sb.WriteString(n.rec().token.String())
 	if n.nodeKind() == node_kindString {
 		sb.WriteByte(' ')
 		sb.WriteString(n.GetString())
-	} else if n.rec.token == Token_FUNCTION {
+	} else if n.rec().token == Token_FUNCTION {
 		sb.WriteByte(' ')
 		// In the case of JsDoc trees, the first child is often not a string
 		// which causes exceptions to be thrown when calling toString or
 		// toStringTree.
-		if n.rec.first == 0 || n.firstNode().rec.token != Token_NAME {
+		if n.rec().first == 0 || n.firstNode().rec().token != Token_NAME {
 			sb.WriteString("<invalid>")
 		} else {
 			sb.WriteString(n.firstNode().GetString())
 		}
-	} else if n.rec.token == Token_NUMBER {
+	} else if n.rec().token == Token_NUMBER {
 		sb.WriteByte(' ')
 		sb.WriteString(jutil.DoubleToString(n.GetDouble()))
 	}
@@ -2934,7 +2934,7 @@ func (n Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotatio
 		}
 	}
 
-	if printType && n.rec.tc != 0 {
+	if printType && n.rec().tc != 0 {
 		typeString := jutil.ToJavaString(n.typeOrColorValue())
 		sb.WriteString(" : ")
 		sb.WriteString(typeString)
@@ -2967,21 +2967,21 @@ func (a node_appender) append(s string) {
 func (n Node) ToJson(appendable io.StringWriter) {
 	sb := node_appender{appendable}
 	sb.append("{")
-	sb.append(Node_CreateJsonPair("token", n.rec.token.String()))
+	sb.append(Node_CreateJsonPair("token", n.rec().token.String()))
 	if n.nodeKind() == node_kindString {
 		sb.append(",")
 		sb.append(Node_CreateJsonPair("string", n.GetString()))
-	} else if n.rec.token == Token_FUNCTION {
+	} else if n.rec().token == Token_FUNCTION {
 		sb.append(",")
 		// In the case of JsDoc trees, the first child is often not a string
 		// which causes exceptions to be thrown when calling toString or
 		// toStringTree.
-		if n.rec.first == 0 || n.firstNode().rec.token != Token_NAME {
+		if n.rec().first == 0 || n.firstNode().rec().token != Token_NAME {
 			sb.append(Node_CreateJsonPair("functionName", "<invalid>"))
 		} else {
 			sb.append(Node_CreateJsonPair("functionName", n.firstNode().GetString()))
 		}
-	} else if n.rec.token == Token_NUMBER {
+	} else if n.rec().token == Token_NUMBER {
 		sb.append(",")
 		sb.append(Node_CreateJsonPair("number", jutil.DoubleToString(n.GetDouble())))
 	}
@@ -3022,18 +3022,18 @@ func (n Node) ToJson(appendable io.StringWriter) {
 		sb.append("}")
 	}
 
-	if n.rec.tc != 0 {
+	if n.rec().tc != 0 {
 		typeString := jutil.ToJavaString(n.typeOrColorValue())
 		sb.append(",")
 		sb.append(Node_CreateJsonPair("typeString", jutil.StringReplace(typeString, "\"", "\\\"")))
 	}
 
-	if n.rec.first != 0 {
+	if n.rec().first != 0 {
 		sb.append(",")
 		sb.append("\"children\":[")
 		for child := n.firstNode(); !child.IsNil(); child = child.nextNode() {
 			child.ToJson(appendable)
-			if child.rec.next != 0 {
+			if child.rec().next != 0 {
 				sb.append(",")
 			}
 		}
@@ -3095,8 +3095,8 @@ func Node_ToJsonTreeHelper(n Node, appendable io.StringWriter) {
 // nodeData is the record of an AST node (fields as declared in Java, plus
 // the folded subclass payloads); a Node is a handle to one (node_store.go).
 //
-// Go-only: performance. 56 bytes, no Go pointers: the tree links are ids
-// into the node's store. Leaf payloads (float64 numbers, 32-bit interned
+// Go-only: performance. 48 bytes, no Go pointers: the tree links are node
+// ids. Leaf payloads (float64 numbers, 32-bit interned
 // StringIDs for str/originalName/raw/cooked, BigInt IDs) live inline in
 // `payload uint64`, and all 40 boolean properties + CONSTANT_VAR_FLAGS +
 // SIDE_EFFECT_FLAGS + 17-bit SourceFileID live in `propFlags uint64`
@@ -3109,7 +3109,6 @@ type nodeData struct {
 	first    nodeID // first element of a linked list of children
 	parent   nodeID // parent node
 	previous nodeID // previous sibling, a circular linked list
-	self     nodeID // this node's own id in its store
 
 	payload      uint64 // inline leaf union: float64 bits or packed 32-bit StringIDs/BigIntID
 	propFlags    uint64 // bits 0..39: bool props; bit 40: JSDoc; 41..42: ConstVar; 43..46: SideEffect; 47..63: SourceFileID
@@ -3122,21 +3121,21 @@ type nodeData struct {
 }
 
 func (n Node) HasNoBlockScopeDecls() bool {
-	return n.rec.kindFlags&kindFlagNoBlockDecl != 0
+	return n.rec().kindFlags&kindFlagNoBlockDecl != 0
 }
 
 func (n Node) SetNoBlockScopeDecls() {
-	n.rec.kindFlags |= kindFlagNoBlockDecl
+	n.rec().kindFlags |= kindFlagNoBlockDecl
 }
 
 func (n Node) ClearNoBlockScopeDecls() {
-	n.rec.kindFlags &^= kindFlagNoBlockDecl
+	n.rec().kindFlags &^= kindFlagNoBlockDecl
 }
 
 func (n Node) node_originalNameID() rhinoStringID {
 	k := n.nodeKind()
 	if k != node_kindNumber && k != node_kindTemplateLiteralSubstring {
-		return rhinoStringID(n.rec.payload >> 32)
+		return rhinoStringID(n.rec().payload >> 32)
 	}
 	if box := n.extBoxOrNil(); box != nil {
 		return box.origNameID
@@ -3147,12 +3146,12 @@ func (n Node) node_originalNameID() rhinoStringID {
 func (n Node) node_setOriginalNameID(id rhinoStringID) {
 	k := n.nodeKind()
 	if k != node_kindNumber && k != node_kindTemplateLiteralSubstring {
-		n.rec.payload = (n.rec.payload & 0x00000000FFFFFFFF) | (uint64(id) << 32)
+		n.rec().payload = (n.rec().payload & 0x00000000FFFFFFFF) | (uint64(id) << 32)
 		return
 	}
 	if id != 0 {
 		n.ensureExtBox().origNameID = id
-	} else if n.rec.kindFlags&kindFlagHasExtBox != 0 {
+	} else if n.rec().kindFlags&kindFlagHasExtBox != 0 {
 		box := n.extBox()
 		box.origNameID = 0
 		n.maybeCollapseExtBox(box)
@@ -3161,12 +3160,12 @@ func (n Node) node_setOriginalNameID(id rhinoStringID) {
 
 // node_number is the NumberNode.number field.
 func (n Node) node_number() float64 {
-	return math.Float64frombits(n.rec.payload)
+	return math.Float64frombits(n.rec().payload)
 }
 
 // node_cooked is the TemplateLiteralSubstringNode.cooked field.
 func (n Node) node_cooked() *string {
-	return rhinoStringPtrFromID(rhinoStringID(n.rec.payload >> 32))
+	return rhinoStringPtrFromID(rhinoStringID(n.rec().payload >> 32))
 }
 
 // ==========================================================================
@@ -3174,12 +3173,12 @@ func (n Node) node_cooked() *string {
 
 // Java: Node.setStaticSourceFileFrom(Node)
 func (n Node) SetStaticSourceFileFrom(other Node) {
-	sfID := uint32(other.rec.propFlags >> nodePropSourceFileShift)
+	sfID := uint32(other.rec().propFlags >> nodePropSourceFileShift)
 	if sfID != nodePropSourceFileOverflow {
-		if (n.rec.propFlags >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
+		if (n.rec().propFlags >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
 			n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), Node_Prop_SOURCE_FILE))
 		}
-		n.rec.propFlags = (n.rec.propFlags & nodePropAllNonSourceFileMask) | (uint64(sfID) << nodePropSourceFileShift)
+		n.rec().propFlags = (n.rec().propFlags & nodePropAllNonSourceFileMask) | (uint64(sfID) << nodePropSourceFileShift)
 		return
 	}
 	otherCold := other.coldPropListHead()
@@ -3197,7 +3196,7 @@ func (n Node) SetStaticSourceFileFrom(other Node) {
 				tail.shared = true
 			}
 			n.setColdPropListHead(tail)
-			n.rec.propFlags = (n.rec.propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+			n.rec().propFlags = (n.rec().propFlags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 			return
 		}
 	}
@@ -3222,7 +3221,7 @@ func (n Node) SetSourceFileForTesting(name string) {
 //
 // Java: Node.getSourceFileName()
 func (n Node) GetSourceFileName() *string {
-	sfID := uint32(n.rec.propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
 	if sfID == 0 {
 		return nil
 	}
@@ -3246,7 +3245,7 @@ func (n Node) GetSourceFileName() *string {
 //
 // Java: Node.getStaticSourceFile()
 func (n Node) GetStaticSourceFile() StaticSourceFile {
-	sfID := uint32(n.rec.propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
 	if sfID == 0 {
 		return nil
 	}
@@ -3318,7 +3317,7 @@ func (n Node) SetOriginalNameFromStringPool(stringPool *RhinoStringPool_LazyInte
 // Java: Node.setOriginalNameFromName(Node)
 func (n Node) SetOriginalNameFromName(name Node) {
 	name.node_castKind(node_kindString)
-	n.node_setOriginalNameID(rhinoStringID(name.rec.payload))
+	n.node_setOriginalNameID(rhinoStringID(name.rec().payload))
 }
 
 // IsIndexable reports whether this node should be indexed by static
@@ -3367,8 +3366,8 @@ func (n Node) IsClosureUnawareCode() bool {
 
 // Java: Node.getLength()
 func (n Node) GetLength() int {
-	if n.rec.length16 != 0xFFFF {
-		return int(n.rec.length16)
+	if n.rec().length16 != 0xFFFF {
+		return int(n.rec().length16)
 	}
 	if box := n.extBoxOrNil(); box != nil {
 		return int(box.length)
@@ -3379,20 +3378,20 @@ func (n Node) GetLength() int {
 // Java: Node.setLength(int)
 func (n Node) SetLength(length int) {
 	if length >= 0 && length < 0xFFFF {
-		wasInBox := n.rec.length16 == 0xFFFF
-		n.rec.length16 = uint16(length)
+		wasInBox := n.rec().length16 == 0xFFFF
+		n.rec().length16 = uint16(length)
 		if wasInBox {
 			n.maybeCollapseExtBox(n.extBox())
 		}
 		return
 	}
 	n.ensureExtBox().length = int32(length)
-	n.rec.length16 = 0xFFFF
+	n.rec().length16 = 0xFFFF
 }
 
 func (n Node) copyLengthFrom(other Node) {
-	if other.rec.length16 != 0xFFFF && n.rec.length16 != 0xFFFF {
-		n.rec.length16 = other.rec.length16
+	if other.rec().length16 != 0xFFFF && n.rec().length16 != 0xFFFF {
+		n.rec().length16 = other.rec().length16
 		return
 	}
 	n.SetLength(other.GetLength())
@@ -3400,20 +3399,20 @@ func (n Node) copyLengthFrom(other Node) {
 
 // Java: Node.getLineno()
 func (n Node) GetLineno() int {
-	if n.rec.linenoCharno == -1 {
+	if n.rec().linenoCharno == -1 {
 		return -1
 	}
-	return int(jutil.Ushr32(n.rec.linenoCharno, Node_CHARNO_BITS))
+	return int(jutil.Ushr32(n.rec().linenoCharno, Node_CHARNO_BITS))
 }
 
 // GetCharno returns the 0-based column number.
 //
 // Java: Node.getCharno()
 func (n Node) GetCharno() int {
-	if n.rec.linenoCharno == -1 {
+	if n.rec().linenoCharno == -1 {
 		return -1
 	}
-	return int(n.rec.linenoCharno & Node_MAX_COLUMN_NUMBER)
+	return int(n.rec().linenoCharno & Node_MAX_COLUMN_NUMBER)
 }
 
 // Java: Node.getLocation()
@@ -3438,7 +3437,7 @@ func (n Node) GetSourceOffset() int {
 
 // Java: Node.getSourcePosition()
 func (n Node) GetSourcePosition() int {
-	return int(n.rec.linenoCharno)
+	return int(n.rec().linenoCharno)
 }
 
 // Node_CHARNO_BITS represents how many of the lower-order bits of
@@ -3462,14 +3461,14 @@ const Node_MAX_COLUMN_NUMBER = (1 << Node_CHARNO_BITS) - 1
 // Java: Node.setLinenoCharno(int, int)
 func (n Node) SetLinenoCharno(lineno int, charno int) Node {
 	if lineno < 0 || charno < 0 {
-		n.rec.linenoCharno = -1
+		n.rec().linenoCharno = -1
 		return n
 	}
 
 	if charno > Node_MAX_COLUMN_NUMBER {
 		charno = Node_MAX_COLUMN_NUMBER
 	}
-	n.rec.linenoCharno = jutil.Shl32(int32(lineno), Node_CHARNO_BITS) | int32(charno)
+	n.rec().linenoCharno = jutil.Shl32(int32(lineno), Node_CHARNO_BITS) | int32(charno)
 
 	return n
 }
@@ -3485,7 +3484,7 @@ func (n Node) SetLinenoCharno(lineno int, charno int) Node {
 //
 // Java: Node.children()
 func (n Node) Children() iter.Seq[Node] {
-	if n.rec.first == 0 {
+	if n.rec().first == 0 {
 		return func(yield func(Node) bool) {}
 	}
 	start := n.firstNode()
@@ -3512,19 +3511,19 @@ type NodePropListHandleForTesting struct {
 
 // Java: Node.getPropListHeadForTesting()
 func (n Node) GetPropListHeadForTesting() NodePropListHandleForTesting {
-	return NodePropListHandleForTesting{head: n.coldPropListHead(), flags: n.rec.propFlags}
+	return NodePropListHandleForTesting{head: n.coldPropListHead(), flags: n.rec().propFlags}
 }
 
 // Java: Node.setPropListHead(PropListItem)
 func (n Node) SetPropListHead(propListHead *Node_PropListItem) {
-	if (n.rec.kindFlags & kindFlagHasExtBox) != 0 {
+	if (n.rec().kindFlags & kindFlagHasExtBox) != 0 {
 		box := n.extBox()
 		box.jsDocInfo = nil
 		box.typeBeforeCast = 0
-	} else if (n.rec.propFlags & propFlagHasJSDoc) != 0 {
+	} else if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{})
 	}
-	n.rec.propFlags = 0
+	n.rec().propFlags = 0
 	propListHead.markShared()
 	n.setColdPropListHead(propListHead)
 	var flags uint64
@@ -3538,31 +3537,31 @@ func (n Node) SetPropListHead(propListHead *Node_PropListItem) {
 					flags |= propFlagHasJSDoc
 				} else if mask := nodePropBitMask[prop]; mask != 0 {
 					flags |= mask
-					n.rec.kindFlags |= kindFlagHasExtra
+					n.rec().kindFlags |= kindFlagHasExtra
 				}
 			}
 		} else if x.intValue != 0 {
 			if mask := nodePropBitMask[prop]; mask != 0 {
 				flags |= mask
 				if x.intValue != 1 {
-					n.rec.kindFlags |= kindFlagHasExtra
+					n.rec().kindFlags |= kindFlagHasExtra
 				}
 			} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
 				if x.intValue&^3 == 0 {
 					flags = (flags &^ nodePropConstVarMask) | (uint64(x.intValue&3) << nodePropConstVarShift)
 				} else {
-					n.rec.kindFlags |= kindFlagHasExtra
+					n.rec().kindFlags |= kindFlagHasExtra
 				}
 			} else if prop == Node_Prop_SIDE_EFFECT_FLAGS {
 				if x.intValue&^15 == 0 {
 					flags = (flags &^ nodePropSideEffectMask) | (uint64(x.intValue&15) << nodePropSideEffectShift)
 				} else {
-					n.rec.kindFlags |= kindFlagHasExtra
+					n.rec().kindFlags |= kindFlagHasExtra
 				}
 			}
 		}
 	}
-	n.rec.propFlags = flags
+	n.rec().propFlags = flags
 }
 
 // Java: Node.getParent()
@@ -3572,13 +3571,13 @@ func (n Node) GetParent() Node {
 
 // Java: Node.hasParent()
 func (n Node) HasParent() bool {
-	return n.rec.parent != 0
+	return n.rec().parent != 0
 }
 
 // Java: Node.getGrandparent()
 func (n Node) GetGrandparent() Node {
-	if n.rec.parent == 0 {
-		return Node{}
+	if n.rec().parent == 0 {
+		return NilNode
 	}
 	return n.parentNode().parentNode()
 }
@@ -3672,7 +3671,7 @@ func (a *Node_AncestorIterable) All() iter.Seq[Node] {
 //
 // Java: Node.hasOneChild()
 func (n Node) HasOneChild() bool {
-	return n.rec.first != 0 && n.firstNode().rec.next == 0
+	return n.rec().first != 0 && n.firstNode().rec().next == 0
 }
 
 // HasTwoChildren checks for two children more efficiently than
@@ -3680,7 +3679,7 @@ func (n Node) HasOneChild() bool {
 //
 // Java: Node.hasTwoChildren()
 func (n Node) HasTwoChildren() bool {
-	return n.rec.first != 0 && n.firstNode().rec.next != 0 && n.firstNode().nextNode() == n.GetLastChild()
+	return n.rec().first != 0 && n.firstNode().rec().next != 0 && n.firstNode().nextNode() == n.GetLastChild()
 }
 
 // HasZeroOrOneChild checks for zero or one child more efficiently than by
@@ -3696,7 +3695,7 @@ func (n Node) HasZeroOrOneChild() bool {
 //
 // Java: Node.hasMoreThanOneChild()
 func (n Node) HasMoreThanOneChild() bool {
-	return n.rec.first != 0 && n.firstNode().rec.next != 0
+	return n.rec().first != 0 && n.firstNode().rec().next != 0
 }
 
 // HasXChildren checks for has exactly the number of specified children.
@@ -3906,7 +3905,7 @@ func (n Node) GetSecondToLastPropListItem() *Node_PropListItem {
 	if n.GetIsInClosureUnawareSubtree() {
 		return &staticBoolPropItems[Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE]
 	}
-	sfID := uint32(n.rec.propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
 	propListItem := n.coldPropListHead()
 	if sfID != 0 && sfID != nodePropSourceFileOverflow {
 		if propListItem == nil {
@@ -3928,7 +3927,7 @@ func (n Node) GetSecondToLastPropListItem() *Node_PropListItem {
 
 // Java: Node.getLastPropListItem()
 func (n Node) GetLastPropListItem() *Node_PropListItem {
-	sfID := uint32(n.rec.propFlags >> nodePropSourceFileShift)
+	sfID := uint32(n.rec().propFlags >> nodePropSourceFileShift)
 	if sfID != 0 && sfID != nodePropSourceFileOverflow {
 		return sourceFilePropItem(sfID)
 	}
@@ -4065,13 +4064,13 @@ func (n Node) IsEquivalentToWithModes(
 	case node_kindString:
 		// Java: StringNode.isEquivalentTo
 		return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) &&
-			uint32(n.rec.payload) == uint32(node.rec.payload)
+			uint32(n.rec().payload) == uint32(node.rec().payload)
 	case node_kindTemplateLiteralSubstring:
 		// Java: TemplateLiteralSubstringNode.isEquivalentTo
 		if !n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) {
 			return false
 		}
-		return n.rec.payload == node.rec.payload
+		return n.rec().payload == node.rec().payload
 	}
 	return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig)
 }
@@ -4085,7 +4084,7 @@ func (n Node) isEquivalentToBase(
 	jsDocConfig Node_JsDocComparison,
 	sideEffectConfig Node_SideEffectComparison,
 ) bool {
-	if n.rec.token != node.rec.token ||
+	if n.rec().token != node.rec().token ||
 		n.GetChildCount() != node.GetChildCount() ||
 		n.nodeKind() != node.nodeKind() {
 		return false
@@ -4112,10 +4111,10 @@ func (n Node) isEquivalentToBase(
 		return false
 	}
 
-	if (n.rec.propFlags & node_propEqualityMask) != (node.rec.propFlags & node_propEqualityMask) {
+	if (n.rec().propFlags & node_propEqualityMask) != (node.rec().propFlags & node_propEqualityMask) {
 		return false
 	}
-	if ((n.rec.kindFlags | node.rec.kindFlags) & kindFlagHasExtra) != 0 {
+	if ((n.rec().kindFlags | node.rec().kindFlags) & kindFlagHasExtra) != 0 {
 		if n.GetIntProp(Node_Prop_EXPORT_DEFAULT) != node.GetIntProp(Node_Prop_EXPORT_DEFAULT) ||
 			n.GetIntProp(Node_Prop_EXPORT_ALL_FROM) != node.GetIntProp(Node_Prop_EXPORT_ALL_FROM) ||
 			n.GetIntProp(Node_Prop_INCRDECR) != node.GetIntProp(Node_Prop_INCRDECR) ||
@@ -4244,7 +4243,7 @@ func (n Node) GetQualifiedNameString() (string, bool) {
 // getQualifiedNameString is the body of getQualifiedName; ok is false
 // where Java returns null.
 func (n Node) getQualifiedNameString() (string, bool) {
-	switch n.rec.token {
+	switch n.rec().token {
 	case Token_NAME:
 		name := n.GetString()
 		if name == "" {
@@ -4321,7 +4320,7 @@ func (n Node) GetQualifiedNameForGetProp(reserve int) []byte {
 //
 // Java: Node.getOriginalQualifiedName()
 func (n Node) GetOriginalQualifiedName() *string {
-	if n.rec.token == Token_NAME {
+	if n.rec().token == Token_NAME {
 		var name string
 		if n.GetOriginalName() == nil {
 			name = n.GetString()
@@ -4332,7 +4331,7 @@ func (n Node) GetOriginalQualifiedName() *string {
 			return nil
 		}
 		return &name
-	} else if n.rec.token == Token_GETPROP {
+	} else if n.rec().token == Token_GETPROP {
 		left := n.GetFirstChild().GetOriginalQualifiedName()
 		if left == nil {
 			return nil
@@ -4347,10 +4346,10 @@ func (n Node) GetOriginalQualifiedName() *string {
 
 		s := *left + "." + right
 		return &s
-	} else if n.rec.token == Token_THIS {
+	} else if n.rec().token == Token_THIS {
 		s := "this"
 		return &s
-	} else if n.rec.token == Token_SUPER {
+	} else if n.rec().token == Token_SUPER {
 		s := "super"
 		return &s
 	} else {
@@ -4364,7 +4363,7 @@ func (n Node) GetOriginalQualifiedName() *string {
 // Java: Node.isQualifiedName()
 func (n Node) IsQualifiedName() bool {
 	for {
-		switch n.rec.token {
+		switch n.rec().token {
 		case Token_NAME:
 			return n.GetStringID() > 1
 		case Token_THIS, Token_SUPER:
@@ -4382,7 +4381,7 @@ func (n Node) IsQualifiedName() bool {
 //
 // Java: Node.matchesName(String)
 func (n Node) MatchesName(name string) bool {
-	if n.rec.token != Token_NAME {
+	if n.rec().token != Token_NAME {
 		return false
 	}
 	internalString := n.GetString()
@@ -4396,13 +4395,13 @@ func (n Node) MatchesName(name string) bool {
 //
 // Java: Node.matchesName(Node)
 func (n Node) MatchesNameNode(other Node) bool {
-	if n.rec.token != Token_NAME || other.rec.token != Token_NAME {
+	if n.rec().token != Token_NAME || other.rec().token != Token_NAME {
 		return false
 	}
 
 	// Compare interned string IDs directly (id > 1 means non-empty!).
-	id := rhinoStringID(n.rec.payload)
-	return id > 1 && id == rhinoStringID(other.rec.payload)
+	id := rhinoStringID(n.rec().payload)
+	return id > 1 && id == rhinoStringID(other.rec().payload)
 }
 
 // MatchesQualifiedName returns whether a node matches a simple or a
@@ -4411,7 +4410,7 @@ func (n Node) MatchesNameNode(other Node) bool {
 // Java: Node.matchesQualifiedName(String)
 func (n Node) MatchesQualifiedName(qname string) bool {
 	for {
-		switch n.rec.token {
+		switch n.rec().token {
 		case Token_NAME, Token_IMPORT_STAR:
 			name := n.GetString()
 			return name != "" && name == qname && strings.IndexByte(name, '.') < 0
@@ -4468,17 +4467,17 @@ func (n Node) MatchesQualifiedNameWithEnd(qname string, endIndex int) bool {
 //
 // Java: Node.matchesQualifiedName(Node)
 func (n Node) MatchesQualifiedNameNode(other Node) bool {
-	if other.rec.token != n.rec.token {
+	if other.rec().token != n.rec().token {
 		return false
 	}
 
-	switch n.rec.token {
+	switch n.rec().token {
 	case Token_NAME:
 		return n.MatchesNameNode(other)
 	case Token_THIS, Token_SUPER:
 		return true
 	case Token_GETPROP:
-		return uint32(n.rec.payload) == uint32(other.rec.payload) &&
+		return uint32(n.rec().payload) == uint32(other.rec().payload) &&
 			n.GetFirstChild().MatchesQualifiedNameNode(other.GetFirstChild())
 
 	case Token_MEMBER_FUNCTION_DEF:
@@ -4496,7 +4495,7 @@ func (n Node) MatchesQualifiedNameNode(other Node) bool {
 // Java: Node.isUnscopedQualifiedName()
 func (n Node) IsUnscopedQualifiedName() bool {
 	for {
-		switch n.rec.token {
+		switch n.rec().token {
 		case Token_NAME:
 			return n.GetStringID() > 1
 		case Token_GETPROP:
@@ -4541,33 +4540,33 @@ func (n Node) CloneNode() Node {
 // Java: Node.cloneNode(boolean)
 func (n Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) Node {
 	clone := allocNode()
-	clone.rec.token = n.rec.token
-	clone.rec.kindFlags = n.rec.kindFlags & kindMask
-	clone.rec.payload = n.rec.payload
+	clone.rec().token = n.rec().token
+	clone.rec().kindFlags = n.rec().kindFlags & kindMask
+	clone.rec().payload = n.rec().payload
 	Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
 	return clone
 }
 
 // Java: Node.copyBaseNodeFields(Node, Node, boolean)
 func Node_CopyBaseNodeFields(source Node, dest Node, cloneTypeExprs bool) {
-	dest.rec.linenoCharno = source.rec.linenoCharno
-	dest.rec.tc = dest.store.translateTC(source.store, source.rec.tc, source.rec.kindFlags&kindFlagTypeIsColor != 0)
-	dest.rec.kindFlags = (dest.rec.kindFlags &^ (kindFlagTypeIsColor | kindFlagHasExtBox | kindFlagHasExtra)) |
-		(source.rec.kindFlags & (kindFlagTypeIsColor | kindFlagHasExtBox))
+	dest.rec().linenoCharno = source.rec().linenoCharno
+	dest.rec().tc = dest.store().translateTC(source.store(), source.rec().tc, source.rec().kindFlags&kindFlagTypeIsColor != 0)
+	dest.rec().kindFlags = (dest.rec().kindFlags &^ (kindFlagTypeIsColor | kindFlagHasExtBox | kindFlagHasExtra)) |
+		(source.rec().kindFlags & (kindFlagTypeIsColor | kindFlagHasExtBox))
 	if srcBox := source.extBoxOrNil(); srcBox != nil {
 		srcBox.propListHead.markShared()
 		boxCopy := *srcBox
-		boxCopy.typeBeforeCast = dest.store.translateTypeHandle(source.store, boxCopy.typeBeforeCast)
+		boxCopy.typeBeforeCast = dest.store().translateTypeHandle(source.store(), boxCopy.typeBeforeCast)
 		dest.setAux(nodeAux{ext: &boxCopy})
 	} else {
 		dest.setAux(source.auxValue())
 	}
-	if source.rec.kindFlags&kindFlagHasExtra != 0 && source.coldPropListHead() != nil {
-		dest.rec.kindFlags |= kindFlagHasExtra
+	if source.rec().kindFlags&kindFlagHasExtra != 0 && source.coldPropListHead() != nil {
+		dest.rec().kindFlags |= kindFlagHasExtra
 	}
 	dest.copyLengthFrom(source)
 	dest.node_setOriginalNameID(source.node_originalNameID())
-	dest.rec.propFlags = source.rec.propFlags
+	dest.rec().propFlags = source.rec().propFlags
 
 	// TODO(johnlenz): Remove this once JSTypeExpression are immutable
 	if cloneTypeExprs {
@@ -4588,24 +4587,24 @@ func (n Node) CloneTree() Node {
 // Java: Node.cloneTree(boolean)
 func (n Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) Node {
 	result := n.CloneNodeWithTypeExprs(cloneTypeExprs)
-	if n.rec.first != 0 {
+	if n.rec().first != 0 {
 		var firstChild Node
 		var lastChild Node
 		for n2 := n.firstNode(); !n2.IsNil(); n2 = n2.nextNode() {
 			n2clone := n2.CloneTreeWithTypeExprs(cloneTypeExprs)
-			n2clone.rec.parent = n2clone.ref(result)
+			n2clone.rec().parent = n2clone.ref(result)
 			if firstChild.IsNil() {
 				firstChild = n2clone
 				lastChild = firstChild
 			} else {
-				lastChild.rec.next = lastChild.ref(n2clone)
-				n2clone.rec.previous = n2clone.ref(lastChild)
+				lastChild.rec().next = lastChild.ref(n2clone)
+				n2clone.rec().previous = n2clone.ref(lastChild)
 				lastChild = n2clone
 			}
 		}
-		firstChild.rec.previous = firstChild.ref(lastChild)
-		lastChild.rec.next = 0
-		result.rec.first = result.ref(firstChild)
+		firstChild.rec().previous = firstChild.ref(lastChild)
+		lastChild.rec().next = 0
+		result.rec().first = result.ref(firstChild)
 	}
 
 	if shadow := n.GetClosureUnawareShadow(); !shadow.IsNil() {
@@ -4621,7 +4620,7 @@ func (n Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) Node {
 func (n Node) Srcref(other Node) Node {
 	n.SetStaticSourceFileFrom(other)
 	n.node_setOriginalNameID(other.node_originalNameID())
-	n.rec.linenoCharno = other.rec.linenoCharno
+	n.rec().linenoCharno = other.rec().linenoCharno
 	n.copyLengthFrom(other)
 	return n
 }
@@ -4643,9 +4642,9 @@ func (n Node) SrcrefTree(other Node) Node {
 //
 // Java: Node.srcrefIfMissing(Node)
 func (n Node) SrcrefIfMissing(other Node) Node {
-	if (n.rec.propFlags >> nodePropSourceFileShift) == 0 {
+	if (n.rec().propFlags >> nodePropSourceFileShift) == 0 {
 		n.SetStaticSourceFileFrom(other)
-		n.rec.linenoCharno = other.rec.linenoCharno
+		n.rec().linenoCharno = other.rec().linenoCharno
 		n.copyLengthFrom(other)
 	}
 
@@ -4680,19 +4679,19 @@ func (n Node) SrcrefTreeIfMissing(other Node) Node {
 //
 // Java: Node.getJSType()
 func (n Node) GetJSType() JSType {
-	if n.rec.tc == 0 || (n.rec.kindFlags&kindFlagTypeIsColor) != 0 {
+	if n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) != 0 {
 		return nil
 	}
-	return jsTypeOf(n.store.typeAt(n.rec.tc))
+	return jsTypeOf(n.store().typeAt(n.rec().tc))
 }
 
 // GetJSTypeBase returns the JSTypeBase on this node without constructing the
 // JSType interface value, or nil if no JSType is attached.
 func (n Node) GetJSTypeBase() *JSTypeBase {
-	if n.rec.tc == 0 || (n.rec.kindFlags&kindFlagTypeIsColor) != 0 {
+	if n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) != 0 {
 		return nil
 	}
-	return n.store.typeAt(n.rec.tc)
+	return n.store().typeAt(n.rec().tc)
 }
 
 // GetJSTypeRequired returns the compiled inferred type on this node, or
@@ -4705,13 +4704,13 @@ func (n Node) GetJSTypeRequired() JSType {
 
 // Java: Node.setJSType(JSType)
 func (n Node) SetJSType(x JSType) Node {
-	jutil.CheckStateMsg1(n.rec.tc == 0 || (n.rec.kindFlags&kindFlagTypeIsColor) == 0, "%s", n)
+	jutil.CheckStateMsg1(n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) == 0, "%s", n)
 	if b := jsTypeBase(x); b != nil {
-		n.rec.tc = n.store.typeHandle(b)
+		n.rec().tc = n.store().typeHandle(b)
 	} else {
-		n.rec.tc = 0
+		n.rec().tc = 0
 	}
-	n.rec.kindFlags &^= kindFlagTypeIsColor
+	n.rec().kindFlags &^= kindFlagTypeIsColor
 	return n
 }
 
@@ -4721,21 +4720,21 @@ func (n Node) SetJSType(x JSType) Node {
 //
 // Java: Node.getColor()
 func (n Node) GetColor() *colors.Color {
-	if n.rec.tc == 0 || (n.rec.kindFlags&kindFlagTypeIsColor) == 0 {
+	if n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) == 0 {
 		return nil
 	}
-	return n.store.colorAt(n.rec.tc)
+	return n.store().colorAt(n.rec().tc)
 }
 
 // Java: Node.setColor(Color)
 func (n Node) SetColor(x *colors.Color) Node {
-	jutil.CheckStateMsg1(n.rec.tc == 0 || (n.rec.kindFlags&kindFlagTypeIsColor) != 0, "%s", n)
+	jutil.CheckStateMsg1(n.rec().tc == 0 || (n.rec().kindFlags&kindFlagTypeIsColor) != 0, "%s", n)
 	if x != nil {
-		n.rec.tc = n.store.colorHandle(x)
-		n.rec.kindFlags |= kindFlagTypeIsColor
+		n.rec().tc = n.store().colorHandle(x)
+		n.rec().kindFlags |= kindFlagTypeIsColor
 	} else {
-		n.rec.tc = 0
-		n.rec.kindFlags &^= kindFlagTypeIsColor
+		n.rec().tc = 0
+		n.rec().kindFlags &^= kindFlagTypeIsColor
 	}
 	return n
 }
@@ -4744,8 +4743,8 @@ func (n Node) SetColor(x *colors.Color) Node {
 //
 // Java: Node.copyTypeFrom(Node)
 func (n Node) CopyTypeFrom(other Node) Node {
-	n.rec.tc = n.store.translateTC(other.store, other.rec.tc, other.rec.kindFlags&kindFlagTypeIsColor != 0)
-	n.rec.kindFlags = (n.rec.kindFlags &^ kindFlagTypeIsColor) | (other.rec.kindFlags & kindFlagTypeIsColor)
+	n.rec().tc = n.store().translateTC(other.store(), other.rec().tc, other.rec().kindFlags&kindFlagTypeIsColor != 0)
+	n.rec().kindFlags = (n.rec().kindFlags &^ kindFlagTypeIsColor) | (other.rec().kindFlags & kindFlagTypeIsColor)
 	return n
 }
 
@@ -4754,14 +4753,14 @@ func (n Node) CopyTypeFrom(other Node) Node {
 //
 // Java: Node.getJSDocInfo()
 func (n Node) GetJSDocInfo() *JSDocInfo {
-	if (n.rec.propFlags & propFlagHasJSDoc) == 0 {
+	if (n.rec().propFlags & propFlagHasJSDoc) == 0 {
 		return nil
 	}
 	a := n.auxOf()
 	if a == nil {
 		return nil
 	}
-	if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
+	if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 		return a.jsDoc
 	}
 	return n.getJSDocInfoBoxed(a.ext)
@@ -4786,16 +4785,16 @@ func (n Node) SetJSDocInfo(info *JSDocInfo) Node {
 		n.RemoveProp(Node_Prop_JSDOC_INFO)
 		return n
 	}
-	if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
-		n.rec.propFlags |= propFlagHasJSDoc
+	if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
+		n.rec().propFlags |= propFlagHasJSDoc
 		n.setAux(nodeAux{jsDoc: info})
 		return n
 	}
 	box := n.extBox()
-	if (n.rec.propFlags&propFlagHasJSDoc) != 0 && box.jsDocInfo == nil && box.propListHead != nil {
+	if (n.rec().propFlags&propFlagHasJSDoc) != 0 && box.jsDocInfo == nil && box.propListHead != nil {
 		box.propListHead = Node_RebuildListWithoutProp(box.propListHead, Node_Prop_JSDOC_INFO)
 	}
-	n.rec.propFlags |= propFlagHasJSDoc
+	n.rec().propFlags |= propFlagHasJSDoc
 	box.jsDocInfo = info
 	return n
 }
@@ -4804,8 +4803,8 @@ func (n Node) SetJSDocInfo(info *JSDocInfo) Node {
 //
 // Java: Node.setChangeTime(int)
 func (n Node) SetChangeTime(time int32) {
-	if n.nodeKind() == node_kindNode && (n.rec.kindFlags&kindFlagHasExtra) == 0 {
-		n.rec.payload = (n.rec.payload & 0xFFFFFFFF00000000) | uint64(uint32(time))
+	if n.nodeKind() == node_kindNode && (n.rec().kindFlags&kindFlagHasExtra) == 0 {
+		n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(uint32(time))
 		return
 	}
 	n.PutIntProp(Node_Prop_CHANGE_TIME, time)
@@ -4815,8 +4814,8 @@ func (n Node) SetChangeTime(time int32) {
 //
 // Java: Node.getChangeTime()
 func (n Node) GetChangeTime() int32 {
-	if n.nodeKind() == node_kindNode && (n.rec.kindFlags&kindFlagHasExtra) == 0 {
-		return int32(uint32(n.rec.payload))
+	if n.nodeKind() == node_kindNode && (n.rec().kindFlags&kindFlagHasExtra) == 0 {
+		return int32(uint32(n.rec().payload))
 	}
 	return n.GetIntProp(Node_Prop_CHANGE_TIME)
 }
@@ -4852,15 +4851,15 @@ func (n Node) GetTypedefTypeProp() JSType {
 // pass over propListHead, returning the old JSTypeBase, whether TYPE_BEFORE_CAST
 // was present, and the node's JSDocInfo if any.
 func (n Node) TakeTypesAndJSDocForColorConversion() (oldType *JSTypeBase, hadBeforeCast bool, jsdoc *JSDocInfo) {
-	if n.rec.tc != 0 {
-		if (n.rec.kindFlags & kindFlagTypeIsColor) != 0 {
+	if n.rec().tc != 0 {
+		if (n.rec().kindFlags & kindFlagTypeIsColor) != 0 {
 			jutil.CheckStateMsg1(false, "%s", n)
 		}
-		oldType = n.store.typeAt(n.rec.tc)
-		n.rec.tc = 0
+		oldType = n.store().typeAt(n.rec().tc)
+		n.rec().tc = 0
 	}
-	if (n.rec.kindFlags & kindFlagHasExtBox) == 0 {
-		if (n.rec.propFlags & propFlagHasJSDoc) != 0 {
+	if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
+		if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
 			jsdoc = n.jsDocAux()
 		}
 		return oldType, false, jsdoc
@@ -4955,7 +4954,7 @@ func (n Node) IsOptionalEs6Typed() bool {
 //
 // Java: Node.setIsSyntheticBlock(boolean)
 func (n Node) SetIsSyntheticBlock(val bool) {
-	jutil.CheckState(n.rec.token == Token_BLOCK)
+	jutil.CheckState(n.rec().token == Token_BLOCK)
 	n.PutBooleanProp(Node_Prop_SYNTHETIC, val)
 }
 
@@ -4970,7 +4969,7 @@ func (n Node) IsSyntheticBlock() bool {
 // Java: Node.setIsSynthesizedUnfulfilledNameDeclaration(boolean)
 func (n Node) SetIsSynthesizedUnfulfilledNameDeclaration(val bool) {
 	jutil.CheckStateMsg1(
-		n.rec.token == Token_VAR && n.HasOneChild() && n.GetFirstChild().IsName(),
+		n.rec().token == Token_VAR && n.HasOneChild() && n.GetFirstChild().IsName(),
 
 		"Expected all synthetic unfulfilled declarations to be `var <name>`, found %s",
 		n)
@@ -5117,7 +5116,7 @@ func (n Node) SetIsArrowFunction(isArrow bool) {
 //
 // Java: Node.isArrowFunction()
 func (n Node) IsArrowFunction() bool {
-	return n.rec.token == Token_FUNCTION && n.GetBooleanProp(Node_Prop_ARROW_FN)
+	return n.rec().token == Token_FUNCTION && n.GetBooleanProp(Node_Prop_ARROW_FN)
 }
 
 // SetIsAsyncFunction sets whether this node is an async function node. This
@@ -5133,7 +5132,7 @@ func (n Node) SetIsAsyncFunction(isAsync bool) {
 //
 // Java: Node.isAsyncFunction()
 func (n Node) IsAsyncFunction() bool {
-	return n.rec.token == Token_FUNCTION && n.GetBooleanProp(Node_Prop_ASYNC_FN)
+	return n.rec().token == Token_FUNCTION && n.GetBooleanProp(Node_Prop_ASYNC_FN)
 }
 
 // IsAsyncGeneratorFunction returns whether this is an async generator
@@ -5142,7 +5141,7 @@ func (n Node) IsAsyncFunction() bool {
 // Java: Node.isAsyncGeneratorFunction()
 func (n Node) IsAsyncGeneratorFunction() bool {
 	const mask = propFlag_ASYNC_FN | propFlag_GENERATOR_FN
-	return n.rec.token == Token_FUNCTION && (n.rec.propFlags&mask) == mask
+	return n.rec().token == Token_FUNCTION && (n.rec().propFlags&mask) == mask
 }
 
 // SetYieldAll sets whether this node is a generator node. This method is
@@ -5207,7 +5206,7 @@ func (n Node) GetSideEffectFlags() int32 {
 	// Int props default to 0, but we want the default for side-effect flags to
 	// be all 1s. Therefore, we invert the value returned here. This is correct
 	// for non-defaults because we also invert when setting the flags.
-	return ^int32((n.rec.propFlags>>nodePropSideEffectShift)&15) & Node_SideEffectFlags_USED_BITS_MASK
+	return ^int32((n.rec().propFlags>>nodePropSideEffectShift)&15) & Node_SideEffectFlags_USED_BITS_MASK
 }
 
 // Node_SideEffectFlags is a helper class for getting and setting invocation
@@ -5404,12 +5403,12 @@ func NewNode_ConstantVarFlags() *Node_ConstantVarFlags { return &Node_ConstantVa
 
 // Java: Node.getConstantVarFlags()
 func (n Node) GetConstantVarFlags() int32 {
-	return int32((n.rec.propFlags >> nodePropConstVarShift) & 3)
+	return int32((n.rec().propFlags >> nodePropConstVarShift) & 3)
 }
 
 // Java: Node.setConstantVarFlag(int, boolean)
 func (n Node) SetConstantVarFlag(flag int32, value bool) {
-	flags := int32((n.rec.propFlags >> nodePropConstVarShift) & 3)
+	flags := int32((n.rec().propFlags >> nodePropConstVarShift) & 3)
 	if value {
 		flags = flags | flag
 	} else {
@@ -5436,7 +5435,7 @@ func (n Node) IsDeclaredConstantVar() bool {
 		"Should only be called on name or import * nodes. Found %s",
 		n)
 
-	return (n.rec.propFlags & (uint64(Node_ConstantVarFlags_DECLARED) << nodePropConstVarShift)) != 0
+	return (n.rec().propFlags & (uint64(Node_ConstantVarFlags_DECLARED) << nodePropConstVarShift)) != 0
 }
 
 // SetDeclaredConstantVar sets this variable to be a declared constant.
@@ -5471,7 +5470,7 @@ func (n Node) IsInferredConstantVar() bool {
 		"Should only be called on name or import * nodes. Found %s",
 		n)
 
-	return (n.rec.propFlags & (uint64(Node_ConstantVarFlags_INFERRED) << nodePropConstVarShift)) != 0
+	return (n.rec().propFlags & (uint64(Node_ConstantVarFlags_INFERRED) << nodePropConstVarShift)) != 0
 }
 
 // SetInferredConstantVar sets this variable to be an inferred constant.
@@ -5515,42 +5514,42 @@ func (n Node) SetPrivateIdentifier() {
 
 // Java: Node.isAdd()
 func (n Node) IsAdd() bool {
-	return n.rec.token == Token_ADD
+	return n.rec().token == Token_ADD
 }
 
 // Java: Node.isSub()
 func (n Node) IsSub() bool {
-	return n.rec.token == Token_SUB
+	return n.rec().token == Token_SUB
 }
 
 // Java: Node.isAnd()
 func (n Node) IsAnd() bool {
-	return n.rec.token == Token_AND
+	return n.rec().token == Token_AND
 }
 
 // Java: Node.isAssignAnd()
 func (n Node) IsAssignAnd() bool {
-	return n.rec.token == Token_ASSIGN_AND
+	return n.rec().token == Token_ASSIGN_AND
 }
 
 // Java: Node.isArrayLit()
 func (n Node) IsArrayLit() bool {
-	return n.rec.token == Token_ARRAYLIT
+	return n.rec().token == Token_ARRAYLIT
 }
 
 // Java: Node.isArrayPattern()
 func (n Node) IsArrayPattern() bool {
-	return n.rec.token == Token_ARRAY_PATTERN
+	return n.rec().token == Token_ARRAY_PATTERN
 }
 
 // Java: Node.isAssign()
 func (n Node) IsAssign() bool {
-	return n.rec.token == Token_ASSIGN
+	return n.rec().token == Token_ASSIGN
 }
 
 // Java: Node.isAssignAdd()
 func (n Node) IsAssignAdd() bool {
-	return n.rec.token == Token_ASSIGN_ADD
+	return n.rec().token == Token_ASSIGN_ADD
 }
 
 // Java: Node.isNormalBlock()
@@ -5560,112 +5559,112 @@ func (n Node) IsNormalBlock() bool {
 
 // Java: Node.isBlock()
 func (n Node) IsBlock() bool {
-	return n.rec.token == Token_BLOCK
+	return n.rec().token == Token_BLOCK
 }
 
 // Java: Node.isRoot()
 func (n Node) IsRoot() bool {
-	return n.rec.token == Token_ROOT
+	return n.rec().token == Token_ROOT
 }
 
 // Java: Node.isAwait()
 func (n Node) IsAwait() bool {
-	return n.rec.token == Token_AWAIT
+	return n.rec().token == Token_AWAIT
 }
 
 // Java: Node.isBigInt()
 func (n Node) IsBigInt() bool {
-	return n.rec.token == Token_BIGINT
+	return n.rec().token == Token_BIGINT
 }
 
 // Java: Node.isBitNot()
 func (n Node) IsBitNot() bool {
-	return n.rec.token == Token_BITNOT
+	return n.rec().token == Token_BITNOT
 }
 
 // Java: Node.isBreak()
 func (n Node) IsBreak() bool {
-	return n.rec.token == Token_BREAK
+	return n.rec().token == Token_BREAK
 }
 
 // Java: Node.isCall()
 func (n Node) IsCall() bool {
-	return n.rec.token == Token_CALL
+	return n.rec().token == Token_CALL
 }
 
 // Java: Node.isCase()
 func (n Node) IsCase() bool {
-	return n.rec.token == Token_CASE
+	return n.rec().token == Token_CASE
 }
 
 // Java: Node.isCast()
 func (n Node) IsCast() bool {
-	return n.rec.token == Token_CAST
+	return n.rec().token == Token_CAST
 }
 
 // Java: Node.isCatch()
 func (n Node) IsCatch() bool {
-	return n.rec.token == Token_CATCH
+	return n.rec().token == Token_CATCH
 }
 
 // Java: Node.isClass()
 func (n Node) IsClass() bool {
-	return n.rec.token == Token_CLASS
+	return n.rec().token == Token_CLASS
 }
 
 // Java: Node.isClassMembers()
 func (n Node) IsClassMembers() bool {
-	return n.rec.token == Token_CLASS_MEMBERS
+	return n.rec().token == Token_CLASS_MEMBERS
 }
 
 // Java: Node.isComma()
 func (n Node) IsComma() bool {
-	return n.rec.token == Token_COMMA
+	return n.rec().token == Token_COMMA
 }
 
 // Java: Node.isComputedProp()
 func (n Node) IsComputedProp() bool {
-	return n.rec.token == Token_COMPUTED_PROP
+	return n.rec().token == Token_COMPUTED_PROP
 }
 
 // Java: Node.isContinue()
 func (n Node) IsContinue() bool {
-	return n.rec.token == Token_CONTINUE
+	return n.rec().token == Token_CONTINUE
 }
 
 // Java: Node.isConst()
 func (n Node) IsConst() bool {
-	return n.rec.token == Token_CONST
+	return n.rec().token == Token_CONST
 }
 
 // Java: Node.isDebugger()
 func (n Node) IsDebugger() bool {
-	return n.rec.token == Token_DEBUGGER
+	return n.rec().token == Token_DEBUGGER
 }
 
 // Java: Node.isDec()
 func (n Node) IsDec() bool {
-	return n.rec.token == Token_DEC
+	return n.rec().token == Token_DEC
 }
 
 // Java: Node.isDefaultCase()
 func (n Node) IsDefaultCase() bool {
-	return n.rec.token == Token_DEFAULT_CASE
+	return n.rec().token == Token_DEFAULT_CASE
 }
 
 // Java: Node.isDefaultValue()
 func (n Node) IsDefaultValue() bool {
-	return n.rec.token == Token_DEFAULT_VALUE
+	return n.rec().token == Token_DEFAULT_VALUE
 }
 
 // Java: Node.isDelProp()
 func (n Node) IsDelProp() bool {
-	return n.rec.token == Token_DELPROP
+	return n.rec().token == Token_DELPROP
 }
 
 // Java: Node.isDestructuringLhs()
 func (n Node) IsDestructuringLhs() bool {
-	return n.rec.token == Token_DESTRUCTURING_LHS
+	return n.rec().token == Token_DESTRUCTURING_LHS
 }
 
 // Java: Node.isDestructuringPattern()
@@ -5675,480 +5674,480 @@ func (n Node) IsDestructuringPattern() bool {
 
 // Java: Node.isDo()
 func (n Node) IsDo() bool {
-	return n.rec.token == Token_DO
+	return n.rec().token == Token_DO
 }
 
 // Java: Node.isEmpty()
 func (n Node) IsEmpty() bool {
-	return n.rec.token == Token_EMPTY
+	return n.rec().token == Token_EMPTY
 }
 
 // Java: Node.isExponent()
 func (n Node) IsExponent() bool {
-	return n.rec.token == Token_EXPONENT
+	return n.rec().token == Token_EXPONENT
 }
 
 // Java: Node.isAssignExponent()
 func (n Node) IsAssignExponent() bool {
-	return n.rec.token == Token_ASSIGN_EXPONENT
+	return n.rec().token == Token_ASSIGN_EXPONENT
 }
 
 // Java: Node.isExport()
 func (n Node) IsExport() bool {
-	return n.rec.token == Token_EXPORT
+	return n.rec().token == Token_EXPORT
 }
 
 // Java: Node.isExportSpec()
 func (n Node) IsExportSpec() bool {
-	return n.rec.token == Token_EXPORT_SPEC
+	return n.rec().token == Token_EXPORT_SPEC
 }
 
 // Java: Node.isExportSpecs()
 func (n Node) IsExportSpecs() bool {
-	return n.rec.token == Token_EXPORT_SPECS
+	return n.rec().token == Token_EXPORT_SPECS
 }
 
 // Java: Node.isExprResult()
 func (n Node) IsExprResult() bool {
-	return n.rec.token == Token_EXPR_RESULT
+	return n.rec().token == Token_EXPR_RESULT
 }
 
 // Java: Node.isFalse()
 func (n Node) IsFalse() bool {
-	return n.rec.token == Token_FALSE
+	return n.rec().token == Token_FALSE
 }
 
 // Java: Node.isVanillaFor()
 func (n Node) IsVanillaFor() bool {
-	return n.rec.token == Token_FOR
+	return n.rec().token == Token_FOR
 }
 
 // Java: Node.isForIn()
 func (n Node) IsForIn() bool {
-	return n.rec.token == Token_FOR_IN
+	return n.rec().token == Token_FOR_IN
 }
 
 // Java: Node.isForOf()
 func (n Node) IsForOf() bool {
-	return n.rec.token == Token_FOR_OF
+	return n.rec().token == Token_FOR_OF
 }
 
 // Java: Node.isForAwaitOf()
 func (n Node) IsForAwaitOf() bool {
-	return n.rec.token == Token_FOR_AWAIT_OF
+	return n.rec().token == Token_FOR_AWAIT_OF
 }
 
 // Java: Node.isFunction()
 func (n Node) IsFunction() bool {
-	return n.rec.token == Token_FUNCTION
+	return n.rec().token == Token_FUNCTION
 }
 
 // Java: Node.isGetterDef()
 func (n Node) IsGetterDef() bool {
-	return n.rec.token == Token_GETTER_DEF
+	return n.rec().token == Token_GETTER_DEF
 }
 
 // Java: Node.isGetElem()
 func (n Node) IsGetElem() bool {
-	return n.rec.token == Token_GETELEM
+	return n.rec().token == Token_GETELEM
 }
 
 // Java: Node.isGetProp()
 func (n Node) IsGetProp() bool {
-	return n.rec.token == Token_GETPROP
+	return n.rec().token == Token_GETPROP
 }
 
 // Java: Node.isHook()
 func (n Node) IsHook() bool {
-	return n.rec.token == Token_HOOK
+	return n.rec().token == Token_HOOK
 }
 
 // Java: Node.isIf()
 func (n Node) IsIf() bool {
-	return n.rec.token == Token_IF
+	return n.rec().token == Token_IF
 }
 
 // Java: Node.isImport()
 func (n Node) IsImport() bool {
-	return n.rec.token == Token_IMPORT
+	return n.rec().token == Token_IMPORT
 }
 
 // Java: Node.isImportMeta()
 func (n Node) IsImportMeta() bool {
-	return n.rec.token == Token_IMPORT_META
+	return n.rec().token == Token_IMPORT_META
 }
 
 // Java: Node.isImportStar()
 func (n Node) IsImportStar() bool {
-	return n.rec.token == Token_IMPORT_STAR
+	return n.rec().token == Token_IMPORT_STAR
 }
 
 // Java: Node.isImportSpec()
 func (n Node) IsImportSpec() bool {
-	return n.rec.token == Token_IMPORT_SPEC
+	return n.rec().token == Token_IMPORT_SPEC
 }
 
 // Java: Node.isImportSpecs()
 func (n Node) IsImportSpecs() bool {
-	return n.rec.token == Token_IMPORT_SPECS
+	return n.rec().token == Token_IMPORT_SPECS
 }
 
 // Java: Node.isIn()
 func (n Node) IsIn() bool {
-	return n.rec.token == Token_IN
+	return n.rec().token == Token_IN
 }
 
 // Java: Node.isInc()
 func (n Node) IsInc() bool {
-	return n.rec.token == Token_INC
+	return n.rec().token == Token_INC
 }
 
 // Java: Node.isInstanceOf()
 func (n Node) IsInstanceOf() bool {
-	return n.rec.token == Token_INSTANCEOF
+	return n.rec().token == Token_INSTANCEOF
 }
 
 // Java: Node.isInterface()
 func (n Node) IsInterface() bool {
-	return n.rec.token == Token_INTERFACE
+	return n.rec().token == Token_INTERFACE
 }
 
 // Java: Node.isInterfaceMembers()
 func (n Node) IsInterfaceMembers() bool {
-	return n.rec.token == Token_INTERFACE_MEMBERS
+	return n.rec().token == Token_INTERFACE_MEMBERS
 }
 
 // Java: Node.isRecordType()
 func (n Node) IsRecordType() bool {
-	return n.rec.token == Token_RECORD_TYPE
+	return n.rec().token == Token_RECORD_TYPE
 }
 
 // Java: Node.isCallSignature()
 func (n Node) IsCallSignature() bool {
-	return n.rec.token == Token_CALL_SIGNATURE
+	return n.rec().token == Token_CALL_SIGNATURE
 }
 
 // Java: Node.isIndexSignature()
 func (n Node) IsIndexSignature() bool {
-	return n.rec.token == Token_INDEX_SIGNATURE
+	return n.rec().token == Token_INDEX_SIGNATURE
 }
 
 // Java: Node.isLabel()
 func (n Node) IsLabel() bool {
-	return n.rec.token == Token_LABEL
+	return n.rec().token == Token_LABEL
 }
 
 // Java: Node.isLabelName()
 func (n Node) IsLabelName() bool {
-	return n.rec.token == Token_LABEL_NAME
+	return n.rec().token == Token_LABEL_NAME
 }
 
 // Java: Node.isLet()
 func (n Node) IsLet() bool {
-	return n.rec.token == Token_LET
+	return n.rec().token == Token_LET
 }
 
 // Java: Node.isMemberFunctionDef()
 func (n Node) IsMemberFunctionDef() bool {
-	return n.rec.token == Token_MEMBER_FUNCTION_DEF
+	return n.rec().token == Token_MEMBER_FUNCTION_DEF
 }
 
 // Java: Node.isMemberVariableDef()
 func (n Node) IsMemberVariableDef() bool {
-	return n.rec.token == Token_MEMBER_VARIABLE_DEF
+	return n.rec().token == Token_MEMBER_VARIABLE_DEF
 }
 
 // Java: Node.isMemberFieldDef()
 func (n Node) IsMemberFieldDef() bool {
-	return n.rec.token == Token_MEMBER_FIELD_DEF
+	return n.rec().token == Token_MEMBER_FIELD_DEF
 }
 
 // Java: Node.isComputedFieldDef()
 func (n Node) IsComputedFieldDef() bool {
-	return n.rec.token == Token_COMPUTED_FIELD_DEF
+	return n.rec().token == Token_COMPUTED_FIELD_DEF
 }
 
 // Java: Node.isModuleBody()
 func (n Node) IsModuleBody() bool {
-	return n.rec.token == Token_MODULE_BODY
+	return n.rec().token == Token_MODULE_BODY
 }
 
 // Java: Node.isName()
 func (n Node) IsName() bool {
-	return n.rec.token == Token_NAME
+	return n.rec().token == Token_NAME
 }
 
 // Java: Node.isNE()
 func (n Node) IsNE() bool {
-	return n.rec.token == Token_NE
+	return n.rec().token == Token_NE
 }
 
 // Java: Node.isSHNE()
 func (n Node) IsSHNE() bool {
-	return n.rec.token == Token_SHNE
+	return n.rec().token == Token_SHNE
 }
 
 // Java: Node.isEQ()
 func (n Node) IsEQ() bool {
-	return n.rec.token == Token_EQ
+	return n.rec().token == Token_EQ
 }
 
 // Java: Node.isSHEQ()
 func (n Node) IsSHEQ() bool {
-	return n.rec.token == Token_SHEQ
+	return n.rec().token == Token_SHEQ
 }
 
 // Java: Node.isNeg()
 func (n Node) IsNeg() bool {
-	return n.rec.token == Token_NEG
+	return n.rec().token == Token_NEG
 }
 
 // Java: Node.isNew()
 func (n Node) IsNew() bool {
-	return n.rec.token == Token_NEW
+	return n.rec().token == Token_NEW
 }
 
 // Java: Node.isNot()
 func (n Node) IsNot() bool {
-	return n.rec.token == Token_NOT
+	return n.rec().token == Token_NOT
 }
 
 // Java: Node.isNull()
 func (n Node) IsNull() bool {
-	return n.rec.token == Token_NULL
+	return n.rec().token == Token_NULL
 }
 
 // Java: Node.isNullishCoalesce()
 func (n Node) IsNullishCoalesce() bool {
-	return n.rec.token == Token_COALESCE
+	return n.rec().token == Token_COALESCE
 }
 
 // Java: Node.isAssignNullishCoalesce()
 func (n Node) IsAssignNullishCoalesce() bool {
-	return n.rec.token == Token_ASSIGN_COALESCE
+	return n.rec().token == Token_ASSIGN_COALESCE
 }
 
 // Java: Node.isNumber()
 func (n Node) IsNumber() bool {
-	return n.rec.token == Token_NUMBER
+	return n.rec().token == Token_NUMBER
 }
 
 // Java: Node.isObjectLit()
 func (n Node) IsObjectLit() bool {
-	return n.rec.token == Token_OBJECTLIT
+	return n.rec().token == Token_OBJECTLIT
 }
 
 // Java: Node.isObjectPattern()
 func (n Node) IsObjectPattern() bool {
-	return n.rec.token == Token_OBJECT_PATTERN
+	return n.rec().token == Token_OBJECT_PATTERN
 }
 
 // Java: Node.isOptChainCall()
 func (n Node) IsOptChainCall() bool {
-	return n.rec.token == Token_OPTCHAIN_CALL
+	return n.rec().token == Token_OPTCHAIN_CALL
 }
 
 // Java: Node.isOptChainGetElem()
 func (n Node) IsOptChainGetElem() bool {
-	return n.rec.token == Token_OPTCHAIN_GETELEM
+	return n.rec().token == Token_OPTCHAIN_GETELEM
 }
 
 // Java: Node.isOptChainGetProp()
 func (n Node) IsOptChainGetProp() bool {
-	return n.rec.token == Token_OPTCHAIN_GETPROP
+	return n.rec().token == Token_OPTCHAIN_GETPROP
 }
 
 // Java: Node.isOr()
 func (n Node) IsOr() bool {
-	return n.rec.token == Token_OR
+	return n.rec().token == Token_OR
 }
 
 // Java: Node.isAssignOr()
 func (n Node) IsAssignOr() bool {
-	return n.rec.token == Token_ASSIGN_OR
+	return n.rec().token == Token_ASSIGN_OR
 }
 
 // Java: Node.isParamList()
 func (n Node) IsParamList() bool {
-	return n.rec.token == Token_PARAM_LIST
+	return n.rec().token == Token_PARAM_LIST
 }
 
 // Java: Node.isPos()
 func (n Node) IsPos() bool {
-	return n.rec.token == Token_POS
+	return n.rec().token == Token_POS
 }
 
 // Java: Node.isRegExp()
 func (n Node) IsRegExp() bool {
-	return n.rec.token == Token_REGEXP
+	return n.rec().token == Token_REGEXP
 }
 
 // Java: Node.isRest()
 func (n Node) IsRest() bool {
-	return n.rec.token == Token_ITER_REST || n.rec.token == Token_OBJECT_REST
+	return n.rec().token == Token_ITER_REST || n.rec().token == Token_OBJECT_REST
 }
 
 // Java: Node.isObjectRest()
 func (n Node) IsObjectRest() bool {
-	return n.rec.token == Token_OBJECT_REST
+	return n.rec().token == Token_OBJECT_REST
 }
 
 // Java: Node.isReturn()
 func (n Node) IsReturn() bool {
-	return n.rec.token == Token_RETURN
+	return n.rec().token == Token_RETURN
 }
 
 // Java: Node.isScript()
 func (n Node) IsScript() bool {
-	return n.rec.token == Token_SCRIPT
+	return n.rec().token == Token_SCRIPT
 }
 
 // Java: Node.isSetterDef()
 func (n Node) IsSetterDef() bool {
-	return n.rec.token == Token_SETTER_DEF
+	return n.rec().token == Token_SETTER_DEF
 }
 
 // Java: Node.isSpread()
 func (n Node) IsSpread() bool {
-	return n.rec.token == Token_ITER_SPREAD || n.rec.token == Token_OBJECT_SPREAD
+	return n.rec().token == Token_ITER_SPREAD || n.rec().token == Token_OBJECT_SPREAD
 }
 
 // Java: Node.isString()
 func (n Node) IsString() bool {
-	return n.rec.token == Token_STRINGLIT
+	return n.rec().token == Token_STRINGLIT
 }
 
 // Java: Node.isStringKey()
 func (n Node) IsStringKey() bool {
-	return n.rec.token == Token_STRING_KEY
+	return n.rec().token == Token_STRING_KEY
 }
 
 // Java: Node.isStringLit()
 func (n Node) IsStringLit() bool {
-	return n.rec.token == Token_STRINGLIT
+	return n.rec().token == Token_STRINGLIT
 }
 
 // Java: Node.isSuper()
 func (n Node) IsSuper() bool {
-	return n.rec.token == Token_SUPER
+	return n.rec().token == Token_SUPER
 }
 
 // Java: Node.isSwitch()
 func (n Node) IsSwitch() bool {
-	return n.rec.token == Token_SWITCH
+	return n.rec().token == Token_SWITCH
 }
 
 // Java: Node.isSwitchBody()
 func (n Node) IsSwitchBody() bool {
-	return n.rec.token == Token_SWITCH_BODY
+	return n.rec().token == Token_SWITCH_BODY
 }
 
 // Java: Node.isTaggedTemplateLit()
 func (n Node) IsTaggedTemplateLit() bool {
-	return n.rec.token == Token_TAGGED_TEMPLATELIT
+	return n.rec().token == Token_TAGGED_TEMPLATELIT
 }
 
 // Java: Node.isTemplateLit()
 func (n Node) IsTemplateLit() bool {
-	return n.rec.token == Token_TEMPLATELIT
+	return n.rec().token == Token_TEMPLATELIT
 }
 
 // Java: Node.isTemplateLitString()
 func (n Node) IsTemplateLitString() bool {
-	return n.rec.token == Token_TEMPLATELIT_STRING
+	return n.rec().token == Token_TEMPLATELIT_STRING
 }
 
 // Java: Node.isTemplateLitSub()
 func (n Node) IsTemplateLitSub() bool {
-	return n.rec.token == Token_TEMPLATELIT_SUB
+	return n.rec().token == Token_TEMPLATELIT_SUB
 }
 
 // Java: Node.isThis()
 func (n Node) IsThis() bool {
-	return n.rec.token == Token_THIS
+	return n.rec().token == Token_THIS
 }
 
 // Java: Node.isThrow()
 func (n Node) IsThrow() bool {
-	return n.rec.token == Token_THROW
+	return n.rec().token == Token_THROW
 }
 
 // Java: Node.isTrue()
 func (n Node) IsTrue() bool {
-	return n.rec.token == Token_TRUE
+	return n.rec().token == Token_TRUE
 }
 
 // Java: Node.isTry()
 func (n Node) IsTry() bool {
-	return n.rec.token == Token_TRY
+	return n.rec().token == Token_TRY
 }
 
 // Java: Node.isTypeOf()
 func (n Node) IsTypeOf() bool {
-	return n.rec.token == Token_TYPEOF
+	return n.rec().token == Token_TYPEOF
 }
 
 // Java: Node.isVar()
 func (n Node) IsVar() bool {
-	return n.rec.token == Token_VAR
+	return n.rec().token == Token_VAR
 }
 
 // Java: Node.isVoid()
 func (n Node) IsVoid() bool {
-	return n.rec.token == Token_VOID
+	return n.rec().token == Token_VOID
 }
 
 // Java: Node.isWhile()
 func (n Node) IsWhile() bool {
-	return n.rec.token == Token_WHILE
+	return n.rec().token == Token_WHILE
 }
 
 // Java: Node.isWith()
 func (n Node) IsWith() bool {
-	return n.rec.token == Token_WITH
+	return n.rec().token == Token_WITH
 }
 
 // Java: Node.isYield()
 func (n Node) IsYield() bool {
-	return n.rec.token == Token_YIELD
+	return n.rec().token == Token_YIELD
 }
 
 // Java: Node.isDeclare()
 func (n Node) IsDeclare() bool {
-	return n.rec.token == Token_DECLARE
+	return n.rec().token == Token_DECLARE
 }
 
 // Go-only: language-adapter — recover the Java Object field only for printing
 // and equality; hot getters use the tagged pointer directly.
 func (n Node) typeOrColorValue() any {
-	if n.rec.tc == 0 {
+	if n.rec().tc == 0 {
 		return nil
 	}
-	if (n.rec.kindFlags & kindFlagTypeIsColor) != 0 {
-		if c := n.store.colorAt(n.rec.tc); c != nil {
+	if (n.rec().kindFlags & kindFlagTypeIsColor) != 0 {
+		if c := n.store().colorAt(n.rec().tc); c != nil {
 			return c
 		}
 		return nil
 	}
-	return jsTypeOf(n.store.typeAt(n.rec.tc))
+	return jsTypeOf(n.store().typeAt(n.rec().tc))
 }
 
 func (n Node) nodeStringValue() string {
-	return rhinoStringFromID(rhinoStringID(n.rec.payload))
+	return rhinoStringFromID(rhinoStringID(n.rec().payload))
 }
 
 // CanResetInPlace reports whether n has no cold extBox, extra side-table entry,
 // diagnostic pin, or overflow source-file ID, making in-place token/payload
 // mutation exact.
 func (n Node) CanResetInPlace() bool {
-	return (n.rec.kindFlags&(kindFlagHasExtBox|kindFlagHasExtra)) == 0 &&
-		uint32(n.rec.propFlags>>nodePropSourceFileShift) != nodePropSourceFileOverflow
+	return (n.rec().kindFlags&(kindFlagHasExtBox|kindFlagHasExtra)) == 0 &&
+		uint32(n.rec().propFlags>>nodePropSourceFileShift) != nodePropSourceFileOverflow
 }
 
 // PinForDiagnostic marks n so later optimization passes do not recycle n
 // in-place, preserving n's original length/token for deferred JSError formatting.
 func (n Node) PinForDiagnostic() {
-	n.rec.kindFlags |= kindFlagHasExtra
+	n.rec().kindFlags |= kindFlagHasExtra
 }
 
 // MutateGetPropToNameInPlace rewrites an attached GETPROP node into a NAME node
@@ -6160,22 +6159,22 @@ func (n Node) MutateGetPropToNameInPlace(name string, originalName string, isCon
 		return false
 	}
 	n.DetachChildren()
-	if n.rec.parent != 0 {
-		n.parentNode().rec.kindFlags &^= kindFlagNoBlockDecl
+	if n.rec().parent != 0 {
+		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
 	nameID := rhinoStringPoolIntern(name)
 	origID := rhinoStringPoolIntern(originalName)
-	if (n.rec.propFlags & propFlagHasJSDoc) != 0 {
+	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{})
 	}
-	n.rec.token = Token_NAME
-	n.rec.kindFlags = uint8(node_kindString) | (n.rec.kindFlags & kindFlagTypeIsColor)
-	flags := n.rec.propFlags & ((uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift) | propFlag_IS_CONSTANT_NAME)
+	n.rec().token = Token_NAME
+	n.rec().kindFlags = uint8(node_kindString) | (n.rec().kindFlags & kindFlagTypeIsColor)
+	flags := n.rec().propFlags & ((uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift) | propFlag_IS_CONSTANT_NAME)
 	if isConstant {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
-	n.rec.propFlags = flags
-	n.rec.payload = (uint64(origID) << 32) | uint64(nameID)
+	n.rec().propFlags = flags
+	n.rec().payload = (uint64(origID) << 32) | uint64(nameID)
 	return true
 }
 
@@ -6189,18 +6188,18 @@ func (n Node) MutateCallTargetGetPropToNameInPlace(call Node, receiver Node, new
 	n.DetachChildren()
 	receiver.SrcrefIfMissing(n)
 	nameID := rhinoStringPoolIntern(newMethodName)
-	origID := rhinoStringID(n.rec.payload >> 32)
-	if (n.rec.propFlags & propFlagHasJSDoc) != 0 {
+	origID := rhinoStringID(n.rec().payload >> 32)
+	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{})
 	}
-	n.rec.token = Token_NAME
-	n.rec.kindFlags = uint8(node_kindString) | (n.rec.kindFlags & kindFlagTypeIsColor)
-	flags := n.rec.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.rec().token = Token_NAME
+	n.rec().kindFlags = uint8(node_kindString) | (n.rec().kindFlags & kindFlagTypeIsColor)
+	flags := n.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	if isConstantName {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
-	n.rec.propFlags = flags
-	n.rec.payload = (uint64(origID) << 32) | uint64(nameID)
+	n.rec().propFlags = flags
+	n.rec().payload = (uint64(origID) << 32) | uint64(nameID)
 	receiver.InsertAfter(n)
 	return true
 }
@@ -6208,51 +6207,51 @@ func (n Node) MutateCallTargetGetPropToNameInPlace(call Node, receiver Node, new
 // MutateThisToNameIDInPlace rewrites an attached leaf THIS node into
 // NAME(nameID) in-place, preserving Srcref(n) and CopyTypeFrom(n).
 func (n Node) MutateThisToNameIDInPlace(nameID uint32) bool {
-	if !n.CanResetInPlace() || n.rec.first != 0 {
+	if !n.CanResetInPlace() || n.rec().first != 0 {
 		return false
 	}
-	if n.rec.parent != 0 {
-		n.parentNode().rec.kindFlags &^= kindFlagNoBlockDecl
+	if n.rec().parent != 0 {
+		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
-	if (n.rec.propFlags & propFlagHasJSDoc) != 0 {
+	if (n.rec().propFlags & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{})
 	}
-	n.rec.token = Token_NAME
-	n.rec.kindFlags = uint8(node_kindString) | (n.rec.kindFlags & kindFlagTypeIsColor)
-	n.rec.propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
-	n.rec.payload = (n.rec.payload & 0xFFFFFFFF00000000) | uint64(nameID)
+	n.rec().token = Token_NAME
+	n.rec().kindFlags = uint8(node_kindString) | (n.rec().kindFlags & kindFlagTypeIsColor)
+	n.rec().propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(nameID)
 	return true
 }
 
 // ResetDetachedGetPropToNameID resets a detached GETPROP node (CanResetInPlace)
 // into IR_Name(nameID).SrcrefIfMissing(self), optionally setting IS_CONSTANT_NAME.
 func (n Node) ResetDetachedGetPropToNameID(nameID uint32, isConstantName bool) {
-	n.rec.tc = 0
+	n.rec().tc = 0
 	n.setAux(nodeAux{})
-	n.rec.token = Token_NAME
-	n.rec.kindFlags = uint8(node_kindString)
-	flags := n.rec.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.rec().token = Token_NAME
+	n.rec().kindFlags = uint8(node_kindString)
+	flags := n.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	if isConstantName {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
-	n.rec.propFlags = flags
-	n.rec.payload = (n.rec.payload & 0xFFFFFFFF00000000) | uint64(nameID)
+	n.rec().propFlags = flags
+	n.rec().payload = (n.rec().payload & 0xFFFFFFFF00000000) | uint64(nameID)
 }
 
 // MutateAttachedStmtToVarFromSrcref resets an attached childless statement node
 // (CanResetInPlace) into IR_Var(nameChild).SrcrefIfMissing(srcref) in-place.
 func (n Node) MutateAttachedStmtToVarFromSrcref(nameChild Node, srcref Node, jsdoc *JSDocInfo) {
-	if n.rec.parent != 0 {
-		n.parentNode().rec.kindFlags &^= kindFlagNoBlockDecl
+	if n.rec().parent != 0 {
+		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
-	n.rec.tc = 0
+	n.rec().tc = 0
 	n.setAux(nodeAux{})
-	n.rec.token = Token_VAR
-	n.rec.kindFlags = 0
-	n.rec.propFlags = srcref.rec.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
-	n.rec.payload = uint64(srcref.node_originalNameID()) << 32
-	n.rec.linenoCharno = srcref.rec.linenoCharno
-	n.rec.length16 = srcref.rec.length16
+	n.rec().token = Token_VAR
+	n.rec().kindFlags = 0
+	n.rec().propFlags = srcref.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.rec().payload = uint64(srcref.node_originalNameID()) << 32
+	n.rec().linenoCharno = srcref.rec().linenoCharno
+	n.rec().length16 = srcref.rec().length16
 	n.AddChildToFront(nameChild)
 	if jsdoc != nil {
 		n.SetJSDocInfo(jsdoc)
@@ -6262,14 +6261,14 @@ func (n Node) MutateAttachedStmtToVarFromSrcref(nameChild Node, srcref Node, jsd
 // ResetDetachedToFreshNameID resets a detached childless node (CanResetInPlace)
 // into a fresh IR_Name(nameID) with unset source location.
 func (n Node) ResetDetachedToFreshNameID(nameID uint32) Node {
-	n.rec.tc = 0
+	n.rec().tc = 0
 	n.setAux(nodeAux{})
-	n.rec.token = Token_NAME
-	n.rec.kindFlags = uint8(node_kindString)
-	n.rec.propFlags = 0
-	n.rec.payload = uint64(nameID)
-	n.rec.linenoCharno = -1
-	n.rec.length16 = 0
+	n.rec().token = Token_NAME
+	n.rec().kindFlags = uint8(node_kindString)
+	n.rec().propFlags = 0
+	n.rec().payload = uint64(nameID)
+	n.rec().linenoCharno = -1
+	n.rec().length16 = 0
 	return n
 }
 
@@ -6277,7 +6276,7 @@ func (n Node) ResetDetachedToFreshNameID(nameID uint32) Node {
 // extBox/extra metadata or overflow source file, allowing zero-allocation
 // in-place leaf cloning via OverwriteLeafFromClone.
 func (n Node) CanCloneLeafInPlace() bool {
-	return n.rec.first == 0 && n.CanResetInPlace()
+	return n.rec().first == 0 && n.CanResetInPlace()
 }
 
 // OverwriteLeafFromClone overwrites an attached childless leaf node (which must
@@ -6285,22 +6284,22 @@ func (n Node) CanCloneLeafInPlace() bool {
 // CanCloneLeafInPlace), matching src.CloneTree() + n.ReplaceWith(clone) with
 // zero allocations.
 func (n Node) OverwriteLeafFromClone(src Node) {
-	if n.rec.parent != 0 {
-		n.parentNode().rec.kindFlags &^= kindFlagNoBlockDecl
+	if n.rec().parent != 0 {
+		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
-	oldSF := n.rec.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	oldSF := n.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	oldOrigID := n.node_originalNameID()
-	n.rec.token = src.rec.token
-	n.rec.kindFlags = src.rec.kindFlags & (kindMask | kindFlagTypeIsColor)
-	n.rec.tc = n.store.translateTC(src.store, src.rec.tc, src.rec.kindFlags&kindFlagTypeIsColor != 0)
+	n.rec().token = src.rec().token
+	n.rec().kindFlags = src.rec().kindFlags & (kindMask | kindFlagTypeIsColor)
+	n.rec().tc = n.store().translateTC(src.store(), src.rec().tc, src.rec().kindFlags&kindFlagTypeIsColor != 0)
 	n.setAux(src.auxValue())
-	n.rec.propFlags = src.rec.propFlags
-	n.rec.payload = src.rec.payload
-	if (src.rec.propFlags >> nodePropSourceFileShift) == 0 {
-		n.rec.propFlags |= oldSF
+	n.rec().propFlags = src.rec().propFlags
+	n.rec().payload = src.rec().payload
+	if (src.rec().propFlags >> nodePropSourceFileShift) == 0 {
+		n.rec().propFlags |= oldSF
 	} else {
-		n.rec.linenoCharno = src.rec.linenoCharno
-		n.rec.length16 = src.rec.length16
+		n.rec().linenoCharno = src.rec().linenoCharno
+		n.rec().length16 = src.rec().length16
 	}
 	if oldOrigID != 0 && n.node_originalNameID() == 0 {
 		n.node_setOriginalNameID(oldOrigID)
@@ -6317,40 +6316,40 @@ func (n Node) ResetTemplateUndefinedSrcref(src Node) bool {
 		return false
 	}
 	if src.IsNil() {
-		n.rec.tc = 0
+		n.rec().tc = 0
 		n.setAux(nodeAux{})
-		n.rec.kindFlags = 0
-		n.rec.propFlags = 0
-		n.rec.payload = 0
-		n.rec.linenoCharno = -1
-		n.rec.length16 = 0
-		num.rec.tc = 0
+		n.rec().kindFlags = 0
+		n.rec().propFlags = 0
+		n.rec().payload = 0
+		n.rec().linenoCharno = -1
+		n.rec().length16 = 0
+		num.rec().tc = 0
 		num.setAux(nodeAux{})
-		num.rec.kindFlags = uint8(node_kindNumber)
-		num.rec.propFlags = 0
-		num.rec.payload = 0
-		num.rec.linenoCharno = -1
-		num.rec.length16 = 0
+		num.rec().kindFlags = uint8(node_kindNumber)
+		num.rec().propFlags = 0
+		num.rec().payload = 0
+		num.rec().linenoCharno = -1
+		num.rec().length16 = 0
 		return true
 	}
 	if !src.CanResetInPlace() || src.node_originalNameID() != 0 {
 		return false
 	}
-	sfFlags := src.rec.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
-	n.rec.tc = 0
+	sfFlags := src.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.rec().tc = 0
 	n.setAux(nodeAux{})
-	n.rec.kindFlags = 0
-	n.rec.propFlags = sfFlags
-	n.rec.payload = 0
-	n.rec.linenoCharno = src.rec.linenoCharno
-	n.rec.length16 = src.rec.length16
-	num.rec.tc = 0
+	n.rec().kindFlags = 0
+	n.rec().propFlags = sfFlags
+	n.rec().payload = 0
+	n.rec().linenoCharno = src.rec().linenoCharno
+	n.rec().length16 = src.rec().length16
+	num.rec().tc = 0
 	num.setAux(nodeAux{})
-	num.rec.kindFlags = uint8(node_kindNumber)
-	num.rec.propFlags = sfFlags
-	num.rec.payload = 0
-	num.rec.linenoCharno = src.rec.linenoCharno
-	num.rec.length16 = src.rec.length16
+	num.rec().kindFlags = uint8(node_kindNumber)
+	num.rec().propFlags = sfFlags
+	num.rec().payload = 0
+	num.rec().linenoCharno = src.rec().linenoCharno
+	num.rec().length16 = src.rec().length16
 	return true
 }
 
@@ -6359,16 +6358,16 @@ func (n Node) ResetTemplateUndefinedSrcref(src Node) bool {
 // (preserving n's Srcref), with optional single child nameChild and optional JSDocInfo.
 func (n Node) MutateAttachedToFreshVarInPlace(nameChild Node, jsdoc *JSDocInfo) {
 	n.DetachChildren()
-	if n.rec.parent != 0 {
-		n.parentNode().rec.kindFlags &^= kindFlagNoBlockDecl
+	if n.rec().parent != 0 {
+		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
 	origID := n.node_originalNameID()
-	n.rec.tc = 0
+	n.rec().tc = 0
 	n.setAux(nodeAux{})
-	n.rec.token = Token_VAR
-	n.rec.kindFlags = 0
-	n.rec.propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
-	n.rec.payload = uint64(origID) << 32
+	n.rec().token = Token_VAR
+	n.rec().kindFlags = 0
+	n.rec().propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+	n.rec().payload = uint64(origID) << 32
 	if !nameChild.IsNil() {
 		n.AddChildToFront(nameChild)
 	}
@@ -6384,18 +6383,18 @@ func (n Node) ResetDetachedToNameWithOriginalNameInPlace(name string, originalNa
 	n.DetachChildren()
 	nameID := rhinoStringPoolIntern(name)
 	origID := rhinoStringPoolIntern(originalName)
-	n.rec.tc = 0
+	n.rec().tc = 0
 	n.setAux(nodeAux{})
-	n.rec.token = Token_NAME
-	n.rec.kindFlags = uint8(node_kindString)
-	flags := srcref.rec.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.rec().token = Token_NAME
+	n.rec().kindFlags = uint8(node_kindString)
+	flags := srcref.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	if isConstant {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
-	n.rec.propFlags = flags
-	n.rec.payload = (uint64(origID) << 32) | uint64(nameID)
-	n.rec.linenoCharno = srcref.rec.linenoCharno
-	n.rec.length16 = srcref.rec.length16
+	n.rec().propFlags = flags
+	n.rec().payload = (uint64(origID) << 32) | uint64(nameID)
+	n.rec().linenoCharno = srcref.rec().linenoCharno
+	n.rec().length16 = srcref.rec().length16
 	return n
 }
 
@@ -6405,25 +6404,25 @@ func (n Node) ResetDetachedToNameWithOriginalNameInPlace(name string, originalNa
 // satisfy CanResetInPlace).
 func (n Node) MutateAttachedToExprResultInPlace(exprChild Node) Node {
 	n.DetachChildren()
-	if n.rec.parent != 0 {
-		n.parentNode().rec.kindFlags &^= kindFlagNoBlockDecl
+	if n.rec().parent != 0 {
+		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
 	origID := exprChild.node_originalNameID()
 	if origID == 0 {
 		origID = n.node_originalNameID()
 	}
-	n.rec.tc = 0
+	n.rec().tc = 0
 	n.setAux(nodeAux{})
-	n.rec.token = Token_EXPR_RESULT
-	n.rec.kindFlags = 0
-	if (exprChild.rec.propFlags >> nodePropSourceFileShift) != 0 {
-		n.rec.propFlags = exprChild.rec.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
-		n.rec.linenoCharno = exprChild.rec.linenoCharno
-		n.rec.length16 = exprChild.rec.length16
+	n.rec().token = Token_EXPR_RESULT
+	n.rec().kindFlags = 0
+	if (exprChild.rec().propFlags >> nodePropSourceFileShift) != 0 {
+		n.rec().propFlags = exprChild.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+		n.rec().linenoCharno = exprChild.rec().linenoCharno
+		n.rec().length16 = exprChild.rec().length16
 	} else {
-		n.rec.propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
+		n.rec().propFlags &= uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift
 	}
-	n.rec.payload = uint64(origID) << 32
+	n.rec().payload = uint64(origID) << 32
 	n.AddChildToFront(exprChild)
 	return n
 }
@@ -6433,14 +6432,14 @@ func (n Node) MutateAttachedToExprResultInPlace(exprChild Node) Node {
 // must satisfy CanResetInPlace; left and right must be detached).
 func (n Node) ResetDetachedToBinaryOpFromSrcref(op Token, left Node, right Node, srcref Node) Node {
 	n.DetachChildren()
-	n.rec.tc = 0
+	n.rec().tc = 0
 	n.setAux(nodeAux{})
-	n.rec.token = op
-	n.rec.kindFlags = 0
-	n.rec.propFlags = srcref.rec.propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
-	n.rec.payload = uint64(srcref.node_originalNameID()) << 32
-	n.rec.linenoCharno = srcref.rec.linenoCharno
-	n.rec.length16 = srcref.rec.length16
+	n.rec().token = op
+	n.rec().kindFlags = 0
+	n.rec().propFlags = srcref.rec().propFlags & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.rec().payload = uint64(srcref.node_originalNameID()) << 32
+	n.rec().linenoCharno = srcref.rec().linenoCharno
+	n.rec().length16 = srcref.rec().length16
 	n.AddChildToFront(left)
 	n.AddChildToBack(right)
 	return n

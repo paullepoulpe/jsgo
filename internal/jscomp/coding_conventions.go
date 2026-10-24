@@ -517,5 +517,5 @@ func CodingConventions_DefaultCodingConvention_SafeNext(n rhino.Node) rhino.Node
 	if !n.IsNil() {
 		return n.GetNext()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }

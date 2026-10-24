@@ -1531,7 +1531,7 @@ func newJsMessageVisitor_ObjectLiteralMapImpl(stringToStringKeyMap *jutil.Linked
 func (m *jsMessageVisitor_ObjectLiteralMapImpl) GetValueNode(key string) rhino.Node {
 	stringKeyNode := m.stringToStringKeyMap.Get(key)
 	if stringKeyNode.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return stringKeyNode.GetOnlyChild()
 }

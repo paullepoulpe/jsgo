@@ -248,9 +248,9 @@ func (e *Es6RewriteDestructuring) Visit(t *NodeTraversal, n rhino.Node, parent r
 //
 // Java: Es6RewriteDestructuring.pullDestructuringOutOfParams(Node, Node)
 func (e *Es6RewriteDestructuring) PullDestructuringOutOfParams(paramList rhino.Node, function rhino.Node) {
-	var insertSpot rhino.Node = rhino.Node{}
+	var insertSpot rhino.Node = rhino.NilNode
 	body := function.GetLastChild()
-	var next rhino.Node = rhino.Node{}
+	var next rhino.Node = rhino.NilNode
 	for param := paramList.GetFirstChild(); !param.IsNil(); param = next {
 		next = param.GetNext()
 		if param.IsDefaultValue() {
@@ -594,7 +594,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 				defaultValue = defaultNode.RemoveFirstChild()
 			} else {
 				newLHS = child.RemoveFirstChild()
-				defaultValue = rhino.Node{}
+				defaultValue = rhino.NilNode
 			}
 			if propsToDeleteForRest != nil {
 				// A "...rest" variable is present and result of computation must be cached

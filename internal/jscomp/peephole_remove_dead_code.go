@@ -129,7 +129,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldLabel(n rhino.Node) rhino.Node {
 	if stmt.IsEmpty() {
 		p.ReportChangeToEnclosingScope(n)
 		n.Detach()
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	if stmt.IsBlock() && !stmt.HasChildren() {
@@ -141,7 +141,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldLabel(n rhino.Node) rhino.Node {
 		} else {
 			n.Detach()
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	child := PeepholeRemoveDeadCode_GetOnlyInterestingChild(stmt)
@@ -158,7 +158,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldLabel(n rhino.Node) rhino.Node {
 			parent := n.GetParent()
 			n.Detach()
 			p.ReportChangeToEnclosingScope(parent)
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	}
 	return n
@@ -172,7 +172,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldLabel(n rhino.Node) rhino.Node {
 // Java: PeepholeRemoveDeadCode.getOnlyInterestingChild(Node)
 func PeepholeRemoveDeadCode_GetOnlyInterestingChild(block rhino.Node) rhino.Node {
 	if !block.IsBlock() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	if block.HasOneChild() {
 		return block.GetOnlyChild()
@@ -184,7 +184,7 @@ func PeepholeRemoveDeadCode_GetOnlyInterestingChild(block rhino.Node) rhino.Node
 			// Uninteresting child.
 		} else if !ret.IsNil() {
 			// Found more than one interesting child.
-			return rhino.Node{}
+			return rhino.NilNode
 		} else {
 			ret = child
 		}
@@ -226,7 +226,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldTry(n rhino.Node) rhino.Node {
 		} else {
 			jutil.CheckState(!n.GetParent().IsLabel())
 			n.Detach()
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	}
 
@@ -327,7 +327,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldExpr(subtree rhino.Node) rhino.Node {
 			subtree = replacement
 		} else {
 			subtree.Detach()
-			subtree = rhino.Node{}
+			subtree = rhino.NilNode
 		}
 	}
 	return subtree
@@ -370,7 +370,7 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResult(expression rhino.Node) 
 		return expression
 	} else if sideEffectRoots.isEmpty() {
 		p.DeleteNode(expression)
-		return rhino.Node{}
+		return rhino.NilNode
 	} else if sideEffectRoots.peekFirst() == expression {
 		// Expression was a conditional that was transformed. There can't be any other side-effects,
 		// but we also can't detach the transformed root.
@@ -411,14 +411,14 @@ func (d *peepholeRemoveDeadCode_nodeDeque) addLast(n rhino.Node) {
 
 func (d *peepholeRemoveDeadCode_nodeDeque) peekFirst() rhino.Node {
 	if d.head == len(d.elems) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return d.elems[d.head]
 }
 
 func (d *peepholeRemoveDeadCode_nodeDeque) pollFirst() rhino.Node {
 	if d.head == len(d.elems) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	n := d.elems[d.head]
 	d.head++
@@ -766,7 +766,7 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeDefaultCase(n rhino.Node) rhino.Node
 			} else {
 				caseToRemove = switchBody.GetFirstChild()
 			}
-			for next := (rhino.Node)(rhino.Node{}); caseToRemove != c; caseToRemove = next {
+			for next := (rhino.Node)(rhino.NilNode); caseToRemove != c; caseToRemove = next {
 				next = caseToRemove.GetNext()
 				p.RemoveCase(n, caseToRemove)
 			}
@@ -774,7 +774,7 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeDefaultCase(n rhino.Node) rhino.Node
 			// Remove the default case if we can
 			if p.IsUselessCase(c, lastNonRemovable, c) {
 				p.RemoveCase(n, c)
-				return rhino.Node{}
+				return rhino.NilNode
 			}
 			return c
 		} else {
@@ -784,7 +784,7 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeDefaultCase(n rhino.Node) rhino.Node
 			}
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // RemoveCase removes the case from the switch redeclaring any variables
@@ -1025,7 +1025,7 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeBlock(n rhino.Node) rhino.Node {
 			continue
 		case rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_RETURN, rhino.Token_THROW:
 			p.RemoveFollowingNodes(c)
-			c = rhino.Node{}
+			c = rhino.NilNode
 			continue
 		case rhino.Token_FUNCTION,
 			rhino.Token_FOR,
@@ -1071,11 +1071,11 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeBlock(n rhino.Node) rhino.Node {
 	parent := n.GetParent()
 	if NodeUtil_TryMergeBlock(n, p.IsASTNormalized()) {
 		p.ReportChangeToEnclosingScope(parent)
-		return rhino.Node{}
+		return rhino.NilNode
 	} else if parent.IsClassMembers() && !n.HasChildren() {
 		n.Detach()
 		p.ReportChangeToEnclosingScope(parent)
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	return n
@@ -1279,14 +1279,14 @@ func (p *PeepholeRemoveDeadCode) GetConditionalRoot(n rhino.Node) rhino.Node {
 	// We defined a conditional statement to be a IF or EXPR_RESULT rooted with
 	// a HOOK, AND, or OR node.
 	if n.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	if n.IsIf() {
 		return n
 	} else if PeepholeRemoveDeadCode_IsExprConditional(n) {
 		return n.GetFirstChild()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // PeepholeRemoveDeadCode_IsExprConditional returns whether the node is a
@@ -1335,7 +1335,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldIf(n rhino.Node) rhino.Node {
 	if !elseBody.IsNil() && !p.MayHaveSideEffects(elseBody) {
 		elseBody.Detach()
 		p.ReportChangeToEnclosingScope(n)
-		elseBody = rhino.Node{}
+		elseBody = rhino.NilNode
 	}
 
 	// if (x) { } else { ... } --> if (!x) { ... }
@@ -1348,7 +1348,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldIf(n rhino.Node) rhino.Node {
 		notCond.AddChildToFront(cond)
 		cond = notCond
 		thenBody = cond.GetNext()
-		elseBody = rhino.Node{}
+		elseBody = rhino.NilNode
 	}
 
 	// `if (x()) { }` or `if (x?.()) { }`
@@ -1364,7 +1364,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldIf(n rhino.Node) rhino.Node {
 			// `x()` or `x?.()` has no side effects, the whole tree is useless now.
 			NodeUtil_RemoveChild(parent, n)
 			p.ReportChangeToEnclosingScope(parent)
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	}
 
@@ -1412,7 +1412,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldIf(n rhino.Node) rhino.Node {
 			NodeUtil_RemoveChild(parent, n)
 			p.ReportChangeToEnclosingScope(parent)
 			p.MarkFunctionsDeleted(n)
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 	} else {
 		// Replace "if (true) { X } else { Y }" with X, or
@@ -1545,7 +1545,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldFor(n rhino.Node) rhino.Node {
 	}
 	p.ReportChangeToEnclosingScope(parent)
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // TryFoldDoAway removes DOs that always evaluate to false. This leaves the

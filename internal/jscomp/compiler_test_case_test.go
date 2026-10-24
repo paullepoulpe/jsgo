@@ -1843,7 +1843,7 @@ func (b *CompilerTestCaseBase) ParseExpectedJs(expected any) rhino.Node {
 		return b.parseExpectedJsList(expected.expected)
 	}
 	compilerTestCase_noOverload("parseExpectedJs", []any{expected})
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // parseExpectedJsList parses expected JS inputs and returns the root of the
@@ -2060,7 +2060,7 @@ func CompilerTestCase_FindDefinition(compiler *Compiler, name string) rhino.Node
 		default:
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // CompilerTestCase_Srcs is every overload of Java's srcs(...):

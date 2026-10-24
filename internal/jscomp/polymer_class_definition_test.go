@@ -46,7 +46,7 @@ func TestPolymerClassDefinitionTest(t *testing.T) {
 // Java: PolymerClassDefinitionTest.setUp()
 func (c *PolymerClassDefinitionTest) SetUp() {
 	c.CompilerTypeTestCaseBase.SetUp()
-	c.polymerCall = rhino.Node{}
+	c.polymerCall = rhino.NilNode
 }
 
 // TODO(jlklein): Add more complex test cases and verify behaviors and descriptors.

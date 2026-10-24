@@ -383,7 +383,7 @@ type ProcessTweaks_TweakFunctionCall struct {
 
 // Java: ProcessTweaks.TweakFunctionCall(TweakFunction, Node)
 func newProcessTweaks_TweakFunctionCall(tweakFunc ProcessTweaks_TweakFunction, callNode rhino.Node) *ProcessTweaks_TweakFunctionCall {
-	return newProcessTweaks_TweakFunctionCallWithValueNode(tweakFunc, callNode, rhino.Node{})
+	return newProcessTweaks_TweakFunctionCallWithValueNode(tweakFunc, callNode, rhino.NilNode)
 }
 
 // Java: ProcessTweaks.TweakFunctionCall(TweakFunction, Node, Node)

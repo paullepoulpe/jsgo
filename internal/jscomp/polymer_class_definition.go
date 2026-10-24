@@ -216,7 +216,7 @@ func PolymerClassDefinition_ExtractFromCallNode(
 	properties = polymerClassDefinition_overwriteMembersIfPresent(
 		properties,
 		PolymerPassStaticUtils_ExtractProperties(
-			descriptor, PolymerClassDefinition_DefinitionType_ObjectLiteral, compiler /* constructor= */, rhino.Node{}))
+			descriptor, PolymerClassDefinition_DefinitionType_ObjectLiteral, compiler /* constructor= */, rhino.NilNode))
 
 	// Behaviors might get included multiple times for the same element. See test case
 	// testDuplicatedBehaviorsAreCopiedOnce
@@ -256,7 +256,7 @@ func PolymerClassDefinition_ExtractFromCallNode(
 		hasGeneratedLhs,
 		descriptor,
 		classInfo,
-		NewPolymerPass_MemberDefinition(ctorInfo, rhino.Node{}, constructor, enclosingModule),
+		NewPolymerPass_MemberDefinition(ctorInfo, rhino.NilNode, constructor, enclosingModule),
 		nativeBaseElement,
 		properties,
 		behaviorProps,
@@ -381,7 +381,7 @@ func PolymerClassDefinition_ExtractFromClassNode(classNode rhino.Node, compiler 
 		/* hasGeneratedLhs= */ false,
 		propertiesDescriptor,
 		classInfo,
-		NewPolymerPass_MemberDefinition(ctorInfo, rhino.Node{}, constructor, enclosingModule),
+		NewPolymerPass_MemberDefinition(ctorInfo, rhino.NilNode, constructor, enclosingModule),
 		nil,
 		properties,
 		nil,

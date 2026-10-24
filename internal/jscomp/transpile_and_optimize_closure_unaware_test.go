@@ -734,6 +734,6 @@ func (c *TranspileAndOptimizeClosureUnawareTest) TestInjectClosureUnawareRuntime
 	pass :=
 		NewInjectClosureUnawareRuntimeLibraries(
 			mainCompiler, shadowCompiler, []*InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite{callSite})
-	pass.Process(rhino.Node{}, rhino.IR_Root())
+	pass.Process(rhino.NilNode, rhino.IR_Root())
 	AssertThat(callSite.CallNode()).IsEqualTo(call)
 }

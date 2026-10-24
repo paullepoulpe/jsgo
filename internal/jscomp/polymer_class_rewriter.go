@@ -494,7 +494,7 @@ func (r *PolymerClassRewriter) addTypesToFunctions(
 
 	// Add @this and @return to default property values.
 	for _, property := range PolymerPassStaticUtils_ExtractProperties(
-		objLit, defType, r.compiler /* constructor= */, rhino.Node{}) {
+		objLit, defType, r.compiler /* constructor= */, rhino.NilNode) {
 		if !property.value.IsObjectLit() {
 			continue
 		}
@@ -634,7 +634,7 @@ func (r *PolymerClassRewriter) replaceJSDocAndAddNewVars(
 func (r *PolymerClassRewriter) getPropertyNode(prop *PolymerPass_MemberDefinition, basePath string) rhino.Node {
 	// If a property string is quoted, make sure the added prototype properties are also quoted
 	if prop.name.IsQuotedStringKey() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	propertyNode := rhino.IR_ExprResult(NodeUtil_NewQName(r.compiler, basePath+prop.name.GetString()))
 	propertyNode.SrcrefTreeIfMissing(prop.name)
@@ -770,7 +770,7 @@ func polymerClassRewriter_createNewTypeExpressionForExtern(
 func (r *PolymerClassRewriter) removePropertyDocs(
 	objLit rhino.Node, defType PolymerClassDefinition_DefinitionType) {
 	for _, prop := range PolymerPassStaticUtils_ExtractProperties(
-		objLit, defType, r.compiler /* constructor= */, rhino.Node{}) {
+		objLit, defType, r.compiler /* constructor= */, rhino.NilNode) {
 		prop.name.SetJSDocInfo(nil)
 	}
 }

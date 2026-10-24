@@ -505,7 +505,7 @@ func (s *TypedScope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *TypedVar {
 		// declared.
 		return nil
 	}
-	return NewTypedVar(false, var_.name(), rhino.Node{}, s.GetImplicitVarType(var_), s, -1, nil)
+	return NewTypedVar(false, var_.name(), rhino.NilNode, s.GetImplicitVarType(var_), s, -1, nil)
 }
 
 // Java: TypedScope.hasOwnImplicitSlot(ImplicitVar)

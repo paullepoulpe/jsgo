@@ -86,7 +86,7 @@ func (s *NodeIterators_FunctionlessLocalScope) init3(a, b, c rhino.Node) {
 // Go-only: language-adapter — ArrayDeque.addFirst(E) (null-hostile).
 func (s *NodeIterators_FunctionlessLocalScope) addFirst(n rhino.Node) {
 	rhino.CheckNotNull(n)
-	s.ancestors = append(s.ancestors, rhino.Node{})
+	s.ancestors = append(s.ancestors, rhino.NilNode)
 	copy(s.ancestors[1:], s.ancestors)
 	s.ancestors[0] = n
 }
@@ -100,7 +100,7 @@ func (s *NodeIterators_FunctionlessLocalScope) addLast(n rhino.Node) {
 // Go-only: language-adapter — ArrayDeque.peekLast(): null when empty.
 func (s *NodeIterators_FunctionlessLocalScope) peekLast() rhino.Node {
 	if len(s.ancestors) == 0 {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return s.ancestors[len(s.ancestors)-1]
 }
@@ -112,7 +112,7 @@ func (s *NodeIterators_FunctionlessLocalScope) removeLast() rhino.Node {
 		panic(jutil.NewNoSuchElementException())
 	}
 	last := s.ancestors[len(s.ancestors)-1]
-	s.ancestors[len(s.ancestors)-1] = rhino.Node{}
+	s.ancestors[len(s.ancestors)-1] = rhino.NilNode
 	s.ancestors = s.ancestors[:len(s.ancestors)-1]
 	return last
 }
@@ -176,7 +176,7 @@ func (s *NodeIterators_FunctionlessLocalScope) CurrentParent() rhino.Node {
 	if len(s.ancestors) >= 2 {
 		return s.Current().GetParent()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // CurrentAncestors gets the ancestors of the current node, with the deepest
@@ -292,7 +292,7 @@ func (m *NodeIterators_LocalVarMotion) init(
 	m.varName = nameNode.GetString()
 	m.valueHasSideEffects = !valueNode.IsNil() && compiler.GetAstAnalyzer().MayHaveSideEffects(valueNode)
 	m.extIterator = iterator
-	m.lookAhead = rhino.Node{}
+	m.lookAhead = rhino.NilNode
 	m.AdvanceLookAhead(true)
 }
 
@@ -325,13 +325,13 @@ func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 		// to inline.
 		curNode := it.Current()
 		if curNode.IsName() && m.varName == curNode.GetString() {
-			m.lookAhead = rhino.Node{}
+			m.lookAhead = rhino.NilNode
 			return
 		}
 	}
 
 	if !it.HasNext() {
-		m.lookAhead = rhino.Node{}
+		m.lookAhead = rhino.NilNode
 		return
 	}
 
@@ -366,7 +366,7 @@ func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 		}
 
 		if readsState {
-			m.lookAhead = rhino.Node{}
+			m.lookAhead = rhino.NilNode
 			return
 		}
 	}
@@ -379,7 +379,7 @@ func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 	//   alert(a);
 	if (m.compiler.GetAstAnalyzer().NodeTypeMayHaveSideEffects(nextNode) && type_ != rhino.Token_NAME) ||
 		(type_ == rhino.Token_NAME && nextParent.IsCatch()) {
-		m.lookAhead = rhino.Node{}
+		m.lookAhead = rhino.NilNode
 		return
 	}
 

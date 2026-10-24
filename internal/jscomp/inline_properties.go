@@ -54,7 +54,7 @@ func NewInlineProperties_PropertyInfo(color *colors.Color, value rhino.Node) *In
 	return &InlineProperties_PropertyInfo{color: color, value: value}
 }
 
-var InlineProperties_INVALIDATED = NewInlineProperties_PropertyInfo(nil, rhino.Node{})
+var InlineProperties_INVALIDATED = NewInlineProperties_PropertyInfo(nil, rhino.NilNode)
 
 // Java: InlineProperties(AbstractCompiler)
 func NewInlineProperties(compiler AbstractCompiler) *InlineProperties {

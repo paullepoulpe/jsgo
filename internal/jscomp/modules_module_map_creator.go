@@ -68,7 +68,7 @@ type moduleMapCreator_fallbackForMissingNonClosureModule struct {
 func (r *ModuleMapCreator_ModuleRequestResolverImpl) GetFallbackForMissingNonClosureModule(path *ModuleLoader_ModulePath) UnresolvedModule {
 	metadata :=
 		ModuleMetadataMap_ModuleMetadata_Builder_().
-			RootNode(rhino.Node{}).
+			RootNode(rhino.NilNode).
 			Path(path).
 			ModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE).
 			IsTestOnly(false).
@@ -126,7 +126,7 @@ func (m *moduleMapCreator_fallbackForMissingNonClosureModule) ResolveExportWithT
 				ModulePath(m.path).
 				ClosureNamespace(nil).
 				Build(),
-			/* sourceNode= */ rhino.Node{}))
+			/* sourceNode= */ rhino.NilNode))
 }
 
 // Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingClosureModule(String)
@@ -137,11 +137,11 @@ func (r *ModuleMapCreator_ModuleRequestResolverImpl) GetFallbackForMissingClosur
 			IsTestOnly(false).
 			ModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE).
 			Path(nil).
-			RootNode(rhino.Node{}).
+			RootNode(rhino.NilNode).
 			UsesClosure(true).
 			Build(),
 		/* path= */ nil,
-		/* script= */ rhino.Node{})
+		/* script= */ rhino.NilNode)
 }
 
 // Java: ModuleMapCreator.ModuleRequestResolverImpl.resolve(Import)

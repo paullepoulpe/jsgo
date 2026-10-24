@@ -740,7 +740,7 @@ func NodeUtil_GetNameNode(n rhino.Node) rhino.Node {
 		if firstChild.IsQualifiedName() {
 			return firstChild
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	default:
 		// function name() ...
 		//   or
@@ -751,7 +751,7 @@ func NodeUtil_GetNameNode(n rhino.Node) rhino.Node {
 		// anonymous classes have an EMPTY name node while anonymous functions
 		// have a STRING node with an empty string. Consider making these the same.
 		if funNameNode.IsEmpty() || funNameNode.GetString() == "" {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		return funNameNode
 	}
@@ -827,7 +827,7 @@ func NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode rhino.Node) rhin
 		}
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // NodeUtil_IsImmutableValue returns true if this is an immutable value.
@@ -2149,7 +2149,7 @@ func NodeUtil_GetFirstPropMatchingKey(n rhino.Node, keyName string) rhino.Node {
 			return keyNode.GetLastChild()
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // NodeUtil_GetFirstGetterMatchingKey returns the first getter in the class
@@ -2163,7 +2163,7 @@ func NodeUtil_GetFirstGetterMatchingKey(n rhino.Node, keyName string) rhino.Node
 			return keyNode
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // NodeUtil_ReferencesOwnReceiver returns true if this function references
@@ -2453,7 +2453,7 @@ func NodeUtil_GetAssignedValue(n rhino.Node) rhino.Node {
 	} else if parent.IsAssign() && parent.GetFirstChild() == n {
 		return n.GetNext()
 	} else {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -2515,7 +2515,7 @@ func NodeUtil_GetLoopCodeBlock(n rhino.Node) rhino.Node {
 	case rhino.Token_DO:
 		return n.GetFirstChild()
 	default:
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -2601,7 +2601,7 @@ func NodeUtil_GetConditionExpression(n rhino.Node) rhino.Node {
 	case rhino.Token_FOR:
 		return n.GetSecondChild()
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_CASE:
-		return rhino.Node{}
+		return rhino.NilNode
 	default:
 		panic(jutil.NewIllegalArgumentExceptionMsg(n.String() + " does not have a condition."))
 	}
@@ -3637,44 +3637,44 @@ func NodeUtil_GetEnclosingTarget(targetNode rhino.Node) rhino.Node {
 		// e.g. `function foo(targetNode) {}`
 		// or non-destructured declarations
 		// e.g. `let targetNode = 3;`
-		return rhino.Node{}
+		return rhino.NilNode
 
 	case rhino.Token_FUNCTION, rhino.Token_CLASS:
 		// e.g. `function targetNode() {}`
 		// e.g. `class targetNode {}`
 		jutil.CheckStateMsg1(targetIsFirstChild, "%s", targetNode)
-		return rhino.Node{}
+		return rhino.NilNode
 
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// e.g. `for ({length} in obj) {}` // targetNode is `{length}`
 		// e.g. `for ({length} of obj) {}` // targetNode is `{length}`
 		jutil.CheckStateMsg1(targetIsFirstChild, "%s", targetNode)
-		return rhino.Node{}
+		return rhino.NilNode
 
 	case rhino.Token_DESTRUCTURING_LHS:
 		// destructured declarations
 		// e.g. `let [a] = 3`; // targetNode is `[a]`
 		jutil.CheckStateMsg1(targetIsFirstChild, "%s", targetNode)
-		return rhino.Node{}
+		return rhino.NilNode
 
 	case rhino.Token_IMPORT:
 		// e.g. `import targetNode from './foo/bar';`
-		return rhino.Node{}
+		return rhino.NilNode
 
 	case rhino.Token_IMPORT_SPEC:
 		// e.g. `import {bar as targetNode} from './foo/bar';`
 		// e.g. `import {targetNode} from './foo/bar';` // AST will have {targetNode as targetNode}
 		jutil.CheckStateMsg1(!targetIsFirstChild, "%s", parent)
-		return rhino.Node{}
+		return rhino.NilNode
 
 	case rhino.Token_CATCH:
 		// e.g. `try {} catch (foo) {}`
-		return rhino.Node{}
+		return rhino.NilNode
 
 	default:
 		// e.g. targetNode = something
 		jutil.CheckStateMsg1(NodeUtil_IsAssignmentOp(parent) && targetIsFirstChild, "%s", parent)
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -3780,7 +3780,7 @@ func NodeUtil_GetObjectOrClassLitKeyNode(key rhino.Node) rhino.Node {
 			IsStringLit() { // TODO(b/189993301): may be an issue with non string lits
 			return key.GetFirstChild()
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	default:
 	}
 	panic(jutil.NewIllegalStateExceptionMsg("Unexpected node type: " + key.String()))
@@ -4580,7 +4580,7 @@ func NodeUtil_IsPropertyAbsenceTest(propAccess rhino.Node) bool {
 // Java: NodeUtil.getPrototypeClassName(Node)
 func NodeUtil_GetPrototypeClassName(qName rhino.Node) rhino.Node {
 	if !qName.IsGetProp() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	if qName.GetString() == "prototype" {
 		return qName.GetFirstChild()
@@ -4589,7 +4589,7 @@ func NodeUtil_GetPrototypeClassName(qName rhino.Node) rhino.Node {
 	if recv.IsGetProp() && recv.GetString() == "prototype" {
 		return recv.GetFirstChild()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // NodeUtil_GetPrototypePropertyName returns the string property name part of
@@ -4823,7 +4823,7 @@ func NodeUtil_FindPreorder(
 	}
 
 	if !traverseChildrenPred(node) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -4833,7 +4833,7 @@ func NodeUtil_FindPreorder(
 		}
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // NodeUtil_GetCount returns the number of times the predicate is true for
@@ -5019,7 +5019,7 @@ func (it *NodeUtil_PreOrderIterator) Next() rhino.Node {
 	}
 	it.hasNext = false
 	result := it.next
-	it.next = rhino.Node{}
+	it.next = rhino.NilNode
 	return result
 }
 
@@ -5028,7 +5028,7 @@ func (it *NodeUtil_PreOrderIterator) Next() rhino.Node {
 // Java: NodeUtil.PreOrderIterator.computeNext()
 func (it *NodeUtil_PreOrderIterator) ComputeNext() (next rhino.Node, ok bool) {
 	if it.current.IsNil() {
-		return rhino.Node{}, false
+		return rhino.NilNode, false
 	}
 
 	returnValue := it.current
@@ -5065,7 +5065,7 @@ func (it *NodeUtil_PreOrderIterator) CalculateNextNode(currentNode rhino.Node) r
 		currentNode = currentNode.GetParent()
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // NodeUtil_IsExportFrom returns whether an EXPORT node has a from clause.
@@ -5678,7 +5678,7 @@ func NodeUtil_GetBestJsDocInfoNodeInternal(n rhino.Node) rhino.Node {
 	if info == nil {
 		parent := n.GetParent()
 		if parent.IsNil() || n.IsExprResult() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 
 		if parent.IsName() ||
@@ -5731,7 +5731,7 @@ func NodeUtil_GetBestLValue(n rhino.Node) rhino.Node {
 	} else if parent.IsCast() {
 		return NodeUtil_GetBestLValue(parent)
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // NodeUtil_GetRValueOfLValue gets the r-value (or initializer) of a node
@@ -5785,7 +5785,7 @@ func NodeUtil_GetRValueOfLValue(n rhino.Node) rhino.Node {
 		return parent
 	default:
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // NodeUtil_GetBestLValueOwner gets the owner of the given l-value node.
@@ -5796,7 +5796,7 @@ func NodeUtil_GetRValueOfLValue(n rhino.Node) rhino.Node {
 // functions?
 func NodeUtil_GetBestLValueOwner(lValue rhino.Node) rhino.Node {
 	if lValue.IsNil() || lValue.GetParent().IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	if NodeUtil_MayBeObjectLitKey(lValue) || lValue.IsComputedProp() {
 		return NodeUtil_GetBestLValue(lValue.GetParent())
@@ -5804,7 +5804,7 @@ func NodeUtil_GetBestLValueOwner(lValue rhino.Node) rhino.Node {
 		return lValue.GetFirstChild()
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // NodeUtil_GetBestLValueName gets the name of the given l-value node.
@@ -5863,7 +5863,7 @@ func nodeUtil_getBestLValueNameString(lValue rhino.Node) (string, bool) {
 // Java: NodeUtil.getBestLValueRoot(Node)
 func NodeUtil_GetBestLValueRoot(lValue rhino.Node) rhino.Node {
 	if lValue.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	switch lValue.GetToken() {
 	case rhino.Token_STRING_KEY:
@@ -5874,7 +5874,7 @@ func NodeUtil_GetBestLValueRoot(lValue rhino.Node) rhino.Node {
 	case rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_NAME:
 		return lValue
 	default:
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 }
 
@@ -6533,7 +6533,7 @@ func (it *nodeUtil_templateArgsIterator) Next() rhino.Node {
 	}
 	it.hasNext = false
 	result := it.next
-	it.next = rhino.Node{}
+	it.next = rhino.NilNode
 	return result
 }
 
@@ -6545,7 +6545,7 @@ func (it *nodeUtil_templateArgsIterator) ComputeNext() (next rhino.Node, ok bool
 		it.nextChild = it.nextChild.GetNext()
 	}
 	if it.nextChild.IsNil() {
-		return rhino.Node{}, false
+		return rhino.NilNode, false
 	} else {
 		result := it.nextChild.GetFirstChild()
 		it.nextChild = it.nextChild.GetNext()

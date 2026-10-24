@@ -143,7 +143,7 @@ func (p *ProcessClosureProvidesAndRequires) CollectProvidedNames(externs rhino.N
 	if p.providedNames.IsEmpty() {
 		// goog is special-cased because it is provided in Closure's base library.
 		p.putProvidedName(
-			processClosureProvidesAndRequires_GOOG, newProcessClosureProvidesAndRequires_ProvidedNameBuilder(p).SetNamespace(processClosureProvidesAndRequires_GOOG).SetNode(rhino.Node{}).SetChunk(nil).Build())
+			processClosureProvidesAndRequires_GOOG, newProcessClosureProvidesAndRequires_ProvidedNameBuilder(p).SetNamespace(processClosureProvidesAndRequires_GOOG).SetNode(rhino.NilNode).SetChunk(nil).Build())
 		NodeTraversal_TraverseRoots(p.compiler, newProcessClosureProvidesAndRequires_CollectDefinitions(p), externs, root)
 	}
 	return p.providedNames
@@ -640,10 +640,10 @@ func newProcessClosureProvidesAndRequires_ProvidedName(
 	compiler AbstractCompiler,
 	astFactory *AstFactory) *ProcessClosureProvidesAndRequires_ProvidedName {
 	pn := &ProcessClosureProvidesAndRequires_ProvidedName{}
-	pn.explicitNode = rhino.Node{}
-	pn.candidateDefinition = rhino.Node{}
+	pn.explicitNode = rhino.NilNode
+	pn.candidateDefinition = rhino.NilNode
 	pn.minimumChunk = nil
-	pn.replacementNode = rhino.Node{}
+	pn.replacementNode = rhino.NilNode
 	pn.compiler = compiler
 	pn.astFactory = astFactory
 	node := builder.node
@@ -967,7 +967,7 @@ func (pn *ProcessClosureProvidesAndRequires_ProvidedName) GetProvideStringNode()
 	if pn.firstNode.HasChildren() && NodeUtil_IsExprCall(pn.firstNode) {
 		return pn.firstNode.GetFirstChild().GetLastChild()
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: ProcessClosureProvidesAndRequires.ProvidedName.toString()
@@ -989,7 +989,7 @@ func ProcessClosureProvidesAndRequires_IsNamespacePlaceholder(n rhino.Node) bool
 		return false
 	}
 
-	var value rhino.Node = rhino.Node{}
+	var value rhino.Node = rhino.NilNode
 	if n.IsExprResult() {
 		assign := n.GetFirstChild()
 		value = assign.GetLastChild()

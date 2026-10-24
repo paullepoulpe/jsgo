@@ -944,7 +944,7 @@ func TestTypedefType4(t *testing.T) {
 			"@typedef {{\n *  boo: ?,\n *  goo: ?\n * }}\n */\n")
 	assertThat(t, info.HasTypedefType()).IsTrue()
 
-	recordType := jt.CreateRecordTypeBuilder().AddProperty("boo", jt.UNKNOWN_TYPE, rhino.Node{}).AddProperty("goo", jt.UNKNOWN_TYPE, rhino.Node{}).Build()
+	recordType := jt.CreateRecordTypeBuilder().AddProperty("boo", jt.UNKNOWN_TYPE, rhino.NilNode).AddProperty("goo", jt.UNKNOWN_TYPE, rhino.NilNode).Build()
 	jt.AssertTypeEqualsExpr(recordType, info.GetTypedefType())
 }
 

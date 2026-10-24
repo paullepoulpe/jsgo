@@ -671,7 +671,7 @@ func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) MaybeDecomposeE
 // Java: SingleGeneratorFunctionTranspiler.prepareNodeForWrite(Node)
 func (s *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) PrepareNodeForWrite(n rhino.Node) rhino.Node {
 	if n.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	// Need to wrap a node so, it can be replaced in the tree with some other node if necessary.
@@ -1269,7 +1269,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 			if !currentCase.embedInto.IsNil() && len(currentCase.references) == 1 {
 				currentCase.jumpTo.embedInto = currentCase.embedInto
 			}
-			currentCase.embedInto = rhino.Node{}
+			currentCase.embedInto = rhino.NilNode
 
 			// Update references to jump to the final case in the chain
 			for _, reference := range currentCase.references {
@@ -2444,7 +2444,7 @@ func (u *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 			assignments = append(assignments, assign)
 		}
 	}
-	var commaExpression rhino.Node = rhino.Node{}
+	var commaExpression rhino.Node = rhino.NilNode
 	for _, assignment := range assignments {
 		if commaExpression.IsNil() {
 			commaExpression = assignment

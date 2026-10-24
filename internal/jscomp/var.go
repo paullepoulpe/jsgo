@@ -102,7 +102,7 @@ func (v *Var) GetDeclaration() rhino.StaticRef {
 
 // Java: Var.createImplicitGoogNamespace(String, Scope, Node)
 func Var_CreateImplicitGoogNamespace(name string, scope *Scope, definition rhino.Node) *Var {
-	return NewVar(name, rhino.Node{} /* nameNode */, scope, -1, nil /* input */, definition)
+	return NewVar(name, rhino.NilNode /* nameNode */, scope, -1, nil /* input */, definition)
 }
 
 // Java: Var.toString()

@@ -415,7 +415,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) tra
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
 		currentNode = root
-		f.walkBranch(root, rhino.Node{}, &currentNode, &currentScript)
+		f.walkBranch(root, rhino.NilNode, &currentNode, &currentScript)
 	}, func(unexpectedException jutil.Throwable) {
 		b := NodeTraversal_Builder{compiler: compiler, callback: f}
 		t := newNodeTraversal(&b)

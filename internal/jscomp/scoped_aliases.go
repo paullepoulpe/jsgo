@@ -531,7 +531,7 @@ func (v *ScopedAliases_Traversal) FindScopeMethodCall(scopeRoot rhino.Node) rhin
 	if v.IsCallToScopeMethod(n) {
 		return n
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: ScopedAliases.Traversal.enterScope(NodeTraversal)
@@ -549,7 +549,7 @@ func (v *ScopedAliases_Traversal) EnterScope(t *NodeTraversal) {
 // Java: ScopedAliases.Traversal.exitScope(NodeTraversal)
 func (v *ScopedAliases_Traversal) ExitScope(t *NodeTraversal) {
 	if v.IsGoogScopeFunctionBody(t.GetScopeRoot()) {
-		v.scopeFunctionBody = rhino.Node{}
+		v.scopeFunctionBody = rhino.NilNode
 		v.RenameNamespaceShadows(t)
 		v.injectedDecls.Clear()
 		v.aliases.Clear()

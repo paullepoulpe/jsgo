@@ -1442,7 +1442,7 @@ func FunctionTypeBuilder_UnknownFunctionContents_Get() FunctionTypeBuilder_Funct
 
 // Java: FunctionTypeBuilder.UnknownFunctionContents.getSourceNode()
 func (c *FunctionTypeBuilder_UnknownFunctionContents) GetSourceNode() rhino.Node {
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: FunctionTypeBuilder.UnknownFunctionContents.mayBeFromExterns()

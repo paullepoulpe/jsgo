@@ -298,7 +298,7 @@ func angularPass_getDeclarationRValue(n rhino.Node) rhino.Node {
 	jutil.CheckArgument(NodeUtil_IsNameDeclaration(n))
 	n = n.GetFirstFirstChild()
 	if n.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	for n.IsAssign() {
 		n = n.GetLastChild()

@@ -176,24 +176,27 @@ func (s *NodeStore) colorAt(h uint32) *colors.Color {
 
 // auxOf returns the node's cold-data entry, or nil if it has none.
 func (n Node) auxOf() *nodeAux {
-	if n.rec.aux == 0 {
+	h := n.rec().aux
+	if h == 0 {
 		return nil
 	}
-	return n.store.aux.at(n.rec.aux)
+	return n.store().aux.at(h)
 }
 
 // setAux stores a as the node's cold data, reusing the node's entry when it
 // has one; the zero nodeAux clears it.
 func (n Node) setAux(a nodeAux) {
-	if n.rec.aux != 0 {
-		*n.store.aux.at(n.rec.aux) = a
+	r := n.rec()
+	if r.aux != 0 {
+		*n.store().aux.at(r.aux) = a
 		if a == (nodeAux{}) {
-			n.rec.aux = 0
+			r.aux = 0
 		}
 		return
 	}
 	if a != (nodeAux{}) {
-		n.rec.aux = n.store.aux.add(&n.store.mu, a)
+		s := n.store()
+		r.aux = s.aux.add(&s.mu, a)
 	}
 }
 

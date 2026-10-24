@@ -247,7 +247,7 @@ func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot rhino.Nod
 
 	// Extract expressions in the reverse order of their evaluation. This is roughly, traverse up
 	// the AST extracting any preceding expressions that may have side-effects or be side-effected.
-	var lastExposedSubexpression rhino.Node = rhino.Node{}
+	var lastExposedSubexpression rhino.Node = rhino.NilNode
 	expressionToExpose := nodeWithNonconditionalParent
 	expressionParent := expressionToExpose.GetParent()
 	for expressionParent != expressionRoot {
@@ -279,7 +279,7 @@ func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot rhino.Nod
 					// getObj().propName} = ...` as the RHS must execute first
 				case rhino.Token_GETELEM, rhino.Token_GETPROP:
 					exposedSomething =
-						e.DecomposeSubExpressions(left.GetFirstChild(), rhino.Node{}, state) || exposedSomething
+						e.DecomposeSubExpressions(left.GetFirstChild(), rhino.NilNode, state) || exposedSomething
 				default:
 					panic(jutil.NewIllegalStateExceptionMsg(
 						"Expected a property access or destructuring pattern: " + left.ToStringTree()))
@@ -575,7 +575,7 @@ func (e *ExpressionDecomposer) ExtractConditional(expr rhino.Node, injectionPoin
 	expr.DetachChildren()
 
 	// Transform the conditional to an IF statement.
-	var cond rhino.Node = rhino.Node{}
+	var cond rhino.Node = rhino.NilNode
 	trueExpr := e.astFactory.CreateBlock().Srcref(expr)
 	falseExpr := e.astFactory.CreateBlock().Srcref(expr)
 	switch expr.GetToken() {
@@ -690,7 +690,7 @@ func (e *ExpressionDecomposer) ExtractExpression(expr rhino.Node, injectionPoint
 	isLhsOfAssignOp :=
 		NodeUtil_IsAssignmentOp(parent) && !parent.IsAssign() && expr.IsFirstChildOf(parent)
 
-	var firstExtractedNode rhino.Node = rhino.Node{}
+	var firstExtractedNode rhino.Node = rhino.NilNode
 
 	// Expressions on the LHS of an assignment-op must have any possible
 	// side-effects extracted as the value must be duplicated:
@@ -1007,7 +1007,7 @@ func ExpressionDecomposer_FindExpressionRoot(subExpression rhino.Node) rhino.Nod
 			// due to `case SCRIPT` above. This just makes class expressions behave the same way. Future
 			// optimizations may want to better handle class members and static blocks.
 			rhino.Token_CLASS:
-			return rhino.Node{}
+			return rhino.NilNode
 
 		default:
 		}

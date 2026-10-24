@@ -353,13 +353,13 @@ func (c *GlobalNamespaceTest) TestUpdateRefNodeCanSetNodeToNullButPreventsFurthe
 	refA := nameA.GetFirstRef()
 	oldNode := refA.GetNode()
 	AssertThat(nameA.GetRefForNode(oldNode)).IsEqualTo(refA)
-	nameA.UpdateRefNode(refA, rhino.Node{})
+	nameA.UpdateRefNode(refA, rhino.NilNode)
 	AssertThat(refA.GetNode()).IsNull()
 	AssertThat(nameA.GetRefForNode(oldNode)).IsNull()
 	// cannot get refs for null
-	AssertThrows[jutil.INullPointerException](func() { nameA.GetRefForNode(rhino.Node{}) })
+	AssertThrows[jutil.INullPointerException](func() { nameA.GetRefForNode(rhino.NilNode) })
 	// cannot update the node again once it's been set to null
-	AssertThrows[jutil.IIllegalArgumentException](func() { nameA.UpdateRefNode(refA, rhino.Node{}) })
+	AssertThrows[jutil.IIllegalArgumentException](func() { nameA.UpdateRefNode(refA, rhino.NilNode) })
 	AssertThrows[jutil.IIllegalStateException](func() { nameA.UpdateRefNode(refA, oldNode) })
 }
 

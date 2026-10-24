@@ -1090,7 +1090,7 @@ func (c *TypeTransformationTest) TestTransformationInstanceObjectToRecord() {
 func (c *TypeTransformationTest) TestTransformationInstanceObjectToRecord2() {
 	// TODO(bradfordcsmith): Define Array.prototype.length using externs instead.
 	c.GetNativeArrayType().
-		DefineDeclaredProperty("length", c.GetNativeNumberType() /* propertyNode= */, rhino.Node{})
+		DefineDeclaredProperty("length", c.GetNativeNumberType() /* propertyNode= */, rhino.NilNode)
 	c.testTTL(c.recordWithProperty("length", c.GetNativeNumberType()), "record(type(ARR, N))")
 }
 
@@ -1155,7 +1155,7 @@ func (c *TypeTransformationTest) recordWithProperties3(p1 string, t1 rhino.JSTyp
 func (c *TypeTransformationTest) recordFromMap(props *jutil.LinkedHashMap[string, rhino.JSType]) rhino.JSType {
 	builder := c.CreateRecordTypeBuilder()
 	for key, value := range props.All() {
-		builder.AddProperty(key, value, rhino.Node{})
+		builder.AddProperty(key, value, rhino.NilNode)
 	}
 	return builder.Build()
 }

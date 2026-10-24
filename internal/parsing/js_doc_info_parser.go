@@ -378,7 +378,7 @@ func JsDocInfoParser_GetParser(toParse string) *JsDocInfoParser {
 		NewJsDocTokenStream(toParse),
 		toParse,
 		0,
-		rhino.Node{},
+		rhino.NilNode,
 		config,
 		JsDocInfoParser_JsDocSourceKind_NORMAL,
 		rhino.ErrorReporter_NULL_INSTANCE)
@@ -1354,7 +1354,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 func (p *JsDocInfoParser) ParseTtlAst(ttlExtraction JsDocInfoParser_ExtractionInfo, lineno int, charno int) rhino.Node {
 	ttlExpression := ttlExtraction.string_
 	if !strings.HasPrefix(ttlExpression, JsDocInfoParser_TTL_START_DELIMITER) {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	// (Both delimiters are ASCII, so byte offsets are char boundaries.)
@@ -1370,13 +1370,13 @@ func (p *JsDocInfoParser) ParseTtlAst(ttlExtraction JsDocInfoParser_ExtractionIn
 
 	if ttlExpression == "" {
 		p.AddTypeWarningAt(rhino.Msg_JSDOC_TEMPLATE_TYPETRANSFORMATION_EXPRESSIONMISSING, lineno, charno)
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	// Build the AST for the type transformation
 	ttlParser := NewTypeTransformationParser(ttlExpression, p.GetSourceFile(), p.errorReporter, lineno, charno)
 	if !ttlParser.ParseTypeTransformation() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	return ttlParser.GetTypeTransformationAst()
@@ -2250,7 +2250,7 @@ func (p *JsDocInfoParser) ParseTopLevelTypeExpression(token JsDocToken) rhino.No
 func (p *JsDocInfoParser) ParseTypeExpressionList(typeName string, token JsDocToken) rhino.Node {
 	typeExpr := p.ParseTopLevelTypeExpression(token)
 	if typeExpr.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	typeList := p.NewNode(rhino.Token_BLOCK)
 	numTypeExprs := 1
@@ -2260,7 +2260,7 @@ func (p *JsDocInfoParser) ParseTypeExpressionList(typeName string, token JsDocTo
 		p.SkipEOLs()
 		typeExpr = p.ParseTopLevelTypeExpression(p.Next())
 		if typeExpr.IsNil() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 		numTypeExprs++
 		typeList.AddChildToBack(typeExpr)
@@ -2383,7 +2383,7 @@ func (p *JsDocInfoParser) ParseBasicTypeExpression(token JsDocToken) rhino.Node 
 func (p *JsDocInfoParser) ParseNameExpression(token JsDocToken) rhino.Node {
 	if token != JsDocToken_STRING {
 		p.AddParserWarningAt(rhino.Msg_JSDOC_NAME_SYNTAX, p.stream.GetLineno(), p.stream.GetCharno())
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	startLineno := p.stream.GetLineno()
@@ -2452,7 +2452,7 @@ func (p *JsDocInfoParser) ParseTypeofType(token JsDocToken) rhino.Node {
 	typeofType := p.NewNode(rhino.Token_TYPEOF)
 	name := p.ParseNameExpression(token)
 	if name.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	p.SkipEOLs()
@@ -2503,7 +2503,7 @@ func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) rhino.Node {
 					}
 					contextType := p.WrapNode(contextTypeToken, p.ParseContextTypeExpression(p.Next()))
 					if contextType.IsNil() {
-						return rhino.Node{}
+						return rhino.NilNode
 					}
 
 					functionType.AddChildToFront(contextType)
@@ -2524,7 +2524,7 @@ func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) rhino.Node {
 		if hasParams {
 			parameters = p.ParseParametersType(token)
 			if parameters.IsNil() {
-				return rhino.Node{}
+				return rhino.NilNode
 			}
 		}
 	}
@@ -2542,7 +2542,7 @@ func (p *JsDocInfoParser) ParseFunctionType(token JsDocToken) rhino.Node {
 	p.Next()
 	resultType := p.ParseResultType()
 	if resultType.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	} else {
 		functionType.AddChildToBack(resultType)
 	}
@@ -2611,7 +2611,7 @@ func (p *JsDocInfoParser) ParseParametersType(token JsDocToken) rhino.Node {
 			}
 
 			if paramType.IsNil() {
-				return rhino.Node{}
+				return rhino.NilNode
 			}
 			paramsType.AddChildToBack(paramType)
 			if isVarArgs {
@@ -2659,7 +2659,7 @@ func (p *JsDocInfoParser) ParseResultType() rhino.Node {
 //
 // Java: JsDocInfoParser.parseUnionType(JsDocToken)
 func (p *JsDocInfoParser) ParseUnionType(token JsDocToken) rhino.Node {
-	return p.ParseUnionTypeWithAlternate(token, rhino.Node{})
+	return p.ParseUnionTypeWithAlternate(token, rhino.NilNode)
 }
 
 // ParseUnionTypeWithAlternate creates a new union type, with an alternate
@@ -2684,7 +2684,7 @@ func (p *JsDocInfoParser) ParseUnionTypeWithAlternate(token JsDocToken, alternat
 		}
 		expr = p.ParseTypeExpression(token)
 		if expr.IsNil() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 
 		union.AddChildToBack(expr)
@@ -2742,7 +2742,7 @@ func (p *JsDocInfoParser) ParseFieldTypeList(token JsDocToken) rhino.Node {
 		fieldType := p.ParseFieldType(token)
 
 		if fieldType.IsNil() {
-			return rhino.Node{}
+			return rhino.NilNode
 		}
 
 		var name string
@@ -2786,7 +2786,7 @@ func (p *JsDocInfoParser) ParseFieldType(token JsDocToken) rhino.Node {
 	fieldName := p.ParseFieldName(token)
 
 	if fieldName.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	p.SkipEOLs()
@@ -2803,7 +2803,7 @@ func (p *JsDocInfoParser) ParseFieldType(token JsDocToken) rhino.Node {
 	typeExpression := p.ParseTypeExpression(p.Next())
 
 	if typeExpression.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	fieldType := p.NewNode(rhino.Token_COLON)
@@ -2818,7 +2818,7 @@ func (p *JsDocInfoParser) ParseFieldType(token JsDocToken) rhino.Node {
 // Java: JsDocInfoParser.parseFieldName(JsDocToken)
 func (p *JsDocInfoParser) ParseFieldName(token JsDocToken) rhino.Node {
 	if token != JsDocToken_STRING {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	s := p.stream.GetString()
 	n := rhino.AllocNode().InitStringFromTemplate(rhino.Token_STRING_KEY, s, p.templateNode)
@@ -2830,7 +2830,7 @@ func (p *JsDocInfoParser) ParseFieldName(token JsDocToken) rhino.Node {
 // Java: JsDocInfoParser.wrapNode(Token, Node)
 func (p *JsDocInfoParser) WrapNode(type_ rhino.Token, n rhino.Node) rhino.Node {
 	if n.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return p.WrapNodeAt(type_, n, n.GetLineno(), n.GetCharno())
 }
@@ -2838,7 +2838,7 @@ func (p *JsDocInfoParser) WrapNode(type_ rhino.Token, n rhino.Node) rhino.Node {
 // Java: JsDocInfoParser.wrapNode(Token, Node, int, int)
 func (p *JsDocInfoParser) WrapNodeAt(type_ rhino.Token, n rhino.Node, lineno int, charno int) rhino.Node {
 	if n.IsNil() {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return rhino.AllocNode().InitWithChildFromTemplate(type_, n, p.templateNode).SetLinenoCharno(lineno, charno)
 }
@@ -2860,7 +2860,7 @@ func (p *JsDocInfoParser) NewStringNode(s string) rhino.Node {
 // Java: JsDocInfoParser.reportTypeSyntaxWarning(Msg)
 func (p *JsDocInfoParser) ReportTypeSyntaxWarning(warning rhino.Msg) rhino.Node {
 	p.AddTypeWarningAt(warning, p.stream.GetLineno(), p.stream.GetCharno())
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: JsDocInfoParser.reportGenericTypeSyntaxWarning()

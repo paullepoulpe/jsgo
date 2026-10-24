@@ -158,7 +158,7 @@ func (g *GatherExternProperties) GatherPropertiesFromJsDocRecordType(jsDocRecord
 			fieldTypeNode = fieldNameNode.GetNext()
 		} else {
 			fieldNameNode = fieldNode
-			fieldTypeNode = rhino.Node{}
+			fieldTypeNode = rhino.NilNode
 		}
 		jutil.CheckStateMsg1(fieldNameNode.IsStringKey(), "%s", fieldNameNode)
 		fieldName := fieldNameNode.GetString()

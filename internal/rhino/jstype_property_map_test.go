@@ -79,9 +79,9 @@ func TestPropertyMap_GetAllKeys_returnsBothSymbolAndStringKeys(t *testing.T) {
 	s := newPropertyMapTest(t)
 	properties := NewPropertyMap()
 
-	properties.PutProperty("x", NewProperty("x", s.numberType /* inferred= */, false, Node{}))
+	properties.PutProperty("x", NewProperty("x", s.numberType /* inferred= */, false, NilNode))
 	properties.PutPropertyByKey(
-		s.symbolKey, NewPropertyByKey(s.symbolKey, s.numberType /* inferred= */, false, Node{}))
+		s.symbolKey, NewPropertyByKey(s.symbolKey, s.numberType /* inferred= */, false, NilNode))
 
 	s.AssertThat(properties.GetAllKeys().StringKeys()).ContainsExactly("x")
 	s.AssertThat(properties.GetAllKeys().KnownSymbolKeys()).ContainsExactly(s.symbolKey.Symbol())
@@ -91,7 +91,7 @@ func TestPropertyMap_GetAllKeys_cachesStringKeyResult(t *testing.T) {
 	s := newPropertyMapTest(t)
 	properties := NewPropertyMap()
 
-	properties.PutProperty("x", NewProperty("x", s.numberType /* inferred= */, false, Node{}))
+	properties.PutProperty("x", NewProperty("x", s.numberType /* inferred= */, false, NilNode))
 
 	result1 := properties.GetAllKeys().StringKeys()
 	result2 := properties.GetAllKeys().StringKeys()
@@ -103,7 +103,7 @@ func TestPropertyMap_GetAllKeys_cachesSymbolKeyResult(t *testing.T) {
 	properties := NewPropertyMap()
 
 	properties.PutPropertyByKey(
-		s.symbolKey, NewPropertyByKey(s.symbolKey, s.numberType /* inferred= */, false, Node{}))
+		s.symbolKey, NewPropertyByKey(s.symbolKey, s.numberType /* inferred= */, false, NilNode))
 
 	result1 := properties.GetAllKeys().KnownSymbolKeys()
 	result2 := properties.GetAllKeys().KnownSymbolKeys()
@@ -121,7 +121,7 @@ func TestPropertyMap_GetAllKeys_beforeAndAfterMutation_stringKey_invalidatesCach
 	s.AssertThat(properties.GetAllKeys().StringKeys()).IsEmpty()
 
 	// Invalidate the cache.
-	properties.PutProperty("x", NewProperty("x", s.numberType /* inferred= */, false, Node{}))
+	properties.PutProperty("x", NewProperty("x", s.numberType /* inferred= */, false, NilNode))
 
 	// getAllKeys() should recalculate the result.
 	s.AssertThat(properties.GetAllKeys().StringKeys()).ContainsExactly("x")
@@ -139,7 +139,7 @@ func TestPropertyMap_GetAllKeys_beforeAndAfterMutation_symbolKey_invalidatesCach
 
 	// Invalidate the cache.
 	properties.PutPropertyByKey(
-		s.symbolKey, NewPropertyByKey(s.symbolKey, s.numberType /* inferred= */, false, Node{}))
+		s.symbolKey, NewPropertyByKey(s.symbolKey, s.numberType /* inferred= */, false, NilNode))
 
 	// getAllKeys() should recalculate the result.
 	s.AssertThat(properties.GetAllKeys().KnownSymbolKeys()).ContainsExactly(s.symbolKey.Symbol())
@@ -162,7 +162,7 @@ func TestPropertyMap_LookUpKeysFromParent_stringKey(t *testing.T) {
 func TestPropertyMap_LookUpKeysFromParent_symbolKey(t *testing.T) {
 	s := newPropertyMapTest(t)
 	parentType := s.registry.CreateRecordType(mapOf()).AssertObjectType()
-	parentType.DefineDeclaredPropertyByKey(s.symbolKey, s.numberType, Node{})
+	parentType.DefineDeclaredPropertyByKey(s.symbolKey, s.numberType, NilNode)
 	childType := s.registry.CreateObjectType(ptr("Child"), parentType)
 	child := NewPropertyMap()
 	child.SetParentSource(childType)

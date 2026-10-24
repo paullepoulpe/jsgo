@@ -178,7 +178,7 @@ func (e *ExtractPrototypeMemberDeclarations) MaybeDoExtraction(info *ExtractProt
 	if e.pattern == ExtractPrototypeMemberDeclarations_Pattern_USE_GLOBAL_TEMP {
 		injectionPoint := e.compiler.GetNodeForCodeInsertion(nil)
 
-		var_ := NodeUtil_NewVarNode(ExtractPrototypeMemberDeclarations_PROTOTYPE_ALIAS, rhino.Node{}).SrcrefTreeIfMissing(injectionPoint)
+		var_ := NodeUtil_NewVarNode(ExtractPrototypeMemberDeclarations_PROTOTYPE_ALIAS, rhino.NilNode).SrcrefTreeIfMissing(injectionPoint)
 
 		injectionPoint.AddChildToFront(var_)
 		e.compiler.ReportChangeToEnclosingScope(var_)
@@ -193,7 +193,7 @@ func (e *ExtractPrototypeMemberDeclarations) MaybeDoExtraction(info *ExtractProt
 			if info.ShouldExtractChunk(entryKey) {
 				injectionPoint := e.compiler.GetNodeForCodeInsertion(entryKey)
 				alias = ExtractPrototypeMemberDeclarations_PROTOTYPE_ALIAS + jutil.ToJavaString(entryKey.GetIndex())
-				var_ := NodeUtil_NewVarNode(alias, rhino.Node{}).SrcrefTreeIfMissing(injectionPoint)
+				var_ := NodeUtil_NewVarNode(alias, rhino.NilNode).SrcrefTreeIfMissing(injectionPoint)
 
 				injectionPoint.AddChildToFront(var_)
 				e.compiler.ReportChangeToEnclosingScope(var_)
@@ -499,7 +499,7 @@ func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_GetPrototypeC
 			cur = cur.GetFirstChild()
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.isPrototypePropertyDeclaration(Node)

@@ -152,7 +152,7 @@ func (p *ReplaceMessages_MsgProtectionPass) ProcessIcuTemplateDefinition(definit
 			/* templateTextNode= */ definition.GetTemplateTextNode(),
 			// There are no compile-time placeholder replacements for ICU templates
 			/* placeholderValuesNode= */
-			rhino.Node{},
+			rhino.NilNode,
 			/* messageOptions= */ replaceMessages_ICU_MSG_OPTIONS))
 }
 
@@ -814,7 +814,7 @@ func (r *ReplaceMessages) CreateHookExpressionForGenderedMsg(
 		if placeholderId, ok := placeholderMapIds.Lookup(placeholderName); ok {
 			return r.astFactory.CreateName(placeholderId, AstFactory_Type_(nodeToReplace))
 		}
-		return rhino.Node{}
+		return rhino.NilNode
 	})
 
 	for _, grammaticalGender := range msg.GetGenderedMessageVariants() {

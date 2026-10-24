@@ -3200,7 +3200,7 @@ func (c *Es6RewriteClassTest) GetNodeMatchingLabel(root rhino.Node, label string
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // GetNodeWithName returns the first node (preorder) in the given AST that
@@ -3222,7 +3222,7 @@ func (c *Es6RewriteClassTest) GetNodeWithName(root rhino.Node, name string) rhin
 			return result
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // TestAndReturnAsts tests that the transpiled source matches the expected

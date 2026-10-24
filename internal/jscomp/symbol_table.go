@@ -1180,7 +1180,7 @@ func (t *SymbolTable) FillJSDocInfo(externs rhino.Node, root rhino.Node) {
 				if sym.docScope == nil {
 					sym.docScope =
 						NewSymbolTable_SymbolScope(
-							rhino.Node{} /* root */, nil /* parent scope */, nil /* type of this */, sym)
+							rhino.NilNode /* root */, nil /* parent scope */, nil /* type of this */, sym)
 				}
 
 				// Check to make sure there's no existing symbol. In theory, this
@@ -1250,7 +1250,7 @@ func (t *SymbolTable) createPropertyScopeFor(s *SymbolTable_Symbol) {
 	// Create an empty property scope for the given symbol, maybe with a parent scope if it has
 	// an implicit prototype.
 	parentPropertyScope := t.maybeGetParentPropertyScope(type_)
-	s.SetPropertyScope(NewSymbolTable_SymbolScope(rhino.Node{}, parentPropertyScope, type_, s))
+	s.SetPropertyScope(NewSymbolTable_SymbolScope(rhino.NilNode, parentPropertyScope, type_, s))
 
 	// If this symbol represents some 'a.b.c.prototype', add any instance properties of a.b.c
 	// into the symbol scope.
@@ -1450,7 +1450,7 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScop
 			declaration = moduleScope.GetOwnSlot("exports")
 		case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
 			// For goog.provide `some.constant` should be defined in global namespace.
-			declaration = t.GetSymbolForName(rhino.Node{}, &moduleName)
+			declaration = t.GetSymbolForName(rhino.NilNode, &moduleName)
 		default:
 			// skip
 		}
@@ -1480,7 +1480,7 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScop
 				varDeclaration = moduleScope.GetOwnSlot(varName)
 			case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
 				qname := moduleName + "." + varName
-				varDeclaration = t.GetSymbolForName(rhino.Node{}, &qname)
+				varDeclaration = t.GetSymbolForName(rhino.NilNode, &qname)
 			default:
 				// skip
 			}
@@ -1847,7 +1847,7 @@ func (s *SymbolTable_Symbol) SetDeclaration(ref *SymbolTable_Reference) {
 // Java: SymbolTable.Symbol.getDeclarationNode()
 func (s *SymbolTable_Symbol) GetDeclarationNode() rhino.Node {
 	if s.declaration == nil {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 	return s.declaration.GetNode()
 }

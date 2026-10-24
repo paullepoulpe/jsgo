@@ -412,13 +412,13 @@ func (e *ExternExportsPass_ExportBase) GetValue() rhino.Node {
 		// in the output externs. It would be very strange to use a literal value
 		// as the final argument, since it wouldn't then be accessible by any
 		// non-exported name.
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	definition := e.outer.definitionMap.Get(*qualifiedName)
 	if definition.IsNil() {
 		// Couldn't find any assignment to the qualified name
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	if definition.IsFunction() || definition.IsClass() || definition.IsObjectLit() {
@@ -428,7 +428,7 @@ func (e *ExternExportsPass_ExportBase) GetValue() rhino.Node {
 
 	// value was something unusual, so we won't return any node from which to
 	// get type information.
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // ExternExportsPass_SymbolExport is a symbol export.

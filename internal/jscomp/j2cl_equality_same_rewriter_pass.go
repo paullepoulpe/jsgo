@@ -85,7 +85,7 @@ func (p *J2clEqualitySameRewriterPass) trySubstituteStringEquals(callNode rhino.
 	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_UNKNOWN ||
 		firstExprValue == J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED {
 		// Potential NPE, don't optimize.
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	return p.trySubstituteEqualitySame(callNode)
@@ -100,7 +100,7 @@ func (p *J2clEqualitySameRewriterPass) trySubstituteEqualitySame(callNode rhino.
 
 	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_UNKNOWN &&
 		secondExprValue == J2clEqualitySameRewriterPass_NodeValue_UNKNOWN {
-		return rhino.Node{}
+		return rhino.NilNode
 	}
 
 	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED {
@@ -186,7 +186,7 @@ func (p *J2clEqualitySameRewriterPass) rewriteNumberCheck(firstExpr rhino.Node, 
 		return p.rewriteAsStrictEq(firstExpr, secondExpr)
 	}
 
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: J2clEqualitySameRewriterPass.isSafeNumber(Double)

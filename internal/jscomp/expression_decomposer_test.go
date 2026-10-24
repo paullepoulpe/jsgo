@@ -2489,7 +2489,7 @@ func expressionDecomposerTest_findClass(n rhino.Node) rhino.Node {
 			return maybeClass
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: ExpressionDecomposerTest.validateSourceInfo(Compiler, Node)

@@ -741,12 +741,12 @@ func (s *Normalize_NormalizeStatements) DoStatementNormalizations(n rhino.Node) 
 	switch n.GetToken() {
 	case rhino.Token_LABEL:
 		s.NormalizeLabels(n)
-		s.ExtractForInitializer(n, rhino.Node{}, rhino.Node{})
+		s.ExtractForInitializer(n, rhino.NilNode, rhino.NilNode)
 	case rhino.Token_ROOT, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY:
-		s.ExtractForInitializer(n, rhino.Node{}, rhino.Node{})
+		s.ExtractForInitializer(n, rhino.NilNode, rhino.NilNode)
 		s.SplitVarDeclarations(n)
 	case rhino.Token_BLOCK:
-		s.ExtractForInitializer(n, rhino.Node{}, rhino.Node{})
+		s.ExtractForInitializer(n, rhino.NilNode, rhino.NilNode)
 		s.SplitVarDeclarations(n)
 		if p := n.GetParent(); !p.IsNil() && p.IsClassMembers() {
 			s.MoveNamedFunctions(n)

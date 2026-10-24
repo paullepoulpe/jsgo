@@ -742,7 +742,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 			}
 		}
 
-		lrc.root = rhino.Node{}
+		lrc.root = rhino.NilNode
 		lrc.state = nil
 		lrc.orderedVariables = nil
 		lrc.liveness = nil
@@ -798,7 +798,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 		lrc.Check(cfgNode.GetValue())
 		lrc.setCrossingVariablesSlice(interferenceBitSetFallback)
 	}
-	lrc.root = rhino.Node{}
+	lrc.root = rhino.NilNode
 	lrc.state = nil
 	lrc.orderedVariables = nil
 	lrc.liveness = nil

@@ -903,7 +903,7 @@ func SuggestedFix_Builder_FindGoogRequireNode(
 			return child
 		}
 	}
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // Java: SuggestedFix.Builder.subtreeRangeOfIdentifier(Node)

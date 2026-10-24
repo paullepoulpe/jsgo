@@ -595,7 +595,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody
 
 	nDefs := 0
 	for _, d := range f.inlinableDefs {
-		if allVarsInFn.Get(d.varName) != nil && !fsivRhsDependsOnOuterOrCatchVars(d.rhs, rhino.Node{}, allVarsInFn) {
+		if allVarsInFn.Get(d.varName) != nil && !fsivRhsDependsOnOuterOrCatchVars(d.rhs, rhino.NilNode, allVarsInFn) {
 			f.inlinableDefs[nDefs] = d
 			nDefs++
 		}
@@ -625,7 +625,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody
 	f.curFnEnclosingScope = nil
 	f.scopeCreator = scopeCreator
 	defer func() {
-		f.curFn = rhino.Node{}
+		f.curFn = rhino.NilNode
 		f.curFnEnclosingScope = nil
 		f.cfg = nil
 		f.reusableCfg.release()
@@ -860,7 +860,7 @@ func (f *FlowSensitiveInlineVariables) Process(externs rhino.Node, root rhino.No
 		f.realGlobalScope = nil
 		f.scopeCreator = nil
 		f.dummyGlobalScope = nil
-		f.globalRoot = rhino.Node{}
+		f.globalRoot = rhino.NilNode
 		f.escapedSet.Clear()
 	}()
 
@@ -993,7 +993,7 @@ type FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback struct {
 
 // Java: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback()
 func NewFlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback(outer *FlowSensitiveInlineVariables) *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback {
-	return &FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback{outer: outer, cfgNode: rhino.Node{}}
+	return &FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback{outer: outer, cfgNode: rhino.NilNode}
 }
 
 // Java: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback.setCfgNode(Node)
@@ -1083,7 +1083,7 @@ func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, 
 	state := graphNode.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*MustBeReachingVariableDef_MustDef])
 	g.gatherCb.inState = state.GetIn()
 	var currentNode rhino.Node
-	walkCfgNodeBranch(cfgNode, rhino.Node{}, g.gatherCb, &currentNode)
+	walkCfgNodeBranch(cfgNode, rhino.NilNode, g.gatherCb, &currentNode)
 	g.gatherCb.inState = nil
 }
 
@@ -1099,7 +1099,7 @@ func fsivTraverseGatherCandidates(compiler AbstractCompiler, root rhino.Node, cb
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
 		currentNode = root
-		fsivWalkGatherCandidates(root, rhino.Node{}, cb, &currentNode)
+		fsivWalkGatherCandidates(root, rhino.NilNode, cb, &currentNode)
 	}, func(unexpectedException jutil.Throwable) {
 		b := NodeTraversal_Builder{compiler: compiler, callback: cb}
 		t := newNodeTraversal(&b)
@@ -1421,7 +1421,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetDefinition(n rhino.Node) {
 		traverseCfgNode(c.outer.compiler, n, &gatherCb)
 		return
 	}
-	c.findDefWalk(n, rhino.Node{})
+	c.findDefWalk(n, rhino.NilNode)
 }
 
 // flowSensitiveInlineVariables_definitionCallback is the anonymous
@@ -1504,7 +1504,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetNumUseInUseCfgNode(cfgNode r
 		traverseCfgNode(c.outer.compiler, cfgNode, &gatherCb)
 		return
 	}
-	c.countUseWalk(cfgNode, rhino.Node{}, cfgNode)
+	c.countUseWalk(cfgNode, rhino.NilNode, cfgNode)
 }
 
 // flowSensitiveInlineVariables_numUseCallback is the anonymous

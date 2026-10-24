@@ -164,7 +164,7 @@ func (r *ModuleImportResolver) GetGoogModuleScopeRoot(module *Module) rhino.Node
 	}
 	// TODO(b/124919359): this case should not happen, but is triggering on goog.require calls in
 	// rewritten modules with preserveClosurePrimitives enabled.
-	return rhino.Node{}
+	return rhino.NilNode
 }
 
 // DeclareEsModuleImports declares/updates the type of all bindings imported
@@ -340,7 +340,7 @@ func (r *ModuleImportResolver) GetScopedNameFromEsBinding(binding *Binding) Scop
 		if closureModuleObject == nil {
 			// This is an error, but one that should be reported elsewhere. assume the module is
 			// a goog.provide for legacy compatibility.
-			return ScopedName_Of(*binding.ClosureNamespace(), rhino.Node{})
+			return ScopedName_Of(*binding.ClosureNamespace(), rhino.NilNode)
 		}
 		if binding.IsModuleNamespace() {
 			return closureModuleObject
@@ -351,7 +351,7 @@ func (r *ModuleImportResolver) GetScopedNameFromEsBinding(binding *Binding) Scop
 	case ModuleMetadataMap_ModuleType_SCRIPT:
 		// Importing SCRIPTs should not allow you to look up names in scope.
 		// we also don't really support CommonJs.
-		return moduleImportResolver_scopedNameOf(name, rhino.Node{})
+		return moduleImportResolver_scopedNameOf(name, rhino.NilNode)
 	case ModuleMetadataMap_ModuleType_COMMON_JS:
 		panic(jutil.NewIllegalStateExceptionMsg("Typechecking CommonJS modules is not supported"))
 	}

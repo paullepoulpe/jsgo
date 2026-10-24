@@ -2,52 +2,52 @@ package rhino
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Go-only: copying compaction of the AST (see node_store.go).
 //
-// Links are ids, so the garbage collector never frees a dead node: a store
-// keeps every node allocated in it. A Compactor copies the live tree in
-// pre-order into a fresh store (so the copy is also laid out in walk order)
-// and makes that store current; then every Node held outside the tree is
-// forwarded with Forward (a holder of a detached subtree gets that subtree
-// copied as an extra root). Once nothing refers to the old store any more,
-// the GC frees it with all its dead nodes.
+// A store keeps every node allocated in it, dead or alive. A Compactor
+// copies the live tree in pre-order into a fresh store (so the copy is also
+// laid out in walk order) and makes that store current; then every Node
+// held outside the tree is forwarded with Forward (a holder of a detached
+// subtree gets that subtree copied as an extra root). After Finish nothing
+// refers to the old store and the GC frees it.
+//
+// The new store's ids start after the old store's, so Forward knows which
+// ids are already copies, and an id that was not forwarded is outside the
+// current store and panics on its first use.
 //
 // An old node remembers its copy: copyNode sets kindFlagForwarded and puts
-// the copy's id in old.next (the copy is in old.store.forwardedTo); Forward
-// reads that, so it is idempotent and holders can be forwarded in any
-// order.
-//
-// Poison mode (JSGO_AST_POISON=1, for tests): Finish overwrites every copied
-// node with links and handles that can never resolve, so a holder that was
-// not forwarded fails on its first use instead of reading a dead node.
-
-// NodePoisonMode reports whether compaction poisons the old nodes.
-var NodePoisonMode = os.Getenv("JSGO_AST_POISON") == "1"
+// the copy's id in old.next; Forward reads that, so it is idempotent and
+// holders can be forwarded in any order.
 
 // Compactor copies a live AST into a fresh store.
 type Compactor struct {
-	dst        *NodeStore
-	srcs       map[*NodeStore]struct{}
+	src, dst   *NodeStore
 	docs       map[*JSDocInfo]struct{}
-	Copied     int    // nodes copied
-	ExtraRoots int    // detached subtrees copied for holders
-	ExtraNodes int    // nodes in those subtrees
+	Copied     int // nodes copied
+	ExtraRoots int // detached subtrees copied for holders
+	ExtraNodes int // nodes in those subtrees
 	inExtra    bool
 }
 
-// NewCompactor creates a new store, makes it current (new nodes are
-// allocated in it from now on) and returns the compactor that fills it.
+// NewCompactor creates a new store after the current one, makes it current
+// (new nodes are allocated in it from now on) and returns the compactor
+// that fills it. The old store stays readable until Finish.
 func NewCompactor() *Compactor {
-	dst := NewNodeStore()
+	src := current
+	if src == nil {
+		panic("rhino.Compactor: no current node store")
+	}
+	raiseDynamicIDs(src.next.Load())
+	dst := newNodeStore(false, dynamicIDs.Load(), src.NodeCount())
+	compactSource = src
 	SetCurrentNodeStore(dst)
 	return &Compactor{
+		src:  src,
 		dst:  dst,
-		srcs: make(map[*NodeStore]struct{}, 2),
 		docs: make(map[*JSDocInfo]struct{}, 1024),
 	}
 }
@@ -60,41 +60,33 @@ func (k *Compactor) Store() *NodeStore {
 // copyNode copies old into the new store (links cleared), forwards the side
 // trees it owns, and marks old as forwarded.
 func (k *Compactor) copyNode(old Node) Node {
-	src := old.store
-	if _, seen := k.srcs[src]; !seen {
-		if src.static {
-			r := old
-			for r.rec.parent != 0 {
-				r = r.parentNode()
-			}
-			name := ""
-			if p := r.GetSourceFileName(); p != nil {
-				name = *p
-			}
-			panic(fmt.Sprintf("rhino.Compactor: a package-level node or template is in the compacted tree: %s (root %s, source %s, extra root: %v)",
-				old, r, name, k.inExtra))
+	if uint32(old)&staticBit != 0 {
+		r := old
+		for r.rec().parent != 0 {
+			r = r.parentNode()
 		}
-		if src.forwardedTo != nil && src.forwardedTo != k.dst {
-			panic("rhino.Compactor: a node of an already compacted store was not forwarded by that compaction")
+		name := ""
+		if p := r.GetSourceFileName(); p != nil {
+			name = *p
 		}
-		src.forwardedTo = k.dst
-		k.srcs[src] = struct{}{}
+		panic(fmt.Sprintf("rhino.Compactor: a package-level node or template is in the compacted tree: %s (root %s, source %s, extra root: %v)",
+			old, r, name, k.inExtra))
 	}
+	or := old.rec()
 	nw := k.dst.alloc()
-	self := nw.rec.self
-	*nw.rec = *old.rec
-	nw.rec.self = self
-	nw.rec.next, nw.rec.first, nw.rec.parent, nw.rec.previous = 0, 0, 0, 0
-	nw.rec.tc = k.dst.translateTC(src, old.rec.tc, old.rec.kindFlags&kindFlagTypeIsColor != 0)
-	nw.rec.aux = 0
+	nr := nw.rec()
+	*nr = *or
+	nr.next, nr.first, nr.parent, nr.previous = 0, 0, 0, 0
+	nr.tc = k.dst.translateTC(k.src, or.tc, or.kindFlags&kindFlagTypeIsColor != 0)
+	nr.aux = 0
 	if a := old.auxValue(); a != (nodeAux{}) {
 		if a.ext != nil && a.ext.typeBeforeCast != 0 {
-			a.ext.typeBeforeCast = k.dst.translateTypeHandle(src, a.ext.typeBeforeCast)
+			a.ext.typeBeforeCast = k.dst.translateTypeHandle(k.src, a.ext.typeBeforeCast)
 		}
 		nw.setAux(a)
 	}
 	k.Copied++
-	if (nw.rec.propFlags & propFlagHasJSDoc) != 0 {
+	if (nr.propFlags & propFlagHasJSDoc) != 0 {
 		if info := nw.GetJSDocInfo(); info != nil {
 			if _, done := k.docs[info]; !done {
 				k.docs[info] = struct{}{}
@@ -102,14 +94,12 @@ func (k *Compactor) copyNode(old Node) Node {
 			}
 		}
 	}
-	if (nw.rec.kindFlags & kindFlagHasExtBox) != 0 {
+	if (nr.kindFlags & kindFlagHasExtBox) != 0 {
 		k.forwardNodeProps(nw)
 	}
-	old.rec.kindFlags |= kindFlagForwarded
-	old.rec.next = nw.rec.self
-	old.rec.first = 0
-	old.rec.parent = 0
-	old.rec.previous = 0
+	or.kindFlags |= kindFlagForwarded
+	or.next = uint32(nw)
+	or.first, or.parent, or.previous = 0, 0, 0
 	return nw
 }
 
@@ -138,51 +128,51 @@ func (k *Compactor) forwardNodeProps(n Node) {
 
 // copyTree copies the subtree rooted at old in pre-order.
 func (k *Compactor) copyTree(old Node) Node {
-	src := old.store
-	child := old.rec.first
+	child := Node(old.rec().first)
 	nw := k.copyNode(old)
 	var last Node
 	for child != 0 {
-		c := src.node(child)
-		child = c.rec.next
+		c := child
+		child = Node(c.rec().next) // read before the copy overwrites it
 		cc := k.copyTree(c)
-		cc.rec.parent = nw.rec.self
-		if last.IsNil() {
-			nw.rec.first = cc.rec.self
+		cc.rec().parent = uint32(nw)
+		if last == 0 {
+			nw.rec().first = uint32(cc)
 		} else {
-			last.rec.next = cc.rec.self
-			cc.rec.previous = last.rec.self
+			last.rec().next = uint32(cc)
+			cc.rec().previous = uint32(last)
 		}
 		last = cc
 	}
-	if !last.IsNil() {
-		nw.firstNode().rec.previous = last.rec.self
+	if last != 0 {
+		nw.firstNode().rec().previous = uint32(last)
 	}
 	return nw
 }
 
-// forwarded returns the copy of a forwarded node (following the copies of
-// earlier compactions too).
-func forwarded(n Node) Node {
-	for n.rec.kindFlags&kindFlagForwarded != 0 {
-		n = n.store.forwardedTo.node(n.rec.next)
+// copied reports whether n needs no copy (nil, already in the new store,
+// or a package-level node) and returns its copy if it was copied.
+func (k *Compactor) copied(n Node) (Node, bool) {
+	id := uint32(n)
+	if n == 0 || id&staticBit != 0 || k.dst.contains(id) {
+		return n, true
 	}
-	return n
+	if !k.src.contains(id) {
+		panic(fmt.Sprintf("rhino.Compactor: node id %d is from an older store", id))
+	}
+	if r := n.rec(); r.kindFlags&kindFlagForwarded != 0 {
+		return Node(r.next), true
+	}
+	return 0, false
 }
 
 // CopyTree copies the tree rooted at root (which must be detached) and
 // returns the copy.
 func (k *Compactor) CopyTree(root Node) Node {
-	if root.IsNil() {
-		return Node{}
+	if c, ok := k.copied(root); ok {
+		return c
 	}
-	if root.rec.kindFlags&kindFlagForwarded != 0 {
-		return forwarded(root)
-	}
-	if root.store == k.dst || root.store.static {
-		return root
-	}
-	if root.rec.parent != 0 {
+	if root.rec().parent != 0 {
 		panic("rhino.Compactor: CopyTree of an attached node")
 	}
 	return k.copyTree(root)
@@ -192,19 +182,13 @@ func (k *Compactor) CopyTree(root Node) Node {
 // store (or a package-level node), its copy when it was copied, and
 // otherwise copies the detached subtree n belongs to as an extra root.
 func (k *Compactor) Forward(n Node) Node {
-	if n.IsNil() {
-		return n
-	}
-	if n.rec.kindFlags&kindFlagForwarded != 0 {
-		return forwarded(n)
-	}
-	if n.store == k.dst || n.store.static {
-		return n
+	if c, ok := k.copied(n); ok {
+		return c
 	}
 	r := n
-	for r.rec.parent != 0 {
+	for r.rec().parent != 0 {
 		r = r.parentNode()
-		if r.rec.kindFlags&kindFlagForwarded != 0 {
+		if r.rec().kindFlags&kindFlagForwarded != 0 {
 			panic("rhino.Compactor: an ancestor was forwarded but the node was not copied")
 		}
 	}
@@ -214,7 +198,8 @@ func (k *Compactor) Forward(n Node) Node {
 	k.inExtra = false
 	k.ExtraRoots++
 	k.ExtraNodes += k.Copied - before
-	return forwarded(n)
+	c, _ := k.copied(n)
+	return c
 }
 
 // ForwardSlice forwards every element of s in place.
@@ -224,37 +209,12 @@ func (k *Compactor) ForwardSlice(s []Node) {
 	}
 }
 
-// poisonID is an id no store ever hands out (beyond maxSegments).
-const poisonID nodeID = 0xFFFFFFF0
-
-// Finish ends the compaction: the old stores release their segments and
-// tables, so a holder that was not forwarded pins at most the segment its
-// node is in, and following one of its links panics. In poison mode every
-// copied node is also overwritten so that such a holder fails on its first
-// use.
+// Finish ends the compaction: the old store is no longer readable (its ids
+// panic from now on) and is freed once the GC sees nothing refers to it.
 func (k *Compactor) Finish() {
-	if NodePoisonMode {
-		for s := range k.srcs {
-			for i := range s.segs {
-				seg := s.segs[i].Load()
-				if seg == nil {
-					continue
-				}
-				for j := range seg {
-					if r := &seg[j]; r.kindFlags&kindFlagForwarded != 0 {
-						r.next, r.first, r.parent, r.previous, r.self = poisonID, poisonID, poisonID, poisonID, poisonID
-						r.tc, r.aux = 0xFFFFFFF0, 0xFFFFFFF0
-						r.token = Token(0xFF)
-						r.kindFlags &^= kindFlagForwarded
-					}
-				}
-			}
-		}
-	}
-	for s := range k.srcs {
-		s.release()
-	}
-	k.srcs = nil
+	k.dst.Settle()
+	compactSource = nil
+	k.src = nil
 	k.docs = nil
 }
 

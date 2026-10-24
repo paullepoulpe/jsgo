@@ -60,12 +60,12 @@ func (c *LinkedFlowScopeTest) SetUp() {
 	c.CompilerTypeTestCaseBase.SetUp()
 
 	globalScope := TypedScope_CreateGlobalScope(c.rootNode)
-	globalScope.Declare("globalA", rhino.Node{}, nil, nil, true)
-	globalScope.Declare("globalB", rhino.Node{}, nil, nil, true)
+	globalScope.Declare("globalA", rhino.NilNode, nil, nil, true)
+	globalScope.Declare("globalB", rhino.NilNode, nil, nil, true)
 
 	c.localScope = NewTypedScope(globalScope, c.functionNode)
-	c.localScope.Declare("localA", rhino.Node{}, nil, nil, true)
-	c.localScope.Declare("localB", rhino.Node{}, nil, nil, true)
+	c.localScope.Declare("localA", rhino.NilNode, nil, nil, true)
+	c.localScope.Declare("localB", rhino.NilNode, nil, nil, true)
 
 	c.globalEntry = LinkedFlowScope_CreateEntryLattice(c.compiler, globalScope)
 	c.localEntry = LinkedFlowScope_CreateEntryLattice(c.compiler, c.localScope)
@@ -131,8 +131,8 @@ func (c *LinkedFlowScopeTest) TestJoin2() {
 
 // Java: LinkedFlowScopeTest.testJoin3()
 func (c *LinkedFlowScopeTest) TestJoin3() {
-	c.localScope.Declare("localC", rhino.Node{}, c.GetNativeStringType(), nil, true)
-	c.localScope.Declare("localD", rhino.Node{}, c.GetNativeStringType(), nil, true)
+	c.localScope.Declare("localC", rhino.NilNode, c.GetNativeStringType(), nil, true)
+	c.localScope.Declare("localD", rhino.NilNode, c.GetNativeStringType(), nil, true)
 
 	childA := c.localEntry.InferSlotType("localC", c.GetNativeNumberType())
 	childB := c.localEntry.InferSlotType("localD", c.GetNativeBooleanType())
@@ -165,7 +165,7 @@ func (c *LinkedFlowScopeTest) TestLongChain() {
 	chainA := c.localEntry
 	chainB := c.localEntry
 	for i := 0; i < LinkedFlowScopeTest_LONG_CHAIN_LENGTH; i++ {
-		c.localScope.Declare("local"+strconv.Itoa(i), rhino.Node{}, nil, nil, true)
+		c.localScope.Declare("local"+strconv.Itoa(i), rhino.NilNode, nil, nil, true)
 		typeA := c.GetNativeBooleanType()
 		if i%2 == 0 {
 			typeA = c.GetNativeNumberType()

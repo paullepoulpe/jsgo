@@ -147,7 +147,7 @@ func lintChecksDumpOne(t testing.TB, sb *strings.Builder, convention string, nam
 	jutil.Try(func() {
 		root = compiler.ParseInputs()
 	}, func(e jutil.IRuntimeException) {
-		root = rhino.Node{}
+		root = rhino.NilNode
 	})
 	if root.IsNil() || compiler.HasErrors() {
 		failed := "# parse-failed"
