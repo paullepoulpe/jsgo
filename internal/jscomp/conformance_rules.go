@@ -1745,189 +1745,160 @@ func (r *ConformanceRules_CustomRuleProxy) Check(
 
 // Java: ConformanceRules.CustomRuleProxy.createRule(AbstractCompiler, Requirement)
 func (r *ConformanceRules_CustomRuleProxy) CreateRule(compiler AbstractCompiler, requirement *Requirement) CheckConformance_Rule {
-	custom := r.GetRuleClass(requirement.GetJavaClass())
-	ctor := r.GetRuleConstructor(custom)
-	if custom.isAbstract {
-		// Constructor.newInstance on an abstract class: InstantiationException,
-		// rethrown as new RuntimeException(e).
-		panic(jutil.NewRuntimeException("java.lang.InstantiationException"))
-	}
-	var rule CheckConformance_Rule
-	jutil.Try(func() {
-		rule = ctor(compiler, requirement)
-	}, func(cause jutil.Throwable) {
-		// The constructor threw: an InvocationTargetException whose cause is
-		// rethrown if it is an InvalidRequirementSpec.
-		if invalidRequirementSpec, ok := cause.(ICheckConformance_InvalidRequirementSpec); ok {
-			panic(invalidRequirementSpec)
-		}
-		panic(jutil.NewRuntimeExceptionWithCause(cause))
-	})
-	return rule
-}
-
-// GetRuleConstructor returns the public (AbstractCompiler, Requirement)
-// constructor of cls.
-//
-// Java: ConformanceRules.CustomRuleProxy.getRuleConstructor(Class<Rule>)
-func (r *ConformanceRules_CustomRuleProxy) GetRuleConstructor(cls *ConformanceRules_JavaClass) func(AbstractCompiler, *Requirement) CheckConformance_Rule {
-	if cls.ruleConstructor != nil {
-		return cls.ruleConstructor
-	}
-
-	panic(NewCheckConformance_InvalidRequirementSpec("No valid class constructors found."))
-}
-
-// Java: ConformanceRules.CustomRuleProxy.getRuleClass(String)
-func (r *ConformanceRules_CustomRuleProxy) GetRuleClass(className string) *ConformanceRules_JavaClass {
-	customClass, ok := conformanceRules_javaClasses[className]
+	factory, ok := conformanceRules_CustomRuleProxy_CUSTOM_RULE_REGISTRY.Lookup(requirement.GetJavaClass())
 	if !ok {
-		// Go-only: language-adapter — the ClassNotFoundException cause is not
-		// modelled (only the message is ever read).
-		panic(NewCheckConformance_InvalidRequirementSpec("JavaClass not found."))
+		panic(NewCheckConformance_InvalidRequirementSpec("Unknown conformance rule: " + requirement.GetJavaClass()))
 	}
-	if customClass.isRule {
-		return customClass
-	}
-	panic(NewCheckConformance_InvalidRequirementSpec("JavaClass is not a rule."))
+	return factory.Create(compiler, requirement)
 }
 
-// ConformanceRules_JavaClass is what CustomRuleProxy learns about a class
-// through reflection: Class.forName(className) finds it, TypeToken tells
-// whether it is a Rule, and getConstructors() yields its public
-// (AbstractCompiler, Requirement) constructor, if any.
+// ConformanceRules_CustomRuleProxy_CustomRuleFactory creates a custom rule
+// for a requirement. Create panics with InvalidRequirementSpec (a checked
+// exception).
 //
-// Go-only: language-adapter — Java reflection has no Go equivalent: the
-// classes a requirement's java_class can name are registered here by binary
-// name (the classes of ConformanceRules and CheckConformance; test classes
-// add themselves). An unregistered name is "not found".
-type ConformanceRules_JavaClass struct {
-	isRule          bool
-	isAbstract      bool
-	ruleConstructor func(compiler AbstractCompiler, requirement *Requirement) CheckConformance_Rule
+// Java: ConformanceRules.CustomRuleProxy.CustomRuleFactory
+type ConformanceRules_CustomRuleProxy_CustomRuleFactory interface {
+	// Java: ConformanceRules.CustomRuleProxy.CustomRuleFactory.create(AbstractCompiler, Requirement)
+	Create(compiler AbstractCompiler, requirement *Requirement) CheckConformance_Rule
 }
 
-// conformanceRules_ruleClass registers a rule class with a public
-// (AbstractCompiler, Requirement) constructor.
-func conformanceRules_ruleClass(ctor func(AbstractCompiler, *Requirement) CheckConformance_Rule) *ConformanceRules_JavaClass {
-	return &ConformanceRules_JavaClass{isRule: true, ruleConstructor: ctor}
+// ConformanceRules_CustomRuleProxy_CustomRuleFactoryFunc adapts a function to
+// ConformanceRules_CustomRuleProxy_CustomRuleFactory.
+//
+// Go-only: language-adapter — the Java method references (NoOp::new, ...).
+type ConformanceRules_CustomRuleProxy_CustomRuleFactoryFunc func(compiler AbstractCompiler, requirement *Requirement) CheckConformance_Rule
+
+// Java: ConformanceRules.CustomRuleProxy.CustomRuleFactory.create(AbstractCompiler, Requirement)
+func (f ConformanceRules_CustomRuleProxy_CustomRuleFactoryFunc) Create(compiler AbstractCompiler, requirement *Requirement) CheckConformance_Rule {
+	return f(compiler, requirement)
 }
 
-// conformanceRules_javaClasses is the Go-only registry of
-// ConformanceRules_JavaClass (see there).
-var conformanceRules_javaClasses = map[string]*ConformanceRules_JavaClass{
-	"com.google.javascript.jscomp.CheckConformance":                        {},
-	"com.google.javascript.jscomp.CheckConformance$Rule":                   {isRule: true},
-	"com.google.javascript.jscomp.CheckConformance$Precondition":           {},
-	"com.google.javascript.jscomp.CheckConformance$Category":               {},
-	"com.google.javascript.jscomp.CheckConformance$InvalidRequirementSpec": {},
-	"com.google.javascript.jscomp.ConformanceRules":                        {},
-	"com.google.javascript.jscomp.ConformanceRules$ConformanceResult":      {},
-	"com.google.javascript.jscomp.ConformanceRules$ConformanceLevel":       {},
-	"com.google.javascript.jscomp.ConformanceRules$AllowList":              {},
-	"com.google.javascript.jscomp.ConformanceRules$AbstractRule": {
-		isRule: true, isAbstract: true,
-		ruleConstructor: func(AbstractCompiler, *Requirement) CheckConformance_Rule { return nil }},
-	"com.google.javascript.jscomp.ConformanceRules$NoOp": {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$AbstractTypeRestrictionRule": {
-		isRule: true, isAbstract: true,
-		ruleConstructor: func(AbstractCompiler, *Requirement) CheckConformance_Rule { return nil }},
-	"com.google.javascript.jscomp.ConformanceRules$InferredConstCheck": conformanceRules_ruleClass(
+// Java: ConformanceRules.CustomRuleProxy.CUSTOM_RULE_REGISTRY
+var conformanceRules_CustomRuleProxy_CUSTOM_RULE_REGISTRY = conformanceRules_CustomRuleProxy_CreateCustomRuleRegistry()
+
+// Java: ConformanceRules.CustomRuleProxy.createCustomRuleRegistry()
+func conformanceRules_CustomRuleProxy_CreateCustomRuleRegistry() *jutil.LinkedHashMap[string, ConformanceRules_CustomRuleProxy_CustomRuleFactory] {
+	builder := jutil.NewLinkedHashMap[string, ConformanceRules_CustomRuleProxy_CustomRuleFactory]()
+	put := func(className string, factory ConformanceRules_CustomRuleProxy_CustomRuleFactoryFunc) {
+		builder.Put(className, factory)
+	}
+	put("com.google.javascript.jscomp.ConformanceRules$NoOp",
+		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
+			return NewConformanceRules_NoOp(c, r)
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$InferredConstCheck",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_InferredConstCheck(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BannedDependency":                       {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$BannedDependencyRegex":                  {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$BannedName":                             {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$BannedProperty":                         {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$BannedProperty$RequirementPrecondition": {},
-	"com.google.javascript.jscomp.ConformanceRules$BannedStringRegex": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BannedDependency",
+		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
+			return NewConformanceRules_BannedDependency(c, r)
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BannedDependencyRegex",
+		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
+			return NewConformanceRules_BannedDependencyRegex(c, r)
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BannedName",
+		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
+			return NewConformanceRules_BannedName(c, r)
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BannedProperty",
+		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
+			return NewConformanceRules_BannedProperty(c, r)
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BannedStringRegex",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BannedStringRegex(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$ConformanceUtil":                     {},
-	"com.google.javascript.jscomp.ConformanceRules$RestrictedNameCall":                  {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$RestrictedNameCall$Restriction":      {},
-	"com.google.javascript.jscomp.ConformanceRules$RestrictedMethodCall":                {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$RestrictedMethodCall$Restriction":    {},
-	"com.google.javascript.jscomp.ConformanceRules$RestrictedPropertyWrite":             {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$RestrictedPropertyWrite$Restriction": {},
-	"com.google.javascript.jscomp.ConformanceRules$BannedCodePattern":                   {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$CustomRuleProxy":                     {isRule: true},
-	"com.google.javascript.jscomp.ConformanceRules$BanForOf": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$RestrictedNameCall",
+		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
+			return NewConformanceRules_RestrictedNameCall(c, r)
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$RestrictedMethodCall",
+		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
+			return NewConformanceRules_RestrictedMethodCall(c, r)
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$RestrictedPropertyWrite",
+		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
+			return NewConformanceRules_RestrictedPropertyWrite(c, r)
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BannedCodePattern",
+		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
+			return NewConformanceRules_BannedCodePattern(c, r)
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanForOf",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanForOf(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$RequireUseStrict": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$RequireUseStrict",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_RequireUseStrict(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanThrowOfNonErrorTypes": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanThrowOfNonErrorTypes",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanThrowOfNonErrorTypes(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanNullDeref": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanNullDeref",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanNullDeref(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanUnknownThis": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanUnknownThis",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanUnknownThis(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanUnknownDirectThisPropsReferences": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanUnknownDirectThisPropsReferences",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanUnknownDirectThisPropsReferences(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanUnknownTypedClassPropsReferences": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanUnknownTypedClassPropsReferences",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanUnknownTypedClassPropsReferences(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanUnresolvedType": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanUnresolvedType",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanUnresolvedType(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$StrictBanUnresolvedType": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$StrictBanUnresolvedType",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_StrictBanUnresolvedType(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanGlobalVars": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanGlobalVars",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanGlobalVars(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BannedEnhance": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BannedEnhance",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BannedEnhance(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BannedModsRegex": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BannedModsRegex",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BannedModsRegex(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanCreateElement": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanCreateElement",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanCreateElement(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanCreateDom": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanCreateDom",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanCreateDom(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$SecuritySensitiveAttributes": {},
-	"com.google.javascript.jscomp.ConformanceRules$BanElementSetAttribute": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanElementSetAttribute",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanElementSetAttribute(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanSettingAttributes": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanSettingAttributes",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanSettingAttributes(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanSettingAttributes$AttributeSettingRestriction": {},
-	"com.google.javascript.jscomp.ConformanceRules$BanExecCommand": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanExecCommand",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanExecCommand(c, r)
-		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanStaticThis": conformanceRules_ruleClass(
+		})
+	put("com.google.javascript.jscomp.ConformanceRules$BanStaticThis",
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanStaticThis(c, r)
-		}),
+		})
+	return builder
 }
 
 // ConformanceRules_BanForOf bans for/of loops.
