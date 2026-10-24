@@ -104,11 +104,11 @@ func nodeAt(id nodeID) *Node {
 	if id == 0 {
 		return nil
 	}
-	c := nodeChunkSlot(uint32(id) >> nodeChunkShift).Load()
+	c := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&nodeChunkTable[uint32(id)>>nodeChunkShift])))
 	if c == nil {
-		staleNodeID(id)
+		panic("rhino.Node: stale node id (its chunk was released)")
 	}
-	return (*Node)(unsafe.Add(unsafe.Pointer(c), uintptr(id&nodeChunkMask)*nodeSize))
+	return (*Node)(unsafe.Add(c, uintptr(id&nodeChunkMask)*nodeSize))
 }
 
 //go:noinline
