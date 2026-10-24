@@ -20,7 +20,12 @@ source tools/oracle/pin.env && CP=.cache/$CLOSURE_JAR:.cache/oracle-build
 ```
 
 The golden-file comments in the Go tests write the jar as
-`closure-compiler.jar`; read it as `.cache/$CLOSURE_JAR`.
+`closure-compiler.jar`; read it as `.cache/$CLOSURE_JAR`. They also name the
+corpus as `/home/user/jsgo/.cache/corpus`, the default root of the corpus
+half of the jscomp golden tests (skipped when it is missing); set
+`JSGO_ORACLE_CORPUS` to another corpus directory, e.g. this checkout's
+`.cache/corpus`, to run those halves there (the tests fail if it is set but
+not a directory).
 
 | Tool | Layer | What it emits |
 |---|---|---|
