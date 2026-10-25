@@ -352,11 +352,14 @@ Added before the next ports, each for a pattern the ports kept writing:
 | constructors for kinds with a string payload | generated: `NewStringKey(key, value)`, `NewMemberFunctionDef(key, fn)`, `NewOptChainGetProp(obj, prop)`, ... |
 | template strings | `TemplateLitString.Raw()`, `Cooked()` (ok is false for an invalid escape) |
 | "is this the last argument / statement" | `IsLast()` on list elements |
+| "how many arguments" (Java `getChildCount() - 1`) | `Num<Role>()` on every list: `call.NumArgs()`, `block.NumStatements()` |
+| loops that move the current element | `for x := range ast.ReadAhead(list.FirstX())` reads the next element first |
 | a visitor's dispatch cost | the traversal skips the kinds a visitor has no handler for (next steps, 1) |
 
-Not done: an index accessor and element count on lists (no port needed
-them after `IsLast`), `Target.AsExpr`, a common view of SCRIPT and BLOCK
-statements.
+Not done: an index accessor on lists (no port needed one after `IsLast`),
+`Target.AsExpr`, a common view of SCRIPT and BLOCK statements, and a shared
+view of `Assign` and `DestructuringLhs` (their roles differ: `target:Target`
+against `pattern:Pattern`, and a declaration's value is optional).
 
 ## Thirteenth to eighteenth ports: known methods and five ES6 passes
 
@@ -410,6 +413,32 @@ What they reported:
 - **No shared view for two kinds with the same layout**: an `Assign` and a
   `DestructuringLhs` (target first, value last) are passed as `rhino.Node`.
   A category with `Target()` and `Value()` would type them.
+
+## Nineteenth to twenty-first ports: three checks
+
+`CheckSuspiciousCode`, `StrictModeCheck` and `ProcessClosurePrimitives`,
+ported on the API above. They report warnings, so the stderr comparison on
+checks-only and typed-app is their main check: byte-identical, and output
+and source maps too.
+
+- **One dispatch instead of seven token tests.** CheckSuspiciousCode ran
+  seven checks on every node, each testing the token itself. Its Visit now
+  switches once and hands each check the kind it reads: the `if` (then and
+  else blocks), the body of a loop (`ast.Loop.Body()`), the operands of a
+  comparison, of `in` and `instanceof`, of `&&` and `||`. A node has one
+  token, so the reports come out in the same order. The pass got faster:
+  median 83 vs 100 ms on checks-only (5 interleaved runs, loaded machine).
+- **Report targets passed, not read back.** `reportIfNaN` and
+  `reportIfNonObject` reported on `operand.getParent()`; they now take the
+  operator they report on.
+- **Closure calls read by role.** ProcessClosurePrimitives reads
+  `goog.x(...)` as a GetProp callee whose object is the name `goog`, and
+  `goog.base(this, 'method', ...)` as the first two arguments. Five
+  "qualified name or `null`" fallbacks in messages became one helper.
+- **Kept on rhino**: code that reads a node's parent or siblings of any kind
+  (is this name a declaration, the enclosing class, the statements after a
+  constructor), and the duplicate-member scan of StrictModeCheck, which
+  walks object literal members and class members, two different lists.
 
 ## Performance outlook
 
