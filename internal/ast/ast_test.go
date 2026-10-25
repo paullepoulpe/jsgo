@@ -238,6 +238,37 @@ func TestAssignmentCategory(t *testing.T) {
 	}
 }
 
+// CallOrNew is the calls and new, with the callee and arguments they share.
+func TestCallOrNew(t *testing.T) {
+	newStore(t)
+	callee := func() Expr { return NewName("f").AsExpr() }
+	arg := func() Arg { return NewName("a").AsArg() }
+	for _, e := range []Expr{
+		NewCall(callee(), arg()).AsExpr(),
+		NewOptChainCall(callee(), arg()).AsExpr(),
+		NewNew(callee(), arg()).AsExpr(),
+	} {
+		n := e.Node()
+		call, ok := e.AsCallOrNew()
+		if !ok {
+			t.Fatalf("Expr.AsCallOrNew() of a %s failed", n.GetToken())
+		}
+		if f, ok := call.Callee().AsName(); !ok || f.Ident() != "f" {
+			t.Fatalf("Callee() of a %s is not its callee", n.GetToken())
+		}
+		if a, ok := call.OnlyArg(); !ok || !a.Is(n.GetLastChild()) {
+			t.Fatalf("OnlyArg() of a %s is not its argument", n.GetToken())
+		}
+	}
+	if call := NewCall(callee()).AsNormalOrOptChainCall().AsCallOrNew(); call.HasArgs() {
+		t.Fatal("HasArgs() is true for f()")
+	}
+	tagged := NewTaggedTemplateLit(callee(), NewTemplateLit())
+	if _, ok := tagged.AsExpr().AsCallOrNew(); ok {
+		t.Fatal("a tagged template converted to a CallOrNew")
+	}
+}
+
 // EnhancedFor is the for-in and for-of loops, with the target they share.
 func TestEnhancedFor(t *testing.T) {
 	newStore(t)

@@ -608,14 +608,14 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		tc.VisitVar(t, n)
 		typeable = false
 	case rhino.Token_NEW:
-		tc.VisitNew(n)
+		tc.VisitNew(ast.MustNew(n))
 	case rhino.Token_OPTCHAIN_CALL:
 		// We reuse the `visitCall` functionality for OptChain call nodes because we don't report
 		// an error for regular calls when the callee is null or undefined. However, we make sure
 		// `typeable` isn't explicitly unset as OptChain nodes are always typed during inference.
-		tc.VisitCall(t, n)
+		tc.VisitCall(t, ast.MustNormalOrOptChainCall(n))
 	case rhino.Token_CALL:
-		tc.VisitCall(t, n)
+		tc.VisitCall(t, ast.MustNormalOrOptChainCall(n))
 		typeable = !parent.IsExprResult()
 	case rhino.Token_RETURN:
 		tc.VisitReturn(t, n)
@@ -636,7 +636,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	case rhino.Token_STRINGLIT, rhino.Token_TYPEOF, rhino.Token_TEMPLATELIT, rhino.Token_TEMPLATELIT_STRING:
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_STRING_TYPE)
 	case rhino.Token_TAGGED_TEMPLATELIT:
-		tc.VisitTaggedTemplateLit(n)
+		tc.VisitTaggedTemplateLit(ast.MustTaggedTemplateLit(n))
 		tc.EnsureTyped(n)
 	case rhino.Token_BITNOT:
 		tc.VisitBitwiseNOT(ast.MustUnary(n))
@@ -2335,8 +2335,9 @@ func (tc *TypeCheck) VisitVar(t *NodeTraversal, n rhino.Node) {
 // VisitNew visits a NEW node.
 //
 // Java: TypeCheck.visitNew(Node)
-func (tc *TypeCheck) VisitNew(n rhino.Node) {
-	constructor := n.GetFirstChild()
+func (tc *TypeCheck) VisitNew(newNode ast.New) {
+	n := newNode.Node()
+	constructor := newNode.Callee().Node()
 	type_ := tc.GetJSType(constructor).RestrictByNotNullOrUndefined()
 	if !tc.CouldBeAConstructor(type_) ||
 		type_.Equals(tc.typeRegistry.GetNativeType(rhino.JSTypeNative_SYMBOL_OBJECT_FUNCTION_TYPE)) ||
@@ -2352,7 +2353,7 @@ func (tc *TypeCheck) VisitNew(n rhino.Node) {
 			tc.Report(n, TypeCheck_INSTANTIATE_ABSTRACT_CLASS)
 		}
 
-		tc.VisitArgumentList(n, fnType)
+		tc.VisitArgumentList(newNode.AsCallOrNew(), fnType)
 
 		objType := fnType.GetInstanceType()
 		if objType != nil {
@@ -2638,7 +2639,8 @@ var TypeCheck_GOOG_INHERITS = rhino.QualifiedName_Of("goog.inherits")
 // 'native' syntax for defining classes, we need to do this manually.
 //
 // Java: TypeCheck.checkCallConventions(NodeTraversal, Node)
-func (tc *TypeCheck) CheckCallConventions(t *NodeTraversal, n rhino.Node) {
+func (tc *TypeCheck) CheckCallConventions(t *NodeTraversal, call ast.NormalOrOptChainCall) {
+	n := call.Node()
 	relationship := tc.compiler.GetCodingConvention().GetClassesDefinedByCall(n)
 	scope := t.GetTypedScope()
 	if relationship != nil {
@@ -2651,8 +2653,8 @@ func (tc *TypeCheck) CheckCallConventions(t *NodeTraversal, n rhino.Node) {
 			!superClassInstanceType.IsEmptyType() &&
 			subClassInstance != nil &&
 			!subClassInstance.IsEmptyType() {
-			if n.GetFirstChild().IsQualifiedName() &&
-				TypeCheck_GOOG_INHERITS.Matches(n.GetFirstChild()) &&
+			if callee := call.Callee().Node(); callee.IsQualifiedName() &&
+				TypeCheck_GOOG_INHERITS.Matches(callee) &&
 				subClass.ToMaybeFunctionType() != nil &&
 				!subClass.ToMaybeFunctionType().GetSource().IsNil() &&
 				subClass.ToMaybeFunctionType().GetSource().IsClass() {
@@ -2670,11 +2672,12 @@ func (tc *TypeCheck) CheckCallConventions(t *NodeTraversal, n rhino.Node) {
 // visited.
 //
 // Java: TypeCheck.visitCall(NodeTraversal, Node)
-func (tc *TypeCheck) VisitCall(t *NodeTraversal, n rhino.Node) {
-	tc.CheckCallConventions(t, n)
+func (tc *TypeCheck) VisitCall(t *NodeTraversal, call ast.NormalOrOptChainCall) {
+	n := call.Node()
+	tc.CheckCallConventions(t, call)
 
-	child := n.GetFirstChild()
-	childType := tc.GetJSType(child).RestrictByNotNullOrUndefined()
+	callee := call.Callee()
+	childType := tc.GetJSType(callee.Node()).RestrictByNotNullOrUndefined()
 
 	if !childType.CanBeCalled() {
 		tc.Report(n, TypeCheck_NOT_CALLABLE, childType.String())
@@ -2693,12 +2696,13 @@ func (tc *TypeCheck) VisitCall(t *NodeTraversal, n rhino.Node) {
 			!functionType.IsNativeObjectType() &&
 			(functionType.GetReturnType().IsUnknownType() ||
 				functionType.GetReturnType().IsVoidType()) &&
-			!n.GetFirstChild().IsSuper() {
+			!callee.Node().IsSuper() {
 			tc.Report(n, TypeCheck_CONSTRUCTOR_NOT_CALLABLE, childType.String())
 		}
 
 		// Functions with explicit 'this' types must be called in a GETPROP or GETELEM.
-		if functionType.IsOrdinaryFunction() && !NodeUtil_IsNormalOrOptChainGet(child) {
+		_, calleeIsGet := callee.AsNormalOrOptChainGet()
+		if functionType.IsOrdinaryFunction() && !calleeIsGet {
 			receiverType := functionType.GetTypeOfThis()
 			if receiverType.IsUnknownType() ||
 				receiverType.IsAllType() ||
@@ -2710,7 +2714,7 @@ func (tc *TypeCheck) VisitCall(t *NodeTraversal, n rhino.Node) {
 			}
 		}
 
-		tc.VisitArgumentList(n, functionType)
+		tc.VisitArgumentList(call.AsCallOrNew(), functionType)
 		tc.EnsureTypedWithType(n, functionType.GetReturnType())
 	} else {
 		tc.EnsureTyped(n)
@@ -2724,109 +2728,8 @@ func (tc *TypeCheck) VisitCall(t *NodeTraversal, n rhino.Node) {
 // VisitArgumentList visits the parameters of a CALL or a NEW node.
 //
 // Java: TypeCheck.visitArgumentList(Node, FunctionType)
-func (tc *TypeCheck) VisitArgumentList(call rhino.Node, functionType rhino.FunctionType) {
-	parameters := functionType.GetParameters()
-	tc.checkInvocationArgumentsMatchParameters(call, functionType, parameters, 0)
-}
-
-func (tc *TypeCheck) checkInvocationArgumentsMatchParameters(
-	call rhino.Node,
-	functionType rhino.FunctionType,
-	parameters []*rhino.FunctionType_Parameter,
-	firstParameterIndex int) {
-
-	spreadArgumentCount := 0
-	normalArgumentCount := firstParameterIndex
-	checkArgumentTypeAgainstParameter := true
-	var parameter *rhino.FunctionType_Parameter
-	var argument rhino.Node
-	nextParameter := 0
-
-	var curArg rhino.Node
-	isTaggedTemplateLit := call.IsTaggedTemplateLit()
-	if isTaggedTemplateLit {
-		for curArg = call.GetLastChild().GetFirstChild(); !curArg.IsNil() && !curArg.IsTemplateLitSub(); curArg = curArg.GetNext() {
-		}
-	} else {
-		curArg = call.GetSecondChild()
-	}
-
-	for !curArg.IsNil() {
-		argument = curArg
-		curArg = curArg.GetNext()
-		if isTaggedTemplateLit {
-			argument = argument.GetFirstChild()
-			for !curArg.IsNil() && !curArg.IsTemplateLitSub() {
-				curArg = curArg.GetNext()
-			}
-		}
-
-		// Count normal & spread arguments.
-		if argument.IsSpread() {
-			// we have some form of this case
-			// someCall(arg1, arg2, ...firstSpreadExpression, argN, ...secondSpreadExpression)
-			spreadArgumentCount++
-			// Once we see a spread parameter, we can no longer match up arguments with parameters.
-			checkArgumentTypeAgainstParameter = false
-		} else {
-			normalArgumentCount++
-		}
-
-		// Get the next parameter, if we're still matching parameters and arguments.
-		if checkArgumentTypeAgainstParameter {
-			if nextParameter < len(parameters) {
-				parameter = parameters[nextParameter]
-				nextParameter++
-			} else if parameter != nil && parameter.IsVariadic() {
-				// use varargs for all remaining parameters
-			} else {
-				// else we ran out of parameters and will report that after this loop
-				parameter = nil
-				checkArgumentTypeAgainstParameter = false
-			}
-		}
-
-		if checkArgumentTypeAgainstParameter {
-			tc.validator.ExpectArgumentMatchesParameter(
-				argument, tc.GetJSType(argument), parameter.GetJSType(), call, normalArgumentCount)
-		}
-	}
-
-	minArity := functionType.GetMinArity()
-	maxArity := functionType.GetMaxArity()
-
-	if spreadArgumentCount > 0 {
-		if normalArgumentCount > maxArity {
-			// We cannot reliably check whether the total argument count is wrong, but we can at
-			// least tell if there are more arguments than the function can handle even ignoring the
-			// spreads.
-			maxArityText := ""
-			if maxArity != math.MaxInt32 {
-				maxArityText = " and no more than " + strconv.Itoa(maxArity) + " argument(s)"
-			}
-			tc.Report(
-				call,
-				TypeCheck_WRONG_ARGUMENT_COUNT,
-				tc.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()),
-				"at least "+strconv.Itoa(normalArgumentCount),
-				strconv.Itoa(minArity),
-				maxArityText)
-		}
-	} else {
-		if minArity > normalArgumentCount || maxArity < normalArgumentCount {
-			maxArityText := ""
-			if maxArity != math.MaxInt32 {
-				maxArityText = " and no more than " + strconv.Itoa(maxArity) + " argument(s)"
-			}
-			tc.Report(
-				call,
-				TypeCheck_WRONG_ARGUMENT_COUNT,
-				tc.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()),
-				strconv.Itoa(normalArgumentCount),
-				strconv.Itoa(minArity),
-				maxArityText)
-		}
-	}
+func (tc *TypeCheck) VisitArgumentList(call ast.CallOrNew, functionType rhino.FunctionType) {
+	tc.CheckArgumentsMatchParameters(call.Node(), functionType, functionType.GetParameters(), 0)
 }
 
 // CheckArgumentsMatchParameters checks that a list of arguments match a list
@@ -2839,15 +2742,17 @@ func (tc *TypeCheck) checkInvocationArgumentsMatchParameters(
 // firstParameterIndex is the index of the first parameter in the given
 // Iterator in the function type's parameter list.
 //
-// Go-only: language-adapter — the two Java Iterators are the slices of the
-// elements they have left to yield (arguments, parameters); the arguments
-// are collected from NodeUtil.getInvocationArgsAsIterable.
+// Go-only: the Java gets the arguments as an Iterator over
+// NodeUtil.getInvocationArgsAsIterable(call); here they are read from call,
+// a CallOrNew (its arguments) or a TaggedTemplateLit (the substitutions of
+// its template), and checkArgument is the body of the Java loop. The
+// parameters are a slice (the elements the Java Iterator has left to
+// yield).
 //
 // Java: TypeCheck.checkArgumentsMatchParameters(Node, FunctionType, Iterator<Node>, Iterator<Parameter>, int)
 func (tc *TypeCheck) CheckArgumentsMatchParameters(
 	call rhino.Node,
 	functionType rhino.FunctionType,
-	arguments []rhino.Node,
 	parameters []*rhino.FunctionType_Parameter,
 	firstParameterIndex int) {
 
@@ -2855,14 +2760,10 @@ func (tc *TypeCheck) CheckArgumentsMatchParameters(
 	normalArgumentCount := firstParameterIndex
 	checkArgumentTypeAgainstParameter := true
 	var parameter *rhino.FunctionType_Parameter
-	var argument rhino.Node
 	nextParameter := 0
-	for _, nextArgument := range arguments {
-		// get the next argument
-		argument = nextArgument
-
+	checkArgument := func(argument ast.Arg) {
 		// Count normal & spread arguments.
-		if argument.IsSpread() {
+		if _, isSpread := argument.AsIterSpread(); isSpread {
 			// we have some form of this case
 			// someCall(arg1, arg2, ...firstSpreadExpression, argN, ...secondSpreadExpression)
 			spreadArgumentCount++
@@ -2888,7 +2789,23 @@ func (tc *TypeCheck) CheckArgumentsMatchParameters(
 
 		if checkArgumentTypeAgainstParameter {
 			tc.validator.ExpectArgumentMatchesParameter(
-				argument, tc.GetJSType(argument), parameter.GetJSType(), call, normalArgumentCount)
+				argument.Node(), tc.GetJSType(argument.Node()), parameter.GetJSType(), call, normalArgumentCount)
+		}
+	}
+
+	var callee ast.Expr
+	if tagged, ok := ast.AsTaggedTemplateLit(call); ok {
+		callee = tagged.Tag()
+		for part := range tagged.Template().Parts() {
+			if sub, ok := part.AsTemplateLitSub(); ok {
+				checkArgument(sub.Expr().AsArg())
+			}
+		}
+	} else {
+		invocation := ast.MustCallOrNew(call)
+		callee = invocation.Callee()
+		for argument := range invocation.Args() {
+			checkArgument(argument)
 		}
 	}
 
@@ -2907,7 +2824,7 @@ func (tc *TypeCheck) CheckArgumentsMatchParameters(
 			tc.Report(
 				call,
 				TypeCheck_WRONG_ARGUMENT_COUNT,
-				tc.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()),
+				tc.typeRegistry.GetReadableTypeNameNoDeref(callee.Node()),
 				"at least "+strconv.Itoa(normalArgumentCount),
 				strconv.Itoa(minArity),
 				maxArityText)
@@ -2921,7 +2838,7 @@ func (tc *TypeCheck) CheckArgumentsMatchParameters(
 			tc.Report(
 				call,
 				TypeCheck_WRONG_ARGUMENT_COUNT,
-				tc.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()),
+				tc.typeRegistry.GetReadableTypeNameNoDeref(callee.Node()),
 				strconv.Itoa(normalArgumentCount),
 				strconv.Itoa(minArity),
 				maxArityText)
@@ -3084,8 +3001,9 @@ func (tc *TypeCheck) VisitYield(t *NodeTraversal, n rhino.Node) {
 }
 
 // Java: TypeCheck.visitTaggedTemplateLit(Node)
-func (tc *TypeCheck) VisitTaggedTemplateLit(n rhino.Node) {
-	tag := n.GetFirstChild()
+func (tc *TypeCheck) VisitTaggedTemplateLit(tagged ast.TaggedTemplateLit) {
+	n := tagged.Node()
+	tag := tagged.Tag().Node()
 	tagType := tag.GetJSType().RestrictByNotNullOrUndefined()
 
 	if !tagType.CanBeCalled() {
@@ -3126,8 +3044,7 @@ func (tc *TypeCheck) VisitTaggedTemplateLit(n rhino.Node) {
 	}
 
 	// Validate the remaining parameters (the template literal substitutions)
-	tc.checkInvocationArgumentsMatchParameters(
-		n, tagFnType, parameters, 1)
+	tc.CheckArgumentsMatchParameters(n, tagFnType, parameters, 1)
 }
 
 // VisitBinaryOperator unifies the type checking involved in the core binary

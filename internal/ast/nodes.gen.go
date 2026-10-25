@@ -5903,6 +5903,9 @@ func (x Call) AsExportBody() ExportBody { return ExportBody{x.node} }
 // AsNormalOrOptChainCall returns x as a NormalOrOptChainCall.
 func (x Call) AsNormalOrOptChainCall() NormalOrOptChainCall { return NormalOrOptChainCall{x.node} }
 
+// AsCallOrNew returns x as a CallOrNew.
+func (x Call) AsCallOrNew() CallOrNew { return CallOrNew{x.node} }
+
 // OptChainCall is callee?.(args).
 //
 // Grammar: OptChainCall = OPTCHAIN_CALL  callee:Expr args:Arg*
@@ -6020,6 +6023,9 @@ func (x OptChainCall) AsNormalOrOptChainCall() NormalOrOptChainCall {
 	return NormalOrOptChainCall{x.node}
 }
 
+// AsCallOrNew returns x as a CallOrNew.
+func (x OptChainCall) AsCallOrNew() CallOrNew { return CallOrNew{x.node} }
+
 // New is new callee(args).
 //
 // Grammar: New = NEW  callee:Expr args:Arg*
@@ -6131,6 +6137,9 @@ func (x New) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
 
 // AsExportBody returns x as an ExportBody.
 func (x New) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsCallOrNew returns x as a CallOrNew.
+func (x New) AsCallOrNew() CallOrNew { return CallOrNew{x.node} }
 
 // Yield is yield value.
 //
@@ -7546,6 +7555,9 @@ func (x Expr) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
+func (x Expr) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x Expr) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
@@ -7947,6 +7959,9 @@ func (x Arg) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
+func (x Arg) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x Arg) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
@@ -8146,6 +8161,9 @@ func (x ArrayElem) AsArg() (Arg, bool) { return AsArg(x.node) }
 func (x ArrayElem) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
+
+// AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
+func (x ArrayElem) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x ArrayElem) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
@@ -8489,6 +8507,9 @@ func (x PropValue) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.nod
 func (x PropValue) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
+
+// AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
+func (x PropValue) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x PropValue) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
@@ -9126,6 +9147,9 @@ func (x ForInit) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
+func (x ForInit) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x ForInit) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
@@ -9473,6 +9497,9 @@ func (x FunctionBody) AsExportBody() ExportBody { return ExportBody{x.node} }
 func (x FunctionBody) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
+
+// AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
+func (x FunctionBody) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x FunctionBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
@@ -9869,6 +9896,9 @@ func (x ExportBody) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
+func (x ExportBody) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x ExportBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
@@ -10155,6 +10185,9 @@ func (x NormalOrOptChainCall) AsFunctionBody() FunctionBody { return FunctionBod
 // AsExportBody returns x as an ExportBody.
 func (x NormalOrOptChainCall) AsExportBody() ExportBody { return ExportBody{x.node} }
 
+// AsCallOrNew returns x as a CallOrNew.
+func (x NormalOrOptChainCall) AsCallOrNew() CallOrNew { return CallOrNew{x.node} }
+
 // Callee returns the callee of x.
 func (x NormalOrOptChainCall) Callee() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -10202,6 +10235,126 @@ func (x NormalOrOptChainCall) NumArgs() int { return x.node.GetChildCount() - 1 
 
 // AppendArg adds v (which must not be in a tree) after the args of x.
 func (x NormalOrOptChainCall) AppendArg(v Arg) { x.node.AddChildToBack(v.node) }
+
+// CallOrNew is a call, in an optional chain or not, or a new:
+// callee(args), callee?.(args) or new callee(args) (NodeUtil.isCallOrNew).
+//
+// Grammar: CallOrNew = Call | OptChainCall | New
+type CallOrNew struct{ node rhino.Node }
+
+// AsCallOrNew returns n as a CallOrNew; ok is false if n is not one (or is the nil node).
+func AsCallOrNew(n rhino.Node) (x CallOrNew, ok bool) {
+	if n == rhino.NilNode || !callOrNewTokens.Has(n.GetToken()) {
+		return CallOrNew{}, false
+	}
+	return CallOrNew{n}, true
+}
+
+// MustCallOrNew returns n as a CallOrNew; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustCallOrNew(n rhino.Node) CallOrNew {
+	x, ok := AsCallOrNew(n)
+	if !ok {
+		panic(mustError{"CallOrNew", n})
+	}
+	return x
+}
+
+// callOrNewTokens holds the tokens of CallOrNew.
+var callOrNewTokens = tokenSetOf(rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW)
+
+// Node returns x as a rhino.Node.
+func (x CallOrNew) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x CallOrNew) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of CallOrNew it is).
+func (x CallOrNew) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x CallOrNew) Detach() CallOrNew { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x CallOrNew) ReplaceWith(v CallOrNew) { x.node.ReplaceWith(v.node) }
+
+// AsCall returns x as a Call; ok is false if it is not one.
+func (x CallOrNew) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
+func (x CallOrNew) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
+
+// AsNew returns x as a New; ok is false if it is not one.
+func (x CallOrNew) AsNew() (New, bool) { return AsNew(x.node) }
+
+// AsExpr returns x as an Expr.
+func (x CallOrNew) AsExpr() Expr { return Expr{x.node} }
+
+// AsArg returns x as an Arg.
+func (x CallOrNew) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x CallOrNew) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x CallOrNew) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x CallOrNew) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x CallOrNew) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x CallOrNew) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
+func (x CallOrNew) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
+	return AsNormalOrOptChainCall(x.node)
+}
+
+// Callee returns the callee of x.
+func (x CallOrNew) Callee() Expr { return Expr{x.node.GetFirstChild()} }
+
+// Args iterates over the args of x. Like a for loop over GetNext, it reads the next
+// element after the loop body ran: a body that moves the current element elsewhere
+// ends the loop early.
+func (x CallOrNew) Args() iter.Seq[Arg] {
+	return func(yield func(Arg) bool) {
+		for c := x.node.GetFirstChild().GetNext(); c != rhino.NilNode; c = c.GetNext() {
+			if !yield(Arg{c}) {
+				return
+			}
+		}
+	}
+}
+
+// FirstArg returns the first of the args of x; ok is false if there is none.
+func (x CallOrNew) FirstArg() (v Arg, ok bool) {
+	c := x.node.GetFirstChild().GetNext()
+	return Arg{c}, c != rhino.NilNode
+}
+
+// LastArg returns the last of the args of x; ok is false if there is none.
+func (x CallOrNew) LastArg() (v Arg, ok bool) {
+	if x.node.GetFirstChild().GetNext() == rhino.NilNode {
+		return Arg{}, false
+	}
+	c := x.node.GetLastChild()
+	return Arg{c}, c != rhino.NilNode
+}
+
+// OnlyArg returns the arg of x if it is the only one; ok is false if x has none or several.
+func (x CallOrNew) OnlyArg() (v Arg, ok bool) {
+	c := x.node.GetFirstChild().GetNext()
+	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// HasArgs reports whether x has any args.
+func (x CallOrNew) HasArgs() bool { return x.node.GetFirstChild().GetNext() != rhino.NilNode }
+
+// AppendArg adds v (which must not be in a tree) after the args of x.
+func (x CallOrNew) AppendArg(v Arg) { x.node.AddChildToBack(v.node) }
 
 // NormalOrOptChainGetProp is a property access with a dot, in an optional
 // chain or not: object.property or object?.property
@@ -11754,6 +11907,7 @@ var grammarCategories = map[string][]string{
 	"ScriptItem":              {"ModuleBody", "Block", "Label", "If", "For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do", "With", "Switch", "Try", "NameDeclaration", "ExprStmt", "Return", "Throw", "Break", "Continue", "Empty", "Debugger", "Function", "Class", "Import", "Export", "Interface", "Enum", "TypeAlias", "Declare", "Namespace"},
 	"RootItem":                {"Root", "Script"},
 	"NormalOrOptChainCall":    {"Call", "OptChainCall"},
+	"CallOrNew":               {"Call", "OptChainCall", "New"},
 	"NormalOrOptChainGetProp": {"GetProp", "OptChainGetProp"},
 	"NormalOrOptChainGet":     {"GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem"},
 	"NormalOrOptChainGetElem": {"GetElem", "OptChainGetElem"},

@@ -119,6 +119,10 @@ RootItem = Root | Script
 ## callee(args) or callee?.(args) (NodeUtil.isNormalOrOptChainCall).
 NormalOrOptChainCall = Call | OptChainCall
 
+## CallOrNew is a call, in an optional chain or not, or a new:
+## callee(args), callee?.(args) or new callee(args) (NodeUtil.isCallOrNew).
+CallOrNew = Call | OptChainCall | New
+
 ## NormalOrOptChainGetProp is a property access with a dot, in an optional
 ## chain or not: object.property or object?.property
 ## (NodeUtil.isNormalOrOptChainGetProp).
