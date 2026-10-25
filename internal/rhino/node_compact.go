@@ -217,17 +217,31 @@ func (k *Compactor) Slide() {
 	s.next.Store(k.newBase + live)
 	s.register()
 
-	// The cold data is keyed by id.
+	// The cold data is keyed by id (no other goroutine runs during
+	// compaction, so the shards are not locked).
 	var oldAux [auxShards]map[uint32]nodeAux
+	var oldCold [auxShards]map[uint32]uint32
 	for sh := range s.aux {
 		oldAux[sh], s.aux[sh].m = s.aux[sh].m, nil
+		oldCold[sh], s.aux[sh].cold = s.aux[sh].cold, nil
+	}
+	newNode := func(id uint32) (Node, bool) {
+		if i := id - k.base; id >= k.base && id < k.end && k.isMarked(i) {
+			return Node(k.newID(i)), true
+		}
+		return NilNode, false
 	}
 	for _, m := range oldAux {
 		for id, a := range m {
-			if i := id - k.base; id >= k.base && id < k.end && k.isMarked(i) {
-				nn := Node(k.newID(i))
-				sh := nn.auxShard()
-				sh.put(uint32(nn), a) // no other goroutine runs during compaction
+			if nn, ok := newNode(id); ok {
+				nn.auxShard().put(uint32(nn), a)
+			}
+		}
+	}
+	for _, m := range oldCold {
+		for id, c := range m {
+			if nn, ok := newNode(id); ok {
+				nn.auxShard().putCold(uint32(nn), c)
 			}
 		}
 	}
