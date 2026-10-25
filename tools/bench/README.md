@@ -248,6 +248,27 @@ These jsgo runs are then not interleaved with Java runs. For final numbers,
 re-run everything on a quiet machine and render with `bench.py report
 --final`.
 
+## Interleaved suite
+
+`interleaved.py` is the lighter runner behind the README and the
+"v20261021 on JDK 27" section of [docs/benchmarks.md](../../docs/benchmarks.md):
+cold Java against one or more jsgo binaries (each with its own
+`--num_parallel_threads`), $N$ blocks in alternating order, every run gated
+byte for byte against Java's first run, plus optional warm Java
+(`java/CliBatch.java`) and the staged `googleapis` build:
+
+```sh
+python3 -I tools/bench/interleaved.py --out /tmp/suite --java /opt/homebrew/opt/openjdk/bin/java \
+    --blocks 5 --warm --jsgo final=./jsgo@4 --jsgo final1=./jsgo@1 --tasks typed-full,bundle
+python3 -I tools/bench/interleaved_stats.py /tmp/suite/results.jsonl
+```
+
+`--no-java --java-ref DIR` compares jsgo builds alone against the Java
+references an earlier run left in `DIR/<task>/ref`. `interleaved_stats.py`
+prints means and geometric-mean ratios with 95% CIs (paired $t$ against cold
+Java, Welch's $t$ against warm Java). Unlike `bench.py`, it records no
+per-phase traces.
+
 ## PGO profile
 
 `go build ./cmd/jsgo` (and so this benchmark) applies profile-guided
