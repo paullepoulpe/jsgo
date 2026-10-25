@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"strings"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -34,6 +35,9 @@ import (
 type CompilerInput struct {
 	// Info about where the file lives.
 	chunk *JSChunk
+	// Go-only: performance — the input's index in compilerInputTable
+	// (abstract_var.go), 0 until a variable refers to it.
+	varTableIndex atomic.Uint32
 	// Go-only: the InputId is its own allocation, never a field of the
 	// CompilerInput: the SCRIPT node keeps it as a property, and an interior
 	// pointer would keep the CompilerInput (and through it the Compiler)

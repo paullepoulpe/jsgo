@@ -36,11 +36,15 @@ import (
 // GetDeclaration and GetSymbol keep rhino's signatures (assert
 // `.(*TypedScope)` / `.(*TypedVar)`); see the note at the top of
 // abstract_scope.go.
+//
+// Go-only: performance — the type is kept as its *JSTypeBase (the JSType is
+// its Self()): 48 bytes instead of 64, for the hundreds of thousands of
+// variables (most of them qualified names) the type checker declares.
 type TypedVar struct {
 	AbstractVarBase[*TypedScope, *TypedVar]
 
 	name  string
-	type_ rhino.JSType
+	type_ *rhino.JSTypeBase
 }
 
 // includes nodes that in plain JS semantics are not 'declarations', but that the type system
@@ -70,7 +74,7 @@ func NewTypedVar(inferred bool, name string, nameNode rhino.Node, type_ rhino.JS
 			"Invalid name node token %s",
 			nameNode.GetToken())
 	}
-	v.type_ = type_
+	v.SetType(type_)
 	if inferred {
 		v.indexAndFlags |= varFlagTypeInferred
 	}
@@ -129,18 +133,28 @@ func (v *TypedVar) GetDeclaration() rhino.StaticRef {
 //
 // Java: TypedVar.getType()
 func (v *TypedVar) GetType() rhino.JSType {
-	return v.type_
+	if v.type_ == nil {
+		return nil
+	}
+	return v.type_.Self()
 }
 
 // Java: TypedVar.setType(JSType)
 func (v *TypedVar) SetType(type_ rhino.JSType) {
-	v.type_ = type_
+	if type_ == nil {
+		v.type_ = nil
+		return
+	}
+	v.type_ = type_.GetJSTypeBase()
+	if v.type_.Self() != type_ {
+		panic("TypedVar.SetType: the type is not the Self() of its JSTypeBase")
+	}
 }
 
 // Java: TypedVar.resolveType(ErrorReporter)
 func (v *TypedVar) ResolveType(errorReporter rhino.ErrorReporter) {
-	if v.type_ != nil {
-		v.type_ = v.type_.Resolve(errorReporter)
+	if t := v.GetType(); t != nil {
+		v.SetType(t.Resolve(errorReporter))
 	}
 }
 
@@ -162,7 +176,7 @@ func (v *TypedVar) GetInputName() string {
 
 // Java: TypedVar.toString()
 func (v *TypedVar) String() string {
-	return "Var " + v.GetName() + "{" + jutil.ToJavaString(v.type_) + "}"
+	return "Var " + v.GetName() + "{" + jutil.ToJavaString(v.GetType()) + "}"
 }
 
 // Java: TypedVar.markEscaped()

@@ -19,7 +19,9 @@
 package jscomp
 
 import (
+	"sync"
 	"sync/atomic"
+	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -160,7 +162,10 @@ type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struc
 	nameNode rhino.Node
 
 	// Input source
-	input *CompilerInput
+	//
+	// Go-only: performance — the input's index in compilerInputTable (0:
+	// none), 4 bytes beside nameNode instead of an 8-byte pointer.
+	input uint32
 
 	scope S
 
@@ -200,7 +205,7 @@ func (b *AbstractVarBase[S, V]) initAbstractVarBase(
 	b.scope = scope
 	b.indexAndFlags = flags
 	b.nameHash = 0
-	b.input = input
+	b.input = compilerInputTable_indexOf(input)
 }
 
 // Java: AbstractVar.getScopeRoot()
@@ -238,7 +243,7 @@ func (b *AbstractVarBase[S, V]) GetNode() rhino.Node {
 
 // Java: AbstractVar.getInput()
 func (b *AbstractVarBase[S, V]) GetInput() *CompilerInput {
-	return b.input
+	return compilerInputTable_at(b.input)
 }
 
 // Java: AbstractVar.getSourceFile()
@@ -305,7 +310,8 @@ func (b *AbstractVarBase[S, V]) IsLocal() bool {
 
 // Java: AbstractVar.isExtern()
 func (b *AbstractVarBase[S, V]) IsExtern() bool {
-	return b.input == nil || b.input.IsExtern()
+	input := b.GetInput()
+	return input == nil || input.IsExtern()
 }
 
 // IsDeclaredOrInferredConst returns true if the variable is declared or
@@ -467,4 +473,48 @@ func (b *AbstractVarBase[S, V]) equals(name string, other any) bool {
 		return false
 	}
 	return name == scoped.GetName() && scopedName_nodeEquals(b.GetScopeRoot(), scoped.GetScopeRoot())
+}
+
+// compilerInputTable numbers the CompilerInputs that variables refer to, so
+// that a variable keeps a 32-bit index instead of a pointer.
+//
+// Go-only: performance — with the index beside the name node, a Var takes
+// 32 bytes instead of 48 and a TypedVar 48 instead of 64, for the hundreds
+// of thousands of variables a large compilation declares. The table holds
+// the inputs weakly, so it never keeps a compilation alive; a variable is
+// used while its compiler, which holds its inputs, is.
+var compilerInputTable struct {
+	mu      sync.RWMutex
+	entries []weak.Pointer[CompilerInput] // entry i has index i+1
+}
+
+// compilerInputTable_indexOf returns the index of input (0 for nil),
+// adding it to the table on first use.
+func compilerInputTable_indexOf(input *CompilerInput) uint32 {
+	if input == nil {
+		return 0
+	}
+	if i := input.varTableIndex.Load(); i != 0 {
+		return i
+	}
+	compilerInputTable.mu.Lock()
+	defer compilerInputTable.mu.Unlock()
+	if i := input.varTableIndex.Load(); i != 0 {
+		return i
+	}
+	compilerInputTable.entries = append(compilerInputTable.entries, weak.Make(input))
+	i := uint32(len(compilerInputTable.entries))
+	input.varTableIndex.Store(i)
+	return i
+}
+
+// compilerInputTable_at returns the input with index i (nil for 0).
+func compilerInputTable_at(i uint32) *CompilerInput {
+	if i == 0 {
+		return nil
+	}
+	compilerInputTable.mu.RLock()
+	w := compilerInputTable.entries[i-1]
+	compilerInputTable.mu.RUnlock()
+	return w.Value()
 }
