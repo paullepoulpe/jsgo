@@ -19,10 +19,18 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) where it reads
+// shapes: the functions it rewrites or opens a this/arguments context for
+// (ast.Function), the body of an arrow function (a block after
+// normalization: arrow.Body().AsBlock()) and the callee of a super(...) call.
+// ShouldTraverse still switches on the token: it runs on every node and
+// hands typed nodes to the helpers.
 
 // Es6RewriteArrowFunction converts ES6 arrow functions to standard anonymous
 // ES3 functions.
@@ -68,13 +76,14 @@ func (e *Es6RewriteArrowFunction) ShouldTraverse(t *NodeTraversal, n rhino.Node,
 	case rhino.Token_SCRIPT:
 		e.contextStack = append(e.contextStack, e.ContextForScript(n, t.GetInput()))
 	case rhino.Token_FUNCTION:
-		if !n.IsArrowFunction() {
-			e.contextStack = append(e.contextStack, e.ContextForFunction(n, t.GetInput()))
+		if fn, ok := ast.AsFunction(n); ok && !fn.IsArrow() {
+			e.contextStack = append(e.contextStack, e.ContextForFunction(fn, t.GetInput()))
 		}
 	case rhino.Token_SUPER:
 		context := jutil.CheckNotNull(e.contextStackPeek())
 		// super(...) within a constructor.
-		if context.isConstructor && parent.IsCall() && parent.GetFirstChild() == n {
+		call, isCall := ast.AsCall(parent)
+		if context.isConstructor && isCall && call.Callee().Is(n) {
 			context.lastSuperStatement = e.GetEnclosingStatement(parent, context.scopeBody)
 		}
 	default:
@@ -97,8 +106,8 @@ func (e *Es6RewriteArrowFunction) GetEnclosingStatement(n rhino.Node, block rhin
 func (e *Es6RewriteArrowFunction) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	context := e.contextStackPeek()
 
-	if n.IsArrowFunction() {
-		e.VisitArrowFunction(t, n, jutil.CheckNotNull(context))
+	if fn, ok := ast.AsFunction(n); ok && fn.IsArrow() {
+		e.VisitArrowFunction(t, fn, jutil.CheckNotNull(context))
 	} else if context != nil && context.scopeBody == n {
 		e.contextStack = e.contextStack[:len(e.contextStack)-1]
 		context.AddVarDeclarations(e.compiler, e.astFactory, t.GetCurrentScript())
@@ -106,25 +115,25 @@ func (e *Es6RewriteArrowFunction) Visit(t *NodeTraversal, n rhino.Node, parent r
 }
 
 // Java: Es6RewriteArrowFunction.visitArrowFunction(NodeTraversal, Node, ThisAndArgumentsContext)
-func (e *Es6RewriteArrowFunction) VisitArrowFunction(t *NodeTraversal, n rhino.Node, context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) {
-	n.SetIsArrowFunction(false)
+func (e *Es6RewriteArrowFunction) VisitArrowFunction(t *NodeTraversal, arrow ast.Function, context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) {
+	arrow.Node().SetIsArrowFunction(false)
 
-	body := n.GetLastChild()
-	jutil.CheckStateMsg(body.IsBlock(), "Arrow function body must be a block after normalization")
+	body, ok := arrow.Body().AsBlock()
+	jutil.CheckStateMsg(ok, "Arrow function body must be a block after normalization")
 
 	updater :=
 		NewThisAndArgumentsReferenceUpdater(e.compiler, context, e.astFactory)
-	NodeTraversal_Traverse(e.compiler, body, updater)
+	NodeTraversal_Traverse(e.compiler, body.Node(), updater)
 
 	t.ReportCodeChange()
 }
 
 // Java: Es6RewriteArrowFunction.contextForFunction(Node, CompilerInput)
-func (e *Es6RewriteArrowFunction) ContextForFunction(functionNode rhino.Node, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
-	scopeBody := functionNode.GetLastChild()
+func (e *Es6RewriteArrowFunction) ContextForFunction(fn ast.Function, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
+	scopeBody := fn.Body().Node()
 	return NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
 		scopeBody,
-		NodeUtil_IsEs6Constructor(functionNode),
+		NodeUtil_IsEs6Constructor(fn.Node()),
 		e.compiler.GetUniqueIdSupplier().GetUniqueId(input))
 }
 
