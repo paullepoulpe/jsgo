@@ -29,6 +29,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -277,6 +278,8 @@ type Compiler struct {
 	asErrorHandler      *compiler_errorHandler
 	asSourceFileMapping *compiler_sourceFileMapping
 	cachedAstAnalyzer   *AstAnalyzer
+	printScratch        codePrinterScratch
+	printScratchBusy    atomic.Bool
 
 	// Go-only: language-adapter — the object's monitor, which its
 	// synchronized methods and blocks hold.
@@ -3094,10 +3097,11 @@ func (c *Compiler) ToSource() string {
 					}
 					printed := make([]scriptPrinted, min(len(scripts), batchSize))
 					numThreads := c.options.GetNumParallelThreads()
+					scratches := make([]codePrinterScratch, numThreads)
 					for batchStart := 0; batchStart < len(scripts); batchStart += batchSize {
 						batchEnd := min(batchStart+batchSize, len(scripts))
 						batchLen := batchEnd - batchStart
-						failures := parallelPrebuild(batchLen, numThreads, func(j int) {
+						failures := parallelPrebuildIndexed(batchLen, numThreads, func(w, j int) {
 							idx := batchStart + j
 							localLT := printed[j].lt
 							if localLT == nil {
@@ -3107,7 +3111,7 @@ func (c *Compiler) ToSource() string {
 								localLT.currentlySeenLicenses.Clear()
 								localLT.lastSeenFile = ""
 							}
-							c.toSourceAndMappingsInto(scripts[idx], idx == 0, localLT, &printed[j].sm)
+							c.toSourceAndMappingsIntoWithScratch(scripts[idx], idx == 0, localLT, &printed[j].sm, &scratches[w])
 							if localLT.currentlySeenLicenses.IsEmpty() {
 								printed[j].licenses = nil
 							} else {
@@ -3116,9 +3120,6 @@ func (c *Compiler) ToSource() string {
 						})
 						for _, f := range failures {
 							if f != nil {
-								for j := 0; j < batchLen; j++ {
-									printed[j].sm.Release()
-								}
 								panic(f)
 							}
 						}
@@ -3196,19 +3197,17 @@ func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter
 					}
 					printed := make([]scriptPrinted, min(numInputs, batchSize))
 					numThreads := c.options.GetNumParallelThreads()
+					scratches := make([]codePrinterScratch, numThreads)
 					for batchStart := 0; batchStart < numInputs; batchStart += batchSize {
 						batchEnd := min(batchStart+batchSize, numInputs)
 						batchLen := batchEnd - batchStart
-						failures := parallelPrebuild(batchLen, numThreads, func(j int) {
+						failures := parallelPrebuildIndexed(batchLen, numThreads, func(w, j int) {
 							idx := batchStart + j
 							printed[j].rec.Reset(onlyScript)
-							c.toSourceAndMappingsInto(scripts[idx], idx == 0, &printed[j].rec, &printed[j].sm)
+							c.toSourceAndMappingsIntoWithScratch(scripts[idx], idx == 0, &printed[j].rec, &printed[j].sm, &scratches[w])
 						})
 						for _, f := range failures {
 							if f != nil {
-								for j := 0; j < batchLen; j++ {
-									printed[j].sm.Release()
-								}
 								panic(f)
 							}
 						}
@@ -3265,7 +3264,6 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	inputSeqNum int,
 	root rhino.Node,
 	sourceAndMappings *CodePrinter_SourceAndMappings) {
-	defer sourceAndMappings.Release()
 	if c.options.ShouldPrintInputDelimiter() {
 		if (cb.GetLength() > 0) && !cb.EndsWith("\n") {
 			cb.Append("\n") // Make sure that the label starts on a new line
@@ -3322,22 +3320,14 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	}
 
 	if c.options.ShouldGatherSourceMapInfo() {
-		if len(sourceAndMappings.mappingChunks) > 0 || len(sourceAndMappings.mappingSlab) > 0 {
-			for _, chunk := range sourceAndMappings.mappingChunks {
-				for i := range chunk {
-					m := &chunk[i]
-					c.sourceMap.AddMappingOfNodePositions(m.node, m.start, m.end)
-				}
-			}
-			for i := range sourceAndMappings.mappingSlab {
-				m := &sourceAndMappings.mappingSlab[i]
-				c.sourceMap.AddMappingOfNodePositions(m.node, m.start, m.end)
-			}
-			sourceAndMappings.Release()
-		} else if sourceAndMappings.mappings != nil {
-			for _, mapping := range sourceAndMappings.mappings {
-				c.sourceMap.AddMapping(mapping)
-			}
+		for i := range sourceAndMappings.mappings {
+			m := &sourceAndMappings.mappings[i]
+			c.sourceMap.AddMappingOfNodePositions(m.node, m.start, m.end)
+		}
+		if cap(sourceAndMappings.mappings) > 16384 {
+			sourceAndMappings.mappings = nil
+		} else {
+			sourceAndMappings.mappings = sourceAndMappings.mappings[:0]
 		}
 	}
 }
@@ -3820,28 +3810,51 @@ func (c *Compiler) toSourceAndMappings(
 	n rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) *CodePrinter_SourceAndMappings {
 	sm := &CodePrinter_SourceAndMappings{}
 	c.toSourceAndMappingsInto(n, firstOutput, licenseTracker, sm)
-	sm.mappings = sm.iterMappings
 	return sm
+}
+
+func (c *Compiler) acquirePrintScratch() (*codePrinterScratch, bool) {
+	if c.printScratchBusy.CompareAndSwap(false, true) {
+		return &c.printScratch, true
+	}
+	return nil, false
 }
 
 func (c *Compiler) toSourceAndMappingsInto(
 	n rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker, sm *CodePrinter_SourceAndMappings) {
+	scratch, owned := c.acquirePrintScratch()
+	if owned {
+		defer c.printScratchBusy.Store(false)
+	}
+	c.toSourceAndMappingsIntoWithScratch(n, firstOutput, licenseTracker, sm, scratch)
+}
+
+func (c *Compiler) toSourceAndMappingsIntoWithScratch(
+	n rhino.Node,
+	firstOutput bool,
+	licenseTracker CodePrinter_LicenseTracker,
+	sm *CodePrinter_SourceAndMappings,
+	scratch *codePrinterScratch) {
 	builder := CodePrinter_Builder{root: n}
 	builder.SetCompilerOptions(c.options)
 	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
 	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
 	builder.SetLicenseTracker(licenseTracker)
-	builder.buildSourceAndMappingsInto(sm, true)
+	builder.buildSourceAndMappingsInto(sm, true, scratch)
 }
 
 func (c *Compiler) toSourceWithoutMappings(
 	n rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) string {
+	scratch, owned := c.acquirePrintScratch()
+	if owned {
+		defer c.printScratchBusy.Store(false)
+	}
 	builder := CodePrinter_Builder{root: n}
 	builder.SetCompilerOptions(c.options)
 	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
 	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
 	builder.SetLicenseTracker(licenseTracker)
-	return builder.Build()
+	return builder.buildSourceAndMappingsInto(nil, false, scratch)
 }
 
 // Java: Compiler.getLicenseForFile(AbstractCompiler, String)

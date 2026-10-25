@@ -296,7 +296,7 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 	}
 
 	var t0, t1 *JSTypeBase
-	var cacheIdx uintptr
+	var cacheIdx int
 	canCache := false
 	if len(values) <= 2 && m.registry != nil {
 		canCache = true

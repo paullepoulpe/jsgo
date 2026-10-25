@@ -43,7 +43,7 @@ import (
 	"hash/maphash"
 	"strings"
 	"sync"
-	"unsafe"
+	"sync/atomic"
 )
 
 // ID is a 32-bit pointer-free handle to an interned string:
@@ -53,25 +53,19 @@ import (
 type ID uint32
 
 const (
-	numShards     = 64
-	maxShardSize  = 56000
-	pageSize      = 32760 // <= maxSmallSize - gc.MallocHeaderSize
-	spanChunkSize = 2048  // 16384B <= 32760B (power of 2)
+	numShards  = 64
+	chunkShift = 9
+	chunkSize  = 1 << chunkShift // 512 strings per chunk (power of 2 for 1-cycle >> / & indexing)
+	chunkMask  = chunkSize - 1
+	maxChunks  = 1024 // up to 33.5M unique strings across 64 shards
 )
 
 type shard struct {
 	mu           sync.RWMutex
-	table        []uint64 // noscan open-addressed hash table, at most 3/4 full: (hash32 << 32) | (localIdx + 1)
+	table        []uint64 // open-addressed hash table, at most 3/4 full: (hash32 << 32) | (localIdx + 1)
 	count        uint32
 	nextLocalIdx uint32
-	curPageIdx   uint32
-	curPageOff   uint32
-	hasCurPage   bool
-	spanChunks   [2048]*[spanChunkSize]uint64
-	pages        [4096]*[pageSize]byte
-	largeStrings []string
-	ptrMap       map[uint32]*string
-	ptrSlab      []string
+	chunks       [maxChunks]atomic.Pointer[[chunkSize]string]
 }
 
 var (
@@ -85,54 +79,26 @@ func hash(s string) uint64 {
 	return maphash.String(seed, s)
 }
 
-func (s *shard) stringAtLocked(localIdx uint32) string {
-	desc := s.spanChunks[localIdx>>11][localIdx&2047]
-	if int64(desc) < 0 {
-		return s.largeStrings[uint32(desc)]
-	}
-	pageOff := uint32(desc & 0xFFFFF)
-	length := uint32((desc >> 20) & 0xFFFFF)
-	pageIdx := uint32((desc >> 40) & 0xFFFFF)
-	return unsafe.String(&s.pages[pageIdx][pageOff], length)
+func (s *shard) stringAt(localIdx uint32) string {
+	return s.chunks[localIdx>>chunkShift].Load()[localIdx&chunkMask]
 }
 
-func (s *shard) allocSpan(str string) uint32 {
+func (s *shard) allocString(str string) uint32 {
 	localIdx := s.nextLocalIdx
 	s.nextLocalIdx = localIdx + 1
-	chunkIdx := localIdx >> 11
-	if s.spanChunks[chunkIdx] == nil {
-		s.spanChunks[chunkIdx] = new([spanChunkSize]uint64)
+	chunkIdx := localIdx >> chunkShift
+	chunk := s.chunks[chunkIdx].Load()
+	if chunk == nil {
+		chunk = new([chunkSize]string)
+		s.chunks[chunkIdx].Store(chunk)
 	}
-	n := len(str)
-	if n > pageSize || (s.hasCurPage && int(s.curPageOff)+n > pageSize && int(s.curPageIdx)+1 >= len(s.pages)) {
-		largeIdx := uint32(len(s.largeStrings))
-		// Copy string bytes so substring slices don't pin large source buffers.
-		s.largeStrings = append(s.largeStrings, strings.Clone(str))
-		s.spanChunks[chunkIdx][localIdx&2047] = (uint64(1) << 63) | uint64(largeIdx)
-		return localIdx
-	}
-	if !s.hasCurPage || int(s.curPageOff)+n > pageSize {
-		if s.hasCurPage {
-			s.curPageIdx++
-		} else {
-			s.hasCurPage = true
-		}
-		s.curPageOff = 0
-		s.pages[s.curPageIdx] = new([pageSize]byte)
-	}
-	off := s.curPageOff
-	s.curPageOff = off + uint32(n)
-	copy(s.pages[s.curPageIdx][off:off+uint32(n)], str)
-	desc := uint64(off) | (uint64(n) << 20) | (uint64(s.curPageIdx) << 40)
-	s.spanChunks[chunkIdx][localIdx&2047] = desc
+	// Clone so substring slices from parser inputs never pin full source files.
+	chunk[localIdx&chunkMask] = strings.Clone(str)
 	return localIdx
 }
 
 func (s *shard) growTable() {
-	newCap := len(s.table) * 2
-	if newCap < 128 {
-		newCap = 128
-	}
+	newCap := max(len(s.table)*2, 128)
 	newTable := make([]uint64, newCap)
 	mask := uint32(newCap - 1)
 	for _, entry := range s.table {
@@ -149,6 +115,32 @@ func (s *shard) growTable() {
 	s.table = newTable
 }
 
+func (s *shard) probeLocked(hash32 uint32, str string) (uint32, bool) {
+	tbl := s.table
+	if len(tbl) == 0 {
+		return 0, false
+	}
+	mask := uint32(len(tbl) - 1)
+	slot := hash32 & mask
+	for {
+		entry := tbl[slot]
+		if entry == 0 {
+			return 0, false
+		}
+		if uint32(entry>>32) == hash32 {
+			localIdx := uint32(entry) - 1
+			if s.stringAt(localIdx) == str {
+				return localIdx, true
+			}
+		}
+		slot = (slot + 1) & mask
+	}
+}
+
+func makeID(localIdx, shardIdx uint32) ID {
+	return ID(((localIdx << 6) | shardIdx) + 2)
+}
+
 func Intern(str string) ID {
 	if len(str) == 0 {
 		return 1
@@ -156,71 +148,35 @@ func Intern(str string) ID {
 	h := hash(str)
 	shardIdx := uint32(h) & (numShards - 1)
 	hash32 := uint32(h >> 32)
-	shard := &shards[shardIdx]
+	s := &shards[shardIdx]
 
-	shard.mu.RLock()
-	if tbl := shard.table; len(tbl) > 0 {
-		mask := uint32(len(tbl) - 1)
-		slot := hash32 & mask
-		for {
-			entry := tbl[slot]
-			if entry == 0 {
-				break
-			}
-			if uint32(entry>>32) == hash32 {
-				localIdx := uint32(entry) - 1
-				if shard.stringAtLocked(localIdx) == str {
-					shard.mu.RUnlock()
-					return ID(((localIdx << 6) | shardIdx) + 2)
-				}
-			}
-			slot = (slot + 1) & mask
-		}
+	s.mu.RLock()
+	if localIdx, ok := s.probeLocked(hash32, str); ok {
+		s.mu.RUnlock()
+		return makeID(localIdx, shardIdx)
 	}
-	shard.mu.RUnlock()
+	s.mu.RUnlock()
 
-	shard.mu.Lock()
-	if len(shard.table) == 0 {
-		shard.table = make([]uint64, 128)
-	} else {
-		mask := uint32(len(shard.table) - 1)
-		slot := hash32 & mask
-		for {
-			entry := shard.table[slot]
-			if entry == 0 {
-				break
-			}
-			if uint32(entry>>32) == hash32 {
-				localIdx := uint32(entry) - 1
-				if shard.stringAtLocked(localIdx) == str {
-					shard.mu.Unlock()
-					return ID(((localIdx << 6) | shardIdx) + 2)
-				}
-			}
-			slot = (slot + 1) & mask
-		}
+	s.mu.Lock()
+	if len(s.table) == 0 {
+		s.table = make([]uint64, 128)
+	} else if localIdx, ok := s.probeLocked(hash32, str); ok {
+		s.mu.Unlock()
+		return makeID(localIdx, shardIdx)
 	}
-	if int(shard.count+1)*4 > len(shard.table)*3 {
-		shard.growTable()
+	if int(s.count+1)*4 > len(s.table)*3 {
+		s.growTable()
 	}
-	localIdx := shard.allocSpan(str)
-	mask := uint32(len(shard.table) - 1)
+	localIdx := s.allocString(str)
+	mask := uint32(len(s.table) - 1)
 	slot := hash32 & mask
-	for shard.table[slot] != 0 {
+	for s.table[slot] != 0 {
 		slot = (slot + 1) & mask
 	}
-	shard.table[slot] = (uint64(hash32) << 32) | uint64(localIdx+1)
-	shard.count++
-	shard.mu.Unlock()
-	return ID(((localIdx << 6) | shardIdx) + 2)
-}
-
-//go:noinline
-func (s *shard) largeStringAt(largeIdx uint32) string {
-	s.mu.RLock()
-	v := s.largeStrings[largeIdx]
-	s.mu.RUnlock()
-	return v
+	s.table[slot] = (uint64(hash32) << 32) | uint64(localIdx+1)
+	s.count++
+	s.mu.Unlock()
+	return makeID(localIdx, shardIdx)
 }
 
 func String(id ID) string {
@@ -230,14 +186,7 @@ func String(id ID) string {
 	idx := uint32(id - 2)
 	s := &shards[idx&(numShards-1)]
 	localIdx := idx >> 6
-	desc := s.spanChunks[localIdx>>11][localIdx&2047]
-	if int64(desc) < 0 {
-		return s.largeStringAt(uint32(desc))
-	}
-	pageOff := uint32(desc & 0xFFFFF)
-	length := uint32((desc >> 20) & 0xFFFFF)
-	pageIdx := uint32((desc >> 40) & 0xFFFFF)
-	return unsafe.String(&s.pages[pageIdx][pageOff], length)
+	return s.chunks[localIdx>>chunkShift].Load()[localIdx&chunkMask]
 }
 
 func StringPtr(id ID) *string {
@@ -250,31 +199,7 @@ func StringPtr(id ID) *string {
 	idx := uint32(id - 2)
 	s := &shards[idx&(numShards-1)]
 	localIdx := idx >> 6
-
-	s.mu.RLock()
-	p := s.ptrMap[localIdx]
-	s.mu.RUnlock()
-	if p != nil {
-		return p
-	}
-
-	s.mu.Lock()
-	if s.ptrMap == nil {
-		s.ptrMap = make(map[uint32]*string, 64)
-	} else if p = s.ptrMap[localIdx]; p != nil {
-		s.mu.Unlock()
-		return p
-	}
-	if len(s.ptrSlab) == 0 {
-		// 1023 strings and the 8-byte malloc header fill the 16 KiB size class.
-		s.ptrSlab = make([]string, 1023)
-	}
-	p = &s.ptrSlab[0]
-	s.ptrSlab = s.ptrSlab[1:]
-	*p = s.stringAtLocked(localIdx)
-	s.ptrMap[localIdx] = p
-	s.mu.Unlock()
-	return p
+	return &s.chunks[localIdx>>chunkShift].Load()[localIdx&chunkMask]
 }
 
 func ClearForTest() {
@@ -295,29 +220,15 @@ func Lookup(str string) ID {
 	h := hash(str)
 	shardIdx := uint32(h) & (numShards - 1)
 	hash32 := uint32(h >> 32)
-	shard := &shards[shardIdx]
+	s := &shards[shardIdx]
 
-	shard.mu.RLock()
-	if tbl := shard.table; len(tbl) > 0 {
-		mask := uint32(len(tbl) - 1)
-		slot := hash32 & mask
-		for {
-			entry := tbl[slot]
-			if entry == 0 {
-				break
-			}
-			if uint32(entry>>32) == hash32 {
-				localIdx := uint32(entry) - 1
-				if shard.stringAtLocked(localIdx) == str {
-					shard.mu.RUnlock()
-					return ID(((localIdx << 6) | shardIdx) + 2)
-				}
-			}
-			slot = (slot + 1) & mask
-		}
+	s.mu.RLock()
+	localIdx, ok := s.probeLocked(hash32, str)
+	s.mu.RUnlock()
+	if !ok {
+		return 0
 	}
-	shard.mu.RUnlock()
-	return 0
+	return makeID(localIdx, shardIdx)
 }
 
 // InternBytes interns b and returns its ID, without allocating a string
@@ -329,10 +240,10 @@ func InternBytes(b []byte) ID {
 	h := maphash.Bytes(seed, b)
 	shardIdx := uint32(h) & (numShards - 1)
 	hash32 := uint32(h >> 32)
-	shard := &shards[shardIdx]
+	s := &shards[shardIdx]
 
-	shard.mu.RLock()
-	if tbl := shard.table; len(tbl) > 0 {
+	s.mu.RLock()
+	if tbl := s.table; len(tbl) > 0 {
 		mask := uint32(len(tbl) - 1)
 		slot := hash32 & mask
 		for {
@@ -342,15 +253,15 @@ func InternBytes(b []byte) ID {
 			}
 			if uint32(entry>>32) == hash32 {
 				localIdx := uint32(entry) - 1
-				if shard.stringAtLocked(localIdx) == string(b) {
-					shard.mu.RUnlock()
-					return ID(((localIdx << 6) | shardIdx) + 2)
+				if s.stringAt(localIdx) == string(b) {
+					s.mu.RUnlock()
+					return makeID(localIdx, shardIdx)
 				}
 			}
 			slot = (slot + 1) & mask
 		}
 	}
-	shard.mu.RUnlock()
+	s.mu.RUnlock()
 	return Intern(string(b))
 }
 

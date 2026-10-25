@@ -10,18 +10,13 @@ import (
 	"testing"
 )
 
-// TestUnsafeImportAllowlist guards against re-introducing "unsafe" outside the
-// small, documented runtime/substrate files (Gson private-field reflection,
-// pointer identity hashing, slab chunk sizing, RhinoStringPool byte pages, and
-// the AST Node storage substrate).
+// TestUnsafeImportAllowlist guards against re-introducing "unsafe" anywhere
+// outside Gson private-field reflection.
 func TestUnsafeImportAllowlist(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", ".."))
 	allowed := map[string]bool{
 		"internal/jutil/gson_from_json_reflective.go": true,
 		"internal/jutil/gson_to_json.go":              true,
-		"internal/jutil/objects.go":                   true,
-		"internal/jutil/slab.go":                      true,
-		"internal/strpool/strpool.go":                 true, // the string pool (was internal/rhino/rhino_string_pool.go)
 	}
 
 	fset := token.NewFileSet()
@@ -49,9 +44,7 @@ func TestUnsafeImportAllowlist(t *testing.T) {
 				if err != nil || pkg != "unsafe" {
 					continue
 				}
-				if allowed[rel] ||
-					strings.HasPrefix(rel, "internal/rhino/node") ||
-					strings.HasPrefix(rel, "internal/rhino/flatspike/") {
+				if allowed[rel] {
 					continue
 				}
 				t.Errorf("%s imports \"unsafe\" outside the documented substrate allowlist", rel)

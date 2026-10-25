@@ -114,34 +114,11 @@ type PolyfillUsageFinder_Polyfills struct {
 	// which they are defined)
 	byNativeVersion *jutil.ListMultimap[string, *PolyfillUsageFinder_Polyfill]
 
-	staticsMap      map[string]*PolyfillUsageFinder_Polyfill
-	suffixesMap     map[string]struct{}
-	methodsMap      map[string][]*PolyfillUsageFinder_Polyfill
-	staticsMask     [256]uint64
-	staticsEndMask  [256]uint64
-	suffixesMask    [256]uint64
-	suffixesEndMask [256]uint64
-	methodsMask     [256]uint64
-	methodsEndMask  [256]uint64
-	anyPropMask     [256]uint64
-	anyPropEndMask  [256]uint64
-	staticIDBloom   [32]uint64
-	propIDBloom     [32]uint64
-}
-
-func polyfillBloomAdd(bloom *[32]uint64, id uint32) {
-	h := uint64(id) * 0x9e3779b97f4a7c15
-	b1 := (h >> 53) & 2047
-	b2 := (h >> 42) & 2047
-	bloom[b1>>6] |= uint64(1) << (b1 & 63)
-	bloom[b2>>6] |= uint64(1) << (b2 & 63)
-}
-
-func polyfillBloomMayContain(bloom *[32]uint64, id uint32) bool {
-	h := uint64(id) * 0x9e3779b97f4a7c15
-	b1 := (h >> 53) & 2047
-	b2 := (h >> 42) & 2047
-	return (bloom[b1>>6]&(uint64(1)<<(b1&63))) != 0 && (bloom[b2>>6]&(uint64(1)<<(b2&63))) != 0
+	staticsMap  map[string]*PolyfillUsageFinder_Polyfill
+	staticRoots map[string]struct{}
+	suffixesMap map[string]struct{}
+	methodsMap  map[string][]*PolyfillUsageFinder_Polyfill
+	anyPropMap  map[string]struct{}
 }
 
 // Java: PolyfillUsageFinder.Polyfills(ImmutableMultimap<String, Polyfill>, ImmutableMap<String, Polyfill>, ImmutableMultimap<String, Polyfill>)
@@ -149,118 +126,65 @@ func newPolyfillUsageFinder_Polyfills(
 	methods *jutil.ListMultimap[string, *PolyfillUsageFinder_Polyfill],
 	statics *jutil.LinkedHashMap[string, *PolyfillUsageFinder_Polyfill],
 	byNativeVersion *jutil.ListMultimap[string, *PolyfillUsageFinder_Polyfill]) *PolyfillUsageFinder_Polyfills {
-	p := &PolyfillUsageFinder_Polyfills{}
-	p.methods = methods
-	p.statics = statics
-	p.byNativeVersion = byNativeVersion
+	p := &PolyfillUsageFinder_Polyfills{
+		methods:         methods,
+		statics:         statics,
+		byNativeVersion: byNativeVersion,
+		staticsMap:      make(map[string]*PolyfillUsageFinder_Polyfill, statics.Size()),
+		staticRoots:     make(map[string]struct{}, 16),
+		suffixesMap:     make(map[string]struct{}, statics.Size()),
+		methodsMap:      make(map[string][]*PolyfillUsageFinder_Polyfill, methods.Size()),
+		anyPropMap:      make(map[string]struct{}, statics.Size()+methods.Size()),
+	}
 	suffixes := jutil.NewLinkedHashSet[string]()
-	p.staticsMap = make(map[string]*PolyfillUsageFinder_Polyfill, statics.Size())
-	p.suffixesMap = make(map[string]struct{}, statics.Size())
 	for arg := range statics.Keys() {
 		p.staticsMap[arg] = statics.Get(arg)
-		polyfillBloomAdd(&p.staticIDBloom, rhino.RhinoStringPool_InternID(arg))
-		if n := len(arg); n > 0 && n < 64 {
-			mask := uint64(1) << n
-			p.staticsMask[arg[0]] |= mask
-			p.staticsEndMask[arg[n-1]] |= mask
+		if dot := strings.IndexByte(arg, '.'); dot > 0 {
+			p.staticRoots[arg[:dot]] = struct{}{}
 		}
 		suffix := jutil.StringSubstringFrom(arg, jutil.StringLastIndexOf(arg, ".")+1)
 		suffixes.Add(suffix)
 		p.suffixesMap[suffix] = struct{}{}
-		polyfillBloomAdd(&p.propIDBloom, rhino.RhinoStringPool_InternID(suffix))
-		if n := len(suffix); n > 0 && n < 64 {
-			mask := uint64(1) << n
-			p.suffixesMask[suffix[0]] |= mask
-			p.suffixesEndMask[suffix[n-1]] |= mask
-			p.anyPropMask[suffix[0]] |= mask
-			p.anyPropEndMask[suffix[n-1]] |= mask
-		}
+		p.anyPropMap[suffix] = struct{}{}
 	}
 	p.suffixes = suffixes
-	p.methodsMap = make(map[string][]*PolyfillUsageFinder_Polyfill, methods.Size())
 	for methodName := range methods.KeySet() {
 		p.methodsMap[methodName] = methods.Get(methodName)
-		polyfillBloomAdd(&p.propIDBloom, rhino.RhinoStringPool_InternID(methodName))
-		if n := len(methodName); n > 0 && n < 64 {
-			mask := uint64(1) << n
-			p.methodsMask[methodName[0]] |= mask
-			p.methodsEndMask[methodName[n-1]] |= mask
-			p.anyPropMask[methodName[0]] |= mask
-			p.anyPropEndMask[methodName[n-1]] |= mask
-		}
+		p.anyPropMap[methodName] = struct{}{}
 	}
 	return p
 }
 
 func (p *PolyfillUsageFinder_Polyfills) mightHaveStaticNode(n rhino.Node) bool {
-	id := n.GetStringID()
-	if !rhino.RhinoStringPool_WasClearedForTest() && !polyfillBloomMayContain(&p.staticIDBloom, id) {
-		return false
-	}
-	return p.getStatic(rhino.RhinoStringPool_StringFromID(id)) != nil
+	return p.staticsMap[n.GetString()] != nil
 }
 
 func (p *PolyfillUsageFinder_Polyfills) mightHavePropNode(n rhino.Node) bool {
-	id := n.GetStringID()
-	if !rhino.RhinoStringPool_WasClearedForTest() && !polyfillBloomMayContain(&p.propIDBloom, id) {
-		return false
-	}
-	return p.mightHavePropPolyfill(rhino.RhinoStringPool_StringFromID(id))
+	_, ok := p.anyPropMap[n.GetString()]
+	return ok
 }
 
 func (p *PolyfillUsageFinder_Polyfills) getStatic(name string) *PolyfillUsageFinder_Polyfill {
-	n := len(name)
-	if n == 0 {
-		return nil
-	}
-	if n < 64 {
-		mask := uint64(1) << n
-		if p.staticsMask[name[0]]&mask == 0 || p.staticsEndMask[name[n-1]]&mask == 0 {
-			return nil
-		}
-	}
 	return p.staticsMap[name]
 }
 
+func (p *PolyfillUsageFinder_Polyfills) hasStaticRoot(name string) bool {
+	_, ok := p.staticRoots[name]
+	return ok
+}
+
 func (p *PolyfillUsageFinder_Polyfills) hasSuffix(s string) bool {
-	n := len(s)
-	if n == 0 {
-		return false
-	}
-	if n < 64 {
-		mask := uint64(1) << n
-		if p.suffixesMask[s[0]]&mask == 0 || p.suffixesEndMask[s[n-1]]&mask == 0 {
-			return false
-		}
-	}
 	_, ok := p.suffixesMap[s]
 	return ok
 }
 
 func (p *PolyfillUsageFinder_Polyfills) getMethods(name string) []*PolyfillUsageFinder_Polyfill {
-	n := len(name)
-	if n == 0 {
-		return nil
-	}
-	if n < 64 {
-		mask := uint64(1) << n
-		if p.methodsMask[name[0]]&mask == 0 || p.methodsEndMask[name[n-1]]&mask == 0 {
-			return nil
-		}
-	}
 	return p.methodsMap[name]
 }
 
 func (p *PolyfillUsageFinder_Polyfills) mightHavePropPolyfill(name string) bool {
-	n := len(name)
-	if n == 0 {
-		return false
-	}
-	if n < 64 {
-		mask := uint64(1) << n
-		return p.anyPropMask[name[0]]&mask != 0 && p.anyPropEndMask[name[n-1]]&mask != 0
-	}
-	return true
+	_, ok := p.anyPropMap[name]
+	return ok
 }
 
 // PolyfillUsageFinder_Polyfills_FromTable builds a Polyfills instance from a
@@ -595,9 +519,8 @@ func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 		if len(rootName) == 0 {
 			return nil
 		}
-		totalLen := len(rootName) + 1 + len(lastComponent)
 		mayHaveGlobalPrefix := rootName == "goog" || rootName == "window" || rootName == "goog$global" || rootName == "globalThis"
-		if !mayHaveGlobalPrefix && totalLen < 64 && f.polyfills.staticsMask[rootName[0]]&(uint64(1)<<totalLen) == 0 {
+		if !mayHaveGlobalPrefix && !f.polyfills.hasStaticRoot(rootName) {
 			return nil
 		}
 		fullName := rootName + "." + lastComponent
@@ -647,7 +570,7 @@ func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 	}
 	totalLen += 1 + len(rootName)
 	mayHaveGlobalPrefix := rootName == "goog" || rootName == "window" || rootName == "goog$global" || rootName == "globalThis"
-	if !mayHaveGlobalPrefix && totalLen < 64 && f.polyfills.staticsMask[rootName[0]]&(uint64(1)<<totalLen) == 0 {
+	if !mayHaveGlobalPrefix && !f.polyfills.hasStaticRoot(rootName) {
 		return nil
 	}
 	reversedComponents = append(reversedComponents, rootName)

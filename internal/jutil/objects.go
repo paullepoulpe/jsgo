@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"unsafe"
 )
 
 // Go-only: language-adapter — java.lang.Object equality/hashing,
@@ -206,16 +205,12 @@ func IdentityHashCode(v any) int32 {
 	return 0
 }
 
-// IdentityHashCodeOfPointer is IdentityHashCode(p) for a pointer, without
-// converting it to an interface and inspecting it through reflection.
-//
-// Go-only: performance — ScopedName.hashCode hashes its scope root with it
-// for every lookup of a variable in a map.
+// IdentityHashCodeOfPointer is IdentityHashCode(p) for a typed pointer.
 func IdentityHashCodeOfPointer[T any](p *T) int32 {
 	if p == nil {
 		return 0
 	}
-	x := uint64(uintptr(unsafe.Pointer(p)))
+	x := uint64(reflect.ValueOf(p).Pointer())
 	return int32(x ^ (x >> 32))
 }
 

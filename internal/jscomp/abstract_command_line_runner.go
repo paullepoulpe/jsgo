@@ -1949,11 +1949,12 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 	defer waitPrevWrite()
 
 	useBufB := false
+	scratches := make([]codePrinterScratch, numThreads)
 	for batchStart := 0; batchStart < len(activeChunks); batchStart += batchSize {
 		batchEnd := min(batchStart+batchSize, len(activeChunks))
 		batchLen := batchEnd - batchStart
 
-		failures := parallelPrebuild(batchLen, numThreads, func(j int) {
+		failures := parallelPrebuildIndexed(batchLen, numThreads, func(w, j int) {
 			m := activeChunks[batchStart+j]
 			inputs := m.GetInputs()
 			nInputs := len(inputs)
@@ -1977,16 +1978,11 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 				pi := &pc.inputs[i]
 				pi.root = scriptNode
 				pi.rec.Reset(false)
-				r.compiler.toSourceAndMappingsInto(scriptNode, i == 0, &pi.rec, &pi.sm)
+				r.compiler.toSourceAndMappingsIntoWithScratch(scriptNode, i == 0, &pi.rec, &pi.sm, &scratches[w])
 			}
 		})
 		for _, f := range failures {
 			if f != nil {
-				for j := 0; j < batchLen; j++ {
-					for i := range printed[j].inputs {
-						printed[j].inputs[i].sm.Release()
-					}
-				}
 				waitPrevWrite()
 				panic(f)
 			}

@@ -57,9 +57,6 @@ func (c *CheckDuplicateCase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 		if first.IsNil() || first.GetNext().IsNil() {
 			return
 		}
-		if checkDuplicateCaseFast(first) {
-			return
-		}
 		cases := jutil.NewLinkedHashSet[string]()
 		for curr := first; !curr.IsNil(); curr = curr.GetNext() {
 			source := c.compiler.ToSourceOfNode(curr.GetFirstChild())
@@ -68,62 +65,4 @@ func (c *CheckDuplicateCase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 			}
 		}
 	}
-}
-
-// checkDuplicateCaseFast returns true if all switch cases are simple distinct
-// integer or string literals (with at most one default case), avoiding
-// CodePrinter invocations on the common path.
-func checkDuplicateCaseFast(first rhino.Node) bool {
-	var intBuf [32]int64
-	intCount := 0
-	var strBuf [32]string
-	strCount := 0
-	hasDefault := false
-
-	for curr := first; !curr.IsNil(); curr = curr.GetNext() {
-		if curr.IsDefaultCase() {
-			if hasDefault {
-				return false
-			}
-			hasDefault = true
-			continue
-		}
-		if !curr.IsCase() {
-			return false
-		}
-		expr := curr.GetFirstChild()
-		if expr.IsNil() {
-			return false
-		}
-		switch expr.GetToken() {
-		case rhino.Token_NUMBER:
-			d := expr.GetDouble()
-			iv := int64(d)
-			if float64(iv) != d || intCount >= len(intBuf) {
-				return false
-			}
-			for i := 0; i < intCount; i++ {
-				if intBuf[i] == iv {
-					return false
-				}
-			}
-			intBuf[intCount] = iv
-			intCount++
-		case rhino.Token_STRINGLIT:
-			if strCount >= len(strBuf) {
-				return false
-			}
-			s := expr.GetString()
-			for i := 0; i < strCount; i++ {
-				if strBuf[i] == s {
-					return false
-				}
-			}
-			strBuf[strCount] = s
-			strCount++
-		default:
-			return false
-		}
-	}
-	return true
 }

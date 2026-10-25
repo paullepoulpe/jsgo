@@ -21,6 +21,20 @@ func parallelPrebuild(count, workers int, run func(int)) []jutil.Throwable {
 	})
 }
 
+func parallelPrebuildIndexed(count, workers int, run func(worker, index int)) []jutil.Throwable {
+	var nextWorker atomic.Int32
+	return parallelPrebuildWorkers(count, workers, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
+		worker := int(nextWorker.Add(1) - 1)
+		for {
+			index, ok := claim()
+			if !ok {
+				return
+			}
+			jutil.Try(func() { run(worker, index) }, func(t jutil.Throwable) { recordFailure(index, t) })
+		}
+	})
+}
+
 func parallelPrebuildWorkers(
 	count, workers int,
 	workerFn func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)),
