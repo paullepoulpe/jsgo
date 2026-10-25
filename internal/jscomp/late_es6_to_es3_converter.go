@@ -21,11 +21,22 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) to read the
+// shapes it rewrites: the target and value of the assignment that defines
+// $jscomp.createTemplateTagFirstArgWithRaw, the key and function of a
+// method, and the members of an object literal with computed properties
+// (the key and value of each computed property, the value of each string
+// key). Visit still switches on the token (it runs on every node) and hands
+// typed nodes to the rewrites. The nodes it builds come from the AstFactory
+// (which sets their colors), so they stay rhino.Nodes, and a string key still
+// becomes the string literal of its property access in place (SetToken).
 
 // LateEs6ToEs3Converter converts ES6 code to valid ES5 code. This class does
 // most of the transpilation, and
@@ -103,23 +114,24 @@ func LateEs6ToEs3Converter_FindTemplateLitInsertionPoint(script rhino.Node) rhin
 func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN:
+		assign, _ := ast.AsAssign(n) // the case proves the kind
 		// Find whether this script contains the `$jscomp.createTemplateTagFirstArgWithRaw =
 		// function(..) {..}` node. If yes, update the templateLitInsertionPoint.
-		lhs := n.GetFirstChild()
-		rhs := n.GetSecondChild()
-		if lhs.IsGetProp() && rhs.IsFunction() && lhs.GetFirstChild().IsName() {
+		lhs, isGetProp := assign.Target().AsGetProp()
+		if isGetProp && assign.Value().Token() == rhino.Token_FUNCTION && lhs.Object().Token() == rhino.Token_NAME {
 			qName := rhino.QualifiedName_Of("$jscomp.createTemplateTagFirstArgWithRaw")
-			if qName.Matches(lhs) {
-				rhino.CheckNotNullMsg1(n.GetParent(), "%s", n)
-				jutil.CheckStateMsg1(n.GetParent().IsExprResult(), "%s", n)
-				l.templateLitInsertionPoint = n.GetParent().GetNext()
+			if qName.Matches(lhs.Node()) {
+				exprStmt, ok := ast.AsExprStmt(n.GetParent())
+				jutil.CheckStateMsg1(ok, "%s", n)
+				l.templateLitInsertionPoint = exprStmt.Node().GetNext()
 			}
 		}
 	case rhino.Token_OBJECTLIT:
-		l.VisitObject(t, n)
+		obj, _ := ast.AsObjectLit(n) // the case proves the kind
+		l.VisitObject(t, obj)
 	case rhino.Token_MEMBER_FUNCTION_DEF:
-		if parent.IsObjectLit() {
-			l.VisitMemberFunctionDefInObjectLit(n)
+		if member, ok := ast.AsMemberFunctionDef(n); ok && parent.IsObjectLit() {
+			l.VisitMemberFunctionDefInObjectLit(member)
 		}
 	case rhino.Token_TAGGED_TEMPLATELIT:
 		l.templateLiteralConverter.VisitTaggedTemplateLiteral(t, n, l.templateLitInsertionPoint)
@@ -136,20 +148,23 @@ func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 // handled in Es6RewriteClass.
 //
 // Java: LateEs6ToEs3Converter.visitMemberFunctionDefInObjectLit(Node)
-func (l *LateEs6ToEs3Converter) VisitMemberFunctionDefInObjectLit(n rhino.Node) {
-	name := n.GetString()
-	nameNode := n.GetFirstFirstChild()
-	stringKey := l.astFactory.CreateStringKey(name, n.RemoveFirstChild())
-	stringKey.SetJSDocInfo(n.GetJSDocInfo())
-	n.ReplaceWith(stringKey)
+func (l *LateEs6ToEs3Converter) VisitMemberFunctionDefInObjectLit(n ast.MemberFunctionDef) {
+	name := n.Key()
+	fn := n.Function()
+	// The NAME child of the function: empty for a method, but at the
+	// position of the method's name.
+	nameNode := fn.Node().GetFirstChild()
+	stringKey := l.astFactory.CreateStringKey(name, fn.Detach().Node())
+	stringKey.SetJSDocInfo(n.Node().GetJSDocInfo())
+	n.Node().ReplaceWith(stringKey)
 	stringKey.Srcref(nameNode)
 	l.compiler.ReportChangeToEnclosingScope(stringKey)
 }
 
 // Java: LateEs6ToEs3Converter.visitObject(NodeTraversal, Node)
-func (l *LateEs6ToEs3Converter) VisitObject(t *NodeTraversal, obj rhino.Node) {
-	for child := obj.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child.IsComputedProp() {
+func (l *LateEs6ToEs3Converter) VisitObject(t *NodeTraversal, obj ast.ObjectLit) {
+	for member := range obj.Members() {
+		if _, ok := member.AsComputedProp(); ok {
 			l.VisitObjectWithComputedProperty(t, obj)
 			return
 		}
@@ -173,30 +188,29 @@ func (l *LateEs6ToEs3Converter) VisitObject(t *NodeTraversal, obj rhino.Node) {
 // $jscomp$compprop0.a = 1
 //
 // Java: LateEs6ToEs3Converter.visitObjectWithComputedProperty(NodeTraversal, Node)
-func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal, obj rhino.Node) {
-	jutil.CheckArgument(obj.IsObjectLit())
-	props := []rhino.Node{}
-	currElement := obj.GetFirstChild()
-	objectType := AstFactory_Type_(obj)
+func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal, obj ast.ObjectLit) {
+	props := []ast.ObjectMember{}
+	objectType := AstFactory_Type_(obj.Node())
 
-	for !currElement.IsNil() {
-		if currElement.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) ||
-			currElement.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
+	// The next member is read before the current one is detached.
+	next, more := obj.FirstMember()
+	for more {
+		currElement := next
+		next, more = currElement.Next()
+		if currElement.Node().GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) ||
+			currElement.Node().GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
 			l.compiler.Report(
 				JSError_MakeWithNode(
-					currElement,
+					currElement.Node(),
 					ReportUntranspilableFeatures_UNTRANSPILABLE_FEATURE_PRESENT,
 					"computed getter/setter in an object literal",
 					"ES2015",
 					""))
 			return
-		} else if currElement.IsGetterDef() || currElement.IsSetterDef() {
-			currElement = currElement.GetNext()
+		} else if tok := currElement.Token(); tok == rhino.Token_GETTER_DEF || tok == rhino.Token_SETTER_DEF {
+			// Getters and setters stay in the object literal.
 		} else {
-			nextNode := currElement.GetNext()
-			currElement.Detach()
-			props = append(props, currElement)
-			currElement = nextNode
+			props = append(props, currElement.Detach())
 		}
 	}
 
@@ -204,21 +218,31 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal
 
 	slices.Reverse(props) // Lists.reverse(props)
 	result := l.astFactory.CreateName(objName, objectType)
-	for _, propdef := range props {
-		if propdef.IsComputedProp() {
-			propertyExpression := propdef.RemoveFirstChild()
-			value := propdef.RemoveFirstChild()
+	for _, member := range props {
+		if computedProp, ok := member.AsComputedProp(); ok {
+			value, ok := computedProp.Value()
+			jutil.CheckStateMsg1(ok, "computed property without a value: %s", computedProp.Node())
+			propertyExpression := computedProp.Key().Detach()
+			value.Detach()
 			result =
 				l.astFactory.CreateComma(
 					l.astFactory.CreateAssign(
 						l.astFactory.CreateGetElem(
-							l.astFactory.CreateName(objName, objectType), propertyExpression),
-						value),
+							l.astFactory.CreateName(objName, objectType), propertyExpression.Node()),
+						value.Node()),
 					result)
 		} else {
-			val := propdef.RemoveFirstChild()
-			isQuotedAccess := propdef.IsQuotedStringKey()
+			// Go-only: the other members are string keys (a method was
+			// rewritten to a string key when it was visited, and getters and
+			// setters stayed in the object literal).
+			stringKey, ok := member.AsStringKey()
+			jutil.CheckStateMsg1(ok, "unexpected object literal member: %s", member.Node())
+			val := stringKey.Value().Detach()
+			isQuotedAccess := stringKey.Node().IsQuotedStringKey()
 
+			// The string key node itself becomes the string literal of the
+			// property access.
+			propdef := stringKey.Node()
 			propdef.SetToken(rhino.Token_STRINGLIT)
 			propdef.SetColor(colors.StandardColors_STRING)
 			propdef.PutBooleanProp(rhino.Node_QUOTED_PROP, false)
@@ -230,11 +254,11 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal
 			} else {
 				access = l.astFactory.CreateGetProp(objNameNode, propdef.GetString(), AstFactory_Type_(propdef))
 			}
-			result = l.astFactory.CreateComma(l.astFactory.CreateAssign(access, val), result)
+			result = l.astFactory.CreateComma(l.astFactory.CreateAssign(access, val.Node()), result)
 		}
 	}
 
-	statement := obj
+	statement := obj.Node()
 	for !NodeUtil_IsStatement(statement) {
 		statement = statement.GetParent()
 	}
@@ -243,12 +267,12 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal
 
 	if isInsideLoopHeader {
 		placeholder := rhino.IR_Empty()
-		obj.ReplaceWith(placeholder)
+		obj.Node().ReplaceWith(placeholder)
 
 		assignEmptyObj :=
-			l.astFactory.CreateAssign(l.astFactory.CreateName(objName, objectType), obj)
+			l.astFactory.CreateAssign(l.astFactory.CreateName(objName, objectType), obj.Node())
 		result = l.astFactory.CreateComma(assignEmptyObj, result)
-		result.SrcrefTreeIfMissing(obj)
+		result.SrcrefTreeIfMissing(obj.Node())
 
 		placeholder.ReplaceWith(result)
 
@@ -257,10 +281,10 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal
 		var_.InsertBefore(statement)
 		l.compiler.ReportChangeToEnclosingScope(var_)
 	} else {
-		result.SrcrefTreeIfMissing(obj)
-		obj.ReplaceWith(result)
+		result.SrcrefTreeIfMissing(obj.Node())
+		obj.Node().ReplaceWith(result)
 
-		var_ := rhino.IR_VarWithValue(l.astFactory.CreateName(objName, objectType), obj)
+		var_ := rhino.IR_VarWithValue(l.astFactory.CreateName(objName, objectType), obj.Node())
 		var_.SrcrefTreeIfMissing(statement)
 		var_.InsertBefore(statement)
 		l.compiler.ReportChangeToEnclosingScope(var_)
