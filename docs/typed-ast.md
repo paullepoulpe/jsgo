@@ -632,8 +632,22 @@ bundle and typed-full workloads:
    callback for other nodes. A one-handler visitor over three.js's AST now
    takes 2.21 ms, against 2.43 ms for a hand-written token switch and
    3.07 ms before (minimums of 15 interleaved runs).
-2. **Port more passes**, starting with those that are mostly about shapes
-   (peephole passes, `Normalize`, `ControlFlowAnalysis`), and measure each.
+2. **Port more passes.** 27 are on the typed view, among them the CFG,
+   the scope creator and the type checker. Left with the most positional
+   code: `RemoveUnusedCode`, `ProcessCommonJSModules`, `TypeInference`,
+   `FlowSensitiveInlineVariables`, `CodeGenerator`, `TypedScopeCreator`,
+   `InlineFunctions`, `ClosureRewriteModule`, `Es6NormalizeClasses`.
+6. **The API requests that came back in several ports**, by count:
+   - a query for a node's role in its parent ("is n the body of its
+     parent?", ten uses in TypeCheck, nine in CFA);
+   - a common view of statement containers (block, script, module body,
+     root, catch holder), so statement-list walks can be typed;
+   - Must conversions on categories (`declarator.MustName()`);
+   - role aliases for kinds that name the same child differently (for-in
+     `object`, for-of `iterable`; Binary left/right, AssignOp target/value);
+   - the placeholder node of a `~` role, for graph code that needs the
+     EMPTY init of a `for`;
+   - typed AstFactory methods for the transpilation passes.
 3. **Change the storage behind the API.** Callers ask for `ifs.Else()`, not
    for the third child, so the layout becomes an implementation detail:
    fixed fields per kind, child arrays or no `previous` link can be tried
