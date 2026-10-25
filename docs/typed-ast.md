@@ -64,7 +64,15 @@ last, ok := block.LastStatement()
 
 The iterator reads the next element after the loop body runs, like the
 classic `for c := n.GetFirstChild(); c != nil; c = c.GetNext()` loop, so
-ported loops keep their meaning when the body edits the tree.
+ported loops keep their meaning when the body edits the tree. A loop whose
+body detaches or moves the current element uses `ast.ReadAhead`, which
+reads the next element first:
+
+```go
+for member := range ast.ReadAhead(obj.FirstMember()) {
+	props = append(props, member.Detach())
+}
+```
 
 **Generated from a grammar.** `grammar.txt` lists every kind in one line:
 
@@ -333,6 +341,61 @@ What they reported:
   targets, not expressions), a common view of SCRIPT items and BLOCK
   statements.
 
+## The API after this feedback
+
+Added before the next ports, each for a pattern the ports kept writing:
+
+| ask | added |
+|---|---|
+| `x, _ := ast.AsX(n) // the case proves the kind` in token switches | `ast.MustX(n)`: panics if n is not an X; inlines to the same check |
+| one token within a kind (`void`, `!`, `var`) | `ast.AsUnaryOf(n, rhino.Token_VOID)` and the same on categories (`e.AsBinaryOf(tok)`) |
+| constructors for kinds with a string payload | generated: `NewStringKey(key, value)`, `NewMemberFunctionDef(key, fn)`, `NewOptChainGetProp(obj, prop)`, ... |
+| template strings | `TemplateLitString.Raw()`, `Cooked()` (ok is false for an invalid escape) |
+| "is this the last argument / statement" | `IsLast()` on list elements |
+| a visitor's dispatch cost | the traversal skips the kinds a visitor has no handler for (next steps, 1) |
+
+Not done: an index accessor and element count on lists (no port needed
+them after `IsLast`), `Target.AsExpr`, a common view of SCRIPT and BLOCK
+statements.
+
+## Thirteenth to seventeenth ports: known methods and four ES6 passes
+
+`PeepholeReplaceKnownMethods`, then `Es6RewriteArrowFunction`,
+`RewriteObjectSpread`, `LateEs6ToEs3Converter` and `CreateSyntheticBlocks`,
+ported on the API above. Output, source maps and stderr byte-identical on
+the four gate workloads; pass times equal within noise or better, measured
+with in-process A/B harnesses (old and new pass on clones of the same tree,
+alternating).
+
+- **Calls read by role.** ReplaceKnownMethods reads the callee, receiver,
+  method name and arguments as `call.Callee()`, `getProp.Object()`,
+  `getProp.Property()`, `call.FirstArg()`/`OnlyArg()`/`arg.Next()` instead
+  of `GetNext` chains and nil checks. Each `tryFoldX` takes the kinds it
+  folds (`ast.Call`, `ast.StringLit`, `ast.Arg`), so the Java re-checks
+  (`checkArgument(isCall)`, `!arg1.IsNil()`) are gone, and so are their
+  per-call `Check*Msg` costs: 0 to 17% faster on the 85K calls of the
+  bundle inputs.
+- **Two output quirks found, kept for identical output** (Go-only notes):
+  `"a,b".split(",", 1, f())` folds to `["a"]` and drops the call to `f`, and
+  `Array.join` counts the cost of a separator it already removed. Same as
+  Java.
+- **Shapes stated instead of assumed.** A computed property in an object
+  literal has a value, and the members left after computed properties,
+  getters and setters are string keys: two explicit checks in
+  LateEs6ToEs3Converter where Java crashed later on a null.
+
+What they reported:
+
+- **The AstFactory returns `rhino.Node`.** The transpilation passes build
+  most of their output with it (it sets colors), so the typed view stops at
+  every node they build. Typed factory methods would help these passes most.
+- **Node flags have no typed accessors** (JSDoc, quoted keys, the computed
+  getter flag); `Function.SetArrow` was added, the others still need
+  `.Node()`.
+- **"Read the next element first" loops**, three times in four passes: now
+  `ast.ReadAhead`.
+- **No equality between two views**: `x.Is(y.Node())`.
+
 ## Performance outlook
 
 The typed view compiles to the same code as before, so on its own it neither
@@ -378,9 +441,11 @@ bundle and typed-full workloads:
   names and `Java:` comments, but it no longer follows the Java line by line.
   That is the price of readable Go; a pass ported this way should say so
   (`Go-only:` comment at the top).
-- **Iteration semantics need a decision.** The iterators copy the classic
-  loop (the next element is read after the body). A loop that removes the
-  current element still has to save the next one first, as today.
+- **Iteration semantics need both kinds.** The iterators copy the classic
+  loop (the next element is read after the body), which is right when the
+  body edits what follows (merging the next declaration into the current
+  one). A loop that moves the current element needs the next one read
+  first: `ast.ReadAhead`. Neither choice fits every loop, so both exist.
 - **API size.** 7,500 generated lines, about 860 conversion methods: a
   `Name` converts to the 13 categories it belongs to. Generated code is cheap
   to keep, but the method lists are long in an editor; categories that only
