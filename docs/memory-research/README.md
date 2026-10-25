@@ -42,3 +42,4 @@ as offsets with line tables, and never let per-pass arenas outlive their pass.
 ## Later rounds
 
 - [round4-heap-peaks.md](round4-heap-peaks.md): where the heap peaks per workload, compaction in place, the 36-byte node record, parser positions as offsets.
+- [round5-live-heap.md](round5-live-heap.md): the live heap at the peaks: 32-byte node record, compact control-flow graph nodes, interned identifier tokens, reloadable externs; what was tried and dropped.
