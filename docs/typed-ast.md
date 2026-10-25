@@ -414,12 +414,12 @@ What they reported:
   `DestructuringLhs` (target first, value last) are passed as `rhino.Node`.
   A category with `Target()` and `Value()` would type them.
 
-## Nineteenth to twenty-first ports: three checks
+## Nineteenth to twenty-second ports: three checks and the module metadata
 
-`CheckSuspiciousCode`, `StrictModeCheck` and `ProcessClosurePrimitives`,
-ported on the API above. They report warnings, so the stderr comparison on
-checks-only and typed-app is their main check: byte-identical, and output
-and source maps too.
+`CheckSuspiciousCode`, `StrictModeCheck`, `ProcessClosurePrimitives` and
+`GatherModuleMetadata`, ported on the API above. They report warnings, so
+the stderr comparison on checks-only and typed-app is their main check:
+byte-identical, and output and source maps too.
 
 - **One dispatch instead of seven token tests.** CheckSuspiciousCode ran
   seven checks on every node, each testing the token itself. Its Visit now
@@ -435,6 +435,10 @@ and source maps too.
   `goog.x(...)` as a GetProp callee whose object is the name `goog`, and
   `goog.base(this, 'method', ...)` as the first two arguments. Five
   "qualified name or `null`" fallbacks in messages became one helper.
+- **One idiom named.** GatherModuleMetadata tested "exactly one argument, a
+  string literal" ten times as `n.hasTwoChildren() &&
+  n.getLastChild().isStringLit()` (the callee is the first of the two
+  children). It is now `onlyStringArg(call)`, built on `call.OnlyArg()`.
 - **Kept on rhino**: code that reads a node's parent or siblings of any kind
   (is this name a declaration, the enclosing class, the statements after a
   constructor), and the duplicate-member scan of StrictModeCheck, which
