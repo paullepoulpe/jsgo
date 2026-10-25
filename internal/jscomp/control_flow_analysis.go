@@ -641,24 +641,39 @@ func (c *ControlFlowAnalysis) shouldTraverseIntoChildren(n rhino.Node, parent rh
 		switch parent.GetToken() {
 		case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 			// Only traverse the body of the for loop.
-			shouldTraverseForChild := n == parent.GetLastChild()
-			if !shouldTraverseForChild {
-				// The control-flow graph contains edges from a FOR node to all its children, even
-				// though only the body is actually traversed. So put the other children in astPosition.
-				c.astPosition[n] = c.astPositionCounter
-				c.astPositionCounter++
+			if ast.MustLoop(parent).Body().Is(n) {
+				return true
 			}
-			return shouldTraverseForChild
+			// The control-flow graph contains edges from a FOR node to all its children, even
+			// though only the body is actually traversed. So put the other children in astPosition.
+			c.astPosition[n] = c.astPositionCounter
+			c.astPositionCounter++
+			return false
 		case rhino.Token_DO:
 			// Only traverse the body of the do-while.
-			return n != parent.GetSecondChild()
-		case rhino.Token_IF, rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_CATCH, rhino.Token_LABEL:
-			// Skip conditions, and only traverse the body of the cases
-			return n != parent.GetFirstChild()
+			return ast.MustDo(parent).Body().Is(n)
+		// Skip conditions, and only traverse the body of the cases. (The
+		// head of each statement below, its condition, object, discriminant,
+		// case value, catch param or label name, has no node in the graph:
+		// the statement's own node stands for it.)
+		case rhino.Token_IF:
+			return !ast.MustIf(parent).Cond().Is(n)
+		case rhino.Token_WHILE:
+			return ast.MustWhile(parent).Body().Is(n)
+		case rhino.Token_WITH:
+			return ast.MustWith(parent).Body().Is(n)
+		case rhino.Token_SWITCH:
+			return ast.MustSwitch(parent).Body().Is(n)
+		case rhino.Token_CASE:
+			return ast.MustCase(parent).Body().Is(n)
+		case rhino.Token_CATCH:
+			return ast.MustCatch(parent).Body().Is(n)
+		case rhino.Token_LABEL:
+			return ast.MustLabel(parent).Body().Is(n)
 		case rhino.Token_FUNCTION:
-			return n == parent.GetLastChild()
+			return ast.MustFunction(parent).Body().Is(n)
 		case rhino.Token_CLASS:
-			return c.shouldTraverseFunctions && n == parent.GetLastChild()
+			return c.shouldTraverseFunctions && ast.MustClass(parent).Body().Is(n)
 		case rhino.Token_COMPUTED_PROP,
 			rhino.Token_CONTINUE,
 			rhino.Token_BREAK,
@@ -680,8 +695,9 @@ func (c *ControlFlowAnalysis) shouldTraverseIntoChildren(n rhino.Node, parent rh
 			 * can be handled at this TRY statement, so it can be taken out of the
 			 * stack.
 			 */
-			if (!NodeUtil_HasFinally(parent) && n == NodeUtil_GetCatchBlock(parent)) ||
-				NodeUtil_IsTryFinallyNode(parent, n) {
+			try := ast.MustTry(parent)
+			finally, hasFinally := try.Finally()
+			if (!hasFinally && try.Catches().Is(n)) || (hasFinally && finally.Is(n)) {
 				jutil.CheckState(c.exceptionHandlerPeek() == parent)
 				c.exceptionHandlerPop()
 			}
@@ -1196,38 +1212,29 @@ func ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode rhino.Node, node rhino.N
 	case rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
 		// After the body of a CASE, the control goes to the body of the next
 		// case, without having to go to the case condition.
-		if !parent.GetNext().IsNil() {
-			if parent.GetNext().IsCase() {
-				return parent.GetNext().GetSecondChild()
-			} else if parent.GetNext().IsDefaultCase() {
-				return parent.GetNext().GetFirstChild()
-			} else {
-				panic(jutil.NewIllegalStateExceptionMsg("Not reachable"))
-			}
-		} else {
-			return ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode, parent, cfa)
+		if next, ok := ast.MustSwitchCase(parent).Next(); ok {
+			return next.Body().Node()
 		}
+		return ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode, parent, cfa)
 	case rhino.Token_FOR:
-		return parent.GetSecondChild().GetNext()
+		// After the body, the update runs (its EMPTY node if the loop has
+		// none), then the FOR checks the condition again.
+		return cfaForUpdate(ast.MustFor(parent))
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO:
 		return parent
 	case rhino.Token_TRY:
-		// If we are coming out of the TRY block...
-		if parent.GetFirstChild() == node {
-			if NodeUtil_HasFinally(parent) { // and have FINALLY block.
-				return ControlFlowAnalysis_ComputeFallThrough(parent.GetLastChild())
-			} else { // and have no FINALLY.
-				return ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode, parent, cfa)
+		try := ast.MustTry(parent)
+		finally, hasFinally := try.Finally()
+		switch {
+		// If we are coming out of the TRY block or the CATCH block...
+		case try.Body().Is(node), try.Catches().Is(node):
+			if hasFinally { // and have FINALLY block.
+				return finally.Node()
 			}
-			// CATCH block.
-		} else if NodeUtil_GetCatchBlock(parent) == node {
-			if NodeUtil_HasFinally(parent) { // and have FINALLY block.
-				return ControlFlowAnalysis_ComputeFallThrough(node.GetNext())
-			} else {
-				return ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode, parent, cfa)
-			}
-			// If we are coming out of the FINALLY block...
-		} else if parent.GetLastChild() == node {
+			// and have no FINALLY.
+			return ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode, parent, cfa)
+		// If we are coming out of the FINALLY block...
+		case hasFinally && finally.Is(node):
 			if cfa != nil && cfa.finallyMap != nil && cfa.finallyMap.ContainsKey(parent) {
 				for finallyNode := range cfa.finallyMap.Get(parent).All() {
 					cfa.createEdge(fromNode, ControlFlowGraph_Branch_ON_EX, finallyNode)
@@ -1260,15 +1267,26 @@ func ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode rhino.Node, node rhino.N
 // when we want to fallthrough into the subtree of n. We don't always create
 // a CFG edge into n itself because of DOs and FORs.
 //
+// Loops and labels start inside; every other node, a block included, starts
+// at itself.
+//
 // Java: ControlFlowAnalysis.computeFallThrough(Node)
 func ControlFlowAnalysis_ComputeFallThrough(n rhino.Node) rhino.Node {
 	switch n.GetToken() {
-	case rhino.Token_DO, rhino.Token_FOR:
-		return ControlFlowAnalysis_ComputeFallThrough(n.GetFirstChild())
+	case rhino.Token_DO:
+		// A do-while starts with its body. (Java recurses into it, but a
+		// block starts at its own node.)
+		return ast.MustDo(n).Body().Node()
+	case rhino.Token_FOR:
+		// A for loop starts with its init (its EMPTY node if it has none).
+		// (Java recurses into it, but an init, a declaration or an
+		// expression, starts at its own node.)
+		return cfaForInit(ast.MustFor(n))
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		return n.GetSecondChild()
+		// A for-in/of loop starts by evaluating its collection.
+		return ast.MustEnhancedFor(n).Collection().Node()
 	case rhino.Token_LABEL:
-		return ControlFlowAnalysis_ComputeFallThrough(n.GetLastChild())
+		return ControlFlowAnalysis_ComputeFallThrough(ast.MustLabel(n).Body().Node())
 	default:
 		return n
 	}
@@ -1337,32 +1355,40 @@ func (c *ControlFlowAnalysis) connectToPossibleExceptionHandlerUnconditionally(c
 		if handler.IsFunction() {
 			return
 		}
-		jutil.CheckState(handler.IsTry())
-		catchBlock := NodeUtil_GetCatchBlock(handler)
+		try := ast.MustTry(handler)
+		catchBlock := try.Catches()
 
 		lastJumpInCatchBlock := false
 		for ancestor := lastJump; !ancestor.IsNil(); ancestor = ancestor.GetParent() {
 			if ancestor == handler {
 				break
-			} else if ancestor == catchBlock {
+			} else if catchBlock.Is(ancestor) {
 				lastJumpInCatchBlock = true
 				break
 			}
 		}
 
 		// No catch but a FINALLY, or lastJump is inside the catch block.
-		if !NodeUtil_HasCatchHandler(catchBlock) || lastJumpInCatchBlock {
+		if _, hasCatch := catchBlock.Catch(); !hasCatch || lastJumpInCatchBlock {
+			// The TRY has a FINALLY: a TRY without catch must have one, and a
+			// TRY without FINALLY leaves the exceptionHandler stack before its
+			// catch block is traversed (shouldTraverseIntoChildren), so
+			// lastJump is in the catch block only of a TRY with a FINALLY.
+			// (Java takes the last child of the TRY; Go-only: the check
+			// states the invariant.)
+			finally, ok := try.Finally()
+			jutil.CheckState(ok)
 			if lastJump == cfgNode {
-				c.createEdge(cfgNode, ControlFlowGraph_Branch_ON_EX, handler.GetLastChild())
+				c.createEdge(cfgNode, ControlFlowGraph_Branch_ON_EX, finally.Node())
 			} else {
-				c.putFinally(lastJump, handler.GetLastChild())
+				c.putFinally(lastJump, finally.Node())
 			}
 		} else { // Has a catch.
 			if lastJump == cfgNode {
-				c.createEdge(cfgNode, ControlFlowGraph_Branch_ON_EX, catchBlock)
+				c.createEdge(cfgNode, ControlFlowGraph_Branch_ON_EX, catchBlock.Node())
 				return
 			} else {
-				c.putFinally(lastJump, catchBlock)
+				c.putFinally(lastJump, catchBlock.Node())
 			}
 		}
 		lastJump = handler
@@ -1395,11 +1421,11 @@ func ControlFlowAnalysis_MatchLabel(target rhino.Node, label *string) bool {
 	if label == nil {
 		return true
 	}
-	for target.IsLabel() {
-		if target.GetFirstChild().GetString() == *label {
+	// A statement can have several labels (a: b: while (x) ...).
+	for l, ok := ast.AsLabel(target); ok; l, ok = ast.AsLabel(l.Node().GetParent()) {
+		if l.Name().Ident() == *label {
 			return true
 		}
-		target = target.GetParent()
 	}
 	return false
 }
@@ -1478,13 +1504,11 @@ func ControlFlowAnalysis_GetExceptionHandler(n rhino.Node) rhino.Node {
 //
 // Java: ControlFlowAnalysis.getCatchHandlerForBlock(Node)
 func ControlFlowAnalysis_GetCatchHandlerForBlock(block rhino.Node) rhino.Node {
-	if block.IsBlock() &&
-		block.GetParent().IsTry() &&
-		block.GetParent().GetFirstChild() == block {
-		for s := block.GetNext(); !s.IsNil(); s = s.GetNext() {
-			if NodeUtil_HasCatchHandler(s) {
-				return s.GetFirstChild()
-			}
+	// (Java looks for a catch in the blocks after the TRY block: the catch
+	// holder, then the FINALLY block, which never starts with a CATCH.)
+	if try, ok := ast.AsTry(block.GetParent()); ok && try.Body().Is(block) {
+		if catch, ok := try.Catch(); ok {
+			return catch.Node()
 		}
 	}
 	return rhino.NilNode
