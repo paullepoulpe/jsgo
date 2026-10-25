@@ -192,11 +192,8 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal
 	props := []ast.ObjectMember{}
 	objectType := AstFactory_Type_(obj.Node())
 
-	// The next member is read before the current one is detached.
-	next, more := obj.FirstMember()
-	for more {
-		currElement := next
-		next, more = currElement.Next()
+	// ReadAhead: the current member may be detached.
+	for currElement := range ast.ReadAhead(obj.FirstMember()) {
 		if currElement.Node().GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) ||
 			currElement.Node().GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
 			l.compiler.Report(

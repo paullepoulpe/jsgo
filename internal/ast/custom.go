@@ -50,6 +50,9 @@ func (x Function) RemoveName() { x.name().SetIdent("") }
 // IsArrow reports whether x is an arrow function.
 func (x Function) IsArrow() bool { return x.node.IsArrowFunction() }
 
+// SetArrow makes x an arrow function, or a normal one.
+func (x Function) SetArrow(arrow bool) { x.node.SetIsArrowFunction(arrow) }
+
 // Value returns the number.
 func (x Number) Value() float64 { return x.node.GetDouble() }
 

@@ -101,11 +101,8 @@ func (r *RewriteObjectSpread) VisitObjectWithSpread(obj ast.ObjectLit) {
 	// object literal in first position of the param list.
 	var trailingObjectLiteral rhino.Node = rhino.NilNode
 
-	// The next member is read before the current one moves.
-	next, more := obj.FirstMember()
-	for more {
-		member := next
-		next, more = member.Next()
+	// ReadAhead: the current member may move.
+	for member := range ast.ReadAhead(obj.FirstMember()) {
 		if spread, ok := member.AsObjectSpread(); ok {
 			// Add the object directly to the param list.
 			spreaded := spread.Expr().Detach()

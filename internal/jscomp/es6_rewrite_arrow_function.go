@@ -116,7 +116,7 @@ func (e *Es6RewriteArrowFunction) Visit(t *NodeTraversal, n rhino.Node, parent r
 
 // Java: Es6RewriteArrowFunction.visitArrowFunction(NodeTraversal, Node, ThisAndArgumentsContext)
 func (e *Es6RewriteArrowFunction) VisitArrowFunction(t *NodeTraversal, arrow ast.Function, context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) {
-	arrow.Node().SetIsArrowFunction(false)
+	arrow.SetArrow(false)
 
 	body, ok := arrow.Body().AsBlock()
 	jutil.CheckStateMsg(ok, "Arrow function body must be a block after normalization")

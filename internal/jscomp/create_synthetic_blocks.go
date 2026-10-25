@@ -135,12 +135,8 @@ func (p *CreateSyntheticBlocks) RewriteFunctionDeclaration(n ast.Function) {
 
 // Java: CreateSyntheticBlocks.rewriteFunctionDeclarationsInBlock(Node)
 func (p *CreateSyntheticBlocks) RewriteFunctionDeclarationsInBlock(block ast.Block) {
-	next, more := block.FirstStatement()
-	for more {
-		current := next
-		// Get the next node now, because the current node will move and that
-		// will change its next sibling.
-		next, more = current.Next()
+	// ReadAhead: the current statement may move.
+	for current := range ast.ReadAhead(block.FirstStatement()) {
 		if fn, ok := current.AsFunction(); ok && NodeUtil_IsFunctionDeclaration(fn.Node()) {
 			p.RewriteFunctionDeclaration(fn)
 		}

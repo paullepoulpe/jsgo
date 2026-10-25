@@ -417,3 +417,39 @@ func TestAsKindOf(t *testing.T) {
 		t.Fatal("AsBinaryOf(NOT) of a unary")
 	}
 }
+
+// ReadAhead lets the loop body move the current element: here every
+// statement moves to another block, and all three are still visited.
+func TestReadAhead(t *testing.T) {
+	newStore(t)
+	a, b, c := NewEmpty(), NewDebugger(), NewEmpty()
+	from := NewBlock(a.AsStatement(), b.AsStatement(), c.AsStatement())
+	to := NewBlock()
+	n := 0
+	for s := range ReadAhead(from.FirstStatement()) {
+		to.AppendStatement(s.Detach())
+		n++
+	}
+	if n != 3 || from.HasStatements() {
+		t.Fatalf("moved %d statements, %v left behind", n, from.HasStatements())
+	}
+	if first, _ := to.FirstStatement(); first != a.AsStatement() {
+		t.Fatal("the statements moved out of order")
+	}
+
+	// An empty list, and a loop body that stops early.
+	for range ReadAhead(NewBlock().FirstStatement()) {
+		t.Fatal("ReadAhead of an empty block yields an element")
+	}
+	seq := ReadAhead(to.FirstStatement())
+	for range seq {
+		break
+	}
+	n = 0
+	for range seq {
+		n++
+	}
+	if n != 3 {
+		t.Fatalf("a second run of the same iterator yields %d elements, want 3", n)
+	}
+}
