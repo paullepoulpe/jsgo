@@ -778,6 +778,9 @@ func (x ForOf) AsLoop() Loop { return Loop{x.node} }
 // AsEnhancedFor returns x as an EnhancedFor.
 func (x ForOf) AsEnhancedFor() EnhancedFor { return EnhancedFor{x.node} }
 
+// AsForOfLoop returns x as a ForOfLoop.
+func (x ForOf) AsForOfLoop() ForOfLoop { return ForOfLoop{x.node} }
+
 // AsExportBody returns x as an ExportBody.
 func (x ForOf) AsExportBody() ExportBody { return ExportBody{x.node} }
 
@@ -851,6 +854,9 @@ func (x ForAwaitOf) AsLoop() Loop { return Loop{x.node} }
 
 // AsEnhancedFor returns x as an EnhancedFor.
 func (x ForAwaitOf) AsEnhancedFor() EnhancedFor { return EnhancedFor{x.node} }
+
+// AsForOfLoop returns x as a ForOfLoop.
+func (x ForAwaitOf) AsForOfLoop() ForOfLoop { return ForOfLoop{x.node} }
 
 // AsExportBody returns x as an ExportBody.
 func (x ForAwaitOf) AsExportBody() ExportBody { return ExportBody{x.node} }
@@ -7364,6 +7370,9 @@ func (x Statement) AsLoop() (Loop, bool) { return AsLoop(x.node) }
 // AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
 func (x Statement) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
 
+// AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
+func (x Statement) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
+
 // AsJump returns x as a Jump; ok is false if it is not one.
 func (x Statement) AsJump() (Jump, bool) { return AsJump(x.node) }
 
@@ -8736,6 +8745,9 @@ func (x Loop) AsStatement() Statement { return Statement{x.node} }
 // AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
 func (x Loop) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
 
+// AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
+func (x Loop) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
+
 // AsExportBody returns x as an ExportBody.
 func (x Loop) AsExportBody() ExportBody { return ExportBody{x.node} }
 
@@ -8799,6 +8811,9 @@ func (x EnhancedFor) AsStatement() Statement { return Statement{x.node} }
 // AsLoop returns x as a Loop.
 func (x EnhancedFor) AsLoop() Loop { return Loop{x.node} }
 
+// AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
+func (x EnhancedFor) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
+
 // AsExportBody returns x as an ExportBody.
 func (x EnhancedFor) AsExportBody() ExportBody { return ExportBody{x.node} }
 
@@ -8810,6 +8825,78 @@ func (x EnhancedFor) Target() ForTarget { return ForTarget{x.node.GetFirstChild(
 
 // Body returns the body of x.
 func (x EnhancedFor) Body() Block { return Block{x.node.GetChildAtIndex(2)} }
+
+// ForOfLoop is a loop over the values of an iterable: for-of or
+// for-await-of.
+//
+// Grammar: ForOfLoop = ForOf | ForAwaitOf
+type ForOfLoop struct{ node rhino.Node }
+
+// AsForOfLoop returns n as a ForOfLoop; ok is false if n is not one (or is the nil node).
+func AsForOfLoop(n rhino.Node) (x ForOfLoop, ok bool) {
+	if n == rhino.NilNode || !forOfLoopTokens.Has(n.GetToken()) {
+		return ForOfLoop{}, false
+	}
+	return ForOfLoop{n}, true
+}
+
+// MustForOfLoop returns n as a ForOfLoop; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustForOfLoop(n rhino.Node) ForOfLoop {
+	x, ok := AsForOfLoop(n)
+	if !ok {
+		panic(mustError{"ForOfLoop", n})
+	}
+	return x
+}
+
+// forOfLoopTokens holds the tokens of ForOfLoop.
+var forOfLoopTokens = tokenSetOf(rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF)
+
+// Node returns x as a rhino.Node.
+func (x ForOfLoop) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ForOfLoop) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of ForOfLoop it is).
+func (x ForOfLoop) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ForOfLoop) Detach() ForOfLoop { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ForOfLoop) ReplaceWith(v ForOfLoop) { x.node.ReplaceWith(v.node) }
+
+// AsForOf returns x as a ForOf; ok is false if it is not one.
+func (x ForOfLoop) AsForOf() (ForOf, bool) { return AsForOf(x.node) }
+
+// AsForAwaitOf returns x as a ForAwaitOf; ok is false if it is not one.
+func (x ForOfLoop) AsForAwaitOf() (ForAwaitOf, bool) { return AsForAwaitOf(x.node) }
+
+// AsStatement returns x as a Statement.
+func (x ForOfLoop) AsStatement() Statement { return Statement{x.node} }
+
+// AsLoop returns x as a Loop.
+func (x ForOfLoop) AsLoop() Loop { return Loop{x.node} }
+
+// AsEnhancedFor returns x as an EnhancedFor.
+func (x ForOfLoop) AsEnhancedFor() EnhancedFor { return EnhancedFor{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x ForOfLoop) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsScriptItem returns x as a ScriptItem.
+func (x ForOfLoop) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
+
+// Target returns the target of x.
+func (x ForOfLoop) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
+
+// Iterable returns the iterable of x.
+func (x ForOfLoop) Iterable() Expr { return Expr{x.node.GetSecondChild()} }
+
+// Body returns the body of x.
+func (x ForOfLoop) Body() Block { return Block{x.node.GetChildAtIndex(2)} }
 
 // Jump is break or continue.
 //
@@ -9882,6 +9969,9 @@ func (x ExportBody) AsLoop() (Loop, bool) { return AsLoop(x.node) }
 // AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
 func (x ExportBody) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
 
+// AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
+func (x ExportBody) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
+
 // AsJump returns x as a Jump; ok is false if it is not one.
 func (x ExportBody) AsJump() (Jump, bool) { return AsJump(x.node) }
 
@@ -10064,6 +10154,9 @@ func (x ScriptItem) AsLoop() (Loop, bool) { return AsLoop(x.node) }
 
 // AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
 func (x ScriptItem) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
+
+// AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
+func (x ScriptItem) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
 
 // AsJump returns x as a Jump; ok is false if it is not one.
 func (x ScriptItem) AsJump() (Jump, bool) { return AsJump(x.node) }
@@ -11894,6 +11987,7 @@ var grammarCategories = map[string][]string{
 	"ClassMember":             {"Block", "Empty", "MemberFunctionDef", "GetterDef", "SetterDef", "MemberFieldDef", "ComputedFieldDef", "ComputedProp", "MemberVariableDef", "IndexSignature", "CallSignature"},
 	"Loop":                    {"For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do"},
 	"EnhancedFor":             {"ForIn", "ForOf", "ForAwaitOf"},
+	"ForOfLoop":               {"ForOf", "ForAwaitOf"},
 	"Jump":                    {"Break", "Continue"},
 	"SwitchCase":              {"Case", "DefaultCase"},
 	"Declarator":              {"DestructuringLhs", "Name"},

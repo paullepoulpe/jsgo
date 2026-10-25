@@ -299,6 +299,37 @@ func TestEnhancedFor(t *testing.T) {
 	}
 }
 
+// ForOfLoop is the for-of and for-await-of loops, with the target and
+// iterable they share.
+func TestForOfLoop(t *testing.T) {
+	newStore(t)
+	for _, n := range []rhino.Node{
+		NewForOf(NewName("x").AsForTarget(), NewName("o").AsExpr(), NewBlock()).Node(),
+		NewForAwaitOf(NewName("x").AsForTarget(), NewName("o").AsExpr(), NewBlock()).Node(),
+	} {
+		loop, ok := AsForOfLoop(n)
+		if !ok {
+			t.Fatalf("AsForOfLoop(%s) failed", n.GetToken())
+		}
+		if x, ok := loop.Target().AsName(); !ok || x.Ident() != "x" {
+			t.Fatalf("Target() of a %s is not its target", n.GetToken())
+		}
+		if o, ok := loop.Iterable().AsName(); !ok || o.Ident() != "o" {
+			t.Fatalf("Iterable() of a %s is not its iterable", n.GetToken())
+		}
+		if !loop.Body().Is(n.GetLastChild()) {
+			t.Fatalf("Body() of a %s is not its body", n.GetToken())
+		}
+		if back, ok := loop.AsEnhancedFor().AsForOfLoop(); !ok || back != loop {
+			t.Fatalf("EnhancedFor.AsForOfLoop() does not give the %s back", n.GetToken())
+		}
+	}
+	forIn := NewForIn(NewName("x").AsForTarget(), NewName("o").AsExpr(), NewBlock())
+	if _, ok := AsForOfLoop(forIn.Node()); ok {
+		t.Fatal("a for-in converted to a ForOfLoop")
+	}
+}
+
 func TestFunctionRemoveName(t *testing.T) {
 	newStore(t)
 	fn := NewFunction("f", NewParamList(), NewBlock().AsFunctionBody())

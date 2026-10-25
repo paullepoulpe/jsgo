@@ -76,6 +76,10 @@ Loop = For | ForIn | ForOf | ForAwaitOf | While | Do
 ## for-of or for-await-of (NodeUtil.isEnhancedFor).
 EnhancedFor = ForIn | ForOf | ForAwaitOf
 
+## ForOfLoop is a loop over the values of an iterable: for-of or
+## for-await-of.
+ForOfLoop = ForOf | ForAwaitOf
+
 ## Jump is break or continue.
 Jump = Break | Continue
 
