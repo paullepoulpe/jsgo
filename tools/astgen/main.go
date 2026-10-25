@@ -415,6 +415,7 @@ func (w *gen) kind(k *kind) {
 	w.p("// Is reports whether x is the node n.")
 	w.p("func (x %s) Is(n rhino.Node) bool { return x.node == n }", k.name)
 	w.p("")
+	w.detach(k.name)
 	if len(k.tokens) > 1 {
 		w.p("// Token returns which of %s x is.", strings.Join(k.tokens, ", "))
 		w.p("func (x %s) Token() rhino.Token { return x.node.GetToken() }", k.name)
@@ -543,6 +544,12 @@ func (w *gen) listAccessors(recv string, c child) {
 	w.p("return %s, c != rhino.NilNode", wrap(c.typ, "c"))
 	w.p("}")
 	w.p("")
+	w.p("// Only%s returns the %s of x if it is the only one; ok is false if x has none or several.", one, singular(c.role))
+	w.p("func (x %s) Only%s() (v %s, ok bool) {", recv, one, typ)
+	w.p("c := %s", start)
+	w.p("return %s, c != rhino.NilNode && c.GetNext() == rhino.NilNode", wrap(c.typ, "c"))
+	w.p("}")
+	w.p("")
 	w.p("// Has%s reports whether x has any %s.", upper(c.role), c.role)
 	w.p("func (x %s) Has%s() bool { return %s != rhino.NilNode }", recv, upper(c.role), start)
 	w.p("")
@@ -610,6 +617,13 @@ func (w *gen) constructor(k *kind) {
 	w.p("")
 }
 
+// detach writes the Detach method of the view type name.
+func (w *gen) detach(name string) {
+	w.p("// Detach takes x out of its parent, and returns it.")
+	w.p("func (x %s) Detach() %s { x.node.Detach(); return x }", name, name)
+	w.p("")
+}
+
 // asFromTokenSet writes the body of As<name> for a kind or category of
 // several tokens: a set lookup (cheap enough to inline, where a switch on
 // many tokens is not).
@@ -663,6 +677,13 @@ func (w *gen) category(c *category) {
 	w.p("")
 	w.p("// Is reports whether x is the node n.")
 	w.p("func (x %s) Is(n rhino.Node) bool { return x.node == n }", c.name)
+	w.p("")
+	w.p("// Token returns the token of x (which kind of %s it is).", c.name)
+	w.p("func (x %s) Token() rhino.Token { return x.node.GetToken() }", c.name)
+	w.p("")
+	w.detach(c.name)
+	w.p("// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.")
+	w.p("func (x %s) ReplaceWith(v %s) { x.node.ReplaceWith(v.node) }", c.name, c.name)
 	w.p("")
 	for _, kn := range c.kinds {
 		w.p("// As%s returns x as %s; ok is false if it is not one.", kn, a(kn))

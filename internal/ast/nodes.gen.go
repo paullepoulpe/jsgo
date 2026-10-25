@@ -27,6 +27,9 @@ func (x Root) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Root) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Root) Detach() Root { x.node.Detach(); return x }
+
 // Items iterates over the items of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -50,6 +53,12 @@ func (x Root) FirstItem() (v RootItem, ok bool) {
 func (x Root) LastItem() (v RootItem, ok bool) {
 	c := x.node.GetLastChild()
 	return RootItem{c}, c != rhino.NilNode
+}
+
+// OnlyItem returns the item of x if it is the only one; ok is false if x has none or several.
+func (x Root) OnlyItem() (v RootItem, ok bool) {
+	c := x.node.GetFirstChild()
+	return RootItem{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasItems reports whether x has any items.
@@ -92,6 +101,9 @@ func (x Script) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Script) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Script) Detach() Script { x.node.Detach(); return x }
+
 // Items iterates over the items of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -115,6 +127,12 @@ func (x Script) FirstItem() (v ScriptItem, ok bool) {
 func (x Script) LastItem() (v ScriptItem, ok bool) {
 	c := x.node.GetLastChild()
 	return ScriptItem{c}, c != rhino.NilNode
+}
+
+// OnlyItem returns the item of x if it is the only one; ok is false if x has none or several.
+func (x Script) OnlyItem() (v ScriptItem, ok bool) {
+	c := x.node.GetFirstChild()
+	return ScriptItem{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasItems reports whether x has any items.
@@ -157,6 +175,9 @@ func (x ModuleBody) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ModuleBody) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ModuleBody) Detach() ModuleBody { x.node.Detach(); return x }
+
 // Statements iterates over the statements of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -180,6 +201,12 @@ func (x ModuleBody) FirstStatement() (v Statement, ok bool) {
 func (x ModuleBody) LastStatement() (v Statement, ok bool) {
 	c := x.node.GetLastChild()
 	return Statement{c}, c != rhino.NilNode
+}
+
+// OnlyStatement returns the statement of x if it is the only one; ok is false if x has none or several.
+func (x ModuleBody) OnlyStatement() (v Statement, ok bool) {
+	c := x.node.GetFirstChild()
+	return Statement{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasStatements reports whether x has any statements.
@@ -222,6 +249,9 @@ func (x Block) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Block) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Block) Detach() Block { x.node.Detach(); return x }
+
 // Statements iterates over the statements of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -245,6 +275,12 @@ func (x Block) FirstStatement() (v Statement, ok bool) {
 func (x Block) LastStatement() (v Statement, ok bool) {
 	c := x.node.GetLastChild()
 	return Statement{c}, c != rhino.NilNode
+}
+
+// OnlyStatement returns the statement of x if it is the only one; ok is false if x has none or several.
+func (x Block) OnlyStatement() (v Statement, ok bool) {
+	c := x.node.GetFirstChild()
+	return Statement{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasStatements reports whether x has any statements.
@@ -299,6 +335,9 @@ func (x Label) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Label) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Label) Detach() Label { x.node.Detach(); return x }
+
 // Name returns the name of x.
 func (x Label) Name() LabelName { return LabelName{x.node.GetFirstChild()} }
 
@@ -347,6 +386,9 @@ func (x LabelName) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x LabelName) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x LabelName) Detach() LabelName { x.node.Detach(); return x }
+
 // Ident returns the node's string.
 func (x LabelName) Ident() string { return x.node.GetString() }
 
@@ -371,6 +413,9 @@ func (x If) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x If) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x If) Detach() If { x.node.Detach(); return x }
 
 // Cond returns the cond of x.
 func (x If) Cond() Expr { return Expr{x.node.GetFirstChild()} }
@@ -441,6 +486,9 @@ func (x For) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x For) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x For) Detach() For { x.node.Detach(); return x }
 
 // Init returns the init of x; ok is false if x has none (the child is an EMPTY node).
 func (x For) Init() (v ForInit, ok bool) {
@@ -515,6 +563,9 @@ func (x ForIn) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ForIn) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ForIn) Detach() ForIn { x.node.Detach(); return x }
+
 // Target returns the target of x.
 func (x ForIn) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
 
@@ -575,6 +626,9 @@ func (x ForOf) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x ForOf) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x ForOf) Detach() ForOf { x.node.Detach(); return x }
 
 // Target returns the target of x.
 func (x ForOf) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
@@ -637,6 +691,9 @@ func (x ForAwaitOf) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ForAwaitOf) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ForAwaitOf) Detach() ForAwaitOf { x.node.Detach(); return x }
+
 // Target returns the target of x.
 func (x ForAwaitOf) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
 
@@ -698,6 +755,9 @@ func (x While) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x While) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x While) Detach() While { x.node.Detach(); return x }
+
 // Cond returns the cond of x.
 func (x While) Cond() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -748,6 +808,9 @@ func (x Do) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Do) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Do) Detach() Do { x.node.Detach(); return x }
 
 // Body returns the body of x.
 func (x Do) Body() Block { return Block{x.node.GetFirstChild()} }
@@ -800,6 +863,9 @@ func (x With) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x With) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x With) Detach() With { x.node.Detach(); return x }
+
 // Object returns the object of x.
 func (x With) Object() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -847,6 +913,9 @@ func (x Switch) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Switch) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Switch) Detach() Switch { x.node.Detach(); return x }
 
 // Discriminant returns the discriminant of x.
 func (x Switch) Discriminant() Expr { return Expr{x.node.GetFirstChild()} }
@@ -896,6 +965,9 @@ func (x SwitchBody) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x SwitchBody) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x SwitchBody) Detach() SwitchBody { x.node.Detach(); return x }
+
 // Cases iterates over the cases of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -919,6 +991,12 @@ func (x SwitchBody) FirstCase() (v SwitchCase, ok bool) {
 func (x SwitchBody) LastCase() (v SwitchCase, ok bool) {
 	c := x.node.GetLastChild()
 	return SwitchCase{c}, c != rhino.NilNode
+}
+
+// OnlyCase returns the case of x if it is the only one; ok is false if x has none or several.
+func (x SwitchBody) OnlyCase() (v SwitchCase, ok bool) {
+	c := x.node.GetFirstChild()
+	return SwitchCase{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasCases reports whether x has any cases.
@@ -957,6 +1035,9 @@ func (x Case) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Case) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Case) Detach() Case { x.node.Detach(); return x }
 
 // Value returns the value of x.
 func (x Case) Value() Expr { return Expr{x.node.GetFirstChild()} }
@@ -1000,6 +1081,9 @@ func (x DefaultCase) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x DefaultCase) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x DefaultCase) Detach() DefaultCase { x.node.Detach(); return x }
+
 // Body returns the body of x.
 func (x DefaultCase) Body() Block { return Block{x.node.GetFirstChild()} }
 
@@ -1034,6 +1118,9 @@ func (x Try) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Try) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Try) Detach() Try { x.node.Detach(); return x }
 
 // Body returns the body of x.
 func (x Try) Body() Block { return Block{x.node.GetFirstChild()} }
@@ -1086,6 +1173,9 @@ func (x TryCatches) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x TryCatches) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x TryCatches) Detach() TryCatches { x.node.Detach(); return x }
+
 // Catch returns the catch of x; ok is false if x has none.
 func (x TryCatches) Catch() (v Catch, ok bool) {
 	c := x.node.GetFirstChild()
@@ -1127,6 +1217,9 @@ func (x Catch) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Catch) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Catch) Detach() Catch { x.node.Detach(); return x }
+
 // Param returns the param of x; ok is false if x has none (the child is an EMPTY node).
 func (x Catch) Param() (v CatchParam, ok bool) {
 	c := x.node.GetFirstChild()
@@ -1167,6 +1260,9 @@ func (x NameDeclaration) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x NameDeclaration) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x NameDeclaration) Detach() NameDeclaration { x.node.Detach(); return x }
+
 // Token returns which of VAR, LET, CONST x is.
 func (x NameDeclaration) Token() rhino.Token { return x.node.GetToken() }
 
@@ -1193,6 +1289,12 @@ func (x NameDeclaration) FirstDeclarator() (v Declarator, ok bool) {
 func (x NameDeclaration) LastDeclarator() (v Declarator, ok bool) {
 	c := x.node.GetLastChild()
 	return Declarator{c}, c != rhino.NilNode
+}
+
+// OnlyDeclarator returns the declarator of x if it is the only one; ok is false if x has none or several.
+func (x NameDeclaration) OnlyDeclarator() (v Declarator, ok bool) {
+	c := x.node.GetFirstChild()
+	return Declarator{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasDeclarators reports whether x has any declarators.
@@ -1253,6 +1355,9 @@ func (x DestructuringLhs) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x DestructuringLhs) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x DestructuringLhs) Detach() DestructuringLhs { x.node.Detach(); return x }
+
 // Pattern returns the pattern of x.
 func (x DestructuringLhs) Pattern() Pattern { return Pattern{x.node.GetFirstChild()} }
 
@@ -1310,6 +1415,9 @@ func (x ExprStmt) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ExprStmt) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ExprStmt) Detach() ExprStmt { x.node.Detach(); return x }
+
 // Expr returns the expr of x.
 func (x ExprStmt) Expr() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -1350,6 +1458,9 @@ func (x Return) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Return) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Return) Detach() Return { x.node.Detach(); return x }
 
 // Value returns the value of x; ok is false if x has none.
 func (x Return) Value() (v Expr, ok bool) {
@@ -1407,6 +1518,9 @@ func (x Throw) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Throw) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Throw) Detach() Throw { x.node.Detach(); return x }
+
 // Value returns the value of x.
 func (x Throw) Value() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -1447,6 +1561,9 @@ func (x Break) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Break) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Break) Detach() Break { x.node.Detach(); return x }
 
 // Label returns the label of x; ok is false if x has none.
 func (x Break) Label() (v LabelName, ok bool) {
@@ -1507,6 +1624,9 @@ func (x Continue) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Continue) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Continue) Detach() Continue { x.node.Detach(); return x }
+
 // Label returns the label of x; ok is false if x has none.
 func (x Continue) Label() (v LabelName, ok bool) {
 	c := x.node.GetFirstChild()
@@ -1566,6 +1686,9 @@ func (x Empty) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Empty) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Empty) Detach() Empty { x.node.Detach(); return x }
+
 // NewEmpty returns a new Empty.
 func NewEmpty() Empty {
 	n := rhino.NewNode(rhino.Token_EMPTY)
@@ -1612,6 +1735,9 @@ func (x Debugger) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Debugger) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Debugger) Detach() Debugger { x.node.Detach(); return x }
+
 // NewDebugger returns a new Debugger.
 func NewDebugger() Debugger {
 	n := rhino.NewNode(rhino.Token_DEBUGGER)
@@ -1646,6 +1772,9 @@ func (x Function) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Function) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Function) Detach() Function { x.node.Detach(); return x }
 
 // name returns the name of x.
 func (x Function) name() Name { return Name{x.node.GetFirstChild()} }
@@ -1708,6 +1837,9 @@ func (x ParamList) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ParamList) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ParamList) Detach() ParamList { x.node.Detach(); return x }
+
 // Params iterates over the params of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -1731,6 +1863,12 @@ func (x ParamList) FirstParam() (v Param, ok bool) {
 func (x ParamList) LastParam() (v Param, ok bool) {
 	c := x.node.GetLastChild()
 	return Param{c}, c != rhino.NilNode
+}
+
+// OnlyParam returns the param of x if it is the only one; ok is false if x has none or several.
+func (x ParamList) OnlyParam() (v Param, ok bool) {
+	c := x.node.GetFirstChild()
+	return Param{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasParams reports whether x has any params.
@@ -1769,6 +1907,9 @@ func (x DefaultValue) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x DefaultValue) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x DefaultValue) Detach() DefaultValue { x.node.Detach(); return x }
 
 // Target returns the target of x.
 func (x DefaultValue) Target() Target { return Target{x.node.GetFirstChild()} }
@@ -1818,6 +1959,9 @@ func (x IterRest) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x IterRest) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x IterRest) Detach() IterRest { x.node.Detach(); return x }
+
 // Target returns the target of x.
 func (x IterRest) Target() Target { return Target{x.node.GetFirstChild()} }
 
@@ -1856,6 +2000,9 @@ func (x ObjectRest) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ObjectRest) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ObjectRest) Detach() ObjectRest { x.node.Detach(); return x }
+
 // Target returns the target of x.
 func (x ObjectRest) Target() Target { return Target{x.node.GetFirstChild()} }
 
@@ -1890,6 +2037,9 @@ func (x IterSpread) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x IterSpread) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x IterSpread) Detach() IterSpread { x.node.Detach(); return x }
 
 // Expr returns the expr of x.
 func (x IterSpread) Expr() Expr { return Expr{x.node.GetFirstChild()} }
@@ -1929,6 +2079,9 @@ func (x ObjectSpread) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ObjectSpread) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ObjectSpread) Detach() ObjectSpread { x.node.Detach(); return x }
+
 // Expr returns the expr of x.
 func (x ObjectSpread) Expr() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -1964,6 +2117,9 @@ func (x ArrayPattern) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ArrayPattern) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ArrayPattern) Detach() ArrayPattern { x.node.Detach(); return x }
+
 // Elements iterates over the elements of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -1987,6 +2143,12 @@ func (x ArrayPattern) FirstElement() (v ArrayPatternElem, ok bool) {
 func (x ArrayPattern) LastElement() (v ArrayPatternElem, ok bool) {
 	c := x.node.GetLastChild()
 	return ArrayPatternElem{c}, c != rhino.NilNode
+}
+
+// OnlyElement returns the element of x if it is the only one; ok is false if x has none or several.
+func (x ArrayPattern) OnlyElement() (v ArrayPatternElem, ok bool) {
+	c := x.node.GetFirstChild()
+	return ArrayPatternElem{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasElements reports whether x has any elements.
@@ -2047,6 +2209,9 @@ func (x ObjectPattern) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ObjectPattern) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ObjectPattern) Detach() ObjectPattern { x.node.Detach(); return x }
+
 // Props iterates over the props of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -2070,6 +2235,12 @@ func (x ObjectPattern) FirstProp() (v ObjectPatternProp, ok bool) {
 func (x ObjectPattern) LastProp() (v ObjectPatternProp, ok bool) {
 	c := x.node.GetLastChild()
 	return ObjectPatternProp{c}, c != rhino.NilNode
+}
+
+// OnlyProp returns the prop of x if it is the only one; ok is false if x has none or several.
+func (x ObjectPattern) OnlyProp() (v ObjectPatternProp, ok bool) {
+	c := x.node.GetFirstChild()
+	return ObjectPatternProp{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasProps reports whether x has any props.
@@ -2129,6 +2300,9 @@ func (x Class) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Class) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Class) Detach() Class { x.node.Detach(); return x }
 
 // Name returns the name of x; ok is false if x has none (the child is an EMPTY node).
 func (x Class) Name() (v Name, ok bool) {
@@ -2206,6 +2380,9 @@ func (x ClassBody) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ClassBody) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ClassBody) Detach() ClassBody { x.node.Detach(); return x }
+
 // Members iterates over the members of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -2229,6 +2406,12 @@ func (x ClassBody) FirstMember() (v ClassMember, ok bool) {
 func (x ClassBody) LastMember() (v ClassMember, ok bool) {
 	c := x.node.GetLastChild()
 	return ClassMember{c}, c != rhino.NilNode
+}
+
+// OnlyMember returns the member of x if it is the only one; ok is false if x has none or several.
+func (x ClassBody) OnlyMember() (v ClassMember, ok bool) {
+	c := x.node.GetFirstChild()
+	return ClassMember{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasMembers reports whether x has any members.
@@ -2268,6 +2451,9 @@ func (x MemberFunctionDef) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x MemberFunctionDef) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x MemberFunctionDef) Detach() MemberFunctionDef { x.node.Detach(); return x }
+
 // Key returns the node's string.
 func (x MemberFunctionDef) Key() string { return x.node.GetString() }
 
@@ -2304,6 +2490,9 @@ func (x GetterDef) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x GetterDef) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x GetterDef) Detach() GetterDef { x.node.Detach(); return x }
 
 // Key returns the node's string.
 func (x GetterDef) Key() string { return x.node.GetString() }
@@ -2342,6 +2531,9 @@ func (x SetterDef) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x SetterDef) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x SetterDef) Detach() SetterDef { x.node.Detach(); return x }
+
 // Key returns the node's string.
 func (x SetterDef) Key() string { return x.node.GetString() }
 
@@ -2378,6 +2570,9 @@ func (x MemberFieldDef) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x MemberFieldDef) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x MemberFieldDef) Detach() MemberFieldDef { x.node.Detach(); return x }
 
 // Key returns the node's string.
 func (x MemberFieldDef) Key() string { return x.node.GetString() }
@@ -2428,6 +2623,9 @@ func (x ComputedFieldDef) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x ComputedFieldDef) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x ComputedFieldDef) Detach() ComputedFieldDef { x.node.Detach(); return x }
 
 // Key returns the key of x.
 func (x ComputedFieldDef) Key() Expr { return Expr{x.node.GetFirstChild()} }
@@ -2486,6 +2684,9 @@ func (x ComputedProp) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x ComputedProp) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x ComputedProp) Detach() ComputedProp { x.node.Detach(); return x }
 
 // Key returns the key of x.
 func (x ComputedProp) Key() Expr { return Expr{x.node.GetFirstChild()} }
@@ -2550,6 +2751,9 @@ func (x MemberVariableDef) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x MemberVariableDef) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x MemberVariableDef) Detach() MemberVariableDef { x.node.Detach(); return x }
+
 // Key returns the node's string.
 func (x MemberVariableDef) Key() string { return x.node.GetString() }
 
@@ -2578,6 +2782,9 @@ func (x IndexSignature) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x IndexSignature) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x IndexSignature) Detach() IndexSignature { x.node.Detach(); return x }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -2601,6 +2808,12 @@ func (x IndexSignature) FirstChild() (v rhino.Node, ok bool) {
 func (x IndexSignature) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
 	return c, c != rhino.NilNode
+}
+
+// OnlyChild returns the child of x if it is the only one; ok is false if x has none or several.
+func (x IndexSignature) OnlyChild() (v rhino.Node, ok bool) {
+	c := x.node.GetFirstChild()
+	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasChildren reports whether x has any children.
@@ -2643,6 +2856,9 @@ func (x CallSignature) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x CallSignature) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x CallSignature) Detach() CallSignature { x.node.Detach(); return x }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -2666,6 +2882,12 @@ func (x CallSignature) FirstChild() (v rhino.Node, ok bool) {
 func (x CallSignature) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
 	return c, c != rhino.NilNode
+}
+
+// OnlyChild returns the child of x if it is the only one; ok is false if x has none or several.
+func (x CallSignature) OnlyChild() (v rhino.Node, ok bool) {
+	c := x.node.GetFirstChild()
+	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasChildren reports whether x has any children.
@@ -2708,6 +2930,9 @@ func (x Name) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Name) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Name) Detach() Name { x.node.Detach(); return x }
 
 // Ident returns the node's string.
 func (x Name) Ident() string { return x.node.GetString() }
@@ -2795,6 +3020,9 @@ func (x This) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x This) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x This) Detach() This { x.node.Detach(); return x }
+
 // NewThis returns a new This.
 func NewThis() This {
 	n := rhino.NewNode(rhino.Token_THIS)
@@ -2840,6 +3068,9 @@ func (x Super) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Super) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Super) Detach() Super { x.node.Detach(); return x }
 
 // NewSuper returns a new Super.
 func NewSuper() Super {
@@ -2887,6 +3118,9 @@ func (x True) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x True) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x True) Detach() True { x.node.Detach(); return x }
+
 // NewTrue returns a new True.
 func NewTrue() True {
 	n := rhino.NewNode(rhino.Token_TRUE)
@@ -2932,6 +3166,9 @@ func (x False) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x False) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x False) Detach() False { x.node.Detach(); return x }
 
 // NewFalse returns a new False.
 func NewFalse() False {
@@ -2979,6 +3216,9 @@ func (x Null) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Null) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Null) Detach() Null { x.node.Detach(); return x }
+
 // NewNull returns a new Null.
 func NewNull() Null {
 	n := rhino.NewNode(rhino.Token_NULL)
@@ -3024,6 +3264,9 @@ func (x NewTarget) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x NewTarget) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x NewTarget) Detach() NewTarget { x.node.Detach(); return x }
 
 // NewNewTarget returns a new NewTarget.
 func NewNewTarget() NewTarget {
@@ -3071,6 +3314,9 @@ func (x ImportMeta) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ImportMeta) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ImportMeta) Detach() ImportMeta { x.node.Detach(); return x }
+
 // NewImportMeta returns a new ImportMeta.
 func NewImportMeta() ImportMeta {
 	n := rhino.NewNode(rhino.Token_IMPORT_META)
@@ -3116,6 +3362,9 @@ func (x StringLit) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x StringLit) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x StringLit) Detach() StringLit { x.node.Detach(); return x }
 
 // Value returns the node's string.
 func (x StringLit) Value() string { return x.node.GetString() }
@@ -3163,6 +3412,9 @@ func (x Number) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Number) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Number) Detach() Number { x.node.Detach(); return x }
+
 // NewNumber returns a new Number.
 func NewNumber() Number {
 	n := rhino.NewNode(rhino.Token_NUMBER)
@@ -3209,6 +3461,9 @@ func (x BigInt) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x BigInt) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x BigInt) Detach() BigInt { x.node.Detach(); return x }
+
 // NewBigInt returns a new BigInt.
 func NewBigInt() BigInt {
 	n := rhino.NewNode(rhino.Token_BIGINT)
@@ -3254,6 +3509,9 @@ func (x RegExp) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x RegExp) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x RegExp) Detach() RegExp { x.node.Detach(); return x }
 
 // Pattern returns the pattern of x.
 func (x RegExp) Pattern() StringLit { return StringLit{x.node.GetFirstChild()} }
@@ -3330,6 +3588,9 @@ func (x TemplateLit) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x TemplateLit) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x TemplateLit) Detach() TemplateLit { x.node.Detach(); return x }
+
 // Parts iterates over the parts of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -3353,6 +3614,12 @@ func (x TemplateLit) FirstPart() (v TemplatePart, ok bool) {
 func (x TemplateLit) LastPart() (v TemplatePart, ok bool) {
 	c := x.node.GetLastChild()
 	return TemplatePart{c}, c != rhino.NilNode
+}
+
+// OnlyPart returns the part of x if it is the only one; ok is false if x has none or several.
+func (x TemplateLit) OnlyPart() (v TemplatePart, ok bool) {
+	c := x.node.GetFirstChild()
+	return TemplatePart{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasParts reports whether x has any parts.
@@ -3414,6 +3681,9 @@ func (x TemplateLitString) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x TemplateLitString) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x TemplateLitString) Detach() TemplateLitString { x.node.Detach(); return x }
+
 // NewTemplateLitString returns a new TemplateLitString.
 func NewTemplateLitString() TemplateLitString {
 	n := rhino.NewNode(rhino.Token_TEMPLATELIT_STRING)
@@ -3441,6 +3711,9 @@ func (x TemplateLitSub) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x TemplateLitSub) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x TemplateLitSub) Detach() TemplateLitSub { x.node.Detach(); return x }
 
 // Expr returns the expr of x.
 func (x TemplateLitSub) Expr() Expr { return Expr{x.node.GetFirstChild()} }
@@ -3476,6 +3749,9 @@ func (x TaggedTemplateLit) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x TaggedTemplateLit) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x TaggedTemplateLit) Detach() TaggedTemplateLit { x.node.Detach(); return x }
 
 // Tag returns the tag of x.
 func (x TaggedTemplateLit) Tag() Expr { return Expr{x.node.GetFirstChild()} }
@@ -3537,6 +3813,9 @@ func (x ArrayLit) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ArrayLit) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ArrayLit) Detach() ArrayLit { x.node.Detach(); return x }
+
 // Elements iterates over the elements of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -3560,6 +3839,12 @@ func (x ArrayLit) FirstElement() (v ArrayElem, ok bool) {
 func (x ArrayLit) LastElement() (v ArrayElem, ok bool) {
 	c := x.node.GetLastChild()
 	return ArrayElem{c}, c != rhino.NilNode
+}
+
+// OnlyElement returns the element of x if it is the only one; ok is false if x has none or several.
+func (x ArrayLit) OnlyElement() (v ArrayElem, ok bool) {
+	c := x.node.GetFirstChild()
+	return ArrayElem{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasElements reports whether x has any elements.
@@ -3620,6 +3905,9 @@ func (x ObjectLit) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ObjectLit) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ObjectLit) Detach() ObjectLit { x.node.Detach(); return x }
+
 // Members iterates over the members of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -3643,6 +3931,12 @@ func (x ObjectLit) FirstMember() (v ObjectMember, ok bool) {
 func (x ObjectLit) LastMember() (v ObjectMember, ok bool) {
 	c := x.node.GetLastChild()
 	return ObjectMember{c}, c != rhino.NilNode
+}
+
+// OnlyMember returns the member of x if it is the only one; ok is false if x has none or several.
+func (x ObjectLit) OnlyMember() (v ObjectMember, ok bool) {
+	c := x.node.GetFirstChild()
+	return ObjectMember{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasMembers reports whether x has any members.
@@ -3703,6 +3997,9 @@ func (x StringKey) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x StringKey) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x StringKey) Detach() StringKey { x.node.Detach(); return x }
+
 // Key returns the node's string.
 func (x StringKey) Key() string { return x.node.GetString() }
 
@@ -3742,6 +4039,9 @@ func (x Unary) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Unary) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Unary) Detach() Unary { x.node.Detach(); return x }
 
 // Token returns which of DELPROP, POS, NEG, NOT, TYPEOF, VOID, BITNOT x is.
 func (x Unary) Token() rhino.Token { return x.node.GetToken() }
@@ -3803,6 +4103,9 @@ func (x Cast) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Cast) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Cast) Detach() Cast { x.node.Detach(); return x }
 
 // Expr returns the expr of x.
 func (x Cast) Expr() Expr { return Expr{x.node.GetFirstChild()} }
@@ -3866,6 +4169,9 @@ func (x DynamicImport) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x DynamicImport) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x DynamicImport) Detach() DynamicImport { x.node.Detach(); return x }
+
 // Specifier returns the specifier of x.
 func (x DynamicImport) Specifier() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -3921,6 +4227,9 @@ func (x IncDec) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x IncDec) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x IncDec) Detach() IncDec { x.node.Detach(); return x }
 
 // Token returns which of INC, DEC x is.
 func (x IncDec) Token() rhino.Token { return x.node.GetToken() }
@@ -3982,6 +4291,9 @@ func (x Assign) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Assign) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Assign) Detach() Assign { x.node.Detach(); return x }
 
 // Target returns the target of x.
 func (x Assign) Target() Target { return Target{x.node.GetFirstChild()} }
@@ -4048,6 +4360,9 @@ func (x AssignOp) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x AssignOp) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x AssignOp) Detach() AssignOp { x.node.Detach(); return x }
 
 // Token returns which of ASSIGN_BITOR, ASSIGN_BITXOR, ASSIGN_BITAND, ASSIGN_LSH, ASSIGN_RSH, ASSIGN_URSH, ASSIGN_ADD, ASSIGN_SUB, ASSIGN_MUL, ASSIGN_DIV, ASSIGN_MOD, ASSIGN_EXPONENT, ASSIGN_OR, ASSIGN_AND, ASSIGN_COALESCE x is.
 func (x AssignOp) Token() rhino.Token { return x.node.GetToken() }
@@ -4123,6 +4438,9 @@ func (x Binary) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Binary) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Binary) Detach() Binary { x.node.Detach(); return x }
+
 // Token returns which of COMMA, OR, AND, COALESCE, BITOR, BITXOR, BITAND, EQ, NE, SHEQ, SHNE, LT, GT, LE, GE, INSTANCEOF, IN, LSH, RSH, URSH, SUB, ADD, MUL, MOD, DIV, EXPONENT x is.
 func (x Binary) Token() rhino.Token { return x.node.GetToken() }
 
@@ -4191,6 +4509,9 @@ func (x Hook) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Hook) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Hook) Detach() Hook { x.node.Detach(); return x }
+
 // Cond returns the cond of x.
 func (x Hook) Cond() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4257,6 +4578,9 @@ func (x GetProp) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x GetProp) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x GetProp) Detach() GetProp { x.node.Detach(); return x }
 
 // Property returns the node's string.
 func (x GetProp) Property() string { return x.node.GetString() }
@@ -4327,6 +4651,9 @@ func (x OptChainGetProp) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x OptChainGetProp) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x OptChainGetProp) Detach() OptChainGetProp { x.node.Detach(); return x }
+
 // Property returns the node's string.
 func (x OptChainGetProp) Property() string { return x.node.GetString() }
 
@@ -4388,6 +4715,9 @@ func (x GetElem) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x GetElem) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x GetElem) Detach() GetElem { x.node.Detach(); return x }
 
 // Object returns the object of x.
 func (x GetElem) Object() Expr { return Expr{x.node.GetFirstChild()} }
@@ -4461,6 +4791,9 @@ func (x OptChainGetElem) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x OptChainGetElem) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x OptChainGetElem) Detach() OptChainGetElem { x.node.Detach(); return x }
+
 // Object returns the object of x.
 func (x OptChainGetElem) Object() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4526,6 +4859,9 @@ func (x Call) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Call) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Call) Detach() Call { x.node.Detach(); return x }
+
 // Callee returns the callee of x.
 func (x Call) Callee() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4558,6 +4894,12 @@ func (x Call) LastArg() (v Arg, ok bool) {
 	}
 	c := x.node.GetLastChild()
 	return Arg{c}, c != rhino.NilNode
+}
+
+// OnlyArg returns the arg of x if it is the only one; ok is false if x has none or several.
+func (x Call) OnlyArg() (v Arg, ok bool) {
+	c := x.node.GetFirstChild().GetNext()
+	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasArgs reports whether x has any args.
@@ -4619,6 +4961,9 @@ func (x OptChainCall) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x OptChainCall) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x OptChainCall) Detach() OptChainCall { x.node.Detach(); return x }
+
 // Callee returns the callee of x.
 func (x OptChainCall) Callee() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4651,6 +4996,12 @@ func (x OptChainCall) LastArg() (v Arg, ok bool) {
 	}
 	c := x.node.GetLastChild()
 	return Arg{c}, c != rhino.NilNode
+}
+
+// OnlyArg returns the arg of x if it is the only one; ok is false if x has none or several.
+func (x OptChainCall) OnlyArg() (v Arg, ok bool) {
+	c := x.node.GetFirstChild().GetNext()
+	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasArgs reports whether x has any args.
@@ -4714,6 +5065,9 @@ func (x New) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x New) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x New) Detach() New { x.node.Detach(); return x }
+
 // Callee returns the callee of x.
 func (x New) Callee() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4746,6 +5100,12 @@ func (x New) LastArg() (v Arg, ok bool) {
 	}
 	c := x.node.GetLastChild()
 	return Arg{c}, c != rhino.NilNode
+}
+
+// OnlyArg returns the arg of x if it is the only one; ok is false if x has none or several.
+func (x New) OnlyArg() (v Arg, ok bool) {
+	c := x.node.GetFirstChild().GetNext()
+	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasArgs reports whether x has any args.
@@ -4803,6 +5163,9 @@ func (x Yield) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Yield) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Yield) Detach() Yield { x.node.Detach(); return x }
 
 // Value returns the value of x; ok is false if x has none.
 func (x Yield) Value() (v Expr, ok bool) {
@@ -4872,6 +5235,9 @@ func (x Await) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Await) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Await) Detach() Await { x.node.Detach(); return x }
+
 // Value returns the value of x.
 func (x Await) Value() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -4924,6 +5290,9 @@ func (x Import) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Import) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Import) Detach() Import { x.node.Detach(); return x }
 
 // Default returns the default of x; ok is false if x has none (the child is an EMPTY node).
 func (x Import) Default() (v Name, ok bool) {
@@ -4983,6 +5352,9 @@ func (x ImportSpecs) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ImportSpecs) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ImportSpecs) Detach() ImportSpecs { x.node.Detach(); return x }
+
 // Specs iterates over the specs of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -5006,6 +5378,12 @@ func (x ImportSpecs) FirstSpec() (v ImportSpec, ok bool) {
 func (x ImportSpecs) LastSpec() (v ImportSpec, ok bool) {
 	c := x.node.GetLastChild()
 	return ImportSpec{c}, c != rhino.NilNode
+}
+
+// OnlySpec returns the spec of x if it is the only one; ok is false if x has none or several.
+func (x ImportSpecs) OnlySpec() (v ImportSpec, ok bool) {
+	c := x.node.GetFirstChild()
+	return ImportSpec{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasSpecs reports whether x has any specs.
@@ -5048,6 +5426,9 @@ func (x ImportSpec) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ImportSpec) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ImportSpec) Detach() ImportSpec { x.node.Detach(); return x }
+
 // Imported returns the imported of x.
 func (x ImportSpec) Imported() Name { return Name{x.node.GetFirstChild()} }
 
@@ -5087,6 +5468,9 @@ func (x ImportStar) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ImportStar) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ImportStar) Detach() ImportStar { x.node.Detach(); return x }
+
 // Ident returns the node's string.
 func (x ImportStar) Ident() string { return x.node.GetString() }
 
@@ -5114,6 +5498,9 @@ func (x Export) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Export) Is(n rhino.Node) bool { return x.node == n }
+
+// Detach takes x out of its parent, and returns it.
+func (x Export) Detach() Export { x.node.Detach(); return x }
 
 // Body returns the body of x.
 func (x Export) Body() ExportBody { return ExportBody{x.node.GetFirstChild()} }
@@ -5178,6 +5565,9 @@ func (x ExportSpecs) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ExportSpecs) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ExportSpecs) Detach() ExportSpecs { x.node.Detach(); return x }
+
 // Specs iterates over the specs of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -5201,6 +5591,12 @@ func (x ExportSpecs) FirstSpec() (v ExportSpec, ok bool) {
 func (x ExportSpecs) LastSpec() (v ExportSpec, ok bool) {
 	c := x.node.GetLastChild()
 	return ExportSpec{c}, c != rhino.NilNode
+}
+
+// OnlySpec returns the spec of x if it is the only one; ok is false if x has none or several.
+func (x ExportSpecs) OnlySpec() (v ExportSpec, ok bool) {
+	c := x.node.GetFirstChild()
+	return ExportSpec{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasSpecs reports whether x has any specs.
@@ -5243,6 +5639,9 @@ func (x ExportSpec) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ExportSpec) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x ExportSpec) Detach() ExportSpec { x.node.Detach(); return x }
+
 // Local returns the local of x.
 func (x ExportSpec) Local() Name { return Name{x.node.GetFirstChild()} }
 
@@ -5282,6 +5681,9 @@ func (x Interface) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Interface) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Interface) Detach() Interface { x.node.Detach(); return x }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -5305,6 +5707,12 @@ func (x Interface) FirstChild() (v rhino.Node, ok bool) {
 func (x Interface) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
 	return c, c != rhino.NilNode
+}
+
+// OnlyChild returns the child of x if it is the only one; ok is false if x has none or several.
+func (x Interface) OnlyChild() (v rhino.Node, ok bool) {
+	c := x.node.GetFirstChild()
+	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasChildren reports whether x has any children.
@@ -5353,6 +5761,9 @@ func (x Enum) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Enum) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Enum) Detach() Enum { x.node.Detach(); return x }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -5376,6 +5787,12 @@ func (x Enum) FirstChild() (v rhino.Node, ok bool) {
 func (x Enum) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
 	return c, c != rhino.NilNode
+}
+
+// OnlyChild returns the child of x if it is the only one; ok is false if x has none or several.
+func (x Enum) OnlyChild() (v rhino.Node, ok bool) {
+	c := x.node.GetFirstChild()
+	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasChildren reports whether x has any children.
@@ -5424,6 +5841,9 @@ func (x TypeAlias) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x TypeAlias) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x TypeAlias) Detach() TypeAlias { x.node.Detach(); return x }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -5447,6 +5867,12 @@ func (x TypeAlias) FirstChild() (v rhino.Node, ok bool) {
 func (x TypeAlias) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
 	return c, c != rhino.NilNode
+}
+
+// OnlyChild returns the child of x if it is the only one; ok is false if x has none or several.
+func (x TypeAlias) OnlyChild() (v rhino.Node, ok bool) {
+	c := x.node.GetFirstChild()
+	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasChildren reports whether x has any children.
@@ -5495,6 +5921,9 @@ func (x Declare) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Declare) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Declare) Detach() Declare { x.node.Detach(); return x }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -5518,6 +5947,12 @@ func (x Declare) FirstChild() (v rhino.Node, ok bool) {
 func (x Declare) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
 	return c, c != rhino.NilNode
+}
+
+// OnlyChild returns the child of x if it is the only one; ok is false if x has none or several.
+func (x Declare) OnlyChild() (v rhino.Node, ok bool) {
+	c := x.node.GetFirstChild()
+	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasChildren reports whether x has any children.
@@ -5566,6 +6001,9 @@ func (x Namespace) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Namespace) Is(n rhino.Node) bool { return x.node == n }
 
+// Detach takes x out of its parent, and returns it.
+func (x Namespace) Detach() Namespace { x.node.Detach(); return x }
+
 // Children iterates over the children of x. Like a for loop over GetNext, it reads the next
 // element after the loop body ran: a body that moves the current element elsewhere
 // ends the loop early.
@@ -5589,6 +6027,12 @@ func (x Namespace) FirstChild() (v rhino.Node, ok bool) {
 func (x Namespace) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
 	return c, c != rhino.NilNode
+}
+
+// OnlyChild returns the child of x if it is the only one; ok is false if x has none or several.
+func (x Namespace) OnlyChild() (v rhino.Node, ok bool) {
+	c := x.node.GetFirstChild()
+	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
 }
 
 // HasChildren reports whether x has any children.
@@ -5639,6 +6083,15 @@ func (x Statement) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Statement) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of Statement it is).
+func (x Statement) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Statement) Detach() Statement { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Statement) ReplaceWith(v Statement) { x.node.ReplaceWith(v.node) }
 
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x Statement) AsBlock() (Block, bool) { return AsBlock(x.node) }
@@ -5764,6 +6217,15 @@ func (x Expr) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Expr) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of Expr it is).
+func (x Expr) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Expr) Detach() Expr { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Expr) ReplaceWith(v Expr) { x.node.ReplaceWith(v.node) }
 
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x Expr) AsFunction() (Function, bool) { return AsFunction(x.node) }
@@ -5929,6 +6391,15 @@ func (x Target) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Target) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of Target it is).
+func (x Target) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Target) Detach() Target { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Target) ReplaceWith(v Target) { x.node.ReplaceWith(v.node) }
+
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x Target) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
@@ -5984,6 +6455,15 @@ func (x Pattern) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Pattern) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of Pattern it is).
+func (x Pattern) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Pattern) Detach() Pattern { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Pattern) ReplaceWith(v Pattern) { x.node.ReplaceWith(v.node) }
+
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x Pattern) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
@@ -6030,6 +6510,15 @@ func (x Param) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Param) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of Param it is).
+func (x Param) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Param) Detach() Param { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Param) ReplaceWith(v Param) { x.node.ReplaceWith(v.node) }
+
 // AsDefaultValue returns x as a DefaultValue; ok is false if it is not one.
 func (x Param) AsDefaultValue() (DefaultValue, bool) { return AsDefaultValue(x.node) }
 
@@ -6075,6 +6564,15 @@ func (x Arg) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Arg) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of Arg it is).
+func (x Arg) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Arg) Detach() Arg { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Arg) ReplaceWith(v Arg) { x.node.ReplaceWith(v.node) }
 
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x Arg) AsFunction() (Function, bool) { return AsFunction(x.node) }
@@ -6229,6 +6727,15 @@ func (x ArrayElem) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x ArrayElem) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of ArrayElem it is).
+func (x ArrayElem) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ArrayElem) Detach() ArrayElem { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ArrayElem) ReplaceWith(v ArrayElem) { x.node.ReplaceWith(v.node) }
 
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x ArrayElem) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
@@ -6389,6 +6896,15 @@ func (x ArrayPatternElem) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ArrayPatternElem) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of ArrayPatternElem it is).
+func (x ArrayPatternElem) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ArrayPatternElem) Detach() ArrayPatternElem { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ArrayPatternElem) ReplaceWith(v ArrayPatternElem) { x.node.ReplaceWith(v.node) }
+
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x ArrayPatternElem) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
 
@@ -6450,6 +6966,15 @@ func (x ObjectPatternProp) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ObjectPatternProp) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of ObjectPatternProp it is).
+func (x ObjectPatternProp) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ObjectPatternProp) Detach() ObjectPatternProp { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ObjectPatternProp) ReplaceWith(v ObjectPatternProp) { x.node.ReplaceWith(v.node) }
+
 // AsObjectRest returns x as an ObjectRest; ok is false if it is not one.
 func (x ObjectPatternProp) AsObjectRest() (ObjectRest, bool) { return AsObjectRest(x.node) }
 
@@ -6481,6 +7006,15 @@ func (x PropValue) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x PropValue) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of PropValue it is).
+func (x PropValue) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x PropValue) Detach() PropValue { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x PropValue) ReplaceWith(v PropValue) { x.node.ReplaceWith(v.node) }
 
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x PropValue) AsFunction() (Function, bool) { return AsFunction(x.node) }
@@ -6650,6 +7184,15 @@ func (x ObjectMember) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ObjectMember) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of ObjectMember it is).
+func (x ObjectMember) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ObjectMember) Detach() ObjectMember { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ObjectMember) ReplaceWith(v ObjectMember) { x.node.ReplaceWith(v.node) }
+
 // AsObjectSpread returns x as an ObjectSpread; ok is false if it is not one.
 func (x ObjectMember) AsObjectSpread() (ObjectSpread, bool) { return AsObjectSpread(x.node) }
 
@@ -6691,6 +7234,15 @@ func (x ClassMember) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x ClassMember) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of ClassMember it is).
+func (x ClassMember) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ClassMember) Detach() ClassMember { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ClassMember) ReplaceWith(v ClassMember) { x.node.ReplaceWith(v.node) }
 
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x ClassMember) AsBlock() (Block, bool) { return AsBlock(x.node) }
@@ -6751,6 +7303,15 @@ func (x Loop) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Loop) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of Loop it is).
+func (x Loop) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Loop) Detach() Loop { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Loop) ReplaceWith(v Loop) { x.node.ReplaceWith(v.node) }
+
 // AsFor returns x as a For; ok is false if it is not one.
 func (x Loop) AsFor() (For, bool) { return AsFor(x.node) }
 
@@ -6804,6 +7365,15 @@ func (x EnhancedFor) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x EnhancedFor) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of EnhancedFor it is).
+func (x EnhancedFor) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x EnhancedFor) Detach() EnhancedFor { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x EnhancedFor) ReplaceWith(v EnhancedFor) { x.node.ReplaceWith(v.node) }
+
 // AsForIn returns x as a ForIn; ok is false if it is not one.
 func (x EnhancedFor) AsForIn() (ForIn, bool) { return AsForIn(x.node) }
 
@@ -6853,6 +7423,15 @@ func (x Jump) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Jump) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of Jump it is).
+func (x Jump) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Jump) Detach() Jump { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Jump) ReplaceWith(v Jump) { x.node.ReplaceWith(v.node) }
+
 // AsBreak returns x as a Break; ok is false if it is not one.
 func (x Jump) AsBreak() (Break, bool) { return AsBreak(x.node) }
 
@@ -6896,6 +7475,15 @@ func (x SwitchCase) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x SwitchCase) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of SwitchCase it is).
+func (x SwitchCase) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x SwitchCase) Detach() SwitchCase { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x SwitchCase) ReplaceWith(v SwitchCase) { x.node.ReplaceWith(v.node) }
+
 // AsCase returns x as a Case; ok is false if it is not one.
 func (x SwitchCase) AsCase() (Case, bool) { return AsCase(x.node) }
 
@@ -6927,6 +7515,15 @@ func (x Declarator) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x Declarator) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of Declarator it is).
+func (x Declarator) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Declarator) Detach() Declarator { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Declarator) ReplaceWith(v Declarator) { x.node.ReplaceWith(v.node) }
+
 // AsDestructuringLhs returns x as a DestructuringLhs; ok is false if it is not one.
 func (x Declarator) AsDestructuringLhs() (DestructuringLhs, bool) { return AsDestructuringLhs(x.node) }
 
@@ -6954,6 +7551,15 @@ func (x ForInit) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x ForInit) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of ForInit it is).
+func (x ForInit) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ForInit) Detach() ForInit { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ForInit) ReplaceWith(v ForInit) { x.node.ReplaceWith(v.node) }
 
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ForInit) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
@@ -7109,6 +7715,15 @@ func (x ForTarget) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ForTarget) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of ForTarget it is).
+func (x ForTarget) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ForTarget) Detach() ForTarget { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ForTarget) ReplaceWith(v ForTarget) { x.node.ReplaceWith(v.node) }
+
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ForTarget) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
 
@@ -7161,6 +7776,15 @@ func (x CatchParam) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x CatchParam) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of CatchParam it is).
+func (x CatchParam) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x CatchParam) Detach() CatchParam { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x CatchParam) ReplaceWith(v CatchParam) { x.node.ReplaceWith(v.node) }
+
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x CatchParam) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
@@ -7210,6 +7834,15 @@ func (x FunctionBody) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x FunctionBody) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of FunctionBody it is).
+func (x FunctionBody) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x FunctionBody) Detach() FunctionBody { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x FunctionBody) ReplaceWith(v FunctionBody) { x.node.ReplaceWith(v.node) }
 
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x FunctionBody) AsBlock() (Block, bool) { return AsBlock(x.node) }
@@ -7370,6 +8003,15 @@ func (x TemplatePart) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x TemplatePart) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of TemplatePart it is).
+func (x TemplatePart) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x TemplatePart) Detach() TemplatePart { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x TemplatePart) ReplaceWith(v TemplatePart) { x.node.ReplaceWith(v.node) }
+
 // AsTemplateLitString returns x as a TemplateLitString; ok is false if it is not one.
 func (x TemplatePart) AsTemplateLitString() (TemplateLitString, bool) {
 	return AsTemplateLitString(x.node)
@@ -7400,6 +8042,15 @@ func (x ImportBindings) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ImportBindings) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of ImportBindings it is).
+func (x ImportBindings) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ImportBindings) Detach() ImportBindings { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ImportBindings) ReplaceWith(v ImportBindings) { x.node.ReplaceWith(v.node) }
+
 // AsImportSpecs returns x as an ImportSpecs; ok is false if it is not one.
 func (x ImportBindings) AsImportSpecs() (ImportSpecs, bool) { return AsImportSpecs(x.node) }
 
@@ -7428,6 +8079,15 @@ func (x ExportBody) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x ExportBody) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of ExportBody it is).
+func (x ExportBody) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ExportBody) Detach() ExportBody { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ExportBody) ReplaceWith(v ExportBody) { x.node.ReplaceWith(v.node) }
 
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x ExportBody) AsBlock() (Block, bool) { return AsBlock(x.node) }
@@ -7681,6 +8341,15 @@ func (x ScriptItem) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x ScriptItem) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of ScriptItem it is).
+func (x ScriptItem) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ScriptItem) Detach() ScriptItem { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ScriptItem) ReplaceWith(v ScriptItem) { x.node.ReplaceWith(v.node) }
+
 // AsModuleBody returns x as a ModuleBody; ok is false if it is not one.
 func (x ScriptItem) AsModuleBody() (ModuleBody, bool) { return AsModuleBody(x.node) }
 
@@ -7806,6 +8475,15 @@ func (x RootItem) Node() rhino.Node { return x.node }
 // Is reports whether x is the node n.
 func (x RootItem) Is(n rhino.Node) bool { return x.node == n }
 
+// Token returns the token of x (which kind of RootItem it is).
+func (x RootItem) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x RootItem) Detach() RootItem { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x RootItem) ReplaceWith(v RootItem) { x.node.ReplaceWith(v.node) }
+
 // AsRoot returns x as a Root; ok is false if it is not one.
 func (x RootItem) AsRoot() (Root, bool) { return AsRoot(x.node) }
 
@@ -7834,6 +8512,15 @@ func (x NormalOrOptChainCall) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x NormalOrOptChainCall) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of NormalOrOptChainCall it is).
+func (x NormalOrOptChainCall) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x NormalOrOptChainCall) Detach() NormalOrOptChainCall { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x NormalOrOptChainCall) ReplaceWith(v NormalOrOptChainCall) { x.node.ReplaceWith(v.node) }
 
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x NormalOrOptChainCall) AsCall() (Call, bool) { return AsCall(x.node) }
@@ -7893,6 +8580,12 @@ func (x NormalOrOptChainCall) LastArg() (v Arg, ok bool) {
 	return Arg{c}, c != rhino.NilNode
 }
 
+// OnlyArg returns the arg of x if it is the only one; ok is false if x has none or several.
+func (x NormalOrOptChainCall) OnlyArg() (v Arg, ok bool) {
+	c := x.node.GetFirstChild().GetNext()
+	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
 // HasArgs reports whether x has any args.
 func (x NormalOrOptChainCall) HasArgs() bool {
 	return x.node.GetFirstChild().GetNext() != rhino.NilNode
@@ -7924,6 +8617,15 @@ func (x NormalOrOptChainGetProp) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x NormalOrOptChainGetProp) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of NormalOrOptChainGetProp it is).
+func (x NormalOrOptChainGetProp) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x NormalOrOptChainGetProp) Detach() NormalOrOptChainGetProp { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x NormalOrOptChainGetProp) ReplaceWith(v NormalOrOptChainGetProp) { x.node.ReplaceWith(v.node) }
 
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x NormalOrOptChainGetProp) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
@@ -7988,6 +8690,15 @@ func (x NormalOrOptChainGet) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x NormalOrOptChainGet) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of NormalOrOptChainGet it is).
+func (x NormalOrOptChainGet) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x NormalOrOptChainGet) Detach() NormalOrOptChainGet { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x NormalOrOptChainGet) ReplaceWith(v NormalOrOptChainGet) { x.node.ReplaceWith(v.node) }
 
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x NormalOrOptChainGet) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
@@ -8056,6 +8767,15 @@ func (x Assignment) Node() rhino.Node { return x.node }
 
 // Is reports whether x is the node n.
 func (x Assignment) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of Assignment it is).
+func (x Assignment) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Assignment) Detach() Assignment { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Assignment) ReplaceWith(v Assignment) { x.node.ReplaceWith(v.node) }
 
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x Assignment) AsAssign() (Assign, bool) { return AsAssign(x.node) }

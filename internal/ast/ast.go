@@ -20,6 +20,13 @@
 // so they cost nothing to create or pass, and Node() goes back to the
 // rhino API for anything this package does not cover.
 //
+// Accessors and setters find a child by its position, as the rhino API
+// does: SetCond replaces the child where the cond of x is. In the middle of
+// an edit that removed an earlier child, they reach the wrong one, so read
+// every child you need before the first edit:
+//
+//	then, els := ifs.Then(), ifs.Else() // before the cond is detached
+//
 // The kinds, their children and the categories are listed in grammar.txt;
 // nodes.gen.go is generated from it (go generate ./internal/ast). Check
 // verifies a tree against the grammar.
