@@ -191,7 +191,7 @@ func (k *Compactor) Slide() {
 			r.parent, r.previous = k.link(r.parent), k.link(r.previous)
 			s.blocks[pos>>blockShift][pos&blockMask] = r
 			setColumnAt(&s.tcs, pos, columnAt(s.tcs, i))
-			setColumnAt(&s.origNames, pos, columnAt(s.origNames, i))
+			setPagedColumnAt(&s.origNames, pos, pagedColumnAt(s.origNames, i))
 			pos++
 		}
 	}
@@ -202,16 +202,18 @@ func (k *Compactor) Slide() {
 	for p := live; p < uint32(keep)<<blockShift; p++ {
 		s.blocks[p>>blockShift][p&blockMask] = nodeData{}
 		setColumnAt(&s.tcs, p, 0)
-		setColumnAt(&s.origNames, p, 0)
+		setPagedColumnAt(&s.origNames, p, 0)
 	}
 	s.unregister()
 	clear(s.blocks[keep:])
 	s.blocks = s.blocks[:keep]
-	for _, cols := range []*[]*nodeColumn{&s.tcs, &s.origNames} {
-		if len(*cols) > keep {
-			clear((*cols)[keep:])
-			*cols = (*cols)[:keep]
-		}
+	if len(s.tcs) > keep {
+		clear(s.tcs[keep:])
+		s.tcs = s.tcs[:keep]
+	}
+	if len(s.origNames) > keep {
+		clear(s.origNames[keep:])
+		s.origNames = s.origNames[:keep]
 	}
 	s.base = k.newBase
 	s.next.Store(k.newBase + live)

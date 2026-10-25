@@ -76,8 +76,8 @@ type NodeStore struct {
 
 	mu sync.Mutex // guards block creation and the side tables' growth
 
-	tcs       []*nodeColumn // the JSType/Color handle columns of the blocks (node_tables.go)
-	origNames []*nodeColumn // the original-name columns of the blocks
+	tcs       []*nodeColumn  // the JSType/Color handle columns of the blocks (node_tables.go)
+	origNames []*pagedColumn // the original-name columns of the blocks
 	aux       [auxShards]auxShard
 	types     handleTable[*JSTypeBase]
 	colors    handleTable[*colors.Color]

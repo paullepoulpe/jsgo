@@ -289,7 +289,7 @@ func (n Node) auxValue() nodeAux {
 //     allocate a tc column);
 //   - origName: a node's original name (the name before renaming, for
 //     source maps), when it is not simply the node's own string (see
-//     kindFlagOrigNameIsString).
+//     kindFlagOrigNameIsString); in a paged column (see below).
 //
 // A process-wide directory per field maps a block number to its column, as
 // nodeBlocks does for the records; the store owns the columns of its blocks.
@@ -301,7 +301,7 @@ type columnField struct {
 	dir [numBlocks]atomic.Pointer[nodeColumn]
 }
 
-var tcField, origNameField columnField
+var tcField columnField
 
 // get returns n's value (0: none).
 func (f *columnField) get(n Node) uint32 {
@@ -383,6 +383,136 @@ func setColumnAt(cols *[]*nodeColumn, i uint32, v uint32) {
 		(*cols)[k] = new(nodeColumn)
 	}
 	(*cols)[k][i&blockMask] = v
+}
+
+// --- paged columns ---
+
+// A paged column is a column split into pages of 64 values, each allocated
+// on the first non-zero write: for a field that most nodes of a block do not
+// have. The original name is one: when the type checker peaks, about 3 % of
+// the nodes have one that is not their own string (most pages stay empty),
+// while after renaming most names do.
+
+const (
+	columnPageShift = 6
+	columnPageLen   = 1 << columnPageShift
+	columnPageMask  = columnPageLen - 1
+	pagesPerBlock   = blockLen / columnPageLen
+)
+
+type columnPage [columnPageLen]uint32
+
+// pagedColumn is the pages of one block (2 KB, where a column is 64 KB).
+type pagedColumn [pagesPerBlock]atomic.Pointer[columnPage]
+
+// pagedColumnField is one paged-column field: the directory of its columns.
+type pagedColumnField struct {
+	dir [numBlocks]atomic.Pointer[pagedColumn]
+}
+
+var origNameField pagedColumnField
+
+// get returns n's value (0: none).
+func (f *pagedColumnField) get(n Node) uint32 {
+	c := f.dir[uint32(n)>>blockShift].Load()
+	if c == nil {
+		return 0
+	}
+	if p := c[(uint32(n)&blockMask)>>columnPageShift].Load(); p != nil {
+		return p[uint32(n)&columnPageMask]
+	}
+	return 0
+}
+
+// set sets n's value; cols is the store's slice of columns for f.
+func (f *pagedColumnField) set(n Node, cols *[]*pagedColumn, v uint32) {
+	c := f.dir[uint32(n)>>blockShift].Load()
+	if c == nil {
+		if v == 0 {
+			return
+		}
+		c = n.store().addPagedColumn(f, cols, uint32(n))
+	}
+	slot := &c[(uint32(n)&blockMask)>>columnPageShift]
+	p := slot.Load()
+	if p == nil {
+		if v == 0 {
+			return
+		}
+		slot.CompareAndSwap(nil, new(columnPage)) // fails if another goroutine just made it
+		p = slot.Load()
+	}
+	p[uint32(n)&columnPageMask] = v
+}
+
+// addPagedColumn creates the paged column of f for id's block (unless
+// another goroutine just did).
+//
+//go:noinline
+func (s *NodeStore) addPagedColumn(f *pagedColumnField, cols *[]*pagedColumn, id uint32) *pagedColumn {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := int((id - s.base) >> blockShift)
+	for len(*cols) <= k {
+		*cols = append(*cols, nil)
+	}
+	if (*cols)[k] == nil {
+		(*cols)[k] = new(pagedColumn)
+		f.dir[id>>blockShift].Store((*cols)[k])
+	}
+	return (*cols)[k]
+}
+
+func (f *pagedColumnField) register(first uint32, cols []*pagedColumn) {
+	for k, c := range cols {
+		if c != nil {
+			f.dir[first+uint32(k)].Store(c)
+		}
+	}
+}
+
+func (f *pagedColumnField) unregister(first uint32, cols []*pagedColumn) {
+	for k, c := range cols {
+		if c != nil {
+			f.dir[first+uint32(k)].CompareAndSwap(c, nil)
+		}
+	}
+}
+
+// pagedColumnAt returns the value at index i of a store's paged columns
+// (for compaction: the columns are not in the directory then).
+func pagedColumnAt(cols []*pagedColumn, i uint32) uint32 {
+	if k := int(i >> blockShift); k < len(cols) && cols[k] != nil {
+		if p := cols[k][(i&blockMask)>>columnPageShift].Load(); p != nil {
+			return p[i&columnPageMask]
+		}
+	}
+	return 0
+}
+
+// setPagedColumnAt sets the value at index i of a store's paged columns
+// (see pagedColumnAt; no other goroutine runs during compaction).
+func setPagedColumnAt(cols *[]*pagedColumn, i uint32, v uint32) {
+	k := int(i >> blockShift)
+	if k >= len(*cols) || (*cols)[k] == nil {
+		if v == 0 {
+			return
+		}
+		for len(*cols) <= k {
+			*cols = append(*cols, nil)
+		}
+		(*cols)[k] = new(pagedColumn)
+	}
+	slot := &(*cols)[k][(i&blockMask)>>columnPageShift]
+	p := slot.Load()
+	if p == nil {
+		if v == 0 {
+			return
+		}
+		p = new(columnPage)
+		slot.Store(p)
+	}
+	p[i&columnPageMask] = v
 }
 
 // tc returns n's JSType or Color handle (0: none).
