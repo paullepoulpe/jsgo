@@ -4018,6 +4018,9 @@ func (x Assign) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
 // AsExportBody returns x as an ExportBody.
 func (x Assign) AsExportBody() ExportBody { return ExportBody{x.node} }
 
+// AsAssignment returns x as an Assignment.
+func (x Assign) AsAssignment() Assignment { return Assignment{x.node} }
+
 // AssignOp is target op= value.
 //
 // Grammar: AssignOp = ASSIGN_BITOR | ASSIGN_BITXOR | ASSIGN_BITAND | ASSIGN_LSH | ASSIGN_RSH | ASSIGN_URSH | ASSIGN_ADD | ASSIGN_SUB | ASSIGN_MUL | ASSIGN_DIV | ASSIGN_MOD | ASSIGN_EXPONENT | ASSIGN_OR | ASSIGN_AND | ASSIGN_COALESCE  target:Target value:Expr
@@ -4089,6 +4092,9 @@ func (x AssignOp) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
 
 // AsExportBody returns x as an ExportBody.
 func (x AssignOp) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsAssignment returns x as an Assignment.
+func (x AssignOp) AsAssignment() Assignment { return Assignment{x.node} }
 
 // Binary is left op right.
 //
@@ -5892,6 +5898,9 @@ func (x Expr) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// AsAssignment returns x as an Assignment; ok is false if it is not one.
+func (x Expr) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
 // Target is what can be assigned to: the left side of an assignment, a
 // declaration or a for-in/of loop.
 //
@@ -6195,6 +6204,9 @@ func (x Arg) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// AsAssignment returns x as an Assignment; ok is false if it is not one.
+func (x Arg) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
 // ArrayElem is an element of an array literal (Empty for a hole).
 //
 // Grammar: ArrayElem = Expr | IterSpread | Empty
@@ -6351,6 +6363,9 @@ func (x ArrayElem) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 func (x ArrayElem) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
+
+// AsAssignment returns x as an Assignment; ok is false if it is not one.
+func (x ArrayElem) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
 // ArrayPatternElem is an element of an array pattern (Empty for a hole).
 //
@@ -6612,6 +6627,9 @@ func (x PropValue) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 func (x PropValue) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
+
+// AsAssignment returns x as an Assignment; ok is false if it is not one.
+func (x PropValue) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
 // ObjectMember is a member of an object literal.
 //
@@ -7023,6 +7041,9 @@ func (x ForInit) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// AsAssignment returns x as an Assignment; ok is false if it is not one.
+func (x ForInit) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
 // ForTarget is what a for-in or for-of loop assigns.
 //
 // Grammar: ForTarget = NameDeclaration | Target
@@ -7283,6 +7304,9 @@ func (x FunctionBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool
 func (x FunctionBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
+
+// AsAssignment returns x as an Assignment; ok is false if it is not one.
+func (x FunctionBody) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
 // TemplatePart is a part of a template literal.
 //
@@ -7591,6 +7615,9 @@ func (x ExportBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) 
 func (x ExportBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
+
+// AsAssignment returns x as an Assignment; ok is false if it is not one.
+func (x ExportBody) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
 // ScriptItem is a child of a script: statements, or one module body.
 //
@@ -7968,6 +7995,63 @@ func (x NormalOrOptChainGet) AsNormalOrOptChainGetProp() (NormalOrOptChainGetPro
 
 // Object returns the object of x.
 func (x NormalOrOptChainGet) Object() Expr { return Expr{x.node.GetFirstChild()} }
+
+// Assignment is an assignment, plain or compound: target = value or
+// target op= value (NodeUtil.isAssignmentOp).
+//
+// Grammar: Assignment = Assign | AssignOp
+type Assignment struct{ node rhino.Node }
+
+// AsAssignment returns n as an Assignment; ok is false if n is not one (or is the nil node).
+func AsAssignment(n rhino.Node) (x Assignment, ok bool) {
+	if n == rhino.NilNode {
+		return Assignment{}, false
+	}
+	switch n.GetToken() {
+	case rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
+		return Assignment{n}, true
+	}
+	return Assignment{}, false
+}
+
+// Node returns x as a rhino.Node.
+func (x Assignment) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Assignment) Is(n rhino.Node) bool { return x.node == n }
+
+// AsAssign returns x as an Assign; ok is false if it is not one.
+func (x Assignment) AsAssign() (Assign, bool) { return AsAssign(x.node) }
+
+// AsAssignOp returns x as an AssignOp; ok is false if it is not one.
+func (x Assignment) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// AsExpr returns x as an Expr.
+func (x Assignment) AsExpr() Expr { return Expr{x.node} }
+
+// AsArg returns x as an Arg.
+func (x Assignment) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x Assignment) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x Assignment) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x Assignment) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x Assignment) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x Assignment) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// Target returns the target of x.
+func (x Assignment) Target() Target { return Target{x.node.GetFirstChild()} }
+
+// Value returns the value of x.
+func (x Assignment) Value() Expr { return Expr{x.node.GetSecondChild()} }
 
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x RootItem) Next() (RootItem, bool) { c := x.node.GetNext(); return AsRootItem(c) }
@@ -9051,4 +9135,5 @@ var grammarCategories = map[string][]string{
 	"NormalOrOptChainCall":    {"Call", "OptChainCall"},
 	"NormalOrOptChainGetProp": {"GetProp", "OptChainGetProp"},
 	"NormalOrOptChainGet":     {"GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem"},
+	"Assignment":              {"Assign", "AssignOp"},
 }

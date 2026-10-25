@@ -141,6 +141,61 @@ func TestCategorySharedAccessors(t *testing.T) {
 	}
 }
 
+func TestOnlyStatementAndDeclarator(t *testing.T) {
+	newStore(t)
+	if _, ok := NewBlock().OnlyStatement(); ok {
+		t.Fatal("OnlyStatement() of an empty block reports one")
+	}
+	ret := NewReturn().AsStatement()
+	block := NewBlock(ret)
+	if s, ok := block.OnlyStatement(); !ok || s != ret {
+		t.Fatal("OnlyStatement() is not the statement of a block with one")
+	}
+	block.AppendStatement(NewEmpty().AsStatement())
+	if _, ok := block.OnlyStatement(); ok {
+		t.Fatal("OnlyStatement() of a block with two statements reports one")
+	}
+
+	x := NewName("x").AsDeclarator()
+	decl := NewNameDeclaration(rhino.Token_VAR, x)
+	if d, ok := decl.OnlyDeclarator(); !ok || d != x {
+		t.Fatal("OnlyDeclarator() is not the declarator of var x")
+	}
+	decl.AppendDeclarator(NewName("y").AsDeclarator())
+	if _, ok := decl.OnlyDeclarator(); ok {
+		t.Fatal("OnlyDeclarator() of var x, y reports one")
+	}
+}
+
+// Assignment is both kinds of assignment, with their shared target and
+// value.
+func TestAssignmentCategory(t *testing.T) {
+	newStore(t)
+	for _, e := range []Expr{
+		NewAssign(NewName("a").AsTarget(), NewName("b").AsExpr()).AsExpr(),
+		NewAssignOp(rhino.Token_ASSIGN_ADD, NewName("a").AsTarget(), NewName("b").AsExpr()).AsExpr(),
+	} {
+		n := e.Node()
+		assign, ok := e.AsAssignment()
+		if !ok {
+			t.Fatalf("Expr.AsAssignment() of a %s failed", n.GetToken())
+		}
+		if assign.Token() != n.GetToken() {
+			t.Fatalf("Token() = %s, want %s", assign.Token(), n.GetToken())
+		}
+		if target, ok := assign.Target().AsName(); !ok || target.Ident() != "a" {
+			t.Fatalf("Target() of a %s is not its target", n.GetToken())
+		}
+		if value, ok := assign.Value().AsName(); !ok || value.Ident() != "b" {
+			t.Fatalf("Value() of a %s is not its value", n.GetToken())
+		}
+	}
+	bin := NewBinary(rhino.Token_EQ, NewName("a").AsExpr(), NewName("b").AsExpr())
+	if _, ok := bin.AsExpr().AsAssignment(); ok {
+		t.Fatal("a == b converted to an Assignment")
+	}
+}
+
 func TestFunctionRemoveName(t *testing.T) {
 	newStore(t)
 	fn := NewFunction("f", NewParamList(), NewBlock().AsFunctionBody())

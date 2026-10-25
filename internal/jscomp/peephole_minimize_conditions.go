@@ -19,10 +19,18 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass reads the shapes it rewrites (if, hook, &&, ||, the
+// blocks of an if) through the typed AST view of package ast (ifs.Cond(),
+// ifs.Else(), hook.Then(), block.OnlyStatement()...) instead of child
+// positions. The Java isXBlock/getXBlock pairs are single comma-ok
+// functions that return the typed statement or expression. The edits still
+// use the rhino API, in the Java's order.
 
 // PeepholeMinimizeConditions is a peephole optimization that minimizes
 // conditional expressions according to De Morgan's laws. Also rewrites
@@ -69,26 +77,41 @@ func (p *PeepholeMinimizeConditions) OptimizeSubtree(node rhino.Node) rhino.Node
 		// TODO(johnlenz): Maybe remove redundant BREAK and CONTINUE. Overlaps
 		// with MinimizeExitPoints.
 	case rhino.Token_NOT:
-		p.TryMinimizeCondition(node.GetFirstChild())
+		not, _ := ast.AsUnary(node) // the case proves the kind
+		p.TryMinimizeCondition(not.Operand().Node())
 		return p.TryMinimizeNot(node)
 	case rhino.Token_IF:
-		p.PerformConditionSubstitutions(node.GetFirstChild())
-		return p.TryMinimizeIf(node)
+		ifs, _ := ast.AsIf(node) // the case proves the kind
+		p.PerformConditionSubstitutions(ifs.Cond().Node())
+		return p.TryMinimizeIf(ifs)
 	case rhino.Token_EXPR_RESULT:
-		p.PerformConditionSubstitutions(node.GetFirstChild())
-		return p.TryMinimizeExprResult(node)
+		expr, _ := ast.AsExprStmt(node) // the case proves the kind
+		p.PerformConditionSubstitutions(expr.Expr().Node())
+		return p.TryMinimizeExprResult(expr)
 	case rhino.Token_HOOK:
-		p.PerformConditionSubstitutions(node.GetFirstChild())
-		return p.TryMinimizeHook(node)
-	case rhino.Token_WHILE, rhino.Token_DO:
-		p.TryMinimizeCondition(NodeUtil_GetConditionExpression(node))
+		hook, _ := ast.AsHook(node) // the case proves the kind
+		p.PerformConditionSubstitutions(hook.Cond().Node())
+		return p.TryMinimizeHook(hook)
+	case rhino.Token_WHILE:
+		while, _ := ast.AsWhile(node) // the case proves the kind
+		p.TryMinimizeCondition(while.Cond().Node())
+		return node
+	case rhino.Token_DO:
+		do, _ := ast.AsDo(node) // the case proves the kind
+		p.TryMinimizeCondition(do.Cond().Node())
 		return node
 	case rhino.Token_FOR:
-		p.TryJoinForCondition(node)
-		p.TryMinimizeCondition(NodeUtil_GetConditionExpression(node))
+		forNode, _ := ast.AsFor(node) // the case proves the kind
+		p.TryJoinForCondition(forNode)
+		// (Go: for (;;) has no condition to minimize; the Java tries its EMPTY
+		// placeholder, which has no boolean value.)
+		if cond, ok := forNode.Cond(); ok {
+			p.TryMinimizeCondition(cond.Node())
+		}
 		return node
 	case rhino.Token_BLOCK:
-		return p.TryReplaceIf(node)
+		block, _ := ast.AsBlock(node) // the case proves the kind
+		return p.TryReplaceIf(block)
 	default:
 		return node
 		// Nothing changed
@@ -96,133 +119,146 @@ func (p *PeepholeMinimizeConditions) OptimizeSubtree(node rhino.Node) rhino.Node
 }
 
 // Java: PeepholeMinimizeConditions.tryJoinForCondition(Node)
-func (p *PeepholeMinimizeConditions) TryJoinForCondition(n rhino.Node) {
+func (p *PeepholeMinimizeConditions) TryJoinForCondition(n ast.For) {
 	if !p.late {
 		return
 	}
 
-	block := n.GetLastChild()
-	maybeIf := block.GetFirstChild()
-	if !maybeIf.IsNil() && maybeIf.IsIf() {
-		thenBlock := maybeIf.GetSecondChild()
-		maybeBreak := thenBlock.GetFirstChild()
-		if !maybeBreak.IsNil() && maybeBreak.IsBreak() &&
-			!maybeBreak.HasChildren() {
+	block := n.Body()
+	first, ok := block.FirstStatement()
+	if !ok {
+		return
+	}
+	maybeIf, ok := first.AsIf()
+	if !ok {
+		return
+	}
+	thenBlock := maybeIf.Then()
+	maybeBreak, ok := thenBlock.FirstStatement()
+	if !ok {
+		return
+	}
+	brk, ok := maybeBreak.AsBreak()
+	if !ok {
+		return
+	}
+	if _, hasLabel := brk.Label(); hasLabel {
+		return
+	}
 
-			// Preserve the IF ELSE expression is there is one.
-			if maybeIf.HasXChildren(3) {
-				maybeIf.ReplaceWith(maybeIf.GetLastChild().Detach())
-			} else {
-				NodeUtil_RedeclareVarsInsideBranch(thenBlock)
-				block.RemoveFirstChild()
-			}
+	ifCondition := maybeIf.Cond()
+	// Preserve the IF ELSE expression is there is one.
+	if els, ok := maybeIf.Else(); ok {
+		maybeIf.Node().ReplaceWith(els.Node().Detach())
+	} else {
+		NodeUtil_RedeclareVarsInsideBranch(thenBlock.Node())
+		maybeIf.Node().Detach()
+	}
 
-			ifCondition := maybeIf.RemoveFirstChild()
-			fixedIfCondition := rhino.IR_Not(ifCondition).
-				Srcref(ifCondition)
+	ifCondition.Node().Detach()
+	fixedIfCondition := ast.NewUnary(rhino.Token_NOT, ifCondition)
+	fixedIfCondition.Node().Srcref(ifCondition.Node())
 
-			// OK, join the IF expression with the FOR expression
-			forCondition := NodeUtil_GetConditionExpression(n)
-			if forCondition.IsEmpty() {
-				forCondition.ReplaceWith(fixedIfCondition)
-				p.ReportChangeToEnclosingScope(fixedIfCondition)
-			} else {
-				replacement := rhino.NewNode(rhino.Token_AND)
-				forCondition.ReplaceWith(replacement)
-				replacement.AddChildToBack(forCondition)
-				replacement.AddChildToBack(fixedIfCondition)
-				p.ReportChangeToEnclosingScope(replacement)
-			}
-		}
+	// OK, join the IF expression with the FOR expression
+	if forCondition, ok := n.Cond(); ok {
+		replacement := rhino.NewNode(rhino.Token_AND)
+		forCondition.Node().ReplaceWith(replacement)
+		replacement.AddChildToBack(forCondition.Node())
+		replacement.AddChildToBack(fixedIfCondition.Node())
+		p.ReportChangeToEnclosingScope(replacement)
+	} else {
+		// for (init; ; update): the condition replaces the EMPTY placeholder.
+		n.SetCond(fixedIfCondition.AsExpr())
+		p.ReportChangeToEnclosingScope(fixedIfCondition.Node())
 	}
 }
 
 // TryReplaceIf uses "return x?1:2;" in place of "if(x)return 1;return 2;".
 //
 // Java: PeepholeMinimizeConditions.tryReplaceIf(Node)
-func (p *PeepholeMinimizeConditions) TryReplaceIf(n rhino.Node) rhino.Node {
+func (p *PeepholeMinimizeConditions) TryReplaceIf(n ast.Block) rhino.Node {
+	// The next statement is read before the body runs: the body may detach
+	// the current one.
+	next, hasNext := n.FirstStatement()
+	for hasNext {
+		child := next
+		next, hasNext = child.Next()
+		ifs, ok := child.AsIf()
+		if !ok {
+			continue
+		}
+		cond := ifs.Cond().Node()
+		thenBranch := ifs.Then()
+		elseBranch, hasElse := ifs.Else()
 
-	var next rhino.Node
-	for child := n.GetFirstChild(); !child.IsNil(); child = next {
-		next = child.GetNext()
-		if child.IsIf() {
-			cond := child.GetFirstChild()
-			thenBranch := cond.GetNext()
-			elseBranch := thenBranch.GetNext()
-			nextNode := child.GetNext()
-
-			if !nextNode.IsNil() && elseBranch.IsNil() &&
-				PeepholeMinimizeConditions_IsReturnBlock(thenBranch) &&
-				nextNode.IsIf() {
-				nextCond := nextNode.GetFirstChild()
-				nextThen := nextCond.GetNext()
-				nextElse := nextThen.GetNext()
-				if p.AreNodesEqualForInlining(thenBranch, nextThen) {
+		if hasNext && !hasElse && PeepholeMinimizeConditions_IsReturnBlock(thenBranch) {
+			if nextIf, ok := next.AsIf(); ok {
+				nextCond := nextIf.Cond().Node()
+				nextThen := nextIf.Then()
+				nextElse, nextHasElse := nextIf.Else()
+				if p.AreNodesEqualForInlining(thenBranch.Node(), nextThen.Node()) {
 					// Transform
 					//   if (x) return 1; if (y) return 1;
 					// to
 					//   if (x||y) return 1;
-					child.Detach()
-					child.DetachChildren()
+					ifs.Node().Detach()
+					ifs.Node().DetachChildren()
 					newCond := rhino.NewNodeWithChild(rhino.Token_OR, cond)
 					nextCond.ReplaceWith(newCond)
 					newCond.AddChildToBack(nextCond)
 					p.ReportChangeToEnclosingScope(newCond)
-				} else if !nextElse.IsNil() && p.AreNodesEqualForInlining(thenBranch, nextElse) {
+				} else if nextHasElse && p.AreNodesEqualForInlining(thenBranch.Node(), nextElse.Node()) {
 					// Transform
 					//   if (x) return 1; if (y) foo() else return 1;
 					// to
 					//   if (!x&&y) foo() else return 1;
-					child.Detach()
-					child.DetachChildren()
+					ifs.Node().Detach()
+					ifs.Node().DetachChildren()
 					newCond := rhino.NewNodeWithChild(rhino.Token_AND,
 						rhino.IR_Not(cond).Srcref(cond))
 					nextCond.ReplaceWith(newCond)
 					newCond.AddChildToBack(nextCond)
 					p.ReportChangeToEnclosingScope(newCond)
 				}
-			} else if !nextNode.IsNil() && elseBranch.IsNil() &&
-				PeepholeMinimizeConditions_IsReturnBlock(thenBranch) && PeepholeMinimizeConditions_IsReturnExpression(nextNode) {
+			} else if elseExpr, ok := PeepholeMinimizeConditions_GetReturnExpression(next); ok {
 				var thenExpr rhino.Node
 				// if(x)return; return 1 -> return x?void 0:1
-				if PeepholeMinimizeConditions_IsReturnExpressBlock(thenBranch) {
-					thenExpr = PeepholeMinimizeConditions_GetBlockReturnExpression(thenBranch)
+				if value, ok := PeepholeMinimizeConditions_GetBlockReturnExpression(thenBranch); ok {
+					thenExpr = value.Node()
 					thenExpr.Detach()
 				} else {
-					thenExpr = NodeUtil_NewUndefinedNode(child)
+					thenExpr = NodeUtil_NewUndefinedNode(ifs.Node())
 				}
 
-				elseExpr := nextNode.GetFirstChild()
-
 				cond.Detach()
-				elseExpr.Detach()
+				elseExpr.Node().Detach()
 
 				returnNode := rhino.IR_ReturnNodeWithExpr(
-					rhino.IR_Hook(cond, thenExpr, elseExpr).
-						Srcref(child))
-				child.ReplaceWith(returnNode)
-				nextNode.Detach()
-				p.ReportChangeToEnclosingScope(n)
+					rhino.IR_Hook(cond, thenExpr, elseExpr.Node()).
+						Srcref(ifs.Node()))
+				ifs.Node().ReplaceWith(returnNode)
+				next.Node().Detach()
+				p.ReportChangeToEnclosingScope(n.Node())
 				// everything else in the block is dead code.
 				break
-			} else if !elseBranch.IsNil() && PeepholeMinimizeConditions_StatementMustExitParent(thenBranch) {
-				elseBranch.Detach()
-				elseBranch.InsertAfter(child)
-				p.ReportChangeToEnclosingScope(n)
 			}
+		} else if hasElse && PeepholeMinimizeConditions_StatementMustExitParent(thenBranch.AsStatement()) {
+			ifs.RemoveElse()
+			elseBranch.Node().InsertAfter(ifs.Node())
+			p.ReportChangeToEnclosingScope(n.Node())
 		}
 	}
-	return n
+	return n.Node()
 }
 
 // Java: PeepholeMinimizeConditions.statementMustExitParent(Node)
-func PeepholeMinimizeConditions_StatementMustExitParent(n rhino.Node) bool {
-	switch n.GetToken() {
+func PeepholeMinimizeConditions_StatementMustExitParent(n ast.Statement) bool {
+	switch n.Node().GetToken() {
 	case rhino.Token_THROW, rhino.Token_RETURN:
 		return true
 	case rhino.Token_BLOCK:
-		if n.HasChildren() {
-			child := n.GetLastChild()
+		block, _ := n.AsBlock() // the case proves the kind
+		if child, ok := block.LastStatement(); ok {
 			return PeepholeMinimizeConditions_StatementMustExitParent(child)
 		}
 		return false
@@ -384,10 +420,13 @@ func (p *PeepholeMinimizeConditions) AreMatchingExits(nodeThis rhino.Node, nodeT
 // Java: PeepholeMinimizeConditions.isExceptionPossible(Node)
 func PeepholeMinimizeConditions_IsExceptionPossible(n rhino.Node) bool {
 	// TODO(johnlenz): maybe use ControlFlowAnalysis.mayThrowException?
-	jutil.CheckStateMsg1(n.IsReturn() || n.IsThrow(), "%s", n)
-	return n.IsThrow() ||
-		(n.HasChildren() &&
-			!NodeUtil_IsLiteralValue(n.GetLastChild(), true))
+	if _, ok := ast.AsThrow(n); ok {
+		return true
+	}
+	ret, ok := ast.AsReturn(n)
+	jutil.CheckStateMsg1(ok, "%s", n)
+	value, ok := ret.Value()
+	return ok && !NodeUtil_IsLiteralValue(value.Node(), true)
 }
 
 // Java: PeepholeMinimizeConditions.getExceptionHandler(Node)
@@ -401,10 +440,11 @@ func PeepholeMinimizeConditions_GetExceptionHandler(n rhino.Node) rhino.Node {
 //
 // Java: PeepholeMinimizeConditions.tryMinimizeNot(Node)
 func (p *PeepholeMinimizeConditions) TryMinimizeNot(n rhino.Node) rhino.Node {
-	jutil.CheckArgument(n.IsNot())
+	not, ok := ast.AsUnary(n)
+	jutil.CheckArgument(ok && not.Token() == rhino.Token_NOT)
 	parent := n.GetParent()
 
-	notChild := n.GetFirstChild()
+	notChild := not.Operand().Node()
 	// negative operator of the current one : == -> != for instance.
 	var complementOperator rhino.Token
 	switch notChild.GetToken() {
@@ -418,8 +458,9 @@ func (p *PeepholeMinimizeConditions) TryMinimizeNot(n rhino.Node) rhino.Node {
 		complementOperator = rhino.Token_SHEQ
 	case rhino.Token_NOT:
 		// !!(a < b) -> a < b (when the inner expression already produces a boolean)
-		if NodeUtil_IsBooleanResult(notChild.GetFirstChild()) {
-			expr := notChild.RemoveFirstChild()
+		innerNot, _ := ast.AsUnary(notChild) // the case proves the kind
+		if expr := innerNot.Operand().Node(); NodeUtil_IsBooleanResult(expr) {
+			expr.Detach()
 			n.ReplaceWith(expr)
 			p.ReportChangeToEnclosingScope(parent)
 			return expr
@@ -429,7 +470,8 @@ func (p *PeepholeMinimizeConditions) TryMinimizeNot(n rhino.Node) rhino.Node {
 	default:
 		return n
 	}
-	newOperator := n.RemoveFirstChild()
+	newOperator := notChild
+	newOperator.Detach()
 	newOperator.SetToken(complementOperator)
 	n.ReplaceWith(newOperator)
 	p.ReportChangeToEnclosingScope(parent)
@@ -451,10 +493,10 @@ func peepholeMinimizeConditions_canMinimizeConditionNode(n rhino.Node) bool {
 // necessary.
 //
 // Java: PeepholeMinimizeConditions.tryMinimizeExprResult(Node)
-func (p *PeepholeMinimizeConditions) TryMinimizeExprResult(n rhino.Node) rhino.Node {
-	originalExpr := n.GetFirstChild()
+func (p *PeepholeMinimizeConditions) TryMinimizeExprResult(n ast.ExprStmt) rhino.Node {
+	originalExpr := n.Expr().Node()
 	if !peepholeMinimizeConditions_canMinimizeConditionNode(originalExpr) {
-		return n
+		return n.Node()
 	}
 	minCond := MinimizedCondition_FromConditionNodeInto(originalExpr, &p.scratchMC)
 	mNode :=
@@ -465,7 +507,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeExprResult(n rhino.Node) rhino.N
 	} else {
 		p.ReplaceNode(originalExpr, mNode)
 	}
-	return n
+	return n.Node()
 }
 
 // TryMinimizeHook tries flipping HOOKs that have negated conditions.
@@ -474,10 +516,11 @@ func (p *PeepholeMinimizeConditions) TryMinimizeExprResult(n rhino.Node) rhino.N
 // necessary.
 //
 // Java: PeepholeMinimizeConditions.tryMinimizeHook(Node)
-func (p *PeepholeMinimizeConditions) TryMinimizeHook(n rhino.Node) rhino.Node {
-	originalCond := n.GetFirstChild()
-	thenBranch := originalCond.GetNext()
-	elseBranch := thenBranch.GetNext()
+func (p *PeepholeMinimizeConditions) TryMinimizeHook(hook ast.Hook) rhino.Node {
+	n := hook.Node()
+	originalCond := hook.Cond().Node()
+	thenBranch := hook.Then().Node()
+	elseBranch := hook.Else().Node()
 
 	// Fold boolean-literal HOOKs:
 	//   x ? true : false -> x   (if x is already a boolean result)
@@ -538,11 +581,11 @@ func (p *PeepholeMinimizeConditions) TryMinimizeHook(n rhino.Node) rhino.Node {
 // necessary.
 //
 // Java: PeepholeMinimizeConditions.tryMinimizeIf(Node)
-func (p *PeepholeMinimizeConditions) TryMinimizeIf(n rhino.Node) rhino.Node {
-
+func (p *PeepholeMinimizeConditions) TryMinimizeIf(ifs ast.If) rhino.Node {
+	n := ifs.Node()
 	parent := n.GetParent()
 
-	originalCond := n.GetFirstChild()
+	originalCond := ifs.Cond().Node()
 
 	/* If the condition is a literal, we'll let other
 	 * optimizations try to remove useless code.
@@ -551,8 +594,10 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n rhino.Node) rhino.Node {
 		return n
 	}
 
-	thenBranch := originalCond.GetNext()
-	elseBranch := thenBranch.GetNext()
+	// Read both branches now: the edits below detach the condition, after
+	// which ifs.Then() would be the wrong child.
+	thenBranch := ifs.Then()
+	elseBranch, hasElse := ifs.Else()
 
 	minCond := MinimizedCondition_FromConditionNodeInto(originalCond, &p.scratchMC)
 
@@ -564,10 +609,9 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n rhino.Node) rhino.Node {
 	unnegatedCond := minCond.GetMinimized(MinimizedCondition_MinimizationStyle_PREFER_UNNEGATED)
 	shortCond := minCond.GetMinimized(MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT)
 
-	if elseBranch.IsNil() {
-		if PeepholeMinimizeConditions_IsFoldableExpressBlock(thenBranch) {
-			expr := PeepholeMinimizeConditions_GetBlockExpression(thenBranch)
-			if !p.late && PeepholeMinimizeConditions_IsPropertyAssignmentInExpression(expr) {
+	if !hasElse {
+		if expr, ok := PeepholeMinimizeConditions_GetBlockExpression(thenBranch); ok {
+			if !p.late && PeepholeMinimizeConditions_IsPropertyAssignmentInExpression(expr.Node()) {
 				// Keep opportunities for CollapseProperties such as
 				// a.longIdentifier || a.longIdentifier = ... -> var a = ...;
 				// until CollapseProperties has been run.
@@ -578,27 +622,14 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n rhino.Node) rhino.Node {
 			if shortCond.IsNot() {
 				// if(!x)bar(); -> x||bar();
 				replacementCond := p.ReplaceNode(originalCond, shortCond.WithoutNot()).Detach()
-				rhs := expr.RemoveFirstChild()
-				if thenBranch.CanResetInPlace() && n.CanResetInPlace() {
-					thenBranch.Detach()
-					or := thenBranch.ResetDetachedToBinaryOpFromSrcref(rhino.Token_OR, replacementCond, rhs, n)
-					newExpr := n.MutateAttachedToExprResultInPlace(or)
-					p.ReportChangeToEnclosingScope(parent)
-					return newExpr
-				}
-				or := rhino.IR_Or(replacementCond, rhs).Srcref(n)
-				newExpr := NodeUtil_NewExpr(or)
-				n.ReplaceWith(newExpr)
-				p.ReportChangeToEnclosingScope(parent)
-
-				return newExpr
+				return p.replaceIfWithExpr(ifs, thenBranch, expr, rhino.Token_OR, replacementCond)
 			}
 			// True, but removed for performance reasons.
 			// Preconditions.checkState(shortCond.isEquivalentTo(unnegatedCond));
 
 			// if(x)foo(); -> x&&foo();
 			if shortCond.IsLowerPrecedenceThan(peepholeMinimizeConditions_AND_PRECEDENCE) &&
-				PeepholeMinimizeConditions_IsLowerPrecedence(expr.GetFirstChild(), peepholeMinimizeConditions_AND_PRECEDENCE) {
+				PeepholeMinimizeConditions_IsLowerPrecedence(expr.Expr().Node(), peepholeMinimizeConditions_AND_PRECEDENCE) {
 				// One additional set of parentheses is worth the change even if
 				// there is no immediate code size win. However, two extra pair of
 				// {}, we would have to think twice. (unless we know for sure the
@@ -608,47 +639,31 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n rhino.Node) rhino.Node {
 			}
 
 			replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
-			rhs := expr.RemoveFirstChild()
-			if thenBranch.CanResetInPlace() && n.CanResetInPlace() {
-				thenBranch.Detach()
-				and := thenBranch.ResetDetachedToBinaryOpFromSrcref(rhino.Token_AND, replacementCond, rhs, n)
-				newExpr := n.MutateAttachedToExprResultInPlace(and)
-				p.ReportChangeToEnclosingScope(parent)
-				return newExpr
-			}
-			and := rhino.IR_And(replacementCond, rhs).Srcref(n)
-			newExpr := NodeUtil_NewExpr(and)
-			n.ReplaceWith(newExpr)
-			p.ReportChangeToEnclosingScope(parent)
+			return p.replaceIfWithExpr(ifs, thenBranch, expr, rhino.Token_AND, replacementCond)
+		}
 
-			return newExpr
-		} else {
+		// Try to combine two IF-ELSE
+		if inner, ok := thenBranch.OnlyStatement(); ok {
+			if innerIf, ok := inner.AsIf(); ok {
+				innerCond := innerIf.Cond().Node()
+				innerThenBranch := innerIf.Then().Node()
+				_, innerHasElse := innerIf.Else()
 
-			// Try to combine two IF-ELSE
-			if NodeUtil_IsStatementBlock(thenBranch) && thenBranch.HasOneChild() {
-				innerIf := thenBranch.GetFirstChild()
-
-				if innerIf.IsIf() {
-					innerCond := innerIf.GetFirstChild()
-					innerThenBranch := innerCond.GetNext()
-					innerElseBranch := innerThenBranch.GetNext()
-
-					if innerElseBranch.IsNil() &&
-						!(unnegatedCond.IsLowerPrecedenceThan(peepholeMinimizeConditions_AND_PRECEDENCE) &&
-							PeepholeMinimizeConditions_IsLowerPrecedence(innerCond, peepholeMinimizeConditions_AND_PRECEDENCE)) {
-						replacementCond := p.ReplaceNode(originalCond, unnegatedCond).Detach()
-						n.DetachChildren()
-						n.AddChildToBack(
-							rhino.IR_And(
-								replacementCond,
-								innerCond.Detach()).
-								Srcref(originalCond))
-						n.AddChildToBack(innerThenBranch.Detach())
-						p.ReportChangeToEnclosingScope(n)
-						// Not worth trying to fold the current IF-ELSE into && because
-						// the inner IF-ELSE wasn't able to be folded into && anyways.
-						return n
-					}
+				if !innerHasElse &&
+					!(unnegatedCond.IsLowerPrecedenceThan(peepholeMinimizeConditions_AND_PRECEDENCE) &&
+						PeepholeMinimizeConditions_IsLowerPrecedence(innerCond, peepholeMinimizeConditions_AND_PRECEDENCE)) {
+					replacementCond := p.ReplaceNode(originalCond, unnegatedCond).Detach()
+					n.DetachChildren()
+					n.AddChildToBack(
+						rhino.IR_And(
+							replacementCond,
+							innerCond.Detach()).
+							Srcref(originalCond))
+					n.AddChildToBack(innerThenBranch.Detach())
+					p.ReportChangeToEnclosingScope(n)
+					// Not worth trying to fold the current IF-ELSE into && because
+					// the inner IF-ELSE wasn't able to be folded into && anyways.
+					return n
 				}
 			}
 		}
@@ -659,22 +674,24 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n rhino.Node) rhino.Node {
 	/* TODO(dcc) This modifies the siblings of n, which is undesirable for a
 	 * peephole optimization. This should probably get moved to another pass.
 	 */
-	p.TryRemoveRepeatedStatements(n)
+	p.TryRemoveRepeatedStatements(ifs)
 
 	// if(!x)foo();else bar(); -> if(x)bar();else foo();
 	// An additional set of curly braces isn't worth it.
-	if shortCond.IsNot() && !PeepholeMinimizeConditions_ConsumesDanglingElse(elseBranch) {
+	if shortCond.IsNot() && !PeepholeMinimizeConditions_ConsumesDanglingElse(elseBranch.AsStatement()) {
 		p.ReplaceNode(originalCond, shortCond.WithoutNot())
-		thenBranch.Detach()
-		n.AddChildToBack(thenBranch)
+		thenBranch.Node().Detach()
+		n.AddChildToBack(thenBranch.Node())
 		p.ReportChangeToEnclosingScope(n)
 		return n
 	}
 
 	// if(x)return 1;else return 2; -> return x?1:2;
-	if PeepholeMinimizeConditions_IsReturnExpressBlock(thenBranch) && PeepholeMinimizeConditions_IsReturnExpressBlock(elseBranch) {
-		thenExpr := PeepholeMinimizeConditions_GetBlockReturnExpression(thenBranch)
-		elseExpr := PeepholeMinimizeConditions_GetBlockReturnExpression(elseBranch)
+	thenReturned, thenIsReturn := PeepholeMinimizeConditions_GetBlockReturnExpression(thenBranch)
+	elseReturned, elseIsReturn := PeepholeMinimizeConditions_GetBlockReturnExpression(elseBranch)
+	if thenIsReturn && elseIsReturn {
+		thenExpr := thenReturned.Node()
+		elseExpr := elseReturned.Node()
 
 		replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
 		thenExpr.Detach()
@@ -691,40 +708,45 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n rhino.Node) rhino.Node {
 		return returnNode
 	}
 
-	thenBranchIsExpressionBlock := PeepholeMinimizeConditions_IsFoldableExpressBlock(thenBranch)
-	elseBranchIsExpressionBlock := PeepholeMinimizeConditions_IsFoldableExpressBlock(elseBranch)
+	thenStmt, thenBranchIsExpressionBlock := PeepholeMinimizeConditions_GetBlockExpression(thenBranch)
+	elseStmt, elseBranchIsExpressionBlock := PeepholeMinimizeConditions_GetBlockExpression(elseBranch)
 
 	if thenBranchIsExpressionBlock && elseBranchIsExpressionBlock {
-		thenOp := PeepholeMinimizeConditions_GetBlockExpression(thenBranch).GetFirstChild()
-		elseOp := PeepholeMinimizeConditions_GetBlockExpression(elseBranch).GetFirstChild()
-		if thenOp.GetToken() == elseOp.GetToken() {
-			// if(x)a=1;else a=2; -> a=x?1:2;
-			if NodeUtil_IsAssignmentOp(thenOp) {
-				lhs := thenOp.GetFirstChild()
-				if p.AreNodesEqualForInlining(lhs, elseOp.GetFirstChild()) &&
-					// if LHS has side effects, don't proceed [since the optimization
-					// evaluates LHS before cond]
-					// NOTE - there are some circumstances where we can
-					// proceed even if there are side effects...
-					!p.MayEffectMutableState(lhs) &&
-					(!p.MayHaveSideEffects(originalCond) ||
-						(thenOp.IsAssign() && thenOp.GetFirstChild().IsName())) {
+		thenOp := thenStmt.Expr().Node()
+		elseOp := elseStmt.Expr().Node()
+		// if(x)a=1;else a=2; -> a=x?1:2;
+		thenAssign, thenIsAssign := thenStmt.Expr().AsAssignment()
+		elseAssign, elseIsAssign := elseStmt.Expr().AsAssignment()
+		if thenIsAssign && elseIsAssign && thenAssign.Token() == elseAssign.Token() {
+			lhs := thenAssign.Target()
+			_, isPlainAssign := thenAssign.AsAssign()
+			_, lhsIsName := lhs.AsName()
+			if p.AreNodesEqualForInlining(lhs.Node(), elseAssign.Target().Node()) &&
+				// if LHS has side effects, don't proceed [since the optimization
+				// evaluates LHS before cond]
+				// NOTE - there are some circumstances where we can
+				// proceed even if there are side effects...
+				!p.MayEffectMutableState(lhs.Node()) &&
+				(!p.MayHaveSideEffects(originalCond) ||
+					(isPlainAssign && lhsIsName)) {
 
-					replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
-					assignName := thenOp.RemoveFirstChild()
-					thenExpr := thenOp.RemoveFirstChild()
-					elseExpr := elseOp.GetLastChild()
-					elseExpr.Detach()
+				assignName := lhs.Node()
+				thenExpr := thenAssign.Value().Node()
+				elseExpr := elseAssign.Value().Node()
 
-					hookNode := rhino.IR_Hook(replacementCond, thenExpr, elseExpr).
-						Srcref(n)
-					assign := rhino.NewNodeWith2Children(thenOp.GetToken(), assignName, hookNode).Srcref(thenOp)
-					expr := NodeUtil_NewExpr(assign)
-					n.ReplaceWith(expr)
-					p.ReportChangeToEnclosingScope(parent)
+				replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
+				assignName.Detach()
+				thenExpr.Detach()
+				elseExpr.Detach()
 
-					return expr
-				}
+				hookNode := rhino.IR_Hook(replacementCond, thenExpr, elseExpr).
+					Srcref(n)
+				assign := rhino.NewNodeWith2Children(thenAssign.Token(), assignName, hookNode).Srcref(thenOp)
+				expr := NodeUtil_NewExpr(assign)
+				n.ReplaceWith(expr)
+				p.ReportChangeToEnclosingScope(parent)
+
+				return expr
 			}
 		}
 		// if(x)foo();else bar(); -> x?foo():bar()
@@ -738,63 +760,85 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n rhino.Node) rhino.Node {
 		return expr
 	}
 
-	thenBranchIsVar := PeepholeMinimizeConditions_IsVarBlock(thenBranch)
-	elseBranchIsVar := PeepholeMinimizeConditions_IsVarBlock(elseBranch)
+	thenVar, name1, thenBranchIsVar := PeepholeMinimizeConditions_GetBlockVar(thenBranch)
+	elseVar, name2, elseBranchIsVar := PeepholeMinimizeConditions_GetBlockVar(elseBranch)
 
 	// if(x)var y=1;else y=2  ->  var y=x?1:2
-	if thenBranchIsVar && elseBranchIsExpressionBlock &&
-		PeepholeMinimizeConditions_GetBlockExpression(elseBranch).GetFirstChild().IsAssign() {
+	if thenBranchIsVar && elseBranchIsExpressionBlock {
+		if elseAssign, ok := elseStmt.Expr().AsAssign(); ok {
+			thenValue, hasValue := name1.Init()
+			maybeName2, isName := elseAssign.Target().AsName()
 
-		var_ := PeepholeMinimizeConditions_GetBlockVar(thenBranch)
-		elseAssign := PeepholeMinimizeConditions_GetBlockExpression(elseBranch).GetFirstChild()
-
-		name1 := var_.GetFirstChild()
-		maybeName2 := elseAssign.GetFirstChild()
-
-		if name1.HasChildren() &&
-			maybeName2.IsName() &&
-			name1.GetString() == maybeName2.GetString() {
-			jutil.CheckState(name1.HasOneChild())
-			thenExpr := name1.RemoveFirstChild()
-			elseExpr := elseAssign.GetLastChild().Detach()
-			replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
-			hookNode := rhino.IR_Hook(replacementCond, thenExpr, elseExpr).Srcref(n)
-			var_.Detach()
-			name1.AddChildToBack(hookNode)
-			n.ReplaceWith(var_)
-			p.ReportChangeToEnclosingScope(parent)
-			return var_
+			if hasValue && isName && name1.Ident() == maybeName2.Ident() {
+				thenExpr := thenValue.Node()
+				thenExpr.Detach()
+				elseExpr := elseAssign.Value().Node()
+				elseExpr.Detach()
+				replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
+				hookNode := rhino.IR_Hook(replacementCond, thenExpr, elseExpr).Srcref(n)
+				thenVar.Node().Detach()
+				name1.Node().AddChildToBack(hookNode)
+				n.ReplaceWith(thenVar.Node())
+				p.ReportChangeToEnclosingScope(parent)
+				return thenVar.Node()
+			}
 		}
 
 		// if(x)y=1;else var y=2  ->  var y=x?1:2
-	} else if elseBranchIsVar && thenBranchIsExpressionBlock &&
-		PeepholeMinimizeConditions_GetBlockExpression(thenBranch).GetFirstChild().IsAssign() {
+	} else if elseBranchIsVar && thenBranchIsExpressionBlock {
+		if thenAssign, ok := thenStmt.Expr().AsAssign(); ok {
+			maybeName1, isName := thenAssign.Target().AsName()
+			elseValue, hasValue := name2.Init()
 
-		var_ := PeepholeMinimizeConditions_GetBlockVar(elseBranch)
-		thenAssign := PeepholeMinimizeConditions_GetBlockExpression(thenBranch).GetFirstChild()
+			if hasValue && isName && maybeName1.Ident() == name2.Ident() {
+				thenExpr := thenAssign.Value().Node()
+				thenExpr.Detach()
+				elseExpr := elseValue.Node()
+				elseExpr.Detach()
+				replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
+				hookNode := rhino.IR_Hook(replacementCond, thenExpr, elseExpr).Srcref(n)
+				elseVar.Node().Detach()
+				name2.Node().AddChildToBack(hookNode)
+				n.ReplaceWith(elseVar.Node())
+				p.ReportChangeToEnclosingScope(parent)
 
-		maybeName1 := thenAssign.GetFirstChild()
-		name2 := var_.GetFirstChild()
-
-		if name2.HasChildren() &&
-			maybeName1.IsName() &&
-			maybeName1.GetString() == name2.GetString() {
-			thenExpr := thenAssign.GetLastChild().Detach()
-			jutil.CheckState(name2.HasOneChild())
-			elseExpr := name2.RemoveFirstChild()
-			replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
-			hookNode := rhino.IR_Hook(replacementCond, thenExpr, elseExpr).Srcref(n)
-			var_.Detach()
-			name2.AddChildToBack(hookNode)
-			n.ReplaceWith(var_)
-			p.ReportChangeToEnclosingScope(parent)
-
-			return var_
+				return elseVar.Node()
+			}
 		}
 	}
 
 	p.ReplaceNode(originalCond, unnegatedCond)
 	return n
+}
+
+// replaceIfWithExpr replaces ifs, an if without else whose then branch is
+// the block {expr;}, with the statement cond op expr; (op is OR or AND,
+// cond the new condition, already detached), and returns that statement.
+//
+// When the if and its block carry no cold metadata, they are reused in
+// place: the block becomes the OR/AND and the if its EXPR_RESULT.
+//
+// Go-only: the Java builds NodeUtil.newExpr(IR.or(cond, expr)) (or IR.and)
+// in tryMinimizeIf; thenBranch is passed in because ifs.Then() is no longer
+// the then branch once the condition is detached.
+func (p *PeepholeMinimizeConditions) replaceIfWithExpr(ifs ast.If, thenBranch ast.Block, expr ast.ExprStmt, op rhino.Token, cond rhino.Node) rhino.Node {
+	n := ifs.Node()
+	parent := n.GetParent()
+	rhs := expr.Expr().Node()
+	rhs.Detach()
+	if block := thenBranch.Node(); block.CanResetInPlace() && n.CanResetInPlace() {
+		block.Detach()
+		binary := block.ResetDetachedToBinaryOpFromSrcref(op, cond, rhs, n)
+		newExpr := n.MutateAttachedToExprResultInPlace(binary)
+		p.ReportChangeToEnclosingScope(parent)
+		return newExpr
+	}
+	binary := rhino.IR_BinaryOp(op, cond, rhs).Srcref(n)
+	newExpr := NodeUtil_NewExpr(binary)
+	n.ReplaceWith(newExpr)
+	p.ReportChangeToEnclosingScope(parent)
+
+	return newExpr
 }
 
 // TryRemoveRepeatedStatements tries to remove duplicate statements from IF
@@ -820,91 +864,78 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(n rhino.Node) rhino.Node {
 // n is the IF node to examine.
 //
 // Java: PeepholeMinimizeConditions.tryRemoveRepeatedStatements(Node)
-func (p *PeepholeMinimizeConditions) TryRemoveRepeatedStatements(n rhino.Node) {
+func (p *PeepholeMinimizeConditions) TryRemoveRepeatedStatements(n ast.If) {
 	// Only run this if variable names are guaranteed to be unique. Otherwise bad things can happen:
 	// see PeepholeMinimizeConditionsTest#testDontRemoveDuplicateStatementsWithoutNormalization
 	if !p.IsASTNormalized() {
 		return
 	}
-	jutil.CheckStateMsg1(n.IsIf(), "%s", n)
 
-	parent := n.GetParent()
+	parent := n.Node().GetParent()
 	if !NodeUtil_IsStatementBlock(parent) {
 		// If the immediate parent is something like a label, we
 		// can't move the statement, so bail.
 		return
 	}
 
-	cond := n.GetFirstChild()
-	trueBranch := cond.GetNext()
-	falseBranch := trueBranch.GetNext()
-	rhino.CheckNotNull(trueBranch)
-	rhino.CheckNotNull(falseBranch)
+	trueBranch := n.Then()
+	falseBranch, ok := n.Else()
+	jutil.CheckState(ok)
 
 	for {
-		lastTrue := trueBranch.GetLastChild()
-		lastFalse := falseBranch.GetLastChild()
-		if lastTrue.IsNil() || lastFalse.IsNil() ||
-			!p.AreNodesEqualForInlining(lastTrue, lastFalse) {
+		lastTrue, ok1 := trueBranch.LastStatement()
+		lastFalse, ok2 := falseBranch.LastStatement()
+		if !ok1 || !ok2 ||
+			!p.AreNodesEqualForInlining(lastTrue.Node(), lastFalse.Node()) {
 			break
 		}
-		lastTrue.Detach()
-		lastFalse.Detach()
-		lastTrue.InsertAfter(n)
+		lastTrue.Node().Detach()
+		lastFalse.Node().Detach()
+		lastTrue.Node().InsertAfter(n.Node())
 		p.ReportChangeToEnclosingScope(parent)
 	}
 }
 
-// PeepholeMinimizeConditions_IsFoldableExpressBlock returns whether the node
-// is a block with a single statement that is an expression.
+// PeepholeMinimizeConditions_GetBlockExpression returns the expression
+// statement of n if n is a block with a single statement that is an
+// expression, and that expression can be folded into another; ok is false
+// otherwise.
 //
-// Java: PeepholeMinimizeConditions.isFoldableExpressBlock(Node)
-func PeepholeMinimizeConditions_IsFoldableExpressBlock(n rhino.Node) bool {
-	if n.IsBlock() {
-		if n.HasOneChild() {
-			maybeExpr := n.GetFirstChild()
-			if maybeExpr.IsExprResult() {
-				// IE has a bug where event handlers behave differently when
-				// their return value is used vs. when their return value is in
-				// an EXPR_RESULT. It's pretty freaking weird. See:
-				// http://blickly.github.io/closure-compiler-issues/#291
-				// We try to detect this case, and not fold EXPR_RESULTs
-				// into other expressions.
-				// e.g.:
-				// if (e.onchange) {
-				//    e.onchange({
-				//        _extendedByPrototype: Prototype.emptyFunction,
-				//        target: e
-				//    });
-				//  }
-				if maybeExpr.GetFirstChild().IsCall() || maybeExpr.GetFirstChild().IsOptChainCall() {
-					calledFn := maybeExpr.GetFirstFirstChild()
-
-					// We only have to worry about methods with an implicit 'this'
-					// param, or this doesn't happen.
-					if calledFn.IsGetElem() || calledFn.IsOptChainGetElem() {
-						return false
-					} else if (calledFn.IsGetProp() || calledFn.IsOptChainGetProp()) &&
-						jutil.StringStartsWith(calledFn.GetString(), "on") {
-						return false
-					}
-				}
-
-				return true
+// Java: PeepholeMinimizeConditions.isFoldableExpressBlock(Node) and
+// getBlockExpression(Node) (Go: one comma-ok function).
+func PeepholeMinimizeConditions_GetBlockExpression(n ast.Block) (ast.ExprStmt, bool) {
+	s, ok := n.OnlyStatement()
+	if !ok {
+		return ast.ExprStmt{}, false
+	}
+	maybeExpr, ok := s.AsExprStmt()
+	if !ok {
+		return ast.ExprStmt{}, false
+	}
+	// IE has a bug where event handlers behave differently when
+	// their return value is used vs. when their return value is in
+	// an EXPR_RESULT. It's pretty freaking weird. See:
+	// http://blickly.github.io/closure-compiler-issues/#291
+	// We try to detect this case, and not fold EXPR_RESULTs
+	// into other expressions.
+	// e.g.:
+	// if (e.onchange) {
+	//    e.onchange({
+	//        _extendedByPrototype: Prototype.emptyFunction,
+	//        target: e
+	//    });
+	//  }
+	if call, ok := maybeExpr.Expr().AsNormalOrOptChainCall(); ok {
+		// We only have to worry about methods with an implicit 'this'
+		// param, or this doesn't happen: calls of obj[key] or obj.onX.
+		if calledFn, ok := call.Callee().AsNormalOrOptChainGet(); ok {
+			getProp, isGetProp := calledFn.AsNormalOrOptChainGetProp()
+			if !isGetProp || jutil.StringStartsWith(getProp.Property(), "on") {
+				return ast.ExprStmt{}, false
 			}
-			return false
 		}
 	}
-
-	return false
-}
-
-// PeepholeMinimizeConditions_GetBlockExpression returns the expression node.
-//
-// Java: PeepholeMinimizeConditions.getBlockExpression(Node)
-func PeepholeMinimizeConditions_GetBlockExpression(n rhino.Node) rhino.Node {
-	jutil.CheckState(PeepholeMinimizeConditions_IsFoldableExpressBlock(n))
-	return n.GetFirstChild()
+	return maybeExpr, true
 }
 
 // PeepholeMinimizeConditions_IsReturnBlock returns whether the node is a
@@ -912,77 +943,65 @@ func PeepholeMinimizeConditions_GetBlockExpression(n rhino.Node) rhino.Node {
 // expression.
 //
 // Java: PeepholeMinimizeConditions.isReturnBlock(Node)
-func PeepholeMinimizeConditions_IsReturnBlock(n rhino.Node) bool {
-	if n.IsBlock() {
-		if n.HasOneChild() {
-			first := n.GetFirstChild()
-			return first.IsReturn()
-		}
+func PeepholeMinimizeConditions_IsReturnBlock(n ast.Block) bool {
+	first, ok := n.OnlyStatement()
+	if !ok {
+		return false
 	}
-
-	return false
+	_, ok = first.AsReturn()
+	return ok
 }
 
-// PeepholeMinimizeConditions_IsReturnExpressBlock returns whether the node is
-// a block with a single statement that is an return.
+// PeepholeMinimizeConditions_GetBlockReturnExpression returns the
+// expression of n if n is a block with a single statement that is a return
+// with an expression; ok is false otherwise.
 //
-// Java: PeepholeMinimizeConditions.isReturnExpressBlock(Node)
-func PeepholeMinimizeConditions_IsReturnExpressBlock(n rhino.Node) bool {
-	if n.IsBlock() {
-		if n.HasOneChild() {
-			first := n.GetFirstChild()
-			if first.IsReturn() {
-				return first.HasOneChild()
-			}
-		}
+// Java: PeepholeMinimizeConditions.isReturnExpressBlock(Node) and
+// getBlockReturnExpression(Node) (Go: one comma-ok function).
+func PeepholeMinimizeConditions_GetBlockReturnExpression(n ast.Block) (ast.Expr, bool) {
+	first, ok := n.OnlyStatement()
+	if !ok {
+		return ast.Expr{}, false
 	}
-
-	return false
+	return PeepholeMinimizeConditions_GetReturnExpression(first)
 }
 
-// PeepholeMinimizeConditions_IsReturnExpression returns whether the node is a
-// single return statement.
+// PeepholeMinimizeConditions_GetReturnExpression returns the expression of
+// n if n is a return statement with an expression; ok is false otherwise.
 //
-// Java: PeepholeMinimizeConditions.isReturnExpression(Node)
-func PeepholeMinimizeConditions_IsReturnExpression(n rhino.Node) bool {
-	if n.IsReturn() {
-		return n.HasOneChild()
+// Java: PeepholeMinimizeConditions.isReturnExpression(Node) (Go: comma-ok,
+// with the expression the callers read next).
+func PeepholeMinimizeConditions_GetReturnExpression(n ast.Statement) (ast.Expr, bool) {
+	ret, ok := n.AsReturn()
+	if !ok {
+		return ast.Expr{}, false
 	}
-	return false
+	return ret.Value()
 }
 
-// PeepholeMinimizeConditions_GetBlockReturnExpression returns the expression
-// that is part of the return.
+// PeepholeMinimizeConditions_GetBlockVar returns the var statement of n and
+// the name it declares if n is a block with a single statement that is a
+// VAR declaration of a single variable; ok is false otherwise.
 //
-// Java: PeepholeMinimizeConditions.getBlockReturnExpression(Node)
-func PeepholeMinimizeConditions_GetBlockReturnExpression(n rhino.Node) rhino.Node {
-	jutil.CheckState(PeepholeMinimizeConditions_IsReturnExpressBlock(n))
-	return n.GetFirstFirstChild()
-}
-
-// PeepholeMinimizeConditions_IsVarBlock returns whether the node is a block
-// with a single statement that is a VAR declaration of a single variable.
-//
-// Java: PeepholeMinimizeConditions.isVarBlock(Node)
-func PeepholeMinimizeConditions_IsVarBlock(n rhino.Node) bool {
-	if n.IsBlock() {
-		if n.HasOneChild() {
-			first := n.GetFirstChild()
-			if first.IsVar() {
-				return first.HasOneChild()
-			}
-		}
+// Java: PeepholeMinimizeConditions.isVarBlock(Node) and getBlockVar(Node)
+// (Go: one comma-ok function. A var that declares a destructuring pattern
+// is not one: the callers compare the declared name, where the Java would
+// throw.)
+func PeepholeMinimizeConditions_GetBlockVar(n ast.Block) (ast.NameDeclaration, ast.Name, bool) {
+	first, ok := n.OnlyStatement()
+	if !ok {
+		return ast.NameDeclaration{}, ast.Name{}, false
 	}
-
-	return false
-}
-
-// PeepholeMinimizeConditions_GetBlockVar returns the var node.
-//
-// Java: PeepholeMinimizeConditions.getBlockVar(Node)
-func PeepholeMinimizeConditions_GetBlockVar(n rhino.Node) rhino.Node {
-	jutil.CheckState(PeepholeMinimizeConditions_IsVarBlock(n))
-	return n.GetFirstChild()
+	decl, ok := first.AsNameDeclaration()
+	if !ok || decl.Token() != rhino.Token_VAR {
+		return ast.NameDeclaration{}, ast.Name{}, false
+	}
+	declarator, ok := decl.OnlyDeclarator()
+	if !ok {
+		return ast.NameDeclaration{}, ast.Name{}, false
+	}
+	name, ok := declarator.AsName()
+	return decl, name, ok
 }
 
 // PeepholeMinimizeConditions_ConsumesDanglingElse reports whether a statement
@@ -991,26 +1010,31 @@ func PeepholeMinimizeConditions_GetBlockVar(n rhino.Node) rhino.Node {
 // be part of the statement.
 //
 // Java: PeepholeMinimizeConditions.consumesDanglingElse(Node)
-func PeepholeMinimizeConditions_ConsumesDanglingElse(n rhino.Node) bool {
+func PeepholeMinimizeConditions_ConsumesDanglingElse(n ast.Statement) bool {
 	for {
-		switch n.GetToken() {
+		switch n.Node().GetToken() {
 		case rhino.Token_IF:
-			if n.GetChildCount() < 3 {
+			ifs, _ := n.AsIf() // the case proves the kind
+			els, ok := ifs.Else()
+			if !ok {
 				return true
 			}
-			// This IF node has no else clause.
-			n = n.GetLastChild()
-			continue
+			// This IF node has an else clause: look into it.
+			n = els.AsStatement()
 		case rhino.Token_BLOCK:
-			if !n.HasOneChild() {
+			block, _ := n.AsBlock() // the case proves the kind
+			only, ok := block.OnlyStatement()
+			if !ok {
 				return false
 			}
 			// This BLOCK has no curly braces.
-			n = n.GetLastChild()
-			continue
-		case rhino.Token_WITH, rhino.Token_WHILE, rhino.Token_FOR, rhino.Token_FOR_IN:
-			n = n.GetLastChild()
-			continue
+			n = only
+		case rhino.Token_WITH:
+			with, _ := n.AsWith() // the case proves the kind
+			n = with.Body().AsStatement()
+		case rhino.Token_WHILE, rhino.Token_FOR, rhino.Token_FOR_IN:
+			loop, _ := n.AsLoop() // the case proves the kind
+			n = loop.Body().AsStatement()
 		default:
 			return false
 		}
@@ -1084,8 +1108,9 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 
 	switch n.GetToken() {
 	case rhino.Token_OR, rhino.Token_AND:
-		left := n.GetFirstChild()
-		right := n.GetLastChild()
+		binary, _ := ast.AsBinary(n) // the case proves the kind
+		left := binary.Left().Node()
+		right := binary.Right().Node()
 
 		// Because the expression is in a boolean context minimize
 		// the children, this can't be done in the general case.
@@ -1111,7 +1136,7 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 		// the new AST is easier for other passes to handle.
 		rightVal := p.GetSideEffectFreeBooleanValue(right)
 		if rightVal != base.Tri_UNKNOWN {
-			type_ := n.GetToken()
+			type_ := binary.Token()
 			var replacement rhino.Node
 			rval := rightVal.ToBoolean(true)
 
@@ -1137,9 +1162,10 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 		}
 		return n
 	case rhino.Token_HOOK:
-		condition := n.GetFirstChild()
-		trueNode := n.GetSecondChild()
-		falseNode := n.GetLastChild()
+		hook, _ := ast.AsHook(n) // the case proves the kind
+		condition := hook.Cond().Node()
+		trueNode := hook.Then().Node()
+		falseNode := hook.Else().Node()
 
 		// Because the expression is in a boolean context minimize
 		// the result children, this can't be done in the general case.

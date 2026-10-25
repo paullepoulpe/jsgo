@@ -125,6 +125,10 @@ NormalOrOptChainGetProp = GetProp | OptChainGetProp
 ## (NodeUtil.isNormalOrOptChainGet).
 NormalOrOptChainGet = GetProp | GetElem | OptChainGetProp | OptChainGetElem
 
+## Assignment is an assignment, plain or compound: target = value or
+## target op= value (NodeUtil.isAssignmentOp).
+Assignment = Assign | AssignOp
+
 # --- Programs ---
 
 ## Root holds scripts (or, at the top, the externs root and the code root).

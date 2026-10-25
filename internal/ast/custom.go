@@ -61,6 +61,24 @@ func (x Loop) Body() Block {
 	return Block{x.node.GetLastChild()}
 }
 
+// OnlyStatement returns the statement of x if it is the only one; ok is
+// false if x has none or several.
+func (x Block) OnlyStatement() (Statement, bool) {
+	c := x.node.GetFirstChild()
+	return Statement{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// OnlyDeclarator returns the declarator of x if it is the only one; ok is
+// false if x declares several.
+func (x NameDeclaration) OnlyDeclarator() (Declarator, bool) {
+	c := x.node.GetFirstChild()
+	return Declarator{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// Token returns which assignment x is: ASSIGN, or one of the tokens of
+// AssignOp.
+func (x Assignment) Token() rhino.Token { return x.node.GetToken() }
+
 // NewName returns a new Name.
 func NewName(ident string) Name { return Name{rhino.IR_Name(ident)} }
 
