@@ -32,6 +32,7 @@ workloads after every step.
 | the built-in externs' text is reloadable, so parsing frees it | every workload, all compile long | -1.7 MB |
 | rare boolean properties in their own map (4-byte values) | nodes that have some | -1.4 MB |
 | TypedScope's var index behind a pointer (96 -> 80 bytes) | ~90K typed scopes | ~-1.4 MB |
+| variables keep their CompilerInput as a 4-byte index (weak table) and TypedVar its type as a base pointer: Var 48 -> 32, TypedVar 64 -> 48 bytes | 215K typed variables at the typed-full peak | ~-2.4 MB at the peak, 32 MB less allocated |
 
 ## Where the peaks are now
 
@@ -61,9 +62,6 @@ workloads after every step.
 
 ## Next candidates
 
-- TypedVar 64 -> 48 bytes (~-3.5 MB at the typed-full peak) needs 8 more
-  bytes than the type pointer gives: the CompilerInput pointer as an index,
-  for both Var and TypedVar.
 - Pages for the original-name column (~-2 MB at the typed-full peak).
 - Parse trees: the comma positions of argument lists (24 bytes per list)
   could be computed from the source when comments need them.
