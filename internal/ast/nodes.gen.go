@@ -4772,6 +4772,11 @@ func (x GetElem) AsExportBody() ExportBody { return ExportBody{x.node} }
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
 func (x GetElem) AsNormalOrOptChainGet() NormalOrOptChainGet { return NormalOrOptChainGet{x.node} }
 
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem.
+func (x GetElem) AsNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return NormalOrOptChainGetElem{x.node}
+}
+
 // OptChainGetElem is object?.[index].
 //
 // Grammar: OptChainGetElem = OPTCHAIN_GETELEM  object:Expr index:Expr
@@ -4838,6 +4843,11 @@ func (x OptChainGetElem) AsExportBody() ExportBody { return ExportBody{x.node} }
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
 func (x OptChainGetElem) AsNormalOrOptChainGet() NormalOrOptChainGet {
 	return NormalOrOptChainGet{x.node}
+}
+
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem.
+func (x OptChainGetElem) AsNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return NormalOrOptChainGetElem{x.node}
 }
 
 // Call is callee(args).
@@ -6365,6 +6375,11 @@ func (x Expr) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
+func (x Expr) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
+	return AsNormalOrOptChainGetElem(x.node)
+}
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x Expr) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
@@ -6703,6 +6718,11 @@ func (x Arg) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
+func (x Arg) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
+	return AsNormalOrOptChainGetElem(x.node)
+}
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x Arg) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
@@ -6869,6 +6889,11 @@ func (x ArrayElem) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
 func (x ArrayElem) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
+}
+
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
+func (x ArrayElem) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
+	return AsNormalOrOptChainGetElem(x.node)
 }
 
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
@@ -7157,6 +7182,11 @@ func (x PropValue) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
 func (x PropValue) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
+}
+
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
+func (x PropValue) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
+	return AsNormalOrOptChainGetElem(x.node)
 }
 
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
@@ -7690,6 +7720,11 @@ func (x ForInit) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
+func (x ForInit) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
+	return AsNormalOrOptChainGetElem(x.node)
+}
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x ForInit) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
@@ -7976,6 +8011,11 @@ func (x FunctionBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
 func (x FunctionBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
+}
+
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
+func (x FunctionBody) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
+	return AsNormalOrOptChainGetElem(x.node)
 }
 
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
@@ -8314,6 +8354,11 @@ func (x ExportBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) 
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
 func (x ExportBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
+}
+
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
+func (x ExportBody) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
+	return AsNormalOrOptChainGetElem(x.node)
 }
 
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
@@ -8742,8 +8787,85 @@ func (x NormalOrOptChainGet) AsNormalOrOptChainGetProp() (NormalOrOptChainGetPro
 	return AsNormalOrOptChainGetProp(x.node)
 }
 
+// AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
+func (x NormalOrOptChainGet) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
+	return AsNormalOrOptChainGetElem(x.node)
+}
+
 // Object returns the object of x.
 func (x NormalOrOptChainGet) Object() Expr { return Expr{x.node.GetFirstChild()} }
+
+// NormalOrOptChainGetElem is an element access, in an optional chain or
+// not: object[index] or object?.[index].
+//
+// Grammar: NormalOrOptChainGetElem = GetElem | OptChainGetElem
+type NormalOrOptChainGetElem struct{ node rhino.Node }
+
+// AsNormalOrOptChainGetElem returns n as a NormalOrOptChainGetElem; ok is false if n is not one (or is the nil node).
+func AsNormalOrOptChainGetElem(n rhino.Node) (x NormalOrOptChainGetElem, ok bool) {
+	if n == rhino.NilNode || !normalOrOptChainGetElemTokens.Has(n.GetToken()) {
+		return NormalOrOptChainGetElem{}, false
+	}
+	return NormalOrOptChainGetElem{n}, true
+}
+
+// normalOrOptChainGetElemTokens holds the tokens of NormalOrOptChainGetElem.
+var normalOrOptChainGetElemTokens = tokenSetOf(rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM)
+
+// Node returns x as a rhino.Node.
+func (x NormalOrOptChainGetElem) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x NormalOrOptChainGetElem) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of NormalOrOptChainGetElem it is).
+func (x NormalOrOptChainGetElem) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x NormalOrOptChainGetElem) Detach() NormalOrOptChainGetElem { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x NormalOrOptChainGetElem) ReplaceWith(v NormalOrOptChainGetElem) { x.node.ReplaceWith(v.node) }
+
+// AsGetElem returns x as a GetElem; ok is false if it is not one.
+func (x NormalOrOptChainGetElem) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
+func (x NormalOrOptChainGetElem) AsOptChainGetElem() (OptChainGetElem, bool) {
+	return AsOptChainGetElem(x.node)
+}
+
+// AsExpr returns x as an Expr.
+func (x NormalOrOptChainGetElem) AsExpr() Expr { return Expr{x.node} }
+
+// AsArg returns x as an Arg.
+func (x NormalOrOptChainGetElem) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x NormalOrOptChainGetElem) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x NormalOrOptChainGetElem) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x NormalOrOptChainGetElem) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x NormalOrOptChainGetElem) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x NormalOrOptChainGetElem) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
+func (x NormalOrOptChainGetElem) AsNormalOrOptChainGet() NormalOrOptChainGet {
+	return NormalOrOptChainGet{x.node}
+}
+
+// Object returns the object of x.
+func (x NormalOrOptChainGetElem) Object() Expr { return Expr{x.node.GetFirstChild()} }
+
+// Index returns the index of x.
+func (x NormalOrOptChainGetElem) Index() Expr { return Expr{x.node.GetSecondChild()} }
 
 // Assignment is an assignment, plain or compound: target = value or
 // target op= value (NodeUtil.isAssignmentOp).
@@ -9893,5 +10015,6 @@ var grammarCategories = map[string][]string{
 	"NormalOrOptChainCall":    {"Call", "OptChainCall"},
 	"NormalOrOptChainGetProp": {"GetProp", "OptChainGetProp"},
 	"NormalOrOptChainGet":     {"GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem"},
+	"NormalOrOptChainGetElem": {"GetElem", "OptChainGetElem"},
 	"Assignment":              {"Assign", "AssignOp"},
 }

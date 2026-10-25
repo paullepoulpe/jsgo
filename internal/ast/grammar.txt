@@ -129,6 +129,10 @@ NormalOrOptChainGetProp = GetProp | OptChainGetProp
 ## (NodeUtil.isNormalOrOptChainGet).
 NormalOrOptChainGet = GetProp | GetElem | OptChainGetProp | OptChainGetElem
 
+## NormalOrOptChainGetElem is an element access, in an optional chain or
+## not: object[index] or object?.[index].
+NormalOrOptChainGetElem = GetElem | OptChainGetElem
+
 ## Assignment is an assignment, plain or compound: target = value or
 ## target op= value (NodeUtil.isAssignmentOp).
 Assignment = Assign | AssignOp

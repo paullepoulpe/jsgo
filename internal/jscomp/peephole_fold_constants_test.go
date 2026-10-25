@@ -1253,6 +1253,14 @@ func (c *PeepholeFoldConstantsTest) TestFoldConstructor() {
 	c.TestSame("x = (new String('a'))[3]")
 }
 
+// Go-only: new String() without an argument is the empty string (the
+// typed tryFoldInForcedStringContext reads the argument as optional).
+func (c *PeepholeFoldConstantsTest) TestFoldConstructorWithoutArgument() {
+	c.Test("x = ob[new String()]", "x = ob['']")
+	c.Test("x = 'a' + new String()", "x = 'a'")
+	c.TestSame("x = ob[new Number()]")
+}
+
 // Java: PeepholeFoldConstantsTest.testFoldArithmetic()
 func (c *PeepholeFoldConstantsTest) TestFoldArithmetic() {
 	c.Test("x = 10 + 20", "x = 30")

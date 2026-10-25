@@ -141,6 +141,39 @@ func TestCategorySharedAccessors(t *testing.T) {
 	}
 }
 
+// NormalOrOptChainGetElem is both element accesses, with the object and the
+// index they share; a property access is not one.
+func TestNormalOrOptChainGetElem(t *testing.T) {
+	newStore(t)
+	for _, n := range []rhino.Node{
+		NewGetElem(NewName("o").AsExpr(), NewStringLit("p").AsExpr()).Node(),
+		NewOptChainGetElem(NewName("o").AsExpr(), NewStringLit("p").AsExpr()).Node(),
+	} {
+		get, ok := AsNormalOrOptChainGetElem(n)
+		if !ok {
+			t.Fatalf("AsNormalOrOptChainGetElem(%s) failed", n.GetToken())
+		}
+		if obj, ok := get.Object().AsName(); !ok || obj.Ident() != "o" {
+			t.Fatalf("Object() of a %s is not its object", n.GetToken())
+		}
+		if index, ok := get.Index().AsStringLit(); !ok || index.Value() != "p" {
+			t.Fatalf("Index() of a %s is not its index", n.GetToken())
+		}
+		if !get.AsNormalOrOptChainGet().Object().Is(get.Object().Node()) {
+			t.Fatalf("AsNormalOrOptChainGet() of a %s has another object", n.GetToken())
+		}
+		if _, ok := get.AsExpr().AsNormalOrOptChainGetElem(); !ok {
+			t.Fatalf("Expr.AsNormalOrOptChainGetElem() of a %s failed", n.GetToken())
+		}
+	}
+	if _, ok := AsNormalOrOptChainGetElem(NewGetProp(NewName("o").AsExpr(), "p").Node()); ok {
+		t.Fatal("o.p converted to a NormalOrOptChainGetElem")
+	}
+	if _, ok := AsNormalOrOptChainGetElem(rhino.NilNode); ok {
+		t.Fatal("the nil node converted to a NormalOrOptChainGetElem")
+	}
+}
+
 func TestOnlyStatementAndDeclarator(t *testing.T) {
 	newStore(t)
 	if _, ok := NewBlock().OnlyStatement(); ok {
