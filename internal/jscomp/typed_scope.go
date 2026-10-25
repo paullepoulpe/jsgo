@@ -68,7 +68,7 @@ type TypedScope struct {
 	// var, where a Go map keyed by the name takes about 40 that the
 	// collector scans.
 	vars     []*TypedVar
-	varIndex []uint32
+	varIndex *[]uint32 // a pointer: most scopes have none, and it saves 16 bytes in each
 	varBloom uint64
 
 	// Scope.java contains an arguments field.
@@ -353,7 +353,7 @@ func (s *TypedScope) DeclareInternal(name string, var_ *TypedVar) {
 		return
 	}
 	s.vars = append(s.vars, var_)
-	if len(s.vars)*2 <= len(s.varIndex) {
+	if s.varIndex != nil && len(s.vars)*2 <= len(*s.varIndex) {
 		s.indexVar(len(s.vars)-1, h)
 	} else if len(s.vars) > typedScopeSmallVars {
 		s.rebuildVarIndex()
@@ -378,9 +378,10 @@ func (s *TypedScope) findVar(name string, h uint32) int {
 		}
 		return -1
 	}
-	mask := uint32(len(s.varIndex) - 1)
+	index := *s.varIndex
+	mask := uint32(len(index) - 1)
 	for slot := h & mask; ; slot = (slot + 1) & mask {
-		e := s.varIndex[slot]
+		e := index[slot]
 		if e == 0 {
 			return -1
 		}
@@ -394,12 +395,13 @@ func (s *TypedScope) findVar(name string, h uint32) int {
 
 // indexVar adds vars[i], whose name has scopeNameHash h, to varIndex.
 func (s *TypedScope) indexVar(i int, h uint32) {
-	mask := uint32(len(s.varIndex) - 1)
+	index := *s.varIndex
+	mask := uint32(len(index) - 1)
 	slot := h & mask
-	for s.varIndex[slot] != 0 {
+	for index[slot] != 0 {
 		slot = (slot + 1) & mask
 	}
-	s.varIndex[slot] = h&typedVarIndexTagMask | uint32(i+1)
+	index[slot] = h&typedVarIndexTagMask | uint32(i+1)
 }
 
 func (s *TypedScope) rebuildVarIndex() {
@@ -411,7 +413,8 @@ func (s *TypedScope) rebuildVarIndex() {
 	for n < 4*len(s.vars) {
 		n *= 2
 	}
-	s.varIndex = make([]uint32, n)
+	index := make([]uint32, n)
+	s.varIndex = &index
 	for i, v := range s.vars {
 		s.indexVar(i, scopeNameHash(v.name))
 	}
