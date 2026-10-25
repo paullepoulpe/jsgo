@@ -57,7 +57,9 @@ func cfaTestCfg(t *testing.T, input string, expected string, shouldTraverseFunct
 func cfaGetAllEdges(cfg ControlFlowGraph[rhino.Node]) []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
 	var edges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	for _, n := range cfg.GetDiGraphNodes() {
-		edges = append(edges, cfg.GetOutEdges(n.GetValue())...)
+		for _, e := range cfg.GetOutEdges(n.GetValue()) {
+			edges = append(edges, e)
+		}
 	}
 	return edges
 }

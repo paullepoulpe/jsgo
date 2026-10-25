@@ -413,14 +413,14 @@ func (b *DataFlowAnalysisBase[N, L]) Analyze() {
 			// list of nodes that this node affects.
 			if isForward {
 				for _, edge := range curNode.outEdgeList.Slice() {
-					nextNode := edge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]).destNode
+					nextNode := edge.destNode
 					if !nextNode.dfaInQueue && nextNode != implicitReturn {
 						b.enqueueNode(nextNode, nextNode.annotation.(*DataFlowAnalysis_LinearFlowState[L]))
 					}
 				}
 			} else {
 				for _, edge := range curNode.inEdgeList.Slice() {
-					nextNode := edge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]).sourceNode
+					nextNode := edge.sourceNode
 					if !nextNode.dfaInQueue && nextNode != implicitReturn {
 						b.enqueueNode(nextNode, nextNode.annotation.(*DataFlowAnalysis_LinearFlowState[L]))
 					}
@@ -528,7 +528,7 @@ func (b *DataFlowAnalysisBase[N, L]) flowLinked(node *LinkedDirectedGraph_Linked
 		if b.isBranched {
 			brancher := b.self.CreateFlowBrancher(node.value, outAfter)
 			for _, outEdge := range node.outEdgeList.Slice() {
-				le := outEdge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch])
+				le := outEdge
 				outBranchBefore := dataFlowAnalysis_latticeOf[L](le)
 				outBranchAfter := brancher(le.value)
 				le.SetAnnotation(outBranchAfter)
@@ -604,7 +604,7 @@ func (b *DataFlowAnalysisBase[N, L]) joinInputsLinked(
 		return
 	}
 
-	var inEdges []DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch]
+	var inEdges []*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]
 	if b.isForward {
 		inEdges = node.inEdgeList.Slice()
 	} else {
@@ -616,11 +616,11 @@ func (b *DataFlowAnalysisBase[N, L]) joinInputsLinked(
 	case 0:
 		return
 	case 1:
-		result = b.getInputFromLinkedEdge(inEdges[0].(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]), implicitReturn)
+		result = b.getInputFromLinkedEdge(inEdges[0], implicitReturn)
 	default:
 		joiner := b.self.CreateFlowJoiner()
 		for _, inEdge := range inEdges {
-			joiner.JoinFlow(b.getInputFromLinkedEdge(inEdge.(*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]), implicitReturn))
+			joiner.JoinFlow(b.getInputFromLinkedEdge(inEdge, implicitReturn))
 		}
 		result = joiner.Finish()
 	}
@@ -655,7 +655,7 @@ func (b *DataFlowAnalysisBase[N, L]) joinInputsWithState(node DiGraph_DiGraphNod
 		return
 	}
 
-	var inEdges []DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch]
+	var inEdges []*LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]
 	if b.isForward {
 		inEdges = node.GetInEdges()
 	} else {

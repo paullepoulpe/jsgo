@@ -412,7 +412,7 @@ func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariable
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
-	var edgeList []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
+	var edgeList []*LinkedDirectedGraph_LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	if l.curLinkedNode != nil && l.curLinkedNode.value == node {
 		edgeList = l.curLinkedNode.outEdgeList.Slice()
 	} else if l.curDiGraphNode != nil && l.curDiGraphNode.GetValue() == node {

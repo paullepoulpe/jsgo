@@ -51,12 +51,12 @@ type DiGraph[N, E any] interface {
 	// GetOutEdges gets an immutable list of out edges of the given node.
 	//
 	// Java: DiGraph.getOutEdges(N)
-	GetOutEdges(nodeValue N) []DiGraph_DiGraphEdge[N, E]
+	GetOutEdges(nodeValue N) []*LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
 
 	// GetInEdges gets an immutable list of in edges of the given node.
 	//
 	// Java: DiGraph.getInEdges(N)
-	GetInEdges(nodeValue N) []DiGraph_DiGraphEdge[N, E]
+	GetInEdges(nodeValue N) []*LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
 
 	// Java: DiGraph.getDirectedPredNodes(DiGraphNode<N, E>)
 	GetDirectedPredNodes(n DiGraph_DiGraphNode[N, E]) []DiGraph_DiGraphNode[N, E]
@@ -126,15 +126,17 @@ func (g *DiGraphBase[N, E]) IsConnectedWithEdge(n1 N, e E, n2 N) bool {
 //
 // Go-only: language-adapter — the edge lists are returned as slices that
 // alias the node's lists (no copy, as Java returns the lists themselves);
-// callers must not modify them or keep them across graph mutations.
+// callers must not modify them or keep them across graph mutations. They
+// hold the edges of LinkedDirectedGraph, the only DiGraph: a slice of
+// interfaces would take twice the memory in every graph node.
 type DiGraph_DiGraphNode[N, E any] interface {
 	GraphNode[N, E]
 
 	// Java: DiGraph.DiGraphNode.getOutEdges()
-	GetOutEdges() []DiGraph_DiGraphEdge[N, E]
+	GetOutEdges() []*LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
 
 	// Java: DiGraph.DiGraphNode.getInEdges()
-	GetInEdges() []DiGraph_DiGraphEdge[N, E]
+	GetInEdges() []*LinkedDirectedGraph_LinkedDiGraphEdge[N, E]
 
 	// HasPriority returns whether a priority has been set.
 	//

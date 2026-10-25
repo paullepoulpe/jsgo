@@ -537,7 +537,7 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *LinkedDirectedGraph
 		current.priority = int32(c.priorityCounter)
 
 		for _, edge := range current.outEdgeList.Slice() {
-			succ := edge.(*LinkedDirectedGraph_LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch]).destNode
+			succ := edge.destNode
 			if succ == nil {
 				panic(jutil.NewNullPointerException())
 			}

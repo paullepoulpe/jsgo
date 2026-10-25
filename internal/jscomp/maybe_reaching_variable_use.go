@@ -392,7 +392,7 @@ func (u *MaybeReachingVariableUse) FlowThrough(n rhino.Node, input *MaybeReachin
 
 // Java: MaybeReachingVariableUse.hasExceptionHandler(Node)
 func (u *MaybeReachingVariableUse) HasExceptionHandler(cfgNode rhino.Node) bool {
-	var branchEdges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
+	var branchEdges []*LinkedDirectedGraph_LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	if u.curDiGraphNode != nil && u.curDiGraphNode.GetValue() == cfgNode {
 		branchEdges = u.curDiGraphNode.GetOutEdges()
 	} else {
