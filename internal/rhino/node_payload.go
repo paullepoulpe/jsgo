@@ -154,11 +154,69 @@ func (n Node) initTemplateLitPayload(cookedID, rawID rhinoStringID) {
 // propBits are the 64 property bits of a node (see the propFlag and
 // nodeProp constants), kept as two 32-bit words so that the record needs
 // only 4-byte alignment. The methods compile to single 64-bit operations.
-type propBits [2]uint32
+// --- property bits ---
 
-func (p *propBits) get() uint64       { return uint64(p[0]) | uint64(p[1])<<32 }
-func (p *propBits) set(v uint64)      { p[0], p[1] = uint32(v), uint32(v>>32) }
-func (p *propBits) or(v uint64)       { p.set(p.get() | v) }
-func (p *propBits) and(v uint64)      { p.set(p.get() & v) }
-func (p *propBits) andNot(v uint64)   { p.set(p.get() &^ v) }
-func (p *propBits) has(v uint64) bool { return p.get()&v != 0 }
+// A node's property bits have a logical 64-bit layout, which the code reads
+// and writes with Node.props and Node.setProps:
+//
+//	bits 0..39   the boolean properties (propBit_*), the common ones first
+//	bit  40      propFlagHasJSDoc
+//	bits 41..42  ConstantVarFlags
+//	bits 43..46  SideEffectFlags
+//	bits 47..62  the source-file id (nodePropSourceFile*)
+//
+// The record keeps 32 of them, in a propWord. The other boolean properties
+// (bits propHotCount..39) are rare, so they live in the node's aux entry
+// (nodeAux.cold), and the word only says whether there are any.
+type propWord uint32
+
+// The bits of a propWord:
+//
+//	bits 0..7    the first propHotCount boolean properties
+//	bit  8       propFlagHasJSDoc
+//	bits 9..14   ConstantVarFlags, SideEffectFlags
+//	bit  15      propWordHasCold: nodeAux.cold is not zero
+//	bits 16..31  the source-file id
+const (
+	propWordHotMask propWord = 1<<propHotCount - 1
+	propWordJSDoc   propWord = 1 << 8
+	propWordHasCold propWord = 1 << 15
+
+	propLogicalMidShift = 40 // logical bits 40..46 are word bits 8..14
+	propWordMidShift    = 8
+	propMidMask         = 0x7F
+	propWordSFShift     = 16
+)
+
+// props returns n's property bits in the logical layout.
+func (n Node) props() uint64 {
+	p := n.rec().propFlags
+	v := uint64(p&propWordHotMask) |
+		uint64(p>>propWordMidShift&propMidMask)<<propLogicalMidShift |
+		uint64(p>>propWordSFShift)<<nodePropSourceFileShift
+	if p&propWordHasCold != 0 {
+		v |= uint64(n.coldProps()) << propHotCount
+	}
+	return v
+}
+
+// setProps sets n's property bits from the logical layout.
+func (n Node) setProps(v uint64) {
+	r := n.rec()
+	cold := uint32(v>>propHotCount) & (1<<(propBitCount-propHotCount) - 1)
+	p := propWord(v)&propWordHotMask |
+		propWord(v>>propLogicalMidShift&propMidMask)<<propWordMidShift |
+		propWord(v>>nodePropSourceFileShift)<<propWordSFShift
+	if cold != 0 {
+		p |= propWordHasCold
+	}
+	hadCold := r.propFlags&propWordHasCold != 0
+	r.propFlags = p
+	if cold != 0 || hadCold {
+		n.setColdProps(cold)
+	}
+}
+
+func (n Node) orProps(v uint64)     { n.setProps(n.props() | v) }
+func (n Node) andProps(v uint64)    { n.setProps(n.props() & v) }
+func (n Node) andNotProps(v uint64) { n.setProps(n.props() &^ v) }

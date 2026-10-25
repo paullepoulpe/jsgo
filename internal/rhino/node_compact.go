@@ -108,7 +108,7 @@ func (k *Compactor) markTree(n Node) {
 	}
 	k.marks[i>>6] |= 1 << (i & 63)
 	r := n.rec()
-	if r.propFlags.has(propFlagHasJSDoc) {
+	if r.propFlags&propWordJSDoc != 0 {
 		if info := n.GetJSDocInfo(); info != nil {
 			if _, done := k.docs[info]; !done {
 				k.docs[info] = struct{}{}
@@ -225,7 +225,9 @@ func (k *Compactor) Slide() {
 	for _, m := range oldAux {
 		for id, a := range m {
 			if i := id - k.base; id >= k.base && id < k.end && k.isMarked(i) {
-				Node(k.newID(i)).setAux(a)
+				nn := Node(k.newID(i))
+				sh := nn.auxShard()
+				sh.put(uint32(nn), a) // no other goroutine runs during compaction
 			}
 		}
 	}

@@ -67,7 +67,7 @@ func TestNodeExtBoxLengthAndOriginalName(t *testing.T) {
 	if n.GetLength() != 7 || n.GetOriginalName() != nil || n.GetJSDocInfo() != nil {
 		t.Fatal("cleared fields are still set")
 	}
-	if n.hasAux() || n.auxOf() != nil {
+	if _, ok := n.auxOf(); n.hasAux() || ok {
 		t.Fatal("empty nodeExtBox was not released")
 	}
 }
@@ -84,8 +84,8 @@ func TestNodeHasNoPointers(t *testing.T) {
 			t.Errorf("field %s is a pointer", f.Name)
 		}
 	}
-	if typ.Size() != 36 {
-		t.Errorf("nodeData is %d bytes, want 36", typ.Size())
+	if typ.Size() != 32 {
+		t.Errorf("nodeData is %d bytes, want 32", typ.Size())
 	}
 	if s := reflect.TypeOf(nodeExtBox{}).Size(); s != 32 {
 		t.Errorf("nodeExtBox is %d bytes, want 32", s)
@@ -167,5 +167,53 @@ func TestNodeStoreIsolation(t *testing.T) {
 	n := IR_Name("x")
 	if n.GetFirstChild() != NilNode || n.GetParent() != NilNode {
 		t.Fatal("absent links are not the nil node")
+	}
+}
+
+// The rare boolean properties live in the aux entry (propWord): setting,
+// clearing and copying them, alone and next to JSDoc, and across
+// compaction.
+func TestColdBooleanProps(t *testing.T) {
+	prev := SetCurrentNodeStore(NewNodeStore())
+	defer SetCurrentNodeStore(prev)
+	f := IR_Function(IR_Name("f"), IR_ParamList(), IR_Block())
+	if nodePropBitMask[Node_Prop_GENERATOR_FN] < 1<<propHotCount {
+		t.Fatal("GENERATOR_FN is expected to be a rare (cold) property")
+	}
+	f.SetIsGeneratorFunction(true)
+	f.SetIsArrowFunction(true) // a common (hot) one
+	if !f.IsGeneratorFunction() || !f.IsArrowFunction() || f.rec().propFlags&propWordHasCold == 0 {
+		t.Fatal("cold property not set")
+	}
+	b := JSDocInfo_Builder_()
+	b.RecordConstancy()
+	info := b.Build()
+	f.SetJSDocInfo(info)
+	f.SetIsGeneratorFunction(false)
+	if f.IsGeneratorFunction() || !f.IsArrowFunction() || f.GetJSDocInfo() != info || f.rec().propFlags&propWordHasCold != 0 {
+		t.Fatal("clearing the cold property lost something")
+	}
+	f.SetIsGeneratorFunction(true)
+	f.SetJSDocInfo(nil)
+	if !f.IsGeneratorFunction() {
+		t.Fatal("clearing the JSDoc cleared the cold property")
+	}
+	c := f.CloneNode()
+	if !c.IsGeneratorFunction() || !c.IsArrowFunction() {
+		t.Fatal("clone lost the boolean properties")
+	}
+	root := IR_Script()
+	root.AddChildToBack(IR_ExprResult(f))
+	k := NewCompactor()
+	k.Mark(root)
+	k.Slide()
+	f2 := k.Forward(f)
+	k.Finish()
+	if !f2.IsGeneratorFunction() || !f2.IsArrowFunction() {
+		t.Fatal("compaction lost the boolean properties")
+	}
+	f2.SetIsGeneratorFunction(false)
+	if _, ok := f2.auxOf(); ok || f2.hasAux() {
+		t.Fatal("aux entry not released")
 	}
 }

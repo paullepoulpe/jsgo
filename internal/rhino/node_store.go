@@ -11,7 +11,7 @@ import (
 
 // Go-only: node storage.
 //
-// A Node is a 32-bit id. The node's data (nodeData, 36 bytes, no Go
+// A Node is a 32-bit id. The node's data (nodeData, 32 bytes, no Go
 // pointers: links are ids too) lives in a NodeStore, which belongs to one
 // compilation, so the garbage collector never traces the AST.
 //

@@ -98,10 +98,12 @@ func (t *handleTable[T]) each(f func(*T)) {
 }
 
 // nodeAux is the cold data of a node: its ext box when the record has
-// kindFlagHasExtBox, else its JSDocInfo when it has propFlagHasJSDoc.
+// kindFlagHasExtBox, else its JSDocInfo when it has propFlagHasJSDoc; and
+// its rare boolean properties (see propWord).
 type nodeAux struct {
 	ext   *nodeExtBox
 	jsDoc *JSDocInfo
+	cold  uint32 // the boolean properties propHotCount..39, bit 0 first
 }
 
 // --- types ---
@@ -180,8 +182,13 @@ func (s *NodeStore) colorAt(h uint32) *colors.Color {
 // map per store instead of a field in every record. The map is split in
 // shards, each with its own lock, because parallel parsing attaches JSDoc
 // from several goroutines; readers only look when the record's flags say
-// the node has cold data (propFlagHasJSDoc, kindFlagHasExtBox). Entries of
-// dead nodes stay until compaction copies the live nodes into a new store.
+// the node has cold data (propWordJSDoc, propWordHasCold,
+// kindFlagHasExtBox). Entries of dead nodes stay until compaction rebuilds
+// the map for the live ones.
+//
+// An entry has two independent parts: the ext box or JSDocInfo (setAux),
+// and the rare boolean properties (setColdProps, which Node.setProps
+// calls): setting one keeps the other.
 
 const auxShards = 16
 
@@ -193,19 +200,15 @@ type auxShard struct {
 // hasAux reports whether the record's flags say n may have cold data.
 func (n Node) hasAux() bool {
 	r := n.rec()
-	return r.propFlags.has(propFlagHasJSDoc) || r.kindFlags&kindFlagHasExtBox != 0
+	return r.propFlags&(propWordJSDoc|propWordHasCold) != 0 || r.kindFlags&kindFlagHasExtBox != 0
 }
 
-// auxOf returns a copy of the node's cold-data entry, or nil if it has none.
-func (n Node) auxOf() *nodeAux {
+// auxOf returns the node's cold-data entry; ok is false if it has none.
+func (n Node) auxOf() (a nodeAux, ok bool) {
 	if !n.hasAux() {
-		return nil
+		return nodeAux{}, false
 	}
-	a, ok := n.store().auxGet(uint32(n))
-	if !ok {
-		return nil
-	}
-	return &a
+	return n.store().auxGet(uint32(n))
 }
 
 func (s *NodeStore) auxGet(id uint32) (nodeAux, bool) {
@@ -216,29 +219,55 @@ func (s *NodeStore) auxGet(id uint32) (nodeAux, bool) {
 	return a, ok
 }
 
-// setAux stores a as the node's cold data; the zero nodeAux clears it.
+// setAux sets the node's ext box and JSDocInfo to those of a (the zero
+// nodeAux clears them); its rare boolean properties stay.
 func (n Node) setAux(a nodeAux) {
-	s := n.store()
-	id := uint32(n)
-	sh := &s.aux[id%auxShards]
+	sh := n.auxShard()
 	sh.mu.Lock()
+	a.cold = sh.m[uint32(n)].cold
+	sh.put(uint32(n), a)
+	sh.mu.Unlock()
+}
+
+// coldProps returns the node's rare boolean properties (nodeAux.cold).
+func (n Node) coldProps() uint32 {
+	a, _ := n.store().auxGet(uint32(n))
+	return a.cold
+}
+
+// setColdProps sets the node's rare boolean properties; its ext box and
+// JSDocInfo stay. Only Node.setProps calls it (it keeps propWordHasCold
+// in step).
+func (n Node) setColdProps(cold uint32) {
+	sh := n.auxShard()
+	sh.mu.Lock()
+	a := sh.m[uint32(n)]
+	a.cold = cold
+	sh.put(uint32(n), a)
+	sh.mu.Unlock()
+}
+
+func (n Node) auxShard() *auxShard {
+	return &n.store().aux[uint32(n)%auxShards]
+}
+
+// put stores a as the entry of id (deleting it if a is zero); the caller
+// holds sh.mu.
+func (sh *auxShard) put(id uint32, a nodeAux) {
 	if a == (nodeAux{}) {
 		delete(sh.m, id)
-	} else {
-		if sh.m == nil {
-			sh.m = make(map[uint32]nodeAux)
-		}
-		sh.m[id] = a
+		return
 	}
-	sh.mu.Unlock()
+	if sh.m == nil {
+		sh.m = make(map[uint32]nodeAux)
+	}
+	sh.m[id] = a
 }
 
 // auxValue returns a copy of the node's cold-data entry (zero if none).
 func (n Node) auxValue() nodeAux {
-	if a := n.auxOf(); a != nil {
-		return *a
-	}
-	return nodeAux{}
+	a, _ := n.auxOf()
+	return a
 }
 
 // --- columns ---
