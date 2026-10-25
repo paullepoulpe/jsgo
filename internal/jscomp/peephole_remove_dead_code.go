@@ -19,11 +19,19 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) to read
+// statements (ifs.Else(), try.Catch(), sw.Body().Cases(), do.Cond()...)
+// instead of child positions, so it no longer follows the Java line by
+// line; the Go-only notes below say where the logic differs. Code that
+// treats children alike (the statements of a SCRIPT or a BLOCK, the
+// operands of any expression) or moves nodes around uses the rhino API.
 
 // PeepholeRemoveDeadCode is a peephole optimization to remove useless code
 // such as IF's with false guard conditions, comma operator's left hand sides
@@ -64,9 +72,9 @@ func (p *PeepholeRemoveDeadCode) OptimizeSubtree(subtree rhino.Node) rhino.Node 
 		// TODO: Ideally, we should optimize this case instead of returning
 		return subtree
 	case rhino.Token_FOR:
-		condition := NodeUtil_GetConditionExpression(subtree)
-		if !condition.IsNil() {
-			p.TryFoldForCondition(condition)
+		forNode, _ := ast.AsFor(subtree) // the case proves the kind
+		if cond, ok := forNode.Cond(); ok {
+			p.TryFoldForCondition(cond.Node())
 		}
 		return p.TryFoldFor(subtree)
 	case rhino.Token_DO:
@@ -95,60 +103,68 @@ func (p *PeepholeRemoveDeadCode) OptimizeSubtree(subtree rhino.Node) rhino.Node 
 }
 
 // Java: PeepholeRemoveDeadCode.tryRemoveDefaultValue(Node)
-func (p *PeepholeRemoveDeadCode) TryRemoveDefaultValue(defaultValue rhino.Node) rhino.Node {
-	jutil.CheckArgumentMsg1(defaultValue.IsDefaultValue(), "%s", defaultValue)
+func (p *PeepholeRemoveDeadCode) TryRemoveDefaultValue(n rhino.Node) rhino.Node {
+	defaultValue, ok := ast.AsDefaultValue(n)
+	jutil.CheckArgumentMsg1(ok, "%s", n)
 
-	lValue := defaultValue.GetFirstChild()
-	val := defaultValue.GetSecondChild()
+	lValue := defaultValue.Target().Node()
+	val := defaultValue.Value()
 	removeVal := false
 
 	// If the default is `undefined` always remove the value
-	if val.IsName() && val.GetString() == "undefined" {
+	if name, ok := val.AsName(); ok && name.Ident() == "undefined" {
 		removeVal = true
 	}
 
 	// If the `void` application is pure, remove the value
-	if val.IsVoid() {
-		voidArg := val.GetFirstChild()
-		removeVal = !p.MayHaveSideEffects(voidArg)
+	if void, ok := val.AsUnary(); ok && void.Token() == rhino.Token_VOID {
+		removeVal = !p.MayHaveSideEffects(void.Operand().Node())
 	}
 
 	if removeVal {
-		defaultValue.ReplaceWith(lValue.Detach())
+		n.ReplaceWith(lValue.Detach())
 		p.ReportChangeToEnclosingScope(lValue)
 		return lValue
 	}
 
-	return defaultValue
+	return n
 }
 
 // Java: PeepholeRemoveDeadCode.tryFoldLabel(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldLabel(n rhino.Node) rhino.Node {
-	labelName := n.GetFirstChild().GetString()
-	stmt := n.GetLastChild()
-	if stmt.IsEmpty() {
+	label, ok := ast.AsLabel(n)
+	jutil.CheckState(ok)
+	labelName := label.Name().Ident()
+	stmt := label.Body()
+	if _, ok := stmt.AsEmpty(); ok {
 		p.ReportChangeToEnclosingScope(n)
 		n.Detach()
 		return rhino.NilNode
 	}
 
-	if stmt.IsBlock() && !stmt.HasChildren() {
+	if block, ok := stmt.AsBlock(); ok && !block.HasStatements() {
 		p.ReportChangeToEnclosingScope(n)
 		if n.GetParent().IsLabel() {
 			// If the parent is itself a label, replace this label
 			// with its contained block to keep the AST in a valid state.
-			n.ReplaceWith(stmt.Detach())
+			n.ReplaceWith(block.Node().Detach())
 		} else {
 			n.Detach()
 		}
 		return rhino.NilNode
 	}
 
-	child := PeepholeRemoveDeadCode_GetOnlyInterestingChild(stmt)
-	if !child.IsNil() {
+	if child, ok := PeepholeRemoveDeadCode_GetOnlyInterestingChild(stmt); ok {
 		stmt = child
 	}
-	if stmt.IsBreak() && stmt.GetFirstChild().GetString() == labelName {
+	// Go-only: Java reads the label of the break without checking that it has
+	// one, and throws on an unlabeled break such as `a: break;` in a switch
+	// case. Label() makes the missing label explicit: such a label is kept.
+	brk, ok := stmt.AsBreak()
+	if !ok {
+		return n
+	}
+	if target, ok := brk.Label(); ok && target.Ident() == labelName {
 		if n.GetParent().IsLabel() {
 			replacement := rhino.IR_Block().Srcref(n)
 			n.ReplaceWith(replacement)
@@ -165,31 +181,34 @@ func (p *PeepholeRemoveDeadCode) TryFoldLabel(n rhino.Node) rhino.Node {
 }
 
 // PeepholeRemoveDeadCode_GetOnlyInterestingChild returns the only
-// "interesting" child of block, if it has exactly one interesting child,
-// otherwise return null. For purposes of this method, a node is considered
-// "interesting" unless it is an empty synthetic block.
+// "interesting" child of block, if it has exactly one interesting child;
+// ok is false otherwise (or if stmt is not a block). For purposes of this
+// method, a node is considered "interesting" unless it is an empty
+// synthetic block.
 //
 // Java: PeepholeRemoveDeadCode.getOnlyInterestingChild(Node)
-func PeepholeRemoveDeadCode_GetOnlyInterestingChild(block rhino.Node) rhino.Node {
-	if !block.IsBlock() {
-		return rhino.NilNode
+func PeepholeRemoveDeadCode_GetOnlyInterestingChild(stmt ast.Statement) (ast.Statement, bool) {
+	block, ok := stmt.AsBlock()
+	if !ok {
+		return ast.Statement{}, false
 	}
-	if block.HasOneChild() {
-		return block.GetOnlyChild()
+	if block.Node().HasOneChild() {
+		return block.FirstStatement()
 	}
 
-	var ret rhino.Node
-	for child := block.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child.IsSyntheticBlock() && !child.HasChildren() {
+	var ret ast.Statement
+	found := false
+	for child := range block.Statements() {
+		if child.Node().IsSyntheticBlock() && !child.Node().HasChildren() {
 			// Uninteresting child.
-		} else if !ret.IsNil() {
+		} else if found {
 			// Found more than one interesting child.
-			return rhino.NilNode
+			return ast.Statement{}, false
 		} else {
-			ret = child
+			ret, found = child, true
 		}
 	}
-	return ret
+	return ret, found
 }
 
 // TryFoldTry removes try blocks without catch blocks and with empty or not
@@ -200,29 +219,32 @@ func PeepholeRemoveDeadCode_GetOnlyInterestingChild(block rhino.Node) rhino.Node
 //
 // Java: PeepholeRemoveDeadCode.tryFoldTry(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldTry(n rhino.Node) rhino.Node {
-	jutil.CheckStateMsg1(n.IsTry(), "%s", n)
-	body := n.GetFirstChild()
-	catchBlock := body.GetNext()
-	finallyBlock := catchBlock.GetNext()
+	try, ok := ast.AsTry(n)
+	jutil.CheckStateMsg1(ok, "%s", n)
+	body := try.Body()
+	catch, hasCatch := try.Catch()
+	finally, hasFinally := try.Finally()
 
 	// Removes TRYs that had its CATCH removed and/or empty FINALLY.
-	if !catchBlock.HasChildren() && (finallyBlock.IsNil() || !finallyBlock.HasChildren()) {
+	if !hasCatch && (!hasFinally || !finally.HasStatements()) {
 		jutil.CheckState(!n.GetParent().IsLabel())
-		body.Detach()
-		n.ReplaceWith(body)
-		p.ReportChangeToEnclosingScope(body)
-		return body
+		body.Node().Detach()
+		n.ReplaceWith(body.Node())
+		p.ReportChangeToEnclosingScope(body.Node())
+		return body.Node()
 	}
 
 	// Only leave FINALLYs if TRYs are not empty
-	if !body.HasChildren() {
-		NodeUtil_RedeclareVarsInsideBranch(catchBlock)
+	if !body.HasStatements() {
+		if hasCatch {
+			NodeUtil_RedeclareVarsInsideBranch(catch.Node())
+		}
 		p.ReportChangeToEnclosingScope(n)
-		if !finallyBlock.IsNil() {
-			finallyBlock.Detach()
+		if hasFinally {
+			finally.Node().Detach()
 			jutil.CheckState(!n.GetParent().IsLabel())
-			n.ReplaceWith(finallyBlock)
-			return finallyBlock
+			n.ReplaceWith(finally.Node())
+			return finally.Node()
 		} else {
 			jutil.CheckState(!n.GetParent().IsLabel())
 			n.Detach()
@@ -240,15 +262,18 @@ func (p *PeepholeRemoveDeadCode) TryFoldTry(n rhino.Node) rhino.Node {
 //
 // Java: PeepholeRemoveDeadCode.tryFoldAssignment(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldAssignment(subtree rhino.Node) rhino.Node {
-	jutil.CheckState(subtree.IsAssign())
-	left := subtree.GetFirstChild()
-	right := subtree.GetLastChild()
-	if left.IsName() && right.IsName() && left.GetString() == right.GetString() {
+	assign, ok := ast.AsAssign(subtree)
+	jutil.CheckState(ok)
+	left := assign.Target()
+	right := assign.Value().Node()
+	leftName, leftIsName := left.AsName()
+	rightName, rightIsName := assign.Value().AsName()
+	if leftIsName && rightIsName && leftName.Ident() == rightName.Ident() {
 		// Only names
 		subtree.ReplaceWith(right.Detach())
 		p.ReportChangeToEnclosingScope(right)
 		return right
-	} else if left.IsDestructuringPattern() && !left.HasChildren() {
+	} else if pattern, ok := left.AsPattern(); ok && !pattern.Node().HasChildren() {
 		// `[] = <expr>` becomes `<expr>`
 		// Note that this does potentially change behavior. If `<expr>` is not iterable and this
 		// code originally threw, it will no longer throw.
@@ -266,16 +291,21 @@ func (p *PeepholeRemoveDeadCode) TryFoldAssignment(subtree rhino.Node) rhino.Nod
 //
 // Java: PeepholeRemoveDeadCode.tryOptimizeNameDeclaration(Node)
 func (p *PeepholeRemoveDeadCode) TryOptimizeNameDeclaration(subtree rhino.Node) rhino.Node {
-	jutil.CheckState(NodeUtil_IsNameDeclaration(subtree))
-	left := subtree.GetFirstChild()
-	if left.IsDestructuringLhs() && left.HasTwoChildren() {
-		pattern := left.GetFirstChild()
-		if !pattern.HasChildren() {
-			// `var [] = foo();` becomes `foo();`
-			value := left.GetSecondChild()
-			subtree.ReplaceWith(rhino.IR_ExprResult(value.Detach()).Srcref(value))
-			p.ReportChangeToEnclosingScope(value)
-		}
+	decl, ok := ast.AsNameDeclaration(subtree)
+	jutil.CheckState(ok)
+	first, ok := decl.FirstDeclarator()
+	if !ok {
+		return subtree
+	}
+	lhs, ok := first.AsDestructuringLhs()
+	if !ok {
+		return subtree
+	}
+	if init, ok := lhs.Init(); ok && !lhs.Pattern().Node().HasChildren() {
+		// `var [] = foo();` becomes `foo();`
+		value := init.Node()
+		subtree.ReplaceWith(rhino.IR_ExprResult(value.Detach()).Srcref(value))
+		p.ReportChangeToEnclosingScope(value)
 	}
 	return subtree
 }
@@ -287,7 +317,9 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeNameDeclaration(subtree rhino.Node) 
 //
 // Java: PeepholeRemoveDeadCode.tryFoldExpr(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldExpr(subtree rhino.Node) rhino.Node {
-	expr := subtree.GetFirstChild()
+	stmt, ok := ast.AsExprStmt(subtree)
+	jutil.CheckState(ok)
+	expr := stmt.Expr().Node()
 	switch expr.GetToken() {
 	case rhino.Token_ASSIGN,
 		rhino.Token_ASSIGN_BITOR,
@@ -469,8 +501,11 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree rhino.Node
 		//    x() ? 1 : foo() --> x() || foo()
 		//    x() ? 1 : 1 --> x()
 		//    x ? 1 : 1 --> null
-		trueNode := p.TrySimplifyUnusedResult(tree.GetSecondChild())
-		falseNode := p.TrySimplifyUnusedResult(tree.GetLastChild())
+		hook, _ := ast.AsHook(tree) // the case proves the kind
+		// Read the operands first: simplifying a branch can remove it from the hook.
+		cond, thenBranch, elseBranch := hook.Cond(), hook.Then(), hook.Else()
+		trueNode := p.TrySimplifyUnusedResult(thenBranch.Node())
+		falseNode := p.TrySimplifyUnusedResult(elseBranch.Node())
 		if trueNode.IsNil() && !falseNode.IsNil() {
 			jutil.CheckStateMsg1(tree.HasTwoChildren(), "%s", tree)
 
@@ -487,7 +522,7 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree rhino.Node
 			// Don't bother adding true and false branch children to make the AST valid; this HOOK is
 			// going to be deleted. We just need to collect any side-effects from the predicate
 			// expression.
-			p.TrySimplifyUnusedResultInternal(tree.GetOnlyChild(), sideEffectRoots)
+			p.TrySimplifyUnusedResultInternal(cond.Node(), sideEffectRoots)
 			return false // This HOOK must be cleaned up.
 		} else {
 			sideEffectRoots.addLast(tree)
@@ -501,11 +536,14 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree rhino.Node
 		//    x() ?? f --> x()
 		//    x() || f --> x()
 		//    x() && f --> x()
-		conditionalResultNode := p.TrySimplifyUnusedResult(tree.GetLastChild())
+		op, _ := ast.AsBinary(tree) // the case proves the kind
+		// Read the operands first: simplifying the right one can remove it.
+		left, right := op.Left(), op.Right()
+		conditionalResultNode := p.TrySimplifyUnusedResult(right.Node())
 		if conditionalResultNode.IsNil() {
 			// Don't bother adding a second child to make the AST valid; this op is going to be
 			// deleted. We just need to collect any side-effects from the predicate first child.
-			p.TrySimplifyUnusedResultInternal(tree.GetOnlyChild(), sideEffectRoots)
+			p.TrySimplifyUnusedResultInternal(left.Node(), sideEffectRoots)
 			return false // This op must be cleaned up.
 		} else {
 			sideEffectRoots.addLast(tree)
@@ -515,14 +553,17 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree rhino.Node
 		// Functions that aren't being invoked are dead. If they were invoked we'd see the CALL
 		// before arriving here. We don't want to look at any children since they'll never execute.
 	case rhino.Token_MEMBER_FIELD_DEF:
-		if tree.IsStaticMember() && tree.HasChildren() {
-			p.TrySimplifyUnusedResultInternal(tree.GetFirstChild(), sideEffectRoots)
+		field, _ := ast.AsMemberFieldDef(tree) // the case proves the kind
+		if value, ok := field.Value(); ok && tree.IsStaticMember() {
+			p.TrySimplifyUnusedResultInternal(value.Node(), sideEffectRoots)
 		}
 	case rhino.Token_COMPUTED_FIELD_DEF:
+		field, _ := ast.AsComputedFieldDef(tree) // the case proves the kind
+		value, hasValue := field.Value()
 		// Computed key initializers run once when the class is defined, even on non-static fields.
-		p.TrySimplifyUnusedResultInternal(tree.GetFirstChild(), sideEffectRoots)
-		if tree.IsStaticMember() && tree.HasTwoChildren() {
-			p.TrySimplifyUnusedResultInternal(tree.GetLastChild(), sideEffectRoots)
+		p.TrySimplifyUnusedResultInternal(field.Key().Node(), sideEffectRoots)
+		if hasValue && tree.IsStaticMember() {
+			p.TrySimplifyUnusedResultInternal(value.Node(), sideEffectRoots)
 		}
 	default:
 		// This is the meat of this function. It covers the general case of nodes which are unused
@@ -599,6 +640,32 @@ func PeepholeRemoveDeadCode_HasFixedPointParent(expr rhino.Node) bool {
 	}
 }
 
+// peepholeRemoveDeadCode_isUnnamedBreak reports whether n is a break without
+// a label.
+//
+// Go-only: Java writes n.isBreak() && !n.hasChildren() at each use.
+func peepholeRemoveDeadCode_isUnnamedBreak(n rhino.Node) bool {
+	brk, ok := ast.AsBreak(n)
+	if !ok {
+		return false
+	}
+	_, hasLabel := brk.Label()
+	return !hasLabel
+}
+
+// peepholeRemoveDeadCode_isUnnamedContinue reports whether n is a continue
+// without a label.
+//
+// Go-only: Java writes n.isContinue() && !n.hasChildren().
+func peepholeRemoveDeadCode_isUnnamedContinue(n rhino.Node) bool {
+	cont, ok := ast.AsContinue(n)
+	if !ok {
+		return false
+	}
+	_, hasLabel := cont.Label()
+	return !hasLabel
+}
+
 // peepholeRemoveDeadCode_MatchUnnamedBreak is a predicate for matching
 // anything except function nodes.
 type peepholeRemoveDeadCode_MatchUnnamedBreak struct {
@@ -608,191 +675,214 @@ type peepholeRemoveDeadCode_MatchUnnamedBreak struct {
 
 // Java: PeepholeRemoveDeadCode.MatchUnnamedBreak.apply(Node)
 func (m *peepholeRemoveDeadCode_MatchUnnamedBreak) Apply(n rhino.Node) bool {
-	return n.IsBreak() && !n.HasChildren()
+	return peepholeRemoveDeadCode_isUnnamedBreak(n)
 }
 
 // Java: PeepholeRemoveDeadCode.MATCH_UNNAMED_BREAK
 var PeepholeRemoveDeadCode_MATCH_UNNAMED_BREAK func(rhino.Node) bool = (&peepholeRemoveDeadCode_MatchUnnamedBreak{}).Apply
 
+// RemoveIfUnnamedBreak removes maybeBreak if it is a break without a label.
+//
+// Go-only: Java also accepts null; callers here only pass a statement.
+//
 // Java: PeepholeRemoveDeadCode.removeIfUnnamedBreak(Node)
-func (p *PeepholeRemoveDeadCode) RemoveIfUnnamedBreak(maybeBreak rhino.Node) {
-	if !maybeBreak.IsNil() && maybeBreak.IsBreak() && !maybeBreak.HasChildren() {
-		p.ReportChangeToEnclosingScope(maybeBreak)
-		maybeBreak.Detach()
+func (p *PeepholeRemoveDeadCode) RemoveIfUnnamedBreak(maybeBreak ast.Statement) {
+	if peepholeRemoveDeadCode_isUnnamedBreak(maybeBreak.Node()) {
+		p.ReportChangeToEnclosingScope(maybeBreak.Node())
+		maybeBreak.Node().Detach()
 	}
 }
 
 // Java: PeepholeRemoveDeadCode.tryRemoveSwitchWithSingleCase(Node, boolean)
-func (p *PeepholeRemoveDeadCode) TryRemoveSwitchWithSingleCase(switchNode rhino.Node, shouldHoistCondition bool) rhino.Node {
-	switchBody := switchNode.GetSecondChild()
-	caseBlock := switchBody.GetOnlyChild().GetLastChild()
-	p.RemoveIfUnnamedBreak(caseBlock.GetLastChild())
+func (p *PeepholeRemoveDeadCode) TryRemoveSwitchWithSingleCase(sw ast.Switch, shouldHoistCondition bool) rhino.Node {
+	n := sw.Node()
+	cases := sw.Body()
+	jutil.CheckState(cases.Node().HasOneChild())
+	onlyCase, _ := cases.FirstCase() // the check above proves there is one
+	caseBlock := onlyCase.Body()
+	if last, ok := caseBlock.LastStatement(); ok {
+		p.RemoveIfUnnamedBreak(last)
+	}
 	// Back off if the switch contains statements like "if (a) { break; }"
-	if NodeUtil_Has(caseBlock, PeepholeRemoveDeadCode_MATCH_UNNAMED_BREAK, NodeUtil_MATCH_NOT_FUNCTION) {
-		return switchNode
+	if NodeUtil_Has(caseBlock.Node(), PeepholeRemoveDeadCode_MATCH_UNNAMED_BREAK, NodeUtil_MATCH_NOT_FUNCTION) {
+		return n
 	}
 	if shouldHoistCondition {
-		rhino.IR_ExprResult(switchNode.RemoveFirstChild()).Srcref(switchNode).InsertBefore(switchNode)
+		cond := sw.Discriminant().Node()
+		rhino.IR_ExprResult(cond.Detach()).Srcref(n).InsertBefore(n)
 	}
-	switchNode.ReplaceWith(caseBlock.Detach())
-	p.ReportChangeToEnclosingScope(caseBlock)
-	return caseBlock
+	n.ReplaceWith(caseBlock.Node().Detach())
+	p.ReportChangeToEnclosingScope(caseBlock.Node())
+	return caseBlock.Node()
 }
 
 // Java: PeepholeRemoveDeadCode.tryRemoveSwitch(Node)
-func (p *PeepholeRemoveDeadCode) TryRemoveSwitch(n rhino.Node) rhino.Node {
-	switchBody := n.GetSecondChild()
-	if !switchBody.HasChildren() {
+func (p *PeepholeRemoveDeadCode) TryRemoveSwitch(sw ast.Switch) rhino.Node {
+	n := sw.Node()
+	cases := sw.Body()
+	if !cases.HasCases() {
 		// Remove the switch if there are no remaining cases
-		condition := n.RemoveFirstChild()
-		replacement := rhino.IR_ExprResult(condition).Srcref(n)
+		condition := sw.Discriminant().Node()
+		replacement := rhino.IR_ExprResult(condition.Detach()).Srcref(n)
 		n.ReplaceWith(replacement)
 		p.ReportChangeToEnclosingScope(replacement)
 		return replacement
-	} else if switchBody.HasOneChild() && switchBody.GetOnlyChild().IsDefaultCase() {
-		if p.MayHaveSideEffects(n.GetFirstChild()) {
-			// Before removing switch, we must preserve the switch condition if it has side effects
-			return p.TryRemoveSwitchWithSingleCase(n, true)
-		} else {
-			return p.TryRemoveSwitchWithSingleCase(n, false)
-		}
-	} else {
-		return n
 	}
+	if cases.Node().HasOneChild() {
+		onlyCase, _ := cases.FirstCase() // the check above proves there is one
+		if _, ok := onlyCase.AsDefaultCase(); ok {
+			// Before removing switch, we must preserve the switch condition if it has side effects
+			shouldHoistCondition := p.MayHaveSideEffects(sw.Discriminant().Node())
+			return p.TryRemoveSwitchWithSingleCase(sw, shouldHoistCondition)
+		}
+	}
+	return n
+}
+
+// peepholeRemoveDeadCode_caseTagOrBody returns the tag of a case, or the
+// body of a default case.
+//
+// Go-only: Java reads the first child of each case, which for a default case
+// (it has no tag) is its body: the switch optimizations below then compare
+// that body with the condition and check it for side effects. This helper
+// keeps that behavior, for the same output, and makes it visible.
+func peepholeRemoveDeadCode_caseTagOrBody(c ast.SwitchCase) rhino.Node {
+	if cs, ok := c.AsCase(); ok {
+		return cs.Value().Node()
+	}
+	return c.Body().Node()
 }
 
 // TryOptimizeSwitch removes useless switches and cases.
 //
 // Java: PeepholeRemoveDeadCode.tryOptimizeSwitch(Node)
 func (p *PeepholeRemoveDeadCode) TryOptimizeSwitch(n rhino.Node) rhino.Node {
-	jutil.CheckStateMsg1(n.IsSwitch(), "%s", n)
+	sw, ok := ast.AsSwitch(n)
+	jutil.CheckStateMsg1(ok, "%s", n)
 
-	switchBody := n.GetSecondChild()
-	defaultCase := p.TryOptimizeDefaultCase(n)
+	cases := sw.Body()
+	defaultCase := p.TryOptimizeDefaultCase(sw)
 
 	// Generally, it is unsafe to remove other cases when the default case is not the last one.
-	if (defaultCase.IsNil() || switchBody.GetLastChild().IsDefaultCase()) &&
-		p.AreAllCaseTagsLiterals(switchBody) {
-		cond := n.GetFirstChild()
-		var prev rhino.Node
-		var next rhino.Node
-		var cur rhino.Node
+	// (defaultCase, when there is one, is the only default case.)
+	if (defaultCase.IsNil() || defaultCase.GetNext().IsNil()) && p.AreAllCaseTagsLiterals(cases) {
+		cond := sw.Discriminant().Node()
 
 		// First, remove empty cases where possible: always empty default cases; or when there is
 		// no default case, other empty cases that are not the first matching case, may be
 		// removable as well.
+		var prev rhino.Node // the last case kept, if any
 		foundMatchingCase := false
-		for cur = switchBody.GetFirstChild(); !cur.IsNil(); cur = next {
-			next = cur.GetNext()
-			firstChild := cur.GetFirstChild()
-			foundMatchingCase = p.IsFirstSwitchMatch(foundMatchingCase, cond, firstChild)
+		for cur, ok := cases.FirstCase(); ok; {
+			next, hasNext := cur.Next() // read it first: cur may be removed
+			tag := peepholeRemoveDeadCode_caseTagOrBody(cur)
+			foundMatchingCase = p.IsFirstSwitchMatch(foundMatchingCase, cond, tag)
 			if !foundMatchingCase &&
-				!p.MayHaveSideEffects(firstChild) &&
+				!p.MayHaveSideEffects(tag) &&
 				p.IsUselessCase(cur, prev, defaultCase) {
-				p.RemoveCase(n, cur)
+				p.RemoveCase(n, cur.Node())
 			} else {
-				prev = cur
+				prev = cur.Node()
 			}
+			cur, ok = next, hasNext
 		}
 
 		// Next, optimize switches with constant condition
 		if NodeUtil_IsLiteralValue(cond, false) {
-			var caseLabel rhino.Node
 			caseMatches := base.Tri_TRUE
 			// Remove cases until you find one that may match
-			for cur = switchBody.GetFirstChild(); !cur.IsNil(); cur = next {
-				next = cur.GetNext()
-				caseLabel = cur.GetFirstChild()
-				caseMatches = PeepholeFoldConstants_EvaluateComparison(p, rhino.Token_SHEQ, cond, caseLabel)
-				if caseMatches == base.Tri_TRUE {
+			cur, ok := cases.FirstCase()
+			for ok {
+				caseMatches = PeepholeFoldConstants_EvaluateComparison(
+					p, rhino.Token_SHEQ, cond, peepholeRemoveDeadCode_caseTagOrBody(cur))
+				if caseMatches == base.Tri_TRUE || caseMatches == base.Tri_UNKNOWN {
 					break
-				} else if caseMatches == base.Tri_UNKNOWN {
-					break
-				} else {
-					p.RemoveCase(n, cur)
 				}
+				next, hasNext := cur.Next()
+				p.RemoveCase(n, cur.Node())
+				cur, ok = next, hasNext
 			}
-			if !cur.IsNil() && caseMatches == base.Tri_TRUE {
+			if ok && caseMatches == base.Tri_TRUE {
 				// Skip cases until you find one whose last stm is a removable break
 				matchingCase := cur
-				matchingCaseBlock := matchingCase.GetLastChild()
-				for !cur.IsNil() {
-					block := cur.GetLastChild()
-					lastStm := block.GetLastChild()
+				matchingCaseBlock := matchingCase.Body()
+				for ok {
+					block := cur.Body()
 					isLastStmRemovableBreak := false
-					if !lastStm.IsNil() && PeepholeRemoveDeadCode_IsExit(lastStm) {
+					if lastStm, ok := block.LastStatement(); ok && PeepholeRemoveDeadCode_IsExit(lastStm.Node()) {
 						p.RemoveIfUnnamedBreak(lastStm)
 						isLastStmRemovableBreak = true
 					}
-					next = cur.GetNext()
+					next, hasNext := cur.Next()
 					// Remove the fallthrough case labels
 					if cur != matchingCase {
-						for block.HasChildren() {
-							matchingCaseBlock.AddChildToBack(block.RemoveFirstChild())
+						for block.HasStatements() {
+							matchingCaseBlock.Node().AddChildToBack(block.Node().RemoveFirstChild())
 						}
-						p.ReportChangeToEnclosingScope(cur)
-						cur.Detach()
+						p.ReportChangeToEnclosingScope(cur.Node())
+						cur.Node().Detach()
 					}
-					cur = next
+					cur, ok = next, hasNext
 					if isLastStmRemovableBreak {
 						break
 					}
 				}
 
 				// Remove any remaining cases
-				for ; !cur.IsNil(); cur = next {
-					next = cur.GetNext()
-					p.RemoveCase(n, cur)
+				for ok {
+					next, hasNext := cur.Next()
+					p.RemoveCase(n, cur.Node())
+					cur, ok = next, hasNext
 				}
 				// If there is one case left, we may be able to fold it
-				cur = cond.GetNext()
-				if !cur.IsNil() && cur.GetNext().IsNil() {
-					return p.TryRemoveSwitchWithSingleCase(n, false)
+				// Go-only: Java tests cond.getNext(), which is the switch body (not
+				// a case), so its test always passes; only the matching case is
+				// left at this point anyway.
+				if cases.Node().HasOneChild() {
+					return p.TryRemoveSwitchWithSingleCase(sw, false)
 				}
 			}
 		}
 	}
 
 	// Last, try to remove the entire switch if possible
-	return p.TryRemoveSwitch(n)
+	return p.TryRemoveSwitch(sw)
 }
 
 // TryOptimizeDefaultCase returns the default case node or null if there is
 // no default case or if the default case is removed.
 //
 // Java: PeepholeRemoveDeadCode.tryOptimizeDefaultCase(Node)
-func (p *PeepholeRemoveDeadCode) TryOptimizeDefaultCase(n rhino.Node) rhino.Node {
-	jutil.CheckStateMsg1(n.IsSwitch(), "%s", n)
-
-	switchBody := n.GetSecondChild()
+func (p *PeepholeRemoveDeadCode) TryOptimizeDefaultCase(sw ast.Switch) rhino.Node {
+	n := sw.Node()
+	cases := sw.Body()
 	var lastNonRemovable rhino.Node // the most recently iterated case known to not be removable.
 
-	for c := switchBody.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if c.IsDefaultCase() {
-			// Remove any cases that fall-through to the default case
-			var caseToRemove rhino.Node
-			if !lastNonRemovable.IsNil() {
-				caseToRemove = lastNonRemovable.GetNext()
-			} else {
-				caseToRemove = switchBody.GetFirstChild()
+	for c := range cases.Cases() {
+		if cs, ok := c.AsCase(); ok {
+			if cs.Body().HasStatements() || p.MayHaveSideEffects(cs.Value().Node()) {
+				lastNonRemovable = c.Node()
 			}
-			for next := (rhino.Node)(rhino.NilNode); caseToRemove != c; caseToRemove = next {
-				next = caseToRemove.GetNext()
-				p.RemoveCase(n, caseToRemove)
-			}
-
-			// Remove the default case if we can
-			if p.IsUselessCase(c, lastNonRemovable, c) {
-				p.RemoveCase(n, c)
-				return rhino.NilNode
-			}
-			return c
-		} else {
-			jutil.CheckState(c.IsCase())
-			if c.GetLastChild().HasChildren() || p.MayHaveSideEffects(c.GetFirstChild()) {
-				lastNonRemovable = c
-			}
+			continue
 		}
+
+		// c is the default case.
+		// Remove any cases that fall-through to the default case
+		caseToRemove := cases.Node().GetFirstChild()
+		if !lastNonRemovable.IsNil() {
+			caseToRemove = lastNonRemovable.GetNext()
+		}
+		for next := rhino.NilNode; !c.Is(caseToRemove); caseToRemove = next {
+			next = caseToRemove.GetNext()
+			p.RemoveCase(n, caseToRemove)
+		}
+
+		// Remove the default case if we can
+		if p.IsUselessCase(c, lastNonRemovable, c.Node()) {
+			p.RemoveCase(n, c.Node())
+			return rhino.NilNode
+		}
+		return c.Node()
 	}
 	return rhino.NilNode
 }
@@ -816,56 +906,55 @@ func (p *PeepholeRemoveDeadCode) RemoveCase(switchNode rhino.Node, caseNode rhin
 // DEFAULT_CASE node in the SWITCH, or the DEFAULT_CASE is the last case in
 // the SWITCH.
 //
+// previousCase (the case before caseNode) and defaultCase are the nil node
+// when there is none.
+//
 // Java: PeepholeRemoveDeadCode.isUselessCase(Node, Node, Node)
 func (p *PeepholeRemoveDeadCode) IsUselessCase(
-	caseNode rhino.Node, previousCase rhino.Node, defaultCase rhino.Node) bool {
-	jutil.CheckState(previousCase.IsNil() || previousCase.GetNext() == caseNode)
+	caseNode ast.SwitchCase, previousCase rhino.Node, defaultCase rhino.Node) bool {
+	jutil.CheckState(previousCase.IsNil() || previousCase.GetNext() == caseNode.Node())
 	// A case isn't useless if a previous case falls through to it unless it happens to be the last
 	// case in the switch.
-	switchBody := caseNode.GetParent()
-	if switchBody.GetLastChild() != caseNode && !previousCase.IsNil() {
-		previousBlock := previousCase.GetLastChild()
-		if !previousBlock.HasChildren() || !PeepholeRemoveDeadCode_IsExit(previousBlock.GetLastChild()) {
-			return false
+	if prev, ok := ast.AsSwitchCase(previousCase); ok {
+		if _, hasNext := caseNode.Next(); hasNext {
+			previousLast, ok := prev.Body().LastStatement()
+			if !ok || !PeepholeRemoveDeadCode_IsExit(previousLast.Node()) {
+				return false
+			}
 		}
 	}
 
-	executingCase := caseNode
-	for !executingCase.IsNil() {
-		jutil.CheckState(executingCase.IsDefaultCase() || executingCase.IsCase())
+	for executingCase, ok := caseNode, true; ok; executingCase, ok = executingCase.Next() {
 		// We only expect a DEFAULT case if the case we are checking is the
 		// DEFAULT case.  Otherwise, we assume the DEFAULT case has already
 		// been removed.
-		jutil.CheckState(caseNode == executingCase || !executingCase.IsDefaultCase())
-		if !executingCase.IsDefaultCase() && p.MayHaveSideEffects(executingCase.GetFirstChild()) {
+		c, isCase := executingCase.AsCase()
+		jutil.CheckState(caseNode == executingCase || isCase)
+		if isCase && p.MayHaveSideEffects(c.Value().Node()) {
 			// The case falls thru to a case whose condition has a potential side-effect,
 			// removing the candidate case would skip that side-effect, so don't.
 			return false
 		}
-		block := executingCase.GetLastChild()
-		jutil.CheckState(block.IsBlock())
-		if block.HasChildren() {
-			for blockChild := block.GetFirstChild(); !blockChild.IsNil(); blockChild = blockChild.GetNext() {
-				// If this is a block with a labelless break, it is useless.
-				switch blockChild.GetToken() {
-				case rhino.Token_BREAK:
-					// A case with a single labelless break is useless if it is the default case or if
-					// there is no default case. A break to a different control structure isn't useless.
-					return !blockChild.HasChildren() &&
-						(defaultCase.IsNil() || defaultCase == executingCase)
-				case rhino.Token_VAR:
-					if blockChild.HasOneChild() && blockChild.GetFirstFirstChild().IsNil() {
-						// Variable declarations without initializations are OK.
-						continue
-					}
-					return false
-				default:
-					return false
+		for blockChild := range executingCase.Body().Statements() {
+			// If this is a block with a labelless break, it is useless.
+			switch blockChild.Node().GetToken() {
+			case rhino.Token_BREAK:
+				// A case with a single labelless break is useless if it is the default case or if
+				// there is no default case. A break to a different control structure isn't useless.
+				return peepholeRemoveDeadCode_isUnnamedBreak(blockChild.Node()) &&
+					(defaultCase.IsNil() || executingCase.Is(defaultCase))
+			case rhino.Token_VAR:
+				// Variable declarations without initializations are OK: one declarator,
+				// and no child under it (a destructuring declarator has its pattern).
+				if blockChild.Node().HasOneChild() && blockChild.Node().GetFirstFirstChild().IsNil() {
+					continue
 				}
+				return false
+			default:
+				return false
 			}
 		}
 		// Look at the fallthrough case
-		executingCase = executingCase.GetNext()
 	}
 	return true
 }
@@ -879,13 +968,10 @@ func (p *PeepholeRemoveDeadCode) IsFirstSwitchMatch(foundMatchingCase bool, cond
 }
 
 // Java: PeepholeRemoveDeadCode.areAllCaseTagsLiterals(Node)
-func (p *PeepholeRemoveDeadCode) AreAllCaseTagsLiterals(switchBody rhino.Node) bool {
-	for caseNode := switchBody.GetFirstChild(); !caseNode.IsNil(); caseNode = caseNode.GetNext() {
-		if caseNode.IsDefaultCase() {
-			continue
-		}
-		caseTag := caseNode.GetFirstChild()
-		if !NodeUtil_IsLiteralValue(caseTag, false) {
+func (p *PeepholeRemoveDeadCode) AreAllCaseTagsLiterals(cases ast.SwitchBody) bool {
+	for c := range cases.Cases() {
+		// A default case has no tag.
+		if cs, ok := c.AsCase(); ok && !NodeUtil_IsLiteralValue(cs.Value().Node(), false) {
 			return false
 		}
 	}
@@ -914,18 +1000,17 @@ func PeepholeRemoveDeadCode_IsExit(n rhino.Node) bool {
 // try..catch statement.
 //
 // Java: PeepholeRemoveDeadCode.isUnconditionalBlockExit(Node)
-func PeepholeRemoveDeadCode_IsUnconditionalBlockExit(n rhino.Node) bool {
-	jutil.CheckStateMsg1(n.IsBlock(), "%s", n)
-	jutil.CheckStateMsg1(!n.GetParent().IsLabel(), "%s", n)
+func PeepholeRemoveDeadCode_IsUnconditionalBlockExit(block ast.Block) bool {
+	jutil.CheckStateMsg1(!block.Node().GetParent().IsLabel(), "%s", block.Node())
 
 	// Last statement must lead out of the block.
-	lastStm := n.GetLastChild()
-	if lastStm.IsNil() {
+	lastStm, ok := block.LastStatement()
+	if !ok {
 		return false
 	}
-	switch lastStm.GetToken() {
+	switch lastStm.Node().GetToken() {
 	case rhino.Token_BREAK:
-		if !lastStm.HasChildren() {
+		if peepholeRemoveDeadCode_isUnnamedBreak(lastStm.Node()) {
 			return false
 		}
 		// Last statement is OK - continue with checking others.
@@ -937,10 +1022,13 @@ func PeepholeRemoveDeadCode_IsUnconditionalBlockExit(n rhino.Node) bool {
 
 	// Other statements can be anything except for unlabeled "break". But for simplicity, don't go
 	// into inner blocks and complex constructs - instead, allow only the simplest statements.
-	for child := n.GetFirstChild(); child != lastStm; child = child.GetNext() {
-		switch child.GetToken() {
+	for child := range block.Statements() {
+		if child == lastStm {
+			break
+		}
+		switch child.Node().GetToken() {
 		case rhino.Token_BREAK:
-			if !child.HasChildren() {
+			if peepholeRemoveDeadCode_isUnnamedBreak(child.Node()) {
 				return false
 			}
 			// This break is OK - continue with checking others.
@@ -959,18 +1047,22 @@ func PeepholeRemoveDeadCode_IsUnconditionalBlockExit(n rhino.Node) bool {
 //
 // Java: PeepholeRemoveDeadCode.isSwitchExit(Node)
 func PeepholeRemoveDeadCode_IsSwitchExit(n rhino.Node) bool {
-	jutil.CheckStateMsg1(n.IsSwitch(), "%s", n)
+	sw, ok := ast.AsSwitch(n)
+	jutil.CheckStateMsg1(ok, "%s", n)
 
 	hasDefaultCase := false
 
-	switchBody := n.GetSecondChild()
-	for switchCase := switchBody.GetFirstChild(); !switchCase.IsNil(); switchCase = switchCase.GetNext() {
-		if switchCase.IsDefaultCase() {
+	for switchCase := range sw.Body().Cases() {
+		if _, ok := switchCase.AsDefaultCase(); ok {
 			hasDefaultCase = true
 		}
-		block := switchCase.GetLastChild()
-		if (block.HasChildren() || switchCase.GetNext().IsNil()) &&
-			!PeepholeRemoveDeadCode_IsUnconditionalBlockExit(block) {
+		block := switchCase.Body()
+		if !block.HasStatements() {
+			if _, hasNext := switchCase.Next(); hasNext {
+				continue // An empty case falls through to the next one.
+			}
+		}
+		if !PeepholeRemoveDeadCode_IsUnconditionalBlockExit(block) {
 			return false
 		}
 	}
@@ -983,33 +1075,32 @@ func PeepholeRemoveDeadCode_IsSwitchExit(n rhino.Node) bool {
 //
 // Java: PeepholeRemoveDeadCode.isTryExit(Node)
 func PeepholeRemoveDeadCode_IsTryExit(n rhino.Node) bool {
-	jutil.CheckStateMsg1(n.IsTry(), "%s", n)
+	try, ok := ast.AsTry(n)
+	jutil.CheckStateMsg1(ok, "%s", n)
 
 	// finally - regardless of the behavior of the other blocks,
 	// an exit from the finally with guarantee that behavior.
-	if n.HasXChildren(3) {
-		if PeepholeRemoveDeadCode_IsUnconditionalBlockExit(n.GetLastChild()) {
-			return true
-		}
+	if finally, ok := try.Finally(); ok && PeepholeRemoveDeadCode_IsUnconditionalBlockExit(finally) {
+		return true
 	}
 	// try
-	if !PeepholeRemoveDeadCode_IsUnconditionalBlockExit(n.GetFirstChild()) {
+	if !PeepholeRemoveDeadCode_IsUnconditionalBlockExit(try.Body()) {
 		return false
 	}
 	// catch
-	catches := n.GetSecondChild()
-	return !catches.HasChildren() ||
-		PeepholeRemoveDeadCode_IsUnconditionalBlockExit(catches.GetOnlyChild().GetLastChild())
+	catch, ok := try.Catch()
+	return !ok || PeepholeRemoveDeadCode_IsUnconditionalBlockExit(catch.Body())
 }
 
 // Java: PeepholeRemoveDeadCode.tryFoldComma(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldComma(n rhino.Node) rhino.Node {
+	comma, ok := ast.AsBinary(n)
+	jutil.CheckState(ok)
 	// If the left side does nothing replace the comma with the result.
 	parent := n.GetParent()
-	left := n.GetFirstChild()
-	right := left.GetNext()
+	right := comma.Right().Node()
 
-	left = p.TrySimplifyUnusedResult(left)
+	left := p.TrySimplifyUnusedResult(comma.Left().Node())
 	if left.IsNil() || !p.MayHaveSideEffects(left) {
 		// Fold it!
 		right.Detach()
@@ -1022,6 +1113,9 @@ func (p *PeepholeRemoveDeadCode) TryFoldComma(n rhino.Node) rhino.Node {
 
 // TryOptimizeBlock tries removing unneeded block nodes and their useless
 // children.
+//
+// Go-only: n is a SCRIPT or a BLOCK, whose children this walks alike, so it
+// uses the rhino API.
 //
 // Java: PeepholeRemoveDeadCode.tryOptimizeBlock(Node)
 func (p *PeepholeRemoveDeadCode) TryOptimizeBlock(n rhino.Node) rhino.Node {
@@ -1129,8 +1223,10 @@ func (p *PeepholeRemoveDeadCode) RedeclareIfBlockScopedVar(decl rhino.Node, pare
 		return
 	}
 	var blockScopedVars []rhino.Node
-	if decl.IsClass() {
-		blockScopedVars = append(blockScopedVars, decl.GetFirstChild())
+	if class, ok := ast.AsClass(decl); ok {
+		if name, ok := class.Name(); ok {
+			blockScopedVars = append(blockScopedVars, name.Node())
+		}
 	} else {
 		NodeUtil_VisitLhsNodesInNode(
 			decl,
@@ -1199,24 +1295,23 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeConditionalAfterAssign(n rhino.Node)
 	// This is here simply to remove the cruft left behind goog.userAgent and
 	// similar cases.
 
-	if !PeepholeRemoveDeadCode_IsSimpleAssignment(n) {
+	lhsAssign, rhsAssign, ok := peepholeRemoveDeadCode_simpleAssignment(n)
+	if !ok {
 		return
 	}
 	conditionalRoot := p.GetConditionalRoot(next)
 	if conditionalRoot.IsNil() {
 		return
 	}
-	lhsAssign := p.GetSimpleAssignmentName(n)
 
 	condition := p.GetConditionalStatementCondition(next)
-	if !lhsAssign.MatchesNameNode(condition) {
+	if !lhsAssign.Node().MatchesNameNode(condition) {
 		return
 	}
-	rhsAssign := p.GetSimpleAssignmentValue(n)
 	switch conditionalRoot.GetToken() {
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_IF, rhino.Token_HOOK:
 		// conditionals that coerce their condition to a boolean
-		value := NodeUtil_GetBooleanValue(rhsAssign)
+		value := NodeUtil_GetBooleanValue(rhsAssign.Node())
 		if value != base.Tri_UNKNOWN {
 			replacementConditionNode := NodeUtil_BooleanNode(value.ToBoolean(true))
 			condition.ReplaceWith(replacementConditionNode)
@@ -1225,7 +1320,7 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeConditionalAfterAssign(n rhino.Node)
 		return
 	case rhino.Token_COALESCE:
 		// conditional that checks whether its operand is nullish
-		valueType := NodeUtil_GetKnownValueType(rhsAssign)
+		valueType := NodeUtil_GetKnownValueType(rhsAssign.Node())
 		switch valueType {
 		case NodeUtil_ValueType_NULL, NodeUtil_ValueType_VOID:
 			condition.ReplaceWith(NodeUtil_NewUndefinedNode(condition))
@@ -1242,43 +1337,46 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeConditionalAfterAssign(n rhino.Node)
 	}
 }
 
-// PeepholeRemoveDeadCode_IsSimpleAssignment returns whether the node is a
-// assignment to a simple name, or simple var declaration with
-// initialization.
+// peepholeRemoveDeadCode_simpleAssignment returns the name and the value of
+// the simple assignment n; ok is false if n is not one.
 //
-// Java: PeepholeRemoveDeadCode.isSimpleAssignment(Node)
-func PeepholeRemoveDeadCode_IsSimpleAssignment(n rhino.Node) bool {
-	// For our purposes we define a simple assignment to be a assignment
-	// to a NAME node, or a VAR declaration with one child and a initializer.
-	if NodeUtil_IsExprAssign(n) && n.GetFirstFirstChild().IsName() {
-		return true
-	} else if NodeUtil_IsNameDeclaration(n) && n.HasOneChild() && !n.GetFirstFirstChild().IsNil() {
-		return true
+// For our purposes we define a simple assignment to be a assignment to a
+// NAME node (`a = value;`), or a VAR declaration with one child and a
+// initializer (`var a = value;`, also with let or const).
+//
+// Go-only: Java has a predicate and a getter for the name and for the value;
+// here one typed helper returns both. Java also accepts a declaration with
+// one destructuring declarator (`var [a] = value;`), whose "name" never
+// matches a condition: the result is the same.
+//
+// Java: PeepholeRemoveDeadCode.isSimpleAssignment(Node),
+// getSimpleAssignmentName(Node) and getSimpleAssignmentValue(Node)
+func peepholeRemoveDeadCode_simpleAssignment(n rhino.Node) (name ast.Name, value ast.Expr, ok bool) {
+	if stmt, ok := ast.AsExprStmt(n); ok {
+		assign, ok := stmt.Expr().AsAssign()
+		if !ok {
+			return ast.Name{}, ast.Expr{}, false
+		}
+		name, ok := assign.Target().AsName()
+		return name, assign.Value(), ok
 	}
-
-	return false
-}
-
-// GetSimpleAssignmentName returns the name being assigned to.
-//
-// Java: PeepholeRemoveDeadCode.getSimpleAssignmentName(Node)
-func (p *PeepholeRemoveDeadCode) GetSimpleAssignmentName(n rhino.Node) rhino.Node {
-	jutil.CheckState(PeepholeRemoveDeadCode_IsSimpleAssignment(n))
-	if NodeUtil_IsExprAssign(n) {
-		return n.GetFirstFirstChild()
-	} else {
-		// A var declaration.
-		return n.GetFirstChild()
+	decl, ok := ast.AsNameDeclaration(n)
+	if !ok {
+		return ast.Name{}, ast.Expr{}, false
 	}
-}
-
-// GetSimpleAssignmentValue returns the value assigned in the simple
-// assignment.
-//
-// Java: PeepholeRemoveDeadCode.getSimpleAssignmentValue(Node)
-func (p *PeepholeRemoveDeadCode) GetSimpleAssignmentValue(n rhino.Node) rhino.Node {
-	jutil.CheckState(PeepholeRemoveDeadCode_IsSimpleAssignment(n))
-	return n.GetFirstChild().GetLastChild()
+	only, ok := decl.FirstDeclarator()
+	if !ok {
+		return ast.Name{}, ast.Expr{}, false
+	}
+	if _, more := only.Next(); more {
+		return ast.Name{}, ast.Expr{}, false
+	}
+	name, ok = only.AsName()
+	if !ok {
+		return ast.Name{}, ast.Expr{}, false
+	}
+	value, ok = name.Init()
+	return name, value, ok
 }
 
 // GetConditionalRoot returns the root node if a conditional statement or
@@ -1319,10 +1417,11 @@ func PeepholeRemoveDeadCode_IsExprConditional(n rhino.Node) bool {
 //
 // Java: PeepholeRemoveDeadCode.getConditionalStatementCondition(Node)
 func (p *PeepholeRemoveDeadCode) GetConditionalStatementCondition(n rhino.Node) rhino.Node {
-	if n.IsIf() {
-		return NodeUtil_GetConditionExpression(n)
+	if ifs, ok := ast.AsIf(n); ok {
+		return ifs.Cond().Node()
 	} else {
 		jutil.CheckState(PeepholeRemoveDeadCode_IsExprConditional(n))
+		// The first operand of the HOOK, AND, OR or COALESCE: the tested one.
 		return n.GetFirstFirstChild()
 	}
 }
@@ -1333,36 +1432,36 @@ func (p *PeepholeRemoveDeadCode) GetConditionalStatementCondition(n rhino.Node) 
 //
 // Java: PeepholeRemoveDeadCode.tryFoldIf(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldIf(n rhino.Node) rhino.Node {
-	jutil.CheckStateMsg1(n.IsIf(), "%s", n)
+	ifs, ok := ast.AsIf(n)
+	jutil.CheckStateMsg1(ok, "%s", n)
 	parent := n.GetParent()
 	rhino.CheckNotNull(parent)
-	type_ := n.GetToken()
-	cond := n.GetFirstChild()
-	thenBody := cond.GetNext()
-	elseBody := thenBody.GetNext()
+	cond := ifs.Cond().Node()
+	thenBody := ifs.Then()
+	elseBody, hasElse := ifs.Else()
 
 	// if (x) { .. } else { } --> if (x) { ... }
-	if !elseBody.IsNil() && !p.MayHaveSideEffects(elseBody) {
-		elseBody.Detach()
+	if hasElse && !p.MayHaveSideEffects(elseBody.Node()) {
+		ifs.RemoveElse()
 		p.ReportChangeToEnclosingScope(n)
-		elseBody = rhino.NilNode
+		hasElse = false
 	}
 
 	// if (x) { } else { ... } --> if (!x) { ... }
-	if !p.MayHaveSideEffects(thenBody) && !elseBody.IsNil() {
-		elseBody.Detach()
-		thenBody.ReplaceWith(elseBody)
+	if !p.MayHaveSideEffects(thenBody.Node()) && hasElse {
+		ifs.RemoveElse()
+		ifs.SetThen(elseBody)
 		notCond := rhino.NewNode(rhino.Token_NOT)
 		cond.ReplaceWith(notCond)
 		p.ReportChangeToEnclosingScope(n)
 		notCond.AddChildToFront(cond)
 		cond = notCond
-		thenBody = cond.GetNext()
-		elseBody = rhino.NilNode
+		thenBody = elseBody
+		hasElse = false
 	}
 
 	// `if (x()) { }` or `if (x?.()) { }`
-	if !p.MayHaveSideEffects(thenBody) && elseBody.IsNil() {
+	if !p.MayHaveSideEffects(thenBody.Node()) && !hasElse {
 		if p.MayHaveSideEffects(cond) {
 			// `x()` or `x?.()` has side effects, just leave the condition on its own.
 			cond.Detach()
@@ -1388,30 +1487,26 @@ func (p *PeepholeRemoveDeadCode) TryFoldIf(n rhino.Node) rhino.Node {
 		// Transform "if (a = 2) {x =2}" into "if (true) {a=2;x=2}"
 		newConditionValue := condValue == base.Tri_TRUE
 		// Add an elseBody if it is needed.
-		if !newConditionValue && elseBody.IsNil() {
-			elseBody = rhino.IR_Block().Srcref(n)
-			n.AddChildToBack(elseBody)
+		if !newConditionValue && !hasElse {
+			elseBody = ast.NewBlock()
+			elseBody.Node().Srcref(n)
+			ifs.SetElse(elseBody)
+			hasElse = true
 		}
-		newCond := NodeUtil_BooleanNode(newConditionValue)
-		cond.ReplaceWith(newCond)
-		var branchToKeep rhino.Node
-		if newConditionValue {
-			branchToKeep = thenBody
-		} else {
+		cond.ReplaceWith(NodeUtil_BooleanNode(newConditionValue))
+		branchToKeep := thenBody
+		if !newConditionValue {
 			branchToKeep = elseBody
 		}
-		branchToKeep.AddChildToFront(rhino.IR_ExprResult(cond).Srcref(cond))
-		p.ReportChangeToEnclosingScope(branchToKeep)
-		cond = newCond
+		branchToKeep.Node().AddChildToFront(rhino.IR_ExprResult(cond).Srcref(cond))
+		p.ReportChangeToEnclosingScope(branchToKeep.Node())
 	}
 
 	condTrue := condValue.ToBoolean(true)
-	if n.HasTwoChildren() {
-		jutil.CheckState(type_ == rhino.Token_IF)
-
+	if !hasElse {
 		if condTrue {
 			// Replace "if (true) { X }" with "X".
-			thenStmt := n.GetSecondChild()
+			thenStmt := thenBody.Node()
 			thenStmt.Detach()
 			n.ReplaceWith(thenStmt)
 			p.ReportChangeToEnclosingScope(thenStmt)
@@ -1427,22 +1522,16 @@ func (p *PeepholeRemoveDeadCode) TryFoldIf(n rhino.Node) rhino.Node {
 	} else {
 		// Replace "if (true) { X } else { Y }" with X, or
 		// replace "if (false) { X } else { Y }" with Y.
-		trueBranch := n.GetSecondChild()
-		falseBranch := trueBranch.GetNext()
-		var branchToKeep, branchToRemove rhino.Node
-		if condTrue {
-			branchToKeep = trueBranch
-			branchToRemove = falseBranch
-		} else {
-			branchToKeep = falseBranch
-			branchToRemove = trueBranch
+		branchToKeep, branchToRemove := thenBody, elseBody
+		if !condTrue {
+			branchToKeep, branchToRemove = elseBody, thenBody
 		}
-		NodeUtil_RedeclareVarsInsideBranch(branchToRemove)
-		branchToKeep.Detach()
-		n.ReplaceWith(branchToKeep)
-		p.ReportChangeToEnclosingScope(branchToKeep)
+		NodeUtil_RedeclareVarsInsideBranch(branchToRemove.Node())
+		branchToKeep.Node().Detach()
+		n.ReplaceWith(branchToKeep.Node())
+		p.ReportChangeToEnclosingScope(branchToKeep.Node())
 		p.MarkFunctionsDeleted(n)
-		return branchToKeep
+		return branchToKeep.Node()
 	}
 }
 
@@ -1453,12 +1542,13 @@ func (p *PeepholeRemoveDeadCode) TryFoldIf(n rhino.Node) rhino.Node {
 //
 // Java: PeepholeRemoveDeadCode.tryFoldHook(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldHook(n rhino.Node) rhino.Node {
-	jutil.CheckStateMsg1(n.IsHook(), "%s", n)
+	hook, ok := ast.AsHook(n)
+	jutil.CheckStateMsg1(ok, "%s", n)
 	parent := n.GetParent()
 	rhino.CheckNotNull(parent)
-	cond := n.GetFirstChild()
-	thenBody := cond.GetNext()
-	elseBody := thenBody.GetNext()
+	cond := hook.Cond().Node()
+	thenBody := hook.Then().Node()
+	elseBody := hook.Else().Node()
 
 	condValue := NodeUtil_GetBooleanValue(cond)
 	if condValue == base.Tri_UNKNOWN {
@@ -1502,36 +1592,37 @@ func (p *PeepholeRemoveDeadCode) TryFoldHook(n rhino.Node) rhino.Node {
 //
 // Java: PeepholeRemoveDeadCode.tryFoldFor(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldFor(n rhino.Node) rhino.Node {
-	jutil.CheckArgument(n.IsVanillaFor())
+	forNode, ok := ast.AsFor(n)
+	jutil.CheckArgument(ok)
 
-	init := n.GetFirstChild()
-	cond := init.GetNext()
-	increment := cond.GetNext()
+	// Read the parts first: removing the init or the update below shifts the
+	// children that follow it.
+	init, hasInit := forNode.Init()
+	update, hasUpdate := forNode.Update()
+	body := forNode.Body()
 
-	if !init.IsEmpty() && !NodeUtil_IsNameDeclaration(init) {
-		init = p.TrySimplifyUnusedResult(init)
-		if init.IsNil() {
-			init = rhino.IR_Empty().Srcref(n)
-			n.AddChildToFront(init)
+	if hasInit {
+		if _, isDecl := init.AsNameDeclaration(); !isDecl && p.TrySimplifyUnusedResult(init.Node()).IsNil() {
+			// The init was removed: put an EMPTY in its place.
+			n.AddChildToFront(rhino.IR_Empty().Srcref(n))
 		}
 	}
 
-	if !increment.IsEmpty() {
-		increment = p.TrySimplifyUnusedResult(increment)
-		if increment.IsNil() {
-			increment = rhino.IR_Empty().Srcref(n)
-			increment.InsertAfter(cond)
-		}
+	if hasUpdate && p.TrySimplifyUnusedResult(update.Node()).IsNil() {
+		// The update was removed: put an EMPTY in its place, before the body.
+		rhino.IR_Empty().Srcref(n).InsertBefore(body.Node())
 	}
 
 	// There is an initializer skip it
-	if !n.GetFirstChild().IsEmpty() {
+	if _, ok := forNode.Init(); ok {
 		return n
 	}
 
-	if NodeUtil_GetBooleanValue(cond) != base.Tri_FALSE {
+	condExpr, ok := forNode.Cond()
+	if !ok || NodeUtil_GetBooleanValue(condExpr.Node()) != base.Tri_FALSE {
 		return n
 	}
+	cond := condExpr.Node()
 
 	parent := n.GetParent()
 	NodeUtil_RedeclareVarsInsideBranch(n)
@@ -1564,14 +1655,15 @@ func (p *PeepholeRemoveDeadCode) TryFoldFor(n rhino.Node) rhino.Node {
 //
 // Java: PeepholeRemoveDeadCode.tryFoldDoAway(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldDoAway(n rhino.Node) rhino.Node {
-	jutil.CheckArgument(n.IsDo())
+	do, ok := ast.AsDo(n)
+	jutil.CheckArgument(ok)
 
-	cond := NodeUtil_GetConditionExpression(n)
+	cond := do.Cond().Node()
 	if NodeUtil_GetBooleanValue(cond) != base.Tri_FALSE {
 		return n
 	}
 
-	block := NodeUtil_GetLoopCodeBlock(n)
+	block := do.Body().Node()
 	if n.GetParent().IsLabel() || PeepholeRemoveDeadCode_HasUnnamedBreakOrContinue(block) {
 		return n
 	}
@@ -1592,13 +1684,15 @@ func (p *PeepholeRemoveDeadCode) TryFoldDoAway(n rhino.Node) rhino.Node {
 //
 // Java: PeepholeRemoveDeadCode.tryFoldEmptyDo(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldEmptyDo(n rhino.Node) rhino.Node {
-	jutil.CheckArgument(n.IsDo())
+	do, ok := ast.AsDo(n)
+	jutil.CheckArgument(ok)
 
-	body := NodeUtil_GetLoopCodeBlock(n)
-	if body.IsBlock() && !body.HasChildren() {
-		cond := NodeUtil_GetConditionExpression(n)
+	// (Java also checks that the body is a block: it always is.)
+	body := do.Body()
+	if !body.HasStatements() {
+		cond := do.Cond().Node()
 		forNode :=
-			rhino.IR_ForNode(rhino.IR_Empty().Srcref(n), cond.Detach(), rhino.IR_Empty().Srcref(n), body.Detach())
+			rhino.IR_ForNode(rhino.IR_Empty().Srcref(n), cond.Detach(), rhino.IR_Empty().Srcref(n), body.Node().Detach())
 		n.ReplaceWith(forNode)
 		p.ReportChangeToEnclosingScope(forNode)
 		return forNode
@@ -1610,65 +1704,67 @@ func (p *PeepholeRemoveDeadCode) TryFoldEmptyDo(n rhino.Node) rhino.Node {
 // their child.
 //
 // Java: PeepholeRemoveDeadCode.tryOptimizeObjectPattern(Node)
-func (p *PeepholeRemoveDeadCode) TryOptimizeObjectPattern(pattern rhino.Node) rhino.Node {
-	jutil.CheckArgumentMsg1(pattern.IsObjectPattern(), "%s", pattern)
+func (p *PeepholeRemoveDeadCode) TryOptimizeObjectPattern(n rhino.Node) rhino.Node {
+	pattern, ok := ast.AsObjectPattern(n)
+	jutil.CheckArgumentMsg1(ok, "%s", n)
 
-	if pattern.HasChildren() && pattern.GetLastChild().IsRest() {
-		// don't remove any elements in `const {f: [], ...rest} = obj` because that affects what's
-		// assigned to `rest`. only the last element can be object rest.
-		return pattern
+	if last, ok := pattern.LastProp(); ok {
+		if _, isRest := last.AsObjectRest(); isRest {
+			// don't remove any elements in `const {f: [], ...rest} = obj` because that affects what's
+			// assigned to `rest`. only the last element can be object rest.
+			return n
+		}
 	}
 
 	// remove trailing EMPTY nodes and empty destructuring patterns
-	for child := pattern.GetFirstChild(); !child.IsNil(); {
-		key := child
-		child = key.GetNext() // don't put this in the for loop since we might remove `child`
+	for prop, ok := pattern.FirstProp(); ok; {
+		next, hasNext := prop.Next() // read it first: prop may be removed
 
-		if !key.IsStringKey() {
-			// don't try to remove rest or computed properties, since they might have side effects
-			continue
-		}
-		if p.IsRemovableDestructuringTarget(key.GetOnlyChild()) {
+		// don't try to remove rest or computed properties, since they might have side effects
+		if key, isKey := prop.AsStringKey(); isKey && p.IsRemovableDestructuringTarget(key.Value().Node()) {
 			// e.g. `const {f: {}} = obj;`
-			key.Detach()
-			p.ReportChangeToEnclosingScope(pattern)
+			key.Node().Detach()
+			p.ReportChangeToEnclosingScope(n)
 		}
+		prop, ok = next, hasNext
 	}
-	return pattern
+	return n
 }
 
 // TryOptimizeArrayPattern removes trailing EMPTY nodes and empty array
 // patterns.
 //
 // Java: PeepholeRemoveDeadCode.tryOptimizeArrayPattern(Node)
-func (p *PeepholeRemoveDeadCode) TryOptimizeArrayPattern(pattern rhino.Node) rhino.Node {
-	jutil.CheckArgumentMsg1(pattern.IsArrayPattern(), "%s", pattern)
+func (p *PeepholeRemoveDeadCode) TryOptimizeArrayPattern(n rhino.Node) rhino.Node {
+	pattern, ok := ast.AsArrayPattern(n)
+	jutil.CheckArgumentMsg1(ok, "%s", n)
 
-	for lastChild := pattern.GetLastChild(); !lastChild.IsNil(); {
-		if lastChild.IsEmpty() || p.IsRemovableDestructuringTarget(lastChild) {
-			prev := lastChild.GetPrevious()
-			lastChild.Detach()
-			lastChild = prev
-			p.ReportChangeToEnclosingScope(pattern)
-		} else {
+	for last, ok := pattern.LastElement(); ok; last, ok = pattern.LastElement() {
+		if _, isHole := last.AsEmpty(); !isHole && !p.IsRemovableDestructuringTarget(last.Node()) {
 			// don't remove any non-trailing empty nodes because that will change the ordering of the
 			// other assignments
 			// note that this case also covers array pattern rest, which must be the final element
 			break
 		}
+		last.Node().Detach()
+		p.ReportChangeToEnclosingScope(n)
 	}
-	return pattern
+	return n
 }
 
+// IsRemovableDestructuringTarget reports whether the element of a pattern
+// (an array pattern element, or the value of an object pattern key) is an
+// empty pattern, with a default value without side effects if it has one.
+//
 // Java: PeepholeRemoveDeadCode.isRemovableDestructuringTarget(Node)
-func (p *PeepholeRemoveDeadCode) IsRemovableDestructuringTarget(destructruringElement rhino.Node) bool {
-	target := destructruringElement
-	var defaultValue rhino.Node
-	if destructruringElement.IsDefaultValue() {
-		target = destructruringElement.GetFirstChild()
-		defaultValue = destructruringElement.GetSecondChild()
+func (p *PeepholeRemoveDeadCode) IsRemovableDestructuringTarget(destructuringElement rhino.Node) bool {
+	target := destructuringElement
+	var defaultValue rhino.Node // the nil node if there is none
+	if dv, ok := ast.AsDefaultValue(destructuringElement); ok {
+		target = dv.Target().Node()
+		defaultValue = dv.Value().Node()
 	}
-	if !target.IsDestructuringPattern() || target.HasChildren() {
+	if pattern, ok := ast.AsPattern(target); !ok || pattern.Node().HasChildren() {
 		return false
 	}
 	// only remove default values without side effects
@@ -1683,7 +1779,7 @@ func PeepholeRemoveDeadCode_HasUnnamedBreakOrContinue(n rhino.Node) bool {
 	return NodeUtil_Has(
 		n,
 		// Check for unlabeled breaks
-		func(node rhino.Node) bool { return node.IsBreak() && !node.HasChildren() },
+		peepholeRemoveDeadCode_isUnnamedBreak,
 		// ...inside contexts that can contain breaks.
 		func(node rhino.Node) bool {
 			return !rhino.IR_MayBeExpression(node) && // Functions are not visited
@@ -1693,7 +1789,7 @@ func PeepholeRemoveDeadCode_HasUnnamedBreakOrContinue(n rhino.Node) bool {
 		NodeUtil_Has(
 			n,
 			// Check for unlabeled continues
-			func(node rhino.Node) bool { return node.IsContinue() && !node.HasChildren() },
+			peepholeRemoveDeadCode_isUnnamedContinue,
 			// ...inside contexts that can contain continues.
 			func(node rhino.Node) bool {
 				return !rhino.IR_MayBeExpression(node) && // Functions are not visited
@@ -1711,6 +1807,13 @@ func (p *PeepholeRemoveDeadCode) TryFoldForCondition(forCondition rhino.Node) {
 	}
 }
 
+// TryRemoveOptionalChaining removes an optional chain whose object (or
+// callee) is null or undefined.
+//
+// Go-only: the three optional chain kinds have no common typed view (the
+// first child is the object of a property access but the callee of a
+// call), so this uses the rhino API.
+//
 // Java: PeepholeRemoveDeadCode.tryRemoveOptionalChaining(Node)
 func (p *PeepholeRemoveDeadCode) TryRemoveOptionalChaining(optionalChain rhino.Node) rhino.Node {
 	callee := optionalChain.GetFirstChild()

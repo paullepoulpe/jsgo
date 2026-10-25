@@ -116,6 +116,14 @@ func (c *PeepholeRemoveDeadCodeTest) TestRemoveUselessLabelWithFollowingBreak() 
 	c.FoldSame("a:b: break a;")
 }
 
+// Go-only: a label whose statement is an unlabeled break (legal in a switch
+// case) is kept; Java's tryFoldLabel reads the missing label of the break
+// and throws a NullPointerException.
+func (c *PeepholeRemoveDeadCodeTest) TestKeepLabelWithUnlabeledBreak() {
+	c.FoldSame("switch (x) { case 1: a: break; case 2: foo(); }")
+	c.FoldSame("switch (x) { case 1: a: { break; } case 2: foo(); }")
+}
+
 // Java: PeepholeRemoveDeadCodeTest.testFoldBlock()
 func (c *PeepholeRemoveDeadCodeTest) TestFoldBlock() {
 	c.Fold("{{foo()}}", "foo()")
