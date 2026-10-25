@@ -1,9 +1,10 @@
 # A typed view of the AST
 
 Status: prototype. Package `internal/ast`, generated from
-`internal/ast/grammar.txt`; three passes use it (`MinimizeExitPoints`,
-`ConvertToDottedProperties` with a typed visitor, and the parts of the hot
-`InlineVariables` that read tree shapes).
+`internal/ast/grammar.txt`; six passes use it (`MinimizeExitPoints`,
+`ConvertToDottedProperties` with a typed visitor, the parts of the hot
+`InlineVariables` that read tree shapes, `PeepholeMinimizeConditions`,
+`PeepholeRemoveDeadCode` and `Normalize`).
 
 ## Why
 
@@ -231,6 +232,55 @@ Its feedback on the API:
 - Some typed helpers exceed Go's inlining budget (each accessor brings in
   the record lookup); fine per variable, to watch in per-node loops.
 
+## Fourth to sixth ports: PeepholeMinimizeConditions, PeepholeRemoveDeadCode, Normalize
+
+Three passes that are mostly about shapes, ported in parallel (2,400 lines
+together). Output, source maps and stderr byte-identical; pass times equal
+within noise (the machine was loaded, so medians of interleaved runs, and
+for Normalize an in-process harness: 238.8 vs 236.1 ms median over 48 runs).
+
+What the typed view changed in them:
+
+- **Reading by role.** `assign.Target()` and `assign.Value()` instead of
+  two `RemoveFirstChild()` calls in a row; `try.Finally()`, `try.Catch()`
+  instead of `HasXChildren(3)` and `GetSecondChild().GetOnlyChild()`;
+  `ifs.Else()` instead of `GetChildCount() < 3`.
+- **Java check-then-get pairs merged.** `isFoldableExpressBlock` +
+  `getBlockExpression` (and three more pairs) are one comma-ok function that
+  returns the typed node: no shape test, re-test in a `checkState`, then
+  positional reads.
+- **Token switches as dispatch tables.** Normalize had two copies of a token
+  switch (fast renamer and `MakeDeclaredNamesUnique` paths); both now run one
+  pre-order and one post-order `ast.Visitor`, called by hand from the
+  callback that keeps `EnterScope`/`ExitScope` (a pattern worth reusing when
+  a pass needs pre-order or scope callbacks).
+- **Dead checks gone, missing checks visible.** `IsBlock` tests of if
+  branches, `checkNotNull` of the then branch, `HasTwoChildren` on typed
+  arguments. In the other direction, facts the types cannot know (the body
+  is a block after normalization) became explicit `CheckState`s.
+- **A crash found.** `tryFoldLabel` read the label of a `break` without
+  checking it had one (Java does the same): `switch(x){case 1: a: break;}`
+  crashed the compiler. `brk.Label()` is comma-ok, so the case is now handled
+  (Go-only fix, with a test).
+- **Java quirks made visible.** The switch folding passes each case's first
+  child as its tag; for a default case that is its body (kept, for identical
+  output, behind a named helper). A Java "one case left" test reads the
+  wrong sibling and is always true (now a real check, same result).
+
+Their feedback, and what changed in the API since:
+
+| Friction | Now |
+|---|---|
+| no "only element" accessor (`HasOneChild()` + `GetFirstChild()`, six uses in one pass) | `OnlyX()` on every list (`block.OnlyStatement()`) |
+| categories have no `Token()`: switching on a statement's kind needs `.Node()` | `Token()` on every category |
+| every edit goes through `.Node()` | `Detach()` on every view, `ReplaceWith(v)` on categories; the rest (`InsertBefore`, `Srcref`, the `IR_*` builders) is still rhino |
+| `AsExpr` (a switch over 70 tokens) and `Statement.Next` (31) over the inlining budget | categories test a 256-bit token set: `AsExpr`, `AsStatement` inline; `Next()` calls an inlined check |
+| setters are positional, so they hit the wrong child mid-edit | documented in the package doc: read every child before the first edit |
+| peephole passes get one node at a time and dispatch with `x, _ := ast.AsHook(n) // the case proves the kind` | open; a per-node typed dispatch would help |
+| a visitor handler does not get the parent; no handler per category | open |
+| optional children stored as an EMPTY placeholder have no `RemoveX` (putting the EMPTY back, with its srcref, stays rhino) | open |
+| RETURN and THROW share no category; neither do the optional chains | left on rhino where typing would mean two conversions for one `GetFirstChild` |
+
 ## Performance outlook
 
 The typed view compiles to the same code as before, so on its own it neither
@@ -302,5 +352,6 @@ bundle and typed-full workloads:
 4. **Retire structural checks from AstValidator**: the grammar covers child
    counts and kinds; the validator keeps the semantic rules (features, scopes,
    types).
-5. **Inlining.** Make `LastX` and the hand-written accessors fit the
-   inlining budget (a cheaper last-child primitive in rhino).
+5. **Inlining.** Done for the category conversions and `LastX` (token sets,
+   a cheaper `GetLastChild`); `If.Else`, `For.Cond` and `Next()` are still
+   just over the budget.
