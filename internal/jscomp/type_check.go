@@ -33,11 +33,21 @@ import (
 
 // Go-only: this pass uses the typed AST view (internal/ast). Visit keeps the
 // Java's token switch, because every node also goes through the checks
-// before and after it, and hands each visit method the kind it checks; the
-// methods read the children by role (op.Left(), op.Right(),
-// unary.Operand()...) instead of by position. The checks themselves work
-// on the JSTypes of nodes and report on nodes, so they take rhino.Nodes
-// (x.Node()).
+// before and after it, and hands each visit method the kind it checks
+// (ast.Unary, ast.NormalOrOptChainCall, ast.Assignment, ast.Return...).
+// The methods read children by role (op.Left(), call.Callee(),
+// assign.Target(), class.Extends(), ret.Value()...) instead of by position,
+// and optional children comma-ok. The checks themselves work on the JSTypes
+// of nodes and report on nodes, so they take rhino.Nodes (x.Node()).
+//
+// Left on the rhino API: VisitObjectOrClassLiteralKey and the inheritance
+// checks it calls, which serve the members of object literals and classes
+// alike (two categories, eleven kinds) and read the first child as the key
+// of a computed member or the value of the others; the missing-property
+// checks (CheckPropertyAccess and below), whose node is a property access or
+// a key of an object pattern; CheckSpread, which reads the only child and
+// switches on the parent's token; VisitFunction and the constructor and
+// interface checks, which read no children.
 
 // TypeCheck checks the types of JS expressions against any declared type
 // information.
@@ -540,7 +550,6 @@ func typeCheck_isFunctionType(type_ rhino.JSType) bool {
 //
 // Java: TypeCheck.visit(NodeTraversal, Node, Node)
 func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	var childType rhino.JSType
 	// To be explicitly set to false if the node is not typeable.
 	typeable := true
 
@@ -574,7 +583,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 			expr.SetJSType(castType)
 		}
 	case rhino.Token_NAME:
-		typeable = tc.VisitName(t, n, parent)
+		typeable = tc.VisitName(t, ast.MustName(n), parent)
 	case rhino.Token_COMMA:
 		tc.EnsureTypedWithType(n, tc.GetJSType(ast.MustBinary(n).Right().Node()))
 	case rhino.Token_THIS:
@@ -772,13 +781,15 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	case rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NOT, rhino.Token_DELPROP:
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_BOOLEAN_TYPE)
 	case rhino.Token_CASE:
-		switchConditionType := tc.GetJSType(parent.GetPrevious())
-		caseType := tc.GetJSType(n.GetFirstChild())
+		// The parent of a case is the body of its switch.
+		switchNode := ast.MustSwitch(parent.GetParent())
+		switchConditionType := tc.GetJSType(switchNode.Discriminant().Node())
+		caseType := tc.GetJSType(ast.MustCase(n).Value().Node())
 		tc.validator.ExpectSwitchMatchesCase(n, switchConditionType, caseType)
 		typeable = false
 	case rhino.Token_WITH:
-		child := n.GetFirstChild()
-		childType = tc.GetJSType(child)
+		child := ast.MustWith(n).Object().Node()
+		childType := tc.GetJSType(child)
 		tc.validator.ExpectObject(child, childType, "with requires an object")
 		typeable = false
 	case rhino.Token_FUNCTION:
@@ -786,7 +797,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	case rhino.Token_CLASS:
 		tc.VisitClass(ast.MustClass(n))
 	case rhino.Token_MODULE_BODY:
-		tc.VisitModuleBody(t, n)
+		tc.VisitModuleBody(t, ast.MustModuleBody(n))
 	// These nodes have no interesting type behavior.
 	// These nodes require data flow analysis.
 	case rhino.Token_PARAM_LIST,
@@ -828,7 +839,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		rhino.Token_DESTRUCTURING_LHS:
 		typeable = false
 	case rhino.Token_DYNAMIC_IMPORT:
-		tc.VisitDynamicImport(t, n)
+		tc.VisitDynamicImport(t, ast.MustDynamicImport(n))
 	case rhino.Token_ARRAY_PATTERN:
 		tc.EnsureTyped(n)
 		tc.validator.ExpectAutoboxesToIterable(
@@ -871,13 +882,13 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		}
 		typeable = false
 	case rhino.Token_FOR_IN:
-		obj := n.GetSecondChild()
+		obj := ast.MustForIn(n).Object().Node()
 		if tc.GetJSType(obj).IsStruct() {
 			tc.Report(obj, TypeCheck_IN_USED_WITH_STRUCT)
 		}
 		typeable = false
 	case rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		tc.EnsureTyped(n.GetSecondChild())
+		tc.EnsureTyped(ast.MustForOfLoop(n).Iterable().Node())
 		typeable = false
 		// These nodes are typed during the type inference.
 	case rhino.Token_SUPER, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_AWAIT, rhino.Token_AND,
@@ -891,8 +902,8 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 			tc.EnsureTyped(n)
 		}
 		typ := tc.GetJSType(n)
-		for key := n.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-			tc.VisitObjectOrClassLiteralKey(key, n, typ)
+		for member := range ast.MustObjectLit(n).Members() {
+			tc.VisitObjectOrClassLiteralKey(member.Node(), n, typ)
 		}
 	case rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD:
 		tc.CheckSpread(n)
@@ -1866,10 +1877,13 @@ func (tc *TypeCheck) ReportInvalidInterfaceMemberDeclaration(interfaceNode rhino
 // visited. Returns whether the node is typeable or not.
 //
 // Java: TypeCheck.visitName(NodeTraversal, Node, Node)
-func (tc *TypeCheck) VisitName(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (tc *TypeCheck) VisitName(t *NodeTraversal, name ast.Name, parent rhino.Node) bool {
+	n := name.Node()
 	// Skip empty function expression names. They don't need a type.
+	// (Go-only: the rhino API, because Function.Name() reports an anonymous function's
+	// empty NAME as no name.)
 	isFunctionName := n.GetParent().IsFunction() && n.IsFirstChildOf(parent)
-	if isFunctionName && n.GetString() == "" {
+	if isFunctionName && name.Ident() == "" {
 		return false
 	}
 
@@ -1891,7 +1905,7 @@ func (tc *TypeCheck) VisitName(t *NodeTraversal, n rhino.Node, parent rhino.Node
 	}
 
 	// Not need to type first key in for-in or for-of.
-	if NodeUtil_IsEnhancedFor(parent) && parent.GetFirstChild() == n {
+	if loop, ok := ast.AsEnhancedFor(parent); ok && loop.Target().Is(n) {
 		reportIfMissingType = false
 	}
 
@@ -1899,7 +1913,7 @@ func (tc *TypeCheck) VisitName(t *NodeTraversal, n rhino.Node, parent rhino.Node
 	if type_ == nil {
 		type_ = tc.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 		// TODO(b/149843534): crash instead of defaulting to '?' when the var is null.
-		var_ := t.GetTypedScope().GetVar(n.GetString())
+		var_ := t.GetTypedScope().GetVar(name.Ident())
 		if var_ != nil {
 			type_ = jutil.CheckNotNull(var_.GetType())
 		}
@@ -2147,8 +2161,11 @@ func (tc *TypeCheck) CheckPropertyAccess(
 func (tc *TypeCheck) IsLValueGetProp(n rhino.Node) bool {
 	parent := n.GetParent()
 	// TODO(b/77597706): this won't work for destructured lvalues
-	return (NodeUtil_IsUpdateOperator(parent) || NodeUtil_IsAssignmentOp(parent)) &&
-		parent.GetFirstChild() == n
+	if incDec, ok := ast.AsIncDec(parent); ok {
+		return incDec.Target().Is(n)
+	}
+	assign, ok := ast.AsAssignment(parent)
+	return ok && assign.Target().Is(n)
 }
 
 // CheckPropertyAccessHelper: strictCheck is whether this is a check that is
@@ -2274,8 +2291,8 @@ func (tc *TypeCheck) AllowLoosePropertyAccessOnNode(n rhino.Node) bool {
 
 // Java: TypeCheck.isQNameAssignmentTarget(Node)
 func (tc *TypeCheck) IsQNameAssignmentTarget(n rhino.Node) bool {
-	parent := n.GetParent()
-	return n.IsQualifiedName() && parent.IsAssign() && parent.GetFirstChild() == n
+	assign, ok := ast.AsAssign(n.GetParent())
+	return n.IsQualifiedName() && ok && assign.Target().Is(n)
 }
 
 // Java: TypeCheck.getClosestPropertySuggestion(JSType, String, int)
@@ -3170,7 +3187,8 @@ func (p typeCheck_inputProvider) GetInput(*rhino.InputId) *CompilerInput {
 // legacy goog.module.
 //
 // Java: TypeCheck.visitModuleBody(NodeTraversal, Node)
-func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, moduleBody rhino.Node) {
+func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, body ast.ModuleBody) {
+	moduleBody := body.Node()
 	associatedModule :=
 		ModuleImportResolver_GetModuleFromScopeRoot(
 			tc.compiler.GetModuleMap(), typeCheck_inputProvider{t}, moduleBody)
@@ -3178,11 +3196,13 @@ func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, moduleBody rhino.Node) {
 		return
 	}
 	moduleName := rhino.QualifiedName_Of(*associatedModule.ClosureNamespace())
-	googModuleCall := moduleBody.GetFirstChild()
+	// The first statement of a legacy goog.module is its goog.module call.
+	googModuleCall, ok := body.FirstStatement()
+	jutil.CheckState(ok)
 	if moduleName.IsSimple() {
 		globalVar := tc.topScope.GetVar(moduleName.Join())
 		tc.validator.ExpectCanAssignTo(
-			googModuleCall, moduleBody.GetJSType(), globalVar.GetType(), "legacy goog.module export")
+			googModuleCall.Node(), moduleBody.GetJSType(), globalVar.GetType(), "legacy goog.module export")
 	} else {
 		parentType := tc.topScope.LookupQualifiedName(moduleName.GetOwner())
 		var parentObjectType rhino.ObjectType
@@ -3193,7 +3213,7 @@ func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, moduleBody rhino.Node) {
 			return
 		}
 		tc.validator.ExpectCanAssignToPropertyOfOwnerType(
-			googModuleCall,
+			googModuleCall.Node(),
 			moduleBody.GetJSType(),
 			parentObjectType.GetPropertyType(moduleName.GetComponent()),
 			parentObjectType,
@@ -3206,10 +3226,10 @@ func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, moduleBody rhino.Node) {
 // child of type string.
 //
 // Java: TypeCheck.visitDynamicImport(NodeTraversal, Node)
-func (tc *TypeCheck) VisitDynamicImport(t *NodeTraversal, dynamicImport rhino.Node) {
-	tc.EnsureTypedWithType(dynamicImport, tc.GetNativeType(rhino.JSTypeNative_PROMISE_TYPE))
+func (tc *TypeCheck) VisitDynamicImport(t *NodeTraversal, dynamicImport ast.DynamicImport) {
+	tc.EnsureTypedWithType(dynamicImport.Node(), tc.GetNativeType(rhino.JSTypeNative_PROMISE_TYPE))
 
-	importSpecifier := dynamicImport.GetFirstChild()
+	importSpecifier := dynamicImport.Specifier().Node()
 	importSpecifierType := importSpecifier.GetJSType()
 	if importSpecifierType == nil {
 		tc.EnsureTypedWithNative(importSpecifier, rhino.JSTypeNative_STRING_TYPE)
