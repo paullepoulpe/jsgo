@@ -35,15 +35,12 @@
 package rhino
 
 import (
-	"hash/maphash"
 	"iter"
-	"strings"
-	"sync"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // RhinoStringPool is an interning pool for strings used by the Rhino
@@ -53,247 +50,16 @@ import (
 // measurably more performant than `String::intern`.
 type RhinoStringPool struct{}
 
-// rhinoStringID is a 32-bit pointer-free handle to an interned string:
-//   - 0: null / unset
-//   - 1: "" (empty string)
-//   - >= 2: ((localIdx << 6) | shardIdx) + 2
-type rhinoStringID uint32
+// rhinoStringID is a 32-bit pointer-free handle to an interned string (see
+// package strpool): 0 is null / unset, 1 is "".
+type rhinoStringID = strpool.ID
 
-const (
-	rhinoStringPool_SHARDS         = 64
-	rhinoStringPool_MAX_SHARD_SIZE = 56000
-	rhinoStringPageSize            = 32760 // <= maxSmallSize - gc.MallocHeaderSize
-	rhinoSpanChunkSize             = 2048  // 16384B <= 32760B (power of 2)
-)
-
-type rhinoStringPoolShard struct {
-	mu           sync.RWMutex
-	table        []uint64 // noscan open-addressed hash table, at most 3/4 full: (hash32 << 32) | (localIdx + 1)
-	count        uint32
-	nextLocalIdx uint32
-	curPageIdx   uint32
-	curPageOff   uint32
-	hasCurPage   bool
-	spanChunks   [2048]*[rhinoSpanChunkSize]uint64
-	pages        [4096]*[rhinoStringPageSize]byte
-	largeStrings []string
-	ptrMap       map[uint32]*string
-	ptrSlab      []string
-}
-
-var (
-	rhinoStringPool_shards [rhinoStringPool_SHARDS]rhinoStringPoolShard
-	rhinoStringPoolCleared bool
-	rhinoEmptyString       = ""
-	rhinoStringPoolSeed    = maphash.MakeSeed()
-)
-
-func rhinoStringPoolHash(s string) uint64 {
-	return maphash.String(rhinoStringPoolSeed, s)
-}
-
-func (s *rhinoStringPoolShard) stringAtLocked(localIdx uint32) string {
-	desc := s.spanChunks[localIdx>>11][localIdx&2047]
-	if int64(desc) < 0 {
-		return s.largeStrings[uint32(desc)]
-	}
-	pageOff := uint32(desc & 0xFFFFF)
-	length := uint32((desc >> 20) & 0xFFFFF)
-	pageIdx := uint32((desc >> 40) & 0xFFFFF)
-	return unsafe.String(&s.pages[pageIdx][pageOff], length)
-}
-
-func (s *rhinoStringPoolShard) allocSpan(str string) uint32 {
-	localIdx := s.nextLocalIdx
-	s.nextLocalIdx = localIdx + 1
-	chunkIdx := localIdx >> 11
-	if s.spanChunks[chunkIdx] == nil {
-		s.spanChunks[chunkIdx] = new([rhinoSpanChunkSize]uint64)
-	}
-	n := len(str)
-	if n > rhinoStringPageSize || (s.hasCurPage && int(s.curPageOff)+n > rhinoStringPageSize && int(s.curPageIdx)+1 >= len(s.pages)) {
-		largeIdx := uint32(len(s.largeStrings))
-		// Copy string bytes so substring slices don't pin large source buffers.
-		s.largeStrings = append(s.largeStrings, strings.Clone(str))
-		s.spanChunks[chunkIdx][localIdx&2047] = (uint64(1) << 63) | uint64(largeIdx)
-		return localIdx
-	}
-	if !s.hasCurPage || int(s.curPageOff)+n > rhinoStringPageSize {
-		if s.hasCurPage {
-			s.curPageIdx++
-		} else {
-			s.hasCurPage = true
-		}
-		s.curPageOff = 0
-		s.pages[s.curPageIdx] = new([rhinoStringPageSize]byte)
-	}
-	off := s.curPageOff
-	s.curPageOff = off + uint32(n)
-	copy(s.pages[s.curPageIdx][off:off+uint32(n)], str)
-	desc := uint64(off) | (uint64(n) << 20) | (uint64(s.curPageIdx) << 40)
-	s.spanChunks[chunkIdx][localIdx&2047] = desc
-	return localIdx
-}
-
-func (s *rhinoStringPoolShard) growTable() {
-	newCap := len(s.table) * 2
-	if newCap < 128 {
-		newCap = 128
-	}
-	newTable := make([]uint64, newCap)
-	mask := uint32(newCap - 1)
-	for _, entry := range s.table {
-		if entry == 0 {
-			continue
-		}
-		h32 := uint32(entry >> 32)
-		slot := h32 & mask
-		for newTable[slot] != 0 {
-			slot = (slot + 1) & mask
-		}
-		newTable[slot] = entry
-	}
-	s.table = newTable
-}
-
-func rhinoStringPoolIntern(str string) rhinoStringID {
-	if len(str) == 0 {
-		return 1
-	}
-	h := rhinoStringPoolHash(str)
-	shardIdx := uint32(h) & (rhinoStringPool_SHARDS - 1)
-	hash32 := uint32(h >> 32)
-	shard := &rhinoStringPool_shards[shardIdx]
-
-	shard.mu.RLock()
-	if tbl := shard.table; len(tbl) > 0 {
-		mask := uint32(len(tbl) - 1)
-		slot := hash32 & mask
-		for {
-			entry := tbl[slot]
-			if entry == 0 {
-				break
-			}
-			if uint32(entry>>32) == hash32 {
-				localIdx := uint32(entry) - 1
-				if shard.stringAtLocked(localIdx) == str {
-					shard.mu.RUnlock()
-					return rhinoStringID(((localIdx << 6) | shardIdx) + 2)
-				}
-			}
-			slot = (slot + 1) & mask
-		}
-	}
-	shard.mu.RUnlock()
-
-	shard.mu.Lock()
-	if len(shard.table) == 0 {
-		shard.table = make([]uint64, 128)
-	} else {
-		mask := uint32(len(shard.table) - 1)
-		slot := hash32 & mask
-		for {
-			entry := shard.table[slot]
-			if entry == 0 {
-				break
-			}
-			if uint32(entry>>32) == hash32 {
-				localIdx := uint32(entry) - 1
-				if shard.stringAtLocked(localIdx) == str {
-					shard.mu.Unlock()
-					return rhinoStringID(((localIdx << 6) | shardIdx) + 2)
-				}
-			}
-			slot = (slot + 1) & mask
-		}
-	}
-	if int(shard.count+1)*4 > len(shard.table)*3 {
-		shard.growTable()
-	}
-	localIdx := shard.allocSpan(str)
-	mask := uint32(len(shard.table) - 1)
-	slot := hash32 & mask
-	for shard.table[slot] != 0 {
-		slot = (slot + 1) & mask
-	}
-	shard.table[slot] = (uint64(hash32) << 32) | uint64(localIdx+1)
-	shard.count++
-	shard.mu.Unlock()
-	return rhinoStringID(((localIdx << 6) | shardIdx) + 2)
-}
-
-//go:noinline
-func (s *rhinoStringPoolShard) largeStringAt(largeIdx uint32) string {
-	s.mu.RLock()
-	v := s.largeStrings[largeIdx]
-	s.mu.RUnlock()
-	return v
-}
-
-func rhinoStringFromID(id rhinoStringID) string {
-	if id <= 1 {
-		return ""
-	}
-	idx := uint32(id - 2)
-	s := &rhinoStringPool_shards[idx&(rhinoStringPool_SHARDS-1)]
-	localIdx := idx >> 6
-	desc := s.spanChunks[localIdx>>11][localIdx&2047]
-	if int64(desc) < 0 {
-		return s.largeStringAt(uint32(desc))
-	}
-	pageOff := uint32(desc & 0xFFFFF)
-	length := uint32((desc >> 20) & 0xFFFFF)
-	pageIdx := uint32((desc >> 40) & 0xFFFFF)
-	return unsafe.String(&s.pages[pageIdx][pageOff], length)
-}
-
-func rhinoStringPtrFromID(id rhinoStringID) *string {
-	if id == 0 {
-		return nil
-	}
-	if id == 1 {
-		return &rhinoEmptyString
-	}
-	idx := uint32(id - 2)
-	s := &rhinoStringPool_shards[idx&(rhinoStringPool_SHARDS-1)]
-	localIdx := idx >> 6
-
-	s.mu.RLock()
-	p := s.ptrMap[localIdx]
-	s.mu.RUnlock()
-	if p != nil {
-		return p
-	}
-
-	s.mu.Lock()
-	if s.ptrMap == nil {
-		s.ptrMap = make(map[uint32]*string, 64)
-	} else if p = s.ptrMap[localIdx]; p != nil {
-		s.mu.Unlock()
-		return p
-	}
-	if len(s.ptrSlab) == 0 {
-		// 1023 strings and the 8-byte malloc header fill the 16 KiB size class.
-		s.ptrSlab = make([]string, 1023)
-	}
-	p = &s.ptrSlab[0]
-	s.ptrSlab = s.ptrSlab[1:]
-	*p = s.stringAtLocked(localIdx)
-	s.ptrMap[localIdx] = p
-	s.mu.Unlock()
-	return p
-}
-
-func rhinoStringPoolClearForTest() {
-	rhinoStringPoolCleared = true
-	for i := range rhinoStringPool_shards {
-		s := &rhinoStringPool_shards[i]
-		s.mu.Lock()
-		clear(s.table)
-		s.count = 0
-		s.mu.Unlock()
-	}
-}
+func rhinoStringPoolIntern(s string) rhinoStringID  { return strpool.Intern(s) }
+func rhinoStringFromID(id rhinoStringID) string     { return strpool.String(id) }
+func rhinoStringPtrFromID(id rhinoStringID) *string { return strpool.StringPtr(id) }
+func rhinoStringPoolLookup(s string) rhinoStringID  { return strpool.Lookup(s) }
+func rhinoStringPoolClearForTest()                  { strpool.ClearForTest() }
+func rhinoStringPoolWasCleared() bool               { return strpool.WasClearedForTest() }
 
 // RhinoStringPool_UncheckedEquals checks if two strings are the same
 // according to interning.
@@ -333,38 +99,6 @@ func RhinoStringPool_AddOrGet(s string) string {
 	return rhinoStringFromID(rhinoStringPoolIntern(s))
 }
 
-func rhinoStringPoolLookup(str string) rhinoStringID {
-	if len(str) == 0 {
-		return 1
-	}
-	h := rhinoStringPoolHash(str)
-	shardIdx := uint32(h) & (rhinoStringPool_SHARDS - 1)
-	hash32 := uint32(h >> 32)
-	shard := &rhinoStringPool_shards[shardIdx]
-
-	shard.mu.RLock()
-	if tbl := shard.table; len(tbl) > 0 {
-		mask := uint32(len(tbl) - 1)
-		slot := hash32 & mask
-		for {
-			entry := tbl[slot]
-			if entry == 0 {
-				break
-			}
-			if uint32(entry>>32) == hash32 {
-				localIdx := uint32(entry) - 1
-				if shard.stringAtLocked(localIdx) == str {
-					shard.mu.RUnlock()
-					return rhinoStringID(((localIdx << 6) | shardIdx) + 2)
-				}
-			}
-			slot = (slot + 1) & mask
-		}
-	}
-	shard.mu.RUnlock()
-	return 0
-}
-
 // RhinoStringPool_EmptyID is the canonical 32-bit ID of the empty string "".
 const RhinoStringPool_EmptyID uint32 = 1
 
@@ -376,35 +110,7 @@ func RhinoStringPool_InternID(s string) uint32 {
 // RhinoStringPool_InternBytesID interns b and returns its 32-bit pointer-free ID
 // without allocating a string when b is already interned.
 func RhinoStringPool_InternBytesID(b []byte) uint32 {
-	if len(b) == 0 {
-		return 1
-	}
-	h := maphash.Bytes(rhinoStringPoolSeed, b)
-	shardIdx := uint32(h) & (rhinoStringPool_SHARDS - 1)
-	hash32 := uint32(h >> 32)
-	shard := &rhinoStringPool_shards[shardIdx]
-
-	shard.mu.RLock()
-	if tbl := shard.table; len(tbl) > 0 {
-		mask := uint32(len(tbl) - 1)
-		slot := hash32 & mask
-		for {
-			entry := tbl[slot]
-			if entry == 0 {
-				break
-			}
-			if uint32(entry>>32) == hash32 {
-				localIdx := uint32(entry) - 1
-				if shard.stringAtLocked(localIdx) == string(b) {
-					shard.mu.RUnlock()
-					return ((localIdx << 6) | shardIdx) + 2
-				}
-			}
-			slot = (slot + 1) & mask
-		}
-	}
-	shard.mu.RUnlock()
-	return uint32(rhinoStringPoolIntern(string(b)))
+	return uint32(strpool.InternBytes(b))
 }
 
 // RhinoStringPool_LookupID returns the 32-bit ID of s if already interned, or 0 if not.
@@ -419,7 +125,7 @@ func RhinoStringPool_StringFromID(id uint32) string {
 
 // RhinoStringPool_WasClearedForTest reports whether rhinoStringPoolClearForTest has been called.
 func RhinoStringPool_WasClearedForTest() bool {
-	return rhinoStringPoolCleared
+	return rhinoStringPoolWasCleared()
 }
 
 // Java: RhinoStringPool()

@@ -1149,6 +1149,20 @@ func (n Node) InitStringFromTemplate(token Token, str string, template Node) Nod
 	return n
 }
 
+// InitStringIDFromTemplate is InitStringFromTemplate for a string already
+// interned (its pool id).
+func (n Node) InitStringIDFromTemplate(token Token, id rhinoStringID, template Node) Node {
+	n.rec().token = token
+	n.rec().linenoCharno = -1
+	n.rec().kindFlags = uint8(node_kindString)
+	n.setProps(template.props())
+	if template.hasAux() {
+		n.copyTemplateColdProps(template)
+	}
+	n.rec().payload = uint32(id)
+	return n
+}
+
 // SetStringID sets the interned string payload on a freshly initialized Node.
 func (n Node) SetStringID(id rhinoStringID) Node {
 	n.rec().kindFlags |= uint8(node_kindString)

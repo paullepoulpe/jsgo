@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
@@ -244,6 +245,12 @@ func (d *dumper) fields(sv reflect.Value, depth int) {
 				d.line(depth, f.name+"=", fmt.Sprint(fv.Bool()))
 			case reflect.String:
 				d.line(depth, f.name+"=", dumpQuote(fv.String()))
+			case reflect.Uint32:
+				if fv.Type() != reflect.TypeOf(strpool.ID(0)) {
+					panic("unsupported unexported field " + sv.Type().String() + "." + f.name)
+				}
+				// Go-only: an interned string (IdentifierToken.value).
+				d.line(depth, f.name+"=", dumpQuote(strpool.String(strpool.ID(fv.Uint()))))
 			default:
 				panic("unsupported unexported field " + sv.Type().String() + "." + f.name)
 			}

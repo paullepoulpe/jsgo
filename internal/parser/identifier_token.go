@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // IdentifierToken is a token representing an identifier.
@@ -30,7 +31,10 @@ type IdentifierToken struct {
 	// Go-only: performance — before the other fields, in the base's padding.
 	privateIdentifier bool
 
-	value string
+	// Go-only: performance — the value interned in the string pool (4
+	// bytes instead of a 16-byte string header, in hundreds of thousands
+	// of tokens; the AST interns the same names anyway).
+	value strpool.ID
 }
 
 // NewIdentifierToken constructs an IdentifierToken.
@@ -44,7 +48,7 @@ func NewIdentifierToken(location SourceRange, value string) *IdentifierToken {
 
 func (t *IdentifierToken) initIdentifierToken(location SourceRange, value string) {
 	t.InitTokenBase(TokenType_IDENTIFIER, location)
-	t.value = value
+	t.value = strpool.Intern(value)
 	t.privateIdentifier = strings.HasPrefix(value, "#")
 }
 
@@ -52,21 +56,21 @@ func (t *IdentifierToken) initIdentifierToken(location SourceRange, value string
 //
 // Java: IdentifierToken.toString()
 func (t *IdentifierToken) String() string {
-	return t.value
+	return strpool.String(t.value)
 }
 
 // IsKeyword reports whether the value is a keyword.
 //
 // Java: IdentifierToken.isKeyword()
 func (t *IdentifierToken) IsKeyword() bool {
-	return Keywords_IsKeyword(t.value)
+	return Keywords_IsKeyword(strpool.String(t.value))
 }
 
 // ValueEquals reports whether the value equals str.
 //
 // Java: IdentifierToken.valueEquals(String)
 func (t *IdentifierToken) ValueEquals(str string) bool {
-	return t.value == str
+	return strpool.String(t.value) == str
 }
 
 // GetValue gets the value of the identifier assuring that it is not a
@@ -81,6 +85,23 @@ func (t *IdentifierToken) ValueEquals(str string) bool {
 // Java: IdentifierToken.getValue()
 func (t *IdentifierToken) GetValue() string {
 	jutil.CheckState(!t.privateIdentifier)
+	return strpool.String(t.value)
+}
+
+// ValueID returns the value's ID in the string pool (see GetValue).
+//
+// Go-only: performance — the IR factory makes nodes from it without
+// interning the name again.
+func (t *IdentifierToken) ValueID() strpool.ID {
+	jutil.CheckState(!t.privateIdentifier)
+	return t.value
+}
+
+// MaybePrivateValueID returns the ID in the string pool of
+// GetMaybePrivateValue.
+//
+// Go-only: performance (see ValueID).
+func (t *IdentifierToken) MaybePrivateValueID() strpool.ID {
 	return t.value
 }
 
@@ -89,7 +110,7 @@ func (t *IdentifierToken) GetValue() string {
 //
 // Java: IdentifierToken.getMaybePrivateValue()
 func (t *IdentifierToken) GetMaybePrivateValue() string {
-	return t.value
+	return strpool.String(t.value)
 }
 
 // IsPrivateIdentifier reports whether the value starts with a #.

@@ -294,7 +294,7 @@ func (q *QualifiedName_StringListQname) GetComponentCount() int {
 // Java: QualifiedName.StringListQname.matches(Node)
 func (q *QualifiedName_StringListQname) Matches(n Node) bool {
 	pos := q.size - 1
-	if !rhinoStringPoolCleared {
+	if !rhinoStringPoolWasCleared() {
 		for pos > 0 && n.rec().token == Token_GETPROP {
 			n.node_castKind(node_kindString)
 			if rhinoStringID(n.rec().payload) != q.termIDs[pos] {
@@ -395,7 +395,7 @@ func (q *QualifiedName_GetpropQname) AppendTo(sb *strings.Builder, separator uin
 
 // Java: QualifiedName.GetpropQname.matches(Node)
 func (q *QualifiedName_GetpropQname) Matches(n Node) bool {
-	if !rhinoStringPoolCleared {
+	if !rhinoStringPoolWasCleared() {
 		if n.rec().token != Token_GETPROP {
 			return false
 		}

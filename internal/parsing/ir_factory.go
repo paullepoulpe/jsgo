@@ -29,6 +29,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // IRFactory transforms the external AST to the internal AST.
@@ -1666,7 +1667,9 @@ func (d *IRFactory_TransformDispatcher) NewStringNodeFromIdentifier(
 		identifierType = IRFactory_TransformDispatcher_IdentifierType_STANDARD
 	}
 
-	var value string
+	// Go-only: performance — the token's name is already interned: the node
+	// takes its ID (Java: the value string).
+	var value strpool.ID
 	if identifierToken.IsPrivateIdentifier() {
 		if identifierType == IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE {
 			d.MaybeWarnForFeatureToken(identifierToken, parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
@@ -1677,12 +1680,12 @@ func (d *IRFactory_TransformDispatcher) NewStringNodeFromIdentifier(
 				d.LinenoOfToken(identifierToken),
 				d.CharnoOfToken(identifierToken))
 		}
-		value = identifierToken.GetMaybePrivateValue()
+		value = identifierToken.MaybePrivateValueID()
 	} else {
-		value = identifierToken.GetValue()
+		value = identifierToken.ValueID()
 	}
 
-	node := d.NewStringNodeWithToken(type_, value)
+	node := rhino.AllocNode().InitStringIDFromTemplate(type_, value, d.templateNode)
 	if identifierType == IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE &&
 		identifierToken.IsPrivateIdentifier() {
 		node.SetPrivateIdentifier()
