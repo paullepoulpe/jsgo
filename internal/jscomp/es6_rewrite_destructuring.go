@@ -284,10 +284,8 @@ func (e *Es6RewriteDestructuring) Visit(t *NodeTraversal, n rhino.Node, parent r
 func (e *Es6RewriteDestructuring) PullDestructuringOutOfParams(function ast.Function) {
 	var insertSpot rhino.Node = rhino.NilNode
 	body := function.Body().Node()
-	var next ast.Param
-	var hasNext bool
-	for param, ok := function.Params().FirstParam(); ok; param, ok = next, hasNext {
-		next, hasNext = param.Next() // read it first: param may be replaced
+	// ReadAhead: param may be replaced.
+	for param := range ast.ReadAhead(function.Params().FirstParam()) {
 		if defaultParam, ok := param.AsDefaultValue(); ok {
 			nameOrPattern, defaultValue := defaultParam.Target(), defaultParam.Value() // read both before detaching either
 			nameOrPattern.Detach()
@@ -306,7 +304,7 @@ func (e *Es6RewriteDestructuring) PullDestructuringOutOfParams(function ast.Func
 				// Do not try to optimize unless nameOrPattern is a simple name.
 			} else if name, ok := defaultValue.AsName(); ok {
 				isNoop = "undefined" == name.Ident()
-			} else if void, ok := defaultValue.AsUnary(); ok && void.Token() == rhino.Token_VOID {
+			} else if void, ok := defaultValue.AsUnaryOf(rhino.Token_VOID); ok {
 				// Any kind of 'void literal' is fine, but 'void fun()' or anything
 				// else with side effects isn't.  We're not trying to be particularly
 				// smart here and treat 'void {}' for example as if it could cause side effects.
@@ -834,10 +832,8 @@ func (e *Es6RewriteDestructuring) ReplaceArrayPattern(
 	tempDecl.SrcrefTreeIfMissing(arrayPattern.Node())
 	tempDecl.InsertBefore(nodeToDetach)
 
-	var next ast.ArrayPatternElem
-	var hasNext bool
-	for child, ok := arrayPattern.FirstElement(); ok; child, ok = next, hasNext {
-		next, hasNext = child.Next() // read it first: child may be detached
+	// ReadAhead: child may be detached.
+	for child := range ast.ReadAhead(arrayPattern.FirstElement()) {
 		if _, ok := child.AsEmpty(); ok {
 			// Just call the next() method to advance the iterator, but throw away the value.
 			nextCall :=
