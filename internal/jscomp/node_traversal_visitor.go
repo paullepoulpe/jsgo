@@ -9,16 +9,21 @@ import (
 
 // NodeTraversal_TraverseVisitor traverses root like NodeTraversal_Traverse
 // with a post-order callback: after the children of a node, it calls v's
-// handler for the node's kind, if v has one.
+// handler for the node's kind, if v has one. The traversal skips the nodes of
+// the kinds v has no handler for, so a visitor costs no more than a callback
+// that switches on the token.
 func NodeTraversal_TraverseVisitor(compiler AbstractCompiler, root rhino.Node, v *ast.Visitor[*NodeTraversal]) {
-	NodeTraversal_Traverse(compiler, root, &nodeTraversal_visitorCallback{v})
+	NodeTraversal_Traverse(compiler, root, &nodeTraversal_visitorCallback{v: v, kinds: v.Tokens()})
 }
 
 // nodeTraversal_visitorCallback adapts an ast.Visitor to the callback
 // interface.
 type nodeTraversal_visitorCallback struct {
-	v *ast.Visitor[*NodeTraversal]
+	v     *ast.Visitor[*NodeTraversal]
+	kinds ast.TokenSet // the tokens v has a handler for
 }
+
+func (c *nodeTraversal_visitorCallback) visitTokens() *ast.TokenSet { return &c.kinds }
 
 func (c *nodeTraversal_visitorCallback) ShouldTraverse(*NodeTraversal, rhino.Node, rhino.Node) bool {
 	return true

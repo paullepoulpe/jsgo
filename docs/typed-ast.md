@@ -391,9 +391,12 @@ bundle and typed-full workloads:
 
 ## Next steps
 
-1. **Pre-order handlers and declared kinds** in the typed visitor
-   (`ShouldTraverse` per kind; skip the callbacks of other kinds), replacing
-   the traversal's marker interfaces.
+1. **Pre-order handlers** in the typed visitor (`ShouldTraverse` per kind).
+   Declared kinds are done: `NodeTraversal_TraverseVisitor` hands the
+   traversal the visitor's token set, and the traversal does not call the
+   callback for other nodes. A one-handler visitor over three.js's AST now
+   takes 2.21 ms, against 2.43 ms for a hand-written token switch and
+   3.07 ms before (minimums of 15 interleaved runs).
 2. **Port more passes**, starting with those that are mostly about shapes
    (peephole passes, `Normalize`, `ControlFlowAnalysis`), and measure each.
 3. **Change the storage behind the API.** Callers ask for `ifs.Else()`, not

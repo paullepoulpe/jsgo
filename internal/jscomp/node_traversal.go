@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -124,6 +125,9 @@ type NodeTraversal struct {
 	noVisit                                        bool
 	noVisitLeaves                                  bool
 	onlyNameLeaves                                 bool
+	// visitTokens, if not nil, holds the only tokens Visit acts on (see
+	// nodeTraversal_visitTokens): the traversal skips the call for others.
+	visitTokens *ast.TokenSet
 
 	// Contains the current node
 	currentNode rhino.Node
@@ -187,6 +191,14 @@ type nodeTraversal_noVisitLeaves interface {
 // nodeTraversalTokenKind[uint8(n.GetToken())] == 0) only acts on Token_NAME.
 type nodeTraversal_onlyNameLeaves interface {
 	onlyNameLeaves()
+}
+
+// nodeTraversal_visitTokens is an internal interface for callbacks whose
+// Visit method only acts on nodes with the tokens of the set it returns
+// (the typed visitor, node_traversal_visitor.go): the traversal does not
+// call Visit for other nodes where it has their token at hand.
+type nodeTraversal_visitTokens interface {
+	visitTokens() *ast.TokenSet
 }
 
 // NodeTraversal_Callback is the callback for tree-based traversals.
@@ -930,6 +942,11 @@ func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Build
 		}
 	}
 	_, t.noVisit = cb.(nodeTraversal_noVisit)
+	if vt, ok := cb.(nodeTraversal_visitTokens); ok {
+		t.visitTokens = vt.visitTokens()
+	} else {
+		t.visitTokens = nil
+	}
 	_, t.onlyNameLeaves = cb.(nodeTraversal_onlyNameLeaves)
 	if !t.onlyNameLeaves {
 		_, t.noVisitLeaves = cb.(nodeTraversal_noVisitLeaves)
@@ -1590,7 +1607,8 @@ func (t *NodeTraversal) TraverseBranch(n rhino.Node, parent rhino.Node) {
 						continue
 					}
 				}
-				if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+				if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit &&
+					(t.visitTokens == nil || t.visitTokens.Has(ctok)) {
 					t.currentNode = child
 					cb.Visit(t, child, n)
 				}
@@ -1608,7 +1626,8 @@ func (t *NodeTraversal) TraverseBranch(n rhino.Node, parent rhino.Node) {
 	}
 
 	if !t.noVisit {
-		if pushedScope || !n.GetFirstChild().IsNil() || (!noVisitLeaves && (!onlyNameLeaves || tok == rhino.Token_NAME)) || tok == rhino.Token_BLOCK {
+		if (pushedScope || !n.GetFirstChild().IsNil() || (!noVisitLeaves && (!onlyNameLeaves || tok == rhino.Token_NAME)) || tok == rhino.Token_BLOCK) &&
+			(t.visitTokens == nil || t.visitTokens.Has(tok)) {
 			t.currentNode = n
 			cb.Visit(t, n, parent)
 		}
@@ -1804,7 +1823,8 @@ func (t *NodeTraversal) TraverseChildren(n rhino.Node) {
 						continue
 					}
 				}
-				if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit {
+				if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit &&
+					(t.visitTokens == nil || t.visitTokens.Has(ctok)) {
 					t.currentNode = child
 					cb.Visit(t, child, n)
 				}
