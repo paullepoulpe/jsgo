@@ -19,9 +19,22 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass reads declarations through the typed view of package
+// ast (fn.Params(), decl.FirstDeclarator(), catch.Param(), imp.Bindings()...)
+// instead of child positions: each declaration shape has its own small
+// method (declareNameDeclaration, declareParam, declarePattern...) where
+// Java visits every left-hand side with one generic switch. The walk that
+// finds the declarations (ScanVars) stays on rhino nodes: it visits the
+// children of a dozen statement kinds alike, filtered by one token table
+// (scanVarsTokenKind), and must read the next child before the current one
+// is handled, because a redeclaration handler may replace it. The body of
+// a for loop is a block (the grammar says so), so the Go-only code that
+// scanned a loop body that is not a block is gone.
 
 // SyntacticScopeCreator scans the parse tree to create a Scope object
 // containing all the variable declarations in that scope. This class adds
@@ -150,52 +163,99 @@ func (c *SyntacticScopeCreator) CreateScopeOfScope(n rhino.Node, parent *Scope) 
 	return scope
 }
 
+// syntacticScopeChildHasBlockDecls reports whether the statement c declares
+// a name in the block scope around it: let, const, a function or class
+// declaration, a catch (its parameter), an export, or one of these in a
+// synthetic block, which has no scope of its own, or under a label.
+//
+// Go-only: performance — a block scope whose statements declare nothing is
+// skipped, or created empty without a scan, and remembered as such
+// (SetNoBlockScopeDecls).
 func syntacticScopeChildHasBlockDecls(c rhino.Node) bool {
 	switch c.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH, rhino.Token_EXPORT:
 		return true
 	case rhino.Token_FUNCTION:
-		return !NodeUtil_IsFunctionExpression(c) && c.GetFirstChild().GetStringID() > rhino.RhinoStringPool_EmptyID
-	case rhino.Token_CLASS:
-		return !NodeUtil_IsClassExpression(c) && c.GetFirstChild().GetStringID() > rhino.RhinoStringPool_EmptyID
-	case rhino.Token_BLOCK:
-		if !c.IsSyntheticBlock() {
+		if NodeUtil_IsFunctionExpression(c) {
 			return false
 		}
-		for gc := c.GetFirstChild(); !gc.IsNil(); gc = gc.GetNext() {
-			if syntacticScopeChildHasBlockDecls(gc) {
-				return true
-			}
+		_, named := ast.MustFunction(c).Name()
+		return named
+	case rhino.Token_CLASS:
+		if NodeUtil_IsClassExpression(c) {
+			return false
 		}
-		return false
-	case rhino.Token_LABEL, rhino.Token_IF, rhino.Token_DO, rhino.Token_WHILE, rhino.Token_WITH:
-		for gc := c.GetFirstChild(); !gc.IsNil(); gc = gc.GetNext() {
-			if scanVarsTokenKind[uint8(gc.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(gc) {
-				return true
-			}
+		_, named := ast.MustClass(c).Name()
+		return named
+	case rhino.Token_BLOCK:
+		return syntacticSyntheticBlockHasBlockDecls(ast.MustBlock(c))
+	case rhino.Token_LABEL:
+		return syntacticScopeChildHasBlockDecls(ast.MustLabel(c).Body().Node())
+	case rhino.Token_IF:
+		// The condition is an expression; only a branch that is a synthetic
+		// block can declare a name here.
+		ifs := ast.MustIf(c)
+		if syntacticSyntheticBlockHasBlockDecls(ifs.Then()) {
+			return true
 		}
-		return false
+		els, ok := ifs.Else()
+		return ok && syntacticSyntheticBlockHasBlockDecls(els)
+	case rhino.Token_DO, rhino.Token_WHILE:
+		return syntacticSyntheticBlockHasBlockDecls(ast.MustLoop(c).Body())
+	case rhino.Token_WITH:
+		return syntacticSyntheticBlockHasBlockDecls(ast.MustWith(c).Body())
 	default:
 		return false
 	}
 }
 
+// syntacticSyntheticBlockHasBlockDecls reports whether b is a synthetic
+// block (one the compiler added, with no scope of its own) whose statements
+// declare a name in the block scope around it.
+func syntacticSyntheticBlockHasBlockDecls(b ast.Block) bool {
+	if !b.Node().IsSyntheticBlock() {
+		return false
+	}
+	for stmt := range b.Statements() {
+		if syntacticScopeChildHasBlockDecls(stmt.Node()) {
+			return true
+		}
+	}
+	return false
+}
+
+// syntacticForLetOrConst returns the let or const declared in the head of
+// the for loop n: `for (let i = 0; ...)`, `for (const x of xs)`.
+func syntacticForLetOrConst(n rhino.Node) (ast.NameDeclaration, bool) {
+	var decl ast.NameDeclaration
+	var ok bool
+	if loop, isEnhanced := ast.AsEnhancedFor(n); isEnhanced {
+		decl, ok = loop.Target().AsNameDeclaration()
+	} else if init, hasInit := ast.MustFor(n).Init(); hasInit {
+		decl, ok = init.AsNameDeclaration()
+	}
+	return decl, ok && decl.Token() != rhino.Token_VAR
+}
+
+// syntacticScopeHasBlockDecls reports whether n, the root of a block scope
+// (a block or a for loop), may declare names; it reports true for other
+// nodes. A false answer is remembered on n (SetNoBlockScopeDecls).
+//
+// The body of a for loop is a block, with a scope of its own: only a let or
+// const in the loop's head is declared in the loop's scope.
 func syntacticScopeHasBlockDecls(n rhino.Node) bool {
 	if n.HasNoBlockScopeDecls() {
 		return false
 	}
 	if NodeUtil_IsAnyFor(n) {
-		first := n.GetFirstChild()
-		if !first.IsNil() && (first.IsLet() || first.IsConst()) {
-			return true
-		}
-		if last := n.GetLastChild(); !last.IsNil() && !last.IsBlock() && syntacticScopeChildHasBlockDecls(last) {
+		if _, ok := syntacticForLetOrConst(n); ok {
 			return true
 		}
 		n.SetNoBlockScopeDecls()
 		return false
 	}
 	if n.IsBlock() {
+		// (The children are statements, or the catch of a try.)
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if scanVarsTokenKind[uint8(c.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(c) {
 				return true
@@ -207,12 +267,15 @@ func syntacticScopeHasBlockDecls(n rhino.Node) bool {
 	return true
 }
 
+// syntacticFunctionBlockHasNoDecls reports whether n, the body of a
+// function or a class static block, has no statement that may declare a
+// name. A true answer is remembered on n (SetNoBlockScopeDecls).
 func syntacticFunctionBlockHasNoDecls(n rhino.Node) bool {
 	if n.HasNoBlockScopeDecls() {
 		return true
 	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if scanVarsTokenKind[uint8(c.GetToken())] == 1 {
+	for stmt := range ast.MustBlock(n).Statements() {
+		if scanVarsTokenKind[uint8(stmt.Token())] == 1 {
 			return false
 		}
 	}
@@ -302,33 +365,26 @@ func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
 	n := s.scope.GetRootNode()
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
-		fnNameNode := n.GetFirstChild()
-		args := fnNameNode.GetNext()
+		fn := ast.MustFunction(n)
 
 		// Args: Declare function variables
-		jutil.CheckState(args.IsParamList())
-		for a := args.GetFirstChild(); !a.IsNil(); a = a.GetNext() {
-			if a.IsName() {
-				s.DeclareVar(s.scope, a)
-			} else {
-				s.declareLhsNodesHelper(s.scope, a)
-			}
+		for param := range fn.Params().Params() {
+			s.declareParam(s.scope, param)
 		}
 
 		// Bleed the function name into the scope, if it hasn't been declared in the outer scope
 		// and the name isn't already in the scope via the param list.
-		if fnNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID && NodeUtil_IsFunctionExpression(n) {
-			s.DeclareVar(s.scope, fnNameNode)
+		if name, ok := fn.Name(); ok && NodeUtil_IsFunctionExpression(n) {
+			s.declareName(s.scope, name)
 		}
 
 		// Since we create a separate scope for body, stop scanning here
 		return
 	case rhino.Token_CLASS:
-		classNameNode := n.GetFirstChild()
 		// Bleed the class name into the scope, if it hasn't
 		// been declared in the outer scope.
-		if !classNameNode.IsEmpty() && NodeUtil_IsClassExpression(n) {
-			s.DeclareVar(s.scope, classNameNode)
+		if name, ok := ast.MustClass(n).Name(); ok && NodeUtil_IsClassExpression(n) {
+			s.declareName(s.scope, name)
 		}
 		return
 	case rhino.Token_ROOT, rhino.Token_SCRIPT:
@@ -342,18 +398,16 @@ func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
 		s.ScanVars(n, s.scope, s.scope)
 		return
 	case rhino.Token_FOR, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
+		// Go-only: performance — Java's scanVars(n, null, scope), which can
+		// only declare the let or const of the loop's head: the body is a
+		// block, with a scope of its own.
 		if n.HasNoBlockScopeDecls() {
 			return
 		}
-		first := n.GetFirstChild()
-		if !first.IsNil() && (first.IsLet() || first.IsConst()) {
-			s.DeclareLHS(s.scope, first)
+		if decl, ok := syntacticForLetOrConst(n); ok {
+			s.declareNameDeclaration(s.scope, decl)
 		}
-		last := n.GetLastChild()
-		if !last.IsNil() && !last.IsBlock() && syntacticScopeChildHasBlockDecls(last) {
-			s.ScanVars(last, nil, s.scope)
-		}
-		if len(s.scope.varList) == 0 && (last.IsNil() || last.IsBlock()) {
+		if len(s.scope.varList) == 0 {
 			n.SetNoBlockScopeDecls()
 		}
 		return
@@ -365,22 +419,27 @@ func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
 			if !syntacticFunctionBlockHasNoDecls(n) {
 				s.ScanVars(n, s.scope, s.scope)
 			}
-		} else {
-			if n.HasNoBlockScopeDecls() {
-				return
+			return
+		}
+		// Go-only: performance — Java's scanVars(n, null, scope), on the
+		// children that may declare a block-scoped name only. A block that
+		// has none is remembered, unless a child was scanned: a change below
+		// that child would not clear the mark on this block.
+		if n.HasNoBlockScopeDecls() {
+			return
+		}
+		canCacheNoDecls := true
+		// (The children are statements, or the catch of a try.)
+		for c := n.GetFirstChild(); !c.IsNil(); {
+			next := c.GetNext()
+			if scanVarsTokenKind[uint8(c.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(c) {
+				canCacheNoDecls = false
+				s.ScanVars(c, nil, s.scope)
 			}
-			canCacheNoDecls := true
-			for c := n.GetFirstChild(); !c.IsNil(); {
-				next := c.GetNext()
-				if scanVarsTokenKind[uint8(c.GetToken())] == 1 && syntacticScopeChildHasBlockDecls(c) {
-					canCacheNoDecls = false
-					s.ScanVars(c, nil, s.scope)
-				}
-				c = next
-			}
-			if canCacheNoDecls && len(s.scope.varList) == 0 {
-				n.SetNoBlockScopeDecls()
-			}
+			c = next
+		}
+		if canCacheNoDecls && len(s.scope.varList) == 0 {
+			n.SetNoBlockScopeDecls()
 		}
 		return
 	case rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_MEMBER_FIELD_DEF:
@@ -392,61 +451,192 @@ func (s *SyntacticScopeCreator_ScopeScanner) Populate() {
 	}
 }
 
+// DeclareLHS declares in sc the names that n binds: n is a var, let or
+// const, a parameter list, a catch, an import, a destructuring declarator,
+// a default value, a for-in or for-of loop, or an assignment.
+//
+// Go-only: the scanner calls the typed method for each shape directly.
+//
 // Java: SyntacticScopeCreator.ScopeScanner.declareLHS(Scope, Node)
 func (s *SyntacticScopeCreator_ScopeScanner) DeclareLHS(sc *Scope, n rhino.Node) {
-	if n.HasOneChild() && n.GetFirstChild().IsName() {
-		// NAME is most common and trivial case.  This code is hot so it is worth special casing.
-		// to avoid extra GC and cpu cycles.
-		s.DeclareVar(sc, n.GetFirstChild())
-	} else {
-		jutil.CheckArgumentMsg1(
-			NodeUtil_IsNameDeclaration(n) ||
-				n.IsParamList() ||
-				NodeUtil_IsAssignmentOp(n) ||
-				n.IsCatch() ||
-				n.IsDestructuringLhs() ||
-				n.IsDefaultValue() ||
-				n.IsImport() ||
-				NodeUtil_IsEnhancedFor(n),
-			"%s",
-			n)
-		s.declareLhsNodesHelper(sc, n)
+	switch n.GetToken() {
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+		s.declareNameDeclaration(sc, ast.MustNameDeclaration(n))
+	case rhino.Token_PARAM_LIST:
+		for param := range ast.MustParamList(n).Params() {
+			s.declareParam(sc, param)
+		}
+	case rhino.Token_CATCH:
+		s.declareCatchParam(sc, ast.MustCatch(n))
+	case rhino.Token_IMPORT:
+		s.declareImport(sc, ast.MustImport(n))
+	case rhino.Token_DESTRUCTURING_LHS:
+		s.declarePattern(sc, ast.MustDestructuringLhs(n).Pattern())
+	case rhino.Token_DEFAULT_VALUE:
+		s.declareTarget(sc, ast.MustDefaultValue(n).Target())
+	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		target := ast.MustEnhancedFor(n).Target()
+		if decl, ok := target.AsNameDeclaration(); ok {
+			s.declareNameDeclaration(sc, decl)
+		} else if t, ok := target.AsTarget(); ok {
+			s.declareTarget(sc, t)
+		}
+	default:
+		assignment, ok := ast.AsAssignment(n)
+		jutil.CheckArgumentMsg1(ok, "%s", n)
+		s.declareTarget(sc, assignment.Target())
 	}
 }
 
-func (s *SyntacticScopeCreator_ScopeScanner) declareLhsNodesHelper(sc *Scope, n rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_IMPORT:
-		s.declareLhsNodesHelper(sc, n.GetFirstChild())
-		s.declareLhsNodesHelper(sc, n.GetSecondChild())
-	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET, rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN,
-		rhino.Token_PARAM_LIST, rhino.Token_IMPORT_SPECS:
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsName() {
-				s.DeclareVar(sc, child)
-			} else {
-				s.declareLhsNodesHelper(sc, child)
+// declareName declares the name name in sc.
+func (s *SyntacticScopeCreator_ScopeScanner) declareName(sc *Scope, name ast.Name) {
+	s.DeclareVar(sc, name.Node())
+}
+
+// declareNameDeclaration declares in sc the names of a var, let or const:
+// `var a = 1, {b, c} = d;` declares a, b and c.
+func (s *SyntacticScopeCreator_ScopeScanner) declareNameDeclaration(sc *Scope, decl ast.NameDeclaration) {
+	// The next declarator is read first: the redeclaration handler may move
+	// this one (Normalize turns a duplicate `var a = b` into `a = b`, where
+	// the next sibling of a is b).
+	for declarator := range ast.ReadAhead(decl.FirstDeclarator()) {
+		if name, ok := declarator.AsName(); ok {
+			s.declareName(sc, name)
+		} else if lhs, ok := declarator.AsDestructuringLhs(); ok {
+			s.declarePattern(sc, lhs.Pattern())
+		}
+	}
+}
+
+// declareParam declares in sc the names of a function parameter: a name or
+// a pattern, either one with a default value (`a = 1`), or a rest (`...a`).
+func (s *SyntacticScopeCreator_ScopeScanner) declareParam(sc *Scope, param ast.Param) {
+	if name, ok := param.AsName(); ok {
+		s.declareName(sc, name)
+	} else if pattern, ok := param.AsPattern(); ok {
+		s.declarePattern(sc, pattern)
+	} else if withDefault, ok := param.AsDefaultValue(); ok {
+		s.declareTarget(sc, withDefault.Target())
+	} else if rest, ok := param.AsIterRest(); ok {
+		s.declareTarget(sc, rest.Target())
+	}
+}
+
+// declareCatchParam declares in sc the parameter of catch (a name or a
+// pattern); `catch {}` has none.
+func (s *SyntacticScopeCreator_ScopeScanner) declareCatchParam(sc *Scope, catch ast.Catch) {
+	if param, ok := catch.Param(); ok {
+		s.declareTarget(sc, param.AsTarget())
+	}
+}
+
+// declareImport declares in sc the names an import binds, in order: its
+// default, then the local names of its specifiers or its `* as name`.
+func (s *SyntacticScopeCreator_ScopeScanner) declareImport(sc *Scope, imp ast.Import) {
+	if name, ok := imp.Default(); ok {
+		s.declareName(sc, name)
+	}
+	bindings, ok := imp.Bindings()
+	if !ok {
+		return
+	}
+	if star, ok := bindings.AsImportStar(); ok {
+		s.DeclareVar(sc, star.Node())
+	} else if specs, ok := bindings.AsImportSpecs(); ok {
+		for spec := range specs.Specs() {
+			s.declareName(sc, spec.Local())
+		}
+	}
+}
+
+// declareTarget declares in sc the names of a declaration's target: a name,
+// or the names in a pattern.
+func (s *SyntacticScopeCreator_ScopeScanner) declareTarget(sc *Scope, target ast.Target) {
+	if name, ok := target.AsName(); ok {
+		s.declareName(sc, name)
+	} else if pattern, ok := target.AsPattern(); ok {
+		s.declarePattern(sc, pattern)
+	} else if cast, ok := target.AsCast(); ok {
+		// Only in an assignment (see DeclareLHS); the cast holds a target.
+		s.declareTarget(sc, ast.MustTarget(cast.Expr().Node()))
+	} else {
+		// A property (a.b, a[i]) declares nothing: DeclareVar rejects it.
+		s.DeclareVar(sc, target.Node())
+	}
+}
+
+// declarePattern declares in sc the names in a destructuring pattern, left
+// to right.
+func (s *SyntacticScopeCreator_ScopeScanner) declarePattern(sc *Scope, pattern ast.Pattern) {
+	if array, ok := pattern.AsArrayPattern(); ok {
+		// [a, b = 1, , ...c]
+		for elem := range array.Elements() {
+			if target, ok := elem.AsTarget(); ok {
+				s.declareTarget(sc, target)
+			} else if withDefault, ok := elem.AsDefaultValue(); ok {
+				s.declareTarget(sc, withDefault.Target())
+			} else if rest, ok := elem.AsIterRest(); ok {
+				s.declareTarget(sc, rest.Target())
+			} // else a hole, which declares nothing
+		}
+	} else if object, ok := pattern.AsObjectPattern(); ok {
+		// {a, b: c, d = 1, [e]: f, ...g}; {a} is {a: a}, with a NAME value.
+		for prop := range object.Props() {
+			if key, ok := prop.AsStringKey(); ok {
+				s.declarePropValue(sc, key.Value())
+			} else if computed, ok := prop.AsComputedProp(); ok {
+				if value, ok := computed.Value(); ok {
+					s.declarePropValue(sc, value)
+				}
+			} else if rest, ok := prop.AsObjectRest(); ok {
+				s.declareTarget(sc, rest.Target())
 			}
 		}
-	case rhino.Token_DESTRUCTURING_LHS, rhino.Token_DEFAULT_VALUE, rhino.Token_CATCH, rhino.Token_ITER_REST,
-		rhino.Token_OBJECT_REST, rhino.Token_CAST:
-		s.declareLhsNodesHelper(sc, n.GetFirstChild())
-	case rhino.Token_IMPORT_SPEC, rhino.Token_COMPUTED_PROP, rhino.Token_STRING_KEY:
-		s.declareLhsNodesHelper(sc, n.GetLastChild())
-	case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_GETPROP, rhino.Token_GETELEM:
-		s.DeclareVar(sc, n)
-	case rhino.Token_EMPTY:
-	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		s.declareLhsNodesHelper(sc, n.GetFirstChild())
-	default:
-		if NodeUtil_IsAssignmentOp(n) {
-			s.declareLhsNodesHelper(sc, n.GetFirstChild())
-		} else {
-			panic(jutil.NewIllegalStateExceptionMsg("Invalid node in lhs: " + n.String()))
-		}
 	}
 }
 
+// declarePropValue declares in sc the names of the value of a property in
+// an object pattern: a target, with or without a default value.
+func (s *SyntacticScopeCreator_ScopeScanner) declarePropValue(sc *Scope, value ast.PropValue) {
+	if withDefault, ok := value.AsDefaultValue(); ok {
+		s.declareTarget(sc, withDefault.Target())
+	} else if target, ok := value.AsTarget(); ok {
+		s.declareTarget(sc, target)
+	}
+}
+
+// declareFunctionDeclaration declares in sc the name of fn if fn is a
+// function declaration; a function expression declares nothing outside
+// itself. The function's children belong to its own scopes.
+func (s *SyntacticScopeCreator_ScopeScanner) declareFunctionDeclaration(sc *Scope, fn ast.Function) {
+	if NodeUtil_IsFunctionExpression(fn.Node()) {
+		return
+	}
+	// A declaration without a name is invalid, but allow it so the checks
+	// can catch it.
+	if name, ok := fn.Name(); ok {
+		s.declareName(sc, name)
+	}
+}
+
+// declareClassDeclaration declares in sc the name of cls if cls is a class
+// declaration; a class expression declares nothing outside itself. The
+// class's children belong to its own scopes.
+func (s *SyntacticScopeCreator_ScopeScanner) declareClassDeclaration(sc *Scope, cls ast.Class) {
+	if NodeUtil_IsClassExpression(cls.Node()) {
+		return
+	}
+	// A declaration without a name is invalid, but allow it so the checks
+	// can catch it.
+	if name, ok := cls.Name(); ok {
+		s.declareName(sc, name)
+	}
+}
+
+// scanVarsTokenKind tells ScanVars which children to look at, by token: 1
+// for the declarations and the statements that may contain one, 2 for an
+// expression statement (at the top of a script, goog.provide('a.b') declares
+// a), 0 for the nodes that declare nothing.
 var scanVarsTokenKind = [256]uint8{
 	rhino.Token_VAR:          1,
 	rhino.Token_LET:          1,
@@ -477,6 +667,10 @@ var scanVarsTokenKind = [256]uint8{
 	rhino.Token_EXPR_RESULT:  2,
 }
 
+// scanVarsBlockCreatesScope reports whether the BLOCK n has a scope of its
+// own (NodeUtil.createsBlockScope): not a synthetic block in a block or a
+// script, nor the body of a case or a catch (a catch shares the scope of
+// the block that holds it in its try).
 func scanVarsBlockCreatesScope(n rhino.Node) bool {
 	parent := n.GetParent()
 	if parent.IsNil() {
@@ -501,55 +695,41 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *
 	switch n.GetToken() {
 	case rhino.Token_VAR:
 		if hoistScope != nil {
-			s.DeclareLHS(hoistScope, n)
+			s.declareNameDeclaration(hoistScope, ast.MustNameDeclaration(n))
 		}
 		return
 	case rhino.Token_LET, rhino.Token_CONST:
 		// Only declare when scope is the current lexical scope
 		if blockScope != nil {
-			s.DeclareLHS(blockScope, n)
+			s.declareNameDeclaration(blockScope, ast.MustNameDeclaration(n))
 		}
 		return
 	case rhino.Token_IMPORT:
-		s.DeclareLHS(hoistScope, n)
+		s.declareImport(hoistScope, ast.MustImport(n))
 		return
 	case rhino.Token_EXPORT:
-		// The first child of an EXPORT can be a declaration, in the case of
+		// The body of an EXPORT can be a declaration, in the case of
 		// export var/let/const/function/class name ...
-		s.ScanVars(n.GetFirstChild(), hoistScope, blockScope)
+		s.ScanVars(ast.MustExport(n).Body().Node(), hoistScope, blockScope)
 		return
 	case rhino.Token_FUNCTION:
-		if NodeUtil_IsFunctionExpression(n) || blockScope == nil {
-			return
+		if blockScope != nil {
+			s.declareFunctionDeclaration(blockScope, ast.MustFunction(n))
 		}
-
-		if n.GetFirstChild().GetStringID() <= rhino.RhinoStringPool_EmptyID {
-			// This is invalid, but allow it so the checks can catch it.
-			return
-		}
-		s.DeclareVar(blockScope, n.GetFirstChild())
 		return // should not examine function's children
 	case rhino.Token_CLASS:
-		if NodeUtil_IsClassExpression(n) || blockScope == nil {
-			return
+		if blockScope != nil {
+			s.declareClassDeclaration(blockScope, ast.MustClass(n))
 		}
-		if n.GetFirstChild().GetStringID() <= rhino.RhinoStringPool_EmptyID {
-			// This is invalid, but allow it so the checks can catch it.
-			return
-		}
-		s.DeclareVar(blockScope, n.GetFirstChild())
 		return // should not examine class's children
 	case rhino.Token_CATCH:
-		jutil.CheckStateMsg1(n.HasTwoChildren(), "%s", n)
-		// the first child is the catch var and the second child
-		// is the code block
+		catch := ast.MustCatch(n)
 		if blockScope != nil {
-			s.DeclareLHS(blockScope, n)
+			s.declareCatchParam(blockScope, catch)
 		}
 		// A new scope is not created for this BLOCK because there is a scope
 		// created for the BLOCK above the CATCH
-		block := n.GetSecondChild()
-		s.ScanVars(block, hoistScope, blockScope)
+		s.ScanVars(catch.Body().Node(), hoistScope, blockScope)
 		return // only one child to scan
 	case rhino.Token_SCRIPT:
 		if s.changeRootSet != nil && !s.changeRootSet.Contains(n) {
@@ -559,50 +739,33 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *
 			return
 		}
 		s.setInputId(n.GetInputId())
+		// Go-only: performance — the loop over children below, with the
+		// statements of a script that may declare an implicit goog namespace
+		// (Java: the EXPR_RESULT case).
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
 			ctok := child.GetToken()
 			if scanVarsTokenKind[uint8(ctok)] != 0 {
 				switch ctok {
 				case rhino.Token_EXPR_RESULT:
-					if expr := child.GetFirstChild(); !expr.IsNil() && expr.GetToken() == rhino.Token_CALL {
-						if NodeUtil_IsGoogProvideCall(child) {
-							s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), child)
-						} else if NodeUtil_IsBundledGoogModuleCall(expr) && expr.GetSecondChild().IsFunction() {
-							fn := expr.GetSecondChild()
-							moduleCall := NodeUtil_GetFunctionBody(fn).GetFirstChild()
-							if syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(moduleCall) {
-								s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), moduleCall)
-							}
-						}
+					if stmt := ast.MustExprStmt(child); stmt.Expr().Token() == rhino.Token_CALL {
+						s.declareImplicitGoogNamespace(hoistScope, stmt)
 					}
 				case rhino.Token_VAR:
 					if hoistScope != nil {
-						if first := child.GetFirstChild(); !first.IsNil() && first.GetNext().IsNil() && first.IsName() {
-							s.DeclareVar(hoistScope, first)
-						} else {
-							s.DeclareLHS(hoistScope, child)
-						}
+						s.declareNameDeclaration(hoistScope, ast.MustNameDeclaration(child))
 					}
 				case rhino.Token_LET, rhino.Token_CONST:
 					if blockScope != nil {
-						if first := child.GetFirstChild(); !first.IsNil() && first.GetNext().IsNil() && first.IsName() {
-							s.DeclareVar(blockScope, first)
-						} else {
-							s.DeclareLHS(blockScope, child)
-						}
+						s.declareNameDeclaration(blockScope, ast.MustNameDeclaration(child))
 					}
 				case rhino.Token_FUNCTION:
-					if blockScope != nil && !NodeUtil_IsFunctionExpression(child) {
-						if fnNameNode := child.GetFirstChild(); fnNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
-							s.DeclareVar(blockScope, fnNameNode)
-						}
+					if blockScope != nil {
+						s.declareFunctionDeclaration(blockScope, ast.MustFunction(child))
 					}
 				case rhino.Token_CLASS:
-					if blockScope != nil && !NodeUtil_IsClassExpression(child) {
-						if classNameNode := child.GetFirstChild(); classNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
-							s.DeclareVar(blockScope, classNameNode)
-						}
+					if blockScope != nil {
+						s.declareClassDeclaration(blockScope, ast.MustClass(child))
 					}
 				default:
 					s.ScanVars(child, hoistScope, blockScope)
@@ -614,28 +777,15 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *
 	case rhino.Token_MODULE_BODY:
 		// Module bodies are not part of global scope, but may declare an implicit goog namespace.
 		if hoistScope.IsGlobal() {
-			expr := n.GetFirstChild()
-			if !expr.IsNil() && syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(expr) {
-				s.DeclareImplicitGoogNamespaceFromCall(hoistScope, expr)
+			first, ok := ast.MustModuleBody(n).FirstStatement()
+			if ok && syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(first) {
+				s.DeclareImplicitGoogNamespaceFromCall(hoistScope, first.Node())
 			}
 			return
 		}
 	case rhino.Token_EXPR_RESULT:
-		if !n.GetParent().IsScript() {
-			return
-		}
-		if NodeUtil_IsGoogProvideCall(n) {
-			s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), n)
-		} else if NodeUtil_IsBundledGoogModuleCall(n.GetFirstChild()) &&
-			n.GetFirstChild().GetSecondChild().IsFunction() {
-			// e.g.
-			// goog.loadModule(function(exports) {
-			//   goog.module('foo.bar');
-			fn := n.GetFirstChild().GetSecondChild()
-			moduleCall := NodeUtil_GetFunctionBody(fn).GetFirstChild()
-			if syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(moduleCall) {
-				s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), moduleCall)
-			}
+		if n.GetParent().IsScript() {
+			s.declareImplicitGoogNamespace(hoistScope, ast.MustExprStmt(n))
 		}
 		return
 	case rhino.Token_BLOCK:
@@ -665,6 +815,12 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *
 		return
 	}
 
+	// Variables can only occur in statement-level nodes, so
+	// we only need to traverse children in a couple special cases.
+	//
+	// Go-only: performance — the children that can declare nothing are
+	// skipped by token (scanVarsTokenKind), and the cases below that
+	// declare, or that would return right away, are handled without a call.
 	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
 		ctok := child.GetToken()
@@ -672,31 +828,19 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *
 			switch ctok {
 			case rhino.Token_VAR:
 				if hoistScope != nil {
-					if first := child.GetFirstChild(); !first.IsNil() && first.GetNext().IsNil() && first.IsName() {
-						s.DeclareVar(hoistScope, first)
-					} else {
-						s.DeclareLHS(hoistScope, child)
-					}
+					s.declareNameDeclaration(hoistScope, ast.MustNameDeclaration(child))
 				}
 			case rhino.Token_LET, rhino.Token_CONST:
 				if blockScope != nil {
-					if first := child.GetFirstChild(); !first.IsNil() && first.GetNext().IsNil() && first.IsName() {
-						s.DeclareVar(blockScope, first)
-					} else {
-						s.DeclareLHS(blockScope, child)
-					}
+					s.declareNameDeclaration(blockScope, ast.MustNameDeclaration(child))
 				}
 			case rhino.Token_FUNCTION:
-				if blockScope != nil && !NodeUtil_IsFunctionExpression(child) {
-					if fnNameNode := child.GetFirstChild(); fnNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
-						s.DeclareVar(blockScope, fnNameNode)
-					}
+				if blockScope != nil {
+					s.declareFunctionDeclaration(blockScope, ast.MustFunction(child))
 				}
 			case rhino.Token_CLASS:
-				if blockScope != nil && !NodeUtil_IsClassExpression(child) {
-					if classNameNode := child.GetFirstChild(); classNameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
-						s.DeclareVar(blockScope, classNameNode)
-					}
+				if blockScope != nil {
+					s.declareClassDeclaration(blockScope, ast.MustClass(child))
 				}
 			case rhino.Token_BLOCK:
 				if hoistScope != nil || !scanVarsBlockCreatesScope(child) {
@@ -711,6 +855,38 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *
 			}
 		}
 		child = next
+	}
+}
+
+// declareImplicitGoogNamespace declares the implicit namespace of stmt, a
+// statement of a script, if it is goog.provide('a.b.c') or a bundled legacy
+// goog.module:
+//
+//	goog.loadModule(function(exports) {
+//	  goog.module('a.b.c');
+//	  goog.module.declareLegacyNamespace();
+//	  ...
+func (s *SyntacticScopeCreator_ScopeScanner) declareImplicitGoogNamespace(hoistScope *Scope, stmt ast.ExprStmt) {
+	if NodeUtil_IsGoogProvideCall(stmt.Node()) {
+		s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), stmt.Node())
+		return
+	}
+	call, ok := stmt.Expr().AsCall()
+	if !ok || !NodeUtil_IsBundledGoogModuleCall(call.Node()) {
+		return
+	}
+	arg, _ := call.OnlyArg() // a bundled goog.module call has one argument
+	fn, ok := arg.AsFunction()
+	if !ok {
+		return
+	}
+	body, ok := fn.Body().AsBlock()
+	if !ok {
+		return
+	}
+	moduleCall, ok := body.FirstStatement()
+	if ok && syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(moduleCall) {
+		s.DeclareImplicitGoogNamespaceFromCall(hoistScope.GetGlobalScope(), moduleCall.Node())
 	}
 }
 
@@ -772,16 +948,21 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n rhino.Node)
 // Explicit syntactical definitions like 'var a = {};' supersede this
 // definition if present.
 //
-// exprCall is a goog.module or goog.provide call.
+// exprCall is a goog.module or goog.provide call (the statement).
 //
 // Java: SyntacticScopeCreator.ScopeScanner.declareImplicitGoogNamespaceFromCall(Scope, Node)
 func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCall(sc *Scope, exprCall rhino.Node) {
-	namespaceNode := exprCall.GetFirstChild().GetSecondChild()
-	if namespaceNode.IsNil() || !namespaceNode.IsString() {
+	call := ast.MustCall(ast.MustExprStmt(exprCall).Expr().Node())
+	var namespaceNode ast.StringLit
+	arg, ok := call.FirstArg()
+	if ok {
+		namespaceNode, ok = arg.AsStringLit()
+	}
+	if !ok {
 		// invalid call missing an argument, we warn elsewhere
 		return
 	}
-	namespace := namespaceNode.GetString()
+	namespace := namespaceNode.Value()
 	root := NodeUtil_GetRootOfQualifiedNameString(namespace)
 
 	if root == "" {
@@ -796,7 +977,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCal
 				sc, root, existing.GetNode(), s.getInput())
 		}
 	}
-	sc.DeclareImplicitGoogNamespaceIfAbsent(root, namespaceNode)
+	sc.DeclareImplicitGoogNamespaceIfAbsent(root, namespaceNode.Node())
 }
 
 // Function body declarations are not allowed to shadow
@@ -811,12 +992,16 @@ func syntacticScopeCreator_ScopeScanner_isShadowingAllowed(name string, s *Scope
 	return true
 }
 
+// isLegacyGoogModule reports whether stmt is goog.module('a.b.c') followed
+// by goog.module.declareLegacyNamespace().
+//
 // Java: SyntacticScopeCreator.ScopeScanner.isLegacyGoogModule(Node)
-func syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(n rhino.Node) bool {
-	if !NodeUtil_IsGoogModuleCall(n) {
+func syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(stmt ast.Statement) bool {
+	if !NodeUtil_IsGoogModuleCall(stmt.Node()) {
 		return false
 	}
-	return !n.GetNext().IsNil() && NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(n.GetNext())
+	next, ok := stmt.Next()
+	return ok && NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(next.Node())
 }
 
 // SyntacticScopeCreator_RedeclarationHandler is the interface for

@@ -197,6 +197,39 @@ func TestSyntacticScopeCreator_VarRedeclaration5(t *testing.T) {
 	s.assertRedeclarations("x", 1)
 }
 
+// syntacticScopeCreatorTest_rewritingHandler turns a redeclared `var a = b`
+// into `a = b`, as Normalize's DuplicateDeclarationHandler does.
+type syntacticScopeCreatorTest_rewritingHandler struct{}
+
+func (syntacticScopeCreatorTest_rewritingHandler) OnRedeclaration(
+	s *Scope, name string, n rhino.Node, input *CompilerInput) {
+	decl := n.GetParent()
+	value := n.GetFirstChild()
+	n.Detach()
+	value.Detach()
+	decl.ReplaceWith(rhino.IR_ExprResult(rhino.IR_Assign(n, value)))
+}
+
+// Go-only: the redeclaration handler may move the declared name (here into
+// `a = b`, where its next sibling is b); the scanner must not take that
+// sibling for another declarator of the var.
+func TestSyntacticScopeCreator_RedeclarationHandlerRewritesDeclaration(t *testing.T) {
+	s := newSyntacticScopeCreatorTest(t)
+	root := s.getRoot("function f() { var a = 1; var a = b; }")
+	creator := NewSyntacticScopeCreatorWithRedeclarationHandler(
+		s.compiler, syntacticScopeCreatorTest_rewritingHandler{})
+
+	globalScope := creator.CreateScopeOfScope(root, nil)
+	fn := root.GetFirstChild()
+	fnScope := creator.CreateScopeOfScope(fn, globalScope)
+	blockScope := creator.CreateScopeOfScope(fn.GetLastChild(), fnScope)
+
+	if !blockScope.HasOwnSlot("a") || blockScope.HasOwnSlot("b") || blockScope.GetVarCount() != 1 {
+		t.Errorf("block scope declares a: %v, b: %v, %d vars; want a only",
+			blockScope.HasOwnSlot("a"), blockScope.HasOwnSlot("b"), blockScope.GetVarCount())
+	}
+}
+
 func TestSyntacticScopeCreator_VarShadowsParam(t *testing.T) {
 	s := newSyntacticScopeCreatorTest(t)
 	js := "function f(p) { var p; }"
