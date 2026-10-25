@@ -21,9 +21,21 @@ package jscomp
 import (
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast). The checks
+// take the ast.Call they look at and read it by role: the callee (a GetProp
+// whose object is the name goog), the method name (its property), the
+// arguments (FirstArg, Next, NumArgs) instead of GetNext chains from the
+// callee and child counts that include it. goog.base calls read `this` and
+// the method name as the first two arguments. Kept on rhino: the checks of
+// function and class declarations and of the enclosing function or class
+// (they read parents and siblings of any kind), findGoogInheritsCall (a
+// walk over the following statements), and the nodes built for the
+// rewrites.
 
 // ProcessClosurePrimitives performs some Closure-specific simplifications
 // including rewriting goog.base, goog.addDependency.
@@ -128,11 +140,10 @@ func (p *ProcessClosurePrimitives) Process(externs rhino.Node, root rhino.Node) 
 func (p *ProcessClosurePrimitives) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CALL:
-		{
-			p.CheckGoogFunctions(t, n)
-			p.MaybeProcessClassBaseCall(n)
-			p.CheckPropertyRenameCall(n)
-		}
+		call := ast.MustCall(n)
+		p.CheckGoogFunctions(t, call)
+		p.MaybeProcessClassBaseCall(call)
+		p.CheckPropertyRenameCall(call)
 	case rhino.Token_FUNCTION, rhino.Token_CLASS:
 		if !t.InGlobalHoistScope() || n.IsFromExterns() {
 			return
@@ -155,24 +166,26 @@ func (p *ProcessClosurePrimitives) Visit(t *NodeTraversal, n rhino.Node, parent 
 					pn.String()))
 		}
 	case rhino.Token_EXPR_RESULT:
-		assign := n.GetFirstChild()
-		if !assign.IsAssign() || n.IsFromExterns() {
+		assign, ok := ast.MustExprStmt(n).Expr().AsAssign()
+		if !ok || n.IsFromExterns() {
 			break
 		}
-		info := assign.GetJSDocInfo()
+		info := assign.Node().GetJSDocInfo()
 		if info == nil || info.GetType() == nil {
 			break
 		}
-		lhs, ok := assign.GetFirstChild().GetQualifiedNameString()
+		lhs, ok := assign.Target().Node().GetQualifiedNameString()
 		if !ok {
 			break
 		}
 		p.CheckPossibleGoogProvideInit(lhs, info, n)
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
-		if !n.GetFirstChild().IsName() {
+		first, _ := ast.MustNameDeclaration(n).FirstDeclarator()
+		name, ok := first.AsName() // false for a destructuring declaration
+		if !ok {
 			break
 		}
-		p.CheckPossibleGoogProvideInit(n.GetFirstChild().GetString(), n.GetJSDocInfo(), n)
+		p.CheckPossibleGoogProvideInit(name.Ident(), n.GetJSDocInfo(), n)
 	default:
 	}
 }
@@ -206,38 +219,38 @@ func (p *ProcessClosurePrimitives) CheckPossibleGoogProvideInit(
 }
 
 // Java: ProcessClosurePrimitives.checkGoogFunctions(NodeTraversal, Node)
-func (p *ProcessClosurePrimitives) CheckGoogFunctions(t *NodeTraversal, call rhino.Node) {
-	callee := call.GetFirstChild()
-	if !callee.IsGetProp() {
+func (p *ProcessClosurePrimitives) CheckGoogFunctions(t *NodeTraversal, call ast.Call) {
+	callee, ok := call.Callee().AsGetProp()
+	if !ok {
 		return
 	}
 
-	receiver := callee.GetFirstChild()
-	if !receiver.IsName() || receiver.GetString() != ProcessClosurePrimitives_GOOG {
+	receiver, ok := callee.Object().AsName()
+	if !ok || receiver.Ident() != ProcessClosurePrimitives_GOOG {
 		return
 	}
 
 	// For the sake of simplicity, we report code changes
 	// when we see a provides/requires, and don't worry about
 	// reporting the change when we actually do the replacement.
-	methodName := callee.GetString()
+	methodName := callee.Property()
 	switch methodName {
 	case "inherits":
 		// Note: inherits is allowed in local scope
 		p.ProcessInheritsCall(call)
 	case "addDependency":
-		if p.ValidateUnaliasablePrimitiveCall(t, call, methodName) {
+		if p.ValidateUnaliasablePrimitiveCall(t, call.Node(), methodName) {
 			p.ProcessAddDependency(call)
 		}
 	case "setCssNameMapping":
-		_ = ProcessClosurePrimitives_ProcessSetCssNameMapping(p.compiler, call, call.GetParent())
+		_ = ProcessClosurePrimitives_ProcessSetCssNameMapping(p.compiler, call.Node(), call.Node().GetParent())
 	case "forwardDeclare":
 		if p.ValidatePrimitiveCallWithMessage(
 			t,
-			call,
+			call.Node(),
 			methodName,
 			ProcessClosurePrimitives_CLOSURE_CALL_CANNOT_BE_ALIASED_OUTSIDE_MODULE_ERROR) {
-			p.ProcessForwardDeclare(call)
+			p.ProcessForwardDeclare(call.Node())
 		}
 	case "weakUsage":
 		p.ValidateWeakUsageCall(call)
@@ -246,35 +259,37 @@ func (p *ProcessClosurePrimitives) CheckGoogFunctions(t *NodeTraversal, call rhi
 }
 
 // Java: ProcessClosurePrimitives.validateWeakUsageCall(Node)
-func (p *ProcessClosurePrimitives) ValidateWeakUsageCall(call rhino.Node) {
+func (p *ProcessClosurePrimitives) ValidateWeakUsageCall(call ast.Call) {
 	// goog.weakUsage() should have exactly one argument, and it should be a name (possibly
 	// qualified).
-	childCount := call.GetChildCount()
-	arg := call.GetSecondChild()
-	if childCount != 2 {
-		calleeName, ok := call.GetFirstChild().GetQualifiedNameString()
-		if !ok {
-			calleeName = "null"
-		}
+	calleeName := processClosurePrimitives_qualifiedNameOrNull(call.Callee().Node())
+	if numArgs := call.NumArgs(); numArgs != 1 {
 		p.compiler.Report(
 			JSError_MakeWithNode(
-				call,
+				call.Node(),
 				ProcessClosurePrimitives_INVALID_GOOG_WEAK_USAGE_CALL,
 				calleeName,
-				"should have exactly one argument, not "+strconv.Itoa(childCount-1)))
+				"should have exactly one argument, not "+strconv.Itoa(numArgs)))
 	}
-	if childCount >= 2 && !call.GetSecondChild().IsQualifiedName() {
-		calleeName, ok := call.GetFirstChild().GetQualifiedNameString()
-		if !ok {
-			calleeName = "null"
-		}
+	if arg, ok := call.FirstArg(); ok && !arg.Node().IsQualifiedName() {
 		p.compiler.Report(
 			JSError_MakeWithNode(
-				call,
+				call.Node(),
 				ProcessClosurePrimitives_INVALID_GOOG_WEAK_USAGE_CALL,
 				calleeName,
-				"argument should be a name or qualified name, not "+arg.String()))
+				"argument should be a name or qualified name, not "+arg.Node().String()))
 	}
+}
+
+// processClosurePrimitives_qualifiedNameOrNull returns the qualified name
+// of n, or "null" (what Java prints for a null string) if it has none.
+//
+// Go-only: the getQualifiedName() results this pass puts in messages.
+func processClosurePrimitives_qualifiedNameOrNull(n rhino.Node) string {
+	if name, ok := n.GetQualifiedNameString(); ok {
+		return name
+	}
+	return "null"
 }
 
 // ValidateUnaliasablePrimitiveCall verifies that a) the call is in the top
@@ -312,7 +327,7 @@ func (p *ProcessClosurePrimitives) ValidatePrimitiveCallWithMessage(
 }
 
 // Java: ProcessClosurePrimitives.maybeProcessClassBaseCall(Node)
-func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(n rhino.Node) {
+func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(call ast.Call) {
 	// Two things must hold for every base call:
 	// 1) We must be calling it on "this".
 	// 2) We must be calling it on a prototype method of the same name as
@@ -340,12 +355,13 @@ func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(n rhino.Node) {
 	// Most of the logic here is just to make sure the AST's
 	// structure is what we expect it to be.
 
-	callTarget := n.GetFirstChild()
-	if !callTarget.IsGetProp() || callTarget.GetString() != "base" {
+	n := call.Node()
+	callTarget, ok := call.Callee().AsGetProp()
+	if !ok || callTarget.Property() != "base" {
 		return
 	}
 
-	baseContainerNode := callTarget.GetFirstChild()
+	baseContainerNode := callTarget.Object().Node()
 	if !baseContainerNode.IsUnscopedQualifiedName() {
 		// Some unknown "base" method.
 		return
@@ -383,15 +399,16 @@ func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(n rhino.Node) {
 
 	enclosingQname, _ := enclosingFnNameNode.GetQualifiedNameString()
 	if !(jutil.StringIndexOf(enclosingQname, ".prototype.") >= 0) {
-		p.RewriteBaseCallInConstructor(enclosingQname, baseContainer, n, enclosingFnNameNode)
+		p.RewriteBaseCallInConstructor(enclosingQname, baseContainer, call, enclosingFnNameNode)
 	} else {
-		p.RewriteBaseCallInMethod(enclosingQname, baseContainer, n, enclosingFnNameNode)
+		p.RewriteBaseCallInMethod(enclosingQname, baseContainer, call, enclosingFnNameNode)
 	}
 }
 
 // Java: ProcessClosurePrimitives.rewriteBaseCallInConstructor(String, String, Node, Node)
 func (p *ProcessClosurePrimitives) RewriteBaseCallInConstructor(
-	enclosingQname string, baseContainer string, n rhino.Node, enclosingFnNameNode rhino.Node) {
+	enclosingQname string, baseContainer string, call ast.Call, enclosingFnNameNode rhino.Node) {
+	n := call.Node()
 	// Check if this is some other "base" method.
 	if enclosingQname != baseContainer {
 		// Report misuse of "base" methods from other known classes.
@@ -416,35 +433,43 @@ func (p *ProcessClosurePrimitives) RewriteBaseCallInConstructor(
 	}
 
 	// This is the expected method, validate its parameters.
-	callee := n.GetFirstChild()
-	thisArg := callee.GetNext()
-	if thisArg.IsNil() || !thisArg.IsThis() {
+	thisArg, ok := call.FirstArg()
+	if !ok || thisArg.Token() != rhino.Token_THIS {
 		p.ReportBadBaseMethodUse(n, baseContainer, "First argument must be 'this'.")
 		return
 	}
 
 	// Handle methods.
-	methodNameNode := thisArg.GetNext()
-	if methodNameNode.IsNil() ||
-		!methodNameNode.IsStringLit() ||
-		methodNameNode.GetString() != "constructor" {
+	methodName, ok := processClosurePrimitives_stringArgAfter(thisArg)
+	if !ok || methodName.Value() != "constructor" {
 		p.ReportBadBaseMethodUse(n, baseContainer, "Second argument must be 'constructor'.")
 		return
 	}
 
 	// We're good to go.
-	baseClassQname, ok := baseClassNode.GetQualifiedNameString()
-	if !ok {
-		baseClassQname = "null"
-	}
+	baseClassQname := processClosurePrimitives_qualifiedNameOrNull(baseClassNode)
+	callee := call.Callee().Node()
 	callee.ReplaceWith(
 		NodeUtil_NewQNameWithOriginalName(
 			p.compiler,
 			baseClassQname+".call",
 			callee,
 			enclosingQname+".base"))
-	methodNameNode.Detach()
+	methodName.Detach()
 	p.compiler.ReportChangeToEnclosingScope(n)
+}
+
+// processClosurePrimitives_stringArgAfter returns the argument after arg;
+// ok is false if there is none or it is not a string literal.
+//
+// Go-only: the `methodNameNode == null || !methodNameNode.isStringLit()`
+// checks of the goog.base rewrites.
+func processClosurePrimitives_stringArgAfter(arg ast.Arg) (ast.StringLit, bool) {
+	next, ok := arg.Next()
+	if !ok {
+		return ast.StringLit{}, false
+	}
+	return next.AsStringLit()
 }
 
 // RewriteBaseCallInMethod: enclosingQname is a Java String that is never
@@ -452,7 +477,8 @@ func (p *ProcessClosurePrimitives) RewriteBaseCallInConstructor(
 //
 // Java: ProcessClosurePrimitives.rewriteBaseCallInMethod(String, String, Node, Node)
 func (p *ProcessClosurePrimitives) RewriteBaseCallInMethod(
-	enclosingQname string, baseContainer string, n rhino.Node, enclosingFnNameNode rhino.Node) {
+	enclosingQname string, baseContainer string, call ast.Call, enclosingFnNameNode rhino.Node) {
+	n := call.Node()
 	if !p.knownClosureSubclasses.Contains(baseContainer) {
 		// Can't determine if this is a known "class" that has a known "base" method. Don't rewrite
 		// the "base" method call because if it's not a Closure subclass, the rewriting would be
@@ -480,21 +506,20 @@ func (p *ProcessClosurePrimitives) RewriteBaseCallInMethod(
 	}
 
 	// The super class is known.
-	callee := n.GetFirstChild()
-	thisArg := callee.GetNext()
-	if thisArg.IsNil() || !thisArg.IsThis() {
+	thisArg, ok := call.FirstArg()
+	if !ok || thisArg.Token() != rhino.Token_THIS {
 		p.ReportBadBaseMethodUse(n, baseContainer, "First argument must be 'this'.")
 		return
 	}
 
 	// Handle methods.
-	methodNameNode := thisArg.GetNext()
-	if methodNameNode.IsNil() || !methodNameNode.IsStringLit() {
+	methodNameNode, ok := processClosurePrimitives_stringArgAfter(thisArg)
+	if !ok {
 		p.ReportBadBaseMethodUse(n, baseContainer, "Second argument must name a method.")
 		return
 	}
 
-	methodName := methodNameNode.GetString()
+	methodName := methodNameNode.Value()
 	ending := ".prototype." + methodName
 	if !jutil.StringEndsWith(enclosingQname, ending) {
 		p.ReportBadBaseMethodUse(n, baseContainer, "Enclosing method does not match "+methodName)
@@ -503,10 +528,8 @@ func (p *ProcessClosurePrimitives) RewriteBaseCallInMethod(
 
 	// We're good to go.
 	className := enclosingFnNameNode.GetFirstFirstChild()
-	classQname, ok := className.GetQualifiedNameString()
-	if !ok {
-		classQname = "null"
-	}
+	classQname := processClosurePrimitives_qualifiedNameOrNull(className)
+	callee := call.Callee().Node()
 	callee.ReplaceWith(
 		NodeUtil_NewQNameWithOriginalName(
 			p.compiler,
@@ -541,12 +564,13 @@ func ProcessClosurePrimitives_FindGoogInheritsCall(ctorDeclarationNode rhino.Nod
 // ProcessInheritsCall processes the goog.inherits call.
 //
 // Java: ProcessClosurePrimitives.processInheritsCall(Node)
-func (p *ProcessClosurePrimitives) ProcessInheritsCall(n rhino.Node) {
-	if n.HasXChildren(3) {
-		subClass := n.GetSecondChild()
-		superClass := subClass.GetNext()
-		if subClass.IsUnscopedQualifiedName() && superClass.IsUnscopedQualifiedName() {
-			if subQname, ok := subClass.GetQualifiedNameString(); ok {
+func (p *ProcessClosurePrimitives) ProcessInheritsCall(call ast.Call) {
+	if call.NumArgs() == 2 {
+		// The count proves both arguments are there.
+		subClass, _ := call.FirstArg()
+		superClass, _ := subClass.Next()
+		if subClass.Node().IsUnscopedQualifiedName() && superClass.Node().IsUnscopedQualifiedName() {
+			if subQname, ok := subClass.Node().GetQualifiedNameString(); ok {
 				p.knownClosureSubclasses.Add(subQname)
 			}
 		}
@@ -629,27 +653,36 @@ func (m *processClosurePrimitives_cssRenamingMap) GetStyle() CssRenamingMap_Styl
 // Java: ProcessClosurePrimitives.processSetCssNameMapping(AbstractCompiler, Node, Node)
 func ProcessClosurePrimitives_ProcessSetCssNameMapping(
 	compiler AbstractCompiler, n rhino.Node, parent rhino.Node) CssRenamingMap {
-	left := n.GetFirstChild()
-	arg := left.GetNext()
-	if !ProcessClosurePrimitives_VerifySetCssNameMapping(compiler, left, arg) {
+	call := ast.MustCall(n)
+	if !ProcessClosurePrimitives_VerifySetCssNameMapping(compiler, call) {
 		return nil
 	}
+	// VerifySetCssNameMapping checked the arguments: an object literal, then
+	// an optional string.
+	arg, _ := call.FirstArg()
+	obj := ast.MustObjectLit(arg.Node())
+
 	// Translate OBJECTLIT into SubstitutionMap. All keys and
 	// values must be strings, or an error will be thrown.
 	cssNames := jutil.NewLinkedHashMap[string, string]()
 
-	for key := arg.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-		value := key.GetFirstChild()
-		if !key.IsStringKey() || value.IsNil() || !value.IsStringLit() {
+	for member := range obj.Members() {
+		key, isKey := member.AsStringKey()
+		var value ast.StringLit
+		isString := false
+		if isKey {
+			value, isString = key.Value().AsStringLit()
+		}
+		if !isString {
 			compiler.Report(JSError_MakeWithNode(n, ProcessClosurePrimitives_NON_STRING_PASSED_TO_SET_CSS_NAME_MAPPING_ERROR))
 			return nil
 		}
-		cssNames.Put(key.GetString(), value.GetString())
+		cssNames.Put(key.Key(), value.Value())
 	}
 
 	styleStr := "BY_PART"
-	if !arg.GetNext().IsNil() {
-		styleStr = arg.GetNext().GetString()
+	if style, ok := arg.Next(); ok {
+		styleStr = ast.MustStringLit(style.Node()).Value()
 	}
 
 	var style CssRenamingMap_Style
@@ -714,11 +747,11 @@ func ProcessClosurePrimitives_ProcessSetCssNameMapping(
 // forward declarations.
 //
 // Java: ProcessClosurePrimitives.processAddDependency(Node)
-func (p *ProcessClosurePrimitives) ProcessAddDependency(n rhino.Node) {
+func (p *ProcessClosurePrimitives) ProcessAddDependency(call ast.Call) {
 	// We can't modify parent, so just create a node that will
 	// get compiled out.
 	emptyNode := rhino.IR_Number(0)
-	n.ReplaceWith(emptyNode)
+	call.Node().ReplaceWith(emptyNode)
 	p.compiler.ReportChangeToEnclosingScope(emptyNode)
 }
 
@@ -801,68 +834,66 @@ func processClosurePrimitives_joinElements(list []string) string {
 //
 // Returns whether the arguments checked out okay.
 //
+// Go-only: it takes the call; Java takes its callee and first argument.
+//
 // Java: ProcessClosurePrimitives.verifySetCssNameMapping(AbstractCompiler, Node, Node)
-func ProcessClosurePrimitives_VerifySetCssNameMapping(
-	compiler AbstractCompiler, methodName rhino.Node, firstArg rhino.Node) bool {
+func ProcessClosurePrimitives_VerifySetCssNameMapping(compiler AbstractCompiler, call ast.Call) bool {
 	var diagnostic *DiagnosticType = nil
-	if firstArg.IsNil() {
+	if firstArg, ok := call.FirstArg(); !ok {
 		diagnostic = ClosurePrimitiveErrors_NULL_ARGUMENT_ERROR
-	} else if !firstArg.IsObjectLit() {
+	} else if firstArg.Token() != rhino.Token_OBJECTLIT {
 		diagnostic = ProcessClosurePrimitives_EXPECTED_OBJECTLIT_ERROR
-	} else if !firstArg.GetNext().IsNil() {
-		secondArg := firstArg.GetNext()
-		if !secondArg.IsStringLit() {
+	} else if secondArg, ok := firstArg.Next(); ok {
+		if secondArg.Token() != rhino.Token_STRINGLIT {
 			diagnostic = ProcessClosurePrimitives_EXPECTED_STRING_ERROR
-		} else if !secondArg.GetNext().IsNil() {
+		} else if !secondArg.IsLast() {
 			diagnostic = ClosurePrimitiveErrors_TOO_MANY_ARGUMENTS_ERROR
 		}
 	}
 	if diagnostic != nil {
-		methodQname, ok := methodName.GetQualifiedNameString()
-		if !ok {
-			methodQname = "null"
-		}
-		compiler.Report(JSError_MakeWithNode(methodName, diagnostic, methodQname))
+		methodName := call.Callee().Node()
+		compiler.Report(JSError_MakeWithNode(methodName, diagnostic, processClosurePrimitives_qualifiedNameOrNull(methodName)))
 		return false
 	}
 	return true
 }
 
 // Java: ProcessClosurePrimitives.checkPropertyRenameCall(Node)
-func (p *ProcessClosurePrimitives) CheckPropertyRenameCall(call rhino.Node) {
-	callee := call.GetFirstChild()
+func (p *ProcessClosurePrimitives) CheckPropertyRenameCall(call ast.Call) {
+	callee := call.Callee().Node()
 	// TODO(b/193038601): make this work when the callee is a module import
 	if !p.compiler.GetCodingConvention().IsPropertyRenameFunction(callee) {
 		return
 	}
-	calleeName, ok := callee.GetQualifiedNameString()
-	if !ok {
-		calleeName = "null"
-	}
+	calleeName := processClosurePrimitives_qualifiedNameOrNull(callee)
 
-	switch call.GetChildCount() - 1 {
+	switch call.NumArgs() {
 	case 1, 2:
 	default:
 		p.compiler.Report(
 			JSError_MakeWithNode(
-				call,
+				call.Node(),
 				ProcessClosurePrimitives_INVALID_RENAME_FUNCTION,
 				calleeName,
 				"Must be called with 1 or 2 arguments."))
 	}
 
-	propName := callee.GetNext()
-	if propName.IsNil() || !propName.IsStringLit() {
+	var propName ast.StringLit
+	isString := false
+	if arg, ok := call.FirstArg(); ok {
+		propName, isString = arg.AsStringLit()
+	}
+	if !isString {
 		p.compiler.Report(
 			JSError_MakeWithNode(
-				call,
+				call.Node(),
 				ProcessClosurePrimitives_INVALID_RENAME_FUNCTION,
 				calleeName,
 				"The first argument must be a string literal."))
-	} else if jutil.StringIndexOf(propName.GetString(), ".") >= 0 {
+	} else if jutil.StringIndexOf(propName.Value(), ".") >= 0 {
 		p.compiler.Report(
 			JSError_MakeWithNode(
-				call,
+				call.Node(),
 				ProcessClosurePrimitives_INVALID_RENAME_FUNCTION,
 				calleeName,
 				"The first argument must not be a property path."))
