@@ -108,7 +108,8 @@ func (p *PeepholeFoldConstants) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 // helpers read their operands by role, and the binary operators, read
 // below. Every one of them always has both operands.
 func (p *PeepholeFoldConstants) TryFoldBinaryOperator(subtree rhino.Node) rhino.Node {
-	switch subtree.GetToken() {
+	token := subtree.GetToken()
+	switch token {
 	case rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM:
 		return p.TryFoldGetElem(subtree)
 	case rhino.Token_ASSIGN:
@@ -133,7 +134,7 @@ func (p *PeepholeFoldConstants) TryFoldBinaryOperator(subtree rhino.Node) rhino.
 		return subtree
 	}
 	left, right := op.Left().Node(), op.Right().Node()
-	switch op.Token() {
+	switch token {
 	case rhino.Token_INSTANCEOF:
 		return p.TryFoldInstanceof(subtree, left, right)
 	case rhino.Token_AND, rhino.Token_OR:
