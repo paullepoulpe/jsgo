@@ -19,10 +19,16 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast): each check
+// takes the kind it reads (the branches of an if, the body of a loop, the
+// operands of a comparison or a logical operator) instead of testing the
+// token and reading children by position. The optional chain check stays on
+// rhino: it reads the node's parent, of any kind.
 
 // CheckSuspiciousCode checks for common errors, such as misplaced semicolons:
 //
@@ -82,89 +88,97 @@ func NewCheckSuspiciousCode() *CheckSuspiciousCode {
 }
 
 // Java: CheckSuspiciousCode.visit(NodeTraversal, Node, Node)
+//
+// Go-only: Visit switches on the token once and hands each check the kind
+// it reads; Java calls every check on every node and each check tests the
+// token. A node has one token, so the checks run in the same order (for
+// `in`: the right operand first, then the negated left one).
 func (c *CheckSuspiciousCode) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	c.CheckMissingSemicolon(t, n)
-	c.CheckNaN(t, n)
-	c.CheckInvalidIn(t, n)
-	c.CheckNonObjectInstanceOf(t, n)
-	c.CheckNegatedLeftOperandOfInOperator(t, n)
-	c.CheckLeftOperandOfLogicalOperator(t, n)
-	CheckSuspiciousCode_CheckSuspiciousBreakingOutOfOptionalChain(t, n)
-}
-
-// Java: CheckSuspiciousCode.checkMissingSemicolon(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckMissingSemicolon(t *NodeTraversal, n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_IF:
-		trueCase := n.GetSecondChild()
-		CheckSuspiciousCode_ReportIfWasEmpty(t, trueCase)
-		elseCase := trueCase.GetNext()
-		if !elseCase.IsNil() {
-			CheckSuspiciousCode_ReportIfWasEmpty(t, elseCase)
-		}
+		c.CheckMissingSemicolon(t, ast.MustIf(n))
 	case rhino.Token_WHILE, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		CheckSuspiciousCode_ReportIfWasEmpty(t, NodeUtil_GetLoopCodeBlock(n))
-	default:
+		CheckSuspiciousCode_ReportIfWasEmpty(t, ast.MustLoop(n).Body())
+	case rhino.Token_EQ, rhino.Token_GE, rhino.Token_GT, rhino.Token_LE, rhino.Token_LT, rhino.Token_NE,
+		rhino.Token_SHEQ, rhino.Token_SHNE:
+		c.CheckNaN(t, ast.MustBinary(n))
+	case rhino.Token_IN:
+		in := ast.MustBinary(n)
+		c.CheckInvalidIn(t, in)
+		c.CheckNegatedLeftOperandOfInOperator(t, in)
+	case rhino.Token_INSTANCEOF:
+		c.CheckNonObjectInstanceOf(t, ast.MustBinary(n))
+	case rhino.Token_OR, rhino.Token_AND:
+		c.CheckLeftOperandOfLogicalOperator(t, ast.MustBinary(n))
+	case rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_CALL:
+		CheckSuspiciousCode_CheckSuspiciousBreakingOutOfOptionalChain(t, n)
+	}
+}
+
+// CheckMissingSemicolon reports an if whose branch is a lone semicolon.
+//
+// Go-only: it takes the if; Visit checks the body of a loop directly.
+//
+// Java: CheckSuspiciousCode.checkMissingSemicolon(NodeTraversal, Node)
+func (c *CheckSuspiciousCode) CheckMissingSemicolon(t *NodeTraversal, ifs ast.If) {
+	CheckSuspiciousCode_ReportIfWasEmpty(t, ifs.Then())
+	if elseCase, ok := ifs.Else(); ok {
+		CheckSuspiciousCode_ReportIfWasEmpty(t, elseCase)
 	}
 }
 
 // Java: CheckSuspiciousCode.reportIfWasEmpty(NodeTraversal, Node)
-func CheckSuspiciousCode_ReportIfWasEmpty(t *NodeTraversal, block rhino.Node) {
-	jutil.CheckState(block.IsBlock())
-
+func CheckSuspiciousCode_ReportIfWasEmpty(t *NodeTraversal, block ast.Block) {
 	// A semicolon is distinguished from a block without children by
 	// annotating it with EMPTY_BLOCK.  Blocks without children are
 	// usually intentional, especially with loops.
-	if !block.HasChildren() && block.IsAddedBlock() {
-		t.GetCompiler().Report(JSError_MakeWithNode(block, CheckSuspiciousCode_SUSPICIOUS_SEMICOLON))
+	if !block.HasStatements() && block.Node().IsAddedBlock() {
+		t.GetCompiler().Report(JSError_MakeWithNode(block.Node(), CheckSuspiciousCode_SUSPICIOUS_SEMICOLON))
 	}
 }
 
 // Java: CheckSuspiciousCode.checkNaN(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckNaN(t *NodeTraversal, n rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_EQ, rhino.Token_GE, rhino.Token_GT, rhino.Token_LE, rhino.Token_LT, rhino.Token_NE,
-		rhino.Token_SHEQ, rhino.Token_SHNE:
-		CheckSuspiciousCode_ReportIfNaN(t, n.GetFirstChild())
-		CheckSuspiciousCode_ReportIfNaN(t, n.GetLastChild())
-	default:
-	}
+func (c *CheckSuspiciousCode) CheckNaN(t *NodeTraversal, comparison ast.Binary) {
+	CheckSuspiciousCode_ReportIfNaN(t, comparison, comparison.Left())
+	CheckSuspiciousCode_ReportIfNaN(t, comparison, comparison.Right())
 }
 
+// Go-only: it takes the comparison it reports on, which Java reads as the
+// operand's parent.
+//
 // Java: CheckSuspiciousCode.reportIfNaN(NodeTraversal, Node)
-func CheckSuspiciousCode_ReportIfNaN(t *NodeTraversal, n rhino.Node) {
-	if NodeUtil_IsNaN(n) {
-		t.GetCompiler().Report(JSError_MakeWithNode(n.GetParent(), CheckSuspiciousCode_SUSPICIOUS_COMPARISON_WITH_NAN))
+func CheckSuspiciousCode_ReportIfNaN(t *NodeTraversal, comparison ast.Binary, operand ast.Expr) {
+	if NodeUtil_IsNaN(operand.Node()) {
+		t.GetCompiler().Report(JSError_MakeWithNode(comparison.Node(), CheckSuspiciousCode_SUSPICIOUS_COMPARISON_WITH_NAN))
 	}
 }
 
 // Java: CheckSuspiciousCode.checkInvalidIn(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckInvalidIn(t *NodeTraversal, n rhino.Node) {
-	if n.IsIn() {
-		CheckSuspiciousCode_ReportIfNonObject(t, n.GetLastChild(), CheckSuspiciousCode_SUSPICIOUS_IN_OPERATOR)
-	}
+func (c *CheckSuspiciousCode) CheckInvalidIn(t *NodeTraversal, in ast.Binary) {
+	CheckSuspiciousCode_ReportIfNonObject(t, in, in.Right(), CheckSuspiciousCode_SUSPICIOUS_IN_OPERATOR)
 }
 
 // Java: CheckSuspiciousCode.checkNonObjectInstanceOf(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckNonObjectInstanceOf(t *NodeTraversal, n rhino.Node) {
-	if n.IsInstanceOf() {
-		CheckSuspiciousCode_ReportIfNonObject(t, n.GetFirstChild(), CheckSuspiciousCode_SUSPICIOUS_INSTANCEOF_LEFT_OPERAND)
-	}
+func (c *CheckSuspiciousCode) CheckNonObjectInstanceOf(t *NodeTraversal, instanceOf ast.Binary) {
+	CheckSuspiciousCode_ReportIfNonObject(t, instanceOf, instanceOf.Left(), CheckSuspiciousCode_SUSPICIOUS_INSTANCEOF_LEFT_OPERAND)
 }
 
+// Go-only: it takes the operator it reports on, which Java reads as the
+// operand's parent.
+//
 // Java: CheckSuspiciousCode.reportIfNonObject(NodeTraversal, Node, DiagnosticType)
-func CheckSuspiciousCode_ReportIfNonObject(t *NodeTraversal, n rhino.Node, diagnosticType *DiagnosticType) bool {
-	if n.IsAdd() || !NodeUtil_MayBeObject(n) {
-		t.Report(n.GetParent(), diagnosticType)
+func CheckSuspiciousCode_ReportIfNonObject(t *NodeTraversal, operator ast.Binary, operand ast.Expr, diagnosticType *DiagnosticType) bool {
+	if operand.Token() == rhino.Token_ADD || !NodeUtil_MayBeObject(operand.Node()) {
+		t.Report(operator.Node(), diagnosticType)
 		return true
 	}
 	return false
 }
 
 // Java: CheckSuspiciousCode.checkNegatedLeftOperandOfInOperator(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckNegatedLeftOperandOfInOperator(t *NodeTraversal, n rhino.Node) {
-	if n.IsIn() && n.GetFirstChild().IsNot() {
-		t.Report(n.GetFirstChild(), CheckSuspiciousCode_SUSPICIOUS_NEGATED_LEFT_OPERAND_OF_IN_OPERATOR)
+func (c *CheckSuspiciousCode) CheckNegatedLeftOperandOfInOperator(t *NodeTraversal, in ast.Binary) {
+	if not, ok := in.Left().AsUnaryOf(rhino.Token_NOT); ok {
+		t.Report(not.Node(), CheckSuspiciousCode_SUSPICIOUS_NEGATED_LEFT_OPERAND_OF_IN_OPERATOR)
 	}
 }
 
@@ -178,20 +192,18 @@ func (c *CheckSuspiciousCode) CheckNegatedLeftOperandOfInOperator(t *NodeTravers
 // these back offs).
 //
 // Java: CheckSuspiciousCode.checkLeftOperandOfLogicalOperator(NodeTraversal, Node)
-func (c *CheckSuspiciousCode) CheckLeftOperandOfLogicalOperator(t *NodeTraversal, n rhino.Node) {
-	if n.IsOr() || n.IsAnd() {
-		operator := "&&"
-		if n.IsOr() {
-			operator = "||"
+func (c *CheckSuspiciousCode) CheckLeftOperandOfLogicalOperator(t *NodeTraversal, op ast.Binary) {
+	operator := "&&"
+	if op.Token() == rhino.Token_OR {
+		operator = "||"
+	}
+	v := c.GetBooleanValueWithTypes(op.Left())
+	if v != base.Tri_UNKNOWN {
+		result := "falsy"
+		if v == base.Tri_TRUE {
+			result = "truthy"
 		}
-		v := c.GetBooleanValueWithTypes(n.GetFirstChild())
-		if v != base.Tri_UNKNOWN {
-			result := "falsy"
-			if v == base.Tri_TRUE {
-				result = "truthy"
-			}
-			t.Report(n, CheckSuspiciousCode_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR, operator, result)
-		}
+		t.Report(op.Node(), CheckSuspiciousCode_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR, operator, result)
 	}
 }
 
@@ -241,23 +253,27 @@ func CheckSuspiciousCode_CheckSuspiciousBreakingOutOfOptionalChain(t *NodeTraver
 // much less common.
 //
 // Java: CheckSuspiciousCode.getBooleanValueWithTypes(Node)
-func (c *CheckSuspiciousCode) GetBooleanValueWithTypes(n rhino.Node) base.Tri {
+func (c *CheckSuspiciousCode) GetBooleanValueWithTypes(e ast.Expr) base.Tri {
+	n := e.Node()
 	switch n.GetToken() {
-	case rhino.Token_ASSIGN, rhino.Token_COMMA:
-		return c.GetBooleanValueWithTypes(n.GetLastChild())
+	case rhino.Token_ASSIGN:
+		return c.GetBooleanValueWithTypes(ast.MustAssign(n).Value())
+	case rhino.Token_COMMA:
+		return c.GetBooleanValueWithTypes(ast.MustBinary(n).Right())
 	case rhino.Token_NOT:
-		return c.GetBooleanValueWithTypes(n.GetLastChild()).Not()
+		return c.GetBooleanValueWithTypes(ast.MustUnary(n).Operand()).Not()
 	case rhino.Token_AND:
 		// Assume the left-hand side is unknown. If it's not then we'll report it elsewhere. This
 		// prevents revisiting deeper nodes repeatedly, which would result in O(n^2) performance.
-		return base.Tri_UNKNOWN.And(c.GetBooleanValueWithTypes(n.GetLastChild()))
+		return base.Tri_UNKNOWN.And(c.GetBooleanValueWithTypes(ast.MustBinary(n).Right()))
 	case rhino.Token_OR:
 		// Assume the left-hand side is unknown. If it's not then we'll report it elsewhere. This
 		// prevents revisiting deeper nodes repeatedly, which would result in O(n^2) performance.
-		return base.Tri_UNKNOWN.Or(c.GetBooleanValueWithTypes(n.GetLastChild()))
+		return base.Tri_UNKNOWN.Or(c.GetBooleanValueWithTypes(ast.MustBinary(n).Right()))
 	case rhino.Token_HOOK:
-		trueValue := c.GetBooleanValueWithTypes(n.GetSecondChild())
-		falseValue := c.GetBooleanValueWithTypes(n.GetLastChild())
+		hook := ast.MustHook(n)
+		trueValue := c.GetBooleanValueWithTypes(hook.Then())
+		falseValue := c.GetBooleanValueWithTypes(hook.Else())
 		if trueValue == falseValue {
 			return trueValue
 		}
