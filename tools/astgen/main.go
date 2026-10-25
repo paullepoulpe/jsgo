@@ -594,6 +594,15 @@ func (w *gen) listAccessors(recv string, c child) {
 	w.p("// Has%s reports whether x has any %s.", upper(c.role), c.role)
 	w.p("func (x %s) Has%s() bool { return %s != rhino.NilNode }", recv, upper(c.role), start)
 	w.p("")
+	// The children before a list are never optional (only the last child
+	// can be), so the list has all the children but those.
+	w.p("// Num%s returns the number of %s of x.", upper(c.role), c.role)
+	if c.index == 0 {
+		w.p("func (x %s) Num%s() int { return x.node.GetChildCount() }", recv, upper(c.role))
+	} else {
+		w.p("func (x %s) Num%s() int { return x.node.GetChildCount() - %d }", recv, upper(c.role), c.index)
+	}
+	w.p("")
 	w.p("// Append%s adds v (which must not be in a tree) after the %s of x.", one, c.role)
 	w.p("func (x %s) Append%s(v %s) { x.node.AddChildToBack(%s) }", recv, one, typ, unwrap(c.typ, "v"))
 	w.p("")

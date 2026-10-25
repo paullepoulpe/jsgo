@@ -74,6 +74,9 @@ func (x Root) OnlyItem() (v RootItem, ok bool) {
 // HasItems reports whether x has any items.
 func (x Root) HasItems() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumItems returns the number of items of x.
+func (x Root) NumItems() int { return x.node.GetChildCount() }
+
 // AppendItem adds v (which must not be in a tree) after the items of x.
 func (x Root) AppendItem(v RootItem) { x.node.AddChildToBack(v.node) }
 
@@ -157,6 +160,9 @@ func (x Script) OnlyItem() (v ScriptItem, ok bool) {
 
 // HasItems reports whether x has any items.
 func (x Script) HasItems() bool { return x.node.GetFirstChild() != rhino.NilNode }
+
+// NumItems returns the number of items of x.
+func (x Script) NumItems() int { return x.node.GetChildCount() }
 
 // AppendItem adds v (which must not be in a tree) after the items of x.
 func (x Script) AppendItem(v ScriptItem) { x.node.AddChildToBack(v.node) }
@@ -242,6 +248,9 @@ func (x ModuleBody) OnlyStatement() (v Statement, ok bool) {
 // HasStatements reports whether x has any statements.
 func (x ModuleBody) HasStatements() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumStatements returns the number of statements of x.
+func (x ModuleBody) NumStatements() int { return x.node.GetChildCount() }
+
 // AppendStatement adds v (which must not be in a tree) after the statements of x.
 func (x ModuleBody) AppendStatement(v Statement) { x.node.AddChildToBack(v.node) }
 
@@ -325,6 +334,9 @@ func (x Block) OnlyStatement() (v Statement, ok bool) {
 
 // HasStatements reports whether x has any statements.
 func (x Block) HasStatements() bool { return x.node.GetFirstChild() != rhino.NilNode }
+
+// NumStatements returns the number of statements of x.
+func (x Block) NumStatements() int { return x.node.GetChildCount() }
 
 // AppendStatement adds v (which must not be in a tree) after the statements of x.
 func (x Block) AppendStatement(v Statement) { x.node.AddChildToBack(v.node) }
@@ -1162,6 +1174,9 @@ func (x SwitchBody) OnlyCase() (v SwitchCase, ok bool) {
 // HasCases reports whether x has any cases.
 func (x SwitchBody) HasCases() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumCases returns the number of cases of x.
+func (x SwitchBody) NumCases() int { return x.node.GetChildCount() }
+
 // AppendCase adds v (which must not be in a tree) after the cases of x.
 func (x SwitchBody) AppendCase(v SwitchCase) { x.node.AddChildToBack(v.node) }
 
@@ -1517,6 +1532,9 @@ func (x NameDeclaration) OnlyDeclarator() (v Declarator, ok bool) {
 
 // HasDeclarators reports whether x has any declarators.
 func (x NameDeclaration) HasDeclarators() bool { return x.node.GetFirstChild() != rhino.NilNode }
+
+// NumDeclarators returns the number of declarators of x.
+func (x NameDeclaration) NumDeclarators() int { return x.node.GetChildCount() }
 
 // AppendDeclarator adds v (which must not be in a tree) after the declarators of x.
 func (x NameDeclaration) AppendDeclarator(v Declarator) { x.node.AddChildToBack(v.node) }
@@ -2192,6 +2210,9 @@ func (x ParamList) OnlyParam() (v Param, ok bool) {
 // HasParams reports whether x has any params.
 func (x ParamList) HasParams() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumParams returns the number of params of x.
+func (x ParamList) NumParams() int { return x.node.GetChildCount() }
+
 // AppendParam adds v (which must not be in a tree) after the params of x.
 func (x ParamList) AppendParam(v Param) { x.node.AddChildToBack(v.node) }
 
@@ -2532,6 +2553,9 @@ func (x ArrayPattern) OnlyElement() (v ArrayPatternElem, ok bool) {
 // HasElements reports whether x has any elements.
 func (x ArrayPattern) HasElements() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumElements returns the number of elements of x.
+func (x ArrayPattern) NumElements() int { return x.node.GetChildCount() }
+
 // AppendElement adds v (which must not be in a tree) after the elements of x.
 func (x ArrayPattern) AppendElement(v ArrayPatternElem) { x.node.AddChildToBack(v.node) }
 
@@ -2633,6 +2657,9 @@ func (x ObjectPattern) OnlyProp() (v ObjectPatternProp, ok bool) {
 
 // HasProps reports whether x has any props.
 func (x ObjectPattern) HasProps() bool { return x.node.GetFirstChild() != rhino.NilNode }
+
+// NumProps returns the number of props of x.
+func (x ObjectPattern) NumProps() int { return x.node.GetChildCount() }
 
 // AppendProp adds v (which must not be in a tree) after the props of x.
 func (x ObjectPattern) AppendProp(v ObjectPatternProp) { x.node.AddChildToBack(v.node) }
@@ -2824,6 +2851,9 @@ func (x ClassBody) OnlyMember() (v ClassMember, ok bool) {
 
 // HasMembers reports whether x has any members.
 func (x ClassBody) HasMembers() bool { return x.node.GetFirstChild() != rhino.NilNode }
+
+// NumMembers returns the number of members of x.
+func (x ClassBody) NumMembers() int { return x.node.GetChildCount() }
 
 // AppendMember adds v (which must not be in a tree) after the members of x.
 func (x ClassBody) AppendMember(v ClassMember) { x.node.AddChildToBack(v.node) }
@@ -3340,6 +3370,9 @@ func (x IndexSignature) OnlyChild() (v rhino.Node, ok bool) {
 // HasChildren reports whether x has any children.
 func (x IndexSignature) HasChildren() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumChildren returns the number of children of x.
+func (x IndexSignature) NumChildren() int { return x.node.GetChildCount() }
+
 // AppendChild adds v (which must not be in a tree) after the children of x.
 func (x IndexSignature) AppendChild(v rhino.Node) { x.node.AddChildToBack(v) }
 
@@ -3423,6 +3456,9 @@ func (x CallSignature) OnlyChild() (v rhino.Node, ok bool) {
 
 // HasChildren reports whether x has any children.
 func (x CallSignature) HasChildren() bool { return x.node.GetFirstChild() != rhino.NilNode }
+
+// NumChildren returns the number of children of x.
+func (x CallSignature) NumChildren() int { return x.node.GetChildCount() }
 
 // AppendChild adds v (which must not be in a tree) after the children of x.
 func (x CallSignature) AppendChild(v rhino.Node) { x.node.AddChildToBack(v) }
@@ -4286,6 +4322,9 @@ func (x TemplateLit) OnlyPart() (v TemplatePart, ok bool) {
 // HasParts reports whether x has any parts.
 func (x TemplateLit) HasParts() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumParts returns the number of parts of x.
+func (x TemplateLit) NumParts() int { return x.node.GetChildCount() }
+
 // AppendPart adds v (which must not be in a tree) after the parts of x.
 func (x TemplateLit) AppendPart(v TemplatePart) { x.node.AddChildToBack(v.node) }
 
@@ -4551,6 +4590,9 @@ func (x ArrayLit) OnlyElement() (v ArrayElem, ok bool) {
 // HasElements reports whether x has any elements.
 func (x ArrayLit) HasElements() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumElements returns the number of elements of x.
+func (x ArrayLit) NumElements() int { return x.node.GetChildCount() }
+
 // AppendElement adds v (which must not be in a tree) after the elements of x.
 func (x ArrayLit) AppendElement(v ArrayElem) { x.node.AddChildToBack(v.node) }
 
@@ -4652,6 +4694,9 @@ func (x ObjectLit) OnlyMember() (v ObjectMember, ok bool) {
 
 // HasMembers reports whether x has any members.
 func (x ObjectLit) HasMembers() bool { return x.node.GetFirstChild() != rhino.NilNode }
+
+// NumMembers returns the number of members of x.
+func (x ObjectLit) NumMembers() int { return x.node.GetChildCount() }
 
 // AppendMember adds v (which must not be in a tree) after the members of x.
 func (x ObjectLit) AppendMember(v ObjectMember) { x.node.AddChildToBack(v.node) }
@@ -5818,6 +5863,9 @@ func (x Call) OnlyArg() (v Arg, ok bool) {
 // HasArgs reports whether x has any args.
 func (x Call) HasArgs() bool { return x.node.GetFirstChild().GetNext() != rhino.NilNode }
 
+// NumArgs returns the number of args of x.
+func (x Call) NumArgs() int { return x.node.GetChildCount() - 1 }
+
 // AppendArg adds v (which must not be in a tree) after the args of x.
 func (x Call) AppendArg(v Arg) { x.node.AddChildToBack(v.node) }
 
@@ -5929,6 +5977,9 @@ func (x OptChainCall) OnlyArg() (v Arg, ok bool) {
 
 // HasArgs reports whether x has any args.
 func (x OptChainCall) HasArgs() bool { return x.node.GetFirstChild().GetNext() != rhino.NilNode }
+
+// NumArgs returns the number of args of x.
+func (x OptChainCall) NumArgs() int { return x.node.GetChildCount() - 1 }
 
 // AppendArg adds v (which must not be in a tree) after the args of x.
 func (x OptChainCall) AppendArg(v Arg) { x.node.AddChildToBack(v.node) }
@@ -6043,6 +6094,9 @@ func (x New) OnlyArg() (v Arg, ok bool) {
 
 // HasArgs reports whether x has any args.
 func (x New) HasArgs() bool { return x.node.GetFirstChild().GetNext() != rhino.NilNode }
+
+// NumArgs returns the number of args of x.
+func (x New) NumArgs() int { return x.node.GetChildCount() - 1 }
 
 // AppendArg adds v (which must not be in a tree) after the args of x.
 func (x New) AppendArg(v Arg) { x.node.AddChildToBack(v.node) }
@@ -6362,6 +6416,9 @@ func (x ImportSpecs) OnlySpec() (v ImportSpec, ok bool) {
 // HasSpecs reports whether x has any specs.
 func (x ImportSpecs) HasSpecs() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumSpecs returns the number of specs of x.
+func (x ImportSpecs) NumSpecs() int { return x.node.GetChildCount() }
+
 // AppendSpec adds v (which must not be in a tree) after the specs of x.
 func (x ImportSpecs) AppendSpec(v ImportSpec) { x.node.AddChildToBack(v.node) }
 
@@ -6621,6 +6678,9 @@ func (x ExportSpecs) OnlySpec() (v ExportSpec, ok bool) {
 // HasSpecs reports whether x has any specs.
 func (x ExportSpecs) HasSpecs() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumSpecs returns the number of specs of x.
+func (x ExportSpecs) NumSpecs() int { return x.node.GetChildCount() }
+
 // AppendSpec adds v (which must not be in a tree) after the specs of x.
 func (x ExportSpecs) AppendSpec(v ExportSpec) { x.node.AddChildToBack(v.node) }
 
@@ -6757,6 +6817,9 @@ func (x Interface) OnlyChild() (v rhino.Node, ok bool) {
 // HasChildren reports whether x has any children.
 func (x Interface) HasChildren() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumChildren returns the number of children of x.
+func (x Interface) NumChildren() int { return x.node.GetChildCount() }
+
 // AppendChild adds v (which must not be in a tree) after the children of x.
 func (x Interface) AppendChild(v rhino.Node) { x.node.AddChildToBack(v) }
 
@@ -6846,6 +6909,9 @@ func (x Enum) OnlyChild() (v rhino.Node, ok bool) {
 
 // HasChildren reports whether x has any children.
 func (x Enum) HasChildren() bool { return x.node.GetFirstChild() != rhino.NilNode }
+
+// NumChildren returns the number of children of x.
+func (x Enum) NumChildren() int { return x.node.GetChildCount() }
 
 // AppendChild adds v (which must not be in a tree) after the children of x.
 func (x Enum) AppendChild(v rhino.Node) { x.node.AddChildToBack(v) }
@@ -6937,6 +7003,9 @@ func (x TypeAlias) OnlyChild() (v rhino.Node, ok bool) {
 // HasChildren reports whether x has any children.
 func (x TypeAlias) HasChildren() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumChildren returns the number of children of x.
+func (x TypeAlias) NumChildren() int { return x.node.GetChildCount() }
+
 // AppendChild adds v (which must not be in a tree) after the children of x.
 func (x TypeAlias) AppendChild(v rhino.Node) { x.node.AddChildToBack(v) }
 
@@ -7027,6 +7096,9 @@ func (x Declare) OnlyChild() (v rhino.Node, ok bool) {
 // HasChildren reports whether x has any children.
 func (x Declare) HasChildren() bool { return x.node.GetFirstChild() != rhino.NilNode }
 
+// NumChildren returns the number of children of x.
+func (x Declare) NumChildren() int { return x.node.GetChildCount() }
+
 // AppendChild adds v (which must not be in a tree) after the children of x.
 func (x Declare) AppendChild(v rhino.Node) { x.node.AddChildToBack(v) }
 
@@ -7116,6 +7188,9 @@ func (x Namespace) OnlyChild() (v rhino.Node, ok bool) {
 
 // HasChildren reports whether x has any children.
 func (x Namespace) HasChildren() bool { return x.node.GetFirstChild() != rhino.NilNode }
+
+// NumChildren returns the number of children of x.
+func (x Namespace) NumChildren() int { return x.node.GetChildCount() }
 
 // AppendChild adds v (which must not be in a tree) after the children of x.
 func (x Namespace) AppendChild(v rhino.Node) { x.node.AddChildToBack(v) }
@@ -10121,6 +10196,9 @@ func (x NormalOrOptChainCall) OnlyArg() (v Arg, ok bool) {
 func (x NormalOrOptChainCall) HasArgs() bool {
 	return x.node.GetFirstChild().GetNext() != rhino.NilNode
 }
+
+// NumArgs returns the number of args of x.
+func (x NormalOrOptChainCall) NumArgs() int { return x.node.GetChildCount() - 1 }
 
 // AppendArg adds v (which must not be in a tree) after the args of x.
 func (x NormalOrOptChainCall) AppendArg(v Arg) { x.node.AddChildToBack(v.node) }

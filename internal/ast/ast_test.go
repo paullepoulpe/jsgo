@@ -95,6 +95,15 @@ func TestListsAndNavigation(t *testing.T) {
 	if _, ok := NewCall(NewName("f").AsExpr()).LastArg(); ok {
 		t.Fatal("LastArg() of a call without arguments reports the callee")
 	}
+	if n := call.NumArgs(); n != 1 {
+		t.Fatalf("NumArgs() = %d, want 1 (the callee is not an argument)", n)
+	}
+	if n := NewCall(NewName("f").AsExpr()).NumArgs(); n != 0 {
+		t.Fatalf("NumArgs() of f() = %d, want 0", n)
+	}
+	if n := block.NumStatements(); n != 3 {
+		t.Fatalf("NumStatements() = %d, want 3", n)
+	}
 }
 
 // A category has the accessors that all its kinds share: the object of a
