@@ -2876,6 +2876,13 @@ func (x MemberFunctionDef) Function() Function { return Function{x.node.GetFirst
 // SetFunction replaces the function of x with v (which must not be in a tree).
 func (x MemberFunctionDef) SetFunction(v Function) { x.node.GetFirstChild().ReplaceWith(v.node) }
 
+// NewMemberFunctionDef returns a new MemberFunctionDef.
+func NewMemberFunctionDef(key string, function Function) MemberFunctionDef {
+	n := rhino.Node_NewStringWithToken(rhino.Token_MEMBER_FUNCTION_DEF, key)
+	n.AddChildToBack(function.node)
+	return MemberFunctionDef{n}
+}
+
 // AsObjectMember returns x as an ObjectMember.
 func (x MemberFunctionDef) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
 
@@ -2926,6 +2933,13 @@ func (x GetterDef) Function() Function { return Function{x.node.GetFirstChild()}
 // SetFunction replaces the function of x with v (which must not be in a tree).
 func (x GetterDef) SetFunction(v Function) { x.node.GetFirstChild().ReplaceWith(v.node) }
 
+// NewGetterDef returns a new GetterDef.
+func NewGetterDef(key string, function Function) GetterDef {
+	n := rhino.Node_NewStringWithToken(rhino.Token_GETTER_DEF, key)
+	n.AddChildToBack(function.node)
+	return GetterDef{n}
+}
+
 // AsObjectMember returns x as an ObjectMember.
 func (x GetterDef) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
 
@@ -2975,6 +2989,13 @@ func (x SetterDef) Function() Function { return Function{x.node.GetFirstChild()}
 
 // SetFunction replaces the function of x with v (which must not be in a tree).
 func (x SetterDef) SetFunction(v Function) { x.node.GetFirstChild().ReplaceWith(v.node) }
+
+// NewSetterDef returns a new SetterDef.
+func NewSetterDef(key string, function Function) SetterDef {
+	n := rhino.Node_NewStringWithToken(rhino.Token_SETTER_DEF, key)
+	n.AddChildToBack(function.node)
+	return SetterDef{n}
+}
 
 // AsObjectMember returns x as an ObjectMember.
 func (x SetterDef) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
@@ -3040,6 +3061,12 @@ func (x MemberFieldDef) RemoveValue() {
 	if c := x.node.GetFirstChild(); c != rhino.NilNode {
 		c.Detach()
 	}
+}
+
+// NewMemberFieldDef returns a new MemberFieldDef.
+func NewMemberFieldDef(key string) MemberFieldDef {
+	n := rhino.Node_NewStringWithToken(rhino.Token_MEMBER_FIELD_DEF, key)
+	return MemberFieldDef{n}
 }
 
 // AsClassMember returns x as a ClassMember.
@@ -3229,6 +3256,12 @@ func (x MemberVariableDef) Key() string { return x.node.GetString() }
 
 // SetKey sets the node's string.
 func (x MemberVariableDef) SetKey(s string) { x.node.SetString(s) }
+
+// NewMemberVariableDef returns a new MemberVariableDef.
+func NewMemberVariableDef(key string) MemberVariableDef {
+	n := rhino.Node_NewStringWithToken(rhino.Token_MEMBER_VARIABLE_DEF, key)
+	return MemberVariableDef{n}
+}
 
 // AsClassMember returns x as a ClassMember.
 func (x MemberVariableDef) AsClassMember() ClassMember { return ClassMember{x.node} }
@@ -4692,6 +4725,13 @@ func (x StringKey) Value() PropValue { return PropValue{x.node.GetFirstChild()} 
 // SetValue replaces the value of x with v (which must not be in a tree).
 func (x StringKey) SetValue(v PropValue) { x.node.GetFirstChild().ReplaceWith(v.node) }
 
+// NewStringKey returns a new StringKey.
+func NewStringKey(key string, value PropValue) StringKey {
+	n := rhino.Node_NewStringWithToken(rhino.Token_STRING_KEY, key)
+	n.AddChildToBack(value.node)
+	return StringKey{n}
+}
+
 // AsObjectPatternProp returns x as an ObjectPatternProp.
 func (x StringKey) AsObjectPatternProp() ObjectPatternProp { return ObjectPatternProp{x.node} }
 
@@ -5448,6 +5488,13 @@ func (x OptChainGetProp) Object() Expr { return Expr{x.node.GetFirstChild()} }
 
 // SetObject replaces the object of x with v (which must not be in a tree).
 func (x OptChainGetProp) SetObject(v Expr) { x.node.GetFirstChild().ReplaceWith(v.node) }
+
+// NewOptChainGetProp returns a new OptChainGetProp.
+func NewOptChainGetProp(object Expr, property string) OptChainGetProp {
+	n := rhino.Node_NewStringWithToken(rhino.Token_OPTCHAIN_GETPROP, property)
+	n.AddChildToBack(object.node)
+	return OptChainGetProp{n}
+}
 
 // AsExpr returns x as an Expr.
 func (x OptChainGetProp) AsExpr() Expr { return Expr{x.node} }
@@ -6382,6 +6429,12 @@ func (x ImportStar) Ident() string { return x.node.GetString() }
 
 // SetIdent sets the node's string.
 func (x ImportStar) SetIdent(s string) { x.node.SetString(s) }
+
+// NewImportStar returns a new ImportStar.
+func NewImportStar(ident string) ImportStar {
+	n := rhino.Node_NewStringWithToken(rhino.Token_IMPORT_STAR, ident)
+	return ImportStar{n}
+}
 
 // AsImportBindings returns x as an ImportBindings.
 func (x ImportStar) AsImportBindings() ImportBindings { return ImportBindings{x.node} }

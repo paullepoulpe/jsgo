@@ -12,6 +12,8 @@ import (
 	"go/format"
 	"log"
 	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -35,13 +37,14 @@ type child struct {
 }
 
 type kind struct {
-	name     string
-	doc      []string
-	tokens   []string
-	context  bool // only appears in its parent's role: not recognized by token
-	children []child
-	payload  string // the accessor of the node's string, if any
-	line     string // the grammar line, for the doc comment
+	name      string
+	doc       []string
+	tokens    []string
+	context   bool // only appears in its parent's role: not recognized by token
+	children  []child
+	payload   string // the accessor of the node's string, if any
+	payloadAt int    // the number of children before the string in the grammar line
+	line      string // the grammar line, for the doc comment
 }
 
 type category struct {
@@ -57,6 +60,9 @@ type grammar struct {
 	categories []*category
 	kindByName map[string]*kind
 	catByName  map[string]*category
+	// customConstructors are the New<Kind> functions written by hand in the
+	// package (custom.go); the generator does not write those.
+	customConstructors map[string]bool
 }
 
 func main() {
@@ -64,6 +70,9 @@ func main() {
 	outPath := flag.String("out", "internal/ast/nodes.gen.go", "the generated file")
 	flag.Parse()
 	g, err := parse(*grammarPath)
+	if err == nil {
+		g.customConstructors, err = handWrittenConstructors(filepath.Dir(*grammarPath), filepath.Base(*outPath))
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,6 +88,30 @@ func main() {
 }
 
 // --- parsing ---
+
+// handWrittenConstructors returns the names of the New<X> functions in the
+// Go files of dir other than the generated one and tests.
+func handWrittenConstructors(dir, generated string) (map[string]bool, error) {
+	names := map[string]bool{}
+	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	if err != nil {
+		return nil, err
+	}
+	re := regexp.MustCompile(`(?m)^func (New[A-Z]\w*)\(`)
+	for _, f := range files {
+		if filepath.Base(f) == generated || strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range re.FindAllSubmatch(b, -1) {
+			names[string(m[1])] = true
+		}
+	}
+	return names, nil
+}
 
 func parse(path string) (*grammar, error) {
 	f, err := os.Open(path)
@@ -155,6 +188,7 @@ func (g *grammar) addKind(fields []string, doc []string) error {
 				return fmt.Errorf("%s: two string accessors", k.name)
 			}
 			k.payload = strings.TrimPrefix(f, "$")
+			k.payloadAt = len(k.children)
 			continue
 		}
 		role, typ, ok := strings.Cut(f, ":")
@@ -576,14 +610,22 @@ func zero(typ string) string {
 // parameters, a list is the variadic last one, and optional children are
 // left out (use SetRole).
 func (w *gen) constructor(k *kind) {
-	if k.context || k.payload != "" {
+	if k.context || w.g.customConstructors["New"+k.name] {
 		return
 	}
 	var params, adds []string
 	if len(k.tokens) > 1 {
 		params = append(params, "token rhino.Token")
 	}
-	for _, c := range k.children {
+	payloadParam := ""
+	if k.payload != "" {
+		payloadParam = paramName(strings.ToLower(k.payload[:1])+k.payload[1:]) + " string"
+	}
+	for i, c := range k.children {
+		if payloadParam != "" && i == k.payloadAt {
+			params = append(params, payloadParam)
+			payloadParam = ""
+		}
 		if !c.exported {
 			return // custom.go has the constructor
 		}
@@ -598,9 +640,17 @@ func (w *gen) constructor(k *kind) {
 			adds = append(adds, fmt.Sprintf("for _, v := range %s { n.AddChildToBack(%s) }", paramName(c.role), unwrap(c.typ, "v")))
 		}
 	}
+	if payloadParam != "" {
+		params = append(params, payloadParam)
+	}
 	w.p("// New%s returns a new %s.", k.name, k.name)
 	w.p("func New%s(%s) %s {", k.name, strings.Join(params, ", "), k.name)
-	if len(k.tokens) > 1 {
+	if k.payload != "" {
+		if len(k.tokens) > 1 {
+			panic("astgen: a kind with a string and several tokens: " + k.name)
+		}
+		w.p("n := rhino.Node_NewStringWithToken(%s, %s)", tokenConst(k.tokens[0]), paramName(strings.ToLower(k.payload[:1])+k.payload[1:]))
+	} else if len(k.tokens) > 1 {
 		w.p("switch token {")
 		w.p("case %s:", joinTokens(k.tokens))
 		w.p("default:")
