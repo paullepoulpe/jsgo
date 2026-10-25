@@ -259,6 +259,9 @@ func TestEnhancedFor(t *testing.T) {
 		if back, ok := loop.AsLoop().AsEnhancedFor(); !ok || back != loop {
 			t.Fatalf("Loop.AsEnhancedFor() does not give the %s back", n.GetToken())
 		}
+		if o, ok := loop.Collection().AsName(); !ok || o.Ident() != "o" {
+			t.Fatalf("Collection() of a %s is not the name o", n.GetToken())
+		}
 	}
 	if _, ok := AsEnhancedFor(NewWhile(NewName("c").AsExpr(), NewBlock()).Node()); ok {
 		t.Fatal("a while converted to an EnhancedFor")
@@ -287,9 +290,16 @@ func TestTryCatch(t *testing.T) {
 	if _, ok := try.Catch(); ok {
 		t.Fatal("Catch() reports a catch on a try without one")
 	}
+	holder := try.Catches()
+	if !holder.Is(try.Node().GetSecondChild()) || holder.Node().HasChildren() {
+		t.Fatal("Catches() of a try without catch is not its empty second child")
+	}
 	try.SetCatch(catch)
 	if got, ok := try.Catch(); !ok || got != catch {
 		t.Fatal("Catch() does not return the catch given to SetCatch")
+	}
+	if got, ok := try.Catches().Catch(); !try.Catches().Is(holder.Node()) || !ok || got != catch {
+		t.Fatal("Catches() is not the block that holds the catch")
 	}
 	var problems []string
 	Check(try.Node(), func(n rhino.Node, p string) { problems = append(problems, p) })

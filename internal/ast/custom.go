@@ -19,6 +19,12 @@ func (x Try) SetCatch(v Catch) {
 	x.catches().SetCatch(v)
 }
 
+// Catches returns the BLOCK that holds the catch clause of x, empty when x
+// has none. Most code wants Catch(); this is for code that treats the holder
+// as a node of its own, such as the control-flow graph (an exception goes to
+// the holder, which goes to the catch clause).
+func (x Try) Catches() TryCatches { return x.catches() }
+
 // NewTry returns try body, without catch or finally yet (use SetCatch and
 // SetFinally: a try needs at least one of them).
 func NewTry(body Block) Try {
@@ -67,6 +73,10 @@ func (x Loop) Body() Block {
 	}
 	return Block{x.node.GetLastChild()}
 }
+
+// Collection returns what x iterates over: the object of a for-in, the
+// iterable of a for-of or for-await-of.
+func (x EnhancedFor) Collection() Expr { return Expr{x.node.GetSecondChild()} }
 
 // NewName returns a new Name.
 func NewName(ident string) Name { return Name{rhino.IR_Name(ident)} }
