@@ -403,3 +403,17 @@ func TestTemplateLitString(t *testing.T) {
 		t.Fatal("Cooked of a string without one")
 	}
 }
+
+func TestAsKindOf(t *testing.T) {
+	newStore(t)
+	not := NewUnary(rhino.Token_NOT, NewName("a").AsExpr()).AsExpr()
+	if _, ok := not.AsUnaryOf(rhino.Token_NOT); !ok {
+		t.Fatal("AsUnaryOf(NOT) of !a")
+	}
+	if _, ok := not.AsUnaryOf(rhino.Token_VOID); ok {
+		t.Fatal("AsUnaryOf(VOID) of !a")
+	}
+	if _, ok := AsBinaryOf(not.Node(), rhino.Token_NOT); ok {
+		t.Fatal("AsBinaryOf(NOT) of a unary")
+	}
+}

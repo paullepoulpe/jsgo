@@ -1464,6 +1464,14 @@ func MustNameDeclaration(n rhino.Node) NameDeclaration {
 // nameDeclarationTokens holds the tokens of NameDeclaration.
 var nameDeclarationTokens = tokenSetOf(rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST)
 
+// AsNameDeclarationOf returns n as a NameDeclaration if its token is token; ok is false otherwise.
+func AsNameDeclarationOf(n rhino.Node, token rhino.Token) (x NameDeclaration, ok bool) {
+	if n == rhino.NilNode || n.GetToken() != token || !nameDeclarationTokens.Has(token) {
+		return NameDeclaration{}, false
+	}
+	return NameDeclaration{n}, true
+}
+
 // Node returns x as a rhino.Node.
 func (x NameDeclaration) Node() rhino.Node { return x.node }
 
@@ -4764,6 +4772,14 @@ func MustUnary(n rhino.Node) Unary {
 // unaryTokens holds the tokens of Unary.
 var unaryTokens = tokenSetOf(rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT)
 
+// AsUnaryOf returns n as an Unary if its token is token; ok is false otherwise.
+func AsUnaryOf(n rhino.Node, token rhino.Token) (x Unary, ok bool) {
+	if n == rhino.NilNode || n.GetToken() != token || !unaryTokens.Has(token) {
+		return Unary{}, false
+	}
+	return Unary{n}, true
+}
+
 // Node returns x as a rhino.Node.
 func (x Unary) Node() rhino.Node { return x.node }
 
@@ -4982,6 +4998,14 @@ func MustIncDec(n rhino.Node) IncDec {
 // incDecTokens holds the tokens of IncDec.
 var incDecTokens = tokenSetOf(rhino.Token_INC, rhino.Token_DEC)
 
+// AsIncDecOf returns n as an IncDec if its token is token; ok is false otherwise.
+func AsIncDecOf(n rhino.Node, token rhino.Token) (x IncDec, ok bool) {
+	if n == rhino.NilNode || n.GetToken() != token || !incDecTokens.Has(token) {
+		return IncDec{}, false
+	}
+	return IncDec{n}, true
+}
+
 // Node returns x as a rhino.Node.
 func (x IncDec) Node() rhino.Node { return x.node }
 
@@ -5135,6 +5159,14 @@ func MustAssignOp(n rhino.Node) AssignOp {
 // assignOpTokens holds the tokens of AssignOp.
 var assignOpTokens = tokenSetOf(rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE)
 
+// AsAssignOpOf returns n as an AssignOp if its token is token; ok is false otherwise.
+func AsAssignOpOf(n rhino.Node, token rhino.Token) (x AssignOp, ok bool) {
+	if n == rhino.NilNode || n.GetToken() != token || !assignOpTokens.Has(token) {
+		return AssignOp{}, false
+	}
+	return AssignOp{n}, true
+}
+
 // Node returns x as a rhino.Node.
 func (x AssignOp) Node() rhino.Node { return x.node }
 
@@ -5221,6 +5253,14 @@ func MustBinary(n rhino.Node) Binary {
 
 // binaryTokens holds the tokens of Binary.
 var binaryTokens = tokenSetOf(rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT)
+
+// AsBinaryOf returns n as a Binary if its token is token; ok is false otherwise.
+func AsBinaryOf(n rhino.Node, token rhino.Token) (x Binary, ok bool) {
+	if n == rhino.NilNode || n.GetToken() != token || !binaryTokens.Has(token) {
+		return Binary{}, false
+	}
+	return Binary{n}, true
+}
 
 // Node returns x as a rhino.Node.
 func (x Binary) Node() rhino.Node { return x.node }
@@ -7181,6 +7221,11 @@ func (x Statement) AsTry() (Try, bool) { return AsTry(x.node) }
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x Statement) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
 
+// AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
+func (x Statement) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
+	return AsNameDeclarationOf(x.node, token)
+}
+
 // AsExprStmt returns x as an ExprStmt; ok is false if it is not one.
 func (x Statement) AsExprStmt() (ExprStmt, bool) { return AsExprStmt(x.node) }
 
@@ -7343,6 +7388,9 @@ func (x Expr) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x Expr) AsUnary() (Unary, bool) { return AsUnary(x.node) }
 
+// AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
+func (x Expr) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
+
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x Expr) AsCast() (Cast, bool) { return AsCast(x.node) }
 
@@ -7352,14 +7400,23 @@ func (x Expr) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImport(x
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x Expr) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
 
+// AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
+func (x Expr) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
+
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x Expr) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x Expr) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
 
+// AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
+func (x Expr) AsAssignOpOf(token rhino.Token) (AssignOp, bool) { return AsAssignOpOf(x.node, token) }
+
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x Expr) AsBinary() (Binary, bool) { return AsBinary(x.node) }
+
+// AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
+func (x Expr) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x Expr) AsHook() (Hook, bool) { return AsHook(x.node) }
@@ -7744,6 +7801,9 @@ func (x Arg) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x Arg) AsUnary() (Unary, bool) { return AsUnary(x.node) }
 
+// AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
+func (x Arg) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
+
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x Arg) AsCast() (Cast, bool) { return AsCast(x.node) }
 
@@ -7753,14 +7813,23 @@ func (x Arg) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImport(x.
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x Arg) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
 
+// AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
+func (x Arg) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
+
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x Arg) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x Arg) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
 
+// AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
+func (x Arg) AsAssignOpOf(token rhino.Token) (AssignOp, bool) { return AsAssignOpOf(x.node, token) }
+
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x Arg) AsBinary() (Binary, bool) { return AsBinary(x.node) }
+
+// AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
+func (x Arg) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x Arg) AsHook() (Hook, bool) { return AsHook(x.node) }
@@ -7930,6 +7999,9 @@ func (x ArrayElem) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) 
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x ArrayElem) AsUnary() (Unary, bool) { return AsUnary(x.node) }
 
+// AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
+func (x ArrayElem) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
+
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x ArrayElem) AsCast() (Cast, bool) { return AsCast(x.node) }
 
@@ -7939,14 +8011,25 @@ func (x ArrayElem) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImp
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x ArrayElem) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
 
+// AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
+func (x ArrayElem) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
+
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x ArrayElem) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x ArrayElem) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
 
+// AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
+func (x ArrayElem) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
+	return AsAssignOpOf(x.node, token)
+}
+
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x ArrayElem) AsBinary() (Binary, bool) { return AsBinary(x.node) }
+
+// AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
+func (x ArrayElem) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x ArrayElem) AsHook() (Hook, bool) { return AsHook(x.node) }
@@ -8253,6 +8336,9 @@ func (x PropValue) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) 
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x PropValue) AsUnary() (Unary, bool) { return AsUnary(x.node) }
 
+// AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
+func (x PropValue) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
+
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x PropValue) AsCast() (Cast, bool) { return AsCast(x.node) }
 
@@ -8262,14 +8348,25 @@ func (x PropValue) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImp
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x PropValue) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
 
+// AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
+func (x PropValue) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
+
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x PropValue) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x PropValue) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
 
+// AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
+func (x PropValue) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
+	return AsAssignOpOf(x.node, token)
+}
+
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x PropValue) AsBinary() (Binary, bool) { return AsBinary(x.node) }
+
+// AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
+func (x PropValue) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x PropValue) AsHook() (Hook, bool) { return AsHook(x.node) }
@@ -8821,6 +8918,11 @@ func (x ForInit) ReplaceWith(v ForInit) { x.node.ReplaceWith(v.node) }
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ForInit) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
 
+// AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
+func (x ForInit) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
+	return AsNameDeclarationOf(x.node, token)
+}
+
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x ForInit) AsFunction() (Function, bool) { return AsFunction(x.node) }
 
@@ -8878,6 +8980,9 @@ func (x ForInit) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x ForInit) AsUnary() (Unary, bool) { return AsUnary(x.node) }
 
+// AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
+func (x ForInit) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
+
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x ForInit) AsCast() (Cast, bool) { return AsCast(x.node) }
 
@@ -8887,14 +8992,23 @@ func (x ForInit) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImpor
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x ForInit) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
 
+// AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
+func (x ForInit) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
+
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x ForInit) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x ForInit) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
 
+// AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
+func (x ForInit) AsAssignOpOf(token rhino.Token) (AssignOp, bool) { return AsAssignOpOf(x.node, token) }
+
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x ForInit) AsBinary() (Binary, bool) { return AsBinary(x.node) }
+
+// AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
+func (x ForInit) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x ForInit) AsHook() (Hook, bool) { return AsHook(x.node) }
@@ -9001,6 +9115,11 @@ func (x ForTarget) ReplaceWith(v ForTarget) { x.node.ReplaceWith(v.node) }
 
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ForTarget) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
+
+// AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
+func (x ForTarget) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
+	return AsNameDeclarationOf(x.node, token)
+}
 
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x ForTarget) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
@@ -9207,6 +9326,9 @@ func (x FunctionBody) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.nod
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x FunctionBody) AsUnary() (Unary, bool) { return AsUnary(x.node) }
 
+// AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
+func (x FunctionBody) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
+
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x FunctionBody) AsCast() (Cast, bool) { return AsCast(x.node) }
 
@@ -9216,14 +9338,25 @@ func (x FunctionBody) AsDynamicImport() (DynamicImport, bool) { return AsDynamic
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x FunctionBody) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
 
+// AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
+func (x FunctionBody) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
+
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x FunctionBody) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x FunctionBody) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
 
+// AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
+func (x FunctionBody) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
+	return AsAssignOpOf(x.node, token)
+}
+
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x FunctionBody) AsBinary() (Binary, bool) { return AsBinary(x.node) }
+
+// AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
+func (x FunctionBody) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x FunctionBody) AsHook() (Hook, bool) { return AsHook(x.node) }
@@ -9464,6 +9597,11 @@ func (x ExportBody) AsTry() (Try, bool) { return AsTry(x.node) }
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ExportBody) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
 
+// AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
+func (x ExportBody) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
+	return AsNameDeclarationOf(x.node, token)
+}
+
 // AsExprStmt returns x as an ExprStmt; ok is false if it is not one.
 func (x ExportBody) AsExprStmt() (ExprStmt, bool) { return AsExprStmt(x.node) }
 
@@ -9544,6 +9682,9 @@ func (x ExportBody) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node)
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x ExportBody) AsUnary() (Unary, bool) { return AsUnary(x.node) }
 
+// AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
+func (x ExportBody) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
+
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x ExportBody) AsCast() (Cast, bool) { return AsCast(x.node) }
 
@@ -9553,14 +9694,25 @@ func (x ExportBody) AsDynamicImport() (DynamicImport, bool) { return AsDynamicIm
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x ExportBody) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
 
+// AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
+func (x ExportBody) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
+
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x ExportBody) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x ExportBody) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
 
+// AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
+func (x ExportBody) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
+	return AsAssignOpOf(x.node, token)
+}
+
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x ExportBody) AsBinary() (Binary, bool) { return AsBinary(x.node) }
+
+// AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
+func (x ExportBody) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x ExportBody) AsHook() (Hook, bool) { return AsHook(x.node) }
@@ -9745,6 +9897,11 @@ func (x ScriptItem) AsTry() (Try, bool) { return AsTry(x.node) }
 
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ScriptItem) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
+
+// AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
+func (x ScriptItem) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
+	return AsNameDeclarationOf(x.node, token)
+}
 
 // AsExprStmt returns x as an ExprStmt; ok is false if it is not one.
 func (x ScriptItem) AsExprStmt() (ExprStmt, bool) { return AsExprStmt(x.node) }
@@ -10360,6 +10517,11 @@ func (x Assignment) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x Assignment) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
+func (x Assignment) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
+	return AsAssignOpOf(x.node, token)
+}
 
 // AsExpr returns x as an Expr.
 func (x Assignment) AsExpr() Expr { return Expr{x.node} }

@@ -442,6 +442,12 @@ func (w *gen) kind(k *kind) {
 		w.must(k.name)
 		if len(k.tokens) > 1 {
 			w.tokenSetVar(k.name, k.tokens)
+			w.p("// As%sOf returns n as %s if its token is token; ok is false otherwise.", k.name, a(k.name))
+			w.p("func As%sOf(n rhino.Node, token rhino.Token) (x %s, ok bool) {", k.name, k.name)
+			w.p("if n == rhino.NilNode || n.GetToken() != token || !%s.Has(token) { return %s{}, false }", tokenSetVarName(k.name), k.name)
+			w.p("return %s{n}, true", k.name)
+			w.p("}")
+			w.p("")
 		}
 	}
 	w.p("// Node returns x as a rhino.Node.")
@@ -754,6 +760,11 @@ func (w *gen) category(c *category) {
 		w.p("// As%s returns x as %s; ok is false if it is not one.", kn, a(kn))
 		w.p("func (x %s) As%s() (%s, bool) { return As%s(x.node) }", c.name, kn, kn, kn)
 		w.p("")
+		if k := w.g.kindByName[kn]; len(k.tokens) > 1 && !k.context {
+			w.p("// As%sOf returns x as %s if its token is token; ok is false otherwise.", kn, a(kn))
+			w.p("func (x %s) As%sOf(token rhino.Token) (%s, bool) { return As%sOf(x.node, token) }", c.name, kn, kn, kn)
+			w.p("")
+		}
 	}
 	for _, d := range g.categories {
 		if d == c {
