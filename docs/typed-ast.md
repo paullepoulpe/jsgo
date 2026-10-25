@@ -279,8 +279,9 @@ Their feedback, and what changed in the API since:
 | every edit goes through `.Node()` | `Detach()` on every view, `ReplaceWith(v)` on categories; the rest (`InsertBefore`, `Srcref`, the `IR_*` builders) is still rhino |
 | `AsExpr` (a switch over 70 tokens) and `Statement.Next` (31) over the inlining budget | categories test a 256-bit token set: `AsExpr`, `AsStatement` inline; `Next()` calls an inlined check |
 | setters are positional, so they hit the wrong child mid-edit | documented in the package doc: read every child before the first edit |
-| peephole passes get one node at a time and dispatch with `x, _ := ast.AsHook(n) // the case proves the kind` | open; a per-node typed dispatch would help |
+| peephole passes get one node at a time and dispatch with `x, _ := ast.AsHook(n) // the case proves the kind` | `x := ast.MustHook(n)` in the case of a token switch (panics, naming both kinds, if wrong; inlines) |
 | a visitor handler does not get the parent; no handler per category | open |
+| a typed visitor costs more than a token switch in cheap passes | the traversal skips the kinds a visitor has no handler for: now cheaper than a token switch |
 | optional children stored as an EMPTY placeholder have no `RemoveX` (putting the EMPTY back, with its srcref, stays rhino) | open |
 | RETURN and THROW share no category; neither do the optional chains | left on rhino where typing would mean two conversions for one `GetFirstChild` |
 
