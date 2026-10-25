@@ -21,9 +21,18 @@ package jscomp
 import (
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) to read the
+// calls and declarations it checks: the first argument of goog.module and
+// goog.require (ast.Call.FirstArg), the target of an export assignment, and
+// the members of a destructuring import (`const {a: b} = goog.require(...)`
+// is an object pattern of string keys whose values are names). The
+// position checks (is this the first statement, what is the require's
+// parent) read parents and siblings of any kind and stay on rhino.
 
 // ClosureCheckModule checks that goog.module() is used correctly.
 //
@@ -266,9 +275,10 @@ func (c *ClosureCheckModule) VisitWithModule(
 	}
 	switch n.GetToken() {
 	case rhino.Token_CALL:
-		callee := n.GetFirstChild()
+		call := ast.MustCall(n)
+		callee := call.Callee().Node()
 		if closureCheckModule_GOOG_MODULE.Matches(callee) {
-			firstArgumentName := ClosureCheckModule_ExtractFirstArgumentName(n)
+			firstArgumentName := ClosureCheckModule_ExtractFirstArgumentName(call)
 			if firstArgumentName == nil || c.currentModuleInfo.name != *firstArgumentName {
 				t.Report(n, ClosureCheckModule_MULTIPLE_MODULES_IN_FILE)
 			} else if !ClosureCheckModule_IsFirstExpressionInGoogModule(parent) {
@@ -277,17 +287,16 @@ func (c *ClosureCheckModule) VisitWithModule(
 		} else if closureCheckModule_GOOG_REQUIRE.Matches(callee) ||
 			closureCheckModule_GOOG_REQUIRE_TYPE.Matches(callee) ||
 			closureCheckModule_GOOG_FORWARD_DECLARE.Matches(callee) {
-			c.CheckRequireCall(t, n, parent)
+			c.CheckRequireCall(t, call, parent)
 		} else if closureCheckModule_GOOG_MODULE_GET.Matches(callee) && t.InModuleHoistScope() {
 			t.Report(n, ClosurePrimitiveErrors_MODULE_USES_GOOG_MODULE_GET)
 		} else if closureCheckModule_GOOG_MODULE_DECLARE_LEGACY_NAMESPACE.Matches(callee) {
-			ClosureCheckModule_CheckLegacyNamespaceCall(t, n, parent)
+			ClosureCheckModule_CheckLegacyNamespaceCall(t, call, parent)
 		}
 	case rhino.Token_ASSIGN:
-		{
-			if ClosureCheckModule_IsExportLhs(n.GetFirstChild()) {
-				c.CheckModuleExport(t, n, parent)
-			}
+		assign := ast.MustAssign(n)
+		if ClosureCheckModule_IsExportLhs(assign.Target().Node()) {
+			c.CheckModuleExport(t, assign, parent)
 		}
 	case rhino.Token_CLASS, rhino.Token_FUNCTION:
 		if !NodeUtil_IsStatement(n) {
@@ -422,29 +431,31 @@ func (c *ClosureCheckModule) CheckImproperReferenceToImport(
 				*qname,
 				importLhs.GetString()))
 		return false
-	} else if importLhs.IsDestructuringLhs() && nextQnamePart != nil {
-		objPattern := importLhs.GetFirstChild()
-		if objPattern.IsObjectPattern() {
-			for strKey := objPattern.GetFirstChild(); !strKey.IsNil(); strKey = strKey.GetNext() {
+	} else if lhs, ok := ast.AsDestructuringLhs(importLhs); ok && nextQnamePart != nil {
+		if objPattern, ok := lhs.Pattern().AsObjectPattern(); ok {
+			for prop := range objPattern.Props() {
 				// const {foo: barFoo} = goog.require('ns.bar');
 				// Should use the short name "barFoo" instead of "ns.bar.foo".
-				if strKey.IsStringKey() &&
-					strKey.HasOneChild() &&
-					strKey.GetFirstChild().IsName() &&
-					strKey.GetString() == *nextQnamePart {
-					parent := n.GetParent()
-					reportNode := n
-					if !parent.IsNil() && parent.IsGetProp() {
-						reportNode = parent
-					}
-					c.compiler.Report(
-						JSError_MakeWithNode(
-							reportNode,
-							ClosureCheckModule_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME,
-							*qname+"."+*nextQnamePart,
-							strKey.GetFirstChild().GetString()))
-					return false
+				key, ok := prop.AsStringKey()
+				if !ok || key.Key() != *nextQnamePart {
+					continue
 				}
+				shortName, ok := key.Value().AsName()
+				if !ok {
+					continue
+				}
+				parent := n.GetParent()
+				reportNode := n
+				if !parent.IsNil() && parent.IsGetProp() {
+					reportNode = parent
+				}
+				c.compiler.Report(
+					JSError_MakeWithNode(
+						reportNode,
+						ClosureCheckModule_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME,
+						*qname+"."+*nextQnamePart,
+						shortName.Ident()))
+				return false
 			}
 		}
 	}
@@ -474,9 +485,9 @@ func ClosureCheckModule_IsExportLhs(lhs rhino.Node) bool {
 }
 
 // Java: ClosureCheckModule.checkModuleExport(NodeTraversal, Node, Node)
-func (c *ClosureCheckModule) CheckModuleExport(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	jutil.CheckArgument(n.IsAssign())
-	lhs := n.GetFirstChild()
+func (c *ClosureCheckModule) CheckModuleExport(t *NodeTraversal, assign ast.Assign, parent rhino.Node) {
+	n := assign.Node()
+	lhs := assign.Target().Node()
 	jutil.CheckState(ClosureCheckModule_IsExportLhs(lhs))
 	// Check multiple exports of the same name
 	previousDefinition := c.currentModuleInfo.exportNodesByName.Get(*lhs.GetQualifiedName())
@@ -507,32 +518,34 @@ func (c *ClosureCheckModule) CheckModuleExport(t *NodeTraversal, n rhino.Node, p
 }
 
 // Java: ClosureCheckModule.extractFirstArgumentName(Node)
-func ClosureCheckModule_ExtractFirstArgumentName(callNode rhino.Node) *string {
-	firstArg := callNode.GetSecondChild()
-	if !firstArg.IsNil() && firstArg.IsStringLit() {
-		s := firstArg.GetString()
-		return &s
+func ClosureCheckModule_ExtractFirstArgumentName(call ast.Call) *string {
+	if firstArg, ok := call.FirstArg(); ok {
+		if name, ok := firstArg.AsStringLit(); ok {
+			s := name.Value()
+			return &s
+		}
 	}
 	return nil
 }
 
 // Java: ClosureCheckModule.checkRequireCall(NodeTraversal, Node, Node)
-func (c *ClosureCheckModule) CheckRequireCall(t *NodeTraversal, callNode rhino.Node, parent rhino.Node) {
-	jutil.CheckState(callNode.IsCall())
-	jutil.CheckState(callNode.GetLastChild().IsStringLit())
+func (c *ClosureCheckModule) CheckRequireCall(t *NodeTraversal, call ast.Call, parent rhino.Node) {
+	callNode := call.Node()
+	namespace, ok := call.LastArg()
+	jutil.CheckState(ok && namespace.Token() == rhino.Token_STRINGLIT)
 	switch parent.GetToken() {
 	case rhino.Token_EXPR_RESULT:
-		key := ClosureCheckModule_ExtractFirstArgumentName(callNode)
+		key := ClosureCheckModule_ExtractFirstArgumentName(call)
 		if key != nil {
 			c.currentModuleInfo.importsByLongRequiredName.PutIfAbsent(*key, parent)
 		}
 	case rhino.Token_NAME, rhino.Token_DESTRUCTURING_LHS:
-		c.CheckShortGoogRequireCall(t, callNode, parent.GetParent())
+		c.CheckShortGoogRequireCall(t, call, parent.GetParent())
 	case rhino.Token_AWAIT:
 		grandParentToken := parent.GetParent().GetToken()
 		if grandParentToken == rhino.Token_DESTRUCTURING_LHS ||
 			grandParentToken == rhino.Token_NAME {
-			c.CheckShortGoogRequireCall(t, callNode, parent.GetGrandparent())
+			c.CheckShortGoogRequireCall(t, call, parent.GetGrandparent())
 		}
 	default:
 		t.Report(callNode, ClosureCheckModule_REQUIRE_NOT_AT_TOP_LEVEL)
@@ -540,8 +553,9 @@ func (c *ClosureCheckModule) CheckRequireCall(t *NodeTraversal, callNode rhino.N
 }
 
 // Java: ClosureCheckModule.checkShortGoogRequireCall(NodeTraversal, Node, Node)
-func (c *ClosureCheckModule) CheckShortGoogRequireCall(t *NodeTraversal, callNode rhino.Node, declaration rhino.Node) {
-	if declaration.IsLet() && !closureCheckModule_GOOG_FORWARD_DECLARE.Matches(callNode.GetFirstChild()) {
+func (c *ClosureCheckModule) CheckShortGoogRequireCall(t *NodeTraversal, call ast.Call, declaration rhino.Node) {
+	isForwardDeclare := closureCheckModule_GOOG_FORWARD_DECLARE.Matches(call.Callee().Node())
+	if declaration.IsLet() && !isForwardDeclare {
 		t.Report(declaration, ClosureCheckModule_LET_GOOG_REQUIRE)
 	}
 	if !declaration.HasOneChild() {
@@ -549,17 +563,19 @@ func (c *ClosureCheckModule) CheckShortGoogRequireCall(t *NodeTraversal, callNod
 		return
 	}
 	lhs := declaration.GetFirstChild()
-	if lhs.IsDestructuringLhs() {
-		if !ClosureCheckModule_IsValidDestructuringImport(lhs) {
+	if destructuring, ok := ast.AsDestructuringLhs(lhs); ok {
+		if !ClosureCheckModule_IsValidDestructuringImport(destructuring) {
 			t.Report(declaration, ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
 		}
-		if closureCheckModule_GOOG_FORWARD_DECLARE.Matches(callNode.GetFirstChild()) {
+		if isForwardDeclare {
 			t.Report(lhs, ClosurePrimitiveErrors_INVALID_DESTRUCTURING_FORWARD_DECLARE)
 		}
 	} else if lhs.IsName() {
-		ClosureCheckModule_CheckShortName(t, lhs, callNode.GetLastChild().GetString())
+		// CheckRequireCall checked that the last argument is a string.
+		namespace, _ := call.LastArg()
+		ClosureCheckModule_CheckShortName(t, lhs, ast.MustStringLit(namespace.Node()).Value())
 	}
-	if key := ClosureCheckModule_ExtractFirstArgumentName(callNode); key != nil {
+	if key := ClosureCheckModule_ExtractFirstArgumentName(call); key != nil {
 		c.currentModuleInfo.importsByLongRequiredName.Put(*key, lhs)
 	}
 	NodeUtil_VisitLhsNodesInNode(
@@ -625,16 +641,18 @@ func ClosureCheckModule_CheckShortName(t *NodeTraversal, shortNameNode rhino.Nod
 }
 
 // Java: ClosureCheckModule.isValidDestructuringImport(Node)
-func ClosureCheckModule_IsValidDestructuringImport(destructuringLhs rhino.Node) bool {
-	jutil.CheckArgument(destructuringLhs.IsDestructuringLhs())
-	objectPattern := destructuringLhs.GetFirstChild()
-	if !objectPattern.IsObjectPattern() {
+func ClosureCheckModule_IsValidDestructuringImport(destructuringLhs ast.DestructuringLhs) bool {
+	objectPattern, ok := destructuringLhs.Pattern().AsObjectPattern()
+	if !ok {
 		return false
 	}
-	for stringKey := objectPattern.GetFirstChild(); !stringKey.IsNil(); stringKey = stringKey.GetNext() {
-		if !stringKey.IsStringKey() {
+	// Every member is a string key whose value is a name: {a, b: c}.
+	for prop := range objectPattern.Props() {
+		stringKey, ok := prop.AsStringKey()
+		if !ok {
 			return false
-		} else if !stringKey.HasChildren() || !stringKey.GetFirstChild().IsName() {
+		}
+		if _, ok := stringKey.Value().AsName(); !ok {
 			return false
 		}
 	}
@@ -645,9 +663,9 @@ func ClosureCheckModule_IsValidDestructuringImport(destructuringLhs rhino.Node) 
 // goog.module.declareLegacyNamespace(); call
 //
 // Java: ClosureCheckModule.checkLegacyNamespaceCall(NodeTraversal, Node, Node)
-func ClosureCheckModule_CheckLegacyNamespaceCall(t *NodeTraversal, callNode rhino.Node, parent rhino.Node) {
-	jutil.CheckArgument(callNode.IsCall())
-	if callNode.GetChildCount() > 1 {
+func ClosureCheckModule_CheckLegacyNamespaceCall(t *NodeTraversal, call ast.Call, parent rhino.Node) {
+	callNode := call.Node()
+	if call.HasArgs() {
 		t.Report(callNode, ClosureCheckModule_LEGACY_NAMESPACE_ARGUMENT)
 	}
 	if !parent.IsExprResult() {
