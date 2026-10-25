@@ -553,19 +553,26 @@ func AbstractCommandLineRunner_GetBuiltinExterns(env CompilerOptions_Environment
 			filename = filename[len(envPrefix):] // remove envPrefix, including '/'
 		}
 
-		entryStream, err := entry.Open()
-		if err != nil {
-			panic(jutil.NewZipException(err.Error()))
-		}
 		mapFromExternsZip.Put(
 			filename,
 			// Give the files an odd prefix, so that they do not conflict
 			// with the user's files.
+			//
+			// Go-only: performance — the content is read from the zip
+			// (embedded in the binary) when needed, and again if needed
+			// after parsing dropped it (Java: withContentFromStream, which
+			// keeps it for the whole compilation).
 			SourceFile_Builder_().
 				WithPath("externs.zip//"+filename).
-				WithContentFromStream(entryStream).
+				WithReloadableContent(func() string {
+					entryStream, err := entry.Open()
+					if err != nil {
+						panic(jutil.NewZipException(err.Error()))
+					}
+					defer entryStream.Close()
+					return jutil.CharStreams_ToString(jutil.NewInputStreamReader(entryStream, jutil.StandardCharsets_UTF_8))
+				}).
 				Build())
-		entryStream.Close()
 	}
 	return DefaultExterns_PrepareExterns(env, mapFromExternsZip)
 }

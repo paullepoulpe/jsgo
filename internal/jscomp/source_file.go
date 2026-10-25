@@ -987,7 +987,8 @@ type SourceFile_Builder struct {
 	zipEntryPath       string
 	hasZipEntryPath    bool
 
-	lazyContent func() string
+	lazyContent       func() string
+	reloadableContent func() string
 }
 
 func newSourceFile_Builder() *SourceFile_Builder {
@@ -1039,6 +1040,18 @@ func (b *SourceFile_Builder) WithContentFromStream(x io.Reader) *SourceFile_Buil
 		})
 		return result
 	}
+	return b
+}
+
+// WithReloadableContent sets the content to what load returns; load may be
+// called again later.
+//
+// Go-only: performance — a file built from a stream keeps its text for the
+// whole compilation (the Preloaded loader holds it). With a loader that can
+// read it again, ClearCachedSource after parsing really frees the text, and
+// it is reloaded if something needs it (an error message, a source map).
+func (b *SourceFile_Builder) WithReloadableContent(load func() string) *SourceFile_Builder {
+	b.reloadableContent = load
 	return b
 }
 
@@ -1095,6 +1108,10 @@ func (b *SourceFile_Builder) Build() *SourceFile {
 
 	if b.lazyContent != nil {
 		return newSourceFile(NewSourceFile_CodeLoader_Preloaded(b.lazyContent()), displayPath, b.kind)
+	}
+
+	if b.reloadableContent != nil {
+		return newSourceFile(&sourceFile_CodeLoader_Reloadable{load: b.reloadableContent}, displayPath, b.kind)
 	}
 
 	if b.hasZipEntryPath {
@@ -1253,6 +1270,24 @@ func (l *SourceFile_CodeLoader_Preloaded) LoadUncachedCode() string {
 // Java: SourceFile.CodeLoader.Preloaded.toProtoLocationBuilder(String)
 func (l *SourceFile_CodeLoader_Preloaded) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
 	return SourceFileProto_NewBuilder().SetPreloadedContents(l.preloadedCode)
+}
+
+// sourceFile_CodeLoader_Reloadable loads the code with a function that can
+// be called again (see SourceFile_Builder.WithReloadableContent).
+//
+// Go-only: performance.
+type sourceFile_CodeLoader_Reloadable struct {
+	SourceFile_CodeLoaderBase
+	load func() string
+}
+
+func (l *sourceFile_CodeLoader_Reloadable) LoadUncachedCode() string {
+	return l.load()
+}
+
+// ToProtoLocationBuilder serializes the code itself, as Preloaded does.
+func (l *sourceFile_CodeLoader_Reloadable) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
+	return SourceFileProto_NewBuilder().SetPreloadedContents(l.load())
 }
 
 // SourceFile_CodeLoader_StubSourceFileCodeLoader is a code loader which
