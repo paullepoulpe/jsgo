@@ -61,7 +61,43 @@ workloads after every step.
   473 -> 305 MB) but does not change the live heap; left as a setting
   (round 4, "GC settings").
 
+## Checked and left (each about 1 % or inherent)
+
+Measured on the head after the cuts above:
+
+- **Dead nodes before compaction.** Compaction cannot run before
+  types-to-colors (the type graph holds nodes). At the start of type
+  inference, the nodes reachable from the root are 91 % of the store on
+  typed-full (1.99 M of 2.18 M) and checks-only (1.38 M of 1.51 M), 82 % on
+  typed-app. The rest includes the JSDoc type expressions, which are live,
+  so there is less than 9 % to reclaim, and reclaiming it would need a
+  compaction that forwards the type graph.
+- **The node record** (32 bytes: four links, payload, property word,
+  position, length, token, flags) has no field left to move out. Smaller
+  would mean bit-packing the links, which every tree walk reads.
+- **The global CFG** of typed-full (~107K nodes): nodes 8.7 MB (80 bytes),
+  edges 5.2 MB (40 bytes), data-flow states 5.6 MB. Edge annotations hold
+  the branched flow of type inference, so they stay on the edge.
+- **TypedScope** structs: 6.7 MB at the typed-full peak (~88K scopes, 80
+  bytes). **TypedVar**: 10.6 MB (48 bytes); the next size class (32) would
+  need both the name string and the scope pointer gone.
+- **Qualified names of object literal keys** (`owner + "." + key`, kept by
+  their TypedVars): 6.6 MB on typed-full, 6 MB on checks-only. Packing each
+  literal's names into one string would save the size-class rounding, about
+  1 MB.
+- **Parse trees** at the bundle peak: ~45 MB, already slab-allocated, lists
+  copied out at their exact length.
+
 ## Next candidates
 
+- **Convert each statement as soon as it is parsed, at any depth.** The
+  bundle peak is `typescript.js`'s whole parse tree (~45 MB): the file is
+  one IIFE, so converting top-level statements one by one does not help,
+  but converting every statement of a function body once it is parsed would
+  keep only one statement's parse tree alive (bundle peak ~-40 MB). The
+  IRFactory attaches JSDoc with a forward-moving comment iterator and
+  reports some warnings while converting, so children converted before
+  their parent change both orders; it needs a position-keyed comment lookup
+  and a check that warnings come out in the same order.
 - Parse trees: the comma positions of argument lists (24 bytes per list)
   could be computed from the source when comments need them.
