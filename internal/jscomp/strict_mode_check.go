@@ -19,8 +19,16 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast): Visit hands
+// each check the kind it reads, and the checks read by role (the target of
+// an assignment, the operand of a delete, the object and property of a
+// getprop). Two parts stay on rhino: the duplicate member scan walks the
+// members of an object literal or a class body backwards, two different
+// kinds of lists, and IsDeclaration reads a name's parent of any kind.
 
 const (
 	strictModeGetterBit       uint8 = 1 << 0
@@ -179,27 +187,28 @@ func (c *StrictModeCheck) processParallel(externs rhino.Node, root rhino.Node) b
 
 // Java: StrictModeCheck.visit(NodeTraversal, Node, Node)
 func (c *StrictModeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsAssign() {
-		c.CheckAssignment(n)
-	} else if n.IsDelProp() {
-		c.CheckDelete(t, n)
-	} else if n.IsObjectLit() {
+	switch n.GetToken() {
+	case rhino.Token_ASSIGN:
+		c.CheckAssignment(ast.MustAssign(n))
+	case rhino.Token_DELPROP:
+		c.CheckDelete(t, ast.MustUnary(n))
+	case rhino.Token_OBJECTLIT:
 		c.CheckObjectLiteralOrClass(n)
-	} else if n.IsClass() {
-		c.CheckObjectLiteralOrClass(n.GetLastChild())
-	} else if n.IsWith() {
-		c.CheckWith(n)
+	case rhino.Token_CLASS:
+		c.CheckObjectLiteralOrClass(ast.MustClass(n).Body().Node())
+	case rhino.Token_WITH:
+		c.CheckWith(ast.MustWith(n))
 	}
 }
 
 // CheckWith reports a warning for with statements.
 //
 // Java: StrictModeCheck.checkWith(Node)
-func (c *StrictModeCheck) CheckWith(n rhino.Node) {
-	info := n.GetJSDocInfo()
+func (c *StrictModeCheck) CheckWith(with ast.With) {
+	info := with.Node().GetJSDocInfo()
 	allowWith := info != nil && info.HasSuppression("with")
 	if !allowWith {
-		c.Report(n, StrictModeCheck_USE_OF_WITH)
+		c.Report(with.Node(), StrictModeCheck_USE_OF_WITH)
 	}
 }
 
@@ -224,14 +233,14 @@ func StrictModeCheck_IsDeclaration(n rhino.Node) bool {
 // CheckAssignment checks that an assignment is not to the "arguments" object.
 //
 // Java: StrictModeCheck.checkAssignment(Node)
-func (c *StrictModeCheck) CheckAssignment(n rhino.Node) {
-	if n.GetFirstChild().IsName() {
-		if "arguments" == n.GetFirstChild().GetString() {
-			c.Report(n, StrictModeCheck_ARGUMENTS_ASSIGNMENT)
-		} else if "eval" == n.GetFirstChild().GetString() {
+func (c *StrictModeCheck) CheckAssignment(assign ast.Assign) {
+	if name, ok := assign.Target().AsName(); ok {
+		if "arguments" == name.Ident() {
+			c.Report(assign.Node(), StrictModeCheck_ARGUMENTS_ASSIGNMENT)
+		} else if "eval" == name.Ident() {
 			// Note that assignment to eval is already illegal because any use of
 			// that name is illegal.
-			c.Report(n, StrictModeCheck_EVAL_ASSIGNMENT)
+			c.Report(assign.Node(), StrictModeCheck_EVAL_ASSIGNMENT)
 		}
 	}
 }
@@ -240,11 +249,11 @@ func (c *StrictModeCheck) CheckAssignment(n rhino.Node) {
 // deleted.
 //
 // Java: StrictModeCheck.checkDelete(NodeTraversal, Node)
-func (c *StrictModeCheck) CheckDelete(t *NodeTraversal, n rhino.Node) {
-	if n.GetFirstChild().IsName() {
-		v := t.GetScope().GetVar(n.GetFirstChild().GetString())
+func (c *StrictModeCheck) CheckDelete(t *NodeTraversal, del ast.Unary) {
+	if name, ok := del.Operand().AsName(); ok {
+		v := t.GetScope().GetVar(name.Ident())
 		if v != nil {
-			c.Report(n, StrictModeCheck_DELETE_VARIABLE)
+			c.Report(del.Node(), StrictModeCheck_DELETE_VARIABLE)
 		}
 	}
 }
@@ -358,43 +367,55 @@ func NewStrictModeCheck_NonExternChecks(outer *StrictModeCheck) *StrictModeCheck
 
 // Java: StrictModeCheck.NonExternChecks.visit(NodeTraversal, Node, Node)
 func (c *StrictModeCheck_NonExternChecks) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsName() && StrictModeCheck_IsDeclaration(n) {
-		c.CheckDeclaration(n)
-	} else if n.IsGetProp() {
-		c.CheckGetProp(n)
+	switch n.GetToken() {
+	case rhino.Token_NAME:
+		if StrictModeCheck_IsDeclaration(n) {
+			c.CheckDeclaration(ast.MustName(n))
+		}
+	case rhino.Token_GETPROP:
+		c.CheckGetProp(ast.MustGetProp(n))
 	}
 }
 
 // CheckDeclaration checks for illegal declarations.
 //
 // Java: StrictModeCheck.NonExternChecks.checkDeclaration(Node)
-func (c *StrictModeCheck_NonExternChecks) CheckDeclaration(n rhino.Node) {
-	if "eval" == n.GetString() {
-		c.outer.Report(n, StrictModeCheck_EVAL_DECLARATION)
-	} else if "arguments" == n.GetString() {
-		c.outer.Report(n, StrictModeCheck_ARGUMENTS_DECLARATION)
+func (c *StrictModeCheck_NonExternChecks) CheckDeclaration(name ast.Name) {
+	if "eval" == name.Ident() {
+		c.outer.Report(name.Node(), StrictModeCheck_EVAL_DECLARATION)
+	} else if "arguments" == name.Ident() {
+		c.outer.Report(name.Node(), StrictModeCheck_ARGUMENTS_DECLARATION)
 	}
 }
 
 // CheckGetProp checks that the arguments.callee is not used.
 //
 // Java: StrictModeCheck.NonExternChecks.checkGetProp(Node)
-func (c *StrictModeCheck_NonExternChecks) CheckGetProp(n rhino.Node) {
-	target := n.GetFirstChild()
-	name := n.GetString()
+func (c *StrictModeCheck_NonExternChecks) CheckGetProp(getProp ast.GetProp) {
+	n := getProp.Node()
+	target := getProp.Object()
+	name := getProp.Property()
 	if name == "callee" {
-		if target.IsName() && target.GetString() == "arguments" {
+		if strictModeCheck_isArguments(target) {
 			c.outer.Report(n, StrictModeCheck_ARGUMENTS_CALLEE_FORBIDDEN)
 		}
 	} else if name == "caller" {
-		if target.IsName() && target.GetString() == "arguments" {
+		if strictModeCheck_isArguments(target) {
 			c.outer.Report(n, StrictModeCheck_ARGUMENTS_CALLER_FORBIDDEN)
-		} else if StrictModeCheck_IsFunctionType(target) {
+		} else if StrictModeCheck_IsFunctionType(target.Node()) {
 			c.outer.Report(n, StrictModeCheck_FUNCTION_CALLER_FORBIDDEN)
 		}
-	} else if name == "arguments" && StrictModeCheck_IsFunctionType(target) {
+	} else if name == "arguments" && StrictModeCheck_IsFunctionType(target.Node()) {
 		c.outer.Report(n, StrictModeCheck_FUNCTION_ARGUMENTS_PROP_FORBIDDEN)
 	}
+}
+
+// strictModeCheck_isArguments reports whether e is the name arguments.
+//
+// Go-only: CheckGetProp's `target.isName() && target.getString().equals("arguments")`.
+func strictModeCheck_isArguments(e ast.Expr) bool {
+	name, ok := e.AsName()
+	return ok && name.Ident() == "arguments"
 }
 
 // Java: StrictModeCheck.isFunctionType(Node)
