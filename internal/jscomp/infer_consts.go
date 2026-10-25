@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -161,25 +163,20 @@ func (st *inferConstVarState) isAssignedOnceInLifetime() bool {
 }
 
 type inferConstsCollector struct {
-	outer               *InferConsts
-	compiler            AbstractCompiler
-	scopeCreator        ScopeCreator
-	sc                  *SyntacticScopeCreator
-	localStates         []inferConstVarState
-	globalStates        []inferConstVarState
-	blockStack          []basicBlockEntry
-	blockStackPool      [][]basicBlockEntry
-	blocks              jutil.Slab[BasicBlock] // one pass's blocks die together
-	collectedHoistedMap map[rhino.Node]struct{}
-	lastHoisted         rhino.Node
-	hoistedBuf          [16]rhino.Node
-	hoistedCount        uint8
-	jumpDepth           int
-	blockStackBuf       [64]basicBlockEntry
+	outer            *InferConsts
+	compiler         AbstractCompiler
+	scopeCreator     ScopeCreator
+	sc               *SyntacticScopeCreator
+	localStates      []inferConstVarState
+	globalStates     []inferConstVarState
+	blockStack       []basicBlockEntry
+	blocks           jutil.Slab[BasicBlock] // one pass's blocks die together
+	collectedHoisted map[rhino.Node]struct{}
+	jumpDepth        int
 }
 
 func newInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, sc *SyntacticScopeCreator) *inferConstsCollector {
-	c := &inferConstsCollector{
+	return &inferConstsCollector{
 		outer:        outer,
 		compiler:     compiler,
 		scopeCreator: sc,
@@ -187,8 +184,6 @@ func newInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, sc *
 		localStates:  make([]inferConstVarState, 1),
 		globalStates: make([]inferConstVarState, 1),
 	}
-	c.blockStack = c.blockStackBuf[:0]
-	return c
 }
 
 func (c *inferConstsCollector) flushLocalStates() {
@@ -252,53 +247,18 @@ func (c *inferConstsCollector) materializeBlock(idx int) *BasicBlock {
 }
 
 func (c *inferConstsCollector) addCollectedHoistedFunction(n rhino.Node) bool {
-	if n == c.lastHoisted && !n.IsNil() {
+	if c.collectedHoisted == nil {
+		c.collectedHoisted = make(map[rhino.Node]struct{})
+	}
+	if _, exists := c.collectedHoisted[n]; exists {
 		return false
 	}
-	if c.collectedHoistedMap == nil {
-		for i := uint8(0); i < c.hoistedCount; i++ {
-			if c.hoistedBuf[i] == n {
-				c.lastHoisted = n
-				return false
-			}
-		}
-		if c.hoistedCount < uint8(len(c.hoistedBuf)) {
-			c.hoistedBuf[c.hoistedCount] = n
-			c.hoistedCount++
-			c.lastHoisted = n
-			return true
-		}
-		c.collectedHoistedMap = make(map[rhino.Node]struct{}, 64)
-		for i := uint8(0); i < c.hoistedCount; i++ {
-			c.collectedHoistedMap[c.hoistedBuf[i]] = struct{}{}
-		}
-	}
-	if _, exists := c.collectedHoistedMap[n]; exists {
-		c.lastHoisted = n
-		return false
-	}
-	c.collectedHoistedMap[n] = struct{}{}
-	c.lastHoisted = n
+	c.collectedHoisted[n] = struct{}{}
 	return true
 }
 
 func (c *inferConstsCollector) hasCollectedHoistedFunction(n rhino.Node) bool {
-	if n == c.lastHoisted {
-		return !n.IsNil()
-	}
-	if c.collectedHoistedMap == nil {
-		for i := uint8(0); i < c.hoistedCount; i++ {
-			if c.hoistedBuf[i] == n {
-				c.lastHoisted = n
-				return true
-			}
-		}
-		return false
-	}
-	_, exists := c.collectedHoistedMap[n]
-	if exists {
-		c.lastHoisted = n
-	}
+	_, exists := c.collectedHoisted[n]
 	return exists
 }
 
@@ -372,7 +332,7 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 		return
 	}
 	fnNode := nameNode.GetParent()
-	if fnNode.IsNil() || !fnNode.IsFunction() || fnNode == c.lastHoisted {
+	if fnNode.IsNil() || !fnNode.IsFunction() {
 		return
 	}
 	if c.hasCollectedHoistedFunction(fnNode) || !rcIsHoistedFunctionDeclaration(fnNode) {
@@ -381,13 +341,6 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 	varScope := var_.scope
 	oldBlockStack := c.blockStack
 	var newStack []basicBlockEntry
-	if n := len(c.blockStackPool); n > 0 {
-		newStack = c.blockStackPool[n-1][:0]
-		c.blockStackPool = c.blockStackPool[:n-1]
-	} else {
-		newStack = make([]basicBlockEntry, 0, 16)
-	}
-
 	if varScope.IsGlobal() {
 		if len(oldBlockStack) == 0 {
 			panic(jutil.NewNoSuchElementException())
@@ -395,7 +348,7 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 		if oldBlockStack[0].block == nil {
 			c.materializeBlock(0)
 		}
-		newStack = append(newStack, oldBlockStack[0])
+		newStack = []basicBlockEntry{oldBlockStack[0]}
 	} else {
 		rootNode := varScope.GetRootNode()
 		end := len(oldBlockStack)
@@ -408,7 +361,7 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 		if end > 0 && oldBlockStack[end-1].block == nil {
 			c.materializeBlock(end - 1)
 		}
-		newStack = append(newStack, oldBlockStack[:end]...)
+		newStack = slices.Clone(oldBlockStack[:end])
 	}
 	c.blockStack = newStack
 
@@ -422,9 +375,6 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 		c.flushLocalStates()
 	}
 
-	usedStack := c.blockStack
-	clear(usedStack)
-	c.blockStackPool = append(c.blockStackPool, usedStack[:0])
 	c.blockStack = oldBlockStack
 }
 
