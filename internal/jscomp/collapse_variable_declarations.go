@@ -19,9 +19,17 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast): it gathers and
+// collapses ast.NameDeclarations, and the "next declaration of the same
+// kind" test that both phases need is one helper (nextOfSameKind) instead of
+// token comparisons. The test that runs on every node stays a token
+// comparison (see GatherCollapses.Visit), and moving the declarators stays
+// one rhino splice (AddChildrenToBack of RemoveChildren).
 
 // CollapseVariableDeclarations collapses multiple variable declarations into
 // a single one. i.e the following:
@@ -54,9 +62,11 @@ type CollapseVariableDeclarations struct {
 	compiler AbstractCompiler
 
 	// Collapses to do in this pass.
-	collapses     *jutil.ArrayList[*CollapseVariableDeclarations_Collapse]
-	collapseNodes []rhino.Node
-	collapseBuf   [32]rhino.Node
+	collapses *jutil.ArrayList[*CollapseVariableDeclarations_Collapse]
+	// Go-only: the declarations that the following ones collapse into (the
+	// startNode of each Collapse), in a reused buffer.
+	collapseNodes []ast.NameDeclaration
+	collapseBuf   [32]ast.NameDeclaration
 
 	// Nodes we've already looked at for collapsing, so that we don't look at
 	// them again (we look ahead when examining what nodes can be collapsed,
@@ -112,13 +122,18 @@ type CollapseVariableDeclarations_GatherCollapses struct {
 
 // Java: CollapseVariableDeclarations.GatherCollapses.visit(NodeTraversal, Node, Node)
 func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	nType := n.GetToken()
-	if nType != rhino.Token_VAR && nType != rhino.Token_LET && nType != rhino.Token_CONST {
+	// Go-only: this runs on every node, so the kind is tested on the token
+	// (three comparisons are a little cheaper than the token-set lookup of
+	// ast.AsNameDeclaration, and a typed visitor costs more still).
+	if tok := n.GetToken(); tok != rhino.Token_VAR && tok != rhino.Token_LET && tok != rhino.Token_CONST {
 		return
 	}
+	decl, _ := ast.AsNameDeclaration(n) // the test above proves the kind
 
 	// Adjacent VAR children of an IF node are the if and else parts and can't
 	// be collapsed
+	// Go-only: the branches of an if are blocks (grammar.txt), so a
+	// declaration is never a child of an IF; the check is kept from Java.
 	if parent.IsIf() {
 		return
 	}
@@ -131,32 +146,41 @@ func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n
 		}
 	}
 
-	next := n.GetNext()
-	if next.IsNil() || next.GetToken() != nType {
+	next, ok := collapseVariableDeclarations_nextOfSameKind(decl)
+	if !ok {
 		return
 	}
 
 	if outer.collapsedSet == nil {
 		outer.collapsedSet = make(map[rhino.Node]struct{}, 32)
 	}
-	for !next.IsNil() && next.GetToken() == nType {
-		outer.collapsedSet[next] = struct{}{}
-		next = next.GetNext()
+	for ok {
+		outer.collapsedSet[next.Node()] = struct{}{}
+		next, ok = collapseVariableDeclarations_nextOfSameKind(next)
 	}
-	outer.collapseNodes = append(outer.collapseNodes, n)
+	outer.collapseNodes = append(outer.collapseNodes, decl)
+}
+
+// collapseVariableDeclarations_nextOfSameKind returns the statement after
+// decl if it is a declaration of the same kind (var, let or const); ok is
+// false otherwise.
+//
+// Go-only: Java compares the tokens where it needs this.
+func collapseVariableDeclarations_nextOfSameKind(decl ast.NameDeclaration) (ast.NameDeclaration, bool) {
+	next, ok := ast.AsNameDeclaration(decl.Node().GetNext())
+	return next, ok && next.Token() == decl.Token()
 }
 
 // Java: CollapseVariableDeclarations.applyCollapses()
 func (c *CollapseVariableDeclarations) ApplyCollapses() {
-	for _, var_ := range c.collapseNodes {
-		c.compiler.ReportChangeToEnclosingScope(var_)
+	for _, decl := range c.collapseNodes {
+		c.compiler.ReportChangeToEnclosingScope(decl.Node())
 
-		varTok := var_.GetToken()
-		for !var_.GetNext().IsNil() && var_.GetNext().GetToken() == varTok {
-			next := var_.GetNext().Detach()
+		for next, ok := collapseVariableDeclarations_nextOfSameKind(decl); ok; next, ok = collapseVariableDeclarations_nextOfSameKind(decl) {
+			next.Detach()
 
 			// Move all children of the next var node into the first one.
-			var_.AddChildrenToBack(next.RemoveChildren())
+			decl.Node().AddChildrenToBack(next.Node().RemoveChildren())
 		}
 	}
 }
