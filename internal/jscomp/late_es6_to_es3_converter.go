@@ -114,7 +114,7 @@ func LateEs6ToEs3Converter_FindTemplateLitInsertionPoint(script rhino.Node) rhin
 func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN:
-		assign, _ := ast.AsAssign(n) // the case proves the kind
+		assign := ast.MustAssign(n)
 		// Find whether this script contains the `$jscomp.createTemplateTagFirstArgWithRaw =
 		// function(..) {..}` node. If yes, update the templateLitInsertionPoint.
 		lhs, isGetProp := assign.Target().AsGetProp()
@@ -127,7 +127,7 @@ func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 			}
 		}
 	case rhino.Token_OBJECTLIT:
-		obj, _ := ast.AsObjectLit(n) // the case proves the kind
+		obj := ast.MustObjectLit(n)
 		l.VisitObject(t, obj)
 	case rhino.Token_MEMBER_FUNCTION_DEF:
 		if member, ok := ast.AsMemberFunctionDef(n); ok && parent.IsObjectLit() {
