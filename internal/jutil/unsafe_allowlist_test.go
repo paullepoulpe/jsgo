@@ -21,7 +21,7 @@ func TestUnsafeImportAllowlist(t *testing.T) {
 		"internal/jutil/gson_to_json.go":              true,
 		"internal/jutil/objects.go":                   true,
 		"internal/jutil/slab.go":                      true,
-		"internal/rhino/rhino_string_pool.go":         true,
+		"internal/strpool/strpool.go":                 true, // the string pool (was internal/rhino/rhino_string_pool.go)
 	}
 
 	fset := token.NewFileSet()

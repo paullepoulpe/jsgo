@@ -1,10 +1,13 @@
 # A typed view of the AST
 
 Status: prototype. Package `internal/ast`, generated from
-`internal/ast/grammar.txt`; six passes use it (`MinimizeExitPoints`,
+`internal/ast/grammar.txt`; twelve passes use it (`MinimizeExitPoints`,
 `ConvertToDottedProperties` with a typed visitor, the parts of the hot
 `InlineVariables` that read tree shapes, `PeepholeMinimizeConditions`,
-`PeepholeRemoveDeadCode` and `Normalize`).
+`PeepholeRemoveDeadCode`, `Normalize`, `PeepholeFoldConstants`,
+`PeepholeSubstituteAlternateSyntax`, `Denormalize`,
+`PeepholeCollectPropertyAssignments`, `CollapseVariableDeclarations` and
+`ExploitAssigns`).
 
 ## Why
 
@@ -280,6 +283,54 @@ Their feedback, and what changed in the API since:
 | a visitor handler does not get the parent; no handler per category | open |
 | optional children stored as an EMPTY placeholder have no `RemoveX` (putting the EMPTY back, with its srcref, stays rhino) | open |
 | RETURN and THROW share no category; neither do the optional chains | left on rhino where typing would mean two conversions for one `GetFirstChild` |
+
+## Seventh to twelfth ports: constant folding, alternate syntax, denormalization, and three small passes
+
+`PeepholeFoldConstants` (2,200 lines), `PeepholeSubstituteAlternateSyntax`,
+`Denormalize`, `PeepholeCollectPropertyAssignments`,
+`CollapseVariableDeclarations` and `ExploitAssigns`, ported in parallel with
+the API above. Output, source maps and stderr byte-identical; pass times
+equal within noise, checked with in-process harnesses (the tracer was too
+noisy on a loaded machine): for example `PeepholeSubstituteAlternateSyntax`
+45.96 vs 46.28 ms and `Denormalize` 26.59 vs 26.79 ms (medians of 30 runs).
+
+- **Operands by role.** Constant folding reads `op.Left()`/`op.Right()`,
+  `unary.Operand()`, `assign.Target()`/`Value()`; "the right side has two
+  children" became the `AsBinary` conversion. A new category,
+  `NormalOrOptChainGetElem`, replaced positional `(left, right)` passing.
+- **Typed parameters** (`TryFoldArrayAccess(ast.ArrayLit, ...)`,
+  `tryMinimizeIf`-style methods taking `ast.Call`, `ast.Return`...) removed
+  the Java re-checks (`checkState(isString)`, `isObjectLit`).
+- **Another crash found:** `Boolean(...a)` was folded to `!!...a`, which
+  `IR.not` rejects. `call.OnlyArg()` returns an `Arg`, and its conversion to
+  `Expr` (comma-ok) made the spread case visible. Now left alone (Go-only,
+  with a test).
+- **A miscompilation found, not fixed** (same output as Java):
+  `tryMinimizeWindowRefs` marks the enclosing call as a free call whatever
+  the role of the `window.x` reference, so `obj.f(window.Array)` becomes
+  `(0,obj.f)(Array)`. Documented in a Go-only note.
+- **Two more categories**: `NormalGet` (`NodeUtil.isNormalGet`) and, from
+  Normalize, `EnhancedFor`.
+
+What they reported:
+
+- **Dispatch cost matters for cheap passes.** `ast.Visitor` made
+  Denormalize's traversal ~10% slower and a one-handler visitor in
+  CollapseVariableDeclarations ~20% slower than a token switch, because every
+  node goes through the dispatch. Both kept a token switch that hands typed
+  nodes to the rewrites. A visitor that declares its kinds (next steps, 1)
+  would fix it.
+- **The per-node dispatch of peephole passes is still the main gap**:
+  OptimizeSubtree returns the replacement node, so `ast.Visitor` does not
+  fit, and the `x, _ := ast.AsX(n) // the case proves the kind` lines remain.
+- **One token within a kind takes two steps** (`void`, `!`, `var`, `||`):
+  `u, ok := e.AsUnary(); ok && u.Token() == rhino.Token_VOID`.
+  Helpers such as `AsUnaryOp(n, tok)` were asked for.
+- **Missing pieces**: constructors for kinds with a string payload
+  (`NewStringKey`), raw/cooked accessors on template strings, an index
+  accessor and element count on lists, `Target.AsExpr` (patterns are
+  targets, not expressions), a common view of SCRIPT items and BLOCK
+  statements.
 
 ## Performance outlook
 
