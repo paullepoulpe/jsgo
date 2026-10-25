@@ -21,9 +21,20 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) to read the
+// shapes it rewrites (call.Callee(), call.OnlyArg(), ret.Value(),
+// assign.Value(), getProp.Object()...) instead of child positions, and each
+// tryX method takes the kind it rewrites (ast.Call, ast.Return...), so the
+// Java checks of the node's token are gone. It no longer follows the Java
+// line by line; the Go-only notes below say where the logic differs. Code
+// that moves children around (splitComma, the bound function call, the
+// array literal built from a call's arguments) and reduceTrueFalse, which
+// only looks at its parent's token, use the rhino API.
 
 // PeepholeSubstituteAlternateSyntax is a peephole optimization that
 // minimizes code by simplifying conditional expressions, replacing IFs with
@@ -59,43 +70,54 @@ func NewPeepholeSubstituteAlternateSyntax(late bool) *PeepholeSubstituteAlternat
 func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node rhino.Node) rhino.Node {
 	switch node.GetToken() {
 	case rhino.Token_ASSIGN_SUB:
-		return p.ReduceSubstractionAssignment(node)
+		assign, _ := ast.AsAssignOp(node) // the case proves the kind
+		return p.ReduceSubstractionAssignment(assign)
 	case rhino.Token_TRUE, rhino.Token_FALSE:
 		return p.ReduceTrueFalse(node)
 	case rhino.Token_NEW:
-		result := p.TryFoldStandardConstructors(node)
-		if !result.IsCall() {
-			return result
-		}
+		newNode, _ := ast.AsNew(node) // the case proves the kind
+		result := p.TryFoldStandardConstructors(newNode)
 		// tryFoldStandardConstructors() may convert a NEW node into a CALL node
-		return p.TryReduceCall(result)
+		if call, ok := ast.AsCall(result); ok {
+			return p.TryReduceCall(call)
+		}
+		return result
 	case rhino.Token_CALL:
-		return p.TryReduceCall(node)
+		call, _ := ast.AsCall(node) // the case proves the kind
+		return p.TryReduceCall(call)
 	case rhino.Token_RETURN:
-		return p.TryReduceReturn(node)
+		ret, _ := ast.AsReturn(node) // the case proves the kind
+		return p.TryReduceReturn(ret)
 	case rhino.Token_EXPR_RESULT:
-		if node.GetFirstChild().IsComma() {
-			return p.TrySplitComma(node)
+		stmt, _ := ast.AsExprStmt(node) // the case proves the kind
+		if stmt.Expr().Token() == rhino.Token_COMMA {
+			return p.TrySplitComma(stmt)
 		}
 		return node
 	case rhino.Token_NAME:
-		if node.GetString() != "undefined" {
+		name, _ := ast.AsName(node) // the case proves the kind
+		if name.Ident() != "undefined" {
 			return node
 		}
-		return p.TryReplaceUndefined(node)
+		return p.TryReplaceUndefined(name)
 	case rhino.Token_ARRAYLIT:
-		return p.TryMinimizeArrayLiteral(node)
+		array, _ := ast.AsArrayLit(node) // the case proves the kind
+		return p.TryMinimizeArrayLiteral(array)
 	case rhino.Token_GETPROP:
-		return p.TryMinimizeWindowRefs(node)
+		getProp, _ := ast.AsGetProp(node) // the case proves the kind
+		return p.TryMinimizeWindowRefs(getProp)
 	case rhino.Token_TEMPLATELIT:
-		return p.TryTurnTemplateStringsToStrings(node)
+		template, _ := ast.AsTemplateLit(node) // the case proves the kind
+		return p.TryTurnTemplateStringsToStrings(template)
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_COALESCE:
-		return p.TryRotateAssociativeOperator(node)
+		op, _ := ast.AsBinary(node) // the case proves the kind
+		return p.TryRotateAssociativeOperator(op)
 	case rhino.Token_MUL:
+		op, _ := ast.AsBinary(node) // the case proves the kind
 		if !p.late || p.MayHaveSideEffects(node) {
 			return node
 		}
-		return p.TryRotateCommutativeOperator(node)
+		return p.TryRotateCommutativeOperator(op)
 	default:
 		return node
 	}
@@ -109,110 +131,122 @@ var peepholeSubstituteAlternateSyntax_BUILTIN_EXTERNS = jutil.NewLinkedHashSet(
 	"Math")
 
 // Java: PeepholeSubstituteAlternateSyntax.tryMinimizeWindowRefs(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeWindowRefs(node rhino.Node) rhino.Node {
-	jutil.CheckArgument(node.IsGetProp())
-
-	nameNode := node.GetFirstChild()
-	if nameNode.IsName() && "window" == nameNode.GetString() {
-		// Normalization needs to be done to ensure there's no shadowing.
-		// Since normalization has run we know we're referring to the global window.
-		if p.IsASTNormalized() && peepholeSubstituteAlternateSyntax_BUILTIN_EXTERNS.Contains(node.GetString()) {
-			newNameNode := rhino.IR_Name(node.GetString())
-			parentNode := node.GetParent()
-
-			newNameNode.Srcref(node)
-			node.ReplaceWith(newNameNode)
-
-			if parentNode.IsCall() || parentNode.IsOptChainCall() {
-				// e.g. when converting `window.Array?.()` to `Array?.()`, ensure that the
-				// OPTCHAIN_CALL gets marked as `FREE_CALL`
-				parentNode.PutBooleanProp(rhino.Node_FREE_CALL, true)
-			}
-			p.ReportChangeToEnclosingScope(parentNode)
-			return newNameNode
-		}
+func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeWindowRefs(getProp ast.GetProp) rhino.Node {
+	node := getProp.Node()
+	window, ok := getProp.Object().AsName()
+	if !ok || window.Ident() != "window" {
+		return node
 	}
+	// Normalization needs to be done to ensure there's no shadowing.
+	// Since normalization has run we know we're referring to the global window.
+	if !p.IsASTNormalized() || !peepholeSubstituteAlternateSyntax_BUILTIN_EXTERNS.Contains(getProp.Property()) {
+		return node
+	}
+	newNameNode := rhino.IR_Name(getProp.Property())
+	parentNode := node.GetParent()
 
-	return node
+	newNameNode.Srcref(node)
+	node.ReplaceWith(newNameNode)
+
+	// Go-only note: like the Java, this marks the parent call as free whatever
+	// the role of the window ref in it, so `obj.f(window.Array)` prints as
+	// `(0,obj.f)(Array)` and calls f without obj as this. Kept for identical
+	// output.
+	if _, ok := ast.AsNormalOrOptChainCall(parentNode); ok {
+		// e.g. when converting `window.Array?.()` to `Array?.()`, ensure that the
+		// OPTCHAIN_CALL gets marked as `FREE_CALL`
+		parentNode.PutBooleanProp(rhino.Node_FREE_CALL, true)
+	}
+	p.ReportChangeToEnclosingScope(parentNode)
+	return newNameNode
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.tryRotateCommutativeOperator(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryRotateCommutativeOperator(n rhino.Node) rhino.Node {
+func (p *PeepholeSubstituteAlternateSyntax) TryRotateCommutativeOperator(n ast.Binary) rhino.Node {
 	if !p.late {
-		return n
+		return n.Node()
 	}
 	// Transform a * (b / c) to b / c * a
-	rhs := n.GetLastChild()
-	lhs := n.GetFirstChild()
-	for lhs.GetToken() == n.GetToken() && NodeUtil_IsAssociative(n.GetToken()) {
-		lhs = lhs.GetFirstChild()
+	rhs := n.Right()
+	lhs := n.Left()
+	for lhs.Token() == n.Token() && NodeUtil_IsAssociative(n.Token()) {
+		lhsOp, _ := lhs.AsBinary() // it has the token of n, a binary operator
+		lhs = lhsOp.Left()
 	}
-	precedence := NodeUtil_Precedence(n.GetToken())
-	lhsPrecedence := NodeUtil_Precedence(lhs.GetToken())
-	rhsPrecedence := NodeUtil_Precedence(rhs.GetToken())
+	precedence := NodeUtil_Precedence(n.Token())
+	lhsPrecedence := NodeUtil_Precedence(lhs.Token())
+	rhsPrecedence := NodeUtil_Precedence(rhs.Token())
 	if rhsPrecedence == precedence && lhsPrecedence != precedence {
 		rhs.Detach()
 		lhs.ReplaceWith(rhs)
-		n.AddChildToBack(lhs)
-		p.ReportChangeToEnclosingScope(n)
+		// (n has lost its right operand: SetRight would replace the left one.)
+		n.Node().AddChildToBack(lhs.Node())
+		p.ReportChangeToEnclosingScope(n.Node())
 	}
-	return n
+	return n.Node()
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.tryRotateAssociativeOperator(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryRotateAssociativeOperator(n rhino.Node) rhino.Node {
+func (p *PeepholeSubstituteAlternateSyntax) TryRotateAssociativeOperator(n ast.Binary) rhino.Node {
 	if !p.late {
-		return n
+		return n.Node()
 	}
 	// All commutative operators are also associative
-	jutil.CheckArgument(NodeUtil_IsAssociative(n.GetToken()))
-	rhs := n.GetLastChild()
-	if n.GetToken() == rhs.GetToken() {
+	jutil.CheckArgument(NodeUtil_IsAssociative(n.Token()))
+	if rhs, ok := n.Right().AsBinary(); ok && rhs.Token() == n.Token() {
 		// Transform a * (b * c) to a * b * c
-		first := n.RemoveFirstChild()
-		second := rhs.RemoveFirstChild()
-		third := rhs.GetLastChild().Detach()
-		newLhs := rhino.NewNodeWith2Children(n.GetToken(), first, second).SrcrefIfMissing(n)
-		newRoot := rhino.NewNodeWith2Children(rhs.GetToken(), newLhs, third).SrcrefIfMissing(rhs)
-		n.ReplaceWith(newRoot)
-		p.ReportChangeToEnclosingScope(newRoot)
-		return newRoot
-	} else if NodeUtil_IsCommutative(n.GetToken()) && !p.MayHaveSideEffects(n) {
+		first, second, third := n.Left(), rhs.Left(), rhs.Right()
+		newLhs := ast.NewBinary(n.Token(), first.Detach(), second.Detach())
+		newLhs.Node().SrcrefIfMissing(n.Node())
+		newRoot := ast.NewBinary(rhs.Token(), newLhs.AsExpr(), third.Detach())
+		newRoot.Node().SrcrefIfMissing(rhs.Node())
+		n.Node().ReplaceWith(newRoot.Node())
+		p.ReportChangeToEnclosingScope(newRoot.Node())
+		return newRoot.Node()
+	} else if NodeUtil_IsCommutative(n.Token()) && !p.MayHaveSideEffects(n.Node()) {
 		// Transform a * (b / c) to b / c * a
 		return p.TryRotateCommutativeOperator(n)
 	}
-	return n
+	return n.Node()
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.tryFoldSimpleFunctionCall(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryFoldSimpleFunctionCall(n rhino.Node) rhino.Node {
-	jutil.CheckStateMsg1(n.IsCall(), "%s", n)
-	callTarget := n.GetFirstChild()
-	if callTarget.IsNil() || !callTarget.IsName() {
+func (p *PeepholeSubstituteAlternateSyntax) TryFoldSimpleFunctionCall(call ast.Call) rhino.Node {
+	n := call.Node()
+	callTarget, ok := call.Callee().AsName()
+	if !ok {
 		return n
 	}
-	targetName := callTarget.GetString()
-	switch targetName {
+	switch callTarget.Ident() {
 	case "Boolean":
 		// Fold Boolean(a) to !!a
 		// http://www.ecma-international.org/ecma-262/6.0/index.html#sec-boolean-constructor-boolean-value
 		// and
 		// http://www.ecma-international.org/ecma-262/6.0/index.html#sec-logical-not-operator-runtime-semantics-evaluation
-		paramCount := n.GetChildCount() - 1
 		// only handle the single known parameter case
-		if paramCount == 1 {
-			value := n.GetLastChild().Detach()
-			var replacement rhino.Node
-			if NodeUtil_IsBooleanResult(value) {
-				// If it is already a boolean do nothing.
-				replacement = value
-			} else {
-				// Replace it with a "!!value"
-				replacement = rhino.IR_Not(rhino.IR_Not(value).Srcref(n))
-			}
-			n.ReplaceWith(replacement)
-			p.ReportChangeToEnclosingScope(replacement)
+		arg, ok := call.OnlyArg()
+		if !ok {
+			break
 		}
+		// Go-only: a spread argument is left alone. Java folds Boolean(...a) to
+		// !!...a, which IR.not rejects: an internal compiler error.
+		value, ok := arg.AsExpr()
+		if !ok {
+			break
+		}
+		value.Detach()
+		var replacement rhino.Node
+		if NodeUtil_IsBooleanResult(value.Node()) {
+			// If it is already a boolean do nothing.
+			replacement = value.Node()
+		} else {
+			// Replace it with a "!!value"
+			replacement = rhino.IR_Not(rhino.IR_Not(value.Node()).Srcref(n))
+		}
+		n.ReplaceWith(replacement)
+		p.ReportChangeToEnclosingScope(replacement)
+		// (Like the Java, this returns n, now out of the tree, not the
+		// replacement.)
 	case "String":
 		// Fold String(a) to '' + (a) on immutable literals,
 		// which allows further optimizations
@@ -220,9 +254,8 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldSimpleFunctionCall(n rhino.No
 		// We can't do this in the general case, because String(a) has
 		// slightly different semantics than '' + (a). See
 		// https://blickly.github.io/closure-compiler-issues/#759
-		value := callTarget.GetNext()
-		if !value.IsNil() && value.GetNext().IsNil() && NodeUtil_IsImmutableValue(value) {
-			addition := rhino.IR_Add(rhino.IR_String("").Srcref(callTarget), value.Detach())
+		if value, ok := call.OnlyArg(); ok && NodeUtil_IsImmutableValue(value.Node()) {
+			addition := rhino.IR_Add(rhino.IR_String("").Srcref(callTarget.Node()), value.Detach().Node())
 			n.ReplaceWith(addition)
 			p.ReportChangeToEnclosingScope(addition)
 			return addition
@@ -234,19 +267,19 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldSimpleFunctionCall(n rhino.No
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.tryFoldImmediateCallToBoundFunction(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryFoldImmediateCallToBoundFunction(n rhino.Node) rhino.Node {
+func (p *PeepholeSubstituteAlternateSyntax) TryFoldImmediateCallToBoundFunction(call ast.Call) rhino.Node {
 	// Rewriting "(fn.bind(a,b))()" to "fn.call(a,b)" makes it inlinable
-	jutil.CheckState(n.IsCall())
-	callTarget := n.GetFirstChild()
-	if !callTarget.IsCall() {
+	n := call.Node()
+	boundCall, ok := call.Callee().AsCall()
+	if !ok {
 		return n
 	}
-	bind := p.GetCodingConvention().DescribeFunctionBind(callTarget, false)
+	bind := p.GetCodingConvention().DescribeFunctionBind(boundCall.Node(), false)
 	if bind != nil {
 		// replace the call target
 		bind.target.Detach()
-		callTarget.ReplaceWith(bind.target)
-		callTarget = bind.target
+		boundCall.Node().ReplaceWith(bind.target)
+		callTarget := bind.target
 
 		// push the parameters
 		PeepholeSubstituteAlternateSyntax_AddParameterAfter(bind.parameters, callTarget)
@@ -310,18 +343,18 @@ func (p *PeepholeSubstituteAlternateSyntax) SplitComma(n rhino.Node, insert bool
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.trySplitComma(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TrySplitComma(n rhino.Node) rhino.Node {
+func (p *PeepholeSubstituteAlternateSyntax) TrySplitComma(stmt ast.ExprStmt) rhino.Node {
+	n := stmt.Node()
 	if p.late {
 		return n
 	}
-	jutil.CheckState(n.IsExprResult())
 	if n.GetParent().IsLabel() {
 		// Do not split labeled comma expressions.
 		return n
 	}
-	comma := n.GetFirstChild()
-	jutil.CheckState(comma.IsComma())
-	leftmost := p.SplitComma(comma, false, n)
+	comma := stmt.Expr()
+	jutil.CheckState(comma.Token() == rhino.Token_COMMA)
+	leftmost := p.SplitComma(comma.Node(), false, n)
 	// Replace original expression with leftmost comma expression.
 	n.RemoveChildren()
 	n.AddChildToFront(leftmost)
@@ -333,9 +366,10 @@ func (p *PeepholeSubstituteAlternateSyntax) TrySplitComma(n rhino.Node) rhino.No
 // TryReplaceUndefined uses "void 0" in place of "undefined".
 //
 // Java: PeepholeSubstituteAlternateSyntax.tryReplaceUndefined(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryReplaceUndefined(n rhino.Node) rhino.Node {
+func (p *PeepholeSubstituteAlternateSyntax) TryReplaceUndefined(name ast.Name) rhino.Node {
+	n := name.Node()
 	// TODO(johnlenz): consider doing this as a normalization.
-	if NodeUtil_IsUndefined(n) &&
+	if name.Ident() == "undefined" &&
 		p.IsASTNormalized() &&
 		!NodeUtil_IsLValue(n) {
 		replacement := NodeUtil_NewUndefinedNode(n)
@@ -347,22 +381,18 @@ func (p *PeepholeSubstituteAlternateSyntax) TryReplaceUndefined(n rhino.Node) rh
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.tryReduceCall(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryReduceCall(node rhino.Node) rhino.Node {
-	callTarget := node.GetFirstChild()
-	if callTarget.IsNil() {
-		return node
-	}
-	switch callTarget.GetToken() {
+func (p *PeepholeSubstituteAlternateSyntax) TryReduceCall(call ast.Call) rhino.Node {
+	switch call.Callee().Token() {
 	case rhino.Token_NAME:
-		result := p.TryFoldLiteralConstructor(node)
-		if result == node {
-			result = p.TryFoldSimpleFunctionCall(node)
+		result := p.TryFoldLiteralConstructor(call)
+		if call.Is(result) {
+			result = p.TryFoldSimpleFunctionCall(call)
 		}
 		return result
 	case rhino.Token_CALL:
-		return p.TryFoldImmediateCallToBoundFunction(node)
+		return p.TryFoldImmediateCallToBoundFunction(call)
 	default:
-		return node
+		return call.Node()
 	}
 }
 
@@ -370,27 +400,21 @@ func (p *PeepholeSubstituteAlternateSyntax) TryReduceCall(node rhino.Node) rhino
 // "return". Returns the original node, maybe simplified.
 //
 // Java: PeepholeSubstituteAlternateSyntax.tryReduceReturn(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryReduceReturn(n rhino.Node) rhino.Node {
-	result := n.GetFirstChild()
-
-	if !result.IsNil() {
-		switch result.GetToken() {
-		case rhino.Token_VOID:
-			operand := result.GetFirstChild()
-			if !p.MayHaveSideEffects(operand) {
-				n.RemoveFirstChild()
-				p.ReportChangeToEnclosingScope(n)
-			}
-		case rhino.Token_NAME:
-			name := result.GetString()
-			if name == "undefined" {
-				n.RemoveFirstChild()
-				p.ReportChangeToEnclosingScope(n)
-			}
-		default:
-		}
+func (p *PeepholeSubstituteAlternateSyntax) TryReduceReturn(ret ast.Return) rhino.Node {
+	n := ret.Node()
+	result, ok := ret.Value()
+	if !ok {
+		return n
 	}
-
+	if void, ok := result.AsUnary(); ok && void.Token() == rhino.Token_VOID {
+		if !p.MayHaveSideEffects(void.Operand().Node()) {
+			ret.RemoveValue()
+			p.ReportChangeToEnclosingScope(n)
+		}
+	} else if name, ok := result.AsName(); ok && name.Ident() == "undefined" {
+		ret.RemoveValue()
+		p.ReportChangeToEnclosingScope(n)
+	}
 	return n
 }
 
@@ -405,15 +429,14 @@ var peepholeSubstituteAlternateSyntax_STANDARD_OBJECT_CONSTRUCTORS = jutil.NewLi
 // TryFoldStandardConstructors folds "new Object()" to "Object()".
 //
 // Java: PeepholeSubstituteAlternateSyntax.tryFoldStandardConstructors(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryFoldStandardConstructors(n rhino.Node) rhino.Node {
-	jutil.CheckState(n.IsNew())
-
-	if p.CanFoldStandardConstructors(n) {
+func (p *PeepholeSubstituteAlternateSyntax) TryFoldStandardConstructors(newNode ast.New) rhino.Node {
+	n := newNode.Node()
+	if p.CanFoldStandardConstructors(newNode) {
+		// The node becomes a call in place: same children, new token.
 		n.SetToken(rhino.Token_CALL)
 		n.PutBooleanProp(rhino.Node_FREE_CALL, true)
 		p.ReportChangeToEnclosingScope(n)
 	}
-
 	return n
 }
 
@@ -421,24 +444,28 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldStandardConstructors(n rhino.
 // to "Object()" on n.
 //
 // Java: PeepholeSubstituteAlternateSyntax.canFoldStandardConstructors(Node)
-func (p *PeepholeSubstituteAlternateSyntax) CanFoldStandardConstructors(n rhino.Node) bool {
+func (p *PeepholeSubstituteAlternateSyntax) CanFoldStandardConstructors(newNode ast.New) bool {
 	// If name normalization has been run then we know that
 	// new Object() does in fact refer to what we think it is
 	// and not some custom-defined Object().
-	if n.GetFirstChild().IsName() && p.IsASTNormalized() {
-		className := n.GetFirstChild().GetString()
-		if peepholeSubstituteAlternateSyntax_STANDARD_OBJECT_CONSTRUCTORS.Contains(className) {
+	constructor, ok := newNode.Callee().AsName()
+	if !ok || !p.IsASTNormalized() {
+		return false
+	}
+	className := constructor.Ident()
+	if peepholeSubstituteAlternateSyntax_STANDARD_OBJECT_CONSTRUCTORS.Contains(className) {
+		return true
+	}
+	if "RegExp" == className {
+		// Fold "new RegExp()" to "RegExp()", but only if the argument is a string.
+		// See issue 1260.
+		arg, ok := newNode.FirstArg()
+		if !ok {
 			return true
 		}
-		if "RegExp" == className {
-			// Fold "new RegExp()" to "RegExp()", but only if the argument is a string.
-			// See issue 1260.
-			if n.GetSecondChild().IsNil() || n.GetSecondChild().IsStringLit() {
-				return true
-			}
-		}
+		_, isString := arg.AsStringLit()
+		return isString
 	}
-
 	return false
 }
 
@@ -446,50 +473,49 @@ func (p *PeepholeSubstituteAlternateSyntax) CanFoldStandardConstructors(n rhino.
 // a literal, unless the call is to a local constructor function with the same
 // name.
 //
+// (Java also accepts a new; it is only called on calls.)
+//
 // Java: PeepholeSubstituteAlternateSyntax.tryFoldLiteralConstructor(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryFoldLiteralConstructor(n rhino.Node) rhino.Node {
-	jutil.CheckArgument(n.IsCall() || n.IsNew())
-
-	constructorNameNode := n.GetFirstChild()
-
-	var newLiteralNode rhino.Node
+func (p *PeepholeSubstituteAlternateSyntax) TryFoldLiteralConstructor(call ast.Call) rhino.Node {
+	n := call.Node()
 
 	// We require the AST to be normalized to ensure that, say,
 	// Object() really refers to the built-in Object constructor
 	// and not a user-defined constructor with the same name.
+	constructorName, ok := call.Callee().AsName()
+	if !ok {
+		return n
+	}
+	className := constructorName.Ident()
+	if ("Object" != className && "Array" != className) || !p.IsASTNormalized() {
+		return n
+	}
 
-	if constructorNameNode.IsName() {
-		className := constructorNameNode.GetString()
-		if ("Object" == className || "Array" == className) && p.IsASTNormalized() {
-			constructorHasArgs := !constructorNameNode.GetNext().IsNil()
+	var newLiteralNode rhino.Node
+	if "Object" == className && !call.HasArgs() {
+		// "Object()" --> "{}"
+		newLiteralNode = rhino.IR_Objectlit()
+	} else if "Array" == className {
+		// "Array(arg0, arg1, ...)" --> "[arg0, arg1, ...]"
+		action := PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor(call)
 
-			if "Object" == className && !constructorHasArgs {
-				// "Object()" --> "{}"
-				newLiteralNode = rhino.IR_Objectlit()
-			} else if "Array" == className {
-				// "Array(arg0, arg1, ...)" --> "[arg0, arg1, ...]"
-				arg0 := constructorNameNode.GetNext()
-				action := PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor(arg0)
-
-				if action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS ||
-					action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITHOUT_ARGS {
-					newLiteralNode = rhino.IR_Arraylit()
-					n.RemoveFirstChild() // discard the function name
-					elements := n.RemoveChildren()
-					if action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS {
-						newLiteralNode.AddChildrenToFront(elements)
-					}
-				}
-			}
-
-			if !newLiteralNode.IsNil() {
-				n.ReplaceWith(newLiteralNode)
-				p.ReportChangeToEnclosingScope(newLiteralNode)
-				return newLiteralNode
+		if action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS ||
+			action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITHOUT_ARGS {
+			newLiteralNode = rhino.IR_Arraylit()
+			constructorName.Detach() // discard the function name
+			elements := n.RemoveChildren()
+			if action == peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS {
+				newLiteralNode.AddChildrenToFront(elements)
 			}
 		}
 	}
-	return n
+
+	if newLiteralNode.IsNil() {
+		return n
+	}
+	n.ReplaceWith(newLiteralNode)
+	p.ReportChangeToEnclosingScope(newLiteralNode)
+	return newLiteralNode
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.FoldArrayAction
@@ -522,49 +548,49 @@ func (a peepholeSubstituteAlternateSyntax_FoldArrayAction) String() string {
 }
 
 // PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor checks if
-// it is safe to fold Array() constructor into []. It can be obviously done,
-// if the initial constructor has either no arguments or at least two. The
-// remaining case may be unsafe since Array(number) actually reserves memory
-// for an empty array which contains number elements.
+// it is safe to fold the Array() constructor call into []. It can be
+// obviously done, if the initial constructor has either no arguments or at
+// least two. The remaining case may be unsafe since Array(number) actually
+// reserves memory for an empty array which contains number elements.
+//
+// (Go: takes the call; Java takes its first argument, or null.)
 //
 // Java: PeepholeSubstituteAlternateSyntax.isSafeToFoldArrayConstructor(Node)
-func PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor(arg rhino.Node) peepholeSubstituteAlternateSyntax_FoldArrayAction {
-	action := peepholeSubstituteAlternateSyntax_FoldArrayAction_NOT_SAFE_TO_FOLD
-
-	if arg.IsNil() {
-		action = peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITHOUT_ARGS
-	} else if !arg.GetNext().IsNil() {
-		action = peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS
-	} else {
-		switch arg.GetToken() {
-		case rhino.Token_STRINGLIT:
-			// "Array('a')" --> "['a']"
-			action = peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS
-		case rhino.Token_NUMBER:
-			// "Array(0)" --> "[]"
-			if arg.GetDouble() == 0 {
-				action = peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITHOUT_ARGS
-			}
-		case rhino.Token_ARRAYLIT:
-			// "Array([args])" --> "[[args]]"
-			action = peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS
-		default:
-		}
+func PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor(call ast.Call) peepholeSubstituteAlternateSyntax_FoldArrayAction {
+	arg, ok := call.FirstArg()
+	if !ok {
+		return peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITHOUT_ARGS
 	}
-	return action
+	if _, ok := arg.Next(); ok {
+		return peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS
+	}
+	if _, ok := arg.AsStringLit(); ok {
+		// "Array('a')" --> "['a']"
+		return peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS
+	}
+	if number, ok := arg.AsNumber(); ok && number.Value() == 0 {
+		// "Array(0)" --> "[]"
+		return peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITHOUT_ARGS
+	}
+	if _, ok := arg.AsArrayLit(); ok {
+		// "Array([args])" --> "[[args]]"
+		return peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS
+	}
+	return peepholeSubstituteAlternateSyntax_FoldArrayAction_NOT_SAFE_TO_FOLD
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.reduceSubstractionAssignment(Node)
-func (p *PeepholeSubstituteAlternateSyntax) ReduceSubstractionAssignment(n rhino.Node) rhino.Node {
-	right := n.GetLastChild()
+func (p *PeepholeSubstituteAlternateSyntax) ReduceSubstractionAssignment(assign ast.AssignOp) rhino.Node {
+	n := assign.Node()
+	right := assign.Value()
 	isNegative := false
-	if right.IsNeg() {
+	if neg, ok := right.AsUnary(); ok && neg.Token() == rhino.Token_NEG {
 		isNegative = true
-		right = right.GetOnlyChild()
+		right = neg.Operand()
 	}
 
-	if right.IsNumber() && right.GetDouble() == 1 {
-		left := n.RemoveFirstChild()
+	if number, ok := right.AsNumber(); ok && number.Value() == 1 {
+		left := assign.Target().Detach().Node()
 		var newNode rhino.Node
 		if isNegative {
 			newNode = rhino.IR_Inc(left, false)
@@ -579,6 +605,10 @@ func (p *PeepholeSubstituteAlternateSyntax) ReduceSubstractionAssignment(n rhino
 	return n
 }
 
+// (n is a TRUE or a FALSE, two kinds without a common category in package
+// ast, and the rewrite depends on its parent's token: it stays on the rhino
+// API.)
+//
 // Java: PeepholeSubstituteAlternateSyntax.reduceTrueFalse(Node)
 func (p *PeepholeSubstituteAlternateSyntax) ReduceTrueFalse(n rhino.Node) rhino.Node {
 	if p.late {
@@ -613,20 +643,21 @@ func (p *PeepholeSubstituteAlternateSyntax) ReduceTrueFalse(n rhino.Node) rhino.
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.tryMinimizeArrayLiteral(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeArrayLiteral(n rhino.Node) rhino.Node {
+func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeArrayLiteral(array ast.ArrayLit) rhino.Node {
 	if !p.late {
-		return n
+		return array.Node()
 	}
-	for cur := n.GetFirstChild(); !cur.IsNil(); cur = cur.GetNext() {
-		if !cur.IsStringLit() {
-			return n
+	for elem := range array.Elements() {
+		if _, ok := elem.AsStringLit(); !ok {
+			return array.Node()
 		}
 	}
-	return p.TryMinimizeStringArrayLiteral(n)
+	return p.TryMinimizeStringArrayLiteral(array)
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.tryMinimizeStringArrayLiteral(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeStringArrayLiteral(n rhino.Node) rhino.Node {
+func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeStringArrayLiteral(array ast.ArrayLit) rhino.Node {
+	n := array.Node()
 	if !p.late {
 		return n
 	}
@@ -638,11 +669,11 @@ func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeStringArrayLiteral(n rhin
 		return n
 	}
 
-	strs := make([]string, numElements)
-	idx := 0
-	for cur := n.GetFirstChild(); !cur.IsNil(); cur = cur.GetNext() {
-		strs[idx] = cur.GetString()
-		idx++
+	strs := make([]string, 0, numElements)
+	for elem := range array.Elements() {
+		str, ok := elem.AsStringLit()
+		jutil.CheckState(ok) // tryMinimizeArrayLiteral checked every element
+		strs = append(strs, str.Value())
 	}
 
 	// These delimiters are chars that appears a lot in the program therefore
@@ -660,8 +691,8 @@ func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeStringArrayLiteral(n rhin
 }
 
 // Java: PeepholeSubstituteAlternateSyntax.tryTurnTemplateStringsToStrings(Node)
-func (p *PeepholeSubstituteAlternateSyntax) TryTurnTemplateStringsToStrings(n rhino.Node) rhino.Node {
-	jutil.CheckStateMsg1(n.IsTemplateLit(), "%s", n)
+func (p *PeepholeSubstituteAlternateSyntax) TryTurnTemplateStringsToStrings(template ast.TemplateLit) rhino.Node {
+	n := template.Node()
 	if n.GetParent().IsTaggedTemplateLit() {
 		return n
 	}

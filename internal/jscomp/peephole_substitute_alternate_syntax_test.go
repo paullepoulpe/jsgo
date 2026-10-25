@@ -522,6 +522,14 @@ func (c *PeepholeSubstituteAlternateSyntaxTest) TestSimpleFunctionCall2() {
 	c.TestSame("var a = Boolean(!0, !1);")
 }
 
+// Go-only: a call with a spread argument is left alone; Java's
+// tryFoldSimpleFunctionCall folds Boolean(...x) to !!...x, which IR.not
+// rejects (an internal compiler error).
+func (c *PeepholeSubstituteAlternateSyntaxTest) TestSimpleFunctionCallWithSpread() {
+	c.TestSame("var a = Boolean(...x)")
+	c.TestSame("var a = String(...x)")
+}
+
 // Java: PeepholeSubstituteAlternateSyntaxTest.testRotateAssociativeOperators()
 func (c *PeepholeSubstituteAlternateSyntaxTest) TestRotateAssociativeOperators() {
 	// Multiplication is not associative because it can include floating point numbers e.g.
