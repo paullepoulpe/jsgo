@@ -106,48 +106,16 @@ func StringPool_Builder_() *StringPool_Builder {
 // StringPool_Builder is StringPool.Builder.
 type StringPool_Builder struct {
 	maxLength int
-	idTable   []uint64 // noscan open-addressed hash table: (uint64(id) << 32) | uint64(idx+1)
-	ids       []uint32 // noscan slice of rhinoStringIDs
-	lastID    uint32
-	lastIdx   int
-}
-
-func stringPoolHashID(id uint32) uint32 {
-	h := id * 0x9e3779b9
-	return h ^ (h >> 16)
+	indexByID map[uint32]int
+	ids       []uint32
 }
 
 func newStringPool_Builder() *StringPool_Builder {
 	emptyID := rhino.RhinoStringPool_InternID("")
-	idTable := make([]uint64, 2048)
-	slot := stringPoolHashID(emptyID) & uint32(len(idTable)-1)
-	idTable[slot] = (uint64(emptyID) << 32) | 1
-	ids := make([]uint32, 1, 1024)
-	ids[0] = emptyID
 	return &StringPool_Builder{
-		idTable: idTable,
-		ids:     ids,
-		lastID:  emptyID,
-		lastIdx: 0,
+		indexByID: map[uint32]int{emptyID: 0},
+		ids:       []uint32{emptyID},
 	}
-}
-
-func (b *StringPool_Builder) growIDTable() {
-	newCap := len(b.idTable) * 2
-	newTable := make([]uint64, newCap)
-	mask := uint32(newCap - 1)
-	for _, entry := range b.idTable {
-		if entry == 0 {
-			continue
-		}
-		id := uint32(entry >> 32)
-		slot := stringPoolHashID(id) & mask
-		for newTable[slot] != 0 {
-			slot = (slot + 1) & mask
-		}
-		newTable[slot] = entry
-	}
-	b.idTable = newTable
 }
 
 // PutID inserts the string with the given 32-bit RhinoStringPool ID into the
@@ -156,23 +124,8 @@ func (b *StringPool_Builder) PutID(id uint32) int {
 	if id == 0 {
 		return 0
 	}
-	if id == b.lastID {
-		return b.lastIdx
-	}
-	mask := uint32(len(b.idTable) - 1)
-	slot := stringPoolHashID(id) & mask
-	for {
-		entry := b.idTable[slot]
-		if entry == 0 {
-			break
-		}
-		if uint32(entry>>32) == id {
-			idx := int(uint32(entry) - 1)
-			b.lastID = id
-			b.lastIdx = idx
-			return idx
-		}
-		slot = (slot + 1) & mask
+	if idx, ok := b.indexByID[id]; ok {
+		return idx
 	}
 	s := rhino.RhinoStringPool_StringFromID(id)
 	if len(s) > b.maxLength {
@@ -182,17 +135,7 @@ func (b *StringPool_Builder) PutID(id uint32) int {
 	}
 	idx := len(b.ids)
 	b.ids = append(b.ids, id)
-	if len(b.ids)*2 > len(b.idTable) {
-		b.growIDTable()
-		mask = uint32(len(b.idTable) - 1)
-		slot = stringPoolHashID(id) & mask
-		for b.idTable[slot] != 0 {
-			slot = (slot + 1) & mask
-		}
-	}
-	b.idTable[slot] = (uint64(id) << 32) | uint64(idx+1)
-	b.lastID = id
-	b.lastIdx = idx
+	b.indexByID[id] = idx
 	return idx
 }
 
@@ -205,21 +148,8 @@ func (b *StringPool_Builder) Lookup(s string) (int, bool) {
 	if id == 0 {
 		return 0, false
 	}
-	if id == b.lastID {
-		return b.lastIdx, true
-	}
-	mask := uint32(len(b.idTable) - 1)
-	slot := stringPoolHashID(id) & mask
-	for {
-		entry := b.idTable[slot]
-		if entry == 0 {
-			return 0, false
-		}
-		if uint32(entry>>32) == id {
-			return int(uint32(entry) - 1), true
-		}
-		slot = (slot + 1) & mask
-	}
+	idx, ok := b.indexByID[id]
+	return idx, ok
 }
 
 // Put inserts the given string into the string pool if not present and
