@@ -69,6 +69,10 @@ ObjectMember = StringKey | GetterDef | SetterDef | MemberFunctionDef | ComputedP
 ## ClassMember is a member of a class body (Block for a static block).
 ClassMember = MemberFunctionDef | GetterDef | SetterDef | MemberVariableDef | ComputedProp | MemberFieldDef | ComputedFieldDef | IndexSignature | CallSignature | Block | Empty
 
+## GetterOrSetterDef is a getter or a setter, in an object literal or a
+## class: get key() { body } or set key(param) { body }.
+GetterOrSetterDef = GetterDef | SetterDef
+
 ## Loop is a loop statement.
 Loop = For | ForIn | ForOf | ForAwaitOf | While | Do
 

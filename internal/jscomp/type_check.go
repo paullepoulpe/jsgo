@@ -496,14 +496,14 @@ func (tc *TypeCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino
 			tc.subtypingMode = rhino.JSType_SubtypingMode_NORMAL
 		}
 		tc.validator.SetSubtypingMode(tc.subtypingMode)
-	} else if n.IsFunction() {
+	} else if fn, ok := ast.AsFunction(n); ok {
 		// normal type checking
 		// Check for a bug in IE9 (quirks mode) and earlier where bleeding function names would
 		// refer to the wrong variable (i.e. "var x; var y = function x() { use(x); }" would pass
 		// the 'x' from the outer scope, rather than the local alias bled into the function).
-		if fnName := n.GetFirstChild().GetString(); fnName != "" {
+		if fnName, ok := fn.Name(); ok {
 			outerScope := t.GetTypedScope()
-			var_ := outerScope.GetVar(fnName)
+			var_ := outerScope.GetVar(fnName.Ident())
 			if var_ != nil &&
 				var_.GetScope().(*TypedScope).HasSameContainerScope(outerScope) &&
 				// Ideally, we would want to check whether the type in the scope
@@ -619,10 +619,10 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		tc.VisitCall(t, ast.MustNormalOrOptChainCall(n))
 		typeable = !parent.IsExprResult()
 	case rhino.Token_RETURN:
-		tc.VisitReturn(t, n)
+		tc.VisitReturn(t, ast.MustReturn(n))
 		typeable = false
 	case rhino.Token_YIELD:
-		tc.VisitYield(t, n)
+		tc.VisitYield(t, ast.MustYield(n))
 	case rhino.Token_DEC, rhino.Token_INC:
 		incDec := ast.MustIncDec(n)
 		tc.CheckPropCreation(incDec.Target())
@@ -784,7 +784,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	case rhino.Token_FUNCTION:
 		tc.VisitFunction(n)
 	case rhino.Token_CLASS:
-		tc.VisitClass(n)
+		tc.VisitClass(ast.MustClass(n))
 	case rhino.Token_MODULE_BODY:
 		tc.VisitModuleBody(t, n)
 	// These nodes have no interesting type behavior.
@@ -861,11 +861,12 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 
 		typeable = false
 	case rhino.Token_CLASS_MEMBERS:
-		typ := parent.GetJSType().ToMaybeFunctionType().GetInstanceType()
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			tc.VisitObjectOrClassLiteralKey(child, n.GetParent(), typ)
-			if child.IsSetterDef() || child.IsGetterDef() {
-				tc.CheckGetterOrSetterType(child, parent.GetJSType().ToMaybeFunctionType())
+		classType := parent.GetJSType().ToMaybeFunctionType()
+		typ := classType.GetInstanceType()
+		for member := range ast.MustClassBody(n).Members() {
+			tc.VisitObjectOrClassLiteralKey(member.Node(), parent, typ)
+			if getterOrSetter, ok := member.AsGetterOrSetterDef(); ok {
+				tc.CheckGetterOrSetterType(getterOrSetter, classType)
 			}
 		}
 		typeable = false
@@ -903,7 +904,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 
 	if p := n.GetParent(); !p.IsNil() {
 		// Visit the body of blockless arrow functions
-		if p.IsFunction() && n == p.GetLastChild() && !n.IsBlock() {
+		if fn, ok := ast.AsFunction(p); ok && fn.Body().Is(n) && !n.IsBlock() {
 			tc.VisitImplicitReturnExpression(t, n)
 		}
 
@@ -1037,18 +1038,19 @@ func (tc *TypeCheck) DoPercentTypedAccounting(n rhino.Node) {
 // first of the types if different.
 //
 // Java: TypeCheck.checkGetterOrSetterType(Node, FunctionType)
-func (tc *TypeCheck) CheckGetterOrSetterType(child rhino.Node, classType rhino.FunctionType) {
-	propertyName := child.GetString()
+func (tc *TypeCheck) CheckGetterOrSetterType(child ast.GetterOrSetterDef, classType rhino.FunctionType) {
+	propertyName := child.Key()
 
-	methodType := child.GetLastChild().GetJSType().ToMaybeFunctionType()
+	methodType := child.Function().Node().GetJSType().ToMaybeFunctionType()
+	_, isGetter := child.AsGetterDef()
 	var propertyType rhino.JSType
-	if child.IsGetterDef() {
+	if isGetter {
 		propertyType = tc.DetermineGetterType(methodType)
 	} else {
 		propertyType = typeCheck_iterablesGetOnlyElement(methodType.GetParameters()).GetJSType()
 	}
 	var officialPropertyType rhino.JSType
-	if child.IsStaticMember() {
+	if child.Node().IsStaticMember() {
 		officialPropertyType = classType.GetPropertyType(propertyName)
 	} else {
 		officialPropertyType = classType.GetPrototype().GetPropertyType(propertyName)
@@ -1057,7 +1059,7 @@ func (tc *TypeCheck) CheckGetterOrSetterType(child rhino.Node, classType rhino.F
 		// TODO(b/116797078): make this not an error - instead, store the getter and setter types
 		// separately
 		var getterType, setterType string
-		if child.IsGetterDef() {
+		if isGetter {
 			getterType = propertyType.String()
 			setterType = officialPropertyType.String()
 		} else {
@@ -1065,7 +1067,7 @@ func (tc *TypeCheck) CheckGetterOrSetterType(child rhino.Node, classType rhino.F
 			setterType = propertyType.String()
 		}
 		tc.Report(
-			child,
+			child.Node(),
 			TypeCheck_CONFLICTING_GETTER_SETTER_TYPE,
 			propertyName,
 			getterType,
@@ -1394,6 +1396,9 @@ func (tc *TypeCheck) CheckPropertyInheritance(
 		return
 	}
 
+	// The node reported on is the first child of key: the value of a string
+	// key or a field, the function of a method, getter or setter, the key of
+	// a computed property.
 	tc.CheckDeclaredPropertyAgainstNominalInheritance(
 		key.GetFirstChild(),
 		ctorType,
@@ -2475,13 +2480,13 @@ func (tc *TypeCheck) VisitFunction(n rhino.Node) {
 // VisitClass visits a CLASS node.
 //
 // Java: TypeCheck.visitClass(Node)
-func (tc *TypeCheck) VisitClass(n rhino.Node) {
+func (tc *TypeCheck) VisitClass(class ast.Class) {
+	n := class.Node()
 	functionType := rhino.JSType_ToMaybeFunctionType(n.GetJSType())
-	extendsClause := n.GetSecondChild()
-	if !extendsClause.IsEmpty() {
+	if extendsClause, ok := class.Extends(); ok {
 		// Ensure that the `extends` clause is actually a constructor or interface.  If it is, but
 		// it's the wrong one then checkConstructor or checkInterface will warn.
-		superType := extendsClause.GetJSType()
+		superType := extendsClause.Node().GetJSType()
 		if superType.IsConstructor() || superType.IsInterface() {
 			tc.validator.ExpectExtends(n, functionType, superType.ToMaybeFunctionType())
 		} else if !superType.IsUnknownType() {
@@ -2896,7 +2901,7 @@ func (tc *TypeCheck) VisitImplicitReturnExpression(t *NodeTraversal, exprNode rh
 // visited.
 //
 // Java: TypeCheck.visitReturn(NodeTraversal, Node)
-func (tc *TypeCheck) VisitReturn(t *NodeTraversal, n rhino.Node) {
+func (tc *TypeCheck) VisitReturn(t *NodeTraversal, ret ast.Return) {
 	enclosingFunction := t.GetEnclosingFunction()
 
 	jsType := tc.GetJSType(enclosingFunction)
@@ -2930,7 +2935,7 @@ func (tc *TypeCheck) VisitReturn(t *NodeTraversal, n rhino.Node) {
 			returnType = Promises_CreateAsyncReturnableType(tc.typeRegistry, returnType)
 		} else if returnType.IsVoidType() && functionType.IsConstructor() {
 			// Allow constructors to use empty returns for flow control.
-			if !n.HasChildren() {
+			if _, hasValue := ret.Value(); !hasValue {
 				return
 			}
 
@@ -2939,13 +2944,14 @@ func (tc *TypeCheck) VisitReturn(t *NodeTraversal, n rhino.Node) {
 		}
 
 		// fetching the returned value's type
-		valueNode := n.GetFirstChild()
+		var valueNode rhino.Node
 		var actualReturnType rhino.JSType
-		if valueNode.IsNil() {
-			actualReturnType = tc.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
-			valueNode = n
-		} else {
+		if value, ok := ret.Value(); ok {
+			valueNode = value.Node()
 			actualReturnType = tc.GetJSType(valueNode)
+		} else {
+			actualReturnType = tc.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
+			valueNode = ret.Node()
 		}
 
 		// verifying
@@ -2957,7 +2963,8 @@ func (tc *TypeCheck) VisitReturn(t *NodeTraversal, n rhino.Node) {
 // VisitYield visits a YIELD node.
 //
 // Java: TypeCheck.visitYield(NodeTraversal, Node)
-func (tc *TypeCheck) VisitYield(t *NodeTraversal, n rhino.Node) {
+func (tc *TypeCheck) VisitYield(t *NodeTraversal, yield ast.Yield) {
+	n := yield.Node()
 	jsType := tc.GetJSType(t.GetEnclosingFunction())
 
 	declaredYieldType := tc.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
@@ -2977,13 +2984,14 @@ func (tc *TypeCheck) VisitYield(t *NodeTraversal, n rhino.Node) {
 	}
 
 	// fetching the yielded value's type
-	valueNode := n.GetFirstChild()
+	var valueNode rhino.Node
 	var actualYieldType rhino.JSType
-	if valueNode.IsNil() {
+	if value, ok := yield.Value(); ok {
+		valueNode = value.Node()
+		actualYieldType = tc.GetJSType(valueNode)
+	} else {
 		actualYieldType = tc.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
 		valueNode = n
-	} else {
-		actualYieldType = tc.GetJSType(valueNode)
 	}
 
 	if n.IsYieldAll() {

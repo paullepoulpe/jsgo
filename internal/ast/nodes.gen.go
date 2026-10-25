@@ -2990,6 +2990,9 @@ func (x GetterDef) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
 // AsClassMember returns x as a ClassMember.
 func (x GetterDef) AsClassMember() ClassMember { return ClassMember{x.node} }
 
+// AsGetterOrSetterDef returns x as a GetterOrSetterDef.
+func (x GetterDef) AsGetterOrSetterDef() GetterOrSetterDef { return GetterOrSetterDef{x.node} }
+
 // SetterDef is set key(param) { body }.
 //
 // Grammar: SetterDef = SETTER_DEF  $Key function:Function
@@ -3046,6 +3049,9 @@ func (x SetterDef) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
 
 // AsClassMember returns x as a ClassMember.
 func (x SetterDef) AsClassMember() ClassMember { return ClassMember{x.node} }
+
+// AsGetterOrSetterDef returns x as a GetterOrSetterDef.
+func (x SetterDef) AsGetterOrSetterDef() GetterOrSetterDef { return GetterOrSetterDef{x.node} }
 
 // MemberFieldDef is a class field: key = value.
 //
@@ -8602,6 +8608,11 @@ func (x ObjectMember) AsComputedProp() (ComputedProp, bool) { return AsComputedP
 // AsStringKey returns x as a StringKey; ok is false if it is not one.
 func (x ObjectMember) AsStringKey() (StringKey, bool) { return AsStringKey(x.node) }
 
+// AsGetterOrSetterDef returns x as a GetterOrSetterDef; ok is false if it is not one.
+func (x ObjectMember) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
+	return AsGetterOrSetterDef(x.node)
+}
+
 // ClassMember is a member of a class body (Block for a static block).
 //
 // Grammar: ClassMember = MemberFunctionDef | GetterDef | SetterDef | MemberVariableDef | ComputedProp | MemberFieldDef | ComputedFieldDef | IndexSignature | CallSignature | Block | Empty
@@ -8679,6 +8690,71 @@ func (x ClassMember) AsIndexSignature() (IndexSignature, bool) { return AsIndexS
 
 // AsCallSignature returns x as a CallSignature; ok is false if it is not one.
 func (x ClassMember) AsCallSignature() (CallSignature, bool) { return AsCallSignature(x.node) }
+
+// AsGetterOrSetterDef returns x as a GetterOrSetterDef; ok is false if it is not one.
+func (x ClassMember) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
+	return AsGetterOrSetterDef(x.node)
+}
+
+// GetterOrSetterDef is a getter or a setter, in an object literal or a
+// class: get key() { body } or set key(param) { body }.
+//
+// Grammar: GetterOrSetterDef = GetterDef | SetterDef
+type GetterOrSetterDef struct{ node rhino.Node }
+
+// AsGetterOrSetterDef returns n as a GetterOrSetterDef; ok is false if n is not one (or is the nil node).
+func AsGetterOrSetterDef(n rhino.Node) (x GetterOrSetterDef, ok bool) {
+	if n == rhino.NilNode || !getterOrSetterDefTokens.Has(n.GetToken()) {
+		return GetterOrSetterDef{}, false
+	}
+	return GetterOrSetterDef{n}, true
+}
+
+// MustGetterOrSetterDef returns n as a GetterOrSetterDef; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustGetterOrSetterDef(n rhino.Node) GetterOrSetterDef {
+	x, ok := AsGetterOrSetterDef(n)
+	if !ok {
+		panic(mustError{"GetterOrSetterDef", n})
+	}
+	return x
+}
+
+// getterOrSetterDefTokens holds the tokens of GetterOrSetterDef.
+var getterOrSetterDefTokens = tokenSetOf(rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF)
+
+// Node returns x as a rhino.Node.
+func (x GetterOrSetterDef) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x GetterOrSetterDef) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of GetterOrSetterDef it is).
+func (x GetterOrSetterDef) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x GetterOrSetterDef) Detach() GetterOrSetterDef { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x GetterOrSetterDef) ReplaceWith(v GetterOrSetterDef) { x.node.ReplaceWith(v.node) }
+
+// AsGetterDef returns x as a GetterDef; ok is false if it is not one.
+func (x GetterOrSetterDef) AsGetterDef() (GetterDef, bool) { return AsGetterDef(x.node) }
+
+// AsSetterDef returns x as a SetterDef; ok is false if it is not one.
+func (x GetterOrSetterDef) AsSetterDef() (SetterDef, bool) { return AsSetterDef(x.node) }
+
+// AsObjectMember returns x as an ObjectMember.
+func (x GetterOrSetterDef) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
+
+// AsClassMember returns x as a ClassMember.
+func (x GetterOrSetterDef) AsClassMember() ClassMember { return ClassMember{x.node} }
+
+// Function returns the function of x.
+func (x GetterOrSetterDef) Function() Function { return Function{x.node.GetFirstChild()} }
+
+// Key returns the node's string.
+func (x GetterOrSetterDef) Key() string { return x.node.GetString() }
 
 // Loop is a loop statement.
 //
@@ -11985,6 +12061,7 @@ var grammarCategories = map[string][]string{
 	"PropValue":               {"Function", "DefaultValue", "ArrayPattern", "ObjectPattern", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
 	"ObjectMember":            {"ObjectSpread", "MemberFunctionDef", "GetterDef", "SetterDef", "ComputedProp", "StringKey"},
 	"ClassMember":             {"Block", "Empty", "MemberFunctionDef", "GetterDef", "SetterDef", "MemberFieldDef", "ComputedFieldDef", "ComputedProp", "MemberVariableDef", "IndexSignature", "CallSignature"},
+	"GetterOrSetterDef":       {"GetterDef", "SetterDef"},
 	"Loop":                    {"For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do"},
 	"EnhancedFor":             {"ForIn", "ForOf", "ForAwaitOf"},
 	"ForOfLoop":               {"ForOf", "ForAwaitOf"},

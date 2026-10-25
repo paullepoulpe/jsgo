@@ -330,6 +330,34 @@ func TestForOfLoop(t *testing.T) {
 	}
 }
 
+// GetterOrSetterDef is the getters and setters, with the key and function
+// they share.
+func TestGetterOrSetterDef(t *testing.T) {
+	newStore(t)
+	fn := func() Function { return NewFunction("", NewParamList(), NewBlock().AsFunctionBody()) }
+	getter, setter := NewGetterDef("g", fn()), NewSetterDef("s", fn())
+	for _, member := range []ClassMember{getter.AsClassMember(), setter.AsClassMember()} {
+		n := member.Node()
+		accessor, ok := member.AsGetterOrSetterDef()
+		if !ok {
+			t.Fatalf("ClassMember.AsGetterOrSetterDef() of a %s failed", n.GetToken())
+		}
+		if accessor.Key() != n.GetString() {
+			t.Fatalf("Key() = %q, want %q", accessor.Key(), n.GetString())
+		}
+		if !accessor.Function().Is(n.GetOnlyChild()) {
+			t.Fatalf("Function() of a %s is not its function", n.GetToken())
+		}
+	}
+	if accessor, ok := getter.AsObjectMember().AsGetterOrSetterDef(); !ok || accessor.Key() != "g" {
+		t.Fatal("ObjectMember.AsGetterOrSetterDef() does not give the getter back")
+	}
+	method := NewMemberFunctionDef("m", fn())
+	if _, ok := method.AsClassMember().AsGetterOrSetterDef(); ok {
+		t.Fatal("a method converted to a GetterOrSetterDef")
+	}
+}
+
 func TestFunctionRemoveName(t *testing.T) {
 	newStore(t)
 	fn := NewFunction("f", NewParamList(), NewBlock().AsFunctionBody())
