@@ -17,7 +17,7 @@ profiles at the peak (`JSGO_PEAK_HEAP_PROFILE`).
 | checks-only | 162 MB | 147-149 MB (-9%) | 651 -> 551 MB |
 | typed-full | 225-226 MB | 206 MB (-9%) | 2404 -> 2252 MB |
 
-typed-full, live heap after types-to-colors: 172.5 -> 162.7 MB.
+typed-full, live heap after types-to-colors: 172.5 -> 160.0 MB (with the paged original-name column).
 Output, source maps and stderr are byte-identical on all four gate
 workloads after every step.
 
@@ -33,6 +33,7 @@ workloads after every step.
 | rare boolean properties in their own map (4-byte values) | nodes that have some | -1.4 MB |
 | TypedScope's var index behind a pointer (96 -> 80 bytes) | ~90K typed scopes | ~-1.4 MB |
 | variables keep their CompilerInput as a 4-byte index (weak table) and TypedVar its type as a base pointer: Var 48 -> 32, TypedVar 64 -> 48 bytes | 215K typed variables at the typed-full peak | ~-2.4 MB at the peak, 32 MB less allocated |
+| the original-name column is paged (64 values per page, allocated on first write) | typed-full: ~3 % of the nodes have one at the peak, most after renaming | -2.7 MB after colors, ~-3 MB at the peak |
 
 ## Where the peaks are now
 
@@ -62,6 +63,5 @@ workloads after every step.
 
 ## Next candidates
 
-- Pages for the original-name column (~-2 MB at the typed-full peak).
 - Parse trees: the comma positions of argument lists (24 bytes per list)
   could be computed from the source when comments need them.
