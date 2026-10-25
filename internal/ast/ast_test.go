@@ -196,6 +196,33 @@ func TestAssignmentCategory(t *testing.T) {
 	}
 }
 
+// EnhancedFor is the for-in and for-of loops, with the target they share.
+func TestEnhancedFor(t *testing.T) {
+	newStore(t)
+	target := func() ForTarget {
+		return NewNameDeclaration(rhino.Token_VAR, NewName("x").AsDeclarator()).AsForTarget()
+	}
+	for _, n := range []rhino.Node{
+		NewForIn(target(), NewName("o").AsExpr(), NewBlock()).Node(),
+		NewForOf(target(), NewName("o").AsExpr(), NewBlock()).Node(),
+		NewForAwaitOf(target(), NewName("o").AsExpr(), NewBlock()).Node(),
+	} {
+		loop, ok := AsEnhancedFor(n)
+		if !ok {
+			t.Fatalf("AsEnhancedFor(%s) failed", n.GetToken())
+		}
+		if decl, ok := loop.Target().AsNameDeclaration(); !ok || decl.Token() != rhino.Token_VAR {
+			t.Fatalf("Target() of a %s is not its var", n.GetToken())
+		}
+		if back, ok := loop.AsLoop().AsEnhancedFor(); !ok || back != loop {
+			t.Fatalf("Loop.AsEnhancedFor() does not give the %s back", n.GetToken())
+		}
+	}
+	if _, ok := AsEnhancedFor(NewWhile(NewName("c").AsExpr(), NewBlock()).Node()); ok {
+		t.Fatal("a while converted to an EnhancedFor")
+	}
+}
+
 func TestFunctionRemoveName(t *testing.T) {
 	newStore(t)
 	fn := NewFunction("f", NewParamList(), NewBlock().AsFunctionBody())

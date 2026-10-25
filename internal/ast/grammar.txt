@@ -72,6 +72,10 @@ ClassMember = MemberFunctionDef | GetterDef | SetterDef | MemberVariableDef | Co
 ## Loop is a loop statement.
 Loop = For | ForIn | ForOf | ForAwaitOf | While | Do
 
+## EnhancedFor is a loop that assigns each value to a target: for-in,
+## for-of or for-await-of (NodeUtil.isEnhancedFor).
+EnhancedFor = ForIn | ForOf | ForAwaitOf
+
 ## Jump is break or continue.
 Jump = Break | Continue
 

@@ -548,6 +548,9 @@ func (x ForIn) AsStatement() Statement { return Statement{x.node} }
 // AsLoop returns x as a Loop.
 func (x ForIn) AsLoop() Loop { return Loop{x.node} }
 
+// AsEnhancedFor returns x as an EnhancedFor.
+func (x ForIn) AsEnhancedFor() EnhancedFor { return EnhancedFor{x.node} }
+
 // AsExportBody returns x as an ExportBody.
 func (x ForIn) AsExportBody() ExportBody { return ExportBody{x.node} }
 
@@ -606,6 +609,9 @@ func (x ForOf) AsStatement() Statement { return Statement{x.node} }
 // AsLoop returns x as a Loop.
 func (x ForOf) AsLoop() Loop { return Loop{x.node} }
 
+// AsEnhancedFor returns x as an EnhancedFor.
+func (x ForOf) AsEnhancedFor() EnhancedFor { return EnhancedFor{x.node} }
+
 // AsExportBody returns x as an ExportBody.
 func (x ForOf) AsExportBody() ExportBody { return ExportBody{x.node} }
 
@@ -663,6 +669,9 @@ func (x ForAwaitOf) AsStatement() Statement { return Statement{x.node} }
 
 // AsLoop returns x as a Loop.
 func (x ForAwaitOf) AsLoop() Loop { return Loop{x.node} }
+
+// AsEnhancedFor returns x as an EnhancedFor.
+func (x ForAwaitOf) AsEnhancedFor() EnhancedFor { return EnhancedFor{x.node} }
 
 // AsExportBody returns x as an ExportBody.
 func (x ForAwaitOf) AsExportBody() ExportBody { return ExportBody{x.node} }
@@ -5721,6 +5730,9 @@ func (x Statement) AsNamespace() (Namespace, bool) { return AsNamespace(x.node) 
 // AsLoop returns x as a Loop; ok is false if it is not one.
 func (x Statement) AsLoop() (Loop, bool) { return AsLoop(x.node) }
 
+// AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
+func (x Statement) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
+
 // AsJump returns x as a Jump; ok is false if it is not one.
 func (x Statement) AsJump() (Jump, bool) { return AsJump(x.node) }
 
@@ -6760,11 +6772,64 @@ func (x Loop) AsDo() (Do, bool) { return AsDo(x.node) }
 // AsStatement returns x as a Statement.
 func (x Loop) AsStatement() Statement { return Statement{x.node} }
 
+// AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
+func (x Loop) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
+
 // AsExportBody returns x as an ExportBody.
 func (x Loop) AsExportBody() ExportBody { return ExportBody{x.node} }
 
 // AsScriptItem returns x as a ScriptItem.
 func (x Loop) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
+
+// EnhancedFor is a loop that assigns each value to a target: for-in,
+// for-of or for-await-of (NodeUtil.isEnhancedFor).
+//
+// Grammar: EnhancedFor = ForIn | ForOf | ForAwaitOf
+type EnhancedFor struct{ node rhino.Node }
+
+// AsEnhancedFor returns n as an EnhancedFor; ok is false if n is not one (or is the nil node).
+func AsEnhancedFor(n rhino.Node) (x EnhancedFor, ok bool) {
+	if n == rhino.NilNode || !enhancedForTokens.Has(n.GetToken()) {
+		return EnhancedFor{}, false
+	}
+	return EnhancedFor{n}, true
+}
+
+// enhancedForTokens holds the tokens of EnhancedFor.
+var enhancedForTokens = tokenSetOf(rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF)
+
+// Node returns x as a rhino.Node.
+func (x EnhancedFor) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x EnhancedFor) Is(n rhino.Node) bool { return x.node == n }
+
+// AsForIn returns x as a ForIn; ok is false if it is not one.
+func (x EnhancedFor) AsForIn() (ForIn, bool) { return AsForIn(x.node) }
+
+// AsForOf returns x as a ForOf; ok is false if it is not one.
+func (x EnhancedFor) AsForOf() (ForOf, bool) { return AsForOf(x.node) }
+
+// AsForAwaitOf returns x as a ForAwaitOf; ok is false if it is not one.
+func (x EnhancedFor) AsForAwaitOf() (ForAwaitOf, bool) { return AsForAwaitOf(x.node) }
+
+// AsStatement returns x as a Statement.
+func (x EnhancedFor) AsStatement() Statement { return Statement{x.node} }
+
+// AsLoop returns x as a Loop.
+func (x EnhancedFor) AsLoop() Loop { return Loop{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x EnhancedFor) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsScriptItem returns x as a ScriptItem.
+func (x EnhancedFor) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
+
+// Target returns the target of x.
+func (x EnhancedFor) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
+
+// Body returns the body of x.
+func (x EnhancedFor) Body() Block { return Block{x.node.GetChildAtIndex(2)} }
 
 // Jump is break or continue.
 //
@@ -7564,6 +7629,9 @@ func (x ExportBody) AsExpr() (Expr, bool) { return AsExpr(x.node) }
 // AsLoop returns x as a Loop; ok is false if it is not one.
 func (x ExportBody) AsLoop() (Loop, bool) { return AsLoop(x.node) }
 
+// AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
+func (x ExportBody) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
+
 // AsJump returns x as a Jump; ok is false if it is not one.
 func (x ExportBody) AsJump() (Jump, bool) { return AsJump(x.node) }
 
@@ -7708,6 +7776,9 @@ func (x ScriptItem) AsStatement() (Statement, bool) { return AsStatement(x.node)
 
 // AsLoop returns x as a Loop; ok is false if it is not one.
 func (x ScriptItem) AsLoop() (Loop, bool) { return AsLoop(x.node) }
+
+// AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
+func (x ScriptItem) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
 
 // AsJump returns x as a Jump; ok is false if it is not one.
 func (x ScriptItem) AsJump() (Jump, bool) { return AsJump(x.node) }
@@ -9086,6 +9157,7 @@ var grammarCategories = map[string][]string{
 	"ObjectMember":            {"ObjectSpread", "MemberFunctionDef", "GetterDef", "SetterDef", "ComputedProp", "StringKey"},
 	"ClassMember":             {"Block", "Empty", "MemberFunctionDef", "GetterDef", "SetterDef", "MemberFieldDef", "ComputedFieldDef", "ComputedProp", "MemberVariableDef", "IndexSignature", "CallSignature"},
 	"Loop":                    {"For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do"},
+	"EnhancedFor":             {"ForIn", "ForOf", "ForAwaitOf"},
 	"Jump":                    {"Break", "Continue"},
 	"SwitchCase":              {"Case", "DefaultCase"},
 	"Declarator":              {"DestructuringLhs", "Name"},
