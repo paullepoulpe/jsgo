@@ -10522,6 +10522,9 @@ func (x CallOrNew) OnlyArg() (v Arg, ok bool) {
 // HasArgs reports whether x has any args.
 func (x CallOrNew) HasArgs() bool { return x.node.GetFirstChild().GetNext() != rhino.NilNode }
 
+// NumArgs returns the number of args of x.
+func (x CallOrNew) NumArgs() int { return x.node.GetChildCount() - 1 }
+
 // AppendArg adds v (which must not be in a tree) after the args of x.
 func (x CallOrNew) AppendArg(v Arg) { x.node.AddChildToBack(v.node) }
 
