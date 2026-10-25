@@ -21,10 +21,21 @@ package jscomp
 import (
 	"math"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) to read the
+// statement that creates the literal (name.Init(), assign.Target()) and the
+// property assignments that follow it (lhs.Object(), elem.Index()...)
+// instead of child positions. isPropertyAssignmentToName returns the parts
+// of the assignment it recognized, which collectProperty and its helpers
+// use instead of reading them again; Java's getName and getValue are one
+// function. Code that treats children alike (the statements of a SCRIPT or
+// a BLOCK, the members of an object literal grouped by shape, the
+// forward-reference walk) and the node builders use the rhino API.
 
 // PeepholeCollectPropertyAssignments is a pass that looks for assignments to
 // properties of an object or array immediately following its creation using
@@ -57,32 +68,27 @@ func (p *PeepholeCollectPropertyAssignments) OptimizeSubtree(subtree rhino.Node)
 		if !NodeUtil_IsNameDeclaration(child) && !NodeUtil_IsExprAssign(child) {
 			continue
 		}
-		if !PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(child.GetNext()) {
+		if _, ok := PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(child.GetNext()); !ok {
 			// Quick check to see if there's anything to collapse.
 			continue
 		}
 
-		jutil.CheckState(child.HasOneChild())
-		name := PeepholeCollectPropertyAssignments_GetName(child)
-		if !name.IsName() {
-			// The assignment target is not a simple name.
+		name, value, ok := PeepholeCollectPropertyAssignments_GetNameAndValue(child)
+		if !ok {
+			// The assignment target is not a simple name, or there is no
+			// initializer.
 			continue
 		}
-		value := PeepholeCollectPropertyAssignments_GetValue(child)
-		if value.IsNil() || !PeepholeCollectPropertyAssignments_IsInterestingValue(value) {
-			// No initializer or not an Object or Array literal.
+		if !PeepholeCollectPropertyAssignments_IsInterestingValue(value) {
+			// Not an Object or Array literal.
 			continue
 		}
 
-		var propertyCandidate rhino.Node
-		for {
-			propertyCandidate = child.GetNext()
-			if propertyCandidate.IsNil() {
-				break
-			}
+		ident := name.Ident()
+		for propertyCandidate := child.GetNext(); !propertyCandidate.IsNil(); propertyCandidate = child.GetNext() {
 			// This does not infinitely loop because collectProperty always
 			// removes propertyCandidate from its parent when it returns true.
-			if !p.CollectProperty(propertyCandidate, name.GetString(), value) {
+			if !p.CollectProperty(propertyCandidate, ident, value) {
 				break
 			}
 			codeChanged = true
@@ -95,67 +101,102 @@ func (p *PeepholeCollectPropertyAssignments) OptimizeSubtree(subtree rhino.Node)
 	return subtree
 }
 
+// PeepholeCollectPropertyAssignments_GetNameAndValue returns the name and
+// the value of n, a declaration `var name = value` (with one declarator) or
+// an assignment `name = value;`. ok is false if what n declares or assigns
+// is not a simple name (a pattern, a property), or if the name is declared
+// without a value.
+//
+// Go-only: Java's getName and getValue, as one function; getValue was only
+// called once getName had returned a name.
+//
 // Java: PeepholeCollectPropertyAssignments.getName(Node)
-func PeepholeCollectPropertyAssignments_GetName(n rhino.Node) rhino.Node {
-	if NodeUtil_IsNameDeclaration(n) {
-		return n.GetFirstChild()
-	} else if NodeUtil_IsExprAssign(n) {
-		return n.GetFirstFirstChild()
-	}
-	panic(jutil.NewIllegalStateException())
-}
-
 // Java: PeepholeCollectPropertyAssignments.getValue(Node)
-func PeepholeCollectPropertyAssignments_GetValue(n rhino.Node) rhino.Node {
-	if NodeUtil_IsNameDeclaration(n) {
-		return n.GetFirstFirstChild()
-	} else if NodeUtil_IsExprAssign(n) {
-		return n.GetFirstChild().GetLastChild()
+func PeepholeCollectPropertyAssignments_GetNameAndValue(n rhino.Node) (ast.Name, ast.Expr, bool) {
+	if decl, ok := ast.AsNameDeclaration(n); ok {
+		declarator, ok := decl.OnlyDeclarator()
+		jutil.CheckState(ok)
+		name, ok := declarator.AsName()
+		if !ok {
+			return ast.Name{}, ast.Expr{}, false
+		}
+		value, ok := name.Init()
+		return name, value, ok
+	}
+	if stmt, ok := ast.AsExprStmt(n); ok {
+		if assign, ok := stmt.Expr().AsAssign(); ok {
+			name, ok := assign.Target().AsName()
+			return name, assign.Value(), ok
+		}
 	}
 	panic(jutil.NewIllegalStateException())
 }
 
 // Java: PeepholeCollectPropertyAssignments.isInterestingValue(Node)
-func PeepholeCollectPropertyAssignments_IsInterestingValue(n rhino.Node) bool {
-	return n.IsObjectLit() || n.IsArrayLit()
+func PeepholeCollectPropertyAssignments_IsInterestingValue(n ast.Expr) bool {
+	return n.Node().IsObjectLit() || n.Node().IsArrayLit()
 }
 
-// Java: PeepholeCollectPropertyAssignments.isPropertyAssignmentToName(Node)
-func PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(propertyCandidate rhino.Node) bool {
-	if propertyCandidate.IsNil() {
-		return false
-	}
-	// Must be an assignment...
-	if !NodeUtil_IsExprAssign(propertyCandidate) {
-		return false
-	}
+// peepholeCollectPropertyAssignments_propertyAssignment is the statement
+// `obj.property = rhs;` or `obj[index] = rhs;`, where obj is a variable:
+// what isPropertyAssignmentToName recognizes.
+//
+// Go-only: Java reads these parts again from the statement where it needs
+// them.
+type peepholeCollectPropertyAssignments_propertyAssignment struct {
+	stmt ast.ExprStmt  // the whole statement
+	lhs  ast.NormalGet // obj.property or obj[index]
+	obj  ast.Name      // the variable whose property is assigned
+	rhs  ast.Expr      // the assigned value
+}
 
-	expr := propertyCandidate.GetFirstChild()
+// PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName returns the
+// parts of propertyCandidate if it is an assignment to a property of a
+// variable; ok is false otherwise (also when propertyCandidate is the nil
+// node).
+//
+// Java: PeepholeCollectPropertyAssignments.isPropertyAssignmentToName(Node)
+func PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(propertyCandidate rhino.Node) (peepholeCollectPropertyAssignments_propertyAssignment, bool) {
+	var none peepholeCollectPropertyAssignments_propertyAssignment
+	// Must be an assignment...
+	stmt, ok := ast.AsExprStmt(propertyCandidate)
+	if !ok {
+		return none, false
+	}
+	assign, ok := stmt.Expr().AsAssign()
+	if !ok {
+		return none, false
+	}
 
 	// to a property...
-	lhs := expr.GetFirstChild()
-	if !NodeUtil_IsNormalGet(lhs) {
-		return false
+	lhs, ok := assign.Target().AsNormalGet()
+	if !ok {
+		return none, false
 	}
 
 	// of a variable.
-	obj := lhs.GetFirstChild()
-	return obj.IsName()
+	obj, ok := lhs.Object().AsName()
+	if !ok {
+		return none, false
+	}
+	return peepholeCollectPropertyAssignments_propertyAssignment{
+		stmt: stmt, lhs: lhs, obj: obj, rhs: assign.Value(),
+	}, true
 }
 
 // Java: PeepholeCollectPropertyAssignments.collectProperty(Node, String, Node)
-func (p *PeepholeCollectPropertyAssignments) CollectProperty(propertyCandidate rhino.Node, name string, value rhino.Node) bool {
-	if !PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(propertyCandidate) {
+func (p *PeepholeCollectPropertyAssignments) CollectProperty(propertyCandidate rhino.Node, name string, value ast.Expr) bool {
+	prop, ok := PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(propertyCandidate)
+	if !ok {
 		return false
 	}
 
-	lhs := propertyCandidate.GetFirstFirstChild()
 	// Must be an assignment to the recent variable...
-	if name != lhs.GetFirstChild().GetString() {
+	if name != prop.obj.Ident() {
 		return false
 	}
 
-	rhs := lhs.GetNext()
+	rhs := prop.rhs.Node()
 	// with a value that cannot change the values of the variables,
 	if p.MayHaveSideEffects(rhs) ||
 		NodeUtil_CanBeSideEffected(rhs) {
@@ -167,40 +208,31 @@ func (p *PeepholeCollectPropertyAssignments) CollectProperty(propertyCandidate r
 		return false
 	}
 
-	switch value.GetToken() {
-	case rhino.Token_ARRAYLIT:
-		if !PeepholeCollectPropertyAssignments_CollectArrayProperty(value, propertyCandidate) {
-			return false
-		}
-	case rhino.Token_OBJECTLIT:
-		if !p.CollectObjectProperty(value, propertyCandidate) {
-			return false
-		}
-	default:
-		panic(jutil.NewIllegalStateException())
+	if arrayLiteral, ok := value.AsArrayLit(); ok {
+		return PeepholeCollectPropertyAssignments_CollectArrayProperty(arrayLiteral, prop)
 	}
-	return true
+	if objectLiteral, ok := value.AsObjectLit(); ok {
+		return p.CollectObjectProperty(objectLiteral, prop)
+	}
+	panic(jutil.NewIllegalStateException())
 }
 
 // Java: PeepholeCollectPropertyAssignments.collectArrayProperty(Node, Node)
-func PeepholeCollectPropertyAssignments_CollectArrayProperty(arrayLiteral rhino.Node, propertyCandidate rhino.Node) bool {
-	assignment := propertyCandidate.GetFirstChild()
-	sizeOfArrayAtStart := arrayLiteral.GetChildCount()
+func PeepholeCollectPropertyAssignments_CollectArrayProperty(arrayLiteral ast.ArrayLit, prop peepholeCollectPropertyAssignments_propertyAssignment) bool {
+	sizeOfArrayAtStart := arrayLiteral.Node().GetChildCount()
 	maxIndexAssigned := sizeOfArrayAtStart - 1
 
-	lhs := assignment.GetFirstChild()
-	rhs := lhs.GetNext()
-	if !lhs.IsGetElem() {
+	elem, ok := prop.lhs.AsGetElem()
+	if !ok {
 		return false
 	}
-	obj := lhs.GetFirstChild()
-	property := obj.GetNext()
 	// The left hand side must have a numeric index
-	if !property.IsNumber() {
+	property, ok := elem.Index().AsNumber()
+	if !ok {
 		return false
 	}
 	// that is a valid array index
-	dindex := property.GetDouble()
+	dindex := property.Value()
 	if !(dindex >= 0) || // Handles NaN and negatives.
 		math.IsInf(dindex, 0) || dindex > 0x7fffffff {
 		return false
@@ -225,28 +257,28 @@ func PeepholeCollectPropertyAssignments_CollectArrayProperty(arrayLiteral rhino.
 			// Pad the array if it is sparse.
 			// So if array is [0] and integer 3 is assigned at index is 2, then
 			// we want to produce [0,,2].
-			emptyNode := rhino.IR_Empty().Srcref(arrayLiteral)
-			arrayLiteral.AddChildToBack(emptyNode)
+			emptyNode := rhino.IR_Empty().Srcref(arrayLiteral.Node())
+			arrayLiteral.Node().AddChildToBack(emptyNode)
 			maxIndexAssigned++
 		}
-		arrayLiteral.AddChildToBack(rhs.Detach())
+		arrayLiteral.AppendElement(prop.rhs.Detach().AsArrayElem())
 	} else {
 		// An out of order assignment.  Allow it if it's a hole.
-		currentValue := arrayLiteral.GetChildAtIndex(index)
+		currentValue := arrayLiteral.Node().GetChildAtIndex(index)
 		if !currentValue.IsEmpty() {
 			// We've already collected a value for this index.
 			return false
 		}
-		currentValue.ReplaceWith(rhs.Detach())
+		currentValue.ReplaceWith(prop.rhs.Detach().Node())
 	}
 
-	propertyCandidate.Detach()
+	prop.stmt.Detach()
 	return true
 }
 
 // Java: PeepholeCollectPropertyAssignments.arrayLiteralHasSpread(Node)
-func PeepholeCollectPropertyAssignments_ArrayLiteralHasSpread(arrayLiteral rhino.Node) bool {
-	script := NodeUtil_GetEnclosingScript(arrayLiteral)
+func PeepholeCollectPropertyAssignments_ArrayLiteralHasSpread(arrayLiteral ast.ArrayLit) bool {
+	script := NodeUtil_GetEnclosingScript(arrayLiteral.Node())
 	var scriptFeatures *parser.FeatureSet
 	if !script.IsNil() {
 		scriptFeatures = NodeUtil_GetFeatureSetOfScript(script)
@@ -254,8 +286,8 @@ func PeepholeCollectPropertyAssignments_ArrayLiteralHasSpread(arrayLiteral rhino
 	if scriptFeatures != nil && !scriptFeatures.Has(parser.FeatureSet_Feature_SPREAD_EXPRESSIONS) {
 		return false
 	}
-	for child := arrayLiteral.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child.IsSpread() {
+	for elem := range arrayLiteral.Elements() {
+		if _, ok := elem.AsIterSpread(); ok {
 			return true
 		}
 	}
@@ -263,36 +295,33 @@ func PeepholeCollectPropertyAssignments_ArrayLiteralHasSpread(arrayLiteral rhino
 }
 
 // Java: PeepholeCollectPropertyAssignments.collectObjectProperty(Node, Node)
-func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral rhino.Node, propertyCandidate rhino.Node) bool {
-	assignment := propertyCandidate.GetFirstChild()
-	lhs := assignment.GetFirstChild()
-	rhs := lhs.GetNext()
-	obj := lhs.GetFirstChild()
-	jutil.CheckStateMsg1(lhs.IsGetProp() || lhs.IsGetElem(), "%s", lhs)
+func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral ast.ObjectLit, prop peepholeCollectPropertyAssignments_propertyAssignment) bool {
+	rhs := prop.rhs.Node()
 
 	// The property must be statically known.
+	// Go-only: Java checks that the lhs is a GETPROP or a GETELEM, and returns
+	// false for anything else; prop.lhs is one of them.
 	var propertyName *string
-	if lhs.IsGetElem() {
-		property := obj.GetNext()
-		if property.IsNumber() {
-			propertyName = p.GetSideEffectFreeStringValue(property)
-		} else if property.IsStringLit() {
-			s := property.GetString()
+	elem, isGetElem := prop.lhs.AsGetElem()
+	if isGetElem {
+		property := elem.Index()
+		if number, ok := property.AsNumber(); ok {
+			propertyName = p.GetSideEffectFreeStringValue(number.Node())
+		} else if str, ok := property.AsStringLit(); ok {
+			s := str.Value()
 			propertyName = &s
 		} else {
 			return false
 		}
-	} else if lhs.IsGetProp() {
-		s := lhs.GetString()
+	} else if get, ok := prop.lhs.AsGetProp(); ok {
+		s := get.Property()
 		propertyName = &s
-	} else {
-		return false
 	}
 
 	// Check if the new property already exists in the object literal
 	// Note: Duplicate keys are invalid in strict mode
 	var existingProperty rhino.Node
-	for currentProperty := objectLiteral.GetFirstChild(); !currentProperty.IsNil(); currentProperty = currentProperty.GetNext() {
+	for currentProperty := objectLiteral.Node().GetFirstChild(); !currentProperty.IsNil(); currentProperty = currentProperty.GetNext() {
 		if currentProperty.IsStringKey() || currentProperty.IsMemberFunctionDef() {
 			// Get the name of the current property
 			currentPropertyName := currentProperty.GetString()
@@ -316,17 +345,17 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 			if propertyName != nil && currentPropertyName == *propertyName {
 				return false
 			}
-		} else if currentProperty.IsComputedProp() {
-			keyNode := currentProperty.GetFirstChild()
-			if !keyNode.IsStringLit() || (propertyName != nil && keyNode.GetString() == *propertyName) {
+		} else if computed, ok := ast.AsComputedProp(currentProperty); ok {
+			key, ok := computed.Key().AsStringLit()
+			if !ok || (propertyName != nil && key.Value() == *propertyName) {
 				return false
 			}
 		}
 	}
 
-	newProperty := rhino.IR_StringKey(*propertyName).SrcrefIfMissing(propertyCandidate)
+	newProperty := rhino.IR_StringKey(*propertyName).SrcrefIfMissing(prop.stmt.Node())
 	// Preserve the quotedness of a property reference
-	if lhs.IsGetElem() {
+	if isGetElem {
 		newProperty.SetQuotedStringKey()
 	}
 	newValue := rhs.Detach()
@@ -336,8 +365,8 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 		p.DeleteNode(existingProperty)
 	}
 	// If the property does not already exist we can safely add it
-	objectLiteral.AddChildToBack(newProperty)
-	propertyCandidate.Detach()
+	objectLiteral.Node().AddChildToBack(newProperty)
+	prop.stmt.Detach()
 	return true
 }
 

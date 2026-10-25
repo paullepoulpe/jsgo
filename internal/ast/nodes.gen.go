@@ -4632,6 +4632,9 @@ func (x GetProp) AsNormalOrOptChainGetProp() NormalOrOptChainGetProp {
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
 func (x GetProp) AsNormalOrOptChainGet() NormalOrOptChainGet { return NormalOrOptChainGet{x.node} }
 
+// AsNormalGet returns x as a NormalGet.
+func (x GetProp) AsNormalGet() NormalGet { return NormalGet{x.node} }
+
 // OptChainGetProp is object?.property.
 //
 // Grammar: OptChainGetProp = OPTCHAIN_GETPROP  object:Expr $Property
@@ -4776,6 +4779,9 @@ func (x GetElem) AsNormalOrOptChainGet() NormalOrOptChainGet { return NormalOrOp
 func (x GetElem) AsNormalOrOptChainGetElem() NormalOrOptChainGetElem {
 	return NormalOrOptChainGetElem{x.node}
 }
+
+// AsNormalGet returns x as a NormalGet.
+func (x GetElem) AsNormalGet() NormalGet { return NormalGet{x.node} }
 
 // OptChainGetElem is object?.[index].
 //
@@ -6380,6 +6386,9 @@ func (x Expr) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x Expr) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x Expr) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
@@ -6447,6 +6456,9 @@ func (x Target) AsForTarget() ForTarget { return ForTarget{x.node} }
 
 // AsCatchParam returns x as a CatchParam; ok is false if it is not one.
 func (x Target) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
+
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x Target) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
 // Pattern is a destructuring pattern.
 //
@@ -6723,6 +6735,9 @@ func (x Arg) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x Arg) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x Arg) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
@@ -6896,6 +6911,9 @@ func (x ArrayElem) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x ArrayElem) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x ArrayElem) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
@@ -6968,6 +6986,9 @@ func (x ArrayPatternElem) AsParam() (Param, bool) { return AsParam(x.node) }
 
 // AsCatchParam returns x as a CatchParam; ok is false if it is not one.
 func (x ArrayPatternElem) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
+
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x ArrayPatternElem) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
 // ObjectPatternProp is a property of an object pattern.
 //
@@ -7188,6 +7209,9 @@ func (x PropValue) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 func (x PropValue) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
+
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x PropValue) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x PropValue) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
@@ -7725,6 +7749,9 @@ func (x ForInit) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x ForInit) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x ForInit) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
 
@@ -7788,6 +7815,9 @@ func (x ForTarget) AsPattern() (Pattern, bool) { return AsPattern(x.node) }
 
 // AsCatchParam returns x as a CatchParam; ok is false if it is not one.
 func (x ForTarget) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
+
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x ForTarget) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
 // CatchParam is the binding of a catch clause.
 //
@@ -8017,6 +8047,9 @@ func (x FunctionBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 func (x FunctionBody) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
+
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x FunctionBody) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x FunctionBody) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
@@ -8360,6 +8393,9 @@ func (x ExportBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 func (x ExportBody) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
+
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x ExportBody) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x ExportBody) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
@@ -8792,6 +8828,9 @@ func (x NormalOrOptChainGet) AsNormalOrOptChainGetElem() (NormalOrOptChainGetEle
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// AsNormalGet returns x as a NormalGet; ok is false if it is not one.
+func (x NormalOrOptChainGet) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
+
 // Object returns the object of x.
 func (x NormalOrOptChainGet) Object() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -8866,6 +8905,80 @@ func (x NormalOrOptChainGetElem) Object() Expr { return Expr{x.node.GetFirstChil
 
 // Index returns the index of x.
 func (x NormalOrOptChainGetElem) Index() Expr { return Expr{x.node.GetSecondChild()} }
+
+// NormalGet is a property access outside an optional chain:
+// object.property or object[index] (NodeUtil.isNormalGet).
+//
+// Grammar: NormalGet = GetProp | GetElem
+type NormalGet struct{ node rhino.Node }
+
+// AsNormalGet returns n as a NormalGet; ok is false if n is not one (or is the nil node).
+func AsNormalGet(n rhino.Node) (x NormalGet, ok bool) {
+	if n == rhino.NilNode || !normalGetTokens.Has(n.GetToken()) {
+		return NormalGet{}, false
+	}
+	return NormalGet{n}, true
+}
+
+// normalGetTokens holds the tokens of NormalGet.
+var normalGetTokens = tokenSetOf(rhino.Token_GETPROP, rhino.Token_GETELEM)
+
+// Node returns x as a rhino.Node.
+func (x NormalGet) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x NormalGet) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of NormalGet it is).
+func (x NormalGet) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x NormalGet) Detach() NormalGet { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x NormalGet) ReplaceWith(v NormalGet) { x.node.ReplaceWith(v.node) }
+
+// AsGetProp returns x as a GetProp; ok is false if it is not one.
+func (x NormalGet) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// AsGetElem returns x as a GetElem; ok is false if it is not one.
+func (x NormalGet) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// AsExpr returns x as an Expr.
+func (x NormalGet) AsExpr() Expr { return Expr{x.node} }
+
+// AsTarget returns x as a Target.
+func (x NormalGet) AsTarget() Target { return Target{x.node} }
+
+// AsArg returns x as an Arg.
+func (x NormalGet) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x NormalGet) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsArrayPatternElem returns x as an ArrayPatternElem.
+func (x NormalGet) AsArrayPatternElem() ArrayPatternElem { return ArrayPatternElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x NormalGet) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x NormalGet) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsForTarget returns x as a ForTarget.
+func (x NormalGet) AsForTarget() ForTarget { return ForTarget{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x NormalGet) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x NormalGet) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
+func (x NormalGet) AsNormalOrOptChainGet() NormalOrOptChainGet { return NormalOrOptChainGet{x.node} }
+
+// Object returns the object of x.
+func (x NormalGet) Object() Expr { return Expr{x.node.GetFirstChild()} }
 
 // Assignment is an assignment, plain or compound: target = value or
 // target op= value (NodeUtil.isAssignmentOp).
@@ -10016,5 +10129,6 @@ var grammarCategories = map[string][]string{
 	"NormalOrOptChainGetProp": {"GetProp", "OptChainGetProp"},
 	"NormalOrOptChainGet":     {"GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem"},
 	"NormalOrOptChainGetElem": {"GetElem", "OptChainGetElem"},
+	"NormalGet":               {"GetProp", "GetElem"},
 	"Assignment":              {"Assign", "AssignOp"},
 }

@@ -340,3 +340,32 @@ func TestGeneratedCodeIsUpToDate(t *testing.T) {
 		t.Fatal("nodes.gen.go is out of date: run go generate ./internal/ast")
 	}
 }
+
+// NormalGet is a GetProp or a GetElem (what an assignment to a property
+// assigns), not a property access in an optional chain.
+func TestNormalGet(t *testing.T) {
+	newStore(t)
+	for _, n := range []rhino.Node{
+		NewGetProp(NewName("o").AsExpr(), "p").Node(),
+		NewGetElem(NewName("o").AsExpr(), NewStringLit("p").AsExpr()).Node(),
+	} {
+		get, ok := AsNormalGet(n)
+		if !ok {
+			t.Fatalf("AsNormalGet(%s) failed", n.GetToken())
+		}
+		if obj, ok := get.Object().AsName(); !ok || obj.Ident() != "o" {
+			t.Fatalf("Object() of a %s is not its object", n.GetToken())
+		}
+		if back, ok := get.AsTarget().AsNormalGet(); !ok || back != get {
+			t.Fatalf("Target.AsNormalGet() does not give the %s back", n.GetToken())
+		}
+	}
+	for _, n := range []rhino.Node{
+		NewOptChainGetElem(NewName("o").AsExpr(), NewStringLit("p").AsExpr()).Node(),
+		NewName("o").Node(),
+	} {
+		if _, ok := AsNormalGet(n); ok {
+			t.Fatalf("a %s converted to a NormalGet", n.GetToken())
+		}
+	}
+}
