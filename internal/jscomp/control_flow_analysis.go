@@ -21,9 +21,16 @@ package jscomp
 import (
 	"cmp"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass reads statement shapes through the typed view of
+// package ast (ifs.Else(), try.Finally(), sw.Body().FirstCase()...) instead
+// of child positions. The graph it builds stays a
+// ControlFlowGraph[rhino.Node], and the helpers that other passes call keep
+// their rhino.Node signatures.
 
 // ControlFlowAnalysis computes a ControlFlowGraph for a given AST
 //
@@ -692,41 +699,41 @@ func (c *ControlFlowAnalysis) shouldTraverseIntoChildren(n rhino.Node, parent rh
 func (c *ControlFlowAnalysis) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_IF:
-		c.handleIf(n)
+		c.handleIf(ast.MustIf(n))
 	case rhino.Token_WHILE:
-		c.handleWhile(n)
+		c.handleWhile(ast.MustWhile(n))
 	case rhino.Token_DO:
-		c.handleDo(n)
+		c.handleDo(ast.MustDo(n))
 	case rhino.Token_FOR:
-		c.handleFor(n)
+		c.handleFor(ast.MustFor(n))
 	case rhino.Token_FOR_OF, rhino.Token_FOR_IN, rhino.Token_FOR_AWAIT_OF:
-		c.handleEnhancedFor(n)
+		c.handleEnhancedFor(ast.MustEnhancedFor(n))
 	case rhino.Token_SWITCH:
-		c.handleSwitch(n)
+		c.handleSwitch(ast.MustSwitch(n))
 	case rhino.Token_CASE:
-		c.handleCase(n)
+		c.handleCase(ast.MustCase(n))
 	case rhino.Token_DEFAULT_CASE:
-		c.handleDefault(n)
+		c.handleDefault(ast.MustDefaultCase(n))
 	case rhino.Token_BLOCK, rhino.Token_ROOT, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY:
 		c.handleStmtList(n)
 	case rhino.Token_FUNCTION:
-		c.handleFunction(n)
+		c.handleFunction(ast.MustFunction(n))
 	case rhino.Token_EXPR_RESULT:
-		c.handleExpr(n)
+		c.handleExpr(ast.MustExprStmt(n))
 	case rhino.Token_THROW:
-		c.handleThrow(n)
+		c.handleThrow(ast.MustThrow(n))
 	case rhino.Token_TRY:
-		c.handleTry(n)
+		c.handleTry(ast.MustTry(n))
 	case rhino.Token_CATCH:
-		c.handleCatch(n)
+		c.handleCatch(ast.MustCatch(n))
 	case rhino.Token_BREAK:
-		c.handleBreak(n)
+		c.handleBreak(ast.MustBreak(n))
 	case rhino.Token_CONTINUE:
-		c.handleContinue(n)
+		c.handleContinue(ast.MustContinue(n))
 	case rhino.Token_RETURN:
-		c.handleReturn(n)
+		c.handleReturn(ast.MustReturn(n))
 	case rhino.Token_WITH:
-		c.handleWith(n)
+		c.handleWith(ast.MustWith(n))
 	case rhino.Token_SWITCH_BODY,
 		rhino.Token_LABEL,
 		rhino.Token_CLASS_MEMBERS,
@@ -738,157 +745,199 @@ func (c *ControlFlowAnalysis) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 	}
 }
 
-// Java: ControlFlowAnalysis.handleIf(Node)
-func (c *ControlFlowAnalysis) handleIf(node rhino.Node) {
-	thenBlock := node.GetSecondChild()
-	elseBlock := thenBlock.GetNext()
-	c.createEdge(node, ControlFlowGraph_Branch_ON_TRUE, ControlFlowAnalysis_ComputeFallThrough(thenBlock))
+// The handlers below connect a statement to the blocks it runs (the
+// branches of an if, the body of a loop...) directly: control falls through
+// into a block at the block itself (see computeFallThrough), so Java's
+// computeFallThrough(block) calls are left out.
 
-	if elseBlock.IsNil() {
-		c.createEdge(node, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(node, c)) // not taken branch
+// Java: ControlFlowAnalysis.handleIf(Node)
+func (c *ControlFlowAnalysis) handleIf(ifs ast.If) {
+	n := ifs.Node()
+	c.createEdge(n, ControlFlowGraph_Branch_ON_TRUE, ifs.Then().Node())
+
+	if els, ok := ifs.Else(); ok {
+		c.createEdge(n, ControlFlowGraph_Branch_ON_FALSE, els.Node())
 	} else {
-		c.createEdge(node, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFallThrough(elseBlock))
+		c.createEdge(n, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(n, c)) // not taken branch
 	}
-	c.connectToPossibleExceptionHandler(node, NodeUtil_GetConditionExpression(node))
+	c.connectToPossibleExceptionHandler(n, ifs.Cond().Node())
 }
 
 // Java: ControlFlowAnalysis.handleWhile(Node)
-func (c *ControlFlowAnalysis) handleWhile(node rhino.Node) {
-	cond := node.GetFirstChild()
+func (c *ControlFlowAnalysis) handleWhile(while ast.While) {
+	n := while.Node()
 	// Control goes to the first statement if the condition evaluates to true.
-	c.createEdge(node, ControlFlowGraph_Branch_ON_TRUE, ControlFlowAnalysis_ComputeFallThrough(cond.GetNext()))
+	c.createEdge(n, ControlFlowGraph_Branch_ON_TRUE, while.Body().Node())
 
-	if !cond.IsTrue() {
+	if while.Cond().Token() != rhino.Token_TRUE {
 		// Control goes to the follow() if the condition evaluates to false.
-		c.createEdge(node, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(node, c))
+		c.createEdge(n, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(n, c))
 	}
-	c.connectToPossibleExceptionHandler(node, NodeUtil_GetConditionExpression(node))
+	c.connectToPossibleExceptionHandler(n, while.Cond().Node())
 }
 
 // Java: ControlFlowAnalysis.handleDo(Node)
-func (c *ControlFlowAnalysis) handleDo(node rhino.Node) {
-	body := node.GetFirstChild()
+func (c *ControlFlowAnalysis) handleDo(do ast.Do) {
+	n := do.Node()
 	// The first edge can be the initial iteration as well as the iterations
 	// after.
-	c.createEdge(node, ControlFlowGraph_Branch_ON_TRUE, ControlFlowAnalysis_ComputeFallThrough(body))
-	cond := body.GetNext()
-	if !cond.IsTrue() {
+	c.createEdge(n, ControlFlowGraph_Branch_ON_TRUE, do.Body().Node())
+	if do.Cond().Token() != rhino.Token_TRUE {
 		// The edge that leaves the do loop if the condition fails.
-		c.createEdge(node, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(node, c))
+		c.createEdge(n, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(n, c))
 	}
-	c.connectToPossibleExceptionHandler(node, NodeUtil_GetConditionExpression(node))
+	c.connectToPossibleExceptionHandler(n, do.Cond().Node())
 }
 
 // Java: ControlFlowAnalysis.handleEnhancedFor(Node)
-func (c *ControlFlowAnalysis) handleEnhancedFor(forNode rhino.Node) {
+func (c *ControlFlowAnalysis) handleEnhancedFor(forNode ast.EnhancedFor) {
 	// We have:  for (index in collection) { body }
 	// or:       for (item of collection) { body }
 	// or:       for await (item of collection) { body }
-	item := forNode.GetFirstChild()
-	collection := item.GetNext()
-	body := collection.GetNext()
+	n := forNode.Node()
+	collection := forNode.Collection().Node()
 	// The collection behaves like init.
-	c.createEdge(collection, ControlFlowGraph_Branch_UNCOND, forNode)
+	c.createEdge(collection, ControlFlowGraph_Branch_UNCOND, n)
 	// The edge that transfer control to the beginning of the loop body.
-	c.createEdge(forNode, ControlFlowGraph_Branch_ON_TRUE, ControlFlowAnalysis_ComputeFallThrough(body))
+	c.createEdge(n, ControlFlowGraph_Branch_ON_TRUE, forNode.Body().Node())
 	// The edge to end of the loop.
-	c.createEdge(forNode, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(forNode, c))
-	if forNode.IsForOf() || forNode.IsForAwaitOf() {
-		c.connectToPossibleExceptionHandlerUnconditionally(forNode)
+	c.createEdge(n, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(n, c))
+	if forNode.Token() == rhino.Token_FOR_IN {
+		c.connectToPossibleExceptionHandler(n, collection)
 	} else {
-		c.connectToPossibleExceptionHandler(forNode, collection)
+		// A for-of or for-await-of loop calls the iterator, which may throw.
+		c.connectToPossibleExceptionHandlerUnconditionally(n)
 	}
 }
 
 // Java: ControlFlowAnalysis.handleFor(Node)
-func (c *ControlFlowAnalysis) handleFor(forNode rhino.Node) {
+func (c *ControlFlowAnalysis) handleFor(forNode ast.For) {
 	// We have for (init; cond; iter) { body }
-	init := forNode.GetFirstChild()
-	cond := init.GetNext()
-	iter := cond.GetNext()
-	body := iter.GetNext()
+	n := forNode.Node()
+	init := cfaForInit(forNode)
+	iter := cfaForUpdate(forNode)
 	// After initialization, we transfer to the FOR which is in charge of
 	// checking the condition (for the first time).
-	c.createEdge(init, ControlFlowGraph_Branch_UNCOND, forNode)
+	c.createEdge(init, ControlFlowGraph_Branch_UNCOND, n)
 	// The edge that transfer control to the beginning of the loop body.
-	c.createEdge(forNode, ControlFlowGraph_Branch_ON_TRUE, ControlFlowAnalysis_ComputeFallThrough(body))
+	c.createEdge(n, ControlFlowGraph_Branch_ON_TRUE, forNode.Body().Node())
 	// The edge to end of the loop.
-	if !cond.IsEmpty() && !cond.IsTrue() {
-		c.createEdge(forNode, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(forNode, c))
+	cond, hasCond := forNode.Cond()
+	if hasCond && cond.Token() != rhino.Token_TRUE {
+		c.createEdge(n, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(n, c))
 	}
 	// The end of the body will have a unconditional branch to our iter
 	// (handled by calling computeFollowNode of the last instruction of the
 	// body. Our iter will jump to the forNode again to another condition
 	// check.
-	c.createEdge(iter, ControlFlowGraph_Branch_UNCOND, forNode)
+	c.createEdge(iter, ControlFlowGraph_Branch_UNCOND, n)
 	c.connectToPossibleExceptionHandler(init, init)
-	c.connectToPossibleExceptionHandler(forNode, cond)
+	if hasCond {
+		c.connectToPossibleExceptionHandler(n, cond.Node())
+	}
 	c.connectToPossibleExceptionHandler(iter, iter)
 }
 
+// cfaForInit returns the init of a for loop as a node of the graph: the
+// EMPTY node in its place if the loop has none (For.Init reports it as
+// missing, but the graph has a node for it).
+func cfaForInit(forNode ast.For) rhino.Node { return forNode.Node().GetFirstChild() }
+
+// cfaForUpdate returns the update of a for loop as a node of the graph: the
+// EMPTY node in its place if the loop has none (see cfaForInit).
+func cfaForUpdate(forNode ast.For) rhino.Node { return forNode.Node().GetChildAtIndex(2) }
+
 // Java: ControlFlowAnalysis.handleSwitch(Node)
-func (c *ControlFlowAnalysis) handleSwitch(node rhino.Node) {
+func (c *ControlFlowAnalysis) handleSwitch(sw ast.Switch) {
 	// Transfer to the first non-DEFAULT CASE. if there are none, transfer
-	// to the DEFAULT or the EMPTY node.
-	switchBody := node.GetLastChild()
-	c.createEdge(node, ControlFlowGraph_Branch_UNCOND, switchBody)
-	next := ControlFlowAnalysis_GetNextSiblingOfType(switchBody.GetFirstChild(), rhino.Token_CASE, rhino.Token_EMPTY)
-	if !next.IsNil() { // Has at least one CASE or EMPTY
-		c.createEdge(switchBody, ControlFlowGraph_Branch_UNCOND, next)
-	} else { // Has no CASE but possibly a DEFAULT
-		if switchBody.HasChildren() {
-			c.createEdge(switchBody, ControlFlowGraph_Branch_UNCOND, switchBody.GetFirstChild())
-		} else { // No CASE, no DEFAULT
-			c.createEdge(switchBody, ControlFlowGraph_Branch_UNCOND, ControlFlowAnalysis_ComputeFollowNodeWithCfa(node, c))
-		}
+	// to the DEFAULT.
+	//
+	// (Java also looks for an EMPTY node, which a SWITCH_BODY never holds:
+	// its children are cases.)
+	n := sw.Node()
+	switchBody := sw.Body()
+	c.createEdge(n, ControlFlowGraph_Branch_UNCOND, switchBody.Node())
+	if next, ok := cfaNextCase(switchBody.FirstCase()); ok { // Has at least one CASE
+		c.createEdge(switchBody.Node(), ControlFlowGraph_Branch_UNCOND, next.Node())
+	} else if deflt, ok := switchBody.FirstCase(); ok { // Has no CASE, so this is the DEFAULT
+		c.createEdge(switchBody.Node(), ControlFlowGraph_Branch_UNCOND, deflt.Node())
+	} else { // No CASE, no DEFAULT
+		c.createEdge(switchBody.Node(), ControlFlowGraph_Branch_UNCOND, ControlFlowAnalysis_ComputeFollowNodeWithCfa(n, c))
 	}
-	c.connectToPossibleExceptionHandler(node, node.GetFirstChild())
+	c.connectToPossibleExceptionHandler(n, sw.Discriminant().Node())
 }
 
 // Java: ControlFlowAnalysis.handleCase(Node)
-func (c *ControlFlowAnalysis) handleCase(caseNode rhino.Node) {
+func (c *ControlFlowAnalysis) handleCase(caseNode ast.Case) {
+	n := caseNode.Node()
 	// Case is a bit tricky....First it goes into the body if condition is true.
-	c.createEdge(caseNode, ControlFlowGraph_Branch_ON_TRUE, caseNode.GetSecondChild())
+	c.createEdge(n, ControlFlowGraph_Branch_ON_TRUE, caseNode.Body().Node())
 
 	// Look for the next CASE, skipping over DEFAULT.
-	next := ControlFlowAnalysis_GetNextSiblingOfType(caseNode.GetNext(), rhino.Token_CASE)
-	if !next.IsNil() { // Found a CASE
-		jutil.CheckState(next.IsCase())
-		c.createEdge(caseNode, ControlFlowGraph_Branch_ON_FALSE, next)
-	} else { // No more CASE found, go back and search for a DEFAULT.
-		switchBody := caseNode.GetParent()
-		deflt := ControlFlowAnalysis_GetNextSiblingOfType(switchBody.GetFirstChild(), rhino.Token_DEFAULT_CASE)
-		if !deflt.IsNil() { // Has a DEFAULT
-			c.createEdge(caseNode, ControlFlowGraph_Branch_ON_FALSE, deflt)
-		} else { // No DEFAULT found, go to the follow of the SWITCH.
-			c.createEdge(caseNode, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(caseNode, c))
+	if next, ok := cfaNextCase(caseNode.AsSwitchCase().Next()); ok { // Found a CASE
+		c.createEdge(n, ControlFlowGraph_Branch_ON_FALSE, next.Node())
+	} else if deflt, ok := cfaDefaultCase(ast.MustSwitchBody(n.GetParent())); ok {
+		// No more CASE found, but the switch has a DEFAULT.
+		c.createEdge(n, ControlFlowGraph_Branch_ON_FALSE, deflt.Node())
+	} else { // No DEFAULT found, go to the follow of the SWITCH.
+		c.createEdge(n, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(n, c))
+	}
+	c.connectToPossibleExceptionHandler(n, caseNode.Value().Node())
+}
+
+// cfaNextCase returns the first CASE from sc on (sc itself if it is one),
+// skipping DEFAULT; ok is false if there is none. It takes what a
+// FirstCase() or Next() returns.
+//
+// Java: getNextSiblingOfType(sc, Token.CASE)
+func cfaNextCase(sc ast.SwitchCase, ok bool) (ast.Case, bool) {
+	for ; ok; sc, ok = sc.Next() {
+		if caseNode, isCase := sc.AsCase(); isCase {
+			return caseNode, true
 		}
 	}
-	c.connectToPossibleExceptionHandler(caseNode, caseNode.GetFirstChild())
+	return ast.Case{}, false
+}
+
+// cfaDefaultCase returns the DEFAULT of a switch; ok is false if it has
+// none.
+//
+// Java: getNextSiblingOfType(switchBody.getFirstChild(), Token.DEFAULT_CASE)
+func cfaDefaultCase(switchBody ast.SwitchBody) (ast.DefaultCase, bool) {
+	for sc := range switchBody.Cases() {
+		if deflt, ok := sc.AsDefaultCase(); ok {
+			return deflt, true
+		}
+	}
+	return ast.DefaultCase{}, false
 }
 
 // Java: ControlFlowAnalysis.handleDefault(Node)
-func (c *ControlFlowAnalysis) handleDefault(node rhino.Node) {
+func (c *ControlFlowAnalysis) handleDefault(deflt ast.DefaultCase) {
 	// Directly goes to the body. It should not transfer to the next case.
-	c.createEdge(node, ControlFlowGraph_Branch_UNCOND, node.GetFirstChild())
+	c.createEdge(deflt.Node(), ControlFlowGraph_Branch_UNCOND, deflt.Body().Node())
 }
 
 // Java: ControlFlowAnalysis.handleWith(Node)
-func (c *ControlFlowAnalysis) handleWith(node rhino.Node) {
+func (c *ControlFlowAnalysis) handleWith(with ast.With) {
 	// Directly goes to the body. It should not transfer to the next case.
-	c.createEdge(node, ControlFlowGraph_Branch_UNCOND, node.GetLastChild())
-	c.connectToPossibleExceptionHandler(node, node.GetFirstChild())
+	c.createEdge(with.Node(), ControlFlowGraph_Branch_UNCOND, with.Body().Node())
+	c.connectToPossibleExceptionHandler(with.Node(), with.Object().Node())
 }
 
+// handleStmtList handles the nodes that hold a list of statements: a block,
+// a script, a module body, a root (which holds scripts), and the block that
+// holds the catch clause of a TRY. They have no common view, so node stays
+// a rhino.Node.
+//
 // Java: ControlFlowAnalysis.handleStmtList(Node)
 func (c *ControlFlowAnalysis) handleStmtList(node rhino.Node) {
 	parent := node.GetParent()
 	// Special case, don't add a block of empty CATCH block to the graph.
-	if node.IsBlock() &&
-		parent.IsTry() &&
-		NodeUtil_GetCatchBlock(parent) == node &&
-		!NodeUtil_HasCatchHandler(node) {
-		return
+	if try, ok := ast.AsTry(parent); ok && try.Catches().Is(node) {
+		if _, hasCatch := try.Catch(); !hasCatch {
+			return
+		}
 	}
 
 	// A block transfer control to its first child if it is not empty.
@@ -924,44 +973,66 @@ func (c *ControlFlowAnalysis) handleStmtList(node rhino.Node) {
 }
 
 // Java: ControlFlowAnalysis.handleFunction(Node)
-func (c *ControlFlowAnalysis) handleFunction(node rhino.Node) {
+func (c *ControlFlowAnalysis) handleFunction(fn ast.Function) {
 	// A block transfer control to its first child if it is not empty.
-	jutil.CheckState(node.IsFunction())
-	jutil.CheckState(node.HasXChildren(3))
-	c.createEdge(node, ControlFlowGraph_Branch_UNCOND, ControlFlowAnalysis_ComputeFallThrough(node.GetLastChild()))
-	jutil.CheckState(c.exceptionHandlerPeek() == node)
+	//
+	// (The body is a block, the expression of an arrow function, or EMPTY in
+	// a type summary: control falls through into each at the node itself.)
+	c.createEdge(fn.Node(), ControlFlowGraph_Branch_UNCOND, fn.Body().Node())
+	jutil.CheckState(c.exceptionHandlerPeek() == fn.Node())
 	c.exceptionHandlerPop()
 }
 
 // Java: ControlFlowAnalysis.handleExpr(Node)
-func (c *ControlFlowAnalysis) handleExpr(node rhino.Node) {
-	c.createEdge(node, ControlFlowGraph_Branch_UNCOND, ControlFlowAnalysis_ComputeFollowNodeWithCfa(node, c))
-	c.connectToPossibleExceptionHandler(node, node)
+func (c *ControlFlowAnalysis) handleExpr(expr ast.ExprStmt) {
+	n := expr.Node()
+	c.createEdge(n, ControlFlowGraph_Branch_UNCOND, ControlFlowAnalysis_ComputeFollowNodeWithCfa(n, c))
+	c.connectToPossibleExceptionHandler(n, n)
 }
 
 // Java: ControlFlowAnalysis.handleThrow(Node)
-func (c *ControlFlowAnalysis) handleThrow(node rhino.Node) {
-	c.connectToPossibleExceptionHandler(node, node)
+func (c *ControlFlowAnalysis) handleThrow(throw ast.Throw) {
+	c.connectToPossibleExceptionHandler(throw.Node(), throw.Node())
 }
 
 // Java: ControlFlowAnalysis.handleTry(Node)
-func (c *ControlFlowAnalysis) handleTry(node rhino.Node) {
-	c.createEdge(node, ControlFlowGraph_Branch_UNCOND, node.GetFirstChild())
+func (c *ControlFlowAnalysis) handleTry(try ast.Try) {
+	c.createEdge(try.Node(), ControlFlowGraph_Branch_UNCOND, try.Body().Node())
 }
 
 // Java: ControlFlowAnalysis.handleCatch(Node)
-func (c *ControlFlowAnalysis) handleCatch(node rhino.Node) {
-	c.createEdge(node, ControlFlowGraph_Branch_UNCOND, node.GetLastChild())
+func (c *ControlFlowAnalysis) handleCatch(catch ast.Catch) {
+	c.createEdge(catch.Node(), ControlFlowGraph_Branch_UNCOND, catch.Body().Node())
+}
+
+// cfaJumpLabel returns the label of a break or continue, or nil if it has
+// none.
+func cfaJumpLabel(jump ast.Jump) *string {
+	name, ok := jump.Label()
+	if !ok {
+		return nil
+	}
+	s := name.Ident()
+	return &s
+}
+
+// cfaFinallyLeft returns the FINALLY block that runs when a jump leaves cur,
+// coming from its child previous: ok is false if cur is not a TRY with a
+// FINALLY, or if the jump leaves from the FINALLY itself.
+func cfaFinallyLeft(cur, previous rhino.Node) (ast.Block, bool) {
+	try, ok := ast.AsTry(cur)
+	if !ok {
+		return ast.Block{}, false
+	}
+	finally, ok := try.Finally()
+	return finally, ok && !finally.Is(previous)
 }
 
 // Java: ControlFlowAnalysis.handleBreak(Node)
-func (c *ControlFlowAnalysis) handleBreak(node rhino.Node) {
-	var label *string
+func (c *ControlFlowAnalysis) handleBreak(brk ast.Break) {
+	node := brk.Node()
 	// See if it is a break with label.
-	if node.HasChildren() {
-		s := node.GetFirstChild().GetString()
-		label = &s
-	}
+	label := cfaJumpLabel(brk.AsJump())
 	var cur rhino.Node
 	var previous rhino.Node
 	var lastJump rhino.Node
@@ -976,11 +1047,11 @@ func (c *ControlFlowAnalysis) handleBreak(node rhino.Node) {
 	 * are not known yet due to the way we traverse the nodes.
 	 */
 	for cur, lastJump = node, node; !ControlFlowAnalysis_IsBreakTarget(cur, label); cur, parent = parent, parent.GetParent() {
-		if cur.IsTry() && NodeUtil_HasFinally(cur) && cur.GetLastChild() != previous {
+		if finally, ok := cfaFinallyLeft(cur, previous); ok {
 			if lastJump == node {
-				c.createEdge(lastJump, ControlFlowGraph_Branch_UNCOND, ControlFlowAnalysis_ComputeFallThrough(cur.GetLastChild()))
+				c.createEdge(lastJump, ControlFlowGraph_Branch_UNCOND, finally.Node())
 			} else {
-				c.putFinally(lastJump, ControlFlowAnalysis_ComputeFallThrough(cur.GetLastChild()))
+				c.putFinally(lastJump, finally.Node())
 			}
 			lastJump = cur
 		}
@@ -1003,23 +1074,20 @@ func (c *ControlFlowAnalysis) handleBreak(node rhino.Node) {
 }
 
 // Java: ControlFlowAnalysis.handleContinue(Node)
-func (c *ControlFlowAnalysis) handleContinue(node rhino.Node) {
-	var label *string
-	if node.HasChildren() {
-		s := node.GetFirstChild().GetString()
-		label = &s
-	}
+func (c *ControlFlowAnalysis) handleContinue(cont ast.Continue) {
+	node := cont.Node()
+	label := cfaJumpLabel(cont.AsJump())
 	var cur rhino.Node
 	var previous rhino.Node
 	var lastJump rhino.Node
 
 	// Similar to handBreak's logic with a few minor variation.
 	for cur, lastJump = node, node; !ControlFlowAnalysis_IsContinueTarget(cur, label); cur = cur.GetParent() {
-		if cur.IsTry() && NodeUtil_HasFinally(cur) && cur.GetLastChild() != previous {
+		if finally, ok := cfaFinallyLeft(cur, previous); ok {
 			if lastJump == node {
-				c.createEdge(lastJump, ControlFlowGraph_Branch_UNCOND, cur.GetLastChild())
+				c.createEdge(lastJump, ControlFlowGraph_Branch_UNCOND, finally.Node())
 			} else {
-				c.putFinally(lastJump, ControlFlowAnalysis_ComputeFallThrough(cur.GetLastChild()))
+				c.putFinally(lastJump, finally.Node())
 			}
 			lastJump = cur
 		}
@@ -1027,9 +1095,9 @@ func (c *ControlFlowAnalysis) handleContinue(node rhino.Node) {
 		previous = cur
 	}
 	iter := cur
-	if cur.IsVanillaFor() {
+	if forNode, ok := ast.AsFor(cur); ok {
 		// the increment expression happens after the continue
-		iter = cur.GetChildAtIndex(2)
+		iter = cfaForUpdate(forNode)
 	}
 
 	if lastJump == node {
@@ -1040,25 +1108,26 @@ func (c *ControlFlowAnalysis) handleContinue(node rhino.Node) {
 }
 
 // Java: ControlFlowAnalysis.handleReturn(Node)
-func (c *ControlFlowAnalysis) handleReturn(node rhino.Node) {
+func (c *ControlFlowAnalysis) handleReturn(ret ast.Return) {
+	node := ret.Node()
 	var lastJump rhino.Node
 	for i := len(c.exceptionHandler) - 1; i >= 0; i-- {
 		curHandler := c.exceptionHandler[i]
 		if curHandler.IsFunction() {
 			break
 		}
-		if NodeUtil_HasFinally(curHandler) {
+		if finally, ok := ast.MustTry(curHandler).Finally(); ok {
 			if lastJump.IsNil() {
-				c.createEdge(node, ControlFlowGraph_Branch_UNCOND, curHandler.GetLastChild())
+				c.createEdge(node, ControlFlowGraph_Branch_UNCOND, finally.Node())
 			} else {
-				c.putFinally(lastJump, ControlFlowAnalysis_ComputeFallThrough(curHandler.GetLastChild()))
+				c.putFinally(lastJump, finally.Node())
 			}
 			lastJump = curHandler
 		}
 	}
 
-	if node.HasChildren() {
-		c.connectToPossibleExceptionHandler(node, node.GetFirstChild())
+	if value, ok := ret.Value(); ok {
+		c.connectToPossibleExceptionHandler(node, value.Node())
 	}
 
 	if lastJump.IsNil() {
@@ -1298,21 +1367,6 @@ func (c *ControlFlowAnalysis) connectToPossibleExceptionHandlerUnconditionally(c
 		}
 		lastJump = handler
 	}
-}
-
-// ControlFlowAnalysis_GetNextSiblingOfType gets the next sibling (including
-// itself) of one of the given types.
-//
-// Java: ControlFlowAnalysis.getNextSiblingOfType(Node, Token...)
-func ControlFlowAnalysis_GetNextSiblingOfType(first rhino.Node, types ...rhino.Token) rhino.Node {
-	for c := first; !c.IsNil(); c = c.GetNext() {
-		for _, type_ := range types {
-			if c.GetToken() == type_ {
-				return c
-			}
-		}
-	}
-	return rhino.NilNode
 }
 
 // ControlFlowAnalysis_IsBreakTarget checks if target is actually the break
