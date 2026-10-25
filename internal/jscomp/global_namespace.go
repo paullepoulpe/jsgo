@@ -89,7 +89,6 @@ type GlobalNamespace struct {
 	names jutil.Slab[GlobalNamespace_Name]
 	refs  jutil.Slab[GlobalNamespace_Ref]
 
-	scopeCreator           *SyntacticScopeCreator
 	forProcessDefines      bool
 	processDefinesCheck    bool
 	hasNonScriptDefineCand bool
@@ -100,15 +99,6 @@ type GlobalNamespace struct {
 	// define may use; the namespace records no other names. nil when the
 	// namespace serves any other pass. See collectDefineCandidates.
 	defineCandidates map[string]struct{}
-}
-
-// Release returns the pooled Scope/Var arenas owned by this GlobalNamespace.
-// Callers must only invoke Release once no references from this
-// GlobalNamespace are needed anymore.
-func (g *GlobalNamespace) Release() {
-	if g != nil {
-		g.scopeCreator = nil
-	}
 }
 
 type globalNamespace_propsSlot struct {
@@ -477,12 +467,9 @@ func (g *GlobalNamespace) ProcessNamespace() {
 			g.nameMap = jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](capHint)
 		}
 	}
-	if g.scopeCreator == nil {
-		g.scopeCreator = NewSyntacticScopeCreator(g.compiler)
-	}
 	builder := NewGlobalNamespace_BuildGlobalNamespace(g)
 	builder.confirmExisting = !isInitial
-	traversal := NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(g.scopeCreator).SetCallback(builder)
+	traversal := NodeTraversal_Builder_().SetCompiler(g.compiler).SetCallback(builder)
 
 	if g.HasExternsRoot() {
 		traversal.TraverseRoots(g.externsRoot, g.root)

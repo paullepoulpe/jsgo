@@ -70,6 +70,10 @@ public final class CliBatch extends CommandLineRunner {
   }
 
   private static long statusKb(String field) throws IOException {
+    // There is no /proc on macOS: report 0 (the caller's wait4 gives the process's peak RSS).
+    if (!Files.exists(Paths.get("/proc/self/status"))) {
+      return 0;
+    }
     for (String line : Files.readAllLines(Paths.get("/proc/self/status"), StandardCharsets.UTF_8)) {
       if (line.startsWith(field + ":")) {
         return Long.parseLong(line.substring(field.length() + 1).replace("kB", "").trim());

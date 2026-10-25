@@ -348,6 +348,83 @@ compilation benchmark (macOS arm64, Go 1.27.1 with `default.pgo`, OpenJDK
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | **3.78 s** / **3.40 s** *(`3.34 s` fast)* | 12.50 s `[12.36, 12.56]` | 6.97 s `[6.95, 7.05]` | **3.67×** / **2.05×** *(`3.75×` / `2.09×`)* | **412 MiB** vs. 1,809 / 2,861 MiB *(peak 4,586)* (**4.39× / 6.94× lower**, **11.13×** vs. JVM peak) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | **3.03 s** / **2.75 s** | 11.35 s `[11.25, 11.45]` | 5.79 s `[5.75, 5.82]` | **4.12×** / **2.10×** | **328 MiB** vs. 2,291 / 2,037 MiB *(peak 2,872)* (**6.98× / 6.21× lower**, **8.76×** vs. JVM peak) |
 
+### v20261021 on JDK 27 (Apple M2)
+
+$N = 5$ counterbalanced interleaved suite with 95% CIs, after the upgrade to v20261021 and the memory round 2 merge. Measured at commit `83d55bdc` (`jsgo` built from the tree as committed, so with the committed `cmd/jsgo/default.pgo`) against Maven Central's `closure-compiler-v20261021.jar`, on Apple M2 (macOS arm64, 24 GiB RAM; Go 1.27.3; OpenJDK 27.0.1). Java and `jsgo` both run `--num_parallel_threads=4`; the `t=1` column is `jsgo` at `--num_parallel_threads=1`.
+
+**Method.** [`tools/bench/interleaved.py`](../tools/bench/interleaved.py) runs and gates the suite and [`interleaved_stats.py`](../tools/bench/interleaved_stats.py) computes the statistics. Every task runs $N = 5$ blocks; each block runs every contender once, in the order Java, `jsgo` builds in odd blocks and the reverse in even ones, which cancels linear thermal and background drift. Times and peak RSS (`wait4`'s `ru_maxrss`) are sample means. Ratios (`Java / jsgo`) are geometric means with two-sided 95% confidence intervals: paired Student-$t$ ($df = 4$) on per-block log-ratios against cold Java, and Welch's $t$ on log-times against warm Java. Warm Java is `tools/bench/java/CliBatch` in one JVM: 5 measured iterations after 5 warm-up iterations (2 for `single-files`); its peak RSS is the JVM's over its whole life. `single-files` (1,000 invocations) is compared with the warm batch only, as before. `googleapis` is the three-stage build of `tools/bench/run_googleapis_bench.py` (Java with `-Xmx20g`); its rows are per stage and their sum.
+
+**Gate.** Every `jsgo` run of every block is compared byte for byte with Java's first cold run (for `single-files`, the warm driver's last iteration): stdout, stderr, exit status and the output files (`out.js`, `out.js.map`), and for `googleapis` each stage's stdout, stderr and exit status plus a digest of all 7,483 chunk files. Two things are set aside:
+- the JVM's own `WARNING:` lines at the top of Java's stderr (the `sun.misc.Unsafe` deprecation notice that JDK 26 and 27 print for the bundled protobuf), which are not compiler output;
+- in `single-files`, the Java stack frames of the one input on which both compilers crash (`google-closure-library/closure/goog/a11y/aria/roles.js` under `SIMPLE`, the same `NullPointerException` from `RemoveUnusedCode.getVarForNameNode` and the same exit status), bench.py's `java-frames` class.
+
+Everything else matched on every run.
+
+**JDK 27.** The v20261015 jar gives byte-identical output on JDK 26.0.2.1 and 27.0.1 for ten of these tasks, so the JDK upgrade alone does not change Java's output. Java's cold times are within 6% of the Round 3A section's (JDK 26, v20261015), except `typed-app`, `shaka-blockly` and `bundle-advanced`, which are 13–17% faster now.
+
+#### 1. Production-Scale Staged Compilation (`googleapis-bench`: 43,917 Files, 35.6M Parsed AST Nodes, 7,460 Chunks)
+
+| Stage | `jsgo` (`t=4`) | Java (`t=4`, `-Xmx20g`) | Speedup vs. Java (`[95% CI]`) | `jsgo` Peak RSS | Java Peak RSS | Memory Ratio vs. Java (`[95% CI]`) |
+|---|---:|---:|---:|---:|---:|---:|
+| **`CHECKS`** | **55.88 s** | 93.65 s | **1.68× `[1.62, 1.73]`** | **6,904 MiB** | 14,135 MiB | **2.05× `[1.92, 2.19]`** |
+| **`OPTIMIZATIONS`** | **52.47 s** | 87.84 s | **1.68× `[1.51, 1.86]`** | **5,741 MiB** | 14,580 MiB | **2.58× `[2.05, 3.26]`** |
+| **`FINALIZATIONS`** | **7.50 s** | 19.83 s | **2.64× `[2.62, 2.67]`** | **1,393 MiB** | 7,370 MiB | **5.29× `[5.13, 5.46]`** |
+| **Total** | **115.9 s** | **201.3 s** | **1.74× `[1.66, 1.82]`** | **7,131 MiB** | **14,580 MiB** | **2.05× `[1.88, 2.24]`** |
+
+#### 2. Large & Mega Whole-Program `ADVANCED` Workloads
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`bundle-mega`** | ADV · 4.19M nodes | **25.47 s** / **22.65 s** | 49.46 s / 40.72 s | 2.18× `[2.17, 2.20]` | 1.80× `[1.78, 1.81]` | **898 MiB** vs. 5,015 / 6,595 MiB — **5.59× `[5.29, 5.91]`** |
+| **`typed-mega`** | ADV+types · 3.55M nodes | **18.40 s** / **15.74 s** | 35.13 s / 25.95 s | 2.23× `[2.21, 2.26]` | 1.65× `[1.63, 1.67]` | **864 MiB** vs. 3,804 / 3,980 MiB — **4.40× `[4.30, 4.50]`** |
+| **`typed-full`** | ADV+types · 1.90M nodes | **10.83 s** / **9.32 s** | 23.09 s / 15.54 s | 2.48× `[2.45, 2.50]` | 1.67× `[1.61, 1.72]` | **503 MiB** vs. 3,514 / 3,596 MiB — **6.99× `[6.88, 7.10]`** |
+| **`bundle-advanced-ts`** | ADV · 1.11M nodes | **7.08 s** / **6.66 s** | 17.77 s / 11.33 s | 2.67× `[2.63, 2.71]` | 1.70× `[1.69, 1.72]` | **333 MiB** vs. 2,063 / 3,868 MiB — **5.95× `[4.22, 8.39]`** |
+| **`shaka-blockly`** | ADV+types · 618k nodes | **4.44 s** / **3.75 s** | 12.48 s / 6.69 s | 3.33× `[3.26, 3.39]` | 1.78× `[1.72, 1.85]` | **258 MiB** vs. 1,462 / 3,488 MiB — **5.69× `[4.97, 6.50]`** |
+| **`bundle-advanced`** | ADV · 573k nodes | **3.61 s** / **3.05 s** | 11.45 s / 5.49 s | 3.76× `[3.68, 3.84]` | 1.80× `[1.79, 1.81]` | **193 MiB** vs. 1,582 / 1,957 MiB — **8.21× `[7.60, 8.87]`** |
+
+#### 3. Standard Whole-Program & CLI Suite
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`typed-app`** | ADV+types · 1.29M nodes | **1.42 s** / **1.19 s** | 6.15 s / 1.94 s | 5.18× `[5.03, 5.32]` | 1.63× `[1.58, 1.69]` | **176 MiB** vs. 630 / 2,045 MiB — **3.59× `[3.47, 3.70]`** |
+| **`checks-only`** | CHECKS+types · 1.29M nodes | **2.36 s** / **1.92 s** | 6.88 s / 2.75 s | 3.58× `[3.45, 3.71]` | 1.43× `[1.36, 1.49]` | **314 MiB** vs. 1,352 / 3,523 MiB — **4.31× `[4.09, 4.55]`** |
+| **`bundle`** | SIMPLE · 1.11M nodes | **4.49 s** / **4.04 s** | 12.86 s / 8.64 s | 3.19× `[3.13, 3.24]` | 2.14× `[2.12, 2.16]` | **337 MiB** vs. 1,659 / 3,387 MiB — **4.92× `[4.67, 5.19]`** |
+| **`single-files`** | 1,000 CLI runs, SIMPLE · 306k nodes | **80.17 s** | — / 87.93 s | — | 1.10× `[1.09, 1.11]` | **73 MiB** vs. — / 2,329 MiB — **31.9×** vs. batch |
+| **`downlevel-simple`** | SIMPLE→ES5 · 232k nodes | **1.06 s** / **0.86 s** | 4.53 s / 1.46 s | 5.28× `[5.19, 5.37]` | 1.71× `[1.61, 1.81]` | **128 MiB** vs. 604 / 1,489 MiB — **4.73× `[4.54, 4.93]`** |
+| **`downlevel-whitespace`** | WHITESPACE_ONLY→ES5 · 232k nodes | **0.47 s** / **0.41 s** | 2.33 s / 0.50 s | 5.65× `[5.55, 5.75]` | 1.20× `[1.14, 1.27]` | **107 MiB** vs. 514 / 1,425 MiB — **4.81× `[4.66, 4.97]`** |
+
+#### `googleapis` since Round 3A
+
+At `83d55bdc`, `googleapis` takes 115.9 s against Round 3A's 98.4 s, and its speedup over Java falls from 2.11× to 1.74×. Two things contribute:
+
+- **Code.** The `jsgo` builds of main's commits since Round 3A, measured alone (2 interleaved blocks, no Java, fast-mode runs, see below): 97.6 s before the merge (`1d2b3149`); 102.9 s after the memory round 2 merge (`540d836f`, +5%); 106.8 s after main's first refactors that replace `unsafe` tricks with standard library code (`e1a9dd5f`, `0ed5c4cc`, `81d319ca`; +4%, mostly in `CHECKS`); flat until `25688342` (`unsafe` removed from JSType and PropertyMap), from which it is 109.4–110.0 s (+3%). The v20261021 upgrade adds nothing measurable.
+- **Variance.** The same binary's `OPTIMIZATIONS` stage takes either about 46 s or about 54 s. The slow mode appeared in 4 of the 5 blocks above, where each `jsgo` run follows or precedes a 200 s, 14 GiB Java run, in 6 of the 22 `jsgo`-only runs, and in none of three back-to-back runs. The machine is a fanless MacBook Air (`Mac14,2`), so thermal throttling under sustained load is the likely cause; the slow mode is not tied to a commit.
+
+#### Effect of the memory round 2 merge (`jsgo` only)
+
+The memory round 2 work ([docs/memory-research/](memory-research/): nodes in 32-bit-id chunks with no Go pointers, handles for types, colors and JSDoc, per-pass slabs, AST compaction) was merged into main at `540d836f`. Measured on the same machine, $N = 5$ interleaved blocks of the two builds alone (no Java), each gated against the v20261015 jar's output: `1d2b3149` (main before the merge) against `540d836f` (the merge), both with the committed `default.pgo`, both at `--num_parallel_threads=4`. Ratios are `before / after`: above 1 means the merge is faster or smaller.
+
+| Task | Before the merge | After the merge | Wall time (`[95% CI]`) | CPU time (`[95% CI]`) | Peak RSS (`[95% CI]`) |
+|---|---:|---:|---:|---:|---:|
+| `googleapis` | 97.72 s | 103.1 s | 0.95× `[0.93, 0.96]` | 1.14× `[1.13, 1.16]` | 1.11× `[1.02, 1.22]` |
+| `bundle-mega` | 21.94 s | 22.38 s | 0.98× `[0.91, 1.04]` | 1.16× `[1.10, 1.22]` | 1.02× `[0.92, 1.12]` |
+| `typed-mega` | 18.45 s | 17.42 s | 1.07× `[0.90, 1.26]` | 1.22× `[1.07, 1.40]` | 1.08× `[1.05, 1.11]` |
+| `typed-full` | 11.37 s | 10.38 s | 1.08× `[0.99, 1.17]` | 1.24× `[1.20, 1.28]` | 1.15× `[1.08, 1.22]` |
+| `bundle-advanced-ts` | 6.59 s | 6.74 s | 0.98× `[0.96, 0.99]` | 1.15× `[1.13, 1.17]` | 1.02× `[0.99, 1.06]` |
+| `shaka-blockly` | 4.59 s | 4.48 s | 1.02× `[0.97, 1.08]` | 1.16× `[1.10, 1.22]` | 1.07× `[0.96, 1.20]` |
+| `bundle-advanced` | 2.96 s | 3.11 s | 0.96× `[0.89, 1.03]` | 1.12× `[1.03, 1.21]` | 0.98× `[0.91, 1.05]` |
+| `typed-app` | 2.01 s | 1.84 s | 1.13× `[0.90, 1.41]` | 1.22× `[1.03, 1.43]` | 1.11× `[1.04, 1.19]` |
+| `checks-only` | 1.99 s | 2.04 s | 0.97× `[0.89, 1.07]` | 1.14× `[1.03, 1.25]` | 1.10× `[1.01, 1.21]` |
+| `bundle` | 4.44 s | 4.54 s | 0.98× `[0.96, 1.00]` | 1.16× `[1.15, 1.18]` | 0.90× `[0.82, 0.98]` |
+| `downlevel-simple` | 1.20 s | 1.27 s | 0.94× `[0.77, 1.14]` | 1.08× `[0.96, 1.21]` | 1.04× `[1.02, 1.06]` |
+| `downlevel-whitespace` | 0.68 s | 0.67 s | 1.01× `[0.96, 1.07]` | 1.17× `[1.11, 1.23]` | 1.02× `[0.97, 1.06]` |
+
+On this 8-core machine at 4 threads the merge cuts CPU time by 8–24% and peak RSS by up to 15% (except `bundle`, 10% higher), but wall time hardly moves: `googleapis` is 5% slower, `bundle` and `bundle-advanced-ts` about 2% slower, `typed-full` about 8% faster, the rest within noise. A likely explanation is that the garbage-collector work the merge removes ran on otherwise idle cores here, mostly off the critical path, while the id-based node accessors add a little to it. At `--num_parallel_threads=1` (measured only with a profile regenerated for the merged code, which is mostly a few percent slower than the committed one, see below) wall time is between 12% slower (`typed-app`) and 4% faster, mostly 0–5% slower, and CPU time is 9–19% lower (`typed-app` 2% higher). The branch's own measurement ([round3-flat-slices.md §7](memory-research/round3-flat-slices.md), −4% to −15% wall time) was taken on a 4-core Linux amd64 machine at `--num_parallel_threads=1`, where CPU time is the bottleneck; the gains do not carry over to this machine.
+
+#### PGO profile
+
+`tools/bench/pgo.py` regenerates `cmd/jsgo/default.pgo` from `t=1` runs of the bench tasks. A profile regenerated that way for `83d55bdc` was 3–4% slower than the committed profile (from Round 3A) on every task, with tight CIs (e.g. `bundle` 0.96× `[0.96, 0.96]`, `googleapis` 0.95× `[0.90, 1.00]`); one regenerated for the merge alone was mostly slower too (−7% to +6%). The committed profile is kept: regenerating it with `pgo.py` as it stands would be a regression on this machine.
+
 ### Round 3A + Memory/GC Optimizations ($N = 5$ Counterbalanced Interleaved Suite with 95% CIs)
 
 Measured at commit `30771cf2` against `closure-compiler-v20261015.jar` on Apple M2 (macOS arm64, 24 GiB RAM; Go 1.27.3 with PGO enabled via `cmd/jsgo/default.pgo`, OpenJDK 26.0.2.1), with both `jsgo` (`t=4`) and Java running `--num_parallel_threads=4`, gated on 100% byte-identical output on every run.

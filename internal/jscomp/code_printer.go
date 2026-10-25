@@ -402,28 +402,6 @@ func (m *CodePrinter_MappedCodePrinterBase) adjustSourceMappings(code string) {
 	}
 }
 
-func (m *CodePrinter_MappedCodePrinterBase) iterMappings(yield func(int, *SourceMap_Mapping) bool) {
-	if !m.createSrcMap {
-		return
-	}
-	idx := 0
-	for _, chunk := range m.mappingChunks {
-		for i := range chunk {
-			if !yield(idx, &chunk[i]) {
-				return
-			}
-			idx++
-		}
-	}
-	for i := range m.mappingSlab {
-		if !yield(idx, &m.mappingSlab[i]) {
-			return
-		}
-		idx++
-	}
-	m.releaseMappingSlabs()
-}
-
 // GetSourceMappings returns a list of sourcemap mappings that were
 // generated while printing this code. Only useful if createSrcMap was true
 // for this MappedCodePrinter.
@@ -1235,21 +1213,6 @@ type CodePrinter_Builder struct {
 	codeGeneratorFactory CodePrinter_Builder_CodeGeneratorFactory
 }
 
-// codePrinter_Builder_defaultCodeGeneratorFactory is the Builder's
-// anonymous default CodeGeneratorFactory; it reads the builder's options
-// and registry when it is called.
-type codePrinter_Builder_defaultCodeGeneratorFactory struct {
-	builder *CodePrinter_Builder
-}
-
-// Java: CodePrinter.Builder.<anonymous CodeGeneratorFactory>.getCodeGenerator(Format, CodeConsumer)
-func (f *codePrinter_Builder_defaultCodeGeneratorFactory) GetCodeGenerator(outputFormat CodePrinter_Format, cc CodeConsumer) CodeGenerator {
-	if outputFormat == CodePrinter_Format_TYPED {
-		return NewTypedCodeGenerator(cc, f.builder.getOptions(), f.builder.registry)
-	}
-	return NewCodeGeneratorWithOptions(cc, f.builder.getOptions())
-}
-
 // NewCodePrinter_Builder sets the root node from which to generate the
 // source code.
 //
@@ -1267,15 +1230,6 @@ func NewCodePrinter_Builder(node rhino.Node) *CodePrinter_Builder {
 	b.codeGeneratorFactory = nil
 	b.root = node
 	return b
-}
-
-// getCodeGeneratorFactory returns codeGeneratorFactory, creating the default
-// factory only when passing to external callers of CodePrinter_ToSource.
-func (b *CodePrinter_Builder) getCodeGeneratorFactory() CodePrinter_Builder_CodeGeneratorFactory {
-	if b.codeGeneratorFactory == nil {
-		b.codeGeneratorFactory = &codePrinter_Builder_defaultCodeGeneratorFactory{builder: b}
-	}
-	return b.codeGeneratorFactory
 }
 
 // getOptions returns options, made on first use if setCompilerOptions has
@@ -1387,14 +1341,20 @@ func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMa
 	return sm
 }
 
-func codePrinter_emptyMappingsSeq(func(int, *SourceMap_Mapping) bool) {}
-
 func (b *CodePrinter_Builder) buildSourceAndMappingsInto(sm *CodePrinter_SourceAndMappings, wantMappings bool) string {
 	if b.root.IsNil() {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot build without root node being specified"))
 	}
 	options := b.getOptions()
 	outputFormat := CodePrinter_Format_FromOptions(options, b.outputTypes, b.prettyPrint)
+	return b.buildSourceAndMappingsWithFormatInto(options, outputFormat, sm, wantMappings)
+}
+
+func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
+	options *CompilerOptions,
+	outputFormat CodePrinter_Format,
+	sm *CodePrinter_SourceAndMappings,
+	wantMappings bool) string {
 	gatherSourceMap := wantMappings && options.ShouldGatherSourceMapInfo()
 
 	var mcp CodePrinter_MappedCodePrinter
@@ -1593,60 +1553,20 @@ func CodePrinter_ToSource(
 	tagAsStrict bool,
 	lineBreak bool,
 	codeGeneratorFactory CodePrinter_Builder_CodeGeneratorFactory) *CodePrinter_SourceAndMappings {
-	// checkState(options.getSourceMapDetailLevel() != null)
-	//
-	// Go-only: language-adapter — an enum value cannot be null in Go, so the
-	// check always holds.
-
-	gatherSourceMap := options.ShouldGatherSourceMapInfo()
-	var mcp CodePrinter_MappedCodePrinter
-	var pooledCompact *CodePrinter_CompactCodePrinter
-	var pooledPretty *CodePrinter_PrettyCodePrinter
-	if outputFormat == CodePrinter_Format_COMPACT {
-		pooledCompact = codePrinter_compactPool.Get().(*CodePrinter_CompactCodePrinter)
-		initCodePrinter_CompactCodePrinter(
-			pooledCompact,
-			lineBreak,
-			options.GetLineLengthThreshold(),
-			gatherSourceMap,
-			options.GetSourceMapDetailLevel(),
-			licenseTracker)
-		mcp = pooledCompact
-	} else {
-		pooledPretty = codePrinter_prettyPool.Get().(*CodePrinter_PrettyCodePrinter)
-		initCodePrinter_PrettyCodePrinter(
-			pooledPretty,
-			options.GetLineLengthThreshold(),
-			gatherSourceMap,
-			options.GetSourceMapDetailLevel(),
-			licenseTracker)
-		mcp = pooledPretty
+	jutil.CheckNotNull(options)
+	jutil.CheckNotNull(codeGeneratorFactory)
+	b := CodePrinter_Builder{
+		root:                 root,
+		options:              options,
+		lineBreak:            lineBreak,
+		tagAsTypeSummary:     tagAsTypeSummary,
+		tagAsStrict:          tagAsStrict,
+		licenseTracker:       licenseTracker,
+		codeGeneratorFactory: codeGeneratorFactory,
 	}
-	cg := codeGeneratorFactory.GetCodeGenerator(outputFormat, mcp)
-
-	if tagAsTypeSummary {
-		cg.TagAsTypeSummary()
-	}
-	if tagAsStrict {
-		cg.TagAsStrict()
-	}
-
-	cg.AddNode(root)
-	mcp.EndFile()
-
 	result := NewCodePrinter_SourceAndMappings()
-	result.source = mcp.GetCode()
-
-	if gatherSourceMap {
-		base := mcp.GetCodePrinter_MappedCodePrinterBase()
-		base.adjustSourceMappings(result.source)
-		result.takeMappingsFrom(base)
-		result.mappings = result.iterMappings
-	} else {
-		result.mappings = codePrinter_emptyMappingsSeq
-	}
-	returnPooledPrinter(pooledCompact, pooledPretty)
-
+	b.buildSourceAndMappingsWithFormatInto(options, outputFormat, result, true)
+	result.mappings = result.iterMappings
 	return result
 }
 
