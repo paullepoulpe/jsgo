@@ -453,3 +453,16 @@ func TestReadAhead(t *testing.T) {
 		t.Fatalf("a second run of the same iterator yields %d elements, want 3", n)
 	}
 }
+
+// IsQuoted tells {'a': b} from {a: b}.
+func TestStringKeyIsQuoted(t *testing.T) {
+	newStore(t)
+	plain, ok := AsStringKey(rhino.IR_StringKeyWithValue("a", rhino.IR_Name("b")))
+	if !ok || plain.IsQuoted() || plain.Key() != "a" {
+		t.Fatal("{a: b}: want an unquoted key a")
+	}
+	quoted, ok := AsStringKey(rhino.IR_QuotedStringKey("a", rhino.IR_Name("b")))
+	if !ok || !quoted.IsQuoted() || quoted.Key() != "a" {
+		t.Fatal("{'a': b}: want a quoted key a")
+	}
+}

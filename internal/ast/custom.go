@@ -56,6 +56,10 @@ func (x Function) SetArrow(arrow bool) { x.node.SetIsArrowFunction(arrow) }
 // Value returns the number.
 func (x Number) Value() float64 { return x.node.GetDouble() }
 
+// IsQuoted reports whether the key of x was written as a string literal:
+// {'a': b} rather than {a: b}.
+func (x StringKey) IsQuoted() bool { return x.node.IsQuotedStringKey() }
+
 // Body returns the body of the loop x.
 func (x Loop) Body() Block {
 	if x.node.IsDo() {

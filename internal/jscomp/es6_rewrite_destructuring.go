@@ -22,12 +22,24 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) where it reads
+// pattern shapes: the properties of an object pattern (key.Value(),
+// computed.Key(), rest.Target()), the elements of an array pattern, default
+// values (dv.Target(), dv.Value()), the parameters of a function, and the
+// declaration, assignment, loop or catch that holds a pattern. The rewrites
+// take the kind they work on (ast.ObjectPattern, ast.ArrayPattern,
+// ast.DestructuringLhs, ast.EnhancedFor...) instead of a node they check
+// again, so the port no longer follows the Java line by line. The per-node
+// dispatch of shouldTraverse and visit stays a token switch, and the new code
+// is built with the rhino and AstFactory builders, in the Java's order.
 
 // Es6RewriteDestructuring rewrites destructuring patterns and default
 // parameters to valid ES3 code or to a different form of destructuring.
@@ -160,12 +172,12 @@ func (b *Es6RewriteDestructuring_Builder) Build() *Es6RewriteDestructuring {
 // Es6RewriteDestructuring_PatternNestingLevel is
 // Es6RewriteDestructuring.PatternNestingLevel.
 type Es6RewriteDestructuring_PatternNestingLevel struct {
-	pattern             rhino.Node
+	pattern             ast.Pattern
 	hasNestedObjectRest bool
 }
 
 // Java: PatternNestingLevel(Node, boolean)
-func NewEs6RewriteDestructuring_PatternNestingLevel(pattern rhino.Node, hasNestedRest bool) *Es6RewriteDestructuring_PatternNestingLevel {
+func NewEs6RewriteDestructuring_PatternNestingLevel(pattern ast.Pattern, hasNestedRest bool) *Es6RewriteDestructuring_PatternNestingLevel {
 	l := &Es6RewriteDestructuring_PatternNestingLevel{}
 	l.pattern = pattern
 	l.hasNestedObjectRest = hasNestedRest
@@ -210,9 +222,15 @@ func (e *Es6RewriteDestructuring) ShouldTraverse(t *NodeTraversal, n rhino.Node,
 	}
 	switch n.GetToken() {
 	case rhino.Token_PARAM_LIST:
-		e.PullDestructuringOutOfParams(n, parent)
+		function, ok := ast.AsFunction(parent)
+		jutil.CheckState(ok) // a parameter list is the child of a function
+		e.PullDestructuringOutOfParams(function)
 	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
-		hasRest := n.IsObjectPattern() && n.HasChildren() && n.GetLastChild().IsRest()
+		pattern, _ := ast.AsPattern(n) // the case proves the kind
+		hasRest := false
+		if objectPattern, ok := pattern.AsObjectPattern(); ok {
+			_, hasRest = es6RewriteDestructuring_objectRest(objectPattern)
+		}
 		if len(e.patternNestingStack) != 0 && hasRest {
 			for _, level := range e.patternNestingStack {
 				if level.hasNestedObjectRest {
@@ -222,18 +240,32 @@ func (e *Es6RewriteDestructuring) ShouldTraverse(t *NodeTraversal, n rhino.Node,
 			}
 			e.patternNestingStackPeekLast().hasNestedObjectRest = true
 		}
-		e.patternNestingStack = append(e.patternNestingStack, NewEs6RewriteDestructuring_PatternNestingLevel(n, hasRest))
+		e.patternNestingStack = append(e.patternNestingStack, NewEs6RewriteDestructuring_PatternNestingLevel(pattern, hasRest))
 	default:
 	}
 	return true
+}
+
+// es6RewriteDestructuring_objectRest returns the ...rest that ends
+// objectPattern; ok is false if it has none.
+//
+// Go-only: Java tests objectPattern.getLastChild().isRest() where it needs
+// this.
+func es6RewriteDestructuring_objectRest(objectPattern ast.ObjectPattern) (ast.ObjectRest, bool) {
+	last, ok := objectPattern.LastProp()
+	if !ok {
+		return ast.ObjectRest{}, false
+	}
+	return last.AsObjectRest()
 }
 
 // Java: Es6RewriteDestructuring.visit(NodeTraversal, Node, Node)
 func (e *Es6RewriteDestructuring) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
-		e.VisitPattern(t, n)
-		if n == e.patternNestingStackGetLast().pattern {
+		pattern, _ := ast.AsPattern(n) // the case proves the kind
+		e.VisitPattern(t, pattern)
+		if e.patternNestingStackGetLast().pattern.Is(n) {
 			e.patternNestingStack = e.patternNestingStack[:len(e.patternNestingStack)-1]
 		}
 	default:
@@ -246,53 +278,58 @@ func (e *Es6RewriteDestructuring) Visit(t *NodeTraversal, n rhino.Node, parent r
 // TODO(bradfordcsmith): Ideally if we're only removing OBJECT_REST, we should
 // only do this when the parameter list contains a usage of OBJECT_REST.
 //
+// Go-only: it takes the function alone; Java also passes its parameter list.
+//
 // Java: Es6RewriteDestructuring.pullDestructuringOutOfParams(Node, Node)
-func (e *Es6RewriteDestructuring) PullDestructuringOutOfParams(paramList rhino.Node, function rhino.Node) {
+func (e *Es6RewriteDestructuring) PullDestructuringOutOfParams(function ast.Function) {
 	var insertSpot rhino.Node = rhino.NilNode
-	body := function.GetLastChild()
-	var next rhino.Node = rhino.NilNode
-	for param := paramList.GetFirstChild(); !param.IsNil(); param = next {
-		next = param.GetNext()
-		if param.IsDefaultValue() {
-			nameOrPattern := param.RemoveFirstChild()
+	body := function.Body().Node()
+	var next ast.Param
+	var hasNext bool
+	for param, ok := function.Params().FirstParam(); ok; param, ok = next, hasNext {
+		next, hasNext = param.Next() // read it first: param may be replaced
+		if defaultParam, ok := param.AsDefaultValue(); ok {
+			nameOrPattern, defaultValue := defaultParam.Target(), defaultParam.Value() // read both before detaching either
+			nameOrPattern.Detach()
+			defaultValue.Detach()
 			// We'll be cloning nameOrPattern below, and we don't want to clone the JSDoc info with it
-			jsDoc := nameOrPattern.GetJSDocInfo()
-			nameOrPattern.SetJSDocInfo(nil)
-			defaultValue := param.RemoveFirstChild()
+			jsDoc := nameOrPattern.Node().GetJSDocInfo()
+			nameOrPattern.Node().SetJSDocInfo(nil)
 			var newParam rhino.Node
 
 			// Treat name=undefined (and equivalent) as if it was just name.  There
 			// is no need to generate a (name===void 0?void 0:name) statement for
 			// such arguments.
+			_, isName := nameOrPattern.AsName()
 			isNoop := false
-			if !nameOrPattern.IsName() {
+			if !isName {
 				// Do not try to optimize unless nameOrPattern is a simple name.
-			} else if defaultValue.IsName() {
-				isNoop = "undefined" == defaultValue.GetString()
-			} else if defaultValue.IsVoid() {
+			} else if name, ok := defaultValue.AsName(); ok {
+				isNoop = "undefined" == name.Ident()
+			} else if void, ok := defaultValue.AsUnary(); ok && void.Token() == rhino.Token_VOID {
 				// Any kind of 'void literal' is fine, but 'void fun()' or anything
 				// else with side effects isn't.  We're not trying to be particularly
 				// smart here and treat 'void {}' for example as if it could cause side effects.
-				isNoop = NodeUtil_IsImmutableValue(defaultValue.GetFirstChild())
+				isNoop = NodeUtil_IsImmutableValue(void.Operand().Node())
 			}
 
 			if isNoop {
-				newParam = nameOrPattern.CloneTree()
+				newParam = nameOrPattern.Node().CloneTree()
 			} else {
-				if nameOrPattern.IsName() {
-					newParam = nameOrPattern
+				if isName {
+					newParam = nameOrPattern.Node()
 				} else {
-					newParam = e.CreateTempVarNameNode(e.GetTempVariableName(), AstFactory_Type_(nameOrPattern))
+					newParam = e.CreateTempVarNameNode(e.GetTempVariableName(), AstFactory_Type_(nameOrPattern.Node()))
 				}
-				lhs := nameOrPattern.CloneTree()
-				rhs := e.DefaultValueHook(newParam.CloneTree(), defaultValue)
+				lhs := nameOrPattern.Node().CloneTree()
+				rhs := e.DefaultValueHook(newParam.CloneTree(), defaultValue.Node())
 				var newStatement rhino.Node
-				if nameOrPattern.IsName() {
+				if isName {
 					newStatement = rhino.IR_ExprResult(e.astFactory.CreateAssign(lhs, rhs))
 				} else {
 					newStatement = rhino.IR_VarWithValue(lhs, rhs)
 				}
-				newStatement.SrcrefTreeIfMissing(param)
+				newStatement.SrcrefTreeIfMissing(param.Node())
 				if insertSpot.IsNil() {
 					// insert new declarations only after all inner function declarations in that function
 					// body to preserve normalization
@@ -307,24 +344,25 @@ func (e *Es6RewriteDestructuring) PullDestructuringOutOfParams(paramList rhino.N
 					newStatement.InsertAfter(insertSpot)
 				}
 				insertSpot = newStatement
-				if newStatement.GetFirstChild().IsDestructuringLhs() {
-					insertSpot = e.RewriteVarDestructuringDeclaration(newStatement.GetFirstChild())
+				if destructuringLhs, ok := ast.AsDestructuringLhs(newStatement.GetFirstChild()); ok {
+					insertSpot = e.RewriteVarDestructuringDeclaration(destructuringLhs)
 				}
 			}
 
-			param.ReplaceWith(newParam)
+			param.Node().ReplaceWith(newParam)
 			newParam.SetJSDocInfo(jsDoc)
 
-			e.compiler.ReportChangeToChangeScope(function)
-		} else if param.IsDestructuringPattern() {
+			e.compiler.ReportChangeToChangeScope(function.Node())
+		} else if pattern, ok := param.AsPattern(); ok {
 			insertSpot =
-				e.ReplacePatternParamWithTempVar(function, insertSpot, param, e.GetTempVariableName())
-			e.compiler.ReportChangeToChangeScope(function)
-		} else if param.IsRest() && param.GetFirstChild().IsDestructuringPattern() {
-			insertSpot =
-				e.ReplacePatternParamWithTempVar(
-					function, insertSpot, param.GetFirstChild(), e.GetTempVariableName())
-			e.compiler.ReportChangeToChangeScope(function)
+				e.ReplacePatternParamWithTempVar(function, insertSpot, pattern, e.GetTempVariableName())
+			e.compiler.ReportChangeToChangeScope(function.Node())
+		} else if rest, ok := param.AsIterRest(); ok {
+			if pattern, ok := rest.Target().AsPattern(); ok {
+				insertSpot =
+					e.ReplacePatternParamWithTempVar(function, insertSpot, pattern, e.GetTempVariableName())
+				e.compiler.ReportChangeToChangeScope(function.Node())
+			}
 		}
 	}
 }
@@ -347,31 +385,34 @@ func (e *Es6RewriteDestructuring) PullDestructuringOutOfParams(paramList rhino.N
 //
 // Java: Es6RewriteDestructuring.replacePatternParamWithTempVar(Node, Node, Node, String)
 func (e *Es6RewriteDestructuring) ReplacePatternParamWithTempVar(
-	function rhino.Node, insertSpot rhino.Node, patternParam rhino.Node, tempVarName string) rhino.Node {
+	function ast.Function, insertSpot rhino.Node, patternParam ast.Pattern, tempVarName string) rhino.Node {
 	// Convert `function f([a, b]) {}` to `function f(tempVar) { var [a, b] = tempVar; }`
-	paramType := AstFactory_Type_(patternParam)
+	pattern := patternParam.Node()
+	paramType := AstFactory_Type_(pattern)
 	newParam := e.CreateTempVarNameNode(tempVarName, paramType)
-	newParam.SetJSDocInfo(patternParam.GetJSDocInfo())
-	patternParam.ReplaceWith(newParam)
-	newDecl := rhino.IR_VarWithValue(patternParam, e.CreateTempVarNameNode(tempVarName, paramType))
-	newDecl.SrcrefTreeIfMissing(patternParam)
+	newParam.SetJSDocInfo(pattern.GetJSDocInfo())
+	pattern.ReplaceWith(newParam)
+	newDecl := rhino.IR_VarWithValue(pattern, e.CreateTempVarNameNode(tempVarName, paramType))
+	newDecl.SrcrefTreeIfMissing(pattern)
 
 	if insertSpot.IsNil() {
 		// insert new declarations only after all inner function declarations in that function body to
 		// preserve normalization
-		insertSpot =
-			NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(function.GetLastChild())
+		body := function.Body().Node()
+		insertSpot = NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(body)
 		if !insertSpot.IsNil() {
 			newDecl.InsertBefore(insertSpot)
 		} else {
 			// functionBody only contains hoisted function declarations
-			function.GetLastChild().AddChildToBack(newDecl)
+			body.AddChildToBack(newDecl)
 		}
 	} else {
 		newDecl.InsertAfter(insertSpot)
 	}
 
-	return e.RewriteVarDestructuringDeclaration(newDecl.GetFirstChild())
+	destructuringLhs, ok := ast.AsDestructuringLhs(newDecl.GetFirstChild())
+	jutil.CheckStateMsg1(ok, "%s", newDecl.GetFirstChild())
+	return e.RewriteVarDestructuringDeclaration(destructuringLhs)
 }
 
 // RewriteVarDestructuringDeclaration rewrites a destructuring declaration to
@@ -384,17 +425,17 @@ func (e *Es6RewriteDestructuring) ReplacePatternParamWithTempVar(
 // expression result containing the assignment.
 //
 // Java: Es6RewriteDestructuring.rewriteVarDestructuringDeclaration(Node)
-func (e *Es6RewriteDestructuring) RewriteVarDestructuringDeclaration(destructuringLhs rhino.Node) rhino.Node {
-	jutil.CheckStateMsg1(destructuringLhs.IsDestructuringLhs(), "%s", destructuringLhs)
+func (e *Es6RewriteDestructuring) RewriteVarDestructuringDeclaration(destructuringLhs ast.DestructuringLhs) rhino.Node {
+	n := destructuringLhs.Node()
 	jutil.CheckStateMsg(
-		!destructuringLhs.GetGrandparent().IsExport(),
+		!n.GetGrandparent().IsExport(),
 		"Export destructuring declarations not expected inside a function body.")
-	var_ := destructuringLhs.GetParent()
+	var_ := n.GetParent()
 
 	// create a stub declaration for each name in the destructuring pattern
 	// e.g. generate `var a; var b;` from `var [a, b] = ...;`
 	NodeUtil_VisitLhsNodesInNode(
-		destructuringLhs,
+		n,
 		func(name rhino.Node) {
 			// Add a declaration outside the destructuring pattern for the given name.
 			jutil.CheckStateMsg1(
@@ -413,16 +454,12 @@ func (e *Es6RewriteDestructuring) RewriteVarDestructuringDeclaration(destructuri
 
 	// Transform destructuring var declaration to assignment. That is, `var [a, b] = ...` to `[a,
 	// b] = ...` and `var {a, b} = ...` to `({a, b} = ...);`
-	destructuringPattern := destructuringLhs.RemoveFirstChild()
-	if !destructuringPattern.IsDestructuringPattern() {
-		jutil.CheckStateMsg1(
-			false,
-			"Expected destructuring pattern but got %s",
-			destructuringPattern.ToStringTree())
-	}
-
-	rhs := destructuringLhs.RemoveFirstChild()
-	assign := e.astFactory.CreateAssign(destructuringPattern, rhs)
+	destructuringPattern := destructuringLhs.Pattern().Node()
+	rhs, ok := destructuringLhs.Init() // read both before detaching either
+	jutil.CheckStateMsg(ok, "Expected a value.")
+	destructuringPattern.Detach()
+	rhs.Detach()
+	assign := e.astFactory.CreateAssign(destructuringPattern, rhs.Node())
 	assign.Srcref(var_)
 	expr := e.astFactory.ExprResult(assign)
 	expr.Srcref(var_)
@@ -453,34 +490,40 @@ func (e *Es6RewriteDestructuring) GetTempVariableName() string {
 }
 
 // Java: Es6RewriteDestructuring.visitPattern(NodeTraversal, Node)
-func (e *Es6RewriteDestructuring) VisitPattern(t *NodeTraversal, pattern rhino.Node) {
-	parent := pattern.GetParent()
+func (e *Es6RewriteDestructuring) VisitPattern(t *NodeTraversal, pattern ast.Pattern) {
+	parent := pattern.Node().GetParent()
 
 	switch parent.GetToken() {
 	case rhino.Token_DESTRUCTURING_LHS:
 		{
+			destructuringLhs, _ := ast.AsDestructuringLhs(parent) // the case proves the kind
 			declaration := parent.GetParent()
 			declarationParent := declaration.GetParent()
 			if declarationParent.IsVanillaFor() {
-				e.VisitDestructuringPatternInVanillaForInnerVars(t, pattern)
-			} else if NodeUtil_IsEnhancedFor(declarationParent) {
-				e.VisitDestructuringPatternInEnhancedForInnerVars(pattern)
+				e.VisitDestructuringPatternInVanillaForInnerVars(t, destructuringLhs)
+			} else if forNode, ok := ast.AsEnhancedFor(declarationParent); ok {
+				e.VisitDestructuringPatternInEnhancedForInnerVars(forNode, destructuringLhs)
 			} else {
-				e.ReplacePattern(t, pattern, pattern.GetNext(), declaration, declaration)
+				rhs, ok := destructuringLhs.Init()
+				jutil.CheckState(ok) // only the declaration of a for-in or for-of loop has no value
+				e.ReplacePattern(t, pattern, rhs.Node(), declaration, declaration)
 			}
 		}
 	case rhino.Token_ASSIGN:
-		if parent.GetParent().IsExprResult() {
-			e.ReplacePattern(t, pattern, pattern.GetNext(), parent, parent.GetParent())
+		assign, _ := ast.AsAssign(parent) // the case proves the kind
+		if statement := parent.GetParent(); statement.IsExprResult() {
+			e.ReplacePattern(t, pattern, assign.Value().Node(), parent, statement)
 		} else {
 			e.WrapAssignOrDestructuringInCallToArrow(t, parent)
 		}
 	case rhino.Token_OBJECT_REST, rhino.Token_ITER_REST, rhino.Token_STRING_KEY, rhino.Token_ARRAY_PATTERN, rhino.Token_DEFAULT_VALUE, rhino.Token_COMPUTED_PROP:
 		// Nested pattern; do nothing. We will visit it after rewriting the parent.
 	case rhino.Token_FOR_OF, rhino.Token_FOR_IN, rhino.Token_FOR_AWAIT_OF:
-		e.VisitDestructuringPatternInEnhancedForWithOuterVars(pattern)
+		forNode, _ := ast.AsEnhancedFor(parent) // the case proves the kind
+		e.VisitDestructuringPatternInEnhancedForWithOuterVars(forNode, pattern)
 	case rhino.Token_CATCH:
-		e.VisitDestructuringPatternInCatch(t, pattern)
+		catch, _ := ast.AsCatch(parent) // the case proves the kind
+		e.VisitDestructuringPatternInCatch(t, catch, pattern)
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg("unexpected parent"))
 	}
@@ -492,16 +535,19 @@ func (e *Es6RewriteDestructuring) VisitPattern(t *NodeTraversal, pattern rhino.N
 // nodeToDetach is a statement node containing the pattern. This method will
 // replace the node with one or more other statements.
 //
+// Go-only: rhs is the value assigned to the pattern, and parent the var, let
+// or const that declares it or the assignment to it (kinds that share no
+// view, so it stays a rhino.Node).
+//
 // Java: Es6RewriteDestructuring.replacePattern(NodeTraversal, Node, Node, Node, Node)
 func (e *Es6RewriteDestructuring) ReplacePattern(
-	t *NodeTraversal, pattern rhino.Node, rhs rhino.Node, parent rhino.Node, nodeToDetach rhino.Node) {
+	t *NodeTraversal, pattern ast.Pattern, rhs rhino.Node, parent rhino.Node, nodeToDetach rhino.Node) {
 	jutil.CheckArgumentMsg1(NodeUtil_IsStatement(nodeToDetach), "%s", nodeToDetach)
-	switch pattern.GetToken() {
-	case rhino.Token_ARRAY_PATTERN:
-		e.ReplaceArrayPattern(t, pattern, rhs, parent, nodeToDetach)
-	case rhino.Token_OBJECT_PATTERN:
-		e.ReplaceObjectPattern(t, pattern, rhs, parent, nodeToDetach)
-	default:
+	if arrayPattern, ok := pattern.AsArrayPattern(); ok {
+		e.ReplaceArrayPattern(t, arrayPattern, rhs, parent, nodeToDetach)
+	} else if objectPattern, ok := pattern.AsObjectPattern(); ok {
+		e.ReplaceObjectPattern(t, objectPattern, rhs, parent, nodeToDetach)
+	} else {
 		panic(jutil.NewIllegalStateExceptionMsg("unexpected"))
 	}
 }
@@ -512,15 +558,15 @@ func (e *Es6RewriteDestructuring) ReplacePattern(
 //
 // Java: Es6RewriteDestructuring.replaceObjectPattern(NodeTraversal, Node, Node, Node, Node)
 func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
-	t *NodeTraversal, objectPattern rhino.Node, rhs rhino.Node, parent rhino.Node, nodeToDetach rhino.Node) {
+	t *NodeTraversal, objectPattern ast.ObjectPattern, rhs rhino.Node, parent rhino.Node, nodeToDetach rhino.Node) {
 	tempVarName := e.GetTempVariableName()
-	tempVarType := AstFactory_Type_(objectPattern)
+	tempVarType := AstFactory_Type_(objectPattern.Node())
 
 	var restTempVarName *string = nil
 	// If the last child is a rest node we will want a list of the stated properties so we can
 	// exclude them from being written to the rest variable.
 	var propsToDeleteForRest *jutil.ArrayList[rhino.Node] = nil
-	if objectPattern.HasChildren() && objectPattern.GetLastChild().IsRest() {
+	if _, hasRest := es6RewriteDestructuring_objectRest(objectPattern); hasRest {
 		propsToDeleteForRest = jutil.NewArrayList[rhino.Node]()
 		name := e.GetTempVariableName()
 		restTempVarName = &name
@@ -538,7 +584,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 	// create the declaration `var temp = rhs;`
 	tempDecl :=
 		rhino.IR_VarWithValue(e.CreateTempVarNameNode(tempVarName, tempVarType), rhs.Detach()).
-			SrcrefTreeIfMissing(objectPattern)
+			SrcrefTreeIfMissing(objectPattern.Node())
 	// TODO(tbreisacher): Remove the "if" and add this JSDoc unconditionally.
 	if parent.IsConst() {
 		jsDoc := rhino.JSDocInfo_Builder_()
@@ -547,53 +593,59 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 	}
 	tempDecl.InsertBefore(nodeToDetach)
 
-	var next rhino.Node
-	for child := objectPattern.GetFirstChild(); !child.IsNil(); child = next {
-		next = child.GetNext()
-
+	// Go-only: the loop empties each property (it moves out the key, target and
+	// default value) but leaves it in the pattern, so the iterator, which reads
+	// the next property after the body, sees the same one Java saved before.
+	for child := range objectPattern.Props() {
 		var newLHS rhino.Node
 		var newRHS rhino.Node
-		if child.IsStringKey() {
+		if key, ok := child.AsStringKey(); ok {
 			// const {a: b} = obj;
 			tempVarNameNode := e.CreateTempVarNameNode(tempVarName, tempVarType)
 			var getprop rhino.Node
-			if child.IsQuotedStringKey() {
+			if key.IsQuoted() {
 				getprop = e.astFactory.CreateGetElem(
-					tempVarNameNode, e.astFactory.CreateString(child.GetString()))
+					tempVarNameNode, e.astFactory.CreateString(key.Key()))
 			} else {
-				getprop = e.astFactory.CreateGetProp(tempVarNameNode, child.GetString(), tempVarType)
+				getprop = e.astFactory.CreateGetProp(tempVarNameNode, key.Key(), tempVarType)
 			}
 
-			value := child.RemoveFirstChild()
-			if !value.IsDefaultValue() {
-				newLHS = value
-				newRHS = getprop
-			} else {
-				newLHS = value.RemoveFirstChild()
-				defaultValue := value.RemoveFirstChild()
+			value := key.Value().Detach()
+			if defaultNode, ok := value.AsDefaultValue(); ok {
+				target, defaultValue := defaultNode.Target(), defaultNode.Value() // read both before detaching either
+				newLHS = target.Detach().Node()
+				defaultValue.Detach()
 				intermediateTempVarName := e.GetTempVariableName()
 				intermediateDecl :=
 					rhino.IR_VarWithValue(e.CreateTempVarNameNode(intermediateTempVarName, AstFactory_Type_(getprop)), getprop)
-				intermediateDecl.SrcrefTreeIfMissing(child)
+				intermediateDecl.SrcrefTreeIfMissing(key.Node())
 				intermediateDecl.InsertBefore(nodeToDetach)
 				newRHS =
 					e.DefaultValueHook(
-						e.CreateTempVarNameNode(intermediateTempVarName, AstFactory_Type_(getprop)), defaultValue)
+						e.CreateTempVarNameNode(intermediateTempVarName, AstFactory_Type_(getprop)), defaultValue.Node())
+			} else {
+				newLHS = value.Node()
+				newRHS = getprop
 			}
 			if propsToDeleteForRest != nil {
-				propsToDeleteForRest.Add(child)
+				propsToDeleteForRest.Add(key.Node())
 			}
-		} else if child.IsComputedProp() {
+		} else if computed, ok := child.AsComputedProp(); ok {
 			// const {[propExpr]: newLHS = defaultValue} = newRHS;
-			hasDefault := child.GetLastChild().IsDefaultValue()
+			// Read the key and the target before detaching either. The target is
+			// always there in a pattern.
+			key := computed.Key()
+			value, ok := computed.Value()
+			jutil.CheckStateMsg1(ok, "%s", computed.Node())
+			defaultNode, hasDefault := value.AsDefaultValue()
+			propExpr := key.Detach().Node()
 			var defaultValue rhino.Node
-			propExpr := child.RemoveFirstChild()
 			if hasDefault {
-				defaultNode := child.GetLastChild()
-				newLHS = defaultNode.RemoveFirstChild()
-				defaultValue = defaultNode.RemoveFirstChild()
+				target, defaultExpr := defaultNode.Target(), defaultNode.Value() // read both before detaching either
+				newLHS = target.Detach().Node()
+				defaultValue = defaultExpr.Detach().Node()
 			} else {
-				newLHS = child.RemoveFirstChild()
+				newLHS = value.Detach().Node()
 				defaultValue = rhino.NilNode
 			}
 			if propsToDeleteForRest != nil {
@@ -602,7 +654,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 				exprEvalTempVarModel :=
 					e.CreateTempVarNameNode(exprEvalTempVarName, AstFactory_Type_(propExpr)) // clone this node
 				exprEvalDecl := rhino.IR_VarWithValue(exprEvalTempVarModel.CloneNode(), propExpr)
-				exprEvalDecl.SrcrefTreeIfMissing(child)
+				exprEvalDecl.SrcrefTreeIfMissing(computed.Node())
 				exprEvalDecl.InsertBefore(nodeToDetach)
 				propExpr = exprEvalTempVarModel.CloneNode()
 				propsToDeleteForRest.Add(exprEvalTempVarModel.CloneNode())
@@ -616,7 +668,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 				intermediateTempVarName := e.GetTempVariableName()
 				intermediateDecl :=
 					rhino.IR_VarWithValue(e.CreateTempVarNameNode(intermediateTempVarName, AstFactory_Type_(getelem)), getelem)
-				intermediateDecl.SrcrefTreeIfMissing(child)
+				intermediateDecl.SrcrefTreeIfMissing(computed.Node())
 				intermediateDecl.InsertBefore(nodeToDetach)
 
 				// tempVarName2 === undefined ? defaultValue : tempVarName2
@@ -627,8 +679,8 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 				newRHS =
 					e.astFactory.CreateGetElem(e.CreateTempVarNameNode(tempVarName, AstFactory_Type_(newLHS)), propExpr)
 			}
-		} else if child.IsRest() {
-			if !next.IsNil() {
+		} else if rest, ok := child.AsObjectRest(); ok {
+			if _, hasNext := child.Next(); hasNext {
 				panic(jutil.NewIllegalStateExceptionMsg("object rest may not be followed by any properties"))
 			}
 			// Emit Object.assign here after preceding property bindings to preserve evaluation
@@ -644,17 +696,21 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 			assignCall.AddChildToBack(e.CreateTempVarNameNode(tempVarName, tempVarType))
 
 			restTempDecl := rhino.IR_VarWithValue(e.CreateTempVarNameNode(*restTempVarName, tempVarType), assignCall)
-			restTempDecl.SrcrefTreeIfMissing(objectPattern)
+			restTempDecl.SrcrefTreeIfMissing(objectPattern.Node())
 			restTempDecl.InsertBefore(nodeToDetach)
 
-			restName := child.GetOnlyChild() // e.g. get `rest` from `const {...rest} = {};`
-			if strings.HasPrefix(restName.GetString(), Es6RewriteDestructuring_DESTRUCTURING_TEMP_VAR) {
-				jutil.CheckStateMsg1(restName.IsName(), "%s", restName)
-				newLHS = e.CreateTempVarNameNode(restName.GetString(), AstFactory_Type_(restName))
+			restTarget := rest.Target() // e.g. get `rest` from `const {...rest} = {};`
+			// Go-only: Java reads the string of the target whatever its kind, which
+			// fails for an element access (`({...a[0]} = obj)` crashed the compiler)
+			// and, for a property access whose name has the prefix, trips the check
+			// that it is a name. Only a temporary name is cloned; any other target
+			// (a name, a property or element access) is moved.
+			if name, ok := restTarget.AsName(); ok && strings.HasPrefix(name.Ident(), Es6RewriteDestructuring_DESTRUCTURING_TEMP_VAR) {
+				newLHS = e.CreateTempVarNameNode(name.Ident(), AstFactory_Type_(name.Node()))
 			} else {
-				newLHS = restName.Detach()
+				newLHS = restTarget.Detach().Node()
 			}
-			newRHS = e.ObjectPatternRestRHS(objectPattern, child, *restTempVarName, propsToDeleteForRest)
+			newRHS = e.ObjectPatternRestRHS(objectPattern, rest, *restTempVarName, propsToDeleteForRest)
 		} else {
 			panic(jutil.NewIllegalStateExceptionMsg("unexpected child"))
 		}
@@ -670,7 +726,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 		} else {
 			panic(jutil.NewIllegalStateExceptionMsg("not reached"))
 		}
-		newNode.SrcrefTreeIfMissing(child)
+		newNode.SrcrefTreeIfMissing(child.Node())
 
 		newNode.InsertBefore(nodeToDetach)
 
@@ -707,9 +763,10 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 //
 // Java: Es6RewriteDestructuring.objectPatternRestRHS(Node, Node, String, ArrayList<Node>)
 func (e *Es6RewriteDestructuring) ObjectPatternRestRHS(
-	objectPattern rhino.Node, rest rhino.Node, restTempVarName string, statedProperties *jutil.ArrayList[rhino.Node]) rhino.Node {
-	jutil.CheckArgument(objectPattern.GetLastChild() == rest)
-	restTempVarModel := e.CreateTempVarNameNode(restTempVarName, AstFactory_Type_(objectPattern))
+	objectPattern ast.ObjectPattern, rest ast.ObjectRest, restTempVarName string, statedProperties *jutil.ArrayList[rhino.Node]) rhino.Node {
+	last, ok := objectPattern.LastProp()
+	jutil.CheckArgument(ok && last.Is(rest.Node()))
+	restTempVarModel := e.CreateTempVarNameNode(restTempVarName, AstFactory_Type_(objectPattern.Node()))
 	result := restTempVarModel.CloneNode()
 	if !statedProperties.IsEmpty() {
 		props := statedProperties.Slice()
@@ -721,25 +778,28 @@ func (e *Es6RewriteDestructuring) ObjectPatternRestRHS(
 		}
 		result = e.astFactory.CreateComma(comma, result)
 	}
-	result.SrcrefTreeIfMissing(rest)
+	result.SrcrefTreeIfMissing(rest.Node())
 	return result
 }
 
+// DeletionNodeForRestProperty returns `delete rest.key` for a property of
+// the pattern (a STRING_KEY), or `delete rest[temp]` for the temporary
+// variable that holds the value of a computed key (a NAME).
+//
 // Java: Es6RewriteDestructuring.deletionNodeForRestProperty(Node, Node)
 func (e *Es6RewriteDestructuring) DeletionNodeForRestProperty(restTempVarNameNode rhino.Node, property rhino.Node) rhino.Node {
 	var get rhino.Node
-	switch property.GetToken() {
-	case rhino.Token_STRING_KEY:
-		if property.IsQuotedStringKey() {
+	if key, ok := ast.AsStringKey(property); ok {
+		if key.IsQuoted() {
 			get = e.astFactory.CreateGetElem(
-				restTempVarNameNode, e.astFactory.CreateString(property.GetString()))
+				restTempVarNameNode, e.astFactory.CreateString(key.Key()))
 		} else {
 			get = e.astFactory.CreateGetPropWithUnknownType(
-				restTempVarNameNode, property.GetString())
+				restTempVarNameNode, key.Key())
 		}
-	case rhino.Token_NAME:
+	} else if property.IsName() {
 		get = e.astFactory.CreateGetElem(restTempVarNameNode, property)
-	default:
+	} else {
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"Unexpected property to delete node: " + property.ToStringTree()))
 	}
@@ -759,7 +819,7 @@ func (e *Es6RewriteDestructuring) DeletionNodeForRestProperty(restTempVarNameNod
 //
 // Java: Es6RewriteDestructuring.replaceArrayPattern(NodeTraversal, Node, Node, Node, Node)
 func (e *Es6RewriteDestructuring) ReplaceArrayPattern(
-	t *NodeTraversal, arrayPattern rhino.Node, rhs rhino.Node, parent rhino.Node, nodeToDetach rhino.Node) {
+	t *NodeTraversal, arrayPattern ast.ArrayPattern, rhs rhino.Node, parent rhino.Node, nodeToDetach rhino.Node) {
 
 	if e.rewriteMode == Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_OBJECT_REST {
 		if len(e.patternNestingStack) == 0 || !e.patternNestingStackPeekLast().hasNestedObjectRest {
@@ -771,27 +831,28 @@ func (e *Es6RewriteDestructuring) ReplaceArrayPattern(
 	makeIteratorCall := e.astFactory.CreateJSCompMakeIteratorCall(rhs.Detach(), e.namespace)
 	tempDecl := e.astFactory.CreateSingleVarNameDeclarationWithValue(tempVarName, makeIteratorCall)
 	tempVarModel := tempDecl.GetFirstChild()
-	tempDecl.SrcrefTreeIfMissing(arrayPattern)
+	tempDecl.SrcrefTreeIfMissing(arrayPattern.Node())
 	tempDecl.InsertBefore(nodeToDetach)
 
-	var next rhino.Node
-	for child := arrayPattern.GetFirstChild(); !child.IsNil(); child = next {
-		next = child.GetNext()
-		if child.IsEmpty() {
+	var next ast.ArrayPatternElem
+	var hasNext bool
+	for child, ok := arrayPattern.FirstElement(); ok; child, ok = next, hasNext {
+		next, hasNext = child.Next() // read it first: child may be detached
+		if _, ok := child.AsEmpty(); ok {
 			// Just call the next() method to advance the iterator, but throw away the value.
 			nextCall :=
 				rhino.IR_ExprResult(
 					e.astFactory.CreateCallWithUnknownType(
 						e.astFactory.CreateGetProp(
 							tempVarModel.CloneNode(), "next", AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT))))
-			nextCall.SrcrefTreeIfMissing(child)
+			nextCall.SrcrefTreeIfMissing(child.Node())
 			nextCall.InsertBefore(nodeToDetach)
 			continue
 		}
 
 		var newLHS rhino.Node
 		var newRHS rhino.Node
-		if child.IsDefaultValue() {
+		if defaultNode, ok := child.AsDefaultValue(); ok {
 			//   [x = defaultValue] = rhs;
 			// becomes
 			//   var temp0 = $jscomp.makeIterator(rhs);
@@ -807,21 +868,22 @@ func (e *Es6RewriteDestructuring) ReplaceArrayPattern(
 			nextVarType := AstFactory_Type_(nextCallDotValue)
 			// `var temp1 = temp.next().value`
 			var_ := rhino.IR_VarWithValue(e.CreateTempVarNameNode(nextVarName, nextVarType), nextCallDotValue)
-			var_.SrcrefTreeIfMissing(child)
+			var_.SrcrefTreeIfMissing(defaultNode.Node())
 			var_.InsertBefore(nodeToDetach)
 
+			target, defaultValue := defaultNode.Target(), defaultNode.Value() // read both before detaching either
 			// `x`
-			newLHS = child.RemoveFirstChild()
+			newLHS = target.Detach().Node()
 			// `(temp1 === undefined) ? defaultValue : temp1;
 			newRHS =
 				e.DefaultValueHook(
-					e.CreateTempVarNameNode(nextVarName, nextVarType), child.GetLastChild().Detach())
-		} else if child.IsRest() {
+					e.CreateTempVarNameNode(nextVarName, nextVarType), defaultValue.Detach().Node())
+		} else if rest, ok := child.AsIterRest(); ok {
 			//   [...x] = rhs;
 			// becomes
 			//   var temp = $jscomp.makeIterator(rhs);
 			//   x = $jscomp.arrayFromIterator(temp);
-			newLHS = child.RemoveFirstChild()
+			newLHS = rest.Target().Detach().Node()
 			newRHS = e.astFactory.CreateJscompArrayFromIteratorCall(tempVarModel.CloneNode(), e.namespace)
 		} else {
 			// LHS is just a name (or a nested pattern).
@@ -829,13 +891,13 @@ func (e *Es6RewriteDestructuring) ReplaceArrayPattern(
 			// becomes
 			//   var temp = $jscomp.makeIterator(rhs);
 			//   var x = temp.next().value;
-			newLHS = child.Detach()
+			newLHS = child.Detach().Node()
 			newRHS =
 				e.astFactory.CreateGetProp(
 					e.astFactory.CreateCallWithUnknownType(
 						e.astFactory.CreateGetPropWithUnknownType(tempVarModel.CloneNode(), "next")),
 					"value",
-					AstFactory_Type_(child))
+					AstFactory_Type_(newLHS))
 		}
 		var newNode rhino.Node
 		if parent.IsAssign() {
@@ -844,7 +906,7 @@ func (e *Es6RewriteDestructuring) ReplaceArrayPattern(
 		} else {
 			newNode = rhino.IR_DeclarationWithValue(newLHS, newRHS, parent.GetToken())
 		}
-		newNode.SrcrefTreeIfMissing(arrayPattern)
+		newNode.SrcrefTreeIfMissing(arrayPattern.Node())
 
 		newNode.InsertBefore(nodeToDetach)
 		// Explicitly visit the LHS of the new node since it may be a nested
@@ -879,9 +941,13 @@ func (e *Es6RewriteDestructuring) ReplaceArrayPattern(
 //	    return temp0;
 //	  })(rhs)
 //
+// Go-only: assignment is an ASSIGN or a DESTRUCTURING_LHS, two kinds that
+// share no view; both have the pattern as first child and the value as last.
+//
 // Java: Es6RewriteDestructuring.wrapAssignOrDestructuringInCallToArrow(NodeTraversal, Node)
 func (e *Es6RewriteDestructuring) WrapAssignOrDestructuringInCallToArrow(t *NodeTraversal, assignment rhino.Node) {
-	lhs := assignment.GetFirstChild()
+	lhs, ok := ast.AsPattern(assignment.GetFirstChild())
+	jutil.CheckStateMsg1(ok, "%s", assignment)
 	rhs := assignment.GetLastChild().Detach()
 	// NOTE: we do not presently support await/yield in the LHS of nested destructuring assignments.
 	// See b/475296868.
@@ -893,8 +959,8 @@ func (e *Es6RewriteDestructuring) WrapAssignOrDestructuringInCallToArrow(t *Node
 	//  ((temp0) => {...})
 	paramList := rhino.IR_ParamList(tempVarModel.CloneNode())
 	// [x, y] = temp0;
-	replacementExpr :=
-		e.astFactory.CreateAssign(assignment.RemoveFirstChild(), tempVarModel.CloneNode())
+	patternValue := tempVarModel.CloneNode()
+	replacementExpr := e.astFactory.CreateAssign(lhs.Detach().Node(), patternValue)
 	exprResult := rhino.IR_ExprResult(replacementExpr)
 	// return temp0;
 	returnNode := rhino.IR_ReturnNodeWithExpr(tempVarModel.CloneNode())
@@ -917,41 +983,39 @@ func (e *Es6RewriteDestructuring) WrapAssignOrDestructuringInCallToArrow(t *Node
 	assignment.ReplaceWith(call)
 	NodeUtil_MarkNewScopesChanged(call, e.compiler)
 
-	e.ReplacePattern(
-		t,
-		replacementExpr.GetFirstChild(),
-		replacementExpr.GetLastChild(),
-		replacementExpr,
-		exprResult)
+	e.ReplacePattern(t, lhs, patternValue, replacementExpr, exprResult)
 }
 
 // Java: Es6RewriteDestructuring.validateNoAwaitOrYieldInNestedAssignmentPattern(Node)
-func (e *Es6RewriteDestructuring) ValidateNoAwaitOrYieldInNestedAssignmentPattern(pattern rhino.Node) {
+func (e *Es6RewriteDestructuring) ValidateNoAwaitOrYieldInNestedAssignmentPattern(pattern ast.Pattern) {
 	hasAwaitOrYieldInLhs :=
 		!NodeUtil_FindPreorder(
-			pattern, func(n rhino.Node) bool { return n.IsAwait() || n.IsYield() }, NodeUtil_MATCH_NOT_FUNCTION).IsNil()
+			pattern.Node(), func(n rhino.Node) bool { return n.IsAwait() || n.IsYield() }, NodeUtil_MATCH_NOT_FUNCTION).IsNil()
 	jutil.CheckStateMsg1(
 		!hasAwaitOrYieldInLhs,
 		"Cannot transpile yet: destructuring assignment referencing await or yield in lhs, in"+
 			" nested sub-expression: %s",
-		pattern)
+		pattern.Node())
 }
 
 // VisitDestructuringPatternInVanillaForInnerVars handles
 // for (let [a, b, c] = arr; a < b; a++)
 //
+// Go-only: it takes the declarator of the pattern; Java takes the pattern.
+//
 // Java: Es6RewriteDestructuring.visitDestructuringPatternInVanillaForInnerVars(NodeTraversal, Node)
-func (e *Es6RewriteDestructuring) VisitDestructuringPatternInVanillaForInnerVars(t *NodeTraversal, pattern rhino.Node) {
-	jutil.CheckArgument(pattern.IsDestructuringPattern())
-	destructuringLhs := pattern.GetParent()
-	declaration := destructuringLhs.GetParent()
+func (e *Es6RewriteDestructuring) VisitDestructuringPatternInVanillaForInnerVars(t *NodeTraversal, destructuringLhs ast.DestructuringLhs) {
+	pattern := destructuringLhs.Pattern()
+	lhs := destructuringLhs.Node()
+	declaration, ok := ast.AsNameDeclaration(lhs.GetParent())
+	jutil.CheckState(ok) // a declarator is the child of a var, let or const
 
-	insertionPoint := declaration.GetParent()
+	insertionPoint := declaration.Node().GetParent()
 	for insertionPoint.GetParent().IsLabel() {
 		insertionPoint = insertionPoint.GetParent()
 	}
 
-	switch declaration.GetToken() {
+	switch declaration.Token() {
 	case rhino.Token_CONST:
 		{
 			block := rhino.IR_Block().Srcref(insertionPoint)
@@ -964,20 +1028,22 @@ func (e *Es6RewriteDestructuring) VisitDestructuringPatternInVanillaForInnerVars
 	case rhino.Token_VAR:
 		{
 			// Move any earlier variables out of the loop initializer
-			for c := declaration.GetFirstChild(); c != destructuringLhs; c = declaration.GetFirstChild() {
-				newDeclaration := declaration.CloneNode()
-				newDeclaration.AddChildToBack(c.Detach())
+			for c, ok := declaration.FirstDeclarator(); ok && !c.Is(lhs); c, ok = declaration.FirstDeclarator() {
+				newDeclaration := declaration.Node().CloneNode()
+				newDeclaration.AddChildToBack(c.Detach().Node())
 				newDeclaration.InsertBefore(insertionPoint)
 			}
 
 			// Move the pattern out of the initializer and transpile it
-			newDeclaration := declaration.CloneNode()
-			newDeclaration.AddChildToBack(destructuringLhs.Detach())
+			rhs, ok := destructuringLhs.Init()
+			jutil.CheckState(ok) // a pattern declared in a for initializer has a value
+			newDeclaration := declaration.Node().CloneNode()
+			newDeclaration.AddChildToBack(destructuringLhs.Detach().Node())
 			newDeclaration.InsertBefore(insertionPoint)
-			e.ReplacePattern(t, pattern, pattern.GetNext(), newDeclaration, newDeclaration)
+			e.ReplacePattern(t, pattern, rhs.Node(), newDeclaration, newDeclaration)
 
-			if !declaration.HasChildren() {
-				declaration.ReplaceWith(rhino.IR_Empty())
+			if !declaration.HasDeclarators() {
+				declaration.Node().ReplaceWith(rhino.IR_Empty())
 			}
 		}
 
@@ -986,19 +1052,19 @@ func (e *Es6RewriteDestructuring) VisitDestructuringPatternInVanillaForInnerVars
 		// for (let a, b, c, unusedTmp = (() => [a, b, c] = arr); a < b; a++)
 		{
 			parsing.ParsingUtil_GetParamOrPatternNames(
-				pattern, func(name rhino.Node) { name.CloneNode().InsertBefore(destructuringLhs) })
+				pattern.Node(), func(name rhino.Node) { name.CloneNode().InsertBefore(lhs) })
 
 			unusedVar :=
 				e.astFactory.
 					CreateNameWithUnknownType(e.GetTempVariableName() + "$unused").
-					Srcref(destructuringLhs)
-			destructuringLhs.ReplaceWith(unusedVar)
-			unusedVar.AddChildToBack(destructuringLhs)
-			e.WrapAssignOrDestructuringInCallToArrow(t, destructuringLhs)
+					Srcref(lhs)
+			lhs.ReplaceWith(unusedVar)
+			unusedVar.AddChildToBack(lhs)
+			e.WrapAssignOrDestructuringInCallToArrow(t, lhs)
 		}
 
 	default:
-		panic(jutil.NewIllegalStateExceptionMsg(declaration.String()))
+		panic(jutil.NewIllegalStateExceptionMsg(declaration.Node().String()))
 	}
 
 	e.compiler.ReportChangeToEnclosingScope(insertionPoint)
@@ -1007,20 +1073,18 @@ func (e *Es6RewriteDestructuring) VisitDestructuringPatternInVanillaForInnerVars
 // VisitDestructuringPatternInEnhancedForInnerVars handles
 // for (const [a, b, c] of arr)
 //
+// Go-only: it takes the loop and the declarator of the pattern; Java takes
+// the pattern.
+//
 // Java: Es6RewriteDestructuring.visitDestructuringPatternInEnhancedForInnerVars(Node)
-func (e *Es6RewriteDestructuring) VisitDestructuringPatternInEnhancedForInnerVars(pattern rhino.Node) {
-	jutil.CheckArgument(pattern.IsDestructuringPattern())
+func (e *Es6RewriteDestructuring) VisitDestructuringPatternInEnhancedForInnerVars(forNode ast.EnhancedFor, destructuringLhs ast.DestructuringLhs) {
 	tempVarName := e.GetTempVariableName()
 
-	destructuringLhs := pattern.GetParent()
-	jutil.CheckState(destructuringLhs.IsDestructuringLhs())
-	declarationNode := destructuringLhs.GetParent()
-	forNode := declarationNode.GetParent()
-	jutil.CheckState(NodeUtil_IsEnhancedFor(forNode))
-	block := forNode.GetLastChild()
+	pattern := destructuringLhs.Pattern().Node()
+	declarationType := destructuringLhs.Node().GetParent().GetToken()
+	block := forNode.Body().Node()
 
-	destructuringLhs.ReplaceWith(e.CreateTempVarNameNode(tempVarName, AstFactory_Type_(pattern)).Srcref(pattern))
-	declarationType := declarationNode.GetToken()
+	destructuringLhs.Node().ReplaceWith(e.CreateTempVarNameNode(tempVarName, AstFactory_Type_(pattern)).Srcref(pattern))
 	decl :=
 		rhino.IR_DeclarationWithValue(
 			pattern.Detach(), e.CreateTempVarNameNode(tempVarName, AstFactory_Type_(pattern)), declarationType)
@@ -1045,18 +1109,19 @@ func (e *Es6RewriteDestructuring) VisitDestructuringPatternInEnhancedForInnerVar
 //	    x = TEMP_VAR1.x;
 //	  }
 //
+// Go-only: it takes the loop too; Java takes the pattern alone.
+//
 // Java: Es6RewriteDestructuring.visitDestructuringPatternInEnhancedForWithOuterVars(Node)
-func (e *Es6RewriteDestructuring) VisitDestructuringPatternInEnhancedForWithOuterVars(pattern rhino.Node) {
-	jutil.CheckArgument(pattern.IsDestructuringPattern())
+func (e *Es6RewriteDestructuring) VisitDestructuringPatternInEnhancedForWithOuterVars(forNode ast.EnhancedFor, patternTarget ast.Pattern) {
 	tempVarName := e.GetTempVariableName()
 
-	forNode := pattern.GetParent()
-	block := forNode.GetLastChild()
+	pattern := patternTarget.Node()
+	block := forNode.Body().Node()
 
 	name := e.CreateTempVarNameNode(tempVarName, AstFactory_Type_(pattern))
 	decl := rhino.IR_Var(name)
 	decl.SrcrefTreeIfMissing(pattern)
-	decl.InsertBefore(forNode)
+	decl.InsertBefore(forNode.Node())
 	clonedName := name.CloneNode()
 	clonedName.SrcrefTreeIfMissing(pattern)
 	pattern.ReplaceWith(clonedName)
@@ -1067,10 +1132,13 @@ func (e *Es6RewriteDestructuring) VisitDestructuringPatternInEnhancedForWithOute
 	block.AddChildToFront(exprResult)
 }
 
+// Go-only: it takes the catch clause too; Java takes the pattern alone.
+//
 // Java: Es6RewriteDestructuring.visitDestructuringPatternInCatch(NodeTraversal, Node)
-func (e *Es6RewriteDestructuring) VisitDestructuringPatternInCatch(t *NodeTraversal, pattern rhino.Node) {
+func (e *Es6RewriteDestructuring) VisitDestructuringPatternInCatch(t *NodeTraversal, catch ast.Catch, patternParam ast.Pattern) {
 	tempVarName := e.GetTempVariableName()
-	catchBlock := pattern.GetNext()
+	catchBlock := catch.Body().Node()
+	pattern := patternParam.Node()
 	patternType := AstFactory_Type_(pattern)
 
 	pattern.ReplaceWith(e.CreateTempVarNameNode(tempVarName, patternType))

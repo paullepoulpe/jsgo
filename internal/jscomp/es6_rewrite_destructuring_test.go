@@ -1555,6 +1555,21 @@ obj.rest = (delete $jscomp$destructuring$var1.a, $jscomp$destructuring$var1);
 `)
 }
 
+// Go-only: an object rest assigned to an element access is moved like any
+// other target; Java reads the string of the GETELEM and throws a
+// ClassCastException.
+func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestAssignStatement_assignedToElement() {
+	c.Test(
+		"var a, arr = []; ({a, ...arr[0]} = foo());",
+		`var a;
+var arr = [];
+var $jscomp$destructuring$var0 = foo();
+a = $jscomp$destructuring$var0.a;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
+arr[0] = (delete $jscomp$destructuring$var1.a, $jscomp$destructuring$var1);
+`)
+}
+
 // Java: Es6RewriteDestructuringTest.testObjectPatternInAssignExpression_inGeneratorUsingYield()
 func (c *Es6RewriteDestructuringTest) TestObjectPatternInAssignExpression_inGeneratorUsingYield() {
 	// Test usage of yield in the RHS of the assign. We need to make it an argument to the arrow
