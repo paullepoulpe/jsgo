@@ -36,16 +36,8 @@ import (
 type ColorFindPropertyReferences struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	propIndex        *jutil.LinkedHashMap[string, *PropertyClustering]
-	useSiteChunkSlab jutil.Slab[propertyUseSiteChunk]
-	useSiteBuf       []PropertyUseSite
-	useSiteUsed      int
-	lastPropName     string
-	lastProp         *PropertyClustering
-
-	lastOwnerColor *colors.Color
-	lastFlatOwner  *ColorGraphNode
-	ownerMap       map[*colors.Color]*ColorGraphNode
+	propIndex *jutil.LinkedHashMap[string, *PropertyClustering]
+	ownerMap  map[*colors.Color]*ColorGraphNode
 
 	colorGraphNodeFactory *ColorGraphNodeFactory
 	isPropertyReflector   ColorFindPropertyReferences_IsPropertyReflector
@@ -81,18 +73,11 @@ func (r *ColorFindPropertyReferences) createNode(owner *colors.Color) *ColorGrap
 	if owner == nil {
 		owner = colors.StandardColors_UNKNOWN
 	}
-	if owner == r.lastOwnerColor && r.lastFlatOwner != nil {
-		return r.lastFlatOwner
-	}
 	if flat := r.ownerMap[owner]; flat != nil {
-		r.lastOwnerColor = owner
-		r.lastFlatOwner = flat
 		return flat
 	}
 	flat := r.colorGraphNodeFactory.CreateNode(owner)
 	r.ownerMap[owner] = flat
-	r.lastOwnerColor = owner
-	r.lastFlatOwner = flat
 	return flat
 }
 
@@ -129,7 +114,8 @@ func (r *ColorFindPropertyReferences) handleObjectLit(t *NodeTraversal, n rhino.
 		return
 	}
 
-	r.traverseObjectlitWithOwner(t, n, n.GetColor())
+	c := n.GetColor()
+	r.traverseObjectlitLike(t, n, func(rhino.Node) *colors.Color { return c })
 }
 
 // handleCall examines calls in case they are Object.defineProperties calls
@@ -212,7 +198,8 @@ func (r *ColorFindPropertyReferences) handleFunction(fnNode rhino.Node) {
 
 // Java: ColorFindPropertyReferences.handleObjectPattern(NodeTraversal, Node)
 func (r *ColorFindPropertyReferences) handleObjectPattern(t *NodeTraversal, pattern rhino.Node) {
-	r.traverseObjectlitWithOwner(t, pattern, pattern.GetColor())
+	c := pattern.GetColor()
+	r.traverseObjectlitLike(t, pattern, func(rhino.Node) *colors.Color { return c })
 }
 
 // Java: ColorFindPropertyReferences.handlePropertyReflectorCall(NodeTraversal, Node)
@@ -238,27 +225,8 @@ func (r *ColorFindPropertyReferences) handleObjectDefineProperties(t *NodeTraver
 		return
 	}
 
-	r.traverseObjectlitWithOwner(t, objectLiteral, typeObj.GetColor())
-}
-
-func (r *ColorFindPropertyReferences) traverseObjectlitWithOwner(t *NodeTraversal, n rhino.Node, owner *colors.Color) {
-	jutil.CheckState(n.IsObjectLit() || n.IsObjectPattern() || n.IsClassMembers())
-
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		switch child.GetToken() {
-		case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
-			continue
-		case rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-			if child.IsQuotedStringKey() {
-				continue // These won't be renamed due to our assumptions. Ignore them.
-			}
-
-			r.registerPropertyUse(t, child, owner)
-		default:
-			panic(jutil.NewIllegalStateExceptionMsg(
-				"Unexpected child of " + n.GetToken().String() + ": " + child.ToStringTree()))
-		}
-	}
+	c := typeObj.GetColor()
+	r.traverseObjectlitLike(t, objectLiteral, func(rhino.Node) *colors.Color { return c })
 }
 
 // Java: ColorFindPropertyReferences.traverseObjectlitLike(NodeTraversal, Node, Function<Node, Color>)
@@ -288,46 +256,16 @@ func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n 
 //
 // Java: ColorFindPropertyReferences.registerPropertyUse(NodeTraversal, Node, Color)
 func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site rhino.Node, owner *colors.Color) {
-	propName := site.GetString()
-	prop := r.lastProp
-	if prop == nil || propName != r.lastPropName {
-		prop = r.propIndex.Get(propName)
-		if prop == nil {
-			prop = new(PropertyClustering)
-			prop.init(propName)
-			r.propIndex.PutNew(propName, prop)
-		}
-		r.lastPropName = propName
-		r.lastProp = prop
-	}
+	prop := r.propIndex.ComputeIfAbsent(site.GetString(), NewPropertyClustering)
 	flatOwner := r.createNode(owner)
 
-	if prop.lastOwner != flatOwner && prop.lastOwner2 != flatOwner {
-		prop.lastOwner2 = prop.lastOwner
-		prop.lastOwner = flatOwner
-		// Set the initial condition for flowing this property along the graph.
-		if _, existed := flatOwner.GetAssociatedProps().LoadOrStore(prop, ColorGraphNode_PropAssociation_AST); !existed {
-			// Make sure there's a cluster for this name/type combination.
-			ufNode := new(standardUnionFind_Node[*ColorGraphNode])
-			ufNode.parent = ufNode
-			ufNode.element = flatOwner
-			ufNode.size = 1
-			prop.clustersMap.PutNew(flatOwner, ufNode)
-			prop.clusters.numSets++
-		}
+	// Set the initial condition for flowing this property along the graph.
+	if _, existed := flatOwner.GetAssociatedProps().LoadOrStore(prop, ColorGraphNode_PropAssociation_AST); !existed {
+		// Make sure there's a cluster for this name/type combination.
+		prop.GetClusters().Add(flatOwner)
 	}
 	// Record the site to rename once clusters are found. If it's an extern, we won't rename anyway.
-	u := &prop.useSites
-	c := u.count
-	u.count = c + 1
-	if c < int32(len(u.inline)) {
-		u.inline[c] = PropertyUseSite{site: site, owner: flatOwner}
-	} else if tail := u.tail; tail != nil && int(u.tailUsed) < len(tail.entries) {
-		tail.entries[u.tailUsed] = PropertyUseSite{site: site, owner: flatOwner}
-		u.tailUsed++
-	} else {
-		r.addUseSiteSlow(u, site, flatOwner)
-	}
+	prop.GetUseSites().PutNew(site, flatOwner)
 
 	// Track the cluster of types whose properties must keep their original name after
 	// disambiguation. Note: an "enum type" is the type of an enum object like "{STOP: 0, GO: 1}".
@@ -336,47 +274,6 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 	// in externs if the property node didn't have an externs source file. Related: b/186056977.
 	if t.GetCurrentScript().IsFromExterns() ||
 		(owner != nil && owner.GetPropertiesKeepOriginalName()) {
-		if prop.originalNameClusterRep == nil {
-			prop.originalNameClusterRep = flatOwner
-		} else if prop.originalNameClusterRep != flatOwner {
-			prop.clusters.Union(prop.originalNameClusterRep, flatOwner)
-		}
+		prop.RegisterOriginalNameType(flatOwner)
 	}
-}
-
-func (r *ColorFindPropertyReferences) addUseSiteSlow(u *PropertyUseSites, site rhino.Node, owner *ColorGraphNode) {
-	prevCount := int(u.count - 1)
-	chunkSize := 4
-	if prevCount >= 62 {
-		chunkSize = 64
-	} else if prevCount >= 30 {
-		chunkSize = 32
-	} else if prevCount >= 14 {
-		chunkSize = 16
-	} else if prevCount >= 6 {
-		chunkSize = 8
-	}
-	if len(r.useSiteBuf)-r.useSiteUsed < chunkSize {
-		n := len(r.useSiteBuf) * 2
-		if n < 256 {
-			n = 256
-		} else if n > 2047 {
-			n = 2047 // 2047 * 16B = 32752B <= 32760B
-		}
-		r.useSiteBuf = make([]PropertyUseSite, n)
-		r.useSiteUsed = 0
-	}
-	entries := r.useSiteBuf[r.useSiteUsed : r.useSiteUsed+chunkSize]
-	r.useSiteUsed += chunkSize
-	entries[0] = PropertyUseSite{site: site, owner: owner}
-
-	ch := r.useSiteChunkSlab.New()
-	ch.entries = entries
-	if u.tail == nil {
-		u.head = ch
-	} else {
-		u.tail.next = ch
-	}
-	u.tail = ch
-	u.tailUsed = 1
 }

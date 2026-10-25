@@ -1067,7 +1067,7 @@ func NewCoalesceVariableNames_LiveRangeChecker(
 
 func (l *CoalesceVariableNames_LiveRangeChecker) varIndex(name string) int {
 	if l.liveness != nil {
-		if idx, ok := l.liveness.scopeVariables.Lookup(name); ok {
+		if idx, ok := l.liveness.scopeVariables[name]; ok {
 			return idx
 		}
 		return -1

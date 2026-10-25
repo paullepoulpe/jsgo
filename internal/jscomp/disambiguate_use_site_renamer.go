@@ -97,33 +97,12 @@ func (r *UseSiteRenamer) RenameUses(prop *PropertyClustering) UseSiteRenamer_Ren
 		}
 	}
 
-	useSites := prop.GetUseSites()
-	nInline := int(useSites.count)
-	if nInline > len(useSites.inline) {
-		nInline = len(useSites.inline)
-	}
-	for i := 0; i < nInline; i++ {
-		e := useSites.inline[i]
-		flatRep := clusters.Find(e.owner)
+	for site, owner := range prop.GetUseSites().All() {
+		flatRep := clusters.Find(owner)
 		newName := r.scratchClusterNames[flatRep]
-		if newName != e.site.GetString() {
-			e.site.SetString(newName)
-			r.mutationCb(e.site)
-		}
-	}
-	for ch := useSites.head; ch != nil; ch = ch.next {
-		entries := ch.entries
-		if ch == useSites.tail {
-			entries = entries[:useSites.tailUsed]
-		}
-		for i := range entries {
-			e := entries[i]
-			flatRep := clusters.Find(e.owner)
-			newName := r.scratchClusterNames[flatRep]
-			if newName != e.site.GetString() {
-				e.site.SetString(newName)
-				r.mutationCb(e.site)
-			}
+		if newName != site.GetString() {
+			site.SetString(newName)
+			r.mutationCb(site)
 		}
 	}
 	return UseSiteRenamer_RenameUsesResult_DISAMBIGUATED
