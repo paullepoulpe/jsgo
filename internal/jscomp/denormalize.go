@@ -19,10 +19,21 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast). visit hands
+// each rewrite the kind it works on (ast.Statement, ast.Assign, ast.Binary),
+// and the rewrites read their shapes by role (stmt.Next(), forNode.Init(),
+// assign.Target(), op.Left()...) instead of child positions, so the port no
+// longer follows the Java line by line. Java's isCollapsableAssign and
+// isCollapsableLogicalAssign, with the name check their callers make, are
+// one comma-ok function each that returns the node to rewrite. Step 3 is
+// Go-only code (denormalizeVarInliner, in place of Java's
+// ReferenceCollector); its scope bookkeeping uses the rhino API.
 
 // Denormalize: the goal with this pass is to reverse the simplifications
 // done in the normalization pass that are not handled by other passes (such
@@ -124,19 +135,8 @@ func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 			continue
 		}
 		st := &inliner.states[idx-1]
-		if !st.declNode.IsNil() && !st.assignNode.IsNil() {
-			lhs := st.assignNode
-			assignNode := lhs.GetParent()
-			if assignNode.GetParent().IsExprResult() {
-				rhs := lhs.GetNext()
-				assignNode.GetParent().ReplaceWith(rhino.IR_VarWithValue(lhs.Detach(), rhs.Detach()))
-
-				var_ := st.declNode.GetParent()
-				jutil.CheckStateMsg1(var_.IsVar(), "%s", var_)
-				NodeUtil_RemoveChild(var_, st.declNode)
-
-				changed = true
-			}
+		if !st.declNode.IsNil() && !st.assignNode.IsNil() && denormalize_inlineVar(st.declNode, st.assignNode) {
+			changed = true
 		}
 	}
 	if changed {
@@ -144,18 +144,22 @@ func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 	}
 }
 
+// Visit records, for each variable declared in a function body, its last
+// declaration without value (var x;) and its first assignment (x = value)
+// in the same hoist scope.
 func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !n.IsName() || parent.IsNil() {
+	name, ok := ast.AsName(n)
+	if !ok || parent.IsNil() {
 		return
 	}
 	switch parent.GetToken() {
 	case rhino.Token_VAR:
-		if !n.HasChildren() && NodeUtil_IsStatement(parent) {
-			name := n.GetString()
-			if name == "" {
+		if _, hasValue := name.Init(); !hasValue && NodeUtil_IsStatement(parent) {
+			ident := name.Ident()
+			if ident == "" {
 				return
 			}
-			v := t.LookupVar(name)
+			v := t.LookupVar(ident)
 			if v != nil {
 				vRoot := v.scope.GetRootNode()
 				if vRoot.IsBlock() && vRoot.GetParent().IsFunction() {
@@ -169,13 +173,14 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n rhino.Node, pare
 			}
 		}
 	case rhino.Token_ASSIGN:
-		if parent.GetFirstChild() == n {
-			name := n.GetString()
-			if name == "" {
+		assign, _ := ast.AsAssign(parent) // the case proves the kind
+		if assign.Target().Is(n) {
+			ident := name.Ident()
+			if ident == "" {
 				return
 			}
 			scope := t.resolveLookupScope(len(t.scopes) - 1)
-			v := scope.GetVar(name)
+			v := scope.GetVar(ident)
 			if v != nil && scope.GetClosestHoistScope() == v.scope {
 				vRoot := v.scope.GetRootNode()
 				if vRoot.IsBlock() && vRoot.GetParent().IsFunction() {
@@ -189,12 +194,32 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n rhino.Node, pare
 	}
 }
 
-// Java: Denormalize.shouldTraverse(NodeTraversal, Node, Node)
-func (d *Denormalize) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+// denormalize_inlineVar moves the var keyword of `var x;` to an assignment
+// `x = value;` (a statement) in the same function: decl is the x of the var,
+// target the x assigned. It returns false, and changes nothing, when the
+// assignment is not a statement.
+//
+// (Go-only: the shared rewrite of afterExitScope and denormalizeVarInliner.)
+func denormalize_inlineVar(decl rhino.Node, target rhino.Node) bool {
+	assign, ok := ast.AsAssign(target.GetParent())
+	jutil.CheckState(ok)
+	stmt, ok := ast.AsExprStmt(assign.Node().GetParent())
+	if !ok {
+		return false
+	}
+	lhs, rhs := assign.Target(), assign.Value()
+	stmt.Node().ReplaceWith(rhino.IR_VarWithValue(lhs.Detach().Node(), rhs.Detach().Node()))
+
+	var_ := decl.GetParent()
+	jutil.CheckStateMsg1(var_.IsVar(), "%s", var_)
+	NodeUtil_RemoveChild(var_, decl)
 	return true
 }
 
 // AfterExitScope implements step 3 (inlining the var keyword).
+//
+// (Go: not called; Process runs denormalizeVarInliner instead of a
+// ReferenceCollector with this behavior.)
 //
 // Java: Denormalize.afterExitScope(NodeTraversal, ReferenceMap)
 func (d *Denormalize) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
@@ -216,19 +241,8 @@ func (d *Denormalize) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap
 					assign = r
 				}
 			}
-			if declaration != nil && assign != nil {
-				lhs := assign.GetNode()
-				assignNode := lhs.GetParent()
-				if assignNode.GetParent().IsExprResult() {
-					rhs := lhs.GetNext()
-					assignNode.GetParent().ReplaceWith(rhino.IR_VarWithValue(lhs.Detach(), rhs.Detach()))
-
-					var_ := declaration.GetNode().GetParent()
-					jutil.CheckStateMsg1(var_.IsVar(), "%s", var_)
-					NodeUtil_RemoveChild(var_, declaration.GetNode())
-
-					changed = true
-				}
+			if declaration != nil && assign != nil && denormalize_inlineVar(declaration.GetNode(), assign.GetNode()) {
+				changed = true
 			}
 		}
 
@@ -238,16 +252,27 @@ func (d *Denormalize) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap
 	}
 }
 
+// Java: Denormalize.shouldTraverse(NodeTraversal, Node, Node)
+func (d *Denormalize) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	return true
+}
+
+// (Go: a token switch, not an ast.Visitor: the pass does little per node, and
+// the visitor's dispatch made this traversal about 10% slower.)
+//
 // Java: Denormalize.visit(NodeTraversal, Node, Node)
 func (d *Denormalize) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_EXPR_RESULT, rhino.Token_VAR:
-		d.MaybeCollapseIntoForStatements(n, parent)
+		stmt, _ := ast.AsStatement(n) // the case proves the kind
+		d.MaybeCollapseIntoForStatements(stmt)
 	case rhino.Token_ASSIGN:
-		d.MaybeCollapseAssignShorthand(n, parent)
+		assign, _ := ast.AsAssign(n) // the case proves the kind
+		d.MaybeCollapseAssignShorthand(assign)
 	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
 		if d.hasLogicalAssign {
-			d.MaybeCollapseLogicalAssignShorthand(t, n, parent)
+			op, _ := ast.AsBinary(n) // the case proves the kind
+			d.MaybeCollapseLogicalAssignShorthand(t, op)
 		}
 	}
 }
@@ -256,40 +281,45 @@ func (d *Denormalize) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 // FOR loop initializers where possible.
 //
 // Java: Denormalize.maybeCollapseIntoForStatements(Node, Node)
-func (d *Denormalize) MaybeCollapseIntoForStatements(n rhino.Node, parent rhino.Node) {
+func (d *Denormalize) MaybeCollapseIntoForStatements(stmt ast.Statement) {
+	n := stmt.Node()
 	// Is the next statement a valid FOR?
-	nextSibling := n.GetNext()
-	if nextSibling.IsNil() {
+	nextSibling, ok := stmt.Next()
+	if !ok {
 		return
 	}
 
 	// Only SCRIPT, BLOCK, and LABELs can have FORs that can be collapsed into.
 	// LABELs are not supported here.
+	parent := n.GetParent()
 	if parent.IsNil() || !NodeUtil_IsStatementBlock(parent) {
 		return
 	}
 
 	// Is the current node something that can be in a for loop initializer?
-	if !n.IsExprResult() && !n.IsVar() {
+	exprStmt, isExprStmt := stmt.AsExprStmt()
+	varNode, isVar := denormalize_asVar(stmt)
+	if !isExprStmt && !isVar {
 		return
 	}
 
-	if nextSibling.IsForIn() || nextSibling.IsForOf() {
-		forNode := nextSibling
-		forVar := forNode.GetFirstChild()
-		if forVar.IsName() &&
-			n.IsVar() && n.HasOneChild() {
-			name := n.GetFirstChild()
-			if !name.HasChildren() &&
-				forVar.GetString() == name.GetString() {
-				// OK, the names match, and the var declaration does not have an
-				// initializer. Move it into the loop.
-				n.Detach()
-				forVar.ReplaceWith(n)
-				d.compiler.ReportChangeToEnclosingScope(parent)
-			}
+	if forNode, ok := nextSibling.AsEnhancedFor(); ok && forNode.Token() != rhino.Token_FOR_AWAIT_OF {
+		// (A for-in or for-of loop: Java leaves for-await-of alone.)
+		forVar, ok := forNode.Target().AsName()
+		if !ok || !isVar {
+			return
 		}
-	} else if nextSibling.IsVanillaFor() && nextSibling.GetFirstChild().IsEmpty() {
+		if name, ok := denormalize_onlyNameWithoutValue(varNode); ok && forVar.Ident() == name.Ident() {
+			// OK, the names match, and the var declaration does not have an
+			// initializer. Move it into the loop.
+			varNode.Detach()
+			forNode.Target().ReplaceWith(varNode.AsForTarget())
+			d.compiler.ReportChangeToEnclosingScope(parent)
+		}
+	} else if forNode, ok := nextSibling.AsFor(); ok {
+		if _, hasInit := forNode.Init(); hasInit {
+			return
+		}
 
 		// Does the current node contain an in operator?  If so, embedding
 		// the expression in a for loop can cause some JavaScript parsers (such
@@ -301,77 +331,135 @@ func (d *Denormalize) MaybeCollapseIntoForStatements(n rhino.Node, parent rhino.
 		}
 
 		// Move the current node into the FOR loop initializer.
-		forNode := nextSibling
-		oldInitializer := forNode.GetFirstChild()
 		n.Detach()
-
-		var newInitializer rhino.Node
-		if n.IsVar() {
-			newInitializer = n
+		var newInitializer ast.ForInit
+		if isVar {
+			newInitializer = varNode.AsForInit()
 		} else {
 			// Extract the expression from EXPR_RESULT node.
-			jutil.CheckStateMsg1(n.HasOneChild(), "%s", n)
-			newInitializer = n.GetFirstChild()
-			newInitializer.Detach()
+			newInitializer = exprStmt.Expr().Detach().AsForInit()
 		}
+		forNode.SetInit(newInitializer)
 
-		oldInitializer.ReplaceWith(newInitializer)
-
-		d.compiler.ReportChangeToEnclosingScope(forNode)
+		d.compiler.ReportChangeToEnclosingScope(forNode.Node())
 	}
+}
+
+// denormalize_asVar returns stmt as a var declaration; ok is false for
+// anything else, let and const included.
+func denormalize_asVar(stmt ast.Statement) (ast.NameDeclaration, bool) {
+	decl, ok := stmt.AsNameDeclaration()
+	return decl, ok && decl.Token() == rhino.Token_VAR
+}
+
+// denormalize_onlyNameWithoutValue returns the name declared by decl if it
+// declares a single name without a value (var x;); ok is false otherwise.
+func denormalize_onlyNameWithoutValue(decl ast.NameDeclaration) (ast.Name, bool) {
+	declarator, ok := decl.OnlyDeclarator()
+	if !ok {
+		return ast.Name{}, false
+	}
+	name, ok := declarator.AsName()
+	if !ok {
+		return ast.Name{}, false
+	}
+	_, hasValue := name.Init()
+	return name, !hasValue
 }
 
 // denormalize_alwaysTrue is Guava's Predicates.alwaysTrue().
 func denormalize_alwaysTrue(rhino.Node) bool { return true }
 
+// MaybeCollapseAssignShorthand rewrites x = x op y to x op= y.
+//
 // Java: Denormalize.maybeCollapseAssignShorthand(Node, Node)
-func (d *Denormalize) MaybeCollapseAssignShorthand(n rhino.Node, parent rhino.Node) {
-	if !d.IsCollapsableAssign(n) {
+func (d *Denormalize) MaybeCollapseAssignShorthand(assign ast.Assign) {
+	op, ok := d.IsCollapsableAssign(assign)
+	if !ok {
 		return
 	}
-	op := n.GetLastChild()
-	assignOp := d.GetAssignOpFromOp(op)
-	if n.GetFirstChild().GetString() == op.GetFirstChild().GetString() {
-		op.SetToken(assignOp)
-		opDetached := op.Detach()
-		opDetached.SetJSDocInfo(n.GetJSDocInfo())
-		n.ReplaceWith(opDetached)
-		d.compiler.ReportChangeToEnclosingScope(parent)
-	}
+	n := assign.Node()
+	parent := n.GetParent()
+	// x op y becomes x op= y in place (same children, new token), and takes
+	// the place of the assignment.
+	opNode := op.Node()
+	opNode.SetToken(d.GetAssignOpFromOp(opNode))
+	opNode.Detach()
+	opNode.SetJSDocInfo(n.GetJSDocInfo())
+	n.ReplaceWith(opNode)
+	d.compiler.ReportChangeToEnclosingScope(parent)
 }
 
+// MaybeCollapseLogicalAssignShorthand rewrites x || (x = y) to x ||= y, and
+// the same for && and ??.
+//
 // Java: Denormalize.maybeCollapseLogicalAssignShorthand(NodeTraversal, Node, Node)
-func (d *Denormalize) MaybeCollapseLogicalAssignShorthand(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !d.IsCollapsableLogicalAssign(n) {
+func (d *Denormalize) MaybeCollapseLogicalAssignShorthand(t *NodeTraversal, op ast.Binary) {
+	assign, ok := d.IsCollapsableLogicalAssign(op)
+	if !ok {
 		return
 	}
-	op := n.GetLastChild()
-	assignOp := d.GetAssignOpFromOp(n)
-	if n.GetFirstChild().GetString() == op.GetFirstChild().GetString() {
-		op.SetToken(assignOp)
-		opDetached := op.Detach()
-		opDetached.SetJSDocInfo(n.GetJSDocInfo())
-		n.ReplaceWith(opDetached)
-		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT, d.compiler)
-		d.compiler.ReportChangeToEnclosingScope(parent)
-	}
+	n := op.Node()
+	parent := n.GetParent()
+	// x = y becomes x ||= y in place (same children, new token), and takes
+	// the place of the ||.
+	assignNode := assign.Node()
+	assignNode.SetToken(d.GetAssignOpFromOp(n))
+	assignNode.Detach()
+	assignNode.SetJSDocInfo(n.GetJSDocInfo())
+	n.ReplaceWith(assignNode)
+	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT, d.compiler)
+	d.compiler.ReportChangeToEnclosingScope(parent)
 }
 
+// IsCollapsableAssign returns the operation of assign if assign is
+// x = x op y, with an op that has an assignment form (x op= y); ok is false
+// otherwise.
+//
+// (Go: Java's isCollapsableAssign returns a boolean, and its caller checks
+// that the two names are the same.)
+//
 // Java: Denormalize.isCollapsableAssign(Node)
-func (d *Denormalize) IsCollapsableAssign(n rhino.Node) bool {
-	return n.IsAssign() &&
-		n.GetFirstChild().IsName() &&
-		d.HasCorrespondingAssignmentOp(n.GetLastChild()) &&
-		n.GetLastChild().GetFirstChild().IsName()
+func (d *Denormalize) IsCollapsableAssign(assign ast.Assign) (ast.Binary, bool) {
+	target, ok := assign.Target().AsName()
+	if !ok {
+		return ast.Binary{}, false
+	}
+	op, ok := assign.Value().AsBinary()
+	if !ok || !d.HasCorrespondingAssignmentOp(op.Node()) {
+		return ast.Binary{}, false
+	}
+	left, ok := op.Left().AsName()
+	return op, ok && target.Ident() == left.Ident()
 }
 
+// IsCollapsableLogicalAssign returns the assignment of op if op is
+// x || (x = y), x && (x = y) or x ?? (x = y), and the output can have
+// logical assignments; ok is false otherwise.
+//
+// (Go: Java's isCollapsableLogicalAssign returns a boolean, and its caller
+// checks that the two names are the same.)
+//
 // Java: Denormalize.isCollapsableLogicalAssign(Node)
-func (d *Denormalize) IsCollapsableLogicalAssign(n rhino.Node) bool {
-	return d.outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT) &&
-		(n.IsOr() || n.IsAnd() || n.IsNullishCoalesce()) &&
-		n.GetFirstChild().IsName() &&
-		n.GetLastChild().IsAssign() &&
-		n.GetLastChild().GetFirstChild().IsName()
+func (d *Denormalize) IsCollapsableLogicalAssign(op ast.Binary) (ast.Assign, bool) {
+	if !d.outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT) {
+		return ast.Assign{}, false
+	}
+	switch op.Token() {
+	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
+	default:
+		return ast.Assign{}, false
+	}
+	left, ok := op.Left().AsName()
+	if !ok {
+		return ast.Assign{}, false
+	}
+	assign, ok := op.Right().AsAssign()
+	if !ok {
+		return ast.Assign{}, false
+	}
+	target, ok := assign.Target().AsName()
+	return assign, ok && left.Ident() == target.Ident()
 }
 
 // Java: Denormalize.getAssignOpFromOp(Node)
