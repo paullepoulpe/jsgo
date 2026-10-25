@@ -102,6 +102,22 @@ cut 1: identical.
 - **The record further**: 32 bytes needs another 4 bytes; the candidates
   (fewer inline boolean properties, the source-file id) cost more than they
   save today (about 2% of nodes would need a cold entry of ~100 B).
-- **GC settings**: with GOGC=25, typed-full peaks at ~300 MB RSS instead of
-  ~400 MB, for about 75 more GC cycles; a memory limit
-  (`debug.SetMemoryLimit`) would bound RSS more directly.
+- **GC settings.** The Go runtime lets the heap grow to about twice the live
+  heap before collecting (GOGC=100), so peak RSS is about twice the peak live
+  heap. A soft memory limit (the `GOMEMLIMIT` environment variable, honoured
+  by the runtime with no code change) makes the collector work harder only
+  near the limit. Medians of 3 runs (2026-10-25, after cut 3):
+
+  | workload | setting | wall | CPU | peak RSS |
+  |---|---|---|---|---|
+  | typed-full | GOGC=100 (default) | 27.4 s | 28.1 s | 473 MB |
+  | typed-full | GOGC=50 | 28.4 s | 29.9 s | 354 MB |
+  | typed-full | GOGC=25 | 28.2 s | 31.3 s | 316 MB |
+  | typed-full | GOMEMLIMIT=280MiB | 27.6 s | 29.5 s | 305 MB |
+  | bundle | GOGC=100 (default) | 10.4 s | 10.7 s | 229 MB |
+  | bundle | GOMEMLIMIT=160MiB | 10.2 s | 10.5 s | 184 MB |
+
+  A limit set too low (below the live heap) makes the collector run
+  continuously (the runtime caps it at half the CPU), so a default would
+  have to follow the input (for example a limit raised to a multiple of the
+  largest live heap seen so far) rather than be a constant.
