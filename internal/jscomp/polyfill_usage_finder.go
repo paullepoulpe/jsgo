@@ -104,12 +104,6 @@ func NewPolyfillUsageFinder_Polyfill(
 // PolyfillUsageFinder_Polyfills maps from polyfill names to the actual
 // Polyfill object.
 type PolyfillUsageFinder_Polyfills struct {
-	// Map of method polyfills, keyed by native method name.
-	methods *jutil.ListMultimap[string, *PolyfillUsageFinder_Polyfill]
-	// Map of static polyfills, keyed by fully-qualified native name.
-	statics *jutil.LinkedHashMap[string, *PolyfillUsageFinder_Polyfill]
-	// Set of suffixes of qualified names.
-	suffixes *jutil.LinkedHashSet[string]
 	// Map of all polyfills, keyed by their native version (the first ECMAScript spec version in
 	// which they are defined)
 	byNativeVersion *jutil.ListMultimap[string, *PolyfillUsageFinder_Polyfill]
@@ -119,49 +113,6 @@ type PolyfillUsageFinder_Polyfills struct {
 	suffixesMap map[string]struct{}
 	methodsMap  map[string][]*PolyfillUsageFinder_Polyfill
 	anyPropMap  map[string]struct{}
-}
-
-// Java: PolyfillUsageFinder.Polyfills(ImmutableMultimap<String, Polyfill>, ImmutableMap<String, Polyfill>, ImmutableMultimap<String, Polyfill>)
-func newPolyfillUsageFinder_Polyfills(
-	methods *jutil.ListMultimap[string, *PolyfillUsageFinder_Polyfill],
-	statics *jutil.LinkedHashMap[string, *PolyfillUsageFinder_Polyfill],
-	byNativeVersion *jutil.ListMultimap[string, *PolyfillUsageFinder_Polyfill]) *PolyfillUsageFinder_Polyfills {
-	p := &PolyfillUsageFinder_Polyfills{
-		methods:         methods,
-		statics:         statics,
-		byNativeVersion: byNativeVersion,
-		staticsMap:      make(map[string]*PolyfillUsageFinder_Polyfill, statics.Size()),
-		staticRoots:     make(map[string]struct{}, 16),
-		suffixesMap:     make(map[string]struct{}, statics.Size()),
-		methodsMap:      make(map[string][]*PolyfillUsageFinder_Polyfill, methods.Size()),
-		anyPropMap:      make(map[string]struct{}, statics.Size()+methods.Size()),
-	}
-	suffixes := jutil.NewLinkedHashSet[string]()
-	for arg := range statics.Keys() {
-		p.staticsMap[arg] = statics.Get(arg)
-		if dot := strings.IndexByte(arg, '.'); dot > 0 {
-			p.staticRoots[arg[:dot]] = struct{}{}
-		}
-		suffix := jutil.StringSubstringFrom(arg, jutil.StringLastIndexOf(arg, ".")+1)
-		suffixes.Add(suffix)
-		p.suffixesMap[suffix] = struct{}{}
-		p.anyPropMap[suffix] = struct{}{}
-	}
-	p.suffixes = suffixes
-	for methodName := range methods.KeySet() {
-		p.methodsMap[methodName] = methods.Get(methodName)
-		p.anyPropMap[methodName] = struct{}{}
-	}
-	return p
-}
-
-func (p *PolyfillUsageFinder_Polyfills) mightHaveStaticNode(n rhino.Node) bool {
-	return p.staticsMap[n.GetString()] != nil
-}
-
-func (p *PolyfillUsageFinder_Polyfills) mightHavePropNode(n rhino.Node) bool {
-	_, ok := p.anyPropMap[n.GetString()]
-	return ok
 }
 
 func (p *PolyfillUsageFinder_Polyfills) getStatic(name string) *PolyfillUsageFinder_Polyfill {
@@ -218,9 +169,14 @@ func PolyfillUsageFinder_Polyfills_FromTable(table string) *PolyfillUsageFinder_
 }
 
 func polyfillUsageFinder_Polyfills_parseTable(table string) *PolyfillUsageFinder_Polyfills {
-	methods := jutil.NewImmutableListMultimapBuilder[string, *PolyfillUsageFinder_Polyfill]()
-	statics := jutil.NewImmutableMapBuilder[string, *PolyfillUsageFinder_Polyfill]()
 	byNativeVersion := jutil.NewImmutableListMultimapBuilder[string, *PolyfillUsageFinder_Polyfill]()
+	p := &PolyfillUsageFinder_Polyfills{
+		staticsMap:  make(map[string]*PolyfillUsageFinder_Polyfill),
+		staticRoots: make(map[string]struct{}),
+		suffixesMap: make(map[string]struct{}),
+		methodsMap:  make(map[string][]*PolyfillUsageFinder_Polyfill),
+		anyPropMap:  make(map[string]struct{}),
+	}
 	for _, line := range jutil.Splitter_OnCharOmitEmptyStrings(table, '\n') {
 		tokens := jutil.Splitter_OnCharOmitEmptyStrings(jutil.StringTrim(line), ' ')
 		if len(tokens) == 1 && tokens[0] == "" {
@@ -249,13 +205,25 @@ func polyfillUsageFinder_Polyfills_parseTable(table string) *PolyfillUsageFinder
 				library,
 				kind)
 		if isPrototypeMethod {
-			methods.Put(symbol[protoIdx+len(".prototype."):], polyfill)
+			methodName := symbol[protoIdx+len(".prototype."):]
+			p.methodsMap[methodName] = append(p.methodsMap[methodName], polyfill)
+			p.anyPropMap[methodName] = struct{}{}
 		} else {
-			statics.Put(symbol, polyfill)
+			if _, exists := p.staticsMap[symbol]; exists {
+				panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + symbol))
+			}
+			p.staticsMap[symbol] = polyfill
+			if dot := strings.IndexByte(symbol, '.'); dot > 0 {
+				p.staticRoots[symbol[:dot]] = struct{}{}
+			}
+			suffix := symbol[strings.LastIndexByte(symbol, '.')+1:]
+			p.suffixesMap[suffix] = struct{}{}
+			p.anyPropMap[suffix] = struct{}{}
 		}
 		byNativeVersion.Put(nativeVersionStr, polyfill)
 	}
-	return newPolyfillUsageFinder_Polyfills(methods.Build(), statics.BuildOrThrow(), byNativeVersion.Build())
+	p.byNativeVersion = byNativeVersion.Build()
+	return p
 }
 
 // Java: PolyfillUsageFinder.Polyfills.getPolyfillsNewerThan(LanguageMode)
@@ -434,11 +402,27 @@ func newPolyfillUsageFinder_Traverser(
 	includeGuardedUsages polyfillUsageFinder_Guard) *polyfillUsageFinder_Traverser {
 	tr := &polyfillUsageFinder_Traverser{outer: outer}
 	tr.InitGuardedCallbackBase(tr, compiler)
-	tr.onlyNameLeaves = true
-	tr.polyfills = outer.polyfills
 	tr.polyfillConsumer = polyfillConsumer
 	tr.includeGuardedUsages = includeGuardedUsages
 	return tr
+}
+
+func (tr *polyfillUsageFinder_Traverser) ShouldTraverse(traversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if !parent.IsNil() && n.GetFirstChild().IsNil() && len(tr.registeredGuards) == 0 {
+		switch n.GetToken() {
+		case rhino.Token_NAME:
+			if tr.outer.polyfills.getStatic(n.GetString()) == nil {
+				return false
+			}
+		case rhino.Token_RETURN, rhino.Token_THROW:
+			if len(tr.installedGuards) == 0 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return tr.GuardedCallbackBase.ShouldTraverse(traversal, n, parent)
 }
 
 // Java: PolyfillUsageFinder.Traverser.visitGuarded(NodeTraversal, Node, Node)
