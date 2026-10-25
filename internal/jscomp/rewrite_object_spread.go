@@ -19,10 +19,16 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) to read the
+// object literal it rewrites: its members (ast.ObjectMember), which of them
+// are spreads, and the expression of each spread (spread.Expr()). The
+// Object.assign call and the object literals it receives come from the
+// AstFactory (which sets their colors), so they stay rhino.Nodes.
 
 // RewriteObjectSpread converts object spread to valid ES2017 code.
 //
@@ -64,17 +70,15 @@ func (r *RewriteObjectSpread) ShouldTraverse(t *NodeTraversal, n rhino.Node, par
 
 // Java: RewriteObjectSpread.visit(NodeTraversal, Node, Node)
 func (r *RewriteObjectSpread) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_OBJECTLIT:
-		r.VisitObject(n)
-	default:
+	if obj, ok := ast.AsObjectLit(n); ok {
+		r.VisitObject(obj)
 	}
 }
 
 // Java: RewriteObjectSpread.visitObject(Node)
-func (r *RewriteObjectSpread) VisitObject(obj rhino.Node) {
-	for child := obj.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child.IsSpread() {
+func (r *RewriteObjectSpread) VisitObject(obj ast.ObjectLit) {
+	for member := range obj.Members() {
+		if _, ok := member.AsObjectSpread(); ok {
 			r.VisitObjectWithSpread(obj)
 			return
 		}
@@ -86,25 +90,26 @@ func (r *RewriteObjectSpread) VisitObject(obj rhino.Node) {
 // Object.assign({}, {first:b, c}, spread, {d:e, last});
 //
 // Java: RewriteObjectSpread.visitObjectWithSpread(Node)
-func (r *RewriteObjectSpread) VisitObjectWithSpread(obj rhino.Node) {
-	jutil.CheckArgument(obj.IsObjectLit())
-
+func (r *RewriteObjectSpread) VisitObjectWithSpread(obj ast.ObjectLit) {
 	// Add an empty target object literal so changes made by Object.assign will not affect any other
 	// variables.
 	result :=
-		r.astFactory.CreateObjectDotAssignCall(r.namespace, AstFactory_Type_(obj), r.astFactory.CreateObjectLit())
+		r.astFactory.CreateObjectDotAssignCall(r.namespace, AstFactory_Type_(obj.Node()), r.astFactory.CreateObjectLit())
 
 	// An indicator whether the current last thing in the param list is an object literal to which
 	// properties may be added.  Initialized to null since nothing should be added to the empty
 	// object literal in first position of the param list.
 	var trailingObjectLiteral rhino.Node = rhino.NilNode
 
-	for child := obj.GetFirstChild(); !child.IsNil(); {
-		next := child.GetNext()
-		if child.IsSpread() {
+	// The next member is read before the current one moves.
+	next, more := obj.FirstMember()
+	for more {
+		member := next
+		next, more = member.Next()
+		if spread, ok := member.AsObjectSpread(); ok {
 			// Add the object directly to the param list.
-			spreaded := child.RemoveFirstChild()
-			result.AddChildToBack(spreaded)
+			spreaded := spread.Expr().Detach()
+			result.AddChildToBack(spreaded.Node())
 
 			// Properties should not be added to the trailing object.
 			trailingObjectLiteral = rhino.NilNode
@@ -115,12 +120,11 @@ func (r *RewriteObjectSpread) VisitObjectWithSpread(obj rhino.Node) {
 				result.AddChildToBack(trailingObjectLiteral)
 			}
 			// Add the property to the object literal.
-			trailingObjectLiteral.AddChildToBack(child.Detach())
+			trailingObjectLiteral.AddChildToBack(member.Detach().Node())
 		}
-		child = next
 	}
 
-	result.SrcrefTreeIfMissing(obj)
-	obj.ReplaceWith(result)
+	result.SrcrefTreeIfMissing(obj.Node())
+	obj.Node().ReplaceWith(result)
 	r.compiler.ReportChangeToEnclosingScope(result)
 }
