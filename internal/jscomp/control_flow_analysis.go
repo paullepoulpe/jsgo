@@ -384,9 +384,6 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, curr
 		*currentNode = n
 		if c.ShouldTraverse(nil, n, parent) {
 			fnName := n.GetFirstChild()
-			if !parent.IsNil() {
-				_ = NodeUtil_IsFunctionDeclaration(n)
-			}
 			args := fnName.GetNext()
 			body := args.GetNext()
 			c.walkBranch(fnName, n, currentNode, currentScript)
@@ -402,7 +399,6 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, curr
 			className := n.GetFirstChild()
 			extendsClause := className.GetNext()
 			body := extendsClause.GetNext()
-			_ = NodeUtil_IsClassExpression(n)
 			c.walkBranch(extendsClause, n, currentNode, currentScript)
 			c.walkBranch(className, n, currentNode, currentScript)
 			c.walkBranch(body, n, currentNode, currentScript)
