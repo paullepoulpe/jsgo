@@ -387,3 +387,19 @@ func TestMust(t *testing.T) {
 	}()
 	MustIf(name.Node())
 }
+
+func TestTemplateLitString(t *testing.T) {
+	newStore(t)
+	cooked := "a\nb"
+	s, ok := AsTemplateLitString(rhino.Node_NewTemplateLitString(&cooked, `a\nb`))
+	if !ok {
+		t.Fatal("AsTemplateLitString")
+	}
+	if c, ok := s.Cooked(); s.Raw() != `a\nb` || !ok || c != "a\nb" {
+		t.Fatalf("Raw %q Cooked %q %v", s.Raw(), c, ok)
+	}
+	none, _ := AsTemplateLitString(rhino.Node_NewTemplateLitString(nil, `\u{`))
+	if _, ok := none.Cooked(); ok {
+		t.Fatal("Cooked of a string without one")
+	}
+}

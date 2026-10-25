@@ -74,3 +74,15 @@ func NewGetProp(object Expr, property string) GetProp {
 
 // NewLabelName returns a new LabelName.
 func NewLabelName(ident string) LabelName { return LabelName{rhino.IR_LabelName(ident)} }
+
+// Raw returns the raw text of x, as written in the source.
+func (x TemplateLitString) Raw() string { return x.node.GetRawString() }
+
+// Cooked returns the cooked text of x (escapes processed); ok is false if
+// it has none (an invalid escape in a tagged template).
+func (x TemplateLitString) Cooked() (s string, ok bool) {
+	if p := x.node.GetCookedString(); p != nil {
+		return *p, true
+	}
+	return "", false
+}
