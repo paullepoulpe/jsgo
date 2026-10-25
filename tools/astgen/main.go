@@ -896,6 +896,9 @@ func (w *gen) elementNavigation() {
 		w.p("// Next returns the element after x in its list; ok is false if x is the last one.")
 		w.p("func (x %s) Next() (%s, bool) { c := x.node.GetNext(); return %s }", t, t, check)
 		w.p("")
+		w.p("// IsLast reports whether x is the last element of its list (Next has none).")
+		w.p("func (x %s) IsLast() bool { _, ok := x.Next(); return !ok }", t)
+		w.p("")
 		if !uses[t].other {
 			w.p("// Previous returns the element before x in its list; ok is false if x is the first one.")
 			w.p("func (x %s) Previous() (%s, bool) { c := x.node.GetPrevious(); return %s }", t, t, check)

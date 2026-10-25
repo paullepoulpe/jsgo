@@ -10553,11 +10553,17 @@ func (x Assignment) Value() Expr { return Expr{x.node.GetSecondChild()} }
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x RootItem) Next() (RootItem, bool) { c := x.node.GetNext(); return AsRootItem(c) }
 
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x RootItem) IsLast() bool { _, ok := x.Next(); return !ok }
+
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x RootItem) Previous() (RootItem, bool) { c := x.node.GetPrevious(); return AsRootItem(c) }
 
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x ScriptItem) Next() (ScriptItem, bool) { c := x.node.GetNext(); return AsScriptItem(c) }
+
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x ScriptItem) IsLast() bool { _, ok := x.Next(); return !ok }
 
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x ScriptItem) Previous() (ScriptItem, bool) { c := x.node.GetPrevious(); return AsScriptItem(c) }
@@ -10565,11 +10571,17 @@ func (x ScriptItem) Previous() (ScriptItem, bool) { c := x.node.GetPrevious(); r
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x Statement) Next() (Statement, bool) { c := x.node.GetNext(); return AsStatement(c) }
 
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x Statement) IsLast() bool { _, ok := x.Next(); return !ok }
+
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x Statement) Previous() (Statement, bool) { c := x.node.GetPrevious(); return AsStatement(c) }
 
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x SwitchCase) Next() (SwitchCase, bool) { c := x.node.GetNext(); return AsSwitchCase(c) }
+
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x SwitchCase) IsLast() bool { _, ok := x.Next(); return !ok }
 
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x SwitchCase) Previous() (SwitchCase, bool) { c := x.node.GetPrevious(); return AsSwitchCase(c) }
@@ -10577,11 +10589,17 @@ func (x SwitchCase) Previous() (SwitchCase, bool) { c := x.node.GetPrevious(); r
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x Declarator) Next() (Declarator, bool) { c := x.node.GetNext(); return AsDeclarator(c) }
 
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x Declarator) IsLast() bool { _, ok := x.Next(); return !ok }
+
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x Declarator) Previous() (Declarator, bool) { c := x.node.GetPrevious(); return AsDeclarator(c) }
 
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x Param) Next() (Param, bool) { c := x.node.GetNext(); return AsParam(c) }
+
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x Param) IsLast() bool { _, ok := x.Next(); return !ok }
 
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x Param) Previous() (Param, bool) { c := x.node.GetPrevious(); return AsParam(c) }
@@ -10591,6 +10609,9 @@ func (x ArrayPatternElem) Next() (ArrayPatternElem, bool) {
 	c := x.node.GetNext()
 	return AsArrayPatternElem(c)
 }
+
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x ArrayPatternElem) IsLast() bool { _, ok := x.Next(); return !ok }
 
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x ArrayPatternElem) Previous() (ArrayPatternElem, bool) {
@@ -10604,6 +10625,9 @@ func (x ObjectPatternProp) Next() (ObjectPatternProp, bool) {
 	return AsObjectPatternProp(c)
 }
 
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x ObjectPatternProp) IsLast() bool { _, ok := x.Next(); return !ok }
+
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x ObjectPatternProp) Previous() (ObjectPatternProp, bool) {
 	c := x.node.GetPrevious()
@@ -10612,6 +10636,9 @@ func (x ObjectPatternProp) Previous() (ObjectPatternProp, bool) {
 
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x ClassMember) Next() (ClassMember, bool) { c := x.node.GetNext(); return AsClassMember(c) }
+
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x ClassMember) IsLast() bool { _, ok := x.Next(); return !ok }
 
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x ClassMember) Previous() (ClassMember, bool) {
@@ -10622,6 +10649,9 @@ func (x ClassMember) Previous() (ClassMember, bool) {
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x TemplatePart) Next() (TemplatePart, bool) { c := x.node.GetNext(); return AsTemplatePart(c) }
 
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x TemplatePart) IsLast() bool { _, ok := x.Next(); return !ok }
+
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x TemplatePart) Previous() (TemplatePart, bool) {
 	c := x.node.GetPrevious()
@@ -10631,11 +10661,17 @@ func (x TemplatePart) Previous() (TemplatePart, bool) {
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x ArrayElem) Next() (ArrayElem, bool) { c := x.node.GetNext(); return AsArrayElem(c) }
 
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x ArrayElem) IsLast() bool { _, ok := x.Next(); return !ok }
+
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x ArrayElem) Previous() (ArrayElem, bool) { c := x.node.GetPrevious(); return AsArrayElem(c) }
 
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x ObjectMember) Next() (ObjectMember, bool) { c := x.node.GetNext(); return AsObjectMember(c) }
+
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x ObjectMember) IsLast() bool { _, ok := x.Next(); return !ok }
 
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x ObjectMember) Previous() (ObjectMember, bool) {
@@ -10646,14 +10682,23 @@ func (x ObjectMember) Previous() (ObjectMember, bool) {
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x Arg) Next() (Arg, bool) { c := x.node.GetNext(); return AsArg(c) }
 
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x Arg) IsLast() bool { _, ok := x.Next(); return !ok }
+
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x ImportSpec) Next() (ImportSpec, bool) { c := x.node.GetNext(); return AsImportSpec(c) }
+
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x ImportSpec) IsLast() bool { _, ok := x.Next(); return !ok }
 
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x ImportSpec) Previous() (ImportSpec, bool) { c := x.node.GetPrevious(); return AsImportSpec(c) }
 
 // Next returns the element after x in its list; ok is false if x is the last one.
 func (x ExportSpec) Next() (ExportSpec, bool) { c := x.node.GetNext(); return AsExportSpec(c) }
+
+// IsLast reports whether x is the last element of its list (Next has none).
+func (x ExportSpec) IsLast() bool { _, ok := x.Next(); return !ok }
 
 // Previous returns the element before x in its list; ok is false if x is the first one.
 func (x ExportSpec) Previous() (ExportSpec, bool) { c := x.node.GetPrevious(); return AsExportSpec(c) }
