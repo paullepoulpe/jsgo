@@ -53,7 +53,7 @@ type JSTypeReconserializer struct {
 	typePointers           map[*rhino.JSTypeBase]int32
 	recordsByPointer       []*JSTypeReconserializer_SeenTypeRecord
 	seenTypeRecords        *jutil.LinkedHashMap[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord]
-	disambiguateEdges      *jutil.LinkedHashMap[int32, disambiguateEdgeSet]
+	disambiguateEdges      *jutil.LinkedHashMap[int32, []int32]
 	totalDisambiguateEdges int
 
 	scratchInstances    *jutil.LinkedHashSet[int]
@@ -70,12 +70,6 @@ type JSTypeReconserializer struct {
 	uuidByteSlab []byte
 
 	state JSTypeReconserializer_State
-}
-
-type disambiguateEdgeSet struct {
-	inline [4]int32
-	n      int32
-	extra  []int32
 }
 
 // This is a one-way mapping because some JSTypes go to the same Color.
@@ -149,7 +143,7 @@ func newJSTypeReconserializer(
 	s.typePointers = make(map[*rhino.JSTypeBase]int32, 4096)
 	s.recordsByPointer = make([]*JSTypeReconserializer_SeenTypeRecord, 0, 4096)
 	s.seenTypeRecords = jutil.NewLinkedHashMapWithCapacity[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord](4096)
-	s.disambiguateEdges = jutil.NewLinkedHashMapWithCapacity[int32, disambiguateEdgeSet](2048)
+	s.disambiguateEdges = jutil.NewLinkedHashMapWithCapacity[int32, []int32](2048)
 	s.state = JSTypeReconserializer_State_COLLECTING_TYPES
 	// Constructor body.
 	s.registry = registry
@@ -231,33 +225,17 @@ func (s *JSTypeReconserializer) shouldPropagate(prop string) bool {
 }
 
 func (s *JSTypeReconserializer) putDisambiguateEdge(subtype, supertype int) {
-	sub := int32(subtype)
-	sup := int32(supertype)
-	set, ok := s.disambiguateEdges.Lookup(sub)
-	if ok {
-		inlineEnd := min(int(set.n), len(set.inline))
-		for i := 0; i < inlineEnd; i++ {
-			if set.inline[i] == sup {
-				return
-			}
-		}
-		for _, v := range set.extra {
-			if v == sup {
-				return
-			}
-		}
+	sub, sup := int32(subtype), int32(supertype)
+	edges, ok := s.disambiguateEdges.Lookup(sub)
+	if slices.Contains(edges, sup) {
+		return
 	}
-	if int(set.n) < len(set.inline) {
-		set.inline[set.n] = sup
-	} else {
-		set.extra = append(set.extra, sup)
-	}
-	set.n++
+	edges = append(edges, sup)
 	s.totalDisambiguateEdges++
 	if !ok {
-		s.disambiguateEdges.PutNew(sub, set)
+		s.disambiguateEdges.PutNew(sub, edges)
 	} else {
-		s.disambiguateEdges.Put(sub, set)
+		s.disambiguateEdges.Put(sub, edges)
 	}
 }
 
@@ -891,19 +869,7 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 		edgeSlab := make([]SubtypingEdge, s.totalDisambiguateEdges)
 		edgeIdx := 0
 		for subtype, supertypes := range s.disambiguateEdges.All() {
-			inlineEnd := min(int(supertypes.n), len(supertypes.inline))
-			for i := 0; i < inlineEnd; i++ {
-				e := &edgeSlab[edgeIdx]
-				*e = SubtypingEdge{
-					subtype_:     subtype,
-					supertype_:   supertypes.inline[i],
-					frozen:       true,
-					memoizedSize: -1,
-				}
-				disambiguationEdges[edgeIdx] = e
-				edgeIdx++
-			}
-			for _, sup := range supertypes.extra {
+			for _, sup := range supertypes {
 				e := &edgeSlab[edgeIdx]
 				*e = SubtypingEdge{
 					subtype_:     subtype,

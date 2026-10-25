@@ -27,6 +27,7 @@ import (
 type AccessorSummary struct {
 	assumeAlwaysGetterAndSetter bool
 	accessors                   *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]
+	byName                      map[string]AccessorSummary_PropertyAccessKind
 }
 
 // AccessorSummary_PropertyAccessKind indicates whether a property has a
@@ -117,7 +118,14 @@ func AccessorSummary_Create(accessors *jutil.LinkedHashMap[string, AccessorSumma
 
 // Java: AccessorSummary(ImmutableMap<String, PropertyAccessKind>)
 func newAccessorSummary(accessors *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]) *AccessorSummary {
-	return &AccessorSummary{accessors: accessors, assumeAlwaysGetterAndSetter: false}
+	var byName map[string]AccessorSummary_PropertyAccessKind
+	if !accessors.IsEmpty() {
+		byName = make(map[string]AccessorSummary_PropertyAccessKind, accessors.Size())
+		for name, kind := range accessors.All() {
+			byName[name] = kind
+		}
+	}
+	return &AccessorSummary{accessors: accessors, byName: byName, assumeAlwaysGetterAndSetter: false}
 }
 
 // Java: AccessorSummary(boolean)
@@ -138,7 +146,7 @@ func (s *AccessorSummary) GetKind(name string) AccessorSummary_PropertyAccessKin
 	if s.assumeAlwaysGetterAndSetter {
 		return AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER
 	}
-	return s.accessors.GetOrDefault(name, AccessorSummary_PropertyAccessKind_NORMAL)
+	return s.byName[name]
 }
 
 // AccessorSummary_CreateAssumingAlwaysGetterAndSetter returns an accessor

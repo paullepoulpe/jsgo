@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -100,58 +99,10 @@ func NewInferJSDocInfo(compiler AbstractCompiler) *InferJSDocInfo {
 // Java: InferJSDocInfo.process(Node, Node)
 func (p *InferJSDocInfo) Process(externs rhino.Node, root rhino.Node) {
 	if !externs.IsNil() {
-		p.traverseRoot(externs)
+		NodeTraversal_Traverse(p.compiler, externs, p)
 	}
 	if !root.IsNil() {
-		p.traverseRoot(root)
-	}
-}
-
-func (p *InferJSDocInfo) traverseRoot(root rhino.Node) {
-	jutil.CheckNotNull(p.compiler)
-	var currentNode rhino.Node
-	var currentScript rhino.Node
-	jutil.Try(func() {
-		if Platform_IsThreadInterrupted() {
-			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
-		}
-		currentNode = root
-		p.walk(root, rhino.NilNode, false, &currentNode, &currentScript)
-	}, func(unexpectedException jutil.Throwable) {
-		b := NodeTraversal_Builder{compiler: p.compiler, callback: p}
-		t := newNodeTraversal(&b)
-		t.InitTraversal(root)
-		if !currentScript.IsNil() {
-			t.currentScript = currentScript
-		}
-		t.currentNode = currentNode
-		t.ThrowUnexpectedException(unexpectedException)
-	})
-}
-
-func (p *InferJSDocInfo) walk(n, parent rhino.Node, parentHasDoc bool, currentNode, currentScript *rhino.Node) {
-	if n.GetToken() == rhino.Token_SCRIPT {
-		if Platform_IsThreadInterrupted() {
-			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
-		}
-		*currentScript = n
-	}
-	hasDoc := n.GetJSDocInfo() != nil
-	for child := n.GetFirstChild(); !child.IsNil(); {
-		next := child.GetNext()
-		if child.GetFirstChild().IsNil() && child.GetToken() != rhino.Token_SCRIPT {
-			if hasDoc || child.GetJSDocInfo() != nil {
-				*currentNode = child
-				p.Visit(nil, child, n)
-			}
-		} else {
-			p.walk(child, n, hasDoc, currentNode, currentScript)
-		}
-		child = next
-	}
-	if hasDoc || parentHasDoc {
-		*currentNode = n
-		p.Visit(nil, n, parent)
+		NodeTraversal_Traverse(p.compiler, root, p)
 	}
 }
 

@@ -30,91 +30,39 @@ type PropertyUseSite struct {
 	owner *ColorGraphNode
 }
 
-type propertyUseSiteChunk struct {
-	entries []PropertyUseSite
-	next    *propertyUseSiteChunk
-}
-
 // PropertyUseSites stores the (AST node, receiver ColorGraphNode) pairs for a
 // PropertyClustering in insertion order.
 type PropertyUseSites struct {
-	inline   [2]PropertyUseSite
-	head     *propertyUseSiteChunk
-	tail     *propertyUseSiteChunk
-	count    int32
-	tailUsed int32
+	sites  []PropertyUseSite
+	inline [2]PropertyUseSite
 }
 
 func (u *PropertyUseSites) Size() int {
-	return int(u.count)
+	return len(u.sites)
 }
 
 func (u *PropertyUseSites) IsEmpty() bool {
-	return u.count == 0
+	return len(u.sites) == 0
 }
 
 func (u *PropertyUseSites) Clear() {
-	u.inline = [2]PropertyUseSite{}
-	u.head = nil
-	u.tail = nil
-	u.count = 0
-	u.tailUsed = 0
+	clear(u.sites)
+	u.sites = u.inline[:0]
 }
 
 func (u *PropertyUseSites) PutNew(site rhino.Node, owner *ColorGraphNode) {
-	c := u.count
-	u.count = c + 1
-	if c < int32(len(u.inline)) {
-		u.inline[c] = PropertyUseSite{site: site, owner: owner}
-		return
+	if u.sites == nil {
+		u.sites = u.inline[:0]
 	}
-	tail := u.tail
-	used := u.tailUsed
-	if tail != nil && int(used) < len(tail.entries) {
-		tail.entries[used] = PropertyUseSite{site: site, owner: owner}
-		u.tailUsed = used + 1
-		return
-	}
-	chunkSize := 4
-	if c >= 6 {
-		chunkSize = 16
-	}
-	ch := &propertyUseSiteChunk{
-		entries: make([]PropertyUseSite, chunkSize),
-	}
-	ch.entries[0] = PropertyUseSite{site: site, owner: owner}
-	if u.tail == nil {
-		u.head = ch
-	} else {
-		u.tail.next = ch
-	}
-	u.tail = ch
-	u.tailUsed = 1
+	u.sites = appendDoubling(u.sites, PropertyUseSite{site: site, owner: owner})
 }
 
 func (u *PropertyUseSites) Put(site rhino.Node, owner *ColorGraphNode) *ColorGraphNode {
-	nInline := int(u.count)
-	if nInline > len(u.inline) {
-		nInline = len(u.inline)
-	}
-	for i := 0; i < nInline; i++ {
-		if u.inline[i].site == site {
-			old := u.inline[i].owner
-			u.inline[i].owner = owner
+	for i := range u.sites {
+		if u.sites[i].site == site {
+			old := u.sites[i].owner
+			u.sites[i].owner = owner
 			return old
-		}
-	}
-	for ch := u.head; ch != nil; ch = ch.next {
-		entries := ch.entries
-		if ch == u.tail {
-			entries = entries[:u.tailUsed]
-		}
-		for i := range entries {
-			if entries[i].site == site {
-				old := entries[i].owner
-				entries[i].owner = owner
-				return old
-			}
 		}
 	}
 	u.PutNew(site, owner)
@@ -122,24 +70,9 @@ func (u *PropertyUseSites) Put(site rhino.Node, owner *ColorGraphNode) *ColorGra
 }
 
 func (u *PropertyUseSites) Get(site rhino.Node) *ColorGraphNode {
-	nInline := int(u.count)
-	if nInline > len(u.inline) {
-		nInline = len(u.inline)
-	}
-	for i := 0; i < nInline; i++ {
-		if u.inline[i].site == site {
-			return u.inline[i].owner
-		}
-	}
-	for ch := u.head; ch != nil; ch = ch.next {
-		entries := ch.entries
-		if ch == u.tail {
-			entries = entries[:u.tailUsed]
-		}
-		for i := range entries {
-			if entries[i].site == site {
-				return entries[i].owner
-			}
+	for i := range u.sites {
+		if u.sites[i].site == site {
+			return u.sites[i].owner
 		}
 	}
 	return nil
@@ -147,26 +80,9 @@ func (u *PropertyUseSites) Get(site rhino.Node) *ColorGraphNode {
 
 func (u *PropertyUseSites) All() iter.Seq2[rhino.Node, *ColorGraphNode] {
 	return func(yield func(rhino.Node, *ColorGraphNode) bool) {
-		nInline := int(u.count)
-		if nInline > len(u.inline) {
-			nInline = len(u.inline)
-		}
-		for i := 0; i < nInline; i++ {
-			e := u.inline[i]
+		for _, e := range u.sites {
 			if !yield(e.site, e.owner) {
 				return
-			}
-		}
-		for ch := u.head; ch != nil; ch = ch.next {
-			entries := ch.entries
-			if ch == u.tail {
-				entries = entries[:u.tailUsed]
-			}
-			for i := range entries {
-				e := entries[i]
-				if !yield(e.site, e.owner) {
-					return
-				}
 			}
 		}
 	}
@@ -174,8 +90,8 @@ func (u *PropertyUseSites) All() iter.Seq2[rhino.Node, *ColorGraphNode] {
 
 func (u *PropertyUseSites) Keys() iter.Seq[rhino.Node] {
 	return func(yield func(rhino.Node) bool) {
-		for k := range u.All() {
-			if !yield(k) {
+		for _, e := range u.sites {
+			if !yield(e.site) {
 				return
 			}
 		}
@@ -183,12 +99,12 @@ func (u *PropertyUseSites) Keys() iter.Seq[rhino.Node] {
 }
 
 func (u *PropertyUseSites) KeySlice() []rhino.Node {
-	if u.count == 0 {
+	if len(u.sites) == 0 {
 		return nil
 	}
-	out := make([]rhino.Node, 0, u.count)
-	for k := range u.All() {
-		out = append(out, k)
+	out := make([]rhino.Node, len(u.sites))
+	for i, e := range u.sites {
+		out[i] = e.site
 	}
 	return out
 }
@@ -205,29 +121,22 @@ type PropertyClustering struct {
 
 	useSites PropertyUseSites
 
-	clusters    StandardUnionFind[*ColorGraphNode]
-	clustersMap jutil.LinkedHashMap[*ColorGraphNode, *standardUnionFind_Node[*ColorGraphNode]]
-	clustersBuf [4]jutil.LhmSlot[*ColorGraphNode, *standardUnionFind_Node[*ColorGraphNode]]
+	clusters StandardUnionFind[*ColorGraphNode]
 
 	originalNameClusterRep *ColorGraphNode
-	lastOwner              *ColorGraphNode
-	lastOwner2             *ColorGraphNode
 
 	lastInvalidation Invalidation
-}
-
-func (p *PropertyClustering) init(name string) {
-	p.name = name
-	p.clustersMap.InitWithBuffer(p.clustersBuf[:])
-	p.clusters.elmap = &p.clustersMap
 }
 
 // Java: PropertyClustering(String)
 func NewPropertyClustering(name string) *PropertyClustering {
 	// checkNotNull(name): a Go string is never null.
-	p := &PropertyClustering{}
-	p.init(name)
-	return p
+	return &PropertyClustering{
+		name: name,
+		clusters: StandardUnionFind[*ColorGraphNode]{
+			elmap: jutil.NewLinkedHashMap[*ColorGraphNode, *standardUnionFind_Node[*ColorGraphNode]](),
+		},
+	}
 }
 
 // Java: PropertyClustering.getName()

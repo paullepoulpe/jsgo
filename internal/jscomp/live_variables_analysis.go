@@ -51,16 +51,12 @@ type LiveVariablesAnalysis struct {
 	// Maps the variable name to it's position in this jsScope were we to
 	// combine the function and function body scopes. The Integer represents
 	// the equivalent of the variable index property within a scope
-	scopeVariables      *jutil.LinkedHashMap[string, int]
-	scopeVariablesMap   jutil.LinkedHashMap[string, int]
-	scopeVariablesSlots [8]jutil.LhmSlot[string, int]
+	scopeVariables map[string]int
 
 	// obtain variables in the order in which they appear in the code
 	orderedVars []*Var
 
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
-
-	useSmallVarScan bool
 
 	escapedBits jutil.BitSet
 	genScratch  jutil.BitSet
@@ -204,12 +200,11 @@ func (l *LiveVariablesAnalysis) Reset(
 	l.escaped = &l.escapedSet
 	l.orderedVars = allVarsDeclaredInFunction.GetAllVariablesInOrder()
 	l.allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
-	if !l.scopeVariablesMap.HasBacking() {
-		l.scopeVariablesMap.InitWithBuffer(l.scopeVariablesSlots[:])
+	if len(l.orderedVars) == 0 {
+		l.scopeVariables = nil
 	} else {
-		l.scopeVariablesMap.Clear()
+		l.scopeVariables = make(map[string]int, len(l.orderedVars))
 	}
-	l.scopeVariables = &l.scopeVariablesMap
 	l.emptyLattice.liveBits.InitWithSize(len(l.orderedVars))
 	l.emptyLattice.liveSet = &l.emptyLattice.liveBits
 	l.lattices.reset(nil)
@@ -312,7 +307,7 @@ func (l *LiveVariablesAnalysis) AddScopeVariables() {
 	num := 0
 	for _, v := range l.orderedVars {
 		name := v.GetName()
-		l.scopeVariables.Put(name, num)
+		l.scopeVariables[name] = num
 		localScope, _ := v.GetScope().(*Scope)
 		var local bool
 		if localScope.IsFunctionBlockScope() {
@@ -327,23 +322,11 @@ func (l *LiveVariablesAnalysis) AddScopeVariables() {
 		}
 		num++
 	}
-	l.useSmallVarScan = len(l.orderedVars) <= 16 && l.scopeVariables.Size() == len(l.orderedVars)
 }
 
 func (l *LiveVariablesAnalysis) lookupVarIndex(name string) (int, bool) {
-	if l.useSmallVarScan {
-		id := rhino.RhinoStringPool_LookupID(name)
-		if id == 0 {
-			return 0, false
-		}
-		for i, v := range l.orderedVars {
-			if v.nameID == id {
-				return i, true
-			}
-		}
-		return 0, false
-	}
-	return l.scopeVariables.Lookup(name)
+	idx, ok := l.scopeVariables[name]
+	return idx, ok
 }
 
 // Java: LiveVariablesAnalysis.getEscapedLocals()
