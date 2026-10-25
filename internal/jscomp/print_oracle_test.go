@@ -314,7 +314,8 @@ func printDumpWithSourceMap(o *printDumpOptions, w *printDumpWriter, name string
 			w.line("# mappings")
 		}
 		sourceMap := SourceMap_Format_V3.GetInstance()
-		for _, m := range result.mappings {
+		for i := range result.mappings {
+			m := &result.mappings[i]
 			original := "-"
 			if m.node.GetOriginalName() != nil {
 				original = *m.node.GetOriginalName()

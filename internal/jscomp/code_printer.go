@@ -19,10 +19,8 @@
 package jscomp
 
 import (
-	"iter"
 	"math"
 	"strings"
-	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -69,20 +67,17 @@ type CodePrinter_MappedCodePrinter interface {
 type CodePrinter_MappedCodePrinterBase struct {
 	CodeConsumerBase
 
+	allMappings []SourceMap_Mapping
 	// Go-only: language-adapter — the ArrayDeque used as a stack
-	// (push/peek/pop) is a slice whose top is its last element. nil is null.
-	mappings []*SourceMap_Mapping
-	// The ordered list of finalized mappings that started before the last line
-	// break and ended since the last line break. See #reportLineCut.
-	completeMappings     []*SourceMap_Mapping // nil is null
-	mappingChunks        [][]SourceMap_Mapping
-	mappingSlab          []SourceMap_Mapping
-	mappingChunksBuf     [16][]SourceMap_Mapping
-	mappingBuf           [32]SourceMap_Mapping
-	mappingsBuf          [64]*SourceMap_Mapping
-	completeMappingsBuf  [16]*SourceMap_Mapping
-	cutChunkIdx          int
-	cutElemIdx           int
+	// (push/peek/pop) is a slice of indices into allMappings whose top is its
+	// last element.
+	openMappings []int
+	// The ordered list of finalized mapping indices that started before the
+	// last line break and ended since the last line break. See #reportLineCut.
+	completeMappings     []int
+	openMappingsBuf      [64]int
+	completeMappingsBuf  [16]int
+	cutIdx               int
 	cutStackDepth        int
 	createSrcMap         bool
 	sourceMapDetailLevel SourceMap_DetailLevel
@@ -96,41 +91,9 @@ type CodePrinter_MappedCodePrinterBase struct {
 	cg                   CodeGeneratorBase
 }
 
-const codePrinter_mappingSlabSize = 512
-
-var codePrinter_mappingSlabPool = sync.Pool{
-	New: func() any {
-		return new([codePrinter_mappingSlabSize]SourceMap_Mapping)
-	},
-}
-
-func (m *CodePrinter_MappedCodePrinterBase) allocMapping() *SourceMap_Mapping {
-	if len(m.mappingSlab) == cap(m.mappingSlab) {
-		if len(m.mappingSlab) > 0 {
-			m.mappingChunks = append(m.mappingChunks, m.mappingSlab)
-		}
-		arr := codePrinter_mappingSlabPool.Get().(*[codePrinter_mappingSlabSize]SourceMap_Mapping)
-		m.mappingSlab = arr[:0:codePrinter_mappingSlabSize]
-	}
-	i := len(m.mappingSlab)
-	m.mappingSlab = m.mappingSlab[:i+1]
-	return &m.mappingSlab[i]
-}
-
-func (m *CodePrinter_MappedCodePrinterBase) releaseMappingSlabs() {
-	for i, chunk := range m.mappingChunks {
-		if cap(chunk) == codePrinter_mappingSlabSize {
-			clear(chunk[:cap(chunk)])
-			codePrinter_mappingSlabPool.Put((*[codePrinter_mappingSlabSize]SourceMap_Mapping)(chunk[:cap(chunk)]))
-		}
-		m.mappingChunks[i] = nil
-	}
-	m.mappingChunks = m.mappingChunks[:0]
-	if cap(m.mappingSlab) == codePrinter_mappingSlabSize {
-		clear(m.mappingSlab[:cap(m.mappingSlab)])
-		codePrinter_mappingSlabPool.Put((*[codePrinter_mappingSlabSize]SourceMap_Mapping)(m.mappingSlab[:cap(m.mappingSlab)]))
-	}
-	m.mappingSlab = nil
+type codePrinterScratch struct {
+	compact *CodePrinter_CompactCodePrinter
+	pretty  *CodePrinter_PrettyCodePrinter
 }
 
 // GetCodePrinter_MappedCodePrinterBase gives access to the base fields
@@ -151,8 +114,7 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	sourceMapDetailLevel SourceMap_DetailLevel,
 	licenseTracker CodePrinter_LicenseTracker) {
 	m.InitCodeConsumerBase(self)
-	m.cutChunkIdx = 0
-	m.cutElemIdx = 0
+	m.cutIdx = 0
 	m.cutStackDepth = 0
 	if cap(m.codeASCII) == 0 {
 		m.codeASCII = m.codeASCIIBuf[:0:len(m.codeASCIIBuf)]
@@ -173,30 +135,21 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	}
 	m.createSrcMap = createSrcMap
 	m.sourceMapDetailLevel = sourceMapDetailLevel
+	m.allMappings = nil
 	if createSrcMap {
-		m.mappingChunks = m.mappingChunksBuf[:0:len(m.mappingChunksBuf)]
-		m.mappingSlab = m.mappingBuf[:0:len(m.mappingBuf)]
-		m.mappings = m.mappingsBuf[:0:len(m.mappingsBuf)]
+		m.openMappings = m.openMappingsBuf[:0:len(m.openMappingsBuf)]
 		m.completeMappings = m.completeMappingsBuf[:0:len(m.completeMappingsBuf)]
 	} else {
-		m.mappingChunks = nil
-		m.mappingSlab = nil
-		m.mappings = nil
+		m.openMappings = nil
 		m.completeMappings = nil
 	}
 	m.licenseTracker = licenseTracker
 }
 
-func (m *CodePrinter_MappedCodePrinterBase) resetForPool() {
-	if m.createSrcMap {
-		m.releaseMappingSlabs()
-		clear(m.mappings)
-		clear(m.mappingsBuf[:])
-		m.mappings = nil
-		clear(m.completeMappings)
-		clear(m.completeMappingsBuf[:])
-		m.completeMappings = nil
-	}
+func (m *CodePrinter_MappedCodePrinterBase) resetAfterPrint() {
+	m.allMappings = nil
+	m.openMappings = nil
+	m.completeMappings = nil
 	if cap(m.codeASCII) > 1<<20 {
 		m.codeASCII = nil
 	} else {
@@ -212,31 +165,9 @@ func (m *CodePrinter_MappedCodePrinterBase) resetForPool() {
 	m.cg = CodeGeneratorBase{scratchUnits: keepScratch}
 }
 
-func returnPooledPrinter(pooledCompact *CodePrinter_CompactCodePrinter, pooledPretty *CodePrinter_PrettyCodePrinter) {
-	if pooledCompact != nil {
-		pooledCompact.resetForPool()
-		codePrinter_compactPool.Put(pooledCompact)
-	} else if pooledPretty != nil {
-		pooledPretty.resetForPool()
-		pooledPretty.numberSourceCode = ""
-		pooledPretty.numberSourceUnits = nil
-		codePrinter_prettyPool.Put(pooledPretty)
-	}
-}
-
-func (m *CodePrinter_MappedCodePrinterBase) codeGrowASCII(n int) {
-	if need := len(m.codeASCII) + n; need > cap(m.codeASCII) {
-		newCap := max(2*cap(m.codeASCII), max(need, 1024))
-		buf := make([]byte, len(m.codeASCII), newCap)
-		copy(buf, m.codeASCII)
-		m.codeASCII = buf
-	}
-}
-
 func (m *CodePrinter_MappedCodePrinterBase) codeAppend(str string) int {
 	if m.codeUTF16 == nil {
 		if jutil.IsASCII(str) {
-			m.codeGrowASCII(len(str))
 			m.codeASCII = append(m.codeASCII, str...)
 			return len(str)
 		}
@@ -253,7 +184,6 @@ func (m *CodePrinter_MappedCodePrinterBase) codeAppend(str string) int {
 
 func (m *CodePrinter_MappedCodePrinterBase) codeAppendASCII(str string) {
 	if m.codeUTF16 == nil {
-		m.codeGrowASCII(len(str))
 		m.codeASCII = append(m.codeASCII, str...)
 		return
 	}
@@ -262,7 +192,6 @@ func (m *CodePrinter_MappedCodePrinterBase) codeAppendASCII(str string) {
 
 func (m *CodePrinter_MappedCodePrinterBase) codeAppendByte(c byte) {
 	if m.codeUTF16 == nil {
-		m.codeGrowASCII(1)
 		m.codeASCII = append(m.codeASCII, c)
 		return
 	}
@@ -292,7 +221,6 @@ func (m *CodePrinter_MappedCodePrinterBase) codeInsertByte(offset int, c byte) {
 			panic(jutil.NewStringIndexOutOfBoundsException(offset, len(m.codeASCII)))
 		}
 		n := len(m.codeASCII)
-		m.codeGrowASCII(1)
 		m.codeASCII = append(m.codeASCII, 0)
 		copy(m.codeASCII[offset+1:], m.codeASCII[offset:n])
 		m.codeASCII[offset] = c
@@ -335,11 +263,13 @@ func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node rhino.Node) 
 		line := m.GetCurrentLineIndex()
 		index := m.GetCurrentCharIndex()
 		jutil.CheckState(line >= 0)
-		mapping := m.allocMapping()
-		mapping.node = node
-		mapping.start = sourcemap.MakeFilePosition(line, index)
-		mapping.end = sourcemap.MakeFilePosition(-1, -1)
-		m.mappings = append(m.mappings, mapping)
+		idx := len(m.allMappings)
+		m.allMappings = append(m.allMappings, SourceMap_Mapping{
+			node:  node,
+			start: sourcemap.MakeFilePosition(line, index),
+			end:   sourcemap.MakeFilePosition(-1, -1),
+		})
+		m.openMappings = append(m.openMappings, idx)
 	}
 }
 
@@ -348,23 +278,24 @@ func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node rhino.Node) 
 //
 // Java: CodePrinter.MappedCodePrinter.endSourceMapping(Node)
 func (m *CodePrinter_MappedCodePrinterBase) EndSourceMapping(node rhino.Node) {
-	if m.createSrcMap && len(m.mappings) != 0 && m.mappings[len(m.mappings)-1].node == node {
-		mapping := m.mappings[len(m.mappings)-1]
-		m.mappings[len(m.mappings)-1] = nil
-		m.mappings = m.mappings[:len(m.mappings)-1]
-		line := m.GetCurrentLineIndex()
-		index := m.GetCurrentCharIndex()
-		jutil.CheckState(line >= 0)
-		mapping.end = sourcemap.MakeFilePosition(line, index)
-		if len(m.mappings) < m.cutStackDepth {
-			m.cutStackDepth = len(m.mappings)
-			m.completeMappings = append(m.completeMappings, mapping)
+	if m.createSrcMap && len(m.openMappings) != 0 {
+		topIdx := m.openMappings[len(m.openMappings)-1]
+		if m.allMappings[topIdx].node == node {
+			m.openMappings = m.openMappings[:len(m.openMappings)-1]
+			line := m.GetCurrentLineIndex()
+			index := m.GetCurrentCharIndex()
+			jutil.CheckState(line >= 0)
+			m.allMappings[topIdx].end = sourcemap.MakeFilePosition(line, index)
+			if len(m.openMappings) < m.cutStackDepth {
+				m.cutStackDepth = len(m.openMappings)
+				m.completeMappings = append(m.completeMappings, topIdx)
+			}
 		}
 	}
 }
 
 func (m *CodePrinter_MappedCodePrinterBase) adjustSourceMappings(code string) {
-	if !m.createSrcMap || (len(m.mappingChunks) == 0 && len(m.mappingSlab) == 0) || code == "" {
+	if !m.createSrcMap || len(m.allMappings) == 0 || code == "" {
 		return
 	}
 	lineEndPos := strings.IndexByte(code, '\n')
@@ -392,13 +323,8 @@ func (m *CodePrinter_MappedCodePrinterBase) adjustSourceMappings(code string) {
 			lineEndPos += lineStartPos
 		}
 	}
-	for _, chunk := range m.mappingChunks {
-		for i := range chunk {
-			chunk[i].end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, chunk[i].end)
-		}
-	}
-	for i := range m.mappingSlab {
-		m.mappingSlab[i].end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, m.mappingSlab[i].end)
+	for i := range m.allMappings {
+		m.allMappings[i].end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, m.allMappings[i].end)
 	}
 }
 
@@ -412,18 +338,9 @@ func (m *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) []*So
 		return nil
 	}
 	m.adjustSourceMappings(code)
-	total := len(m.mappingSlab)
-	for _, chunk := range m.mappingChunks {
-		total += len(chunk)
-	}
-	out := make([]*SourceMap_Mapping, 0, total)
-	for _, chunk := range m.mappingChunks {
-		for i := range chunk {
-			out = append(out, &chunk[i])
-		}
-	}
-	for i := range m.mappingSlab {
-		out = append(out, &m.mappingSlab[i])
+	out := make([]*SourceMap_Mapping, len(m.allMappings))
+	for i := range m.allMappings {
+		out[i] = &m.allMappings[i]
 	}
 	return out
 }
@@ -435,33 +352,20 @@ func (m *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) []*So
 // Java: CodePrinter.MappedCodePrinter.reportLineCut(int, int)
 func (m *CodePrinter_MappedCodePrinterBase) ReportLineCut(lineIndex int, charIndex int) {
 	if m.createSrcMap {
-		for m.cutChunkIdx < len(m.mappingChunks) {
-			chunk := m.mappingChunks[m.cutChunkIdx]
-			for i := m.cutElemIdx; i < len(chunk); i++ {
-				mapping := &chunk[i]
-				mapping.start = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.start, lineIndex, charIndex)
-				if mapping.end.GetLine() >= 0 {
-					mapping.end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.end, lineIndex, charIndex)
-				}
-			}
-			m.cutChunkIdx++
-			m.cutElemIdx = 0
-		}
-		for i := m.cutElemIdx; i < len(m.mappingSlab); i++ {
-			mapping := &m.mappingSlab[i]
+		for i := m.cutIdx; i < len(m.allMappings); i++ {
+			mapping := &m.allMappings[i]
 			mapping.start = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.start, lineIndex, charIndex)
 			if mapping.end.GetLine() >= 0 {
 				mapping.end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.end, lineIndex, charIndex)
 			}
 		}
-		m.cutElemIdx = len(m.mappingSlab)
+		m.cutIdx = len(m.allMappings)
 
-		for _, mapping := range m.completeMappings {
-			mapping.end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.end, lineIndex, charIndex)
+		for _, idx := range m.completeMappings {
+			m.allMappings[idx].end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(m.allMappings[idx].end, lineIndex, charIndex)
 		}
-		clear(m.completeMappings)
 		m.completeMappings = m.completeMappings[:0]
-		m.cutStackDepth = len(m.mappings)
+		m.cutStackDepth = len(m.openMappings)
 	}
 }
 
@@ -641,12 +545,6 @@ type CodePrinter_PrettyCodePrinter struct {
 	numberSourceCode  string
 	numberSourceASCII bool
 	numberSourceUnits []uint16
-}
-
-var codePrinter_prettyPool = sync.Pool{
-	New: func() any {
-		return &CodePrinter_PrettyCodePrinter{}
-	},
 }
 
 func initCodePrinter_PrettyCodePrinter(
@@ -1078,12 +976,6 @@ type CodePrinter_CompactCodePrinter struct {
 	preferredBreakPosition int
 }
 
-var codePrinter_compactPool = sync.Pool{
-	New: func() any {
-		return &CodePrinter_CompactCodePrinter{}
-	},
-}
-
 func initCodePrinter_CompactCodePrinter(
 	c *CodePrinter_CompactCodePrinter,
 	lineBreak bool,
@@ -1330,55 +1222,81 @@ type CodePrinter_Builder_CodeGeneratorFactory interface {
 //
 // Java: CodePrinter.Builder.build()
 func (b *CodePrinter_Builder) Build() string {
-	return b.buildSourceAndMappingsInto(nil, false)
+	return b.buildSourceAndMappingsInto(nil, false, nil)
 }
 
 // Java: CodePrinter.Builder.buildWithSourceMappings()
 func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMappings {
 	sm := &CodePrinter_SourceAndMappings{}
-	b.buildSourceAndMappingsInto(sm, true)
-	sm.mappings = sm.iterMappings
+	b.buildSourceAndMappingsInto(sm, true, nil)
 	return sm
 }
 
-func (b *CodePrinter_Builder) buildSourceAndMappingsInto(sm *CodePrinter_SourceAndMappings, wantMappings bool) string {
+func (b *CodePrinter_Builder) buildSourceAndMappingsInto(
+	sm *CodePrinter_SourceAndMappings,
+	wantMappings bool,
+	scratch *codePrinterScratch) string {
 	if b.root.IsNil() {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot build without root node being specified"))
 	}
 	options := b.getOptions()
 	outputFormat := CodePrinter_Format_FromOptions(options, b.outputTypes, b.prettyPrint)
-	return b.buildSourceAndMappingsWithFormatInto(options, outputFormat, sm, wantMappings)
+	return b.buildSourceAndMappingsWithFormatInto(options, outputFormat, sm, wantMappings, scratch)
 }
 
 func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
 	options *CompilerOptions,
 	outputFormat CodePrinter_Format,
 	sm *CodePrinter_SourceAndMappings,
-	wantMappings bool) string {
+	wantMappings bool,
+	scratch *codePrinterScratch) string {
 	gatherSourceMap := wantMappings && options.ShouldGatherSourceMapInfo()
 
 	var mcp CodePrinter_MappedCodePrinter
-	var pooledCompact *CodePrinter_CompactCodePrinter
-	var pooledPretty *CodePrinter_PrettyCodePrinter
+	var compactPrinter *CodePrinter_CompactCodePrinter
+	var prettyPrinter *CodePrinter_PrettyCodePrinter
 	if outputFormat == CodePrinter_Format_COMPACT {
-		pooledCompact = codePrinter_compactPool.Get().(*CodePrinter_CompactCodePrinter)
+		if scratch != nil {
+			if scratch.compact == nil {
+				scratch.compact = &CodePrinter_CompactCodePrinter{}
+			}
+			compactPrinter = scratch.compact
+		} else {
+			compactPrinter = &CodePrinter_CompactCodePrinter{}
+		}
 		initCodePrinter_CompactCodePrinter(
-			pooledCompact,
+			compactPrinter,
 			b.lineBreak,
 			options.GetLineLengthThreshold(),
 			gatherSourceMap,
 			options.GetSourceMapDetailLevel(),
 			b.licenseTracker)
-		mcp = pooledCompact
+		mcp = compactPrinter
 	} else {
-		pooledPretty = codePrinter_prettyPool.Get().(*CodePrinter_PrettyCodePrinter)
+		if scratch != nil {
+			if scratch.pretty == nil {
+				scratch.pretty = &CodePrinter_PrettyCodePrinter{}
+			}
+			prettyPrinter = scratch.pretty
+		} else {
+			prettyPrinter = &CodePrinter_PrettyCodePrinter{}
+		}
 		initCodePrinter_PrettyCodePrinter(
-			pooledPretty,
+			prettyPrinter,
 			options.GetLineLengthThreshold(),
 			gatherSourceMap,
 			options.GetSourceMapDetailLevel(),
 			b.licenseTracker)
-		mcp = pooledPretty
+		mcp = prettyPrinter
+	}
+
+	base := mcp.GetCodePrinter_MappedCodePrinterBase()
+	if sm != nil && gatherSourceMap {
+		if cap(sm.mappings) == 0 {
+			base.allMappings = make([]SourceMap_Mapping, 0, 64)
+		} else {
+			base.allMappings = sm.mappings[:0]
+		}
 	}
 
 	var cg CodeGenerator
@@ -1387,7 +1305,7 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
 	} else if outputFormat == CodePrinter_Format_TYPED {
 		cg = NewTypedCodeGenerator(mcp, options, b.registry)
 	} else {
-		baseCG := &mcp.GetCodePrinter_MappedCodePrinterBase().cg
+		baseCG := &base.cg
 		baseCG.InitCodeGeneratorBaseWithOptions(baseCG, mcp, options)
 		cg = baseCG
 	}
@@ -1406,15 +1324,19 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
 	if sm != nil {
 		sm.source = source
 		if gatherSourceMap {
-			base := mcp.GetCodePrinter_MappedCodePrinterBase()
 			base.adjustSourceMappings(source)
-			sm.takeMappingsFrom(base)
+			sm.mappings = base.allMappings
 		} else {
-			sm.mappingChunks = nil
-			sm.mappingSlab = nil
+			sm.mappings = sm.mappings[:0]
 		}
 	}
-	returnPooledPrinter(pooledCompact, pooledPretty)
+	if scratch != nil {
+		base.resetAfterPrint()
+		if prettyPrinter != nil {
+			prettyPrinter.numberSourceCode = ""
+			prettyPrinter.numberSourceUnits = nil
+		}
+	}
 	return source
 }
 
@@ -1453,92 +1375,13 @@ func CodePrinter_Format_FromOptions(options *CompilerOptions, outputTypes bool, 
 // CodePrinter_SourceAndMappings bundles together the source and generated
 // SourceMap Mappings for that source.
 type CodePrinter_SourceAndMappings struct {
-	source           string
-	mappings         iter.Seq2[int, *SourceMap_Mapping] // nil is null
-	mappingChunks    [][]SourceMap_Mapping
-	mappingSlab      []SourceMap_Mapping
-	mappingChunksBuf [16][]SourceMap_Mapping
-	mappingBuf       [32]SourceMap_Mapping
+	source   string
+	mappings []SourceMap_Mapping
 }
 
 // Java: CodePrinter.SourceAndMappings()
 func NewCodePrinter_SourceAndMappings() *CodePrinter_SourceAndMappings {
 	return &CodePrinter_SourceAndMappings{}
-}
-
-func (s *CodePrinter_SourceAndMappings) takeMappingsFrom(m *CodePrinter_MappedCodePrinterBase) {
-	if len(m.mappingChunks) == 0 {
-		s.mappingChunks = nil
-		n := len(m.mappingSlab)
-		if n == 0 {
-			s.mappingSlab = nil
-		} else {
-			copy(s.mappingBuf[:n], m.mappingSlab)
-			clear(m.mappingSlab)
-			s.mappingSlab = s.mappingBuf[:n]
-		}
-		m.mappingSlab = nil
-		return
-	}
-	n0 := len(m.mappingChunks[0])
-	copy(s.mappingBuf[:n0], m.mappingChunks[0])
-	clear(m.mappingChunks[0])
-	if len(m.mappingChunks) <= len(s.mappingChunksBuf) {
-		nChunks := len(m.mappingChunks)
-		copy(s.mappingChunksBuf[:nChunks], m.mappingChunks)
-		clear(m.mappingChunks)
-		s.mappingChunks = s.mappingChunksBuf[:nChunks]
-	} else {
-		clear(m.mappingChunksBuf[:])
-		s.mappingChunks = m.mappingChunks
-	}
-	s.mappingChunks[0] = s.mappingBuf[:n0]
-	s.mappingSlab = m.mappingSlab
-	m.mappingChunks = nil
-	m.mappingSlab = nil
-}
-
-func (s *CodePrinter_SourceAndMappings) iterMappings(yield func(int, *SourceMap_Mapping) bool) {
-	idx := 0
-	for _, chunk := range s.mappingChunks {
-		for i := range chunk {
-			if !yield(idx, &chunk[i]) {
-				return
-			}
-			idx++
-		}
-	}
-	for i := range s.mappingSlab {
-		if !yield(idx, &s.mappingSlab[i]) {
-			return
-		}
-		idx++
-	}
-	s.Release()
-}
-
-// Release returns any pooled mapping slabs owned by s to the pool.
-func (s *CodePrinter_SourceAndMappings) Release() {
-	if s.mappingChunks == nil && s.mappingSlab == nil {
-		return
-	}
-	for i, chunk := range s.mappingChunks {
-		if cap(chunk) == codePrinter_mappingSlabSize {
-			clear(chunk[:cap(chunk)])
-			codePrinter_mappingSlabPool.Put((*[codePrinter_mappingSlabSize]SourceMap_Mapping)(chunk[:cap(chunk)]))
-		} else {
-			clear(chunk)
-		}
-		s.mappingChunks[i] = nil
-	}
-	s.mappingChunks = nil
-	if cap(s.mappingSlab) == codePrinter_mappingSlabSize {
-		clear(s.mappingSlab[:cap(s.mappingSlab)])
-		codePrinter_mappingSlabPool.Put((*[codePrinter_mappingSlabSize]SourceMap_Mapping)(s.mappingSlab[:cap(s.mappingSlab)]))
-	} else {
-		clear(s.mappingSlab)
-	}
-	s.mappingSlab = nil
 }
 
 // CodePrinter_ToSource converts a tree to JS code.
@@ -1565,8 +1408,7 @@ func CodePrinter_ToSource(
 		codeGeneratorFactory: codeGeneratorFactory,
 	}
 	result := NewCodePrinter_SourceAndMappings()
-	b.buildSourceAndMappingsWithFormatInto(options, outputFormat, result, true)
-	result.mappings = result.iterMappings
+	b.buildSourceAndMappingsWithFormatInto(options, outputFormat, result, true, nil)
 	return result
 }
 
