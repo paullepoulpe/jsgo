@@ -19,9 +19,19 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast): a marker is the
+// expression statement (ast.ExprStmt) of a call whose callee is a name
+// (call.Callee().AsName()); AddBlocks moves the two marker statements into
+// the outer block by name instead of taking the outer block's next sibling
+// twice; the synthetic blocks are ast.Blocks; and a function declaration is
+// rewritten through its typed name (fn.Name(), fn.RemoveName()).
+// MoveSiblingExclusive stays on rhino.Nodes: it moves whatever siblings lie
+// between two nodes.
 
 // CreateSyntheticBlocks creates synthetic blocks to simplify preventing
 // optimizations from moving code past "markers" in the source.
@@ -47,7 +57,7 @@ type CreateSyntheticBlocks struct {
 	// Go-only: language-adapter — the ArrayDeque used as a stack
 	// (push/pop/iteration at the front): the top of the stack is the last
 	// element of the slice.
-	markerStack []rhino.Node
+	markerStack []ast.ExprStmt
 
 	validMarkers *jutil.ArrayList[*createSyntheticBlocks_Marker]
 }
@@ -63,12 +73,12 @@ var CreateSyntheticBlocks_INVALID_MARKER_USAGE = DiagnosticType_Error(
 	"JSC_INVALID_MARKER_USAGE", "Marker {0} can only be used in a simple call expression")
 
 type createSyntheticBlocks_Marker struct {
-	startMarker rhino.Node
-	endMarker   rhino.Node
+	startMarker ast.ExprStmt
+	endMarker   ast.ExprStmt
 }
 
 // Java: CreateSyntheticBlocks.Marker(Node, Node)
-func newCreateSyntheticBlocks_Marker(startMarker rhino.Node, endMarker rhino.Node) *createSyntheticBlocks_Marker {
+func newCreateSyntheticBlocks_Marker(startMarker ast.ExprStmt, endMarker ast.ExprStmt) *createSyntheticBlocks_Marker {
 	return &createSyntheticBlocks_Marker{startMarker: startMarker, endMarker: endMarker}
 }
 
@@ -90,7 +100,7 @@ func (p *CreateSyntheticBlocks) Process(externs rhino.Node, root rhino.Node) {
 	// Complain about any unmatched markers.
 	for i := len(p.markerStack) - 1; i >= 0; i-- {
 		node := p.markerStack[i]
-		p.compiler.Report(JSError_MakeWithNode(node, CreateSyntheticBlocks_UNMATCHED_START_MARKER, p.startMarkerName))
+		p.compiler.Report(JSError_MakeWithNode(node.Node(), CreateSyntheticBlocks_UNMATCHED_START_MARKER, p.startMarkerName))
 	}
 
 	// Add the block for the valid marker sets.
@@ -104,35 +114,35 @@ func (p *CreateSyntheticBlocks) Process(externs rhino.Node, root rhino.Node) {
 // {}; VAR NAME x FUNCTION NAME (w/ empty string) PARAM_LIST BLOCK
 //
 // Java: CreateSyntheticBlocks.rewriteFunctionDeclaration(Node)
-func (p *CreateSyntheticBlocks) RewriteFunctionDeclaration(n rhino.Node) {
+func (p *CreateSyntheticBlocks) RewriteFunctionDeclaration(n ast.Function) {
 	// Prepare a variable for the function.
-	oldNameNode := n.GetFirstChild()
-	fnNameNode := oldNameNode.CloneNode()
-	var_ := rhino.IR_Var(fnNameNode).Srcref(n)
+	oldNameNode, ok := n.Name()
+	jutil.CheckState(ok) // a function declaration has a name
+	fnNameNode := oldNameNode.Node().CloneNode()
+	var_ := rhino.IR_Var(fnNameNode).Srcref(n.Node())
 
 	// Prepare the function.
-	oldNameNode.SetString("")
-	p.compiler.ReportChangeToEnclosingScope(oldNameNode)
+	n.RemoveName()
+	p.compiler.ReportChangeToEnclosingScope(oldNameNode.Node())
 
 	// Move the function to the front of the parent.
-	parent := n.GetParent()
+	parent := n.Node().GetParent()
 	n.Detach()
 	parent.AddChildToFront(var_)
 	p.compiler.ReportChangeToEnclosingScope(var_)
-	fnNameNode.AddChildToFront(n)
+	fnNameNode.AddChildToFront(n.Node())
 }
 
 // Java: CreateSyntheticBlocks.rewriteFunctionDeclarationsInBlock(Node)
-func (p *CreateSyntheticBlocks) RewriteFunctionDeclarationsInBlock(block rhino.Node) {
-	jutil.CheckState(block.IsBlock())
-
-	var next rhino.Node
-	for current := block.GetFirstChild(); !current.IsNil(); current = next {
+func (p *CreateSyntheticBlocks) RewriteFunctionDeclarationsInBlock(block ast.Block) {
+	next, more := block.FirstStatement()
+	for more {
+		current := next
 		// Get the next node now, because the current node will move and that
 		// will change its next sibling.
-		next = current.GetNext()
-		if NodeUtil_IsFunctionDeclaration(current) {
-			p.RewriteFunctionDeclaration(current)
+		next, more = current.Next()
+		if fn, ok := current.AsFunction(); ok && NodeUtil_IsFunctionDeclaration(fn.Node()) {
+			p.RewriteFunctionDeclaration(fn)
 		}
 	}
 }
@@ -154,22 +164,22 @@ func (p *CreateSyntheticBlocks) AddBlocks(marker *createSyntheticBlocks_Marker) 
 	// This prevents the start or end markers from mingling with the code in
 	// the block body.
 
-	outerBlock := rhino.IR_Block().Srcref(marker.startMarker)
-	outerBlock.SetIsSyntheticBlock(true)
-	outerBlock.InsertBefore(marker.startMarker)
+	start, end := marker.startMarker, marker.endMarker
 
-	innerBlock := rhino.IR_Block().Srcref(marker.startMarker)
-	innerBlock.SetIsSyntheticBlock(true)
+	outerBlock := createSyntheticBlocks_newSyntheticBlock(start)
+	outerBlock.Node().InsertBefore(start.Node())
+
+	innerBlock := createSyntheticBlocks_newSyntheticBlock(start)
 	// Move everything after the start node up to the end node into the inner
 	// block.
-	p.MoveSiblingExclusive(innerBlock, marker.startMarker, marker.endMarker)
+	p.MoveSiblingExclusive(innerBlock.Node(), start.Node(), end.Node())
 
 	// Add the start node.
-	outerBlock.AddChildToBack(outerBlock.GetNext().Detach())
+	outerBlock.AppendStatement(start.Detach().AsStatement())
 	// Add the inner block.
-	outerBlock.AddChildToBack(innerBlock)
+	outerBlock.AppendStatement(innerBlock.AsStatement())
 	// And finally the end node.
-	outerBlock.AddChildToBack(outerBlock.GetNext().Detach())
+	outerBlock.AppendStatement(end.Detach().AsStatement())
 
 	// NOTE: Moving the code into a block made sense prior to ES2015 when
 	// declarations were never block scoped. But with ES2015+ function,
@@ -180,11 +190,21 @@ func (p *CreateSyntheticBlocks) AddBlocks(marker *createSyntheticBlocks_Marker) 
 	// of function to be removed.
 	p.RewriteFunctionDeclarationsInBlock(innerBlock)
 
-	jutil.CheckStateMsg1(
-		outerBlock.GetParent().IsBlock() || outerBlock.GetParent().IsScript(),
-		"%s", outerBlock.GetParent())
-	jutil.CheckState(innerBlock.GetParent().IsBlock())
-	p.compiler.ReportChangeToEnclosingScope(outerBlock)
+	outerParent := outerBlock.Node().GetParent()
+	jutil.CheckStateMsg1(outerParent.IsBlock() || outerParent.IsScript(), "%s", outerParent)
+	jutil.CheckState(innerBlock.Node().GetParent().IsBlock())
+	p.compiler.ReportChangeToEnclosingScope(outerBlock.Node())
+}
+
+// createSyntheticBlocks_newSyntheticBlock returns an empty synthetic block at
+// the position of marker.
+//
+// Go-only: Java builds the two blocks of addBlocks inline.
+func createSyntheticBlocks_newSyntheticBlock(marker ast.ExprStmt) ast.Block {
+	block := ast.NewBlock()
+	block.Node().Srcref(marker.Node())
+	block.Node().SetIsSyntheticBlock(true)
+	return block
 }
 
 // MoveSiblingExclusive moves the nodes between start and end from the
@@ -203,19 +223,24 @@ func (p *CreateSyntheticBlocks) MoveSiblingExclusive(dest rhino.Node, start rhin
 
 // Java: CreateSyntheticBlocks.visit(NodeTraversal, Node, Node)
 func (p *CreateSyntheticBlocks) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !n.IsCall() || !n.GetFirstChild().IsName() {
+	call, ok := ast.AsCall(n)
+	if !ok {
+		return
+	}
+	callTarget, ok := call.Callee().AsName()
+	if !ok {
 		return
 	}
 
-	callTarget := n.GetFirstChild()
-	callName := callTarget.GetString()
+	callName := callTarget.Ident()
 
 	if p.startMarkerName == callName {
-		if !parent.IsExprResult() {
+		startMarkerNode, ok := ast.AsExprStmt(parent)
+		if !ok {
 			p.compiler.Report(JSError_MakeWithNode(n, CreateSyntheticBlocks_INVALID_MARKER_USAGE, p.startMarkerName))
 			return
 		}
-		p.markerStack = append(p.markerStack, parent)
+		p.markerStack = append(p.markerStack, startMarkerNode)
 		return
 	}
 
@@ -223,8 +248,8 @@ func (p *CreateSyntheticBlocks) Visit(unused *NodeTraversal, n rhino.Node, paren
 		return
 	}
 
-	endMarkerNode := parent
-	if !endMarkerNode.IsExprResult() {
+	endMarkerNode, ok := ast.AsExprStmt(parent)
+	if !ok {
 		p.compiler.Report(JSError_MakeWithNode(n, CreateSyntheticBlocks_INVALID_MARKER_USAGE, p.endMarkerName))
 		return
 	}
@@ -236,7 +261,7 @@ func (p *CreateSyntheticBlocks) Visit(unused *NodeTraversal, n rhino.Node, paren
 
 	startMarkerNode := p.markerStack[len(p.markerStack)-1]
 	p.markerStack = p.markerStack[:len(p.markerStack)-1]
-	if endMarkerNode.GetParent() != startMarkerNode.GetParent() {
+	if endMarkerNode.Node().GetParent() != startMarkerNode.Node().GetParent() {
 		// The end marker isn't in the same block as the start marker.
 		p.compiler.Report(JSError_MakeWithNode(n, CreateSyntheticBlocks_UNMATCHED_END_MARKER, p.startMarkerName, p.endMarkerName))
 		return
