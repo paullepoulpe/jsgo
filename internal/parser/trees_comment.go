@@ -21,7 +21,7 @@ package parser
 // Comment is a placeholder class.
 type Comment struct {
 	Value    string
-	Location SourceRange
+	Location LineRange // Go-only: with lines and columns (see SourcePosition)
 	Type     Comment_Type
 }
 
@@ -68,7 +68,7 @@ func (t Comment_Type) String() string { return t.Name() }
 // NewComment constructs a Comment.
 //
 // Java: Comment(String, SourceRange, Type)
-func NewComment(value string, location SourceRange, type_ Comment_Type) *Comment {
+func NewComment(value string, location LineRange, type_ Comment_Type) *Comment {
 	c := &Comment{}
 	c.Value = value
 	c.Location = location

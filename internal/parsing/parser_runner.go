@@ -214,7 +214,7 @@ func NewParserRunner_Es6ErrorReporter(reporter rhino.ErrorReporter, reportAllErr
 }
 
 // Java: ParserRunner.Es6ErrorReporter.reportError(SourcePosition, String)
-func (r *ParserRunner_Es6ErrorReporter) ReportError(location parser.SourcePosition, message string) {
+func (r *ParserRunner_Es6ErrorReporter) ReportError(location parser.LinePosition, message string) {
 	// In normal usage, only the first parse error should be reported, but
 	// sometimes it is useful to keep going.
 	if r.reportAllErrors || !r.errorSeen {
@@ -224,7 +224,7 @@ func (r *ParserRunner_Es6ErrorReporter) ReportError(location parser.SourcePositi
 }
 
 // Java: ParserRunner.Es6ErrorReporter.reportWarning(SourcePosition, String)
-func (r *ParserRunner_Es6ErrorReporter) ReportWarning(location parser.SourcePosition, message string) {
+func (r *ParserRunner_Es6ErrorReporter) ReportWarning(location parser.LinePosition, message string) {
 	r.reporter.Warning(message, r.sourceName, int(location.Line)+1, int(location.Column))
 }
 

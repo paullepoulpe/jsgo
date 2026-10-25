@@ -187,11 +187,11 @@ func javaClassName(t jutil.Throwable) string {
 	return full
 }
 
-func dumpRange(r parser.SourceRange) string {
+func dumpRange(r parser.LineRange) string {
 	return dumpPos(r.Start) + "-" + dumpPos(r.End)
 }
 
-func dumpPos(p parser.SourcePosition) string {
+func dumpPos(p parser.LinePosition) string {
 	return fmt.Sprintf("%d:%d@%d", p.Line, p.Column, p.Offset)
 }
 

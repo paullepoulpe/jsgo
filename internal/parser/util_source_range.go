@@ -24,7 +24,8 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // Start is inclusive.
 // End is exclusive.
 //
-// Go-only: performance — a pointer-free value (see SourcePosition).
+// Go-only: performance — a pointer-free value of two offsets (see
+// SourcePosition).
 type SourceRange struct {
 	Start SourcePosition
 	End   SourcePosition
@@ -42,4 +43,21 @@ func NewSourceRange(start, end SourcePosition) SourceRange {
 // Java: SourceRange.toString()
 func (s SourceRange) String() string {
 	return jutil.StringFormat("<%s - %s>", s.Start, s.End)
+}
+
+// LineRange is a SourceRange whose positions have their lines and columns
+// (see LinePosition): the location of a comment.
+type LineRange struct {
+	Start LinePosition
+	End   LinePosition
+}
+
+// Range returns the range without the lines and columns.
+func (r LineRange) Range() SourceRange {
+	return SourceRange{Start: r.Start.Position(), End: r.End.Position()}
+}
+
+// String renders the range as "<start - end>".
+func (r LineRange) String() string {
+	return jutil.StringFormat("<%s - %s>", r.Start, r.End)
 }

@@ -54,12 +54,12 @@ func newRecordingErrorReporter() *recordingErrorReporter {
 	return r
 }
 
-func (r *recordingErrorReporter) ReportError(location SourcePosition, message string) {
-	r.lines = append(r.lines, "ERROR "+dumpPosition(location)+" "+dumpQuote(message))
+func (r *recordingErrorReporter) ReportError(location LinePosition, message string) {
+	r.lines = append(r.lines, "ERROR "+dumpLinePosition(location)+" "+dumpQuote(message))
 }
 
-func (r *recordingErrorReporter) ReportWarning(location SourcePosition, message string) {
-	r.lines = append(r.lines, "WARNING "+dumpPosition(location)+" "+dumpQuote(message))
+func (r *recordingErrorReporter) ReportWarning(location LinePosition, message string) {
+	r.lines = append(r.lines, "WARNING "+dumpLinePosition(location)+" "+dumpQuote(message))
 }
 
 // configFromDump returns the Parser.Config whose fields the "# config" line
@@ -126,7 +126,7 @@ func dumpParseTree(name, src string, config *Parser_Config) string {
 		sb.WriteString("# sourceMapURL " + dumpQuote(*url) + "\n")
 	}
 	sb.WriteString("# comments\n")
-	d := &dumper{sb: &sb}
+	d := &dumper{sb: &sb, file: file}
 	d.render(reflect.ValueOf(p.GetComments()), 0, "")
 	sb.WriteString("# tree\n")
 	if tree == nil {
@@ -154,7 +154,8 @@ func describePanic(r any) string {
 }
 
 type dumper struct {
-	sb *strings.Builder
+	sb   *strings.Builder
+	file *SourceFile // positions are offsets: lines and columns come from here
 }
 
 func (d *dumper) line(depth int, label, text string) {
@@ -172,6 +173,7 @@ var (
 	commentPtrType    = reflect.TypeOf((*Comment)(nil))
 	positionType      = reflect.TypeOf(SourcePosition{})
 	rangeType         = reflect.TypeOf(SourceRange{})
+	lineRangeType     = reflect.TypeOf(LineRange{})
 	parseTreeBaseType = reflect.TypeOf(ParseTreeBase{})
 	tokenBaseType     = reflect.TypeOf(TokenBase{})
 )
@@ -218,11 +220,11 @@ func (d *dumper) render(v reflect.Value, depth int, label string) {
 	switch {
 	case t.Implements(parseTreeType):
 		pt := v.Interface().(ParseTree).GetParseTreeBase()
-		d.line(depth, label, javaSimpleName(t)+" "+pt.Type.Name()+" "+dumpRange(pt.Location))
+		d.line(depth, label, javaSimpleName(t)+" "+pt.Type.Name()+" "+d.dumpRange(pt.Location))
 		d.fields(v.Elem(), depth+1)
 	case t.Implements(tokenType):
 		tb := v.Interface().(Token).GetTokenBase()
-		d.line(depth, label, javaSimpleName(t)+" "+tb.Type.Name()+" "+dumpRange(tb.Location))
+		d.line(depth, label, javaSimpleName(t)+" "+tb.Type.Name()+" "+d.dumpRange(tb.Location))
 		d.fields(v.Elem(), depth+1)
 	case t == commentPtrType:
 		d.line(depth, label, "Comment")
@@ -254,9 +256,12 @@ func (d *dumper) fields(sv reflect.Value, depth int) {
 func (d *dumper) scalar(v reflect.Value) string {
 	switch {
 	case v.Type() == positionType:
-		return dumpPosition(v.Interface().(SourcePosition))
+		return d.dumpPosition(v.Interface().(SourcePosition))
 	case v.Type() == rangeType:
-		return dumpRange(v.Interface().(SourceRange))
+		return d.dumpRange(v.Interface().(SourceRange))
+	case v.Type() == lineRangeType:
+		r := v.Interface().(LineRange)
+		return dumpLinePosition(r.Start) + "-" + dumpLinePosition(r.End)
 	}
 	if v.Kind() == reflect.Pointer {
 		// Go-only nullable scalars (*string, *enum) are non-nil here.
@@ -335,11 +340,15 @@ func javaSimpleName(t reflect.Type) string {
 	return strings.TrimSuffix(t.Name(), "Base")
 }
 
-func dumpRange(r SourceRange) string {
-	return dumpPosition(r.Start) + "-" + dumpPosition(r.End)
+func (d *dumper) dumpRange(r SourceRange) string {
+	return d.dumpPosition(r.Start) + "-" + d.dumpPosition(r.End)
 }
 
-func dumpPosition(p SourcePosition) string {
+func (d *dumper) dumpPosition(p SourcePosition) string {
+	return dumpLinePosition(d.file.LinePosition(p))
+}
+
+func dumpLinePosition(p LinePosition) string {
 	return fmt.Sprintf("%d:%d@%d", p.Line, p.Column, p.Offset)
 }
 

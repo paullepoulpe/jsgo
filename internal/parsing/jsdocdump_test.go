@@ -64,8 +64,8 @@ func newSilentParserReporter() *silentParserReporter {
 	return r
 }
 
-func (r *silentParserReporter) ReportError(location parser.SourcePosition, message string)   {}
-func (r *silentParserReporter) ReportWarning(location parser.SourcePosition, message string) {}
+func (r *silentParserReporter) ReportError(location parser.LinePosition, message string)   {}
+func (r *silentParserReporter) ReportWarning(location parser.LinePosition, message string) {}
 
 // jsdocRecordingReporter is JsDocDump.RecordingReporter.
 type jsdocRecordingReporter struct {
@@ -420,11 +420,11 @@ func jsdocPos(p jsdocSourcePosition, item string) string {
 	return fmt.Sprintf("%s@%d:%d-%d:%d", item, p.GetStartLine(), p.GetPositionOnStartLine(), p.GetEndLine(), p.GetPositionOnEndLine())
 }
 
-func jsdocRange(r parser.SourceRange) string {
+func jsdocRange(r parser.LineRange) string {
 	return jsdocPosition(r.Start) + "-" + jsdocPosition(r.End)
 }
 
-func jsdocPosition(p parser.SourcePosition) string {
+func jsdocPosition(p parser.LinePosition) string {
 	return fmt.Sprintf("%d:%d@%d", p.Line, p.Column, p.Offset)
 }
 

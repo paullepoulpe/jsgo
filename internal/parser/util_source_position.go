@@ -20,16 +20,17 @@ package parser
 
 import "github.com/paullepoulpe/jsgo/internal/jutil"
 
-// SourcePosition is a position in a source string - includes offset, line
-// and column.
+// SourcePosition is a position in a source string: its offset, in UTF-16
+// code units. Its line and column come from the file's line table
+// (SourceFile.LinePosition).
 //
-// Go-only: performance — a small pointer-free value (int32 fields, no
-// SourceFile): a parse creates one or two per token, and the file is always
-// known from context (the scanner, the parser, the error reporter).
+// Go-only: performance — Java's SourcePosition also holds the source file,
+// the line and the column. Every token and parse tree has two positions,
+// and most are only ever compared or turned into a node's line and column
+// once, so they keep the offset alone (4 bytes instead of 12); the code
+// that needs lines (comments, errors) uses LinePosition.
 type SourcePosition struct {
 	Offset int32
-	Line   int32
-	Column int32
 }
 
 // GetOffset returns the offset.
@@ -39,17 +40,45 @@ func (s SourcePosition) GetOffset() int {
 	return int(s.Offset)
 }
 
-// NewSourcePosition constructs a SourcePosition.
+// NewSourcePosition returns the position at offset.
 //
 // Java: SourcePosition(SourceFile, int, int, int)
-func NewSourcePosition(offset, line, column int) SourcePosition {
-	return SourcePosition{Offset: int32(offset), Line: int32(line), Column: int32(column)}
+func NewSourcePosition(offset int) SourcePosition {
+	return SourcePosition{Offset: int32(offset)}
+}
+
+// String renders the position as "@<offset>".
+//
+// Java: SourcePosition.toString() — Go-only: language-adapter — the line and
+// column need the file (see LinePosition.String).
+func (s SourcePosition) String() string {
+	return jutil.StringFormat("@%d", int(s.Offset))
+}
+
+// LinePosition is a position with its line and column (0-based), as Java's
+// SourcePosition has them: what comments and errors keep.
+//
+// Go-only: see SourcePosition.
+type LinePosition struct {
+	Offset int32
+	Line   int32
+	Column int32
+}
+
+// Position returns the position without its line and column.
+func (p LinePosition) Position() SourcePosition {
+	return SourcePosition{Offset: p.Offset}
+}
+
+// GetOffset returns the offset.
+func (p LinePosition) GetOffset() int {
+	return int(p.Offset)
 }
 
 // String renders the position as "(<line>, <column>)", 1-based.
 //
 // Java: SourcePosition.toString() — Go-only: language-adapter — without the
-// short source name (see SourcePosition).
-func (s SourcePosition) String() string {
-	return jutil.StringFormat("(%d, %d)", int(s.Line)+1, int(s.Column)+1)
+// short source name.
+func (p LinePosition) String() string {
+	return jutil.StringFormat("(%d, %d)", int(p.Line)+1, int(p.Column)+1)
 }

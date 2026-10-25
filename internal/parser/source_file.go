@@ -20,6 +20,9 @@ package parser
 
 import (
 	"slices"
+	"sort"
+	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -37,6 +40,13 @@ type SourceFile struct {
 	// UTF-16, once, into utf16Tail (nil for an all-ASCII file).
 	asciiPrefix int
 	utf16Tail   []uint16
+
+	// Go-only: performance — the offset at which each line starts, built on
+	// first use; positions are offsets (SourcePosition) and their lines and
+	// columns come from here.
+	linesOnce  sync.Once
+	lineStarts []int32
+	lastLine   atomic.Int32 // the line of the last lookup: lookups mostly move forward
 }
 
 // NewSourceFile constructs a SourceFile.
@@ -87,4 +97,61 @@ func (f *SourceFile) Substring(start, end int) string {
 	default:
 		return f.Contents[start:p] + jutil.StringFromUTF16(f.utf16Tail[:end-p])
 	}
+}
+
+// LinePosition returns pos with its line and column.
+//
+// Go-only: see SourcePosition.
+func (f *SourceFile) LinePosition(pos SourcePosition) LinePosition {
+	line, column := f.LineColumn(int(pos.Offset))
+	return LinePosition{Offset: pos.Offset, Line: int32(line), Column: int32(column)}
+}
+
+// LineRange returns the range from start to end with lines and columns.
+func (f *SourceFile) LineRange(start, end int) LineRange {
+	return LineRange{
+		Start: f.LinePosition(NewSourcePosition(start)),
+		End:   f.LinePosition(NewSourcePosition(end)),
+	}
+}
+
+// Line returns the 0-based line of pos.
+func (f *SourceFile) Line(pos SourcePosition) int {
+	line, _ := f.LineColumn(int(pos.Offset))
+	return line
+}
+
+// LineColumn returns the 0-based line and column of offset. A line ends
+// after a line terminator: \n, \r, \r\n, U+2028 or U+2029.
+func (f *SourceFile) LineColumn(offset int) (line, column int) {
+	f.linesOnce.Do(f.buildLineStarts)
+	starts := f.lineStarts
+	o := int32(offset)
+	i := int(f.lastLine.Load())
+	if i >= len(starts) || starts[i] > o || (i+1 < len(starts) && starts[i+1] <= o) {
+		if i+1 < len(starts) && starts[i+1] <= o && (i+2 >= len(starts) || starts[i+2] > o) {
+			i++ // the next line: the common case of a scan going forward
+		} else {
+			i = sort.Search(len(starts), func(k int) bool { return starts[k] > o }) - 1
+		}
+		f.lastLine.Store(int32(i))
+	}
+	return i, offset - int(starts[i])
+}
+
+func (f *SourceFile) buildLineStarts() {
+	starts := make([]int32, 1, 1+f.Length()/32)
+	n := f.Length()
+	for i := 0; i < n; i++ {
+		switch ch := f.CharAt(i); ch {
+		case '\n', 0x2028, 0x2029:
+			starts = append(starts, int32(i+1))
+		case '\r':
+			if i+1 < n && f.CharAt(i+1) == '\n' {
+				i++
+			}
+			starts = append(starts, int32(i+1))
+		}
+	}
+	f.lineStarts = starts
 }

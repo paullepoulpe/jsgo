@@ -30,9 +30,8 @@ import (
 //
 // 7 Lexical Conventions
 type Scanner struct {
-	errorReporter     ErrorReporter
-	source            *SourceFile
-	lineNumberScanner *LineNumberScanner
+	errorReporter ErrorReporter
+	source        *SourceFile
 	// Go-only: language-adapter — the Java String contents, unwrapped from
 	// the SourceFile (see SourceFile.CharAt).
 	rawContents        string
@@ -132,7 +131,6 @@ func NewScanner(errorReporter ErrorReporter, commentRecorder Scanner_CommentReco
 	s.errorReporter = errorReporter
 	s.commentRecorder = commentRecorder
 	s.source = file
-	s.lineNumberScanner = NewLineNumberScanner(s.source)
 	// To help reason about the expected JVM performance unwrap "file" values.
 	// The scanner is key to the parsing speed.
 	s.rawContents = file.Contents
@@ -147,7 +145,7 @@ func NewScanner(errorReporter ErrorReporter, commentRecorder Scanner_CommentReco
 // Scanner_CommentRecorder is Scanner.CommentRecorder.
 type Scanner_CommentRecorder interface {
 	// Java: Scanner.CommentRecorder.recordComment(Comment.Type, SourceRange, String)
-	RecordComment(type_ Comment_Type, range_ SourceRange, value string)
+	RecordComment(type_ Comment_Type, range_ LineRange, value string)
 }
 
 // GetFile returns the source file.
@@ -171,7 +169,6 @@ func (s *Scanner) GetOffset() int {
 //
 // Java: Scanner.setPosition(SourcePosition)
 func (s *Scanner) SetPosition(position SourcePosition) {
-	s.lineNumberScanner.RewindTo(position)
 	clear(s.lookahead)
 	s.lookahead = s.lookahead[:0]
 	s.index = int(position.Offset)
@@ -191,14 +188,14 @@ func (s *Scanner) GetPosition() SourcePosition {
 //
 // Java: Scanner.getPosition(int)
 func (s *Scanner) GetPositionAt(offset int) SourcePosition {
-	return s.lineNumberScanner.GetSourcePosition(offset)
+	return NewSourcePosition(offset)
 }
 
 // GetTokenRange returns the range from startOffset to the current index.
 //
 // Java: Scanner.getTokenRange(int)
 func (s *Scanner) GetTokenRange(startOffset int) SourceRange {
-	return s.lineNumberScanner.GetSourceRange(startOffset, s.index)
+	return NewSourceRange(NewSourcePosition(startOffset), NewSourcePosition(s.index))
 }
 
 // GetTokenRangeFromPosition: prefer this to GetTokenRange(int) when the
@@ -206,8 +203,7 @@ func (s *Scanner) GetTokenRange(startOffset int) SourceRange {
 //
 // Java: Scanner.getTokenRange(SourcePosition)
 func (s *Scanner) GetTokenRangeFromPosition(position SourcePosition) SourceRange {
-	s.lineNumberScanner.RewindTo(position)
-	return s.lineNumberScanner.GetSourceRange(int(position.Offset), s.index)
+	return NewSourceRange(position, NewSourcePosition(s.index))
 }
 
 // NextToken consumes and returns the next token.
@@ -559,13 +555,13 @@ func (s *Scanner) SkipSingleLineCommentOfType(type_ Comment_Type) {
 	for !s.IsAtEnd() && !Scanner_IsLineTerminator(s.PeekChar()) {
 		s.NextChar()
 	}
-	range_ := s.lineNumberScanner.GetSourceRange(startOffset, s.index)
+	range_ := s.source.LineRange(startOffset, s.index)
 	value := s.sliceString(startOffset, s.index)
 	s.RecordComment(type_, range_, value)
 }
 
 // Java: Scanner.recordComment(Comment.Type, SourceRange, String)
-func (s *Scanner) RecordComment(type_ Comment_Type, range_ SourceRange, value string) {
+func (s *Scanner) RecordComment(type_ Comment_Type, range_ LineRange, value string) {
 	s.commentRecorder.RecordComment(type_, range_, value)
 }
 
@@ -588,7 +584,7 @@ func (s *Scanner) SkipMultiLineComment() {
 				type_ = Comment_Type_IMPORTANT
 			}
 		}
-		range_ := s.lineNumberScanner.GetSourceRange(startOffset, s.index)
+		range_ := s.source.LineRange(startOffset, s.index)
 		value := s.sliceString(startOffset, s.index)
 		s.RecordComment(type_, range_, value)
 	} else {
@@ -1589,12 +1585,12 @@ func (s *Scanner) ReportError(format string, arguments ...any) {
 
 // Java: Scanner.reportError(SourcePosition, String, Object...)
 func (s *Scanner) ReportErrorAtPosition(position SourcePosition, format string, arguments ...any) {
-	s.errorReporter.ReportErrorFormat(position, format, arguments...)
+	s.errorReporter.ReportErrorFormat(s.source.LinePosition(position), format, arguments...)
 }
 
 // Java: Scanner.reportWarning(String, Object...)
 func (s *Scanner) ReportWarning(format string, arguments ...any) {
-	s.errorReporter.ReportWarningFormat(s.GetPosition(), format, arguments...)
+	s.errorReporter.ReportWarningFormat(s.source.LinePosition(s.GetPosition()), format, arguments...)
 }
 
 // Java: Scanner.incTypeParameterLevel()

@@ -1,4 +1,4 @@
-# Round 4: where the heap peaks, and two cuts (2026-10-24)
+# Round 4: where the heap peaks, and three cuts (2026-10-24)
 
 Builds on round 3 (32-bit node ids in per-compilation stores,
 `round3-flat-slices.md`). Goal: lower the heap at its peak, which sets the
@@ -55,6 +55,34 @@ Turning compaction off is not an option: typed-full peak RSS goes from
 typed-full peak live (GOGC=25 for a dense sample): 212/221 MB -> 205/214 MB.
 No time change. Output and source maps byte-identical.
 
+## Cut 3: parser positions as offsets
+
+Every token and parse tree had a `SourceRange` of two `SourcePosition`s,
+each with an offset, a line and a column (24 bytes per range), and the
+scanner tracked lines as it went (`LineNumberScanner`). A position is now
+the offset alone; the line and column come from a table of line starts that
+the `SourceFile` builds on first use (`SourceFile.LinePosition`, a cursor
+for the forward scans plus a binary search). What needs lines keeps them:
+comments (`LineRange`), parse errors (`LinePosition`) and `NonJSDocComment`.
+
+| object | before | after |
+|---|---|---|
+| `SourceRange` | 24 B | 8 B |
+| `IdentifierToken` | 48 B | 32 B |
+| `IdentifierExpressionTree` | 40 B | 24 B |
+| `BinaryOperatorTree` | 80 B | 64 B |
+| `CallExpressionTree` | 56 B | 40 B |
+
+bundle (GOGC=25, 3 runs): peak live 130-138 MB -> 105-113 MB, peak RSS
+191-197 MB -> 165-168 MB, 46 MB less allocated. Output, source maps and
+warnings (with their lines and columns) byte-identical.
+
+The bundle peak is now the end of `typescript.js`'s parse: its whole parse
+tree (~47 MB) plus the ASTs of the three other files, parsed in parallel
+(node blocks ~36 MB). IRFactory already drops each statement's parse tree
+once converted, but conversion starts after the parse, so only a smaller
+parse tree (or AST) lowers that peak.
+
 ## A gap in the earlier gates
 
 The output gate compared `out.js` and stderr but not the source map
@@ -66,10 +94,11 @@ cut 1: identical.
 
 ## Next
 
-- **Parser objects at the parse peak** (bundle): identifier tokens ~18 MB,
-  parse-tree nodes ~45 MB. Storing the identifier's name and position in the
-  tree node instead of a separate token object, and positions as offsets
-  (line and column from a line table), would cut most of it.
+- **Parser objects at the parse peak** (bundle, after cut 3): identifier
+  tokens ~9.5 MB, identifier expressions ~6 MB, `[]ParseTree` slices ~4 MB,
+  argument lists ~4 MB. Storing the identifier's name in the tree node
+  instead of a separate token object would save about 8 bytes and one object
+  per identifier expression.
 - **The record further**: 32 bytes needs another 4 bytes; the candidates
   (fewer inline boolean properties, the source-file id) cost more than they
   save today (about 2% of nodes would need a cold entry of ~100 B).

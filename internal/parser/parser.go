@@ -408,7 +408,7 @@ func NewParser_CommentRecorder(this *Parser) *Parser_CommentRecorder {
 // RecordComment records a comment the scanner passed.
 //
 // Java: Parser.CommentRecorder.recordComment(Comment.Type, SourceRange, String)
-func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ SourceRange, value string) {
+func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ LineRange, value string) {
 	// If we rewind the token stream, the scanner might pass comments that we've already seen.
 	// Only record comments past the furthest comment end position we've seen.
 	// NB: this assumes the CommentRecorder is used for at most one source file.
@@ -1605,7 +1605,7 @@ func (p *Parser) ParseForStatement() ParseTree {
 					p.ReportError("for-in statement may not have initializer")
 				} else {
 					p.errorReporter.ReportWarningFormat(
-						declaration.Location.Start, "for-in statement should not have initializer")
+						p.linePos(declaration.Location.Start), "for-in statement should not have initializer")
 				}
 			}
 
@@ -2215,7 +2215,7 @@ func (p *Parser) MaybeReportTrailingComma(commaToken Token) {
 			// In ES3 mode warn about trailing commas which aren't accepted by
 			// older browsers (such as IE8).
 			p.errorReporter.ReportWarningFormat(
-				commaToken.GetTokenBase().Location.Start,
+				p.linePos(commaToken.GetTokenBase().Location.Start),
 				"Trailing comma is not legal in an ECMA-262 object initializer")
 		}
 	}
@@ -2688,7 +2688,7 @@ func (p *Parser) IsStartOfAsyncArrowFunction(partialExpression ParseTree) bool {
 		// followed by `[no newline] =>`
 		return callee.GetParseTreeBase().Type == ParseTreeType_IDENTIFIER_EXPRESSION &&
 			callee.(*IdentifierExpressionTree).IdentifierToken.ValueEquals(Parser_ASYNC) &&
-			callee.GetParseTreeBase().Location.End.Line == arguments.GetParseTreeBase().Location.Start.Line &&
+			p.line(callee.GetParseTreeBase().Location.End) == p.line(arguments.GetParseTreeBase().Location.Start) &&
 			!p.PeekImplicitSemiColon() &&
 			p.Peek(TokenType_ARROW)
 	} else {
@@ -2753,7 +2753,7 @@ func (p *Parser) CompleteAssignmentExpressionParseAtArrow(callExpression *CallEx
 	operand := callExpression.Operand
 	var arguments ParseTree = callExpression.Arguments
 	var result ParseTree
-	if operand.GetParseTreeBase().Location.End.Line < arguments.GetParseTreeBase().Location.Start.Line {
+	if p.line(operand.GetParseTreeBase().Location.End) < p.line(arguments.GetParseTreeBase().Location.Start) {
 		// break at the implicit semicolon
 		// Example:
 		// foo.bar // operand and implicit semicolon
@@ -3855,7 +3855,7 @@ func (p *Parser) PeekImplicitSemiColonAt(index int) bool {
 	if index == 0 {
 		lineAdvanced = p.GetNextLine() > p.GetLastLine()
 	} else {
-		lineAdvanced = p.PeekTokenAt(index).GetTokenBase().Location.Start.Line > p.PeekTokenAt(index-1).GetTokenBase().Location.End.Line
+		lineAdvanced = p.line(p.PeekTokenAt(index).GetTokenBase().Location.Start) > p.line(p.PeekTokenAt(index-1).GetTokenBase().Location.End)
 	}
 	return lineAdvanced ||
 		p.PeekAt(index, TokenType_SEMI_COLON) ||
@@ -3867,14 +3867,26 @@ func (p *Parser) PeekImplicitSemiColonAt(index int) bool {
 //
 // Java: Parser.getLastLine()
 func (p *Parser) GetLastLine() int {
-	return int(p.lastSourcePosition.Line)
+	return p.line(p.lastSourcePosition)
+}
+
+// line returns the 0-based line of pos.
+//
+// Go-only: positions are offsets (see SourcePosition).
+func (p *Parser) line(pos SourcePosition) int {
+	return p.scanner.source.Line(pos)
+}
+
+// linePos returns pos with its line and column, for error messages.
+func (p *Parser) linePos(pos SourcePosition) LinePosition {
+	return p.scanner.source.LinePosition(pos)
 }
 
 // GetNextLine returns the line number of the next token.
 //
 // Java: Parser.getNextLine()
 func (p *Parser) GetNextLine() int {
-	return int(p.PeekToken().GetTokenBase().Location.Start.Line)
+	return p.line(p.PeekToken().GetTokenBase().Location.Start)
 }
 
 // EatOpt consumes the next token if it is of the expected type. Otherwise
@@ -4136,7 +4148,7 @@ func (p *Parser) ReportErrorAtToken(token Token, message string, arguments ...an
 	if token == nil {
 		p.ReportError(message, arguments...)
 	} else {
-		p.errorReporter.ReportErrorFormat(token.GetStart(), message, arguments...)
+		p.errorReporter.ReportErrorFormat(p.linePos(token.GetStart()), message, arguments...)
 	}
 }
 
@@ -4152,7 +4164,7 @@ func (p *Parser) ReportErrorAtTree(parseTree ParseTree, message string, argument
 	if parseTree == nil {
 		p.ReportError(message, arguments...)
 	} else {
-		p.errorReporter.ReportErrorFormat(parseTree.GetParseTreeBase().Location.Start, message, arguments...)
+		p.errorReporter.ReportErrorFormat(p.linePos(parseTree.GetParseTreeBase().Location.Start), message, arguments...)
 	}
 }
 
@@ -4163,7 +4175,7 @@ func (p *Parser) ReportErrorAtTree(parseTree ParseTree, message string, argument
 //
 // Java: Parser.reportError(String, Object...)
 func (p *Parser) ReportError(message string, arguments ...any) {
-	p.errorReporter.ReportErrorFormat(p.scanner.GetPosition(), message, arguments...)
+	p.errorReporter.ReportErrorFormat(p.linePos(p.scanner.GetPosition()), message, arguments...)
 }
 
 // ReportErrorAtPosition reports an error at the specified location.
@@ -4174,7 +4186,7 @@ func (p *Parser) ReportError(message string, arguments ...any) {
 //
 // Java: Parser.reportError(SourcePosition, String, Object...)
 func (p *Parser) ReportErrorAtPosition(position SourcePosition, message string, arguments ...any) {
-	p.errorReporter.ReportErrorFormat(position, message, arguments...)
+	p.errorReporter.ReportErrorFormat(p.linePos(position), message, arguments...)
 }
 
 // Java: Parser.reportTemplateErrorIfPresent(TemplateLiteralToken)
@@ -4186,7 +4198,7 @@ func (p *Parser) ReportTemplateErrorIfPresent(templateToken *TemplateLiteralToke
 	// a NullPointerException here.
 	switch *templateToken.ErrorLevel {
 	case TemplateLiteralToken_ErrorLevel_WARNING:
-		p.errorReporter.ReportWarningFormat(templateToken.ErrorPosition, "%s", *templateToken.ErrorMessage)
+		p.errorReporter.ReportWarningFormat(p.linePos(templateToken.ErrorPosition), "%s", *templateToken.ErrorMessage)
 		return
 	case TemplateLiteralToken_ErrorLevel_ERROR:
 		p.ReportErrorAtPosition(templateToken.ErrorPosition, "%s", *templateToken.ErrorMessage)

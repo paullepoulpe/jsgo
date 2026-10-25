@@ -241,9 +241,9 @@ func buildFormatOracle() string {
 	props.AddChildToBack(IR_ExprResult(unaware))
 	comment := IR_Name("commented")
 	comment.SetNonJSDocComment(
-		NewNonJSDocComment(parser.NewSourcePosition(0, 1, 2), parser.NewSourcePosition(5, 1, 7), jutil.StringPtr("// c")))
+		NewNonJSDocComment(parser.LinePosition{Offset: 0, Line: 1, Column: 2}, parser.LinePosition{Offset: 5, Line: 1, Column: 7}, jutil.StringPtr("// c")))
 	comment.SetTrailingNonJSDocComment(
-		NewNonJSDocComment(parser.NewSourcePosition(8, 1, 9), parser.NewSourcePosition(12, 1, 13), jutil.StringPtr("/* t */")))
+		NewNonJSDocComment(parser.LinePosition{Offset: 8, Line: 1, Column: 9}, parser.LinePosition{Offset: 12, Line: 1, Column: 13}, jutil.StringPtr("/* t */")))
 	props.AddChildToBack(IR_ExprResult(comment))
 	odd := IR_Name("odd")
 	odd.PutProp(Node_FEATURE_SET, math.NaN())
