@@ -515,6 +515,55 @@ What they reported:
   per kind (nine in CFA's traversal pruning); a query for a child's role in
   its parent would make it one line.
 
+## Twenty-sixth and twenty-seventh ports: TypeCheck and ClosureCheckModule
+
+`TypeCheck` (3,700 lines, the pass that reports type errors) in five
+commits, one per group of visit methods, and `ClosureCheckModule`. The
+warnings, their order and their text are byte-identical on checks-only and
+typed-app, which are full of type warnings; TypeCheck's speed is unchanged
+(in-process A/B after inferTypes, pooled medians: typed-app +0.4 %,
+checks-only +0.1 %, typed-full -0.6 %; same allocations).
+
+- **Visit stays a token switch** (every node also goes through the checks
+  before and after it, so a visitor could not skip any kind) and hands each
+  visit method its kind: `op.Left()`/`Right()`, `call.Callee()`,
+  `getProp.Object()`/`Property()`, `assign.Target()`/`Value()`; optional
+  children are comma-ok (`ret.Value()`, `class.Extends()`, `name.Init()`).
+- **Two copies of the argument check became one.** A Java-shaped
+  `CheckArgumentsMatchParameters` nothing called any more sat next to a
+  fast copy that walked siblings and skipped template strings by hand. The
+  arguments of a call or `new` are `ast.MustCallOrNew(call).Args()`, those of
+  a tagged template the substitutions of `tagged.Template().Parts()`.
+- **Five Java argument checks became parameter types.**
+- **A Java quirk kept for identical output:** `VisitOptChainGetProp`
+  reports a dict access on the object, because Java's `getLastChild()` of a
+  property access is its only child.
+- **New categories**, each from a token list jscomp repeats:
+  `CallOrNew = Call | OptChainCall | New` (`NodeUtil.isCallOrNew`, 31
+  uses), `ForOfLoop = ForOf | ForAwaitOf` (42 case clauses list the two),
+  `GetterOrSetterDef = GetterDef | SetterDef`.
+- **ClosureCheckModule** reads a destructuring import as an object pattern
+  of string keys whose values are names, and the namespace of
+  `goog.require` as the call's argument.
+
+What they reported:
+
+- **`.Node()` is everywhere in TypeCheck (120 calls)**: the type checker
+  works on JSTypes and reports on nodes, so the usual line is
+  `left := op.Left().Node()`. Reading by role is the gain.
+- **Do not pass a list iterator as a parameter in hot code.** Ranging over
+  an `iter.Seq` parameter moves the loop state to the heap (5 allocations
+  per call in a test program); the shared loop body became a local closure
+  called from two typed loops.
+- **Parent-role questions** (about ten here: is this getprop an assignment
+  target, is this the arrow's body, the switch of a case) take the two-line
+  `x, ok := ast.AsAssign(parent); ok && x.Target().Is(n)`.
+- **No Must conversions on categories**: "a declarator that is not a
+  destructuring is a name" is `ast.MustName(declarator.Node())`;
+  `declarator.MustName()` would read better.
+- **Same shape, different role names**: Binary is left/right, AssignOp is
+  target/value, so the shared operator check takes rhino nodes.
+
 ## Performance outlook
 
 The typed view compiles to the same code as before, so on its own it neither
