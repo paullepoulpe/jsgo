@@ -1,8 +1,8 @@
 package jutil
 
 import (
+	"reflect"
 	"slices"
-	"unsafe"
 )
 
 // Slab allocates values of T in chunks: New returns a pointer to a new zero
@@ -69,8 +69,7 @@ func (s *Slab[T]) New() *T {
 func (s *Slab[T]) grow() {
 	n := s.fixedChunk
 	if n == 0 {
-		var zero T
-		size := max(int(unsafe.Sizeof(zero)), 1)
+		size := max(int(reflect.TypeFor[T]().Size()), 1)
 		b := 2 * s.chunkBytes
 		if b == 0 {
 			b = slabMinChunkBytes

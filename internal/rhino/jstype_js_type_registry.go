@@ -36,6 +36,7 @@
 package rhino
 
 import (
+	"hash/maphash"
 	"strings"
 	"sync"
 
@@ -339,19 +340,18 @@ func (r *JSTypeRegistry) releaseUnionBuilder(b *UnionType_Builder) {
 	}
 }
 
-func jsTypeBasePairHash(a, b *JSTypeBase) uintptr {
-	pa := uint64(uint32(jutil.IdentityHashCodeOfPointer(a))) >> 4
-	pb := uint64(uint32(jutil.IdentityHashCodeOfPointer(b))) >> 4
-	h := pa*0x9e3779b97f4a7c15 ^ pb*0xbf58476d1ce4e5b9
-	return uintptr(h ^ (h >> 29))
+var jsTypeRegistryHashSeed = maphash.MakeSeed()
+
+func jsTypeBasePairCacheIndex(a, b *JSTypeBase) int {
+	h := maphash.Comparable(jsTypeRegistryHashSeed, struct{ a, b *JSTypeBase }{a, b})
+	return int(h & (jsTypeRegistryLeastSupertypeCacheSize - 1))
 }
 
 func (r *JSTypeRegistry) lookupLeastSupertype(a, b *JSTypeBase) JSType {
 	if r.parallelReadOnly || r.leastSupertypeCache == nil {
 		return nil
 	}
-	idx := jsTypeBasePairHash(a, b) & (jsTypeRegistryLeastSupertypeCacheSize - 1)
-	entry := &r.leastSupertypeCache[idx]
+	entry := &r.leastSupertypeCache[jsTypeBasePairCacheIndex(a, b)]
 	if entry.gen == r.leastSupertypeGen && entry.a == a && entry.b == b {
 		return entry.res
 	}
@@ -365,16 +365,16 @@ func (r *JSTypeRegistry) storeLeastSupertype(a, b *JSTypeBase, res JSType) {
 	if r.leastSupertypeCache == nil {
 		r.leastSupertypeCache = new([jsTypeRegistryLeastSupertypeCacheSize]leastSupertypeCacheEntry)
 	}
-	idx := jsTypeBasePairHash(a, b) & (jsTypeRegistryLeastSupertypeCacheSize - 1)
-	r.leastSupertypeCache[idx] = leastSupertypeCacheEntry{a: a, b: b, res: res, gen: r.leastSupertypeGen}
+	r.leastSupertypeCache[jsTypeBasePairCacheIndex(a, b)] = leastSupertypeCacheEntry{a: a, b: b, res: res, gen: r.leastSupertypeGen}
 }
 
-func (r *JSTypeRegistry) templateTypeMapCacheIndex(base *TemplateTypeMap, t0, t1 *JSTypeBase) uintptr {
-	p0 := uint64(uint32(jutil.IdentityHashCodeOfPointer(base))) >> 4
-	p1 := uint64(uint32(jutil.IdentityHashCodeOfPointer(t0))) >> 4
-	p2 := uint64(uint32(jutil.IdentityHashCodeOfPointer(t1))) >> 4
-	h := p0*0x9e3779b97f4a7c15 ^ p1*0xbf58476d1ce4e5b9 ^ p2*0x94d049bb133111eb
-	return uintptr(h^(h>>29)) & (jsTypeRegistryTemplatizedCacheSize - 1)
+func (r *JSTypeRegistry) templateTypeMapCacheIndex(base *TemplateTypeMap, t0, t1 *JSTypeBase) int {
+	type cacheKey struct {
+		base   *TemplateTypeMap
+		t0, t1 *JSTypeBase
+	}
+	h := maphash.Comparable(jsTypeRegistryHashSeed, cacheKey{base, t0, t1})
+	return int(h & (jsTypeRegistryTemplatizedCacheSize - 1))
 }
 
 // Java: JSTypeRegistry.DOT_SPLITTER (Splitter.on('.'))
