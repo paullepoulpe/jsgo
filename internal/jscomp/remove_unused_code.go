@@ -113,15 +113,8 @@ type RemoveUnusedCode struct {
 
 	preserveFunctionExpressionNames bool
 
-	externProperties    *jutil.LinkedHashSet[string]
-	accessorSummary     *AccessorSummary
-	lastAccessorSummary *AccessorSummary
-	hasGetterAccessors  bool
-	hasSetterAccessors  bool
-	getterLenMask       [256]uint64
-	getterEndMask       [256]uint64
-	setterLenMask       [256]uint64
-	setterEndMask       [256]uint64
+	externProperties *jutil.LinkedHashSet[string]
+	accessorSummary  *AccessorSummary
 
 	// Single value to use for all vars for which we cannot remove anything at
 	// all.
@@ -134,10 +127,7 @@ type RemoveUnusedCode struct {
 	// static methods on global names such as "Array.from" and "Math.fround",
 	// and instance properties such as "String.prototype.repeat" and
 	// "Promise.prototype.finally".
-	polyfills       *jutil.HashMultimap[string, RemoveUnusedCode_PolyfillInfo]
-	hasPolyfills    bool
-	polyfillLenMask [256]uint64
-	polyfillEndMask [256]uint64
+	polyfills *jutil.HashMultimap[string, RemoveUnusedCode_PolyfillInfo]
 
 	guardedUsages         *jutil.LinkedHashSet[rhino.Node]
 	guardedUsagesComputed bool
@@ -696,37 +686,6 @@ func (r *RemoveUnusedCode) TraverseInstanceof(instanceofNode rhino.Node, scope *
 	}
 }
 
-func (r *RemoveUnusedCode) addPolyfillMask(name string) {
-	r.hasPolyfills = true
-	if len(name) > 0 {
-		shift := uint(len(name))
-		if shift >= 64 {
-			shift = 63
-		}
-		mask := uint64(1) << shift
-		r.polyfillLenMask[name[0]] |= mask
-		r.polyfillEndMask[name[len(name)-1]] |= mask
-	} else {
-		r.polyfillLenMask[0] |= 1
-		r.polyfillEndMask[0] |= 1
-	}
-}
-
-func (r *RemoveUnusedCode) mightHavePolyfill(name string) bool {
-	if !r.hasPolyfills {
-		return false
-	}
-	if len(name) == 0 {
-		return (r.polyfillLenMask[0] & 1) != 0
-	}
-	shift := uint(len(name))
-	if shift >= 64 {
-		shift = 63
-	}
-	mask := uint64(1) << shift
-	return (r.polyfillLenMask[name[0]]&mask) != 0 && (r.polyfillEndMask[name[len(name)-1]]&mask) != 0
-}
-
 // TraverseNormalOrOptChainGetProp traverses `expr.prop` or `expr?.prop`.
 //
 // Note that this method is called only for RHS nodes. Property references
@@ -744,7 +703,7 @@ func (r *RemoveUnusedCode) TraverseNormalOrOptChainGetProp(getProp rhino.Node, s
 	objectNode := getProp.GetFirstChild()
 	propertyName := getProp.GetString()
 
-	if r.mightHavePolyfill(propertyName) && r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(propertyName) {
+	if r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(propertyName) {
 		for info := range r.polyfills.Get(propertyName).All() {
 			if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
 				info.ConsiderPossibleReference(getProp)
@@ -876,9 +835,9 @@ func (r *RemoveUnusedCode) TraverseCompoundAssign(compoundAssignNode rhino.Node,
 
 // Java: RemoveUnusedCode.traverseNameNode(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNameNode(n rhino.Node, scope *Scope) *RemoveUnusedCode_RealVarInfo {
-	if r.hasPolyfills {
+	if r.polyfills != nil && !r.polyfills.IsEmpty() {
 		name := n.GetString()
-		if r.mightHavePolyfill(name) && r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(name) {
+		if r.polyfills.ContainsKey(name) {
 			for info := range r.polyfills.Get(name).All() {
 				if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
 					info.ConsiderPossibleReference(n)
@@ -904,28 +863,17 @@ func isSpecialCallCandidate(callee rhino.Node) bool {
 		return false
 	case rhino.Token_NAME:
 		name := callee.GetString()
-		if len(name) < 6 {
-			return false
+		switch name {
+		case NodeUtil_JSC_PROPERTY_NAME_FN,
+			"goog$reflect$objectProperty",
+			"$jscomp$polyfill",
+			"$jscomp$patch",
+			"$jscomp$polyfillTypedArrayMethod",
+			"goog$weakUsage",
+			"goog$addSingletonGetter":
+			return true
 		}
-		switch name[len(name)-1] {
-		case 'y':
-			return name == NodeUtil_JSC_PROPERTY_NAME_FN || name == "goog$reflect$objectProperty"
-		case 'l':
-			return name == "$jscomp$polyfill"
-		case 'h':
-			return name == "$jscomp$patch"
-		case 'd':
-			return name == "$jscomp$polyfillTypedArrayMethod"
-		case 'e':
-			return name == "goog$weakUsage"
-		case 'r':
-			return name == "goog$addSingletonGetter"
-		case 's':
-			return strings.HasSuffix(name, "$inherits")
-		case 'n':
-			return strings.HasSuffix(name, "$mixin")
-		}
-		return false
+		return strings.HasSuffix(name, "$inherits") || strings.HasSuffix(name, "$mixin")
 	default:
 		return false
 	}
@@ -959,7 +907,6 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 			r.polyfills = jutil.HashMultimap_Create[string, RemoveUnusedCode_PolyfillInfo]()
 		}
 		key := info.GetRemoveUnusedCode_PolyfillInfoBase().key
-		r.addPolyfillMask(key)
 		r.polyfills.Put(key, info)
 		// Only traverse the callee (to mark it as used).  The arguments may be traversed later.
 		r.TraverseNode(callNode.GetFirstChild(), scope)
@@ -1861,44 +1808,6 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *RemoveUnused
 	}
 }
 
-func (r *RemoveUnusedCode) ensureAccessorMasks(summary *AccessorSummary) {
-	r.lastAccessorSummary = summary
-	r.hasGetterAccessors = false
-	r.hasSetterAccessors = false
-	r.getterLenMask = [256]uint64{}
-	r.getterEndMask = [256]uint64{}
-	r.setterLenMask = [256]uint64{}
-	r.setterEndMask = [256]uint64{}
-	if summary.assumeAlwaysGetterAndSetter {
-		r.hasGetterAccessors = true
-		r.hasSetterAccessors = true
-		return
-	}
-	for name, kind := range summary.accessors.All() {
-		var shift uint
-		var b0, bEnd byte
-		if len(name) > 0 {
-			shift = uint(len(name))
-			if shift >= 64 {
-				shift = 63
-			}
-			b0 = name[0]
-			bEnd = name[len(name)-1]
-		}
-		mask := uint64(1) << shift
-		if kind.HasGetter() {
-			r.hasGetterAccessors = true
-			r.getterLenMask[b0] |= mask
-			r.getterEndMask[bEnd] |= mask
-		}
-		if kind.HasSetter() {
-			r.hasSetterAccessors = true
-			r.setterLenMask[b0] |= mask
-			r.setterEndMask[bEnd] |= mask
-		}
-	}
-}
-
 // ConsiderForAccessorSideEffects returns whether or not accessor
 // side-effect are a possibility.
 //
@@ -1916,34 +1825,7 @@ func (r *RemoveUnusedCode) ConsiderForAccessorSideEffects(getprop rhino.Node, us
 		summary = r.compiler.GetAccessorSummary()
 		r.accessorSummary = summary
 	}
-	if summary != r.lastAccessorSummary {
-		r.ensureAccessorMasks(summary)
-	}
 	propName := getprop.GetString()
-	if !summary.assumeAlwaysGetterAndSetter {
-		var shift uint
-		var b0, bEnd byte
-		if len(propName) > 0 {
-			shift = uint(len(propName))
-			if shift >= 64 {
-				shift = 63
-			}
-			b0 = propName[0]
-			bEnd = propName[len(propName)-1]
-		}
-		mask := uint64(1) << shift
-		mightMatch := false
-		if usage.HasSetter() && r.hasSetterAccessors &&
-			(r.setterLenMask[b0]&mask) != 0 && (r.setterEndMask[bEnd]&mask) != 0 {
-			mightMatch = true
-		} else if !r.assumeGettersArePure && usage.HasGetter() && r.hasGetterAccessors &&
-			(r.getterLenMask[b0]&mask) != 0 && (r.getterEndMask[bEnd]&mask) != 0 {
-			mightMatch = true
-		}
-		if !mightMatch {
-			return false
-		}
-	}
 	recorded := summary.GetKind(propName)
 	if (recorded.HasGetter() && usage.HasGetter() && !r.assumeGettersArePure) ||
 		(recorded.HasSetter() && usage.HasSetter()) {
@@ -2238,14 +2120,6 @@ func (r *RemoveUnusedCode) RemoveUnreferencedVarsAndPolyfills() {
 		}
 		for _, polyfill := range removed {
 			r.polyfills.Remove(polyfill.GetRemoveUnusedCode_PolyfillInfoBase().key, polyfill)
-		}
-		if len(removed) > 0 {
-			r.hasPolyfills = false
-			r.polyfillLenMask = [256]uint64{}
-			r.polyfillEndMask = [256]uint64{}
-			for key := range r.polyfills.KeySet() {
-				r.addPolyfillMask(key)
-			}
 		}
 	}
 }
