@@ -406,7 +406,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryReduceReturn(ret ast.Return) rhin
 	if !ok {
 		return n
 	}
-	if void, ok := result.AsUnary(); ok && void.Token() == rhino.Token_VOID {
+	if void, ok := result.AsUnaryOf(rhino.Token_VOID); ok {
 		if !p.MayHaveSideEffects(void.Operand().Node()) {
 			ret.RemoveValue()
 			p.ReportChangeToEnclosingScope(n)
@@ -584,7 +584,7 @@ func (p *PeepholeSubstituteAlternateSyntax) ReduceSubstractionAssignment(assign 
 	n := assign.Node()
 	right := assign.Value()
 	isNegative := false
-	if neg, ok := right.AsUnary(); ok && neg.Token() == rhino.Token_NEG {
+	if neg, ok := right.AsUnaryOf(rhino.Token_NEG); ok {
 		isNegative = true
 		right = neg.Operand()
 	}

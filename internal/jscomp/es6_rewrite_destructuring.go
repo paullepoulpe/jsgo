@@ -226,7 +226,7 @@ func (e *Es6RewriteDestructuring) ShouldTraverse(t *NodeTraversal, n rhino.Node,
 		jutil.CheckState(ok) // a parameter list is the child of a function
 		e.PullDestructuringOutOfParams(function)
 	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
-		pattern, _ := ast.AsPattern(n) // the case proves the kind
+		pattern := ast.MustPattern(n)
 		hasRest := false
 		if objectPattern, ok := pattern.AsObjectPattern(); ok {
 			_, hasRest = es6RewriteDestructuring_objectRest(objectPattern)
@@ -263,7 +263,7 @@ func es6RewriteDestructuring_objectRest(objectPattern ast.ObjectPattern) (ast.Ob
 func (e *Es6RewriteDestructuring) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
-		pattern, _ := ast.AsPattern(n) // the case proves the kind
+		pattern := ast.MustPattern(n)
 		e.VisitPattern(t, pattern)
 		if e.patternNestingStackGetLast().pattern.Is(n) {
 			e.patternNestingStack = e.patternNestingStack[:len(e.patternNestingStack)-1]
@@ -494,7 +494,7 @@ func (e *Es6RewriteDestructuring) VisitPattern(t *NodeTraversal, pattern ast.Pat
 	switch parent.GetToken() {
 	case rhino.Token_DESTRUCTURING_LHS:
 		{
-			destructuringLhs, _ := ast.AsDestructuringLhs(parent) // the case proves the kind
+			destructuringLhs := ast.MustDestructuringLhs(parent)
 			declaration := parent.GetParent()
 			declarationParent := declaration.GetParent()
 			if declarationParent.IsVanillaFor() {
@@ -508,7 +508,7 @@ func (e *Es6RewriteDestructuring) VisitPattern(t *NodeTraversal, pattern ast.Pat
 			}
 		}
 	case rhino.Token_ASSIGN:
-		assign, _ := ast.AsAssign(parent) // the case proves the kind
+		assign := ast.MustAssign(parent)
 		if statement := parent.GetParent(); statement.IsExprResult() {
 			e.ReplacePattern(t, pattern, assign.Value().Node(), parent, statement)
 		} else {
@@ -517,10 +517,10 @@ func (e *Es6RewriteDestructuring) VisitPattern(t *NodeTraversal, pattern ast.Pat
 	case rhino.Token_OBJECT_REST, rhino.Token_ITER_REST, rhino.Token_STRING_KEY, rhino.Token_ARRAY_PATTERN, rhino.Token_DEFAULT_VALUE, rhino.Token_COMPUTED_PROP:
 		// Nested pattern; do nothing. We will visit it after rewriting the parent.
 	case rhino.Token_FOR_OF, rhino.Token_FOR_IN, rhino.Token_FOR_AWAIT_OF:
-		forNode, _ := ast.AsEnhancedFor(parent) // the case proves the kind
+		forNode := ast.MustEnhancedFor(parent)
 		e.VisitDestructuringPatternInEnhancedForWithOuterVars(forNode, pattern)
 	case rhino.Token_CATCH:
-		catch, _ := ast.AsCatch(parent) // the case proves the kind
+		catch := ast.MustCatch(parent)
 		e.VisitDestructuringPatternInCatch(t, catch, pattern)
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg("unexpected parent"))

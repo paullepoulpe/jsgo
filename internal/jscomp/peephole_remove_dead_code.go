@@ -117,7 +117,7 @@ func (p *PeepholeRemoveDeadCode) TryRemoveDefaultValue(n rhino.Node) rhino.Node 
 	}
 
 	// If the `void` application is pure, remove the value
-	if void, ok := val.AsUnary(); ok && void.Token() == rhino.Token_VOID {
+	if void, ok := val.AsUnaryOf(rhino.Token_VOID); ok {
 		removeVal = !p.MayHaveSideEffects(void.Operand().Node())
 	}
 
