@@ -21,10 +21,19 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) to read the
+// calls it records: VisitGoogCall takes the ast.Call, finds the root of its
+// callee's property chain, and reads "exactly one argument, a string
+// literal" (goog.provide('a.b')) with gatherModuleMetadata_onlyStringArg
+// instead of HasTwoChildren() && GetLastChild().IsStringLit(). The source
+// of an import or `export ... from` is read by role. Kept on rhino: the
+// toggle checks, which read the call's parent of any kind.
 
 // GatherModuleMetadata gathers metadata around modules that is useful for
 // checking imports / requires and creates a ModuleMetadataMap.
@@ -257,7 +266,7 @@ func (f *GatherModuleMetadata_Finder) ShouldTraverse(t *NodeTraversal, n rhino.N
 	case rhino.Token_MODULE_BODY:
 		f.outer.currentModule.hasModuleBody = true
 	case rhino.Token_DYNAMIC_IMPORT:
-		f.VisitDynamicImport(n)
+		f.VisitDynamicImport(ast.MustDynamicImport(n))
 	default:
 	}
 
@@ -268,23 +277,28 @@ func (f *GatherModuleMetadata_Finder) ShouldTraverse(t *NodeTraversal, n rhino.N
 func (f *GatherModuleMetadata_Finder) VisitImportOrExport(t *NodeTraversal, importOrExport rhino.Node) {
 	jutil.CheckNotNull(f.outer.currentModule)
 	f.outer.currentModule.ModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE, t, importOrExport)
-	if importOrExport.IsImport() ||
-		// export from
-		(importOrExport.HasTwoChildren() && importOrExport.GetLastChild().IsStringLit()) {
+	var source ast.StringLit
+	hasSource := false
+	if imp, ok := ast.AsImport(importOrExport); ok {
+		source, hasSource = imp.Source(), true
+	} else if exp, ok := ast.AsExport(importOrExport); ok {
+		source, hasSource = exp.Source() // export ... from
+	}
+	if hasSource {
 		f.outer.currentModule.
 			metadataBuilder.
 			Es6ImportSpecifiersBuilder().
-			Add(importOrExport.GetLastChild().GetString())
+			Add(source.Value())
 	}
 }
 
 // Java: GatherModuleMetadata.Finder.visitDynamicImport(Node)
-func (f *GatherModuleMetadata_Finder) VisitDynamicImport(dynamicImport rhino.Node) {
-	if dynamicImport.GetFirstChild().IsStringLit() {
+func (f *GatherModuleMetadata_Finder) VisitDynamicImport(dynamicImport ast.DynamicImport) {
+	if specifier, ok := dynamicImport.Specifier().AsStringLit(); ok {
 		f.outer.currentModule.
 			metadataBuilder.
 			Es6ImportSpecifiersBuilder().
-			Add(dynamicImport.GetFirstChild().GetString())
+			Add(specifier.Value())
 	}
 }
 
@@ -338,7 +352,7 @@ func (f *GatherModuleMetadata_Finder) Visit(t *NodeTraversal, n rhino.Node, pare
 			f.LeaveModule()
 			f.outer.loadModuleCall = rhino.NilNode
 		} else {
-			f.VisitGoogCall(t, n)
+			f.VisitGoogCall(t, ast.MustCall(n))
 		}
 	default:
 	}
@@ -386,22 +400,25 @@ func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) 
 }
 
 // Java: GatherModuleMetadata.Finder.visitGoogCall(NodeTraversal, Node)
-func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, n rhino.Node) {
-	if !n.HasChildren() ||
-		!n.GetFirstChild().IsGetProp() ||
-		!n.GetFirstChild().IsQualifiedName() {
+func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.Call) {
+	n := call.Node()
+	callee, ok := call.Callee().AsGetProp()
+	if !ok || !callee.Node().IsQualifiedName() {
 		return
 	}
+	getprop := callee.Node()
 
-	getprop := n.GetFirstChild()
-
-	firstProp := n.GetFirstChild()
-
-	for firstProp.IsGetProp() {
-		firstProp = firstProp.GetFirstChild()
+	// The root of the property chain: goog in goog.module.get.
+	firstProp := callee.Object()
+	for {
+		inner, ok := firstProp.AsGetProp()
+		if !ok {
+			break
+		}
+		firstProp = inner.Object()
 	}
 
-	if !firstProp.IsName() || firstProp.GetString() != "goog" {
+	if name, ok := firstProp.AsName(); !ok || name.Ident() != "goog" {
 		return
 	}
 
@@ -426,8 +443,7 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, n rhino.No
 
 	if getprop.MatchesQualifiedNameNode(gatherModuleMetadata_GOOG_PROVIDE) {
 		f.outer.currentModule.ModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE, t, n)
-		if n.HasTwoChildren() && n.GetLastChild().IsStringLit() {
-			namespace := n.GetLastChild().GetString()
+		if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
 			f.AddNamespace(f.outer.currentModule, ModuleMetadataMap_ModuleType_GOOG_PROVIDE, namespace, t, n)
 		} else {
 			t.Report(n, ClosureRewriteModule_INVALID_PROVIDE_NAMESPACE)
@@ -435,8 +451,7 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, n rhino.No
 		}
 	} else if getprop.MatchesQualifiedNameNode(gatherModuleMetadata_GOOG_MODULE) {
 		f.outer.currentModule.ModuleType(ModuleMetadataMap_ModuleType_GOOG_MODULE, t, n)
-		if n.HasTwoChildren() && n.GetLastChild().IsStringLit() {
-			namespace := n.GetLastChild().GetString()
+		if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
 			f.AddNamespace(f.outer.currentModule, ModuleMetadataMap_ModuleType_GOOG_MODULE, namespace, t, n)
 		} else {
 			t.Report(n, ClosureRewriteModule_INVALID_MODULE_ID_ARG)
@@ -444,9 +459,7 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, n rhino.No
 		}
 	} else if getprop.MatchesQualifiedNameNode(gatherModuleMetadata_GOOG_MODULE_GET) {
 		// Look for a module named ???$2etoggles and a getprop of .TOGGLE_??? on the call's return
-		if !n.HasTwoChildren() ||
-			!n.GetLastChild().IsStringLit() ||
-			!strings.HasSuffix(n.GetLastChild().GetString(), "$2etoggles") {
+		if namespace, ok := gatherModuleMetadata_onlyStringArg(call); !ok || !strings.HasSuffix(namespace, "$2etoggles") {
 			return // only do anything with toggle namespaces
 		}
 		parent := n.GetParent()
@@ -465,16 +478,14 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, n rhino.No
 		if !f.outer.currentModule.declaredModuleId.IsNil() {
 			t.Report(n, GatherModuleMetadata_MULTIPLE_DECLARE_MODULE_NAMESPACE)
 		}
-		if n.HasTwoChildren() && n.GetLastChild().IsStringLit() {
+		if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
 			f.outer.currentModule.RecordDeclareModuleId(n)
-			namespace := n.GetLastChild().GetString()
 			f.AddNamespace(f.outer.currentModule, ModuleMetadataMap_ModuleType_GOOG_MODULE, namespace, t, n)
 		} else {
 			t.Report(n, GatherModuleMetadata_INVALID_DECLARE_MODULE_ID_CALL)
 		}
 	} else if getprop.MatchesQualifiedNameNode(gatherModuleMetadata_GOOG_REQUIRE) {
-		if n.HasTwoChildren() && n.GetLastChild().IsStringLit() {
-			namespace := n.GetLastChild().GetString()
+		if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
 			f.outer.currentModule.metadataBuilder.StronglyRequiredGoogNamespacesBuilder().Add(namespace)
 			if strings.HasSuffix(namespace, "$2etoggles") {
 				// Track imports of *.toggles.ts, which are rewritten to $2etoggles.
@@ -507,39 +518,55 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, n rhino.No
 			t.Report(n, ClosurePrimitiveErrors_INVALID_REQUIRE_NAMESPACE)
 		}
 	} else if getprop.MatchesQualifiedNameNode(gatherModuleMetadata_GOOG_REQUIRE_TYPE) {
-		if n.HasTwoChildren() && n.GetLastChild().IsStringLit() {
+		if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
 			f.outer.currentModule.
 				metadataBuilder.
 				WeaklyRequiredGoogNamespacesBuilder().
-				Add(n.GetLastChild().GetString())
+				Add(namespace)
 		} else {
 			t.Report(n, GatherModuleMetadata_INVALID_REQUIRE_TYPE)
 		}
 	} else if getprop.MatchesQualifiedNameNode(gatherModuleMetadata_GOOG_MAYBE_REQUIRE) {
-		if n.HasTwoChildren() && n.GetLastChild().IsStringLit() {
+		if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
 			f.outer.currentModule.
 				metadataBuilder.
 				MaybeRequiredGoogNamespacesBuilder().
-				Add(n.GetLastChild().GetString())
+				Add(namespace)
 		} else {
 			t.Report(n, GatherModuleMetadata_INVALID_MAYBE_REQUIRE)
 		}
 	} else if getprop.MatchesQualifiedNameNode(gatherModuleMetadata_GOOG_SET_TEST_ONLY) {
-		if n.HasOneChild() || (n.HasTwoChildren() && n.GetLastChild().IsStringLit()) {
+		if _, isString := gatherModuleMetadata_onlyStringArg(call); !call.HasArgs() || isString {
 			f.outer.currentModule.metadataBuilder.IsTestOnly(true)
 		} else {
 			t.Report(n, GatherModuleMetadata_INVALID_SET_TEST_ONLY)
 		}
 	} else if getprop.MatchesQualifiedNameNode(gatherModuleMetadata_GOOG_REQUIRE_DYNAMIC) {
-		if n.HasTwoChildren() && n.GetLastChild().IsStringLit() {
+		if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
 			f.outer.currentModule.
 				metadataBuilder.
 				DynamicallyRequiredGoogNamespacesBuilder().
-				Add(n.GetLastChild().GetString())
+				Add(namespace)
 		} else {
 			t.Report(n, GatherModuleMetadata_INVALID_REQUIRE_DYNAMIC)
 		}
 	}
+}
+
+// gatherModuleMetadata_onlyStringArg returns the value of call's argument
+// if it has exactly one and it is a string literal: goog.provide('a.b').
+//
+// Go-only: Java's n.hasTwoChildren() && n.getLastChild().isStringLit().
+func gatherModuleMetadata_onlyStringArg(call ast.Call) (string, bool) {
+	arg, ok := call.OnlyArg()
+	if !ok {
+		return "", false
+	}
+	s, ok := arg.AsStringLit()
+	if !ok {
+		return "", false
+	}
+	return s.Value(), true
 }
 
 // AddToggle records a toggle usage (either a destructured import or a
