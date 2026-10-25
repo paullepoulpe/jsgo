@@ -72,7 +72,7 @@ func (p *PeepholeRemoveDeadCode) OptimizeSubtree(subtree rhino.Node) rhino.Node 
 		// TODO: Ideally, we should optimize this case instead of returning
 		return subtree
 	case rhino.Token_FOR:
-		forNode, _ := ast.AsFor(subtree) // the case proves the kind
+		forNode := ast.MustFor(subtree)
 		if cond, ok := forNode.Cond(); ok {
 			p.TryFoldForCondition(cond.Node())
 		}
@@ -501,7 +501,7 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree rhino.Node
 		//    x() ? 1 : foo() --> x() || foo()
 		//    x() ? 1 : 1 --> x()
 		//    x ? 1 : 1 --> null
-		hook, _ := ast.AsHook(tree) // the case proves the kind
+		hook := ast.MustHook(tree)
 		// Read the operands first: simplifying a branch can remove it from the hook.
 		cond, thenBranch, elseBranch := hook.Cond(), hook.Then(), hook.Else()
 		trueNode := p.TrySimplifyUnusedResult(thenBranch.Node())
@@ -536,7 +536,7 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree rhino.Node
 		//    x() ?? f --> x()
 		//    x() || f --> x()
 		//    x() && f --> x()
-		op, _ := ast.AsBinary(tree) // the case proves the kind
+		op := ast.MustBinary(tree)
 		// Read the operands first: simplifying the right one can remove it.
 		left, right := op.Left(), op.Right()
 		conditionalResultNode := p.TrySimplifyUnusedResult(right.Node())
@@ -553,12 +553,12 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree rhino.Node
 		// Functions that aren't being invoked are dead. If they were invoked we'd see the CALL
 		// before arriving here. We don't want to look at any children since they'll never execute.
 	case rhino.Token_MEMBER_FIELD_DEF:
-		field, _ := ast.AsMemberFieldDef(tree) // the case proves the kind
+		field := ast.MustMemberFieldDef(tree)
 		if value, ok := field.Value(); ok && tree.IsStaticMember() {
 			p.TrySimplifyUnusedResultInternal(value.Node(), sideEffectRoots)
 		}
 	case rhino.Token_COMPUTED_FIELD_DEF:
-		field, _ := ast.AsComputedFieldDef(tree) // the case proves the kind
+		field := ast.MustComputedFieldDef(tree)
 		value, hasValue := field.Value()
 		// Computed key initializers run once when the class is defined, even on non-static fields.
 		p.TrySimplifyUnusedResultInternal(field.Key().Node(), sideEffectRoots)

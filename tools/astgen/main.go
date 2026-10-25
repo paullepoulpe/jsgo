@@ -405,6 +405,7 @@ func (w *gen) kind(k *kind) {
 		}
 		w.p("}")
 		w.p("")
+		w.must(k.name)
 		if len(k.tokens) > 1 {
 			w.tokenSetVar(k.name, k.tokens)
 		}
@@ -617,6 +618,19 @@ func (w *gen) constructor(k *kind) {
 	w.p("")
 }
 
+// must writes Must<name>, the conversion for code that already knows the
+// kind (a case of a switch on the token).
+func (w *gen) must(name string) {
+	w.p("// Must%s returns n as %s; it panics if n is not one. Use it where the kind", name, a(name))
+	w.p("// is already known, as in a case of a switch on n.GetToken().")
+	w.p("func Must%s(n rhino.Node) %s {", name, name)
+	w.p("x, ok := As%s(n)", name)
+	w.p("if !ok { panic(mustError{%q, n}) }", name)
+	w.p("return x")
+	w.p("}")
+	w.p("")
+}
+
 // detach writes the Detach method of the view type name.
 func (w *gen) detach(name string) {
 	w.p("// Detach takes x out of its parent, and returns it.")
@@ -671,6 +685,7 @@ func (w *gen) category(c *category) {
 	w.asFromTokenSet(c.name, w.categoryTokens(c))
 	w.p("}")
 	w.p("")
+	w.must(c.name)
 	w.tokenSetVar(c.name, w.categoryTokens(c))
 	w.p("// Node returns x as a rhino.Node.")
 	w.p("func (x %s) Node() rhino.Node { return x.node }", c.name)

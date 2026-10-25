@@ -21,6 +21,16 @@ func AsRoot(n rhino.Node) (x Root, ok bool) {
 	return Root{n}, true
 }
 
+// MustRoot returns n as a Root; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustRoot(n rhino.Node) Root {
+	x, ok := AsRoot(n)
+	if !ok {
+		panic(mustError{"Root", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Root) Node() rhino.Node { return x.node }
 
@@ -93,6 +103,16 @@ func AsScript(n rhino.Node) (x Script, ok bool) {
 		return Script{}, false
 	}
 	return Script{n}, true
+}
+
+// MustScript returns n as a Script; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustScript(n rhino.Node) Script {
+	x, ok := AsScript(n)
+	if !ok {
+		panic(mustError{"Script", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -169,6 +189,16 @@ func AsModuleBody(n rhino.Node) (x ModuleBody, ok bool) {
 	return ModuleBody{n}, true
 }
 
+// MustModuleBody returns n as a ModuleBody; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustModuleBody(n rhino.Node) ModuleBody {
+	x, ok := AsModuleBody(n)
+	if !ok {
+		panic(mustError{"ModuleBody", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ModuleBody) Node() rhino.Node { return x.node }
 
@@ -241,6 +271,16 @@ func AsBlock(n rhino.Node) (x Block, ok bool) {
 		return Block{}, false
 	}
 	return Block{n}, true
+}
+
+// MustBlock returns n as a Block; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustBlock(n rhino.Node) Block {
+	x, ok := AsBlock(n)
+	if !ok {
+		panic(mustError{"Block", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -329,6 +369,16 @@ func AsLabel(n rhino.Node) (x Label, ok bool) {
 	return Label{n}, true
 }
 
+// MustLabel returns n as a Label; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustLabel(n rhino.Node) Label {
+	x, ok := AsLabel(n)
+	if !ok {
+		panic(mustError{"Label", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Label) Node() rhino.Node { return x.node }
 
@@ -380,6 +430,16 @@ func AsLabelName(n rhino.Node) (x LabelName, ok bool) {
 	return LabelName{n}, true
 }
 
+// MustLabelName returns n as a LabelName; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustLabelName(n rhino.Node) LabelName {
+	x, ok := AsLabelName(n)
+	if !ok {
+		panic(mustError{"LabelName", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x LabelName) Node() rhino.Node { return x.node }
 
@@ -406,6 +466,16 @@ func AsIf(n rhino.Node) (x If, ok bool) {
 		return If{}, false
 	}
 	return If{n}, true
+}
+
+// MustIf returns n as an If; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustIf(n rhino.Node) If {
+	x, ok := AsIf(n)
+	if !ok {
+		panic(mustError{"If", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -479,6 +549,16 @@ func AsFor(n rhino.Node) (x For, ok bool) {
 		return For{}, false
 	}
 	return For{n}, true
+}
+
+// MustFor returns n as a For; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustFor(n rhino.Node) For {
+	x, ok := AsFor(n)
+	if !ok {
+		panic(mustError{"For", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -557,6 +637,16 @@ func AsForIn(n rhino.Node) (x ForIn, ok bool) {
 	return ForIn{n}, true
 }
 
+// MustForIn returns n as a ForIn; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustForIn(n rhino.Node) ForIn {
+	x, ok := AsForIn(n)
+	if !ok {
+		panic(mustError{"ForIn", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ForIn) Node() rhino.Node { return x.node }
 
@@ -619,6 +709,16 @@ func AsForOf(n rhino.Node) (x ForOf, ok bool) {
 		return ForOf{}, false
 	}
 	return ForOf{n}, true
+}
+
+// MustForOf returns n as a ForOf; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustForOf(n rhino.Node) ForOf {
+	x, ok := AsForOf(n)
+	if !ok {
+		panic(mustError{"ForOf", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -685,6 +785,16 @@ func AsForAwaitOf(n rhino.Node) (x ForAwaitOf, ok bool) {
 	return ForAwaitOf{n}, true
 }
 
+// MustForAwaitOf returns n as a ForAwaitOf; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustForAwaitOf(n rhino.Node) ForAwaitOf {
+	x, ok := AsForAwaitOf(n)
+	if !ok {
+		panic(mustError{"ForAwaitOf", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ForAwaitOf) Node() rhino.Node { return x.node }
 
@@ -749,6 +859,16 @@ func AsWhile(n rhino.Node) (x While, ok bool) {
 	return While{n}, true
 }
 
+// MustWhile returns n as a While; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustWhile(n rhino.Node) While {
+	x, ok := AsWhile(n)
+	if !ok {
+		panic(mustError{"While", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x While) Node() rhino.Node { return x.node }
 
@@ -801,6 +921,16 @@ func AsDo(n rhino.Node) (x Do, ok bool) {
 		return Do{}, false
 	}
 	return Do{n}, true
+}
+
+// MustDo returns n as a Do; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustDo(n rhino.Node) Do {
+	x, ok := AsDo(n)
+	if !ok {
+		panic(mustError{"Do", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -857,6 +987,16 @@ func AsWith(n rhino.Node) (x With, ok bool) {
 	return With{n}, true
 }
 
+// MustWith returns n as a With; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustWith(n rhino.Node) With {
+	x, ok := AsWith(n)
+	if !ok {
+		panic(mustError{"With", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x With) Node() rhino.Node { return x.node }
 
@@ -908,6 +1048,16 @@ func AsSwitch(n rhino.Node) (x Switch, ok bool) {
 	return Switch{n}, true
 }
 
+// MustSwitch returns n as a Switch; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustSwitch(n rhino.Node) Switch {
+	x, ok := AsSwitch(n)
+	if !ok {
+		panic(mustError{"Switch", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Switch) Node() rhino.Node { return x.node }
 
@@ -957,6 +1107,16 @@ func AsSwitchBody(n rhino.Node) (x SwitchBody, ok bool) {
 		return SwitchBody{}, false
 	}
 	return SwitchBody{n}, true
+}
+
+// MustSwitchBody returns n as a SwitchBody; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustSwitchBody(n rhino.Node) SwitchBody {
+	x, ok := AsSwitchBody(n)
+	if !ok {
+		panic(mustError{"SwitchBody", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -1030,6 +1190,16 @@ func AsCase(n rhino.Node) (x Case, ok bool) {
 	return Case{n}, true
 }
 
+// MustCase returns n as a Case; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustCase(n rhino.Node) Case {
+	x, ok := AsCase(n)
+	if !ok {
+		panic(mustError{"Case", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Case) Node() rhino.Node { return x.node }
 
@@ -1075,6 +1245,16 @@ func AsDefaultCase(n rhino.Node) (x DefaultCase, ok bool) {
 	return DefaultCase{n}, true
 }
 
+// MustDefaultCase returns n as a DefaultCase; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustDefaultCase(n rhino.Node) DefaultCase {
+	x, ok := AsDefaultCase(n)
+	if !ok {
+		panic(mustError{"DefaultCase", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x DefaultCase) Node() rhino.Node { return x.node }
 
@@ -1111,6 +1291,16 @@ func AsTry(n rhino.Node) (x Try, ok bool) {
 		return Try{}, false
 	}
 	return Try{n}, true
+}
+
+// MustTry returns n as a Try; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustTry(n rhino.Node) Try {
+	x, ok := AsTry(n)
+	if !ok {
+		panic(mustError{"Try", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -1211,6 +1401,16 @@ func AsCatch(n rhino.Node) (x Catch, ok bool) {
 	return Catch{n}, true
 }
 
+// MustCatch returns n as a Catch; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustCatch(n rhino.Node) Catch {
+	x, ok := AsCatch(n)
+	if !ok {
+		panic(mustError{"Catch", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Catch) Node() rhino.Node { return x.node }
 
@@ -1249,6 +1449,16 @@ func AsNameDeclaration(n rhino.Node) (x NameDeclaration, ok bool) {
 		return NameDeclaration{}, false
 	}
 	return NameDeclaration{n}, true
+}
+
+// MustNameDeclaration returns n as a NameDeclaration; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNameDeclaration(n rhino.Node) NameDeclaration {
+	x, ok := AsNameDeclaration(n)
+	if !ok {
+		panic(mustError{"NameDeclaration", n})
+	}
+	return x
 }
 
 // nameDeclarationTokens holds the tokens of NameDeclaration.
@@ -1349,6 +1559,16 @@ func AsDestructuringLhs(n rhino.Node) (x DestructuringLhs, ok bool) {
 	return DestructuringLhs{n}, true
 }
 
+// MustDestructuringLhs returns n as a DestructuringLhs; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustDestructuringLhs(n rhino.Node) DestructuringLhs {
+	x, ok := AsDestructuringLhs(n)
+	if !ok {
+		panic(mustError{"DestructuringLhs", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x DestructuringLhs) Node() rhino.Node { return x.node }
 
@@ -1409,6 +1629,16 @@ func AsExprStmt(n rhino.Node) (x ExprStmt, ok bool) {
 	return ExprStmt{n}, true
 }
 
+// MustExprStmt returns n as an ExprStmt; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustExprStmt(n rhino.Node) ExprStmt {
+	x, ok := AsExprStmt(n)
+	if !ok {
+		panic(mustError{"ExprStmt", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ExprStmt) Node() rhino.Node { return x.node }
 
@@ -1451,6 +1681,16 @@ func AsReturn(n rhino.Node) (x Return, ok bool) {
 		return Return{}, false
 	}
 	return Return{n}, true
+}
+
+// MustReturn returns n as a Return; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustReturn(n rhino.Node) Return {
+	x, ok := AsReturn(n)
+	if !ok {
+		panic(mustError{"Return", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -1512,6 +1752,16 @@ func AsThrow(n rhino.Node) (x Throw, ok bool) {
 	return Throw{n}, true
 }
 
+// MustThrow returns n as a Throw; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustThrow(n rhino.Node) Throw {
+	x, ok := AsThrow(n)
+	if !ok {
+		panic(mustError{"Throw", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Throw) Node() rhino.Node { return x.node }
 
@@ -1554,6 +1804,16 @@ func AsBreak(n rhino.Node) (x Break, ok bool) {
 		return Break{}, false
 	}
 	return Break{n}, true
+}
+
+// MustBreak returns n as a Break; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustBreak(n rhino.Node) Break {
+	x, ok := AsBreak(n)
+	if !ok {
+		panic(mustError{"Break", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -1618,6 +1878,16 @@ func AsContinue(n rhino.Node) (x Continue, ok bool) {
 	return Continue{n}, true
 }
 
+// MustContinue returns n as a Continue; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustContinue(n rhino.Node) Continue {
+	x, ok := AsContinue(n)
+	if !ok {
+		panic(mustError{"Continue", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Continue) Node() rhino.Node { return x.node }
 
@@ -1680,6 +1950,16 @@ func AsEmpty(n rhino.Node) (x Empty, ok bool) {
 	return Empty{n}, true
 }
 
+// MustEmpty returns n as an Empty; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustEmpty(n rhino.Node) Empty {
+	x, ok := AsEmpty(n)
+	if !ok {
+		panic(mustError{"Empty", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Empty) Node() rhino.Node { return x.node }
 
@@ -1729,6 +2009,16 @@ func AsDebugger(n rhino.Node) (x Debugger, ok bool) {
 	return Debugger{n}, true
 }
 
+// MustDebugger returns n as a Debugger; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustDebugger(n rhino.Node) Debugger {
+	x, ok := AsDebugger(n)
+	if !ok {
+		panic(mustError{"Debugger", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Debugger) Node() rhino.Node { return x.node }
 
@@ -1765,6 +2055,16 @@ func AsFunction(n rhino.Node) (x Function, ok bool) {
 		return Function{}, false
 	}
 	return Function{n}, true
+}
+
+// MustFunction returns n as a Function; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustFunction(n rhino.Node) Function {
+	x, ok := AsFunction(n)
+	if !ok {
+		panic(mustError{"Function", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -1829,6 +2129,16 @@ func AsParamList(n rhino.Node) (x ParamList, ok bool) {
 		return ParamList{}, false
 	}
 	return ParamList{n}, true
+}
+
+// MustParamList returns n as a ParamList; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustParamList(n rhino.Node) ParamList {
+	x, ok := AsParamList(n)
+	if !ok {
+		panic(mustError{"ParamList", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -1902,6 +2212,16 @@ func AsDefaultValue(n rhino.Node) (x DefaultValue, ok bool) {
 	return DefaultValue{n}, true
 }
 
+// MustDefaultValue returns n as a DefaultValue; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustDefaultValue(n rhino.Node) DefaultValue {
+	x, ok := AsDefaultValue(n)
+	if !ok {
+		panic(mustError{"DefaultValue", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x DefaultValue) Node() rhino.Node { return x.node }
 
@@ -1953,6 +2273,16 @@ func AsIterRest(n rhino.Node) (x IterRest, ok bool) {
 	return IterRest{n}, true
 }
 
+// MustIterRest returns n as an IterRest; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustIterRest(n rhino.Node) IterRest {
+	x, ok := AsIterRest(n)
+	if !ok {
+		panic(mustError{"IterRest", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x IterRest) Node() rhino.Node { return x.node }
 
@@ -1994,6 +2324,16 @@ func AsObjectRest(n rhino.Node) (x ObjectRest, ok bool) {
 	return ObjectRest{n}, true
 }
 
+// MustObjectRest returns n as an ObjectRest; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustObjectRest(n rhino.Node) ObjectRest {
+	x, ok := AsObjectRest(n)
+	if !ok {
+		panic(mustError{"ObjectRest", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ObjectRest) Node() rhino.Node { return x.node }
 
@@ -2030,6 +2370,16 @@ func AsIterSpread(n rhino.Node) (x IterSpread, ok bool) {
 		return IterSpread{}, false
 	}
 	return IterSpread{n}, true
+}
+
+// MustIterSpread returns n as an IterSpread; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustIterSpread(n rhino.Node) IterSpread {
+	x, ok := AsIterSpread(n)
+	if !ok {
+		panic(mustError{"IterSpread", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -2073,6 +2423,16 @@ func AsObjectSpread(n rhino.Node) (x ObjectSpread, ok bool) {
 	return ObjectSpread{n}, true
 }
 
+// MustObjectSpread returns n as an ObjectSpread; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustObjectSpread(n rhino.Node) ObjectSpread {
+	x, ok := AsObjectSpread(n)
+	if !ok {
+		panic(mustError{"ObjectSpread", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ObjectSpread) Node() rhino.Node { return x.node }
 
@@ -2109,6 +2469,16 @@ func AsArrayPattern(n rhino.Node) (x ArrayPattern, ok bool) {
 		return ArrayPattern{}, false
 	}
 	return ArrayPattern{n}, true
+}
+
+// MustArrayPattern returns n as an ArrayPattern; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustArrayPattern(n rhino.Node) ArrayPattern {
+	x, ok := AsArrayPattern(n)
+	if !ok {
+		panic(mustError{"ArrayPattern", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -2203,6 +2573,16 @@ func AsObjectPattern(n rhino.Node) (x ObjectPattern, ok bool) {
 	return ObjectPattern{n}, true
 }
 
+// MustObjectPattern returns n as an ObjectPattern; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustObjectPattern(n rhino.Node) ObjectPattern {
+	x, ok := AsObjectPattern(n)
+	if !ok {
+		panic(mustError{"ObjectPattern", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ObjectPattern) Node() rhino.Node { return x.node }
 
@@ -2295,6 +2675,16 @@ func AsClass(n rhino.Node) (x Class, ok bool) {
 	return Class{n}, true
 }
 
+// MustClass returns n as a Class; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustClass(n rhino.Node) Class {
+	x, ok := AsClass(n)
+	if !ok {
+		panic(mustError{"Class", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Class) Node() rhino.Node { return x.node }
 
@@ -2374,6 +2764,16 @@ func AsClassBody(n rhino.Node) (x ClassBody, ok bool) {
 	return ClassBody{n}, true
 }
 
+// MustClassBody returns n as a ClassBody; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustClassBody(n rhino.Node) ClassBody {
+	x, ok := AsClassBody(n)
+	if !ok {
+		panic(mustError{"ClassBody", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ClassBody) Node() rhino.Node { return x.node }
 
@@ -2445,6 +2845,16 @@ func AsMemberFunctionDef(n rhino.Node) (x MemberFunctionDef, ok bool) {
 	return MemberFunctionDef{n}, true
 }
 
+// MustMemberFunctionDef returns n as a MemberFunctionDef; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustMemberFunctionDef(n rhino.Node) MemberFunctionDef {
+	x, ok := AsMemberFunctionDef(n)
+	if !ok {
+		panic(mustError{"MemberFunctionDef", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x MemberFunctionDef) Node() rhino.Node { return x.node }
 
@@ -2483,6 +2893,16 @@ func AsGetterDef(n rhino.Node) (x GetterDef, ok bool) {
 		return GetterDef{}, false
 	}
 	return GetterDef{n}, true
+}
+
+// MustGetterDef returns n as a GetterDef; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustGetterDef(n rhino.Node) GetterDef {
+	x, ok := AsGetterDef(n)
+	if !ok {
+		panic(mustError{"GetterDef", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -2525,6 +2945,16 @@ func AsSetterDef(n rhino.Node) (x SetterDef, ok bool) {
 	return SetterDef{n}, true
 }
 
+// MustSetterDef returns n as a SetterDef; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustSetterDef(n rhino.Node) SetterDef {
+	x, ok := AsSetterDef(n)
+	if !ok {
+		panic(mustError{"SetterDef", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x SetterDef) Node() rhino.Node { return x.node }
 
@@ -2563,6 +2993,16 @@ func AsMemberFieldDef(n rhino.Node) (x MemberFieldDef, ok bool) {
 		return MemberFieldDef{}, false
 	}
 	return MemberFieldDef{n}, true
+}
+
+// MustMemberFieldDef returns n as a MemberFieldDef; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustMemberFieldDef(n rhino.Node) MemberFieldDef {
+	x, ok := AsMemberFieldDef(n)
+	if !ok {
+		panic(mustError{"MemberFieldDef", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -2616,6 +3056,16 @@ func AsComputedFieldDef(n rhino.Node) (x ComputedFieldDef, ok bool) {
 		return ComputedFieldDef{}, false
 	}
 	return ComputedFieldDef{n}, true
+}
+
+// MustComputedFieldDef returns n as a ComputedFieldDef; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustComputedFieldDef(n rhino.Node) ComputedFieldDef {
+	x, ok := AsComputedFieldDef(n)
+	if !ok {
+		panic(mustError{"ComputedFieldDef", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -2677,6 +3127,16 @@ func AsComputedProp(n rhino.Node) (x ComputedProp, ok bool) {
 		return ComputedProp{}, false
 	}
 	return ComputedProp{n}, true
+}
+
+// MustComputedProp returns n as a ComputedProp; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustComputedProp(n rhino.Node) ComputedProp {
+	x, ok := AsComputedProp(n)
+	if !ok {
+		panic(mustError{"ComputedProp", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -2745,6 +3205,16 @@ func AsMemberVariableDef(n rhino.Node) (x MemberVariableDef, ok bool) {
 	return MemberVariableDef{n}, true
 }
 
+// MustMemberVariableDef returns n as a MemberVariableDef; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustMemberVariableDef(n rhino.Node) MemberVariableDef {
+	x, ok := AsMemberVariableDef(n)
+	if !ok {
+		panic(mustError{"MemberVariableDef", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x MemberVariableDef) Node() rhino.Node { return x.node }
 
@@ -2774,6 +3244,16 @@ func AsIndexSignature(n rhino.Node) (x IndexSignature, ok bool) {
 		return IndexSignature{}, false
 	}
 	return IndexSignature{n}, true
+}
+
+// MustIndexSignature returns n as an IndexSignature; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustIndexSignature(n rhino.Node) IndexSignature {
+	x, ok := AsIndexSignature(n)
+	if !ok {
+		panic(mustError{"IndexSignature", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -2850,6 +3330,16 @@ func AsCallSignature(n rhino.Node) (x CallSignature, ok bool) {
 	return CallSignature{n}, true
 }
 
+// MustCallSignature returns n as a CallSignature; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustCallSignature(n rhino.Node) CallSignature {
+	x, ok := AsCallSignature(n)
+	if !ok {
+		panic(mustError{"CallSignature", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x CallSignature) Node() rhino.Node { return x.node }
 
@@ -2923,6 +3413,16 @@ func AsName(n rhino.Node) (x Name, ok bool) {
 		return Name{}, false
 	}
 	return Name{n}, true
+}
+
+// MustName returns n as a Name; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustName(n rhino.Node) Name {
+	x, ok := AsName(n)
+	if !ok {
+		panic(mustError{"Name", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3014,6 +3514,16 @@ func AsThis(n rhino.Node) (x This, ok bool) {
 	return This{n}, true
 }
 
+// MustThis returns n as a This; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustThis(n rhino.Node) This {
+	x, ok := AsThis(n)
+	if !ok {
+		panic(mustError{"This", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x This) Node() rhino.Node { return x.node }
 
@@ -3061,6 +3571,16 @@ func AsSuper(n rhino.Node) (x Super, ok bool) {
 		return Super{}, false
 	}
 	return Super{n}, true
+}
+
+// MustSuper returns n as a Super; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustSuper(n rhino.Node) Super {
+	x, ok := AsSuper(n)
+	if !ok {
+		panic(mustError{"Super", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3112,6 +3632,16 @@ func AsTrue(n rhino.Node) (x True, ok bool) {
 	return True{n}, true
 }
 
+// MustTrue returns n as a True; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustTrue(n rhino.Node) True {
+	x, ok := AsTrue(n)
+	if !ok {
+		panic(mustError{"True", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x True) Node() rhino.Node { return x.node }
 
@@ -3159,6 +3689,16 @@ func AsFalse(n rhino.Node) (x False, ok bool) {
 		return False{}, false
 	}
 	return False{n}, true
+}
+
+// MustFalse returns n as a False; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustFalse(n rhino.Node) False {
+	x, ok := AsFalse(n)
+	if !ok {
+		panic(mustError{"False", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3210,6 +3750,16 @@ func AsNull(n rhino.Node) (x Null, ok bool) {
 	return Null{n}, true
 }
 
+// MustNull returns n as a Null; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNull(n rhino.Node) Null {
+	x, ok := AsNull(n)
+	if !ok {
+		panic(mustError{"Null", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Null) Node() rhino.Node { return x.node }
 
@@ -3257,6 +3807,16 @@ func AsNewTarget(n rhino.Node) (x NewTarget, ok bool) {
 		return NewTarget{}, false
 	}
 	return NewTarget{n}, true
+}
+
+// MustNewTarget returns n as a NewTarget; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNewTarget(n rhino.Node) NewTarget {
+	x, ok := AsNewTarget(n)
+	if !ok {
+		panic(mustError{"NewTarget", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3308,6 +3868,16 @@ func AsImportMeta(n rhino.Node) (x ImportMeta, ok bool) {
 	return ImportMeta{n}, true
 }
 
+// MustImportMeta returns n as an ImportMeta; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustImportMeta(n rhino.Node) ImportMeta {
+	x, ok := AsImportMeta(n)
+	if !ok {
+		panic(mustError{"ImportMeta", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ImportMeta) Node() rhino.Node { return x.node }
 
@@ -3355,6 +3925,16 @@ func AsStringLit(n rhino.Node) (x StringLit, ok bool) {
 		return StringLit{}, false
 	}
 	return StringLit{n}, true
+}
+
+// MustStringLit returns n as a StringLit; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustStringLit(n rhino.Node) StringLit {
+	x, ok := AsStringLit(n)
+	if !ok {
+		panic(mustError{"StringLit", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3406,6 +3986,16 @@ func AsNumber(n rhino.Node) (x Number, ok bool) {
 	return Number{n}, true
 }
 
+// MustNumber returns n as a Number; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNumber(n rhino.Node) Number {
+	x, ok := AsNumber(n)
+	if !ok {
+		panic(mustError{"Number", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Number) Node() rhino.Node { return x.node }
 
@@ -3455,6 +4045,16 @@ func AsBigInt(n rhino.Node) (x BigInt, ok bool) {
 	return BigInt{n}, true
 }
 
+// MustBigInt returns n as a BigInt; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustBigInt(n rhino.Node) BigInt {
+	x, ok := AsBigInt(n)
+	if !ok {
+		panic(mustError{"BigInt", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x BigInt) Node() rhino.Node { return x.node }
 
@@ -3502,6 +4102,16 @@ func AsRegExp(n rhino.Node) (x RegExp, ok bool) {
 		return RegExp{}, false
 	}
 	return RegExp{n}, true
+}
+
+// MustRegExp returns n as a RegExp; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustRegExp(n rhino.Node) RegExp {
+	x, ok := AsRegExp(n)
+	if !ok {
+		panic(mustError{"RegExp", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3580,6 +4190,16 @@ func AsTemplateLit(n rhino.Node) (x TemplateLit, ok bool) {
 		return TemplateLit{}, false
 	}
 	return TemplateLit{n}, true
+}
+
+// MustTemplateLit returns n as a TemplateLit; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustTemplateLit(n rhino.Node) TemplateLit {
+	x, ok := AsTemplateLit(n)
+	if !ok {
+		panic(mustError{"TemplateLit", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3675,6 +4295,16 @@ func AsTemplateLitString(n rhino.Node) (x TemplateLitString, ok bool) {
 	return TemplateLitString{n}, true
 }
 
+// MustTemplateLitString returns n as a TemplateLitString; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustTemplateLitString(n rhino.Node) TemplateLitString {
+	x, ok := AsTemplateLitString(n)
+	if !ok {
+		panic(mustError{"TemplateLitString", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x TemplateLitString) Node() rhino.Node { return x.node }
 
@@ -3704,6 +4334,16 @@ func AsTemplateLitSub(n rhino.Node) (x TemplateLitSub, ok bool) {
 		return TemplateLitSub{}, false
 	}
 	return TemplateLitSub{n}, true
+}
+
+// MustTemplateLitSub returns n as a TemplateLitSub; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustTemplateLitSub(n rhino.Node) TemplateLitSub {
+	x, ok := AsTemplateLitSub(n)
+	if !ok {
+		panic(mustError{"TemplateLitSub", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3742,6 +4382,16 @@ func AsTaggedTemplateLit(n rhino.Node) (x TaggedTemplateLit, ok bool) {
 		return TaggedTemplateLit{}, false
 	}
 	return TaggedTemplateLit{n}, true
+}
+
+// MustTaggedTemplateLit returns n as a TaggedTemplateLit; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustTaggedTemplateLit(n rhino.Node) TaggedTemplateLit {
+	x, ok := AsTaggedTemplateLit(n)
+	if !ok {
+		panic(mustError{"TaggedTemplateLit", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3805,6 +4455,16 @@ func AsArrayLit(n rhino.Node) (x ArrayLit, ok bool) {
 		return ArrayLit{}, false
 	}
 	return ArrayLit{n}, true
+}
+
+// MustArrayLit returns n as an ArrayLit; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustArrayLit(n rhino.Node) ArrayLit {
+	x, ok := AsArrayLit(n)
+	if !ok {
+		panic(mustError{"ArrayLit", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -3899,6 +4559,16 @@ func AsObjectLit(n rhino.Node) (x ObjectLit, ok bool) {
 	return ObjectLit{n}, true
 }
 
+// MustObjectLit returns n as an ObjectLit; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustObjectLit(n rhino.Node) ObjectLit {
+	x, ok := AsObjectLit(n)
+	if !ok {
+		panic(mustError{"ObjectLit", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ObjectLit) Node() rhino.Node { return x.node }
 
@@ -3991,6 +4661,16 @@ func AsStringKey(n rhino.Node) (x StringKey, ok bool) {
 	return StringKey{n}, true
 }
 
+// MustStringKey returns n as a StringKey; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustStringKey(n rhino.Node) StringKey {
+	x, ok := AsStringKey(n)
+	if !ok {
+		panic(mustError{"StringKey", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x StringKey) Node() rhino.Node { return x.node }
 
@@ -4029,6 +4709,16 @@ func AsUnary(n rhino.Node) (x Unary, ok bool) {
 		return Unary{}, false
 	}
 	return Unary{n}, true
+}
+
+// MustUnary returns n as an Unary; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustUnary(n rhino.Node) Unary {
+	x, ok := AsUnary(n)
+	if !ok {
+		panic(mustError{"Unary", n})
+	}
+	return x
 }
 
 // unaryTokens holds the tokens of Unary.
@@ -4098,6 +4788,16 @@ func AsCast(n rhino.Node) (x Cast, ok bool) {
 	return Cast{n}, true
 }
 
+// MustCast returns n as a Cast; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustCast(n rhino.Node) Cast {
+	x, ok := AsCast(n)
+	if !ok {
+		panic(mustError{"Cast", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Cast) Node() rhino.Node { return x.node }
 
@@ -4163,6 +4863,16 @@ func AsDynamicImport(n rhino.Node) (x DynamicImport, ok bool) {
 	return DynamicImport{n}, true
 }
 
+// MustDynamicImport returns n as a DynamicImport; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustDynamicImport(n rhino.Node) DynamicImport {
+	x, ok := AsDynamicImport(n)
+	if !ok {
+		panic(mustError{"DynamicImport", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x DynamicImport) Node() rhino.Node { return x.node }
 
@@ -4217,6 +4927,16 @@ func AsIncDec(n rhino.Node) (x IncDec, ok bool) {
 		return IncDec{}, false
 	}
 	return IncDec{n}, true
+}
+
+// MustIncDec returns n as an IncDec; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustIncDec(n rhino.Node) IncDec {
+	x, ok := AsIncDec(n)
+	if !ok {
+		panic(mustError{"IncDec", n})
+	}
+	return x
 }
 
 // incDecTokens holds the tokens of IncDec.
@@ -4286,6 +5006,16 @@ func AsAssign(n rhino.Node) (x Assign, ok bool) {
 	return Assign{n}, true
 }
 
+// MustAssign returns n as an Assign; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustAssign(n rhino.Node) Assign {
+	x, ok := AsAssign(n)
+	if !ok {
+		panic(mustError{"Assign", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Assign) Node() rhino.Node { return x.node }
 
@@ -4350,6 +5080,16 @@ func AsAssignOp(n rhino.Node) (x AssignOp, ok bool) {
 		return AssignOp{}, false
 	}
 	return AssignOp{n}, true
+}
+
+// MustAssignOp returns n as an AssignOp; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustAssignOp(n rhino.Node) AssignOp {
+	x, ok := AsAssignOp(n)
+	if !ok {
+		panic(mustError{"AssignOp", n})
+	}
+	return x
 }
 
 // assignOpTokens holds the tokens of AssignOp.
@@ -4429,6 +5169,16 @@ func AsBinary(n rhino.Node) (x Binary, ok bool) {
 	return Binary{n}, true
 }
 
+// MustBinary returns n as a Binary; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustBinary(n rhino.Node) Binary {
+	x, ok := AsBinary(n)
+	if !ok {
+		panic(mustError{"Binary", n})
+	}
+	return x
+}
+
 // binaryTokens holds the tokens of Binary.
 var binaryTokens = tokenSetOf(rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT)
 
@@ -4503,6 +5253,16 @@ func AsHook(n rhino.Node) (x Hook, ok bool) {
 	return Hook{n}, true
 }
 
+// MustHook returns n as a Hook; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustHook(n rhino.Node) Hook {
+	x, ok := AsHook(n)
+	if !ok {
+		panic(mustError{"Hook", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Hook) Node() rhino.Node { return x.node }
 
@@ -4571,6 +5331,16 @@ func AsGetProp(n rhino.Node) (x GetProp, ok bool) {
 		return GetProp{}, false
 	}
 	return GetProp{n}, true
+}
+
+// MustGetProp returns n as a GetProp; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustGetProp(n rhino.Node) GetProp {
+	x, ok := AsGetProp(n)
+	if !ok {
+		panic(mustError{"GetProp", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -4648,6 +5418,16 @@ func AsOptChainGetProp(n rhino.Node) (x OptChainGetProp, ok bool) {
 	return OptChainGetProp{n}, true
 }
 
+// MustOptChainGetProp returns n as an OptChainGetProp; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustOptChainGetProp(n rhino.Node) OptChainGetProp {
+	x, ok := AsOptChainGetProp(n)
+	if !ok {
+		panic(mustError{"OptChainGetProp", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x OptChainGetProp) Node() rhino.Node { return x.node }
 
@@ -4711,6 +5491,16 @@ func AsGetElem(n rhino.Node) (x GetElem, ok bool) {
 		return GetElem{}, false
 	}
 	return GetElem{n}, true
+}
+
+// MustGetElem returns n as a GetElem; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustGetElem(n rhino.Node) GetElem {
+	x, ok := AsGetElem(n)
+	if !ok {
+		panic(mustError{"GetElem", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -4796,6 +5586,16 @@ func AsOptChainGetElem(n rhino.Node) (x OptChainGetElem, ok bool) {
 	return OptChainGetElem{n}, true
 }
 
+// MustOptChainGetElem returns n as an OptChainGetElem; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustOptChainGetElem(n rhino.Node) OptChainGetElem {
+	x, ok := AsOptChainGetElem(n)
+	if !ok {
+		panic(mustError{"OptChainGetElem", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x OptChainGetElem) Node() rhino.Node { return x.node }
 
@@ -4867,6 +5667,16 @@ func AsCall(n rhino.Node) (x Call, ok bool) {
 		return Call{}, false
 	}
 	return Call{n}, true
+}
+
+// MustCall returns n as a Call; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustCall(n rhino.Node) Call {
+	x, ok := AsCall(n)
+	if !ok {
+		panic(mustError{"Call", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -4969,6 +5779,16 @@ func AsOptChainCall(n rhino.Node) (x OptChainCall, ok bool) {
 		return OptChainCall{}, false
 	}
 	return OptChainCall{n}, true
+}
+
+// MustOptChainCall returns n as an OptChainCall; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustOptChainCall(n rhino.Node) OptChainCall {
+	x, ok := AsOptChainCall(n)
+	if !ok {
+		panic(mustError{"OptChainCall", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -5075,6 +5895,16 @@ func AsNew(n rhino.Node) (x New, ok bool) {
 	return New{n}, true
 }
 
+// MustNew returns n as a New; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNew(n rhino.Node) New {
+	x, ok := AsNew(n)
+	if !ok {
+		panic(mustError{"New", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x New) Node() rhino.Node { return x.node }
 
@@ -5174,6 +6004,16 @@ func AsYield(n rhino.Node) (x Yield, ok bool) {
 	return Yield{n}, true
 }
 
+// MustYield returns n as a Yield; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustYield(n rhino.Node) Yield {
+	x, ok := AsYield(n)
+	if !ok {
+		panic(mustError{"Yield", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Yield) Node() rhino.Node { return x.node }
 
@@ -5245,6 +6085,16 @@ func AsAwait(n rhino.Node) (x Await, ok bool) {
 	return Await{n}, true
 }
 
+// MustAwait returns n as an Await; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustAwait(n rhino.Node) Await {
+	x, ok := AsAwait(n)
+	if !ok {
+		panic(mustError{"Await", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Await) Node() rhino.Node { return x.node }
 
@@ -5299,6 +6149,16 @@ func AsImport(n rhino.Node) (x Import, ok bool) {
 		return Import{}, false
 	}
 	return Import{n}, true
+}
+
+// MustImport returns n as an Import; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustImport(n rhino.Node) Import {
+	x, ok := AsImport(n)
+	if !ok {
+		panic(mustError{"Import", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -5360,6 +6220,16 @@ func AsImportSpecs(n rhino.Node) (x ImportSpecs, ok bool) {
 		return ImportSpecs{}, false
 	}
 	return ImportSpecs{n}, true
+}
+
+// MustImportSpecs returns n as an ImportSpecs; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustImportSpecs(n rhino.Node) ImportSpecs {
+	x, ok := AsImportSpecs(n)
+	if !ok {
+		panic(mustError{"ImportSpecs", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -5436,6 +6306,16 @@ func AsImportSpec(n rhino.Node) (x ImportSpec, ok bool) {
 	return ImportSpec{n}, true
 }
 
+// MustImportSpec returns n as an ImportSpec; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustImportSpec(n rhino.Node) ImportSpec {
+	x, ok := AsImportSpec(n)
+	if !ok {
+		panic(mustError{"ImportSpec", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ImportSpec) Node() rhino.Node { return x.node }
 
@@ -5478,6 +6358,16 @@ func AsImportStar(n rhino.Node) (x ImportStar, ok bool) {
 	return ImportStar{n}, true
 }
 
+// MustImportStar returns n as an ImportStar; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustImportStar(n rhino.Node) ImportStar {
+	x, ok := AsImportStar(n)
+	if !ok {
+		panic(mustError{"ImportStar", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ImportStar) Node() rhino.Node { return x.node }
 
@@ -5507,6 +6397,16 @@ func AsExport(n rhino.Node) (x Export, ok bool) {
 		return Export{}, false
 	}
 	return Export{n}, true
+}
+
+// MustExport returns n as an Export; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustExport(n rhino.Node) Export {
+	x, ok := AsExport(n)
+	if !ok {
+		panic(mustError{"Export", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -5573,6 +6473,16 @@ func AsExportSpecs(n rhino.Node) (x ExportSpecs, ok bool) {
 		return ExportSpecs{}, false
 	}
 	return ExportSpecs{n}, true
+}
+
+// MustExportSpecs returns n as an ExportSpecs; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustExportSpecs(n rhino.Node) ExportSpecs {
+	x, ok := AsExportSpecs(n)
+	if !ok {
+		panic(mustError{"ExportSpecs", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -5649,6 +6559,16 @@ func AsExportSpec(n rhino.Node) (x ExportSpec, ok bool) {
 	return ExportSpec{n}, true
 }
 
+// MustExportSpec returns n as an ExportSpec; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustExportSpec(n rhino.Node) ExportSpec {
+	x, ok := AsExportSpec(n)
+	if !ok {
+		panic(mustError{"ExportSpec", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x ExportSpec) Node() rhino.Node { return x.node }
 
@@ -5689,6 +6609,16 @@ func AsInterface(n rhino.Node) (x Interface, ok bool) {
 		return Interface{}, false
 	}
 	return Interface{n}, true
+}
+
+// MustInterface returns n as an Interface; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustInterface(n rhino.Node) Interface {
+	x, ok := AsInterface(n)
+	if !ok {
+		panic(mustError{"Interface", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -5771,6 +6701,16 @@ func AsEnum(n rhino.Node) (x Enum, ok bool) {
 	return Enum{n}, true
 }
 
+// MustEnum returns n as an Enum; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustEnum(n rhino.Node) Enum {
+	x, ok := AsEnum(n)
+	if !ok {
+		panic(mustError{"Enum", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Enum) Node() rhino.Node { return x.node }
 
@@ -5849,6 +6789,16 @@ func AsTypeAlias(n rhino.Node) (x TypeAlias, ok bool) {
 		return TypeAlias{}, false
 	}
 	return TypeAlias{n}, true
+}
+
+// MustTypeAlias returns n as a TypeAlias; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustTypeAlias(n rhino.Node) TypeAlias {
+	x, ok := AsTypeAlias(n)
+	if !ok {
+		panic(mustError{"TypeAlias", n})
+	}
+	return x
 }
 
 // Node returns x as a rhino.Node.
@@ -5931,6 +6881,16 @@ func AsDeclare(n rhino.Node) (x Declare, ok bool) {
 	return Declare{n}, true
 }
 
+// MustDeclare returns n as a Declare; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustDeclare(n rhino.Node) Declare {
+	x, ok := AsDeclare(n)
+	if !ok {
+		panic(mustError{"Declare", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Declare) Node() rhino.Node { return x.node }
 
@@ -6011,6 +6971,16 @@ func AsNamespace(n rhino.Node) (x Namespace, ok bool) {
 	return Namespace{n}, true
 }
 
+// MustNamespace returns n as a Namespace; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNamespace(n rhino.Node) Namespace {
+	x, ok := AsNamespace(n)
+	if !ok {
+		panic(mustError{"Namespace", n})
+	}
+	return x
+}
+
 // Node returns x as a rhino.Node.
 func (x Namespace) Node() rhino.Node { return x.node }
 
@@ -6089,6 +7059,16 @@ func AsStatement(n rhino.Node) (x Statement, ok bool) {
 		return Statement{}, false
 	}
 	return Statement{n}, true
+}
+
+// MustStatement returns n as a Statement; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustStatement(n rhino.Node) Statement {
+	x, ok := AsStatement(n)
+	if !ok {
+		panic(mustError{"Statement", n})
+	}
+	return x
 }
 
 // statementTokens holds the tokens of Statement.
@@ -6223,6 +7203,16 @@ func AsExpr(n rhino.Node) (x Expr, ok bool) {
 		return Expr{}, false
 	}
 	return Expr{n}, true
+}
+
+// MustExpr returns n as an Expr; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustExpr(n rhino.Node) Expr {
+	x, ok := AsExpr(n)
+	if !ok {
+		panic(mustError{"Expr", n})
+	}
+	return x
 }
 
 // exprTokens holds the tokens of Expr.
@@ -6406,6 +7396,16 @@ func AsTarget(n rhino.Node) (x Target, ok bool) {
 	return Target{n}, true
 }
 
+// MustTarget returns n as a Target; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustTarget(n rhino.Node) Target {
+	x, ok := AsTarget(n)
+	if !ok {
+		panic(mustError{"Target", n})
+	}
+	return x
+}
+
 // targetTokens holds the tokens of Target.
 var targetTokens = tokenSetOf(rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME, rhino.Token_CAST, rhino.Token_GETPROP, rhino.Token_GETELEM)
 
@@ -6473,6 +7473,16 @@ func AsPattern(n rhino.Node) (x Pattern, ok bool) {
 	return Pattern{n}, true
 }
 
+// MustPattern returns n as a Pattern; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustPattern(n rhino.Node) Pattern {
+	x, ok := AsPattern(n)
+	if !ok {
+		panic(mustError{"Pattern", n})
+	}
+	return x
+}
+
 // patternTokens holds the tokens of Pattern.
 var patternTokens = tokenSetOf(rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN)
 
@@ -6528,6 +7538,16 @@ func AsParam(n rhino.Node) (x Param, ok bool) {
 	return Param{n}, true
 }
 
+// MustParam returns n as a Param; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustParam(n rhino.Node) Param {
+	x, ok := AsParam(n)
+	if !ok {
+		panic(mustError{"Param", n})
+	}
+	return x
+}
+
 // paramTokens holds the tokens of Param.
 var paramTokens = tokenSetOf(rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME)
 
@@ -6581,6 +7601,16 @@ func AsArg(n rhino.Node) (x Arg, ok bool) {
 		return Arg{}, false
 	}
 	return Arg{n}, true
+}
+
+// MustArg returns n as an Arg; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustArg(n rhino.Node) Arg {
+	x, ok := AsArg(n)
+	if !ok {
+		panic(mustError{"Arg", n})
+	}
+	return x
 }
 
 // argTokens holds the tokens of Arg.
@@ -6752,6 +7782,16 @@ func AsArrayElem(n rhino.Node) (x ArrayElem, ok bool) {
 		return ArrayElem{}, false
 	}
 	return ArrayElem{n}, true
+}
+
+// MustArrayElem returns n as an ArrayElem; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustArrayElem(n rhino.Node) ArrayElem {
+	x, ok := AsArrayElem(n)
+	if !ok {
+		panic(mustError{"ArrayElem", n})
+	}
+	return x
 }
 
 // arrayElemTokens holds the tokens of ArrayElem.
@@ -6930,6 +7970,16 @@ func AsArrayPatternElem(n rhino.Node) (x ArrayPatternElem, ok bool) {
 	return ArrayPatternElem{n}, true
 }
 
+// MustArrayPatternElem returns n as an ArrayPatternElem; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustArrayPatternElem(n rhino.Node) ArrayPatternElem {
+	x, ok := AsArrayPatternElem(n)
+	if !ok {
+		panic(mustError{"ArrayPatternElem", n})
+	}
+	return x
+}
+
 // arrayPatternElemTokens holds the tokens of ArrayPatternElem.
 var arrayPatternElemTokens = tokenSetOf(rhino.Token_EMPTY, rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME, rhino.Token_CAST, rhino.Token_GETPROP, rhino.Token_GETELEM)
 
@@ -7003,6 +8053,16 @@ func AsObjectPatternProp(n rhino.Node) (x ObjectPatternProp, ok bool) {
 	return ObjectPatternProp{n}, true
 }
 
+// MustObjectPatternProp returns n as an ObjectPatternProp; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustObjectPatternProp(n rhino.Node) ObjectPatternProp {
+	x, ok := AsObjectPatternProp(n)
+	if !ok {
+		panic(mustError{"ObjectPatternProp", n})
+	}
+	return x
+}
+
 // objectPatternPropTokens holds the tokens of ObjectPatternProp.
 var objectPatternPropTokens = tokenSetOf(rhino.Token_OBJECT_REST, rhino.Token_COMPUTED_PROP, rhino.Token_STRING_KEY)
 
@@ -7042,6 +8102,16 @@ func AsPropValue(n rhino.Node) (x PropValue, ok bool) {
 		return PropValue{}, false
 	}
 	return PropValue{n}, true
+}
+
+// MustPropValue returns n as a PropValue; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustPropValue(n rhino.Node) PropValue {
+	x, ok := AsPropValue(n)
+	if !ok {
+		panic(mustError{"PropValue", n})
+	}
+	return x
 }
 
 // propValueTokens holds the tokens of PropValue.
@@ -7229,6 +8299,16 @@ func AsObjectMember(n rhino.Node) (x ObjectMember, ok bool) {
 	return ObjectMember{n}, true
 }
 
+// MustObjectMember returns n as an ObjectMember; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustObjectMember(n rhino.Node) ObjectMember {
+	x, ok := AsObjectMember(n)
+	if !ok {
+		panic(mustError{"ObjectMember", n})
+	}
+	return x
+}
+
 // objectMemberTokens holds the tokens of ObjectMember.
 var objectMemberTokens = tokenSetOf(rhino.Token_OBJECT_SPREAD, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_STRING_KEY)
 
@@ -7278,6 +8358,16 @@ func AsClassMember(n rhino.Node) (x ClassMember, ok bool) {
 		return ClassMember{}, false
 	}
 	return ClassMember{n}, true
+}
+
+// MustClassMember returns n as a ClassMember; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustClassMember(n rhino.Node) ClassMember {
+	x, ok := AsClassMember(n)
+	if !ok {
+		panic(mustError{"ClassMember", n})
+	}
+	return x
 }
 
 // classMemberTokens holds the tokens of ClassMember.
@@ -7348,6 +8438,16 @@ func AsLoop(n rhino.Node) (x Loop, ok bool) {
 	return Loop{n}, true
 }
 
+// MustLoop returns n as a Loop; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustLoop(n rhino.Node) Loop {
+	x, ok := AsLoop(n)
+	if !ok {
+		panic(mustError{"Loop", n})
+	}
+	return x
+}
+
 // loopTokens holds the tokens of Loop.
 var loopTokens = tokenSetOf(rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO)
 
@@ -7410,6 +8510,16 @@ func AsEnhancedFor(n rhino.Node) (x EnhancedFor, ok bool) {
 	return EnhancedFor{n}, true
 }
 
+// MustEnhancedFor returns n as an EnhancedFor; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustEnhancedFor(n rhino.Node) EnhancedFor {
+	x, ok := AsEnhancedFor(n)
+	if !ok {
+		panic(mustError{"EnhancedFor", n})
+	}
+	return x
+}
+
 // enhancedForTokens holds the tokens of EnhancedFor.
 var enhancedForTokens = tokenSetOf(rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF)
 
@@ -7468,6 +8578,16 @@ func AsJump(n rhino.Node) (x Jump, ok bool) {
 	return Jump{n}, true
 }
 
+// MustJump returns n as a Jump; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustJump(n rhino.Node) Jump {
+	x, ok := AsJump(n)
+	if !ok {
+		panic(mustError{"Jump", n})
+	}
+	return x
+}
+
 // jumpTokens holds the tokens of Jump.
 var jumpTokens = tokenSetOf(rhino.Token_BREAK, rhino.Token_CONTINUE)
 
@@ -7520,6 +8640,16 @@ func AsSwitchCase(n rhino.Node) (x SwitchCase, ok bool) {
 	return SwitchCase{n}, true
 }
 
+// MustSwitchCase returns n as a SwitchCase; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustSwitchCase(n rhino.Node) SwitchCase {
+	x, ok := AsSwitchCase(n)
+	if !ok {
+		panic(mustError{"SwitchCase", n})
+	}
+	return x
+}
+
 // switchCaseTokens holds the tokens of SwitchCase.
 var switchCaseTokens = tokenSetOf(rhino.Token_CASE, rhino.Token_DEFAULT_CASE)
 
@@ -7560,6 +8690,16 @@ func AsDeclarator(n rhino.Node) (x Declarator, ok bool) {
 	return Declarator{n}, true
 }
 
+// MustDeclarator returns n as a Declarator; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustDeclarator(n rhino.Node) Declarator {
+	x, ok := AsDeclarator(n)
+	if !ok {
+		panic(mustError{"Declarator", n})
+	}
+	return x
+}
+
 // declaratorTokens holds the tokens of Declarator.
 var declaratorTokens = tokenSetOf(rhino.Token_DESTRUCTURING_LHS, rhino.Token_NAME)
 
@@ -7595,6 +8735,16 @@ func AsForInit(n rhino.Node) (x ForInit, ok bool) {
 		return ForInit{}, false
 	}
 	return ForInit{n}, true
+}
+
+// MustForInit returns n as a ForInit; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustForInit(n rhino.Node) ForInit {
+	x, ok := AsForInit(n)
+	if !ok {
+		panic(mustError{"ForInit", n})
+	}
+	return x
 }
 
 // forInitTokens holds the tokens of ForInit.
@@ -7768,6 +8918,16 @@ func AsForTarget(n rhino.Node) (x ForTarget, ok bool) {
 	return ForTarget{n}, true
 }
 
+// MustForTarget returns n as a ForTarget; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustForTarget(n rhino.Node) ForTarget {
+	x, ok := AsForTarget(n)
+	if !ok {
+		panic(mustError{"ForTarget", n})
+	}
+	return x
+}
+
 // forTargetTokens holds the tokens of ForTarget.
 var forTargetTokens = tokenSetOf(rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME, rhino.Token_CAST, rhino.Token_GETPROP, rhino.Token_GETELEM)
 
@@ -7832,6 +8992,16 @@ func AsCatchParam(n rhino.Node) (x CatchParam, ok bool) {
 	return CatchParam{n}, true
 }
 
+// MustCatchParam returns n as a CatchParam; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustCatchParam(n rhino.Node) CatchParam {
+	x, ok := AsCatchParam(n)
+	if !ok {
+		panic(mustError{"CatchParam", n})
+	}
+	return x
+}
+
 // catchParamTokens holds the tokens of CatchParam.
 var catchParamTokens = tokenSetOf(rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME)
 
@@ -7889,6 +9059,16 @@ func AsFunctionBody(n rhino.Node) (x FunctionBody, ok bool) {
 		return FunctionBody{}, false
 	}
 	return FunctionBody{n}, true
+}
+
+// MustFunctionBody returns n as a FunctionBody; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustFunctionBody(n rhino.Node) FunctionBody {
+	x, ok := AsFunctionBody(n)
+	if !ok {
+		panic(mustError{"FunctionBody", n})
+	}
+	return x
 }
 
 // functionBodyTokens holds the tokens of FunctionBody.
@@ -8067,6 +9247,16 @@ func AsTemplatePart(n rhino.Node) (x TemplatePart, ok bool) {
 	return TemplatePart{n}, true
 }
 
+// MustTemplatePart returns n as a TemplatePart; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustTemplatePart(n rhino.Node) TemplatePart {
+	x, ok := AsTemplatePart(n)
+	if !ok {
+		panic(mustError{"TemplatePart", n})
+	}
+	return x
+}
+
 // templatePartTokens holds the tokens of TemplatePart.
 var templatePartTokens = tokenSetOf(rhino.Token_TEMPLATELIT_STRING, rhino.Token_TEMPLATELIT_SUB)
 
@@ -8106,6 +9296,16 @@ func AsImportBindings(n rhino.Node) (x ImportBindings, ok bool) {
 	return ImportBindings{n}, true
 }
 
+// MustImportBindings returns n as an ImportBindings; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustImportBindings(n rhino.Node) ImportBindings {
+	x, ok := AsImportBindings(n)
+	if !ok {
+		panic(mustError{"ImportBindings", n})
+	}
+	return x
+}
+
 // importBindingsTokens holds the tokens of ImportBindings.
 var importBindingsTokens = tokenSetOf(rhino.Token_IMPORT_SPECS, rhino.Token_IMPORT_STAR)
 
@@ -8142,6 +9342,16 @@ func AsExportBody(n rhino.Node) (x ExportBody, ok bool) {
 		return ExportBody{}, false
 	}
 	return ExportBody{n}, true
+}
+
+// MustExportBody returns n as an ExportBody; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustExportBody(n rhino.Node) ExportBody {
+	x, ok := AsExportBody(n)
+	if !ok {
+		panic(mustError{"ExportBody", n})
+	}
+	return x
 }
 
 // exportBodyTokens holds the tokens of ExportBody.
@@ -8413,6 +9623,16 @@ func AsScriptItem(n rhino.Node) (x ScriptItem, ok bool) {
 	return ScriptItem{n}, true
 }
 
+// MustScriptItem returns n as a ScriptItem; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustScriptItem(n rhino.Node) ScriptItem {
+	x, ok := AsScriptItem(n)
+	if !ok {
+		panic(mustError{"ScriptItem", n})
+	}
+	return x
+}
+
 // scriptItemTokens holds the tokens of ScriptItem.
 var scriptItemTokens = tokenSetOf(rhino.Token_MODULE_BODY, rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_TRY, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_IMPORT, rhino.Token_EXPORT, rhino.Token_INTERFACE, rhino.Token_ENUM, rhino.Token_TYPE_ALIAS, rhino.Token_DECLARE, rhino.Token_NAMESPACE)
 
@@ -8547,6 +9767,16 @@ func AsRootItem(n rhino.Node) (x RootItem, ok bool) {
 	return RootItem{n}, true
 }
 
+// MustRootItem returns n as a RootItem; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustRootItem(n rhino.Node) RootItem {
+	x, ok := AsRootItem(n)
+	if !ok {
+		panic(mustError{"RootItem", n})
+	}
+	return x
+}
+
 // rootItemTokens holds the tokens of RootItem.
 var rootItemTokens = tokenSetOf(rhino.Token_ROOT, rhino.Token_SCRIPT)
 
@@ -8583,6 +9813,16 @@ func AsNormalOrOptChainCall(n rhino.Node) (x NormalOrOptChainCall, ok bool) {
 		return NormalOrOptChainCall{}, false
 	}
 	return NormalOrOptChainCall{n}, true
+}
+
+// MustNormalOrOptChainCall returns n as a NormalOrOptChainCall; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNormalOrOptChainCall(n rhino.Node) NormalOrOptChainCall {
+	x, ok := AsNormalOrOptChainCall(n)
+	if !ok {
+		panic(mustError{"NormalOrOptChainCall", n})
+	}
+	return x
 }
 
 // normalOrOptChainCallTokens holds the tokens of NormalOrOptChainCall.
@@ -8690,6 +9930,16 @@ func AsNormalOrOptChainGetProp(n rhino.Node) (x NormalOrOptChainGetProp, ok bool
 	return NormalOrOptChainGetProp{n}, true
 }
 
+// MustNormalOrOptChainGetProp returns n as a NormalOrOptChainGetProp; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNormalOrOptChainGetProp(n rhino.Node) NormalOrOptChainGetProp {
+	x, ok := AsNormalOrOptChainGetProp(n)
+	if !ok {
+		panic(mustError{"NormalOrOptChainGetProp", n})
+	}
+	return x
+}
+
 // normalOrOptChainGetPropTokens holds the tokens of NormalOrOptChainGetProp.
 var normalOrOptChainGetPropTokens = tokenSetOf(rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP)
 
@@ -8761,6 +10011,16 @@ func AsNormalOrOptChainGet(n rhino.Node) (x NormalOrOptChainGet, ok bool) {
 		return NormalOrOptChainGet{}, false
 	}
 	return NormalOrOptChainGet{n}, true
+}
+
+// MustNormalOrOptChainGet returns n as a NormalOrOptChainGet; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNormalOrOptChainGet(n rhino.Node) NormalOrOptChainGet {
+	x, ok := AsNormalOrOptChainGet(n)
+	if !ok {
+		panic(mustError{"NormalOrOptChainGet", n})
+	}
+	return x
 }
 
 // normalOrOptChainGetTokens holds the tokens of NormalOrOptChainGet.
@@ -8848,6 +10108,16 @@ func AsNormalOrOptChainGetElem(n rhino.Node) (x NormalOrOptChainGetElem, ok bool
 	return NormalOrOptChainGetElem{n}, true
 }
 
+// MustNormalOrOptChainGetElem returns n as a NormalOrOptChainGetElem; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNormalOrOptChainGetElem(n rhino.Node) NormalOrOptChainGetElem {
+	x, ok := AsNormalOrOptChainGetElem(n)
+	if !ok {
+		panic(mustError{"NormalOrOptChainGetElem", n})
+	}
+	return x
+}
+
 // normalOrOptChainGetElemTokens holds the tokens of NormalOrOptChainGetElem.
 var normalOrOptChainGetElemTokens = tokenSetOf(rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM)
 
@@ -8918,6 +10188,16 @@ func AsNormalGet(n rhino.Node) (x NormalGet, ok bool) {
 		return NormalGet{}, false
 	}
 	return NormalGet{n}, true
+}
+
+// MustNormalGet returns n as a NormalGet; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNormalGet(n rhino.Node) NormalGet {
+	x, ok := AsNormalGet(n)
+	if !ok {
+		panic(mustError{"NormalGet", n})
+	}
+	return x
 }
 
 // normalGetTokens holds the tokens of NormalGet.
@@ -8992,6 +10272,16 @@ func AsAssignment(n rhino.Node) (x Assignment, ok bool) {
 		return Assignment{}, false
 	}
 	return Assignment{n}, true
+}
+
+// MustAssignment returns n as an Assignment; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustAssignment(n rhino.Node) Assignment {
+	x, ok := AsAssignment(n)
+	if !ok {
+		panic(mustError{"Assignment", n})
+	}
+	return x
 }
 
 // assignmentTokens holds the tokens of Assignment.

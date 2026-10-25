@@ -1372,7 +1372,7 @@ func (b *InlineVariables_InliningBehavior) Inline(decl *Reference, init *Referen
 		// We're inlining this function declaration because there was only one reference to it,
 		// probably the rhs of an assignment statement. Since we're eliminating the only
 		// reference, we can get rid of it. See b/277538101.
-		fn, _ := ast.AsFunction(value) // a function declaration is a function
+		fn := ast.MustFunction(value)
 		fn.RemoveName()
 
 		// In addition to changing the containing scope, inlining function declarations also changes

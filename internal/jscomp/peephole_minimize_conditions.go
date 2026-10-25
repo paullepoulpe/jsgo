@@ -77,31 +77,31 @@ func (p *PeepholeMinimizeConditions) OptimizeSubtree(node rhino.Node) rhino.Node
 		// TODO(johnlenz): Maybe remove redundant BREAK and CONTINUE. Overlaps
 		// with MinimizeExitPoints.
 	case rhino.Token_NOT:
-		not, _ := ast.AsUnary(node) // the case proves the kind
+		not := ast.MustUnary(node)
 		p.TryMinimizeCondition(not.Operand().Node())
 		return p.TryMinimizeNot(node)
 	case rhino.Token_IF:
-		ifs, _ := ast.AsIf(node) // the case proves the kind
+		ifs := ast.MustIf(node)
 		p.PerformConditionSubstitutions(ifs.Cond().Node())
 		return p.TryMinimizeIf(ifs)
 	case rhino.Token_EXPR_RESULT:
-		expr, _ := ast.AsExprStmt(node) // the case proves the kind
+		expr := ast.MustExprStmt(node)
 		p.PerformConditionSubstitutions(expr.Expr().Node())
 		return p.TryMinimizeExprResult(expr)
 	case rhino.Token_HOOK:
-		hook, _ := ast.AsHook(node) // the case proves the kind
+		hook := ast.MustHook(node)
 		p.PerformConditionSubstitutions(hook.Cond().Node())
 		return p.TryMinimizeHook(hook)
 	case rhino.Token_WHILE:
-		while, _ := ast.AsWhile(node) // the case proves the kind
+		while := ast.MustWhile(node)
 		p.TryMinimizeCondition(while.Cond().Node())
 		return node
 	case rhino.Token_DO:
-		do, _ := ast.AsDo(node) // the case proves the kind
+		do := ast.MustDo(node)
 		p.TryMinimizeCondition(do.Cond().Node())
 		return node
 	case rhino.Token_FOR:
-		forNode, _ := ast.AsFor(node) // the case proves the kind
+		forNode := ast.MustFor(node)
 		p.TryJoinForCondition(forNode)
 		// (Go: for (;;) has no condition to minimize; the Java tries its EMPTY
 		// placeholder, which has no boolean value.)
@@ -110,7 +110,7 @@ func (p *PeepholeMinimizeConditions) OptimizeSubtree(node rhino.Node) rhino.Node
 		}
 		return node
 	case rhino.Token_BLOCK:
-		block, _ := ast.AsBlock(node) // the case proves the kind
+		block := ast.MustBlock(node)
 		return p.TryReplaceIf(block)
 	default:
 		return node
@@ -458,7 +458,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeNot(n rhino.Node) rhino.Node {
 		complementOperator = rhino.Token_SHEQ
 	case rhino.Token_NOT:
 		// !!(a < b) -> a < b (when the inner expression already produces a boolean)
-		innerNot, _ := ast.AsUnary(notChild) // the case proves the kind
+		innerNot := ast.MustUnary(notChild)
 		if expr := innerNot.Operand().Node(); NodeUtil_IsBooleanResult(expr) {
 			expr.Detach()
 			n.ReplaceWith(expr)
@@ -1108,7 +1108,7 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 
 	switch n.GetToken() {
 	case rhino.Token_OR, rhino.Token_AND:
-		binary, _ := ast.AsBinary(n) // the case proves the kind
+		binary := ast.MustBinary(n)
 		left := binary.Left().Node()
 		right := binary.Right().Node()
 
@@ -1162,7 +1162,7 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 		}
 		return n
 	case rhino.Token_HOOK:
-		hook, _ := ast.AsHook(n) // the case proves the kind
+		hook := ast.MustHook(n)
 		condition := hook.Cond().Node()
 		trueNode := hook.Then().Node()
 		falseNode := hook.Else().Node()

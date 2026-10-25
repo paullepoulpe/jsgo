@@ -173,7 +173,7 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n rhino.Node, pare
 			}
 		}
 	case rhino.Token_ASSIGN:
-		assign, _ := ast.AsAssign(parent) // the case proves the kind
+		assign := ast.MustAssign(parent)
 		if assign.Target().Is(n) {
 			ident := name.Ident()
 			if ident == "" {
@@ -264,14 +264,14 @@ func (d *Denormalize) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhin
 func (d *Denormalize) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_EXPR_RESULT, rhino.Token_VAR:
-		stmt, _ := ast.AsStatement(n) // the case proves the kind
+		stmt := ast.MustStatement(n)
 		d.MaybeCollapseIntoForStatements(stmt)
 	case rhino.Token_ASSIGN:
-		assign, _ := ast.AsAssign(n) // the case proves the kind
+		assign := ast.MustAssign(n)
 		d.MaybeCollapseAssignShorthand(assign)
 	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
 		if d.hasLogicalAssign {
-			op, _ := ast.AsBinary(n) // the case proves the kind
+			op := ast.MustBinary(n)
 			d.MaybeCollapseLogicalAssignShorthand(t, op)
 		}
 	}

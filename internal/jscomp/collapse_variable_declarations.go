@@ -128,7 +128,7 @@ func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n
 	if tok := n.GetToken(); tok != rhino.Token_VAR && tok != rhino.Token_LET && tok != rhino.Token_CONST {
 		return
 	}
-	decl, _ := ast.AsNameDeclaration(n) // the test above proves the kind
+	decl := ast.MustNameDeclaration(n)
 
 	// Adjacent VAR children of an IF node are the if and else parts and can't
 	// be collapsed

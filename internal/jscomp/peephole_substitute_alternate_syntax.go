@@ -70,12 +70,12 @@ func NewPeepholeSubstituteAlternateSyntax(late bool) *PeepholeSubstituteAlternat
 func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node rhino.Node) rhino.Node {
 	switch node.GetToken() {
 	case rhino.Token_ASSIGN_SUB:
-		assign, _ := ast.AsAssignOp(node) // the case proves the kind
+		assign := ast.MustAssignOp(node)
 		return p.ReduceSubstractionAssignment(assign)
 	case rhino.Token_TRUE, rhino.Token_FALSE:
 		return p.ReduceTrueFalse(node)
 	case rhino.Token_NEW:
-		newNode, _ := ast.AsNew(node) // the case proves the kind
+		newNode := ast.MustNew(node)
 		result := p.TryFoldStandardConstructors(newNode)
 		// tryFoldStandardConstructors() may convert a NEW node into a CALL node
 		if call, ok := ast.AsCall(result); ok {
@@ -83,37 +83,37 @@ func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node rhino.Node) rhi
 		}
 		return result
 	case rhino.Token_CALL:
-		call, _ := ast.AsCall(node) // the case proves the kind
+		call := ast.MustCall(node)
 		return p.TryReduceCall(call)
 	case rhino.Token_RETURN:
-		ret, _ := ast.AsReturn(node) // the case proves the kind
+		ret := ast.MustReturn(node)
 		return p.TryReduceReturn(ret)
 	case rhino.Token_EXPR_RESULT:
-		stmt, _ := ast.AsExprStmt(node) // the case proves the kind
+		stmt := ast.MustExprStmt(node)
 		if stmt.Expr().Token() == rhino.Token_COMMA {
 			return p.TrySplitComma(stmt)
 		}
 		return node
 	case rhino.Token_NAME:
-		name, _ := ast.AsName(node) // the case proves the kind
+		name := ast.MustName(node)
 		if name.Ident() != "undefined" {
 			return node
 		}
 		return p.TryReplaceUndefined(name)
 	case rhino.Token_ARRAYLIT:
-		array, _ := ast.AsArrayLit(node) // the case proves the kind
+		array := ast.MustArrayLit(node)
 		return p.TryMinimizeArrayLiteral(array)
 	case rhino.Token_GETPROP:
-		getProp, _ := ast.AsGetProp(node) // the case proves the kind
+		getProp := ast.MustGetProp(node)
 		return p.TryMinimizeWindowRefs(getProp)
 	case rhino.Token_TEMPLATELIT:
-		template, _ := ast.AsTemplateLit(node) // the case proves the kind
+		template := ast.MustTemplateLit(node)
 		return p.TryTurnTemplateStringsToStrings(template)
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_COALESCE:
-		op, _ := ast.AsBinary(node) // the case proves the kind
+		op := ast.MustBinary(node)
 		return p.TryRotateAssociativeOperator(op)
 	case rhino.Token_MUL:
-		op, _ := ast.AsBinary(node) // the case proves the kind
+		op := ast.MustBinary(node)
 		if !p.late || p.MayHaveSideEffects(node) {
 			return node
 		}

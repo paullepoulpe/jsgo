@@ -369,3 +369,21 @@ func TestNormalGet(t *testing.T) {
 		}
 	}
 }
+
+// Must conversions return the view for the right kind and panic, naming
+// both kinds, for another.
+func TestMust(t *testing.T) {
+	newStore(t)
+	name := NewName("x")
+	if MustName(name.Node()) != name || MustExpr(name.Node()).Node() != name.Node() {
+		t.Fatal("Must conversion of the right kind")
+	}
+	defer func() {
+		r := recover()
+		e, ok := r.(error)
+		if !ok || e.Error() != "ast.MustIf: a NAME node" {
+			t.Fatalf("panic %v, want ast.MustIf: a NAME node", r)
+		}
+	}()
+	MustIf(name.Node())
+}

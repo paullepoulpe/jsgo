@@ -180,7 +180,7 @@ func (p *PeepholeFoldConstants) TryReduceVoid(n rhino.Node) rhino.Node {
 func (p *PeepholeFoldConstants) TryReduceOperandsForOp(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_ADD:
-		add, _ := ast.AsBinary(n) // the case proves the kind
+		add := ast.MustBinary(n)
 		if !NodeUtil_MayBeStringWithUseType(add.Left().Node(), p.shouldUseTypes) &&
 			!NodeUtil_MayBeStringWithUseType(add.Right().Node(), p.shouldUseTypes) {
 			p.TryConvertOperandsToNumber(n)
@@ -195,7 +195,7 @@ func (p *PeepholeFoldConstants) TryReduceOperandsForOp(n rhino.Node) {
 		rhino.Token_ASSIGN_MUL,
 		rhino.Token_ASSIGN_MOD,
 		rhino.Token_ASSIGN_DIV:
-		assignOp, _ := ast.AsAssignOp(n) // the case proves the kind
+		assignOp := ast.MustAssignOp(n)
 		// TODO(johnlenz): convert these to integers.
 		p.TryConvertToNumber(assignOp.Value().Node())
 	case rhino.Token_BITNOT, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_POS, rhino.Token_NEG, rhino.Token_EXPONENT:
@@ -223,11 +223,11 @@ func (p *PeepholeFoldConstants) TryConvertToNumber(n rhino.Node) {
 		// Nothing to do
 		return
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COMMA, rhino.Token_COALESCE:
-		op, _ := ast.AsBinary(n) // the case proves the kind
+		op := ast.MustBinary(n)
 		p.TryConvertToNumber(op.Right().Node())
 		return
 	case rhino.Token_HOOK:
-		hook, _ := ast.AsHook(n) // the case proves the kind
+		hook := ast.MustHook(n)
 		p.TryConvertToNumber(hook.Then().Node())
 		p.TryConvertToNumber(hook.Else().Node())
 		return
