@@ -1360,8 +1360,9 @@ func (n Node) GetSecondChild() Node {
 
 // Java: Node.getLastChild()
 func (n Node) GetLastChild() Node {
-	if n.rec().first != 0 {
-		return n.firstNode().prevNode()
+	// The first child's previous is the last child (a circular list).
+	if first := n.firstNode(); first != NilNode {
+		return first.prevNode()
 	}
 	return NilNode
 }

@@ -1143,15 +1143,14 @@ type NameDeclaration struct{ node rhino.Node }
 
 // AsNameDeclaration returns n as a NameDeclaration; ok is false if n is not one (or is the nil node).
 func AsNameDeclaration(n rhino.Node) (x NameDeclaration, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !nameDeclarationTokens.Has(n.GetToken()) {
 		return NameDeclaration{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		return NameDeclaration{n}, true
-	}
-	return NameDeclaration{}, false
+	return NameDeclaration{n}, true
 }
+
+// nameDeclarationTokens holds the tokens of NameDeclaration.
+var nameDeclarationTokens = tokenSetOf(rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST)
 
 // Node returns x as a rhino.Node.
 func (x NameDeclaration) Node() rhino.Node { return x.node }
@@ -3720,15 +3719,14 @@ type Unary struct{ node rhino.Node }
 
 // AsUnary returns n as an Unary; ok is false if n is not one (or is the nil node).
 func AsUnary(n rhino.Node) (x Unary, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !unaryTokens.Has(n.GetToken()) {
 		return Unary{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT:
-		return Unary{n}, true
-	}
-	return Unary{}, false
+	return Unary{n}, true
 }
+
+// unaryTokens holds the tokens of Unary.
+var unaryTokens = tokenSetOf(rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT)
 
 // Node returns x as a rhino.Node.
 func (x Unary) Node() rhino.Node { return x.node }
@@ -3900,15 +3898,14 @@ type IncDec struct{ node rhino.Node }
 
 // AsIncDec returns n as an IncDec; ok is false if n is not one (or is the nil node).
 func AsIncDec(n rhino.Node) (x IncDec, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !incDecTokens.Has(n.GetToken()) {
 		return IncDec{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_INC, rhino.Token_DEC:
-		return IncDec{n}, true
-	}
-	return IncDec{}, false
+	return IncDec{n}, true
 }
+
+// incDecTokens holds the tokens of IncDec.
+var incDecTokens = tokenSetOf(rhino.Token_INC, rhino.Token_DEC)
 
 // Node returns x as a rhino.Node.
 func (x IncDec) Node() rhino.Node { return x.node }
@@ -4028,15 +4025,14 @@ type AssignOp struct{ node rhino.Node }
 
 // AsAssignOp returns n as an AssignOp; ok is false if n is not one (or is the nil node).
 func AsAssignOp(n rhino.Node) (x AssignOp, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !assignOpTokens.Has(n.GetToken()) {
 		return AssignOp{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
-		return AssignOp{n}, true
-	}
-	return AssignOp{}, false
+	return AssignOp{n}, true
 }
+
+// assignOpTokens holds the tokens of AssignOp.
+var assignOpTokens = tokenSetOf(rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE)
 
 // Node returns x as a rhino.Node.
 func (x AssignOp) Node() rhino.Node { return x.node }
@@ -4103,15 +4099,14 @@ type Binary struct{ node rhino.Node }
 
 // AsBinary returns n as a Binary; ok is false if n is not one (or is the nil node).
 func AsBinary(n rhino.Node) (x Binary, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !binaryTokens.Has(n.GetToken()) {
 		return Binary{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT:
-		return Binary{n}, true
-	}
-	return Binary{}, false
+	return Binary{n}, true
 }
+
+// binaryTokens holds the tokens of Binary.
+var binaryTokens = tokenSetOf(rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT)
 
 // Node returns x as a rhino.Node.
 func (x Binary) Node() rhino.Node { return x.node }
@@ -5621,15 +5616,14 @@ type Statement struct{ node rhino.Node }
 
 // AsStatement returns n as a Statement; ok is false if n is not one (or is the nil node).
 func AsStatement(n rhino.Node) (x Statement, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !statementTokens.Has(n.GetToken()) {
 		return Statement{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_TRY, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_IMPORT, rhino.Token_EXPORT, rhino.Token_INTERFACE, rhino.Token_ENUM, rhino.Token_TYPE_ALIAS, rhino.Token_DECLARE, rhino.Token_NAMESPACE:
-		return Statement{n}, true
-	}
-	return Statement{}, false
+	return Statement{n}, true
 }
+
+// statementTokens holds the tokens of Statement.
+var statementTokens = tokenSetOf(rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_TRY, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_IMPORT, rhino.Token_EXPORT, rhino.Token_INTERFACE, rhino.Token_ENUM, rhino.Token_TYPE_ALIAS, rhino.Token_DECLARE, rhino.Token_NAMESPACE)
 
 // Node returns x as a rhino.Node.
 func (x Statement) Node() rhino.Node { return x.node }
@@ -5744,15 +5738,14 @@ type Expr struct{ node rhino.Node }
 
 // AsExpr returns n as an Expr; ok is false if n is not one (or is the nil node).
 func AsExpr(n rhino.Node) (x Expr, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !exprTokens.Has(n.GetToken()) {
 		return Expr{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT:
-		return Expr{n}, true
-	}
-	return Expr{}, false
+	return Expr{n}, true
 }
+
+// exprTokens holds the tokens of Expr.
+var exprTokens = tokenSetOf(rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT)
 
 // Node returns x as a rhino.Node.
 func (x Expr) Node() rhino.Node { return x.node }
@@ -5909,15 +5902,14 @@ type Target struct{ node rhino.Node }
 
 // AsTarget returns n as a Target; ok is false if n is not one (or is the nil node).
 func AsTarget(n rhino.Node) (x Target, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !targetTokens.Has(n.GetToken()) {
 		return Target{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME, rhino.Token_CAST, rhino.Token_GETPROP, rhino.Token_GETELEM:
-		return Target{n}, true
-	}
-	return Target{}, false
+	return Target{n}, true
 }
+
+// targetTokens holds the tokens of Target.
+var targetTokens = tokenSetOf(rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME, rhino.Token_CAST, rhino.Token_GETPROP, rhino.Token_GETELEM)
 
 // Node returns x as a rhino.Node.
 func (x Target) Node() rhino.Node { return x.node }
@@ -5965,15 +5957,14 @@ type Pattern struct{ node rhino.Node }
 
 // AsPattern returns n as a Pattern; ok is false if n is not one (or is the nil node).
 func AsPattern(n rhino.Node) (x Pattern, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !patternTokens.Has(n.GetToken()) {
 		return Pattern{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
-		return Pattern{n}, true
-	}
-	return Pattern{}, false
+	return Pattern{n}, true
 }
+
+// patternTokens holds the tokens of Pattern.
+var patternTokens = tokenSetOf(rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN)
 
 // Node returns x as a rhino.Node.
 func (x Pattern) Node() rhino.Node { return x.node }
@@ -6012,15 +6003,14 @@ type Param struct{ node rhino.Node }
 
 // AsParam returns n as a Param; ok is false if n is not one (or is the nil node).
 func AsParam(n rhino.Node) (x Param, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !paramTokens.Has(n.GetToken()) {
 		return Param{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME:
-		return Param{n}, true
-	}
-	return Param{}, false
+	return Param{n}, true
 }
+
+// paramTokens holds the tokens of Param.
+var paramTokens = tokenSetOf(rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME)
 
 // Node returns x as a rhino.Node.
 func (x Param) Node() rhino.Node { return x.node }
@@ -6059,15 +6049,14 @@ type Arg struct{ node rhino.Node }
 
 // AsArg returns n as an Arg; ok is false if n is not one (or is the nil node).
 func AsArg(n rhino.Node) (x Arg, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !argTokens.Has(n.GetToken()) {
 		return Arg{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_FUNCTION, rhino.Token_ITER_SPREAD, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT:
-		return Arg{n}, true
-	}
-	return Arg{}, false
+	return Arg{n}, true
 }
+
+// argTokens holds the tokens of Arg.
+var argTokens = tokenSetOf(rhino.Token_FUNCTION, rhino.Token_ITER_SPREAD, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT)
 
 // Node returns x as a rhino.Node.
 func (x Arg) Node() rhino.Node { return x.node }
@@ -6214,15 +6203,14 @@ type ArrayElem struct{ node rhino.Node }
 
 // AsArrayElem returns n as an ArrayElem; ok is false if n is not one (or is the nil node).
 func AsArrayElem(n rhino.Node) (x ArrayElem, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !arrayElemTokens.Has(n.GetToken()) {
 		return ArrayElem{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_EMPTY, rhino.Token_FUNCTION, rhino.Token_ITER_SPREAD, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT:
-		return ArrayElem{n}, true
-	}
-	return ArrayElem{}, false
+	return ArrayElem{n}, true
 }
+
+// arrayElemTokens holds the tokens of ArrayElem.
+var arrayElemTokens = tokenSetOf(rhino.Token_EMPTY, rhino.Token_FUNCTION, rhino.Token_ITER_SPREAD, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT)
 
 // Node returns x as a rhino.Node.
 func (x ArrayElem) Node() rhino.Node { return x.node }
@@ -6374,15 +6362,14 @@ type ArrayPatternElem struct{ node rhino.Node }
 
 // AsArrayPatternElem returns n as an ArrayPatternElem; ok is false if n is not one (or is the nil node).
 func AsArrayPatternElem(n rhino.Node) (x ArrayPatternElem, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !arrayPatternElemTokens.Has(n.GetToken()) {
 		return ArrayPatternElem{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_EMPTY, rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME, rhino.Token_CAST, rhino.Token_GETPROP, rhino.Token_GETELEM:
-		return ArrayPatternElem{n}, true
-	}
-	return ArrayPatternElem{}, false
+	return ArrayPatternElem{n}, true
 }
+
+// arrayPatternElemTokens holds the tokens of ArrayPatternElem.
+var arrayPatternElemTokens = tokenSetOf(rhino.Token_EMPTY, rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME, rhino.Token_CAST, rhino.Token_GETPROP, rhino.Token_GETELEM)
 
 // Node returns x as a rhino.Node.
 func (x ArrayPatternElem) Node() rhino.Node { return x.node }
@@ -6436,15 +6423,14 @@ type ObjectPatternProp struct{ node rhino.Node }
 
 // AsObjectPatternProp returns n as an ObjectPatternProp; ok is false if n is not one (or is the nil node).
 func AsObjectPatternProp(n rhino.Node) (x ObjectPatternProp, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !objectPatternPropTokens.Has(n.GetToken()) {
 		return ObjectPatternProp{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_OBJECT_REST, rhino.Token_COMPUTED_PROP, rhino.Token_STRING_KEY:
-		return ObjectPatternProp{n}, true
-	}
-	return ObjectPatternProp{}, false
+	return ObjectPatternProp{n}, true
 }
+
+// objectPatternPropTokens holds the tokens of ObjectPatternProp.
+var objectPatternPropTokens = tokenSetOf(rhino.Token_OBJECT_REST, rhino.Token_COMPUTED_PROP, rhino.Token_STRING_KEY)
 
 // Node returns x as a rhino.Node.
 func (x ObjectPatternProp) Node() rhino.Node { return x.node }
@@ -6469,15 +6455,14 @@ type PropValue struct{ node rhino.Node }
 
 // AsPropValue returns n as a PropValue; ok is false if n is not one (or is the nil node).
 func AsPropValue(n rhino.Node) (x PropValue, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !propValueTokens.Has(n.GetToken()) {
 		return PropValue{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_FUNCTION, rhino.Token_DEFAULT_VALUE, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT:
-		return PropValue{n}, true
-	}
-	return PropValue{}, false
+	return PropValue{n}, true
 }
+
+// propValueTokens holds the tokens of PropValue.
+var propValueTokens = tokenSetOf(rhino.Token_FUNCTION, rhino.Token_DEFAULT_VALUE, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT)
 
 // Node returns x as a rhino.Node.
 func (x PropValue) Node() rhino.Node { return x.node }
@@ -6638,15 +6623,14 @@ type ObjectMember struct{ node rhino.Node }
 
 // AsObjectMember returns n as an ObjectMember; ok is false if n is not one (or is the nil node).
 func AsObjectMember(n rhino.Node) (x ObjectMember, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !objectMemberTokens.Has(n.GetToken()) {
 		return ObjectMember{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_OBJECT_SPREAD, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_STRING_KEY:
-		return ObjectMember{n}, true
-	}
-	return ObjectMember{}, false
+	return ObjectMember{n}, true
 }
+
+// objectMemberTokens holds the tokens of ObjectMember.
+var objectMemberTokens = tokenSetOf(rhino.Token_OBJECT_SPREAD, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_STRING_KEY)
 
 // Node returns x as a rhino.Node.
 func (x ObjectMember) Node() rhino.Node { return x.node }
@@ -6681,15 +6665,14 @@ type ClassMember struct{ node rhino.Node }
 
 // AsClassMember returns n as a ClassMember; ok is false if n is not one (or is the nil node).
 func AsClassMember(n rhino.Node) (x ClassMember, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !classMemberTokens.Has(n.GetToken()) {
 		return ClassMember{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_BLOCK, rhino.Token_EMPTY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_INDEX_SIGNATURE, rhino.Token_CALL_SIGNATURE:
-		return ClassMember{n}, true
-	}
-	return ClassMember{}, false
+	return ClassMember{n}, true
 }
+
+// classMemberTokens holds the tokens of ClassMember.
+var classMemberTokens = tokenSetOf(rhino.Token_BLOCK, rhino.Token_EMPTY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_INDEX_SIGNATURE, rhino.Token_CALL_SIGNATURE)
 
 // Node returns x as a rhino.Node.
 func (x ClassMember) Node() rhino.Node { return x.node }
@@ -6741,15 +6724,14 @@ type Loop struct{ node rhino.Node }
 
 // AsLoop returns n as a Loop; ok is false if n is not one (or is the nil node).
 func AsLoop(n rhino.Node) (x Loop, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !loopTokens.Has(n.GetToken()) {
 		return Loop{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO:
-		return Loop{n}, true
-	}
-	return Loop{}, false
+	return Loop{n}, true
 }
+
+// loopTokens holds the tokens of Loop.
+var loopTokens = tokenSetOf(rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO)
 
 // Node returns x as a rhino.Node.
 func (x Loop) Node() rhino.Node { return x.node }
@@ -6791,15 +6773,14 @@ type Jump struct{ node rhino.Node }
 
 // AsJump returns n as a Jump; ok is false if n is not one (or is the nil node).
 func AsJump(n rhino.Node) (x Jump, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !jumpTokens.Has(n.GetToken()) {
 		return Jump{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_BREAK, rhino.Token_CONTINUE:
-		return Jump{n}, true
-	}
-	return Jump{}, false
+	return Jump{n}, true
 }
+
+// jumpTokens holds the tokens of Jump.
+var jumpTokens = tokenSetOf(rhino.Token_BREAK, rhino.Token_CONTINUE)
 
 // Node returns x as a rhino.Node.
 func (x Jump) Node() rhino.Node { return x.node }
@@ -6835,15 +6816,14 @@ type SwitchCase struct{ node rhino.Node }
 
 // AsSwitchCase returns n as a SwitchCase; ok is false if n is not one (or is the nil node).
 func AsSwitchCase(n rhino.Node) (x SwitchCase, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !switchCaseTokens.Has(n.GetToken()) {
 		return SwitchCase{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
-		return SwitchCase{n}, true
-	}
-	return SwitchCase{}, false
+	return SwitchCase{n}, true
 }
+
+// switchCaseTokens holds the tokens of SwitchCase.
+var switchCaseTokens = tokenSetOf(rhino.Token_CASE, rhino.Token_DEFAULT_CASE)
 
 // Node returns x as a rhino.Node.
 func (x SwitchCase) Node() rhino.Node { return x.node }
@@ -6867,15 +6847,14 @@ type Declarator struct{ node rhino.Node }
 
 // AsDeclarator returns n as a Declarator; ok is false if n is not one (or is the nil node).
 func AsDeclarator(n rhino.Node) (x Declarator, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !declaratorTokens.Has(n.GetToken()) {
 		return Declarator{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_DESTRUCTURING_LHS, rhino.Token_NAME:
-		return Declarator{n}, true
-	}
-	return Declarator{}, false
+	return Declarator{n}, true
 }
+
+// declaratorTokens holds the tokens of Declarator.
+var declaratorTokens = tokenSetOf(rhino.Token_DESTRUCTURING_LHS, rhino.Token_NAME)
 
 // Node returns x as a rhino.Node.
 func (x Declarator) Node() rhino.Node { return x.node }
@@ -6896,15 +6875,14 @@ type ForInit struct{ node rhino.Node }
 
 // AsForInit returns n as a ForInit; ok is false if n is not one (or is the nil node).
 func AsForInit(n rhino.Node) (x ForInit, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !forInitTokens.Has(n.GetToken()) {
 		return ForInit{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT:
-		return ForInit{n}, true
-	}
-	return ForInit{}, false
+	return ForInit{n}, true
 }
+
+// forInitTokens holds the tokens of ForInit.
+var forInitTokens = tokenSetOf(rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT)
 
 // Node returns x as a rhino.Node.
 func (x ForInit) Node() rhino.Node { return x.node }
@@ -7051,15 +7029,14 @@ type ForTarget struct{ node rhino.Node }
 
 // AsForTarget returns n as a ForTarget; ok is false if n is not one (or is the nil node).
 func AsForTarget(n rhino.Node) (x ForTarget, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !forTargetTokens.Has(n.GetToken()) {
 		return ForTarget{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME, rhino.Token_CAST, rhino.Token_GETPROP, rhino.Token_GETELEM:
-		return ForTarget{n}, true
-	}
-	return ForTarget{}, false
+	return ForTarget{n}, true
 }
+
+// forTargetTokens holds the tokens of ForTarget.
+var forTargetTokens = tokenSetOf(rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME, rhino.Token_CAST, rhino.Token_GETPROP, rhino.Token_GETELEM)
 
 // Node returns x as a rhino.Node.
 func (x ForTarget) Node() rhino.Node { return x.node }
@@ -7104,15 +7081,14 @@ type CatchParam struct{ node rhino.Node }
 
 // AsCatchParam returns n as a CatchParam; ok is false if n is not one (or is the nil node).
 func AsCatchParam(n rhino.Node) (x CatchParam, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !catchParamTokens.Has(n.GetToken()) {
 		return CatchParam{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME:
-		return CatchParam{n}, true
-	}
-	return CatchParam{}, false
+	return CatchParam{n}, true
 }
+
+// catchParamTokens holds the tokens of CatchParam.
+var catchParamTokens = tokenSetOf(rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN, rhino.Token_NAME)
 
 // Node returns x as a rhino.Node.
 func (x CatchParam) Node() rhino.Node { return x.node }
@@ -7155,15 +7131,14 @@ type FunctionBody struct{ node rhino.Node }
 
 // AsFunctionBody returns n as a FunctionBody; ok is false if n is not one (or is the nil node).
 func AsFunctionBody(n rhino.Node) (x FunctionBody, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !functionBodyTokens.Has(n.GetToken()) {
 		return FunctionBody{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_BLOCK, rhino.Token_EMPTY, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT:
-		return FunctionBody{n}, true
-	}
-	return FunctionBody{}, false
+	return FunctionBody{n}, true
 }
+
+// functionBodyTokens holds the tokens of FunctionBody.
+var functionBodyTokens = tokenSetOf(rhino.Token_BLOCK, rhino.Token_EMPTY, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT)
 
 // Node returns x as a rhino.Node.
 func (x FunctionBody) Node() rhino.Node { return x.node }
@@ -7315,15 +7290,14 @@ type TemplatePart struct{ node rhino.Node }
 
 // AsTemplatePart returns n as a TemplatePart; ok is false if n is not one (or is the nil node).
 func AsTemplatePart(n rhino.Node) (x TemplatePart, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !templatePartTokens.Has(n.GetToken()) {
 		return TemplatePart{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_TEMPLATELIT_STRING, rhino.Token_TEMPLATELIT_SUB:
-		return TemplatePart{n}, true
-	}
-	return TemplatePart{}, false
+	return TemplatePart{n}, true
 }
+
+// templatePartTokens holds the tokens of TemplatePart.
+var templatePartTokens = tokenSetOf(rhino.Token_TEMPLATELIT_STRING, rhino.Token_TEMPLATELIT_SUB)
 
 // Node returns x as a rhino.Node.
 func (x TemplatePart) Node() rhino.Node { return x.node }
@@ -7346,15 +7320,14 @@ type ImportBindings struct{ node rhino.Node }
 
 // AsImportBindings returns n as an ImportBindings; ok is false if n is not one (or is the nil node).
 func AsImportBindings(n rhino.Node) (x ImportBindings, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !importBindingsTokens.Has(n.GetToken()) {
 		return ImportBindings{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_IMPORT_SPECS, rhino.Token_IMPORT_STAR:
-		return ImportBindings{n}, true
-	}
-	return ImportBindings{}, false
+	return ImportBindings{n}, true
 }
+
+// importBindingsTokens holds the tokens of ImportBindings.
+var importBindingsTokens = tokenSetOf(rhino.Token_IMPORT_SPECS, rhino.Token_IMPORT_STAR)
 
 // Node returns x as a rhino.Node.
 func (x ImportBindings) Node() rhino.Node { return x.node }
@@ -7376,15 +7349,14 @@ type ExportBody struct{ node rhino.Node }
 
 // AsExportBody returns n as an ExportBody; ok is false if n is not one (or is the nil node).
 func AsExportBody(n rhino.Node) (x ExportBody, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !exportBodyTokens.Has(n.GetToken()) {
 		return ExportBody{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_TRY, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT, rhino.Token_IMPORT, rhino.Token_EXPORT, rhino.Token_EXPORT_SPECS, rhino.Token_INTERFACE, rhino.Token_ENUM, rhino.Token_TYPE_ALIAS, rhino.Token_DECLARE, rhino.Token_NAMESPACE:
-		return ExportBody{n}, true
-	}
-	return ExportBody{}, false
+	return ExportBody{n}, true
 }
+
+// exportBodyTokens holds the tokens of ExportBody.
+var exportBodyTokens = tokenSetOf(rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_TRY, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_NAME, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_REGEXP, rhino.Token_TEMPLATELIT, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST, rhino.Token_DYNAMIC_IMPORT, rhino.Token_INC, rhino.Token_DEC, rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE, rhino.Token_COMMA, rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE, rhino.Token_LT, rhino.Token_GT, rhino.Token_LE, rhino.Token_GE, rhino.Token_INSTANCEOF, rhino.Token_IN, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT, rhino.Token_HOOK, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_YIELD, rhino.Token_AWAIT, rhino.Token_IMPORT, rhino.Token_EXPORT, rhino.Token_EXPORT_SPECS, rhino.Token_INTERFACE, rhino.Token_ENUM, rhino.Token_TYPE_ALIAS, rhino.Token_DECLARE, rhino.Token_NAMESPACE)
 
 // Node returns x as a rhino.Node.
 func (x ExportBody) Node() rhino.Node { return x.node }
@@ -7626,15 +7598,14 @@ type ScriptItem struct{ node rhino.Node }
 
 // AsScriptItem returns n as a ScriptItem; ok is false if n is not one (or is the nil node).
 func AsScriptItem(n rhino.Node) (x ScriptItem, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !scriptItemTokens.Has(n.GetToken()) {
 		return ScriptItem{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_MODULE_BODY, rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_TRY, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_IMPORT, rhino.Token_EXPORT, rhino.Token_INTERFACE, rhino.Token_ENUM, rhino.Token_TYPE_ALIAS, rhino.Token_DECLARE, rhino.Token_NAMESPACE:
-		return ScriptItem{n}, true
-	}
-	return ScriptItem{}, false
+	return ScriptItem{n}, true
 }
+
+// scriptItemTokens holds the tokens of ScriptItem.
+var scriptItemTokens = tokenSetOf(rhino.Token_MODULE_BODY, rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE, rhino.Token_DO, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_TRY, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_EXPR_RESULT, rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_EMPTY, rhino.Token_DEBUGGER, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_IMPORT, rhino.Token_EXPORT, rhino.Token_INTERFACE, rhino.Token_ENUM, rhino.Token_TYPE_ALIAS, rhino.Token_DECLARE, rhino.Token_NAMESPACE)
 
 // Node returns x as a rhino.Node.
 func (x ScriptItem) Node() rhino.Node { return x.node }
@@ -7749,15 +7720,14 @@ type RootItem struct{ node rhino.Node }
 
 // AsRootItem returns n as a RootItem; ok is false if n is not one (or is the nil node).
 func AsRootItem(n rhino.Node) (x RootItem, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !rootItemTokens.Has(n.GetToken()) {
 		return RootItem{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_ROOT, rhino.Token_SCRIPT:
-		return RootItem{n}, true
-	}
-	return RootItem{}, false
+	return RootItem{n}, true
 }
+
+// rootItemTokens holds the tokens of RootItem.
+var rootItemTokens = tokenSetOf(rhino.Token_ROOT, rhino.Token_SCRIPT)
 
 // Node returns x as a rhino.Node.
 func (x RootItem) Node() rhino.Node { return x.node }
@@ -7779,15 +7749,14 @@ type NormalOrOptChainCall struct{ node rhino.Node }
 
 // AsNormalOrOptChainCall returns n as a NormalOrOptChainCall; ok is false if n is not one (or is the nil node).
 func AsNormalOrOptChainCall(n rhino.Node) (x NormalOrOptChainCall, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !normalOrOptChainCallTokens.Has(n.GetToken()) {
 		return NormalOrOptChainCall{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL:
-		return NormalOrOptChainCall{n}, true
-	}
-	return NormalOrOptChainCall{}, false
+	return NormalOrOptChainCall{n}, true
 }
+
+// normalOrOptChainCallTokens holds the tokens of NormalOrOptChainCall.
+var normalOrOptChainCallTokens = tokenSetOf(rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL)
 
 // Node returns x as a rhino.Node.
 func (x NormalOrOptChainCall) Node() rhino.Node { return x.node }
@@ -7870,15 +7839,14 @@ type NormalOrOptChainGetProp struct{ node rhino.Node }
 
 // AsNormalOrOptChainGetProp returns n as a NormalOrOptChainGetProp; ok is false if n is not one (or is the nil node).
 func AsNormalOrOptChainGetProp(n rhino.Node) (x NormalOrOptChainGetProp, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !normalOrOptChainGetPropTokens.Has(n.GetToken()) {
 		return NormalOrOptChainGetProp{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
-		return NormalOrOptChainGetProp{n}, true
-	}
-	return NormalOrOptChainGetProp{}, false
+	return NormalOrOptChainGetProp{n}, true
 }
+
+// normalOrOptChainGetPropTokens holds the tokens of NormalOrOptChainGetProp.
+var normalOrOptChainGetPropTokens = tokenSetOf(rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP)
 
 // Node returns x as a rhino.Node.
 func (x NormalOrOptChainGetProp) Node() rhino.Node { return x.node }
@@ -7935,15 +7903,14 @@ type NormalOrOptChainGet struct{ node rhino.Node }
 
 // AsNormalOrOptChainGet returns n as a NormalOrOptChainGet; ok is false if n is not one (or is the nil node).
 func AsNormalOrOptChainGet(n rhino.Node) (x NormalOrOptChainGet, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !normalOrOptChainGetTokens.Has(n.GetToken()) {
 		return NormalOrOptChainGet{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM:
-		return NormalOrOptChainGet{n}, true
-	}
-	return NormalOrOptChainGet{}, false
+	return NormalOrOptChainGet{n}, true
 }
+
+// normalOrOptChainGetTokens holds the tokens of NormalOrOptChainGet.
+var normalOrOptChainGetTokens = tokenSetOf(rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM)
 
 // Node returns x as a rhino.Node.
 func (x NormalOrOptChainGet) Node() rhino.Node { return x.node }
@@ -8004,15 +7971,14 @@ type Assignment struct{ node rhino.Node }
 
 // AsAssignment returns n as an Assignment; ok is false if n is not one (or is the nil node).
 func AsAssignment(n rhino.Node) (x Assignment, ok bool) {
-	if n == rhino.NilNode {
+	if n == rhino.NilNode || !assignmentTokens.Has(n.GetToken()) {
 		return Assignment{}, false
 	}
-	switch n.GetToken() {
-	case rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
-		return Assignment{n}, true
-	}
-	return Assignment{}, false
+	return Assignment{n}, true
 }
+
+// assignmentTokens holds the tokens of Assignment.
+var assignmentTokens = tokenSetOf(rhino.Token_ASSIGN, rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND, rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH, rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL, rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE)
 
 // Node returns x as a rhino.Node.
 func (x Assignment) Node() rhino.Node { return x.node }

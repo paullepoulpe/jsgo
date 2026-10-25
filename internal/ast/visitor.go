@@ -10,3 +10,12 @@ func (s *TokenSet) Add(t rhino.Token) { s[t>>6] |= 1 << (t & 63) }
 
 // Has reports whether t is in s.
 func (s *TokenSet) Has(t rhino.Token) bool { return s[t>>6]&(1<<(t&63)) != 0 }
+
+// tokenSetOf returns the set of ts.
+func tokenSetOf(ts ...rhino.Token) TokenSet {
+	var s TokenSet
+	for _, t := range ts {
+		s.Add(t)
+	}
+	return s
+}

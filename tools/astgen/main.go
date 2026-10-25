@@ -401,15 +401,13 @@ func (w *gen) kind(k *kind) {
 			w.p("if n == rhino.NilNode || n.GetToken() != %s { return %s{}, false }", tokenConst(k.tokens[0]), k.name)
 			w.p("return %s{n}, true", k.name)
 		} else {
-			w.p("if n == rhino.NilNode { return %s{}, false }", k.name)
-			w.p("switch n.GetToken() {")
-			w.p("case %s:", joinTokens(k.tokens))
-			w.p("return %s{n}, true", k.name)
-			w.p("}")
-			w.p("return %s{}, false", k.name)
+			w.asFromTokenSet(k.name, k.tokens)
 		}
 		w.p("}")
 		w.p("")
+		if len(k.tokens) > 1 {
+			w.tokenSetVar(k.name, k.tokens)
+		}
 	}
 	w.p("// Node returns x as a rhino.Node.")
 	w.p("func (x %s) Node() rhino.Node { return x.node }", k.name)
@@ -612,6 +610,25 @@ func (w *gen) constructor(k *kind) {
 	w.p("")
 }
 
+// asFromTokenSet writes the body of As<name> for a kind or category of
+// several tokens: a set lookup (cheap enough to inline, where a switch on
+// many tokens is not).
+func (w *gen) asFromTokenSet(name string, tokens []string) {
+	w.p("if n == rhino.NilNode || !%s.Has(n.GetToken()) { return %s{}, false }", tokenSetVarName(name), name)
+	w.p("return %s{n}, true", name)
+}
+
+// tokenSetVar writes the token set that asFromTokenSet reads.
+func (w *gen) tokenSetVar(name string, tokens []string) {
+	w.p("// %s holds the tokens of %s.", tokenSetVarName(name), name)
+	w.p("var %s = tokenSetOf(%s)", tokenSetVarName(name), joinTokens(tokens))
+	w.p("")
+}
+
+func tokenSetVarName(name string) string {
+	return strings.ToLower(name[:1]) + name[1:] + "Tokens"
+}
+
 func joinTokens(tokens []string) string {
 	var out []string
 	for _, t := range tokens {
@@ -637,14 +654,10 @@ func (w *gen) category(c *category) {
 	w.p("")
 	w.p("// As%s returns n as %s; ok is false if n is not one (or is the nil node).", c.name, a(c.name))
 	w.p("func As%s(n rhino.Node) (x %s, ok bool) {", c.name, c.name)
-	w.p("if n == rhino.NilNode { return %s{}, false }", c.name)
-	w.p("switch n.GetToken() {")
-	w.p("case %s:", joinTokens(w.categoryTokens(c)))
-	w.p("return %s{n}, true", c.name)
-	w.p("}")
-	w.p("return %s{}, false", c.name)
+	w.asFromTokenSet(c.name, w.categoryTokens(c))
 	w.p("}")
 	w.p("")
+	w.tokenSetVar(c.name, w.categoryTokens(c))
 	w.p("// Node returns x as a rhino.Node.")
 	w.p("func (x %s) Node() rhino.Node { return x.node }", c.name)
 	w.p("")
