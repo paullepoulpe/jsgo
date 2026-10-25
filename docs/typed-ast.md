@@ -444,6 +444,77 @@ byte-identical, and output and source maps too.
   constructor), and the duplicate-member scan of StrictModeCheck, which
   walks object literal members and class members, two different lists.
 
+## Twenty-third to twenty-fifth ports: ProcessDefines, ControlFlowAnalysis, SyntacticScopeCreator
+
+Two of the compiler's core pieces: the control-flow graph that type
+inference, the data-flow analyses and several optimizations use, and the
+scope creator that almost every pass uses. Both were checked beyond the
+gate, by comparing old and new code in process on the same trees:
+
+- **ControlFlowAnalysis**: identical graphs, priorities and finally maps
+  for all 81,110 function and script roots of the four workloads, and the
+  exported helpers (follow node, exception handler, fall-through,
+  break/continue targets) agree on all 5.59 M nodes. The golden test passes
+  all 131 files against the Java dump when pointed at the extracted corpus
+  (`CFA_CORPUS`; it fails in this environment only because
+  `.cache/corpus` is empty). CFG time: new/old median 0.98-1.02, inside the
+  ±1 % band of an A/A control.
+- **SyntacticScopeCreator**: the same vars in the same order (name, node,
+  index, input, flags), the same redeclaration events and block-declaration
+  marks for every scope root, on the four workloads plus 797 ES-module
+  files (2,750 imports, 393 object patterns). Scope creation: new/old
+  median 0.95-1.02.
+
+What got clearer:
+
+- **Handlers name what they connect**: `ifs.Else()`, `while.Cond()`,
+  `do.Body()`, `sw.Discriminant()`, `ret.Value()`, `brk.Label()`; a `for`
+  without a condition is the `ok` of `For.Cond()`, not an `IsEmpty` test.
+  The follow node of a TRY child was three positional branches, each
+  repeating the "has finally" test; it is one switch on `try.Body()`,
+  `try.Catches()`, `try.Finally()`.
+- **One method per declaration shape** in the scope creator
+  (`declareParam`, `declareCatchParam`, `declareImport`, `declarePattern`,
+  ...) instead of Java's generic switch over first, second and last
+  children.
+- **Dead code the types exposed**: CFA searched a switch body for an EMPTY
+  node the grammar never allows, and called `computeFallThrough` on blocks
+  (a block falls through to itself); the scope creator scanned for-loop
+  bodies that are not blocks.
+- **A bug caught by the port, not the tests.** Normalize's redeclaration
+  handler rewrites a duplicate `var a = b` into `a = b` while the scope is
+  being built, so a declarator loop that reads the next element after the
+  body would declare `b`. The loop uses `ast.ReadAhead`, with a new test.
+- **ProcessDefines** reads the default value of `goog.define('name', v)` as
+  the second argument (Java: child 2), and its CLOSURE_DEFINES handling,
+  duplicated between a Go-only walk and Visit, is two shared helpers.
+
+What they reported:
+
+- **Loops that call out must read ahead.** A callback (here a redeclaration
+  handler) can move the current node, which the loop cannot see: use
+  `ast.ReadAhead` whenever the body calls code outside the pass.
+- **`ReadAhead` calls `Next()` through the generics dictionary** (an
+  indirect call), and `Declarator.Next`, `Statement.Next` and
+  `Function.Name()` are just over the inlining budget. Unmeasurable in these
+  passes; worth knowing for hot loops.
+- **Parts that are missing to the reader are nodes to the graph.** The
+  EMPTY init and update of a `for` are CFG nodes, and so is the BLOCK that
+  holds a catch; `Try.Catches()` was exported for graph code, and two
+  positional helpers remain for the `for` parts. An accessor returning the
+  placeholder node of a `~` role would remove them.
+- **No common view of statement containers** (block, script, module body,
+  root, catch holder), so statement-list walks stay on rhino in both
+  passes; a "block scope root" view is the same request.
+- **Same child, different role names**: `object` in a for-in, `iterable` in
+  a for-of; `EnhancedFor.Collection()` was added by hand. Grammar aliases
+  would cover this in general. Likewise Param, ArrayPatternElem and
+  PropValue all mean "a target, a target with a default, or a rest", and a
+  shared binding-element view would merge three if-chains.
+- **"Is n the body of its parent?"** takes one `MustX(parent).Body().Is(n)`
+  per kind (nine in CFA's traversal pruning); a query for a child's role in
+  its parent would make it one line.
+
 ## Performance outlook
 
 The typed view compiles to the same code as before, so on its own it neither
@@ -492,8 +563,9 @@ bundle and typed-full workloads:
 - **Iteration semantics need both kinds.** The iterators copy the classic
   loop (the next element is read after the body), which is right when the
   body edits what follows (merging the next declaration into the current
-  one). A loop that moves the current element needs the next one read
-  first: `ast.ReadAhead`. Neither choice fits every loop, so both exist.
+  one). A loop that moves the current element, or calls code that might
+  (a callback, a handler), needs the next one read first: `ast.ReadAhead`.
+  Neither choice fits every loop, so both exist.
 - **API size.** 7,500 generated lines, about 860 conversion methods: a
   `Name` converts to the 13 categories it belongs to. Generated code is cheap
   to keep, but the method lists are long in an editor; categories that only
