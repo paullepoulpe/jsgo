@@ -24,11 +24,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast). Visit keeps the
+// Java's token switch, because every node also goes through the checks
+// before and after it, and hands each visit method the kind it checks; the
+// methods read the children by role (op.Left(), op.Right(),
+// unary.Operand()...) instead of by position. The checks themselves work
+// on the JSTypes of nodes and report on nodes, so they take rhino.Nodes
+// (x.Node()).
 
 // TypeCheck checks the types of JS expressions against any declared type
 // information.
@@ -532,10 +541,6 @@ func typeCheck_isFunctionType(type_ rhino.JSType) bool {
 // Java: TypeCheck.visit(NodeTraversal, Node, Node)
 func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	var childType rhino.JSType
-	var leftType rhino.JSType
-	var rightType rhino.JSType
-	var left rhino.Node
-	var right rhino.Node
 	// To be explicitly set to false if the node is not typeable.
 	typeable := true
 
@@ -553,7 +558,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 
 	switch n.GetToken() {
 	case rhino.Token_CAST:
-		expr := n.GetFirstChild()
+		expr := ast.MustCast(n).Expr().Node()
 		exprType := tc.GetJSType(expr)
 		castType := tc.GetJSType(n)
 
@@ -571,7 +576,7 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	case rhino.Token_NAME:
 		typeable = tc.VisitName(t, n, parent)
 	case rhino.Token_COMMA:
-		tc.EnsureTypedWithType(n, tc.GetJSType(n.GetLastChild()))
+		tc.EnsureTypedWithType(n, tc.GetJSType(ast.MustBinary(n).Right().Node()))
 	case rhino.Token_THIS:
 		tc.EnsureTypedWithType(n, t.GetTypedScope().GetTypeOfThis())
 	case rhino.Token_NULL:
@@ -618,13 +623,13 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	case rhino.Token_YIELD:
 		tc.VisitYield(t, n)
 	case rhino.Token_DEC, rhino.Token_INC:
-		left = n.GetFirstChild()
-		tc.CheckPropCreation(left)
+		target := ast.MustIncDec(n).Target().Node()
+		tc.CheckPropCreation(target)
 		if tc.GetJSType(n).IsNumber() {
-			tc.validator.ExpectNumber(left, tc.GetJSType(left), "increment/decrement")
+			tc.validator.ExpectNumber(target, tc.GetJSType(target), "increment/decrement")
 			tc.EnsureTypedWithNative(n, rhino.JSTypeNative_NUMBER_TYPE)
 		} else {
-			tc.validator.ExpectBigIntOrNumber(left, tc.GetJSType(left), "increment/decrement")
+			tc.validator.ExpectBigIntOrNumber(target, tc.GetJSType(target), "increment/decrement")
 		}
 	case rhino.Token_VOID:
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_VOID_TYPE)
@@ -634,14 +639,14 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		tc.VisitTaggedTemplateLit(n)
 		tc.EnsureTyped(n)
 	case rhino.Token_BITNOT:
-		tc.VisitBitwiseNOT(n)
+		tc.VisitBitwiseNOT(ast.MustUnary(n))
 	case rhino.Token_POS:
-		tc.VisitUnaryPlus(n)
+		tc.VisitUnaryPlus(ast.MustUnary(n))
 	case rhino.Token_NEG:
-		tc.VisitUnaryMinus(n)
+		tc.VisitUnaryMinus(ast.MustUnary(n))
 	case rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE:
-		left = n.GetFirstChild()
-		right = n.GetLastChild()
+		op := ast.MustBinary(n)
+		left, right := op.Left().Node(), op.Right().Node()
 
 		if left.IsTypeOf() {
 			if right.IsStringLit() {
@@ -651,8 +656,8 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 			tc.CheckTypeofString(left, left.GetString())
 		}
 
-		leftType = tc.GetJSType(left)
-		rightType = tc.GetJSType(right)
+		leftType := tc.GetJSType(left)
+		rightType := tc.GetJSType(right)
 
 		// We do not want to warn about explicit comparisons to VOID. People
 		// often do this if they think their type annotations screwed up.
@@ -689,10 +694,10 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		}
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_BOOLEAN_TYPE)
 	case rhino.Token_LT, rhino.Token_LE, rhino.Token_GT, rhino.Token_GE:
-		leftSide := n.GetFirstChild()
-		rightSide := n.GetLastChild()
-		leftType = tc.GetJSType(leftSide)
-		rightType = tc.GetJSType(rightSide)
+		op := ast.MustBinary(n)
+		leftSide, rightSide := op.Left().Node(), op.Right().Node()
+		leftType := tc.GetJSType(leftSide)
+		rightType := tc.GetJSType(rightSide)
 		if rightType.IsUnknownType() {
 			// validate comparable left
 			tc.validator.ExpectUnknownOrComparable(leftSide, leftType, "left side of comparison")
@@ -724,9 +729,9 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		}
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_BOOLEAN_TYPE)
 	case rhino.Token_IN:
-		left = n.GetFirstChild()
-		right = n.GetLastChild()
-		rightType = tc.GetJSType(right)
+		op := ast.MustBinary(n)
+		left, right := op.Left().Node(), op.Right().Node()
+		rightType := tc.GetJSType(right)
 		tc.validator.ExpectStringOrSymbol(left, tc.GetJSType(left), "left side of 'in'")
 		tc.validator.ExpectObject(n, rightType, "'in' requires an object")
 		if rightType.IsStruct() {
@@ -734,9 +739,9 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		}
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_BOOLEAN_TYPE)
 	case rhino.Token_INSTANCEOF:
-		left = n.GetFirstChild()
-		right = n.GetLastChild()
-		rightType = tc.GetJSType(right).RestrictByNotNullOrUndefined()
+		op := ast.MustBinary(n)
+		left, right := op.Left().Node(), op.Right().Node()
+		rightType := tc.GetJSType(right).RestrictByNotNullOrUndefined()
 		tc.validator.ExpectAnyObject(left, tc.GetJSType(left), "deterministic instanceof yields false")
 		tc.validator.ExpectActualObject(right, rightType, "instanceof requires an object")
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_BOOLEAN_TYPE)
@@ -755,11 +760,14 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		rhino.Token_ASSIGN_ADD,
 		rhino.Token_ASSIGN_MUL,
 		rhino.Token_ASSIGN_EXPONENT:
-		tc.CheckPropCreation(n.GetFirstChild())
-		tc.VisitBinaryOperator(n.GetToken(), n)
+		assignOp := ast.MustAssignOp(n)
+		target, value := assignOp.Target().Node(), assignOp.Value().Node()
+		tc.CheckPropCreation(target)
+		tc.VisitBinaryOperator(assignOp.Token(), n, target, value)
 	case rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_DIV, rhino.Token_MOD, rhino.Token_BITOR,
 		rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_SUB, rhino.Token_ADD, rhino.Token_MUL, rhino.Token_EXPONENT:
-		tc.VisitBinaryOperator(n.GetToken(), n)
+		op := ast.MustBinary(n)
+		tc.VisitBinaryOperator(op.Token(), n, op.Left().Node(), op.Right().Node())
 	case rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NOT, rhino.Token_DELPROP:
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_BOOLEAN_TYPE)
 	case rhino.Token_CASE:
@@ -922,22 +930,24 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
 // Java: TypeCheck.visitUnaryPlus(Node)
-func (tc *TypeCheck) VisitUnaryPlus(n rhino.Node) {
+func (tc *TypeCheck) VisitUnaryPlus(op ast.Unary) {
+	n := op.Node()
 	if tc.GetJSType(n).IsNoType() {
 		tc.Report(
 			n,
 			TypeCheck_UNARY_OPERATION,
-			jutil.ToJavaString(NodeUtil_OpToStr(n.GetToken())),
-			tc.GetJSType(n.GetFirstChild()).String())
+			jutil.ToJavaString(NodeUtil_OpToStr(op.Token())),
+			tc.GetJSType(op.Operand().Node()).String())
 	} else {
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_NUMBER_TYPE)
 	}
 }
 
 // Java: TypeCheck.visitUnaryMinus(Node)
-func (tc *TypeCheck) VisitUnaryMinus(n rhino.Node) {
+func (tc *TypeCheck) VisitUnaryMinus(op ast.Unary) {
+	n := op.Node()
 	operatorType := tc.GetJSType(n)
-	childType := tc.GetJSType(n.GetFirstChild())
+	childType := tc.GetJSType(op.Operand().Node())
 	if operatorType.IsNumber() {
 		// This condition is meant to catch any old cases (where bigint isn't involved)
 		tc.validator.ExpectNumber(n, childType, "sign operator")
@@ -948,13 +958,14 @@ func (tc *TypeCheck) VisitUnaryMinus(n rhino.Node) {
 }
 
 // Java: TypeCheck.visitBitwiseNOT(Node)
-func (tc *TypeCheck) VisitBitwiseNOT(n rhino.Node) {
+func (tc *TypeCheck) VisitBitwiseNOT(op ast.Unary) {
+	n := op.Node()
 	operatorType := tc.GetJSType(n)
-	childType := tc.GetJSType(n.GetFirstChild())
+	childType := tc.GetJSType(op.Operand().Node())
 	if operatorType.IsNumber() {
 		// This condition is meant to catch any old cases (where bigint isn't involved)
 		if !childType.MatchesNumberContext() {
-			tc.Report(n, TypeCheck_BIT_OPERATION, jutil.ToJavaString(NodeUtil_OpToStr(n.GetToken())), childType.String())
+			tc.Report(n, TypeCheck_BIT_OPERATION, jutil.ToJavaString(NodeUtil_OpToStr(op.Token())), childType.String())
 		} else {
 			tc.validator.ExpectNumberStrict(n, childType, "bitwise NOT")
 		}
@@ -3126,12 +3137,13 @@ func (tc *TypeCheck) VisitTaggedTemplateLit(n rhino.Node) {
 //
 // op is the operator; n the node being checked.
 //
+// Go-only: n is an ast.Binary or an ast.AssignOp, which share no view, so
+// the caller passes the operands: left and right, or target and value.
+//
 // Java: TypeCheck.visitBinaryOperator(Token, Node)
-func (tc *TypeCheck) VisitBinaryOperator(op rhino.Token, n rhino.Node) {
+func (tc *TypeCheck) VisitBinaryOperator(op rhino.Token, n rhino.Node, left rhino.Node, right rhino.Node) {
 	operatorType := tc.GetJSType(n)
-	left := n.GetFirstChild()
 	leftType := tc.GetJSType(left)
-	right := n.GetLastChild()
 	rightType := tc.GetJSType(right)
 	if operatorType.IsNoType() {
 		// An attempt to mix bigint with other types
