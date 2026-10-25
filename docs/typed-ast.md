@@ -358,10 +358,11 @@ Not done: an index accessor and element count on lists (no port needed
 them after `IsLast`), `Target.AsExpr`, a common view of SCRIPT and BLOCK
 statements.
 
-## Thirteenth to seventeenth ports: known methods and four ES6 passes
+## Thirteenth to eighteenth ports: known methods and five ES6 passes
 
 `PeepholeReplaceKnownMethods`, then `Es6RewriteArrowFunction`,
-`RewriteObjectSpread`, `LateEs6ToEs3Converter` and `CreateSyntheticBlocks`,
+`RewriteObjectSpread`, `LateEs6ToEs3Converter`, `CreateSyntheticBlocks` and
+`Es6RewriteDestructuring`,
 ported on the API above. Output, source maps and stderr byte-identical on
 the four gate workloads; pass times equal within noise or better, measured
 with in-process A/B harnesses (old and new pass on clones of the same tree,
@@ -383,6 +384,13 @@ alternating).
   literal has a value, and the members left after computed properties,
   getters and setters are string keys: two explicit checks in
   LateEs6ToEs3Converter where Java crashed later on a null.
+- **Patterns by kind.** The destructuring rewrites take the kind they work
+  on (`ast.ObjectPattern`, `ast.ArrayPattern`, `ast.Catch`,
+  `ast.EnhancedFor`), so the Java re-checks of the pattern and its parent are
+  types now.
+- **A crash fixed (Go-only, with a test):** `({a, ...arr[0]} = foo())` read
+  the string of the `GETELEM` rest target. Java throws a
+  `ClassCastException` on the same input.
 
 What they reported:
 
@@ -395,6 +403,13 @@ What they reported:
 - **"Read the next element first" loops**, three times in four passes: now
   `ast.ReadAhead`.
 - **No equality between two views**: `x.Is(y.Node())`.
+- **Read both children before detaching either.** `DefaultValue.Target()`
+  and `Value()`, `ComputedProp.Key()` and `Value()` are positional: after
+  detaching the first, the second accessor reads the wrong child. Five places
+  in the destructuring pass; Java's `removeFirstChild()` twice hides it.
+- **No shared view for two kinds with the same layout**: an `Assign` and a
+  `DestructuringLhs` (target first, value last) are passed as `rhino.Node`.
+  A category with `Target()` and `Value()` would type them.
 
 ## Performance outlook
 
