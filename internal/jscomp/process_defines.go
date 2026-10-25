@@ -21,11 +21,20 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass uses the typed AST view (internal/ast) where it reads
+// shapes: the default value of goog.define('name', value) (its second
+// argument, processDefines_googDefineDefault, where Java reads child 2 of
+// the call), the operands of the operators a define value may use, and the
+// CLOSURE_DEFINES declaration and assignments (shared by the Go-only walk
+// and Visit). The goog.define checks stay on rhino: they pass arguments
+// that may be missing to Java's verifyNotNull and verifyIsLast.
 
 // ProcessDefines processes variables annotated as `@define`. A define is a
 // special constant that may be overridden by later files and manipulated by
@@ -399,11 +408,25 @@ func (p *ProcessDefines) GetReplacementForDefine(define *ProcessDefines_Define) 
 		return replacement
 	}
 
-	if p.IsGoogDefineCall(define.value) && define.value.GetChildCount() == 3 {
-		// Return the second argument of goog.define('name', false);
-		return define.value.GetChildAtIndex(2)
+	if p.IsGoogDefineCall(define.value) {
+		if defaultValue, ok := processDefines_googDefineDefault(ast.MustCall(define.value)); ok {
+			return defaultValue.Node()
+		}
 	}
 	return rhino.NilNode
+}
+
+// processDefines_googDefineDefault returns the default value of
+// goog.define('name', value), its second argument; ok is false if the call
+// does not have exactly two.
+//
+// Go-only: Java's getChildCount() == 3 and getChildAtIndex(2) (the callee is
+// the first child).
+func processDefines_googDefineDefault(call ast.Call) (ast.Arg, bool) {
+	if call.NumArgs() != 2 {
+		return ast.Arg{}, false
+	}
+	return call.LastArg()
 }
 
 // GetReplacementForDefineName returns the replacement value for a @define,
@@ -466,8 +489,9 @@ func (p *ProcessDefines) CollectDefines(root rhino.Node) {
 
 		var defineName string
 		if p.IsGoogDefineCall(value) && p.VerifyGoogDefine(value) {
-			nameNode := value.GetSecondChild()
-			defineName = nameNode.GetString()
+			// VerifyGoogDefine checked that the first argument is a string.
+			nameArg, _ := ast.MustCall(value).FirstArg()
+			defineName = ast.MustStringLit(nameArg.Node()).Value()
 		} else {
 			defineName = name.GetFullName()
 		}
@@ -764,23 +788,48 @@ func (c *ProcessDefines_ClosureDefinesCollector) walk(n rhino.Node) {
 		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			c.walk(ch)
 		}
-		if first := n.GetFirstChild(); !first.IsNil() && first.MatchesName("CLOSURE_DEFINES") {
-			valueNode := first.GetFirstChild()
-			if !valueNode.IsNil() && valueNode.IsObjectLit() {
-				p := c.outer
-				for ch := valueNode.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-					p.HandleClosureDefinesValue(ch, ch.GetFirstChild(), n)
-				}
-			}
-		}
+		c.outer.handleClosureDefinesDeclaration(ast.MustNameDeclaration(n))
 	case rhino.Token_ASSIGN:
 		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			c.walk(ch)
 		}
-		lhs := n.GetFirstChild()
-		if lhs.IsGetElem() && lhs.GetFirstChild().MatchesName("CLOSURE_DEFINES") {
-			c.outer.HandleClosureDefinesValue(lhs.GetSecondChild(), n.GetSecondChild(), n)
-		}
+		c.outer.handleClosureDefinesAssign(ast.MustAssign(n))
+	}
+}
+
+// handleClosureDefinesDeclaration records the values of
+// `var CLOSURE_DEFINES = {'name': value, ...}`.
+//
+// Go-only: shared by the walk above and Visit.
+func (p *ProcessDefines) handleClosureDefinesDeclaration(decl ast.NameDeclaration) {
+	first, _ := decl.FirstDeclarator()
+	name, ok := first.AsName()
+	if !ok || name.Ident() != "CLOSURE_DEFINES" {
+		return
+	}
+	value, ok := name.Init()
+	if !ok {
+		return
+	}
+	obj, ok := value.AsObjectLit()
+	if !ok {
+		return
+	}
+	for member := range obj.Members() {
+		// The first child is the value of a string key; HandleClosureDefinesValue
+		// reports the other kinds of members.
+		p.HandleClosureDefinesValue(member.Node(), member.Node().GetFirstChild(), decl.Node())
+	}
+}
+
+// handleClosureDefinesAssign records the value of
+// `CLOSURE_DEFINES['name'] = value`.
+//
+// Go-only: shared by the walk above and Visit.
+func (p *ProcessDefines) handleClosureDefinesAssign(assign ast.Assign) {
+	getElem, ok := assign.Target().AsGetElem()
+	if ok && getElem.Object().Node().MatchesName("CLOSURE_DEFINES") {
+		p.HandleClosureDefinesValue(getElem.Index().Node(), assign.Value().Node(), assign.Node())
 	}
 }
 
@@ -805,20 +854,12 @@ func (c *ProcessDefines_ClosureDefinesCollector) Visit(t *NodeTraversal, n rhino
 		}
 	}
 
-	if NodeUtil_IsNameDeclaration(n) && n.GetFirstChild().MatchesName("CLOSURE_DEFINES") {
+	if NodeUtil_IsNameDeclaration(n) {
 		// var CLOSURE_DEFINES = {...};
-		valueNode := n.GetFirstFirstChild()
-		if !valueNode.IsNil() && valueNode.IsObjectLit() {
-			for c := valueNode.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-				p.HandleClosureDefinesValue(c, c.GetFirstChild(), n)
-			}
-		}
+		p.handleClosureDefinesDeclaration(ast.MustNameDeclaration(n))
 	} else if n.IsAssign() {
 		// CLOSURE_DEFINES['...'] = ...;
-		lhs := n.GetFirstChild()
-		if lhs.IsGetElem() && lhs.GetFirstChild().MatchesName("CLOSURE_DEFINES") {
-			p.HandleClosureDefinesValue(lhs.GetSecondChild(), n.GetSecondChild(), n)
-		}
+		p.handleClosureDefinesAssign(ast.MustAssign(n))
 	}
 }
 
@@ -850,7 +891,7 @@ func processDefines_isValidClosureDefinesValue(val rhino.Node) bool {
 	case rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_TRUE, rhino.Token_FALSE:
 		return true
 	case rhino.Token_NEG:
-		return val.GetFirstChild().IsNumber()
+		return ast.MustUnary(val).Operand().Token() == rhino.Token_NUMBER
 	default:
 		return false
 	}
@@ -894,7 +935,6 @@ func (p *ProcessDefines) IsValidDefineValue(val rhino.Node) base.Tri {
 		rhino.Token_COALESCE,
 		rhino.Token_ADD,
 		rhino.Token_BITAND,
-		rhino.Token_BITNOT,
 		rhino.Token_BITOR,
 		rhino.Token_BITXOR,
 		rhino.Token_DIV,
@@ -913,14 +953,19 @@ func (p *ProcessDefines) IsValidDefineValue(val rhino.Node) base.Tri {
 		rhino.Token_SHNE,
 		rhino.Token_SUB,
 		rhino.Token_URSH:
-		return p.IsValidDefineValue(val.GetFirstChild()).And(p.IsValidDefineValue(val.GetLastChild()))
+		op := ast.MustBinary(val)
+		return p.IsValidDefineValue(op.Left().Node()).And(p.IsValidDefineValue(op.Right().Node()))
 	case rhino.Token_HOOK:
-		return p.IsValidDefineValue(val.GetFirstChild()).
-			And(p.IsValidDefineValue(val.GetSecondChild())).
-			And(p.IsValidDefineValue(val.GetLastChild()))
+		hook := ast.MustHook(val)
+		return p.IsValidDefineValue(hook.Cond().Node()).
+			And(p.IsValidDefineValue(hook.Then().Node())).
+			And(p.IsValidDefineValue(hook.Else().Node()))
 		// Unary operators are valid if the child is valid.
-	case rhino.Token_NOT, rhino.Token_NEG, rhino.Token_POS:
-		return p.IsValidDefineValue(val.GetFirstChild())
+		//
+		// Go-only: Java lists BITNOT with the binary operators, where its first
+		// and last child are both its operand; x.and(x) is x, so it belongs here.
+	case rhino.Token_NOT, rhino.Token_NEG, rhino.Token_POS, rhino.Token_BITNOT:
+		return p.IsValidDefineValue(ast.MustUnary(val).Operand().Node())
 		// Names are valid if and only if they are defines themselves.
 	case rhino.Token_NAME, rhino.Token_GETPROP:
 		if val.IsQualifiedName() {
@@ -934,12 +979,13 @@ func (p *ProcessDefines) IsValidDefineValue(val rhino.Node) base.Tri {
 		if !p.IsGoogDefineCall(val) {
 			return base.Tri_FALSE
 		}
-		if !val.HasXChildren(3) {
+		defaultValue, ok := processDefines_googDefineDefault(ast.MustCall(val))
+		if !ok {
 			// goog.define call with wrong arg count. Warn elsewhere and treat
 			// this call as valid.
 			return base.Tri_TRUE
 		}
-		return p.IsValidDefineValue(val.GetChildAtIndex(2))
+		return p.IsValidDefineValue(defaultValue.Node())
 	default:
 	}
 
