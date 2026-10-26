@@ -85,8 +85,12 @@ type IRFactory struct {
 
 	closureUnawareCodeRanges *jutil.TreeRangeSet[IRFactory_LineAndColumn]
 
-	jsdocStream              JsDocTokenStream
-	jsdocParser              JsDocInfoParser
+	jsdocStream JsDocTokenStream
+	jsdocParser JsDocInfoParser
+
+	// Go-only: performance — where the factory takes its node ids (nil: the
+	// store's counter); a parse worker passes its own (rhino.NodeAllocator).
+	alloc                    *rhino.NodeAllocator
 	transformDispatcherVal   IRFactory_TransformDispatcher
 	classScopeVal            IRFactory_TransformDispatcher_ScopeTracker
 	privateIdLhsOfInScopeVal IRFactory_TransformDispatcher_ScopeTracker
@@ -399,12 +403,26 @@ func IRFactory_TransformTree(
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile) *IRFactory {
+	return irFactoryTransformTree(tree, sourceFile, config, errorReporter, file, nil)
+}
+
+// irFactoryTransformTree is IRFactory_TransformTree with the factory's
+// node allocator.
+func irFactoryTransformTree(
+	tree *parser.ProgramTree,
+	sourceFile rhino.StaticSourceFile,
+	config *Config,
+	errorReporter rhino.ErrorReporter,
+	file *parser.SourceFile,
+	alloc *rhino.NodeAllocator) *IRFactory {
 	jsDocSourceKind := JsDocInfoParser_JsDocSourceKind_NORMAL
 	if sourceFile.IsTypeScriptSource() {
 		jsDocSourceKind = JsDocInfoParser_JsDocSourceKind_TSICKLE
 	}
 	irFactory := NewIRFactory(
 		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind)
+	irFactory.alloc = alloc
+	irFactory.jsdocParser.alloc = alloc
 
 	// don't call transform as we don't want standard jsdoc handling.
 	n := irFactory.transformDispatcher.Process(tree)
@@ -1685,7 +1703,7 @@ func (d *IRFactory_TransformDispatcher) NewStringNodeFromIdentifier(
 		value = identifierToken.ValueID()
 	}
 
-	node := rhino.AllocNode().InitStringIDFromTemplate(type_, value, d.templateNode)
+	node := d.alloc.Alloc().InitStringIDFromTemplate(type_, value, d.templateNode)
 	if identifierType == IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE &&
 		identifierToken.IsPrivateIdentifier() {
 		node.SetPrivateIdentifier()
@@ -4882,32 +4900,32 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 //
 // Java: IRFactory.newNode(Token)
 func (f *IRFactory) NewNode(type_ rhino.Token) rhino.Node {
-	return rhino.AllocNode().InitFromTemplate(type_, f.templateNode)
+	return f.alloc.Alloc().InitFromTemplate(type_, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node)
 func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 rhino.Node) rhino.Node {
-	return rhino.AllocNode().InitWithChildFromTemplate(type_, child1, f.templateNode)
+	return f.alloc.Alloc().InitWithChildFromTemplate(type_, child1, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node)
 func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 rhino.Node, child2 rhino.Node) rhino.Node {
-	return rhino.AllocNode().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
+	return f.alloc.Alloc().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node, Node)
 func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 rhino.Node, child2 rhino.Node, child3 rhino.Node) rhino.Node {
-	return rhino.AllocNode().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
+	return f.alloc.Alloc().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(String)
 func (f *IRFactory) NewStringNode(value string) rhino.Node {
-	return rhino.AllocNode().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
+	return f.alloc.Alloc().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(Token, String)
 func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) rhino.Node {
-	return rhino.AllocNode().InitStringFromTemplate(type_, value, f.templateNode)
+	return f.alloc.Alloc().InitStringFromTemplate(type_, value, f.templateNode)
 }
 
 // MaybeAddNonJsDocComment attaches any pending JSDoc comments to the given
@@ -4924,17 +4942,17 @@ func (f *IRFactory) MaybeAddNonJsDocComment(node rhino.Node, start parser.Source
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
 func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) rhino.Node {
-	return rhino.AllocNode().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
+	return f.alloc.Alloc().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
 }
 
 // Java: IRFactory.newNumberNode(Double)
 func (f *IRFactory) NewNumberNode(value float64) rhino.Node {
-	return rhino.AllocNode().InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
+	return f.alloc.Alloc().InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)
 func (f *IRFactory) NewBigIntNode(value *big.Int) rhino.Node {
-	return rhino.AllocNode().InitBigIntFromTemplate(value, f.templateNode)
+	return f.alloc.Alloc().InitBigIntFromTemplate(value, f.templateNode)
 }
 
 // Java: IRFactory.error(Node, String)

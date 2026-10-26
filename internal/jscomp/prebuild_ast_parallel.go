@@ -62,6 +62,7 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		extern = compiler.GetParserConfig(AbstractCompiler_ConfigContext_EXTERNS)
 	}
 	failures := parallelPrebuildWorkers(len(inputs), p.numParallelThreads, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
+		alloc := rhino.NewNodeAllocator() // this worker's node ids
 		for {
 			index, ok := claim()
 			if !ok {
@@ -89,8 +90,8 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 				if input.sourceFile.IsExtern() {
 					config = extern
 				}
-				result.parsed = parsing.ParserRunner_Parse(
-					input.sourceFile, input.sourceFile.GetCode(), config, &result.errors)
+				result.parsed = parsing.ParserRunner_ParseWithAllocator(
+					input.sourceFile, input.sourceFile.GetCode(), config, &result.errors, alloc)
 			}, func(t jutil.Throwable) {
 				outcomes[index].scriptDeserializer = nil
 				outcomes[index].deserializer = nil

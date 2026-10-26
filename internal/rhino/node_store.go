@@ -220,6 +220,53 @@ func (s *NodeStore) alloc() Node {
 	return Node(id)
 }
 
+// NodeAllocator hands out node ids of the current store from ranges it
+// reserves with one atomic add, for a goroutine that creates many nodes (a
+// parse worker): the store's counter is not touched for every node, and the
+// nodes of one goroutine are contiguous, so records written by different
+// goroutines do not share cache lines. A nil *NodeAllocator allocates from
+// the current store directly. Not safe for concurrent use.
+type NodeAllocator struct {
+	store     *NodeStore
+	next, end uint32
+}
+
+// nodeAllocatorRange is the number of ids a NodeAllocator reserves at a time.
+const nodeAllocatorRange = 1024
+
+// NewNodeAllocator returns an allocator for the current store.
+func NewNodeAllocator() *NodeAllocator {
+	return &NodeAllocator{store: current}
+}
+
+// Alloc returns a new, zeroed node.
+func (a *NodeAllocator) Alloc() Node {
+	if a == nil || a.store == nil || a.store != current {
+		return allocNode()
+	}
+	if a.next == a.end {
+		a.reserve()
+	}
+	id := a.next
+	a.next++
+	return Node(id)
+}
+
+func (a *NodeAllocator) reserve() {
+	s := a.store
+	first := s.next.Add(nodeAllocatorRange) - nodeAllocatorRange
+	last := first + nodeAllocatorRange - 1
+	for id := first; ; id = (id | blockMask) + 1 {
+		if nodeBlocks[id>>blockShift].Load() == nil {
+			s.addBlock(id)
+		}
+		if id>>blockShift == last>>blockShift {
+			break
+		}
+	}
+	a.next, a.end = first, first+nodeAllocatorRange
+}
+
 // addBlock creates the block of id (unless another goroutine just did).
 //
 //go:noinline

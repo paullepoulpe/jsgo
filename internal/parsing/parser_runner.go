@@ -119,6 +119,19 @@ func ParserRunner_Parse(
 	sourceString string,
 	config *Config,
 	errorReporter rhino.ErrorReporter) *ParserRunner_ParseResult {
+	return ParserRunner_ParseWithAllocator(sourceFile, sourceString, config, errorReporter, nil)
+}
+
+// ParserRunner_ParseWithAllocator is ParserRunner_Parse taking the AST's
+// node ids from alloc (see rhino.NodeAllocator; nil: the store's counter).
+//
+// Go-only: performance, for parse workers.
+func ParserRunner_ParseWithAllocator(
+	sourceFile rhino.StaticSourceFile,
+	sourceString string,
+	config *Config,
+	errorReporter rhino.ErrorReporter,
+	alloc *rhino.NodeAllocator) *ParserRunner_ParseResult {
 	// TODO(johnlenz): unify "SourceFile", "Es6ErrorReporter" and "Config"
 
 	sourceName := sourceFile.GetName()
@@ -136,8 +149,8 @@ func ParserRunner_Parse(
 		topLevelStatementRanges := []parser.SourceRange{}
 		features := p.GetFeatures()
 		if tree != nil && (!es6ErrorReporter.HadError() || keepGoing) {
-			factory := IRFactory_TransformTree(
-				tree, sourceFile, config, errorReporter, file)
+			factory := irFactoryTransformTree(
+				tree, sourceFile, config, errorReporter, file, alloc)
 			root = factory.GetResultNode()
 			features = features.Union(factory.GetFeatures())
 			root.PutProp(rhino.Node_FEATURE_SET, features)

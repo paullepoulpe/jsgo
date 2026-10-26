@@ -42,6 +42,10 @@ type JsDocInfoParser struct {
 	// memory footprint associated with these (similar to IRFactory).
 	templateNode rhino.Node
 
+	// Go-only: performance — where the parser takes its node ids (nil: the
+	// store's counter; see IRFactory.alloc).
+	alloc *rhino.NodeAllocator
+
 	// The DocInfo with the fileoverview tag for the whole file.
 	fileOverviewJSDocInfo *rhino.JSDocInfo
 	state                 JsDocInfoParser_State
@@ -2823,7 +2827,7 @@ func (p *JsDocInfoParser) ParseFieldName(token JsDocToken) rhino.Node {
 		return rhino.NilNode
 	}
 	s := p.stream.GetString()
-	n := rhino.AllocNode().InitStringFromTemplate(rhino.Token_STRING_KEY, s, p.templateNode)
+	n := p.alloc.Alloc().InitStringFromTemplate(rhino.Token_STRING_KEY, s, p.templateNode)
 	n.SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
 	n.SetLength(jutil.StringLength(s))
 	return n
@@ -2842,18 +2846,18 @@ func (p *JsDocInfoParser) WrapNodeAt(type_ rhino.Token, n rhino.Node, lineno int
 	if n.IsNil() {
 		return rhino.NilNode
 	}
-	return rhino.AllocNode().InitWithChildFromTemplate(type_, n, p.templateNode).SetLinenoCharno(lineno, charno)
+	return p.alloc.Alloc().InitWithChildFromTemplate(type_, n, p.templateNode).SetLinenoCharno(lineno, charno)
 }
 
 // Java: JsDocInfoParser.newNode(Token)
 func (p *JsDocInfoParser) NewNode(type_ rhino.Token) rhino.Node {
-	return rhino.AllocNode().InitFromTemplate(type_, p.templateNode).
+	return p.alloc.Alloc().InitFromTemplate(type_, p.templateNode).
 		SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
 }
 
 // Java: JsDocInfoParser.newStringNode(String)
 func (p *JsDocInfoParser) NewStringNode(s string) rhino.Node {
-	n := rhino.AllocNode().InitStringFromTemplate(rhino.Token_STRINGLIT, s, p.templateNode)
+	n := p.alloc.Alloc().InitStringFromTemplate(rhino.Token_STRINGLIT, s, p.templateNode)
 	n.SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
 	n.SetLength(jutil.StringLength(s))
 	return n
