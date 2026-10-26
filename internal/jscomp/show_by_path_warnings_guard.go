@@ -44,11 +44,6 @@ const (
 
 var showByPathWarningsGuard_ShowType_names = [...]string{"INCLUDE", "EXCLUDE"}
 
-// Java: ShowByPathWarningsGuard.ShowType.values()
-func ShowByPathWarningsGuard_ShowType_values() []ShowByPathWarningsGuard_ShowType {
-	return []ShowByPathWarningsGuard_ShowType{ShowByPathWarningsGuard_ShowType_INCLUDE, ShowByPathWarningsGuard_ShowType_EXCLUDE}
-}
-
 // String is Enum.name().
 func (t ShowByPathWarningsGuard_ShowType) String() string {
 	return showByPathWarningsGuard_ShowType_names[t]

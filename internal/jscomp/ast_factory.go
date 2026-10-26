@@ -97,13 +97,6 @@ const (
 
 var astFactory_TypeMode_names = [...]string{"JSTYPE", "COLOR", "NONE"}
 
-// Java: AstFactory.TypeMode.values()
-func AstFactory_TypeMode_values() []AstFactory_TypeMode {
-	return []AstFactory_TypeMode{
-		AstFactory_TypeMode_JSTYPE, AstFactory_TypeMode_COLOR, AstFactory_TypeMode_NONE,
-	}
-}
-
 // Java: AstFactory.TypeMode.name()
 func (m AstFactory_TypeMode) String() string { return astFactory_TypeMode_names[m] }
 

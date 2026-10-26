@@ -2168,15 +2168,6 @@ const (
 	es6NormalizeClasses_ClassRecord_PrivateMemberKind_ACCESSOR
 )
 
-// Java: Es6NormalizeClasses.ClassRecord.PrivateMemberKind.values()
-func es6NormalizeClasses_ClassRecord_PrivateMemberKind_values() []es6NormalizeClasses_ClassRecord_PrivateMemberKind {
-	return []es6NormalizeClasses_ClassRecord_PrivateMemberKind{
-		es6NormalizeClasses_ClassRecord_PrivateMemberKind_FIELD,
-		es6NormalizeClasses_ClassRecord_PrivateMemberKind_METHOD,
-		es6NormalizeClasses_ClassRecord_PrivateMemberKind_ACCESSOR,
-	}
-}
-
 // Java: Es6NormalizeClasses.ClassRecord.PrivateMemberKind.name()
 func (k es6NormalizeClasses_ClassRecord_PrivateMemberKind) String() string {
 	switch k {

@@ -59,11 +59,6 @@ const (
 
 var closurePrimitive_names = [...]string{"ASSERTS_FAIL", "ASSERTS_MATCHES_RETURN", "ASSERTS_TRUTHY"}
 
-// ClosurePrimitive_values is ClosurePrimitive.values().
-func ClosurePrimitive_values() []ClosurePrimitive {
-	return []ClosurePrimitive{ClosurePrimitive_ASSERTS_FAIL, ClosurePrimitive_ASSERTS_MATCHES_RETURN, ClosurePrimitive_ASSERTS_TRUTHY}
-}
-
 // String is Enum.name().
 func (p ClosurePrimitive) String() string { return closurePrimitive_names[p] }
 

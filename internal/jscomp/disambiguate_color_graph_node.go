@@ -65,15 +65,6 @@ const (
 
 var colorGraphNode_PropAssociation_names = [...]string{"AST", "TYPE_SYSTEM", "SUPERTYPE"}
 
-// ColorGraphNode_PropAssociation_values is PropAssociation.values().
-func ColorGraphNode_PropAssociation_values() []ColorGraphNode_PropAssociation {
-	return []ColorGraphNode_PropAssociation{
-		ColorGraphNode_PropAssociation_AST,
-		ColorGraphNode_PropAssociation_TYPE_SYSTEM,
-		ColorGraphNode_PropAssociation_SUPERTYPE,
-	}
-}
-
 // Name is Enum.name().
 func (a ColorGraphNode_PropAssociation) Name() string { return colorGraphNode_PropAssociation_names[a] }
 

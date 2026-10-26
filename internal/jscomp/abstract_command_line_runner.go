@@ -1208,7 +1208,7 @@ func (r *AbstractCommandLineRunnerBase) WriteOutputOfCode(
 //
 // Java: AbstractCommandLineRunner.maybeCreateDirsForPath(String)
 func abstractCommandLineRunner_maybeCreateDirsForPath(pathPrefix *string) {
-	if !jutil.Strings_IsNullOrEmpty(pathPrefix) {
+	if pathPrefix != nil && *pathPrefix != "" {
 		parent := jutil.NewFile(*pathPrefix).GetParentFile()
 		if parent != nil {
 			parent.Mkdirs()
@@ -1776,7 +1776,7 @@ func (r *AbstractCommandLineRunnerBase) CreateJsonFile(options *CompilerOptions,
 		config.jsOutputFile)
 
 	path := config.jsOutputFile
-	if jutil.Strings_IsNullOrEmpty(&config.jsOutputFile) {
+	if path == "" {
 		path = "compiled.js"
 	}
 	jsonOutput := NewAbstractCommandLineRunner_JsonFileSpec(jsOutput.String(), path)
@@ -2469,7 +2469,7 @@ func (r *AbstractCommandLineRunnerBase) OutputBundle() {
 
 // Java: AbstractCommandLineRunner.outputInstrumentationMapping()
 func (r *AbstractCommandLineRunnerBase) OutputInstrumentationMapping() {
-	if !jutil.Strings_IsNullOrEmpty(&r.config.instrumentationMappingFile) {
+	if r.config.instrumentationMappingFile != "" {
 		path := r.ExpandCommandLinePath(r.config.instrumentationMappingFile /* forChunk= */, nil)
 		r.compiler.GetInstrumentationMapping().Save(path)
 	}
@@ -3594,17 +3594,6 @@ var abstractCommandLineRunner_JsSourceType_names = [...]string{"EXTERN", "JS", "
 //
 // Java: AbstractCommandLineRunner.JsSourceType.flagName
 var abstractCommandLineRunner_JsSourceType_flagName = [...]string{"extern", "js", "jszip", "weakdep", "ijs"}
-
-// AbstractCommandLineRunner_JsSourceType_values is JsSourceType.values().
-func AbstractCommandLineRunner_JsSourceType_values() []AbstractCommandLineRunner_JsSourceType {
-	return []AbstractCommandLineRunner_JsSourceType{
-		AbstractCommandLineRunner_JsSourceType_EXTERN,
-		AbstractCommandLineRunner_JsSourceType_JS,
-		AbstractCommandLineRunner_JsSourceType_JS_ZIP,
-		AbstractCommandLineRunner_JsSourceType_WEAKDEP,
-		AbstractCommandLineRunner_JsSourceType_IJS,
-	}
-}
 
 // String is Enum.name().
 func (t AbstractCommandLineRunner_JsSourceType) String() string {

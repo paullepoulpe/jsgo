@@ -368,13 +368,6 @@ const (
 
 var codingConvention_SubclassType_names = [...]string{"INHERITS", "MIXIN"}
 
-// CodingConvention_SubclassType_values is SubclassType.values().
-func CodingConvention_SubclassType_values() []CodingConvention_SubclassType {
-	return []CodingConvention_SubclassType{
-		CodingConvention_SubclassType_INHERITS, CodingConvention_SubclassType_MIXIN,
-	}
-}
-
 // Name is Enum.name().
 func (t CodingConvention_SubclassType) Name() string { return codingConvention_SubclassType_names[t] }
 
@@ -568,15 +561,6 @@ const (
 )
 
 var codingConvention_AssertionFunctionSpec_AssertionKind_names = [...]string{"TRUTHY", "MATCHES_RETURN_TYPE"}
-
-// CodingConvention_AssertionFunctionSpec_AssertionKind_values is
-// AssertionKind.values().
-func CodingConvention_AssertionFunctionSpec_AssertionKind_values() []CodingConvention_AssertionFunctionSpec_AssertionKind {
-	return []CodingConvention_AssertionFunctionSpec_AssertionKind{
-		CodingConvention_AssertionFunctionSpec_AssertionKind_TRUTHY,
-		CodingConvention_AssertionFunctionSpec_AssertionKind_MATCHES_RETURN_TYPE,
-	}
-}
 
 // Name is Enum.name().
 func (k CodingConvention_AssertionFunctionSpec_AssertionKind) Name() string {

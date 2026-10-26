@@ -421,15 +421,6 @@ var convertToTypedInterface_SimplifyDeclarations_TypingLevel_names = [...]string
 	"TYPED_JSDOC_DECLARATION", "UNTYPED_JSDOC_DECLARATION", "NO_JSDOC",
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.TypingLevel.values()
-func ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_values() []ConvertToTypedInterface_SimplifyDeclarations_TypingLevel {
-	return []ConvertToTypedInterface_SimplifyDeclarations_TypingLevel{
-		ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_TYPED_JSDOC_DECLARATION,
-		ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_UNTYPED_JSDOC_DECLARATION,
-		ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_NO_JSDOC,
-	}
-}
-
 // String is Enum.name().
 func (l ConvertToTypedInterface_SimplifyDeclarations_TypingLevel) String() string {
 	return convertToTypedInterface_SimplifyDeclarations_TypingLevel_names[l]

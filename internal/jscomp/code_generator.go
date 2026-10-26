@@ -2574,19 +2574,6 @@ var codeGenerator_Context_atArrowFnBody = [...]bool{
 	false,                          // OTHER
 }
 
-// CodeGenerator_Context_values is Context.values().
-func CodeGenerator_Context_values() []CodeGenerator_Context {
-	return []CodeGenerator_Context{
-		CodeGenerator_Context_STATEMENT,
-		CodeGenerator_Context_BEFORE_DANGLING_ELSE,
-		CodeGenerator_Context_START_OF_EXPR,
-		CodeGenerator_Context_IN_FOR_INIT_CLAUSE,
-		CodeGenerator_Context_START_OF_ARROW_FN_BODY,
-		CodeGenerator_Context_START_OF_ARROW_FN_IN_FOR_INIT,
-		CodeGenerator_Context_OTHER,
-	}
-}
-
 // String is Context.name().
 func (c CodeGenerator_Context) String() string { return codeGenerator_Context_names[c] }
 

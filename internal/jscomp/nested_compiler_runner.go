@@ -39,7 +39,7 @@ import (
 // debug logging to the main compiler.
 type NestedCompilerRunner struct {
 	shadowCompiler *Compiler
-	inputs         *jutil.ArrayList[*CompilerInput]
+	inputs         []*CompilerInput
 	baseChunk      *JSChunk
 
 	original         AbstractCompiler
@@ -55,14 +55,6 @@ const (
 	NestedCompilerRunner_Mode_TRANSPILE_AND_OPTIMIZE NestedCompilerRunner_Mode = iota
 	NestedCompilerRunner_Mode_TRANSPILE_ONLY
 )
-
-// Java: NestedCompilerRunner.Mode.values()
-func NestedCompilerRunner_Mode_values() []NestedCompilerRunner_Mode {
-	return []NestedCompilerRunner_Mode{
-		NestedCompilerRunner_Mode_TRANSPILE_AND_OPTIMIZE,
-		NestedCompilerRunner_Mode_TRANSPILE_ONLY,
-	}
-}
 
 // Ordinal is Enum.ordinal().
 func (m NestedCompilerRunner_Mode) Ordinal() int { return int(m) }
@@ -86,7 +78,6 @@ func newNestedCompilerRunner(
 	shadowPassConfig PassConfig) *NestedCompilerRunner {
 	r := &NestedCompilerRunner{
 		shadowCompiler: NewCompiler(),
-		inputs:         jutil.NewArrayList[*CompilerInput](),
 		baseChunk:      NewJSChunk("shadow_base"),
 	}
 	r.shadowCompiler.astCompact.nested = true // Go-only: see compiler_compact.go
@@ -122,7 +113,7 @@ func (r *NestedCompilerRunner) AddScript(shadowScript rhino.Node, uniqueShadowId
 	shadowScript.SetStaticSourceFile(shadowFile)
 	// TODO: b/421971366 - should we also update the shadow script children with this source file?
 
-	r.inputs.Add(shadowInput)
+	r.inputs = append(r.inputs, shadowInput)
 	return r
 }
 
@@ -158,7 +149,7 @@ func (r *NestedCompilerRunner) initializeCompiler() {
 func (r *NestedCompilerRunner) createChunks() []*JSChunk {
 	r.baseChunk.Add(NewCompilerInput(SourceFile_FromCodeWithKind("synthetic_base", "", rhino.StaticSourceFile_SourceKind_STRONG)))
 	chunks := []*JSChunk{r.baseChunk}
-	for input := range r.inputs.All() {
+	for _, input := range r.inputs {
 		chunk := NewJSChunk("shadow_chunk_" + input.GetSourceFile().GetName())
 		chunk.Add(input)
 		chunk.AddDependency(r.baseChunk)

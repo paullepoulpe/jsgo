@@ -56,14 +56,6 @@ var compilationLevel_names = [...]string{
 	"BUNDLE", "WHITESPACE_ONLY", "SIMPLE_OPTIMIZATIONS", "ADVANCED_OPTIMIZATIONS", "TRANSPILE_ONLY",
 }
 
-// Java: CompilationLevel.values()
-func CompilationLevel_values() []CompilationLevel {
-	return []CompilationLevel{
-		CompilationLevel_BUNDLE, CompilationLevel_WHITESPACE_ONLY, CompilationLevel_SIMPLE_OPTIMIZATIONS,
-		CompilationLevel_ADVANCED_OPTIMIZATIONS, CompilationLevel_TRANSPILE_ONLY,
-	}
-}
-
 // String is Enum.name().
 func (l CompilationLevel) String() string { return compilationLevel_names[l] }
 

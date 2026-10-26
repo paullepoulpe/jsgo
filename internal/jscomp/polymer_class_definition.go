@@ -82,14 +82,6 @@ const (
 
 var polymerClassDefinition_DefinitionType_names = [...]string{"ObjectLiteral", "ES6Class"}
 
-// PolymerClassDefinition_DefinitionType_values is DefinitionType.values().
-func PolymerClassDefinition_DefinitionType_values() []PolymerClassDefinition_DefinitionType {
-	return []PolymerClassDefinition_DefinitionType{
-		PolymerClassDefinition_DefinitionType_ObjectLiteral,
-		PolymerClassDefinition_DefinitionType_ES6Class,
-	}
-}
-
 // String is DefinitionType.name().
 func (t PolymerClassDefinition_DefinitionType) String() string {
 	return polymerClassDefinition_DefinitionType_names[t]

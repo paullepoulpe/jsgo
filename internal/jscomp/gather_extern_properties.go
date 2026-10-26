@@ -62,15 +62,6 @@ var gatherExternProperties_Mode_check = [...]bool{true, false, true}
 // Java: Mode.optimize
 var gatherExternProperties_Mode_optimize = [...]bool{false, true, true}
 
-// GatherExternProperties_Mode_values is Mode.values().
-func GatherExternProperties_Mode_values() []GatherExternProperties_Mode {
-	return []GatherExternProperties_Mode{
-		GatherExternProperties_Mode_CHECK,
-		GatherExternProperties_Mode_OPTIMIZE,
-		GatherExternProperties_Mode_CHECK_AND_OPTIMIZE,
-	}
-}
-
 // Name is Enum.name().
 func (m GatherExternProperties_Mode) Name() string { return gatherExternProperties_Mode_names[m] }
 

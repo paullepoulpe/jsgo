@@ -499,13 +499,6 @@ const (
 
 var jsType_HasPropertyKind_names = [...]string{"ABSENT", "KNOWN_PRESENT", "MAYBE_PRESENT"}
 
-// JSType_HasPropertyKind_values is HasPropertyKind.values().
-func JSType_HasPropertyKind_values() []JSType_HasPropertyKind {
-	return []JSType_HasPropertyKind{
-		JSType_HasPropertyKind_ABSENT, JSType_HasPropertyKind_KNOWN_PRESENT, JSType_HasPropertyKind_MAYBE_PRESENT,
-	}
-}
-
 // String is Enum.name().
 func (k JSType_HasPropertyKind) String() string { return jsType_HasPropertyKind_names[k] }
 
@@ -1946,11 +1939,6 @@ const (
 
 var jsType_SubtypingMode_names = [...]string{"NORMAL", "IGNORE_NULL_UNDEFINED"}
 
-// JSType_SubtypingMode_values is SubtypingMode.values().
-func JSType_SubtypingMode_values() []JSType_SubtypingMode {
-	return []JSType_SubtypingMode{JSType_SubtypingMode_NORMAL, JSType_SubtypingMode_IGNORE_NULL_UNDEFINED}
-}
-
 // String is Enum.name().
 func (m JSType_SubtypingMode) String() string { return jsType_SubtypingMode_names[m] }
 
@@ -2218,11 +2206,6 @@ var jsType_MatchStatus_names = [...]string{"MATCH", "NOT_MATCH", "PROCESSING"}
 // jsType_MatchStatus_isSubtype is the isSubtype field of each constant.
 var jsType_MatchStatus_isSubtype = [...]bool{true, false, true}
 
-// JSType_MatchStatus_values is MatchStatus.values().
-func JSType_MatchStatus_values() []JSType_MatchStatus {
-	return []JSType_MatchStatus{JSType_MatchStatus_MATCH, JSType_MatchStatus_NOT_MATCH, JSType_MatchStatus_PROCESSING}
-}
-
 // String is Enum.name().
 func (s JSType_MatchStatus) String() string { return jsType_MatchStatus_names[s] }
 
@@ -2257,11 +2240,6 @@ const (
 )
 
 var jsType_Nullability_names = [...]string{"EXPLICIT", "IMPLICIT"}
-
-// JSType_Nullability_values is Nullability.values().
-func JSType_Nullability_values() []JSType_Nullability {
-	return []JSType_Nullability{JSType_Nullability_EXPLICIT, JSType_Nullability_IMPLICIT}
-}
 
 // String is Enum.name().
 func (n JSType_Nullability) String() string { return jsType_Nullability_names[n] }

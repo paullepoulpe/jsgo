@@ -3050,13 +3050,6 @@ const (
 
 var removeUnusedCode_Kind_names = [...]string{"VARIABLE", "NAMED_PROPERTY", "COMPUTED_PROPERTY"}
 
-// Java: RemoveUnusedCode.Kind.values()
-func RemoveUnusedCode_Kind_values() []RemoveUnusedCode_Kind {
-	return []RemoveUnusedCode_Kind{
-		RemoveUnusedCode_Kind_VARIABLE, RemoveUnusedCode_Kind_NAMED_PROPERTY, RemoveUnusedCode_Kind_COMPUTED_PROPERTY,
-	}
-}
-
 // Java: RemoveUnusedCode.Kind.name()
 func (k RemoveUnusedCode_Kind) String() string { return removeUnusedCode_Kind_names[k] }
 

@@ -529,13 +529,6 @@ const (
 
 var namedType_ResolutionKind_names = [...]string{"NONE", "TYPE_NAME", "TYPEOF"}
 
-// NamedType_ResolutionKind_values is ResolutionKind.values().
-func NamedType_ResolutionKind_values() []NamedType_ResolutionKind {
-	return []NamedType_ResolutionKind{
-		NamedType_ResolutionKind_NONE, NamedType_ResolutionKind_TYPE_NAME, NamedType_ResolutionKind_TYPEOF,
-	}
-}
-
 // String is Enum.name().
 func (k NamedType_ResolutionKind) String() string { return namedType_ResolutionKind_names[k] }
 

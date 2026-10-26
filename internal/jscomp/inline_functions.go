@@ -2554,14 +2554,6 @@ const (
 
 var inlineFunctions_ShouldWarnWhenRequireInliningCannotInline_names = [...]string{"YES", "NO"}
 
-// Java: InlineFunctions.ShouldWarnWhenRequireInliningCannotInline.values()
-func InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_values() []InlineFunctions_ShouldWarnWhenRequireInliningCannotInline {
-	return []InlineFunctions_ShouldWarnWhenRequireInliningCannotInline{
-		InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_YES,
-		InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO,
-	}
-}
-
 // Java: InlineFunctions.ShouldWarnWhenRequireInliningCannotInline.name()
 func (e InlineFunctions_ShouldWarnWhenRequireInliningCannotInline) String() string {
 	return inlineFunctions_ShouldWarnWhenRequireInliningCannotInline_names[e]
@@ -2586,16 +2578,6 @@ var inlineFunctions_CannotRemoveReason_names = [...]string{
 	"CALLED_BY_INLINED_FUNCTION",
 	"UNINLINABLE_REFERENCE",
 	"UNREMOVABLE_REFERENCE",
-}
-
-// Java: InlineFunctions.CannotRemoveReason.values()
-func InlineFunctions_CannotRemoveReason_values() []InlineFunctions_CannotRemoveReason {
-	return []InlineFunctions_CannotRemoveReason{
-		InlineFunctions_CannotRemoveReason_BLOCK_INLINING_REFERENCE,
-		InlineFunctions_CannotRemoveReason_CALLED_BY_INLINED_FUNCTION,
-		InlineFunctions_CannotRemoveReason_UNINLINABLE_REFERENCE,
-		InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
-	}
 }
 
 // Java: InlineFunctions.CannotRemoveReason.name()
@@ -2636,15 +2618,6 @@ var inlineFunctions_DisallowInliningReason_names = [...]string{
 	"NO_INLINE_ANNOTATION",
 	"REASSIGNED",
 	"TARGET_SIZE_EXCEEDS_LIMIT",
-}
-
-// Java: InlineFunctions.DisallowInliningReason.values()
-func InlineFunctions_DisallowInliningReason_values() []InlineFunctions_DisallowInliningReason {
-	out := make([]InlineFunctions_DisallowInliningReason, len(inlineFunctions_DisallowInliningReason_names))
-	for i := range out {
-		out[i] = InlineFunctions_DisallowInliningReason(i)
-	}
-	return out
 }
 
 // Java: InlineFunctions.DisallowInliningReason.name()

@@ -89,15 +89,6 @@ var jsTypeClass_names = [...]string{
 	"UNION", "UNKNOWN", "VOID",
 }
 
-// JSTypeClass_values is JSTypeClass.values().
-func JSTypeClass_values() []JSTypeClass {
-	out := make([]JSTypeClass, len(jsTypeClass_names))
-	for i := range out {
-		out[i] = JSTypeClass(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (c JSTypeClass) String() string { return jsTypeClass_names[c] }
 

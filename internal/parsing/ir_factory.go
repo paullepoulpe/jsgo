@@ -1657,14 +1657,6 @@ const (
 
 var irFactory_TransformDispatcher_IdentifierType_names = [...]string{"STANDARD", "CAN_BE_PRIVATE"}
 
-// Java: IRFactory.TransformDispatcher.IdentifierType.values()
-func IRFactory_TransformDispatcher_IdentifierType_values() []IRFactory_TransformDispatcher_IdentifierType {
-	return []IRFactory_TransformDispatcher_IdentifierType{
-		IRFactory_TransformDispatcher_IdentifierType_STANDARD,
-		IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE,
-	}
-}
-
 // String is Enum.name().
 func (t IRFactory_TransformDispatcher_IdentifierType) String() string {
 	return irFactory_TransformDispatcher_IdentifierType_names[t]

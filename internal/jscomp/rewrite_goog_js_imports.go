@@ -98,11 +98,6 @@ const (
 	RewriteGoogJsImports_Mode_LINT_AND_REWRITE
 )
 
-// Java: RewriteGoogJsImports.Mode.values()
-func RewriteGoogJsImports_Mode_values() []RewriteGoogJsImports_Mode {
-	return []RewriteGoogJsImports_Mode{RewriteGoogJsImports_Mode_LINT_ONLY, RewriteGoogJsImports_Mode_LINT_AND_REWRITE}
-}
-
 // Java: RewriteGoogJsImports.Mode.name()
 func (m RewriteGoogJsImports_Mode) String() string {
 	return [...]string{"LINT_ONLY", "LINT_AND_REWRITE"}[m]

@@ -138,8 +138,18 @@ func ClosureBundler_AppendInput(out jutil.Appendable, info DependencyInfo, conte
 // It throws IOException.
 //
 // Java: ClosureBundler.appendTo(Appendable, DependencyInfo, String)
-func (b *ClosureBundler) AppendTo(out jutil.Appendable, info DependencyInfo, content string) {
-	b.AppendToFromCharSource(out, info, jutil.CharSource_Wrap(content))
+func (b *ClosureBundler) AppendTo(out jutil.Appendable, info DependencyInfo, code string) {
+	if info.IsGoogModule() {
+		b.mode.appendGoogModule(b.transpile(code), out, b.sourceUrl)
+	} else if info.IsEs6Module() && b.transpiler == Transpile_Transpiler_NULL {
+		// TODO(johnplaisted): Make the default transpiler the
+		// ES_MODULE_TO_CJS_TRANSPILER. Currently some code is passing in
+		// unicode identifiers in non-ES6 modules the compiler fails to parse.
+		// Once this compiler bug is fixed we can always transpile.
+		b.mode.appendTraditional(b.transpileEs6Module(code), out, b.sourceUrl)
+	} else {
+		b.mode.appendTraditional(b.transpile(code), out, b.sourceUrl)
+	}
 }
 
 // AppendToFromFile appends the contents of the file to the supplied
@@ -155,18 +165,7 @@ func (b *ClosureBundler) AppendToFromFile(out jutil.Appendable, info DependencyI
 //
 // Java: ClosureBundler.appendTo(Appendable, DependencyInfo, CharSource)
 func (b *ClosureBundler) AppendToFromCharSource(out jutil.Appendable, info DependencyInfo, content *jutil.CharSource) {
-	code := content.Read()
-	if info.IsGoogModule() {
-		b.mode.appendGoogModule(b.transpile(code), out, b.sourceUrl)
-	} else if info.IsEs6Module() && b.transpiler == Transpile_Transpiler_NULL {
-		// TODO(johnplaisted): Make the default transpiler the
-		// ES_MODULE_TO_CJS_TRANSPILER. Currently some code is passing in
-		// unicode identifiers in non-ES6 modules the compiler fails to parse.
-		// Once this compiler bug is fixed we can always transpile.
-		b.mode.appendTraditional(b.transpileEs6Module(code), out, b.sourceUrl)
-	} else {
-		b.mode.appendTraditional(b.transpile(code), out, b.sourceUrl)
-	}
+	b.AppendTo(out, info, content.Read())
 }
 
 // AppendRuntimeTo throws IOException.

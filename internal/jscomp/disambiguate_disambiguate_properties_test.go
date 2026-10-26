@@ -1293,7 +1293,9 @@ func (c *DisambiguatePropertiesTest) debugLogFiles() []string {
 		"DisambiguateProperties")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		panic(jutil.NewAssertionErrorWithMessageAndCause(err.Error(), jutil.NewIOException(err.Error())))
+		e := jutil.NewAssertionError(err.Error())
+		e.InitCause(jutil.NewIOException(err.Error()))
+		panic(e)
 	}
 	// Go-only: language-adapter — Files.list's order is unspecified; sorted.
 	var files []string

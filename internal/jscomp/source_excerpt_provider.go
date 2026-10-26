@@ -69,14 +69,6 @@ const (
 
 var sourceExcerptProvider_SourceExcerpt_names = [...]string{"LINE", "FULL", "REGION"}
 
-// SourceExcerptProvider_SourceExcerpt_values is SourceExcerpt.values().
-func SourceExcerptProvider_SourceExcerpt_values() []SourceExcerptProvider_SourceExcerpt {
-	return []SourceExcerptProvider_SourceExcerpt{
-		SourceExcerptProvider_SourceExcerpt_LINE, SourceExcerptProvider_SourceExcerpt_FULL,
-		SourceExcerptProvider_SourceExcerpt_REGION,
-	}
-}
-
 // String is Enum.name().
 func (e SourceExcerptProvider_SourceExcerpt) String() string {
 	return sourceExcerptProvider_SourceExcerpt_names[e]

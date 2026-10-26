@@ -895,11 +895,6 @@ const (
 
 var analyzePrototypeProperties_SymbolType_names = [...]string{"PROPERTY", "VAR"}
 
-// AnalyzePrototypeProperties_SymbolType_values is SymbolType.values().
-func AnalyzePrototypeProperties_SymbolType_values() []AnalyzePrototypeProperties_SymbolType {
-	return []AnalyzePrototypeProperties_SymbolType{AnalyzePrototypeProperties_SymbolType_PROPERTY, AnalyzePrototypeProperties_SymbolType_VAR}
-}
-
 // String is Enum.name().
 func (t AnalyzePrototypeProperties_SymbolType) String() string {
 	return analyzePrototypeProperties_SymbolType_names[t]

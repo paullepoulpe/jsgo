@@ -53,13 +53,6 @@ const (
 
 var booleanLiteralSet_names = [...]string{"EMPTY", "TRUE", "FALSE", "BOTH"}
 
-// BooleanLiteralSet_values is BooleanLiteralSet.values().
-func BooleanLiteralSet_values() []BooleanLiteralSet {
-	return []BooleanLiteralSet{
-		BooleanLiteralSet_EMPTY, BooleanLiteralSet_TRUE, BooleanLiteralSet_FALSE, BooleanLiteralSet_BOTH,
-	}
-}
-
 // String is Enum.name().
 func (s BooleanLiteralSet) String() string { return booleanLiteralSet_names[s] }
 

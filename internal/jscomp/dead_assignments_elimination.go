@@ -597,15 +597,6 @@ const (
 
 var deadAssignmentsElimination_VariableLiveness_names = [...]string{"MAYBE_LIVE", "READ", "KILL"}
 
-// Java: DeadAssignmentsElimination.VariableLiveness.values()
-func DeadAssignmentsElimination_VariableLiveness_values() []DeadAssignmentsElimination_VariableLiveness {
-	return []DeadAssignmentsElimination_VariableLiveness{
-		DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE,
-		DeadAssignmentsElimination_VariableLiveness_READ,
-		DeadAssignmentsElimination_VariableLiveness_KILL,
-	}
-}
-
 // Java: DeadAssignmentsElimination.VariableLiveness.name()
 func (v DeadAssignmentsElimination_VariableLiveness) String() string {
 	return deadAssignmentsElimination_VariableLiveness_names[v]

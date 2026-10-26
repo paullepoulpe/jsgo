@@ -170,11 +170,6 @@ const (
 
 var functionInjector_InliningMode_names = [...]string{"DIRECT", "BLOCK"}
 
-// Java: FunctionInjector.InliningMode.values()
-func FunctionInjector_InliningMode_values() []FunctionInjector_InliningMode {
-	return []FunctionInjector_InliningMode{FunctionInjector_InliningMode_DIRECT, FunctionInjector_InliningMode_BLOCK}
-}
-
 // Java: FunctionInjector.InliningMode.name()
 func (m FunctionInjector_InliningMode) String() string { return functionInjector_InliningMode_names[m] }
 
@@ -566,18 +561,6 @@ var functionInjector_CallSiteType_names = [...]string{
 	"DECOMPOSABLE_EXPRESSION",
 }
 
-// Java: FunctionInjector.CallSiteType.values()
-func FunctionInjector_CallSiteType_values() []FunctionInjector_CallSiteType {
-	return []FunctionInjector_CallSiteType{
-		FunctionInjector_CallSiteType_UNSUPPORTED,
-		FunctionInjector_CallSiteType_SIMPLE_CALL,
-		FunctionInjector_CallSiteType_SIMPLE_ASSIGNMENT,
-		FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT,
-		FunctionInjector_CallSiteType_EXPRESSION,
-		FunctionInjector_CallSiteType_DECOMPOSABLE_EXPRESSION,
-	}
-}
-
 // Java: FunctionInjector.CallSiteType.name()
 func (c FunctionInjector_CallSiteType) String() string { return functionInjector_CallSiteType_names[c] }
 
@@ -823,15 +806,6 @@ const (
 )
 
 var functionInjector_CanInlineResult_names = [...]string{"YES", "AFTER_PREPARATION", "NO"}
-
-// Java: FunctionInjector.CanInlineResult.values()
-func FunctionInjector_CanInlineResult_values() []FunctionInjector_CanInlineResult {
-	return []FunctionInjector_CanInlineResult{
-		FunctionInjector_CanInlineResult_YES,
-		FunctionInjector_CanInlineResult_AFTER_PREPARATION,
-		FunctionInjector_CanInlineResult_NO,
-	}
-}
 
 // Java: FunctionInjector.CanInlineResult.name()
 func (r FunctionInjector_CanInlineResult) String() string {

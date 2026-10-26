@@ -214,9 +214,9 @@ func (c *NodeIteratorsTest) testVarMotionWithCodeOfList(code string, expectedTok
 	AssertWithMessage("Variable X not found! %s", root.ToStringTree()).That(found).IsTrue()
 
 	currentAncestors := searchIt.CurrentAncestors()
-	AssertThat(currentAncestors.Size()).IsAtLeast(3)
+	AssertThat(len(currentAncestors)).IsAtLeast(3)
 	moveIt := NodeIterators_LocalVarMotion_ForVar(
-		compiler, currentAncestors.Get(0), currentAncestors.Get(1), currentAncestors.Get(2))
+		compiler, currentAncestors[0], currentAncestors[1], currentAncestors[2])
 	var actualTokens []rhino.Token
 	for moveIt.HasNext() {
 		actualTokens = append(actualTokens, moveIt.Next().GetToken())

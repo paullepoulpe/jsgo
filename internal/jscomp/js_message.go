@@ -197,16 +197,6 @@ const (
 
 var jsMessage_GrammaticalGenderCase_names = [...]string{"MASCULINE", "FEMININE", "NEUTER", "OTHER"}
 
-// JsMessage_GrammaticalGenderCase_values is GrammaticalGenderCase.values().
-func JsMessage_GrammaticalGenderCase_values() []JsMessage_GrammaticalGenderCase {
-	return []JsMessage_GrammaticalGenderCase{
-		JsMessage_GrammaticalGenderCase_MASCULINE,
-		JsMessage_GrammaticalGenderCase_FEMININE,
-		JsMessage_GrammaticalGenderCase_NEUTER,
-		JsMessage_GrammaticalGenderCase_OTHER,
-	}
-}
-
 // JsMessage_GrammaticalGenderCase_ValueOf is GrammaticalGenderCase.valueOf(String).
 func JsMessage_GrammaticalGenderCase_ValueOf(name string) JsMessage_GrammaticalGenderCase {
 	for i, n := range jsMessage_GrammaticalGenderCase_names {

@@ -51,16 +51,6 @@ var accessorSummary_PropertyAccessKind_names = [...]string{
 // constant.
 var accessorSummary_PropertyAccessKind_flags = [...]int8{0, 1, 2, 3}
 
-// AccessorSummary_PropertyAccessKind_values is PropertyAccessKind.values().
-func AccessorSummary_PropertyAccessKind_values() []AccessorSummary_PropertyAccessKind {
-	return []AccessorSummary_PropertyAccessKind{
-		AccessorSummary_PropertyAccessKind_NORMAL,
-		AccessorSummary_PropertyAccessKind_GETTER_ONLY,
-		AccessorSummary_PropertyAccessKind_SETTER_ONLY,
-		AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER,
-	}
-}
-
 // Name is Enum.name().
 func (k AccessorSummary_PropertyAccessKind) Name() string {
 	return accessorSummary_PropertyAccessKind_names[k]

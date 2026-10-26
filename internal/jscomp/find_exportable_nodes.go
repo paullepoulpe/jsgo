@@ -240,11 +240,6 @@ const findExportableNodes_Mode_null FindExportableNodes_Mode = -1
 
 var findExportableNodes_Mode_names = [...]string{"EXPORT", "EXTERN"}
 
-// FindExportableNodes_Mode_values is Mode.values().
-func FindExportableNodes_Mode_values() []FindExportableNodes_Mode {
-	return []FindExportableNodes_Mode{FindExportableNodes_Mode_EXPORT, FindExportableNodes_Mode_EXTERN}
-}
-
 // Name is Enum.name().
 func (m FindExportableNodes_Mode) Name() string { return findExportableNodes_Mode_names[m] }
 

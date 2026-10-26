@@ -3680,11 +3680,6 @@ const (
 
 var node_RecursionMode_names = [...]string{"SHALLOW", "DEEP_NO_SHADOW", "DEEP"}
 
-// Node_RecursionMode_values is RecursionMode.values().
-func Node_RecursionMode_values() []Node_RecursionMode {
-	return []Node_RecursionMode{Node_RecursionMode_SHALLOW, Node_RecursionMode_DEEP_NO_SHADOW, Node_RecursionMode_DEEP}
-}
-
 // String is Enum.name().
 func (m Node_RecursionMode) String() string { return node_RecursionMode_names[m] }
 
@@ -3710,11 +3705,6 @@ const (
 	Node_TypeComparison_COMPARE
 )
 
-// Node_TypeComparison_values is TypeComparison.values().
-func Node_TypeComparison_values() []Node_TypeComparison {
-	return []Node_TypeComparison{Node_TypeComparison_IGNORE, Node_TypeComparison_COMPARE}
-}
-
 // String is Enum.name().
 func (c Node_TypeComparison) String() string { return [...]string{"IGNORE", "COMPARE"}[c] }
 
@@ -3729,11 +3719,6 @@ const (
 	// Compare JSDoc.
 	Node_JsDocComparison_COMPARE
 )
-
-// Node_JsDocComparison_values is JsDocComparison.values().
-func Node_JsDocComparison_values() []Node_JsDocComparison {
-	return []Node_JsDocComparison{Node_JsDocComparison_IGNORE, Node_JsDocComparison_COMPARE}
-}
 
 // String is Enum.name().
 func (c Node_JsDocComparison) String() string { return [...]string{"IGNORE", "COMPARE"}[c] }
@@ -3750,11 +3735,6 @@ const (
 	// Compare side effect flags.
 	Node_SideEffectComparison_COMPARE
 )
-
-// Node_SideEffectComparison_values is SideEffectComparison.values().
-func Node_SideEffectComparison_values() []Node_SideEffectComparison {
-	return []Node_SideEffectComparison{Node_SideEffectComparison_IGNORE, Node_SideEffectComparison_COMPARE}
-}
 
 // String is Enum.name().
 func (c Node_SideEffectComparison) String() string { return [...]string{"IGNORE", "COMPARE"}[c] }

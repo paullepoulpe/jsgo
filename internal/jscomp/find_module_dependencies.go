@@ -134,13 +134,22 @@ func (f *FindModuleDependencies) Process(root rhino.Node) {
 		f.ConvertToEs6Module(root, true)
 	} else if f.moduleType == CompilerInput_ModuleType_NONE &&
 		f.inputPathByWebpackId != nil &&
-		f.inputPathByWebpackId.ContainsValue(input.GetPath().String()) {
+		findModuleDependencies_hasValue(f.inputPathByWebpackId, input.GetPath().String()) {
 		f.moduleType = CompilerInput_ModuleType_IMPORTED_SCRIPT
 	}
 
 	input.AddProvide(input.GetPath().ToModuleName())
 	input.SetJsModuleType(f.moduleType)
 	input.SetHasFullParseDependencyInfo(true)
+}
+
+func findModuleDependencies_hasValue(m *jutil.LinkedHashMap[string, string], target string) bool {
+	for v := range m.Values() {
+		if v == target {
+			return true
+		}
+	}
+	return false
 }
 
 // findModuleDependencies_containsRequire is

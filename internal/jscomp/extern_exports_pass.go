@@ -31,7 +31,7 @@ type ExternExportsPass struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	// The exports found.
-	exports *jutil.ArrayList[ExternExportsPass_Export]
+	exports []ExternExportsPass_Export
 
 	// A map of all assigns to their parent nodes.
 	definitionMap *jutil.LinkedHashMap[string, rhino.Node]
@@ -46,13 +46,13 @@ type ExternExportsPass struct {
 	mappedPaths *jutil.LinkedHashMap[string, string]
 
 	// A list of exported paths.
-	alreadyExportedPaths *jutil.LinkedHashSet[string]
+	alreadyExportedPaths map[string]struct{}
 
-	// A list of function names used to export symbols.
-	exportSymbolFunctionNames *jutil.LinkedHashSet[string]
+	// Function name used to export symbols (in addition to google_exportSymbol).
+	exportSymbolFunction string
 
-	// A list of function names used to export properties.
-	exportPropertyFunctionNames *jutil.LinkedHashSet[string]
+	// Function name used to export properties (in addition to google_exportProperty).
+	exportPropertyFunction string
 }
 
 var _ CompilerPass = (*ExternExportsPass)(nil)
@@ -128,9 +128,10 @@ func (e *ExternExportsPass_ExportBase) AppendExtern(path string, valueToExport r
 		// it gets initialized to the externed version of the value.
 		isCompletePathPrefix := i == len(pathPrefixes)-1
 
+		_, alreadyExported := e.outer.alreadyExportedPaths[pathPrefix]
 		skipPathPrefix :=
 			strings.HasSuffix(pathPrefix, ".prototype") ||
-				(e.outer.alreadyExportedPaths.Contains(pathPrefix) && !isCompletePathPrefix)
+				(alreadyExported && !isCompletePathPrefix)
 		if skipPathPrefix {
 			continue
 		}
@@ -207,7 +208,7 @@ func (e *ExternExportsPass_ExportBase) AppendPathDefinition(
 
 	e.outer.externsRoot.AddChildToBack(pathDefinition)
 
-	e.outer.alreadyExportedPaths.Add(path)
+	e.outer.alreadyExportedPaths[path] = struct{}{}
 }
 
 // CreateExternFunction: given a function to export, create the empty
@@ -522,13 +523,13 @@ func externExportsPass_computePathPrefixes(path string) []string {
 //
 // Java: ExternExportsPass(AbstractCompiler)
 func NewExternExportsPass(compiler AbstractCompiler) *ExternExportsPass {
-	p := &ExternExportsPass{}
-	p.exports = jutil.NewArrayList[ExternExportsPass_Export]()
-	p.compiler = compiler
-	p.definitionMap = jutil.NewLinkedHashMap[string, rhino.Node]()
-	p.externsRoot = rhino.IR_Script()
-	p.alreadyExportedPaths = jutil.NewLinkedHashSet[string]()
-	p.mappedPaths = jutil.NewLinkedHashMap[string, string]()
+	p := &ExternExportsPass{
+		compiler:             compiler,
+		definitionMap:        jutil.NewLinkedHashMap[string, rhino.Node](),
+		externsRoot:          rhino.IR_Script(),
+		alreadyExportedPaths: make(map[string]struct{}),
+		mappedPaths:          jutil.NewLinkedHashMap[string, string](),
+	}
 
 	p.InitExportMethods()
 	return p
@@ -537,17 +538,8 @@ func NewExternExportsPass(compiler AbstractCompiler) *ExternExportsPass {
 // Java: ExternExportsPass.initExportMethods()
 func (p *ExternExportsPass) InitExportMethods() {
 	convention := p.compiler.GetCodingConvention()
-	// Go-only: language-adapter — ImmutableSet.of rejects a null element
-	// (NullPointerException), as CheckNotNull does.
-	p.exportSymbolFunctionNames =
-		jutil.NewLinkedHashSet(
-			*jutil.CheckNotNull(convention.GetExportSymbolFunction()), // goog.exportSymbol(name, value)
-			"google_exportSymbol") // used within Google
-
-	p.exportPropertyFunctionNames =
-		jutil.NewLinkedHashSet(
-			*jutil.CheckNotNull(convention.GetExportPropertyFunction()), // goog.exportProperty(owner, name, value)
-			"google_exportProperty") // used within Google
+	p.exportSymbolFunction = *jutil.CheckNotNull(convention.GetExportSymbolFunction())     // goog.exportSymbol(name, value)
+	p.exportPropertyFunction = *jutil.CheckNotNull(convention.GetExportPropertyFunction()) // goog.exportProperty(owner, name, value)
 }
 
 // Java: ExternExportsPass.process(Node, Node)
@@ -561,7 +553,7 @@ func (p *ExternExportsPass) Process(externs rhino.Node, root rhino.Node) {
 		return jutil.StringCompareTo(a.GetExportedPath(), b.GetExportedPath())
 	})
 
-	for e := range p.exports.All() {
+	for _, e := range p.exports {
 		sorted.Add(e)
 	}
 
@@ -642,7 +634,7 @@ func (p *ExternExportsPass) LookForQnameDefinition(n rhino.Node) {
 
 // Java: ExternExportsPass.lookForSymbolExportCall(Node)
 func (p *ExternExportsPass) LookForSymbolExportCall(n rhino.Node) {
-	if !p.IsCallToOneOf(n, p.exportSymbolFunctionNames) {
+	if !p.isCallToOneOf(n, p.exportSymbolFunction, "google_exportSymbol") {
 		return // not a call to goog.exportSymbol()
 	}
 	// TODO(b/123725716): We should report errors for malformed calls instead
@@ -663,12 +655,12 @@ func (p *ExternExportsPass) LookForSymbolExportCall(n rhino.Node) {
 	}
 
 	// Add the export to the list.
-	p.exports.Add(p.NewSymbolExport(nameArg.GetString(), valueArg))
+	p.exports = append(p.exports, p.NewSymbolExport(nameArg.GetString(), valueArg))
 }
 
 // Java: ExternExportsPass.lookForPropertyExportCall(Node)
 func (p *ExternExportsPass) LookForPropertyExportCall(n rhino.Node) {
-	if !p.IsCallToOneOf(n, p.exportPropertyFunctionNames) {
+	if !p.isCallToOneOf(n, p.exportPropertyFunction, "google_exportProperty") {
 		return // not a call to goog.exportProperty()
 	}
 	// TODO(b/123725716): We should report errors for malformed calls instead
@@ -694,20 +686,23 @@ func (p *ExternExportsPass) LookForPropertyExportCall(n rhino.Node) {
 	}
 
 	// Add the export to the list.
-	p.exports.Add(
+	p.exports = append(p.exports,
 		p.NewPropertyExport(*objectArg.GetQualifiedName(),
 			nameArg.GetString(),
 			valueArg))
 }
 
 // Java: ExternExportsPass.isCallToOneOf(Node, ImmutableSet<String>)
-func (p *ExternExportsPass) IsCallToOneOf(n rhino.Node, functionQnames *jutil.LinkedHashSet[string]) bool {
+func (p *ExternExportsPass) isCallToOneOf(n rhino.Node, fn1, fn2 string) bool {
 	if !n.IsCall() {
 		return false
-	} else {
-		callee := n.GetFirstChild()
-		return callee.IsQualifiedName() && functionQnames.Contains(*callee.GetQualifiedName())
 	}
+	callee := n.GetFirstChild()
+	if !callee.IsQualifiedName() {
+		return false
+	}
+	qname := *callee.GetQualifiedName()
+	return qname == fn1 || qname == fn2
 }
 
 // Java: ExternExportsPass.lookForAtExportOnThisDotProperty(NodeTraversal, Node)
@@ -737,5 +732,5 @@ func (p *ExternExportsPass) LookForAtExportOnThisDotProperty(t *NodeTraversal, t
 	propertyNameNode := NodeUtil_NewQName(p.compiler, "this."+propertyName)
 
 	// Add the export to the list.
-	p.exports.Add(p.NewPropertyExport(prototypeName, propertyName, propertyNameNode))
+	p.exports = append(p.exports, p.NewPropertyExport(prototypeName, propertyName, propertyNameNode))
 }

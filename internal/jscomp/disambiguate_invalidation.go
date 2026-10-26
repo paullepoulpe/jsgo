@@ -73,15 +73,6 @@ const (
 
 var invalidation_Reason_names = [...]string{"WELL_KNOWN_PROPERTY", "INVALIDATING_TYPE", "UNDECLARED_ACCESS"}
 
-// Invalidation_Reason_values is Reason.values().
-func Invalidation_Reason_values() []Invalidation_Reason {
-	return []Invalidation_Reason{
-		Invalidation_Reason_WELL_KNOWN_PROPERTY,
-		Invalidation_Reason_INVALIDATING_TYPE,
-		Invalidation_Reason_UNDECLARED_ACCESS,
-	}
-}
-
 // Name is Enum.name().
 func (r Invalidation_Reason) Name() string { return invalidation_Reason_names[r] }
 

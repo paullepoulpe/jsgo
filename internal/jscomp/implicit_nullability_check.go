@@ -74,12 +74,6 @@ const (
 
 var implicitNullabilityCheck_Nullability_names = [...]string{"NONNULL", "NULLABLE"}
 
-// Java: ImplicitNullabilityCheck.Nullability.values()
-func ImplicitNullabilityCheck_Nullability_values() []ImplicitNullabilityCheck_Nullability {
-	return []ImplicitNullabilityCheck_Nullability{
-		ImplicitNullabilityCheck_Nullability_NONNULL, ImplicitNullabilityCheck_Nullability_NULLABLE}
-}
-
 // String is Enum.name().
 func (n ImplicitNullabilityCheck_Nullability) String() string {
 	return implicitNullabilityCheck_Nullability_names[n]

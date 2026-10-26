@@ -73,15 +73,6 @@ var messages_names = [...]string{
 	"DEFAULT_VALUE",
 }
 
-// Java: Messages.values()
-func Messages_values() []Messages {
-	v := make([]Messages, len(messages_names))
-	for i := range v {
-		v[i] = Messages(i)
-	}
-	return v
-}
-
 // String is Messages.name().
 func (m Messages) String() string { return messages_names[m] }
 

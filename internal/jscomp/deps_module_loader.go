@@ -457,11 +457,6 @@ const (
 
 var moduleLoader_PathResolver_names = [...]string{"RELATIVE", "ABSOLUTE"}
 
-// Java: ModuleLoader.PathResolver.values()
-func ModuleLoader_PathResolver_values() []ModuleLoader_PathResolver {
-	return []ModuleLoader_PathResolver{ModuleLoader_PathResolver_RELATIVE, ModuleLoader_PathResolver_ABSOLUTE}
-}
-
 // String is Enum.name().
 func (e ModuleLoader_PathResolver) String() string { return moduleLoader_PathResolver_names[e] }
 

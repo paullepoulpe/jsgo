@@ -247,7 +247,7 @@ func (p *ProcessTweaks) Process(externs rhino.Node, root rhino.Node) {
 func (p *ProcessTweaks) StripAllCalls(tweakInfos *jutil.LinkedHashMap[string, *ProcessTweaks_TweakInfo]) {
 	for tweakInfo := range tweakInfos.Values() {
 		isRegistered := tweakInfo.IsRegistered()
-		for functionCall := range tweakInfo.functionCalls.All() {
+		for _, functionCall := range tweakInfo.functionCalls {
 			callNode := functionCall.callNode
 			parent := callNode.GetParent()
 			if functionCall.tweakFunc.IsGetterFunction() {
@@ -400,17 +400,14 @@ type ProcessTweaks_TweakInfo struct {
 	outer *ProcessTweaks
 
 	tweakId          string
-	functionCalls    *jutil.ArrayList[*ProcessTweaks_TweakFunctionCall]
+	functionCalls    []*ProcessTweaks_TweakFunctionCall
 	registerCall     *ProcessTweaks_TweakFunctionCall
 	defaultValueNode rhino.Node
 }
 
 // Java: ProcessTweaks.TweakInfo(String)
 func newProcessTweaks_TweakInfo(outer *ProcessTweaks, tweakId string) *ProcessTweaks_TweakInfo {
-	i := &ProcessTweaks_TweakInfo{outer: outer}
-	i.tweakId = tweakId
-	i.functionCalls = jutil.NewArrayList[*ProcessTweaks_TweakFunctionCall]()
-	return i
+	return &ProcessTweaks_TweakInfo{outer: outer, tweakId: tweakId}
 }
 
 // EmitAllWarnings: if this tweak is registered, then looks for type
@@ -430,7 +427,7 @@ func (i *ProcessTweaks_TweakInfo) EmitAllWarnings() {
 //
 // Java: ProcessTweaks.TweakInfo.emitAllTypeWarnings()
 func (i *ProcessTweaks_TweakInfo) EmitAllTypeWarnings() {
-	for call := range i.functionCalls.All() {
+	for _, call := range i.functionCalls {
 		valueNode := call.valueNode
 		tweakFunc := call.tweakFunc
 		registerFunc := i.registerCall.tweakFunc
@@ -463,12 +460,12 @@ func (i *ProcessTweaks_TweakInfo) EmitAllTypeWarnings() {
 // Java: ProcessTweaks.TweakInfo.addRegisterCall(TweakFunction, Node, Node)
 func (i *ProcessTweaks_TweakInfo) AddRegisterCall(tweakFunc ProcessTweaks_TweakFunction, callNode rhino.Node, defaultValueNode rhino.Node) {
 	i.registerCall = newProcessTweaks_TweakFunctionCallWithValueNode(tweakFunc, callNode, defaultValueNode)
-	i.functionCalls.Add(i.registerCall)
+	i.functionCalls = append(i.functionCalls, i.registerCall)
 }
 
 // Java: ProcessTweaks.TweakInfo.addGetterCall(TweakFunction, Node)
 func (i *ProcessTweaks_TweakInfo) AddGetterCall(tweakFunc ProcessTweaks_TweakFunction, callNode rhino.Node) {
-	i.functionCalls.Add(newProcessTweaks_TweakFunctionCall(tweakFunc, callNode))
+	i.functionCalls = append(i.functionCalls, newProcessTweaks_TweakFunctionCall(tweakFunc, callNode))
 }
 
 // Java: ProcessTweaks.TweakInfo.isRegistered()

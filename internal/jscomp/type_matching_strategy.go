@@ -129,15 +129,6 @@ const (
 
 var typeMatchingStrategy_MatchResult_names = [...]string{"MATCH", "NO_MATCH", "LOOSE_MATCH"}
 
-// TypeMatchingStrategy_MatchResult_values is MatchResult.values().
-func TypeMatchingStrategy_MatchResult_values() []TypeMatchingStrategy_MatchResult {
-	return []TypeMatchingStrategy_MatchResult{
-		TypeMatchingStrategy_MatchResult_MATCH,
-		TypeMatchingStrategy_MatchResult_NO_MATCH,
-		TypeMatchingStrategy_MatchResult_LOOSE_MATCH,
-	}
-}
-
 // Name is Enum.name().
 func (r TypeMatchingStrategy_MatchResult) Name() string {
 	return typeMatchingStrategy_MatchResult_names[r]

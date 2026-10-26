@@ -79,11 +79,8 @@ func TestFileCharSourceReadLines(t *testing.T) {
 	r.Close()
 }
 
-// Go-only: CharSource.wrap and CharSource.read as Guava documents them.
+// Go-only: CharSource.read as Guava documents it.
 func TestCharSourceWrapRead(t *testing.T) {
-	if got := CharSource_Wrap("a\nbé").Read(); got != "a\nbé" {
-		t.Errorf("CharSource.wrap(...).read() = %q", got)
-	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "f.txt")
 	if err := os.WriteFile(path, []byte("xé\n"), 0o644); err != nil {

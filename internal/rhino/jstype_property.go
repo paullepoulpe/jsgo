@@ -95,11 +95,6 @@ const (
 
 var property_KeyKind_names = [...]string{"STRING", "SYMBOL"}
 
-// Property_KeyKind_values is Property.KeyKind.values().
-func Property_KeyKind_values() []Property_KeyKind {
-	return []Property_KeyKind{Property_KeyKind_STRING, Property_KeyKind_SYMBOL}
-}
-
 // String is Enum.name().
 func (k Property_KeyKind) String() string { return property_KeyKind_names[k] }
 

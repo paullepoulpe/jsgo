@@ -184,17 +184,6 @@ const (
 
 var jsDocInfoParser_State_names = [...]string{"SEARCHING_ANNOTATION", "SEARCHING_NEWLINE", "NEXT_IS_ANNOTATION"}
 
-// JsDocInfoParser_State_values is State.values().
-//
-// Java: JsDocInfoParser.State.values()
-func JsDocInfoParser_State_values() []JsDocInfoParser_State {
-	return []JsDocInfoParser_State{
-		JsDocInfoParser_State_SEARCHING_ANNOTATION,
-		JsDocInfoParser_State_SEARCHING_NEWLINE,
-		JsDocInfoParser_State_NEXT_IS_ANNOTATION,
-	}
-}
-
 // Name is Enum.name().
 //
 // Java: JsDocInfoParser.State.name()
@@ -214,16 +203,6 @@ const (
 )
 
 var jsDocInfoParser_JsDocSourceKind_names = [...]string{"NORMAL", "TSICKLE"}
-
-// JsDocInfoParser_JsDocSourceKind_values is JsDocSourceKind.values().
-//
-// Java: JsDocInfoParser.JsDocSourceKind.values()
-func JsDocInfoParser_JsDocSourceKind_values() []JsDocInfoParser_JsDocSourceKind {
-	return []JsDocInfoParser_JsDocSourceKind{
-		JsDocInfoParser_JsDocSourceKind_NORMAL,
-		JsDocInfoParser_JsDocSourceKind_TSICKLE,
-	}
-}
 
 // Name is Enum.name().
 //
@@ -1903,17 +1882,6 @@ const (
 )
 
 var jsDocInfoParser_WhitespaceOption_names = [...]string{"PRESERVE", "TRIM", "SINGLE_LINE"}
-
-// JsDocInfoParser_WhitespaceOption_values is WhitespaceOption.values().
-//
-// Java: JsDocInfoParser.WhitespaceOption.values()
-func JsDocInfoParser_WhitespaceOption_values() []JsDocInfoParser_WhitespaceOption {
-	return []JsDocInfoParser_WhitespaceOption{
-		JsDocInfoParser_WhitespaceOption_PRESERVE,
-		JsDocInfoParser_WhitespaceOption_TRIM,
-		JsDocInfoParser_WhitespaceOption_SINGLE_LINE,
-	}
-}
 
 // Name is Enum.name().
 //

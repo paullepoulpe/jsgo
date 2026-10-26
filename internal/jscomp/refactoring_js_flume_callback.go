@@ -32,7 +32,7 @@ type JsFlumeCallback struct {
 	scanner            Scanner
 	includeFilePattern *jutil.Pattern // may be nil
 	matches            []*Match
-	fixes              *jutil.ArrayList[*SuggestedFix]
+	fixes              []*SuggestedFix
 }
 
 // Java: JsFlumeCallback(Scanner, Pattern)
@@ -40,7 +40,6 @@ func NewJsFlumeCallback(scanner Scanner, includeFilePattern *jutil.Pattern) *JsF
 	return &JsFlumeCallback{
 		scanner:            scanner,
 		includeFilePattern: includeFilePattern,
-		fixes:              jutil.NewArrayList[*SuggestedFix](),
 	}
 }
 
@@ -50,7 +49,7 @@ func (c *JsFlumeCallback) GetMatches() []*Match {
 }
 
 // Java: JsFlumeCallback.getFixes()
-func (c *JsFlumeCallback) GetFixes() *jutil.ArrayList[*SuggestedFix] {
+func (c *JsFlumeCallback) GetFixes() []*SuggestedFix {
 	return c.fixes
 }
 
@@ -75,9 +74,7 @@ func (c *JsFlumeCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Nod
 	metadata := NodeMetadata_FromTraversal(t)
 	if c.scanner.Matches(n, metadata) {
 		match := NewMatch(n, metadata)
-		for _, fix := range c.scanner.ProcessMatch(match) {
-			c.fixes.Add(fix)
-		}
+		c.fixes = append(c.fixes, c.scanner.ProcessMatch(match)...)
 		c.matches = append(c.matches, match)
 	}
 }

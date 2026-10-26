@@ -48,16 +48,6 @@ const (
 	CheckClosureImports_ClosureImport_REQUIRE_DYNAMIC
 )
 
-// Java: CheckClosureImports.ClosureImport.values()
-func CheckClosureImports_ClosureImport_values() []CheckClosureImports_ClosureImport {
-	return []CheckClosureImports_ClosureImport{
-		CheckClosureImports_ClosureImport_REQUIRE,
-		CheckClosureImports_ClosureImport_FORWARD_DECLARE,
-		CheckClosureImports_ClosureImport_REQUIRE_TYPE,
-		CheckClosureImports_ClosureImport_REQUIRE_DYNAMIC,
-	}
-}
-
 // Java: CheckClosureImports.ClosureImport.name()
 func (c CheckClosureImports_ClosureImport) String() string {
 	return [...]string{"REQUIRE", "FORWARD_DECLARE", "REQUIRE_TYPE", "REQUIRE_DYNAMIC"}[c]

@@ -106,9 +106,9 @@ func TestJsFileFullParser_ProvidesRequires(t *testing.T) {
 			"goog.requireType('weaklyRequiredSymbol');\n" +
 			"async function test() {await goog.requireDynamic('dynamicallyRequiredSymbol');}\n")
 
-	jsFileFullParserTest_containsExactly(t, "provides", info.provides.ToSlice(), "providedSymbol")
-	jsFileFullParserTest_containsExactly(t, "requires", info.requires.ToSlice(), "stronglyRequiredSymbol")
-	jsFileFullParserTest_containsExactly(t, "typeRequires", info.typeRequires.ToSlice(), "weaklyRequiredSymbol")
+	jsFileFullParserTest_containsExactly(t, "provides", info.provides, "providedSymbol")
+	jsFileFullParserTest_containsExactly(t, "requires", info.requires, "stronglyRequiredSymbol")
+	jsFileFullParserTest_containsExactly(t, "typeRequires", info.typeRequires, "weaklyRequiredSymbol")
 	jsFileFullParserTest_containsExactly(t, "dynamicRequires", info.dynamicRequires.ToSlice(), "dynamicallyRequiredSymbol")
 }
 
@@ -132,9 +132,9 @@ func TestJsFileFullParser_ProvidesRequires_syntaxError(t *testing.T) {
 	errorCollector := &jsFileFullParserTest_ErrorCollector{}
 	info := JsFileFullParser_Parse(src, "file.js", errorCollector)
 
-	jsFileFullParserTest_containsExactly(t, "provides", info.provides.ToSlice())
-	jsFileFullParserTest_containsExactly(t, "requires", info.requires.ToSlice())
-	jsFileFullParserTest_containsExactly(t, "typeRequires", info.typeRequires.ToSlice())
+	jsFileFullParserTest_containsExactly(t, "provides", info.provides)
+	jsFileFullParserTest_containsExactly(t, "requires", info.requires)
+	jsFileFullParserTest_containsExactly(t, "typeRequires", info.typeRequires)
 	if errorCollector.lastErrorMessage == nil || *errorCollector.lastErrorMessage != "Semi-colon expected" {
 		t.Errorf("lastErrorMessage = %v", errorCollector.lastErrorMessage)
 	}
@@ -156,8 +156,8 @@ func TestJsFileFullParser_GoogLoadModule(t *testing.T) {
 			"  return exports;\n" +
 			"});\n")
 
-	jsFileFullParserTest_containsExactly(t, "provides", info.provides.ToSlice(), "inner", "inner2")
-	jsFileFullParserTest_containsExactly(t, "requires", info.requires.ToSlice(), "inner", "inner_require")
+	jsFileFullParserTest_containsExactly(t, "provides", info.provides, "inner", "inner2")
+	jsFileFullParserTest_containsExactly(t, "requires", info.requires, "inner", "inner_require")
 }
 
 func TestJsFileFullParser_GoogLoadModule_inModule(t *testing.T) {
@@ -181,8 +181,8 @@ func TestJsFileFullParser_GoogLoadModule_inModule(t *testing.T) {
 			"});\n" +
 			"exports = {outer: 1};\n")
 
-	jsFileFullParserTest_containsExactly(t, "provides", info.provides.ToSlice(), "outer", "inner", "inner2")
-	jsFileFullParserTest_containsExactly(t, "requires", info.requires.ToSlice(), "inner", "inner_require", "outer", "outer_require")
+	jsFileFullParserTest_containsExactly(t, "provides", info.provides, "outer", "inner", "inner2")
+	jsFileFullParserTest_containsExactly(t, "requires", info.requires, "inner", "inner_require", "outer", "outer_require")
 }
 
 func TestJsFileFullParser_GoogLoadModule_doubleNested(t *testing.T) {
@@ -265,7 +265,7 @@ func TestJsFileFullParser_TopLevelJsDocComments_beforeBetweenAndAfterStatements(
 			"/** @requirecss {css.between.statements} */\n" +
 			"class Foo {}\n" +
 			"/** @requirecss {css.after.statements} */\n")
-	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(),
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss,
 		"css.before.module", "css.between.statements", "css.after.statements")
 }
 
@@ -287,7 +287,7 @@ func TestJsFileFullParser_NestedJsDocCommentsAreIgnored(t *testing.T) {
 			"{\n" +
 			"  /** @requirecss {css.in.block} */\n" +
 			"}\n")
-	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice())
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss)
 }
 
 func TestJsFileFullParser_TopLevelJsDocComments_moreLinesThanNodeCanRepresent(t *testing.T) {
@@ -301,7 +301,7 @@ func TestJsFileFullParser_TopLevelJsDocComments_moreLinesThanNodeCanRepresent(t 
 		"}\n" +
 		"/** @requirecss {css.after} */\n"
 	info := jsFileFullParserTest_parse(code)
-	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(), "css.before", "css.after")
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss, "css.before", "css.after")
 }
 
 func TestJsFileFullParser_TopLevelJsDocComments_loneCarriageReturns(t *testing.T) {
@@ -312,7 +312,7 @@ func TestJsFileFullParser_TopLevelJsDocComments_loneCarriageReturns(t *testing.T
 			"  /** @requirecss {css.nested} */\n" +
 			"}\n" +
 			"/** @requirecss {css.after} */\n")
-	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(), "css.after")
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss, "css.after")
 }
 
 func TestJsFileFullParser_TopLevelJsDocComments_unicodeLineSeparators(t *testing.T) {
@@ -321,7 +321,7 @@ func TestJsFileFullParser_TopLevelJsDocComments_unicodeLineSeparators(t *testing
 	info := jsFileFullParserTest_parse(
 		"a();\n'  ';\nfoo();\nfunction f() {\n/** @requirecss {css.nested} */\n}\n" +
 			"/** @requirecss {css.after} */")
-	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(), "css.after")
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss, "css.after")
 }
 
 func TestJsFileFullParser_TopLevelJsDocComments_statementPastMaxColumn(t *testing.T) {
@@ -332,5 +332,5 @@ func TestJsFileFullParser_TopLevelJsDocComments_statementPastMaxColumn(t *testin
 		strings.Repeat("x", 5000) +
 		"'; function f() { /** @requirecss {css.nested} */ }"
 	info := jsFileFullParserTest_parse(code)
-	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(), "css.before.b")
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss, "css.before.b")
 }

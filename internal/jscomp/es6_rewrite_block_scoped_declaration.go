@@ -379,6 +379,11 @@ func (e *Es6RewriteBlockScopedDeclaration) RewriteDeclsToVars() {
 	}
 }
 
+type es6LoopClosureHandledKey struct {
+	node rhino.Node
+	name string
+}
+
 // es6RewriteBlockScopedDeclaration_LoopClosureTransformer transforms
 // let/const declarations captured by loop closures.
 type es6RewriteBlockScopedDeclaration_LoopClosureTransformer struct {
@@ -388,10 +393,8 @@ type es6RewriteBlockScopedDeclaration_LoopClosureTransformer struct {
 	loopObjectMap *jutil.LinkedHashMap[rhino.Node, *es6RewriteBlockScopedDeclaration_LoopObject]
 
 	nodesRequiringLoopObjectsClosureMap *jutil.SetMultimap[rhino.Node, *es6RewriteBlockScopedDeclaration_LoopObject]
-	// Go-only: language-adapter — a Java HashMultimap that is only queried
-	// (put, containsEntry), never iterated: an insertion-ordered multimap.
-	nodesHandledForLoopObjectClosure *jutil.SetMultimap[rhino.Node, string]
-	referenceMap                     *jutil.SetMultimap[*Var, rhino.Node]
+	nodesHandledForLoopObjectClosure    map[es6LoopClosureHandledKey]struct{}
+	referenceMap                        *jutil.SetMultimap[*Var, rhino.Node]
 }
 
 // Java: Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.LOOP_OBJECT_NAME
@@ -402,7 +405,6 @@ func newEs6RewriteBlockScopedDeclaration_LoopClosureTransformer(outer *Es6Rewrit
 	l := &es6RewriteBlockScopedDeclaration_LoopClosureTransformer{outer: outer}
 	l.loopObjectMap = jutil.NewLinkedHashMap[rhino.Node, *es6RewriteBlockScopedDeclaration_LoopObject]()
 	l.nodesRequiringLoopObjectsClosureMap = jutil.NewSetMultimap[rhino.Node, *es6RewriteBlockScopedDeclaration_LoopObject]()
-	l.nodesHandledForLoopObjectClosure = jutil.NewSetMultimap[rhino.Node, string]()
 	l.referenceMap = jutil.NewSetMultimap[*Var, rhino.Node]()
 	return l
 }
@@ -473,10 +475,14 @@ func (l *es6RewriteBlockScopedDeclaration_LoopClosureTransformer) ShouldTraverse
 		} else {
 			nodeToWrapInClosure = enclosingFunction
 		}
-		if l.nodesHandledForLoopObjectClosure.ContainsEntry(nodeToWrapInClosure, name) {
+		key := es6LoopClosureHandledKey{node: nodeToWrapInClosure, name: name}
+		if _, ok := l.nodesHandledForLoopObjectClosure[key]; ok {
 			return true
 		}
-		l.nodesHandledForLoopObjectClosure.Put(nodeToWrapInClosure, name)
+		if l.nodesHandledForLoopObjectClosure == nil {
+			l.nodesHandledForLoopObjectClosure = make(map[es6LoopClosureHandledKey]struct{}, 8)
+		}
+		l.nodesHandledForLoopObjectClosure[key] = struct{}{}
 
 		object := l.loopObjectMap.ComputeIfAbsent(
 			loopNode, func(k rhino.Node) *es6RewriteBlockScopedDeclaration_LoopObject {

@@ -43,11 +43,6 @@ const (
 
 var exampleMode_names = [...]string{"ALL", "REQUIRED"}
 
-// Java: ExampleMode.values()
-func ExampleMode_values() []ExampleMode {
-	return []ExampleMode{ExampleMode_ALL, ExampleMode_REQUIRED}
-}
-
 // String is ExampleMode.name().
 func (m ExampleMode) String() string { return exampleMode_names[m] }
 

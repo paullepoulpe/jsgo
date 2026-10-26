@@ -625,14 +625,6 @@ var abstractScope_ImplicitVar_ptrs = [...]AbstractScope_ImplicitVar{
 	AbstractScope_ImplicitVar_SUPER, AbstractScope_ImplicitVar_THIS,
 }
 
-// AbstractScope_ImplicitVar_values is ImplicitVar.values().
-func AbstractScope_ImplicitVar_values() []AbstractScope_ImplicitVar {
-	return []AbstractScope_ImplicitVar{
-		AbstractScope_ImplicitVar_ARGUMENTS, AbstractScope_ImplicitVar_EXPORTS,
-		AbstractScope_ImplicitVar_SUPER, AbstractScope_ImplicitVar_THIS,
-	}
-}
-
 // String is Enum.name().
 func (v AbstractScope_ImplicitVar) String() string { return abstractScope_ImplicitVar_names[v] }
 

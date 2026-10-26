@@ -65,10 +65,5 @@ const (
 
 var equivalenceMethod_names = [...]string{"IDENTITY", "DATA_FLOW"}
 
-// EquivalenceMethod_values is EquivalenceMethod.values().
-func EquivalenceMethod_values() []EquivalenceMethod {
-	return []EquivalenceMethod{EquivalenceMethod_IDENTITY, EquivalenceMethod_DATA_FLOW}
-}
-
 // String is Enum.name().
 func (m EquivalenceMethod) String() string { return equivalenceMethod_names[m] }

@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"io"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -36,18 +37,20 @@ const IdMappingUtil_NEW_LINE uint16 = '\n'
 //
 // Java: IdMappingUtil.generateSerializedIdMappings(Map<String, Map<String, String>>)
 func IdMappingUtil_GenerateSerializedIdMappings(idGeneratorMaps *jutil.LinkedHashMap[string, *jutil.LinkedHashMap[string, string]]) string {
-	sb := jutil.NewStringBuilder()
+	var sb strings.Builder
 	for key, value := range idGeneratorMaps.All() {
 		if !value.IsEmpty() {
-			sb.AppendChar('[').Append(key).AppendChar(']').AppendChar(IdMappingUtil_NEW_LINE).AppendChar(IdMappingUtil_NEW_LINE)
+			sb.WriteByte('[')
+			sb.WriteString(key)
+			sb.WriteString("]\n\n")
 
 			for rKey, rValue := range value.All() {
-				sb.Append(rKey).
-					AppendChar(':').
-					Append(rValue).
-					AppendChar(IdMappingUtil_NEW_LINE)
+				sb.WriteString(rKey)
+				sb.WriteByte(':')
+				sb.WriteString(rValue)
+				sb.WriteByte('\n')
 			}
-			sb.AppendChar(IdMappingUtil_NEW_LINE)
+			sb.WriteByte('\n')
 		}
 	}
 	return sb.String()
@@ -155,16 +158,17 @@ func IdMappingUtil_ParseSerializedIdMappingsFromReader(br *jutil.BufferedReader)
 	resultMap := jutil.NewLinkedHashMap[string, *jutil.BiMap[string, string]]()
 	mr := NewIdMappingUtil_MappingReader(br)
 	var currentSectionMap *jutil.BiMap[string, string]
-	sectionNames := jutil.NewLinkedHashSet[string]()
+	sectionNames := make(map[string]struct{})
 	for mr.Next() {
 		if mr.IsSection() {
 			sectionName := *mr.GetSection()
-			if !sectionNames.Add(sectionName) {
+			if _, dup := sectionNames[sectionName]; dup {
 				panic(jutil.NewIllegalArgumentExceptionMsg(
 					jutil.StringFormat(
 						"Cannot parse id map: Duplicate section %s\n lineIndex: %d",
 						sectionName, mr.GetLineIndex())))
 			}
+			sectionNames[sectionName] = struct{}{}
 			currentSectionMap = jutil.HashBiMap_Create[string, string]()
 			resultMap.Put(sectionName, currentSectionMap)
 		} else {

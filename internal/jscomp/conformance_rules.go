@@ -121,15 +121,6 @@ const (
 
 var conformanceRules_ConformanceLevel_names = [...]string{"CONFORMANCE", "POSSIBLE_VIOLATION", "VIOLATION"}
 
-// ConformanceRules_ConformanceLevel_values is ConformanceLevel.values().
-func ConformanceRules_ConformanceLevel_values() []ConformanceRules_ConformanceLevel {
-	return []ConformanceRules_ConformanceLevel{
-		ConformanceRules_ConformanceLevel_CONFORMANCE,
-		ConformanceRules_ConformanceLevel_POSSIBLE_VIOLATION,
-		ConformanceRules_ConformanceLevel_VIOLATION,
-	}
-}
-
 // String is Enum.name().
 func (l ConformanceRules_ConformanceLevel) String() string {
 	return conformanceRules_ConformanceLevel_names[l]
@@ -816,17 +807,6 @@ var conformanceRules_BannedProperty_RequirementPrecondition_names = [...]string{
 	"BANNED_PROPERTY_NON_CONSTANT_WRITE",
 	"BANNED_PROPERTY_READ",
 	"BANNED_PROPERTY_CALL",
-}
-
-// ConformanceRules_BannedProperty_RequirementPrecondition_values is RequirementPrecondition.values().
-func ConformanceRules_BannedProperty_RequirementPrecondition_values() []ConformanceRules_BannedProperty_RequirementPrecondition {
-	return []ConformanceRules_BannedProperty_RequirementPrecondition{
-		ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY,
-		ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_WRITE,
-		ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_NON_CONSTANT_WRITE,
-		ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_READ,
-		ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_CALL,
-	}
 }
 
 // String is Enum.name().

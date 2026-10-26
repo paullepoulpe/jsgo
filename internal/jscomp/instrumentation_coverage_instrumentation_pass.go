@@ -52,13 +52,6 @@ const (
 
 var coverageInstrumentationPass_CoverageReach_names = []string{"ALL", "CONDITIONAL"}
 
-// Java: CoverageInstrumentationPass.CoverageReach.values()
-func CoverageInstrumentationPass_CoverageReach_values() []CoverageInstrumentationPass_CoverageReach {
-	return []CoverageInstrumentationPass_CoverageReach{
-		CoverageInstrumentationPass_CoverageReach_ALL, CoverageInstrumentationPass_CoverageReach_CONDITIONAL,
-	}
-}
-
 // Java: CoverageInstrumentationPass.CoverageReach.name()
 func (r CoverageInstrumentationPass_CoverageReach) String() string {
 	return coverageInstrumentationPass_CoverageReach_names[r]

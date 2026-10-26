@@ -154,17 +154,6 @@ const (
 
 var replaceIdGenerators_RenameStrategy_names = [...]string{"CONSISTENT", "INCONSISTENT", "MAPPED", "STABLE", "XID"}
 
-// ReplaceIdGenerators_RenameStrategy_values is RenameStrategy.values().
-func ReplaceIdGenerators_RenameStrategy_values() []ReplaceIdGenerators_RenameStrategy {
-	return []ReplaceIdGenerators_RenameStrategy{
-		ReplaceIdGenerators_RenameStrategy_CONSISTENT,
-		ReplaceIdGenerators_RenameStrategy_INCONSISTENT,
-		ReplaceIdGenerators_RenameStrategy_MAPPED,
-		ReplaceIdGenerators_RenameStrategy_STABLE,
-		ReplaceIdGenerators_RenameStrategy_XID,
-	}
-}
-
 // Name is Enum.name().
 func (s ReplaceIdGenerators_RenameStrategy) Name() string {
 	return replaceIdGenerators_RenameStrategy_names[s]

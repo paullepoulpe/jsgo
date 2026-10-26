@@ -72,11 +72,6 @@ const (
 
 var polyfillUsageFinder_Polyfill_Kind_names = [...]string{"STATIC", "METHOD"}
 
-// PolyfillUsageFinder_Polyfill_Kind_values is Kind.values().
-func PolyfillUsageFinder_Polyfill_Kind_values() []PolyfillUsageFinder_Polyfill_Kind {
-	return []PolyfillUsageFinder_Polyfill_Kind{PolyfillUsageFinder_Polyfill_Kind_STATIC, PolyfillUsageFinder_Polyfill_Kind_METHOD}
-}
-
 // String is Enum.name().
 func (k PolyfillUsageFinder_Polyfill_Kind) String() string {
 	return polyfillUsageFinder_Polyfill_Kind_names[k]

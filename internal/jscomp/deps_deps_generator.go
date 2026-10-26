@@ -50,15 +50,6 @@ const (
 
 var depsGenerator_InclusionStrategy_names = [...]string{"ALWAYS", "WHEN_IN_SRCS", "DO_NOT_DUPLICATE"}
 
-// Java: DepsGenerator.InclusionStrategy.values()
-func DepsGenerator_InclusionStrategy_values() []DepsGenerator_InclusionStrategy {
-	return []DepsGenerator_InclusionStrategy{
-		DepsGenerator_InclusionStrategy_ALWAYS,
-		DepsGenerator_InclusionStrategy_WHEN_IN_SRCS,
-		DepsGenerator_InclusionStrategy_DO_NOT_DUPLICATE,
-	}
-}
-
 // String is InclusionStrategy.name().
 func (s DepsGenerator_InclusionStrategy) String() string {
 	return depsGenerator_InclusionStrategy_names[s]

@@ -805,13 +805,6 @@ const (
 
 var abstractCompiler_ConfigContext_names = [...]string{"DEFAULT", "EXTERNS"}
 
-// AbstractCompiler_ConfigContext_values is ConfigContext.values().
-func AbstractCompiler_ConfigContext_values() []AbstractCompiler_ConfigContext {
-	return []AbstractCompiler_ConfigContext{
-		AbstractCompiler_ConfigContext_DEFAULT, AbstractCompiler_ConfigContext_EXTERNS,
-	}
-}
-
 // String is Enum.name().
 func (e AbstractCompiler_ConfigContext) String() string {
 	return abstractCompiler_ConfigContext_names[e]
@@ -844,16 +837,6 @@ const (
 
 var abstractCompiler_LifeCycleStage_names = [...]string{
 	"RAW", "COLORS_AND_SIMPLIFIED_JSDOC", "NORMALIZED", "NORMALIZED_OBFUSCATED",
-}
-
-// AbstractCompiler_LifeCycleStage_values is LifeCycleStage.values().
-func AbstractCompiler_LifeCycleStage_values() []AbstractCompiler_LifeCycleStage {
-	return []AbstractCompiler_LifeCycleStage{
-		AbstractCompiler_LifeCycleStage_RAW,
-		AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC,
-		AbstractCompiler_LifeCycleStage_NORMALIZED,
-		AbstractCompiler_LifeCycleStage_NORMALIZED_OBFUSCATED,
-	}
 }
 
 // String is Enum.name().

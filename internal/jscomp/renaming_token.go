@@ -30,11 +30,6 @@ const (
 
 var renamingToken_names = [...]string{"INCONSISTENT", "STABLE", "DISABLE"}
 
-// RenamingToken_values is RenamingToken.values().
-func RenamingToken_values() []RenamingToken {
-	return []RenamingToken{RenamingToken_INCONSISTENT, RenamingToken_STABLE, RenamingToken_DISABLE}
-}
-
 // Name is Enum.name().
 func (r RenamingToken) Name() string { return renamingToken_names[r] }
 

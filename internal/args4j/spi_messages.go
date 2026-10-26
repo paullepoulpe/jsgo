@@ -96,15 +96,6 @@ var spiMessages_names = [...]string{
 	"DEFAULT_META_UUID_OPTION_HANDLER",
 }
 
-// Java: spi.Messages.values()
-func SpiMessages_values() []SpiMessages {
-	v := make([]SpiMessages, len(spiMessages_names))
-	for i := range v {
-		v[i] = SpiMessages(i)
-	}
-	return v
-}
-
 // String is spi.Messages.name().
 func (m SpiMessages) String() string { return spiMessages_names[m] }
 

@@ -32,10 +32,5 @@ const (
 
 var sourceMapFormat_names = [...]string{"DEFAULT", "V3"}
 
-// SourceMapFormat_values is SourceMapFormat.values().
-func SourceMapFormat_values() []SourceMapFormat {
-	return []SourceMapFormat{SourceMapFormat_DEFAULT, SourceMapFormat_V3}
-}
-
 // String is Enum.name().
 func (f SourceMapFormat) String() string { return sourceMapFormat_names[f] }

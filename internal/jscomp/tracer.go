@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -246,7 +248,7 @@ func NewTracerWithType(type_ *string, comment *string) *Tracer {
 	}
 
 	// Check if we are creating too many Tracers.
-	if trace.events.Size() >= Tracer_MAX_TRACE_SIZE {
+	if len(trace.events) >= Tracer_MAX_TRACE_SIZE {
 		Tracer_logger.LogWithThrown(jutil.Level_WARNING,
 			"Giant thread trace. Too many Tracers created. "+
 				"Clearing to avoid memory leak.",
@@ -711,7 +713,7 @@ type Tracer_ThreadTrace struct {
 	defaultSilenceThreshold int // non-final
 
 	// The Events corresponding to each startEvent/stopEvent
-	events *jutil.ArrayList[*tracer_Event]
+	events []*tracer_Event
 
 	// Tracers that have not had their .stop() called
 	outstandingEvents *jutil.LinkedHashSet[*Tracer]
@@ -738,7 +740,6 @@ type Tracer_ThreadTrace struct {
 // NewTracer_ThreadTrace is new ThreadTrace().
 func NewTracer_ThreadTrace() *Tracer_ThreadTrace {
 	return &Tracer_ThreadTrace{
-		events:            jutil.NewArrayList[*tracer_Event](),
 		outstandingEvents: jutil.NewLinkedHashSet[*Tracer](),
 		stats:             jutil.NewLinkedHashMap[string, *Tracer_Stat](),
 	}
@@ -763,7 +764,7 @@ func (tt *Tracer_ThreadTrace) IsInitialized() bool {
 //
 // Java: Tracer.ThreadTrace.startEvent(Tracer)
 func (tt *Tracer_ThreadTrace) StartEvent(t *Tracer) {
-	tt.events.Add(newTracer_Event(true, t))
+	tt.events = append(tt.events, newTracer_Event(true, t))
 	notAlreadyOutstanding := tt.outstandingEvents.Add(t)
 	jutil.CheckState(notAlreadyOutstanding)
 }
@@ -798,11 +799,10 @@ func (tt *Tracer_ThreadTrace) EndEvent(t *Tracer, silenceThreshold int) {
 	if elapsed < int64(silenceThreshold) {
 		// If this one is silent then we need to remove the start Event
 		removed := false
-		for i := 0; i < tt.events.Size(); i++ {
-			e := tt.events.Get(i)
+		for i, e := range tt.events {
 			if e.tracer == t {
 				jutil.CheckState(e.isStart)
-				tt.events.RemoveAt(i)
+				tt.events = slices.Delete(tt.events, i, i+1)
 				removed = true
 				break
 			}
@@ -812,7 +812,7 @@ func (tt *Tracer_ThreadTrace) EndEvent(t *Tracer, silenceThreshold int) {
 		// truncated.
 		jutil.CheckState(removed || tt.isEventsTruncated)
 	} else {
-		tt.events.Add(newTracer_Event(false, t))
+		tt.events = append(tt.events, newTracer_Event(false, t))
 	}
 
 	if t.type_ != nil {
@@ -860,7 +860,7 @@ func (tt *Tracer_ThreadTrace) EndEvent(t *Tracer, silenceThreshold int) {
 
 // Java: Tracer.ThreadTrace.isEmpty()
 func (tt *Tracer_ThreadTrace) IsEmpty() bool {
-	return tt.events.IsEmpty() && tt.outstandingEvents.IsEmpty()
+	return len(tt.events) == 0 && tt.outstandingEvents.IsEmpty()
 }
 
 // Java: Tracer.ThreadTrace.truncateOutstandingEvents()
@@ -872,7 +872,7 @@ func (tt *Tracer_ThreadTrace) TruncateOutstandingEvents() {
 // Java: Tracer.ThreadTrace.truncateEvents()
 func (tt *Tracer_ThreadTrace) TruncateEvents() {
 	tt.isEventsTruncated = true
-	tt.events.Clear()
+	tt.events = nil
 }
 
 // String produces the lovely Trace seen in the class comments.
@@ -880,22 +880,22 @@ func (tt *Tracer_ThreadTrace) TruncateEvents() {
 // Java: Tracer.ThreadTrace.toString()
 func (tt *Tracer_ThreadTrace) String() string {
 	numDigits := tt.getMaxDigits()
-	sb := jutil.NewStringBuilder()
+	var sb strings.Builder
 	var etime int64 = -1
 	// Java: an ArrayDeque used as a stack (push/pop at the front).
 	var indent []string
-	for _, e := range tt.events.Slice() {
+	for _, e := range tt.events {
 		if tt.prettyPrint && !e.isStart && len(indent) != 0 {
 			indent = indent[1:]
 		}
-		sb.Append(" ")
+		sb.WriteByte(' ')
 		if tt.prettyPrint {
-			sb.Append(e.ToString(etime, strings.Join(indent, ""), numDigits))
+			sb.WriteString(e.ToString(etime, strings.Join(indent, ""), numDigits))
 		} else {
-			sb.Append(e.ToString(etime, "", 4))
+			sb.WriteString(e.ToString(etime, "", 4))
 		}
 		etime = e.EventTime()
-		sb.AppendChar('\n')
+		sb.WriteByte('\n')
 		if tt.prettyPrint && e.isStart {
 			indent = append([]string{"|  "}, indent...)
 		}
@@ -904,36 +904,36 @@ func (tt *Tracer_ThreadTrace) String() string {
 	if tt.outstandingEvents.Size() != 0 {
 		now := Tracer_clock.CurrentTimeMillis()
 
-		sb.Append(" Unstopped timers:\n")
+		sb.WriteString(" Unstopped timers:\n")
 		for t := range tt.outstandingEvents.All() {
-			sb.Append("  ").
-				Append(t.String()).
-				Append(" (").
-				AppendInt(now - t.startTimeMs).
-				Append(" ms, started at ").
-				Append(tracer_formatTime(t.startTimeMs)).
-				Append(")\n")
+			sb.WriteString("  ")
+			sb.WriteString(t.String())
+			sb.WriteString(" (")
+			sb.WriteString(strconv.FormatInt(now-t.startTimeMs, 10))
+			sb.WriteString(" ms, started at ")
+			sb.WriteString(tracer_formatTime(t.startTimeMs))
+			sb.WriteString(")\n")
 		}
 	}
 
 	for key, stat := range tt.stats.All() {
 		if stat.count > 1 {
-			sb.Append(" TOTAL ").
-				Append(key).
-				Append(" ").
-				AppendInt(int64(stat.count)).
-				Append(" (").
-				AppendInt(int64(stat.clockTime)).
-				Append(" ms")
+			sb.WriteString(" TOTAL ")
+			sb.WriteString(key)
+			sb.WriteByte(' ')
+			sb.WriteString(strconv.Itoa(stat.count))
+			sb.WriteString(" (")
+			sb.WriteString(strconv.Itoa(stat.clockTime))
+			sb.WriteString(" ms")
 			if stat.extraInfo != nil {
 				for i := 0; i < len(stat.extraInfo); i++ {
-					sb.Append("; ")
-					sb.AppendInt(int64(stat.extraInfo[i])).
-						AppendChar(' ').
-						Append(tracer_extraTracingStatistics[i].GetUnits())
+					sb.WriteString("; ")
+					sb.WriteString(strconv.Itoa(stat.extraInfo[i]))
+					sb.WriteByte(' ')
+					sb.WriteString(tracer_extraTracingStatistics[i].GetUnits())
 				}
 			}
-			sb.Append(")\n")
+			sb.WriteString(")\n")
 		}
 	}
 	return sb.String()
@@ -948,7 +948,7 @@ func (tt *Tracer_ThreadTrace) String() string {
 func (tt *Tracer_ThreadTrace) getMaxDigits() int {
 	var etime int64 = -1
 	var maxTime int64 = 0
-	for _, e := range tt.events.Slice() {
+	for _, e := range tt.events {
 		if etime != -1 {
 			t := e.EventTime() - etime
 			maxTime = max(maxTime, t)

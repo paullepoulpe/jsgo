@@ -43,7 +43,7 @@ type FunctionToBlockMutator struct {
 	argsScratch              jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
 	allNamesToAliasScratch   jutil.LinkedHashSet[string]
 	paramReplacementsScratch jutil.LinkedHashMap[string, rhino.Node]
-	newAliasesToAddScratch   jutil.ArrayList[rhino.Node]
+	newAliasesToAddScratch   []rhino.Node
 	scratchRoot              rhino.Node
 	scratchScript            rhino.Node
 	scratchReady             bool
@@ -549,8 +549,7 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 		paramReplacements.Clear()
 
 		// Declare the aliases in the same order as the arguments are defined.
-		newAliasesToAdd := &m.newAliasesToAddScratch
-		newAliasesToAdd.Clear()
+		newAliasesToAdd := m.newAliasesToAddScratch[:0]
 		// NOTE: paramToArgMap is a linked map so we get the parameters in the order that they were
 		// declared.
 		for name, arg := range paramToArgMap.All() {
@@ -570,7 +569,7 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 					newName := m.GetUniqueThisName()
 					newValue := m.takeOrCloneCallArg(originalValue)
 					newNode := NodeUtil_NewVarNode(newName, newValue).SrcrefTreeIfMissing(newValue)
-					newAliasesToAdd.AddAt(0, newNode)
+					newAliasesToAdd = append(newAliasesToAdd, newNode)
 					replacement = rhino.IR_Name(newName).SrcrefTree(newValue)
 				}
 				paramReplacements.Put(FunctionArgumentInjector_THIS_MARKER, replacement)
@@ -586,9 +585,10 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 				newValue := m.takeOrCloneCallArg(arg.Arg())
 				newName.Srcref(newValue) // source information should point to the argument.
 				newNode := rhino.IR_VarWithValue(newName, newValue).SrcrefTreeIfMissing(newValue)
-				newAliasesToAdd.AddAt(0, newNode)
+				newAliasesToAdd = append(newAliasesToAdd, newNode)
 			}
 		}
+		m.newAliasesToAddScratch = newAliasesToAdd[:0]
 
 		// Inline the arguments.
 		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, rhino.NilNode, paramReplacements)
@@ -596,8 +596,8 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 
 		// Now that the names have been replaced, add the new aliases for
 		// the old names.
-		for n := range newAliasesToAdd.All() {
-			fnTemplateRoot.AddChildToFront(n)
+		for i := len(newAliasesToAdd) - 1; i >= 0; i-- {
+			fnTemplateRoot.AddChildToFront(newAliasesToAdd[i])
 		}
 
 		return result

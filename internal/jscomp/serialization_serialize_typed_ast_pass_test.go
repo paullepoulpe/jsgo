@@ -553,7 +553,9 @@ func serializeTypedAstPassTest_loadFile(path string) string {
 	// Files.lines(path).collect(joining("\n"))
 	data, err := os.ReadFile(path)
 	if err != nil {
-		panic(jutil.NewAssertionErrorWithMessageAndCause(err.Error(), jutil.NewIOException(err.Error())))
+		e := jutil.NewAssertionError(err.Error())
+		e.InitCause(jutil.NewIOException(err.Error()))
+		panic(e)
 	}
 	text := strings.ReplaceAll(strings.ReplaceAll(string(data), "\r\n", "\n"), "\r", "\n")
 	return strings.TrimSuffix(text, "\n")
@@ -566,7 +568,9 @@ func (c *SerializeTypedAstPassTest) debugLogFiles() []string {
 		"SerializeTypesToPointers")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		panic(jutil.NewAssertionErrorWithMessageAndCause(err.Error(), jutil.NewIOException(err.Error())))
+		e := jutil.NewAssertionError(err.Error())
+		e.InitCause(jutil.NewIOException(err.Error()))
+		panic(e)
 	}
 	// Go-only: language-adapter — Files.list's order is unspecified; sorted.
 	var files []string

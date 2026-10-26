@@ -854,15 +854,6 @@ var checkMissingRequires_Strength_isStrong = [...]bool{true, true, false}
 
 var checkMissingRequires_Strength_isTypeOnly = [...]bool{false, true, true}
 
-// Java: CheckMissingRequires.Strength.values()
-func CheckMissingRequires_Strength_values() []CheckMissingRequires_Strength {
-	return []CheckMissingRequires_Strength{
-		CheckMissingRequires_Strength_CODE,
-		CheckMissingRequires_Strength_IMPLEMENTS_EXTENDS,
-		CheckMissingRequires_Strength_WEAK_TYPE,
-	}
-}
-
 // String is Enum.name().
 func (s CheckMissingRequires_Strength) String() string { return checkMissingRequires_Strength_names[s] }
 

@@ -19,7 +19,9 @@
 package jscomp
 
 import (
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -30,14 +32,16 @@ import (
 // desired check point.
 type ChangeVerifier struct {
 	changeTracker   *ChangeTracker
-	clonesByCurrent *jutil.BiMap[rhino.Node, rhino.Node]
+	clonesByCurrent map[rhino.Node]rhino.Node
+	currentByClone  map[rhino.Node]rhino.Node
 	snapshotChange  int32
 }
 
 // Java: ChangeVerifier(AbstractCompiler)
 func NewChangeVerifier(compiler AbstractCompiler) *ChangeVerifier {
 	return &ChangeVerifier{
-		clonesByCurrent: jutil.HashBiMap_Create[rhino.Node, rhino.Node](),
+		clonesByCurrent: make(map[rhino.Node]rhino.Node),
+		currentByClone:  make(map[rhino.Node]rhino.Node),
 		changeTracker:   compiler.GetChangeTracker(),
 	}
 }
@@ -45,7 +49,8 @@ func NewChangeVerifier(compiler AbstractCompiler) *ChangeVerifier {
 // Java: ChangeVerifier.snapshot(Node)
 func (v *ChangeVerifier) Snapshot(root rhino.Node) *ChangeVerifier {
 	// remove any existing snapshot data.
-	v.clonesByCurrent.Clear()
+	clear(v.clonesByCurrent)
+	clear(v.currentByClone)
 	v.snapshotChange = v.changeTracker.GetChangeStamp()
 
 	snapshot := root.CloneTree()
@@ -70,7 +75,8 @@ func (v *ChangeVerifier) CheckRecordedChangesWithPassName(passName string, root 
 func (v *ChangeVerifier) AssociateClones(n rhino.Node, snapshot rhino.Node) {
 	// TODO(johnlenz): determine if MODULE_BODY is useful here.
 	if n.IsRoot() || ChangeTracker_IsChangeScopeRoot(n) {
-		v.clonesByCurrent.Put(n, snapshot)
+		v.clonesByCurrent[n] = snapshot
+		v.currentByClone[snapshot] = n
 	}
 
 	child := n.GetFirstChild()
@@ -95,7 +101,7 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 	// Gather all the scope nodes that existed when the snapshot was taken.
 	snapshotScopeNodes := jutil.NewLinkedHashSet[rhino.Node]()
 	NodeUtil_VisitPreOrder(
-		v.clonesByCurrent.Get(root),
+		v.clonesByCurrent[root],
 		NodeUtil_VisitorFunc(func(oldNode rhino.Node) {
 			if ChangeTracker_IsChangeScopeRoot(oldNode) {
 				snapshotScopeNodes.Add(oldNode)
@@ -108,7 +114,7 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 			if n.IsRoot() {
 				v.VerifyRoot(n)
 			} else if ChangeTracker_IsChangeScopeRoot(n) {
-				clone := v.clonesByCurrent.Get(n)
+				clone := v.clonesByCurrent[n]
 				// Remove any scope nodes that still exist.
 				snapshotScopeNodes.Remove(clone)
 				v.VerifyNode(passNameMsg, n)
@@ -127,7 +133,7 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 // Java: ChangeVerifier.verifyDeletedScopeNodes(String, Set<Node>)
 func (v *ChangeVerifier) VerifyDeletedScopeNodes(passNameMsg string, deletedScopeNodes *jutil.LinkedHashSet[rhino.Node]) {
 	for snapshotScopeNode := range deletedScopeNodes.All() {
-		currentNode := v.clonesByCurrent.Inverse().Get(snapshotScopeNode)
+		currentNode := v.currentByClone[snapshotScopeNode]
 		// If the original was marked deleted, that's fine, ignore it.
 		if currentNode.IsDeleted() {
 			continue
@@ -219,24 +225,19 @@ func (v *ChangeVerifier) GetNameForNode(n rhino.Node) string {
 //
 // Java: ChangeVerifier.path(Node, Node)
 func (v *ChangeVerifier) Path(ancestor rhino.Node, child rhino.Node) string {
-	childToAncestor := jutil.NewArrayList[string]()
+	var childToAncestor []string
 	for current := child; current != ancestor; current = current.GetParent() {
-		childToAncestor.Add(current.String())
+		childToAncestor = append(childToAncestor, current.String())
 	}
-	childToAncestor.Add(ancestor.String())
-	// Collections.reverse(childToAncestor)
-	elems := childToAncestor.Slice()
-	for i, j := 0, len(elems)-1; i < j; i, j = i+1, j-1 {
-		elems[i], elems[j] = elems[j], elems[i]
-	}
-	result := jutil.NewStringBuilder()
-	for i := 0; i < childToAncestor.Size(); i++ {
-		// result.repeat(' ', i * 2); // indent
+	childToAncestor = append(childToAncestor, ancestor.String())
+	slices.Reverse(childToAncestor)
+	var result strings.Builder
+	for i, elem := range childToAncestor {
 		for k := 0; k < i*2; k++ {
-			result.AppendChar(' ')
+			result.WriteByte(' ')
 		}
-		result.Append(childToAncestor.Get(i))
-		result.Append("\n")
+		result.WriteString(elem)
+		result.WriteByte('\n')
 	}
 	return result.String()
 }

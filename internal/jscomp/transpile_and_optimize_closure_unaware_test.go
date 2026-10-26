@@ -596,7 +596,9 @@ func (c *TranspileAndOptimizeClosureUnawareTest) TestGenerator_cannotConvertCase
 func transpileAndOptimizeClosureUnawareTest_loadFile(path *jutil.Path) string {
 	data, err := os.ReadFile(path.String())
 	if err != nil {
-		panic(jutil.NewAssertionErrorWithMessageAndCause("Failed to load debug log at "+path.String(), jutil.AsThrowable(err)))
+		e := jutil.NewAssertionError("Failed to load debug log at " + path.String())
+		e.InitCause(jutil.AsThrowable(err))
+		panic(e)
 	}
 	// Files.lines(path).collect(joining("\n")): the lines without their terminators.
 	text := strings.ReplaceAll(string(data), "\r\n", "\n")

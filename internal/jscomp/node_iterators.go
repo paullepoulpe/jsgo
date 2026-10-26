@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -183,13 +185,9 @@ func (s *NodeIterators_FunctionlessLocalScope) CurrentParent() rhino.Node {
 // node first. Only exposed for testing purposes.
 //
 // Java: NodeIterators.FunctionlessLocalScope.currentAncestors()
-func (s *NodeIterators_FunctionlessLocalScope) CurrentAncestors() *jutil.ArrayList[rhino.Node] {
-	list := jutil.NewArrayListFrom(append([]rhino.Node(nil), s.ancestors...))
-	// Collections.reverse(list)
-	elems := list.Slice()
-	for i, j := 0, len(elems)-1; i < j; i, j = i+1, j-1 {
-		elems[i], elems[j] = elems[j], elems[i]
-	}
+func (s *NodeIterators_FunctionlessLocalScope) CurrentAncestors() []rhino.Node {
+	list := slices.Clone(s.ancestors)
+	slices.Reverse(list)
 	return list
 }
 

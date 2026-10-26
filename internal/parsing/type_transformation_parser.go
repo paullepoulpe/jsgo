@@ -64,17 +64,6 @@ var typeTransformationParser_OperationKind_names = [...]string{
 	"TYPE_CONSTRUCTOR", "OPERATION", "STRING_PREDICATE", "TYPE_PREDICATE", "TYPEVAR_PREDICATE",
 }
 
-// Java: TypeTransformationParser.OperationKind.values()
-func TypeTransformationParser_OperationKind_values() []TypeTransformationParser_OperationKind {
-	return []TypeTransformationParser_OperationKind{
-		TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR,
-		TypeTransformationParser_OperationKind_OPERATION,
-		TypeTransformationParser_OperationKind_STRING_PREDICATE,
-		TypeTransformationParser_OperationKind_TYPE_PREDICATE,
-		TypeTransformationParser_OperationKind_TYPEVAR_PREDICATE,
-	}
-}
-
 // String is Enum.name().
 func (k TypeTransformationParser_OperationKind) String() string {
 	return typeTransformationParser_OperationKind_names[k]

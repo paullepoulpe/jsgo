@@ -173,17 +173,6 @@ const (
 
 var controlFlowGraph_Branch_names = [...]string{"ON_TRUE", "ON_FALSE", "UNCOND", "ON_EX", "SYN_BLOCK"}
 
-// ControlFlowGraph_Branch_values is Branch.values().
-func ControlFlowGraph_Branch_values() []ControlFlowGraph_Branch {
-	return []ControlFlowGraph_Branch{
-		ControlFlowGraph_Branch_ON_TRUE,
-		ControlFlowGraph_Branch_ON_FALSE,
-		ControlFlowGraph_Branch_UNCOND,
-		ControlFlowGraph_Branch_ON_EX,
-		ControlFlowGraph_Branch_SYN_BLOCK,
-	}
-}
-
 // String is Enum.name().
 func (b ControlFlowGraph_Branch) String() string { return controlFlowGraph_Branch_names[b] }
 

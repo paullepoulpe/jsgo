@@ -76,17 +76,6 @@ var jsDocToken_names = [...]string{
 	"EQUALS",
 }
 
-// JsDocToken_values is JsDocToken.values().
-//
-// Java: JsDocToken.values()
-func JsDocToken_values() []JsDocToken {
-	values := make([]JsDocToken, len(jsDocToken_names))
-	for i := range values {
-		values[i] = JsDocToken(i)
-	}
-	return values
-}
-
 // Name is Enum.name().
 //
 // Java: JsDocToken.name()

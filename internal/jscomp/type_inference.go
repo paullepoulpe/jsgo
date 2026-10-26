@@ -1205,13 +1205,6 @@ const (
 
 var typeInference_AssignmentType_names = [...]string{"DECLARATION", "ASSIGN"}
 
-// TypeInference_AssignmentType_values is AssignmentType.values().
-func TypeInference_AssignmentType_values() []TypeInference_AssignmentType {
-	return []TypeInference_AssignmentType{
-		TypeInference_AssignmentType_DECLARATION, TypeInference_AssignmentType_ASSIGN,
-	}
-}
-
 // Name is Java's Enum.name().
 func (t TypeInference_AssignmentType) Name() string { return typeInference_AssignmentType_names[t] }
 
@@ -1699,16 +1692,6 @@ const (
 
 var typeInference_BigIntPresence_names = [...]string{
 	"NO_BIGINT", "ALL_BIGINT", "BIGINT_OR_NUMBER", "BIGINT_OR_OTHER",
-}
-
-// TypeInference_BigIntPresence_values is BigIntPresence.values().
-func TypeInference_BigIntPresence_values() []TypeInference_BigIntPresence {
-	return []TypeInference_BigIntPresence{
-		TypeInference_BigIntPresence_NO_BIGINT,
-		TypeInference_BigIntPresence_ALL_BIGINT,
-		TypeInference_BigIntPresence_BIGINT_OR_NUMBER,
-		TypeInference_BigIntPresence_BIGINT_OR_OTHER,
-	}
 }
 
 // Name is Java's Enum.name().

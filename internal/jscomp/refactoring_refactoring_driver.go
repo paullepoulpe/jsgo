@@ -51,18 +51,16 @@ func newRefactoringDriver(
 // fixes as a result. includeFilePattern may be nil.
 //
 // Java: RefactoringDriver.drive(Scanner, Pattern)
-func (d *RefactoringDriver) DriveWithIncludeFilePattern(scanner Scanner, includeFilePattern *jutil.Pattern) *jutil.ArrayList[*SuggestedFix] {
+func (d *RefactoringDriver) DriveWithIncludeFilePattern(scanner Scanner, includeFilePattern *jutil.Pattern) []*SuggestedFix {
 	callback := NewJsFlumeCallback(scanner, includeFilePattern)
 	NodeTraversal_Traverse(d.compiler, d.rootNode, callback)
-	fixes := callback.GetFixes()
-	fixes.AddAll(scanner.ProcessAllMatches(callback.GetMatches())...)
-	return fixes
+	return append(callback.GetFixes(), scanner.ProcessAllMatches(callback.GetMatches())...)
 }
 
 // Drive runs a refactoring and returns any suggested fixes as a result.
 //
 // Java: RefactoringDriver.drive(Scanner)
-func (d *RefactoringDriver) Drive(scanner Scanner) *jutil.ArrayList[*SuggestedFix] {
+func (d *RefactoringDriver) Drive(scanner Scanner) []*SuggestedFix {
 	return d.DriveWithIncludeFilePattern(scanner, nil)
 }
 

@@ -119,14 +119,6 @@ const (
 
 var staticSourceFile_SourceKind_names = [...]string{"STRONG", "WEAK", "EXTERN", "NON_CODE"}
 
-// StaticSourceFile_SourceKind_values is SourceKind.values().
-func StaticSourceFile_SourceKind_values() []StaticSourceFile_SourceKind {
-	return []StaticSourceFile_SourceKind{
-		StaticSourceFile_SourceKind_STRONG, StaticSourceFile_SourceKind_WEAK,
-		StaticSourceFile_SourceKind_EXTERN, StaticSourceFile_SourceKind_NON_CODE,
-	}
-}
-
 // String is Enum.name().
 func (k StaticSourceFile_SourceKind) String() string { return staticSourceFile_SourceKind_names[k] }
 

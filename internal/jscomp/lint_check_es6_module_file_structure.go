@@ -58,16 +58,6 @@ var checkEs6ModuleFileStructure_OrderedStatement_description = [...]string{
 	"other statements",
 }
 
-// CheckEs6ModuleFileStructure_OrderedStatement_values is OrderedStatement.values().
-func CheckEs6ModuleFileStructure_OrderedStatement_values() []CheckEs6ModuleFileStructure_OrderedStatement {
-	return []CheckEs6ModuleFileStructure_OrderedStatement{
-		CheckEs6ModuleFileStructure_OrderedStatement_IMPORT,
-		CheckEs6ModuleFileStructure_OrderedStatement_DECLARE_MODULE_ID,
-		CheckEs6ModuleFileStructure_OrderedStatement_GOOG_REQUIRE,
-		CheckEs6ModuleFileStructure_OrderedStatement_OTHER,
-	}
-}
-
 // Name is Enum.name().
 func (s CheckEs6ModuleFileStructure_OrderedStatement) Name() string {
 	return checkEs6ModuleFileStructure_OrderedStatement_names[s]

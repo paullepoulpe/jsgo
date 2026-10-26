@@ -108,15 +108,6 @@ var warningsGuard_Priority_names = [...]string{
 
 var warningsGuard_Priority_values = [...]int{1, 100, 100, 50, 40, 20, 1}
 
-// Java: WarningsGuard.Priority.values()
-func WarningsGuard_Priority_values() []WarningsGuard_Priority {
-	return []WarningsGuard_Priority{
-		WarningsGuard_Priority_MAX, WarningsGuard_Priority_MIN, WarningsGuard_Priority_STRICT,
-		WarningsGuard_Priority_DEFAULT, WarningsGuard_Priority_SUPPRESS_BY_ALLOWLIST,
-		WarningsGuard_Priority_SUPPRESS_DOC, WarningsGuard_Priority_FILTER_BY_PATH,
-	}
-}
-
 // String is Enum.name().
 func (p WarningsGuard_Priority) String() string { return warningsGuard_Priority_names[p] }
 

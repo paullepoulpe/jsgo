@@ -3,15 +3,12 @@ package jutil
 import "os"
 
 // Go-only: language-adapter — Guava com.google.common.io.CharSource, as
-// returned by Files.asCharSource(File, Charset) and CharSource.wrap(CharSequence)
-// (char_source_wrap.go).
+// returned by Files.asCharSource(File, Charset).
 
-// CharSource is Guava's CharSource over a file, or over a string.
+// CharSource is Guava's CharSource over a file.
 type CharSource struct {
 	file    *File
 	charset *Charset
-	// wrapped is the string of a CharSource.wrap source (file is then nil).
-	wrapped *string
 }
 
 // Files_AsCharSource is Guava Files.asCharSource(File, Charset).
@@ -23,9 +20,6 @@ func Files_AsCharSource(file *File, charset *Charset) *CharSource {
 // FileInputStream for the file. It panics with FileNotFoundException when
 // the file cannot be opened.
 func (c *CharSource) OpenStream() JavaReader {
-	if c.wrapped != nil {
-		return NewStringReader(*c.wrapped)
-	}
 	f, err := os.Open(c.file.GetPath())
 	if err == nil {
 		var st os.FileInfo

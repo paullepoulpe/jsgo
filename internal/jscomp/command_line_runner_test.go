@@ -1513,8 +1513,8 @@ func (c *CommandLineRunnerTest) TestGlobJs4() {
 func (c *CommandLineRunnerTest) TestGlobJs5() {
 	jsFile1 := c.createJsFile("test1", "var a;")
 	jsFile2 := c.createJsFile("test2", "var b;")
-	temp1 := jutil.Files_CreateTempDir()
-	temp2 := jutil.Files_CreateTempDir()
+	temp1 := jutil.NewFile(c.t.TempDir())
+	temp2 := jutil.NewFile(c.t.TempDir())
 	jscompTempDir := jutil.NewFile(jsFile1.GetValue()).GetParentFile()
 	newTemp1 := jutil.NewFile(jscompTempDir.String() + jutil.File_separator + "temp1")
 	newTemp2 := jutil.NewFile(jscompTempDir.String() + jutil.File_separator + "temp2")
@@ -1578,7 +1578,7 @@ func (c *CommandLineRunnerTest) testGlobJs7() {
 
 func (c *CommandLineRunnerTest) TestSymlink() {
 	jsFile1 := c.createJsFile("test1", "var a;")
-	symlink1 := jutil.Files_CreateTempDir().ToPath().ResolveString("symlink1")
+	symlink1 := jutil.NewFile(c.t.TempDir()).ToPath().ResolveString("symlink1")
 	jscompTempDir := jutil.Path_Of(jsFile1.GetValue()).GetParent()
 	if err := os.Symlink(jscompTempDir.String(), symlink1.String()); err != nil { // Java: Files.createSymbolicLink
 		panic(jutil.NewIOException(err.Error()))
@@ -2741,8 +2741,8 @@ func (c *CommandLineRunnerTest) TestOptionalCatch() {
 }
 
 func (c *CommandLineRunnerTest) TestChunkOutputFiles() {
-	inDir := jutil.Files_CreateTempDir()
-	outDir := jutil.Files_CreateTempDir()
+	inDir := jutil.NewFile(c.t.TempDir())
+	outDir := jutil.NewFile(c.t.TempDir())
 	inputFile1 := jutil.NewFileWithParent(inDir, "input1.js")
 	inputSource1 := `var x=1;
 `

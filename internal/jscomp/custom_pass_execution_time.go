@@ -33,16 +33,6 @@ var customPassExecutionTime_names = [...]string{
 	"BEFORE_CHECKS", "BEFORE_OPTIMIZATIONS", "BEFORE_OPTIMIZATION_LOOP", "AFTER_OPTIMIZATION_LOOP",
 }
 
-// CustomPassExecutionTime_values is CustomPassExecutionTime.values().
-func CustomPassExecutionTime_values() []CustomPassExecutionTime {
-	return []CustomPassExecutionTime{
-		CustomPassExecutionTime_BEFORE_CHECKS,
-		CustomPassExecutionTime_BEFORE_OPTIMIZATIONS,
-		CustomPassExecutionTime_BEFORE_OPTIMIZATION_LOOP,
-		CustomPassExecutionTime_AFTER_OPTIMIZATION_LOOP,
-	}
-}
-
 // Name is Enum.name().
 func (t CustomPassExecutionTime) Name() string { return customPassExecutionTime_names[t] }
 

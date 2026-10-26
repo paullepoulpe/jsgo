@@ -63,11 +63,6 @@ const (
 
 var checkProvidesSorted_Mode_names = [...]string{"COLLECT_ONLY", "COLLECT_AND_REPORT"}
 
-// CheckProvidesSorted_Mode_values is Mode.values().
-func CheckProvidesSorted_Mode_values() []CheckProvidesSorted_Mode {
-	return []CheckProvidesSorted_Mode{CheckProvidesSorted_Mode_COLLECT_ONLY, CheckProvidesSorted_Mode_COLLECT_AND_REPORT}
-}
-
 // Name is Enum.name().
 func (m CheckProvidesSorted_Mode) Name() string { return checkProvidesSorted_Mode_names[m] }
 

@@ -96,24 +96,24 @@ func (r *DefaultDependencyResolver) GetDependenciesWithSeen(
 // Java: DefaultDependencyResolver.getDependencies(Collection<String>, Set<String>)
 func (r *DefaultDependencyResolver) GetDependenciesOfSymbolsWithSeen(
 	symbols []string, seen *jutil.LinkedHashSet[string]) []string {
-	list := jutil.NewArrayList[string]()
+	var list []string
 	for _, depsFile := range r.depsFiles {
 		depsFile.EnsureUpToDate()
 	}
 
 	for _, symbol := range symbols {
-		r.AddDependency(symbol, seen, list)
+		r.addDependency(symbol, seen, &list)
 	}
-	return list.ToSlice()
+	return list
 }
 
-// AddDependency adds all the transitive dependencies for a symbol to the
+// addDependency adds all the transitive dependencies for a symbol to the
 // provided list. The set is used to avoid adding dupes while keeping the
 // correct order. NOTE: Use of a LinkedHashSet would require reversing the
 // results to get correct dependency ordering.
 //
 // Java: DefaultDependencyResolver.addDependency(String, Set<String>, List<String>)
-func (r *DefaultDependencyResolver) AddDependency(symbol string, seen *jutil.LinkedHashSet[string], list *jutil.ArrayList[string]) {
+func (r *DefaultDependencyResolver) addDependency(symbol string, seen *jutil.LinkedHashSet[string], list *[]string) {
 	dependency := r.GetDependencyInfo(symbol)
 	if dependency == nil {
 		if r.strictRequires {
@@ -122,9 +122,9 @@ func (r *DefaultDependencyResolver) AddDependency(symbol string, seen *jutil.Lin
 	} else if !defaultDependencyResolver_containsAll(seen, dependency.GetProvides()) {
 		seen.AddAll(dependency.GetProvides()...)
 		for _, require := range dependency.GetRequiredSymbols() {
-			r.AddDependency(require, seen, list)
+			r.addDependency(require, seen, list)
 		}
-		list.Add(dependency.GetPathRelativeToClosureBase())
+		*list = append(*list, dependency.GetPathRelativeToClosureBase())
 	}
 }
 

@@ -166,17 +166,17 @@ func (m *ErrorToFixMapper) GetFixForRedeclaration(error *JSError) *SuggestedFix 
 	// var a = 0;  // This is the "added" var statement.
 	// b = 1;
 	// var c = 2;  // This is the original var statement.
-	childrenOfAddedVarStatement := jutil.NewArrayList[rhino.Node]()
+	var childrenOfAddedVarStatement []rhino.Node
 	for n := parent.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if n == name {
 			break
 		}
-		childrenOfAddedVarStatement.Add(n)
+		childrenOfAddedVarStatement = append(childrenOfAddedVarStatement, n)
 	}
 
-	if !childrenOfAddedVarStatement.IsEmpty() {
+	if len(childrenOfAddedVarStatement) > 0 {
 		var_ := rhino.NewNode(parent.GetToken())
-		for n := range childrenOfAddedVarStatement.All() {
+		for _, n := range childrenOfAddedVarStatement {
 			var_.AddChildToBack(n.CloneTree())
 		}
 		// Use a sortKey of "1" to make sure this is applied before the
@@ -187,7 +187,7 @@ func (m *ErrorToFixMapper) GetFixForRedeclaration(error *JSError) *SuggestedFix 
 	if !name.GetNext().IsNil() {
 		// Keep the original var statement, just remove the names that will
 		// be put in the added one.
-		for n := range childrenOfAddedVarStatement.All() {
+		for _, n := range childrenOfAddedVarStatement {
 			fix.Delete(n)
 		}
 		fix.Delete(name)

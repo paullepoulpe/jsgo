@@ -39,11 +39,6 @@ const (
 
 var sourceMapSection_SectionType_names = [...]string{"URL", "MAP"}
 
-// SourceMapSection_SectionType_values is SectionType.values().
-func SourceMapSection_SectionType_values() []SourceMapSection_SectionType {
-	return []SourceMapSection_SectionType{SourceMapSection_SectionType_URL, SourceMapSection_SectionType_MAP}
-}
-
 // String is Enum.name().
 func (t SourceMapSection_SectionType) String() string {
 	return sourceMapSection_SectionType_names[t]

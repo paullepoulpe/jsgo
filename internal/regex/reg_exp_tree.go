@@ -130,21 +130,6 @@ var regExpTree_ParentheticalType_names = [...]string{
 	"NAMED_GROUPS",
 }
 
-// RegExpTree_ParentheticalType_values returns the constants in ordinal order.
-//
-// Java: ParentheticalType.values()
-func RegExpTree_ParentheticalType_values() []RegExpTree_ParentheticalType {
-	return []RegExpTree_ParentheticalType{
-		RegExpTree_ParentheticalType_CAPTURING,
-		RegExpTree_ParentheticalType_NONCAPTURING,
-		RegExpTree_ParentheticalType_POSITIVE_LOOKAHEAD,
-		RegExpTree_ParentheticalType_NEGATIVE_LOOKAHEAD,
-		RegExpTree_ParentheticalType_POSITIVE_LOOKBEHIND,
-		RegExpTree_ParentheticalType_NEGATIVE_LOOKBEHIND,
-		RegExpTree_ParentheticalType_NAMED_GROUPS,
-	}
-}
-
 // String is the constant's name.
 //
 // Java: ParentheticalType.name()

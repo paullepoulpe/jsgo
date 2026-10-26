@@ -122,15 +122,6 @@ const (
 
 var globalNamespace_SourceKind_names = [...]string{"EXTERN", "TYPE_SUMMARY", "CODE"}
 
-// Java: GlobalNamespace.SourceKind.values()
-func GlobalNamespace_SourceKind_values() []GlobalNamespace_SourceKind {
-	return []GlobalNamespace_SourceKind{
-		GlobalNamespace_SourceKind_EXTERN,
-		GlobalNamespace_SourceKind_TYPE_SUMMARY,
-		GlobalNamespace_SourceKind_CODE,
-	}
-}
-
 // Java: GlobalNamespace.SourceKind.name()
 func (k GlobalNamespace_SourceKind) String() string { return globalNamespace_SourceKind_names[k] }
 
@@ -1896,16 +1887,6 @@ var (
 	globalNamespace_Inlinability_canCollapse             = [...]bool{true, true, true, false}
 )
 
-// Java: GlobalNamespace.Inlinability.values()
-func GlobalNamespace_Inlinability_values() []GlobalNamespace_Inlinability {
-	return []GlobalNamespace_Inlinability{
-		GlobalNamespace_Inlinability_INLINE_COMPLETELY,
-		GlobalNamespace_Inlinability_INLINE_BUT_KEEP_DECLARATION,
-		GlobalNamespace_Inlinability_INLINE_UNLESS_INVALID_CROSS_CHUNK_DEPENDENCY,
-		GlobalNamespace_Inlinability_DO_NOT_INLINE,
-	}
-}
-
 // Java: GlobalNamespace.Inlinability.name()
 func (i GlobalNamespace_Inlinability) String() string { return globalNamespace_Inlinability_names[i] }
 
@@ -3506,15 +3487,6 @@ var globalNamespace_Ref_Type_names = [...]string{
 	"SUBCLASSING_GET",
 }
 
-// Java: GlobalNamespace.Ref.Type.values()
-func GlobalNamespace_Ref_Type_values() []GlobalNamespace_Ref_Type {
-	out := make([]GlobalNamespace_Ref_Type, len(globalNamespace_Ref_Type_names))
-	for i := range out {
-		out[i] = GlobalNamespace_Ref_Type(i)
-	}
-	return out
-}
-
 // Java: GlobalNamespace.Ref.Type.name()
 func (t GlobalNamespace_Ref_Type) String() string { return globalNamespace_Ref_Type_names[t] }
 
@@ -3716,15 +3688,6 @@ var GlobalNamespace_NameProp_NAME_KIND_MASK = GlobalNamespace_NameProp_CLASS.Bit
 	GlobalNamespace_NameProp_FUNCTION.Bit() |
 	GlobalNamespace_NameProp_GET_SET.Bit() |
 	GlobalNamespace_NameProp_OTHER_OBJECT.Bit()
-
-// Java: GlobalNamespace.NameProp.values()
-func GlobalNamespace_NameProp_values() []GlobalNamespace_NameProp {
-	out := make([]GlobalNamespace_NameProp, len(globalNamespace_NameProp_names))
-	for i := range out {
-		out[i] = GlobalNamespace_NameProp(i)
-	}
-	return out
-}
 
 // Java: GlobalNamespace.NameProp.name()
 func (p GlobalNamespace_NameProp) String() string { return globalNamespace_NameProp_names[p] }

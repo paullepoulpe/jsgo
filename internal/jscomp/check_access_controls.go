@@ -160,13 +160,6 @@ const (
 
 var checkAccessControls_Constancy_names = [...]string{"FINAL", "OTHER_CONSTANT", "MUTABLE"}
 
-// CheckAccessControls_Constancy_values is Constancy.values().
-func CheckAccessControls_Constancy_values() []CheckAccessControls_Constancy {
-	return []CheckAccessControls_Constancy{
-		CheckAccessControls_Constancy_FINAL, CheckAccessControls_Constancy_OTHER_CONSTANT, CheckAccessControls_Constancy_MUTABLE,
-	}
-}
-
 // String is Enum.name().
 func (c CheckAccessControls_Constancy) String() string { return checkAccessControls_Constancy_names[c] }
 
@@ -1465,17 +1458,6 @@ const (
 
 var checkAccessControls_IdentifierBehaviour_names = [...]string{
 	"NON_CONSTRUCTOR", "ES5_CLASS_INVOCATION", "ES5_CLASS_NAMESPACE", "ES6_CLASS_INVOCATION", "ES6_CLASS_NAMESPACE",
-}
-
-// CheckAccessControls_IdentifierBehaviour_values is IdentifierBehaviour.values().
-func CheckAccessControls_IdentifierBehaviour_values() []CheckAccessControls_IdentifierBehaviour {
-	return []CheckAccessControls_IdentifierBehaviour{
-		CheckAccessControls_IdentifierBehaviour_NON_CONSTRUCTOR,
-		CheckAccessControls_IdentifierBehaviour_ES5_CLASS_INVOCATION,
-		CheckAccessControls_IdentifierBehaviour_ES5_CLASS_NAMESPACE,
-		CheckAccessControls_IdentifierBehaviour_ES6_CLASS_INVOCATION,
-		CheckAccessControls_IdentifierBehaviour_ES6_CLASS_NAMESPACE,
-	}
 }
 
 // String is Enum.name().

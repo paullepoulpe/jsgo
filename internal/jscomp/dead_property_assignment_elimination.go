@@ -144,11 +144,10 @@ func (v *DeadPropertyAssignmentElimination_FunctionVisitor) EnterChangedScopeRoo
 	// Any candidate property assignment can have a write removed if that write is never read
 	// and it's written to at least one more time.
 	for property := range traversal.propertyMap.Values() {
-		if property.writes.Size() <= 1 {
+		if len(property.writes) <= 1 {
 			continue
 		}
-		// Iterators.peekingIterator(property.writes.iterator())
-		writes := property.writes.Slice()
+		writes := property.writes
 		for i := 0; i < len(writes); i++ {
 			propertyWrite := writes[i]
 			if i+1 < len(writes) && propertyWrite.IsSafeToRemove(writes[i+1]) {
@@ -214,10 +213,7 @@ type DeadPropertyAssignmentElimination_Property struct {
 	// Consecutive writes to the same qname may mean that the first write can
 	// be removed (see isSafeToRemove).
 	//
-	// Go-only: language-adapter — the ArrayDeque is only appended to
-	// (addLast) and read from the back (getLast) or front to back, so it is
-	// an ArrayList.
-	writes jutil.ArrayList[*DeadPropertyAssignmentElimination_PropertyWrite]
+	writes []*DeadPropertyAssignmentElimination_PropertyWrite
 
 	children jutil.LinkedHashSet[*DeadPropertyAssignmentElimination_Property]
 }
@@ -231,8 +227,8 @@ func NewDeadPropertyAssignmentElimination_Property(name string) *DeadPropertyAss
 
 // Java: DeadPropertyAssignmentElimination.Property.markLastWriteRead()
 func (p *DeadPropertyAssignmentElimination_Property) MarkLastWriteRead() {
-	if !p.writes.IsEmpty() {
-		p.writes.GetLast().MarkRead()
+	if len(p.writes) > 0 {
+		p.writes[len(p.writes)-1].MarkRead()
 	}
 }
 
@@ -281,7 +277,7 @@ func (p *DeadPropertyAssignmentElimination_Property) MarkChildrenRead() {
 // Java: DeadPropertyAssignmentElimination.Property.addWrite(Node)
 func (p *DeadPropertyAssignmentElimination_Property) AddWrite(lhs rhino.Node) {
 	jutil.CheckArgument(lhs.IsQualifiedName())
-	p.writes.Add(NewDeadPropertyAssignmentElimination_PropertyWrite(lhs))
+	p.writes = append(p.writes, NewDeadPropertyAssignmentElimination_PropertyWrite(lhs))
 }
 
 // Java: DeadPropertyAssignmentElimination.Property.toString()
@@ -571,7 +567,7 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Vis
 // Java: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal.markAllPropsRead()
 func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) MarkAllPropsRead() {
 	for property := range f.propertyMap.Values() {
-		if property.writes.IsEmpty() {
+		if len(property.writes) == 0 {
 			continue
 		}
 

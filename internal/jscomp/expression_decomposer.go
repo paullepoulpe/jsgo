@@ -72,15 +72,6 @@ var expressionDecomposer_DecompositionType_names = [...]string{
 	"UNDECOMPOSABLE", "MOVABLE", "DECOMPOSABLE",
 }
 
-// Java: ExpressionDecomposer.DecompositionType.values()
-func ExpressionDecomposer_DecompositionType_values() []ExpressionDecomposer_DecompositionType {
-	return []ExpressionDecomposer_DecompositionType{
-		ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE,
-		ExpressionDecomposer_DecompositionType_MOVABLE,
-		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
-	}
-}
-
 // Java: ExpressionDecomposer.DecompositionType.name()
 func (t ExpressionDecomposer_DecompositionType) String() string {
 	return expressionDecomposer_DecompositionType_names[t]
@@ -1138,14 +1129,6 @@ const (
 )
 
 var expressionDecomposer_EvaluationDirection_names = [...]string{"FORWARD", "REVERSE"}
-
-// Java: ExpressionDecomposer.EvaluationDirection.values()
-func ExpressionDecomposer_EvaluationDirection_values() []ExpressionDecomposer_EvaluationDirection {
-	return []ExpressionDecomposer_EvaluationDirection{
-		ExpressionDecomposer_EvaluationDirection_FORWARD,
-		ExpressionDecomposer_EvaluationDirection_REVERSE,
-	}
-}
 
 // Java: ExpressionDecomposer.EvaluationDirection.name()
 func (d ExpressionDecomposer_EvaluationDirection) String() string {

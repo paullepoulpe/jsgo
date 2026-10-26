@@ -74,14 +74,6 @@ var phaseOptimizer_State_names = [...]string{
 	"RUN_PASSES_NOT_RUN_IN_PREV_ITER", "RUN_PASSES_THAT_CHANGED_STH_IN_PREV_ITER",
 }
 
-// Java: PhaseOptimizer.State.values()
-func PhaseOptimizer_State_values() []PhaseOptimizer_State {
-	return []PhaseOptimizer_State{
-		PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER,
-		PhaseOptimizer_State_RUN_PASSES_THAT_CHANGED_STH_IN_PREV_ITER,
-	}
-}
-
 // String is Enum.name().
 func (s PhaseOptimizer_State) String() string { return phaseOptimizer_State_names[s] }
 

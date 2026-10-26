@@ -384,15 +384,6 @@ var msg_texts = [...]string{
 // Java: Msg.text
 func (m Msg) Text() string { return msg_texts[m] }
 
-// Msg_values is Msg.values().
-func Msg_values() []Msg {
-	out := make([]Msg, len(msg_names))
-	for i := range out {
-		out[i] = Msg(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (m Msg) String() string { return msg_names[m] }
 

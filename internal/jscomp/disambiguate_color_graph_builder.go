@@ -65,14 +65,6 @@ const (
 
 var colorGraphBuilder_EdgeReason_names = [...]string{"ALGEBRAIC", "CAN_HOLD"}
 
-// Java: ColorGraphBuilder.EdgeReason.values()
-func ColorGraphBuilder_EdgeReason_values() []ColorGraphBuilder_EdgeReason {
-	return []ColorGraphBuilder_EdgeReason{
-		ColorGraphBuilder_EdgeReason_ALGEBRAIC,
-		ColorGraphBuilder_EdgeReason_CAN_HOLD,
-	}
-}
-
 // Java: ColorGraphBuilder.EdgeReason.name()
 func (r ColorGraphBuilder_EdgeReason) Name() string { return colorGraphBuilder_EdgeReason_names[r] }
 

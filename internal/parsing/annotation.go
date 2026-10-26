@@ -193,17 +193,6 @@ var annotation_names = [...]string{
 	"WIZCALLBACK",
 }
 
-// Annotation_values is Annotation.values().
-//
-// Java: Annotation.values()
-func Annotation_values() []Annotation {
-	values := make([]Annotation, len(annotation_names))
-	for i := range values {
-		values[i] = Annotation(i)
-	}
-	return values
-}
-
 // Name is Enum.name().
 //
 // Java: Annotation.name()

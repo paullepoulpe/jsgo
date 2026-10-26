@@ -1689,14 +1689,6 @@ const (
 
 var jsTypeRegistry_PropDefinitionKind_names = [...]string{"UNKNOWN", "KNOWN", "LOOSE", "LOOSE_UNION"}
 
-// JSTypeRegistry_PropDefinitionKind_values is PropDefinitionKind.values().
-func JSTypeRegistry_PropDefinitionKind_values() []JSTypeRegistry_PropDefinitionKind {
-	return []JSTypeRegistry_PropDefinitionKind{
-		JSTypeRegistry_PropDefinitionKind_UNKNOWN, JSTypeRegistry_PropDefinitionKind_KNOWN,
-		JSTypeRegistry_PropDefinitionKind_LOOSE, JSTypeRegistry_PropDefinitionKind_LOOSE_UNION,
-	}
-}
-
 // String is Enum.name().
 func (k JSTypeRegistry_PropDefinitionKind) String() string {
 	return jsTypeRegistry_PropDefinitionKind_names[k]

@@ -58,11 +58,6 @@ const (
 
 var suggestedFix_ImportType_names = [...]string{"REQUIRE", "REQUIRE_TYPE"}
 
-// SuggestedFix_ImportType_values is ImportType.values().
-func SuggestedFix_ImportType_values() []SuggestedFix_ImportType {
-	return []SuggestedFix_ImportType{SuggestedFix_ImportType_REQUIRE, SuggestedFix_ImportType_REQUIRE_TYPE}
-}
-
 // Name is Enum.name().
 func (t SuggestedFix_ImportType) Name() string { return suggestedFix_ImportType_names[t] }
 

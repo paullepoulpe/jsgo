@@ -502,14 +502,6 @@ const (
 
 var jsdocInfo_Visibility_names = [...]string{"PRIVATE", "PACKAGE", "PROTECTED", "PUBLIC", "INHERITED"}
 
-// JSDocInfo_Visibility_values is Visibility.values().
-func JSDocInfo_Visibility_values() []JSDocInfo_Visibility {
-	return []JSDocInfo_Visibility{
-		JSDocInfo_Visibility_PRIVATE, JSDocInfo_Visibility_PACKAGE, JSDocInfo_Visibility_PROTECTED,
-		JSDocInfo_Visibility_PUBLIC, JSDocInfo_Visibility_INHERITED,
-	}
-}
-
 // String is Enum.name().
 func (v JSDocInfo_Visibility) String() string { return jsdocInfo_Visibility_names[v] }
 

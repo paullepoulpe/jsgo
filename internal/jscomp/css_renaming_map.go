@@ -41,11 +41,6 @@ const (
 
 var cssRenamingMap_Style_names = [...]string{"BY_WHOLE", "BY_PART"}
 
-// CssRenamingMap_Style_values is Style.values().
-func CssRenamingMap_Style_values() []CssRenamingMap_Style {
-	return []CssRenamingMap_Style{CssRenamingMap_Style_BY_WHOLE, CssRenamingMap_Style_BY_PART}
-}
-
 // Name is Enum.name().
 func (s CssRenamingMap_Style) Name() string { return cssRenamingMap_Style_names[s] }
 

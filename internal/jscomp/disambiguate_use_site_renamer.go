@@ -119,15 +119,6 @@ const (
 
 var useSiteRenamer_RenameUsesResult_names = [...]string{"INVALIDATED", "ONLY_ONE_CLUSTER", "DISAMBIGUATED"}
 
-// UseSiteRenamer_RenameUsesResult_values is RenameUsesResult.values().
-func UseSiteRenamer_RenameUsesResult_values() []UseSiteRenamer_RenameUsesResult {
-	return []UseSiteRenamer_RenameUsesResult{
-		UseSiteRenamer_RenameUsesResult_INVALIDATED,
-		UseSiteRenamer_RenameUsesResult_ONLY_ONE_CLUSTER,
-		UseSiteRenamer_RenameUsesResult_DISAMBIGUATED,
-	}
-}
-
 // Name is Enum.name().
 func (r UseSiteRenamer_RenameUsesResult) Name() string {
 	return useSiteRenamer_RenameUsesResult_names[r]

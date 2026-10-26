@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -42,13 +45,13 @@ type AliasStrings struct {
 
 	stringInfoMap *jutil.TreeMap[string, *AliasStrings_StringInfo]
 
-	usedHashedAliases *jutil.LinkedHashSet[string]
+	usedHashedAliases map[string]struct{}
 
 	aliasStringsMode CompilerOptions_AliasStringsMode
 
 	// Map from chunk to the node in that chunk that should parent any string
 	// variable declarations that have to be moved into that chunk
-	chunkVarParentMap *jutil.LinkedHashMap[*JSChunk, rhino.Node]
+	chunkVarParentMap map[*JSChunk]rhino.Node
 
 	// package private. This value is AND-ed with the hash function to allow
 	// unit tests to reduce the range of hash values to test collision cases
@@ -79,8 +82,8 @@ func NewAliasStrings(
 	aliasStringsMode CompilerOptions_AliasStringsMode) *AliasStrings {
 	a := &AliasStrings{
 		stringInfoMap:             jutil.NewTreeMap[string, *AliasStrings_StringInfo](jutil.StringCompareTo),
-		usedHashedAliases:         jutil.NewLinkedHashSet[string](),
-		chunkVarParentMap:         jutil.NewLinkedHashMap[*JSChunk, rhino.Node](),
+		usedHashedAliases:         make(map[string]struct{}),
+		chunkVarParentMap:         make(map[*JSChunk]rhino.Node),
 		unitTestHashReductionMask: ^0,
 	}
 	a.compiler = compiler
@@ -145,11 +148,11 @@ func (a *AliasStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) 
 		occurrence := n
 		info := a.GetOrCreateStringInfo(str)
 
-		info.occurrences.Add(occurrence)
+		info.occurrences = append(info.occurrences, occurrence)
 
 		// The current chunk.
 		chunk := t.GetChunk()
-		if info.occurrences.Size() != 1 {
+		if len(info.occurrences) != 1 {
 			// Check whether the current chunk depends on the chunk containing
 			// the declaration.
 			if chunk != nil && info.chunkToContainDecl != nil && chunk != info.chunkToContainDecl {
@@ -161,7 +164,11 @@ func (a *AliasStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) 
 				return
 			}
 		}
-		varParent := a.chunkVarParentMap.ComputeIfAbsent(chunk, a.compiler.GetNodeForCodeInsertion)
+		varParent, ok := a.chunkVarParentMap[chunk]
+		if !ok {
+			varParent = a.compiler.GetNodeForCodeInsertion(chunk)
+			a.chunkVarParentMap[chunk] = varParent
+		}
 		info.chunkToContainDecl = chunk
 		info.parentForNewVarDecl = varParent
 		info.siblingToInsertVarDeclBefore = varParent.GetFirstChild()
@@ -188,7 +195,7 @@ func (a *AliasStrings) GetOrCreateStringInfo(string_ string) *AliasStrings_Strin
 func (a *AliasStrings) ReplaceStringsWithAliases() {
 	for literal, info := range a.stringInfoMap.All() {
 		if a.ShouldReplaceWithAlias(literal, info) {
-			for _, node := range info.occurrences.Slice() {
+			for _, node := range info.occurrences {
 				a.ReplaceStringWithAliasName(node, info.GetVariableName(literal), info)
 			}
 		}
@@ -207,7 +214,7 @@ func (a *AliasStrings) AddAliasDeclarationNodes() {
 		}
 		alias := info.GetVariableName(key)
 		var_ := rhino.IR_VarWithValue(rhino.IR_Name(alias), rhino.IR_String(key))
-		firstUse := info.occurrences.Get(0)
+		firstUse := info.occurrences[0]
 		var_.SrcrefTree(firstUse)
 		if info.siblingToInsertVarDeclBefore.IsNil() {
 			info.parentForNewVarDecl.AddChildToFront(var_)
@@ -243,7 +250,7 @@ func (a *AliasStrings) ShouldReplaceWithAlias(str string, info *AliasStrings_Str
 	// strings more than 32k apart.
 
 	sizeOfLiteral := 2 + jutil.StringLength(str)
-	count := info.occurrences.Size()
+	count := len(info.occurrences)
 	sizeOfStrings := count * sizeOfLiteral
 	sizeOfVariable := 3
 	//  '6' comes from: 'var =;' in var XXX="...";
@@ -271,15 +278,15 @@ func (a *AliasStrings) ReplaceStringWithAliasName(n rhino.Node, name string, inf
 //
 // Java: AliasStrings.outputStringUsage()
 func (a *AliasStrings) OutputStringUsage() {
-	sb := jutil.NewStringBuilder()
-	sb.Append("Strings used more than once:\n")
+	var sb strings.Builder
+	sb.WriteString("Strings used more than once:\n")
 	for key, info := range a.stringInfoMap.All() {
-		count := info.occurrences.Size()
+		count := len(info.occurrences)
 		if count > 1 {
-			sb.AppendInt(int64(count))
-			sb.Append(": ")
-			sb.Append(key)
-			sb.AppendChar('\n')
+			sb.WriteString(strconv.Itoa(count))
+			sb.WriteString(": ")
+			sb.WriteString(key)
+			sb.WriteByte('\n')
 		}
 	}
 	// TODO(user): Make this save to file OR output to the application
@@ -297,7 +304,7 @@ type AliasStrings_StringInfo struct {
 
 	isAliased bool // set to 'true' when reference to alias created
 
-	occurrences *jutil.ArrayList[rhino.Node]
+	occurrences []rhino.Node
 
 	chunkToContainDecl           *JSChunk
 	parentForNewVarDecl          rhino.Node
@@ -308,10 +315,7 @@ type AliasStrings_StringInfo struct {
 
 // Java: AliasStrings.StringInfo(int)
 func NewAliasStrings_StringInfo(outer *AliasStrings, id int) *AliasStrings_StringInfo {
-	s := &AliasStrings_StringInfo{outer: outer, occurrences: jutil.NewArrayList[rhino.Node]()}
-	s.id = id
-	s.isAliased = false
-	return s
+	return &AliasStrings_StringInfo{outer: outer, id: id}
 }
 
 // GetVariableName returns the JS variable name to be substituted for this
@@ -351,8 +355,8 @@ func (s *AliasStrings_StringInfo) EncodeStringAsIdentifier(prefix string, str st
 	length := jutil.StringLength(str)
 	limit := min(length, maxLimit)
 
-	sb := jutil.NewStringBuilder()
-	sb.Append(prefix)
+	var sb strings.Builder
+	sb.WriteString(prefix)
 	protectHex := false
 
 	for i := 0; i < limit; i++ {
@@ -361,16 +365,16 @@ func (s *AliasStrings_StringInfo) EncodeStringAsIdentifier(prefix string, str st
 		if protectHex {
 			if (ch >= '0' && ch <= '9') ||
 				(ch >= 'a' && ch <= 'f') { // toHexString generate lowercase
-				sb.AppendChar('_')
+				sb.WriteByte('_')
 			}
 			protectHex = false
 		}
 
 		if (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') {
-			sb.AppendChar(ch)
+			sb.WriteByte(byte(ch))
 		} else {
-			sb.AppendChar('$')
-			sb.Append(jutil.IntegerToHexString(int32(ch)))
+			sb.WriteByte('$')
+			sb.WriteString(jutil.IntegerToHexString(int32(ch)))
 			protectHex = true
 		}
 	}
@@ -382,14 +386,16 @@ func (s *AliasStrings_StringInfo) EncodeStringAsIdentifier(prefix string, str st
 	// The identifier is not unique because we omitted part, so add a
 	// checksum as a hashcode.
 	hash := jutil.StringHashCode(str) & s.outer.unitTestHashReductionMask
-	sb.AppendChar('_')
-	sb.Append(jutil.IntegerToHexString(hash))
+	sb.WriteByte('_')
+	sb.WriteString(jutil.IntegerToHexString(hash))
 	encoded := sb.String()
-	if !s.outer.usedHashedAliases.Add(encoded) {
+	if _, exists := s.outer.usedHashedAliases[encoded]; exists {
 		// A collision has been detected (which is very rare). Use the sequence
 		// id to break the tie. This means that the name is no longer invariant
 		// across source code changes and recompilations.
-		encoded += "_" + jutil.ToJavaString(s.id)
+		encoded += "_" + strconv.Itoa(s.id)
+	} else {
+		s.outer.usedHashedAliases[encoded] = struct{}{}
 	}
 	return encoded
 }

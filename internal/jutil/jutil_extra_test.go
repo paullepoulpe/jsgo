@@ -324,10 +324,3 @@ func TestSplitterOnCharOmitEmptyStrings(t *testing.T) {
 	}
 }
 
-func TestSetMultimapContainsEntry(t *testing.T) {
-	mm := NewSetMultimap[string, string]()
-	mm.Put("a", "x")
-	if !mm.ContainsEntry("a", "x") || mm.ContainsEntry("a", "y") || mm.ContainsEntry("b", "x") {
-		t.Fatal("ContainsEntry")
-	}
-}

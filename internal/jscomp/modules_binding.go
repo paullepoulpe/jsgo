@@ -200,14 +200,6 @@ const (
 
 var binding_CreatedBy_names = [...]string{"EXPORT", "IMPORT", "GOOG_REQUIRE", "GOOG_REQUIRE_TYPE", "GOOG_FORWARD_DECLARE"}
 
-// Java: Binding.CreatedBy.values()
-func Binding_CreatedBy_values() []Binding_CreatedBy {
-	return []Binding_CreatedBy{
-		Binding_CreatedBy_EXPORT, Binding_CreatedBy_IMPORT, Binding_CreatedBy_GOOG_REQUIRE,
-		Binding_CreatedBy_GOOG_REQUIRE_TYPE, Binding_CreatedBy_GOOG_FORWARD_DECLARE,
-	}
-}
-
 // String is Enum.name().
 func (c Binding_CreatedBy) String() string { return binding_CreatedBy_names[c] }
 

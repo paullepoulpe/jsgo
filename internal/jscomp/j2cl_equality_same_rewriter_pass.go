@@ -210,16 +210,6 @@ var j2clEqualitySameRewriterPass_NodeValue_names = [...]string{
 	"UNKNOWN", "NULL_OR_UNDEFINED", "NUMBER", "NON_NULL",
 }
 
-// J2clEqualitySameRewriterPass_NodeValue_values is NodeValue.values().
-func J2clEqualitySameRewriterPass_NodeValue_values() []J2clEqualitySameRewriterPass_NodeValue {
-	return []J2clEqualitySameRewriterPass_NodeValue{
-		J2clEqualitySameRewriterPass_NodeValue_UNKNOWN,
-		J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED,
-		J2clEqualitySameRewriterPass_NodeValue_NUMBER,
-		J2clEqualitySameRewriterPass_NodeValue_NON_NULL,
-	}
-}
-
 // String is NodeValue.name().
 func (v J2clEqualitySameRewriterPass_NodeValue) String() string {
 	return j2clEqualitySameRewriterPass_NodeValue_names[v]

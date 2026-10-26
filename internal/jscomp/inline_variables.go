@@ -100,15 +100,6 @@ func inlineVariables_isDeclaredOrInferredConst(v *Var) bool {
 	return n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)
 }
 
-// Java: InlineVariables.Mode.values()
-func InlineVariables_Mode_values() []InlineVariables_Mode {
-	return []InlineVariables_Mode{
-		InlineVariables_Mode_CONSTANTS_ONLY,
-		InlineVariables_Mode_LOCALS_ONLY,
-		InlineVariables_Mode_ALL,
-	}
-}
-
 // Java: InlineVariables.Mode.name()
 func (m InlineVariables_Mode) String() string { return inlineVariables_Mode_names[m] }
 

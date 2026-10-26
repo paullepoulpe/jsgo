@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -59,37 +61,34 @@ type JsFileFullParser_FileInfo struct {
 
 	// Note: multiple copies doesn't make much sense, but we report
 	// each copy so that calling code can choose how to handle it
-	provides      *jutil.TreeMultiset[string]
-	requires      *jutil.TreeMultiset[string]
-	typeRequires  *jutil.TreeMultiset[string]
-	maybeRequires *jutil.TreeMultiset[string]
-	requiresCss   *jutil.TreeMultiset[string]
-	visibility    *jutil.TreeMultiset[string]
+	provides      []string
+	requires      []string
+	typeRequires  []string
+	maybeRequires []string
+	requiresCss   []string
+	visibility    []string
+}
+
+func (info *JsFileFullParser_FileInfo) sortMultisets() {
+	slices.SortFunc(info.provides, jutil.StringCompareTo)
+	slices.SortFunc(info.requires, jutil.StringCompareTo)
+	slices.SortFunc(info.typeRequires, jutil.StringCompareTo)
+	slices.SortFunc(info.maybeRequires, jutil.StringCompareTo)
+	slices.SortFunc(info.requiresCss, jutil.StringCompareTo)
+	slices.SortFunc(info.visibility, jutil.StringCompareTo)
 }
 
 // Java: JsFileFullParser.FileInfo()
 func NewJsFileFullParser_FileInfo() *JsFileFullParser_FileInfo {
 	return &JsFileFullParser_FileInfo{
-		goog:              false,
-		isConfig:          false,
-		isExterns:         false,
-		provideGoog:       false,
-		testonly:          false,
-		moduleType:        JsFileFullParser_FileInfo_ModuleType_UNKNOWN,
-		isLegacyNamespace: false,
-		delcalls:          jutil.NewTreeSet[string](jutil.StringCompareTo),
-		deltemplates:      jutil.NewTreeSet[string](jutil.StringCompareTo),
-		importedModules:   jutil.NewLinkedHashSet[string](),
-		dynamicRequires:   jutil.NewLinkedHashSet[string](),
-		readToggles:       jutil.NewLinkedHashSet[string](),
-		modName:           []string{},
-		mods:              []string{},
-		provides:          jutil.TreeMultiset_Create[string](jutil.StringCompareTo),
-		requires:          jutil.TreeMultiset_Create[string](jutil.StringCompareTo),
-		typeRequires:      jutil.TreeMultiset_Create[string](jutil.StringCompareTo),
-		maybeRequires:     jutil.TreeMultiset_Create[string](jutil.StringCompareTo),
-		requiresCss:       jutil.TreeMultiset_Create[string](jutil.StringCompareTo),
-		visibility:        jutil.TreeMultiset_Create[string](jutil.StringCompareTo),
+		moduleType:      JsFileFullParser_FileInfo_ModuleType_UNKNOWN,
+		delcalls:        jutil.NewTreeSet[string](jutil.StringCompareTo),
+		deltemplates:    jutil.NewTreeSet[string](jutil.StringCompareTo),
+		importedModules: jutil.NewLinkedHashSet[string](),
+		dynamicRequires: jutil.NewLinkedHashSet[string](),
+		readToggles:     jutil.NewLinkedHashSet[string](),
+		modName:         []string{},
+		mods:            []string{},
 	}
 }
 
@@ -213,6 +212,7 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 	gatherModuleMetadata.Process(rhino.NewNode(rhino.Token_ROOT), parsed.Ast)
 	compiler.GenerateReport()
 	if compiler.GetModuleMetadataMap().GetModulesByPath().Size() != 1 {
+		info.sortMultisets()
 		return info // Avoid potential crashes due to assumptions of the code below being violated.
 	}
 	var module *ModuleMetadataMap_ModuleMetadata
@@ -236,6 +236,7 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 	}
 	info.goog = module.UsesClosure()
 	jsFileFullParser_recordModuleMetadata(info, module)
+	info.sortMultisets()
 	return info
 }
 
@@ -287,12 +288,12 @@ func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, modu
 	// files. These bundles should look like they do not require or provide
 	// anything at all.
 	if module.UsesClosure() {
-		info.provides.AddAll(module.GoogNamespaces().All())
-		info.requires.AddAll(module.StronglyRequiredGoogNamespaces().All())
-		info.maybeRequires.AddAll(module.MaybeRequiredGoogNamespaces().All())
+		info.provides = slices.AppendSeq(info.provides, module.GoogNamespaces().All())
+		info.requires = slices.AppendSeq(info.requires, module.StronglyRequiredGoogNamespaces().All())
+		info.maybeRequires = slices.AppendSeq(info.maybeRequires, module.MaybeRequiredGoogNamespaces().All())
 		info.dynamicRequires.AddAll(module.DynamicallyRequiredGoogNamespaces().ElementSet().ToSlice()...)
 		info.readToggles.AddAll(module.ReadToggles().ElementSet().ToSlice()...)
-		info.typeRequires.AddAll(module.WeaklyRequiredGoogNamespaces().All())
+		info.typeRequires = slices.AppendSeq(info.typeRequires, module.WeaklyRequiredGoogNamespaces().All())
 		info.testonly = module.IsTestOnly()
 	}
 	// Traverse any nested modules (goog.loadModule calls).
@@ -347,7 +348,7 @@ func jsFileFullParser_parseComment(comment *parser.Comment, info *JsFileFullPars
 			}
 		case "@visibility":
 			if annotation.value != "" {
-				info.visibility.Add(annotation.value)
+				info.visibility = append(info.visibility, annotation.value)
 			}
 		case "@modName":
 			if annotation.value != "" {
@@ -359,7 +360,7 @@ func jsFileFullParser_parseComment(comment *parser.Comment, info *JsFileFullPars
 			info.provideGoog = true
 		case "@requirecss":
 			if annotation.value != "" {
-				info.requiresCss.Add(annotation.value)
+				info.requiresCss = append(info.requiresCss, annotation.value)
 			}
 		case "@deltemplate", "@hassoydeltemplate":
 			// TODO(b/210468818): Remove legacy @hassoydeltemplate annotation

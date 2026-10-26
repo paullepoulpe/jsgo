@@ -540,15 +540,6 @@ var peepholeSubstituteAlternateSyntax_FoldArrayAction_names = [...]string{
 	"SAFE_TO_FOLD_WITHOUT_ARGS",
 }
 
-// Java: PeepholeSubstituteAlternateSyntax.FoldArrayAction.values()
-func peepholeSubstituteAlternateSyntax_FoldArrayAction_values() []peepholeSubstituteAlternateSyntax_FoldArrayAction {
-	return []peepholeSubstituteAlternateSyntax_FoldArrayAction{
-		peepholeSubstituteAlternateSyntax_FoldArrayAction_NOT_SAFE_TO_FOLD,
-		peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITH_ARGS,
-		peepholeSubstituteAlternateSyntax_FoldArrayAction_SAFE_TO_FOLD_WITHOUT_ARGS,
-	}
-}
-
 // Java: PeepholeSubstituteAlternateSyntax.FoldArrayAction.name()
 func (a peepholeSubstituteAlternateSyntax_FoldArrayAction) String() string {
 	return peepholeSubstituteAlternateSyntax_FoldArrayAction_names[a]

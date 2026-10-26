@@ -73,11 +73,6 @@ const (
 
 var checkRequiresSorted_Mode_names = [...]string{"COLLECT_ONLY", "COLLECT_AND_REPORT"}
 
-// CheckRequiresSorted_Mode_values is Mode.values().
-func CheckRequiresSorted_Mode_values() []CheckRequiresSorted_Mode {
-	return []CheckRequiresSorted_Mode{CheckRequiresSorted_Mode_COLLECT_ONLY, CheckRequiresSorted_Mode_COLLECT_AND_REPORT}
-}
-
 // Name is Enum.name().
 func (m CheckRequiresSorted_Mode) Name() string { return checkRequiresSorted_Mode_names[m] }
 

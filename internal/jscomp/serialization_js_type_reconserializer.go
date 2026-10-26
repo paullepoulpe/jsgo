@@ -113,15 +113,6 @@ const (
 
 var jsTypeReconserializer_State_names = [...]string{"COLLECTING_TYPES", "GENERATING_POOL", "FINISHED"}
 
-// JSTypeReconserializer_State_values is State.values().
-func JSTypeReconserializer_State_values() []JSTypeReconserializer_State {
-	return []JSTypeReconserializer_State{
-		JSTypeReconserializer_State_COLLECTING_TYPES,
-		JSTypeReconserializer_State_GENERATING_POOL,
-		JSTypeReconserializer_State_FINISHED,
-	}
-}
-
 // Name is Enum.name().
 func (s JSTypeReconserializer_State) Name() string { return jsTypeReconserializer_State_names[s] }
 

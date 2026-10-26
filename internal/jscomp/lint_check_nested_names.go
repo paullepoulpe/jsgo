@@ -80,16 +80,6 @@ const (
 
 var checkNestedNames_DeclarationKind_names = [...]string{"CLASS", "ENUM", "TYPEDEF", "INTERFACE"}
 
-// CheckNestedNames_DeclarationKind_values is DeclarationKind.values().
-func CheckNestedNames_DeclarationKind_values() []CheckNestedNames_DeclarationKind {
-	return []CheckNestedNames_DeclarationKind{
-		CheckNestedNames_DeclarationKind_CLASS,
-		CheckNestedNames_DeclarationKind_ENUM,
-		CheckNestedNames_DeclarationKind_TYPEDEF,
-		CheckNestedNames_DeclarationKind_INTERFACE,
-	}
-}
-
 // Name is Enum.name().
 func (k CheckNestedNames_DeclarationKind) Name() string {
 	return checkNestedNames_DeclarationKind_names[k]

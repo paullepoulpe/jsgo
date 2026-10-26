@@ -1353,11 +1353,6 @@ const (
 
 var codePrinter_Format_names = [...]string{"COMPACT", "PRETTY", "TYPED"}
 
-// CodePrinter_Format_values is Format.values().
-func CodePrinter_Format_values() []CodePrinter_Format {
-	return []CodePrinter_Format{CodePrinter_Format_COMPACT, CodePrinter_Format_PRETTY, CodePrinter_Format_TYPED}
-}
-
 // String is Format.name().
 func (f CodePrinter_Format) String() string { return codePrinter_Format_names[f] }
 

@@ -1638,20 +1638,6 @@ var nodeUtil_ValueType_names = [...]string{
 	"UNDETERMINED", "NULL", "VOID", "NUMBER", "BIGINT", "STRING", "BOOLEAN", "OBJECT",
 }
 
-// Java: NodeUtil.ValueType.values()
-func NodeUtil_ValueType_values() []NodeUtil_ValueType {
-	return []NodeUtil_ValueType{
-		NodeUtil_ValueType_UNDETERMINED,
-		NodeUtil_ValueType_NULL,
-		NodeUtil_ValueType_VOID,
-		NodeUtil_ValueType_NUMBER,
-		NodeUtil_ValueType_BIGINT,
-		NodeUtil_ValueType_STRING,
-		NodeUtil_ValueType_BOOLEAN,
-		NodeUtil_ValueType_OBJECT,
-	}
-}
-
 // Java: NodeUtil.ValueType.name()
 func (t NodeUtil_ValueType) Name() string { return nodeUtil_ValueType_names[t] }
 

@@ -628,15 +628,6 @@ const (
 
 var es6RewriteClass_ClassProperty_PropertyKind_names = [...]string{"QUOTED_PROPERTY", "COMPUTED_PROPERTY", "NORMAL_PROPERTY"}
 
-// Es6RewriteClass_ClassProperty_PropertyKind_values is PropertyKind.values().
-func Es6RewriteClass_ClassProperty_PropertyKind_values() []Es6RewriteClass_ClassProperty_PropertyKind {
-	return []Es6RewriteClass_ClassProperty_PropertyKind{
-		Es6RewriteClass_ClassProperty_PropertyKind_QUOTED_PROPERTY,
-		Es6RewriteClass_ClassProperty_PropertyKind_COMPUTED_PROPERTY,
-		Es6RewriteClass_ClassProperty_PropertyKind_NORMAL_PROPERTY,
-	}
-}
-
 // String is Enum.name().
 func (k Es6RewriteClass_ClassProperty_PropertyKind) String() string {
 	return es6RewriteClass_ClassProperty_PropertyKind_names[k]

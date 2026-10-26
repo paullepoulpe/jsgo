@@ -118,15 +118,6 @@ var dependencyInfo_Require_Type_names = [...]string{
 	"GOOG_REQUIRE_SYMBOL", "ES6_IMPORT", "PARSED_FROM_DEPS", "COMMON_JS", "COMPILER_CHUNK",
 }
 
-// DependencyInfo_Require_Type_values is Type.values().
-func DependencyInfo_Require_Type_values() []DependencyInfo_Require_Type {
-	return []DependencyInfo_Require_Type{
-		DependencyInfo_Require_Type_GOOG_REQUIRE_SYMBOL, DependencyInfo_Require_Type_ES6_IMPORT,
-		DependencyInfo_Require_Type_PARSED_FROM_DEPS, DependencyInfo_Require_Type_COMMON_JS,
-		DependencyInfo_Require_Type_COMPILER_CHUNK,
-	}
-}
-
 // String is Enum.name().
 func (t DependencyInfo_Require_Type) String() string { return dependencyInfo_Require_Type_names[t] }
 

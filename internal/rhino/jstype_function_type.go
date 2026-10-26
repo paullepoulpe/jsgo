@@ -190,13 +190,6 @@ const (
 
 var functionType_Kind_names = [...]string{"ORDINARY", "CONSTRUCTOR", "INTERFACE", "NONE"}
 
-// FunctionType_Kind_values is Kind.values().
-func FunctionType_Kind_values() []FunctionType_Kind {
-	return []FunctionType_Kind{
-		FunctionType_Kind_ORDINARY, FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE, FunctionType_Kind_NONE,
-	}
-}
-
 // String is Enum.name().
 func (k FunctionType_Kind) String() string { return functionType_Kind_names[k] }
 

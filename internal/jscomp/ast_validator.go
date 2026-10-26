@@ -71,15 +71,6 @@ const (
 
 var astValidator_TypeInfoValidation_names = [...]string{"JSTYPE", "COLOR", "NONE"}
 
-// AstValidator_TypeInfoValidation_values is TypeInfoValidation.values().
-func AstValidator_TypeInfoValidation_values() []AstValidator_TypeInfoValidation {
-	return []AstValidator_TypeInfoValidation{
-		AstValidator_TypeInfoValidation_JSTYPE,
-		AstValidator_TypeInfoValidation_COLOR,
-		AstValidator_TypeInfoValidation_NONE,
-	}
-}
-
 // Name is Enum.name().
 func (v AstValidator_TypeInfoValidation) Name() string {
 	return astValidator_TypeInfoValidation_names[v]
