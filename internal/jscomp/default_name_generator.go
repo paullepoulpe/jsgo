@@ -148,6 +148,7 @@ func newDefaultNameGeneratorCloned(
 		// characters are used.
 		priorityLookupMap: make(map[uint16]*defaultNameGenerator_CharPriority, len(priorityLookupMap)),
 	}
+	// order-independent: clones each entry into a map
 	for key, value := range priorityLookupMap {
 		g.priorityLookupMap[key] = value.Clone()
 	}

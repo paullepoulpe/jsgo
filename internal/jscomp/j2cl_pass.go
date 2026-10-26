@@ -90,6 +90,7 @@ var (
 	j2clPass_defaultFnNamesToInline = func() map[string]bool {
 		s := make(map[string]bool, 12)
 		for _, b := range j2clPass_defaultInlinings {
+			// order-independent: builds a set
 			for name := range b.fnNamesToInline {
 				s[name] = true
 			}

@@ -1660,6 +1660,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 		if f.injector.fnInfoCache == nil {
 			f.injector.fnInfoCache = make(map[rhino.Node]functionInjectorFnInfo, len(cache)*2)
 		}
+		// order-independent: merges per-function facts, which every worker computes identically from fnNode
 		for fnNode, info := range cache {
 			if existing, ok := f.injector.fnInfoCache[fnNode]; ok {
 				if existing.inner.IsNil() && !info.inner.IsNil() {

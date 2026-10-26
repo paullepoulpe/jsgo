@@ -6,11 +6,13 @@ all: build vet test
 build:
 	go build ./...
 
-# Vet everything under internal/ (the whole port) and check the licence
-# notices (tools/licenses; see PORTING.md, top).
+# Vet everything under internal/ (the whole port), check the licence
+# notices (tools/licenses; see PORTING.md, top) and that every Go map
+# iteration says why its order cannot matter (tools/maprangecheck).
 vet:
 	go vet ./internal/...
 	go run ./tools/licenses -check
+	go run ./tools/maprangecheck
 
 test:
 	go test ./...

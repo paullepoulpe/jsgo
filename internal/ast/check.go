@@ -69,11 +69,13 @@ func initSpecs() {
 				a[t] = k
 			}
 		}
+		// order-independent: builds a lookup table keyed by name
 		for name, k := range byName {
 			a := &allowedKinds{}
 			allow(a, k)
 			types[name] = a
 		}
+		// order-independent: builds a lookup table keyed by category
 		for c, kinds := range grammarCategories {
 			a := &allowedKinds{}
 			for _, kn := range kinds {

@@ -842,6 +842,7 @@ func OptimizeParameters_MayReferenceParamBeforeBody(function rhino.Node) bool {
 			}
 		}))
 
+	// order-independent: only answers whether any name has an lvalue among several refs
 	for _, names := range namesByNames {
 		if len(names) == 1 {
 			continue // There can't be back-refs if there's only one ref.

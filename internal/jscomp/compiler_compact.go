@@ -267,6 +267,7 @@ func (g *GlobalNamespace) forwardNodes(fwd func(rhino.Node) rhino.Node) {
 	g.globalRoot = fwd(g.globalRoot)
 	if g.spreadSiblingCache != nil {
 		m := make(map[rhino.Node]bool, len(g.spreadSiblingCache))
+		// order-independent: rebuilds the map with forwarded keys
 		for n, v := range g.spreadSiblingCache {
 			m[fwd(n)] = v
 		}
@@ -274,6 +275,7 @@ func (g *GlobalNamespace) forwardNodes(fwd func(rhino.Node) rhino.Node) {
 	}
 	if g.defineCandidateScripts != nil {
 		m := make(map[rhino.Node]struct{}, len(g.defineCandidateScripts))
+		// order-independent: rebuilds the set with forwarded keys
 		for n := range g.defineCandidateScripts {
 			m[fwd(n)] = struct{}{}
 		}
@@ -327,6 +329,7 @@ func (g *GlobalNamespace) forwardNodes(fwd func(rhino.Node) rhino.Node) {
 			name(n)
 		}
 	}
+	// order-independent: forwards node ids in place; fwd is a pure mapping and visits are deduplicated
 	for _, n := range g.nameMapByModule {
 		name(n)
 	}
@@ -341,6 +344,7 @@ func (g *GlobalNamespace) forwardNodes(fwd func(rhino.Node) rhino.Node) {
 // map is rebuilt, as it hashes by value).
 func (tl *Timeline[T]) ForwardValues(f func(T) T) {
 	index := make(map[T]uint32, len(tl.eventsByValue))
+	// order-independent: rebuilds the index with forwarded values
 	for value, id := range tl.eventsByValue {
 		nv := f(value)
 		tl.event(id).value = nv

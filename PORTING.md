@@ -301,7 +301,11 @@ behaviour. Use the `internal/jutil` helpers.
   String concatenation of arbitrary values → `jutil.ToJavaString`.
 - **Collections and iteration order.** Go map iteration is random; Java's is
   not. Never `range` over a Go map where the order can reach output,
-  diagnostics or any decision. Mapping:
+  diagnostics or any decision. Every map iteration in internal/ (a `range`
+  over a map, `maps.Keys/Values/All`) carries a
+  `// order-independent: <reason>` comment on its line or the line above;
+  `tools/maprangecheck` (run by `make vet` and its own `go test`) reports
+  the others. Mapping:
   - `ArrayList`/`List` that is mutated after being shared →
     `*jutil.ArrayList[T]`; `ImmutableList`, `List.of`, and lists never
     mutated after construction → `[]T`.
