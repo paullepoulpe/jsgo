@@ -90,14 +90,40 @@ Measured on the head after the cuts above:
 
 ## Next candidates
 
-- **Convert each statement as soon as it is parsed, at any depth.** The
-  bundle peak is `typescript.js`'s whole parse tree (~45 MB): the file is
-  one IIFE, so converting top-level statements one by one does not help,
-  but converting every statement of a function body once it is parsed would
-  keep only one statement's parse tree alive (bundle peak ~-40 MB). The
-  IRFactory attaches JSDoc with a forward-moving comment iterator and
-  reports some warnings while converting, so children converted before
-  their parent change both orders; it needs a position-keyed comment lookup
-  and a check that warnings come out in the same order.
+- **The bundle peak has two parts of the same height** (live heap over
+  time at bb358716, GOGC=10, pass ends logged on the GC clock):
+
+  | when | live heap | what is in it |
+  |---|---|---|
+  | end of parsing | 103-106 MB | the other files' ASTs and externs (33 MB), `typescript.js`'s whole parse tree (~45 MB) and its source text (8.5 MB) |
+  | right after parsing | 62 MB | all ASTs (48 MB; `typescript.js`'s is ~15 MB, a third of its parse tree) |
+  | `inlineVariables` | 96-98 MB | the ASTs (45 MB) and the ReferenceCollector's data (~35 MB: ~340K 32-byte `Reference`s, their per-variable lists, basic blocks) |
+  | `checkVariableReferences` | 80 MB | the same collector |
+  | every other pass | under 77 MB | |
+
+  So one cut alone moves the peak little: converting while parsing removes
+  the first part, and the peak becomes `inlineVariables`' 96-98 MB (about
+  -7 %). Both together would bring bundle to about 80 MB (-23 %). Neither
+  changes the typed workloads, whose peak is type inference.
+- **Smaller references** (the cheaper half). A `Reference` is a name node,
+  a basic block, a scope and an input id (32 bytes); the input id can be
+  read from the name node's script and the basic block can be an index, so
+  16 bytes would do, and the per-variable lists and basic blocks can shrink
+  the same way. Estimated -10 to -15 MB at `inlineVariables` and
+  `checkVariableReferences`.
+- **Convert each statement as soon as it is parsed, at any depth** (the
+  larger half). `typescript.js` is one IIFE, so converting top-level
+  statements one by one does not help; converting each statement of any
+  block once it is parsed keeps one statement's parse tree alive instead of
+  the file's (parse-time peak ~103 -> ~73 MB). The IRFactory already drops
+  each statement's parse tree once converted, but conversion starts after
+  the whole file is parsed. It needs the converter to run while the parser
+  works: the converter goes top-down (a function's JSDoc is matched before
+  its body's comments, with a forward-moving comment iterator), but the
+  parser finishes a function's parse tree after its body, so either the
+  parser reports "function started / statement done / function done" to a
+  converter running alongside, or the comment matching becomes
+  position-keyed and children are converted before their parents (which
+  also changes the order of conversion warnings and of node ids).
 - Parse trees: the comma positions of argument lists (24 bytes per list)
   could be computed from the source when comments need them.
