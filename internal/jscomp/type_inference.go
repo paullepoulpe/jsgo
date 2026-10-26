@@ -72,7 +72,6 @@ type TypeInference struct {
 	branchConditionOutcomes  *TypeInference_BooleanOutcomePair
 
 	templatedMatched  jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
-	templatedSeen     jutil.LinkedHashSet[rhino.JSType]
 	templatedInferred jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
 
 	lastScopeRoot           rhino.Node
@@ -864,7 +863,7 @@ func (ti *TypeInference) Traverse(n rhino.Node, scope FlowScope) FlowScope {
 			"Type inference doesn't know to handle token " + n.GetToken().String()))
 	}
 
-	if isTypeable && n.GetJSType() == nil && !TypeInference_TOKENS_ALLOWING_NULL_TYPES.Contains(n.GetToken()) {
+	if isTypeable && n.GetJSType() == nil && !typeInference_allowsNullType(n.GetToken()) {
 		panic(jutil.NewIllegalStateExceptionMsg("Failed to infer JSType for " + n.String()))
 	}
 	return scope
@@ -873,7 +872,9 @@ func (ti *TypeInference) Traverse(n rhino.Node, scope FlowScope) FlowScope {
 // TODO(b/154044898): delete these exceptions. Names are given null types to enable inference of
 // undeclared names assigned in multiple local scopes. The compiler also infers call and new
 // types when the invocation target is such a name.
-var TypeInference_TOKENS_ALLOWING_NULL_TYPES = jutil.NewEnumSet(rhino.Token_NAME, rhino.Token_CALL, rhino.Token_NEW)
+func typeInference_allowsNullType(t rhino.Token) bool {
+	return t == rhino.Token_NAME || t == rhino.Token_CALL || t == rhino.Token_NEW
+}
 
 // Java: TypeInference.initializeEnhancedForScope(Node, FlowScope)
 func (ti *TypeInference) InitializeEnhancedForScope(source rhino.Node, output FlowScope) FlowScope {
@@ -2504,162 +2505,15 @@ func (ti *TypeInference) matchInvocationTemplateTypes(
 	if calleeType.GetTemplateTypeMap().IsEmpty() {
 		return &ti.templatedMatched
 	}
-
-	target := invocation.GetFirstChild()
-	if NodeUtil_IsNormalGet(target) {
-		obj := target.GetFirstChild()
-		typeOfThisRequiredByTheFunction := calleeType.GetTypeOfThis()
-		var typeOfThisProvidedByTheCall rhino.JSType
-		if obj.IsSuper() {
-			typeOfThisProvidedByTheCall = localThisType
-		} else {
-			typeOfThisProvidedByTheCall = ti.GetJSType(obj)
-		}
-		typeOfThisProvidedByTheCall = typeOfThisProvidedByTheCall.RestrictByNotNullOrUndefined()
-		ti.matchTemplateTypesRecursive(
-			typeOfThisRequiredByTheFunction, typeOfThisProvidedByTheCall)
+	matcher := InvocationTemplateTypeMatcher{
+		matchedTypes:  &ti.templatedMatched,
+		registry:      ti.registry,
+		calleeType:    calleeType,
+		localThisType: localThisType,
+		invocation:    invocation,
+		unknownType:   ti.unknownType,
 	}
-
-	if invocation.IsTaggedTemplateLit() {
-		calleeParameters := calleeType.GetParameters()
-		if len(calleeParameters) == 0 {
-			return &ti.templatedMatched
-		}
-		ti.matchTemplateTypesRecursive(
-			calleeParameters[0].GetJSType(), ti.registry.GetNativeType(rhino.JSTypeNative_I_TEMPLATE_ARRAY_TYPE))
-		declParams := calleeParameters[1:]
-		i := 0
-		var variadicParam *rhino.FunctionType_Parameter
-		for callParam := range NewNodeUtil_TemplateArgsIterable(invocation.GetLastChild()).All() {
-			if variadicParam != nil {
-				ti.matchTemplateTypesRecursive(
-					variadicParam.GetJSType(), ti.GetJSType(callParam))
-				continue
-			}
-			if i >= len(declParams) {
-				break
-			}
-			declParam := declParams[i]
-			i++
-			ti.matchTemplateTypesRecursive(
-				declParam.GetJSType(), ti.GetJSType(callParam))
-			if declParam.IsVariadic() {
-				variadicParam = declParam
-			}
-		}
-	} else if invocation.HasMoreThanOneChild() {
-		declParams := calleeType.GetParameters()
-		i := 0
-		var variadicParam *rhino.FunctionType_Parameter
-		for callParam := invocation.GetSecondChild(); !callParam.IsNil(); callParam = callParam.GetNext() {
-			if variadicParam != nil {
-				ti.matchTemplateTypesRecursive(
-					variadicParam.GetJSType(), ti.GetJSType(callParam))
-				continue
-			}
-			if i >= len(declParams) {
-				break
-			}
-			declParam := declParams[i]
-			i++
-			ti.matchTemplateTypesRecursive(
-				declParam.GetJSType(), ti.GetJSType(callParam))
-			if declParam.IsVariadic() {
-				variadicParam = declParam
-			}
-		}
-	}
-
-	return &ti.templatedMatched
-}
-
-func (ti *TypeInference) matchTemplateTypesRecursive(paramType rhino.JSType, argType rhino.JSType) {
-	if paramType.IsTemplateType() {
-		template := paramType.ToMaybeTemplateType()
-		if !argType.IsUnknownType() {
-			if prev, ok := ti.templatedMatched.Lookup(template); ok && prev != nil {
-				ti.templatedMatched.Put(template, prev.GetLeastSupertype(argType))
-			} else {
-				ti.templatedMatched.Put(template, argType)
-			}
-		}
-		return
-	}
-
-	if paramType.IsUnionType() {
-		unionType := paramType.ToMaybeUnionType()
-		for _, alternate := range unionType.GetAlternates() {
-			ti.matchTemplateTypesRecursive(alternate, argType)
-		}
-		return
-	} else if argType.IsUnionType() {
-		unionType := argType.ToMaybeUnionType()
-		for _, alternate := range unionType.GetAlternates() {
-			ti.matchTemplateTypesRecursive(paramType, alternate)
-		}
-		return
-	}
-
-	if paramType.IsFunctionType() {
-		paramFunctionType := paramType.ToMaybeFunctionType()
-		argFunctionType :=
-			argType.RestrictByNotNullOrUndefined().CollapseUnion().ToMaybeFunctionType()
-		if argFunctionType != nil && argFunctionType.IsSubtype(paramType) {
-			ti.matchTemplateTypesRecursive(
-				paramFunctionType.GetTypeOfThis(), argFunctionType.GetTypeOfThis())
-			ti.matchTemplateTypesRecursive(
-				paramFunctionType.GetReturnType(), argFunctionType.GetReturnType())
-			declParams := paramFunctionType.GetParameters()
-			callParams := argFunctionType.GetParameters()
-			i, j := 0, 0
-			for i < len(declParams) && j < len(callParams) {
-				declParam := declParams[i]
-				i++
-				ti.matchTemplateTypesRecursive(declParam.GetJSType(), callParams[j].GetJSType())
-				j++
-				if declParam.IsVariadic() {
-					for j < len(callParams) {
-						ti.matchTemplateTypesRecursive(declParam.GetJSType(), callParams[j].GetJSType())
-						j++
-					}
-				}
-			}
-		}
-	} else if paramType.IsRecordType() && !paramType.IsNominalType() {
-		if ti.templatedSeen.Add(paramType) {
-			paramRecordType := paramType.ToObjectType()
-			argObjectType := argType.RestrictByNotNullOrUndefined().ToObjectType()
-			if argObjectType != nil &&
-				!argObjectType.IsUnknownType() &&
-				!argObjectType.IsEmptyType() {
-				names := paramRecordType.GetPropertyNames()
-				for _, name := range names {
-					if paramRecordType.HasOwnProperty(name) && argObjectType.HasProperty(name) {
-						ti.matchTemplateTypesRecursive(
-							paramRecordType.GetPropertyType(name), argObjectType.GetPropertyType(name))
-					}
-				}
-			}
-			ti.templatedSeen.Remove(paramType)
-		}
-	} else if paramType.IsTemplatizedType() {
-		templatizedParamType := paramType.ToMaybeTemplatizedType()
-		keyCount := len(templatizedParamType.GetTemplateTypes())
-		if keyCount == 0 {
-			return
-		}
-
-		argObjectType := argType.RestrictByNotNullOrUndefined().CollapseUnion()
-		paramTypeMap := paramType.GetTemplateTypeMap()
-
-		keys := paramTypeMap.GetTemplateKeys()
-		argTypeMap := argObjectType.GetTemplateTypeMap()
-		for index := len(keys) - keyCount; index < len(keys); index++ {
-			key := keys[index]
-			ti.matchTemplateTypesRecursive(
-				paramTypeMap.GetResolvedTemplateType(key), argTypeMap.GetResolvedTemplateType(key))
-		}
-	}
+	return matcher.Match()
 }
 
 // InferTemplatedTypesForCall: for functions that use template types,

@@ -22,7 +22,6 @@ package jscomp
 import (
 	"strings"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -136,16 +135,12 @@ var CheckAccessControls_VISIBILITY_MISMATCH = DiagnosticType_Warning(
 // Java: CheckAccessControls.CONST_PROPERTY_REASSIGNED_VALUE
 var CheckAccessControls_CONST_PROPERTY_REASSIGNED_VALUE = DiagnosticType_Warning(
 	"JSC_CONSTANT_PROPERTY_REASSIGNED_VALUE",
-	base.JSCompStrings_Lines(
-		"constant property {0} assigned a value more than once", //
-		"Initialized at {1}"))
+	"constant property {0} assigned a value more than once\nInitialized at {1}")
 
 // Java: CheckAccessControls.FINAL_PROPERTY_OVERRIDDEN
 var CheckAccessControls_FINAL_PROPERTY_OVERRIDDEN = DiagnosticType_Warning(
 	"JSC_FINAL_PROPERTY_OVERRIDDEN",
-	base.JSCompStrings_Lines(
-		"@final method or property {0} overridden", //
-		"Initialized at {1}"))
+	"@final method or property {0} overridden\nInitialized at {1}")
 
 // Java: CheckAccessControls.CONST_PROPERTY_DELETED
 var CheckAccessControls_CONST_PROPERTY_DELETED = DiagnosticType_Warning(

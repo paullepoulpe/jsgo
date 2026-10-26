@@ -1410,7 +1410,11 @@ func NodeUtil_AllArgsUnescapedLocal(callOrNew rhino.Node) bool {
 // the values of these global variables.
 //
 // Java: NodeUtil.KNOWN_CONSTANTS
-var NodeUtil_KNOWN_CONSTANTS = jutil.NewLinkedHashSet("undefined", "Infinity", "NaN")
+var NodeUtil_KNOWN_CONSTANTS = map[string]bool{
+	"undefined": true,
+	"Infinity":  true,
+	"NaN":       true,
+}
 
 // NodeUtil_CanBeSideEffected returns whether the tree can be affected by
 // side-effects or has side-effects.
@@ -1429,7 +1433,7 @@ func NodeUtil_CanBeSideEffected(n rhino.Node) bool {
 //
 // TODO(nick): Get rid of the knownConstants argument in favor of using
 // scope with InferConsts.
-func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants *jutil.LinkedHashSet[string], scope *Scope) bool {
+func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants map[string]bool, scope *Scope) bool {
 	switch n.GetToken() {
 	case rhino.Token_YIELD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_AWAIT, rhino.Token_DYNAMIC_IMPORT:
 		// Function calls or constructor can reference changed values.
@@ -1438,7 +1442,7 @@ func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants *jutil.Lin
 		return true
 	case rhino.Token_NAME:
 		// Non-constant names values may have been changed.
-		return !NodeUtil_IsConstantVar(n, scope) && !knownConstants.Contains(n.GetString())
+		return !NodeUtil_IsConstantVar(n, scope) && !knownConstants[n.GetString()]
 
 	// Properties on constant NAMEs can still be side-effected.
 	case rhino.Token_GETPROP:
@@ -2656,13 +2660,14 @@ func NodeUtil_CreatesScope(n rhino.Node) bool {
 		(n.IsRoot() && n.GetParent().IsNil())
 }
 
-// Java: NodeUtil.DEFINITE_CFG_ROOTS
-var NodeUtil_DEFINITE_CFG_ROOTS = jutil.NewEnumSet(rhino.Token_FUNCTION, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY,
-	rhino.Token_ROOT)
-
 // Java: NodeUtil.isValidCfgRoot(Node)
 func NodeUtil_IsValidCfgRoot(n rhino.Node) bool {
-	return NodeUtil_DEFINITE_CFG_ROOTS.Contains(n.GetToken()) || NodeUtil_IsClassStaticBlock(n)
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_ROOT:
+		return true
+	default:
+		return NodeUtil_IsClassStaticBlock(n)
+	}
 }
 
 // NodeUtil_IsStatement returns whether the node is used as a statement.
@@ -2672,21 +2677,22 @@ func NodeUtil_IsStatement(n rhino.Node) bool {
 	return !n.IsModuleBody() && !n.IsScript() && !n.IsRoot() && NodeUtil_IsStatementParent(n.GetParent())
 }
 
-// Java: NodeUtil.IS_STATEMENT_PARENT
-var NodeUtil_IS_STATEMENT_PARENT = jutil.NewEnumSet(
-	rhino.Token_SCRIPT,
-	rhino.Token_MODULE_BODY,
-	rhino.Token_BLOCK,
-	rhino.Token_LABEL,
-	rhino.Token_NAMESPACE_ELEMENTS,
-	rhino.Token_INTERFACE_MEMBERS)
-
 // Java: NodeUtil.isStatementParent(Node)
 func NodeUtil_IsStatementParent(parent rhino.Node) bool {
 	// It is not possible to determine definitely if a node is a statement
 	// or not if it is not part of the AST.  A FUNCTION node can be
 	// either part of an expression or a statement.
-	return NodeUtil_IS_STATEMENT_PARENT.Contains(parent.GetToken())
+	switch parent.GetToken() {
+	case rhino.Token_SCRIPT,
+		rhino.Token_MODULE_BODY,
+		rhino.Token_BLOCK,
+		rhino.Token_LABEL,
+		rhino.Token_NAMESPACE_ELEMENTS,
+		rhino.Token_INTERFACE_MEMBERS:
+		return true
+	default:
+		return false
+	}
 }
 
 // Java: NodeUtil.isDeclarationParent(Node)

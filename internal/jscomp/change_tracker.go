@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -36,16 +38,15 @@ type ChangeTracker struct {
 
 	recentChange *RecentChange
 
-	codeChangeHandlers *jutil.ArrayList[CodeChangeHandler]
+	codeChangeHandlers []CodeChangeHandler
 }
 
 // NewChangeTracker is new ChangeTracker().
 func NewChangeTracker() *ChangeTracker {
 	return &ChangeTracker{
-		changeStamp:        1,
-		changeTimeline:     NewTimeline[rhino.Node](),
-		recentChange:       NewRecentChange(),
-		codeChangeHandlers: jutil.NewArrayList[CodeChangeHandler](),
+		changeStamp:    1,
+		changeTimeline: NewTimeline[rhino.Node](),
+		recentChange:   NewRecentChange(),
 	}
 }
 
@@ -53,14 +54,16 @@ func NewChangeTracker() *ChangeTracker {
 //
 // Java: ChangeTracker.addChangeHandler(CodeChangeHandler)
 func (c *ChangeTracker) AddChangeHandler(handler CodeChangeHandler) {
-	c.codeChangeHandlers.Add(handler)
+	c.codeChangeHandlers = append(c.codeChangeHandlers, handler)
 }
 
 // RemoveChangeHandler removes a listener for code change events.
 //
 // Java: ChangeTracker.removeChangeHandler(CodeChangeHandler)
 func (c *ChangeTracker) RemoveChangeHandler(handler CodeChangeHandler) {
-	c.codeChangeHandlers.Remove(handler)
+	if i := slices.Index(c.codeChangeHandlers, handler); i >= 0 {
+		c.codeChangeHandlers = slices.Delete(c.codeChangeHandlers, i, i+1)
+	}
 }
 
 // Java: ChangeTracker.getRecentChange()
@@ -170,7 +173,7 @@ func ChangeTracker_GetEnclosingChangeScopeRoot(n rhino.Node) rhino.Node {
 
 // Java: ChangeTracker.notifyChangeHandlers()
 func (c *ChangeTracker) notifyChangeHandlers() {
-	for _, handler := range c.codeChangeHandlers.Slice() {
+	for _, handler := range c.codeChangeHandlers {
 		handler.ReportChange()
 	}
 }

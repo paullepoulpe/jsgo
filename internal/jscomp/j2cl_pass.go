@@ -53,15 +53,16 @@ var (
 		 */
 		NewJ2clPass_InlineSpec(
 			"Arrays.impl.java.js",
-			jutil.NewLinkedHashSet(
-				"$create",
-				"$createWithInitializer",
-				"$init",
-				"$instanceIsOfType",
-				"$castTo",
-				"$stampType"),
+			map[string]bool{
+				"$create":                true,
+				"$createWithInitializer": true,
+				"$init":                  true,
+				"$instanceIsOfType":      true,
+				"$castTo":                true,
+				"$stampType":             true,
+			},
 			FunctionInjector_InliningMode_DIRECT),
-		NewJ2clPass_InlineSpec("Casts.impl.java.js", jutil.NewLinkedHashSet("$to"), FunctionInjector_InliningMode_DIRECT),
+		NewJ2clPass_InlineSpec("Casts.impl.java.js", map[string]bool{"$to": true}, FunctionInjector_InliningMode_DIRECT),
 		/*
 		 * Inlines all Interface.$markImplementor(FooClass) metaclass calls so that FooClass and others
 		 * like it are not unnecessarily retained and so that static analysis of interface instanceof
@@ -72,24 +73,25 @@ var (
 		 * $markImplementor.
 		 */
 		NewJ2clPass_InlineSpec(
-			j2clPass_ALL_CLASS_FILE_NAMES, jutil.NewLinkedHashSet("$markImplementor"), FunctionInjector_InliningMode_BLOCK),
+			j2clPass_ALL_CLASS_FILE_NAMES, map[string]bool{"$markImplementor": true}, FunctionInjector_InliningMode_BLOCK),
 		/*
 		 * Inlines class metadata calls so they become optimizable and avoids escaping of constructor.
 		 */
 		NewJ2clPass_InlineSpec(
 			"Util.impl.java.js",
-			jutil.NewLinkedHashSet(
-				"$setClassMetadata",
-				"$setClassMetadataForInterface",
-				"$setClassMetadataForEnum",
-				"$setClassMetadataForPrimitive"),
+			map[string]bool{
+				"$setClassMetadata":             true,
+				"$setClassMetadataForInterface": true,
+				"$setClassMetadataForEnum":      true,
+				"$setClassMetadataForPrimitive": true,
+			},
 			FunctionInjector_InliningMode_BLOCK),
 	}
-	j2clPass_defaultFnNamesToInline = func() *jutil.LinkedHashSet[string] {
-		s := jutil.NewLinkedHashSet[string]()
+	j2clPass_defaultFnNamesToInline = func() map[string]bool {
+		s := make(map[string]bool, 12)
 		for _, b := range j2clPass_defaultInlinings {
-			for name := range b.fnNamesToInline.All() {
-				s.Add(name)
+			for name := range b.fnNamesToInline {
+				s[name] = true
 			}
 		}
 		return s
@@ -110,12 +112,12 @@ func (p *J2clPass) Process(externs rhino.Node, root rhino.Node) {
 // Java: private record J2clPass.InlineSpec(String, Set<String>, InliningMode)
 type J2clPass_InlineSpec struct {
 	classFileName   string
-	fnNamesToInline *jutil.LinkedHashSet[string]
+	fnNamesToInline map[string]bool
 	inliningMode    FunctionInjector_InliningMode
 }
 
 // Java: J2clPass.InlineSpec(String, Set<String>, InliningMode)
-func NewJ2clPass_InlineSpec(classFileName string, fnNamesToInline *jutil.LinkedHashSet[string], inliningMode FunctionInjector_InliningMode) *J2clPass_InlineSpec {
+func NewJ2clPass_InlineSpec(classFileName string, fnNamesToInline map[string]bool, inliningMode FunctionInjector_InliningMode) *J2clPass_InlineSpec {
 	return &J2clPass_InlineSpec{classFileName: classFileName, fnNamesToInline: fnNamesToInline, inliningMode: inliningMode}
 }
 
@@ -130,7 +132,7 @@ func NewJ2clPass_InlineSpec(classFileName string, fnNamesToInline *jutil.LinkedH
 // Java: private class J2clPass.ClassStaticFunctionsInliner
 type J2clPass_ClassStaticFunctionsInliner struct {
 	outer                      *J2clPass
-	fnsToInlineByQualifiedName *jutil.LinkedHashMap[string, *J2clPass_ClassStaticFunctionsInliner_InlinableFunction]
+	fnsToInlineByQualifiedName map[string]*J2clPass_ClassStaticFunctionsInliner_InlinableFunction
 	injector                   *FunctionInjector
 	root                       rhino.Node
 	inlineSpecs                []*J2clPass_InlineSpec
@@ -172,7 +174,7 @@ func (p *J2clPass) getOrCreateInliner(root rhino.Node, inlineSpecs []*J2clPass_I
 	if c == nil {
 		c = &J2clPass_ClassStaticFunctionsInliner{
 			outer:                      p,
-			fnsToInlineByQualifiedName: jutil.NewLinkedHashMap[string, *J2clPass_ClassStaticFunctionsInliner_InlinableFunction](),
+			fnsToInlineByQualifiedName: make(map[string]*J2clPass_ClassStaticFunctionsInliner_InlinableFunction),
 		}
 		c.injector = NewFunctionInjector_Builder(p.compiler).
 			SafeNameIdSupplier(p.safeNameIdSupplier).
@@ -183,41 +185,17 @@ func (p *J2clPass) getOrCreateInliner(root rhino.Node, inlineSpecs []*J2clPass_I
 		c.callInliner.outer = c
 		p.inliner = c
 	} else {
-		c.fnsToInlineByQualifiedName.Clear()
+		clear(c.fnsToInlineByQualifiedName)
 	}
 	c.root = root
 	c.inlineSpecs = inlineSpecs
-	return c
-}
-
-// Java: J2clPass.ClassStaticFunctionsInliner(Node, List<InlineSpec>)
-func (p *J2clPass) newClassStaticFunctionsInliner(root rhino.Node, inlineSpecs []*J2clPass_InlineSpec) *J2clPass_ClassStaticFunctionsInliner {
-	c := &J2clPass_ClassStaticFunctionsInliner{
-		outer:                      p,
-		fnsToInlineByQualifiedName: jutil.NewLinkedHashMap[string, *J2clPass_ClassStaticFunctionsInliner_InlinableFunction](),
-	}
-	c.root = root
-	c.inlineSpecs = inlineSpecs
-	c.injector = NewFunctionInjector_Builder(p.compiler).
-		SafeNameIdSupplier(p.safeNameIdSupplier).
-		AssumeStrictThis(true).
-		Build()
-	fnNamesToInline := jutil.NewLinkedHashSet[string]()
-	for _, b := range inlineSpecs {
-		for name := range b.fnNamesToInline.All() {
-			fnNamesToInline.Add(name)
-		}
-	}
-	c.injector.SetKnownConstantFunctions(fnNamesToInline)
-	c.collector.outer = c
-	c.callInliner.outer = c
 	return c
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.run()
 func (c *J2clPass_ClassStaticFunctionsInliner) run() {
 	NodeTraversal_Traverse(c.outer.compiler, c.root, &c.collector)
-	if !c.fnsToInlineByQualifiedName.IsEmpty() {
+	if len(c.fnsToInlineByQualifiedName) > 0 {
 		NodeTraversal_Traverse(c.outer.compiler, c.root, &c.callInliner)
 	}
 }
@@ -240,11 +218,6 @@ type J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector struct {
 	// This list is initialized every time the node traversal enters a new script. It contains
 	// all InlineSpecs whose classFileName matches the script's filename.
 	currFileInlineSpecs []*J2clPass_InlineSpec
-}
-
-// Java: J2clPass.ClassStaticFunctionsInliner.FunctionDefsCollector()
-func (c *J2clPass_ClassStaticFunctionsInliner) newFunctionDefsCollector() *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector {
-	return &J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector{outer: c}
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.FunctionDefsCollector.shouldTraverse(NodeTraversal, Node, Node)
@@ -278,7 +251,7 @@ func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) Visit(t *No
 		return
 	}
 	for _, inlineSpec := range f.currFileInlineSpecs {
-		if !inlineSpec.fnNamesToInline.Contains(fnName) {
+		if !inlineSpec.fnNamesToInline[fnName] {
 			continue
 		}
 		// Then store a reference to it.
@@ -292,7 +265,8 @@ func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) Visit(t *No
 		default:
 			panic(jutil.NewAssertionErrorNoMessage())
 		}
-		previousValue := f.outer.fnsToInlineByQualifiedName.Put(*qualifiedFnName, inlinableFunction)
+		previousValue := f.outer.fnsToInlineByQualifiedName[*qualifiedFnName]
+		f.outer.fnsToInlineByQualifiedName[*qualifiedFnName] = inlinableFunction
 		jutil.CheckStateMsg2(
 			previousValue == nil,
 			"expected each function to match at most one InliningSpec, but found:\n%s\n%s",
@@ -305,11 +279,6 @@ func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) Visit(t *No
 type J2clPass_ClassStaticFunctionsInliner_StaticCallInliner struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *J2clPass_ClassStaticFunctionsInliner
-}
-
-// Java: J2clPass.ClassStaticFunctionsInliner.StaticCallInliner()
-func (c *J2clPass_ClassStaticFunctionsInliner) newStaticCallInliner() *J2clPass_ClassStaticFunctionsInliner_StaticCallInliner {
-	return &J2clPass_ClassStaticFunctionsInliner_StaticCallInliner{outer: c}
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.StaticCallInliner.visit(NodeTraversal, Node, Node)
@@ -327,7 +296,7 @@ func (s *J2clPass_ClassStaticFunctionsInliner_StaticCallInliner) Visit(t *NodeTr
 
 	// ... and that reference a function definition we want to inline
 	qualifiedFnName := *qualifiedNameNode.GetQualifiedName()
-	fn := s.outer.fnsToInlineByQualifiedName.Get(qualifiedFnName)
+	fn := s.outer.fnsToInlineByQualifiedName[qualifiedFnName]
 	if fn == nil {
 		return
 	}

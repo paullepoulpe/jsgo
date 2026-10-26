@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -57,11 +56,13 @@ func (c *CheckDuplicateCase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 		if first.IsNil() || first.GetNext().IsNil() {
 			return
 		}
-		cases := jutil.NewLinkedHashSet[string]()
+		cases := make(map[string]bool)
 		for curr := first; !curr.IsNil(); curr = curr.GetNext() {
 			source := c.compiler.ToSourceOfNode(curr.GetFirstChild())
-			if !cases.Add(source) {
+			if cases[source] {
 				t.Report(curr, CheckDuplicateCase_DUPLICATE_CASE)
+			} else {
+				cases[source] = true
 			}
 		}
 	}

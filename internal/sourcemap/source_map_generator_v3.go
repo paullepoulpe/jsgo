@@ -33,26 +33,8 @@ import (
 // Source Map Revision 3 Proposal:
 // https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit?usp=sharing
 type SourceMapGeneratorV3 struct {
-	// A map of source names to source name index
-	sourceFileMap *jutil.LinkedHashMap[string, int]
-
 	// A map of source names to source file contents
-	sourceFileContentMap *jutil.LinkedHashMap[string, *string]
-
-	// A map of source names to source name index
-	originalNameMap *jutil.LinkedHashMap[string, int]
-
-	// Cache of the last mappings source name.
-	lastSourceFile    string
-	hasLastSourceFile bool
-
-	// Cache of the last mappings source name index.
-	lastSourceFileIndex int
-
-	// Cache of the last mappings symbol name.
-	lastSymbolName      string
-	hasLastSymbolName   bool
-	lastSymbolNameIndex int
+	sourceFileContentMap map[string]*string
 
 	// The mappings, in the order they were added.
 	//
@@ -206,13 +188,6 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g.lastAddedSourceFileIdx = -1
 	g.addedSymbolNames = g.addedSymbolNamesBuf[:0:len(g.addedSymbolNamesBuf)]
 	g.lastAddedSymbolNameIdx = -1
-	g.sourceFileContentMap = jutil.NewLinkedHashMap[string, *string]()
-	g.lastSourceFile = ""
-	g.hasLastSourceFile = false
-	g.lastSourceFileIndex = -1
-	g.lastSymbolName = ""
-	g.hasLastSymbolName = false
-	g.lastSymbolNameIndex = -1
 	g.offsetPosition = MakeFilePosition(0, 0)
 	g.prefixPosition = MakeFilePosition(0, 0)
 	g.extensions = jutil.NewLinkedHashMap[string, any]()
@@ -241,18 +216,6 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.lastAddedSymbolName = ""
 	g.hasLastAddedSymbolName = false
 	g.lastAddedSymbolNameIdx = -1
-	if g.sourceFileMap != nil {
-		g.sourceFileMap.Clear()
-	}
-	if g.originalNameMap != nil {
-		g.originalNameMap.Clear()
-	}
-	g.lastSourceFile = ""
-	g.hasLastSourceFile = false
-	g.lastSourceFileIndex = -1
-	g.lastSymbolName = ""
-	g.hasLastSymbolName = false
-	g.lastSymbolNameIndex = -1
 	g.offsetPosition = MakeFilePosition(0, 0)
 	g.prefixPosition = MakeFilePosition(0, 0)
 }
@@ -470,7 +433,10 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 
 // Java: SourceMapGeneratorV3.addSourcesContent(String, String)
 func (g *SourceMapGeneratorV3) AddSourcesContent(source string, content *string) {
-	g.sourceFileContentMap.Put(source, content)
+	if g.sourceFileContentMap == nil {
+		g.sourceFileContentMap = make(map[string]*string)
+	}
+	g.sourceFileContentMap[source] = content
 }
 
 // SourceMapGeneratorV3_ConsumerEntryVisitor adds the mappings a consumer
@@ -686,7 +652,7 @@ func (g *SourceMapGeneratorV3) AddSourceNameMap(out io.StringWriter) {
 
 // Java: SourceMapGeneratorV3.addSourcesContentMap(Appendable)
 func (g *SourceMapGeneratorV3) AddSourcesContentMap(out io.StringWriter) {
-	if g.sourceFileContentMap.IsEmpty() {
+	if len(g.sourceFileContentMap) == 0 {
 		return
 	}
 	found := false
@@ -695,7 +661,7 @@ func (g *SourceMapGeneratorV3) AddSourcesContentMap(out io.StringWriter) {
 
 	for index, key := range g.orderedSourceFiles {
 		jutil.CheckState(index < size)
-		content := g.sourceFileContentMap.Get(key)
+		content := g.sourceFileContentMap[key]
 		if content != nil {
 			contents[index] = *content
 			found = true
@@ -754,44 +720,6 @@ func SourceMapGeneratorV3_AddNameSlice(out io.StringWriter, names []string) {
 			}
 			appendString(out, SourceMapGeneratorV3_EscapeString(key))
 		}
-	}
-	if bufLen > 0 {
-		appendBytes(out, buf[:bufLen])
-	}
-}
-
-// Java: SourceMapGeneratorV3.addNameMap(Appendable, Map)
-func SourceMapGeneratorV3_AddNameMap(out io.StringWriter, m *jutil.LinkedHashMap[string, int]) {
-	var buf [4096]byte
-	bufLen := 0
-	i := 0
-	for key := range m.Keys() {
-		if !util_needsEscape(key) && len(key)+3 <= len(buf) {
-			if bufLen+len(key)+3 > len(buf) {
-				appendBytes(out, buf[:bufLen])
-				bufLen = 0
-			}
-			if i != 0 {
-				buf[bufLen] = ','
-				bufLen++
-			}
-			buf[bufLen] = '"'
-			bufLen++
-			copy(buf[bufLen:], key)
-			bufLen += len(key)
-			buf[bufLen] = '"'
-			bufLen++
-		} else {
-			if bufLen > 0 {
-				appendBytes(out, buf[:bufLen])
-				bufLen = 0
-			}
-			if i != 0 {
-				appendString(out, ",")
-			}
-			appendString(out, SourceMapGeneratorV3_EscapeString(key))
-		}
-		i++
 	}
 	if bufLen > 0 {
 		appendBytes(out, buf[:bufLen])
@@ -1112,44 +1040,6 @@ func SourceMapGeneratorV3_AppendOffsetValue(out io.StringWriter, line, column in
 	SourceMapGeneratorV3_AppendFirstField(out, "line", strconv.Itoa(line))
 	SourceMapGeneratorV3_AppendField(out, "column", strconv.Itoa(column))
 	appendString(out, "\n}")
-}
-
-// Java: SourceMapGeneratorV3.getSourceId(String)
-func (g *SourceMapGeneratorV3) GetSourceId(sourceName string) int {
-	if !g.hasLastSourceFile || sourceName != g.lastSourceFile {
-		if g.sourceFileMap == nil {
-			g.sourceFileMap = jutil.NewLinkedHashMap[string, int]()
-		}
-		g.lastSourceFile = sourceName
-		g.hasLastSourceFile = true
-		index, ok := g.sourceFileMap.Lookup(sourceName)
-		if ok {
-			g.lastSourceFileIndex = index
-		} else {
-			g.lastSourceFileIndex = g.sourceFileMap.Size()
-			g.sourceFileMap.Put(sourceName, g.lastSourceFileIndex)
-		}
-	}
-	return g.lastSourceFileIndex
-}
-
-// Java: SourceMapGeneratorV3.getNameId(String)
-func (g *SourceMapGeneratorV3) GetNameId(symbolName string) int {
-	if !g.hasLastSymbolName || symbolName != g.lastSymbolName {
-		if g.originalNameMap == nil {
-			g.originalNameMap = jutil.NewLinkedHashMap[string, int]()
-		}
-		g.lastSymbolName = symbolName
-		g.hasLastSymbolName = true
-		index, ok := g.originalNameMap.Lookup(symbolName)
-		if ok {
-			g.lastSymbolNameIndex = index
-		} else {
-			g.lastSymbolNameIndex = g.originalNameMap.Size()
-			g.originalNameMap.Put(symbolName, g.lastSymbolNameIndex)
-		}
-	}
-	return g.lastSymbolNameIndex
 }
 
 // SourceMapGeneratorV3_LineMapper writes the "mappings" field.

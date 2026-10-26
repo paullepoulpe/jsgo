@@ -204,7 +204,8 @@ func (e colorPoolIdEntry) rowString() string {
 // ColorPool_Builder collects TypePools and other data into ShardViews and
 // then reconciles them into a single ColorPool.
 type ColorPool_Builder struct {
-	protoToShard *base.LinkedIdentityHashMap[*TypePool, *ColorPool_ShardView]
+	protoToShard map[*TypePool]*ColorPool_ShardView
+	shards       []*ColorPool_ShardView
 	idToColor    map[colors.ColorId]*colors.Color
 	registry     *colors.ColorRegistry_Builder
 	idToProto    *jutil.LinkedHashMap[colors.ColorId, colorPoolIdEntry]
@@ -318,7 +319,7 @@ func (b *ColorPool_Builder) allocColorSet() *jutil.ObjectLinkedHashSet[*colors.C
 // Java: ColorPool.Builder()
 func newColorPool_Builder() *ColorPool_Builder {
 	b := &ColorPool_Builder{
-		protoToShard: base.NewLinkedIdentityHashMap[*TypePool, *ColorPool_ShardView](),
+		protoToShard: make(map[*TypePool]*ColorPool_ShardView, 4),
 		registry:     colors.ColorRegistry_Builder_(),
 		colorSlab:    jutil.NewFixedSlab[colors.Color](256), // 18.4 KiB <= 32 KiB
 	}
@@ -343,15 +344,16 @@ func (b *ColorPool_Builder) ForTesting() *ColorPool_Builder {
 func (b *ColorPool_Builder) AddShard(typePool *TypePool, stringPool *StringPool) *ColorPool_ShardView {
 	jutil.CheckStateMsg(!b.built, "build has already been called")
 
-	existing := b.protoToShard.Get(typePool)
+	existing := b.protoToShard[typePool]
 	if existing != nil {
-		jutil.CheckStateMsg1(base.JSCompObjects_Identical(typePool, TypePool_GetDefaultInstance()), "%s", typePool)
+		jutil.CheckStateMsg1(typePool == TypePool_GetDefaultInstance(), "%s", typePool)
 		return existing
 	}
 
 	trimmedOffsetToId := colorPool_createTrimmedOffsetToId(typePool)
 	shard := newColorPool_ShardView(typePool, stringPool, trimmedOffsetToId)
-	b.protoToShard.Put(typePool, shard)
+	b.protoToShard[typePool] = shard
+	b.shards = append(b.shards, shard)
 
 	if typePool.HasDebugInfo() {
 		for _, m := range typePool.GetDebugInfo().GetMismatchList() {
@@ -538,7 +540,7 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 	}()
 	existing := shard.trimmedOffsetToColor[trimmedIdx]
 	if existing != nil {
-		if base.JSCompObjects_Identical(existing, colorPool_PENDING_COLOR) {
+		if existing == colorPool_PENDING_COLOR {
 			typeList := shard.typePool.GetTypeList()
 			rows := make([]string, 0, len(b.reconcilationDebugStack))
 			for _, stackId := range b.reconcilationDebugStack {
@@ -624,7 +626,7 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 			union.Add(member)
 		}
 		result = colors.Color_CreateUnionWithBuilder(&union, &b.colorBuilder, b.allocColorSetFn)
-		if !id.Equals(result.GetId()) {
+		if id != result.GetId() {
 			jutil.CheckStateMsg2(false, "%s == %s", id, result)
 		}
 	} else {
@@ -641,7 +643,9 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 
 // Java: ColorPool.Builder.forEachShard(Consumer<ShardView>)
 func (b *ColorPool_Builder) ForEachShard(fn func(*ColorPool_ShardView)) {
-	b.protoToShard.ForEach(func(unused *TypePool, shard *ColorPool_ShardView) { fn(shard) })
+	for _, shard := range b.shards {
+		fn(shard)
+	}
 }
 
 // Java: ColorPool.Builder.lookupOrReconcileColor(ColorId)
@@ -652,7 +656,7 @@ func (b *ColorPool_Builder) LookupOrReconcileColor(id colors.ColorId) *colors.Co
 	}()
 	existing := b.idToColor[id]
 	if existing != nil {
-		if base.JSCompObjects_Identical(existing, colorPool_PENDING_COLOR) {
+		if existing == colorPool_PENDING_COLOR {
 			rows := make([]string, 0, len(b.reconcilationDebugStack))
 			for _, stackId := range b.reconcilationDebugStack {
 				rows = append(rows, b.idToProto.Get(stackId).rowString())

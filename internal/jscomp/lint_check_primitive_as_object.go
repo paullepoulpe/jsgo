@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -41,7 +40,14 @@ var CheckPrimitiveAsObject_PRIMITIVE_OBJECT_DECLARATION = DiagnosticType_Warning
 	"JSC_PRIMITIVE_OBJECT_DECLARATION",
 	"Declaration of {0} object instead of primitive type.")
 
-var checkPrimitiveAsObject_PRIMITIVE_OBJECT_CONSTRUCTORS = jutil.NewLinkedHashSet("Boolean", "Number", "String")
+func checkPrimitiveAsObject_isPrimitiveObjectConstructor(name string) bool {
+	switch name {
+	case "Boolean", "Number", "String":
+		return true
+	default:
+		return false
+	}
+}
 
 // NewCheckPrimitiveAsObject is new CheckPrimitiveAsObject(compiler).
 //
@@ -79,7 +85,7 @@ func (c *CheckPrimitiveAsObject) CheckTypeNodeForPrimitiveObjectDeclaration(t *N
 		NodeUtil_VisitorFunc(func(node rhino.Node) {
 			if node.IsStringLit() {
 				typeName := node.GetString()
-				if checkPrimitiveAsObject_PRIMITIVE_OBJECT_CONSTRUCTORS.Contains(typeName) {
+				if checkPrimitiveAsObject_isPrimitiveObjectConstructor(typeName) {
 					t.Report(node, CheckPrimitiveAsObject_PRIMITIVE_OBJECT_DECLARATION, typeName)
 				}
 			}
@@ -92,7 +98,7 @@ func (c *CheckPrimitiveAsObject) CheckForPrimitiveObjectConstructor(t *NodeTrave
 		constructorFunction := n.GetFirstChild()
 		if constructorFunction.IsName() {
 			constructorName := constructorFunction.GetString()
-			if checkPrimitiveAsObject_PRIMITIVE_OBJECT_CONSTRUCTORS.Contains(constructorName) {
+			if checkPrimitiveAsObject_isPrimitiveObjectConstructor(constructorName) {
 				t.Report(n, CheckPrimitiveAsObject_NEW_PRIMITIVE_OBJECT, constructorName)
 			}
 		}

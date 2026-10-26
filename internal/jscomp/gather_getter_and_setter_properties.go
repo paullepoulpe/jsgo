@@ -66,7 +66,7 @@ func GatherGetterAndSetterProperties_Update(compiler AbstractCompiler, externs r
 func GatherGetterAndSetterProperties_Gather(compiler AbstractCompiler, root rhino.Node) *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
 	gatherCallback := NewGatherGetterAndSetterProperties_GatherCallback()
 	NodeTraversal_Traverse(compiler, root, gatherCallback)
-	return jutil.NewLinkedHashMapFrom(gatherCallback.properties)
+	return gatherCallback.properties
 }
 
 // GatherGetterAndSetterProperties_GatherCallback is the traversal that

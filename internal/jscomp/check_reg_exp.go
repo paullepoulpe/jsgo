@@ -47,31 +47,19 @@ var CheckRegExp_MALFORMED_REGEXP = DiagnosticType_Warning(
 	"Malformed Regular Expression: {0}")
 
 // Java: CheckRegExp.REGEXP_PROPERTY_SKIPLIST
-var checkRegExp_REGEXP_PROPERTY_SKIPLIST = jutil.NewLinkedHashSet(
-	"$1",
-	"$2",
-	"$3",
-	"$4",
-	"$5",
-	"$6",
-	"$7",
-	"$8",
-	"$9",
-	"$_",
-	"$input",
-	// The following would also be skiplisted, but they aren't valid
-	// identifiers, so can't be accessed with the '.' operator anyway.
-	// "$*", "$&", "$+", "$`", "$'",
-	"input",
-	"lastMatch",
-	"lastParen",
-	"leftContext",
-	"rightContext",
-	"global",
-	"ignoreCase",
-	"lastIndex",
-	"multiline",
-	"source")
+func checkRegExp_isSkippedProperty(prop string) bool {
+	switch prop {
+	case "$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "$_", "$input",
+		// The following would also be skiplisted, but they aren't valid
+		// identifiers, so can't be accessed with the '.' operator anyway.
+		// "$*", "$&", "$+", "$`", "$'",
+		"input", "lastMatch", "lastParen", "leftContext", "rightContext",
+		"global", "ignoreCase", "lastIndex", "multiline", "source":
+		return true
+	default:
+		return false
+	}
+}
 
 // Java: CheckRegExp.isGlobalRegExpPropertiesUsed()
 func (c *CheckRegExp) IsGlobalRegExpPropertiesUsed() bool {
@@ -165,7 +153,7 @@ func (c *CheckRegExp) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 				parentType == rhino.Token_CASE ||
 				(parentType == rhino.Token_GETPROP &&
 					first &&
-					!checkRegExp_REGEXP_PROPERTY_SKIPLIST.Contains(parent.GetString()))) {
+					!checkRegExp_isSkippedProperty(parent.GetString()))) {
 				if c.reportErrors {
 					t.Report(n, CheckRegExp_REGEXP_REFERENCE)
 				}

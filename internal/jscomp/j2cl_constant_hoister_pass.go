@@ -57,7 +57,7 @@ func (c *j2clConstantHoisterCollector) Visit(t *NodeTraversal, node rhino.Node, 
 		}
 	}
 	if j2clConstantHoisterPass_isHoistableFunction(t, node) {
-		p.hoistableFunctions.Add(node)
+		p.hoistableFunctions[node] = true
 	}
 }
 
@@ -70,7 +70,7 @@ type J2clConstantHoisterPass struct {
 	compiler           AbstractCompiler
 	fieldAssignments   map[string]j2clFieldAssignments
 	fieldOrder         []string
-	hoistableFunctions *jutil.LinkedHashSet[rhino.Node]
+	hoistableFunctions map[rhino.Node]bool
 	collector          j2clConstantHoisterCollector
 }
 
@@ -89,11 +89,11 @@ func (p *J2clConstantHoisterPass) Process(externs rhino.Node, root rhino.Node) {
 
 	if p.fieldAssignments == nil {
 		p.fieldAssignments = make(map[string]j2clFieldAssignments, 64)
-		p.hoistableFunctions = jutil.NewLinkedHashSet[rhino.Node]()
+		p.hoistableFunctions = make(map[rhino.Node]bool)
 	} else {
 		clear(p.fieldAssignments)
 		p.fieldOrder = p.fieldOrder[:0]
-		p.hoistableFunctions.Clear()
+		clear(p.hoistableFunctions)
 	}
 
 	NodeTraversal_Traverse(p.compiler, root, &p.collector)
@@ -122,7 +122,7 @@ func j2clConstantHoisterPass_isHoistableFunction(t *NodeTraversal, node rhino.No
 
 // Java: J2clConstantHoisterPass.maybeHoistClassField(Collection<Node>, Collection<Node>)
 func (p *J2clConstantHoisterPass) maybeHoistClassField(
-	assignments []rhino.Node, hoistableFunctions *jutil.LinkedHashSet[rhino.Node]) {
+	assignments []rhino.Node, hoistableFunctions map[rhino.Node]bool) {
 	// The field is only assigned twice:
 	if len(assignments) != 2 {
 		return
@@ -148,7 +148,7 @@ func (p *J2clConstantHoisterPass) maybeHoistClassField(
 	// And it is assigned to a literal value; hence could be used in static eval and safe to move:
 	assignmentRhs := clinitAssignment.GetSecondChild()
 	if !NodeUtil_IsLiteralValue(assignmentRhs /* includeFunctions= */, true) ||
-		(assignmentRhs.IsFunction() && !hoistableFunctions.Contains(assignmentRhs)) {
+		(assignmentRhs.IsFunction() && !hoistableFunctions[assignmentRhs]) {
 		return
 	}
 

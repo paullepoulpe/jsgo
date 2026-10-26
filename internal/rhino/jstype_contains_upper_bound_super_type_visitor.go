@@ -35,7 +35,7 @@
 
 package rhino
 
-import "github.com/paullepoulpe/jsgo/internal/base"
+import "slices"
 
 // ContainsUpperBoundSuperTypeVisitor is a type visitor that traverse through
 // the referenced types of "forwaring types" to search for a target type.
@@ -52,15 +52,13 @@ type ContainsUpperBoundSuperTypeVisitor struct {
 	Visitor_WithDefaultCaseBase[ContainsUpperBoundSuperTypeVisitor_Result]
 
 	target JSType
-	seen   *base.LinkedIdentityHashSet[JSType]
+	seen   []JSType
 }
 
 // Java: ContainsUpperBoundSuperTypeVisitor(JSType)
 func NewContainsUpperBoundSuperTypeVisitor(target JSType) *ContainsUpperBoundSuperTypeVisitor {
-	v := &ContainsUpperBoundSuperTypeVisitor{}
+	v := &ContainsUpperBoundSuperTypeVisitor{target: target}
 	v.InitVisitor_WithDefaultCaseBase(v)
-	v.seen = base.NewLinkedIdentityHashSet[JSType]()
-	v.target = target
 	return v
 }
 
@@ -111,10 +109,10 @@ func (v *ContainsUpperBoundSuperTypeVisitor) CaseUnionType(type_ *UnionType) Con
 func (v *ContainsUpperBoundSuperTypeVisitor) CaseForwardingType(type_ JSType, reference JSType) ContainsUpperBoundSuperTypeVisitor_Result {
 	if type_ == v.target {
 		return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
-	} else if v.seen.Contains(type_) {
+	} else if slices.Contains(v.seen, type_) {
 		return ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
 	} else {
-		v.seen.Add(type_)
+		v.seen = append(v.seen, type_)
 		return VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](reference, v)
 	}
 }

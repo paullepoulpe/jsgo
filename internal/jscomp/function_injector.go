@@ -31,7 +31,7 @@ import (
 type FunctionInjector struct {
 	compiler               AbstractCompiler
 	allowDecomposition     bool
-	knownConstantFunctions *jutil.LinkedHashSet[string]
+	knownConstantFunctions map[string]bool
 	assumeStrictThis       bool
 	safeNameIdSupplier     func() string
 	throwawayNameSupplier  func() string
@@ -61,7 +61,6 @@ var FunctionInjector_MULTIPLE_FUNCTIONS = rhino.NewNode(rhino.Token_FUNCTION)
 // Java: FunctionInjector(Builder)
 func NewFunctionInjector(builder *FunctionInjector_Builder) *FunctionInjector {
 	f := &FunctionInjector{
-		knownConstantFunctions:   jutil.NewLinkedHashSet[string](),
 		paramReplacementsScratch: jutil.NewLinkedHashMap[string, rhino.Node](),
 	}
 	// The anonymous Supplier<String> throwawayNameSupplier, with its nextId
@@ -1347,9 +1346,9 @@ func FunctionInjector_InlineCostDelta(fnNode rhino.Node, namesToAlias *jutil.Lin
 // when classifying call-sites in expressions.
 //
 // Java: FunctionInjector.setKnownConstantFunctions(ImmutableSet<String>)
-func (f *FunctionInjector) SetKnownConstantFunctions(knownConstantFunctions *jutil.LinkedHashSet[string]) {
+func (f *FunctionInjector) SetKnownConstantFunctions(knownConstantFunctions map[string]bool) {
 	// This is only expected to be set once. The same set should be used
 	// when evaluating call-sites and inlining calls.
-	jutil.CheckState(f.knownConstantFunctions.IsEmpty())
+	jutil.CheckState(len(f.knownConstantFunctions) == 0)
 	f.knownConstantFunctions = knownConstantFunctions
 }

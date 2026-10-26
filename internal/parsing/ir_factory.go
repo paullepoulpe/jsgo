@@ -24,7 +24,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/dtoa"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -896,7 +895,7 @@ func (f *IRFactory) HandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser
 	}
 
 	newFileoverview := jsDocParser.GetFileOverviewJSDocInfo()
-	if base.JSCompObjects_Identical(newFileoverview, f.firstFileoverview) {
+	if newFileoverview == f.firstFileoverview {
 		return false
 	}
 

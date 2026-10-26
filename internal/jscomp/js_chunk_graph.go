@@ -22,7 +22,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -55,7 +54,7 @@ type JSChunkGraph struct {
 	//
 	// NOTE: JSChunk has identity semantics so this map implementation is
 	// safe.
-	dependencyMap *base.LinkedIdentityHashMap[*JSChunk, *jutil.LinkedHashSet[*JSChunk]]
+	dependencyMap map[*JSChunk]*jutil.LinkedHashSet[*JSChunk]
 
 	// Go-only: reusable candidate BitSet for GetSmallestCoveringSubtree.
 	scratchCandidates jutil.BitSet
@@ -89,9 +88,7 @@ func NewJSChunkGraphFromArray(chunksInDepOrder []*JSChunk) *JSChunkGraph {
 //
 // Java: JSChunkGraph(List<JSChunk>)
 func NewJSChunkGraph(chunksInDepOrder []*JSChunk) *JSChunkGraph {
-	g := &JSChunkGraph{
-		dependencyMap: base.NewLinkedIdentityHashMap[*JSChunk, *jutil.LinkedHashSet[*JSChunk]](),
-	}
+	g := &JSChunkGraph{}
 	jutil.CheckState(len(chunksInDepOrder) != 0)
 	chunksInDepOrder = g.makeWeakChunk(chunksInDepOrder)
 	g.chunks = make([]*JSChunk, len(chunksInDepOrder))
@@ -508,7 +505,15 @@ func (g *JSChunkGraph) GetTransitiveDepsDeepestFirst(m *JSChunk) []*JSChunk {
 //
 // Java: JSChunkGraph.getTransitiveDeps(JSChunk)
 func (g *JSChunkGraph) getTransitiveDeps(m *JSChunk) *jutil.LinkedHashSet[*JSChunk] {
-	return g.dependencyMap.ComputeIfAbsent(m, (*JSChunk).GetAllDependencies)
+	if deps := g.dependencyMap[m]; deps != nil {
+		return deps
+	}
+	if g.dependencyMap == nil {
+		g.dependencyMap = make(map[*JSChunk]*jutil.LinkedHashSet[*JSChunk])
+	}
+	deps := m.GetAllDependencies()
+	g.dependencyMap[m] = deps
+	return deps
 }
 
 // jsChunkGraph_moveMarkedWeakSources moves all sources that have

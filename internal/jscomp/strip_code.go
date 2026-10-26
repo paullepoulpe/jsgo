@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -47,10 +46,7 @@ type StripCode struct {
 	compiler          AbstractCompiler
 	stripNameSuffixes *jutil.LinkedHashSet[string]
 	stripNamePrefixes *jutil.LinkedHashSet[string]
-	// Go-only: language-adapter — the Java set compares String identity; the
-	// names it holds and is queried with are all Node strings, which Rhino
-	// interns (RhinoStringPool), so identity and equality agree.
-	varsToRemove *base.LinkedIdentityHashSet[string]
+	varsToRemove      map[string]bool
 
 	stripTypesList                 []string
 	stripTypePrefixesList          []string
@@ -74,18 +70,17 @@ var StripCode_STRIP_ASSIGNMENT_ERROR = DiagnosticType_Error("JSC_STRIP_ASSIGNMEN
 //
 // Java: StripCode.toStreamWithCollapsedVersions(String)
 func StripCode_ToStreamWithCollapsedVersions(s string) []string {
-	possibleForms := jutil.NewArrayList[string]()
-	possibleForms.Add(s)
+	possibleForms := []string{s}
 	// Go-only: language-adapter — '.' and '$' are ASCII, so replacing them in
 	// the WTF-8 bytes is the same as replacing them in Java's char array.
 	chars := []byte(s)
 	for i := 0; i < len(chars); i++ {
 		if chars[i] == '.' {
 			chars[i] = '$'
-			possibleForms.Add(string(chars))
+			possibleForms = append(possibleForms, string(chars))
 		}
 	}
-	return possibleForms.Slice()
+	return possibleForms
 }
 
 // NewStripCode creates an instance.
@@ -97,7 +92,7 @@ func NewStripCode(
 	stripNameSuffixes *jutil.LinkedHashSet[string],
 	stripNamePrefixes *jutil.LinkedHashSet[string],
 	enableTweakStripping bool) *StripCode {
-	s := &StripCode{varsToRemove: base.NewLinkedIdentityHashSet[string]()}
+	s := &StripCode{varsToRemove: make(map[string]bool)}
 
 	s.compiler = compiler
 
@@ -295,7 +290,7 @@ func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal,
 			st.QualifiedNameBeginsWithStripType(nameNode) ||
 			st.IsCallWhoseReturnValueShouldBeStripped(nameNode.GetFirstChild()) {
 			// Remove the NAME.
-			s.varsToRemove.Add(name)
+			s.varsToRemove[name] = true
 			if strings.Contains(name, "$") {
 				// We need to be careful with this code pattern that appears after
 				// collapsing properties.
@@ -692,7 +687,7 @@ func (st *StripCode_Strip) QualifiedNameBeginsWithStripTypeName(name *string) bo
 //
 // Java: Strip.isReferenceToRemovedVar(Node)
 func (st *StripCode_Strip) IsReferenceToRemovedVar(n rhino.Node) bool {
-	return st.this_.varsToRemove.Contains(n.GetString())
+	return st.this_.varsToRemove[n.GetString()]
 }
 
 // IsMethodOrCtorCallThatTriggersRemoval gets whether a CALL node triggers

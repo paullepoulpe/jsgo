@@ -34,7 +34,7 @@ import (
 type inlineFunctionsRunState struct {
 	fns          *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
 	anonFns      *jutil.LinkedHashMap[rhino.Node, string]
-	fnNames      *jutil.LinkedHashSet[string]
+	fnNames      map[string]bool
 	calledNames  *jutil.LinkedHashSet[string]
 	refsScratch  []FunctionInjector_Reference
 	paramScratch []string
@@ -134,7 +134,6 @@ func (f *InlineFunctions) ensureRunState() *inlineFunctionsRunState {
 		p := &inlineFunctionsRunState{
 			fns:         jutil.NewLinkedHashMap[string, *InlineFunctions_FunctionState](),
 			anonFns:     jutil.NewLinkedHashMap[rhino.Node, string](),
-			fnNames:     jutil.NewLinkedHashSet[string](),
 			calledNames: jutil.NewLinkedHashSet[string](),
 		}
 		f.runState = p
@@ -173,6 +172,7 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	p := f.ensureRunState()
 	defer func() {
 		f.injector.fnInfoCache = nil
+		f.injector.knownConstantFunctions = nil
 		f.runState = nil
 		f.fns = nil
 		f.anonFns = nil
@@ -209,11 +209,11 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	// This pass already assumes these are constants, so this is safe for anyone
 	// using function inlining.
 	//
-	fnNames := p.fnNames
-	fnNames.Clear()
+	fnNames := make(map[string]bool, f.fns.Size())
 	for k := range f.fns.Keys() {
-		fnNames.AddNew(k)
+		fnNames[k] = true
 	}
+	p.fnNames = fnNames
 	f.injector.SetKnownConstantFunctions(fnNames)
 
 	f.TrimCandidatesUsingOnCost()

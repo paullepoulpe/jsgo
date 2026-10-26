@@ -347,7 +347,7 @@ func (c *Color) IsPrimitive() bool {
 	 * primitive, but the *value* held by a union reference may be.
 	 */
 	jutil.CheckStateMsg1(!c.IsUnion(), "%s", c)
-	return StandardColors_PRIMITIVE_COLORS.ContainsKey(c.GetId())
+	return isPrimitiveColorId(c.GetId())
 }
 
 // Java: Color.isUnion()
@@ -416,19 +416,15 @@ func (c *Color) Equals(o any) bool {
 		return true
 	}
 	if that, ok := o.(*Color); ok && that != nil {
-		return c.id.Equals(that.GetId()) &&
+		return c.id == that.GetId() &&
 			c.prototypes.Equals(that.GetPrototypes()) &&
 			c.instanceColors.Equals(that.GetInstanceColors()) &&
 			c.invalidating == that.IsInvalidating() &&
 			c.propertiesKeepOriginalName == that.GetPropertiesKeepOriginalName() &&
 			c.constructor == that.IsConstructor() &&
 			c.ownProperties.Equals(that.GetOwnProperties()) &&
-			(func() bool {
-				if c.boxId == nil {
-					return that.GetBoxId() == nil
-				}
-				return that.GetBoxId() != nil && c.boxId.Equals(*that.GetBoxId())
-			})() &&
+			(c.boxId == nil) == (that.GetBoxId() == nil) &&
+			(c.boxId == nil || *c.boxId == *that.GetBoxId()) &&
 			c.closureAssert == that.IsClosureAssert() &&
 			c.unionElements.Equals(that.GetUnionElements())
 	}

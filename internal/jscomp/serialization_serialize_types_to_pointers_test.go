@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -210,15 +209,9 @@ func (c *SerializeTypesToPointersTest) findAllInStringPool(str ...string) []int3
 
 // serializeTypesToPointersTest_get is Map.get on the type pointer map: a nil
 // pointer stands for Java's null for a missing key.
-//
-// Go-only: test-helper — LinkedIdentityHashMap.Get returns the zero value for
-// a missing key.
-func serializeTypesToPointersTest_get(m *base.LinkedIdentityHashMap[rhino.JSType, int], key rhino.JSType) *int {
-	var found *int
-	m.ForEach(func(k rhino.JSType, v int) {
-		if found == nil && k == key {
-			found = &v
-		}
-	})
-	return found
+func serializeTypesToPointersTest_get(m map[rhino.JSType]int, key rhino.JSType) *int {
+	if v, ok := m[key]; ok {
+		return &v
+	}
+	return nil
 }

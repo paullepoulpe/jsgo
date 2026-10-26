@@ -39,10 +39,10 @@ type PolymerPass struct {
 	NodeTraversal_ExternsSkippingCallbackBase
 
 	compiler   AbstractCompiler
-	tagNameMap *jutil.LinkedHashMap[string, string]
+	tagNameMap map[string]string
 
 	polymerElementExterns        rhino.Node
-	nativeExternsAdded           *jutil.LinkedHashSet[string]
+	nativeExternsAdded           map[string]bool
 	polymerElementProps          []rhino.Node
 	globalNames                  *GlobalNamespace
 	behaviorExtractor            *PolymerBehaviorExtractor
@@ -52,13 +52,11 @@ type PolymerPass struct {
 
 // Java: PolymerPass(AbstractCompiler)
 func NewPolymerPass(compiler AbstractCompiler) *PolymerPass {
-	p := &PolymerPass{}
-	p.warnedPolymer1ExternsMissing = false
-	p.propertySinkExternInjected = false
-	p.compiler = compiler
-	p.tagNameMap = TagNameToType_GetMap()
-	p.nativeExternsAdded = jutil.NewLinkedHashSet[string]()
-	return p
+	return &PolymerPass{
+		compiler:           compiler,
+		tagNameMap:         TagNameToType_GetMap(),
+		nativeExternsAdded: make(map[string]bool),
+	}
 }
 
 // Java: PolymerPass.process(Node, Node)
@@ -176,9 +174,10 @@ func (p *PolymerPass) normalizePolymerExport(nameDecl rhino.Node, export rhino.N
 //
 // Java: PolymerPass.appendPolymerElementExterns(PolymerClassDefinition)
 func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
-	if !p.nativeExternsAdded.Add(*def.nativeBaseElement) {
+	if p.nativeExternsAdded[*def.nativeBaseElement] {
 		return
 	}
+	p.nativeExternsAdded[*def.nativeBaseElement] = true
 
 	block := rhino.IR_Block()
 
@@ -186,7 +185,7 @@ func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
 	polymerElementType := PolymerPassStaticUtils_GetPolymerElementType(def)
 	baseExterns.GetFirstChild().SetString(polymerElementType)
 
-	elementType, ok := p.tagNameMap.Lookup(*def.nativeBaseElement)
+	elementType, ok := p.tagNameMap[*def.nativeBaseElement]
 	if !ok {
 		p.compiler.Report(JSError_MakeWithNode(def.descriptor, PolymerPassErrors_POLYMER_INVALID_EXTENDS, *def.nativeBaseElement))
 		return

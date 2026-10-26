@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -640,13 +639,13 @@ func linkedFlowScope_JoinMap(
 								if fnSlot != nil {
 									fnSlotType = fnSlot.GetType()
 								}
-								if fnSlotType == nil || base.JSCompObjects_Identical(fnSlotType, slotA.GetType()) {
+								if fnSlotType == nil || fnSlotType == slotA.GetType() {
 									// Case #1
 									return slotA
 								} else {
 									// Case #3
 									joinedType := slotA.GetType().GetLeastSupertype(fnSlotType)
-									if base.JSCompObjects_Identical(joinedType, slotA.GetType()) {
+									if joinedType == slotA.GetType() {
 										return slotA
 									}
 									return newLinkedFlowScope_OverlaySlotWithArena(arena, name, joinedType)
@@ -660,27 +659,27 @@ func linkedFlowScope_JoinMap(
 								if fnSlot != nil {
 									fnSlotType = fnSlot.GetType()
 								}
-								if fnSlotType == nil || base.JSCompObjects_Identical(fnSlotType, slotB.GetType()) {
+								if fnSlotType == nil || fnSlotType == slotB.GetType() {
 									// Case #2
 									return slotB
 								} else {
 									// Case #4
 									joinedType := slotB.GetType().GetLeastSupertype(fnSlotType)
-									if base.JSCompObjects_Identical(joinedType, slotB.GetType()) {
+									if joinedType == slotB.GetType() {
 										return slotB
 									}
 									return newLinkedFlowScope_OverlaySlotWithArena(arena, name, joinedType)
 								}
 							}
 							// Case #5
-							if base.JSCompObjects_Identical(slotA.GetType(), slotB.GetType()) {
+							if slotA.GetType() == slotB.GetType() {
 								return slotA
 							}
 							joinedType := slotA.GetType().GetLeastSupertype(slotB.GetType())
-							if base.JSCompObjects_Identical(joinedType, slotA.GetType()) {
+							if joinedType == slotA.GetType() {
 								return slotA
 							}
-							if base.JSCompObjects_Identical(joinedType, slotB.GetType()) {
+							if joinedType == slotB.GetType() {
 								return slotB
 							}
 							return newLinkedFlowScope_OverlaySlotWithArena(arena, name, joinedType)
@@ -747,7 +746,7 @@ func newLinkedFlowScope_OverlayScopeWithArena(
 func (o *LinkedFlowScope_OverlayScope) Infer(name string, type_ rhino.JSType) *LinkedFlowScope_OverlayScope {
 	// TODO(sdh): variants that do or don't clobber properties (i.e. look up and modify instead)
 	slot := o.slots.Get(name)
-	if slot != nil && base.JSCompObjects_Identical(type_, slot.type_) {
+	if slot != nil && type_ == slot.type_ {
 		return o
 	}
 	return newLinkedFlowScope_OverlayScopeWithArena(o.arena, o.scope, o.slots.PlusMapWithArena(o.arena.slotMaps(), name, newLinkedFlowScope_OverlaySlotWithArena(o.arena, name, type_)))

@@ -22,9 +22,9 @@ import (
 	"iter"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -470,27 +470,28 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 	p.CalcTotalStats()
 
 	output.Println(
-		base.JSCompStrings_Lines(
+		strings.Join([]string{
 			"",
 			"TOTAL:",
-			"Start time(ms): "+jutil.ToJavaString(p.startTime),
-			"End time(ms): "+jutil.ToJavaString(p.endTime),
-			"Wall time(ms): "+jutil.ToJavaString(p.endTime-p.startTime),
-			"Passes runtime(ms): "+jutil.ToJavaString(p.passesRuntime),
-			"Max mem usage (measured after each pass)(MB): "+jutil.ToJavaString(p.maxMem),
-			"#Runs: "+jutil.ToJavaString(p.runs),
-			"#Changing runs: "+jutil.ToJavaString(p.changes),
-			"#Loopable runs: "+jutil.ToJavaString(p.loopRuns),
-			"#Changing loopable runs: "+jutil.ToJavaString(p.loopChanges),
-			"Estimated AST reduction(#nodes): "+jutil.ToJavaString(p.astDiff),
-			"Estimated Reduction(bytes): "+jutil.ToJavaString(p.diff),
-			"Estimated GzReduction(bytes): "+jutil.ToJavaString(p.gzDiff),
-			"Estimated AST size(#nodes): "+jutil.ToJavaString(p.astSize),
-			"Estimated Size(bytes): "+jutil.ToJavaString(p.codeSize),
-			"Estimated GzSize(bytes): "+jutil.ToJavaString(p.gzCodeSize),
+			"Start time(ms): " + jutil.ToJavaString(p.startTime),
+			"End time(ms): " + jutil.ToJavaString(p.endTime),
+			"Wall time(ms): " + jutil.ToJavaString(p.endTime-p.startTime),
+			"Passes runtime(ms): " + jutil.ToJavaString(p.passesRuntime),
+			"Max mem usage (measured after each pass)(MB): " + jutil.ToJavaString(p.maxMem),
+			"#Runs: " + jutil.ToJavaString(p.runs),
+			"#Changing runs: " + jutil.ToJavaString(p.changes),
+			"#Loopable runs: " + jutil.ToJavaString(p.loopRuns),
+			"#Changing loopable runs: " + jutil.ToJavaString(p.loopChanges),
+			"Estimated AST reduction(#nodes): " + jutil.ToJavaString(p.astDiff),
+			"Estimated Reduction(bytes): " + jutil.ToJavaString(p.diff),
+			"Estimated GzReduction(bytes): " + jutil.ToJavaString(p.gzDiff),
+			"Estimated AST size(#nodes): " + jutil.ToJavaString(p.astSize),
+			"Estimated Size(bytes): " + jutil.ToJavaString(p.codeSize),
+			"Estimated GzSize(bytes): " + jutil.ToJavaString(p.gzCodeSize),
 			"",
-			"DisambiguateProperties: "+p.disambiguatePropertiesSummary,
-			"AmbiguateProperties: "+p.ambiguatePropertiesSummary))
+			"DisambiguateProperties: " + p.disambiguatePropertiesSummary,
+			"AmbiguateProperties: " + p.ambiguatePropertiesSummary,
+		}, "\n"))
 
 	summaryLinesRaw := p.transitiveSummaryLines
 	summarySourcesRaw := p.transitiveSummarySources
@@ -499,27 +500,24 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 		summarySourcesRaw = p.transitiveSummarySourcesParsed
 	}
 	output.Println(
-		base.JSCompStrings_Lines(
+		strings.Join([]string{
 			"",
 			"Inputs:",
-			"JS lines:   "+jutil.ToJavaString(p.jsLines),
-			"JS sources: "+jutil.ToJavaString(p.jsSources),
-			"Extern lines:   "+jutil.ToJavaString(p.externLines),
-			"Extern sources: "+jutil.ToJavaString(p.externSources),
-			"Type summary lines (raw input):   "+
+			"JS lines:   " + jutil.ToJavaString(p.jsLines),
+			"JS sources: " + jutil.ToJavaString(p.jsSources),
+			"Extern lines:   " + jutil.ToJavaString(p.externLines),
+			"Extern sources: " + jutil.ToJavaString(p.externSources),
+			"Type summary lines (raw input):   " +
 				jutil.ToJavaString(summaryLinesRaw),
-			"Type summary lines (post-pruning):   "+jutil.ToJavaString(p.transitiveSummaryLines),
-			"Type summary sources (raw input):   "+
+			"Type summary lines (post-pruning):   " + jutil.ToJavaString(p.transitiveSummaryLines),
+			"Type summary sources (raw input):   " +
 				jutil.ToJavaString(summarySourcesRaw),
-			"Type summary sources (post-pruning):   "+jutil.ToJavaString(p.transitiveSummarySources),
+			"Type summary sources (post-pruning):   " + jutil.ToJavaString(p.transitiveSummarySources),
 			"",
-			"Dependency pruning analysis: "+p.pruningAnalysisSummary))
+			"Dependency pruning analysis: " + p.pruningAnalysisSummary,
+		}, "\n"))
 
-	output.Println(
-		base.JSCompStrings_Lines(
-			"",
-			"Summary:",
-			"pass,runtime,allocMem,runs,changingRuns,astReduction,reduction,gzReduction"))
+	output.Println("\nSummary:\npass,runtime,allocMem,runs,changingRuns,astReduction,reduction,gzReduction")
 	type passSummaryEntry struct {
 		key   string
 		stats *PerformanceTracker_Stats
@@ -545,11 +543,7 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 			stats.gzDiff))
 	}
 
-	output.Println(
-		base.JSCompStrings_Lines(
-			"",
-			"Log:",
-			"pass,runtime,allocMem,codeChanged,astReduction,reduction,gzReduction,astSize,size,gzSize"))
+	output.Println("\nLog:\npass,runtime,allocMem,codeChanged,astReduction,reduction,gzReduction,astSize,size,gzSize")
 	for _, stats := range p.log {
 		output.Printf(
 			"%s,%d,%d,%b,%d,%d,%d,%d,%d,%d\n",
@@ -566,11 +560,7 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 	}
 
 	if p.astManifest != nil {
-		output.Println(
-			base.JSCompStrings_Lines(
-				"", //
-				"Input AST Manifest:",
-				"token,count"))
+		output.Println("\nInput AST Manifest:\ntoken,count")
 		var lines []string
 		for element, count := range p.astManifest.EntrySet() {
 			lines = append(lines, jutil.StringFormat("%s,%d", element, count))

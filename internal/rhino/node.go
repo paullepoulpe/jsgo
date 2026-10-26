@@ -4091,44 +4091,6 @@ func (n Node) isEquivalentToBase(
 	return true
 }
 
-// Node_PROP_MAP_FOR_EQUALITY holds accessors for Node properties that should
-// also be compared when comparing nodes for equality.
-//
-// We'd prefer to list the props that should be ignored rather than the ones
-// that should be checked, but that was too difficult initially. In general
-// these properties are ones that show up as keywords / symbols which don't
-// have their own nodes.
-//
-// Accessor functions are used rather than Props to encode the correct way
-// of reading the prop.
-//
-// Java: Node.PROP_MAP_FOR_EQUALITY
-var Node_PROP_MAP_FOR_EQUALITY = func() *jutil.LinkedHashMap[Node_Prop, func(Node) any] {
-	m := jutil.NewLinkedHashMap[Node_Prop, func(Node) any]()
-	m.Put(Node_Prop_ARROW_FN, func(n Node) any { return n.IsArrowFunction() })
-	m.Put(Node_Prop_ASYNC_FN, func(n Node) any { return n.IsAsyncFunction() })
-	m.Put(Node_Prop_GENERATOR_FN, func(n Node) any { return n.IsGeneratorFunction() })
-	m.Put(Node_Prop_START_OF_OPT_CHAIN, func(n Node) any { return n.IsOptionalChainStart() })
-	m.Put(Node_Prop_STATIC_MEMBER, func(n Node) any { return n.IsStaticMember() })
-	m.Put(Node_Prop_YIELD_ALL, func(n Node) any { return n.IsYieldAll() })
-	m.Put(Node_Prop_EXPORT_DEFAULT, func(n Node) any { return n.GetIntProp(Node_Prop_EXPORT_DEFAULT) })
-	m.Put(Node_Prop_EXPORT_ALL_FROM, func(n Node) any { return n.GetIntProp(Node_Prop_EXPORT_ALL_FROM) })
-	m.Put(Node_Prop_INCRDECR, func(n Node) any { return n.GetIntProp(Node_Prop_INCRDECR) })
-	m.Put(Node_Prop_QUOTED, func(n Node) any { return n.GetIntProp(Node_Prop_QUOTED) })
-	m.Put(Node_Prop_FREE_CALL, func(n Node) any { return n.GetBooleanProp(Node_Prop_FREE_CALL) })
-	m.Put(Node_Prop_DIRECT_EVAL, func(n Node) any { return n.GetBooleanProp(Node_Prop_DIRECT_EVAL) })
-	m.Put(Node_Prop_COMPUTED_PROP_METHOD, func(n Node) any { return n.GetBooleanProp(Node_Prop_COMPUTED_PROP_METHOD) })
-	m.Put(Node_Prop_COMPUTED_PROP_GETTER, func(n Node) any { return n.GetBooleanProp(Node_Prop_COMPUTED_PROP_GETTER) })
-	m.Put(Node_Prop_COMPUTED_PROP_SETTER, func(n Node) any { return n.GetBooleanProp(Node_Prop_COMPUTED_PROP_SETTER) })
-	return m
-}()
-
-// Node_propMapForEqualityKeys is used for faster Map.containsKey() lookups
-// in PROP_MAP_FOR_EQUALITY.
-//
-// Java: Node.propMapForEqualityKeys
-var Node_propMapForEqualityKeys = jutil.NewEnumSet(Node_PROP_MAP_FOR_EQUALITY.KeySlice()...)
-
 const node_propEqualityMask uint64 = propFlag_ARROW_FN |
 	propFlag_ASYNC_FN |
 	propFlag_GENERATOR_FN |

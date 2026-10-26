@@ -21,7 +21,6 @@ package jscomp
 import (
 	"slices"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -669,13 +668,13 @@ func (f *FunctionTypeBuilder) InferInheritance(info *rhino.JSDocInfo, classExten
 //
 // Java: FunctionTypeBuilder.areCompatibleExtendsTypes(ObjectType, ObjectType)
 func FunctionTypeBuilder_AreCompatibleExtendsTypes(annotated rhino.ObjectType, extendsClause rhino.ObjectType) bool {
-	if extendsClause == nil || base.JSCompObjects_Identical(annotated, extendsClause) {
+	if extendsClause == nil || annotated == extendsClause {
 		return true
 	}
 
 	// Allow `/** @extends {Foo<T>} */ class Bar extends Foo`
 	return annotated.IsTemplatizedType() &&
-		base.JSCompObjects_Identical(annotated.ToMaybeTemplatizedType().GetReferencedType(), extendsClause)
+		annotated.ToMaybeTemplatizedType().GetReferencedType() == extendsClause
 }
 
 // InferThisTypeWithFallback infers the type of this; type is the type of

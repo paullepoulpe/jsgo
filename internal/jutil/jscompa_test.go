@@ -359,22 +359,6 @@ func TestCharsetDecodeUTF16ReversedMark(t *testing.T) {
 	}
 }
 
-func TestHashBasedTableOrder(t *testing.T) {
-	tb := HashBasedTable_Create[string, string, int]()
-	tb.Put("r1", "c1", 1)
-	tb.Put("r2", "c1", 2)
-	tb.Put("r1", "c2", 3)
-	if old := tb.Put("r1", "c1", 4); old != 1 {
-		t.Errorf("old = %d", old)
-	}
-	if got := tb.String(); got != "{r1={c1=4, c2=3}, r2={c1=2}}" {
-		t.Errorf("toString = %s", got)
-	}
-	if tb.Size() != 3 || !tb.ContainsRow("r2") || tb.ContainsRow("c1") || tb.Row("r3").Size() != 0 {
-		t.Errorf("size/containsRow/row")
-	}
-}
-
 func TestImmutableListBuilder(t *testing.T) {
 	b := ImmutableList_Builder_[*int]()
 	x := 1

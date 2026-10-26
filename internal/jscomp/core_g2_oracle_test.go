@@ -216,9 +216,9 @@ func coreG2Decomposers(compiler AbstractCompiler) []*ExpressionDecomposer {
 		NewExpressionDecomposer(
 			compiler,
 			coreG2Counter(),
-			jutil.NewLinkedHashSet("foo", "goog", "fn", "require", "Object"),
+			map[string]bool{"foo": true, "goog": true, "fn": true, "require": true, "Object": true},
 			Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)),
-			jutil.NewEnumSet(ExpressionDecomposer_Workaround_BROKEN_IE11_LOCATION_ASSIGN)),
+			true),
 	}
 }
 
@@ -351,7 +351,7 @@ func (o *coreG2Out) mutate(script rhino.Node) {
 			clone := script.CloneTree()
 			target := coreG2Preorder(clone)[i]
 			decomposer := compiler.CreateExpressionDecomposer(
-				coreG2Counter(), jutil.NewLinkedHashSet[string](), Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)))
+				coreG2Counter(), nil, Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)))
 			var block rhino.Node
 			var from, before int
 			if e := coreG2Try(func() {

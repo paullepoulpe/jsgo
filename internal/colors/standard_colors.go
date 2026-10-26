@@ -165,60 +165,37 @@ func immutableMapBuilderPut(m *jutil.LinkedHashMap[ColorId, *Color], k ColorId, 
 	m.Put(k, v)
 }
 
-// StandardColors_PRIMITIVE_COLORS is the set of Colors that have associated
-// runtime values but are not objects.
-//
-// In JS, instances of primitve Colors are deeply immutable.
-var StandardColors_PRIMITIVE_COLORS = func() *jutil.LinkedHashMap[ColorId, *Color] {
-	m := jutil.NewLinkedHashMap[ColorId, *Color]()
-	for _, c := range []*Color{
-		StandardColors_BIGINT,
-		StandardColors_BOOLEAN,
-		StandardColors_NULL_OR_VOID,
-		StandardColors_NUMBER,
-		StandardColors_STRING,
-		StandardColors_SYMBOL,
-		StandardColors_GBIGINT,
-	} {
-		immutableMapBuilderPut(m, c.GetId(), c)
+func isPrimitiveColorId(id ColorId) bool {
+	switch id {
+	case StandardColors_BIGINT.id,
+		StandardColors_BOOLEAN.id,
+		StandardColors_NULL_OR_VOID.id,
+		StandardColors_NUMBER.id,
+		StandardColors_STRING.id,
+		StandardColors_SYMBOL.id,
+		StandardColors_GBIGINT.id:
+		return true
+	default:
+		return false
 	}
-	return m
-}()
-
-// StandardColors_PRIMITIVE_BOX_IDS is the set of ColorIds for object Colors
-// that "box" primitive Colors.
-//
-// Boxing is when the JSVM automatically wraps a primitive value in a
-// temporary object so it can participate in a method call or other
-// object-only operation.
-//
-// The eaxct definition of each box Color may be altered by JS code.
-var StandardColors_PRIMITIVE_BOX_IDS = jutil.NewLinkedHashSet(
-	StandardColors_BIGINT_OBJECT_ID,
-	StandardColors_BOOLEAN_OBJECT_ID,
-	StandardColors_NUMBER_OBJECT_ID,
-	StandardColors_STRING_OBJECT_ID,
-	StandardColors_SYMBOL_OBJECT_ID)
+}
 
 // StandardColors_STANDARD_OBJECT_IDS is the set of ColorIds for object
 // Colors that need to be referenced in optimizations.
 //
 // The exact definition of each box Color may be altered by JS code.
-var StandardColors_STANDARD_OBJECT_IDS = func() *jutil.LinkedHashSet[ColorId] {
-	s := jutil.NewLinkedHashSet[ColorId]()
-	s.AddAll(StandardColors_PRIMITIVE_BOX_IDS.ToSlice()...)
-	s.Add(StandardColors_ARRAY_ID)
-	s.Add(StandardColors_READONLY_ARRAY_ID)
-	s.Add(StandardColors_ARGUMENTS_ID)
-	s.Add(StandardColors_ASYNC_ITERATOR_ITERABLE_ID)
-	s.Add(StandardColors_GENERATOR_ID)
-	s.Add(StandardColors_I_TEMPLATE_ARRAY_ID)
-	s.Add(StandardColors_ITERATOR_ID)
-	s.Add(StandardColors_PROMISE_ID)
-	return s
-}()
-
-// Java: StandardColors()
-func NewStandardColors() *StandardColors {
-	panic(jutil.NewAssertionErrorNoMessage())
-}
+var StandardColors_STANDARD_OBJECT_IDS = jutil.NewLinkedHashSet(
+	StandardColors_BIGINT_OBJECT_ID,
+	StandardColors_BOOLEAN_OBJECT_ID,
+	StandardColors_NUMBER_OBJECT_ID,
+	StandardColors_STRING_OBJECT_ID,
+	StandardColors_SYMBOL_OBJECT_ID,
+	StandardColors_ARRAY_ID,
+	StandardColors_READONLY_ARRAY_ID,
+	StandardColors_ARGUMENTS_ID,
+	StandardColors_ASYNC_ITERATOR_ITERABLE_ID,
+	StandardColors_GENERATOR_ID,
+	StandardColors_I_TEMPLATE_ARRAY_ID,
+	StandardColors_ITERATOR_ID,
+	StandardColors_PROMISE_ID,
+)

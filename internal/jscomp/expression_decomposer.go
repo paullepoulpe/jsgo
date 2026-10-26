@@ -43,14 +43,14 @@ import (
 //   - Exposing: `z()`
 //   - Sufficient decomposition: `var temp = alert() + alert(); return temp + z();`
 type ExpressionDecomposer struct {
-	compiler               AbstractCompiler
-	astAnalyzer            *AstAnalyzer
-	astFactory             *AstFactory
-	safeNameIdSupplier     func() string
-	knownConstantFunctions *jutil.LinkedHashSet[string]
-	scope                  *Scope
-	enabledWorkarounds     *jutil.EnumSet[ExpressionDecomposer_Workaround]
-	unknownType            rhino.JSType
+	compiler                 AbstractCompiler
+	astAnalyzer              *AstAnalyzer
+	astFactory               *AstFactory
+	safeNameIdSupplier       func() string
+	knownConstantFunctions   map[string]bool
+	scope                    *Scope
+	brokenIE11LocationAssign bool
+	unknownType              rhino.JSType
 
 	tempNamePrefix   string
 	resultNamePrefix string
@@ -89,30 +89,6 @@ func (t ExpressionDecomposer_DecompositionType) String() string {
 // Java: ExpressionDecomposer.DecompositionType.ordinal()
 func (t ExpressionDecomposer_DecompositionType) Ordinal() int { return int(t) }
 
-// ExpressionDecomposer_Workaround identifies special case logic that needs
-// to be enabled to work around edge cases, such as bad JSVM behavior.
-type ExpressionDecomposer_Workaround int32
-
-const (
-	// IE11 throws an exception for `window.location.assign.call(window.location, url)`
-	ExpressionDecomposer_Workaround_BROKEN_IE11_LOCATION_ASSIGN ExpressionDecomposer_Workaround = iota
-)
-
-var expressionDecomposer_Workaround_names = [...]string{"BROKEN_IE11_LOCATION_ASSIGN"}
-
-// Java: ExpressionDecomposer.Workaround.values()
-func ExpressionDecomposer_Workaround_values() []ExpressionDecomposer_Workaround {
-	return []ExpressionDecomposer_Workaround{ExpressionDecomposer_Workaround_BROKEN_IE11_LOCATION_ASSIGN}
-}
-
-// Java: ExpressionDecomposer.Workaround.name()
-func (w ExpressionDecomposer_Workaround) String() string {
-	return expressionDecomposer_Workaround_names[w]
-}
-
-// Java: ExpressionDecomposer.Workaround.ordinal()
-func (w ExpressionDecomposer_Workaround) Ordinal() int { return int(w) }
-
 // NewExpressionDecomposer creates an ExpressionDecomposer.
 //
 // DO NOT USE THIS METHOD DIRECTLY. Call
@@ -121,30 +97,29 @@ func (w ExpressionDecomposer_Workaround) Ordinal() int { return int(w) }
 //
 // constFunctionNames is the set of names known to be constant functions.
 // Used by InlineFunctions to prevent this pass from breaking bookkeeping
-// for functions it's inlining. enabledWorkarounds indicates which
-// workarounds for bad JSVM behavior should be enabled.
+// for functions it's inlining. brokenIE11LocationAssign indicates whether the
+// IE11 window.location.assign workaround should be enabled.
 //
 // Java: ExpressionDecomposer(AbstractCompiler, Supplier<String>, ImmutableSet<String>, Scope, EnumSet<ExpressionDecomposer.Workaround>)
 func NewExpressionDecomposer(
 	compiler AbstractCompiler,
 	safeNameIdSupplier func() string,
-	constFunctionNames *jutil.LinkedHashSet[string],
+	constFunctionNames map[string]bool,
 	scope *Scope,
-	enabledWorkarounds *jutil.EnumSet[ExpressionDecomposer_Workaround]) *ExpressionDecomposer {
+	brokenIE11LocationAssign bool) *ExpressionDecomposer {
 	e := &ExpressionDecomposer{
 		tempNamePrefix:   "JSCompiler_temp",
 		resultNamePrefix: "JSCompiler_inline_result",
 	}
 	jutil.CheckNotNull(compiler)
 	jutil.CheckNotNull(safeNameIdSupplier)
-	jutil.CheckNotNull(constFunctionNames)
 	e.compiler = compiler
 	e.astAnalyzer = compiler.GetAstAnalyzer()
 	e.astFactory = compiler.CreateAstFactory()
 	e.safeNameIdSupplier = safeNameIdSupplier
 	e.knownConstantFunctions = constFunctionNames
 	e.scope = scope
-	e.enabledWorkarounds = enabledWorkarounds
+	e.brokenIE11LocationAssign = brokenIE11LocationAssign
 	if compiler.HasTypeCheckingRun() && !compiler.HasOptimizationColors() {
 		e.unknownType = compiler.GetTypeRegistry().GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 	} else {
@@ -672,7 +647,7 @@ func ExpressionDecomposer_BuildResultExpression(expr rhino.Node, needResult bool
 func (e *ExpressionDecomposer) IsConstantNameNode(n rhino.Node) bool {
 	// Non-constant names values may have been changed.
 	return n.IsName() &&
-		(NodeUtil_IsConstantVar(n, e.scope) || e.knownConstantFunctions.Contains(n.GetString()))
+		(NodeUtil_IsConstantVar(n, e.scope) || e.knownConstantFunctions[n.GetString()])
 }
 
 // ExtractExpression: expr is the expression to extract; injectionPoint the
@@ -1308,15 +1283,15 @@ func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree rhino.Node, following
 				if e.IsTempConstantValueName(callee) {
 					return false
 				}
-				if e.knownConstantFunctions != nil {
-					if qn, ok := callee.GetQualifiedNameString(); ok && e.knownConstantFunctions.Contains(qn) {
+				if len(e.knownConstantFunctions) > 0 {
+					if qn, ok := callee.GetQualifiedNameString(); ok && e.knownConstantFunctions[qn] {
 						return false
 					}
 				}
 			}
 		}
 
-		if e.enabledWorkarounds.Contains(ExpressionDecomposer_Workaround_BROKEN_IE11_LOCATION_ASSIGN) &&
+		if e.brokenIE11LocationAssign &&
 			ExpressionDecomposer_WINDOW_LOCATION_ASSIGN.Matches(tree) {
 			// IE11 throws an exception if we decompose a call to `window.location.assign`
 			// e.g.

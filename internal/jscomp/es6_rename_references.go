@@ -19,9 +19,13 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type Es6ScopeRenameKey struct {
+	Root rhino.Node
+	Name string
+}
 
 // Es6RenameReferences renames references in code.
 type Es6RenameReferences struct {
@@ -33,14 +37,12 @@ type Es6RenameReferences struct {
 	// An entry in this map means we should rename a variable that was
 	// originally declared in the scope with the given root and had the
 	// original variable name to the new name.
-	renameTable *jutil.HashBasedTable[rhino.Node, string, string]
+	renameTable map[Es6ScopeRenameKey]string
 }
 
 // Java: Es6RenameReferences(Table<Node, String, String>)
-func NewEs6RenameReferences(renameTable *jutil.HashBasedTable[rhino.Node, string, string]) *Es6RenameReferences {
-	e := &Es6RenameReferences{}
-	e.renameTable = renameTable
-	return e
+func NewEs6RenameReferences(renameTable map[Es6ScopeRenameKey]string) *Es6RenameReferences {
+	return &Es6RenameReferences{renameTable: renameTable}
 }
 
 // Java: Es6RenameReferences.visit(NodeTraversal, Node, Node)
@@ -69,7 +71,7 @@ func (e *Es6RenameReferences) RenameReference(t *NodeTraversal, n rhino.Node, ol
 	// I don't know if the other users of this class are also modifying the scopes in advance.
 	// - bradfordcsmith@google.com
 	for current != nil {
-		newName, ok := e.renameTable.Get(current.GetRootNode(), oldName)
+		newName, ok := e.renameTable[Es6ScopeRenameKey{Root: current.GetRootNode(), Name: oldName}]
 		if ok {
 			n.SetString(newName)
 			t.ReportCodeChange()

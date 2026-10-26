@@ -36,7 +36,7 @@ type SuppressDocWarningsGuard struct {
 	WarningsGuardBase
 
 	// Warnings guards for each suppressible warnings group, indexed by name.
-	suppressors *jutil.LinkedHashMap[string, *DiagnosticGroup]
+	suppressors map[string]*DiagnosticGroup
 
 	compiler AbstractCompiler
 }
@@ -49,33 +49,33 @@ const suppressDocWarningsGuard_serialVersionUID int64 = 1
 // Java: SuppressDocWarningsGuard(AbstractCompiler, Map<String, DiagnosticGroup>)
 func NewSuppressDocWarningsGuard(
 	compiler AbstractCompiler, suppressors *jutil.LinkedHashMap[string, *DiagnosticGroup]) *SuppressDocWarningsGuard {
-	g := &SuppressDocWarningsGuard{}
-	g.compiler = compiler
-	g.suppressors = SuppressDocWarningsGuard_CreateSuppressors(suppressors)
-	return g
+	return &SuppressDocWarningsGuard{
+		compiler:    compiler,
+		suppressors: SuppressDocWarningsGuard_CreateSuppressors(suppressors),
+	}
 }
 
 // Java: SuppressDocWarningsGuard.createSuppressors(Map<String, DiagnosticGroup>)
 func SuppressDocWarningsGuard_CreateSuppressors(
-	suppressors *jutil.LinkedHashMap[string, *DiagnosticGroup]) *jutil.LinkedHashMap[string, *DiagnosticGroup] {
-	builder := jutil.NewLinkedHashMapFrom(suppressors)
+	suppressors *jutil.LinkedHashMap[string, *DiagnosticGroup]) map[string]*DiagnosticGroup {
+	m := make(map[string]*DiagnosticGroup, suppressors.Size()+2)
+	for k, v := range suppressors.All() {
+		m[k] = v
+	}
 
 	// Hack: Allow "@suppress {missingProperties}" to mean
 	// "@suppress {strictMissingProperties}".
 	// TODO(johnlenz): Delete this when it is enabled with missingProperties
-	builder.Put(
-		"missingProperties",
-		NewDiagnosticGroupFromGroups(
-			DiagnosticGroups_MISSING_PROPERTIES, DiagnosticGroups_STRICT_MISSING_PROPERTIES))
+	m["missingProperties"] = NewDiagnosticGroupFromGroups(
+		DiagnosticGroups_MISSING_PROPERTIES, DiagnosticGroups_STRICT_MISSING_PROPERTIES)
 
 	// Hack: Allow "@suppress {checkTypes}" to include
 	// "strictCheckTypes".
 	// TODO(johnlenz): Delete this when it is enabled with missingProperties
-	builder.Put(
-		"checkTypes",
-		NewDiagnosticGroupFromGroups(DiagnosticGroups_CHECK_TYPES, DiagnosticGroups_STRICT_CHECK_TYPES))
+	m["checkTypes"] = NewDiagnosticGroupFromGroups(
+		DiagnosticGroups_CHECK_TYPES, DiagnosticGroups_STRICT_CHECK_TYPES)
 
-	return jutil.NewLinkedHashMapFrom(builder)
+	return m
 }
 
 // Java: SuppressDocWarningsGuard.level(JSError)
@@ -147,7 +147,7 @@ func (g *SuppressDocWarningsGuard) GetCheckLevelFromAncestors(error *JSError, no
 func (g *SuppressDocWarningsGuard) GetCheckLevelFromInfo(error *JSError, info *rhino.JSDocInfo) *CheckLevel {
 	var matched *CheckLevel
 	info.ForEachSuppression(func(suppressor string) bool {
-		group := g.suppressors.Get(suppressor)
+		group := g.suppressors[suppressor]
 		if group == nil {
 			return true // Some @suppress tags are for other tools, and may not have a group.
 		}

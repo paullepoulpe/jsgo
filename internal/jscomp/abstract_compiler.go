@@ -676,7 +676,7 @@ type AbstractCompiler interface {
 	// Java: AbstractCompiler.createExpressionDecomposer(Supplier<String>, ImmutableSet<String>, Scope)
 	CreateExpressionDecomposer(
 		uniqueNameIdSupplier func() string,
-		knownConstantFunctions *jutil.LinkedHashSet[string],
+		knownConstantFunctions map[string]bool,
 		scope *Scope) *ExpressionDecomposer
 
 	// Java: AbstractCompiler.getModuleMetadataMap()

@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -69,22 +68,28 @@ import (
 // addScopes and addSymbolsFrom are the package-level functions
 // SymbolTable_AddScopes and SymbolTable_AddSymbolsFrom.
 //
+type symbolTableKey struct {
+	declNode rhino.Node
+	name     string
+}
+
+type externSymbolPosKey struct {
+	sourceFile string
+	position   int
+}
+
 // Java: public final class SymbolTable
 type SymbolTable struct {
 	// All symbols in the program, uniquely identified by the node where
 	// they're declared and their name.
-	//
-	// Go-only: language-adapter — Tables.newCustomTable(new LinkedHashMap<>(),
-	// LinkedHashMap::new) is the StandardTable over LinkedHashMaps that
-	// jutil.HashBasedTable implements.
-	symbols *jutil.HashBasedTable[rhino.Node, string, *SymbolTable_Symbol]
+	symbols *jutil.LinkedHashMap[symbolTableKey, *SymbolTable_Symbol]
 
 	// All syntactic scopes in the program, uniquely identified by the node
 	// where they're declared.
 	scopes *jutil.LinkedHashMap[rhino.Node, *SymbolTable_SymbolScope]
 
 	// All Nodes with JSDocInfo in the program.
-	docInfos *jutil.ArrayList[rhino.Node]
+	docInfos []rhino.Node
 
 	globalScope *SymbolTable_SymbolScope
 
@@ -93,7 +98,7 @@ type SymbolTable struct {
 	registry *rhino.JSTypeRegistry
 
 	// Map from a JSType to the symbol that declares it.
-	symbolThatDeclaresType *base.LinkedIdentityHashMap[rhino.JSType, *SymbolTable_Symbol]
+	symbolThatDeclaresType map[rhino.JSType]*SymbolTable_Symbol
 
 	// Comparators
 	sourceNameOrdering   func(a, b *string) int
@@ -117,10 +122,9 @@ const SymbolTable_GLOBAL_THIS = "*global*"
 // Java: SymbolTable(AbstractCompiler, JSTypeRegistry)
 func NewSymbolTable(compiler AbstractCompiler, registry *rhino.JSTypeRegistry) *SymbolTable {
 	t := &SymbolTable{
-		symbols:                jutil.HashBasedTable_Create[rhino.Node, string, *SymbolTable_Symbol](),
+		symbols:                jutil.NewLinkedHashMap[symbolTableKey, *SymbolTable_Symbol](),
 		scopes:                 jutil.NewLinkedHashMap[rhino.Node, *SymbolTable_SymbolScope](),
-		docInfos:               jutil.NewArrayList[rhino.Node](),
-		symbolThatDeclaresType: base.NewLinkedIdentityHashMap[rhino.JSType, *SymbolTable_Symbol](),
+		symbolThatDeclaresType: make(map[rhino.JSType]*SymbolTable_Symbol),
 		compiler:               compiler,
 		registry:               registry,
 	}
@@ -140,7 +144,7 @@ func (t *SymbolTable) GetReferenceList(symbol *SymbolTable_Symbol) []*SymbolTabl
 
 // Java: SymbolTable.getAllSymbols()
 func (t *SymbolTable) GetAllSymbols() []*SymbolTable_Symbol {
-	return t.symbols.ValueSlice()
+	return slices.Collect(t.symbols.Values())
 }
 
 // GetAllSymbolsSorted gets the symbols in their natural ordering. Always
@@ -148,7 +152,7 @@ func (t *SymbolTable) GetAllSymbols() []*SymbolTable_Symbol {
 //
 // Java: SymbolTable.getAllSymbolsSorted()
 func (t *SymbolTable) GetAllSymbolsSorted() []*SymbolTable_Symbol {
-	result := t.symbols.ValueSlice()
+	result := slices.Collect(t.symbols.Values())
 	slices.SortStableFunc(result, t.GetNaturalSymbolOrdering())
 	return result
 }
@@ -171,7 +175,7 @@ func (t *SymbolTable) GetScope(slot *SymbolTable_Symbol) *SymbolTable_SymbolScop
 
 // Java: SymbolTable.getAllJSDocInfoNodes()
 func (t *SymbolTable) GetAllJSDocInfoNodes() []rhino.Node {
-	return t.docInfos.Slice()
+	return t.docInfos
 }
 
 // GetEnclosingScope gets the scope that contains the given node. If n is a
@@ -463,7 +467,7 @@ func (t *SymbolTable) GetSymbolForTypeHelper(type_ rhino.JSType, linkToCtor bool
 	} else if type_.IsEnumType() {
 		return t.GetSymbolDeclaredByEnum(type_.(*rhino.EnumType))
 	} else if type_.IsRecordType() {
-		return t.symbolThatDeclaresType.Get(type_)
+		return t.symbolThatDeclaresType[type_]
 	}
 	return nil
 }
@@ -730,7 +734,7 @@ func SymbolTable_AddSymbolsFrom[S rhino.StaticSlot, R rhino.StaticRef](
 //
 // Java: SymbolTable.isAnySymbolDeclared(String, Node, SymbolScope)
 func (t *SymbolTable) isAnySymbolDeclared(name string, declNode rhino.Node, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
-	sym, _ := t.symbols.Get(declNode, name)
+	sym := t.symbols.Get(symbolTableKey{declNode: declNode, name: name})
 	if sym == nil {
 		// Sometimes, our symbol tables will disagree on where the
 		// declaration node should be. In the rare case where this happens,
@@ -804,7 +808,7 @@ func (t *SymbolTable) addSymbol(
 	name = symbolTable_sanitizeSpecialChars(name)
 
 	symbol := NewSymbolTable_Symbol(name, type_, inferred, scope)
-	replacedSymbol := t.symbols.Put(declNode, name, symbol)
+	replacedSymbol := t.symbols.Put(symbolTableKey{declNode: declNode, name: name}, symbol)
 	jutil.CheckStateMsg2(
 		replacedSymbol == nil, "Found duplicate symbol %s in global index. Type %s", name, type_)
 
@@ -847,7 +851,7 @@ func (t *SymbolTable) removeSymbol(s *SymbolTable_Symbol) {
 	if !s.Equals(scope.ownSymbols.Remove(s.GetName())) {
 		panic(jutil.NewIllegalStateExceptionMsg("Symbol not found in scope " + s.String()))
 	}
-	removed, _ := t.symbols.Remove(s.GetDeclaration().GetNode(), s.GetName())
+	removed := t.symbols.Remove(symbolTableKey{declNode: s.GetDeclaration().GetNode(), name: s.GetName()})
 	if !s.Equals(removed) {
 		panic(jutil.NewIllegalStateExceptionMsg("Symbol not found in table " + s.String()))
 	}
@@ -1036,14 +1040,14 @@ func (t *SymbolTable) FillPropertyScopes() {
 			// alias.
 			continue
 		}
-		t.symbolThatDeclaresType.Put(type_, s)
+		t.symbolThatDeclaresType[type_] = s
 	}
 
 	for _, s := range allTypes {
 		type_ := t.getType(s)
 
 		// Create property scopes only based on "root" symbols for each type to handle aliases.
-		if jutil.IsNil(type_) || s.Equals(t.symbolThatDeclaresType.Get(type_)) {
+		if jutil.IsNil(type_) || s.Equals(t.symbolThatDeclaresType[type_]) {
 			t.createPropertyScopeFor(s)
 		}
 	}
@@ -1052,8 +1056,10 @@ func (t *SymbolTable) FillPropertyScopes() {
 	for _, s := range allTypes {
 		type_ := t.getType(s)
 
-		if !jutil.IsNil(type_) && t.symbolThatDeclaresType.Get(type_) != nil {
-			s.propertyScope = t.symbolThatDeclaresType.Get(type_).GetPropertyScope()
+		if !jutil.IsNil(type_) {
+			if decl := t.symbolThatDeclaresType[type_]; decl != nil {
+				s.propertyScope = decl.GetPropertyScope()
+			}
 		}
 	}
 
@@ -1282,8 +1288,8 @@ func (t *SymbolTable) createPropertyScopeFor(s *SymbolTable_Symbol) {
 		// to build a complete index of all objects in the program. So we might
 		// already have symbols for things like "Foo.bar". If this happens,
 		// throw out the old symbol and use the type-based symbol.
-		oldProp, _ :=
-			t.symbols.Get(newProp.GetDeclaration().GetNode(), s.GetName()+"."+propName)
+		oldProp :=
+			t.symbols.Get(symbolTableKey{declNode: newProp.GetDeclaration().GetNode(), name: s.GetName() + "." + propName})
 
 		if oldProp != nil && t.compiler.GetModuleMap().GetClosureModule(oldProp.GetName()) != nil {
 			// This handles cases like:
@@ -1299,7 +1305,7 @@ func (t *SymbolTable) createPropertyScopeFor(s *SymbolTable_Symbol) {
 		// then skip it. This should only happen if we screwed up,
 		// and declared multiple distinct properties with the same name
 		// at the same node. We bail out here to be safe.
-		if existing, _ := t.symbols.Get(newProp.GetDeclaration().GetNode(), newProp.GetName()); existing != nil {
+		if existing := t.symbols.Get(symbolTableKey{declNode: newProp.GetDeclaration().GetNode(), name: newProp.GetName()}); existing != nil {
 			if symbolTable_logger.IsLoggable(jutil.Level_FINE) {
 				symbolTable_logger.Fine("Found duplicate symbol " + jutil.ToJavaString(newProp))
 			}
@@ -1652,10 +1658,8 @@ func (t *SymbolTable) mergeExternSymbolsDuplicatedOnWindow() {
 	// source position as original symbol and going to use filename => sourcePosition => symbol
 	// table.
 	//
-	// Go-only: language-adapter — Tables.newCustomTable(new LinkedHashMap<>(),
-	// LinkedHashMap::new), as for the symbols field.
-	externSymbols := jutil.HashBasedTable_Create[string, int, *SymbolTable_Symbol]()
-	for _, symbol := range t.symbols.ValueSlice() {
+	externSymbols := make(map[externSymbolPosKey]*SymbolTable_Symbol)
+	for _, symbol := range slices.Collect(t.symbols.Values()) {
 		if symbol.GetDeclarationNode().IsNil() ||
 			jutil.IsNil(symbol.GetDeclarationNode().GetStaticSourceFile()) ||
 			!symbol.GetDeclarationNode().GetStaticSourceFile().IsExtern() {
@@ -1666,18 +1670,20 @@ func (t *SymbolTable) mergeExternSymbolsDuplicatedOnWindow() {
 			// Java: Table.put(null, ...) throws NullPointerException.
 			panic(jutil.NewNullPointerException())
 		}
-		sourceFile := *sourceFilePtr
-		position := symbol.GetDeclarationNode().GetSourcePosition()
-		if !externSymbols.Contains(sourceFile, position) {
-			externSymbols.Put(sourceFile, position, symbol)
+		key := externSymbolPosKey{
+			sourceFile: *sourceFilePtr,
+			position:   symbol.GetDeclarationNode().GetSourcePosition(),
+		}
+		existingSymbol, ok := externSymbols[key]
+		if !ok {
+			externSymbols[key] = symbol
 			continue
 		}
-		existingSymbol, _ := externSymbols.Get(sourceFile, position)
 		// Consider 2 possibilies: either symbol or existingSymbol might be the generated symbol we
 		// are looking for.
 		if t.isSymbolDuplicatedExternOnWindow(existingSymbol) {
 			t.mergeSymbol(existingSymbol, symbol)
-			externSymbols.Put(sourceFile, position, symbol)
+			externSymbols[key] = symbol
 		} else if t.isSymbolDuplicatedExternOnWindow(symbol) {
 			t.mergeSymbol(symbol, existingSymbol)
 		}
@@ -1694,7 +1700,7 @@ func (t *SymbolTable) mergeExternSymbolsDuplicatedOnWindow() {
 func (t *SymbolTable) RemoveGeneratedSymbols() {
 	// Need to iterate over copy of values list because removeSymbol() will change the map
 	// and we'll get ConcurrentModificationException
-	for _, symbol := range t.symbols.ValueSlice() {
+	for _, symbol := range slices.Collect(t.symbols.Values()) {
 		if t.isSymbolAQuotedObjectKey(symbol) {
 			// Quoted object keys are not considered symbols. Only unquoted keys and dot-access
 			// properties are considered symbols. Remove the quoted key.
@@ -2173,7 +2179,7 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineReference(n rhino.Node, pr
 	owner := ownerSymbol.GetType()
 	if !jutil.IsNil(owner) && owner.IsObjectType() {
 		propNode := owner.ToObjectType().GetPropertyNode(propName)
-		propSymbol, _ := c.outer.symbols.Get(propNode, propName)
+		propSymbol := c.outer.symbols.Get(symbolTableKey{declNode: propNode, name: propName})
 		if propSymbol != nil {
 			propSymbol.DefineReferenceAt(n)
 			return true
@@ -2469,7 +2475,7 @@ func (c *SymbolTable_JSDocInfoCollector) Visit(t *NodeTraversal, n rhino.Node, p
 	if info == nil {
 		return
 	}
-	c.outer.docInfos.Add(n)
+	c.outer.docInfos = append(c.outer.docInfos, n)
 
 	for it := info.TypeExprIter(); it.Next(); {
 		scope := c.outer.scopes.Get(t.GetScopeRoot())
@@ -2571,7 +2577,7 @@ func (c *SymbolTable_VisibilityCollector) Visit(t *NodeTraversal, n rhino.Node, 
 
 // Java: SymbolTable.VisibilityCollector.visitName(NodeTraversal, Node)
 func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, n rhino.Node) {
-	symbol, _ := c.outer.symbols.Get(n, n.GetString())
+	symbol := c.outer.symbols.Get(symbolTableKey{declNode: n, name: n.GetString()})
 	if symbol == nil {
 		return
 	}
@@ -2592,7 +2598,7 @@ func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, n rhino.No
 // Java: SymbolTable.VisibilityCollector.visitProperty(Node, Node)
 func (c *SymbolTable_VisibilityCollector) visitProperty(getprop rhino.Node, parent rhino.Node) {
 	propertyName := getprop.GetString()
-	symbol, _ := c.outer.symbols.Get(getprop, propertyName)
+	symbol := c.outer.symbols.Get(symbolTableKey{declNode: getprop, name: propertyName})
 	if symbol == nil {
 		return
 	}

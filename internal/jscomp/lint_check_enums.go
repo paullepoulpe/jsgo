@@ -135,7 +135,7 @@ func (c *CheckEnums) CheckName(t *NodeTraversal, prop rhino.Node) {
 
 // Java: CheckEnums.checkDuplicateEnumValues(NodeTraversal, Node)
 func CheckEnums_CheckDuplicateEnumValues(t *NodeTraversal, enumNode rhino.Node) {
-	values := jutil.NewLinkedHashSet[string]()
+	var values map[string]bool
 	for prop := enumNode.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
 		valueNode := prop.GetLastChild()
 		var value string
@@ -149,8 +149,13 @@ func CheckEnums_CheckDuplicateEnumValues(t *NodeTraversal, enumNode rhino.Node) 
 			return
 		}
 
-		if !values.Add(value) {
+		if values[value] {
 			t.Report(valueNode, CheckEnums_DUPLICATE_ENUM_VALUE, value)
+		} else {
+			if values == nil {
+				values = make(map[string]bool)
+			}
+			values[value] = true
 		}
 	}
 }

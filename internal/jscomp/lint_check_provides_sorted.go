@@ -177,13 +177,7 @@ func (c *CheckProvidesSorted) CheckCanonical(t *NodeTraversal) {
 	// originalProvides.stream().sorted().distinct().collect(toImmutableList())
 	sorted := slices.Clone(c.originalProvides)
 	slices.SortStableFunc(sorted, jutil.StringCompareTo)
-	canonicalProvides := make([]string, 0, len(sorted))
-	seen := jutil.NewLinkedHashSet[string]()
-	for _, p := range sorted {
-		if seen.Add(p) {
-			canonicalProvides = append(canonicalProvides, p)
-		}
-	}
+	canonicalProvides := slices.Compact(sorted)
 	if !slices.Equal(c.originalProvides, canonicalProvides) {
 		c.needsFix = true
 		formatted := make([]string, len(canonicalProvides))

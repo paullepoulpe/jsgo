@@ -49,19 +49,25 @@ type TypedVar struct {
 
 // includes nodes that in plain JS semantics are not 'declarations', but that the type system
 // & compiler treat as declarations.
-var typedVar_NAME_NODE_TYPES = jutil.NewEnumSet(
-	rhino.Token_NAME,
-	rhino.Token_THIS, // `if ('prop' in this) {` creates a TypedVar `this.prop` requiring a node
-	rhino.Token_IMPORT_STAR,
-	rhino.Token_EXPR_RESULT, // implicit variables from goog.provide
-	rhino.Token_EXPORT,      // tracks the *default* export
-	rhino.Token_GETPROP,
-	rhino.Token_FUNCTION,
-	rhino.Token_STRING_KEY,
-	rhino.Token_SETTER_DEF,
-	rhino.Token_GETTER_DEF,
-	rhino.Token_MEMBER_FUNCTION_DEF,
-	rhino.Token_MODULE_BODY) // for the implicit exports object in a module
+func typedVar_isValidNameNodeToken(t rhino.Token) bool {
+	switch t {
+	case rhino.Token_NAME,
+		rhino.Token_THIS, // `if ('prop' in this) {` creates a TypedVar `this.prop` requiring a node
+		rhino.Token_IMPORT_STAR,
+		rhino.Token_EXPR_RESULT, // implicit variables from goog.provide
+		rhino.Token_EXPORT,      // tracks the *default* export
+		rhino.Token_GETPROP,
+		rhino.Token_FUNCTION,
+		rhino.Token_STRING_KEY,
+		rhino.Token_SETTER_DEF,
+		rhino.Token_GETTER_DEF,
+		rhino.Token_MEMBER_FUNCTION_DEF,
+		rhino.Token_MODULE_BODY: // for the implicit exports object in a module
+		return true
+	default:
+		return false
+	}
+}
 
 // Java: TypedVar(boolean, String, Node, JSType, TypedScope, int, CompilerInput)
 func NewTypedVar(inferred bool, name string, nameNode rhino.Node, type_ rhino.JSType,
@@ -70,7 +76,7 @@ func NewTypedVar(inferred bool, name string, nameNode rhino.Node, type_ rhino.JS
 	v.initAbstractVarBase(nameNode, scope, index, input, rhino.NilNode /* implicitGoogNamespaceDefinition */)
 	if !nameNode.IsNil() {
 		jutil.CheckArgumentMsg1(
-			typedVar_NAME_NODE_TYPES.Contains(nameNode.GetToken()),
+			typedVar_isValidNameNodeToken(nameNode.GetToken()),
 			"Invalid name node token %s",
 			nameNode.GetToken())
 	}

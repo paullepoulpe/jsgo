@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -379,7 +378,7 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrMaybeShortCircuiting(
 // Java: SemanticReverseAbstractInterpreter.maybeRestrictName(FlowScope, Node, JSType, JSType)
 func (s *SemanticReverseAbstractInterpreter) MaybeRestrictName(
 	blindScope FlowScope, node rhino.Node, originalType rhino.JSType, restrictedType rhino.JSType) FlowScope {
-	if restrictedType != nil && !base.JSCompObjects_Identical(restrictedType, originalType) {
+	if restrictedType != nil && restrictedType != originalType {
 		return s.DeclareNameInScope(blindScope, node, restrictedType)
 	}
 	return blindScope
@@ -396,8 +395,8 @@ func (s *SemanticReverseAbstractInterpreter) MaybeRestrictTwoNames(
 	right rhino.Node,
 	originalRightType rhino.JSType,
 	restrictedRightType rhino.JSType) FlowScope {
-	shouldRefineLeft := restrictedLeftType != nil && !base.JSCompObjects_Identical(restrictedLeftType, originalLeftType)
-	shouldRefineRight := restrictedRightType != nil && !base.JSCompObjects_Identical(restrictedRightType, originalRightType)
+	shouldRefineLeft := restrictedLeftType != nil && restrictedLeftType != originalLeftType
+	shouldRefineRight := restrictedRightType != nil && restrictedRightType != originalRightType
 	if shouldRefineLeft || shouldRefineRight {
 		informed := blindScope
 		if shouldRefineLeft {

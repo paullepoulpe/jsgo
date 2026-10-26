@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -34,7 +33,7 @@ type SerializeTypesToPointers struct {
 	compiler                  AbstractCompiler
 	jstypeReconserializer     *JSTypeReconserializer
 	propertiesReferencedInAst map[string]struct{}
-	typePointersByJstype      *base.LinkedIdentityHashMap[rhino.JSType, int]
+	typePointersByJstype      map[rhino.JSType]int
 	typePool                  *TypePool
 	lastProp                  string
 	hasLastProp               bool
@@ -165,12 +164,12 @@ func (s *SerializeTypesToPointers) gatherTypesWalk(n rhino.Node) {
 }
 
 // Java: SerializeTypesToPointers.getTypePointersByJstype()
-func (s *SerializeTypesToPointers) GetTypePointersByJstype() *base.LinkedIdentityHashMap[rhino.JSType, int] {
+func (s *SerializeTypesToPointers) GetTypePointersByJstype() map[rhino.JSType]int {
 	if s.typePointersByJstype == nil {
-		s.typePointersByJstype = base.NewLinkedIdentityHashMap[rhino.JSType, int]()
+		s.typePointersByJstype = make(map[rhino.JSType]int, len(s.jstypeReconserializer.recordsByPointer))
 		for _, record := range s.jstypeReconserializer.recordsByPointer {
 			for _, jstype := range record.jstypes {
-				s.typePointersByJstype.Put(jstype, record.pointer)
+				s.typePointersByJstype[jstype] = record.pointer
 			}
 		}
 	}

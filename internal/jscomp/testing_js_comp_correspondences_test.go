@@ -21,7 +21,6 @@ package jscomp
 import (
 	"sync"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -53,7 +52,7 @@ func JSCompCorrespondences_ReferenceEquality() *Correspondence {
 }
 
 // Java: JSCompCorrespondences.REFERENCE_EQUALITY
-var jsCompCorrespondences_REFERENCE_EQUALITY = Correspondence_From(func(a, b any) bool { return base.JSCompObjects_Identical(a, b) }, "is same instance as")
+var jsCompCorrespondences_REFERENCE_EQUALITY = Correspondence_From(func(a, b any) bool { return a == b }, "is same instance as")
 
 // jsCompCorrespondences_COMPILER_FOR_PARSING is a compiler for parsing
 // snippets of code into AST as leniently as possible.

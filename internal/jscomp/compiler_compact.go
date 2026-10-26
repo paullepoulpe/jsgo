@@ -303,10 +303,8 @@ func (g *GlobalNamespace) forwardNodes(fwd func(rhino.Node) rhino.Node) {
 			name(n)
 		}
 	}
-	if g.nameMapByModule != nil {
-		for n := range g.nameMapByModule.Values() {
-			name(n)
-		}
+	for _, n := range g.nameMapByModule {
+		name(n)
 	}
 	if g.globalNames != nil {
 		for _, n := range g.globalNames.Slice() {
