@@ -3,6 +3,8 @@ package jscomp
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -384,4 +386,117 @@ window['gdecomp_%[1]d'] = extEffect('g_%[1]d') + leafBlockInl_%[1]d(%[1]d);
 		opts.SetInlineLocalVariables(false)
 		opts.SetInlineConstantVars(true)
 	})
+}
+
+func TestParallelPasses_MultiChunkSourceMapsAndWrappersParity(t *testing.T) {
+	srcDir := t.TempDir()
+	externPath := filepath.Join(srcDir, "externs.js")
+	if err := os.WriteFile(externPath, []byte(`/** @externs */
+/** @type {!Object} */ var window;
+/** @param {...*} args */ function extSink(args) {}
+`), 0o666); err != nil {
+		t.Fatal(err)
+	}
+
+	const numChunks = 8
+	var chunkFiles [numChunks][2]string
+	for c := 0; c < numChunks; c++ {
+		for f := 0; f < 2; f++ {
+			name := filepath.Join(srcDir, fmt.Sprintf("c%d_f%d.js", c, f))
+			chunkFiles[c][f] = name
+			var body string
+			if c == 0 && f == 0 {
+				body = fmt.Sprintf(`/** @license Shared License Header */
+function sharedUtil(v) {
+  return v * 3 + 1;
+}
+window['root0'] = sharedUtil(1);
+//# sourceMappingURL=c0_f0.js.map
+`)
+				// Provide an input source map for c0_f0.js so sharedUtil inlined across
+				// multiple chunks exercises concurrent SourceMapConsumerV3 line decoding!
+				inMap := `{"version":3,"file":"c0_f0.js","sources":["orig_shared.ts"],"sourcesContent":["export const sharedUtil = (v: number) => v * 3 + 1;\n"],"names":["sharedUtil","v"],"mappings":";AAAA,SAASA,UAAUC,CAAC;AAClB,SAAOA,CAAC,GAAG,CAAC,GAAG,CAAC;AAClB"}`
+				if err := os.WriteFile(name+".map", []byte(inMap), 0o666); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				body = fmt.Sprintf(`/** @license Chunk %[1]d License */
+function helper_%[1]d_%[2]d(x) {
+  const y = sharedUtil(x + %[1]d);
+  return y + %[2]d;
+}
+extSink(helper_%[1]d_%[2]d(%[1]d));
+`, c, f)
+			}
+			if err := os.WriteFile(name, []byte(body), 0o666); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	for _, includeContent := range []bool{true, false} {
+		runCLI := func(threads int) (outDir string, stdout string, stderr string) {
+			outDir = t.TempDir()
+			prefix := filepath.Join(outDir, "chunk_")
+			args := []string{
+				"--env", "CUSTOM",
+				"--compilation_level", "ADVANCED_OPTIMIZATIONS",
+				"--externs", externPath,
+				"--chunk_output_path_prefix", prefix,
+				"--create_source_map", "%outname%.map",
+				"--source_map_location_mapping", outDir + "|out",
+				"--apply_input_source_maps",
+				"--formatting", "PRINT_INPUT_DELIMITER",
+				"--num_parallel_threads", fmt.Sprintf("%d", threads),
+			}
+			if includeContent {
+				args = append(args, "--source_map_include_content")
+			}
+			for c := 0; c < numChunks; c++ {
+				args = append(args, "--js", chunkFiles[c][0], "--js", chunkFiles[c][1])
+				dep := ""
+				if c > 0 {
+					dep = ":c0"
+				}
+				args = append(args,
+					"--chunk", fmt.Sprintf("c%d:2%s", c, dep),
+					"--chunk_wrapper", fmt.Sprintf("c%d:/* wrapper %d %%basename%% */\n(function(){%%s})();\n//# sourceMappingURL=chunk_c%d.js.map", c, c, c),
+				)
+			}
+			var outBuf, errBuf bytes.Buffer
+			runner := NewCommandLineRunnerWithOutAndErr(
+				args, jutil.NewPrintStream(&outBuf), jutil.NewPrintStream(&errBuf))
+			exitCode := -1
+			if runner.ShouldRunCompiler() {
+				runner.SetExitCodeReceiver(func(code int) { exitCode = code })
+				runner.Run()
+			}
+			if exitCode != 0 {
+				t.Fatalf("includeContent=%v threads=%d failed with exit=%d stderr=%s", includeContent, threads, exitCode, errBuf.String())
+			}
+			return outDir, outBuf.String(), errBuf.String()
+		}
+
+		dir1, out1, err1 := runCLI(1)
+		dir4, out4, err4 := runCLI(4)
+		if out1 != out4 || err1 != err4 {
+			t.Fatalf("includeContent=%v CLI stream mismatch:\nseq=(%q, %q)\npar=(%q, %q)", includeContent, out1, err1, out4, err4)
+		}
+		for c := 0; c < numChunks; c++ {
+			for _, ext := range []string{".js", ".js.map"} {
+				name := fmt.Sprintf("chunk_c%d%s", c, ext)
+				b1, err := os.ReadFile(filepath.Join(dir1, name))
+				if err != nil {
+					t.Fatalf("missing seq %s: %v", name, err)
+				}
+				b4, err := os.ReadFile(filepath.Join(dir4, name))
+				if err != nil {
+					t.Fatalf("missing par %s: %v", name, err)
+				}
+				if !bytes.Equal(b1, b4) {
+					t.Fatalf("includeContent=%v mismatch in %s:\n--- threads=1 ---\n%s\n--- threads=4 ---\n%s", includeContent, name, string(b1), string(b4))
+				}
+			}
+		}
+	}
 }

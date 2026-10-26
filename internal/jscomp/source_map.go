@@ -43,8 +43,10 @@ type SourceMap struct {
 	// that inputs to this compilation job have been generated from, and used
 	// to create a source map that maps all the way back to original inputs.
 	// nil if no such mapping is wanted.
-	mapping         SourceFileMapping
-	compilerMapping *Compiler
+	mapping           SourceFileMapping
+	compilerMapping   *Compiler
+	resolvedSourceMap compiler_ResolvedSourceMap
+	lineCache         sourcemap.SourceMapLineCache
 }
 
 // SourceMap_Format is an enumeration of available source map formats
@@ -247,7 +249,8 @@ func (s *SourceMap) AddMappingOfNodePositions(
 		}
 	} else if s.compilerMapping != nil {
 		sourceFileName = sourceFile.GetName()
-		sourceMapping, identifierPtr, hasInputMap, isDefaultEmpty := s.compilerMapping.getSourceMappingValue(sourceFileName, lineNo, charNo)
+		sourceMapping, identifierPtr, hasInputMap, isDefaultEmpty := s.compilerMapping.getSourceMappingValueCached(
+			sourceFileName, lineNo, charNo, &s.resolvedSourceMap, &s.lineCache)
 		if !hasInputMap {
 			// The source file does not have a input map. We consider this to be an
 			// original source range and include it in the output map.
@@ -417,6 +420,8 @@ func (s *SourceMap) Reset() {
 	clear(s.sourceLocationFixupCache)
 	s.lastSourceFile = nil
 	s.lastFixedSourceFileName = ""
+	s.resolvedSourceMap = compiler_ResolvedSourceMap{}
+	s.lineCache.Reset()
 }
 
 // Java: SourceMap.setStartingPosition(int, int)

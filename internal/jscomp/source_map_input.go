@@ -34,6 +34,7 @@ type SourceMapInput struct {
 	parsedSourceMap *sourcemap.SourceMapConsumerV3
 	cached          bool
 	ready           atomic.Bool
+	contentDropped  atomic.Bool
 }
 
 var SourceMapInput_SOURCEMAP_RESOLVE_FAILED = DiagnosticType_Warning("SOURCEMAP_RESOLVE_FAILED", "Failed to resolve sourcemap at {0}: {1}")
@@ -101,6 +102,18 @@ func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.Sour
 		i.ready.Store(true)
 	}
 	return i.parsedSourceMap
+}
+
+func (i *SourceMapInput) dropSourcesContentOnce(consumer *sourcemap.SourceMapConsumerV3) {
+	if i.contentDropped.Load() {
+		return
+	}
+	i.monitor.Lock()
+	if !i.contentDropped.Load() {
+		consumer.DropSourcesContent()
+		i.contentDropped.Store(true)
+	}
+	i.monitor.Unlock()
 }
 
 // sourceMapInput_contains is Collection.contains(Object) on a list of

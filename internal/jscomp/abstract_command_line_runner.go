@@ -1166,6 +1166,20 @@ func (r *AbstractCommandLineRunnerBase) WriteOutputOfCode(
 	codePlaceholder string,
 	escaper func(string) string,
 	filename string) {
+	var sm *SourceMap
+	if compiler != nil {
+		sm = compiler.GetSourceMap()
+	}
+	r.writeOutputOfCodeWithSourceMap(out, sm, code, wrapper, codePlaceholder, escaper)
+}
+
+func (r *AbstractCommandLineRunnerBase) writeOutputOfCodeWithSourceMap(
+	out jutil.Appendable,
+	sm *SourceMap,
+	code string,
+	wrapper string,
+	codePlaceholder string,
+	escaper func(string) string) {
 	pos := jutil.StringIndexOf(wrapper, codePlaceholder)
 	if pos != -1 {
 		prefix := ""
@@ -1192,8 +1206,8 @@ func (r *AbstractCommandLineRunnerBase) WriteOutputOfCode(
 
 		// If we have a source map, adjust its offsets to match
 		// the code WITHIN the wrapper.
-		if compiler != nil && compiler.GetSourceMap() != nil {
-			compiler.GetSourceMap().SetWrapperPrefix(prefix)
+		if sm != nil {
+			sm.SetWrapperPrefix(prefix)
 		}
 	} else {
 		out.AppendCharSequence(code)
@@ -1832,7 +1846,7 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 	mlicenseTracker := NewCompiler_ChunkGraphAwareLicenseTracker(r.compiler)
 	if !r.IsOutputInJson() &&
 		!r.self.IsInTestMode() &&
-		!options.ShouldGatherSourceMapInfo() &&
+		(!options.ShouldGatherSourceMapInfo() || r.self.ShouldGenerateMapPerChunk(options)) &&
 		options.GetOutputJs() == CompilerOptions_OutputJs_NORMAL &&
 		options.GetNumParallelThreads() > 1 &&
 		len(chunks) > 1 {
@@ -1893,26 +1907,47 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 		return
 	}
 
+	if r.parsedChunkOutputFiles == nil {
+		r.parsedChunkOutputFiles = abstractCommandLineRunner_parseChunkOutputFiles(r.config.chunkOutputFiles)
+	}
+
 	numThreads := options.GetNumParallelThreads()
+	gatherSourceMap := options.ShouldGatherSourceMapInfo()
+	var workerSM []*SourceMap
+	if gatherSourceMap {
+		r.compiler.ResetAndIntitializeSourceMap()
+		workerSM = make([]*SourceMap, numThreads)
+		for w := 0; w < numThreads; w++ {
+			workerSM[w] = r.compiler.newWorkerSourceMap()
+		}
+	}
+
 	const batchSize = 256
 	type printedInput struct {
-		root rhino.Node
-		sm   CodePrinter_SourceAndMappings
-		rec  compiler_ParallelScriptLicenseRecorder
+		root      rhino.Node
+		sm        CodePrinter_SourceAndMappings
+		rec       compiler_ParallelScriptLicenseRecorder
+		startLine int
+		startCol  int
+		emitted   bool
 	}
 	type printedChunk struct {
 		inputs []printedInput
 		single [2]printedInput
 	}
 	type chunkWriteTask struct {
-		filename string
-		code     string
-		wrapper  string
+		filename    string
+		mapFilename string
+		code        string
+		wrapper     string
 	}
 
 	printed := make([]printedChunk, min(len(activeChunks), batchSize))
 	writeBufA := make([]chunkWriteTask, min(len(activeChunks), batchSize))
-	writeBufB := make([]chunkWriteTask, min(len(activeChunks), batchSize))
+	var writeBufB []chunkWriteTask
+	if !gatherSourceMap {
+		writeBufB = make([]chunkWriteTask, min(len(activeChunks), batchSize))
+	}
 	createdDirs := make(map[string]struct{}, 16)
 	ensureDir := func(filename *string) {
 		if filename == nil || *filename == "" {
@@ -1969,6 +2004,10 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 				pi := &pc.inputs[i]
 				pi.root = scriptNode
 				pi.rec.Reset(false)
+				pi.sm.mappings = pi.sm.mappings[:0]
+				pi.startLine = 0
+				pi.startCol = 0
+				pi.emitted = false
 				r.compiler.toSourceAndMappingsIntoWithScratch(scriptNode, i == 0, &pi.rec, &pi.sm, &scratches[w])
 			}
 		})
@@ -1981,27 +2020,41 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 
 		waitPrevWrite()
 		writeTasks := writeBufA[:batchLen]
-		if useBufB {
-			writeTasks = writeBufB[:batchLen]
+		if !gatherSourceMap {
+			if useBufB {
+				writeTasks = writeBufB[:batchLen]
+			}
+			useBufB = !useBufB
 		}
-		useBufB = !useBufB
 
 		cb := NewCompiler_CodeBuilder()
 		for j := 0; j < batchLen; j++ {
 			m := activeChunks[batchStart+j]
 			chunkFilename := r.self.GetChunkOutputFileName(m)
 			ensureDir(&chunkFilename)
+			var mapFilename string
+			if gatherSourceMap {
+				if mp := r.self.ExpandSourceMapPath(options, m); mp != nil {
+					mapFilename = *mp
+				}
+			}
 			mlicenseTracker.SetCurrentChunkContext(m)
 			pc := &printed[j]
 			var code string
 			if len(pc.inputs) > 0 {
-				cb.Reset()
+				cb.ResetAll()
 				for i := range pc.inputs {
 					pi := &pc.inputs[i]
 					for _, file := range pi.rec.seenFiles {
 						mlicenseTracker.trackLicensesForFileName(file)
 					}
-					r.compiler.appendSourceAndMappingsToCodeBuilder(cb, mlicenseTracker, i, pi.root, &pi.sm)
+					if gatherSourceMap {
+						pi.startLine, pi.startCol, pi.emitted = r.compiler.appendSourceToCodeBuilderForChunk(
+							cb, mlicenseTracker, i, pi.root, pi.sm.source)
+						pi.sm.source = ""
+					} else {
+						r.compiler.appendSourceAndMappingsToCodeBuilder(cb, mlicenseTracker, i, pi.root, &pi.sm)
+					}
 					pi.root = rhino.NilNode
 				}
 				code = cb.String()
@@ -2009,10 +2062,64 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			baseName := jutil.NewFile(chunkFilename).GetName()
 			wrapper := strings.ReplaceAll(r.parsedChunkWrappers.Get(m.GetName()), "%basename%", baseName)
 			writeTasks[j] = chunkWriteTask{
-				filename: chunkFilename,
-				code:     code,
-				wrapper:  wrapper,
+				filename:    chunkFilename,
+				mapFilename: mapFilename,
+				code:        code,
+				wrapper:     wrapper,
 			}
+		}
+
+		if gatherSourceMap {
+			wFailures := parallelPrebuildIndexed(batchLen, numThreads, func(w, j int) {
+				globalIdx := batchStart + j
+				sm := workerSM[w]
+				if globalIdx == len(activeChunks)-1 && r.compiler.sourceMap != nil {
+					sm = r.compiler.sourceMap
+				}
+				sm.Reset()
+				pc := &printed[j]
+				for i := range pc.inputs {
+					pi := &pc.inputs[i]
+					if pi.emitted {
+						sm.SetStartingPosition(pi.startLine, pi.startCol)
+						for k := range pi.sm.mappings {
+							mp := &pi.sm.mappings[k]
+							sm.AddMappingOfNodePositions(mp.node, mp.start, mp.end)
+						}
+					}
+					if cap(pi.sm.mappings) > 16384 {
+						pi.sm.mappings = nil
+					} else {
+						pi.sm.mappings = pi.sm.mappings[:0]
+					}
+				}
+				t := &writeTasks[j]
+				func() {
+					var mapFileOut AbstractCommandLineRunner_Writer
+					if t.mapFilename != "" {
+						mapFileOut = r.FileNameToOutputWriter2(&t.mapFilename)
+						if mapFileOut != nil {
+							defer mapFileOut.Close()
+						}
+					}
+					writer := r.FileNameToLegacyOutputWriter(&t.filename)
+					defer abstractCommandLineRunner_closeWriter(writer)
+					r.writeOutputOfCodeWithSourceMap(writer, sm, t.code, t.wrapper, "%s", nil)
+					if mapFileOut != nil {
+						sm.AppendTo(mapFileOut, &t.filename)
+					}
+				}()
+				t.code = ""
+				t.wrapper = ""
+				t.filename = ""
+				t.mapFilename = ""
+			})
+			for _, f := range wFailures {
+				if f != nil {
+					panic(f)
+				}
+			}
+			continue
 		}
 
 		done := make(chan jutil.Throwable, 1)

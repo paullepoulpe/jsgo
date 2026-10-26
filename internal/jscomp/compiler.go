@@ -29,6 +29,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"weak"
 
@@ -206,6 +207,7 @@ type Compiler struct {
 	// There is exactly one cached resolvedSourceMap, which you can think of
 	// as a cache of size one.
 	resolvedSourceMap compiler_ResolvedSourceMap
+	sourceMapMu       sync.RWMutex
 
 	typedAstFilesystem          *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
 	typedAstScriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
@@ -3239,6 +3241,36 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	inputSeqNum int,
 	root rhino.Node,
 	sourceAndMappings *CodePrinter_SourceAndMappings) {
+	startLine, startCol, emitted := c.appendSourceToCodeBuilderForChunk(
+		cb, licenseTracker, inputSeqNum, root, sourceAndMappings.source)
+	if !emitted {
+		return
+	}
+
+	// If there is a valid source map, then indicate to it that the current
+	// root node's mappings are offset by the given string builder buffer.
+	// This offset is a result of licenses being added to the output buffer.
+	if c.options.ShouldGatherSourceMapInfo() {
+		c.sourceMap.SetStartingPosition(startLine, startCol)
+		for i := range sourceAndMappings.mappings {
+			m := &sourceAndMappings.mappings[i]
+			c.sourceMap.AddMappingOfNodePositions(m.node, m.start, m.end)
+		}
+		if cap(sourceAndMappings.mappings) > 16384 {
+			sourceAndMappings.mappings = nil
+		} else {
+			sourceAndMappings.mappings = sourceAndMappings.mappings[:0]
+		}
+	}
+}
+
+func (c *Compiler) appendSourceToCodeBuilderForChunk(
+	cb *Compiler_CodeBuilder,
+	licenseTracker CodePrinter_LicenseTracker,
+	inputSeqNum int,
+	root rhino.Node,
+	code string,
+) (startLine int, startCol int, emitted bool) {
 	if c.options.ShouldPrintInputDelimiter() {
 		if (cb.GetLength() > 0) && !cb.EndsWith("\n") {
 			cb.Append("\n") // Make sure that the label starts on a new line
@@ -3261,11 +3293,9 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 		cb.Append(delimiter).Append("\n")
 	}
 
-	code := sourceAndMappings.source
-
 	// Check whether there is any license information that should be emitted.
-	if emitted := licenseTracker.EmitLicenses(); emitted != nil && !emitted.IsEmpty() {
-		for license := range emitted.All() {
+	if emittedLicenses := licenseTracker.EmitLicenses(); emittedLicenses != nil && !emittedLicenses.IsEmpty() {
+		for license := range emittedLicenses.All() {
 			cb.Append("/*\n").Append(license).Append("*/\n")
 		}
 	}
@@ -3273,15 +3303,11 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	// Check whether there's any actual code to emit.
 	if code == "" {
 		// Nothing to do.
-		return
+		return 0, 0, false
 	}
 
-	// If there is a valid source map, then indicate to it that the current
-	// root node's mappings are offset by the given string builder buffer.
-	// This offset is a result of licenses being added to the output buffer.
-	if c.options.ShouldGatherSourceMapInfo() {
-		c.sourceMap.SetStartingPosition(cb.GetLineIndex(), cb.GetColumnIndex())
-	}
+	startLine = cb.GetLineIndex()
+	startCol = cb.GetColumnIndex()
 
 	cb.Append(code)
 
@@ -3293,18 +3319,7 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	if !hasSemiColon {
 		cb.Append(";")
 	}
-
-	if c.options.ShouldGatherSourceMapInfo() {
-		for i := range sourceAndMappings.mappings {
-			m := &sourceAndMappings.mappings[i]
-			c.sourceMap.AddMappingOfNodePositions(m.node, m.start, m.end)
-		}
-		if cap(sourceAndMappings.mappings) > 16384 {
-			sourceAndMappings.mappings = nil
-		} else {
-			sourceAndMappings.mappings = sourceAndMappings.mappings[:0]
-		}
-	}
+	return startLine, startCol, true
 }
 
 // ToSourceOfNode generates JavaScript source code for an AST, doesn't
@@ -3913,6 +3928,14 @@ func (b *Compiler_CodeBuilder) Reset() {
 	b.utf16Len = 0
 }
 
+// ResetAll removes all text and resets line and column counts to zero.
+func (b *Compiler_CodeBuilder) ResetAll() {
+	b.sb.Reset()
+	b.utf16Len = 0
+	b.lineCount = 0
+	b.colCount = 0
+}
+
 // Append appends the given string to the text buffer.
 //
 // Java: Compiler.CodeBuilder.append(String)
@@ -4360,7 +4383,10 @@ func (c *Compiler) GetSourceFileByName(sourceName string) *SourceFile {
 	}
 	// Alternatively, the sourceName might have been reverse-mapped by
 	// an input source-map, so let's look in our sourcemap original sources.
-	return c.sourceMapOriginalSources.Get(sourceName)
+	c.sourceMapMu.RLock()
+	sf := c.sourceMapOriginalSources.Get(sourceName)
+	c.sourceMapMu.RUnlock()
+	return sf
 }
 
 // getSourceFileByNullableName is getSourceFileByName for a nullable name.
@@ -4474,8 +4500,41 @@ func (c *Compiler) GetSourceMapping(
 	return &result
 }
 
+type compiler_lockedErrorManager struct {
+	ErrorManager
+	mu *sync.RWMutex
+}
+
+func (m compiler_lockedErrorManager) Report(level *CheckLevel, err *JSError) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ErrorManager.Report(level, err)
+}
+
+func (c *Compiler) newWorkerSourceMap() *SourceMap {
+	sm := c.options.GetSourceMapFormat().GetInstance()
+	sm.SetPrefixMappings(c.options.GetSourceMapLocationMappings())
+	if c.sourceMap != nil {
+		sm.SetSourceFileMapping(c.sourceMap.mapping)
+		if sm.generatorV3 != nil && c.sourceMap.generatorV3 != nil {
+			sm.generatorV3.ShareConfigFrom(c.sourceMap.generatorV3)
+		}
+	}
+	return sm
+}
+
 func (c *Compiler) getSourceMappingValue(
 	sourceName string, lineNumber int, columnNumber int) (sourcemap.Mapping_OriginalMapping, *string, bool, bool) {
+	return c.getSourceMappingValueCached(sourceName, lineNumber, columnNumber, &c.resolvedSourceMap, nil)
+}
+
+func (c *Compiler) getSourceMappingValueCached(
+	sourceName string,
+	lineNumber int,
+	columnNumber int,
+	resolvedCache *compiler_ResolvedSourceMap,
+	lineCache *sourcemap.SourceMapLineCache,
+) (sourcemap.Mapping_OriginalMapping, *string, bool, bool) {
 	if c.inputSourceMaps.IsEmpty() {
 		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
 	}
@@ -4486,16 +4545,21 @@ func (c *Compiler) getSourceMappingValue(
 
 	// JSCompiler uses 1-indexing for lineNumber and 0-indexing for columnNumber.
 	// Sourcemaps use 1-indexing for both.
-	consumer := sourceMap.GetSourceMap(c.errorManager)
+	var consumer *sourcemap.SourceMapConsumerV3
+	if sourceMap.ready.Load() {
+		consumer = sourceMap.parsedSourceMap
+	} else {
+		consumer = sourceMap.GetSourceMap(compiler_lockedErrorManager{ErrorManager: c.errorManager, mu: &c.sourceMapMu})
+	}
 	if consumer == nil {
 		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
 	}
 	if !c.options.GetSourceMapIncludeSourcesContent() {
 		// Go-only: performance — only addSourceMapSourceFiles reads the
 		// sources' contents, and only with that option.
-		consumer.DropSourcesContent()
+		sourceMap.dropSourcesContentOnce(consumer)
 	}
-	result, identifierPtr, ok := consumer.GetMappingForLineValue(lineNumber, columnNumber+1)
+	result, identifierPtr, ok := consumer.GetMappingForLineValueCached(lineNumber, columnNumber+1, lineCache)
 	if !ok {
 		return sourcemap.Mapping_OriginalMapping{}, nil, true, true
 	}
@@ -4506,10 +4570,10 @@ func (c *Compiler) getSourceMappingValue(
 	var relativePath string
 
 	// Resolving the paths to a source file is expensive, so check the cache first.
-	if c.resolvedSourceMap.hasCached &&
-		sourceMapOriginalPath == c.resolvedSourceMap.originalPath &&
-		resultOriginalPath == c.resolvedSourceMap.sourceMapPath {
-		relativePath = c.resolvedSourceMap.relativePath
+	if resolvedCache.hasCached &&
+		sourceMapOriginalPath == resolvedCache.originalPath &&
+		resultOriginalPath == resolvedCache.sourceMapPath {
+		relativePath = resolvedCache.relativePath
 	} else {
 		relativePath = compiler_resolveSibling(sourceMapOriginalPath, resultOriginalPath)
 		source := c.GetSourceFileByName(relativePath)
@@ -4517,15 +4581,17 @@ func (c *Compiler) getSourceMappingValue(
 			source = SourceMapResolver_GetRelativePath(
 				sourceMap.GetOriginalPath(), result.GetOriginalFile())
 			if source != nil {
+				c.sourceMapMu.Lock()
 				c.sourceMapOriginalSources.PutIfAbsent(relativePath, source)
+				c.sourceMapMu.Unlock()
 			}
 		}
 
 		// Cache this resolved source for the next caller.
-		c.resolvedSourceMap.hasCached = true
-		c.resolvedSourceMap.originalPath = sourceMapOriginalPath
-		c.resolvedSourceMap.sourceMapPath = resultOriginalPath
-		c.resolvedSourceMap.relativePath = relativePath
+		resolvedCache.hasCached = true
+		resolvedCache.originalPath = sourceMapOriginalPath
+		resolvedCache.sourceMapPath = resultOriginalPath
+		resolvedCache.relativePath = relativePath
 	}
 
 	result.SetOriginalFileAndColumnInPlace(relativePath, result.GetColumnPosition()-1)

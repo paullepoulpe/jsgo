@@ -216,6 +216,13 @@ func (c *SourceMapConsumerV3) GetMappingForLine(lineNumber, column int) *Mapping
 // a non-empty identifier pointer (if any) and a boolean indicating whether a
 // mapping was found.
 func (c *SourceMapConsumerV3) GetMappingForLineValue(lineNumber, column int) (Mapping_OriginalMapping, *string, bool) {
+	return c.GetMappingForLineValueCached(lineNumber, column, nil)
+}
+
+// GetMappingForLineValueCached is like GetMappingForLineValue, but uses a
+// caller-owned SourceMapLineCache when lc != nil so multiple goroutines can
+// query a shared SourceMapConsumerV3 concurrently without data races.
+func (c *SourceMapConsumerV3) GetMappingForLineValueCached(lineNumber, column int, lc *SourceMapLineCache) (Mapping_OriginalMapping, *string, bool) {
 	// Normalize the line and column numbers to 0.
 	ln := int32(lineNumber) - 1
 	col := int32(column) - 1
@@ -224,15 +231,15 @@ func (c *SourceMapConsumerV3) GetMappingForLineValue(lineNumber, column int) (Ma
 		return Mapping_OriginalMapping{}, nil, false
 	}
 
-	entries := c.mappings.line(int(ln))
+	entries := c.mappings.lineCached(int(ln), lc)
 
 	// If the line is empty return the previous mapping.
 	if len(entries) == 0 {
-		return c.getPreviousMappingValue(int(ln))
+		return c.getPreviousMappingValueCached(int(ln), lc)
 	}
 
 	if entries[0].genCol > col {
-		return c.getPreviousMappingValue(int(ln))
+		return c.getPreviousMappingValueCached(int(ln), lc)
 	}
 
 	index := sourceMapConsumerV3_search(entries, col, 0, len(entries)-1)
@@ -769,6 +776,10 @@ func (c *SourceMapConsumerV3) GetPreviousMapping(lineNumber int) *Mapping_Origin
 }
 
 func (c *SourceMapConsumerV3) getPreviousMappingValue(lineNumber int) (Mapping_OriginalMapping, *string, bool) {
+	return c.getPreviousMappingValueCached(lineNumber, nil)
+}
+
+func (c *SourceMapConsumerV3) getPreviousMappingValueCached(lineNumber int, lc *SourceMapLineCache) (Mapping_OriginalMapping, *string, bool) {
 	for {
 		if lineNumber == 0 {
 			return Mapping_OriginalMapping{}, nil, false
@@ -778,7 +789,7 @@ func (c *SourceMapConsumerV3) getPreviousMappingValue(lineNumber int) (Mapping_O
 			break
 		}
 	}
-	entries := c.mappings.line(lineNumber)
+	entries := c.mappings.lineCached(lineNumber, lc)
 	return c.getOriginalMappingForEntryValue(&entries[len(entries)-1], Mapping_OriginalMapping_Precision_APPROXIMATE_LINE)
 }
 
@@ -956,13 +967,49 @@ func (m *SourceMapConsumerV3_Mappings) lineIsEmpty(line int) bool {
 	return m.lineStart[line] == m.lineStart[line+1]
 }
 
+// SourceMapLineCache holds per-caller line-decoding state so multiple
+// goroutines can query a shared SourceMapConsumerV3 concurrently without
+// mutating SourceMapConsumerV3_Mappings.cachedLine / cache.
+type SourceMapLineCache struct {
+	mappings   *SourceMapConsumerV3_Mappings
+	cachedLine int
+	cache      []sourceMapConsumerV3_entry
+}
+
+// Reset clears the cached mapping pointer and line index while retaining backing capacity.
+func (c *SourceMapLineCache) Reset() {
+	c.mappings = nil
+	c.cachedLine = -1
+	c.cache = c.cache[:0]
+}
+
 // line returns the decoded entries of a line; the slice is only valid until
 // the next call.
 func (m *SourceMapConsumerV3_Mappings) line(line int) []sourceMapConsumerV3_entry {
 	if line == m.cachedLine {
 		return m.cache
 	}
-	entries := m.cache[:0]
+	entries := m.decodeLineInto(line, m.cache[:0])
+	m.cache = entries
+	m.cachedLine = line
+	return entries
+}
+
+func (m *SourceMapConsumerV3_Mappings) lineCached(line int, lc *SourceMapLineCache) []sourceMapConsumerV3_entry {
+	if lc == nil {
+		return m.line(line)
+	}
+	if lc.mappings == m && line == lc.cachedLine {
+		return lc.cache
+	}
+	entries := m.decodeLineInto(line, lc.cache[:0])
+	lc.mappings = m
+	lc.cachedLine = line
+	lc.cache = entries
+	return entries
+}
+
+func (m *SourceMapConsumerV3_Mappings) decodeLineInto(line int, entries []sourceMapConsumerV3_entry) []sourceMapConsumerV3_entry {
 	data := m.data[m.lineStart[line]:m.lineStart[line+1]]
 	var prev sourceMapConsumerV3_entry
 	for len(data) > 0 {
@@ -997,8 +1044,6 @@ func (m *SourceMapConsumerV3_Mappings) line(line int) []sourceMapConsumerV3_entr
 		}
 		entries = append(entries, e)
 	}
-	m.cache = entries
-	m.cachedLine = line
 	return entries
 }
 

@@ -439,6 +439,21 @@ func (g *SourceMapGeneratorV3) AddSourcesContent(source string, content *string)
 	g.sourceFileContentMap[source] = content
 }
 
+// ShareConfigFrom shares read-only configuration (sourcesContent map,
+// sourceRootPath, and extensions) from a template generator so parallel
+// per-chunk generators produce identical output without re-populating
+// sourcesContent per chunk.
+func (g *SourceMapGeneratorV3) ShareConfigFrom(other *SourceMapGeneratorV3) {
+	if other == nil {
+		return
+	}
+	g.sourceFileContentMap = other.sourceFileContentMap
+	g.sourceRootPath = other.sourceRootPath
+	if other.extensions != nil && !other.extensions.IsEmpty() {
+		g.extensions = jutil.NewLinkedHashMapFrom(other.extensions)
+	}
+}
+
 // SourceMapGeneratorV3_ConsumerEntryVisitor adds the mappings a consumer
 // visits to the enclosing generator.
 type SourceMapGeneratorV3_ConsumerEntryVisitor struct {
