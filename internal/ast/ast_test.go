@@ -575,3 +575,23 @@ func TestStringKeyIsQuoted(t *testing.T) {
 		t.Fatal("{'a': b}: want a quoted key a")
 	}
 }
+
+func TestMustOnCategories(t *testing.T) {
+	newStore(t)
+	name := NewName("x")
+	decl := name.AsDeclarator()
+	if decl.MustName() != name {
+		t.Fatal("Declarator.MustName() does not give the name back")
+	}
+	if name.AsArg().MustExpr().Node() != name.Node() {
+		t.Fatal("Arg.MustExpr() does not give the name back")
+	}
+	defer func() {
+		r := recover()
+		e, ok := r.(error)
+		if !ok || e.Error() != "ast.MustDestructuringLhs: a NAME node" {
+			t.Fatalf("panic %v, want ast.MustDestructuringLhs: a NAME node", r)
+		}
+	}()
+	decl.MustDestructuringLhs()
+}

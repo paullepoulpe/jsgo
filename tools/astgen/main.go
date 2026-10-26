@@ -696,6 +696,15 @@ func (w *gen) must(name string) {
 	w.p("")
 }
 
+// mustMethod writes the Must<name> method of the category recv: the
+// conversion for code that knows which kind of recv x is.
+func (w *gen) mustMethod(recv, name string) {
+	w.p("// Must%s returns x as %s; it panics if x is not one. Use it where the", name, a(name))
+	w.p("// kind is already known (a declarator that is not a destructuring is a name).")
+	w.p("func (x %s) Must%s() %s { return Must%s(x.node) }", recv, name, name, name)
+	w.p("")
+}
+
 // detach writes the Detach method of the view type name.
 func (w *gen) detach(name string) {
 	w.p("// Detach takes x out of its parent, and returns it.")
@@ -769,6 +778,7 @@ func (w *gen) category(c *category) {
 		w.p("// As%s returns x as %s; ok is false if it is not one.", kn, a(kn))
 		w.p("func (x %s) As%s() (%s, bool) { return As%s(x.node) }", c.name, kn, kn, kn)
 		w.p("")
+		w.mustMethod(c.name, kn)
 		if k := w.g.kindByName[kn]; len(k.tokens) > 1 && !k.context {
 			w.p("// As%sOf returns x as %s if its token is token; ok is false otherwise.", kn, a(kn))
 			w.p("func (x %s) As%sOf(token rhino.Token) (%s, bool) { return As%sOf(x.node, token) }", c.name, kn, kn, kn)
@@ -783,6 +793,7 @@ func (w *gen) category(c *category) {
 			w.p("// As%s returns x as %s; ok is false if it is not one.", d.name, a(d.name))
 			w.p("func (x %s) As%s() (%s, bool) { return As%s(x.node) }", c.name, d.name, d.name, d.name)
 			w.p("")
+			w.mustMethod(c.name, d.name)
 		} else if g.isSubset(c, d) {
 			w.p("// As%s returns x as %s.", d.name, a(d.name))
 			w.p("func (x %s) As%s() %s { return %s{x.node} }", c.name, d.name, d.name, d.name)
