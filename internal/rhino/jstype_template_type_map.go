@@ -719,15 +719,6 @@ func (m *TemplateTypeMap) String() string {
 	return s
 }
 
-// Java: TemplateTypeMap.padToSameLength(ImmutableList<TemplateType>, ArrayList<JSType>)
-func (m *TemplateTypeMap) PadToSameLength(keys []*TemplateType, builder *jutil.ArrayList[JSType]) {
-	jutil.CheckArgument(builder.Size() <= len(keys))
-
-	for i := builder.Size(); i < len(keys); i++ {
-		builder.Add(m.DefaultValueType(keys[i]))
-	}
-}
-
 // DefaultValueType returns the default value type for the given key type.
 // Since the bounded generics feature was removed, in practice this always
 // returns `?`.

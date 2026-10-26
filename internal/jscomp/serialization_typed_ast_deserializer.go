@@ -72,7 +72,7 @@ type TypedAstDeserializer struct {
 	scriptDeserializers           map[*SourceFile]*ScriptNodeDeserializer
 	externProperties              *jutil.LinkedHashSet[string]
 	runtimeLibraries              *jutil.LinkedHashSet[string]
-	syntheticExternsDeserializers *jutil.ArrayList[*ScriptNodeDeserializer]
+	syntheticExternsDeserializers []*ScriptNodeDeserializer
 }
 
 func typedAstDeserializer_scriptSentinel() rhino.Node {
@@ -91,9 +91,8 @@ func newTypedAstDeserializer(
 		canonicalFilePool:             jutil.NewLinkedHashMap[string, *SourceFile](),
 		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() rhino.Node](),
 		scriptDeserializers:           make(map[*SourceFile]*ScriptNodeDeserializer),
-		externProperties:              jutil.NewLinkedHashSet[string](),
-		runtimeLibraries:              jutil.NewLinkedHashSet[string](),
-		syntheticExternsDeserializers: jutil.NewArrayList[*ScriptNodeDeserializer](),
+		externProperties:    jutil.NewLinkedHashSet[string](),
+		runtimeLibraries:    jutil.NewLinkedHashSet[string](),
 	}
 	d.syntheticExterns = syntheticExterns
 	d.mode = mode
@@ -251,13 +250,13 @@ func typedAstDeserializer_deserialize(
 // Java: private static final class TypedAstDeserializer.SyntheticExternsDeserializer
 type typedAstDeserializer_SyntheticExternsDeserializer struct {
 	syntheticExterns              *SourceFile
-	syntheticExternsDeserializers *jutil.ArrayList[*ScriptNodeDeserializer]
+	syntheticExternsDeserializers []*ScriptNodeDeserializer
 }
 
 // Java: TypedAstDeserializer.SyntheticExternsDeserializer(SourceFile, ArrayList<ScriptNodeDeserializer>)
 func newTypedAstDeserializer_SyntheticExternsDeserializer(
 	syntheticExterns *SourceFile,
-	syntheticExternsDeserializers *jutil.ArrayList[*ScriptNodeDeserializer]) *typedAstDeserializer_SyntheticExternsDeserializer {
+	syntheticExternsDeserializers []*ScriptNodeDeserializer) *typedAstDeserializer_SyntheticExternsDeserializer {
 	return &typedAstDeserializer_SyntheticExternsDeserializer{
 		syntheticExterns:              syntheticExterns,
 		syntheticExternsDeserializers: syntheticExternsDeserializers,
@@ -269,7 +268,7 @@ func (s *typedAstDeserializer_SyntheticExternsDeserializer) Deserialize() rhino.
 	script := rhino.IR_Script()
 	script.SetStaticSourceFile(s.syntheticExterns)
 	if s.syntheticExternsDeserializers != nil {
-		for d := range s.syntheticExternsDeserializers.All() {
+		for _, d := range s.syntheticExternsDeserializers {
 			script.AddChildrenToBack(d.DeserializeNew().RemoveChildren())
 		}
 		s.syntheticExternsDeserializers = nil
@@ -448,7 +447,7 @@ func (d *TypedAstDeserializer) initLazyAstDeserializer(
 		NewScriptNodeDeserializer(lazyAst, stringShard, colorShard, fileShard)
 
 	if d.syntheticExterns == file {
-		d.syntheticExternsDeserializers.Add(deserializer)
+		d.syntheticExternsDeserializers = append(d.syntheticExternsDeserializers, deserializer)
 	} else {
 		if !d.typedAstFilesystem.ContainsKey(file) {
 			if d.mode == typedAstDeserializer_Mode_FULL_AST {

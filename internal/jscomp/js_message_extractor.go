@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -142,10 +144,11 @@ func (e *JsMessageExtractor) ExtractMessagesFromIterable(inputs []*SourceFile) [
 	errors := compiler.GetErrors()
 	// Check for errors.
 	if len(errors) != 0 {
-		msg := jutil.NewStringBuilderFrom("JSCompiler errors\n")
+		var msg strings.Builder
+		msg.WriteString("JSCompiler errors\n")
 		var formatter MessageFormatter = NewLightweightMessageFormatter(compiler)
 		for _, err := range errors {
-			msg.Append(formatter.FormatError(err))
+			msg.WriteString(formatter.FormatError(err))
 		}
 		panic(jutil.NewRuntimeException(msg.String()))
 	}

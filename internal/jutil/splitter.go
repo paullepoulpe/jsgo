@@ -50,21 +50,3 @@ func Splitter_OnCharTrimResults(s string, separator uint16) []string {
 	}
 	return out
 }
-
-// Splitter_OnCharOmitEmptyStrings is
-// Splitter.on(separator).omitEmptyStrings().split(s), as a list: every
-// non-empty piece between separators, in order.
-func Splitter_OnCharOmitEmptyStrings(s string, separator uint16) []string {
-	u := StringToUTF16(s)
-	var out []string
-	start := 0
-	for i := 0; i <= len(u); i++ {
-		if i == len(u) || u[i] == separator {
-			if i > start {
-				out = append(out, StringFromUTF16(u[start:i]))
-			}
-			start = i + 1
-		}
-	}
-	return out
-}

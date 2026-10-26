@@ -891,21 +891,28 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 // Only intended to be used for debug logging.
 //
 // Java: JSTypeReconserializer.getColorIdToJSTypeMapForDebugging()
-func (s *JSTypeReconserializer) GetColorIdToJSTypeMapForDebugging() *jutil.ListMultimap[string, rhino.JSType] {
+func (s *JSTypeReconserializer) GetColorIdToJSTypeMapForDebugging() *jutil.LinkedHashMap[string, []rhino.JSType] {
 	// note: returns JSType values instead of String values, even though all that's needed for
 	// debugging are the strings, to avoid the memory overhead of calculating all string
 	// representations at once
-	colorIdToTypes := jutil.NewImmutableListMultimapBuilder[string, rhino.JSType]().OrderKeysBy(jutil.StringCompareTo)
+	var keys []string
+	byId := make(map[string][]rhino.JSType)
 	for record := range s.seenTypeRecords.Values() {
 		if len(record.jstypes) == 0 {
 			continue
 		}
 		idStr := record.colorId.String()
-		for _, jstype := range record.jstypes {
-			colorIdToTypes.Put(idStr, jstype)
+		if _, exists := byId[idStr]; !exists {
+			keys = append(keys, idStr)
 		}
+		byId[idStr] = append(byId[idStr], record.jstypes...)
 	}
-	return colorIdToTypes.Build()
+	slices.SortStableFunc(keys, jutil.StringCompareTo)
+	colorIdToTypes := jutil.NewLinkedHashMapWithCapacity[string, []rhino.JSType](len(keys))
+	for _, k := range keys {
+		colorIdToTypes.Put(k, byId[k])
+	}
+	return colorIdToTypes
 }
 
 // JSTypeReconserializer_SeenTypeRecord is JSTypeReconserializer.SeenTypeRecord.

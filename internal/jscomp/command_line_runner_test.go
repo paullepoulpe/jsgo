@@ -1006,7 +1006,7 @@ func (c *CommandLineRunnerTest) TestExternsLifting1() {
 	//  - The second is the default c.externs
 	//  - The third is the source input that we're ensuring is lifted into c.externs
 	AssertThat(c.lastCompiler.GetExternsForTesting()).HasSize(3)
-	extern := c.lastCompiler.GetExternsForTesting().Get(2)
+	extern := c.lastCompiler.GetExternsForTesting()[2]
 	AssertThat(extern.GetChunk()).IsNull()
 	AssertThat(extern.IsExtern()).IsTrue()
 	AssertThat(extern.GetCode()).IsEqualTo(code)

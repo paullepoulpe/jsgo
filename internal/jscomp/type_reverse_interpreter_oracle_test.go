@@ -984,7 +984,7 @@ func (d *raiDump) runSerialization(typeStrings []string) {
 	}
 	d.fact("pool", func() string { return raiEsc(serializer.GenerateTypePool().String()) })
 	d.line("strings\t" + raiEsc(stringPool.Build().ToProto().String()))
-	for key, values := range serializer.GetColorIdToJSTypeMapForDebugging().AsMap().All() {
+	for key, values := range serializer.GetColorIdToJSTypeMapForDebugging().All() {
 		var sb strings.Builder
 		for _, t := range values {
 			sb.WriteString(" " + raiStr(t))

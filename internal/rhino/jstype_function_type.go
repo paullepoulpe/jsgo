@@ -1529,12 +1529,13 @@ func FunctionType_UpdatePropertyTypeMap(
 //
 // Java: FunctionType.checkExtendsLoop()
 func (f *FunctionTypeBase) CheckExtendsLoop() []FunctionType {
-	return f.CheckExtendsLoopWithCacheAndPath(jutil.NewObjectLinkedHashSet[FunctionType](), jutil.NewArrayList[FunctionType]())
+	var path []FunctionType
+	return f.CheckExtendsLoopWithCacheAndPath(jutil.NewObjectLinkedHashSet[FunctionType](), &path)
 }
 
 // Java: FunctionType.checkExtendsLoop(Set<FunctionType>, List<FunctionType>)
 func (f *FunctionTypeBase) CheckExtendsLoopWithCacheAndPath(
-	cache *jutil.ObjectLinkedHashSet[FunctionType], path *jutil.ArrayList[FunctionType]) []FunctionType {
+	cache *jutil.ObjectLinkedHashSet[FunctionType], path *[]FunctionType) []FunctionType {
 	iterable := f.selfFunc().GetExtendedInterfaces()
 	if iterable != nil {
 		for _, interfaceType := range iterable {
@@ -1545,20 +1546,22 @@ func (f *FunctionTypeBase) CheckExtendsLoopWithCacheAndPath(
 			if cache.Contains(superConstructor) {
 				// after detecting a loop, prune and return the path, e.g.,: A -> B
 				// -> C -> D -> C, will be pruned into: c -> D -> C
-				path.Add(superConstructor)
-				for path.Get(0) != superConstructor {
-					path.RemoveAt(0)
+				*path = append(*path, superConstructor)
+				i := 0
+				for (*path)[i] != superConstructor {
+					i++
 				}
-				return path.Slice()
+				return (*path)[i:]
 			}
 			cache.Add(superConstructor)
-			path.Add(superConstructor)
+			*path = append(*path, superConstructor)
 			result := superConstructor.GetFunctionTypeBase().CheckExtendsLoopWithCacheAndPath(cache, path)
 			if result != nil {
 				return result
 			}
 			cache.Remove(superConstructor)
-			path.RemoveAt(path.Size() - 1)
+			(*path)[len(*path)-1] = nil
+			*path = (*path)[:len(*path)-1]
 		}
 	}
 	return nil

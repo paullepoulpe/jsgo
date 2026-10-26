@@ -55,11 +55,11 @@ func (t *BaseTranspiler) Transpile(path *jutil.URI, code string) *TranspileResul
 
 // Java: BaseTranspiler.runtime()
 func (t *BaseTranspiler) Runtime() string {
-	sb := jutil.NewStringBuilder()
+	var sb strings.Builder
 	if t.runtimeLibraryName != "" {
-		sb.Append(t.compilerSupplier.Runtime(t.runtimeLibraryName))
+		sb.WriteString(t.compilerSupplier.Runtime(t.runtimeLibraryName))
 	}
-	sb.Append(t.compilerSupplier.Runtime("modules"))
+	sb.WriteString(t.compilerSupplier.Runtime("modules"))
 	return sb.String()
 }
 

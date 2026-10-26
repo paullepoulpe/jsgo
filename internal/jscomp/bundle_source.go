@@ -19,7 +19,11 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // Source is an abstract representation of a source file.
 //
@@ -350,30 +354,30 @@ func (b *Source_Builder) OriginalCodeSupplier() *Source_Lazy[string] { return b.
 func (b *Source_Builder) AutoBuild() *Source {
 	if b.set0 != 1 || b.path == nil || b.sourceMap == nil || b.sourceUrl == nil || b.sourceMappingUrl == nil ||
 		b.runtimes == nil || b.loadFlags == nil || b.codeSupplier == nil {
-		missing := jutil.NewStringBuilder()
+		var missing strings.Builder
 		if b.path == nil {
-			missing.Append(" path")
+			missing.WriteString(" path")
 		}
 		if b.sourceMap == nil {
-			missing.Append(" sourceMap")
+			missing.WriteString(" sourceMap")
 		}
 		if b.sourceUrl == nil {
-			missing.Append(" sourceUrl")
+			missing.WriteString(" sourceUrl")
 		}
 		if b.sourceMappingUrl == nil {
-			missing.Append(" sourceMappingUrl")
+			missing.WriteString(" sourceMappingUrl")
 		}
 		if b.runtimes == nil {
-			missing.Append(" runtimes")
+			missing.WriteString(" runtimes")
 		}
 		if b.loadFlags == nil {
-			missing.Append(" loadFlags")
+			missing.WriteString(" loadFlags")
 		}
 		if b.set0&1 == 0 {
-			missing.Append(" estimatedSize")
+			missing.WriteString(" estimatedSize")
 		}
 		if b.codeSupplier == nil {
-			missing.Append(" codeSupplier")
+			missing.WriteString(" codeSupplier")
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}

@@ -270,15 +270,15 @@ func (b *DependencyInfo_Require_Builder) SetSymbol(value string) *DependencyInfo
 // Java: DependencyInfo.Require.Builder.build()
 func (b *DependencyInfo_Require_Builder) Build() *DependencyInfo_Require {
 	if b.symbol == nil || b.rawText == nil || b.type_ == nil {
-		missing := jutil.NewStringBuilder()
+		var missing strings.Builder
 		if b.symbol == nil {
-			missing.Append(" symbol")
+			missing.WriteString(" symbol")
 		}
 		if b.rawText == nil {
-			missing.Append(" rawText")
+			missing.WriteString(" rawText")
 		}
 		if b.type_ == nil {
-			missing.Append(" type")
+			missing.WriteString(" type")
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}

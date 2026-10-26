@@ -101,7 +101,8 @@ func NewPolyfillUsageFinder_Polyfill(
 type PolyfillUsageFinder_Polyfills struct {
 	// Map of all polyfills, keyed by their native version (the first ECMAScript spec version in
 	// which they are defined)
-	byNativeVersion *jutil.ListMultimap[string, *PolyfillUsageFinder_Polyfill]
+	nativeVersions  []string
+	byNativeVersion map[string][]*PolyfillUsageFinder_Polyfill
 
 	staticsMap  map[string]*PolyfillUsageFinder_Polyfill
 	staticRoots map[string]struct{}
@@ -164,16 +165,24 @@ func PolyfillUsageFinder_Polyfills_FromTable(table string) *PolyfillUsageFinder_
 }
 
 func polyfillUsageFinder_Polyfills_parseTable(table string) *PolyfillUsageFinder_Polyfills {
-	byNativeVersion := jutil.NewImmutableListMultimapBuilder[string, *PolyfillUsageFinder_Polyfill]()
 	p := &PolyfillUsageFinder_Polyfills{
-		staticsMap:  make(map[string]*PolyfillUsageFinder_Polyfill),
-		staticRoots: make(map[string]struct{}),
-		suffixesMap: make(map[string]struct{}),
-		methodsMap:  make(map[string][]*PolyfillUsageFinder_Polyfill),
-		anyPropMap:  make(map[string]struct{}),
+		byNativeVersion: make(map[string][]*PolyfillUsageFinder_Polyfill),
+		staticsMap:      make(map[string]*PolyfillUsageFinder_Polyfill),
+		staticRoots:     make(map[string]struct{}),
+		suffixesMap:     make(map[string]struct{}),
+		methodsMap:      make(map[string][]*PolyfillUsageFinder_Polyfill),
+		anyPropMap:      make(map[string]struct{}),
 	}
-	for _, line := range jutil.Splitter_OnCharOmitEmptyStrings(table, '\n') {
-		tokens := jutil.Splitter_OnCharOmitEmptyStrings(jutil.StringTrim(line), ' ')
+	for _, line := range strings.Split(table, "\n") {
+		if line == "" {
+			continue
+		}
+		var tokens []string
+		for _, tok := range strings.Split(jutil.StringTrim(line), " ") {
+			if tok != "" {
+				tokens = append(tokens, tok)
+			}
+		}
 		if len(tokens) == 1 && tokens[0] == "" {
 			continue
 		} else if len(tokens) < 3 {
@@ -215,9 +224,11 @@ func polyfillUsageFinder_Polyfills_parseTable(table string) *PolyfillUsageFinder
 			p.suffixesMap[suffix] = struct{}{}
 			p.anyPropMap[suffix] = struct{}{}
 		}
-		byNativeVersion.Put(nativeVersionStr, polyfill)
+		if _, exists := p.byNativeVersion[nativeVersionStr]; !exists {
+			p.nativeVersions = append(p.nativeVersions, nativeVersionStr)
+		}
+		p.byNativeVersion[nativeVersionStr] = append(p.byNativeVersion[nativeVersionStr], polyfill)
 	}
-	p.byNativeVersion = byNativeVersion.Build()
 	return p
 }
 
@@ -226,10 +237,10 @@ func (p *PolyfillUsageFinder_Polyfills) GetPolyfillsNewerThan(languageMode Compi
 	featureSet := languageMode.ToFeatureSet()
 	result := []*PolyfillUsageFinder_Polyfill{}
 
-	for nativeVersionStr := range p.byNativeVersion.KeySet() {
+	for _, nativeVersionStr := range p.nativeVersions {
 		polyfillNativeFeatureSet := PolyfillUsageFinder_GetPolyfillSupportedFeatureSet(nativeVersionStr)
 		if !featureSet.Contains(polyfillNativeFeatureSet) {
-			result = append(result, p.byNativeVersion.Get(nativeVersionStr)...)
+			result = append(result, p.byNativeVersion[nativeVersionStr]...)
 		}
 	}
 	return result

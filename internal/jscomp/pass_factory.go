@@ -20,6 +20,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -286,21 +288,21 @@ func (b *PassFactory_Builder) AutoBuild() *PassFactory {
 		b.condition == nil ||
 		b.preconditionCheck == nil ||
 		b.internalFactory == nil {
-		missing := jutil.NewStringBuilder()
+		var missing strings.Builder
 		if b.name == nil {
-			missing.Append(" name")
+			missing.WriteString(" name")
 		}
 		if b.condition == nil {
-			missing.Append(" condition")
+			missing.WriteString(" condition")
 		}
 		if b.preconditionCheck == nil {
-			missing.Append(" preconditionCheck")
+			missing.WriteString(" preconditionCheck")
 		}
 		if (b.set_0 & 1) == 0 {
-			missing.Append(" runInFixedPointLoop")
+			missing.WriteString(" runInFixedPointLoop")
 		}
 		if b.internalFactory == nil {
-			missing.Append(" internalFactory")
+			missing.WriteString(" internalFactory")
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}

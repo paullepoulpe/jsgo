@@ -395,7 +395,8 @@ func (p *JsDocInfoParser) Parse() bool {
 		}
 	}
 
-	return p.ParseHelperLoop(token, jutil.NewArrayList[*JsDocInfoParser_ExtendedTypeInfo]())
+	var extendedTypes []*JsDocInfoParser_ExtendedTypeInfo
+	return p.ParseHelperLoop(token, &extendedTypes)
 }
 
 // ParseImportantComment parses an important comment. Important comments begin
@@ -424,7 +425,7 @@ func (p *JsDocInfoParser) ParseImportantComment() {
 }
 
 // Java: JsDocInfoParser.parseHelperLoop(JsDocToken, List<ExtendedTypeInfo>)
-func (p *JsDocInfoParser) ParseHelperLoop(token JsDocToken, extendedTypes *jutil.ArrayList[*JsDocInfoParser_ExtendedTypeInfo]) bool {
+func (p *JsDocInfoParser) ParseHelperLoop(token JsDocToken, extendedTypes *[]*JsDocInfoParser_ExtendedTypeInfo) bool {
 	for {
 		switch token {
 		case JsDocToken_ANNOTATION:
@@ -438,7 +439,7 @@ func (p *JsDocInfoParser) ParseHelperLoop(token JsDocToken, extendedTypes *jutil
 			success := true
 			// TODO(johnlenz): It should be a parse error to have an @extends
 			// or similiar annotations in a file overview block.
-			p.CheckExtendedTypes(extendedTypes)
+			p.CheckExtendedTypes(*extendedTypes)
 			if p.HasParsedFileOverviewDocInfo() {
 				p.fileOverviewJSDocInfo = p.RetrieveAndResetParsedJSDocInfo()
 				visibility := p.fileOverviewJSDocInfo.GetVisibility()
@@ -460,7 +461,7 @@ func (p *JsDocInfoParser) ParseHelperLoop(token JsDocToken, extendedTypes *jutil
 			// discard any accumulated information
 			p.jsdocBuilder.Build()
 			p.AddParserWarning(rhino.Msg_UNEXPECTED_EOF)
-			p.CheckExtendedTypes(extendedTypes)
+			p.CheckExtendedTypes(*extendedTypes)
 			return false
 		case JsDocToken_EOL:
 			if p.state == JsDocInfoParser_State_SEARCHING_NEWLINE {
@@ -479,7 +480,7 @@ func (p *JsDocInfoParser) ParseHelperLoop(token JsDocToken, extendedTypes *jutil
 }
 
 // Java: JsDocInfoParser.parseAnnotation(JsDocToken, List<ExtendedTypeInfo>)
-func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil.ArrayList[*JsDocInfoParser_ExtendedTypeInfo]) JsDocToken {
+func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]*JsDocInfoParser_ExtendedTypeInfo) JsDocToken {
 	// JSTypes are represented as Rhino AST nodes, and then resolved later.
 	var type_ *rhino.JSTypeExpression
 	lineno := p.stream.GetLineno()
@@ -721,7 +722,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 
 				if annotation == Annotation_EXTENDS {
 					// record the extended type, check later
-					extendedTypes.Add(NewJsDocInfoParser_ExtendedTypeInfo(type_, p.stream.GetLineno(), p.stream.GetCharno()))
+					*extendedTypes = append(*extendedTypes, NewJsDocInfoParser_ExtendedTypeInfo(type_, p.stream.GetLineno(), p.stream.GetCharno()))
 				} else {
 					jutil.CheckState(annotation == Annotation_IMPLEMENTS)
 					if !p.jsdocBuilder.RecordImplementedInterface(type_) {
@@ -1401,8 +1402,8 @@ func (p *JsDocInfoParser) RecordDescription(token JsDocToken) JsDocToken {
 }
 
 // Java: JsDocInfoParser.checkExtendedTypes(List<ExtendedTypeInfo>)
-func (p *JsDocInfoParser) CheckExtendedTypes(extendedTypes *jutil.ArrayList[*JsDocInfoParser_ExtendedTypeInfo]) {
-	if extendedTypes.Size() > 1 {
+func (p *JsDocInfoParser) CheckExtendedTypes(extendedTypes []*JsDocInfoParser_ExtendedTypeInfo) {
+	if len(extendedTypes) > 1 {
 		// Multiple extends is always ok for an interface.
 		isInterface := p.jsdocBuilder.IsInterfaceRecorded()
 		// Normally having multiple extended types is an error for a non-interface, but in TSICKLE
@@ -1413,12 +1414,12 @@ func (p *JsDocInfoParser) CheckExtendedTypes(extendedTypes *jutil.ArrayList[*JsD
 			result := p.jsdocBuilder.RecordBaseType(
 				p.CreateJSTypeExpression(
 					p.WrapNode(rhino.Token_BANG, p.NewStringNode(JsDocInfoParser_TSICKLE_MISSING_TYPE_PLACEHOLDER)).
-						SrcrefTree(extendedTypes.Get(0).type_.GetRoot())))
+						SrcrefTree(extendedTypes[0].type_.GetRoot())))
 			jutil.CheckStateMsg(result, "Unexpected failure to record base type")
 			return
 		}
 	}
-	for _, typeInfo := range extendedTypes.Slice() {
+	for _, typeInfo := range extendedTypes {
 		// If interface, record the multiple extended interfaces
 		if p.jsdocBuilder.IsInterfaceRecorded() {
 			if !p.jsdocBuilder.RecordExtendedInterface(typeInfo.type_) {

@@ -211,9 +211,22 @@ func l11optRefs(nodes []rhino.Node) string {
 }
 
 func l11optFunctionNodes(nodes []rhino.Node, extra *[]string) {
-	fns := OptimizeCalls_ReferenceMap_GetFunctionNodes(nodes)
-	for k, v := range fns.Entries() {
-		*extra = append(*extra, "  fn "+l11optPos(k)+" -> "+l11optPos(v))
+	var keys []rhino.Node
+	byDef := make(map[rhino.Node][]rhino.Node)
+	for _, def := range nodes {
+		fns := optimizeCalls_appendDefinitionFunctionNodesFor(nil, def)
+		if len(fns) == 0 {
+			continue
+		}
+		if _, ok := byDef[def]; !ok {
+			keys = append(keys, def)
+		}
+		byDef[def] = append(byDef[def], fns...)
+	}
+	for _, k := range keys {
+		for _, v := range byDef[k] {
+			*extra = append(*extra, "  fn "+l11optPos(k)+" -> "+l11optPos(v))
+		}
 	}
 }
 

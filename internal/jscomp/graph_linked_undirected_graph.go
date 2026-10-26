@@ -61,7 +61,7 @@ func (g *LinkedUndirectedGraph[N, E]) NewSubGraph() SubGraph[N, E] {
 
 func (s *linkedUndirectedSubGraph[N, E]) IsIndependentOf(value N) bool {
 	node := s.graph.nodes.Get(value)
-	if node == nil || node.neighborEdges.IsEmpty() {
+	if node == nil || len(node.neighborEdges) == 0 {
 		return true
 	}
 	for _, n := range s.nodes {
@@ -125,8 +125,8 @@ func (g *LinkedUndirectedGraph[N, E]) allocNode(nodeValue N) *LinkedUndirectedGr
 	n := g.nodeSlab.alloc()
 	n.value = nodeValue
 	n.annotated = g.useNodeAnnotations
-	if cap(n.neighborEdges.Slice()) == 0 {
-		n.neighborEdges.InitWithBuffer(n.neighborEdgeBuffer[:])
+	if cap(n.neighborEdges) == 0 {
+		n.neighborEdges = n.neighborEdgeBuffer[:0:len(n.neighborEdgeBuffer)]
 	}
 	return n
 }
@@ -144,8 +144,8 @@ func (g *LinkedUndirectedGraph[N, E]) newEdge(
 func (g *LinkedUndirectedGraph[N, E]) connectLinkedNodes(
 	src *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E], edgeValue E, dest *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) {
 	edge := g.newEdge(src, edgeValue, dest)
-	src.neighborEdges.Add(edge)
-	dest.neighborEdges.Add(edge)
+	src.neighborEdges = append(src.neighborEdges, edge)
+	dest.neighborEdges = append(dest.neighborEdges, edge)
 }
 
 // Java: LinkedUndirectedGraph.connect(N, E, N)
@@ -169,8 +169,12 @@ func (g *LinkedUndirectedGraph[N, E]) Disconnect(srcValue N, destValue N) {
 	src := g.getLinkedNodeOrFail(srcValue)
 	dest := g.getLinkedNodeOrFail(destValue)
 	for _, edge := range g.GetUndirectedGraphEdges(srcValue, destValue) {
-		src.neighborEdges.Remove(edge)
-		dest.neighborEdges.Remove(edge)
+		if i := slices.Index(src.neighborEdges, edge); i >= 0 {
+			src.neighborEdges = slices.Delete(src.neighborEdges, i, i+1)
+		}
+		if i := slices.Index(dest.neighborEdges, edge); i >= 0 {
+			dest.neighborEdges = slices.Delete(dest.neighborEdges, i, i+1)
+		}
 	}
 }
 
@@ -211,7 +215,7 @@ func (g *LinkedUndirectedGraph[N, E]) GetUndirectedGraphEdges(n1 N, n2 N) []Undi
 		return nil
 	}
 	edges := []UndiGraph_UndiGraphEdge[N, E]{}
-	for _, outEdge := range dNode1.neighborEdges.Slice() {
+	for _, outEdge := range dNode1.neighborEdges {
 		if outEdge.GetNodeA() == GraphNode[N, E](dNode2) || outEdge.GetNodeB() == GraphNode[N, E](dNode2) {
 			edges = append(edges, outEdge)
 		}
@@ -261,7 +265,7 @@ func (g *LinkedUndirectedGraph[N, E]) GetEdgesBetween(n1 N, n2 N) []Graph_GraphE
 func (g *LinkedUndirectedGraph[N, E]) GetEdges() []Graph_GraphEdge[N, E] {
 	result := []Graph_GraphEdge[N, E]{}
 	for node := range g.nodes.Values() {
-		for _, edge := range node.neighborEdges.Slice() {
+		for _, edge := range node.neighborEdges {
 			if edge.GetNodeA() == GraphNode[N, E](node) {
 				result = append(result, edge)
 			}
@@ -274,7 +278,7 @@ func (g *LinkedUndirectedGraph[N, E]) GetEdges() []Graph_GraphEdge[N, E] {
 func (g *LinkedUndirectedGraph[N, E]) GetFirstEdge(n1 N, n2 N) Graph_GraphEdge[N, E] {
 	dNode1 := g.getLinkedNodeOrFail(n1)
 	dNode2 := GraphNode[N, E](g.getLinkedNodeOrFail(n2))
-	for _, outEdge := range dNode1.neighborEdges.Slice() {
+	for _, outEdge := range dNode1.neighborEdges {
 		if outEdge.GetNodeA() == dNode2 || outEdge.GetNodeB() == dNode2 {
 			return outEdge
 		}
@@ -323,8 +327,8 @@ func (g *LinkedUndirectedGraph[N, E]) IsConnectedWithEdge(n1 N, e E, n2 N) bool 
 
 func (g *LinkedUndirectedGraph[N, E]) isConnectedNodesAny(
 	ln1 *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E], ln2 *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) bool {
-	edges := ln1.neighborEdges.Slice()
-	if edges2 := ln2.neighborEdges.Slice(); len(edges2) < len(edges) {
+	edges := ln1.neighborEdges
+	if edges2 := ln2.neighborEdges; len(edges2) < len(edges) {
 		edges = edges2
 	}
 	dNode1, dNode2 := GraphNode[N, E](ln1), GraphNode[N, E](ln2)
@@ -339,8 +343,8 @@ func (g *LinkedUndirectedGraph[N, E]) isConnectedNodesAny(
 
 func (g *LinkedUndirectedGraph[N, E]) isConnectedNodesWithEdge(
 	ln1 *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E], e E, ln2 *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) bool {
-	edges := ln1.neighborEdges.Slice()
-	if edges2 := ln2.neighborEdges.Slice(); len(edges2) < len(edges) {
+	edges := ln1.neighborEdges
+	if edges2 := ln2.neighborEdges; len(edges2) < len(edges) {
 		edges = edges2
 	}
 	dNode1, dNode2 := GraphNode[N, E](ln1), GraphNode[N, E](ln2)
@@ -365,8 +369,8 @@ func (g *LinkedUndirectedGraph[N, E]) isConnectedWithPredicate(n1 N, edgePredica
 	if ln2 == nil {
 		return false
 	}
-	edges := ln1.neighborEdges.Slice()
-	if edges2 := ln2.neighborEdges.Slice(); len(edges2) < len(edges) {
+	edges := ln1.neighborEdges
+	if edges2 := ln2.neighborEdges; len(edges2) < len(edges) {
 		edges = edges2
 	}
 	dNode1, dNode2 := GraphNode[N, E](ln1), GraphNode[N, E](ln2)
@@ -391,7 +395,7 @@ func (g *LinkedUndirectedGraph[N, E]) ClearNodeAnnotations() {
 // Java: Graph.clearEdgeAnnotations()
 func (g *LinkedUndirectedGraph[N, E]) ClearEdgeAnnotations() {
 	for node := range g.nodes.Values() {
-		for _, edge := range node.neighborEdges.Slice() {
+		for _, edge := range node.neighborEdges {
 			if edge.GetNodeA() == GraphNode[N, E](node) {
 				edge.SetAnnotation(nil)
 			}
@@ -418,7 +422,7 @@ func (g *LinkedUndirectedGraph[N, E]) PushEdgeAnnotations() {
 	}
 	top := graph_pushAnnotationFrame(g.edgeAnnotationStack, g.nodes.Size())
 	for node := range g.nodes.Values() {
-		for _, edge := range node.neighborEdges.Slice() {
+		for _, edge := range node.neighborEdges {
 			if edge.GetNodeA() == GraphNode[N, E](node) {
 				*top = append(*top, graph_AnnotationState{first: edge, second: edge.GetAnnotation()})
 				edge.SetAnnotation(nil)
@@ -431,7 +435,7 @@ func (g *LinkedUndirectedGraph[N, E]) PushEdgeAnnotations() {
 func (g *LinkedUndirectedGraph[N, E]) GetGraphvizEdges() []GraphvizGraph_GraphvizEdge {
 	edgeList := []GraphvizGraph_GraphvizEdge{}
 	for node := range g.nodes.Values() {
-		for _, edge := range node.neighborEdges.Slice() {
+		for _, edge := range node.neighborEdges {
 			if edge.GetNodeA() == GraphNode[N, E](node) {
 				edgeList = append(edgeList, edge.(GraphvizGraph_GraphvizEdge))
 			}
@@ -479,7 +483,7 @@ func (g *LinkedUndirectedGraph[N, E]) GetNodeDegree(value N) int {
 	if uNode == nil {
 		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.ToJavaString(value) + " not found in graph"))
 	}
-	return uNode.neighborEdges.Size()
+	return len(uNode.neighborEdges)
 }
 
 // LinkedUndirectedGraph_LinkedUndirectedGraphNode is an undirected graph
@@ -490,7 +494,7 @@ func (g *LinkedUndirectedGraph[N, E]) GetNodeDegree(value N) int {
 // only overrides the annotation accessors, so it is folded in (PORTING.md
 // §4): annotated selects its behaviour.
 type LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E any] struct {
-	neighborEdges      jutil.ArrayList[UndiGraph_UndiGraphEdge[N, E]]
+	neighborEdges      []UndiGraph_UndiGraphEdge[N, E]
 	neighborEdgeBuffer [2]UndiGraph_UndiGraphEdge[N, E]
 	value              N
 
@@ -504,9 +508,9 @@ type LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E any] struct {
 func (n *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) recycle() {
 	edges := n.neighborEdges
 	*n = LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]{}
-	if c := cap(edges.Slice()); c > len(n.neighborEdgeBuffer) && c <= 64 {
-		edges.Clear()
-		n.neighborEdges = edges
+	if c := cap(edges); c > len(n.neighborEdgeBuffer) && c <= 64 {
+		clear(edges)
+		n.neighborEdges = edges[:0]
 	}
 }
 
@@ -515,7 +519,7 @@ func newLinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E any](nodeValue N) *
 	n := &LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]{
 		value: nodeValue,
 	}
-	n.neighborEdges.InitWithBuffer(n.neighborEdgeBuffer[:])
+	n.neighborEdges = n.neighborEdgeBuffer[:0:len(n.neighborEdgeBuffer)]
 	return n
 }
 
@@ -528,12 +532,12 @@ func newLinkedUndirectedGraph_AnnotatedLinkedUndirectedGraphNode[N, E any](nodeV
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getNeighborEdges()
 func (n *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) GetNeighborEdges() []UndiGraph_UndiGraphEdge[N, E] {
-	return n.neighborEdges.Slice()
+	return n.neighborEdges
 }
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getNeighborEdgesIterator()
 func (n *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) GetNeighborEdgesIterator() iter.Seq[UndiGraph_UndiGraphEdge[N, E]] {
-	return slices.Values(n.neighborEdges.Slice())
+	return slices.Values(n.neighborEdges)
 }
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getAnnotation(), AnnotatedLinkedUndirectedGraphNode.getAnnotation()
@@ -589,8 +593,8 @@ func (n *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) String() string 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.neighborList()
 func (n *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) neighborList() []GraphNode[N, E] {
 	self := GraphNode[N, E](n)
-	result := make([]GraphNode[N, E], 0, n.neighborEdges.Size())
-	for _, edge := range n.neighborEdges.Slice() {
+	result := make([]GraphNode[N, E], 0, len(n.neighborEdges))
+	for _, edge := range n.neighborEdges {
 		if edge.GetNodeA() == self {
 			result = append(result, edge.GetNodeB())
 		} else {

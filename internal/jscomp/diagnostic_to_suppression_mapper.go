@@ -79,15 +79,13 @@ func (m *DiagnosticToSuppressionMapper) PrintSuppressions(output DiagnosticToSup
 //
 // Java: DiagnosticToSuppressionMapper.createSuppressionMap()
 func (m *DiagnosticToSuppressionMapper) CreateSuppressionMap() *jutil.TreeMap[string, string] {
-	validSuppressions := jutil.NewLinkedHashSet(m.validSuppressions.ToSlice()...)
-	// deprecated in favor of "visibility"
-	validSuppressions.Remove("accessControls")
-	validSuppressions.Remove("missingSourcesWarnings")
-
 	diagnosticToSuppression := jutil.NewObjectLinkedHashMap[*DiagnosticType, string]()
 
 	for suppression, group := range m.diagnosticGroups.All() {
-		if !validSuppressions.Contains(suppression) {
+		// "accessControls" and "missingSourcesWarnings" are deprecated in favor of "visibility"
+		if suppression == "accessControls" ||
+			suppression == "missingSourcesWarnings" ||
+			!m.validSuppressions.Contains(suppression) {
 			continue
 		}
 

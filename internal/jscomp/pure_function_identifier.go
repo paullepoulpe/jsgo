@@ -415,94 +415,6 @@ func pureFunctionIdentifier_collectCallableLeavesSlice(
 	}
 }
 
-// PureFunctionIdentifier_CollectCallableLeavesInternal traverses an expr to
-// collect nodes representing potential callables that it may resolve to well
-// known callables.
-//
-// For example:
-//
-//	`a.c || b` => [a.c, b]
-//	`x ? a.c : b` => [a.c, b]
-//	`(function f() { }) && x || class Foo { constructor() { } }` => [function, x, constructor]`
-//
-// This function is applicable to finding both assignment aliases and call
-// targets. That is, one way to find the possible callees of an invocation is
-// to pass the complex expression representing the final callee to this
-// method.
-//
-// If a node that isn't understood is detected, false is returned and the
-// caller is expected to invalidate the entire collection. If true is
-// returned, this method is guaranteed to have added at least one result to
-// the collection.
-//
-// See collectCallableLeaves. expr is a possibly complicated expression;
-// results the collection of qualified names and functions. Returns true iff
-// only understood results were discovered.
-//
-// Java: PureFunctionIdentifier.collectCallableLeavesInternal(Node, ArrayList<Node>, AstAnalyzer)
-func PureFunctionIdentifier_CollectCallableLeavesInternal(
-	expr rhino.Node, results *jutil.ArrayList[rhino.Node], astAnalyzer *AstAnalyzer) bool {
-	switch expr.GetToken() {
-	case rhino.Token_FUNCTION, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_NAME:
-		results.Add(expr)
-		return true
-
-	case rhino.Token_SUPER:
-		{
-			// Pretend that `super` is an alias for the superclass reference.
-			clazz := rhino.CheckNotNull(NodeUtil_GetEnclosingClass(expr))
-			return PureFunctionIdentifier_CollectCallableLeavesInternal(clazz.GetSecondChild(), results, astAnalyzer)
-		}
-
-	case rhino.Token_CLASS:
-		{
-			// Instance field initializers run when the constructor is invoked (during class
-			// instantiation), so any side-effectful instance field initializers make the constructor
-			// invocation impure. Static field initializers run when the class definition itself is
-			// evaluated, not upon constructor invocation.
-			members := expr.GetLastChild()
-			if !members.IsNil() && members.IsClassMembers() {
-				for member := members.GetFirstChild(); !member.IsNil(); member = member.GetNext() {
-					initializer := member.GetLastChild()
-					if !initializer.IsNil() &&
-						NodeUtil_IsNonStaticClassFieldInitializer(initializer) &&
-						astAnalyzer.MayHaveSideEffects(initializer) {
-						return false
-					}
-				}
-			}
-
-			// Collect the constructor function, or failing that, the superclass reference.
-			ctorDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(expr)
-			if !ctorDef.IsNil() {
-				return PureFunctionIdentifier_CollectCallableLeavesInternal(ctorDef.GetOnlyChild(), results, astAnalyzer)
-			} else if expr.GetSecondChild().IsEmpty() {
-				results.Add(PureFunctionIdentifier_IMPLICIT_PURE_FN)
-				return true // A class an implicit ctor is pure when there is no superclass.
-			} else {
-				return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results, astAnalyzer)
-			}
-		}
-
-	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
-		return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetFirstChild(), results, astAnalyzer) &&
-			PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results, astAnalyzer)
-
-	case rhino.Token_COMMA, rhino.Token_ASSIGN:
-		return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results, astAnalyzer)
-
-	case rhino.Token_HOOK:
-		return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results, astAnalyzer) &&
-			PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetChildAtIndex(2), results, astAnalyzer)
-
-	case rhino.Token_NEW_TARGET, rhino.Token_THIS:
-		// These could be an alias to any function. Treat them as an unknown callable.
-		return false
-	default:
-		return false // Unsupported call type.
-	}
-}
-
 // PureFunctionIdentifier_IsDefinitelyRValue returns true only if rvalue is
 // defintely a reference reading a value.
 //
@@ -711,29 +623,31 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 			p.populateFunctionDefinitionsWithSummary(p.propSummariesByName[key], refs)
 		}
 	} else {
-		referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.ArrayList[rhino.Node]](max(totalRefs, 12))
+		referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, []rhino.Node](max(totalRefs, 12))
 		for key, value := range referenceMap.GetNameReferences() {
-			if value.IsEmpty() {
+			refs := value.Slice()
+			if len(refs) == 0 {
 				continue
 			}
-			referencesByName.Put(key, value)
+			referencesByName.Put(key, refs)
 		}
 		for key, value := range referenceMap.GetPropReferences() {
-			if value.IsEmpty() {
+			refs := value.Slice()
+			if len(refs) == 0 {
 				continue
 			}
 			propKey := p.allocPropKey(key)
-			if existing := referencesByName.Get(propKey); existing != nil {
-				combined := jutil.NewArrayListWithCapacity[rhino.Node](existing.Size() + value.Size())
-				combined.AddAll(existing.Slice()...)
-				combined.AddAll(value.Slice()...)
+			if existing, ok := referencesByName.Lookup(propKey); ok {
+				combined := make([]rhino.Node, 0, len(existing)+len(refs))
+				combined = append(combined, existing...)
+				combined = append(combined, refs...)
 				referencesByName.Put(propKey, combined)
 			} else {
-				referencesByName.Put(propKey, value)
+				referencesByName.Put(propKey, refs)
 			}
 		}
 		for name, references := range referencesByName.All() {
-			p.PopulateFunctionDefinitions(name, references.Slice())
+			p.PopulateFunctionDefinitions(name, references)
 		}
 	}
 

@@ -310,17 +310,3 @@ func TestParseException(t *testing.T) {
 	}
 }
 
-func TestSplitterOnCharOmitEmptyStrings(t *testing.T) {
-	got := Splitter_OnCharOmitEmptyStrings("\na b\n\n c\n", '\n')
-	want := []string{"a b", " c"}
-	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
-		t.Fatalf("got %q, want %q", got, want)
-	}
-	if got := Splitter_OnCharOmitEmptyStrings("", ' '); len(got) != 0 {
-		t.Fatalf("got %q", got)
-	}
-	if got := Splitter_OnCharOmitEmptyStrings("  x  y ", ' '); len(got) != 2 || got[0] != "x" || got[1] != "y" {
-		t.Fatalf("got %q", got)
-	}
-}
-

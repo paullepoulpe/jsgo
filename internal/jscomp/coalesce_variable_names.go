@@ -591,7 +591,7 @@ func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
 func coalesceCompareNodesByDegreeDesc(
 	left, right *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}],
 ) int {
-	return right.neighborEdges.Size() - left.neighborEdges.Size()
+	return len(right.neighborEdges) - len(left.neighborEdges)
 }
 
 func (s *coalesceScopeState) colorInterferenceGraph() int {
@@ -626,7 +626,7 @@ func (s *coalesceScopeState) colorInterferenceGraph() int {
 		kept := worklist[:0]
 		for _, node := range worklist {
 			independent := true
-			if !node.neighborEdges.IsEmpty() {
+			if len(node.neighborEdges) != 0 {
 				for _, n := range subNodes {
 					if g.isConnectedNodesAny(n, node) {
 						independent = false

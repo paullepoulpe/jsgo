@@ -19,7 +19,7 @@
 package jscomp
 
 import (
-	"fmt"
+	"encoding/hex"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -165,18 +165,7 @@ func (d *FileInstrumentationData) GetBranchNode(lineNumber int, branchNumber int
 //
 // Java: FileInstrumentationData.getHexString(BitSet)
 func fileInstrumentationData_getHexString(bitSet *jutil.BitSet) string {
-	builder := jutil.NewStringBuilder()
-
-	// Build the hex string.
-	for _, byteEntry := range bitSet.ToByteArray() {
-		// Java bytes are signed, but we want the value as if it were
-		// unsigned.
-		value := int(byteEntry)
-		// Integer.toHexString, padded to be two characters (if it isn't
-		// already).
-		builder.Append(fmt.Sprintf("%02x", value))
-	}
-	return builder.String()
+	return hex.EncodeToString(bitSet.ToByteArray())
 }
 
 // GetInstrumentedLinesAsHexString gets a hex string representation of the

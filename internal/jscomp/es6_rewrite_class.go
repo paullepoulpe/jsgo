@@ -21,6 +21,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -736,15 +738,15 @@ func (b *Es6RewriteClass_ClassProperty_Builder) Build() *Es6RewriteClass_ClassPr
 	if b.propertyKey == nil ||
 		b.kind == nil ||
 		b.jsDocInfo == nil {
-		missing := jutil.NewStringBuilder()
+		var missing strings.Builder
 		if b.propertyKey == nil {
-			missing.Append(" propertyKey")
+			missing.WriteString(" propertyKey")
 		}
 		if b.kind == nil {
-			missing.Append(" kind")
+			missing.WriteString(" kind")
 		}
 		if b.jsDocInfo == nil {
-			missing.Append(" jsDocInfo")
+			missing.WriteString(" jsDocInfo")
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}
@@ -1026,33 +1028,33 @@ func (b *Es6RewriteClass_ClassDeclarationMetadata_Builder) Build() *Es6RewriteCl
 		b.classPrototypeNode.IsNil() ||
 		b.classNameNode.IsNil() ||
 		b.superClassNameNode.IsNil() {
-		missing := jutil.NewStringBuilder()
+		var missing strings.Builder
 		if b.insertionPoint == nil {
-			missing.Append(" insertionPoint")
+			missing.WriteString(" insertionPoint")
 		}
 		if b.definePropertiesObjForPrototype.IsNil() {
-			missing.Append(" definePropertiesObjForPrototype")
+			missing.WriteString(" definePropertiesObjForPrototype")
 		}
 		if b.definePropertiesObjForClass.IsNil() {
-			missing.Append(" definePropertiesObjForClass")
+			missing.WriteString(" definePropertiesObjForClass")
 		}
 		if b.classMembersToDeclare == nil {
-			missing.Append(" classMembersToDeclare")
+			missing.WriteString(" classMembersToDeclare")
 		}
 		if b.fullClassNameNode.IsNil() {
-			missing.Append(" fullClassNameNode")
+			missing.WriteString(" fullClassNameNode")
 		}
 		if b.classPrototypeNode.IsNil() {
-			missing.Append(" classPrototypeNode")
+			missing.WriteString(" classPrototypeNode")
 		}
 		if (b.set_0 & 1) == 0 {
-			missing.Append(" anonymous")
+			missing.WriteString(" anonymous")
 		}
 		if b.classNameNode.IsNil() {
-			missing.Append(" classNameNode")
+			missing.WriteString(" classNameNode")
 		}
 		if b.superClassNameNode.IsNil() {
-			missing.Append(" superClassNameNode")
+			missing.WriteString(" superClassNameNode")
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}

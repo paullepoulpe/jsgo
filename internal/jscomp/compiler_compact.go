@@ -136,10 +136,8 @@ func (c *Compiler) forwardASTHolders(fwd func(rhino.Node) rhino.Node, externs, r
 			forwardInput(in)
 		}
 	}
-	if c.externs != nil {
-		for _, in := range c.externs.Slice() {
-			forwardInput(in)
-		}
+	for _, in := range c.externs {
+		forwardInput(in)
 	}
 	if c.phaseOptimizer != nil {
 		c.phaseOptimizer.jsRoot = fwd(c.phaseOptimizer.jsRoot)

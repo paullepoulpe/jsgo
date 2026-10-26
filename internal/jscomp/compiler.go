@@ -70,7 +70,7 @@ type Compiler struct {
 	passes PassConfig
 
 	// The externs inputs
-	externs *jutil.ArrayList[*CompilerInput]
+	externs []*CompilerInput
 
 	// The source chunk graph, denoting dependencies between chunks.
 	chunkGraph *JSChunkGraph
@@ -387,7 +387,7 @@ func (*compiler_allForwardDeclared) IsEmpty() bool {
 
 // initFields runs the Java field initializers, in declaration order.
 func (c *Compiler) initFields() {
-	c.externs = jutil.NewArrayList[*CompilerInput]()
+	c.externs = nil
 	c.inputsById = jutil.NewJavaHashMap[*rhino.InputId, *CompilerInput]()
 	c.scriptNodeByFilename = jutil.NewLinkedHashMap[string, rhino.Node]()
 	c.sourceMapOriginalSources = jutil.NewLinkedHashMap[string, *SourceFile]()
@@ -565,7 +565,7 @@ func (c *Compiler) InitOptions(options *CompilerOptions) {
 			}
 			add(NewPrintStreamErrorReportGenerator(
 				c.createMessageFormatter(), c.outStream, options.GetSummaryDetailLevel()))
-			for g := range options.GetExtraReportGenerators().All() {
+			for _, g := range options.GetExtraReportGenerators() {
 				add(g)
 			}
 			c.SetErrorManager(NewSortingErrorManager(builder))
@@ -662,7 +662,7 @@ func (c *Compiler) InitOptions(options *CompilerOptions) {
 func (c *Compiler) PrintConfig() {
 	if c.IsDebugLoggingEnabled() {
 		// Log to separate files for convenience.
-		c.logToFile("externs.log", c.externs.String)
+		c.logToFile("externs.log", func() string { return jutil.CollectionToString(c.externs) })
 		c.logToFile(
 			"inputs.json",
 			func() string {
@@ -674,7 +674,7 @@ func (c *Compiler) PrintConfig() {
 		// Debug logging is not enabled, so use stderr
 		err := jutil.System_Err()
 		err.Println("==== Externs ====")
-		err.Println(c.externs.String())
+		err.Println(jutil.CollectionToString(c.externs))
 		err.Println("==== Inputs ====")
 		err.Println(jutil.NewGsonBuilder().SetPrettyPrinting().Create().ToJson(c.chunkGraph.ToJson()))
 		err.Println("==== CompilerOptions ====")
@@ -982,9 +982,10 @@ func (c *Compiler) InitChunks(externs []*SourceFile, chunks []*JSChunk, options 
 
 	c.checkFirstChunk(chunks)
 
-	c.externs.Clear()
+	clear(c.externs)
+	c.externs = c.externs[:0]
 	for _, file := range externs {
-		c.externs.Add(NewCompilerInputWithIsExtern(file /* isExtern= */, true))
+		c.externs = append(c.externs, NewCompilerInputWithIsExtern(file /* isExtern= */, true))
 	}
 
 	// Generate the chunk graph, and report any errors in the chunk specification as errors.
@@ -1137,7 +1138,7 @@ var Compiler_DUPLICATE_EXTERN_INPUT = DiagnosticType_Error("JSC_DUPLICATE_EXTERN
 // Java: Compiler.initInputsByIdMap()
 func (c *Compiler) InitInputsByIdMap() {
 	c.inputsById.Clear()
-	for input := range c.externs.All() {
+	for _, input := range c.externs {
 		previous := c.putCompilerInput(input)
 		if previous != nil {
 			c.Report(JSError_Make(Compiler_DUPLICATE_EXTERN_INPUT, input.GetName()))
@@ -2475,9 +2476,9 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 	}()
 	// Parse externs sources.
 	if c.options.GetNumParallelThreads() > 1 {
-		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(c.externs.All())
+		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(slices.Values(c.externs))
 	}
-	for input := range c.externs.All() {
+	for _, input := range c.externs {
 		n := rhino.CheckNotNull(input.GetAstRoot(c))
 		if c.HasErrors() {
 			return rhino.NilNode
@@ -2654,7 +2655,7 @@ func (c *Compiler) OrderInputs() {
 	originalInputs := append([]*CompilerInput(nil), c.chunkGraph.GetAllInputs()...)
 
 	if c.tracker != nil {
-		c.tracker.RecordPrePruningInputCount(slices.Values(originalInputs), c.externs.All())
+		c.tracker.RecordPrePruningInputCount(slices.Values(originalInputs), slices.Values(c.externs))
 	}
 
 	// Externs must be marked before dependency management since it needs to know what is an extern.
@@ -2841,7 +2842,7 @@ func (c *Compiler) hoistIfExtern(input *CompilerInput) bool {
 			chunk.Remove(input)
 		}
 
-		c.externs.Add(input)
+		c.externs = append(c.externs, input)
 		return true
 	}
 	return false
@@ -4756,7 +4757,7 @@ func (c *Compiler) GetInputsById() *jutil.JavaHashMap[*rhino.InputId, *CompilerI
 //
 // Java: Compiler.getExternsInOrder()
 func (c *Compiler) GetExternsInOrder() []*CompilerInput {
-	return c.externs.Slice()
+	return c.externs
 }
 
 // Java: Compiler.getInputsForTesting()
@@ -4768,7 +4769,7 @@ func (c *Compiler) GetInputsForTesting() []*CompilerInput {
 }
 
 // Java: Compiler.getExternsForTesting()
-func (c *Compiler) GetExternsForTesting() *jutil.ArrayList[*CompilerInput] {
+func (c *Compiler) GetExternsForTesting() []*CompilerInput {
 	return c.externs
 }
 
@@ -4807,7 +4808,7 @@ func (c *Compiler) GetSynthesizedExternsInput() *CompilerInput {
 	c.putCompilerInput(input)
 	c.syntheticExternsInput = input
 	c.externsRoot.AddChildToFront(root)
-	c.externs.AddAt(0, input)
+	c.externs = slices.Insert(c.externs, 0, input)
 	c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), root)
 
 	return input
@@ -4830,7 +4831,7 @@ func (c *Compiler) GetSynthesizedTypeSummaryInput() *CompilerInput {
 	c.putCompilerInput(input)
 	c.syntheticTypeSummaryInput = input
 	c.externsRoot.AddChildToFront(root)
-	c.externs.AddAt(0, input)
+	c.externs = slices.Insert(c.externs, 0, input)
 	c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), root)
 	builder := rhino.JSDocInfo_Builder_()
 	builder.RecordTypeSummary()
@@ -5189,7 +5190,7 @@ func (c *Compiler) GetCompilerStateProtoBuilder() *JSCompilerStateProto_Builder 
 		SetIdGeneratorCurrentId(int32(c.crossChunkIdGenerator.GetCurrentId())).
 		SetRunJ2ClPasses(c.runJ2clPasses)
 
-	for extern := range c.externs.All() {
+	for _, extern := range c.externs {
 		builder.AddExterns(extern.GetInputId().GetIdName())
 	}
 
@@ -5383,7 +5384,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 		allInputFiles.Add(input.GetSourceFile())
 		compiler_putOrThrow(codeFilesBuilder, input.GetInputId().GetIdName(), input.GetSourceFile())
 	}
-	for extern := range c.externs.All() {
+	for _, extern := range c.externs {
 		allInputFiles.Add(extern.GetSourceFile())
 		compiler_putOrThrow(externFilesBuilder, extern.GetInputId().GetIdName(), extern.GetSourceFile())
 	}
@@ -5420,7 +5421,8 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	c.externsRoot = c.externAndJsRoot.GetFirstChild()
 	c.jsRoot = c.externAndJsRoot.GetLastChild()
 	c.inputsById.Clear()
-	c.externs.Clear()
+	clear(c.externs)
+	c.externs = c.externs[:0]
 
 	c.colorRegistry = deserializedAst.GetColorRegistry()
 	runtimeLibraries := deserializedAst.GetRuntimeLibraries()
@@ -5453,7 +5455,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 		c.externsRoot.AddChildToBack(script)
 		c.putCompilerInput(input)
 		c.scriptNodeByFilename.Put(externFile.GetName(), script)
-		c.externs.Add(input)
+		c.externs = append(c.externs, input)
 	}
 	c.typedAstFilesystem.Remove(c.SYNTHETIC_EXTERNS_FILE)
 	externFiles = nil

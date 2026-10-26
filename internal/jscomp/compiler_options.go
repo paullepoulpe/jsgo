@@ -427,7 +427,7 @@ type CompilerOptions struct {
 	// --------------------------------
 	// The output path for the created externs file.
 	externExportsPath     *string
-	extraReportGenerators *jutil.ArrayList[SortingErrorManager_ErrorReportGenerator]
+	extraReportGenerators []SortingErrorManager_ErrorReportGenerator
 	// --------------------------------
 	// Debugging Options
 	// --------------------------------
@@ -1208,13 +1208,13 @@ func (o *CompilerOptions) SetTracerOutput(out *jutil.Path) {
 }
 
 // Java: CompilerOptions.getExtraReportGenerators()
-func (o *CompilerOptions) GetExtraReportGenerators() *jutil.ArrayList[SortingErrorManager_ErrorReportGenerator] {
+func (o *CompilerOptions) GetExtraReportGenerators() []SortingErrorManager_ErrorReportGenerator {
 	return o.extraReportGenerators
 }
 
 // Java: CompilerOptions.addReportGenerator(SortingErrorManager.ErrorReportGenerator)
 func (o *CompilerOptions) AddReportGenerator(generator SortingErrorManager_ErrorReportGenerator) {
-	o.extraReportGenerators.Add(generator)
+	o.extraReportGenerators = append(o.extraReportGenerators, generator)
 }
 
 // When enabled, assume that apparently side-effect free code is meaningful.
@@ -1441,7 +1441,7 @@ func NewCompilerOptions() *CompilerOptions {
 	o.warningsGuard = NewComposeWarningsGuard()
 	o.summaryDetailLevel = 1
 	o.lineLengthThreshold = CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD
-	o.extraReportGenerators = jutil.NewArrayList[SortingErrorManager_ErrorReportGenerator]()
+	o.extraReportGenerators = []SortingErrorManager_ErrorReportGenerator{}
 	o.sourceMapDetailLevel = SourceMap_DetailLevel_ALL
 	o.sourceMapFormat = SourceMap_Format_DEFAULT
 	o.parseInlineSourceMaps = true

@@ -197,15 +197,15 @@ func (g *JSChunkGraph) makeWeakChunk(chunksInDepOrder []*JSChunk) []*JSChunk {
 			}
 		}
 		if !(len(misplacedStrongFiles) == 0 && len(misplacedWeakFiles) == 0) {
-			sb := jutil.NewStringBuilder()
-			sb.Append("A weak chunk exists but some sources are misplaced.")
+			var sb strings.Builder
+			sb.WriteString("A weak chunk exists but some sources are misplaced.")
 			if len(misplacedStrongFiles) != 0 {
-				sb.Append("\nFound these strong sources in the weak chunk:\n  ").
-					Append(strings.Join(misplacedStrongFiles, "\n  "))
+				sb.WriteString("\nFound these strong sources in the weak chunk:\n  ")
+				sb.WriteString(strings.Join(misplacedStrongFiles, "\n  "))
 			}
 			if len(misplacedWeakFiles) != 0 {
-				sb.Append("\nFound these weak sources in other chunks:\n  ").
-					Append(strings.Join(misplacedWeakFiles, "\n  "))
+				sb.WriteString("\nFound these weak sources in other chunks:\n  ")
+				sb.WriteString(strings.Join(misplacedWeakFiles, "\n  "))
 			}
 			panic(jutil.NewIllegalStateExceptionMsg(sb.String()))
 		}

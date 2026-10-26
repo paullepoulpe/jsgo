@@ -73,10 +73,11 @@ func (t *CompilerBasedTransformerBase) Transform(input *Source) *Source {
 		// might make sense to add console.log() statements to any JS that
 		// comes out, particularly for warnings.
 		formatter := ErrorFormat_SOURCELESS.ToFormatter(nil, false)
-		message :=
-			jutil.NewStringBuilder().Append(t.self.GetTranformationName()).Append(" failed.\n")
+		var message strings.Builder
+		message.WriteString(t.self.GetTranformationName())
+		message.WriteString(" failed.\n")
 		for _, error := range result.errors {
-			message.Append(formatter.FormatError(error))
+			message.WriteString(formatter.FormatError(error))
 		}
 		panic(jutil.NewIllegalStateExceptionMsg(message.String()))
 	}

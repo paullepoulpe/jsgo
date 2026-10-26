@@ -284,9 +284,9 @@ func NewTracer(comment string) *Tracer {
 // Java: Tracer.longToPaddedString(long, int)
 func tracer_longToPaddedString(v int64, digitsColumnWidth int) string {
 	digitWidth := tracer_numDigits(v)
-	sb := jutil.NewStringBuilder()
-	Tracer_AppendSpaces(sb, digitsColumnWidth-digitWidth)
-	sb.AppendInt(v)
+	var sb strings.Builder
+	Tracer_AppendSpaces(&sb, digitsColumnWidth-digitWidth)
+	sb.WriteString(strconv.FormatInt(v, 10))
 	return sb.String()
 }
 
@@ -309,27 +309,15 @@ func tracer_numDigits(n int64) int {
 // Tracer_AppendSpaces gets a string of spaces of the length specified.
 //
 // Java: Tracer.appendSpaces(StringBuilder, int)
-func Tracer_AppendSpaces(sb *jutil.StringBuilder, numSpaces int) {
+func Tracer_AppendSpaces(sb *strings.Builder, numSpaces int) {
 	if numSpaces > 16 {
 		Tracer_logger.Warning("Tracer.appendSpaces called with large numSpaces")
 		// Avoid long loop in case some bug in the caller
 		numSpaces = 16
 	}
-	for numSpaces >= 5 {
-		sb.Append("     ")
-		numSpaces -= 5
-	}
-
-	// We know it's less than 5 now
-	switch numSpaces {
-	case 1:
-		sb.Append(" ")
-	case 2:
-		sb.Append("  ")
-	case 3:
-		sb.Append("   ")
-	case 4:
-		sb.Append("    ")
+	if numSpaces > 0 {
+		const spaces16 = "                "
+		sb.WriteString(spaces16[:numSpaces])
 	}
 }
 
@@ -673,37 +661,37 @@ func (e *tracer_Event) EventTime() int64 {
 //
 // Java: Tracer.Event.toString(long, String, int)
 func (e *tracer_Event) ToString(prevEventTime int64, indent string, digitsColWidth int) string {
-	sb := jutil.NewStringBuilder()
+	var sb strings.Builder
 
 	if prevEventTime == -1 {
-		Tracer_AppendSpaces(sb, digitsColWidth)
+		Tracer_AppendSpaces(&sb, digitsColWidth)
 	} else {
-		sb.Append(tracer_longToPaddedString(
+		sb.WriteString(tracer_longToPaddedString(
 			e.EventTime()-prevEventTime, digitsColWidth))
 	}
 
-	sb.AppendChar(' ')
-	sb.Append(tracer_formatTime(e.EventTime()))
+	sb.WriteByte(' ')
+	sb.WriteString(tracer_formatTime(e.EventTime()))
 	if e.isStart {
-		sb.Append(" Start ")
-		Tracer_AppendSpaces(sb, digitsColWidth)
-		sb.Append("   ")
+		sb.WriteString(" Start ")
+		Tracer_AppendSpaces(&sb, digitsColWidth)
+		sb.WriteString("   ")
 	} else {
-		sb.Append(" Done ")
+		sb.WriteString(" Done ")
 		delta := e.tracer.stopTimeMs - e.tracer.startTimeMs
-		sb.Append(tracer_longToPaddedString(delta, digitsColWidth))
-		sb.Append(" ms ")
+		sb.WriteString(tracer_longToPaddedString(delta, digitsColWidth))
+		sb.WriteString(" ms ")
 		if e.tracer.extraTracingValues != nil {
 			for i := 0; i < len(e.tracer.extraTracingValues); i++ {
 				delta = e.tracer.extraTracingValues[i]
-				sb.Append(jutil.StringFormat("%4d", delta))
-				sb.Append(tracer_extraTracingStatistics[i].GetUnits())
-				sb.Append(";  ")
+				sb.WriteString(jutil.StringFormat("%4d", delta))
+				sb.WriteString(tracer_extraTracingStatistics[i].GetUnits())
+				sb.WriteString(";  ")
 			}
 		}
 	}
-	sb.Append(indent)
-	sb.Append(e.tracer.String())
+	sb.WriteString(indent)
+	sb.WriteString(e.tracer.String())
 	return sb.String()
 }
 

@@ -172,27 +172,31 @@ func NewStripCode_StripCodeConfigRecord(outer *StripCode) *StripCode_StripCodeCo
 // Java: StripCodeConfigRecord.get()
 func (r *StripCode_StripCodeConfigRecord) Get() string {
 	s := r.this_
-	builder := jutil.NewStringBuilder()
-	builder.Append("=== stripNameSuffixes ===\n")
+	var builder strings.Builder
+	builder.WriteString("=== stripNameSuffixes ===\n")
 	for stripNameSuffix := range s.stripNameSuffixes.All() {
-		builder.Append(stripNameSuffix).Append("\n")
+		builder.WriteString(stripNameSuffix)
+		builder.WriteByte('\n')
 	}
-	builder.Append("\n")
-	builder.Append("=== stripNamePrefixes ===\n")
+	builder.WriteByte('\n')
+	builder.WriteString("=== stripNamePrefixes ===\n")
 	for stripNamePrefix := range s.stripNamePrefixes.All() {
-		builder.Append(stripNamePrefix).Append("\n")
+		builder.WriteString(stripNamePrefix)
+		builder.WriteByte('\n')
 	}
-	builder.Append("\n")
-	builder.Append("=== stripTypesList ===\n")
+	builder.WriteByte('\n')
+	builder.WriteString("=== stripTypesList ===\n")
 	for _, stripType := range s.stripTypesList {
-		builder.Append(stripType).Append("\n")
+		builder.WriteString(stripType)
+		builder.WriteByte('\n')
 	}
-	builder.Append("\n")
-	builder.Append("=== stripTypePrefixesList ===\n")
+	builder.WriteByte('\n')
+	builder.WriteString("=== stripTypePrefixesList ===\n")
 	for _, stripNamePrefix := range s.stripTypePrefixesList {
-		builder.Append(stripNamePrefix).Append("\n")
+		builder.WriteString(stripNamePrefix)
+		builder.WriteByte('\n')
 	}
-	builder.Append("\n")
+	builder.WriteByte('\n')
 	return builder.String()
 }
 
