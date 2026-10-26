@@ -35,7 +35,7 @@ type FixingErrorManager struct {
 	// deterministic and only lookups and an any-match scan use it): an
 	// insertion-ordered map with JSError.equals/hashCode (PORTING.md §6).
 	sureFixes  *jutil.ObjectLinkedHashMap[*JSError, *SuggestedFix]
-	multiFixes *jutil.ListMultimap[*JSError, *SuggestedFix]
+	multiFixes *jutil.ObjectLinkedHashMap[*JSError, []*SuggestedFix]
 	// Go-only: language-adapter — an ImmutableSet of DiagnosticTypes, which
 	// compare by key (DiagnosticType.equals): ObjectLinkedHashSet, as
 	// DiagnosticGroup's types (PORTING.md §6).
@@ -53,11 +53,6 @@ const (
 )
 
 var fixingErrorManager_FixTypes_names = [...]string{"ONE_FIX", "ONE_FIX_AND_MULTI_FIXES"}
-
-// FixingErrorManager_FixTypes_values is FixTypes.values().
-func FixingErrorManager_FixTypes_values() []FixingErrorManager_FixTypes {
-	return []FixingErrorManager_FixTypes{FixingErrorManager_FixTypes_ONE_FIX, FixingErrorManager_FixTypes_ONE_FIX_AND_MULTI_FIXES}
-}
 
 // Name is Enum.name().
 func (t FixingErrorManager_FixTypes) Name() string { return fixingErrorManager_FixTypes_names[t] }
@@ -78,7 +73,7 @@ func NewFixingErrorManagerWithUnfixableErrors(unfixableErrors *jutil.ObjectLinke
 	m := &FixingErrorManager{}
 	m.InitBasicErrorManagerBase(m)
 	m.sureFixes = jutil.NewObjectLinkedHashMap[*JSError, *SuggestedFix]()
-	m.multiFixes = jutil.ArrayListMultimap_Create[*JSError, *SuggestedFix]()
+	m.multiFixes = jutil.NewObjectLinkedHashMap[*JSError, []*SuggestedFix]()
 	m.unfixableErrors = unfixableErrors
 	return m
 }
@@ -95,11 +90,8 @@ func (m *FixingErrorManager) Report(level *CheckLevel, error *JSError) {
 		fixes := m.fixer.GetFixesForJsError(error)
 		if len(fixes) == 1 {
 			m.sureFixes.Put(error, fixes[0])
-		} else {
-			// multiFixes.putAll(error, fixes)
-			for _, fix := range fixes {
-				m.multiFixes.Put(error, fix)
-			}
+		} else if len(fixes) > 0 {
+			m.multiFixes.Put(error, append(m.multiFixes.Get(error), fixes...))
 		}
 	}
 }
@@ -111,7 +103,7 @@ func (m *FixingErrorManager) ContainsFixableShorthandModuleWarning() bool {
 			return true
 		}
 	}
-	for error := range m.multiFixes.KeySet() {
+	for error := range m.multiFixes.Keys() {
 		if error.Type().Equals(ClosureCheckModule_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME) {
 			return true
 		}

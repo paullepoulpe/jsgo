@@ -453,6 +453,11 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) GoogNamespacesBuilder() *juti
 	return b.googNamespacesBuilder_
 }
 
+// HasGoogNamespace reports whether namespace has been added to googNamespacesBuilder.
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) HasGoogNamespace(namespace string) bool {
+	return b.googNamespacesBuilder_ != nil && b.googNamespacesBuilder_.Contains(namespace)
+}
+
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.stronglyRequiredGoogNamespacesBuilder()
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) StronglyRequiredGoogNamespacesBuilder() *jutil.ImmutableMultiset_Builder[string] {
 	if b.stronglyRequiredGoogNamespacesBuilder_ == nil {

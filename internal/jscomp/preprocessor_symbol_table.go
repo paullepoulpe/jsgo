@@ -36,7 +36,7 @@ type PreprocessorSymbolTable struct {
 	// All preprocessor symbols are globals.
 	symbols *jutil.LinkedHashMap[string, rhino.SimpleSlot]
 
-	refs *jutil.ListMultimap[string, *PreprocessorSymbolTable_Reference]
+	refs map[string][]*PreprocessorSymbolTable_Reference
 
 	root rhino.Node
 }
@@ -45,7 +45,7 @@ type PreprocessorSymbolTable struct {
 func NewPreprocessorSymbolTable(root rhino.Node) *PreprocessorSymbolTable {
 	return &PreprocessorSymbolTable{
 		symbols: jutil.NewLinkedHashMap[string, rhino.SimpleSlot](),
-		refs:    jutil.ArrayListMultimap_Create[string, *PreprocessorSymbolTable_Reference](),
+		refs:    make(map[string][]*PreprocessorSymbolTable_Reference),
 		root:    root,
 	}
 }
@@ -93,7 +93,7 @@ func (t *PreprocessorSymbolTable) LookupQualifiedName(qname rhino.QualifiedName)
 // Java: PreprocessorSymbolTable.getReferences(SimpleSlot)
 func (t *PreprocessorSymbolTable) GetReferences(symbol rhino.SimpleSlot) iter.Seq[*PreprocessorSymbolTable_Reference] {
 	// Collections.unmodifiableCollection(refs.get(symbol.getName()))
-	return slices.Values(t.refs.Get(symbol.GetName()))
+	return slices.Values(t.refs[symbol.GetName()])
 }
 
 // Java: PreprocessorSymbolTable.getAllSymbols()
@@ -120,9 +120,9 @@ func (t *PreprocessorSymbolTable) AddReference(node rhino.Node) {
 func (t *PreprocessorSymbolTable) AddReferenceWithName(node rhino.Node, name string) {
 	// checkNotNull(name): a Go string is never null.
 
-	t.symbols.ComputeIfAbsent(name, func(k string) rhino.SimpleSlot { return rhino.NewSimpleSlot(k, nil, true) })
+	slot := t.symbols.ComputeIfAbsent(name, func(k string) rhino.SimpleSlot { return rhino.NewSimpleSlot(k, nil, true) })
 
-	t.refs.Put(name, NewPreprocessorSymbolTable_Reference(t.symbols.Get(name), node))
+	t.refs[name] = append(t.refs[name], NewPreprocessorSymbolTable_Reference(slot, node))
 }
 
 // GetQualifiedName: this variant of Node#getQualifiedName is adds special

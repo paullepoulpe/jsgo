@@ -38,21 +38,12 @@ type RenameVars struct {
 	compiler   AbstractCompiler
 	convention CodingConvention
 
-	// List of global NAME nodes
-	globalNameNodes *jutil.ArrayList[rhino.Node]
-
-	// List of local NAME nodes
-	localNameNodes *jutil.ArrayList[rhino.Node]
-
 	globalRefChunks [][]renameVarsNodeRef
 	localRefChunks  [][]renameVarsNodeRef
 
-	// Mapping of original names for change detection
-	originalNameByNode *jutil.LinkedHashMap[rhino.Node, string]
-
 	// Maps a name node to its pseudo name, null if we are not generating so
 	// there will be no overhead unless we are debugging.
-	pseudoNameMap *jutil.LinkedHashMap[rhino.Node, string]
+	pseudoNameMap map[rhino.Node]string
 
 	// Set of extern variable names
 	externNames *jutil.LinkedHashSet[string]
@@ -74,11 +65,8 @@ type RenameVars struct {
 
 	// Logic for bleeding functions, where the name leaks into the outer
 	// scope on IE but not on other browsers.
-	localBleedingFunctions *jutil.LinkedHashSet[*Var]
-	// Go-only: language-adapter — the ArrayListMultimap<Scope, Var> is a map
-	// from scope to its value list; only get (an empty list when absent) and
-	// put are used, so the key order is never observed.
-	localBleedingFunctionsPerScope *jutil.LinkedHashMap[*Scope, *jutil.ArrayList[*Var]]
+	localBleedingFunctions         map[*Var]struct{}
+	localBleedingFunctionsPerScope map[*Scope][]*Var
 
 	// Maps an old name to a new name assignment
 	assignments  *jutil.LinkedHashMap[string, *RenameVars_Assignment]
@@ -198,9 +186,7 @@ func NewRenameVars(
 	}
 	r.localRenamingOnly = localRenamingOnly
 	if generatePseudoNames {
-		r.pseudoNameMap = jutil.NewLinkedHashMap[rhino.Node, string]()
-	} else {
-		r.pseudoNameMap = nil
+		r.pseudoNameMap = make(map[rhino.Node]string)
 	}
 	r.prevUsedRenameMap = prevUsedRenameMap
 	r.reservedCharacters = reservedCharacters
@@ -260,18 +246,12 @@ func (p *RenameVars_ProcessVars) EnterScope(t *NodeTraversal) {
 		}
 		if current.IsBleedingFunction() {
 			if r.localBleedingFunctions == nil {
-				r.localBleedingFunctions = jutil.NewLinkedHashSet[*Var]()
-				r.localBleedingFunctionsPerScope = jutil.NewLinkedHashMap[*Scope, *jutil.ArrayList[*Var]]()
+				r.localBleedingFunctions = make(map[*Var]struct{})
+				r.localBleedingFunctionsPerScope = make(map[*Scope][]*Var)
 			}
-			r.localBleedingFunctions.Add(current)
-			// localBleedingFunctionsPerScope.put(scope.getParent(), current)
+			r.localBleedingFunctions[current] = struct{}{}
 			parentScope := scope.GetParent()
-			list := r.localBleedingFunctionsPerScope.Get(parentScope)
-			if list == nil {
-				list = jutil.NewArrayList[*Var]()
-				r.localBleedingFunctionsPerScope.Put(parentScope, list)
-			}
-			list.Add(current)
+			r.localBleedingFunctionsPerScope[parentScope] = append(r.localBleedingFunctionsPerScope[parentScope], current)
 		}
 	}
 }
@@ -417,19 +397,6 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 	}
 }
 
-// IncCount increments count of an assignment
-//
-// Java: RenameVars.ProcessVars.incCount(String)
-func (p *RenameVars_ProcessVars) IncCount(name string) {
-	// assignments.computeIfAbsent(name, Assignment::new)
-	s := p.outer.assignments.Get(name)
-	if s == nil {
-		s = NewRenameVars_Assignment(p.outer, name)
-		p.outer.assignments.Put(name, s)
-	}
-	s.count++
-}
-
 // RenameVars_FrequencyComparator sorts Assignment objects by their count,
 // breaking ties by their order of occurrence in the source to ensure a
 // deterministic total ordering.
@@ -466,10 +433,8 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 		scopeCreator: sc,
 	}
 	b.Traverse(root)
-	if r.localBleedingFunctions != nil {
-		r.localBleedingFunctions.Clear()
-		r.localBleedingFunctionsPerScope.Clear()
-	}
+	r.localBleedingFunctions = nil
+	r.localBleedingFunctionsPerScope = nil
 
 	// Make sure that new names don't overlap with extern names.
 	for name := range r.externNames.All() {
@@ -500,11 +465,11 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 			if a.newName != nil && *a.newName != oldName {
 				newName := *a.newName
 				if r.pseudoNameMap != nil {
-					if pName := r.pseudoNameMapGet(n); pName != nil {
-						newName = *pName
-					} else {
+					pName, ok := r.pseudoNameMap[n]
+					if !ok {
 						continue
 					}
+					newName = pName
 				}
 				if newName != oldName {
 					n.SetString(newName)
@@ -526,11 +491,11 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 			if *a.newName != a.oldName {
 				newName := *a.newName
 				if r.pseudoNameMap != nil {
-					if pName := r.pseudoNameMapGet(n); pName != nil {
-						newName = *pName
-					} else {
+					pName, ok := r.pseudoNameMap[n]
+					if !ok {
 						continue
 					}
+					newName = pName
 				}
 				originalName := n.GetString()
 				if newName != originalName {
@@ -550,68 +515,11 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 	r.seenVars = nil
 }
 
-// Java: RenameVars.setNameAndReport(Node, String)
-func (r *RenameVars) SetNameAndReport(n rhino.Node, newName *string) {
-	// A null newName, indicates it should not be renamed.
-	if newName != nil && *newName != n.GetString() {
-		n.SetString(*newName)
-
-		// Only mark changes if the final name change is different than it was original before being
-		// filled with the "L" temporary name.
-		if originalName, ok := r.originalNameByNode.Lookup(n); !ok || *newName != originalName {
-			r.compiler.ReportChangeToEnclosingScope(n)
-			parent := n.GetParent()
-			if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
-				// If we are renaming a function declaration, make sure the containing scope
-				// has the opportunity to act on the change.
-				r.compiler.ReportChangeToEnclosingScope(parent)
-			}
-		}
-	}
-}
-
-// Java: RenameVars.getNewGlobalName(Node)
-func (r *RenameVars) GetNewGlobalName(n rhino.Node) *string {
-	oldName := n.GetString()
-	a := r.assignments.Get(oldName)
-	if a.newName != nil && *a.newName != oldName {
-		if r.pseudoNameMap != nil {
-			return r.pseudoNameMapGet(n)
-		}
-		return a.newName
-	} else {
-		return nil
-	}
-}
-
-// Java: RenameVars.getNewLocalName(Node)
-func (r *RenameVars) GetNewLocalName(n rhino.Node) *string {
-	oldTempName := n.GetString()
-	a := r.assignments.Get(oldTempName)
-	if *a.newName != oldTempName {
-		if r.pseudoNameMap != nil {
-			return r.pseudoNameMapGet(n)
-		}
-		return a.newName
-	}
-	return nil
-}
-
-// pseudoNameMapGet is pseudoNameMap.get(n): null when absent.
-//
-// Go-only: language-adapter — Map.get returning a nullable String.
-func (r *RenameVars) pseudoNameMapGet(n rhino.Node) *string {
-	if v, ok := r.pseudoNameMap.Lookup(n); ok {
-		return &v
-	}
-	return nil
-}
-
 // Java: RenameVars.recordPseudoName(Node)
 func (r *RenameVars) RecordPseudoName(n rhino.Node) {
 	// Variable names should be in a different name space than
 	// property pseudo names.
-	r.pseudoNameMap.Put(n, "$"+n.GetString()+"$$")
+	r.pseudoNameMap[n] = "$" + n.GetString() + "$$"
 }
 
 func (r *RenameVars) reusePreviouslyUsedVariableMapSlice(varsToRename []*RenameVars_Assignment) {
@@ -683,114 +591,6 @@ func (r *RenameVars) assignNamesSlice(varsToRename []*RenameVars_Assignment) {
 	}
 }
 
-// ReusePreviouslyUsedVariableMap runs through the assignments and reuses as
-// many names as possible from the previously used variable map. Updates
-// reservedNames with the set of names that were reused.
-//
-// Java: RenameVars.reusePreviouslyUsedVariableMap(SortedSet<Assignment>)
-func (r *RenameVars) ReusePreviouslyUsedVariableMap(varsToRename *jutil.TreeSet[*RenameVars_Assignment]) {
-	// If prevUsedRenameMap had duplicate values then this pass would be
-	// non-deterministic.
-	// In such a case, the following will throw an IllegalArgumentException.
-	jutil.CheckNotNull(r.prevUsedRenameMap.GetNewNameToOriginalNameMap())
-	for a := range varsToRename.All() {
-		prevNewName := r.prevUsedRenameMap.LookupNewName(a.oldName)
-		if prevNewName == nil || r.reservedNames.Contains(*prevNewName) {
-			continue
-		}
-
-		if a.isLocal ||
-			(!r.externNames.Contains(a.oldName) &&
-				jutil.StringStartsWith(*prevNewName, r.prefix)) {
-			r.reservedNames.Add(*prevNewName)
-			r.FinalizeNameAssignment(a, *prevNewName)
-		}
-	}
-}
-
-// AssignNames determines which new names to substitute for the original
-// names.
-//
-// Java: RenameVars.assignNames(SortedSet<Assignment>)
-func (r *RenameVars) AssignNames(varsToRename *jutil.TreeSet[*RenameVars_Assignment]) {
-	r.nameGenerator.Reset(r.reservedNames, r.prefix, r.reservedCharacters)
-
-	globalNameGenerator := r.nameGenerator
-	// Local variables never need a prefix.
-	// Also, we need to avoid conflicts between global and local variable
-	// names; we do this by having using the same generator (not two
-	// instances). The case where global variables have a prefix (and
-	// therefore we use two different generators) but a local variable name
-	// might nevertheless conflict with a global one is not handled.
-	var localNameGenerator NameGenerator
-	if r.prefix == "" {
-		localNameGenerator = globalNameGenerator
-	} else {
-		localNameGenerator = r.nameGenerator.Clone(r.reservedNames, "", r.reservedCharacters)
-	}
-
-	// Generated names and the assignments for non-local vars.
-	var pendingAssignments []*RenameVars_Assignment
-	var generatedNamesForAssignments []string
-
-	for a := range varsToRename.All() {
-		if a.newName != nil {
-			continue
-		}
-
-		if r.externNames.Contains(a.oldName) {
-			continue
-		}
-
-		var newName string
-		if a.isLocal {
-			// For local variable, we make the assignment right away.
-			newName = localNameGenerator.GenerateNextName()
-			r.FinalizeNameAssignment(a, newName)
-		} else {
-			// For non-local variable, delay finalizing the name assignment
-			// until we know how many new names we'll have of length 2, 3, etc.
-			newName = globalNameGenerator.GenerateNextName()
-			pendingAssignments = append(pendingAssignments, a)
-			generatedNamesForAssignments = append(generatedNamesForAssignments, newName)
-		}
-		r.reservedNames.Add(newName)
-	}
-
-	// Now that we have a list of generated names, and a list of variable
-	// Assignment objects, we assign the generated names to the vars as
-	// follows:
-	// 1) The most frequent vars get the shorter names.
-	// 2) If N number of vars are going to be assigned names of the same
-	//    length, we assign the N names based on the order at which the vars
-	//    first appear in the source. This makes the output somewhat less
-	//    random, because symbols declared close together are assigned names
-	//    that are quite similar. With this heuristic, the output is more
-	//    compressible.
-	//    For instance, the output may look like:
-	//    var da = "..", ea = "..";
-	//    function fa() { .. } function ga() { .. }
-
-	numPendingAssignments := len(generatedNamesForAssignments)
-	for i := 0; i < numPendingAssignments; {
-		varsByOrderOfOccurrence := jutil.NewTreeSet(RenameVars_ORDER_OF_OCCURRENCE_COMPARATOR)
-
-		// Add k number of Assignment to the set, where k is the number of
-		// generated names of the same length.
-		len_ := jutil.StringLength(generatedNamesForAssignments[i])
-		for j := i; j < numPendingAssignments &&
-			jutil.StringLength(generatedNamesForAssignments[j]) == len_; j++ {
-			varsByOrderOfOccurrence.Add(pendingAssignments[j])
-		}
-
-		// Now, make the assignments
-		for a := range varsByOrderOfOccurrence.All() {
-			r.FinalizeNameAssignment(a, generatedNamesForAssignments[i])
-			i++
-		}
-	}
-}
-
 // FinalizeNameAssignment makes a final name assignment.
 //
 // Java: RenameVars.finalizeNameAssignment(Assignment, String)
@@ -836,22 +636,16 @@ func (r *RenameVars) GetLocalVarIndex(v *Var) int {
 		return num
 	}
 
-	isBleedingIntoScope := s.GetParent() != nil && r.localBleedingFunctions.Contains(v)
+	_, hasBleeding := r.localBleedingFunctions[v]
+	isBleedingIntoScope := s.GetParent() != nil && hasBleeding
 
 	for s.GetParent() != nil {
-		// localBleedingFunctionsPerScope.get(s): an empty list when absent.
-		bleeding := r.localBleedingFunctionsPerScope.Get(s)
+		bleeding := r.localBleedingFunctionsPerScope[s]
 		if isBleedingIntoScope {
-			index := -1
-			if bleeding != nil {
-				index = bleeding.IndexOf(v)
-			}
-			num += index + 1
+			num += slices.Index(bleeding, v) + 1
 			isBleedingIntoScope = false
 		} else {
-			if bleeding != nil {
-				num += bleeding.Size()
-			}
+			num += len(bleeding)
 		}
 		if r.ShouldTemporarilyRenameLocalsInScope(s) {
 			num += s.GetVarCount()

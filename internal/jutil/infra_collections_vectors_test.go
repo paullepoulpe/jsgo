@@ -29,11 +29,9 @@ func TestInfraCollectionsMatchJava(t *testing.T) {
 		}
 		var got []string
 		switch kind {
-		case "pq", "ms":
+		case "pq", "ms", "lm":
 			rows++
 			continue
-		case "lm":
-			got = replayListMultimap(ops)
 		case "sm":
 			got = replaySetMultimap(ops)
 		default:
@@ -47,26 +45,6 @@ func TestInfraCollectionsMatchJava(t *testing.T) {
 	if rows != 650 {
 		t.Fatalf("replayed %d rows, want 650", rows)
 	}
-}
-
-func replayListMultimap(ops []string) []string {
-	m := ArrayListMultimap_Create[string, string]()
-	var res []string
-	for _, op := range ops {
-		arg := op[1:]
-		switch op[0] {
-		case 'p':
-			k, v, _ := strings.Cut(arg, "=")
-			res = append(res, strconv.FormatBool(m.Put(k, v)))
-		case 'R':
-			res = append(res, CollectionToString(m.RemoveAll(arg)))
-		case 'g':
-			res = append(res, CollectionToString(m.Get(arg)))
-		case 'c':
-			res = append(res, strconv.FormatBool(m.ContainsKey(arg)))
-		}
-	}
-	return append(res, "size="+strconv.Itoa(m.Size()))
 }
 
 func replaySetMultimap(ops []string) []string {

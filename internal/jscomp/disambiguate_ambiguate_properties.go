@@ -51,7 +51,7 @@ import (
 type AmbiguateProperties struct {
 	compiler AbstractCompiler
 
-	stringNodesToRename *jutil.ArrayList[rhino.Node]
+	stringNodesToRename []rhino.Node
 	// Can't use these to start property names.
 	reservedFirstCharacters jutil.Set[uint16]
 	// Can't use these at all in property names.
@@ -103,7 +103,6 @@ func NewAmbiguateProperties(
 	}
 	a := &AmbiguateProperties{
 		compiler:                   compiler,
-		stringNodesToRename:        jutil.NewArrayList[rhino.Node](),
 		reservedFirstCharacters:    reservedFirstCharacters,
 		reservedNonFirstCharacters: reservedNonFirstCharacters,
 		propertyMap:                jutil.NewLinkedHashMapWithCapacity[string, *AmbiguateProperties_Property](2048),
@@ -136,9 +135,6 @@ func (a *AmbiguateProperties) GetRenamingMap() *jutil.LinkedHashMap[string, stri
 
 // Java: AmbiguateProperties.process(Node, Node)
 func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
-	if a.stringNodesToRename == nil {
-		a.stringNodesToRename = jutil.NewArrayList[rhino.Node]()
-	}
 	a.graphNodeFactory = ColorGraphNodeFactory_CreateFactory(a.colorRegistry)
 
 	// Find all property references and record the types on which they occur.
@@ -278,7 +274,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	// Actually assign the new names to the relevant STRING nodes in the AST.
-	for _, n := range a.stringNodesToRename.Slice() {
+	for _, n := range a.stringNodesToRename {
 		oldName := n.GetString()
 		p := a.propertyMap.Get(oldName)
 		if p != nil && p.newName != nil {
@@ -643,7 +639,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) MaybeMarkCandidat
 	a := p.outer
 	name := n.GetString()
 	if !a.externedNames.Contains(name) {
-		listAddDoubling(a.stringNodesToRename, n)
+		a.stringNodesToRename = appendDoubling(a.stringNodesToRename, n)
 		p.RecordProperty(name, type_)
 	}
 }

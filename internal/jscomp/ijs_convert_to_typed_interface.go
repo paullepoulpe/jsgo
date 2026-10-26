@@ -476,20 +476,17 @@ func NewConvertToTypedInterface_SimplifyDeclarations(compiler AbstractCompiler, 
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.removeDuplicateDeclarations()
 func (s *ConvertToTypedInterface_SimplifyDeclarations) RemoveDuplicateDeclarations() {
-	for name := range s.currentFile.GetDeclarations().KeySet() {
+	for name, declList := range s.currentFile.GetDeclarations().All() {
 		if strings.HasPrefix(name, "this.") {
 			continue
 		}
-		// declList is the live List view: List.sort (stable) sorts the multimap's values.
-		declList := s.currentFile.GetDeclarations().Get(name)
 		slices.SortStableFunc(declList, ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST)
-		for len(declList) > 1 {
+		if len(declList) > 1 {
 			// Don't remove the first declaration (at index 0)
-			decl := declList[1]
-			// declList.remove(1): the value at index 1 is the first one identical to decl.
-			s.currentFile.GetDeclarations().Remove(name, decl)
-			declList = s.currentFile.GetDeclarations().Get(name)
-			decl.Remove(s.compiler)
+			s.currentFile.GetDeclarations().Put(name, declList[:1])
+			for _, decl := range declList[1:] {
+				decl.Remove(s.compiler)
+			}
 		}
 	}
 }
@@ -500,7 +497,7 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
 	s.RemoveDuplicateDeclarations()
 
 	// Simplify all names in the top-level scope.
-	seenNames := slices.Collect(s.currentFile.GetDeclarations().KeySet())
+	seenNames := slices.Collect(s.currentFile.GetDeclarations().Keys())
 	slices.SortStableFunc(seenNames, ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG)
 
 	for _, name := range seenNames {

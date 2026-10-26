@@ -31,7 +31,7 @@ type FileInfo struct {
 	providedNamespaces *jutil.LinkedHashSet[string]
 	requiredLocalNames *jutil.LinkedHashSet[string]
 	// MultimapBuilder.linkedHashKeys().arrayListValues().build()
-	declarations     *jutil.ListMultimap[string, PotentialDeclaration]
+	declarations     *jutil.LinkedHashMap[string, []PotentialDeclaration]
 	isFromTypeScript bool
 }
 
@@ -40,7 +40,7 @@ func NewFileInfo(sourceFileName string) *FileInfo {
 	f := &FileInfo{
 		providedNamespaces: jutil.NewLinkedHashSet[string](),
 		requiredLocalNames: jutil.NewLinkedHashSet[string](),
-		declarations:       jutil.ArrayListMultimap_Create[string, PotentialDeclaration](),
+		declarations:       jutil.NewLinkedHashMap[string, []PotentialDeclaration](),
 	}
 	f.isFromTypeScript = strings.HasSuffix(sourceFileName, ".closure.js")
 	return f
@@ -82,13 +82,14 @@ func (f *FileInfo) RecordAliasDeclaration(nameNode rhino.Node) {
 }
 
 // Java: FileInfo.getDeclarations()
-func (f *FileInfo) GetDeclarations() *jutil.ListMultimap[string, PotentialDeclaration] {
+func (f *FileInfo) GetDeclarations() *jutil.LinkedHashMap[string, []PotentialDeclaration] {
 	return f.declarations
 }
 
 // Java: FileInfo.recordDeclaration(PotentialDeclaration)
 func (f *FileInfo) RecordDeclaration(decl PotentialDeclaration) {
-	f.declarations.Put(decl.GetFullyQualifiedName(), decl)
+	name := decl.GetFullyQualifiedName()
+	f.declarations.Put(name, append(f.declarations.Get(name), decl))
 }
 
 // Java: FileInfo.recordImport(String)
@@ -123,7 +124,7 @@ func (f *FileInfo) IsPrefixRequired(fullyQualifiedName string) bool {
 
 // Java: FileInfo.isStrictPrefixDeclared(String)
 func (f *FileInfo) IsStrictPrefixDeclared(fullyQualifiedName string) bool {
-	for prefix := range f.declarations.KeySet() {
+	for prefix := range f.declarations.Keys() {
 		if strings.HasPrefix(fullyQualifiedName, prefix+".") {
 			return true
 		}

@@ -37,9 +37,8 @@ import (
 type JSTypeColorIdHasherTest struct {
 	CompilerTestCaseBase
 
-	hasher           *JSTypeColorIdHasher
-	labelToColorId   *jutil.LinkedHashMap[string, colors.ColorId]
-	colorIdToJSTypes *jutil.LinkedHashMultimap[colors.ColorId, rhino.JSType] // Useful for debugging.
+	hasher         *JSTypeColorIdHasher
+	labelToColorId *jutil.LinkedHashMap[string, colors.ColorId]
 
 	// Java: @Parameterized.Parameter
 	rewriteClosureModules bool
@@ -106,7 +105,6 @@ func (f *jsTypeColorIdHasherTest_LabeledTypeFinder) Visit(t *NodeTraversal, n rh
 
 	AssertThat(f.outer.labelToColorId).DoesNotContainKey(label)
 	f.outer.labelToColorId.Put(label, id)
-	f.outer.colorIdToJSTypes.Put(id, type_)
 }
 
 // Java: JSTypeColorIdHasherTest.labelIdSet()
@@ -118,7 +116,6 @@ func (c *JSTypeColorIdHasherTest) labelIdSet() *jutil.LinkedHashSet[colors.Color
 func (c *JSTypeColorIdHasherTest) GetProcessor(compiler *Compiler) CompilerPass {
 	c.hasher = NewJSTypeColorIdHasher(compiler.GetTypeRegistry())
 	c.labelToColorId = jutil.NewLinkedHashMap[string, colors.ColorId]()
-	c.colorIdToJSTypes = jutil.NewLinkedHashMultimap[colors.ColorId, rhino.JSType]()
 
 	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NodeTraversal_TraverseRoots(compiler, &jsTypeColorIdHasherTest_LabeledTypeFinder{outer: c}, externs, root)

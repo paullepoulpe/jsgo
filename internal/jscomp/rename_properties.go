@@ -57,8 +57,8 @@ type RenameProperties struct {
 	// Property renaming map from a previous compilation.
 	prevUsedPropertyMap *VariableMap
 
-	toRemove                   *jutil.ArrayList[rhino.Node]
-	stringNodesToRename        *jutil.ArrayList[rhino.Node]
+	toRemove                   []rhino.Node
+	stringNodesToRename        []rhino.Node
 	callNodeToParentMap        *jutil.LinkedHashMap[rhino.Node, rhino.Node]
 	reservedFirstCharacters    jutil.Set[uint16]
 	reservedNonFirstCharacters jutil.Set[uint16]
@@ -80,7 +80,7 @@ type RenameProperties struct {
 	propertyRenameEligibilityFilter func(rhino.Node) bool
 	// Property names that should not be renamed, based on the propertyNameFilter. Unlike
 	// externedNames, this set is dynamically constructed during the pass.
-	filteredOutNames *jutil.LinkedHashSet[string]
+	filteredOutNames map[string]struct{}
 }
 
 // renameProperties_DOT_SPLITTER is Splitter.on('.').split: every piece,
@@ -172,8 +172,6 @@ func NewRenamePropertiesWithFilter(
 		compiler:                        compiler,
 		generatePseudoNames:             generatePseudoNames,
 		prevUsedPropertyMap:             prevUsedPropertyMap,
-		toRemove:                        jutil.NewArrayList[rhino.Node](),
-		stringNodesToRename:             jutil.NewArrayList[rhino.Node](),
 		callNodeToParentMap:             jutil.NewLinkedHashMapWithCapacity[rhino.Node, rhino.Node](256),
 		reservedFirstCharacters:         reservedFirstCharacters,
 		reservedNonFirstCharacters:      reservedNonFirstCharacters,
@@ -182,7 +180,6 @@ func NewRenamePropertiesWithFilter(
 		quotedNames:                     jutil.NewLinkedHashSetWithCapacity[string](512),
 		nameGenerator:                   nameGenerator,
 		propertyRenameEligibilityFilter: propertyRenameEligibilityFilter,
-		filteredOutNames:                jutil.NewLinkedHashSet[string](),
 	}
 	return r
 }
@@ -190,9 +187,6 @@ func NewRenamePropertiesWithFilter(
 // Java: RenameProperties.process(Node, Node)
 func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(r.compiler.GetLifeCycleStage().IsNormalized())
-	if r.stringNodesToRename == nil {
-		r.stringNodesToRename = jutil.NewArrayList[rhino.Node]()
-	}
 
 	NodeTraversal_Traverse(r.compiler, root, &RenameProperties_ProcessProperties{outer: r})
 
@@ -222,9 +216,9 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	r.generateNamesSlice(propsByFreq, reservedNames)
 
 	// Update the string nodes.
-	for _, n := range r.stringNodesToRename.Slice() {
+	for _, n := range r.stringNodesToRename {
 		oldName := n.GetString()
-		if r.filteredOutNames.Contains(oldName) {
+		if _, filtered := r.filteredOutNames[oldName]; filtered {
 			continue
 		}
 		p := r.propertyMap.Get(oldName)
@@ -247,7 +241,7 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 			var replacement string
 			if p != nil && p.newName != nil {
 				jutil.CheckState(oldName == p.oldName)
-				if r.filteredOutNames.Contains(oldName) {
+				if _, filtered := r.filteredOutNames[oldName]; filtered {
 					replacement = oldName
 				} else {
 					replacement = *p.newName
@@ -265,7 +259,7 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	// Complete queued removals.
-	for n := range r.toRemove.All() {
+	for _, n := range r.toRemove {
 		parent := n.GetParent()
 		r.compiler.ReportChangeToEnclosingScope(n)
 		n.Detach()
@@ -274,33 +268,11 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 			parent.Detach()
 		}
 	}
+	r.toRemove = nil
 
 	r.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED_OBFUSCATED)
 	// This pass may rename getter or setter properties
 	GatherGetterAndSetterProperties_Update(r.compiler, externs, root)
-}
-
-// ReusePropertyNames runs through the list of properties and renames as many
-// as possible with names from the previous compilation. Also, updates
-// reservedNames with the set of reused names.
-//
-// Java: RenameProperties.reusePropertyNames(Set<String>, Collection<RenameProperties.Property>)
-func (r *RenameProperties) ReusePropertyNames(reservedNames *jutil.LinkedHashSet[string], allProps *jutil.TreeSet[*RenameProperties_Property]) {
-	for prop := range allProps.All() {
-		// Check if this node can reuse a name from a previous compilation - if
-		// it can set the newName for the property too.
-		prevName := r.prevUsedPropertyMap.LookupNewName(prop.oldName)
-		if !r.generatePseudoNames && prevName != nil {
-			// We can reuse prevName if it's not reserved.
-			if reservedNames.Contains(*prevName) {
-				continue
-			}
-
-			prop.newNameVal = *prevName
-			prop.newName = &prop.newNameVal
-			reservedNames.Add(*prevName)
-		}
-	}
 }
 
 func (r *RenameProperties) reusePropertyNamesSlice(reservedNames *jutil.LinkedHashSet[string], allProps []*RenameProperties_Property) {
@@ -315,30 +287,6 @@ func (r *RenameProperties) reusePropertyNamesSlice(reservedNames *jutil.LinkedHa
 			prop.newName = &prop.newNameVal
 			reservedNames.Add(*prevName)
 		}
-	}
-}
-
-// GenerateNames generates new names for properties.
-//
-// props are the properties to generate new names for; reservedNames is a set
-// of names to which properties should not be renamed.
-//
-// Java: RenameProperties.generateNames(Set<RenameProperties.Property>, Set<String>)
-func (r *RenameProperties) GenerateNames(props *jutil.TreeSet[*RenameProperties_Property], reservedNames *jutil.LinkedHashSet[string]) {
-	r.nameGenerator.ResetWithFirstAndNonFirstChars(
-		reservedNames, "", r.reservedFirstCharacters, r.reservedNonFirstCharacters)
-	for p := range props.All() {
-		if r.generatePseudoNames {
-			p.newNameVal = "$" + p.oldName + "$"
-			p.newName = &p.newNameVal
-		} else {
-			// If we haven't already given this property a reusable name.
-			if p.newName == nil {
-				p.newNameVal = r.nameGenerator.GenerateNextName()
-				p.newName = &p.newNameVal
-			}
-		}
-		reservedNames.Add(*p.newName)
 	}
 }
 
@@ -406,8 +354,11 @@ func (p *RenameProperties_ProcessProperties) Visit(t *NodeTraversal, n rhino.Nod
 			p.CountCallCandidates(t, n)
 			stringArgument := n.GetSecondChild()
 			if !r.propertyRenameEligibilityFilter(n) {
+				if r.filteredOutNames == nil {
+					r.filteredOutNames = make(map[string]struct{})
+				}
 				for _, name := range renameProperties_DOT_SPLITTER(stringArgument.GetString()) {
-					r.filteredOutNames.Add(name)
+					r.filteredOutNames[name] = struct{}{}
 				}
 			}
 		}
@@ -432,12 +383,12 @@ func (p *RenameProperties_ProcessProperties) Visit(t *NodeTraversal, n rhino.Nod
 		if NodeUtil_IsFunctionDeclaration(n) {
 			name := n.GetFirstChild().GetString()
 			if NodeUtil_JSC_PROPERTY_NAME_FN == name {
-				r.toRemove.Add(n)
+				r.toRemove = append(r.toRemove, n)
 			}
 		} else if parent.IsName() && NodeUtil_JSC_PROPERTY_NAME_FN == parent.GetString() {
 			varNode := parent.GetParent()
 			if varNode.IsVar() {
-				r.toRemove.Add(parent)
+				r.toRemove = append(r.toRemove, parent)
 			}
 		} else if NodeUtil_IsFunctionExpression(n) &&
 			parent.IsAssign() &&
@@ -450,7 +401,7 @@ func (p *RenameProperties_ProcessProperties) Visit(t *NodeTraversal, n rhino.Nod
 			if exprResult.IsExprResult() &&
 				NodeUtil_IsStatementBlock(exprResult.GetParent()) &&
 				exprResult.GetFirstChild().IsAssign() {
-				r.toRemove.Add(exprResult)
+				r.toRemove = append(r.toRemove, exprResult)
 			}
 		}
 	default:
@@ -468,9 +419,12 @@ func (p *RenameProperties_ProcessProperties) MaybeMarkCandidate(n rhino.Node) {
 	name := n.GetString()
 	if !r.externedNames.Contains(name) {
 		if !r.propertyRenameEligibilityFilter(n) {
-			r.filteredOutNames.Add(n.GetString())
+			if r.filteredOutNames == nil {
+				r.filteredOutNames = make(map[string]struct{})
+			}
+			r.filteredOutNames[name] = struct{}{}
 		}
-		listAddDoubling(r.stringNodesToRename, n)
+		r.stringNodesToRename = appendDoubling(r.stringNodesToRename, n)
 		p.CountPropertyOccurrence(name)
 	}
 }

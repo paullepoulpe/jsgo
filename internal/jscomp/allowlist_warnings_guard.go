@@ -33,7 +33,7 @@ type AllowlistWarningsGuard struct {
 	WarningsGuardBase
 
 	// The set of allowlisted warnings, same format as formatWarning.
-	allowlist *jutil.LinkedHashSet[string]
+	allowlist map[string]struct{}
 }
 
 // AllowlistWarningsGuard_LINE_SPLITTER is Splitter.on('\n'): splitToList.
@@ -74,8 +74,8 @@ func NewAllowlistWarningsGuardWithAllowlist(allowlist *jutil.LinkedHashSet[strin
 // Returns known legacy warnings without line numbers.
 //
 // Java: AllowlistWarningsGuard.normalizeAllowlist(Set<String>)
-func AllowlistWarningsGuard_NormalizeAllowlist(allowlist *jutil.LinkedHashSet[string]) *jutil.LinkedHashSet[string] {
-	result := jutil.NewLinkedHashSet[string]()
+func AllowlistWarningsGuard_NormalizeAllowlist(allowlist *jutil.LinkedHashSet[string]) map[string]struct{} {
+	result := make(map[string]struct{}, allowlist.Size())
 	for line := range allowlist.All() {
 		trimmed := jutil.StringTrim(line)
 		if trimmed == "" || jutil.StringCharAt(trimmed, 0) == '#' {
@@ -84,9 +84,9 @@ func AllowlistWarningsGuard_NormalizeAllowlist(allowlist *jutil.LinkedHashSet[st
 		}
 
 		// Strip line number for matching.
-		result.Add(AllowlistWarningsGuard_LINE_NUMBER.Matcher(trimmed).ReplaceFirst(":"))
+		result[AllowlistWarningsGuard_LINE_NUMBER.Matcher(trimmed).ReplaceFirst(":")] = struct{}{}
 	}
-	return jutil.NewLinkedHashSet(result.ToSlice()...)
+	return result
 }
 
 // Java: AllowlistWarningsGuard.level(JSError)
@@ -94,7 +94,7 @@ func (g *AllowlistWarningsGuard) Level(error *JSError) *CheckLevel {
 	if error.DefaultLevel() == CheckLevel_ERROR {
 		return nil
 	}
-	if !g.allowlist.IsEmpty() && g.ContainWarning(g.FormatWarning(error)) {
+	if len(g.allowlist) > 0 && g.ContainWarning(g.FormatWarning(error)) {
 		// If the message matches the guard we use WARNING, so that it
 		// - Shows up on stderr, and
 		// - Gets caught by the AllowlistBuilder downstream in the pipeline
@@ -111,7 +111,8 @@ func (g *AllowlistWarningsGuard) Level(error *JSError) *CheckLevel {
 //
 // Java: AllowlistWarningsGuard.containWarning(String)
 func (g *AllowlistWarningsGuard) ContainWarning(formattedWarning string) bool {
-	return g.allowlist.Contains(formattedWarning)
+	_, ok := g.allowlist[formattedWarning]
+	return ok
 }
 
 // Java: AllowlistWarningsGuard.getPriority()

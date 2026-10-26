@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -103,36 +105,30 @@ type EsModuleProcessor_FindMutableExports struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	exports            []*Export
-	exportsByLocalName *jutil.ListMultimap[string, *Export]
+	exportsByLocalName map[string][]*Export
 }
 
 // Java: EsModuleProcessor.FindMutableExports(List<Export>)
 func NewEsModuleProcessor_FindMutableExports(exports []*Export) *EsModuleProcessor_FindMutableExports {
-	f := &EsModuleProcessor_FindMutableExports{}
+	f := &EsModuleProcessor_FindMutableExports{exports: exports}
 	// There may be multiple exports with the same local name because you can
 	// export a local variable with an alias many different times. Example:
 	//
 	// let x;
 	// export {x as y, x as z};
-	f.exports = exports
-	f.exportsByLocalName = jutil.ArrayListMultimap_Create[string, *Export]()
-	for _, e := range exports {
-		f.exportsByLocalName.Put(esModuleProcessor_localNameKey(e), e)
+	if len(exports) > 0 {
+		f.exportsByLocalName = make(map[string][]*Export, len(exports))
+		for _, e := range exports {
+			name := *e.LocalName()
+			f.exportsByLocalName[name] = append(f.exportsByLocalName[name], e)
+		}
 	}
 	return f
 }
 
-// esModuleProcessor_localNameKey is e.localName() as a multimap key.
-//
-// Go-only: language-adapter — Export.localName() is a nullable String; the
-// local exports this multimap holds always have one.
-func esModuleProcessor_localNameKey(e *Export) string {
-	return *e.LocalName()
-}
-
 // Java: EsModuleProcessor.FindMutableExports.visit(NodeTraversal, Node, Node)
 func (f *EsModuleProcessor_FindMutableExports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !n.IsName() {
+	if !n.IsName() || len(f.exportsByLocalName) == 0 {
 		return
 	}
 
@@ -141,7 +137,7 @@ func (f *EsModuleProcessor_FindMutableExports) Visit(t *NodeTraversal, n rhino.N
 		return
 	}
 
-	exports := f.exportsByLocalName.Get(n.GetString())
+	exports := f.exportsByLocalName[n.GetString()]
 	if len(exports) == 0 {
 		return
 	}
@@ -154,22 +150,12 @@ func (f *EsModuleProcessor_FindMutableExports) Visit(t *NodeTraversal, n rhino.N
 		return
 	}
 
-	for _, e := range append([]*Export(nil), exports...) {
-		i := esModuleProcessor_indexOf(f.exports, e)
+	for idx, e := range exports {
+		i := slices.IndexFunc(f.exports, func(x *Export) bool { return e.Equals(x) })
 		mutated := e.MutatedCopy()
 		f.exports[i] = mutated
-		f.exportsByLocalName.Remove(esModuleProcessor_localNameKey(e), e)
-		f.exportsByLocalName.Put(esModuleProcessor_localNameKey(e), mutated)
+		exports[idx] = mutated
 	}
-}
-
-func esModuleProcessor_indexOf(list []*Export, e *Export) int {
-	for i, x := range list {
-		if e.Equals(x) {
-			return i
-		}
-	}
-	return -1
 }
 
 // EsModuleProcessor_UnresolvedModuleBuilder collects all imports and exports

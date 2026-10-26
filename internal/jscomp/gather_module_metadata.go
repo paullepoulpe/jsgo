@@ -151,13 +151,11 @@ type GatherModuleMetadata_ModuleMetadataBuilder struct {
 	declaredModuleId        rhino.Node
 	declaresLegacyNamespace rhino.Node
 	metadataBuilder         *ModuleMetadataMap_ModuleMetadata_Builder
-	googNamespaces          *jutil.LinkedHashMultiset[string]
 }
 
 // Java: GatherModuleMetadata.ModuleMetadataBuilder(Node, ModulePath)
 func NewGatherModuleMetadata_ModuleMetadataBuilder(outer *GatherModuleMetadata, rootNode rhino.Node, path *ModuleLoader_ModulePath) *GatherModuleMetadata_ModuleMetadataBuilder {
 	b := &GatherModuleMetadata_ModuleMetadataBuilder{outer: outer}
-	b.googNamespaces = jutil.LinkedHashMultiset_Create[string]()
 	b.metadataBuilder = ModuleMetadataMap_ModuleMetadata_Builder_().
 		Path(path).
 		RootNode(rootNode).
@@ -201,7 +199,6 @@ func (b *GatherModuleMetadata_ModuleMetadataBuilder) IsScript() bool {
 
 // Java: GatherModuleMetadata.ModuleMetadataBuilder.build()
 func (b *GatherModuleMetadata_ModuleMetadataBuilder) Build() *ModuleMetadataMap_ModuleMetadata {
-	b.metadataBuilder.GoogNamespacesBuilder().AddAll(b.googNamespaces.All())
 	if !b.ambiguous {
 		if b.hasModuleBody && b.metadataBuilder.GetModuleType() == ModuleMetadataMap_ModuleType_SCRIPT {
 			// A script with no imports or exports, but has a module body, must be an ES module.
@@ -611,7 +608,7 @@ func (f *GatherModuleMetadata_Finder) AddNamespace(
 	var existingType ModuleMetadataMap_ModuleType
 	hasExistingType := false
 	var existingFileSource *string
-	if module.googNamespaces.Contains(namespace) {
+	if module.metadataBuilder.HasGoogNamespace(namespace) {
 		existingType = module.metadataBuilder.GetModuleType()
 		hasExistingType = true
 		existingFileSource = t.GetSourceName()
@@ -623,7 +620,7 @@ func (f *GatherModuleMetadata_Finder) AddNamespace(
 			existingFileSource = existingModule.RootNode().GetSourceFileName()
 		}
 	}
-	f.outer.currentModule.googNamespaces.Add(namespace)
+	f.outer.currentModule.metadataBuilder.GoogNamespacesBuilder().Add(namespace)
 	if hasExistingType {
 		switch existingType {
 		case ModuleMetadataMap_ModuleType_ES6_MODULE, ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:

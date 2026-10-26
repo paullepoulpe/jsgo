@@ -69,6 +69,11 @@ func (b *ImmutableMultiset_Builder[T]) AddAll(es iter.Seq[T]) *ImmutableMultiset
 	return b
 }
 
+// Contains reports whether e has been added to the builder.
+func (b *ImmutableMultiset_Builder[T]) Contains(e T) bool {
+	return b.counts != nil && b.counts.ContainsKey(e)
+}
+
 // Build is ImmutableMultiset.Builder.build().
 func (b *ImmutableMultiset_Builder[T]) Build() *ImmutableMultiset[T] {
 	if b.size == 0 {

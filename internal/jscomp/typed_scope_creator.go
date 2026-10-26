@@ -85,7 +85,8 @@ type TypedScopeCreator struct {
 	undeclaredNamesForClosure map[rhino.Node]struct{}
 
 	// Maps EXPR_RESULT nodes from goog.provides to all implicitly provided names from the call
-	providedNamesFromCall *jutil.LinkedHashMultimap[rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]
+	providedNamesFromCall map[rhino.Node][]*ProcessClosureProvidesAndRequires_ProvidedName
+	providedNamesCount    int
 
 	normalScopeBuilderPool   []*TypedScopeCreator_NormalScopeBuilder
 	functionScopeBuilderPool []*TypedScopeCreator_FunctionScopeBuilder
@@ -135,11 +136,6 @@ const (
 )
 
 var typedScopeCreator_Stage_names = [...]string{"BUILDING", "FROZEN"}
-
-// Java: TypedScopeCreator.Stage.values()
-func TypedScopeCreator_Stage_values() []TypedScopeCreator_Stage {
-	return []TypedScopeCreator_Stage{TypedScopeCreator_Stage_BUILDING, TypedScopeCreator_Stage_FROZEN}
-}
 
 // String is Enum.name().
 func (s TypedScopeCreator_Stage) String() string { return typedScopeCreator_Stage_names[s] }
@@ -547,7 +543,12 @@ func (c *TypedScopeCreator) GatherAllProvides(root rhino.Node) {
 			// This name is implicitly created by a goog.provide call; declare it in the scope once
 			// reaching the provide call. The exception is legacy goog.modules, which are declared
 			// once leaving the module.
-			c.providedNamesFromCall.Put(name.GetFirstProvideCall(), name)
+			if c.providedNamesFromCall == nil {
+				c.providedNamesFromCall = make(map[rhino.Node][]*ProcessClosureProvidesAndRequires_ProvidedName)
+			}
+			call := name.GetFirstProvideCall()
+			c.providedNamesFromCall[call] = append(c.providedNamesFromCall[call], name)
+			c.providedNamesCount++
 		}
 
 		if name.IsExplicitlyProvided() && !name.IsFromLegacyModule() {
@@ -579,7 +580,7 @@ func (c *TypedScopeCreator) CreateInitialScope(root rhino.Node) *TypedScope {
 
 	c.GatherAllProvides(root)
 
-	globalVarCap := 48 + analyzer.globalDeclEstimate + c.providedNamesFromCall.Size()
+	globalVarCap := 48 + analyzer.globalDeclEstimate + c.providedNamesCount
 	s := newGlobalTypedScopeWithCapacity(root, globalVarCap)
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_ARRAY_FUNCTION_TYPE)
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE)
@@ -714,6 +715,7 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 	c.unresolvedNodes = nil
 	c.undeclaredNamesForClosure = nil
 	c.providedNamesFromCall = nil
+	c.providedNamesCount = 0
 	c.normalScopeBuilderPool = nil
 	c.functionScopeBuilderPool = nil
 	c.stage = TypedScopeCreator_Stage_FROZEN
@@ -730,7 +732,8 @@ func (c *TypedScopeCreator) ClearCommonState() {
 	c.weakImports = nil
 	c.unresolvedNodes = nil
 	c.undeclaredNamesForClosure = make(map[rhino.Node]struct{})
-	c.providedNamesFromCall = jutil.NewLinkedHashMultimap[rhino.Node, *ProcessClosureProvidesAndRequires_ProvidedName]()
+	c.providedNamesFromCall = nil
+	c.providedNamesCount = 0
 	c.normalScopeBuilderPool = nil
 	c.functionScopeBuilderPool = nil
 }
@@ -853,12 +856,15 @@ type TypedScopeCreator_AbstractScopeBuilderBase struct {
 	// Some actions need to be deferred, such as analyzing object literals with lends annotations,
 	// or resolving type-less stubs. These actions are added to this map, keyed by the node that
 	// should be waited for before running.
-	//
-	// Go-only: language-adapter — a Runnable is a *func(): every Java lambda
-	// is a distinct object, which the pointer to a fresh func value keeps.
-	deferredActions *jutil.LinkedHashMultimap[rhino.Node, *func()]
+	deferredByNode map[rhino.Node][]*typedScopeDeferredAction
+	deferredOrder  []*typedScopeDeferredAction
 
 	slotDefiner TypedScopeCreator_AbstractScopeBuilder_SlotDefiner
+}
+
+type typedScopeDeferredAction struct {
+	fn   func()
+	done bool
 }
 
 // InitTypedScopeCreator_AbstractScopeBuilderBase is the AbstractScopeBuilder
@@ -875,7 +881,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) InitTypedScopeCreator_Abstr
 	b.inputId = nil
 	b.input = nil
 	b.inputResolved = false
-	b.deferredActions = nil
+	b.deferredByNode = nil
+	b.deferredOrder = nil
 }
 
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) getOwnerLValueNameString(ownerNode rhino.Node) (string, bool) {
@@ -885,11 +892,13 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) getOwnerLValueNameString(ow
 	return nodeUtil_getBestLValueNameString(ownerNode)
 }
 
-func (b *TypedScopeCreator_AbstractScopeBuilderBase) deferAction(key rhino.Node, action *func()) {
-	if b.deferredActions == nil {
-		b.deferredActions = jutil.NewLinkedHashMultimap[rhino.Node, *func()]()
+func (b *TypedScopeCreator_AbstractScopeBuilderBase) deferAction(key rhino.Node, fn func()) {
+	if b.deferredByNode == nil {
+		b.deferredByNode = make(map[rhino.Node][]*typedScopeDeferredAction)
 	}
-	b.deferredActions.Put(key, action)
+	act := &typedScopeDeferredAction{fn: fn}
+	b.deferredByNode[key] = append(b.deferredByNode[key], act)
+	b.deferredOrder = append(b.deferredOrder, act)
 }
 
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) setInputId(id *rhino.InputId) {
@@ -1112,15 +1121,25 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) Visit(t *NodeTraversal, n r
 		b.AttachLiteralTypes(n)
 		b.self.VisitPostorder(t, n, parent)
 	}
-	if b.deferredActions != nil {
-		if !isScopeRoot && b.deferredActions.ContainsKey(n) { // streams are expensive, only make if needed
-			for _, action := range b.deferredActions.RemoveAll(n) {
-				(*action)()
+	if b.deferredByNode != nil {
+		if !isScopeRoot {
+			if actions, ok := b.deferredByNode[n]; ok {
+				delete(b.deferredByNode, n)
+				for _, act := range actions {
+					act.done = true
+				}
+				for _, act := range actions {
+					act.fn()
+				}
 			}
-		} else if isScopeRoot && !b.deferredActions.IsEmpty() {
+		} else {
 			// Run *all* remaining deferred actions, in case any were missed.
-			for action := range b.deferredActions.Values() {
-				(*action)()
+			for i := 0; i < len(b.deferredOrder); i++ {
+				act := b.deferredOrder[i]
+				if !act.done {
+					act.done = true
+					act.fn()
+				}
 			}
 		}
 	}
@@ -1166,8 +1185,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) AttachLiteralTypes(n rhino.
 			// literals, the type on the @lends annotation resolves correctly.
 			//
 			// For more information, see http://blickly.github.io/closure-compiler-issues/#314
-			action := func() { b.DefineObjectLiteral(n) }
-			b.deferAction(NodeUtil_GetEnclosingStatement(n), &action)
+			b.deferAction(NodeUtil_GetEnclosingStatement(n), func() { b.DefineObjectLiteral(n) })
 		} else {
 			b.DefineObjectLiteral(n)
 		}
@@ -3226,8 +3244,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 		if parent.IsExprResult() {
 			// t is mutable so make sure to capture the current state before the lambda.
 			isExtern := t.GetInput() != nil && t.GetInput().IsExtern()
-			action := func() { b.ResolveStubDeclaration(n, isExtern, ownerNameStr) }
-			b.deferAction(b.currentScope.GetRootNode(), &action)
+			b.deferAction(b.currentScope.GetRootNode(), func() { b.ResolveStubDeclaration(n, isExtern, ownerNameStr) })
 		}
 
 		return
@@ -3643,11 +3660,8 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, 
 		// priority.
 		b.outer.CreateScope(n, b.currentScope)
 	case rhino.Token_EXPR_RESULT:
-		names := b.outer.providedNamesFromCall.Get(n)
-		if names != nil {
-			for _, name := range names {
-				b.DeclareProvidedNs(n, name)
-			}
+		for _, name := range b.outer.providedNamesFromCall[n] {
+			b.DeclareProvidedNs(n, name)
 		}
 	case rhino.Token_EXPORT:
 		if n.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {

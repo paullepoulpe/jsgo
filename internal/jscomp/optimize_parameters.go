@@ -829,19 +829,20 @@ func OptimizeParameters_MayReferenceParamBeforeBody(function rhino.Node) bool {
 		}
 	}
 
-	// Go-only: language-adapter — an ArrayListMultimap (HashMap of String
-	// keys) whose iteration order cannot reach the result (any group
-	// qualifies), so insertion order is used.
-	namesByNames := jutil.ArrayListMultimap_Create[string, rhino.Node]()
+	var namesByNames map[string][]rhino.Node
 	NodeUtil_VisitPostOrder(
 		paramList,
 		NodeUtil_VisitorFunc(func(n rhino.Node) {
 			if n.IsName() {
-				namesByNames.Put(n.GetString(), n)
+				if namesByNames == nil {
+					namesByNames = make(map[string][]rhino.Node)
+				}
+				name := n.GetString()
+				namesByNames[name] = append(namesByNames[name], n)
 			}
 		}))
 
-	for _, names := range namesByNames.AsMap().All() {
+	for _, names := range namesByNames {
 		if len(names) == 1 {
 			continue // There can't be back-refs if there's only one ref.
 		}
