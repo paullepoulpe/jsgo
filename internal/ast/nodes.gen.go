@@ -638,7 +638,7 @@ func (x For) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
 
 // ForIn is for (target in object) body.
 //
-// Grammar: ForIn = FOR_IN  target:ForTarget object:Expr body:Block
+// Grammar: ForIn = FOR_IN  target:ForTarget object|collection:Expr body:Block
 type ForIn struct{ node rhino.Node }
 
 // AsForIn returns n as a ForIn; ok is false if n is not one (or is the nil node).
@@ -680,6 +680,9 @@ func (x ForIn) Object() Expr { return Expr{x.node.GetSecondChild()} }
 // SetObject replaces the object of x with v (which must not be in a tree).
 func (x ForIn) SetObject(v Expr) { x.node.GetSecondChild().ReplaceWith(v.node) }
 
+// Collection returns the collection of x (another name for its object).
+func (x ForIn) Collection() Expr { return Expr{x.node.GetSecondChild()} }
+
 // Body returns the body of x.
 func (x ForIn) Body() Block { return Block{x.node.GetLastChild()} }
 
@@ -712,7 +715,7 @@ func (x ForIn) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
 
 // ForOf is for (target of iterable) body.
 //
-// Grammar: ForOf = FOR_OF  target:ForTarget iterable:Expr body:Block
+// Grammar: ForOf = FOR_OF  target:ForTarget iterable|collection:Expr body:Block
 type ForOf struct{ node rhino.Node }
 
 // AsForOf returns n as a ForOf; ok is false if n is not one (or is the nil node).
@@ -754,6 +757,9 @@ func (x ForOf) Iterable() Expr { return Expr{x.node.GetSecondChild()} }
 // SetIterable replaces the iterable of x with v (which must not be in a tree).
 func (x ForOf) SetIterable(v Expr) { x.node.GetSecondChild().ReplaceWith(v.node) }
 
+// Collection returns the collection of x (another name for its iterable).
+func (x ForOf) Collection() Expr { return Expr{x.node.GetSecondChild()} }
+
 // Body returns the body of x.
 func (x ForOf) Body() Block { return Block{x.node.GetLastChild()} }
 
@@ -789,7 +795,7 @@ func (x ForOf) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
 
 // ForAwaitOf is for await (target of iterable) body.
 //
-// Grammar: ForAwaitOf = FOR_AWAIT_OF  target:ForTarget iterable:Expr body:Block
+// Grammar: ForAwaitOf = FOR_AWAIT_OF  target:ForTarget iterable|collection:Expr body:Block
 type ForAwaitOf struct{ node rhino.Node }
 
 // AsForAwaitOf returns n as a ForAwaitOf; ok is false if n is not one (or is the nil node).
@@ -830,6 +836,9 @@ func (x ForAwaitOf) Iterable() Expr { return Expr{x.node.GetSecondChild()} }
 
 // SetIterable replaces the iterable of x with v (which must not be in a tree).
 func (x ForAwaitOf) SetIterable(v Expr) { x.node.GetSecondChild().ReplaceWith(v.node) }
+
+// Collection returns the collection of x (another name for its iterable).
+func (x ForAwaitOf) Collection() Expr { return Expr{x.node.GetSecondChild()} }
 
 // Body returns the body of x.
 func (x ForAwaitOf) Body() Block { return Block{x.node.GetLastChild()} }
@@ -10053,6 +10062,9 @@ func (x EnhancedFor) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
 // Target returns the target of x.
 func (x EnhancedFor) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
 
+// Collection returns the collection of x.
+func (x EnhancedFor) Collection() Expr { return Expr{x.node.GetSecondChild()} }
+
 // Body returns the body of x.
 func (x EnhancedFor) Body() Block { return Block{x.node.GetChildAtIndex(2)} }
 
@@ -10132,6 +10144,9 @@ func (x ForOfLoop) Target() ForTarget { return ForTarget{x.node.GetFirstChild()}
 
 // Iterable returns the iterable of x.
 func (x ForOfLoop) Iterable() Expr { return Expr{x.node.GetSecondChild()} }
+
+// Collection returns the collection of x.
+func (x ForOfLoop) Collection() Expr { return Expr{x.node.GetSecondChild()} }
 
 // Body returns the body of x.
 func (x ForOfLoop) Body() Block { return Block{x.node.GetChildAtIndex(2)} }

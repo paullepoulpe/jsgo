@@ -29,7 +29,8 @@ const (
 )
 
 type child struct {
-	role     string // as written, without the leading _
+	role     string   // as written, without the leading _
+	aliases  []string // other names of the role (role|alias:Type)
 	exported bool
 	typ      string // a kind, a category, or Node
 	mode     mode
@@ -195,9 +196,13 @@ func (g *grammar) addKind(fields []string, doc []string) error {
 		if !ok {
 			return fmt.Errorf("%s: child %q is not role:Type", k.name, f)
 		}
-		c := child{role: role, exported: true, typ: typ, mode: required, index: len(k.children)}
-		if strings.HasPrefix(role, "_") {
-			c.role, c.exported = role[1:], false
+		names := strings.Split(role, "|")
+		c := child{role: names[0], aliases: names[1:], exported: true, typ: typ, mode: required, index: len(k.children)}
+		if strings.HasPrefix(c.role, "_") {
+			if len(c.aliases) > 0 {
+				return fmt.Errorf("%s: unexported role %s with aliases", k.name, c.role)
+			}
+			c.role, c.exported = c.role[1:], false
 		}
 		switch typ[len(typ)-1] {
 		case '?':
@@ -472,6 +477,9 @@ func (w *gen) kind(k *kind) {
 	}
 	for _, c := range k.children {
 		w.childAccessors(k, c)
+		for _, alias := range c.aliases {
+			w.aliasAccessor(k.name, alias, c, childExpr(k, c.index))
+		}
 	}
 	w.constructor(k)
 	// Upcasts to the categories that contain k.
@@ -482,6 +490,27 @@ func (w *gen) kind(k *kind) {
 			w.p("")
 		}
 	}
+}
+
+// aliasAccessor writes the getter of alias, another name of the role c of
+// recv: it reads the child (whose Go expression is e) as the role's getter
+// does.
+func (w *gen) aliasAccessor(recv, alias string, c child, e string) {
+	name, typ := upper(alias), goType(c.typ)
+	switch c.mode {
+	case required:
+		w.p("// %s returns the %s of x (another name for its %s).", name, alias, c.role)
+		w.p("func (x %s) %s() %s { return %s }", recv, name, typ, wrap(c.typ, e))
+	case optional:
+		w.p("// %s returns the %s of x (another name for its %s); ok is false if x has none.", name, alias, c.role)
+		w.p("func (x %s) %s() (v %s, ok bool) {", recv, name, typ)
+		w.p("c := %s", e)
+		w.p("return %s, c != rhino.NilNode", wrap(c.typ, "c"))
+		w.p("}")
+	default:
+		panic("astgen: an alias of a list or ~ role: " + recv + "." + c.role)
+	}
+	w.p("")
 }
 
 func (w *gen) childAccessors(k *kind, c child) {
@@ -806,55 +835,18 @@ func (w *gen) category(c *category) {
 // sharedAccessors gives a category the accessors that all its kinds have
 // in the same place: at the same index (e.g. the object of GetProp and
 // GetElem, the args of Call and New), or last (e.g. the body of Case and
-// DefaultCase).
+// DefaultCase). A role is shared under any of its names (role or alias)
+// that every kind has: the collection of ForIn (object|collection) and
+// ForOf (iterable|collection).
 func (w *gen) sharedAccessors(c *category) {
 	first := w.g.kindByName[c.kinds[0]]
 	for _, ch := range first.children {
 		if !ch.exported || ch.mode == emptyOr {
 			continue
 		}
-		sameIndex, allLast := true, positionKey(first, ch.index) == "last"
-		shared := true
-		for _, kn := range c.kinds[1:] {
-			k := w.g.kindByName[kn]
-			found := false
-			for _, o := range k.children {
-				if o.role == ch.role && o.exported && o.typ == ch.typ && o.mode == ch.mode {
-					found = true
-					sameIndex = sameIndex && o.index == ch.index
-					allLast = allLast && positionKey(k, o.index) == "last"
-				}
-			}
-			if !found {
-				shared = false
-				break
-			}
+		for _, role := range append([]string{ch.role}, ch.aliases...) {
+			w.sharedAccessor(c, first, ch, role)
 		}
-		// Read the child by its index if it has the same one in every kind,
-		// else as the last child if it is last in every kind.
-		if !shared || !(sameIndex || allLast) {
-			continue
-		}
-		if ch.mode == list { // never "last", so here at the same index
-			w.listAccessors(c.name, ch)
-			continue
-		}
-		e := "x.node.GetLastChild()"
-		if sameIndex {
-			e = indexExpr(ch.index)
-		}
-		name := accessorName(ch)
-		if ch.mode == required {
-			w.p("// %s returns the %s of x.", name, ch.role)
-			w.p("func (x %s) %s() %s { return %s }", c.name, name, goType(ch.typ), wrap(ch.typ, e))
-		} else {
-			w.p("// %s returns the %s of x; ok is false if x has none.", name, ch.role)
-			w.p("func (x %s) %s() (v %s, ok bool) {", c.name, name, goType(ch.typ))
-			w.p("c := %s", e)
-			w.p("return %s, c != rhino.NilNode", wrap(ch.typ, "c"))
-			w.p("}")
-		}
-		w.p("")
 	}
 	if first.payload != "" {
 		shared := true
@@ -869,6 +861,54 @@ func (w *gen) sharedAccessors(c *category) {
 			w.p("")
 		}
 	}
+}
+
+// sharedAccessor writes the accessor named role of the category c if all
+// its kinds have a child of that name (role or alias) like ch, the child
+// of c's first kind first.
+func (w *gen) sharedAccessor(c *category, first *kind, ch child, role string) {
+	hasName := func(o child) bool { return o.role == role || slices.Contains(o.aliases, role) }
+	sameIndex, allLast := true, positionKey(first, ch.index) == "last"
+	for _, kn := range c.kinds[1:] {
+		k := w.g.kindByName[kn]
+		found := false
+		for _, o := range k.children {
+			if hasName(o) && o.exported && o.typ == ch.typ && o.mode == ch.mode {
+				found = true
+				sameIndex = sameIndex && o.index == ch.index
+				allLast = allLast && positionKey(k, o.index) == "last"
+			}
+		}
+		if !found {
+			return
+		}
+	}
+	// Read the child by its index if it has the same one in every kind,
+	// else as the last child if it is last in every kind.
+	if !(sameIndex || allLast) {
+		return
+	}
+	ch.role, ch.aliases = role, nil
+	if ch.mode == list { // never "last", so here at the same index
+		w.listAccessors(c.name, ch)
+		return
+	}
+	e := "x.node.GetLastChild()"
+	if sameIndex {
+		e = indexExpr(ch.index)
+	}
+	name := accessorName(ch)
+	if ch.mode == required {
+		w.p("// %s returns the %s of x.", name, ch.role)
+		w.p("func (x %s) %s() %s { return %s }", c.name, name, goType(ch.typ), wrap(ch.typ, e))
+	} else {
+		w.p("// %s returns the %s of x; ok is false if x has none.", name, ch.role)
+		w.p("func (x %s) %s() (v %s, ok bool) {", c.name, name, goType(ch.typ))
+		w.p("c := %s", e)
+		w.p("return %s, c != rhino.NilNode", wrap(ch.typ, "c"))
+		w.p("}")
+	}
+	w.p("")
 }
 
 // positionKey describes where child i of k is: "last" when k always has

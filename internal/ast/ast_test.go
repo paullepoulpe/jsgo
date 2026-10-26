@@ -294,6 +294,12 @@ func TestEnhancedFor(t *testing.T) {
 			t.Fatalf("Collection() of a %s is not the name o", n.GetToken())
 		}
 	}
+	// The aliases read the same child as the role they name.
+	forIn := NewForIn(target(), NewName("o").AsExpr(), NewBlock())
+	forOf := NewForOf(target(), NewName("o").AsExpr(), NewBlock())
+	if forIn.Collection() != forIn.Object() || forOf.Collection() != forOf.Iterable() {
+		t.Fatal("Collection() is not the object of a for-in or the iterable of a for-of")
+	}
 	if _, ok := AsEnhancedFor(NewWhile(NewName("c").AsExpr(), NewBlock()).Node()); ok {
 		t.Fatal("a while converted to an EnhancedFor")
 	}

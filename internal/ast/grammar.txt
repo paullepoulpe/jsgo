@@ -18,6 +18,12 @@
 #   roles:Type*   all the remaining children (a list)
 #   $Accessor     the node's string (not a child), read with Accessor()
 #
+# A role can have other names, role|alias:Type, when kinds that share a
+# category name the same child differently (the object of a for-in and the
+# iterable of a for-of are both the collection of an EnhancedFor): each
+# name gets a getter, and a category gets the getter of any name all its
+# kinds have.
+#
 # A role starting with _ gets an unexported accessor; custom.go wraps it.
 # Type is a node kind, a category, or Node (any node, not checked).
 # A token marked with ! is a kind that only appears in one place (its
@@ -175,11 +181,11 @@ If                 IF                    cond:Expr then:Block else:Block?
 ## For is for (init; cond; update) body.
 For                FOR                   init:ForInit~ cond:Expr~ update:Expr~ body:Block
 ## ForIn is for (target in object) body.
-ForIn              FOR_IN                target:ForTarget object:Expr body:Block
+ForIn              FOR_IN                target:ForTarget object|collection:Expr body:Block
 ## ForOf is for (target of iterable) body.
-ForOf              FOR_OF                target:ForTarget iterable:Expr body:Block
+ForOf              FOR_OF                target:ForTarget iterable|collection:Expr body:Block
 ## ForAwaitOf is for await (target of iterable) body.
-ForAwaitOf         FOR_AWAIT_OF          target:ForTarget iterable:Expr body:Block
+ForAwaitOf         FOR_AWAIT_OF          target:ForTarget iterable|collection:Expr body:Block
 ## While is while (cond) body.
 While              WHILE                 cond:Expr body:Block
 ## Do is do body while (cond).

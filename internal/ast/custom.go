@@ -74,10 +74,6 @@ func (x Loop) Body() Block {
 	return Block{x.node.GetLastChild()}
 }
 
-// Collection returns what x iterates over: the object of a for-in, the
-// iterable of a for-of or for-await-of.
-func (x EnhancedFor) Collection() Expr { return Expr{x.node.GetSecondChild()} }
-
 // NewName returns a new Name.
 func NewName(ident string) Name { return Name{rhino.IR_Name(ident)} }
 
