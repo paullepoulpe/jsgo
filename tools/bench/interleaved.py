@@ -211,15 +211,26 @@ def save_task_ref(bench, task, jobs, rundir, ref):
 
 
 def gate_task(bench, task, jobs, rundir, ref):
+    """MATCH; "MATCH (java-frames: N jobs)" when N invocations differ only in the JVM's stack-frame
+    lines on stderr (both compilers threw the same exception; bench.py's java-frames class);
+    otherwise "DIFF <count>: " and the first three differences."""
     single = len(jobs) == 1
-    bad = []
+    bad, frames_only = [], set()
     for j in range(len(jobs)):
         ra = bench.artifacts(task, ref, j, single)
         ga = bench.artifacts(task, rundir, j, single)
         for k in ra:
             if not bench.same_file(ra[k], ga[k]):
+                if k == "stderr" and os.path.exists(ga[k]) and bench.without_java_frames(
+                        bench.read_text(ra[k])) == bench.without_java_frames(bench.read_text(ga[k])):
+                    frames_only.add(j)
+                    continue
                 bad.append(f"job{j}:{k}: {bench.describe_diff(ra[k], ga[k])}")
-    return "MATCH" if not bad else "DIFF " + " | ".join(bad[:3])
+    if bad:
+        return f"DIFF {len(bad)}: " + " | ".join(bad[:3])
+    if frames_only:
+        return f"MATCH (java-frames: {len(frames_only)} jobs)"
+    return "MATCH"
 
 
 GAPI_STAGES = ("CHECKS", "OPTIMIZATIONS", "FINALIZATIONS")
