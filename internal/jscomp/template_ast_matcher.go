@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -37,24 +40,18 @@ type TemplateAstMatcher struct {
 	templateStart rhino.Node
 
 	// The params declared in the template (in order)
-	templateParams *jutil.ArrayList[string]
+	templateParams []string
 
 	// Record the first Node to match a template parameter, only valid for
 	// the last match if it was successful.
-	paramNodeMatches *jutil.ArrayList[rhino.Node]
+	paramNodeMatches []rhino.Node
 
 	// The locals declared in the template (in order)
-	templateLocals *jutil.ArrayList[string]
+	templateLocals []string
 
 	// Record the first name to match a template local variable, only valid
 	// for the last match if it was successful.
-	localVarMatches *jutil.ArrayList[*string]
-
-	// The names of all matched string literals, in order.
-	//
-	// This re-uses strings already present in the AST, which is faster and
-	// simpler than keeping an additional layer of indirection.
-	stringLiteralMatches *jutil.LinkedHashMap[string, rhino.Node]
+	localVarMatches []*string
 
 	// Record whether the last successful was a loosely matched type, only
 	// valid for the last match if it was successful.
@@ -85,14 +82,7 @@ func NewTemplateAstMatcher(
 		"Template node must be a function node. Received: %s",
 		templateFunctionNode)
 
-	m := &TemplateAstMatcher{
-		templateParams:       jutil.NewArrayList[string](),
-		paramNodeMatches:     jutil.NewArrayList[rhino.Node](),
-		templateLocals:       jutil.NewArrayList[string](),
-		localVarMatches:      jutil.NewArrayList[*string](),
-		stringLiteralMatches: jutil.NewLinkedHashMap[string, rhino.Node](),
-		isLooseMatch:         false,
-	}
+	m := &TemplateAstMatcher{}
 	// TopScope may be null if the template is used before type checking,
 	// which is useful if just check code structure.
 	m.topScope = compiler.GetTopScope()
@@ -109,7 +99,7 @@ func NewTemplateAstMatcher(
 // Java: TemplateAstMatcher.matches(Node)
 func (m *TemplateAstMatcher) Matches(n rhino.Node) bool {
 	if m.MatchesTemplateShape(m.templateStart, n) {
-		if m.paramNodeMatches.IsEmpty() && m.localVarMatches.IsEmpty() {
+		if len(m.paramNodeMatches) == 0 && len(m.localVarMatches) == 0 {
 			// If there are no parameters or locals to match against, this has
 			// been a successful match and there is no reason to traverse the
 			// AST again.
@@ -135,16 +125,14 @@ func (m *TemplateAstMatcher) IsLooseMatch() bool {
 //
 // Java: TemplateAstMatcher.getTemplateNodeToMatchMap()
 func (m *TemplateAstMatcher) GetTemplateNodeToMatchMap() *jutil.LinkedHashMap[string, rhino.Node] {
-	map_ := jutil.NewLinkedHashMapFrom(m.stringLiteralMatches)
+	map_ := jutil.NewLinkedHashMap[string, rhino.Node]()
 
-	for i := 0; i < m.templateParams.Size(); i++ {
-		name := m.templateParams.Get(i)
-		map_.Put(name, m.paramNodeMatches.Get(i))
+	for i, name := range m.templateParams {
+		map_.Put(name, m.paramNodeMatches[i])
 	}
 
-	for i := 0; i < m.templateLocals.Size(); i++ {
-		name := m.templateLocals.Get(i)
-		map_.Put(name, rhino.IR_Name(*m.localVarMatches.Get(i)))
+	for i, name := range m.templateLocals {
+		map_.Put(name, rhino.IR_Name(*m.localVarMatches[i]))
 	}
 
 	return map_
@@ -171,14 +159,8 @@ func (m *TemplateAstMatcher) InitTemplate(templateFunctionNode rhino.Node) rhino
 		startNode = body.GetFirstChild()
 	}
 
-	for i := 0; i < m.templateLocals.Size(); i++ {
-		// reserve space in the locals array.
-		m.localVarMatches.Add(nil)
-	}
-	for i := 0; i < m.templateParams.Size(); i++ {
-		// reserve space in the params array.
-		m.paramNodeMatches.Add(rhino.NilNode)
-	}
+	m.localVarMatches = make([]*string, len(m.templateLocals))
+	m.paramNodeMatches = make([]rhino.Node, len(m.templateParams))
 
 	return startNode
 }
@@ -189,9 +171,7 @@ func (m *TemplateAstMatcher) InitTemplate(templateFunctionNode rhino.Node) rhino
 //
 // Java: TemplateAstMatcher.prepTemplatePlaceholders(Node)
 func (m *TemplateAstMatcher) PrepTemplatePlaceholders(fn rhino.Node) {
-	locals := m.templateLocals
-	params := m.templateParams
-	paramTypes := jutil.NewLinkedHashMap[string, rhino.JSType]()
+	paramTypes := make(map[string]rhino.JSType)
 
 	// drop the function name so it isn't include in the name maps
 	fnName := fn.GetFirstChild().GetString()
@@ -218,8 +198,8 @@ func (m *TemplateAstMatcher) PrepTemplatePlaceholders(fn rhino.Node) {
 		}
 		type_ := m.typeRegistry.EvaluateTypeExpression(expression, scope)
 		jutil.CheckNotNull(type_)
-		params.Add(name)
-		paramTypes.Put(name, type_)
+		m.templateParams = append(m.templateParams, name)
+		paramTypes[name] = type_
 	}
 
 	// Find references to string literals, local variables and parameters
@@ -230,17 +210,17 @@ func (m *TemplateAstMatcher) PrepTemplatePlaceholders(fn rhino.Node) {
 			if n.IsName() {
 				parent := n.GetParent()
 				name := n.GetString()
-				if name != "" && parent.IsVar() && !locals.Contains(name) {
-					locals.Add(n.GetString())
+				if name != "" && parent.IsVar() && !slices.Contains(m.templateLocals, name) {
+					m.templateLocals = append(m.templateLocals, name)
 				}
 
-				if params.Contains(name) {
-					type_ := paramTypes.Get(name)
-					isStringLiteral := type_.IsStringValueType() && jutil.StringStartsWith(name, "string_literal")
+				if paramIdx := slices.Index(m.templateParams, name); paramIdx >= 0 {
+					type_ := paramTypes[name]
+					isStringLiteral := type_.IsStringValueType() && strings.HasPrefix(name, "string_literal")
 					m.ReplaceNodeInPlace(
-						n, m.CreateTemplateParameterNode(params.IndexOf(name), type_, isStringLiteral))
-				} else if locals.Contains(name) {
-					m.ReplaceNodeInPlace(n, m.CreateTemplateLocalNameNode(locals.IndexOf(name)))
+						n, m.CreateTemplateParameterNode(paramIdx, type_, isStringLiteral))
+				} else if localIdx := slices.Index(m.templateLocals, name); localIdx >= 0 {
+					m.ReplaceNodeInPlace(n, m.CreateTemplateLocalNameNode(localIdx))
 				}
 			}
 		})
@@ -274,13 +254,8 @@ func (m *TemplateAstMatcher) Traverse(n rhino.Node, callback templateAstMatcher_
 // Java: TemplateAstMatcher.reset()
 func (m *TemplateAstMatcher) Reset() {
 	m.isLooseMatch = false
-	// Collections.fill(localVarMatches, null)
-	for i := 0; i < m.localVarMatches.Size(); i++ {
-		m.localVarMatches.Set(i, nil)
-	}
-	for i := 0; i < m.paramNodeMatches.Size(); i++ {
-		m.paramNodeMatches.Set(i, rhino.NilNode)
-	}
+	clear(m.localVarMatches)
+	clear(m.paramNodeMatches)
 }
 
 // Java: TemplateAstMatcher.isTemplateParameterNode(Node)
@@ -407,7 +382,7 @@ func (m *TemplateAstMatcher) MatchesTemplate(template rhino.Node, ast rhino.Node
 func (m *TemplateAstMatcher) MatchesNode(template rhino.Node, ast rhino.Node) bool {
 	if m.IsTemplateParameterNode(template) {
 		paramIndex := int(jutil.D2I(template.GetDouble()))
-		previousMatch := m.paramNodeMatches.Get(paramIndex)
+		previousMatch := m.paramNodeMatches[paramIndex]
 		if !previousMatch.IsNil() {
 			// If this named node has already been matched against, make sure
 			// all subsequent usages of the same named node are equivalent.
@@ -432,7 +407,7 @@ func (m *TemplateAstMatcher) MatchesNode(template rhino.Node, ast rhino.Node) bo
 		m.isLooseMatch = matchResult.IsLooseMatch()
 		isMatch := matchResult.IsMatch()
 		if isMatch && previousMatch.IsNil() {
-			m.paramNodeMatches.Set(paramIndex, ast)
+			m.paramNodeMatches[paramIndex] = ast
 		}
 		return isMatch
 	} else if m.IsTemplateLocalNameNode(template) {
@@ -453,11 +428,10 @@ func (m *TemplateAstMatcher) MatchesNode(template rhino.Node, ast rhino.Node) bo
 		//   var b = 'str';
 		//   fn('str');
 		paramIndex := int(jutil.D2I(template.GetDouble()))
-		previouslyMatched := m.localVarMatches.Get(paramIndex) != nil
-		if previouslyMatched {
+		if prev := m.localVarMatches[paramIndex]; prev != nil {
 			// If this named node has already been matched against, make sure
 			// all subsequent usages of the same named node are equivalent.
-			return ast.GetString() == *m.localVarMatches.Get(paramIndex)
+			return ast.GetString() == *prev
 		} else {
 			originalName := ast.GetOriginalName()
 			var name string
@@ -466,17 +440,17 @@ func (m *TemplateAstMatcher) MatchesNode(template rhino.Node, ast rhino.Node) bo
 			} else {
 				name = ast.GetString()
 			}
-			m.localVarMatches.Set(paramIndex, &name)
+			m.localVarMatches[paramIndex] = &name
 		}
 	} else if m.IsTemplateParameterStringLiteralNode(template) {
 		paramIndex := int(jutil.D2I(template.GetDouble()))
-		previousMatch := m.paramNodeMatches.Get(paramIndex)
+		previousMatch := m.paramNodeMatches[paramIndex]
 		if !previousMatch.IsNil() {
 			return ast.IsEquivalentTo(previousMatch)
 		}
 
 		if NodeUtil_IsSomeCompileTimeConstStringValue(ast) {
-			m.paramNodeMatches.Set(paramIndex, ast)
+			m.paramNodeMatches[paramIndex] = ast
 			return true
 		}
 		return false

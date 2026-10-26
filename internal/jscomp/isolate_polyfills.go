@@ -109,23 +109,23 @@ func (i *IsolatePolyfills) Process(externs rhino.Node, root rhino.Node) {
 			polyfillUsages = append(polyfillUsages, u)
 		})
 
-	visitedNodes := jutil.NewLinkedHashSet[rhino.Node]()
+	visitedNodes := make(map[rhino.Node]bool, len(polyfillUsages))
 	for _, usage := range polyfillUsages {
 		if
 		// Some nodes map to more than one polyfill usage. For example, `x.includes` maps to both
 		// Array.prototype.includes and String.prototype.includes, but only needs to be isolated once.
-		visitedNodes.Contains(usage.Node()) ||
+		visitedNodes[usage.Node()] ||
 			// Skip visiting nodes whose 'polyfill.library' is empty. This is true for language
 			// features like `Proxy` and `String.raw` that have no associated polyfill, and hence are
 			// unnecessary to isolate.
 			usage.Polyfill().library == "" ||
 			// The PolyfillFindingCallback may detect possible polyfill usages that are not
 			// in fact injected. (possibly because RemoveUnusedCode deleted the polyfill.)
-			!injectedPolyfills.Contains(usage.Polyfill().nativeSymbol) {
+			!injectedPolyfills[usage.Polyfill().nativeSymbol] {
 			continue
 		}
 		i.RewritePolyfill(usage)
-		visitedNodes.Add(usage.Node())
+		visitedNodes[usage.Node()] = true
 	}
 
 	i.CleanUpJscompLookupPolyfilledValue()
@@ -144,8 +144,8 @@ func (i *IsolatePolyfills) Process(externs rhino.Node, root rhino.Node) {
 // known until the polyfill injection pass actually runs.
 //
 // Java: IsolatePolyfills.findAllInjectedPolyfills()
-func (i *IsolatePolyfills) FindAllInjectedPolyfills() *jutil.LinkedHashSet[string] {
-	actualPolyfills := jutil.NewLinkedHashSet[string]()
+func (i *IsolatePolyfills) FindAllInjectedPolyfills() map[string]bool {
+	actualPolyfills := make(map[string]bool)
 
 	lastInjectedNode := i.compiler.GetNodeForCodeInsertion(nil)
 
@@ -162,7 +162,7 @@ func (i *IsolatePolyfills) FindAllInjectedPolyfills() *jutil.LinkedHashSet[strin
 type isolatePolyfills_findAllInjectedPolyfillsCallback struct {
 	NodeTraversal_AbstractShallowCallbackBase
 	outer           *IsolatePolyfills
-	actualPolyfills *jutil.LinkedHashSet[string]
+	actualPolyfills map[string]bool
 }
 
 // Java: IsolatePolyfills.findAllInjectedPolyfills().new AbstractShallowCallback() {...}.visit(NodeTraversal, Node, Node)
@@ -173,7 +173,7 @@ func (c *isolatePolyfills_findAllInjectedPolyfillsCallback) Visit(t *NodeTravers
 		//  STRING NativeSymbol.prototype.method
 		//  [...]
 		polyfilledSymbol := n.GetSecondChild().GetString()
-		c.actualPolyfills.Add(polyfilledSymbol)
+		c.actualPolyfills[polyfilledSymbol] = true
 	}
 }
 
@@ -211,7 +211,7 @@ func (i *IsolatePolyfills) RewritePolyfill(polyfillUsage *PolyfillUsageFinder_Po
 	parent := polyfillUsage.Node().GetParent()
 
 	if sourceFileName := polyfillAccess.GetSourceFileName(); sourceFileName != nil &&
-		isolatePolyfills_FILES_ALLOWED_UNQUALIFIED_POLYFILL_ACCESSES.Contains(*sourceFileName) {
+		isolatePolyfills_isAllowedUnqualifiedPolyfillFile(*sourceFileName) {
 		return
 	}
 
@@ -267,11 +267,17 @@ func (i *IsolatePolyfills) RewritePolyfill(polyfillUsage *PolyfillUsageFinder_Po
 // into the codebase.
 // TODO(b/156776817): crash on early references to polyfills that are not in our allowlist.
 //
-// Java: IsolatePolyfills.FILES_ALLOWED_UNQUALIFIED_POLYFILL_ACCESSES
-var isolatePolyfills_FILES_ALLOWED_UNQUALIFIED_POLYFILL_ACCESSES = jutil.NewLinkedHashSet(
-	AbstractCompiler_RUNTIME_LIB_DIR+"util/global.js",
-	AbstractCompiler_RUNTIME_LIB_DIR+"util/shouldpolyfill.js",
-	AbstractCompiler_RUNTIME_LIB_DIR+"es6/util/construct.js")
+// Java: IsolatePolyfills.FILES_ALLOWED_UNQUALIFIED_POLYFILL_ACCESSES.contains(String)
+func isolatePolyfills_isAllowedUnqualifiedPolyfillFile(name string) bool {
+	switch name {
+	case AbstractCompiler_RUNTIME_LIB_DIR + "util/global.js",
+		AbstractCompiler_RUNTIME_LIB_DIR + "util/shouldpolyfill.js",
+		AbstractCompiler_RUNTIME_LIB_DIR + "es6/util/construct.js":
+		return true
+	default:
+		return false
+	}
+}
 
 // RewritePolyfillInCall rewrites a call where the receiver is a potential
 // polyfilled method

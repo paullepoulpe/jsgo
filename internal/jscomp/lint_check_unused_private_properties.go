@@ -29,9 +29,9 @@ import (
 // properties may be indirectly referenced using "for-in" or "Object.keys".
 type CheckUnusedPrivateProperties struct {
 	compiler                  AbstractCompiler
-	used                      *jutil.LinkedHashSet[string]
+	used                      map[string]bool
 	candidates                []rhino.Node
-	constructorsAndInterfaces *jutil.LinkedHashSet[string]
+	constructorsAndInterfaces map[string]bool
 }
 
 var CheckUnusedPrivateProperties_UNUSED_PRIVATE_PROPERTY = DiagnosticType_Disabled("JSC_UNUSED_PRIVATE_PROPERTY", "Private property {0} is never read")
@@ -42,8 +42,8 @@ var CheckUnusedPrivateProperties_UNUSED_PRIVATE_PROPERTY = DiagnosticType_Disabl
 func NewCheckUnusedPrivateProperties(compiler AbstractCompiler) *CheckUnusedPrivateProperties {
 	return &CheckUnusedPrivateProperties{
 		compiler:                  compiler,
-		used:                      jutil.NewLinkedHashSet[string](),
-		constructorsAndInterfaces: jutil.NewLinkedHashSet[string](),
+		used:                      make(map[string]bool),
+		constructorsAndInterfaces: make(map[string]bool),
 	}
 }
 
@@ -56,7 +56,7 @@ func (c *CheckUnusedPrivateProperties) Process(externs rhino.Node, root rhino.No
 func (c *CheckUnusedPrivateProperties) ReportUnused(t *NodeTraversal) {
 	for _, n := range c.candidates {
 		propName := c.GetPropName(n)
-		if !c.used.Contains(propName) {
+		if !c.used[propName] {
 			t.Report(n, CheckUnusedPrivateProperties_UNUSED_PRIVATE_PROPERTY, propName)
 		}
 	}
@@ -75,10 +75,10 @@ func (c *CheckUnusedPrivateProperties) GetPropName(n rhino.Node) string {
 // Java: CheckUnusedPrivateProperties.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckUnusedPrivateProperties) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
-		c.used.Clear()
+		clear(c.used)
 		// Even if a constructor is unused , we still want to prevent the construction of the class
 		// outside the file.  i.e. a container of static methods.
-		c.used.Add("constructor")
+		c.used["constructor"] = true
 		clear(c.candidates)
 		c.candidates = c.candidates[:0]
 	}
@@ -94,7 +94,7 @@ func (c *CheckUnusedPrivateProperties) Visit(t *NodeTraversal, n rhino.Node, par
 	case rhino.Token_GETPROP:
 		propName := n.GetString()
 		if CheckUnusedPrivateProperties_IsPinningPropertyUse(n) || !c.IsCandidatePropertyDefinition(n) {
-			c.used.Add(propName)
+			c.used[propName] = true
 		} else {
 			// Only consider "private" properties.
 			if c.IsCheckablePrivatePropDecl(n) {
@@ -111,7 +111,7 @@ func (c *CheckUnusedPrivateProperties) Visit(t *NodeTraversal, n rhino.Node, par
 		// class property.
 		for c2 := n.GetFirstChild(); !c2.IsNil(); c2 = c2.GetNext() {
 			if c2.IsStringKey() || c2.IsGetterDef() || c2.IsSetterDef() || c2.IsMemberFunctionDef() {
-				c.used.Add(c2.GetString())
+				c.used[c2.GetString()] = true
 			}
 		}
 	case rhino.Token_CALL:
@@ -121,7 +121,7 @@ func (c *CheckUnusedPrivateProperties) Visit(t *NodeTraversal, n rhino.Node, par
 			c.compiler.GetCodingConvention().IsPropertyRenameFunction(target) {
 			propName := target.GetNext()
 			if propName.IsStringLit() {
-				c.used.Add(propName.GetString())
+				c.used[propName.GetString()] = true
 			}
 		}
 	case rhino.Token_FUNCTION:
@@ -141,7 +141,7 @@ func (c *CheckUnusedPrivateProperties) RecordConstructorOrInterface(n rhino.Node
 	if className != nil {
 		// If className is null, then this pass won't report any diagnostics on static members of this
 		// class.
-		c.constructorsAndInterfaces.Add(*className)
+		c.constructorsAndInterfaces[*className] = true
 	}
 }
 
@@ -179,7 +179,7 @@ func (c *CheckUnusedPrivateProperties) IsCandidatePropertyDefinition(n rhino.Nod
 // and a Java set of non-null strings never contains null.
 func (c *CheckUnusedPrivateProperties) containsQualifiedName(target rhino.Node) bool {
 	qname := target.GetQualifiedName()
-	return qname != nil && c.constructorsAndInterfaces.Contains(*qname)
+	return qname != nil && c.constructorsAndInterfaces[*qname]
 }
 
 // CheckUnusedPrivateProperties_IsPinningPropertyUse returns whether the

@@ -46,7 +46,7 @@ const dotFormatter_MAX_LABEL_NAME_LENGTH = 10
 // clauses have no Go counterpart.
 type DotFormatter struct {
 	// stores the current assignment of node to keys
-	assignments *jutil.LinkedHashMap[rhino.Node, int]
+	assignments map[rhino.Node]int
 
 	// key count in order to assign a unique key to each node
 	keyCount int
@@ -63,20 +63,21 @@ type DotFormatter struct {
 //
 // Java: DotFormatter()
 func NewDotFormatter() *DotFormatter {
-	f := &DotFormatter{assignments: jutil.NewLinkedHashMap[rhino.Node, int](), keyCount: 0}
-	f.builder = jutil.NewStringBuilder()
-	f.cfg = nil
-	f.printAnnotations = false
-	return f
+	return &DotFormatter{
+		assignments: make(map[rhino.Node]int),
+		builder:     jutil.NewStringBuilder(),
+	}
 }
 
 // Java: DotFormatter(Node, ControlFlowGraph<Node>, Appendable, boolean)
 func NewDotFormatterWithGraph(
 	n rhino.Node, cfg ControlFlowGraph[rhino.Node], builder jutil.Appendable, printAnnotations bool) *DotFormatter {
-	f := &DotFormatter{assignments: jutil.NewLinkedHashMap[rhino.Node, int](), keyCount: 0}
-	f.cfg = cfg
-	f.builder = builder
-	f.printAnnotations = printAnnotations
+	f := &DotFormatter{
+		assignments:      make(map[rhino.Node]int),
+		cfg:              cfg,
+		builder:          builder,
+		printAnnotations: printAnnotations,
+	}
 
 	f.FormatPreamble()
 	f.TraverseNodes(n)
@@ -255,11 +256,11 @@ func (f *DotFormatter) TraverseNodes(parent rhino.Node) {
 
 // Java: DotFormatter.key(Node)
 func (f *DotFormatter) Key(n rhino.Node) int {
-	key, ok := f.assignments.Lookup(n)
+	key, ok := f.assignments[n]
 	if !ok {
 		key = f.keyCount
 		f.keyCount++
-		f.assignments.Put(n, key)
+		f.assignments[n] = key
 		f.builder.AppendCharSequence(dotFormatter_INDENT)
 		f.builder.AppendCharSequence(DotFormatter_FormatNodeName(key))
 		f.builder.AppendCharSequence(" [label=\"")

@@ -40,8 +40,8 @@ import (
 // equals() for strings, numbers and identity-compared objects).
 type DominatorTree[N comparable] struct {
 	// Mapping from node value to its immediate dominator's value.
-	// entry node maps to null.
-	idoms *jutil.LinkedHashMap[N, N]
+	// entry node is omitted.
+	idoms map[N]N
 
 	// Mapping from node value to the number of nodes it dominates
 	// (including itself).
@@ -49,10 +49,10 @@ type DominatorTree[N comparable] struct {
 }
 
 // Java: DominatorTree(Map<N, N>, Map<N, Integer>)
-func newDominatorTree[N comparable](idoms *jutil.LinkedHashMap[N, N], subtreeSizes *jutil.LinkedHashMap[N, int]) *DominatorTree[N] {
+func newDominatorTree[N comparable](idoms map[N]N, subtreeSizes *jutil.LinkedHashMap[N, int]) *DominatorTree[N] {
 	return &DominatorTree[N]{
-		idoms:        jutil.NewLinkedHashMapFrom(idoms),
-		subtreeSizes: jutil.NewLinkedHashMapFrom(subtreeSizes),
+		idoms:        idoms,
+		subtreeSizes: subtreeSizes,
 	}
 }
 
@@ -67,16 +67,16 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 	jutil.CheckNotNullMsg(graph.GetDiGraphNode(entry), "Entry node not in graph")
 
 	// 1. Post-order traversal to assign indexes to nodes.
-	postOrder := []N{}
-	postOrderIndex := jutil.NewLinkedHashMap[N, int]()
-	dominatorTree_buildPostOrder(graph, entry, &postOrder, jutil.NewLinkedHashMap[N, bool]())
+	var postOrder []N
+	dominatorTree_buildPostOrder(graph, entry, &postOrder, make(map[N]bool))
 
 	numNodes := len(postOrder)
 	reversePostOrder := dominatorTree_toReversedArray(postOrder)
 
 	// Map each node to its index in the post-order list.
-	for i := 0; i < numNodes; i++ {
-		postOrderIndex.Put(postOrder[i], i)
+	postOrderIndex := make(map[N]int, numNodes)
+	for i, node := range postOrder {
+		postOrderIndex[node] = i
 	}
 
 	// 2. Iterative algorithm for immediate dominators.
@@ -85,7 +85,7 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 		idomIndexes[i] = -1
 	}
 
-	startNodeIndex := postOrderIndex.Get(entry)
+	startNodeIndex := postOrderIndex[entry]
 	idomIndexes[startNodeIndex] = startNodeIndex
 
 	changed := true
@@ -97,13 +97,13 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 				continue
 			}
 
-			nodeIdx := postOrderIndex.Get(node)
+			nodeIdx := postOrderIndex[node]
 			newIdomIdx := -1
 
 			// Pick first processed predecessor.
 			for _, pred := range graph.GetDirectedPredNodesOfValue(node) {
 				predValue := pred.GetValue()
-				predIdx, ok := postOrderIndex.Lookup(predValue)
+				predIdx, ok := postOrderIndex[predValue]
 				// predIdx can be null if `predValue` is not in the graph. This
 				// is normal - it just means the `predValue` isn't reachable from
 				// the given entry point.
@@ -117,7 +117,7 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 				// Intersect with all other processed predecessors.
 				for _, pred := range graph.GetDirectedPredNodesOfValue(node) {
 					predValue := pred.GetValue()
-					predIdx, ok := postOrderIndex.Lookup(predValue)
+					predIdx, ok := postOrderIndex[predValue]
 					// predIdx can be null if `predValue` is not in the graph.
 					// This is normal - it just means the `predValue` isn't
 					// reachable from the given entry point.
@@ -135,17 +135,16 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 	}
 
 	// 3. Build the result maps.
-	idomsMap := jutil.NewLinkedHashMap[N, N]()
+	idomsMap := make(map[N]N, numNodes)
 	// ListMultimap<N, N> children = ArrayListMultimap.create(); only get()
 	// is used, so a map of lists suffices.
-	children := jutil.NewLinkedHashMap[N, []N]()
-	for i := 0; i < numNodes; i++ {
-		node := postOrder[i]
+	children := make(map[N][]N, numNodes)
+	for i, node := range postOrder {
 		idomIdx := idomIndexes[i]
 		if idomIdx != -1 && i != startNodeIndex {
 			idom := postOrder[idomIdx]
-			idomsMap.Put(node, idom)
-			children.Put(idom, append(children.Get(idom), node))
+			idomsMap[node] = idom
+			children[idom] = append(children[idom], node)
 		}
 	}
 
@@ -172,11 +171,11 @@ func dominatorTree_intersect(idomIndexes []int, i int, j int) int {
 
 // Java: DominatorTree.buildPostOrder(DiGraph<N, ?>, N, List<N>, Map<N, Boolean>)
 func dominatorTree_buildPostOrder[N comparable, E any](
-	graph DiGraph[N, E], node N, postOrder *[]N, visited *jutil.LinkedHashMap[N, bool]) {
-	visited.Put(node, true)
+	graph DiGraph[N, E], node N, postOrder *[]N, visited map[N]bool) {
+	visited[node] = true
 	for _, succ := range graph.GetDirectedSuccNodesOfValue(node) {
 		succValue := succ.GetValue()
-		if !visited.ContainsKey(succValue) {
+		if !visited[succValue] {
 			dominatorTree_buildPostOrder(graph, succValue, postOrder, visited)
 		}
 	}
@@ -185,10 +184,9 @@ func dominatorTree_buildPostOrder[N comparable, E any](
 
 // Java: DominatorTree.computeSubtreeSizes(N, ListMultimap<N, N>, Map<N, Integer>)
 func dominatorTree_computeSubtreeSizes[N comparable](
-	node N, children *jutil.LinkedHashMap[N, []N], sizes *jutil.LinkedHashMap[N, int]) int {
+	node N, children map[N][]N, sizes *jutil.LinkedHashMap[N, int]) int {
 	size := 1
-	nodeChildren := children.Get(node)
-	for _, child := range nodeChildren {
+	for _, child := range children[node] {
 		size += dominatorTree_computeSubtreeSizes(child, children, sizes)
 	}
 	sizes.Put(node, size)
@@ -202,7 +200,8 @@ func dominatorTree_computeSubtreeSizes[N comparable](
 //
 // Java: DominatorTree.getImmediateDominator(N)
 func (t *DominatorTree[N]) GetImmediateDominator(node N) (idom N, ok bool) {
-	return t.idoms.Lookup(node)
+	idom, ok = t.idoms[node]
+	return idom, ok
 }
 
 // Java: DominatorTree.getDominatedSubtreeSize(N)

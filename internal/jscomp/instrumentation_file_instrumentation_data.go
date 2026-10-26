@@ -40,7 +40,7 @@ type FileInstrumentationData struct {
 	branchPresent *jutil.BitSet
 
 	// Number of branches in line, the index is zero-based.
-	branchesInLine *jutil.LinkedHashMap[int, int]
+	branchesInLine map[int]int
 
 	// Map of (line-no, branch-idx) to nodes of blocks of conditional
 	// branches. The two indices are all zero-based.
@@ -48,7 +48,7 @@ type FileInstrumentationData struct {
 	// For example, if the source code has an 'if' statement on line 3 with
 	// an if and else branch, the two branches will be indexed as (2, 0) and
 	// (2, 1).
-	branchNodes *jutil.LinkedHashMap[FileInstrumentationData_BranchIndexPair, rhino.Node]
+	branchNodes map[FileInstrumentationData_BranchIndexPair]rhino.Node
 }
 
 // FileInstrumentationData_BranchIndexPair is a (line, branch) pair.
@@ -100,8 +100,8 @@ func NewFileInstrumentationData(fileName string, arrayName string) *FileInstrume
 		arrayName:        arrayName,
 		instrumentedBits: jutil.NewBitSet(),
 		branchPresent:    jutil.NewBitSet(),
-		branchesInLine:   jutil.NewLinkedHashMap[int, int](),
-		branchNodes:      jutil.NewLinkedHashMap[FileInstrumentationData_BranchIndexPair, rhino.Node](),
+		branchesInLine:   make(map[int]int),
+		branchNodes:      make(map[FileInstrumentationData_BranchIndexPair]rhino.Node),
 	}
 }
 
@@ -138,7 +138,7 @@ func (d *FileInstrumentationData) PutBranchNode(lineNumber int, branchNumber int
 	jutil.CheckArgumentMsg1(
 		branchNumber > 0, "Expected non-zero positive integer as branch number: %s", branchNumber)
 
-	d.branchNodes.Put(FileInstrumentationData_BranchIndexPair_Of(lineNumber-1, branchNumber-1), block)
+	d.branchNodes[FileInstrumentationData_BranchIndexPair_Of(lineNumber-1, branchNumber-1)] = block
 }
 
 // GetBranchNode gets the block node to be instrumented for branch
@@ -154,7 +154,7 @@ func (d *FileInstrumentationData) GetBranchNode(lineNumber int, branchNumber int
 	jutil.CheckArgumentMsg1(
 		branchNumber > 0, "Expected non-zero positive integer as branch number: %s", branchNumber)
 
-	return d.branchNodes.Get(FileInstrumentationData_BranchIndexPair_Of(lineNumber-1, branchNumber-1))
+	return d.branchNodes[FileInstrumentationData_BranchIndexPair_Of(lineNumber-1, branchNumber-1)]
 }
 
 // fileInstrumentationData_getHexString returns a byte-wise hex string
@@ -222,13 +222,7 @@ func (d *FileInstrumentationData) SetBranchPresent(lineNumber int) {
 //
 // Java: FileInstrumentationData.addBranches(int, int)
 func (d *FileInstrumentationData) AddBranches(lineNumber int, numberOfBranches int) {
-	lineIdx := lineNumber - 1
-	currentValue, ok := d.branchesInLine.Lookup(lineIdx)
-	if !ok {
-		d.branchesInLine.Put(lineIdx, numberOfBranches)
-	} else {
-		d.branchesInLine.Put(lineIdx, currentValue+numberOfBranches)
-	}
+	d.branchesInLine[lineNumber-1] += numberOfBranches
 }
 
 // GetNumBranches gets the number of branches on a line (1-based line
@@ -236,10 +230,5 @@ func (d *FileInstrumentationData) AddBranches(lineNumber int, numberOfBranches i
 //
 // Java: FileInstrumentationData.getNumBranches(int)
 func (d *FileInstrumentationData) GetNumBranches(lineNumber int) int {
-	numBranches, ok := d.branchesInLine.Lookup(lineNumber - 1)
-	if !ok {
-		return 0
-	} else {
-		return numBranches
-	}
+	return d.branchesInLine[lineNumber-1]
 }

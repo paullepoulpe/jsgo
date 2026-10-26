@@ -49,9 +49,9 @@ type InstrumentAsyncContext struct {
 	// Go-only: language-adapter — the ArrayDeque used as a stack is a slice
 	// whose last element is the top (Deque.peek/push/pop).
 	tryFunctionStack     []rhino.Node
-	needsInstrumentation *jutil.LinkedHashMap[rhino.Node, *InstrumentAsyncContext_FunctionContext]
-	alreadyInstrumented  *jutil.LinkedHashSet[rhino.Node]
-	hasSuper             *jutil.LinkedHashSet[rhino.Node]
+	needsInstrumentation map[rhino.Node]*InstrumentAsyncContext_FunctionContext
+	alreadyInstrumented  map[rhino.Node]bool
+	hasSuper             map[rhino.Node]bool
 }
 
 // NOTE: we prefix all internal symbols with a characteristic "ᵃᶜ" (U+1D43, U+1D9C) to
@@ -70,17 +70,16 @@ const (
 
 // Java: InstrumentAsyncContext(AbstractCompiler, boolean)
 func NewInstrumentAsyncContext(compiler AbstractCompiler, shouldInstrumentAwait bool) *InstrumentAsyncContext {
-	i := &InstrumentAsyncContext{}
-	i.tryFunctionStack = nil
-	i.needsInstrumentation = jutil.NewLinkedHashMap[rhino.Node, *InstrumentAsyncContext_FunctionContext]()
-	i.alreadyInstrumented = jutil.NewLinkedHashSet[rhino.Node]()
-	i.hasSuper = jutil.NewLinkedHashSet[rhino.Node]()
-	i.compiler = compiler
-	i.astFactory = compiler.CreateAstFactory()
-	i.uniqueIdSupplier = compiler.GetUniqueIdSupplier()
-	i.shouldInstrumentAwait = shouldInstrumentAwait
-	i.start = compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.asyncContextStart")
-	return i
+	return &InstrumentAsyncContext{
+		needsInstrumentation:  make(map[rhino.Node]*InstrumentAsyncContext_FunctionContext),
+		alreadyInstrumented:   make(map[rhino.Node]bool),
+		hasSuper:              make(map[rhino.Node]bool),
+		compiler:              compiler,
+		astFactory:            compiler.CreateAstFactory(),
+		uniqueIdSupplier:      compiler.GetUniqueIdSupplier(),
+		shouldInstrumentAwait: shouldInstrumentAwait,
+		start:                 compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.asyncContextStart"),
+	}
 }
 
 // Java: InstrumentAsyncContext.process(Node, Node)
@@ -127,24 +126,20 @@ func (i *InstrumentAsyncContext) IsReentrance(n rhino.Node) bool {
 // Java: InstrumentAsyncContext.visit(NodeTraversal, Node, Node)
 func (i *InstrumentAsyncContext) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() && strings.HasPrefix(n.GetString(), InstrumentAsyncContext_FACTORY) {
-		i.alreadyInstrumented.Add(t.GetEnclosingFunction())
+		i.alreadyInstrumented[t.GetEnclosingFunction()] = true
 	} else if n.IsSuper() {
-		i.hasSuper.Add(t.GetEnclosingFunction())
+		i.hasSuper[t.GetEnclosingFunction()] = true
 	} else if i.IsReentrance(n) {
 		i.InstrumentReentrance(t, n, parent)
 	} else if n == i.tryFunctionStackPeek() {
 		i.tryFunctionStack = i.tryFunctionStack[:len(i.tryFunctionStack)-1]
-		if i.alreadyInstrumented.Contains(n) {
+		if i.alreadyInstrumented[n] {
 			return
 		}
-		var context *InstrumentAsyncContext_FunctionContext
-		if n.IsGeneratorFunction() {
-			context = i.needsInstrumentation.ComputeIfAbsent(
-				n, func(unused rhino.Node) *InstrumentAsyncContext_FunctionContext {
-					return i.CreateNewFunctionContext(t.GetInput())
-				})
-		} else {
-			context = i.needsInstrumentation.Get(n)
+		context := i.needsInstrumentation[n]
+		if context == nil && n.IsGeneratorFunction() {
+			context = i.CreateNewFunctionContext(t.GetInput())
+			i.needsInstrumentation[n] = context
 		}
 		if context == nil {
 			return
@@ -180,7 +175,7 @@ func (i *InstrumentAsyncContext) InstrumentReentrance(t *NodeTraversal, n rhino.
 		// then we should consider instrumenting the module body as if it were a function.
 		// See https://github.com/google/closure-compiler/issues/3835.
 		return
-	} else if i.alreadyInstrumented.Contains(enclosingFunction) {
+	} else if i.alreadyInstrumented[enclosingFunction] {
 		// This function is already instrumented, so don't do any further instrumentation.
 		return
 	} else if parent.IsFunction() {
@@ -193,13 +188,13 @@ func (i *InstrumentAsyncContext) InstrumentReentrance(t *NodeTraversal, n rhino.
 
 	// At this point, instrumentation is required, both for the immediate node, as well as for any
 	// enclosing function or try block.
-	functionContext :=
-		i.needsInstrumentation.ComputeIfAbsent(
-			enclosingFunction, func(unused rhino.Node) *InstrumentAsyncContext_FunctionContext {
-				return i.CreateNewFunctionContext(t.GetInput())
-			})
+	functionContext := i.needsInstrumentation[enclosingFunction]
+	if functionContext == nil {
+		functionContext = i.CreateNewFunctionContext(t.GetInput())
+		i.needsInstrumentation[enclosingFunction] = functionContext
+	}
 	if !enclosingTry.IsNil() {
-		i.needsInstrumentation.Put(enclosingTry, functionContext)
+		i.needsInstrumentation[enclosingTry] = functionContext
 	}
 
 	if n.IsForAwaitOf() {
@@ -299,7 +294,7 @@ func (i *InstrumentAsyncContext) InstrumentGeneratorFunction(t *NodeTraversal, f
 	// certain methods that might be collapsed (e.g. static methods), so we
 	// only do when necessary (i.e. `super` is used), which corresponds to a
 	// known-safe case (since `super` can't be collapsed).
-	if i.hasSuper.Contains(f) {
+	if i.hasSuper[f] {
 		i.InstrumentGeneratorMethod(t, f, functionContext)
 		return
 	}

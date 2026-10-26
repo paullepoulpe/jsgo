@@ -33,7 +33,7 @@ type ReplaceToggles struct {
 	astFactory *AstFactory
 
 	// nil is Java null.
-	ordinalMapping *jutil.LinkedHashMap[string, int]
+	ordinalMapping map[string]int
 }
 
 // NOTE: These diagnostics are only checked in Stage 2 (optimization), since none of this
@@ -113,15 +113,15 @@ func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent 
 			return
 		}
 
-		mapping := jutil.NewLinkedHashMap[string, int]()
-		ordinals := jutil.NewLinkedHashSet[int]()
+		mapping := make(map[string]int)
+		ordinals := make(map[int]bool)
 		for c := rhs.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if !c.IsStringKey() && !c.IsStringLit() {
 				r.compiler.Report(JSError_MakeWithNode(c, ReplaceToggles_INVALID_ORDINAL_MAPPING, "non-string key"))
 				return
 			}
 			key := c.GetString()
-			if mapping.ContainsKey(key) {
+			if _, dup := mapping[key]; dup {
 				r.compiler.Report(JSError_MakeWithNode(c, ReplaceToggles_INVALID_ORDINAL_MAPPING, "duplicate key: "+key))
 				return
 			}
@@ -142,15 +142,15 @@ func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent 
 					JSError_MakeWithNode(
 						c, ReplaceToggles_INVALID_ORDINAL_MAPPING, "value not a boolean or whole number literal"))
 				return
-			} else if ordinals.Contains(intValue) {
+			} else if ordinals[intValue] {
 				r.compiler.Report(
 					JSError_MakeWithNode(c, ReplaceToggles_INVALID_ORDINAL_MAPPING, "duplicate ordinal: "+strconv.Itoa(intValue)))
 				return
 			}
-			mapping.Put(key, intValue)
-			ordinals.Add(intValue)
+			mapping[key] = intValue
+			ordinals[intValue] = true
 		}
-		r.ordinalMapping = jutil.NewLinkedHashMapFrom(mapping)
+		r.ordinalMapping = mapping
 
 		// NOTE: We do not support a simple assignment without `var` since reassignment or later
 		// augmentation (i.e. `CLOSURE_TOGGLE_ORDINALS['foo'] = true`) is not allowed.
@@ -171,11 +171,7 @@ func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent 
 		return
 	}
 
-	// Integer ordinal = ordinalMapping != null ? ordinalMapping.get(arg.getString()) : null;
-	ordinal, hasOrdinal := 0, false
-	if r.ordinalMapping != nil {
-		ordinal, hasOrdinal = r.ordinalMapping.Lookup(arg.GetString())
-	}
+	ordinal, hasOrdinal := r.ordinalMapping[arg.GetString()]
 	if !hasOrdinal || ordinal < 0 {
 		// No ordinals given: hard-code `true` if explicitly set as true, or `false` otherwise.
 		n.ReplaceWith(

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -45,7 +46,7 @@ type PeepholeSubstituteAlternateSyntax struct {
 	late bool
 }
 
-var peepholeSubstituteAlternateSyntax_STRING_SPLIT_OVERHEAD = jutil.StringLength(".split('.')")
+const peepholeSubstituteAlternateSyntax_STRING_SPLIT_OVERHEAD = len(".split('.')")
 
 // NewPeepholeSubstituteAlternateSyntax creates the optimization.
 //
@@ -123,12 +124,14 @@ func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node rhino.Node) rhi
 	}
 }
 
-var peepholeSubstituteAlternateSyntax_BUILTIN_EXTERNS = jutil.NewLinkedHashSet(
-	"Object",
-	"Array",
-	"Error",
-	"RegExp",
-	"Math")
+func peepholeSubstituteAlternateSyntax_isBuiltinExtern(name string) bool {
+	switch name {
+	case "Object", "Array", "Error", "RegExp", "Math":
+		return true
+	default:
+		return false
+	}
+}
 
 // Java: PeepholeSubstituteAlternateSyntax.tryMinimizeWindowRefs(Node)
 func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeWindowRefs(getProp ast.GetProp) rhino.Node {
@@ -139,7 +142,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeWindowRefs(getProp ast.Ge
 	}
 	// Normalization needs to be done to ensure there's no shadowing.
 	// Since normalization has run we know we're referring to the global window.
-	if !p.IsASTNormalized() || !peepholeSubstituteAlternateSyntax_BUILTIN_EXTERNS.Contains(getProp.Property()) {
+	if !p.IsASTNormalized() || !peepholeSubstituteAlternateSyntax_isBuiltinExtern(getProp.Property()) {
 		return node
 	}
 	newNameNode := rhino.IR_Name(getProp.Property())
@@ -421,10 +424,14 @@ func (p *PeepholeSubstituteAlternateSyntax) TryReduceReturn(ret ast.Return) rhin
 // String, Number, and Boolean functions return non-object types, whereas
 // new String, new Number, and new Boolean return object types, so don't
 // include them here.
-var peepholeSubstituteAlternateSyntax_STANDARD_OBJECT_CONSTRUCTORS = jutil.NewLinkedHashSet(
-	"Object",
-	"Array",
-	"Error")
+func peepholeSubstituteAlternateSyntax_isStandardObjectConstructor(name string) bool {
+	switch name {
+	case "Object", "Array", "Error":
+		return true
+	default:
+		return false
+	}
+}
 
 // TryFoldStandardConstructors folds "new Object()" to "Object()".
 //
@@ -453,7 +460,7 @@ func (p *PeepholeSubstituteAlternateSyntax) CanFoldStandardConstructors(newNode 
 		return false
 	}
 	className := constructor.Ident()
-	if peepholeSubstituteAlternateSyntax_STANDARD_OBJECT_CONSTRUCTORS.Contains(className) {
+	if peepholeSubstituteAlternateSyntax_isStandardObjectConstructor(className) {
 		return true
 	}
 	if "RegExp" == className {
@@ -725,17 +732,10 @@ func PeepholeSubstituteAlternateSyntax_PickDelimiter(strs []string) *string {
 		return &empty
 	}
 
-	space, semicolon, comma, lbrace, rbrace := " ", ";", ",", "{", "}"
-	delimiters := []*string{&space, &semicolon, &comma, &lbrace, &rbrace, nil}
-	i := 0
-NEXT_DELIMITER:
-	for ; delimiters[i] != nil; i++ {
-		for _, cur := range strs {
-			if strings.Contains(cur, *delimiters[i]) {
-				continue NEXT_DELIMITER
-			}
+	for _, delim := range [...]string{" ", ";", ",", "{", "}"} {
+		if !slices.ContainsFunc(strs, func(cur string) bool { return strings.Contains(cur, delim) }) {
+			return &delim
 		}
-		break
 	}
-	return delimiters[i]
+	return nil
 }

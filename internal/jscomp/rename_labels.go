@@ -90,8 +90,7 @@ type RenameLabels_DefaultNameSupplier struct {
 // Java: RenameLabels.DefaultNameSupplier()
 func NewRenameLabels_DefaultNameSupplier() *RenameLabels_DefaultNameSupplier {
 	return &RenameLabels_DefaultNameSupplier{
-		nameGenerator: NewDefaultNameGeneratorWithReserved(
-			jutil.NewLinkedHashSet[string](), "", jutil.NewLinkedHashSet[uint16]()),
+		nameGenerator: NewDefaultNameGenerator(),
 	}
 }
 
@@ -163,15 +162,15 @@ func (p *RenameLabels_ProcessLabels) ShouldTraverse(nodeTraversal *NodeTraversal
 		// Determine the new name for this label.
 		current := p.peek()
 		if current.renameMap == nil {
-			current.renameMap = jutil.NewLinkedHashMap[string, *RenameLabels_LabelInfo]()
+			current.renameMap = make(map[string]*RenameLabels_LabelInfo)
 		}
-		currentDepth := current.renameMap.Size() + 1
+		currentDepth := len(current.renameMap) + 1
 		name := node.GetFirstChild().GetString()
 
 		// Store the context for this label name.
 		li := NewRenameLabels_LabelInfo(currentDepth)
-		jutil.CheckState(!current.renameMap.ContainsKey(name))
-		current.renameMap.Put(name, li)
+		jutil.CheckState(current.renameMap[name] == nil)
+		current.renameMap[name] = li
 
 		// Create a new name, if needed, for this depth.
 		if len(p.names) < currentDepth {
@@ -257,7 +256,7 @@ func (p *RenameLabels_ProcessLabels) VisitLabel(t *NodeTraversal, node rhino.Nod
 	}
 
 	// Remove the label from the current stack of labels.
-	p.peek().renameMap.Remove(name)
+	delete(p.peek().renameMap, name)
 }
 
 // GetNameForId returns the short name of the identified label.
@@ -277,11 +276,7 @@ func (p *RenameLabels_ProcessLabels) GetNameForId(id int) string {
 //
 // Java: RenameLabels.ProcessLabels.getLabelInfo(String)
 func (p *RenameLabels_ProcessLabels) GetLabelInfo(name string) *RenameLabels_LabelInfo {
-	m := p.peek().renameMap
-	if m == nil {
-		return nil
-	}
-	return m.Get(name)
+	return p.peek().renameMap[name]
 }
 
 // Java: RenameLabels.process(Node, Node)
@@ -303,10 +298,5 @@ func NewRenameLabels_LabelInfo(id int) *RenameLabels_LabelInfo {
 
 // RenameLabels_LabelNamespace is the nested class LabelNamespace.
 type RenameLabels_LabelNamespace struct {
-	renameMap *jutil.LinkedHashMap[string, *RenameLabels_LabelInfo]
-}
-
-// Java: RenameLabels.LabelNamespace()
-func NewRenameLabels_LabelNamespace() *RenameLabels_LabelNamespace {
-	return &RenameLabels_LabelNamespace{renameMap: jutil.NewLinkedHashMap[string, *RenameLabels_LabelInfo]()}
+	renameMap map[string]*RenameLabels_LabelInfo
 }

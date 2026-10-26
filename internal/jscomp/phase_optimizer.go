@@ -39,7 +39,7 @@ type PhaseOptimizer struct {
 	// 2) Compiler talks to PhaseOptimizer, not Loop or ScopedChangeHandler
 	currentPass *PhaseOptimizer_NamedPass
 	// For each pass, remember the time at the end of the pass's last run.
-	lastRuns *jutil.LinkedHashMap[*PhaseOptimizer_NamedPass, int32]
+	lastRuns map[*PhaseOptimizer_NamedPass]int32
 	// The time of the last change made to the program by any pass.
 	lastChange int32
 	jsRoot     rhino.Node
@@ -317,7 +317,7 @@ func (p *PhaseOptimizer) HasScopeChanged(n rhino.Node) bool {
 	if !p.inLoop {
 		return true
 	}
-	timeOfLastRun, ok := p.lastRuns.Lookup(p.currentPass)
+	timeOfLastRun, ok := p.lastRuns[p.currentPass]
 	if !ok {
 		// Go-only: language-adapter — unboxing the null Integer that Map.get
 		// returns for a missing key.
@@ -366,7 +366,7 @@ type PhaseOptimizer_Loop struct {
 	outer *PhaseOptimizer
 
 	myPasses                        []*PhaseOptimizer_NamedPass
-	myNames                         *jutil.LinkedHashSet[string]
+	myNames                         map[string]bool
 	scopeHandler                    *PhaseOptimizer_ScopedChangeHandler
 	isCodeRemovalLoop               bool
 	howmanyIterationsUnderThreshold int
@@ -374,20 +374,18 @@ type PhaseOptimizer_Loop struct {
 
 // Java: PhaseOptimizer.Loop()
 func NewPhaseOptimizer_Loop(outer *PhaseOptimizer) *PhaseOptimizer_Loop {
-	l := &PhaseOptimizer_Loop{}
-	l.outer = outer
-	l.myNames = jutil.NewLinkedHashSet[string]()
-	l.isCodeRemovalLoop = false
-	l.howmanyIterationsUnderThreshold = 0
-	return l
+	return &PhaseOptimizer_Loop{
+		outer:   outer,
+		myNames: make(map[string]bool),
+	}
 }
 
 // Java: PhaseOptimizer.Loop.addLoopedPass(PassFactory)
 func (l *PhaseOptimizer_Loop) AddLoopedPass(factory *PassFactory) {
 	name := factory.GetName()
 	jutil.CheckArgumentMsg1(
-		!l.myNames.Contains(name), "Already a pass with name '%s' in this loop", name)
-	l.myNames.Add(name)
+		!l.myNames[name], "Already a pass with name '%s' in this loop", name)
+	l.myNames[name] = true
 	l.myPasses = append(l.myPasses, NewPhaseOptimizer_NamedPass(l.outer, factory))
 }
 
@@ -404,18 +402,18 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 
 	// lastRuns is initialized before each loop. This way, when a pass is run
 	// in the 2nd loop for the 1st time, it looks at all scopes.
-	p.lastRuns = jutil.NewLinkedHashMap[*PhaseOptimizer_NamedPass, int32]()
+	p.lastRuns = make(map[*PhaseOptimizer_NamedPass]int32, len(l.myPasses))
 	for _, pass := range l.myPasses {
-		p.lastRuns.Put(pass, PhaseOptimizer_START_TIME)
+		p.lastRuns[pass] = PhaseOptimizer_START_TIME
 	}
 	// Contains a pass iff it made changes the last time it was run.
-	madeChanges := jutil.NewLinkedHashSet[*PhaseOptimizer_NamedPass]()
+	madeChanges := make(map[*PhaseOptimizer_NamedPass]bool, len(l.myPasses))
 	// Contains a pass iff it was run during the last inner loop.
-	runInPrevIter := jutil.NewLinkedHashSet[*PhaseOptimizer_NamedPass]()
+	runInPrevIter := make(map[*PhaseOptimizer_NamedPass]bool, len(l.myPasses))
 	// Contains a pass iff it did not make changes. This set is cleared each time any pass makes
 	// changes. The purpose of this is to ensure we do not rerun any passes that did not make
 	// changes unless a later run pass did make changes.
-	didNotMakeChanges := jutil.NewLinkedHashSet[*PhaseOptimizer_NamedPass]()
+	didNotMakeChanges := make(map[*PhaseOptimizer_NamedPass]bool, len(l.myPasses))
 	state := PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER
 	var lastIterMadeChanges bool
 	count := 1
@@ -464,27 +462,27 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 		lastIterMadeChanges = false
 		for _, pass := range l.myPasses {
 			if (state == PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER &&
-				!runInPrevIter.Contains(pass) &&
-				!didNotMakeChanges.Contains(pass)) ||
+				!runInPrevIter[pass] &&
+				!didNotMakeChanges[pass]) ||
 				(state == PhaseOptimizer_State_RUN_PASSES_THAT_CHANGED_STH_IN_PREV_ITER &&
-					madeChanges.Contains(pass)) {
+					madeChanges[pass]) {
 				p.changeTracker.IncrementChangeStamp()
 				p.currentPass = pass
 				pass.Process(externs, root)
-				runInPrevIter.Add(pass)
-				p.lastRuns.Put(pass, p.changeTracker.GetChangeStamp())
+				runInPrevIter[pass] = true
+				p.lastRuns[pass] = p.changeTracker.GetChangeStamp()
 				if p.HasHaltingErrors() {
 					return
 				} else if l.scopeHandler.HasCodeChangedSinceLastCall() {
-					madeChanges.Add(pass)
-					didNotMakeChanges.Clear()
+					madeChanges[pass] = true
+					clear(didNotMakeChanges)
 					lastIterMadeChanges = true
 				} else {
-					madeChanges.Remove(pass)
-					didNotMakeChanges.Add(pass)
+					delete(madeChanges, pass)
+					didNotMakeChanges[pass] = true
 				}
 			} else {
-				runInPrevIter.Remove(pass)
+				delete(runInPrevIter, pass)
 			}
 		}
 
@@ -607,20 +605,4 @@ func (l *PhaseOptimizer_Loop) IsCodeRemovalLoop() bool {
 		}
 	}
 	return false
-}
-
-// PhaseOptimizer_ProgressRange is an object used when running many
-// NamedPass loopable passes as a Loop pass, to keep track of how far along
-// we are.
-type PhaseOptimizer_ProgressRange struct {
-	initialValue float64
-	maxValue     float64
-}
-
-// Java: PhaseOptimizer.ProgressRange(double, double)
-func NewPhaseOptimizer_ProgressRange(initialValue float64, maxValue float64) *PhaseOptimizer_ProgressRange {
-	r := &PhaseOptimizer_ProgressRange{}
-	r.initialValue = initialValue
-	r.maxValue = maxValue
-	return r
 }

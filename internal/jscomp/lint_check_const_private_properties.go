@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -29,8 +28,8 @@ type CheckConstPrivateProperties struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler                  AbstractCompiler
 	candidates                []rhino.Node
-	modified                  *jutil.LinkedHashSet[string]
-	constructorsAndInterfaces *jutil.LinkedHashSet[string]
+	modified                  map[string]bool
+	constructorsAndInterfaces map[string]bool
 }
 
 var CheckConstPrivateProperties_MISSING_CONST_PROPERTY = DiagnosticType_Disabled(
@@ -43,8 +42,8 @@ var CheckConstPrivateProperties_MISSING_CONST_PROPERTY = DiagnosticType_Disabled
 func NewCheckConstPrivateProperties(compiler AbstractCompiler) *CheckConstPrivateProperties {
 	return &CheckConstPrivateProperties{
 		compiler:                  compiler,
-		modified:                  jutil.NewLinkedHashSet[string](),
-		constructorsAndInterfaces: jutil.NewLinkedHashSet[string](),
+		modified:                  make(map[string]bool),
+		constructorsAndInterfaces: make(map[string]bool),
 	}
 }
 
@@ -60,13 +59,13 @@ func (c *CheckConstPrivateProperties) Process(externs rhino.Node, root rhino.Nod
 func (c *CheckConstPrivateProperties) ReportMissingConst(t *NodeTraversal) {
 	for _, n := range c.candidates {
 		propName := n.GetString()
-		if !c.modified.Contains(propName) {
+		if !c.modified[propName] {
 			t.Report(n, CheckConstPrivateProperties_MISSING_CONST_PROPERTY, propName)
 		}
 	}
 	clear(c.candidates)
 	c.candidates = c.candidates[:0]
-	c.modified.Clear()
+	clear(c.modified)
 }
 
 // Java: CheckConstPrivateProperties.visit(NodeTraversal, Node, Node)
@@ -90,7 +89,7 @@ func (c *CheckConstPrivateProperties) Visit(t *NodeTraversal, n rhino.Node, pare
 			c.candidates = append(c.candidates, propNode)
 		} else if c.IsModificationOp(n) {
 			// Mark any other modification operation as a modified property, to deal with lambdas, etc
-			c.modified.Add(propNode.GetString())
+			c.modified[propNode.GetString()] = true
 		}
 	case rhino.Token_FUNCTION:
 		info := NodeUtil_GetBestJSDocInfo(n)
@@ -109,7 +108,7 @@ func (c *CheckConstPrivateProperties) RecordConstructorOrInterface(n rhino.Node)
 	if className != nil {
 		// If className is null, then this pass won't report any diagnostics on static members of this
 		// class.
-		c.constructorsAndInterfaces.Add(*className)
+		c.constructorsAndInterfaces[*className] = true
 	}
 }
 
@@ -145,7 +144,7 @@ func (c *CheckConstPrivateProperties) IsCandidatePropertyDefinition(n rhino.Node
 // and a Java set of non-null strings never contains null.
 func (c *CheckConstPrivateProperties) containsQualifiedName(target rhino.Node) bool {
 	qname := target.GetQualifiedName()
-	return qname != nil && c.constructorsAndInterfaces.Contains(*qname)
+	return qname != nil && c.constructorsAndInterfaces[*qname]
 }
 
 // IsFunctionProperty returns whether the given property declaration is

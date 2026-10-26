@@ -36,12 +36,7 @@ const asciiByteTable = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d
 //
 // This class is not thread safe.
 type DefaultNameGenerator struct {
-	// TODO(user): Maybe we don't need a LinkedHashMap to look up. I started
-	// writing a skip-list like data-structure that would let us have O(1)
-	// favors() and O(1) reset() but the code got very messy. Lets start
-	// with a logical implementation first until performance becomes a
-	// problem.
-	priorityLookupMap *jutil.LinkedHashMap[uint16, *defaultNameGenerator_CharPriority]
+	priorityLookupMap map[uint16]*defaultNameGenerator_CharPriority
 
 	reservedNames jutil.Set[string]
 	prefix        string
@@ -104,12 +99,6 @@ var DefaultNameGenerator_FIRST_CHAR = jutil.StringToUTF16(
 var DefaultNameGenerator_NONFIRST_CHAR = jutil.StringToUTF16(
 	"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789$")
 
-// defaultNameGenerator_BAD_NAMES initializes names that must not be
-// generated. TokenStream.isKeyword() skips scanning new keywords such as
-// "let", "await", etc. Hence, those names must be explicitly checked for on
-// top of the successfully scanned ES3 reservedNames
-var defaultNameGenerator_BAD_NAMES = jutil.NewLinkedHashSet("let", "yield", "await", "eval")
-
 // Java: DefaultNameGenerator()
 func NewDefaultNameGenerator() *DefaultNameGenerator {
 	g := &DefaultNameGenerator{}
@@ -153,13 +142,14 @@ func newDefaultNameGeneratorCloned(
 	reservedNames jutil.Set[string],
 	prefix string,
 	reservedCharacters jutil.Set[uint16],
-	priorityLookupMap *jutil.LinkedHashMap[uint16, *defaultNameGenerator_CharPriority]) *DefaultNameGenerator {
-	g := &DefaultNameGenerator{}
-	// Clone the priorityLookupMap to preserve information about how often
-	// characters are used.
-	g.priorityLookupMap = jutil.NewLinkedHashMap[uint16, *defaultNameGenerator_CharPriority]()
-	for key, value := range priorityLookupMap.All() {
-		g.priorityLookupMap.Put(key, value.Clone())
+	priorityLookupMap map[uint16]*defaultNameGenerator_CharPriority) *DefaultNameGenerator {
+	g := &DefaultNameGenerator{
+		// Clone the priorityLookupMap to preserve information about how often
+		// characters are used.
+		priorityLookupMap: make(map[uint16]*defaultNameGenerator_CharPriority, len(priorityLookupMap)),
+	}
+	for key, value := range priorityLookupMap {
+		g.priorityLookupMap[key] = value.Clone()
 	}
 
 	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedCharacters, reservedCharacters)
@@ -168,20 +158,25 @@ func newDefaultNameGeneratorCloned(
 
 // Java: DefaultNameGenerator.buildPriorityLookupMap()
 func (g *DefaultNameGenerator) buildPriorityLookupMap() {
-	g.priorityLookupMap = jutil.NewLinkedHashMap[uint16, *defaultNameGenerator_CharPriority]()
-	order := 0
-	for _, c := range DefaultNameGenerator_NONFIRST_CHAR {
-		g.priorityLookupMap.Put(c, newDefaultNameGenerator_CharPriority(c, order))
-		order++
+	g.priorityLookupMap = make(map[uint16]*defaultNameGenerator_CharPriority, len(DefaultNameGenerator_NONFIRST_CHAR))
+	for order, c := range DefaultNameGenerator_NONFIRST_CHAR {
+		g.priorityLookupMap[c] = newDefaultNameGenerator_CharPriority(c, order)
 	}
 }
 
 // DefaultNameGenerator_IsBadName returns if name is a badName (let, yield,
-// eval, etc) that must not be generated.
+// eval, etc) that must not be generated. TokenStream.isKeyword() skips
+// scanning new keywords such as "let", "await", etc. Hence, those names must
+// be explicitly checked on top of the successfully scanned ES3 reservedNames.
 //
 // Java: DefaultNameGenerator.isBadName(String)
 func DefaultNameGenerator_IsBadName(name string) bool {
-	return defaultNameGenerator_BAD_NAMES.Contains(name)
+	switch name {
+	case "let", "yield", "await", "eval":
+		return true
+	default:
+		return false
+	}
 }
 
 // Java: DefaultNameGenerator.reset(Set<String>, String, Set<Character>)
@@ -231,8 +226,7 @@ func (g *DefaultNameGenerator) Clone(
 // Java: DefaultNameGenerator.favors(CharSequence)
 func (g *DefaultNameGenerator) Favors(sequence string) {
 	for _, ch := range jutil.StringToUTF16(sequence) {
-		c := g.priorityLookupMap.Get(ch)
-		if c != nil {
+		if c := g.priorityLookupMap[ch]; c != nil {
 			c.occurrence++
 		}
 	}
@@ -250,8 +244,8 @@ func (g *DefaultNameGenerator) Favors(sequence string) {
 func (g *DefaultNameGenerator) ReserveCharacters(chars []uint16, reservedCharacterSet jutil.Set[uint16]) []*defaultNameGenerator_CharPriority {
 	if reservedCharacterSet.IsEmpty() {
 		result := make([]*defaultNameGenerator_CharPriority, len(chars))
-		for i := 0; i < len(chars); i++ {
-			result[i] = g.priorityLookupMap.Get(chars[i])
+		for i, ch := range chars {
+			result[i] = g.priorityLookupMap[ch]
 		}
 		return result
 	}
@@ -263,7 +257,7 @@ func (g *DefaultNameGenerator) ReserveCharacters(chars []uint16, reservedCharact
 	result := make([]*defaultNameGenerator_CharPriority, charSet.Size())
 	index := 0
 	for c := range charSet.All() {
-		result[index] = g.priorityLookupMap.Get(c)
+		result[index] = g.priorityLookupMap[c]
 		index++
 	}
 	return result
