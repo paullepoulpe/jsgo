@@ -14163,6 +14163,426 @@ func (v *Visitor[T]) Tokens() TokenSet {
 	return s
 }
 
+// The roles, one per child of each kind of the grammar: RoleIfCond is the cond
+// of an if, RoleCallArgs any of the args of a call.
+const (
+	// RoleNone is the role of a node without a parent, or whose parent's kind is
+	// not in the grammar (JSDoc type expressions, for example).
+	RoleNone                       Role = iota
+	RoleRootItems                       // Root.items
+	RoleScriptItems                     // Script.items
+	RoleModuleBodyStatements            // ModuleBody.statements
+	RoleBlockStatements                 // Block.statements
+	RoleLabelName                       // Label.name
+	RoleLabelBody                       // Label.body
+	RoleIfCond                          // If.cond
+	RoleIfThen                          // If.then
+	RoleIfElse                          // If.else
+	RoleForInit                         // For.init
+	RoleForCond                         // For.cond
+	RoleForUpdate                       // For.update
+	RoleForBody                         // For.body
+	RoleForInTarget                     // ForIn.target
+	RoleForInObject                     // ForIn.object
+	RoleForInBody                       // ForIn.body
+	RoleForOfTarget                     // ForOf.target
+	RoleForOfIterable                   // ForOf.iterable
+	RoleForOfBody                       // ForOf.body
+	RoleForAwaitOfTarget                // ForAwaitOf.target
+	RoleForAwaitOfIterable              // ForAwaitOf.iterable
+	RoleForAwaitOfBody                  // ForAwaitOf.body
+	RoleWhileCond                       // While.cond
+	RoleWhileBody                       // While.body
+	RoleDoBody                          // Do.body
+	RoleDoCond                          // Do.cond
+	RoleWithObject                      // With.object
+	RoleWithBody                        // With.body
+	RoleSwitchDiscriminant              // Switch.discriminant
+	RoleSwitchBody                      // Switch.body
+	RoleSwitchBodyCases                 // SwitchBody.cases
+	RoleCaseValue                       // Case.value
+	RoleCaseBody                        // Case.body
+	RoleDefaultCaseBody                 // DefaultCase.body
+	RoleTryBody                         // Try.body
+	RoleTryCatches                      // Try.catches
+	RoleTryFinally                      // Try.finally
+	RoleTryCatchesCatch                 // TryCatches.catch
+	RoleCatchParam                      // Catch.param
+	RoleCatchBody                       // Catch.body
+	RoleNameDeclarationDeclarators      // NameDeclaration.declarators
+	RoleDestructuringLhsPattern         // DestructuringLhs.pattern
+	RoleDestructuringLhsInit            // DestructuringLhs.init
+	RoleExprStmtExpr                    // ExprStmt.expr
+	RoleReturnValue                     // Return.value
+	RoleThrowValue                      // Throw.value
+	RoleBreakLabel                      // Break.label
+	RoleContinueLabel                   // Continue.label
+	RoleFunctionName                    // Function.name
+	RoleFunctionParams                  // Function.params
+	RoleFunctionBody                    // Function.body
+	RoleParamListParams                 // ParamList.params
+	RoleDefaultValueTarget              // DefaultValue.target
+	RoleDefaultValueValue               // DefaultValue.value
+	RoleIterRestTarget                  // IterRest.target
+	RoleObjectRestTarget                // ObjectRest.target
+	RoleIterSpreadExpr                  // IterSpread.expr
+	RoleObjectSpreadExpr                // ObjectSpread.expr
+	RoleArrayPatternElements            // ArrayPattern.elements
+	RoleObjectPatternProps              // ObjectPattern.props
+	RoleClassName                       // Class.name
+	RoleClassExtends                    // Class.extends
+	RoleClassBody                       // Class.body
+	RoleClassBodyMembers                // ClassBody.members
+	RoleMemberFunctionDefFunction       // MemberFunctionDef.function
+	RoleGetterDefFunction               // GetterDef.function
+	RoleSetterDefFunction               // SetterDef.function
+	RoleMemberFieldDefValue             // MemberFieldDef.value
+	RoleComputedFieldDefKey             // ComputedFieldDef.key
+	RoleComputedFieldDefValue           // ComputedFieldDef.value
+	RoleComputedPropKey                 // ComputedProp.key
+	RoleComputedPropValue               // ComputedProp.value
+	RoleIndexSignatureChildren          // IndexSignature.children
+	RoleCallSignatureChildren           // CallSignature.children
+	RoleNameInit                        // Name.init
+	RoleRegExpPattern                   // RegExp.pattern
+	RoleRegExpFlags                     // RegExp.flags
+	RoleTemplateLitParts                // TemplateLit.parts
+	RoleTemplateLitSubExpr              // TemplateLitSub.expr
+	RoleTaggedTemplateLitTag            // TaggedTemplateLit.tag
+	RoleTaggedTemplateLitTemplate       // TaggedTemplateLit.template
+	RoleArrayLitElements                // ArrayLit.elements
+	RoleObjectLitMembers                // ObjectLit.members
+	RoleStringKeyValue                  // StringKey.value
+	RoleUnaryOperand                    // Unary.operand
+	RoleCastExpr                        // Cast.expr
+	RoleDynamicImportSpecifier          // DynamicImport.specifier
+	RoleIncDecTarget                    // IncDec.target
+	RoleAssignTarget                    // Assign.target
+	RoleAssignValue                     // Assign.value
+	RoleAssignOpTarget                  // AssignOp.target
+	RoleAssignOpValue                   // AssignOp.value
+	RoleBinaryLeft                      // Binary.left
+	RoleBinaryRight                     // Binary.right
+	RoleHookCond                        // Hook.cond
+	RoleHookThen                        // Hook.then
+	RoleHookElse                        // Hook.else
+	RoleGetPropObject                   // GetProp.object
+	RoleOptChainGetPropObject           // OptChainGetProp.object
+	RoleGetElemObject                   // GetElem.object
+	RoleGetElemIndex                    // GetElem.index
+	RoleOptChainGetElemObject           // OptChainGetElem.object
+	RoleOptChainGetElemIndex            // OptChainGetElem.index
+	RoleCallCallee                      // Call.callee
+	RoleCallArgs                        // Call.args
+	RoleOptChainCallCallee              // OptChainCall.callee
+	RoleOptChainCallArgs                // OptChainCall.args
+	RoleNewCallee                       // New.callee
+	RoleNewArgs                         // New.args
+	RoleYieldValue                      // Yield.value
+	RoleAwaitValue                      // Await.value
+	RoleImportDefault                   // Import.default
+	RoleImportBindings                  // Import.bindings
+	RoleImportSource                    // Import.source
+	RoleImportSpecsSpecs                // ImportSpecs.specs
+	RoleImportSpecImported              // ImportSpec.imported
+	RoleImportSpecLocal                 // ImportSpec.local
+	RoleExportBody                      // Export.body
+	RoleExportSource                    // Export.source
+	RoleExportSpecsSpecs                // ExportSpecs.specs
+	RoleExportSpecLocal                 // ExportSpec.local
+	RoleExportSpecExported              // ExportSpec.exported
+	RoleInterfaceChildren               // Interface.children
+	RoleEnumChildren                    // Enum.children
+	RoleTypeAliasChildren               // TypeAlias.children
+	RoleDeclareChildren                 // Declare.children
+	RoleNamespaceChildren               // Namespace.children
+)
+
+// Other names of roles (role|alias in the grammar).
+const (
+	RoleForInCollection      = RoleForInObject        // ForIn.collection is another name for ForIn.object
+	RoleForOfCollection      = RoleForOfIterable      // ForOf.collection is another name for ForOf.iterable
+	RoleForAwaitOfCollection = RoleForAwaitOfIterable // ForAwaitOf.collection is another name for ForAwaitOf.iterable
+)
+
+// roleNames gives the kind and the role name of each Role.
+var roleNames = [...][2]string{
+	RoleNone:                       {"", ""},
+	RoleRootItems:                  {"Root", "items"},
+	RoleScriptItems:                {"Script", "items"},
+	RoleModuleBodyStatements:       {"ModuleBody", "statements"},
+	RoleBlockStatements:            {"Block", "statements"},
+	RoleLabelName:                  {"Label", "name"},
+	RoleLabelBody:                  {"Label", "body"},
+	RoleIfCond:                     {"If", "cond"},
+	RoleIfThen:                     {"If", "then"},
+	RoleIfElse:                     {"If", "else"},
+	RoleForInit:                    {"For", "init"},
+	RoleForCond:                    {"For", "cond"},
+	RoleForUpdate:                  {"For", "update"},
+	RoleForBody:                    {"For", "body"},
+	RoleForInTarget:                {"ForIn", "target"},
+	RoleForInObject:                {"ForIn", "object"},
+	RoleForInBody:                  {"ForIn", "body"},
+	RoleForOfTarget:                {"ForOf", "target"},
+	RoleForOfIterable:              {"ForOf", "iterable"},
+	RoleForOfBody:                  {"ForOf", "body"},
+	RoleForAwaitOfTarget:           {"ForAwaitOf", "target"},
+	RoleForAwaitOfIterable:         {"ForAwaitOf", "iterable"},
+	RoleForAwaitOfBody:             {"ForAwaitOf", "body"},
+	RoleWhileCond:                  {"While", "cond"},
+	RoleWhileBody:                  {"While", "body"},
+	RoleDoBody:                     {"Do", "body"},
+	RoleDoCond:                     {"Do", "cond"},
+	RoleWithObject:                 {"With", "object"},
+	RoleWithBody:                   {"With", "body"},
+	RoleSwitchDiscriminant:         {"Switch", "discriminant"},
+	RoleSwitchBody:                 {"Switch", "body"},
+	RoleSwitchBodyCases:            {"SwitchBody", "cases"},
+	RoleCaseValue:                  {"Case", "value"},
+	RoleCaseBody:                   {"Case", "body"},
+	RoleDefaultCaseBody:            {"DefaultCase", "body"},
+	RoleTryBody:                    {"Try", "body"},
+	RoleTryCatches:                 {"Try", "catches"},
+	RoleTryFinally:                 {"Try", "finally"},
+	RoleTryCatchesCatch:            {"TryCatches", "catch"},
+	RoleCatchParam:                 {"Catch", "param"},
+	RoleCatchBody:                  {"Catch", "body"},
+	RoleNameDeclarationDeclarators: {"NameDeclaration", "declarators"},
+	RoleDestructuringLhsPattern:    {"DestructuringLhs", "pattern"},
+	RoleDestructuringLhsInit:       {"DestructuringLhs", "init"},
+	RoleExprStmtExpr:               {"ExprStmt", "expr"},
+	RoleReturnValue:                {"Return", "value"},
+	RoleThrowValue:                 {"Throw", "value"},
+	RoleBreakLabel:                 {"Break", "label"},
+	RoleContinueLabel:              {"Continue", "label"},
+	RoleFunctionName:               {"Function", "name"},
+	RoleFunctionParams:             {"Function", "params"},
+	RoleFunctionBody:               {"Function", "body"},
+	RoleParamListParams:            {"ParamList", "params"},
+	RoleDefaultValueTarget:         {"DefaultValue", "target"},
+	RoleDefaultValueValue:          {"DefaultValue", "value"},
+	RoleIterRestTarget:             {"IterRest", "target"},
+	RoleObjectRestTarget:           {"ObjectRest", "target"},
+	RoleIterSpreadExpr:             {"IterSpread", "expr"},
+	RoleObjectSpreadExpr:           {"ObjectSpread", "expr"},
+	RoleArrayPatternElements:       {"ArrayPattern", "elements"},
+	RoleObjectPatternProps:         {"ObjectPattern", "props"},
+	RoleClassName:                  {"Class", "name"},
+	RoleClassExtends:               {"Class", "extends"},
+	RoleClassBody:                  {"Class", "body"},
+	RoleClassBodyMembers:           {"ClassBody", "members"},
+	RoleMemberFunctionDefFunction:  {"MemberFunctionDef", "function"},
+	RoleGetterDefFunction:          {"GetterDef", "function"},
+	RoleSetterDefFunction:          {"SetterDef", "function"},
+	RoleMemberFieldDefValue:        {"MemberFieldDef", "value"},
+	RoleComputedFieldDefKey:        {"ComputedFieldDef", "key"},
+	RoleComputedFieldDefValue:      {"ComputedFieldDef", "value"},
+	RoleComputedPropKey:            {"ComputedProp", "key"},
+	RoleComputedPropValue:          {"ComputedProp", "value"},
+	RoleIndexSignatureChildren:     {"IndexSignature", "children"},
+	RoleCallSignatureChildren:      {"CallSignature", "children"},
+	RoleNameInit:                   {"Name", "init"},
+	RoleRegExpPattern:              {"RegExp", "pattern"},
+	RoleRegExpFlags:                {"RegExp", "flags"},
+	RoleTemplateLitParts:           {"TemplateLit", "parts"},
+	RoleTemplateLitSubExpr:         {"TemplateLitSub", "expr"},
+	RoleTaggedTemplateLitTag:       {"TaggedTemplateLit", "tag"},
+	RoleTaggedTemplateLitTemplate:  {"TaggedTemplateLit", "template"},
+	RoleArrayLitElements:           {"ArrayLit", "elements"},
+	RoleObjectLitMembers:           {"ObjectLit", "members"},
+	RoleStringKeyValue:             {"StringKey", "value"},
+	RoleUnaryOperand:               {"Unary", "operand"},
+	RoleCastExpr:                   {"Cast", "expr"},
+	RoleDynamicImportSpecifier:     {"DynamicImport", "specifier"},
+	RoleIncDecTarget:               {"IncDec", "target"},
+	RoleAssignTarget:               {"Assign", "target"},
+	RoleAssignValue:                {"Assign", "value"},
+	RoleAssignOpTarget:             {"AssignOp", "target"},
+	RoleAssignOpValue:              {"AssignOp", "value"},
+	RoleBinaryLeft:                 {"Binary", "left"},
+	RoleBinaryRight:                {"Binary", "right"},
+	RoleHookCond:                   {"Hook", "cond"},
+	RoleHookThen:                   {"Hook", "then"},
+	RoleHookElse:                   {"Hook", "else"},
+	RoleGetPropObject:              {"GetProp", "object"},
+	RoleOptChainGetPropObject:      {"OptChainGetProp", "object"},
+	RoleGetElemObject:              {"GetElem", "object"},
+	RoleGetElemIndex:               {"GetElem", "index"},
+	RoleOptChainGetElemObject:      {"OptChainGetElem", "object"},
+	RoleOptChainGetElemIndex:       {"OptChainGetElem", "index"},
+	RoleCallCallee:                 {"Call", "callee"},
+	RoleCallArgs:                   {"Call", "args"},
+	RoleOptChainCallCallee:         {"OptChainCall", "callee"},
+	RoleOptChainCallArgs:           {"OptChainCall", "args"},
+	RoleNewCallee:                  {"New", "callee"},
+	RoleNewArgs:                    {"New", "args"},
+	RoleYieldValue:                 {"Yield", "value"},
+	RoleAwaitValue:                 {"Await", "value"},
+	RoleImportDefault:              {"Import", "default"},
+	RoleImportBindings:             {"Import", "bindings"},
+	RoleImportSource:               {"Import", "source"},
+	RoleImportSpecsSpecs:           {"ImportSpecs", "specs"},
+	RoleImportSpecImported:         {"ImportSpec", "imported"},
+	RoleImportSpecLocal:            {"ImportSpec", "local"},
+	RoleExportBody:                 {"Export", "body"},
+	RoleExportSource:               {"Export", "source"},
+	RoleExportSpecsSpecs:           {"ExportSpecs", "specs"},
+	RoleExportSpecLocal:            {"ExportSpec", "local"},
+	RoleExportSpecExported:         {"ExportSpec", "exported"},
+	RoleInterfaceChildren:          {"Interface", "children"},
+	RoleEnumChildren:               {"Enum", "children"},
+	RoleTypeAliasChildren:          {"TypeAlias", "children"},
+	RoleDeclareChildren:            {"Declare", "children"},
+	RoleNamespaceChildren:          {"Namespace", "children"},
+}
+
+// roleRows gives, for the token of a parent, the roles of its children:
+// the fixed ones in order, then the list's for any child after them.
+var roleRows = [256]roleRow{
+	rhino.Token_ROOT:                {list: RoleRootItems},
+	rhino.Token_SCRIPT:              {list: RoleScriptItems},
+	rhino.Token_MODULE_BODY:         {list: RoleModuleBodyStatements},
+	rhino.Token_BLOCK:               {list: RoleBlockStatements},
+	rhino.Token_LABEL:               {fixed: [4]Role{RoleLabelName, RoleLabelBody}, nfixed: 2},
+	rhino.Token_IF:                  {fixed: [4]Role{RoleIfCond, RoleIfThen, RoleIfElse}, nfixed: 3},
+	rhino.Token_FOR:                 {fixed: [4]Role{RoleForInit, RoleForCond, RoleForUpdate, RoleForBody}, nfixed: 4},
+	rhino.Token_FOR_IN:              {fixed: [4]Role{RoleForInTarget, RoleForInObject, RoleForInBody}, nfixed: 3},
+	rhino.Token_FOR_OF:              {fixed: [4]Role{RoleForOfTarget, RoleForOfIterable, RoleForOfBody}, nfixed: 3},
+	rhino.Token_FOR_AWAIT_OF:        {fixed: [4]Role{RoleForAwaitOfTarget, RoleForAwaitOfIterable, RoleForAwaitOfBody}, nfixed: 3},
+	rhino.Token_WHILE:               {fixed: [4]Role{RoleWhileCond, RoleWhileBody}, nfixed: 2},
+	rhino.Token_DO:                  {fixed: [4]Role{RoleDoBody, RoleDoCond}, nfixed: 2},
+	rhino.Token_WITH:                {fixed: [4]Role{RoleWithObject, RoleWithBody}, nfixed: 2},
+	rhino.Token_SWITCH:              {fixed: [4]Role{RoleSwitchDiscriminant, RoleSwitchBody}, nfixed: 2},
+	rhino.Token_SWITCH_BODY:         {list: RoleSwitchBodyCases},
+	rhino.Token_CASE:                {fixed: [4]Role{RoleCaseValue, RoleCaseBody}, nfixed: 2},
+	rhino.Token_DEFAULT_CASE:        {fixed: [4]Role{RoleDefaultCaseBody}, nfixed: 1},
+	rhino.Token_TRY:                 {fixed: [4]Role{RoleTryBody, RoleTryCatches, RoleTryFinally}, nfixed: 3},
+	rhino.Token_CATCH:               {fixed: [4]Role{RoleCatchParam, RoleCatchBody}, nfixed: 2},
+	rhino.Token_VAR:                 {list: RoleNameDeclarationDeclarators},
+	rhino.Token_LET:                 {list: RoleNameDeclarationDeclarators},
+	rhino.Token_CONST:               {list: RoleNameDeclarationDeclarators},
+	rhino.Token_DESTRUCTURING_LHS:   {fixed: [4]Role{RoleDestructuringLhsPattern, RoleDestructuringLhsInit}, nfixed: 2},
+	rhino.Token_EXPR_RESULT:         {fixed: [4]Role{RoleExprStmtExpr}, nfixed: 1},
+	rhino.Token_RETURN:              {fixed: [4]Role{RoleReturnValue}, nfixed: 1},
+	rhino.Token_THROW:               {fixed: [4]Role{RoleThrowValue}, nfixed: 1},
+	rhino.Token_BREAK:               {fixed: [4]Role{RoleBreakLabel}, nfixed: 1},
+	rhino.Token_CONTINUE:            {fixed: [4]Role{RoleContinueLabel}, nfixed: 1},
+	rhino.Token_FUNCTION:            {fixed: [4]Role{RoleFunctionName, RoleFunctionParams, RoleFunctionBody}, nfixed: 3},
+	rhino.Token_PARAM_LIST:          {list: RoleParamListParams},
+	rhino.Token_DEFAULT_VALUE:       {fixed: [4]Role{RoleDefaultValueTarget, RoleDefaultValueValue}, nfixed: 2},
+	rhino.Token_ITER_REST:           {fixed: [4]Role{RoleIterRestTarget}, nfixed: 1},
+	rhino.Token_OBJECT_REST:         {fixed: [4]Role{RoleObjectRestTarget}, nfixed: 1},
+	rhino.Token_ITER_SPREAD:         {fixed: [4]Role{RoleIterSpreadExpr}, nfixed: 1},
+	rhino.Token_OBJECT_SPREAD:       {fixed: [4]Role{RoleObjectSpreadExpr}, nfixed: 1},
+	rhino.Token_ARRAY_PATTERN:       {list: RoleArrayPatternElements},
+	rhino.Token_OBJECT_PATTERN:      {list: RoleObjectPatternProps},
+	rhino.Token_CLASS:               {fixed: [4]Role{RoleClassName, RoleClassExtends, RoleClassBody}, nfixed: 3},
+	rhino.Token_CLASS_MEMBERS:       {list: RoleClassBodyMembers},
+	rhino.Token_MEMBER_FUNCTION_DEF: {fixed: [4]Role{RoleMemberFunctionDefFunction}, nfixed: 1},
+	rhino.Token_GETTER_DEF:          {fixed: [4]Role{RoleGetterDefFunction}, nfixed: 1},
+	rhino.Token_SETTER_DEF:          {fixed: [4]Role{RoleSetterDefFunction}, nfixed: 1},
+	rhino.Token_MEMBER_FIELD_DEF:    {fixed: [4]Role{RoleMemberFieldDefValue}, nfixed: 1},
+	rhino.Token_COMPUTED_FIELD_DEF:  {fixed: [4]Role{RoleComputedFieldDefKey, RoleComputedFieldDefValue}, nfixed: 2},
+	rhino.Token_COMPUTED_PROP:       {fixed: [4]Role{RoleComputedPropKey, RoleComputedPropValue}, nfixed: 2},
+	rhino.Token_INDEX_SIGNATURE:     {list: RoleIndexSignatureChildren},
+	rhino.Token_CALL_SIGNATURE:      {list: RoleCallSignatureChildren},
+	rhino.Token_NAME:                {fixed: [4]Role{RoleNameInit}, nfixed: 1},
+	rhino.Token_REGEXP:              {fixed: [4]Role{RoleRegExpPattern, RoleRegExpFlags}, nfixed: 2},
+	rhino.Token_TEMPLATELIT:         {list: RoleTemplateLitParts},
+	rhino.Token_TEMPLATELIT_SUB:     {fixed: [4]Role{RoleTemplateLitSubExpr}, nfixed: 1},
+	rhino.Token_TAGGED_TEMPLATELIT:  {fixed: [4]Role{RoleTaggedTemplateLitTag, RoleTaggedTemplateLitTemplate}, nfixed: 2},
+	rhino.Token_ARRAYLIT:            {list: RoleArrayLitElements},
+	rhino.Token_OBJECTLIT:           {list: RoleObjectLitMembers},
+	rhino.Token_STRING_KEY:          {fixed: [4]Role{RoleStringKeyValue}, nfixed: 1},
+	rhino.Token_DELPROP:             {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_POS:                 {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_NEG:                 {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_NOT:                 {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_TYPEOF:              {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_VOID:                {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_BITNOT:              {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_CAST:                {fixed: [4]Role{RoleCastExpr}, nfixed: 1},
+	rhino.Token_DYNAMIC_IMPORT:      {fixed: [4]Role{RoleDynamicImportSpecifier}, nfixed: 1},
+	rhino.Token_INC:                 {fixed: [4]Role{RoleIncDecTarget}, nfixed: 1},
+	rhino.Token_DEC:                 {fixed: [4]Role{RoleIncDecTarget}, nfixed: 1},
+	rhino.Token_ASSIGN:              {fixed: [4]Role{RoleAssignTarget, RoleAssignValue}, nfixed: 2},
+	rhino.Token_ASSIGN_BITOR:        {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_BITXOR:       {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_BITAND:       {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_LSH:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_RSH:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_URSH:         {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_ADD:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_SUB:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_MUL:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_DIV:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_MOD:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_EXPONENT:     {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_OR:           {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_AND:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_COALESCE:     {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_COMMA:               {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_OR:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_AND:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_COALESCE:            {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_BITOR:               {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_BITXOR:              {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_BITAND:              {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_EQ:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_NE:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_SHEQ:                {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_SHNE:                {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_LT:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_GT:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_LE:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_GE:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_INSTANCEOF:          {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_IN:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_LSH:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_RSH:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_URSH:                {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_SUB:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_ADD:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_MUL:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_MOD:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_DIV:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_EXPONENT:            {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_HOOK:                {fixed: [4]Role{RoleHookCond, RoleHookThen, RoleHookElse}, nfixed: 3},
+	rhino.Token_GETPROP:             {fixed: [4]Role{RoleGetPropObject}, nfixed: 1},
+	rhino.Token_OPTCHAIN_GETPROP:    {fixed: [4]Role{RoleOptChainGetPropObject}, nfixed: 1},
+	rhino.Token_GETELEM:             {fixed: [4]Role{RoleGetElemObject, RoleGetElemIndex}, nfixed: 2},
+	rhino.Token_OPTCHAIN_GETELEM:    {fixed: [4]Role{RoleOptChainGetElemObject, RoleOptChainGetElemIndex}, nfixed: 2},
+	rhino.Token_CALL:                {fixed: [4]Role{RoleCallCallee}, nfixed: 1, list: RoleCallArgs},
+	rhino.Token_OPTCHAIN_CALL:       {fixed: [4]Role{RoleOptChainCallCallee}, nfixed: 1, list: RoleOptChainCallArgs},
+	rhino.Token_NEW:                 {fixed: [4]Role{RoleNewCallee}, nfixed: 1, list: RoleNewArgs},
+	rhino.Token_YIELD:               {fixed: [4]Role{RoleYieldValue}, nfixed: 1},
+	rhino.Token_AWAIT:               {fixed: [4]Role{RoleAwaitValue}, nfixed: 1},
+	rhino.Token_IMPORT:              {fixed: [4]Role{RoleImportDefault, RoleImportBindings, RoleImportSource}, nfixed: 3},
+	rhino.Token_IMPORT_SPECS:        {list: RoleImportSpecsSpecs},
+	rhino.Token_IMPORT_SPEC:         {fixed: [4]Role{RoleImportSpecImported, RoleImportSpecLocal}, nfixed: 2},
+	rhino.Token_EXPORT:              {fixed: [4]Role{RoleExportBody, RoleExportSource}, nfixed: 2},
+	rhino.Token_EXPORT_SPECS:        {list: RoleExportSpecsSpecs},
+	rhino.Token_EXPORT_SPEC:         {fixed: [4]Role{RoleExportSpecLocal, RoleExportSpecExported}, nfixed: 2},
+	rhino.Token_INTERFACE:           {list: RoleInterfaceChildren},
+	rhino.Token_ENUM:                {list: RoleEnumChildren},
+	rhino.Token_TYPE_ALIAS:          {list: RoleTypeAliasChildren},
+	rhino.Token_DECLARE:             {list: RoleDeclareChildren},
+	rhino.Token_NAMESPACE:           {list: RoleNamespaceChildren},
+}
+
+// contextRole returns the role of n if its parent p is a node of a kind that
+// only appears in one place (TryCatches, a BLOCK), and RoleNone otherwise.
+func contextRole(n, p rhino.Node) Role {
+	switch p.GetToken() {
+	case rhino.Token_BLOCK:
+		if gp := p.GetParent(); gp != rhino.NilNode && gp.GetToken() == rhino.Token_TRY && gp.GetSecondChild() == p {
+			return RoleTryCatchesCatch
+		}
+	}
+	return RoleNone
+}
+
 // grammarKinds is the grammar's node kinds, for Check.
 var grammarKinds = []kindSpec{
 	{name: "Root", context: false, tokens: []rhino.Token{rhino.Token_ROOT}, children: []childSpec{{role: "items", typ: "RootItem", mode: list}}},

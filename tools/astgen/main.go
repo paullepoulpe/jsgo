@@ -340,6 +340,7 @@ func generate(g *grammar) []byte {
 	}
 	w.elementNavigation()
 	w.visitor()
+	w.roles()
 	w.tables()
 	return w.buf.Bytes()
 }
@@ -1008,6 +1009,130 @@ func (w *gen) visitor() {
 	w.p("}")
 	w.p("")
 }
+
+// roleConst returns the name of the Role constant of the role of k.
+func roleConst(k *kind, role string) string { return "Role" + k.name + upper(role) }
+
+// roles writes Role, its constants (one per child of each kind) and RoleOf.
+func (w *gen) roles() {
+	type entry struct{ kind, role string }
+	var entries []entry
+	w.p("// The roles, one per child of each kind of the grammar: RoleIfCond is the cond")
+	w.p("// of an if, RoleCallArgs any of the args of a call.")
+	w.p("const (")
+	w.p("// RoleNone is the role of a node without a parent, or whose parent's kind is")
+	w.p("// not in the grammar (JSDoc type expressions, for example).")
+	w.p("RoleNone Role = iota")
+	for _, k := range w.g.kinds {
+		for _, c := range k.children {
+			w.p("%s // %s", roleConst(k, c.role), k.name+"."+c.role)
+			entries = append(entries, entry{k.name, c.role})
+		}
+	}
+	w.p(")")
+	w.p("")
+	var aliases []string
+	for _, k := range w.g.kinds {
+		for _, c := range k.children {
+			for _, alias := range c.aliases {
+				aliases = append(aliases, fmt.Sprintf("%s = %s // %s.%s is another name for %s.%s", roleConst(k, alias), roleConst(k, c.role), k.name, alias, k.name, c.role))
+			}
+		}
+	}
+	if len(aliases) > 0 {
+		w.p("// Other names of roles (role|alias in the grammar).")
+		w.p("const (")
+		for _, a := range aliases {
+			w.p("%s", a)
+		}
+		w.p(")")
+		w.p("")
+	}
+	w.p("// roleNames gives the kind and the role name of each Role.")
+	w.p("var roleNames = [...][2]string{")
+	w.p("RoleNone: {\"\", \"\"},")
+	for _, e := range entries {
+		w.p("Role%s%s: {%q, %q},", e.kind, upper(e.role), e.kind, e.role)
+	}
+	w.p("}")
+	w.p("")
+	w.p("// roleRows gives, for the token of a parent, the roles of its children:")
+	w.p("// the fixed ones in order, then the list's for any child after them.")
+	w.p("var roleRows = [256]roleRow{")
+	for _, k := range w.g.kinds {
+		if k.context {
+			continue
+		}
+		var fixed []string
+		listRole := ""
+		for _, c := range k.children {
+			if c.mode == list {
+				listRole = roleConst(k, c.role)
+			} else {
+				fixed = append(fixed, roleConst(k, c.role))
+			}
+		}
+		if len(fixed) > maxFixedRoles {
+			panic(fmt.Sprintf("astgen: %s has more than %d fixed children", k.name, maxFixedRoles))
+		}
+		var fields []string
+		if len(fixed) > 0 {
+			fields = append(fields, fmt.Sprintf("fixed: [%d]Role{%s}, nfixed: %d", maxFixedRoles, strings.Join(fixed, ", "), len(fixed)))
+		}
+		if listRole != "" {
+			fields = append(fields, "list: "+listRole)
+		}
+		if len(fields) == 0 {
+			continue
+		}
+		for _, t := range k.tokens {
+			w.p("%s: {%s},", tokenConst(t), strings.Join(fields, ", "))
+		}
+	}
+	w.p("}")
+	w.p("")
+	// The children of a context kind: it shares its token with another kind,
+	// so RoleOf first asks whether the parent is in the context kind's place.
+	w.p("// contextRole returns the role of n if its parent p is a node of a kind that")
+	w.p("// only appears in one place (TryCatches, a BLOCK), and RoleNone otherwise.")
+	w.p("func contextRole(n, p rhino.Node) Role {")
+	w.p("switch p.GetToken() {")
+	for _, k := range w.g.kinds {
+		if !k.context {
+			continue
+		}
+		if len(k.tokens) != 1 || len(k.children) != 1 || k.children[0].mode != optional {
+			panic("astgen: RoleOf handles context kinds of one token and one optional child: " + k.name)
+		}
+		var parent *kind
+		var at child
+		for _, pk := range w.g.kinds {
+			for _, c := range pk.children {
+				if c.typ == k.name {
+					if parent != nil || c.mode != required {
+						panic("astgen: context kind " + k.name + " must be a required child of one kind")
+					}
+					parent, at = pk, c
+				}
+			}
+		}
+		if len(parent.tokens) != 1 {
+			panic("astgen: the parent of context kind " + k.name + " must have one token")
+		}
+		e := strings.Replace(childExpr(parent, at.index), "x.node", "gp", 1)
+		w.p("case %s:", tokenConst(k.tokens[0]))
+		w.p("if gp := p.GetParent(); gp != rhino.NilNode && gp.GetToken() == %s && %s == p {", tokenConst(parent.tokens[0]), e)
+		w.p("return %s", roleConst(k, k.children[0].role))
+		w.p("}")
+	}
+	w.p("}")
+	w.p("return RoleNone")
+	w.p("}")
+	w.p("")
+}
+
+// maxFixedRoles is the most children before a list (or in all) of a kind.
+const maxFixedRoles = 4
 
 // tables writes the grammar as data, for Check (check.go).
 func (w *gen) tables() {

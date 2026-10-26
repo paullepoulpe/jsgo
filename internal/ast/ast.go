@@ -16,6 +16,9 @@
 // appear in one place; As methods convert between kinds and categories,
 // checking the token when the conversion can fail.
 //
+// RoleOf answers the question from the child's side: which child of its
+// parent a node is (ast.RoleOf(n) == ast.RoleAssignTarget).
+//
 // The types are views: each holds the rhino.Node it describes (4 bytes),
 // so they cost nothing to create or pass, and Node() goes back to the
 // rhino API for anything this package does not cover.

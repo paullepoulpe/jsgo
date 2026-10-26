@@ -601,3 +601,72 @@ func TestMustOnCategories(t *testing.T) {
 	}()
 	decl.MustDestructuringLhs()
 }
+
+func TestRoleOf(t *testing.T) {
+	newStore(t)
+	x, y := NewName("x"), NewName("y")
+	assign := NewAssign(x.AsTarget(), y.AsExpr())
+	f, a1, a2 := NewName("f"), NewName("a"), NewName("b")
+	call := NewCall(f.AsExpr(), a1.AsArg(), a2.AsArg())
+	then := NewBlock(NewExprStmt(assign.AsExpr()).AsStatement(), NewExprStmt(call.AsExpr()).AsStatement())
+	cond := NewName("c")
+	ifs := NewIf(cond.AsExpr(), then)
+	els := NewBlock()
+	ifs.SetElse(els)
+	for _, tc := range []struct {
+		n    rhino.Node
+		want Role
+	}{
+		{x.Node(), RoleAssignTarget},
+		{y.Node(), RoleAssignValue},
+		{f.Node(), RoleCallCallee},
+		{a1.Node(), RoleCallArgs},
+		{a2.Node(), RoleCallArgs},
+		{assign.Node().GetParent(), RoleBlockStatements},
+		{cond.Node(), RoleIfCond},
+		{then.Node(), RoleIfThen},
+		{els.Node(), RoleIfElse},
+		{ifs.Node(), RoleNone},
+	} {
+		if got := RoleOf(tc.n); got != tc.want {
+			t.Errorf("RoleOf(%s) = %s, want %s", tc.n.GetToken(), got, tc.want)
+		}
+	}
+	if r := RoleOf(then.Node()); r.Kind() != "If" || r.Name() != "then" || r.String() != "If.then" {
+		t.Errorf("RoleIfThen is %q %q %q", r.Kind(), r.Name(), r.String())
+	}
+
+	// The EMPTY placeholders of a for have the roles they stand for.
+	forNode := rhino.IR_ForNode(rhino.IR_Empty(), rhino.IR_Empty(), rhino.IR_Empty(), rhino.IR_Block())
+	for i, want := range []Role{RoleForInit, RoleForCond, RoleForUpdate, RoleForBody} {
+		if got := RoleOf(forNode.GetChildAtIndex(i)); got != want {
+			t.Errorf("RoleOf(child %d of a for) = %s, want %s", i, got, want)
+		}
+	}
+
+	// The catch of a try is in its holder, a BLOCK: not a block statement.
+	catch := NewCatchClause(t)
+	try := NewTry(NewBlock())
+	try.SetCatch(catch)
+	stmt := NewExprStmt(NewName("z").AsExpr())
+	try.Body().AppendStatement(stmt.AsStatement())
+	for _, tc := range []struct {
+		n    rhino.Node
+		want Role
+	}{
+		{catch.Node(), RoleTryCatchesCatch},
+		{try.Catches().Node(), RoleTryCatches},
+		{try.Body().Node(), RoleTryBody},
+		{stmt.Node(), RoleBlockStatements},
+	} {
+		if got := RoleOf(tc.n); got != tc.want {
+			t.Errorf("RoleOf(%s) = %s, want %s", tc.n.GetToken(), got, tc.want)
+		}
+	}
+
+	// An alias is the same role.
+	forIn := NewForIn(NewName("k").AsForTarget(), NewName("o").AsExpr(), NewBlock())
+	if RoleOf(forIn.Collection().Node()) != RoleForInCollection || RoleForInCollection != RoleForInObject {
+		t.Error("the collection of a for-in does not have the role RoleForInCollection")
+	}
+}
