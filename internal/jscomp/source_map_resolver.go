@@ -47,10 +47,9 @@ var sourceMapResolver_ACCEPTED_MEDIA_TYPES = jutil.NewLinkedHashSet(
 // Java: SourceMapResolver.extractSourceMap(SourceFile, String, boolean)
 func SourceMapResolver_ExtractSourceMap(jsFile *SourceFile, sourceMapURL string, parseInlineSourceMaps bool) *SourceFile {
 	if parseInlineSourceMaps && strings.HasPrefix(sourceMapURL, sourceMapResolver_BASE64_URL_PREFIX) {
-		extractedString := sourceMapResolver_extractBase64String(sourceMapURL)
-		if extractedString != nil {
-			return SourceFile_FromCodeWithKind(
-				jsFile.GetName()+".inline.map", *extractedString, rhino.StaticSourceFile_SourceKind_NON_CODE)
+		if rawBase64, canonicalUTF8, ok := sourceMapResolver_extractRawBase64(sourceMapURL); ok {
+			return newInlineBase64SourceFile(
+				jsFile.GetName()+".inline.map", rawBase64, canonicalUTF8)
 		}
 		return nil
 	}
@@ -62,6 +61,21 @@ func SourceMapResolver_ExtractSourceMap(jsFile *SourceFile, sourceMapURL string,
 	// If not absolute, its relative.
 	// TODO(tdeegan): Handle urls relative to //# sourceURL. See the sourcemap spec.
 	return SourceMapResolver_GetRelativePath(jsFile.GetName(), sourceMapURL)
+}
+
+func sourceMapResolver_extractRawBase64(url string) (rawBase64 string, canonicalUTF8 bool, ok bool) {
+	if strings.HasPrefix(url, sourceMapResolver_BASE64_URL_PREFIX) {
+		base64StartIndex := strings.Index(url, sourceMapResolver_BASE64_START)
+		if base64StartIndex >= 0 {
+			mediaType := url[len(sourceMapResolver_BASE64_URL_PREFIX):base64StartIndex]
+			if sourceMapResolver_ACCEPTED_MEDIA_TYPES.Contains(mediaType) {
+				raw := url[base64StartIndex+len(sourceMapResolver_BASE64_START):]
+				canonical := jutil.BaseEncoding_Base64().ValidateAndCheckCanonicalUTF8(raw)
+				return strings.Clone(raw), canonical, true
+			}
+		}
+	}
+	return "", false, false
 }
 
 // sourceMapResolver_extractBase64String is based on

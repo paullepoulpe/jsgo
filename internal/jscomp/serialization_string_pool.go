@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"sync"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -79,20 +81,80 @@ func (p *StringPool) GetInternedStrings() *rhino.RhinoStringPool_LazyInternedStr
 
 // Java: StringPool.toProto()
 func (p *StringPool) ToProto() *StringPoolProto {
+	return p.ToProtoWithThreads(1)
+}
+
+func (p *StringPool) ToProtoWithThreads(numThreads int) *StringPoolProto {
 	n := p.pool.Len()
 	var strings [][]byte
+	spSize := 0
 	if n > 1 {
-		strings = make([][]byte, n-1)
-		for i := 1; i < n; i++ {
-			strings[i-1] = Wtf8_EncodeToWtf8(p.pool.Get(i))
+		count := n - 1
+		strings = make([][]byte, count)
+		workers := 1
+		if numThreads > 1 && count >= 2048 {
+			workers = min(numThreads, (count+1023)/1024)
 		}
+		if workers <= 1 {
+			spSize = encodeStringPoolShard(p.pool, strings, 1, n)
+		} else {
+			shardSizes := make([]int, workers)
+			var wg sync.WaitGroup
+			wg.Add(workers)
+			for w := 0; w < workers; w++ {
+				start := 1 + (w*count)/workers
+				end := 1 + ((w+1)*count)/workers
+				workerIdx := w
+				go func() {
+					defer wg.Done()
+					shardSizes[workerIdx] = encodeStringPoolShard(p.pool, strings, start, end)
+				}()
+			}
+			wg.Wait()
+			for _, sz := range shardSizes {
+				spSize += sz
+			}
+		}
+	}
+	if p.maxLength != 0 {
+		spSize += 1 + protoVarintLen(uint64(int64(p.maxLength)))
 	}
 	return &StringPoolProto{
 		strings_:     strings,
 		maxLength_:   int32(p.maxLength),
 		frozen:       true,
-		memoizedSize: -1,
+		memoizedSize: spSize,
 	}
+}
+
+func encodeStringPoolShard(pool *rhino.RhinoStringPool_LazyInternedStringList, out [][]byte, start, end int) int {
+	const slabSize = 256 * 1024
+	var slab []byte
+	spSize := 0
+	for i := start; i < end; i++ {
+		s := pool.Get(i)
+		var b []byte
+		if jutil.IsASCII(s) {
+			slen := len(s)
+			if slen == 0 {
+				b = nil
+			} else if slen <= 4096 {
+				if len(slab) < slen {
+					slab = make([]byte, slabSize)
+				}
+				b = slab[:slen:slen]
+				copy(b, s)
+				slab = slab[slen:]
+			} else {
+				b = []byte(s)
+			}
+		} else {
+			b = Wtf8_EncodeToWtf8(s)
+		}
+		out[i-1] = b
+		spSize += 1 + protoVarintLen(uint64(len(b))) + len(b)
+	}
+	return spSize
 }
 
 // StringPool_Builder_ is StringPool.builder().

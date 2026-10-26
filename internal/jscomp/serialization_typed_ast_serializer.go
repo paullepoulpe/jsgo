@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"sync"
+	"sync/atomic"
+
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -240,18 +243,27 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot rhino.Node, jsRoot rhino
 		s.typeSerializer = NewTypedAstSerializer_NoOpTypeSerializer()
 	}
 
-	builder := TypedAst_NewBuilder()
-	for script := externsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
-		if NodeUtil_IsFromTypeSummary(script) {
-			continue
-		}
-		builder.AddExternAst(s.SerializeScriptNode(script))
+	numThreads := 1
+	if opts := s.compiler.GetOptions(); opts != nil && opts.GetNumParallelThreads() > 1 {
+		numThreads = opts.GetNumParallelThreads()
 	}
-	for script := jsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
-		if NodeUtil_IsFromTypeSummary(script) {
-			continue
+
+	builder := TypedAst_NewBuilder()
+	if numThreads > 1 && s.jsTypeSerializer == nil {
+		s.serializeRootsParallel(externsRoot, jsRoot, numThreads, builder)
+	} else {
+		for script := externsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+			if NodeUtil_IsFromTypeSummary(script) {
+				continue
+			}
+			builder.AddExternAst(s.SerializeScriptNode(script))
 		}
-		builder.AddCodeAst(s.SerializeScriptNode(script))
+		for script := jsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+			if NodeUtil_IsFromTypeSummary(script) {
+				continue
+			}
+			builder.AddCodeAst(s.SerializeScriptNode(script))
+		}
 	}
 
 	sourceFileProtos := make([]*SourceFileProto, 0, len(s.sourceFileList))
@@ -273,7 +285,7 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot rhino.Node, jsRoot rhino
 	return builder.
 		AddAllRuntimeLibraryToInject(s.serializationMode.RuntimeLibraries()).
 		SetTypePool(s.typeSerializer.GenerateTypePool()).
-		SetStringPool(s.stringPool.Build().ToProto()).
+		SetStringPool(s.stringPool.Build().ToProtoWithThreads(numThreads)).
 		SetSourceFilePool(sourceFiles).
 		Build()
 }
@@ -472,6 +484,10 @@ func (s *TypedAstSerializer) GetSourceFilePointer(n rhino.Node) int {
 	}
 
 	s.subtreeSourceFiles = append(s.subtreeSourceFiles, sourceFile)
+	return s.internSourceFile(sourceFile)
+}
+
+func (s *TypedAstSerializer) internSourceFile(sourceFile *SourceFile) int {
 	if idx, ok := s.sourceFilePointers[sourceFile]; ok {
 		return idx
 	}
@@ -479,6 +495,485 @@ func (s *TypedAstSerializer) GetSourceFilePointer(n rhino.Node) int {
 	s.sourceFileList = append(s.sourceFileList, sourceFile)
 	s.sourceFilePointers[sourceFile] = idx
 	return idx
+}
+
+type serializerFixupKind uint8
+
+const (
+	fixupKindStringID serializerFixupKind = iota
+	fixupKindStringIDUsedProp
+	fixupKindColor
+	fixupKindSourceFile
+)
+
+type serializerFixup struct {
+	dst   *int32
+	color *colors.Color
+	sf    *SourceFile
+	strID uint32
+	kind  serializerFixupKind
+}
+
+type typedAstScriptArena struct {
+	TypedAstSerializer
+	rootProto      *AstNode
+	lazyAst        LazyAst
+	fixups         []serializerFixup
+	jsdocFixups    []*OptimizationJsdoc
+	templateFixups []*TemplateStringValue
+	postOrderNodes []*AstNode
+}
+
+func (a *typedAstScriptArena) resetForScript() {
+	a.previousColumn = 0
+	a.previousLine = 0
+	a.resetScriptSlabs()
+	a.subtreeSourceFiles = a.subtreeSourceFiles[:0]
+	a.rootProto = nil
+	a.lazyAst = LazyAst{frozen: true, memoizedSize: -1}
+	a.fixups = a.fixups[:0]
+	a.jsdocFixups = a.jsdocFixups[:0]
+	a.templateFixups = a.templateFixups[:0]
+	a.postOrderNodes = a.postOrderNodes[:0]
+}
+
+func (a *typedAstScriptArena) buildScriptPassA(script rhino.Node, parent *TypedAstSerializer) {
+	jutil.CheckState(script.IsScript())
+	a.resetForScript()
+
+	var scriptSF *SourceFile
+	if ssf := script.GetStaticSourceFile(); ssf != nil {
+		scriptSF = ssf.(*SourceFile)
+	}
+	if scriptSF == nil {
+		if !a.peekLastSubtreeSourceFile().IsExtern() {
+			jutil.CheckStateMsg2(
+				false,
+				"Unexpected null SourceFile for node %s with parent %s",
+				script.ToStringTree(),
+				script.GetParent())
+		}
+	} else {
+		a.subtreeSourceFiles = append(a.subtreeSourceFiles, scriptSF)
+		a.fixups = append(a.fixups, serializerFixup{
+			kind: fixupKindSourceFile,
+			sf:   scriptSF,
+			dst:  &a.lazyAst.sourceFile_,
+		})
+	}
+
+	a.rootProto = a.visitArenaParallel(script, parent)
+	a.subtreeSourceFiles = a.subtreeSourceFiles[:0]
+
+	if encodedSourceMap := parent.compiler.GetBase64SourceMapContents(*script.GetSourceFileName()); encodedSourceMap != nil {
+		a.lazyAst.sourceMappingUrl_ = *encodedSourceMap
+	}
+}
+
+func (a *typedAstScriptArena) visitArenaParallel(n rhino.Node, parent *TypedAstSerializer) *AstNode {
+	jutil.CheckState(n.GetLength() >= 0)
+	currentLine := n.GetLineno()
+	currentColumn := n.GetCharno()
+	m := a.allocAstNode()
+	m.relativeLine_ = int32(currentLine - a.previousLine)
+	m.relativeColumn_ = int32(currentColumn - a.previousColumn)
+	a.previousLine = currentLine
+	a.previousColumn = currentColumn
+
+	if parent.colorTypeSerializer != nil {
+		if color := n.GetColor(); color != nil {
+			m.bitField0_ |= 1 << 0
+			a.fixups = append(a.fixups, serializerFixup{
+				kind:  fixupKindColor,
+				color: color,
+				dst:   &m.type_,
+			})
+		}
+	} else if parent.typeSerializer != nil {
+		b := AstNode_Builder{m: m}
+		parent.typeSerializer.AddTypeForNode(n, &b)
+	}
+
+	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
+		var doc OptimizationJsdoc
+		if a.jsdocKindScratch == nil {
+			a.jsdocKindScratch = make([]int32, 0, 8)
+		}
+		doc.kind_ = jsDocSerializer_fillJsdocTagsOnly(jsdoc, a.jsdocKindScratch[:0])
+		a.jsdocKindScratch = doc.kind_[:0]
+
+		lic := jsdoc.GetLicense()
+		desc := jsdoc.GetDescription()
+		alt := jsdoc.GetAlternateMessageId()
+		mean := jsdoc.GetMeaning()
+		var modeStr string
+		if mode := jsdoc.GetPerFileClosureUnawareMode(); mode != nil {
+			modeStr = mode.String()
+		}
+		hasStr := (lic != nil && *lic != "") ||
+			(desc != nil && *desc != "") ||
+			(alt != nil && *alt != "") ||
+			(mean != nil && *mean != "") ||
+			modeStr != ""
+		if len(doc.kind_) != 0 || hasStr {
+			allocatedDoc := a.allocJsdoc(doc)
+			m.jsdoc_ = allocatedDoc
+			if hasStr {
+				a.jsdocFixups = append(a.jsdocFixups, allocatedDoc)
+				if lic != nil && *lic != "" {
+					a.fixups = append(a.fixups, serializerFixup{
+						kind:  fixupKindStringID,
+						strID: rhino.RhinoStringPool_InternID(*lic),
+						dst:   &allocatedDoc.licenseTextPointer_,
+					})
+				}
+				if desc != nil && *desc != "" {
+					a.fixups = append(a.fixups, serializerFixup{
+						kind:  fixupKindStringID,
+						strID: rhino.RhinoStringPool_InternID(*desc),
+						dst:   &allocatedDoc.descriptionPointer_,
+					})
+				}
+				if alt != nil && *alt != "" {
+					a.fixups = append(a.fixups, serializerFixup{
+						kind:  fixupKindStringID,
+						strID: rhino.RhinoStringPool_InternID(*alt),
+						dst:   &allocatedDoc.alternateMessageIdPointer_,
+					})
+				}
+				if mean != nil && *mean != "" {
+					a.fixups = append(a.fixups, serializerFixup{
+						kind:  fixupKindStringID,
+						strID: rhino.RhinoStringPool_InternID(*mean),
+						dst:   &allocatedDoc.meaningPointer_,
+					})
+				}
+				if modeStr != "" {
+					a.fixups = append(a.fixups, serializerFixup{
+						kind:  fixupKindStringID,
+						strID: rhino.RhinoStringPool_InternID(modeStr),
+						dst:   &allocatedDoc.closureUnawareModePointer_,
+					})
+				}
+			}
+		}
+	}
+
+	m.kind_ = a.KindTranslator(n).GetNumber()
+	a.valueTranslatorParallel(m, n, parent.recordUsedProps)
+	m.booleanProperties_ = n.SerializeProperties()
+
+	pushedSF := false
+	var sf *SourceFile
+	if ssf := n.GetStaticSourceFile(); ssf != nil {
+		sf = ssf.(*SourceFile)
+	}
+	if sf == nil {
+		if !a.peekLastSubtreeSourceFile().IsExtern() {
+			jutil.CheckStateMsg2(
+				false,
+				"Unexpected null SourceFile for node %s with parent %s",
+				n.ToStringTree(),
+				n.GetParent())
+		}
+	} else if sf != a.peekLastSubtreeSourceFile() {
+		a.subtreeSourceFiles = append(a.subtreeSourceFiles, sf)
+		pushedSF = true
+		a.fixups = append(a.fixups, serializerFixup{
+			kind: fixupKindSourceFile,
+			sf:   sf,
+			dst:  &m.sourceFile_,
+		})
+	}
+
+	firstChild := n.GetFirstChild()
+	shadowedCode := n.GetClosureUnawareShadow()
+	if !firstChild.IsNil() || !shadowedCode.IsNil() {
+		childrenStart := len(a.childStack)
+		for child := firstChild; !child.IsNil(); child = child.GetNext() {
+			a.childStack = append(a.childStack, a.visitArenaParallel(child, parent))
+		}
+		if !shadowedCode.IsNil() {
+			a.childStack = append(a.childStack, a.visitArenaParallel(shadowedCode.GetFirstFirstChild().GetFirstChild(), parent))
+		}
+		m.child_ = a.allocChildren(a.childStack[childrenStart:])
+		a.childStack = a.childStack[:childrenStart]
+	}
+
+	if pushedSF {
+		if len(a.subtreeSourceFiles) == 0 {
+			panic(jutil.NewNoSuchElementException())
+		}
+		a.subtreeSourceFiles = a.subtreeSourceFiles[:len(a.subtreeSourceFiles)-1]
+	}
+	if origID := n.GetOriginalNameID(); origID != 0 {
+		a.fixups = append(a.fixups, serializerFixup{
+			kind:  fixupKindStringID,
+			strID: origID,
+			dst:   &m.originalNamePointer_,
+		})
+	}
+
+	a.postOrderNodes = append(a.postOrderNodes, m)
+	return m
+}
+
+func (a *typedAstScriptArena) valueTranslatorParallel(m *AstNode, n rhino.Node, recordUsedProps bool) {
+	switch n.GetToken() {
+	case rhino.Token_GETPROP,
+		rhino.Token_OPTCHAIN_GETPROP:
+		kind := fixupKindStringID
+		if recordUsedProps {
+			kind = fixupKindStringIDUsedProp
+		}
+		a.fixups = append(a.fixups, serializerFixup{
+			kind:  kind,
+			strID: n.GetStringID(),
+			dst:   &m.stringValuePointer_,
+		})
+		m.valueCase_ = 3
+	case rhino.Token_STRING_KEY,
+		rhino.Token_MEMBER_FUNCTION_DEF,
+		rhino.Token_MEMBER_FIELD_DEF,
+		rhino.Token_GETTER_DEF,
+		rhino.Token_SETTER_DEF:
+		kind := fixupKindStringID
+		if recordUsedProps && !n.IsQuotedStringKey() {
+			kind = fixupKindStringIDUsedProp
+		}
+		a.fixups = append(a.fixups, serializerFixup{
+			kind:  kind,
+			strID: n.GetStringID(),
+			dst:   &m.stringValuePointer_,
+		})
+		m.valueCase_ = 3
+	case rhino.Token_NAME,
+		rhino.Token_STRINGLIT,
+		rhino.Token_LABEL_NAME,
+		rhino.Token_IMPORT_STAR:
+		a.fixups = append(a.fixups, serializerFixup{
+			kind:  fixupKindStringID,
+			strID: n.GetStringID(),
+			dst:   &m.stringValuePointer_,
+		})
+		m.valueCase_ = 3
+	case rhino.Token_TEMPLATELIT_STRING:
+		tmpl := a.allocTemplateStringValue(0, -1)
+		m.templateStringValue_ = tmpl
+		m.valueCase_ = 8
+		a.templateFixups = append(a.templateFixups, tmpl)
+		a.fixups = append(a.fixups, serializerFixup{
+			kind:  fixupKindStringID,
+			strID: n.GetRawStringID(),
+			dst:   &tmpl.rawStringPointer_,
+		})
+		if cookedID := n.GetCookedStringID(); cookedID != 0 {
+			a.fixups = append(a.fixups, serializerFixup{
+				kind:  fixupKindStringID,
+				strID: cookedID,
+				dst:   &tmpl.cookedStringPointer_,
+			})
+		}
+	case rhino.Token_NUMBER:
+		m.doubleValue_ = n.GetDouble()
+		m.valueCase_ = 4
+	case rhino.Token_BIGINT:
+		a.fixups = append(a.fixups, serializerFixup{
+			kind:  fixupKindStringID,
+			strID: rhino.RhinoStringPool_InternID(n.GetBigInt().String()),
+			dst:   &m.stringValuePointer_,
+		})
+		m.valueCase_ = 3
+	}
+}
+
+func (a *typedAstScriptArena) marshalScriptPassC(byteSlab *[]byte) {
+	for _, doc := range a.jsdocFixups {
+		doc.memoizedSize = doc.scalarsSerializedSize()
+	}
+	for _, tmpl := range a.templateFixups {
+		tmpl.memoizedSize = tmpl.scalarsSerializedSize()
+	}
+	for _, m := range a.postOrderNodes {
+		size := m.scalarsSerializedSize()
+		for _, c := range m.child_ {
+			cs := c.memoizedSize
+			size += 1 + protoVarintLen(uint64(cs)) + cs
+		}
+		if m.jsdoc_ != nil {
+			js := m.jsdoc_.memoizedSize
+			size += 1 + protoVarintLen(uint64(js)) + js
+		}
+		if m.valueCase_ == 8 {
+			ts := m.templateStringValue_.memoizedSize
+			size += 1 + protoVarintLen(uint64(ts)) + ts
+		}
+		m.memoizedSize = size
+	}
+
+	sz := a.rootProto.serializedSize()
+	var scriptBytes []byte
+	if sz <= 262144 {
+		slab := *byteSlab
+		if len(slab) < sz {
+			slab = make([]byte, max(4*1024*1024, sz))
+		}
+		buf := slab[:0:sz]
+		*byteSlab = slab[sz:]
+		scriptBytes = a.rootProto.appendTo(buf)
+	} else {
+		scriptBytes = a.rootProto.ToByteString()
+	}
+	a.lazyAst.script_ = scriptBytes
+	if len(a.lazyAst.sourceMappingUrl_) == 0 {
+		ls := 0
+		if len(scriptBytes) != 0 {
+			ls += 1 + protoVarintLen(uint64(len(scriptBytes))) + len(scriptBytes)
+		}
+		if a.lazyAst.sourceFile_ != 0 {
+			ls += 1 + protoVarintLen(uint64(uint32(a.lazyAst.sourceFile_)))
+		}
+		a.lazyAst.memoizedSize = ls
+	} else {
+		a.lazyAst.serializedSize()
+	}
+}
+
+func (s *TypedAstSerializer) applyFixupsSequential(fixups []serializerFixup) {
+	var cs *ColorSerializer
+	if s.colorTypeSerializer != nil {
+		cs = s.colorTypeSerializer.colorSerializer
+	}
+	for i := range fixups {
+		op := &fixups[i]
+		switch op.kind {
+		case fixupKindStringID:
+			*op.dst = int32(s.stringPool.PutID(op.strID))
+		case fixupKindStringIDUsedProp:
+			ptr := s.stringPool.PutID(op.strID)
+			s.markUsedProp(ptr)
+			*op.dst = int32(ptr)
+		case fixupKindColor:
+			*op.dst = int32(cs.AddColor(op.color))
+		case fixupKindSourceFile:
+			*op.dst = int32(s.internSourceFile(op.sf))
+		}
+	}
+}
+
+func runSerializerBatchParallel(batchLen, numThreads int, fn func(workerIdx, slot int)) {
+	workers := min(numThreads, batchLen)
+	if workers <= 1 {
+		for slot := 0; slot < batchLen; slot++ {
+			fn(0, slot)
+		}
+		return
+	}
+	var next atomic.Int32
+	var panicked atomic.Bool
+	panics := make([]any, batchLen)
+	hasPanic := make([]bool, batchLen)
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		workerIdx := w
+		go func() {
+			defer wg.Done()
+			for !panicked.Load() {
+				slot := int(next.Add(1) - 1)
+				if slot >= batchLen {
+					return
+				}
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							panics[slot] = r
+							hasPanic[slot] = true
+							panicked.Store(true)
+						}
+					}()
+					fn(workerIdx, slot)
+				}()
+			}
+		}()
+	}
+	wg.Wait()
+	if panicked.Load() {
+		for slot := 0; slot < batchLen; slot++ {
+			if hasPanic[slot] {
+				panic(panics[slot])
+			}
+		}
+	}
+}
+
+func (s *TypedAstSerializer) serializeRootsParallel(
+	externsRoot rhino.Node,
+	jsRoot rhino.Node,
+	numThreads int,
+	builder *TypedAst_Builder,
+) {
+	var allScripts []rhino.Node
+	for script := externsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+		if !NodeUtil_IsFromTypeSummary(script) {
+			allScripts = append(allScripts, script)
+		}
+	}
+	numExtern := len(allScripts)
+	for script := jsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+		if !NodeUtil_IsFromTypeSummary(script) {
+			allScripts = append(allScripts, script)
+		}
+	}
+	total := len(allScripts)
+	if total == 0 {
+		return
+	}
+	if total < 4 {
+		for i, script := range allScripts {
+			lazyAst := s.SerializeScriptNode(script)
+			if i < numExtern {
+				builder.AddExternAst(lazyAst)
+			} else {
+				builder.AddCodeAst(lazyAst)
+			}
+		}
+		return
+	}
+
+	batchSize := min(total, max(numThreads*8, 16))
+	arenas := make([]typedAstScriptArena, batchSize)
+	workerByteSlabs := make([][]byte, numThreads)
+	lazyAstOut := make([]LazyAst, total)
+
+	for base := 0; base < total; base += batchSize {
+		batchEnd := min(base+batchSize, total)
+		batch := allScripts[base:batchEnd]
+		batchLen := len(batch)
+
+		// Pass A: Build per-script AstNode arenas and ordered fixup streams in parallel.
+		runSerializerBatchParallel(batchLen, numThreads, func(_ int, slot int) {
+			arenas[slot].buildScriptPassA(batch[slot], s)
+		})
+
+		// Pass B: Replay pool registrations in strict script & AST pre/post order.
+		for slot := 0; slot < batchLen; slot++ {
+			s.applyFixupsSequential(arenas[slot].fixups)
+		}
+
+		// Pass C: Finalize bottom-up memoized sizes and marshal LazyAst bytes in parallel.
+		runSerializerBatchParallel(batchLen, numThreads, func(workerIdx int, slot int) {
+			arenas[slot].marshalScriptPassC(&workerByteSlabs[workerIdx])
+			lazyAstOut[base+slot] = arenas[slot].lazyAst
+		})
+	}
+
+	for i := 0; i < numExtern; i++ {
+		builder.AddExternAst(&lazyAstOut[i])
+	}
+	for i := numExtern; i < total; i++ {
+		builder.AddCodeAst(&lazyAstOut[i])
+	}
 }
 
 // Java: TypedAstSerializer.addType(Node, AstNode.Builder)

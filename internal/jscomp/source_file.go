@@ -1256,6 +1256,35 @@ func (l *sourceFile_CodeLoader_Reloadable) ToProtoLocationBuilder(fileName strin
 	return SourceFileProto_NewBuilder().SetPreloadedContents(l.load())
 }
 
+// sourceFile_CodeLoader_InlineBase64 defers base64 decoding of an inline
+// //# sourceMappingURL=data:application/json;base64,... payload until its
+// source map contents are actually requested (Stage 3 FINALIZATIONS).
+//
+// Go-only: performance.
+type sourceFile_CodeLoader_InlineBase64 struct {
+	SourceFile_CodeLoaderBase
+	rawBase64     string
+	canonicalUTF8 bool
+}
+
+func newInlineBase64SourceFile(fileName string, rawBase64 string, canonicalUTF8 bool) *SourceFile {
+	return newSourceFile(
+		&sourceFile_CodeLoader_InlineBase64{
+			rawBase64:     rawBase64,
+			canonicalUTF8: canonicalUTF8,
+		},
+		fileName,
+		rhino.StaticSourceFile_SourceKind_NON_CODE)
+}
+
+func (l *sourceFile_CodeLoader_InlineBase64) LoadUncachedCode() string {
+	return jutil.NewStringFromUTF8Bytes(jutil.BaseEncoding_Base64().Decode(l.rawBase64))
+}
+
+func (l *sourceFile_CodeLoader_InlineBase64) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
+	return SourceFileProto_NewBuilder().SetPreloadedContents(l.LoadUncachedCode())
+}
+
 // SourceFile_CodeLoader_StubSourceFileCodeLoader is a code loader which
 // throws an error when loading code for a stub SourceFile.
 type SourceFile_CodeLoader_StubSourceFileCodeLoader struct {

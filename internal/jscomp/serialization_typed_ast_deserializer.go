@@ -482,6 +482,13 @@ func typedAstDeserializer_addInputSourceMap(
 	sourceMappingURL := deserializer.GetSourceMappingURL() // This is the encoded source map.
 
 	if jutil.StringLength(sourceMappingURL) > 0 && resolveSourceMapAnnotations {
+		if parseInlineSourceMaps {
+			canonicalUTF8 := jutil.BaseEncoding_Base64().ValidateAndCheckCanonicalUTF8(sourceMappingURL)
+			sourceMapSourceFile := newInlineBase64SourceFile(
+				sourceFile.GetName()+".inline.map", sourceMappingURL, canonicalUTF8)
+			compiler.AddInputSourceMap(sourceFile.GetName(), NewSourceMapInput(sourceMapSourceFile))
+			return
+		}
 		// base64EncodedSourceMap adds "data:application/json;base64," prefix to the sourceMappingURL
 		base64EncodedSourceMap :=
 			SourceMapResolver_AddBase64PrefixToEncodedSourceMap(sourceMappingURL)

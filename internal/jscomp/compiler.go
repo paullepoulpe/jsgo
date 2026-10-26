@@ -4442,6 +4442,12 @@ func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
 		sourceMappingURL = &originalPath
 	}
 	if sourceMappingURL != nil && strings.HasSuffix(*sourceMappingURL, ".inline.map") {
+		if sf := sourceMapInput.sourceFile; sf != nil && sf.code.Load() == nil {
+			if l, ok := sf.loader.(*sourceFile_CodeLoader_InlineBase64); ok && l.canonicalUTF8 {
+				raw := l.rawBase64
+				return &raw
+			}
+		}
 		unencoded := sourceMapInput.GetRawSourceMapContents() // This is the sourcemap.
 		encoded := jutil.BaseEncoding_Base64().Encode([]byte(*unencoded))
 		return &encoded
@@ -5373,7 +5379,7 @@ func (c *Compiler) SaveState(outputStream io.Writer) {
 		if wrapper != nil {
 			compressionStream = wrapper(nonClosingOut)
 		} else {
-			compressionStream = NewFastGzipOutputStream(nonClosingOut)
+			compressionStream = newSaveStateGzipOutputStream(nonClosingOut, c.options.GetNumParallelThreads())
 		}
 
 		bufferedCompressionStream := compiler_newBufferedOutputStream(compressionStream, 64*1024)

@@ -92,7 +92,11 @@ func SerializeTypedAstPass_CreateFromPath(
 			if err != nil {
 				panic(jutil.NewIOException(err.Error()))
 			}
-			out := NewFastGzipOutputStream(file)
+			numThreads := 1
+			if opts := compiler.GetOptions(); opts != nil {
+				numThreads = opts.GetNumParallelThreads()
+			}
+			out := newSaveStateGzipOutputStream(file, numThreads)
 			defer out.Close()
 			if err := writeTypedAstListItemTo(ast, out); err != nil {
 				panic(jutil.NewIOException(err.Error()))

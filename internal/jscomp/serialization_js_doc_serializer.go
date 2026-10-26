@@ -219,61 +219,42 @@ func JSDocSerializer_SerializeJsdoc(jsdoc *rhino.JSDocInfo, stringPool *StringPo
 	return &m
 }
 
-func jsDocSerializer_fillJsdocProto(jsdoc *rhino.JSDocInfo, stringPool *StringPool_Builder, m *OptimizationJsdoc, kindBuf []int32) bool {
-	if jsdoc == nil {
-		return false
-	}
-
-	m.kind_ = kindBuf
+func jsDocSerializer_fillJsdocTagsOnly(jsdoc *rhino.JSDocInfo, kindBuf []int32) []int32 {
 	addKind := func(v JsdocTag) {
-		m.kind_ = append(m.kind_, v.GetNumber())
+		kindBuf = append(kindBuf, v.GetNumber())
 	}
 
 	if jsdoc.HasFileOverview() {
 		addKind(JsdocTag_JSDOC_FILEOVERVIEW)
 	}
-
-	if jsdoc.GetLicense() != nil {
-		m.licenseTextPointer_ = int32(stringPool.Put(*jsdoc.GetLicense()))
-	}
-
 	if jsdoc.IsSassGeneratedCssTs() {
 		addKind(JsdocTag_JSDOC_SASS_GENERATED_CSS_TS)
 	}
-
 	// Used by CoverageInstrumentationCallback
 	if jsdoc.IsNoCoverage() {
 		addKind(JsdocTag_JSDOC_NO_COVERAGE)
 	}
-
 	if jsdoc.IsNoInline() {
 		addKind(JsdocTag_JSDOC_NO_INLINE)
 	}
-
 	if jsdoc.IsEncourageInlining() {
 		addKind(JsdocTag_JSDOC_ENCOURAGE_INLINING)
 	}
-
 	if jsdoc.IsRequireInlining() {
 		addKind(JsdocTag_JSDOC_REQUIRE_INLINING)
 	}
-
 	if jsdoc.IsNoCollapse() {
 		addKind(JsdocTag_JSDOC_NO_COLLAPSE)
 	}
-
 	if jsdoc.IsProvideGoog() {
 		addKind(JsdocTag_JSDOC_PROVIDE_GOOG)
 	}
-
 	if jsdoc.IsProvideAlreadyProvided() {
 		addKind(JsdocTag_JSDOC_PROVIDE_ALREADY_PROVIDED)
 	}
-
 	if jsdoc.IsTypeSummary() {
 		addKind(JsdocTag_JSDOC_TYPE_SUMMARY_FILE)
 	}
-
 	if jsdoc.IsPureOrBreakMyCode() {
 		addKind(JsdocTag_JSDOC_PURE_OR_BREAK_MY_CODE)
 	}
@@ -334,15 +315,6 @@ func jsDocSerializer_fillJsdocProto(jsdoc *rhino.JSDocInfo, stringPool *StringPo
 	}
 
 	// Used by ReplaceMessages
-	if jsdoc.GetDescription() != nil {
-		m.descriptionPointer_ = int32(stringPool.Put(*jsdoc.GetDescription()))
-	}
-	if jsdoc.GetAlternateMessageId() != nil {
-		m.alternateMessageIdPointer_ = int32(stringPool.Put(*jsdoc.GetAlternateMessageId()))
-	}
-	if jsdoc.GetMeaning() != nil {
-		m.meaningPointer_ = int32(stringPool.Put(*jsdoc.GetMeaning()))
-	}
 	if jsdoc.HasSuppression("messageConventions") {
 		addKind(JsdocTag_JSDOC_SUPPRESS_MESSAGE_CONVENTION)
 	}
@@ -351,6 +323,27 @@ func jsDocSerializer_fillJsdocProto(jsdoc *rhino.JSDocInfo, stringPool *StringPo
 	}
 	if jsdoc.IsUsedViaDotConstructor() {
 		addKind(JsdocTag_JSDOC_USED_VIA_DOT_CONSTRUCTOR)
+	}
+	return kindBuf
+}
+
+func jsDocSerializer_fillJsdocProto(jsdoc *rhino.JSDocInfo, stringPool *StringPool_Builder, m *OptimizationJsdoc, kindBuf []int32) bool {
+	if jsdoc == nil {
+		return false
+	}
+
+	m.kind_ = jsDocSerializer_fillJsdocTagsOnly(jsdoc, kindBuf)
+	if jsdoc.GetLicense() != nil {
+		m.licenseTextPointer_ = int32(stringPool.Put(*jsdoc.GetLicense()))
+	}
+	if jsdoc.GetDescription() != nil {
+		m.descriptionPointer_ = int32(stringPool.Put(*jsdoc.GetDescription()))
+	}
+	if jsdoc.GetAlternateMessageId() != nil {
+		m.alternateMessageIdPointer_ = int32(stringPool.Put(*jsdoc.GetAlternateMessageId()))
+	}
+	if jsdoc.GetMeaning() != nil {
+		m.meaningPointer_ = int32(stringPool.Put(*jsdoc.GetMeaning()))
 	}
 	if jsdoc.GetPerFileClosureUnawareMode() != nil {
 		m.closureUnawareModePointer_ =
