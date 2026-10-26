@@ -25,9 +25,17 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: the shapes this pass reads (a var holding a function, the
+// function a call calls, how a name is used, the params and body of a
+// function, the members of a class body) go through the typed view
+// (internal/ast); the subtree walks and the parallel bookkeeping stay on
+// rhino.Node, and so does the rhino.Node API of the Function
+// implementations.
 
 // inlineFunctionsRunState is the state of one run of InlineFunctions.Process,
 // dropped when the run ends.
@@ -234,9 +242,77 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 
 // Java: InlineFunctions.isAlwaysInlinable(Node)
 func InlineFunctions_IsAlwaysInlinable(fn rhino.Node) bool {
-	jutil.CheckArgument(fn.IsFunction())
-	body := NodeUtil_GetFunctionBody(fn)
-	return (!body.HasChildren()) || (body.HasOneChild() && body.GetFirstChild().IsReturn())
+	body := ast.MustFunction(fn).Body()
+	block, ok := body.AsBlock()
+	if !ok {
+		// Java reads an expression body (an arrow function) with the same
+		// child tests: one without children (x => y) passes.
+		return !body.Node().HasChildren()
+	}
+	only, ok := block.OnlyStatement()
+	return !block.HasStatements() || (ok && only.Token() == rhino.Token_RETURN)
+}
+
+// inlineFunctions_varFunction returns the name and the function of a
+// declaration whose first declarator is a name with a function value (var
+// fooFn = function(x) {...}); ok is false for any other declaration.
+func inlineFunctions_varFunction(decl ast.NameDeclaration) (name ast.Name, fn ast.Function, ok bool) {
+	d, ok := decl.FirstDeclarator()
+	if !ok {
+		return ast.Name{}, ast.Function{}, false
+	}
+	if name, ok = d.AsName(); !ok {
+		return ast.Name{}, ast.Function{}, false
+	}
+	value, ok := name.Init()
+	if !ok {
+		return ast.Name{}, ast.Function{}, false
+	}
+	fn, ok = value.AsFunction()
+	return name, fn, ok
+}
+
+// inlineFunctions_calledFunction returns the function expression that the
+// call calls directly: (function(){})() or (function(){}).call(...); ok is
+// false otherwise.
+func inlineFunctions_calledFunction(call ast.NormalOrOptChainCall) (ast.Function, bool) {
+	callee := call.Callee()
+	if fn, ok := callee.AsFunction(); ok {
+		return fn, true
+	}
+	if NodeUtil_IsFunctionObjectCall(call.Node()) {
+		return callee.MustNormalOrOptChainGet().Object().AsFunction()
+	}
+	return ast.Function{}, false
+}
+
+// inlineFunctions_walkClassMembers walks the members of a class body as
+// NodeTraversal does: the computed keys first, then the values of computed
+// members (a computed field's value is in a local hoist scope) and the
+// other members.
+func inlineFunctions_walkClassMembers(body ast.ClassBody, inLocalHoist bool, walk func(n, parent rhino.Node, inLocalHoist bool)) {
+	for m := range body.Members() {
+		switch m.Token() {
+		case rhino.Token_COMPUTED_PROP:
+			walk(m.MustComputedProp().Key().Node(), m.Node(), inLocalHoist)
+		case rhino.Token_COMPUTED_FIELD_DEF:
+			walk(m.MustComputedFieldDef().Key().Node(), m.Node(), inLocalHoist)
+		}
+	}
+	for m := range body.Members() {
+		switch m.Token() {
+		case rhino.Token_COMPUTED_PROP:
+			if value, ok := m.MustComputedProp().Value(); ok {
+				walk(value.Node(), m.Node(), inLocalHoist)
+			}
+		case rhino.Token_COMPUTED_FIELD_DEF:
+			if value, ok := m.MustComputedFieldDef().Value(); ok {
+				walk(value.Node(), m.Node(), true)
+			}
+		default:
+			walk(m.Node(), body.Node(), inLocalHoist)
+		}
+	}
 }
 
 // Java: InlineFunctions.targetSizeAfterInlineExceedsLimit(NodeTraversal, FunctionState)
@@ -301,23 +377,9 @@ func (c *InlineFunctions_FindCandidateFunctions) walk(n rhino.Node, parent rhino
 			childLocalHoist = true
 		}
 	case rhino.Token_CLASS_MEMBERS:
-		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-			if ch.IsComputedProp() || ch.IsComputedFieldDef() {
-				c.walk(ch.GetFirstChild(), ch, chunk, inLocalHoist)
-			}
-		}
-		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-			switch ch.GetToken() {
-			case rhino.Token_COMPUTED_PROP:
-				c.walk(ch.GetLastChild(), ch, chunk, inLocalHoist)
-			case rhino.Token_COMPUTED_FIELD_DEF:
-				if ch.HasTwoChildren() {
-					c.walk(ch.GetLastChild(), ch, chunk, true)
-				}
-			default:
-				c.walk(ch, n, chunk, inLocalHoist)
-			}
-		}
+		inlineFunctions_walkClassMembers(ast.MustClassBody(n), inLocalHoist, func(n, parent rhino.Node, inLocalHoist bool) {
+			c.walk(n, parent, chunk, inLocalHoist)
+		})
 		return
 	}
 	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
@@ -365,11 +427,9 @@ func (c *InlineFunctions_FindCandidateFunctions) findNamedFunctionsWithChunk(n r
 		}
 		// Functions expressions in the form of:
 		//   var fooFn = function(x) { return ... }
-		jutil.CheckStateMsg1(n.HasOneChild(), "%s", n)
-		nameNode := n.GetFirstChild()
-		if nameNode.IsName() &&
-			nameNode.HasChildren() &&
-			nameNode.GetFirstChild().IsFunction() {
+		decl := ast.MustNameDeclaration(n)
+		jutil.CheckStateMsg1(decl.NumDeclarators() == 1, "%s", n)
+		if _, _, ok := inlineFunctions_varFunction(decl); ok {
 			c.outer.MaybeAddFunction(NewInlineFunctions_FunctionVar(c.outer, n), chunk)
 		}
 		// Named functions
@@ -400,16 +460,9 @@ func (c *InlineFunctions_FindCandidateFunctions) findFunctionExpressionsWithChun
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
 		// Functions expressions in the form of:
 		//   (function(){})();
-		var fnNode rhino.Node
-		first := n.GetFirstChild()
-		if first.IsFunction() {
-			fnNode = first
-		} else if first.HasChildren() && first.GetFirstChild().IsFunction() && NodeUtil_IsFunctionObjectCall(n) {
-			fnNode = first.GetFirstChild()
-		}
-
 		// If an interesting function was discovered, add it.
-		if !fnNode.IsNil() {
+		if fn, ok := inlineFunctions_calledFunction(ast.MustNormalOrOptChainCall(n)); ok {
+			fnNode := fn.Node()
 			callsSeen := c.callsSeen
 			c.callsSeen++
 			fn := NewInlineFunctions_FunctionExpression(fnNode, callsSeen)
@@ -566,20 +619,14 @@ func (f *InlineFunctions) analyzeFunctionBody(fnNode rhino.Node) (*jutil.LinkedH
 }
 
 func inlineFunctions_analyzeBody(fnNode rhino.Node, paramScratch *[]string) (*jutil.LinkedHashSet[string], bool, bool) {
-	params := NodeUtil_GetFunctionParameters(fnNode)
+	fn := ast.MustFunction(fnNode)
 	names := (*paramScratch)[:0]
-	for n := params.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
-		if n.IsRest() {
-			names = append(names, FunctionArgumentInjector_REST_MARKER)
-		} else if n.IsDefaultValue() || n.IsObjectPattern() || n.IsArrayPattern() {
-			panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + n.String()))
-		} else {
-			names = append(names, n.GetString())
-		}
+	for p := range fn.Params().Params() {
+		names = append(names, functionArgumentInjector_paramName(p))
 	}
 	*paramScratch = names
 	var res inlineFunctions_bodyAnalysis
-	inlineFunctions_analyzeBodyNode(NodeUtil_GetFunctionBody(fnNode), names, false, true, &res)
+	inlineFunctions_analyzeBodyNode(fn.Body().Node(), names, false, true, &res)
 	return res.namesToAlias, res.referencesThis, res.hasInnerClosures
 }
 
@@ -663,9 +710,8 @@ func inlineFunctions_hasLetOrConst(n rhino.Node) bool {
 //
 // Java: InlineFunctions.hasLocalNames(Node)
 func InlineFunctions_HasLocalNames(fnNode rhino.Node) bool {
-	block := NodeUtil_GetFunctionBody(fnNode)
-	return NodeUtil_GetFunctionParameters(fnNode).HasChildren() ||
-		functionInjector_hasShallowDeclaration(block)
+	fn := ast.MustFunction(fnNode)
+	return fn.Params().HasParams() || functionInjector_hasShallowDeclaration(fn.Body().Node())
 }
 
 // IsCandidateFunction checks if the given function matches the criteria for
@@ -795,21 +841,20 @@ func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n rhino.Node, 
 	switch n.GetToken() {
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
 		// Function calls
-		child := n.GetFirstChild()
+		child := ast.MustNormalOrOptChainCall(n).Callee()
 		var name string
 		var hasName bool
 		// NOTE: The normalization pass ensures that local names do not collide with global names.
-		if child.IsName() {
-			name, hasName = child.GetString(), true
-		} else if child.IsFunction() {
-			name, hasName = v.anonFunctionMap.Lookup(child)
+		if callee, ok := child.AsName(); ok {
+			name, hasName = callee.Ident(), true
+		} else if child.Token() == rhino.Token_FUNCTION {
+			name, hasName = v.anonFunctionMap.Lookup(child.Node())
 		} else if NodeUtil_IsFunctionObjectCall(n) {
-			jutil.CheckState(NodeUtil_IsNormalOrOptChainGet(child))
-			fnIdentifyingNode := child.GetFirstChild()
-			if fnIdentifyingNode.IsName() {
-				name, hasName = fnIdentifyingNode.GetString(), true
-			} else if fnIdentifyingNode.IsFunction() {
-				name, hasName = v.anonFunctionMap.Lookup(fnIdentifyingNode)
+			fnIdentifyingNode := child.MustNormalOrOptChainGet().Object()
+			if fnName, ok := fnIdentifyingNode.AsName(); ok {
+				name, hasName = fnName.Ident(), true
+			} else if fnIdentifyingNode.Token() == rhino.Token_FUNCTION {
+				name, hasName = v.anonFunctionMap.Lookup(fnIdentifyingNode.Node())
 			}
 		}
 
@@ -830,37 +875,51 @@ func (v *InlineFunctions_CallVisitorBase) Visit(t *NodeTraversal, n rhino.Node, 
 //
 // Java: InlineFunctions.isCandidateUsage(Node)
 func InlineFunctions_IsCandidateUsage(name rhino.Node) bool {
-	parent := name.GetParent()
 	jutil.CheckState(name.IsName())
-	if NodeUtil_IsNameDeclaration(parent) || parent.IsFunction() {
+	switch ast.RoleOf(name) {
+	case ast.RoleNameDeclarationDeclarators, ast.RoleFunctionName, ast.RoleFunctionBody:
 		// This is a declaration.  Duplicate declarations are handle during
 		// function candidate gathering.
+		// (Java tests that the parent is a function, so the expression body
+		// of an arrow function, () => fn, counts too.)
 		return true
-	}
-
-	if NodeUtil_IsNormalOrOptChainCall(parent) && parent.GetFirstChild() == name {
+	case ast.RoleCallCallee, ast.RoleOptChainCallCallee:
 		// This is a normal reference to the function.
 		return true
-	}
-
-	// Check for a ".call" to the named function:
-	//   CALL
-	//     GETPROP/GETELEM
-	//       NAME
-	//       STRING == "call"
-	//     This-Value
-	//     Function-parameter-1
-	//     ...
-	if (parent.IsGetElem() &&
-		name == parent.GetFirstChild() &&
-		parent.GetSecondChild().IsStringLit() &&
-		parent.GetSecondChild().GetString() == "call") ||
-		(parent.IsGetProp() && parent.GetString() == "call") {
-		grandparent := name.GetAncestor(2)
-		if grandparent.IsCall() && grandparent.GetFirstChild() == parent {
-			// Yep, a ".call".
-			return true
+	case ast.RoleGetElemObject:
+		// Check for a ".call" to the named function:
+		//   CALL
+		//     GETPROP/GETELEM
+		//       NAME
+		//       STRING == "call"
+		//     This-Value
+		//     Function-parameter-1
+		//     ...
+		index, ok := ast.MustGetElem(name.GetParent()).Index().AsStringLit()
+		if !ok || index.Value() != "call" {
+			return false
 		}
+	case ast.RoleGetPropObject:
+		if ast.MustGetProp(name.GetParent()).Property() != "call" {
+			return false
+		}
+	default:
+		return false
+	}
+	// Yep, a ".call".
+	return ast.RoleOf(name.GetParent()) == ast.RoleCallCallee
+}
+
+// inlineFunctions_isConstAlias reports whether the name n (whose parent is
+// parent) is the value of a constant: a declared const (const bar = foo)
+// or an assignment marked @const (/** @const */ exports.bar = foo).
+func inlineFunctions_isConstAlias(n, parent rhino.Node) bool {
+	switch ast.RoleOf(n) {
+	case ast.RoleAssignValue:
+		info := parent.GetJSDocInfo()
+		return info != nil && info.IsConstant()
+	case ast.RoleNameInit:
+		return parent.GetParent().IsConst()
 	}
 	return false
 }
@@ -1002,13 +1061,7 @@ func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n rhino.Node, 
 	if NodeUtil_IsLValue(n) {
 		// Mark the function as uninlinable.
 		functionState.DisallowInlining(r.outer.compiler, InlineFunctions_DisallowInliningReason_REASSIGNED)
-	} else if (parent.IsAssign() &&
-		parent.GetJSDocInfo() != nil &&
-		parent.GetJSDocInfo().IsConstant() &&
-		parent.GetSecondChild() == n) ||
-		(!parent.GetParent().IsNil() &&
-			parent.GetParent().IsConst() &&
-			parent.GetFirstChild() == n) {
+	} else if inlineFunctions_isConstAlias(n, parent) {
 		// e.g. const bar = foo; exports.bar = foo;
 		// We can't see through this reference right now, but we will be able
 		// to once `bar` is inlined; so we shouldn't remove `foo` right now but
@@ -1180,23 +1233,9 @@ func (w *ifPhase1Worker) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, i
 			childLocalHoist = true
 		}
 	case rhino.Token_CLASS_MEMBERS:
-		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-			if ch.IsComputedProp() || ch.IsComputedFieldDef() {
-				w.walk(ch.GetFirstChild(), ch, chunk, inLocalHoist)
-			}
-		}
-		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-			switch ch.GetToken() {
-			case rhino.Token_COMPUTED_PROP:
-				w.walk(ch.GetLastChild(), ch, chunk, inLocalHoist)
-			case rhino.Token_COMPUTED_FIELD_DEF:
-				if ch.HasTwoChildren() {
-					w.walk(ch.GetLastChild(), ch, chunk, true)
-				}
-			default:
-				w.walk(ch, n, chunk, inLocalHoist)
-			}
-		}
+		inlineFunctions_walkClassMembers(ast.MustClassBody(n), inLocalHoist, func(n, parent rhino.Node, inLocalHoist bool) {
+			w.walk(n, parent, chunk, inLocalHoist)
+		})
 		return
 	}
 	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
@@ -1207,29 +1246,24 @@ func (w *ifPhase1Worker) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, i
 	switch tok {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		if (w.outer.reach.IncludesGlobals() || inLocalHoist) && NodeUtil_IsStatement(n) {
-			jutil.CheckStateMsg1(n.HasOneChild(), "%s", n)
-			nameNode := n.GetFirstChild()
-			if nameNode.IsName() && nameNode.HasChildren() && nameNode.GetFirstChild().IsFunction() {
-				w.cands = append(w.cands, w.buildNamedOrVarCandidate(ifCandVar, n, nameNode, nameNode.GetFirstChild(), chunk))
+			decl := ast.MustNameDeclaration(n)
+			jutil.CheckStateMsg1(decl.NumDeclarators() == 1, "%s", n)
+			if name, fn, ok := inlineFunctions_varFunction(decl); ok {
+				w.cands = append(w.cands, w.buildNamedOrVarCandidate(ifCandVar, n, name.Node(), fn.Node(), chunk))
 			}
 		}
 	case rhino.Token_FUNCTION:
 		if (w.outer.reach.IncludesGlobals() || inLocalHoist) && NodeUtil_IsStatement(n) {
 			jutil.CheckState(NodeUtil_IsStatementBlock(parent) || parent.IsLabel())
 			if NodeUtil_IsFunctionDeclaration(n) {
-				w.cands = append(w.cands, w.buildNamedOrVarCandidate(ifCandNamedFn, n, n.GetFirstChild(), n, chunk))
+				name, _ := ast.MustFunction(n).Name()
+				w.cands = append(w.cands, w.buildNamedOrVarCandidate(ifCandNamedFn, n, name.Node(), n, chunk))
 			}
 		}
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
 		if w.outer.reach.IncludesGlobals() || inLocalHoist {
-			var fnNode rhino.Node
-			first := n.GetFirstChild()
-			if first.IsFunction() {
-				fnNode = first
-			} else if first.HasChildren() && first.GetFirstChild().IsFunction() && NodeUtil_IsFunctionObjectCall(n) {
-				fnNode = first.GetFirstChild()
-			}
-			if !fnNode.IsNil() {
+			if fn, ok := inlineFunctions_calledFunction(ast.MustNormalOrOptChainCall(n)); ok {
+				fnNode := fn.Node()
 				w.cands = append(w.cands, ifPhase1Candidate{
 					kind:   ifCandAnonExpr,
 					node:   fnNode,
@@ -1514,13 +1548,7 @@ func (r *ifPhase2RefCallback) checkNameUsage(n rhino.Node, parent rhino.Node) {
 			kind: ifEvDisallowReassigned,
 			fs:   functionState,
 		})
-	} else if (parent.IsAssign() &&
-		parent.GetJSDocInfo() != nil &&
-		parent.GetJSDocInfo().IsConstant() &&
-		parent.GetSecondChild() == n) ||
-		(!parent.GetParent().IsNil() &&
-			parent.GetParent().IsConst() &&
-			parent.GetFirstChild() == n) {
+	} else if inlineFunctions_isConstAlias(n, parent) {
 		r.events = append(r.events, ifPhase2Event{
 			kind: ifEvUnremovableConst,
 			fs:   functionState,
@@ -1905,16 +1933,7 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 				if hasAnon {
 					inlineFunctions_collectAnonInlinableStates(body, f.anonFns, f.fns, &res.anonStates)
 				}
-				structural := !inlineFunctions_isIsolatedStmtFn(fnNode)
-				if !structural {
-					for param := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !param.IsNil(); param = param.GetNext() {
-						if !param.GetFirstChild().IsNil() {
-							structural = true
-							break
-						}
-					}
-				}
-				res.structuralNeedsClone = structural
+				res.structuralNeedsClone = !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode)
 				for name := range names.All() {
 					if fsCalled := f.fns.Get(name); fsCalled != nil {
 						res.calledStates = append(res.calledStates, fsCalled)
@@ -2010,8 +2029,8 @@ func inlineFunctions_hasNonInlinableParamNode(n rhino.Node) bool {
 // Java: InlineFunctions.hasNonInlinableParam(Node)
 func InlineFunctions_HasNonInlinableParam(node rhino.Node) bool {
 	rhino.CheckNotNull(node)
-	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if !c.IsName() || c.HasChildren() {
+	for p := range ast.MustParamList(node).Params() {
+		if p.Token() != rhino.Token_NAME {
 			return inlineFunctions_hasNonInlinableParamNode(node)
 		}
 	}
@@ -2034,15 +2053,7 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 	hasAnonInlinable := inlineFunctions_findCalledFunctionsAndAnon(
 		NodeUtil_GetFunctionBody(fnNode), names, f.anonFns, f.fns)
 	if !names.IsEmpty() {
-		needsSafeClone := hasAnonInlinable || !inlineFunctions_isIsolatedStmtFn(fnNode)
-		if !needsSafeClone {
-			for param := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !param.IsNil(); param = param.GetNext() {
-				if !param.GetFirstChild().IsNil() {
-					needsSafeClone = true
-					break
-				}
-			}
-		}
+		needsSafeClone := hasAnonInlinable || !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode)
 		// Prevent the removal of the referenced functions unless they will be immediately inlined.
 		for name := range names.All() {
 			fsCalled := f.fns.Get(name)
@@ -2075,6 +2086,17 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 	}
 }
 
+// inlineFunctions_hasParamWithChildren reports whether a parameter of the
+// function has children: a default value, a rest or a non-empty pattern.
+func inlineFunctions_hasParamWithChildren(fnNode rhino.Node) bool {
+	for p := range ast.MustFunction(fnNode).Params().Params() {
+		if p.Node().HasChildren() {
+			return true
+		}
+	}
+	return false
+}
+
 func inlineFunctions_isIsolatedStmtFn(fnNode rhino.Node) bool {
 	for anc := fnNode.GetParent(); !anc.IsNil(); anc = anc.GetParent() {
 		switch anc.GetToken() {
@@ -2084,7 +2106,7 @@ func inlineFunctions_isIsolatedStmtFn(fnNode rhino.Node) bool {
 			rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
 			rhino.Token_NAME, rhino.Token_EXPR_RESULT, rhino.Token_LABEL:
 		case rhino.Token_ASSIGN:
-			if p := anc.GetParent(); p.IsNil() || !p.IsExprResult() {
+			if ast.RoleOf(anc) != ast.RoleExprStmtExpr {
 				return false
 			}
 		default:
@@ -2826,22 +2848,30 @@ type InlineFunctions_Function interface {
 type InlineFunctions_NamedFunction struct {
 	outer *InlineFunctions
 
-	fn rhino.Node
+	fn   rhino.Node
+	name ast.Name // the name of fn (the node: renaming it keeps the node)
 }
 
 // Java: InlineFunctions.NamedFunction(Node)
 func NewInlineFunctions_NamedFunction(outer *InlineFunctions, fn rhino.Node) *InlineFunctions_NamedFunction {
-	return &InlineFunctions_NamedFunction{outer: outer, fn: fn}
+	name, ok := ast.MustFunction(fn).Name()
+	jutil.CheckState(ok)
+	return &InlineFunctions_NamedFunction{outer: outer, fn: fn, name: name}
 }
 
 // Java: InlineFunctions.NamedFunction.getName()
 func (n *InlineFunctions_NamedFunction) GetName() string {
-	return n.fn.GetFirstChild().GetString()
+	return n.nameNode().Ident()
 }
 
 // Java: InlineFunctions.NamedFunction.getNameNode()
 func (n *InlineFunctions_NamedFunction) GetNameNode() rhino.Node {
-	return n.fn.GetFirstChild()
+	return n.nameNode().Node()
+}
+
+// nameNode returns the name of the declared function.
+func (n *InlineFunctions_NamedFunction) nameNode() ast.Name {
+	return n.name
 }
 
 // Java: InlineFunctions.NamedFunction.getFunctionNode()
@@ -2876,17 +2906,24 @@ func NewInlineFunctions_FunctionVar(outer *InlineFunctions, var_ rhino.Node) *In
 
 // Java: InlineFunctions.FunctionVar.getName()
 func (v *InlineFunctions_FunctionVar) GetName() string {
-	return v.var_.GetFirstChild().GetString()
+	return v.nameNode().Ident()
 }
 
 // Java: InlineFunctions.FunctionVar.getNameNode()
 func (v *InlineFunctions_FunctionVar) GetNameNode() rhino.Node {
-	return v.var_.GetFirstChild()
+	return v.nameNode().Node()
 }
 
 // Java: InlineFunctions.FunctionVar.getFunctionNode()
 func (v *InlineFunctions_FunctionVar) GetFunctionNode() rhino.Node {
-	return v.var_.GetFirstFirstChild()
+	value, _ := v.nameNode().Init()
+	return value.MustFunction().Node()
+}
+
+// nameNode returns the declared name (var name = function...).
+func (v *InlineFunctions_FunctionVar) nameNode() ast.Name {
+	d, _ := ast.MustNameDeclaration(v.var_).FirstDeclarator()
+	return d.MustName()
 }
 
 // Java: InlineFunctions.FunctionVar.remove()
