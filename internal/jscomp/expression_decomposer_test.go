@@ -2376,8 +2376,12 @@ func (c *ExpressionDecomposerTest) helperExposeExpression(
 
 // Java: ExpressionDecomposerTest.createDecomposer(Compiler)
 func (c *ExpressionDecomposerTest) createDecomposer(compiler *Compiler) *ExpressionDecomposer {
+	known := make(map[string]bool, c.knownConstants.Size())
+	for name := range c.knownConstants.All() {
+		known[name] = true
+	}
 	return compiler.CreateExpressionDecomposer(
-		compiler.GetUniqueNameIdSupplier(), jutil.NewLinkedHashSet(c.knownConstants.ToSlice()...), c.newScope())
+		compiler.GetUniqueNameIdSupplier(), known, c.newScope())
 }
 
 // Java: ExpressionDecomposerTest.helperMoveExpression(String, Function<AbstractCompiler, Function<Node, Node>>, String)

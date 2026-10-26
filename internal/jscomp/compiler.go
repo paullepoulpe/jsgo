@@ -1751,25 +1751,20 @@ func (c *Compiler) GetAstAnalyzer() *AstAnalyzer {
 func (c *Compiler) CreateDefaultExpressionDecomposer() *ExpressionDecomposer {
 	return c.CreateExpressionDecomposer(
 		c.GetUniqueNameIdSupplier(),
-		jutil.NewLinkedHashSet[string](),
+		nil,
 		Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)))
 }
 
 // Java: Compiler.createExpressionDecomposer(Supplier<String>, ImmutableSet<String>, Scope)
 func (c *Compiler) CreateExpressionDecomposer(
 	uniqueNameIdSupplier func() string,
-	knownConstantFunctions *jutil.LinkedHashSet[string],
+	knownConstantFunctions map[string]bool,
 	scope *Scope) *ExpressionDecomposer {
 	// If the output is ES5, then it may end up running on IE11, so enable a workaround
 	// for one of its bugs.
-	var enabledWorkarounds *jutil.EnumSet[ExpressionDecomposer_Workaround]
-	if parser.FeatureSet_ES5.Contains(c.GetOptions().GetOutputFeatureSet()) {
-		enabledWorkarounds = jutil.NewEnumSet(ExpressionDecomposer_Workaround_BROKEN_IE11_LOCATION_ASSIGN)
-	} else {
-		enabledWorkarounds = jutil.NewEnumSet[ExpressionDecomposer_Workaround]()
-	}
+	brokenIE11LocationAssign := parser.FeatureSet_ES5.Contains(c.GetOptions().GetOutputFeatureSet())
 	return NewExpressionDecomposer(
-		c, uniqueNameIdSupplier, knownConstantFunctions, scope, enabledWorkarounds)
+		c, uniqueNameIdSupplier, knownConstantFunctions, scope, brokenIE11LocationAssign)
 }
 
 // Java: Compiler.isDebugLoggingEnabled()

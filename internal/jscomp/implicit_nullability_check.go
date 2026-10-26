@@ -41,17 +41,14 @@ var ImplicitNullabilityCheck_IMPLICITLY_NONNULL_JSDOC = DiagnosticType_Disabled(
 	"Name {0} in JSDoc is implicitly non-null, and is discouraged by the style guide.\n"+
 		"Please add a '!' to make it explicit.")
 
-var implicitNullabilityCheck_NULLABILITY_OMITTED_TYPES = jutil.NewLinkedHashSet(
-	"*", //
-	"?",
-	"bigint",
-	"boolean",
-	"null",
-	"number",
-	"string",
-	"symbol",
-	"undefined",
-	"void")
+func implicitNullabilityCheck_isNullabilityOmittedType(typeName string) bool {
+	switch typeName {
+	case "*", "?", "bigint", "boolean", "null", "number", "string", "symbol", "undefined", "void":
+		return true
+	default:
+		return false
+	}
+}
 
 // Java: ImplicitNullabilityCheck(AbstractCompiler)
 func NewImplicitNullabilityCheck(compiler AbstractCompiler) *ImplicitNullabilityCheck {
@@ -175,7 +172,7 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 					}
 				}
 				typeName := node.GetString()
-				if implicitNullabilityCheck_NULLABILITY_OMITTED_TYPES.Contains(typeName) {
+				if implicitNullabilityCheck_isNullabilityOmittedType(typeName) {
 					return
 				}
 				registry := t.GetCompiler().GetTypeRegistry()

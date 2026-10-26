@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -1024,15 +1023,8 @@ func TypedAstSerializer_CreateJSTypeSerializer(
 // Java: private static class TypedAstSerializer.JSTypeSerializer
 type TypedAstSerializer_JSTypeSerializer struct {
 	// Everything is pre-calculated with this form of serialization.
-	typesToPointers *base.LinkedIdentityHashMap[rhino.JSType, int]
 	reconserializer *JSTypeReconserializer
 	typePool        *TypePool
-}
-
-// Java: TypedAstSerializer.JSTypeSerializer(LinkedIdentityHashMap<JSType, Integer>, TypePool)
-func NewTypedAstSerializer_JSTypeSerializer(
-	typesToPointers *base.LinkedIdentityHashMap[rhino.JSType, int], typePool *TypePool) *TypedAstSerializer_JSTypeSerializer {
-	return &TypedAstSerializer_JSTypeSerializer{typesToPointers: typesToPointers, typePool: typePool}
 }
 
 func (s *TypedAstSerializer_JSTypeSerializer) addTypeToNode(node rhino.Node, m *AstNode) {
@@ -1040,21 +1032,11 @@ func (s *TypedAstSerializer_JSTypeSerializer) addTypeToNode(node rhino.Node, m *
 	if tb == nil {
 		return
 	}
-	if s.reconserializer != nil {
-		pointer, ok := s.reconserializer.typePointers[tb]
-		if !ok {
-			jutil.CheckNotNullMsg1[any](nil, "cannot find pointer for %s", tb.Self())
-		}
-		m.type_ = pointer
-		m.bitField0_ |= 1 << 0
-		return
-	}
-	type_ := tb.Self()
-	pointer, ok := s.typesToPointers.Lookup(type_)
+	pointer, ok := s.reconserializer.typePointers[tb]
 	if !ok {
-		jutil.CheckNotNullMsg1[any](nil, "cannot find pointer for %s", type_)
+		jutil.CheckNotNullMsg1[any](nil, "cannot find pointer for %s", tb.Self())
 	}
-	m.type_ = int32(pointer)
+	m.type_ = pointer
 	m.bitField0_ |= 1 << 0
 }
 

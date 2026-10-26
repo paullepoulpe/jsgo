@@ -21,14 +21,13 @@ package jscomp
 import (
 	"strconv"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // CheckEs6Modules: miscellaneous checks for style in ES6 modules.
 type CheckEs6Modules struct {
 	compiler         AbstractCompiler
-	importSpecifiers *jutil.LinkedHashMap[string, rhino.Node]
+	importSpecifiers map[string]rhino.Node
 }
 
 var CheckEs6Modules_DUPLICATE_IMPORT = DiagnosticType_Warning(
@@ -45,14 +44,14 @@ var CheckEs6Modules_NO_DEFAULT_EXPORT = DiagnosticType_Warning(
 func NewCheckEs6Modules(compiler AbstractCompiler) *CheckEs6Modules {
 	return &CheckEs6Modules{
 		compiler:         compiler,
-		importSpecifiers: jutil.NewLinkedHashMap[string, rhino.Node](),
+		importSpecifiers: make(map[string]rhino.Node),
 	}
 }
 
 // Java: CheckEs6Modules.visit(NodeTraversal, Node, Node)
 func (c *CheckEs6Modules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsModuleBody() {
-		c.importSpecifiers.Clear()
+		clear(c.importSpecifiers)
 	}
 }
 
@@ -77,14 +76,15 @@ func (c *CheckEs6Modules) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent 
 // Java: CheckEs6Modules.visitImport(NodeTraversal, Node)
 func (c *CheckEs6Modules) VisitImport(t *NodeTraversal, importNode rhino.Node) {
 	specifier := importNode.GetLastChild().GetString()
-	duplicateImport := c.importSpecifiers.PutIfAbsent(specifier, importNode)
-	if !duplicateImport.IsNil() {
+	if duplicateImport, ok := c.importSpecifiers[specifier]; ok {
 		t.Report(
 			importNode,
 			CheckEs6Modules_DUPLICATE_IMPORT,
 			specifier,
 			strconv.Itoa(duplicateImport.GetLineno()),
 			strconv.Itoa(duplicateImport.GetCharno()))
+	} else {
+		c.importSpecifiers[specifier] = importNode
 	}
 }
 

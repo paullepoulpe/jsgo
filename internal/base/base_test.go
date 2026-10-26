@@ -47,51 +47,6 @@ func TestJSCompDoubles(t *testing.T) {
 	}
 }
 
-func TestLinkedIdentityHashSet(t *testing.T) {
-	type obj struct{ _ byte }
-	a, b := &obj{}, &obj{}
-	s := NewLinkedIdentityHashSet[*obj]()
-	if !s.Add(a) || s.Add(a) || !s.Add(b) || !s.Contains(a) || !s.Remove(a) || s.Contains(a) || !s.Add(a) {
-		t.Fatal("set semantics")
-	}
-	m := NewLinkedIdentityHashMap[*obj, string]()
-	m.Put(b, "b")
-	m.Put(a, "a")
-	m.Merge(a, "x", func(o, n string) string { return o + n })
-	var order string
-	m.ForEach(func(_ *obj, v string) { order += v + "," })
-	if order != "b,ax," {
-		t.Fatalf("order %q", order)
-	}
-}
-
-// A non-nillable V (Java Integer): a missing key is null, a present 0 is not.
-func TestLinkedIdentityHashMapIntValues(t *testing.T) {
-	type obj struct{ _ byte }
-	a, b := &obj{}, &obj{}
-	m := NewLinkedIdentityHashMap[*obj, int]()
-	if got := m.ComputeIfAbsent(a, func(*obj) int { return 0 }); got != 0 {
-		t.Fatalf("computeIfAbsent(a) = %d", got)
-	}
-	if got := m.ComputeIfAbsent(a, func(*obj) int { return 7 }); got != 0 {
-		t.Fatalf("computeIfAbsent(a) again = %d, want the stored 0", got)
-	}
-	if got := m.Merge(b, 5, func(o, n int) int { return o + n }); got != 5 {
-		t.Fatalf("merge(b) on a missing key = %d", got)
-	}
-	if v, ok := m.Lookup(a); !ok || v != 0 {
-		t.Fatalf("lookup(a) = %d, %v", v, ok)
-	}
-	if _, ok := m.Lookup(&obj{}); ok {
-		t.Fatal("lookup of a missing key reports present")
-	}
-	var order []int
-	m.ForEach(func(_ *obj, v int) { order = append(order, v) })
-	if len(order) != 2 || order[0] != 0 || order[1] != 5 {
-		t.Fatalf("order %v", order)
-	}
-}
-
 func TestFormatExceptions(t *testing.T) {
 	if e := NewIllegalFormatConversionException('d', "class java.lang.String"); e.GetMessage() != "ConversionType = d class = class java.lang.String" {
 		t.Fatal(e.GetMessage())

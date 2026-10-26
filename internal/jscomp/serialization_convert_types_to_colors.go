@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/base"
-	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -49,36 +47,6 @@ func NewConvertTypesToColors(
 	return c
 }
 
-// ConvertTypesToColors_RemoveTypes is the interface of RemoveTypes and its
-// subclass RemoveTypesAndApplyColors.
-//
-// Java: private static class ConvertTypesToColors.RemoveTypes extends AbstractPostOrderCallback
-type ConvertTypesToColors_RemoveTypes interface {
-	NodeTraversal_AbstractPostOrderCallback
-	GetConvertTypesToColors_RemoveTypesBase() *ConvertTypesToColors_RemoveTypesBase
-}
-
-// ConvertTypesToColors_RemoveTypesBase holds RemoveTypes' method bodies.
-type ConvertTypesToColors_RemoveTypesBase struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-}
-
-// Java: ConvertTypesToColors.RemoveTypes()
-func NewConvertTypesToColors_RemoveTypes() *ConvertTypesToColors_RemoveTypesBase {
-	return &ConvertTypesToColors_RemoveTypesBase{}
-}
-
-// GetConvertTypesToColors_RemoveTypesBase gives field access through the
-// interface.
-func (r *ConvertTypesToColors_RemoveTypesBase) GetConvertTypesToColors_RemoveTypesBase() *ConvertTypesToColors_RemoveTypesBase {
-	return r
-}
-
-// Java: ConvertTypesToColors.RemoveTypes.visit(NodeTraversal, Node, Node)
-func (r *ConvertTypesToColors_RemoveTypesBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	convertTypesToColors_removeTypesFromNode(n)
-}
-
 func convertTypesToColors_removeTypesFromNode(n rhino.Node) {
 	_, _, jsdoc := n.TakeTypesAndJSDocForColorConversion()
 	if jsdoc != nil {
@@ -95,25 +63,8 @@ func convertTypesToColors_removeTypesWalk(n rhino.Node) {
 
 // Java: private static class ConvertTypesToColors.RemoveTypesAndApplyColors extends RemoveTypes
 type ConvertTypesToColors_RemoveTypesAndApplyColors struct {
-	ConvertTypesToColors_RemoveTypesBase
 	colorPoolShard        *ColorPool_ShardView
-	typePointersByJstype  *base.LinkedIdentityHashMap[rhino.JSType, int]
 	jstypeReconserializer *JSTypeReconserializer
-}
-
-// Java: ConvertTypesToColors.RemoveTypesAndApplyColors(ColorPool.ShardView, LinkedIdentityHashMap<JSType, Integer>)
-func NewConvertTypesToColors_RemoveTypesAndApplyColors(
-	colorPoolShard *ColorPool_ShardView,
-	typePointersByJstype *base.LinkedIdentityHashMap[rhino.JSType, int]) *ConvertTypesToColors_RemoveTypesAndApplyColors {
-	r := &ConvertTypesToColors_RemoveTypesAndApplyColors{}
-	r.colorPoolShard = colorPoolShard
-	r.typePointersByJstype = typePointersByJstype
-	return r
-}
-
-// Java: ConvertTypesToColors.RemoveTypesAndApplyColors.visit(NodeTraversal, Node, Node)
-func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	r.visitNode(n)
 }
 
 func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n rhino.Node) {
@@ -122,19 +73,11 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n rhino.Node)
 		n.SetJSDocInfo(JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc))
 	}
 
-	if oldType != nil {
-		var c *colors.Color
-		if r.jstypeReconserializer != nil {
-			if pointer, ok := r.jstypeReconserializer.typePointers[oldType]; ok {
-				c = r.colorPoolShard.GetColor(int(pointer))
+	if oldType != nil && r.jstypeReconserializer != nil {
+		if pointer, ok := r.jstypeReconserializer.typePointers[oldType]; ok {
+			if c := r.colorPoolShard.GetColor(int(pointer)); c != nil {
+				n.SetColor(c)
 			}
-		} else if r.typePointersByJstype != nil {
-			if pointer, ok := r.typePointersByJstype.Lookup(oldType.Self()); ok {
-				c = r.colorPoolShard.GetColor(pointer)
-			}
-		}
-		if c != nil {
-			n.SetColor(c)
 		}
 	}
 

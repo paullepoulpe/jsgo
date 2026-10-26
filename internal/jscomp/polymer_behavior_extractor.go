@@ -27,19 +27,30 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var polymerBehaviorExtractor_BEHAVIOR_NAMES_NOT_TO_COPY = jutil.NewLinkedHashSet(
-	"created",
-	"attached",
-	"detached",
-	"attributeChanged",
-	"configure",
-	"ready",
-	"properties",
-	"listeners",
-	"observers",
-	"hostAttributes")
+func polymerBehaviorExtractor_isBehaviorNameNotToCopy(name string) bool {
+	switch name {
+	case "created",
+		"attached",
+		"detached",
+		"attributeChanged",
+		"configure",
+		"ready",
+		"properties",
+		"listeners",
+		"observers",
+		"hostAttributes":
+		return true
+	default:
+		return false
+	}
+}
 
 const polymerBehaviorExtractor_GOOG_MODULE_EXPORTS = "exports"
+
+type polymerResolveKey struct {
+	name           string
+	moduleMetadata *ModuleMetadataMap_ModuleMetadata
+}
 
 // PolymerBehaviorExtractor finds the Polymer behavior definitions associated
 // with Polymer element definitions.
@@ -53,9 +64,7 @@ type PolymerBehaviorExtractor struct {
 	moduleMetadataMap *ModuleMetadataMap
 	moduleMap         *ModuleMap
 
-	// Java HashBasedTable: LinkedHashMap-backed, and only looked up here.
-	resolveMemoized       *jutil.HashBasedTable[string, *ModuleMetadataMap_ModuleMetadata, *PolymerBehaviorExtractor_ResolveBehaviorNameResult]
-	globalResolveMemoized *jutil.LinkedHashMap[string, *PolymerBehaviorExtractor_ResolveBehaviorNameResult]
+	resolveMemoized map[polymerResolveKey]*PolymerBehaviorExtractor_ResolveBehaviorNameResult
 }
 
 // Java: PolymerBehaviorExtractor(AbstractCompiler, GlobalNamespace, ModuleMetadataMap, ModuleMap)
@@ -64,14 +73,13 @@ func NewPolymerBehaviorExtractor(
 	globalNames *GlobalNamespace,
 	moduleMetadataMap *ModuleMetadataMap,
 	moduleMap *ModuleMap) *PolymerBehaviorExtractor {
-	e := &PolymerBehaviorExtractor{}
-	e.resolveMemoized = jutil.HashBasedTable_Create[string, *ModuleMetadataMap_ModuleMetadata, *PolymerBehaviorExtractor_ResolveBehaviorNameResult]()
-	e.globalResolveMemoized = jutil.NewLinkedHashMap[string, *PolymerBehaviorExtractor_ResolveBehaviorNameResult]()
-	e.compiler = compiler
-	e.globalNames = globalNames
-	e.moduleMetadataMap = moduleMetadataMap
-	e.moduleMap = moduleMap
-	return e
+	return &PolymerBehaviorExtractor{
+		compiler:          compiler,
+		globalNames:       globalNames,
+		moduleMetadataMap: moduleMetadataMap,
+		moduleMap:         moduleMap,
+		resolveMemoized:   make(map[polymerResolveKey]*PolymerBehaviorExtractor_ResolveBehaviorNameResult),
+	}
 }
 
 // ExtractBehaviors extracts all Behaviors from an array literal, recursively.
@@ -204,19 +212,11 @@ func (e *PolymerBehaviorExtractor) resolveBehaviorName(
 	if name == nil {
 		return polymerBehaviorExtractor_FAILED_RESOLVE_RESULT
 	}
-	var memoized *PolymerBehaviorExtractor_ResolveBehaviorNameResult
-	if moduleMetadata != nil {
-		memoized, _ = e.resolveMemoized.Get(*name, moduleMetadata)
-	} else {
-		memoized = e.globalResolveMemoized.Get(*name)
-	}
+	key := polymerResolveKey{name: *name, moduleMetadata: moduleMetadata}
+	memoized := e.resolveMemoized[key]
 	if memoized == nil {
 		memoized = jutil.CheckNotNull(e.resolveBehaviorNameInternal(*name, moduleMetadata))
-		if moduleMetadata != nil {
-			e.resolveMemoized.Put(*name, moduleMetadata, memoized)
-		} else {
-			e.globalResolveMemoized.Put(*name, memoized)
-		}
+		e.resolveMemoized[key] = memoized
 	}
 	return memoized
 }
@@ -492,7 +492,7 @@ func polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorObjLit rhino.No
 	for keyNode := behaviorObjLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		isFunctionDefinition := (keyNode.IsStringKey() && keyNode.GetFirstChild().IsFunction()) ||
 			keyNode.IsMemberFunctionDef()
-		if isFunctionDefinition && !polymerBehaviorExtractor_BEHAVIOR_NAMES_NOT_TO_COPY.Contains(keyNode.GetString()) {
+		if isFunctionDefinition && !polymerBehaviorExtractor_isBehaviorNameNotToCopy(keyNode.GetString()) {
 			functionsToCopy = append(functionsToCopy,
 				NewPolymerPass_MemberDefinition(
 					NodeUtil_GetBestJSDocInfo(keyNode),
@@ -545,7 +545,7 @@ func polymerBehaviorExtractor_getNonPropertyMembersToCopy(behaviorObjLit rhino.N
 
 	for keyNode := behaviorObjLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		isNonFunctionMember := keyNode.IsGetterDef() || (keyNode.IsStringKey() && !keyNode.GetFirstChild().IsFunction())
-		if isNonFunctionMember && !polymerBehaviorExtractor_BEHAVIOR_NAMES_NOT_TO_COPY.Contains(keyNode.GetString()) {
+		if isNonFunctionMember && !polymerBehaviorExtractor_isBehaviorNameNotToCopy(keyNode.GetString()) {
 			membersToCopy = append(membersToCopy,
 				NewPolymerPass_MemberDefinition(
 					NodeUtil_GetBestJSDocInfo(keyNode),

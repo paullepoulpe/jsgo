@@ -125,16 +125,16 @@ type ValidityCheck_VerifyConstants struct {
 	compiler              AbstractCompiler
 	checkUserDeclarations bool
 
-	constantMap *jutil.LinkedHashMap[string, bool]
+	constantMap map[string]bool
 }
 
 // Java: ValidityCheck.VerifyConstants(AbstractCompiler, boolean)
 func NewValidityCheck_VerifyConstants(compiler AbstractCompiler, checkUserDeclarations bool) *ValidityCheck_VerifyConstants {
-	c := &ValidityCheck_VerifyConstants{}
-	c.constantMap = jutil.NewLinkedHashMap[string, bool]()
-	c.compiler = compiler
-	c.checkUserDeclarations = checkUserDeclarations
-	return c
+	return &ValidityCheck_VerifyConstants{
+		constantMap:           make(map[string]bool),
+		compiler:              compiler,
+		checkUserDeclarations: checkUserDeclarations,
+	}
 }
 
 // Java: ValidityCheck.VerifyConstants.process(Node, Node)
@@ -149,43 +149,32 @@ func (c *ValidityCheck_VerifyConstants) Process(externs rhino.Node, root rhino.N
 func (c *ValidityCheck_VerifyConstants) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() {
 		name := n.GetString()
-		if n.GetString() == "" {
+		if name == "" {
 			return
 		}
 
 		isConst := n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)
 		if c.checkUserDeclarations {
-			expectedConst := false
 			convention := c.compiler.GetCodingConvention()
-			if NodeUtil_IsConstantName(n) || NodeUtil_IsConstantByConvention(convention, n) {
-				expectedConst = true
-			} else {
-				expectedConst = false
-
-				var info *rhino.JSDocInfo
-				var_ := t.GetScope().GetVar(n.GetString())
-				if var_ != nil {
-					info = var_.GetJSDocInfo()
-				}
-
-				if info != nil && info.IsConstant() {
-					expectedConst = true
-				} else {
-					expectedConst = false
+			expectedConst := NodeUtil_IsConstantName(n) || NodeUtil_IsConstantByConvention(convention, n)
+			if !expectedConst {
+				if var_ := t.GetScope().GetVar(name); var_ != nil {
+					if info := var_.GetJSDocInfo(); info != nil && info.IsConstant() {
+						expectedConst = true
+					}
 				}
 			}
 
 			if expectedConst {
-				jutil.CheckStateMsg1(expectedConst == isConst, "The name %s is not annotated as constant.", name)
+				jutil.CheckStateMsg1(isConst, "The name %s is not annotated as constant.", name)
 			} else {
-				jutil.CheckStateMsg1(
-					expectedConst == isConst, "The name %s should not be annotated as constant.", name)
+				jutil.CheckStateMsg1(!isConst, "The name %s should not be annotated as constant.", name)
 			}
 		}
 
-		value, ok := c.constantMap.Lookup(name)
+		value, ok := c.constantMap[name]
 		if !ok {
-			c.constantMap.Put(name, isConst)
+			c.constantMap[name] = isConst
 		} else if value != isConst {
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"The name " +

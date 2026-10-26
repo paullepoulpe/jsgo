@@ -21,7 +21,6 @@ package jscomp
 import (
 	"strings"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -37,18 +36,6 @@ type J2clChecksPass struct {
 var J2clChecksPass_J2CL_REFERENCE_EQUALITY = DiagnosticType_Warning(
 	"JSC_J2CL_REFERENCE_EQUALITY",
 	"Reference equality may not be used with the specified type: {0}")
-
-// J2clChecksPass_REFERENCE_EQUALITY_TYPE_PATTERNS: types for which using
-// reference equality is an error. Mapped from name to filename.
-//
-// Java: J2clChecksPass.REFERENCE_EQUALITY_TYPE_PATTERNS
-var J2clChecksPass_REFERENCE_EQUALITY_TYPE_PATTERNS = func() *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
-	m.Put("java.lang.Integer", "java/lang/Integer.impl.java.js")
-	m.Put("java.lang.Float", "java/lang/Float.impl.java.js")
-	m.Put("goog.math.Long", "javascript/closure/math/long.js")
-	return m
-}()
 
 var j2clReferenceEqualityPatterns = [...]struct {
 	typeName string

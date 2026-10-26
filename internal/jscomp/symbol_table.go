@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -93,7 +92,7 @@ type SymbolTable struct {
 	registry *rhino.JSTypeRegistry
 
 	// Map from a JSType to the symbol that declares it.
-	symbolThatDeclaresType *base.LinkedIdentityHashMap[rhino.JSType, *SymbolTable_Symbol]
+	symbolThatDeclaresType map[rhino.JSType]*SymbolTable_Symbol
 
 	// Comparators
 	sourceNameOrdering   func(a, b *string) int
@@ -120,7 +119,7 @@ func NewSymbolTable(compiler AbstractCompiler, registry *rhino.JSTypeRegistry) *
 		symbols:                jutil.HashBasedTable_Create[rhino.Node, string, *SymbolTable_Symbol](),
 		scopes:                 jutil.NewLinkedHashMap[rhino.Node, *SymbolTable_SymbolScope](),
 		docInfos:               jutil.NewArrayList[rhino.Node](),
-		symbolThatDeclaresType: base.NewLinkedIdentityHashMap[rhino.JSType, *SymbolTable_Symbol](),
+		symbolThatDeclaresType: make(map[rhino.JSType]*SymbolTable_Symbol),
 		compiler:               compiler,
 		registry:               registry,
 	}
@@ -463,7 +462,7 @@ func (t *SymbolTable) GetSymbolForTypeHelper(type_ rhino.JSType, linkToCtor bool
 	} else if type_.IsEnumType() {
 		return t.GetSymbolDeclaredByEnum(type_.(*rhino.EnumType))
 	} else if type_.IsRecordType() {
-		return t.symbolThatDeclaresType.Get(type_)
+		return t.symbolThatDeclaresType[type_]
 	}
 	return nil
 }
@@ -1036,14 +1035,14 @@ func (t *SymbolTable) FillPropertyScopes() {
 			// alias.
 			continue
 		}
-		t.symbolThatDeclaresType.Put(type_, s)
+		t.symbolThatDeclaresType[type_] = s
 	}
 
 	for _, s := range allTypes {
 		type_ := t.getType(s)
 
 		// Create property scopes only based on "root" symbols for each type to handle aliases.
-		if jutil.IsNil(type_) || s.Equals(t.symbolThatDeclaresType.Get(type_)) {
+		if jutil.IsNil(type_) || s.Equals(t.symbolThatDeclaresType[type_]) {
 			t.createPropertyScopeFor(s)
 		}
 	}
@@ -1052,8 +1051,10 @@ func (t *SymbolTable) FillPropertyScopes() {
 	for _, s := range allTypes {
 		type_ := t.getType(s)
 
-		if !jutil.IsNil(type_) && t.symbolThatDeclaresType.Get(type_) != nil {
-			s.propertyScope = t.symbolThatDeclaresType.Get(type_).GetPropertyScope()
+		if !jutil.IsNil(type_) {
+			if decl := t.symbolThatDeclaresType[type_]; decl != nil {
+				s.propertyScope = decl.GetPropertyScope()
+			}
 		}
 	}
 

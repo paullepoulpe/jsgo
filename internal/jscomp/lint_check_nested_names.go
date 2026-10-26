@@ -117,14 +117,20 @@ func (k CheckNestedNames_DeclarationKind) Ptr() *CheckNestedNames_DeclarationKin
 	return &checkNestedNames_DeclarationKind_ptrs[k]
 }
 
-var checkNestedNames_NESTED_KIND_TO_REPORT = func() *jutil.LinkedHashMap[CheckNestedNames_DeclarationKind, string] {
-	m := jutil.NewLinkedHashMap[CheckNestedNames_DeclarationKind, string]()
-	m.Put(CheckNestedNames_DeclarationKind_CLASS, "class")
-	m.Put(CheckNestedNames_DeclarationKind_ENUM, "enum")
-	m.Put(CheckNestedNames_DeclarationKind_INTERFACE, "interface")
-	m.Put(CheckNestedNames_DeclarationKind_TYPEDEF, "typedef")
-	return m
-}()
+func checkNestedNames_kindToReport(k CheckNestedNames_DeclarationKind) (string, bool) {
+	switch k {
+	case CheckNestedNames_DeclarationKind_CLASS:
+		return "class", true
+	case CheckNestedNames_DeclarationKind_ENUM:
+		return "enum", true
+	case CheckNestedNames_DeclarationKind_INTERFACE:
+		return "interface", true
+	case CheckNestedNames_DeclarationKind_TYPEDEF:
+		return "typedef", true
+	default:
+		return "", false
+	}
+}
 
 // NewCheckNestedNames is new CheckNestedNames(compiler).
 //
@@ -164,10 +170,11 @@ func (c *CheckNestedNames) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 		}
 		ownerName := owner.GetString()
 		declarationKind := c.GetNestedDeclarationKind(n, parent)
-		if declarationKind != nil && checkNestedNames_NESTED_KIND_TO_REPORT.ContainsKey(*declarationKind) {
-			// Found a nested name that created an inner class, interface, typedef or enum.
-			nestedKind := checkNestedNames_NESTED_KIND_TO_REPORT.Get(*declarationKind)
-			t.Report(targetGetProp, CheckNestedNames_NESTED_NAME_IN_GOOG_MODULE, nestedKind, ownerName)
+		if declarationKind != nil {
+			if nestedKind, ok := checkNestedNames_kindToReport(*declarationKind); ok {
+				// Found a nested name that created an inner class, interface, typedef or enum.
+				t.Report(targetGetProp, CheckNestedNames_NESTED_NAME_IN_GOOG_MODULE, nestedKind, ownerName)
+			}
 		}
 	}
 }

@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/dtoa"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -197,7 +196,7 @@ func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreateSet(firstParam rhino.
 	}
 
 	curParam := firstParam
-	keys := jutil.NewLinkedHashSet[string]()
+	keys := make(map[string]bool)
 	for !curParam.IsNil() {
 		// All keys must be strings or numbers, otherwise we can't optimize the call.
 		if !c.IsOptimizableKey(curParam) {
@@ -210,10 +209,11 @@ func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreateSet(firstParam rhino.
 			} else {
 				key = dtoa.DToA_NumberToString(curParam.GetDouble())
 			}
-			if !keys.Add(key) {
+			if keys[key] {
 				c.compiler.Report(JSError_MakeWithNode(firstParam.GetPrevious(), ClosureOptimizePrimitives_DUPLICATE_SET_MEMBER, key))
 				return false
 			}
+			keys[key] = true
 		}
 		curParam = curParam.GetNext()
 	}

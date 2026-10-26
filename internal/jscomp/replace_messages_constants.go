@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -39,10 +38,6 @@ const (
 	ReplaceMessagesConstants_FALLBACK_MSG_CALLEE = "__jscomp_msg_fallback__"
 )
 
-// Java: ReplaceMessagesConstants.PROTECTED_FUNCTION_NAMES
-var replaceMessagesConstants_PROTECTED_FUNCTION_NAMES = jutil.NewLinkedHashSet(
-	ReplaceMessagesConstants_DEFINE_MSG_CALLEE, ReplaceMessagesConstants_FALLBACK_MSG_CALLEE)
-
 // Java: ReplaceMessagesConstants.isProtectedMessage(Node)
 func ReplaceMessagesConstants_IsProtectedMessage(n rhino.Node) bool {
 	if !n.IsCall() {
@@ -52,5 +47,7 @@ func ReplaceMessagesConstants_IsProtectedMessage(n rhino.Node) bool {
 	if !callee.IsName() {
 		return false
 	}
-	return replaceMessagesConstants_PROTECTED_FUNCTION_NAMES.Contains(callee.GetString())
+	name := callee.GetString()
+	return name == ReplaceMessagesConstants_DEFINE_MSG_CALLEE ||
+		name == ReplaceMessagesConstants_FALLBACK_MSG_CALLEE
 }

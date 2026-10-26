@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -31,26 +30,32 @@ type CheckArrayWithGoogObject struct {
 	compiler AbstractCompiler
 }
 
-var checkArrayWithGoogObject_GOOG_OBJECT_METHODS = jutil.NewLinkedHashSet(
-	"goog.object.forEach",
-	"goog.object.filter",
-	"goog.object.map",
-	"goog.object.some",
-	"goog.object.every",
-	"goog.object.getCount",
-	"goog.object.getAnyKey",
-	"goog.object.getAnyValue",
-	"goog.object.contains",
-	"goog.object.getValues",
-	"goog.object.getKeys",
-	"goog.object.findKey",
-	"goog.object.findValue",
-	"goog.object.isEmpty",
-	"goog.object.clear",
-	"goog.object.remove",
-	"goog.object.equals",
-	"goog.object.clone",
-	"goog.object.transpose")
+func checkArrayWithGoogObject_isGoogObjectMethod(name string) bool {
+	switch name {
+	case "goog.object.forEach",
+		"goog.object.filter",
+		"goog.object.map",
+		"goog.object.some",
+		"goog.object.every",
+		"goog.object.getCount",
+		"goog.object.getAnyKey",
+		"goog.object.getAnyValue",
+		"goog.object.contains",
+		"goog.object.getValues",
+		"goog.object.getKeys",
+		"goog.object.findKey",
+		"goog.object.findValue",
+		"goog.object.isEmpty",
+		"goog.object.clear",
+		"goog.object.remove",
+		"goog.object.equals",
+		"goog.object.clone",
+		"goog.object.transpose":
+		return true
+	default:
+		return false
+	}
+}
 
 var CheckArrayWithGoogObject_ARRAY_PASSED_TO_GOOG_OBJECT = DiagnosticType_Warning(
 	"JSC_ARRAY_PASSED_TO_GOOG_OBJECT",
@@ -73,7 +78,7 @@ func (c *CheckArrayWithGoogObject) IsGoogObjectIterationOverArray(n rhino.Node) 
 	}
 
 	name := *n.GetFirstChild().GetQualifiedName()
-	if !checkArrayWithGoogObject_GOOG_OBJECT_METHODS.Contains(name) {
+	if !checkArrayWithGoogObject_isGoogObjectMethod(name) {
 		return false
 	}
 

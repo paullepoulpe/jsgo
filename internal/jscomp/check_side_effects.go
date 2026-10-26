@@ -40,7 +40,7 @@ type CheckSideEffects struct {
 
 	problemNodes []rhino.Node
 
-	noSideEffectExterns *jutil.LinkedHashSet[string]
+	noSideEffectExterns map[string]bool
 
 	compiler AbstractCompiler
 
@@ -70,14 +70,12 @@ const CheckSideEffects_J2CL_PROTECTOR_FN = "$J2CL_PRESERVE$"
 
 // Java: CheckSideEffects(AbstractCompiler, boolean, boolean)
 func NewCheckSideEffects(compiler AbstractCompiler, report bool, protectSideEffectFreeCode bool) *CheckSideEffects {
-	c := &CheckSideEffects{}
-	c.problemNodes = []rhino.Node{}
-	c.noSideEffectExterns = jutil.NewLinkedHashSet[string]()
-	c.preserveFunctionInjected = false
-	c.compiler = compiler
-	c.report = report
-	c.protectSideEffectFreeCode = protectSideEffectFreeCode
-	return c
+	return &CheckSideEffects{
+		noSideEffectExterns:       make(map[string]bool),
+		compiler:                  compiler,
+		report:                    report,
+		protectSideEffectFreeCode: protectSideEffectFreeCode,
+	}
 }
 
 // Java: CheckSideEffects.process(Node, Node)
@@ -220,7 +218,7 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 			if !NodeUtil_IsStatement(n) {
 				c.problemNodes = append(c.problemNodes, n)
 			}
-		} else if !c.noSideEffectExterns.IsEmpty() && n.IsCall() {
+		} else if len(c.noSideEffectExterns) > 0 && n.IsCall() {
 			first := n.GetFirstChild()
 			if first.IsGetProp() || first.IsName() || first.IsStringLit() {
 				var qnameStr string
@@ -232,7 +230,7 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 					qnameStr, ok = first.GetQualifiedNameString()
 				}
 
-				if ok && c.noSideEffectExterns.Contains(qnameStr) {
+				if ok && c.noSideEffectExterns[qnameStr] {
 					// The name should not be defined in src scopes - only externs
 					isDefinedInSrc := false
 					if first.IsGetProp() {
@@ -381,7 +379,7 @@ func (g *CheckSideEffects_GetNoSideEffectExterns) Visit(t *NodeTraversal, n rhin
 		jsDoc := NodeUtil_GetBestJSDocInfo(n)
 		if jsDoc != nil && jsDoc.IsNoSideEffects() {
 			if name, ok := NodeUtil_GetNameString(n); ok {
-				g.c.noSideEffectExterns.Add(name)
+				g.c.noSideEffectExterns[name] = true
 			}
 		}
 	}

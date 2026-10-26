@@ -1410,7 +1410,11 @@ func NodeUtil_AllArgsUnescapedLocal(callOrNew rhino.Node) bool {
 // the values of these global variables.
 //
 // Java: NodeUtil.KNOWN_CONSTANTS
-var NodeUtil_KNOWN_CONSTANTS = jutil.NewLinkedHashSet("undefined", "Infinity", "NaN")
+var NodeUtil_KNOWN_CONSTANTS = map[string]bool{
+	"undefined": true,
+	"Infinity":  true,
+	"NaN":       true,
+}
 
 // NodeUtil_CanBeSideEffected returns whether the tree can be affected by
 // side-effects or has side-effects.
@@ -1429,7 +1433,7 @@ func NodeUtil_CanBeSideEffected(n rhino.Node) bool {
 //
 // TODO(nick): Get rid of the knownConstants argument in favor of using
 // scope with InferConsts.
-func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants *jutil.LinkedHashSet[string], scope *Scope) bool {
+func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants map[string]bool, scope *Scope) bool {
 	switch n.GetToken() {
 	case rhino.Token_YIELD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_AWAIT, rhino.Token_DYNAMIC_IMPORT:
 		// Function calls or constructor can reference changed values.
@@ -1438,7 +1442,7 @@ func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants *jutil.Lin
 		return true
 	case rhino.Token_NAME:
 		// Non-constant names values may have been changed.
-		return !NodeUtil_IsConstantVar(n, scope) && !knownConstants.Contains(n.GetString())
+		return !NodeUtil_IsConstantVar(n, scope) && !knownConstants[n.GetString()]
 
 	// Properties on constant NAMEs can still be side-effected.
 	case rhino.Token_GETPROP:

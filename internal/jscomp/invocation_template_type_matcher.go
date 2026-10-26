@@ -19,9 +19,8 @@
 package jscomp
 
 import (
-	"iter"
+	"slices"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -38,8 +37,8 @@ import (
 // Instances of this class are single use. They provide a "scope" for the
 // matching but accumulate state as the matching progresses.
 type InvocationTemplateTypeMatcher struct {
-	matchedTypes *base.LinkedIdentityHashMap[*rhino.TemplateType, rhino.JSType]
-	seenTypes    *base.LinkedIdentityHashSet[rhino.JSType]
+	matchedTypes *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
+	seenTypes    []rhino.JSType
 
 	registry      *rhino.JSTypeRegistry
 	calleeType    rhino.FunctionType
@@ -52,23 +51,20 @@ type InvocationTemplateTypeMatcher struct {
 // Java: InvocationTemplateTypeMatcher(JSTypeRegistry, FunctionType, JSType, Node)
 func NewInvocationTemplateTypeMatcher(
 	registry *rhino.JSTypeRegistry, calleeType rhino.FunctionType, localThisType rhino.JSType, invocation rhino.Node) *InvocationTemplateTypeMatcher {
-	m := &InvocationTemplateTypeMatcher{
-		matchedTypes: base.NewLinkedIdentityHashMap[*rhino.TemplateType, rhino.JSType](),
-		seenTypes:    base.NewLinkedIdentityHashSet[rhino.JSType](),
+	return &InvocationTemplateTypeMatcher{
+		matchedTypes:  &jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]{},
+		registry:      registry,
+		calleeType:    calleeType,
+		localThisType: localThisType,
+		invocation:    invocation,
+		unknownType:   registry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE),
 	}
-	m.registry = registry
-	m.calleeType = calleeType
-	m.localThisType = localThisType
-	m.invocation = invocation
-
-	m.unknownType = registry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
-	return m
 }
 
 // Java: InvocationTemplateTypeMatcher.match()
 func (m *InvocationTemplateTypeMatcher) Match() *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType] {
 	if m.calleeType.GetTemplateTypeMap().IsEmpty() {
-		return jutil.NewLinkedHashMap[*rhino.TemplateType, rhino.JSType]()
+		return m.matchedTypes
 	}
 
 	target := m.invocation.GetFirstChild()
@@ -97,7 +93,7 @@ func (m *InvocationTemplateTypeMatcher) Match() *jutil.LinkedHashMap[*rhino.Temp
 		calleeParameters := m.calleeType.GetParameters()
 		if len(calleeParameters) == 0 {
 			// TypeCheck will warn if there are too few function parameters
-			return m.copyMatchedTypes()
+			return m.matchedTypes
 		}
 
 		// The first argument to the tag function is an array of strings (typed as ITemplateArray)
@@ -106,15 +102,47 @@ func (m *InvocationTemplateTypeMatcher) Match() *jutil.LinkedHashMap[*rhino.Temp
 			calleeParameters[0].GetJSType(), m.registry.GetNativeType(rhino.JSTypeNative_I_TEMPLATE_ARRAY_TYPE))
 
 		// Resolve the remaining template types from the template literal substitutions.
-		m.matchTemplateTypesFromNodes(
-			m.calleeType.GetParameters()[1:],
-			NodeUtil_GetInvocationArgsAsIterable(m.invocation))
+		declParams := calleeParameters[1:]
+		i := 0
+		var variadicParam *rhino.FunctionType_Parameter
+		for callParam := range NewNodeUtil_TemplateArgsIterable(m.invocation.GetLastChild()).All() {
+			if !m.matchCallArg(declParams, &i, &variadicParam, callParam) {
+				break
+			}
+		}
 	} else if m.invocation.HasMoreThanOneChild() {
-		m.matchTemplateTypesFromNodes(
-			m.calleeType.GetParameters(), NodeUtil_GetInvocationArgsAsIterable(m.invocation))
+		declParams := m.calleeType.GetParameters()
+		i := 0
+		var variadicParam *rhino.FunctionType_Parameter
+		for callParam := m.invocation.GetSecondChild(); !callParam.IsNil(); callParam = callParam.GetNext() {
+			if !m.matchCallArg(declParams, &i, &variadicParam, callParam) {
+				break
+			}
+		}
 	}
 
-	return m.copyMatchedTypes()
+	return m.matchedTypes
+}
+
+func (m *InvocationTemplateTypeMatcher) matchCallArg(
+	declParams []*rhino.FunctionType_Parameter,
+	i *int,
+	variadicParam **rhino.FunctionType_Parameter,
+	callParam rhino.Node) bool {
+	if *variadicParam != nil {
+		m.matchTemplateTypesRecursive((*variadicParam).GetJSType(), m.getTypeOrUnknown(callParam))
+		return true
+	}
+	if *i >= len(declParams) {
+		return false
+	}
+	declParam := declParams[*i]
+	*i++
+	m.matchTemplateTypesRecursive(declParam.GetJSType(), m.getTypeOrUnknown(callParam))
+	if declParam.IsVariadic() {
+		*variadicParam = declParam
+	}
+	return true
 }
 
 // Java: InvocationTemplateTypeMatcher.matchTemplateTypesRecursive(JSType, JSType)
@@ -160,7 +188,8 @@ func (m *InvocationTemplateTypeMatcher) matchTemplateTypesRecursive(paramType rh
 		}
 	} else if paramType.IsRecordType() && !paramType.IsNominalType() {
 		// example: @param {{foo:T}}
-		if m.seenTypes.Add(paramType) {
+		if !slices.Contains(m.seenTypes, paramType) {
+			m.seenTypes = append(m.seenTypes, paramType)
 			paramRecordType := paramType.ToObjectType()
 			argObjectType := argType.RestrictByNotNullOrUndefined().ToObjectType()
 			if argObjectType != nil &&
@@ -174,7 +203,7 @@ func (m *InvocationTemplateTypeMatcher) matchTemplateTypesRecursive(paramType rh
 					}
 				}
 			}
-			m.seenTypes.Remove(paramType)
+			m.seenTypes = m.seenTypes[:len(m.seenTypes)-1]
 		}
 	} else if paramType.IsTemplatizedType() {
 		// example: @param {Array<T>}
@@ -196,42 +225,6 @@ func (m *InvocationTemplateTypeMatcher) matchTemplateTypesRecursive(paramType rh
 			key := keys[index]
 			m.matchTemplateTypesRecursive(
 				paramTypeMap.GetResolvedTemplateType(key), argTypeMap.GetResolvedTemplateType(key))
-		}
-	}
-}
-
-// matchTemplateTypesFromNodes matches the declared parameters against the
-// types of the call's argument nodes.
-//
-// Go-only: language-adapter — Java's overload on (Iterable<Parameter>,
-// Iterable<Node>) only takes the iterators of its arguments and delegates
-// to the (Iterator, Iterator) overload; both are this function, which walks
-// the parameter slice while ranging over the argument nodes (taking a
-// parameter and an argument per step, then every remaining argument once a
-// variadic parameter is reached, exactly as the Java loops do).
-//
-// Java: InvocationTemplateTypeMatcher.matchTemplateTypesFromNodes(Iterable<Parameter>, Iterable<Node>)
-// Java: InvocationTemplateTypeMatcher.matchTemplateTypesFromNodes(Iterator<Parameter>, Iterator<Node>)
-func (m *InvocationTemplateTypeMatcher) matchTemplateTypesFromNodes(
-	declParams []*rhino.FunctionType_Parameter, callParams iter.Seq[rhino.Node]) {
-	i := 0
-	var variadicParam *rhino.FunctionType_Parameter
-	for callParam := range callParams {
-		if variadicParam != nil {
-			m.matchTemplateTypesRecursive(
-				variadicParam.GetJSType(), m.getTypeOrUnknown(callParam))
-			continue
-		}
-		if i >= len(declParams) {
-			break
-		}
-		declParam := declParams[i]
-		i++
-		m.matchTemplateTypesRecursive(
-			declParam.GetJSType(), m.getTypeOrUnknown(callParam))
-
-		if declParam.IsVariadic() {
-			variadicParam = declParam
 		}
 	}
 }
@@ -262,16 +255,11 @@ func (m *InvocationTemplateTypeMatcher) recordTemplateMatch(template *rhino.Temp
 	}
 
 	// Don't worry about checking bounds here. We'll validate them once they're all collected.
-	m.matchedTypes.Merge(template, match, func(a rhino.JSType, b rhino.JSType) rhino.JSType {
-		return a.GetLeastSupertype(b)
-	})
-}
-
-// Java: InvocationTemplateTypeMatcher.copyMatchedTypes()
-func (m *InvocationTemplateTypeMatcher) copyMatchedTypes() *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType] {
-	builder := jutil.NewImmutableMapBuilder[*rhino.TemplateType, rhino.JSType]()
-	m.matchedTypes.ForEach(func(k *rhino.TemplateType, v rhino.JSType) { builder.Put(k, v) })
-	return builder.BuildOrThrow()
+	if prev, ok := m.matchedTypes.Lookup(template); ok && prev != nil {
+		m.matchedTypes.Put(template, prev.GetLeastSupertype(match))
+	} else {
+		m.matchedTypes.Put(template, match)
+	}
 }
 
 // Java: InvocationTemplateTypeMatcher.getTypeOrUnknown(Node)

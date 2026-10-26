@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -44,7 +45,7 @@ type RewriteCallerCodeLocation struct {
 	// `function signal(val, here: goog.CodeLocation = goog.callerLocation()) {}`
 	// callerLocationFunctionNames.put("signal", {functionVar: `Var signal @ NAME signal 1:9 ...`,
 	// paramPosition: 2}); // 2 because "here" is the second param
-	callerLocationFunctionNames *jutil.LinkedHashMap[string, *RewriteCallerCodeLocation_FunctionVarAndParamPosition]
+	callerLocationFunctionNames map[string]*RewriteCallerCodeLocation_FunctionVarAndParamPosition
 }
 
 // Java: RewriteCallerCodeLocation.JSC_CALLER_LOCATION_POSITION_ERROR
@@ -76,11 +77,11 @@ var RewriteCallerCodeLocation_GOOG_CALLER_LOCATION_QUALIFIED_NAME = rhino.Qualif
 //
 // Java: RewriteCallerCodeLocation(AbstractCompiler)
 func NewRewriteCallerCodeLocation(compiler AbstractCompiler) *RewriteCallerCodeLocation {
-	r := &RewriteCallerCodeLocation{}
-	r.compiler = compiler
-	r.astFactory = compiler.CreateAstFactory()
-	r.callerLocationFunctionNames = jutil.NewLinkedHashMap[string, *RewriteCallerCodeLocation_FunctionVarAndParamPosition]()
-	return r
+	return &RewriteCallerCodeLocation{
+		compiler:                    compiler,
+		astFactory:                  compiler.CreateAstFactory(),
+		callerLocationFunctionNames: make(map[string]*RewriteCallerCodeLocation_FunctionVarAndParamPosition),
+	}
 }
 
 // Java: RewriteCallerCodeLocation.process(Node, Node)
@@ -90,7 +91,7 @@ func (r *RewriteCallerCodeLocation) Process(externs rhino.Node, root rhino.Node)
 	// parameter could be an
 	// .i.js file in the externs node subtree
 	NodeTraversal_Traverse(r.compiler, r.compiler.GetRoot(), NewRewriteCallerCodeLocation_FindCallerLocationFunctions(r))
-	if !r.callerLocationFunctionNames.IsEmpty() {
+	if len(r.callerLocationFunctionNames) > 0 {
 		// Rewrite call-sites of functions that have goog.callerLocation as a default parameter. We
 		// want to traverse the root node as well as the externs to ensure the scope of the call-site
 		// is the same scope as the function with the `goog.callerLocation` parameter.
@@ -217,7 +218,7 @@ func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) VisitParamListAn
 
 			functionVarAndPosition :=
 				NewRewriteCallerCodeLocation_FunctionVarAndParamPosition(t.GetScope().GetVar(*functionName), paramPosition)
-			f.this_.callerLocationFunctionNames.Put(*functionName, functionVarAndPosition)
+			f.this_.callerLocationFunctionNames[*functionName] = functionVarAndPosition
 		}
 	}
 }
@@ -269,13 +270,12 @@ func (w *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) VisitCall
 	// function name = module$contents$google3$javascript$apps$wiz$signals$signal_signal
 	// call node name = module$exports$google3$javascript$apps$wiz$signals$signal.signal
 	moduleContentsName :=
-		jutil.StringReplace(jutil.StringReplace(name, ".", "_"), "module$exports$", "module$contents$")
+		strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "module$exports$", "module$contents$")
 
-	if !w.this_.callerLocationFunctionNames.ContainsKey(moduleContentsName) {
+	functionVarAndPosition, ok := w.this_.callerLocationFunctionNames[moduleContentsName]
+	if !ok {
 		return
 	}
-
-	functionVarAndPosition := w.this_.callerLocationFunctionNames.Get(moduleContentsName)
 
 	callerLocationFunction := functionVarAndPosition.GetFunctionVar()
 	calleeFunction := t.GetScope().GetVar(moduleContentsName)
