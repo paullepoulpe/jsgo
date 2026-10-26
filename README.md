@@ -25,17 +25,17 @@ make oracle-tools   # fetch the pinned Java jar/sources and build oracle tools (
 
 ## Benchmarks (`jsgo` vs. Java Closure Compiler v20261021)
 
-Gated on **100% byte-identical output** (JS, source maps, diagnostics, and exit code). Cold CLI runs measured across **$N = 5$ counterbalanced interleaved blocks** on Apple M2 (`--num_parallel_threads=4`, Go 1.27.3 + [PGO](cmd/jsgo/default.pgo), OpenJDK 27.0.1), at commit `a95c4a93`; ratios (`Java / jsgo`) report geometric means with 95% CIs (`±`).
+Gated on **100% byte-identical output** (JS, source maps, diagnostics, and exit code). Cold CLI runs measured across **$N = 5$ counterbalanced interleaved blocks** on Apple M2 (`--num_parallel_threads=4`, Go 1.27.3 + [PGO](cmd/jsgo/default.pgo), OpenJDK 27.0.1), at commit `f18206ae`; ratios (`Java / jsgo`) report geometric means with 95% CIs (`±`).
 
 | Benchmark | Java Time | `jsgo` Time | Java RSS | `jsgo` RSS |
 |---|---:|---:|---:|---:|
-| **`googleapis`**<br>*staged ADV+types · 35.6M nodes* | 209.1 s | **127.2 s**<br>1.64×±0.03 | 12.20 GiB | **5.05 GiB**<br>2.42×±0.14 |
-| **`bundle-mega`**<br>*ADV · 4.19M nodes* | 49.2 s | **25.8 s**<br>1.90×±0.03 | 4.85 GiB | **845 MiB**<br>5.87×±0.54 |
-| **`typed-mega`**<br>*ADV+types · 3.55M nodes* | 35.6 s | **17.9 s**<br>1.99×±0.03 | 3.72 GiB | **682 MiB**<br>5.58×±0.24 |
-| **`typed-full`**<br>*ADV+types · 1.90M nodes* | 23.0 s | **10.5 s**<br>2.19×±0.02 | 3.44 GiB | **426 MiB**<br>8.26×±0.20 |
-| **`checks-only`**<br>*CHECKS+types · 1.29M nodes* | 6.74 s | **2.03 s**<br>3.32×±0.09 | 1.31 GiB | **275 MiB**<br>4.88×±0.54 |
-| **`bundle`**<br>*SIMPLE · 1.11M nodes* | 13.1 s | **4.46 s**<br>2.94×±0.10 | 1.62 GiB | **229 MiB**<br>7.22×±0.22 |
-| **`shaka-blockly`**<br>*ADV+types · 618k nodes* | 12.4 s | **4.27 s**<br>2.91×±0.06 | 1.44 GiB | **208 MiB**<br>7.12×±0.49 |
-| **`downlevel-simple`**<br>*SIMPLE→ES5 · 232k nodes* | 4.57 s | **0.95 s**<br>4.80×±0.12 | 605 MiB | **124 MiB**<br>4.86×±0.10 |
+| **`googleapis`**<br>*staged ADV+types · 35.6M nodes* | 204.9 s | **126.1 s**<br>1.62×±0.02 | 12.77 GiB | **5.11 GiB**<br>2.50×±0.14 |
+| **`bundle-mega`**<br>*ADV · 4.19M nodes* | 49.3 s | **25.5 s**<br>1.93×±0.02 | 4.70 GiB | **846 MiB**<br>5.68×±0.65 |
+| **`typed-mega`**<br>*ADV+types · 3.55M nodes* | 35.5 s | **17.8 s**<br>2.00×±0.03 | 3.70 GiB | **712 MiB**<br>5.33×±0.25 |
+| **`typed-full`**<br>*ADV+types · 1.90M nodes* | 23.1 s | **10.4 s**<br>2.21×±0.04 | 3.44 GiB | **416 MiB**<br>8.46×±0.27 |
+| **`checks-only`**<br>*CHECKS+types · 1.29M nodes* | 7.04 s | **2.04 s**<br>3.46×±0.06 | 1.31 GiB | **257 MiB**<br>5.21×±0.44 |
+| **`bundle`**<br>*SIMPLE · 1.11M nodes* | 13.5 s | **4.52 s**<br>2.98×±0.11 | 1.61 GiB | **228 MiB**<br>7.25×±0.27 |
+| **`shaka-blockly`**<br>*ADV+types · 618k nodes* | 13.0 s | **4.33 s**<br>3.01×±0.10 | 1.43 GiB | **203 MiB**<br>7.20×±0.19 |
+| **`downlevel-simple`**<br>*SIMPLE→ES5 · 232k nodes* | 4.65 s | **0.99 s**<br>4.70×±0.15 | 603 MiB | **124 MiB**<br>4.86×±0.15 |
 
-Across all whole-program and staged workloads, `jsgo` is **1.6×–5.4× faster** and uses **2.4×–8.5× less memory** than cold Java (and 1.2×–1.9× faster than a warm JVM). See [docs/benchmarks.md](docs/benchmarks.md#a95c4a93-on-jdk-27-apple-m2) for all 13 workloads, warm JVM numbers, the per-stage `googleapis` breakdown, `t=1` results, the comparison with the previous measurement, and full `[lo, hi]` 95% confidence intervals.
+Across all whole-program and staged workloads, `jsgo` is **1.6×–5.4× faster** and uses **2.5×–8.5× less memory** than cold Java (and 1.1×–1.9× faster than a warm JVM). See [docs/benchmarks.md](docs/benchmarks.md#f18206ae-on-jdk-27-apple-m2) for all 13 workloads, warm JVM numbers, the per-stage `googleapis` breakdown, `t=1` results, the comparison with the previous measurement, and full `[lo, hi]` 95% confidence intervals.

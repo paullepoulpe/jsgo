@@ -348,6 +348,62 @@ compilation benchmark (macOS arm64, Go 1.27.1 with `default.pgo`, OpenJDK
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | **3.78 s** / **3.40 s** *(`3.34 s` fast)* | 12.50 s `[12.36, 12.56]` | 6.97 s `[6.95, 7.05]` | **3.67×** / **2.05×** *(`3.75×` / `2.09×`)* | **412 MiB** vs. 1,809 / 2,861 MiB *(peak 4,586)* (**4.39× / 6.94× lower**, **11.13×** vs. JVM peak) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | **3.03 s** / **2.75 s** | 11.35 s `[11.25, 11.45]` | 5.79 s `[5.75, 5.82]` | **4.12×** / **2.10×** | **328 MiB** vs. 2,291 / 2,037 MiB *(peak 2,872)* (**6.98× / 6.21× lower**, **8.76×** vs. JVM peak) |
 
+### f18206ae on JDK 27 (Apple M2)
+
+$N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `f18206ae` (`a95c4a93` plus `5cd39f45` and `63a53705`, which replace lookup-only `jutil` collections with Go maps, slices and switches in 38 passes and delete `LinkedIdentityHash{Map,Set}`). Same machine, method, gate and Java (v20261021 on OpenJDK 27.0.1) as [the v20261021 section](#v20261021-on-jdk-27-apple-m2), at `--num_parallel_threads=4`, with `a95c4a93` in the same blocks. Every `jsgo` run was byte-identical to Java (in `single-files`, apart from the Java stack frames of the same 11 inputs on which both compilers crash). The machine was quiet and on AC power: Java's cold times are within 6% of the previous section's on every task. This is the last run without the input pre-read described [below](#googleapis-and-the-file-cache).
+
+#### 1. Production-Scale Staged Compilation (`googleapis-bench`: 43,917 Files, 35.6M Parsed AST Nodes, 7,460 Chunks)
+
+| Stage | `jsgo` (`t=4`) | Java (`t=4`, `-Xmx20g`) | Speedup vs. Java (`[95% CI]`) | `jsgo` Peak RSS | Java Peak RSS | Memory Ratio vs. Java (`[95% CI]`) |
+|---|---:|---:|---:|---:|---:|---:|
+| **`CHECKS`** | **62.85 s** | 96.39 s | **1.53× `[1.50, 1.57]`** | **5,229 MiB** | 12,187 MiB | **2.33× `[2.23, 2.44]`** |
+| **`OPTIMIZATIONS`** | **55.31 s** | 88.57 s | **1.60× `[1.59, 1.62]`** | **4,714 MiB** | 13,074 MiB | **2.78× `[2.56, 3.02]`** |
+| **`FINALIZATIONS`** | **7.93 s** | 19.90 s | **2.51× `[2.50, 2.52]`** | **1,167 MiB** | 7,332 MiB | **6.29× `[5.88, 6.72]`** |
+| **Total** | **126.1 s** | **204.9 s** | **1.62× `[1.60, 1.64]`** | **5,229 MiB** | **13,074 MiB** | **2.50× `[2.37, 2.64]`** |
+
+#### 2. Large & Mega Whole-Program `ADVANCED` Workloads
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`bundle-mega`** | ADV · 4.19M nodes | **28.39 s** / **25.54 s** | 49.28 s / 40.51 s | 1.93× `[1.91, 1.95]` | 1.59× `[1.56, 1.61]` | **846 MiB** vs. 4,812 / 6,594 MiB — **5.68× `[5.06, 6.36]`** |
+| **`typed-mega`** | ADV+types · 3.55M nodes | **20.28 s** / **17.75 s** | 35.55 s / 26.62 s | 2.00× `[1.97, 2.03]` | 1.50× `[1.49, 1.51]` | **712 MiB** vs. 3,791 / 4,192 MiB — **5.33× `[5.08, 5.58]`** |
+| **`typed-full`** | ADV+types · 1.90M nodes | **11.97 s** / **10.45 s** | 23.14 s / 15.59 s | 2.21× `[2.18, 2.25]` | 1.49× `[1.45, 1.53]` | **416 MiB** vs. 3,520 / 3,629 MiB — **8.46× `[8.19, 8.73]`** |
+| **`bundle-advanced-ts`** | ADV · 1.11M nodes | **7.82 s** / **7.35 s** | 17.87 s / 11.51 s | 2.43× `[2.38, 2.48]` | 1.57× `[1.55, 1.58]` | **321 MiB** vs. 1,746 / 3,875 MiB — **5.44× `[5.27, 5.61]`** |
+| **`shaka-blockly`** | ADV+types · 618k nodes | **5.03 s** / **4.33 s** | 13.04 s / 6.86 s | 3.01× `[2.91, 3.11]` | 1.58× `[1.54, 1.63]` | **203 MiB** vs. 1,461 / 3,490 MiB — **7.20× `[7.02, 7.39]`** |
+| **`bundle-advanced`** | ADV · 573k nodes | **4.05 s** / **3.45 s** | 12.04 s / 5.66 s | 3.49× `[3.45, 3.53]` | 1.64× `[1.63, 1.66]` | **188 MiB** vs. 1,585 / 1,935 MiB — **8.41× `[7.56, 9.35]`** |
+
+#### 3. Standard Whole-Program & CLI Suite
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`typed-app`** | ADV+types · 1.29M nodes | **1.52 s** / **1.31 s** | 6.35 s / 1.94 s | 4.84× `[4.71, 4.97]` | 1.48× `[1.45, 1.52]` | **139 MiB** vs. 633 / 1,560 MiB — **4.56× `[4.26, 4.89]`** |
+| **`checks-only`** | CHECKS+types · 1.29M nodes | **2.58 s** / **2.04 s** | 7.04 s / 2.82 s | 3.46× `[3.40, 3.51]` | 1.38× `[1.31, 1.46]` | **257 MiB** vs. 1,342 / 3,503 MiB — **5.21× `[4.79, 5.67]`** |
+| **`bundle`** | SIMPLE · 1.11M nodes | **5.02 s** / **4.52 s** | 13.46 s / 8.74 s | 2.98× `[2.87, 3.09]` | 1.93× `[1.91, 1.96]` | **228 MiB** vs. 1,652 / 1,841 MiB — **7.25× `[6.98, 7.52]`** |
+| **`single-files`** | 1,000 CLI runs, SIMPLE · 306k nodes | **82.29 s** | — / 90.25 s | — | 1.10× `[1.08, 1.11]` | **68 MiB** vs. — / 1,355 MiB — **19.9×** vs. batch |
+| **`downlevel-simple`** | SIMPLE→ES5 · 232k nodes | **1.12 s** / **0.99 s** | 4.65 s / 1.51 s | 4.70× `[4.56, 4.85]` | 1.53× `[1.46, 1.61]` | **124 MiB** vs. 603 / 1,479 MiB — **4.86× `[4.71, 5.02]`** |
+| **`downlevel-whitespace`** | WHITESPACE_ONLY→ES5 · 232k nodes | **0.52 s** / **0.45 s** | 2.45 s / 0.51 s | 5.44× `[5.29, 5.60]` | 1.13× `[1.06, 1.20]` | **107 MiB** vs. 522 / 1,424 MiB — **4.89× `[4.69, 5.10]`** |
+
+#### Against `a95c4a93`
+
+Neutral in time: measured in the same blocks (ratios `a95c4a93 / f18206ae`), wall and CPU time are 0.98×–1.00× on every task. Peak RSS is 5% lower on `typed-full` (1.05× `[1.03, 1.06]`, 416 MiB against 436 MiB) and unchanged within noise elsewhere (`bundle-mega` 1.04× `[1.00, 1.08]`, 846 MiB against 877 MiB). `googleapis` is unchanged: 0.99× `[0.98, 1.00]` over all five blocks, and 1.00× (0.998 and 1.000) in the two blocks where neither build ran right after Java, which are the ones to read (next section).
+
+#### `googleapis` and the file cache
+
+The `googleapis` comparisons between two `jsgo` builds in this section and the ones below carry a bias against the newer build. A Java `googleapis` run (14 GiB on this 24 GiB machine) evicts the 44,240 input files (485 MB) from the file cache: reading them all takes 8.4 s right after Java's `CHECKS` stage, against 1.2 s otherwise. Whichever run comes next reads its inputs from disk, and its `CHECKS` stage is slower. Run by hand, `jsgo`'s `CHECKS` stage took 64.7 s right after Java, against 61.7 s after a `jsgo` run and 61.8 s after Java with the inputs read again first. In the suite, Java's own `CHECKS` stage was 3–8% slower after another Java run.
+
+The block order (Java, head, previous; then the reverse) puts the head build right after Java in blocks 0, 2 and 4, and the previous build never. In every section from `41b39832` on, the head build's `CHECKS` stage is 3–5% slower than the previous build's in those three blocks, and within 1% in blocks 1 and 3 (2.3% once). Read from blocks 1 and 3 only, the head-against-previous `googleapis` ratios (`previous / head`) are:
+
+| Section | All five blocks (as first published) | Blocks 1 and 3 |
+|---|---:|---:|
+| `41b39832` against `a8c90bf9` | 0.97× | 0.98× (0.984, 0.981) |
+| `fbdac472` against `41b39832` | 0.98× | 0.99× (0.995, 0.995) |
+| `692a3752` against `fbdac472` | 0.99× | 1.00× (1.002, 1.001) |
+| `50da0981` against `692a3752` | 0.98× | 0.99× (0.988, 0.998) |
+| `a95c4a93` against `50da0981` | 0.99× | 1.00× (0.994, 1.001) |
+| `f18206ae` against `a95c4a93` | 0.99× | 1.00× (0.998, 1.000) |
+
+The comparison paragraphs below are corrected accordingly. The speedups against Java are hardly affected, because Java also ran right after a Java run in blocks 2 and 4, and in block 0 after the warm-JVM runs of the previous task. Since `1a939f5c`, [`interleaved.py`](../tools/bench/interleaved.py) reads the inputs, untimed, before every `googleapis` run, so no run pays for a cold cache. From the next section on, both compilers' `googleapis` times are therefore a little lower than in this one.
+
 ### a95c4a93 on JDK 27 (Apple M2)
 
 $N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `a95c4a93` (`50da0981` plus two refactors: the remaining `unsafe` imports and the type-erased interfaces of the type graph, CFG and threads eliminated, and the JSType `Visitor`/`RelationshipVisitor` parameterized). Same machine, method, gate and Java (v20261021 on OpenJDK 27.0.1) as [the v20261021 section](#v20261021-on-jdk-27-apple-m2), at `--num_parallel_threads=4`, with `50da0981` in the same blocks. Every `jsgo` run was byte-identical to Java (in `single-files`, apart from the Java stack frames of the same 11 inputs on which both compilers crash). The machine was quiet and on AC power: Java's cold times are within 2% of the previous section's on every task.
@@ -424,7 +480,7 @@ $N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `50da0981` (`6
 
 #### Against `692a3752`
 
-Measured in the same blocks (ratios `692a3752 / 50da0981`), the whole-program and CLI tasks are unchanged (wall and CPU time 0.99×–1.01×, peak RSS within noise). `googleapis` is 2% slower (0.98× `[0.97, 1.00]`; 0 to 3% in every block), all of it in the `CHECKS` stage (0.97×), with CPU time and peak RSS unchanged.
+Measured in the same blocks (ratios `692a3752 / 50da0981`), the whole-program and CLI tasks are unchanged (wall and CPU time 0.99×–1.01×, peak RSS within noise). `googleapis` is unchanged too: 0.99× (0.988 and 0.998) in the two blocks where neither build ran right after Java, with CPU time and peak RSS unchanged. (This paragraph first said 2% slower, all of it in the `CHECKS` stage, from all five blocks; that was the file-cache bias described in [the f18206ae section](#googleapis-and-the-file-cache).)
 
 ### 692a3752 on JDK 27 (Apple M2)
 
@@ -502,7 +558,7 @@ $N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `fbdac472` (`4
 
 #### Against `41b39832`
 
-Performance-neutral: measured in the same blocks (ratios `41b39832 / fbdac472`), wall time is 0.98×–1.00× (`googleapis` 0.98× `[0.97, 1.00]`), CPU time 0.99×–1.00× and peak RSS 0.97×–1.03× on every task.
+Performance-neutral: measured in the same blocks (ratios `41b39832 / fbdac472`), wall time is 0.99×–1.00× (`googleapis` 0.99× in the two blocks where neither build ran right after Java; 0.98× over all five blocks, [biased](#googleapis-and-the-file-cache)), CPU time 0.99×–1.00× and peak RSS 0.97×–1.03× on every task.
 
 ### 41b39832 on JDK 27 (Apple M2)
 
@@ -541,7 +597,7 @@ $N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `41b39832`: `a
 
 #### Against `a8c90bf9`
 
-Measured in the same blocks (ratios `a8c90bf9 / 41b39832`, paired 95% CIs), those commits cost 0–3% of wall time (0.97×–1.00×; `googleapis` 0.97× `[0.96, 0.98]`, `shaka-blockly` and `typed-mega` 0.98×, the rest 0.99×–1.00×) and 0–2% of CPU time, with peak RSS unchanged within noise on every task (0.95×–1.04×).
+Measured in the same blocks (ratios `a8c90bf9 / 41b39832`, paired 95% CIs), those commits cost 0–2% of wall time (0.98×–1.00×; `googleapis` 0.98× in the two blocks where neither build ran right after Java, against 0.97× `[0.96, 0.98]` over all five blocks, which is [biased](#googleapis-and-the-file-cache); `shaka-blockly` and `typed-mega` 0.98×, the rest 0.99×–1.00×) and 0–2% of CPU time, with peak RSS unchanged within noise on every task (0.95×–1.04×).
 
 ### a8c90bf9 on JDK 27 (Apple M2)
 
@@ -592,7 +648,7 @@ The regenerated `cmd/jsgo/default.pgo` of the node-id branch (`a93368f4`) is as 
 
 $N = 5$ counterbalanced interleaved suite with 95% CIs, after the upgrade to v20261021 and the memory round 2 merge. Measured at commit `83d55bdc` (`jsgo` built from the tree as committed, so with the committed `cmd/jsgo/default.pgo`) against Maven Central's `closure-compiler-v20261021.jar`, on Apple M2 (macOS arm64, 24 GiB RAM; Go 1.27.3; OpenJDK 27.0.1). Java and `jsgo` both run `--num_parallel_threads=4`; the `t=1` column is `jsgo` at `--num_parallel_threads=1`.
 
-**Method.** [`tools/bench/interleaved.py`](../tools/bench/interleaved.py) runs and gates the suite and [`interleaved_stats.py`](../tools/bench/interleaved_stats.py) computes the statistics. Every task runs $N = 5$ blocks; each block runs every contender once, in the order Java, `jsgo` builds in odd blocks and the reverse in even ones, which cancels linear thermal and background drift. Times and peak RSS (`wait4`'s `ru_maxrss`) are sample means. Ratios (`Java / jsgo`) are geometric means with two-sided 95% confidence intervals: paired Student-$t$ ($df = 4$) on per-block log-ratios against cold Java, and Welch's $t$ on log-times against warm Java. Warm Java is `tools/bench/java/CliBatch` in one JVM: 5 measured iterations after 5 warm-up iterations (2 for `single-files`); its peak RSS is the JVM's over its whole life. `single-files` (1,000 invocations) is compared with the warm batch only, as before. `googleapis` is the three-stage build of `tools/bench/run_googleapis_bench.py` (Java with `-Xmx20g`); its rows are per stage and their sum.
+**Method.** [`tools/bench/interleaved.py`](../tools/bench/interleaved.py) runs and gates the suite and [`interleaved_stats.py`](../tools/bench/interleaved_stats.py) computes the statistics. Every task runs $N = 5$ blocks; each block runs every contender once, in the order Java, `jsgo` builds in odd blocks and the reverse in even ones, which cancels linear thermal and background drift. Times and peak RSS (`wait4`'s `ru_maxrss`) are sample means. Ratios (`Java / jsgo`) are geometric means with two-sided 95% confidence intervals: paired Student-$t$ ($df = 4$) on per-block log-ratios against cold Java, and Welch's $t$ on log-times against warm Java. Warm Java is `tools/bench/java/CliBatch` in one JVM: 5 measured iterations after 5 warm-up iterations (2 for `single-files`); its peak RSS is the JVM's over its whole life. `single-files` (1,000 invocations) is compared with the warm batch only, as before. `googleapis` is the three-stage build of `tools/bench/run_googleapis_bench.py` (Java with `-Xmx20g`); its rows are per stage and their sum. Since `1a939f5c`, the 44,240 `googleapis` input files are read, untimed, before every `googleapis` run: a Java run evicts them from the file cache, and the order above always put the head build right after Java ([details](#googleapis-and-the-file-cache)).
 
 **Gate.** Every `jsgo` run of every block is compared byte for byte with Java's first cold run (for `single-files`, the warm driver's last iteration): stdout, stderr, exit status and the output files (`out.js`, `out.js.map`), and for `googleapis` each stage's stdout, stderr and exit status plus a digest of all 7,483 chunk files. Two things are set aside:
 - the JVM's own `WARNING:` lines at the top of Java's stderr (the `sun.misc.Unsafe` deprecation notice that JDK 26 and 27 print for the bundled protobuf), which are not compiler output;
