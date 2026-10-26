@@ -83,6 +83,7 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 
 	NodeTraversal_Traverse(d.compiler, externs.GetParent(), findRefs)
 	propIndex := findRefs.GetPropertyIndex()
+	findRefs = nil
 
 	DisambiguateProperties_InvalidateWellKnownProperties(propIndex)
 	d.LogForDiagnosticsProducer(
@@ -93,6 +94,7 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 
 	graphBuilder.AddAll(flattener.typeIndex.Values())
 	graph := graphBuilder.Build()
+	graphBuilder = nil
 
 	// Model legacy behavior from the old (pre-January 2021) disambiguator.
 	// TODO(b/177695515): delete this section.
@@ -122,8 +124,12 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		})
 
 	d.InvalidateBasedOnType(flattener)
+	d.mayHavePropertySeenSet = jutil.NewObjectLinkedHashSet[*colors.Color]()
 
 	FixedPointGraphTraversal_NewTraversal[*ColorGraphNode, ColorGraphBuilder_EdgeReason](propagator).ComputeFixedPoint(graph)
+	flattener = nil
+	graph = nil
+	propagator = nil
 
 	trackerSummaryGenerator := &DisambiguateProperties_TrackerSummaryGenerator{}
 	for prop := range propIndex.Values() {
@@ -136,6 +142,8 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	d.compiler.ReportDisambiguatePropertiesSummary(trackerSummaryGenerator.BuildSummaryString)
 
 	renamingIndexLog.LogJsonSupplier(func() any { return DisambiguateProperties_BuildRenamingIndex(propIndex, renamer) })
+	propIndex = nil
+	renamer = nil
 	d.LogForDiagnostics("mismatches", func() any { return d.registry.GetMismatchLocationsForDebugging().Inverse() })
 
 	GatherGetterAndSetterProperties_Update(d.compiler, externs, root)

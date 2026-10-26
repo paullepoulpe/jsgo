@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -28,13 +27,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
-
-func iacpSnapshotRefs(raw []*GlobalNamespace_Ref, buf *[8]*GlobalNamespace_Ref) []*GlobalNamespace_Ref {
-	if len(raw) <= len(buf) {
-		return append(buf[:0], raw...)
-	}
-	return slices.Clone(raw)
-}
 
 // InlineAndCollapseProperties performs inlining of aliases and collapsing of
 // qualified names in order to improve later optimizations, such as
@@ -319,7 +311,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliases(name
 	//
 	// Go-only: language-adapter — the ArrayDeque is a slice; pop() takes the
 	// first element and add() appends.
-	workList := namespace.GetNameForest().ToSlice()
+	workList := namespace.NameForestSlice()
 
 	for i := 0; i < len(workList); i++ {
 		name := workList[i]
@@ -364,7 +356,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliases(name
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.inlineAliasesForName(Name, GlobalNamespace)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasesForName(name *GlobalNamespace_Name, namespace *GlobalNamespace) {
 	var refsBuf [8]*GlobalNamespace_Ref
-	refs := iacpSnapshotRefs(name.GetRefs(), &refsBuf)
+	refs := name.snapshotRefs(&refsBuf)
 	for _, ref := range refs {
 		if ref.IsAliasingGet() && !InlineAndCollapseProperties_MayBeGlobalAlias(ref) && !ref.IsTwin() {
 			// `name` meets condition (c). Try to inline it.
@@ -376,8 +368,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasesForNa
 			ref.scope.GetClosestHoistScope().IsGlobal() &&
 			!ref.IsTwin() {
 			a.InlineGlobalAliasIfPossible(name, ref, namespace)
-		} else if name.IsClass() && ref.IsSubclassingGet() && name.props != nil {
-			for prop := range name.props.All() {
+		} else if name.IsClass() && ref.IsSubclassingGet() && name.HasProps() {
+			for prop := range name.Props() {
 				a.RewriteAllSubclassInheritedAccesses(name, ref, prop, namespace)
 			}
 		}
@@ -483,7 +475,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 	subclassNameObj, _ := namespace.GetOwnSlot(subclassName).(*GlobalNamespace_Name)
 	if subclassNameObj != nil && subclassNameObj.SubclassingGetCount() > 0 {
 		var subRefsBuf [8]*GlobalNamespace_Ref
-		for _, ref := range iacpSnapshotRefs(subclassNameObj.GetRefs(), &subRefsBuf) {
+		for _, ref := range subclassNameObj.snapshotRefs(&subRefsBuf) {
 			if ref.IsSubclassingGet() {
 				a.RewriteAllSubclassInheritedAccesses(superclassNameObj, ref, prop, namespace)
 			}
@@ -526,10 +518,10 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.isInlineableModuleExportsAlias(Name, ReferenceCollection)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) IsInlineableModuleExportsAlias(name *GlobalNamespace_Name, aliasRefs *ReferenceCollection) bool {
-	aliasedNameStr := name.GetFullName()
-	if !strings.HasPrefix(aliasedNameStr, ClosureRewriteModule_MODULE_EXPORTS_PREFIX) {
+	if !strings.HasPrefix(name.RootBaseName(), ClosureRewriteModule_MODULE_EXPORTS_PREFIX) {
 		return false
 	}
+	aliasedNameStr := name.GetFullName()
 	// the first rhs value Node we find assigned to the name
 	var firstRhs rhino.Node
 	size := aliasRefs.references.Size()
@@ -883,7 +875,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasRefere
 	aliasingName *GlobalNamespace_Name, aliasingRef *GlobalNamespace_Ref, aliasInlinability GlobalNamespace_Inlinability) *jutil.LinkedHashSet[GlobalNamespace_AstChange] {
 	newNodes := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
 	var refsBuf [8]*GlobalNamespace_Ref
-	refs := iacpSnapshotRefs(aliasingName.GetRefs(), &refsBuf)
+	refs := aliasingName.snapshotRefs(&refsBuf)
 	var initializationChunk *JSChunk
 	if aliasingName.GetInitialization() != nil {
 		initializationChunk = aliasingName.GetInitialization().GetChunk()
@@ -935,15 +927,17 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasRefere
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteAliasProps(Name, Node, int, Set<AstChange>)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
 	name *GlobalNamespace_Name, value rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange]) {
-	if name.props == nil {
+	if !name.HasProps() {
 		return
 	}
-	jutil.CheckStateMsg2(
-		!value.MatchesQualifiedName(name.GetFullName()),
-		"%s should not match name %s",
-		value,
-		name.GetFullName())
-	for prop := range name.props.All() {
+	if name.MatchesNode(value) {
+		jutil.CheckStateMsg2(
+			false,
+			"%s should not match name %s",
+			value,
+			name.GetFullName())
+	}
+	for prop := range name.Props() {
 		a.RewriteNestedAliasReference(value, depth, newNodes, prop)
 	}
 }
@@ -969,7 +963,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAlias
 	value rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange], prop *GlobalNamespace_Name) {
 	a.RewriteAliasProps(prop, value, depth+1, newNodes)
 	var refsBuf [8]*GlobalNamespace_Ref
-	refs := iacpSnapshotRefs(prop.GetRefs(), &refsBuf)
+	refs := prop.snapshotRefs(&refsBuf)
 	for _, ref := range refs {
 		target := ref.GetNode()
 		if target.IsStringKey() && target.GetParent().IsDestructuringPattern() {
@@ -1184,19 +1178,19 @@ func InlineAndCollapseProperties_MaybeAddPropertiesToWorklist(name *GlobalNamesp
 		// This is equivalent to condition (b)
 		return
 	}
-	if name.props == nil {
+	if !name.HasProps() {
 		return
 	}
 
 	if name.GetAliasingGets() == 0 {
 		// All of `name`'s children meet condition (a), so they can be
 		// added to the worklist.
-		*workList = append(*workList, name.props.Slice()...)
+		name.AppendPropsTo(workList)
 	} else {
 		// The children do NOT meet condition (a) but we may try to add them anyway.
 		// This is because CollapseProperties will unsafely collapse properties on constructors and
 		// enums, so we want to be more aggressive about inlining references to their children.
-		for property := range name.props.All() {
+		for property := range name.Props() {
 			// Only add properties that would be unsafely collapsed by CollapseProperties
 			if property.CanCollapse() {
 				*workList = append(*workList, property)
@@ -1208,21 +1202,9 @@ func InlineAndCollapseProperties_MaybeAddPropertiesToWorklist(name *GlobalNamesp
 func inlineAndCollapseProperties_getProperty(
 	parent *GlobalNamespace_Name,
 	propName string,
-	nameMap *jutil.LinkedHashMap[string, *GlobalNamespace_Name],
+	_ *GlobalNamespace,
 ) *GlobalNamespace_Name {
-	if parent.props == nil {
-		return nil
-	}
-	props := parent.props.Slice()
-	if len(props) <= 16 {
-		for _, p := range props {
-			if p.GetBaseName() == propName {
-				return p
-			}
-		}
-		return nil
-	}
-	return nameMap.Get(parent.GetFullName() + "." + propName)
+	return parent.LookupChild(propName)
 }
 
 // InlineAndCollapseProperties_MayBeGlobalAlias returns true if the alias is
@@ -1283,7 +1265,7 @@ func InlineAndCollapseProperties_ReferencesCollapsibleProperty(
 			// e.g. if the reference is "alias.b.someProp", this will be "b".
 			propertyName := ref.GetParent().GetString()
 			// e.g. if the aliased name is "originalName", this will be "originalName.b".
-			originalProperty := inlineAndCollapseProperties_getProperty(aliasedName, propertyName, namespace.GetNameIndex())
+			originalProperty := inlineAndCollapseProperties_getProperty(aliasedName, propertyName, namespace)
 			// If the original property isn't in the namespace or can't be collapsed, keep going.
 			if originalProperty == nil || !originalProperty.CanCollapse() {
 				continue
@@ -1303,7 +1285,7 @@ func InlineAndCollapseProperties_IsUnsafelyReassigned(name *GlobalNamespace_Name
 		return false
 	}
 	foundOriginalDefinition := false
-	for _, ref := range name.GetRefs() {
+	for ref := range name.Refs() {
 		if !ref.IsSet() {
 			continue
 		}
@@ -1379,8 +1361,7 @@ func InlineAndCollapseProperties_GetSubclassForEs6Superclass(superclass rhino.No
 type InlineAndCollapseProperties_CollapseProperties struct {
 	outer *InlineAndCollapseProperties
 
-	// Maps names (e.g. "a.b.c") to nodes in the global namespace tree
-	nameMap *jutil.LinkedHashMap[string, *GlobalNamespace_Name]
+	namespace *GlobalNamespace
 
 	dynamicallyImportedModules *jutil.LinkedHashSet[string]
 }
@@ -1403,10 +1384,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs rhino.N
 			NewInlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules(c, c.outer.haveModulesBeenRewritten, c.outer.moduleResolutionMode))
 	}
 
-	c.nameMap = jutil.CheckNotNullMsg(c.outer.namespace, "namespace was not initialized").GetNameIndex()
-	globalNames := c.outer.namespace.GetNameForest()
+	c.namespace = jutil.CheckNotNullMsg(c.outer.namespace, "namespace was not initialized")
+	c.namespace.EnsureGenerated()
 	escaped := c.CheckNamespaces()
-	for name := range globalNames.All() {
+	for name := range c.namespace.NameForest() {
 		c.FlattenReferencesToCollapsibleDescendantNames(name, name.GetBaseName(), escaped)
 		// We collapse property definitions after collapsing property references
 		// because this step can alter the parse tree above property references,
@@ -1461,8 +1442,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CanEliminate(name *Glob
 			}
 		}
 	}
-	if name.props == nil ||
-		name.props.IsEmpty() ||
+	if !name.HasProps() ||
 		c.outer.propertyCollapseLevel != CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT {
 		return true
 	}
@@ -1481,7 +1461,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() *juti
 		// When the output chunk type is ES_MODULES, properties of the module namespace
 		// must not be collapsed as they are referenced off the namespace object. The namespace
 		// objects escape via the dynamic import expression.
-		for name := range c.nameMap.Values() {
+		for name := range c.namespace.AllNames() {
 			// Test if the name is a rewritten module namespace variable and if so mark it as escaped
 			// to prevent any property collapsing.
 			//
@@ -1490,10 +1470,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() *juti
 			if c.dynamicallyImportedModules.Contains(name.GetFullName()) {
 				c.LogDecisionForName(name, "escapes - dynamically imported module namespace")
 				escaped.Add(name)
-				if name.props == nil {
+				if !name.HasProps() {
 					continue
 				}
-				for prop := range name.props.All() {
+				for prop := range name.Props() {
 					propDeclaration := prop.getDeclarationRef()
 					if propDeclaration == nil {
 						continue
@@ -1525,7 +1505,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() *juti
 		}
 	}
 
-	for name := range c.nameMap.Values() {
+	for name := range c.namespace.AllNames() {
 		if !dynamicallyImportedModuleRefs.IsEmpty() &&
 			dynamicallyImportedModuleRefs.Contains(name.GetFullName()) {
 			escaped.Add(name)
@@ -1539,7 +1519,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() *juti
 			continue
 		}
 		initialized := name.GetDeclaration() != nil
-		for _, ref := range name.GetRefs() {
+		for ref := range name.Refs() {
 			if ref.IsDeleteProp() {
 				if initialized {
 					c.WarnAboutNamespaceRedefinition(name, ref)
@@ -1595,7 +1575,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) WarnAboutNamespaceRedef
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenReferencesToCollapsibleDescendantNames(Name, String, Set<Name>)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToCollapsibleDescendantNames(
 	n *GlobalNamespace_Name, alias string, escaped *jutil.LinkedHashSet[*GlobalNamespace_Name]) {
-	if n.props == nil {
+	if !n.HasProps() {
 		return
 	}
 	if n.IsCollapsingExplicitlyDenied() {
@@ -1607,17 +1587,17 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToColl
 		return
 	}
 
-	for _, p := range n.props.Slice() {
+	for p := range n.Props() {
 		inlinability := p.CanCollapseOrInline()
 
 		isAllowedToCollapse :=
 			c.outer.propertyCollapseLevel != CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT || p.IsModuleExport()
 		willCollapse := isAllowedToCollapse && inlinability.CanCollapse()
 		willStub := isAllowedToCollapse && !inlinability.CanCollapse() && !p.IsCollapsingExplicitlyDenied() && p.IsSimpleStubDeclaration()
-		willRecurse := p.props != nil && (!p.IsCollapsingExplicitlyDenied() && !escaped.Contains(p) || c.outer.decisionsLog.IsLogging())
+		willRecurse := p.HasProps() && (!p.IsCollapsingExplicitlyDenied() && !escaped.Contains(p) || c.outer.decisionsLog.IsLogging())
 
 		var propAlias string
-		if willCollapse || willStub || (p.props != nil && !p.IsCollapsingExplicitlyDenied() && !escaped.Contains(p)) {
+		if willCollapse || willStub || (p.HasProps() && !p.IsCollapsingExplicitlyDenied() && !escaped.Contains(p)) {
 			propAlias = c.AppendPropForAlias(alias, p.GetBaseName())
 		}
 
@@ -1668,14 +1648,14 @@ func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForNameSuppl
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenSimpleStubDeclaration(Name, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenSimpleStubDeclaration(name *GlobalNamespace_Name, alias string) {
-	refs := name.GetRefs()
 	// Iterables.getOnlyElement(name.getRefs())
-	if len(refs) == 0 {
+	nRefs := name.refCount()
+	if nRefs == 0 {
 		panic(jutil.NewNoSuchElementException())
-	} else if len(refs) > 1 {
-		panic(jutil.NewIllegalArgumentExceptionMsg(inlineAndCollapseProperties_onlyElementMessage(refs)))
+	} else if nRefs > 1 {
+		panic(jutil.NewIllegalArgumentExceptionMsg(inlineAndCollapseProperties_onlyElementMessage(name.GetRefs())))
 	}
-	ref := refs[0]
+	ref := name.GetFirstRef()
 	nameNode := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, ref.GetNode(), name.GetFullName())
 	varNode := rhino.IR_Var(nameNode).SrcrefIfMissing(nameNode)
 
@@ -1746,13 +1726,21 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesTo(n *
 
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 	n *GlobalNamespace_Name, alias string, escaped *jutil.LinkedHashSet[*GlobalNamespace_Name]) {
-	originalName := n.GetFullName()
+	var originalName string
+	var hasOriginalName bool
+	getOriginalName := func() string {
+		if !hasOriginalName {
+			originalName = n.GetFullName()
+			hasOriginalName = true
+		}
+		return originalName
+	}
 	var declarationNode rhino.Node
 	if n.GetDeclaration() != nil {
 		declarationNode = n.getDeclarationRef().GetNode()
 	}
 	isConstantName := c.ShouldAddConstantName(declarationNode, alias)
-	for _, r := range n.GetRefs() {
+	for r := range n.Refs() {
 		if r == n.getDeclarationRef() {
 			// Declarations are handled separately.
 			continue
@@ -1761,7 +1749,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 		// We shouldn't flatten a reference that's an object literal key, because duplicate keys
 		// show up as refs.
 		if !NodeUtil_MayBeObjectLitKey(r.GetNode()) {
-			c.FlattenNameRef(alias, r.GetNode(), rParent, originalName, isConstantName)
+			c.FlattenNameRef(alias, r.GetNode(), rParent, getOriginalName(), isConstantName)
 		} else if r.GetNode().IsStringKey() && r.GetNode().GetParent().IsObjectPattern() {
 			newNode := rhino.IR_Name(alias).Srcref(r.GetNode())
 			NodeUtil_CopyNameAnnotations(r.GetNode(), newNode)
@@ -1773,26 +1761,26 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 	// Flatten all occurrences of a name as a prefix of its subnames. For
 	// example, if `n` corresponds to the name "a.b", then "a.b" will be
 	// replaced with "a$b" in all occurrences of "a.b.c", "a.b.c.d", etc.
-	if n.props != nil {
+	if n.HasProps() {
 		descendantsVisited := escaped != nil && !n.IsCollapsingExplicitlyDenied() && !escaped.Contains(n)
-		for _, p := range n.props.Slice() {
+		for p := range n.Props() {
 			if flattenPrefixesHasWork(p) {
-				c.flattenPrefixesLazy(alias, originalName, p, 1, 1, isConstantName, escaped, descendantsVisited)
+				c.flattenPrefixesLazy(alias, getOriginalName(), p, 1, 1, isConstantName, escaped, descendantsVisited)
 			}
 		}
 	}
 }
 
 func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
-	if n.props != nil {
+	if n.HasProps() {
 		return true
 	}
 	decl := n.getDeclarationRef()
 	if decl != nil && !decl.GetNode().IsNil() && decl.GetNode().IsGetProp() {
 		return true
 	}
-	refs := n.GetRefs()
-	return len(refs) > 1 || (len(refs) == 1 && refs[0] != decl)
+	nRefs := n.refCount()
+	return nRefs > 1 || (nRefs == 1 && n.GetFirstRef() != decl)
 }
 
 // FlattenPrefixes flattens all occurrences of a name as a prefix of subnames
@@ -1829,7 +1817,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) buildLazyPrefixOriginal
 	for i := extraDepth - 1; i >= 0; i-- {
 		parts[i] = cur.GetBaseName()
 		totalLen += len(parts[i])
-		cur = cur.parent
+		cur = cur.GetParent()
 	}
 	var sb strings.Builder
 	sb.Grow(totalLen)
@@ -1861,16 +1849,16 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 		return
 	}
 
-	for _, r := range n.GetRefs() {
+	for r := range n.Refs() {
 		if r == decl {
 			continue
 		}
 		c.flattenNameRefAtDepthLazy(alias, r.GetNode(), depth, baseOriginalName, n, extraDepth, &cachedOrig, &hasOrig, isConstantName)
 	}
 
-	if n.props != nil {
+	if n.HasProps() {
 		nextDescendantsVisited := descendantsVisited && !n.IsCollapsingExplicitlyDenied() && !escaped.Contains(n)
-		for _, p := range n.props.Slice() {
+		for p := range n.Props() {
 			if flattenPrefixesHasWork(p) {
 				c.flattenPrefixesLazy(alias, baseOriginalName, p, depth+1, extraDepth+1, isConstantName, escaped, nextDescendantsVisited)
 			}
@@ -2008,17 +1996,17 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CollapseDeclarationOfNa
 		c.UpdateGlobalNameDeclaration(n, alias, canCollapseChildNames)
 	}
 
-	if n.props == nil || escaped.Contains(n) {
+	if !n.HasProps() || escaped.Contains(n) {
 		return
 	}
 	c.LogDecisionForName(n, "collapsing descendants")
 	isLogging := c.outer.decisionsLog.IsLogging()
-	for _, p := range n.props.Slice() {
-		if !isLogging && p.props == nil && !c.CanCollapse(p) {
+	for p := range n.Props() {
+		if !isLogging && !p.HasProps() && !c.CanCollapse(p) {
 			continue
 		}
 		var propAlias string
-		if c.CanCollapse(p) || (p.props != nil && !escaped.Contains(p)) {
+		if c.CanCollapse(p) || (p.HasProps() && !escaped.Contains(p)) {
 			propAlias = c.AppendPropForAlias(alias, p.GetBaseName())
 		}
 		c.CollapseDeclarationOfNameAndDescendants(p, propAlias, escaped)
@@ -2465,7 +2453,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 		}
 
 		// If the name cannot be collapsed, skip it.
-		p := inlineAndCollapseProperties_getProperty(objlitName, propName, c.nameMap)
+		p := inlineAndCollapseProperties_getProperty(objlitName, propName, c.namespace)
 		if p != nil && !c.CanCollapse(p) {
 			continue
 		}
@@ -2544,10 +2532,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) AddStubsForUndeclaredPr
 	jutil.CheckStateMsg1(n.CanCollapseUnannotatedChildNames(), "%s", n)
 	jutil.CheckArgumentMsg1(NodeUtil_IsStatementBlock(parent), "%s", parent)
 	rhino.CheckNotNull(addAfter)
-	if n.props == nil {
+	if !n.HasProps() {
 		return
 	}
-	for p := range n.props.All() {
+	for p := range n.Props() {
 		if !p.NeedsToBeStubbed() {
 			continue
 		}
@@ -2584,7 +2572,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) AppendPropForAlias(root
 	}
 	result := root + "$" + prop
 	id := 1
-	for c.nameMap.ContainsKey(result) {
+	for c.namespace.ContainsName(result) {
 		result = root + "$" + prop + "$" + strconv.Itoa(id)
 		id++
 	}

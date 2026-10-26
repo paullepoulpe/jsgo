@@ -2398,7 +2398,7 @@ func (c *Compiler) GetTranspilationNamespace() rhino.StaticScope {
 		// Exclude user-defined code names, to save memory and help prevent misuse.
 		gn.SetShouldTraverseScriptPredicate(
 			func(script rhino.Node) bool { return script.IsFromExterns() || script.IsFirstChildOf(c.GetJsRoot()) })
-		gn.GetNameForest() // ensure namespace is generated
+		gn.EnsureGenerated() // ensure namespace is generated
 		// wrap GlobalNamespace to prevent looking up extra information in GlobalNamespace
 		c.transpilationNamespace = gn
 	}

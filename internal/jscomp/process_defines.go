@@ -510,7 +510,7 @@ func (p *ProcessDefines) CollectDefines(root rhino.Node) {
 		 * set of names, because it makes the rest of the pass more complex.
 		 */
 		if totalSets > 1 {
-			for _, ref := range name.GetRefs() {
+			for ref := range name.Refs() {
 				if ref.IsSet() && ref != declaration {
 					p.compiler.Report(
 						JSError_MakeWithNode(
@@ -534,7 +534,7 @@ func (p *ProcessDefines) SelectDefineDeclaration(name *GlobalNamespace_Name) *Gl
 	if name.GetGlobalSets() == 0 {
 		return nil
 	}
-	for _, ref := range name.GetRefs() {
+	for ref := range name.Refs() {
 		// Make sure we don't select a local set as the declaration.
 		if !ref.IsSetFromGlobal() {
 			continue
@@ -592,7 +592,7 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 	// All defines are implicitly valid in the values of other defines.
 	for define := range p.defineByDefineName.Values() {
 		defineNamesSet[define.name] = struct{}{}
-		for _, r := range define.name.GetRefs() {
+		for r := range define.name.Refs() {
 			if !r.IsSet() {
 				p.validDefineValueExpressions.Add(r.GetNode())
 			}
@@ -624,7 +624,7 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 		}
 		switch p.IsValidDefineValue(declValue) {
 		case base.Tri_TRUE:
-			for _, ref := range name.GetRefs() {
+			for ref := range name.Refs() {
 				p.validDefineValueExpressions.Add(ref.GetNode())
 			}
 		case base.Tri_UNKNOWN:
@@ -642,7 +642,7 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 			declValue := processDefines_getConstantDeclValue(name.getDeclarationRef().GetNode())
 			switch p.IsValidDefineValue(declValue) {
 			case base.Tri_TRUE:
-				for _, ref := range name.GetRefs() {
+				for ref := range name.Refs() {
 					p.validDefineValueExpressions.Add(ref.GetNode())
 				}
 			case base.Tri_UNKNOWN:

@@ -149,6 +149,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		a.colorRegistry)
 	graphBuilder.AddAll(a.graphNodeFactory.typeIndex.Values())
 	colorGraph := graphBuilder.Build()
+	graphBuilder = nil
 	func() {
 		chunkGraphLog := a.compiler.CreateOrReopenLog(reflect.TypeFor[AmbiguateProperties](), "color_graph.dot")
 		defer chunkGraphLog.Close()
@@ -220,6 +221,8 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		prop.firstColorSeed = nil
 		prop.relatedColorsSeeds = nil
 	}
+	colorGraph = nil
+	a.graphNodeFactory = nil
 
 	// ImmutableSet.<String>builder().addAll(externedNames).addAll(quotedNames)
 	numProperties := a.propertyMap.Size()
@@ -230,6 +233,8 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	for name := range a.quotedNames.All() {
 		reservedNames.Add(name)
 	}
+	a.externedNames = nil
+	a.quotedNames = nil
 	numRenamedPropertyNames := 0
 	numSkippedPropertyNames := 0
 	nodeSlab := make([]AmbiguateProperties_PropertyGraphNode, numProperties)
@@ -252,6 +257,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	var coloring GraphColoring[*AmbiguateProperties_Property, struct{}] = NewGraphColoring_GreedyGraphColoringWithTieBreaker[*AmbiguateProperties_Property, struct{}](
 		propertyGraph, ambiguateProperties_FREQUENCY_COMPARATOR)
 	numNewPropertyNames := coloring.Color()
+	coloring = nil
 
 	// Generate new names for the properties that will be renamed.
 	var nameGen NameGenerator = NewDefaultNameGeneratorWithFirstAndNonFirstChars(
@@ -263,6 +269,8 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	for i := 0; i < numNewPropertyNames; i++ {
 		colorMap[i] = nameGen.GenerateNextName()
 	}
+	nameGen = nil
+	reservedNames = nil
 
 	// Translate the color of each Property instance to a name.
 	for _, node := range propertyGraph.nodes {
@@ -272,6 +280,9 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 			a.renamingMap.Put(prop.oldName, *prop.newName)
 		}
 	}
+	propertyGraph = nil
+	nodes = nil
+	nodeSlab = nil
 
 	// Actually assign the new names to the relevant STRING nodes in the AST.
 	for _, n := range a.stringNodesToRename {
@@ -286,6 +297,8 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		}
 	}
 	a.stringNodesToRename = nil
+	a.propertyMap = nil
+	colorMap = nil
 
 	// We may have renamed getter / setter properties.
 	// TODO(b/161947315): this shouldn't be the responsibility of AmbiguateProperties

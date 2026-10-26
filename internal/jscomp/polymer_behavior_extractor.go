@@ -259,7 +259,7 @@ func (e *PolymerBehaviorExtractor) resolveBehaviorNameInternal(
 	// Use any set as a backup declaration, even if it's local.
 	declarationRef, _ := globalName.GetDeclaration().(*GlobalNamespace_Ref)
 	if declarationRef == nil {
-		for _, ref := range globalName.GetRefs() {
+		for ref := range globalName.Refs() {
 			if ref.IsSet() {
 				isGlobalDeclaration = false
 				declarationRef = ref

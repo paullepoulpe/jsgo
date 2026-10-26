@@ -295,44 +295,24 @@ func (g *GlobalNamespace) forwardNodes(fwd func(rhino.Node) rhino.Node) {
 			}
 		}
 	}
-	refs := make(map[*GlobalNamespace_Ref]struct{})
-	ref := func(r *GlobalNamespace_Ref) {
-		if r == nil {
-			return
-		}
-		if _, done := refs[r]; done {
-			return
-		}
-		refs[r] = struct{}{}
+	for i := uint32(0); i < g.refCount; i++ {
+		r := &g.refPages[i>>gnRefPageShift][i&gnRefPageMask]
 		r.node = fwd(r.node)
 		scope(r.scope)
 	}
-	name := func(n *GlobalNamespace_Name) {
-		ref(n.declaration)
-		for _, r := range n.refsSlice {
-			ref(r)
-		}
-		if n.refsIndex != nil {
-			m := make(map[rhino.Node]int, len(n.refsIndex))
-			for i, r := range n.refsSlice {
-				if r != nil && !r.node.IsNil() {
-					m[r.node] = i
+	for i := range g.multiRefs {
+		mr := &g.multiRefs[i]
+		if mr.refsIndex != nil {
+			m := make(map[rhino.Node]int, len(mr.refsIndex))
+			for idx, id := range mr.refIDs {
+				if id != 0 {
+					r := g.refByID(id)
+					if !r.node.IsNil() {
+						m[r.node] = idx
+					}
 				}
 			}
-			n.refsIndex = m
-		}
-	}
-	if g.nameMap != nil {
-		for _, n := range g.nameMap.All() {
-			name(n)
-		}
-	}
-	for _, n := range g.nameMapByModule {
-		name(n)
-	}
-	if g.globalNames != nil {
-		for _, n := range g.globalNames.Slice() {
-			name(n)
+			mr.refsIndex = m
 		}
 	}
 }
