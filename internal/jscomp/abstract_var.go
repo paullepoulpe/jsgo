@@ -172,7 +172,7 @@ type AbstractVarBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struc
 	// Lower 24 bits: uint32(index + 1); bits 24..25: implicit goog namespace
 	// strength (0 = none, 1..3 = SourceKind + 1); bits 26..28: TypedVar flags.
 	indexAndFlags uint32
-	// Go-only: performance — immutable name hash, or per-pass scratch index.
+	// Go-only: performance — cached ScopedName.hashCode() (0 = uncomputed).
 	nameHash int32
 }
 

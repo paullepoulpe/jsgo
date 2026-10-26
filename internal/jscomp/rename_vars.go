@@ -81,9 +81,9 @@ type RenameVars struct {
 	localBleedingFunctionsPerScope *jutil.LinkedHashMap[*Scope, *jutil.ArrayList[*Var]]
 
 	// Maps an old name to a new name assignment
-	assignments    *jutil.LinkedHashMap[string, *RenameVars_Assignment]
-	localByIndex   []*RenameVars_Assignment
-	varAssignments []*RenameVars_Assignment
+	assignments  *jutil.LinkedHashMap[string, *RenameVars_Assignment]
+	localByIndex []*RenameVars_Assignment
+	seenVars     map[*Var]renameVarDecision
 
 	// Whether renaming should apply to local variables only.
 	localRenamingOnly bool
@@ -116,6 +116,11 @@ func NewRenameVars_Assignment(outer *RenameVars, name string) *RenameVars_Assign
 	return outer.allocAssignment(name, jutil.StringStartsWith(name, RenameVars_LOCAL_VAR_PREFIX))
 }
 
+type renameVarDecision struct {
+	assignment *RenameVars_Assignment
+	invertName bool
+}
+
 func (r *RenameVars) allocAssignment(name string, isLocal bool) *RenameVars_Assignment {
 	a := &RenameVars_Assignment{
 		isLocal:           isLocal,
@@ -123,10 +128,6 @@ func (r *RenameVars) allocAssignment(name string, isLocal bool) *RenameVars_Assi
 		orderOfOccurrence: r.assignmentCount,
 	}
 	r.assignmentCount++
-	if cap(r.varAssignments) == 0 {
-		r.varAssignments = make([]*RenameVars_Assignment, 0, 256)
-	}
-	r.varAssignments = append(r.varAssignments, a)
 	return a
 }
 
@@ -301,21 +302,18 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 	r := p.outer
 	var_ := t.LookupVarByID(id)
 	if var_ != nil {
-		idx := var_.nameHash
-		if idx > 0 {
-			a := r.varAssignments[idx-1]
-			a.count++
-			if r.pseudoNameMap != nil {
-				r.RecordPseudoName(n)
-			}
-			if a.isLocal {
-				r.appendLocalRef(n, a)
-			} else {
-				r.appendGlobalRef(n, a)
-			}
-			return
-		} else if idx < 0 {
-			if idx == -2 {
+		if dec, ok := r.seenVars[var_]; ok {
+			if a := dec.assignment; a != nil {
+				a.count++
+				if r.pseudoNameMap != nil {
+					r.RecordPseudoName(n)
+				}
+				if a.isLocal {
+					r.appendLocalRef(n, a)
+				} else {
+					r.appendGlobalRef(n, a)
+				}
+			} else if dec.invertName {
 				name := n.GetString()
 				newName := MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name)
 				if newName != name {
@@ -323,6 +321,9 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 				}
 			}
 			return
+		}
+		if r.seenVars == nil {
+			r.seenVars = make(map[*Var]renameVarDecision, 256)
 		}
 
 		name := n.GetString()
@@ -333,13 +334,13 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 
 		if var_.IsArguments() {
 			r.reservedNames.Add(name)
-			var_.nameHash = -1
+			r.seenVars[var_] = renameVarDecision{}
 			return
 		}
 
 		if !local && r.localRenamingOnly {
 			r.reservedNames.Add(name)
-			var_.nameHash = -1
+			r.seenVars[var_] = renameVarDecision{}
 			return
 		}
 
@@ -348,11 +349,11 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 				newName := MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name)
 				if newName != name {
 					n.SetString(newName)
-					var_.nameHash = -2
+					r.seenVars[var_] = renameVarDecision{invertName: true}
 					return
 				}
 			}
-			var_.nameHash = -1
+			r.seenVars[var_] = renameVarDecision{}
 			return
 		}
 
@@ -398,7 +399,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 			a.count++
 			r.appendGlobalRef(n, a)
 		}
-		var_.nameHash = int32(a.orderOfOccurrence + 1)
+		r.seenVars[var_] = renameVarDecision{assignment: a}
 		return
 	}
 
@@ -546,7 +547,7 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 
 	r.globalRefChunks = nil
 	r.localRefChunks = nil
-	r.varAssignments = nil
+	r.seenVars = nil
 }
 
 // Java: RenameVars.setNameAndReport(Node, String)

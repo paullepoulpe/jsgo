@@ -181,6 +181,7 @@ type Normalize_PropagateConstantPropertyOverVars struct {
 	compiler       AbstractCompiler
 	convention     CodingConvention
 	assertOnChange bool
+	varConst       map[*Var]bool
 }
 
 // Java: Normalize.PropagateConstantPropertyOverVars(AbstractCompiler, boolean)
@@ -229,12 +230,9 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 	var_ := t.LookupVarByID(id)
 	var shouldBeConstant bool
 	if var_ != nil {
-		switch var_.nameHash {
-		case 1:
-			shouldBeConstant = false
-		case 2:
-			shouldBeConstant = true
-		default:
+		var ok bool
+		shouldBeConstant, ok = p.varConst[var_]
+		if !ok {
 			if var_.IsConst() || Normalize_IsFunctionExpressionNameNode(var_.GetNode()) {
 				shouldBeConstant = true
 			} else if info := var_.GetJSDocInfo(); info != nil && info.IsConstant() {
@@ -242,11 +240,10 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 			} else if p.convention.IsConstant(n.GetString()) {
 				shouldBeConstant = true
 			}
-			if shouldBeConstant {
-				var_.nameHash = 2
-			} else {
-				var_.nameHash = 1
+			if p.varConst == nil {
+				p.varConst = make(map[*Var]bool, 64)
 			}
+			p.varConst[var_] = shouldBeConstant
 		}
 	} else {
 		shouldBeConstant = p.convention.IsConstant(n.GetString())

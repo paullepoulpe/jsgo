@@ -29,21 +29,9 @@ import (
 // CrossChunkReferenceCollector collects global variable references for use
 // by CrossChunkCodeMotion.
 type CrossChunkReferenceCollector struct {
-	// Maps global variable name to the corresponding Var object.
-	varsByName *jutil.LinkedHashMap[string, *Var]
-
-	// Maps a given variable to a collection of references to that name. Note
-	// that Var objects are not stable across multiple traversals (unlike scope
-	// root or name).
-	referenceMap *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection]
-
-	vars           []*Var
-	cols           []*ReferenceCollection
-	varsBuf        [16]*Var
-	colsBuf        [16]*ReferenceCollection
-	lastVar        *Var
-	lastCollection *ReferenceCollection
-	maxVarIndex    int
+	vars        []*Var
+	byKey       map[scopedVarKey]*ReferenceCollection
+	maxVarIndex int
 
 	// The stack of basic blocks and scopes the current traversal is in.
 	blockStack    []*BasicBlock
@@ -82,18 +70,10 @@ func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCre
 		scopeCreator: creator,
 		maxVarIndex:  -1,
 	}
-	c.vars = c.varsBuf[:0]
-	c.cols = c.colsBuf[:0]
 	c.blockStack = c.blockStackBuf[:0]
 	c.draftVal.nonDeclarationReferences = c.draftRefsBuf[:0]
 	c.draftVal.nonDeclarationVars = c.draftVarsBuf[:0]
 	return c
-}
-
-func (c *CrossChunkReferenceCollector) resetVarHashes() {
-	for _, kv := range c.vars {
-		kv.nameHash = 0
-	}
 }
 
 func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
@@ -138,47 +118,16 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 	return s
 }
 
-func (c *CrossChunkReferenceCollector) growVarsCols() {
-	newCap := max(cap(c.vars)*2, 4096)
-	newVars := make([]*Var, len(c.vars), newCap)
-	copy(newVars, c.vars)
-	c.vars = newVars
-	newCols := make([]*ReferenceCollection, len(c.cols), newCap)
-	copy(newCols, c.cols)
-	c.cols = newCols
-}
-
-func (c *CrossChunkReferenceCollector) getExistingReferences(v *Var) *ReferenceCollection {
-	if idx := int(v.nameHash) - 1; idx >= 0 && idx < len(c.vars) && c.vars[idx] == v {
-		return c.cols[idx]
-	}
-	return nil
-}
-
 func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *ReferenceCollection {
 	if idx := v.GetIndex(); idx > c.maxVarIndex {
 		c.maxVarIndex = idx
 	}
-	if c.varsByName != nil {
-		name := v.GetName()
-		if c.varsByName.ContainsKey(name) {
-			jutil.CheckState(jutil.ObjectsEquals(c.varsByName.Get(name), v))
-		} else {
-			c.varsByName.Put(name, v)
-		}
-	}
 	col := &ReferenceCollection{}
-	if len(c.vars) == cap(c.vars) {
-		c.growVarsCols()
-	}
 	c.vars = append(c.vars, v)
-	c.cols = append(c.cols, col)
-	if c.referenceMap != nil {
-		c.referenceMap.Put(v, col)
+	if c.byKey == nil {
+		c.byKey = make(map[scopedVarKey]*ReferenceCollection, 64)
 	}
-	v.nameHash = int32(len(c.vars))
-	c.lastVar = v
-	c.lastCollection = col
+	c.byKey[scopedVarKeyOf(v)] = col
 	return col
 }
 
@@ -216,9 +165,6 @@ func (c *CrossChunkReferenceCollector) ProcessRoot(root rhino.Node) {
 //
 // Java: CrossChunkReferenceCollector.getAllSymbols()
 func (c *CrossChunkReferenceCollector) GetAllSymbols() iter.Seq[*Var] {
-	if c.referenceMap != nil {
-		return c.referenceMap.Keys()
-	}
 	return slices.Values(c.vars)
 }
 
@@ -227,38 +173,13 @@ func (c *CrossChunkReferenceCollector) GetAllSymbols() iter.Seq[*Var] {
 // Java: CrossChunkReferenceCollector.getReferences(Var)
 func (c *CrossChunkReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
 	if v == nil {
-		if c.referenceMap != nil {
-			return c.referenceMap.Get(nil)
-		}
 		return nil
 	}
-	if v == c.lastVar {
-		return c.lastCollection
-	}
-	if col := c.getExistingReferences(v); col != nil {
-		c.lastVar = v
-		c.lastCollection = col
-		return col
-	}
-	for i, kv := range c.vars {
-		if kv.nameID == v.nameID && kv.scope.GetRootNode() == v.scope.GetRootNode() {
-			col := c.cols[i]
-			c.lastVar = v
-			c.lastCollection = col
-			return col
-		}
-	}
-	if c.referenceMap != nil {
-		return c.referenceMap.Get(v)
-	}
-	return nil
+	return c.byKey[scopedVarKeyOf(v)]
 }
 
 // Java: CrossChunkReferenceCollector.getGlobalVariableNamesMap()
 func (c *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() *jutil.LinkedHashMap[string, *Var] {
-	if c.varsByName != nil {
-		return jutil.NewLinkedHashMapFrom(c.varsByName)
-	}
 	out := jutil.NewLinkedHashMapWithCapacity[string, *Var](len(c.vars))
 	for _, v := range c.vars {
 		out.Put(v.GetName(), v)
@@ -282,20 +203,12 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, par
 				v := scope.GetVarByID(id)
 
 				if v != nil && v.IsGlobal() {
-					var col *ReferenceCollection
-					if v == c.lastVar {
-						col = c.lastCollection
-					} else {
-						col = c.getExistingReferences(v)
-						if col == nil {
-							if c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false) {
-								goto checkBoundary
-							}
-							col = c.createReferencesForNewVar(v)
-						} else {
-							c.lastVar = v
-							c.lastCollection = col
+					col := c.byKey[scopedVarKeyOf(v)]
+					if col == nil {
+						if c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false) {
+							goto checkBoundary
 						}
+						col = c.createReferencesForNewVar(v)
 					}
 					reference := c.refSlab.New()
 					*reference = Reference{nameNode: n, basicBlock: crossChunkReferenceCollector_peek(c.blockStack), scope: scope, inputId: t.GetInput().GetInputId()}
@@ -532,17 +445,9 @@ func CrossChunkReferenceCollector_IsBlockBoundary(n rhino.Node, parent rhino.Nod
 
 // Java: CrossChunkReferenceCollector.addReferenceToCollection(Var, Reference)
 func (c *CrossChunkReferenceCollector) AddReferenceToCollection(v *Var, reference *Reference) {
-	var col *ReferenceCollection
-	if v == c.lastVar && v != nil {
-		col = c.lastCollection
-	} else {
-		col = c.getExistingReferences(v)
-		if col == nil {
-			col = c.createReferencesForNewVar(v)
-		} else {
-			c.lastVar = v
-			c.lastCollection = col
-		}
+	col := c.byKey[scopedVarKeyOf(v)]
+	if col == nil {
+		col = c.createReferencesForNewVar(v)
 	}
 	col.Add(reference)
 }

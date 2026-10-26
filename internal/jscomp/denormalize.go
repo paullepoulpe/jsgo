@@ -89,25 +89,24 @@ type denormalizeVarState struct {
 }
 
 type denormalizeVarInliner struct {
-	states          []denormalizeVarState
+	states          map[*Var]*denormalizeVarState
 	scopesWithDecls map[rhino.Node]*Scope
-	statesBuf       [32]denormalizeVarState
 }
 
 func newDenormalizeVarInliner() *denormalizeVarInliner {
-	inliner := &denormalizeVarInliner{}
-	inliner.states = inliner.statesBuf[:0]
-	return inliner
+	return &denormalizeVarInliner{}
 }
 
 func (inliner *denormalizeVarInliner) getOrAllocState(v *Var) *denormalizeVarState {
-	idx := v.nameHash
-	if idx == 0 {
-		idx = int32(len(inliner.states) + 1)
-		v.nameHash = idx
-		inliner.states = append(inliner.states, denormalizeVarState{})
+	if inliner.states == nil {
+		inliner.states = make(map[*Var]*denormalizeVarState, 32)
 	}
-	return &inliner.states[idx-1]
+	st := inliner.states[v]
+	if st == nil {
+		st = &denormalizeVarState{}
+		inliner.states[v] = st
+	}
+	return st
 }
 
 func (inliner *denormalizeVarInliner) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
@@ -125,16 +124,17 @@ func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 	if scope == nil {
 		return
 	}
+	delete(inliner.scopesWithDecls, scopeRoot)
 	changed := false
 	for _, v := range scope.varList {
 		if v == nil {
 			continue
 		}
-		idx := v.nameHash
-		if idx == 0 {
+		st := inliner.states[v]
+		if st == nil {
 			continue
 		}
-		st := &inliner.states[idx-1]
+		delete(inliner.states, v)
 		if !st.declNode.IsNil() && !st.assignNode.IsNil() && denormalize_inlineVar(st.declNode, st.assignNode) {
 			changed = true
 		}

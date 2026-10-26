@@ -139,7 +139,6 @@ func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 	if c.graph.GetChunkCount() > 1 {
 		referenceCollector :=
 			NewCrossChunkReferenceCollector(c.compiler, NewSyntacticScopeCreator(c.compiler))
-		defer referenceCollector.resetVarHashes()
 		referenceCollector.ProcessRoot(root)
 		globalSymbols :=
 			NewCrossChunkCodeMotion_GlobalSymbolCollector(c).CollectGlobalSymbols(referenceCollector)

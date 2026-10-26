@@ -859,12 +859,6 @@ type TypedScopeCreator_AbstractScopeBuilderBase struct {
 	deferredActions *jutil.LinkedHashMultimap[rhino.Node, *func()]
 
 	slotDefiner TypedScopeCreator_AbstractScopeBuilder_SlotDefiner
-
-	lastOwnerNode rhino.Node
-	lastOwnerName string
-
-	scratchSuperBuilder rhino.NominalTypeBuilder
-	scratchSubBuilder   rhino.NominalTypeBuilder
 }
 
 // InitTypedScopeCreator_AbstractScopeBuilderBase is the AbstractScopeBuilder
@@ -882,23 +876,13 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) InitTypedScopeCreator_Abstr
 	b.input = nil
 	b.inputResolved = false
 	b.deferredActions = nil
-	b.lastOwnerNode = rhino.NilNode
-	b.lastOwnerName = ""
 }
 
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) getOwnerLValueNameString(ownerNode rhino.Node) (string, bool) {
 	if ownerNode.IsNil() {
 		return "", false
 	}
-	if ownerNode == b.lastOwnerNode {
-		return b.lastOwnerName, true
-	}
-	ownerName, ok := nodeUtil_getBestLValueNameString(ownerNode)
-	if ok {
-		b.lastOwnerNode = ownerNode
-		b.lastOwnerName = ownerName
-	}
-	return ownerName, ok
+	return nodeUtil_getBestLValueNameString(ownerNode)
 }
 
 func (b *TypedScopeCreator_AbstractScopeBuilderBase) deferAction(key rhino.Node, action *func()) {
@@ -2091,8 +2075,6 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CreateFunctionTypeFromNodes
 				ownerName = (*name)[:len(*name)-len(propName)-1]
 				hasOwnerName = true
 				hasPropName = true
-				b.lastOwnerNode = ownerNode
-				b.lastOwnerName = ownerName
 			}
 		}
 		if !hasOwnerName {
@@ -3079,14 +3061,10 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(
 			superCtor := superClass.GetConstructor()
 			subCtor := subClass.GetConstructor()
 			if superCtor != nil && subCtor != nil {
-				b.scratchSuperBuilder = rhino.MakeNominalTypeBuilder(superCtor, superClass)
-				b.scratchSubBuilder = rhino.MakeNominalTypeBuilder(subCtor, subClass)
 				b.outer.codingConvention.ApplySubclassRelationship(
-					&b.scratchSuperBuilder,
-					&b.scratchSubBuilder,
+					rhino.NewNominalTypeBuilder(superCtor, superClass),
+					rhino.NewNominalTypeBuilder(subCtor, subClass),
 					relationship.type_)
-				b.scratchSuperBuilder = rhino.NominalTypeBuilder{}
-				b.scratchSubBuilder = rhino.NominalTypeBuilder{}
 			}
 		}
 	}
@@ -3100,8 +3078,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCalls(
 
 			if functionType != nil {
 				getterType := b.outer.typeRegistry.CreateFunctionType(objectType)
-				builder := rhino.MakeNominalTypeBuilder(functionType, objectType)
-				b.outer.codingConvention.ApplySingletonGetter(&builder, getterType)
+				b.outer.codingConvention.ApplySingletonGetter(
+					rhino.NewNominalTypeBuilder(functionType, objectType), getterType)
 			}
 		}
 	}
@@ -3193,8 +3171,6 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedName(
 	propName := n.GetString()
 	jutil.CheckArgument(hasQName)
 	ownerNameStr := qName[:len(qName)-len(propName)-1]
-	b.lastOwnerNode = ownerNode
-	b.lastOwnerName = ownerNameStr
 
 	// Precedence of type information on GETPROPs:
 	// 1) @type annotation / @enum annotation
@@ -4208,6 +4184,7 @@ type TypedScopeCreator_FirstOrderFunctionAnalyzer struct {
 	// this inner class.
 	outer                    *TypedScopeCreator
 	identifyEnumsAndTypedefs TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable
+	localVarState            map[*Var]uint8
 	localContainerDepth      int
 	globalDeclEstimate       int
 }
@@ -4254,8 +4231,8 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 	}
 	if scope.implicitVars != nil {
 		if ev := scope.implicitVars[AbstractScope_ImplicitVar_EXPORTS]; ev != nil {
-			h := ev.nameHash
-			ev.nameHash = 0
+			h := a.localVarState[ev]
+			delete(a.localVarState, ev)
 			var flags uint8
 			if (h & 4) != 0 {
 				flags |= typedScopeCreator_VarFlagEscaped
@@ -4289,8 +4266,8 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 			continue
 		}
 		name := symbol.GetName()
-		h := symbol.nameHash
-		symbol.nameHash = 0
+		h := a.localVarState[symbol]
+		delete(a.localVarState, symbol)
 		if h != 1 {
 			var flags uint8
 			if (h & 4) != 0 {
@@ -4353,15 +4330,20 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		if var_ != nil {
 			ownerScope := var_.scope
 			if ownerScope.IsLocal() {
-				if (var_.nameHash & 3) < 2 {
-					var_.nameHash++
+				if a.localVarState == nil {
+					a.localVarState = make(map[*Var]uint8, 64)
+				}
+				h := a.localVarState[var_]
+				if (h & 3) < 2 {
+					h++
 				}
 				if a.localContainerDepth > 1 {
 					containerScope := scope.GetClosestContainerScope()
 					if !containerScope.HasSameContainerScope(ownerScope) {
-						var_.nameHash |= 4
+						h |= 4
 					}
 				}
+				a.localVarState[var_] = h
 			}
 		}
 	} else if n.IsGetProp() && n.IsUnscopedQualifiedName() && NodeUtil_IsLValue(n) {

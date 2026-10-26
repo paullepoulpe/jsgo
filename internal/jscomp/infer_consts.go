@@ -52,10 +52,8 @@ func (c *InferConsts) Process(externs rhino.Node, js rhino.Node) {
 	collector.processRoot(js)
 
 	collector.flushLocalStates()
-	for i := 1; i < len(collector.globalStates); i++ {
-		st := &collector.globalStates[i]
-		st.v.nameHash = 0
-		c.considerVarState(st)
+	for i := range collector.globalStates {
+		c.considerVarState(&collector.globalStates[i])
 	}
 
 	globalExternsScope := scopeCreator.CreateScopeOfScope(externs, nil)
@@ -169,6 +167,8 @@ type inferConstsCollector struct {
 	sc               *SyntacticScopeCreator
 	localStates      []inferConstVarState
 	globalStates     []inferConstVarState
+	localIndex       map[*Var]int
+	globalIndex      map[*Var]int
 	blockStack       []basicBlockEntry
 	blocks           jutil.Slab[BasicBlock] // one pass's blocks die together
 	collectedHoisted map[rhino.Node]struct{}
@@ -181,19 +181,23 @@ func newInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, sc *
 		compiler:     compiler,
 		scopeCreator: sc,
 		sc:           sc,
-		localStates:  make([]inferConstVarState, 1),
-		globalStates: make([]inferConstVarState, 1),
 	}
 }
 
 func (c *inferConstsCollector) flushLocalStates() {
-	for i := 1; i < len(c.localStates); i++ {
-		st := &c.localStates[i]
-		st.v.nameHash = 0
-		c.outer.considerVarState(st)
+	if len(c.localStates) == 0 {
+		return
 	}
-	clear(c.localStates[1:])
-	c.localStates = c.localStates[:1]
+	for i := range c.localStates {
+		c.outer.considerVarState(&c.localStates[i])
+	}
+	clear(c.localStates)
+	c.localStates = c.localStates[:0]
+	if len(c.localIndex) > 64 {
+		c.localIndex = nil
+	} else if c.localIndex != nil {
+		clear(c.localIndex)
+	}
 }
 
 func (c *inferConstsCollector) builderVal() NodeTraversal_Builder {
@@ -397,8 +401,15 @@ func inferConsts_isLvalue(n rhino.Node, parent rhino.Node) bool {
 }
 
 func (c *inferConstsCollector) addReference(v *Var, n rhino.Node, parent rhino.Node, t *NodeTraversal) {
-	idx := v.nameHash
-	if idx == 0 {
+	isLocal := v.IsLocal()
+	var idx int
+	var ok bool
+	if isLocal {
+		idx, ok = c.localIndex[v]
+	} else {
+		idx, ok = c.globalIndex[v]
+	}
+	if !ok {
 		isDecl := reference_isDeclarationHelper(n)
 		parentTok := parent.GetToken()
 		isInitDecl := (isDecl && parentTok != rhino.Token_VAR && parentTok != rhino.Token_LET) || n.HasChildren()
@@ -421,21 +432,27 @@ func (c *inferConstsCollector) addReference(v *Var, n rhino.Node, parent rhino.N
 			st.assignBlock = currentBlock
 			_, st.assignHoistRoot = t.closestScopeHoistRoot()
 		}
-		if v.IsLocal() {
-			v.nameHash = int32(len(c.localStates))
+		if isLocal {
+			if c.localIndex == nil {
+				c.localIndex = make(map[*Var]int, 16)
+			}
+			c.localIndex[v] = len(c.localStates)
 			c.localStates = appendDoubling(c.localStates, st)
 		} else {
-			v.nameHash = -int32(len(c.globalStates))
+			if c.globalIndex == nil {
+				c.globalIndex = make(map[*Var]int, 64)
+			}
+			c.globalIndex[v] = len(c.globalStates)
 			c.globalStates = appendDoubling(c.globalStates, st)
 		}
 		return
 	}
 
 	var st *inferConstVarState
-	if idx > 0 {
+	if isLocal {
 		st = &c.localStates[idx]
 	} else {
-		st = &c.globalStates[-idx]
+		st = &c.globalStates[idx]
 	}
 	if st.assignCount > 1 {
 		return
