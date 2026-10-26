@@ -163,7 +163,8 @@ func (n Node) initTemplateLitPayload(cookedID, rawID rhinoStringID) {
 //	bit  40      propFlagHasJSDoc
 //	bits 41..42  ConstantVarFlags
 //	bits 43..46  SideEffectFlags
-//	bits 47..62  the source-file id (nodePropSourceFile*)
+//
+// (The source file is not a bit: it is the record's sourceFile id.)
 //
 // The record keeps 32 of them, in a propWord. The other boolean properties
 // (bits propHotCount..39) are rare, so they live in the node's aux entry
@@ -176,7 +177,7 @@ type propWord uint32
 //	bit  8       propFlagHasJSDoc
 //	bits 9..14   ConstantVarFlags, SideEffectFlags
 //	bit  15      propWordHasCold: nodeAux.cold is not zero
-//	bits 16..31  the source-file id
+//	bits 16..31  unused
 const (
 	propWordHotMask propWord = 1<<propHotCount - 1
 	propWordJSDoc   propWord = 1 << 8
@@ -185,15 +186,13 @@ const (
 	propLogicalMidShift = 40 // logical bits 40..46 are word bits 8..14
 	propWordMidShift    = 8
 	propMidMask         = 0x7F
-	propWordSFShift     = 16
 )
 
 // props returns n's property bits in the logical layout.
 func (n Node) props() uint64 {
 	p := n.rec().propFlags
 	v := uint64(p&propWordHotMask) |
-		uint64(p>>propWordMidShift&propMidMask)<<propLogicalMidShift |
-		uint64(p>>propWordSFShift)<<nodePropSourceFileShift
+		uint64(p>>propWordMidShift&propMidMask)<<propLogicalMidShift
 	if p&propWordHasCold != 0 {
 		v |= uint64(n.coldProps()) << propHotCount
 	}
@@ -205,8 +204,7 @@ func (n Node) setProps(v uint64) {
 	r := n.rec()
 	cold := uint32(v>>propHotCount) & (1<<(propBitCount-propHotCount) - 1)
 	p := propWord(v)&propWordHotMask |
-		propWord(v>>propLogicalMidShift&propMidMask)<<propWordMidShift |
-		propWord(v>>nodePropSourceFileShift)<<propWordSFShift
+		propWord(v>>propLogicalMidShift&propMidMask)<<propWordMidShift
 	if cold != 0 {
 		p |= propWordHasCold
 	}
@@ -215,6 +213,12 @@ func (n Node) setProps(v uint64) {
 	if cold != 0 || hadCold {
 		n.setColdProps(cold)
 	}
+}
+
+// setPropsAndSourceFile copies other's property bits and source file.
+func (n Node) setPropsAndSourceFile(other Node) {
+	n.setProps(other.props())
+	n.rec().sourceFile = other.rec().sourceFile
 }
 
 func (n Node) orProps(v uint64)     { n.setProps(n.props() | v) }

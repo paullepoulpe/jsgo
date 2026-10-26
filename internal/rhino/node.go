@@ -512,11 +512,6 @@ const (
 	nodePropConstVarMask    uint64 = uint64(3) << nodePropConstVarShift
 	nodePropSideEffectShift        = 43
 	nodePropSideEffectMask  uint64 = uint64(15) << nodePropSideEffectShift
-
-	nodePropSourceFileShift             = 47
-	nodePropSourceFileMaxID      uint32 = 0xFFFE
-	nodePropSourceFileOverflow   uint32 = 0xFFFF
-	nodePropAllNonSourceFileMask uint64 = (uint64(1) << nodePropSourceFileShift) - 1
 )
 
 var nodePropBitMask = [64]uint64{
@@ -616,11 +611,17 @@ type nodeExtBox struct {
 	cookedNil      bool               // the TEMPLATELIT_STRING has no cooked string
 }
 
+// The SOURCE_FILE property of a node is an id into these tables: each
+// PutProp(SOURCE_FILE, file) takes a new id, holding the property's list
+// item (shared by every node that copies the id, as Java shares the item)
+// and the file's name. 16M ids: a few per input file.
+const sourceFileIDChunks = 1 << 14
+
 var (
 	sourceFilePropMu        sync.Mutex
 	sourceFilePropCount     atomic.Uint32
-	sourceFilePropChunks    [128]atomic.Pointer[[1024]Node_PropListItem]
-	sourceFileNamePtrChunks [128]atomic.Pointer[[1024]*string]
+	sourceFilePropChunks    [sourceFileIDChunks]atomic.Pointer[[1024]Node_PropListItem]
+	sourceFileNamePtrChunks [sourceFileIDChunks]atomic.Pointer[[1024]*string]
 )
 
 func sourceFilePropItem(id uint32) *Node_PropListItem {
@@ -628,18 +629,16 @@ func sourceFilePropItem(id uint32) *Node_PropListItem {
 	return &sourceFilePropChunks[idx>>10].Load()[idx&1023]
 }
 
-func allocSourceFilePropID(file any) (uint32, bool) {
-	if sourceFilePropCount.Load() >= nodePropSourceFileMaxID {
-		return 0, false
-	}
+// allocSourceFileID returns a new source-file id for file.
+func allocSourceFileID(file any) uint32 {
 	sourceFilePropMu.Lock()
 	id := sourceFilePropCount.Load() + 1
-	if id > nodePropSourceFileMaxID {
-		sourceFilePropMu.Unlock()
-		return 0, false
-	}
 	idx := id - 1
 	chunkIdx := idx >> 10
+	if chunkIdx >= sourceFileIDChunks {
+		sourceFilePropMu.Unlock()
+		panic(fmt.Sprintf("rhino: more than %d source-file ids", sourceFileIDChunks*1024))
+	}
 	chunk := sourceFilePropChunks[chunkIdx].Load()
 	if chunk == nil {
 		chunk = new([1024]Node_PropListItem)
@@ -666,7 +665,7 @@ func allocSourceFilePropID(file any) (uint32, bool) {
 	}
 	sourceFilePropCount.Store(id)
 	sourceFilePropMu.Unlock()
-	return id, true
+	return id
 }
 
 // jsDocAux is the node's JSDocInfo when it is stored directly in the aux
@@ -1048,7 +1047,7 @@ func (n Node) Init(token Token) Node {
 func (n Node) InitFromTemplate(token Token, template Node) Node {
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1062,7 +1061,7 @@ func (n Node) InitWithChildFromTemplate(token Token, child Node, template Node) 
 	}
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	n.rec().first = n.ref(child)
 	child.rec().previous = child.ref(child)
 	child.rec().parent = child.ref(n)
@@ -1073,7 +1072,7 @@ func (n Node) InitWithChildFromTemplate(token Token, child Node, template Node) 
 func (n Node) initWithChildFromTemplateSlow(token Token, child Node, template Node) Node {
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1088,7 +1087,7 @@ func (n Node) initWithChildFromTemplateSlow(token Token, child Node, template No
 func (n Node) InitWith2ChildrenFromTemplate(token Token, left Node, right Node, template Node) Node {
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1109,7 +1108,7 @@ func (n Node) InitWith2ChildrenFromTemplate(token Token, left Node, right Node, 
 func (n Node) InitWith3ChildrenFromTemplate(token Token, left Node, mid Node, right Node, template Node) Node {
 	n.rec().token = token
 	n.rec().linenoCharno = -1
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1144,7 +1143,7 @@ func (n Node) InitStringFromTemplate(token Token, str string, template Node) Nod
 	n.rec().token = token
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindString)
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	n.initStringPayloadAndCold(str, template)
 	return n
 }
@@ -1155,7 +1154,7 @@ func (n Node) InitStringIDFromTemplate(token Token, id rhinoStringID, template N
 	n.rec().token = token
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindString)
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1193,7 +1192,7 @@ func (n Node) InitTemplateLitStringFromStringPool(
 	n.rec().token = Token_TEMPLATELIT_STRING
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1219,7 +1218,7 @@ func (n Node) InitBigIntFromTemplate(bigint *big.Int, template Node) Node {
 	n.rec().token = Token_BIGINT
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindBigInt)
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1232,7 +1231,7 @@ func (n Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, temp
 	n.rec().token = Token_TEMPLATELIT_STRING
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	n.setProps(template.props())
+	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
@@ -1421,13 +1420,10 @@ func (n Node) GetClosureUnawareShadow() Node {
 
 // Java: Node.setIsInClosureUnawareSubtree(boolean)
 func (n Node) SetIsInClosureUnawareSubtree(value bool) {
-	sfID := uint32(n.props() >> nodePropSourceFileShift)
-	cold := n.coldPropListHead()
-	hasOnlySourceFile := (n.props()&nodePropAllNonSourceFileMask) == 0 &&
+	hasOnlySourceFile := n.props() == 0 &&
 		n.typeBeforeCastBase() == nil &&
 		(n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) &&
-		((sfID != 0 && sfID != nodePropSourceFileOverflow && cold == nil) ||
-			(sfID == nodePropSourceFileOverflow && cold != nil && int(cold.propType) == Node_Prop_SOURCE_FILE.Ordinal() && cold.next == nil))
+		n.rec().sourceFile != 0 && n.coldPropListHead() == nil
 	if !hasOnlySourceFile {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			jutil.StringFormat(
@@ -1808,13 +1804,10 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 	}
 	switch prop {
 	case Node_Prop_SOURCE_FILE:
-		sfID := uint32(n.props() >> nodePropSourceFileShift)
-		if sfID == 0 {
-			return nil
-		}
-		if sfID != nodePropSourceFileOverflow {
+		if sfID := n.rec().sourceFile; sfID != 0 {
 			return sourceFilePropItem(sfID)
 		}
+		return nil
 	case Node_Prop_CONSTANT_VAR_FLAGS:
 		if v := (n.props() >> nodePropConstVarShift) & 3; v != 0 {
 			return &staticConstVarPropItems[v]
@@ -1884,7 +1877,7 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 // Java: Node.clonePropsFrom(Node)
 func (n Node) ClonePropsFrom(other Node) Node {
 	jutil.CheckStateMsg(
-		n.coldPropListHead() == nil && n.typeBeforeCastBase() == nil && n.props() == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0),
+		n.coldPropListHead() == nil && n.typeBeforeCastBase() == nil && n.props() == 0 && n.rec().sourceFile == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0),
 		"Node has existing properties.")
 	if otherBox := other.extBoxOrNil(); otherBox != nil {
 		if otherBox.propListHead != nil {
@@ -1905,7 +1898,7 @@ func (n Node) ClonePropsFrom(other Node) Node {
 			n.ensureExtBox().jsDocInfo = other.jsDocAux()
 		}
 	}
-	n.setProps(other.props())
+	n.setPropsAndSourceFile(other)
 	if (other.rec().kindFlags&kindFlagHasExtra) != 0 && other.coldPropListHead() != nil {
 		n.rec().kindFlags |= kindFlagHasExtra
 	}
@@ -1939,7 +1932,7 @@ const nodeValidatedPropsMask = propFlag_IS_PARENTHESIZED |
 //
 // Java: Node.validateProperties(Consumer<String>)
 func (n Node) ValidateProperties(violationMessageConsumer func(string)) {
-	if n.props() == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
+	if n.props() == 0 && n.rec().sourceFile == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
 		return
 	}
 
@@ -2018,13 +2011,10 @@ func Node_RebuildListWithoutProp(item *Node_PropListItem, prop Node_Prop) *Node_
 // Java: Node.getProp(Prop)
 func (n Node) GetProp(propType Node_Prop) any {
 	if propType == Node_Prop_SOURCE_FILE {
-		sfID := uint32(n.props() >> nodePropSourceFileShift)
-		if sfID == 0 {
-			return nil
-		}
-		if sfID != nodePropSourceFileOverflow {
+		if sfID := n.rec().sourceFile; sfID != 0 {
 			return sourceFilePropItem(sfID).objectValue
 		}
+		return nil
 	} else if propType == Node_Prop_JSDOC_INFO {
 		if (n.props() & propFlagHasJSDoc) == 0 {
 			return nil
@@ -2119,7 +2109,7 @@ func (n Node) GetIntProp(propType Node_Prop) int32 {
 			return 0
 		}
 	} else if propType == Node_Prop_SOURCE_FILE {
-		if (n.props() >> nodePropSourceFileShift) != 0 {
+		if n.rec().sourceFile != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 		return 0
@@ -2157,14 +2147,8 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 		return
 	}
 	if prop == Node_Prop_SOURCE_FILE {
-		if id, ok := allocSourceFilePropID(value); ok {
-			if (n.props() >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
-				n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), prop))
-			}
-			n.setProps((n.props() & nodePropAllNonSourceFileMask) | (uint64(id) << nodePropSourceFileShift))
-			return
-		}
-		n.setProps((n.props() & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
+		n.rec().sourceFile = allocSourceFileID(value)
+		return
 	} else if prop == Node_Prop_JSDOC_INFO {
 		if info, ok := value.(*JSDocInfo); ok {
 			n.SetJSDocInfo(info)
@@ -2305,10 +2289,12 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 		n.andNotProps(nodePropSideEffectMask)
 		n.rec().kindFlags |= kindFlagHasExtra
 	} else if prop == Node_Prop_SOURCE_FILE {
-		n.andProps(nodePropAllNonSourceFileMask)
+		// Go-only: the source file is an object property (an id in the record).
 		if value != 0 {
-			n.orProps(uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+			panic(jutil.NewUnsupportedOperationException())
 		}
+		n.rec().sourceFile = 0
+		return
 	} else if prop == Node_Prop_JSDOC_INFO {
 		if value == 0 {
 			n.RemoveProp(prop)
@@ -2353,14 +2339,8 @@ func (n Node) RemoveProp(prop Node_Prop) {
 	}
 	switch prop {
 	case Node_Prop_SOURCE_FILE:
-		sfID := uint32(n.props() >> nodePropSourceFileShift)
-		if sfID == 0 {
-			return
-		}
-		n.andProps(nodePropAllNonSourceFileMask)
-		if sfID != nodePropSourceFileOverflow {
-			return
-		}
+		n.rec().sourceFile = 0
+		return
 	case Node_Prop_CHANGE_TIME:
 		if n.nodeKind() == node_kindNode {
 			n.rec().payload = 0
@@ -2410,7 +2390,7 @@ func (n Node) RemoveProp(prop Node_Prop) {
 }
 
 func (n Node) presentNodePropsMask() uint64 {
-	if n.props() == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
+	if n.props() == 0 && n.rec().sourceFile == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) {
 		return 0
 	}
 	var mask uint64
@@ -2429,7 +2409,7 @@ func (n Node) presentNodePropsMask() uint64 {
 	if (n.props() & nodePropSideEffectMask) != 0 {
 		mask |= uint64(1) << uint(Node_Prop_SIDE_EFFECT_FLAGS)
 	}
-	if (n.props() >> nodePropSourceFileShift) != 0 {
+	if n.rec().sourceFile != 0 {
 		mask |= uint64(1) << uint(Node_Prop_SOURCE_FILE)
 	}
 	if n.nodeKind() == node_kindNode && uint32(n.rec().payload) != 0 {
@@ -2485,7 +2465,7 @@ const nodePropNonSerializedMask = (uint64(1) << uint(Node_Prop_SOURCE_FILE)) |
 
 // Java: Node.serializeProperties()
 func (n Node) SerializeProperties() int64 {
-	if (n.props()&nodePropAllNonSourceFileMask) == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
+	if n.props() == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
 		return 0
 	}
 	bitsMask := n.presentNodePropsMask() &^ nodePropNonSerializedMask
@@ -2589,7 +2569,7 @@ func (n Node) GetPropListDebugString() string {
 // Java: Node.deserializeProperties(long, boolean)
 func (n Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree bool) {
 	if n.IsRoot() {
-		jutil.CheckStateMsg1(n.coldPropListHead() == nil && n.props() == 0 && uint32(n.rec().payload) == 0, "%s", n.coldPropListHead())
+		jutil.CheckStateMsg1(n.coldPropListHead() == nil && n.props() == 0 && n.rec().sourceFile == 0 && uint32(n.rec().payload) == 0, "%s", n.coldPropListHead())
 	} else {
 		jutil.CheckStateMsg(
 			n.ValidatePropListTailOrdering(isInClosureUnawareSubtree),
@@ -3101,12 +3081,13 @@ func Node_ToJsonTreeHelper(n Node, appendable io.StringWriter) {
 // nodeData is the record of an AST node (fields as declared in Java, plus
 // the folded subclass payloads); a Node is a handle to one (node_store.go).
 //
-// Go-only: performance. 32 bytes, no Go pointers, 4-byte aligned: the
+// Go-only: performance. 36 bytes, no Go pointers, 4-byte aligned: the
 // tree links are node ids; the leaf payload is one 32-bit value whose
 // meaning depends on the kind (a string id, a number, a change time...;
-// node_payload.go); the 8 common boolean properties, CONSTANT_VAR_FLAGS,
-// SIDE_EFFECT_FLAGS and the 16-bit SourceFileID share a 32-bit property
-// word, and the 32 rare boolean properties are cold data (propWord).
+// node_payload.go); the source file is a 32-bit id (allocSourceFileID); the
+// 8 common boolean properties, CONSTANT_VAR_FLAGS and SIDE_EFFECT_FLAGS
+// share a 32-bit property word, and the 32 rare boolean properties are cold
+// data (propWord).
 // What most nodes do not have is kept beside the record (node_tables.go):
 // the JSType or Color handle and the original name in per-block columns,
 // the cold data (JSDocInfo, remaining properties, overflow length, a cooked
@@ -3120,7 +3101,8 @@ type nodeData struct {
 	previous nodeID // previous sibling, a circular linked list
 
 	payload      uint32   // one value whose meaning depends on the kind (node_payload.go)
-	propFlags    propWord // the property bits (Node.props): bool props, JSDoc, ConstVar, SideEffect, SourceFileID
+	sourceFile   uint32   // the SOURCE_FILE property: an id from allocSourceFileID (0 = none)
+	propFlags    propWord // the property bits (Node.props): bool props, JSDoc, ConstVar, SideEffect
 	linenoCharno int32    // line (upper 20 bits) and column (low 12 bits)
 	length16     uint16   // code length (0..65534 inline; 65535: in the nodeExtBox)
 	token        Token    // token kind (uint8)
@@ -3154,34 +3136,7 @@ func (n Node) node_cooked() *string {
 
 // Java: Node.setStaticSourceFileFrom(Node)
 func (n Node) SetStaticSourceFileFrom(other Node) {
-	sfID := uint32(other.props() >> nodePropSourceFileShift)
-	if sfID != nodePropSourceFileOverflow {
-		if (n.props() >> nodePropSourceFileShift) == uint64(nodePropSourceFileOverflow) {
-			n.setColdPropListHead(Node_RebuildListWithoutProp(n.coldPropListHead(), Node_Prop_SOURCE_FILE))
-		}
-		n.setProps((n.props() & nodePropAllNonSourceFileMask) | (uint64(sfID) << nodePropSourceFileShift))
-		return
-	}
-	otherCold := other.coldPropListHead()
-	myCold := n.coldPropListHead()
-	if otherCold != nil &&
-		(myCold == nil ||
-			(int(myCold.propType) == Node_Prop_SOURCE_FILE.Ordinal() &&
-				myCold.next == nil)) {
-		tail := otherCold
-		for tail.next != nil {
-			tail = tail.next
-		}
-		if int(tail.propType) == Node_Prop_SOURCE_FILE.Ordinal() {
-			if !tail.shared {
-				tail.shared = true
-			}
-			n.setColdPropListHead(tail)
-			n.setProps((n.props() & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
-			return
-		}
-	}
-	n.SetStaticSourceFile(other.GetStaticSourceFile())
+	n.rec().sourceFile = other.rec().sourceFile
 }
 
 // Java: Node.setStaticSourceFile(StaticSourceFile)
@@ -3202,38 +3157,27 @@ func (n Node) SetSourceFileForTesting(name string) {
 //
 // Java: Node.getSourceFileName()
 func (n Node) GetSourceFileName() *string {
-	sfID := uint32(n.props() >> nodePropSourceFileShift)
+	sfID := n.rec().sourceFile
 	if sfID == 0 {
 		return nil
 	}
-	if sfID != nodePropSourceFileOverflow {
-		idx := sfID - 1
-		if p := sourceFileNamePtrChunks[idx>>10].Load()[idx&1023]; p != nil {
-			return p
-		}
-		_ = node_cast[StaticSourceFile](sourceFilePropItem(sfID).objectValue)
-		return nil
+	idx := sfID - 1
+	if p := sourceFileNamePtrChunks[idx>>10].Load()[idx&1023]; p != nil {
+		return p
 	}
-	file := node_cast[StaticSourceFile](n.GetProp(Node_Prop_SOURCE_FILE))
-	if file == nil {
-		return nil
-	}
-	s := file.GetName()
-	return &s
+	_ = node_cast[StaticSourceFile](sourceFilePropItem(sfID).objectValue)
+	return nil
 }
 
 // GetStaticSourceFile returns the source file associated with this input.
 //
 // Java: Node.getStaticSourceFile()
 func (n Node) GetStaticSourceFile() StaticSourceFile {
-	sfID := uint32(n.props() >> nodePropSourceFileShift)
+	sfID := n.rec().sourceFile
 	if sfID == 0 {
 		return nil
 	}
-	if sfID != nodePropSourceFileOverflow {
-		return node_cast[StaticSourceFile](sourceFilePropItem(sfID).objectValue)
-	}
-	return node_cast[StaticSourceFile](n.GetProp(Node_Prop_SOURCE_FILE))
+	return node_cast[StaticSourceFile](sourceFilePropItem(sfID).objectValue)
 }
 
 // SetInputId sets the ID of the input this Node came from.
@@ -3505,6 +3449,17 @@ func (n Node) SetPropListHead(propListHead *Node_PropListItem) {
 		n.setAux(nodeAux{})
 	}
 	n.setProps(0)
+	n.rec().sourceFile = 0
+	// Go-only: the source file is an id in the record, not a list item.
+	var sourceFile any
+	for x := propListHead; x != nil; x = x.next {
+		if Node_Prop(x.propType) == Node_Prop_SOURCE_FILE && x.isObject {
+			sourceFile = x.objectValue
+		}
+	}
+	if sourceFile != nil {
+		propListHead = Node_RebuildListWithoutProp(propListHead, Node_Prop_SOURCE_FILE)
+	}
 	propListHead.markShared()
 	n.setColdPropListHead(propListHead)
 	var flags uint64
@@ -3512,9 +3467,7 @@ func (n Node) SetPropListHead(propListHead *Node_PropListItem) {
 		prop := Node_Prop(x.propType)
 		if x.isObject {
 			if !jutil.IsNil(x.objectValue) {
-				if prop == Node_Prop_SOURCE_FILE {
-					flags = (flags & nodePropAllNonSourceFileMask) | (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
-				} else if prop == Node_Prop_JSDOC_INFO {
+				if prop == Node_Prop_JSDOC_INFO {
 					flags |= propFlagHasJSDoc
 				} else if mask := nodePropBitMask[prop]; mask != 0 {
 					flags |= mask
@@ -3886,9 +3839,8 @@ func (n Node) GetSecondToLastPropListItem() *Node_PropListItem {
 	if n.GetIsInClosureUnawareSubtree() {
 		return &staticBoolPropItems[Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE]
 	}
-	sfID := uint32(n.props() >> nodePropSourceFileShift)
 	propListItem := n.coldPropListHead()
-	if sfID != 0 && sfID != nodePropSourceFileOverflow {
+	if n.rec().sourceFile != 0 {
 		if propListItem == nil {
 			return nil
 		}
@@ -3908,8 +3860,7 @@ func (n Node) GetSecondToLastPropListItem() *Node_PropListItem {
 
 // Java: Node.getLastPropListItem()
 func (n Node) GetLastPropListItem() *Node_PropListItem {
-	sfID := uint32(n.props() >> nodePropSourceFileShift)
-	if sfID != 0 && sfID != nodePropSourceFileOverflow {
+	if sfID := n.rec().sourceFile; sfID != 0 {
 		return sourceFilePropItem(sfID)
 	}
 	propListItem := n.coldPropListHead()
@@ -4538,7 +4489,7 @@ func Node_CopyBaseNodeFields(source Node, dest Node, cloneTypeExprs bool) {
 	}
 	dest.copyLengthFrom(source)
 	dest.node_setOriginalNameID(source.node_originalNameID())
-	dest.setProps(source.props())
+	dest.setPropsAndSourceFile(source)
 
 	// TODO(johnlenz): Remove this once JSTypeExpression are immutable
 	if cloneTypeExprs {
@@ -4614,7 +4565,7 @@ func (n Node) SrcrefTree(other Node) Node {
 //
 // Java: Node.srcrefIfMissing(Node)
 func (n Node) SrcrefIfMissing(other Node) Node {
-	if (n.props() >> nodePropSourceFileShift) == 0 {
+	if n.rec().sourceFile == 0 {
 		n.SetStaticSourceFileFrom(other)
 		n.rec().linenoCharno = other.rec().linenoCharno
 		n.copyLengthFrom(other)
@@ -6108,12 +6059,10 @@ func (n Node) nodeStringValue() string {
 	return rhinoStringFromID(rhinoStringID(n.rec().payload))
 }
 
-// CanResetInPlace reports whether n has no cold extBox, extra side-table entry,
-// diagnostic pin, or overflow source-file ID, making in-place token/payload
-// mutation exact.
+// CanResetInPlace reports whether n has no cold extBox, extra side-table entry
+// or diagnostic pin, making in-place token/payload mutation exact.
 func (n Node) CanResetInPlace() bool {
-	return (n.rec().kindFlags&(kindFlagHasExtBox|kindFlagHasExtra)) == 0 &&
-		uint32(n.props()>>nodePropSourceFileShift) != nodePropSourceFileOverflow
+	return (n.rec().kindFlags & (kindFlagHasExtBox | kindFlagHasExtra)) == 0
 }
 
 // PinForDiagnostic marks n so later optimization passes do not recycle n
@@ -6141,7 +6090,7 @@ func (n Node) MutateGetPropToNameInPlace(name string, originalName string, isCon
 	}
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString) | (n.rec().kindFlags & kindFlagTypeIsColor)
-	flags := n.props() & ((uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift) | propFlag_IS_CONSTANT_NAME)
+	flags := n.props() & propFlag_IS_CONSTANT_NAME
 	if isConstant {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
@@ -6167,7 +6116,7 @@ func (n Node) MutateCallTargetGetPropToNameInPlace(call Node, receiver Node, new
 	}
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString) | (n.rec().kindFlags & kindFlagTypeIsColor)
-	flags := n.props() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	flags := uint64(0)
 	if isConstantName {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
@@ -6192,7 +6141,7 @@ func (n Node) MutateThisToNameIDInPlace(nameID uint32) bool {
 	}
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString) | (n.rec().kindFlags & kindFlagTypeIsColor)
-	n.andProps(uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.setProps(0)
 	n.rec().payload = uint32(nameID)
 	return true
 }
@@ -6205,7 +6154,7 @@ func (n Node) ResetDetachedGetPropToNameID(nameID uint32, isConstantName bool) {
 	n.setAux(nodeAux{})
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString)
-	flags := n.props() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	flags := uint64(0)
 	if isConstantName {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
@@ -6225,7 +6174,8 @@ func (n Node) MutateAttachedStmtToVarFromSrcref(nameChild Node, srcref Node, jsd
 	n.setAux(nodeAux{})
 	n.rec().token = Token_VAR
 	n.rec().kindFlags = 0
-	n.setProps(srcref.props() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
+	n.setProps(0)
+	n.rec().sourceFile = srcref.rec().sourceFile
 	n.rec().payload = 0
 	n.node_setOriginalNameID(origID)
 	n.rec().linenoCharno = srcref.rec().linenoCharno
@@ -6244,6 +6194,7 @@ func (n Node) ResetDetachedToFreshNameID(nameID uint32) Node {
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString)
 	n.setProps(0)
+	n.rec().sourceFile = 0
 	n.rec().payload = uint32(nameID)
 	n.node_setOriginalNameID(0)
 	n.rec().linenoCharno = -1
@@ -6266,7 +6217,7 @@ func (n Node) OverwriteLeafFromClone(src Node) {
 	if n.rec().parent != 0 {
 		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
 	}
-	oldSF := n.props() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	oldSF := n.rec().sourceFile
 	oldOrigID := n.node_originalNameID()
 	srcOrigID := src.node_originalNameID()
 	n.rec().token = src.rec().token
@@ -6275,9 +6226,10 @@ func (n Node) OverwriteLeafFromClone(src Node) {
 	n.setAux(src.auxValue())
 	n.setProps(src.props())
 	n.rec().payload = src.rec().payload
-	if (src.props() >> nodePropSourceFileShift) == 0 {
-		n.orProps(oldSF)
+	if src.rec().sourceFile == 0 {
+		n.rec().sourceFile = oldSF
 	} else {
+		n.rec().sourceFile = src.rec().sourceFile
 		n.rec().linenoCharno = src.rec().linenoCharno
 		n.rec().length16 = src.rec().length16
 	}
@@ -6301,6 +6253,7 @@ func (n Node) ResetTemplateUndefinedSrcref(src Node) bool {
 		n.setAux(nodeAux{})
 		n.rec().kindFlags = 0
 		n.setProps(0)
+		n.rec().sourceFile = 0
 		n.rec().payload = 0
 		n.rec().linenoCharno = -1
 		n.rec().length16 = 0
@@ -6308,6 +6261,7 @@ func (n Node) ResetTemplateUndefinedSrcref(src Node) bool {
 		num.setAux(nodeAux{})
 		num.rec().kindFlags = uint8(node_kindNumber)
 		num.setProps(0)
+		num.rec().sourceFile = 0
 		num.rec().payload = 0
 		num.rec().linenoCharno = -1
 		num.rec().length16 = 0
@@ -6318,18 +6272,20 @@ func (n Node) ResetTemplateUndefinedSrcref(src Node) bool {
 	if !src.CanResetInPlace() || src.node_originalNameID() != 0 {
 		return false
 	}
-	sfFlags := src.props() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	sf := src.rec().sourceFile
 	n.setTC(0)
 	n.setAux(nodeAux{})
 	n.rec().kindFlags = 0
-	n.setProps(sfFlags)
+	n.setProps(0)
+	n.rec().sourceFile = sf
 	n.rec().payload = 0
 	n.rec().linenoCharno = src.rec().linenoCharno
 	n.rec().length16 = src.rec().length16
 	num.setTC(0)
 	num.setAux(nodeAux{})
 	num.rec().kindFlags = uint8(node_kindNumber)
-	num.setProps(sfFlags)
+	num.setProps(0)
+	num.rec().sourceFile = sf
 	num.rec().payload = 0
 	num.rec().linenoCharno = src.rec().linenoCharno
 	num.rec().length16 = src.rec().length16
@@ -6351,7 +6307,7 @@ func (n Node) MutateAttachedToFreshVarInPlace(nameChild Node, jsdoc *JSDocInfo) 
 	n.setAux(nodeAux{})
 	n.rec().token = Token_VAR
 	n.rec().kindFlags = 0
-	n.andProps(uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	n.setProps(0)
 	n.rec().payload = 0
 	n.node_setOriginalNameID(origID)
 	if !nameChild.IsNil() {
@@ -6373,7 +6329,8 @@ func (n Node) ResetDetachedToNameWithOriginalNameInPlace(name string, originalNa
 	n.setAux(nodeAux{})
 	n.rec().token = Token_NAME
 	n.rec().kindFlags = uint8(node_kindString)
-	flags := srcref.props() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
+	flags := uint64(0)
+	n.rec().sourceFile = srcref.rec().sourceFile
 	if isConstant {
 		flags |= propFlag_IS_CONSTANT_NAME
 	}
@@ -6402,12 +6359,11 @@ func (n Node) MutateAttachedToExprResultInPlace(exprChild Node) Node {
 	n.setAux(nodeAux{})
 	n.rec().token = Token_EXPR_RESULT
 	n.rec().kindFlags = 0
-	if (exprChild.props() >> nodePropSourceFileShift) != 0 {
-		n.setProps(exprChild.props() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
+	n.setProps(0)
+	if exprChild.rec().sourceFile != 0 {
+		n.rec().sourceFile = exprChild.rec().sourceFile
 		n.rec().linenoCharno = exprChild.rec().linenoCharno
 		n.rec().length16 = exprChild.rec().length16
-	} else {
-		n.andProps(uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift)
 	}
 	n.rec().payload = 0
 	n.node_setOriginalNameID(origID)
@@ -6425,7 +6381,8 @@ func (n Node) ResetDetachedToBinaryOpFromSrcref(op Token, left Node, right Node,
 	n.setAux(nodeAux{})
 	n.rec().token = op
 	n.rec().kindFlags = 0
-	n.setProps(srcref.props() & (uint64(nodePropSourceFileOverflow) << nodePropSourceFileShift))
+	n.setProps(0)
+	n.rec().sourceFile = srcref.rec().sourceFile
 	n.rec().payload = 0
 	n.node_setOriginalNameID(origID)
 	n.rec().linenoCharno = srcref.rec().linenoCharno
