@@ -3,6 +3,41 @@
 Builds with 100K-200K input scripts spend most of their time parsing.
 This note measures the parse phase at that scale and ranks what to change.
 
+## What was changed
+
+Parse phase, 4 threads, copies of typed-mega's inputs:
+
+| files | before | 32-bit source-file ids | + per-worker node ids |
+|---|---|---|---|
+| 52,620 | 21.6-22.9 s | 23.6-25.2 s | 20.1-21.1 s |
+| 100,855 | 116 s, 9.2 GB | 105 s, 6.9 GB | **42.6 s**, 7.6 GB |
+
+- **1. Source-file ids are 32-bit** (done). The id is its own `uint32`
+  field in the node record, which grows from 32 to 36 bytes; the overflow
+  value and the property-list fallback are gone. Cost: about 5 % more peak
+  live heap on the gate workloads (typed-full 201 -> 210 MB, bundle 104 ->
+  111 MB).
+- **2. Per-worker node id ranges** (done). `rhino.NodeAllocator` reserves
+  1,024 ids per atomic add; each PrebuildAst worker has one, used by the IR
+  factory and its JSDoc parser. Needed with 1: 36-byte records straddle
+  cache lines, so with interleaved ids the 32-bit ids alone made 52K files
+  slower, and at 100K files the workers kept only 1.7 cores busy on
+  average. With per-worker ranges a file's nodes are contiguous and the
+  parse scales linearly again.
+- **3. Reusing parser memory** (not done). Parse trees and tokens are half
+  of what is allocated until the end of parsing (1.0 of 1.95 GB on 13K
+  files), so reuse might save 5-8 % of the parse, but it means resetting
+  about 20 slabs across the scanner and parser and checking every object
+  that escapes into the parse result.
+- **4. String pool** (not done): about 1 % of the CPU on 4 threads.
+- **5. Serial steps** (not done): 10 % of the phase on 4 cores, the size of
+  production build machines.
+
+Output, source maps and stderr are identical to main on the four gate
+workloads at 1 and at 4 threads, and between 1 and 4 threads.
+
+The rest of this note is the analysis that led to these changes.
+
 ## How it was measured
 
 - **Workload**: N copies of typed-mega's 4,385 Closure files (OpenSphere,
