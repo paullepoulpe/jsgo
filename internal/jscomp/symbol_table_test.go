@@ -2075,7 +2075,7 @@ func (c *SymbolTableTest) CreateSymbolTableFromManySources(inputs ...string) *Sy
 //
 // Java: SymbolTableTest.assertSymbolTableValid(SymbolTable)
 func (c *SymbolTableTest) AssertSymbolTableValid(table *SymbolTable) *SymbolTable {
-	allSymbols := jutil.NewJavaHashSet[*SymbolTable_Symbol]()
+	allSymbols := jutil.NewLinkedHashSet[*SymbolTable_Symbol]()
 	for _, sym := range table.GetAllSymbols() {
 		allSymbols.Add(sym)
 	}

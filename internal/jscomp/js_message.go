@@ -303,12 +303,14 @@ func (m *JsMessage) AsJsMessageString() string {
 			"asJsMessageString() is not supported for messages with gendered variants. Please provide" +
 				" a grammatical gender case as an argument."))
 	}
-	sb := jutil.NewStringBuilder()
+	var sb strings.Builder
 	for _, p := range m.GetParts() {
 		if p.IsPlaceholder() {
-			sb.Append(JsMessage_PH_JS_PREFIX).Append(p.GetJsPlaceholderName()).Append(JsMessage_PH_JS_SUFFIX)
+			sb.WriteString(JsMessage_PH_JS_PREFIX)
+			sb.WriteString(p.GetJsPlaceholderName())
+			sb.WriteString(JsMessage_PH_JS_SUFFIX)
 		} else {
-			sb.Append(p.GetString())
+			sb.WriteString(p.GetString())
 		}
 	}
 
@@ -331,12 +333,14 @@ func (m *JsMessage) AsJsMessageStringForGender(genderCase JsMessage_GrammaticalG
 	if !m.GetGenderedMessagesMap().ContainsKey(genderCase) {
 		panic(jutil.NewIllegalArgumentExceptionMsg("No message for grammtical gender case: " + genderCase.String()))
 	}
-	sb := jutil.NewStringBuilder()
+	var sb strings.Builder
 	for _, p := range m.GetGenderedMessagesMap().Get(genderCase) {
 		if p.IsPlaceholder() {
-			sb.Append(JsMessage_PH_JS_PREFIX).Append(p.GetJsPlaceholderName()).Append(JsMessage_PH_JS_SUFFIX)
+			sb.WriteString(JsMessage_PH_JS_PREFIX)
+			sb.WriteString(p.GetJsPlaceholderName())
+			sb.WriteString(JsMessage_PH_JS_SUFFIX)
 		} else {
-			sb.Append(p.GetString())
+			sb.WriteString(p.GetString())
 		}
 	}
 	return sb.String()
@@ -359,12 +363,14 @@ func (m *JsMessage) AsIcuMessageString() string {
 			"asIcuMessageString() is not supported for messages with gendered variants. Please" +
 				" provide a grammatical gender case as an argument."))
 	}
-	sb := jutil.NewStringBuilder()
+	var sb strings.Builder
 	for _, p := range m.GetParts() {
 		if p.IsPlaceholder() {
-			sb.AppendChar('{').Append(p.GetCanonicalPlaceholderName()).AppendChar('}')
+			sb.WriteByte('{')
+			sb.WriteString(p.GetCanonicalPlaceholderName())
+			sb.WriteByte('}')
 		} else {
-			sb.Append(p.GetString())
+			sb.WriteString(p.GetString())
 		}
 	}
 	return sb.String()
@@ -386,12 +392,14 @@ func (m *JsMessage) AsIcuMessageStringForGender(genderCase JsMessage_Grammatical
 	if !m.GetGenderedMessagesMap().ContainsKey(genderCase) {
 		panic(jutil.NewIllegalArgumentExceptionMsg("No message for grammtical gender case: " + genderCase.String()))
 	}
-	sb := jutil.NewStringBuilder()
+	var sb strings.Builder
 	for _, p := range m.GetGenderedMessagesMap().Get(genderCase) {
 		if p.IsPlaceholder() {
-			sb.AppendChar('{').Append(p.GetCanonicalPlaceholderName()).AppendChar('}')
+			sb.WriteByte('{')
+			sb.WriteString(p.GetCanonicalPlaceholderName())
+			sb.WriteByte('}')
 		} else {
-			sb.Append(p.GetString())
+			sb.WriteString(p.GetString())
 		}
 	}
 	return sb.String()
@@ -838,8 +846,8 @@ type JsMessage_Builder struct {
 	id          *string
 	alternateId *string
 
-	parts              *jutil.ArrayList[JsMessage_Part]
-	genderedMessageMap *jutil.LinkedHashMap[JsMessage_GrammaticalGenderCase, *jutil.ArrayList[JsMessage_Part]]
+	parts              []JsMessage_Part
+	genderedMessageMap *jutil.LinkedHashMap[JsMessage_GrammaticalGenderCase, []JsMessage_Part]
 	// Placeholder names in JS code format (lowerCamelCase), which is used
 	// for `goog.getMsg()` messages
 	jsPlaceholderNames *jutil.LinkedHashSet[string]
@@ -855,8 +863,7 @@ type JsMessage_Builder struct {
 // NewJsMessage_Builder is new JsMessage.Builder().
 func NewJsMessage_Builder() *JsMessage_Builder {
 	return &JsMessage_Builder{
-		parts:                            jutil.NewArrayList[JsMessage_Part](),
-		genderedMessageMap:               jutil.NewLinkedHashMap[JsMessage_GrammaticalGenderCase, *jutil.ArrayList[JsMessage_Part]](),
+		genderedMessageMap:               jutil.NewLinkedHashMap[JsMessage_GrammaticalGenderCase, []JsMessage_Part](),
 		jsPlaceholderNames:               jutil.NewLinkedHashSet[string](),
 		canonicalPlaceholderNames:        jutil.NewLinkedHashSet[string](),
 		placeholderNameToExampleMap:      jutil.NewLinkedHashMap[string, string](),
@@ -891,7 +898,7 @@ func (b *JsMessage_Builder) SetSourceName(sourceName *string) *JsMessage_Builder
 // Java: JsMessage.Builder.appendPart(Part)
 func (b *JsMessage_Builder) AppendPart(part JsMessage_Part) *JsMessage_Builder {
 	jutil.CheckNotNull(part)
-	b.parts.Add(part)
+	b.parts = append(b.parts, part)
 	if part.IsPlaceholder() {
 		b.jsPlaceholderNames.Add(part.GetJsPlaceholderName())
 		b.canonicalPlaceholderNames.Add(part.GetCanonicalPlaceholderName())
@@ -907,14 +914,14 @@ func (b *JsMessage_Builder) AppendParts(parts []JsMessage_Part) *JsMessage_Build
 	return b
 }
 
-// genderedParts is genderedMessageMap.get(genderCase), which must exist
-// (Java throws NullPointerException on the null list).
-func (b *JsMessage_Builder) genderedParts(genderCase JsMessage_GrammaticalGenderCase) *jutil.ArrayList[JsMessage_Part] {
-	parts := b.genderedMessageMap.Get(genderCase)
-	if parts == nil {
+// appendGenderedPart appends to genderedMessageMap.get(genderCase), which must
+// exist (Java throws NullPointerException on the null list).
+func (b *JsMessage_Builder) appendGenderedPart(genderCase JsMessage_GrammaticalGenderCase, part JsMessage_Part) {
+	parts, ok := b.genderedMessageMap.Lookup(genderCase)
+	if !ok {
 		panic(jutil.NewNullPointerException())
 	}
-	return parts
+	b.genderedMessageMap.Put(genderCase, append(parts, part))
 }
 
 // AppendJsPlaceholderReference appends a placeholder reference to the
@@ -927,7 +934,7 @@ func (b *JsMessage_Builder) genderedParts(genderCase JsMessage_GrammaticalGender
 func (b *JsMessage_Builder) AppendJsPlaceholderReference(name string) *JsMessage_Builder {
 	// checkNotNull(name, "Placeholder name must not be null"): a Go string
 	// is never null.
-	b.parts.Add(JsMessage_PlaceholderReference_CreateForJsName(name))
+	b.parts = append(b.parts, JsMessage_PlaceholderReference_CreateForJsName(name))
 	b.jsPlaceholderNames.Add(name)
 	return b
 }
@@ -942,7 +949,7 @@ func (b *JsMessage_Builder) AppendJsPlaceholderReference(name string) *JsMessage
 func (b *JsMessage_Builder) AppendJsPlaceholderReferenceForGender(genderCase JsMessage_GrammaticalGenderCase, name string) *JsMessage_Builder {
 	// checkNotNull(name, "Placeholder name must not be null"): a Go string
 	// is never null.
-	b.genderedParts(genderCase).Add(JsMessage_PlaceholderReference_CreateForJsName(name))
+	b.appendGenderedPart(genderCase, JsMessage_PlaceholderReference_CreateForJsName(name))
 	b.jsPlaceholderNames.Add(name)
 	return b
 }
@@ -958,7 +965,7 @@ func (b *JsMessage_Builder) AppendCanonicalPlaceholderReference(name string) *Js
 	// checkNotNull(name, "Placeholder name must not be null"): a Go string
 	// is never null.
 	placeholder := JsMessage_PlaceholderReference_CreateForCanonicalName(name)
-	b.parts.Add(placeholder)
+	b.parts = append(b.parts, placeholder)
 	b.jsPlaceholderNames.Add(placeholder.GetJsPlaceholderName())
 	return b
 }
@@ -975,7 +982,7 @@ func (b *JsMessage_Builder) AppendCanonicalPlaceholderReferenceForGender(
 	// checkNotNull(name, "Placeholder name must not be null"): a Go string
 	// is never null.
 	placeholder := JsMessage_PlaceholderReference_CreateForCanonicalName(name)
-	b.genderedParts(genderCase).Add(placeholder)
+	b.appendGenderedPart(genderCase, placeholder)
 	b.jsPlaceholderNames.Add(placeholder.GetJsPlaceholderName())
 	return b
 }
@@ -986,7 +993,7 @@ func (b *JsMessage_Builder) AppendCanonicalPlaceholderReferenceForGender(
 func (b *JsMessage_Builder) AppendStringPart(part string) *JsMessage_Builder {
 	// checkNotNull(part, "String part of the message must not be null"): a
 	// Go string is never null.
-	b.parts.Add(JsMessage_StringPart_Create(part))
+	b.parts = append(b.parts, JsMessage_StringPart_Create(part))
 	return b
 }
 
@@ -997,7 +1004,7 @@ func (b *JsMessage_Builder) AppendStringPart(part string) *JsMessage_Builder {
 func (b *JsMessage_Builder) AppendStringPartForGender(genderCase JsMessage_GrammaticalGenderCase, part string) *JsMessage_Builder {
 	// checkNotNull(genderCase, ...), checkNotNull(part, ...): Go enums and
 	// strings are never null.
-	b.genderedParts(genderCase).Add(JsMessage_StringPart_Create(part))
+	b.appendGenderedPart(genderCase, JsMessage_StringPart_Create(part))
 	return b
 }
 
@@ -1008,7 +1015,7 @@ func (b *JsMessage_Builder) AppendStringPartForGender(genderCase JsMessage_Gramm
 func (b *JsMessage_Builder) AddGenderedMessageKey(part JsMessage_GrammaticalGenderCase) *JsMessage_Builder {
 	// checkNotNull(part, "Gendered message key must not be null"): a Go
 	// enum is never null.
-	b.genderedMessageMap.Put(part, jutil.NewArrayList[JsMessage_Part]())
+	b.genderedMessageMap.Put(part, []JsMessage_Part{})
 	return b
 }
 
@@ -1076,7 +1083,7 @@ func (b *JsMessage_Builder) SetIsExternalMsg(isExternalMsg bool) *JsMessage_Buil
 //
 // Java: JsMessage.Builder.hasParts()
 func (b *JsMessage_Builder) HasParts() bool {
-	return !b.parts.IsEmpty()
+	return len(b.parts) > 0
 }
 
 // HasGenderedVariants gets whether the message has gendered variants.
@@ -1087,7 +1094,7 @@ func (b *JsMessage_Builder) HasGenderedVariants() bool {
 }
 
 // Java: JsMessage.Builder.getParts()
-func (b *JsMessage_Builder) GetParts() *jutil.ArrayList[JsMessage_Part] {
+func (b *JsMessage_Builder) GetParts() []JsMessage_Part {
 	return b.parts
 }
 
@@ -1108,7 +1115,7 @@ func (b *JsMessage_Builder) Build() *JsMessage {
 
 	immutableGenderedPartsBuilder := jutil.NewImmutableMapBuilder[JsMessage_GrammaticalGenderCase, []JsMessage_Part]()
 	for key, value := range b.genderedMessageMap.All() {
-		immutableGenderedPartsBuilder.Put(key, value.ToSlice())
+		immutableGenderedPartsBuilder.Put(key, slices.Clone(value))
 	}
 	immutableGenderedMessageMap := immutableGenderedPartsBuilder.BuildOrThrow()
 
@@ -1118,7 +1125,7 @@ func (b *JsMessage_Builder) Build() *JsMessage {
 		b.isAnonymous,
 		b.isExternal,
 		*b.id,
-		b.parts.ToSlice(),
+		slices.Clone(b.parts),
 		immutableGenderedMessageMap,
 		b.alternateId,
 		b.desc,

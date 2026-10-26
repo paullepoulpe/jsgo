@@ -46,7 +46,7 @@ type ProcessClosurePrimitives struct {
 
 	compiler AbstractCompiler
 
-	knownClosureSubclasses *jutil.LinkedHashSet[string]
+	knownClosureSubclasses map[string]struct{}
 
 	closureModules *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
 }
@@ -122,7 +122,6 @@ var processClosurePrimitives_GOOG_INHERITS = rhino.QualifiedName_Of("goog.inheri
 // Java: ProcessClosurePrimitives(AbstractCompiler)
 func NewProcessClosurePrimitives(compiler AbstractCompiler) *ProcessClosurePrimitives {
 	p := &ProcessClosurePrimitives{}
-	p.knownClosureSubclasses = jutil.NewLinkedHashSet[string]()
 	p.compiler = compiler
 	p.closureModules =
 		jutil.CheckNotNullMsg(compiler.GetModuleMetadataMap(), "Need to run GatherModuleMetadata").
@@ -371,7 +370,7 @@ func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(call ast.Call) {
 	enclosingFnNameNode := ProcessClosurePrimitives_GetEnclosingDeclNameNode(n)
 	if enclosingFnNameNode.IsNil() || !enclosingFnNameNode.IsUnscopedQualifiedName() {
 		// some unknown container method or a MEMBER_FUNCTION_DEF.
-		if p.knownClosureSubclasses.Contains(baseContainer) {
+		if _, ok := p.knownClosureSubclasses[baseContainer]; ok {
 			p.ReportBadBaseMethodUse(n, baseContainer, "Could not find enclosing method.")
 		} else if ProcessClosurePrimitives_BaseUsedInClass(n) {
 			clazz := NodeUtil_GetEnclosingClass(n)
@@ -412,7 +411,7 @@ func (p *ProcessClosurePrimitives) RewriteBaseCallInConstructor(
 	// Check if this is some other "base" method.
 	if enclosingQname != baseContainer {
 		// Report misuse of "base" methods from other known classes.
-		if p.knownClosureSubclasses.Contains(baseContainer) {
+		if _, ok := p.knownClosureSubclasses[baseContainer]; ok {
 			p.ReportBadBaseMethodUse(
 				n, baseContainer, "Must be used within "+baseContainer+" methods")
 		}
@@ -479,7 +478,7 @@ func processClosurePrimitives_stringArgAfter(arg ast.Arg) (ast.StringLit, bool) 
 func (p *ProcessClosurePrimitives) RewriteBaseCallInMethod(
 	enclosingQname string, baseContainer string, call ast.Call, enclosingFnNameNode rhino.Node) {
 	n := call.Node()
-	if !p.knownClosureSubclasses.Contains(baseContainer) {
+	if _, ok := p.knownClosureSubclasses[baseContainer]; !ok {
 		// Can't determine if this is a known "class" that has a known "base" method. Don't rewrite
 		// the "base" method call because if it's not a Closure subclass, the rewriting would be
 		// wrong. Instead emit an error the user can either suppress or fix.
@@ -571,7 +570,10 @@ func (p *ProcessClosurePrimitives) ProcessInheritsCall(call ast.Call) {
 		superClass, _ := subClass.Next()
 		if subClass.Node().IsUnscopedQualifiedName() && superClass.Node().IsUnscopedQualifiedName() {
 			if subQname, ok := subClass.Node().GetQualifiedNameString(); ok {
-				p.knownClosureSubclasses.Add(subQname)
+				if p.knownClosureSubclasses == nil {
+					p.knownClosureSubclasses = make(map[string]struct{})
+				}
+				p.knownClosureSubclasses[subQname] = struct{}{}
 			}
 		}
 	}
@@ -700,21 +702,21 @@ func ProcessClosurePrimitives_ProcessSetCssNameMapping(
 	if style == CssRenamingMap_Style_BY_PART {
 		// Make sure that no class keys contain -'s
 		// Variable keys can contain -'s since they're always named BY_WHOLE.
-		errors := jutil.NewArrayList[string]()
+		var errors []string
 		for key := range cssNames.Keys() {
 			if jutil.StringIndexOf(key, "-") >= 0 && !jutil.StringStartsWith(key, "--") {
-				errors.Add(key)
+				errors = append(errors, key)
 			}
 		}
-		if !errors.IsEmpty() {
-			compiler.Report(JSError_MakeWithNode(n, ProcessClosurePrimitives_INVALID_CSS_RENAMING_MAP, errors.String()))
+		if len(errors) > 0 {
+			compiler.Report(JSError_MakeWithNode(n, ProcessClosurePrimitives_INVALID_CSS_RENAMING_MAP, jutil.CollectionToString(errors)))
 		}
 	} else if style == CssRenamingMap_Style_BY_WHOLE {
 		// Verifying things is a lot trickier here. We just do a quick
 		// n^2 check over the map which makes sure that if "a-b" in
 		// the map, then map(a-b) = map(a)-map(b).
 		// To speed things up, only consider cases where len(b) <= 10
-		errors := jutil.NewArrayList[string]()
+		var errors []string
 		for bKey, bValue := range cssNames.All() {
 			if jutil.StringLength(bKey) > 10 {
 				continue
@@ -722,21 +724,21 @@ func ProcessClosurePrimitives_ProcessSetCssNameMapping(
 			for aKey, aValue := range cssNames.All() {
 				combined, ok := cssNames.Lookup(aKey + "-" + bKey)
 				if ok && combined != aValue+"-"+bValue {
-					errors.Add(
-						"map(" +
-							aKey +
-							"-" +
-							bKey +
-							") != map(" +
-							aKey +
-							")-map(" +
-							bKey +
+					errors = append(errors,
+						"map("+
+							aKey+
+							"-"+
+							bKey+
+							") != map("+
+							aKey+
+							")-map("+
+							bKey+
 							")")
 				}
 			}
 		}
-		if !errors.IsEmpty() {
-			compiler.Report(JSError_MakeWithNode(n, ProcessClosurePrimitives_INVALID_CSS_RENAMING_MAP, errors.String()))
+		if len(errors) > 0 {
+			compiler.Report(JSError_MakeWithNode(n, ProcessClosurePrimitives_INVALID_CSS_RENAMING_MAP, jutil.CollectionToString(errors)))
 		}
 	}
 

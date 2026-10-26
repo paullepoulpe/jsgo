@@ -1303,7 +1303,7 @@ func ReplaceMessages_ProtectedJsMessage_FromAstNode(
 		}
 		if idGenerator != nil {
 			jsMessageBuilder.SetId(
-				idGenerator.GenerateId(&meaningForIdGeneration, jsMessageBuilder.GetParts().Slice()))
+				idGenerator.GenerateId(&meaningForIdGeneration, jsMessageBuilder.GetParts()))
 		} else {
 			jsMessageBuilder.SetId(meaningForIdGeneration)
 		}

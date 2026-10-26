@@ -175,36 +175,6 @@ func TestStringFormatMatchesJava(t *testing.T) {
 	}
 }
 
-type testEnum int32
-
-func (e testEnum) String() string { return "e" + strconv.Itoa(int(e)) }
-
-func TestEnumSet(t *testing.T) {
-	s := NewEnumSet[testEnum](70, 3, 1, 3)
-	if s.Size() != 3 || !s.Contains(70) || s.Contains(2) || s.Contains(200) {
-		t.Fatalf("bad set %v", s)
-	}
-	if got := s.String(); got != "[e1, e3, e70]" {
-		t.Errorf("String() = %q", got)
-	}
-	o := EnumSetCopyOf(s)
-	o.Remove(70)
-	if !s.ContainsAll(o) || o.ContainsAll(s) || s.Equals(o) {
-		t.Errorf("containsAll/equals wrong")
-	}
-	o.Add(70)
-	if !s.Equals(o) || s.HashCode() != o.HashCode() {
-		t.Errorf("equals after re-add wrong")
-	}
-	o.RemoveAll(NewEnumSet[testEnum](1, 70))
-	if got := o.String(); got != "[e3]" {
-		t.Errorf("after RemoveAll: %q", got)
-	}
-	if !NewEnumSet[testEnum]().Equals(&EnumSet[testEnum]{words: []uint64{0, 0}}) {
-		t.Errorf("empty sets with different word counts must be equal")
-	}
-}
-
 func TestStringTrim(t *testing.T) {
 	for in, want := range map[string]string{
 		"":                  "",

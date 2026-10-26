@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -79,14 +78,13 @@ func (r *RewriteOptionalChainingOperator) Process(externs rhino.Node, root rhino
 type RewriteOptionalChainingOperator_TranspilationCallback struct {
 	outer           *RewriteOptionalChainingOperator
 	rewriterBuilder *OptionalChainRewriter_Builder
-	optChains       *jutil.ArrayList[*OptionalChainRewriter]
+	optChains       []*OptionalChainRewriter
 }
 
 // Java: RewriteOptionalChainingOperator.TranspilationCallback()
 func NewRewriteOptionalChainingOperator_TranspilationCallback(outer *RewriteOptionalChainingOperator) *RewriteOptionalChainingOperator_TranspilationCallback {
 	c := &RewriteOptionalChainingOperator_TranspilationCallback{outer: outer}
 	c.rewriterBuilder = OptionalChainRewriter_Builder_(outer.compiler)
-	c.optChains = jutil.NewArrayList[*OptionalChainRewriter]()
 	return c
 }
 
@@ -105,16 +103,17 @@ func (c *RewriteOptionalChainingOperator_TranspilationCallback) ShouldTraverse(t
 // Java: RewriteOptionalChainingOperator.TranspilationCallback.visit(NodeTraversal, Node, Node)
 func (c *RewriteOptionalChainingOperator_TranspilationCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsEndOfFullOptChain(n) {
-		c.optChains.Add(c.rewriterBuilder.Build(n))
+		c.optChains = append(c.optChains, c.rewriterBuilder.Build(n))
 	} else if n.IsScript() {
 		// We transpile all of the optional chains in a single script as a batch because,
 		// rewriting changes the AST in ways that could interfere with traversal
 		// if we change the chains as we visit them.
-		if !c.optChains.IsEmpty() {
-			for optChain := range c.optChains.All() {
+		if len(c.optChains) > 0 {
+			for _, optChain := range c.optChains {
 				optChain.Rewrite()
 			}
-			c.optChains.Clear()
+			clear(c.optChains)
+			c.optChains = c.optChains[:0]
 		}
 	}
 }

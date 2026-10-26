@@ -395,15 +395,23 @@ func (b *AbstractVarBase[S, V]) isImplicit(name string) bool {
 	return var_ != nil && var_.IsMadeByScope(abstractScope_of(b.scope))
 }
 
-var abstractVar_DECLARATION_TYPES = jutil.NewEnumSet(
-	rhino.Token_VAR,
-	rhino.Token_LET,
-	rhino.Token_CONST,
-	rhino.Token_FUNCTION,
-	rhino.Token_CLASS,
-	rhino.Token_CATCH,
-	rhino.Token_IMPORT,
-	rhino.Token_PARAM_LIST)
+const abstractVar_DECLARATION_TYPES_STR = "[PARAM_LIST, FUNCTION, VAR, CATCH, CONST, CLASS, LET, IMPORT]"
+
+func abstractVar_isDeclarationType(tok rhino.Token) bool {
+	switch tok {
+	case rhino.Token_VAR,
+		rhino.Token_LET,
+		rhino.Token_CONST,
+		rhino.Token_FUNCTION,
+		rhino.Token_CLASS,
+		rhino.Token_CATCH,
+		rhino.Token_IMPORT,
+		rhino.Token_PARAM_LIST:
+		return true
+	default:
+		return false
+	}
+}
 
 // Go-only: language-adapter — a Java Token reference may be null; such
 // values are *rhino.Token here (nil is null), always pointing into this
@@ -415,13 +423,13 @@ func (b *AbstractVarBase[S, V]) declarationType(self V, name string) *rhino.Toke
 		return nil
 	}
 	for current := b.GetNode(); !current.IsNil(); current = current.GetParent() {
-		if abstractVar_DECLARATION_TYPES.Contains(current.GetToken()) {
+		if abstractVar_isDeclarationType(current.GetToken()) {
 			return &abstractVar_tokenPtrs[current.GetToken()]
 		}
 	}
 	jutil.CheckStateMsg2(
 		b.isImplicit(name),
-		"The nameNode for %s must be a descendant of one of: %s", self, abstractVar_DECLARATION_TYPES)
+		"The nameNode for %s must be a descendant of one of: %s", self, abstractVar_DECLARATION_TYPES_STR)
 	return nil
 }
 

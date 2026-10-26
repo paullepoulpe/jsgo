@@ -55,9 +55,11 @@ func applySuggestedFixes_DOUBLE_LINE_JOINER_Join(parts []*CodeReplacement) strin
 //
 // Java: ApplySuggestedFixes.applySuggestedFixesToFiles(Iterable<SuggestedFix>)
 func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix]) {
-	filenames := jutil.NewJavaHashSet[string]()
+	filenames := jutil.NewLinkedHashSet[string]()
 	for fix := range fixes {
-		filenames.AddAll(fix.GetReplacements().KeySet())
+		for filename := range fix.GetReplacements().KeySet() {
+			filenames.Add(filename)
+		}
 	}
 
 	// Go-only: language-adapter — a HashMap that is only looked up
@@ -149,7 +151,7 @@ func ApplySuggestedFixes_ApplySuggestedFixesToCode(
 		if !filenameToCodeMap.ContainsKey(filename) {
 			panic(jutil.NewIllegalArgumentExceptionMsg("filenameToCodeMap missing code for file: " + filename))
 		}
-		newCode := ApplySuggestedFixes_ApplyCodeReplacements(replacements.ToSlice(), filenameToCodeMap.Get(filename))
+		newCode := ApplySuggestedFixes_ApplyCodeReplacements(replacements, filenameToCodeMap.Get(filename))
 		newCodeMap.Put(filename, newCode)
 	}
 	return newCodeMap.BuildOrThrow()
@@ -229,21 +231,22 @@ func ApplySuggestedFixes_ContainsOverlaps(replacements []*CodeReplacement) bool 
 
 // Java: private static class ApplySuggestedFixes.ReplacementMap
 type ApplySuggestedFixes_ReplacementMap struct {
-	map_ *jutil.HashMultimap[string, *CodeReplacement]
+	map_ *jutil.LinkedHashMap[string, []*CodeReplacement]
 }
 
 // Java: ApplySuggestedFixes.ReplacementMap()
 func NewApplySuggestedFixes_ReplacementMap() *ApplySuggestedFixes_ReplacementMap {
-	return &ApplySuggestedFixes_ReplacementMap{map_: jutil.HashMultimap_Create[string, *CodeReplacement]()}
+	return &ApplySuggestedFixes_ReplacementMap{map_: jutil.NewLinkedHashMap[string, []*CodeReplacement]()}
 }
 
 // Java: ApplySuggestedFixes.ReplacementMap.putIfNoOverlap(SuggestedFix)
 func (r *ApplySuggestedFixes_ReplacementMap) PutIfNoOverlap(fix *SuggestedFix) {
 	if r.CanPut(fix) {
-		// map.putAll(fix.getReplacements()): put each entry in entries()
-		// order.
 		for k, v := range fix.GetReplacements().Entries() {
-			r.map_.Put(k, v)
+			cur := r.map_.Get(k)
+			if !slices.ContainsFunc(cur, func(existing *CodeReplacement) bool { return existing.Equals(v) }) {
+				r.map_.Put(k, append(cur, v))
+			}
 		}
 	}
 }
@@ -251,7 +254,7 @@ func (r *ApplySuggestedFixes_ReplacementMap) PutIfNoOverlap(fix *SuggestedFix) {
 // Java: ApplySuggestedFixes.ReplacementMap.canPut(SuggestedFix)
 func (r *ApplySuggestedFixes_ReplacementMap) CanPut(fix *SuggestedFix) bool {
 	for filename := range fix.GetReplacements().KeySet() {
-		combined := r.map_.Get(filename).ToSlice()
+		combined := slices.Clone(r.map_.Get(filename))
 		combined = append(combined, fix.GetReplacements().Get(filename).ToSlice()...)
 		replacements := applySuggestedFixes_ImmutableSortedSetCopyOf(combined)
 		if ApplySuggestedFixes_ContainsOverlaps(replacements) {
@@ -261,12 +264,9 @@ func (r *ApplySuggestedFixes_ReplacementMap) CanPut(fix *SuggestedFix) bool {
 	return true
 }
 
-// EntrySet is Multimaps.asMap(map).entrySet(), in the HashMultimap's
-// iteration order.
-//
 // Java: ApplySuggestedFixes.ReplacementMap.entrySet()
-func (r *ApplySuggestedFixes_ReplacementMap) EntrySet() iter.Seq2[string, *jutil.JavaHashSet[*CodeReplacement]] {
-	return r.map_.AsMap().All()
+func (r *ApplySuggestedFixes_ReplacementMap) EntrySet() iter.Seq2[string, []*CodeReplacement] {
+	return r.map_.All()
 }
 
 // Java: ApplySuggestedFixes()

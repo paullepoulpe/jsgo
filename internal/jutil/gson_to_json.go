@@ -366,14 +366,6 @@ func (s *ObjectLinkedHashSet[T]) gsonElements() []any {
 	return out
 }
 
-func (s *EnumSet[E]) gsonElements() []any {
-	var out []any
-	for e := range s.All() {
-		out = append(out, e)
-	}
-	return out
-}
-
 func (h *LinkedHashMap[K, V]) gsonEntries() (keys []any, values []any) {
 	for k, v := range h.All() {
 		keys = append(keys, k)

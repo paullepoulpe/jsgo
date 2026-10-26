@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
@@ -127,7 +128,8 @@ type RemoveUnusedCode struct {
 	// static methods on global names such as "Array.from" and "Math.fround",
 	// and instance properties such as "String.prototype.repeat" and
 	// "Promise.prototype.finally".
-	polyfills *jutil.HashMultimap[string, RemoveUnusedCode_PolyfillInfo]
+	polyfills     map[string][]RemoveUnusedCode_PolyfillInfo
+	polyfillOrder []RemoveUnusedCode_PolyfillInfo
 
 	guardedUsages         *jutil.LinkedHashSet[rhino.Node]
 	guardedUsagesComputed bool
@@ -703,8 +705,8 @@ func (r *RemoveUnusedCode) TraverseNormalOrOptChainGetProp(getProp rhino.Node, s
 	objectNode := getProp.GetFirstChild()
 	propertyName := getProp.GetString()
 
-	if r.polyfills != nil && !r.polyfills.IsEmpty() && r.polyfills.ContainsKey(propertyName) {
-		for info := range r.polyfills.Get(propertyName).All() {
+	if len(r.polyfillOrder) > 0 {
+		for _, info := range r.polyfills[propertyName] {
 			if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
 				info.ConsiderPossibleReference(getProp)
 			}
@@ -835,13 +837,10 @@ func (r *RemoveUnusedCode) TraverseCompoundAssign(compoundAssignNode rhino.Node,
 
 // Java: RemoveUnusedCode.traverseNameNode(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNameNode(n rhino.Node, scope *Scope) *RemoveUnusedCode_RealVarInfo {
-	if r.polyfills != nil && !r.polyfills.IsEmpty() {
-		name := n.GetString()
-		if r.polyfills.ContainsKey(name) {
-			for info := range r.polyfills.Get(name).All() {
-				if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
-					info.ConsiderPossibleReference(n)
-				}
+	if len(r.polyfillOrder) > 0 {
+		for _, info := range r.polyfills[n.GetString()] {
+			if info.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
+				info.ConsiderPossibleReference(n)
 			}
 		}
 	}
@@ -904,10 +903,11 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 		}
 		info := r.CreatePolyfillInfo(callNode, scope, polyfillName)
 		if r.polyfills == nil {
-			r.polyfills = jutil.HashMultimap_Create[string, RemoveUnusedCode_PolyfillInfo]()
+			r.polyfills = make(map[string][]RemoveUnusedCode_PolyfillInfo)
 		}
 		key := info.GetRemoveUnusedCode_PolyfillInfoBase().key
-		r.polyfills.Put(key, info)
+		r.polyfills[key] = append(r.polyfills[key], info)
+		r.polyfillOrder = append(r.polyfillOrder, info)
 		// Only traverse the callee (to mark it as used).  The arguments may be traversed later.
 		r.TraverseNode(callNode.GetFirstChild(), scope)
 	} else if NodeUtil_IsGoogWeakUsageCall(callNode) &&
@@ -2102,25 +2102,28 @@ func (r *RemoveUnusedCode) RemoveUnreferencedVarsAndPolyfills() {
 	}
 
 	// Iterator<PolyfillInfo> iter = polyfills.values().iterator(); ... iter.remove();
-	//
-	// Go-only: language-adapter — the removable polyfills are collected in
-	// iteration order and removed from the multimap after the iteration
-	// (the JavaHashMap iterators are fail-fast); removing a polyfill's code
-	// does not touch the multimap, so the order of effects is unchanged.
-	if r.polyfills != nil && !r.polyfills.IsEmpty() {
-		var removed []RemoveUnusedCode_PolyfillInfo
-		for polyfill := range r.polyfills.Values() {
+	if len(r.polyfillOrder) > 0 {
+		n := 0
+		for _, polyfill := range r.polyfillOrder {
 			if polyfill.GetRemoveUnusedCode_PolyfillInfoBase().isRemovable {
 				if r.removalLog.IsLogging() {
 					r.removalLog.LogSupplier(RemoveUnusedCode_RemovalLogRecord_ForPolyfill(polyfill).Get)
 				}
 				polyfill.GetRemoveUnusedCode_PolyfillInfoBase().removable.Remove(r)
-				removed = append(removed, polyfill)
+				key := polyfill.GetRemoveUnusedCode_PolyfillInfoBase().key
+				list := slices.DeleteFunc(r.polyfills[key], func(p RemoveUnusedCode_PolyfillInfo) bool { return p == polyfill })
+				if len(list) == 0 {
+					delete(r.polyfills, key)
+				} else {
+					r.polyfills[key] = list
+				}
+			} else {
+				r.polyfillOrder[n] = polyfill
+				n++
 			}
 		}
-		for _, polyfill := range removed {
-			r.polyfills.Remove(polyfill.GetRemoveUnusedCode_PolyfillInfoBase().key, polyfill)
-		}
+		clear(r.polyfillOrder[n:])
+		r.polyfillOrder = r.polyfillOrder[:n]
 	}
 }
 

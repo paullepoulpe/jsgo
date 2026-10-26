@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"strings"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -67,9 +65,6 @@ type JsFileFullParser_FileInfo struct {
 	maybeRequires *jutil.TreeMultiset[string]
 	requiresCss   *jutil.TreeMultiset[string]
 	visibility    *jutil.TreeMultiset[string]
-
-	customAnnotations *jutil.TreeMultimap[string, string]
-	loadFlags         *jutil.TreeMultimap[string, string]
 }
 
 // Java: JsFileFullParser.FileInfo()
@@ -95,8 +90,6 @@ func NewJsFileFullParser_FileInfo() *JsFileFullParser_FileInfo {
 		maybeRequires:     jutil.TreeMultiset_Create[string](jutil.StringCompareTo),
 		requiresCss:       jutil.TreeMultiset_Create[string](jutil.StringCompareTo),
 		visibility:        jutil.TreeMultiset_Create[string](jutil.StringCompareTo),
-		customAnnotations: jutil.TreeMultimap_Create[string, string](jutil.StringCompareTo, jutil.StringCompareTo),
-		loadFlags:         jutil.TreeMultimap_Create[string, string](jutil.StringCompareTo, jutil.StringCompareTo),
 	}
 }
 
@@ -114,16 +107,6 @@ const (
 )
 
 var jsFileFullParser_FileInfo_ModuleType_names = [...]string{"UNKNOWN", "GOOG_PROVIDE", "GOOG_MODULE", "ES_MODULE"}
-
-// Java: JsFileFullParser.FileInfo.ModuleType.values()
-func JsFileFullParser_FileInfo_ModuleType_values() []JsFileFullParser_FileInfo_ModuleType {
-	return []JsFileFullParser_FileInfo_ModuleType{
-		JsFileFullParser_FileInfo_ModuleType_UNKNOWN,
-		JsFileFullParser_FileInfo_ModuleType_GOOG_PROVIDE,
-		JsFileFullParser_FileInfo_ModuleType_GOOG_MODULE,
-		JsFileFullParser_FileInfo_ModuleType_ES_MODULE,
-	}
-}
 
 // String is ModuleType.name().
 func (t JsFileFullParser_FileInfo_ModuleType) String() string {
@@ -222,10 +205,6 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 	}
 
 	parsed.Ast.SetInputId(rhino.NewInputId(filename))
-	version := parsed.Features.Version()
-	if version != "es3" {
-		info.loadFlags.Put("lang", version)
-	}
 
 	jsFileFullParser_parseTopLevelJsDocComments(parsed.TopLevelStatementRanges, parsed.Comments, info)
 	gatherModuleMetadata :=
@@ -239,11 +218,6 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 	var module *ModuleMetadataMap_ModuleMetadata
 	for m := range compiler.GetModuleMetadataMap().GetModulesByPath().Values() {
 		module = m // Iterables.getOnlyElement
-	}
-	if module.IsEs6Module() {
-		info.loadFlags.Put("module", "es6")
-	} else if module.IsGoogModule() {
-		info.loadFlags.Put("module", "goog")
 	}
 	switch module.ModuleType() {
 	case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
@@ -364,7 +338,6 @@ func jsFileFullParser_parseTopLevelJsDocComments(
 //
 // Java: JsFileFullParser.parseComment(Comment, FileInfo)
 func jsFileFullParser_parseComment(comment *parser.Comment, info *JsFileFullParser_FileInfo) {
-	fileOverview := strings.Contains(comment.Value, "@fileoverview")
 	for _, annotation := range jsFileFullParser_CommentAnnotation_parse(comment.Value) {
 		switch annotation.name {
 		case "@fileoverview", "@author", "@see", "@link":
@@ -402,16 +375,6 @@ func jsFileFullParser_parseComment(comment *parser.Comment, info *JsFileFullPars
 			}
 		case "@externs":
 			info.isExterns = true
-		case "@enhanceable", "@pintomodule", "@mayhaveextraedge":
-			info.customAnnotations.Put(jutil.StringSubstringFrom(annotation.name, 1), annotation.value)
-		case "@enhance":
-			if annotation.value != "" {
-				info.customAnnotations.Put(jutil.StringSubstringFrom(annotation.name, 1), annotation.value)
-			}
-		default:
-			if fileOverview {
-				info.customAnnotations.Put(jutil.StringSubstringFrom(annotation.name, 1), annotation.value)
-			}
 		}
 	}
 }

@@ -59,7 +59,7 @@ type CreateSyntheticBlocks struct {
 	// element of the slice.
 	markerStack []ast.ExprStmt
 
-	validMarkers *jutil.ArrayList[*createSyntheticBlocks_Marker]
+	validMarkers []*createSyntheticBlocks_Marker
 }
 
 // Java: CreateSyntheticBlocks.UNMATCHED_START_MARKER
@@ -88,7 +88,6 @@ func NewCreateSyntheticBlocks(compiler AbstractCompiler, startMarkerName string,
 		compiler:        compiler,
 		startMarkerName: startMarkerName,
 		endMarkerName:   endMarkerName,
-		validMarkers:    jutil.NewArrayList[*createSyntheticBlocks_Marker](),
 	}
 }
 
@@ -104,7 +103,7 @@ func (p *CreateSyntheticBlocks) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	// Add the block for the valid marker sets.
-	for marker := range p.validMarkers.All() {
+	for _, marker := range p.validMarkers {
 		p.AddBlocks(marker)
 	}
 }
@@ -264,5 +263,5 @@ func (p *CreateSyntheticBlocks) Visit(unused *NodeTraversal, n rhino.Node, paren
 	}
 
 	// This is a valid marker, add it to the list of markers to process.
-	p.validMarkers.Add(newCreateSyntheticBlocks_Marker(startMarkerNode, endMarkerNode))
+	p.validMarkers = append(p.validMarkers, newCreateSyntheticBlocks_Marker(startMarkerNode, endMarkerNode))
 }

@@ -19,7 +19,12 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"slices"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // SerializationOptions holds configuration options for serialization time.
 type SerializationOptions struct {
@@ -63,15 +68,19 @@ func (o *SerializationOptions) Equals(obj any) bool {
 		return false
 	}
 	return o.includeDebugInfo == that.includeDebugInfo && o.runValidation == that.runValidation &&
-		jutil.ObjectsEquals(jutil.NewArrayListFrom(o.runtimeLibraries), jutil.NewArrayListFrom(that.runtimeLibraries))
+		slices.Equal(o.runtimeLibraries, that.runtimeLibraries)
 }
 
 // Java: SerializationOptions.hashCode() (record: 31 * h + hash(component))
 func (o *SerializationOptions) HashCode() int32 {
+	lh := int32(1)
+	for _, lib := range o.runtimeLibraries {
+		lh = 31*lh + jutil.StringHashCode(lib)
+	}
 	var h int32
 	h = 31*h + jutil.ObjectHashCode(o.includeDebugInfo)
 	h = 31*h + jutil.ObjectHashCode(o.runValidation)
-	h = 31*h + jutil.NewArrayListFrom(o.runtimeLibraries).HashCode()
+	h = 31*h + lh
 	return h
 }
 
@@ -132,15 +141,15 @@ func (b *SerializationOptions_Builder) SetRuntimeLibraries(runtimeLibraries []st
 // Java: SerializationOptions.Builder.build()
 func (b *SerializationOptions_Builder) Build() *SerializationOptions {
 	if b.set0 != 3 || b.runtimeLibraries == nil {
-		missing := jutil.NewStringBuilder()
+		var missing strings.Builder
 		if b.set0&1 == 0 {
-			missing.Append(" includeDebugInfo")
+			missing.WriteString(" includeDebugInfo")
 		}
 		if b.set0&2 == 0 {
-			missing.Append(" runValidation")
+			missing.WriteString(" runValidation")
 		}
 		if b.runtimeLibraries == nil {
-			missing.Append(" runtimeLibraries")
+			missing.WriteString(" runtimeLibraries")
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}

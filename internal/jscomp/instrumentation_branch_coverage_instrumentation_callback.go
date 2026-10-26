@@ -127,7 +127,7 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 			if outEdge.GetValue() == ControlFlowGraph_Branch_ON_FALSE {
 				destination := outEdge.GetDestination().GetValue()
 				if !destination.IsNil() && destination.IsBlock() {
-					blocks.Add(destination)
+					blocks = append(blocks, destination)
 				} else {
 					exitBlock := rhino.IR_Block()
 					if !destination.IsNil() && destination.GetParent().IsBlock() {
@@ -140,7 +140,7 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 						// block directly after the loop structure that we can later instrument
 						exitBlock.InsertAfter(outEdge.GetSource().GetValue())
 					}
-					blocks.Add(exitBlock)
+					blocks = append(blocks, exitBlock)
 				}
 			}
 		}
@@ -153,11 +153,11 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 }
 
 // Java: BranchCoverageInstrumentationCallback.getChildrenBlocks(Node)
-func (c *BranchCoverageInstrumentationCallback) GetChildrenBlocks(node rhino.Node) *jutil.ArrayList[rhino.Node] {
-	blocks := jutil.NewArrayList[rhino.Node]()
+func (c *BranchCoverageInstrumentationCallback) GetChildrenBlocks(node rhino.Node) []rhino.Node {
+	var blocks []rhino.Node
 	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if child.IsBlock() {
-			blocks.Add(child)
+			blocks = append(blocks, child)
 		}
 	}
 	return blocks
@@ -207,17 +207,15 @@ func (c *BranchCoverageInstrumentationCallback) NewBranchInstrumentationNode(tra
 // ProcessBranchInfo adds branch instrumentation information for each block.
 //
 // Java: BranchCoverageInstrumentationCallback.processBranchInfo(Node, FileInstrumentationData, List<Node>)
-func (c *BranchCoverageInstrumentationCallback) ProcessBranchInfo(branchNode rhino.Node, data *FileInstrumentationData, blocks *jutil.ArrayList[rhino.Node]) {
+func (c *BranchCoverageInstrumentationCallback) ProcessBranchInfo(branchNode rhino.Node, data *FileInstrumentationData, blocks []rhino.Node) {
 	lineNumber := branchNode.GetLineno()
 	data.SetBranchPresent(lineNumber)
 
 	// Instrument for each block
-	numBranches := 0
-	for child := range blocks.All() {
-		data.PutBranchNode(lineNumber, numBranches+1, child)
-		numBranches++
+	for i, child := range blocks {
+		data.PutBranchNode(lineNumber, i+1, child)
 	}
-	data.AddBranches(lineNumber, numBranches)
+	data.AddBranches(lineNumber, len(blocks))
 }
 
 // AddDefaultBlock adds a default block for conditional statements, e.g., If,

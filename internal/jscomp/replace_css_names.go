@@ -180,7 +180,7 @@ func NewReplaceCssNames(
 func (r *ReplaceCssNames) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, &ReplaceCssNames_FindSetCssNameTraversal{outer: r})
 	getCssNameInstances := r.GatherGetCssNameInstances(root)
-	for getCssNameInstance := range getCssNameInstances.All() {
+	for _, getCssNameInstance := range getCssNameInstances {
 		cssClassName := getCssNameInstance.GetCssClassName()
 		if getCssNameInstance.IsCssClosureFileClassesMember() {
 			r.cssNamesBySymbol.Put(*getCssNameInstance.GetCssClosureClassesMemberName(), *cssClassName)
@@ -205,7 +205,7 @@ func (r *ReplaceCssNames) Process(externs rhino.Node, root rhino.Node) {
 //	goog.getCssName(goog.getCssName('me-first'), 'me-second')
 //
 // Java: ReplaceCssNames.gatherGetCssNameInstances(Node)
-func (r *ReplaceCssNames) GatherGetCssNameInstances(root rhino.Node) *jutil.ArrayList[*ReplaceCssNames_GetCssNameInstance] {
+func (r *ReplaceCssNames) GatherGetCssNameInstances(root rhino.Node) []*ReplaceCssNames_GetCssNameInstance {
 	gatherCssNamesTraversal := NewReplaceCssNames_GatherCssNamesTraversal(r)
 	NodeTraversal_Traverse(r.compiler, root, gatherCssNamesTraversal)
 	return gatherCssNamesTraversal.listOfCssNameInstances
@@ -240,15 +240,14 @@ func (f *ReplaceCssNames_FindSetCssNameTraversal) Visit(t *NodeTraversal, n rhin
 // Java: private class ReplaceCssNames.GatherCssNamesTraversal implements NodeTraversal.Callback
 type ReplaceCssNames_GatherCssNamesTraversal struct {
 	outer                  *ReplaceCssNames
-	listOfCssNameInstances *jutil.ArrayList[*ReplaceCssNames_GetCssNameInstance]
+	listOfCssNameInstances []*ReplaceCssNames_GetCssNameInstance
 	traversalState         ReplaceCssNames_GatherCssNamesTraversal_TraversalState
 }
 
 // Java: ReplaceCssNames.GatherCssNamesTraversal()
 func NewReplaceCssNames_GatherCssNamesTraversal(outer *ReplaceCssNames) *ReplaceCssNames_GatherCssNamesTraversal {
 	return &ReplaceCssNames_GatherCssNamesTraversal{
-		outer:                  outer,
-		listOfCssNameInstances: jutil.NewArrayList[*ReplaceCssNames_GetCssNameInstance](),
+		outer: outer,
 	}
 }
 
@@ -281,7 +280,7 @@ func (g *ReplaceCssNames_GatherCssNamesTraversal) Visit(t *NodeTraversal, n rhin
 	if r.IsGetCssNameCall(n) {
 		getCssNameInstance := r.CreateGetCssNameInstance(n, g.traversalState.cssClosureClassesQualifiedName)
 		if getCssNameInstance.IsValid() {
-			g.listOfCssNameInstances.Add(getCssNameInstance)
+			g.listOfCssNameInstances = append(g.listOfCssNameInstances, getCssNameInstance)
 		} else {
 			r.compiler.Report(getCssNameInstance.GetValidationError())
 		}

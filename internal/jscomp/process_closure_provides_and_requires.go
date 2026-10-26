@@ -53,7 +53,7 @@ type ProcessClosureProvidesAndRequires struct {
 	// If this is true, rewriting will not remove any goog.provide or
 	// goog.require calls
 	preserveGoogProvidesAndRequires bool
-	requiresToBeRemoved             *jutil.ArrayList[rhino.Node]
+	requiresToBeRemoved             []rhino.Node
 	// Whether this instance has already rewritten goog.provides, which can
 	// only happen once
 	hasRewritingOccurred    bool
@@ -77,9 +77,7 @@ func NewProcessClosureProvidesAndRequires(
 	p.providedNames = jutil.NewLinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName]()
 	p.providedLeafs = make(map[string]struct{}, 64)
 	p.exportedVariables = jutil.NewLinkedHashSet[string]()
-	p.requiresToBeRemoved = jutil.NewArrayList[rhino.Node]()
 	p.hasRewritingOccurred = false
-	p.forwardDeclaresToRemove = jutil.NewLinkedHashSet[rhino.Node]()
 	p.compiler = compiler
 	p.chunkGraph = compiler.GetChunkGraph()
 	p.preserveGoogProvidesAndRequires = preserveGoogProvidesAndRequires
@@ -166,12 +164,14 @@ func (p *ProcessClosureProvidesAndRequires) RewriteProvidesAndRequires(externs r
 		pn.Replace(p.preserveGoogProvidesAndRequires, p.providedNames)
 	}
 
-	for closureRequire := range p.requiresToBeRemoved.All() {
+	for _, closureRequire := range p.requiresToBeRemoved {
 		p.compiler.ReportChangeToEnclosingScope(closureRequire)
 		closureRequire.Detach()
 	}
-	for forwardDeclare := range p.forwardDeclaresToRemove.All() {
-		NodeUtil_DeleteNode(forwardDeclare, p.compiler)
+	if p.forwardDeclaresToRemove != nil {
+		for forwardDeclare := range p.forwardDeclaresToRemove.All() {
+			NodeUtil_DeleteNode(forwardDeclare, p.compiler)
+		}
 	}
 }
 
@@ -278,7 +278,7 @@ func (p *ProcessClosureProvidesAndRequires) ProcessRequireCall(call rhino.Node, 
 	}
 
 	if !p.preserveGoogProvidesAndRequires {
-		p.requiresToBeRemoved.Add(parent)
+		p.requiresToBeRemoved = append(p.requiresToBeRemoved, parent)
 	}
 }
 
@@ -457,6 +457,9 @@ func (p *ProcessClosureProvidesAndRequires) ProcessForwardDeclare(n rhino.Node, 
 		toRemove := parent.GetParent()
 		if parent.IsExprResult() {
 			toRemove = parent
+		}
+		if p.forwardDeclaresToRemove == nil {
+			p.forwardDeclaresToRemove = jutil.NewLinkedHashSet[rhino.Node]()
 		}
 		p.forwardDeclaresToRemove.Add(toRemove)
 	}

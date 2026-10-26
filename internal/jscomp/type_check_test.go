@@ -22765,10 +22765,10 @@ func (c *TypeCheckTest) TestClosureTypesMultipleWarnings(js string, descriptions
 	} else {
 		AssertWithMessage("unexpected warning(s) : " + typeCheckTests_join(c.compiler.GetWarnings(), ", ")).That(c.compiler.GetWarningCount()).
 			IsEqualTo(len(descriptions))
-		actualWarningDescriptions := jutil.NewJavaHashSet[string]()
+		actualWarningDescriptions := jutil.NewLinkedHashSet[string]()
 		for i := 0; i < len(descriptions); i++ {
 			actualWarningDescriptions.Add(c.compiler.GetWarnings()[i].Description())
 		}
-		AssertThat(actualWarningDescriptions).IsEqualTo(jutil.NewJavaHashSetFromSlice(descriptions))
+		AssertThat(actualWarningDescriptions).IsEqualTo(jutil.NewLinkedHashSet(descriptions...))
 	}
 }

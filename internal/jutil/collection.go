@@ -10,8 +10,8 @@ import "iter"
 
 // Collection is the part of java.util.Collection<T> that bulk operations
 // read: the size, membership, and the elements in iteration order.
-// *ArrayList, *LinkedHashSet, *ObjectLinkedHashSet, *JavaHashSet and
-// JavaHashMap.KeySet() implement it.
+// *ArrayList, *LinkedHashSet, *ObjectLinkedHashSet and JavaHashMap.KeySet()
+// implement it.
 type Collection[T any] interface {
 	Size() int
 	Contains(e T) bool

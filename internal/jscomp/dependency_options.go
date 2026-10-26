@@ -18,7 +18,11 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"slices"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // DependencyOptions holds options for how to manage dependencies between
 // input files.
@@ -65,7 +69,7 @@ func (o *DependencyOptions) GetEntryPoints() []*ModuleIdentifier { return o.Entr
 func (o *DependencyOptions) Equals(obj any) bool {
 	that, ok := obj.(*DependencyOptions)
 	return ok && that != nil && o.mode == that.mode &&
-		jutil.NewArrayListFrom(o.entryPoints).Equals(jutil.NewArrayListFrom(that.entryPoints))
+		slices.EqualFunc(o.entryPoints, that.entryPoints, func(a, b *ModuleIdentifier) bool { return a.Equals(b) })
 }
 
 // Java: DependencyOptions.hashCode() (record)
@@ -73,10 +77,11 @@ func (o *DependencyOptions) Equals(obj any) bool {
 // Go-only: language-adapter — Java's Enum.hashCode() is the identity hash;
 // the ordinal stands in for it.
 func (o *DependencyOptions) HashCode() int32 {
-	var h int32
-	h = 31*h + int32(o.mode)
-	h = 31*h + jutil.NewArrayListFrom(o.entryPoints).HashCode()
-	return h
+	eh := int32(1)
+	for _, ep := range o.entryPoints {
+		eh = 31*eh + ep.HashCode()
+	}
+	return 31*int32(o.mode) + eh
 }
 
 // Java: DependencyOptions.toString() (record)

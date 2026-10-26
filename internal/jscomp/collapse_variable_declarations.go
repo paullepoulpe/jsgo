@@ -61,8 +61,6 @@ type CollapseVariableDeclarations struct {
 	// Reference to JS Compiler
 	compiler AbstractCompiler
 
-	// Collapses to do in this pass.
-	collapses *jutil.ArrayList[*CollapseVariableDeclarations_Collapse]
 	// Go-only: the declarations that the following ones collapse into (the
 	// startNode of each Collapse), in a reused buffer.
 	collapseNodes []ast.NameDeclaration
@@ -71,21 +69,7 @@ type CollapseVariableDeclarations struct {
 	// Nodes we've already looked at for collapsing, so that we don't look at
 	// them again (we look ahead when examining what nodes can be collapsed,
 	// and the node traversal may give them to us again)
-	nodesToCollapse *jutil.LinkedHashSet[rhino.Node]
-	collapsedSet    map[rhino.Node]struct{}
-}
-
-// CollapseVariableDeclarations_Collapse is the encapsulation of information
-// about a variable declaration collapse.
-type CollapseVariableDeclarations_Collapse struct {
-	// Variable declaration that any following var nodes should be collapsed
-	// into
-	startNode rhino.Node
-}
-
-// Java: CollapseVariableDeclarations.Collapse(Node)
-func NewCollapseVariableDeclarations_Collapse(startNode rhino.Node) *CollapseVariableDeclarations_Collapse {
-	return &CollapseVariableDeclarations_Collapse{startNode: startNode}
+	collapsedSet map[rhino.Node]struct{}
 }
 
 // Java: CollapseVariableDeclarations(AbstractCompiler)

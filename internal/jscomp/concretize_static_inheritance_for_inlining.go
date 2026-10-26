@@ -224,7 +224,7 @@ func (c *ConcretizeStaticInheritanceForInlining) Process(externs rhino.Node, roo
 
 // Java: ConcretizeStaticInheritanceForInlining.processInherits(FindStaticMembers)
 func (c *ConcretizeStaticInheritanceForInlining) ProcessInherits(findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
-	for _, inheritsCall := range findStaticMembers.inheritsCalls.Slice() {
+	for _, inheritsCall := range findStaticMembers.inheritsCalls {
 		superclassNameNode := inheritsCall.GetLastChild()
 		superclassQname := superclassNameNode.GetQualifiedName()
 		subclassNameNode := superclassNameNode.GetPrevious()
@@ -322,7 +322,7 @@ type ConcretizeStaticInheritanceForInlining_FindStaticMembers struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *ConcretizeStaticInheritanceForInlining
 
-	inheritsCalls *jutil.ArrayList[rhino.Node]
+	inheritsCalls []rhino.Node
 	// Store the order we find class definitions and static fields.  Copied statics must occur
 	// after both the namespace and the copied property are defined.
 	nodeOrder map[rhino.Node]int
@@ -331,9 +331,8 @@ type ConcretizeStaticInheritanceForInlining_FindStaticMembers struct {
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers()
 func NewConcretizeStaticInheritanceForInlining_FindStaticMembers(outer *ConcretizeStaticInheritanceForInlining) *ConcretizeStaticInheritanceForInlining_FindStaticMembers {
 	return &ConcretizeStaticInheritanceForInlining_FindStaticMembers{
-		outer:         outer,
-		inheritsCalls: jutil.NewArrayList[rhino.Node](),
-		nodeOrder:     make(map[rhino.Node]int),
+		outer:     outer,
+		nodeOrder: make(map[rhino.Node]int),
 	}
 }
 
@@ -342,7 +341,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit(t *Node
 	switch n.GetToken() {
 	case rhino.Token_CALL:
 		if f.outer.inherits.Matches(n.GetFirstChild()) {
-			f.inheritsCalls.Add(n)
+			f.inheritsCalls = append(f.inheritsCalls, n)
 			f.nodeOrder[n] = len(f.nodeOrder)
 		}
 		if NodeUtil_IsObjectDefinePropertiesDefinition(n) {
