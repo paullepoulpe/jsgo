@@ -1059,6 +1059,14 @@ func (w *gen) roles() {
 	w.p("// roleRows gives, for the token of a parent, the roles of its children:")
 	w.p("// the fixed ones in order, then the list's for any child after them.")
 	w.p("var roleRows = [256]roleRow{")
+	contextTokens := map[string]bool{}
+	for _, k := range w.g.kinds {
+		if k.context {
+			for _, t := range k.tokens {
+				contextTokens[t] = true
+			}
+		}
+	}
 	for _, k := range w.g.kinds {
 		if k.context {
 			continue
@@ -1082,11 +1090,14 @@ func (w *gen) roles() {
 		if listRole != "" {
 			fields = append(fields, "list: "+listRole)
 		}
-		if len(fields) == 0 {
-			continue
-		}
 		for _, t := range k.tokens {
-			w.p("%s: {%s},", tokenConst(t), strings.Join(fields, ", "))
+			fs := fields
+			if contextTokens[t] {
+				fs = append(fs[:len(fs):len(fs)], "context: true")
+			}
+			if len(fs) > 0 {
+				w.p("%s: {%s},", tokenConst(t), strings.Join(fs, ", "))
+			}
 		}
 	}
 	w.p("}")
@@ -1095,7 +1106,7 @@ func (w *gen) roles() {
 	// so RoleOf first asks whether the parent is in the context kind's place.
 	w.p("// contextRole returns the role of n if its parent p is a node of a kind that")
 	w.p("// only appears in one place (TryCatches, a BLOCK), and RoleNone otherwise.")
-	w.p("func contextRole(n, p rhino.Node) Role {")
+	w.p("func contextRole(p rhino.Node) Role {")
 	w.p("switch p.GetToken() {")
 	for _, k := range w.g.kinds {
 		if !k.context {

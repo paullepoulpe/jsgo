@@ -17,9 +17,10 @@ type Role uint16
 // roleRow gives the roles of the children of a node of one token: the
 // fixed children in order, then the list for every child after them.
 type roleRow struct {
-	fixed  [maxFixedRoles]Role
-	nfixed uint8
-	list   Role
+	fixed   [maxFixedRoles]Role
+	nfixed  uint8
+	context bool // the token is also a context kind's (TryCatches): ask contextRole
+	list    Role
 }
 
 // maxFixedRoles is the most children before a list (or in all) of a kind.
@@ -32,10 +33,15 @@ func RoleOf(n rhino.Node) Role {
 	if p == rhino.NilNode {
 		return RoleNone
 	}
-	if r := contextRole(n, p); r != RoleNone {
-		return r
-	}
 	row := &roleRows[p.GetToken()]
+	if row.context {
+		if r := contextRole(p); r != RoleNone {
+			return r
+		}
+	}
+	if row.nfixed == 0 {
+		return row.list
+	}
 	c := p.GetFirstChild()
 	for i := 0; i < int(row.nfixed); i++ {
 		if c == n {

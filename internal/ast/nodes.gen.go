@@ -14443,7 +14443,7 @@ var roleRows = [256]roleRow{
 	rhino.Token_ROOT:                {list: RoleRootItems},
 	rhino.Token_SCRIPT:              {list: RoleScriptItems},
 	rhino.Token_MODULE_BODY:         {list: RoleModuleBodyStatements},
-	rhino.Token_BLOCK:               {list: RoleBlockStatements},
+	rhino.Token_BLOCK:               {list: RoleBlockStatements, context: true},
 	rhino.Token_LABEL:               {fixed: [4]Role{RoleLabelName, RoleLabelBody}, nfixed: 2},
 	rhino.Token_IF:                  {fixed: [4]Role{RoleIfCond, RoleIfThen, RoleIfElse}, nfixed: 3},
 	rhino.Token_FOR:                 {fixed: [4]Role{RoleForInit, RoleForCond, RoleForUpdate, RoleForBody}, nfixed: 4},
@@ -14573,7 +14573,7 @@ var roleRows = [256]roleRow{
 
 // contextRole returns the role of n if its parent p is a node of a kind that
 // only appears in one place (TryCatches, a BLOCK), and RoleNone otherwise.
-func contextRole(n, p rhino.Node) Role {
+func contextRole(p rhino.Node) Role {
 	switch p.GetToken() {
 	case rhino.Token_BLOCK:
 		if gp := p.GetParent(); gp != rhino.NilNode && gp.GetToken() == rhino.Token_TRY && gp.GetSecondChild() == p {
