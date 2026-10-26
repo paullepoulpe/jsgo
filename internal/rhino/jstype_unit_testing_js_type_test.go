@@ -87,16 +87,6 @@ func (u *unitTestingJSType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
-// Java: UnitTestingJSType.visit(Visitor<T>)
-func (u *unitTestingJSType) Visit(visitor Visitor) any {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
-// Java: UnitTestingJSType.visit(RelationshipVisitor<T>, JSType)
-func (u *unitTestingJSType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
 // Java: UnitTestingJSType.resolveInternal(ErrorReporter)
 func (u *unitTestingJSType) ResolveInternal(reporter ErrorReporter) JSType {
 	return u

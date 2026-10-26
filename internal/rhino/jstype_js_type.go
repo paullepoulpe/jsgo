@@ -61,8 +61,7 @@ import (
 // plain name and the Property.Key ones take a `ByKey` suffix, e.g.
 // getPropertyType(String) → GetPropertyType, getPropertyType(Property.Key)
 // → GetPropertyTypeByKey; an extra boolean/mode parameter is a `With…`
-// suffix (GetPropertyKindWithAutobox, IsSubtypeOfWithMode);
-// visit(RelationshipVisitor, JSType) is VisitRelationship. Static methods
+// suffix (GetPropertyKindWithAutobox, IsSubtypeOfWithMode). Static methods
 // are package functions JSType_Foo.
 type JSType interface {
 	// Java: JSType.getTypeClass()
@@ -215,10 +214,6 @@ type JSType interface {
 	IsSubtypeWithMode(supertype JSType, mode JSType_SubtypingMode) bool
 	IsSubtypeOf(supertype JSType) bool
 	IsSubtypeOfWithMode(supertype JSType, mode JSType_SubtypingMode) bool
-	// Java: JSType.visit(Visitor<T>)
-	Visit(visitor Visitor) any
-	// Java: JSType.visit(RelationshipVisitor<T>, JSType)
-	VisitRelationship(visitor RelationshipVisitor, that JSType) any
 	Resolve(reporter ErrorReporter) JSType
 	ResolveInternal(reporter ErrorReporter) JSType
 	EagerlyResolveToSelf()
@@ -809,7 +804,7 @@ func (t *JSTypeBase) IsDict() bool {
 // Java: JSType.containsReferenceAncestor(JSType)
 func (t *JSTypeBase) ContainsReferenceAncestor(target JSType) bool {
 	visitor := NewContainsUpperBoundSuperTypeVisitor(target)
-	return t.self().Visit(visitor) == ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+	return VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](t.self(), visitor) == ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
 }
 
 // Java: JSType.isLiteralObject()
@@ -1368,7 +1363,7 @@ func (t *JSTypeBase) CanBeCalled() bool {
 //
 // Java: JSType.canCastTo(JSType)
 func (t *JSTypeBase) CanCastTo(that JSType) bool {
-	return t.self().VisitRelationship(JSType_CAN_CAST_TO_VISITOR, that).(bool)
+	return VisitJSTypeRelationship[bool](t.self(), JSType_CAN_CAST_TO_VISITOR, that)
 }
 
 // AutoboxesTo turns a scalar type to the corresponding object type. Returns
@@ -2040,18 +2035,6 @@ func (t *JSTypeBase) IsSubtypeOfWithMode(supertype JSType, mode JSType_Subtyping
 		hasRun:                  true,
 	}
 	return c.IsSubtypeDispatching(t.self(), supertype)
-}
-
-// JSType_VisitForJSType is type.visit(visitor) for a Visitor<JSType>: the
-// erased result converted back to JSType.
-//
-// Go-only: language-adapter — see Visitor.
-func JSType_VisitForJSType(type_ JSType, visitor Visitor) JSType {
-	if r, ok := visitor.(*TemplateTypeReplacer); ok {
-		return r.visitJSType(type_)
-	}
-	r, _ := type_.Visit(visitor).(JSType)
-	return r
 }
 
 // Resolve resolves this type in the given scope.

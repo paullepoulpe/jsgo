@@ -44,8 +44,7 @@ import (
 // TemplateTypeReplacer specializes TemplatizedTypes according to provided
 // bindings.
 //
-// Java: implements Visitor<JSType>; the case methods return JSTypes boxed in
-// `any` (see Visitor).
+// Java: implements Visitor<JSType>
 type TemplateTypeReplacer struct {
 	registry *JSTypeRegistry
 	bindings *TemplateTypeMap
@@ -205,17 +204,17 @@ func (r *TemplateTypeReplacer) VisitJSType(type_ JSType) JSType {
 func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
 	switch x := type_.(type) {
 	case *TemplateType:
-		return r.caseTemplateType(x)
+		return r.CaseTemplateType(x)
 	case *UnionType:
-		return r.caseUnionType(x)
+		return r.CaseUnionType(x)
 	case *TemplatizedType:
-		return r.caseTemplatizedType(x)
+		return r.CaseTemplatizedType(x)
 	case *FunctionTypeBase:
-		return r.caseFunctionType(x)
+		return r.CaseFunctionType(x)
 	case *InstanceObjectType, *PrototypeObjectTypeBase, *EnumType, *NoResolvedType, *EnumElementType, *NamedType, *NoType:
 		return type_
 	case *RecordType:
-		return r.caseObjectType(x)
+		return r.CaseObjectType(x)
 	case *UnknownType:
 		return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 	case *NumberType:
@@ -237,19 +236,19 @@ func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
 	case *SymbolTypeBase, *KnownSymbolType:
 		return type_
 	case *ProxyObjectTypeBase:
-		return r.caseProxyObjectType(x)
+		return r.CaseProxyObjectType(x)
 	default:
 		if fn, ok := type_.(FunctionType); ok {
 			if _, isNoObj := type_.(NoObjectType); isNoObj {
 				return r.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
 			}
-			return r.caseFunctionType(fn)
+			return r.CaseFunctionType(fn)
 		}
 		if proxy, ok := type_.(ProxyObjectType); ok {
-			return r.caseProxyObjectType(proxy)
+			return r.CaseProxyObjectType(proxy)
 		}
 		if obj, ok := type_.(ObjectType); ok {
-			return r.caseObjectType(obj)
+			return r.CaseObjectType(obj)
 		}
 		if _, ok := type_.(SymbolType); ok {
 			return type_
@@ -259,36 +258,32 @@ func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
 }
 
 // Java: TemplateTypeReplacer.caseNoType(NoType)
-func (r *TemplateTypeReplacer) CaseNoType(type_ *NoType) any {
-	return JSType(type_)
+func (r *TemplateTypeReplacer) CaseNoType(type_ *NoType) JSType {
+	return type_
 }
 
 // Java: TemplateTypeReplacer.caseEnumElementType(EnumElementType)
-func (r *TemplateTypeReplacer) CaseEnumElementType(type_ *EnumElementType) any {
-	return JSType(type_)
+func (r *TemplateTypeReplacer) CaseEnumElementType(type_ *EnumElementType) JSType {
+	return type_
 }
 
 // Java: TemplateTypeReplacer.caseAllType()
-func (r *TemplateTypeReplacer) CaseAllType() any {
+func (r *TemplateTypeReplacer) CaseAllType() JSType {
 	return r.GetNativeType(JSTypeNative_ALL_TYPE)
 }
 
 // Java: TemplateTypeReplacer.caseBooleanType()
-func (r *TemplateTypeReplacer) CaseBooleanType() any {
+func (r *TemplateTypeReplacer) CaseBooleanType() JSType {
 	return r.GetNativeType(JSTypeNative_BOOLEAN_TYPE)
 }
 
 // Java: TemplateTypeReplacer.caseNoObjectType()
-func (r *TemplateTypeReplacer) CaseNoObjectType() any {
+func (r *TemplateTypeReplacer) CaseNoObjectType() JSType {
 	return r.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
 }
 
 // Java: TemplateTypeReplacer.caseFunctionType(FunctionType)
-func (r *TemplateTypeReplacer) CaseFunctionType(type_ FunctionType) any {
-	return r.caseFunctionType(type_)
-}
-
-func (r *TemplateTypeReplacer) caseFunctionType(type_ FunctionType) JSType {
+func (r *TemplateTypeReplacer) CaseFunctionType(type_ FunctionType) JSType {
 	if r.IsNativeFunctionType(type_) {
 		return type_
 	}
@@ -393,11 +388,7 @@ func (r *TemplateTypeReplacer) CoerseToThisType(type_ JSType) JSType {
 }
 
 // Java: TemplateTypeReplacer.caseObjectType(ObjectType)
-func (r *TemplateTypeReplacer) CaseObjectType(objType ObjectType) any {
-	return r.caseObjectType(objType)
-}
-
-func (r *TemplateTypeReplacer) caseObjectType(objType ObjectType) JSType {
+func (r *TemplateTypeReplacer) CaseObjectType(objType ObjectType) JSType {
 	_, isProxy := objType.(ProxyObjectType)
 	if !r.visitProperties ||
 		objType.IsNominalType() ||
@@ -456,11 +447,7 @@ func (r *TemplateTypeReplacer) CaseObjectTypeUnguarded(objType ObjectType) JSTyp
 }
 
 // Java: TemplateTypeReplacer.caseTemplatizedType(TemplatizedType)
-func (r *TemplateTypeReplacer) CaseTemplatizedType(type_ *TemplatizedType) any {
-	return r.caseTemplatizedType(type_)
-}
-
-func (r *TemplateTypeReplacer) caseTemplatizedType(type_ *TemplatizedType) JSType {
+func (r *TemplateTypeReplacer) CaseTemplatizedType(type_ *TemplatizedType) JSType {
 	if !r.seenAdd(type_) {
 		return type_
 	}
@@ -505,46 +492,42 @@ func (r *TemplateTypeReplacer) CaseTemplatizedTypeUnguarded(type_ *TemplatizedTy
 }
 
 // Java: TemplateTypeReplacer.caseUnknownType()
-func (r *TemplateTypeReplacer) CaseUnknownType() any {
+func (r *TemplateTypeReplacer) CaseUnknownType() JSType {
 	return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 }
 
 // Java: TemplateTypeReplacer.caseNullType()
-func (r *TemplateTypeReplacer) CaseNullType() any {
+func (r *TemplateTypeReplacer) CaseNullType() JSType {
 	return r.GetNativeType(JSTypeNative_NULL_TYPE)
 }
 
 // Java: TemplateTypeReplacer.caseNumberType()
-func (r *TemplateTypeReplacer) CaseNumberType() any {
+func (r *TemplateTypeReplacer) CaseNumberType() JSType {
 	return r.GetNativeType(JSTypeNative_NUMBER_TYPE)
 }
 
 // Java: TemplateTypeReplacer.caseBigIntType()
-func (r *TemplateTypeReplacer) CaseBigIntType() any {
+func (r *TemplateTypeReplacer) CaseBigIntType() JSType {
 	return r.GetNativeType(JSTypeNative_BIGINT_TYPE)
 }
 
 // Java: TemplateTypeReplacer.caseStringType()
-func (r *TemplateTypeReplacer) CaseStringType() any {
+func (r *TemplateTypeReplacer) CaseStringType() JSType {
 	return r.GetNativeType(JSTypeNative_STRING_TYPE)
 }
 
 // Java: TemplateTypeReplacer.caseSymbolType(SymbolType)
-func (r *TemplateTypeReplacer) CaseSymbolType(type_ SymbolType) any {
-	return JSType(type_)
+func (r *TemplateTypeReplacer) CaseSymbolType(type_ SymbolType) JSType {
+	return type_
 }
 
 // Java: TemplateTypeReplacer.caseVoidType()
-func (r *TemplateTypeReplacer) CaseVoidType() any {
+func (r *TemplateTypeReplacer) CaseVoidType() JSType {
 	return r.GetNativeType(JSTypeNative_VOID_TYPE)
 }
 
 // Java: TemplateTypeReplacer.caseUnionType(UnionType)
-func (r *TemplateTypeReplacer) CaseUnionType(type_ *UnionType) any {
-	return r.caseUnionType(type_)
-}
-
-func (r *TemplateTypeReplacer) caseUnionType(type_ *UnionType) JSType {
+func (r *TemplateTypeReplacer) CaseUnionType(type_ *UnionType) JSType {
 	if !r.seenAdd(type_) {
 		return type_
 	}
@@ -581,11 +564,7 @@ func (r *TemplateTypeReplacer) CaseUnionTypeUnguarded(type_ *UnionType) JSType {
 }
 
 // Java: TemplateTypeReplacer.caseTemplateType(TemplateType)
-func (r *TemplateTypeReplacer) CaseTemplateType(type_ *TemplateType) any {
-	return r.caseTemplateType(type_)
-}
-
-func (r *TemplateTypeReplacer) caseTemplateType(type_ *TemplateType) JSType {
+func (r *TemplateTypeReplacer) CaseTemplateType(type_ *TemplateType) JSType {
 	r.hasMadeReplacement = true
 
 	if type_ != r.keyType && !r.bindings.HasTemplateKeyFrom(type_, r.ownSubMapBoundary) {
@@ -653,17 +632,13 @@ func (r *TemplateTypeReplacer) IsNativeFunctionType(type_ FunctionType) bool {
 }
 
 // Java: TemplateTypeReplacer.caseNamedType(NamedType)
-func (r *TemplateTypeReplacer) CaseNamedType(type_ *NamedType) any {
+func (r *TemplateTypeReplacer) CaseNamedType(type_ *NamedType) JSType {
 	// The internals of a named type aren't interesting.
-	return JSType(type_)
+	return type_
 }
 
 // Java: TemplateTypeReplacer.caseProxyObjectType(ProxyObjectType)
-func (r *TemplateTypeReplacer) CaseProxyObjectType(type_ ProxyObjectType) any {
-	return r.caseProxyObjectType(type_)
-}
-
-func (r *TemplateTypeReplacer) caseProxyObjectType(type_ ProxyObjectType) JSType {
+func (r *TemplateTypeReplacer) CaseProxyObjectType(type_ ProxyObjectType) JSType {
 	if !r.seenAdd(type_) {
 		return type_
 	}
@@ -687,15 +662,6 @@ func (r *TemplateTypeReplacer) CaseProxyObjectTypeUnguarded(type_ ProxyObjectTyp
 func (r *TemplateTypeReplacer) SetKeyType(keyType *TemplateType, ownSubMapBoundary int) {
 	r.keyType = keyType
 	r.ownSubMapBoundary = ownSubMapBoundary
-}
-
-// Java: TemplateTypeReplacer.guardAgainstCycles(T, Function<T, JSType>)
-func (r *TemplateTypeReplacer) GuardAgainstCycles(type_ JSType, mapper func(JSType) JSType) any {
-	if !r.seenAdd(type_) {
-		return type_
-	}
-	defer r.seenRemove(type_)
-	return mapper(type_)
 }
 
 // GetVisitedObjectTypeOrNull: determinism is unnecessary for

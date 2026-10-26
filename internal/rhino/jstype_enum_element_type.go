@@ -201,16 +201,6 @@ func (t *EnumElementType) GetReferenceName() *string {
 	return t.name
 }
 
-// Java: EnumElementType.visit(Visitor<T>)
-func (t *EnumElementType) Visit(visitor Visitor) any {
-	return visitor.CaseEnumElementType(t)
-}
-
-// Java: EnumElementType.visit(RelationshipVisitor<T>, JSType)
-func (t *EnumElementType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseEnumElementType(t, that)
-}
-
 // Java: EnumElementType.defineProperty(Property.Key, JSType, boolean, Node)
 func (t *EnumElementType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
 	// nothing

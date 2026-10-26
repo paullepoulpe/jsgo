@@ -806,16 +806,6 @@ func (t *UnionType) GetTypesUnderShallowInequalityPair(that JSType) (JSType, JST
 	return resA, resB
 }
 
-// Java: UnionType.visit(Visitor<T>)
-func (t *UnionType) Visit(visitor Visitor) any {
-	return visitor.CaseUnionType(t)
-}
-
-// Java: UnionType.visit(RelationshipVisitor<T>, JSType)
-func (t *UnionType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseUnionType(t, that)
-}
-
 // Java: UnionType.resolveInternal(ErrorReporter)
 func (t *UnionType) ResolveInternal(reporter ErrorReporter) JSType {
 	if t.alternatesResolvedBeforeBuild {

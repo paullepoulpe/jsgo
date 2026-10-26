@@ -513,11 +513,6 @@ func (t *NamedType) IsObjectType() bool {
 	return t.IsObject()
 }
 
-// Java: NamedType.visit(Visitor<T>)
-func (t *NamedType) Visit(visitor Visitor) any {
-	return visitor.CaseNamedType(t)
-}
-
 // Java: NamedType.builder(JSTypeRegistry, String)
 func NamedType_Builder_(registry *JSTypeRegistry, reference string) *NamedType_Builder {
 	return NewNamedType_Builder(registry, reference)

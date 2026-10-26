@@ -85,11 +85,6 @@ func (v *ValueTypeBase) HasDisplayName() bool {
 	return true
 }
 
-// Java: ValueType.visit(RelationshipVisitor<T>, JSType)
-func (v *ValueTypeBase) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseValueType(v.self().(ValueType), that)
-}
-
 // Java: ValueType.getPropertyKind(Property.Key, boolean)
 func (v *ValueTypeBase) GetPropertyKindByKeyWithAutobox(propertyName Property_Key, autobox bool) JSType_HasPropertyKind {
 	if autobox && v.self().IsBoxableScalar() {

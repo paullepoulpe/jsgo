@@ -51,8 +51,6 @@ type ProxyObjectType interface {
 	GetReferencedTypeInternal() JSType
 	GetReferencedObjTypeInternal() ObjectType
 	SetReferencedType(referencedType JSType)
-	// Java: ProxyObjectType.visitReferenceType(Visitor<T>)
-	VisitReferenceType(visitor Visitor) any
 
 	// GetProxyObjectTypeBase gives access to the base through the interface.
 	//
@@ -437,21 +435,6 @@ func (p *ProxyObjectTypeBase) GetTemplateTypes() []JSType {
 // Java: ProxyObjectType.getTemplateParamCount()
 func (p *ProxyObjectTypeBase) GetTemplateParamCount() int {
 	return p.referencedType.GetTemplateParamCount()
-}
-
-// Java: ProxyObjectType.visitReferenceType(Visitor<T>)
-func (p *ProxyObjectTypeBase) VisitReferenceType(visitor Visitor) any {
-	return p.referencedType.Visit(visitor)
-}
-
-// Java: ProxyObjectType.visit(Visitor<T>)
-func (p *ProxyObjectTypeBase) Visit(visitor Visitor) any {
-	return visitor.CaseProxyObjectType(p.self().(ProxyObjectType))
-}
-
-// Java: ProxyObjectType.visit(RelationshipVisitor<T>, JSType)
-func (p *ProxyObjectTypeBase) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return p.referencedType.VisitRelationship(visitor, that)
 }
 
 // Java: ProxyObjectType.resolveInternal(ErrorReporter)

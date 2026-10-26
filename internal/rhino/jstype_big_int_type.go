@@ -103,11 +103,6 @@ func (t *BigIntType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_BOTH
 }
 
-// Java: BigIntType.visit(Visitor<T>)
-func (t *BigIntType) Visit(visitor Visitor) any {
-	return visitor.CaseBigIntType()
-}
-
 // Java: BigIntType.autoboxesTo()
 func (t *BigIntType) AutoboxesTo() JSType {
 	return t.GetNativeType(JSTypeNative_BIGINT_OBJECT_TYPE)

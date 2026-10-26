@@ -166,16 +166,6 @@ func (t *NoObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Property_Key, 
 	// Do nothing, specific properties do not have JSDocInfo.
 }
 
-// Java: NoObjectType.visit(Visitor<T>)
-func (t *NoObjectTypeBase) Visit(visitor Visitor) any {
-	return visitor.CaseNoObjectType()
-}
-
-// Java: NoObjectType.visit(RelationshipVisitor<T>, JSType)
-func (t *NoObjectTypeBase) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseNoObjectType(that)
-}
-
 // Java: NoObjectType.appendTo(TypeStringBuilder)
 func (t *NoObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	if sb.IsForAnnotations() {

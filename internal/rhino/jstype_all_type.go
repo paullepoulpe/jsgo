@@ -98,16 +98,6 @@ func (t *AllType) HasDisplayName() bool {
 	return true
 }
 
-// Java: AllType.visit(Visitor<T>)
-func (t *AllType) Visit(visitor Visitor) any {
-	return visitor.CaseAllType()
-}
-
-// Java: AllType.visit(RelationshipVisitor<T>, JSType)
-func (t *AllType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseAllType(that)
-}
-
 // Java: AllType.getPossibleToBooleanOutcomes()
 func (t *AllType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_BOTH

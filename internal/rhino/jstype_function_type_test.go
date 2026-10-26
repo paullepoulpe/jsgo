@@ -315,8 +315,8 @@ func TestFunctionType_CtorsSpecializedOnTemplateTypes(t *testing.T) {
 			TemplateTypeReplacer_ForInference(s.Registry, templateMapOf(key, s.STRING_TYPE))
 		numberReplacer :=
 			TemplateTypeReplacer_ForInference(s.Registry, templateMapOf(key, s.NUMBER_TYPE))
-		fooOfString := fooCtor.Visit(stringReplacer).(JSType).ToMaybeFunctionType()
-		fooOfNumber := fooCtor.Visit(numberReplacer).(JSType).ToMaybeFunctionType()
+		fooOfString := VisitJSType[JSType](fooCtor, stringReplacer).ToMaybeFunctionType()
+		fooOfNumber := VisitJSType[JSType](fooCtor, numberReplacer).ToMaybeFunctionType()
 
 		rhinotesting.NewEqualsTester().
 			AddEqualityGroup(fooCtor).

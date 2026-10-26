@@ -116,9 +116,4 @@ func (t *VoidType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_FALSE
 }
 
-// Java: VoidType.visit(Visitor<T>)
-func (t *VoidType) Visit(visitor Visitor) any {
-	return visitor.CaseVoidType()
-}
-
 var jsType_displayName_undefined = "undefined"

@@ -103,11 +103,6 @@ func (t *NumberType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_BOTH
 }
 
-// Java: NumberType.visit(Visitor<T>)
-func (t *NumberType) Visit(visitor Visitor) any {
-	return visitor.CaseNumberType()
-}
-
 // Java: NumberType.autoboxesTo()
 func (t *NumberType) AutoboxesTo() JSType {
 	return t.GetNativeType(JSTypeNative_NUMBER_OBJECT_TYPE)

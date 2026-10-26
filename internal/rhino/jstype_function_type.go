@@ -1269,16 +1269,6 @@ func (f *FunctionTypeBase) AppendOptionalArgString(sb *TypeStringBuilder, paramT
 	sb.AppendNonNull(paramType).Append("=")
 }
 
-// Java: FunctionType.visit(Visitor<T>)
-func (f *FunctionTypeBase) Visit(visitor Visitor) any {
-	return visitor.CaseFunctionType(f.selfFunc())
-}
-
-// Java: FunctionType.visit(RelationshipVisitor<T>, JSType)
-func (f *FunctionTypeBase) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseFunctionType(f.selfFunc(), that)
-}
-
 // GetInstanceType gets the type of instance of this function. May return
 // null if the `this` type can not be converted to "ObjectType" (see
 // JSType#toObjectType).

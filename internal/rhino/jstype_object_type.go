@@ -898,16 +898,6 @@ func (o *ObjectTypeBase) GetAllKeys() *PropertyMap_AllKeys {
 	return o.selfObj().GetPropertyMap().GetAllKeys()
 }
 
-// Java: ObjectType.visit(Visitor<T>)
-func (o *ObjectTypeBase) Visit(visitor Visitor) any {
-	return visitor.CaseObjectType(o.selfObj())
-}
-
-// Java: ObjectType.visit(RelationshipVisitor<T>, JSType)
-func (o *ObjectTypeBase) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseObjectType(o.selfObj(), that)
-}
-
 // IsImplicitPrototypeOf returns whether this is on the implicit prototype
 // chain of other.
 //

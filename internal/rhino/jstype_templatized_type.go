@@ -150,16 +150,6 @@ func (t *TemplatizedType) RecursionUnsafeHashCode() int32 {
 	return 31*(31*1+jutil.ListHashCode(t.templateTypes)) + baseHash
 }
 
-// Java: TemplatizedType.visit(Visitor<T>)
-func (t *TemplatizedType) Visit(visitor Visitor) any {
-	return visitor.CaseTemplatizedType(t)
-}
-
-// Java: TemplatizedType.visit(RelationshipVisitor<T>, JSType)
-func (t *TemplatizedType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseTemplatizedType(t, that)
-}
-
 // Java: JSType.isTemplatizedType()
 func (t *TemplatizedType) IsTemplatizedType() bool {
 	return true

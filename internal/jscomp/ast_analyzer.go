@@ -57,18 +57,39 @@ type AstAnalyzer struct {
 //
 // TODO(bradfordcsmith): If all of these are annotated sideefectfree, can we
 // drop this list?
-var AstAnalyzer_CONSTRUCTORS_WITHOUT_SIDE_EFFECTS = jutil.NewLinkedHashSet(
-	"Array", "Date", "Error", "Object", "RegExp", "XMLHttpRequest")
+func astAnalyzerIsConstructorWithoutSideEffects(name string) bool {
+	switch name {
+	case "Array", "Date", "Error", "Object", "RegExp", "XMLHttpRequest":
+		return true
+	default:
+		return false
+	}
+}
 
-// A list of built-in object creation or primitive type cast functions that
-// can also be called as constructors but lack side-effects.
+// Built-in object creation or primitive type cast functions that can also be
+// called as constructors without side effects.
 // TODO(johnlenz): consider adding an extern annotation for this.
-var AstAnalyzer_BUILTIN_FUNCTIONS_WITHOUT_SIDEEFFECTS = jutil.NewLinkedHashSet(
-	"Object", "Array", "String", "Number", "BigInt", "Boolean", "RegExp", "Error", "Symbol")
+func astAnalyzerIsBuiltinFunctionWithoutSideEffects(name string) bool {
+	switch name {
+	case "Object", "Array", "String", "Number", "BigInt", "Boolean", "RegExp", "Error", "Symbol":
+		return true
+	default:
+		return false
+	}
+}
 
-var AstAnalyzer_REGEXP_METHODS = jutil.NewLinkedHashSet("test", "exec")
+func astAnalyzerIsRegexpMethod(method string) bool {
+	return method == "test" || method == "exec"
+}
 
-var AstAnalyzer_STRING_REGEXP_METHODS = jutil.NewLinkedHashSet("match", "replace", "search", "split")
+func astAnalyzerIsStringRegexpMethod(method string) bool {
+	switch method {
+	case "match", "replace", "search", "split":
+		return true
+	default:
+		return false
+	}
+}
 
 // Java: AstAnalyzer(AstAnalyzer.Options, JSTypeRegistry, AccessorSummary)
 func NewAstAnalyzer(
@@ -309,7 +330,7 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 	// Built-in functions with no side effects.
 	if callee.IsName() {
 		name := callee.GetString()
-		if a.assumeKnownBuiltinsArePure && AstAnalyzer_BUILTIN_FUNCTIONS_WITHOUT_SIDEEFFECTS.Contains(name) {
+		if a.assumeKnownBuiltinsArePure && astAnalyzerIsBuiltinFunctionWithoutSideEffects(name) {
 			return false
 		}
 	} else if callee.IsGetProp() || callee.IsOptChainGetProp() {
@@ -381,7 +402,7 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 		}
 
 		if !a.hasRegexpGlobalReferences && a.assumeKnownBuiltinsArePure {
-			if callee.GetFirstChild().IsRegExp() && AstAnalyzer_REGEXP_METHODS.Contains(method) {
+			if callee.GetFirstChild().IsRegExp() && astAnalyzerIsRegexpMethod(method) {
 				return false
 			} else if a.IsTypedAsString(callee.GetFirstChild()) {
 				// Unlike regexs, string methods don't need to be hosted on a string literal
@@ -390,14 +411,14 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 				param := callee.GetNext()
 				if !param.IsNil() {
 					if param.IsStringLit() {
-						if AstAnalyzer_STRING_REGEXP_METHODS.Contains(method) {
+						if astAnalyzerIsStringRegexpMethod(method) {
 							return false
 						}
 					} else if param.IsRegExp() {
 						if "replace" == method {
 							// Assume anything but a string constant has side-effects
 							return !param.GetNext().IsStringLit()
-						} else if AstAnalyzer_STRING_REGEXP_METHODS.Contains(method) {
+						} else if astAnalyzerIsStringRegexpMethod(method) {
 							return false
 						}
 					}
@@ -685,7 +706,7 @@ func (a *AstAnalyzer) ConstructorCallHasSideEffects(newNode rhino.Node) bool {
 	nameNode := newNode.GetFirstChild()
 	return !nameNode.IsName() ||
 		!a.assumeKnownBuiltinsArePure ||
-		!AstAnalyzer_CONSTRUCTORS_WITHOUT_SIDE_EFFECTS.Contains(nameNode.GetString())
+		!astAnalyzerIsConstructorWithoutSideEffects(nameNode.GetString())
 }
 
 // NodeTypeMayHaveSideEffects returns true if the current node's type
