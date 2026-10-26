@@ -24,43 +24,45 @@ const (
 
 func (c testColor) String() string { return [...]string{"RED", "GREEN"}[c] }
 
-type testPoint struct {
-	x       int32
-	name    string
-	missing *string
-	t       int32 `gson:"-"`
-	list    []int32
-	me      any
-	d       float64
-	c       uint16
-	b       bool
-	l       int64
+type TestPoint struct {
+	X       int32   `gson:"x"`
+	Name    string  `gson:"name"`
+	Missing *string `gson:"missing"`
+	T       int32   `gson:"-"`
+	List    []int32 `gson:"list"`
+	Me      any     `gson:"me"`
+	D       float64 `gson:"d"`
+	C       uint16  `gson:"c"`
+	B       bool    `gson:"b"`
+	L       int64   `gson:"l"`
 }
 
 type testPoint3 struct {
-	testPoint
-	z int32
-	m *jutil.LinkedHashMap[string, int32]
+	TestPoint
+	Z int32                                `gson:"z"`
+	M *jutil.LinkedHashMap[string, int32] `gson:"m"`
 }
 
-type testHolder struct{ value any }
+type testHolder struct {
+	Value any `gson:"value"`
+}
 
 // testAbleThing is AbleThing implements LogsGson.Able.
 type testAbleThing struct{ v any }
 
 func (a *testAbleThing) ToLogsGson() any { return a.v }
 
-func newTestPoint() *testPoint {
-	p := &testPoint{x: 1, name: "p<q>", t: 5, list: []int32{1, 2}, d: 0.5, c: 'c', b: true, l: 1 << 40}
-	p.me = p
+func newTestPoint() *TestPoint {
+	p := &TestPoint{X: 1, Name: "p<q>", T: 5, List: []int32{1, 2}, D: 0.5, C: 'c', B: true, L: 1 << 40}
+	p.Me = p
 	return p
 }
 
 func newTestPoint3() *testPoint3 {
-	p := &testPoint3{z: 9, m: jutil.NewLinkedHashMap[string, int32]()}
-	p.testPoint = testPoint{x: 1, name: "p<q>", t: 5, list: []int32{1, 2}, d: 0.5, c: 'c', b: true, l: 1 << 40}
-	p.me = p
-	p.m.Put("k", 1)
+	p := &testPoint3{Z: 9, M: jutil.NewLinkedHashMap[string, int32]()}
+	p.TestPoint = TestPoint{X: 1, Name: "p<q>", T: 5, List: []int32{1, 2}, D: 0.5, C: 'c', B: true, L: 1 << 40}
+	p.Me = p
+	p.M.Put("k", 1)
 	return p
 }
 
@@ -136,21 +138,21 @@ func testCases() map[string]any {
 		"enumSet":         jutil.NewEnumSet(testColor_GREEN, testColor_RED),
 		"point":           newTestPoint(),
 		"point3":          newTestPoint3(),
-		"holderNull":      &testHolder{value: nil},
-		"holderPoint":     &testHolder{value: newTestPoint()},
-		"holderList":      &testHolder{value: []int32{1}},
+		"holderNull":      &testHolder{Value: nil},
+		"holderPoint":     &testHolder{Value: newTestPoint()},
+		"holderList":      &testHolder{Value: []int32{1}},
 		"ableList":        &testAbleThing{v: []int32{0}},
 		"ableNull":        &testAbleThing{v: nil},
 		"ableString":      &testAbleThing{v: "<"},
 		"ableInList":      []any{&testAbleThing{v: ableMap}},
-		"holderAble":      &testHolder{value: &testAbleThing{v: int32(1)}},
+		"holderAble":      &testHolder{Value: &testAbleThing{v: int32(1)}},
 		"jsonTree":        o,
 		"nested":          []any{inner},
 		"treeMap":         tm,
 		"linkedHashSet":   jutil.NewLinkedHashSet("b", "a"),
 		"arrayList":       jutil.NewArrayListFrom([]int32{3, 1}),
 		"multimap":        multimap,
-		"holderMultimap":  &testHolder{value: multimap2},
+		"holderMultimap":  &testHolder{Value: multimap2},
 	}
 }
 

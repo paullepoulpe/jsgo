@@ -146,5 +146,5 @@ func clusterPropagatorTest_associate(prop *PropertyClustering, node *ColorGraphN
 }
 
 func (c *clusterPropagatorTest) propagateFromSrcToDest() {
-	c.result = c.propagator.TraverseEdge(c.src, nil, c.dest)
+	c.result = c.propagator.TraverseEdge(c.src, 0, c.dest)
 }

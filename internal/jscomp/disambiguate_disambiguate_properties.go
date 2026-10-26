@@ -71,7 +71,7 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		flattener, d.compiler.GetCodingConvention().IsPropertyRenameFunction)
 	graphBuilder := NewColorGraphBuilder(
 		flattener,
-		func(graph DiGraph[*ColorGraphNode, any]) LowestCommonAncestorFinder[*ColorGraphNode, any] {
+		func(graph DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) LowestCommonAncestorFinder[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
 			return NewLowestCommonAncestorFinder(graph)
 		},
 		d.registry)
@@ -117,13 +117,13 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 			for _, n := range graph.GetDiGraphNodes() {
 				nodes = append(nodes, newDisambiguateProperties_TypeNodeJson(n))
 			}
-			slices.SortStableFunc(nodes, func(a, b *disambiguateProperties_TypeNodeJson) int { return cmp.Compare(a.index, b.index) })
+			slices.SortStableFunc(nodes, func(a, b *disambiguateProperties_TypeNodeJson) int { return cmp.Compare(a.Index, b.Index) })
 			return nodes
 		})
 
 	d.InvalidateBasedOnType(flattener)
 
-	FixedPointGraphTraversal_NewTraversal[*ColorGraphNode, any](propagator).ComputeFixedPoint(graph)
+	FixedPointGraphTraversal_NewTraversal[*ColorGraphNode, ColorGraphBuilder_EdgeReason](propagator).ComputeFixedPoint(graph)
 
 	trackerSummaryGenerator := &DisambiguateProperties_TrackerSummaryGenerator{}
 	for prop := range propIndex.Values() {
@@ -413,51 +413,50 @@ func (j *disambiguateProperties_PropertyReferenceIndexJson) WriteJson(writer *ju
 
 // Java: private static final class DisambiguateProperties.PropertyReferenceJson implements Comparable<PropertyReferenceJson>
 type disambiguateProperties_PropertyReferenceJson struct {
-	location      string
-	receiverIndex int
+	Location      string `gson:"location"`
+	ReceiverIndex int    `gson:"receiverIndex"`
 }
 
 // Java: DisambiguateProperties.PropertyReferenceJson(Node, ColorGraphNode)
 func newDisambiguateProperties_PropertyReferenceJson(location rhino.Node, receiver *ColorGraphNode) *disambiguateProperties_PropertyReferenceJson {
 	return &disambiguateProperties_PropertyReferenceJson{
-		location:      location.GetLocation(),
-		receiverIndex: receiver.GetIndex(),
+		Location:      location.GetLocation(),
+		ReceiverIndex: receiver.GetIndex(),
 	}
 }
 
 // Java: DisambiguateProperties.PropertyReferenceJson.compareTo(DisambiguateProperties.PropertyReferenceJson)
 func (j *disambiguateProperties_PropertyReferenceJson) CompareTo(x *disambiguateProperties_PropertyReferenceJson) int {
 	// ComparisonChain.start().compare(receiverIndex).compare(location).result()
-	if c := cmp.Compare(j.receiverIndex, x.receiverIndex); c != 0 {
+	if c := cmp.Compare(j.ReceiverIndex, x.ReceiverIndex); c != 0 {
 		return c
 	}
-	return jutil.StringCompareTo(j.location, x.location)
+	return jutil.StringCompareTo(j.Location, x.Location)
 }
 
 // Java: private static final class DisambiguateProperties.TypeNodeJson
 type disambiguateProperties_TypeNodeJson struct {
-	index int
-	// These fields are used reflectively via GSON.
-	invalidating bool
-	colorId      string
-	edges        []*disambiguateProperties_TypeEdgeJson
-	props        *jutil.LinkedHashMap[string, ColorGraphNode_PropAssociation]
+	Index        int                                                          `gson:"index"`
+	Invalidating bool                                                         `gson:"invalidating"`
+	ColorId      string                                                       `gson:"colorId"`
+	Edges        []*disambiguateProperties_TypeEdgeJson                       `gson:"edges"`
+	Props        *jutil.LinkedHashMap[string, ColorGraphNode_PropAssociation] `gson:"props"`
 }
 
 // Java: DisambiguateProperties.TypeNodeJson(DiGraph.DiGraphNode<ColorGraphNode, Object>)
-func newDisambiguateProperties_TypeNodeJson(n DiGraph_DiGraphNode[*ColorGraphNode, any]) *disambiguateProperties_TypeNodeJson {
+func newDisambiguateProperties_TypeNodeJson(n DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) *disambiguateProperties_TypeNodeJson {
 	t := n.GetValue()
 
 	j := &disambiguateProperties_TypeNodeJson{}
-	j.index = t.GetIndex()
-	j.colorId = t.GetColor().GetId().String()
-	j.invalidating = t.GetColor().IsInvalidating()
+	j.Index = t.GetIndex()
+	j.ColorId = t.GetColor().GetId().String()
+	j.Invalidating = t.GetColor().IsInvalidating()
 	for _, e := range n.GetOutEdges() {
-		j.edges = append(j.edges, newDisambiguateProperties_TypeEdgeJson(e))
+		j.Edges = append(j.Edges, newDisambiguateProperties_TypeEdgeJson(e))
 	}
 	// collect(toImmutableSortedSet(naturalOrder()))
-	slices.SortStableFunc(j.edges, (*disambiguateProperties_TypeEdgeJson).CompareTo)
-	j.edges = slices.CompactFunc(j.edges, func(a, b *disambiguateProperties_TypeEdgeJson) bool { return a.CompareTo(b) == 0 })
+	slices.SortStableFunc(j.Edges, (*disambiguateProperties_TypeEdgeJson).CompareTo)
+	j.Edges = slices.CompactFunc(j.Edges, func(a, b *disambiguateProperties_TypeEdgeJson) bool { return a.CompareTo(b) == 0 })
 	// collect(toImmutableSortedMap(naturalOrder(), e -> e.getKey().getName(), Map.Entry::getValue))
 	var names []string
 	byName := jutil.NewLinkedHashMap[string, ColorGraphNode_PropAssociation]()
@@ -469,30 +468,29 @@ func newDisambiguateProperties_TypeNodeJson(n DiGraph_DiGraphNode[*ColorGraphNod
 		names = append(names, prop.GetName())
 	}
 	slices.SortStableFunc(names, jutil.StringCompareTo)
-	j.props = jutil.NewLinkedHashMap[string, ColorGraphNode_PropAssociation]()
+	j.Props = jutil.NewLinkedHashMap[string, ColorGraphNode_PropAssociation]()
 	for _, name := range names {
-		j.props.Put(name, byName.Get(name))
+		j.Props.Put(name, byName.Get(name))
 	}
 	return j
 }
 
 // Java: private static final class DisambiguateProperties.TypeEdgeJson implements Comparable<TypeEdgeJson>
 type disambiguateProperties_TypeEdgeJson struct {
-	dest int
-	// This field is used reflectively via GSON.
-	value any
+	Dest  int                          `gson:"dest"`
+	Value ColorGraphBuilder_EdgeReason `gson:"value"`
 }
 
 // Java: DisambiguateProperties.TypeEdgeJson(DiGraph.DiGraphEdge<ColorGraphNode, Object>)
-func newDisambiguateProperties_TypeEdgeJson(e DiGraph_DiGraphEdge[*ColorGraphNode, any]) *disambiguateProperties_TypeEdgeJson {
+func newDisambiguateProperties_TypeEdgeJson(e DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) *disambiguateProperties_TypeEdgeJson {
 	return &disambiguateProperties_TypeEdgeJson{
-		dest:  e.GetDestination().GetValue().GetIndex(),
-		value: e.GetValue(),
+		Dest:  e.GetDestination().GetValue().GetIndex(),
+		Value: e.GetValue(),
 	}
 }
 
 // Java: DisambiguateProperties.TypeEdgeJson.compareTo(DisambiguateProperties.TypeEdgeJson)
 func (j *disambiguateProperties_TypeEdgeJson) CompareTo(x *disambiguateProperties_TypeEdgeJson) int {
-	jutil.CheckArgument(j.dest != x.dest)
-	return j.dest - x.dest
+	jutil.CheckArgument(j.Dest != x.Dest)
+	return j.Dest - x.Dest
 }

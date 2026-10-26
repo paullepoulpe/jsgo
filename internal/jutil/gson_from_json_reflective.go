@@ -24,7 +24,6 @@ package jutil
 import (
 	"reflect"
 	"strings"
-	"unsafe"
 )
 
 // Go-only: language-adapter — Gson 2.9.1's reflective deserialization
@@ -139,7 +138,6 @@ func gson_readStringField(in *JsonReader, fv reflect.Value) {
 		s := in.NextString()
 		value = &s
 	}
-	fv = reflect.NewAt(fv.Type(), unsafe.Pointer(fv.UnsafeAddr())).Elem()
 	switch fv.Kind() {
 	case reflect.String:
 		if value != nil {

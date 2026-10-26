@@ -32,7 +32,7 @@ func NewClusterPropagator() *ClusterPropagator {
 }
 
 // Java: ClusterPropagator.traverseEdge(ColorGraphNode, Object, ColorGraphNode)
-func (p *ClusterPropagator) TraverseEdge(src *ColorGraphNode, unused any, dest *ColorGraphNode) bool {
+func (p *ClusterPropagator) TraverseEdge(src *ColorGraphNode, _ ColorGraphBuilder_EdgeReason, dest *ColorGraphNode) bool {
 	if src.GetColor() == colors.StandardColors_TOP_OBJECT {
 		// Performance optimization. The for loop below already skips
 		// invalidated properties. Colors that are inherently invalidating
@@ -63,4 +63,4 @@ func (p *ClusterPropagator) TraverseEdge(src *ColorGraphNode, unused any, dest *
 	return startDestPropCount < destProps.Size()
 }
 
-var _ FixedPointGraphTraversal_EdgeCallback[*ColorGraphNode, any] = (*ClusterPropagator)(nil)
+var _ FixedPointGraphTraversal_EdgeCallback[*ColorGraphNode, ColorGraphBuilder_EdgeReason] = (*ClusterPropagator)(nil)

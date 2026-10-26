@@ -40,7 +40,7 @@ type ColorGraphBuilderTest struct {
 	graphNodeFactory *ColorGraphNodeFactory
 
 	processor CompilerPass // @Nullable
-	result    DiGraph[*ColorGraphNode, any]
+	result    DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
 	labelToId *jutil.LinkedHashMap[string, colors.ColorId]
 }
 
@@ -98,7 +98,7 @@ func (c *ColorGraphBuilderTest) createBuilder(
 	}
 	return NewColorGraphBuilder(
 		c.graphNodeFactory,
-		func(graph DiGraph[*ColorGraphNode, any]) LowestCommonAncestorFinder[*ColorGraphNode, any] {
+		func(graph DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) LowestCommonAncestorFinder[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
 			return lcaFinder.setGraph(graph)
 		},
 		registry)
@@ -539,7 +539,7 @@ BAR_PROTOTYPE: Bar.prototype;
 
 // Java: ColorGraphBuilderTest.verifyResult_topNodeIsOnlyRoot()
 func (c *ColorGraphBuilderTest) VerifyResult_topNodeIsOnlyRoot() {
-	roots := jutil.NewObjectLinkedHashSet[DiGraph_DiGraphNode[*ColorGraphNode, any]]()
+	roots := jutil.NewObjectLinkedHashSet[DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
 	for _, n := range c.result.GetDiGraphNodes() {
 		if len(n.GetInEdges()) == 0 {
 			roots.Add(n)
@@ -552,7 +552,7 @@ func (c *ColorGraphBuilderTest) VerifyResult_topNodeIsOnlyRoot() {
 
 // Java: ColorGraphBuilderTest.verifyResult_hasNoSelfEdges()
 func (c *ColorGraphBuilderTest) VerifyResult_hasNoSelfEdges() {
-	selfEdges := jutil.NewObjectLinkedHashSet[DiGraph_DiGraphEdge[*ColorGraphNode, any]]()
+	selfEdges := jutil.NewObjectLinkedHashSet[DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
 	for _, e := range c.result.GetDiGraphEdges() {
 		if jutil.ObjectsEquals(e.GetSource(), e.GetDestination()) {
 			selfEdges.Add(e)
@@ -566,7 +566,7 @@ func (c *ColorGraphBuilderTest) VerifyResult_hasNoParallelEdges() {
 	AssertThat(c.result.GetDiGraphEdges()).
 		ComparingElementsUsing(
 			Correspondence_From(
-				func(a, e DiGraph_DiGraphEdge[*ColorGraphNode, any]) bool {
+				func(a, e DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) bool {
 					return jutil.ObjectsEquals(a.GetSource(), e.GetSource()) &&
 						jutil.ObjectsEquals(a.GetDestination(), e.GetDestination()) &&
 						!jutil.ObjectsEquals(a, e)
@@ -590,7 +590,7 @@ func (c *ColorGraphBuilderTest) assertThatResultAsTable() *colorGraphBuilderTest
 			panic(jutil.NewIllegalArgumentExceptionMsg(
 				"Duplicate key: (row=" + cell.row.String() + ", column=" + cell.column.String() + ")"))
 		}
-		table.Put(cell, edge.GetValue().(ColorGraphBuilder_EdgeReason))
+		table.Put(cell, edge.GetValue())
 	}
 	return &colorGraphBuilderTest_TableSubject{table: table}
 }
@@ -629,9 +629,9 @@ func (s *colorGraphBuilderTest_TableSubject) ContainsCell(
 //
 // Java: ColorGraphBuilderTest.StubLcaFinder
 type colorGraphBuilderTest_StubLcaFinder struct {
-	LowestCommonAncestorFinderBase[*ColorGraphNode, any]
+	LowestCommonAncestorFinderBase[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
 
-	graph DiGraph[*ColorGraphNode, any]
+	graph DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
 	// Go-only: language-adapter — a LinkedHashMap keyed by ImmutableSet
 	// equality, as an insertion-ordered list of entries.
 	stubs         []colorGraphBuilderTest_stub
@@ -655,7 +655,7 @@ func newColorGraphBuilderTest_StubLcaFinder() *colorGraphBuilderTest_StubLcaFind
 }
 
 // Java: ColorGraphBuilderTest.StubLcaFinder.setGraph(DiGraph<ColorGraphNode, Object>)
-func (f *colorGraphBuilderTest_StubLcaFinder) setGraph(graph DiGraph[*ColorGraphNode, any]) *colorGraphBuilderTest_StubLcaFinder {
+func (f *colorGraphBuilderTest_StubLcaFinder) setGraph(graph DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) *colorGraphBuilderTest_StubLcaFinder {
 	f.graph = graph
 	return f
 }
@@ -708,10 +708,10 @@ func (f *colorGraphBuilderTest_StubLcaFinder) FindAll(roots jutil.Set[*ColorGrap
 	return results
 }
 
-var _ LowestCommonAncestorFinder[*ColorGraphNode, any] = (*colorGraphBuilderTest_StubLcaFinder)(nil)
+var _ LowestCommonAncestorFinder[*ColorGraphNode, ColorGraphBuilder_EdgeReason] = (*colorGraphBuilderTest_StubLcaFinder)(nil)
 
 // Java: ColorGraphBuilderTest.nameOf(DiGraphNode<ColorGraphNode, Object>)
-func colorGraphBuilderTest_nameOfNode(node DiGraph_DiGraphNode[*ColorGraphNode, any]) colors.ColorId {
+func colorGraphBuilderTest_nameOfNode(node DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) colors.ColorId {
 	return colorGraphBuilderTest_nameOf(node.GetValue())
 }
 

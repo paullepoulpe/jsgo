@@ -391,17 +391,19 @@ type NodeTraversal_AbstractCfgCallback interface {
 	GetNodeTraversal_AbstractCfgCallbackBase() *NodeTraversal_AbstractCfgCallbackBase
 }
 
+type cfgStackEntry struct {
+	root rhino.Node
+	cfg  ControlFlowGraph[rhino.Node]
+}
+
 // NodeTraversal_AbstractCfgCallbackBase holds the fields and methods of
 // AbstractCfgCallback; subclasses embed it and call
 // InitNodeTraversal_AbstractCfgCallbackBase with themselves.
 type NodeTraversal_AbstractCfgCallbackBase struct {
 	self NodeTraversal_AbstractCfgCallback
 
-	// Go-only: language-adapter — the ArrayDeque<Object> used as a stack
-	// (push/peek/pop at the end); each element is a rhino.Node (a CFG root
-	// whose graph is not built yet) or a ControlFlowGraph[rhino.Node].
-	cfgs    []any
-	cfgsBuf [8]any
+	cfgs    []cfgStackEntry
+	cfgsBuf [8]cfgStackEntry
 
 	// Go-only: performance — the graph of cfgs[i] is computed into
 	// cfgStorage[i], which is released when cfgs[i] is popped and reused for
@@ -431,36 +433,27 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) PeekCurrentScopeCfg() ControlFlo
 	if idx < 0 {
 		return nil
 	}
-	if cfg, ok := b.cfgs[idx].(ControlFlowGraph[rhino.Node]); ok {
-		return cfg
-	}
-	return nil
+	return b.cfgs[idx].cfg
 }
 
 // GetControlFlowGraph gets the control flow graph for the current JS scope.
 //
 // Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
 func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[rhino.Node] {
-	var result ControlFlowGraph[rhino.Node]
-	var o any
 	idx := len(b.cfgs) - 1
-	if idx >= 0 {
-		o = b.cfgs[idx]
+	jutil.CheckState(idx >= 0)
+	if cfg := b.cfgs[idx].cfg; cfg != nil {
+		return cfg
 	}
-	jutil.CheckState(o != nil)
-	if cfgRoot, ok := o.(rhino.Node); ok {
-		for len(b.cfgStorage) <= idx {
-			b.cfgStorage = append(b.cfgStorage, &ReusableCfg{})
-		}
-		result = b.cfgStorage[idx].Compute(
-			compiler,
-			cfgRoot,
-			/* shouldTraverseFunctions= */ false,
-			/* edgeAnnotations= */ true)
-		b.cfgs[idx] = result
-	} else {
-		result = o.(ControlFlowGraph[rhino.Node])
+	for len(b.cfgStorage) <= idx {
+		b.cfgStorage = append(b.cfgStorage, &ReusableCfg{})
 	}
+	result := b.cfgStorage[idx].Compute(
+		compiler,
+		b.cfgs[idx].root,
+		/* shouldTraverseFunctions= */ false,
+		/* edgeAnnotations= */ true)
+	b.cfgs[idx].cfg = result
 	return result
 }
 
@@ -470,7 +463,7 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler Abs
 func (b *NodeTraversal_AbstractCfgCallbackBase) EnterScope(t *NodeTraversal) {
 	currentScopeRoot := t.GetScopeRoot()
 	if NodeUtil_IsValidCfgRoot(currentScopeRoot) {
-		b.cfgs = append(b.cfgs, currentScopeRoot)
+		b.cfgs = append(b.cfgs, cfgStackEntry{root: currentScopeRoot})
 	}
 	b.self.EnterScopeWithCfg(t)
 }
@@ -486,10 +479,10 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) ExitScope(t *NodeTraversal) {
 			panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
 		}
 		idx := len(b.cfgs) - 1
-		if _, computed := b.cfgs[idx].(ControlFlowGraph[rhino.Node]); computed {
+		if b.cfgs[idx].cfg != nil {
 			b.cfgStorage[idx].release()
 		}
-		b.cfgs[idx] = nil
+		b.cfgs[idx] = cfgStackEntry{}
 		b.cfgs = b.cfgs[:idx]
 	}
 }

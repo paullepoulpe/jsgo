@@ -28,7 +28,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"unsafe"
 )
 
 // Go-only: language-adapter — Gson 2.9.1's object serialization:
@@ -216,7 +215,7 @@ func (g *Gson) writeReflectValue(out *JsonWriter, rv reflect.Value) {
 		}
 		out.BeginArray()
 		for i := 0; i < rv.Len(); i++ {
-			g.writeValue(out, gson_interface(rv.Index(i)))
+			g.writeValue(out, rv.Index(i).Interface())
 		}
 		out.EndArray()
 	case reflect.Pointer:
@@ -228,19 +227,15 @@ func (g *Gson) writeReflectValue(out *JsonWriter, rv reflect.Value) {
 			g.writeStruct(out, rv.Elem(), rv)
 			return
 		}
-		g.writeValue(out, gson_interface(rv.Elem()))
+		g.writeValue(out, rv.Elem().Interface())
 	case reflect.Interface:
 		if rv.IsNil() {
 			out.NullValue()
 			return
 		}
-		g.writeValue(out, gson_interface(rv.Elem()))
+		g.writeValue(out, rv.Elem().Interface())
 	case reflect.Struct:
-		// A struct value (not reached through a pointer): copy it so that its
-		// unexported fields can be read.
-		c := reflect.New(rv.Type()).Elem()
-		c.Set(rv)
-		g.writeStruct(out, c, reflect.Value{})
+		g.writeStruct(out, rv, reflect.Value{})
 	default:
 		panic(NewUnsupportedOperationExceptionMsg("Gson cannot serialize Go type " + rv.Type().String()))
 	}
@@ -253,7 +248,7 @@ func (g *Gson) writeStruct(out *JsonWriter, sv reflect.Value, self reflect.Value
 	fields := gson_boundFields(sv.Type())
 	out.BeginObject()
 	for _, f := range fields {
-		fieldValue := gson_interface(sv.FieldByIndex(f.index))
+		fieldValue := sv.FieldByIndex(f.index).Interface()
 		if self.IsValid() && !IsNil(fieldValue) {
 			if fp := reflect.ValueOf(fieldValue); fp.Kind() == reflect.Pointer && fp.Pointer() == self.Pointer() {
 				// avoid direct recursion
@@ -272,8 +267,8 @@ type gson_boundField struct {
 }
 
 // gson_boundFields is ReflectiveTypeAdapterFactory.getBoundFields: the
-// struct's own fields, then those of its embedded structs (the Java
-// superclass chain), with duplicate names rejected.
+// struct's own exported fields, then those of its exported embedded structs
+// (the Java superclass chain), with duplicate names rejected.
 func gson_boundFields(t reflect.Type) []gson_boundField {
 	var fields []gson_boundField
 	seen := map[string]bool{}
@@ -283,11 +278,13 @@ func gson_boundFields(t reflect.Type) []gson_boundField {
 		for i := 0; i < t.NumField(); i++ {
 			sf := t.Field(i)
 			if sf.Anonymous && sf.Type.Kind() == reflect.Struct {
-				embedded = append(embedded, i)
+				if sf.IsExported() {
+					embedded = append(embedded, i)
+				}
 				continue
 			}
 			tag := sf.Tag.Get("gson")
-			if tag == "-" || sf.Name == "self" {
+			if tag == "-" || !sf.IsExported() {
 				continue
 			}
 			name := sf.Name
@@ -306,19 +303,6 @@ func gson_boundFields(t reflect.Type) []gson_boundField {
 	}
 	collect(t, nil)
 	return fields
-}
-
-// gson_interface returns the value of v as an interface, reading
-// unexported struct fields the way Gson's ReflectionHelper.makeAccessible
-// lets it read private Java fields.
-func gson_interface(v reflect.Value) any {
-	if v.CanInterface() {
-		return v.Interface()
-	}
-	if v.CanAddr() {
-		return reflect.NewAt(v.Type(), unsafe.Pointer(v.UnsafeAddr())).Elem().Interface()
-	}
-	panic(NewUnsupportedOperationExceptionMsg("Gson cannot read unaddressable Go value of type " + v.Type().String()))
 }
 
 // gson_checkValidFloatingPoint is Gson.checkValidFloatingPoint(double).

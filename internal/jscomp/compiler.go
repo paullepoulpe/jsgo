@@ -908,13 +908,9 @@ func (c *Compiler) mergeAndDeserializeTypedAsts(
 
 	c.GetSynthesizedExternsInput() // Force lazy creation.
 
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			// TODO(lharker): refactor things to avoid this misleading 'parse' call. It's not actually
-			// parsing JS source code, just doing more deserialization & building the Rhino AST.
-			c.parseForCompilationInternal()
-			return nil
-		})
+	// TODO(lharker): refactor things to avoid this misleading 'parse' call. It's not actually
+	// parsing JS source code, just doing more deserialization & building the Rhino AST.
+	c.runInCompilerThread(c.parseForCompilationInternal)
 }
 
 // compiler_getResourceAsStream is Compiler.class.getResourceAsStream(path):
@@ -1297,11 +1293,7 @@ func (c *Compiler) Stage1Passes() {
 	jutil.CheckStateMsg(c.chunkGraph != nil, "No inputs. Did you call init() or initChunks()?")
 	jutil.CheckState(!c.HasErrors())
 	jutil.CheckState(!c.options.GetInstrumentForCoverageOnly())
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			c.performChecks()
-			return nil
-		})
+	c.runInCompilerThread(c.performChecks)
 }
 
 // Stage2Passes performs compiler passes for stage 2 of compilation.
@@ -1333,13 +1325,11 @@ func (c *Compiler) Stage2Passes(segmentOfCompilationToRun CompilerOptions_Segmen
 			}
 		}
 	}
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			if c.options.ShouldOptimize() {
-				c.PerformTranspilationAndOptimizations(segmentOfCompilationToRun)
-			}
-			return nil
-		})
+	c.runInCompilerThread(func() {
+		if c.options.ShouldOptimize() {
+			c.PerformTranspilationAndOptimizations(segmentOfCompilationToRun)
+		}
+	})
 }
 
 // Stage3Passes performs compiler passes for stage 3 of compilation.
@@ -1357,13 +1347,11 @@ func (c *Compiler) Stage3Passes() {
 	jutil.CheckStateMsg(c.chunkGraph != nil, "No inputs. Did you call init() or initChunks()?")
 	jutil.CheckStateMsg1(!c.HasErrors(), "Cannot run stage3Passes with errors present: %s", c.GetErrors())
 	jutil.CheckState(!c.options.GetInstrumentForCoverageOnly())
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			if c.options.ShouldOptimize() {
-				c.PerformFinalizations()
-			}
-			return nil
-		})
+	c.runInCompilerThread(func() {
+		if c.options.ShouldOptimize() {
+			c.PerformFinalizations()
+		}
+	})
 }
 
 // DisableThreads disables threads. This is for clients that run on
@@ -1396,6 +1384,13 @@ func Compiler_RunInCompilerThread[T any](c *Compiler, callable func() T) T {
 		c.compilerExecutor, callable, c.options != nil && c.options.GetTracerMode().IsOn())
 }
 
+func (c *Compiler) runInCompilerThread(fn func()) {
+	Compiler_RunInCompilerThread(c, func() struct{} {
+		fn()
+		return struct{}{}
+	})
+}
+
 // Java: Compiler.performChecks()
 func (c *Compiler) performChecks() {
 	if c.options.GetSkipNonTranspilationPasses() {
@@ -1421,11 +1416,7 @@ func (c *Compiler) performChecks() {
 //
 // Java: Compiler.performPostCompilationTasks()
 func (c *Compiler) PerformPostCompilationTasks() {
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			c.performPostCompilationTasksInternal()
-			return nil
-		})
+	c.runInCompilerThread(c.performPostCompilationTasksInternal)
 }
 
 // performPostCompilationTasksInternal performs all the bookkeeping
@@ -1481,15 +1472,13 @@ func (c *Compiler) performPostCompilationTasksInternal() {
 func (c *Compiler) InstrumentForCoverage() {
 	jutil.CheckStateMsg(c.chunkGraph != nil, "No inputs. Did you call init() or initChunks()?")
 	jutil.CheckState(!c.HasErrors())
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			jutil.CheckState(c.options.GetInstrumentForCoverageOnly())
-			jutil.CheckState(!c.HasErrors())
-			if c.options.GetInstrumentForCoverageOption() != CompilerOptions_InstrumentOption_NONE {
-				c.instrumentForCoverageInternal(c.options.GetInstrumentForCoverageOption())
-			}
-			return nil
-		})
+	c.runInCompilerThread(func() {
+		jutil.CheckState(c.options.GetInstrumentForCoverageOnly())
+		jutil.CheckState(!c.HasErrors())
+		if c.options.GetInstrumentForCoverageOption() != CompilerOptions_InstrumentOption_NONE {
+			c.instrumentForCoverageInternal(c.options.GetInstrumentForCoverageOption())
+		}
+	})
 }
 
 // Java: Compiler.instrumentForCoverageInternal(InstrumentOption)
@@ -1515,11 +1504,7 @@ func (c *Compiler) instrumentForCoverageInternal(instrumentForCoverageOption Com
 func (c *Compiler) ParseForCompilation() {
 	jutil.CheckStateMsg(
 		c.typedAstFilesystem == nil, "Unnecessary if initWithTypedAstFilesystem was called")
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			c.parseForCompilationInternal()
-			return nil
-		})
+	c.runInCompilerThread(c.parseForCompilationInternal)
 }
 
 // parseForCompilationInternal parses input files in preparation for
@@ -2659,13 +2644,11 @@ func (c *Compiler) SetPreferRegexParser(preferRegexParser bool) {
 
 // Java: Compiler.orderInputsWithLargeStack()
 func (c *Compiler) OrderInputsWithLargeStack() {
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			tracer := c.NewTracer("orderInputsWithLargeStack")
-			defer c.StopTracer(tracer, "orderInputsWithLargeStack")
-			c.OrderInputs()
-			return nil
-		})
+	c.runInCompilerThread(func() {
+		tracer := c.NewTracer("orderInputsWithLargeStack")
+		defer c.StopTracer(tracer, "orderInputsWithLargeStack")
+		c.OrderInputs()
+	})
 }
 
 // Java: Compiler.orderInputs()
@@ -3247,13 +3230,11 @@ func (c *Compiler) ToSourceOfCodeBuilder(
 	licenseTracker CodePrinter_LicenseTracker,
 	inputSeqNum int,
 	root rhino.Node) {
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			var sourceAndMappings CodePrinter_SourceAndMappings
-			c.toSourceAndMappingsInto(root, inputSeqNum == 0, licenseTracker, &sourceAndMappings)
-			c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, inputSeqNum, root, &sourceAndMappings)
-			return nil
-		})
+	c.runInCompilerThread(func() {
+		var sourceAndMappings CodePrinter_SourceAndMappings
+		c.toSourceAndMappingsInto(root, inputSeqNum == 0, licenseTracker, &sourceAndMappings)
+		c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, inputSeqNum, root, &sourceAndMappings)
+	})
 }
 
 func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
@@ -5322,37 +5303,35 @@ func (c *Compiler) RestoreFromState(compilerState *JSCompilerStateProto) {
 // Java: Compiler.saveState(OutputStream)
 func (c *Compiler) SaveState(outputStream io.Writer) {
 	// Do not close the outputstream, caller is responsible for closing it.
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			tracer := c.NewTracer("serializeCompilerState")
-			nonClosingOut := NewCompiler_NonClosingOutputStream(outputStream)
-			var compressionStream io.Writer
-			wrapper := c.options.GetStateCompressionWrapper()
-			if wrapper != nil {
-				compressionStream = wrapper(nonClosingOut)
-			} else {
-				compressionStream = NewFastGzipOutputStream(nonClosingOut)
-			}
+	c.runInCompilerThread(func() {
+		tracer := c.NewTracer("serializeCompilerState")
+		nonClosingOut := NewCompiler_NonClosingOutputStream(outputStream)
+		var compressionStream io.Writer
+		wrapper := c.options.GetStateCompressionWrapper()
+		if wrapper != nil {
+			compressionStream = wrapper(nonClosingOut)
+		} else {
+			compressionStream = NewFastGzipOutputStream(nonClosingOut)
+		}
 
-			bufferedCompressionStream := compiler_newBufferedOutputStream(compressionStream, 64*1024)
+		bufferedCompressionStream := compiler_newBufferedOutputStream(compressionStream, 64*1024)
 
-			builder := c.GetCompilerStateProtoBuilder()
-			compiler_writeDelimitedTo(builder.Build().ToByteArray(), bufferedCompressionStream)
-			c.StopTracer(tracer, "serializeCompilerState")
-			tracer = c.NewTracer("serializeTypedAst")
-			SerializeTypedAstPass_CreateFromOutputStream(
-				c,
-				bufferedCompressionStream,
-				SerializationOptions_Builder_().
-					SetRuntimeLibraries([]string{}).
-					SetIncludeDebugInfo(c.GetOptions().ShouldSerializeExtraDebugInfo()).
-					Build()).
-				Process(c.externsRoot, c.jsRoot)
-			c.StopTracer(tracer, "serializeTypedAst")
-			// Close the buffered stream to flush uncompressed bytes and close the compressor
-			bufferedCompressionStream.Close()
-			return nil
-		})
+		builder := c.GetCompilerStateProtoBuilder()
+		compiler_writeDelimitedTo(builder.Build().ToByteArray(), bufferedCompressionStream)
+		c.StopTracer(tracer, "serializeCompilerState")
+		tracer = c.NewTracer("serializeTypedAst")
+		SerializeTypedAstPass_CreateFromOutputStream(
+			c,
+			bufferedCompressionStream,
+			SerializationOptions_Builder_().
+				SetRuntimeLibraries([]string{}).
+				SetIncludeDebugInfo(c.GetOptions().ShouldSerializeExtraDebugInfo()).
+				Build()).
+			Process(c.externsRoot, c.jsRoot)
+		c.StopTracer(tracer, "serializeTypedAst")
+		// Close the buffered stream to flush uncompressed bytes and close the compressor
+		bufferedCompressionStream.Close()
+	})
 }
 
 // Java: Compiler.restoreState(InputStream)
@@ -5360,27 +5339,25 @@ func (c *Compiler) RestoreState(inputStream io.Reader) {
 	c.initWarningsGuard(c.options.GetWarningsGuard())
 	c.MaybeSetTracker()
 
-	Compiler_RunInCompilerThread(c,
-		func() any {
-			tracer := c.NewTracer(PassNames_DESERIALIZE_COMPILER_STATE)
-			Compiler_logger.Fine("Deserializing the CompilerState")
-			nonClosingIn := NewCompiler_NonClosingInputStream(inputStream)
-			var decompressStream io.Reader
-			wrapper := c.options.GetStateDecompressionWrapper()
-			if wrapper != nil {
-				decompressStream = wrapper(nonClosingIn)
-			} else {
-				decompressStream = jutil.NewGZIPInputStreamWithSize(nonClosingIn, 64*1024)
-			}
-			bufferedDecompressStream := compiler_newBufferedInputStream(decompressStream, 64*1024)
-			defer func() {
-				bufferedDecompressStream.Close()
-				Compiler_logger.Fine("Finished deserializing CompilerState")
-				c.StopTracer(tracer, PassNames_DESERIALIZE_COMPILER_STATE)
-			}()
-			c.deserializeCompilerState(bufferedDecompressStream)
-			return nil
-		})
+	c.runInCompilerThread(func() {
+		tracer := c.NewTracer(PassNames_DESERIALIZE_COMPILER_STATE)
+		Compiler_logger.Fine("Deserializing the CompilerState")
+		nonClosingIn := NewCompiler_NonClosingInputStream(inputStream)
+		var decompressStream io.Reader
+		wrapper := c.options.GetStateDecompressionWrapper()
+		if wrapper != nil {
+			decompressStream = wrapper(nonClosingIn)
+		} else {
+			decompressStream = jutil.NewGZIPInputStreamWithSize(nonClosingIn, 64*1024)
+		}
+		bufferedDecompressStream := compiler_newBufferedInputStream(decompressStream, 64*1024)
+		defer func() {
+			bufferedDecompressStream.Close()
+			Compiler_logger.Fine("Finished deserializing CompilerState")
+			c.StopTracer(tracer, PassNames_DESERIALIZE_COMPILER_STATE)
+		}()
+		c.deserializeCompilerState(bufferedDecompressStream)
+	})
 
 	if c.tracker != nil {
 		c.tracker.UpdateAfterDeserialize(c.jsRoot)

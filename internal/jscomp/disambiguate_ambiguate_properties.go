@@ -147,7 +147,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 
 	graphBuilder := NewColorGraphBuilder(
 		a.graphNodeFactory,
-		func(graph DiGraph[*ColorGraphNode, any]) LowestCommonAncestorFinder[*ColorGraphNode, any] {
+		func(graph DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) LowestCommonAncestorFinder[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
 			return NewLowestCommonAncestorFinder(graph)
 		},
 		a.colorRegistry)
@@ -164,8 +164,8 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		node.reflexiveSubtype = true // Init subtyping as reflexive.
 	}
 
-	FixedPointGraphTraversal_NewReverseTraversal[*ColorGraphNode, any](
-		FixedPointGraphTraversal_EdgeCallbackFunc[*ColorGraphNode, any](func(subtype *ColorGraphNode, e any, supertype *ColorGraphNode) bool {
+	FixedPointGraphTraversal_NewReverseTraversal[*ColorGraphNode, ColorGraphBuilder_EdgeReason](
+		FixedPointGraphTraversal_EdgeCallbackFunc[*ColorGraphNode, ColorGraphBuilder_EdgeReason](func(subtype *ColorGraphNode, _ ColorGraphBuilder_EdgeReason, supertype *ColorGraphNode) bool {
 			/*
 			 * Cheap path for when we're sure there's going to be a change.
 			 *
@@ -253,7 +253,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	finalNumSkippedPropertyNames := numSkippedPropertyNames
 
 	propertyGraph := NewAmbiguateProperties_PropertyGraph(nodes)
-	var coloring GraphColoring[*AmbiguateProperties_Property, any] = NewGraphColoring_GreedyGraphColoringWithTieBreaker[*AmbiguateProperties_Property, any](
+	var coloring GraphColoring[*AmbiguateProperties_Property, struct{}] = NewGraphColoring_GreedyGraphColoringWithTieBreaker[*AmbiguateProperties_Property, struct{}](
 		propertyGraph, ambiguateProperties_FREQUENCY_COMPARATOR)
 	numNewPropertyNames := coloring.Color()
 
@@ -327,10 +327,10 @@ func NewAmbiguateProperties_PropertyGraph(nodes []*AmbiguateProperties_PropertyG
 }
 
 // Java: AmbiguateProperties.PropertyGraph.getNodes()
-func (g *AmbiguateProperties_PropertyGraph) GetNodes() []GraphNode[*AmbiguateProperties_Property, any] {
+func (g *AmbiguateProperties_PropertyGraph) GetNodes() []GraphNode[*AmbiguateProperties_Property, struct{}] {
 	// Go-only: language-adapter — List<PropertyGraphNode> as the
 	// interface's List<GraphNode<Property, Void>>.
-	out := make([]GraphNode[*AmbiguateProperties_Property, any], len(g.nodes))
+	out := make([]GraphNode[*AmbiguateProperties_Property, struct{}], len(g.nodes))
 	for i, n := range g.nodes {
 		out[i] = n
 	}
@@ -343,12 +343,12 @@ func (g *AmbiguateProperties_PropertyGraph) GetNodeCount() int {
 }
 
 // Java: AmbiguateProperties.PropertyGraph.getNode(AmbiguateProperties.Property)
-func (g *AmbiguateProperties_PropertyGraph) GetNode(property *AmbiguateProperties_Property) GraphNode[*AmbiguateProperties_Property, any] {
+func (g *AmbiguateProperties_PropertyGraph) GetNode(property *AmbiguateProperties_Property) GraphNode[*AmbiguateProperties_Property, struct{}] {
 	panic(jutil.NewRuntimeException("PropertyGraph#getNode is never called."))
 }
 
 // Java: AmbiguateProperties.PropertyGraph.newSubGraph()
-func (g *AmbiguateProperties_PropertyGraph) NewSubGraph() SubGraph[*AmbiguateProperties_Property, any] {
+func (g *AmbiguateProperties_PropertyGraph) NewSubGraph() SubGraph[*AmbiguateProperties_Property, struct{}] {
 	return NewAmbiguateProperties_PropertySubGraph()
 }
 

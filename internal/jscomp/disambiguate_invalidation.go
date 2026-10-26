@@ -36,7 +36,7 @@ type Invalidation interface {
 
 // InvalidationBase holds the fields of Invalidation.
 type InvalidationBase struct {
-	reason Invalidation_Reason
+	Reason Invalidation_Reason `gson:"reason"`
 }
 
 // GetInvalidationBase gives access to the fields of an Invalidation.
@@ -100,7 +100,7 @@ func newInvalidation(reason Invalidation_Reason) *InvalidationBase {
 
 // InitInvalidationBase is the constructor body, for subclasses.
 func (b *InvalidationBase) InitInvalidationBase(reason Invalidation_Reason) {
-	b.reason = reason
+	b.Reason = reason
 }
 
 // Invalidation_WithReceiverType is the private subclass WithReceiverType.
@@ -108,7 +108,7 @@ func (b *InvalidationBase) InitInvalidationBase(reason Invalidation_Reason) {
 //
 // Java: private static final class Invalidation.WithReceiverType extends Invalidation
 type Invalidation_WithReceiverType struct {
-	receiverType int
+	ReceiverType int `gson:"receiverType"`
 	InvalidationBase
 }
 
@@ -116,7 +116,7 @@ type Invalidation_WithReceiverType struct {
 func newInvalidation_WithReceiverType(reason Invalidation_Reason, receiverType int) *Invalidation_WithReceiverType {
 	w := &Invalidation_WithReceiverType{}
 	w.InitInvalidationBase(reason)
-	w.receiverType = receiverType
+	w.ReceiverType = receiverType
 	return w
 }
 

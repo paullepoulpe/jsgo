@@ -119,9 +119,9 @@ func (d *DeadAssignmentsElimination) eliminateFunction(fn rhino.Node, dummyGloba
 	if allVarsDeclaredInFunction.GetAllVariables().IsEmpty() {
 		return
 	}
-	d.cfgs = append(d.cfgs, fn)
+	d.cfgs = append(d.cfgs, cfgStackEntry{root: fn})
 	cfg := d.GetControlFlowGraph(d.compiler)
-	d.cfgs[len(d.cfgs)-1] = nil
+	d.cfgs[len(d.cfgs)-1] = cfgStackEntry{}
 	d.cfgs = d.cfgs[:len(d.cfgs)-1]
 
 	d.livenessStorage.Reset(

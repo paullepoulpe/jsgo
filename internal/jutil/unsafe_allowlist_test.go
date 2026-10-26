@@ -11,13 +11,9 @@ import (
 )
 
 // TestUnsafeImportAllowlist guards against re-introducing "unsafe" anywhere
-// outside Gson private-field reflection.
+// in cmd/ or internal/.
 func TestUnsafeImportAllowlist(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", ".."))
-	allowed := map[string]bool{
-		"internal/jutil/gson_from_json_reflective.go": true,
-		"internal/jutil/gson_to_json.go":              true,
-	}
 
 	fset := token.NewFileSet()
 	for _, top := range []string{"cmd", "internal"} {
@@ -44,10 +40,7 @@ func TestUnsafeImportAllowlist(t *testing.T) {
 				if err != nil || pkg != "unsafe" {
 					continue
 				}
-				if allowed[rel] {
-					continue
-				}
-				t.Errorf("%s imports \"unsafe\" outside the documented substrate allowlist", rel)
+				t.Errorf("%s imports \"unsafe\" (zero unsafe imports allowed)", rel)
 			}
 			return nil
 		})

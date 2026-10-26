@@ -3510,12 +3510,10 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetIncludeTrailingNewline(
 //
 // Java: AbstractCommandLineRunner.JsonFileSpec
 type AbstractCommandLineRunner_JsonFileSpec struct {
-	src  *string
-	path *string
-
-	sourceMap *string `gson:"source_map" gsonalt:"sourceMap"`
-
-	webpackId *string `gson:"webpack_id" gsonalt:"webpackId"`
+	Src       *string `gson:"src"`
+	Path      *string `gson:"path"`
+	SourceMap *string `gson:"source_map" gsonalt:"sourceMap"`
+	WebpackId *string `gson:"webpack_id" gsonalt:"webpackId"`
 }
 
 // Graal requires a non-arg constructor for use with GSON
@@ -3543,36 +3541,36 @@ func NewAbstractCommandLineRunner_JsonFileSpecWithSourceMapAndWebpackId(
 	sourceMap *string,
 	webpackId *string) *AbstractCommandLineRunner_JsonFileSpec {
 	return &AbstractCommandLineRunner_JsonFileSpec{
-		src:       src,
-		path:      path,
-		sourceMap: sourceMap,
-		webpackId: webpackId,
+		Src:       src,
+		Path:      path,
+		SourceMap: sourceMap,
+		WebpackId: webpackId,
 	}
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.getSrc()
 func (s *AbstractCommandLineRunner_JsonFileSpec) GetSrc() *string {
-	return s.src
+	return s.Src
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.getPath()
 func (s *AbstractCommandLineRunner_JsonFileSpec) GetPath() *string {
-	return s.path
+	return s.Path
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.getSourceMap()
 func (s *AbstractCommandLineRunner_JsonFileSpec) GetSourceMap() *string {
-	return s.sourceMap
+	return s.SourceMap
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.getWebpackId()
 func (s *AbstractCommandLineRunner_JsonFileSpec) GetWebpackId() *string {
-	return s.webpackId
+	return s.WebpackId
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.setSourceMap(String)
 func (s *AbstractCommandLineRunner_JsonFileSpec) SetSourceMap(map_ string) {
-	s.sourceMap = &map_
+	s.SourceMap = &map_
 }
 
 // AbstractCommandLineRunner_JsSourceType is the flag types for JavaScript

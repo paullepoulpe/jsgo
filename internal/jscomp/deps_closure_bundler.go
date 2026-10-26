@@ -42,15 +42,11 @@ type ClosureBundler struct {
 	// currently required due to the API that source maps must be accessible
 	// via just a path (and not the file contents).
 	sourceMapCache *closureBundler_SourceMapCache
-	minifier       any
 }
 
-// closureBundler_SourceMapCache is the ConcurrentHashMap<String, String> of
-// source maps, shared by a ClosureBundler and the copies its with* methods
-// make (it is only looked up, never iterated).
 type closureBundler_SourceMapCache struct {
 	mu sync.Mutex
-	m  *jutil.LinkedHashMap[string, string]
+	m  map[string]string
 }
 
 // Java: ClosureBundler()
@@ -65,51 +61,22 @@ func NewClosureBundlerWithTranspiler(transpiler Transpile_Transpiler) *ClosureBu
 
 // Java: ClosureBundler(Transpiler, Transpiler)
 func NewClosureBundlerWithEs6ModuleTranspiler(transpiler Transpile_Transpiler, es6ModuleTranspiler Transpile_Transpiler) *ClosureBundler {
-	return newClosureBundlerWithAllFields(
-		transpiler,
-		es6ModuleTranspiler,
-		closureBundler_EvalMode_NORMAL,
-		/* sourceUrl= */ nil,
-		/* path= */ "unknown_source",
-		nil,
-		&closureBundler_SourceMapCache{m: jutil.NewLinkedHashMap[string, string]()},
-		/* embedSourcemap= */ false)
-}
-
-// Java: ClosureBundler(Transpiler, Transpiler, EvalMode, String, String, Object, Map<String, String>, boolean)
-func newClosureBundlerWithAllFields(
-	transpiler Transpile_Transpiler,
-	es6ModuleTranspiler Transpile_Transpiler,
-	mode closureBundler_EvalMode,
-	sourceUrl *string,
-	path string,
-	minifier any,
-	sourceMapCache *closureBundler_SourceMapCache,
-	embedSourcemap bool) *ClosureBundler {
-	b := &ClosureBundler{}
-	b.transpiler = transpiler
-	b.mode = mode
-	b.sourceUrl = sourceUrl
-	b.path = path
-	b.sourceMapCache = sourceMapCache
-	b.es6ModuleTranspiler = es6ModuleTranspiler
-	b.minifier = minifier
-	b.embedSourcemap = embedSourcemap
-	return b
+	return &ClosureBundler{
+		transpiler:          transpiler,
+		es6ModuleTranspiler: es6ModuleTranspiler,
+		mode:                closureBundler_EvalMode_NORMAL,
+		path:                "unknown_source",
+		sourceMapCache:      &closureBundler_SourceMapCache{m: make(map[string]string)},
+	}
 }
 
 // Java: ClosureBundler.withTranspilers(Transpiler, Transpiler)
 func (b *ClosureBundler) WithTranspilers(
 	newTranspiler Transpile_Transpiler, newEs6ModuleTranspiler Transpile_Transpiler) *ClosureBundler {
-	return newClosureBundlerWithAllFields(
-		newTranspiler,
-		newEs6ModuleTranspiler,
-		b.mode,
-		b.sourceUrl,
-		b.path,
-		b.minifier,
-		b.sourceMapCache,
-		b.embedSourcemap)
+	cp := *b
+	cp.transpiler = newTranspiler
+	cp.es6ModuleTranspiler = newEs6ModuleTranspiler
+	return &cp
 }
 
 // Java: ClosureBundler.withTranspiler(Transpiler)
@@ -124,71 +91,39 @@ func (b *ClosureBundler) WithEs6ModuleTranspiler(newEs6ModuleTranspiler Transpil
 
 // Java: ClosureBundler.disableJ2clMinifier()
 func (b *ClosureBundler) DisableJ2clMinifier() *ClosureBundler {
-	return newClosureBundlerWithAllFields(
-		b.transpiler,
-		b.es6ModuleTranspiler,
-		b.mode,
-		b.sourceUrl,
-		b.path,
-		/* minifier= */ nil,
-		b.sourceMapCache,
-		b.embedSourcemap)
+	cp := *b
+	return &cp
 }
 
 // Java: ClosureBundler.useEval(boolean)
 func (b *ClosureBundler) UseEval(useEval bool) *ClosureBundler {
-	newMode := closureBundler_EvalMode_NORMAL
+	cp := *b
+	cp.mode = closureBundler_EvalMode_NORMAL
 	if useEval {
-		newMode = closureBundler_EvalMode_EVAL
+		cp.mode = closureBundler_EvalMode_EVAL
 	}
-	return newClosureBundlerWithAllFields(
-		b.transpiler,
-		b.es6ModuleTranspiler,
-		newMode,
-		b.sourceUrl,
-		b.path,
-		b.minifier,
-		b.sourceMapCache,
-		b.embedSourcemap)
+	return &cp
 }
 
 // Java: ClosureBundler.withSourceUrl(String)
 func (b *ClosureBundler) WithSourceUrl(newSourceUrl string) *ClosureBundler {
-	return newClosureBundlerWithAllFields(
-		b.transpiler,
-		b.es6ModuleTranspiler,
-		b.mode,
-		&newSourceUrl,
-		b.path,
-		b.minifier,
-		b.sourceMapCache,
-		b.embedSourcemap)
+	cp := *b
+	cp.sourceUrl = &newSourceUrl
+	return &cp
 }
 
 // Java: ClosureBundler.withPath(String)
 func (b *ClosureBundler) WithPath(newPath string) *ClosureBundler {
-	return newClosureBundlerWithAllFields(
-		b.transpiler,
-		b.es6ModuleTranspiler,
-		b.mode,
-		b.sourceUrl,
-		newPath,
-		b.minifier,
-		b.sourceMapCache,
-		b.embedSourcemap)
+	cp := *b
+	cp.path = newPath
+	return &cp
 }
 
 // Java: ClosureBundler.embedSourcemap()
 func (b *ClosureBundler) EmbedSourcemap() *ClosureBundler {
-	return newClosureBundlerWithAllFields(
-		b.transpiler,
-		b.es6ModuleTranspiler,
-		b.mode,
-		b.sourceUrl,
-		b.path,
-		b.minifier,
-		b.sourceMapCache,
-		/* embedSourcemap= */ true)
+	cp := *b
+	cp.embedSourcemap = true
+	return &cp
 }
 
 // ClosureBundler_AppendInput appends the contents of the string to the
@@ -272,7 +207,7 @@ func (b *ClosureBundler) AppendRuntimeTo(out jutil.Appendable) {
 func (b *ClosureBundler) GetSourceMap(path string) string {
 	b.sourceMapCache.mu.Lock()
 	defer b.sourceMapCache.mu.Unlock()
-	return b.sourceMapCache.m.Get(path) // Strings.nullToEmpty: a missing entry is ""
+	return b.sourceMapCache.m[path]
 }
 
 // Java: ClosureBundler.transpile(String, Transpiler)
@@ -284,8 +219,7 @@ func (b *ClosureBundler) transpileWithTranspiler(s string, t Transpile_Transpile
 		panic(jutil.NewRuntimeExceptionWithCause(e))
 	})
 	b.sourceMapCache.mu.Lock()
-	// ConcurrentHashMap.put rejects a null value; a Go string is never null.
-	b.sourceMapCache.m.Put(b.path, result.SourceMap())
+	b.sourceMapCache.m[b.path] = result.SourceMap()
 	b.sourceMapCache.mu.Unlock()
 	if b.embedSourcemap {
 		return result.EmbedSourcemapBase64().Transpiled()

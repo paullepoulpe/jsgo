@@ -25,41 +25,45 @@ func (c gsonTestColor) String() string { return [...]string{"RED", "GREEN"}[c] }
 // Java: class Point { int x; String name; String missing; transient int t;
 // static int s; List<Integer> list; Object me = this; double d; char c;
 // boolean b; long l; }
-type gsonTestPoint struct {
-	x       int32
-	name    string
-	missing *string
-	t       int32 `gson:"-"`
-	list    []int32
-	me      any
-	d       float64
-	c       uint16
-	b       bool
-	l       int64
+type GsonTestPoint struct {
+	X       int32   `gson:"x"`
+	Name    string  `gson:"name"`
+	Missing *string `gson:"missing"`
+	T       int32   `gson:"-"`
+	List    []int32 `gson:"list"`
+	Me      any     `gson:"me"`
+	D       float64 `gson:"d"`
+	C       uint16  `gson:"c"`
+	B       bool    `gson:"b"`
+	L       int64   `gson:"l"`
 }
 
 // Java: class Point3 extends Point { int z; Map<String, Integer> m; }
 type gsonTestPoint3 struct {
-	gsonTestPoint
-	z int32
-	m *LinkedHashMap[string, int32]
+	GsonTestPoint
+	Z int32                          `gson:"z"`
+	M *LinkedHashMap[string, int32] `gson:"m"`
 }
 
-type gsonTestHolder struct{ value any }
+type gsonTestHolder struct {
+	Value any `gson:"value"`
+}
 
-type gsonTestAble struct{ v any }
+type gsonTestAble struct {
+	V any `gson:"v"`
+}
 
-func newGsonTestPoint() *gsonTestPoint {
-	p := &gsonTestPoint{x: 1, name: "p<q>", t: 5, list: []int32{1, 2}, d: 0.5, c: 'c', b: true, l: 1 << 40}
-	p.me = p
+func newGsonTestPoint() *GsonTestPoint {
+	p := &GsonTestPoint{X: 1, Name: "p<q>", T: 5, List: []int32{1, 2}, D: 0.5, C: 'c', B: true, L: 1 << 40}
+	p.Me = p
 	return p
 }
 
 func newGsonTestPoint3() *gsonTestPoint3 {
-	p := &gsonTestPoint3{z: 9, m: NewLinkedHashMap[string, int32]()}
-	p.gsonTestPoint = gsonTestPoint{x: 1, name: "p<q>", t: 5, list: []int32{1, 2}, d: 0.5, c: 'c', b: true, l: 1 << 40}
-	p.me = p
-	p.m.Put("k", 1)
+	p := &gsonTestPoint3{Z: 9, M: NewLinkedHashMap[string, int32]()}
+	p.GsonTestPoint = GsonTestPoint{X: 1, Name: "p<q>", T: 5, List: []int32{1, 2}, D: 0.5, C: 'c', B: true, L: 1 << 40}
+	p.Me = p
+	p.M.Put("k", 1)
 	return p
 }
 
@@ -129,14 +133,14 @@ func gsonTestCases() map[string]any {
 		"enumSet":         NewEnumSet(gsonTestColor_GREEN, gsonTestColor_RED),
 		"point":           newGsonTestPoint(),
 		"point3":          newGsonTestPoint3(),
-		"holderNull":      &gsonTestHolder{value: nil},
-		"holderPoint":     &gsonTestHolder{value: newGsonTestPoint()},
-		"holderList":      &gsonTestHolder{value: []int32{1}},
-		"ableList":        &gsonTestAble{v: []int32{0}},
-		"ableNull":        &gsonTestAble{v: nil},
-		"ableString":      &gsonTestAble{v: "<"},
-		"ableInList":      []any{&gsonTestAble{v: ableMap}},
-		"holderAble":      &gsonTestHolder{value: &gsonTestAble{v: int32(1)}},
+		"holderNull":      &gsonTestHolder{Value: nil},
+		"holderPoint":     &gsonTestHolder{Value: newGsonTestPoint()},
+		"holderList":      &gsonTestHolder{Value: []int32{1}},
+		"ableList":        &gsonTestAble{V: []int32{0}},
+		"ableNull":        &gsonTestAble{V: nil},
+		"ableString":      &gsonTestAble{V: "<"},
+		"ableInList":      []any{&gsonTestAble{V: ableMap}},
+		"holderAble":      &gsonTestHolder{Value: &gsonTestAble{V: int32(1)}},
 		"jsonTree":        o,
 		"nested":          []any{inner},
 		"treeMap":         tm,

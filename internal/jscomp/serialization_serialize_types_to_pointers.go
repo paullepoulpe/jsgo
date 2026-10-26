@@ -266,17 +266,17 @@ func (p *serializeTypesToPointers_StreamObjectUuidsJson) WriteJson(jsonWriter *j
 
 // Java: private static final class SerializeTypesToPointers.TypeMismatchJson implements Comparable<TypeMismatchJson>
 type serializeTypesToPointers_TypeMismatchJson struct {
-	location        string
-	foundColorId    string
-	requiredColorId string
+	Location        string `gson:"location"`
+	FoundColorId    string `gson:"foundColorId"`
+	RequiredColorId string `gson:"requiredColorId"`
 }
 
 // Java: SerializeTypesToPointers.TypeMismatchJson(TypeMismatch, ColorId, ColorId)
 func newSerializeTypesToPointers_TypeMismatchJson(x *TypeMismatch, found colors.ColorId, required colors.ColorId) *serializeTypesToPointers_TypeMismatchJson {
 	return &serializeTypesToPointers_TypeMismatchJson{
-		location:        x.Location().GetLocation(),
-		foundColorId:    found.String(),
-		requiredColorId: required.String(),
+		Location:        x.Location().GetLocation(),
+		FoundColorId:    found.String(),
+		RequiredColorId: required.String(),
 	}
 }
 
@@ -321,11 +321,11 @@ func serializeTypesToPointers_TypeMismatchJson_typePointerToId(poolOffset int, t
 
 // Java: SerializeTypesToPointers.TypeMismatchJson.compareTo(TypeMismatchJson)
 func (j *serializeTypesToPointers_TypeMismatchJson) CompareTo(x *serializeTypesToPointers_TypeMismatchJson) int {
-	if c := jutil.StringCompareTo(j.foundColorId, x.foundColorId); c != 0 {
+	if c := jutil.StringCompareTo(j.FoundColorId, x.FoundColorId); c != 0 {
 		return c
 	}
-	if c := jutil.StringCompareTo(j.requiredColorId, x.requiredColorId); c != 0 {
+	if c := jutil.StringCompareTo(j.RequiredColorId, x.RequiredColorId); c != 0 {
 		return c
 	}
-	return jutil.StringCompareTo(j.location, x.location)
+	return jutil.StringCompareTo(j.Location, x.Location)
 }

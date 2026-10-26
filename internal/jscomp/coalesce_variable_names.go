@@ -42,10 +42,10 @@ var coalescePreallocatedColors = func() [LiveVariablesAnalysis_MAX_VARIABLES_TO_
 type coalesceScopeState struct {
 	varsFinder        lvaAllVarsFinder
 	liveness          LiveVariablesAnalysis
-	interferenceGraph LinkedUndirectedGraph[*Var, any]
-	coloring          GraphColoring_GreedyGraphColoring[*Var, any]
-	worklistBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
-	subgraphBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+	interferenceGraph LinkedUndirectedGraph[*Var, struct{}]
+	coloring          GraphColoring_GreedyGraphColoring[*Var, struct{}]
+	worklistBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
+	subgraphBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
 	colorToNodeBuf    [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]**Var
 	superNodeVals     [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*Var
 }
@@ -77,8 +77,8 @@ type CoalesceVariableNames struct {
 	// Go-only: language-adapter — the ArrayDeques used as stacks
 	// (push/pop/peek at the front); the front is the last element of the
 	// slice.
-	colorings       []GraphColoring[*Var, any]
-	coloringsBuf    [8]GraphColoring[*Var, any]
+	colorings       []*GraphColoring_GreedyGraphColoring[*Var, struct{}]
+	coloringsBuf    [8]*GraphColoring_GreedyGraphColoring[*Var, struct{}]
 	liveAnalyses    []*LiveVariablesAnalysis
 	liveAnalysesBuf [8]*LiveVariablesAnalysis
 	usePseudoNames  bool
@@ -97,7 +97,7 @@ type CoalesceVariableNames struct {
 	scopeStatesBuf [4]*coalesceScopeState
 
 	interferenceBitsBuf [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE][2]uint64
-	graphNodesBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+	graphNodesBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
 	liveRangeChecker    CoalesceVariableNames_LiveRangeChecker
 	assignToBuf         [16]int
 	readFromBuf         [16]int
@@ -215,7 +215,7 @@ func (c *CoalesceVariableNames) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	if numThreads <= 1 || len(topFns) <= 1 {
-		c.cfgs = append(c.cfgs, root)
+		c.cfgs = append(c.cfgs, cfgStackEntry{root: root})
 		defer c.clearCfgs()
 		for _, topFn := range topFns {
 			c.processTopFunction(topFn, dummyGlobal)
@@ -235,7 +235,7 @@ func (c *CoalesceVariableNames) Process(externs rhino.Node, root rhino.Node) {
 			defer wg.Done()
 			wc := NewCoalesceVariableNames(c.compiler, false)
 			wc.deferChanges = true
-			wc.cfgs = append(wc.cfgs, root)
+			wc.cfgs = append(wc.cfgs, cfgStackEntry{root: root})
 			defer func() {
 				wc.clearCfgs()
 			}()
@@ -582,14 +582,14 @@ func (c *CoalesceVariableNames) IsNameInsideDestructuringAssignment(n rhino.Node
 //
 // Java: CoalesceVariableNames.computeVariableNamesInterferenceGraph(ControlFlowGraph<Node>, Set<? extends Var>)
 func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
-	cfg ControlFlowGraph[rhino.Node], escaped *jutil.ObjectLinkedHashSet[*Var]) UndiGraph[*Var, any] {
-	interferenceGraph := LinkedUndirectedGraph_Create[*Var, any]()
+	cfg ControlFlowGraph[rhino.Node], escaped *jutil.ObjectLinkedHashSet[*Var]) UndiGraph[*Var, struct{}] {
+	interferenceGraph := LinkedUndirectedGraph_Create[*Var, struct{}]()
 	c.computeVariableNamesInterferenceGraphInto(cfg, escaped, interferenceGraph)
 	return interferenceGraph
 }
 
 func coalesceCompareNodesByDegreeDesc(
-	left, right *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any],
+	left, right *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}],
 ) int {
 	return right.neighborEdges.Size() - left.neighborEdges.Size()
 }
@@ -599,11 +599,11 @@ func (s *coalesceScopeState) colorInterferenceGraph() int {
 	s.coloring.InitGraphColoringBase(g)
 	s.coloring.tieBreaker = nil
 
-	var worklist []*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+	var worklist []*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
 	if g.nodes.Size() <= len(s.worklistBuf) {
 		worklist = s.worklistBuf[:0]
 	} else {
-		worklist = make([]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any], 0, g.nodes.Size())
+		worklist = make([]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}], 0, g.nodes.Size())
 	}
 	for n := range g.nodes.Values() {
 		worklist = append(worklist, n)
@@ -657,7 +657,7 @@ func (s *coalesceScopeState) colorInterferenceGraph() int {
 func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 	cfg ControlFlowGraph[rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
-	interferenceGraph *LinkedUndirectedGraph[*Var, any],
+	interferenceGraph *LinkedUndirectedGraph[*Var, struct{}],
 ) {
 	interferenceGraph.clearForReuse()
 	interferenceGraph.init(true, true) // LinkedUndirectedGraph.create()
@@ -672,7 +672,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 	// orderedVariables[i]
 	var interferenceBits [][2]uint64
 	var interferenceBitSetFallback []jutil.BitSet
-	var graphNodes []*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any]
+	var graphNodes []*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
 	if numVars <= len(c.interferenceBitsBuf) {
 		interferenceBits = c.interferenceBitsBuf[:numVars]
 		clear(interferenceBits)
@@ -680,7 +680,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 		clear(graphNodes)
 	} else {
 		interferenceBitSetFallback = make([]jutil.BitSet, numVars)
-		graphNodes = make([]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, any], numVars)
+		graphNodes = make([]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}], numVars)
 	}
 
 	for vIndex, v := range orderedVariables {
@@ -765,7 +765,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 				if (v1IsParam && orderedVariables[v2Index].IsParam()) || bitSet {
 					// Add an edge between variable pairs that are both parameters
 					// because we don't want parameters to share a name.
-					interferenceGraph.connectLinkedNodes(node1, nil, node2)
+					interferenceGraph.connectLinkedNodes(node1, struct{}{}, node2)
 				}
 			}
 		}
@@ -812,7 +812,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 			if (v1IsParam && orderedVariables[v2Index].IsParam()) || bits1.Get(v2Index) {
 				// Add an edge between variable pairs that are both parameters
 				// because we don't want parameters to share a name.
-				interferenceGraph.connectLinkedNodes(node1, nil, node2)
+				interferenceGraph.connectLinkedNodes(node1, struct{}{}, node2)
 			}
 		}
 	}
