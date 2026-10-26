@@ -4005,7 +4005,7 @@ func (c *Compiler) PerformTranspilationAndOptimizations(segmentOfCompilationToRu
 
 	c.phaseOptimizer = c.createPhaseOptimizer()
 	c.phaseOptimizer.Consume(optimizationPassesToRunInCurrentSegment)
-	c.astCompact.allowed = true
+	c.beginASTCompaction()
 	c.phaseOptimizer.Process(c.externsRoot, c.jsRoot)
 	c.maybeCompactAST("end of optimizations", nil, nil, nil)
 	c.astCompact.allowed = false

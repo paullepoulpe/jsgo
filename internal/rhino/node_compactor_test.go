@@ -1,7 +1,10 @@
 package rhino
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Go-only: in-place compaction of the node store (node_compact.go).
@@ -88,4 +91,95 @@ func TestCompactorKeepsLiveTreesAndForwardsHolders(t *testing.T) {
 		}()
 		fn.GetNext()
 	}()
+}
+
+func TestCompactorSlideWithThreadsMultiBlock(t *testing.T) {
+	for _, skew := range []string{"uniform", "front_dense_back_sparse", "front_sparse_back_dense"} {
+		t.Run(skew, func(t *testing.T) {
+			prev := SetCurrentNodeStore(NewNodeStore())
+			defer SetCurrentNodeStore(prev)
+			registry := NewJSTypeRegistry(nil)
+			num := registry.GetNativeType(JSTypeNative_NUMBER_TYPE)
+
+			root := IR_Root()
+			script := IR_Script()
+			root.AddChildToBack(script)
+
+			const totalBlocks = 6
+			const totalPairs = totalBlocks * blockLen / 2
+			var expectedNames []string
+			for idx := range totalPairs {
+				deadBefore := 1
+				switch skew {
+				case "front_dense_back_sparse":
+					if idx < totalPairs/2 {
+						deadBefore = 0
+					} else {
+						deadBefore = 3
+					}
+				case "front_sparse_back_dense":
+					if idx < totalPairs/4 {
+						deadBefore = 5
+					} else {
+						deadBefore = 0
+					}
+				}
+				for range deadBefore {
+					d := IR_Name("dead")
+					d.SetJSType(num)
+					d.SetOriginalName(jutil.StringPtr("dead_orig"))
+				}
+				nm := fmt.Sprintf("v_%d", idx)
+				expectedNames = append(expectedNames, nm)
+				n := IR_Name(nm)
+				if idx%3 == 0 {
+					n.SetJSType(num)
+				}
+				if idx%5 == 0 {
+					n.SetOriginalName(jutil.StringPtr("orig_" + nm))
+				}
+				if idx%257 == 0 {
+					ref := IR_Name("prop_" + nm)
+					n.PutProp(Node_Prop_DECLARED_TYPE_EXPR, ref)
+				}
+				script.AddChildToBack(n)
+			}
+
+			k := NewCompactor()
+			k.Mark(root)
+			k.SlideWithThreads(4)
+			newRoot := k.Forward(root)
+			k.Finish()
+
+			newScript := newRoot.GetFirstChild()
+			got := 0
+			for c := newScript.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+				want := expectedNames[got]
+				if c.GetString() != want {
+					t.Fatalf("child %d = %q, want %q", got, c.GetString(), want)
+				}
+				if (got%3 == 0) != (c.GetJSType() == num) {
+					t.Fatalf("child %d JSType mismatch: %v", got, c.GetJSType())
+				}
+				orig := c.GetOriginalName()
+				if got%5 == 0 {
+					if orig == nil || *orig != "orig_"+want {
+						t.Fatalf("child %d OriginalName = %v, want orig_%s", got, orig, want)
+					}
+				} else if orig != nil && *orig != want {
+					t.Fatalf("child %d unexpected OriginalName = %q", got, *orig)
+				}
+				if got%257 == 0 {
+					propNode, ok := c.GetProp(Node_Prop_DECLARED_TYPE_EXPR).(Node)
+					if !ok || propNode.IsNil() || propNode.GetString() != "prop_"+want {
+						t.Fatalf("child %d prop node mismatch: %v", got, propNode)
+					}
+				}
+				got++
+			}
+			if got != len(expectedNames) {
+				t.Fatalf("got %d children, want %d", got, len(expectedNames))
+			}
+		})
+	}
 }

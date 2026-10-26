@@ -62,6 +62,16 @@ func (c *Compiler) initASTCompaction() {
 	}
 }
 
+func (c *Compiler) beginASTCompaction() {
+	a := &c.astCompact
+	a.allowed = true
+	if a.nodesAtLast == 0 && c.nodeStore != nil {
+		n := c.nodeStore.NodeCount()
+		a.nodesAtLast = n
+		a.liveAtLast = n
+	}
+}
+
 // maybeCompactAST compacts the AST after a pass when the policy says so.
 // externs and root are the caller's local root pointers (forwarded in
 // place); extra forwards holders the caller keeps in locals.
@@ -91,7 +101,23 @@ func (c *Compiler) compactAST(after string, externs, root *rhino.Node, extra fun
 	jutil.CheckStateMsg(c.typedScopeCreator == nil && c.topScope == nil, "AST compaction with typed scopes alive")
 	k := rhino.NewCompactor()
 	c.forwardASTHolders(k.Mark, externs, root, extra)
-	k.Slide()
+	total := k.Total()
+	live := k.CountMarked()
+	if dead := total - live; dead <= 0 || int64(dead)*10 < int64(total) {
+		k.PruneDeadAux()
+		k.Finish()
+		a.nodesAtLast = c.nodeStore.NodeCount()
+		a.liveAtLast = live
+		if astCompactLog {
+			fmt.Fprintf(os.Stderr, "[ast-compact skipped after %s] kept %d of %d nodes (<10%% dead), %v\n", after, live, total, time.Since(t0).Round(time.Millisecond))
+		}
+		return
+	}
+	threads := 1
+	if c.options != nil && c.options.GetNumParallelThreads() > 1 {
+		threads = c.options.GetNumParallelThreads()
+	}
+	k.SlideWithThreads(threads)
 	c.forwardASTHolders(k.Forward, externs, root, extra)
 	k.Finish()
 

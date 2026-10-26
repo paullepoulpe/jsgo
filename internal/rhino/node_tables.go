@@ -370,19 +370,31 @@ func columnAt(cols []*nodeColumn, i uint32) uint32 {
 	return 0
 }
 
+// setColumnInBlock sets the value at offset off within a single block's column.
+func setColumnInBlock(col **nodeColumn, off uint32, v uint32) {
+	c := *col
+	if c == nil {
+		if v == 0 {
+			return
+		}
+		c = new(nodeColumn)
+		*col = c
+	}
+	c[off] = v
+}
+
 // setColumnAt sets the value at index i of a store's columns (see columnAt).
 func setColumnAt(cols *[]*nodeColumn, i uint32, v uint32) {
 	k := int(i >> blockShift)
-	if k >= len(*cols) || (*cols)[k] == nil {
+	if k >= len(*cols) {
 		if v == 0 {
 			return
 		}
 		for len(*cols) <= k {
 			*cols = append(*cols, nil)
 		}
-		(*cols)[k] = new(nodeColumn)
 	}
-	(*cols)[k][i&blockMask] = v
+	setColumnInBlock(&(*cols)[k], i&blockMask, v)
 }
 
 // --- paged columns ---
@@ -490,20 +502,17 @@ func pagedColumnAt(cols []*pagedColumn, i uint32) uint32 {
 	return 0
 }
 
-// setPagedColumnAt sets the value at index i of a store's paged columns
-// (see pagedColumnAt; no other goroutine runs during compaction).
-func setPagedColumnAt(cols *[]*pagedColumn, i uint32, v uint32) {
-	k := int(i >> blockShift)
-	if k >= len(*cols) || (*cols)[k] == nil {
+// setPagedColumnInBlock sets the value at offset off within a single block's paged column.
+func setPagedColumnInBlock(col **pagedColumn, off uint32, v uint32) {
+	c := *col
+	if c == nil {
 		if v == 0 {
 			return
 		}
-		for len(*cols) <= k {
-			*cols = append(*cols, nil)
-		}
-		(*cols)[k] = new(pagedColumn)
+		c = new(pagedColumn)
+		*col = c
 	}
-	slot := &(*cols)[k][(i&blockMask)>>columnPageShift]
+	slot := &c[off>>columnPageShift]
 	p := slot.Load()
 	if p == nil {
 		if v == 0 {
@@ -512,7 +521,22 @@ func setPagedColumnAt(cols *[]*pagedColumn, i uint32, v uint32) {
 		p = new(columnPage)
 		slot.Store(p)
 	}
-	p[i&columnPageMask] = v
+	p[off&columnPageMask] = v
+}
+
+// setPagedColumnAt sets the value at index i of a store's paged columns
+// (see pagedColumnAt; no other goroutine runs during compaction).
+func setPagedColumnAt(cols *[]*pagedColumn, i uint32, v uint32) {
+	k := int(i >> blockShift)
+	if k >= len(*cols) {
+		if v == 0 {
+			return
+		}
+		for len(*cols) <= k {
+			*cols = append(*cols, nil)
+		}
+	}
+	setPagedColumnInBlock(&(*cols)[k], i&blockMask, v)
 }
 
 // tc returns n's JSType or Color handle (0: none).
