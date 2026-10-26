@@ -348,6 +348,45 @@ compilation benchmark (macOS arm64, Go 1.27.1 with `default.pgo`, OpenJDK
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | **3.78 s** / **3.40 s** *(`3.34 s` fast)* | 12.50 s `[12.36, 12.56]` | 6.97 s `[6.95, 7.05]` | **3.67×** / **2.05×** *(`3.75×` / `2.09×`)* | **412 MiB** vs. 1,809 / 2,861 MiB *(peak 4,586)* (**4.39× / 6.94× lower**, **11.13×** vs. JVM peak) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | **3.03 s** / **2.75 s** | 11.35 s `[11.25, 11.45]` | 5.79 s `[5.75, 5.82]` | **4.12×** / **2.10×** | **328 MiB** vs. 2,291 / 2,037 MiB *(peak 2,872)* (**6.98× / 6.21× lower**, **8.76×** vs. JVM peak) |
 
+### e6727a94 on JDK 27 (Apple M2)
+
+$N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `e6727a94`: `233d5db4` plus two cleanup rounds (`10aad291`: 9 unused `jutil` helpers and 107 dead `*_values()` enums deleted, 18 passes on Go slices and maps; `aa435168`: `ListMultimap` and dead `jutil`/oracle files deleted, `ArrayList`s and `StringBuilder`s replaced across 32 files) and `788cf2cf`, which skips no-op AST compactions and parallelizes `Compactor.Slide`. Same machine, method, gate and Java (v20261021 on OpenJDK 27.0.1) as [the v20261021 section](#v20261021-on-jdk-27-apple-m2), at `--num_parallel_threads=4`, with `233d5db4` in the same blocks. Every `jsgo` run was byte-identical to Java (in `single-files`, apart from the Java stack frames of the same 11 inputs on which both compilers crash). The machine was on AC power and kept awake (`caffeinate`) throughout; Java's cold times are within 3% of the previous section's on every task. In block 0 of `checks-only`, all three `jsgo` runs were 10–30% slower than in the other blocks while Java's was not, so `checks-only` was run again right after the suite; its row comes from that rerun.
+
+#### 1. Production-Scale Staged Compilation (`googleapis-bench`: 43,917 Files, 35.6M Parsed AST Nodes, 7,460 Chunks)
+
+| Stage | `jsgo` (`t=4`) | Java (`t=4`, `-Xmx20g`) | Speedup vs. Java (`[95% CI]`) | `jsgo` Peak RSS | Java Peak RSS | Memory Ratio vs. Java (`[95% CI]`) |
+|---|---:|---:|---:|---:|---:|---:|
+| **`CHECKS`** | **59.93 s** | 96.84 s | **1.61× `[1.54, 1.70]`** | **5,508 MiB** | 12,335 MiB | **2.24× `[2.19, 2.29]`** |
+| **`OPTIMIZATIONS`** | **53.56 s** | 88.71 s | **1.66× `[1.64, 1.67]`** | **4,955 MiB** | 13,185 MiB | **2.66× `[2.42, 2.93]`** |
+| **`FINALIZATIONS`** | **7.92 s** | 20.06 s | **2.53× `[2.49, 2.58]`** | **1,145 MiB** | 7,345 MiB | **6.42× `[5.98, 6.89]`** |
+| **Total** | **121.4 s** | **205.6 s** | **1.69× `[1.65, 1.74]`** | **5,508 MiB** | **13,185 MiB** | **2.39× `[2.29, 2.50]`** |
+
+#### 2. Large & Mega Whole-Program `ADVANCED` Workloads
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`bundle-mega`** | ADV · 4.19M nodes | **28.42 s** / **25.18 s** | 50.43 s / 40.85 s | 2.00× `[1.96, 2.04]` | 1.62× `[1.61, 1.64]` | **957 MiB** vs. 5,141 / 6,576 MiB — **5.37× `[5.05, 5.71]`** |
+| **`typed-mega`** | ADV+types · 3.55M nodes | **20.19 s** / **17.30 s** | 36.07 s / 26.48 s | 2.08× `[2.05, 2.12]` | 1.53× `[1.49, 1.57]` | **722 MiB** vs. 3,795 / 5,050 MiB — **5.26× `[5.09, 5.43]`** |
+| **`typed-full`** | ADV+types · 1.90M nodes | **12.11 s** / **10.32 s** | 23.86 s / 15.70 s | 2.31× `[2.24, 2.39]` | 1.52× `[1.50, 1.54]` | **443 MiB** vs. 3,506 / 3,710 MiB — **7.92× `[7.65, 8.20]`** |
+| **`bundle-advanced-ts`** | ADV · 1.11M nodes | **7.71 s** / **7.25 s** | 17.94 s / 11.76 s | 2.47× `[2.44, 2.51]` | 1.62× `[1.60, 1.65]` | **331 MiB** vs. 1,730 / 3,783 MiB — **5.22× `[4.95, 5.51]`** |
+| **`shaka-blockly`** | ADV+types · 618k nodes | **4.97 s** / **4.21 s** | 12.88 s / 6.79 s | 3.06× `[2.98, 3.14]` | 1.61× `[1.58, 1.65]` | **214 MiB** vs. 1,468 / 3,518 MiB — **6.88× `[6.70, 7.05]`** |
+| **`bundle-advanced`** | ADV · 573k nodes | **3.97 s** / **3.32 s** | 11.52 s / 5.71 s | 3.47× `[3.36, 3.58]` | 1.72× `[1.67, 1.77]` | **199 MiB** vs. 1,547 / 3,180 MiB — **7.75× `[7.05, 8.52]`** |
+
+#### 3. Standard Whole-Program & CLI Suite
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`typed-app`** | ADV+types · 1.29M nodes | **1.53 s** / **1.32 s** | 6.37 s / 1.97 s | 4.84× `[4.71, 4.96]` | 1.49× `[1.37, 1.62]` | **147 MiB** vs. 630 / 3,287 MiB — **4.31× `[3.97, 4.67]`** |
+| **`checks-only`** | CHECKS+types · 1.29M nodes | **2.56 s** / **1.95 s** | 6.66 s / 2.81 s | 3.41× `[3.29, 3.54]` | 1.44× `[1.37, 1.51]` | **269 MiB** vs. 1,307 / 3,495 MiB — **4.87× `[4.40, 5.38]`** |
+| **`bundle`** | SIMPLE · 1.11M nodes | **4.89 s** / **4.37 s** | 12.93 s / 8.70 s | 2.96× `[2.89, 3.03]` | 1.99× `[1.97, 2.01]` | **235 MiB** vs. 1,652 / 1,787 MiB — **7.04× `[6.72, 7.38]`** |
+| **`single-files`** | 1,000 CLI runs, SIMPLE · 306k nodes | **78.36 s** | — / 89.48 s | — | 1.14× `[1.14, 1.15]` | **73 MiB** vs. — / 2,517 MiB — **34.5×** vs. batch |
+| **`downlevel-simple`** | SIMPLE→ES5 · 232k nodes | **1.11 s** / **0.96 s** | 4.57 s / 1.55 s | 4.77× `[4.50, 5.06]` | 1.62× `[1.54, 1.69]` | **130 MiB** vs. 606 / 1,479 MiB — **4.64× `[4.49, 4.81]`** |
+| **`downlevel-whitespace`** | WHITESPACE_ONLY→ES5 · 232k nodes | **0.52 s** / **0.44 s** | 2.47 s / 0.52 s | 5.57× `[5.41, 5.73]` | 1.17× `[1.08, 1.27]` | **108 MiB** vs. 517 / 1,421 MiB — **4.77× `[4.60, 4.94]`** |
+
+#### Against `233d5db4`
+
+Measured in the same blocks (ratios `233d5db4 / e6727a94`), `googleapis` is 1% faster (1.01× `[1.01, 1.02]`), all of it in its `OPTIMIZATIONS` stage, which is 2.3–2.9% faster in every block (53.6 s), where AST compaction runs; `CHECKS` and `FINALIZATIONS` are unchanged. The whole-program tasks, whose optimizations are much shorter, are within 1% (0.99×–1.02×, every CI including 1.00 except `bundle` 1.01× `[1.00, 1.01]` and `typed-mega` 0.99× `[0.99, 1.00]`). Peak RSS is unchanged within noise on every task. `single-files`, which is not run with the previous build, takes 78.4 s, against 80.8 s in the previous section's rerun, which ran under more background load (Java's warm time 89.5 s against 91.1 s).
+
 ### 233d5db4 on JDK 27 (Apple M2)
 
 $N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `233d5db4`: `64c098f3` plus three commits that delete more `jutil` collections (`ArrayDeque`, `ImmutableList_Builder`, `LinkedHashMultiset`, `LinkedHashMultimap`, `ArrayListMultimap`, `EnumSet`, `TreeMultimap`, `HashMultimap`, `Sets` and `JavaHashSet`), store `FeatureSet` in a `uint64`, and convert about 25 passes to Go slices and maps (`22d6ff18`, `42a06d12`, `21f33b8b`). Same machine, method, gate and Java (v20261021 on OpenJDK 27.0.1) as [the v20261021 section](#v20261021-on-jdk-27-apple-m2), at `--num_parallel_threads=4`, with `64c098f3` in the same blocks. Every `jsgo` run was byte-identical to Java (in `single-files`, apart from the Java stack frames of the same 11 inputs on which both compilers crash). Java's cold times are within 5% of the previous section's on every task. The whole-program tasks and `googleapis` ran on AC power. The laptop then went on battery and slept for 106 s during `single-files`, which was therefore run again on AC power right after; its row comes from that rerun, under light background load (other applications using about two thirds of a core in all), with Java's warm time 4% slower than in the previous section (91.1 s against 87.2 s) and `jsgo`'s 2% slower (80.8 s against 79.1 s).
