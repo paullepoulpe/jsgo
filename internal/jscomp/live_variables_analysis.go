@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -253,7 +254,7 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 
 	fnRoot := scope.GetRootNode()
 	fnBody := fnRoot.GetLastChild()
-	if !fnBody.IsNil() && fnBody.IsBlock() && !fsivHasNestedBlockScopeDecls(fnRoot, fnBody) {
+	if body, ok := ast.AsBlock(fnBody); ok && !fsivHasNestedBlockScopeDecls(ast.MustFunction(fnRoot), body) {
 		var bodyScope *Scope
 		if fnBody.HasChildren() {
 			bodyScope = scopeCreator.CreateScope(fnBody, scope).(*Scope)
