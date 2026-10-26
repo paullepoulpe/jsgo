@@ -82,23 +82,14 @@ const jsChunk_serialVersionUID int64 = 1
 //
 // Java: JSChunk(String)
 func NewJSChunk(name string) *JSChunk {
-	return newJSChunkFromSlab(nil, name)
-}
-
-func newJSChunkFromSlab(slab *jutil.Slab[JSChunk], name string) *JSChunk {
-	var c *JSChunk
-	if slab != nil {
-		c = slab.New()
-	} else {
-		c = &JSChunk{}
+	return &JSChunk{
+		name:   name,
+		inputs: jutil.NewLinkedHashMap[string, *CompilerInput](),
+		// Depth and index will be set to their correct values by the JSChunkGraph into which they
+		// are placed.
+		depth: -1,
+		index: -1,
 	}
-	c.name = name
-	c.inputs = jutil.NewLinkedHashMap[string, *CompilerInput]()
-	// Depth and index will be set to their correct values by the JSChunkGraph into which they
-	// are placed.
-	c.depth = -1
-	c.index = -1
-	return c
 }
 
 // GetName gets the chunk name.

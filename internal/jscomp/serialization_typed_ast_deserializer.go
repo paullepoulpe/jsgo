@@ -70,7 +70,6 @@ type TypedAstDeserializer struct {
 	canonicalFilePool             *jutil.LinkedHashMap[string, *SourceFile]
 	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
 	scriptDeserializers           map[*SourceFile]*ScriptNodeDeserializer
-	sourceFileSlab                jutil.Slab[SourceFile]
 	externProperties              *jutil.LinkedHashSet[string]
 	runtimeLibraries              *jutil.LinkedHashSet[string]
 	syntheticExternsDeserializers *jutil.ArrayList[*ScriptNodeDeserializer]
@@ -92,7 +91,6 @@ func newTypedAstDeserializer(
 		canonicalFilePool:             jutil.NewLinkedHashMap[string, *SourceFile](),
 		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() rhino.Node](),
 		scriptDeserializers:           make(map[*SourceFile]*ScriptNodeDeserializer),
-		sourceFileSlab:                jutil.NewMaxSlab[SourceFile](64),
 		externProperties:              jutil.NewLinkedHashSet[string](),
 		runtimeLibraries:              jutil.NewLinkedHashSet[string](),
 		syntheticExternsDeserializers: jutil.NewArrayList[*ScriptNodeDeserializer](),
@@ -414,7 +412,7 @@ func (d *TypedAstDeserializer) toFileShard(typedAstProto *TypedAst) []*SourceFil
 			existingFile.RestoreCachedStateFrom(p)
 			fileShardBuilder = append(fileShardBuilder, existingFile)
 		} else {
-			protoFile := sourceFileFromProtoWithSlab(p, &d.sourceFileSlab)
+			protoFile := SourceFile_FromProto(p)
 			d.addToFilePool(p.GetFilename(), protoFile)
 			fileShardBuilder = append(fileShardBuilder, protoFile)
 		}

@@ -874,12 +874,8 @@ func (f *SourceFile) RestoreCachedStateFrom(protoSourceFile *SourceFileProto) {
 
 // Java: SourceFile.fromProto(SourceFileProto)
 func SourceFile_FromProto(protoSourceFile *SourceFileProto) *SourceFile {
-	return sourceFileFromProtoWithSlab(protoSourceFile, nil)
-}
-
-func sourceFileFromProtoWithSlab(protoSourceFile *SourceFileProto, slab *jutil.Slab[SourceFile]) *SourceFile {
 	sourceKind := sourceFile_getSourceKindFromProto(protoSourceFile)
-	sourceFile := sourceFile_fromProtoWithKindAndSlab(protoSourceFile, sourceKind, slab)
+	sourceFile := sourceFile_fromProtoWithKind(protoSourceFile, sourceKind)
 	// Restore the number of lines/bytes, which are offset by 1 in the proto.
 	protoNumLines := int(protoSourceFile.GetNumLinesPlusOne()) - 1
 	protoNumBytes := int(protoSourceFile.GetNumBytesPlusOne()) - 1
@@ -894,14 +890,9 @@ func sourceFileFromProtoWithSlab(protoSourceFile *SourceFileProto, slab *jutil.S
 }
 
 // Java: SourceFile.fromProto(SourceFileProto, SourceKind)
-func sourceFile_fromProtoWithKind(protoSourceFile *SourceFileProto, sourceKind rhino.StaticSourceFile_SourceKind) *SourceFile {
-	return sourceFile_fromProtoWithKindAndSlab(protoSourceFile, sourceKind, nil)
-}
-
-func sourceFile_fromProtoWithKindAndSlab(
+func sourceFile_fromProtoWithKind(
 	protoSourceFile *SourceFileProto,
 	sourceKind rhino.StaticSourceFile_SourceKind,
-	slab *jutil.Slab[SourceFile],
 ) *SourceFile {
 	switch protoSourceFile.GetLoaderCase() {
 	case SourceFileProto_LoaderCase_PRELOADED_CONTENTS:
@@ -913,13 +904,9 @@ func sourceFile_fromProtoWithKindAndSlab(
 		if pathOnDisk == "" {
 			pathOnDisk = protoSourceFile.GetFilename()
 		}
-		charset := sourceFile_toCharset(fileOnDisk.GetCharset())
-		if !sourceFile_isZipEntryPath(pathOnDisk) {
-			return newOnDiskSourceFileFromSlab(slab, pathOnDisk, protoSourceFile.GetFilename(), charset, sourceKind)
-		}
 		var b SourceFile_Builder
 		b.kind = sourceKind
-		b.charset = charset
+		b.charset = sourceFile_toCharset(fileOnDisk.GetCharset())
 		return b.WithOriginalPath(protoSourceFile.GetFilename()).
 			WithPath(pathOnDisk).
 			Build()
@@ -1122,12 +1109,12 @@ func (b *SourceFile_Builder) Build() *SourceFile {
 	}
 
 	if b.pathWithFilesystem != nil {
-		return newOnDiskSourceFileWithNormalizedPath(nil, b.pathWithFilesystem.String(), displayPath, b.charset, b.kind)
+		return newOnDiskSourceFileWithNormalizedPath(b.pathWithFilesystem.String(), displayPath, b.charset, b.kind)
 	}
 	if !b.hasPath {
 		panic(jutil.NewNullPointerException())
 	}
-	return newOnDiskSourceFileFromSlab(nil, b.path, displayPath, b.charset, b.kind)
+	return newOnDiskSourceFile(b.path, displayPath, b.charset, b.kind)
 }
 
 func sourceFile_nullableStringVal(s string, ok bool) string {
@@ -1137,33 +1124,17 @@ func sourceFile_nullableStringVal(s string, ok bool) string {
 	return s
 }
 
-func sourceFile_isZipEntryPath(path string) bool {
-	if strings.IndexByte(path, '!') < 0 {
-		return false
-	}
-	bangSlashIndex := strings.Index(path, sourceFile_BANG_SLASH)
-	if bangSlashIndex >= 0 {
-		zipPath := path[:bangSlashIndex]
-		entryPath := path[bangSlashIndex+len(sourceFile_BANG_SLASH):]
-		return strings.HasSuffix(zipPath, ".zip") &&
-			(strings.HasSuffix(entryPath, ".js") || strings.HasSuffix(entryPath, ".js.map"))
-	}
-	return false
-}
-
-func newOnDiskSourceFileFromSlab(
-	slab *jutil.Slab[SourceFile],
+func newOnDiskSourceFile(
 	pathOnDisk string,
 	displayPath string,
 	charset *jutil.Charset,
 	kind rhino.StaticSourceFile_SourceKind,
 ) *SourceFile {
 	normalizedPath := jutil.ParsePathString(pathOnDisk)
-	return newOnDiskSourceFileWithNormalizedPath(slab, normalizedPath, displayPath, charset, kind)
+	return newOnDiskSourceFileWithNormalizedPath(normalizedPath, displayPath, charset, kind)
 }
 
 func newOnDiskSourceFileWithNormalizedPath(
-	slab *jutil.Slab[SourceFile],
 	normalizedPath string,
 	displayPath string,
 	charset *jutil.Charset,
@@ -1176,12 +1147,7 @@ func newOnDiskSourceFileWithNormalizedPath(
 	if Platform_GetFileSeperator() != "/" {
 		displayPath = strings.ReplaceAll(displayPath, Platform_GetFileSeperator(), "/")
 	}
-	var f *SourceFile
-	if slab != nil {
-		f = slab.New()
-	} else {
-		f = &SourceFile{}
-	}
+	f := &SourceFile{}
 	f.onDiskLoader.serializableCharset = charsetName
 	f.onDiskLoader.relativePathStr = normalizedPath
 	f.loader = &f.onDiskLoader

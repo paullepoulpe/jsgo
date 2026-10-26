@@ -967,9 +967,8 @@ func (c *Compiler) InitRuntimeLibraryTypedAsts(colorPoolBuilder *ColorPool_Build
 // Java: Compiler.init(List<SourceFile>, List<SourceFile>, CompilerOptions)
 func (c *Compiler) Init(externs []*SourceFile, sources []*SourceFile, options *CompilerOptions) {
 	chunk := NewJSChunk(JSChunk_STRONG_CHUNK_NAME)
-	inputSlab := jutil.NewMaxSlab[CompilerInput](64)
 	for _, source := range sources {
-		chunk.Add(newCompilerInputFromSlab(&inputSlab, source /* isExtern= */, false))
+		chunk.Add(NewCompilerInput(source))
 	}
 
 	chunks := make([]*JSChunk, 0, 1)
@@ -988,9 +987,8 @@ func (c *Compiler) InitChunks(externs []*SourceFile, chunks []*JSChunk, options 
 	c.checkFirstChunk(chunks)
 
 	c.externs.Clear()
-	inputSlab := jutil.NewMaxSlab[CompilerInput](64)
 	for _, file := range externs {
-		c.externs.Add(newCompilerInputFromSlab(&inputSlab, file /* isExtern= */, true))
+		c.externs.Add(NewCompilerInputWithIsExtern(file /* isExtern= */, true))
 	}
 
 	// Generate the chunk graph, and report any errors in the chunk specification as errors.
@@ -5432,10 +5430,8 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	// Restore the chunk graph
 	chunkProtos := stateProto.GetChunksList()
 	chunks := make([]*JSChunk, 0, len(chunkProtos))
-	chunkSlab := jutil.NewMaxSlab[JSChunk](64)
 	for _, chunkProto := range chunkProtos {
-		chunk := newJSChunkFromSlab(&chunkSlab, chunkProto.GetName())
-		chunks = append(chunks, chunk)
+		chunks = append(chunks, NewJSChunk(chunkProto.GetName()))
 	}
 	for i := 0; i < len(chunks); i++ {
 		chunk := chunks[i]
@@ -5468,7 +5464,6 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	codeFiles := codeFilesBuilder
 	externFilesBuilder = nil
 	codeFilesBuilder = nil
-	inputSlab := jutil.NewMaxSlab[CompilerInput](64)
 	for _, externName := range stateProto.GetExternsList() {
 		if externName == c.SYNTHETIC_EXTERNS_FILE.GetName() {
 			c.GetSynthesizedExternsInput()
@@ -5480,7 +5475,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 			// because they are annotated `@externs`.
 			externFile = jutil.CheckNotNullMsg1(codeFiles.Get(externName), "Missing %s", externName)
 		}
-		input := newCompilerInputFromSlab(&inputSlab, externFile /* isExtern= */, true)
+		input := NewCompilerInputWithIsExtern(externFile /* isExtern= */, true)
 		script := input.GetAstRoot(c) // accesses this.typedAstFilesystem
 
 		c.externsRoot.AddChildToBack(script)
@@ -5511,7 +5506,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 				jutil.CheckStateMsg1(AbstractCompiler_IsFillFileName(inputId), "Missing %s", inputId)
 				continue
 			}
-			input := newCompilerInputFromSlab(&inputSlab, src, false)
+			input := NewCompilerInput(src)
 			if parallelRestore {
 				restoredInputs = append(restoredInputs, restoredChunkInput{chunkIdx: i, src: src, input: input})
 				prebuildInputs = append(prebuildInputs, input)

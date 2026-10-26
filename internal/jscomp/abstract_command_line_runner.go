@@ -676,7 +676,6 @@ func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFilesAndAllowStdIn(
 	allowStdIn bool,
 	jsChunkSpecs []*AbstractCommandLineRunner_JsChunkSpec) []*SourceFile {
 	inputs := make([]*SourceFile, 0, len(files))
-	fileSlab := jutil.NewMaxSlab[SourceFile](64)
 	usingStdin := false
 	jsChunkIndex := 0
 	var jsChunkSpec *AbstractCommandLineRunner_JsChunkSpec
@@ -718,16 +717,10 @@ func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFilesAndAllowStdIn(
 			if file.flag == AbstractCommandLineRunner_JsSourceType_WEAKDEP {
 				kind = rhino.StaticSourceFile_SourceKind_WEAK
 			}
-			var newFile *SourceFile
-			if !sourceFile_isZipEntryPath(filename) {
-				newFile = newOnDiskSourceFileFromSlab(&fileSlab, filename, filename, r.inputCharset, kind)
-			} else {
-				var b SourceFile_Builder
-				b.kind = kind
-				b.charset = r.inputCharset
-				newFile = b.WithPath(filename).Build()
-			}
-			inputs = append(inputs, newFile)
+			var b SourceFile_Builder
+			b.kind = kind
+			b.charset = r.inputCharset
+			inputs = append(inputs, b.WithPath(filename).Build())
 		} else {
 			if r.config.typedAstListInputFilename != nil {
 				panic(NewFlagUsageException("Can't use TypedASTs with stdin."))
@@ -910,7 +903,6 @@ func AbstractCommandLineRunner_CreateJsChunks(specs []*AbstractCommandLineRunner
 	jutil.CheckState(inputs != nil)
 
 	result := make([]*JSChunk, 0, len(specs))
-	chunkSlab := jutil.NewMaxSlab[JSChunk](64)
 	chunksByName := make(map[string]*JSChunk, len(specs))
 	numJsFilesExpected := 0
 	minJsFilesRequired := 0
@@ -918,7 +910,7 @@ func AbstractCommandLineRunner_CreateJsChunks(specs []*AbstractCommandLineRunner
 		if _, exists := chunksByName[spec.name]; exists {
 			panic(NewFlagUsageException("Duplicate chunk name: " + spec.name))
 		}
-		chunk := newJSChunkFromSlab(&chunkSlab, spec.name)
+		chunk := NewJSChunk(spec.name)
 
 		for _, dep := range spec.deps {
 			other := chunksByName[dep]
@@ -1345,9 +1337,8 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 				}
 			}
 			inputs := make([]*CompilerInput, 0, len(sources))
-			inputSlab := jutil.NewMaxSlab[CompilerInput](64)
 			for _, source := range sources {
-				inputs = append(inputs, newCompilerInputFromSlab(&inputSlab, source /* isExtern= */, false))
+				inputs = append(inputs, NewCompilerInput(source))
 			}
 			chunks = AbstractCommandLineRunner_CreateJsChunks(jsChunkSpecs, inputs)
 		}

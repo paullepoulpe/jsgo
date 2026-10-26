@@ -136,17 +136,6 @@ func initCompilerInputWithInputId(c *CompilerInput, sourceFile *SourceFile, inpu
 	return c
 }
 
-func newCompilerInputFromSlab(slab *jutil.Slab[CompilerInput], file *SourceFile, isExtern bool) *CompilerInput {
-	jutil.CheckNotNull(file)
-	var c *CompilerInput
-	if slab != nil {
-		c = slab.New()
-	} else {
-		c = &CompilerInput{}
-	}
-	return initCompilerInputWithInputId(c, file, rhino.NewInputId(file.GetName()), isExtern)
-}
-
 // Deprecated: the inputId is read from the SourceFile. Use
 // NewCompilerInputWithIsExtern(file, isExtern)
 //
@@ -157,12 +146,13 @@ func NewCompilerInputWithInputIdAndIsExtern(sourceFile *SourceFile, inputId *rhi
 
 // Java: CompilerInput(SourceFile)
 func NewCompilerInput(file *SourceFile) *CompilerInput {
-	return newCompilerInputFromSlab(nil, file, false)
+	return NewCompilerInputWithIsExtern(file, false)
 }
 
 // Java: CompilerInput(SourceFile, boolean)
 func NewCompilerInputWithIsExtern(file *SourceFile, isExtern bool) *CompilerInput {
-	return newCompilerInputFromSlab(nil, file, isExtern)
+	jutil.CheckNotNull(file)
+	return initCompilerInputWithInputId(&CompilerInput{}, file, rhino.NewInputId(file.GetName()), isExtern)
 }
 
 // GetInputId returns a name for this input. Must be unique across all

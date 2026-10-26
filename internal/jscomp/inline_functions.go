@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -561,31 +562,30 @@ type inlineFunctions_bodyAnalysis struct {
 }
 
 func (f *InlineFunctions) analyzeFunctionBody(fnNode rhino.Node) (*jutil.LinkedHashSet[string], bool, bool) {
-	p := f.ensureRunState()
+	return inlineFunctions_analyzeBody(fnNode, &f.ensureRunState().paramScratch)
+}
+
+func inlineFunctions_analyzeBody(fnNode rhino.Node, paramScratch *[]string) (*jutil.LinkedHashSet[string], bool, bool) {
 	params := NodeUtil_GetFunctionParameters(fnNode)
-	p.paramScratch = p.paramScratch[:0]
-	var paramBloom uint64
+	names := (*paramScratch)[:0]
 	for n := params.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
 		if n.IsRest() {
-			p.paramScratch = append(p.paramScratch, FunctionArgumentInjector_REST_MARKER)
-			paramBloom |= scopeBloomMask(FunctionArgumentInjector_REST_MARKER)
+			names = append(names, FunctionArgumentInjector_REST_MARKER)
 		} else if n.IsDefaultValue() || n.IsObjectPattern() || n.IsArrayPattern() {
 			panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + n.String()))
 		} else {
-			s := n.GetString()
-			p.paramScratch = append(p.paramScratch, s)
-			paramBloom |= scopeBloomMask(s)
+			names = append(names, n.GetString())
 		}
 	}
+	*paramScratch = names
 	var res inlineFunctions_bodyAnalysis
-	inlineFunctions_analyzeBodyNode(NodeUtil_GetFunctionBody(fnNode), p.paramScratch, paramBloom, false, true, &res)
+	inlineFunctions_analyzeBodyNode(NodeUtil_GetFunctionBody(fnNode), names, false, true, &res)
 	return res.namesToAlias, res.referencesThis, res.hasInnerClosures
 }
 
 func inlineFunctions_analyzeBodyNode(
 	n rhino.Node,
 	paramNames []string,
-	paramBloom uint64,
 	inInnerClosure bool,
 	inReceiverScope bool,
 	res *inlineFunctions_bodyAnalysis,
@@ -607,60 +607,23 @@ func inlineFunctions_analyzeBodyNode(
 			res.referencesThis = true
 		}
 	case rhino.Token_NAME:
-		if paramBloom != 0 {
+		if len(paramNames) != 0 {
 			name := n.GetString()
-			if m := scopeBloomMask(name); paramBloom&m == m {
-				for _, p := range paramNames {
-					if p == name {
-						if inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n) {
-							if res.namesToAlias == nil {
-								res.namesToAlias = jutil.NewLinkedHashSet[string]()
-							}
-							res.namesToAlias.Add(name)
-						}
-						break
-					}
+			if slices.Contains(paramNames, name) && (inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n)) {
+				if res.namesToAlias == nil {
+					res.namesToAlias = jutil.NewLinkedHashSet[string]()
 				}
+				res.namesToAlias.Add(name)
 			}
 		}
 	}
 
-	if (!inReceiverScope || res.referencesThis) && res.hasInnerClosures && paramBloom == 0 {
+	if (!inReceiverScope || res.referencesThis) && res.hasInnerClosures && len(paramNames) == 0 {
 		return
 	}
 
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if c.GetFirstChild().IsNil() {
-			switch c.GetToken() {
-			case rhino.Token_NAME:
-				if paramBloom != 0 {
-					name := c.GetString()
-					if m := scopeBloomMask(name); paramBloom&m == m {
-						for _, p := range paramNames {
-							if p == name {
-								if inInnerClosure || FunctionArgumentInjector_CanNameValueChange(c) {
-									if res.namesToAlias == nil {
-										res.namesToAlias = jutil.NewLinkedHashSet[string]()
-									}
-									res.namesToAlias.Add(name)
-								}
-								break
-							}
-						}
-					}
-				}
-			case rhino.Token_THIS, rhino.Token_SUPER:
-				if inReceiverScope {
-					res.referencesThis = true
-				}
-			case rhino.Token_MEMBER_FIELD_DEF:
-				if !c.IsStaticMember() {
-					res.hasInnerClosures = true
-				}
-			}
-			continue
-		}
-		inlineFunctions_analyzeBodyNode(c, paramNames, paramBloom, inInnerClosure, inReceiverScope, res)
+		inlineFunctions_analyzeBodyNode(c, paramNames, inInnerClosure, inReceiverScope, res)
 	}
 }
 
@@ -1116,24 +1079,7 @@ func (w *ifPhase1Worker) blockHasLetOrConst(block rhino.Node) bool {
 }
 
 func (w *ifPhase1Worker) analyzeBody(fnNode rhino.Node) (*jutil.LinkedHashSet[string], bool, bool) {
-	params := NodeUtil_GetFunctionParameters(fnNode)
-	w.paramScratch = w.paramScratch[:0]
-	var paramBloom uint64
-	for n := params.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
-		if n.IsRest() {
-			w.paramScratch = append(w.paramScratch, FunctionArgumentInjector_REST_MARKER)
-			paramBloom |= scopeBloomMask(FunctionArgumentInjector_REST_MARKER)
-		} else if n.IsDefaultValue() || n.IsObjectPattern() || n.IsArrayPattern() {
-			panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + n.String()))
-		} else {
-			s := n.GetString()
-			w.paramScratch = append(w.paramScratch, s)
-			paramBloom |= scopeBloomMask(s)
-		}
-	}
-	var res inlineFunctions_bodyAnalysis
-	inlineFunctions_analyzeBodyNode(NodeUtil_GetFunctionBody(fnNode), w.paramScratch, paramBloom, false, true, &res)
-	return res.namesToAlias, res.referencesThis, res.hasInnerClosures
+	return inlineFunctions_analyzeBody(fnNode, &w.paramScratch)
 }
 
 func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.Node, nameNode rhino.Node, fnNode rhino.Node, chunk *JSChunk) ifPhase1Candidate {

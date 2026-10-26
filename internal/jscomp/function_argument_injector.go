@@ -33,8 +33,8 @@ type FunctionArgumentInjector struct {
 	templateUndefinedNode rhino.Node
 	sentinelThisNode      rhino.Node
 	scratchArgMap         *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
-	scratchPairSlab       []FunctionArgumentInjector_ParamArgPair
-	scratchPairBuf        [8]FunctionArgumentInjector_ParamArgPair
+	pairSlab              reuseSlab[FunctionArgumentInjector_ParamArgPair]
+	paramBindings         []callParamBinding
 	scratchLocals         *jutil.LinkedHashSet[string]
 	referencedAfter       FunctionArgumentInjector_ReferencedAfterSideEffect
 	setContainer          FunctionArgumentInjector_SetContainer
@@ -69,13 +69,7 @@ func NewFunctionArgumentInjector(astAnalyzer *AstAnalyzer) *FunctionArgumentInje
 func (f *FunctionArgumentInjector) allocScratchPair(paramNode rhino.Node, arg rhino.Node) *FunctionArgumentInjector_ParamArgPair {
 	rhino.CheckNotNull(paramNode)
 	rhino.CheckNotNull(arg)
-	if len(f.scratchPairSlab) == cap(f.scratchPairSlab) {
-		nextCap := max(cap(f.scratchPairSlab)*2, 16)
-		f.scratchPairSlab = make([]FunctionArgumentInjector_ParamArgPair, 0, nextCap)
-	}
-	idx := len(f.scratchPairSlab)
-	f.scratchPairSlab = f.scratchPairSlab[:idx+1]
-	p := &f.scratchPairSlab[idx]
+	p := f.pairSlab.alloc()
 	p.paramNode = paramNode
 	p.arg = arg
 	return p
@@ -176,66 +170,114 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 	return node
 }
 
-// GetFunctionCallParameterMap gets a mapping for function parameter names to
-// call arguments.
-//
-// Java: FunctionArgumentInjector.getFunctionCallParameterMap(Node, Node, Supplier<String>)
-func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
-	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
+type callParamWalkMode uint8
+
+const (
+	callParamWalkOwned callParamWalkMode = iota
+	callParamWalkTemplate
+	callParamWalkReadOnly
+)
+
+type callParamBinding struct {
+	name      string
+	paramNode rhino.Node
+	argNode   rhino.Node
+}
+
+func (f *FunctionArgumentInjector) resolveUndefinedArg(
+	callNode rhino.Node,
+	mode callParamWalkMode,
+	undefTemplate *rhino.Node,
+) rhino.Node {
+	switch mode {
+	case callParamWalkOwned:
+		return NodeUtil_NewUndefinedNode(callNode)
+	case callParamWalkReadOnly:
+		return f.sentinelUndefinedNode
+	default:
+		if undefTemplate.IsNil() {
+			*undefTemplate = f.getTemplateUndefinedNode(callNode)
+		}
+		return *undefTemplate
+	}
+}
+
+func (f *FunctionArgumentInjector) appendCallParamBindings(
+	dst []callParamBinding,
+	fnNode rhino.Node,
+	callNode rhino.Node,
+	safeNameIdSupplier func() string,
+	mode callParamWalkMode,
+) []callParamBinding {
 	rhino.CheckNotNull(fnNode)
-	// Create an parameterName -> expression map
-	argMap := jutil.NewImmutableMapBuilder[string, *FunctionArgumentInjector_ParamArgPair]()
+	var undefTemplate rhino.Node
 
 	// CALL NODE: [ NAME, ARG1, ARG2, ... ]
 	cArg := callNode.GetSecondChild()
 	if !cArg.IsNil() && NodeUtil_IsFunctionObjectCall(callNode) {
-		if !fnNode.IsArrowFunction() {
-			argMap.Put(FunctionArgumentInjector_THIS_MARKER, NewFunctionArgumentInjector_ParamArgPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
-		} else {
-			argMap.Put(FunctionArgumentInjector_THIS_MARKER, NewFunctionArgumentInjector_ParamArgPair(FunctionArgumentInjector_THIS_MARKER_NODE, rhino.IR_ThisNode()))
+		thisArg := cArg
+		if fnNode.IsArrowFunction() {
+			if mode == callParamWalkOwned {
+				thisArg = rhino.IR_ThisNode()
+			} else {
+				thisArg = f.sentinelThisNode
+			}
 		}
+		dst = append(dst, callParamBinding{
+			name:      FunctionArgumentInjector_THIS_MARKER,
+			paramNode: FunctionArgumentInjector_THIS_MARKER_NODE,
+			argNode:   thisArg,
+		})
 		cArg = cArg.GetNext()
 	} else {
 		// 'apply' isn't supported yet.
 		jutil.CheckStateMsg1(!NodeUtil_IsFunctionObjectApply(callNode), "%s", callNode)
-		argMap.Put(
-			FunctionArgumentInjector_THIS_MARKER, NewFunctionArgumentInjector_ParamArgPair(FunctionArgumentInjector_THIS_MARKER_NODE, NodeUtil_NewUndefinedNode(callNode)))
+		dst = append(dst, callParamBinding{
+			name:      FunctionArgumentInjector_THIS_MARKER,
+			paramNode: FunctionArgumentInjector_THIS_MARKER_NODE,
+			argNode:   f.resolveUndefinedArg(callNode, mode, &undefTemplate),
+		})
 	}
 
 	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !fnParam.IsNil(); fnParam = fnParam.GetNext() {
 		if !cArg.IsNil() {
 			if fnParam.IsRest() {
-				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam.GetOnlyChild())
+				restName := fnParam.GetOnlyChild()
+				jutil.CheckStateMsg1(restName.IsName(), "%s", restName)
 				array := rhino.IR_Arraylit()
 				array.SrcrefTreeIfMissing(cArg)
 				for !cArg.IsNil() {
 					array.AddChildToBack(cArg.CloneTree())
 					cArg = cArg.GetNext()
 				}
-				return argMap.
-					Put(
-						fnParam.GetOnlyChild().GetString(),
-						NewFunctionArgumentInjector_ParamArgPair(fnParam.GetOnlyChild(), array)).
-					BuildOrThrow()
-			} else {
-				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				argMap.Put(fnParam.GetString(), NewFunctionArgumentInjector_ParamArgPair(fnParam, cArg))
+				return append(dst, callParamBinding{
+					name:      restName.GetString(),
+					paramNode: restName,
+					argNode:   array,
+				})
 			}
+			jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
+			dst = append(dst, callParamBinding{
+				name:      fnParam.GetString(),
+				paramNode: fnParam,
+				argNode:   cArg,
+			})
 			cArg = cArg.GetNext()
-		} else { // cArg == null
-			if fnParam.IsRest() {
-				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam)
-				// No arguments for REST parameters
-				array := rhino.IR_Arraylit().Srcref(fnParam)
-				argMap.Put(
-					fnParam.GetOnlyChild().GetString(), NewFunctionArgumentInjector_ParamArgPair(fnParam.GetOnlyChild(), array))
-			} else {
-				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				srcLocation := callNode
-				argMap.Put(
-					fnParam.GetString(),
-					NewFunctionArgumentInjector_ParamArgPair(fnParam, NodeUtil_NewUndefinedNode(srcLocation)))
-			}
+		} else if fnParam.IsRest() {
+			restName := fnParam.GetOnlyChild()
+			jutil.CheckStateMsg1(restName.IsName(), "%s", fnParam)
+			dst = append(dst, callParamBinding{
+				name:      restName.GetString(),
+				paramNode: restName,
+				argNode:   rhino.IR_Arraylit().Srcref(fnParam),
+			})
+		} else {
+			jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
+			dst = append(dst, callParamBinding{
+				name:      fnParam.GetString(),
+				paramNode: fnParam,
+				argNode:   f.resolveUndefinedArg(callNode, mode, &undefTemplate),
+			})
 		}
 	}
 
@@ -243,10 +285,30 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
 	// called function.
 	for !cArg.IsNil() {
 		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
-		argMap.Put(uniquePlaceholder, NewFunctionArgumentInjector_ParamArgPair(rhino.IR_Name(uniquePlaceholder), cArg))
+		paramNode := FunctionArgumentInjector_THIS_MARKER_NODE
+		if mode != callParamWalkReadOnly {
+			paramNode = rhino.IR_Name(uniquePlaceholder)
+		}
+		dst = append(dst, callParamBinding{
+			name:      uniquePlaceholder,
+			paramNode: paramNode,
+			argNode:   cArg,
+		})
 		cArg = cArg.GetNext()
 	}
+	return dst
+}
 
+// GetFunctionCallParameterMap gets a mapping for function parameter names to
+// call arguments.
+//
+// Java: FunctionArgumentInjector.getFunctionCallParameterMap(Node, Node, Supplier<String>)
+func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
+	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
+	argMap := jutil.NewImmutableMapBuilder[string, *FunctionArgumentInjector_ParamArgPair]()
+	for _, b := range f.appendCallParamBindings(nil, fnNode, callNode, safeNameIdSupplier, callParamWalkOwned) {
+		argMap.Put(b.name, NewFunctionArgumentInjector_ParamArgPair(b.paramNode, b.argNode))
+	}
 	return argMap.BuildOrThrow()
 }
 
@@ -258,67 +320,12 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterNodeMap(
 	callNode rhino.Node,
 	safeNameIdSupplier func() string,
 	dst *jutil.LinkedHashMap[string, rhino.Node]) {
-	rhino.CheckNotNull(fnNode)
 	dst.Clear()
-
-	var undefTemplate rhino.Node
-	cArg := callNode.GetSecondChild()
-	if !cArg.IsNil() && NodeUtil_IsFunctionObjectCall(callNode) {
-		if !fnNode.IsArrowFunction() {
-			dst.Put(FunctionArgumentInjector_THIS_MARKER, cArg)
-		} else {
-			dst.Put(FunctionArgumentInjector_THIS_MARKER, f.sentinelThisNode)
+	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkTemplate)
+	for _, b := range f.paramBindings {
+		if !dst.Put(b.name, b.argNode).IsNil() {
+			f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
 		}
-		cArg = cArg.GetNext()
-	} else {
-		jutil.CheckStateMsg1(!NodeUtil_IsFunctionObjectApply(callNode), "%s", callNode)
-		undefTemplate = f.getTemplateUndefinedNode(callNode)
-		dst.Put(FunctionArgumentInjector_THIS_MARKER, undefTemplate)
-	}
-
-	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !fnParam.IsNil(); fnParam = fnParam.GetNext() {
-		if !cArg.IsNil() {
-			if fnParam.IsRest() {
-				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam.GetOnlyChild())
-				array := rhino.IR_Arraylit()
-				array.SrcrefTreeIfMissing(cArg)
-				for !cArg.IsNil() {
-					array.AddChildToBack(cArg.CloneTree())
-					cArg = cArg.GetNext()
-				}
-				if !dst.Put(fnParam.GetOnlyChild().GetString(), array).IsNil() {
-					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
-				}
-				return
-			}
-			jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-			if !dst.Put(fnParam.GetString(), cArg).IsNil() {
-				f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
-			}
-			cArg = cArg.GetNext()
-		} else {
-			if fnParam.IsRest() {
-				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam)
-				array := rhino.IR_Arraylit().Srcref(fnParam)
-				if !dst.Put(fnParam.GetOnlyChild().GetString(), array).IsNil() {
-					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
-				}
-			} else {
-				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				if undefTemplate.IsNil() {
-					undefTemplate = f.getTemplateUndefinedNode(callNode)
-				}
-				if !dst.Put(fnParam.GetString(), undefTemplate).IsNil() {
-					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
-				}
-			}
-		}
-	}
-
-	for !cArg.IsNil() {
-		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
-		dst.Put(uniquePlaceholder, cArg)
-		cArg = cArg.GetNext()
 	}
 }
 
@@ -329,150 +336,28 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 	callNode rhino.Node,
 	safeNameIdSupplier func() string,
 	dst *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]) {
-	rhino.CheckNotNull(fnNode)
 	dst.Clear()
-	if cap(f.scratchPairSlab) == 0 {
-		f.scratchPairSlab = f.scratchPairBuf[:0:len(f.scratchPairBuf)]
-	} else {
-		clear(f.scratchPairSlab)
-		f.scratchPairSlab = f.scratchPairSlab[:0]
-	}
-
-	var undefTemplate rhino.Node
-	cArg := callNode.GetSecondChild()
-	if !cArg.IsNil() && NodeUtil_IsFunctionObjectCall(callNode) {
-		if !fnNode.IsArrowFunction() {
-			dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
-		} else {
-			dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, f.sentinelThisNode))
+	f.pairSlab.rewind()
+	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkTemplate)
+	for _, b := range f.paramBindings {
+		if dst.Put(b.name, f.allocScratchPair(b.paramNode, b.argNode)) != nil {
+			f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
 		}
-		cArg = cArg.GetNext()
-	} else {
-		jutil.CheckStateMsg1(!NodeUtil_IsFunctionObjectApply(callNode), "%s", callNode)
-		undefTemplate = f.getTemplateUndefinedNode(callNode)
-		dst.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, undefTemplate))
-	}
-
-	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !fnParam.IsNil(); fnParam = fnParam.GetNext() {
-		if !cArg.IsNil() {
-			if fnParam.IsRest() {
-				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam.GetOnlyChild())
-				array := rhino.IR_Arraylit()
-				array.SrcrefTreeIfMissing(cArg)
-				for !cArg.IsNil() {
-					array.AddChildToBack(cArg.CloneTree())
-					cArg = cArg.GetNext()
-				}
-				if dst.Put(fnParam.GetOnlyChild().GetString(), f.allocScratchPair(fnParam.GetOnlyChild(), array)) != nil {
-					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
-				}
-				return
-			}
-			jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-			if dst.Put(fnParam.GetString(), f.allocScratchPair(fnParam, cArg)) != nil {
-				f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
-			}
-			cArg = cArg.GetNext()
-		} else {
-			if fnParam.IsRest() {
-				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam)
-				array := rhino.IR_Arraylit().Srcref(fnParam)
-				if dst.Put(fnParam.GetOnlyChild().GetString(), f.allocScratchPair(fnParam.GetOnlyChild(), array)) != nil {
-					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
-				}
-			} else {
-				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				if undefTemplate.IsNil() {
-					undefTemplate = f.getTemplateUndefinedNode(callNode)
-				}
-				if dst.Put(fnParam.GetString(), f.allocScratchPair(fnParam, undefTemplate)) != nil {
-					f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
-				}
-			}
-		}
-	}
-
-	for !cArg.IsNil() {
-		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
-		dst.Put(uniquePlaceholder, f.allocScratchPair(rhino.IR_Name(uniquePlaceholder), cArg))
-		cArg = cArg.GetNext()
 	}
 }
 
-// GetFunctionCallParameterMapScratch is a zero-allocation scratch version of
+// GetFunctionCallParameterMapScratch is a scratch version of
 // GetFunctionCallParameterMap for call-site inlining checks that only inspect
 // the returned map and do not inject its nodes into the AST.
 func (f *FunctionArgumentInjector) GetFunctionCallParameterMapScratch(
 	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
-	rhino.CheckNotNull(fnNode)
 	argMap := f.scratchArgMap
 	argMap.Clear()
-	if cap(f.scratchPairSlab) == 0 {
-		f.scratchPairSlab = f.scratchPairBuf[:0:len(f.scratchPairBuf)]
-	} else {
-		clear(f.scratchPairSlab)
-		f.scratchPairSlab = f.scratchPairSlab[:0]
+	f.pairSlab.rewind()
+	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkReadOnly)
+	for _, b := range f.paramBindings {
+		argMap.Put(b.name, f.allocScratchPair(b.paramNode, b.argNode))
 	}
-
-	// CALL NODE: [ NAME, ARG1, ARG2, ... ]
-	cArg := callNode.GetSecondChild()
-	if !cArg.IsNil() && NodeUtil_IsFunctionObjectCall(callNode) {
-		if !fnNode.IsArrowFunction() {
-			argMap.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
-		} else {
-			argMap.Put(FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, f.sentinelThisNode))
-		}
-		cArg = cArg.GetNext()
-	} else {
-		// 'apply' isn't supported yet.
-		jutil.CheckStateMsg1(!NodeUtil_IsFunctionObjectApply(callNode), "%s", callNode)
-		argMap.Put(
-			FunctionArgumentInjector_THIS_MARKER, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, f.sentinelUndefinedNode))
-	}
-
-	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !fnParam.IsNil(); fnParam = fnParam.GetNext() {
-		if !cArg.IsNil() {
-			if fnParam.IsRest() {
-				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam.GetOnlyChild())
-				array := rhino.IR_Arraylit()
-				array.SrcrefTreeIfMissing(cArg)
-				for !cArg.IsNil() {
-					array.AddChildToBack(cArg.CloneTree())
-					cArg = cArg.GetNext()
-				}
-				argMap.Put(
-					fnParam.GetOnlyChild().GetString(),
-					f.allocScratchPair(fnParam.GetOnlyChild(), array))
-				return argMap
-			} else {
-				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				argMap.Put(fnParam.GetString(), f.allocScratchPair(fnParam, cArg))
-			}
-			cArg = cArg.GetNext()
-		} else { // cArg == null
-			if fnParam.IsRest() {
-				jutil.CheckStateMsg1(fnParam.GetOnlyChild().IsName(), "%s", fnParam)
-				// No arguments for REST parameters
-				array := rhino.IR_Arraylit().Srcref(fnParam)
-				argMap.Put(
-					fnParam.GetOnlyChild().GetString(), f.allocScratchPair(fnParam.GetOnlyChild(), array))
-			} else {
-				jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
-				argMap.Put(
-					fnParam.GetString(),
-					f.allocScratchPair(fnParam, f.sentinelUndefinedNode))
-			}
-		}
-	}
-
-	// Add temp names for arguments that don't have named parameters in the
-	// called function.
-	for !cArg.IsNil() {
-		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
-		argMap.Put(uniquePlaceholder, f.allocScratchPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
-		cArg = cArg.GetNext()
-	}
-
 	return argMap
 }
 
@@ -773,7 +658,6 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 	convention CodingConvention) *jutil.LinkedHashSet[string] {
 	jutil.CheckArgumentMsg1(fnNode.IsFunction(), "%s", fnNode)
 	if argMap.IsEmpty() {
-		// No arguments to check, we are done.
 		return modifiedParameters
 	}
 	requiresTempsUpToThisParameterName := f.findRequiresTempsUpToParameterName(
@@ -781,41 +665,8 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 	if requiresTempsUpToThisParameterName == "" {
 		return modifiedParameters
 	}
-
 	namesNeedingTemps := jutil.NewLinkedHashSet[string]()
-	for p := range modifiedParameters.All() {
-		namesNeedingTemps.Add(p)
-	}
-	thisArg := argMap.Get(FunctionArgumentInjector_THIS_MARKER).Arg()
-	// mark all names upto requiresTempsUptoParameterName as namesNeedingTemps
-	for parameterName := range argMap.Keys() {
-		if parameterName == FunctionArgumentInjector_THIS_MARKER &&
-			(NodeUtil_IsUndefined(thisArg) ||
-				(fnNode.IsArrowFunction() && thisArg.IsThis())) {
-			/* When there is no explicit this arg passed into the call, the argMap contains an entry
-			 * <"this", undefined Node>. See the `getFunctionCallParameterMap` method.
-			 *
-			 *  We do not want to add an unnecessary temp for "this", when there wasn't an explicit
-			 * "this" passed in at the callsite. That is, we want to transform a call-site like:
-			 *  {@code `foo(a,b)`}
-			 * to
-			 * {@code `let a$inline$0 = a; foo(a$inline$0 ,b)`}
-			 * and not
-			 * {@code `let this$inline$0 = this; let a$inline$0=a; foo(a$inline$0, b)`}.
-			 * Hence we skip generating a temporary for an implicit "this" arg
-			 */
-			continue
-		}
-		// TODO: b/298828688 Use `NodeUtil.isImmutableValue` to detect some simple immutable cases
-		// and skip generating temps for those as well.
-
-		if parameterName == requiresTempsUpToThisParameterName {
-			namesNeedingTemps.Add(parameterName)
-			break
-		} else {
-			namesNeedingTemps.Add(parameterName)
-		}
-	}
+	f.addCallArgumentsNeedingTemps(fnNode, argMap, modifiedParameters, requiresTempsUpToThisParameterName, namesNeedingTemps)
 	return namesNeedingTemps
 }
 
@@ -841,19 +692,34 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTempsInto(
 	if requiresTempsUpToThisParameterName == "" {
 		return
 	}
+	f.addCallArgumentsNeedingTemps(fnNode, argMap, nil, requiresTempsUpToThisParameterName, dst)
+}
 
+func (f *FunctionArgumentInjector) addCallArgumentsNeedingTemps(
+	fnNode rhino.Node,
+	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
+	initial *jutil.LinkedHashSet[string],
+	requiresTempsUpToThisParameterName string,
+	dst *jutil.LinkedHashSet[string],
+) {
+	if initial != nil {
+		for p := range initial.All() {
+			dst.Add(p)
+		}
+	}
 	thisArg := argMap.Get(FunctionArgumentInjector_THIS_MARKER).Arg()
+	// mark all names upto requiresTempsUptoParameterName as namesNeedingTemps
 	for parameterName := range argMap.Keys() {
 		if parameterName == FunctionArgumentInjector_THIS_MARKER &&
 			(NodeUtil_IsUndefined(thisArg) ||
 				(fnNode.IsArrowFunction() && thisArg.IsThis())) {
+			// Skip generating a temporary for an implicit "this" arg.
 			continue
 		}
+		dst.Add(parameterName)
 		if parameterName == requiresTempsUpToThisParameterName {
-			dst.Add(parameterName)
 			break
 		}
-		dst.Add(parameterName)
 	}
 }
 
