@@ -160,11 +160,11 @@ func (u *StandardUnionFind[E]) NumSets() int {
 
 // AppendRepresentatives appends the representative elements of all equivalence classes to dst.
 func (u *StandardUnionFind[E]) AppendRepresentatives(dst []E) []E {
-	u.elmap.ForEachValue(func(n *standardUnionFind_Node[E]) {
+	for n := range u.elmap.Values() {
 		if n == n.parent {
 			dst = append(dst, n.element)
 		}
-	})
+	}
 	return dst
 }
 
@@ -177,11 +177,11 @@ func (u *StandardUnionFind[E]) AppendRepresentatives(dst []E) []E {
 // Java: StandardUnionFind.allRepresentatives()
 func (u *StandardUnionFind[E]) AllRepresentatives() *jutil.LinkedHashSet[E] {
 	result := jutil.NewLinkedHashSet[E]()
-	u.elmap.ForEachValue(func(n *standardUnionFind_Node[E]) {
+	for n := range u.elmap.Values() {
 		if n == n.parent {
 			result.Add(n.element)
 		}
-	})
+	}
 	return result
 }
 

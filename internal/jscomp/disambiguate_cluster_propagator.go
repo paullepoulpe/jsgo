@@ -51,23 +51,12 @@ func (p *ClusterPropagator) TraverseEdge(src *ColorGraphNode, unused any, dest *
 	destProps := dest.GetAssociatedProps()
 	startDestPropCount := destProps.Size()
 
-	if slots, ok := src.associatedProps.CompactSlots(); ok {
-		for i := range slots {
-			prop := slots[i].Key()
-			if prop.IsInvalidated() {
-				continue
-			}
-			destProps.PutIfAbsent(prop, ColorGraphNode_PropAssociation_SUPERTYPE)
-			prop.GetClusters().Union(src, dest)
+	for prop := range src.GetAssociatedProps().Keys() {
+		if prop.IsInvalidated() {
+			continue
 		}
-	} else {
-		for prop := range src.GetAssociatedProps().Keys() {
-			if prop.IsInvalidated() {
-				continue
-			}
-			destProps.PutIfAbsent(prop, ColorGraphNode_PropAssociation_SUPERTYPE)
-			prop.GetClusters().Union(src, dest)
-		}
+		destProps.PutIfAbsent(prop, ColorGraphNode_PropAssociation_SUPERTYPE)
+		prop.GetClusters().Union(src, dest)
 	}
 
 	// Were any properties added to dest?

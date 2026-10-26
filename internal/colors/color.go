@@ -172,9 +172,7 @@ func Color_CreateUnionWithBuilder(
 	} else {
 		newElements = jutil.NewObjectLinkedHashSet[*Color]()
 	}
-	var idsBuf [8]jutil.LhmSlot[ColorId, struct{}]
 	var ids jutil.LinkedHashSet[ColorId]
-	ids.InitWithBuffer(idsBuf[:])
 
 	isClosureAssert := true
 	isConstructor := true

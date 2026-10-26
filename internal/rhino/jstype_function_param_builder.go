@@ -46,13 +46,6 @@ type FunctionParamBuilder struct {
 
 var emptyFunctionTypeParams = []*FunctionType_Parameter{}
 
-// InitWithBuf initializes b in-place with registry and an optional caller-provided backing slice.
-func (b *FunctionParamBuilder) InitWithBuf(registry *JSTypeRegistry, buf []*FunctionType_Parameter) *FunctionParamBuilder {
-	b.registry = registry
-	b.parameters = buf[:0]
-	return b
-}
-
 // Java: FunctionParamBuilder(JSTypeRegistry)
 func NewFunctionParamBuilder(registry *JSTypeRegistry) *FunctionParamBuilder {
 	return &FunctionParamBuilder{registry: registry, parameters: emptyFunctionTypeParams}

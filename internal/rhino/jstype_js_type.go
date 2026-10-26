@@ -1322,7 +1322,7 @@ func (t *JSTypeBase) FindPropertyTypeByKey(propertyName Property_Key) JSType {
 	}
 
 	typeMap := t.self().GetTemplateTypeMap()
-	replacer := MakeTemplateTypeReplacerForPartialReplacement(t.GetRegistry(), typeMap)
+	replacer := TemplateTypeReplacer_MakeForPartialReplacement(t.GetRegistry(), typeMap)
 	return replacer.VisitJSType(propertyType)
 }
 

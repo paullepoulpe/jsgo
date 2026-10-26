@@ -36,12 +36,10 @@
 package rhino
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
-
-type visitedObjEntry struct {
-	k, v JSType
-}
 
 // TemplateTypeReplacer specializes TemplatizedTypes according to provided
 // bindings.
@@ -66,15 +64,8 @@ type TemplateTypeReplacer struct {
 	// to -1.
 	ownSubMapBoundary int
 
-	// Recursion-cycle guard: inline buffer for common depths <= 8, overflow slice if deeper.
-	seenTypesBuf [8]JSType
-	seenTypesLen int
-	seenTypes    []JSType
-
-	// Visited record-type cache: inline buffer + overflow map.
-	visitedObjBuf [4]visitedObjEntry
-	visitedObjLen int
-	visitedObjMap map[JSType]JSType
+	seenTypes          []JSType
+	visitedObjectTypes map[JSType]JSType
 }
 
 // TemplateTypeReplacer_ForInference creates a replacer for use during
@@ -87,12 +78,6 @@ func TemplateTypeReplacer_ForInference(
 	return &r
 }
 
-// NewTemplateTypeReplacerForInference is an alias for TemplateTypeReplacer_ForInference.
-func NewTemplateTypeReplacerForInference(
-	registry *JSTypeRegistry, bindings *jutil.LinkedHashMap[*TemplateType, JSType]) *TemplateTypeReplacer {
-	return TemplateTypeReplacer_ForInference(registry, bindings)
-}
-
 // TemplateTypeReplacer_MakeForInference creates a value replacer for use during
 // TypeInference without heap allocation.
 func TemplateTypeReplacer_MakeForInference(
@@ -101,54 +86,10 @@ func TemplateTypeReplacer_MakeForInference(
 	if n == 0 {
 		return MakeTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
 	}
-	var keysBuf [4]*TemplateType
-	var valuesBuf [4]JSType
-	var keys []*TemplateType
-	var values []JSType
-	if n <= len(keysBuf) {
-		keys = keysBuf[:0]
-		values = valuesBuf[:0]
-	} else {
-		keys = make([]*TemplateType, 0, n)
-		values = make([]JSType, 0, n)
-	}
+	keys := make([]*TemplateType, 0, n)
+	values := make([]JSType, 0, n)
 	unknown := registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 	for key, value := range bindings.All() {
-		if key == nil {
-			panic(jutil.NewNullPointerExceptionMsg("at index " + jutil.ToJavaString(len(keys))))
-		}
-		keys = append(keys, key)
-		if value != nil {
-			values = append(values, value)
-		} else {
-			values = append(values, unknown)
-		}
-	}
-	m := registry.GetEmptyTemplateTypeMap().CopyWithExtensionOfKeys(keys, values)
-	return MakeTemplateTypeReplacer(registry, m, true, true, true)
-}
-
-// MakeTemplateTypeReplacerForInference creates a value replacer for use during
-// TypeInference from a map without heap allocation.
-func MakeTemplateTypeReplacerForInference(
-	registry *JSTypeRegistry, replacements map[*TemplateType]JSType) TemplateTypeReplacer {
-	n := len(replacements)
-	if n == 0 {
-		return MakeTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
-	}
-	var keysBuf [4]*TemplateType
-	var valuesBuf [4]JSType
-	var keys []*TemplateType
-	var values []JSType
-	if n <= len(keysBuf) {
-		keys = keysBuf[:0]
-		values = valuesBuf[:0]
-	} else {
-		keys = make([]*TemplateType, 0, n)
-		values = make([]JSType, 0, n)
-	}
-	unknown := registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
-	for key, value := range replacements {
 		if key == nil {
 			panic(jutil.NewNullPointerExceptionMsg("at index " + jutil.ToJavaString(len(keys))))
 		}
@@ -175,11 +116,6 @@ func TemplateTypeReplacer_ForTotalReplacement(registry *JSTypeRegistry, bindings
 	return NewTemplateTypeReplacer(registry, bindings, false, false, true)
 }
 
-// MakeTemplateTypeReplacerForTotalReplacement creates a value replacer for total replacement.
-func MakeTemplateTypeReplacerForTotalReplacement(registry *JSTypeRegistry, bindings *TemplateTypeMap) TemplateTypeReplacer {
-	return MakeTemplateTypeReplacer(registry, bindings, false, false, true)
-}
-
 // TemplateTypeReplacer_ForPartialReplacement creates a replacer that may
 // not totally eliminate TemplateTypes from the definitions of the types it
 // performs replacement on.
@@ -190,16 +126,6 @@ func MakeTemplateTypeReplacerForTotalReplacement(registry *JSTypeRegistry, bindi
 // Java: TemplateTypeReplacer.forPartialReplacement(JSTypeRegistry, TemplateTypeMap)
 func TemplateTypeReplacer_ForPartialReplacement(registry *JSTypeRegistry, bindings *TemplateTypeMap) *TemplateTypeReplacer {
 	return NewTemplateTypeReplacer(registry, bindings, false, false, false)
-}
-
-// NewTemplateTypeReplacerForPartialReplacement is an alias for TemplateTypeReplacer_ForPartialReplacement.
-func NewTemplateTypeReplacerForPartialReplacement(registry *JSTypeRegistry, bindings *TemplateTypeMap) *TemplateTypeReplacer {
-	return TemplateTypeReplacer_ForPartialReplacement(registry, bindings)
-}
-
-// MakeTemplateTypeReplacerForPartialReplacement creates a value replacer for partial replacement without heap allocation.
-func MakeTemplateTypeReplacerForPartialReplacement(registry *JSTypeRegistry, bindings *TemplateTypeMap) TemplateTypeReplacer {
-	return MakeTemplateTypeReplacer(registry, bindings, false, false, false)
 }
 
 // TemplateTypeReplacer_MakeForPartialReplacement creates a value replacer for partial replacement without heap allocation.
@@ -248,76 +174,24 @@ func (r *TemplateTypeReplacer) InitSeenTypes() {
 }
 
 func (r *TemplateTypeReplacer) seenContains(t JSType) bool {
-	if r.seenTypes != nil {
-		for _, s := range r.seenTypes {
-			if s == t {
-				return true
-			}
-		}
-		return false
-	}
-	for i := 0; i < r.seenTypesLen; i++ {
-		if r.seenTypesBuf[i] == t {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(r.seenTypes, t)
 }
 
 func (r *TemplateTypeReplacer) seenAdd(t JSType) bool {
-	if r.seenContains(t) {
+	if slices.Contains(r.seenTypes, t) {
 		return false
 	}
-	if r.seenTypes != nil {
-		r.seenTypes = append(r.seenTypes, t)
-		return true
-	}
-	if r.seenTypesLen < len(r.seenTypesBuf) {
-		r.seenTypesBuf[r.seenTypesLen] = t
-		r.seenTypesLen++
-		return true
-	}
-	r.seenTypes = make([]JSType, len(r.seenTypesBuf)+1, len(r.seenTypesBuf)*2)
-	copy(r.seenTypes, r.seenTypesBuf[:])
-	r.seenTypes[len(r.seenTypesBuf)] = t
+	r.seenTypes = append(r.seenTypes, t)
 	return true
 }
 
 func (r *TemplateTypeReplacer) seenRemove(t JSType) {
-	if r.seenTypes != nil {
-		n := len(r.seenTypes)
-		if n == 0 {
-			return
-		}
-		if r.seenTypes[n-1] == t {
-			r.seenTypes[n-1] = nil
-			r.seenTypes = r.seenTypes[:n-1]
-			return
-		}
-		for i := n - 2; i >= 0; i-- {
-			if r.seenTypes[i] == t {
-				r.seenTypes[i] = r.seenTypes[n-1]
-				r.seenTypes[n-1] = nil
-				r.seenTypes = r.seenTypes[:n-1]
-				return
-			}
-		}
-		return
-	}
-	n := r.seenTypesLen
-	if n == 0 {
-		return
-	}
-	if r.seenTypesBuf[n-1] == t {
-		r.seenTypesBuf[n-1] = nil
-		r.seenTypesLen = n - 1
-		return
-	}
-	for i := n - 2; i >= 0; i-- {
-		if r.seenTypesBuf[i] == t {
-			r.seenTypesBuf[i] = r.seenTypesBuf[n-1]
-			r.seenTypesBuf[n-1] = nil
-			r.seenTypesLen = n - 1
+	for i := len(r.seenTypes) - 1; i >= 0; i-- {
+		if r.seenTypes[i] == t {
+			last := len(r.seenTypes) - 1
+			r.seenTypes[i] = r.seenTypes[last]
+			r.seenTypes[last] = nil
+			r.seenTypes = r.seenTypes[:last]
 			return
 		}
 	}
@@ -607,7 +481,6 @@ func (r *TemplateTypeReplacer) CaseTemplatizedTypeUnguarded(type_ *TemplatizedTy
 	templateTypes := type_.GetTemplateTypes()
 	n := len(templateTypes)
 	var builder []JSType
-	var builderBuf [4]JSType
 	for i := 0; i < n; i++ {
 		beforeTemplateType := templateTypes[i]
 		afterTemplateType := r.visitJSType(beforeTemplateType)
@@ -616,11 +489,7 @@ func (r *TemplateTypeReplacer) CaseTemplatizedTypeUnguarded(type_ *TemplatizedTy
 			builder[i] = afterTemplateType
 		} else if beforeTemplateType != afterTemplateType {
 			changed = true
-			if n <= len(builderBuf) {
-				builder = builderBuf[:n]
-			} else {
-				builder = make([]JSType, n)
-			}
+			builder = make([]JSType, n)
 			copy(builder[:i], templateTypes[:i])
 			builder[i] = afterTemplateType
 		}
@@ -689,18 +558,13 @@ func (r *TemplateTypeReplacer) CaseUnionTypeUnguarded(type_ *UnionType) JSType {
 	alternates := type_.GetAlternates()
 	alternateCount := len(alternates)
 	var results []JSType
-	var resultsBuf [32]JSType
 	for i := 0; i < alternateCount; i++ {
 		alternative := alternates[i]
 		replacement := r.visitJSType(alternative)
 		if results != nil {
 			results[i] = replacement
 		} else if replacement != alternative {
-			if alternateCount <= len(resultsBuf) {
-				results = resultsBuf[:alternateCount]
-			} else {
-				results = make([]JSType, alternateCount)
-			}
+			results = make([]JSType, alternateCount)
 			copy(results[:i], alternates[:i])
 			results[i] = replacement
 		}
@@ -839,31 +703,12 @@ func (r *TemplateTypeReplacer) GuardAgainstCycles(type_ JSType, mapper func(JSTy
 //
 // Java: TemplateTypeReplacer.getVisitedObjectTypeOrNull(JSType)
 func (r *TemplateTypeReplacer) GetVisitedObjectTypeOrNull(type_ JSType) JSType {
-	for i := 0; i < r.visitedObjLen; i++ {
-		if r.visitedObjBuf[i].k == type_ {
-			return r.visitedObjBuf[i].v
-		}
-	}
-	if r.visitedObjMap != nil {
-		return r.visitedObjMap[type_]
-	}
-	return nil
+	return r.visitedObjectTypes[type_]
 }
 
 func (r *TemplateTypeReplacer) putVisitedObjectType(k, v JSType) {
-	for i := 0; i < r.visitedObjLen; i++ {
-		if r.visitedObjBuf[i].k == k {
-			r.visitedObjBuf[i].v = v
-			return
-		}
+	if r.visitedObjectTypes == nil {
+		r.visitedObjectTypes = make(map[JSType]JSType)
 	}
-	if r.visitedObjLen < len(r.visitedObjBuf) {
-		r.visitedObjBuf[r.visitedObjLen] = visitedObjEntry{k: k, v: v}
-		r.visitedObjLen++
-		return
-	}
-	if r.visitedObjMap == nil {
-		r.visitedObjMap = make(map[JSType]JSType, 8)
-	}
-	r.visitedObjMap[k] = v
+	r.visitedObjectTypes[k] = v
 }

@@ -732,14 +732,8 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 	if interferenceBits != nil {
 		// Go through every CFG node in the program and look at variables that are live.
 		// Set the pair of live variables in interferenceBits so we can add an edge between them.
-		if nNodes := cfgNodes.CompactLen(); nNodes >= 0 {
-			for idx := 0; idx < nNodes; idx++ {
-				c.processCfgNodeBits128(cfg, cfgNodes.ValueAtSlot(idx), interferenceBits)
-			}
-		} else {
-			for cfgNode := range cfgNodes.Values() {
-				c.processCfgNodeBits128(cfg, cfgNode, interferenceBits)
-			}
+		for cfgNode := range cfgNodes.Values() {
+			c.processCfgNodeBits128(cfg, cfgNode, interferenceBits)
 		}
 
 		lrc.root = rhino.NilNode

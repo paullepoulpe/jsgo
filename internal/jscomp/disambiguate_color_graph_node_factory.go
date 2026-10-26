@@ -73,20 +73,7 @@ func (f *ColorGraphNodeFactory) GetAllKnownTypes() *jutil.LinkedHashSet[*ColorGr
 
 // Java: ColorGraphNodeFactory.newColorGraphNode(Color)
 func (f *ColorGraphNodeFactory) newColorGraphNode(key *colors.Color) *ColorGraphNode {
-	jutil.CheckNotNull(key)
-	id := f.typeIndex.Size()
-	jutil.CheckArgument(id >= 0)
-	n := &ColorGraphNode{index: id, color: key}
-	n.associatedProps.InitWithBuffer(n.assocBuf[:0:len(n.assocBuf)])
-	return n
-}
-
-func (f *ColorGraphNodeFactory) KnownTypesCompactLen() int {
-	return f.typeIndex.CompactLen()
-}
-
-func (f *ColorGraphNodeFactory) KnownTypeAtSlot(i int) *ColorGraphNode {
-	return f.typeIndex.ValueAtSlot(i)
+	return ColorGraphNode_Create(key, f.typeIndex.Size())
 }
 
 // simplifyColor merges different colors with the same ambiguation-behavior

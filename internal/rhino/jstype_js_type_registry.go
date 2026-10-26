@@ -2310,9 +2310,7 @@ func (r *JSTypeRegistry) CreateParameters(parameterTypes ...JSType) []*FunctionT
 //
 // Java: JSTypeRegistry.createParameters(boolean, JSType...)
 func (r *JSTypeRegistry) CreateParametersWithLastVarArgs(lastVarArgs bool, parameterTypes ...JSType) []*FunctionType_Parameter {
-	var paramBuf [8]*FunctionType_Parameter
-	var builder FunctionParamBuilder
-	builder.InitWithBuf(r, paramBuf[:0])
+	builder := NewFunctionParamBuilderWithCapacity(r, len(parameterTypes))
 	max := len(parameterTypes) - 1
 	for i := 0; i <= max; i++ {
 		if lastVarArgs && i == max {
@@ -2338,9 +2336,7 @@ func (r *JSTypeRegistry) CreateParametersWithVarArgs(parameterTypes ...JSType) [
 //
 // Java: JSTypeRegistry.createOptionalParameters(JSType...)
 func (r *JSTypeRegistry) CreateOptionalParameters(parameterTypes ...JSType) []*FunctionType_Parameter {
-	var paramBuf [8]*FunctionType_Parameter
-	var builder FunctionParamBuilder
-	builder.InitWithBuf(r, paramBuf[:0])
+	builder := NewFunctionParamBuilderWithCapacity(r, len(parameterTypes))
 	builder.AddOptionalParams(parameterTypes...)
 	return builder.Build()
 }
@@ -2724,9 +2720,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 			current = current.GetNext()
 		}
 
-		var paramBuf [8]*FunctionType_Parameter
-		var paramBuilder FunctionParamBuilder
-		paramBuilder.InitWithBuf(r, paramBuf[:0])
+		paramBuilder := NewFunctionParamBuilder(r)
 
 		if current.GetToken() == Token_PARAM_LIST {
 			for arg := current.GetFirstChild(); !arg.IsNil(); arg = arg.GetNext() {
@@ -2763,7 +2757,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 			kind = FunctionType_Kind_CONSTRUCTOR
 		}
 		return FunctionType_Builder_(r).
-			WithParams(&paramBuilder).
+			WithParams(paramBuilder).
 			WithReturnType(returnType).
 			WithTypeOfThis(thisType).
 			WithKind(kind).

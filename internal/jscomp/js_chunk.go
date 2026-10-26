@@ -303,14 +303,8 @@ func (c *JSChunk) GetInputs() []*CompilerInput {
 		return emptyCompilerInputs[:0:0]
 	}
 	out := make([]*CompilerInput, 0, n)
-	slot := 0
-	for {
-		input, nextSlot, ok := c.inputs.NextSlotValue(slot)
-		if !ok {
-			break
-		}
+	for input := range c.inputs.Values() {
 		out = append(out, input)
-		slot = nextSlot
 	}
 	c.cachedInputs = out
 	return out[:len(out):len(out)]

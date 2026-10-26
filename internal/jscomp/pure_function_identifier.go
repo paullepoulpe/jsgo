@@ -672,95 +672,43 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 	p.ensureReverseCallGraphCapacity(totalRefs + 2)
 
 	hasDotNameCollision := false
-	if slots, ok := referenceMap.names.CompactSlots(); ok {
-		for i := range slots {
-			key := slots[i].Key()
-			value := slots[i].Value()
-			if value.IsEmpty() {
-				continue
-			}
-			jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
-			p.summariesByName[key] = p.createSummaryInGraph(key)
+	for key, value := range referenceMap.GetNameReferences() {
+		if value.IsEmpty() {
+			continue
 		}
-	} else {
-		for key, value := range referenceMap.GetNameReferences() {
-			if value.IsEmpty() {
-				continue
-			}
-			jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
-			p.summariesByName[key] = p.createSummaryInGraph(key)
-		}
+		jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
+		p.summariesByName[key] = p.createSummaryInGraph(key)
 	}
-	if slots, ok := referenceMap.props.CompactSlots(); ok {
-		for i := range slots {
-			key := slots[i].Key()
-			value := slots[i].Value()
-			if value.IsEmpty() {
-				continue
-			}
-			jutil.CheckState(key != "")
-			propKey := p.allocPropKey(key)
-			if existing := p.summariesByName[propKey]; existing != nil {
-				p.propSummariesByName[key] = existing
-				hasDotNameCollision = true
-			} else {
-				s := p.createSummaryInGraph(propKey)
-				p.summariesByName[propKey] = s
-				p.propSummariesByName[key] = s
-			}
+	for key, value := range referenceMap.GetPropReferences() {
+		if value.IsEmpty() {
+			continue
 		}
-	} else {
-		for key, value := range referenceMap.GetPropReferences() {
-			if value.IsEmpty() {
-				continue
-			}
-			jutil.CheckState(key != "")
-			propKey := p.allocPropKey(key)
-			if existing := p.summariesByName[propKey]; existing != nil {
-				p.propSummariesByName[key] = existing
-				hasDotNameCollision = true
-			} else {
-				s := p.createSummaryInGraph(propKey)
-				p.summariesByName[propKey] = s
-				p.propSummariesByName[key] = s
-			}
+		jutil.CheckState(key != "")
+		propKey := p.allocPropKey(key)
+		if existing := p.summariesByName[propKey]; existing != nil {
+			p.propSummariesByName[key] = existing
+			hasDotNameCollision = true
+		} else {
+			s := p.createSummaryInGraph(propKey)
+			p.summariesByName[propKey] = s
+			p.propSummariesByName[key] = s
 		}
 	}
 
 	if !hasDotNameCollision {
-		if slots, ok := referenceMap.names.CompactSlots(); ok {
-			for i := range slots {
-				refs := slots[i].Value().Slice()
-				if len(refs) == 0 {
-					continue
-				}
-				p.populateFunctionDefinitionsWithSummary(p.summariesByName[slots[i].Key()], refs)
+		for key, value := range referenceMap.GetNameReferences() {
+			refs := value.Slice()
+			if len(refs) == 0 {
+				continue
 			}
-		} else {
-			for key, value := range referenceMap.GetNameReferences() {
-				refs := value.Slice()
-				if len(refs) == 0 {
-					continue
-				}
-				p.populateFunctionDefinitionsWithSummary(p.summariesByName[key], refs)
-			}
+			p.populateFunctionDefinitionsWithSummary(p.summariesByName[key], refs)
 		}
-		if slots, ok := referenceMap.props.CompactSlots(); ok {
-			for i := range slots {
-				refs := slots[i].Value().Slice()
-				if len(refs) == 0 {
-					continue
-				}
-				p.populateFunctionDefinitionsWithSummary(p.propSummariesByName[slots[i].Key()], refs)
+		for key, value := range referenceMap.GetPropReferences() {
+			refs := value.Slice()
+			if len(refs) == 0 {
+				continue
 			}
-		} else {
-			for key, value := range referenceMap.GetPropReferences() {
-				refs := value.Slice()
-				if len(refs) == 0 {
-					continue
-				}
-				p.populateFunctionDefinitionsWithSummary(p.propSummariesByName[key], refs)
-			}
+			p.populateFunctionDefinitionsWithSummary(p.propSummariesByName[key], refs)
 		}
 	} else {
 		referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.ArrayList[rhino.Node]](max(totalRefs, 12))

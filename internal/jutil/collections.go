@@ -195,12 +195,6 @@ type LhmSlot[K comparable, V any] struct {
 	key   K
 }
 
-// Key returns the slot's key.
-func (s *LhmSlot[K, V]) Key() K { return s.key }
-
-// Value returns the slot's value.
-func (s *LhmSlot[K, V]) Value() V { return s.value }
-
 // LinkedHashMap is java.util.LinkedHashMap (insertion order). It also models
 // Guava ImmutableMap and any Java map whose iteration order is insertion
 // order. Keys use Go equality, which matches Java equals() for strings,
@@ -356,23 +350,6 @@ func (h *LinkedHashMap[K, V]) EnsureCapacity(totalCap int) {
 	}
 }
 
-// CompactLen returns len(h.slots) when every slot is live (no entry was
-// removed), or -1 otherwise.
-func (h *LinkedHashMap[K, V]) CompactLen() int {
-	if h == nil {
-		return 0
-	}
-	if int(h.size) == len(h.slots) {
-		return len(h.slots)
-	}
-	return -1
-}
-
-// ValueAtSlot returns h.slots[i].value for 0 <= i < h.CompactLen().
-func (h *LinkedHashMap[K, V]) ValueAtSlot(i int) V {
-	return h.slots[i].value
-}
-
 func (h *LinkedHashMap[K, V]) loadIndex() *lhmIndex {
 	return h.m.Load()
 }
@@ -473,11 +450,6 @@ func (h *LinkedHashMap[K, V]) Put(k K, v V) V {
 // PutNew inserts (k, v) when the caller has already verified that k is absent.
 func (h *LinkedHashMap[K, V]) PutNew(k K, v V) {
 	h.add(k, v)
-}
-
-// HasBacking reports whether h already has backing slot capacity.
-func (h *LinkedHashMap[K, V]) HasBacking() bool {
-	return cap(h.slots) > 0
 }
 
 // Cap returns the current slot slice capacity of h.
@@ -681,31 +653,6 @@ func (h *LinkedHashMap[K, V]) Clear() {
 	}
 	h.size = 0
 	h.first = 0
-}
-
-// ForEachValue calls fn for each value in insertion order without allocating an iterator closure.
-func (h *LinkedHashMap[K, V]) ForEachValue(fn func(V)) {
-	if h == nil || h.size == 0 {
-		return
-	}
-	for i := int(h.first); i < len(h.slots); i++ {
-		if m := h.loadIndex(); i < int(h.first) || (m != nil && i < len(m.removed) && m.removed[i]) {
-			continue
-		}
-		fn(h.slots[i].value)
-	}
-}
-
-// CompactSlots returns h's contiguous slot slice and true when h has no removed
-// entries (including when h is nil or empty), enabling zero-allocation loops.
-func (h *LinkedHashMap[K, V]) CompactSlots() ([]LhmSlot[K, V], bool) {
-	if h == nil {
-		return nil, true
-	}
-	if int(h.size) == len(h.slots) {
-		return h.slots, true
-	}
-	return nil, false
 }
 
 // All iterates entries in insertion order. Entries removed during iteration
@@ -1536,22 +1483,6 @@ func (h *ObjectLinkedHashMap[K, V]) KeySlice() []K {
 		}
 	}
 	return out
-}
-
-// CompactLen returns len(h.slots) when h has no tombstones, or -1 otherwise.
-func (h *ObjectLinkedHashMap[K, V]) CompactLen() int {
-	if h == nil {
-		return 0
-	}
-	if int(h.size) == len(h.slots) {
-		return len(h.slots)
-	}
-	return -1
-}
-
-// ValueAtSlot returns h.slots[i].value for 0 <= i < h.CompactLen().
-func (h *ObjectLinkedHashMap[K, V]) ValueAtSlot(i int) V {
-	return h.slots[i].value
 }
 
 func (h *ObjectLinkedHashMap[K, V]) lookupAny(k any) (any, bool) {

@@ -6648,9 +6648,7 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 	finder := &nodeUtil_getAllVarsDeclaredInFunction_finder{
 		scope: scope,
 	}
-	finder.result.mapStorage.InitWithBuffer(finder.slotBuf[:])
 	finder.result.allVarsInFn = &finder.result.mapStorage
-	finder.result.orderedVars = finder.varBuf[:0:len(finder.varBuf)]
 
 	b := NodeTraversal_Builder{
 		compiler:     compiler,
@@ -6666,10 +6664,8 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 // nodeUtil_getAllVarsDeclaredInFunction_finder is the anonymous
 // ScopedCallback of getAllVarsDeclaredInFunction.
 type nodeUtil_getAllVarsDeclaredInFunction_finder struct {
-	result  NodeUtil_AllVarsDeclaredInFunction
-	scope   *Scope
-	slotBuf [8]jutil.LhmSlot[string, *Var]
-	varBuf  [8]*Var
+	result NodeUtil_AllVarsDeclaredInFunction
+	scope  *Scope
 }
 
 func nodeUtilSubtreeHasBlockScopeDecls(n rhino.Node) bool {

@@ -245,18 +245,10 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 	if maxVars > 0 && scope.GetVarCount() >= maxVars {
 		return nil
 	}
-	if !f.finder.result.mapStorage.HasBacking() {
-		f.finder.result.mapStorage.InitWithBuffer(f.finder.slotBuf[:])
-		f.finder.result.allVarsInFn = &f.finder.result.mapStorage
-	} else {
-		f.finder.result.mapStorage.Clear()
-	}
-	if cap(f.finder.result.orderedVars) == 0 {
-		f.finder.result.orderedVars = f.finder.varBuf[:0]
-	} else {
-		clear(f.finder.result.orderedVars)
-		f.finder.result.orderedVars = f.finder.result.orderedVars[:0]
-	}
+	f.finder.result.mapStorage.Clear()
+	f.finder.result.allVarsInFn = &f.finder.result.mapStorage
+	clear(f.finder.result.orderedVars)
+	f.finder.result.orderedVars = f.finder.result.orderedVars[:0]
 	f.finder.scope = scope
 
 	fnRoot := scope.GetRootNode()

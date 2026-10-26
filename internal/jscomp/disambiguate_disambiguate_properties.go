@@ -91,42 +91,23 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		// prevent OOMs for very large projects.
 		disambiguateProperties_propRefsProducer{propIndex: propIndex})
 
-	if nKnown := flattener.KnownTypesCompactLen(); nKnown >= 0 {
-		for i := 0; i < nKnown; i++ {
-			graphBuilder.Add(flattener.KnownTypeAtSlot(i))
-		}
-	} else {
-		graphBuilder.AddAll(flattener.GetAllKnownTypes().All())
-	}
+	graphBuilder.AddAll(flattener.typeIndex.Values())
 	graph := graphBuilder.Build()
 
 	// Model legacy behavior from the old (pre-January 2021) disambiguator.
 	// TODO(b/177695515): delete this section.
-	if nKnown := flattener.KnownTypesCompactLen(); nKnown >= 0 {
-		for i := 0; i < nKnown; i++ {
-			colorGraphNode := flattener.KnownTypeAtSlot(i)
-			if len(graph.GetOutEdges(colorGraphNode)) == 0 {
-				continue
-			}
-			if colorGraphNode.GetColor().IsUnion() {
-				continue
-			}
-			d.RegisterOwnDeclaredProperties(colorGraphNode, propIndex)
+	for colorGraphNode := range flattener.typeIndex.Values() {
+		if len(graph.GetOutEdges(colorGraphNode)) == 0 {
+			// Skipping leaf types improves code size, especially as "namespace" types are all leaf
+			// types and will often have their declared properties collapsed into variables.
+			continue
 		}
-	} else {
-		for colorGraphNode := range flattener.GetAllKnownTypes().All() {
-			if len(graph.GetOutEdges(colorGraphNode)) == 0 {
-				// Skipping leaf types improves code size, especially as "namespace" types are all leaf
-				// types and will often have their declared properties collapsed into variables.
-				continue
-			}
-			if colorGraphNode.GetColor().IsUnion() {
-				// Only need this step for SINGLE ColorGraphNodes because
-				// and we will add properties of each alternate elsewhere in this loop.
-				continue
-			}
-			d.RegisterOwnDeclaredProperties(colorGraphNode, propIndex)
+		if colorGraphNode.GetColor().IsUnion() {
+			// Only need this step for SINGLE ColorGraphNodes because
+			// and we will add properties of each alternate elsewhere in this loop.
+			continue
 		}
+		d.RegisterOwnDeclaredProperties(colorGraphNode, propIndex)
 	}
 
 	d.LogForDiagnostics(
@@ -278,30 +259,11 @@ func DisambiguateProperties_InvalidateWellKnownProperties(
 
 // Java: DisambiguateProperties.invalidateBasedOnType(ColorGraphNodeFactory)
 func (d *DisambiguateProperties) InvalidateBasedOnType(flattener *ColorGraphNodeFactory) {
-	if nKnown := flattener.KnownTypesCompactLen(); nKnown >= 0 {
-		for i := 0; i < nKnown; i++ {
-			type_ := flattener.KnownTypeAtSlot(i)
-			if type_.GetColor().IsInvalidating() {
-				if slots, ok := type_.associatedProps.CompactSlots(); ok {
-					inv := Invalidation_InvalidatingType(type_.GetIndex())
-					for j := range slots {
-						slots[j].Key().Invalidate(inv)
-					}
-				} else {
-					for prop := range type_.GetAssociatedProps().Keys() {
-						prop.Invalidate(Invalidation_InvalidatingType(type_.GetIndex()))
-					}
-				}
-			} else {
-				d.InvalidateNonDeclaredPropertyAccesses(type_)
-			}
-		}
-		return
-	}
-	for type_ := range flattener.GetAllKnownTypes().All() {
+	for type_ := range flattener.typeIndex.Values() {
 		if type_.GetColor().IsInvalidating() {
+			inv := Invalidation_InvalidatingType(type_.GetIndex())
 			for prop := range type_.GetAssociatedProps().Keys() {
-				prop.Invalidate(Invalidation_InvalidatingType(type_.GetIndex()))
+				prop.Invalidate(inv)
 			}
 		} else {
 			d.InvalidateNonDeclaredPropertyAccesses(type_)
@@ -325,18 +287,6 @@ func (d *DisambiguateProperties) InvalidateNonDeclaredPropertyAccesses(colorGrap
 		!color.IsInvalidating(),
 		"Not applicable to invalidating types. All their properties are invalidated")
 
-	if slots, ok := colorGraphNode.associatedProps.CompactSlots(); ok {
-		for i := range slots {
-			prop := slots[i].Key()
-			if prop.IsInvalidated() {
-				continue
-			}
-			if !d.MayHaveProperty(color, prop.GetName()) {
-				prop.Invalidate(Invalidation_UndeclaredAccess(colorGraphNode.GetIndex()))
-			}
-		}
-		return
-	}
 	for prop := range colorGraphNode.GetAssociatedProps().Keys() {
 		if prop.IsInvalidated() {
 			continue // Skip unnecessary `hasProperty` lookups which can be expensive.

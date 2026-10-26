@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -75,8 +77,6 @@ type FunctionTypeBuilder struct {
 	constructorTemplateTypeNames []*rhino.TemplateType
 	declarationScope             *TypedScope
 	templateScope                rhino.StaticTypedScope
-	paramBuilderScratch          rhino.FunctionParamBuilder
-	paramScratchBuf              [8]*rhino.FunctionType_Parameter
 }
 
 var FunctionTypeBuilder_EXTENDS_WITHOUT_TYPEDEF = DiagnosticType_Warning(
@@ -394,7 +394,7 @@ func (f *FunctionTypeBuilder) InferFromOverriddenFunction(oldType rhino.Function
 	} else {
 		// We're overriding with a function literal. Apply type information
 		// to each parameter of the literal.
-		paramBuilder := f.paramBuilderScratch.InitWithBuf(f.typeRegistry, f.paramScratchBuf[:0])
+		paramBuilder := rhino.NewFunctionParamBuilder(f.typeRegistry)
 		oldParams := oldType.GetParameters()
 		oldParamsIndex := 0
 		warnedAboutArgList := false
@@ -758,12 +758,10 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 		}
 	}
 
-	builder := f.paramBuilderScratch.InitWithBuf(f.typeRegistry, f.paramScratchBuf[:0])
+	builder := rhino.NewFunctionParamBuilder(f.typeRegistry)
 	warnedAboutArgList := false
 	hasJsDocParams := info != nil && info.GetParameterCount() > 0
-	var seenBuf [8]string
-	var seenOverflow []string
-	seenCount := 0
+	var seen []string
 	isVarArgs := false
 	paramIndex := 0
 	for param := paramsParent.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
@@ -801,12 +799,7 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 			}
 		}
 		if hasParamName && hasJsDocParams {
-			if seenCount < len(seenBuf) {
-				seenBuf[seenCount] = paramName
-			} else {
-				seenOverflow = append(seenOverflow, paramName)
-			}
-			seenCount++
+			seen = append(seen, paramName)
 		}
 
 		// type from JSDocInfo
@@ -856,25 +849,9 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 
 	if hasJsDocParams {
 		paramCount := info.GetParameterCount()
-		nInline := min(seenCount, len(seenBuf))
 		for i := 0; i < paramCount; i++ {
 			jsDocParam, _ := info.GetParameterNameValueAt(i)
-			found := false
-			for j := 0; j < nInline; j++ {
-				if seenBuf[j] == jsDocParam {
-					found = true
-					break
-				}
-			}
-			if !found {
-				for _, s := range seenOverflow {
-					if s == jsDocParam {
-						found = true
-						break
-					}
-				}
-			}
-			if !found {
+			if !slices.Contains(seen, jsDocParam) {
 				f.ReportWarning(FunctionTypeBuilder_INEXISTENT_PARAM, jsDocParam, f.FormatFnName())
 			}
 		}
