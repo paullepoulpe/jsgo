@@ -19,7 +19,12 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"slices"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // SimpleDependencyInfo is a class to hold JS dependency information for a
 // single .js file.
@@ -221,12 +226,34 @@ func (d *SimpleDependencyInfo) Equals(o any) bool {
 	}
 	return d.name == that.GetName() &&
 		d.pathRelativeToClosureBase == that.GetPathRelativeToClosureBase() &&
-		jutil.ObjectsEquals(jutil.NewArrayListFrom(d.provides), jutil.NewArrayListFrom(that.GetProvides())) &&
-		jutil.ObjectsEquals(jutil.NewArrayListFrom(d.requires), jutil.NewArrayListFrom(that.GetRequires())) &&
-		jutil.ObjectsEquals(jutil.NewArrayListFrom(d.typeRequires), jutil.NewArrayListFrom(that.GetTypeRequires())) &&
+		slices.Equal(d.provides, that.GetProvides()) &&
+		slices.EqualFunc(d.requires, that.GetRequires(), func(a, b *DependencyInfo_Require) bool {
+			return a == b || (a != nil && a.Equals(b))
+		}) &&
+		slices.Equal(d.typeRequires, that.GetTypeRequires()) &&
 		d.loadFlags.Equals(that.GetLoadFlags()) &&
 		d.hasExternsAnnotation == that.GetHasExternsAnnotation() &&
 		d.hasNoCompileAnnotation == that.GetHasNoCompileAnnotation()
+}
+
+func simpleDependencyInfo_stringSliceHash(ss []string) int32 {
+	h := int32(1)
+	for _, s := range ss {
+		h = 31*h + jutil.StringHashCode(s)
+	}
+	return h
+}
+
+func simpleDependencyInfo_requireSliceHash(rs []*DependencyInfo_Require) int32 {
+	h := int32(1)
+	for _, r := range rs {
+		var eh int32
+		if r != nil {
+			eh = r.HashCode()
+		}
+		h = 31*h + eh
+	}
+	return h
 }
 
 // Java: AutoValue_SimpleDependencyInfo.hashCode()
@@ -237,11 +264,11 @@ func (d *SimpleDependencyInfo) HashCode() int32 {
 	h *= 1000003
 	h ^= jutil.StringHashCode(d.pathRelativeToClosureBase)
 	h *= 1000003
-	h ^= jutil.NewArrayListFrom(d.provides).HashCode()
+	h ^= simpleDependencyInfo_stringSliceHash(d.provides)
 	h *= 1000003
-	h ^= jutil.NewArrayListFrom(d.requires).HashCode()
+	h ^= simpleDependencyInfo_requireSliceHash(d.requires)
 	h *= 1000003
-	h ^= jutil.NewArrayListFrom(d.typeRequires).HashCode()
+	h ^= simpleDependencyInfo_stringSliceHash(d.typeRequires)
 	h *= 1000003
 	h ^= d.loadFlags.HashCode()
 	h *= 1000003
@@ -411,30 +438,30 @@ func (b *SimpleDependencyInfo_Builder) SetGoogModule(isModule bool) *SimpleDepen
 func (b *SimpleDependencyInfo_Builder) Build() *SimpleDependencyInfo {
 	if b.set0 != (1|2|4|8) || b.provides == nil ||
 		b.requires == nil || b.typeRequires == nil || b.loadFlags == nil {
-		missing := jutil.NewStringBuilder()
+		var missing strings.Builder
 		if b.set0&4 == 0 {
-			missing.Append(" name")
+			missing.WriteString(" name")
 		}
 		if b.set0&8 == 0 {
-			missing.Append(" pathRelativeToClosureBase")
+			missing.WriteString(" pathRelativeToClosureBase")
 		}
 		if b.provides == nil {
-			missing.Append(" provides")
+			missing.WriteString(" provides")
 		}
 		if b.requires == nil {
-			missing.Append(" requires")
+			missing.WriteString(" requires")
 		}
 		if b.typeRequires == nil {
-			missing.Append(" typeRequires")
+			missing.WriteString(" typeRequires")
 		}
 		if b.loadFlags == nil {
-			missing.Append(" loadFlags")
+			missing.WriteString(" loadFlags")
 		}
 		if b.set0&1 == 0 {
-			missing.Append(" hasExternsAnnotation")
+			missing.WriteString(" hasExternsAnnotation")
 		}
 		if b.set0&2 == 0 {
-			missing.Append(" hasNoCompileAnnotation")
+			missing.WriteString(" hasNoCompileAnnotation")
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}

@@ -247,7 +247,7 @@ func (v *AstValidator) ValidateScriptFeatureSet(scriptNode rhino.Node) {
 			// so that we can typecheck ES6+ features in externs.
 			differentFeatures := scriptFeatures.Without(allowableFeatures)
 			v.Violation(
-				"SCRIPT node contains these unallowable features:"+differentFeatures.GetFeatures().String(),
+				"SCRIPT node contains these unallowable features:"+differentFeatures.String(),
 				v.currentScript)
 		}
 	}

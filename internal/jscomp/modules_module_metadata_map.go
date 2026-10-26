@@ -80,15 +80,6 @@ var moduleMetadataMap_ModuleType_description = [...]string{
 	"a script file that does not contain a goog.provide",
 }
 
-// Java: ModuleMetadataMap.ModuleType.values()
-func ModuleMetadataMap_ModuleType_values() []ModuleMetadataMap_ModuleType {
-	return []ModuleMetadataMap_ModuleType{
-		ModuleMetadataMap_ModuleType_ES6_MODULE, ModuleMetadataMap_ModuleType_GOOG_MODULE,
-		ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE, ModuleMetadataMap_ModuleType_COMMON_JS,
-		ModuleMetadataMap_ModuleType_GOOG_PROVIDE, ModuleMetadataMap_ModuleType_SCRIPT,
-	}
-}
-
 // String is Enum.name().
 func (t ModuleMetadataMap_ModuleType) String() string { return moduleMetadataMap_ModuleType_names[t] }
 
@@ -397,7 +388,7 @@ type ModuleMetadataMap_ModuleMetadata_Builder struct {
 	weaklyRequiredGoogNamespaces              *jutil.ImmutableMultiset[string]
 	es6ImportSpecifiersBuilder_               *jutil.ImmutableMultiset_Builder[string]
 	es6ImportSpecifiers                       *jutil.ImmutableMultiset[string]
-	nestedModulesBuilder_                     *jutil.ImmutableList_Builder[*ModuleMetadataMap_ModuleMetadata]
+	nestedModulesBuf                          []*ModuleMetadataMap_ModuleMetadata
 	nestedModules                             []*ModuleMetadataMap_ModuleMetadata
 	readTogglesBuilder_                       *jutil.ImmutableMultiset_Builder[string]
 	readToggles                               *jutil.ImmutableMultiset[string]
@@ -502,12 +493,9 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) Es6ImportSpecifiersBuilder() 
 	return b.es6ImportSpecifiersBuilder_
 }
 
-// Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.nestedModulesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) NestedModulesBuilder() *jutil.ImmutableList_Builder[*ModuleMetadataMap_ModuleMetadata] {
-	if b.nestedModulesBuilder_ == nil {
-		b.nestedModulesBuilder_ = jutil.ImmutableList_Builder_[*ModuleMetadataMap_ModuleMetadata]()
-	}
-	return b.nestedModulesBuilder_
+// AddNestedModule appends module to the nestedModules builder list.
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) AddNestedModule(module *ModuleMetadataMap_ModuleMetadata) {
+	b.nestedModulesBuf = append(b.nestedModulesBuf, jutil.CheckNotNull(module))
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.readTogglesBuilder()
@@ -558,8 +546,8 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_Mo
 	} else if b.es6ImportSpecifiers == nil {
 		b.es6ImportSpecifiers = jutil.ImmutableMultiset_Of[string]()
 	}
-	if b.nestedModulesBuilder_ != nil {
-		b.nestedModules = b.nestedModulesBuilder_.Build()
+	if b.nestedModulesBuf != nil {
+		b.nestedModules = append([]*ModuleMetadataMap_ModuleMetadata{}, b.nestedModulesBuf...)
 	} else if b.nestedModules == nil {
 		b.nestedModules = []*ModuleMetadataMap_ModuleMetadata{}
 	}

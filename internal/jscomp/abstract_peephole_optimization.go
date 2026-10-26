@@ -141,9 +141,6 @@ type AbstractPeepholeOptimization interface {
 	// Java: AbstractPeepholeOptimization.addFeatureToEnclosingScript(Feature)
 	AddFeatureToEnclosingScript(feature parser.FeatureSet_Feature)
 
-	// Java: AbstractPeepholeOptimization.getNewFeatures()
-	GetNewFeatures() *jutil.LinkedHashSet[parser.FeatureSet_Feature]
-
 	// Java: AbstractPeepholeOptimization.clearNewFeatures()
 	ClearNewFeatures()
 
@@ -171,7 +168,7 @@ type AbstractPeepholeOptimizationBase struct {
 	// NodeUtil#addFeaturesToScript in closer to O(1) time, as this class
 	// doesn't know what script node it's currently in, and would need to
 	// walk the AST.
-	newFeatures *jutil.LinkedHashSet[parser.FeatureSet_Feature]
+	newFeatures *parser.FeatureSet
 }
 
 // InitAbstractPeepholeOptimizationBase is the implicit no-argument
@@ -181,7 +178,7 @@ type AbstractPeepholeOptimizationBase struct {
 // Java: AbstractPeepholeOptimization()
 func (b *AbstractPeepholeOptimizationBase) InitAbstractPeepholeOptimizationBase(self AbstractPeepholeOptimization) {
 	b.self = self
-	b.newFeatures = jutil.NewLinkedHashSet[parser.FeatureSet_Feature]()
+	b.newFeatures = parser.FeatureSet_BARE_MINIMUM
 }
 
 // GetAbstractPeepholeOptimizationBase returns the embedded base.
@@ -457,16 +454,10 @@ func (b *AbstractPeepholeOptimizationBase) AddFeatureToEnclosingScript(feature p
 	// the  current implementation, we let PeepholeOptimizationsPass to find the script in what's
 	// usually O(1) time, or worst case it only calls getEnclosingScript() once per NodeTraversal
 	// and then caches the result.
-	b.newFeatures.Add(feature)
-}
-
-// Java: AbstractPeepholeOptimization.getNewFeatures()
-func (b *AbstractPeepholeOptimizationBase) GetNewFeatures() *jutil.LinkedHashSet[parser.FeatureSet_Feature] {
-	// ImmutableSet.copyOf: a copy in iteration order.
-	return jutil.NewLinkedHashSet(b.newFeatures.ToSlice()...)
+	b.newFeatures = b.newFeatures.With(feature)
 }
 
 // Java: AbstractPeepholeOptimization.clearNewFeatures()
 func (b *AbstractPeepholeOptimizationBase) ClearNewFeatures() {
-	b.newFeatures.Clear()
+	b.newFeatures = parser.FeatureSet_BARE_MINIMUM
 }

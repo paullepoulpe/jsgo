@@ -42,8 +42,8 @@ import (
 //
 // Inputs are compared with equals/hashCode, as in the Java collections.
 type SortedDependencies[InputT DependencyInfo] struct {
-	userOrderedInputs          *jutil.ArrayList[InputT]
-	importOrderedInputs        *jutil.ArrayList[InputT]
+	userOrderedInputs          []InputT
+	importOrderedInputs        []InputT
 	nonExportingInputs         *jutil.LinkedHashMap[string, InputT]
 	exportingInputBySymbolName *jutil.LinkedHashMap[string, InputT]
 
@@ -66,12 +66,10 @@ type SortedDependencies[InputT DependencyInfo] struct {
 // Java: SortedDependencies(List<InputT>)
 func NewSortedDependencies[InputT DependencyInfo](userOrderedInputs []InputT) *SortedDependencies[InputT] {
 	d := &SortedDependencies[InputT]{
-		userOrderedInputs:          jutil.NewArrayList[InputT](),
-		importOrderedInputs:        jutil.NewArrayList[InputT](),
+		userOrderedInputs:          append([]InputT{}, userOrderedInputs...),
 		nonExportingInputs:         jutil.NewLinkedHashMap[string, InputT](),
 		exportingInputBySymbolName: jutil.NewLinkedHashMap[string, InputT](),
 	}
-	d.userOrderedInputs.AddAll(userOrderedInputs...)
 	d.ProcessInputs()
 	return d
 }
@@ -149,7 +147,7 @@ func (d *SortedDependencies[InputT]) GetStrongDependenciesOf(rootInputs []InputT
 		if len(worklist) == 1 {
 			return []InputT{d.uniqueInputs[worklist[0]]}
 		}
-		impSlice := d.importOrderedInputs.Slice()
+		impSlice := d.importOrderedInputs
 		if len(worklist)*16 < len(d.importOrderedIDs) {
 			for i, id := range worklist {
 				worklist[i] = d.importOrderPos[id]
@@ -191,7 +189,7 @@ func (d *SortedDependencies[InputT]) GetStrongDependenciesOf(rootInputs []InputT
 		return builder
 	}
 
-	userSlice := d.userOrderedInputs.Slice()
+	userSlice := d.userOrderedInputs
 	builder := make([]InputT, 0, len(worklist))
 	for i, id := range d.userOrderedIDs {
 		if d.visited[id] == gen {
@@ -293,7 +291,7 @@ func (d *SortedDependencies[InputT]) GetSortedWeakDependenciesOf(rootInputs []In
 	if len(weakWorklist) == 1 {
 		return []InputT{d.uniqueInputs[weakWorklist[0]]}
 	}
-	impSlice := d.importOrderedInputs.Slice()
+	impSlice := d.importOrderedInputs
 	if len(weakWorklist)*16 < len(d.importOrderedIDs) {
 		for i, id := range weakWorklist {
 			weakWorklist[i] = d.importOrderPos[id]
@@ -320,7 +318,7 @@ func (d *SortedDependencies[InputT]) GetSortedWeakDependenciesOf(rootInputs []In
 //
 // Java: SortedDependencies.getSortedList()
 func (d *SortedDependencies[InputT]) GetSortedList() []InputT {
-	return d.importOrderedInputs.Slice()
+	return d.importOrderedInputs
 }
 
 // MaybeGetInputProviding returns the input that gives us the given symbol,
@@ -335,7 +333,7 @@ func (d *SortedDependencies[InputT]) MaybeGetInputProviding(symbol string) Input
 }
 
 func (d *SortedDependencies[InputT]) ProcessInputs() {
-	userSlice := d.userOrderedInputs.Slice()
+	userSlice := d.userOrderedInputs
 	n := len(userSlice)
 	d.uniqueInputs = make([]InputT, 0, n)
 	d.ptrToID = make(map[any]int32, n)
@@ -422,6 +420,7 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 	// For each input, traverse in user-provided order.
 	completed := make([]bool, uCount)
 	d.importOrderedIDs = make([]int32, 0, uCount)
+	d.importOrderedInputs = make([]InputT, 0, uCount)
 	d.importOrderPos = make([]int32, uCount)
 	var orderInput func(u int32)
 	orderInput = func(u int32) {
@@ -435,7 +434,7 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 		// Emit an input after its imports have been emitted.
 		d.importOrderPos[u] = int32(len(d.importOrderedIDs))
 		d.importOrderedIDs = append(d.importOrderedIDs, u)
-		d.importOrderedInputs.Add(d.uniqueInputs[u])
+		d.importOrderedInputs = append(d.importOrderedInputs, d.uniqueInputs[u])
 	}
 	for _, u := range d.userOrderedIDs {
 		orderInput(u)

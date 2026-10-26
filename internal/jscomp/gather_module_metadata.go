@@ -238,16 +238,16 @@ type GatherModuleMetadata_Finder struct {
 	// by only vars is much slower. This way we can do a fast name lookup,
 	// followed by a slower var lookup only if the name is known to be a
 	// toggle module name.
-	toggleModuleNames *jutil.LinkedHashSet[string]
-	toggleModules     *jutil.LinkedHashSet[*Var]
+	toggleModuleNames map[string]struct{}
+	toggleModules     map[*Var]struct{}
 }
 
 // Java: GatherModuleMetadata.Finder()
 func NewGatherModuleMetadata_Finder(outer *GatherModuleMetadata) *GatherModuleMetadata_Finder {
 	return &GatherModuleMetadata_Finder{
 		outer:             outer,
-		toggleModuleNames: jutil.NewLinkedHashSet[string](),
-		toggleModules:     jutil.NewLinkedHashSet[*Var](),
+		toggleModuleNames: make(map[string]struct{}),
+		toggleModules:     make(map[*Var]struct{}),
 	}
 }
 
@@ -325,7 +325,7 @@ func (f *GatherModuleMetadata_Finder) LeaveModule() {
 		f.outer.modulesByGoogNamespace.Put(namespace, module)
 	}
 	if f.outer.parentModule != nil {
-		f.outer.parentModule.metadataBuilder.NestedModulesBuilder().Add(module)
+		f.outer.parentModule.metadataBuilder.AddNestedModule(module)
 	}
 	f.outer.currentModule = f.outer.parentModule
 	f.outer.parentModule = nil
@@ -373,9 +373,9 @@ func (f *GatherModuleMetadata_Finder) IsFromGoogImport(goog *Var) bool {
 // Java: GatherModuleMetadata.Finder.visitName(NodeTraversal, Node)
 func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) {
 	name := n.GetString()
-	if f.toggleModuleNames.Contains(name) {
+	if _, ok := f.toggleModuleNames[name]; ok {
 		nameVar := t.GetScope().GetVar(name)
-		if f.toggleModules.Contains(nameVar) {
+		if _, ok := f.toggleModules[nameVar]; ok {
 			parent := n.GetParent()
 			if parent.IsGetProp() {
 				f.AddToggle(t, n, parent.GetString())
@@ -504,8 +504,8 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 					// const fooToggles = goog.require('foo$2etoggles');
 					name := callParent.GetString()
 					nameVar := t.GetScope().GetVar(name)
-					f.toggleModules.Add(nameVar)
-					f.toggleModuleNames.Add(name)
+					f.toggleModules[nameVar] = struct{}{}
+					f.toggleModuleNames[name] = struct{}{}
 				} else if f.outer.currentModule.metadataBuilder.GetModuleType() != ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
 					// Side-effect toggle-module imports are not allowed, since they don't actually do
 					// anything.  We allow it in `goog.provide()` files because there's no other way to

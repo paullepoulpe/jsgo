@@ -78,7 +78,7 @@ func (f OptimizeCalls_CallGraphCompilerPassFunc) Process(externs rhino.Node, roo
 // OptimizeCalls_Builder is the nested class Builder.
 type OptimizeCalls_Builder struct {
 	compiler        AbstractCompiler
-	passes          *jutil.ImmutableList_Builder[OptimizeCalls_CallGraphCompilerPass]
+	passes          []OptimizeCalls_CallGraphCompilerPass
 	considerExterns *bool // Nullable to force users to specify a value.
 }
 
@@ -105,7 +105,7 @@ func (b *OptimizeCalls_Builder) SetConsiderExterns(v bool) *OptimizeCalls_Builde
 
 // Java: OptimizeCalls.Builder.addPass(CallGraphCompilerPass)
 func (b *OptimizeCalls_Builder) AddPass(pass OptimizeCalls_CallGraphCompilerPass) *OptimizeCalls_Builder {
-	b.passes.Add(pass)
+	b.passes = append(b.passes, jutil.CheckNotNull(pass))
 	return b
 }
 
@@ -114,12 +114,13 @@ func (b *OptimizeCalls_Builder) Build() *OptimizeCalls {
 	jutil.CheckNotNull(b.compiler)
 	jutil.CheckNotNull(b.considerExterns)
 
-	return NewOptimizeCalls(b.compiler, b.passes.Build(), *b.considerExterns)
+	passes := append([]OptimizeCalls_CallGraphCompilerPass{}, b.passes...)
+	return NewOptimizeCalls(b.compiler, passes, *b.considerExterns)
 }
 
 // Java: OptimizeCalls.Builder()
 func NewOptimizeCalls_Builder() *OptimizeCalls_Builder {
-	return &OptimizeCalls_Builder{passes: jutil.ImmutableList_Builder_[OptimizeCalls_CallGraphCompilerPass]()}
+	return &OptimizeCalls_Builder{}
 }
 
 // Java: OptimizeCalls.process(Node, Node)
@@ -568,32 +569,6 @@ func optimizeCalls_appendValueFunctionNodes(fns []rhino.Node, n rhino.Node) []rh
 	default:
 	}
 	return fns
-}
-
-// Java: OptimizeCalls.ReferenceMap.addValueFunctionNodes(ImmutableList.Builder<Node>, Node)
-func OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns *jutil.ImmutableList_Builder[rhino.Node], n rhino.Node) {
-	// TODO(johnlenz): add member definitions
-	switch n.GetToken() {
-	case rhino.Token_CLASS:
-		{
-			constructorFnDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-			if !constructorFnDef.IsNil() {
-				fns.Add(constructorFnDef.GetOnlyChild())
-			}
-		}
-	case rhino.Token_FUNCTION:
-		fns.Add(n)
-	case rhino.Token_HOOK:
-		OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns, n.GetSecondChild())
-		OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns, n.GetLastChild())
-	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
-		OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns, n.GetFirstChild())
-		OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns, n.GetLastChild())
-	case rhino.Token_CAST, rhino.Token_COMMA:
-		OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns, n.GetLastChild())
-	default:
-		// do nothing.
-	}
 }
 
 // OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget reports

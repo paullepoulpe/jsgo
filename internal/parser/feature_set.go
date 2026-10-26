@@ -18,7 +18,13 @@
 
 package parser
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"iter"
+	"math/bits"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // FeatureSet represents various aspects of language version and support.
 //
@@ -33,50 +39,50 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 //
 // Instances of this class are immutable.
 type FeatureSet struct {
-	features *jutil.EnumSet[FeatureSet_Feature]
+	bits uint64
 }
 
 var (
 	// The bare minimum set of features.
-	FeatureSet_BARE_MINIMUM = NewFeatureSet(FeatureSet_EmptyEnumSet())
+	FeatureSet_BARE_MINIMUM = &FeatureSet{}
 
 	// Features from ES3.
-	FeatureSet_ES3 = FeatureSet_BARE_MINIMUM.WithEnumSet(FeatureSet_LangVersion_ES3.Features())
+	FeatureSet_ES3 = FeatureSet_BARE_MINIMUM.withBits(FeatureSet_LangVersion_ES3.featureBits())
 
 	// Features from ES5 only.
-	FeatureSet_ES5 = FeatureSet_ES3.WithEnumSet(FeatureSet_LangVersion_ES5.Features())
+	FeatureSet_ES5 = FeatureSet_ES3.withBits(FeatureSet_LangVersion_ES5.featureBits())
 
 	// All ES2015 features, including modules.
-	FeatureSet_ES2015_MODULES = FeatureSet_ES5.WithEnumSet(FeatureSet_LangVersion_ES2015.Features())
+	FeatureSet_ES2015_MODULES = FeatureSet_ES5.withBits(FeatureSet_LangVersion_ES2015.featureBits())
 
 	// The full set of ES2015 features, not including modules.
 	FeatureSet_ES2015 = FeatureSet_ES2015_MODULES.WithoutFeatures(FeatureSet_Feature_MODULES)
 
-	FeatureSet_ES2016_MODULES = FeatureSet_ES2015_MODULES.WithEnumSet(FeatureSet_LangVersion_ES2016.Features())
+	FeatureSet_ES2016_MODULES = FeatureSet_ES2015_MODULES.withBits(FeatureSet_LangVersion_ES2016.featureBits())
 
 	FeatureSet_ES2016 = FeatureSet_ES2016_MODULES.WithoutFeatures(FeatureSet_Feature_MODULES)
 
-	FeatureSet_ES2017_MODULES = FeatureSet_ES2016_MODULES.WithEnumSet(FeatureSet_LangVersion_ES2017.Features())
+	FeatureSet_ES2017_MODULES = FeatureSet_ES2016_MODULES.withBits(FeatureSet_LangVersion_ES2017.featureBits())
 
 	FeatureSet_ES2017 = FeatureSet_ES2017_MODULES.WithoutFeatures(FeatureSet_Feature_MODULES)
 
-	FeatureSet_ES2018_MODULES = FeatureSet_ES2017_MODULES.WithEnumSet(FeatureSet_LangVersion_ES2018.Features())
+	FeatureSet_ES2018_MODULES = FeatureSet_ES2017_MODULES.withBits(FeatureSet_LangVersion_ES2018.featureBits())
 
 	FeatureSet_ES2018 = FeatureSet_ES2018_MODULES.WithoutFeatures(FeatureSet_Feature_MODULES)
 
-	FeatureSet_ES2019_MODULES = FeatureSet_ES2018_MODULES.WithEnumSet(FeatureSet_LangVersion_ES2019.Features())
+	FeatureSet_ES2019_MODULES = FeatureSet_ES2018_MODULES.withBits(FeatureSet_LangVersion_ES2019.featureBits())
 
 	FeatureSet_ES2019 = FeatureSet_ES2019_MODULES.WithoutFeatures(FeatureSet_Feature_MODULES)
 
-	FeatureSet_ES2020_MODULES = FeatureSet_ES2019_MODULES.WithEnumSet(FeatureSet_LangVersion_ES2020.Features())
+	FeatureSet_ES2020_MODULES = FeatureSet_ES2019_MODULES.withBits(FeatureSet_LangVersion_ES2020.featureBits())
 
 	FeatureSet_ES2020 = FeatureSet_ES2020_MODULES.WithoutFeatures(FeatureSet_Feature_MODULES)
 
-	FeatureSet_ES2021_MODULES = FeatureSet_ES2020_MODULES.WithEnumSet(FeatureSet_LangVersion_ES2021.Features())
+	FeatureSet_ES2021_MODULES = FeatureSet_ES2020_MODULES.withBits(FeatureSet_LangVersion_ES2021.featureBits())
 
 	FeatureSet_ES2021 = FeatureSet_ES2021_MODULES.WithoutFeatures(FeatureSet_Feature_MODULES)
 
-	FeatureSet_ES2022_MODULES = FeatureSet_ES2021_MODULES.WithEnumSet(FeatureSet_LangVersion_ES2022.Features())
+	FeatureSet_ES2022_MODULES = FeatureSet_ES2021_MODULES.withBits(FeatureSet_LangVersion_ES2022.featureBits())
 
 	FeatureSet_ES2022 = FeatureSet_ES2022_MODULES.WithoutFeatures(FeatureSet_Feature_MODULES)
 
@@ -84,13 +90,13 @@ var (
 	// be updated to include it.
 
 	// Set of all fully supported features, even those part of language versions not fully supported
-	FeatureSet_ES_NEXT = FeatureSet_ES2022_MODULES.WithEnumSet(FeatureSet_LangVersion_ES_NEXT.Features())
+	FeatureSet_ES_NEXT = FeatureSet_ES2022_MODULES.withBits(FeatureSet_LangVersion_ES_NEXT.featureBits())
 
 	// Set of features fully supported in checks, even those not fully supported in optimizations
-	FeatureSet_ES_UNSTABLE = FeatureSet_ES_NEXT.WithEnumSet(FeatureSet_LangVersion_ES_UNSTABLE.Features())
+	FeatureSet_ES_UNSTABLE = FeatureSet_ES_NEXT.withBits(FeatureSet_LangVersion_ES_UNSTABLE.featureBits())
 
 	// Set of all features that can be parsed, even those not yet fully supported in checks.
-	FeatureSet_ES_UNSUPPORTED = FeatureSet_ES_UNSTABLE.WithEnumSet(FeatureSet_LangVersion_ES_UNSUPPORTED.Features())
+	FeatureSet_ES_UNSUPPORTED = FeatureSet_ES_UNSTABLE.withBits(FeatureSet_LangVersion_ES_UNSUPPORTED.featureBits())
 
 	// NOTE: The BROWSER_20XX FeatureSets are the set of features supported by major browsers as of
 	// January 1st of the given year. So, typically, take the year of the BFSY, subtract 1 to get
@@ -162,7 +168,7 @@ var (
 	// implemented the new flags.
 	FeatureSet_BROWSER_2026 = FeatureSet_ES2022_MODULES
 
-	FeatureSet_ALL = FeatureSet_ES_UNSUPPORTED.WithEnumSet(FeatureSet_LangVersion_TYPESCRIPT.Features())
+	FeatureSet_ALL = FeatureSet_ES_UNSUPPORTED.withBits(FeatureSet_LangVersion_TYPESCRIPT.featureBits())
 )
 
 // FeatureSet_LangVersion is FeatureSet.LangVersion.
@@ -211,17 +217,14 @@ func (v FeatureSet_LangVersion) Name() string { return featureSet_LangVersion_na
 // Java: FeatureSet.LangVersion.toString()
 func (v FeatureSet_LangVersion) String() string { return v.Name() }
 
-// Features returns the features introduced by this version.
-//
-// Java: FeatureSet.LangVersion.features()
-func (v FeatureSet_LangVersion) Features() *jutil.EnumSet[FeatureSet_Feature] {
-	set := jutil.NewEnumSet[FeatureSet_Feature]()
-	for _, feature := range FeatureSet_Feature_values() {
-		if featureSet_Feature_version[feature] == v {
-			set.Add(feature)
+func (v FeatureSet_LangVersion) featureBits() uint64 {
+	var bits uint64
+	for i, ver := range featureSet_Feature_version {
+		if ver == v {
+			bits |= uint64(1) << uint(i)
 		}
 	}
-	return set
+	return bits
 }
 
 // FeatureSet_Feature is FeatureSet.Feature: specific features that can be included in a FeatureSet.
@@ -421,6 +424,10 @@ var featureSet_Feature_names = [...]string{
 	"TYPE_ANNOTATION",
 }
 
+var _ [64 - len(featureSet_Feature_names)]struct{}
+
+var featureSet_tsBits = FeatureSet_LangVersion_TYPESCRIPT.featureBits()
+
 // featureSet_Feature_name is the Java field Feature.name.
 var featureSet_Feature_name = [...]string{
 	"RegExp syntax",
@@ -584,14 +591,18 @@ func (f FeatureSet_Feature) String() string {
 	return featureSet_Feature_name[f]
 }
 
-// NewFeatureSet constructs a FeatureSet.
-//
-// Java: FeatureSet(EnumSet<Feature>)
-func NewFeatureSet(features *jutil.EnumSet[FeatureSet_Feature]) *FeatureSet {
-	f := &FeatureSet{}
-	// ImmutableSet will only use an EnumSet if the set starts as an EnumSet.
-	f.features = jutil.EnumSetCopyOf(features)
-	return f
+func featureSetBit(feature FeatureSet_Feature) uint64 {
+	if feature < 0 || int(feature) >= len(featureSet_Feature_names) {
+		return 0
+	}
+	return uint64(1) << uint(feature)
+}
+
+func (f *FeatureSet) withBits(newBits uint64) *FeatureSet {
+	if (newBits &^ f.bits) == 0 {
+		return f
+	}
+	return &FeatureSet{bits: f.bits | newBits}
 }
 
 // Version returns a string representation suitable for use in polyfill
@@ -657,45 +668,34 @@ func (f *FeatureSet) VersionForDebugging() string {
 //
 // Java: FeatureSet.without(Feature, Feature...)
 func (f *FeatureSet) WithoutFeatures(featureToRemove FeatureSet_Feature, moreFeaturesToRemove ...FeatureSet_Feature) *FeatureSet {
-	anyPresent := f.features.Contains(featureToRemove)
-	if !anyPresent {
-		for _, feature := range moreFeaturesToRemove {
-			if f.features.Contains(feature) {
-				anyPresent = true
-				break
-			}
-		}
-		if !anyPresent {
-			return f
-		}
-	}
-	updated := FeatureSet_EnumSetOf(f.features)
-	updated.Remove(featureToRemove)
+	updated := f.bits &^ featureSetBit(featureToRemove)
 	for _, feature := range moreFeaturesToRemove {
-		updated.Remove(feature)
+		updated &^= featureSetBit(feature)
 	}
-	return &FeatureSet{features: updated}
+	if updated == f.bits {
+		return f
+	}
+	return &FeatureSet{bits: updated}
 }
 
 // Without returns this set minus the features of other.
 //
 // Java: FeatureSet.without(FeatureSet)
 func (f *FeatureSet) Without(other *FeatureSet) *FeatureSet {
-	if !f.ContainsAtLeastOneOf(other) {
+	if f.bits&other.bits == 0 {
 		return f
 	}
-	return &FeatureSet{features: FeatureSet_Difference(f.features, other.features)}
+	return &FeatureSet{bits: f.bits &^ other.bits}
 }
 
 // WithoutTypes returns this set minus the TypeScript features.
 //
 // Java: FeatureSet.withoutTypes()
 func (f *FeatureSet) WithoutTypes() *FeatureSet {
-	tsFeatures := FeatureSet_LangVersion_TYPESCRIPT.Features()
-	if !f.features.Intersects(tsFeatures) {
+	if f.bits&featureSet_tsBits == 0 {
 		return f
 	}
-	return &FeatureSet{features: FeatureSet_Difference(f.features, tsFeatures)}
+	return &FeatureSet{bits: f.bits &^ featureSet_tsBits}
 }
 
 // Union returns a new FeatureSet including all features of both this and
@@ -703,13 +703,13 @@ func (f *FeatureSet) WithoutTypes() *FeatureSet {
 //
 // Java: FeatureSet.union(FeatureSet)
 func (f *FeatureSet) Union(other *FeatureSet) *FeatureSet {
-	if f == other || f.Contains(other) {
+	if f == other || (other.bits&^f.bits) == 0 {
 		return f
 	}
-	if other.Contains(f) {
+	if (f.bits &^ other.bits) == 0 {
 		return other
 	}
-	return &FeatureSet{features: FeatureSet_Union(f.features, other.features)}
+	return &FeatureSet{bits: f.bits | other.bits}
 }
 
 // ContainsAtLeastOneOf reports whether this FeatureSet contains at least one
@@ -717,7 +717,7 @@ func (f *FeatureSet) Union(other *FeatureSet) *FeatureSet {
 //
 // Java: FeatureSet.containsAtLeastOneOf(FeatureSet)
 func (f *FeatureSet) ContainsAtLeastOneOf(other *FeatureSet) bool {
-	return f.features.Intersects(other.features)
+	return f.bits&other.bits != 0
 }
 
 // Contains reports whether this FeatureSet contains all of the features of
@@ -725,7 +725,7 @@ func (f *FeatureSet) ContainsAtLeastOneOf(other *FeatureSet) bool {
 //
 // Java: FeatureSet.contains(FeatureSet)
 func (f *FeatureSet) Contains(other *FeatureSet) bool {
-	return f.features.ContainsAll(other.features)
+	return (other.bits &^ f.bits) == 0
 }
 
 // ContainsFeature reports whether this FeatureSet contains the given
@@ -733,51 +733,7 @@ func (f *FeatureSet) Contains(other *FeatureSet) bool {
 //
 // Java: FeatureSet.contains(Feature)
 func (f *FeatureSet) ContainsFeature(feature FeatureSet_Feature) bool {
-	return f.features.Contains(feature)
-}
-
-// FeatureSet_EmptyEnumSet returns an empty feature set.
-//
-// Java: FeatureSet.emptyEnumSet()
-func FeatureSet_EmptyEnumSet() *jutil.EnumSet[FeatureSet_Feature] {
-	return jutil.NewEnumSet[FeatureSet_Feature]()
-}
-
-// FeatureSet_EnumSetOf copies set.
-//
-// Java: FeatureSet.enumSetOf(Set<Feature>)
-func FeatureSet_EnumSetOf(set *jutil.EnumSet[FeatureSet_Feature]) *jutil.EnumSet[FeatureSet_Feature] {
-	if set.IsEmpty() {
-		return FeatureSet_EmptyEnumSet()
-	}
-	return jutil.EnumSetCopyOf(set)
-}
-
-// FeatureSet_Add returns features plus feature.
-//
-// Java: FeatureSet.add(Set<Feature>, Feature)
-func FeatureSet_Add(features *jutil.EnumSet[FeatureSet_Feature], feature FeatureSet_Feature) *jutil.EnumSet[FeatureSet_Feature] {
-	result := FeatureSet_EnumSetOf(features)
-	result.Add(feature)
-	return result
-}
-
-// FeatureSet_Union returns features plus newFeatures.
-//
-// Java: FeatureSet.union(Set<Feature>, Set<Feature>)
-func FeatureSet_Union(features, newFeatures *jutil.EnumSet[FeatureSet_Feature]) *jutil.EnumSet[FeatureSet_Feature] {
-	result := FeatureSet_EnumSetOf(features)
-	result.AddAll(newFeatures)
-	return result
-}
-
-// FeatureSet_Difference returns features minus removedFeatures.
-//
-// Java: FeatureSet.difference(Set<Feature>, Set<Feature>)
-func FeatureSet_Difference(features, removedFeatures *jutil.EnumSet[FeatureSet_Feature]) *jutil.EnumSet[FeatureSet_Feature] {
-	result := FeatureSet_EnumSetOf(features)
-	result.RemoveAll(removedFeatures)
-	return result
+	return f.bits&featureSetBit(feature) != 0
 }
 
 // With returns a feature set combining all the features from this and
@@ -785,10 +741,11 @@ func FeatureSet_Difference(features, removedFeatures *jutil.EnumSet[FeatureSet_F
 //
 // Java: FeatureSet.with(Feature)
 func (f *FeatureSet) With(feature FeatureSet_Feature) *FeatureSet {
-	if f.features.Contains(feature) {
+	bit := featureSetBit(feature)
+	if f.bits&bit != 0 {
 		return f
 	}
-	return &FeatureSet{features: FeatureSet_Add(f.features, feature)}
+	return &FeatureSet{bits: f.bits | bit}
 }
 
 // WithFeatures returns a feature set combining all the features from this
@@ -796,32 +753,14 @@ func (f *FeatureSet) With(feature FeatureSet_Feature) *FeatureSet {
 //
 // Java: FeatureSet.with(Feature...)
 func (f *FeatureSet) WithFeatures(newFeatures ...FeatureSet_Feature) *FeatureSet {
-	allContained := true
+	updated := f.bits
 	for _, feat := range newFeatures {
-		if !f.features.Contains(feat) {
-			allContained = false
-			break
-		}
+		updated |= featureSetBit(feat)
 	}
-	if allContained {
+	if updated == f.bits {
 		return f
 	}
-	result := FeatureSet_EnumSetOf(f.features)
-	for _, feat := range newFeatures {
-		result.Add(feat)
-	}
-	return &FeatureSet{features: result}
-}
-
-// WithEnumSet returns a feature set combining all the features from this
-// and newFeatures.
-//
-// Java: FeatureSet.with(Set<Feature>)
-func (f *FeatureSet) WithEnumSet(newFeatures *jutil.EnumSet[FeatureSet_Feature]) *FeatureSet {
-	if f.features.ContainsAll(newFeatures) {
-		return f
-	}
-	return &FeatureSet{features: FeatureSet_Union(f.features, newFeatures)}
+	return &FeatureSet{bits: updated}
 }
 
 // WithFeatureSet returns a feature set combining all the features from this
@@ -829,28 +768,32 @@ func (f *FeatureSet) WithEnumSet(newFeatures *jutil.EnumSet[FeatureSet_Feature])
 //
 // Java: FeatureSet.with(FeatureSet)
 func (f *FeatureSet) WithFeatureSet(newFeatures *FeatureSet) *FeatureSet {
-	if f == newFeatures || f.Contains(newFeatures) {
-		return f
-	}
-	if newFeatures.Contains(f) {
-		return newFeatures
-	}
-	return &FeatureSet{features: FeatureSet_Union(f.features, newFeatures.features)}
+	return f.Union(newFeatures)
 }
 
 // Has reports whether this FeatureSet includes feature.
 //
 // Java: FeatureSet.has(Feature)
 func (f *FeatureSet) Has(feature FeatureSet_Feature) bool {
-	return f.features.Contains(feature)
+	return f.bits&featureSetBit(feature) != 0
 }
 
-// GetFeatures returns the (immutable; callers must not modify it) set of
-// features.
-//
-// Java: FeatureSet.getFeatures()
-func (f *FeatureSet) GetFeatures() *jutil.EnumSet[FeatureSet_Feature] {
-	return f.features
+// IsEmpty reports whether this FeatureSet has no features.
+func (f *FeatureSet) IsEmpty() bool {
+	return f.bits == 0
+}
+
+// All iterates the features in ordinal order.
+func (f *FeatureSet) All() iter.Seq[FeatureSet_Feature] {
+	return func(yield func(FeatureSet_Feature) bool) {
+		for w := f.bits; w != 0; {
+			b := bits.TrailingZeros64(w)
+			w &^= uint64(1) << uint(b)
+			if !yield(FeatureSet_Feature(b)) {
+				return
+			}
+		}
+	}
 }
 
 // Equals is FeatureSet.equals(Object).
@@ -858,21 +801,36 @@ func (f *FeatureSet) GetFeatures() *jutil.EnumSet[FeatureSet_Feature] {
 // Java: FeatureSet.equals(Object)
 func (f *FeatureSet) Equals(other any) bool {
 	featureSet, ok := other.(*FeatureSet)
-	return ok && featureSet != nil && featureSet.features.Equals(f.features)
+	return ok && featureSet != nil && featureSet.bits == f.bits
 }
 
 // HashCode is FeatureSet.hashCode().
 //
 // Java: FeatureSet.hashCode()
 func (f *FeatureSet) HashCode() int32 {
-	return f.features.HashCode()
+	var h int32
+	for e := range f.All() {
+		h += int32(e)*31 + 7
+	}
+	return h
 }
 
 // String renders the features, e.g. "[RegExp syntax, getters]".
 //
 // Java: FeatureSet.toString()
 func (f *FeatureSet) String() string {
-	return f.features.String()
+	var sb strings.Builder
+	sb.WriteByte('[')
+	first := true
+	for e := range f.All() {
+		if !first {
+			sb.WriteString(", ")
+		}
+		first = false
+		sb.WriteString(e.String())
+	}
+	sb.WriteByte(']')
+	return sb.String()
 }
 
 // FeatureSet_ValueOf parses known strings into feature sets.

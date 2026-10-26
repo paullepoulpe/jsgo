@@ -40,28 +40,28 @@ type SourceMapConsumerV3 struct {
 
 	mappings *SourceMapConsumerV3_Mappings
 
-	// originalFile path ==> original line ==> target mappings
-	reverseSourceMapping *jutil.LinkedHashMap[sourceMapConsumerV3_fileKey,
-		*jutil.LinkedHashMap[int, *jutil.ArrayList[*Mapping_OriginalMapping]]]
-	sourceRoot *string
-	extensions *jutil.LinkedHashMap[string, any]
+	// (originalFile path, original line) ==> target mappings
+	reverseSourceMapping map[sourceMapConsumerV3_lineKey][]*Mapping_OriginalMapping
+	sourceRoot           *string
+	extensions           *jutil.LinkedHashMap[string, any]
 }
 
-// sourceMapConsumerV3_fileKey is a nullable Java String as a map key.
+// sourceMapConsumerV3_lineKey is a (nullable Java String, line) map key.
 //
 // Go-only: language-adapter — reverseSourceMapping is keyed by
 // sources[id], which is null for a JSON null in "sources"; a Java HashMap
 // keeps null as a key distinct from every string.
-type sourceMapConsumerV3_fileKey struct {
+type sourceMapConsumerV3_lineKey struct {
 	name   string
+	line   int
 	isNull bool
 }
 
-func sourceMapConsumerV3_keyOf(s *string) sourceMapConsumerV3_fileKey {
+func sourceMapConsumerV3_keyOf(s *string, line int) sourceMapConsumerV3_lineKey {
 	if s == nil {
-		return sourceMapConsumerV3_fileKey{isNull: true}
+		return sourceMapConsumerV3_lineKey{line: line, isNull: true}
 	}
-	return sourceMapConsumerV3_fileKey{name: *s}
+	return sourceMapConsumerV3_lineKey{name: *s, line: line}
 }
 
 // NewSourceMapConsumerV3 constructs an empty consumer.
@@ -303,19 +303,11 @@ func (c *SourceMapConsumerV3) GetReverseMapping(originalFile string, line, colum
 		c.CreateReverseMapping()
 	}
 
-	sourceLineToCollectionMap := c.reverseSourceMapping.Get(sourceMapConsumerV3_keyOf(&originalFile))
-
-	if sourceLineToCollectionMap == nil {
+	mappings := c.reverseSourceMapping[sourceMapConsumerV3_lineKey{name: originalFile, line: line}]
+	if mappings == nil {
 		return []*Mapping_OriginalMapping{}
-	} else {
-		mappings := sourceLineToCollectionMap.Get(line)
-
-		if mappings == nil {
-			return []*Mapping_OriginalMapping{}
-		} else {
-			return mappings.Slice()
-		}
 	}
+	return mappings
 }
 
 // Java: SourceMapConsumerV3.getSourceRoot()
@@ -840,34 +832,21 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 //
 // Java: SourceMapConsumerV3.createReverseMapping()
 func (c *SourceMapConsumerV3) CreateReverseMapping() {
-	c.reverseSourceMapping = jutil.NewLinkedHashMap[sourceMapConsumerV3_fileKey,
-		*jutil.LinkedHashMap[int, *jutil.ArrayList[*Mapping_OriginalMapping]]]()
+	c.reverseSourceMapping = make(map[sourceMapConsumerV3_lineKey][]*Mapping_OriginalMapping)
 
 	for targetLine := 0; targetLine < c.mappings.GetParsedLineCount(); targetLine++ {
-		for i := range c.mappings.line(targetLine) {
-			entry := &c.mappings.line(targetLine)[i]
+		entries := c.mappings.line(targetLine)
+		for i := range entries {
+			entry := &entries[i]
 			sourceFileId := entry.srcId
 			sourceLine := entry.srcLine
 			if sourceFileId != SourceMapConsumerV3_UNMAPPED && sourceLine != SourceMapConsumerV3_UNMAPPED {
-				originalFile := c.sources[sourceFileId]
-
-				lineToCollectionMap := c.reverseSourceMapping.ComputeIfAbsent(
-					sourceMapConsumerV3_keyOf(originalFile),
-					func(k sourceMapConsumerV3_fileKey) *jutil.LinkedHashMap[int, *jutil.ArrayList[*Mapping_OriginalMapping]] {
-						return jutil.NewLinkedHashMap[int, *jutil.ArrayList[*Mapping_OriginalMapping]]()
-					})
-
-				if !lineToCollectionMap.ContainsKey(int(sourceLine)) {
-					lineToCollectionMap.Put(int(sourceLine), jutil.NewArrayListWithCapacity[*Mapping_OriginalMapping](1))
-				}
-
-				mappingsLine := lineToCollectionMap.Get(int(sourceLine))
-
-				builder := Mapping_OriginalMapping_NewBuilder().
+				key := sourceMapConsumerV3_keyOf(c.sources[sourceFileId], int(sourceLine))
+				mapping := Mapping_OriginalMapping_NewBuilder().
 					SetLineNumber(targetLine).
-					SetColumnPosition(int(entry.genCol))
-
-				mappingsLine.Add(builder.Build())
+					SetColumnPosition(int(entry.genCol)).
+					Build()
+				c.reverseSourceMapping[key] = append(c.reverseSourceMapping[key], mapping)
 			}
 		}
 	}

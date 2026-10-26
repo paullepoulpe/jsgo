@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"iter"
 	"reflect"
 	"slices"
 
@@ -67,7 +66,7 @@ type CrossChunkCodeMotion struct {
 
 	// Map from chunk to the node in that chunk that should parent variable
 	// declarations that have to be moved into that chunk
-	chunkInsertionPointMap *jutil.LinkedHashMap[*JSChunk, rhino.Node]
+	chunkInsertionPointMap map[*JSChunk]rhino.Node
 
 	symSlab   jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]
 	dsgSlab   jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]
@@ -116,7 +115,7 @@ func NewCrossChunkCodeMotion(
 	graph *JSChunkGraph,
 	parentChunkCanSeeSymbolsDeclaredInChildren bool) *CrossChunkCodeMotion {
 	return &CrossChunkCodeMotion{
-		chunkInsertionPointMap: jutil.NewLinkedHashMap[*JSChunk, rhino.Node](),
+		chunkInsertionPointMap: make(map[*JSChunk]rhino.Node),
 		compiler:               compiler,
 		graph:                  graph,
 		parentChunkCanSeeSymbolsDeclaredInChildren: parentChunkCanSeeSymbolsDeclaredInChildren,
@@ -150,12 +149,11 @@ func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 }
 
 // Java: CrossChunkCodeMotion.addInstanceofGuards(Collection<GlobalSymbol>)
-func (c *CrossChunkCodeMotion) AddInstanceofGuards(globalSymbols *jutil.ArrayDeque[*CrossChunkCodeMotion_GlobalSymbol]) {
-	for globalSymbol := range globalSymbols.All() {
-		if globalSymbol.instanceofReferencesToGuard == nil {
-			continue
-		}
-		for instanceofReference := range globalSymbol.instanceofReferencesToGuard.All() {
+func (c *CrossChunkCodeMotion) AddInstanceofGuards(globalSymbols []*CrossChunkCodeMotion_GlobalSymbol) {
+	for _, globalSymbol := range globalSymbols {
+		refs := globalSymbol.instanceofReferencesToGuard
+		for i := len(refs) - 1; i >= 0; i-- {
+			instanceofReference := refs[i]
 			if !globalSymbol.DeclarationsCoverChunk(instanceofReference.GetChunk()) {
 				c.AddGuardToInstanceofReference(instanceofReference.GetReference().GetNode())
 			}
@@ -173,21 +171,20 @@ type CrossChunkCodeMotion_GlobalSymbolCollector struct {
 
 	// Returning the symbols in the reverse order in which they are defined
 	// helps to minimize unnecessary reordering of declaration statements.
-	symbolStack *jutil.ArrayDeque[*CrossChunkCodeMotion_GlobalSymbol]
+	symbolStack []*CrossChunkCodeMotion_GlobalSymbol
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector()
 func NewCrossChunkCodeMotion_GlobalSymbolCollector(outer *CrossChunkCodeMotion) *CrossChunkCodeMotion_GlobalSymbolCollector {
 	return &CrossChunkCodeMotion_GlobalSymbolCollector{
-		outer:       outer,
-		symbolStack: jutil.NewArrayDeque[*CrossChunkCodeMotion_GlobalSymbol](),
+		outer: outer,
 	}
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector.collectGlobalSymbols(CrossChunkReferenceCollector)
-func (g *CrossChunkCodeMotion_GlobalSymbolCollector) CollectGlobalSymbols(referenceCollector *CrossChunkReferenceCollector) *jutil.ArrayDeque[*CrossChunkCodeMotion_GlobalSymbol] {
-	if n := len(referenceCollector.vars); n > 0 && g.symbolStack.IsEmpty() {
-		g.symbolStack = jutil.NewArrayDequeWithCapacity[*CrossChunkCodeMotion_GlobalSymbol](n)
+func (g *CrossChunkCodeMotion_GlobalSymbolCollector) CollectGlobalSymbols(referenceCollector *CrossChunkReferenceCollector) []*CrossChunkCodeMotion_GlobalSymbol {
+	if n := len(referenceCollector.vars); n > 0 && len(g.symbolStack) == 0 {
+		g.symbolStack = make([]*CrossChunkCodeMotion_GlobalSymbol, 0, n)
 	}
 	if maxIdx := referenceCollector.maxVarIndex; maxIdx >= 0 && maxIdx < 1_000_000 {
 		g.symbolsByVarIndex = make([]*CrossChunkCodeMotion_GlobalSymbol, maxIdx+1)
@@ -199,6 +196,7 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) CollectGlobalSymbols(refere
 			g.ProcessImmovableStatement(statement)
 		}
 	}
+	slices.Reverse(g.symbolStack)
 	return g.symbolStack
 }
 
@@ -236,10 +234,8 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) processImmovableReferenceWi
 			instanceofReference :=
 				NewCrossChunkCodeMotion_ImmovableInstanceofReference(chunk, ref)
 
-			if globalSymbol.instanceofReferencesToGuard == nil {
-				globalSymbol.instanceofReferencesToGuard = jutil.NewArrayDeque[CrossChunkCodeMotion_InstanceofReference]()
-			}
-			globalSymbol.instanceofReferencesToGuard.Push(instanceofReference)
+			globalSymbol.instanceofReferencesToGuard = append(
+				globalSymbol.instanceofReferencesToGuard, instanceofReference)
 			return
 		}
 	}
@@ -285,10 +281,8 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatement
 				instanceofReference :=
 					NewCrossChunkCodeMotion_MovableInstanceofReference(dsg, ref)
 
-				if refSymbol.instanceofReferencesToGuard == nil {
-					refSymbol.instanceofReferencesToGuard = jutil.NewArrayDeque[CrossChunkCodeMotion_InstanceofReference]()
-				}
-				refSymbol.instanceofReferencesToGuard.Push(instanceofReference)
+				refSymbol.instanceofReferencesToGuard = append(
+					refSymbol.instanceofReferencesToGuard, instanceofReference)
 				continue
 			}
 		}
@@ -322,7 +316,7 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) GetGlobalSymbol(var_ *Var) 
 		} else {
 			globalSymbol := g.outer.allocGlobalSymbol(var_)
 			g.symbolsByVarIndex[idx] = globalSymbol
-			g.symbolStack.Push(globalSymbol)
+			g.symbolStack = append(g.symbolStack, globalSymbol)
 			return globalSymbol
 		}
 	}
@@ -336,7 +330,7 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) GetGlobalSymbol(var_ *Var) 
 		g.globalSymbolforVar = jutil.NewObjectLinkedHashMap[*Var, *CrossChunkCodeMotion_GlobalSymbol]()
 	}
 	g.globalSymbolforVar.Put(var_, globalSymbol)
-	g.symbolStack.Push(globalSymbol)
+	g.symbolStack = append(g.symbolStack, globalSymbol)
 	return globalSymbol
 }
 
@@ -344,8 +338,8 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) GetGlobalSymbol(var_ *Var) 
 // their best possible chunk location.
 //
 // Java: CrossChunkCodeMotion.moveGlobalSymbols(Collection<GlobalSymbol>)
-func (c *CrossChunkCodeMotion) MoveGlobalSymbols(globalSymbols *jutil.ArrayDeque[*CrossChunkCodeMotion_GlobalSymbol]) {
-	if globalSymbols.IsEmpty() {
+func (c *CrossChunkCodeMotion) MoveGlobalSymbols(globalSymbols []*CrossChunkCodeMotion_GlobalSymbol) {
+	if len(globalSymbols) == 0 {
 		return
 	}
 	o := NewCrossChunkCodeMotion_OrderAndCombineGlobalSymbols(c, globalSymbols)
@@ -379,8 +373,8 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	referencingBuf   [4]*CrossChunkCodeMotion_GlobalSymbol
 
 	// Instanceof references we may need to update with a guard after moving
-	// declarations.
-	instanceofReferencesToGuard *jutil.ArrayDeque[CrossChunkCodeMotion_InstanceofReference]
+	// declarations (in push order; iterated latest-first).
+	instanceofReferencesToGuard []CrossChunkCodeMotion_InstanceofReference
 	// Used by OrderAndCombineGlobalSymbols to find reference cycles.
 	preorderNumber int
 	// Used by OrderAndCombineGlobalSymbols to find reference cycles.
@@ -400,16 +394,6 @@ func NewCrossChunkCodeMotion_GlobalSymbol(outer *CrossChunkCodeMotion, var_ *Var
 	s.dsgs = s.dsgBuf[:0]
 	s.referencingSlice = s.referencingBuf[:0]
 	return s
-}
-
-func (s *CrossChunkCodeMotion_GlobalSymbol) allDsgsLatestFirst() iter.Seq[*CrossChunkCodeMotion_DeclarationStatementGroup] {
-	return func(yield func(*CrossChunkCodeMotion_DeclarationStatementGroup) bool) {
-		for i := len(s.dsgs) - 1; i >= 0; i-- {
-			if !yield(s.dsgs[i]) {
-				return
-			}
-		}
-	}
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbol.toString()
@@ -465,14 +449,6 @@ func (s *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statement *C
 	}
 	statementDsg.statements = append(statementDsg.statements, statement)
 	return statementDsg
-}
-
-// Java: CrossChunkCodeMotion.GlobalSymbol.addReferringGlobalSymbol(GlobalSymbol)
-func (s *CrossChunkCodeMotion_GlobalSymbol) AddReferringGlobalSymbol(declaredSymbol *CrossChunkCodeMotion_GlobalSymbol) {
-	if slices.Contains(s.referencingSlice, declaredSymbol) {
-		return
-	}
-	s.referencingSlice = append(s.referencingSlice, declaredSymbol)
 }
 
 // DeclarationsCoverChunk: does the chunk depend on at least one of the
@@ -587,7 +563,7 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgCyclesLatestFirst() []*Cr
 	var cyclesLatestFirst []*CrossChunkCodeMotion_DeclarationStatementGroupCycle
 	dsgsLatestFirst := y.GetDsgsLatestFirst()
 	var cycle *CrossChunkCodeMotion_DeclarationStatementGroupCycle
-	for dsg := range dsgsLatestFirst.All() {
+	for _, dsg := range dsgsLatestFirst {
 		if cycle == nil || cycle.currentChunk != dsg.currentChunk {
 			cycle = NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(y.outer, dsg.currentChunk)
 			cyclesLatestFirst = append(cyclesLatestFirst, cycle)
@@ -598,39 +574,45 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgCyclesLatestFirst() []*Cr
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCycle.getDsgsLatestFirst()
-func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgsLatestFirst() *jutil.ArrayDeque[*CrossChunkCodeMotion_DeclarationStatementGroup] {
-	resultStack := jutil.NewArrayDeque[*CrossChunkCodeMotion_DeclarationStatementGroup]()
+func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgsLatestFirst() []*CrossChunkCodeMotion_DeclarationStatementGroup {
+	var result []*CrossChunkCodeMotion_DeclarationStatementGroup
 	for _, symbol := range y.symbolsSlice {
-		stack1 := resultStack
-		stack2 := jutil.NewArrayDequeFrom(symbol.allDsgsLatestFirst())
-		resultStack = jutil.NewArrayDequeWithCapacity[*CrossChunkCodeMotion_DeclarationStatementGroup](stack1.Size() + stack2.Size())
+		stack1 := result
+		dsgs := symbol.dsgs // earliest-first; iterate latest-first via j
+		result = make([]*CrossChunkCodeMotion_DeclarationStatementGroup, 0, len(stack1)+len(dsgs))
+		i := 0
+		j := len(dsgs) - 1
 		for {
-			if stack1.IsEmpty() {
-				resultStack.AddAll(stack2.All())
+			if i == len(stack1) {
+				for ; j >= 0; j-- {
+					result = append(result, dsgs[j])
+				}
 				break
-			} else if stack2.IsEmpty() {
-				resultStack.AddAll(stack1.All())
+			} else if j < 0 {
+				result = append(result, stack1[i:]...)
 				break
 			} else {
-				dsg1 := stack1.Peek()
-				dsg2 := stack2.Peek()
+				dsg1 := stack1[i]
+				dsg2 := dsgs[j]
 				if dsg1.currentChunk.GetIndex() > dsg2.currentChunk.GetIndex() {
-					resultStack.Add(stack1.Pop())
+					result = append(result, dsg1)
+					i++
 					jutil.CheckStateMsg(
-						stack1.IsEmpty() ||
-							stack1.Peek().currentChunk.GetIndex() <= dsg1.currentChunk.GetIndex(),
+						i == len(stack1) ||
+							stack1[i].currentChunk.GetIndex() <= dsg1.currentChunk.GetIndex(),
 						"DSG stacks are out of order.")
 				} else {
-					resultStack.Add(stack2.Pop())
+					result = append(result, dsg2)
+					j--
 					jutil.CheckStateMsg(
-						stack2.IsEmpty() ||
-							stack2.Peek().currentChunk.GetIndex() <= dsg2.currentChunk.GetIndex(),
+						j < 0 ||
+							dsgs[j].currentChunk.GetIndex() <= dsg2.currentChunk.GetIndex(),
 						"DSG stacks are out of order.")
 				}
 			}
 		}
 	}
-	return resultStack
+	return result
 }
 
 // Java: CrossChunkCodeMotion.addGuardToInstanceofReference(Node)
@@ -683,16 +665,6 @@ func NewCrossChunkCodeMotion_DeclarationStatementGroup(declaredGlobalSymbol *Cro
 	g.statements = g.stmtBuf[:0]
 	g.referencedSlice = g.referencedBuf[:0]
 	return g
-}
-
-func (g *CrossChunkCodeMotion_DeclarationStatementGroup) allStatementsLatestFirst() iter.Seq[*CrossChunkReferenceCollector_TopLevelStatement] {
-	return func(yield func(*CrossChunkReferenceCollector_TopLevelStatement) bool) {
-		for i := len(g.statements) - 1; i >= 0; i-- {
-			if !yield(g.statements[i]) {
-				return
-			}
-		}
-	}
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.allStatementsCanMove()
@@ -762,7 +734,7 @@ func (g *CrossChunkCodeMotion_DeclarationStatementGroup) MakeReferencesImmovable
 // https://en.wikipedia.org/wiki/Path-based_strong_component_algorithm.
 type CrossChunkCodeMotion_OrderAndCombineGlobalSymbols struct {
 	outer        *CrossChunkCodeMotion
-	inputSymbols *jutil.ArrayDeque[*CrossChunkCodeMotion_GlobalSymbol]
+	inputSymbols []*CrossChunkCodeMotion_GlobalSymbol
 	// Tracks DSGs that may be part of a strongly connected component
 	// (reference cycle).
 	componentContents []*CrossChunkCodeMotion_GlobalSymbol
@@ -770,41 +742,30 @@ type CrossChunkCodeMotion_OrderAndCombineGlobalSymbols struct {
 	// (reference cycle).
 	componentRoots []*CrossChunkCodeMotion_GlobalSymbol
 	// Filled with lists of strongly connected DSGs as they are discovered.
-	stronglyConnectedSymbols *jutil.ArrayDeque[*CrossChunkCodeMotion_GlobalSymbolCycle]
-	cycles                   []*CrossChunkCodeMotion_GlobalSymbolCycle
+	cycles []*CrossChunkCodeMotion_GlobalSymbolCycle
 
 	preorderCounter int
 }
 
 // Java: CrossChunkCodeMotion.OrderAndCombineGlobalSymbols(Collection<GlobalSymbol>)
-func NewCrossChunkCodeMotion_OrderAndCombineGlobalSymbols(outer *CrossChunkCodeMotion, dsgs *jutil.ArrayDeque[*CrossChunkCodeMotion_GlobalSymbol]) *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols {
+func NewCrossChunkCodeMotion_OrderAndCombineGlobalSymbols(outer *CrossChunkCodeMotion, dsgs []*CrossChunkCodeMotion_GlobalSymbol) *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols {
 	o := &CrossChunkCodeMotion_OrderAndCombineGlobalSymbols{
 		outer:           outer,
 		preorderCounter: 0,
 		inputSymbols:    dsgs,
 	}
-	if n := dsgs.Size(); n > 0 {
+	if n := len(dsgs); n > 0 {
 		o.cycles = make([]*CrossChunkCodeMotion_GlobalSymbolCycle, 0, n)
 	}
 	return o
 }
 
 func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) orderAndCombineSlice() {
-	for globalSymbol := range o.inputSymbols.All() {
+	for _, globalSymbol := range o.inputSymbols {
 		if globalSymbol.preorderNumber < 0 {
 			o.ProcessGlobalSymbol(globalSymbol)
 		} // else already processed
 	}
-}
-
-// Java: CrossChunkCodeMotion.OrderAndCombineGlobalSymbols.orderAndCombine()
-func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) OrderAndCombine() *jutil.ArrayDeque[*CrossChunkCodeMotion_GlobalSymbolCycle] {
-	o.orderAndCombineSlice()
-	o.stronglyConnectedSymbols = jutil.NewArrayDequeWithCapacity[*CrossChunkCodeMotion_GlobalSymbolCycle](len(o.cycles))
-	for _, c := range o.cycles {
-		o.stronglyConnectedSymbols.Add(c)
-	}
-	return o.stronglyConnectedSymbols
 }
 
 // ProcessGlobalSymbol determines to which strongly connected component this
@@ -947,8 +908,11 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) moveSingleStatemen
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.moveStatementsToChunk(JSChunk)
 func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveStatementsToChunk(preferredChunk *JSChunk) {
-	destParent :=
-		y.outer.chunkInsertionPointMap.ComputeIfAbsent(preferredChunk, y.outer.compiler.GetNodeForCodeInsertion)
+	destParent, ok := y.outer.chunkInsertionPointMap[preferredChunk]
+	if !ok {
+		destParent = y.outer.compiler.GetNodeForCodeInsertion(preferredChunk)
+		y.outer.chunkInsertionPointMap[preferredChunk] = destParent
+	}
 	if len(y.dsgsSlice) == 1 {
 		stmts := y.dsgsSlice[0].statements
 		for i := len(stmts) - 1; i >= 0; i-- {
@@ -956,40 +920,45 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveStatementsToCh
 		}
 		return
 	}
-	statementsLastFirst := y.GetStatementsLastFirst()
-	for statement := range statementsLastFirst.All() {
+	for _, statement := range y.GetStatementsLastFirst() {
 		y.moveSingleStatementToChunk(statement, destParent)
 	}
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.getStatementsLastFirst()
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetStatementsLastFirst() *jutil.ArrayDeque[*CrossChunkReferenceCollector_TopLevelStatement] {
-	result := jutil.NewArrayDeque[*CrossChunkReferenceCollector_TopLevelStatement]()
+func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetStatementsLastFirst() []*CrossChunkReferenceCollector_TopLevelStatement {
+	var result []*CrossChunkReferenceCollector_TopLevelStatement
 
 	for _, dsg := range y.dsgsSlice {
 		// combine previous result with statements for current DSG
-		stack1 := jutil.NewArrayDequeFrom(dsg.allStatementsLatestFirst())
+		stmts := dsg.statements // earliest-first; iterate latest-first via j
 		stack2 := result
-		result = jutil.NewArrayDequeWithCapacity[*CrossChunkReferenceCollector_TopLevelStatement](stack1.Size() + stack2.Size())
+		result = make([]*CrossChunkReferenceCollector_TopLevelStatement, 0, len(stmts)+len(stack2))
+		j := len(stmts) - 1
+		i := 0
 		for {
-			if stack1.IsEmpty() {
-				result.AddAll(stack2.All())
+			if j < 0 {
+				result = append(result, stack2[i:]...)
 				break
-			} else if stack2.IsEmpty() {
-				result.AddAll(stack1.All())
+			} else if i == len(stack2) {
+				for ; j >= 0; j-- {
+					result = append(result, stmts[j])
+				}
 				break
 			} else {
-				s1 := stack1.Peek()
-				s2 := stack2.Peek()
+				s1 := stmts[j]
+				s2 := stack2[i]
 				if s1.GetOriginalOrder() > s2.GetOriginalOrder() {
-					result.Add(stack1.Pop())
+					result = append(result, s1)
+					j--
 					jutil.CheckStateMsg(
-						stack1.IsEmpty() || stack1.Peek().GetOriginalOrder() < s1.GetOriginalOrder(),
+						j < 0 || stmts[j].GetOriginalOrder() < s1.GetOriginalOrder(),
 						"Statements are recorded in the wrong order.")
 				} else {
-					result.Add(stack2.Pop())
+					result = append(result, s2)
+					i++
 					jutil.CheckStateMsg(
-						stack2.IsEmpty() || stack2.Peek().GetOriginalOrder() < s2.GetOriginalOrder(),
+						i == len(stack2) || stack2[i].GetOriginalOrder() < s2.GetOriginalOrder(),
 						"Statements are recorded in the wrong order.")
 				}
 			}

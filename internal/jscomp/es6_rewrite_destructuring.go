@@ -81,17 +81,6 @@ const (
 var es6RewriteDestructuring_ObjectDestructuringRewriteMode_names = [...]string{
 	"REWRITE_ALL_OBJECT_PATTERNS", "REWRITE_OBJECT_REST"}
 
-// Es6RewriteDestructuring_ObjectDestructuringRewriteMode_values is
-// ObjectDestructuringRewriteMode.values().
-//
-// Java: ObjectDestructuringRewriteMode.values()
-func Es6RewriteDestructuring_ObjectDestructuringRewriteMode_values() []Es6RewriteDestructuring_ObjectDestructuringRewriteMode {
-	return []Es6RewriteDestructuring_ObjectDestructuringRewriteMode{
-		Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_ALL_OBJECT_PATTERNS,
-		Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_OBJECT_REST,
-	}
-}
-
 // String is Enum.name().
 //
 // Java: ObjectDestructuringRewriteMode.name()
@@ -560,14 +549,13 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 	tempVarName := e.GetTempVariableName()
 	tempVarType := AstFactory_Type_(objectPattern.Node())
 
-	var restTempVarName *string = nil
+	var restTempVarName string
 	// If the last child is a rest node we will want a list of the stated properties so we can
 	// exclude them from being written to the rest variable.
-	var propsToDeleteForRest *jutil.ArrayList[rhino.Node] = nil
-	if _, hasRest := es6RewriteDestructuring_objectRest(objectPattern); hasRest {
-		propsToDeleteForRest = jutil.NewArrayList[rhino.Node]()
-		name := e.GetTempVariableName()
-		restTempVarName = &name
+	var propsToDeleteForRest []rhino.Node
+	_, hasRest := es6RewriteDestructuring_objectRest(objectPattern)
+	if hasRest {
+		restTempVarName = e.GetTempVariableName()
 	} else if e.rewriteMode == Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_OBJECT_REST {
 		// We are configured to only break object pattern rest, but this destructure has none.
 		if !e.patternNestingStackPeekLast().hasNestedObjectRest {
@@ -625,8 +613,8 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 				newLHS = value.Node()
 				newRHS = getprop
 			}
-			if propsToDeleteForRest != nil {
-				propsToDeleteForRest.Add(key.Node())
+			if hasRest {
+				propsToDeleteForRest = append(propsToDeleteForRest, key.Node())
 			}
 		} else if computed, ok := child.AsComputedProp(); ok {
 			// const {[propExpr]: newLHS = defaultValue} = newRHS;
@@ -646,7 +634,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 				newLHS = value.Detach().Node()
 				defaultValue = rhino.NilNode
 			}
-			if propsToDeleteForRest != nil {
+			if hasRest {
 				// A "...rest" variable is present and result of computation must be cached
 				exprEvalTempVarName := e.GetTempVariableName()
 				exprEvalTempVarModel :=
@@ -655,7 +643,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 				exprEvalDecl.SrcrefTreeIfMissing(computed.Node())
 				exprEvalDecl.InsertBefore(nodeToDetach)
 				propExpr = exprEvalTempVarModel.CloneNode()
-				propsToDeleteForRest.Add(exprEvalTempVarModel.CloneNode())
+				propsToDeleteForRest = append(propsToDeleteForRest, exprEvalTempVarModel.CloneNode())
 			}
 			if hasDefault {
 				// tempVarName[propExpr]
@@ -693,7 +681,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 			assignCall.AddChildToBack(e.astFactory.CreateObjectLit())
 			assignCall.AddChildToBack(e.CreateTempVarNameNode(tempVarName, tempVarType))
 
-			restTempDecl := rhino.IR_VarWithValue(e.CreateTempVarNameNode(*restTempVarName, tempVarType), assignCall)
+			restTempDecl := rhino.IR_VarWithValue(e.CreateTempVarNameNode(restTempVarName, tempVarType), assignCall)
 			restTempDecl.SrcrefTreeIfMissing(objectPattern.Node())
 			restTempDecl.InsertBefore(nodeToDetach)
 
@@ -708,7 +696,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 			} else {
 				newLHS = restTarget.Detach().Node()
 			}
-			newRHS = e.ObjectPatternRestRHS(objectPattern, rest, *restTempVarName, propsToDeleteForRest)
+			newRHS = e.ObjectPatternRestRHS(objectPattern, rest, restTempVarName, propsToDeleteForRest)
 		} else {
 			panic(jutil.NewIllegalStateExceptionMsg("unexpected child"))
 		}
@@ -761,15 +749,14 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 //
 // Java: Es6RewriteDestructuring.objectPatternRestRHS(Node, Node, String, ArrayList<Node>)
 func (e *Es6RewriteDestructuring) ObjectPatternRestRHS(
-	objectPattern ast.ObjectPattern, rest ast.ObjectRest, restTempVarName string, statedProperties *jutil.ArrayList[rhino.Node]) rhino.Node {
+	objectPattern ast.ObjectPattern, rest ast.ObjectRest, restTempVarName string, statedProperties []rhino.Node) rhino.Node {
 	last, ok := objectPattern.LastProp()
 	jutil.CheckArgument(ok && last.Is(rest.Node()))
 	restTempVarModel := e.CreateTempVarNameNode(restTempVarName, AstFactory_Type_(objectPattern.Node()))
 	result := restTempVarModel.CloneNode()
-	if !statedProperties.IsEmpty() {
-		props := statedProperties.Slice()
-		comma := e.DeletionNodeForRestProperty(restTempVarModel.CloneNode(), props[0])
-		for _, prop := range props[1:] {
+	if len(statedProperties) > 0 {
+		comma := e.DeletionNodeForRestProperty(restTempVarModel.CloneNode(), statedProperties[0])
+		for _, prop := range statedProperties[1:] {
 			comma =
 				e.astFactory.CreateComma(
 					comma, e.DeletionNodeForRestProperty(restTempVarModel.CloneNode(), prop))

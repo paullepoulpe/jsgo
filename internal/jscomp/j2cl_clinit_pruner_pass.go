@@ -120,12 +120,10 @@ func (p *J2clClinitPrunerPass) resolveReplacement(node rhino.Node) rhino.Node {
 }
 
 // Java: J2clClinitPrunerPass.collectClinitReferences(Node)
-func (p *J2clClinitPrunerPass) collectClinitReferences(root rhino.Node) *jutil.LinkedHashMultimap[*string, rhino.Node] {
+func (p *J2clClinitPrunerPass) collectClinitReferences(root rhino.Node) map[string][]rhino.Node {
 	// Go-only: language-adapter — Java HashMultimap: its keys are only looked
-	// up (never iterated) and its values are Nodes, which Java hashes by
-	// identity, so Java's own value order is not deterministic; insertion
-	// order is used.
-	clinitReferences := jutil.NewLinkedHashMultimap[*string, rhino.Node]()
+	// up (never iterated) and each AST node is visited once in post-order.
+	clinitReferences := make(map[string][]rhino.Node)
 	NodeTraversal_Traverse(
 		p.compiler,
 		root,
@@ -137,24 +135,25 @@ func (p *J2clClinitPrunerPass) collectClinitReferences(root rhino.Node) *jutil.L
 // AbstractPostOrderCallback of collectClinitReferences.
 type j2clClinitPrunerPass_collectClinitReferencesCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	clinitReferences *jutil.LinkedHashMultimap[*string, rhino.Node]
+	clinitReferences map[string][]rhino.Node
 }
 
 // Java: J2clClinitPrunerPass.collectClinitReferences(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
 func (c *j2clClinitPrunerPass_collectClinitReferencesCallback) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	clinitName := j2clClinitPrunerPass_getClinitMethodName(node)
 	if clinitName != nil {
-		c.clinitReferences.Put(clinitName, node)
+		c.clinitReferences[*clinitName] = append(c.clinitReferences[*clinitName], node)
 	}
 }
 
 // Java: J2clClinitPrunerPass.cleanEmptyClinitReferences(Multimap<String, Node>)
-func (p *J2clClinitPrunerPass) cleanEmptyClinitReferences(clinitReferences *jutil.LinkedHashMultimap[*string, rhino.Node]) []rhino.Node {
+func (p *J2clClinitPrunerPass) cleanEmptyClinitReferences(clinitReferences map[string][]rhino.Node) []rhino.Node {
 	newChangedScopes := []rhino.Node{}
 	// resolveReplacement step above should not require any particular iteration order of the
 	// emptiedClinitMethods but we are using LinkedHashMap to be extra safe.
 	for clinitName, replacement := range p.emptiedClinitMethods.All() {
-		references := clinitReferences.RemoveAll(&clinitName)
+		references := clinitReferences[clinitName]
+		delete(clinitReferences, clinitName)
 		for _, reference := range references {
 			changedScope := ChangeTracker_GetEnclosingChangeScopeRoot(reference.GetParent())
 			if replacement.IsNil() {
@@ -163,7 +162,9 @@ func (p *J2clClinitPrunerPass) cleanEmptyClinitReferences(clinitReferences *juti
 				replacement = replacement.CloneTree()
 				reference.ReplaceWith(replacement)
 				p.compiler.ReportChangeToChangeScope(changedScope)
-				clinitReferences.Put(j2clClinitPrunerPass_getClinitMethodName(replacement), replacement)
+				if replName := j2clClinitPrunerPass_getClinitMethodName(replacement); replName != nil {
+					clinitReferences[*replName] = append(clinitReferences[*replName], replacement)
+				}
 			}
 			newChangedScopes = append(newChangedScopes, changedScope)
 		}
@@ -186,7 +187,7 @@ func j2clClinitPrunerPass_getNonNestedParentScopeNodes(changedScopeNodes []rhino
 // Java: private final class J2clClinitPrunerPass.RedundantClinitPruner implements NodeTraversal.Callback
 type J2clClinitPrunerPass_RedundantClinitPruner struct {
 	outer                 *J2clClinitPrunerPass
-	roots                 *jutil.LinkedHashSet[rhino.Node]
+	roots                 map[rhino.Node]struct{}
 	stateStack            []*J2clClinitPrunerPass_HierarchicalSet[string]
 	clinitsCalledAtBranch *J2clClinitPrunerPass_HierarchicalSet[string]
 }
@@ -198,14 +199,17 @@ func (p *J2clClinitPrunerPass) newRedundantClinitPruner(roots []rhino.Node) *J2c
 		clinitsCalledAtBranch: NewJ2clClinitPrunerPass_HierarchicalSet[string](nil),
 	}
 	if len(roots) > 0 {
-		r.roots = jutil.NewLinkedHashSet(roots...)
+		r.roots = make(map[rhino.Node]struct{}, len(roots))
+		for _, root := range roots {
+			r.roots[root] = struct{}{}
+		}
 	}
 	return r
 }
 
 // Java: J2clClinitPrunerPass.RedundantClinitPruner.shouldTraverse(NodeTraversal, Node, Node)
 func (r *J2clClinitPrunerPass_RedundantClinitPruner) ShouldTraverse(t *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
-	if r.roots != nil && r.roots.Contains(node) {
+	if _, ok := r.roots[node]; ok {
 		// Reset the clinit call tracking when starting over on a new scope.
 		r.clinitsCalledAtBranch = NewJ2clClinitPrunerPass_HierarchicalSet[string](nil)
 		r.stateStack = r.stateStack[:0]
@@ -522,7 +526,7 @@ func j2clClinitPrunerPass_isClinitMethodName(fnName *string) bool {
 //
 // Java: private static class J2clClinitPrunerPass.HierarchicalSet<T>
 type J2clClinitPrunerPass_HierarchicalSet[T comparable] struct {
-	currentSet *jutil.LinkedHashSet[T]
+	currentSet map[T]struct{}
 	parent     *J2clClinitPrunerPass_HierarchicalSet[T]
 }
 
@@ -539,9 +543,13 @@ func (s *J2clClinitPrunerPass_HierarchicalSet[T]) Add(o T) bool {
 		return false
 	}
 	if s.currentSet == nil {
-		s.currentSet = jutil.NewLinkedHashSet[T]()
+		s.currentSet = make(map[T]struct{})
 	}
-	return s.currentSet.Add(o)
+	if _, ok := s.currentSet[o]; ok {
+		return false
+	}
+	s.currentSet[o] = struct{}{}
+	return true
 }
 
 // parentsContains returns true either my parent or any of its parents
@@ -550,7 +558,7 @@ func (s *J2clClinitPrunerPass_HierarchicalSet[T]) Add(o T) bool {
 // Java: J2clClinitPrunerPass.HierarchicalSet.parentsContains(T)
 func (s *J2clClinitPrunerPass_HierarchicalSet[T]) parentsContains(o T) bool {
 	for p := s.parent; p != nil; p = p.parent {
-		if p.currentSet != nil && p.currentSet.Contains(o) {
+		if _, ok := p.currentSet[o]; ok {
 			return true
 		}
 	}

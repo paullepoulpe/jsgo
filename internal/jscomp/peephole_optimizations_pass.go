@@ -23,8 +23,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -749,13 +747,8 @@ func (c *peepholeOptimizationsPass_PeepCallback) ExitScope(t *NodeTraversal) {
 // Java: PeepholeOptimizationsPass.PeepCallback.updateFeatures(NodeTraversal)
 func (c *peepholeOptimizationsPass_PeepCallback) UpdateFeatures(t *NodeTraversal) {
 	for _, base := range c.this.featureOptimBases {
-		newFeatures := base.newFeatures
-		if !newFeatures.IsEmpty() {
-			// Go-only: language-adapter — FeatureSet.with(Set<Feature>) takes the Go EnumSet form.
-			NodeUtil_AddFeaturesToScript(
-				t.GetCurrentScript(),
-				parser.FeatureSet_BARE_MINIMUM.WithEnumSet(jutil.NewEnumSet(newFeatures.ToSlice()...)),
-				c.this.compiler)
+		if !base.newFeatures.IsEmpty() {
+			NodeUtil_AddFeaturesToScript(t.GetCurrentScript(), base.newFeatures, c.this.compiler)
 			base.ClearNewFeatures()
 		}
 	}

@@ -124,14 +124,6 @@ func ClosureRequireProcessor_GetAllRequires(nameDeclaration rhino.Node) []*Closu
 	return newClosureRequireProcessor(nameDeclaration, *requireKind).GetAllRequiresInDeclaration()
 }
 
-var closureRequireProcessor_GOOG_DEPENDENCY_CALLS = func() *jutil.LinkedHashMap[string, Binding_CreatedBy] {
-	m := jutil.NewLinkedHashMap[string, Binding_CreatedBy]()
-	m.Put("require", Binding_CreatedBy_GOOG_REQUIRE)
-	m.Put("requireType", Binding_CreatedBy_GOOG_REQUIRE_TYPE)
-	m.Put("forwardDeclare", Binding_CreatedBy_GOOG_FORWARD_DECLARE)
-	return m
-}()
-
 // ClosureRequireProcessor_GetModuleDependencyTypeFromRhs checks if the given
 // rvalue is a goog.require(Type) or goog.forwardDeclare call, and if so
 // returns which one.
@@ -155,10 +147,18 @@ func ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(value rhino.Node) *B
 	if !owner.IsName() || owner.GetString() != "goog" {
 		return nil
 	}
-	if createdBy, ok := closureRequireProcessor_GOOG_DEPENDENCY_CALLS.Lookup(callee.GetString()); ok {
-		return &createdBy
+	var createdBy Binding_CreatedBy
+	switch callee.GetString() {
+	case "require":
+		createdBy = Binding_CreatedBy_GOOG_REQUIRE
+	case "requireType":
+		createdBy = Binding_CreatedBy_GOOG_REQUIRE_TYPE
+	case "forwardDeclare":
+		createdBy = Binding_CreatedBy_GOOG_FORWARD_DECLARE
+	default:
+		return nil
 	}
-	return nil
+	return &createdBy
 }
 
 // GetAllRequiresInDeclaration returns a new list of all required names in
@@ -207,7 +207,7 @@ func (p *ClosureRequireProcessor) GetAllRequiresInDeclaration() []*ClosureRequir
 // Java: ClosureRequireProcessor.getAllRequiresFromDestructuring(Node, String)
 func (p *ClosureRequireProcessor) GetAllRequiresFromDestructuring(
 	objectPattern rhino.Node, namespace string) []*ClosureRequireProcessor_Require {
-	requireBuilder := jutil.ImmutableList_Builder_[*ClosureRequireProcessor_Require]()
+	requires := []*ClosureRequireProcessor_Require{}
 	for key := objectPattern.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		if !key.IsStringKey() {
 			// Bad code, just ignore. We warn elsewhere.
@@ -219,7 +219,7 @@ func (p *ClosureRequireProcessor) GetAllRequiresFromDestructuring(
 			continue
 		}
 
-		requireBuilder.Add(
+		requires = append(requires,
 			ClosureRequireProcessor_Require_Create(
 				lhs.GetString(),
 				Import_Builder_().
@@ -231,5 +231,5 @@ func (p *ClosureRequireProcessor) GetAllRequiresFromDestructuring(
 					Build(),
 				p.requireKind))
 	}
-	return requireBuilder.Build()
+	return requires
 }

@@ -5095,17 +5095,17 @@ func compiler_toVariableMapEntries(m *VariableMap) []*VariableMapEntryProto {
 
 // Java: Compiler.fromProto(List<FeatureProto>)
 func compiler_fromProto(protos []FeatureProto) *parser.FeatureSet {
-	features := jutil.NewEnumSet[parser.FeatureSet_Feature]()
+	fs := parser.FeatureSet_BARE_MINIMUM
 	for _, p := range protos {
 		if p != FeatureProto_FEATURE_UNKNOWN {
 			jutil.Try(func() {
-				features.Add(parser.FeatureSet_Feature_ValueOf(p.String()[len("FEATURE_"):]))
+				fs = fs.With(parser.FeatureSet_Feature_ValueOf(p.String()[len("FEATURE_"):]))
 			}, func(e jutil.IIllegalArgumentException) {
 				// ignore
 			})
 		}
 	}
-	return parser.FeatureSet_BARE_MINIMUM.WithEnumSet(features)
+	return fs
 }
 
 // Java: Compiler.fromProto(LifeCycleStageProto)
@@ -5140,7 +5140,7 @@ func compiler_fromVariableMapEntries(entries []*VariableMapEntryProto) *Variable
 func (c *Compiler) GetCompilerStateProtoBuilder() *JSCompilerStateProto_Builder {
 	builder := JSCompilerStateProto_NewBuilder()
 
-	for feature := range c.allowableFeatures.GetFeatures().All() {
+	for feature := range c.allowableFeatures.All() {
 		builder.AddAllowableFeatures(compiler_toProto(feature))
 	}
 	builder.

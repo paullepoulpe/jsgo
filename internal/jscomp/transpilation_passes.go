@@ -538,7 +538,7 @@ func TranspilationPasses_PostTranspileCheckUnsupportedFeaturesRemoved(compiler A
 		)
 	}
 
-	if outputFeatures.GetFeatures().IsEmpty() {
+	if outputFeatures.IsEmpty() {
 		// In some cases (e.g. targets built using `gen_closurized_js`), the outputFeatures is not
 		// set. Only when set, confirm that the output featureSet is respected by JSCompiler.
 		return
@@ -548,7 +548,7 @@ func TranspilationPasses_PostTranspileCheckUnsupportedFeaturesRemoved(compiler A
 		// Confirm that the output featureSet is respected by JSCompiler.
 		diff := currentFeatures.Without(outputFeatures)
 		panic(jutil.NewIllegalStateExceptionMsg(
-			"Unsupported feature(s) leaked to output code:" + diff.GetFeatures().String()))
+			"Unsupported feature(s) leaked to output code:" + diff.String()))
 	}
 }
 

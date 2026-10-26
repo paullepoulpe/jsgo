@@ -7022,7 +7022,7 @@ func NodeUtil_AddFeatureToAllScripts(root rhino.Node, feature parser.FeatureSet_
 // Java: NodeUtil.addFeaturesToScript(Node, FeatureSet, AbstractCompiler)
 func NodeUtil_AddFeaturesToScript(scriptNode rhino.Node, features *parser.FeatureSet, compiler AbstractCompiler) {
 	jutil.CheckStateMsg1(scriptNode.IsScript(), "%s", scriptNode)
-	for feature := range features.GetFeatures().All() {
+	for feature := range features.All() {
 		NodeUtil_AddFeatureToScript(scriptNode, feature, compiler)
 	}
 }
