@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -37,7 +39,7 @@ type ChromePass struct {
 
 	compiler AbstractCompiler
 
-	createdObjects *jutil.LinkedHashSet[string]
+	createdObjects map[string]struct{}
 }
 
 const chromePass_CR_DEFINE = "cr.define"
@@ -82,11 +84,11 @@ var ChromePass_CR_DEFINE_PROPERTY_INVALID_PROPERTY_KIND = DiagnosticType_Error(
 
 // Java: ChromePass(AbstractCompiler)
 func NewChromePass(compiler AbstractCompiler) *ChromePass {
-	p := &ChromePass{}
-	p.compiler = compiler
-	// The global variable "cr" is declared in ui/webui/resources/js/cr.js.
-	p.createdObjects = jutil.NewLinkedHashSet("cr")
-	return p
+	return &ChromePass{
+		compiler: compiler,
+		// The global variable "cr" is declared in ui/webui/resources/js/cr.js.
+		createdObjects: map[string]struct{}{"cr": {}},
+	}
 }
 
 // Java: ChromePass.process(Node, Node)
@@ -127,7 +129,7 @@ func (p *ChromePass) visitPropertyDefinition(call rhino.Node, parent rhino.Node)
 
 	// Java string concatenation renders a null qualified name as "null".
 	target := jutil.ToJavaString(call.GetSecondChild().GetQualifiedName())
-	if isCrDefinePropertyCall && !jutil.StringEndsWith(target, ".prototype") {
+	if isCrDefinePropertyCall && !strings.HasSuffix(target, ".prototype") {
 		target += ".prototype"
 	}
 
@@ -197,10 +199,10 @@ func chromePass_setJsDocWithType(target rhino.Node, type_ rhino.Node) {
 // Java: ChromePass.createAndInsertObjectsForQualifiedName(Node, String)
 func (p *ChromePass) createAndInsertObjectsForQualifiedName(scriptChild rhino.Node, namespace string) {
 	objectsForQualifiedName := p.createObjectsForQualifiedName(namespace)
-	for n := range objectsForQualifiedName.All() {
+	for _, n := range objectsForQualifiedName {
 		n.SrcrefTree(scriptChild).InsertBefore(scriptChild)
 	}
-	if !objectsForQualifiedName.IsEmpty() {
+	if len(objectsForQualifiedName) > 0 {
 		p.compiler.ReportChangeToEnclosingScope(scriptChild)
 	}
 }
@@ -253,16 +255,16 @@ func (p *ChromePass) visitNamespaceDefinition(crDefineCallNode rhino.Node, paren
 }
 
 // Java: ChromePass.objectLitToMap(Node)
-func chromePass_objectLitToMap(objectLit rhino.Node) *jutil.LinkedHashMap[string, string] {
-	res := jutil.NewLinkedHashMap[string, string]()
+func chromePass_objectLitToMap(objectLit rhino.Node) map[string]string {
+	res := make(map[string]string)
 
 	for keyNode := objectLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		key := keyNode.GetString()
 
 		valueNode := keyNode.GetFirstChild()
 		if valueNode.IsName() {
-			value := keyNode.GetFirstChild().GetString()
-			res.Put(value, key)
+			value := valueNode.GetString()
+			res[value] = key
 		}
 	}
 
@@ -277,18 +279,20 @@ func chromePass_objectLitToMap(objectLit rhino.Node) *jutil.LinkedHashMap[string
 //	a.b.c = a.b.c || {};
 //
 // Java: ChromePass.createObjectsForQualifiedName(String)
-func (p *ChromePass) createObjectsForQualifiedName(namespace string) *jutil.ArrayList[rhino.Node] {
-	objects := jutil.NewArrayList[rhino.Node]()
+func (p *ChromePass) createObjectsForQualifiedName(namespace string) []rhino.Node {
+	var objects []rhino.Node
 	// namespace.split("\\.")
 	parts := jutil.StringSplitLiteral(namespace, ".")
 
-	p.createObjectIfNew(objects, parts[0], true)
+	objects = p.createObjectIfNew(objects, parts[0], true)
 
 	if len(parts) >= 2 {
-		currPrefix := jutil.NewStringBuilder().Append(parts[0])
+		var currPrefix strings.Builder
+		currPrefix.WriteString(parts[0])
 		for i := 1; i < len(parts); i++ {
-			currPrefix.Append(".").Append(parts[i])
-			p.createObjectIfNew(objects, currPrefix.String(), false)
+			currPrefix.WriteByte('.')
+			currPrefix.WriteString(parts[i])
+			objects = p.createObjectIfNew(objects, currPrefix.String(), false)
 		}
 	}
 
@@ -296,19 +300,18 @@ func (p *ChromePass) createObjectsForQualifiedName(namespace string) *jutil.Arra
 }
 
 // Java: ChromePass.createObjectIfNew(List<Node>, String, boolean)
-func (p *ChromePass) createObjectIfNew(objects *jutil.ArrayList[rhino.Node], name string, needVar bool) {
-	if p.createdObjects.Contains(name) {
-		return
+func (p *ChromePass) createObjectIfNew(objects []rhino.Node, name string, needVar bool) []rhino.Node {
+	if _, exists := p.createdObjects[name]; exists {
+		return objects
 	}
-	p.createdObjects.Add(name)
+	p.createdObjects[name] = struct{}{}
 
 	v := NodeUtil_NewQName(p.compiler, name)
 	lhs := rhino.IR_Or(v.CloneTree(), rhino.IR_Objectlit())
 	if needVar {
-		objects.Add(rhino.IR_VarWithValue(v, lhs))
-	} else {
-		objects.Add(rhino.IR_ExprResult(rhino.IR_Assign(v, lhs)))
+		return append(objects, rhino.IR_VarWithValue(v, lhs))
 	}
+	return append(objects, rhino.IR_ExprResult(rhino.IR_Assign(v, lhs)))
 }
 
 // Java: private class ChromePass.RenameInternalsToExternalsCallback extends AbstractPostOrderCallback
@@ -318,14 +321,14 @@ type chromePass_RenameInternalsToExternalsCallback struct {
 	outer *ChromePass
 
 	namespaceName  string
-	exports        *jutil.LinkedHashMap[string, string]
+	exports        map[string]string
 	namespaceBlock rhino.Node
 }
 
 // Java: ChromePass.RenameInternalsToExternalsCallback(String, Map<String, String>, Node)
 func newChromePass_RenameInternalsToExternalsCallback(
 	outer *ChromePass,
-	namespaceName string, exports *jutil.LinkedHashMap[string, string], namespaceBlock rhino.Node) *chromePass_RenameInternalsToExternalsCallback {
+	namespaceName string, exports map[string]string, namespaceBlock rhino.Node) *chromePass_RenameInternalsToExternalsCallback {
 	return &chromePass_RenameInternalsToExternalsCallback{
 		outer:          outer,
 		namespaceName:  namespaceName,
@@ -338,94 +341,98 @@ func newChromePass_RenameInternalsToExternalsCallback(
 func (c *chromePass_RenameInternalsToExternalsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	compiler := c.outer.compiler
 	if (n.IsFunction() || n.IsClass()) &&
-		parent == c.namespaceBlock &&
-		c.exports.ContainsKey(n.GetFirstChild().GetString()) {
-		// It's a top-level function/constructor/class definition.
-		//
-		// Change
-		//
-		//   /** Some doc */
-		//   function internalName() {}
-		//
-		// to
-		//
-		//   /** Some doc */
-		//   my.namespace.name.externalName = function internalName() {};
-		//
-		// and change
-		//
-		//   /** Some doc */
-		//   class InternalName {}
-		//
-		// to
-		//
-		//   /** Some doc */
-		//   my.namespace.name.ExternalName = class InternalName {};
-		//
-		// by looking up in this.exports for internalName to find the correspondent
-		// externalName.
-		clone := n.CloneTree()
-		if clone.IsClass() {
-			className := clone.GetFirstChild()
-			className.ReplaceWith(rhino.IR_Empty().Srcref(className))
-		}
-		NodeUtil_MarkNewScopesChanged(clone, compiler)
-		exprResult :=
-			rhino.IR_ExprResult(rhino.IR_Assign(c.buildQualifiedName(n.GetFirstChild()), clone).Srcref(n)).
-				Srcref(n)
+		parent == c.namespaceBlock {
+		if _, exported := c.exports[n.GetFirstChild().GetString()]; exported {
+			// It's a top-level function/constructor/class definition.
+			//
+			// Change
+			//
+			//   /** Some doc */
+			//   function internalName() {}
+			//
+			// to
+			//
+			//   /** Some doc */
+			//   my.namespace.name.externalName = function internalName() {};
+			//
+			// and change
+			//
+			//   /** Some doc */
+			//   class InternalName {}
+			//
+			// to
+			//
+			//   /** Some doc */
+			//   my.namespace.name.ExternalName = class InternalName {};
+			//
+			// by looking up in this.exports for internalName to find the correspondent
+			// externalName.
+			clone := n.CloneTree()
+			if clone.IsClass() {
+				className := clone.GetFirstChild()
+				className.ReplaceWith(rhino.IR_Empty().Srcref(className))
+			}
+			NodeUtil_MarkNewScopesChanged(clone, compiler)
+			exprResult :=
+				rhino.IR_ExprResult(rhino.IR_Assign(c.buildQualifiedName(n.GetFirstChild()), clone).Srcref(n)).
+					Srcref(n)
 
-		if n.GetJSDocInfo() != nil {
-			exprResult.GetFirstChild().SetJSDocInfo(n.GetJSDocInfo())
-			clone.SetJSDocInfo(nil)
+			if n.GetJSDocInfo() != nil {
+				exprResult.GetFirstChild().SetJSDocInfo(n.GetJSDocInfo())
+				clone.SetJSDocInfo(nil)
+			}
+			n.ReplaceWith(exprResult)
+			NodeUtil_MarkFunctionsDeleted(n, compiler)
+			compiler.ReportChangeToEnclosingScope(exprResult)
+			return
 		}
-		n.ReplaceWith(exprResult)
-		NodeUtil_MarkFunctionsDeleted(n, compiler)
-		compiler.ReportChangeToEnclosingScope(exprResult)
-	} else if n.IsName() &&
-		c.exports.ContainsKey(n.GetString()) &&
+	}
+	if n.IsName() &&
 		!parent.IsFunction() &&
 		!parent.IsClass() {
-		if NodeUtil_IsNameDeclaration(parent) {
-			if parent.GetParent() == c.namespaceBlock {
-				// It's a top-level exported variable definition (maybe without an
-				// assignment).
-				// Change
-				//
-				//   var enum = { 'one': 1, 'two': 2 };
-				//
-				// to
-				//
-				//   my.namespace.name.enum = { 'one': 1, 'two': 2 };
-				varContent := n.RemoveFirstChild()
-				var exprResult rhino.Node
-				if varContent.IsNil() {
-					exprResult = rhino.IR_ExprResult(c.buildQualifiedName(n)).Srcref(parent)
-				} else {
-					exprResult =
-						rhino.IR_ExprResult(rhino.IR_Assign(c.buildQualifiedName(n), varContent).Srcref(parent)).
-							Srcref(parent)
+		if _, exported := c.exports[n.GetString()]; exported {
+			if NodeUtil_IsNameDeclaration(parent) {
+				if parent.GetParent() == c.namespaceBlock {
+					// It's a top-level exported variable definition (maybe without an
+					// assignment).
+					// Change
+					//
+					//   var enum = { 'one': 1, 'two': 2 };
+					//
+					// to
+					//
+					//   my.namespace.name.enum = { 'one': 1, 'two': 2 };
+					varContent := n.RemoveFirstChild()
+					var exprResult rhino.Node
+					if varContent.IsNil() {
+						exprResult = rhino.IR_ExprResult(c.buildQualifiedName(n)).Srcref(parent)
+					} else {
+						exprResult =
+							rhino.IR_ExprResult(rhino.IR_Assign(c.buildQualifiedName(n), varContent).Srcref(parent)).
+								Srcref(parent)
+					}
+					if parent.GetJSDocInfo() != nil {
+						exprResult.GetFirstChild().SetJSDocInfo(parent.GetJSDocInfo().Clone())
+					}
+					parent.ReplaceWith(exprResult)
+					compiler.ReportChangeToEnclosingScope(exprResult)
 				}
-				if parent.GetJSDocInfo() != nil {
-					exprResult.GetFirstChild().SetJSDocInfo(parent.GetJSDocInfo().Clone())
+			} else {
+				// It's a local name referencing exported entity. Change to its global name.
+				newNode := c.buildQualifiedName(n)
+				if n.GetJSDocInfo() != nil {
+					newNode.SetJSDocInfo(n.GetJSDocInfo().Clone())
 				}
-				parent.ReplaceWith(exprResult)
-				compiler.ReportChangeToEnclosingScope(exprResult)
-			}
-		} else {
-			// It's a local name referencing exported entity. Change to its global name.
-			newNode := c.buildQualifiedName(n)
-			if n.GetJSDocInfo() != nil {
-				newNode.SetJSDocInfo(n.GetJSDocInfo().Clone())
-			}
 
-			// If we alter the name of a called function, then it gets an explicit "this"
-			// value.
-			if parent.IsCall() {
-				parent.PutBooleanProp(rhino.Node_FREE_CALL, false)
-			}
+				// If we alter the name of a called function, then it gets an explicit "this"
+				// value.
+				if parent.IsCall() {
+					parent.PutBooleanProp(rhino.Node_FREE_CALL, false)
+				}
 
-			n.ReplaceWith(newNode)
-			compiler.ReportChangeToEnclosingScope(newNode)
+				n.ReplaceWith(newNode)
+				compiler.ReportChangeToEnclosingScope(newNode)
+			}
 		}
 	}
 }
@@ -433,7 +440,7 @@ func (c *chromePass_RenameInternalsToExternalsCallback) Visit(t *NodeTraversal, 
 // Java: ChromePass.RenameInternalsToExternalsCallback.buildQualifiedName(Node)
 func (c *chromePass_RenameInternalsToExternalsCallback) buildQualifiedName(internalName rhino.Node) rhino.Node {
 	// Java string concatenation renders a missing export (null) as "null".
-	externalName, ok := c.exports.Lookup(internalName.GetString())
+	externalName, ok := c.exports[internalName.GetString()]
 	if !ok {
 		externalName = "null"
 	}

@@ -85,7 +85,7 @@ func TestJavaHashCollectionsEquality(t *testing.T) {
 		t.Error("keySet view differs from an equal set")
 	}
 	mm := HashMultimap_Create[string, string]()
-	mm2 := MultimapBuilder_HashKeys_HashSetValues[string, string]()
+	mm2 := newHashMultimap[string, string](8, hashMultimap_DEFAULT_VALUES_PER_KEY)
 	for _, kv := range [][2]string{{"a", "1"}, {"b", "2"}, {"a", "3"}} {
 		mm.Put(kv[0], kv[1])
 		mm2.Put(kv[0], kv[1])

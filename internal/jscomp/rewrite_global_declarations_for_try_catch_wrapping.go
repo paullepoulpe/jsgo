@@ -60,45 +60,43 @@ type RewriteGlobalDeclarationsForTryCatchWrapping struct {
 	// iteration order over the chunks is not deterministic; each chunk has
 	// its own insertion root, so the order is not observable. Insertion order
 	// is used here.
-	functions *jutil.LinkedHashMap[*JSChunk, *jutil.ArrayList[rhino.Node]]
-	classes   *jutil.ArrayList[rhino.Node]
+	functions *jutil.LinkedHashMap[*JSChunk, []rhino.Node]
+	classes   []rhino.Node
 }
 
 // Java: RewriteGlobalDeclarationsForTryCatchWrapping(AbstractCompiler)
 func NewRewriteGlobalDeclarationsForTryCatchWrapping(compiler AbstractCompiler) *RewriteGlobalDeclarationsForTryCatchWrapping {
-	r := &RewriteGlobalDeclarationsForTryCatchWrapping{
-		functions: jutil.NewLinkedHashMap[*JSChunk, *jutil.ArrayList[rhino.Node]](),
-		classes:   jutil.NewArrayList[rhino.Node](),
+	return &RewriteGlobalDeclarationsForTryCatchWrapping{
+		compiler: compiler,
 	}
-	r.compiler = compiler
-	return r
 }
 
 // Java: RewriteGlobalDeclarationsForTryCatchWrapping.process(Node, Node)
 func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(r.compiler, root, r)
-	for chunk, values := range r.functions.All() {
-		addingRoot := r.compiler.GetNodeForCodeInsertion(chunk)
-		fnNodes := values.Slice()
-		if len(fnNodes) != 0 {
-			// Lists.reverse(entry.getValue())
-			for i := len(fnNodes) - 1; i >= 0; i-- {
-				n := fnNodes[i]
-				parent := n.GetParent()
-				n.Detach()
-				r.compiler.ReportChangeToEnclosingScope(parent)
+	if r.functions != nil {
+		for chunk, fnNodes := range r.functions.All() {
+			addingRoot := r.compiler.GetNodeForCodeInsertion(chunk)
+			if len(fnNodes) != 0 {
+				// Lists.reverse(entry.getValue())
+				for i := len(fnNodes) - 1; i >= 0; i-- {
+					n := fnNodes[i]
+					parent := n.GetParent()
+					n.Detach()
+					r.compiler.ReportChangeToEnclosingScope(parent)
 
-				nameNode := n.GetFirstChild()
-				name := nameNode.GetString()
-				nameNode.SetString("")
-				addingRoot.AddChildToFront(rhino.IR_VarWithValue(rhino.IR_Name(name), n).SrcrefTreeIfMissing(n))
-				r.compiler.ReportChangeToEnclosingScope(nameNode)
+					nameNode := n.GetFirstChild()
+					name := nameNode.GetString()
+					nameNode.SetString("")
+					addingRoot.AddChildToFront(rhino.IR_VarWithValue(rhino.IR_Name(name), n).SrcrefTreeIfMissing(n))
+					r.compiler.ReportChangeToEnclosingScope(nameNode)
+				}
+				r.compiler.ReportChangeToEnclosingScope(addingRoot)
 			}
-			r.compiler.ReportChangeToEnclosingScope(addingRoot)
 		}
 	}
 
-	for _, n := range r.classes.Slice() {
+	for _, n := range r.classes {
 		// rewrite CLASS > NAME ... => VAR > NAME > CLASS > EMPTY ...
 		originalNameNode := n.GetFirstChild()
 		originalNameNode.ReplaceWith(rhino.IR_Empty())
@@ -123,16 +121,14 @@ func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Visit(t *NodeTraversal, n
 
 	if NodeUtil_IsFunctionDeclaration(n) {
 		chunk := t.GetChunk()
-		list := r.functions.Get(chunk)
-		if list == nil {
-			list = jutil.NewArrayList[rhino.Node]()
-			r.functions.Put(chunk, list)
+		if r.functions == nil {
+			r.functions = jutil.NewLinkedHashMap[*JSChunk, []rhino.Node]()
 		}
-		list.Add(n)
+		r.functions.Put(chunk, append(r.functions.Get(chunk), n))
 	}
 
 	if NodeUtil_IsClassDeclaration(n) {
-		r.classes.Add(n)
+		r.classes = append(r.classes, n)
 	}
 
 	if n.IsConst() || n.IsLet() {

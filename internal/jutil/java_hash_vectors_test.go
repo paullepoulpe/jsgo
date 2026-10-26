@@ -721,9 +721,12 @@ func jhReplayMultimap[K comparable, V any](t *testing.T, si int, sc [][]string, 
 			case "hk":
 				mm = HashMultimap_CreateWithExpectedSizes[K, V](jhAtoi(t, r[2]), jhAtoi(t, r[3]))
 			case "mb":
-				mm = MultimapBuilder_HashKeys_HashSetValues[K, V]()
+				mm = newHashMultimap[K, V](8, hashMultimap_DEFAULT_VALUES_PER_KEY)
 			case "mbn":
-				mm = MultimapBuilder_HashKeysN_HashSetValuesN[K, V](jhAtoi(t, r[2]), jhAtoi(t, r[3]))
+				expectedKeys, expectedValuesPerKey := jhAtoi(t, r[2]), jhAtoi(t, r[3])
+				collectPreconditionsCheckNonnegative(expectedKeys, "expectedKeys")
+				collectPreconditionsCheckNonnegative(expectedValuesPerKey, "expectedValuesPerKey")
+				mm = newHashMultimap[K, V](expectedKeys, expectedValuesPerKey)
 			case "hm":
 				src := &jhSrcMultimap[K, V]{}
 				seen := map[K]bool{}

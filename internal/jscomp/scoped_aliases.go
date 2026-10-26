@@ -57,10 +57,7 @@ type ScopedAliases struct {
 	moduleMetadataMap       *ModuleMetadataMap
 	uniqueIdInput           *CompilerInput
 
-	// Go-only: language-adapter — a Guava HashMultiset that is only added to,
-	// never read.
-	scopedAliasNames         *jutil.HashMultiset[string]
-	closureNamespaces        *jutil.LinkedHashSet[string]
+	closureNamespaces        map[string]struct{}
 	invalidModuleGetHandling ScopedAliases_InvalidModuleGetHandling
 }
 
@@ -135,12 +132,6 @@ const (
 	ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME
 )
 
-// Java: ScopedAliases.InvalidModuleGetHandling.values()
-func ScopedAliases_InvalidModuleGetHandling_values() []ScopedAliases_InvalidModuleGetHandling {
-	return []ScopedAliases_InvalidModuleGetHandling{
-		ScopedAliases_InvalidModuleGetHandling_PRESERVE, ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME}
-}
-
 // Java: ScopedAliases.InvalidModuleGetHandling.name()
 func (h ScopedAliases_InvalidModuleGetHandling) String() string {
 	return [...]string{"PRESERVE", "GIVE_UNIQUE_NAME"}[h]
@@ -155,15 +146,15 @@ func (h ScopedAliases_InvalidModuleGetHandling) ShouldGiveUniqueName() bool {
 func newScopedAliases(
 	compiler AbstractCompiler,
 	preprocessorSymbolTable *PreprocessorSymbolTable,
-	closureNamespaces *jutil.LinkedHashSet[string],
+	closureNamespaces map[string]struct{},
 	invalidModuleGetHandling ScopedAliases_InvalidModuleGetHandling) *ScopedAliases {
-	s := &ScopedAliases{scopedAliasNames: jutil.HashMultiset_Create[string]()}
-	s.compiler = compiler
-	s.preprocessorSymbolTable = preprocessorSymbolTable
-	s.moduleMetadataMap = compiler.GetModuleMetadataMap()
-	s.closureNamespaces = closureNamespaces
-	s.invalidModuleGetHandling = invalidModuleGetHandling
-	return s
+	return &ScopedAliases{
+		compiler:                 compiler,
+		preprocessorSymbolTable:  preprocessorSymbolTable,
+		moduleMetadataMap:        compiler.GetModuleMetadataMap(),
+		closureNamespaces:        closureNamespaces,
+		invalidModuleGetHandling: invalidModuleGetHandling,
+	}
 }
 
 // Java: ScopedAliases.builder(AbstractCompiler)
@@ -210,13 +201,14 @@ func (b *ScopedAliases_Builder) SetInvalidModuleGetHandling(invalidModuleGetHand
 
 // Java: ScopedAliases.Builder.build()
 func (b *ScopedAliases_Builder) Build() *ScopedAliases {
-	// Go-only: language-adapter — the Java Set is the key set view of an
-	// immutable map (or ImmutableSet.of()); it is only queried with
-	// contains, so a copy of the keys is equivalent.
-	closureNamespaces := jutil.NewLinkedHashSet[string]()
+	var closureNamespaces map[string]struct{}
 	if b.moduleMetadataMap != nil {
-		for k := range b.moduleMetadataMap.GetModulesByGoogNamespace().Keys() {
-			closureNamespaces.Add(k)
+		byNs := b.moduleMetadataMap.GetModulesByGoogNamespace()
+		if !byNs.IsEmpty() {
+			closureNamespaces = make(map[string]struct{}, byNs.Size())
+			for k := range byNs.Keys() {
+				closureNamespaces[k] = struct{}{}
+			}
 		}
 	}
 	return newScopedAliases(
@@ -233,7 +225,7 @@ func (s *ScopedAliases) Process(externs rhino.Node, root rhino.Node) {
 
 	if !traversal.HasErrors() {
 		// Apply the aliases.
-		aliasWorkQueue := append([]ScopedAliases_AliasUsage(nil), traversal.GetAliasUsages().Slice()...)
+		aliasWorkQueue := traversal.GetAliasUsages()
 		for len(aliasWorkQueue) != 0 {
 			var newQueue []ScopedAliases_AliasUsage
 			for _, aliasUsage := range aliasWorkQueue {
@@ -256,7 +248,7 @@ func (s *ScopedAliases) Process(externs rhino.Node, root rhino.Node) {
 		}
 
 		// Remove the alias definitions.
-		for aliasDefinition := range traversal.GetAliasDefinitionsToDelete().All() {
+		for _, aliasDefinition := range traversal.GetAliasDefinitionsToDelete() {
 			s.compiler.ReportChangeToEnclosingScope(aliasDefinition)
 			if NodeUtil_IsNameDeclaration(aliasDefinition.GetParent()) &&
 				aliasDefinition.GetParent().HasOneChild() {
@@ -267,7 +259,7 @@ func (s *ScopedAliases) Process(externs rhino.Node, root rhino.Node) {
 		}
 
 		// Collapse the scopes.
-		for scopeCall := range traversal.GetScopeCalls().All() {
+		for _, scopeCall := range traversal.GetScopeCalls() {
 			expressionWithScopeCall := scopeCall.GetParent()
 			scopeClosureBlock := scopeCall.GetLastChild().GetLastChild()
 			scopeClosureBlock.Detach()
@@ -282,7 +274,7 @@ func (s *ScopedAliases) Process(externs rhino.Node, root rhino.Node) {
 // ScopedAliases_AliasUsage is ScopedAliases.AliasUsage (abstract).
 type ScopedAliases_AliasUsage interface {
 	// Java: ScopedAliases.AliasUsage.referencesOtherAlias(Set<Var>)
-	ReferencesOtherAlias(deletedAliasVars *jutil.LinkedHashSet[*Var]) bool
+	ReferencesOtherAlias(deletedAliasVars map[*Var]struct{}) bool
 
 	// Java: ScopedAliases.AliasUsage.applyAlias(AbstractCompiler)
 	ApplyAlias(compiler AbstractCompiler)
@@ -311,7 +303,7 @@ func (u *ScopedAliases_AliasUsageBase) GetScopedAliases_AliasUsageBase() *Scoped
 // ReferencesOtherAlias checks to see if this references another alias.
 //
 // Java: ScopedAliases.AliasUsage.referencesOtherAlias(Set<Var>)
-func (u *ScopedAliases_AliasUsageBase) ReferencesOtherAlias(deletedAliasVars *jutil.LinkedHashSet[*Var]) bool {
+func (u *ScopedAliases_AliasUsageBase) ReferencesOtherAlias(deletedAliasVars map[*Var]struct{}) bool {
 	aliasDefinition := u.aliasVar.GetInitialValue()
 	qname := scopedAliases_getAliasedNamespace(aliasDefinition)
 	dotIndex := strings.IndexByte(qname, '.')
@@ -320,7 +312,11 @@ func (u *ScopedAliases_AliasUsageBase) ReferencesOtherAlias(deletedAliasVars *ju
 		rootName = qname[:dotIndex]
 	}
 	otherAliasVar, _ := u.aliasVar.GetScope().(*Scope).GetOwnSlot(rootName).(*Var)
-	return otherAliasVar != nil && !deletedAliasVars.Contains(otherAliasVar)
+	if otherAliasVar == nil {
+		return false
+	}
+	_, deleted := deletedAliasVars[otherAliasVar]
+	return !deleted
 }
 
 // Java: ScopedAliases.isValidAliasRhs(Node)
@@ -428,20 +424,20 @@ type ScopedAliases_Traversal struct {
 
 	// The job of this class is to collect these three data sets.
 
-	aliasDefinitionsToDelete *jutil.ArrayList[rhino.Node]
+	aliasDefinitionsToDelete []rhino.Node
 
-	scopeCalls *jutil.ArrayList[rhino.Node]
+	scopeCalls []rhino.Node
 
-	aliasUsages *jutil.ArrayList[ScopedAliases_AliasUsage]
+	aliasUsages []ScopedAliases_AliasUsage
 
 	// This map is temporary and cleared for each scope.
-	aliases *jutil.LinkedHashMap[string, *Var]
+	aliases map[string]*Var
 
 	// Also temporary and cleared for each scope.
-	injectedDecls *jutil.LinkedHashSet[rhino.Node]
+	injectedDecls map[rhino.Node]struct{}
 
 	// Persists across scopes.
-	deletedAliasVars *jutil.LinkedHashSet[*Var]
+	deletedAliasVars map[*Var]struct{}
 
 	// Suppose you create an alias.
 	// var x = goog.x;
@@ -469,30 +465,21 @@ var _ NodeTraversal_ScopedCallback = (*ScopedAliases_Traversal)(nil)
 
 // Java: ScopedAliases.Traversal()
 func (s *ScopedAliases) NewTraversal() *ScopedAliases_Traversal {
-	return &ScopedAliases_Traversal{
-		outer:                    s,
-		aliasDefinitionsToDelete: jutil.NewArrayList[rhino.Node](),
-		scopeCalls:               jutil.NewArrayList[rhino.Node](),
-		aliasUsages:              jutil.NewArrayList[ScopedAliases_AliasUsage](),
-		aliases:                  jutil.NewLinkedHashMap[string, *Var](),
-		injectedDecls:            jutil.NewLinkedHashSet[rhino.Node](),
-		deletedAliasVars:         jutil.NewLinkedHashSet[*Var](),
-		forbiddenLocals:          jutil.NewLinkedHashSet("$jscomp"),
-	}
+	return &ScopedAliases_Traversal{outer: s}
 }
 
 // Java: ScopedAliases.Traversal.getAliasDefinitionsToDelete()
-func (v *ScopedAliases_Traversal) GetAliasDefinitionsToDelete() *jutil.ArrayList[rhino.Node] {
+func (v *ScopedAliases_Traversal) GetAliasDefinitionsToDelete() []rhino.Node {
 	return v.aliasDefinitionsToDelete
 }
 
 // Java: ScopedAliases.Traversal.getAliasUsages()
-func (v *ScopedAliases_Traversal) GetAliasUsages() *jutil.ArrayList[ScopedAliases_AliasUsage] {
+func (v *ScopedAliases_Traversal) GetAliasUsages() []ScopedAliases_AliasUsage {
 	return v.aliasUsages
 }
 
 // Java: ScopedAliases.Traversal.getScopeCalls()
-func (v *ScopedAliases_Traversal) GetScopeCalls() *jutil.ArrayList[rhino.Node] {
+func (v *ScopedAliases_Traversal) GetScopeCalls() []rhino.Node {
 	return v.scopeCalls
 }
 
@@ -541,6 +528,9 @@ func (v *ScopedAliases_Traversal) EnterScope(t *NodeTraversal) {
 	}
 	scopeMethodCall := v.FindScopeMethodCall(t.GetScopeRoot())
 	if !scopeMethodCall.IsNil() {
+		if v.forbiddenLocals == nil {
+			v.forbiddenLocals = jutil.NewLinkedHashSet("$jscomp")
+		}
 		v.FindAliases(t.GetScope())
 		v.scopeFunctionBody = scopeMethodCall.GetLastChild().GetLastChild()
 	}
@@ -551,8 +541,8 @@ func (v *ScopedAliases_Traversal) ExitScope(t *NodeTraversal) {
 	if v.IsGoogScopeFunctionBody(t.GetScopeRoot()) {
 		v.scopeFunctionBody = rhino.NilNode
 		v.RenameNamespaceShadows(t)
-		v.injectedDecls.Clear()
-		v.aliases.Clear()
+		clear(v.injectedDecls)
+		clear(v.aliases)
 		v.forbiddenLocals.Clear()
 		v.hasNamespaceShadows = false
 	} else if v.InGoogScopeBody() {
@@ -626,7 +616,6 @@ func (v *ScopedAliases_Traversal) FindAliases(scope *Scope) {
 			varDocInfo := var_.GetJSDocInfo()
 
 			name := n.GetString()
-			v.outer.scopedAliasNames.Add(name)
 			uniqueId := compiler.GetUniqueIdSupplier().GetUniqueId(v.outer.uniqueIdInput)
 
 			globalName := "$jscomp$scope$" + uniqueId + "$" + name
@@ -682,7 +671,10 @@ func (v *ScopedAliases_Traversal) FindAliases(scope *Scope) {
 			if !value.IsNil() {
 				compiler.ReportChangeToEnclosingScope(newDecl)
 			}
-			v.injectedDecls.Add(newDecl)
+			if v.injectedDecls == nil {
+				v.injectedDecls = make(map[rhino.Node]struct{})
+			}
+			v.injectedDecls[newDecl] = struct{}{}
 
 			// Rewrite "var name = EXPR;" to "var name = $jscomp$scope$uniqueId$name;"
 			var_.GetNameNode().AddChildToFront(NodeUtil_NewNameWithOriginalName(compiler, globalName, n, name))
@@ -697,7 +689,11 @@ func (v *ScopedAliases_Traversal) FindAliases(scope *Scope) {
 // Java: ScopedAliases.Traversal.recordAlias(Var)
 func (v *ScopedAliases_Traversal) RecordAlias(aliasVar *Var) {
 	initialValue := aliasVar.GetInitialValue()
-	v.aliasDefinitionsToDelete.Add(aliasVar.GetNameNode())
+	v.aliasDefinitionsToDelete = append(v.aliasDefinitionsToDelete, aliasVar.GetNameNode())
+
+	if v.aliases == nil {
+		v.aliases = make(map[string]*Var)
+	}
 
 	if v.outer.invalidModuleGetHandling.ShouldGiveUniqueName() &&
 		v.ContainsInvalidGoogModuleGet(initialValue) {
@@ -719,19 +715,22 @@ func (v *ScopedAliases_Traversal) RecordAlias(aliasVar *Var) {
 		newName := name + scopedAliases_MISSING_ALIASES_PREFIX + suffix
 		// LINT.ThenChange(//depot/google3/third_party/java_src/clutz/src/main/java/com/google/javascript/clutz/imports/ImportRenameMapBuilder.java)
 		initialValue.ReplaceWith(rhino.IR_Name(newName))
-		v.deletedAliasVars.Add(aliasVar)
-		v.aliases.Put(name, aliasVar)
+		if v.deletedAliasVars == nil {
+			v.deletedAliasVars = make(map[*Var]struct{})
+		}
+		v.deletedAliasVars[aliasVar] = struct{}{}
+		v.aliases[name] = aliasVar
 		return
 	}
 
 	name := aliasVar.GetName()
-	v.aliases.Put(name, aliasVar)
+	v.aliases[name] = aliasVar
 
 	qualifiedName := scopedAliases_getAliasedNamespace(initialValue)
 	rootIndex := strings.IndexByte(qualifiedName, '.')
 	if rootIndex != -1 {
 		qNameRoot := qualifiedName[:rootIndex]
-		if !v.aliases.ContainsKey(qNameRoot) {
+		if _, ok := v.aliases[qNameRoot]; !ok {
 			v.forbiddenLocals.Add(qNameRoot)
 		}
 	}
@@ -749,7 +748,8 @@ func (v *ScopedAliases_Traversal) ContainsInvalidGoogModuleGet(expression rhino.
 		return v.ContainsInvalidGoogModuleGet(expression.GetFirstChild())
 	case rhino.Token_CALL:
 		namespace := expression.GetSecondChild().GetString()
-		return !v.outer.closureNamespaces.Contains(namespace)
+		_, ok := v.outer.closureNamespaces[namespace]
+		return !ok
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg("Unrecognized alias rhs " + expression.String()))
 	}
@@ -851,7 +851,7 @@ func (v *ScopedAliases_Traversal) ValidateScopeCall(t *NodeTraversal, n rhino.No
 			NodeUtil_GetFunctionParameters(anonymousFnNode).HasChildren() {
 			v.Report(anonymousFnNode, ScopedAliases_GOOG_SCOPE_HAS_BAD_PARAMETERS)
 		} else {
-			v.scopeCalls.Add(n)
+			v.scopeCalls = append(v.scopeCalls, n)
 		}
 	}
 }
@@ -874,7 +874,7 @@ func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent r
 	if type_ == rhino.Token_NAME {
 		name := n.GetString()
 		lexicalVar := t.GetScope().GetVar(name)
-		if lexicalVar != nil && lexicalVar == v.aliases.Get(name) {
+		if lexicalVar != nil && lexicalVar == v.aliases[name] {
 			aliasVar = lexicalVar
 			// For nodes that are referencing the aliased type, set the original
 			// name so it can be accessed later in tools such as the CodePrinter
@@ -926,15 +926,17 @@ func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent r
 		// The node in aliasedNode (which is "g") will be replaced in the
 		// changes pass above with "goog".  If we cloned here, we'd end up
 		// with <code>g.dom.createElement('DIV')</code>.
-		v.aliasUsages.Add(NewScopedAliases_AliasedNode(aliasVar, n))
+		v.aliasUsages = append(v.aliasUsages, NewScopedAliases_AliasedNode(aliasVar, n))
 	}
 
 	// When we inject declarations, we duplicate jsdoc. Make sure
 	// we only process that jsdoc once.
 	info := n.GetJSDocInfo()
-	if info != nil && !v.injectedDecls.Contains(n) {
-		for it := info.TypeExprIter(); it.Next(); {
-			v.FixTypeNode(it.Node())
+	if info != nil {
+		if _, injected := v.injectedDecls[n]; !injected {
+			for it := info.TypeExprIter(); it.Next(); {
+				v.FixTypeNode(it.Node())
+			}
 		}
 	}
 }
@@ -948,9 +950,9 @@ func (v *ScopedAliases_Traversal) FixTypeNode(typeNode rhino.Node) {
 			endIndex = len(name)
 		}
 		baseName := name[:endIndex]
-		aliasVar := v.aliases.Get(baseName)
+		aliasVar := v.aliases[baseName]
 		if aliasVar != nil {
-			v.aliasUsages.Add(NewScopedAliases_AliasedTypeNode(aliasVar, typeNode))
+			v.aliasUsages = append(v.aliasUsages, NewScopedAliases_AliasedTypeNode(aliasVar, typeNode))
 		}
 		// For nodes that are referencing the aliased type, set the original
 		// name so it can be accessed later in tools such as the CodePrinter or

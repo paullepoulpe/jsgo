@@ -31,23 +31,21 @@ import (
 type JsFlumeCallback struct {
 	scanner            Scanner
 	includeFilePattern *jutil.Pattern // may be nil
-	matches            *jutil.ArrayList[*Match]
+	matches            []*Match
 	fixes              *jutil.ArrayList[*SuggestedFix]
 }
 
 // Java: JsFlumeCallback(Scanner, Pattern)
 func NewJsFlumeCallback(scanner Scanner, includeFilePattern *jutil.Pattern) *JsFlumeCallback {
-	c := &JsFlumeCallback{
-		matches: jutil.NewArrayList[*Match](),
-		fixes:   jutil.NewArrayList[*SuggestedFix](),
+	return &JsFlumeCallback{
+		scanner:            scanner,
+		includeFilePattern: includeFilePattern,
+		fixes:              jutil.NewArrayList[*SuggestedFix](),
 	}
-	c.scanner = scanner
-	c.includeFilePattern = includeFilePattern
-	return c
 }
 
 // Java: JsFlumeCallback.getMatches()
-func (c *JsFlumeCallback) GetMatches() *jutil.ArrayList[*Match] {
+func (c *JsFlumeCallback) GetMatches() []*Match {
 	return c.matches
 }
 
@@ -80,6 +78,6 @@ func (c *JsFlumeCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Nod
 		for _, fix := range c.scanner.ProcessMatch(match) {
 			c.fixes.Add(fix)
 		}
-		c.matches.Add(match)
+		c.matches = append(c.matches, match)
 	}
 }

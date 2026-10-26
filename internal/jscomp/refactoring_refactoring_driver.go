@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -53,7 +55,7 @@ func (d *RefactoringDriver) DriveWithIncludeFilePattern(scanner Scanner, include
 	callback := NewJsFlumeCallback(scanner, includeFilePattern)
 	NodeTraversal_Traverse(d.compiler, d.rootNode, callback)
 	fixes := callback.GetFixes()
-	fixes.AddAll(scanner.ProcessAllMatches(callback.GetMatches().ToSlice())...)
+	fixes.AddAll(scanner.ProcessAllMatches(callback.GetMatches())...)
 	return fixes
 }
 
@@ -122,11 +124,9 @@ func refactoringDriver_Builder_TO_SOURCE_FILE_FN(file string) *SourceFile {
 
 // Java: RefactoringDriver.Builder()
 func NewRefactoringDriver_Builder() *RefactoringDriver_Builder {
-	b := &RefactoringDriver_Builder{}
-	b.inputs = []*SourceFile{}
-	b.externs = []*SourceFile{}
-	b.compilerOptions = RefactoringDriver_GetCompilerOptions()
-	return b
+	return &RefactoringDriver_Builder{
+		compilerOptions: RefactoringDriver_GetCompilerOptions(),
+	}
 }
 
 // Java: RefactoringDriver.Builder.addExternsFromFile(String)
@@ -137,7 +137,7 @@ func (b *RefactoringDriver_Builder) AddExternsFromFile(filename string) *Refacto
 
 // Java: RefactoringDriver.Builder.addExternsFromFile(Iterable<String>)
 func (b *RefactoringDriver_Builder) AddExternsFromFileOfList(externs []string) *RefactoringDriver_Builder {
-	for _, f := range append([]string{}, externs...) {
+	for _, f := range externs {
 		b.externs = append(b.externs, refactoringDriver_Builder_TO_SOURCE_FILE_FN(f))
 	}
 	return b
@@ -163,7 +163,7 @@ func (b *RefactoringDriver_Builder) AddInputsFromFile(filename string) *Refactor
 
 // Java: RefactoringDriver.Builder.addInputsFromFile(Iterable<String>)
 func (b *RefactoringDriver_Builder) AddInputsFromFileOfList(inputs []string) *RefactoringDriver_Builder {
-	for _, f := range append([]string{}, inputs...) {
+	for _, f := range inputs {
 		b.inputs = append(b.inputs, refactoringDriver_Builder_TO_SOURCE_FILE_FN(f))
 	}
 	return b
@@ -194,5 +194,5 @@ func (b *RefactoringDriver_Builder) WithCompilerOptions(compilerOptions *Compile
 
 // Java: RefactoringDriver.Builder.build()
 func (b *RefactoringDriver_Builder) Build() *RefactoringDriver {
-	return newRefactoringDriver(append([]*SourceFile{}, b.inputs...), append([]*SourceFile{}, b.externs...), b.compilerOptions)
+	return newRefactoringDriver(slices.Clone(b.inputs), slices.Clone(b.externs), b.compilerOptions)
 }

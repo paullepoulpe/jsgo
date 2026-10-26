@@ -102,12 +102,12 @@ var EsModuleProcessor_CANNOT_PATH_IMPORT_CLOSURE_FILE = DiagnosticType_Error(
 type EsModuleProcessor_FindMutableExports struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	exports            *jutil.ArrayList[*Export]
+	exports            []*Export
 	exportsByLocalName *jutil.ListMultimap[string, *Export]
 }
 
 // Java: EsModuleProcessor.FindMutableExports(List<Export>)
-func NewEsModuleProcessor_FindMutableExports(exports *jutil.ArrayList[*Export]) *EsModuleProcessor_FindMutableExports {
+func NewEsModuleProcessor_FindMutableExports(exports []*Export) *EsModuleProcessor_FindMutableExports {
 	f := &EsModuleProcessor_FindMutableExports{}
 	// There may be multiple exports with the same local name because you can
 	// export a local variable with an alias many different times. Example:
@@ -116,7 +116,7 @@ func NewEsModuleProcessor_FindMutableExports(exports *jutil.ArrayList[*Export]) 
 	// export {x as y, x as z};
 	f.exports = exports
 	f.exportsByLocalName = jutil.ArrayListMultimap_Create[string, *Export]()
-	for e := range exports.All() {
+	for _, e := range exports {
 		f.exportsByLocalName.Put(esModuleProcessor_localNameKey(e), e)
 	}
 	return f
@@ -157,17 +157,14 @@ func (f *EsModuleProcessor_FindMutableExports) Visit(t *NodeTraversal, n rhino.N
 	for _, e := range append([]*Export(nil), exports...) {
 		i := esModuleProcessor_indexOf(f.exports, e)
 		mutated := e.MutatedCopy()
-		f.exports.Set(i, mutated)
+		f.exports[i] = mutated
 		f.exportsByLocalName.Remove(esModuleProcessor_localNameKey(e), e)
 		f.exportsByLocalName.Put(esModuleProcessor_localNameKey(e), mutated)
 	}
 }
 
-// esModuleProcessor_indexOf is List.indexOf(Object) with Export.equals.
-//
-// Go-only: language-adapter — jutil.ArrayList.IndexOf compares pointers.
-func esModuleProcessor_indexOf(list *jutil.ArrayList[*Export], e *Export) int {
-	for i, x := range list.Slice() {
+func esModuleProcessor_indexOf(list []*Export, e *Export) int {
+	for i, x := range list {
 		if e.Equals(x) {
 			return i
 		}
@@ -190,19 +187,19 @@ type EsModuleProcessor_UnresolvedModuleBuilder struct {
 	path               *ModuleLoader_ModulePath
 	root               rhino.Node
 	importsByLocalName *jutil.LinkedHashMap[string, *Import]
-	exports            *jutil.ArrayList[*Export]
-	exportedNames      *jutil.LinkedHashSet[string]
+	exports            []*Export
+	exportedNames      map[string]struct{}
 }
 
 // Java: EsModuleProcessor.UnresolvedModuleBuilder(ModulePath, Node)
 func (p *EsModuleProcessor) NewUnresolvedModuleBuilder(path *ModuleLoader_ModulePath, root rhino.Node) *EsModuleProcessor_UnresolvedModuleBuilder {
-	b := &EsModuleProcessor_UnresolvedModuleBuilder{outer: p}
-	b.path = path
-	b.root = root
-	b.importsByLocalName = jutil.NewLinkedHashMap[string, *Import]()
-	b.exports = jutil.NewArrayList[*Export]()
-	b.exportedNames = jutil.NewLinkedHashSet[string]()
-	return b
+	return &EsModuleProcessor_UnresolvedModuleBuilder{
+		outer:              p,
+		path:               path,
+		root:               root,
+		importsByLocalName: jutil.NewLinkedHashMap[string, *Import](),
+		exportedNames:      make(map[string]struct{}),
+	}
 }
 
 // Java: EsModuleProcessor.UnresolvedModuleBuilder.add(Import)
@@ -216,26 +213,26 @@ func (b *EsModuleProcessor_UnresolvedModuleBuilder) Add(i *Import) {
 // Java: EsModuleProcessor.UnresolvedModuleBuilder.add(Export)
 func (b *EsModuleProcessor_UnresolvedModuleBuilder) AddExport(e *Export) bool {
 	if e.ExportName() == nil {
-		b.exports.Add(e)
+		b.exports = append(b.exports, e)
 		return true
 	} else {
-		if b.exportedNames.Contains(*e.ExportName()) {
+		if _, ok := b.exportedNames[*e.ExportName()]; ok {
 			return false
 		}
 
-		b.exports.Add(e)
-		b.exportedNames.Add(*e.ExportName())
+		b.exports = append(b.exports, e)
+		b.exportedNames[*e.ExportName()] = struct{}{}
 		return true
 	}
 }
 
 // Java: EsModuleProcessor.UnresolvedModuleBuilder.build()
 func (b *EsModuleProcessor_UnresolvedModuleBuilder) Build() UnresolvedModule {
-	localExports := jutil.NewArrayList[*Export]()
+	var localExports []*Export
 	var indirectExportsBuilder []*Export
 	var starExportsBuilder []*Export
 
-	for ee := range b.exports.All() {
+	for _, ee := range b.exports {
 		if ee.ModuleRequest() == nil {
 			if ee.LocalName() != nil && b.importsByLocalName.ContainsKey(*ee.LocalName()) {
 				// import A from '';
@@ -248,7 +245,7 @@ func (b *EsModuleProcessor_UnresolvedModuleBuilder) Build() UnresolvedModule {
 				// var y;
 				// export { y };
 				// export var x;
-				localExports.Add(ee)
+				localExports = append(localExports, ee)
 			}
 		} else if ee.ImportName() != nil && "*" == *ee.ImportName() {
 			// export * from '';
@@ -265,7 +262,7 @@ func (b *EsModuleProcessor_UnresolvedModuleBuilder) Build() UnresolvedModule {
 		b.outer.metadata,
 		b.path,
 		jutil.NewLinkedHashMapFrom(b.importsByLocalName),
-		localExports.ToSlice(),
+		localExports,
 		indirectExportsBuilder,
 		starExportsBuilder)
 }

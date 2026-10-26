@@ -52,7 +52,7 @@ type ColorSerializer struct {
 	// serialized.
 	//
 	// This is used as a worklist when the `TypePool` is generated.
-	colorsInSerializedOrder *jutil.ArrayList[*colors.Color]
+	colorsInSerializedOrder []*colors.Color
 
 	typeProtoSlab  jutil.Slab[TypeProto]
 	objProtoSlab   jutil.Slab[ObjectTypeProto]
@@ -82,7 +82,7 @@ func NewColorSerializer(
 		getStringPoolIndexFn:    stringPoolIndexFn,
 		propertyFilter:          propertyFilter,
 		colorIdToTypePointer:    make(map[colors.ColorId]int, 1024),
-		colorsInSerializedOrder: jutil.NewArrayList[*colors.Color](),
+		colorsInSerializedOrder: make([]*colors.Color, 0, 1024),
 	}
 	// We must pre-populate the type pointers with the few axiomatic colors
 	// that won't actually be serialized. These types are required to get the
@@ -120,21 +120,13 @@ func (s *ColorSerializer) AddColor(color *colors.Color) int {
 	id := color.GetId()
 	idx, ok := s.colorIdToTypePointer[id]
 	if !ok {
-		idx = s.colorsInSerializedOrder.Size()
-		s.colorsInSerializedOrder.Add(color)
+		idx = len(s.colorsInSerializedOrder)
+		s.colorsInSerializedOrder = append(s.colorsInSerializedOrder, color)
 		s.colorIdToTypePointer[id] = idx
 	}
 	s.lastColor = color
 	s.lastPointer = idx
 	return idx
-}
-
-func colorSerializer_int32s(xs []int) []int32 {
-	out := make([]int32, len(xs))
-	for i, x := range xs {
-		out[i] = int32(x)
-	}
-	return out
 }
 
 func (s *ColorSerializer) allocTypeProto() *TypeProto {
@@ -230,7 +222,7 @@ func (s *ColorSerializer) GenerateTypePool(
 	getDisambiguationSupertypesFn func(*colors.Color) *jutil.ObjectLinkedHashSet[*colors.Color],
 	getMismatchSourceRefsFn func(*colors.Color) *jutil.LinkedHashSet[string]) *TypePool {
 	startIdx := TypePointers_UntrimOffset(0)
-	initialCap := max(0, s.colorsInSerializedOrder.Size()-startIdx)
+	initialCap := max(0, len(s.colorsInSerializedOrder)-startIdx)
 	var types []*TypeProto
 	if initialCap > 0 {
 		types = make([]*TypeProto, 0, initialCap)
@@ -242,8 +234,8 @@ func (s *ColorSerializer) GenerateTypePool(
 	// 2. The logic in the loop may end up adding more colors to the list.
 	//    It's often hard to tell what effect changing an iterable will have on
 	//    an iteration that is in progress.
-	for i := startIdx; i < s.colorsInSerializedOrder.Size(); i++ {
-		color := s.colorsInSerializedOrder.Get(i)
+	for i := startIdx; i < len(s.colorsInSerializedOrder); i++ {
+		color := s.colorsInSerializedOrder[i]
 		typePointer := int32(i)
 		types = append(types, s.GenerateTypeProto(color))
 		for supertype := range getDisambiguationSupertypesFn(color).All() {
@@ -260,14 +252,11 @@ func (s *ColorSerializer) GenerateTypePool(
 		// because that's the way the Mismatch protos work.
 		// Construct entries only for those colors that we have actually
 		// serialized in order to save space.
-		srcRefToTypePointerList := jutil.NewLinkedHashMap[string, *jutil.ArrayList[int]]()
-		for i, color := range s.colorsInSerializedOrder.Slice() {
-			typePointer := i
+		srcRefToTypePointerList := jutil.NewLinkedHashMap[string, []int32]()
+		for i, color := range s.colorsInSerializedOrder {
+			typePointer := int32(i)
 			for srcRef := range getMismatchSourceRefsFn(color).All() {
-				typePointerList := srcRefToTypePointerList.ComputeIfAbsent(srcRef, func(string) *jutil.ArrayList[int] {
-					return jutil.NewArrayList[int]()
-				})
-				typePointerList.Add(typePointer)
+				srcRefToTypePointerList.Put(srcRef, append(srcRefToTypePointerList.Get(srcRef), typePointer))
 			}
 		}
 
@@ -277,7 +266,7 @@ func (s *ColorSerializer) GenerateTypePool(
 			debugInfoBuilder.
 				AddMismatchBuilder().
 				SetSourceRef(key).
-				AddAllInvolvedColor(colorSerializer_int32s(value.Slice()))
+				AddAllInvolvedColor(value)
 		}
 		debugInfoProto = debugInfoBuilder.Build()
 	}

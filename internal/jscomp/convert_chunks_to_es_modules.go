@@ -51,7 +51,7 @@ type ConvertChunksToESModules struct {
 	compiler               AbstractCompiler
 	crossChunkExports      *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]
 	crossChunkImports      *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]]
-	dynamicImportCallbacks *jutil.ArrayList[rhino.Node]
+	dynamicImportCallbacks []rhino.Node
 }
 
 // ConvertChunksToESModules_ImportType is the ImportType enum.
@@ -63,13 +63,6 @@ const (
 )
 
 var convertChunksToESModules_ImportType_names = [...]string{"STATIC", "DYNAMIC"}
-
-// ConvertChunksToESModules_ImportType_values is ImportType.values().
-func ConvertChunksToESModules_ImportType_values() []ConvertChunksToESModules_ImportType {
-	return []ConvertChunksToESModules_ImportType{
-		ConvertChunksToESModules_ImportType_STATIC, ConvertChunksToESModules_ImportType_DYNAMIC,
-	}
-}
 
 // Name is Enum.name().
 func (t ConvertChunksToESModules_ImportType) Name() string {
@@ -103,12 +96,11 @@ var ConvertChunksToESModules_UNRECOGNIZED_DYNAMIC_IMPORT_CALLBACK = DiagnosticTy
 //
 // Java: ConvertChunksToESModules(AbstractCompiler)
 func NewConvertChunksToESModules(compiler AbstractCompiler) *ConvertChunksToESModules {
-	c := &ConvertChunksToESModules{}
-	c.crossChunkExports = jutil.NewLinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]()
-	c.crossChunkImports = jutil.NewLinkedHashMap[*JSChunk, *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]]()
-	c.dynamicImportCallbacks = jutil.NewArrayList[rhino.Node]()
-	c.compiler = compiler
-	return c
+	return &ConvertChunksToESModules{
+		compiler:          compiler,
+		crossChunkExports: jutil.NewLinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]](),
+		crossChunkImports: jutil.NewLinkedHashMap[*JSChunk, *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]](),
+	}
 }
 
 // Java: ConvertChunksToESModules.process(Node, Node)
@@ -215,7 +207,7 @@ func ConvertChunksToESModules_GetChunkName(chunk *JSChunk) string {
 // Java: ConvertChunksToESModules.addImportStatements()
 func (c *ConvertChunksToESModules) AddImportStatements() {
 	for importingChunk, chunkImportsValue := range c.crossChunkImports.All() {
-		importStatements := jutil.NewArrayList[rhino.Node]()
+		var importStatements []rhino.Node
 		firstInput := importingChunk.GetFirst()
 		moduleBody := firstInput.GetAstRoot(c.compiler).GetFirstChild()
 		jutil.CheckState(!moduleBody.IsNil() && moduleBody.IsModuleBody())
@@ -256,10 +248,10 @@ func (c *ConvertChunksToESModules) AddImportStatements() {
 			importStatement.AddChildToFront(rhino.IR_Empty())
 
 			importStatement.SrcrefTree(moduleBody)
-			importStatements.AddAt(0, importStatement)
+			importStatements = append(importStatements, importStatement)
 		}
-		for importStatement := range importStatements.All() {
-			moduleBody.AddChildToFront(importStatement)
+		for i := len(importStatements) - 1; i >= 0; i-- {
+			moduleBody.AddChildToFront(importStatements[i])
 		}
 		c.compiler.ReportChangeToEnclosingScope(moduleBody)
 	}
@@ -323,7 +315,7 @@ func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(
 // Java: ConvertChunksToESModules.rewriteDynamicImportCallbacks()
 func (c *ConvertChunksToESModules) RewriteDynamicImportCallbacks() {
 	astFactory := c.compiler.CreateAstFactory()
-	for dynamicImportCallback := range c.dynamicImportCallbacks.All() {
+	for _, dynamicImportCallback := range c.dynamicImportCallbacks {
 		jutil.CheckState(dynamicImportCallback.IsCall())
 		moduleNamespace :=
 			ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(c.compiler, dynamicImportCallback)
@@ -431,7 +423,7 @@ func (c *ConvertChunksToESModules) VisitCallAndTraverse(t *NodeTraversal, call r
 	}
 	isValidModuleNamespace := c.VisitName(t, moduleNamespace, ConvertChunksToESModules_ImportType_DYNAMIC)
 	if isValidModuleNamespace {
-		c.dynamicImportCallbacks.Add(call)
+		c.dynamicImportCallbacks = append(c.dynamicImportCallbacks, call)
 	} else {
 		c.compiler.Report(
 			JSError_MakeWithNode(

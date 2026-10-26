@@ -67,14 +67,13 @@ type AngularPass struct {
 	compiler AbstractCompiler
 
 	// injectables are the nodes annotated with @ngInject
-	injectables *jutil.ArrayList[*AngularPass_NodeContext]
+	injectables []AngularPass_NodeContext
 }
 
 // Java: AngularPass(AbstractCompiler)
 func NewAngularPass(compiler AbstractCompiler) *AngularPass {
 	return &AngularPass{
-		compiler:    compiler,
-		injectables: jutil.NewArrayList[*AngularPass_NodeContext](),
+		compiler: compiler,
 	}
 }
 
@@ -103,15 +102,16 @@ func (p *AngularPass) Process(externs rhino.Node, root rhino.Node) {
 	// Traverses AST looking for nodes annotated with @ngInject.
 	NodeTraversal_Traverse(p.compiler, root, p)
 	// iterates through annotated nodes adding $inject property to elements.
-	for entry := range p.injectables.All() {
+	for i := range p.injectables {
+		entry := &p.injectables[i]
 		name := entry.GetName()
 		fn := entry.GetFunctionNode()
 		dependencies := p.createDependenciesList(fn)
 		// skips entry if it does not have any dependencies.
-		if dependencies.IsEmpty() {
+		if len(dependencies) == 0 {
 			continue
 		}
-		dependenciesArray := rhino.IR_ArraylitOfIterable(slices.Values(dependencies.Slice()))
+		dependenciesArray := rhino.IR_ArraylitOfIterable(slices.Values(dependencies))
 		// creates `something.$inject = ['param1', 'param2']` node.
 		statement :=
 			rhino.IR_ExprResult(
@@ -148,13 +148,13 @@ func (p *AngularPass) Process(externs rhino.Node, root rhino.Node) {
 // n is the FUNCTION node. Returns STRING nodes.
 //
 // Java: AngularPass.createDependenciesList(Node)
-func (p *AngularPass) createDependenciesList(n rhino.Node) *jutil.ArrayList[rhino.Node] {
+func (p *AngularPass) createDependenciesList(n rhino.Node) []rhino.Node {
 	jutil.CheckArgument(n.IsFunction())
 	params := NodeUtil_GetFunctionParameters(n)
 	if !params.IsNil() {
 		return p.createStringsFromParamList(params)
 	}
-	return jutil.NewArrayList[rhino.Node]()
+	return nil
 }
 
 // createStringsFromParamList: given a PARAM_LIST node creates an array of
@@ -163,20 +163,20 @@ func (p *AngularPass) createDependenciesList(n rhino.Node) *jutil.ArrayList[rhin
 // params is the PARAM_LIST node. Returns array of STRING nodes.
 //
 // Java: AngularPass.createStringsFromParamList(Node)
-func (p *AngularPass) createStringsFromParamList(params rhino.Node) *jutil.ArrayList[rhino.Node] {
+func (p *AngularPass) createStringsFromParamList(params rhino.Node) []rhino.Node {
 	param := params.GetFirstChild()
-	names := jutil.NewArrayList[rhino.Node]()
+	var names []rhino.Node
 	for !param.IsNil() {
 		if param.IsName() {
-			names.Add(rhino.IR_String(param.GetString()).Srcref(param))
+			names = append(names, rhino.IR_String(param.GetString()).Srcref(param))
 		} else if param.IsDestructuringPattern() {
 			p.compiler.Report(JSError_MakeWithNode(param,
 				AngularPass_INJECTED_FUNCTION_HAS_DESTRUCTURED_PARAM))
-			return jutil.NewArrayList[rhino.Node]()
+			return nil
 		} else if param.IsDefaultValue() {
 			p.compiler.Report(JSError_MakeWithNode(param,
 				AngularPass_INJECTED_FUNCTION_HAS_DEFAULT_VALUE))
-			return jutil.NewArrayList[rhino.Node]()
+			return nil
 		}
 		param = param.GetNext()
 	}
@@ -279,7 +279,12 @@ func (p *AngularPass) addNode(n rhino.Node) {
 	// expression.
 	jutil.CheckNotNull(name)
 	// registers the node.
-	p.injectables.Add(NewAngularPass_NodeContext(*name, n, fn, injectAfter))
+	p.injectables = append(p.injectables, AngularPass_NodeContext{
+		name:         *name,
+		node:         n,
+		functionNode: fn,
+		target:       injectAfter,
+	})
 }
 
 // angularPass_getDeclarationRValue: given a VAR node (variable declaration)
@@ -318,16 +323,6 @@ type AngularPass_NodeContext struct {
 	functionNode rhino.Node
 	// target is the node after which to inject the new code
 	target rhino.Node
-}
-
-// Java: AngularPass.NodeContext(String, Node, Node, Node)
-func NewAngularPass_NodeContext(name string, node rhino.Node, functionNode rhino.Node, target rhino.Node) *AngularPass_NodeContext {
-	return &AngularPass_NodeContext{
-		name:         name,
-		node:         node,
-		functionNode: functionNode,
-		target:       target,
-	}
 }
 
 // GetName returns the name.

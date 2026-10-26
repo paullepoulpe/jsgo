@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -34,7 +36,7 @@ type VariableReferenceCheck struct {
 
 	// NOTE(nicksantos): It's a lot faster to use a shared Set that
 	// we clear after each method call, because the Set never gets too big.
-	blocksWithDeclarations *jutil.LinkedHashSet[*BasicBlock]
+	blocksWithDeclarations []*BasicBlock
 }
 
 // Java: VariableReferenceCheck.EARLY_REFERENCE
@@ -84,20 +86,31 @@ var variableReferenceCheck_GOOG_FORWARD_DECLARE = rhino.QualifiedName_Of("goog.f
 // IRFactory.
 //
 // Java: VariableReferenceCheck.BLOCKLESS_DECLARATION_FORBIDDEN_STATEMENTS
-var variableReferenceCheck_BLOCKLESS_DECLARATION_FORBIDDEN_STATEMENTS = jutil.NewLinkedHashSet(
-	rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE)
+func variableReferenceCheck_isBlocklessDeclarationForbidden(t rhino.Token) bool {
+	switch t {
+	case rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE:
+		return true
+	default:
+		return false
+	}
+}
 
 // Java: VariableReferenceCheck.GOOG_SCOPE
 var variableReferenceCheck_GOOG_SCOPE = rhino.QualifiedName_Of("goog.scope")
 
 // Java: VariableReferenceCheck(AbstractCompiler)
 func NewVariableReferenceCheck(compiler AbstractCompiler) *VariableReferenceCheck {
-	v := &VariableReferenceCheck{}
-	v.blocksWithDeclarations = jutil.NewLinkedHashSet[*BasicBlock]()
-	v.compiler = compiler
-	v.checkUnusedLocals =
-		compiler.GetOptions().Enables(DiagnosticGroup_ForType(VariableReferenceCheck_UNUSED_LOCAL_ASSIGNMENT))
-	return v
+	return &VariableReferenceCheck{
+		compiler: compiler,
+		checkUnusedLocals: compiler.GetOptions().
+			Enables(DiagnosticGroup_ForType(VariableReferenceCheck_UNUSED_LOCAL_ASSIGNMENT)),
+	}
+}
+
+func (v *VariableReferenceCheck) addBlockWithDeclaration(block *BasicBlock) {
+	if !slices.Contains(v.blocksWithDeclarations, block) {
+		v.blocksWithDeclarations = append(v.blocksWithDeclarations, block)
+	}
 }
 
 // Java: VariableReferenceCheck.process(Node, Node)
@@ -107,7 +120,8 @@ func (v *VariableReferenceCheck) Process(externs rhino.Node, root rhino.Node) {
 		v.compiler, NewVariableReferenceCheck_ReferenceCheckingBehavior(v), sc)
 	callback.enableLocalReclamation(nil)
 	callback.Process(externs, root)
-	v.blocksWithDeclarations.Clear()
+	clear(v.blocksWithDeclarations)
+	v.blocksWithDeclarations = v.blocksWithDeclarations[:0]
 }
 
 // VariableReferenceCheck_ReferenceCheckingBehavior is behavior that checks
@@ -116,31 +130,32 @@ func (v *VariableReferenceCheck) Process(externs rhino.Node, root rhino.Node) {
 type VariableReferenceCheck_ReferenceCheckingBehavior struct {
 	v *VariableReferenceCheck
 
-	varsInFunctionBody *jutil.LinkedHashSet[string]
+	varsInFunctionBody map[string]struct{}
 }
 
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior()
 func NewVariableReferenceCheck_ReferenceCheckingBehavior(v *VariableReferenceCheck) *VariableReferenceCheck_ReferenceCheckingBehavior {
-	b := &VariableReferenceCheck_ReferenceCheckingBehavior{v: v}
-	b.varsInFunctionBody = jutil.NewLinkedHashSet[string]()
-	return b
+	return &VariableReferenceCheck_ReferenceCheckingBehavior{v: v}
 }
 
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.afterExitScope(NodeTraversal, ReferenceMap)
 func (b *VariableReferenceCheck_ReferenceCheckingBehavior) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
 	if len(t.scopes) > 0 && t.scopes[len(t.scopes)-1].scope == nil {
 		if NodeUtil_IsFunctionBlock(t.GetScopeRoot()) {
-			b.varsInFunctionBody.Clear()
+			clear(b.varsInFunctionBody)
 		}
 		return
 	}
 	// Check all vars after finishing a scope
 	scope := t.GetScope()
 	if scope.IsFunctionBlockScope() {
-		b.varsInFunctionBody.Clear()
+		clear(b.varsInFunctionBody)
 		for _, v := range scope.varList {
 			if v != nil {
-				b.varsInFunctionBody.Add(v.GetName())
+				if b.varsInFunctionBody == nil {
+					b.varsInFunctionBody = make(map[string]struct{}, len(scope.varList))
+				}
+				b.varsInFunctionBody[v.GetName()] = struct{}{}
 			}
 		}
 	}
@@ -167,7 +182,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) AfterExitScope(t *Nod
 
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.checkDefaultParam(Var, Scope, Set<String>)
 func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckDefaultParam(
-	param *Var, scope *Scope, varsInFunctionBody *jutil.LinkedHashSet[string]) {
+	param *Var, scope *Scope, varsInFunctionBody map[string]struct{}) {
 	NodeTraversal_Traverse(
 		b.v.compiler,
 		param.GetParentNode().GetSecondChild(),
@@ -188,7 +203,7 @@ type variableReferenceCheck_defaultParamCallback struct {
 
 	b                  *VariableReferenceCheck_ReferenceCheckingBehavior
 	scope              *Scope
-	varsInFunctionBody *jutil.LinkedHashSet[string]
+	varsInFunctionBody map[string]struct{}
 }
 
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.checkDefaultParam(...).new AbstractShallowCallback() {...}.visit(NodeTraversal, Node, Node)
@@ -197,7 +212,7 @@ func (cb *variableReferenceCheck_defaultParamCallback) Visit(t *NodeTraversal, n
 		return
 	}
 	refName := n.GetString()
-	if cb.varsInFunctionBody.Contains(refName) && !cb.scope.HasSlot(refName) {
+	if _, ok := cb.varsInFunctionBody[refName]; ok && !cb.scope.HasSlot(refName) {
 		cb.b.v.compiler.Report(JSError_MakeWithNode(n, VariableReferenceCheck_EARLY_REFERENCE_ERROR, refName))
 	}
 }
@@ -239,7 +254,8 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckGoogModuleExport
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.checkVar(Var, List<Reference>)
 func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, references *jutil.ArrayList[*Reference]) {
 	c := b.v
-	c.blocksWithDeclarations.Clear()
+	clear(c.blocksWithDeclarations)
+	c.blocksWithDeclarations = c.blocksWithDeclarations[:0]
 	hasSeenDeclaration := false
 	hasErrors := false
 	isRead := false
@@ -265,7 +281,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, refe
 			hasSeenDeclaration = true
 			hasErrors = c.CheckRedeclaration(v, reference, referenceNode, hoistedFn, basicBlock)
 			// Add the current basic block after checking redeclarations
-			c.blocksWithDeclarations.Add(basicBlock)
+			c.addBlockWithDeclaration(basicBlock)
 			c.CheckBlocklessDeclaration(v, reference, referenceNode)
 
 			if reference.GetGrandparent().IsExport() {
@@ -325,7 +341,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, refe
 func (v *VariableReferenceCheck) LookForHoistedFunction(references *jutil.ArrayList[*Reference]) *Reference {
 	for reference := range references.All() {
 		if reference.IsHoistedFunction() {
-			v.blocksWithDeclarations.Add(reference.GetBasicBlock())
+			v.addBlockWithDeclaration(reference.GetBasicBlock())
 			return reference
 		}
 	}
@@ -335,7 +351,7 @@ func (v *VariableReferenceCheck) LookForHoistedFunction(references *jutil.ArrayL
 // Java: VariableReferenceCheck.checkBlocklessDeclaration(Var, Reference, Node)
 func (v *VariableReferenceCheck) CheckBlocklessDeclaration(va *Var, reference *Reference, referenceNode rhino.Node) {
 	if !reference.IsVarDeclaration() && reference.GetGrandparent().IsAddedBlock() &&
-		variableReferenceCheck_BLOCKLESS_DECLARATION_FORBIDDEN_STATEMENTS.Contains(
+		variableReferenceCheck_isBlocklessDeclarationForbidden(
 			reference.GetGrandparent().GetParent().GetToken()) {
 		v.compiler.Report(JSError_MakeWithNode(referenceNode, VariableReferenceCheck_DECLARATION_NOT_DIRECTLY_IN_BLOCK, va.GetName()))
 	}
@@ -412,7 +428,7 @@ func (vc *VariableReferenceCheck) CheckRedeclaration(
 //
 // Java: VariableReferenceCheck.isRedeclaration(BasicBlock)
 func (v *VariableReferenceCheck) IsRedeclaration(newDeclaration *BasicBlock) bool {
-	for previousDeclaration := range v.blocksWithDeclarations.All() {
+	for _, previousDeclaration := range v.blocksWithDeclarations {
 		if previousDeclaration.ProvablyExecutesBefore(newDeclaration) {
 			return true
 		}

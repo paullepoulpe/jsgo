@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -45,13 +44,13 @@ type ClosureCodeRemoval struct {
 
 	// List of names referenced in successive generations of finding
 	// referenced nodes.
-	abstractMethodAssignmentNodes *jutil.ArrayList[*ClosureCodeRemoval_RemovableAssignment]
+	abstractMethodAssignmentNodes []ClosureCodeRemoval_RemovableAssignment
 
 	// List of member function definition nodes annotated with @abstract.
-	abstractMemberFunctionNodes *jutil.ArrayList[rhino.Node]
+	abstractMemberFunctionNodes []rhino.Node
 
 	// List of assertion functions.
-	assertionCalls *jutil.ArrayList[rhino.Node]
+	assertionCalls []rhino.Node
 }
 
 var _ CompilerPass = (*ClosureCodeRemoval)(nil)
@@ -73,26 +72,28 @@ type ClosureCodeRemoval_RemovableAssignment struct {
 	parent rhino.Node
 
 	// Full chain of ASSIGN ancestors
-	assignAncestors *jutil.ArrayList[rhino.Node]
+	assignAncestors []rhino.Node
 
 	// The last ancestor
 	lastAncestor rhino.Node
 }
 
-// NewRemovableAssignment is the data structure for information about a
+// makeRemovableAssignment is the data structure for information about a
 // removable assignment. nameNode is the LHS; assignNode the parent ASSIGN
 // node.
 //
 // Java: ClosureCodeRemoval.RemovableAssignment(Node, Node)
-func (c *ClosureCodeRemoval) NewRemovableAssignment(nameNode rhino.Node, assignNode rhino.Node) *ClosureCodeRemoval_RemovableAssignment {
-	a := &ClosureCodeRemoval_RemovableAssignment{outer: c, assignAncestors: jutil.NewArrayList[rhino.Node]()}
-	a.node = nameNode
-	a.parent = assignNode
+func (c *ClosureCodeRemoval) makeRemovableAssignment(nameNode rhino.Node, assignNode rhino.Node) ClosureCodeRemoval_RemovableAssignment {
+	a := ClosureCodeRemoval_RemovableAssignment{
+		outer:  c,
+		node:   nameNode,
+		parent: assignNode,
+	}
 
 	ancestor := assignNode
 	for {
 		ancestor = ancestor.GetParent()
-		a.assignAncestors.Add(ancestor)
+		a.assignAncestors = append(a.assignAncestors, ancestor)
 		if !(ancestor.IsAssign() &&
 			ancestor.GetFirstChild().IsQualifiedName()) {
 			break
@@ -109,7 +110,7 @@ func (a *ClosureCodeRemoval_RemovableAssignment) Remove() {
 	compiler := a.outer.compiler
 	rhs := a.node.GetNext()
 	last := a.parent
-	for ancestor := range a.assignAncestors.All() {
+	for _, ancestor := range a.assignAncestors {
 		if ancestor.IsExprResult() {
 			ancestor.Detach()
 			NodeUtil_MarkFunctionsDeleted(ancestor, compiler)
@@ -141,17 +142,17 @@ func (f *ClosureCodeRemoval_FindAbstractMethods) Visit(t *NodeTraversal, n rhino
 			valueNode.IsQualifiedName() &&
 			valueNode.MatchesQualifiedName(ClosureCodeRemoval_ABSTRACT_METHOD_NAME) {
 			// Foo.prototype.bar = goog.abstractMethod
-			c.abstractMethodAssignmentNodes.Add(c.NewRemovableAssignment(n.GetFirstChild(), n))
+			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(n.GetFirstChild(), n))
 		} else if n.GetJSDocInfo() != nil &&
 			n.GetJSDocInfo().IsAbstract() &&
 			NodeUtil_IsEmptyFunctionExpression(valueNode) &&
 			!n.GetJSDocInfo().IsConstructor() {
 			// @abstract
-			c.abstractMethodAssignmentNodes.Add(c.NewRemovableAssignment(n.GetFirstChild(), n))
+			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(n.GetFirstChild(), n))
 		}
 	} else if n.IsMemberFunctionDef() && parent.IsClassMembers() {
 		if n.GetJSDocInfo() != nil && n.GetJSDocInfo().IsAbstract() {
-			c.abstractMemberFunctionNodes.Add(n)
+			c.abstractMemberFunctionNodes = append(c.abstractMemberFunctionNodes, n)
 		}
 	}
 }
@@ -182,7 +183,7 @@ func (f *ClosureCodeRemoval_FindAssertionCalls) Visit(t *NodeTraversal, n rhino.
 
 	if f.assertionNames.LookupByCallee(callee) != nil || // type-based
 		(callee.GetColor() != nil && callee.GetColor().IsClosureAssert()) { // color-based
-		f.outer.assertionCalls.Add(n)
+		f.outer.assertionCalls = append(f.outer.assertionCalls, n)
 	}
 }
 
@@ -193,12 +194,9 @@ func (f *ClosureCodeRemoval_FindAssertionCalls) Visit(t *NodeTraversal, n rhino.
 // Java: ClosureCodeRemoval(AbstractCompiler, boolean, boolean)
 func NewClosureCodeRemoval(compiler AbstractCompiler, removeAbstractMethods bool, removeAssertionCalls bool) *ClosureCodeRemoval {
 	return &ClosureCodeRemoval{
-		compiler:                      compiler,
-		removeAbstractMethods:         removeAbstractMethods,
-		removeAssertionCalls:          removeAssertionCalls,
-		abstractMethodAssignmentNodes: jutil.NewArrayList[*ClosureCodeRemoval_RemovableAssignment](),
-		abstractMemberFunctionNodes:   jutil.NewArrayList[rhino.Node](),
-		assertionCalls:                jutil.NewArrayList[rhino.Node](),
+		compiler:              compiler,
+		removeAbstractMethods: removeAbstractMethods,
+		removeAssertionCalls:  removeAssertionCalls,
 	}
 }
 
@@ -213,18 +211,18 @@ func (c *ClosureCodeRemoval) Process(externs rhino.Node, root rhino.Node) {
 	}
 	CombinedCompilerPass_Traverse(c.compiler, root, passes)
 
-	for assignment := range c.abstractMethodAssignmentNodes.All() {
-		assignment.Remove()
+	for i := range c.abstractMethodAssignmentNodes {
+		c.abstractMethodAssignmentNodes[i].Remove()
 	}
 
-	for memberFunction := range c.abstractMemberFunctionNodes.All() {
+	for _, memberFunction := range c.abstractMemberFunctionNodes {
 		c.compiler.ReportFunctionDeleted(memberFunction.GetFirstChild())
 		parent := memberFunction.GetParent()
 		memberFunction.Detach()
 		c.compiler.ReportChangeToEnclosingScope(parent)
 	}
 
-	for call := range c.assertionCalls.All() {
+	for _, call := range c.assertionCalls {
 		// If the assertion is an expression, just strip the whole thing.
 		c.compiler.ReportChangeToEnclosingScope(call)
 		parent := call.GetParent()

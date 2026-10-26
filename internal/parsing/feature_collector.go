@@ -19,6 +19,8 @@
 package parsing
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -57,19 +59,16 @@ func (c *FeatureCollector) AllFeatures() *parser.FeatureSet {
 
 // Java: FeatureCollector.visitScript(Node)
 func (c *FeatureCollector) VisitScript(script rhino.Node) {
-	emptyContext := jutil.NewArrayList[FeatureCollector_FeatureContext]()
-	emptyContext.Add(FeatureCollector_FeatureContext_NONE)
-	c.VisitRecursive(emptyContext, script)
+	c.VisitRecursive([]FeatureCollector_FeatureContext{FeatureCollector_FeatureContext_NONE}, script)
 }
 
 // Java: FeatureCollector.visitRecursive(List<FeatureContext>, Node)
-func (c *FeatureCollector) VisitRecursive(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node rhino.Node) {
+func (c *FeatureCollector) VisitRecursive(contextStack []FeatureCollector_FeatureContext, node rhino.Node) {
 	newContext := c.VisitSingleNode(contextStack, node)
-	contextStack.Add(newContext)
+	contextStack = append(contextStack, newContext)
 	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		c.VisitRecursive(contextStack, child)
 	}
-	contextStack.RemoveAt(contextStack.Size() - 1)
 }
 
 // VisitSingleNode records features for a single node.
@@ -78,9 +77,9 @@ func (c *FeatureCollector) VisitRecursive(contextStack *jutil.ArrayList[FeatureC
 // node: The node to visit.
 //
 // Java: FeatureCollector.visitSingleNode(List<FeatureContext>, Node)
-func (c *FeatureCollector) VisitSingleNode(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node rhino.Node) FeatureCollector_FeatureContext {
+func (c *FeatureCollector) VisitSingleNode(contextStack []FeatureCollector_FeatureContext, node rhino.Node) FeatureCollector_FeatureContext {
 	jutil.CheckStateMsg(
-		contextStack.Size() >= 1,
+		len(contextStack) >= 1,
 		"The provided feature context stack was empty. It must have at least one element.")
 
 	c.RecordScriptFeatures(contextStack, node)
@@ -88,8 +87,8 @@ func (c *FeatureCollector) VisitSingleNode(contextStack *jutil.ArrayList[Feature
 }
 
 // Java: FeatureCollector.recordScriptFeatures(List<FeatureContext>, Node)
-func (c *FeatureCollector) RecordScriptFeatures(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node rhino.Node) {
-	parentContext := contextStack.GetLast()
+func (c *FeatureCollector) RecordScriptFeatures(contextStack []FeatureCollector_FeatureContext, node rhino.Node) {
+	parentContext := contextStack[len(contextStack)-1]
 	switch node.GetToken() {
 	case rhino.Token_FUNCTION:
 		if node.IsAsyncGeneratorFunction() {
@@ -233,8 +232,8 @@ func (c *FeatureCollector) RecordScriptFeatures(contextStack *jutil.ArrayList[Fe
 }
 
 // Java: FeatureCollector.maybeAddTopLevelAwait(List<FeatureContext>)
-func (c *FeatureCollector) MaybeAddTopLevelAwait(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext]) {
-	if !contextStack.Contains(FeatureCollector_FeatureContext_FUNCTION) {
+func (c *FeatureCollector) MaybeAddTopLevelAwait(contextStack []FeatureCollector_FeatureContext) {
+	if !slices.Contains(contextStack, FeatureCollector_FeatureContext_FUNCTION) {
 		c.AddScriptFeature(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	}
 }
@@ -273,27 +272,13 @@ var featureCollector_FeatureContext_names = [...]string{
 	"PARAM_LIST", "CLASS_MEMBERS", "CLASS", "CATCH", "BLOCK_SCOPE", "FUNCTION", "OBJECT_LITERAL", "NONE",
 }
 
-// Java: FeatureCollector.FeatureContext.values()
-func FeatureCollector_FeatureContext_values() []FeatureCollector_FeatureContext {
-	return []FeatureCollector_FeatureContext{
-		FeatureCollector_FeatureContext_PARAM_LIST,
-		FeatureCollector_FeatureContext_CLASS_MEMBERS,
-		FeatureCollector_FeatureContext_CLASS,
-		FeatureCollector_FeatureContext_CATCH,
-		FeatureCollector_FeatureContext_BLOCK_SCOPE,
-		FeatureCollector_FeatureContext_FUNCTION,
-		FeatureCollector_FeatureContext_OBJECT_LITERAL,
-		FeatureCollector_FeatureContext_NONE,
-	}
-}
-
 // String is Enum.name().
 func (c FeatureCollector_FeatureContext) String() string {
 	return featureCollector_FeatureContext_names[c]
 }
 
 // Java: FeatureCollector.contextFor(List<FeatureContext>, Node)
-func FeatureCollector_ContextFor(contextStack *jutil.ArrayList[FeatureCollector_FeatureContext], node rhino.Node) FeatureCollector_FeatureContext {
+func FeatureCollector_ContextFor(contextStack []FeatureCollector_FeatureContext, node rhino.Node) FeatureCollector_FeatureContext {
 	switch node.GetToken() {
 	case rhino.Token_PARAM_LIST:
 		return FeatureCollector_FeatureContext_PARAM_LIST
@@ -306,7 +291,7 @@ func FeatureCollector_ContextFor(contextStack *jutil.ArrayList[FeatureCollector_
 	case rhino.Token_BLOCK:
 		// a function body is not a block scope - BLOCK is just overloaded. all
 		// other references to BLOCK are block scopes.
-		if contextStack.GetLast() == FeatureCollector_FeatureContext_FUNCTION {
+		if contextStack[len(contextStack)-1] == FeatureCollector_FeatureContext_FUNCTION {
 			return FeatureCollector_FeatureContext_NONE
 		}
 		return FeatureCollector_FeatureContext_BLOCK_SCOPE
