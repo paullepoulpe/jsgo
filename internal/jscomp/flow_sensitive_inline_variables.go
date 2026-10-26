@@ -90,12 +90,10 @@ type FlowSensitiveInlineVariables struct {
 	candidatesSet       jutil.LinkedHashSet[*FlowSensitiveInlineVariables_Candidate]
 	gatherCandidates    FlowSensitiveInlineVariables_GatherCandidates
 	gatherCb            FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
-	candidateSlab       []FlowSensitiveInlineVariables_Candidate
-	candidateBuf        [8]FlowSensitiveInlineVariables_Candidate
+	candidateSlab       reuseSlab[FlowSensitiveInlineVariables_Candidate]
 
 	varsFinder          lvaAllVarsFinder
 	inlinableDefs       []fsivCandidateDef
-	inlinableDefsBuf    [16]fsivCandidateDef
 	unreadDefCount      int
 	candFuncs           []fsivCandFunc
 	maxCandDepth        int
@@ -145,16 +143,7 @@ func (f *FlowSensitiveInlineVariables) allocCandidate(
 	use rhino.Node,
 	useCfgNode rhino.Node) *FlowSensitiveInlineVariables_Candidate {
 	jutil.CheckArgument(use.IsName())
-	if len(f.candidateSlab) == cap(f.candidateSlab) {
-		newCap := 16
-		if cap(f.candidateSlab) >= 16 {
-			newCap = cap(f.candidateSlab) * 2
-		}
-		f.candidateSlab = make([]FlowSensitiveInlineVariables_Candidate, 0, newCap)
-	}
-	idx := len(f.candidateSlab)
-	f.candidateSlab = f.candidateSlab[:idx+1]
-	c := &f.candidateSlab[idx]
+	c := f.candidateSlab.alloc()
 	*c = FlowSensitiveInlineVariables_Candidate{
 		outer:       f,
 		varName:     varName,
@@ -487,11 +476,7 @@ func (f *FlowSensitiveInlineVariables) markReadsOutsideLoop(n rhino.Node) {
 }
 
 func (f *FlowSensitiveInlineVariables) collectInlinableDefsWithReads(fnBody rhino.Node) (ok bool, hasFuncRhs bool) {
-	if cap(f.inlinableDefs) == 0 {
-		f.inlinableDefs = f.inlinableDefsBuf[:0]
-	} else {
-		f.inlinableDefs = f.inlinableDefs[:0]
-	}
+	f.inlinableDefs = f.inlinableDefs[:0]
 	f.scanStatementsForCandidateDefs(fnBody)
 	if len(f.inlinableDefs) == 0 {
 		return false, false
@@ -643,12 +628,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody
 	f.reachingDef.Analyze()
 	f.candidatesSet.Clear()
 	f.candidates = &f.candidatesSet
-	if cap(f.candidateSlab) == 0 {
-		f.candidateSlab = f.candidateBuf[:0]
-	} else {
-		clear(f.candidateSlab)
-		f.candidateSlab = f.candidateSlab[:0]
-	}
+	f.candidateSlab.reset(nil)
 
 	// Using the forward reaching definition search to find all the inline
 	// candidates

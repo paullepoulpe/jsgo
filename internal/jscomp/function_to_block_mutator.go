@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"strconv"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -355,45 +353,6 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 	}
 }
 
-func (m *FunctionToBlockMutator) allocInlineRenamer(
-	convention CodingConvention,
-	uniqueIdSupplier func() string,
-	concreteCompiler *Compiler,
-	idPrefix string,
-	removeConstness bool,
-	hoistingTargetScope bool,
-	parent MakeDeclaredNamesUnique_Renamer,
-) *MakeDeclaredNamesUnique_InlineRenamer {
-	r := &MakeDeclaredNamesUnique_InlineRenamer{}
-	r.convention = convention
-	r.uniqueIdSupplier = uniqueIdSupplier
-	r.concreteCompiler = concreteCompiler
-	r.mutator = m
-	r.idPrefix = idPrefix
-	r.removeConstness = removeConstness
-	if hoistingTargetScope {
-		r.hoistRenamer = r
-	} else {
-		r.hoistRenamer = parent.GetHoistRenamer()
-	}
-	return r
-}
-
-// formatInlineUniqueName builds the unique name the InlineRenamer gives a
-// local when it can take the id straight from the concrete Compiler, which
-// skips the uniqueIdSupplier closure and its intermediate string.
-func (m *FunctionToBlockMutator) formatInlineUniqueName(exported bool, baseName string, idPrefix string, id int) string {
-	const sep = MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
-	name := baseName + sep + idPrefix + strconv.Itoa(id)
-	if exported {
-		// The google internal coding convention includes a naming convention
-		// to export names starting with "_".  Simply strip "_" those to avoid
-		// exporting names.
-		return "JSCompiler_" + name
-	}
-	return name
-}
-
 // MakeLocalNamesUnique fixes up all local names to be unique for this
 // subtree.
 //
@@ -401,15 +360,10 @@ func (m *FunctionToBlockMutator) formatInlineUniqueName(exported bool, baseName 
 //
 // Java: FunctionToBlockMutator.makeLocalNamesUnique(Node, boolean)
 func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode rhino.Node, isCallInLoop bool) {
-	concreteCompiler, _ := m.compiler.(*Compiler)
-	var idSupplier func() string
-	if concreteCompiler == nil {
-		idSupplier = m.compiler.GetUniqueNameIdSupplier()
-	}
-	rootRenamer := m.allocInlineRenamer(
+	idSupplier := m.compiler.GetUniqueNameIdSupplier()
+	rootRenamer := NewMakeDeclaredNamesUnique_InlineRenamer(
 		m.compiler.GetCodingConvention(),
 		idSupplier,
-		concreteCompiler,
 		"inline_",
 		isCallInLoop,
 		true,
@@ -449,9 +403,6 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode rhino.Node, isCallI
 
 	// Make label names unique to this instance.
 	if hasLabelNode(fnNode) {
-		if idSupplier == nil {
-			idSupplier = m.compiler.GetUniqueNameIdSupplier()
-		}
 		NewRenameLabelsWithSupplier(m.compiler, NewFunctionToBlockMutator_LabelNameSupplier(idSupplier).Get, false, false).
 			Process(rhino.NilNode, fnNode)
 	}

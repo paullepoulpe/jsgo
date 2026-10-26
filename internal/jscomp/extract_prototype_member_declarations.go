@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -300,9 +302,6 @@ type ExtractPrototypeMemberDeclarations_GatherExtractionInfo struct {
 	outer            *ExtractPrototypeMemberDeclarations
 	instancesByChunk *jutil.LinkedHashMap[*JSChunk, *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo]
 	scratchDecls     []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration
-	declSlab         []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration
-	instSlab         jutil.Slab[ExtractPrototypeMemberDeclarations_ExtractionInstance]
-	infoSlab         jutil.Slab[ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo]
 }
 
 // Java: ExtractPrototypeMemberDeclarations.GatherExtractionInfo()
@@ -310,26 +309,7 @@ func NewExtractPrototypeMemberDeclarations_GatherExtractionInfo(outer *ExtractPr
 	return &ExtractPrototypeMemberDeclarations_GatherExtractionInfo{
 		outer:            outer,
 		instancesByChunk: jutil.NewLinkedHashMap[*JSChunk, *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo](),
-		instSlab:         jutil.NewMaxSlab[ExtractPrototypeMemberDeclarations_ExtractionInstance](1024),
-		infoSlab:         jutil.NewMaxSlab[ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo](1024),
 	}
-}
-
-func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) allocDecls(src []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
-	n := len(src)
-	const maxSlab = 682 // 682 * 48B = 32736B <= 32760B
-	if n > maxSlab {
-		out := make([]ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, n)
-		copy(out, src)
-		return out
-	}
-	if len(g.declSlab) < n {
-		g.declSlab = make([]ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, maxSlab)
-	}
-	out := g.declSlab[:n:n]
-	g.declSlab = g.declSlab[n:]
-	copy(out, src)
-	return out
 }
 
 // Java: ExtractPrototypeMemberDeclarations.GatherExtractionInfo.visit(NodeTraversal, Node, Node)
@@ -367,15 +347,16 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit(t *NodeT
 
 		// Only add it to our work list if the extraction at this instance makes the code smaller.
 		if delta <= 0 {
-			instance := g.instSlab.New()
-			instance.declarations = g.allocDecls(g.scratchDecls)
-			instance.delta = delta
-			instance.parent = n
+			instance := &ExtractPrototypeMemberDeclarations_ExtractionInstance{
+				declarations: slices.Clone(g.scratchDecls),
+				delta:        delta,
+				parent:       n,
+			}
 
 			chunk := t.GetChunk()
 			instanceInfo := g.instancesByChunk.Get(chunk)
 			if instanceInfo == nil {
-				instanceInfo = g.infoSlab.New()
+				instanceInfo = NewExtractPrototypeMemberDeclarations_ExtractionInstanceInfo()
 				g.instancesByChunk.PutNew(chunk, instanceInfo)
 			}
 			instanceInfo.instances = append(instanceInfo.instances, instance)

@@ -76,7 +76,6 @@ type ClosureRewriteModule struct {
 	googRequireDynamicCalls           *jutil.ArrayList[rhino.Node]
 
 	globalTypedScope *TypedScope
-	scriptDescSlab   jutil.Slab[ClosureRewriteModule_ScriptDescription]
 }
 
 var _ CompilerPass = (*ClosureRewriteModule)(nil)
@@ -354,10 +353,6 @@ type ClosureRewriteModule_ScriptDescription struct {
 // Java: ClosureRewriteModule.ScriptDescription()
 func NewClosureRewriteModule_ScriptDescription() *ClosureRewriteModule_ScriptDescription {
 	return &ClosureRewriteModule_ScriptDescription{}
-}
-
-func (m *ClosureRewriteModule) allocScriptDescription() *ClosureRewriteModule_ScriptDescription {
-	return m.scriptDescSlab.New()
 }
 
 // Java: ClosureRewriteModule.ScriptDescription.addChildScript(ScriptDescription)
@@ -987,7 +982,7 @@ func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
 			jutil.CheckStateMsg1(script.IsScript(), "%s", script)
 			NodeTraversal_Traverse(m.compiler, script, &unwrap)
 
-			m.PushScript(m.allocScriptDescription()) // sets currentScript
+			m.PushScript(NewClosureRewriteModule_ScriptDescription()) // sets currentScript
 
 			m.currentScript.rootNode = script
 			scriptDescriptions.Add(m.currentScript)
@@ -1097,7 +1092,7 @@ func (m *ClosureRewriteModule) PreprocessExportDeclaration(t *NodeTraversal, n r
 
 // Java: ClosureRewriteModule.recordModuleBody(Node)
 func (m *ClosureRewriteModule) RecordModuleBody(moduleRoot rhino.Node) {
-	m.PushScript(m.allocScriptDescription())
+	m.PushScript(NewClosureRewriteModule_ScriptDescription())
 
 	m.currentScript.rootNode = moduleRoot
 	m.currentScript.isModule = true

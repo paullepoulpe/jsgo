@@ -1117,8 +1117,6 @@ type MakeDeclaredNamesUnique_InlineRenamer struct {
 	inlineLen        int
 	overflow         map[string]string
 	uniqueIdSupplier func() string
-	concreteCompiler *Compiler
-	mutator          *FunctionToBlockMutator
 	idPrefix         string
 	removeConstness  bool
 	convention       CodingConvention
@@ -1152,8 +1150,7 @@ func NewMakeDeclaredNamesUnique_InlineRenamer(
 }
 
 func (r *MakeDeclaredNamesUnique_InlineRenamer) lookupDeclaration(oldName string) (string, bool) {
-	n := r.inlineLen
-	for i := 0; i < n; i++ {
+	for i := 0; i < r.inlineLen; i++ {
 		if r.inlineKeys[i] == oldName {
 			return r.inlineVals[i], true
 		}
@@ -1198,21 +1195,17 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) GetUniqueName(name string) strin
 		name = name[:idx]
 	}
 
-	exported := r.convention.IsExported(name)
-	if r.concreteCompiler != nil && r.mutator != nil {
-		return r.mutator.formatInlineUniqueName(exported, name, r.idPrefix, r.concreteCompiler.nextUniqueNameId())
-	}
-
-	if exported {
+	const sep = MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
+	if r.convention.IsExported(name) {
 		// The google internal coding convention includes a naming convention
 		// to export names starting with "_".  Simply strip "_" those to avoid
 		// exporting names.
-		name = "JSCompiler_" + name
+		return "JSCompiler_" + name + sep + r.idPrefix + r.uniqueIdSupplier()
 	}
 
 	// By using the same separator the id will be stripped if it isn't
 	// needed when variable renaming is turned off.
-	return name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + r.idPrefix + r.uniqueIdSupplier()
+	return name + sep + r.idPrefix + r.uniqueIdSupplier()
 }
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.getReplacementName(String)
@@ -1230,10 +1223,6 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementNameValue(oldName 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.createForChildScope(Node, boolean)
 func (r *MakeDeclaredNamesUnique_InlineRenamer) CreateForChildScope(
 	scopeRoot rhino.Node, hoistingTargetScope bool) MakeDeclaredNamesUnique_Renamer {
-	if r.mutator != nil {
-		return r.mutator.allocInlineRenamer(
-			r.convention, r.uniqueIdSupplier, r.concreteCompiler, r.idPrefix, r.removeConstness, hoistingTargetScope, r)
-	}
 	return NewMakeDeclaredNamesUnique_InlineRenamer(
 		r.convention, r.uniqueIdSupplier, r.idPrefix, r.removeConstness, hoistingTargetScope, r)
 }

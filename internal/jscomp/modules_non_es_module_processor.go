@@ -37,10 +37,7 @@ var (
 // TODO(johnplaisted): It may not be too hard to actually scan these modules
 // and figure out their exported keys. At least, assuming we're rigid with
 // what we allow (no dynamic exports).
-type NonEsModuleProcessor struct {
-	nonEsSlab  jutil.Slab[NonEsModuleProcessor_NonEsModule]
-	moduleSlab jutil.Slab[Module]
-}
+type NonEsModuleProcessor struct{}
 
 var _ ModuleMapCreator_ModuleProcessor = (*NonEsModuleProcessor)(nil)
 
@@ -53,7 +50,6 @@ func NewNonEsModuleProcessor() *NonEsModuleProcessor {
 type NonEsModuleProcessor_NonEsModule struct {
 	UnresolvedModuleBase
 
-	processor  *NonEsModuleProcessor
 	metadata   *ModuleMetadataMap_ModuleMetadata
 	path       *ModuleLoader_ModulePath
 	scriptNode rhino.Node
@@ -121,16 +117,6 @@ func (m *NonEsModuleProcessor_NonEsModule) ResolveWithModuleSpecifier(
 		namespace = &ns
 	}
 	jutil.CheckNotNullMsg(m.metadata, "Null metadata")
-	if m.processor != nil {
-		mod := m.processor.moduleSlab.New()
-		mod.metadata = m.metadata
-		mod.path = m.path
-		mod.namespace = nonEsEmptyBindingMap
-		mod.boundNames = nonEsEmptyBindingMap
-		mod.localNameToLocalExport = nonEsEmptyExportMap
-		mod.closureNamespace = namespace
-		return mod
-	}
 	return &Module{
 		metadata:               m.metadata,
 		path:                   m.path,
@@ -160,11 +146,5 @@ func (m *NonEsModuleProcessor_NonEsModule) GetExportedNamesWithVisited(
 // Java: NonEsModuleProcessor.process(ModuleMetadata, ModulePath, Node)
 func (p *NonEsModuleProcessor) Process(
 	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule {
-	m := p.nonEsSlab.New()
-	m.InitUnresolvedModuleBase(m)
-	m.processor = p
-	m.metadata = metadata
-	m.path = path
-	m.scriptNode = script
-	return m
+	return NewNonEsModuleProcessor_NonEsModule(metadata, path, script)
 }

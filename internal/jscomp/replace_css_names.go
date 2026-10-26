@@ -91,10 +91,6 @@ type ReplaceCssNames struct {
 	symbolMap CssRenamingMap // may be nil
 
 	skiplist jutil.Set[string] // may be nil
-
-	partsScratch    []string
-	replacedScratch []string
-	instanceSlab    jutil.Slab[ReplaceCssNames_GetCssNameInstance]
 }
 
 // This is used only for qualified name comparison, so it's OK to build it with IR instead of
@@ -292,56 +288,6 @@ func (g *ReplaceCssNames_GatherCssNamesTraversal) Visit(t *NodeTraversal, n rhin
 	}
 }
 
-// Java: ReplaceCssNames.GatherCssNamesTraversal.createSassGeneratedCssTsExpert(Node)
-func (g *ReplaceCssNames_GatherCssNamesTraversal) CreateSassGeneratedCssTsExpert(n rhino.Node) *ReplaceCssNames_GatherCssNamesTraversal_SassGeneratedCssTsExpert {
-	r := g.outer
-	jsdoc := n.GetJSDocInfo()
-	hasSassGeneratedCssTsJsDoc := jsdoc != nil && jsdoc.IsSassGeneratedCssTs()
-
-	var sassGeneratedCssTsValidationError *JSError
-	if hasSassGeneratedCssTsJsDoc && (!n.IsScript() || r.IsNotInCssClosureFile(n)) {
-		sassGeneratedCssTsValidationError = JSError_MakeWithNode(n, ReplaceCssNames_UNEXPECTED_SASS_GENERATED_CSS_TS_ERROR)
-	}
-
-	assignmentTarget := n.GetFirstChild()
-	isCssClosureClassesAssignment := n.IsAssign() &&
-		assignmentTarget.IsGetProp() &&
-		assignmentTarget.GetString() == "classes"
-
-	var cssClosureClassesQualifiedName *string
-	if isCssClosureClassesAssignment {
-		cssClosureClassesQualifiedName = assignmentTarget.GetQualifiedName()
-	}
-
-	return NewReplaceCssNames_GatherCssNamesTraversal_SassGeneratedCssTsExpert(
-		hasSassGeneratedCssTsJsDoc,
-		sassGeneratedCssTsValidationError,
-		isCssClosureClassesAssignment,
-		cssClosureClassesQualifiedName)
-}
-
-// Java: private static class ReplaceCssNames.GatherCssNamesTraversal.SassGeneratedCssTsExpert
-type ReplaceCssNames_GatherCssNamesTraversal_SassGeneratedCssTsExpert struct {
-	hasSassGeneratedCssTsJsDoc        bool
-	sassGeneratedCssTsValidationError *JSError
-	isCssClosureClassesAssignment     bool
-	cssClosureClassesQualifiedName    *string
-}
-
-// Java: ReplaceCssNames.GatherCssNamesTraversal.SassGeneratedCssTsExpert(boolean, JSError, boolean, String)
-func NewReplaceCssNames_GatherCssNamesTraversal_SassGeneratedCssTsExpert(
-	hasSassGeneratedCssTsJsDoc bool,
-	sassGeneratedCssTsValidationError *JSError,
-	isCssClosureClassesAssignment bool,
-	cssClosureClassesQualifiedName *string) *ReplaceCssNames_GatherCssNamesTraversal_SassGeneratedCssTsExpert {
-	return &ReplaceCssNames_GatherCssNamesTraversal_SassGeneratedCssTsExpert{
-		hasSassGeneratedCssTsJsDoc:        hasSassGeneratedCssTsJsDoc,
-		sassGeneratedCssTsValidationError: sassGeneratedCssTsValidationError,
-		isCssClosureClassesAssignment:     isCssClosureClassesAssignment,
-		cssClosureClassesQualifiedName:    cssClosureClassesQualifiedName,
-	}
-}
-
 // Java: private static class ReplaceCssNames.GatherCssNamesTraversal.TraversalState
 type ReplaceCssNames_GatherCssNamesTraversal_TraversalState struct {
 	inSassGeneratedCssTsScript     bool
@@ -362,13 +308,8 @@ func (r *ReplaceCssNames) IsGetCssNameCall(node rhino.Node) bool {
 // Java: ReplaceCssNames.createGetCssNameInstance(Node, String)
 func (r *ReplaceCssNames) CreateGetCssNameInstance(
 	n rhino.Node, cssClosureClassesQualifiedName *string) *ReplaceCssNames_GetCssNameInstance {
-	validationError := r.ValidateGetCssNameCall(n)
-	inst := r.instanceSlab.New()
-	inst.outer = r
-	inst.callNode = n
-	inst.validationError = validationError
-	inst.cssClosureClassesQualifiedName = cssClosureClassesQualifiedName
-	return inst
+	return NewReplaceCssNames_GetCssNameInstance(
+		r, n, r.ValidateGetCssNameCall(n), cssClosureClassesQualifiedName)
 }
 
 // ReplaceCssNames_GetCssNameInstance represents a `goog.getCssName()` call.
@@ -599,35 +540,23 @@ func (r *ReplaceCssNames) ProcessStringNode(n rhino.Node) {
 					return
 				}
 			case CssRenamingMap_Style_BY_PART:
-				parts := r.partsScratch[:0]
-				if !strings.Contains(name, "-") {
-					parts = append(parts, name)
-				} else {
-					for rem := name; ; {
-						idx := strings.IndexByte(rem, '-')
-						if idx < 0 {
-							parts = append(parts, rem)
-							break
-						}
-						parts = append(parts, rem[:idx])
-						rem = rem[idx+1:]
-					}
+				parts := []string{name}
+				if strings.Contains(name, "-") {
+					parts = strings.Split(name, "-")
 					for len(parts) > 0 && parts[len(parts)-1] == "" {
 						parts = parts[:len(parts)-1]
 					}
 				}
-				r.partsScratch = parts
-				replaced := r.replacedScratch[:0]
-				for i := 0; i < len(parts); i++ {
-					part := r.symbolMap.Get(parts[i])
+				replaced := make([]string, len(parts))
+				for i, p := range parts {
+					part := r.symbolMap.Get(p)
 					if part == nil {
 						// If we can't encode all parts, don't encode any of it.
-						r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, parts[i], name))
+						r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, p, name))
 						return
 					}
-					replaced = append(replaced, *part)
+					replaced[i] = *part
 				}
-				r.replacedScratch = replaced
 				joined := strings.Join(replaced, "-")
 				replacement = &joined
 			}

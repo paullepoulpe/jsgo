@@ -40,10 +40,6 @@ func scopeBloomFromHash(h uint32) uint64 {
 	return (uint64(1) << (h & 63)) | (uint64(1) << ((h >> 6) & 63))
 }
 
-func scopeBloomMask(s string) uint64 {
-	return scopeBloomFromHash(scopeNameHash(s))
-}
-
 func scopeIDHash(id uint32) uint32 {
 	h := id * 0x9e3779b1
 	h ^= h >> 16
