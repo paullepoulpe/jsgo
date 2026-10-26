@@ -11,10 +11,13 @@ against the Java reference: Java's first cold run in this suite (DIR/<task>/ref)
 the one an earlier run left in --java-ref. The JVM's own "WARNING: " lines (the
 sun.misc.Unsafe notice of JDK 26+) are dropped from Java's stderr first. 'googleapis' is
 the three-stage build of run_googleapis_bench.py; its gate is a digest of the chunk
-outputs plus each stage's stdout, stderr and exit. With --warm, Java is also run warm
-(java/CliBatch.java, one JVM per task); for 'single-files' Java is only run warm and its
-last iteration is the reference. One JSON record per run goes to DIR/results.jsonl;
-interleaved_stats.py summarizes them.
+outputs plus each stage's stdout, stderr and exit. Before each googleapis run, its 44,240
+input files (485 MB) are read once, untimed: a Java run (14 GiB) evicts them from the file
+cache, which otherwise slows the CHECKS stage of whichever run comes next (jsgo: 64.7 s
+instead of 61.7 s), and the contender order puts the same jsgo build there every time.
+With --warm, Java is also run warm (java/CliBatch.java, one JVM per task); for
+'single-files' Java is only run warm and its last iteration is the reference. One JSON
+record per run goes to DIR/results.jsonl; interleaved_stats.py summarizes them.
 """
 import argparse
 import glob
@@ -236,10 +239,35 @@ def gate_task(bench, task, jobs, rundir, ref):
 GAPI_STAGES = ("CHECKS", "OPTIMIZATIONS", "FINALIZATIONS")
 
 
+def gapi_inputs(flagfile):
+    """The --js and --externs files of the googleapis flag file."""
+    out = []
+    with open(flagfile) as f:
+        for line in f:
+            line = line.strip()
+            for p in ("--js=", "--externs="):
+                if line.startswith(p):
+                    out.append(line[len(p):])
+    return out
+
+
+def read_inputs(paths):
+    """Read every file once so the next run finds it in the file cache."""
+    buf = bytearray(1 << 20)
+    for p in paths:
+        try:
+            with open(p, "rb", buffering=0) as f:
+                while f.readinto(buf):
+                    pass
+        except OSError:
+            pass
+
+
 def run_gapi(bench, argv0, tflag, env, rundir, is_java):
     gdir = os.path.join(bench.default_cache(), "bench-inputs", "googleapis-bench")
     flagfile = os.path.join(gdir, "flags.txt")
     shutil.rmtree(rundir, ignore_errors=True)
+    read_inputs(gapi_inputs(flagfile))  # untimed; see the module docstring
     os.makedirs(os.path.join(rundir, "chunks"))
     base = list(argv0)
     if is_java:
