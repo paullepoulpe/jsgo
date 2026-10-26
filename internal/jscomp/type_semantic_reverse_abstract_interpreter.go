@@ -34,65 +34,6 @@ type SemanticReverseAbstractInterpreter struct {
 	trackingSlab jutil.Slab[SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope]
 }
 
-// SemanticReverseAbstractInterpreter_Eq is the merging function for
-// equality between types.
-//
-// Java: SemanticReverseAbstractInterpreter.eq(TypePair)
-func SemanticReverseAbstractInterpreter_Eq(p *rhino.JSType_TypePair) *rhino.JSType_TypePair {
-	if p.TypeA == nil || p.TypeB == nil {
-		return nil
-	}
-	return p.TypeA.GetTypesUnderEquality(p.TypeB)
-}
-
-// SemanticReverseAbstractInterpreter_Ne is the merging function for
-// non-equality between types.
-//
-// Java: SemanticReverseAbstractInterpreter.ne(TypePair)
-func SemanticReverseAbstractInterpreter_Ne(p *rhino.JSType_TypePair) *rhino.JSType_TypePair {
-	if p.TypeA == nil || p.TypeB == nil {
-		return nil
-	}
-	return p.TypeA.GetTypesUnderInequality(p.TypeB)
-}
-
-// SemanticReverseAbstractInterpreter_Sheq is the merging function for strict
-// equality between types.
-//
-// Java: SemanticReverseAbstractInterpreter.sheq(TypePair)
-func SemanticReverseAbstractInterpreter_Sheq(p *rhino.JSType_TypePair) *rhino.JSType_TypePair {
-	if p.TypeA == nil || p.TypeB == nil {
-		return nil
-	}
-	return p.TypeA.GetTypesUnderShallowEquality(p.TypeB)
-}
-
-// SemanticReverseAbstractInterpreter_Shne is the merging function for strict
-// non-equality between types.
-//
-// Java: SemanticReverseAbstractInterpreter.shne(TypePair)
-func SemanticReverseAbstractInterpreter_Shne(p *rhino.JSType_TypePair) *rhino.JSType_TypePair {
-	if p.TypeA == nil || p.TypeB == nil {
-		return nil
-	}
-	return p.TypeA.GetTypesUnderShallowInequality(p.TypeB)
-}
-
-// SemanticReverseAbstractInterpreter_Ineq is the merging function for
-// inequality comparisons between types.
-//
-// Java: SemanticReverseAbstractInterpreter.ineq(TypePair)
-func SemanticReverseAbstractInterpreter_Ineq(p *rhino.JSType_TypePair) *rhino.JSType_TypePair {
-	var typeA, typeB rhino.JSType
-	if p.TypeA != nil {
-		typeA = p.TypeA.RestrictByNotUndefined()
-	}
-	if p.TypeB != nil {
-		typeB = p.TypeB.RestrictByNotUndefined()
-	}
-	return rhino.NewJSType_TypePair(typeA, typeB)
-}
-
 // NewSemanticReverseAbstractInterpreter creates a semantic reverse abstract
 // interpreter.
 //
@@ -233,13 +174,13 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 func (s *SemanticReverseAbstractInterpreter) CaseIsArray(value rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	type_ := s.GetTypeIfRefinable(value, blindScope)
 	if type_ != nil {
-		var visitor rhino.Visitor
+		var visitor rhino.Visitor[rhino.JSType]
 		if outcome.IsTruthy() {
 			visitor = s.restrictToArrayVisitor
 		} else {
 			visitor = s.restrictToNotArrayVisitor
 		}
-		return s.MaybeRestrictName(blindScope, value, type_, rhino.JSType_VisitForJSType(type_, visitor))
+		return s.MaybeRestrictName(blindScope, value, type_, rhino.VisitJSType[rhino.JSType](type_, visitor))
 	}
 	return blindScope
 }
@@ -308,60 +249,6 @@ func (s *SemanticReverseAbstractInterpreter) caseEqualityMode(
 		}
 		if rightIsRefineable {
 			restrictedRightType = mergedB
-		}
-		return s.MaybeRestrictTwoNames(
-			blindScope,
-			left,
-			leftType,
-			restrictedLeftType,
-			right,
-			rightType,
-			restrictedRightType)
-	}
-	return blindScope
-}
-
-// Java: SemanticReverseAbstractInterpreter.caseEquality(Node, FlowScope, Function<TypePair, TypePair>)
-func (s *SemanticReverseAbstractInterpreter) CaseEquality(
-	condition rhino.Node, blindScope FlowScope, merging func(*rhino.JSType_TypePair) *rhino.JSType_TypePair) FlowScope {
-	return s.CaseEqualityOfLeftAndRight(condition.GetFirstChild(), condition.GetLastChild(), blindScope, merging)
-}
-
-// Java: SemanticReverseAbstractInterpreter.caseEquality(Node, Node, FlowScope, Function<TypePair, TypePair>)
-func (s *SemanticReverseAbstractInterpreter) CaseEqualityOfLeftAndRight(
-	left rhino.Node, right rhino.Node, blindScope FlowScope,
-	merging func(*rhino.JSType_TypePair) *rhino.JSType_TypePair) FlowScope {
-	// left type
-	leftType := s.GetTypeIfRefinable(left, blindScope)
-	var leftIsRefineable bool
-	if leftType != nil {
-		leftIsRefineable = true
-	} else {
-		leftIsRefineable = false
-		leftType = left.GetJSType()
-	}
-
-	// right type
-	rightType := s.GetTypeIfRefinable(right, blindScope)
-	var rightIsRefineable bool
-	if rightType != nil {
-		rightIsRefineable = true
-	} else {
-		rightIsRefineable = false
-		rightType = right.GetJSType()
-	}
-
-	// merged types
-	merged := merging(rhino.NewJSType_TypePair(leftType, rightType))
-
-	// creating new scope
-	if merged != nil {
-		var restrictedLeftType, restrictedRightType rhino.JSType
-		if leftIsRefineable {
-			restrictedLeftType = merged.TypeA
-		}
-		if rightIsRefineable {
-			restrictedRightType = merged.TypeB
 		}
 		return s.MaybeRestrictTwoNames(
 			blindScope,
@@ -553,13 +440,13 @@ func (s *SemanticReverseAbstractInterpreter) CaseInstanceOf(
 	if rightType != nil && rightType.IsFunctionType() {
 		targetType = rightType.ToMaybeFunctionType()
 	}
-	var visitor rhino.Visitor
+	var visitor rhino.Visitor[rhino.JSType]
 	if outcome.IsTruthy() {
 		visitor = newSemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor(s, targetType)
 	} else {
 		visitor = newSemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor(s, targetType)
 	}
-	return s.MaybeRestrictName(blindScope, left, leftType, rhino.JSType_VisitForJSType(leftType, visitor))
+	return s.MaybeRestrictName(blindScope, left, leftType, rhino.VisitJSType[rhino.JSType](leftType, visitor))
 }
 
 // CaseIn: given 'property in object', ensures that the object has the
@@ -620,7 +507,7 @@ func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisito
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.caseUnknownType()
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseUnknownType() any {
+func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseUnknownType() rhino.JSType {
 	funcTarget := rhino.JSType_ToMaybeFunctionType(v.target)
 	if funcTarget != nil && funcTarget.HasInstanceType() {
 		return funcTarget.GetInstanceType()
@@ -629,17 +516,17 @@ func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisito
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.caseObjectType(ObjectType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseObjectType(type_ rhino.ObjectType) any {
+func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
 	return v.ApplyCommonRestriction(type_)
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.caseUnionType(UnionType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseUnionType(type_ *rhino.UnionType) any {
+func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseUnionType(type_ *rhino.UnionType) rhino.JSType {
 	return v.ApplyCommonRestriction(type_)
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.caseFunctionType(FunctionType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseFunctionType(type_ rhino.FunctionType) any {
+func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
 	return v.self.CaseObjectType(type_)
 }
 
@@ -678,7 +565,7 @@ func newSemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisito
 }
 
 // Java: RestrictByFalseInstanceOfResultVisitor.caseObjectType(ObjectType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor) CaseObjectType(type_ rhino.ObjectType) any {
+func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
 	if v.target.IsUnknownType() {
 		return type_
 	}
@@ -696,7 +583,7 @@ func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisit
 }
 
 // Java: RestrictByFalseInstanceOfResultVisitor.caseUnionType(UnionType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor) CaseUnionType(type_ *rhino.UnionType) any {
+func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor) CaseUnionType(type_ *rhino.UnionType) rhino.JSType {
 	if v.target.IsUnknownType() {
 		return type_
 	}
@@ -710,7 +597,7 @@ func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisit
 }
 
 // Java: RestrictByFalseInstanceOfResultVisitor.caseFunctionType(FunctionType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor) CaseFunctionType(type_ rhino.FunctionType) any {
+func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
 	return v.self.CaseObjectType(type_)
 }
 

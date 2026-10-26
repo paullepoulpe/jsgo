@@ -108,9 +108,4 @@ func (t *StringType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_BOTH
 }
 
-// Java: StringType.visit(Visitor<T>)
-func (t *StringType) Visit(visitor Visitor) any {
-	return visitor.CaseStringType()
-}
-
 var jsType_displayName_string = "string"

@@ -91,16 +91,6 @@ func (t *NoType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_BOTH
 }
 
-// Java: NoType.visit(Visitor<T>)
-func (t *NoType) Visit(visitor Visitor) any {
-	return visitor.CaseNoType(t)
-}
-
-// Java: NoType.visit(RelationshipVisitor<T>, JSType)
-func (t *NoType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseNoType(that)
-}
-
 // Java: NoType.appendTo(TypeStringBuilder)
 func (t *NoType) AppendTo(sb *TypeStringBuilder) {
 	if sb.IsForAnnotations() {

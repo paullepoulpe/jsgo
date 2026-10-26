@@ -742,7 +742,7 @@ func (c *SubtypeChecker) IsTemplateSubtype(subtype *TemplateType, supertype JSTy
 	if !subtype.GetBound().IsUnknownType() &&
 		supertype.IsTemplateType() &&
 		!supertype.ToMaybeTemplateType().GetBound().IsUnknownType() {
-		return subtype.Visit(NewContainsUpperBoundSuperTypeVisitor(supertype)) ==
+		return VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](subtype, NewContainsUpperBoundSuperTypeVisitor(supertype)) ==
 			ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
 	} else {
 		return c.IsProxyObjectSubtype(subtype, supertype)

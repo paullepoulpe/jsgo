@@ -35,186 +35,258 @@
 
 package rhino
 
-// Visitor is a type visitor.
+import "github.com/paullepoulpe/jsgo/internal/jutil"
+
+// Visitor is a generic JSType visitor.
 //
-// Go-only: language-adapter — Java's Visitor<T> is generic and
-// JSType.visit is a generic method; Go methods cannot have type parameters,
-// so T is erased to `any` (as the JVM does). Implementations return their T
-// boxed in `any`, and callers convert the result back (see
-// JSType_VisitForJSType for the common Visitor<JSType> case).
-type Visitor interface {
+// Java: interface Visitor<T>; dispatched via VisitJSType since Go methods
+// cannot declare their own type parameters.
+type Visitor[T any] interface {
 	// CaseNoType is the bottom type's case.
-	CaseNoType(type_ *NoType) any
+	CaseNoType(type_ *NoType) T
 
 	// CaseEnumElementType is the enum element type's case.
-	CaseEnumElementType(type_ *EnumElementType) any
+	CaseEnumElementType(type_ *EnumElementType) T
 
 	// CaseAllType is the all type's case.
-	CaseAllType() any
+	CaseAllType() T
 
 	// CaseBooleanType is the boolean value type's case.
-	CaseBooleanType() any
+	CaseBooleanType() T
 
 	// CaseNoObjectType is the bottom Object type's case.
-	CaseNoObjectType() any
+	CaseNoObjectType() T
 
 	// CaseFunctionType is the function type's case.
-	CaseFunctionType(type_ FunctionType) any
+	CaseFunctionType(type_ FunctionType) T
 
 	// CaseObjectType is the object type's case.
-	CaseObjectType(type_ ObjectType) any
+	CaseObjectType(type_ ObjectType) T
 
 	// CaseUnknownType is the unknown type's case.
-	CaseUnknownType() any
+	CaseUnknownType() T
 
 	// CaseNullType is the null type's case.
-	CaseNullType() any
+	CaseNullType() T
 
 	// CaseNamedType is the named type's case.
-	CaseNamedType(type_ *NamedType) any
+	CaseNamedType(type_ *NamedType) T
 
 	// CaseProxyObjectType is the proxy type's case.
-	CaseProxyObjectType(type_ ProxyObjectType) any
+	CaseProxyObjectType(type_ ProxyObjectType) T
 
 	// CaseNumberType is the number value type's case.
-	CaseNumberType() any
+	CaseNumberType() T
 
 	// CaseBigIntType is the bigint value type's case.
-	CaseBigIntType() any
+	CaseBigIntType() T
 
 	// CaseStringType is the string value type's case.
-	CaseStringType() any
+	CaseStringType() T
 
 	// CaseSymbolType is the symbol value type's case.
-	CaseSymbolType(type_ SymbolType) any
+	CaseSymbolType(type_ SymbolType) T
 
 	// CaseVoidType is the void type's case.
-	CaseVoidType() any
+	CaseVoidType() T
 
 	// CaseUnionType is the union type's case.
-	CaseUnionType(type_ *UnionType) any
+	CaseUnionType(type_ *UnionType) T
 
 	// CaseTemplatizedType is the templatized type's case.
-	CaseTemplatizedType(type_ *TemplatizedType) any
+	CaseTemplatizedType(type_ *TemplatizedType) T
 
 	// CaseTemplateType is the template type's case.
-	CaseTemplateType(templateType *TemplateType) any
+	CaseTemplateType(templateType *TemplateType) T
+}
+
+// VisitJSType dispatches t to visitor's matching case method.
+//
+// Java: JSType.visit(Visitor<T>)
+func VisitJSType[T any](t JSType, visitor Visitor[T]) T {
+	switch x := t.(type) {
+	case *NoType:
+		return visitor.CaseNoType(x)
+	case *EnumElementType:
+		return visitor.CaseEnumElementType(x)
+	case *AllType:
+		return visitor.CaseAllType()
+	case *BooleanType:
+		return visitor.CaseBooleanType()
+	case *NoObjectTypeBase:
+		return visitor.CaseNoObjectType()
+	case *FunctionTypeBase:
+		return visitor.CaseFunctionType(x)
+	case *InstanceObjectType:
+		return visitor.CaseObjectType(x)
+	case *PrototypeObjectTypeBase:
+		return visitor.CaseObjectType(x)
+	case *RecordType:
+		return visitor.CaseObjectType(x)
+	case *EnumType:
+		return visitor.CaseObjectType(x)
+	case *NoResolvedType:
+		return visitor.CaseObjectType(x)
+	case *UnknownType:
+		return visitor.CaseUnknownType()
+	case *NullType:
+		return visitor.CaseNullType()
+	case *NamedType:
+		return visitor.CaseNamedType(x)
+	case *ProxyObjectTypeBase:
+		return visitor.CaseProxyObjectType(x)
+	case *NumberType:
+		return visitor.CaseNumberType()
+	case *BigIntType:
+		return visitor.CaseBigIntType()
+	case *StringType:
+		return visitor.CaseStringType()
+	case *SymbolTypeBase:
+		return visitor.CaseSymbolType(x)
+	case *KnownSymbolType:
+		return visitor.CaseSymbolType(x)
+	case *VoidType:
+		return visitor.CaseVoidType()
+	case *UnionType:
+		return visitor.CaseUnionType(x)
+	case *TemplatizedType:
+		return visitor.CaseTemplatizedType(x)
+	case *TemplateType:
+		return visitor.CaseTemplateType(x)
+	default:
+		if _, ok := t.(NoObjectType); ok {
+			return visitor.CaseNoObjectType()
+		}
+		if fn, ok := t.(FunctionType); ok {
+			return visitor.CaseFunctionType(fn)
+		}
+		if proxy, ok := t.(ProxyObjectType); ok {
+			return visitor.CaseProxyObjectType(proxy)
+		}
+		if obj, ok := t.(ObjectType); ok {
+			return visitor.CaseObjectType(obj)
+		}
+		if sym, ok := t.(SymbolType); ok {
+			return visitor.CaseSymbolType(sym)
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	}
 }
 
 // Visitor_WithDefaultCase is a Visitor whose cases all delegate to
 // caseDefault, which subclasses implement (Java: an abstract class nested in
 // the Visitor interface).
-type Visitor_WithDefaultCase interface {
-	Visitor
+type Visitor_WithDefaultCase[T any] interface {
+	Visitor[T]
 
 	// CaseDefault is the case all the others delegate to.
-	CaseDefault(type_ JSType) any
+	CaseDefault(type_ JSType) T
 }
 
 // Visitor_WithDefaultCaseBase holds the default case methods; self is the
 // concrete visitor (PORTING.md §4).
-type Visitor_WithDefaultCaseBase struct {
-	self Visitor_WithDefaultCase
+type Visitor_WithDefaultCaseBase[T any] struct {
+	self Visitor_WithDefaultCase[T]
 }
 
 // InitVisitor_WithDefaultCaseBase is the Go form of the constructor.
 //
 // Java: Visitor.WithDefaultCase()
-func (v *Visitor_WithDefaultCaseBase) InitVisitor_WithDefaultCaseBase(self Visitor_WithDefaultCase) {
+func (v *Visitor_WithDefaultCaseBase[T]) InitVisitor_WithDefaultCaseBase(self Visitor_WithDefaultCase[T]) {
 	v.self = self
 }
 
 // Java: Visitor.WithDefaultCase.caseNoType(NoType)
-func (v *Visitor_WithDefaultCaseBase) CaseNoType(type_ *NoType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseNoType(type_ *NoType) T {
 	return v.self.CaseDefault(type_)
 }
 
 // Java: Visitor.WithDefaultCase.caseEnumElementType(EnumElementType)
-func (v *Visitor_WithDefaultCaseBase) CaseEnumElementType(type_ *EnumElementType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseEnumElementType(type_ *EnumElementType) T {
 	return v.self.CaseDefault(type_)
 }
 
 // Java: Visitor.WithDefaultCase.caseAllType()
-func (v *Visitor_WithDefaultCaseBase) CaseAllType() any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseAllType() T {
 	return v.self.CaseDefault(nil)
 }
 
 // Java: Visitor.WithDefaultCase.caseBooleanType()
-func (v *Visitor_WithDefaultCaseBase) CaseBooleanType() any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseBooleanType() T {
 	return v.self.CaseDefault(nil)
 }
 
 // Java: Visitor.WithDefaultCase.caseNoObjectType()
-func (v *Visitor_WithDefaultCaseBase) CaseNoObjectType() any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseNoObjectType() T {
 	return v.self.CaseDefault(nil)
 }
 
 // Java: Visitor.WithDefaultCase.caseFunctionType(FunctionType)
-func (v *Visitor_WithDefaultCaseBase) CaseFunctionType(type_ FunctionType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseFunctionType(type_ FunctionType) T {
 	return v.self.CaseDefault(type_)
 }
 
 // Java: Visitor.WithDefaultCase.caseObjectType(ObjectType)
-func (v *Visitor_WithDefaultCaseBase) CaseObjectType(type_ ObjectType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseObjectType(type_ ObjectType) T {
 	return v.self.CaseDefault(type_)
 }
 
 // Java: Visitor.WithDefaultCase.caseUnknownType()
-func (v *Visitor_WithDefaultCaseBase) CaseUnknownType() any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseUnknownType() T {
 	return v.self.CaseDefault(nil)
 }
 
 // Java: Visitor.WithDefaultCase.caseNullType()
-func (v *Visitor_WithDefaultCaseBase) CaseNullType() any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseNullType() T {
 	return v.self.CaseDefault(nil)
 }
 
 // Java: Visitor.WithDefaultCase.caseNamedType(NamedType)
-func (v *Visitor_WithDefaultCaseBase) CaseNamedType(type_ *NamedType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseNamedType(type_ *NamedType) T {
 	return v.self.CaseDefault(type_)
 }
 
 // Java: Visitor.WithDefaultCase.caseProxyObjectType(ProxyObjectType)
-func (v *Visitor_WithDefaultCaseBase) CaseProxyObjectType(type_ ProxyObjectType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseProxyObjectType(type_ ProxyObjectType) T {
 	return v.self.CaseDefault(type_)
 }
 
 // Java: Visitor.WithDefaultCase.caseNumberType()
-func (v *Visitor_WithDefaultCaseBase) CaseNumberType() any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseNumberType() T {
 	return v.self.CaseDefault(nil)
 }
 
 // Java: Visitor.WithDefaultCase.caseBigIntType()
-func (v *Visitor_WithDefaultCaseBase) CaseBigIntType() any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseBigIntType() T {
 	return v.self.CaseDefault(nil)
 }
 
 // Java: Visitor.WithDefaultCase.caseStringType()
-func (v *Visitor_WithDefaultCaseBase) CaseStringType() any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseStringType() T {
 	return v.self.CaseDefault(nil)
 }
 
 // Java: Visitor.WithDefaultCase.caseSymbolType(SymbolType)
-func (v *Visitor_WithDefaultCaseBase) CaseSymbolType(type_ SymbolType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseSymbolType(type_ SymbolType) T {
 	return v.self.CaseDefault(type_)
 }
 
 // Java: Visitor.WithDefaultCase.caseVoidType()
-func (v *Visitor_WithDefaultCaseBase) CaseVoidType() any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseVoidType() T {
 	return v.self.CaseDefault(nil)
 }
 
 // Java: Visitor.WithDefaultCase.caseUnionType(UnionType)
-func (v *Visitor_WithDefaultCaseBase) CaseUnionType(type_ *UnionType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseUnionType(type_ *UnionType) T {
 	return v.self.CaseDefault(type_)
 }
 
 // Java: Visitor.WithDefaultCase.caseTemplatizedType(TemplatizedType)
-func (v *Visitor_WithDefaultCaseBase) CaseTemplatizedType(type_ *TemplatizedType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseTemplatizedType(type_ *TemplatizedType) T {
 	return v.self.CaseDefault(type_)
 }
 
 // Java: Visitor.WithDefaultCase.caseTemplateType(TemplateType)
-func (v *Visitor_WithDefaultCaseBase) CaseTemplateType(type_ *TemplateType) any {
+func (v *Visitor_WithDefaultCaseBase[T]) CaseTemplateType(type_ *TemplateType) T {
 	return v.self.CaseDefault(type_)
 }

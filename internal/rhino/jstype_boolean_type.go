@@ -106,9 +106,4 @@ func (t *BooleanType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_BOTH
 }
 
-// Java: BooleanType.visit(Visitor<T>)
-func (t *BooleanType) Visit(visitor Visitor) any {
-	return visitor.CaseBooleanType()
-}
-
 var jsType_displayName_boolean = "boolean"

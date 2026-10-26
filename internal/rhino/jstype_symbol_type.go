@@ -138,8 +138,3 @@ func (t *SymbolTypeBase) AutoboxesTo() JSType {
 func (t *SymbolTypeBase) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_TRUE
 }
-
-// Java: SymbolType.visit(Visitor<T>)
-func (t *SymbolTypeBase) Visit(visitor Visitor) any {
-	return visitor.CaseSymbolType(t.self().(SymbolType))
-}

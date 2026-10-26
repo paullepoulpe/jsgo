@@ -35,42 +35,119 @@
 
 package rhino
 
-// RelationshipVisitor is a vistor for relationships between types: the
-// visited type is `this` and the second argument is `that`.
+import "github.com/paullepoulpe/jsgo/internal/jutil"
+
+// RelationshipVisitor is a generic visitor for relationships between types:
+// the visited type is `this` and the second argument is `that`.
 //
-// Go-only: language-adapter — RelationshipVisitor<T> with T erased to `any`
-// (see Visitor).
-type RelationshipVisitor interface {
+// Java: interface RelationshipVisitor<T>; dispatched via
+// VisitJSTypeRelationship since Go methods cannot declare their own type
+// parameters.
+type RelationshipVisitor[T any] interface {
 	// CaseUnknownType is the unknown type's case.
-	CaseUnknownType(thisType JSType, thatType JSType) any
+	CaseUnknownType(thisType JSType, thatType JSType) T
 
 	// CaseNoType is the bottom type's case.
-	CaseNoType(thatType JSType) any
+	CaseNoType(thatType JSType) T
 
 	// CaseNoObjectType is the bottom Object type's case.
-	CaseNoObjectType(thatType JSType) any
+	CaseNoObjectType(thatType JSType) T
 
 	// CaseAllType is the all type's case.
-	CaseAllType(thatType JSType) any
+	CaseAllType(thatType JSType) T
 
 	// CaseValueType is the value types' case.
-	CaseValueType(thisType ValueType, thatType JSType) any
+	CaseValueType(thisType ValueType, thatType JSType) T
 
 	// CaseObjectType is the object type's case.
-	CaseObjectType(thisType ObjectType, thatType JSType) any
+	CaseObjectType(thisType ObjectType, thatType JSType) T
 
 	// CaseFunctionType is the function type's case.
-	CaseFunctionType(thisType FunctionType, thatType JSType) any
+	CaseFunctionType(thisType FunctionType, thatType JSType) T
 
 	// CaseUnionType is the union type's case.
-	CaseUnionType(thisType *UnionType, thatType JSType) any
+	CaseUnionType(thisType *UnionType, thatType JSType) T
 
 	// CaseTemplatizedType is the templatized type's case.
-	CaseTemplatizedType(thisType *TemplatizedType, thatType JSType) any
+	CaseTemplatizedType(thisType *TemplatizedType, thatType JSType) T
 
 	// CaseTemplateType is the template type's case.
-	CaseTemplateType(thisType *TemplateType, thatType JSType) any
+	CaseTemplateType(thisType *TemplateType, thatType JSType) T
 
 	// CaseEnumElementType is the enum element type's case.
-	CaseEnumElementType(typeType *EnumElementType, thatType JSType) any
+	CaseEnumElementType(typeType *EnumElementType, thatType JSType) T
+}
+
+// VisitJSTypeRelationship dispatches t and that to visitor's matching case
+// method.
+//
+// Java: JSType.visit(RelationshipVisitor<T>, JSType)
+func VisitJSTypeRelationship[T any](t JSType, visitor RelationshipVisitor[T], that JSType) T {
+	switch x := t.(type) {
+	case *UnknownType:
+		return visitor.CaseUnknownType(x, that)
+	case *NoType:
+		return visitor.CaseNoType(that)
+	case *NoObjectTypeBase:
+		return visitor.CaseNoObjectType(that)
+	case *AllType:
+		return visitor.CaseAllType(that)
+	case *BigIntType:
+		return visitor.CaseValueType(x, that)
+	case *BooleanType:
+		return visitor.CaseValueType(x, that)
+	case *NullType:
+		return visitor.CaseValueType(x, that)
+	case *NumberType:
+		return visitor.CaseValueType(x, that)
+	case *StringType:
+		return visitor.CaseValueType(x, that)
+	case *SymbolTypeBase:
+		return visitor.CaseValueType(x, that)
+	case *KnownSymbolType:
+		return visitor.CaseValueType(x, that)
+	case *VoidType:
+		return visitor.CaseValueType(x, that)
+	case *FunctionTypeBase:
+		return visitor.CaseFunctionType(x, that)
+	case *InstanceObjectType:
+		return visitor.CaseObjectType(x, that)
+	case *PrototypeObjectTypeBase:
+		return visitor.CaseObjectType(x, that)
+	case *RecordType:
+		return visitor.CaseObjectType(x, that)
+	case *EnumType:
+		return visitor.CaseObjectType(x, that)
+	case *NoResolvedType:
+		return visitor.CaseObjectType(x, that)
+	case *UnionType:
+		return visitor.CaseUnionType(x, that)
+	case *TemplatizedType:
+		return visitor.CaseTemplatizedType(x, that)
+	case *TemplateType:
+		return visitor.CaseTemplateType(x, that)
+	case *EnumElementType:
+		return visitor.CaseEnumElementType(x, that)
+	case *NamedType:
+		return VisitJSTypeRelationship(x.referencedType, visitor, that)
+	case *ProxyObjectTypeBase:
+		return VisitJSTypeRelationship(x.referencedType, visitor, that)
+	default:
+		if _, ok := t.(NoObjectType); ok {
+			return visitor.CaseNoObjectType(that)
+		}
+		if fn, ok := t.(FunctionType); ok {
+			return visitor.CaseFunctionType(fn, that)
+		}
+		if proxy, ok := t.(ProxyObjectType); ok {
+			return VisitJSTypeRelationship(proxy.GetReferencedTypeInternal(), visitor, that)
+		}
+		if obj, ok := t.(ObjectType); ok {
+			return visitor.CaseObjectType(obj, that)
+		}
+		if val, ok := t.(ValueType); ok {
+			return visitor.CaseValueType(val, that)
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	}
 }

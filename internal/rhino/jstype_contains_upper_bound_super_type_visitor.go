@@ -47,10 +47,9 @@ import "github.com/paullepoulpe/jsgo/internal/base"
 // subtyping. Cycles are checked for once after TemplateTypes are constructed
 // in FunctionTypeBuilder and an error is emitted if they are found.
 //
-// Java: extends Visitor.WithDefaultCase<Result>; the case methods return
-// Results boxed in `any` (see Visitor).
+// Java: extends Visitor.WithDefaultCase<Result>
 type ContainsUpperBoundSuperTypeVisitor struct {
-	Visitor_WithDefaultCaseBase
+	Visitor_WithDefaultCaseBase[ContainsUpperBoundSuperTypeVisitor_Result]
 
 	target JSType
 	seen   *base.LinkedIdentityHashSet[JSType]
@@ -66,7 +65,7 @@ func NewContainsUpperBoundSuperTypeVisitor(target JSType) *ContainsUpperBoundSup
 }
 
 // Java: ContainsUpperBoundSuperTypeVisitor.caseDefault(JSType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseDefault(type_ JSType) any {
+func (v *ContainsUpperBoundSuperTypeVisitor) CaseDefault(type_ JSType) ContainsUpperBoundSuperTypeVisitor_Result {
 	if v.target == nil {
 		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
 	}
@@ -78,28 +77,28 @@ func (v *ContainsUpperBoundSuperTypeVisitor) CaseDefault(type_ JSType) any {
 }
 
 // Java: ContainsUpperBoundSuperTypeVisitor.caseTemplateType(TemplateType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseTemplateType(type_ *TemplateType) any {
+func (v *ContainsUpperBoundSuperTypeVisitor) CaseTemplateType(type_ *TemplateType) ContainsUpperBoundSuperTypeVisitor_Result {
 	return v.CaseForwardingType(type_, type_.GetBound())
 }
 
 // Java: ContainsUpperBoundSuperTypeVisitor.caseNamedType(NamedType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseNamedType(type_ *NamedType) any {
+func (v *ContainsUpperBoundSuperTypeVisitor) CaseNamedType(type_ *NamedType) ContainsUpperBoundSuperTypeVisitor_Result {
 	return v.CaseForwardingType(type_, type_.GetReferencedType())
 }
 
 // Java: ContainsUpperBoundSuperTypeVisitor.caseTemplatizedType(TemplatizedType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseTemplatizedType(type_ *TemplatizedType) any {
+func (v *ContainsUpperBoundSuperTypeVisitor) CaseTemplatizedType(type_ *TemplatizedType) ContainsUpperBoundSuperTypeVisitor_Result {
 	return v.CaseForwardingType(type_, type_.GetReferencedType())
 }
 
 // Java: ContainsUpperBoundSuperTypeVisitor.caseUnionType(UnionType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseUnionType(type_ *UnionType) any {
+func (v *ContainsUpperBoundSuperTypeVisitor) CaseUnionType(type_ *UnionType) ContainsUpperBoundSuperTypeVisitor_Result {
 	if JSType(type_) == v.target {
 		return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
 	}
 
 	for _, alt := range type_.GetAlternates() {
-		foundInAlt := alt.Visit(v).(ContainsUpperBoundSuperTypeVisitor_Result)
+		foundInAlt := VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](alt, v)
 		if foundInAlt != ContainsUpperBoundSuperTypeVisitor_Result_ABSENT {
 			return foundInAlt
 		}
@@ -109,14 +108,14 @@ func (v *ContainsUpperBoundSuperTypeVisitor) CaseUnionType(type_ *UnionType) any
 }
 
 // Java: ContainsUpperBoundSuperTypeVisitor.caseForwardingType(JSType, JSType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseForwardingType(type_ JSType, reference JSType) any {
+func (v *ContainsUpperBoundSuperTypeVisitor) CaseForwardingType(type_ JSType, reference JSType) ContainsUpperBoundSuperTypeVisitor_Result {
 	if type_ == v.target {
 		return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
 	} else if v.seen.Contains(type_) {
 		return ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
 	} else {
 		v.seen.Add(type_)
-		return reference.Visit(v)
+		return VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](reference, v)
 	}
 }
 

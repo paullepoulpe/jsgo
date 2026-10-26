@@ -125,16 +125,6 @@ func (t *TemplateType) HasAnyTemplateTypesInternal() bool {
 	return true
 }
 
-// Java: TemplateType.visit(Visitor<T>)
-func (t *TemplateType) Visit(visitor Visitor) any {
-	return visitor.CaseTemplateType(t)
-}
-
-// Java: TemplateType.visit(RelationshipVisitor<T>, JSType)
-func (t *TemplateType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseTemplateType(t, that)
-}
-
 // Java: TemplateType.isTypeTransformation()
 func (t *TemplateType) IsTypeTransformation() bool {
 	return !t.typeTransformation.IsNil()
@@ -175,7 +165,7 @@ func (t *TemplateType) ContainsCycle() bool {
 	// By passing in an unreachable type `null` as the target, the visitor will
 	// only return if a cycle is found or a terminating type is reached.
 	typeVisitor := NewContainsUpperBoundSuperTypeVisitor(nil)
-	return t.Visit(typeVisitor) == ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
+	return VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](t, typeVisitor) == ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
 }
 
 // Java: TemplateType.recursionUnsafeHashCode()

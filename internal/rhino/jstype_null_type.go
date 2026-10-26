@@ -115,9 +115,4 @@ func (t *NullType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_FALSE
 }
 
-// Java: NullType.visit(Visitor<T>)
-func (t *NullType) Visit(visitor Visitor) any {
-	return visitor.CaseNullType()
-}
-
 var jsType_displayName_null = "null"

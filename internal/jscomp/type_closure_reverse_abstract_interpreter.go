@@ -18,10 +18,7 @@
 
 package jscomp
 
-import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
-)
+import "github.com/paullepoulpe/jsgo/internal/rhino"
 
 // ClosureReverseAbstractInterpreter is a reverse abstract interpreter (RAI)
 // for specific closure patterns such as goog.isObject.
@@ -30,42 +27,18 @@ type ClosureReverseAbstractInterpreter struct {
 
 	// For when goog.isObject returns true. This includes functions, but not
 	// null.
-	restrictToObjectVisitor rhino.Visitor
+	restrictToObjectVisitor rhino.Visitor[rhino.JSType]
 
 	// For when goog.isObject returns false.
-	restrictToNotObjectVisitor rhino.Visitor
-
-	// Functions used to restrict types.
-	restricters *jutil.LinkedHashMap[string, func(*ClosureReverseAbstractInterpreter_TypeRestriction) rhino.JSType]
+	restrictToNotObjectVisitor rhino.Visitor[rhino.JSType]
 }
 
 // Java: ClosureReverseAbstractInterpreter(JSTypeRegistry)
 func NewClosureReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *ClosureReverseAbstractInterpreter {
 	c := &ClosureReverseAbstractInterpreter{}
 	c.InitChainableReverseAbstractInterpreterBase(c, typeRegistry)
-	// Field initializers.
 	c.restrictToObjectVisitor = newClosureReverseAbstractInterpreter_restrictToObjectVisitor(c)
 	c.restrictToNotObjectVisitor = newClosureReverseAbstractInterpreter_restrictToNotObjectVisitor(c)
-	// Constructor body: ImmutableMap.of("isObject", p -> ...)
-	c.restricters = jutil.NewLinkedHashMap[string, func(*ClosureReverseAbstractInterpreter_TypeRestriction) rhino.JSType]()
-	c.restricters.Put(
-		"isObject",
-		func(p *ClosureReverseAbstractInterpreter_TypeRestriction) rhino.JSType {
-			if p.type_ == nil {
-				if p.outcome {
-					return c.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE)
-				}
-				return nil
-			}
-
-			var visitor rhino.Visitor
-			if p.outcome {
-				visitor = c.restrictToObjectVisitor
-			} else {
-				visitor = c.restrictToNotObjectVisitor
-			}
-			return rhino.JSType_VisitForJSType(p.type_, visitor)
-		})
 	return c
 }
 
@@ -78,49 +51,32 @@ func (c *ClosureReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOutc
 		if callee.IsGetProp() && param.IsQualifiedName() {
 			paramType := c.GetTypeIfRefinable(param, blindScope)
 			receiver := callee.GetFirstChild()
-			if receiver.IsName() && receiver.GetString() == "goog" {
-				restricter := c.restricters.Get(callee.GetString())
-				if restricter != nil {
-					return c.RestrictParameter(param, paramType, blindScope, restricter, outcome.IsTruthy())
-				}
+			if receiver.IsName() && receiver.GetString() == "goog" && callee.GetString() == "isObject" {
+				return c.restrictIsObject(param, paramType, blindScope, outcome.IsTruthy())
 			}
 		}
 	}
 	return c.NextPreciserScopeKnowingConditionOutcome(condition, blindScope, outcome)
 }
 
-// Java: ClosureReverseAbstractInterpreter.restrictParameter(Node, JSType, FlowScope, Function<TypeRestriction, JSType>, boolean)
-func (c *ClosureReverseAbstractInterpreter) RestrictParameter(
+func (c *ClosureReverseAbstractInterpreter) restrictIsObject(
 	parameter rhino.Node,
 	type_ rhino.JSType,
 	blindScope FlowScope,
-	restriction func(*ClosureReverseAbstractInterpreter_TypeRestriction) rhino.JSType,
 	outcome bool) FlowScope {
-	// restricting
-	type_ = restriction(newClosureReverseAbstractInterpreter_TypeRestriction(type_, outcome))
-
-	// changing the scope
+	if type_ == nil {
+		if outcome {
+			type_ = c.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE)
+		}
+	} else if outcome {
+		type_ = rhino.VisitJSType[rhino.JSType](type_, c.restrictToObjectVisitor)
+	} else {
+		type_ = rhino.VisitJSType[rhino.JSType](type_, c.restrictToNotObjectVisitor)
+	}
 	if type_ != nil {
 		return c.DeclareNameInScope(blindScope, parameter, type_)
-	} else {
-		return blindScope
 	}
-}
-
-// ClosureReverseAbstractInterpreter_TypeRestriction is
-// ClosureReverseAbstractInterpreter.TypeRestriction.
-type ClosureReverseAbstractInterpreter_TypeRestriction struct {
-	type_   rhino.JSType
-	outcome bool
-}
-
-// Java: TypeRestriction(JSType, boolean)
-func newClosureReverseAbstractInterpreter_TypeRestriction(
-	type_ rhino.JSType, outcome bool) *ClosureReverseAbstractInterpreter_TypeRestriction {
-	t := &ClosureReverseAbstractInterpreter_TypeRestriction{}
-	t.type_ = type_
-	t.outcome = outcome
-	return t
+	return blindScope
 }
 
 // closureReverseAbstractInterpreter_restrictToObjectVisitor is the anonymous
@@ -142,12 +98,12 @@ func (v *closureReverseAbstractInterpreter_restrictToObjectVisitor) CaseTopType(
 }
 
 // Java: ClosureReverseAbstractInterpreter.restrictToObjectVisitor.caseObjectType(ObjectType)
-func (v *closureReverseAbstractInterpreter_restrictToObjectVisitor) CaseObjectType(type_ rhino.ObjectType) any {
+func (v *closureReverseAbstractInterpreter_restrictToObjectVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
 	return type_
 }
 
 // Java: ClosureReverseAbstractInterpreter.restrictToObjectVisitor.caseFunctionType(FunctionType)
-func (v *closureReverseAbstractInterpreter_restrictToObjectVisitor) CaseFunctionType(type_ rhino.FunctionType) any {
+func (v *closureReverseAbstractInterpreter_restrictToObjectVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
 	return type_
 }
 
@@ -166,11 +122,11 @@ func newClosureReverseAbstractInterpreter_restrictToNotObjectVisitor(
 }
 
 // Java: ClosureReverseAbstractInterpreter.restrictToNotObjectVisitor.caseObjectType(ObjectType)
-func (v *closureReverseAbstractInterpreter_restrictToNotObjectVisitor) CaseObjectType(type_ rhino.ObjectType) any {
+func (v *closureReverseAbstractInterpreter_restrictToNotObjectVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
 	return nil
 }
 
 // Java: ClosureReverseAbstractInterpreter.restrictToNotObjectVisitor.caseFunctionType(FunctionType)
-func (v *closureReverseAbstractInterpreter_restrictToNotObjectVisitor) CaseFunctionType(type_ rhino.FunctionType) any {
+func (v *closureReverseAbstractInterpreter_restrictToNotObjectVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
 	return nil
 }

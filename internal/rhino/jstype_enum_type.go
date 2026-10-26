@@ -212,16 +212,6 @@ func (t *EnumType) GetDisplayName() *string {
 	return t.elementType.GetDisplayName()
 }
 
-// Java: EnumType.visit(Visitor<T>)
-func (t *EnumType) Visit(visitor Visitor) any {
-	return visitor.CaseObjectType(t)
-}
-
-// Java: EnumType.visit(RelationshipVisitor<T>, JSType)
-func (t *EnumType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseObjectType(t, that)
-}
-
 // Java: EnumType.getConstructor()
 func (t *EnumType) GetConstructor() FunctionType {
 	return nil

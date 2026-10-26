@@ -113,16 +113,6 @@ func (t *UnknownType) IsVoidable() bool {
 	return true
 }
 
-// Java: UnknownType.visit(Visitor<T>)
-func (t *UnknownType) Visit(visitor Visitor) any {
-	return visitor.CaseUnknownType()
-}
-
-// Java: UnknownType.visit(RelationshipVisitor<T>, JSType)
-func (t *UnknownType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
-	return visitor.CaseUnknownType(t, that)
-}
-
 // Java: UnknownType.appendTo(TypeStringBuilder)
 func (t *UnknownType) AppendTo(sb *TypeStringBuilder) {
 	sb.Append(*t.GetReferenceName())

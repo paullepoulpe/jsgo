@@ -1285,17 +1285,16 @@ func (v *TypeValidator) ExpectWellFormedTemplatizedType(n rhino.Node) {
 		verifier = NewTypeValidator_WellFormedTemplatizedTypeVerifier(v, n)
 	}
 	if n.GetJSType() != nil {
-		n.GetJSType().Visit(verifier)
+		rhino.VisitJSType[bool](n.GetJSType(), verifier)
 	}
 	verifier.node = rhino.NilNode
 	v.spareWellFormedTemplatizedTypeVerifier = verifier
 }
 
 // TypeValidator_WellFormedTemplatizedTypeVerifier is an inner class of
-// TypeValidator (outer is the enclosing instance). Its Visitor<Boolean>
-// results are bools boxed in `any` (see rhino.Visitor).
+// TypeValidator (outer is the enclosing instance).
 type TypeValidator_WellFormedTemplatizedTypeVerifier struct {
-	rhino.Visitor_WithDefaultCaseBase
+	rhino.Visitor_WithDefaultCaseBase[bool]
 
 	outer *TypeValidator
 
@@ -1310,44 +1309,39 @@ func NewTypeValidator_WellFormedTemplatizedTypeVerifier(outer *TypeValidator, no
 	return w
 }
 
-// visitBool is type.visit(this) unboxed to boolean.
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) visitBool(type_ rhino.JSType) bool {
-	return type_.Visit(w).(bool)
-}
-
 // Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseDefault(JSType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseDefault(type_ rhino.JSType) any {
+func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseDefault(type_ rhino.JSType) bool {
 	return true
 }
 
 // Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseEnumElementType(EnumElementType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseEnumElementType(type_ *rhino.EnumElementType) any {
-	return type_.GetPrimitiveType() == nil || w.visitBool(type_.GetPrimitiveType())
+func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseEnumElementType(type_ *rhino.EnumElementType) bool {
+	return type_.GetPrimitiveType() == nil || rhino.VisitJSType[bool](type_.GetPrimitiveType(), w)
 }
 
 // Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseFunctionType(FunctionType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseFunctionType(type_ rhino.FunctionType) any {
+func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseFunctionType(type_ rhino.FunctionType) bool {
 	for _, param := range type_.GetParameters() {
-		if !w.visitBool(param.GetJSType()) {
+		if !rhino.VisitJSType[bool](param.GetJSType(), w) {
 			return false
 		}
 	}
-	return w.visitBool(type_.GetReturnType())
+	return rhino.VisitJSType[bool](type_.GetReturnType(), w)
 }
 
 // Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseNamedType(NamedType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseNamedType(type_ *rhino.NamedType) any {
-	return w.visitBool(type_.GetReferencedType())
+func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseNamedType(type_ *rhino.NamedType) bool {
+	return rhino.VisitJSType[bool](type_.GetReferencedType(), w)
 }
 
 // Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseUnionType(UnionType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseUnionType(type_ *rhino.UnionType) any {
+func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseUnionType(type_ *rhino.UnionType) bool {
 	// Avoid iterators in very hot code.
 	alternates := type_.GetAlternates()
 	alternateCount := len(alternates)
 	for i := 0; i < alternateCount; i++ {
 		alternative := alternates[i]
-		if !w.visitBool(alternative) {
+		if !rhino.VisitJSType[bool](alternative, w) {
 			return false
 		}
 	}
@@ -1355,7 +1349,7 @@ func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseUnionType(type_ *r
 }
 
 // Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseTemplatizedType(TemplatizedType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseTemplatizedType(type_ *rhino.TemplatizedType) any {
+func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseTemplatizedType(type_ *rhino.TemplatizedType) bool {
 	referencedTemplates := type_.GetReferencedType().GetTemplateTypeMap().GetTemplateKeys()
 	for i := 0; i < len(type_.GetTemplateTypes()); i++ {
 		assignedType := type_.GetTemplateTypes()[i]
@@ -1379,8 +1373,8 @@ func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseTemplatizedType(ty
 }
 
 // Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseTemplateType(TemplateType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseTemplateType(templateType *rhino.TemplateType) any {
-	return !templateType.ContainsCycle() && w.visitBool(templateType.GetBound())
+func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseTemplateType(templateType *rhino.TemplateType) bool {
+	return !templateType.ContainsCycle() && rhino.VisitJSType[bool](templateType.GetBound(), w)
 }
 
-var _ rhino.Visitor_WithDefaultCase = (*TypeValidator_WellFormedTemplatizedTypeVerifier)(nil)
+var _ rhino.Visitor_WithDefaultCase[bool] = (*TypeValidator_WellFormedTemplatizedTypeVerifier)(nil)
