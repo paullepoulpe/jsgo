@@ -207,7 +207,7 @@ type Es6RewriteModules_RewriteRequiresForEs6Modules struct {
 	// An (s, old, new) entry indicates that occurrences of `old` in scope `s`
 	// should be rewritten as `new`. This is used to rewrite namespaces that
 	// appear in calls to goog.requireType and goog.forwardDeclare.
-	renameTable *jutil.HashBasedTable[rhino.Node, string, string]
+	renameTable map[Es6ScopeRenameKey]string
 }
 
 // Java: Es6RewriteModules.RewriteRequiresForEs6Modules()
@@ -217,12 +217,19 @@ func NewEs6RewriteModules_RewriteRequiresForEs6Modules(outer *Es6RewriteModules)
 
 // Java: Es6RewriteModules.RewriteRequiresForEs6Modules.rewrite(Node)
 func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Rewrite(scriptNode rhino.Node) {
-	r.renameTable = jutil.HashBasedTable_Create[rhino.Node, string, string]()
+	r.renameTable = nil
 	NodeTraversal_Traverse(r.outer.compiler, scriptNode, r)
 
-	if !r.renameTable.IsEmpty() {
+	if len(r.renameTable) > 0 {
 		NodeTraversal_Traverse(r.outer.compiler, scriptNode, NewEs6RenameTypeReferences(r.renameTable))
 	}
+}
+
+func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) putRename(root rhino.Node, oldName, newName string) {
+	if r.renameTable == nil {
+		r.renameTable = make(map[Es6ScopeRenameKey]string)
+	}
+	r.renameTable[Es6ScopeRenameKey{Root: root, Name: oldName}] = newName
 }
 
 // Java: Es6RewriteModules.RewriteRequiresForEs6Modules.visit(NodeTraversal, Node, Node)
@@ -292,7 +299,7 @@ func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit(t *NodeTraversal,
 				for child := statementNode.GetFirstFirstChild().GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 					jutil.CheckState(child.IsStringKey())
 					jutil.CheckState(child.GetFirstChild().IsName())
-					r.renameTable.Put(
+					r.putRename(
 						t.GetScopeRoot(),
 						child.GetFirstChild().GetString(),
 						ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, jutil.StringPtr(name)).
@@ -334,7 +341,7 @@ func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit(t *NodeTraversal,
 				}
 				// const namespace = goog.forwardDeclare('an.es6.namespace');
 				// const namespace = goog.requireType('an.es6.namespace');
-				r.renameTable.Put(
+				r.putRename(
 					t.GetScopeRoot(),
 					statementNode.GetFirstChild().GetString(),
 					ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, jutil.StringPtr(name)).Join())
@@ -355,7 +362,7 @@ func (r *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit(t *NodeTraversal,
 		if isForwardDeclare || isRequireType {
 			// goog.forwardDeclare('an.es6.namespace')
 			// goog.requireType('an.es6.namespace')
-			r.renameTable.Put(
+			r.putRename(
 				t.GetScopeRoot(), name, ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, jutil.StringPtr(name)).Join())
 			statementNode.Detach()
 		} else {

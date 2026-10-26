@@ -2660,13 +2660,14 @@ func NodeUtil_CreatesScope(n rhino.Node) bool {
 		(n.IsRoot() && n.GetParent().IsNil())
 }
 
-// Java: NodeUtil.DEFINITE_CFG_ROOTS
-var NodeUtil_DEFINITE_CFG_ROOTS = jutil.NewEnumSet(rhino.Token_FUNCTION, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY,
-	rhino.Token_ROOT)
-
 // Java: NodeUtil.isValidCfgRoot(Node)
 func NodeUtil_IsValidCfgRoot(n rhino.Node) bool {
-	return NodeUtil_DEFINITE_CFG_ROOTS.Contains(n.GetToken()) || NodeUtil_IsClassStaticBlock(n)
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_ROOT:
+		return true
+	default:
+		return NodeUtil_IsClassStaticBlock(n)
+	}
 }
 
 // NodeUtil_IsStatement returns whether the node is used as a statement.
@@ -2676,21 +2677,22 @@ func NodeUtil_IsStatement(n rhino.Node) bool {
 	return !n.IsModuleBody() && !n.IsScript() && !n.IsRoot() && NodeUtil_IsStatementParent(n.GetParent())
 }
 
-// Java: NodeUtil.IS_STATEMENT_PARENT
-var NodeUtil_IS_STATEMENT_PARENT = jutil.NewEnumSet(
-	rhino.Token_SCRIPT,
-	rhino.Token_MODULE_BODY,
-	rhino.Token_BLOCK,
-	rhino.Token_LABEL,
-	rhino.Token_NAMESPACE_ELEMENTS,
-	rhino.Token_INTERFACE_MEMBERS)
-
 // Java: NodeUtil.isStatementParent(Node)
 func NodeUtil_IsStatementParent(parent rhino.Node) bool {
 	// It is not possible to determine definitely if a node is a statement
 	// or not if it is not part of the AST.  A FUNCTION node can be
 	// either part of an expression or a statement.
-	return NodeUtil_IS_STATEMENT_PARENT.Contains(parent.GetToken())
+	switch parent.GetToken() {
+	case rhino.Token_SCRIPT,
+		rhino.Token_MODULE_BODY,
+		rhino.Token_BLOCK,
+		rhino.Token_LABEL,
+		rhino.Token_NAMESPACE_ELEMENTS,
+		rhino.Token_INTERFACE_MEMBERS:
+		return true
+	default:
+		return false
+	}
 }
 
 // Java: NodeUtil.isDeclarationParent(Node)

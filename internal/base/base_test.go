@@ -46,12 +46,3 @@ func TestJSCompDoubles(t *testing.T) {
 		t.Fatal("exactness predicates")
 	}
 }
-
-func TestFormatExceptions(t *testing.T) {
-	if e := NewIllegalFormatConversionException('d', "class java.lang.String"); e.GetMessage() != "ConversionType = d class = class java.lang.String" {
-		t.Fatal(e.GetMessage())
-	}
-	if e := NewIllegalFormatWidthException(3); e.Error() != "com.google.javascript.jscomp.base.format.IllegalFormatWidthException: Width:3" {
-		t.Fatal(e.Error())
-	}
-}

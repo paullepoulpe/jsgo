@@ -41,20 +41,6 @@ func (mm *SetMultimap[K, V]) Put(k K, v V) bool {
 	return false
 }
 
-// PutWithSetAlloc is Put using allocSet to construct the value set when k is new.
-func (mm *SetMultimap[K, V]) PutWithSetAlloc(k K, v V, allocSet func() *ObjectLinkedHashSet[V]) bool {
-	vs := mm.m.Get(k)
-	if vs == nil {
-		vs = allocSet()
-		mm.m.Put(k, vs)
-	}
-	if vs.Add(v) {
-		mm.size++
-		return true
-	}
-	return false
-}
-
 // Get is SetMultimap.get: the values for k (an empty set when absent).
 // Callers must not mutate the returned set.
 func (mm *SetMultimap[K, V]) Get(k K) *ObjectLinkedHashSet[V] {

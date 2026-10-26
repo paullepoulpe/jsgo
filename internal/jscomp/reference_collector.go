@@ -22,7 +22,6 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -635,9 +634,7 @@ func (c *ReferenceCollector) PopLastBlock(root rhino.Node) {
 	c.blockStack[idx] = basicBlockEntry{}
 	c.blockStack = c.blockStack[:idx]
 	// Verfiy that the stack is unwound correctly.
-	if lastRoot != root {
-		jutil.CheckStateMsg1(base.JSCompObjects_Identical(root, lastRoot), "%s", root)
-	}
+	jutil.CheckStateMsg1(root == lastRoot, "%s", root)
 }
 
 var refCollectorParentBoundaryKind = [256]uint8{

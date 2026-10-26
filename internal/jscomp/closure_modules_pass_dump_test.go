@@ -109,7 +109,7 @@ func closureModulesGatherModuleMetadata(compiler *Compiler, externs rhino.Node, 
 type closureModulesRenameCallback struct {
 	NodeTraversal_AbstractScopedCallbackBase
 
-	table           *jutil.HashBasedTable[rhino.Node, string, string]
+	table           map[Es6ScopeRenameKey]string
 	moduleRootsOnly bool
 }
 
@@ -120,14 +120,14 @@ func (c *closureModulesRenameCallback) EnterScope(t *NodeTraversal) {
 		return
 	}
 	for v := range s.GetVarIterable() {
-		c.table.Put(s.GetRootNode(), v.GetName(), v.GetName()+"$r")
+		c.table[Es6ScopeRenameKey{Root: s.GetRootNode(), Name: v.GetName()}] = v.GetName() + "$r"
 	}
 }
 
 func (c *closureModulesRenameCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {}
 
-func closureModulesRenameTable(compiler *Compiler, js rhino.Node, moduleRootsOnly bool) *jutil.HashBasedTable[rhino.Node, string, string] {
-	table := jutil.HashBasedTable_Create[rhino.Node, string, string]()
+func closureModulesRenameTable(compiler *Compiler, js rhino.Node, moduleRootsOnly bool) map[Es6ScopeRenameKey]string {
+	table := make(map[Es6ScopeRenameKey]string)
 	NodeTraversal_Traverse(compiler, js, &closureModulesRenameCallback{table: table, moduleRootsOnly: moduleRootsOnly})
 	return table
 }

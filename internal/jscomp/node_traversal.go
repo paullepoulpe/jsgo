@@ -23,7 +23,6 @@ import (
 	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -653,7 +652,7 @@ func (b *NodeTraversal_AbstractModuleCallbackBase) ShouldTraverse(t *NodeTravers
 			}
 			// In the event of multiple goog.module statements (an error), don't call enterModule
 			// more than once.
-			if !base.JSCompObjects_Identical(newModule, b.currentModule) {
+			if newModule != b.currentModule {
 				b.currentModule = newModule
 				b.self.EnterModule(b.currentModule, b.scopeRoot)
 			}

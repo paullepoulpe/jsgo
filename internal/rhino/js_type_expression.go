@@ -36,7 +36,6 @@
 package rhino
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -252,7 +251,7 @@ func (e *JSTypeExpression) Copy() *JSTypeExpression {
 //
 // Java: JSTypeExpression.isExplicitUnknownTemplateBound()
 func (e *JSTypeExpression) IsExplicitUnknownTemplateBound() bool {
-	return base.JSCompObjects_Identical(e.root.GetToken(), Token_QMARK) &&
+	return e.root.GetToken() == Token_QMARK &&
 		!e.root.HasChildren() &&
 		e.sourceName != JSTypeExpression_IMPLICIT_TEMPLATE_BOUND_SOURCE
 }

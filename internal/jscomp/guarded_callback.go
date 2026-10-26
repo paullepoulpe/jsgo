@@ -237,7 +237,7 @@ func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n rhin
 
 	// If the parent has any guards registered on it, then add them to
 	// both `guarded` and `installedGuards`.
-	if len(b.registeredGuards) > 0 && guardedCallback_CAN_HAVE_GUARDS.Contains(parent.GetToken()) {
+	if len(b.registeredGuards) > 0 && guardedCallback_canHaveGuards(parent.GetToken()) {
 		if resources, ok := b.registeredGuards[parent]; ok {
 			delete(b.registeredGuards, parent)
 			if b.guarded == nil {
@@ -263,7 +263,7 @@ func (b *GuardedCallbackBase[T]) Visit(traversal *NodeTraversal, n rhino.Node, p
 	// in isGuarded).
 	ntok := n.GetToken()
 	if len(b.installedGuards) > 0 {
-		if !parent.IsNil() && guardedCallback_CAN_HAVE_GUARDS.Contains(ntok) {
+		if !parent.IsNil() && guardedCallback_canHaveGuards(ntok) {
 			if resources, ok := b.installedGuards[n]; ok {
 				delete(b.installedGuards, n)
 				for _, r := range resources {
@@ -514,18 +514,24 @@ func guardedCallback_isPropertyTestFunction(compiler AbstractCompiler, cc Coding
 	return false
 }
 
-// guardedCallback_CAN_HAVE_GUARDS: tokens that are allowed to have guards
-// on them (no point doing a hash lookup on any other type of node).
+// guardedCallback_canHaveGuards reports whether token t is allowed to have
+// guards on it (no point doing a hash lookup on any other type of node).
 //
 // Java: GuardedCallback.CAN_HAVE_GUARDS
-var guardedCallback_CAN_HAVE_GUARDS = jutil.NewEnumSet(
-	rhino.Token_AND,
-	rhino.Token_OR,
-	rhino.Token_COALESCE,
-	rhino.Token_HOOK,
-	rhino.Token_IF,
-	rhino.Token_BLOCK,
-	rhino.Token_SCRIPT,
-	rhino.Token_OPTCHAIN_CALL,
-	rhino.Token_OPTCHAIN_GETELEM,
-	rhino.Token_OPTCHAIN_GETPROP)
+func guardedCallback_canHaveGuards(t rhino.Token) bool {
+	switch t {
+	case rhino.Token_AND,
+		rhino.Token_OR,
+		rhino.Token_COALESCE,
+		rhino.Token_HOOK,
+		rhino.Token_IF,
+		rhino.Token_BLOCK,
+		rhino.Token_SCRIPT,
+		rhino.Token_OPTCHAIN_CALL,
+		rhino.Token_OPTCHAIN_GETELEM,
+		rhino.Token_OPTCHAIN_GETPROP:
+		return true
+	default:
+		return false
+	}
+}

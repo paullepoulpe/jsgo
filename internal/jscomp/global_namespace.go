@@ -79,7 +79,7 @@ type GlobalNamespace struct {
 	nameMap *jutil.LinkedHashMap[string, *GlobalNamespace_Name]
 
 	// Maps names (e.g. "a.b.c") and MODULE_BODY nodes to Names in that module
-	nameMapByModule *jutil.HashBasedTable[*ModuleMetadataMap_ModuleMetadata, string, *GlobalNamespace_Name]
+	nameMapByModule map[globalNamespaceModuleKey]*GlobalNamespace_Name
 
 	// Limits traversal to scripts matching the given predicate.
 	shouldTraverseScript func(rhino.Node) bool
@@ -575,15 +575,16 @@ func GlobalNamespace_GetTopVarName(name string) string {
 	return name[:firstDotIndex]
 }
 
+type globalNamespaceModuleKey struct {
+	module *ModuleMetadataMap_ModuleMetadata
+	name   string
+}
+
 // Java: GlobalNamespace.getNameFromModule(ModuleMetadata, String)
 func (g *GlobalNamespace) GetNameFromModule(moduleMetadata *ModuleMetadataMap_ModuleMetadata, name string) *GlobalNamespace_Name {
 	jutil.CheckNotNull(moduleMetadata)
 	g.EnsureGenerated()
-	if g.nameMapByModule == nil {
-		return nil
-	}
-	n, _ := g.nameMapByModule.Get(moduleMetadata, name)
-	return n
+	return g.nameMapByModule[globalNamespaceModuleKey{module: moduleMetadata, name: name}]
 }
 
 // DeclarationHasFollowingObjectSpreadSibling returns whether a declaration
@@ -1820,8 +1821,8 @@ func (b *GlobalNamespace_BuildGlobalNamespace) GetOrCreateName(name string, meta
 	var node *GlobalNamespace_Name
 	if metadata == nil {
 		node = g.nameMap.Get(name)
-	} else if g.nameMapByModule != nil {
-		node, _ = g.nameMapByModule.Get(metadata, name)
+	} else {
+		node = g.nameMapByModule[globalNamespaceModuleKey{module: metadata, name: name}]
 	}
 	if node == nil {
 		i := strings.LastIndexByte(name, '.')
@@ -1836,9 +1837,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) GetOrCreateName(name string, meta
 				g.nameMap.PutNew(name, node)
 			} else {
 				if g.nameMapByModule == nil {
-					g.nameMapByModule = jutil.HashBasedTable_Create[*ModuleMetadataMap_ModuleMetadata, string, *GlobalNamespace_Name]()
+					g.nameMapByModule = make(map[globalNamespaceModuleKey]*GlobalNamespace_Name)
 				}
-				g.nameMapByModule.Put(metadata, name, node)
+				g.nameMapByModule[globalNamespaceModuleKey{module: metadata, name: name}] = node
 			}
 		} else {
 			node = NewGlobalNamespace_Name(g, name, nil, g.sourceKind)
@@ -1847,9 +1848,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) GetOrCreateName(name string, meta
 				g.nameMap.PutNew(name, node)
 			} else {
 				if g.nameMapByModule == nil {
-					g.nameMapByModule = jutil.HashBasedTable_Create[*ModuleMetadataMap_ModuleMetadata, string, *GlobalNamespace_Name]()
+					g.nameMapByModule = make(map[globalNamespaceModuleKey]*GlobalNamespace_Name)
 				}
-				g.nameMapByModule.Put(metadata, name, node)
+				g.nameMapByModule[globalNamespaceModuleKey{module: metadata, name: name}] = node
 			}
 		}
 	}

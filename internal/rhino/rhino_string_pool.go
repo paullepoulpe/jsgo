@@ -38,7 +38,6 @@ import (
 	"iter"
 	"sync/atomic"
 
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
@@ -78,7 +77,7 @@ func rhinoStringPoolWasCleared() bool               { return strpool.WasClearedF
 //
 // Java: RhinoStringPool.uncheckedEquals(String, String)
 func RhinoStringPool_UncheckedEquals(a string, b string) bool {
-	return base.JSCompObjects_Identical(a, b)
+	return a == b
 }
 
 // RhinoStringPool_UncheckedEqualsNullable is uncheckedEquals for Java

@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -31,16 +30,6 @@ type Reference struct {
 	scope      *Scope
 	inputId    *rhino.InputId
 }
-
-// Favor EnumSet over ImmutableSet for performance
-var reference_DECLARATION_PARENTS = jutil.NewEnumSet(
-	rhino.Token_VAR,
-	rhino.Token_LET,
-	rhino.Token_CONST,
-	rhino.Token_PARAM_LIST,
-	rhino.Token_FUNCTION,
-	rhino.Token_CLASS,
-	rhino.Token_CATCH)
 
 // Java: Reference(Node, NodeTraversal, BasicBlock)
 func NewReference(nameNode rhino.Node, t *NodeTraversal, basicBlock *BasicBlock) *Reference {

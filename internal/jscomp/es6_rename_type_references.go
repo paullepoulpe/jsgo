@@ -33,14 +33,12 @@ type Es6RenameTypeReferences struct {
 	// An entry in this map means we should rename a variable that was
 	// originally declared in the scope with the given root and had the
 	// original variable name to the new name.
-	renameTable *jutil.HashBasedTable[rhino.Node, string, string]
+	renameTable map[Es6ScopeRenameKey]string
 }
 
 // Java: Es6RenameTypeReferences(Table<Node, String, String>)
-func NewEs6RenameTypeReferences(renameTable *jutil.HashBasedTable[rhino.Node, string, string]) *Es6RenameTypeReferences {
-	e := &Es6RenameTypeReferences{}
-	e.renameTable = renameTable
-	return e
+func NewEs6RenameTypeReferences(renameTable map[Es6ScopeRenameKey]string) *Es6RenameTypeReferences {
+	return &Es6RenameTypeReferences{renameTable: renameTable}
 }
 
 // Java: Es6RenameTypeReferences.visit(NodeTraversal, Node, Node)
@@ -111,7 +109,7 @@ func (e *Es6RenameTypeReferences) RenameReference(t *NodeTraversal, n rhino.Node
 	// - bradfordcsmith@google.com
 	for current != nil {
 		currentRootNode := current.GetRootNode()
-		newName, ok := e.renameTable.Get(currentRootNode, oldName)
+		newName, ok := e.renameTable[Es6ScopeRenameKey{Root: currentRootNode, Name: oldName}]
 		if ok {
 			jutil.CheckStateMsg1(
 				currentRootNode.IsModuleBody() ||

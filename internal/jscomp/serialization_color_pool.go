@@ -346,7 +346,7 @@ func (b *ColorPool_Builder) AddShard(typePool *TypePool, stringPool *StringPool)
 
 	existing := b.protoToShard[typePool]
 	if existing != nil {
-		jutil.CheckStateMsg1(base.JSCompObjects_Identical(typePool, TypePool_GetDefaultInstance()), "%s", typePool)
+		jutil.CheckStateMsg1(typePool == TypePool_GetDefaultInstance(), "%s", typePool)
 		return existing
 	}
 
@@ -540,7 +540,7 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 	}()
 	existing := shard.trimmedOffsetToColor[trimmedIdx]
 	if existing != nil {
-		if base.JSCompObjects_Identical(existing, colorPool_PENDING_COLOR) {
+		if existing == colorPool_PENDING_COLOR {
 			typeList := shard.typePool.GetTypeList()
 			rows := make([]string, 0, len(b.reconcilationDebugStack))
 			for _, stackId := range b.reconcilationDebugStack {
@@ -626,7 +626,7 @@ func (b *ColorPool_Builder) reconcileSingleShardAt(shard *ColorPool_ShardView, t
 			union.Add(member)
 		}
 		result = colors.Color_CreateUnionWithBuilder(&union, &b.colorBuilder, b.allocColorSetFn)
-		if !id.Equals(result.GetId()) {
+		if id != result.GetId() {
 			jutil.CheckStateMsg2(false, "%s == %s", id, result)
 		}
 	} else {
@@ -656,7 +656,7 @@ func (b *ColorPool_Builder) LookupOrReconcileColor(id colors.ColorId) *colors.Co
 	}()
 	existing := b.idToColor[id]
 	if existing != nil {
-		if base.JSCompObjects_Identical(existing, colorPool_PENDING_COLOR) {
+		if existing == colorPool_PENDING_COLOR {
 			rows := make([]string, 0, len(b.reconcilationDebugStack))
 			for _, stackId := range b.reconcilationDebugStack {
 				rows = append(rows, b.idToProto.Get(stackId).rowString())

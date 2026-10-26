@@ -863,7 +863,7 @@ func (ti *TypeInference) Traverse(n rhino.Node, scope FlowScope) FlowScope {
 			"Type inference doesn't know to handle token " + n.GetToken().String()))
 	}
 
-	if isTypeable && n.GetJSType() == nil && !TypeInference_TOKENS_ALLOWING_NULL_TYPES.Contains(n.GetToken()) {
+	if isTypeable && n.GetJSType() == nil && !typeInference_allowsNullType(n.GetToken()) {
 		panic(jutil.NewIllegalStateExceptionMsg("Failed to infer JSType for " + n.String()))
 	}
 	return scope
@@ -872,7 +872,9 @@ func (ti *TypeInference) Traverse(n rhino.Node, scope FlowScope) FlowScope {
 // TODO(b/154044898): delete these exceptions. Names are given null types to enable inference of
 // undeclared names assigned in multiple local scopes. The compiler also infers call and new
 // types when the invocation target is such a name.
-var TypeInference_TOKENS_ALLOWING_NULL_TYPES = jutil.NewEnumSet(rhino.Token_NAME, rhino.Token_CALL, rhino.Token_NEW)
+func typeInference_allowsNullType(t rhino.Token) bool {
+	return t == rhino.Token_NAME || t == rhino.Token_CALL || t == rhino.Token_NEW
+}
 
 // Java: TypeInference.initializeEnhancedForScope(Node, FlowScope)
 func (ti *TypeInference) InitializeEnhancedForScope(source rhino.Node, output FlowScope) FlowScope {
