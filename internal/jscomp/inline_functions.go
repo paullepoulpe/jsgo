@@ -1822,9 +1822,173 @@ func (f *InlineFunctions) InliningLowersCost(functionState *InlineFunctions_Func
 //
 // Java: InlineFunctions.resolveInlineConflicts()
 func (f *InlineFunctions) ResolveInlineConflicts() {
-	for functionState := range f.fns.Values() {
-		f.ResolveInlineConflictsForFunction(functionState)
+	if f.fns == nil || f.fns.IsEmpty() {
+		return
 	}
+	cands := make([]*InlineFunctions_FunctionState, 0, f.fns.Size())
+	for functionState := range f.fns.Values() {
+		if functionState.HasReferences() && functionState.CanInline() {
+			cands = append(cands, functionState)
+		}
+	}
+	numWorkers := parallelThreadCount(f.compiler, len(cands))
+	if numWorkers <= 1 {
+		for _, functionState := range cands {
+			f.ResolveInlineConflictsForFunction(functionState)
+		}
+		return
+	}
+	f.resolveInlineConflictsParallel(cands, numWorkers)
+}
+
+type ifConflictScanResult struct {
+	calledStates         []*InlineFunctions_FunctionState
+	anonStates           []*InlineFunctions_FunctionState
+	hasCalledNames       bool
+	structuralNeedsClone bool
+}
+
+func inlineFunctions_collectAnonInlinableStates(
+	node rhino.Node,
+	anonFns *jutil.LinkedHashMap[rhino.Node, string],
+	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
+	out *[]*InlineFunctions_FunctionState,
+) {
+	if node.IsFunction() {
+		if anonName, ok := anonFns.Lookup(node); ok {
+			if fs := fns.Get(anonName); fs != nil && fs.CanInline() {
+				*out = append(*out, fs)
+			}
+		}
+	}
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if !c.GetFirstChild().IsNil() {
+			inlineFunctions_collectAnonInlinableStates(c, anonFns, fns, out)
+		}
+	}
+}
+
+func (f *InlineFunctions) resolveInlineConflictsParallel(
+	cands []*InlineFunctions_FunctionState,
+	numWorkers int,
+) {
+	hasAnon := f.anonFns != nil && !f.anonFns.IsEmpty()
+	// Ensure LinkedHashMap lookup tables are materialized before concurrent reads.
+	_ = f.fns.Get("")
+	if hasAnon {
+		_, _ = f.anonFns.Lookup(rhino.NilNode)
+	}
+
+	scanResults := make([]ifConflictScanResult, len(cands))
+	var nextIdx atomic.Uint32
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			defer wg.Done()
+			names := jutil.NewLinkedHashSet[string]()
+			for {
+				idx := int(nextIdx.Add(1) - 1)
+				if idx >= len(cands) {
+					return
+				}
+				fs := cands[idx]
+				fnNode := fs.GetFn().GetFunctionNode()
+				body := NodeUtil_GetFunctionBody(fnNode)
+				names.Clear()
+				inlineFunctions_findCalledFunctions(body, names)
+				if names.IsEmpty() {
+					continue
+				}
+				var res ifConflictScanResult
+				res.hasCalledNames = true
+				if hasAnon {
+					inlineFunctions_collectAnonInlinableStates(body, f.anonFns, f.fns, &res.anonStates)
+				}
+				structural := !inlineFunctions_isIsolatedStmtFn(fnNode)
+				if !structural {
+					for param := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !param.IsNil(); param = param.GetNext() {
+						if !param.GetFirstChild().IsNil() {
+							structural = true
+							break
+						}
+					}
+				}
+				res.structuralNeedsClone = structural
+				for name := range names.All() {
+					if fsCalled := f.fns.Get(name); fsCalled != nil {
+						res.calledStates = append(res.calledStates, fsCalled)
+					}
+				}
+				scanResults[idx] = res
+			}
+		}()
+	}
+	wg.Wait()
+
+	var toClone []*InlineFunctions_FunctionState
+	for i, functionState := range cands {
+		if !functionState.HasReferences() || !functionState.CanInline() {
+			continue
+		}
+		res := &scanResults[i]
+		if !res.hasCalledNames {
+			continue
+		}
+		needsSafeClone := res.structuralNeedsClone
+		if !needsSafeClone {
+			for _, afs := range res.anonStates {
+				if afs.CanInline() {
+					needsSafeClone = true
+					break
+				}
+			}
+		}
+		for _, fsCalled := range res.calledStates {
+			if fsCalled.CanRemove() {
+				fsCalled.SetRemove(
+					false,
+					f.compiler,
+					InlineFunctions_CannotRemoveReason_CALLED_BY_INLINED_FUNCTION,
+					InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
+				if !f.MinimizeCost(fsCalled) &&
+					!fsCalled.RequireInlining() &&
+					!fsCalled.EncourageInlining() {
+					fsCalled.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_COST)
+				}
+			}
+			if fsCalled.CanInline() {
+				needsSafeClone = true
+			}
+		}
+		if needsSafeClone {
+			toClone = append(toClone, functionState)
+		}
+	}
+
+	cloneWorkers := parallelThreadCount(f.compiler, len(toClone))
+	if cloneWorkers <= 1 {
+		for _, fs := range toClone {
+			fs.SetSafeFnNode(fs.GetFn().GetFunctionNode().CloneTree())
+		}
+		return
+	}
+	var nextClone atomic.Uint32
+	wg.Add(cloneWorkers)
+	for w := 0; w < cloneWorkers; w++ {
+		go func() {
+			defer wg.Done()
+			for {
+				idx := int(nextClone.Add(1) - 1)
+				if idx >= len(toClone) {
+					return
+				}
+				fs := toClone[idx]
+				fs.SetSafeFnNode(fs.GetFn().GetFunctionNode().CloneTree())
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func inlineFunctions_hasNonInlinableParamNode(n rhino.Node) bool {
@@ -2012,15 +2176,274 @@ func inlineFunctions_findCalledFunctionsWithAnon(
 //
 // Java: InlineFunctions.decomposeExpressions()
 func (f *InlineFunctions) DecomposeExpressions() {
+	if f.fns == nil || f.fns.IsEmpty() {
+		return
+	}
+	var workRefs []*InlineFunctions_Reference
 	for functionState := range f.fns.Values() {
 		if functionState.CanInline() && functionState.references != nil {
 			for ref := range functionState.references.Values() {
 				if ref.requiresDecomposition {
-					f.injector.MaybePrepareCall(ref)
+					workRefs = append(workRefs, ref)
 				}
 			}
 		}
 	}
+	if len(workRefs) == 0 {
+		return
+	}
+	if len(workRefs) < 2 || f.compiler == nil || f.compiler.GetOptions() == nil || f.compiler.GetOptions().GetNumParallelThreads() <= 1 {
+		for _, ref := range workRefs {
+			f.injector.MaybePrepareCall(ref)
+		}
+		return
+	}
+	if !f.decomposeExpressionsParallel(workRefs) {
+		for _, ref := range workRefs {
+			f.injector.MaybePrepareCall(ref)
+		}
+	}
+}
+
+const ifDecompPlaceholderMarker = "\x00ifd_"
+
+type ifDecompPlaceholder struct {
+	node   rhino.Node
+	prefix string
+	seqIdx int
+}
+
+type ifDecompScriptGroup struct {
+	script     rhino.Node
+	refIndices []int
+	mainOnly   bool
+}
+
+func parseIfDecompPlaceholder(s string) (prefix string, refIdx int, seqIdx int, ok bool) {
+	n := len(s)
+	if n < 8 || s[n-1] != '\x00' {
+		return "", 0, 0, false
+	}
+	pos := strings.Index(s, ifDecompPlaceholderMarker)
+	if pos < 0 {
+		return "", 0, 0, false
+	}
+	body := s[pos+len(ifDecompPlaceholderMarker) : n-1]
+	sep := strings.IndexByte(body, '_')
+	if sep <= 0 || sep+1 >= len(body) {
+		return "", 0, 0, false
+	}
+	ri, err1 := strconv.Atoi(body[:sep])
+	si, err2 := strconv.Atoi(body[sep+1:])
+	if err1 != nil || err2 != nil || ri < 0 || si < 0 {
+		return "", 0, 0, false
+	}
+	return s[:pos], ri, si, true
+}
+
+func collectIfDecompPlaceholders(
+	n rhino.Node,
+	refIndices []int,
+	placeholdersByRef [][]ifDecompPlaceholder,
+) {
+	if n.IsName() {
+		s := n.GetString()
+		if len(s) > 0 && s[len(s)-1] == '\x00' {
+			if prefix, refIdx, seqIdx, ok := parseIfDecompPlaceholder(s); ok {
+				if _, belongs := slices.BinarySearch(refIndices, refIdx); belongs {
+					placeholdersByRef[refIdx] = append(placeholdersByRef[refIdx], ifDecompPlaceholder{
+						node:   n,
+						prefix: prefix,
+						seqIdx: seqIdx,
+					})
+				}
+			}
+		}
+	}
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.GetFirstChild().IsNil() {
+			if c.IsName() {
+				s := c.GetString()
+				if len(s) > 0 && s[len(s)-1] == '\x00' {
+					if prefix, refIdx, seqIdx, ok := parseIfDecompPlaceholder(s); ok {
+						if _, belongs := slices.BinarySearch(refIndices, refIdx); belongs {
+							placeholdersByRef[refIdx] = append(placeholdersByRef[refIdx], ifDecompPlaceholder{
+								node:   c,
+								prefix: prefix,
+								seqIdx: seqIdx,
+							})
+						}
+					}
+				}
+			}
+			continue
+		}
+		collectIfDecompPlaceholders(c, refIndices, placeholdersByRef)
+	}
+}
+
+func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*InlineFunctions_Reference) bool {
+	groupIdxByScript := make(map[rhino.Node]int, 32)
+	var groups []ifDecompScriptGroup
+	var anyScope *Scope
+	for refIdx, ref := range workRefs {
+		script := NodeUtil_GetEnclosingScript(ref.callNode)
+		s := ref.lookupScope()
+		if anyScope == nil && s != nil {
+			anyScope = s
+		}
+		refMainOnly := script.IsNil() || s == nil || s.IsGlobal()
+		if !refMainOnly {
+			hs := s.GetClosestHoistScope()
+			if hs == nil || hs.IsGlobal() {
+				refMainOnly = true
+			}
+		}
+		gIdx, exists := groupIdxByScript[script]
+		if !exists {
+			gIdx = len(groups)
+			groupIdxByScript[script] = gIdx
+			groups = append(groups, ifDecompScriptGroup{
+				script:   script,
+				mainOnly: refMainOnly,
+			})
+		} else if refMainOnly {
+			groups[gIdx].mainOnly = true
+		}
+		groups[gIdx].refIndices = append(groups[gIdx].refIndices, refIdx)
+	}
+
+	var parallelGroupIndices []int
+	var mainGroupIndices []int
+	for i := range groups {
+		if groups[i].mainOnly {
+			mainGroupIndices = append(mainGroupIndices, i)
+		} else {
+			parallelGroupIndices = append(parallelGroupIndices, i)
+		}
+	}
+	numWorkers := parallelThreadCount(f.compiler, len(parallelGroupIndices))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(f.compiler)
+	restoreReg := enableParallelTypeRegistryReads(f.compiler)
+	defer restoreReg()
+	if anyScope != nil {
+		freezeGlobalScopeForParallelReads(anyScope.GetGlobalScope())
+	}
+
+	seqCounts := make([]int, len(workRefs))
+	eventsByRef := make([][]recordedCompilerEvent, len(workRefs))
+	placeholdersByRef := make([][]ifDecompPlaceholder, len(workRefs))
+
+	runGroup := func(g *ifDecompScriptGroup, rc *recordingCompiler, workerInj *FunctionInjector, curRefIdx *int, curSeq *int) {
+		anyPlaceholder := false
+		for _, refIdx := range g.refIndices {
+			initRecordingCompiler(rc, f.compiler)
+			*curRefIdx = refIdx
+			*curSeq = 0
+			workerInj.MaybePrepareCall(workRefs[refIdx])
+			if *curSeq > 0 {
+				seqCounts[refIdx] = *curSeq
+				anyPlaceholder = true
+			}
+			eventsByRef[refIdx] = rc.takeEvents()
+		}
+		if anyPlaceholder {
+			scanRoot := g.script
+			if scanRoot.IsNil() {
+				scanRoot = f.compiler.GetJsRoot()
+			}
+			if !scanRoot.IsNil() {
+				collectIfDecompPlaceholders(scanRoot, g.refIndices, placeholdersByRef)
+			}
+		}
+	}
+
+	newWorkerInjector := func(rc *recordingCompiler) (*FunctionInjector, *int, *int) {
+		curRefIdx := new(int)
+		curSeq := new(int)
+		placeholderSupplier := func() string {
+			s := *curSeq
+			*curSeq = s + 1
+			return ifDecompPlaceholderMarker + strconv.Itoa(*curRefIdx) + "_" + strconv.Itoa(s) + "\x00"
+		}
+		inj := NewFunctionInjector_Builder(rc).
+			SafeNameIdSupplier(placeholderSupplier).
+			AllowDecomposition(f.injector.allowDecomposition).
+			AssumeStrictThis(f.injector.assumeStrictThis).
+			FunctionArgumentInjector(NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())).
+			Build()
+		inj.SetKnownConstantFunctions(f.injector.knownConstantFunctions)
+		return inj, curRefIdx, curSeq
+	}
+
+	runParallelWork(f.compiler, numWorkers, len(parallelGroupIndices), func(_ int) (func(int, *recordingCompiler), func()) {
+		var boundRC *recordingCompiler
+		var workerInj *FunctionInjector
+		var curRefIdx *int
+		var curSeq *int
+		runItem := func(idx int, rc *recordingCompiler) {
+			if workerInj == nil || boundRC != rc {
+				boundRC = rc
+				workerInj, curRefIdx, curSeq = newWorkerInjector(rc)
+			}
+			g := &groups[parallelGroupIndices[idx]]
+			runGroup(g, rc, workerInj, curRefIdx, curSeq)
+		}
+		return runItem, nil
+	}, false)
+
+	if len(mainGroupIndices) > 0 {
+		var mainRC recordingCompiler
+		initRecordingCompiler(&mainRC, f.compiler)
+		mainInj, curRefIdx, curSeq := newWorkerInjector(&mainRC)
+		for _, gIdx := range mainGroupIndices {
+			runGroup(&groups[gIdx], &mainRC, mainInj, curRefIdx, curSeq)
+		}
+	}
+
+	var realIDs []string
+	var renamedSeq []bool
+	for localOrGlobalRefIdx, ref := range workRefs {
+		cnt := seqCounts[localOrGlobalRefIdx]
+		if cnt > 0 {
+			realIDs = slices.Grow(realIDs[:0], cnt)[:cnt]
+			for k := 0; k < cnt; k++ {
+				realIDs[k] = f.injector.safeNameIdSupplier()
+			}
+			renamedSeq = slices.Grow(renamedSeq[:0], cnt)[:cnt]
+			clear(renamedSeq)
+			s := ref.lookupScope()
+			var hs *Scope
+			if s != nil {
+				hs = s.GetClosestHoistScope()
+			}
+			for _, pn := range placeholdersByRef[localOrGlobalRefIdx] {
+				if pn.seqIdx >= cnt {
+					continue
+				}
+				oldName := pn.node.GetString()
+				newName := pn.prefix + realIDs[pn.seqIdx]
+				pn.node.SetString(newName)
+				if !renamedSeq[pn.seqIdx] {
+					renamedSeq[pn.seqIdx] = true
+					if s != nil {
+						s.renameOwnVar(oldName, newName)
+						if hs != nil && hs != s {
+							hs.renameOwnVar(oldName, newName)
+						}
+					}
+				}
+			}
+		}
+		if evs := eventsByRef[localOrGlobalRefIdx]; len(evs) > 0 {
+			replayCompilerEvents(f.compiler, evs)
+		}
+	}
+	return true
 }
 
 // RemoveInlinedFunctions removes inlined functions that no longer have any

@@ -290,3 +290,98 @@ use(missingRet_%[1]d(1), suspiciousAndDupCase_%[1]d(2));
 		opts.SetWarningLevel(DiagnosticGroups_MISSING_RETURN, CheckLevel_ERROR)
 	})
 }
+
+func TestParallelPasses_Stage2FunctionLocalParity(t *testing.T) {
+	externs := []string{
+		`/** @externs */
+/** @type {!Object} */ var window;
+/** @type {!Object} */ var Object;
+/** @param {!Object} o @param {string} p @param {!Object} d */
+Object.defineProperty = function(o, p, d) {};
+/** @param {!Object} o @param {!Object} p */
+Object.defineProperties = function(o, p) {};
+/** @param {...*} args @return {*} */ function extEffect(args) {}
+`,
+	}
+
+	var inputs []string
+	// Script 0 calls hoisted functions declared in later scripts before their declarations!
+	inputs = append(inputs, `
+var GLOBAL_CONST = 42;
+var GLOBAL_MUT = extEffect('init');
+window['earlyHoisted'] = hoistedFromLate_5(3) + hoistedFromLate_2(7);
+`)
+
+	for i := 0; i < 10; i++ {
+		inputs = append(inputs, fmt.Sprintf(`
+function leafBlockInl_%[1]d(x) {
+  var t = x + %[1]d;
+  if (t > 10) {
+    extEffect(t);
+    return t * 2;
+  }
+  return t + 1;
+}
+
+function midConflict_%[1]d(a, b = 1) {
+  return leafBlockInl_%[1]d(a) + b;
+}
+
+function exerciseDecomposeAndVars_%[1]d(obj, n, unusedMiddle, unusedTrail1, unusedTrail2 = 5) {
+  var aliasGlobalConst = GLOBAL_CONST;
+  var aliasGlobalMut = GLOBAL_MUT;
+  var localOnce = extEffect(n) + aliasGlobalConst;
+  var unusedLocal = 999;
+  var r1 = extEffect('lhs', n) + leafBlockInl_%[1]d(localOnce);
+  var r2 = obj?.nested?.(leafBlockInl_%[1]d(n + 1));
+  var r3 = (n > 0 ? midConflict_%[1]d(n) : 0) + (aliasGlobalMut ? 1 : 0);
+  return r1 + (r2 || 0) + r3;
+}
+
+var accHolder_%[1]d = {
+  get propA_%[1]d() { return %[1]d; },
+  set propB_%[1]d(v) { extEffect(v); }
+};
+Object.defineProperty(accHolder_%[1]d, 'dynProp_%[1]d', {
+  get: function() { return %[1]d + 1; }
+});
+Object.defineProperties(accHolder_%[1]d, {
+  multiProp_%[1]d: {
+    set: function(v) { extEffect(v); }
+  }
+});
+
+class AccClass_%[1]d extends (extEffect({get extGetter_%[1]d() { return 1; }}), Object) {
+  [extEffect('k_%[1]d')]() {
+    return ({set compSetter_%[1]d(v) { extEffect(v); }});
+  }
+  get propB_%[1]d() { return %[1]d; }
+}
+
+function hoistedFromLate_%[1]d(k) {
+  const localConst = GLOBAL_CONST + %[1]d;
+  return leafBlockInl_%[1]d(k + localConst) + (new AccClass_%[1]d().propB_%[1]d);
+}
+
+window['entry_%[1]d'] = exerciseDecomposeAndVars_%[1]d(window['o'], %[1]d, 'mid') + accHolder_%[1]d.propA_%[1]d;
+window['gdecomp_%[1]d'] = extEffect('g_%[1]d') + leafBlockInl_%[1]d(%[1]d);
+`, i))
+	}
+
+	// 1. ADVANCED_OPTIMIZATIONS (InlineVariables ALL, InlineFunctions Decompose + Conflicts,
+	//    GatherGetterAndSetterProperties, RemoveUnusedCode with removeGlobals + FunctionArgs).
+	assertParallelParity(t, externs, inputs, nil)
+
+	// 2. SIMPLE_OPTIMIZATIONS (InlineVariables LOCALS_ONLY + RemoveUnusedCode local-only).
+	assertParallelParity(t, externs, inputs, func(opts *CompilerOptions) {
+		CompilationLevel_SIMPLE_OPTIMIZATIONS.SetOptionsForCompilationLevel(opts)
+		opts.SetCheckTypes(false)
+	})
+
+	// 3. InlineVariables CONSTANTS_ONLY mode.
+	assertParallelParity(t, externs, inputs, func(opts *CompilerOptions) {
+		opts.SetInlineVariables(false)
+		opts.SetInlineLocalVariables(false)
+		opts.SetInlineConstantVars(true)
+	})
+}

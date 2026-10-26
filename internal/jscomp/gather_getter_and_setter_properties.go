@@ -64,9 +64,69 @@ func GatherGetterAndSetterProperties_Update(compiler AbstractCompiler, externs r
 
 // Java: GatherGetterAndSetterProperties.gather(AbstractCompiler, Node)
 func GatherGetterAndSetterProperties_Gather(compiler AbstractCompiler, root rhino.Node) *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
+	if out, ok := gatherGetterAndSetterPropertiesParallel(compiler, root); ok {
+		return out
+	}
 	gatherCallback := NewGatherGetterAndSetterProperties_GatherCallback()
 	NodeTraversal_Traverse(compiler, root, gatherCallback)
 	return gatherCallback.properties
+}
+
+func collectGatherScripts(n rhino.Node, out *[]rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
+	if n.IsScript() {
+		*out = append(*out, n)
+		return true
+	}
+	if !n.IsRoot() {
+		return false
+	}
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if !collectGatherScripts(c, out) {
+			return false
+		}
+	}
+	return true
+}
+
+func gatherGetterAndSetterPropertiesParallel(
+	compiler AbstractCompiler,
+	root rhino.Node,
+) (*jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind], bool) {
+	var scripts []rhino.Node
+	if !collectGatherScripts(root, &scripts) {
+		return nil, false
+	}
+	numWorkers := parallelThreadCount(compiler, len(scripts))
+	if numWorkers <= 1 {
+		return nil, false
+	}
+
+	prewarmCompilerForParallelReads(compiler)
+	perScript := make([]*jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind], len(scripts))
+	runParallelWork(compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
+		runItem := func(idx int, rc *recordingCompiler) {
+			cb := NewGatherGetterAndSetterProperties_GatherCallback()
+			NodeTraversal_Traverse(rc, scripts[idx], cb)
+			if !cb.properties.IsEmpty() {
+				perScript[idx] = cb.properties
+			}
+		}
+		return runItem, nil
+	}, false)
+
+	merged := NewGatherGetterAndSetterProperties_GatherCallback()
+	for _, props := range perScript {
+		if props == nil {
+			continue
+		}
+		for prop, kind := range props.All() {
+			merged.Record(prop, kind)
+		}
+	}
+	return merged.properties, true
 }
 
 // GatherGetterAndSetterProperties_GatherCallback is the traversal that
@@ -75,6 +135,8 @@ type GatherGetterAndSetterProperties_GatherCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	properties *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]
 }
+
+func (*GatherGetterAndSetterProperties_GatherCallback) noVisitLeaves() {}
 
 // Java: GatherCallback()
 func NewGatherGetterAndSetterProperties_GatherCallback() *GatherGetterAndSetterProperties_GatherCallback {

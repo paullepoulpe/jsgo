@@ -115,7 +115,72 @@ type ReferenceCollector struct {
 
 	collectedHoistedFunctions map[rhino.Node]struct{}
 
-	narrowScope *Scope
+	narrowScope   *Scope
+	parallelState *rcParallelScriptState
+}
+
+type rcStreamOpKind uint8
+
+const (
+	rcOpCompilerEvents rcStreamOpKind = iota + 1
+	rcOpGlobalRef
+	rcOpGlobalAliasRetry
+	rcOpJumpHoisted
+	rcOpDeclHoisted
+)
+
+type rcStreamOp struct {
+	kind    rcStreamOpKind
+	events  []recordedCompilerEvent
+	v       *Var
+	node    rhino.Node
+	block   *BasicBlock
+	scope   *Scope
+	inputId *rhino.InputId
+	retry   *InlineVariables_InliningBehavior_AliasInlineRetryHandler
+}
+
+type rcStreamSegment struct {
+	fnNode rhino.Node
+	ops    []rcStreamOp
+}
+
+type rcParallelScriptState struct {
+	globalScope   *Scope
+	globalBlock   *BasicBlock
+	rc            *recordingCompiler
+	curSeg        *rcStreamSegment
+	rootSeg       rcStreamSegment
+	hoistedSegs   []*rcStreamSegment
+	inHoistedRoot rhino.Node
+}
+
+func (ps *rcParallelScriptState) flushCompilerEvents() {
+	if ps.rc != nil && len(ps.rc.events) > 0 {
+		ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
+			kind:   rcOpCompilerEvents,
+			events: ps.rc.takeEvents(),
+		})
+	}
+}
+
+func (c *ReferenceCollector) addGlobalReferenceDirect(
+	v *Var,
+	n rhino.Node,
+	block *BasicBlock,
+	scope *Scope,
+	inputId *rhino.InputId,
+) {
+	if v != c.lastVar && c.varFilter != nil {
+		if v == c.lastRejectedVar || !c.varFilter(v) {
+			c.lastRejectedVar = v
+			return
+		}
+	}
+	collection := c.getOrCreateReferences(v)
+	r := c.refSlab[rcGlobal].New()
+	*r = Reference{nameNode: n, basicBlock: block, scope: scope, inputId: inputId}
+	c.addToCollection(collection, r, rcGlobal)
 }
 
 // NewReferenceCollector: constructor initializes block stack.
@@ -534,6 +599,44 @@ func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *No
 	// like in RemoveUnusedCode.
 	if n.IsFunction() && rcIsHoistedFunctionDeclaration(n) {
 		c := cb.c
+		if ps := c.parallelState; ps != nil && n != ps.inHoistedRoot && !parent.IsNil() {
+			if gv := ps.globalScope.lookupOwnVarByID(n.GetFirstChild().GetStringID()); gv != nil && gv.nameNode == n.GetFirstChild() {
+				ps.flushCompilerEvents()
+				declInputId := nodeTraversal.inputId
+				if nodeTraversal.compilerInput == nil {
+					declInputId = nodeTraversal.GetInput().GetInputId()
+				}
+				ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
+					kind:    rcOpDeclHoisted,
+					v:       gv,
+					node:    n,
+					scope:   ps.globalScope,
+					inputId: declInputId,
+				})
+				hSeg := &rcStreamSegment{fnNode: n}
+				ps.hoistedSegs = append(ps.hoistedSegs, hSeg)
+
+				prevSeg := ps.curSeg
+				prevHoisted := ps.inHoistedRoot
+				oldBlockStack := c.blockStack
+				oldLocalDepth := c.localScopeDepth
+
+				ps.curSeg = hSeg
+				ps.inHoistedRoot = n
+				c.localScopeDepth = 0
+				c.blockStack = []basicBlockEntry{{root: ps.globalBlock.root, block: ps.globalBlock}}
+
+				b := c.builderVal()
+				b.TraverseAtScope(c.scopeCreator.CreateScope(n, ps.globalScope))
+				ps.flushCompilerEvents()
+
+				c.blockStack = oldBlockStack
+				c.localScopeDepth = oldLocalDepth
+				ps.inHoistedRoot = prevHoisted
+				ps.curSeg = prevSeg
+				return false
+			}
+		}
 		if _, ok := c.collectedHoistedFunctions[n]; ok {
 			return false
 		}
@@ -555,7 +658,8 @@ func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *No
 //
 // Java: ReferenceCollector.CollectorCallback.enterScope(NodeTraversal)
 func (cb *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) {
-	if !t.InGlobalScope() {
+	inGlobal := t.InGlobalScope()
+	if !inGlobal {
 		cb.c.localScopeDepth++
 	}
 	// Don't add all ES6 scope roots to blockStack, only those that are also scopes according to
@@ -563,6 +667,9 @@ func (cb *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) {
 	// are added in shouldTraverse() or processScope() and removed in visit().
 	if root := t.GetScopeRoot(); nodeTraversal_isHoistScopeRootNode(root) {
 		cb.c.PushNewBlock(root)
+		if inGlobal && cb.c.parallelState != nil {
+			cb.c.blockStack[len(cb.c.blockStack)-1].block = cb.c.parallelState.globalBlock
+		}
 	}
 }
 
@@ -570,11 +677,16 @@ func (cb *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) {
 //
 // Java: ReferenceCollector.CollectorCallback.exitScope(NodeTraversal)
 func (cb *ReferenceCollector_CollectorCallback) ExitScope(t *NodeTraversal) {
+	inGlobal := t.InGlobalScope()
 	if root := t.GetScopeRoot(); nodeTraversal_isHoistScopeRootNode(root) {
 		cb.c.PopLastBlock(root)
 	}
+	if inGlobal && cb.c.parallelState != nil {
+		cb.c.parallelState.flushCompilerEvents()
+		return
+	}
 	cb.c.behavior.AfterExitScope(t, &cb.c.referenceMapWrapper)
-	if !t.InGlobalScope() {
+	if !inGlobal {
 		cb.c.localScopeDepth--
 		if cb.c.localScopeDepth == 0 && cb.c.reclaimLocals {
 			cb.c.maybeReclaimLocals()
@@ -609,7 +721,26 @@ func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n rhino.
 		if v != nil {
 			cb.c.addReferenceWithScope(v, n, t, scope)
 			if v.nameNode != n {
-				cb.c.MaybeJumpToHoistedFunction(v, t)
+				if ps := cb.c.parallelState; ps != nil && v.IsGlobal() {
+					if !v.nameNode.IsNil() {
+						if fnNode := v.nameNode.GetParent(); !fnNode.IsNil() && fnNode.IsFunction() && rcIsHoistedFunctionDeclaration(fnNode) {
+							ps.flushCompilerEvents()
+							inputId := t.inputId
+							if t.compilerInput == nil {
+								inputId = t.GetInput().GetInputId()
+							}
+							ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
+								kind:    rcOpJumpHoisted,
+								v:       v,
+								node:    fnNode,
+								scope:   t.GetScope(),
+								inputId: inputId,
+							})
+						}
+					}
+				} else {
+					cb.c.MaybeJumpToHoistedFunction(v, t)
+				}
 			}
 		}
 	}
@@ -687,6 +818,28 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n rhino.Node, t *Node
 			c.lastRejectedVar = v
 			return
 		}
+	}
+	if ps := c.parallelState; ps != nil && v.IsGlobal() {
+		if len(c.blockStack) == 0 {
+			panic(jutil.NewNoSuchElementException())
+		}
+		if scope == nil {
+			scope = t.GetScope()
+		}
+		inputId := t.inputId
+		if t.compilerInput == nil {
+			inputId = t.GetInput().GetInputId()
+		}
+		ps.flushCompilerEvents()
+		ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
+			kind:    rcOpGlobalRef,
+			v:       v,
+			node:    n,
+			block:   c.getCurrentBlock(),
+			scope:   scope,
+			inputId: inputId,
+		})
+		return
 	}
 	collection := c.getOrCreateReferences(v)
 

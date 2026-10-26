@@ -302,6 +302,23 @@ func (rc *recordingCompiler) MarkFeatureSetNotAllowed(featureSet *parser.Feature
 	panic(jutil.NewUnsupportedOperationExceptionMsg("MarkFeatureSetNotAllowed unsupported in parallel worker"))
 }
 
+func (rc *recordingCompiler) CreateExpressionDecomposer(
+	uniqueNameIdSupplier func() string,
+	knownConstantFunctions map[string]bool,
+	scope *Scope,
+) *ExpressionDecomposer {
+	brokenIE11LocationAssign := parser.FeatureSet_ES5.Contains(rc.GetOptions().GetOutputFeatureSet())
+	return NewExpressionDecomposer(
+		rc, uniqueNameIdSupplier, knownConstantFunctions, scope, brokenIE11LocationAssign)
+}
+
+func (rc *recordingCompiler) CreateDefaultExpressionDecomposer() *ExpressionDecomposer {
+	return rc.CreateExpressionDecomposer(
+		rc.GetUniqueNameIdSupplier(),
+		nil,
+		Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)))
+}
+
 func replayCompilerEvents(base AbstractCompiler, events []recordedCompilerEvent) {
 	for i := range events {
 		ev := &events[i]

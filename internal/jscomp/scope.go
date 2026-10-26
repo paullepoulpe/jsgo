@@ -611,3 +611,27 @@ func (s *Scope) getSlotV(name string) *Var           { return s.GetVar(name) }
 func (s *Scope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
 	return rhino.StaticScope_GetTopmostScopeOfEventualDeclaration(s, name)
 }
+
+func (s *Scope) renameOwnVar(oldName, newName string) {
+	if s == nil {
+		return
+	}
+	oldID := rhino.RhinoStringPool_LookupID(oldName)
+	if oldID == 0 {
+		return
+	}
+	idx := s.ownIndex(oldID, scopeBloomFromID(oldID))
+	if idx < 0 {
+		return
+	}
+	newID := rhino.RhinoStringPool_InternID(newName)
+	s.varList[idx].nameID = newID
+	var bloom uint64
+	for _, v := range s.varList {
+		bloom |= scopeBloomFromID(v.nameID)
+	}
+	s.varBloom = bloom
+	if s.varIndex != nil {
+		s.rebuildVarIndex()
+	}
+}

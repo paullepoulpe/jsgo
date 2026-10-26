@@ -444,6 +444,9 @@ func (r *RemoveUnusedCode) popContinuation() RemoveUnusedCode_Continuation {
 //
 // Java: RemoveUnusedCode.traverseAndRemoveUnusedReferences(Node)
 func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
+	if r.traverseAndRemoveLocalScriptsParallel(root) {
+		return
+	}
 	if r.pinnedPropertyNames == nil {
 		r.pinnedPropertyNames = make(map[string]struct{}, 64)
 		r.propRemovables = make(map[string]propRemovableList, 64)
@@ -472,9 +475,252 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
 
 	r.RemoveUnreferencedVarsAndPolyfills()
 	r.RemoveIndependentlyRemovableProperties()
-	for _, fparamScope := range r.allFunctionParamScopes {
-		r.RemoveUnreferencedFunctionArgs(fparamScope)
+	if !r.removeUnreferencedFunctionArgsParallel() {
+		for _, fparamScope := range r.allFunctionParamScopes {
+			r.RemoveUnreferencedFunctionArgs(fparamScope)
+		}
 	}
+}
+
+func (r *RemoveUnusedCode) canParallelizeLocalScripts() bool {
+	return !r.removeGlobals &&
+		!r.removeUnusedPrototypeProperties &&
+		!r.removeUnusedThisProperties &&
+		!r.removeUnusedObjectDefinePropertiesDefinitions &&
+		!r.removeUnusedPolyfills &&
+		!r.removalLog.IsLogging() &&
+		!r.unremovableLog.IsLogging()
+}
+
+func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node) bool {
+	if !r.canParallelizeLocalScripts() || root.GetParent().IsNil() {
+		return false
+	}
+	scripts, ok := collectRootScripts(root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(r.compiler, len(scripts))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(r.compiler)
+	restoreReg := enableParallelTypeRegistryReads(r.compiler)
+	defer restoreReg()
+
+	globalScope := r.scopeCreator.CreateScopeOfScope(root.GetParent(), nil)
+	if !globalScope.HasSlot(NodeUtil_JSC_PROPERTY_NAME_FN) {
+		globalScope.Declare(NodeUtil_JSC_PROPERTY_NAME_FN, rhino.NilNode, nil)
+	}
+	freezeGlobalScopeForParallelReads(globalScope)
+
+	runParallelWork(r.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
+		var wr *RemoveUnusedCode
+		runItem := func(idx int, rc *recordingCompiler) {
+			if wr == nil || wr.compiler != rc {
+				wr = &RemoveUnusedCode{
+					compiler:                        rc,
+					astAnalyzer:                     r.astAnalyzer,
+					codingConvention:                r.codingConvention,
+					scopeCreator:                    NewSyntacticScopeCreator(rc),
+					removeLocalVars:                 r.removeLocalVars,
+					removeGlobals:                   false,
+					preserveFunctionExpressionNames: r.preserveFunctionExpressionNames,
+					externProperties:                r.externProperties,
+					accessorSummary:                 r.accessorSummary,
+					polyfillsFromTable:              r.polyfillsFromTable,
+					assumeGettersArePure:            r.assumeGettersArePure,
+					removalLog:                      r.removalLog,
+					unremovableLog:                  r.unremovableLog,
+				}
+				wr.canonicalUnremovableVarInfoVal.outer = wr
+				wr.canonicalUnremovableVarInfoVal.flags = rucVarFlagCanonical
+				wr.canonicalUnremovableVarInfo = &wr.canonicalUnremovableVarInfoVal
+				wr.pinnedPropertyNames = make(map[string]struct{}, 16)
+				wr.propRemovables = make(map[string]propRemovableList, 16)
+				wr.varByKey = make(map[scopedVarKey]*RemoveUnusedCode_RealVarInfo, 128)
+			} else {
+				clear(wr.pinnedPropertyNames)
+				clear(wr.propRemovables)
+				wr.propRemovableKeys = wr.propRemovableKeys[:0]
+				clear(wr.varByKey)
+				clear(wr.varInfos)
+				wr.varInfos = wr.varInfos[:0]
+				wr.worklistHead = 0
+				wr.worklistSize = 0
+				wr.extraContSlab = wr.extraContSlab[:0]
+			}
+			script := scripts[idx]
+			wr.root = script
+			wr.guardedUsagesComputed = false
+			wr.enqueueContinuation(NewRemoveUnusedCode_Continuation(wr, script, globalScope))
+			for wr.worklistSize > 0 {
+				cont := wr.popContinuation()
+				cont.Apply(wr)
+			}
+			wr.RemoveUnreferencedVarsAndPolyfills()
+		}
+		return runItem, nil
+	}, false)
+	return true
+}
+
+func (r *RemoveUnusedCode) isParamVarRemovableReadOnly(nameNode rhino.Node, fparamScope *Scope) bool {
+	v := fparamScope.GetVarByNode(nameNode)
+	if v == nil {
+		jutil.CheckNotNullMsg1(v, "%s", nameNode)
+	}
+	isGlobal := v.IsGlobal()
+	if v.IsExtern() || r.isExportedByConvention(v.GetName(), !isGlobal) || v.IsArguments() {
+		return false
+	}
+	if vi := r.varByKey[scopedVarKeyOf(v)]; vi != nil {
+		return vi.IsRemovable()
+	}
+	if !r.removeGlobals && isGlobal {
+		return false
+	}
+	return r.removeLocalVars || isGlobal
+}
+
+func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsWithCompiler(
+	compiler AbstractCompiler,
+	fparamScope *Scope,
+) {
+	function := fparamScope.GetRootNode()
+	if !function.IsFunction() {
+		jutil.CheckState(false)
+	}
+	if NodeUtil_IsGetOrSetKey(function.GetParent()) {
+		return
+	}
+	argList := NodeUtil_GetFunctionParameters(function)
+	if !argList.IsParamList() {
+		jutil.CheckArgumentMsg1(false, "%s", argList)
+	}
+	for {
+		lastArg := argList.GetLastChild()
+		if lastArg.IsNil() {
+			break
+		}
+		argNode := lastArg
+		if lastArg.IsDefaultValue() {
+			argNode = lastArg.GetFirstChild()
+			if r.MayHaveSideEffects(lastArg.GetLastChild()) {
+				break
+			}
+		}
+		if argNode.IsRest() {
+			argNode = argNode.GetFirstChild()
+		}
+		if argNode.IsDestructuringPattern() {
+			if argNode.HasChildren() {
+				break
+			}
+			NodeUtil_DeleteNode(lastArg, compiler)
+			continue
+		}
+		if r.isParamVarRemovableReadOnly(argNode, fparamScope) {
+			NodeUtil_DeleteNode(lastArg, compiler)
+		} else {
+			break
+		}
+	}
+
+	for param := argList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
+		if param.IsUnusedParameter() {
+			continue
+		}
+		paramNameNode := RemoveUnusedCode_NameOfParam(param)
+		if paramNameNode.IsNil() {
+			continue
+		}
+		if r.isParamVarRemovableReadOnly(paramNameNode, fparamScope) {
+			param.SetUnusedParameter(true)
+			compiler.ReportChangeToEnclosingScope(argList)
+		}
+	}
+}
+
+type rucParamScriptGroup struct {
+	script  rhino.Node
+	indices []int
+}
+
+func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsParallel() bool {
+	if !r.removeGlobals ||
+		len(r.allFunctionParamScopes) < 2 ||
+		r.removalLog.IsLogging() ||
+		r.unremovableLog.IsLogging() {
+		return false
+	}
+	if r.compiler == nil || r.compiler.GetOptions() == nil || r.compiler.GetOptions().GetNumParallelThreads() <= 1 {
+		return false
+	}
+
+	groupByScript := make(map[rhino.Node]int, 64)
+	var groups []rucParamScriptGroup
+	var detachedIndices []int
+	var anyScope *Scope
+	for idx, fparamScope := range r.allFunctionParamScopes {
+		if anyScope == nil && fparamScope != nil {
+			anyScope = fparamScope
+		}
+		script := NodeUtil_GetEnclosingScript(fparamScope.GetRootNode())
+		if script.IsNil() {
+			detachedIndices = append(detachedIndices, idx)
+			continue
+		}
+		gIdx, exists := groupByScript[script]
+		if !exists {
+			gIdx = len(groups)
+			groupByScript[script] = gIdx
+			groups = append(groups, rucParamScriptGroup{script: script})
+		}
+		groups[gIdx].indices = append(groups[gIdx].indices, idx)
+	}
+
+	numWorkers := parallelThreadCount(r.compiler, len(groups))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(r.compiler)
+	restoreReg := enableParallelTypeRegistryReads(r.compiler)
+	defer restoreReg()
+	if anyScope != nil {
+		freezeGlobalScopeForParallelReads(anyScope.GetGlobalScope())
+	}
+
+	eventsByIdx := make([][]recordedCompilerEvent, len(r.allFunctionParamScopes))
+	runParallelWork(r.compiler, numWorkers, len(groups), func(_ int) (func(int, *recordingCompiler), func()) {
+		runItem := func(gIdx int, rc *recordingCompiler) {
+			g := &groups[gIdx]
+			for _, origIdx := range g.indices {
+				initRecordingCompiler(rc, r.compiler)
+				r.removeUnreferencedFunctionArgsWithCompiler(rc, r.allFunctionParamScopes[origIdx])
+				eventsByIdx[origIdx] = rc.takeEvents()
+			}
+		}
+		return runItem, nil
+	}, false)
+
+	if len(detachedIndices) > 0 {
+		var mainRC recordingCompiler
+		for _, origIdx := range detachedIndices {
+			initRecordingCompiler(&mainRC, r.compiler)
+			r.removeUnreferencedFunctionArgsWithCompiler(&mainRC, r.allFunctionParamScopes[origIdx])
+			eventsByIdx[origIdx] = mainRC.takeEvents()
+		}
+	}
+
+	for _, evs := range eventsByIdx {
+		if len(evs) > 0 {
+			replayCompilerEvents(r.compiler, evs)
+		}
+	}
+	return true
 }
 
 // Java: RemoveUnusedCode.storePolyfill(PolyfillUsage)

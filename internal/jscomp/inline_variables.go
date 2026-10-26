@@ -113,6 +113,9 @@ func NewInlineVariables(compiler AbstractCompiler, mode InlineVariables_Mode) *I
 
 // Java: InlineVariables.process(Node, Node)
 func (iv *InlineVariables) Process(externs rhino.Node, root rhino.Node) {
+	if iv.processParallel(externs, root) {
+		return
+	}
 	behavior := NewInlineVariables_InliningBehavior(iv)
 	callback := NewReferenceCollectorWithVarFilter(
 		iv.compiler,
@@ -132,6 +135,174 @@ func (iv *InlineVariables) Process(externs rhino.Node, root rhino.Node) {
 		return false
 	})
 	callback.Process(externs, root)
+}
+
+func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) bool {
+	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(iv.compiler, len(items))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(iv.compiler)
+	restoreReg := enableParallelTypeRegistryReads(iv.compiler)
+	defer restoreReg()
+
+	mainSC := NewSyntacticScopeCreator(iv.compiler)
+	globalScope := mainSC.CreateScopeOfScope(scopeRoot, nil)
+	freezeGlobalScopeForParallelReads(globalScope)
+	lazyGlobal := &lazyGlobalScope{
+		compiler: iv.compiler,
+		root:     scopeRoot,
+		scope:    globalScope,
+	}
+	lazyGlobal.once.Do(func() {})
+	globalBlock := NewBasicBlock(nil, scopeRoot)
+	varFilter := inlineVariables_Mode_varPredicate[iv.mode]
+
+	statesByItem := make([]*rcParallelScriptState, len(items))
+	runParallelWork(iv.compiler, numWorkers, len(items), func(_ int) (func(int, *recordingCompiler), func()) {
+		var reusableBeh *InlineVariables_InliningBehavior
+		var reusableCollector *ReferenceCollector
+		var reusableSC *SyntacticScopeCreator
+
+		runItem := func(idx int, rc *recordingCompiler) {
+			if reusableSC == nil || reusableSC.compiler != rc {
+				reusableSC = NewSyntacticScopeCreator(rc)
+			}
+			var beh *InlineVariables_InliningBehavior
+			var col *ReferenceCollector
+			if reusableBeh != nil && !reusableBeh.hasGlobalAliasRetries && len(reusableBeh.aliasRetryHandlers) == 0 {
+				beh = reusableBeh
+				beh.outer.compiler = rc
+				col = reusableCollector
+				col.compiler = rc
+				col.scopeCreator = reusableSC
+				col.clearLocalBase()
+				col.maybeReclaimLocals()
+				if col.collectedHoistedFunctions != nil {
+					clear(col.collectedHoistedFunctions)
+				}
+			} else {
+				workerIV := &InlineVariables{compiler: rc, mode: iv.mode}
+				beh = NewInlineVariables_InliningBehavior(workerIV)
+				col = NewReferenceCollectorWithVarFilter(rc, beh, reusableSC, varFilter)
+				bRef := beh
+				cRef := col
+				col.enableLocalReclamation(func() bool {
+					if len(bRef.aliasRetryHandlers) == 0 && !bRef.hasGlobalAliasRetries {
+						bRef.unpinnedRetries = 0
+						cRef.clearLocalBase()
+						return true
+					}
+					if bRef.unpinnedRetries == 0 {
+						return true
+					}
+					bRef.unpinnedRetries = 0
+					return false
+				})
+				reusableBeh = beh
+				reusableCollector = col
+			}
+
+			ps := &rcParallelScriptState{
+				globalScope: globalScope,
+				globalBlock: globalBlock,
+				rc:          rc,
+			}
+			ps.curSeg = &ps.rootSeg
+			col.parallelState = ps
+			beh.onGlobalAliasRetry = func(aliasedVar *Var, retryHandler *InlineVariables_InliningBehavior_AliasInlineRetryHandler) {
+				ps.flushCompilerEvents()
+				ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
+					kind:  rcOpGlobalAliasRetry,
+					v:     aliasedVar,
+					retry: retryHandler,
+				})
+			}
+
+			item := items[idx]
+			tb := col.builderVal()
+			tb.traverseScriptUnderRoot(scopeRoot, item.parent, item.script, lazyGlobal)
+			ps.flushCompilerEvents()
+
+			col.parallelState = nil
+			beh.onGlobalAliasRetry = nil
+			if beh.hasGlobalAliasRetries || len(beh.aliasRetryHandlers) > 0 {
+				// Keep beh and col slabs alive until globalScope finishes on main goroutine.
+				reusableBeh = nil
+				reusableCollector = nil
+			}
+			statesByItem[idx] = ps
+		}
+		return runItem, nil
+	}, false)
+
+	var hoistedByFn map[rhino.Node]*rcStreamSegment
+	for _, ps := range statesByItem {
+		if len(ps.hoistedSegs) > 0 {
+			if hoistedByFn == nil {
+				hoistedByFn = make(map[rhino.Node]*rcStreamSegment, len(ps.hoistedSegs)*2)
+			}
+			for _, hSeg := range ps.hoistedSegs {
+				hoistedByFn[hSeg.fnNode] = hSeg
+			}
+		}
+	}
+
+	mainBehavior := NewInlineVariables_InliningBehavior(iv)
+	globalCollector := NewReferenceCollectorWithVarFilter(iv.compiler, mainBehavior, mainSC, varFilter)
+	var collectedHoisted map[rhino.Node]struct{}
+	if len(hoistedByFn) > 0 {
+		collectedHoisted = make(map[rhino.Node]struct{}, len(hoistedByFn))
+	}
+
+	var replaySeg func(seg *rcStreamSegment)
+	replaySeg = func(seg *rcStreamSegment) {
+		if seg == nil {
+			return
+		}
+		for i := range seg.ops {
+			op := &seg.ops[i]
+			switch op.kind {
+			case rcOpCompilerEvents:
+				replayCompilerEvents(iv.compiler, op.events)
+			case rcOpGlobalRef:
+				globalCollector.addGlobalReferenceDirect(op.v, op.node, op.block, op.scope, op.inputId)
+			case rcOpGlobalAliasRetry:
+				op.retry.outer.outer = iv
+				mainBehavior.putAliasRetryHandler(op.v, op.retry)
+			case rcOpJumpHoisted, rcOpDeclHoisted:
+				if _, done := collectedHoisted[op.node]; done {
+					continue
+				}
+				if collectedHoisted == nil {
+					collectedHoisted = make(map[rhino.Node]struct{})
+				}
+				collectedHoisted[op.node] = struct{}{}
+				globalCollector.addGlobalReferenceDirect(op.v, op.node.GetFirstChild(), globalBlock, op.scope, op.inputId)
+				if hoistedByFn != nil {
+					replaySeg(hoistedByFn[op.node])
+				}
+			}
+		}
+	}
+
+	for _, ps := range statesByItem {
+		replaySeg(&ps.rootSeg)
+	}
+
+	gb := globalCollector.builderVal()
+	globalTraversal := acquireNodeTraversal(&gb)
+	defer releaseNodeTraversal(globalTraversal)
+	globalTraversal.InitTraversal(globalScope.GetRootNode())
+	globalTraversal.currentNode = globalScope.GetRootNode()
+	globalTraversal.PushScopeOfScopeWithQuietly(globalScope, true)
+	mainBehavior.AfterExitScope(globalTraversal, &globalCollector.referenceMapWrapper)
+	return true
 }
 
 // InlineVariables_VarExpert is responsible for analyzing a variable to
@@ -305,8 +476,10 @@ type InlineVariables_InliningBehavior struct {
 
 	// Records alias variables that are waiting for the original variables to
 	// be handled.
-	aliasRetryHandlers map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler
-	unpinnedRetries    int
+	aliasRetryHandlers    map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	unpinnedRetries       int
+	hasGlobalAliasRetries bool
+	onGlobalAliasRetry    func(*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler)
 
 	scratchExpert    InlineVariables_InliningBehavior_StandardVarExpert
 	delayedNegSlab   reuseSlab[inlineVariables_delayedNegativeAnalysis]
@@ -412,6 +585,12 @@ func (b *InlineVariables_InliningBehavior) putAliasRetryHandler(
 	aliasedVar *Var,
 	retryHandler *InlineVariables_InliningBehavior_AliasInlineRetryHandler,
 ) {
+	if b.onGlobalAliasRetry != nil && !aliasedVar.IsLocal() {
+		b.hasGlobalAliasRetries = true
+		b.unpinnedRetries++
+		b.onGlobalAliasRetry(aliasedVar, retryHandler)
+		return
+	}
 	if b.aliasRetryHandlers == nil {
 		b.aliasRetryHandlers = make(map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler, 8)
 	}
@@ -435,7 +614,7 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 	b.handledScopeVars = b.handledScopeVars[:0]
 	b.currentScope = nil
 	b.delayedNegSlab.reset(nil)
-	if len(b.aliasRetryHandlers) == 0 {
+	if len(b.aliasRetryHandlers) == 0 && !b.hasGlobalAliasRetries {
 		b.retryExpertSlab.reset(nil)
 		b.retryHandlerSlab.reset(nil)
 	}
