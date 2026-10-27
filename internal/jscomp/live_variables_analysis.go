@@ -253,12 +253,11 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 	f.finder.result.orderedVars = f.finder.result.orderedVars[:0]
 	f.finder.scope = scope
 
-	fnRoot := scope.GetRootNode()
-	fnBody := fnRoot.GetLastChild()
-	if body, ok := ast.AsBlock(fnBody); ok && !fsivHasNestedBlockScopeDecls(ast.MustFunction(fnRoot), body) {
+	fn := ast.MustFunction(scope.GetRootNode())
+	if body, ok := fn.Body().AsBlock(); ok && !fsivHasNestedBlockScopeDecls(fn, body) {
 		var bodyScope *Scope
-		if fnBody.HasChildren() {
-			bodyScope = scopeCreator.CreateScope(fnBody, scope).(*Scope)
+		if body.HasStatements() {
+			bodyScope = scopeCreator.CreateScope(body.Node(), scope).(*Scope)
 			if maxVars > 0 && scope.GetVarCount()+bodyScope.GetVarCount() >= maxVars {
 				return nil
 			}
@@ -435,10 +434,14 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, 
 	case rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
 		{
 			// for (x in y) {...}
-			lhs := n.GetFirstChild()
-			if NodeUtil_IsNameDeclaration(lhs) {
+			lhs := ast.MustEnhancedFor(n).Target().Node()
+			if decl, ok := ast.AsNameDeclaration(lhs); ok {
 				// for (var x in y) {...}
-				lhs = lhs.GetLastChild()
+				if last, hasLast := decl.LastDeclarator(); hasLast {
+					lhs = last.Node()
+				} else {
+					lhs = rhino.NilNode
+				}
 			}
 
 			// Note that the LHS may never be assigned to or evaluated, like in:
@@ -450,45 +453,62 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, 
 			return
 		}
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			if c.IsName() {
-				if c.HasChildren() {
-					l.ComputeGenKill(c.GetFirstChild(), gen, kill, conditional)
+		decl := ast.MustNameDeclaration(n)
+		for d, ok := decl.FirstDeclarator(); ok; d, ok = d.Next() {
+			if name, isName := d.AsName(); isName {
+				if init, hasInit := name.Init(); hasInit {
+					l.ComputeGenKill(init.Node(), gen, kill, conditional)
 					if !conditional {
-						l.AddToSetIfLocal(c, kill)
+						l.AddToSetIfLocal(name.Node(), kill)
 					}
 				}
 			} else {
-				jutil.CheckStateMsg1(c.IsDestructuringLhs(), "%s", c)
+				dlhs := d.MustDestructuringLhs()
 				if !conditional {
-					NodeUtil_VisitLhsNodesInNode(c, func(lhsNode rhino.Node) { l.AddToSetIfLocal(lhsNode, kill) })
+					NodeUtil_VisitLhsNodesInNode(dlhs.Node(), func(lhsNode rhino.Node) { l.AddToSetIfLocal(lhsNode, kill) })
 				}
-				l.ComputeGenKill(c.GetFirstChild(), gen, kill, conditional)
-				l.ComputeGenKill(c.GetSecondChild(), gen, kill, conditional)
+				l.ComputeGenKill(dlhs.Pattern().Node(), gen, kill, conditional)
+				if init, hasInit := dlhs.Init(); hasInit {
+					l.ComputeGenKill(init.Node(), gen, kill, conditional)
+				}
 			}
 		}
 		return
-	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP:
-		l.ComputeGenKill(n.GetFirstChild(), gen, kill, conditional)
+	case rhino.Token_OPTCHAIN_GETPROP:
+		// Go-only: OPTCHAIN_GETPROP has only one child (Object; property is its string),
+		// so visiting Object once matches Java without O(2^k) re-traversal on chains.
+		l.ComputeGenKill(ast.MustOptChainGetProp(n).Object().Node(), gen, kill, conditional)
+		return
+	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
+		bin := ast.MustBinary(n)
+		l.ComputeGenKill(bin.Left().Node(), gen, kill, conditional)
 		// May short circuit.
-		l.ComputeGenKill(n.GetLastChild(), gen, kill, true)
+		l.ComputeGenKill(bin.Right().Node(), gen, kill, true)
+		return
+	case rhino.Token_OPTCHAIN_GETELEM:
+		ge := ast.MustOptChainGetElem(n)
+		l.ComputeGenKill(ge.Object().Node(), gen, kill, conditional)
+		// May short circuit.
+		l.ComputeGenKill(ge.Index().Node(), gen, kill, true)
 		return
 	case rhino.Token_OPTCHAIN_CALL:
-		l.ComputeGenKill(n.GetFirstChild(), gen, kill, conditional)
+		call := ast.MustOptChainCall(n)
+		l.ComputeGenKill(call.Callee().Node(), gen, kill, conditional)
 		// Unlike OPTCHAIN_GETPROP and OPTCHAIN_GETELEM, the OPTCHAIN_CALLs can have multiple
 		// children on rhs which get executed conditionally
-		for c := n.GetSecondChild(); !c.IsNil(); c = c.GetNext() {
-			l.ComputeGenKill(c, gen, kill, true)
+		for arg, ok := call.FirstArg(); ok; arg, ok = arg.Next() {
+			l.ComputeGenKill(arg.Node(), gen, kill, true)
 		}
 		return
 	case rhino.Token_HOOK:
-		l.ComputeGenKill(n.GetFirstChild(), gen, kill, conditional)
+		hook := ast.MustHook(n)
+		l.ComputeGenKill(hook.Cond().Node(), gen, kill, conditional)
 		// Assume both sides are conditional.
-		l.ComputeGenKill(n.GetSecondChild(), gen, kill, true)
-		l.ComputeGenKill(n.GetLastChild(), gen, kill, true)
+		l.ComputeGenKill(hook.Then().Node(), gen, kill, true)
+		l.ComputeGenKill(hook.Else().Node(), gen, kill, true)
 		return
 	case rhino.Token_NAME:
-		if n.GetString() == "arguments" {
+		if ast.MustName(n).Ident() == "arguments" {
 			l.MarkAllParametersEscaped()
 		} else if !NodeUtil_IsLhsByDestructuring(n) {
 			// Only add names in destructuring patterns if they're not lvalues.
@@ -497,32 +517,37 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, 
 		}
 		return
 	default:
-		if NodeUtil_IsAssignmentOp(n) && n.GetFirstChild().IsName() {
-			lhs := n.GetFirstChild()
-			if !conditional {
-				l.AddToSetIfLocal(lhs, kill)
+		if assign, ok := ast.AsAssignment(n); ok {
+			if lhs, isName := assign.Target().AsName(); isName {
+				if !conditional {
+					l.AddToSetIfLocal(lhs.Node(), kill)
+				}
+				if assign.Token() != rhino.Token_ASSIGN {
+					// assignments such as a += 1 reads a.
+					l.AddToSetIfLocal(lhs.Node(), gen)
+				}
+				l.ComputeGenKill(assign.Value().Node(), gen, kill, conditional)
+				return
 			}
-			if !n.IsAssign() {
-				// assignments such as a += 1 reads a.
-				l.AddToSetIfLocal(lhs, gen)
+			if assign.Token() == rhino.Token_ASSIGN {
+				if pat, isPat := assign.Target().AsPattern(); isPat {
+					if !conditional {
+						NodeUtil_VisitLhsNodesInNode(
+							n,
+							func(child rhino.Node) {
+								if child.IsName() {
+									l.AddToSetIfLocal(child, kill)
+								}
+							})
+					}
+					l.ComputeGenKill(pat.Node(), gen, kill, conditional)
+					l.ComputeGenKill(assign.Value().Node(), gen, kill, conditional)
+					return
+				}
 			}
-			l.ComputeGenKill(lhs.GetNext(), gen, kill, conditional)
-		} else if n.IsAssign() && n.GetFirstChild().IsDestructuringPattern() {
-			if !conditional {
-				NodeUtil_VisitLhsNodesInNode(
-					n,
-					func(child rhino.Node) {
-						if child.IsName() {
-							l.AddToSetIfLocal(child, kill)
-						}
-					})
-			}
-			l.ComputeGenKill(n.GetFirstChild(), gen, kill, conditional)
-			l.ComputeGenKill(n.GetSecondChild(), gen, kill, conditional)
-		} else {
-			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-				l.ComputeGenKill(c, gen, kill, conditional)
-			}
+		}
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			l.ComputeGenKill(c, gen, kill, conditional)
 		}
 		return
 	}
@@ -530,9 +555,10 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, 
 
 // Java: LiveVariablesAnalysis.addToSetIfLocal(Node, BitSet)
 func (l *LiveVariablesAnalysis) AddToSetIfLocal(node rhino.Node, set *jutil.BitSet) {
-	jutil.CheckStateMsg1(node.IsName(), "%s", node)
-	idx, ok := l.lookupVarIndex(node.GetString())
-	if !ok || l.escapedBits.Get(idx) {
+	name, ok := ast.AsName(node)
+	jutil.CheckStateMsg1(ok, "%s", node)
+	idx, found := l.lookupVarIndex(name.Ident())
+	if !found || l.escapedBits.Get(idx) {
 		return
 	}
 	set.Set(idx)
@@ -564,12 +590,12 @@ func LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(scope *Scope, na
 //
 // Java: LiveVariablesAnalysis.markAllParametersEscaped()
 func (l *LiveVariablesAnalysis) MarkAllParametersEscaped() {
-	paramList := NodeUtil_GetFunctionParameters(l.jsScope.GetRootNode())
-	for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
-		if param.IsName() {
-			name := param.GetString()
-			l.escaped.Add(l.jsScope.GetVar(name))
-			if idx, ok := l.lookupVarIndex(name); ok {
+	params := ast.MustFunction(l.jsScope.GetRootNode()).Params()
+	for param, ok := params.FirstParam(); ok; param, ok = param.Next() {
+		if name, isName := param.AsName(); isName {
+			ident := name.Ident()
+			l.escaped.Add(l.jsScope.GetVar(ident))
+			if idx, ok := l.lookupVarIndex(ident); ok {
 				l.escapedBits.Set(idx)
 			}
 		}

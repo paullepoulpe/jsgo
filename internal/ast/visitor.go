@@ -1,6 +1,10 @@
 package ast
 
-import "github.com/paullepoulpe/jsgo/internal/rhino"
+import (
+	"strconv"
+
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
 
 // TokenSet is a set of rhino tokens.
 type TokenSet [4]uint64
@@ -24,6 +28,21 @@ func (e mustError) Error() string {
 		return "ast.Must" + e.kind + ": the nil node"
 	}
 	return "ast.Must" + e.kind + ": a " + e.node.GetToken().String() + " node"
+}
+
+// listMustError is the panic value of a MustFirst or MustOnly list accessor.
+// Its message is built only when printed, so the accessors stay small enough
+// to inline.
+type listMustError struct {
+	method string
+	node   rhino.Node
+}
+
+func (e listMustError) Error() string {
+	if e.node == rhino.NilNode {
+		return "ast." + e.method + ": the nil node"
+	}
+	return "ast." + e.method + ": " + e.node.GetToken().String() + " has " + strconv.Itoa(e.node.GetChildCount()) + " children"
 }
 
 // tokenSetOf returns the set of ts.

@@ -29,7 +29,13 @@ const maxFixedRoles = 4
 // RoleOf returns the role of n in its parent; RoleNone if n has no parent
 // or its parent's kind is not in the grammar.
 func RoleOf(n rhino.Node) Role {
-	p := n.GetParent()
+	return RoleIn(n, n.GetParent())
+}
+
+// RoleIn returns the role of n in its parent p (where p == n.GetParent());
+// RoleNone if p is NilNode or p's kind is not in the grammar. Prefer RoleIn
+// over RoleOf when the caller already holds p.
+func RoleIn(n, p rhino.Node) Role {
 	if p == rhino.NilNode {
 		return RoleNone
 	}

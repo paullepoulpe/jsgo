@@ -22,6 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -65,16 +66,23 @@ func NewDeadAssignmentsElimination(compiler AbstractCompiler) *DeadAssignmentsEl
 	return d
 }
 
+func isRemovableAssignNode(n rhino.Node) bool {
+	if assign, ok := ast.AsAssignment(n); ok {
+		_, isName := assign.Target().AsName()
+		return isName
+	}
+	_, isIncDec := ast.AsIncDec(n)
+	return isIncDec
+}
+
 func daeScanNode(n rhino.Node, compiler AbstractCompiler, candidates *[]rhino.Node) (hasFn bool, hasAssign bool) {
-	if n.IsFunction() {
-		fnBody := n.GetLastChild()
-		if !fnBody.IsNil() && fnBody.IsBlock() {
-			for c := n.GetFirstChild(); !c.IsNil() && c != fnBody; c = c.GetNext() {
-				daeScanNode(c, compiler, candidates)
-			}
+	if fn, ok := ast.AsFunction(n); ok {
+		if fnBody, isBlock := fn.Body().AsBlock(); isBlock {
+			daeScanNode(fn.NameNode().Node(), compiler, candidates)
+			daeScanNode(fn.Params().Node(), compiler, candidates)
 			bodyHasFn := false
 			bodyHasAssign := false
-			for c := fnBody.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			for c := fnBody.Node().GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 				cFn, cAssign := daeScanNode(c, compiler, candidates)
 				if cFn {
 					bodyHasFn = true
@@ -99,14 +107,14 @@ func daeScanNode(n rhino.Node, compiler AbstractCompiler, candidates *[]rhino.No
 			hasAssign = true
 		}
 	}
-	if !hasAssign && ((NodeUtil_IsAssignmentOp(n) && n.GetFirstChild().IsName()) || n.IsInc() || n.IsDec()) {
+	if !hasAssign && isRemovableAssignNode(n) {
 		hasAssign = true
 	}
 	return hasFn, hasAssign
 }
 
 func (d *DeadAssignmentsElimination) eliminateFunction(fn rhino.Node, dummyGlobal *Scope) {
-	fnBody := fn.GetLastChild()
+	fnBody := ast.MustFunction(fn).Body().Node()
 	scopeCreator := d.scopeCreator
 	functionScope := scopeCreator.CreateScopeOfScope(fn, dummyGlobal)
 	blockScope := scopeCreator.CreateScopeOfScope(fnBody, functionScope)
@@ -329,7 +337,7 @@ func allVarsEscaped(allVarsInFn *jutil.LinkedHashMap[string, *Var], escaped *jut
 //
 // Java: DeadAssignmentsElimination.isRemovableAssign(Node)
 func (d *DeadAssignmentsElimination) IsRemovableAssign(n rhino.Node) bool {
-	return (NodeUtil_IsAssignmentOp(n) && n.GetFirstChild().IsName()) || n.IsInc() || n.IsDec()
+	return isRemovableAssignNode(n)
 }
 
 // TryRemoveDeadAssignments tries to remove useless assignments from a
@@ -353,14 +361,20 @@ func (d *DeadAssignmentsElimination) TryRemoveDeadAssignments(t *NodeTraversal,
 		case rhino.Token_IF, rhino.Token_WHILE, rhino.Token_DO:
 			d.TryRemoveAssignment(t, NodeUtil_GetConditionExpression(n), state, allVarsInFn)
 			continue
-		case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-			if n.IsVanillaFor() {
-				d.TryRemoveAssignment(t, NodeUtil_GetConditionExpression(n), state, allVarsInFn)
-			}
+		case rhino.Token_FOR:
+			d.TryRemoveAssignment(t, NodeUtil_GetConditionExpression(n), state, allVarsInFn)
 			continue
-		case rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_RETURN:
-			if n.HasChildren() {
-				d.TryRemoveAssignment(t, n.GetFirstChild(), state, allVarsInFn)
+		case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+			continue
+		case rhino.Token_SWITCH:
+			d.TryRemoveAssignment(t, ast.MustSwitch(n).Discriminant().Node(), state, allVarsInFn)
+			continue
+		case rhino.Token_CASE:
+			d.TryRemoveAssignment(t, ast.MustCase(n).Value().Node(), state, allVarsInFn)
+			continue
+		case rhino.Token_RETURN:
+			if val, ok := ast.MustReturn(n).Value(); ok {
+				d.TryRemoveAssignment(t, val.Node(), state, allVarsInFn)
 			}
 			continue
 			// TODO(user): case VAR: Remove var a=1;a=2;.....
@@ -397,11 +411,13 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
 
 	parent := n.GetParent()
-	isDeclarationNode := NodeUtil_IsNameDeclaration(parent)
+	parentDecl, isDeclarationNode := ast.AsNameDeclaration(parent)
+	assign, isAssignOp := ast.AsAssignment(n)
+	incDec, isIncDec := ast.AsIncDec(n)
 
-	if NodeUtil_IsAssignmentOp(n) || n.IsInc() || n.IsDec() || isDeclarationNode {
+	if isAssignOp || isIncDec || isDeclarationNode {
 
-		if parent.IsConst() {
+		if isDeclarationNode && parentDecl.Token() == rhino.Token_CONST {
 			// Removing the RHS of a const produces as invalid AST.
 			return
 		}
@@ -409,8 +425,10 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 		var lhs rhino.Node
 		if isDeclarationNode {
 			lhs = n
+		} else if isAssignOp {
+			lhs = assign.Target().Node()
 		} else {
-			lhs = n.GetFirstChild()
+			lhs = incDec.Target().Node()
 		}
 		rhs := NodeUtil_GetRValueOfLValue(lhs)
 
@@ -434,10 +452,11 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 			return
 		}
 
-		if !lhs.IsName() {
+		lhsName, isLhsName := ast.AsName(lhs)
+		if !isLhsName {
 			return // Not a local variable assignment.
 		}
-		name := lhs.GetString()
+		name := lhsName.Ident()
 		if t != nil {
 			scope := t.GetScope()
 			jutil.CheckState(scope.IsFunctionBlockScope() || scope.IsBlockScope())
@@ -454,7 +473,7 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 		// If we have an identity assignment such as a=a, always remove it
 		// regardless of what the liveness results because it
 		// does not change the result afterward.
-		if !rhs.IsNil() && rhs.IsName() && rhs.GetString() == var_.GetName() && n.IsAssign() {
+		if rhsName, isRhsName := ast.AsName(rhs); isRhsName && rhsName.Ident() == var_.GetName() && isAssignOp && assign.Token() == rhino.Token_ASSIGN {
 			rhs.Detach()
 			n.ReplaceWith(rhs)
 			d.reportChange(rhs)
@@ -481,21 +500,23 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 			return
 		}
 
-		if n.IsAssign() {
+		if isAssignOp && assign.Token() == rhino.Token_ASSIGN {
 			rhs.Detach()
 			n.ReplaceWith(rhs)
-		} else if NodeUtil_IsAssignmentOp(n) {
+		} else if isAssignOp {
 			rhs.Detach()
 			lhs.Detach()
-			op := rhino.NewNodeWith2Children(NodeUtil_GetOpFromAssignmentOp(n), lhs, rhs)
+			op := ast.NewBinary(NodeUtil_GetOpFromAssignmentOp(n), ast.MustExpr(lhs), ast.MustExpr(rhs)).Node()
 			n.ReplaceWith(op)
-		} else if n.IsInc() || n.IsDec() {
-			if parent.IsExprResult() {
+		} else if isIncDec {
+			if _, isExprStmt := ast.AsExprStmt(parent); isExprStmt {
 				n.ReplaceWith(rhino.IR_VoidNode(rhino.IR_Number(0).Srcref(n)))
 			} else if n.IsComma() && n != parent.GetLastChild() {
+				// Note: upstream Java checks n.isComma() (always false inside isInc/isDec)
+				// rather than parent.isComma(); preserved for parity.
 				n.Detach()
-			} else if parent.IsVanillaFor() && NodeUtil_GetConditionExpression(parent) != n {
-				n.ReplaceWith(rhino.IR_Empty())
+			} else if forStmt, isFor := ast.AsFor(parent); isFor && NodeUtil_GetConditionExpression(forStmt.Node()) != n {
+				n.ReplaceWith(ast.NewEmpty().Node())
 			} else {
 				// Cannot replace x = a++ with x = a because that's not valid
 				// when a is not a number.
@@ -503,8 +524,7 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 			}
 		} else if isDeclarationNode {
 			rhs.Detach()
-			rhino.IR_ExprResult(rhs).InsertAfter(parent)
-			rhs.GetParent().Srcref(rhs)
+			ast.NewExprStmt(ast.MustExpr(rhs)).Node().Srcref(rhs).InsertAfter(parent)
 		} else {
 			// Not reachable.
 			panic(jutil.NewIllegalStateExceptionMsg("Unknown statement"))
@@ -542,8 +562,9 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 func (d *DeadAssignmentsElimination) IsVariableStillLiveWithinExpression(
 	n rhino.Node, exprRoot rhino.Node, variable string) bool {
 	for n != exprRoot {
+		parent := n.GetParent()
 		state := DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-		switch n.GetParent().GetToken() {
+		switch parent.GetToken() {
 		case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_CALL:
 			// For short-circuiting and optional chaining operations, if the current node is the
 			// first child, subsequent siblings (the RHS or arguments) are only conditionally
@@ -555,15 +576,16 @@ func (d *DeadAssignmentsElimination) IsVariableStillLiveWithinExpression(
 					break
 				}
 			}
-			if n == n.GetParent().GetFirstChild() && state == DeadAssignmentsElimination_VariableLiveness_KILL {
+			if n == parent.GetFirstChild() && state == DeadAssignmentsElimination_VariableLiveness_KILL {
 				state = DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 			}
 		case rhino.Token_HOOK:
 			// If current node is the condition, check each following
 			// branch, otherwise it is a conditional branch and the
 			// other branch can be ignored.
-			if !n.GetNext().IsNil() && !n.GetNext().GetNext().IsNil() {
-				state = d.CheckHookBranchReadBeforeKill(n.GetNext(), n.GetNext().GetNext(), variable)
+			hook := ast.MustHook(parent)
+			if hook.Cond().Is(n) {
+				state = d.CheckHookBranchReadBeforeKill(hook.Then().Node(), hook.Else().Node(), variable)
 			}
 		default:
 			for sibling := n.GetNext(); !sibling.IsNil(); sibling = sibling.GetNext() {
@@ -580,7 +602,7 @@ func (d *DeadAssignmentsElimination) IsVariableStillLiveWithinExpression(
 		} else if state == DeadAssignmentsElimination_VariableLiveness_KILL {
 			return false
 		}
-		n = n.GetParent()
+		n = parent
 	}
 	return false
 }
@@ -614,64 +636,73 @@ func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 	}
 
-	if n.IsName() && variable == n.GetString() {
-		if NodeUtil_IsNameDeclOrSimpleAssignLhs(n, n.GetParent()) {
-			jutil.CheckStateMsg1(n.GetParent().IsAssign(), "%s", n.GetParent())
+	if name, ok := ast.AsName(n); ok && variable == name.Ident() {
+		parent := n.GetParent()
+		if NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
+			assign, isAssign := ast.AsAssign(parent)
+			jutil.CheckStateMsg1(isAssign, "%s", parent)
 			// The expression to which the assignment is made is evaluated before
 			// the RHS is evaluated (normal left to right evaluation) but the KILL
 			// occurs after the RHS is evaluated.
-			rhs := n.GetNext()
-			state := d.IsVariableReadBeforeKill(rhs, variable)
+			state := d.IsVariableReadBeforeKill(assign.Value().Node(), variable)
 			if state == DeadAssignmentsElimination_VariableLiveness_READ {
 				return state
 			}
 			return DeadAssignmentsElimination_VariableLiveness_KILL
-		} else {
-			return DeadAssignmentsElimination_VariableLiveness_READ
 		}
+		return DeadAssignmentsElimination_VariableLiveness_READ
 	}
 
 	switch n.GetToken() {
-	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM:
-		{
-			// Conditionals
-			v1 := d.IsVariableReadBeforeKill(n.GetFirstChild(), variable)
-			v2 := d.IsVariableReadBeforeKill(n.GetLastChild(), variable)
-			// With a AND/OR/COALESCE the first branch always runs, but the second is
-			// may not.
-			if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-				return v1
-			} else if v2 == DeadAssignmentsElimination_VariableLiveness_READ {
-				return DeadAssignmentsElimination_VariableLiveness_READ
-			} else {
+	case rhino.Token_OPTCHAIN_GETPROP:
+		// Go-only: OPTCHAIN_GETPROP has only one child (Object; property is its string),
+		// so visiting Object once matches Java without O(2^k) re-traversal on chains.
+		return d.IsVariableReadBeforeKill(ast.MustOptChainGetProp(n).Object().Node(), variable)
+	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
+		bin := ast.MustBinary(n)
+		v1 := d.IsVariableReadBeforeKill(bin.Left().Node(), variable)
+		v2 := d.IsVariableReadBeforeKill(bin.Right().Node(), variable)
+		// With a AND/OR/COALESCE the first branch always runs, but the second
+		// may not.
+		if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
+			return v1
+		} else if v2 == DeadAssignmentsElimination_VariableLiveness_READ {
+			return DeadAssignmentsElimination_VariableLiveness_READ
+		}
+		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
+	case rhino.Token_OPTCHAIN_GETELEM:
+		ge := ast.MustOptChainGetElem(n)
+		v1 := d.IsVariableReadBeforeKill(ge.Object().Node(), variable)
+		v2 := d.IsVariableReadBeforeKill(ge.Index().Node(), variable)
+		if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
+			return v1
+		} else if v2 == DeadAssignmentsElimination_VariableLiveness_READ {
+			return DeadAssignmentsElimination_VariableLiveness_READ
+		}
+		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
+	case rhino.Token_OPTCHAIN_CALL:
+		call := ast.MustOptChainCall(n)
+		v1 := d.IsVariableReadBeforeKill(call.Callee().Node(), variable)
+		if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
+			return v1
+		}
+		for arg, ok := call.FirstArg(); ok; arg, ok = arg.Next() {
+			state := d.IsVariableReadBeforeKill(arg.Node(), variable)
+			if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
+				if state == DeadAssignmentsElimination_VariableLiveness_READ {
+					return DeadAssignmentsElimination_VariableLiveness_READ
+				}
 				return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 			}
 		}
-	case rhino.Token_OPTCHAIN_CALL:
-		{
-			v1 := d.IsVariableReadBeforeKill(n.GetFirstChild(), variable)
-			if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-				return v1
-			}
-			for c := n.GetSecondChild(); !c.IsNil(); c = c.GetNext() {
-				state := d.IsVariableReadBeforeKill(c, variable)
-				if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-					if state == DeadAssignmentsElimination_VariableLiveness_READ {
-						return DeadAssignmentsElimination_VariableLiveness_READ
-					}
-					return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-				}
-			}
-			return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-		}
+		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 	case rhino.Token_HOOK:
-		{
-			first := d.IsVariableReadBeforeKill(n.GetFirstChild(), variable)
-			if first != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-				return first
-			}
-			return d.CheckHookBranchReadBeforeKill(n.GetSecondChild(), n.GetLastChild(), variable)
+		hook := ast.MustHook(n)
+		first := d.IsVariableReadBeforeKill(hook.Cond().Node(), variable)
+		if first != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
+			return first
 		}
+		return d.CheckHookBranchReadBeforeKill(hook.Then().Node(), hook.Else().Node(), variable)
 	default:
 		// Expressions are evaluated left-right, depth first.
 		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {

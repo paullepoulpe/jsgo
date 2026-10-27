@@ -21,6 +21,7 @@ package jscomp
 import (
 	"iter"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -423,12 +424,13 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n rhino.Node, cfgNode rhino.Nod
 	case rhino.Token_BLOCK, rhino.Token_ROOT, rhino.Token_FUNCTION:
 		return
 	case rhino.Token_NAME:
+		ident := ast.MustName(n).Ident()
 		if NodeUtil_IsLhsByDestructuring(n) {
 			if !conditional {
-				u.RemoveFromUseIfLocal(n.GetString(), output)
+				u.RemoveFromUseIfLocal(ident, output)
 			}
 		} else {
-			u.AddToUseIfLocal(n.GetString(), cfgNode, output)
+			u.AddToUseIfLocal(ident, cfgNode, output)
 		}
 		return
 	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
@@ -437,94 +439,127 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n rhino.Node, cfgNode rhino.Nod
 		return
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// for(x in y) {...}
-		lhs := n.GetFirstChild()
-		rhs := lhs.GetNext()
-		if NodeUtil_IsNameDeclaration(lhs) {
-			lhs = lhs.GetLastChild() // for(var x in y) {...}
-			if lhs.IsDestructuringLhs() {
-				lhs = lhs.GetFirstChild() // for (let [x] of obj) {...}
+		loop := ast.MustEnhancedFor(n)
+		target := loop.Target()
+		var lhs rhino.Node
+		if decl, ok := target.AsNameDeclaration(); ok {
+			if last, hasLast := decl.LastDeclarator(); hasLast { // for(var x in y) {...}
+				if dlhs, isDlhs := last.AsDestructuringLhs(); isDlhs {
+					lhs = dlhs.Pattern().Node() // for (let [x] of obj) {...}
+				} else {
+					lhs = last.Node()
+				}
 			}
+		} else {
+			lhs = target.Node()
 		}
-		if lhs.IsDestructuringPattern() {
+		if _, isPat := ast.AsPattern(lhs); isPat {
 			u.ComputeMayUse(lhs, cfgNode, output, true)
 		}
-		u.ComputeMayUse(rhs, cfgNode, output, conditional)
+		u.ComputeMayUse(loop.Collection().Node(), cfgNode, output, conditional)
 		return
-	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM:
-		u.ComputeMayUse(n.GetLastChild(), cfgNode, output /* conditional= */, true)
-		u.ComputeMayUse(n.GetFirstChild(), cfgNode, output, conditional)
+	case rhino.Token_OPTCHAIN_GETPROP:
+		// Go-only: OPTCHAIN_GETPROP has only one child (Object; property is its string),
+		// so visiting Object once matches Java without O(2^k) re-traversal on chains.
+		u.ComputeMayUse(ast.MustOptChainGetProp(n).Object().Node(), cfgNode, output, conditional)
+		return
+	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
+		bin := ast.MustBinary(n)
+		u.ComputeMayUse(bin.Right().Node(), cfgNode, output /* conditional= */, true)
+		u.ComputeMayUse(bin.Left().Node(), cfgNode, output, conditional)
+		return
+	case rhino.Token_OPTCHAIN_GETELEM:
+		ge := ast.MustOptChainGetElem(n)
+		u.ComputeMayUse(ge.Index().Node(), cfgNode, output /* conditional= */, true)
+		u.ComputeMayUse(ge.Object().Node(), cfgNode, output, conditional)
 		return
 	case rhino.Token_OPTCHAIN_CALL:
+		call := ast.MustOptChainCall(n)
+		callee := call.Callee().Node()
 		// As args are evaluated in AST order, we traverse in reverse AST order for backward
 		// dataflow analysis.
-		for c := n.GetLastChild(); c != n.GetFirstChild(); c = c.GetPrevious() {
+		for c := n.GetLastChild(); c != callee; c = c.GetPrevious() {
 			u.ComputeMayUse(c, cfgNode, output /* conditional= */, true)
 		}
-		u.ComputeMayUse(n.GetFirstChild(), cfgNode, output, conditional)
+		u.ComputeMayUse(callee, cfgNode, output, conditional)
 		return
 	case rhino.Token_HOOK:
-		u.ComputeMayUse(n.GetLastChild(), cfgNode, output /* conditional= */, true)
-		u.ComputeMayUse(n.GetSecondChild(), cfgNode, output /* conditional= */, true)
-		u.ComputeMayUse(n.GetFirstChild(), cfgNode, output, conditional)
+		hook := ast.MustHook(n)
+		u.ComputeMayUse(hook.Else().Node(), cfgNode, output /* conditional= */, true)
+		u.ComputeMayUse(hook.Then().Node(), cfgNode, output /* conditional= */, true)
+		u.ComputeMayUse(hook.Cond().Node(), cfgNode, output, conditional)
 		return
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		varName := n.GetFirstChild()
-		jutil.CheckStateMsg1(n.HasChildren(), "AST should be normalized (%s)", n)
-
-		if varName.IsDestructuringLhs() {
-			// Note: since destructuring is evaluated in reverse AST order, we traverse the first
-			// child before the second in order to do our backwards data flow analysis.
-			u.ComputeMayUse(varName.GetFirstChild(), cfgNode, output, conditional)
-			u.ComputeMayUse(varName.GetSecondChild(), cfgNode, output, conditional)
-		} else if varName.HasChildren() {
-			u.ComputeMayUse(varName.GetFirstChild(), cfgNode, output, conditional)
-			if !conditional {
-				u.RemoveFromUseIfLocal(varName.GetString(), output)
+		decl := ast.MustNameDeclaration(n)
+		jutil.CheckStateMsg1(decl.HasDeclarators(), "AST should be normalized (%s)", n)
+		d := decl.MustFirstDeclarator()
+		if dlhs, ok := d.AsDestructuringLhs(); ok {
+			// Note: since destructuring is evaluated in reverse AST order, we traverse the pattern
+			// before the initializer in order to do our backwards data flow analysis.
+			u.ComputeMayUse(dlhs.Pattern().Node(), cfgNode, output, conditional)
+			if init, hasInit := dlhs.Init(); hasInit {
+				u.ComputeMayUse(init.Node(), cfgNode, output, conditional)
 			}
-		} // else var name declaration with no initial value
+		} else {
+			varName := d.MustName()
+			if init, hasInit := varName.Init(); hasInit {
+				u.ComputeMayUse(init.Node(), cfgNode, output, conditional)
+				if !conditional {
+					u.RemoveFromUseIfLocal(varName.Ident(), output)
+				}
+			} // else var name declaration with no initial value
+		}
 		return
 	case rhino.Token_DEFAULT_VALUE:
-		if n.GetFirstChild().IsDestructuringPattern() {
-			u.ComputeMayUse(n.GetFirstChild(), cfgNode, output, conditional)
-			u.ComputeMayUse(n.GetSecondChild(), cfgNode, output, true)
-		} else if n.GetFirstChild().IsName() {
+		dv := ast.MustDefaultValue(n)
+		target := dv.Target()
+		value := dv.Value().Node()
+		if pat, ok := target.AsPattern(); ok {
+			u.ComputeMayUse(pat.Node(), cfgNode, output, conditional)
+			u.ComputeMayUse(value, cfgNode, output, true)
+		} else if name, ok := target.AsName(); ok {
 			// assigning to the name occurs after evaluating the default value
 			if !conditional {
-				u.RemoveFromUseIfLocal(n.GetFirstChild().GetString(), output)
+				u.RemoveFromUseIfLocal(name.Ident(), output)
 			}
-			u.ComputeMayUse(n.GetSecondChild(), cfgNode, output, true)
+			u.ComputeMayUse(value, cfgNode, output, true)
 		} else {
-			u.ComputeMayUse(n.GetSecondChild(), cfgNode, output, true)
-			u.ComputeMayUse(n.GetFirstChild(), cfgNode, output, conditional)
+			u.ComputeMayUse(value, cfgNode, output, true)
+			u.ComputeMayUse(target.Node(), cfgNode, output, conditional)
 		}
 	default:
-		if NodeUtil_IsAssignmentOp(n) && n.GetFirstChild().IsName() {
-			jutil.CheckState(!NodeUtil_IsLogicalAssignmentOp(n))
-			name := n.GetFirstChild()
-			var_ := u.lookupUnescapedLocal(name.GetString())
-			if var_ != nil {
-				if !conditional {
-					output.RemoveAll(var_)
+		if assign, ok := ast.AsAssignment(n); ok {
+			if name, isName := assign.Target().AsName(); isName {
+				jutil.CheckState(!NodeUtil_IsLogicalAssignmentOp(n))
+				var_ := u.lookupUnescapedLocal(name.Ident())
+				if var_ != nil {
+					if !conditional {
+						output.RemoveAll(var_)
+					}
+					// In case of a += "Hello". There is a read of a.
+					if assign.Token() != rhino.Token_ASSIGN {
+						output.Put(var_, cfgNode)
+					}
 				}
-				// In case of a += "Hello". There is a read of a.
-				if !n.IsAssign() {
-					output.Put(var_, cfgNode)
-				}
-			}
 
-			u.ComputeMayUse(name.GetNext(), cfgNode, output, conditional)
-		} else if n.IsAssign() && n.GetFirstChild().IsDestructuringPattern() {
-			// Note: the rhs of destructuring is evaluated before the lhs
-			u.ComputeMayUse(n.GetFirstChild(), cfgNode, output, conditional)
-			u.ComputeMayUse(n.GetSecondChild(), cfgNode, output, conditional)
-		} else {
-			/*
-			 * We want to traverse in reverse order because we want the LAST
-			 * definition in the sub-tree.
-			 */
-			for c := n.GetLastChild(); !c.IsNil(); c = c.GetPrevious() {
-				u.ComputeMayUse(c, cfgNode, output, conditional)
+				u.ComputeMayUse(assign.Value().Node(), cfgNode, output, conditional)
+				return
 			}
+			if assign.Token() == rhino.Token_ASSIGN {
+				if pat, isPat := assign.Target().AsPattern(); isPat {
+					// Note: the rhs of destructuring is evaluated before the lhs
+					u.ComputeMayUse(pat.Node(), cfgNode, output, conditional)
+					u.ComputeMayUse(assign.Value().Node(), cfgNode, output, conditional)
+					return
+				}
+			}
+		}
+		/*
+		 * We want to traverse in reverse order because we want the LAST
+		 * definition in the sub-tree.
+		 */
+		for c := n.GetLastChild(); !c.IsNil(); c = c.GetPrevious() {
+			u.ComputeMayUse(c, cfgNode, output, conditional)
 		}
 	}
 }

@@ -59,6 +59,15 @@ func (x Root) FirstItem() (v RootItem, ok bool) {
 	return RootItem{c}, c != rhino.NilNode
 }
 
+// MustFirstItem returns the first of the items of x; it panics if there is none.
+func (x Root) MustFirstItem() RootItem {
+	v, ok := x.FirstItem()
+	if !ok {
+		panic(listMustError{"Root.MustFirstItem", x.node})
+	}
+	return v
+}
+
 // LastItem returns the last of the items of x; ok is false if there is none.
 func (x Root) LastItem() (v RootItem, ok bool) {
 	c := x.node.GetLastChild()
@@ -69,6 +78,15 @@ func (x Root) LastItem() (v RootItem, ok bool) {
 func (x Root) OnlyItem() (v RootItem, ok bool) {
 	c := x.node.GetFirstChild()
 	return RootItem{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyItem returns the only item of x; it panics if x has none or several.
+func (x Root) MustOnlyItem() RootItem {
+	v, ok := x.OnlyItem()
+	if !ok {
+		panic(listMustError{"Root.MustOnlyItem", x.node})
+	}
+	return v
 }
 
 // HasItems reports whether x has any items.
@@ -146,6 +164,15 @@ func (x Script) FirstItem() (v ScriptItem, ok bool) {
 	return ScriptItem{c}, c != rhino.NilNode
 }
 
+// MustFirstItem returns the first of the items of x; it panics if there is none.
+func (x Script) MustFirstItem() ScriptItem {
+	v, ok := x.FirstItem()
+	if !ok {
+		panic(listMustError{"Script.MustFirstItem", x.node})
+	}
+	return v
+}
+
 // LastItem returns the last of the items of x; ok is false if there is none.
 func (x Script) LastItem() (v ScriptItem, ok bool) {
 	c := x.node.GetLastChild()
@@ -156,6 +183,15 @@ func (x Script) LastItem() (v ScriptItem, ok bool) {
 func (x Script) OnlyItem() (v ScriptItem, ok bool) {
 	c := x.node.GetFirstChild()
 	return ScriptItem{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyItem returns the only item of x; it panics if x has none or several.
+func (x Script) MustOnlyItem() ScriptItem {
+	v, ok := x.OnlyItem()
+	if !ok {
+		panic(listMustError{"Script.MustOnlyItem", x.node})
+	}
+	return v
 }
 
 // HasItems reports whether x has any items.
@@ -233,6 +269,15 @@ func (x ModuleBody) FirstStatement() (v Statement, ok bool) {
 	return Statement{c}, c != rhino.NilNode
 }
 
+// MustFirstStatement returns the first of the statements of x; it panics if there is none.
+func (x ModuleBody) MustFirstStatement() Statement {
+	v, ok := x.FirstStatement()
+	if !ok {
+		panic(listMustError{"ModuleBody.MustFirstStatement", x.node})
+	}
+	return v
+}
+
 // LastStatement returns the last of the statements of x; ok is false if there is none.
 func (x ModuleBody) LastStatement() (v Statement, ok bool) {
 	c := x.node.GetLastChild()
@@ -243,6 +288,15 @@ func (x ModuleBody) LastStatement() (v Statement, ok bool) {
 func (x ModuleBody) OnlyStatement() (v Statement, ok bool) {
 	c := x.node.GetFirstChild()
 	return Statement{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyStatement returns the only statement of x; it panics if x has none or several.
+func (x ModuleBody) MustOnlyStatement() Statement {
+	v, ok := x.OnlyStatement()
+	if !ok {
+		panic(listMustError{"ModuleBody.MustOnlyStatement", x.node})
+	}
+	return v
 }
 
 // HasStatements reports whether x has any statements.
@@ -320,6 +374,15 @@ func (x Block) FirstStatement() (v Statement, ok bool) {
 	return Statement{c}, c != rhino.NilNode
 }
 
+// MustFirstStatement returns the first of the statements of x; it panics if there is none.
+func (x Block) MustFirstStatement() Statement {
+	v, ok := x.FirstStatement()
+	if !ok {
+		panic(listMustError{"Block.MustFirstStatement", x.node})
+	}
+	return v
+}
+
 // LastStatement returns the last of the statements of x; ok is false if there is none.
 func (x Block) LastStatement() (v Statement, ok bool) {
 	c := x.node.GetLastChild()
@@ -330,6 +393,15 @@ func (x Block) LastStatement() (v Statement, ok bool) {
 func (x Block) OnlyStatement() (v Statement, ok bool) {
 	c := x.node.GetFirstChild()
 	return Statement{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyStatement returns the only statement of x; it panics if x has none or several.
+func (x Block) MustOnlyStatement() Statement {
+	v, ok := x.OnlyStatement()
+	if !ok {
+		panic(listMustError{"Block.MustOnlyStatement", x.node})
+	}
+	return v
 }
 
 // HasStatements reports whether x has any statements.
@@ -1174,6 +1246,15 @@ func (x SwitchBody) FirstCase() (v SwitchCase, ok bool) {
 	return SwitchCase{c}, c != rhino.NilNode
 }
 
+// MustFirstCase returns the first of the cases of x; it panics if there is none.
+func (x SwitchBody) MustFirstCase() SwitchCase {
+	v, ok := x.FirstCase()
+	if !ok {
+		panic(listMustError{"SwitchBody.MustFirstCase", x.node})
+	}
+	return v
+}
+
 // LastCase returns the last of the cases of x; ok is false if there is none.
 func (x SwitchBody) LastCase() (v SwitchCase, ok bool) {
 	c := x.node.GetLastChild()
@@ -1184,6 +1265,15 @@ func (x SwitchBody) LastCase() (v SwitchCase, ok bool) {
 func (x SwitchBody) OnlyCase() (v SwitchCase, ok bool) {
 	c := x.node.GetFirstChild()
 	return SwitchCase{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyCase returns the only case of x; it panics if x has none or several.
+func (x SwitchBody) MustOnlyCase() SwitchCase {
+	v, ok := x.OnlyCase()
+	if !ok {
+		panic(listMustError{"SwitchBody.MustOnlyCase", x.node})
+	}
+	return v
 }
 
 // HasCases reports whether x has any cases.
@@ -1533,6 +1623,15 @@ func (x NameDeclaration) FirstDeclarator() (v Declarator, ok bool) {
 	return Declarator{c}, c != rhino.NilNode
 }
 
+// MustFirstDeclarator returns the first of the declarators of x; it panics if there is none.
+func (x NameDeclaration) MustFirstDeclarator() Declarator {
+	v, ok := x.FirstDeclarator()
+	if !ok {
+		panic(listMustError{"NameDeclaration.MustFirstDeclarator", x.node})
+	}
+	return v
+}
+
 // LastDeclarator returns the last of the declarators of x; ok is false if there is none.
 func (x NameDeclaration) LastDeclarator() (v Declarator, ok bool) {
 	c := x.node.GetLastChild()
@@ -1543,6 +1642,15 @@ func (x NameDeclaration) LastDeclarator() (v Declarator, ok bool) {
 func (x NameDeclaration) OnlyDeclarator() (v Declarator, ok bool) {
 	c := x.node.GetFirstChild()
 	return Declarator{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyDeclarator returns the only declarator of x; it panics if x has none or several.
+func (x NameDeclaration) MustOnlyDeclarator() Declarator {
+	v, ok := x.OnlyDeclarator()
+	if !ok {
+		panic(listMustError{"NameDeclaration.MustOnlyDeclarator", x.node})
+	}
+	return v
 }
 
 // HasDeclarators reports whether x has any declarators.
@@ -2210,6 +2318,15 @@ func (x ParamList) FirstParam() (v Param, ok bool) {
 	return Param{c}, c != rhino.NilNode
 }
 
+// MustFirstParam returns the first of the params of x; it panics if there is none.
+func (x ParamList) MustFirstParam() Param {
+	v, ok := x.FirstParam()
+	if !ok {
+		panic(listMustError{"ParamList.MustFirstParam", x.node})
+	}
+	return v
+}
+
 // LastParam returns the last of the params of x; ok is false if there is none.
 func (x ParamList) LastParam() (v Param, ok bool) {
 	c := x.node.GetLastChild()
@@ -2220,6 +2337,15 @@ func (x ParamList) LastParam() (v Param, ok bool) {
 func (x ParamList) OnlyParam() (v Param, ok bool) {
 	c := x.node.GetFirstChild()
 	return Param{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyParam returns the only param of x; it panics if x has none or several.
+func (x ParamList) MustOnlyParam() Param {
+	v, ok := x.OnlyParam()
+	if !ok {
+		panic(listMustError{"ParamList.MustOnlyParam", x.node})
+	}
+	return v
 }
 
 // HasParams reports whether x has any params.
@@ -2553,6 +2679,15 @@ func (x ArrayPattern) FirstElement() (v ArrayPatternElem, ok bool) {
 	return ArrayPatternElem{c}, c != rhino.NilNode
 }
 
+// MustFirstElement returns the first of the elements of x; it panics if there is none.
+func (x ArrayPattern) MustFirstElement() ArrayPatternElem {
+	v, ok := x.FirstElement()
+	if !ok {
+		panic(listMustError{"ArrayPattern.MustFirstElement", x.node})
+	}
+	return v
+}
+
 // LastElement returns the last of the elements of x; ok is false if there is none.
 func (x ArrayPattern) LastElement() (v ArrayPatternElem, ok bool) {
 	c := x.node.GetLastChild()
@@ -2563,6 +2698,15 @@ func (x ArrayPattern) LastElement() (v ArrayPatternElem, ok bool) {
 func (x ArrayPattern) OnlyElement() (v ArrayPatternElem, ok bool) {
 	c := x.node.GetFirstChild()
 	return ArrayPatternElem{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyElement returns the only element of x; it panics if x has none or several.
+func (x ArrayPattern) MustOnlyElement() ArrayPatternElem {
+	v, ok := x.OnlyElement()
+	if !ok {
+		panic(listMustError{"ArrayPattern.MustOnlyElement", x.node})
+	}
+	return v
 }
 
 // HasElements reports whether x has any elements.
@@ -2658,6 +2802,15 @@ func (x ObjectPattern) FirstProp() (v ObjectPatternProp, ok bool) {
 	return ObjectPatternProp{c}, c != rhino.NilNode
 }
 
+// MustFirstProp returns the first of the props of x; it panics if there is none.
+func (x ObjectPattern) MustFirstProp() ObjectPatternProp {
+	v, ok := x.FirstProp()
+	if !ok {
+		panic(listMustError{"ObjectPattern.MustFirstProp", x.node})
+	}
+	return v
+}
+
 // LastProp returns the last of the props of x; ok is false if there is none.
 func (x ObjectPattern) LastProp() (v ObjectPatternProp, ok bool) {
 	c := x.node.GetLastChild()
@@ -2668,6 +2821,15 @@ func (x ObjectPattern) LastProp() (v ObjectPatternProp, ok bool) {
 func (x ObjectPattern) OnlyProp() (v ObjectPatternProp, ok bool) {
 	c := x.node.GetFirstChild()
 	return ObjectPatternProp{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyProp returns the only prop of x; it panics if x has none or several.
+func (x ObjectPattern) MustOnlyProp() ObjectPatternProp {
+	v, ok := x.OnlyProp()
+	if !ok {
+		panic(listMustError{"ObjectPattern.MustOnlyProp", x.node})
+	}
+	return v
 }
 
 // HasProps reports whether x has any props.
@@ -2852,6 +3014,15 @@ func (x ClassBody) FirstMember() (v ClassMember, ok bool) {
 	return ClassMember{c}, c != rhino.NilNode
 }
 
+// MustFirstMember returns the first of the members of x; it panics if there is none.
+func (x ClassBody) MustFirstMember() ClassMember {
+	v, ok := x.FirstMember()
+	if !ok {
+		panic(listMustError{"ClassBody.MustFirstMember", x.node})
+	}
+	return v
+}
+
 // LastMember returns the last of the members of x; ok is false if there is none.
 func (x ClassBody) LastMember() (v ClassMember, ok bool) {
 	c := x.node.GetLastChild()
@@ -2862,6 +3033,15 @@ func (x ClassBody) LastMember() (v ClassMember, ok bool) {
 func (x ClassBody) OnlyMember() (v ClassMember, ok bool) {
 	c := x.node.GetFirstChild()
 	return ClassMember{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyMember returns the only member of x; it panics if x has none or several.
+func (x ClassBody) MustOnlyMember() ClassMember {
+	v, ok := x.OnlyMember()
+	if !ok {
+		panic(listMustError{"ClassBody.MustOnlyMember", x.node})
+	}
+	return v
 }
 
 // HasMembers reports whether x has any members.
@@ -2942,6 +3122,9 @@ func (x MemberFunctionDef) AsObjectMember() ObjectMember { return ObjectMember{x
 // AsClassMember returns x as a ClassMember.
 func (x MemberFunctionDef) AsClassMember() ClassMember { return ClassMember{x.node} }
 
+// AsMethodDef returns x as a MethodDef.
+func (x MemberFunctionDef) AsMethodDef() MethodDef { return MethodDef{x.node} }
+
 // GetterDef is get key() { body }.
 //
 // Grammar: GetterDef = GETTER_DEF  $Key function:Function
@@ -3002,6 +3185,9 @@ func (x GetterDef) AsClassMember() ClassMember { return ClassMember{x.node} }
 // AsGetterOrSetterDef returns x as a GetterOrSetterDef.
 func (x GetterDef) AsGetterOrSetterDef() GetterOrSetterDef { return GetterOrSetterDef{x.node} }
 
+// AsMethodDef returns x as a MethodDef.
+func (x GetterDef) AsMethodDef() MethodDef { return MethodDef{x.node} }
+
 // SetterDef is set key(param) { body }.
 //
 // Grammar: SetterDef = SETTER_DEF  $Key function:Function
@@ -3061,6 +3247,9 @@ func (x SetterDef) AsClassMember() ClassMember { return ClassMember{x.node} }
 
 // AsGetterOrSetterDef returns x as a GetterOrSetterDef.
 func (x SetterDef) AsGetterOrSetterDef() GetterOrSetterDef { return GetterOrSetterDef{x.node} }
+
+// AsMethodDef returns x as a MethodDef.
+func (x SetterDef) AsMethodDef() MethodDef { return MethodDef{x.node} }
 
 // MemberFieldDef is a class field: key = value.
 //
@@ -3201,6 +3390,9 @@ func NewComputedFieldDef(key Expr) ComputedFieldDef {
 // AsClassMember returns x as a ClassMember.
 func (x ComputedFieldDef) AsClassMember() ClassMember { return ClassMember{x.node} }
 
+// AsComputedMember returns x as a ComputedMember.
+func (x ComputedFieldDef) AsComputedMember() ComputedMember { return ComputedMember{x.node} }
+
 // ComputedProp is [key]: value in an object literal or pattern, or a
 // method with a computed key in a class.
 //
@@ -3277,6 +3469,9 @@ func (x ComputedProp) AsObjectMember() ObjectMember { return ObjectMember{x.node
 
 // AsClassMember returns x as a ClassMember.
 func (x ComputedProp) AsClassMember() ClassMember { return ClassMember{x.node} }
+
+// AsComputedMember returns x as a ComputedMember.
+func (x ComputedProp) AsComputedMember() ComputedMember { return ComputedMember{x.node} }
 
 // MemberVariableDef is a member variable of a type summary.
 //
@@ -3376,6 +3571,15 @@ func (x IndexSignature) FirstChild() (v rhino.Node, ok bool) {
 	return c, c != rhino.NilNode
 }
 
+// MustFirstChild returns the first of the children of x; it panics if there is none.
+func (x IndexSignature) MustFirstChild() rhino.Node {
+	v, ok := x.FirstChild()
+	if !ok {
+		panic(listMustError{"IndexSignature.MustFirstChild", x.node})
+	}
+	return v
+}
+
 // LastChild returns the last of the children of x; ok is false if there is none.
 func (x IndexSignature) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
@@ -3386,6 +3590,15 @@ func (x IndexSignature) LastChild() (v rhino.Node, ok bool) {
 func (x IndexSignature) OnlyChild() (v rhino.Node, ok bool) {
 	c := x.node.GetFirstChild()
 	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyChild returns the only child of x; it panics if x has none or several.
+func (x IndexSignature) MustOnlyChild() rhino.Node {
+	v, ok := x.OnlyChild()
+	if !ok {
+		panic(listMustError{"IndexSignature.MustOnlyChild", x.node})
+	}
+	return v
 }
 
 // HasChildren reports whether x has any children.
@@ -3463,6 +3676,15 @@ func (x CallSignature) FirstChild() (v rhino.Node, ok bool) {
 	return c, c != rhino.NilNode
 }
 
+// MustFirstChild returns the first of the children of x; it panics if there is none.
+func (x CallSignature) MustFirstChild() rhino.Node {
+	v, ok := x.FirstChild()
+	if !ok {
+		panic(listMustError{"CallSignature.MustFirstChild", x.node})
+	}
+	return v
+}
+
 // LastChild returns the last of the children of x; ok is false if there is none.
 func (x CallSignature) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
@@ -3473,6 +3695,15 @@ func (x CallSignature) LastChild() (v rhino.Node, ok bool) {
 func (x CallSignature) OnlyChild() (v rhino.Node, ok bool) {
 	c := x.node.GetFirstChild()
 	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyChild returns the only child of x; it panics if x has none or several.
+func (x CallSignature) MustOnlyChild() rhino.Node {
+	v, ok := x.OnlyChild()
+	if !ok {
+		panic(listMustError{"CallSignature.MustOnlyChild", x.node})
+	}
+	return v
 }
 
 // HasChildren reports whether x has any children.
@@ -4328,6 +4559,15 @@ func (x TemplateLit) FirstPart() (v TemplatePart, ok bool) {
 	return TemplatePart{c}, c != rhino.NilNode
 }
 
+// MustFirstPart returns the first of the parts of x; it panics if there is none.
+func (x TemplateLit) MustFirstPart() TemplatePart {
+	v, ok := x.FirstPart()
+	if !ok {
+		panic(listMustError{"TemplateLit.MustFirstPart", x.node})
+	}
+	return v
+}
+
 // LastPart returns the last of the parts of x; ok is false if there is none.
 func (x TemplateLit) LastPart() (v TemplatePart, ok bool) {
 	c := x.node.GetLastChild()
@@ -4338,6 +4578,15 @@ func (x TemplateLit) LastPart() (v TemplatePart, ok bool) {
 func (x TemplateLit) OnlyPart() (v TemplatePart, ok bool) {
 	c := x.node.GetFirstChild()
 	return TemplatePart{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyPart returns the only part of x; it panics if x has none or several.
+func (x TemplateLit) MustOnlyPart() TemplatePart {
+	v, ok := x.OnlyPart()
+	if !ok {
+		panic(listMustError{"TemplateLit.MustOnlyPart", x.node})
+	}
+	return v
 }
 
 // HasParts reports whether x has any parts.
@@ -4596,6 +4845,15 @@ func (x ArrayLit) FirstElement() (v ArrayElem, ok bool) {
 	return ArrayElem{c}, c != rhino.NilNode
 }
 
+// MustFirstElement returns the first of the elements of x; it panics if there is none.
+func (x ArrayLit) MustFirstElement() ArrayElem {
+	v, ok := x.FirstElement()
+	if !ok {
+		panic(listMustError{"ArrayLit.MustFirstElement", x.node})
+	}
+	return v
+}
+
 // LastElement returns the last of the elements of x; ok is false if there is none.
 func (x ArrayLit) LastElement() (v ArrayElem, ok bool) {
 	c := x.node.GetLastChild()
@@ -4606,6 +4864,15 @@ func (x ArrayLit) LastElement() (v ArrayElem, ok bool) {
 func (x ArrayLit) OnlyElement() (v ArrayElem, ok bool) {
 	c := x.node.GetFirstChild()
 	return ArrayElem{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyElement returns the only element of x; it panics if x has none or several.
+func (x ArrayLit) MustOnlyElement() ArrayElem {
+	v, ok := x.OnlyElement()
+	if !ok {
+		panic(listMustError{"ArrayLit.MustOnlyElement", x.node})
+	}
+	return v
 }
 
 // HasElements reports whether x has any elements.
@@ -4701,6 +4968,15 @@ func (x ObjectLit) FirstMember() (v ObjectMember, ok bool) {
 	return ObjectMember{c}, c != rhino.NilNode
 }
 
+// MustFirstMember returns the first of the members of x; it panics if there is none.
+func (x ObjectLit) MustFirstMember() ObjectMember {
+	v, ok := x.FirstMember()
+	if !ok {
+		panic(listMustError{"ObjectLit.MustFirstMember", x.node})
+	}
+	return v
+}
+
 // LastMember returns the last of the members of x; ok is false if there is none.
 func (x ObjectLit) LastMember() (v ObjectMember, ok bool) {
 	c := x.node.GetLastChild()
@@ -4711,6 +4987,15 @@ func (x ObjectLit) LastMember() (v ObjectMember, ok bool) {
 func (x ObjectLit) OnlyMember() (v ObjectMember, ok bool) {
 	c := x.node.GetFirstChild()
 	return ObjectMember{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyMember returns the only member of x; it panics if x has none or several.
+func (x ObjectLit) MustOnlyMember() ObjectMember {
+	v, ok := x.OnlyMember()
+	if !ok {
+		panic(listMustError{"ObjectLit.MustOnlyMember", x.node})
+	}
+	return v
 }
 
 // HasMembers reports whether x has any members.
@@ -5866,6 +6151,15 @@ func (x Call) FirstArg() (v Arg, ok bool) {
 	return Arg{c}, c != rhino.NilNode
 }
 
+// MustFirstArg returns the first of the args of x; it panics if there is none.
+func (x Call) MustFirstArg() Arg {
+	v, ok := x.FirstArg()
+	if !ok {
+		panic(listMustError{"Call.MustFirstArg", x.node})
+	}
+	return v
+}
+
 // LastArg returns the last of the args of x; ok is false if there is none.
 func (x Call) LastArg() (v Arg, ok bool) {
 	if x.node.GetFirstChild().GetNext() == rhino.NilNode {
@@ -5879,6 +6173,15 @@ func (x Call) LastArg() (v Arg, ok bool) {
 func (x Call) OnlyArg() (v Arg, ok bool) {
 	c := x.node.GetFirstChild().GetNext()
 	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyArg returns the only arg of x; it panics if x has none or several.
+func (x Call) MustOnlyArg() Arg {
+	v, ok := x.OnlyArg()
+	if !ok {
+		panic(listMustError{"Call.MustOnlyArg", x.node})
+	}
+	return v
 }
 
 // HasArgs reports whether x has any args.
@@ -5984,6 +6287,15 @@ func (x OptChainCall) FirstArg() (v Arg, ok bool) {
 	return Arg{c}, c != rhino.NilNode
 }
 
+// MustFirstArg returns the first of the args of x; it panics if there is none.
+func (x OptChainCall) MustFirstArg() Arg {
+	v, ok := x.FirstArg()
+	if !ok {
+		panic(listMustError{"OptChainCall.MustFirstArg", x.node})
+	}
+	return v
+}
+
 // LastArg returns the last of the args of x; ok is false if there is none.
 func (x OptChainCall) LastArg() (v Arg, ok bool) {
 	if x.node.GetFirstChild().GetNext() == rhino.NilNode {
@@ -5997,6 +6309,15 @@ func (x OptChainCall) LastArg() (v Arg, ok bool) {
 func (x OptChainCall) OnlyArg() (v Arg, ok bool) {
 	c := x.node.GetFirstChild().GetNext()
 	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyArg returns the only arg of x; it panics if x has none or several.
+func (x OptChainCall) MustOnlyArg() Arg {
+	v, ok := x.OnlyArg()
+	if !ok {
+		panic(listMustError{"OptChainCall.MustOnlyArg", x.node})
+	}
+	return v
 }
 
 // HasArgs reports whether x has any args.
@@ -6104,6 +6425,15 @@ func (x New) FirstArg() (v Arg, ok bool) {
 	return Arg{c}, c != rhino.NilNode
 }
 
+// MustFirstArg returns the first of the args of x; it panics if there is none.
+func (x New) MustFirstArg() Arg {
+	v, ok := x.FirstArg()
+	if !ok {
+		panic(listMustError{"New.MustFirstArg", x.node})
+	}
+	return v
+}
+
 // LastArg returns the last of the args of x; ok is false if there is none.
 func (x New) LastArg() (v Arg, ok bool) {
 	if x.node.GetFirstChild().GetNext() == rhino.NilNode {
@@ -6117,6 +6447,15 @@ func (x New) LastArg() (v Arg, ok bool) {
 func (x New) OnlyArg() (v Arg, ok bool) {
 	c := x.node.GetFirstChild().GetNext()
 	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyArg returns the only arg of x; it panics if x has none or several.
+func (x New) MustOnlyArg() Arg {
+	v, ok := x.OnlyArg()
+	if !ok {
+		panic(listMustError{"New.MustOnlyArg", x.node})
+	}
+	return v
 }
 
 // HasArgs reports whether x has any args.
@@ -6431,6 +6770,15 @@ func (x ImportSpecs) FirstSpec() (v ImportSpec, ok bool) {
 	return ImportSpec{c}, c != rhino.NilNode
 }
 
+// MustFirstSpec returns the first of the specs of x; it panics if there is none.
+func (x ImportSpecs) MustFirstSpec() ImportSpec {
+	v, ok := x.FirstSpec()
+	if !ok {
+		panic(listMustError{"ImportSpecs.MustFirstSpec", x.node})
+	}
+	return v
+}
+
 // LastSpec returns the last of the specs of x; ok is false if there is none.
 func (x ImportSpecs) LastSpec() (v ImportSpec, ok bool) {
 	c := x.node.GetLastChild()
@@ -6441,6 +6789,15 @@ func (x ImportSpecs) LastSpec() (v ImportSpec, ok bool) {
 func (x ImportSpecs) OnlySpec() (v ImportSpec, ok bool) {
 	c := x.node.GetFirstChild()
 	return ImportSpec{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlySpec returns the only spec of x; it panics if x has none or several.
+func (x ImportSpecs) MustOnlySpec() ImportSpec {
+	v, ok := x.OnlySpec()
+	if !ok {
+		panic(listMustError{"ImportSpecs.MustOnlySpec", x.node})
+	}
+	return v
 }
 
 // HasSpecs reports whether x has any specs.
@@ -6693,6 +7050,15 @@ func (x ExportSpecs) FirstSpec() (v ExportSpec, ok bool) {
 	return ExportSpec{c}, c != rhino.NilNode
 }
 
+// MustFirstSpec returns the first of the specs of x; it panics if there is none.
+func (x ExportSpecs) MustFirstSpec() ExportSpec {
+	v, ok := x.FirstSpec()
+	if !ok {
+		panic(listMustError{"ExportSpecs.MustFirstSpec", x.node})
+	}
+	return v
+}
+
 // LastSpec returns the last of the specs of x; ok is false if there is none.
 func (x ExportSpecs) LastSpec() (v ExportSpec, ok bool) {
 	c := x.node.GetLastChild()
@@ -6703,6 +7069,15 @@ func (x ExportSpecs) LastSpec() (v ExportSpec, ok bool) {
 func (x ExportSpecs) OnlySpec() (v ExportSpec, ok bool) {
 	c := x.node.GetFirstChild()
 	return ExportSpec{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlySpec returns the only spec of x; it panics if x has none or several.
+func (x ExportSpecs) MustOnlySpec() ExportSpec {
+	v, ok := x.OnlySpec()
+	if !ok {
+		panic(listMustError{"ExportSpecs.MustOnlySpec", x.node})
+	}
+	return v
 }
 
 // HasSpecs reports whether x has any specs.
@@ -6832,6 +7207,15 @@ func (x Interface) FirstChild() (v rhino.Node, ok bool) {
 	return c, c != rhino.NilNode
 }
 
+// MustFirstChild returns the first of the children of x; it panics if there is none.
+func (x Interface) MustFirstChild() rhino.Node {
+	v, ok := x.FirstChild()
+	if !ok {
+		panic(listMustError{"Interface.MustFirstChild", x.node})
+	}
+	return v
+}
+
 // LastChild returns the last of the children of x; ok is false if there is none.
 func (x Interface) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
@@ -6842,6 +7226,15 @@ func (x Interface) LastChild() (v rhino.Node, ok bool) {
 func (x Interface) OnlyChild() (v rhino.Node, ok bool) {
 	c := x.node.GetFirstChild()
 	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyChild returns the only child of x; it panics if x has none or several.
+func (x Interface) MustOnlyChild() rhino.Node {
+	v, ok := x.OnlyChild()
+	if !ok {
+		panic(listMustError{"Interface.MustOnlyChild", x.node})
+	}
+	return v
 }
 
 // HasChildren reports whether x has any children.
@@ -6925,6 +7318,15 @@ func (x Enum) FirstChild() (v rhino.Node, ok bool) {
 	return c, c != rhino.NilNode
 }
 
+// MustFirstChild returns the first of the children of x; it panics if there is none.
+func (x Enum) MustFirstChild() rhino.Node {
+	v, ok := x.FirstChild()
+	if !ok {
+		panic(listMustError{"Enum.MustFirstChild", x.node})
+	}
+	return v
+}
+
 // LastChild returns the last of the children of x; ok is false if there is none.
 func (x Enum) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
@@ -6935,6 +7337,15 @@ func (x Enum) LastChild() (v rhino.Node, ok bool) {
 func (x Enum) OnlyChild() (v rhino.Node, ok bool) {
 	c := x.node.GetFirstChild()
 	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyChild returns the only child of x; it panics if x has none or several.
+func (x Enum) MustOnlyChild() rhino.Node {
+	v, ok := x.OnlyChild()
+	if !ok {
+		panic(listMustError{"Enum.MustOnlyChild", x.node})
+	}
+	return v
 }
 
 // HasChildren reports whether x has any children.
@@ -7018,6 +7429,15 @@ func (x TypeAlias) FirstChild() (v rhino.Node, ok bool) {
 	return c, c != rhino.NilNode
 }
 
+// MustFirstChild returns the first of the children of x; it panics if there is none.
+func (x TypeAlias) MustFirstChild() rhino.Node {
+	v, ok := x.FirstChild()
+	if !ok {
+		panic(listMustError{"TypeAlias.MustFirstChild", x.node})
+	}
+	return v
+}
+
 // LastChild returns the last of the children of x; ok is false if there is none.
 func (x TypeAlias) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
@@ -7028,6 +7448,15 @@ func (x TypeAlias) LastChild() (v rhino.Node, ok bool) {
 func (x TypeAlias) OnlyChild() (v rhino.Node, ok bool) {
 	c := x.node.GetFirstChild()
 	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyChild returns the only child of x; it panics if x has none or several.
+func (x TypeAlias) MustOnlyChild() rhino.Node {
+	v, ok := x.OnlyChild()
+	if !ok {
+		panic(listMustError{"TypeAlias.MustOnlyChild", x.node})
+	}
+	return v
 }
 
 // HasChildren reports whether x has any children.
@@ -7111,6 +7540,15 @@ func (x Declare) FirstChild() (v rhino.Node, ok bool) {
 	return c, c != rhino.NilNode
 }
 
+// MustFirstChild returns the first of the children of x; it panics if there is none.
+func (x Declare) MustFirstChild() rhino.Node {
+	v, ok := x.FirstChild()
+	if !ok {
+		panic(listMustError{"Declare.MustFirstChild", x.node})
+	}
+	return v
+}
+
 // LastChild returns the last of the children of x; ok is false if there is none.
 func (x Declare) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
@@ -7121,6 +7559,15 @@ func (x Declare) LastChild() (v rhino.Node, ok bool) {
 func (x Declare) OnlyChild() (v rhino.Node, ok bool) {
 	c := x.node.GetFirstChild()
 	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyChild returns the only child of x; it panics if x has none or several.
+func (x Declare) MustOnlyChild() rhino.Node {
+	v, ok := x.OnlyChild()
+	if !ok {
+		panic(listMustError{"Declare.MustOnlyChild", x.node})
+	}
+	return v
 }
 
 // HasChildren reports whether x has any children.
@@ -7204,6 +7651,15 @@ func (x Namespace) FirstChild() (v rhino.Node, ok bool) {
 	return c, c != rhino.NilNode
 }
 
+// MustFirstChild returns the first of the children of x; it panics if there is none.
+func (x Namespace) MustFirstChild() rhino.Node {
+	v, ok := x.FirstChild()
+	if !ok {
+		panic(listMustError{"Namespace.MustFirstChild", x.node})
+	}
+	return v
+}
+
 // LastChild returns the last of the children of x; ok is false if there is none.
 func (x Namespace) LastChild() (v rhino.Node, ok bool) {
 	c := x.node.GetLastChild()
@@ -7214,6 +7670,15 @@ func (x Namespace) LastChild() (v rhino.Node, ok bool) {
 func (x Namespace) OnlyChild() (v rhino.Node, ok bool) {
 	c := x.node.GetFirstChild()
 	return c, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyChild returns the only child of x; it panics if x has none or several.
+func (x Namespace) MustOnlyChild() rhino.Node {
+	v, ok := x.OnlyChild()
+	if !ok {
+		panic(listMustError{"Namespace.MustOnlyChild", x.node})
+	}
+	return v
 }
 
 // HasChildren reports whether x has any children.
@@ -9672,6 +10137,13 @@ func (x ObjectMember) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x ObjectMember) MustGetterOrSetterDef() GetterOrSetterDef { return MustGetterOrSetterDef(x.node) }
 
+// AsMethodDef returns x as a MethodDef; ok is false if it is not one.
+func (x ObjectMember) AsMethodDef() (MethodDef, bool) { return AsMethodDef(x.node) }
+
+// MustMethodDef returns x as a MethodDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectMember) MustMethodDef() MethodDef { return MustMethodDef(x.node) }
+
 // ClassMember is a member of a class body (Block for a static block).
 //
 // Grammar: ClassMember = MemberFunctionDef | GetterDef | SetterDef | MemberVariableDef | ComputedProp | MemberFieldDef | ComputedFieldDef | IndexSignature | CallSignature | Block | Empty
@@ -9803,6 +10275,20 @@ func (x ClassMember) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x ClassMember) MustGetterOrSetterDef() GetterOrSetterDef { return MustGetterOrSetterDef(x.node) }
 
+// AsMethodDef returns x as a MethodDef; ok is false if it is not one.
+func (x ClassMember) AsMethodDef() (MethodDef, bool) { return AsMethodDef(x.node) }
+
+// MustMethodDef returns x as a MethodDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustMethodDef() MethodDef { return MustMethodDef(x.node) }
+
+// AsComputedMember returns x as a ComputedMember; ok is false if it is not one.
+func (x ClassMember) AsComputedMember() (ComputedMember, bool) { return AsComputedMember(x.node) }
+
+// MustComputedMember returns x as a ComputedMember; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustComputedMember() ComputedMember { return MustComputedMember(x.node) }
+
 // GetterOrSetterDef is a getter or a setter, in an object literal or a
 // class: get key() { body } or set key(param) { body }.
 //
@@ -9865,11 +10351,163 @@ func (x GetterOrSetterDef) AsObjectMember() ObjectMember { return ObjectMember{x
 // AsClassMember returns x as a ClassMember.
 func (x GetterOrSetterDef) AsClassMember() ClassMember { return ClassMember{x.node} }
 
+// AsMethodDef returns x as a MethodDef.
+func (x GetterOrSetterDef) AsMethodDef() MethodDef { return MethodDef{x.node} }
+
 // Function returns the function of x.
 func (x GetterOrSetterDef) Function() Function { return Function{x.node.GetFirstChild()} }
 
 // Key returns the node's string.
 func (x GetterOrSetterDef) Key() string { return x.node.GetString() }
+
+// MethodDef is a method, getter or setter, in an object literal or a class.
+//
+// Grammar: MethodDef = MemberFunctionDef | GetterDef | SetterDef
+type MethodDef struct{ node rhino.Node }
+
+// AsMethodDef returns n as a MethodDef; ok is false if n is not one (or is the nil node).
+func AsMethodDef(n rhino.Node) (x MethodDef, ok bool) {
+	if n == rhino.NilNode || !methodDefTokens.Has(n.GetToken()) {
+		return MethodDef{}, false
+	}
+	return MethodDef{n}, true
+}
+
+// MustMethodDef returns n as a MethodDef; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustMethodDef(n rhino.Node) MethodDef {
+	x, ok := AsMethodDef(n)
+	if !ok {
+		panic(mustError{"MethodDef", n})
+	}
+	return x
+}
+
+// methodDefTokens holds the tokens of MethodDef.
+var methodDefTokens = tokenSetOf(rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF)
+
+// Node returns x as a rhino.Node.
+func (x MethodDef) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x MethodDef) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of MethodDef it is).
+func (x MethodDef) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x MethodDef) Detach() MethodDef { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x MethodDef) ReplaceWith(v MethodDef) { x.node.ReplaceWith(v.node) }
+
+// AsMemberFunctionDef returns x as a MemberFunctionDef; ok is false if it is not one.
+func (x MethodDef) AsMemberFunctionDef() (MemberFunctionDef, bool) {
+	return AsMemberFunctionDef(x.node)
+}
+
+// MustMemberFunctionDef returns x as a MemberFunctionDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x MethodDef) MustMemberFunctionDef() MemberFunctionDef { return MustMemberFunctionDef(x.node) }
+
+// AsGetterDef returns x as a GetterDef; ok is false if it is not one.
+func (x MethodDef) AsGetterDef() (GetterDef, bool) { return AsGetterDef(x.node) }
+
+// MustGetterDef returns x as a GetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x MethodDef) MustGetterDef() GetterDef { return MustGetterDef(x.node) }
+
+// AsSetterDef returns x as a SetterDef; ok is false if it is not one.
+func (x MethodDef) AsSetterDef() (SetterDef, bool) { return AsSetterDef(x.node) }
+
+// MustSetterDef returns x as a SetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x MethodDef) MustSetterDef() SetterDef { return MustSetterDef(x.node) }
+
+// AsObjectMember returns x as an ObjectMember.
+func (x MethodDef) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
+
+// AsClassMember returns x as a ClassMember.
+func (x MethodDef) AsClassMember() ClassMember { return ClassMember{x.node} }
+
+// AsGetterOrSetterDef returns x as a GetterOrSetterDef; ok is false if it is not one.
+func (x MethodDef) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
+	return AsGetterOrSetterDef(x.node)
+}
+
+// MustGetterOrSetterDef returns x as a GetterOrSetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x MethodDef) MustGetterOrSetterDef() GetterOrSetterDef { return MustGetterOrSetterDef(x.node) }
+
+// Function returns the function of x.
+func (x MethodDef) Function() Function { return Function{x.node.GetFirstChild()} }
+
+// Key returns the node's string.
+func (x MethodDef) Key() string { return x.node.GetString() }
+
+// ComputedMember is a computed property or computed class field:
+// [key]: value or [key] = value.
+//
+// Grammar: ComputedMember = ComputedProp | ComputedFieldDef
+type ComputedMember struct{ node rhino.Node }
+
+// AsComputedMember returns n as a ComputedMember; ok is false if n is not one (or is the nil node).
+func AsComputedMember(n rhino.Node) (x ComputedMember, ok bool) {
+	if n == rhino.NilNode || !computedMemberTokens.Has(n.GetToken()) {
+		return ComputedMember{}, false
+	}
+	return ComputedMember{n}, true
+}
+
+// MustComputedMember returns n as a ComputedMember; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustComputedMember(n rhino.Node) ComputedMember {
+	x, ok := AsComputedMember(n)
+	if !ok {
+		panic(mustError{"ComputedMember", n})
+	}
+	return x
+}
+
+// computedMemberTokens holds the tokens of ComputedMember.
+var computedMemberTokens = tokenSetOf(rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_COMPUTED_PROP)
+
+// Node returns x as a rhino.Node.
+func (x ComputedMember) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x ComputedMember) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of ComputedMember it is).
+func (x ComputedMember) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x ComputedMember) Detach() ComputedMember { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x ComputedMember) ReplaceWith(v ComputedMember) { x.node.ReplaceWith(v.node) }
+
+// AsComputedFieldDef returns x as a ComputedFieldDef; ok is false if it is not one.
+func (x ComputedMember) AsComputedFieldDef() (ComputedFieldDef, bool) {
+	return AsComputedFieldDef(x.node)
+}
+
+// MustComputedFieldDef returns x as a ComputedFieldDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ComputedMember) MustComputedFieldDef() ComputedFieldDef { return MustComputedFieldDef(x.node) }
+
+// AsComputedProp returns x as a ComputedProp; ok is false if it is not one.
+func (x ComputedMember) AsComputedProp() (ComputedProp, bool) { return AsComputedProp(x.node) }
+
+// MustComputedProp returns x as a ComputedProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ComputedMember) MustComputedProp() ComputedProp { return MustComputedProp(x.node) }
+
+// AsClassMember returns x as a ClassMember.
+func (x ComputedMember) AsClassMember() ClassMember { return ClassMember{x.node} }
+
+// Key returns the key of x.
+func (x ComputedMember) Key() Expr { return Expr{x.node.GetFirstChild()} }
 
 // Loop is a loop statement.
 //
@@ -12504,6 +13142,15 @@ func (x NormalOrOptChainCall) FirstArg() (v Arg, ok bool) {
 	return Arg{c}, c != rhino.NilNode
 }
 
+// MustFirstArg returns the first of the args of x; it panics if there is none.
+func (x NormalOrOptChainCall) MustFirstArg() Arg {
+	v, ok := x.FirstArg()
+	if !ok {
+		panic(listMustError{"NormalOrOptChainCall.MustFirstArg", x.node})
+	}
+	return v
+}
+
 // LastArg returns the last of the args of x; ok is false if there is none.
 func (x NormalOrOptChainCall) LastArg() (v Arg, ok bool) {
 	if x.node.GetFirstChild().GetNext() == rhino.NilNode {
@@ -12517,6 +13164,15 @@ func (x NormalOrOptChainCall) LastArg() (v Arg, ok bool) {
 func (x NormalOrOptChainCall) OnlyArg() (v Arg, ok bool) {
 	c := x.node.GetFirstChild().GetNext()
 	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyArg returns the only arg of x; it panics if x has none or several.
+func (x NormalOrOptChainCall) MustOnlyArg() Arg {
+	v, ok := x.OnlyArg()
+	if !ok {
+		panic(listMustError{"NormalOrOptChainCall.MustOnlyArg", x.node})
+	}
+	return v
 }
 
 // HasArgs reports whether x has any args.
@@ -12647,6 +13303,15 @@ func (x CallOrNew) FirstArg() (v Arg, ok bool) {
 	return Arg{c}, c != rhino.NilNode
 }
 
+// MustFirstArg returns the first of the args of x; it panics if there is none.
+func (x CallOrNew) MustFirstArg() Arg {
+	v, ok := x.FirstArg()
+	if !ok {
+		panic(listMustError{"CallOrNew.MustFirstArg", x.node})
+	}
+	return v
+}
+
 // LastArg returns the last of the args of x; ok is false if there is none.
 func (x CallOrNew) LastArg() (v Arg, ok bool) {
 	if x.node.GetFirstChild().GetNext() == rhino.NilNode {
@@ -12660,6 +13325,15 @@ func (x CallOrNew) LastArg() (v Arg, ok bool) {
 func (x CallOrNew) OnlyArg() (v Arg, ok bool) {
 	c := x.node.GetFirstChild().GetNext()
 	return Arg{c}, c != rhino.NilNode && c.GetNext() == rhino.NilNode
+}
+
+// MustOnlyArg returns the only arg of x; it panics if x has none or several.
+func (x CallOrNew) MustOnlyArg() Arg {
+	v, ok := x.OnlyArg()
+	if !ok {
+		panic(listMustError{"CallOrNew.MustOnlyArg", x.node})
+	}
+	return v
 }
 
 // HasArgs reports whether x has any args.
@@ -14700,6 +15374,8 @@ var grammarCategories = map[string][]string{
 	"ObjectMember":            {"ObjectSpread", "MemberFunctionDef", "GetterDef", "SetterDef", "ComputedProp", "StringKey"},
 	"ClassMember":             {"Block", "Empty", "MemberFunctionDef", "GetterDef", "SetterDef", "MemberFieldDef", "ComputedFieldDef", "ComputedProp", "MemberVariableDef", "IndexSignature", "CallSignature"},
 	"GetterOrSetterDef":       {"GetterDef", "SetterDef"},
+	"MethodDef":               {"MemberFunctionDef", "GetterDef", "SetterDef"},
+	"ComputedMember":          {"ComputedFieldDef", "ComputedProp"},
 	"Loop":                    {"For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do"},
 	"EnhancedFor":             {"ForIn", "ForOf", "ForAwaitOf"},
 	"ForOfLoop":               {"ForOf", "ForAwaitOf"},

@@ -21,6 +21,7 @@ package jscomp
 import (
 	"iter"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -600,122 +601,141 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 		return
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// for(x in y) {...}
-		lhs := n.GetFirstChild()
-		rhs := lhs.GetNext()
-		if NodeUtil_IsNameDeclaration(lhs) {
-			lhs = lhs.GetLastChild() // for(var x in y) {...}
+		loop := ast.MustEnhancedFor(n)
+		rhs := loop.Collection().Node()
+		var lhs rhino.Node
+		if decl, ok := loop.Target().AsNameDeclaration(); ok {
+			if last, hasLast := decl.LastDeclarator(); hasLast {
+				lhs = last.Node() // for(var x in y) {...}
+			}
+		} else {
+			lhs = loop.Target().Node()
 		}
-		if lhs.IsName() {
+		if name, ok := ast.AsName(lhs); ok {
 			// We pass null for the def node because an enhanced for-loop conditionally assigns
 			// elements from the collection at runtime (or doesn't execute if empty), so there is no
 			// unconditional reaching definition from the loop header.
-			d.AddToDefIfLocal(lhs.GetString(), rhino.NilNode, rhs, output)
-		} else if lhs.IsDestructuringLhs() {
-			lhs = lhs.GetFirstChild()
+			d.AddToDefIfLocal(name.Ident(), rhino.NilNode, rhs, output)
+		} else if dlhs, ok := ast.AsDestructuringLhs(lhs); ok {
+			lhs = dlhs.Pattern().Node()
 		}
-		if lhs.IsDestructuringPattern() {
+		if _, ok := ast.AsPattern(lhs); ok {
 			d.ComputeMustDef(lhs, cfgNode, output, true)
 		}
 		return
 	case rhino.Token_OPTCHAIN_GETPROP:
-		d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
+		d.ComputeMustDef(ast.MustOptChainGetProp(n).Object().Node(), cfgNode, output, conditional)
 		return
-	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_GETELEM:
-		d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
-		d.ComputeMustDef(n.GetLastChild(), cfgNode, output, true)
+	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
+		bin := ast.MustBinary(n)
+		d.ComputeMustDef(bin.Left().Node(), cfgNode, output, conditional)
+		d.ComputeMustDef(bin.Right().Node(), cfgNode, output, true)
+		return
+	case rhino.Token_OPTCHAIN_GETELEM:
+		ge := ast.MustOptChainGetElem(n)
+		d.ComputeMustDef(ge.Object().Node(), cfgNode, output, conditional)
+		d.ComputeMustDef(ge.Index().Node(), cfgNode, output, true)
 		return
 	case rhino.Token_OPTCHAIN_CALL:
-		d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
-		for c := n.GetSecondChild(); !c.IsNil(); c = c.GetNext() {
-			d.ComputeMustDef(c, cfgNode, output, true)
+		call := ast.MustOptChainCall(n)
+		d.ComputeMustDef(call.Callee().Node(), cfgNode, output, conditional)
+		for arg, ok := call.FirstArg(); ok; arg, ok = arg.Next() {
+			d.ComputeMustDef(arg.Node(), cfgNode, output, true)
 		}
 		return
 	case rhino.Token_HOOK:
-		d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
-		d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, true)
-		d.ComputeMustDef(n.GetLastChild(), cfgNode, output, true)
+		hook := ast.MustHook(n)
+		d.ComputeMustDef(hook.Cond().Node(), cfgNode, output, conditional)
+		d.ComputeMustDef(hook.Then().Node(), cfgNode, output, true)
+		d.ComputeMustDef(hook.Else().Node(), cfgNode, output, true)
 		return
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			if c.HasChildren() {
-				if c.IsName() {
-					d.ComputeMustDef(c.GetFirstChild(), cfgNode, output, conditional)
+		decl := ast.MustNameDeclaration(n)
+		for declItem, ok := decl.FirstDeclarator(); ok; declItem, ok = declItem.Next() {
+			if name, isName := declItem.AsName(); isName {
+				if init, hasInit := name.Init(); hasInit {
+					d.ComputeMustDef(init.Node(), cfgNode, output, conditional)
 					var defNode rhino.Node
 					if !conditional {
 						defNode = cfgNode
 					}
-					d.AddToDefIfLocal(c.GetString(), defNode, c.GetFirstChild(), output)
-				} else {
-					jutil.CheckStateMsg1(c.IsDestructuringLhs(), "%s", c)
-					d.ComputeMustDef(c.GetSecondChild(), cfgNode, output, conditional)
-					d.ComputeMustDef(c.GetFirstChild(), cfgNode, output, conditional)
+					d.AddToDefIfLocal(name.Ident(), defNode, init.Node(), output)
 				}
+			} else {
+				dlhs := declItem.MustDestructuringLhs()
+				if init, hasInit := dlhs.Init(); hasInit {
+					d.ComputeMustDef(init.Node(), cfgNode, output, conditional)
+				}
+				d.ComputeMustDef(dlhs.Pattern().Node(), cfgNode, output, conditional)
 			}
 		}
 		return
 	case rhino.Token_DEFAULT_VALUE:
-		if n.GetFirstChild().IsDestructuringPattern() {
-			d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, true)
-			d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
-		} else if n.GetFirstChild().IsName() {
-			d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, true)
+		dv := ast.MustDefaultValue(n)
+		target := dv.Target()
+		value := dv.Value().Node()
+		if pat, ok := target.AsPattern(); ok {
+			d.ComputeMustDef(value, cfgNode, output, true)
+			d.ComputeMustDef(pat.Node(), cfgNode, output, conditional)
+		} else if name, ok := target.AsName(); ok {
+			d.ComputeMustDef(value, cfgNode, output, true)
 			var defNode rhino.Node
 			if !conditional {
 				defNode = cfgNode
 			}
-			d.AddToDefIfLocal(n.GetFirstChild().GetString(), defNode, rhino.NilNode, output)
+			d.AddToDefIfLocal(name.Ident(), defNode, rhino.NilNode, output)
 		} else {
-			d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
-			d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, true)
+			d.ComputeMustDef(target.Node(), cfgNode, output, conditional)
+			d.ComputeMustDef(value, cfgNode, output, true)
 		}
 	case rhino.Token_NAME:
+		ident := ast.MustName(n).Ident()
 		if NodeUtil_IsLhsByDestructuring(n) {
 			var defNode rhino.Node
 			if !conditional {
 				defNode = cfgNode
 			}
-			d.AddToDefIfLocal(n.GetString(), defNode, rhino.NilNode, output)
-		} else if "arguments" == n.GetString() {
+			d.AddToDefIfLocal(ident, defNode, rhino.NilNode, output)
+		} else if ident == "arguments" {
 			d.EscapeParameters(output)
 		}
 		return
 	default:
-		if NodeUtil_IsAssignmentOp(n) {
-			if n.GetFirstChild().IsName() {
-				name := n.GetFirstChild()
-				d.ComputeMustDef(name.GetNext(), cfgNode, output, conditional)
+		if assign, ok := ast.AsAssignment(n); ok {
+			target := assign.Target()
+			value := assign.Value().Node()
+			if name, isName := target.AsName(); isName {
+				d.ComputeMustDef(value, cfgNode, output, conditional)
 				var defNode rhino.Node
 				if !conditional {
 					defNode = cfgNode
 				}
-				d.AddToDefIfLocal(name.GetString(), defNode, n.GetLastChild(), output)
+				d.AddToDefIfLocal(name.Ident(), defNode, value, output)
 				return
-			} else if NodeUtil_IsNormalGet(n.GetFirstChild()) {
+			} else if get, isGet := target.AsNormalGet(); isGet {
 				// Treat all assignments to arguments as redefining the
 				// parameters itself.
-				obj := n.GetFirstFirstChild()
-				if obj.IsName() && "arguments" == obj.GetString() {
+				if obj, isObjName := get.Object().AsName(); isObjName && obj.Ident() == "arguments" {
 					// TODO(user): More accuracy can be introduced
 					// i.e. We know exactly what arguments[x] is if x is a constant
 					// number.
 					d.EscapeParameters(output)
 				}
-			} else if n.GetFirstChild().IsDestructuringPattern() {
-				d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, conditional)
-				d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
+			} else if pat, isPat := target.AsPattern(); isPat {
+				d.ComputeMustDef(value, cfgNode, output, conditional)
+				d.ComputeMustDef(pat.Node(), cfgNode, output, conditional)
 				return
 			}
 		}
 
 		// DEC and INC actually defines the variable.
-		if n.IsDec() || n.IsInc() {
-			target := n.GetFirstChild()
-			if target.IsName() {
+		if incDec, ok := ast.AsIncDec(n); ok {
+			if target, isName := incDec.Target().AsName(); isName {
 				var defNode rhino.Node
 				if !conditional {
 					defNode = cfgNode
 				}
-				d.AddToDefIfLocal(target.GetString(), defNode, rhino.NilNode, output)
+				d.AddToDefIfLocal(target.Ident(), defNode, rhino.NilNode, output)
 				return
 			}
 		}
@@ -868,17 +888,18 @@ func (d *MustBeReachingVariableDef) computeDependenceWalk(def *MustBeReachingVar
 	}
 	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
 		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsComputedProp() || child.IsComputedFieldDef() {
-				d.computeDependenceWalk(def, child.GetFirstChild(), child)
+			if cm, ok := ast.AsComputedMember(child); ok {
+				d.computeDependenceWalk(def, cm.Key().Node(), child)
 			}
 		}
 		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			switch child.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if !ControlFlowGraph_IsEnteringNewCfgNode(child) && child.HasTwoChildren() {
-					d.computeDependenceWalk(def, child.GetLastChild(), child)
+			if cm, ok := ast.AsComputedMember(child); ok {
+				if !ControlFlowGraph_IsEnteringNewCfgNode(child) {
+					if val, hasVal := cm.Value(); hasVal {
+						d.computeDependenceWalk(def, val.Node(), child)
+					}
 				}
-			default:
+			} else {
 				d.computeDependenceWalk(def, child, n)
 			}
 		}
@@ -887,8 +908,8 @@ func (d *MustBeReachingVariableDef) computeDependenceWalk(def *MustBeReachingVar
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		d.computeDependenceWalk(def, c, n)
 	}
-	if n.IsName() {
-		name := n.GetString()
+	if nameNode, ok := ast.AsName(n); ok {
+		name := nameNode.Ident()
 		if d.layout != nil {
 			id, dep, ok := d.lookupLocalVar(name)
 			if !ok {

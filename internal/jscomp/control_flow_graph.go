@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -241,7 +242,10 @@ func ControlFlowGraph_IsEnteringNewCfgNode(n rhino.Node) bool {
 		// is atomic without change in control flow. The next change of
 		// control is going into the function's body, represented by the second
 		// child.
-		return n != parent.GetSecondChild()
+		// Go-only: note that parent.GetSecondChild() in the AST is actually
+		// Params() (child index 1), not Body() (child index 2); only Params()
+		// returns false here, matching Java's `n != parent.getSecondChild()`.
+		return !ast.MustFunction(parent).Params().Is(n)
 	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF:
 		// These control structures are represented by a node that holds the
 		// condition. Each of them is a branch node based on its condition.
@@ -258,9 +262,13 @@ func ControlFlowGraph_IsEnteringNewCfgNode(n rhino.Node) bool {
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// TODO(user): Investigate how we should handle the case where
 		// we have a very complex expression inside the FOR-IN header.
-		return n != parent.GetFirstChild()
-	case rhino.Token_CASE, rhino.Token_CATCH, rhino.Token_WITH:
-		return n != parent.GetFirstChild() // exclude the condition
+		return !ast.MustEnhancedFor(parent).Target().Is(n)
+	case rhino.Token_CASE:
+		return !ast.MustCase(parent).Value().Is(n)
+	case rhino.Token_CATCH:
+		return parent.GetFirstChild() != n // exclude catch param (or its EMPTY placeholder)
+	case rhino.Token_WITH:
+		return !ast.MustWith(parent).Object().Is(n)
 	default:
 		return false
 	}
@@ -317,19 +325,21 @@ func walkCfgNodeBranch[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](n, p
 			child = next
 		}
 	case rhino.Token_FUNCTION:
-		fnName := n.GetFirstChild()
+		fn := ast.MustFunction(n)
 		if !parent.IsNil() {
 			_ = NodeUtil_IsFunctionDeclaration(n)
 		}
-		args := fnName.GetNext()
-		body := args.GetNext()
+		fnName := fn.NameNode().Node()
+		args := fn.Params().Node()
+		body := fn.Body().Node()
 		walkCfgNodeBranch(fnName, n, cb, currentNode)
 		walkCfgNodeBranch(args, n, cb, currentNode)
 		walkCfgNodeBranch(body, n, cb, currentNode)
 	case rhino.Token_CLASS:
-		className := n.GetFirstChild()
-		extendsClause := className.GetNext()
-		body := extendsClause.GetNext()
+		cls := ast.MustClass(n)
+		className := cls.NameNode()
+		extendsClause := cls.ExtendsNode()
+		body := cls.Body().Node()
 		_ = NodeUtil_IsClassExpression(n)
 		walkCfgNodeBranch(extendsClause, n, cb, currentNode)
 		walkCfgNodeBranch(className, n, cb, currentNode)
@@ -337,28 +347,30 @@ func walkCfgNodeBranch[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](n, p
 	case rhino.Token_CLASS_MEMBERS:
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			if child.IsComputedProp() || child.IsComputedFieldDef() {
-				walkCfgNodeBranch(child.GetFirstChild(), child, cb, currentNode)
+			if cm, ok := ast.AsComputedMember(child); ok {
+				walkCfgNodeBranch(cm.Key().Node(), child, cb, currentNode)
 			}
 			child = next
 		}
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			switch child.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+			if cm, ok := ast.AsComputedMember(child); ok {
 				*currentNode = n
 				if !ControlFlowGraph_IsEnteringNewCfgNode(child) {
-					if child.HasTwoChildren() {
-						walkCfgNodeBranch(child.GetLastChild(), child, cb, currentNode)
+					if val, hasVal := cm.Value(); hasVal {
+						walkCfgNodeBranch(val.Node(), child, cb, currentNode)
 					}
 					*currentNode = n
 					cb.Visit(nil, child, n)
 				}
-			case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
-				rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-				walkCfgNodeBranch(child, n, cb, currentNode)
-			default:
-				panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
+			} else {
+				switch child.GetToken() {
+				case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
+					rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+					walkCfgNodeBranch(child, n, cb, currentNode)
+				default:
+					panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
+				}
 			}
 			child = next
 		}

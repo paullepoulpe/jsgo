@@ -26,6 +26,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -351,8 +352,7 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 		// bug in IE 8 and below, where it throws an exception if you write to the parameters of the
 		// callback in a sort(). See http://blickly.github.io/closure-compiler-issues/#58 and
 		// https://www.zachleat.com/web/array-sort/
-		enclosingFunction := scope.GetRootNode()
-		if NodeUtil_GetFunctionParameters(enclosingFunction).HasTwoChildren() {
+		if ast.MustFunction(scope.GetRootNode()).Params().NumParams() == 2 {
 			c.liveness.MarkAllParametersEscaped()
 		}
 	}
@@ -427,7 +427,8 @@ func (*CoalesceVariableNames) onlyNameLeaves() {}
 
 // Java: CoalesceVariableNames.visit(NodeTraversal, Node, Node)
 func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if len(c.colorings) == 0 || !n.IsName() || parent.IsFunction() {
+	nameNode, isName := ast.AsName(n)
+	if len(c.colorings) == 0 || !isName || parent.IsFunction() {
 		// Don't rename named functions.
 		return
 	}
@@ -436,7 +437,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 	if coloringsPeek == nil {
 		return
 	}
-	var_ := c.liveness.GetAllVariables().Get(n.GetString())
+	var_ := c.liveness.GetAllVariables().Get(nameNode.Ident())
 	if var_ == nil {
 		return
 	}
@@ -469,7 +470,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 		}
 
 		// Rename.
-		n.SetString(coalescedVar.GetName())
+		nameNode.SetIdent(coalescedVar.GetName())
 		c.reportChange(n)
 		c.UpdateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
 	} else {
@@ -499,7 +500,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 		}
 
 		// Rename.
-		n.SetString(pseudoName)
+		nameNode.SetIdent(pseudoName)
 		c.compiler.ReportChangeToEnclosingScope(n)
 
 		if vNode.GetValue().Equals(coalescedVar) {
@@ -559,11 +560,8 @@ func (c *CoalesceVariableNames) UpdateDeclarationsPostCoalescing(
 // Java: CoalesceVariableNames.isNameInsideDestructuringAssignment(Node)
 func (c *CoalesceVariableNames) IsNameInsideDestructuringAssignment(n rhino.Node) bool {
 	enclosingTarget := NodeUtil_GetRootTarget(n)
-	if enclosingTarget.IsDestructuringPattern() && enclosingTarget.GetParent().IsAssign() {
-		// This is a destructuring pattern assignment.
-		return true
-	}
-	return false
+	_, isPat := ast.AsPattern(enclosingTarget)
+	return isPat && ast.RoleOf(enclosingTarget) == ast.RoleAssignTarget
 }
 
 // ComputeVariableNamesInterferenceGraph: in order to determine when it is
@@ -906,31 +904,35 @@ func (c *CoalesceVariableNames) IsInMultipleLvalueDecl(v *Var) bool {
 //
 // Java: CoalesceVariableNames.removeVarDeclaration(Node, Var)
 func (c *CoalesceVariableNames) RemoveVarDeclaration(name rhino.Node, originalVar *Var) {
-	var_ := NodeUtil_GetEnclosingNode(name, NodeUtil_IsNameDeclaration)
+	decl := ast.MustNameDeclaration(NodeUtil_GetEnclosingNode(name, NodeUtil_IsNameDeclaration))
+	var_ := decl.Node()
 	parent := var_.GetParent()
 
-	if var_.GetFirstChild().IsDestructuringLhs() {
+	if dlhs, ok := decl.MustFirstDeclarator().AsDestructuringLhs(); ok {
 		// convert `const [x] = arr` to `[x] = arr`
 		// a precondition for this method is that `x` is the only lvalue in the destructuring pattern
-		destructuringLhs := var_.GetFirstChild()
-		pattern := destructuringLhs.RemoveFirstChild()
-		if NodeUtil_IsEnhancedFor(parent) {
-			var_.ReplaceWith(pattern)
+		if _, isEnhFor := ast.AsEnhancedFor(parent); isEnhFor {
+			var_.ReplaceWith(dlhs.Pattern().Detach().Node())
 		} else {
-			rvalue := var_.GetFirstFirstChild().Detach()
-			var_.ReplaceWith(NodeUtil_NewExpr(rhino.IR_Assign(pattern, rvalue).Srcref(var_)))
+			init, _ := dlhs.Init()
+			rvalue := init.Detach()
+			pattern := dlhs.Pattern().Detach()
+			assign := ast.NewAssign(pattern.AsTarget(), rvalue).Node().Srcref(var_)
+			var_.ReplaceWith(NodeUtil_NewExpr(assign))
 		}
-	} else if NodeUtil_IsEnhancedFor(parent) {
+	} else if _, isEnhFor := ast.AsEnhancedFor(parent); isEnhFor {
 		// convert `for (let x of ...` to `for (x of ...`
 		var_.ReplaceWith(name.Detach())
 	} else {
 		// either `var x = 0;` or `var x;`
-		jutil.CheckStateMsg1(var_.HasOneChild() && var_.GetFirstChild() == name, "%s", var_)
-		if name.HasChildren() {
+		onlyDecl, isOnly := decl.OnlyDeclarator()
+		nameView, isOnlyName := onlyDecl.AsName()
+		jutil.CheckStateMsg1(isOnly && isOnlyName && nameView.Is(name), "%s", var_)
+		if value, hasInit := nameView.Init(); hasInit {
 			// convert `let x = 0;` to `x = 0;`
-			value := name.RemoveFirstChild()
-			name.Detach()
-			assign := rhino.IR_Assign(name, value).Srcref(name)
+			value.Detach()
+			nameView.Detach()
+			assign := ast.NewAssign(nameView.AsTarget(), value).Node().Srcref(name)
 
 			// We don't need to wrapped it with EXPR node if it is within a FOR.
 			if !parent.IsVanillaFor() {
@@ -939,9 +941,9 @@ func (c *CoalesceVariableNames) RemoveVarDeclaration(name rhino.Node, originalVa
 			var_.ReplaceWith(assign)
 
 		} else if c.IsUninitializedLetNameInLoopBodyAndLive(name, originalVar) {
-			name.Detach()
-			undefinedValue := c.astFactory.CreateUndefinedValue().SrcrefTree(name)
-			assign := rhino.IR_Assign(name, undefinedValue).Srcref(name)
+			nameView.Detach()
+			undefinedValue := ast.MustExpr(c.astFactory.CreateUndefinedValue().SrcrefTree(name))
+			assign := ast.NewAssign(nameView.AsTarget(), undefinedValue).Node().Srcref(name)
 			if !parent.IsVanillaFor() {
 				assign = NodeUtil_NewExpr(assign)
 			}
@@ -983,8 +985,8 @@ func (c *CoalesceVariableNames) MakeDeclarationVar(coalescedName *Var) {
 			// const x = 1; // constant requires an initializer
 			// let {x, y} = obj; // destructuring requires an initializer
 			// let [x, y] = iterable; // destructuring requires an initializer
-			undefinedValue := c.astFactory.CreateUndefinedValue().SrcrefTree(nameNode)
-			nameNode.AddChildToFront(undefinedValue)
+			undefinedValue := ast.MustExpr(c.astFactory.CreateUndefinedValue().SrcrefTree(nameNode))
+			ast.MustName(nameNode).SetInit(undefinedValue)
 		}
 		// find the declaration node in a way that works normal and destructuring declarations.
 		declNode := NodeUtil_GetEnclosingNode(nameNode.GetParent(), NodeUtil_IsNameDeclaration)
@@ -996,21 +998,22 @@ func (c *CoalesceVariableNames) MakeDeclarationVar(coalescedName *Var) {
 
 // Java: CoalesceVariableNames.isUninitializedLetNameInLoopBody(Node)
 func CoalesceVariableNames_IsUninitializedLetNameInLoopBody(nameNode rhino.Node) bool {
-	jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
-	letNode := nameNode.GetParent()
-	if !letNode.IsLet() {
+	name, isName := ast.AsName(nameNode)
+	jutil.CheckStateMsg1(isName, "%s", nameNode)
+	letDecl, isLet := ast.AsNameDeclarationOf(nameNode.GetParent(), rhino.Token_LET)
+	if !isLet {
 		// We're looking for `let name;`
 		// Note that in the case of destructuring an initializer always exists.
 		// `let {name} = initializerRequiredHere;
 		return false
 	}
-	if nameNode.HasOneChild() {
+	if _, hasInit := name.Init(); hasInit {
 		// `let name = child;` has an initializer
 		return false
 	}
 
-	letParent := letNode.GetParent()
-	if NodeUtil_IsLoopStructure(letParent) {
+	letParent := letDecl.Node().GetParent()
+	if _, isLoop := ast.AsLoop(letParent); isLoop {
 		// `for (let x; ...`
 		// `for (let x in ...`
 		// `for (let x of ...`
@@ -1080,12 +1083,26 @@ func (l *CoalesceVariableNames_LiveRangeChecker) Check(n rhino.Node) {
 	// For most AST nodes, traverse the subtree in postorder because that's how the expressions
 	// are evaluated.
 	if n == l.root || !ControlFlowGraph_IsEnteringNewCfgNode(n) {
-		if (n.IsDestructuringLhs() && n.HasTwoChildren()) ||
-			(n.IsAssign() && n.GetFirstChild().IsDestructuringPattern()) ||
-			n.IsDefaultValue() {
-			// Evaluate the rhs of a destructuring assignment/declaration before the lhs.
-			l.Check(n.GetSecondChild())
-			l.Check(n.GetFirstChild())
+		if dlhs, ok := ast.AsDestructuringLhs(n); ok {
+			if init, hasInit := dlhs.Init(); hasInit {
+				// Evaluate the rhs of a destructuring declaration before the lhs.
+				l.Check(init.Node())
+				l.Check(dlhs.Pattern().Node())
+			} else {
+				l.Check(dlhs.Pattern().Node())
+			}
+		} else if assign, ok := ast.AsAssign(n); ok {
+			if pat, isPat := assign.Target().AsPattern(); isPat {
+				// Evaluate the rhs of a destructuring assignment before the lhs.
+				l.Check(assign.Value().Node())
+				l.Check(pat.Node())
+			} else {
+				l.Check(assign.Target().Node())
+				l.Check(assign.Value().Node())
+			}
+		} else if dv, ok := ast.AsDefaultValue(n); ok {
+			l.Check(dv.Value().Node())
+			l.Check(dv.Target().Node())
 		} else {
 			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 				l.Check(c)
@@ -1101,16 +1118,17 @@ func (l *CoalesceVariableNames_LiveRangeChecker) Check(n rhino.Node) {
 func (l *CoalesceVariableNames_LiveRangeChecker) Visit(n rhino.Node, parent rhino.Node) {
 	var assignedName string
 	hasAssign := false
-	if n.IsName() {
+	if name, isName := ast.AsName(n); isName {
+		_, hasInit := name.Init()
 		if parent.IsParamList() ||
-			(NodeUtil_IsNameDeclaration(parent) && n.HasChildren()) ||
+			(NodeUtil_IsNameDeclaration(parent) && hasInit) ||
 			NodeUtil_IsLhsByDestructuring(n) {
-			assignedName = n.GetString()
+			assignedName = name.Ident()
 			hasAssign = true
 		}
-	} else if NodeUtil_IsAssignmentOp(n) {
-		if name := n.GetFirstChild(); name.IsName() {
-			assignedName = name.GetString()
+	} else if assign, isAssign := ast.AsAssignment(n); isAssign {
+		if name, isTargetName := assign.Target().AsName(); isTargetName {
+			assignedName = name.Ident()
 			hasAssign = true
 		}
 	}
@@ -1119,9 +1137,11 @@ func (l *CoalesceVariableNames_LiveRangeChecker) Visit(n rhino.Node, parent rhin
 			l.isAssignToList = append(l.isAssignToList, iVar)
 		}
 	}
-	if len(l.isAssignToList) != 0 && n.IsName() && !NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
-		if iVar := l.varIndex(n.GetString()); iVar >= 0 {
-			l.isReadFromList = append(l.isReadFromList, iVar)
+	if len(l.isAssignToList) != 0 {
+		if name, isName := ast.AsName(n); isName && !NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
+			if iVar := l.varIndex(name.Ident()); iVar >= 0 {
+				l.isReadFromList = append(l.isReadFromList, iVar)
+			}
 		}
 	}
 }
@@ -1211,28 +1231,30 @@ func CoalesceVariableNames_LiveRangeChecker_ShouldVisit(n rhino.Node) bool {
 
 // Java: CoalesceVariableNames.LiveRangeChecker.isAssignTo(Var, Node, Node)
 func CoalesceVariableNames_LiveRangeChecker_IsAssignTo(var_ *Var, n rhino.Node, parent rhino.Node) bool {
-	if n.IsName() {
+	if name, ok := ast.AsName(n); ok {
+		_, hasInit := name.Init()
 		if parent.IsParamList() {
 			// In a function declaration, the formal parameters are assigned.
-			return var_.GetName() == n.GetString()
-		} else if NodeUtil_IsNameDeclaration(parent) && n.HasChildren() {
+			return var_.GetName() == name.Ident()
+		} else if NodeUtil_IsNameDeclaration(parent) && hasInit {
 			// If this is a VAR declaration, if the name node has a child, we are
 			// assigning to that name.
-			return var_.GetName() == n.GetString()
+			return var_.GetName() == name.Ident()
 		} else if NodeUtil_IsLhsByDestructuring(n) {
-			return var_.GetName() == n.GetString()
+			return var_.GetName() == name.Ident()
 		}
-	} else if NodeUtil_IsAssignmentOp(n) {
+	} else if assign, ok := ast.AsAssignment(n); ok {
 		// Lastly, any assignmentOP is also an assign.
-		name := n.GetFirstChild()
-		return name.IsName() && var_.GetName() == name.GetString()
+		name, isName := assign.Target().AsName()
+		return isName && var_.GetName() == name.Ident()
 	}
 	return false // Definitely a read.
 }
 
 // Java: CoalesceVariableNames.LiveRangeChecker.isReadFrom(Var, Node)
 func CoalesceVariableNames_LiveRangeChecker_IsReadFrom(var_ *Var, name rhino.Node) bool {
-	return name.IsName() &&
-		var_.GetName() == name.GetString() &&
+	nameView, ok := ast.AsName(name)
+	return ok &&
+		var_.GetName() == nameView.Ident() &&
 		!NodeUtil_IsNameDeclOrSimpleAssignLhs(name, name.GetParent())
 }

@@ -669,4 +669,127 @@ func TestRoleOf(t *testing.T) {
 	if RoleOf(forIn.Collection().Node()) != RoleForInCollection || RoleForInCollection != RoleForInObject {
 		t.Error("the collection of a for-in does not have the role RoleForInCollection")
 	}
+	if RoleIn(forIn.Collection().Node(), forIn.Node()) != RoleForInCollection {
+		t.Error("RoleIn does not match RoleOf")
+	}
+	if RoleIn(forIn.Node(), rhino.NilNode) != RoleNone {
+		t.Error("RoleIn with NilNode parent did not return RoleNone")
+	}
+}
+
+func TestMethodDefAndComputedMember(t *testing.T) {
+	newStore(t)
+	fn := func() Function { return NewFunction("", NewParamList(), NewBlock().AsFunctionBody()) }
+	m := NewMemberFunctionDef("m", fn())
+	g := NewGetterDef("g", fn())
+	s := NewSetterDef("s", fn())
+	for _, member := range []ClassMember{m.AsClassMember(), g.AsClassMember(), s.AsClassMember()} {
+		md, ok := member.AsMethodDef()
+		if !ok {
+			t.Fatalf("ClassMember.AsMethodDef(%s) failed", member.Token())
+		}
+		if md.Key() != member.Node().GetString() || !md.Function().Is(member.Node().GetOnlyChild()) {
+			t.Fatalf("MethodDef(%s) accessors mismatch", member.Token())
+		}
+		if md.IsStatic() {
+			t.Fatalf("MethodDef(%s) unexpectedly static", member.Token())
+		}
+		md.SetStatic(true)
+		if !md.IsStatic() {
+			t.Fatalf("MethodDef(%s).SetStatic(true) did not stick", member.Token())
+		}
+	}
+
+	cp := NewComputedProp(NewName("k").AsExpr())
+	cf := NewComputedFieldDef(NewName("k").AsExpr())
+	cf.SetValue(NewNumber().AsExpr())
+	if cm, ok := cp.AsClassMember().AsComputedMember(); !ok {
+		t.Fatal("ComputedProp did not convert to ComputedMember")
+	} else if _, hasVal := cm.Value(); hasVal || cm.Key().MustName().Ident() != "k" {
+		t.Fatal("ComputedProp without value reported Value()")
+	}
+	if cm, ok := cf.AsClassMember().AsComputedMember(); !ok {
+		t.Fatal("ComputedFieldDef did not convert to ComputedMember")
+	} else if val, hasVal := cm.Value(); !hasVal || !val.Node().IsNumber() {
+		t.Fatal("ComputedFieldDef with value did not return Value()")
+	}
+}
+
+func TestMustListAccessorsAndCustomFlags(t *testing.T) {
+	newStore(t)
+	x := NewName("x")
+	decl := NewNameDeclaration(rhino.Token_LET, x.AsDeclarator())
+	if decl.MustFirstDeclarator() != x.AsDeclarator() || decl.MustOnlyDeclarator() != x.AsDeclarator() {
+		t.Fatal("MustFirstDeclarator / MustOnlyDeclarator mismatch")
+	}
+	decl.AppendDeclarator(NewName("y").AsDeclarator())
+	func() {
+		defer func() {
+			r := recover()
+			e, ok := r.(error)
+			if !ok || e.Error() != "ast.NameDeclaration.MustOnlyDeclarator: LET has 2 children" {
+				t.Fatalf("unexpected panic %v", r)
+			}
+		}()
+		decl.MustOnlyDeclarator()
+	}()
+
+	fn := NewFunction("fn", NewParamList(), NewBlock().AsFunctionBody())
+	if fn.NameNode().Ident() != "fn" || fn.IsAsync() || fn.IsGenerator() {
+		t.Fatal("unexpected initial Function state")
+	}
+	fn.SetAsync(true)
+	fn.SetGenerator(true)
+	if !fn.IsAsync() || !fn.IsGenerator() {
+		t.Fatal("Function async/generator setters failed")
+	}
+
+	clsNode := rhino.NewNodeWith3Children(rhino.Token_CLASS, rhino.IR_Name("C"), rhino.IR_Name("Base"), NewClassBody().Node())
+	cls := MustClass(clsNode)
+	if !cls.NameNode().IsName() || !cls.ExtendsNode().IsName() {
+		t.Fatal("Class NameNode/ExtendsNode mismatch")
+	}
+	cls.RemoveName()
+	cls.RemoveExtends()
+	if _, ok := cls.Name(); ok || !cls.NameNode().IsEmpty() {
+		t.Fatal("Class.RemoveName did not leave EMPTY placeholder")
+	}
+	if _, ok := cls.Extends(); ok || !cls.ExtendsNode().IsEmpty() {
+		t.Fatal("Class.RemoveExtends did not leave EMPTY placeholder")
+	}
+
+	inc := NewIncDec(rhino.Token_INC, NewName("i").AsTarget())
+	if inc.IsPostfix() {
+		t.Fatal("new IncDec should default to prefix")
+	}
+	inc.SetPostfix(true)
+	if !inc.IsPostfix() {
+		t.Fatal("IncDec.SetPostfix(true) failed")
+	}
+
+	call := NewCall(NewName("f").AsExpr())
+	call.SetFreeCall(true)
+	if !call.IsFreeCall() || !call.AsNormalOrOptChainCall().IsFreeCall() {
+		t.Fatal("Call.SetFreeCall(true) failed")
+	}
+
+	y := NewYield()
+	y.SetYieldAll(true)
+	if !y.IsYieldAll() {
+		t.Fatal("Yield.SetYieldAll(true) failed")
+	}
+
+	exp := NewExport(NewEmpty().AsExportBody())
+	exp.SetDefault(true)
+	exp.SetAllFrom(true)
+	if !exp.IsDefault() || !exp.IsAllFrom() {
+		t.Fatal("Export flags failed")
+	}
+
+	blk := NewBlock()
+	blk.SetSynthetic(true)
+	blk.SetAdded(true)
+	if !blk.IsSynthetic() || !blk.IsAdded() {
+		t.Fatal("Block flags failed")
+	}
 }

@@ -79,6 +79,13 @@ ClassMember = MemberFunctionDef | GetterDef | SetterDef | MemberVariableDef | Co
 ## class: get key() { body } or set key(param) { body }.
 GetterOrSetterDef = GetterDef | SetterDef
 
+## MethodDef is a method, getter or setter, in an object literal or a class.
+MethodDef = MemberFunctionDef | GetterDef | SetterDef
+
+## ComputedMember is a computed property or computed class field:
+## [key]: value or [key] = value.
+ComputedMember = ComputedProp | ComputedFieldDef
+
 ## Loop is a loop statement.
 Loop = For | ForIn | ForOf | ForAwaitOf | While | Do
 

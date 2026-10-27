@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -81,11 +82,12 @@ func (c *CheckUnreachableCode) CurrentScopeHasNoUnreachable() bool {
 // isStraightLineFunction reports whether fn's parameter list and block body
 // contain only straight-line statements that cannot create unreachable code,
 // and whether the body ends with an explicit return statement.
-func isStraightLineFunction(fn rhino.Node) (straightLine bool, endsWithReturn bool) {
-	if fn.IsNil() || !fn.IsFunction() {
+func isStraightLineFunction(fnNode rhino.Node) (straightLine bool, endsWithReturn bool) {
+	fn, ok := ast.AsFunction(fnNode)
+	if !ok {
 		return false, false
 	}
-	paramList := fn.GetSecondChild()
+	paramList := fn.Params().Node()
 	if paramList.IsNil() {
 		return false, false
 	}
@@ -94,12 +96,12 @@ func isStraightLineFunction(fn rhino.Node) (straightLine bool, endsWithReturn bo
 			return false, false
 		}
 	}
-	body := paramList.GetNext()
-	if body.IsNil() || !body.IsBlock() || body.IsSyntheticBlock() {
+	body, ok := ast.AsBlock(paramList.GetNext())
+	if !ok || body.IsSynthetic() {
 		return false, false
 	}
 	terminated := false
-	for child := body.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := body.Node().GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		tok := child.GetToken()
 		if tok == rhino.Token_FUNCTION {
 			continue
@@ -123,8 +125,12 @@ func isStraightLineFunction(fn rhino.Node) (straightLine bool, endsWithReturn bo
 
 func isStraightLineScript(script rhino.Node) bool {
 	container := script
-	if script.HasOneChild() && script.GetFirstChild().IsModuleBody() {
-		container = script.GetFirstChild()
+	if s, ok := ast.AsScript(script); ok {
+		if item, only := s.OnlyItem(); only {
+			if mod, isMod := item.AsModuleBody(); isMod {
+				container = mod.Node()
+			}
+		}
 	}
 	for child := container.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		switch child.GetToken() {
