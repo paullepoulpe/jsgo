@@ -323,8 +323,8 @@ func (g *GlobalNamespace) forwardNodes(fwd func(rhino.Node) rhino.Node) {
 // map is rebuilt, as it hashes by value).
 func (tl *Timeline[T]) ForwardValues(f func(T) T) {
 	index := make(map[T]uint32, len(tl.eventsByValue))
-	// order-independent: rewrites each event's value in place and rebuilds
-	// the index; event ids and their order are unchanged.
+	// Event ids and their order are unchanged; only values are rewritten.
+	// order-independent: rebuilds the index with forwarded values.
 	for value, id := range tl.eventsByValue {
 		nv := f(value)
 		tl.event(id).value = nv
