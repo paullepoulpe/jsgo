@@ -26,7 +26,7 @@ files[system] = patch(system, "func System_Exit(status int) {\n",
 files[os.path.join(src, "internal/jutil/zz_gclab_hook.go")] = \
     "package jutil\n\n// GclabExitHook runs before System_Exit ends the process (gclab).\nvar GclabExitHook func()\n"
 main = os.path.join(src, "cmd/jsgo/main.go")
-call = "\tjscomp.CommandLineRunner_Main(os.Args[1:])\n"
+call = "\tcli.CommandLineRunner_Main(os.Args[1:])\n"
 files[main] = patch(main, call, call + "\tif jutil.GclabExitHook != nil {\n\t\tjutil.GclabExitHook()\n\t}\n")
 tracer = os.path.join(src, "internal/jscomp/tracer.go")
 t = patch(tracer, "\tt.startTimeMs = Tracer_clock.CurrentTimeMillis()\n\tt.startThread = jutil.Thread_CurrentThread()\n",

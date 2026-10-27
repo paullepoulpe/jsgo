@@ -37,9 +37,9 @@ type Result struct {
 	instrumentationMappings *VariableMap                 // nil is null
 	SourceMap               *SourceMap                   // nil is null
 	cssNames                *jutil.LinkedHashSet[string] // nil is null
-	externExport            *string                      // nil is null
+	ExternExport            *string                      // nil is null
 	idGeneratorMap          *string                      // nil is null
-	transpiledFiles         bool
+	TranspiledFiles         bool
 }
 
 // Java: Result(ImmutableList<JSError>, ImmutableList<JSError>, VariableMap, VariableMap, VariableMap, VariableMap, VariableMap, SourceMap, String, Set<String>, String, boolean)
@@ -66,10 +66,10 @@ func NewResultWithAllMaps(
 	r.stringMap = stringMap
 	r.instrumentationMappings = instrumentationMappings
 	r.SourceMap = sourceMap
-	r.externExport = externExport
+	r.ExternExport = externExport
 	r.cssNames = cssNames
 	r.idGeneratorMap = idGeneratorMap
-	r.transpiledFiles = transpiledFiles
+	r.TranspiledFiles = transpiledFiles
 	return r
 }
 

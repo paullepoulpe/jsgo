@@ -107,3 +107,13 @@ func (t *DiagnosticType) CompareTo(diagnosticType *DiagnosticType) int {
 func (t *DiagnosticType) String() string {
 	return t.key + ": " + t.format
 }
+
+// Key returns the diagnostic's unique identifier (Java's DiagnosticType.key).
+func (t *DiagnosticType) Key() string {
+	return t.key
+}
+
+// FormatPattern returns the diagnostic's MessageFormat template (Java's DiagnosticType.format).
+func (t *DiagnosticType) FormatPattern() string {
+	return t.format
+}

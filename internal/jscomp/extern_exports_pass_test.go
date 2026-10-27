@@ -125,7 +125,7 @@ goog.exportProperty = function(a, b, c) {};
 		CompilerTestCase_PostconditionFunc(
 			func(compiler *Compiler) {
 				if consumer != nil {
-					consumer(compiler.GetResult().externExport)
+					consumer(compiler.GetResult().ExternExport)
 				}
 			}))
 }

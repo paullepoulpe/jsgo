@@ -110,6 +110,16 @@ func (m *ThreadSafeDelegatingErrorManager) ShouldReportConformanceViolation(
 		requirement, allowlistEntry, diagnostic, behavior, isAllowlisted)
 }
 
+// LockMonitor acquires the reentrant Java monitor for subclasses.
+func (m *ThreadSafeDelegatingErrorManager) LockMonitor() {
+	m.monitor.Lock()
+}
+
+// UnlockMonitor releases the reentrant Java monitor for subclasses.
+func (m *ThreadSafeDelegatingErrorManager) UnlockMonitor() {
+	m.monitor.Unlock()
+}
+
 func (m *ThreadSafeDelegatingErrorManager) lock() {
 	m.monitor.LockFast()
 }

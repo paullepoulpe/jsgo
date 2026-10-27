@@ -85,6 +85,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
+	"github.com/paullepoulpe/jsgo/internal/testjunit"
 )
 
 // NodeSubject is a Truth Subject for the Node class. Usage:
@@ -102,7 +103,7 @@ type NodeSubject struct {
 //
 // Java: NodeSubject.assertNode(Node)
 func NodeSubject_AssertNode(node rhino.Node) *NodeSubject {
-	return newNodeSubject(&Subject{actual: node}, node)
+	return newNodeSubject(testjunit.NewSubject(node), node)
 }
 
 // AssertNode is NodeSubject_AssertNode for Java's
@@ -120,10 +121,10 @@ func newNodeSubject(s *Subject, node rhino.Node) *NodeSubject {
 // node.
 func (s *NodeSubject) check(format string, args ...any) *StandardSubjectBuilder {
 	msg := "value of: node." + jutil.LenientFormat(format, args...) + "\nnode was: " + s.serializeNode(s.actual)
-	if s.message != "" {
-		msg = s.message + "\n" + msg
+	if s.Message() != "" {
+		msg = s.Message() + "\n" + msg
 	}
-	return &StandardSubjectBuilder{message: msg}
+	return testjunit.NewStandardSubjectBuilder(msg)
 }
 
 // UsingSerializer specifies a function to use when rendering Nodes into
@@ -258,7 +259,7 @@ func (s *NodeSubject) IsEqualToInternal(expected rhino.Node, checkJsdoc bool) {
 	}
 
 	if len(facts) != 0 {
-		s.failf("Node tree inequality\n%s", strings.Join(facts, "\n"))
+		s.Failf("Node tree inequality\n%s", strings.Join(facts, "\n"))
 	}
 }
 
@@ -330,7 +331,7 @@ func (s *NodeSubject) IsNotEquivalentTo(other rhino.Node) *NodeSubject {
 // Java: NodeSubject.hasJSTypeThat()
 func (s *NodeSubject) HasJSTypeThat() *rhinotesting.TypeSubject {
 	b := s.check("getJSType()")
-	return rhinotesting.NewTruth(assertionTB{}).AssertWithMessage("%s", b.message).AboutTypes().That(s.actual.GetJSTypeRequired())
+	return rhinotesting.NewTruth(assertionTB{}).AssertWithMessage("%s", b.Message()).AboutTypes().That(s.actual.GetJSTypeRequired())
 }
 
 // Java: NodeSubject.hasColorThat()
@@ -664,7 +665,7 @@ func (s *NodeSubject) showActual() string {
 // IsNotNull is Subject.isNotNull() with the node rendered by the serializer.
 func (s *NodeSubject) IsNotNull() {
 	if s.actual.IsNil() {
-		s.failf("expected not to be null")
+		s.Failf("expected not to be null")
 	}
 }
 
@@ -912,7 +913,7 @@ func newColorSubject(s *Subject, actual *colors.Color) *ColorSubject {
 //
 // Java: ColorSubject.assertThat(Color)
 func ColorSubject_AssertThat(actual *colors.Color) *ColorSubject {
-	return newColorSubject(&Subject{actual: actual}, actual)
+	return newColorSubject(testjunit.NewSubject(actual), actual)
 }
 
 // Java: ColorSubject.actualNonNull()
@@ -923,10 +924,10 @@ func (s *ColorSubject) actualNonNull() *colors.Color {
 
 func (s *ColorSubject) check(format string, args ...any) *StandardSubjectBuilder {
 	msg := "value of: color." + jutil.LenientFormat(format, args...) + "\ncolor was: " + show(s.actual)
-	if s.message != "" {
-		msg = s.message + "\n" + msg
+	if s.Message() != "" {
+		msg = s.Message() + "\n" + msg
 	}
-	return &StandardSubjectBuilder{message: msg}
+	return testjunit.NewStandardSubjectBuilder(msg)
 }
 
 // Custom assertions

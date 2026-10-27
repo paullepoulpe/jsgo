@@ -24,6 +24,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/testjunit"
 )
 
 // PolyfillUsageFinderTest holds the unit tests for PolyfillUsageFinder.
@@ -337,16 +338,16 @@ func newPolyfillUsageFinderTest_PolyfillSubject(s *Subject, polyfill *PolyfillUs
 
 // Java: PolyfillUsageFinderTest.PolyfillSubject.assertPolyfill(Polyfill)
 func PolyfillUsageFinderTest_PolyfillSubject_AssertPolyfill(polyfill *PolyfillUsageFinder_Polyfill) *PolyfillUsageFinderTest_PolyfillSubject {
-	return newPolyfillUsageFinderTest_PolyfillSubject(&Subject{actual: polyfill}, polyfill)
+	return newPolyfillUsageFinderTest_PolyfillSubject(testjunit.NewSubject(polyfill), polyfill)
 }
 
 // check is Subject.check(name): a subject for a property of the polyfill.
 func (s *PolyfillUsageFinderTest_PolyfillSubject) check(what string) *StandardSubjectBuilder {
 	msg := "value of: polyfill." + what + "\npolyfill was: " + show(s.actual)
-	if s.message != "" {
-		msg = s.message + "\n" + msg
+	if s.Message() != "" {
+		msg = s.Message() + "\n" + msg
 	}
-	return &StandardSubjectBuilder{message: msg}
+	return testjunit.NewStandardSubjectBuilder(msg)
 }
 
 // Java: PolyfillUsageFinderTest.PolyfillSubject.hasNativeSymbol(String)
@@ -393,16 +394,16 @@ func newPolyfillUsageFinderTest_PolyfillUsageSubject(s *Subject, polyfillUsage *
 
 // Java: PolyfillUsageFinderTest.PolyfillUsageSubject.assertPolyfillUsage(PolyfillUsage)
 func PolyfillUsageFinderTest_PolyfillUsageSubject_AssertPolyfillUsage(polyfillUsage *PolyfillUsageFinder_PolyfillUsage) *PolyfillUsageFinderTest_PolyfillUsageSubject {
-	return newPolyfillUsageFinderTest_PolyfillUsageSubject(&Subject{actual: polyfillUsage}, polyfillUsage)
+	return newPolyfillUsageFinderTest_PolyfillUsageSubject(testjunit.NewSubject(polyfillUsage), polyfillUsage)
 }
 
 // check is Subject.check(name): a subject for a property of the usage.
 func (s *PolyfillUsageFinderTest_PolyfillUsageSubject) check(what string) *StandardSubjectBuilder {
 	msg := "value of: polyfillUsage." + what + "\npolyfillUsage was: " + show(s.actual)
-	if s.message != "" {
-		msg = s.message + "\n" + msg
+	if s.Message() != "" {
+		msg = s.Message() + "\n" + msg
 	}
-	return &StandardSubjectBuilder{message: msg}
+	return testjunit.NewStandardSubjectBuilder(msg)
 }
 
 // Java: PolyfillUsageFinderTest.PolyfillUsageSubject.hasName(String)

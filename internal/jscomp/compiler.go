@@ -3539,6 +3539,10 @@ type Compiler_SingleBinaryLicenseTracker struct {
 }
 
 // Java: Compiler.SingleBinaryLicenseTracker(AbstractCompiler)
+func NewCompiler_SingleBinaryLicenseTracker(compiler AbstractCompiler) *Compiler_SingleBinaryLicenseTracker {
+	return newCompiler_SingleBinaryLicenseTracker(compiler)
+}
+
 func newCompiler_SingleBinaryLicenseTracker(compiler AbstractCompiler) *Compiler_SingleBinaryLicenseTracker {
 	t := &Compiler_SingleBinaryLicenseTracker{}
 	t.initCompiler_SeenSetLicenseTrackerBase(t, compiler)

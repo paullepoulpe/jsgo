@@ -10,6 +10,7 @@ import (
 	"runtime/pprof"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/cli"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -93,5 +94,5 @@ func main() {
 		err.Flush()
 		os.Exit(1)
 	}()
-	jscomp.CommandLineRunner_Main(os.Args[1:])
+	cli.CommandLineRunner_Main(os.Args[1:])
 }

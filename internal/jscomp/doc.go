@@ -1,5 +1,5 @@
 // Package jscomp implements the Closure JavaScript compiler pipeline, passes,
-// typechecker, module resolvers, bundler, and AST/type state serialization.
+// typechecker, module resolvers, and AST/type state serialization.
 //
 // # Architecture & Compilation Stages
 //
@@ -25,6 +25,7 @@
 //
 // Files porting classes from Java subpackages of com.google.javascript.jscomp
 // carry subpackage prefixes so they group naturally in directory listings:
+//   - closure_unaware_* — @closureUnaware shadow-AST transpilation and optimization
 //   - deps_*            — dependency scanners, goog.provide/require, module resolvers
 //   - disambiguate_*    — type/color-based property disambiguation and ambiguation
 //   - es6_*             — ES2015+ transpilation passes
@@ -36,13 +37,16 @@
 //   - peephole_*        — local AST peephole optimizations
 //   - polymer_*         — Polymer component rewriting
 //   - proto_*           — TypedAST, conformance, and state protobuf codecs
-//   - refactoring_*     — automated suggested-fix and refactoring passes
 //   - serialization_*   — TypedAST and color pool serializers/deserializers
-//   - transpile_*       — standalone per-file transpiler API
 //   - type_*            — reverse abstract interpreters and type validators
 //
-// Generic graph data structures and algorithms (com.google.javascript.jscomp.graph)
-// live in package [github.com/paullepoulpe/jsgo/internal/graph].
+// Higher-level tools and standalone subpackages live in their own Go packages:
+//   - [github.com/paullepoulpe/jsgo/internal/graph]       — generic graph data structures and algorithms
+//   - [github.com/paullepoulpe/jsgo/internal/refactoring] — AST pattern matching, refactoring drivers, and SuggestedFix
+//   - [github.com/paullepoulpe/jsgo/internal/linter]      — standalone single-file Linter, LinterMain, and LintPassConfig
+//   - [github.com/paullepoulpe/jsgo/internal/bundle]      — per-source transformers, caching, and coverage instrumentation
+//   - [github.com/paullepoulpe/jsgo/internal/transpile]   — standalone per-file ES transpiler API and ClosureBundler
+//   - [github.com/paullepoulpe/jsgo/internal/cli]         — CommandLineRunner CLI front end, flags, and output writers
 //
 // # Determinism & AST Conventions
 //

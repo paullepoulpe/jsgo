@@ -18,6 +18,8 @@
 
 package jscomp
 
+import "github.com/paullepoulpe/jsgo/internal/testjunit"
+
 // JSErrorSubject is a Truth Subject for the JSError class. Usage:
 //
 //	JSErrorSubject_AssertError(error).HasType(TypeValidator_TYPE_MISMATCH)
@@ -32,7 +34,7 @@ type JSErrorSubject struct {
 //
 // Java: JSErrorSubject.assertError(JSError)
 func JSErrorSubject_AssertError(error_ *JSError) *JSErrorSubject {
-	return NewJSErrorSubject(&Subject{actual: error_}, error_)
+	return NewJSErrorSubject(testjunit.NewSubject(error_), error_)
 }
 
 // AssertError is JSErrorSubject_AssertError for Java's
@@ -48,10 +50,10 @@ func NewJSErrorSubject(s *Subject, error_ *JSError) *JSErrorSubject {
 
 func (s *JSErrorSubject) check(what string) *StandardSubjectBuilder {
 	msg := "value of: jSError." + what + "\njSError was: " + show(s.actual)
-	if s.message != "" {
-		msg = s.message + "\n" + msg
+	if s.Message() != "" {
+		msg = s.Message() + "\n" + msg
 	}
-	return &StandardSubjectBuilder{message: msg}
+	return testjunit.NewStandardSubjectBuilder(msg)
 }
 
 // Java: JSErrorSubject.hasType(DiagnosticType)

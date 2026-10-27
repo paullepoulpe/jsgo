@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
+	"github.com/paullepoulpe/jsgo/internal/testjunit"
 )
 
 // ScopeSubject is a Truth Subject for the AbstractScope class. Usage:
@@ -45,7 +46,7 @@ type ScopeSubject struct {
 func ScopeSubject_AssertScope(scope AbstractScope) *ScopeSubject {
 	// NB: Eclipse's Java compiler bails on just passing ScopeSubject::new below, so wrap it in a
 	// Closure.
-	return newScopeSubject(&Subject{actual: scope}, scope)
+	return newScopeSubject(testjunit.NewSubject(scope), scope)
 }
 
 // AssertScope is ScopeSubject_AssertScope for Java's

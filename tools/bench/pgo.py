@@ -68,7 +68,7 @@ def overlay(tmp):
     src = src.replace(head, head + "\tif ProfExitHook != nil {\n\t\tProfExitHook()\n\t}\n")
     main = os.path.join(REPO, "cmd", "jsgo", "main.go")
     msrc = open(main).read()
-    call = "\tjscomp.CommandLineRunner_Main(os.Args[1:])\n"
+    call = "\tcli.CommandLineRunner_Main(os.Args[1:])\n"
     if msrc.count(call) != 1:
         sys.exit("cmd/jsgo/main.go: the CommandLineRunner_Main call not found")
     msrc = msrc.replace(call, call + "\tif jutil.ProfExitHook != nil {\n\t\tjutil.ProfExitHook()\n\t}\n")

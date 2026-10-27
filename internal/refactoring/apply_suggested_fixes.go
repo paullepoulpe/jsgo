@@ -1,0 +1,275 @@
+// Port of com/google/javascript/refactoring/ApplySuggestedFixes.java @ closure-compiler v20261021
+
+/*
+ * Copyright 2014 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package refactoring
+
+import (
+	"iter"
+	"slices"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+// ApplySuggestedFixes is the class that applies suggested fixes to code or
+// files.
+//
+// Java: public final class ApplySuggestedFixes
+type ApplySuggestedFixes struct {
+	_ byte // Go-only: language-adapter — distinct identity
+}
+
+// applySuggestedFixes_DOUBLE_LINE_JOINER_Join is
+// DOUBLE_LINE_JOINER.join(parts) with DOUBLE_LINE_JOINER =
+// Joiner.on("\n\n"): the parts' toString() separated by "\n\n".
+func applySuggestedFixes_DOUBLE_LINE_JOINER_Join(parts []*CodeReplacement) string {
+	var sb strings.Builder
+	for i, part := range parts {
+		if i > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString(part.String())
+	}
+	return sb.String()
+}
+
+// ApplySuggestedFixes_ApplySuggestedFixesToFiles applies the provided set of
+// suggested fixes to the files listed in the suggested fixes. The fixes can
+// be provided in any order, but they may not have any overlapping
+// modifications for the same file. It throws IOException.
+//
+// Java: ApplySuggestedFixes.applySuggestedFixesToFiles(Iterable<SuggestedFix>)
+func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix]) {
+	filenames := jutil.NewLinkedHashSet[string]()
+	for fix := range fixes {
+		for filename := range fix.GetReplacements().KeySet() {
+			filenames.Add(filename)
+		}
+	}
+
+	// Go-only: language-adapter — a HashMap that is only looked up
+	// (PORTING.md §6).
+	filenameToCodeMap := jutil.NewLinkedHashMap[string, string]()
+	for filename := range filenames.All() {
+		filenameToCodeMap.Put(filename, jutil.Files_AsCharSource(jutil.NewFile(filename), jutil.StandardCharsets_UTF_8).Read())
+	}
+
+	newCode := ApplySuggestedFixes_ApplySuggestedFixesToCode(fixes, filenameToCodeMap)
+	for key, value := range newCode.All() {
+		jutil.Files_AsCharSink(jutil.NewFile(key), jutil.StandardCharsets_UTF_8).Write(value)
+	}
+}
+
+// ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode applies all possible
+// options from each SuggestedFixAlternative to the provided code and returns
+// the new code. This only makes sense if all the SuggestedFixAlternatives
+// come from the same checker, i.e. they offer the same number of choices and
+// the same index corresponds to similar fixes. The fileNameToCodeMap must
+// contain all the files that the provided fixes apply to. The fixes can be
+// provided in any order, but they may not have any overlapping
+// modifications for the same file. This function will return new code only
+// for the files that have been modified.
+//
+// Java: ApplySuggestedFixes.applyAllSuggestedFixChoicesToCode(Iterable<SuggestedFix>, Map<String, String>)
+func ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
+	fixChoices iter.Seq[*SuggestedFix], fileNameToCodeMap *jutil.LinkedHashMap[string, string]) []*jutil.LinkedHashMap[string, string] {
+	// Iterables.isEmpty(fixChoices), Iterables.getFirst(fixChoices, null)
+	var first *SuggestedFix
+	isEmpty := true
+	for f := range fixChoices {
+		first = f
+		isEmpty = false
+		break
+	}
+	if isEmpty {
+		return []*jutil.LinkedHashMap[string, string]{jutil.NewImmutableMapBuilder[string, string]().BuildOrThrow()}
+	}
+	alternativeCount := len(first.GetAlternatives())
+	// stream(fixChoices).map(f -> f.getAlternatives().size())
+	//     .allMatch(Predicate.isEqual(alternativeCount))
+	allMatch := true
+	for f := range fixChoices {
+		if len(f.GetAlternatives()) != alternativeCount {
+			allMatch = false
+			break
+		}
+	}
+	jutil.CheckArgumentMsg(
+		allMatch,
+		"All SuggestedFixAlternatives must offer an equal number of choices for this "+
+			"utility to make sense")
+	result := make([]*jutil.LinkedHashMap[string, string], 0, alternativeCount)
+	for i := 0; i < alternativeCount; i++ {
+		result = append(result, ApplySuggestedFixes_ApplySuggestedFixChoicesToCode(fixChoices, i, fileNameToCodeMap))
+	}
+	return result
+}
+
+// Java: ApplySuggestedFixes.applySuggestedFixChoicesToCode(Iterable<SuggestedFix>, int, Map<String, String>)
+func ApplySuggestedFixes_ApplySuggestedFixChoicesToCode(
+	fixChoices iter.Seq[*SuggestedFix],
+	choiceIndex int,
+	fileNameToCodeMap *jutil.LinkedHashMap[string, string]) *jutil.LinkedHashMap[string, string] {
+	chosenFixes := []*SuggestedFix{}
+	for choices := range fixChoices {
+		chosenFixes = append(chosenFixes, choices.GetAlternatives()[choiceIndex])
+	}
+	return ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(chosenFixes), fileNameToCodeMap)
+}
+
+// ApplySuggestedFixes_ApplySuggestedFixesToCode applies the provided set of
+// suggested fixes to the provided code and returns the new code, ignoring
+// alternative fixes. The filenameToCodeMap must contain all the files that
+// the provided fixes apply to. The fixes can be provided in any order, but
+// they may not have any overlapping modifications for the same file. This
+// function will return new code only for the files that have been modified.
+//
+// Java: ApplySuggestedFixes.applySuggestedFixesToCode(Iterable<SuggestedFix>, Map<String, String>)
+func ApplySuggestedFixes_ApplySuggestedFixesToCode(
+	fixes iter.Seq[*SuggestedFix], filenameToCodeMap *jutil.LinkedHashMap[string, string]) *jutil.LinkedHashMap[string, string] {
+	map_ := NewApplySuggestedFixes_ReplacementMap()
+	for fix := range fixes {
+		map_.PutIfNoOverlap(fix)
+	}
+	newCodeMap := jutil.NewImmutableMapBuilder[string, string]()
+	for filename, replacements := range map_.EntrySet() {
+		if !filenameToCodeMap.ContainsKey(filename) {
+			panic(jutil.NewIllegalArgumentExceptionMsg("filenameToCodeMap missing code for file: " + filename))
+		}
+		newCode := ApplySuggestedFixes_ApplyCodeReplacements(replacements, filenameToCodeMap.Get(filename))
+		newCodeMap.Put(filename, newCode)
+	}
+	return newCodeMap.BuildOrThrow()
+}
+
+// ApplySuggestedFixes_ApplyCodeReplacements applies the provided set of
+// code replacements to the code and returns the transformed code. The code
+// replacements may not have any overlap.
+//
+// Java: ApplySuggestedFixes.applyCodeReplacements(Collection<CodeReplacement>, String)
+func ApplySuggestedFixes_ApplyCodeReplacements(
+	replacements []*CodeReplacement, code string) string {
+	sortedReplacements :=
+		applySuggestedFixes_ImmutableSortedSetCopyOf(replacements)
+	if ApplySuggestedFixes_ContainsOverlaps(sortedReplacements) {
+		jutil.CheckArgumentMsg1(
+			false,
+			"Found overlap between code replacements:\n%s",
+			applySuggestedFixes_DOUBLE_LINE_JOINER_Join(sortedReplacements))
+	}
+
+	codeUnits := applySuggestedFixes_CharSequence(jutil.StringToUTF16(code))
+	sb := jutil.NewStringBuilder()
+	lastIndex := 0
+	for _, replacement := range sortedReplacements {
+		sb.AppendCharSequenceRange(codeUnits, lastIndex, replacement.GetStartPosition())
+		sb.Append(replacement.GetNewContent())
+		lastIndex = replacement.GetEndPosition()
+	}
+	if lastIndex <= codeUnits.Length() {
+		sb.AppendCharSequenceRange(codeUnits, lastIndex, codeUnits.Length())
+	}
+	return sb.String()
+}
+
+// applySuggestedFixes_CharSequence is the String `code` as the
+// CharSequence that StringBuilder.append(CharSequence, int, int) reads.
+//
+// Go-only: language-adapter — the UTF-16 code units of a Go string.
+type applySuggestedFixes_CharSequence []uint16
+
+func (s applySuggestedFixes_CharSequence) Length() int { return len(s) }
+
+func (s applySuggestedFixes_CharSequence) CharAt(index int) uint16 { return s[index] }
+
+// applySuggestedFixes_ImmutableSortedSetCopyOf is
+// ImmutableSortedSet.copyOf(replacements) and
+// ImmutableSortedSet.naturalOrder().addAll(...).build(): the elements sorted
+// by CodeReplacement.compareTo, keeping the first of the elements that
+// compare equal.
+//
+// Go-only: language-adapter — Guava ImmutableSortedSet.
+func applySuggestedFixes_ImmutableSortedSetCopyOf(replacements []*CodeReplacement) []*CodeReplacement {
+	sorted := slices.Clone(replacements)
+	slices.SortStableFunc(sorted, func(a, b *CodeReplacement) int { return a.CompareTo(b) })
+	return slices.CompactFunc(sorted, func(a, b *CodeReplacement) bool { return a.CompareTo(b) == 0 })
+}
+
+// ApplySuggestedFixes_ContainsOverlaps checks whether the
+// `CodeReplacement`s have any overlap.
+//
+// We intentinoally accept a set here beceuse we want to supprt/ignore
+// equivalent `CodeReplacement`s. It's safe if those overlap as long as we
+// only apply one of them.
+//
+// Java: ApplySuggestedFixes.containsOverlaps(ImmutableSortedSet<CodeReplacement>)
+func ApplySuggestedFixes_ContainsOverlaps(replacements []*CodeReplacement) bool {
+	start := -1
+	for _, replacement := range replacements {
+		if replacement.GetStartPosition() < start {
+			return true
+		}
+		start = replacement.GetEndPosition()
+	}
+	return false
+}
+
+// Java: private static class ApplySuggestedFixes.ReplacementMap
+type ApplySuggestedFixes_ReplacementMap struct {
+	map_ *jutil.LinkedHashMap[string, []*CodeReplacement]
+}
+
+// Java: ApplySuggestedFixes.ReplacementMap()
+func NewApplySuggestedFixes_ReplacementMap() *ApplySuggestedFixes_ReplacementMap {
+	return &ApplySuggestedFixes_ReplacementMap{map_: jutil.NewLinkedHashMap[string, []*CodeReplacement]()}
+}
+
+// Java: ApplySuggestedFixes.ReplacementMap.putIfNoOverlap(SuggestedFix)
+func (r *ApplySuggestedFixes_ReplacementMap) PutIfNoOverlap(fix *SuggestedFix) {
+	if r.CanPut(fix) {
+		for k, v := range fix.GetReplacements().Entries() {
+			cur := r.map_.Get(k)
+			if !slices.ContainsFunc(cur, func(existing *CodeReplacement) bool { return existing.Equals(v) }) {
+				r.map_.Put(k, append(cur, v))
+			}
+		}
+	}
+}
+
+// Java: ApplySuggestedFixes.ReplacementMap.canPut(SuggestedFix)
+func (r *ApplySuggestedFixes_ReplacementMap) CanPut(fix *SuggestedFix) bool {
+	for filename := range fix.GetReplacements().KeySet() {
+		combined := slices.Clone(r.map_.Get(filename))
+		combined = append(combined, fix.GetReplacements().Get(filename).ToSlice()...)
+		replacements := applySuggestedFixes_ImmutableSortedSetCopyOf(combined)
+		if ApplySuggestedFixes_ContainsOverlaps(replacements) {
+			return false
+		}
+	}
+	return true
+}
+
+// Java: ApplySuggestedFixes.ReplacementMap.entrySet()
+func (r *ApplySuggestedFixes_ReplacementMap) EntrySet() iter.Seq2[string, []*CodeReplacement] {
+	return r.map_.All()
+}
+
+// Java: ApplySuggestedFixes()
+func newApplySuggestedFixes() *ApplySuggestedFixes {
+	return &ApplySuggestedFixes{}
+}

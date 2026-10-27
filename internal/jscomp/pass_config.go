@@ -143,6 +143,11 @@ func (b *PassConfigBase) GetPassGraph() graph.GraphvizGraph {
 	return passGraph
 }
 
+// Options returns the CompilerOptions bound to this PassConfig.
+func (b *PassConfigBase) Options() *CompilerOptions {
+	return b.options
+}
+
 // Java: PassConfig.getBasePassConfig()
 func (b *PassConfigBase) GetBasePassConfig() PassConfig {
 	current := b.self
@@ -180,9 +185,14 @@ type PassConfig_PassConfigDelegateBase struct {
 // Java: PassConfig.PassConfigDelegate(PassConfig)
 func NewPassConfig_PassConfigDelegate(delegate PassConfig) *PassConfig_PassConfigDelegateBase {
 	d := &PassConfig_PassConfigDelegateBase{}
-	d.self = d
-	d.InitPassConfig_PassConfigDelegateBase(delegate)
+	d.InitPassConfigDelegate(d, delegate)
 	return d
+}
+
+// InitPassConfigDelegate initializes a subclass embedding PassConfig_PassConfigDelegateBase.
+func (d *PassConfig_PassConfigDelegateBase) InitPassConfigDelegate(self PassConfig, delegate PassConfig) {
+	d.self = self
+	d.InitPassConfig_PassConfigDelegateBase(delegate)
 }
 
 // InitPassConfig_PassConfigDelegateBase is the PassConfigDelegate

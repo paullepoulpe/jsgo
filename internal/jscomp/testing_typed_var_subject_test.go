@@ -25,6 +25,7 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
+	"github.com/paullepoulpe/jsgo/internal/testjunit"
 )
 
 // TypedVarSubject is a Truth Subject for the TypedVar class. Usage:
@@ -42,7 +43,7 @@ type TypedVarSubject struct {
 func TypedVarSubject_AssertThat(var_ *TypedVar) *TypedVarSubject {
 	// NB: Eclipse's Java compiler bails on just passing TypedVarSubject::new below, so wrap it in a
 	// Closure.
-	return newTypedVarSubject(&Subject{actual: var_}, var_)
+	return newTypedVarSubject(testjunit.NewSubject(var_), var_)
 }
 
 // Java: TypedVarSubject(FailureMetadata, TypedVar)
@@ -60,16 +61,16 @@ func (s *TypedVarSubject) actualNonNull() *TypedVar {
 // var.
 func (s *TypedVarSubject) check(format string, args ...any) *StandardSubjectBuilder {
 	msg := "value of: var." + jutil.LenientFormat(format, args...)
-	if s.message != "" {
-		msg = s.message + "\n" + msg
+	if s.Message() != "" {
+		msg = s.Message() + "\n" + msg
 	}
-	return &StandardSubjectBuilder{message: msg}
+	return testjunit.NewStandardSubjectBuilder(msg)
 }
 
 // Java: TypedVarSubject.hasJSTypeThat()
 func (s *TypedVarSubject) HasJSTypeThat() *rhinotesting.TypeSubject {
 	b := s.check("getJSType()")
-	return rhinotesting.NewTruth(assertionTB{}).AssertWithMessage("%s", b.message).AboutTypes().That(s.actualNonNull().GetType())
+	return rhinotesting.NewTruth(assertionTB{}).AssertWithMessage("%s", b.Message()).AboutTypes().That(s.actualNonNull().GetType())
 }
 
 // Java: TypedVarSubject.isInferred()

@@ -328,7 +328,7 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 	}
 	d.pass(inputs, parseDiags, "externExports", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		NewExternExportsPass(compiler).Process(externs, js)
-		result := compiler.GetResult().externExport
+		result := compiler.GetResult().ExternExport
 		if result == nil {
 			*extra = append(*extra, "externExport null")
 		} else {
