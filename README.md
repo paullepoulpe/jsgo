@@ -30,9 +30,9 @@ Gated on **100% byte-identical output** (JS, source maps, diagnostics, and exit 
 | Benchmark | Java Time (cold) | Java Time (warm JVM) | `jsgo` Time | Java RSS | `jsgo` RSS |
 |---|---:|---:|---:|---:|---:|
 | **`googleapis`**<br>*staged ADV+types · 35.6M nodes* | 205.3 s | — | **119.6 s**<br>1.72×±0.03 | 12.71 GiB | **6.09 GiB**<br>2.09×±0.17 |
-| **`bundle-mega`**<br>*ADV · 4.19M nodes* | 49.3 s | 40.18 s | **23.6 s**<br>2.09×±0.02 | 4.74 GiB | **927 MiB**<br>5.21×±0.80 |
-| **`typed-mega`**<br>*ADV+types · 3.55M nodes* | 35.2 s | 26.45 s | **16.1 s**<br>2.19×±0.02 | 3.71 GiB | **755 MiB**<br>5.04×±0.09 |
-| **`typed-full`**<br>*ADV+types · 1.90M nodes* | 23.1 s | 15.57 s | **9.45 s**<br>2.44×±0.05 | 3.42 GiB | **440 MiB**<br>7.96×±0.32 |
+| **`bundle-mega`**<br>*ADV · 4.19M nodes* | 49.3 s | 40.2 s | **23.6 s**<br>2.09×±0.02 | 4.74 GiB | **927 MiB**<br>5.21×±0.80 |
+| **`typed-mega`**<br>*ADV+types · 3.55M nodes* | 35.2 s | 26.4 s | **16.1 s**<br>2.19×±0.02 | 3.71 GiB | **755 MiB**<br>5.04×±0.09 |
+| **`typed-full`**<br>*ADV+types · 1.90M nodes* | 23.1 s | 15.6 s | **9.45 s**<br>2.44×±0.05 | 3.42 GiB | **440 MiB**<br>7.96×±0.32 |
 | **`checks-only`**<br>*CHECKS+types · 1.29M nodes* | 6.74 s | 2.77 s | **1.95 s**<br>3.46×±0.13 | 1.32 GiB | **262 MiB**<br>5.15×±0.38 |
 | **`bundle`**<br>*SIMPLE · 1.11M nodes* | 12.9 s | 8.57 s | **4.32 s**<br>2.99×±0.08 | 1.61 GiB | **237 MiB**<br>6.97×±0.44 |
 | **`shaka-blockly`**<br>*ADV+types · 618k nodes* | 12.5 s | 6.77 s | **3.85 s**<br>3.24×±0.09 | 1.43 GiB | **213 MiB**<br>6.84×±0.24 |
