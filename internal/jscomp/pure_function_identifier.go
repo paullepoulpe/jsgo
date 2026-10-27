@@ -584,15 +584,15 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 	p.ensureReverseCallGraphCapacity(totalRefs + 2)
 
 	hasDotNameCollision := false
-	for key, value := range referenceMap.GetNameReferences() {
-		if value.IsEmpty() {
+	for key, refs := range referenceMap.GetNameReferences() {
+		if len(refs) == 0 {
 			continue
 		}
 		jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
 		p.summariesByName[key] = p.createSummaryInGraph(key)
 	}
-	for key, value := range referenceMap.GetPropReferences() {
-		if value.IsEmpty() {
+	for key, refs := range referenceMap.GetPropReferences() {
+		if len(refs) == 0 {
 			continue
 		}
 		jutil.CheckState(key != "")
@@ -608,15 +608,13 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 	}
 
 	if !hasDotNameCollision {
-		for key, value := range referenceMap.GetNameReferences() {
-			refs := value.Slice()
+		for key, refs := range referenceMap.GetNameReferences() {
 			if len(refs) == 0 {
 				continue
 			}
 			p.populateFunctionDefinitionsWithSummary(p.summariesByName[key], refs)
 		}
-		for key, value := range referenceMap.GetPropReferences() {
-			refs := value.Slice()
+		for key, refs := range referenceMap.GetPropReferences() {
 			if len(refs) == 0 {
 				continue
 			}
@@ -624,15 +622,13 @@ func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(refe
 		}
 	} else {
 		referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, []rhino.Node](max(totalRefs, 12))
-		for key, value := range referenceMap.GetNameReferences() {
-			refs := value.Slice()
+		for key, refs := range referenceMap.GetNameReferences() {
 			if len(refs) == 0 {
 				continue
 			}
 			referencesByName.Put(key, refs)
 		}
-		for key, value := range referenceMap.GetPropReferences() {
-			refs := value.Slice()
+		for key, refs := range referenceMap.GetPropReferences() {
 			if len(refs) == 0 {
 				continue
 			}

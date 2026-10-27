@@ -106,7 +106,7 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs rhino.Node, root rh
 	o.globalScope = refMap.GetGlobalScope()
 
 	// Find all function nodes that are possible candidates for parameter removal.
-	var toOptimize []*jutil.ArrayList[rhino.Node]
+	var toOptimize [][]rhino.Node
 
 	for key, refs := range refMap.GetNameReferences() {
 		candidateAnalysis := o.AnalyzeCandidateName(key, refs)
@@ -191,10 +191,10 @@ func NewOptimizeParameters_UnusedParameterOptimizer(outer *OptimizeParameters) *
 // by #analyzeCandidate.
 //
 // Java: OptimizeParameters.UnusedParameterOptimizer.tryEliminateUnusedArgs(ArrayList<Node>)
-func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(refs *jutil.ArrayList[rhino.Node]) {
+func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(refs []rhino.Node) {
 	// An argument is unused if its position is greater than the number of declared parameters
 	// or if it marked as unused.
-	fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(u.outer.fnNodes[:0], refs.Slice())
+	fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(u.outer.fnNodes[:0], refs)
 	u.outer.fnNodes = fns
 	jutil.CheckState(len(fns) > 0)
 
@@ -274,7 +274,7 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 
 	// Build a list of parameters to remove
 	lowestSpread := math.MaxInt32
-	for _, n := range refs.Slice() {
+	for _, n := range refs {
 		if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
 			if OptimizeParameters_HasSpreadInFirstCallParam(n) {
 				// Bail: with spread in the first argument of .call, we know nothing about any of the
@@ -316,7 +316,7 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 		removeAllAfterIndex = maxFormalsCount - 1
 	}
 
-	for _, n := range refs.Slice() {
+	for _, n := range refs {
 		if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) && !OptimizeParameters_AlreadyRemoved(n) {
 			arg := OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n)
 			u.RecordRemovalCallArguments(
@@ -488,12 +488,12 @@ func OptimizeParameters_AlreadyRemoved(n rhino.Node) bool {
 }
 
 // Java: OptimizeParameters.analyzeCandidateName(String, ArrayList<Node>)
-func (o *OptimizeParameters) AnalyzeCandidateName(key string, refs *jutil.ArrayList[rhino.Node]) *OptimizeParameters_CandidateAnalysis {
+func (o *OptimizeParameters) AnalyzeCandidateName(key string, refs []rhino.Node) *OptimizeParameters_CandidateAnalysis {
 	return o.AnalyzeCandidate("name", key, refs)
 }
 
 // Java: OptimizeParameters.analyzeCandidateProperty(String, ArrayList<Node>)
-func (o *OptimizeParameters) AnalyzeCandidateProperty(key string, refs *jutil.ArrayList[rhino.Node]) *OptimizeParameters_CandidateAnalysis {
+func (o *OptimizeParameters) AnalyzeCandidateProperty(key string, refs []rhino.Node) *OptimizeParameters_CandidateAnalysis {
 	return o.AnalyzeCandidate("property", key, refs)
 }
 
@@ -507,7 +507,7 @@ func (o *OptimizeParameters) AnalyzeCandidateProperty(key string, refs *jutil.Ar
 //     argument is unused
 //
 // Java: OptimizeParameters.analyzeCandidate(String, String, ArrayList<Node>)
-func (o *OptimizeParameters) AnalyzeCandidate(refKind string, key string, refs *jutil.ArrayList[rhino.Node]) *OptimizeParameters_CandidateAnalysis {
+func (o *OptimizeParameters) AnalyzeCandidate(refKind string, key string, refs []rhino.Node) *OptimizeParameters_CandidateAnalysis {
 	analysisBuilder := &o.candidateBuilder
 	analysisBuilder.outer = o
 	analysisBuilder.taggedTemplateLiterals = o.ttlList[:0]
@@ -520,7 +520,7 @@ func (o *OptimizeParameters) AnalyzeCandidate(refKind string, key string, refs *
 	}
 	definitions := o.defNodes[:0]
 	seenCandidateUse := false
-	for _, n := range refs.Slice() {
+	for _, n := range refs {
 		// TODO(johnlenz): Determine what to do about ".constructor" references.
 		// Currently classes that are super classes or have superclasses aren't optimized
 		//
@@ -862,12 +862,12 @@ func OptimizeParameters_MayReferenceParamBeforeBody(function rhino.Node) bool {
 // specifies it as an argument.
 //
 // Java: OptimizeParameters.tryEliminateOptionalArgs(ArrayList<Node>)
-func (o *OptimizeParameters) TryEliminateOptionalArgs(refs *jutil.ArrayList[rhino.Node]) {
+func (o *OptimizeParameters) TryEliminateOptionalArgs(refs []rhino.Node) {
 	// Count the maximum number of arguments passed into this function all
 	// all points of the program.
 	maxArgs := -1
 
-	for _, n := range refs.Slice() {
+	for _, n := range refs {
 		if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
 			if OptimizeParameters_HasSpreadInFirstCallParam(n) {
 				// Bail: with spread we must assume all parameters are used, don't waste
@@ -891,7 +891,7 @@ func (o *OptimizeParameters) TryEliminateOptionalArgs(refs *jutil.ArrayList[rhin
 		}
 	}
 
-	fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], refs.Slice())
+	fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], refs)
 	o.fnNodes = fns
 	for _, fn := range fns {
 		o.EliminateParamsAfter(fn, maxArgs)
@@ -908,13 +908,13 @@ func (o *OptimizeParameters) TryEliminateOptionalArgs(refs *jutil.ArrayList[rhin
 // by #analyzeCandidate.
 //
 // Java: OptimizeParameters.tryEliminateConstantArgs(ArrayList<Node>)
-func (o *OptimizeParameters) TryEliminateConstantArgs(refs *jutil.ArrayList[rhino.Node]) {
+func (o *OptimizeParameters) TryEliminateConstantArgs(refs []rhino.Node) {
 	parameters, ok := o.FindFixedArguments(refs)
 	if !ok {
 		return
 	}
 
-	fn, fnCount := optimizeCalls_getSingleFunctionNode(refs.Slice())
+	fn, fnCount := optimizeCalls_getSingleFunctionNode(refs)
 	if fnCount > 1 {
 		// TODO(johnlenz): support moving simple constants.
 		// This requires cloning the tree and avoiding adding additional calls/definitions that will
@@ -934,7 +934,7 @@ func (o *OptimizeParameters) TryEliminateConstantArgs(refs *jutil.ArrayList[rhin
 	}
 
 	// Found something to do, move the values from the call sites to the function definitions.
-	for _, n := range refs.Slice() {
+	for _, n := range refs {
 		if !OptimizeParameters_AlreadyRemoved(n) && OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
 			o.OptimizeCallSite(parameters, n)
 		}
@@ -949,14 +949,14 @@ func (o *OptimizeParameters) TryEliminateConstantArgs(refs *jutil.ArrayList[rhin
 // values fixed values from all call sites.
 //
 // Java: OptimizeParameters.findFixedArguments(ArrayList<Node>)
-func (o *OptimizeParameters) FindFixedArguments(refs *jutil.ArrayList[rhino.Node]) ([]OptimizeParameters_Parameter, bool) {
+func (o *OptimizeParameters) FindFixedArguments(refs []rhino.Node) ([]OptimizeParameters_Parameter, bool) {
 	clear(o.fixedParams)
 	o.fixedParams = o.fixedParams[:0]
 	firstCall := true
 
 	// Build a list of parameters to remove
 	continueLooking := false
-	for _, n := range refs.Slice() {
+	for _, n := range refs {
 		if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
 			// Normally, we ignore the first parameter to a .call expression (the 'this' value)
 			// but if it is a spread, we know nothing about any of the parameters, so bail out now.

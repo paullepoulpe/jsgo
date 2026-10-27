@@ -126,7 +126,7 @@ func (o *OptimizeConstructors) ProcessWithReferenceMap(externs rhino.Node, root 
 // -allowed reference (anything not an assignment)
 //
 // Java: OptimizeConstructors.addConstructorsToBeRemoved(String, ArrayList<Node>)
-func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jutil.ArrayList[rhino.Node]) {
+func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs []rhino.Node) {
 	if !OptimizeCalls_MayBeOptimizableName(o.compiler, name) {
 		return
 	}
@@ -137,7 +137,7 @@ func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jut
 	// Lazily init as most symbols aren't class, and most classes don't have subclasses
 	var subclassConstructors []rhino.Node
 
-	for _, n := range refs.Slice() {
+	for _, n := range refs {
 		definition := o.GetClassDefinitionOrFunction(n)
 		if !definition.IsNil() {
 			if !candidateClassDefinition.IsNil() {

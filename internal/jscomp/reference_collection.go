@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"iter"
+	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -27,7 +28,7 @@ import (
 // ReferenceCollection is a collection of references. Can be subclassed to
 // apply checks or store additional state when adding.
 type ReferenceCollection struct {
-	references jutil.ArrayList[*Reference]
+	references []*Reference
 	varScope   *Scope
 }
 
@@ -40,16 +41,23 @@ func NewReferenceCollection() *ReferenceCollection {
 //
 // Java: ReferenceCollection.iterator()
 func (c *ReferenceCollection) All() iter.Seq[*Reference] {
-	return c.references.All()
+	return slices.Values(c.references)
 }
 
 // Java: ReferenceCollection.add(Reference)
 func (c *ReferenceCollection) Add(reference *Reference) {
-	if cap(c.references.Slice()) == 0 {
+	if cap(c.references) == 0 {
 		// Go-only: performance — most variables have a few references.
-		c.references.InitWithBuffer(make([]*Reference, 4))
+		c.references = make([]*Reference, 0, 4)
 	}
-	c.references.Add(reference)
+	c.references = append(c.references, reference)
+}
+
+func (c *ReferenceCollection) getRef(index int) *Reference {
+	if uint(index) >= uint(len(c.references)) {
+		panic(jutil.NewIndexOutOfBoundsException(jutil.LenientFormat("Index %s out of bounds for length %s", index, len(c.references))))
+	}
+	return c.references[index]
 }
 
 // IsWellDefined determines if the variable for this reference collection is
@@ -62,7 +70,7 @@ func (c *ReferenceCollection) Add(reference *Reference) {
 //
 // Java: ReferenceCollection.isWellDefined()
 func (c *ReferenceCollection) IsWellDefined() bool {
-	refs := c.references.Slice()
+	refs := c.references
 	size := len(refs)
 	if size == 0 {
 		return false
@@ -91,7 +99,7 @@ func (c *ReferenceCollection) IsWellDefined() bool {
 // Java: ReferenceCollection.isEscaped()
 func (c *ReferenceCollection) IsEscaped() bool {
 	var hoistScope *Scope
-	for _, ref := range c.references.Slice() {
+	for _, ref := range c.references {
 		if hoistScope == nil {
 			hoistScope = ref.scope.GetClosestHoistScope()
 		} else if hoistScope != ref.scope.GetClosestHoistScope() {
@@ -107,7 +115,7 @@ func (c *ReferenceCollection) IsEscaped() bool {
 // Java: ReferenceCollection.isThisRebound()
 func (c *ReferenceCollection) IsThisRebound() bool {
 	var hoistScope *Scope
-	for _, ref := range c.references.Slice() {
+	for _, ref := range c.references {
 		refHoistScope := ref.scope.GetClosestHoistScope()
 		if hoistScope == nil {
 			hoistScope = refHoistScope
@@ -131,7 +139,7 @@ func (c *ReferenceCollection) IsThisRebound() bool {
 //
 // Java: ReferenceCollection.isInitializingDeclarationAt(int)
 func (c *ReferenceCollection) IsInitializingDeclarationAt(index int) bool {
-	maybeInit := c.references.Get(index)
+	maybeInit := c.getRef(index)
 	if maybeInit.IsInitializingDeclaration() {
 		// This is a declaration that represents the initial value.
 		// Specifically, var declarations without assignments such as "var a;"
@@ -148,11 +156,11 @@ func (c *ReferenceCollection) IsInitializingDeclarationAt(index int) bool {
 //
 // Java: ReferenceCollection.isInitializingAssignmentAt(int)
 func (c *ReferenceCollection) IsInitializingAssignmentAt(index int) bool {
-	if index < c.references.Size() && index > 0 {
-		maybeDecl := c.references.Get(index - 1)
+	if index < len(c.references) && index > 0 {
+		maybeDecl := c.getRef(index - 1)
 		if maybeDecl.IsVarDeclaration() || maybeDecl.IsLetDeclaration() {
 			jutil.CheckState(!maybeDecl.IsInitializingDeclaration())
-			maybeInit := c.references.Get(index)
+			maybeInit := c.getRef(index)
 			if maybeInit.IsSimpleAssignmentToName() {
 				return true
 			}
@@ -170,20 +178,20 @@ func (c *ReferenceCollection) IsInitializingAssignmentAt(index int) bool {
 // Java: ReferenceCollection.getInitializingReference()
 func (c *ReferenceCollection) GetInitializingReference() *Reference {
 	if c.IsInitializingDeclarationAt(0) {
-		return c.references.Get(0)
+		return c.references[0]
 	} else if c.IsInitializingAssignmentAt(1) &&
 		// Check that these references are in the same file as a way of ensuring they are in the
 		// same chunk: checking for the same chunk would also be reasonable, but is slightly more
 		// complicated and as of time of writing, didn't seem to help code size in practice.
 		c.AreInSameFile(0, 1) {
-		return c.references.Get(1)
+		return c.references[1]
 	}
 	return nil
 }
 
 // Java: ReferenceCollection.areInSameFile(int, int)
 func (c *ReferenceCollection) AreInSameFile(ref0 int, ref1 int) bool {
-	refs := c.references.Slice()
+	refs := c.references
 	id0, id1 := refs[ref0].inputId, refs[ref1].inputId
 	return id0 == id1 || (id0 != nil && id1 != nil && id0.Equals(id1))
 }
@@ -193,7 +201,7 @@ func (c *ReferenceCollection) AreInSameFile(ref0 int, ref1 int) bool {
 //
 // Java: ReferenceCollection.getInitializingReferenceForConstants()
 func (c *ReferenceCollection) GetInitializingReferenceForConstants() *Reference {
-	refs := c.references.Slice()
+	refs := c.references
 	size := len(refs)
 	for i := 0; i < size; i++ {
 		if c.IsInitializingDeclarationAt(i) || c.IsInitializingAssignmentAt(i) {
@@ -249,7 +257,7 @@ func (c *ReferenceCollection) IsAssignedOnceInLifetime() bool {
 //
 // Java: ReferenceCollection.isReferencedWeakly()
 func (c *ReferenceCollection) IsReferencedWeakly() bool {
-	for _, ref := range c.references.Slice() {
+	for _, ref := range c.references {
 		if p := ref.nameNode.GetParent(); p.IsCall() && NodeUtil_IsGoogWeakUsageCall(p) {
 			return true
 		}
@@ -263,7 +271,7 @@ func (c *ReferenceCollection) IsReferencedWeakly() bool {
 // Java: ReferenceCollection.getOneAndOnlyAssignment()
 func (c *ReferenceCollection) GetOneAndOnlyAssignment() *Reference {
 	var assignment *Reference
-	for _, ref := range c.references.Slice() {
+	for _, ref := range c.references {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
 			if assignment == nil {
 				assignment = ref
@@ -279,7 +287,7 @@ func (c *ReferenceCollection) GetOneAndOnlyAssignment() *Reference {
 //
 // Java: ReferenceCollection.isNeverAssigned()
 func (c *ReferenceCollection) IsNeverAssigned() bool {
-	for _, ref := range c.references.Slice() {
+	for _, ref := range c.references {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
 			return false
 		}
@@ -289,7 +297,7 @@ func (c *ReferenceCollection) IsNeverAssigned() bool {
 
 // Java: ReferenceCollection.firstReferenceIsAssigningDeclaration()
 func (c *ReferenceCollection) FirstReferenceIsAssigningDeclaration() bool {
-	refs := c.references.Slice()
+	refs := c.references
 	return len(refs) > 0 && refs[0].IsInitializingDeclaration()
 }
 
@@ -297,7 +305,7 @@ func (c *ReferenceCollection) FirstReferenceIsAssigningDeclaration() bool {
 func (c *ReferenceCollection) String() string {
 	return jutil.MoreObjects_ToStringHelper("ReferenceCollection").
 		Add("initRef", c.GetInitializingReference()).
-		Add("references", &c.references).
+		Add("references", jutil.CollectionToString(c.references)).
 		AddBool("wellDefined", c.IsWellDefined()).
 		AddBool("assignedOnce", c.IsAssignedOnceInLifetime()).
 		String()

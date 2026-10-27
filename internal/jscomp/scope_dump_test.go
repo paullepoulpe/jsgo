@@ -37,6 +37,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -502,7 +503,7 @@ func (b *scopeDumpBehavior) AfterExitScope(t *NodeTraversal, referenceMap Refere
 		if refs == nil {
 			l.WriteString("-")
 		} else {
-			l.WriteString(strconv.Itoa(refs.references.Size()))
+			l.WriteString(strconv.Itoa(len(refs.references)))
 		}
 	}
 	b.d.line(l.String())
@@ -524,13 +525,13 @@ func (d *scopeDumper) references(compiler AbstractCompiler, root rhino.Node) {
 			" first=" + scopeDumpStr(func() string { return scopeDumpBool(refs.FirstReferenceIsAssigningDeclaration()) }) +
 			" weak=" + scopeDumpStr(func() string { return scopeDumpBool(refs.IsReferencedWeakly()) }) +
 			" init=" + scopeDumpStr(func() string {
-			return strconv.Itoa(refs.references.IndexOf(refs.GetInitializingReference()))
+			return strconv.Itoa(slices.Index(refs.references, refs.GetInitializingReference()))
 		}) +
 			" initc=" + scopeDumpStr(func() string {
-			return strconv.Itoa(refs.references.IndexOf(refs.GetInitializingReferenceForConstants()))
+			return strconv.Itoa(slices.Index(refs.references, refs.GetInitializingReferenceForConstants()))
 		}) +
 			" one=" + scopeDumpStr(func() string {
-			return strconv.Itoa(refs.references.IndexOf(refs.GetOneAndOnlyAssignment()))
+			return strconv.Itoa(slices.Index(refs.references, refs.GetOneAndOnlyAssignment()))
 		}))
 		for ref := range refs.All() {
 			d.printReference(ref)

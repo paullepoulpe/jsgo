@@ -94,7 +94,7 @@ func (d *DevirtualizeMethods) Process(externs rhino.Node, root rhino.Node, refMa
 	}()
 
 	for key, value := range refMap.GetPropReferences() {
-		d.ProcessReferenceList(key, value.Slice())
+		d.ProcessReferenceList(key, value)
 	}
 }
 

@@ -181,15 +181,15 @@ func l11optOptimizeCalls(c *Compiler, externs rhino.Node, js rhino.Node, extra *
 			AddPass(OptimizeCalls_CallGraphCompilerPassFunc(func(e rhino.Node, r rhino.Node, references *OptimizeCalls_ReferenceMap) {
 				*extra = append(*extra, "references considerExterns="+strconv.FormatBool(considerExterns))
 				for k, refs := range references.GetNameReferences() {
-					*extra = append(*extra, "name "+k+l11optRefs(refs.Slice()))
-					l11optFunctionNodes(refs.Slice(), extra)
+					*extra = append(*extra, "name "+k+l11optRefs(refs))
+					l11optFunctionNodes(refs, extra)
 				}
 				for k, refs := range references.GetPropReferences() {
-					*extra = append(*extra, "prop "+k+l11optRefs(refs.Slice()))
-					l11optFunctionNodes(refs.Slice(), extra)
+					*extra = append(*extra, "prop "+k+l11optRefs(refs))
+					l11optFunctionNodes(refs, extra)
 				}
 				for _, refs := range references.GetNameReferences() {
-					for _, n := range refs.Slice() {
+					for _, n := range refs {
 						if !n.GetParent().IsNil() {
 							l11optCallTarget(n, extra)
 						}
@@ -279,7 +279,7 @@ func l11optAnalyzePrototypeProperties(c *Compiler, externs rhino.Node, js rhino.
 				" readsClosureVariables="+strconv.FormatBool(info.ReadsClosureVariables())+
 				" referencesSuper="+strconv.FormatBool(info.ReferencesSuper())+
 				" chunk="+l11optChunkName(info.GetDeepestCommonChunkRef()))
-		for _, s := range info.GetDeclarations().Slice() {
+		for _, s := range info.GetDeclarations() {
 			var kind string
 			var node rhino.Node
 			switch d := s.(type) {
