@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -509,10 +510,10 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessDeclaration(name s
 		ConvertToTypedInterface_MaybeReport(s.compiler, decl.GetLhs(), ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE)
 	}
 
-	if !decl.GetRhs().IsNil() && decl.GetRhs().IsFunction() {
-		s.ProcessFunction(decl.GetRhs())
-	} else if !decl.GetRhs().IsNil() && ConvertToTypedInterface_SimplifyDeclarations_IsClass(decl.GetRhs()) {
-		s.ProcessClass(decl.GetRhs())
+	if fn, ok := ast.AsFunction(decl.GetRhs()); ok {
+		s.ProcessFunction(fn)
+	} else if cls, ok := ast.AsClass(decl.GetRhs()); ok {
+		s.ProcessClass(cls)
 	}
 	s.SetUndeclaredToUnusableType(decl)
 	s.ElidePrivateMemberType(decl)
@@ -520,72 +521,63 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessDeclaration(name s
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.processClass(Node)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessClass(n rhino.Node) {
-	jutil.CheckArgument(ConvertToTypedInterface_SimplifyDeclarations_IsClass(n))
-	for member := n.GetLastChild().GetFirstChild(); !member.IsNil(); {
-		next := member.GetNext()
-		switch member.GetToken() {
-		case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessClass(cls ast.Class) {
+	for member := range ast.ReadAhead(cls.Body().FirstMember()) {
+		if _, ok := member.AsFieldDef(); ok {
 			// MEMBER_FIELD_DEF's are handled in ProcessConstJsdocCallback which is called in the
 			// traversal by its subclass PropogateConstJsdoc.
 			// If no jsdoc is present on the MEMBER_FIELD_DEF, we will be add a Jsdoc in
 			// `setUndeclaredToUnusableType()`.
 			// No further simplification is needed for MEMBER_FIELD_DEF's when we call
 			// `simplifyAll()` so we will break.
-		case rhino.Token_EMPTY:
+		} else if _, ok := member.AsEmpty(); ok {
 			// a lonely `;` in a class body can just be deleted.
-			NodeUtil_DeleteNode(member, s.compiler)
-		case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-			s.ProcessFunction(member.GetLastChild())
-		case rhino.Token_COMPUTED_PROP:
+			NodeUtil_DeleteNode(member.Node(), s.compiler)
+		} else if method, ok := member.AsMethodDef(); ok {
+			s.ProcessFunction(method.Function())
+		} else if cp, ok := member.AsComputedProp(); ok {
+			val, hasVal := cp.Value()
+			fn, isFn := ast.AsFunction(val.Node())
 			jutil.CheckStateMsg1(
-				member.GetSecondChild().IsFunction(),
+				hasVal && isFn,
 				"Non-function computed class member: %s",
-				member)
-			s.ProcessFunction(member.GetSecondChild())
-		default:
+				member.Node())
+			s.ProcessFunction(fn)
+		} else {
 			panic(jutil.NewAssertionError(
-				member.GetToken().String() + " should not be handled by processClass"))
+				member.Token().String() + " should not be handled by processClass"))
 		}
-		member = next
 	}
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.processFunction(Node)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunction(n rhino.Node) {
-	jutil.CheckArgument(n.IsFunction())
-	s.ProcessFunctionParameters(n.GetSecondChild())
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunction(fn ast.Function) {
+	s.ProcessFunctionParameters(fn.Params())
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.processFunctionParameters(Node)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunctionParameters(paramList rhino.Node) {
-	jutil.CheckArgument(paramList.IsParamList())
-	for arg := paramList.GetFirstChild(); !arg.IsNil(); arg = arg.GetNext() {
-		if arg.IsDefaultValue() {
-			rhs := arg.GetLastChild()
-			if rhs.IsCall() &&
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunctionParameters(paramList ast.ParamList) {
+	for param := range paramList.Params() {
+		if defVal, ok := param.AsDefaultValue(); ok {
+			rhs := defVal.Value()
+			if call, isCall := rhs.AsCall(); isCall &&
 				RewriteCallerCodeLocation_GOOG_CALLER_LOCATION_QUALIFIED_NAME.Matches(
-					rhs.GetFirstChild()) {
+					call.Callee().Node()) {
 				continue
 			}
-			rhs.ReplaceWith(NodeUtil_NewUndefinedNode(rhs))
-			s.compiler.ReportChangeToEnclosingScope(arg)
+			rhsNode := rhs.Node()
+			rhsNode.ReplaceWith(NodeUtil_NewUndefinedNode(rhsNode))
+			s.compiler.ReportChangeToEnclosingScope(defVal.Node())
 		}
 	}
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.isClass(Node)
-func ConvertToTypedInterface_SimplifyDeclarations_IsClass(n rhino.Node) bool {
-	return n.IsClass()
-}
-
 // Java: ConvertToTypedInterface.SimplifyDeclarations.rootName(String)
 func ConvertToTypedInterface_SimplifyDeclarations_RootName(qualifiedName string) string {
-	dotIndex := jutil.StringIndexOfChar(qualifiedName, '.')
-	if dotIndex == -1 {
-		return qualifiedName
+	if prefix, _, ok := strings.Cut(qualifiedName, "."); ok {
+		return prefix
 	}
-	return jutil.StringSubstring(qualifiedName, 0, dotIndex)
+	return qualifiedName
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.shouldRemove(String, PotentialDeclaration)
@@ -661,20 +653,21 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldElidePrivateMemberT
 
 // Java: ConvertToTypedInterface.isSymbolProp(Node)
 func ConvertToTypedInterface_IsSymbolProp(lhs rhino.Node) bool {
-	return lhs.IsGetProp() && lhs.GetFirstChild().MatchesName("Symbol")
+	prop, ok := ast.AsGetProp(lhs)
+	return ok && prop.Object().Node().MatchesName("Symbol")
 }
 
 // Java: ConvertToTypedInterface.shouldPreserveAssignment(Node, NodeTraversal)
 func ConvertToTypedInterface_ShouldPreserveAssignment(expr rhino.Node, t *NodeTraversal) bool {
-	lhs := expr.GetFirstChild()
+	lhs := ast.MustAssignment(expr).Target().Node()
 	// Ignore assignments in function bodies, unless they're also a constructor with a this. prop.
 	if !t.InGlobalHoistScope() && !t.InModuleHoistScope() {
 		return ClassUtil_IsThisPropInsideClassWithName(lhs)
 	}
 
 	// Well-known symbol properties, like Foo.prototype[Symbol.iterator] = function() {};
-	if lhs.IsGetElem() && ConvertToTypedInterface_IsSymbolProp(lhs.GetSecondChild()) {
-		return lhs.GetFirstChild().IsQualifiedName()
+	if elem, ok := ast.AsGetElem(lhs); ok && ConvertToTypedInterface_IsSymbolProp(elem.Index().Node()) {
+		return elem.Object().Node().IsQualifiedName()
 	}
 	// Assignments to names don't have global typechecking side-effects even within the 'hoist
 	// scope'

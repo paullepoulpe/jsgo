@@ -798,14 +798,14 @@ var node_kindClassNames = [...]string{
 	"com.google.javascript.rhino.Node$TemplateLiteralSubstringNode",
 }
 
-// GetClassName is `getClass().getName()`: the name of the Java class this
-// node is an instance of (Node or one of its folded private subclasses).
+// IsPlainNode reports whether this node is a plain Node rather than one of its
+// folded payload subclasses (StringNode, NumberNode, BigIntNode,
+// TemplateLiteralSubstringNode).
 //
-// Go-only: language-adapter — Java code compares `node.getClass()` with
-// `Node.class` (CodeGenerator); the folded subclasses have no Go type of
-// their own.
-func (n Node) GetClassName() string {
-	return node_kindClassNames[n.nodeKind()]
+// Go-only: language-adapter — Java code compares `node.getClass() != Node.class`
+// in CodeGenerator; the folded subclasses have no separate Go type.
+func (n Node) IsPlainNode() bool {
+	return n.nodeKind() == node_kindNode
 }
 
 //go:noinline

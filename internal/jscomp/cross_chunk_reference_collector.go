@@ -22,6 +22,7 @@ import (
 	"iter"
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -284,71 +285,79 @@ func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, 
 	c.statementCounter++
 	// Determine whether this statement declares a name or not.
 	// If so, save its name node and value node, if any.
-	if NodeUtil_IsNameDeclaration(statementNode) {
+	if decl, ok := ast.AsNameDeclaration(statementNode); ok {
 		// variable declaration
-		draft.declaredNameNode = statementNode.GetFirstChild()
-		draft.declaredValueNode = statementNode.GetFirstFirstChild()
-	} else if statementNode.IsClass() {
-		draft.declaredNameNode = statementNode.GetFirstChild()
-		draft.declaredValueNode = statementNode
-	} else if statementNode.IsFunction() {
-		// function declaration
-		draft.declaredNameNode = statementNode.GetFirstChild()
-		draft.declaredValueNode = statementNode
-	} else if statementNode.IsExprResult() {
-		expr := rhino.CheckNotNull(statementNode.GetFirstChild())
-		if expr.IsAssign() {
-			lhs := rhino.CheckNotNull(expr.GetFirstChild())
-			rhs := rhino.CheckNotNull(expr.GetSecondChild())
-			if lhs.IsName() {
-				// `varName = value;`
-				draft.declaredNameNode = lhs
-				draft.declaredValueNode = rhs
-			} else if lhs.IsGetProp() || CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(lhs) {
-				nameNode := rhino.CheckNotNull(lhs.GetFirstChild())
-				for nameNode.IsGetProp() {
-					nameNode = rhino.CheckNotNull(nameNode.GetFirstChild())
+		if first, ok := decl.FirstDeclarator(); ok {
+			if name, ok := first.AsName(); ok {
+				draft.declaredNameNode = name.Node()
+				if initExpr, ok := name.Init(); ok {
+					draft.declaredValueNode = initExpr.Node()
 				}
-				if nameNode.IsName() {
+			}
+		}
+	} else if cls, ok := ast.AsClass(statementNode); ok {
+		draft.declaredNameNode = cls.NameNode()
+		draft.declaredValueNode = statementNode
+	} else if fn, ok := ast.AsFunction(statementNode); ok {
+		// function declaration
+		draft.declaredNameNode = fn.NameNode().Node()
+		draft.declaredValueNode = statementNode
+	} else if exprStmt, ok := ast.AsExprStmt(statementNode); ok {
+		expr := exprStmt.Expr()
+		if assign, ok := expr.AsAssign(); ok {
+			lhs := assign.Target()
+			rhs := assign.Value()
+			if name, ok := lhs.AsName(); ok {
+				// `varName = value;`
+				draft.declaredNameNode = name.Node()
+				draft.declaredValueNode = rhs.Node()
+			} else if normalGet, ok := lhs.AsNormalGet(); ok &&
+				(normalGet.Token() == rhino.Token_GETPROP || CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(lhs.Node())) {
+				obj := normalGet.Object()
+				for prop, ok := obj.AsGetProp(); ok; prop, ok = obj.AsGetProp() {
+					obj = prop.Object()
+				}
+				if name, ok := obj.AsName(); ok {
 					// `varName.some.property = value;`
 					// OR
 					// `varName[someProperty] = value;`
-					draft.declaredNameNode = nameNode
-					draft.declaredValueNode = rhs
+					draft.declaredNameNode = name.Node()
+					draft.declaredValueNode = rhs.Node()
 				}
 			}
-		} else if expr.IsCall() {
+		} else if call, ok := expr.AsCall(); ok {
 			var nameNode rhino.Node
 			var valueNode rhino.Node
 			relationship :=
-				c.compiler.GetCodingConvention().GetClassesDefinedByCall(expr)
+				c.compiler.GetCodingConvention().GetClassesDefinedByCall(call.Node())
 			if relationship != nil {
 				// Check for $jscomp.inherits(SubC, SuperC), goog.inherits(Sub, SuperC), etc.
 				declaredName := relationship.subclassName
-				for callArg := expr.GetSecondChild(); !callArg.IsNil(); callArg = callArg.GetNext() {
+				for callArg := range call.Args() {
 					// We're assuming that the child class must be an argument to the function that
 					// establishes its inheritance, which is true for `goog.inherits()` and
 					// `$jscomp.inherits()`
 					// TODO(bradfordcsmith): handle cases like `goog.inherits(x.ChildClass, SuperClass)`
-					if callArg.IsName() && declaredName == callArg.GetString() {
-						nameNode = callArg
+					if argName, ok := callArg.AsName(); ok && declaredName == argName.Ident() {
+						nameNode = argName.Node()
 						break
 					}
 				}
-			} else if NodeUtil_IsObjectDefinePropertiesDefinition(expr) {
+			} else if NodeUtil_IsObjectDefinePropertiesDefinition(call.Node()) {
 				// Check for $jscomp$global.Object.defineProperties.
-				targetObject := expr.GetSecondChild()
+				targetArg := call.MustFirstArg()
 
 				// Get the global var being referenced in the first parameter of Object.defineProperties.
 				// Can be 'Foo' or 'Foo.prototype'.
-				if targetObject.IsName() {
-					nameNode = targetObject
+				if targetName, ok := targetArg.AsName(); ok {
+					nameNode = targetName.Node()
 				} else {
-					nameNode = targetObject.GetFirstChild()
+					nameNode = targetArg.Node().GetFirstChild()
 				}
 
 				// Second parameter of defineProperties is the value node.
-				valueNode = targetObject.GetNext()
+				secondArg, _ := targetArg.Next()
+				valueNode = secondArg.Node()
 			}
 
 			if !nameNode.IsNil() {
@@ -362,7 +371,8 @@ func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, 
 
 // Java: CrossChunkReferenceCollector.isPotentiallyMoveableGetElem(Node)
 func CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(maybeGetElem rhino.Node) bool {
-	if !maybeGetElem.IsGetElem() {
+	getElem, ok := ast.AsGetElem(maybeGetElem)
+	if !ok {
 		return false
 	}
 
@@ -375,12 +385,12 @@ func CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(maybeGetElem rhin
 	// Therefore, we we'll only consider a subset of cases, like `Symbol.iterator`, as moveable as
 	// these large reference clusters are unlikely in this case. This should allow classes that
 	// define these properties to potentialy be moved to later chunks.
-	property := maybeGetElem.GetLastChild()
-	if !property.IsGetProp() {
+	property, ok := getElem.Index().AsGetProp()
+	if !ok {
 		return false
 	}
-	name := property.GetFirstChild()
-	return name.IsName() && name.GetString() == "Symbol"
+	name, ok := property.Object().AsName()
+	return ok && name.Ident() == "Symbol"
 }
 
 // Java: CrossChunkReferenceCollector.pop(List<T>)
@@ -483,118 +493,111 @@ func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode rhin
 
 	switch valueNode.GetToken() {
 	case rhino.Token_CLASS:
-		{
-			// NOTE: Why aren't class extends expressions checked here?
-			classMembers := valueNode.GetLastChild()
-			for member := classMembers.GetFirstChild(); !member.IsNil(); member = member.GetNext() {
-				if member.IsComputedProp() {
-					keyExpr := member.GetFirstChild()
-					method := member.GetLastChild()
-					jutil.CheckStateMsg1(method.IsFunction(), "%s", method)
-					if !c.CanMoveValue(scope, keyExpr) {
-						return false
-					}
-				} else if member.IsComputedFieldDef() {
-					keyExpr := member.GetFirstChild()
-					if !c.CanMoveValue(scope, keyExpr) {
-						return false
-					}
-				} else if member.IsMemberFieldDef() {
-					if member.IsStaticMember() && !c.CanMoveValue(scope, member.GetFirstChild()) {
-						// Unlike non-static fields,the RHS of a static field is executed at
-						// class definition time. So, we must check canMoveValue for static fields.
-						return false
-					}
-				} else if member.IsBlock() {
-					// TODO(bradfordcsmith): Ideally could move these in some cases, fix later
+		// NOTE: Why aren't class extends expressions checked here?
+		cls := ast.MustClass(valueNode)
+		for member := range cls.Body().Members() {
+			if cp, ok := member.AsComputedProp(); ok {
+				method, hasMethod := cp.Value()
+				jutil.CheckStateMsg1(hasMethod && method.Node().IsFunction(), "%s", method.Node())
+				if !c.CanMoveValue(scope, cp.Key().Node()) {
 					return false
-				} else {
-					jutil.CheckStateMsg1(member.IsMemberFunctionDef() || NodeUtil_IsGetOrSetKey(member), "%s", member)
 				}
+			} else if cf, ok := member.AsComputedFieldDef(); ok {
+				if !c.CanMoveValue(scope, cf.Key().Node()) {
+					return false
+				}
+			} else if mf, ok := member.AsMemberFieldDef(); ok {
+				if val, ok := mf.Value(); ok && mf.IsStatic() && !c.CanMoveValue(scope, val.Node()) {
+					// Unlike non-static fields,the RHS of a static field is executed at
+					// class definition time. So, we must check canMoveValue for static fields.
+					return false
+				}
+			} else if _, ok := member.AsBlock(); ok {
+				// TODO(bradfordcsmith): Ideally could move these in some cases, fix later
+				return false
+			} else {
+				_, isMethod := member.AsMethodDef()
+				jutil.CheckStateMsg1(isMethod, "%s", member.Node())
 			}
-			return true
 		}
+		return true
+
 	case rhino.Token_CALL:
-		{
-			// In general it is not safe to move function calls, but we carve out an exception
-			// for the special stub method calls used for CrossChunkMethodMotion.
-			// Case: `JSCompiler_stubMethod(x)`
-			functionName := rhino.CheckNotNull(valueNode.GetFirstChild())
-			return functionName.IsName() &&
-				functionName.GetString() == CrossChunkMethodMotion_STUB_METHOD_NAME
-		}
+		// In general it is not safe to move function calls, but we carve out an exception
+		// for the special stub method calls used for CrossChunkMethodMotion.
+		// Case: `JSCompiler_stubMethod(x)`
+		call := ast.MustCall(valueNode)
+		calleeName, ok := call.Callee().AsName()
+		return ok && calleeName.Ident() == CrossChunkMethodMotion_STUB_METHOD_NAME
+
 	case rhino.Token_ARRAYLIT:
 		// Movable if all of the array values are movable.
-		for child := valueNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if !c.CanMoveValue(scope, child) {
+		for elem := range ast.MustArrayLit(valueNode).Elements() {
+			if !c.CanMoveValue(scope, elem.Node()) {
 				return false
 			}
 		}
-
 		return true
+
 	case rhino.Token_OBJECTLIT:
 		// Movable if all of the keys and values are movable.
-		for child := valueNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			switch child.GetToken() {
-			case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-
-			case rhino.Token_COMPUTED_PROP:
-				if !c.CanMoveValue(scope, child.GetFirstChild()) ||
-					!c.CanMoveValue(scope, child.GetLastChild()) {
+		for member := range ast.MustObjectLit(valueNode).Members() {
+			if _, ok := member.AsMethodDef(); ok {
+				continue
+			} else if cp, ok := member.AsComputedProp(); ok {
+				val, _ := cp.Value()
+				if !c.CanMoveValue(scope, cp.Key().Node()) ||
+					!c.CanMoveValue(scope, val.Node()) {
 					return false
 				}
-
-			case rhino.Token_STRING_KEY, rhino.Token_OBJECT_SPREAD:
-				if !c.CanMoveValue(scope, child.GetOnlyChild()) {
+			} else if sk, ok := member.AsStringKey(); ok {
+				if !c.CanMoveValue(scope, sk.Value().Node()) {
 					return false
 				}
-
-			default:
-				panic(jutil.NewIllegalStateExceptionMsg(
-					"Unexpected child of OBJECTLIT: " + child.ToStringTree()))
-			}
-		}
-
-		return true
-	case rhino.Token_NAME:
-		{
-			// If the value is guaranteed to never be changed after
-			// this reference, then we can move it.
-			v := scope.GetVar(valueNode.GetString())
-			if v != nil && v.IsGlobal() {
-				refCollection := c.GetReferences(v)
-				if refCollection != nil &&
-					refCollection.IsWellDefined() &&
-					refCollection.IsAssignedOnceInLifetime() {
-					return true
-				}
-			}
-		}
-	case rhino.Token_TEMPLATELIT:
-		// A template literal is movable if all of the substitutions it contains are movable.
-		for child := valueNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsTemplateLitSub() {
-				if !c.CanMoveValue(scope, child.GetFirstChild()) {
+			} else if sp, ok := member.AsObjectSpread(); ok {
+				if !c.CanMoveValue(scope, sp.Expr().Node()) {
 					return false
 				}
 			} else {
-				jutil.CheckStateMsg1(child.IsTemplateLitString(), "%s", child)
+				panic(jutil.NewIllegalStateExceptionMsg(
+					"Unexpected child of OBJECTLIT: " + member.Node().ToStringTree()))
 			}
 		}
 		return true
-	case rhino.Token_GETPROP:
-		{
-			// `Symbol` is a built-in JavaScript object that is guaranteed to be unique. Therefore it
-			// is movable. Any properties on `Symbol` are also movable (e.g `Symbol.iterator`).
-			child := valueNode.GetFirstChild()
-			if !child.IsNil() && child.IsName() {
-				symbol := child.GetString()
-				if symbol == "Symbol" {
-					return true
-				}
+
+	case rhino.Token_NAME:
+		// If the value is guaranteed to never be changed after
+		// this reference, then we can move it.
+		v := scope.GetVar(ast.MustName(valueNode).Ident())
+		if v != nil && v.IsGlobal() {
+			refCollection := c.GetReferences(v)
+			if refCollection != nil &&
+				refCollection.IsWellDefined() &&
+				refCollection.IsAssignedOnceInLifetime() {
+				return true
 			}
-			return false
 		}
+
+	case rhino.Token_TEMPLATELIT:
+		// A template literal is movable if all of the substitutions it contains are movable.
+		for part := range ast.MustTemplateLit(valueNode).Parts() {
+			if sub, ok := part.AsTemplateLitSub(); ok {
+				if !c.CanMoveValue(scope, sub.Expr().Node()) {
+					return false
+				}
+			} else {
+				_, isStr := part.AsTemplateLitString()
+				jutil.CheckStateMsg1(isStr, "%s", part.Node())
+			}
+		}
+		return true
+
+	case rhino.Token_GETPROP:
+		// `Symbol` is a built-in JavaScript object that is guaranteed to be unique. Therefore it
+		// is movable. Any properties on `Symbol` are also movable (e.g `Symbol.iterator`).
+		name, ok := ast.MustGetProp(valueNode).Object().AsName()
+		return ok && name.Ident() == "Symbol"
+
 	default:
 	}
 

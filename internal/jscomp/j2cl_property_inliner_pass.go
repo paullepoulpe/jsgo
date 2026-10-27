@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -46,7 +47,7 @@ import (
 // Java: public class J2clPropertyInlinerPass implements CompilerPass
 type J2clPropertyInlinerPass struct {
 	compiler AbstractCompiler
-	inliner  *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner
+	inliner  *j2clStaticFieldInliner
 }
 
 // Java: J2clPropertyInlinerPass(AbstractCompiler)
@@ -66,20 +67,20 @@ func (p *J2clPropertyInlinerPass) Process(externs rhino.Node, root rhino.Node) {
 }
 
 // Java: class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner
-type J2clPropertyInlinerPass_StaticFieldGetterSetterInliner struct {
+type j2clStaticFieldInliner struct {
 	outer      *J2clPropertyInlinerPass
 	root       rhino.Node
-	gatherer   J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters
-	determiner J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_DetermineInlinableProperties
-	inliner    J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass
+	gatherer   j2clGatherer
+	determiner j2clDeterminer
+	inliner    j2clInliner
 }
 
-func (p *J2clPropertyInlinerPass) getOrCreateInliner(root rhino.Node) *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner {
+func (p *J2clPropertyInlinerPass) getOrCreateInliner(root rhino.Node) *j2clStaticFieldInliner {
 	s := p.inliner
 	if s == nil {
-		s = &J2clPropertyInlinerPass_StaticFieldGetterSetterInliner{outer: p}
+		s = &j2clStaticFieldInliner{outer: p}
 		s.gatherer.outer = s
-		s.gatherer.j2clPropertiesByName = jutil.NewLinkedHashMap[string, J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty]()
+		s.gatherer.j2clPropertiesByName = jutil.NewLinkedHashMap[string, *j2clProperty]()
 		s.determiner.propertiesByName = s.gatherer.j2clPropertiesByName
 		s.inliner.outer = s
 		s.inliner.propertiesByName = s.gatherer.j2clPropertiesByName
@@ -91,77 +92,61 @@ func (p *J2clPropertyInlinerPass) getOrCreateInliner(root rhino.Node) *J2clPrope
 	return s
 }
 
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner(Node)
-func (p *J2clPropertyInlinerPass) newStaticFieldGetterSetterInliner(root rhino.Node) *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner {
-	return p.getOrCreateInliner(root)
-}
-
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.run()
-func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) run() {
+func (s *j2clStaticFieldInliner) run() {
 	NodeTraversal_Traverse(s.outer.compiler, s.root, &s.gatherer)
-	result := s.gatherer.getResults()
-	if result.IsEmpty() {
+	if s.gatherer.j2clPropertiesByName.IsEmpty() {
 		return
 	}
 	NodeTraversal_Traverse(s.outer.compiler, s.root, &s.determiner)
 	s.inliner.run()
 }
 
-// J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty is the
-// abstract J2clProperty.
+// j2clProperty represents an ES5 (Object.defineProperties) or ES6 (static
+// getter/setter) J2CL static property candidate.
 //
-// Java: private abstract static class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clProperty
-type J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty interface {
-	// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clProperty.remove()
-	Remove()
-
-	GetJ2clPropertyBase() *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyBase
-}
-
-// J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyBase
-// holds J2clProperty's fields.
-type J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyBase struct {
-	getKey         rhino.Node
-	setKey         rhino.Node
+// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clProperty / J2clPropertyEs5 / J2clPropertyEs6
+type j2clProperty struct {
+	getKey         ast.PlainKeyMember
+	setKey         ast.PlainKeyMember
 	isSafeToInline bool
+	isEs6          bool
 }
 
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clProperty(Node, Node)
-func (b *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyBase) InitJ2clPropertyBase(getKey rhino.Node, setKey rhino.Node) {
-	b.getKey = getKey
-	b.setKey = setKey
-	b.isSafeToInline = true
+func newJ2clPropertyEs5(getKey ast.StringKey, setKey ast.StringKey) *j2clProperty {
+	jutil.CheckArgumentMsg1(getKey.Key() == "get", "%s", getKey.Node())
+	jutil.CheckArgumentMsg1(setKey.Node().IsNil() || setKey.Key() == "set", "%s", setKey.Node())
+	return &j2clProperty{
+		getKey:         getKey.AsPlainKeyMember(),
+		setKey:         setKey.AsPlainKeyMember(),
+		isSafeToInline: true,
+	}
 }
 
-// GetJ2clPropertyBase gives access to the base fields through the interface.
-func (b *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyBase) GetJ2clPropertyBase() *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyBase {
-	return b
+func newJ2clPropertyEs6(getKey ast.GetterDef, setKey ast.SetterDef) *j2clProperty {
+	return &j2clProperty{
+		getKey:         getKey.AsPlainKeyMember(),
+		setKey:         setKey.AsPlainKeyMember(),
+		isSafeToInline: true,
+		isEs6:          true,
+	}
 }
 
-// J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs5 is
-// a J2CL property with a getter and setter from an Object.defineProperties
-// call
-//
-// Java: private class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clPropertyEs5 extends J2clProperty
-type J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs5 struct {
-	J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyBase
-	outer *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner
-}
+func (p *j2clProperty) remove(compiler AbstractCompiler) {
+	if p.isEs6 {
+		classMembers := p.getKey.Node().GetParent()
+		jutil.CheckStateMsg1(classMembers.IsClassMembers(), "%s", classMembers)
+		p.getKey.Detach()
+		NodeUtil_MarkFunctionsDeleted(p.getKey.Node(), compiler)
+		if !p.setKey.Node().IsNil() {
+			p.setKey.Detach()
+			NodeUtil_MarkFunctionsDeleted(p.setKey.Node(), compiler)
+		}
+		compiler.ReportChangeToEnclosingScope(classMembers)
+		return
+	}
 
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clPropertyEs5(Node, Node)
-func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) newJ2clPropertyEs5(getKey rhino.Node, setKey rhino.Node) *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs5 {
-	p := &J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs5{outer: s}
-	p.InitJ2clPropertyBase(getKey, setKey)
-	jutil.CheckArgumentMsg1(getKey.IsStringKey() && getKey.GetString() == "get", "%s", getKey)
-	jutil.CheckArgumentMsg1(
-		setKey.IsNil() || (setKey.IsStringKey() && setKey.GetString() == "set"), "%s", setKey)
-	return p
-}
-
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clPropertyEs5.remove()
-func (p *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs5) Remove() {
-	compiler := p.outer.outer.compiler
-	nodeToDetach := p.getKey.GetGrandparent()
+	nodeToDetach := p.getKey.Node().GetGrandparent()
 	objectLit := nodeToDetach.GetParent()
 	jutil.CheckStateMsg1(objectLit.IsObjectLit(), "%s", objectLit)
 	nodeToDetach.Detach()
@@ -171,38 +156,6 @@ func (p *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs5)
 		// Remove the whole Object.defineProperties call if there are no properties left.
 		objectLit.GetGrandparent().Detach()
 	}
-}
-
-// J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs6 is
-// a J2CL property created with a ES6-style static getter and setter
-//
-// Java: private class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clPropertyEs6 extends J2clProperty
-type J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs6 struct {
-	J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyBase
-	outer *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner
-}
-
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clPropertyEs6(Node, Node)
-func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) newJ2clPropertyEs6(getKey rhino.Node, setKey rhino.Node) *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs6 {
-	p := &J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs6{outer: s}
-	p.InitJ2clPropertyBase(getKey, setKey)
-	jutil.CheckArgumentMsg1(getKey.IsGetterDef(), "%s", getKey)
-	jutil.CheckArgumentMsg1(setKey.IsNil() || setKey.IsSetterDef(), "%s", setKey)
-	return p
-}
-
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.J2clPropertyEs6.remove()
-func (p *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs6) Remove() {
-	compiler := p.outer.outer.compiler
-	classMembers := p.getKey.GetParent()
-	jutil.CheckStateMsg1(classMembers.IsClassMembers(), "%s", classMembers)
-	p.getKey.Detach()
-	NodeUtil_MarkFunctionsDeleted(p.getKey, compiler)
-	if !p.setKey.IsNil() {
-		p.setKey.Detach()
-		NodeUtil_MarkFunctionsDeleted(p.setKey, compiler)
-	}
-	compiler.ReportChangeToEnclosingScope(classMembers)
 }
 
 // matchesJ2clGetKeySignature matches J2CL property getters by looking for the
@@ -216,57 +169,44 @@ func (p *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs6)
 // dereferences it.
 //
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.matchesJ2clGetKeySignature(String, Node)
-func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) matchesJ2clGetKeySignature(className *string, getKey rhino.Node) bool {
-	if !getKey.GetFirstChild().IsFunction() {
+func matchesJ2clGetKeySignature(className *string, getKey ast.PlainKeyMember) bool {
+	getFunction, ok := getKey.Value().AsFunction()
+	if !ok {
 		return false
 	}
-	getFunction := getKey.GetFirstChild()
-	if !getFunction.HasChildren() || !getFunction.GetLastChild().IsBlock() {
+	getBlock, ok := getFunction.Body().AsBlock()
+	if !ok {
 		return false
 	}
 	// `{ return ClassName$$0clinit(), ClassName$prop; }`
-	getBlock := getFunction.GetLastChild()
-	if !getBlock.HasOneChild() {
+	stmt, ok := getBlock.OnlyStatement()
+	if !ok {
 		return false
 	}
-	// `return ClassName$$0clinit(), ClassName$prop;`
-	returnStatement := getBlock.GetFirstChild()
-	if !returnStatement.IsReturn() {
+	returnStmt, ok := stmt.AsReturn()
+	if !ok {
 		return false
 	}
 	// `ClassName$$0clinit(), ClassName$prop;`
-	commaExpr := returnStatement.GetOnlyChild()
-	if !commaExpr.IsComma() {
+	commaExpr, ok := ast.AsBinaryOf(returnStmt.Node().GetOnlyChild(), rhino.Token_COMMA)
+	if !ok {
 		return false
 	}
 	// `ClassName$$0clinit()`
-	callNode := commaExpr.GetFirstChild()
-	if !(callNode.IsCall() && callNode.HasOneChild()) {
+	call, ok := commaExpr.Left().AsCall()
+	if !ok || call.HasArgs() {
 		return false
 	}
-	// `ClassName$$0clinit`
-	clinitQname := callNode.GetOnlyChild()
-	if !clinitQname.IsQualifiedName() {
-		return false
-	}
-	clinitQnameString := *clinitQname.GetQualifiedName()
-	if !s.LooksLikeAJ2clGeneratedClassClinitName(className, clinitQnameString) {
+	clinitQname, ok := call.Callee().Node().GetQualifiedNameString()
+	if !ok || !looksLikeJ2clClinitName(className, clinitQname) {
 		return false
 	}
 	// `ClassName$prop`
-	propReference := commaExpr.GetSecondChild()
-	if !propReference.IsQualifiedName() {
-		return false
-	}
-	propReferenceString := *propReference.GetQualifiedName()
-
-	if !s.LooksLikeAJ2clGeneratedStaticPropertyName(className, propReferenceString) {
-		return false
-	}
-	return true
+	propQname, ok := commaExpr.Right().Node().GetQualifiedNameString()
+	return ok && looksLikeJ2clStaticPropName(className, propQname)
 }
 
-// matchesJ2clSetKeySignature matches J2CL property getters by looking for
+// matchesJ2clSetKeySignature matches J2CL property setters by looking for
 // the following signature:
 //
 //	set: function(value) { (ClassName$$0clinit(), ClassName$$0fieldName = value)};
@@ -274,166 +214,143 @@ func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) matchesJ2clGetK
 //	set: function(value) { (ClassName.$clinit(), ClassName.$fieldNaNme = value)};
 //
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.matchesJ2clSetKeySignature(String, Node)
-func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) matchesJ2clSetKeySignature(className *string, setKey rhino.Node) bool {
-	if !setKey.GetFirstChild().IsFunction() {
+func matchesJ2clSetKeySignature(className *string, setKey ast.PlainKeyMember) bool {
+	setFunction, ok := setKey.Value().AsFunction()
+	if !ok {
 		return false
 	}
-	setFunction := setKey.GetFirstChild()
-	if !setFunction.HasChildren() ||
-		!setFunction.GetLastChild().IsBlock() ||
-		!setFunction.GetSecondChild().IsParamList() {
+	setBlock, ok := setFunction.Body().AsBlock()
+	if !ok {
 		return false
 	}
-	if !setFunction.GetSecondChild().HasOneChild() {
+	if _, ok := setFunction.Params().OnlyParam(); !ok {
 		// There is a single parameter "value".
 		return false
 	}
 	// `{ ClassName$$0clinit(), ClassName$$0staticProp = initialValue; }`
-	setBlock := setFunction.GetLastChild()
-	if !setBlock.HasOneChild() {
+	stmt, ok := setBlock.OnlyStatement()
+	if !ok {
 		return false
 	}
-
-	// `ClassName$$0clinit(), ClassName$$0staticProp = initialValue;`
-	exprResult := setBlock.GetOnlyChild()
-	if !exprResult.IsExprResult() {
+	exprStmt, ok := stmt.AsExprStmt()
+	if !ok {
 		return false
 	}
 	// `ClassName$$0clinit(), ClassName$$0staticProp = initialValue`
-	commaExpr := exprResult.GetOnlyChild()
-	if !commaExpr.IsComma() {
+	commaExpr, ok := exprStmt.Expr().AsBinaryOf(rhino.Token_COMMA)
+	if !ok {
 		return false
 	}
 	// `SomeClassName$$0clinit()`
-	clinitCall := commaExpr.GetFirstChild()
-	if !(clinitCall.IsCall() && clinitCall.HasOneChild()) {
+	clinitCall, ok := commaExpr.Left().AsCall()
+	if !ok || clinitCall.HasArgs() {
 		return false
 	}
-	// `SomeClassName$$0clinit`
-	clinitQname := clinitCall.GetOnlyChild()
-	if !clinitQname.IsQualifiedName() {
-		return false
-	}
-	clinitQnameString := *clinitQname.GetQualifiedName()
-	if !s.LooksLikeAJ2clGeneratedClassClinitName(className, clinitQnameString) {
+	clinitQname, ok := clinitCall.Callee().Node().GetQualifiedNameString()
+	if !ok || !looksLikeJ2clClinitName(className, clinitQname) {
 		return false
 	}
 	// `ClassName$$0staticProp = initialValue`
 	// Rewriting by CollapseProperties may have changed the LHS
 	// from a GETPROP to a NAME.
-	assign := commaExpr.GetSecondChild()
-	if !assign.IsAssign() {
+	assign, ok := commaExpr.Right().AsAssign()
+	if !ok {
 		return false
 	}
-	lhsQname := assign.GetFirstChild()
-	if !lhsQname.IsQualifiedName() {
-		return false
-	}
-	lhsQnameString := *lhsQname.GetQualifiedName()
-	if !s.LooksLikeAJ2clGeneratedStaticPropertyName(className, lhsQnameString) {
-		return false
-	}
-	return true
+	lhsQname, ok := assign.Target().Node().GetQualifiedNameString()
+	return ok && looksLikeJ2clStaticPropName(className, lhsQname)
 }
 
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.looksLikeAJ2clGeneratedClassClinitName(String, String)
-func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) LooksLikeAJ2clGeneratedClassClinitName(className *string, candidate string) bool {
+func looksLikeJ2clClinitName(className *string, candidate string) bool {
 	if !strings.HasPrefix(candidate, *className) {
 		return false
 	}
-	candidateAfterClassName := candidate[len(*className):]
-	return candidateAfterClassName == "$$0clinit" || // collapsed by CollapseProperties
-		candidateAfterClassName == ".$clinit" // not collapsed
+	suffix := candidate[len(*className):]
+	return suffix == "$$0clinit" || // collapsed by CollapseProperties
+		suffix == ".$clinit" // not collapsed
 }
 
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.looksLikeAJ2clGeneratedStaticPropertyName(String, String)
-func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) LooksLikeAJ2clGeneratedStaticPropertyName(className *string, candidate string) bool {
+func looksLikeJ2clStaticPropName(className *string, candidate string) bool {
 	if !strings.HasPrefix(candidate, *className) {
 		return false
 	}
-	candidateAfterClassName := candidate[len(*className):]
-	return strings.HasPrefix(candidateAfterClassName, "$$0") || // collapsed by CollapseProperties
-		strings.HasPrefix(candidateAfterClassName, ".$") // not collapsed
+	suffix := candidate[len(*className):]
+	return strings.HasPrefix(suffix, "$$0") || // collapsed by CollapseProperties
+		strings.HasPrefix(suffix, ".$") // not collapsed
 }
 
-// J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters
-// traverses the ast and gathers get and set methods contained in
-// Object.defineProperties nodes.
+// j2clGatherer traverses the AST and gathers static J2CL getters and setters
+// from classes and Object.defineProperties calls.
 //
-// Java: private class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.GatherJ2CLClassGetterSetters extends AbstractPostOrderCallback
-type J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters struct {
+// Java: private class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.GatherJ2CLClassGetterSetters
+type j2clGatherer struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	outer                *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner
-	j2clPropertiesByName *jutil.LinkedHashMap[string, J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty]
-	setterDefByName      *jutil.LinkedHashMap[string, rhino.Node]
-	getterDefByName      *jutil.LinkedHashMap[string, rhino.Node]
-}
-
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.GatherJ2CLClassGetterSetters()
-func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) newGatherJ2CLClassGetterSetters() *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters {
-	return &J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters{
-		outer:                s,
-		j2clPropertiesByName: jutil.NewLinkedHashMap[string, J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty](),
-	}
-}
-
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.GatherJ2CLClassGetterSetters.getResults()
-func (g *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters) getResults() *jutil.LinkedHashMap[string, J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty] {
-	return g.j2clPropertiesByName
+	outer                *j2clStaticFieldInliner
+	j2clPropertiesByName *jutil.LinkedHashMap[string, *j2clProperty]
+	setterDefByName      *jutil.LinkedHashMap[string, ast.SetterDef]
+	getterDefByName      *jutil.LinkedHashMap[string, ast.GetterDef]
 }
 
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.GatherJ2CLClassGetterSetters.visit(NodeTraversal, Node, Node)
-func (g *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsClass() {
-		g.VisitClass(n)
+func (g *j2clGatherer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if class, ok := ast.AsClass(n); ok {
+		g.visitClass(class)
 	} else if NodeUtil_IsObjectDefinePropertiesDefinition(n) {
-		g.VisitObjectDefineProperties(n)
+		g.visitObjectDefineProperties(ast.MustCall(n))
 	}
 }
 
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.GatherJ2CLClassGetterSetters.visitObjectDefineProperties(Node)
-func (g *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters) VisitObjectDefineProperties(n rhino.Node) {
-	className := n.GetSecondChild()
-	if !className.IsName() {
+func (g *j2clGatherer) visitObjectDefineProperties(call ast.Call) {
+	firstArg, ok := call.FirstArg()
+	if !ok {
 		return
 	}
-	classNameString := className.GetString()
-	for _, p := range NodeUtil_GetObjectDefinedPropertiesKeys(n) {
-		name := p.GetString()
-		propertyLiteral := p.GetFirstChild()
-		var getKey rhino.Node
-		var setKey rhino.Node
+	className, ok := firstArg.AsName()
+	if !ok {
+		return
+	}
+	classNameString := className.Ident()
+	for _, p := range NodeUtil_GetObjectDefinedPropertiesKeys(call.Node()) {
+		propKey := ast.MustStringKey(p)
+		propLit, ok := propKey.Value().AsObjectLit()
+		if !ok {
+			continue
+		}
+		var getKey ast.StringKey
+		var setKey ast.StringKey
 		hasSetter := false
-		for innerKey := propertyLiteral.GetFirstChild(); !innerKey.IsNil(); innerKey = innerKey.GetNext() {
-			if !innerKey.IsStringKey() {
+		for member := range propLit.Members() {
+			innerKey, ok := member.AsStringKey()
+			if !ok {
 				continue
 			}
-			switch innerKey.GetString() {
+			switch innerKey.Key() {
 			case "get":
-				if g.outer.matchesJ2clGetKeySignature(&classNameString, innerKey) {
+				if matchesJ2clGetKeySignature(&classNameString, innerKey.AsPlainKeyMember()) {
 					getKey = innerKey
 				}
 			case "set":
 				hasSetter = true
-				if g.outer.matchesJ2clSetKeySignature(&classNameString, innerKey) {
+				if matchesJ2clSetKeySignature(&classNameString, innerKey.AsPlainKeyMember()) {
 					setKey = innerKey
 				}
-			default:
 			}
 		}
-		if !getKey.IsNil() && (!hasSetter || !setKey.IsNil()) {
+		if !getKey.Node().IsNil() && (!hasSetter || !setKey.Node().IsNil()) {
 			g.j2clPropertiesByName.Put(
-				classNameString+"."+name, g.outer.newJ2clPropertyEs5(getKey, setKey))
+				classNameString+"."+propKey.Key(), newJ2clPropertyEs5(getKey, setKey))
 		}
 	}
 }
 
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.GatherJ2CLClassGetterSetters.visitClass(Node)
-func (g *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters) VisitClass(classNode rhino.Node) {
-	classMembers := NodeUtil_GetClassMembers(classNode)
+func (g *j2clGatherer) visitClass(class ast.Class) {
 	hasStaticGetter := false
-	for memberFunction := classMembers.GetFirstChild(); !memberFunction.IsNil(); memberFunction = memberFunction.GetNext() {
-		if memberFunction.IsStaticMember() && memberFunction.IsGetterDef() {
+	for member := range class.Body().Members() {
+		if getter, ok := member.AsGetterDef(); ok && getter.IsStatic() {
 			hasStaticGetter = true
 			break
 		}
@@ -442,91 +359,71 @@ func (g *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassG
 		return
 	}
 
-	className := NodeUtil_GetName(classNode)
+	className := NodeUtil_GetName(class.Node())
 	if g.getterDefByName == nil {
-		g.getterDefByName = jutil.NewLinkedHashMap[string, rhino.Node]()
-		g.setterDefByName = jutil.NewLinkedHashMap[string, rhino.Node]()
+		g.getterDefByName = jutil.NewLinkedHashMap[string, ast.GetterDef]()
+		g.setterDefByName = jutil.NewLinkedHashMap[string, ast.SetterDef]()
 	} else {
 		g.getterDefByName.Clear()
 		g.setterDefByName.Clear()
 	}
-	getterDefByName := g.getterDefByName
-	setterDefByName := g.setterDefByName
 
-	// Collect static setters and getters.
-	for memberFunction := classMembers.GetFirstChild(); !memberFunction.IsNil(); memberFunction = memberFunction.GetNext() {
-		if !memberFunction.IsStaticMember() {
-			// The only getters and setters we care about are static.
-			continue
-		}
-		switch memberFunction.GetToken() {
-		case rhino.Token_GETTER_DEF:
-			getterDefByName.Put(memberFunction.GetString(), memberFunction)
-		case rhino.Token_SETTER_DEF:
-			setterDefByName.Put(memberFunction.GetString(), memberFunction)
-		default:
+	for member := range class.Body().Members() {
+		if getter, ok := member.AsGetterDef(); ok && getter.IsStatic() {
+			g.getterDefByName.Put(getter.Key(), getter)
+		} else if setter, ok := member.AsSetterDef(); ok && setter.IsStatic() {
+			g.setterDefByName.Put(setter.Key(), setter)
 		}
 	}
 
-	for propertyName := range getterDefByName.Keys() {
-		getterDef := getterDefByName.Get(propertyName)
-		setterDef := setterDefByName.Get(propertyName)
-		if g.outer.matchesJ2clGetKeySignature(className, getterDef) &&
-			(setterDef.IsNil() || g.outer.matchesJ2clSetKeySignature(className, setterDef)) {
-			// This is a J2cl static property.
+	for propertyName := range g.getterDefByName.Keys() {
+		getterDef := g.getterDefByName.Get(propertyName)
+		setterDef := g.setterDefByName.Get(propertyName)
+		if matchesJ2clGetKeySignature(className, getterDef.AsPlainKeyMember()) &&
+			(setterDef.Node().IsNil() || matchesJ2clSetKeySignature(className, setterDef.AsPlainKeyMember())) {
 			g.j2clPropertiesByName.Put(
-				*className+"."+propertyName, g.outer.newJ2clPropertyEs6(getterDef, setterDef))
+				*className+"."+propertyName, newJ2clPropertyEs6(getterDef, setterDef))
 		}
 	}
 }
 
-// Java: private static class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.DetermineInlinableProperties extends AbstractPostOrderCallback
-type J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_DetermineInlinableProperties struct {
+// Java: private static class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.DetermineInlinableProperties
+type j2clDeterminer struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	propertiesByName *jutil.LinkedHashMap[string, J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty]
-}
-
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.DetermineInlinableProperties(Map<String, J2clProperty>)
-func NewJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner_DetermineInlinableProperties(
-	allGetterSetters *jutil.LinkedHashMap[string, J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty]) *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_DetermineInlinableProperties {
-	return &J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_DetermineInlinableProperties{propertiesByName: allGetterSetters}
+	propertiesByName *jutil.LinkedHashMap[string, *j2clProperty]
 }
 
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.DetermineInlinableProperties.visit(NodeTraversal, Node, Node)
-func (d *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_DetermineInlinableProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if NodeUtil_IsCompoundAssignmentOp(n) || n.IsInc() || n.IsDec() {
-		assignmentTarget := n.GetFirstChild()
-		if assignmentTarget.IsGetProp() {
-			accessName := assignmentTarget.GetQualifiedName()
-			var prop J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty
-			if accessName != nil {
-				prop = d.propertiesByName.Get(*accessName)
-			}
-			if prop != nil {
-				prop.GetJ2clPropertyBase().isSafeToInline = false
+func (d *j2clDeterminer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	var target ast.Target
+	if assignOp, ok := ast.AsAssignOp(n); ok {
+		target = assignOp.Target()
+	} else if incDec, ok := ast.AsIncDec(n); ok {
+		target = incDec.Target()
+	} else {
+		return
+	}
+	if getProp, ok := target.AsGetProp(); ok {
+		if accessName, ok := getProp.Node().GetQualifiedNameString(); ok {
+			if prop := d.propertiesByName.Get(accessName); prop != nil {
+				prop.isSafeToInline = false
 			}
 		}
 	}
 }
 
-// J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass
-// looks for accesses of j2cl properties and assignments to j2cl properties.
+// j2clInliner looks for accesses and assignments of J2CL static properties and
+// inlines them.
 //
-// Java: private class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.InlinePropertiesPass extends AbstractPostOrderCallback
-type J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass struct {
+// Java: private class J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.InlinePropertiesPass
+type j2clInliner struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	outer            *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner
-	propertiesByName *jutil.LinkedHashMap[string, J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty]
+	outer            *j2clStaticFieldInliner
+	propertiesByName *jutil.LinkedHashMap[string, *j2clProperty]
 	injector         *FunctionInjector
 }
 
-// Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.InlinePropertiesPass(Map<String, J2clProperty>)
-func (s *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) newInlinePropertiesPass(
-	allGetterSetters *jutil.LinkedHashMap[string, J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty]) *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass {
-	return &J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass{outer: s, propertiesByName: allGetterSetters}
-}
-
-func (i *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass) getInjector() *FunctionInjector {
+func (i *j2clInliner) getInjector() *FunctionInjector {
 	if i.injector == nil {
 		i.injector = NewFunctionInjector_Builder(i.outer.outer.compiler).
 			AssumeStrictThis(true).
@@ -536,61 +433,56 @@ func (i *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlineProperties
 }
 
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.InlinePropertiesPass.run()
-func (i *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass) run() {
-	NodeTraversal_Traverse(i.outer.outer.compiler, i.outer.root, i)
+func (i *j2clInliner) run() {
+	compiler := i.outer.outer.compiler
+	NodeTraversal_Traverse(compiler, i.outer.root, i)
 
 	for prop := range i.propertiesByName.Values() {
-		if prop.GetJ2clPropertyBase().isSafeToInline {
-			prop.Remove()
+		if prop.isSafeToInline {
+			prop.remove(compiler)
 		}
 	}
 }
 
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.InlinePropertiesPass.visit(NodeTraversal, Node, Node)
-func (i *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsGetProp() {
+func (i *j2clInliner) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if getProp, ok := ast.AsGetProp(n); ok {
 		if parent.IsExprResult() {
 			// This is a stub declaration for the type checker. See:
 			// ConcretizeStaticInheritanceForInlining
 			return
 		}
-		if NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == n {
-			// This case should be handled below.  It needs to be inlined differently.
+		if assign, ok := ast.AsAssignment(parent); ok && assign.Target().Is(n) {
+			// This case should be handled below. It needs to be inlined differently.
 			return
 		}
-		accessName := n.GetQualifiedName()
-		var prop J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty
-		if accessName != nil {
-			prop = i.propertiesByName.Get(*accessName)
+		if accessName, ok := getProp.Node().GetQualifiedNameString(); ok {
+			if prop := i.propertiesByName.Get(accessName); prop != nil && prop.isSafeToInline {
+				injector := i.getInjector()
+				functionCall := rhino.IR_Call(rhino.IR_Name("inlined_j2cl_getter"))
+				n.ReplaceWith(functionCall)
+				reference := NewFunctionInjector_Reference(functionCall, t.GetScope(), t.GetChunk(), FunctionInjector_InliningMode_DIRECT)
+				inlinedCall := injector.Inline(reference, "", prop.getKey.Value().Node())
+				t.GetCompiler().ReportChangeToEnclosingScope(inlinedCall)
+			}
 		}
-		if prop != nil && prop.GetJ2clPropertyBase().isSafeToInline {
-			injector := i.getInjector()
-			functionCall := rhino.IR_Call(rhino.IR_Name("inlined_j2cl_getter"))
-			n.ReplaceWith(functionCall)
-			reference := NewFunctionInjector_Reference(functionCall, t.GetScope(), t.GetChunk(), FunctionInjector_InliningMode_DIRECT)
-			inlinedCall := injector.Inline(reference, "", prop.GetJ2clPropertyBase().getKey.GetFirstChild())
-			t.GetCompiler().ReportChangeToEnclosingScope(inlinedCall)
-		}
+		return
 	}
 
-	if n.IsAssign() {
-		assignmentTarget := n.GetFirstChild()
-		assignmentValue := n.GetLastChild()
-		if assignmentTarget.IsGetProp() {
-			accessName := assignmentTarget.GetQualifiedName()
-			var prop J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clProperty
-			if accessName != nil {
-				prop = i.propertiesByName.Get(*accessName)
-			}
-			if prop != nil && !prop.GetJ2clPropertyBase().setKey.IsNil() && prop.GetJ2clPropertyBase().isSafeToInline {
-				injector := i.getInjector()
-				assignmentValue.Detach()
-				functionCall := rhino.IR_Call(rhino.IR_Name("inlined_j2cl_setter"), assignmentValue)
-				n.ReplaceWith(functionCall)
-				reference := NewFunctionInjector_Reference(functionCall, t.GetScope(), t.GetChunk(), FunctionInjector_InliningMode_BLOCK)
-				injector.MaybePrepareCall(reference)
-				inlinedCall := injector.Inline(reference, "", prop.GetJ2clPropertyBase().setKey.GetFirstChild())
-				t.GetCompiler().ReportChangeToEnclosingScope(inlinedCall)
+	if assign, ok := ast.AsAssign(n); ok {
+		if getProp, ok := assign.Target().AsGetProp(); ok {
+			if accessName, ok := getProp.Node().GetQualifiedNameString(); ok {
+				prop := i.propertiesByName.Get(accessName)
+				if prop != nil && !prop.setKey.Node().IsNil() && prop.isSafeToInline {
+					injector := i.getInjector()
+					assignmentValue := assign.Value().Detach().Node()
+					functionCall := rhino.IR_Call(rhino.IR_Name("inlined_j2cl_setter"), assignmentValue)
+					n.ReplaceWith(functionCall)
+					reference := NewFunctionInjector_Reference(functionCall, t.GetScope(), t.GetChunk(), FunctionInjector_InliningMode_BLOCK)
+					injector.MaybePrepareCall(reference)
+					inlinedCall := injector.Inline(reference, "", prop.setKey.Value().Node())
+					t.GetCompiler().ReportChangeToEnclosingScope(inlinedCall)
+				}
 			}
 		}
 	}

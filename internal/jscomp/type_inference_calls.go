@@ -1,0 +1,565 @@
+// Port of com/google/javascript/jscomp/TypeInference.java @ closure-compiler v20261021
+
+/*
+ * Copyright 2008 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package jscomp
+
+import (
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+// Java: TypeInference.traverseCall(Node, FlowScope)
+func (ti *TypeInference) TraverseCall(callNode rhino.Node, originalScope FlowScope) FlowScope {
+	jutil.CheckArgumentMsg1(callNode.IsCall() || callNode.IsOptChainCall(), "%s", callNode)
+	scopeAfterChildren := ti.TraverseChildren(callNode, originalScope)
+	scopeAfterExecution :=
+		ti.SetCallNodeTypeAfterChildrenTraversed(callNode, scopeAfterChildren)
+	// e.g. after `goog.assertString(x);` we can infer `x` is a string.
+	return ti.TightenTypesAfterAssertions(scopeAfterExecution, callNode)
+}
+
+// Java: TypeInference.traverseTaggedTemplateLit(Node, FlowScope)
+func (ti *TypeInference) TraverseTaggedTemplateLit(tagTempLitNode rhino.Node, originalScope FlowScope) FlowScope {
+	jutil.CheckArgumentMsg1(tagTempLitNode.IsTaggedTemplateLit(), "%s", tagTempLitNode)
+	scopeAfterChildren := ti.TraverseChildren(tagTempLitNode, originalScope)
+	// A tagged template literal is really a special kind of function call.
+	scopeAfterExecution :=
+		ti.SetCallNodeTypeAfterChildrenTraversed(tagTempLitNode, scopeAfterChildren)
+	if tagTempLitNode.GetJSType() == nil {
+		tagTempLitNode.SetJSType(ti.unknownType)
+	}
+	return scopeAfterExecution
+}
+
+// SetCallNodeTypeAfterChildrenTraversed: n is a non-constructor function
+// invocation, i.e. CALL or TAGGED_TEMPLATELIT.
+//
+// Java: TypeInference.setCallNodeTypeAfterChildrenTraversed(Node, FlowScope)
+func (ti *TypeInference) SetCallNodeTypeAfterChildrenTraversed(n rhino.Node, scopeAfterChildren FlowScope) FlowScope {
+	// Resolve goog.{require,requireType,requireDynamic,forwardDeclare,module.get} calls separately,
+	// as they are not normal functions.
+	if n.IsCall() &&
+		NodeUtil_IsExpressionResultUsed(n) && // Don't bother typing calls if the result is unused.
+		ModuleImportResolver_IsGoogModuleDependencyCall(n) {
+		calleeNode := n.GetFirstChild()
+		if calleeNode.MatchesQualifiedName(TypeInference_GOOG_REQUIREDYNAMIC_NAME) {
+			// Result of `goog.requireDynamic('module.name')` is `IThenable<MODULE_TYPE>`
+			// IThenable is a supertype of Promise.
+			n.SetJSType(Promises_WrapInIThenable(ti.registry, ti.GetGoogModuleDependencyCallResultType(n)))
+		} else {
+			n.SetJSType(ti.GetGoogModuleDependencyCallResultType(n))
+		}
+		return scopeAfterChildren
+	}
+
+	left := n.GetFirstChild()
+	functionType := ti.GetJSType(left).RestrictByNotNullOrUndefined()
+	if left.IsSuper() {
+		// TODO(sdh): This will probably return the super type; might want to return 'this' instead?
+		return ti.TraverseInstantiation(n, functionType, scopeAfterChildren)
+	} else if functionType.IsFunctionType() {
+		fnType := functionType.ToMaybeFunctionType()
+		n.SetJSType(fnType.GetReturnType())
+		ti.BackwardsInferenceFromCallSite(n, fnType, scopeAfterChildren)
+	} else if functionType.Equals(ti.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)) {
+		n.SetJSType(ti.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE))
+	} else if left.GetJSType() != nil && left.GetJSType().IsUnknownType() {
+		// TODO(lharker): do we also want to set this to unknown if the left's type is null? We would
+		// lose some inference that TypeCheck does when given a null type.
+		n.SetJSType(ti.unknownType)
+	}
+	return scopeAfterChildren
+}
+
+// Java: TypeInference.getGoogModuleDependencyCallResultType(Node)
+func (ti *TypeInference) GetGoogModuleDependencyCallResultType(callNode rhino.Node) rhino.JSType {
+	moduleId := callNode.GetSecondChild().GetString()
+	module := ti.compiler.GetModuleMap().GetClosureModule(moduleId)
+	// Fall back to the `?` type if the module is unknown to the compiler
+	if module == nil {
+		return ti.unknownType
+	}
+
+	name := ti.moduleImportResolver.GetClosureNamespaceTypeFromCall(callNode)
+	if name != nil {
+		otherModuleScope := ti.scopeCreator.GetNodeToScopeMapper()(name.GetScopeRoot())
+		var otherVar *TypedVar
+		if otherModuleScope != nil {
+			otherVar, _ = otherModuleScope.GetSlot(name.GetName()).(*TypedVar)
+		}
+		if otherVar != nil {
+			if otherVar.GetType() != nil {
+				return otherVar.GetType()
+			}
+			return ti.unknownType
+		}
+
+		if otherModuleScope != nil && module.Metadata().ModuleType() == ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
+			// A "provideAlreadyProvided" is type through the properties of the containing namespace
+			// since it is a provided name it is rooted in the global scope.
+
+			// We validated that this is a valid "provided name" above so it is ok to look it up by
+			// properties.
+			return otherModuleScope.GetTypeThroughNamespace(moduleId)
+		}
+	}
+
+	return ti.unknownType
+}
+
+// Java: TypeInference.tightenTypesAfterAssertions(FlowScope, Node)
+func (ti *TypeInference) TightenTypesAfterAssertions(scope FlowScope, callNode rhino.Node) FlowScope {
+	left := callNode.GetFirstChild()
+	firstParam := left.GetNext()
+	if firstParam.IsNil() {
+		// this may be an assertion call but there are no arguments to assert
+		return scope
+	}
+	assertionFunctionSpec := ti.assertionFunctionLookup.LookupByCallee(left)
+	if assertionFunctionSpec == nil {
+		// this is not a recognized assertion function
+		return scope
+	}
+	assertedNode := assertionFunctionSpec.GetAssertedArg(firstParam)
+	if assertedNode.IsNil() {
+		return scope
+	}
+
+	// Handle assertions that enforce expressions evaluate to true.
+	switch assertionFunctionSpec.GetAssertionKind() {
+	case CodingConvention_AssertionFunctionSpec_AssertionKind_TRUTHY:
+		// Handle arbitrary expressions within the assert.
+		// e.g. given `assert(typeof x === 'string')`, the resulting scope will infer x to be a
+		// string.
+		scope =
+			ti.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(
+				assertedNode, scope, rhino.Outcome_TRUE)
+		// Build the result of the assertExpression
+		truthyType := ti.GetJSType(assertedNode).RestrictByNotNullOrUndefined()
+		callNode.SetJSType(truthyType)
+	case CodingConvention_AssertionFunctionSpec_AssertionKind_MATCHES_RETURN_TYPE:
+		// Handle assertions that enforce expressions match the return type of the function
+		callType := rhino.JSType_ToMaybeFunctionType(left.GetJSType())
+		var assertedType rhino.JSType
+		if callType != nil {
+			assertedType = callType.GetReturnType()
+		} else {
+			assertedType = ti.unknownType
+		}
+		type_ := ti.GetJSType(assertedNode)
+		var narrowed rhino.JSType
+		if assertedType.IsUnknownType() || type_.IsUnknownType() {
+			narrowed = assertedType
+		} else {
+			narrowed = type_.GetGreatestSubtype(assertedType)
+		}
+		callNode.SetJSType(narrowed)
+		if assertedNode.IsQualifiedName() && type_.DiffersFrom(narrowed) {
+			scope = ti.NarrowScope(scope, assertedNode, narrowed)
+		}
+	}
+
+	return scope
+}
+
+// Java: TypeInference.narrowScope(FlowScope, Node, JSType)
+func (ti *TypeInference) NarrowScope(scope FlowScope, node rhino.Node, narrowed rhino.JSType) FlowScope {
+	if node.IsThis() {
+		// "this" references don't need to be modeled in the control flow graph.
+		return scope
+	}
+
+	if node.IsGetProp() {
+		qName, _ := node.GetQualifiedNameString()
+		return scope.InferQualifiedSlot(
+			node, qName, ti.GetJSType(node), narrowed, false)
+	}
+	return ti.RedeclareSimpleVar(scope, node, narrowed)
+}
+
+// BackwardsInferenceFromCallSite: we only do forward type inference. We do
+// not do full backwards type inference.
+//
+// In other words, if we have,
+//
+//	var x = f();
+//	g(x);
+//
+// a forward type-inference engine would try to figure out the type of "x"
+// from the return type of "f". A backwards type-inference engine would try to
+// figure out the type of "x" from the parameter type of "g".
+//
+// However, there are a few special syntactic forms where we do some some
+// half-assed backwards type-inference, because programmers expect it in this
+// day and age. To take an example from Java,
+//
+//	List<String> x = Lists.newArrayList();
+//
+// The Java compiler will be able to infer the generic type of the List
+// returned by newArrayList().
+//
+// In much the same way, we do some special-case backwards inference for JS.
+// Those cases are enumerated here.
+//
+// Java: TypeInference.backwardsInferenceFromCallSite(Node, FunctionType, FlowScope)
+func (ti *TypeInference) BackwardsInferenceFromCallSite(n rhino.Node, fnType rhino.FunctionType, scope FlowScope) {
+	updatedFnType := ti.InferTemplatedTypesForCall(n, fnType, scope)
+	if updatedFnType {
+		fnType = n.GetFirstChild().GetJSType().ToMaybeFunctionType()
+	}
+	ti.UpdateTypeOfArguments(n, fnType)
+	ti.UpdateBind(n)
+}
+
+// UpdateBind: when "bind" is called on a function, we infer the type of the
+// returned "bound" function by looking at the number of parameters in the
+// call site. We also infer the "this" type of the target, if it's a function
+// expression.
+//
+// Java: TypeInference.updateBind(Node)
+func (ti *TypeInference) UpdateBind(n rhino.Node) {
+	bind := ti.compiler.GetCodingConvention().DescribeFunctionBind(n, true)
+	if bind == nil {
+		return
+	}
+
+	target := bind.target
+	callTargetFn :=
+		ti.GetJSType(target).RestrictByNotNullOrUndefined().ToMaybeFunctionType()
+	if callTargetFn == nil {
+		return
+	}
+
+	if !bind.thisValue.IsNil() && target.IsFunction() {
+		thisType := ti.GetJSType(bind.thisValue)
+		if thisType.ToObjectType() != nil &&
+			!thisType.IsUnknownType() &&
+			callTargetFn.GetTypeOfThis().IsUnknownType() {
+			callTargetFn =
+				callTargetFn.ToBuilder().
+					WithTypeOfThis(thisType.ToObjectType()).
+					WithSourceNode(rhino.NilNode).
+					BuildAndResolve()
+			target.SetJSType(callTargetFn)
+		}
+	}
+
+	returnType :=
+		callTargetFn.GetBindReturnType(
+			// getBindReturnType expects the 'this' argument to be included.
+			bind.GetBoundParameterCount() + 1)
+	bindType := ti.GetJSType(n.GetFirstChild()).ToMaybeFunctionType()
+	if bindType != nil && n.GetFirstChild() != target {
+		// Update the type of the
+		bindType =
+			bindType.ToBuilder().WithReturnType(returnType).WithSourceNode(rhino.NilNode).BuildAndResolve()
+		n.GetFirstChild().SetJSType(bindType)
+	}
+
+	n.SetJSType(returnType)
+}
+
+// UpdateTypeOfArguments performs a limited back-inference on function
+// arguments based on the expected parameter types.
+//
+// Currently this only does back-inference in two cases: it infers the type of
+// function literal arguments and adds inferred properties to inferred
+// object-typed arguments.
+//
+// For example: if someone calls `Promise<string>.prototype.then` with
+// `(result) => ...` then we infer that the type of the arrow function is
+// `function(string): ?`, and inside the arrow function body we know that
+// `result` is a string.
+//
+// Java: TypeInference.updateTypeOfArguments(Node, FunctionType)
+func (ti *TypeInference) UpdateTypeOfArguments(n rhino.Node, fnType rhino.FunctionType) {
+	jutil.CheckStateMsg1(NodeUtil_IsInvocation(n), "%s", n)
+	parameters := fnType.GetParameters()
+	nextParameter := 0
+	var curArg rhino.Node
+	isTaggedTemplateLit := n.IsTaggedTemplateLit()
+	if isTaggedTemplateLit {
+		// Skip the first parameter because it corresponds to a constructed array of the template lit
+		// subs, not an actual AST node, so there's nothing to update.
+		if nextParameter >= len(parameters) {
+			// TypeCheck will warn if there is no first parameter. Just bail out here.
+			return
+		}
+		nextParameter++
+		for curArg = n.GetLastChild().GetFirstChild(); !curArg.IsNil() && !curArg.IsTemplateLitSub(); curArg = curArg.GetNext() {
+		}
+	} else {
+		curArg = n.GetSecondChild()
+	}
+
+	// Note: if there are too many or too few arguments, TypeCheck will warn.
+	for nextParameter < len(parameters) && !curArg.IsNil() {
+		iArgument := curArg
+		curArg = curArg.GetNext()
+		if isTaggedTemplateLit {
+			iArgument = iArgument.GetFirstChild()
+			for !curArg.IsNil() && !curArg.IsTemplateLitSub() {
+				curArg = curArg.GetNext()
+			}
+		}
+		iArgumentType := ti.GetJSType(iArgument)
+
+		iParameter := parameters[nextParameter]
+		nextParameter++
+		var iParameterType rhino.JSType
+		if iParameter.GetJSType() != nil {
+			iParameterType = iParameter.GetJSType()
+		} else {
+			iParameterType = ti.unknownType
+		}
+
+		TypeInference_InferPropertyTypesToMatchConstraint(iArgumentType, iParameterType)
+
+		// If the parameter to the call is a function expression, propagate the
+		// function signature from the call site to the function node.
+
+		// Filter out non-function types (such as null and undefined) as
+		// we only care about FUNCTION subtypes here.
+		var restrictedParameter rhino.FunctionType
+		if iParameterType.IsUnionType() {
+			union := iParameterType.ToMaybeUnionType()
+			for _, alternative := range union.GetAlternates() {
+				if alternative.IsFunctionType() {
+					// There is only one function type per union.
+					restrictedParameter = alternative.ToMaybeFunctionType()
+					break
+				}
+			}
+		} else {
+			restrictedParameter = iParameterType.ToMaybeFunctionType()
+		}
+
+		if restrictedParameter != nil && iArgument.IsFunction() && iArgumentType.IsFunctionType() {
+			argFnType := iArgumentType.ToMaybeFunctionType()
+			argJsdoc := iArgument.GetJSDocInfo()
+			// Treat the parameter & return types of the function as 'declared' if the function has
+			// JSDoc with type annotations, or a parameter has inline JSDoc.
+			// Note that this does not distinguish between cases where all parameters have JSDoc vs
+			// only one parameter has JSDoc.
+			declared :=
+				(argJsdoc != nil && argJsdoc.ContainsDeclaration()) ||
+					NodeUtil_FunctionHasInlineJsdocs(iArgument)
+			iArgument.SetJSType(ti.MatchFunction(restrictedParameter, argFnType, declared))
+		}
+	}
+}
+
+// MatchFunction takes the current function type, and tries to match the
+// expected function type. This is a form of backwards-inference, like
+// record-type constraint matching.
+//
+// declared is whether the given function type is user-provided as opposed to
+// inferred.
+//
+// Java: TypeInference.matchFunction(FunctionType, FunctionType, boolean)
+func (ti *TypeInference) MatchFunction(
+	expectedType rhino.FunctionType, currentType rhino.FunctionType, declared bool) rhino.FunctionType {
+	if declared {
+		// If the function was declared but it doesn't have a known "this"
+		// but the expected type does, back fill it.
+		if currentType.GetTypeOfThis().IsUnknownType() &&
+			!expectedType.GetTypeOfThis().IsUnknownType() {
+			return currentType.ToBuilder().
+				WithTypeOfThis(expectedType.GetTypeOfThis()).
+				BuildAndResolve()
+		}
+	} else {
+		// For now, we just make sure the current type has enough
+		// arguments to match the expected type, and return the
+		// expected type if it does.
+		if currentType.GetMaxArity() <= expectedType.GetMaxArity() {
+			return expectedType
+		}
+	}
+	return currentType
+}
+
+// BuildTypeVariables builds the type environment where type transformations
+// will be evaluated. It only considers the template type variables that do
+// not have a type transformation.
+//
+// Java: TypeInference.buildTypeVariables(Map<TemplateType, JSType>)
+func (ti *TypeInference) BuildTypeVariables(
+	inferredTypes *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]) *jutil.LinkedHashMap[string, rhino.JSType] {
+	typeVars := jutil.NewLinkedHashMap[string, rhino.JSType]()
+	for key, value := range inferredTypes.All() {
+		// Only add the template type that do not have a type transformation
+		if !key.IsTypeTransformation() {
+			typeVars.Put(*key.GetReferenceName(), value)
+		}
+	}
+	return typeVars
+}
+
+// EvaluateTypeTransformations evaluates the type transformations associated
+// to the template types.
+//
+// Java: TypeInference.evaluateTypeTransformations(ImmutableList<TemplateType>, Map<TemplateType, JSType>, FlowScope)
+func (ti *TypeInference) EvaluateTypeTransformations(
+	templateTypes []*rhino.TemplateType,
+	inferredTypes *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType],
+	scope FlowScope) *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType] {
+
+	var typeVars *jutil.LinkedHashMap[string, rhino.JSType]
+	var result *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
+	var ttlObj *TypeTransformation
+
+	for _, type_ := range templateTypes {
+		if type_.IsTypeTransformation() {
+			// Lazy initialization when the first type transformation is found
+			if ttlObj == nil {
+				ttlObj = NewTypeTransformation(ti.compiler, scope.GetDeclarationScope())
+				typeVars = ti.BuildTypeVariables(inferredTypes)
+				result = jutil.NewLinkedHashMap[*rhino.TemplateType, rhino.JSType]()
+			}
+			// Evaluate the type transformation expression using the current
+			// known types for the template type variables
+			transformedType :=
+				ttlObj.Eval(type_.GetTypeTransformation(), jutil.NewLinkedHashMapFrom(typeVars))
+			result.Put(type_, transformedType)
+			// Add the transformed type to the type variables
+			typeVars.Put(*type_.GetReferenceName(), transformedType)
+		}
+	}
+	return result
+}
+
+func (ti *TypeInference) matchInvocationTemplateTypes(
+	calleeType rhino.FunctionType, localThisType rhino.JSType, invocation rhino.Node) *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType] {
+	ti.templatedMatched.Clear()
+	if calleeType.GetTemplateTypeMap().IsEmpty() {
+		return &ti.templatedMatched
+	}
+	matcher := InvocationTemplateTypeMatcher{
+		matchedTypes:  &ti.templatedMatched,
+		registry:      ti.registry,
+		calleeType:    calleeType,
+		localThisType: localThisType,
+		invocation:    invocation,
+		unknownType:   ti.unknownType,
+	}
+	return matcher.Match()
+}
+
+// InferTemplatedTypesForCall: for functions that use template types,
+// specialize the function type for the call target based on the call-site
+// specific arguments. Specifically, this enables inference to set the type
+// of any function literal parameters based on these inferred types.
+//
+// Java: TypeInference.inferTemplatedTypesForCall(Node, FunctionType, FlowScope)
+func (ti *TypeInference) InferTemplatedTypesForCall(n rhino.Node, fnType rhino.FunctionType, scope FlowScope) bool {
+	keys := fnType.GetTemplateTypeMap().GetTemplateKeys()
+	if len(keys) == 0 {
+		return false
+	}
+
+	// Try to infer the template types
+	bindings := ti.matchInvocationTemplateTypes(fnType, scope.GetTypeOfThis(), n)
+	inferred := &ti.templatedInferred
+	inferred.Clear()
+	// If the inferred type doesn't satisfy the template bound, swap to using the bound. This
+	// ensures errors will be reported in type-checking.
+	for _, key := range keys {
+		v := bindings.GetOrDefault(key, ti.unknownType)
+		if !v.IsSubtypeOf(key.GetBound()) {
+			v = key.GetBound()
+		}
+		inferred.Put(key, v)
+	}
+
+	// Try to infer the template types using the type transformations
+	typeTransformations :=
+		ti.EvaluateTypeTransformations(keys, inferred, scope)
+	if typeTransformations != nil {
+		for k, v := range typeTransformations.All() {
+			inferred.Put(k, v)
+		}
+	}
+
+	// Replace all template types. If we couldn't find a replacement, we
+	// replace it with UNKNOWN.
+	replacer := rhino.TemplateTypeReplacer_MakeForInference(ti.registry, inferred)
+	callTarget := n.GetFirstChild()
+
+	replacementFnType := replacer.VisitJSType(fnType).ToMaybeFunctionType()
+	jutil.CheckNotNull(replacementFnType)
+	callTarget.SetJSType(replacementFnType)
+	n.SetJSType(replacementFnType.GetReturnType())
+
+	return replacer.HasMadeReplacement()
+}
+
+// Java: TypeInference.traverseNew(Node, FlowScope)
+func (ti *TypeInference) TraverseNew(n rhino.Node, scope FlowScope) FlowScope {
+	scope = ti.TraverseChildren(n, scope)
+	constructor := n.GetFirstChild()
+	constructorType := constructor.GetJSType()
+	return ti.TraverseInstantiation(n, constructorType, scope)
+}
+
+// Java: TypeInference.traverseInstantiation(Node, JSType, FlowScope)
+func (ti *TypeInference) TraverseInstantiation(n rhino.Node, ctorType rhino.JSType, scope FlowScope) FlowScope {
+	if ctorType == nil || ctorType.IsUnknownType() {
+		n.SetJSType(ti.unknownType)
+		return scope
+	}
+
+	ctorType = ctorType.RestrictByNotNullOrUndefined()
+
+	ctorFnType := ctorType.ToMaybeFunctionType()
+	if functionType, ok := ctorType.(rhino.FunctionType); ctorFnType == nil && ok {
+		// If ctorType is a NoObjectType, then toMaybeFunctionType will
+		// return null. But NoObjectType implements the FunctionType
+		// interface, precisely because it can validly construct objects.
+		ctorFnType = functionType
+	}
+
+	if ctorFnType == nil || !ctorFnType.IsConstructor() {
+		n.SetJSType(ti.unknownType)
+		return scope
+	}
+
+	// TODO(nickreid): This probably isn't the right thing to do based on the differences between
+	// the `this` parameter between CALL and NEW.
+	ti.BackwardsInferenceFromCallSite(n, ctorFnType, scope)
+
+	instantiatedType := ctorFnType.GetInstanceType()
+	if rhino.JSType(ctorFnType) == ti.registry.GetNativeType(rhino.JSTypeNative_OBJECT_FUNCTION_TYPE) {
+		// TODO(b/138617950): Delete this case when `Object` and `Object<?, ?> are sparate.
+	} else if ctorFnType.HasAnyTemplateTypes() {
+		if instantiatedType.IsTemplatizedType() {
+			instantiatedType = instantiatedType.ToMaybeTemplatizedType().GetRawType()
+		}
+		// If necessary, templatized the instance type based on the the constructor parameters.
+		inferredTypes := ti.matchInvocationTemplateTypes(ctorFnType, scope.GetTypeOfThis(), n)
+		instantiatedType =
+			ti.registry.CreateTemplatizedTypeOfMap(instantiatedType, inferredTypes).ToMaybeObjectType()
+	}
+
+	if instantiatedType != nil {
+		n.SetJSType(instantiatedType)
+	} else {
+		n.SetJSType(ti.unknownType)
+	}
+	return scope
+}
