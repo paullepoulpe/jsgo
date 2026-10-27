@@ -224,14 +224,34 @@ func (s *SourceMap) AddMappingOfNode(
 	s.AddMappingOfNodePositions(node, *outputStartPosition, *outputEndPosition)
 }
 
+// sourceMap_resolvedMapping is a mapping whose node has been resolved to
+// its source file name, original name and source position (Go-only).
+type sourceMap_resolvedMapping struct {
+	sourceFileName string
+	originalName   *string
+	srcPos         sourcemap.FilePosition
+	start, end     sourcemap.FilePosition
+}
+
 func (s *SourceMap) AddMappingOfNodePositions(
 	node rhino.Node, outputStartPosition sourcemap.FilePosition, outputEndPosition sourcemap.FilePosition) {
+	if r, ok := s.resolveMappingOfNodePositions(node, outputStartPosition, outputEndPosition); ok {
+		s.addResolvedMapping(&r)
+	}
+}
+
+// resolveMappingOfNodePositions is the node-dependent half of
+// AddMappingOfNodePositions (Go-only split: fast mode runs it on the print
+// workers, each with its own SourceMap and caches).
+func (s *SourceMap) resolveMappingOfNodePositions(
+	node rhino.Node, outputStartPosition sourcemap.FilePosition, outputEndPosition sourcemap.FilePosition,
+) (r sourceMap_resolvedMapping, ok bool) {
 	// If the node does not have an associated source file or
 	// its line number is -1, then the node does not have sufficient
 	// information for a mapping to be useful.
 	sourceFile := node.GetStaticSourceFile()
 	if sourceFile == nil || node.GetLineno() < 0 {
-		return
+		return r, false
 	}
 
 	lineNo := node.GetLineno()
@@ -259,7 +279,7 @@ func (s *SourceMap) AddMappingOfNodePositions(
 			// location. We consider this to be a synthetic code range and do not
 			// include it in the output map.
 			// TODO b/452676030 - Report the sourceless mapping.
-			return
+			return r, false
 		} else {
 			// The source file mapped our code range to its original source location.
 			sourceFileName = sourceMapping.GetOriginalFile()
@@ -281,7 +301,7 @@ func (s *SourceMap) AddMappingOfNodePositions(
 			// location. We consider this to be a synthetic code range and do not
 			// include it in the output map.
 			// TODO b/452676030 - Report the sourceless mapping.
-			return
+			return r, false
 		} else {
 			// The source file mapped our code range to its original source location.
 			sourceFileName = sourceMapping.GetOriginalFile()
@@ -301,20 +321,15 @@ func (s *SourceMap) AddMappingOfNodePositions(
 	lineBaseOffset := 1
 
 	srcPos := sourcemap.MakeFilePosition(lineNo-lineBaseOffset, charNo)
+	return sourceMap_resolvedMapping{sourceFileName, originalName, srcPos, outputStartPosition, outputEndPosition}, true
+}
+
+// addResolvedMapping is the generator half of AddMappingOfNodePositions.
+func (s *SourceMap) addResolvedMapping(r *sourceMap_resolvedMapping) {
 	if s.generatorV3 != nil {
-		s.generatorV3.AddMappingPositions(
-			sourceFileName,
-			originalName,
-			srcPos,
-			outputStartPosition,
-			outputEndPosition)
+		s.generatorV3.AddMappingPositions(r.sourceFileName, r.originalName, r.srcPos, r.start, r.end)
 	} else {
-		s.addMappingFallback(
-			sourceFileName,
-			originalName,
-			srcPos,
-			outputStartPosition,
-			outputEndPosition)
+		s.addMappingFallback(r.sourceFileName, r.originalName, r.srcPos, r.start, r.end)
 	}
 }
 

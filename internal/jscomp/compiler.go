@@ -3079,10 +3079,23 @@ func (c *Compiler) ToSource() string {
 					if len(scripts) <= 64 {
 						batchSize = max(c.options.GetNumParallelThreads(), 4)
 					}
+					// Go-only: fast mode prints up to 256 scripts per batch (better
+					// balance between scripts of very different sizes) and resolves
+					// the source-map mappings on the workers, leaving only the
+					// generator's appends to the sequential merge. Same output.
+					fastResolve := c.options.isFastMode() && c.options.ShouldGatherSourceMapInfo() && c.sourceMap != nil
+					var resolvers []*SourceMap
+					if c.options.isFastMode() {
+						batchSize = min(len(scripts), 256)
+					}
+					if fastResolve {
+						resolvers = make([]*SourceMap, c.options.GetNumParallelThreads())
+					}
 					type scriptPrinted struct {
 						sm       CodePrinter_SourceAndMappings
 						licenses []string
 						lt       *Compiler_SingleBinaryLicenseTracker
+						resolved []sourceMap_resolvedMapping
 					}
 					printed := make([]scriptPrinted, min(len(scripts), batchSize))
 					numThreads := c.options.GetNumParallelThreads()
@@ -3101,6 +3114,20 @@ func (c *Compiler) ToSource() string {
 								localLT.lastSeenFile = ""
 							}
 							c.toSourceAndMappingsIntoWithScratch(scripts[idx], idx == 0, localLT, &printed[j].sm, &scratches[w])
+							if fastResolve {
+								if resolvers[w] == nil {
+									resolvers[w] = c.newWorkerSourceMap()
+								}
+								rs := resolvers[w]
+								out := printed[j].resolved[:0]
+								for k := range printed[j].sm.mappings {
+									m := &printed[j].sm.mappings[k]
+									if r, ok := rs.resolveMappingOfNodePositions(m.node, m.start, m.end); ok {
+										out = append(out, r)
+									}
+								}
+								printed[j].resolved = out
+							}
 							if localLT.currentlySeenLicenses.IsEmpty() {
 								printed[j].licenses = nil
 							} else {
@@ -3120,6 +3147,11 @@ func (c *Compiler) ToSource() string {
 								}
 							}
 							printed[j].licenses = nil
+							if fastResolve {
+								c.appendSourceAndResolvedMappingsToCodeBuilder(cb, lt, idx, scripts[idx], &printed[j].sm, printed[j].resolved)
+								printed[j].resolved = printed[j].resolved[:0]
+								continue
+							}
 							c.appendSourceAndMappingsToCodeBuilder(cb, lt, idx, scripts[idx], &printed[j].sm)
 						}
 					}
@@ -3271,6 +3303,31 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 		} else {
 			sourceAndMappings.mappings = sourceAndMappings.mappings[:0]
 		}
+	}
+}
+
+// appendSourceAndResolvedMappingsToCodeBuilder is
+// appendSourceAndMappingsToCodeBuilder with mappings already resolved by
+// SourceMap.resolveMappingOfNodePositions (Go-only, fast mode).
+func (c *Compiler) appendSourceAndResolvedMappingsToCodeBuilder(
+	cb *Compiler_CodeBuilder,
+	licenseTracker CodePrinter_LicenseTracker,
+	inputSeqNum int,
+	root rhino.Node,
+	sourceAndMappings *CodePrinter_SourceAndMappings,
+	resolved []sourceMap_resolvedMapping) {
+	startLine, startCol, emitted := c.appendSourceToCodeBuilderForChunk(
+		cb, licenseTracker, inputSeqNum, root, sourceAndMappings.source)
+	if emitted {
+		c.sourceMap.SetStartingPosition(startLine, startCol)
+		for i := range resolved {
+			c.sourceMap.addResolvedMapping(&resolved[i])
+		}
+	}
+	if cap(sourceAndMappings.mappings) > 16384 {
+		sourceAndMappings.mappings = nil
+	} else {
+		sourceAndMappings.mappings = sourceAndMappings.mappings[:0]
 	}
 }
 
