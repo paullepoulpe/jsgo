@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
-"""4-Layer Fast-Mode Equivalence & Optimization Quality Gate for jsgo.
+"""Fast-mode equivalence and output-quality gate for jsgo (relaxed gate, fast mode round 1).
 
-Validates that `jsgo --fast_mode` (and `JSGO_FAST_MODE=1`) satisfies:
-  - Layer 1 (Go-to-Go Multi-Thread Determinism & Race Freedom):
-      Exit code == compat exit code, no data race / panic in stderr, and
-      SHA256(fast_out[t=1]) == SHA256(fast_out[t=k]) across all thread counts.
-  - Layer 2 (Lockstep AST & Lexical-Scope Alpha-Isomorphism):
-      Parses compat and fast outputs with jsgo's own ECMAScript parser, builds
-      exact lexical scopes via SyntacticScopeCreator, and walks both ASTs in
-      lockstep to verify 100% identical AST tokens, child counts, flags,
-      literals, property accesses, extern identifiers, and a strict 1-to-1
-      lexical-scope variable bijection (varA <-> varB).
-  - Layer 3 (Raw & Gzipped Output Size Non-Regression):
-      Verifies raw_bytes(fast_out) <= raw_bytes(compat_out) * 1.001 and
-      gzip_bytes(fast_out) <= gzip_bytes(compat_out) * 1.001.
-  - Layer 4 (AST / Token Structural Census):
-      Counts `function`, `return`, `throw`, control-flow keywords (`if`, `for`,
-      `while`, `switch`, `case`, `try`, `catch`), string literals, number
-      literals, and total tokens, asserting structural non-regression.
+`jsgo --fast_mode` (or `JSGO_FAST_MODE=1`) may differ from Java and from compat mode, within
+the following layers (PLAN.md §7):
+
+  Strict (unchanged from the first gate):
+  - L1 determinism: the fast output (JS, source map, stderr, exit status) is byte-identical at
+    every thread count (--threads) and from run to run (--repeats extra runs at the highest
+    thread count), without data race (-race binary) or panic; the exit status equals compat's.
+  - Errors: the set of ERROR diagnostics equals compat's.
+  - L2 alpha-isomorphism: the output AST equals compat's up to a one-to-one renaming of
+    variables, lexical scopes in lockstep (tools/bench/ast_isomorphism).
+  - L4 census: function / return / throw / control-flow keyword counts do not grow.
+
+  Relaxed (agreed with the owner):
+  - Diagnostics are compared as a multiset: the same diagnostic messages (with their source
+    excerpts) and the same summary line, in any order.
+  - Source maps are compared semantically: both maps are decoded, every generated position is
+    anchored to the output token it starts, and each fast mapping must point to a valid original
+    position (a listed source, a line and column inside that file) equal to compat's mapping for
+    the same token (the outputs are alpha-isomorphic, so their token streams correspond one to
+    one). Byte-equal mappings are not required.
+  - Size is measured over the corpus of selected tasks: aggregate raw and gzip size within
+    --size-aggregate-pct (default +0.1%) of compat, and no single task above --size-file-pct
+    (default +2%).
 
 Usage:
   python3 tools/bench/fast_mode_gate.py --jsgo /path/to/jsgo
@@ -161,8 +167,8 @@ REGEX_LITERAL_RE = re.compile(
 )
 
 
-def tokenize_js(code: str):
-    """Tokenizes JS source into a list of (kind, value) tuples, stripping whitespace/comments."""
+def tokenize_js_with_offsets(code: str):
+    """Tokenizes JS source into (kind, value, start offset) tuples, stripping whitespace/comments."""
     tokens = []
     pos = 0
     n = len(code)
@@ -180,7 +186,7 @@ def tokenize_js(code: str):
             continue
         val = m.group()
         if kind == "SLASH":
-            prev_kind, prev_val = tokens[-1] if tokens else (None, None)
+            prev_kind, prev_val = (tokens[-1][0], tokens[-1][1]) if tokens else (None, None)
             can_regex = (
                 prev_kind is None
                 or (prev_kind == "PUNCT" and prev_val not in (")", "]", "}", "++", "--"))
@@ -189,19 +195,21 @@ def tokenize_js(code: str):
             if can_regex:
                 rm = regex_match(code, pos)
                 if rm is not None:
-                    tokens.append(("REGEX", rm.group()))
+                    tokens.append(("REGEX", rm.group(), pos))
                     pos = rm.end()
                     continue
-            tokens.append(("PUNCT", val))
+            tokens.append(("PUNCT", val, pos))
         elif kind == "ID":
-            if val in JS_KEYWORDS:
-                tokens.append(("KW", val))
-            else:
-                tokens.append(("ID", val))
+            tokens.append(("KW" if val in JS_KEYWORDS else "ID", val, pos))
         else:
-            tokens.append((kind, val))
+            tokens.append((kind, val, pos))
         pos = m.end()
     return tokens
+
+
+def tokenize_js(code: str):
+    """Tokenizes JS source into a list of (kind, value) tuples, stripping whitespace/comments."""
+    return [(k, v) for k, v, _ in tokenize_js_with_offsets(code)]
 
 
 def alpha_normalize_and_census(tokens):
@@ -302,6 +310,241 @@ def token_stream_delta(canon_a, canon_b):
     # L1 multiset distance normalized by 2 * max_len gives the fraction of changed tokens.
     delta_ratio = diff_tokens / (2.0 * max_len)
     return False, delta_ratio
+
+
+# ---------------------------------------------------------------------------------------------
+# Diagnostics as a multiset
+
+DIAG_HEADER_RE = re.compile(r"^(?:.*?:-?\d+:-?\d+: |.*?: )?(ERROR|WARNING) - ")
+DIAG_SUMMARY_RE = re.compile(r"^\d+ error\(s\), \d+ warning\(s\)")
+
+
+def parse_diagnostics(stderr_text: str):
+    """Splits stderr into (entries, summary, other): each entry is one diagnostic with its message
+    lines and source excerpt; summary is the "N error(s), M warning(s)" line; other is any text
+    outside an entry (a crash, a usage message)."""
+    entries, other, summary = [], [], None
+    cur = None
+    for line in stderr_text.split("\n"):
+        if DIAG_SUMMARY_RE.match(line):
+            if cur is not None:
+                entries.append(cur)
+                cur = None
+            summary = line
+            continue
+        m = DIAG_HEADER_RE.match(line)
+        if m:
+            if cur is not None:
+                entries.append(cur)
+            cur = [m.group(1), [line]]
+            continue
+        if cur is not None:
+            cur[1].append(line)
+        elif line.strip():
+            other.append(line)
+    if cur is not None:
+        entries.append(cur)
+    out = []
+    for level, lines in entries:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        out.append((level, "\n".join(lines)))
+    return out, summary, other
+
+
+def compare_diagnostics(compat_stderr: str, fast_stderr: str):
+    """Strict on errors (same set), relaxed on order (same multiset of all diagnostics)."""
+    c_entries, c_summary, c_other = parse_diagnostics(compat_stderr)
+    f_entries, f_summary, f_other = parse_diagnostics(fast_stderr)
+    c_errors = {t for lvl, t in c_entries if lvl == "ERROR"}
+    f_errors = {t for lvl, t in f_entries if lvl == "ERROR"}
+    c_ms, f_ms = Counter(c_entries), Counter(f_entries)
+    missing = c_ms - f_ms
+    extra = f_ms - c_ms
+    res = {
+        "errors_equal": c_errors == f_errors,
+        "multiset_equal": not missing and not extra,
+        "summary_equal": c_summary == f_summary,
+        "other_equal": Counter(c_other) == Counter(f_other),
+        "compat_count": len(c_entries),
+        "fast_count": len(f_entries),
+        "byte_identical": compat_stderr == fast_stderr,
+    }
+    if missing or extra:
+        res["first_missing"] = next(iter(missing), (None, None))[1]
+        res["first_extra"] = next(iter(extra), (None, None))[1]
+    res["pass"] = res["errors_equal"] and res["multiset_equal"] and res["summary_equal"] and res["other_equal"]
+    return res
+
+
+# ---------------------------------------------------------------------------------------------
+# Source maps compared semantically
+
+B64 = {c: i for i, c in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")}
+
+
+def decode_vlq_segment(seg: str):
+    vals, shift, value = [], 0, 0
+    for ch in seg:
+        d = B64[ch]
+        cont = d & 32
+        value += (d & 31) << shift
+        if cont:
+            shift += 5
+        else:
+            vals.append(-(value >> 1) if value & 1 else value >> 1)
+            shift = value = 0
+    return vals
+
+
+def decode_source_map(text: str):
+    """Decodes a v3 source map into (sources, names, mappings); each mapping is
+    (gen_line, gen_col, src_index | None, orig_line, orig_col, name_index | None), 0-based."""
+    sm = json.loads(text)
+    sources = sm.get("sources") or []
+    names = sm.get("names") or []
+    out = []
+    src = oline = ocol = name = 0
+    for gline, line in enumerate(sm.get("mappings", "").split(";")):
+        gcol = 0
+        if not line:
+            continue
+        for seg in line.split(","):
+            if not seg:
+                continue
+            v = decode_vlq_segment(seg)
+            gcol += v[0]
+            if len(v) >= 4:
+                src += v[1]
+                oline += v[2]
+                ocol += v[3]
+                nm = None
+                if len(v) >= 5:
+                    name += v[4]
+                    nm = name
+                out.append((gline, gcol, src, oline, ocol, nm))
+            else:
+                out.append((gline, gcol, None, None, None, None))
+    return sources, names, out
+
+
+def _utf16_line_index(code: str):
+    """Per output line: (offset of the line start, list mapping UTF-16 column -> code point column
+    or None when the line is all BMP)."""
+    lines = []
+    off = 0
+    for line in code.split("\n"):
+        conv = None
+        if any(ord(ch) > 0xFFFF for ch in line):
+            conv = []
+            for i, ch in enumerate(line):
+                conv.append(i)
+                if ord(ch) > 0xFFFF:
+                    conv.append(i)
+            conv.append(len(line))
+        lines.append((off, conv, len(line)))
+        off += len(line) + 1
+    return lines
+
+
+def _anchor_mappings(code: str, mappings):
+    """Maps each mapping to the index of the output token at (or right after) its generated
+    position; returns {token_index: (src, line, col)} keeping the first mapping per token."""
+    toks = tokenize_js_with_offsets(code)
+    starts = [t[2] for t in toks]
+    lines = _utf16_line_index(code)
+    import bisect
+    anchored = {}
+    for gline, gcol, src, oline, ocol, _ in mappings:
+        if gline >= len(lines):
+            continue
+        off, conv, ln = lines[gline]
+        col = conv[min(gcol, len(conv) - 1)] if conv is not None else min(gcol, ln)
+        ti = bisect.bisect_left(starts, off + col)
+        if ti not in anchored:
+            anchored[ti] = (src, oline, ocol)
+    return anchored, len(toks)
+
+
+def _source_lines(cwd: Path, path: str, cache: dict):
+    if path in cache:
+        return cache[path]
+    lines = None
+    p = cwd / path
+    try:
+        lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
+    except OSError:
+        lines = None
+    cache[path] = lines
+    return lines
+
+
+def compare_source_maps(compat_code: str, fast_code: str, compat_map: bytes, fast_map: bytes, cwd: Path,
+                        max_mismatch_pct: float = 0.0):
+    """Semantic source-map comparison (see the module docstring)."""
+    if not compat_map and not fast_map:
+        return {"pass": True, "present": False}
+    if not compat_map or not fast_map:
+        return {"pass": False, "present": True, "error": "only one run wrote a source map"}
+    if compat_map == fast_map:
+        return {"pass": True, "present": True, "byte_identical": True}
+    c_sources, _, c_maps = decode_source_map(compat_map.decode("utf-8"))
+    f_sources, _, f_maps = decode_source_map(fast_map.decode("utf-8"))
+    res = {"present": True, "byte_identical": False,
+           "compat_mappings": len(c_maps), "fast_mappings": len(f_maps)}
+    # Validity: every fast mapping names a listed source, and a line/column inside that file.
+    invalid = 0
+    cache = {}
+    first_invalid = None
+    for gline, gcol, src, oline, ocol, _ in f_maps:
+        if src is None:
+            continue
+        ok = 0 <= src < len(f_sources) and oline >= 0 and ocol >= 0
+        if ok:
+            lines = _source_lines(cwd, f_sources[src], cache)
+            if lines is not None:
+                ok = oline < len(lines) and ocol <= len(lines[oline].encode("utf-16-le")) // 2
+        if not ok:
+            invalid += 1
+            if first_invalid is None:
+                first_invalid = (gline, gcol, src, oline, ocol)
+    res["invalid"] = invalid
+    if first_invalid:
+        res["first_invalid"] = list(first_invalid)
+    # Consistency: anchored to output tokens, fast's original positions equal compat's.
+    c_anch, c_ntok = _anchor_mappings(compat_code, c_maps)
+    f_anch, f_ntok = _anchor_mappings(fast_code, f_maps)
+    def resolve(anch, sources):
+        return {ti: (sources[s] if s is not None and 0 <= s < len(sources) else None, l, c)
+                for ti, (s, l, c) in anch.items()}
+    c_res, f_res = resolve(c_anch, c_sources), resolve(f_anch, f_sources)
+    if c_ntok != f_ntok:
+        # Not token-aligned (should not happen once L2 holds): compare original positions as a multiset.
+        res["token_aligned"] = False
+        diff = Counter(c_res.values()) - Counter(f_res.values())
+        diff2 = Counter(f_res.values()) - Counter(c_res.values())
+        mismatched = sum(diff.values()) + sum(diff2.values())
+    else:
+        res["token_aligned"] = True
+        mismatched = 0
+        first = None
+        for ti in set(c_res) | set(f_res):
+            if c_res.get(ti) != f_res.get(ti):
+                mismatched += 1
+                if first is None or ti < first:
+                    first = ti
+        if first is not None:
+            res["first_mismatch_token"] = first
+            res["first_mismatch"] = [list(c_res.get(first) or []), list(f_res.get(first) or [])]
+    total = max(len(c_res), 1)
+    res["mismatched"] = mismatched
+    res["mismatch_pct"] = round(100.0 * mismatched / total, 4)
+    res["pass"] = invalid == 0 and res["mismatch_pct"] <= max_mismatch_pct
+    return res
+
+
+def gzip_size(b: bytes) -> int:
+    return len(gzip.compress(b, compresslevel=9, mtime=0)) if b else 0
 
 
 # ---------------------------------------------------------------------------------------------
@@ -528,6 +771,7 @@ def run_jsgo_once(jsgo_bin: Path, base_args: list, cwd: Path, out_dir: Path, env
         "exit": proc.returncode,
         "wall_s": round(wall_s, 3),
         "js_bytes": js_bytes,
+        "map_bytes": map_bytes,
         "js_sha256": hashlib.sha256(js_bytes).hexdigest(),
         "map_sha256": hashlib.sha256(map_bytes).hexdigest() if map_bytes else None,
         "stderr_sha256": hashlib.sha256(proc.stderr).hexdigest(),
@@ -567,8 +811,9 @@ def verify_ast_isomorphism(ast_iso_bin: Path, compat_js: Path, fast_js: Path, en
 
 
 def evaluate_task(name: str, jsgo_bin: Path, ast_iso_bin: Path, base_args: list, cwd: Path, task_out_dir: Path,
-                  env: dict, threads: list, has_fast_flag: bool, timeout: int):
-    """Runs Step 0 (compat) and Layers 1-4 for a single task or fixture."""
+                  env: dict, threads: list, has_fast_flag: bool, timeout: int, repeats: int = 1,
+                  size_file_pct: float = 2.0, sourcemap_mismatch_pct: float = 0.0):
+    """Runs the compat baseline and every gate layer for a single task or fixture."""
     # Step 0: compat baseline (t=1, without --fast_mode)
     compat_dir = task_out_dir / "compat-t1"
     compat = run_jsgo_once(
@@ -576,16 +821,22 @@ def evaluate_task(name: str, jsgo_bin: Path, ast_iso_bin: Path, base_args: list,
         env, threads=1, fast_mode=False, has_fast_flag=has_fast_flag, timeout=timeout,
     )
 
-    # Layer 1: Go-to-Go Multi-Thread Determinism & Race Freedom across threads
+    # L1: determinism across thread counts and from run to run, race freedom.
     fast_runs = {}
     for t in threads:
-        fast_runs[t] = run_jsgo_once(
+        fast_runs[str(t)] = run_jsgo_once(
             jsgo_bin, base_args, cwd, task_out_dir / f"fast-t{t}",
+            env, threads=t, fast_mode=True, has_fast_flag=has_fast_flag, timeout=timeout,
+        )
+    for r in range(repeats):
+        t = max(threads)
+        fast_runs[f"{t}#{r + 2}"] = run_jsgo_once(
+            jsgo_bin, base_args, cwd, task_out_dir / f"fast-t{t}-run{r + 2}",
             env, threads=t, fast_mode=True, has_fast_flag=has_fast_flag, timeout=timeout,
         )
 
     ref_t = threads[0]
-    fast_ref = fast_runs[ref_t]
+    fast_ref = fast_runs[str(ref_t)]
     fast_ref_dir = task_out_dir / f"fast-t{ref_t}"
 
     exits_ok = all(r["exit"] == compat["exit"] for r in fast_runs.values())
@@ -597,7 +848,10 @@ def evaluate_task(name: str, jsgo_bin: Path, ast_iso_bin: Path, base_args: list,
     l1_deterministic = len(js_hashes) == 1 and len(map_hashes) == 1 and len(stderr_hashes) == 1
     l1_pass = exits_ok and no_race and l1_deterministic
 
-    # Layer 2: Lockstep AST & Lexical-Scope Alpha-Isomorphism + Token Census
+    # Diagnostics: same errors (set), same diagnostics (multiset), any order.
+    diag = compare_diagnostics(compat["stderr"], fast_ref["stderr"])
+
+    # L2: Lockstep AST & Lexical-Scope Alpha-Isomorphism + Token Census
     compat_code = compat["js_bytes"].decode("utf-8", "replace")
     fast_code = fast_ref["js_bytes"].decode("utf-8", "replace")
 
@@ -608,64 +862,66 @@ def evaluate_task(name: str, jsgo_bin: Path, ast_iso_bin: Path, base_args: list,
     fast_canon, fast_census = alpha_normalize_and_census(fast_tokens)
 
     _, l2_delta = token_stream_delta(compat_canon, fast_canon)
-    ast_iso_ok, ast_iso_err, ast_iso_stats = verify_ast_isomorphism(
-        ast_iso_bin, compat_dir / "out.js", fast_ref_dir / "out.js", env
-    )
-    l2_exact = ast_iso_ok
+    if compat["js_bytes"] == fast_ref["js_bytes"]:
+        ast_iso_ok, ast_iso_err, ast_iso_stats = True, None, {"renamed_vars_diff": 0, "byte_identical": True}
+    else:
+        ast_iso_ok, ast_iso_err, ast_iso_stats = verify_ast_isomorphism(
+            ast_iso_bin, compat_dir / "out.js", fast_ref_dir / "out.js", env
+        )
     l2_pass = ast_iso_ok
 
-    # Layer 3: Raw & Gzipped Output Size Non-Regression (<= +0.1%)
+    # Source maps, semantically.
+    smap = compare_source_maps(compat_code, fast_code, compat["map_bytes"], fast_ref["map_bytes"], cwd,
+                               max_mismatch_pct=sourcemap_mismatch_pct)
+
+    # L3: size. Per task at most +size_file_pct; the aggregate is checked over the corpus in main().
     compat_raw = len(compat["js_bytes"])
     fast_raw = len(fast_ref["js_bytes"])
-    compat_gzip = len(gzip.compress(compat["js_bytes"], compresslevel=9)) if compat_raw > 0 else 0
-    fast_gzip = len(gzip.compress(fast_ref["js_bytes"], compresslevel=9)) if fast_raw > 0 else 0
+    compat_gzip = gzip_size(compat["js_bytes"])
+    fast_gzip = gzip_size(fast_ref["js_bytes"])
 
-    if compat_raw == 0:
-        l3_raw_ok = fast_raw == 0
-        l3_gzip_ok = fast_gzip == 0
-        raw_pct = 0.0 if fast_raw == 0 else 100.0
-        gzip_pct = 0.0 if fast_gzip == 0 else 100.0
-    else:
-        l3_raw_ok = fast_raw <= math.ceil(compat_raw * 1.001)
-        l3_gzip_ok = fast_gzip <= math.ceil(compat_gzip * 1.001)
-        raw_pct = ((fast_raw - compat_raw) / compat_raw) * 100.0
-        gzip_pct = ((fast_gzip - compat_gzip) / compat_gzip) * 100.0 if compat_gzip else 0.0
+    def within(fast_v, compat_v, pct):
+        return fast_v <= math.ceil(compat_v * (1 + pct / 100.0)) if compat_v else fast_v == 0
+
+    l3_raw_ok = within(fast_raw, compat_raw, size_file_pct)
+    l3_gzip_ok = within(fast_gzip, compat_gzip, size_file_pct)
+    raw_pct = ((fast_raw - compat_raw) / compat_raw) * 100.0 if compat_raw else (0.0 if fast_raw == 0 else 100.0)
+    gzip_pct = ((fast_gzip - compat_gzip) / compat_gzip) * 100.0 if compat_gzip else (0.0 if fast_gzip == 0 else 100.0)
     l3_pass = l3_raw_ok and l3_gzip_ok
 
-    # Layer 4: AST / Token Structural Census
+    # L4: AST / Token Structural Census
     l4_checks = {}
     for k in ("function", "return", "throw", "control_flow"):
-        c_val = compat_census[k]
-        f_val = fast_census[k]
         # Allow exact match or fast_mode inlining/dead-code reduction (f_val <= c_val)
-        l4_checks[k] = f_val <= c_val
+        l4_checks[k] = fast_census[k] <= compat_census[k]
     l4_pass = all(l4_checks.values())
 
-    overall_pass = l1_pass and l2_pass and l3_pass and l4_pass
+    overall_pass = l1_pass and diag["pass"] and l2_pass and smap["pass"] and l3_pass and l4_pass
 
     return {
         "task": name,
         "pass": overall_pass,
         "compat_exit": compat["exit"],
         "compat_wall_s": compat["wall_s"],
-        "fast_wall_s": {str(t): fast_runs[t]["wall_s"] for t in threads},
+        "fast_wall_s": {k: r["wall_s"] for k, r in fast_runs.items()},
         "layer1": {
             "pass": l1_pass,
             "exits_match_compat": exits_ok,
             "no_race_or_crash": no_race,
-            "deterministic_across_threads": l1_deterministic,
+            "deterministic_across_threads_and_runs": l1_deterministic,
             "fast_js_sha256": fast_ref["js_sha256"],
             "compat_js_sha256": compat["js_sha256"],
             "byte_identical_to_compat": fast_ref["js_sha256"] == compat["js_sha256"],
         },
+        "diagnostics": diag,
         "layer2": {
             "pass": l2_pass,
             "ast_isomorphic": ast_iso_ok,
             "ast_isomorphism_error": ast_iso_err,
             "ast_isomorphism_stats": ast_iso_stats,
-            "exact_alpha_match": l2_exact,
             "token_delta_pct": round(l2_delta * 100.0, 4),
         },
+        "sourcemap": smap,
         "layer3": {
             "pass": l3_pass,
             "compat_raw_bytes": compat_raw,
@@ -685,16 +941,28 @@ def evaluate_task(name: str, jsgo_bin: Path, ast_iso_bin: Path, base_args: list,
 
 def format_row(res: dict) -> str:
     l1 = res["layer1"]
+    dg = res["diagnostics"]
     l2 = res["layer2"]
+    sm = res["sourcemap"]
     l3 = res["layer3"]
     l4 = res["layer4"]
 
-    l1_str = "PASS (det)" if l1["pass"] else "FAIL"
+    l1_str = "PASS" if l1["pass"] else "FAIL"
+    if dg["pass"]:
+        dg_str = "PASS (=)" if dg["byte_identical"] else "PASS (ms)"
+    else:
+        dg_str = "FAIL" + ("" if dg["errors_equal"] else " errors")
     if l2.get("ast_isomorphic"):
         renamed_diff = (l2.get("ast_isomorphism_stats") or {}).get("renamed_vars_diff", 0)
-        l2_str = f"PASS (iso Δv={renamed_diff})"
+        l2_str = f"PASS (Δv={renamed_diff})"
     else:
         l2_str = f"FAIL ({l2.get('ast_isomorphism_error') or 'mismatch'})"
+    if not sm.get("present"):
+        sm_str = "n/a"
+    elif sm["pass"]:
+        sm_str = "PASS (=)" if sm.get("byte_identical") else "PASS (sem)"
+    else:
+        sm_str = f"FAIL ({sm.get('error') or str(sm.get('mismatch_pct')) + '%/' + str(sm.get('invalid')) + 'inv'})"
 
     l3_str = (
         f"{'PASS' if l3['pass'] else 'FAIL'} "
@@ -705,11 +973,25 @@ def format_row(res: dict) -> str:
     fc = l4["fast_census"]
     l4_str = (
         f"{'PASS' if l4['pass'] else 'FAIL'} "
-        f"(fn={fc['function']}/{cc['function']} ret={fc['return']}/{cc['return']} "
-        f"cf={fc['control_flow']}/{cc['control_flow']} tok={fc['total_tokens']})"
+        f"(fn={fc['function']}/{cc['function']} cf={fc['control_flow']}/{cc['control_flow']})"
     )
     status = "PASS" if res["pass"] else "FAIL"
-    return f"{res['task']:<24} | {l1_str:<12} | {l2_str:<15} | {l3_str:<21} | {l4_str:<42} | {status}"
+    return (f"{res['task']:<24} | {l1_str:<5} | {dg_str:<10} | {l2_str:<14} | {sm_str:<12} | "
+            f"{l3_str:<21} | {l4_str:<30} | {status}")
+
+
+def aggregate_size(results, pct: float):
+    tot = {k: sum(r["layer3"][k] for r in results)
+           for k in ("compat_raw_bytes", "fast_raw_bytes", "compat_gzip_bytes", "fast_gzip_bytes")}
+
+    def delta(f, c):
+        return ((f - c) / c) * 100.0 if c else 0.0
+
+    raw_pct = delta(tot["fast_raw_bytes"], tot["compat_raw_bytes"])
+    gzip_pct = delta(tot["fast_gzip_bytes"], tot["compat_gzip_bytes"])
+    tot.update(raw_delta_pct=round(raw_pct, 4), gzip_delta_pct=round(gzip_pct, 4), limit_pct=pct,
+               passed=raw_pct <= pct and gzip_pct <= pct)
+    return tot
 
 
 def main():
@@ -746,6 +1028,14 @@ def main():
         help="Optional output directory for artifacts and summary.json",
     )
     parser.add_argument("--timeout", type=int, default=180, help="Per-invocation timeout in seconds")
+    parser.add_argument("--repeats", type=int, default=1,
+                        help="Extra fast runs at the highest thread count, for run-to-run determinism (default 1)")
+    parser.add_argument("--size-aggregate-pct", type=float, default=0.1,
+                        help="Max aggregate raw/gzip size growth over all selected tasks, in %% (default 0.1)")
+    parser.add_argument("--size-file-pct", type=float, default=2.0,
+                        help="Max raw/gzip size growth of any single task, in %% (default 2.0)")
+    parser.add_argument("--sourcemap-mismatch-pct", type=float, default=0.0,
+                        help="Max share of output tokens whose original position differs from compat's (default 0)")
     a = parser.parse_args()
 
     jsgo_bin = a.jsgo.resolve()
@@ -791,12 +1081,12 @@ def main():
             selected = list(DEFAULT_FAST_TASKS) + fixture_names
 
         header = (
-            f"{'Task':<24} | {'L1 (t=1==2==4)':<12} | {'L2 (α-norm)':<15} | "
-            f"{'L3 (raw/gzip Δ)':<21} | {'L4 (census)':<42} | Status"
+            f"{'Task':<24} | {'L1':<5} | {'Diags':<10} | {'L2 (α-iso)':<14} | {'Source map':<12} | "
+            f"{'L3 (raw/gzip Δ)':<21} | {'L4 (census)':<30} | Status"
         )
         sep = "-" * len(header)
         print(
-            f"Fast-Mode 4-Layer Quality Gate | binary={jsgo_bin.name} "
+            f"Fast-mode gate | binary={jsgo_bin.name} "
             f"| threads={threads} | --fast_mode_flag={'yes' if has_fast_flag else 'env-only'}",
             flush=True,
         )
@@ -819,6 +1109,9 @@ def main():
                 threads=threads,
                 has_fast_flag=has_fast_flag,
                 timeout=a.timeout,
+                repeats=a.repeats,
+                size_file_pct=a.size_file_pct,
+                sourcemap_mismatch_pct=a.sourcemap_mismatch_pct,
             )
             results.append(res)
             if not res["pass"]:
@@ -826,15 +1119,25 @@ def main():
             print(format_row(res), flush=True)
 
         print(sep, flush=True)
+        agg = aggregate_size(results, a.size_aggregate_pct)
+        print(
+            f"Corpus size: raw {agg['compat_raw_bytes']} -> {agg['fast_raw_bytes']} ({agg['raw_delta_pct']:+.4f}%), "
+            f"gzip {agg['compat_gzip_bytes']} -> {agg['fast_gzip_bytes']} ({agg['gzip_delta_pct']:+.4f}%), "
+            f"limit +{a.size_aggregate_pct}%: {'PASS' if agg['passed'] else 'FAIL'}",
+            flush=True,
+        )
+        if not agg["passed"]:
+            failures.append("<corpus size>")
         summary = {
             "jsgo": str(jsgo_bin),
             "jsgo_sha256": bench.sha256_file(str(jsgo_bin)),
             "threads": threads,
             "supports_fast_mode_flag": has_fast_flag,
             "all_passed": len(failures) == 0,
-            "passed_count": len(results) - len(failures),
+            "passed_count": sum(1 for r in results if r["pass"]),
             "failed_count": len(failures),
             "failures": failures,
+            "corpus_size": agg,
             "results": results,
         }
         if a.out is not None:
