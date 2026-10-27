@@ -40,7 +40,6 @@ package rhino
 // Java: class SimpleSlot (subclassed by jscomp's SymbolTable.Symbol).
 type SimpleSlot interface {
 	StaticTypedSlot
-	GetSimpleSlotBase() *SimpleSlotBase
 }
 
 // SimpleSlotBase holds SimpleSlot's fields and methods; plain slots are
@@ -51,9 +50,6 @@ type SimpleSlotBase struct {
 	type_    JSType
 	inferred bool
 }
-
-// Java: SimpleSlot.serialVersionUID
-const SimpleSlot_serialVersionUID int64 = 1
 
 // NewSimpleSlot constructs a plain SimpleSlot.
 //
@@ -72,11 +68,6 @@ func (s *SimpleSlotBase) InitSimpleSlotBase(name string, type_ JSType, inferred 
 	s.type_ = type_
 	s.inferred = inferred
 }
-
-// GetSimpleSlotBase gives access to the base through the interface.
-//
-// Go-only: language-adapter — field access through the interface (PORTING.md §4).
-func (s *SimpleSlotBase) GetSimpleSlotBase() *SimpleSlotBase { return s }
 
 // Java: SimpleSlot.getName()
 func (s *SimpleSlotBase) GetName() string {

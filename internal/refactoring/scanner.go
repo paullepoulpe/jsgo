@@ -42,19 +42,11 @@ type Scanner interface {
 
 	// Java: Scanner.processAllMatches(Collection<Match>)
 	ProcessAllMatches(matches []*Match) []*SuggestedFix
-
-	// GetScannerBase gives access to the base class.
-	GetScannerBase() *ScannerBase
 }
 
 // ScannerBase holds Scanner's method bodies; subclasses embed it and define
 // Matches.
-type ScannerBase struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
-
-// GetScannerBase gives access to the base class.
-func (s *ScannerBase) GetScannerBase() *ScannerBase { return s }
+type ScannerBase struct{}
 
 // ProcessMatch processes one Match at a time. There is no order guaranteed for
 // when this function will be called with the Match.

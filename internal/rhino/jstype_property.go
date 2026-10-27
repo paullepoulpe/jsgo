@@ -238,9 +238,6 @@ func (p *Property_OwnedProperty) IsOwnedByInterface() bool {
 	return p.owner.IsInterface()
 }
 
-// Java: Property.serialVersionUID
-const Property_serialVersionUID int64 = 1
-
 // Java: Property(String, JSType, boolean, Node)
 func NewProperty(name string, type_ JSType, inferred bool, propertyNode Node) *Property {
 	jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)

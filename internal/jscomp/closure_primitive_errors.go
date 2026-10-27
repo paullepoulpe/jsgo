@@ -22,8 +22,6 @@ package jscomp
 // reported in multiple passses.
 type ClosurePrimitiveErrors struct{}
 
-func newClosurePrimitiveErrors() *ClosurePrimitiveErrors { return &ClosurePrimitiveErrors{} }
-
 var (
 	ClosurePrimitiveErrors_DUPLICATE_MODULE = DiagnosticType_Error(
 		"JSC_DUPLICATE_MODULE",

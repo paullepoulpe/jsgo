@@ -214,6 +214,3 @@ func moduleNames_pathIsCanonical(path string) bool {
 	}
 	return true
 }
-
-// Java: ModuleNames()
-func newModuleNames() *ModuleNames { return &ModuleNames{} } // Static methods only; do not instantiate.

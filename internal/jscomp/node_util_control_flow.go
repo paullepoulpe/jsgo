@@ -242,19 +242,32 @@ func NodeUtil_IsControlStructure(n rhino.Node) bool {
 //
 // Java: NodeUtil.isControlStructureCodeBlock(Node, Node)
 func NodeUtil_IsControlStructureCodeBlock(parent rhino.Node, n rhino.Node) bool {
-	switch parent.GetToken() {
-	case rhino.Token_DO:
-		return parent.GetFirstChild() == n
-	case rhino.Token_TRY:
+	if parent.IsTry() {
 		return parent.GetFirstChild() == n || parent.GetLastChild() == n
-	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE,
-		rhino.Token_LABEL, rhino.Token_WITH, rhino.Token_CATCH:
-		return parent.GetLastChild() == n
-	case rhino.Token_IF, rhino.Token_SWITCH, rhino.Token_CASE:
-		return parent.GetFirstChild() != n // exclude the condition
-	case rhino.Token_DEFAULT_CASE:
+	}
+	switch ast.RoleIn(n, parent) {
+	case ast.RoleDoBody,
+		ast.RoleForBody,
+		ast.RoleForInBody,
+		ast.RoleForOfBody,
+		ast.RoleForAwaitOfBody,
+		ast.RoleWhileBody,
+		ast.RoleLabelBody,
+		ast.RoleWithBody,
+		ast.RoleCatchBody,
+		ast.RoleIfThen,
+		ast.RoleIfElse,
+		ast.RoleSwitchBody,
+		ast.RoleCaseBody,
+		ast.RoleDefaultCaseBody:
 		return true
 	default:
+		if parent.IsIf() || parent.IsSwitch() || parent.IsCase() {
+			return parent.GetFirstChild() != n // exclude the condition
+		}
+		if parent.IsDefaultCase() {
+			return true
+		}
 		jutil.CheckStateMsg1(NodeUtil_IsControlStructure(parent), "%s", parent)
 		return false
 	}

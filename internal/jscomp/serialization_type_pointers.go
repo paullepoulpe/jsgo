@@ -63,8 +63,3 @@ func TypePointers_UntrimOffset(x int) int {
 func TypePointers_IsAxiomatic(x int) bool {
 	return x < TypePointers_AXIOMATIC_COLOR_COUNT
 }
-
-// Java: TypePointers()
-func newTypePointers() *TypePointers {
-	panic(jutil.NewAssertionErrorNoMessage())
-}

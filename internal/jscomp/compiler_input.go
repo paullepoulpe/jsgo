@@ -28,6 +28,15 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// CompilerInputProvider provides compiler inputs by input id.
+type CompilerInputProvider interface {
+	// GetInput looks up an input (possibly an externs input) by input id.
+	// May return nil.
+	//
+	// Java: CompilerInputProvider.getInput(InputId)
+	GetInput(inputId *rhino.InputId) *CompilerInput
+}
+
 // CompilerInput is a class for the internal representation of an input to
 // the compiler. Wraps a JsAst and maintain state such as the JSChunk for the
 // input and whether the input is an extern. Also calculates provided and

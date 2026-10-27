@@ -25,6 +25,36 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// ReplaceMessagesConstants holds constants that need to be shared between
+// `ReplaceMessages` and other passes.
+type ReplaceMessagesConstants struct{}
+
+const (
+	// ReplaceMessagesConstants_DEFINE_MSG_CALLEE: `goog.getMsg()` calls will
+	// be converted into a call to this method which is defined in synthetic
+	// externs.
+	ReplaceMessagesConstants_DEFINE_MSG_CALLEE = "__jscomp_define_msg__"
+
+	// ReplaceMessagesConstants_FALLBACK_MSG_CALLEE:
+	// `goog.getMsgWithFallback(MSG_NEW, MSG_OLD)` will be converted into a
+	// call to this method which is defined in * synthetic externs.
+	ReplaceMessagesConstants_FALLBACK_MSG_CALLEE = "__jscomp_msg_fallback__"
+)
+
+// Java: ReplaceMessagesConstants.isProtectedMessage(Node)
+func ReplaceMessagesConstants_IsProtectedMessage(n rhino.Node) bool {
+	if !n.IsCall() {
+		return false
+	}
+	callee := n.GetFirstChild()
+	if !callee.IsName() {
+		return false
+	}
+	name := callee.GetString()
+	return name == ReplaceMessagesConstants_DEFINE_MSG_CALLEE ||
+		name == ReplaceMessagesConstants_FALLBACK_MSG_CALLEE
+}
+
 // ReplaceMessages replaces user-visible messages with alternatives. It uses
 // Google specific JsMessageVisitor implementation.
 //

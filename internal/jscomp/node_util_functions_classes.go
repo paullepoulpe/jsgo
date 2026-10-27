@@ -639,7 +639,11 @@ func NodeUtil_IsFunctionExpression(n rhino.Node) bool {
 //
 // Java: NodeUtil.isNamedFunctionExpression(Node)
 func NodeUtil_IsNamedFunctionExpression(n rhino.Node) bool {
-	return NodeUtil_IsFunctionExpression(n) && n.GetFirstChild().GetString() != ""
+	if !NodeUtil_IsFunctionExpression(n) {
+		return false
+	}
+	_, hasName := ast.MustFunction(n).Name()
+	return hasName
 }
 
 // NodeUtil_IsClassExpression: see NodeUtil_IsFunctionExpression. Returns
@@ -655,7 +659,11 @@ func NodeUtil_IsClassExpression(n rhino.Node) bool {
 //
 // Java: NodeUtil.isNamedClassExpression(Node)
 func NodeUtil_IsNamedClassExpression(n rhino.Node) bool {
-	return NodeUtil_IsClassExpression(n) && n.GetFirstChild().IsName()
+	if !NodeUtil_IsClassExpression(n) {
+		return false
+	}
+	_, hasName := ast.MustClass(n).Name()
+	return hasName
 }
 
 // NodeUtil_IsNamedFunction returns whether n is a function with a nonempty
@@ -671,7 +679,12 @@ func NodeUtil_IsNamedClassExpression(n rhino.Node) bool {
 //
 // Java: NodeUtil.isNamedFunction(Node)
 func NodeUtil_IsNamedFunction(n rhino.Node) bool {
-	return n.IsFunction() && NodeUtil_IsReferenceName(n.GetFirstChild())
+	fn, ok := ast.AsFunction(n)
+	if !ok {
+		return false
+	}
+	_, hasName := fn.Name()
+	return hasName
 }
 
 // NodeUtil_IsNamedClass: see NodeUtil_IsNamedFunction. Returns whether n is
@@ -679,7 +692,12 @@ func NodeUtil_IsNamedFunction(n rhino.Node) bool {
 //
 // Java: NodeUtil.isNamedClass(Node)
 func NodeUtil_IsNamedClass(n rhino.Node) bool {
-	return n.IsClass() && NodeUtil_IsReferenceName(n.GetFirstChild())
+	cls, ok := ast.AsClass(n)
+	if !ok {
+		return false
+	}
+	name, hasName := cls.Name()
+	return hasName && name.Ident() != ""
 }
 
 // NodeUtil_IsBleedingFunctionName returns whether this is a bleeding
@@ -691,7 +709,7 @@ func NodeUtil_IsBleedingFunctionName(n rhino.Node) bool {
 		return false
 	}
 	parent := n.GetParent()
-	return NodeUtil_IsFunctionExpression(parent) && n == parent.GetFirstChild()
+	return NodeUtil_IsFunctionExpression(parent) && ast.RoleIn(n, parent) == ast.RoleFunctionName
 }
 
 // NodeUtil_IsEmptyFunctionExpression determines if a node is a function
@@ -701,7 +719,7 @@ func NodeUtil_IsBleedingFunctionName(n rhino.Node) bool {
 //
 // Java: NodeUtil.isEmptyFunctionExpression(Node)
 func NodeUtil_IsEmptyFunctionExpression(node rhino.Node) bool {
-	return NodeUtil_IsFunctionExpression(node) && NodeUtil_IsEmptyBlock(node.GetLastChild())
+	return NodeUtil_IsFunctionExpression(node) && NodeUtil_IsEmptyBlock(ast.MustFunction(node).Body().Node())
 }
 
 // NodeUtil_DoesFunctionReferenceOwnArgumentsObject returns whether a
@@ -785,7 +803,7 @@ func NodeUtil_IsFunctionObjectApply(callNode rhino.Node) bool {
 //
 // Java: NodeUtil.isNameDeclOrSimpleAssignLhs(Node, Node)
 func NodeUtil_IsNameDeclOrSimpleAssignLhs(n rhino.Node, parent rhino.Node) bool {
-	return (parent.IsAssign() && parent.GetFirstChild() == n) || NodeUtil_IsNameDeclaration(parent)
+	return ast.RoleIn(n, parent) == ast.RoleAssignTarget || NodeUtil_IsNameDeclaration(parent)
 }
 
 // NodeUtil_MayBeObjectLitKey determines whether a node represents a possible
@@ -1442,6 +1460,5 @@ func NodeUtil_IsObjLitProperty(node rhino.Node) bool {
 //
 // Java: NodeUtil.isBlocklessArrowFunctionResult(Node)
 func NodeUtil_IsBlocklessArrowFunctionResult(n rhino.Node) bool {
-	parent := n.GetParent()
-	return !parent.IsNil() && parent.IsFunction() && n == parent.GetLastChild() && !n.IsBlock()
+	return ast.RoleOf(n) == ast.RoleFunctionBody && !n.IsBlock()
 }

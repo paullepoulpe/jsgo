@@ -76,7 +76,7 @@ func (c *MatchersTest) TestAllOf() {
 	testjunit.AssertThat(Matchers_AllOf(notMatcher).Matches(root, nil)).IsFalse()
 	testjunit.AssertThat(Matchers_AllOf(notMatcher, Matchers_FunctionCall()).Matches(fnCall, nil)).IsFalse()
 	testjunit.AssertThat(Matchers_AllOf(
-		Matchers_Anything(), Matchers_FunctionCallWithName(jutil.StringPtr("goog.require"))).Matches(fnCall, nil)).IsTrue()
+		Matchers_Anything(), Matchers_FunctionCallWithName("goog.require")).Matches(fnCall, nil)).IsTrue()
 }
 
 // Java: MatchersTest.testAnyOf()
@@ -89,7 +89,7 @@ func (c *MatchersTest) TestAnyOf() {
 	notMatcher := Matchers_Not(Matchers_Anything())
 	testjunit.AssertThat(Matchers_AnyOf(notMatcher).Matches(root, nil)).IsFalse()
 	testjunit.AssertThat(Matchers_AnyOf(notMatcher, Matchers_FunctionCall()).Matches(fnCall, nil)).IsTrue()
-	testjunit.AssertThat(Matchers_AnyOf(Matchers_FunctionCallWithName(jutil.StringPtr("goog.require"))).Matches(fnCall, nil)).IsTrue()
+	testjunit.AssertThat(Matchers_AnyOf(Matchers_FunctionCallWithName("goog.require")).Matches(fnCall, nil)).IsTrue()
 }
 
 // Java: MatchersTest.testNot()
@@ -101,7 +101,7 @@ func (c *MatchersTest) TestNot() {
 	fnCall := root.GetFirstFirstChild()
 	testjunit.AssertThat(fnCall.IsCall()).IsTrue()
 	testjunit.AssertThat(Matchers_Not(Matchers_FunctionCall()).Matches(fnCall, nil)).IsFalse()
-	testjunit.AssertThat(Matchers_Not(Matchers_FunctionCallWithName(jutil.StringPtr("goog.require"))).Matches(fnCall, nil)).IsFalse()
+	testjunit.AssertThat(Matchers_Not(Matchers_FunctionCallWithName("goog.require")).Matches(fnCall, nil)).IsFalse()
 }
 
 // Java: MatchersTest.testConstructor_any()
@@ -115,8 +115,8 @@ func (c *MatchersTest) TestConstructor_any() {
 func (c *MatchersTest) TestConstructor_specificClass() {
 	input := "/** @constructor */ var Foo = function() {};"
 	root := matchersTest_compileToScriptRoot(matchersTest_getCompiler(input))
-	testjunit.AssertThat(Matchers_ConstructorWithName(jutil.StringPtr("Foo")).Matches(root.GetFirstChild(), nil)).IsTrue()
-	testjunit.AssertThat(Matchers_ConstructorWithName(jutil.StringPtr("Bar")).Matches(root.GetFirstChild(), nil)).IsFalse()
+	testjunit.AssertThat(Matchers_ConstructorWithName("Foo").Matches(root.GetFirstChild(), nil)).IsTrue()
+	testjunit.AssertThat(Matchers_ConstructorWithName("Bar").Matches(root.GetFirstChild(), nil)).IsFalse()
 }
 
 // Java: MatchersTest.testConstructor_differentConstructorTypes()
@@ -124,17 +124,17 @@ func (c *MatchersTest) TestConstructor_differentConstructorTypes() {
 	input := "/** @constructor */ var Foo = function() {};"
 	root := matchersTest_compileToScriptRoot(matchersTest_getCompiler(input))
 	ctorNode := root.GetFirstChild()
-	testjunit.AssertThat(Matchers_ConstructorWithName(jutil.StringPtr("Foo")).Matches(ctorNode, nil)).IsTrue()
+	testjunit.AssertThat(Matchers_ConstructorWithName("Foo").Matches(ctorNode, nil)).IsTrue()
 
 	input = "/** @constructor */ bar.Foo = function() {};"
 	root = matchersTest_compileToScriptRoot(matchersTest_getCompiler(input))
 	ctorNode = root.GetFirstFirstChild()
-	testjunit.AssertThat(Matchers_ConstructorWithName(jutil.StringPtr("bar.Foo")).Matches(ctorNode, nil)).IsTrue()
+	testjunit.AssertThat(Matchers_ConstructorWithName("bar.Foo").Matches(ctorNode, nil)).IsTrue()
 
 	input = "/** @constructor */ function Foo() {};"
 	root = matchersTest_compileToScriptRoot(matchersTest_getCompiler(input))
 	ctorNode = root.GetFirstChild()
-	testjunit.AssertThat(Matchers_ConstructorWithName(jutil.StringPtr("Foo")).Matches(ctorNode, nil)).IsTrue()
+	testjunit.AssertThat(Matchers_ConstructorWithName("Foo").Matches(ctorNode, nil)).IsTrue()
 
 	// TODO(mknichel): Make this test case work.
 	// input =
@@ -146,7 +146,7 @@ func (c *MatchersTest) TestConstructor_differentConstructorTypes() {
 	//     """
 	// root = matchersTest_compileToScriptRoot(matchersTest_getCompiler(input))
 	// ctorNode = root.GetFirstFirstChild().GetLastChild().GetFirstChild()
-	// assertTrue(Matchers_ConstructorWithName(jutil.StringPtr("ns.Foo")).Matches(ctorNode, nil))
+	// assertTrue(Matchers_ConstructorWithName("ns.Foo").Matches(ctorNode, nil))
 }
 
 // Java: MatchersTest.testNewClass()
@@ -207,8 +207,8 @@ func (c *MatchersTest) TestFunctionCall_static() {
 	root := matchersTest_compileToScriptRoot(matchersTest_getCompiler(input))
 	fnCall := root.GetFirstFirstChild()
 	testjunit.AssertThat(fnCall.IsCall()).IsTrue()
-	testjunit.AssertThat(Matchers_FunctionCallWithName(jutil.StringPtr("goog.require")).Matches(fnCall, nil)).IsTrue()
-	testjunit.AssertThat(Matchers_FunctionCallWithName(jutil.StringPtr("goog.provide")).Matches(fnCall, nil)).IsFalse()
+	testjunit.AssertThat(Matchers_FunctionCallWithName("goog.require").Matches(fnCall, nil)).IsTrue()
+	testjunit.AssertThat(Matchers_FunctionCallWithName("goog.provide").Matches(fnCall, nil)).IsFalse()
 }
 
 // Java: MatchersTest.testFunctionCall_prototype()
@@ -224,8 +224,8 @@ func (c *MatchersTest) TestFunctionCall_prototype() {
 	root := matchersTest_compileToScriptRoot(compiler)
 	fnCall := root.GetLastChild().GetFirstChild()
 	testjunit.AssertThat(fnCall.IsCall()).IsTrue()
-	testjunit.AssertThat(Matchers_FunctionCallWithName(jutil.StringPtr("Foo.prototype.bar")).Matches(fnCall, metadata)).IsTrue()
-	testjunit.AssertThat(Matchers_FunctionCallWithName(jutil.StringPtr("Foo.prototype.baz")).Matches(fnCall, metadata)).IsFalse()
+	testjunit.AssertThat(Matchers_FunctionCallWithName("Foo.prototype.bar").Matches(fnCall, metadata)).IsTrue()
+	testjunit.AssertThat(Matchers_FunctionCallWithName("Foo.prototype.baz").Matches(fnCall, metadata)).IsFalse()
 }
 
 // Java: MatchersTest.testGoogModule()
@@ -270,10 +270,10 @@ func (c *MatchersTest) TestAssignmentWithRhs() {
 	root := matchersTest_compileToScriptRoot(compiler)
 	assignNode := root.GetFirstFirstChild()
 	testjunit.AssertThat(
-		Matchers_AssignmentWithRhs(Matchers_FunctionCallWithName(jutil.StringPtr("goog.number"))).Matches(assignNode, nil)).IsTrue()
+		Matchers_AssignmentWithRhs(Matchers_FunctionCallWithName("goog.number")).Matches(assignNode, nil)).IsTrue()
 	testjunit.AssertThat(
-		Matchers_AssignmentWithRhs(Matchers_FunctionCallWithName(jutil.StringPtr("goog.base"))).Matches(assignNode, nil)).IsFalse()
-	testjunit.AssertThat(Matchers_AssignmentWithRhs(Matchers_FunctionCallWithName(jutil.StringPtr("goog.number"))).
+		Matchers_AssignmentWithRhs(Matchers_FunctionCallWithName("goog.base")).Matches(assignNode, nil)).IsFalse()
+	testjunit.AssertThat(Matchers_AssignmentWithRhs(Matchers_FunctionCallWithName("goog.number")).
 		Matches(assignNode.GetFirstChild(), nil)).IsFalse()
 }
 

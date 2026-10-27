@@ -52,7 +52,6 @@ type LogFile interface {
 	IsLogging() bool
 	// Java: LogFile.close()
 	Close()
-	GetLogFileBase() *LogFileBase
 }
 
 // LogFile_StreamedJsonProducer is an interface allowing streaming JSON to a
@@ -94,12 +93,4 @@ func LogFile_CreateNoOp() LogFile {
 // Java: LogFile()
 func (b *LogFileBase) InitLogFileBase(self LogFile) {
 	b.self = self
-}
-
-// GetLogFileBase returns the base struct.
-//
-// Go-only: language-adapter — field access through the interface
-// (PORTING.md §4).
-func (b *LogFileBase) GetLogFileBase() *LogFileBase {
-	return b
 }

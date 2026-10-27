@@ -87,8 +87,6 @@ type DiGraph[N, E any] interface {
 	//
 	// Java: DiGraph.isConnectedInDirection(N, E, N)
 	IsConnectedInDirectionWithEdge(n1 N, edgeValue E, n2 N) bool
-
-	GetDiGraphBase() *DiGraphBase[N, E]
 }
 
 // DiGraphBase holds DiGraph's base implementations.
@@ -104,9 +102,6 @@ func (g *DiGraphBase[N, E]) InitDiGraphBase(self DiGraph[N, E]) {
 	g.InitGraphBase(self)
 	g.diSelf = self
 }
-
-// GetDiGraphBase gives access to the base through the interface.
-func (g *DiGraphBase[N, E]) GetDiGraphBase() *DiGraphBase[N, E] { return g }
 
 // Java: DiGraph.isConnected(N, N)
 func (g *DiGraphBase[N, E]) IsConnected(n1 N, n2 N) bool {

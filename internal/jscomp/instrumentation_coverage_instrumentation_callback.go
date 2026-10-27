@@ -23,6 +23,37 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// CoverageUtil contains all general purpose static methods that are used
+// by coverage instrumentation related classes - not limited to them,
+// though.
+type CoverageUtil struct{}
+
+// CoverageUtil_CreateIdentifierFromText returns a string with all
+// non-alphanumeric characters in the given string replaced with
+// underscores. This is to create a valid identifier based on the given
+// text.
+//
+// Java: CoverageUtil.createIdentifierFromText(String)
+func CoverageUtil_CreateIdentifierFromText(inputText string) string {
+	// Java: inputText.replaceAll("[^\\p{Alnum}]", "_"). \p{Alnum} is ASCII
+	// [a-zA-Z0-9]; the regex matches each code point, so a surrogate pair
+	// is replaced by one '_' and a lone surrogate by one '_'.
+	units := jutil.StringToUTF16(inputText)
+	out := make([]uint16, 0, len(units))
+	for i := 0; i < len(units); i++ {
+		c := units[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+			out = append(out, c)
+			continue
+		}
+		if c >= 0xD800 && c <= 0xDBFF && i+1 < len(units) && units[i+1] >= 0xDC00 && units[i+1] <= 0xDFFF {
+			i++
+		}
+		out = append(out, '_')
+	}
+	return jutil.StringFromUTF16(out)
+}
+
 // CoverageInstrumentationCallback implements a traversal to instrument an AST
 // for code coverage.
 //

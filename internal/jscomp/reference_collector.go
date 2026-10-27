@@ -26,6 +26,17 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// ReferenceMap maps Vars to their references.
+type ReferenceMap interface {
+	// GetReferences returns references to var.
+	//
+	// The code that generated this object determines which references to var
+	// are included.
+	//
+	// Java: ReferenceMap.getReferences(Var)
+	GetReferences(var_ *Var) *ReferenceCollection
+}
+
 type basicBlockEntry struct {
 	root  rhino.Node
 	block *BasicBlock

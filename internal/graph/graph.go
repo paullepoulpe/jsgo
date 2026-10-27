@@ -139,8 +139,6 @@ type Graph[N, E any] interface {
 
 	// Java: Graph.popEdgeAnnotations()
 	PopEdgeAnnotations()
-
-	GetGraphBase() *GraphBase[N, E]
 }
 
 // graph_AnnotationState is a pseudo typedef for a pair of annotations.
@@ -174,9 +172,6 @@ type GraphBase[N, E any] struct {
 // InitGraphBase is the Graph() constructor; self is the graph being
 // constructed.
 func (g *GraphBase[N, E]) InitGraphBase(self Graph[N, E]) { g.self = self }
-
-// GetGraphBase gives access to the base fields through the interface.
-func (g *GraphBase[N, E]) GetGraphBase() *GraphBase[N, E] { return g }
 
 // ConnectIfNotFound connects two nodes in the graph with an edge if such
 // edge does not already exists between the nodes. Final in Java.

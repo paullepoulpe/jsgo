@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -309,8 +310,8 @@ func (c *inferConstsCollector) ExitScope(t *NodeTraversal) {
 func (c *inferConstsCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	tok := n.GetToken()
 	if tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
-		if (parent.IsImportSpec() && n != parent.GetLastChild()) ||
-			(parent.IsExportSpec() && n != parent.GetFirstChild()) {
+		switch ast.RoleIn(n, parent) {
+		case ast.RoleImportSpecImported, ast.RoleExportSpecExported:
 			return
 		}
 		id := n.GetStringID()
@@ -383,20 +384,28 @@ func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTrav
 }
 
 func inferConsts_isLvalue(n rhino.Node, parent rhino.Node) bool {
-	switch parent.GetToken() {
-	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		return n.HasChildren() || (NodeUtil_IsEnhancedFor(parent) && parent.GetFirstChild() == n)
-	case rhino.Token_DEFAULT_VALUE:
-		return parent.GetFirstChild() == n
-	case rhino.Token_INC, rhino.Token_DEC, rhino.Token_CATCH, rhino.Token_ITER_REST, rhino.Token_OBJECT_REST,
-		rhino.Token_PARAM_LIST:
+	switch ast.RoleIn(n, parent) {
+	case ast.RoleNameDeclarationDeclarators:
+		return n.HasChildren()
+	case ast.RoleDefaultValueTarget,
+		ast.RoleIncDecTarget,
+		ast.RoleCatchParam,
+		ast.RoleIterRestTarget,
+		ast.RoleObjectRestTarget,
+		ast.RoleParamListParams,
+		ast.RoleForInTarget,
+		ast.RoleForOfTarget,
+		ast.RoleForAwaitOfTarget,
+		ast.RoleAssignTarget,
+		ast.RoleAssignOpTarget:
 		return true
-	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		return NodeUtil_IsEnhancedFor(parent) && parent.GetFirstChild() == n
-	case rhino.Token_ARRAY_PATTERN, rhino.Token_STRING_KEY, rhino.Token_COMPUTED_PROP:
+	case ast.RoleArrayPatternElements,
+		ast.RoleStringKeyValue,
+		ast.RoleComputedPropKey,
+		ast.RoleComputedPropValue:
 		return NodeUtil_IsLhsByDestructuring(n)
 	default:
-		return NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == n
+		return false
 	}
 }
 

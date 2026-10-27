@@ -33,8 +33,8 @@ import (
 type ScriptMetadata struct {
 	script                 rhino.Node
 	supportsRequireAliases bool
-	requireAliases         *jutil.LinkedHashMap[string, string]
-	namesInUse             *jutil.LinkedHashSet[string]
+	requireAliases         map[string]string
+	namesInUse             map[string]bool
 }
 
 // Java: ScriptMetadata.create(Node, NodeMetadata)
@@ -51,7 +51,7 @@ func ScriptMetadata_Create(script rhino.Node, compiler jscomp.AbstractCompiler) 
 
 	// Even if the file was not found to be a module, the existence of other aliases means aliases
 	// are supported.
-	if !toFill.requireAliases.IsEmpty() {
+	if len(toFill.requireAliases) != 0 {
 		toFill.supportsRequireAliases = true
 	}
 	return toFill
@@ -61,8 +61,8 @@ func ScriptMetadata_Create(script rhino.Node, compiler jscomp.AbstractCompiler) 
 func newScriptMetadata(script rhino.Node) *ScriptMetadata {
 	return &ScriptMetadata{
 		script:         script,
-		requireAliases: jutil.NewLinkedHashMap[string, string](),
-		namesInUse:     jutil.NewLinkedHashSet[string](),
+		requireAliases: make(map[string]string),
+		namesInUse:     make(map[string]bool),
 	}
 }
 
@@ -85,7 +85,7 @@ func (m *ScriptMetadata) SupportsRequireAliases() bool {
 //
 // Java: ScriptMetadata.usesName(String)
 func (m *ScriptMetadata) UsesName(name string) bool {
-	return m.namesInUse.Contains(name)
+	return m.namesInUse[name]
 }
 
 // GetAlias returns the local alias for `namespace`.
@@ -95,7 +95,7 @@ func (m *ScriptMetadata) UsesName(name string) bool {
 //
 // Java: ScriptMetadata.getAlias(String)
 func (m *ScriptMetadata) GetAlias(namespace string) *string {
-	alias, ok := m.requireAliases.Lookup(namespace)
+	alias, ok := m.requireAliases[namespace]
 	if !ok {
 		return nil
 	}
@@ -110,8 +110,8 @@ func (m *ScriptMetadata) GetAlias(namespace string) *string {
 // Java: ScriptMetadata.addAlias(String, String)
 func (m *ScriptMetadata) AddAlias(namespace string, alias string) {
 	jutil.CheckState(m.supportsRequireAliases)
-	m.namesInUse.Add(alias)
-	m.requireAliases.Put(namespace, alias)
+	m.namesInUse[alias] = true
+	m.requireAliases[namespace] = alias
 }
 
 var scriptMetadata_FillerCallback_GOOG_MODULE = rhino.QualifiedName_Of("goog.module")
@@ -181,7 +181,7 @@ func (c *scriptMetadata_FillerCallback) maybeCollectRequirelikeAlias(n rhino.Nod
 	}
 
 	namespace := requirelikeCall.GetSecondChild().GetString()
-	c.toFill.requireAliases.Put(namespace, alias)
+	c.toFill.requireAliases[namespace] = alias
 }
 
 // Java: ScriptMetadata.FillerCallback.isRequirelikeCall(Node)
@@ -202,14 +202,14 @@ func (c *scriptMetadata_FillerCallback) isRequirelikeCall(call rhino.Node) bool 
 // Java: ScriptMetadata.FillerCallback.maybeCollectNames(Node)
 func (c *scriptMetadata_FillerCallback) maybeCollectNames(n rhino.Node) {
 	if n.IsName() {
-		c.toFill.namesInUse.Add(n.GetString())
+		c.toFill.namesInUse[n.GetString()] = true
 	}
 
 	jsdoc := n.GetJSDocInfo()
 	if jsdoc != nil {
 		for _, expr := range jsdoc.GetTypeExpressions() {
 			for type_ := range expr.GetAllTypeNames().All() {
-				c.toFill.namesInUse.Add(scriptMetadata_firstDotSplit(type_))
+				c.toFill.namesInUse[scriptMetadata_firstDotSplit(type_)] = true
 			}
 		}
 	}

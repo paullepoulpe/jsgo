@@ -75,32 +75,13 @@ type QualifiedName interface {
 	JoinWithSeparator(separator uint16) string
 	GetComponentCount() int
 	Getprop(propertyName string) QualifiedName
-
-	GetQualifiedNameBase() *QualifiedNameBase
 }
-
-// QualifiedNameBase holds QualifiedName's concrete methods; self dispatches
-// the abstract ones.
-type QualifiedNameBase struct {
-	self QualifiedName
-}
-
-// All subclasses must be defined in this file.
-//
-// Java: QualifiedName()
-func (q *QualifiedNameBase) InitQualifiedNameBase(self QualifiedName) {
-	q.self = self
-}
-
-// GetQualifiedNameBase gives access to the base through the interface.
-func (q *QualifiedNameBase) GetQualifiedNameBase() *QualifiedNameBase { return q }
 
 // Java: QualifiedName.of(String)
 func QualifiedName_Of(s string) QualifiedName {
 	n := 1 + strings.Count(s, ".")
 	terms := make([]string, 0, n)
 	q := &QualifiedName_StringListQname{joinedDot: s}
-	q.InitQualifiedNameBase(q)
 	var ids []rhinoStringID
 	if n <= len(q.termIDsBuf) {
 		ids = q.termIDsBuf[:0]
@@ -127,54 +108,46 @@ func QualifiedName_Of(s string) QualifiedName {
 	return q
 }
 
-// GetRoot returns the root of this name, e.g. "foo" from "foo.bar.baz".
+// qualifiedNameGetRoot returns the root of this name, e.g. "foo" from "foo.bar.baz".
 //
 // Java: QualifiedName.getRoot()
-func (q *QualifiedNameBase) GetRoot() string {
-	name := q.self
+func qualifiedNameGetRoot(name QualifiedName) string {
 	for !name.IsSimple() {
 		name = name.GetOwner()
 	}
 	return name.GetComponent()
 }
 
-// Components returns the components of this name as an iterable of strings,
+// qualifiedNameComponents returns the components of this name as an iterable of strings,
 // starting at the root. For the qualified name foo.bar.baz, this returns
 // ["foo", "bar", "baz"].
 //
 // Java: QualifiedName.components()
-func (q *QualifiedNameBase) Components() []string {
+func qualifiedNameComponents(q QualifiedName) []string {
 	var components []string
-	q.self.BuildComponents(&components)
+	q.BuildComponents(&components)
 	return components
 }
 
 // Java: QualifiedName.buildComponents(ImmutableList.Builder<String>)
-func (q *QualifiedNameBase) BuildComponents(builder *[]string) {
-	owner := q.self.GetOwner()
+func qualifiedNameBuildComponents(q QualifiedName, builder *[]string) {
+	owner := q.GetOwner()
 	if owner != nil {
 		owner.BuildComponents(builder)
 	}
-	*builder = append(*builder, q.self.GetComponent())
+	*builder = append(*builder, q.GetComponent())
 }
 
-// Join returns the qualified name as a string.
-//
-// Java: QualifiedName.join()
-func (q *QualifiedNameBase) Join() string {
-	return q.self.JoinWithSeparator('.')
-}
-
-// JoinWithSeparator returns the qualified name as a string, with the given
+// qualifiedNameJoinWithSeparator returns the qualified name as a string, with the given
 // separator between components.
 //
 // Java: QualifiedName.join(Character)
-func (q *QualifiedNameBase) JoinWithSeparator(separator uint16) string {
-	if q.self.IsSimple() {
-		return q.self.GetComponent()
+func qualifiedNameJoinWithSeparator(q QualifiedName, separator uint16) string {
+	if q.IsSimple() {
+		return q.GetComponent()
 	}
 	var sb strings.Builder
-	q.self.AppendTo(&sb, separator)
+	q.AppendTo(&sb, separator)
 	return sb.String()
 }
 
@@ -190,18 +163,9 @@ func qualifiedName_appendSeparator(sb *strings.Builder, separator uint16) {
 	}
 }
 
-// Getprop returns a new qualified name object with `this` name as the owner
-// and the given string as the property name.
-//
-// Java: QualifiedName.getprop(String)
-func (q *QualifiedNameBase) Getprop(propertyName string) QualifiedName {
-	return NewQualifiedName_GetpropQname(q.self, propertyName)
-}
-
 // QualifiedName_StringListQname is a qualified name based on a list of
 // string terms.
 type QualifiedName_StringListQname struct {
-	QualifiedNameBase
 	terms      []string
 	joinedDot  string
 	termIDs    []rhinoStringID
@@ -211,10 +175,10 @@ type QualifiedName_StringListQname struct {
 
 // Java: QualifiedName.StringListQname(ImmutableList<String>, int)
 func NewQualifiedName_StringListQname(terms []string, size int) *QualifiedName_StringListQname {
-	q := &QualifiedName_StringListQname{}
-	q.InitQualifiedNameBase(q)
-	q.terms = terms
-	q.size = size
+	q := &QualifiedName_StringListQname{
+		terms: terms,
+		size:  size,
+	}
 	var ids []rhinoStringID
 	if size <= len(q.termIDsBuf) {
 		ids = q.termIDsBuf[:size]
@@ -231,12 +195,11 @@ func NewQualifiedName_StringListQname(terms []string, size int) *QualifiedName_S
 // Java: QualifiedName.StringListQname.getOwner()
 func (q *QualifiedName_StringListQname) GetOwner() QualifiedName {
 	if q.size > 1 {
-		o := &QualifiedName_StringListQname{}
-		o.InitQualifiedNameBase(o)
-		o.terms = q.terms
-		o.termIDs = q.termIDs[:q.size-1]
-		o.size = q.size - 1
-		return o
+		return &QualifiedName_StringListQname{
+			terms:   q.terms,
+			termIDs: q.termIDs[:q.size-1],
+			size:    q.size - 1,
+		}
 	}
 	return nil
 }
@@ -251,6 +214,21 @@ func (q *QualifiedName_StringListQname) IsSimple() bool {
 	return q.size == 1
 }
 
+// Java: QualifiedName.getRoot()
+func (q *QualifiedName_StringListQname) GetRoot() string {
+	return qualifiedNameGetRoot(q)
+}
+
+// Java: QualifiedName.buildComponents(ImmutableList.Builder<String>)
+func (q *QualifiedName_StringListQname) BuildComponents(builder *[]string) {
+	qualifiedNameBuildComponents(q, builder)
+}
+
+// Java: QualifiedName.join()
+func (q *QualifiedName_StringListQname) Join() string {
+	return q.JoinWithSeparator('.')
+}
+
 // Java: QualifiedName.StringListQname.join(Character)
 func (q *QualifiedName_StringListQname) JoinWithSeparator(separator uint16) string {
 	if q.size == 1 {
@@ -262,6 +240,11 @@ func (q *QualifiedName_StringListQname) JoinWithSeparator(separator uint16) stri
 	var sb strings.Builder
 	q.AppendTo(&sb, separator)
 	return sb.String()
+}
+
+// Java: QualifiedName.getprop(String)
+func (q *QualifiedName_StringListQname) Getprop(propertyName string) QualifiedName {
+	return NewQualifiedName_GetpropQname(q, propertyName)
 }
 
 // Java: QualifiedName.StringListQname.appendTo(StringBuilder, Character)
@@ -354,7 +337,6 @@ func (q *QualifiedName_StringListQname) String() string {
 // QualifiedName_GetpropQname is a qualified name built with an extra
 // property access on an existing qualified name.
 type QualifiedName_GetpropQname struct {
-	QualifiedNameBase
 	owner  QualifiedName
 	prop   string
 	propID rhinoStringID
@@ -362,13 +344,12 @@ type QualifiedName_GetpropQname struct {
 
 // Java: QualifiedName.GetpropQname(QualifiedName, String)
 func NewQualifiedName_GetpropQname(owner QualifiedName, prop string) *QualifiedName_GetpropQname {
-	q := &QualifiedName_GetpropQname{}
-	q.InitQualifiedNameBase(q)
-	q.owner = owner
 	id := rhinoStringPoolIntern(prop)
-	q.prop = rhinoStringFromID(id)
-	q.propID = id
-	return q
+	return &QualifiedName_GetpropQname{
+		owner:  owner,
+		prop:   rhinoStringFromID(id),
+		propID: id,
+	}
 }
 
 // Java: QualifiedName.GetpropQname.getOwner()
@@ -384,6 +365,36 @@ func (q *QualifiedName_GetpropQname) GetComponent() string {
 // Java: QualifiedName.GetpropQname.isSimple()
 func (q *QualifiedName_GetpropQname) IsSimple() bool {
 	return false
+}
+
+// Java: QualifiedName.getRoot()
+func (q *QualifiedName_GetpropQname) GetRoot() string {
+	return qualifiedNameGetRoot(q)
+}
+
+// Java: QualifiedName.components()
+func (q *QualifiedName_GetpropQname) Components() []string {
+	return qualifiedNameComponents(q)
+}
+
+// Java: QualifiedName.buildComponents(ImmutableList.Builder<String>)
+func (q *QualifiedName_GetpropQname) BuildComponents(builder *[]string) {
+	qualifiedNameBuildComponents(q, builder)
+}
+
+// Java: QualifiedName.join()
+func (q *QualifiedName_GetpropQname) Join() string {
+	return q.JoinWithSeparator('.')
+}
+
+// Java: QualifiedName.join(Character)
+func (q *QualifiedName_GetpropQname) JoinWithSeparator(separator uint16) string {
+	return qualifiedNameJoinWithSeparator(q, separator)
+}
+
+// Java: QualifiedName.getprop(String)
+func (q *QualifiedName_GetpropQname) Getprop(propertyName string) QualifiedName {
+	return NewQualifiedName_GetpropQname(q, propertyName)
 }
 
 // Java: QualifiedName.GetpropQname.appendTo(StringBuilder, Character)
@@ -425,16 +436,12 @@ func (q *QualifiedName_GetpropQname) String() string {
 // that the node is actually a qualified name is not actually checked here,
 // though it will throw IllegalStateException eventually if it is not.
 type QualifiedName_NodeQname struct {
-	QualifiedNameBase
 	node Node
 }
 
 // Java: QualifiedName.NodeQname(Node)
 func NewQualifiedName_NodeQname(n Node) *QualifiedName_NodeQname {
-	q := &QualifiedName_NodeQname{}
-	q.InitQualifiedNameBase(q)
-	q.node = n
-	return q
+	return &QualifiedName_NodeQname{node: n}
 }
 
 // Java: QualifiedName.NodeQname.getOwner()
@@ -464,9 +471,24 @@ func (q *QualifiedName_NodeQname) IsSimple() bool {
 	return !q.node.IsGetProp()
 }
 
+// Java: QualifiedName.getRoot()
+func (q *QualifiedName_NodeQname) GetRoot() string {
+	return qualifiedNameGetRoot(q)
+}
+
+// Java: QualifiedName.components()
+func (q *QualifiedName_NodeQname) Components() []string {
+	return qualifiedNameComponents(q)
+}
+
+// Java: QualifiedName.buildComponents(ImmutableList.Builder<String>)
+func (q *QualifiedName_NodeQname) BuildComponents(builder *[]string) {
+	qualifiedNameBuildComponents(q, builder)
+}
+
 // Java: QualifiedName.NodeQname.appendTo(StringBuilder, Character)
 func (q *QualifiedName_NodeQname) AppendTo(sb *strings.Builder, separator uint16) {
-	components := q.self.Components()
+	components := q.Components()
 	sb.WriteString(components[0])
 	for _, c := range components[1:] {
 		qualifiedName_appendSeparator(sb, separator)
@@ -482,6 +504,16 @@ func (q *QualifiedName_NodeQname) Join() string {
 	// qualified name (which callers of getQualifiedNameObject exclude); here
 	// that prints as "null", as Java's appendTo does.
 	return jutil.ToJavaString(q.node.GetQualifiedName())
+}
+
+// Java: QualifiedName.join(Character)
+func (q *QualifiedName_NodeQname) JoinWithSeparator(separator uint16) string {
+	return qualifiedNameJoinWithSeparator(q, separator)
+}
+
+// Java: QualifiedName.getprop(String)
+func (q *QualifiedName_NodeQname) Getprop(propertyName string) QualifiedName {
+	return NewQualifiedName_GetpropQname(q, propertyName)
 }
 
 // Java: QualifiedName.NodeQname.matches(Node)

@@ -24,7 +24,115 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// JsMessageDefinition is the container class that holds a JsMessage and
+// information about the `goog.getMsg()` call it was built from.
+type JsMessageDefinition interface {
+	// GetMessage is the JsMessage object built from the `goog.getMsg()`
+	// call.
+	//
+	// Java: JsMessageDefinition.getMessage()
+	GetMessage() *JsMessage
+
+	// GetMessageNode is the RHS node of the message assignment statement.
+	//
+	// e.g. The goog.getMsg() call in:
+	//
+	//	const MSG_HELLO =
+	//	    goog.getMsg(
+	//	        'Hello, {$name}.',
+	//	        { 'name', getName() },
+	//	        { unescapeHtmlEntities: true });
+	//
+	// Java: JsMessageDefinition.getMessageNode()
+	GetMessageNode() rhino.Node
+
+	// GetTemplateTextNode is the Node representing the message text
+	// template.
+	//
+	// This node may be a literal string or a concatenation of literal
+	// strings.
+	//
+	// For a goog.getMsg() call this is the first argument.
+	//
+	// Java: JsMessageDefinition.getTemplateTextNode()
+	GetTemplateTextNode() rhino.Node
+
+	// GetPlaceholderValuesNode is the object literal Node that maps
+	// placeholder names to expressions providing their values.
+	//
+	// This value will be null if the message definition didn't specify
+	// placeholder values.
+	//
+	// Java: JsMessageDefinition.getPlaceholderValuesNode()
+	GetPlaceholderValuesNode() rhino.Node
+
+	// GetPlaceholderValueMap is a map from placehlolder name to the Node
+	// assigned to it in the values map argument of `goog.getMsg()`.
+	//
+	// This will be an empty map if there was no object or it was an empty
+	// object literal.
+	//
+	// Java: JsMessageDefinition.getPlaceholderValueMap()
+	GetPlaceholderValueMap() *jutil.LinkedHashMap[string, rhino.Node]
+
+	// ShouldEscapeLessThan is the value of the 'html' options key in the
+	// options bag argument.
+	//
+	// This value will be false if there was no options bag argument, or if
+	// it didn't contain an 'html' property.
+	//
+	// Java: JsMessageDefinition.shouldEscapeLessThan()
+	ShouldEscapeLessThan() bool
+
+	// ShouldUnescapeHtmlEntities is the value of the 'unescapeHtmlEntities'
+	// options key in the options bag argument.
+	//
+	// This value will be false if there was no options bag argument, or if
+	// it didn't contain an 'unescapeHtmlEntities' property.
+	//
+	// Java: JsMessageDefinition.shouldUnescapeHtmlEntities()
+	ShouldUnescapeHtmlEntities() bool
+}
+
+// IcuTemplateDefinition contains a JsMessage representing an ICU template
+// message and information about the
+// `goog.i18n.messages.declareIcuTemplate()` call from which it was
+// extracted.
+type IcuTemplateDefinition interface {
+	// GetMessage is the JsMessage object built from the
+	// `declareIcuTemplate()` call.
+	//
+	// Java: IcuTemplateDefinition.getMessage()
+	GetMessage() *JsMessage
+
+	// GetMessageNode is the RHS node of the message assignment statement.
+	//
+	// e.g. The declareIcuTemplate() call in:
+	//
+	//	const MSG_HELLO =
+	//	    declareIcuTemplate(
+	//	        'Hello, {NAME}.',
+	//	        {
+	//	          description: 'A greeting',
+	//	          example: {
+	//	            'NAME': 'Jane'
+	//	          });
+	//
+	// Java: IcuTemplateDefinition.getMessageNode()
+	GetMessageNode() rhino.Node
+
+	// GetTemplateTextNode is the Node representing the message text
+	// template.
+	//
+	// This node may be a literal string or a concatenation of literal
+	// strings.
+	//
+	// Java: IcuTemplateDefinition.getTemplateTextNode()
+	GetTemplateTextNode() rhino.Node
+}
 
 // JsMessage is a representation of a translatable message in JavaScript
 // source code.

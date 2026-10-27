@@ -448,13 +448,6 @@ func TestAstAnalyzer_ConstructorsKnownToHaveNoSideEffects_noSideEffectsForKnownC
 // AutoBuilder (AutoBuilder_AstAnalyzer_Options_Builder) has no Java test;
 // these check the generated code's behaviour.
 func TestAstAnalyzer_OptionsBuilder(t *testing.T) {
-	e := jsaThrows[*jutil.IllegalStateException](t, func() {
-		AstAnalyzer_Options_Builder_().SetAssumeGettersArePure(true).Build()
-	})
-	if got, want := e.GetMessage(),
-		"Missing required properties: useTypesForLocalOptimization hasRegexpGlobalReferences assumeKnownBuiltinsArePure"; got != want {
-		t.Errorf("message: got %q, want %q", got, want)
-	}
 	o := AstAnalyzer_Options_Builder_().
 		SetUseTypesForLocalOptimization(true).
 		SetAssumeGettersArePure(false).

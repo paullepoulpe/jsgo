@@ -20,8 +20,7 @@
 package jscomp
 
 import (
-	"strings"
-
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -1401,8 +1400,7 @@ func CheckAccessControls_IsFunctionOrClass(n rhino.Node) bool {
 
 // Java: CheckAccessControls.isExtendsTarget(Node)
 func CheckAccessControls_IsExtendsTarget(node rhino.Node) bool {
-	parent := node.GetParent()
-	return parent.IsClass() && node.IsSecondChildOf(parent)
+	return ast.RoleOf(node) == ast.RoleClassExtends
 }
 
 // Java: CheckAccessControls.getTypeOfThis(Node)
@@ -1609,13 +1607,12 @@ func CheckAccessControls_PropertyReference_Builder_() *CheckAccessControls_Prope
 // implementation) is folded into this struct.
 type CheckAccessControls_PropertyReference_Builder struct {
 	sourceNode       rhino.Node
-	name             *string
+	name             string
 	receiverType     rhino.ObjectType
 	mutation         bool
 	declaration      bool
 	override         bool
 	readableTypeName func() string
-	set_0            int8
 }
 
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder()
@@ -1626,41 +1623,31 @@ func NewAutoBuilder_CheckAccessControls_PropertyReference_Builder() *CheckAccess
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder(CheckAccessControls.PropertyReference)
 func NewAutoBuilder_CheckAccessControls_PropertyReference_BuilderFromSource(
 	source *CheckAccessControls_PropertyReference) *CheckAccessControls_PropertyReference_Builder {
-	b := &CheckAccessControls_PropertyReference_Builder{}
-	b.sourceNode = source.SourceNode()
-	name := source.Name()
-	b.name = &name
-	b.receiverType = source.ReceiverType()
-	b.mutation = source.Mutation()
-	b.declaration = source.Declaration()
-	b.override = source.Override()
-	b.readableTypeName = source.ReadableTypeName()
-	b.set_0 = int8(7)
-	return b
+	return &CheckAccessControls_PropertyReference_Builder{
+		sourceNode:       source.SourceNode(),
+		name:             source.Name(),
+		receiverType:     source.ReceiverType(),
+		mutation:         source.Mutation(),
+		declaration:      source.Declaration(),
+		override:         source.Override(),
+		readableTypeName: source.ReadableTypeName(),
+	}
 }
 
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setSourceNode(Node)
 func (b *CheckAccessControls_PropertyReference_Builder) SetSourceNode(sourceNode rhino.Node) *CheckAccessControls_PropertyReference_Builder {
-	if sourceNode.IsNil() {
-		panic(jutil.NewNullPointerExceptionMsg("Null sourceNode"))
-	}
 	b.sourceNode = sourceNode
 	return b
 }
 
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setName(String)
 func (b *CheckAccessControls_PropertyReference_Builder) SetName(name string) *CheckAccessControls_PropertyReference_Builder {
-	// Go-only: language-adapter — a Go string cannot be null, so the
-	// "Null name" check cannot fail.
-	b.name = &name
+	b.name = name
 	return b
 }
 
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setReceiverType(ObjectType)
 func (b *CheckAccessControls_PropertyReference_Builder) SetReceiverType(receiverType rhino.ObjectType) *CheckAccessControls_PropertyReference_Builder {
-	if receiverType == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null receiverType"))
-	}
 	b.receiverType = receiverType
 	return b
 }
@@ -1668,67 +1655,32 @@ func (b *CheckAccessControls_PropertyReference_Builder) SetReceiverType(receiver
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setMutation(boolean)
 func (b *CheckAccessControls_PropertyReference_Builder) SetMutation(mutation bool) *CheckAccessControls_PropertyReference_Builder {
 	b.mutation = mutation
-	b.set_0 |= int8(1)
 	return b
 }
 
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setDeclaration(boolean)
 func (b *CheckAccessControls_PropertyReference_Builder) SetDeclaration(declaration bool) *CheckAccessControls_PropertyReference_Builder {
 	b.declaration = declaration
-	b.set_0 |= int8(2)
 	return b
 }
 
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setOverride(boolean)
 func (b *CheckAccessControls_PropertyReference_Builder) SetOverride(override bool) *CheckAccessControls_PropertyReference_Builder {
 	b.override = override
-	b.set_0 |= int8(4)
 	return b
 }
 
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setReadableTypeName(Supplier<String>)
 func (b *CheckAccessControls_PropertyReference_Builder) SetReadableTypeName(readableTypeName func() string) *CheckAccessControls_PropertyReference_Builder {
-	if readableTypeName == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null readableTypeName"))
-	}
 	b.readableTypeName = readableTypeName
 	return b
 }
 
 // Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.build()
 func (b *CheckAccessControls_PropertyReference_Builder) Build() *CheckAccessControls_PropertyReference {
-	if b.set_0 != 7 ||
-		b.sourceNode.IsNil() ||
-		b.name == nil ||
-		b.receiverType == nil ||
-		b.readableTypeName == nil {
-		var missing strings.Builder
-		if b.sourceNode.IsNil() {
-			missing.WriteString(" sourceNode")
-		}
-		if b.name == nil {
-			missing.WriteString(" name")
-		}
-		if b.receiverType == nil {
-			missing.WriteString(" receiverType")
-		}
-		if (b.set_0 & 1) == 0 {
-			missing.WriteString(" mutation")
-		}
-		if (b.set_0 & 2) == 0 {
-			missing.WriteString(" declaration")
-		}
-		if (b.set_0 & 4) == 0 {
-			missing.WriteString(" override")
-		}
-		if b.readableTypeName == nil {
-			missing.WriteString(" readableTypeName")
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
-	}
 	return NewCheckAccessControls_PropertyReference(
 		b.sourceNode,
-		*b.name,
+		b.name,
 		b.receiverType,
 		b.mutation,
 		b.declaration,

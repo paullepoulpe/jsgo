@@ -39,8 +39,6 @@ type CompilerBasedTransformer interface {
 
 	// Java: CompilerBasedTransformer.getTranformationName()
 	GetTranformationName() string
-
-	GetCompilerBasedTransformerBase() *CompilerBasedTransformerBase
 }
 
 // CompilerBasedTransformerBase holds the fields of CompilerBasedTransformer
@@ -57,12 +55,6 @@ type CompilerBasedTransformerBase struct {
 func (t *CompilerBasedTransformerBase) InitCompilerBasedTransformerBase(self CompilerBasedTransformer, compilerSupplier CompilerBasedTransformer_CompilerSupplier) {
 	t.self = self
 	t.compilerSupplier = jutil.CheckNotNull(compilerSupplier)
-}
-
-// GetCompilerBasedTransformerBase returns the CompilerBasedTransformer
-// fields.
-func (t *CompilerBasedTransformerBase) GetCompilerBasedTransformerBase() *CompilerBasedTransformerBase {
-	return t
 }
 
 // Java: CompilerBasedTransformer.transform(Source)
@@ -115,8 +107,6 @@ type CompilerBasedTransformer_CompilerSupplier interface {
 	Options() *jscomp.CompilerOptions
 	// Java: CompilerSupplier.setOptions(CompilerOptions)
 	SetOptions(options *jscomp.CompilerOptions)
-
-	GetCompilerBasedTransformer_CompilerSupplierBase() *CompilerBasedTransformer_CompilerSupplierBase
 }
 
 // CompilerBasedTransformer_CompilerSupplierBase holds the implementation of
@@ -140,12 +130,6 @@ func (s *CompilerBasedTransformer_CompilerSupplierBase) InitCompilerBasedTransfo
 	s.self = self
 }
 
-// GetCompilerBasedTransformer_CompilerSupplierBase returns the
-// CompilerSupplier fields.
-func (s *CompilerBasedTransformer_CompilerSupplierBase) GetCompilerBasedTransformer_CompilerSupplierBase() *CompilerBasedTransformer_CompilerSupplierBase {
-	return s
-}
-
 // Java: CompilerSupplier.compile(Path, String)
 func (s *CompilerBasedTransformer_CompilerSupplierBase) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
 	compiler := s.self.Compiler()
@@ -154,12 +138,8 @@ func (s *CompilerBasedTransformer_CompilerSupplierBase) Compile(path *jutil.Path
 	source := compiler.ToSource()
 	var sourceMap strings.Builder
 	if result.SourceMap != nil {
-		jutil.Try(func() {
-			name := path.String()
-			result.SourceMap.AppendTo(&sourceMap, &name)
-		}, func(e jutil.IIOException) {
-			// impossible, and not a big deal even if it did happen.
-		})
+		name := path.String()
+		result.SourceMap.AppendTo(&sourceMap, &name)
 	}
 	transformed := s.self.Transformed(result)
 	sm := ""

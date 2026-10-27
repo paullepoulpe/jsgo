@@ -183,8 +183,3 @@ func (z *JSCompZipFileCache_CachedZipFile) maybeCloseLocked() {
 		z.entries = nil
 	}
 }
-
-// Java: JSCompZipFileCache()
-func newJSCompZipFileCache() *JSCompZipFileCache {
-	panic(jutil.NewAssertionErrorNoMessage())
-}

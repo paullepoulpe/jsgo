@@ -25,9 +25,6 @@ import (
 // Promises models different Javascript Promise-related operations
 type Promises struct{}
 
-// Java: Promises()
-func newPromises() *Promises { return &Promises{} }
-
 // Promises_GetTemplateTypeOfThenable: if this object is known to be an
 // IThenable, returns the type it resolves to.
 //

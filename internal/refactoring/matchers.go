@@ -99,7 +99,10 @@ func Matchers_Not(matcher Matcher) Matcher {
 //
 // Java: Matchers.constructor()
 func Matchers_Constructor() Matcher {
-	return Matchers_ConstructorWithName(nil)
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+		info := node.GetJSDocInfo()
+		return info != nil && info.IsConstructor()
+	})
 }
 
 // Matchers_ConstructorWithName returns a matcher that matches constructor
@@ -108,7 +111,7 @@ func Matchers_Constructor() Matcher {
 // name is the name of the class constructor to match.
 //
 // Java: Matchers.constructor(String)
-func Matchers_ConstructorWithName(name *string) Matcher {
+func Matchers_ConstructorWithName(name string) Matcher {
 	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		info := node.GetJSDocInfo()
 		if info != nil && info.IsConstructor() {
@@ -118,11 +121,8 @@ func Matchers_ConstructorWithName(name *string) Matcher {
 			//   /** @constructor */
 			//   name: function() {}
 			// }
-			if name == nil {
-				return true
-			}
 			if (firstChild.IsGetProp() || firstChild.IsName()) &&
-				firstChild.MatchesQualifiedName(*name) {
+				firstChild.MatchesQualifiedName(name) {
 				return true
 			}
 		}
@@ -170,7 +170,9 @@ func Matchers_NewClassWithName(className string) Matcher {
 //
 // Java: Matchers.functionCall()
 func Matchers_FunctionCall() Matcher {
-	return Matchers_FunctionCallWithName(nil)
+	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+		return node.IsCall() && Matchers_PropertyAccess().Matches(node.GetFirstChild(), metadata)
+	})
 }
 
 // Matchers_FunctionCallWithName returns a Matcher that matches all nodes
@@ -182,10 +184,10 @@ func Matchers_FunctionCall() Matcher {
 // this.get when called from the AppContext class.
 //
 // Java: Matchers.functionCall(String)
-func Matchers_FunctionCallWithName(name *string) Matcher {
+func Matchers_FunctionCallWithName(name string) Matcher {
 	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
 		// TODO(mknichel): Handle the case when functions are applied through .call or .apply.
-		return node.IsCall() && Matchers_PropertyAccessWithName(name).Matches(node.GetFirstChild(), metadata)
+		return node.IsCall() && Matchers_PropertyAccessWithName(&name).Matches(node.GetFirstChild(), metadata)
 	})
 }
 
@@ -209,7 +211,7 @@ func Matchers_FunctionCallWithNumArgs(numArgs int) Matcher {
 //
 // Java: Matchers.functionCallWithNumArgs(String, int)
 func Matchers_FunctionCallWithNumArgsAndName(name string, numArgs int) Matcher {
-	return Matchers_AllOf(Matchers_FunctionCallWithNumArgs(numArgs), Matchers_FunctionCallWithName(&name))
+	return Matchers_AllOf(Matchers_FunctionCallWithNumArgs(numArgs), Matchers_FunctionCallWithName(name))
 }
 
 // Java: Matchers.googRequirelike(String)
@@ -228,27 +230,27 @@ func Matchers_GoogRequirelike() Matcher {
 
 // Java: Matchers.googRequire()
 func Matchers_GoogRequire() Matcher {
-	return Matchers_FunctionCallWithName(jutil.StringPtr("goog.require"))
+	return Matchers_FunctionCallWithName("goog.require")
 }
 
 // Java: Matchers.googRequireType()
 func Matchers_GoogRequireType() Matcher {
-	return Matchers_FunctionCallWithName(jutil.StringPtr("goog.requireType"))
+	return Matchers_FunctionCallWithName("goog.requireType")
 }
 
 // Java: Matchers.googForwardDeclare()
 func Matchers_GoogForwardDeclare() Matcher {
-	return Matchers_FunctionCallWithName(jutil.StringPtr("goog.forwardDeclare"))
+	return Matchers_FunctionCallWithName("goog.forwardDeclare")
 }
 
 // Java: Matchers.googModule()
 func Matchers_GoogModule() Matcher {
-	return Matchers_FunctionCallWithName(jutil.StringPtr("goog.module"))
+	return Matchers_FunctionCallWithName("goog.module")
 }
 
 // Java: Matchers.googModuleOrProvide()
 func Matchers_GoogModuleOrProvide() Matcher {
-	return Matchers_AnyOf(Matchers_GoogModule(), Matchers_FunctionCallWithName(jutil.StringPtr("goog.provide")))
+	return Matchers_AnyOf(Matchers_GoogModule(), Matchers_FunctionCallWithName("goog.provide"))
 }
 
 // Matchers_PropertyAccess returns a Matcher that matches any property

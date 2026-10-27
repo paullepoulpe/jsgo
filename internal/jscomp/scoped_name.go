@@ -51,18 +51,6 @@ type ScopedName interface {
 	HashCode() int32
 }
 
-// ScopedNameBase holds the final equals/hashCode of ScopedName; subclasses
-// embed it and call InitScopedNameBase with themselves.
-type ScopedNameBase struct {
-	self ScopedName
-}
-
-// InitScopedNameBase is the ScopedName() constructor.
-func (b *ScopedNameBase) InitScopedNameBase(self ScopedName) { b.self = self }
-
-// GetScopedNameBase gives access to the base through the interface.
-func (b *ScopedNameBase) GetScopedNameBase() *ScopedNameBase { return b }
-
 // Java: ScopedName.of(String, Node)
 func ScopedName_Of(name string, scopeRoot rhino.Node) ScopedName {
 	return newScopedName_Simple(name, scopeRoot)
@@ -122,18 +110,6 @@ func (s *ScopedName_Simple) computeHashCode() int32 {
 	return h
 }
 
-// Equals is final in Java.
-//
-// Java: ScopedName.equals(Object)
-func (b *ScopedNameBase) Equals(other any) bool {
-	scopedName, ok := other.(ScopedName)
-	if !ok || jutil.IsNil(scopedName) {
-		return false
-	}
-	return b.self.GetName() == scopedName.GetName() &&
-		scopedName_nodeEquals(b.self.GetScopeRoot(), scopedName.GetScopeRoot())
-}
-
 // scopedName_nodeEquals is a.equals(b) for Nodes (identity; null a throws).
 func scopedName_nodeEquals(a, b rhino.Node) bool {
 	if a.IsNil() {
@@ -145,22 +121,4 @@ func scopedName_nodeEquals(a, b rhino.Node) bool {
 //go:noinline
 func scopedName_failNull() {
 	panic(jutil.NewNullPointerException())
-}
-
-// HashCode is final in Java.
-//
-// Java: ScopedName.hashCode()
-func (b *ScopedNameBase) HashCode() int32 {
-	// NOTE: here we avoid Object.hash because of this function is called
-	// frequently enough that the overhead of implicit array creation of a
-	// varargs function is enough that we want to avoid it.
-	name := b.self.GetName()
-	root := b.self.GetScopeRoot()
-	if root.IsNil() {
-		panic(jutil.NewNullPointerException())
-	}
-	var result int32 = 1
-	result = 31*result + jutil.StringHashCode(name)
-	result = 31*result + root.IdentityHashCode() // Go-only: performance — IdentityHashCode(root), unboxed
-	return result
 }

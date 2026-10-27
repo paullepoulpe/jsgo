@@ -44,9 +44,6 @@ type InputId struct {
 	hash int32
 }
 
-// Java: InputId.serialVersionUID
-const InputId_serialVersionUID int64 = 1
-
 // Init initializes i in-place with id.
 func (i *InputId) Init(id string) {
 	i.id = id

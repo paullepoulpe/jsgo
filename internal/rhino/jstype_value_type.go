@@ -43,12 +43,7 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // Java: abstract class ValueType extends JSType.
 type ValueType interface {
 	JSType
-
-	// GetValueTypeBase gives access to the base through the interface.
-	//
-	// Go-only: language-adapter — field access through the interface
-	// (PORTING.md §4).
-	GetValueTypeBase() *ValueTypeBase
+	isValueType()
 }
 
 // ValueTypeBase holds ValueType's base method implementations; the virtual
@@ -57,6 +52,8 @@ type ValueTypeBase struct {
 	JSTypeBase
 }
 
+func (*ValueTypeBase) isValueType() {}
+
 // InitValueTypeBase is the Go form of the ValueType constructor.
 //
 // Java: ValueType(JSTypeRegistry)
@@ -64,11 +61,6 @@ func (v *ValueTypeBase) InitValueTypeBase(self ValueType, registry *JSTypeRegist
 	v.InitJSTypeBase(self, registry)
 	v.EagerlyResolveToSelf()
 }
-
-// GetValueTypeBase gives access to the base through the interface.
-//
-// Go-only: language-adapter — field access through the interface (PORTING.md §4).
-func (v *ValueTypeBase) GetValueTypeBase() *ValueTypeBase { return v }
 
 // Java: ValueType.resolveInternal(ErrorReporter)
 func (v *ValueTypeBase) ResolveInternal(reporter ErrorReporter) JSType {

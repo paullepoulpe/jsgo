@@ -32,9 +32,6 @@ type ConformanceAllowlister struct {
 	_ byte
 }
 
-// Java: ConformanceAllowlister()
-func newConformanceAllowlister() *ConformanceAllowlister { return &ConformanceAllowlister{} }
-
 // ConformanceAllowlister_GetViolatingPaths returns, in encounter order, the
 // source names of the conformance violations of requirement. Like
 // toImmutableSet, it throws NullPointerException for a violation without a

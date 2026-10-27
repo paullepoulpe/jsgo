@@ -77,6 +77,3 @@ func Platform_FormatMessage(message string, arguments ...string) string {
 	}
 	return jutil.MessageFormat_Format(message, args)
 }
-
-// Java: Platform()
-func newPlatform() *Platform { return &Platform{} }

@@ -165,12 +165,6 @@ var jsFileFullParser_CommentAnnotation_ANNOTATION_RE = jutil.Pattern_Compile(
 const jsFileFullParser_CommentAnnotation_ANNOTATION_NAME_GROUP = 1
 const jsFileFullParser_CommentAnnotation_ANNOTATION_VALUE_GROUP = 2
 
-// Java: JsFileFullParser()
-func newJsFileFullParser() *JsFileFullParser {
-	// no instantiation
-	return &JsFileFullParser{}
-}
-
 // JsFileFullParser_Parse parses a JavaScript file for dependencies and
 // annotations. It returns empty info if a syntax error was encountered.
 //

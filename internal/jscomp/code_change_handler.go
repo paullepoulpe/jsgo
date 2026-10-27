@@ -18,10 +18,49 @@
 
 package jscomp
 
+import (
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
 // CodeChangeHandler is a simple listener for code change events.
 type CodeChangeHandler interface {
 	// ReportChange reports a change to some unspecified node of the AST.
 	//
 	// Java: CodeChangeHandler.reportChange()
 	ReportChange()
+}
+
+// ForbiddenChange is a change handler that throws an exception if any
+// changes are made.
+type ForbiddenChange struct{}
+
+// NewForbiddenChange is new ForbiddenChange().
+func NewForbiddenChange() *ForbiddenChange { return &ForbiddenChange{} }
+
+// Java: ForbiddenChange.reportChange()
+func (f *ForbiddenChange) ReportChange() {
+	panic(jutil.NewIllegalStateExceptionMsg("Code changes forbidden"))
+}
+
+// RecentChange records whether the code has changed since the last reset.
+type RecentChange struct {
+	hasChanged bool
+}
+
+// NewRecentChange is new RecentChange().
+func NewRecentChange() *RecentChange { return &RecentChange{} }
+
+// Java: RecentChange.reportChange()
+func (r *RecentChange) ReportChange() {
+	r.hasChanged = true
+}
+
+// Java: RecentChange.hasCodeChanged()
+func (r *RecentChange) HasCodeChanged() bool {
+	return r.hasChanged
+}
+
+// Java: RecentChange.reset()
+func (r *RecentChange) Reset() {
+	r.hasChanged = false
 }

@@ -26,7 +26,6 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // call InitErrorReporterBase(self) and implement ReportError and
 // ReportWarning (the abstract two-argument overloads).
 type ErrorReporter interface {
-	GetErrorReporterBase() *ErrorReporterBase
 	ReportErrorFormat(location LinePosition, format string, arguments ...any)
 	ReportError(location LinePosition, message string)
 	ReportWarningFormat(location LinePosition, format string, arguments ...any)
@@ -47,13 +46,6 @@ type ErrorReporterBase struct {
 // Java: ErrorReporter()
 func (e *ErrorReporterBase) InitErrorReporterBase(self ErrorReporter) {
 	e.self = self
-}
-
-// GetErrorReporterBase returns the base struct.
-//
-// Go-only: language-adapter — field access through the interface (PORTING.md §4).
-func (e *ErrorReporterBase) GetErrorReporterBase() *ErrorReporterBase {
-	return e
 }
 
 // ReportErrorFormat formats the message with String.format semantics and

@@ -64,13 +64,6 @@ type PrototypeObjectType interface {
 	SetImplicitPrototype(implicitPrototype ObjectType)
 	IsAnonymous() bool
 	MatchRecordTypeConstraint(constraintObj ObjectType)
-
-	// GetPrototypeObjectTypeBase gives access to the base through the
-	// interface.
-	//
-	// Go-only: language-adapter — field access through the interface
-	// (PORTING.md §4).
-	GetPrototypeObjectTypeBase() *PrototypeObjectTypeBase
 }
 
 // PrototypeObjectTypeBase holds PrototypeObjectType's fields and methods;
@@ -154,11 +147,6 @@ func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObje
 
 	p.GetRegistry().GetResolver().ResolveIfClosed(self, PrototypeObjectType_TYPE_CLASS)
 }
-
-// GetPrototypeObjectTypeBase gives access to the base through the interface.
-//
-// Go-only: language-adapter — field access through the interface (PORTING.md §4).
-func (p *PrototypeObjectTypeBase) GetPrototypeObjectTypeBase() *PrototypeObjectTypeBase { return p }
 
 // Java: PrototypeObjectType.getTypeClass()
 func (p *PrototypeObjectTypeBase) GetTypeClass() JSTypeClass {

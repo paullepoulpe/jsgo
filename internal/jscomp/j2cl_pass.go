@@ -25,6 +25,81 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// J2clSourceUtils holds static helpers for recognizing J2CL sources.
+type J2clSourceUtils struct{}
+
+// J2clSourceUtils_IsJ2clSource: sourceFileName is a nullable Java String.
+//
+// Java: J2clSourceUtils.isJ2clSource(String)
+func J2clSourceUtils_IsJ2clSource(sourceFileName *string) bool {
+	return sourceFileName != nil && strings.HasSuffix(*sourceFileName, ".java.js")
+}
+
+// Java: J2clSourceUtils.isJ2clSource(Node)
+func J2clSourceUtils_IsJ2clSourceOfNode(scriptNode rhino.Node) bool {
+	jutil.CheckArgument(scriptNode.IsScript())
+	return J2clSourceUtils_IsJ2clSource(scriptNode.GetSourceFileName())
+}
+
+// Java: J2clSourceUtils.isInsideJ2clSource(Node)
+func J2clSourceUtils_IsInsideJ2clSource(node rhino.Node) bool {
+	var scriptNode rhino.Node
+	if node.IsScript() {
+		scriptNode = node
+	} else {
+		scriptNode = NodeUtil_GetEnclosingScript(node)
+	}
+	if scriptNode.IsNil() {
+		return false
+	}
+	return J2clSourceUtils_IsJ2clSourceOfNode(scriptNode)
+}
+
+// J2clSourceFileChecker checks whether there are J2CL generated source files
+// with pattern "*.java.js".
+//
+// Java: final class J2clSourceFileChecker implements CompilerPass
+type J2clSourceFileChecker struct {
+	compiler AbstractCompiler
+}
+
+// Java: J2clSourceFileChecker(AbstractCompiler)
+func NewJ2clSourceFileChecker(compiler AbstractCompiler) *J2clSourceFileChecker {
+	return &J2clSourceFileChecker{compiler: compiler}
+}
+
+// Java: J2clSourceFileChecker.hasJ2cl(Node)
+func j2clSourceFileChecker_hasJ2cl(root rhino.Node) bool {
+	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+		jutil.CheckState(script.IsScript())
+		if J2clSourceUtils_IsJ2clSourceOfNode(script) {
+			return true
+		}
+	}
+	return false
+}
+
+// Java: J2clSourceFileChecker.process(Node, Node)
+func (c *J2clSourceFileChecker) Process(externs rhino.Node, root rhino.Node) {
+	if j2clSourceFileChecker_hasJ2cl(root) {
+		J2clSourceFileChecker_MarkToRunJ2clPasses(c.compiler)
+	}
+}
+
+// Java: J2clSourceFileChecker.markToRunJ2clPasses(AbstractCompiler)
+func J2clSourceFileChecker_MarkToRunJ2clPasses(compiler AbstractCompiler) {
+	compiler.SetRunJ2clPasses(true)
+}
+
+// J2clSourceFileChecker_ShouldRunJ2clPasses indicates whether it should run
+// future J2CL passes with information from the compiler. For example, if the
+// compiler's HAS_J2CL annotation is false, it should.
+//
+// Java: J2clSourceFileChecker.shouldRunJ2clPasses(AbstractCompiler)
+func J2clSourceFileChecker_ShouldRunJ2clPasses(compiler AbstractCompiler) bool {
+	return compiler.RunJ2clPasses()
+}
+
 const j2clPass_ALL_CLASS_FILE_NAMES = "*"
 
 // J2clPass is a normalization pass to inline some J2CL calls to enable other

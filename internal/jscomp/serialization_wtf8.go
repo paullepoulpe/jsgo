@@ -207,6 +207,3 @@ func wtf8_newStringFromCodePoints(codePoints []int32, units []uint16) string {
 	}
 	return jutil.StringFromUTF16(units)
 }
-
-// Java: Wtf8()
-func newWtf8() *Wtf8 { return &Wtf8{} }

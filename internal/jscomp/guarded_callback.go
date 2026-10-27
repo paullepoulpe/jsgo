@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -421,6 +422,7 @@ func (c *guardedCallback_Context) Descend(compiler AbstractCompiler, parent rhin
 }
 
 func (c *guardedCallback_Context) descendWithCC(compiler AbstractCompiler, cc CodingConvention, parent rhino.Node, child rhino.Node) *guardedCallback_Context {
+	role := ast.RoleIn(child, parent)
 	switch parent.GetToken() {
 	case rhino.Token_CAST:
 		// Casts are irrelevant.
@@ -428,7 +430,7 @@ func (c *guardedCallback_Context) descendWithCC(compiler AbstractCompiler, cc Co
 	case rhino.Token_COMMA:
 		// `Promise, whatever` is safe.
 		// `whatever, Promise` is same as outer context.
-		if child == parent.GetLastChild() {
+		if role == ast.RoleBinaryRight {
 			return c
 		}
 		return c.Propagate(true)
@@ -437,7 +439,7 @@ func (c *guardedCallback_Context) descendWithCC(compiler AbstractCompiler, cc Co
 		// `whatever && Promise` may return Promise, so return outer context.
 		// `Promise ? whatever : whatever` is a safe conditional.
 		// `whatever ? Promise : whatever` (etc) is same as outer context.
-		if child == parent.GetFirstChild() {
+		if role == ast.RoleBinaryLeft || role == ast.RoleHookCond {
 			return c.Link(parent, true)
 		}
 		return c
@@ -446,7 +448,7 @@ func (c *guardedCallback_Context) descendWithCC(compiler AbstractCompiler, cc Co
 		// may return Promise (unsafe), but is itself a conditional.
 		// `whatever || Promise` and `whatever ?? Promise`
 		// is same as outer context.
-		if child == parent.GetFirstChild() {
+		if role == ast.RoleBinaryLeft {
 			return c.Link(parent, false)
 		}
 		return c
@@ -454,7 +456,7 @@ func (c *guardedCallback_Context) descendWithCC(compiler AbstractCompiler, cc Co
 		// `if (Promise) whatever` is a safe conditional.
 		// `if (whatever) { ... }` is nothing.
 		// TODO(sdh): Handle do/while/for/for-of/for-in?
-		if child == parent.GetFirstChild() {
+		if role == ast.RoleIfCond {
 			return c.Link(parent, true)
 		}
 		return guardedCallback_Context_EMPTY
@@ -462,25 +464,25 @@ func (c *guardedCallback_Context) descendWithCC(compiler AbstractCompiler, cc Co
 		// `Promise instanceof whatever` is safe, `whatever instanceof Promise`
 		// is not. `Promise = whatever` is a bad idea, but it's safe w.r.t.
 		// polyfills.
-		return c.Propagate(child == parent.GetFirstChild())
+		return c.Propagate(role == ast.RoleBinaryLeft || role == ast.RoleAssignTarget)
 	case rhino.Token_TYPEOF, rhino.Token_NOT, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE:
 		// `typeof Promise` is always safe, as is `Promise == whatever`, etc.
 		return c.Propagate(true)
 	case rhino.Token_CALL:
 		// `String(Promise)` is safe, `Promise(whatever)` or
 		// `whatever(Promise)` is not.
-		return c.Propagate(child != parent.GetFirstChild() && guardedCallback_isPropertyTestFunction(compiler, cc, parent))
+		return c.Propagate(role == ast.RoleCallArgs && guardedCallback_isPropertyTestFunction(compiler, cc, parent))
 	case rhino.Token_ROOT:
 		// This case causes problems for isStatement() so handle it
 		// separately.
 		return guardedCallback_Context_EMPTY
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP:
-		if child == parent.GetFirstChild() {
+		if role == ast.RoleOptChainCallCallee || role == ast.RoleOptChainGetElemObject || role == ast.RoleOptChainGetPropObject {
 			// thisNode?.rest.of.chain
 			// OR firstChild?.thisNode.rest.of.chain
 			// For the first case `thisNode` should be considered
 			// intrinsically guarded.
-			return c.Link(parent, parent.IsOptionalChainStart())
+			return c.Link(parent, ast.MustOptChain(parent).IsStart())
 		}
 		// `first?.(thisNode)`
 		// or `first?.[thisNode]`
@@ -506,10 +508,11 @@ func guardedCallback_isPropertyTestFunction(compiler AbstractCompiler, cc Coding
 	if cc != nil && cc.IsPropertyTestFunction(n) {
 		return true
 	}
-	target := n.GetFirstChild()
-	if target.IsName() {
-		name := target.GetString()
-		return name == "String" || name == "Boolean"
+	if call, ok := ast.AsCall(n); ok {
+		if target, ok := call.Callee().AsName(); ok {
+			name := target.Ident()
+			return name == "String" || name == "Boolean"
+		}
 	}
 	return false
 }

@@ -51,9 +51,6 @@ type JSTypeExpression struct {
 	sourceName string
 }
 
-// Java: JSTypeExpression.serialVersionUID
-const JSTypeExpression_serialVersionUID int64 = 1
-
 // Java: JSTypeExpression.IMPLICIT_TEMPLATE_BOUND_SOURCE
 const JSTypeExpression_IMPLICIT_TEMPLATE_BOUND_SOURCE = "<IMPLICIT_TEMPLATE_BOUND>"
 

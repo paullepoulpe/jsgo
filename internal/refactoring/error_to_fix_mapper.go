@@ -32,7 +32,7 @@ import (
 // Java: public final class ErrorToFixMapper
 type ErrorToFixMapper struct {
 	compiler              jscomp.AbstractCompiler
-	metadataForEachScript *jutil.LinkedHashMap[rhino.Node, *ScriptMetadata]
+	metadataForEachScript map[rhino.Node]*ScriptMetadata
 }
 
 var errorToFixMapper_DID_YOU_MEAN = jutil.Pattern_Compile(".*Did you mean (.*)\\?")
@@ -52,7 +52,7 @@ var errorToFixMapper_USE_SHORT_NAME = jutil.Pattern_Compile(".*Please use the sh
 // Java: ErrorToFixMapper(AbstractCompiler)
 func NewErrorToFixMapper(compiler jscomp.AbstractCompiler) *ErrorToFixMapper {
 	m := &ErrorToFixMapper{
-		metadataForEachScript: jutil.NewLinkedHashMap[rhino.Node, *ScriptMetadata](),
+		metadataForEachScript: make(map[rhino.Node]*ScriptMetadata),
 	}
 	m.compiler = compiler
 	return m
@@ -506,6 +506,10 @@ func (m *ErrorToFixMapper) GetFixForConstantCaseErrors(error *jscomp.JSError) *S
 // Java: ErrorToFixMapper.getMetadataForScript(Node)
 func (m *ErrorToFixMapper) GetMetadataForScript(script rhino.Node) *ScriptMetadata {
 	jutil.CheckArgument(script.IsScript())
-	return m.metadataForEachScript.ComputeIfAbsent(
-		script, func(s rhino.Node) *ScriptMetadata { return ScriptMetadata_Create(s, m.compiler) })
+	if md, ok := m.metadataForEachScript[script]; ok {
+		return md
+	}
+	md := ScriptMetadata_Create(script, m.compiler)
+	m.metadataForEachScript[script] = md
+	return md
 }

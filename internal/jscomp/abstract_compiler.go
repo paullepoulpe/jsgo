@@ -41,8 +41,7 @@ import (
 // incorrect. Local State should instate be declared in any concrete
 // implementations of AbstractCompiler that need it.
 //
-// The Go interface declares every abstract and overridable method;
-// implementations embed AbstractCompilerBase (PORTING.md §4).
+// The Go interface declares every abstract and overridable method.
 //
 // Go-only: language-adapter — Java Iterable/List/ImmutableList results are
 // []T; Set/ImmutableSet values are *jutil.LinkedHashSet[T] (insertion
@@ -51,9 +50,6 @@ import (
 type AbstractCompiler interface {
 	SourceExcerptProvider
 	CompilerInputProvider
-
-	// GetAbstractCompilerBase gives access to the fields of the base class.
-	GetAbstractCompilerBase() *AbstractCompilerBase
 
 	// BeforePass will be called before each pass runs.
 	//
@@ -726,22 +722,6 @@ type AbstractCompiler interface {
 	MergeSyntheticCodeInput()
 }
 
-// AbstractCompilerBase holds the (field-less) state and the concrete
-// methods of AbstractCompiler. Implementations embed it and call
-// InitAbstractCompilerBase from their constructor.
-type AbstractCompilerBase struct {
-	self AbstractCompiler
-}
-
-// InitAbstractCompilerBase is the Go form of AbstractCompiler's (implicit)
-// constructor: it records the most-derived object for virtual calls.
-func (b *AbstractCompilerBase) InitAbstractCompilerBase(self AbstractCompiler) {
-	b.self = self
-}
-
-// GetAbstractCompilerBase gives access to the fields of the base class.
-func (b *AbstractCompilerBase) GetAbstractCompilerBase() *AbstractCompilerBase { return b }
-
 // Java: AbstractCompiler.READ_ERROR
 var AbstractCompiler_READ_ERROR = DiagnosticType_Error("JSC_READ_ERROR", "Cannot read file {0}: {1}")
 
@@ -762,15 +742,6 @@ func AbstractCompiler_CreateFillFileName(chunkName string) string {
 // Java: AbstractCompiler.isFillFileName(String)
 func AbstractCompiler_IsFillFileName(fileName string) bool {
 	return strings.HasSuffix(fileName, abstractCompiler_FILL_FILE_SUFFIX)
-}
-
-// InitRuntimeLibraryTypedAsts is the base implementation, which is not
-// J2CL compatible.
-//
-// Java: AbstractCompiler.initRuntimeLibraryTypedAsts(Optional<ColorPool.Builder>)
-func (b *AbstractCompilerBase) InitRuntimeLibraryTypedAsts(colorPoolBuilder *ColorPool_Builder) {
-	panic(jutil.NewUnsupportedOperationExceptionMsg(
-		"Implementation in Compiler.java is not J2CL compatible."))
 }
 
 // AbstractCompiler_ConfigContext represents the different contexts for

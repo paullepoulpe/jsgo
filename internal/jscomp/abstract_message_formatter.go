@@ -20,6 +20,17 @@ package jscomp
 
 import "github.com/paullepoulpe/jsgo/internal/jutil"
 
+// MessageFormatter formats warnings and errors. This interface may be used
+// by implementations of ErrorManager to request message formatting
+// capabilities.
+type MessageFormatter interface {
+	// FormatError formats an error.
+	FormatError(error *JSError) string
+
+	// FormatWarning formats a warning.
+	FormatWarning(warning *JSError) string
+}
+
 // AbstractMessageFormatter is an abstract message formatter providing
 // default behavior for implementations of MessageFormatter needing a
 // SourceExcerptProvider.

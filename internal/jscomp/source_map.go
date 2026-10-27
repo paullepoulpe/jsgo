@@ -27,6 +27,24 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
+// SourceFileMapping maps a source file, line, and column into an
+// OriginalMapping.
+//
+// See com.google.debugging.sourcemap.SourceMapping.
+type SourceFileMapping interface {
+	// GetSourceMapping returns the original mapping for the file name, line
+	// number and column position found in the source map. Returns null if
+	// the source file does not have a input map, and returns
+	// OriginalMapping.getDefaultInstance() if the input map does not map
+	// the location.
+	//
+	// lineNo is the line number, 1-based; columnNo the column index,
+	// 1-based.
+	//
+	// Java: SourceFileMapping.getSourceMapping(String, int, int)
+	GetSourceMapping(fileName string, lineNo int, columnNo int) *sourcemap.Mapping_OriginalMapping
+}
+
 // SourceMap collects information mapping the generated (compiled) source
 // back to its original source for debugging purposes.
 //

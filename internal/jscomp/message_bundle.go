@@ -51,3 +51,31 @@ type MessageBundle interface {
 	// Java: MessageBundle.getAllMessages()
 	GetAllMessages() iter.Seq[*JsMessage]
 }
+
+// EmptyMessageBundle is an implementation of MessageBundle that has no
+// translations.
+type EmptyMessageBundle struct{}
+
+// NewEmptyMessageBundle is new EmptyMessageBundle().
+func NewEmptyMessageBundle() *EmptyMessageBundle { return &EmptyMessageBundle{} }
+
+// IdGenerator gets a dummy message ID generator.
+//
+// Java: EmptyMessageBundle.idGenerator()
+func (b *EmptyMessageBundle) IdGenerator() JsMessage_IdGenerator {
+	return nil
+}
+
+// GetMessage returns null, to indicate it has no message replacements.
+//
+// Java: EmptyMessageBundle.getMessage(String)
+func (b *EmptyMessageBundle) GetMessage(id string) *JsMessage {
+	return nil
+}
+
+// GetAllMessages returns an empty list of messages.
+//
+// Java: EmptyMessageBundle.getAllMessages()
+func (b *EmptyMessageBundle) GetAllMessages() iter.Seq[*JsMessage] {
+	return func(yield func(*JsMessage) bool) {}
+}

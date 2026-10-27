@@ -397,6 +397,3 @@ func PolymerPassStaticUtils_GetPolymerElementType(cls *PolymerClassDefinition) s
 	}
 	return "Polymer" + nativeElementName + "Element" // String.format("Polymer%sElement", ...)
 }
-
-// Java: PolymerPassStaticUtils()
-func newPolymerPassStaticUtils() *PolymerPassStaticUtils { return &PolymerPassStaticUtils{} }

@@ -22,8 +22,6 @@ package jscomp
 // PolymerPass.
 type PolymerPassErrors struct{}
 
-func newPolymerPassErrors() *PolymerPassErrors { return &PolymerPassErrors{} }
-
 var (
 	// TODO(jlklein): Switch back to an error when everyone is upgraded to
 	// Polymer 1.0

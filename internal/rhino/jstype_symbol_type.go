@@ -42,12 +42,7 @@ import "github.com/paullepoulpe/jsgo/internal/base"
 // Java: class SymbolType extends ValueType (subclassed by KnownSymbolType).
 type SymbolType interface {
 	ValueType
-
-	// GetSymbolTypeBase gives access to the base through the interface.
-	//
-	// Go-only: language-adapter — field access through the interface
-	// (PORTING.md §4).
-	GetSymbolTypeBase() *SymbolTypeBase
+	isSymbolType()
 }
 
 // SymbolTypeBase holds SymbolType's methods; plain symbol types are
@@ -55,6 +50,8 @@ type SymbolType interface {
 type SymbolTypeBase struct {
 	ValueTypeBase
 }
+
+func (*SymbolTypeBase) isSymbolType() {}
 
 // NewSymbolType constructs the plain symbol type.
 //
@@ -72,11 +69,6 @@ func NewSymbolType(registry *JSTypeRegistry) *SymbolTypeBase {
 func (t *SymbolTypeBase) InitSymbolTypeBase(self SymbolType, registry *JSTypeRegistry) {
 	t.InitValueTypeBase(self, registry)
 }
-
-// GetSymbolTypeBase gives access to the base through the interface.
-//
-// Go-only: language-adapter — field access through the interface (PORTING.md §4).
-func (t *SymbolTypeBase) GetSymbolTypeBase() *SymbolTypeBase { return t }
 
 // Java: SymbolType.getTypeClass()
 func (t *SymbolTypeBase) GetTypeClass() JSTypeClass {

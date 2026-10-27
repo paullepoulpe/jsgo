@@ -234,3 +234,77 @@ func (d *PassConfig_PassConfigDelegateBase) GetFinalizations() *PassListBuilder 
 func (d *PassConfig_PassConfigDelegateBase) GetTranspileOnlyPasses() *PassListBuilder {
 	return d.delegate.GetTranspileOnlyPasses()
 }
+
+// ConformancePassConfig runs only the user-supplied conformance checks and any
+// earlier passes required by conformance.
+type ConformancePassConfig struct {
+	PassConfig_PassConfigDelegateBase
+
+	delegate PassConfig
+}
+
+// Java: ConformancePassConfig(PassConfig)
+func NewConformancePassConfig(delegate PassConfig) *ConformancePassConfig {
+	c := &ConformancePassConfig{}
+	c.self = c
+	c.InitPassConfig_PassConfigDelegateBase(delegate)
+	c.delegate = delegate
+	return c
+}
+
+// Java: ConformancePassConfig.getChecks()
+func (c *ConformancePassConfig) GetChecks() *PassListBuilder {
+	fromDelegate := c.delegate.GetChecks()
+
+	// Return every check up to and including the "checkConformance" check. Return empty list if
+	// "checkConformance" not found. This list may include some unnecessary checks that run before
+	// conformance. However, there's no other reliable way to find a list of all the passes
+	// that conformance depends on.
+	passes := NewPassListBuilder(c.options)
+	passes.AddAllUpTo(fromDelegate, PassNames_CHECK_CONFORMANCE)
+	return passes
+}
+
+// Java: ConformancePassConfig.getOptimizations()
+func (c *ConformancePassConfig) GetOptimizations() *PassListBuilder {
+	return NewPassListBuilder(c.options)
+}
+
+// CheckExtraRequiresPassConfig is a PassConfig to only run the
+// CheckExtraRequires linter rule. This allows user to select which
+// goog.require imports to be removed, provided by requiresToRemove
+//
+// Java: final class CheckExtraRequiresPassConfig extends PassConfig.PassConfigDelegate
+type CheckExtraRequiresPassConfig struct {
+	PassConfig_PassConfigDelegateBase
+}
+
+// Java: CheckExtraRequiresPassConfig(CompilerOptions)
+func NewCheckExtraRequiresPassConfig(options *CompilerOptions) *CheckExtraRequiresPassConfig {
+	c := &CheckExtraRequiresPassConfig{}
+	c.self = c
+	c.InitPassConfig_PassConfigDelegateBase(NewDefaultPassConfig(options))
+	return c
+}
+
+// Java: CheckExtraRequiresPassConfig.getChecks()
+func (c *CheckExtraRequiresPassConfig) GetChecks() *PassListBuilder {
+	passes := NewPassListBuilder(c.options)
+	passes.MaybeAdd(
+		PassFactory_Builder_().
+			SetName("removeUnusedImport").
+			SetInternalFactory(
+				func(compiler AbstractCompiler) CompilerPass {
+					return NewCombinedCompilerPassOfList(
+						compiler,
+						[]NodeTraversal_Callback{
+							NewCheckExtraRequires(compiler, c.options.GetUnusedImportsToRemove())})
+				}).
+			Build())
+	return passes
+}
+
+// Java: CheckExtraRequiresPassConfig.getOptimizations()
+func (c *CheckExtraRequiresPassConfig) GetOptimizations() *PassListBuilder {
+	return NewPassListBuilder(c.options)
+}

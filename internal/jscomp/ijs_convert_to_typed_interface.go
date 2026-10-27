@@ -362,17 +362,129 @@ func ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemov
 	}
 }
 
+// IjsErrors holds IJS-related errors occurring outside the
+// ConvertToTypedInterface pass.
+type IjsErrors struct{}
+
+var (
+	IjsErrors_BAD_IJS_FILE_NAME = DiagnosticType_Error("JSC_BAD_IJS_FILE_NAME", "--ijs file name must end in .i.js: {0}")
+
+	IjsErrors_CONFLICTING_IJS_FILE = DiagnosticType_Warning(
+		"JSC_CONFLICTING_IJS_FILE",
+		"Found --ijs file in a conflict with --js or --weakdep file. This usually means the same"+
+			" file appears both in the srcs and the transitive deps of a build target.\n"+
+			"File 1: {0}\n"+
+			"File 2: {1}")
+)
+
 // ConvertToTypedInterface_PropagateConstJsdoc is the private static nested
 // class ConvertToTypedInterface.PropagateConstJsdoc.
 type ConvertToTypedInterface_PropagateConstJsdoc struct {
-	ProcessConstJsdocCallbackBase
+	NodeTraversal_AbstractPostOrderCallbackBase
+
+	currentFile *FileInfo
 }
+
+var processConstJsdocCallback_GOOG_DEFINE = rhino.QualifiedName_Of("goog.define")
+var processConstJsdocCallback_GOOG_PROVIDE = rhino.QualifiedName_Of("goog.provide")
+var processConstJsdocCallback_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
+var processConstJsdocCallback_CJS_REQUIRE = rhino.QualifiedName_Of("require")
 
 // Java: ConvertToTypedInterface.PropagateConstJsdoc(FileInfo)
 func NewConvertToTypedInterface_PropagateConstJsdoc(currentFile *FileInfo) *ConvertToTypedInterface_PropagateConstJsdoc {
-	p := &ConvertToTypedInterface_PropagateConstJsdoc{}
-	p.InitProcessConstJsdocCallbackBase(p, currentFile)
-	return p
+	return &ConvertToTypedInterface_PropagateConstJsdoc{currentFile: currentFile}
+}
+
+// Java: ProcessConstJsdocCallback.visit(NodeTraversal, Node, Node)
+func (p *ConvertToTypedInterface_PropagateConstJsdoc) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_CLASS:
+		if NodeUtil_IsStatementParent(parent) {
+			p.currentFile.RecordNameDeclaration(n.GetFirstChild())
+		}
+	case rhino.Token_MEMBER_FIELD_DEF:
+		if !NodeUtil_GetRValueOfLValue(n).IsNil() {
+			p.ProcessDeclarationWithRhs(t, n)
+		}
+		p.currentFile.RecordMemberFieldDef(n)
+	case rhino.Token_FUNCTION:
+		if NodeUtil_IsStatementParent(parent) {
+			p.currentFile.RecordNameDeclaration(n.GetFirstChild())
+		} else if ClassUtil_IsClassMethod(n) && ClassUtil_HasNamedClass(n) {
+			p.currentFile.RecordMethod(n)
+		}
+	case rhino.Token_EXPR_RESULT:
+		expr := n.GetFirstChild()
+		switch expr.GetToken() {
+		case rhino.Token_CALL:
+			callee := expr.GetFirstChild()
+			if processConstJsdocCallback_GOOG_PROVIDE.Matches(callee) {
+				p.currentFile.MarkProvided(expr.GetLastChild().GetString())
+			} else if processConstJsdocCallback_GOOG_REQUIRE.Matches(callee) || processConstJsdocCallback_CJS_REQUIRE.Matches(callee) {
+				p.currentFile.RecordImport(expr.GetLastChild().GetString())
+			} else if processConstJsdocCallback_GOOG_DEFINE.Matches(callee) {
+				p.currentFile.RecordDefine(expr)
+			}
+		case rhino.Token_ASSIGN:
+			p.RecordDeclaration(t, expr.GetFirstChild(), expr.GetLastChild())
+		case rhino.Token_GETPROP:
+			p.currentFile.RecordNameDeclaration(expr)
+		case rhino.Token_GETELEM:
+		default:
+			panic(jutil.NewIllegalArgumentExceptionMsg("Unexpected declaration: " + expr.String()))
+		}
+	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
+		jutil.CheckStateMsg1(n.HasOneChild(), "%s", n)
+		p.RecordDeclaration(t, n.GetFirstChild(), n.GetFirstChild().GetLastChild())
+	case rhino.Token_STRING_KEY:
+		if parent.IsObjectLit() && n.HasOneChild() {
+			p.ProcessDeclarationWithRhs(t, n)
+			p.currentFile.RecordStringKeyDeclaration(n)
+		}
+	default:
+	}
+}
+
+// Java: ProcessConstJsdocCallback.recordDeclaration(NodeTraversal, Node, Node)
+func (p *ConvertToTypedInterface_PropagateConstJsdoc) RecordDeclaration(t *NodeTraversal, lhs rhino.Node, rhs rhino.Node) {
+	if !rhs.IsNil() &&
+		rhs.IsCall() &&
+		processConstJsdocCallback_GOOG_DEFINE.Matches(rhs.GetFirstChild()) &&
+		lhs.IsQualifiedName() {
+		p.currentFile.RecordDefine(rhs)
+	} else if lhs.IsGetElem() {
+		return
+	} else {
+		p.RecordNameDeclaration(lhs, rhs)
+		if !lhs.IsDestructuringLhs() && !rhs.IsNil() {
+			p.ProcessDeclarationWithRhs(t, lhs)
+		}
+	}
+}
+
+// Java: ProcessConstJsdocCallback.recordNameDeclaration(Node, Node)
+func (p *ConvertToTypedInterface_PropagateConstJsdoc) RecordNameDeclaration(lhs rhino.Node, rhs rhino.Node) {
+	jutil.CheckArgument(NodeUtil_IsNameDeclaration(lhs.GetParent()) || lhs.GetParent().IsAssign())
+	isImport := PotentialDeclaration_IsImportRhs(rhs)
+	isAlias := PotentialDeclaration_IsAliasDeclaration(lhs, rhs)
+	NodeUtil_VisitLhsNodesInNode(
+		lhs.GetParent(),
+		func(name rhino.Node) {
+			if isAlias || isImport {
+				p.currentFile.RecordAliasDeclaration(name)
+			} else {
+				p.currentFile.RecordNameDeclaration(name)
+			}
+		})
+}
+
+// Java: ProcessConstJsdocCallback.processDeclarationWithRhs(NodeTraversal, Node)
+func (p *ConvertToTypedInterface_PropagateConstJsdoc) ProcessDeclarationWithRhs(t *NodeTraversal, lhs rhino.Node) {
+	jutil.CheckArgumentMsg1(lhs.IsQualifiedName() || lhs.IsStringKey() || lhs.IsMemberFieldDef(), "%s", lhs)
+	jutil.CheckStateMsg1(!NodeUtil_GetRValueOfLValue(lhs).IsNil(), "%s", lhs)
+	if PotentialDeclaration_IsConstToBeInferred(lhs) {
+		p.ProcessConstWithRhs(t, lhs)
+	}
 }
 
 // Java: ConvertToTypedInterface.PropagateConstJsdoc.processConstWithRhs(NodeTraversal, Node)

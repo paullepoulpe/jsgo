@@ -252,6 +252,3 @@ func JsIterables_MaybeBoxIterableAndPossiblyAsyncIterable(
 	}
 	return newJsIterables_MaybeBoxedType(typeRegistry.CreateUnionTypeOfList(templatedTypes), nil)
 }
-
-// Java: JsIterables()
-func newJsIterables() *JsIterables { return &JsIterables{} }

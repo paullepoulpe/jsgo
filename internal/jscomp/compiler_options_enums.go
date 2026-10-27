@@ -1033,3 +1033,27 @@ func (e CompilerOptions_J2clPassMode) Ordinal() int { return int(e) }
 func (e CompilerOptions_J2clPassMode) ShouldAddJ2clPasses() bool {
 	return e == CompilerOptions_J2clPassMode_AUTO
 }
+
+// CustomPassExecutionTime is the custom pass type. Controls the compilation
+// stage at which each custom pass executes.
+type CustomPassExecutionTime int32
+
+const (
+	CustomPassExecutionTime_BEFORE_CHECKS CustomPassExecutionTime = iota
+	CustomPassExecutionTime_BEFORE_OPTIMIZATIONS
+	CustomPassExecutionTime_BEFORE_OPTIMIZATION_LOOP
+	CustomPassExecutionTime_AFTER_OPTIMIZATION_LOOP
+)
+
+var customPassExecutionTime_names = [...]string{
+	"BEFORE_CHECKS", "BEFORE_OPTIMIZATIONS", "BEFORE_OPTIMIZATION_LOOP", "AFTER_OPTIMIZATION_LOOP",
+}
+
+// Name is Enum.name().
+func (t CustomPassExecutionTime) Name() string { return customPassExecutionTime_names[t] }
+
+// String is Enum.toString().
+func (t CustomPassExecutionTime) String() string { return t.Name() }
+
+// Ordinal is Enum.ordinal().
+func (t CustomPassExecutionTime) Ordinal() int { return int(t) }

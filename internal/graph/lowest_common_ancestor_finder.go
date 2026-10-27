@@ -46,8 +46,6 @@ type LowestCommonAncestorFinder[N comparable, E any] interface {
 	//
 	// Java: LowestCommonAncestorFinder.findAll(Set<N>)
 	FindAll(roots jutil.Set[N]) *jutil.LinkedHashSet[N]
-
-	GetLowestCommonAncestorFinderBase() *LowestCommonAncestorFinderBase[N, E]
 }
 
 // LowestCommonAncestorFinder_Factory is an abstraction for
@@ -150,12 +148,6 @@ func NewLowestCommonAncestorFinder[N comparable, E any](graph DiGraph[N, E]) *Lo
 func (f *LowestCommonAncestorFinderBase[N, E]) InitLowestCommonAncestorFinderBase(graph DiGraph[N, E]) {
 	f.graph = graph
 	f.searchColoring = jutil.NewLinkedHashMap[DiGraph_DiGraphNode[N, E], *lowestCommonAncestorFinder_Color]()
-}
-
-// GetLowestCommonAncestorFinderBase gives access to the base fields
-// through the interface.
-func (f *LowestCommonAncestorFinderBase[N, E]) GetLowestCommonAncestorFinderBase() *LowestCommonAncestorFinderBase[N, E] {
-	return f
 }
 
 // Java: LowestCommonAncestorFinder.findAll(Set<N>)

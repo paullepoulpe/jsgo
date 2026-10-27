@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/dtoa"
@@ -48,11 +49,9 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 		return base.Tri_TRUE
 
 	case rhino.Token_TEMPLATELIT:
-		if n.HasOneChild() {
-			templateLitString := n.GetOnlyChild()
-			jutil.CheckStateMsg1(templateLitString.IsTemplateLitString(), "%s", templateLitString)
-			cookedString := templateLitString.GetCookedString()
-			return base.Tri_ForBoolean(cookedString != nil && *cookedString != "")
+		if part, ok := ast.MustTemplateLit(n).OnlyPart(); ok {
+			cookedString, ok := part.MustTemplateLitString().Cooked()
+			return base.Tri_ForBoolean(ok && cookedString != "")
 		} else {
 			return base.Tri_UNKNOWN
 		}
@@ -63,7 +62,7 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 	case rhino.Token_BIGINT:
 		return base.Tri_ForBoolean(n.GetBigInt().Sign() != 0)
 	case rhino.Token_NOT:
-		return NodeUtil_GetBooleanValue(n.GetLastChild()).Not()
+		return NodeUtil_GetBooleanValue(ast.MustUnary(n).Operand().Node()).Not()
 
 	case rhino.Token_NAME:
 		// We assume here that programs don't change the value of these global variables.
@@ -92,8 +91,10 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 		return base.Tri_UNKNOWN
 
 	// For ASSIGN and COMMA the value is the value of the RHS.
-	case rhino.Token_ASSIGN, rhino.Token_COMMA:
-		return NodeUtil_GetBooleanValue(n.GetLastChild())
+	case rhino.Token_ASSIGN:
+		return NodeUtil_GetBooleanValue(ast.MustAssign(n).Value().Node())
+	case rhino.Token_COMMA:
+		return NodeUtil_GetBooleanValue(ast.MustBinary(n).Right().Node())
 	case rhino.Token_AND, rhino.Token_ASSIGN_AND:
 		lhs := NodeUtil_GetBooleanValue(n.GetFirstChild())
 		rhs := NodeUtil_GetBooleanValue(n.GetLastChild())
@@ -103,8 +104,9 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 		rhs := NodeUtil_GetBooleanValue(n.GetLastChild())
 		return lhs.Or(rhs)
 	case rhino.Token_HOOK:
-		trueValue := NodeUtil_GetBooleanValue(n.GetSecondChild())
-		falseValue := NodeUtil_GetBooleanValue(n.GetLastChild())
+		hook := ast.MustHook(n)
+		trueValue := NodeUtil_GetBooleanValue(hook.Then().Node())
+		falseValue := NodeUtil_GetBooleanValue(hook.Else().Node())
 		if trueValue == falseValue {
 			return trueValue
 		} else {
@@ -146,10 +148,10 @@ func nodeUtil_getStringValue(n rhino.Node) (string, bool) {
 	case rhino.Token_TEMPLATELIT:
 		// Only convert a template literal if all its expressions can be converted.
 		var string_ strings.Builder
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			expression := child
-			if child.IsTemplateLitSub() {
-				expression = child.GetFirstChild()
+		for part := range ast.MustTemplateLit(n).Parts() {
+			expression := part.Node()
+			if sub, ok := part.AsTemplateLitSub(); ok {
+				expression = sub.Expr().Node()
 			}
 			expressionString, ok := nodeUtil_getStringValue(expression)
 			if !ok {
@@ -160,11 +162,7 @@ func nodeUtil_getStringValue(n rhino.Node) (string, bool) {
 		}
 		return string_.String(), true
 	case rhino.Token_TEMPLATELIT_STRING:
-		cooked := n.GetCookedString()
-		if cooked == nil {
-			return "", false
-		}
-		return *cooked, true
+		return ast.MustTemplateLitString(n).Cooked()
 	case rhino.Token_NAME:
 		name := n.GetString()
 		if "undefined" == name || "Infinity" == name || "NaN" == name {
@@ -187,7 +185,7 @@ func nodeUtil_getStringValue(n rhino.Node) (string, bool) {
 	case rhino.Token_VOID:
 		return "undefined", true
 	case rhino.Token_NOT:
-		child := NodeUtil_GetBooleanValue(n.GetFirstChild())
+		child := NodeUtil_GetBooleanValue(ast.MustUnary(n).Operand().Node())
 		if child != base.Tri_UNKNOWN {
 			if child.ToBoolean(true) { // reversed.
 				return "false", true
@@ -694,9 +692,9 @@ func NodeUtil_IsImmutableValue(n rhino.Node) bool {
 		// undefined to something other than the value undefined.
 		return "undefined" == name || "Infinity" == name || "NaN" == name
 	case rhino.Token_TEMPLATELIT:
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsTemplateLitSub() {
-				if !NodeUtil_IsImmutableValue(child.GetFirstChild()) {
+		for part := range ast.MustTemplateLit(n).Parts() {
+			if sub, ok := part.AsTemplateLitSub(); ok {
+				if !NodeUtil_IsImmutableValue(sub.Expr().Node()) {
 					return false
 				}
 			}

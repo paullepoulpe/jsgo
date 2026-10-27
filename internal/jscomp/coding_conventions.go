@@ -30,9 +30,6 @@ type CodingConventions struct {
 	_ byte
 }
 
-// Java: CodingConventions()
-func newCodingConventions() *CodingConventions { return &CodingConventions{} }
-
 // CodingConventions_GetDefault gets the default coding convention.
 //
 // Java: CodingConventions.getDefault()

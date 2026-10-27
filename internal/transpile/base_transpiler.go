@@ -104,8 +104,6 @@ type BaseTranspiler_CompilerSupplier interface {
 	CreateTrivialExterns() *jscomp.SourceFile
 	// Java: CompilerSupplier.createEmptySource()
 	CreateEmptySource() *jscomp.SourceFile
-
-	GetBaseTranspiler_CompilerSupplierBase() *BaseTranspiler_CompilerSupplierBase
 }
 
 // BaseTranspiler_CompilerSupplierBase holds the fields of CompilerSupplier
@@ -168,12 +166,6 @@ func (s *BaseTranspiler_CompilerSupplierBase) InitBaseTranspiler_CompilerSupplie
 	s.prefixReplacements = prefixReplacements
 }
 
-// GetBaseTranspiler_CompilerSupplierBase returns the CompilerSupplier
-// fields.
-func (s *BaseTranspiler_CompilerSupplierBase) GetBaseTranspiler_CompilerSupplierBase() *BaseTranspiler_CompilerSupplierBase {
-	return s
-}
-
 // Java: CompilerSupplier.compile(URI, String)
 func (s *BaseTranspiler_CompilerSupplierBase) Compile(path *jutil.URI, code string) *BaseTranspiler_CompileResult {
 	compiler := s.self.Compiler()
@@ -183,12 +175,8 @@ func (s *BaseTranspiler_CompilerSupplierBase) Compile(path *jutil.URI, code stri
 	source := compiler.ToSource()
 	var sourceMap strings.Builder
 	if result.SourceMap != nil {
-		jutil.Try(func() {
-			name := path.String()
-			result.SourceMap.AppendTo(&sourceMap, &name)
-		}, func(e jutil.IIOException) {
-			// impossible, and not a big deal even if it did happen.
-		})
+		name := path.String()
+		result.SourceMap.AppendTo(&sourceMap, &name)
 	}
 	transpiled := result.TranspiledFiles
 	if len(result.Errors) != 0 {

@@ -20,8 +20,6 @@
 package jscomp
 
 import (
-	"strings"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -208,7 +206,6 @@ type AstAnalyzer_Options_Builder struct {
 	assumeGettersArePure         bool
 	hasRegexpGlobalReferences    bool
 	assumeKnownBuiltinsArePure   bool
-	set_0                        int8
 }
 
 // Java: AstAnalyzer.Options.builder()
@@ -224,20 +221,18 @@ func NewAutoBuilder_AstAnalyzer_Options_Builder() *AstAnalyzer_Options_Builder {
 // Java: AutoBuilder_AstAnalyzer_Options_Builder(AstAnalyzer.Options)
 func NewAutoBuilder_AstAnalyzer_Options_BuilderFromSource(
 	source *AstAnalyzer_Options) *AstAnalyzer_Options_Builder {
-	b := &AstAnalyzer_Options_Builder{}
-	b.useTypesForLocalOptimization = source.UseTypesForLocalOptimization()
-	b.assumeGettersArePure = source.AssumeGettersArePure()
-	b.hasRegexpGlobalReferences = source.HasRegexpGlobalReferences()
-	b.assumeKnownBuiltinsArePure = source.AssumeKnownBuiltinsArePure()
-	b.set_0 = int8(0xf)
-	return b
+	return &AstAnalyzer_Options_Builder{
+		useTypesForLocalOptimization: source.UseTypesForLocalOptimization(),
+		assumeGettersArePure:         source.AssumeGettersArePure(),
+		hasRegexpGlobalReferences:    source.HasRegexpGlobalReferences(),
+		assumeKnownBuiltinsArePure:   source.AssumeKnownBuiltinsArePure(),
+	}
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.setUseTypesForLocalOptimization(boolean)
 func (b *AstAnalyzer_Options_Builder) SetUseTypesForLocalOptimization(
 	useTypesForLocalOptimization bool) *AstAnalyzer_Options_Builder {
 	b.useTypesForLocalOptimization = useTypesForLocalOptimization
-	b.set_0 |= int8(1)
 	return b
 }
 
@@ -245,7 +240,6 @@ func (b *AstAnalyzer_Options_Builder) SetUseTypesForLocalOptimization(
 func (b *AstAnalyzer_Options_Builder) SetAssumeGettersArePure(
 	assumeGettersArePure bool) *AstAnalyzer_Options_Builder {
 	b.assumeGettersArePure = assumeGettersArePure
-	b.set_0 |= int8(2)
 	return b
 }
 
@@ -253,7 +247,6 @@ func (b *AstAnalyzer_Options_Builder) SetAssumeGettersArePure(
 func (b *AstAnalyzer_Options_Builder) SetHasRegexpGlobalReferences(
 	hasRegexpGlobalReferences bool) *AstAnalyzer_Options_Builder {
 	b.hasRegexpGlobalReferences = hasRegexpGlobalReferences
-	b.set_0 |= int8(4)
 	return b
 }
 
@@ -261,28 +254,11 @@ func (b *AstAnalyzer_Options_Builder) SetHasRegexpGlobalReferences(
 func (b *AstAnalyzer_Options_Builder) SetAssumeKnownBuiltinsArePure(
 	assumeKnownBuiltinsArePure bool) *AstAnalyzer_Options_Builder {
 	b.assumeKnownBuiltinsArePure = assumeKnownBuiltinsArePure
-	b.set_0 |= int8(8)
 	return b
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.build()
 func (b *AstAnalyzer_Options_Builder) Build() *AstAnalyzer_Options {
-	if b.set_0 != 0xf {
-		var missing strings.Builder
-		if (b.set_0 & 1) == 0 {
-			missing.WriteString(" useTypesForLocalOptimization")
-		}
-		if (b.set_0 & 2) == 0 {
-			missing.WriteString(" assumeGettersArePure")
-		}
-		if (b.set_0 & 4) == 0 {
-			missing.WriteString(" hasRegexpGlobalReferences")
-		}
-		if (b.set_0 & 8) == 0 {
-			missing.WriteString(" assumeKnownBuiltinsArePure")
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
-	}
 	return NewAstAnalyzer_Options(
 		b.useTypesForLocalOptimization,
 		b.assumeGettersArePure,

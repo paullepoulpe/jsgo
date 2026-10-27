@@ -24,6 +24,41 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// ScopeCreator defines how objects capable of creating scopes from the parse
+// tree behave.
+type ScopeCreator interface {
+	// CreateScope creates a Scope object.
+	//
+	// n is the root node (either a FUNCTION node, a SCRIPT node, or a
+	// synthetic block node whose children are all SCRIPT nodes); parent is
+	// the parent Scope object (may be null).
+	//
+	// Go-only: language-adapter — implementations whose Java override narrows
+	// the result (SyntacticScopeCreator returns Scope, TypedScopeCreator
+	// TypedScope) keep this signature; callers assert (`.(*Scope)`).
+	//
+	// Java: ScopeCreator.createScope(Node, AbstractScope<?, ?>)
+	CreateScope(n rhino.Node, parent AbstractScope) AbstractScope
+}
+
+// ScopeCreator_ASSERT_NO_SCOPES_CREATED is a scope creator that can be
+// provided to NodeTraversal to ensure that no scopes are actually ever
+// created. This is in contrast to the default SyntacticScopeCreator, which
+// will create scopes on demand.
+var ScopeCreator_ASSERT_NO_SCOPES_CREATED ScopeCreator = &scopeCreator_assertNoScopesCreated{}
+
+// scopeCreator_assertNoScopesCreated is the anonymous class of
+// ASSERT_NO_SCOPES_CREATED.
+type scopeCreator_assertNoScopesCreated struct {
+	_ byte // Go-only: language-adapter — distinct identity
+}
+
+// Java: ScopeCreator.ASSERT_NO_SCOPES_CREATED.createScope(Node, AbstractScope<?, ?>)
+func (*scopeCreator_assertNoScopesCreated) CreateScope(n rhino.Node, parent AbstractScope) AbstractScope {
+	panic(jutil.NewIllegalStateExceptionMsg(
+		"ScopeCreator.ASSERT_NO_SCOPES_CREATED cannot create child scopes."))
+}
+
 // Go-only: this pass reads declarations through the typed view of package
 // ast (fn.Params(), decl.FirstDeclarator(), catch.Param(), imp.Bindings()...)
 // instead of child positions: each declaration shape has its own small

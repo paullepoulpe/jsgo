@@ -40,7 +40,7 @@ type CommandLineRunnerTest struct {
 
 	temporaryFolder *commandLineRunnerTest_TemporaryFolder
 
-	lastCompiler          *jscomp.Compiler          // nil is null
+	lastCompiler          *jscomp.Compiler   // nil is null
 	lastCommandLineRunner *CommandLineRunner // nil is null
 	exitCodes             []int
 	outReader             *bytes.Buffer

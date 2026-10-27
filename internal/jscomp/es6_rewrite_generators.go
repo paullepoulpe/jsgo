@@ -417,9 +417,10 @@ func (s *generatorFunctionTranspiler) transpileUnmarkedNode(n rhino.Node) {
 func (s *generatorFunctionTranspiler) transpileLabel(n rhino.Node) {
 	// Collect all label names in "a: b: c: {}" statement
 	var labelNames []rhino.Node
-	for n.IsLabel() {
-		labelNames = append(labelNames, n.RemoveFirstChild())
-		n = n.RemoveFirstChild()
+	for label, ok := ast.AsLabel(n); ok; label, ok = ast.AsLabel(n) {
+		name, body := label.Name().Node(), label.Body().Node()
+		labelNames = append(labelNames, name.Detach())
+		n = body.Detach()
 	}
 
 	var continueCase *generatorStateCase
@@ -578,11 +579,13 @@ func (s *generatorFunctionTranspiler) transpileYields(n rhino.Node) rhino.Node {
 
 func (s *generatorFunctionTranspiler) transpileIf(n rhino.Node, breakCase *generatorStateCase) {
 	astFactory := s.pass.astFactory
-	condition := s.maybeDecomposeExpression(n.RemoveFirstChild())
-	ifBlock := n.GetFirstChild()
-	elseBlock := ifBlock.GetNext()
+	ifStmt := ast.MustIf(n)
+	ifBlock := ifStmt.Then().Node()
+	elsePart, hasElse := ifStmt.Else()
+	elseBlock := elsePart.Node()
+	condition := s.maybeDecomposeExpression(ifStmt.Cond().Node().Detach())
 
-	if !ifBlock.IsGeneratorMarker() && (elseBlock.IsNil() || !elseBlock.IsGeneratorMarker()) {
+	if !ifBlock.IsGeneratorMarker() && (!hasElse || !elseBlock.IsGeneratorMarker()) {
 		n.AddChildToFront(condition)
 		n.SetGeneratorMarker(false)
 		s.transpileUnmarkedNode(n)
@@ -590,7 +593,7 @@ func (s *generatorFunctionTranspiler) transpileIf(n rhino.Node, breakCase *gener
 	}
 
 	ifBlock.Detach()
-	if elseBlock.IsNil() {
+	if !hasElse {
 		elseBlock = astFactory.CreateBlock().Srcref(n)
 	} else {
 		elseBlock.Detach()
@@ -638,13 +641,16 @@ func (s *generatorFunctionTranspiler) transpileFor(
 	continueCase *generatorStateCase,
 ) {
 	astFactory := s.pass.astFactory
+	forStmt := ast.MustFor(n)
+	condPart, hasCond := forStmt.Cond()
+	condition := condPart.Node()
+	updatePart, hasIncrement := forStmt.Update()
+	increment := updatePart.Node()
+	body := forStmt.Body().Node()
 	init := s.maybeDecomposeExpression(n.RemoveFirstChild())
-	condition := n.GetFirstChild()
-	increment := condition.GetNext()
-	body := increment.GetNext()
 
-	if !condition.IsGeneratorMarker() &&
-		!increment.IsGeneratorMarker() &&
+	if (!hasCond || !condition.IsGeneratorMarker()) &&
+		(!hasIncrement || !increment.IsGeneratorMarker()) &&
 		!body.IsGeneratorMarker() {
 		n.AddChildToFront(init)
 		n.SetGeneratorMarker(false)
@@ -665,7 +671,7 @@ func (s *generatorFunctionTranspiler) transpileFor(
 
 	s.ctx.switchCaseTo(startCase)
 
-	if !condition.IsEmpty() {
+	if hasCond {
 		condition = s.prepareNodeForWrite(s.maybeDecomposeExpression(condition.Detach()))
 		s.ctx.writeGeneratedNode(
 			astFactory.
@@ -680,7 +686,7 @@ func (s *generatorFunctionTranspiler) transpileFor(
 	s.ctx.popBreakContinueContext()
 
 	s.ctx.switchCaseTo(incrementCase)
-	if !increment.IsEmpty() {
+	if hasIncrement {
 		increment = s.maybeDecomposeExpression(increment.Detach())
 		s.transpileUnmarkedNode(astFactory.ExprResult(increment).Srcref(increment))
 	}
@@ -695,9 +701,11 @@ func (s *generatorFunctionTranspiler) transpileForIn(
 	continueCase *generatorStateCase,
 ) {
 	astFactory := s.pass.astFactory
-	detachedExpr := s.maybeDecomposeExpression(n.GetSecondChild().Detach())
-	target := n.GetFirstChild()
-	body := n.GetSecondChild()
+	forInStmt := ast.MustForIn(n)
+	target := forInStmt.Target().Node()
+	expr := forInStmt.Object().Node()
+	body := forInStmt.Body().Node()
+	detachedExpr := s.maybeDecomposeExpression(expr.Detach())
 
 	if !target.IsGeneratorMarker() && !body.IsGeneratorMarker() {
 		detachedExpr.InsertAfter(target)
@@ -755,19 +763,24 @@ func (s *generatorFunctionTranspiler) transpileDo(
 	breakCase *generatorStateCase,
 	continueCase *generatorStateCase,
 ) {
+	doStmt := ast.MustDo(n)
+	body := doStmt.Body().Node()
+	condNode := doStmt.Cond().Node()
+	body.Detach()
+	condNode.Detach()
+
 	startCase := s.ctx.createCase()
 	breakCase = s.ctx.maybeCreateCase(breakCase)
 	continueCase = s.ctx.maybeCreateCase(continueCase)
 
 	s.ctx.switchCaseTo(startCase)
 
-	body := n.RemoveFirstChild()
 	s.ctx.pushBreakContinueContext(breakCase, continueCase)
 	s.transpileStatement(body)
 	s.ctx.popBreakContinueContext()
 
 	s.ctx.switchCaseTo(continueCase)
-	condition := s.prepareNodeForWrite(s.maybeDecomposeExpression(n.RemoveFirstChild()))
+	condition := s.prepareNodeForWrite(s.maybeDecomposeExpression(condNode))
 	s.ctx.writeGeneratedNode(
 		s.pass.astFactory.
 			CreateIf(
@@ -777,16 +790,25 @@ func (s *generatorFunctionTranspiler) transpileDo(
 }
 
 func (s *generatorFunctionTranspiler) transpileTry(n rhino.Node, breakCase *generatorStateCase) {
-	tryBlock := n.RemoveFirstChild()
-	catchBlock := n.RemoveFirstChild()
-	finallyBlock := n.RemoveFirstChild()
+	tryStmt := ast.MustTry(n)
+	tryBlock := tryStmt.Body().Node()
+	catchNode, hasCatch := tryStmt.Catch()
+	finallyPart, hasFinally := tryStmt.Finally()
+	finallyBlock := finallyPart.Node()
+	tryBlock.Detach()
+	if hasCatch {
+		catchNode.Detach()
+	}
+	if hasFinally {
+		finallyBlock.Detach()
+	}
 
 	var catchCase *generatorStateCase
-	if catchBlock.HasChildren() {
+	if hasCatch {
 		catchCase = s.ctx.createCase()
 	}
 	var finallyCase *generatorStateCase
-	if !finallyBlock.IsNil() {
+	if hasFinally {
 		finallyCase = s.ctx.createCase()
 	}
 	endCase := s.ctx.maybeCreateCase(breakCase)
@@ -794,7 +816,7 @@ func (s *generatorFunctionTranspiler) transpileTry(n rhino.Node, breakCase *gene
 	s.ctx.enterTryBlock(catchCase, finallyCase, tryBlock)
 	s.transpileStatement(tryBlock)
 
-	if finallyBlock.IsNil() {
+	if !hasFinally {
 		s.ctx.leaveTryBlock(catchCase, endCase, tryBlock)
 	} else {
 		s.ctx.switchCaseTo(finallyCase)
@@ -803,15 +825,14 @@ func (s *generatorFunctionTranspiler) transpileTry(n rhino.Node, breakCase *gene
 		s.ctx.leaveFinallyBlock(endCase, finallyBlock)
 	}
 
-	if catchBlock.HasChildren() {
-		jutil.CheckState(catchBlock.GetFirstChild().IsCatch())
-
+	if hasCatch {
 		s.ctx.switchCaseTo(catchCase)
-		exceptionName := catchBlock.GetFirstFirstChild().Detach()
+		param, _ := catchNode.Param()
+		exceptionName := param.Node()
+		catchBody := catchNode.Body().Node().Detach()
+		exceptionName.Detach()
 		s.ctx.enterCatchBlock(finallyCase, exceptionName)
 
-		catchBody := catchBlock.GetFirstFirstChild().Detach()
-		jutil.CheckState(catchBody.IsBlock())
 		s.transpileStatement(catchBody)
 		s.ctx.leaveCatchBlock(finallyCase, catchBody)
 	}
@@ -820,12 +841,14 @@ func (s *generatorFunctionTranspiler) transpileTry(n rhino.Node, breakCase *gene
 }
 
 func (s *generatorFunctionTranspiler) transpileSwitch(n rhino.Node, breakCase *generatorStateCase) {
-	n.AddChildToFront(s.maybeDecomposeExpression(n.RemoveFirstChild()))
+	sw := ast.MustSwitch(n)
+	switchBody := sw.Body()
+	disc := sw.Discriminant().Node()
+	n.AddChildToFront(s.maybeDecomposeExpression(disc.Detach()))
 
 	hasGeneratorMarker := false
-	switchBody := n.GetSecondChild()
-	for caseSection := switchBody.GetFirstChild(); !caseSection.IsNil(); caseSection = caseSection.GetNext() {
-		if caseSection.IsGeneratorMarker() {
+	for caseSection := range switchBody.Cases() {
+		if caseSection.Node().IsGeneratorMarker() {
 			hasGeneratorMarker = true
 			break
 		}
@@ -844,14 +867,14 @@ func (s *generatorFunctionTranspiler) transpileSwitch(n rhino.Node, breakCase *g
 
 	// We don't have to transpile unmarked cases at the beginning of "switch".
 	canSkipUnmarkedCases := true
-	for caseSection := switchBody.GetFirstChild(); !caseSection.IsNil(); caseSection = caseSection.GetNext() {
-		if !caseSection.IsDefaultCase() && caseSection.GetFirstChild().IsGeneratorMarker() {
+	for caseSection := range switchBody.Cases() {
+		if c, ok := caseSection.AsCase(); ok && c.Value().Node().IsGeneratorMarker() {
 			s.pass.compiler.Report(
 				JSError_MakeWithNode(
 					n, TranspilationUtil_CANNOT_CONVERT_YET, "Case statements that contain yields"))
 			return
 		}
-		body := caseSection.GetLastChild()
+		body := caseSection.Body().Node()
 
 		if !body.HasChildren() || (canSkipUnmarkedCases && !body.IsGeneratorMarker()) {
 			continue
@@ -868,13 +891,13 @@ func (s *generatorFunctionTranspiler) transpileSwitch(n rhino.Node, breakCase *g
 		body.ReplaceWith(newBody)
 
 		detachedCases = append(detachedCases, detachedSwitchCase{generatedCase: generatedCase, body: body})
-		caseSection.SetGeneratorMarker(false)
+		caseSection.Node().SetGeneratorMarker(false)
 	}
 
 	endCase := s.ctx.maybeCreateCase(breakCase)
 
 	n.SetGeneratorMarker(false)
-	switchBody.SetGeneratorMarker(false)
+	switchBody.Node().SetGeneratorMarker(false)
 	s.transpileUnmarkedNode(n)
 	s.ctx.writeJumpTo(endCase, n)
 

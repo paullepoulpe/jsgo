@@ -55,12 +55,7 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // Java: class NoObjectType extends FunctionType (subclassed by NoType).
 type NoObjectType interface {
 	FunctionType
-
-	// GetNoObjectTypeBase gives access to the base through the interface.
-	//
-	// Go-only: language-adapter — field access through the interface
-	// (PORTING.md §4).
-	GetNoObjectTypeBase() *NoObjectTypeBase
+	isNoObjectType()
 }
 
 // NoObjectTypeBase holds NoObjectType's methods; the bottom Object type is
@@ -68,6 +63,8 @@ type NoObjectType interface {
 type NoObjectTypeBase struct {
 	FunctionTypeBase
 }
+
+func (*NoObjectTypeBase) isNoObjectType() {}
 
 // Java: NoObjectType(JSTypeRegistry)
 func NewNoObjectType(registry *JSTypeRegistry) *NoObjectTypeBase {
@@ -89,11 +86,6 @@ func (t *NoObjectTypeBase) InitNoObjectTypeBase(self NoObjectType, registry *JST
 	registry.releaseFunctionBuilder(b)
 	t.EagerlyResolveToSelf()
 }
-
-// GetNoObjectTypeBase gives access to the base through the interface.
-//
-// Go-only: language-adapter — field access through the interface (PORTING.md §4).
-func (t *NoObjectTypeBase) GetNoObjectTypeBase() *NoObjectTypeBase { return t }
 
 // Java: NoObjectType.getTypeClass()
 func (t *NoObjectTypeBase) GetTypeClass() JSTypeClass {
