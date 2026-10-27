@@ -51,6 +51,9 @@ type PhaseOptimizer struct {
 
 	// See CompilerOptions#optimizationLoopMaxIterations
 	optimizationLoopMaxIterations int
+
+	// Go-only: loop ordinal and iteration for DebugPassLogHook.
+	debugLoopOrdinal, debugLoopIter int
 }
 
 var PhaseOptimizer_logger = jutil.Logger_GetLogger("com.google.javascript.jscomp.PhaseOptimizer")
@@ -273,12 +276,19 @@ func (n *PhaseOptimizer_NamedPass) Process(externs rhino.Node, root rhino.Node) 
 	n.tracer = NewTracerWithType(&tracerType, &n.name)
 
 	p.compiler.BeforePass(n.name)
+	var debugEnd func()
+	if DebugPassLogHook != nil {
+		debugEnd = p.debugPassStart(n.name)
+	}
 
 	// Delay the creation of the actual pass until *after* all previous passes
 	// have been processed.
 	// Some precondition checks rely on this, eg, in CoalesceVariableNames.
 	n.factory.Create(p.compiler).Process(externs, root)
 
+	if debugEnd != nil {
+		debugEnd()
+	}
 	p.compiler.AfterPass(n.name)
 
 	jutil.Try(func() {
@@ -387,6 +397,7 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckStateMsg(!p.inLoop, "Nested loops are forbidden")
 	p.inLoop = true
 	l.isCodeRemovalLoop = l.IsCodeRemovalLoop()
+	p.debugLoopOrdinal++
 
 	// Set up function-change tracking
 	l.scopeHandler = NewPhaseOptimizer_ScopedChangeHandler(p)
@@ -451,6 +462,7 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			p.compiler.ThrowInternalError(PhaseOptimizer_OPTIMIZE_LOOP_ERROR, nil)
 		}
 		count++
+		p.debugLoopIter = count - 1
 		lastIterMadeChanges = false
 		for _, pass := range l.myPasses {
 			if (state == PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER &&

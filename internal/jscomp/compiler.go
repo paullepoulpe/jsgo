@@ -2020,6 +2020,9 @@ func (c *Compiler) NewTracer(passName string) *Tracer {
 	if c.options.GetTracerMode().IsOn() && c.tracker != nil {
 		c.tracker.RecordPassStart(passName, true)
 	}
+	if DebugPassLogHook != nil {
+		DebugPassLogHook(DebugPassEvent{Name: passName, Tracer: true, Start: true})
+	}
 	typ := "Compiler"
 	return NewTracerWithType(&typ, &comment)
 }
@@ -2027,6 +2030,9 @@ func (c *Compiler) NewTracer(passName string) *Tracer {
 // Java: Compiler.stopTracer(Tracer, String)
 func (c *Compiler) StopTracer(t *Tracer, passName string) {
 	result := t.Stop()
+	if DebugPassLogHook != nil {
+		DebugPassLogHook(DebugPassEvent{Name: passName, Tracer: true})
+	}
 	if c.options.GetTracerMode().IsOn() && c.tracker != nil {
 		c.tracker.RecordPassStop(passName, result)
 	}
