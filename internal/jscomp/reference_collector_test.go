@@ -412,11 +412,11 @@ func (c *ReferenceCollectorTest) TestLetAssignedOnceInLifetime2() {
 // the basic blocks of the references to x.
 func referenceCollectorTest_assertBlockRoots(t *testing.T, x *ReferenceCollection, want ...rhino.Token) {
 	t.Helper()
-	if x.references.Size() != len(want) {
-		t.Fatalf("%d references, want %d", x.references.Size(), len(want))
+	if len(x.references) != len(want) {
+		t.Fatalf("%d references, want %d", len(x.references), len(want))
 	}
 	for i, tok := range want {
-		assertEqual(t, "basic block root token", x.references.Get(i).GetBasicBlock().GetRoot().GetToken(), tok)
+		assertEqual(t, "basic block root token", x.references[i].GetBasicBlock().GetRoot().GetToken(), tok)
 	}
 }
 
@@ -515,12 +515,12 @@ func (c *ReferenceCollectorTest) TestProcessScopeThatsNotABasicBlock() {
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			y := rm.GetReferences(nt.GetScope().GetVar("y"))
 			assertEqual(t, "isWellDefined", y.IsWellDefined(), true)
-			firstBasicBlock := y.references.Get(0).GetBasicBlock()
+			firstBasicBlock := y.references[0].GetBasicBlock()
 			assertEqual(t, "first block root", firstBasicBlock.GetRoot().GetToken(), rhino.Token_BLOCK)
 			assertEqual(t, "first block root parent", firstBasicBlock.GetRoot().GetParent().GetToken(), rhino.Token_SCRIPT)
 
 			// We do not create a new BasicBlock for the second { use(y); }
-			secondBasicBlock := y.references.Get(1).GetBasicBlock()
+			secondBasicBlock := y.references[1].GetBasicBlock()
 			assertEqual(t, "second block root", secondBasicBlock.GetRoot().GetToken(), rhino.Token_BLOCK)
 			assertEqual(t, "second block root parent", secondBasicBlock.GetRoot().GetParent().GetToken(), rhino.Token_IF)
 		}),

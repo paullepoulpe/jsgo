@@ -79,12 +79,12 @@ func (c *OptimizeCallsTest) setConsiderExterns(b bool) { c.considerExterns = &b 
 // Go-only: test-helper — Java iterates the entry set directly.
 type optimizeCallsTest_Entry struct {
 	key   string
-	value *jutil.ArrayList[rhino.Node]
+	value []rhino.Node
 }
 
 // optimizeCallsTest_entries collects ReferenceMap.getNameReferences() /
 // getPropReferences() (an Iterable of entries) for assertThat.
-func optimizeCallsTest_entries(refs iter.Seq2[string, *jutil.ArrayList[rhino.Node]]) []optimizeCallsTest_Entry {
+func optimizeCallsTest_entries(refs iter.Seq2[string, []rhino.Node]) []optimizeCallsTest_Entry {
 	var out []optimizeCallsTest_Entry
 	for k, v := range refs {
 		out = append(out, optimizeCallsTest_Entry{key: k, value: v})
@@ -93,8 +93,8 @@ func optimizeCallsTest_entries(refs iter.Seq2[string, *jutil.ArrayList[rhino.Nod
 }
 
 // optimizeCallsTest_copyOf is ImmutableMap.copyOf(Iterable<Entry>).
-func optimizeCallsTest_copyOf(refs iter.Seq2[string, *jutil.ArrayList[rhino.Node]]) *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]] {
-	m := jutil.NewImmutableMapBuilder[string, *jutil.ArrayList[rhino.Node]]()
+func optimizeCallsTest_copyOf(refs iter.Seq2[string, []rhino.Node]) *jutil.LinkedHashMap[string, []rhino.Node] {
+	m := jutil.NewImmutableMapBuilder[string, []rhino.Node]()
 	for k, v := range refs {
 		m.Put(k, v)
 	}
@@ -241,12 +241,12 @@ func (c *OptimizeCallsTest) TestReferenceCollection_findsSuperCalls_simpleNames(
 		optimizeCallsTest_copyOf(c.references.GetNameReferences())
 	AssertThat(nameToRefs.KeySlice()).ContainsExactly("SuperClass", "SubClass")
 
-	AssertThat(nameToRefs.Get("SuperClass").Slice()).
+	AssertThat(nameToRefs.Get("SuperClass")).
 		ComparingElementsUsing(OptimizeCallsTest_HAS_TOKEN).
 		ContainsExactly(rhino.Token_NAME, rhino.Token_NAME, rhino.Token_SUPER, rhino.Token_NAME).
 		InOrder()
 
-	AssertThat(nameToRefs.Get("SubClass").Slice()).
+	AssertThat(nameToRefs.Get("SubClass")).
 		ComparingElementsUsing(OptimizeCallsTest_HAS_TOKEN).
 		ContainsExactly(rhino.Token_NAME, rhino.Token_NAME).
 		InOrder()
@@ -274,12 +274,12 @@ func (c *OptimizeCallsTest) TestReferenceCollection_findsSuperCalls_qualifiedNam
 		optimizeCallsTest_copyOf(c.references.GetPropReferences())
 	AssertThat(nameToRefs.KeySlice()).ContainsExactly("SuperClass", "SubClass", "constructor")
 
-	AssertThat(nameToRefs.Get("SuperClass").Slice()).
+	AssertThat(nameToRefs.Get("SuperClass")).
 		ComparingElementsUsing(OptimizeCallsTest_HAS_TOKEN).
 		ContainsExactly(rhino.Token_GETPROP, rhino.Token_GETPROP, rhino.Token_SUPER, rhino.Token_GETPROP).
 		InOrder()
 
-	AssertThat(nameToRefs.Get("SubClass").Slice()).
+	AssertThat(nameToRefs.Get("SubClass")).
 		ComparingElementsUsing(OptimizeCallsTest_HAS_TOKEN).
 		ContainsExactly(rhino.Token_GETPROP, rhino.Token_GETPROP).
 		InOrder()
@@ -314,17 +314,17 @@ func (c *OptimizeCallsTest) TestReferenceCollection_findsClassFields() {
 		optimizeCallsTest_copyOf(c.references.GetPropReferences())
 	AssertThat(nameToRefs.KeySlice()).ContainsExactly("a", "b", "e")
 
-	AssertThat(nameToRefs.Get("a").Slice()).
+	AssertThat(nameToRefs.Get("a")).
 		ComparingElementsUsing(OptimizeCallsTest_HAS_TOKEN).
 		ContainsExactly(rhino.Token_MEMBER_FIELD_DEF).
 		InOrder()
 
-	AssertThat(nameToRefs.Get("b").Slice()).
+	AssertThat(nameToRefs.Get("b")).
 		ComparingElementsUsing(OptimizeCallsTest_HAS_TOKEN).
 		ContainsExactly(rhino.Token_MEMBER_FIELD_DEF).
 		InOrder()
 
-	AssertThat(nameToRefs.Get("e").Slice()).
+	AssertThat(nameToRefs.Get("e")).
 		ComparingElementsUsing(OptimizeCallsTest_HAS_TOKEN).
 		ContainsExactly(rhino.Token_MEMBER_FIELD_DEF).
 		InOrder()
@@ -345,7 +345,7 @@ func (c *OptimizeCallsTest) TestReferenceCollection_reflectedProps() {
 
 	nameToRefs :=
 		optimizeCallsTest_copyOf(c.references.GetPropReferences())
-	AssertThat(nameToRefs.Get("m").Slice()).
+	AssertThat(nameToRefs.Get("m")).
 		ComparingElementsUsing(OptimizeCallsTest_HAS_TOKEN).
 		ContainsExactly(rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_CALL).
 		InOrder()
@@ -367,7 +367,7 @@ func (c *OptimizeCallsTest) TestIsAllowedReference_taggedTemplateLiteral() {
 	objRefs := nameToRefs.Get("obj")
 	AssertThat(objRefs).IsNotNull()
 	hasDisallowedRef := false
-	for ref := range objRefs.All() {
+	for _, ref := range objRefs {
 		if !OptimizeCalls_IsAllowedReference(ref) {
 			hasDisallowedRef = true
 		}

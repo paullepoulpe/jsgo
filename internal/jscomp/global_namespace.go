@@ -601,8 +601,8 @@ func (g *GlobalNamespace) NameForestSlice() []*GlobalNamespace_Name {
 // where the roots are the top-level names.
 //
 // Java: GlobalNamespace.getNameForest()
-func (g *GlobalNamespace) GetNameForest() *jutil.ArrayList[*GlobalNamespace_Name] {
-	return jutil.NewArrayListFrom(g.NameForestSlice())
+func (g *GlobalNamespace) GetNameForest() []*GlobalNamespace_Name {
+	return g.NameForestSlice()
 }
 
 // GetNameIndex gets an index of all the global names, indexed by full

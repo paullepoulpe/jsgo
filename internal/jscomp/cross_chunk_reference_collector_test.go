@@ -153,10 +153,10 @@ func (c *CrossChunkReferenceCollectorTest) TestBasicBlocks() {
 	xVar := globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
-	AssertThat(&xRefs.references).HasSize(3)
-	AssertNode(xRefs.references.Get(0).GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
-	AssertNode(xRefs.references.Get(1).GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
-	AssertNode(xRefs.references.Get(2).GetBasicBlock().GetRoot()).HasType(rhino.Token_CASE)
+	AssertThat(xRefs.references).HasSize(3)
+	AssertNode(xRefs.references[0].GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
+	AssertNode(xRefs.references[1].GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
+	AssertNode(xRefs.references[2].GetBasicBlock().GetRoot()).HasType(rhino.Token_CASE)
 }
 
 // Java: CrossChunkReferenceCollectorTest.testClassStaticBlock()
@@ -175,10 +175,10 @@ func (c *CrossChunkReferenceCollectorTest) TestClassStaticBlock() {
 	xVar := globalVariableNamesMap.Get("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
 	AssertThat(xRefs.IsAssignedOnceInLifetime()).IsFalse()
-	AssertThat(&xRefs.references).HasSize(3)
-	AssertNode(xRefs.references.Get(0).GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
-	AssertNode(xRefs.references.Get(1).GetBasicBlock().GetRoot()).HasType(rhino.Token_CLASS_MEMBERS)
-	AssertNode(xRefs.references.Get(2).GetBasicBlock().GetRoot()).HasType(rhino.Token_CLASS_MEMBERS)
+	AssertThat(xRefs.references).HasSize(3)
+	AssertNode(xRefs.references[0].GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
+	AssertNode(xRefs.references[1].GetBasicBlock().GetRoot()).HasType(rhino.Token_CLASS_MEMBERS)
+	AssertNode(xRefs.references[2].GetBasicBlock().GetRoot()).HasType(rhino.Token_CLASS_MEMBERS)
 }
 
 // Java: CrossChunkReferenceCollectorTest.nullishCoalesce()
@@ -188,10 +188,10 @@ func (c *CrossChunkReferenceCollectorTest) TestNullishCoalesce() {
 	xVar := globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
-	AssertThat(&xRefs.references).HasSize(3)
-	AssertNode(xRefs.references.Get(0).GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
-	AssertNode(xRefs.references.Get(1).GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
-	AssertNode(xRefs.references.Get(2).GetBasicBlock().GetRoot()).HasType(rhino.Token_ASSIGN)
+	AssertThat(xRefs.references).HasSize(3)
+	AssertNode(xRefs.references[0].GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
+	AssertNode(xRefs.references[1].GetBasicBlock().GetRoot()).HasType(rhino.Token_ROOT)
+	AssertNode(xRefs.references[2].GetBasicBlock().GetRoot()).HasType(rhino.Token_ASSIGN)
 }
 
 // Java: CrossChunkReferenceCollectorTest.testTopLevelStatements()
@@ -252,7 +252,7 @@ func (c *CrossChunkReferenceCollectorTest) TestVarDeclarationStatement() {
 	AssertThat(statements).HasSize(1)
 	varStatement := statements[0]
 	declaredNameReference := varStatement.GetDeclaredNameReference()
-	AssertThat(declaredNameReference).IsEqualTo(xRefs.references.Get(0))
+	AssertThat(declaredNameReference).IsEqualTo(xRefs.references[0])
 	AssertThat(varStatement.GetNonDeclarationReferences()).IsEmpty()
 	valueNode := varStatement.GetDeclaredValueNode()
 	AssertThat(valueNode).IsNotNull()
@@ -269,7 +269,7 @@ func (c *CrossChunkReferenceCollectorTest) TestFunctionDeclarationStatement() {
 
 	functionDeclaration := statements[0]
 	declaredNameReference := functionDeclaration.GetDeclaredNameReference()
-	AssertThat(declaredNameReference).IsEqualTo(xRefs.references.Get(0))
+	AssertThat(declaredNameReference).IsEqualTo(xRefs.references[0])
 	AssertThat(functionDeclaration.GetNonDeclarationReferences()).IsEmpty()
 }
 
@@ -283,7 +283,7 @@ func (c *CrossChunkReferenceCollectorTest) TestVariableAssignmentStatement() {
 
 	assignmentStatement := statements[1]
 	declaredNameReference := assignmentStatement.GetDeclaredNameReference()
-	AssertThat(declaredNameReference).IsEqualTo(xRefs.references.Get(1))
+	AssertThat(declaredNameReference).IsEqualTo(xRefs.references[1])
 	AssertThat(assignmentStatement.GetNonDeclarationReferences()).IsEmpty()
 	valueNode := assignmentStatement.GetDeclaredValueNode()
 	AssertThat(valueNode).IsNotNull()
@@ -300,7 +300,7 @@ func (c *CrossChunkReferenceCollectorTest) TestPropertyAssignmentStatement() {
 
 	assignmentStatement := statements[1]
 	declaredNameReference := assignmentStatement.GetDeclaredNameReference()
-	AssertThat(declaredNameReference).IsEqualTo(xRefs.references.Get(1))
+	AssertThat(declaredNameReference).IsEqualTo(xRefs.references[1])
 	AssertThat(assignmentStatement.GetNonDeclarationReferences()).IsEmpty()
 	valueNode := assignmentStatement.GetDeclaredValueNode()
 	AssertThat(valueNode).IsNotNull()
@@ -319,9 +319,9 @@ func (c *CrossChunkReferenceCollectorTest) TestGoogInheritsIsMovableDeclaration(
 
 	inheritsStatement := statements[2]
 	declaredNameReference := inheritsStatement.GetDeclaredNameReference()
-	AssertThat(declaredNameReference).IsEqualTo(refsToB.references.Get(1))
+	AssertThat(declaredNameReference).IsEqualTo(refsToB.references[1])
 	AssertThat(inheritsStatement.GetNonDeclarationReferences()).
-		ContainsExactly(refsToA.references.Get(1))
+		ContainsExactly(refsToA.references[1])
 	// inherits statements are always movable
 	AssertThat(inheritsStatement.IsMovableDeclaration()).IsTrue()
 }

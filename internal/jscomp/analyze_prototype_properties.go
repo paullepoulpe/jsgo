@@ -94,7 +94,7 @@ func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototyp
 	info := a.nameInfoSlab.New()
 	info.outer = a
 	info.name = name
-	info.declarations.InitWithBuffer(info.declBuf[:])
+	info.declarations = info.declBuf[:0]
 	info.outEdges = info.outEdgesBuf[:0]
 	return info
 }
@@ -719,8 +719,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessGlobalFunctionDecl
 		(!firstChild.IsNil() && p.IsGlobalFunctionDeclaration(t, firstChild)) {
 		name := nameNode.GetString()
 		a.GetNameInfoForName(name, AnalyzePrototypeProperties_VAR).
-			GetDeclarations().
-			Add(a.allocGlobalFunction(nameNode, v, t.GetChunk()))
+			AddDeclaration(a.allocGlobalFunction(nameNode, v, t.GetChunk()))
 
 		// If the function name is exported, we should create an edge here
 		// so that it's never removed.
@@ -759,7 +758,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) HandlePossibleAssignmentT
 		if NodeUtil_IsExprAssign(grandParent) &&
 			NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
 			var prop AnalyzePrototypeProperties_PrototypeProperty = a.allocAssignmentPrototypeProperty(grandParent, p.MaybeGetVar(t, root), t.GetChunk())
-			a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY).GetDeclarations().Add(prop)
+			a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(prop)
 			return true
 		}
 	case rhino.Token_ASSIGN:
@@ -773,7 +772,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) HandlePossibleAssignmentT
 					name := key.GetString()
 					var prop AnalyzePrototypeProperties_PrototypeProperty = NewAnalyzePrototypeProperties_LiteralPrototypeProperty(
 						key.GetFirstChild(), n, p.MaybeGetVar(t, root), t.GetChunk())
-					a.GetNameInfoForName(name, AnalyzePrototypeProperties_PROPERTY).GetDeclarations().Add(prop)
+					a.GetNameInfoForName(name, AnalyzePrototypeProperties_PROPERTY).AddDeclaration(prop)
 				}
 			}
 			return true
@@ -799,8 +798,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessMemberDef(t *NodeT
 		var_ = t.LookupVar(classNameNode.GetString())
 	}
 	p.outer.GetNameInfoForName(name, AnalyzePrototypeProperties_PROPERTY).
-		GetDeclarations().
-		Add(NewAnalyzePrototypeProperties_ClassMemberFunction(n, var_, t.GetChunk()))
+		AddDeclaration(NewAnalyzePrototypeProperties_ClassMemberFunction(n, var_, t.GetChunk()))
 }
 
 // Java: AnalyzePrototypeProperties.ProcessProperties.maybeGetVar(NodeTraversal, Node)
@@ -1125,8 +1123,8 @@ type AnalyzePrototypeProperties_NameInfo struct {
 
 	referenced bool
 	// Go-only: language-adapter — the ArrayDeque is only appended to (add)
-	// and iterated in either direction, so it is an ArrayList.
-	declarations          jutil.ArrayList[AnalyzePrototypeProperties_Symbol]
+	// and iterated in either direction, so it is a Go slice.
+	declarations          []AnalyzePrototypeProperties_Symbol
 	declBuf               [2]AnalyzePrototypeProperties_Symbol
 	deepestCommonChunkRef *JSChunk
 
@@ -1164,7 +1162,7 @@ func NewAnalyzePrototypeProperties_NameInfo(outer *AnalyzePrototypeProperties, n
 		outer: outer,
 		name:  name,
 	}
-	info.declarations.InitWithBuffer(info.declBuf[:])
+	info.declarations = info.declBuf[:0]
 	return info
 }
 
@@ -1233,10 +1231,15 @@ func (i *AnalyzePrototypeProperties_NameInfo) GetDeepestCommonChunkRef() *JSChun
 	return i.deepestCommonChunkRef
 }
 
-// GetDeclarations returns a mutable collection of all the prototype property
-// declarations of this property name.
+// GetDeclarations returns all the prototype property declarations of this
+// property name.
 //
 // Java: AnalyzePrototypeProperties.NameInfo.getDeclarations()
-func (i *AnalyzePrototypeProperties_NameInfo) GetDeclarations() *jutil.ArrayList[AnalyzePrototypeProperties_Symbol] {
-	return &i.declarations
+func (i *AnalyzePrototypeProperties_NameInfo) GetDeclarations() []AnalyzePrototypeProperties_Symbol {
+	return i.declarations
+}
+
+// AddDeclaration appends a declaration symbol to this NameInfo.
+func (i *AnalyzePrototypeProperties_NameInfo) AddDeclaration(sym AnalyzePrototypeProperties_Symbol) {
+	i.declarations = append(i.declarations, sym)
 }

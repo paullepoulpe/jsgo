@@ -85,11 +85,11 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 	}()
 	o.decisionsLog = logFile // avoid passing the log file through a bunch of methods
 	// Find all function nodes whose callers ignore the return values.
-	var toOptimize []*jutil.ArrayList[rhino.Node]
+	var toOptimize [][]rhino.Node
 
 	// Find all the candidates before modifying the AST.
 	for key, refs := range definitions.GetNameReferences() {
-		if o.IsCandidate(key, refs.Slice()) {
+		if o.IsCandidate(key, refs) {
 			if o.decisionsLog.IsLogging() {
 				o.decisionsLog.LogFormat("name %s\tremoving return value", key)
 			}
@@ -98,7 +98,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 	}
 
 	for key, refs := range definitions.GetPropReferences() {
-		if o.IsCandidate(key, refs.Slice()) {
+		if o.IsCandidate(key, refs) {
 			if o.decisionsLog.IsLogging() {
 				o.decisionsLog.LogFormat("property %s\tremoving return value", key)
 			}
@@ -108,7 +108,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 
 	// Now modify the AST
 	for _, refs := range toOptimize {
-		fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], refs.Slice())
+		fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], refs)
 		o.fnNodes = fns
 		for _, fn := range fns {
 			o.RewriteReturns(fn)

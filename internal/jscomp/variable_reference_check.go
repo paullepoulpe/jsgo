@@ -21,7 +21,6 @@ package jscomp
 import (
 	"slices"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -170,9 +169,9 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) AfterExitScope(t *Nod
 				b.CheckDefaultParam(v, scope, b.varsInFunctionBody)
 			}
 			if scope.GetRootNode().IsFunction() {
-				b.CheckShadowParam(v, scope, &referenceCollection.references)
+				b.CheckShadowParam(v, scope, referenceCollection.references)
 			}
-			b.CheckVar(v, &referenceCollection.references)
+			b.CheckVar(v, referenceCollection.references)
 		}
 	}
 	if scope.HasOwnImplicitSlot(AbstractScope_ImplicitVar_EXPORTS.ptr()) {
@@ -219,10 +218,10 @@ func (cb *variableReferenceCheck_defaultParamCallback) Visit(t *NodeTraversal, n
 
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.checkShadowParam(Var, Scope, List<Reference>)
 func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckShadowParam(
-	v *Var, functionScope *Scope, references *jutil.ArrayList[*Reference]) {
+	v *Var, functionScope *Scope, references []*Reference) {
 	maybeParam := functionScope.GetVar(v.GetName())
 	if maybeParam != nil && maybeParam.IsParam() && maybeParam.GetScope() == rhino.StaticScope(functionScope) {
-		for r := range references.All() {
+		for _, r := range references {
 			if (r.IsVarDeclaration() || r.IsHoistedFunction()) &&
 				r.GetNode() != v.GetNameNode() {
 				b.v.compiler.Report(JSError_MakeWithNode(r.GetNode(), VariableReferenceCheck_REDECLARED_VARIABLE, v.GetName()))
@@ -238,7 +237,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckGoogModuleExport
 		return
 	}
 
-	for reference := range references.references.All() {
+	for _, reference := range references.references {
 		if reference.IsLvalue() {
 			break
 		}
@@ -252,7 +251,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckGoogModuleExport
 // that references is in parse-tree order.
 //
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.checkVar(Var, List<Reference>)
-func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, references *jutil.ArrayList[*Reference]) {
+func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, references []*Reference) {
 	c := b.v
 	clear(c.blocksWithDeclarations)
 	c.blocksWithDeclarations = c.blocksWithDeclarations[:0]
@@ -266,7 +265,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, refe
 		hasSeenDeclaration = true
 	}
 
-	for reference := range references.All() {
+	for _, reference := range references {
 		if reference == hoistedFn {
 			continue
 		}
@@ -308,7 +307,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, refe
 		}
 
 		if isAssignment {
-			decl := references.Get(0)
+			decl := references[0]
 			declNode := decl.GetNode()
 			gp := declNode.GetGrandparent()
 			lhsOfForInLoop := gp.IsForIn() && gp.GetFirstFirstChild() == declNode
@@ -338,8 +337,8 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, refe
 // the variable is one.
 //
 // Java: VariableReferenceCheck.lookForHoistedFunction(List<Reference>)
-func (v *VariableReferenceCheck) LookForHoistedFunction(references *jutil.ArrayList[*Reference]) *Reference {
-	for reference := range references.All() {
+func (v *VariableReferenceCheck) LookForHoistedFunction(references []*Reference) *Reference {
+	for _, reference := range references {
 		if reference.IsHoistedFunction() {
 			v.addBlockWithDeclaration(reference.GetBasicBlock())
 			return reference

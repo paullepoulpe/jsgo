@@ -524,9 +524,9 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) IsInlineableModule
 	aliasedNameStr := name.GetFullName()
 	// the first rhs value Node we find assigned to the name
 	var firstRhs rhino.Node
-	size := aliasRefs.references.Size()
+	size := len(aliasRefs.references)
 	for i := 0; i < size; i++ {
-		ref := aliasRefs.references.Get(i)
+		ref := aliasRefs.references[i]
 		if ref.IsVarDeclaration() || ref.GetParent().IsAssign() {
 			var rhs rhino.Node
 			if ref.GetParent().IsAssign() {
@@ -608,14 +608,14 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 			(aliasRefs.IsAssignedOnceInLifetime() ||
 				a.IsInlineableModuleExportsAlias(name, aliasRefs)) {
 			// The alias is well-formed, so do the inlining now.
-			size := aliasRefs.references.Size()
+			size := len(aliasRefs.references)
 			// It's initialized on either the first or second reference.
 			firstRead := 2
-			if aliasRefs.references.Get(0).IsInitializingDeclaration() {
+			if aliasRefs.references[0].IsInitializingDeclaration() {
 				firstRead = 1
 			}
 			for i := firstRead; i < size; i++ {
-				aliasRef := aliasRefs.references.Get(i)
+				aliasRef := aliasRefs.references[i]
 				newNodes.Add(a.ReplaceAliasReference(alias, aliasRef))
 			}
 
@@ -1257,7 +1257,7 @@ func InlineAndCollapseProperties_MayBeGlobalAlias(alias *GlobalNamespace_Ref) bo
 // Java: InlineAndCollapseProperties.referencesCollapsibleProperty(ReferenceCollection, Name, GlobalNamespace)
 func InlineAndCollapseProperties_ReferencesCollapsibleProperty(
 	aliasRefs *ReferenceCollection, aliasedName *GlobalNamespace_Name, namespace *GlobalNamespace) bool {
-	for ref := range aliasRefs.references.All() {
+	for _, ref := range aliasRefs.references {
 		if ref.GetParent().IsNil() {
 			continue
 		}

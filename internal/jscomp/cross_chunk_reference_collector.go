@@ -219,7 +219,7 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, par
 						c.topLevelStatementDraft.nonDeclarationReferences = append(c.topLevelStatementDraft.nonDeclarationReferences, reference)
 						c.topLevelStatementDraft.nonDeclarationVars = append(c.topLevelStatementDraft.nonDeclarationVars, v)
 					}
-					col.references.Add(reference)
+					col.Add(reference)
 				}
 			}
 		}

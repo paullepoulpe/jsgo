@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"iter"
-	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -188,71 +187,97 @@ func (o *OptimizeCalls) EliminateAccessorsFrom(references *OptimizeCalls_Referen
 // properties.
 type OptimizeCalls_ReferenceMap struct {
 	globalScope *Scope
-	names       *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]]
-	props       *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]]
+	names       optimizeCalls_refTable
+	props       optimizeCalls_refTable
 	refLists    jutil.Slab[optimizeCalls_refList] // one pass's lists die together
 }
 
 // Java: OptimizeCalls.ReferenceMap()
 func NewOptimizeCalls_ReferenceMap() *OptimizeCalls_ReferenceMap {
-	return &OptimizeCalls_ReferenceMap{
-		names: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[rhino.Node]](256),
-		props: jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[rhino.Node]](512),
-	}
+	m := &OptimizeCalls_ReferenceMap{}
+	m.names.initWithCapacity(256)
+	m.props.initWithCapacity(512)
+	return m
 }
 
 // optimizeCalls_refList is a reference list with room for its first nodes in
 // the same allocation.
 type optimizeCalls_refList struct {
-	list jutil.ArrayList[rhino.Node]
-	buf  [4]rhino.Node
+	name    string
+	nodes   []rhino.Node
+	buf     [4]rhino.Node
+	removed bool
 }
 
-func (m *OptimizeCalls_ReferenceMap) newRefList() *jutil.ArrayList[rhino.Node] {
-	l := m.refLists.New()
-	l.list.InitWithBuffer(l.buf[:])
-	return &l.list
+type optimizeCalls_refTable struct {
+	byName map[string]*optimizeCalls_refList
+	order  []*optimizeCalls_refList
+	size   int
 }
 
-// listAddDoubling adds e to l, doubling l's capacity when it is full.
-//
-// Go-only: performance — append grows a large slice by only 1.25x, which
-// allocates about five times the final size of a long list in total.
-func listAddDoubling[T any](l *jutil.ArrayList[T], e T) {
-	if s := l.Slice(); len(s) == cap(s) && len(s) >= 256 {
-		l.InitWithBuffer(make([]T, 2*len(s)))
-		l.AddAll(s...)
+func (t *optimizeCalls_refTable) initWithCapacity(capHint int) {
+	t.byName = make(map[string]*optimizeCalls_refList, capHint)
+	t.order = make([]*optimizeCalls_refList, 0, min(capHint, 4096))
+	t.size = 0
+}
+
+func (t *optimizeCalls_refTable) Size() int     { return t.size }
+func (t *optimizeCalls_refTable) IsEmpty() bool { return t.size == 0 }
+
+func (t *optimizeCalls_refTable) Remove(name string) {
+	if l := t.byName[name]; l != nil {
+		delete(t.byName, name)
+		l.removed = true
+		l.nodes = nil
+		t.size--
 	}
-	l.Add(e)
 }
 
-// appendDoubling is append that doubles the capacity of a full slice (see
-// listAddDoubling).
+func (t *optimizeCalls_refTable) all() iter.Seq2[string, []rhino.Node] {
+	return func(yield func(string, []rhino.Node) bool) {
+		for _, l := range t.order {
+			if !l.removed && !yield(l.name, l.nodes) {
+				return
+			}
+		}
+	}
+}
+
+// appendDoubling is append that doubles the capacity of a full large slice.
+//
+// Go-only: performance — append already doubles up to 256 elements, then grows
+// by only 1.25x, which allocates about five times the final size of a long list.
 func appendDoubling[T any](s []T, e T) []T {
-	if len(s) == cap(s) {
-		s = slices.Grow(s, len(s))
+	if len(s) == cap(s) && len(s) >= 256 {
+		grown := make([]T, len(s), 2*len(s))
+		copy(grown, s)
+		s = grown
 	}
 	return append(s, e)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addReference(LinkedHashMap<String, ArrayList<Node>>, String, Node)
-func (m *OptimizeCalls_ReferenceMap) AddReference(data *jutil.LinkedHashMap[string, *jutil.ArrayList[rhino.Node]], name string, n rhino.Node) {
-	refs := data.Get(name)
+func (m *OptimizeCalls_ReferenceMap) AddReference(data *optimizeCalls_refTable, name string, n rhino.Node) {
+	refs := data.byName[name]
 	if refs == nil {
-		refs = m.newRefList()
-		data.PutNew(name, refs)
+		refs = m.refLists.New()
+		refs.name = name
+		refs.nodes = refs.buf[:0:len(refs.buf)]
+		data.byName[name] = refs
+		data.order = append(data.order, refs)
+		data.size++
 	}
-	listAddDoubling(refs, n)
+	refs.nodes = appendDoubling(refs.nodes, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addNameReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n rhino.Node) {
-	m.AddReference(m.names, name, n)
+	m.AddReference(&m.names, name, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addPropReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n rhino.Node) {
-	m.AddReference(m.props, name, n)
+	m.AddReference(&m.props, name, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.getGlobalScope()
@@ -261,13 +286,13 @@ func (m *OptimizeCalls_ReferenceMap) GetGlobalScope() *Scope {
 }
 
 // Java: OptimizeCalls.ReferenceMap.getNameReferences()
-func (m *OptimizeCalls_ReferenceMap) GetNameReferences() iter.Seq2[string, *jutil.ArrayList[rhino.Node]] {
-	return m.names.All()
+func (m *OptimizeCalls_ReferenceMap) GetNameReferences() iter.Seq2[string, []rhino.Node] {
+	return m.names.all()
 }
 
 // Java: OptimizeCalls.ReferenceMap.getPropReferences()
-func (m *OptimizeCalls_ReferenceMap) GetPropReferences() iter.Seq2[string, *jutil.ArrayList[rhino.Node]] {
-	return m.props.All()
+func (m *OptimizeCalls_ReferenceMap) GetPropReferences() iter.Seq2[string, []rhino.Node] {
+	return m.props.all()
 }
 
 // OptimizeCalls_ReferenceMap_AppendFunctionNodes appends all function nodes
@@ -621,10 +646,10 @@ func (c *OptimizeCalls_ReferenceMapBuildingCallback) initGlobalScope(s *Scope) {
 	// growth otherwise allocates about twice their final size.
 	varCount := s.GetVarCount()
 	if varCount > 4096 && c.references.names.IsEmpty() {
-		c.references.names = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[rhino.Node]](varCount)
+		c.references.names.initWithCapacity(varCount)
 	}
 	if varCount > 1024 && c.references.props.IsEmpty() {
-		c.references.props = jutil.NewLinkedHashMapWithCapacity[string, *jutil.ArrayList[rhino.Node]](max(varCount*4, 16384))
+		c.references.props.initWithCapacity(max(varCount*4, 16384))
 	}
 }
 

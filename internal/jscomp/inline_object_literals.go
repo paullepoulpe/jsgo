@@ -519,7 +519,7 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 			continue
 		}
 
-		if b.IsInlinableObject(&referenceInfo.references) {
+		if b.IsInlinableObject(referenceInfo.references) {
 			// Skiplist the object itself, as well as any other values
 			// that it refers to, since they will have been moved around.
 			b.staleVars.Add(v)
@@ -579,14 +579,13 @@ func (b *InlineObjectLiterals_InliningBehavior) IsVarInlineForbidden(var_ *Var) 
 //	x.fn();
 //
 // Java: InlineObjectLiterals.InliningBehavior.isInlinableObject(List<Reference>)
-func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs *jutil.ArrayList[*Reference]) bool {
+func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs []*Reference) bool {
 	ret := false
 	validProperties := &b.validProperties
 	if !validProperties.IsEmpty() {
 		validProperties.Clear()
 	}
-	refSlice := refs.Slice()
-	for _, ref := range refSlice {
+	for _, ref := range refs {
 		name := ref.GetNode()
 		parent := ref.GetParent()
 		grandparent := ref.GetGrandparent()
@@ -678,7 +677,7 @@ func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs *jutil.Ar
 			// Check if childVal is the parent of any of the passed in
 			// references, as that is how self-referential assignments
 			// will happen.
-			for _, t := range refSlice {
+			for _, t := range refs {
 				refNode := t.GetParent()
 				for !NodeUtil_IsStatementBlock(refNode) {
 					if refNode == childVal {
@@ -714,7 +713,7 @@ func (b *InlineObjectLiterals_InliningBehavior) IsVarOrAssignExprLhs(n rhino.Nod
 func (b *InlineObjectLiterals_InliningBehavior) ComputeVarList(referenceInfo *ReferenceCollection) *jutil.LinkedHashMap[string, string] {
 	varmap := jutil.NewLinkedHashMap[string, string]()
 
-	for _, ref := range referenceInfo.references.Slice() {
+	for _, ref := range referenceInfo.references {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
 			val := ref.GetAssignedValue()
 			if !val.IsNil() {
@@ -881,7 +880,7 @@ func (b *InlineObjectLiterals_InliningBehavior) SplitObject(v *Var, init *Refere
 		vnode.Detach()
 	}
 
-	for _, ref := range referenceInfo.references.Slice() {
+	for _, ref := range referenceInfo.references {
 
 		// The init/decl have already been converted.
 		if defined && ref == init {

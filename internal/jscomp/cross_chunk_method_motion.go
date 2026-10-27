@@ -112,7 +112,7 @@ func (m *CrossChunkMethodMotion) MoveMethods(allNameInfo []*AnalyzePrototypeProp
 		}
 
 		// nameInfo.getDeclarations().descendingIterator()
-		declarations := nameInfo.GetDeclarations().Slice()
+		declarations := nameInfo.GetDeclarations()
 		for i := len(declarations) - 1; i >= 0; i-- {
 			symbol := declarations[i]
 			if prototypeProperty, ok := symbol.(AnalyzePrototypeProperties_PrototypeProperty); ok {
@@ -551,7 +551,7 @@ func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithStub(
 
 // Java: CrossChunkMethodMotion.hasUnmovableRedeclaration(NameInfo, Property)
 func CrossChunkMethodMotion_HasUnmovableRedeclaration(nameInfo *AnalyzePrototypeProperties_NameInfo, prop AnalyzePrototypeProperties_Property) bool {
-	for _, symbol := range nameInfo.GetDeclarations().Slice() {
+	for _, symbol := range nameInfo.GetDeclarations() {
 		if otherProp, ok := symbol.(AnalyzePrototypeProperties_Property); ok {
 			// It is possible to do better here if the dependencies are well defined
 			// but redefinitions are usually in optional chunks so it isn't likely

@@ -36,6 +36,7 @@ package rhino
 
 import (
 	"iter"
+	"slices"
 	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -133,7 +134,7 @@ func NewRhinoStringPool() *RhinoStringPool { return &RhinoStringPool{} }
 // This is a performance win if creating a lot of string nodes with the same
 // string.
 type RhinoStringPool_LazyInternedStringList struct {
-	pool       *jutil.ArrayList[string]
+	pool       []string
 	ids        []uint32
 	isInterned *RhinoStringPool_WriteOnlyBitset
 }
@@ -141,7 +142,7 @@ type RhinoStringPool_LazyInternedStringList struct {
 // Java: RhinoStringPool.LazyInternedStringList(List<String>)
 func NewRhinoStringPool_LazyInternedStringList(pool []string) *RhinoStringPool_LazyInternedStringList {
 	return &RhinoStringPool_LazyInternedStringList{
-		pool:       jutil.NewArrayListFrom(pool),
+		pool:       slices.Clone(pool),
 		ids:        make([]uint32, len(pool)),
 		isInterned: NewRhinoStringPool_WriteOnlyBitset(len(pool)),
 	}
@@ -160,7 +161,7 @@ func NewRhinoStringPool_LazyInternedStringListFromIDs(ids []uint32) *RhinoString
 
 //go:noinline
 func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStringID {
-	if l.pool == nil {
+	if l.isInterned == nil {
 		wordIdx := RhinoStringPool_WriteOnlyBitset_WordIndex(offset)
 		wordLen := RhinoStringPool_WriteOnlyBitset_WordIndex(len(l.ids)-1) + 1
 		panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(wordIdx, wordLen))
@@ -172,7 +173,10 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 	} else {
 		_ = l.isInterned.Get(offset)
 	}
-	uninterned := l.pool.Get(offset)
+	if uint(offset) >= uint(len(l.pool)) {
+		panic(jutil.NewIndexOutOfBoundsException(jutil.LenientFormat("Index %s out of bounds for length %s", offset, len(l.pool))))
+	}
+	uninterned := l.pool[offset]
 	id := rhinoStringPoolIntern(uninterned)
 	atomic.StoreUint32(&l.ids[offset], uint32(id))
 	l.isInterned.Set(offset)
@@ -181,7 +185,7 @@ func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStri
 
 // GetID returns the interned rhinoStringID at offset, interning on first access.
 func (l *RhinoStringPool_LazyInternedStringList) GetID(offset int) rhinoStringID {
-	if l.pool == nil && uint(offset) < uint(len(l.ids)) {
+	if l.isInterned == nil && uint(offset) < uint(len(l.ids)) {
 		return rhinoStringID(l.ids[offset])
 	}
 	return l.getIDSlow(offset)
@@ -201,8 +205,8 @@ func (l *RhinoStringPool_LazyInternedStringList) Get(offset int) string {
 
 // Java: RhinoStringPool.LazyInternedStringList.stream()
 func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
-	if l.pool != nil {
-		return l.pool.All()
+	if l.isInterned != nil {
+		return slices.Values(l.pool)
 	}
 	return func(yield func(string) bool) {
 		for _, id := range l.ids {
@@ -215,8 +219,8 @@ func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
 
 // Slice returns the underlying string slice.
 func (l *RhinoStringPool_LazyInternedStringList) Slice() []string {
-	if l.pool != nil {
-		return l.pool.Slice()
+	if l.isInterned != nil {
+		return l.pool
 	}
 	out := make([]string, len(l.ids))
 	for i, id := range l.ids {

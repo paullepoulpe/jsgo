@@ -253,7 +253,7 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 		}
 		col = c.colSlab[k].New()
 		col.varScope = v.scope
-		col.references.InitWithBuffer(c.newRefBuffer(k, rcRefBufSlots))
+		col.references = c.newRefBuffer(k, rcRefBufSlots)
 		if c.refs == nil {
 			c.refs = make(map[scopedVarKey]*ReferenceCollection)
 		}
@@ -282,7 +282,7 @@ const (
 	rcRefBufChunk    = 508 // 4 KB with the 8-byte header of a pointerful allocation
 )
 
-// newRefBuffer returns a buffer of n *Reference slots for a reference list,
+// newRefBuffer returns an empty slice with capacity n *Reference slots,
 // carved from a shared chunk.
 func (c *ReferenceCollector) newRefBuffer(k int, n int) []*Reference {
 	buf := c.refBufs[k]
@@ -290,18 +290,17 @@ func (c *ReferenceCollector) newRefBuffer(k int, n int) []*Reference {
 		buf = jutil.SlabChunk[*Reference](rcRefBufChunk)
 	}
 	c.refBufs[k] = buf[n:]
-	return buf[:n:n]
+	return buf[:0:n]
 }
 
 // addToCollection adds r to col's references, moving a full list of up to
 // rcRefBufMaxSlots slots to a buffer twice as long from the shared chunk
 // (a longer one grows on its own, as any list does).
 func (c *ReferenceCollector) addToCollection(col *ReferenceCollection, r *Reference, k int) {
-	if s := col.references.Slice(); len(s) == cap(s) && cap(s) <= rcRefBufMaxSlots {
-		col.references.InitWithBuffer(c.newRefBuffer(k, 2*cap(s)))
-		col.references.AddAll(s...)
+	if s := col.references; len(s) == cap(s) && cap(s) <= rcRefBufMaxSlots {
+		col.references = append(c.newRefBuffer(k, 2*cap(s)), s...)
 	}
-	col.references.Add(r)
+	col.references = append(col.references, r)
 }
 
 func (c *ReferenceCollector) getReferencesByScopedNameID(scopeRoot rhino.Node, nameID uint32) *ReferenceCollection {

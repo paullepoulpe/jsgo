@@ -537,7 +537,7 @@ func (b *InlineVariables_InliningBehavior) initScratchVarExpert(
 		outer:                               b,
 		v:                                   v,
 		referenceInfo:                       referenceInfo,
-		declaration:                         referenceInfo.references.Get(0),
+		declaration:                         referenceInfo.getRef(0),
 		isDeclaredOrInferredConstant:        isDeclaredOrInferredConstant,
 		mayBeAParameterModifiedViaArguments: mayBeAParameterModifiedViaArguments,
 	}
@@ -714,8 +714,8 @@ func (b *InlineVariables_InliningBehavior) VarsInThisScopeMayBeModifiedUsingArgu
 		} else {
 			refs = referenceMap.GetReferences(scope.GetArgumentsVar())
 		}
-		if refs != nil && !refs.references.IsEmpty() {
-			for _, ref := range refs.references.Slice() {
+		if refs != nil && len(refs.references) > 0 {
+			for _, ref := range refs.references {
 				if !b.IsSafeUseOfArguments(ref.GetNode()) {
 					return true
 				}
@@ -815,7 +815,7 @@ func NewInlineVariables_InliningBehavior_StandardVarExpert(
 		outer:                               outer,
 		v:                                   initData.v,
 		referenceInfo:                       initData.referenceInfo,
-		declaration:                         initData.referenceInfo.references.Get(0),
+		declaration:                         initData.referenceInfo.getRef(0),
 		isDeclaredOrInferredConstant:        initData.isDeclaredOrInferredConstant,
 		mayBeAParameterModifiedViaArguments: initData.mayBeAParameterModifiedViaArguments,
 	}
@@ -852,11 +852,11 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) IsSafeToInlineAlias
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) PerformInline() {
 	switch e.analysisKind {
 	case analysisKindInlineWellDefined:
-		e.outer.InlineWellDefinedVariable(e.v, e.analysisInitValue, &e.referenceInfo.references)
+		e.outer.InlineWellDefinedVariable(e.v, e.analysisInitValue, e.referenceInfo.references)
 	case analysisKindInlineNeverAssigned:
 		srcLocation := e.declaration.GetNode()
 		undefinedNode := NodeUtil_NewUndefinedNode(srcLocation)
-		e.outer.InlineWellDefinedVariable(e.v, undefinedNode, &e.referenceInfo.references)
+		e.outer.InlineWellDefinedVariable(e.v, undefinedNode, e.referenceInfo.references)
 	case analysisKindInlineSingleRef:
 		e.outer.Inline(e.declaration, e.analysisInitRef, e.analysisSingleReadRef)
 	default:
@@ -954,7 +954,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) AllReferencesAreVal
 	} else {
 		if e.HasValidDeclaration() && (e.HasValidInitialization() || e.IsNeverAssigned()) {
 			initialization := e.GetInitialization()
-			for _, ref := range e.referenceInfo.references.Slice() {
+			for _, ref := range e.referenceInfo.references {
 				if ref != e.declaration && ref != initialization && !e.outer.IsValidReference(ref) {
 					return e.allReferencesAreValid.SetKnownValueOnce(false)
 				}
@@ -973,7 +973,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) Analyze() InlineVar
 	// Go-only: a variable whose only reference is its declaration can only
 	// be removed as an alias (var a = b; see ReanalyzeAfterAliasedVar), so
 	// the others skip the analysis.
-	if e.referenceInfo.references.Size() == 1 && !e.isDeclaredOrInferredConstant {
+	if len(e.referenceInfo.references) == 1 && !e.isDeclaredOrInferredConstant {
 		if e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 			return e.GetNegativeInlineVarAnalysis()
 		}
@@ -1032,7 +1032,7 @@ func inlineVariables_isDeclaredAsAlias(n rhino.Node) bool {
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.analyzeWithInitialValue(Reference, Node, InitialValueAnalysis)
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) AnalyzeWithInitialValue(
 	initialization *Reference, initValue rhino.Node, initialValueAnalysis *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis) InlineVariables_InlineVarAnalysis {
-	refCount := e.referenceInfo.references.Size()
+	refCount := len(e.referenceInfo.references)
 
 	// TODO(bradfordcsmith): We could remove the `refCount > 1` here, but:
 	//  1. That will require some additional logic to handle stuff like named function
@@ -1067,7 +1067,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) AnalyzeWithInitialV
 		if numReadRefs == 1 {
 			// The variable is likely only read once, so we can try some more complex inlining
 			// heuristics.
-			singleReadReference := e.referenceInfo.references.Get(firstReadRefIndex)
+			singleReadReference := e.referenceInfo.references[firstReadRefIndex]
 			if e.outer.CanInline(e.declaration, initialization, singleReadReference, initValue) {
 				// A custom inline method is needed for this case.
 				e.analysisKind = analysisKindInlineSingleRef
@@ -1088,7 +1088,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) GetNegativeInlineVa
 	// use canonical analysis values to save on memory space.
 	if e.mayBeAParameterModifiedViaArguments ||
 		e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY ||
-		e.referenceInfo.references.Size() <= 1 ||
+		len(e.referenceInfo.references) <= 1 ||
 		e.isWellDefinedAssignedOnce.IsKnownToBe(false) ||
 		e.isWellDefined.IsKnownToBe(false) ||
 		e.isAssignedOnceInLifetime.IsKnownToBe(false) {
@@ -1143,7 +1143,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) inlineWellDefinedVa
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.createInlineWellDefinedVarAnalysis(Node)
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) CreateInlineWellDefinedVarAnalysis(initValue rhino.Node) *InlineVariables_InliningBehavior_PositiveInlineVarAnalysis {
 	return NewInlineVariables_InliningBehavior_PositiveInlineVarAnalysis(
-		func() { e.outer.InlineWellDefinedVariable(e.v, initValue, &e.referenceInfo.references) })
+		func() { e.outer.InlineWellDefinedVariable(e.v, initValue, e.referenceInfo.references) })
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.reanalyzeAfterAliasedVar(Var, InlineVarAnalysis)
@@ -1446,8 +1446,8 @@ func (b *InlineVariables_InliningBehavior) Inline(decl *Reference, init *Referen
 // references.
 //
 // Java: InlineVariables.InliningBehavior.inlineWellDefinedVariable(Var, Node, List<Reference>)
-func (b *InlineVariables_InliningBehavior) InlineWellDefinedVariable(v *Var, value rhino.Node, refSet *jutil.ArrayList[*Reference]) {
-	for _, r := range refSet.Slice() {
+func (b *InlineVariables_InliningBehavior) InlineWellDefinedVariable(v *Var, value rhino.Node, refSet []*Reference) {
+	for _, r := range refSet {
 		if r.GetNode() == v.GetNameNode() {
 			b.RemoveDeclaration(r)
 		} else if r.IsSimpleAssignmentToName() {
