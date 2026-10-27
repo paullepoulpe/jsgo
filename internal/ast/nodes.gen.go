@@ -638,7 +638,7 @@ func (x For) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
 
 // ForIn is for (target in object) body.
 //
-// Grammar: ForIn = FOR_IN  target:ForTarget object:Expr body:Block
+// Grammar: ForIn = FOR_IN  target:ForTarget object|collection:Expr body:Block
 type ForIn struct{ node rhino.Node }
 
 // AsForIn returns n as a ForIn; ok is false if n is not one (or is the nil node).
@@ -680,6 +680,9 @@ func (x ForIn) Object() Expr { return Expr{x.node.GetSecondChild()} }
 // SetObject replaces the object of x with v (which must not be in a tree).
 func (x ForIn) SetObject(v Expr) { x.node.GetSecondChild().ReplaceWith(v.node) }
 
+// Collection returns the collection of x (another name for its object).
+func (x ForIn) Collection() Expr { return Expr{x.node.GetSecondChild()} }
+
 // Body returns the body of x.
 func (x ForIn) Body() Block { return Block{x.node.GetLastChild()} }
 
@@ -712,7 +715,7 @@ func (x ForIn) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
 
 // ForOf is for (target of iterable) body.
 //
-// Grammar: ForOf = FOR_OF  target:ForTarget iterable:Expr body:Block
+// Grammar: ForOf = FOR_OF  target:ForTarget iterable|collection:Expr body:Block
 type ForOf struct{ node rhino.Node }
 
 // AsForOf returns n as a ForOf; ok is false if n is not one (or is the nil node).
@@ -754,6 +757,9 @@ func (x ForOf) Iterable() Expr { return Expr{x.node.GetSecondChild()} }
 // SetIterable replaces the iterable of x with v (which must not be in a tree).
 func (x ForOf) SetIterable(v Expr) { x.node.GetSecondChild().ReplaceWith(v.node) }
 
+// Collection returns the collection of x (another name for its iterable).
+func (x ForOf) Collection() Expr { return Expr{x.node.GetSecondChild()} }
+
 // Body returns the body of x.
 func (x ForOf) Body() Block { return Block{x.node.GetLastChild()} }
 
@@ -789,7 +795,7 @@ func (x ForOf) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
 
 // ForAwaitOf is for await (target of iterable) body.
 //
-// Grammar: ForAwaitOf = FOR_AWAIT_OF  target:ForTarget iterable:Expr body:Block
+// Grammar: ForAwaitOf = FOR_AWAIT_OF  target:ForTarget iterable|collection:Expr body:Block
 type ForAwaitOf struct{ node rhino.Node }
 
 // AsForAwaitOf returns n as a ForAwaitOf; ok is false if n is not one (or is the nil node).
@@ -830,6 +836,9 @@ func (x ForAwaitOf) Iterable() Expr { return Expr{x.node.GetSecondChild()} }
 
 // SetIterable replaces the iterable of x with v (which must not be in a tree).
 func (x ForAwaitOf) SetIterable(v Expr) { x.node.GetSecondChild().ReplaceWith(v.node) }
+
+// Collection returns the collection of x (another name for its iterable).
+func (x ForAwaitOf) Collection() Expr { return Expr{x.node.GetSecondChild()} }
 
 // Body returns the body of x.
 func (x ForAwaitOf) Body() Block { return Block{x.node.GetLastChild()} }
@@ -7281,41 +7290,93 @@ func (x Statement) ReplaceWith(v Statement) { x.node.ReplaceWith(v.node) }
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x Statement) AsBlock() (Block, bool) { return AsBlock(x.node) }
 
+// MustBlock returns x as a Block; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustBlock() Block { return MustBlock(x.node) }
+
 // AsLabel returns x as a Label; ok is false if it is not one.
 func (x Statement) AsLabel() (Label, bool) { return AsLabel(x.node) }
+
+// MustLabel returns x as a Label; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustLabel() Label { return MustLabel(x.node) }
 
 // AsIf returns x as an If; ok is false if it is not one.
 func (x Statement) AsIf() (If, bool) { return AsIf(x.node) }
 
+// MustIf returns x as an If; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustIf() If { return MustIf(x.node) }
+
 // AsFor returns x as a For; ok is false if it is not one.
 func (x Statement) AsFor() (For, bool) { return AsFor(x.node) }
+
+// MustFor returns x as a For; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustFor() For { return MustFor(x.node) }
 
 // AsForIn returns x as a ForIn; ok is false if it is not one.
 func (x Statement) AsForIn() (ForIn, bool) { return AsForIn(x.node) }
 
+// MustForIn returns x as a ForIn; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustForIn() ForIn { return MustForIn(x.node) }
+
 // AsForOf returns x as a ForOf; ok is false if it is not one.
 func (x Statement) AsForOf() (ForOf, bool) { return AsForOf(x.node) }
+
+// MustForOf returns x as a ForOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustForOf() ForOf { return MustForOf(x.node) }
 
 // AsForAwaitOf returns x as a ForAwaitOf; ok is false if it is not one.
 func (x Statement) AsForAwaitOf() (ForAwaitOf, bool) { return AsForAwaitOf(x.node) }
 
+// MustForAwaitOf returns x as a ForAwaitOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustForAwaitOf() ForAwaitOf { return MustForAwaitOf(x.node) }
+
 // AsWhile returns x as a While; ok is false if it is not one.
 func (x Statement) AsWhile() (While, bool) { return AsWhile(x.node) }
+
+// MustWhile returns x as a While; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustWhile() While { return MustWhile(x.node) }
 
 // AsDo returns x as a Do; ok is false if it is not one.
 func (x Statement) AsDo() (Do, bool) { return AsDo(x.node) }
 
+// MustDo returns x as a Do; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustDo() Do { return MustDo(x.node) }
+
 // AsWith returns x as a With; ok is false if it is not one.
 func (x Statement) AsWith() (With, bool) { return AsWith(x.node) }
+
+// MustWith returns x as a With; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustWith() With { return MustWith(x.node) }
 
 // AsSwitch returns x as a Switch; ok is false if it is not one.
 func (x Statement) AsSwitch() (Switch, bool) { return AsSwitch(x.node) }
 
+// MustSwitch returns x as a Switch; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustSwitch() Switch { return MustSwitch(x.node) }
+
 // AsTry returns x as a Try; ok is false if it is not one.
 func (x Statement) AsTry() (Try, bool) { return AsTry(x.node) }
 
+// MustTry returns x as a Try; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustTry() Try { return MustTry(x.node) }
+
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x Statement) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
+
+// MustNameDeclaration returns x as a NameDeclaration; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustNameDeclaration() NameDeclaration { return MustNameDeclaration(x.node) }
 
 // AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
 func (x Statement) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
@@ -7325,62 +7386,142 @@ func (x Statement) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool
 // AsExprStmt returns x as an ExprStmt; ok is false if it is not one.
 func (x Statement) AsExprStmt() (ExprStmt, bool) { return AsExprStmt(x.node) }
 
+// MustExprStmt returns x as an ExprStmt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustExprStmt() ExprStmt { return MustExprStmt(x.node) }
+
 // AsReturn returns x as a Return; ok is false if it is not one.
 func (x Statement) AsReturn() (Return, bool) { return AsReturn(x.node) }
+
+// MustReturn returns x as a Return; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustReturn() Return { return MustReturn(x.node) }
 
 // AsThrow returns x as a Throw; ok is false if it is not one.
 func (x Statement) AsThrow() (Throw, bool) { return AsThrow(x.node) }
 
+// MustThrow returns x as a Throw; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustThrow() Throw { return MustThrow(x.node) }
+
 // AsBreak returns x as a Break; ok is false if it is not one.
 func (x Statement) AsBreak() (Break, bool) { return AsBreak(x.node) }
+
+// MustBreak returns x as a Break; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustBreak() Break { return MustBreak(x.node) }
 
 // AsContinue returns x as a Continue; ok is false if it is not one.
 func (x Statement) AsContinue() (Continue, bool) { return AsContinue(x.node) }
 
+// MustContinue returns x as a Continue; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustContinue() Continue { return MustContinue(x.node) }
+
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x Statement) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
+
+// MustEmpty returns x as an Empty; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustEmpty() Empty { return MustEmpty(x.node) }
 
 // AsDebugger returns x as a Debugger; ok is false if it is not one.
 func (x Statement) AsDebugger() (Debugger, bool) { return AsDebugger(x.node) }
 
+// MustDebugger returns x as a Debugger; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustDebugger() Debugger { return MustDebugger(x.node) }
+
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x Statement) AsFunction() (Function, bool) { return AsFunction(x.node) }
+
+// MustFunction returns x as a Function; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustFunction() Function { return MustFunction(x.node) }
 
 // AsClass returns x as a Class; ok is false if it is not one.
 func (x Statement) AsClass() (Class, bool) { return AsClass(x.node) }
 
+// MustClass returns x as a Class; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustClass() Class { return MustClass(x.node) }
+
 // AsImport returns x as an Import; ok is false if it is not one.
 func (x Statement) AsImport() (Import, bool) { return AsImport(x.node) }
+
+// MustImport returns x as an Import; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustImport() Import { return MustImport(x.node) }
 
 // AsExport returns x as an Export; ok is false if it is not one.
 func (x Statement) AsExport() (Export, bool) { return AsExport(x.node) }
 
+// MustExport returns x as an Export; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustExport() Export { return MustExport(x.node) }
+
 // AsInterface returns x as an Interface; ok is false if it is not one.
 func (x Statement) AsInterface() (Interface, bool) { return AsInterface(x.node) }
+
+// MustInterface returns x as an Interface; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustInterface() Interface { return MustInterface(x.node) }
 
 // AsEnum returns x as an Enum; ok is false if it is not one.
 func (x Statement) AsEnum() (Enum, bool) { return AsEnum(x.node) }
 
+// MustEnum returns x as an Enum; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustEnum() Enum { return MustEnum(x.node) }
+
 // AsTypeAlias returns x as a TypeAlias; ok is false if it is not one.
 func (x Statement) AsTypeAlias() (TypeAlias, bool) { return AsTypeAlias(x.node) }
+
+// MustTypeAlias returns x as a TypeAlias; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustTypeAlias() TypeAlias { return MustTypeAlias(x.node) }
 
 // AsDeclare returns x as a Declare; ok is false if it is not one.
 func (x Statement) AsDeclare() (Declare, bool) { return AsDeclare(x.node) }
 
+// MustDeclare returns x as a Declare; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustDeclare() Declare { return MustDeclare(x.node) }
+
 // AsNamespace returns x as a Namespace; ok is false if it is not one.
 func (x Statement) AsNamespace() (Namespace, bool) { return AsNamespace(x.node) }
+
+// MustNamespace returns x as a Namespace; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustNamespace() Namespace { return MustNamespace(x.node) }
 
 // AsLoop returns x as a Loop; ok is false if it is not one.
 func (x Statement) AsLoop() (Loop, bool) { return AsLoop(x.node) }
 
+// MustLoop returns x as a Loop; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustLoop() Loop { return MustLoop(x.node) }
+
 // AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
 func (x Statement) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
+
+// MustEnhancedFor returns x as an EnhancedFor; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustEnhancedFor() EnhancedFor { return MustEnhancedFor(x.node) }
 
 // AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
 func (x Statement) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
 
+// MustForOfLoop returns x as a ForOfLoop; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustForOfLoop() ForOfLoop { return MustForOfLoop(x.node) }
+
 // AsJump returns x as a Jump; ok is false if it is not one.
 func (x Statement) AsJump() (Jump, bool) { return AsJump(x.node) }
+
+// MustJump returns x as a Jump; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Statement) MustJump() Jump { return MustJump(x.node) }
 
 // AsExportBody returns x as an ExportBody.
 func (x Statement) AsExportBody() ExportBody { return ExportBody{x.node} }
@@ -7433,59 +7574,135 @@ func (x Expr) ReplaceWith(v Expr) { x.node.ReplaceWith(v.node) }
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x Expr) AsFunction() (Function, bool) { return AsFunction(x.node) }
 
+// MustFunction returns x as a Function; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustFunction() Function { return MustFunction(x.node) }
+
 // AsClass returns x as a Class; ok is false if it is not one.
 func (x Expr) AsClass() (Class, bool) { return AsClass(x.node) }
+
+// MustClass returns x as a Class; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustClass() Class { return MustClass(x.node) }
 
 // AsName returns x as a Name; ok is false if it is not one.
 func (x Expr) AsName() (Name, bool) { return AsName(x.node) }
 
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustName() Name { return MustName(x.node) }
+
 // AsThis returns x as a This; ok is false if it is not one.
 func (x Expr) AsThis() (This, bool) { return AsThis(x.node) }
+
+// MustThis returns x as a This; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustThis() This { return MustThis(x.node) }
 
 // AsSuper returns x as a Super; ok is false if it is not one.
 func (x Expr) AsSuper() (Super, bool) { return AsSuper(x.node) }
 
+// MustSuper returns x as a Super; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustSuper() Super { return MustSuper(x.node) }
+
 // AsTrue returns x as a True; ok is false if it is not one.
 func (x Expr) AsTrue() (True, bool) { return AsTrue(x.node) }
+
+// MustTrue returns x as a True; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustTrue() True { return MustTrue(x.node) }
 
 // AsFalse returns x as a False; ok is false if it is not one.
 func (x Expr) AsFalse() (False, bool) { return AsFalse(x.node) }
 
+// MustFalse returns x as a False; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustFalse() False { return MustFalse(x.node) }
+
 // AsNull returns x as a Null; ok is false if it is not one.
 func (x Expr) AsNull() (Null, bool) { return AsNull(x.node) }
+
+// MustNull returns x as a Null; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustNull() Null { return MustNull(x.node) }
 
 // AsNewTarget returns x as a NewTarget; ok is false if it is not one.
 func (x Expr) AsNewTarget() (NewTarget, bool) { return AsNewTarget(x.node) }
 
+// MustNewTarget returns x as a NewTarget; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustNewTarget() NewTarget { return MustNewTarget(x.node) }
+
 // AsImportMeta returns x as an ImportMeta; ok is false if it is not one.
 func (x Expr) AsImportMeta() (ImportMeta, bool) { return AsImportMeta(x.node) }
+
+// MustImportMeta returns x as an ImportMeta; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustImportMeta() ImportMeta { return MustImportMeta(x.node) }
 
 // AsStringLit returns x as a StringLit; ok is false if it is not one.
 func (x Expr) AsStringLit() (StringLit, bool) { return AsStringLit(x.node) }
 
+// MustStringLit returns x as a StringLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustStringLit() StringLit { return MustStringLit(x.node) }
+
 // AsNumber returns x as a Number; ok is false if it is not one.
 func (x Expr) AsNumber() (Number, bool) { return AsNumber(x.node) }
+
+// MustNumber returns x as a Number; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustNumber() Number { return MustNumber(x.node) }
 
 // AsBigInt returns x as a BigInt; ok is false if it is not one.
 func (x Expr) AsBigInt() (BigInt, bool) { return AsBigInt(x.node) }
 
+// MustBigInt returns x as a BigInt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustBigInt() BigInt { return MustBigInt(x.node) }
+
 // AsRegExp returns x as a RegExp; ok is false if it is not one.
 func (x Expr) AsRegExp() (RegExp, bool) { return AsRegExp(x.node) }
+
+// MustRegExp returns x as a RegExp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustRegExp() RegExp { return MustRegExp(x.node) }
 
 // AsTemplateLit returns x as a TemplateLit; ok is false if it is not one.
 func (x Expr) AsTemplateLit() (TemplateLit, bool) { return AsTemplateLit(x.node) }
 
+// MustTemplateLit returns x as a TemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustTemplateLit() TemplateLit { return MustTemplateLit(x.node) }
+
 // AsTaggedTemplateLit returns x as a TaggedTemplateLit; ok is false if it is not one.
 func (x Expr) AsTaggedTemplateLit() (TaggedTemplateLit, bool) { return AsTaggedTemplateLit(x.node) }
+
+// MustTaggedTemplateLit returns x as a TaggedTemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustTaggedTemplateLit() TaggedTemplateLit { return MustTaggedTemplateLit(x.node) }
 
 // AsArrayLit returns x as an ArrayLit; ok is false if it is not one.
 func (x Expr) AsArrayLit() (ArrayLit, bool) { return AsArrayLit(x.node) }
 
+// MustArrayLit returns x as an ArrayLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustArrayLit() ArrayLit { return MustArrayLit(x.node) }
+
 // AsObjectLit returns x as an ObjectLit; ok is false if it is not one.
 func (x Expr) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 
+// MustObjectLit returns x as an ObjectLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustObjectLit() ObjectLit { return MustObjectLit(x.node) }
+
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x Expr) AsUnary() (Unary, bool) { return AsUnary(x.node) }
+
+// MustUnary returns x as an Unary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustUnary() Unary { return MustUnary(x.node) }
 
 // AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
 func (x Expr) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
@@ -7493,11 +7710,23 @@ func (x Expr) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.no
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x Expr) AsCast() (Cast, bool) { return AsCast(x.node) }
 
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustCast() Cast { return MustCast(x.node) }
+
 // AsDynamicImport returns x as a DynamicImport; ok is false if it is not one.
 func (x Expr) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImport(x.node) }
 
+// MustDynamicImport returns x as a DynamicImport; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustDynamicImport() DynamicImport { return MustDynamicImport(x.node) }
+
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x Expr) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
+
+// MustIncDec returns x as an IncDec; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustIncDec() IncDec { return MustIncDec(x.node) }
 
 // AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
 func (x Expr) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
@@ -7505,8 +7734,16 @@ func (x Expr) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x Expr) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
+// MustAssign returns x as an Assign; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustAssign() Assign { return MustAssign(x.node) }
+
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x Expr) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// MustAssignOp returns x as an AssignOp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustAssignOp() AssignOp { return MustAssignOp(x.node) }
 
 // AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
 func (x Expr) AsAssignOpOf(token rhino.Token) (AssignOp, bool) { return AsAssignOpOf(x.node, token) }
@@ -7514,38 +7751,82 @@ func (x Expr) AsAssignOpOf(token rhino.Token) (AssignOp, bool) { return AsAssign
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x Expr) AsBinary() (Binary, bool) { return AsBinary(x.node) }
 
+// MustBinary returns x as a Binary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustBinary() Binary { return MustBinary(x.node) }
+
 // AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
 func (x Expr) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x Expr) AsHook() (Hook, bool) { return AsHook(x.node) }
 
+// MustHook returns x as a Hook; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustHook() Hook { return MustHook(x.node) }
+
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x Expr) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustGetProp() GetProp { return MustGetProp(x.node) }
 
 // AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
 func (x Expr) AsOptChainGetProp() (OptChainGetProp, bool) { return AsOptChainGetProp(x.node) }
 
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustOptChainGetProp() OptChainGetProp { return MustOptChainGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x Expr) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
 func (x Expr) AsOptChainGetElem() (OptChainGetElem, bool) { return AsOptChainGetElem(x.node) }
 
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustOptChainGetElem() OptChainGetElem { return MustOptChainGetElem(x.node) }
+
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x Expr) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustCall() Call { return MustCall(x.node) }
 
 // AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
 func (x Expr) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
 
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
 // AsNew returns x as a New; ok is false if it is not one.
 func (x Expr) AsNew() (New, bool) { return AsNew(x.node) }
+
+// MustNew returns x as a New; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustNew() New { return MustNew(x.node) }
 
 // AsYield returns x as a Yield; ok is false if it is not one.
 func (x Expr) AsYield() (Yield, bool) { return AsYield(x.node) }
 
+// MustYield returns x as a Yield; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustYield() Yield { return MustYield(x.node) }
+
 // AsAwait returns x as an Await; ok is false if it is not one.
 func (x Expr) AsAwait() (Await, bool) { return AsAwait(x.node) }
+
+// MustAwait returns x as an Await; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustAwait() Await { return MustAwait(x.node) }
 
 // AsArg returns x as an Arg.
 func (x Expr) AsArg() Arg { return Arg{x.node} }
@@ -7570,12 +7851,28 @@ func (x Expr) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// MustNormalOrOptChainCall returns x as a NormalOrOptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustNormalOrOptChainCall() NormalOrOptChainCall {
+	return MustNormalOrOptChainCall(x.node)
+}
+
 // AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
 func (x Expr) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
+// MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x Expr) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// MustNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return MustNormalOrOptChainGetProp(x.node)
 }
 
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
@@ -7583,16 +7880,34 @@ func (x Expr) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// MustNormalOrOptChainGet returns x as a NormalOrOptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustNormalOrOptChainGet() NormalOrOptChainGet { return MustNormalOrOptChainGet(x.node) }
+
 // AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
 func (x Expr) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// MustNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return MustNormalOrOptChainGetElem(x.node)
+}
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x Expr) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x Expr) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
+// MustAssignment returns x as an Assignment; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustAssignment() Assignment { return MustAssignment(x.node) }
 
 // Target is what can be assigned to: the left side of an assignment, a
 // declaration or a for-in/of loop.
@@ -7639,23 +7954,51 @@ func (x Target) ReplaceWith(v Target) { x.node.ReplaceWith(v.node) }
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x Target) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
+// MustArrayPattern returns x as an ArrayPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Target) MustArrayPattern() ArrayPattern { return MustArrayPattern(x.node) }
+
 // AsObjectPattern returns x as an ObjectPattern; ok is false if it is not one.
 func (x Target) AsObjectPattern() (ObjectPattern, bool) { return AsObjectPattern(x.node) }
+
+// MustObjectPattern returns x as an ObjectPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Target) MustObjectPattern() ObjectPattern { return MustObjectPattern(x.node) }
 
 // AsName returns x as a Name; ok is false if it is not one.
 func (x Target) AsName() (Name, bool) { return AsName(x.node) }
 
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Target) MustName() Name { return MustName(x.node) }
+
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x Target) AsCast() (Cast, bool) { return AsCast(x.node) }
+
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Target) MustCast() Cast { return MustCast(x.node) }
 
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x Target) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
 
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Target) MustGetProp() GetProp { return MustGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x Target) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
 
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Target) MustGetElem() GetElem { return MustGetElem(x.node) }
+
 // AsPattern returns x as a Pattern; ok is false if it is not one.
 func (x Target) AsPattern() (Pattern, bool) { return AsPattern(x.node) }
+
+// MustPattern returns x as a Pattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Target) MustPattern() Pattern { return MustPattern(x.node) }
 
 // AsArrayPatternElem returns x as an ArrayPatternElem.
 func (x Target) AsArrayPatternElem() ArrayPatternElem { return ArrayPatternElem{x.node} }
@@ -7669,8 +8012,16 @@ func (x Target) AsForTarget() ForTarget { return ForTarget{x.node} }
 // AsCatchParam returns x as a CatchParam; ok is false if it is not one.
 func (x Target) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
 
+// MustCatchParam returns x as a CatchParam; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Target) MustCatchParam() CatchParam { return MustCatchParam(x.node) }
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x Target) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
+
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Target) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
 
 // Pattern is a destructuring pattern.
 //
@@ -7716,8 +8067,16 @@ func (x Pattern) ReplaceWith(v Pattern) { x.node.ReplaceWith(v.node) }
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x Pattern) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
+// MustArrayPattern returns x as an ArrayPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Pattern) MustArrayPattern() ArrayPattern { return MustArrayPattern(x.node) }
+
 // AsObjectPattern returns x as an ObjectPattern; ok is false if it is not one.
 func (x Pattern) AsObjectPattern() (ObjectPattern, bool) { return AsObjectPattern(x.node) }
+
+// MustObjectPattern returns x as an ObjectPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Pattern) MustObjectPattern() ObjectPattern { return MustObjectPattern(x.node) }
 
 // AsTarget returns x as a Target.
 func (x Pattern) AsTarget() Target { return Target{x.node} }
@@ -7781,26 +8140,54 @@ func (x Param) ReplaceWith(v Param) { x.node.ReplaceWith(v.node) }
 // AsDefaultValue returns x as a DefaultValue; ok is false if it is not one.
 func (x Param) AsDefaultValue() (DefaultValue, bool) { return AsDefaultValue(x.node) }
 
+// MustDefaultValue returns x as a DefaultValue; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Param) MustDefaultValue() DefaultValue { return MustDefaultValue(x.node) }
+
 // AsIterRest returns x as an IterRest; ok is false if it is not one.
 func (x Param) AsIterRest() (IterRest, bool) { return AsIterRest(x.node) }
+
+// MustIterRest returns x as an IterRest; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Param) MustIterRest() IterRest { return MustIterRest(x.node) }
 
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x Param) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
+// MustArrayPattern returns x as an ArrayPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Param) MustArrayPattern() ArrayPattern { return MustArrayPattern(x.node) }
+
 // AsObjectPattern returns x as an ObjectPattern; ok is false if it is not one.
 func (x Param) AsObjectPattern() (ObjectPattern, bool) { return AsObjectPattern(x.node) }
+
+// MustObjectPattern returns x as an ObjectPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Param) MustObjectPattern() ObjectPattern { return MustObjectPattern(x.node) }
 
 // AsName returns x as a Name; ok is false if it is not one.
 func (x Param) AsName() (Name, bool) { return AsName(x.node) }
 
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Param) MustName() Name { return MustName(x.node) }
+
 // AsPattern returns x as a Pattern; ok is false if it is not one.
 func (x Param) AsPattern() (Pattern, bool) { return AsPattern(x.node) }
+
+// MustPattern returns x as a Pattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Param) MustPattern() Pattern { return MustPattern(x.node) }
 
 // AsArrayPatternElem returns x as an ArrayPatternElem.
 func (x Param) AsArrayPatternElem() ArrayPatternElem { return ArrayPatternElem{x.node} }
 
 // AsCatchParam returns x as a CatchParam; ok is false if it is not one.
 func (x Param) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
+
+// MustCatchParam returns x as a CatchParam; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Param) MustCatchParam() CatchParam { return MustCatchParam(x.node) }
 
 // Arg is a call argument.
 //
@@ -7846,62 +8233,142 @@ func (x Arg) ReplaceWith(v Arg) { x.node.ReplaceWith(v.node) }
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x Arg) AsFunction() (Function, bool) { return AsFunction(x.node) }
 
+// MustFunction returns x as a Function; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustFunction() Function { return MustFunction(x.node) }
+
 // AsIterSpread returns x as an IterSpread; ok is false if it is not one.
 func (x Arg) AsIterSpread() (IterSpread, bool) { return AsIterSpread(x.node) }
+
+// MustIterSpread returns x as an IterSpread; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustIterSpread() IterSpread { return MustIterSpread(x.node) }
 
 // AsClass returns x as a Class; ok is false if it is not one.
 func (x Arg) AsClass() (Class, bool) { return AsClass(x.node) }
 
+// MustClass returns x as a Class; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustClass() Class { return MustClass(x.node) }
+
 // AsName returns x as a Name; ok is false if it is not one.
 func (x Arg) AsName() (Name, bool) { return AsName(x.node) }
+
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustName() Name { return MustName(x.node) }
 
 // AsThis returns x as a This; ok is false if it is not one.
 func (x Arg) AsThis() (This, bool) { return AsThis(x.node) }
 
+// MustThis returns x as a This; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustThis() This { return MustThis(x.node) }
+
 // AsSuper returns x as a Super; ok is false if it is not one.
 func (x Arg) AsSuper() (Super, bool) { return AsSuper(x.node) }
+
+// MustSuper returns x as a Super; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustSuper() Super { return MustSuper(x.node) }
 
 // AsTrue returns x as a True; ok is false if it is not one.
 func (x Arg) AsTrue() (True, bool) { return AsTrue(x.node) }
 
+// MustTrue returns x as a True; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustTrue() True { return MustTrue(x.node) }
+
 // AsFalse returns x as a False; ok is false if it is not one.
 func (x Arg) AsFalse() (False, bool) { return AsFalse(x.node) }
+
+// MustFalse returns x as a False; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustFalse() False { return MustFalse(x.node) }
 
 // AsNull returns x as a Null; ok is false if it is not one.
 func (x Arg) AsNull() (Null, bool) { return AsNull(x.node) }
 
+// MustNull returns x as a Null; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustNull() Null { return MustNull(x.node) }
+
 // AsNewTarget returns x as a NewTarget; ok is false if it is not one.
 func (x Arg) AsNewTarget() (NewTarget, bool) { return AsNewTarget(x.node) }
+
+// MustNewTarget returns x as a NewTarget; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustNewTarget() NewTarget { return MustNewTarget(x.node) }
 
 // AsImportMeta returns x as an ImportMeta; ok is false if it is not one.
 func (x Arg) AsImportMeta() (ImportMeta, bool) { return AsImportMeta(x.node) }
 
+// MustImportMeta returns x as an ImportMeta; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustImportMeta() ImportMeta { return MustImportMeta(x.node) }
+
 // AsStringLit returns x as a StringLit; ok is false if it is not one.
 func (x Arg) AsStringLit() (StringLit, bool) { return AsStringLit(x.node) }
+
+// MustStringLit returns x as a StringLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustStringLit() StringLit { return MustStringLit(x.node) }
 
 // AsNumber returns x as a Number; ok is false if it is not one.
 func (x Arg) AsNumber() (Number, bool) { return AsNumber(x.node) }
 
+// MustNumber returns x as a Number; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustNumber() Number { return MustNumber(x.node) }
+
 // AsBigInt returns x as a BigInt; ok is false if it is not one.
 func (x Arg) AsBigInt() (BigInt, bool) { return AsBigInt(x.node) }
+
+// MustBigInt returns x as a BigInt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustBigInt() BigInt { return MustBigInt(x.node) }
 
 // AsRegExp returns x as a RegExp; ok is false if it is not one.
 func (x Arg) AsRegExp() (RegExp, bool) { return AsRegExp(x.node) }
 
+// MustRegExp returns x as a RegExp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustRegExp() RegExp { return MustRegExp(x.node) }
+
 // AsTemplateLit returns x as a TemplateLit; ok is false if it is not one.
 func (x Arg) AsTemplateLit() (TemplateLit, bool) { return AsTemplateLit(x.node) }
+
+// MustTemplateLit returns x as a TemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustTemplateLit() TemplateLit { return MustTemplateLit(x.node) }
 
 // AsTaggedTemplateLit returns x as a TaggedTemplateLit; ok is false if it is not one.
 func (x Arg) AsTaggedTemplateLit() (TaggedTemplateLit, bool) { return AsTaggedTemplateLit(x.node) }
 
+// MustTaggedTemplateLit returns x as a TaggedTemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustTaggedTemplateLit() TaggedTemplateLit { return MustTaggedTemplateLit(x.node) }
+
 // AsArrayLit returns x as an ArrayLit; ok is false if it is not one.
 func (x Arg) AsArrayLit() (ArrayLit, bool) { return AsArrayLit(x.node) }
+
+// MustArrayLit returns x as an ArrayLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustArrayLit() ArrayLit { return MustArrayLit(x.node) }
 
 // AsObjectLit returns x as an ObjectLit; ok is false if it is not one.
 func (x Arg) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 
+// MustObjectLit returns x as an ObjectLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustObjectLit() ObjectLit { return MustObjectLit(x.node) }
+
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x Arg) AsUnary() (Unary, bool) { return AsUnary(x.node) }
+
+// MustUnary returns x as an Unary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustUnary() Unary { return MustUnary(x.node) }
 
 // AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
 func (x Arg) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
@@ -7909,11 +8376,23 @@ func (x Arg) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.nod
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x Arg) AsCast() (Cast, bool) { return AsCast(x.node) }
 
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustCast() Cast { return MustCast(x.node) }
+
 // AsDynamicImport returns x as a DynamicImport; ok is false if it is not one.
 func (x Arg) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImport(x.node) }
 
+// MustDynamicImport returns x as a DynamicImport; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustDynamicImport() DynamicImport { return MustDynamicImport(x.node) }
+
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x Arg) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
+
+// MustIncDec returns x as an IncDec; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustIncDec() IncDec { return MustIncDec(x.node) }
 
 // AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
 func (x Arg) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
@@ -7921,8 +8400,16 @@ func (x Arg) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x Arg) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
+// MustAssign returns x as an Assign; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustAssign() Assign { return MustAssign(x.node) }
+
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x Arg) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// MustAssignOp returns x as an AssignOp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustAssignOp() AssignOp { return MustAssignOp(x.node) }
 
 // AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
 func (x Arg) AsAssignOpOf(token rhino.Token) (AssignOp, bool) { return AsAssignOpOf(x.node, token) }
@@ -7930,41 +8417,89 @@ func (x Arg) AsAssignOpOf(token rhino.Token) (AssignOp, bool) { return AsAssignO
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x Arg) AsBinary() (Binary, bool) { return AsBinary(x.node) }
 
+// MustBinary returns x as a Binary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustBinary() Binary { return MustBinary(x.node) }
+
 // AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
 func (x Arg) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x Arg) AsHook() (Hook, bool) { return AsHook(x.node) }
 
+// MustHook returns x as a Hook; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustHook() Hook { return MustHook(x.node) }
+
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x Arg) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustGetProp() GetProp { return MustGetProp(x.node) }
 
 // AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
 func (x Arg) AsOptChainGetProp() (OptChainGetProp, bool) { return AsOptChainGetProp(x.node) }
 
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustOptChainGetProp() OptChainGetProp { return MustOptChainGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x Arg) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
 func (x Arg) AsOptChainGetElem() (OptChainGetElem, bool) { return AsOptChainGetElem(x.node) }
 
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustOptChainGetElem() OptChainGetElem { return MustOptChainGetElem(x.node) }
+
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x Arg) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustCall() Call { return MustCall(x.node) }
 
 // AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
 func (x Arg) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
 
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
 // AsNew returns x as a New; ok is false if it is not one.
 func (x Arg) AsNew() (New, bool) { return AsNew(x.node) }
+
+// MustNew returns x as a New; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustNew() New { return MustNew(x.node) }
 
 // AsYield returns x as a Yield; ok is false if it is not one.
 func (x Arg) AsYield() (Yield, bool) { return AsYield(x.node) }
 
+// MustYield returns x as a Yield; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustYield() Yield { return MustYield(x.node) }
+
 // AsAwait returns x as an Await; ok is false if it is not one.
 func (x Arg) AsAwait() (Await, bool) { return AsAwait(x.node) }
 
+// MustAwait returns x as an Await; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustAwait() Await { return MustAwait(x.node) }
+
 // AsExpr returns x as an Expr; ok is false if it is not one.
 func (x Arg) AsExpr() (Expr, bool) { return AsExpr(x.node) }
+
+// MustExpr returns x as an Expr; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustExpr() Expr { return MustExpr(x.node) }
 
 // AsArrayElem returns x as an ArrayElem.
 func (x Arg) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
@@ -7974,12 +8509,26 @@ func (x Arg) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// MustNormalOrOptChainCall returns x as a NormalOrOptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustNormalOrOptChainCall() NormalOrOptChainCall { return MustNormalOrOptChainCall(x.node) }
+
 // AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
 func (x Arg) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
+// MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x Arg) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// MustNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return MustNormalOrOptChainGetProp(x.node)
 }
 
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
@@ -7987,16 +8536,34 @@ func (x Arg) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// MustNormalOrOptChainGet returns x as a NormalOrOptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustNormalOrOptChainGet() NormalOrOptChainGet { return MustNormalOrOptChainGet(x.node) }
+
 // AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
 func (x Arg) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// MustNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return MustNormalOrOptChainGetElem(x.node)
+}
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x Arg) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x Arg) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
+// MustAssignment returns x as an Assignment; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustAssignment() Assignment { return MustAssignment(x.node) }
 
 // ArrayElem is an element of an array literal (Empty for a hole).
 //
@@ -8042,67 +8609,151 @@ func (x ArrayElem) ReplaceWith(v ArrayElem) { x.node.ReplaceWith(v.node) }
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x ArrayElem) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
 
+// MustEmpty returns x as an Empty; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustEmpty() Empty { return MustEmpty(x.node) }
+
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x ArrayElem) AsFunction() (Function, bool) { return AsFunction(x.node) }
+
+// MustFunction returns x as a Function; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustFunction() Function { return MustFunction(x.node) }
 
 // AsIterSpread returns x as an IterSpread; ok is false if it is not one.
 func (x ArrayElem) AsIterSpread() (IterSpread, bool) { return AsIterSpread(x.node) }
 
+// MustIterSpread returns x as an IterSpread; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustIterSpread() IterSpread { return MustIterSpread(x.node) }
+
 // AsClass returns x as a Class; ok is false if it is not one.
 func (x ArrayElem) AsClass() (Class, bool) { return AsClass(x.node) }
+
+// MustClass returns x as a Class; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustClass() Class { return MustClass(x.node) }
 
 // AsName returns x as a Name; ok is false if it is not one.
 func (x ArrayElem) AsName() (Name, bool) { return AsName(x.node) }
 
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustName() Name { return MustName(x.node) }
+
 // AsThis returns x as a This; ok is false if it is not one.
 func (x ArrayElem) AsThis() (This, bool) { return AsThis(x.node) }
+
+// MustThis returns x as a This; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustThis() This { return MustThis(x.node) }
 
 // AsSuper returns x as a Super; ok is false if it is not one.
 func (x ArrayElem) AsSuper() (Super, bool) { return AsSuper(x.node) }
 
+// MustSuper returns x as a Super; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustSuper() Super { return MustSuper(x.node) }
+
 // AsTrue returns x as a True; ok is false if it is not one.
 func (x ArrayElem) AsTrue() (True, bool) { return AsTrue(x.node) }
+
+// MustTrue returns x as a True; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustTrue() True { return MustTrue(x.node) }
 
 // AsFalse returns x as a False; ok is false if it is not one.
 func (x ArrayElem) AsFalse() (False, bool) { return AsFalse(x.node) }
 
+// MustFalse returns x as a False; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustFalse() False { return MustFalse(x.node) }
+
 // AsNull returns x as a Null; ok is false if it is not one.
 func (x ArrayElem) AsNull() (Null, bool) { return AsNull(x.node) }
+
+// MustNull returns x as a Null; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustNull() Null { return MustNull(x.node) }
 
 // AsNewTarget returns x as a NewTarget; ok is false if it is not one.
 func (x ArrayElem) AsNewTarget() (NewTarget, bool) { return AsNewTarget(x.node) }
 
+// MustNewTarget returns x as a NewTarget; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustNewTarget() NewTarget { return MustNewTarget(x.node) }
+
 // AsImportMeta returns x as an ImportMeta; ok is false if it is not one.
 func (x ArrayElem) AsImportMeta() (ImportMeta, bool) { return AsImportMeta(x.node) }
+
+// MustImportMeta returns x as an ImportMeta; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustImportMeta() ImportMeta { return MustImportMeta(x.node) }
 
 // AsStringLit returns x as a StringLit; ok is false if it is not one.
 func (x ArrayElem) AsStringLit() (StringLit, bool) { return AsStringLit(x.node) }
 
+// MustStringLit returns x as a StringLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustStringLit() StringLit { return MustStringLit(x.node) }
+
 // AsNumber returns x as a Number; ok is false if it is not one.
 func (x ArrayElem) AsNumber() (Number, bool) { return AsNumber(x.node) }
+
+// MustNumber returns x as a Number; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustNumber() Number { return MustNumber(x.node) }
 
 // AsBigInt returns x as a BigInt; ok is false if it is not one.
 func (x ArrayElem) AsBigInt() (BigInt, bool) { return AsBigInt(x.node) }
 
+// MustBigInt returns x as a BigInt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustBigInt() BigInt { return MustBigInt(x.node) }
+
 // AsRegExp returns x as a RegExp; ok is false if it is not one.
 func (x ArrayElem) AsRegExp() (RegExp, bool) { return AsRegExp(x.node) }
 
+// MustRegExp returns x as a RegExp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustRegExp() RegExp { return MustRegExp(x.node) }
+
 // AsTemplateLit returns x as a TemplateLit; ok is false if it is not one.
 func (x ArrayElem) AsTemplateLit() (TemplateLit, bool) { return AsTemplateLit(x.node) }
+
+// MustTemplateLit returns x as a TemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustTemplateLit() TemplateLit { return MustTemplateLit(x.node) }
 
 // AsTaggedTemplateLit returns x as a TaggedTemplateLit; ok is false if it is not one.
 func (x ArrayElem) AsTaggedTemplateLit() (TaggedTemplateLit, bool) {
 	return AsTaggedTemplateLit(x.node)
 }
 
+// MustTaggedTemplateLit returns x as a TaggedTemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustTaggedTemplateLit() TaggedTemplateLit { return MustTaggedTemplateLit(x.node) }
+
 // AsArrayLit returns x as an ArrayLit; ok is false if it is not one.
 func (x ArrayElem) AsArrayLit() (ArrayLit, bool) { return AsArrayLit(x.node) }
+
+// MustArrayLit returns x as an ArrayLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustArrayLit() ArrayLit { return MustArrayLit(x.node) }
 
 // AsObjectLit returns x as an ObjectLit; ok is false if it is not one.
 func (x ArrayElem) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 
+// MustObjectLit returns x as an ObjectLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustObjectLit() ObjectLit { return MustObjectLit(x.node) }
+
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x ArrayElem) AsUnary() (Unary, bool) { return AsUnary(x.node) }
+
+// MustUnary returns x as an Unary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustUnary() Unary { return MustUnary(x.node) }
 
 // AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
 func (x ArrayElem) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
@@ -8110,11 +8761,23 @@ func (x ArrayElem) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x ArrayElem) AsCast() (Cast, bool) { return AsCast(x.node) }
 
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustCast() Cast { return MustCast(x.node) }
+
 // AsDynamicImport returns x as a DynamicImport; ok is false if it is not one.
 func (x ArrayElem) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImport(x.node) }
 
+// MustDynamicImport returns x as a DynamicImport; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustDynamicImport() DynamicImport { return MustDynamicImport(x.node) }
+
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x ArrayElem) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
+
+// MustIncDec returns x as an IncDec; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustIncDec() IncDec { return MustIncDec(x.node) }
 
 // AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
 func (x ArrayElem) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
@@ -8122,8 +8785,16 @@ func (x ArrayElem) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDe
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x ArrayElem) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
+// MustAssign returns x as an Assign; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustAssign() Assign { return MustAssign(x.node) }
+
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x ArrayElem) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// MustAssignOp returns x as an AssignOp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustAssignOp() AssignOp { return MustAssignOp(x.node) }
 
 // AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
 func (x ArrayElem) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
@@ -8133,56 +8804,124 @@ func (x ArrayElem) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x ArrayElem) AsBinary() (Binary, bool) { return AsBinary(x.node) }
 
+// MustBinary returns x as a Binary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustBinary() Binary { return MustBinary(x.node) }
+
 // AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
 func (x ArrayElem) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x ArrayElem) AsHook() (Hook, bool) { return AsHook(x.node) }
 
+// MustHook returns x as a Hook; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustHook() Hook { return MustHook(x.node) }
+
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x ArrayElem) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustGetProp() GetProp { return MustGetProp(x.node) }
 
 // AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
 func (x ArrayElem) AsOptChainGetProp() (OptChainGetProp, bool) { return AsOptChainGetProp(x.node) }
 
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustOptChainGetProp() OptChainGetProp { return MustOptChainGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x ArrayElem) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
 func (x ArrayElem) AsOptChainGetElem() (OptChainGetElem, bool) { return AsOptChainGetElem(x.node) }
 
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustOptChainGetElem() OptChainGetElem { return MustOptChainGetElem(x.node) }
+
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x ArrayElem) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustCall() Call { return MustCall(x.node) }
 
 // AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
 func (x ArrayElem) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
 
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
 // AsNew returns x as a New; ok is false if it is not one.
 func (x ArrayElem) AsNew() (New, bool) { return AsNew(x.node) }
+
+// MustNew returns x as a New; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustNew() New { return MustNew(x.node) }
 
 // AsYield returns x as a Yield; ok is false if it is not one.
 func (x ArrayElem) AsYield() (Yield, bool) { return AsYield(x.node) }
 
+// MustYield returns x as a Yield; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustYield() Yield { return MustYield(x.node) }
+
 // AsAwait returns x as an Await; ok is false if it is not one.
 func (x ArrayElem) AsAwait() (Await, bool) { return AsAwait(x.node) }
+
+// MustAwait returns x as an Await; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustAwait() Await { return MustAwait(x.node) }
 
 // AsExpr returns x as an Expr; ok is false if it is not one.
 func (x ArrayElem) AsExpr() (Expr, bool) { return AsExpr(x.node) }
 
+// MustExpr returns x as an Expr; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustExpr() Expr { return MustExpr(x.node) }
+
 // AsArg returns x as an Arg; ok is false if it is not one.
 func (x ArrayElem) AsArg() (Arg, bool) { return AsArg(x.node) }
+
+// MustArg returns x as an Arg; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustArg() Arg { return MustArg(x.node) }
 
 // AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
 func (x ArrayElem) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// MustNormalOrOptChainCall returns x as a NormalOrOptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustNormalOrOptChainCall() NormalOrOptChainCall {
+	return MustNormalOrOptChainCall(x.node)
+}
+
 // AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
 func (x ArrayElem) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
+// MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x ArrayElem) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// MustNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return MustNormalOrOptChainGetProp(x.node)
 }
 
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
@@ -8190,16 +8929,36 @@ func (x ArrayElem) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// MustNormalOrOptChainGet returns x as a NormalOrOptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustNormalOrOptChainGet() NormalOrOptChainGet {
+	return MustNormalOrOptChainGet(x.node)
+}
+
 // AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
 func (x ArrayElem) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// MustNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return MustNormalOrOptChainGetElem(x.node)
+}
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x ArrayElem) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x ArrayElem) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
+// MustAssignment returns x as an Assignment; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustAssignment() Assignment { return MustAssignment(x.node) }
 
 // ArrayPatternElem is an element of an array pattern (Empty for a hole).
 //
@@ -8245,44 +9004,100 @@ func (x ArrayPatternElem) ReplaceWith(v ArrayPatternElem) { x.node.ReplaceWith(v
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x ArrayPatternElem) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
 
+// MustEmpty returns x as an Empty; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustEmpty() Empty { return MustEmpty(x.node) }
+
 // AsDefaultValue returns x as a DefaultValue; ok is false if it is not one.
 func (x ArrayPatternElem) AsDefaultValue() (DefaultValue, bool) { return AsDefaultValue(x.node) }
+
+// MustDefaultValue returns x as a DefaultValue; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustDefaultValue() DefaultValue { return MustDefaultValue(x.node) }
 
 // AsIterRest returns x as an IterRest; ok is false if it is not one.
 func (x ArrayPatternElem) AsIterRest() (IterRest, bool) { return AsIterRest(x.node) }
 
+// MustIterRest returns x as an IterRest; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustIterRest() IterRest { return MustIterRest(x.node) }
+
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x ArrayPatternElem) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
+
+// MustArrayPattern returns x as an ArrayPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustArrayPattern() ArrayPattern { return MustArrayPattern(x.node) }
 
 // AsObjectPattern returns x as an ObjectPattern; ok is false if it is not one.
 func (x ArrayPatternElem) AsObjectPattern() (ObjectPattern, bool) { return AsObjectPattern(x.node) }
 
+// MustObjectPattern returns x as an ObjectPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustObjectPattern() ObjectPattern { return MustObjectPattern(x.node) }
+
 // AsName returns x as a Name; ok is false if it is not one.
 func (x ArrayPatternElem) AsName() (Name, bool) { return AsName(x.node) }
+
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustName() Name { return MustName(x.node) }
 
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x ArrayPatternElem) AsCast() (Cast, bool) { return AsCast(x.node) }
 
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustCast() Cast { return MustCast(x.node) }
+
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x ArrayPatternElem) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustGetProp() GetProp { return MustGetProp(x.node) }
 
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x ArrayPatternElem) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
 
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustGetElem() GetElem { return MustGetElem(x.node) }
+
 // AsTarget returns x as a Target; ok is false if it is not one.
 func (x ArrayPatternElem) AsTarget() (Target, bool) { return AsTarget(x.node) }
+
+// MustTarget returns x as a Target; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustTarget() Target { return MustTarget(x.node) }
 
 // AsPattern returns x as a Pattern; ok is false if it is not one.
 func (x ArrayPatternElem) AsPattern() (Pattern, bool) { return AsPattern(x.node) }
 
+// MustPattern returns x as a Pattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustPattern() Pattern { return MustPattern(x.node) }
+
 // AsParam returns x as a Param; ok is false if it is not one.
 func (x ArrayPatternElem) AsParam() (Param, bool) { return AsParam(x.node) }
+
+// MustParam returns x as a Param; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustParam() Param { return MustParam(x.node) }
 
 // AsCatchParam returns x as a CatchParam; ok is false if it is not one.
 func (x ArrayPatternElem) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
 
+// MustCatchParam returns x as a CatchParam; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustCatchParam() CatchParam { return MustCatchParam(x.node) }
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x ArrayPatternElem) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
+
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayPatternElem) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
 
 // ObjectPatternProp is a property of an object pattern.
 //
@@ -8328,11 +9143,23 @@ func (x ObjectPatternProp) ReplaceWith(v ObjectPatternProp) { x.node.ReplaceWith
 // AsObjectRest returns x as an ObjectRest; ok is false if it is not one.
 func (x ObjectPatternProp) AsObjectRest() (ObjectRest, bool) { return AsObjectRest(x.node) }
 
+// MustObjectRest returns x as an ObjectRest; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectPatternProp) MustObjectRest() ObjectRest { return MustObjectRest(x.node) }
+
 // AsComputedProp returns x as a ComputedProp; ok is false if it is not one.
 func (x ObjectPatternProp) AsComputedProp() (ComputedProp, bool) { return AsComputedProp(x.node) }
 
+// MustComputedProp returns x as a ComputedProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectPatternProp) MustComputedProp() ComputedProp { return MustComputedProp(x.node) }
+
 // AsStringKey returns x as a StringKey; ok is false if it is not one.
 func (x ObjectPatternProp) AsStringKey() (StringKey, bool) { return AsStringKey(x.node) }
+
+// MustStringKey returns x as a StringKey; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectPatternProp) MustStringKey() StringKey { return MustStringKey(x.node) }
 
 // PropValue is the value of a StringKey or ComputedProp: an expression in
 // an object literal or a class, a target in an object pattern.
@@ -8379,70 +9206,158 @@ func (x PropValue) ReplaceWith(v PropValue) { x.node.ReplaceWith(v.node) }
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x PropValue) AsFunction() (Function, bool) { return AsFunction(x.node) }
 
+// MustFunction returns x as a Function; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustFunction() Function { return MustFunction(x.node) }
+
 // AsDefaultValue returns x as a DefaultValue; ok is false if it is not one.
 func (x PropValue) AsDefaultValue() (DefaultValue, bool) { return AsDefaultValue(x.node) }
+
+// MustDefaultValue returns x as a DefaultValue; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustDefaultValue() DefaultValue { return MustDefaultValue(x.node) }
 
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x PropValue) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
+// MustArrayPattern returns x as an ArrayPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustArrayPattern() ArrayPattern { return MustArrayPattern(x.node) }
+
 // AsObjectPattern returns x as an ObjectPattern; ok is false if it is not one.
 func (x PropValue) AsObjectPattern() (ObjectPattern, bool) { return AsObjectPattern(x.node) }
+
+// MustObjectPattern returns x as an ObjectPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustObjectPattern() ObjectPattern { return MustObjectPattern(x.node) }
 
 // AsClass returns x as a Class; ok is false if it is not one.
 func (x PropValue) AsClass() (Class, bool) { return AsClass(x.node) }
 
+// MustClass returns x as a Class; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustClass() Class { return MustClass(x.node) }
+
 // AsName returns x as a Name; ok is false if it is not one.
 func (x PropValue) AsName() (Name, bool) { return AsName(x.node) }
+
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustName() Name { return MustName(x.node) }
 
 // AsThis returns x as a This; ok is false if it is not one.
 func (x PropValue) AsThis() (This, bool) { return AsThis(x.node) }
 
+// MustThis returns x as a This; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustThis() This { return MustThis(x.node) }
+
 // AsSuper returns x as a Super; ok is false if it is not one.
 func (x PropValue) AsSuper() (Super, bool) { return AsSuper(x.node) }
+
+// MustSuper returns x as a Super; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustSuper() Super { return MustSuper(x.node) }
 
 // AsTrue returns x as a True; ok is false if it is not one.
 func (x PropValue) AsTrue() (True, bool) { return AsTrue(x.node) }
 
+// MustTrue returns x as a True; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustTrue() True { return MustTrue(x.node) }
+
 // AsFalse returns x as a False; ok is false if it is not one.
 func (x PropValue) AsFalse() (False, bool) { return AsFalse(x.node) }
+
+// MustFalse returns x as a False; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustFalse() False { return MustFalse(x.node) }
 
 // AsNull returns x as a Null; ok is false if it is not one.
 func (x PropValue) AsNull() (Null, bool) { return AsNull(x.node) }
 
+// MustNull returns x as a Null; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustNull() Null { return MustNull(x.node) }
+
 // AsNewTarget returns x as a NewTarget; ok is false if it is not one.
 func (x PropValue) AsNewTarget() (NewTarget, bool) { return AsNewTarget(x.node) }
+
+// MustNewTarget returns x as a NewTarget; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustNewTarget() NewTarget { return MustNewTarget(x.node) }
 
 // AsImportMeta returns x as an ImportMeta; ok is false if it is not one.
 func (x PropValue) AsImportMeta() (ImportMeta, bool) { return AsImportMeta(x.node) }
 
+// MustImportMeta returns x as an ImportMeta; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustImportMeta() ImportMeta { return MustImportMeta(x.node) }
+
 // AsStringLit returns x as a StringLit; ok is false if it is not one.
 func (x PropValue) AsStringLit() (StringLit, bool) { return AsStringLit(x.node) }
+
+// MustStringLit returns x as a StringLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustStringLit() StringLit { return MustStringLit(x.node) }
 
 // AsNumber returns x as a Number; ok is false if it is not one.
 func (x PropValue) AsNumber() (Number, bool) { return AsNumber(x.node) }
 
+// MustNumber returns x as a Number; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustNumber() Number { return MustNumber(x.node) }
+
 // AsBigInt returns x as a BigInt; ok is false if it is not one.
 func (x PropValue) AsBigInt() (BigInt, bool) { return AsBigInt(x.node) }
+
+// MustBigInt returns x as a BigInt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustBigInt() BigInt { return MustBigInt(x.node) }
 
 // AsRegExp returns x as a RegExp; ok is false if it is not one.
 func (x PropValue) AsRegExp() (RegExp, bool) { return AsRegExp(x.node) }
 
+// MustRegExp returns x as a RegExp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustRegExp() RegExp { return MustRegExp(x.node) }
+
 // AsTemplateLit returns x as a TemplateLit; ok is false if it is not one.
 func (x PropValue) AsTemplateLit() (TemplateLit, bool) { return AsTemplateLit(x.node) }
+
+// MustTemplateLit returns x as a TemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustTemplateLit() TemplateLit { return MustTemplateLit(x.node) }
 
 // AsTaggedTemplateLit returns x as a TaggedTemplateLit; ok is false if it is not one.
 func (x PropValue) AsTaggedTemplateLit() (TaggedTemplateLit, bool) {
 	return AsTaggedTemplateLit(x.node)
 }
 
+// MustTaggedTemplateLit returns x as a TaggedTemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustTaggedTemplateLit() TaggedTemplateLit { return MustTaggedTemplateLit(x.node) }
+
 // AsArrayLit returns x as an ArrayLit; ok is false if it is not one.
 func (x PropValue) AsArrayLit() (ArrayLit, bool) { return AsArrayLit(x.node) }
+
+// MustArrayLit returns x as an ArrayLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustArrayLit() ArrayLit { return MustArrayLit(x.node) }
 
 // AsObjectLit returns x as an ObjectLit; ok is false if it is not one.
 func (x PropValue) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 
+// MustObjectLit returns x as an ObjectLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustObjectLit() ObjectLit { return MustObjectLit(x.node) }
+
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x PropValue) AsUnary() (Unary, bool) { return AsUnary(x.node) }
+
+// MustUnary returns x as an Unary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustUnary() Unary { return MustUnary(x.node) }
 
 // AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
 func (x PropValue) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
@@ -8450,11 +9365,23 @@ func (x PropValue) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x PropValue) AsCast() (Cast, bool) { return AsCast(x.node) }
 
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustCast() Cast { return MustCast(x.node) }
+
 // AsDynamicImport returns x as a DynamicImport; ok is false if it is not one.
 func (x PropValue) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImport(x.node) }
 
+// MustDynamicImport returns x as a DynamicImport; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustDynamicImport() DynamicImport { return MustDynamicImport(x.node) }
+
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x PropValue) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
+
+// MustIncDec returns x as an IncDec; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustIncDec() IncDec { return MustIncDec(x.node) }
 
 // AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
 func (x PropValue) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
@@ -8462,8 +9389,16 @@ func (x PropValue) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDe
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x PropValue) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
+// MustAssign returns x as an Assign; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustAssign() Assign { return MustAssign(x.node) }
+
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x PropValue) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// MustAssignOp returns x as an AssignOp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustAssignOp() AssignOp { return MustAssignOp(x.node) }
 
 // AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
 func (x PropValue) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
@@ -8473,62 +9408,138 @@ func (x PropValue) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x PropValue) AsBinary() (Binary, bool) { return AsBinary(x.node) }
 
+// MustBinary returns x as a Binary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustBinary() Binary { return MustBinary(x.node) }
+
 // AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
 func (x PropValue) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x PropValue) AsHook() (Hook, bool) { return AsHook(x.node) }
 
+// MustHook returns x as a Hook; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustHook() Hook { return MustHook(x.node) }
+
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x PropValue) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustGetProp() GetProp { return MustGetProp(x.node) }
 
 // AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
 func (x PropValue) AsOptChainGetProp() (OptChainGetProp, bool) { return AsOptChainGetProp(x.node) }
 
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustOptChainGetProp() OptChainGetProp { return MustOptChainGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x PropValue) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
 func (x PropValue) AsOptChainGetElem() (OptChainGetElem, bool) { return AsOptChainGetElem(x.node) }
 
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustOptChainGetElem() OptChainGetElem { return MustOptChainGetElem(x.node) }
+
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x PropValue) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustCall() Call { return MustCall(x.node) }
 
 // AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
 func (x PropValue) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
 
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
 // AsNew returns x as a New; ok is false if it is not one.
 func (x PropValue) AsNew() (New, bool) { return AsNew(x.node) }
+
+// MustNew returns x as a New; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustNew() New { return MustNew(x.node) }
 
 // AsYield returns x as a Yield; ok is false if it is not one.
 func (x PropValue) AsYield() (Yield, bool) { return AsYield(x.node) }
 
+// MustYield returns x as a Yield; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustYield() Yield { return MustYield(x.node) }
+
 // AsAwait returns x as an Await; ok is false if it is not one.
 func (x PropValue) AsAwait() (Await, bool) { return AsAwait(x.node) }
+
+// MustAwait returns x as an Await; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustAwait() Await { return MustAwait(x.node) }
 
 // AsExpr returns x as an Expr; ok is false if it is not one.
 func (x PropValue) AsExpr() (Expr, bool) { return AsExpr(x.node) }
 
+// MustExpr returns x as an Expr; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustExpr() Expr { return MustExpr(x.node) }
+
 // AsTarget returns x as a Target; ok is false if it is not one.
 func (x PropValue) AsTarget() (Target, bool) { return AsTarget(x.node) }
+
+// MustTarget returns x as a Target; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustTarget() Target { return MustTarget(x.node) }
 
 // AsPattern returns x as a Pattern; ok is false if it is not one.
 func (x PropValue) AsPattern() (Pattern, bool) { return AsPattern(x.node) }
 
+// MustPattern returns x as a Pattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustPattern() Pattern { return MustPattern(x.node) }
+
 // AsCatchParam returns x as a CatchParam; ok is false if it is not one.
 func (x PropValue) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
+
+// MustCatchParam returns x as a CatchParam; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustCatchParam() CatchParam { return MustCatchParam(x.node) }
 
 // AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
 func (x PropValue) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// MustNormalOrOptChainCall returns x as a NormalOrOptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustNormalOrOptChainCall() NormalOrOptChainCall {
+	return MustNormalOrOptChainCall(x.node)
+}
+
 // AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
 func (x PropValue) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
+// MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x PropValue) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// MustNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return MustNormalOrOptChainGetProp(x.node)
 }
 
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
@@ -8536,16 +9547,36 @@ func (x PropValue) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// MustNormalOrOptChainGet returns x as a NormalOrOptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustNormalOrOptChainGet() NormalOrOptChainGet {
+	return MustNormalOrOptChainGet(x.node)
+}
+
 // AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
 func (x PropValue) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// MustNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return MustNormalOrOptChainGetElem(x.node)
+}
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x PropValue) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x PropValue) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
+// MustAssignment returns x as an Assignment; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustAssignment() Assignment { return MustAssignment(x.node) }
 
 // ObjectMember is a member of an object literal.
 //
@@ -8591,27 +9622,55 @@ func (x ObjectMember) ReplaceWith(v ObjectMember) { x.node.ReplaceWith(v.node) }
 // AsObjectSpread returns x as an ObjectSpread; ok is false if it is not one.
 func (x ObjectMember) AsObjectSpread() (ObjectSpread, bool) { return AsObjectSpread(x.node) }
 
+// MustObjectSpread returns x as an ObjectSpread; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectMember) MustObjectSpread() ObjectSpread { return MustObjectSpread(x.node) }
+
 // AsMemberFunctionDef returns x as a MemberFunctionDef; ok is false if it is not one.
 func (x ObjectMember) AsMemberFunctionDef() (MemberFunctionDef, bool) {
 	return AsMemberFunctionDef(x.node)
 }
 
+// MustMemberFunctionDef returns x as a MemberFunctionDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectMember) MustMemberFunctionDef() MemberFunctionDef { return MustMemberFunctionDef(x.node) }
+
 // AsGetterDef returns x as a GetterDef; ok is false if it is not one.
 func (x ObjectMember) AsGetterDef() (GetterDef, bool) { return AsGetterDef(x.node) }
+
+// MustGetterDef returns x as a GetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectMember) MustGetterDef() GetterDef { return MustGetterDef(x.node) }
 
 // AsSetterDef returns x as a SetterDef; ok is false if it is not one.
 func (x ObjectMember) AsSetterDef() (SetterDef, bool) { return AsSetterDef(x.node) }
 
+// MustSetterDef returns x as a SetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectMember) MustSetterDef() SetterDef { return MustSetterDef(x.node) }
+
 // AsComputedProp returns x as a ComputedProp; ok is false if it is not one.
 func (x ObjectMember) AsComputedProp() (ComputedProp, bool) { return AsComputedProp(x.node) }
 
+// MustComputedProp returns x as a ComputedProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectMember) MustComputedProp() ComputedProp { return MustComputedProp(x.node) }
+
 // AsStringKey returns x as a StringKey; ok is false if it is not one.
 func (x ObjectMember) AsStringKey() (StringKey, bool) { return AsStringKey(x.node) }
+
+// MustStringKey returns x as a StringKey; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectMember) MustStringKey() StringKey { return MustStringKey(x.node) }
 
 // AsGetterOrSetterDef returns x as a GetterOrSetterDef; ok is false if it is not one.
 func (x ObjectMember) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
 	return AsGetterOrSetterDef(x.node)
 }
+
+// MustGetterOrSetterDef returns x as a GetterOrSetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectMember) MustGetterOrSetterDef() GetterOrSetterDef { return MustGetterOrSetterDef(x.node) }
 
 // ClassMember is a member of a class body (Block for a static block).
 //
@@ -8657,44 +9716,92 @@ func (x ClassMember) ReplaceWith(v ClassMember) { x.node.ReplaceWith(v.node) }
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x ClassMember) AsBlock() (Block, bool) { return AsBlock(x.node) }
 
+// MustBlock returns x as a Block; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustBlock() Block { return MustBlock(x.node) }
+
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x ClassMember) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
+
+// MustEmpty returns x as an Empty; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustEmpty() Empty { return MustEmpty(x.node) }
 
 // AsMemberFunctionDef returns x as a MemberFunctionDef; ok is false if it is not one.
 func (x ClassMember) AsMemberFunctionDef() (MemberFunctionDef, bool) {
 	return AsMemberFunctionDef(x.node)
 }
 
+// MustMemberFunctionDef returns x as a MemberFunctionDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustMemberFunctionDef() MemberFunctionDef { return MustMemberFunctionDef(x.node) }
+
 // AsGetterDef returns x as a GetterDef; ok is false if it is not one.
 func (x ClassMember) AsGetterDef() (GetterDef, bool) { return AsGetterDef(x.node) }
+
+// MustGetterDef returns x as a GetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustGetterDef() GetterDef { return MustGetterDef(x.node) }
 
 // AsSetterDef returns x as a SetterDef; ok is false if it is not one.
 func (x ClassMember) AsSetterDef() (SetterDef, bool) { return AsSetterDef(x.node) }
 
+// MustSetterDef returns x as a SetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustSetterDef() SetterDef { return MustSetterDef(x.node) }
+
 // AsMemberFieldDef returns x as a MemberFieldDef; ok is false if it is not one.
 func (x ClassMember) AsMemberFieldDef() (MemberFieldDef, bool) { return AsMemberFieldDef(x.node) }
+
+// MustMemberFieldDef returns x as a MemberFieldDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustMemberFieldDef() MemberFieldDef { return MustMemberFieldDef(x.node) }
 
 // AsComputedFieldDef returns x as a ComputedFieldDef; ok is false if it is not one.
 func (x ClassMember) AsComputedFieldDef() (ComputedFieldDef, bool) { return AsComputedFieldDef(x.node) }
 
+// MustComputedFieldDef returns x as a ComputedFieldDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustComputedFieldDef() ComputedFieldDef { return MustComputedFieldDef(x.node) }
+
 // AsComputedProp returns x as a ComputedProp; ok is false if it is not one.
 func (x ClassMember) AsComputedProp() (ComputedProp, bool) { return AsComputedProp(x.node) }
+
+// MustComputedProp returns x as a ComputedProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustComputedProp() ComputedProp { return MustComputedProp(x.node) }
 
 // AsMemberVariableDef returns x as a MemberVariableDef; ok is false if it is not one.
 func (x ClassMember) AsMemberVariableDef() (MemberVariableDef, bool) {
 	return AsMemberVariableDef(x.node)
 }
 
+// MustMemberVariableDef returns x as a MemberVariableDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustMemberVariableDef() MemberVariableDef { return MustMemberVariableDef(x.node) }
+
 // AsIndexSignature returns x as an IndexSignature; ok is false if it is not one.
 func (x ClassMember) AsIndexSignature() (IndexSignature, bool) { return AsIndexSignature(x.node) }
 
+// MustIndexSignature returns x as an IndexSignature; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustIndexSignature() IndexSignature { return MustIndexSignature(x.node) }
+
 // AsCallSignature returns x as a CallSignature; ok is false if it is not one.
 func (x ClassMember) AsCallSignature() (CallSignature, bool) { return AsCallSignature(x.node) }
+
+// MustCallSignature returns x as a CallSignature; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustCallSignature() CallSignature { return MustCallSignature(x.node) }
 
 // AsGetterOrSetterDef returns x as a GetterOrSetterDef; ok is false if it is not one.
 func (x ClassMember) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
 	return AsGetterOrSetterDef(x.node)
 }
+
+// MustGetterOrSetterDef returns x as a GetterOrSetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustGetterOrSetterDef() GetterOrSetterDef { return MustGetterOrSetterDef(x.node) }
 
 // GetterOrSetterDef is a getter or a setter, in an object literal or a
 // class: get key() { body } or set key(param) { body }.
@@ -8741,8 +9848,16 @@ func (x GetterOrSetterDef) ReplaceWith(v GetterOrSetterDef) { x.node.ReplaceWith
 // AsGetterDef returns x as a GetterDef; ok is false if it is not one.
 func (x GetterOrSetterDef) AsGetterDef() (GetterDef, bool) { return AsGetterDef(x.node) }
 
+// MustGetterDef returns x as a GetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x GetterOrSetterDef) MustGetterDef() GetterDef { return MustGetterDef(x.node) }
+
 // AsSetterDef returns x as a SetterDef; ok is false if it is not one.
 func (x GetterOrSetterDef) AsSetterDef() (SetterDef, bool) { return AsSetterDef(x.node) }
+
+// MustSetterDef returns x as a SetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x GetterOrSetterDef) MustSetterDef() SetterDef { return MustSetterDef(x.node) }
 
 // AsObjectMember returns x as an ObjectMember.
 func (x GetterOrSetterDef) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
@@ -8800,20 +9915,44 @@ func (x Loop) ReplaceWith(v Loop) { x.node.ReplaceWith(v.node) }
 // AsFor returns x as a For; ok is false if it is not one.
 func (x Loop) AsFor() (For, bool) { return AsFor(x.node) }
 
+// MustFor returns x as a For; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Loop) MustFor() For { return MustFor(x.node) }
+
 // AsForIn returns x as a ForIn; ok is false if it is not one.
 func (x Loop) AsForIn() (ForIn, bool) { return AsForIn(x.node) }
+
+// MustForIn returns x as a ForIn; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Loop) MustForIn() ForIn { return MustForIn(x.node) }
 
 // AsForOf returns x as a ForOf; ok is false if it is not one.
 func (x Loop) AsForOf() (ForOf, bool) { return AsForOf(x.node) }
 
+// MustForOf returns x as a ForOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Loop) MustForOf() ForOf { return MustForOf(x.node) }
+
 // AsForAwaitOf returns x as a ForAwaitOf; ok is false if it is not one.
 func (x Loop) AsForAwaitOf() (ForAwaitOf, bool) { return AsForAwaitOf(x.node) }
+
+// MustForAwaitOf returns x as a ForAwaitOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Loop) MustForAwaitOf() ForAwaitOf { return MustForAwaitOf(x.node) }
 
 // AsWhile returns x as a While; ok is false if it is not one.
 func (x Loop) AsWhile() (While, bool) { return AsWhile(x.node) }
 
+// MustWhile returns x as a While; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Loop) MustWhile() While { return MustWhile(x.node) }
+
 // AsDo returns x as a Do; ok is false if it is not one.
 func (x Loop) AsDo() (Do, bool) { return AsDo(x.node) }
+
+// MustDo returns x as a Do; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Loop) MustDo() Do { return MustDo(x.node) }
 
 // AsStatement returns x as a Statement.
 func (x Loop) AsStatement() Statement { return Statement{x.node} }
@@ -8821,8 +9960,16 @@ func (x Loop) AsStatement() Statement { return Statement{x.node} }
 // AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
 func (x Loop) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
 
+// MustEnhancedFor returns x as an EnhancedFor; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Loop) MustEnhancedFor() EnhancedFor { return MustEnhancedFor(x.node) }
+
 // AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
 func (x Loop) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
+
+// MustForOfLoop returns x as a ForOfLoop; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Loop) MustForOfLoop() ForOfLoop { return MustForOfLoop(x.node) }
 
 // AsExportBody returns x as an ExportBody.
 func (x Loop) AsExportBody() ExportBody { return ExportBody{x.node} }
@@ -8875,11 +10022,23 @@ func (x EnhancedFor) ReplaceWith(v EnhancedFor) { x.node.ReplaceWith(v.node) }
 // AsForIn returns x as a ForIn; ok is false if it is not one.
 func (x EnhancedFor) AsForIn() (ForIn, bool) { return AsForIn(x.node) }
 
+// MustForIn returns x as a ForIn; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x EnhancedFor) MustForIn() ForIn { return MustForIn(x.node) }
+
 // AsForOf returns x as a ForOf; ok is false if it is not one.
 func (x EnhancedFor) AsForOf() (ForOf, bool) { return AsForOf(x.node) }
 
+// MustForOf returns x as a ForOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x EnhancedFor) MustForOf() ForOf { return MustForOf(x.node) }
+
 // AsForAwaitOf returns x as a ForAwaitOf; ok is false if it is not one.
 func (x EnhancedFor) AsForAwaitOf() (ForAwaitOf, bool) { return AsForAwaitOf(x.node) }
+
+// MustForAwaitOf returns x as a ForAwaitOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x EnhancedFor) MustForAwaitOf() ForAwaitOf { return MustForAwaitOf(x.node) }
 
 // AsStatement returns x as a Statement.
 func (x EnhancedFor) AsStatement() Statement { return Statement{x.node} }
@@ -8890,6 +10049,10 @@ func (x EnhancedFor) AsLoop() Loop { return Loop{x.node} }
 // AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
 func (x EnhancedFor) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
 
+// MustForOfLoop returns x as a ForOfLoop; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x EnhancedFor) MustForOfLoop() ForOfLoop { return MustForOfLoop(x.node) }
+
 // AsExportBody returns x as an ExportBody.
 func (x EnhancedFor) AsExportBody() ExportBody { return ExportBody{x.node} }
 
@@ -8898,6 +10061,9 @@ func (x EnhancedFor) AsScriptItem() ScriptItem { return ScriptItem{x.node} }
 
 // Target returns the target of x.
 func (x EnhancedFor) Target() ForTarget { return ForTarget{x.node.GetFirstChild()} }
+
+// Collection returns the collection of x.
+func (x EnhancedFor) Collection() Expr { return Expr{x.node.GetSecondChild()} }
 
 // Body returns the body of x.
 func (x EnhancedFor) Body() Block { return Block{x.node.GetChildAtIndex(2)} }
@@ -8947,8 +10113,16 @@ func (x ForOfLoop) ReplaceWith(v ForOfLoop) { x.node.ReplaceWith(v.node) }
 // AsForOf returns x as a ForOf; ok is false if it is not one.
 func (x ForOfLoop) AsForOf() (ForOf, bool) { return AsForOf(x.node) }
 
+// MustForOf returns x as a ForOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForOfLoop) MustForOf() ForOf { return MustForOf(x.node) }
+
 // AsForAwaitOf returns x as a ForAwaitOf; ok is false if it is not one.
 func (x ForOfLoop) AsForAwaitOf() (ForAwaitOf, bool) { return AsForAwaitOf(x.node) }
+
+// MustForAwaitOf returns x as a ForAwaitOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForOfLoop) MustForAwaitOf() ForAwaitOf { return MustForAwaitOf(x.node) }
 
 // AsStatement returns x as a Statement.
 func (x ForOfLoop) AsStatement() Statement { return Statement{x.node} }
@@ -8970,6 +10144,9 @@ func (x ForOfLoop) Target() ForTarget { return ForTarget{x.node.GetFirstChild()}
 
 // Iterable returns the iterable of x.
 func (x ForOfLoop) Iterable() Expr { return Expr{x.node.GetSecondChild()} }
+
+// Collection returns the collection of x.
+func (x ForOfLoop) Collection() Expr { return Expr{x.node.GetSecondChild()} }
 
 // Body returns the body of x.
 func (x ForOfLoop) Body() Block { return Block{x.node.GetChildAtIndex(2)} }
@@ -9018,8 +10195,16 @@ func (x Jump) ReplaceWith(v Jump) { x.node.ReplaceWith(v.node) }
 // AsBreak returns x as a Break; ok is false if it is not one.
 func (x Jump) AsBreak() (Break, bool) { return AsBreak(x.node) }
 
+// MustBreak returns x as a Break; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Jump) MustBreak() Break { return MustBreak(x.node) }
+
 // AsContinue returns x as a Continue; ok is false if it is not one.
 func (x Jump) AsContinue() (Continue, bool) { return AsContinue(x.node) }
+
+// MustContinue returns x as a Continue; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Jump) MustContinue() Continue { return MustContinue(x.node) }
 
 // AsStatement returns x as a Statement.
 func (x Jump) AsStatement() Statement { return Statement{x.node} }
@@ -9080,8 +10265,16 @@ func (x SwitchCase) ReplaceWith(v SwitchCase) { x.node.ReplaceWith(v.node) }
 // AsCase returns x as a Case; ok is false if it is not one.
 func (x SwitchCase) AsCase() (Case, bool) { return AsCase(x.node) }
 
+// MustCase returns x as a Case; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x SwitchCase) MustCase() Case { return MustCase(x.node) }
+
 // AsDefaultCase returns x as a DefaultCase; ok is false if it is not one.
 func (x SwitchCase) AsDefaultCase() (DefaultCase, bool) { return AsDefaultCase(x.node) }
+
+// MustDefaultCase returns x as a DefaultCase; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x SwitchCase) MustDefaultCase() DefaultCase { return MustDefaultCase(x.node) }
 
 // Body returns the body of x.
 func (x SwitchCase) Body() Block { return Block{x.node.GetLastChild()} }
@@ -9130,8 +10323,16 @@ func (x Declarator) ReplaceWith(v Declarator) { x.node.ReplaceWith(v.node) }
 // AsDestructuringLhs returns x as a DestructuringLhs; ok is false if it is not one.
 func (x Declarator) AsDestructuringLhs() (DestructuringLhs, bool) { return AsDestructuringLhs(x.node) }
 
+// MustDestructuringLhs returns x as a DestructuringLhs; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Declarator) MustDestructuringLhs() DestructuringLhs { return MustDestructuringLhs(x.node) }
+
 // AsName returns x as a Name; ok is false if it is not one.
 func (x Declarator) AsName() (Name, bool) { return AsName(x.node) }
+
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Declarator) MustName() Name { return MustName(x.node) }
 
 // ForInit is the first part of a for loop.
 //
@@ -9177,6 +10378,10 @@ func (x ForInit) ReplaceWith(v ForInit) { x.node.ReplaceWith(v.node) }
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ForInit) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
 
+// MustNameDeclaration returns x as a NameDeclaration; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNameDeclaration() NameDeclaration { return MustNameDeclaration(x.node) }
+
 // AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
 func (x ForInit) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
 	return AsNameDeclarationOf(x.node, token)
@@ -9185,59 +10390,135 @@ func (x ForInit) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) 
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x ForInit) AsFunction() (Function, bool) { return AsFunction(x.node) }
 
+// MustFunction returns x as a Function; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustFunction() Function { return MustFunction(x.node) }
+
 // AsClass returns x as a Class; ok is false if it is not one.
 func (x ForInit) AsClass() (Class, bool) { return AsClass(x.node) }
+
+// MustClass returns x as a Class; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustClass() Class { return MustClass(x.node) }
 
 // AsName returns x as a Name; ok is false if it is not one.
 func (x ForInit) AsName() (Name, bool) { return AsName(x.node) }
 
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustName() Name { return MustName(x.node) }
+
 // AsThis returns x as a This; ok is false if it is not one.
 func (x ForInit) AsThis() (This, bool) { return AsThis(x.node) }
+
+// MustThis returns x as a This; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustThis() This { return MustThis(x.node) }
 
 // AsSuper returns x as a Super; ok is false if it is not one.
 func (x ForInit) AsSuper() (Super, bool) { return AsSuper(x.node) }
 
+// MustSuper returns x as a Super; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustSuper() Super { return MustSuper(x.node) }
+
 // AsTrue returns x as a True; ok is false if it is not one.
 func (x ForInit) AsTrue() (True, bool) { return AsTrue(x.node) }
+
+// MustTrue returns x as a True; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustTrue() True { return MustTrue(x.node) }
 
 // AsFalse returns x as a False; ok is false if it is not one.
 func (x ForInit) AsFalse() (False, bool) { return AsFalse(x.node) }
 
+// MustFalse returns x as a False; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustFalse() False { return MustFalse(x.node) }
+
 // AsNull returns x as a Null; ok is false if it is not one.
 func (x ForInit) AsNull() (Null, bool) { return AsNull(x.node) }
+
+// MustNull returns x as a Null; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNull() Null { return MustNull(x.node) }
 
 // AsNewTarget returns x as a NewTarget; ok is false if it is not one.
 func (x ForInit) AsNewTarget() (NewTarget, bool) { return AsNewTarget(x.node) }
 
+// MustNewTarget returns x as a NewTarget; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNewTarget() NewTarget { return MustNewTarget(x.node) }
+
 // AsImportMeta returns x as an ImportMeta; ok is false if it is not one.
 func (x ForInit) AsImportMeta() (ImportMeta, bool) { return AsImportMeta(x.node) }
+
+// MustImportMeta returns x as an ImportMeta; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustImportMeta() ImportMeta { return MustImportMeta(x.node) }
 
 // AsStringLit returns x as a StringLit; ok is false if it is not one.
 func (x ForInit) AsStringLit() (StringLit, bool) { return AsStringLit(x.node) }
 
+// MustStringLit returns x as a StringLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustStringLit() StringLit { return MustStringLit(x.node) }
+
 // AsNumber returns x as a Number; ok is false if it is not one.
 func (x ForInit) AsNumber() (Number, bool) { return AsNumber(x.node) }
+
+// MustNumber returns x as a Number; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNumber() Number { return MustNumber(x.node) }
 
 // AsBigInt returns x as a BigInt; ok is false if it is not one.
 func (x ForInit) AsBigInt() (BigInt, bool) { return AsBigInt(x.node) }
 
+// MustBigInt returns x as a BigInt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustBigInt() BigInt { return MustBigInt(x.node) }
+
 // AsRegExp returns x as a RegExp; ok is false if it is not one.
 func (x ForInit) AsRegExp() (RegExp, bool) { return AsRegExp(x.node) }
+
+// MustRegExp returns x as a RegExp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustRegExp() RegExp { return MustRegExp(x.node) }
 
 // AsTemplateLit returns x as a TemplateLit; ok is false if it is not one.
 func (x ForInit) AsTemplateLit() (TemplateLit, bool) { return AsTemplateLit(x.node) }
 
+// MustTemplateLit returns x as a TemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustTemplateLit() TemplateLit { return MustTemplateLit(x.node) }
+
 // AsTaggedTemplateLit returns x as a TaggedTemplateLit; ok is false if it is not one.
 func (x ForInit) AsTaggedTemplateLit() (TaggedTemplateLit, bool) { return AsTaggedTemplateLit(x.node) }
+
+// MustTaggedTemplateLit returns x as a TaggedTemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustTaggedTemplateLit() TaggedTemplateLit { return MustTaggedTemplateLit(x.node) }
 
 // AsArrayLit returns x as an ArrayLit; ok is false if it is not one.
 func (x ForInit) AsArrayLit() (ArrayLit, bool) { return AsArrayLit(x.node) }
 
+// MustArrayLit returns x as an ArrayLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustArrayLit() ArrayLit { return MustArrayLit(x.node) }
+
 // AsObjectLit returns x as an ObjectLit; ok is false if it is not one.
 func (x ForInit) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 
+// MustObjectLit returns x as an ObjectLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustObjectLit() ObjectLit { return MustObjectLit(x.node) }
+
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x ForInit) AsUnary() (Unary, bool) { return AsUnary(x.node) }
+
+// MustUnary returns x as an Unary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustUnary() Unary { return MustUnary(x.node) }
 
 // AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
 func (x ForInit) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
@@ -9245,11 +10526,23 @@ func (x ForInit) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x ForInit) AsCast() (Cast, bool) { return AsCast(x.node) }
 
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustCast() Cast { return MustCast(x.node) }
+
 // AsDynamicImport returns x as a DynamicImport; ok is false if it is not one.
 func (x ForInit) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImport(x.node) }
 
+// MustDynamicImport returns x as a DynamicImport; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustDynamicImport() DynamicImport { return MustDynamicImport(x.node) }
+
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x ForInit) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
+
+// MustIncDec returns x as an IncDec; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustIncDec() IncDec { return MustIncDec(x.node) }
 
 // AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
 func (x ForInit) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
@@ -9257,8 +10550,16 @@ func (x ForInit) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecO
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x ForInit) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
+// MustAssign returns x as an Assign; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustAssign() Assign { return MustAssign(x.node) }
+
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x ForInit) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// MustAssignOp returns x as an AssignOp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustAssignOp() AssignOp { return MustAssignOp(x.node) }
 
 // AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
 func (x ForInit) AsAssignOpOf(token rhino.Token) (AssignOp, bool) { return AsAssignOpOf(x.node, token) }
@@ -9266,41 +10567,89 @@ func (x ForInit) AsAssignOpOf(token rhino.Token) (AssignOp, bool) { return AsAss
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x ForInit) AsBinary() (Binary, bool) { return AsBinary(x.node) }
 
+// MustBinary returns x as a Binary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustBinary() Binary { return MustBinary(x.node) }
+
 // AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
 func (x ForInit) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x ForInit) AsHook() (Hook, bool) { return AsHook(x.node) }
 
+// MustHook returns x as a Hook; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustHook() Hook { return MustHook(x.node) }
+
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x ForInit) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustGetProp() GetProp { return MustGetProp(x.node) }
 
 // AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
 func (x ForInit) AsOptChainGetProp() (OptChainGetProp, bool) { return AsOptChainGetProp(x.node) }
 
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustOptChainGetProp() OptChainGetProp { return MustOptChainGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x ForInit) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
 func (x ForInit) AsOptChainGetElem() (OptChainGetElem, bool) { return AsOptChainGetElem(x.node) }
 
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustOptChainGetElem() OptChainGetElem { return MustOptChainGetElem(x.node) }
+
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x ForInit) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustCall() Call { return MustCall(x.node) }
 
 // AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
 func (x ForInit) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
 
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
 // AsNew returns x as a New; ok is false if it is not one.
 func (x ForInit) AsNew() (New, bool) { return AsNew(x.node) }
+
+// MustNew returns x as a New; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNew() New { return MustNew(x.node) }
 
 // AsYield returns x as a Yield; ok is false if it is not one.
 func (x ForInit) AsYield() (Yield, bool) { return AsYield(x.node) }
 
+// MustYield returns x as a Yield; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustYield() Yield { return MustYield(x.node) }
+
 // AsAwait returns x as an Await; ok is false if it is not one.
 func (x ForInit) AsAwait() (Await, bool) { return AsAwait(x.node) }
 
+// MustAwait returns x as an Await; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustAwait() Await { return MustAwait(x.node) }
+
 // AsExpr returns x as an Expr; ok is false if it is not one.
 func (x ForInit) AsExpr() (Expr, bool) { return AsExpr(x.node) }
+
+// MustExpr returns x as an Expr; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustExpr() Expr { return MustExpr(x.node) }
 
 // AsExportBody returns x as an ExportBody.
 func (x ForInit) AsExportBody() ExportBody { return ExportBody{x.node} }
@@ -9310,12 +10659,28 @@ func (x ForInit) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// MustNormalOrOptChainCall returns x as a NormalOrOptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNormalOrOptChainCall() NormalOrOptChainCall {
+	return MustNormalOrOptChainCall(x.node)
+}
+
 // AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
 func (x ForInit) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
+// MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x ForInit) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// MustNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return MustNormalOrOptChainGetProp(x.node)
 }
 
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
@@ -9323,16 +10688,36 @@ func (x ForInit) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// MustNormalOrOptChainGet returns x as a NormalOrOptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNormalOrOptChainGet() NormalOrOptChainGet {
+	return MustNormalOrOptChainGet(x.node)
+}
+
 // AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
 func (x ForInit) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// MustNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return MustNormalOrOptChainGetElem(x.node)
+}
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x ForInit) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x ForInit) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
+// MustAssignment returns x as an Assignment; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustAssignment() Assignment { return MustAssignment(x.node) }
 
 // ForTarget is what a for-in or for-of loop assigns.
 //
@@ -9378,6 +10763,10 @@ func (x ForTarget) ReplaceWith(v ForTarget) { x.node.ReplaceWith(v.node) }
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ForTarget) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
 
+// MustNameDeclaration returns x as a NameDeclaration; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustNameDeclaration() NameDeclaration { return MustNameDeclaration(x.node) }
+
 // AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
 func (x ForTarget) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
 	return AsNameDeclarationOf(x.node, token)
@@ -9386,32 +10775,72 @@ func (x ForTarget) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x ForTarget) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
+// MustArrayPattern returns x as an ArrayPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustArrayPattern() ArrayPattern { return MustArrayPattern(x.node) }
+
 // AsObjectPattern returns x as an ObjectPattern; ok is false if it is not one.
 func (x ForTarget) AsObjectPattern() (ObjectPattern, bool) { return AsObjectPattern(x.node) }
+
+// MustObjectPattern returns x as an ObjectPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustObjectPattern() ObjectPattern { return MustObjectPattern(x.node) }
 
 // AsName returns x as a Name; ok is false if it is not one.
 func (x ForTarget) AsName() (Name, bool) { return AsName(x.node) }
 
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustName() Name { return MustName(x.node) }
+
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x ForTarget) AsCast() (Cast, bool) { return AsCast(x.node) }
+
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustCast() Cast { return MustCast(x.node) }
 
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x ForTarget) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
 
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustGetProp() GetProp { return MustGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x ForTarget) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsTarget returns x as a Target; ok is false if it is not one.
 func (x ForTarget) AsTarget() (Target, bool) { return AsTarget(x.node) }
 
+// MustTarget returns x as a Target; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustTarget() Target { return MustTarget(x.node) }
+
 // AsPattern returns x as a Pattern; ok is false if it is not one.
 func (x ForTarget) AsPattern() (Pattern, bool) { return AsPattern(x.node) }
+
+// MustPattern returns x as a Pattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustPattern() Pattern { return MustPattern(x.node) }
 
 // AsCatchParam returns x as a CatchParam; ok is false if it is not one.
 func (x ForTarget) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
 
+// MustCatchParam returns x as a CatchParam; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustCatchParam() CatchParam { return MustCatchParam(x.node) }
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x ForTarget) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
+
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForTarget) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
 
 // CatchParam is the binding of a catch clause.
 //
@@ -9457,17 +10886,33 @@ func (x CatchParam) ReplaceWith(v CatchParam) { x.node.ReplaceWith(v.node) }
 // AsArrayPattern returns x as an ArrayPattern; ok is false if it is not one.
 func (x CatchParam) AsArrayPattern() (ArrayPattern, bool) { return AsArrayPattern(x.node) }
 
+// MustArrayPattern returns x as an ArrayPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x CatchParam) MustArrayPattern() ArrayPattern { return MustArrayPattern(x.node) }
+
 // AsObjectPattern returns x as an ObjectPattern; ok is false if it is not one.
 func (x CatchParam) AsObjectPattern() (ObjectPattern, bool) { return AsObjectPattern(x.node) }
 
+// MustObjectPattern returns x as an ObjectPattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x CatchParam) MustObjectPattern() ObjectPattern { return MustObjectPattern(x.node) }
+
 // AsName returns x as a Name; ok is false if it is not one.
 func (x CatchParam) AsName() (Name, bool) { return AsName(x.node) }
+
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x CatchParam) MustName() Name { return MustName(x.node) }
 
 // AsTarget returns x as a Target.
 func (x CatchParam) AsTarget() Target { return Target{x.node} }
 
 // AsPattern returns x as a Pattern; ok is false if it is not one.
 func (x CatchParam) AsPattern() (Pattern, bool) { return AsPattern(x.node) }
+
+// MustPattern returns x as a Pattern; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x CatchParam) MustPattern() Pattern { return MustPattern(x.node) }
 
 // AsParam returns x as a Param.
 func (x CatchParam) AsParam() Param { return Param{x.node} }
@@ -9526,67 +10971,151 @@ func (x FunctionBody) ReplaceWith(v FunctionBody) { x.node.ReplaceWith(v.node) }
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x FunctionBody) AsBlock() (Block, bool) { return AsBlock(x.node) }
 
+// MustBlock returns x as a Block; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustBlock() Block { return MustBlock(x.node) }
+
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x FunctionBody) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
+
+// MustEmpty returns x as an Empty; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustEmpty() Empty { return MustEmpty(x.node) }
 
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x FunctionBody) AsFunction() (Function, bool) { return AsFunction(x.node) }
 
+// MustFunction returns x as a Function; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustFunction() Function { return MustFunction(x.node) }
+
 // AsClass returns x as a Class; ok is false if it is not one.
 func (x FunctionBody) AsClass() (Class, bool) { return AsClass(x.node) }
+
+// MustClass returns x as a Class; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustClass() Class { return MustClass(x.node) }
 
 // AsName returns x as a Name; ok is false if it is not one.
 func (x FunctionBody) AsName() (Name, bool) { return AsName(x.node) }
 
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustName() Name { return MustName(x.node) }
+
 // AsThis returns x as a This; ok is false if it is not one.
 func (x FunctionBody) AsThis() (This, bool) { return AsThis(x.node) }
+
+// MustThis returns x as a This; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustThis() This { return MustThis(x.node) }
 
 // AsSuper returns x as a Super; ok is false if it is not one.
 func (x FunctionBody) AsSuper() (Super, bool) { return AsSuper(x.node) }
 
+// MustSuper returns x as a Super; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustSuper() Super { return MustSuper(x.node) }
+
 // AsTrue returns x as a True; ok is false if it is not one.
 func (x FunctionBody) AsTrue() (True, bool) { return AsTrue(x.node) }
+
+// MustTrue returns x as a True; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustTrue() True { return MustTrue(x.node) }
 
 // AsFalse returns x as a False; ok is false if it is not one.
 func (x FunctionBody) AsFalse() (False, bool) { return AsFalse(x.node) }
 
+// MustFalse returns x as a False; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustFalse() False { return MustFalse(x.node) }
+
 // AsNull returns x as a Null; ok is false if it is not one.
 func (x FunctionBody) AsNull() (Null, bool) { return AsNull(x.node) }
+
+// MustNull returns x as a Null; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustNull() Null { return MustNull(x.node) }
 
 // AsNewTarget returns x as a NewTarget; ok is false if it is not one.
 func (x FunctionBody) AsNewTarget() (NewTarget, bool) { return AsNewTarget(x.node) }
 
+// MustNewTarget returns x as a NewTarget; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustNewTarget() NewTarget { return MustNewTarget(x.node) }
+
 // AsImportMeta returns x as an ImportMeta; ok is false if it is not one.
 func (x FunctionBody) AsImportMeta() (ImportMeta, bool) { return AsImportMeta(x.node) }
+
+// MustImportMeta returns x as an ImportMeta; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustImportMeta() ImportMeta { return MustImportMeta(x.node) }
 
 // AsStringLit returns x as a StringLit; ok is false if it is not one.
 func (x FunctionBody) AsStringLit() (StringLit, bool) { return AsStringLit(x.node) }
 
+// MustStringLit returns x as a StringLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustStringLit() StringLit { return MustStringLit(x.node) }
+
 // AsNumber returns x as a Number; ok is false if it is not one.
 func (x FunctionBody) AsNumber() (Number, bool) { return AsNumber(x.node) }
+
+// MustNumber returns x as a Number; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustNumber() Number { return MustNumber(x.node) }
 
 // AsBigInt returns x as a BigInt; ok is false if it is not one.
 func (x FunctionBody) AsBigInt() (BigInt, bool) { return AsBigInt(x.node) }
 
+// MustBigInt returns x as a BigInt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustBigInt() BigInt { return MustBigInt(x.node) }
+
 // AsRegExp returns x as a RegExp; ok is false if it is not one.
 func (x FunctionBody) AsRegExp() (RegExp, bool) { return AsRegExp(x.node) }
 
+// MustRegExp returns x as a RegExp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustRegExp() RegExp { return MustRegExp(x.node) }
+
 // AsTemplateLit returns x as a TemplateLit; ok is false if it is not one.
 func (x FunctionBody) AsTemplateLit() (TemplateLit, bool) { return AsTemplateLit(x.node) }
+
+// MustTemplateLit returns x as a TemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustTemplateLit() TemplateLit { return MustTemplateLit(x.node) }
 
 // AsTaggedTemplateLit returns x as a TaggedTemplateLit; ok is false if it is not one.
 func (x FunctionBody) AsTaggedTemplateLit() (TaggedTemplateLit, bool) {
 	return AsTaggedTemplateLit(x.node)
 }
 
+// MustTaggedTemplateLit returns x as a TaggedTemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustTaggedTemplateLit() TaggedTemplateLit { return MustTaggedTemplateLit(x.node) }
+
 // AsArrayLit returns x as an ArrayLit; ok is false if it is not one.
 func (x FunctionBody) AsArrayLit() (ArrayLit, bool) { return AsArrayLit(x.node) }
+
+// MustArrayLit returns x as an ArrayLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustArrayLit() ArrayLit { return MustArrayLit(x.node) }
 
 // AsObjectLit returns x as an ObjectLit; ok is false if it is not one.
 func (x FunctionBody) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 
+// MustObjectLit returns x as an ObjectLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustObjectLit() ObjectLit { return MustObjectLit(x.node) }
+
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x FunctionBody) AsUnary() (Unary, bool) { return AsUnary(x.node) }
+
+// MustUnary returns x as an Unary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustUnary() Unary { return MustUnary(x.node) }
 
 // AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
 func (x FunctionBody) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
@@ -9594,11 +11123,23 @@ func (x FunctionBody) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnar
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x FunctionBody) AsCast() (Cast, bool) { return AsCast(x.node) }
 
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustCast() Cast { return MustCast(x.node) }
+
 // AsDynamicImport returns x as a DynamicImport; ok is false if it is not one.
 func (x FunctionBody) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImport(x.node) }
 
+// MustDynamicImport returns x as a DynamicImport; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustDynamicImport() DynamicImport { return MustDynamicImport(x.node) }
+
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x FunctionBody) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
+
+// MustIncDec returns x as an IncDec; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustIncDec() IncDec { return MustIncDec(x.node) }
 
 // AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
 func (x FunctionBody) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
@@ -9606,8 +11147,16 @@ func (x FunctionBody) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIn
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x FunctionBody) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
+// MustAssign returns x as an Assign; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustAssign() Assign { return MustAssign(x.node) }
+
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x FunctionBody) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// MustAssignOp returns x as an AssignOp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustAssignOp() AssignOp { return MustAssignOp(x.node) }
 
 // AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
 func (x FunctionBody) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
@@ -9617,41 +11166,89 @@ func (x FunctionBody) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x FunctionBody) AsBinary() (Binary, bool) { return AsBinary(x.node) }
 
+// MustBinary returns x as a Binary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustBinary() Binary { return MustBinary(x.node) }
+
 // AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
 func (x FunctionBody) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x FunctionBody) AsHook() (Hook, bool) { return AsHook(x.node) }
 
+// MustHook returns x as a Hook; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustHook() Hook { return MustHook(x.node) }
+
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x FunctionBody) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustGetProp() GetProp { return MustGetProp(x.node) }
 
 // AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
 func (x FunctionBody) AsOptChainGetProp() (OptChainGetProp, bool) { return AsOptChainGetProp(x.node) }
 
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustOptChainGetProp() OptChainGetProp { return MustOptChainGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x FunctionBody) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
 func (x FunctionBody) AsOptChainGetElem() (OptChainGetElem, bool) { return AsOptChainGetElem(x.node) }
 
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustOptChainGetElem() OptChainGetElem { return MustOptChainGetElem(x.node) }
+
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x FunctionBody) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustCall() Call { return MustCall(x.node) }
 
 // AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
 func (x FunctionBody) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
 
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
 // AsNew returns x as a New; ok is false if it is not one.
 func (x FunctionBody) AsNew() (New, bool) { return AsNew(x.node) }
+
+// MustNew returns x as a New; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustNew() New { return MustNew(x.node) }
 
 // AsYield returns x as a Yield; ok is false if it is not one.
 func (x FunctionBody) AsYield() (Yield, bool) { return AsYield(x.node) }
 
+// MustYield returns x as a Yield; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustYield() Yield { return MustYield(x.node) }
+
 // AsAwait returns x as an Await; ok is false if it is not one.
 func (x FunctionBody) AsAwait() (Await, bool) { return AsAwait(x.node) }
 
+// MustAwait returns x as an Await; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustAwait() Await { return MustAwait(x.node) }
+
 // AsExpr returns x as an Expr; ok is false if it is not one.
 func (x FunctionBody) AsExpr() (Expr, bool) { return AsExpr(x.node) }
+
+// MustExpr returns x as an Expr; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustExpr() Expr { return MustExpr(x.node) }
 
 // AsExportBody returns x as an ExportBody.
 func (x FunctionBody) AsExportBody() ExportBody { return ExportBody{x.node} }
@@ -9661,12 +11258,28 @@ func (x FunctionBody) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// MustNormalOrOptChainCall returns x as a NormalOrOptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustNormalOrOptChainCall() NormalOrOptChainCall {
+	return MustNormalOrOptChainCall(x.node)
+}
+
 // AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
 func (x FunctionBody) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
+// MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x FunctionBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// MustNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return MustNormalOrOptChainGetProp(x.node)
 }
 
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
@@ -9674,16 +11287,36 @@ func (x FunctionBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// MustNormalOrOptChainGet returns x as a NormalOrOptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustNormalOrOptChainGet() NormalOrOptChainGet {
+	return MustNormalOrOptChainGet(x.node)
+}
+
 // AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
 func (x FunctionBody) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// MustNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return MustNormalOrOptChainGetElem(x.node)
+}
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x FunctionBody) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x FunctionBody) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
+// MustAssignment returns x as an Assignment; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustAssignment() Assignment { return MustAssignment(x.node) }
 
 // TemplatePart is a part of a template literal.
 //
@@ -9731,8 +11364,16 @@ func (x TemplatePart) AsTemplateLitString() (TemplateLitString, bool) {
 	return AsTemplateLitString(x.node)
 }
 
+// MustTemplateLitString returns x as a TemplateLitString; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x TemplatePart) MustTemplateLitString() TemplateLitString { return MustTemplateLitString(x.node) }
+
 // AsTemplateLitSub returns x as a TemplateLitSub; ok is false if it is not one.
 func (x TemplatePart) AsTemplateLitSub() (TemplateLitSub, bool) { return AsTemplateLitSub(x.node) }
+
+// MustTemplateLitSub returns x as a TemplateLitSub; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x TemplatePart) MustTemplateLitSub() TemplateLitSub { return MustTemplateLitSub(x.node) }
 
 // ImportBindings is what an import binds besides its default.
 //
@@ -9778,8 +11419,16 @@ func (x ImportBindings) ReplaceWith(v ImportBindings) { x.node.ReplaceWith(v.nod
 // AsImportSpecs returns x as an ImportSpecs; ok is false if it is not one.
 func (x ImportBindings) AsImportSpecs() (ImportSpecs, bool) { return AsImportSpecs(x.node) }
 
+// MustImportSpecs returns x as an ImportSpecs; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ImportBindings) MustImportSpecs() ImportSpecs { return MustImportSpecs(x.node) }
+
 // AsImportStar returns x as an ImportStar; ok is false if it is not one.
 func (x ImportBindings) AsImportStar() (ImportStar, bool) { return AsImportStar(x.node) }
+
+// MustImportStar returns x as an ImportStar; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ImportBindings) MustImportStar() ImportStar { return MustImportStar(x.node) }
 
 // ExportBody is what an export exports: a declaration, an expression
 // (export default), specifiers, or Empty (export * from).
@@ -9826,41 +11475,93 @@ func (x ExportBody) ReplaceWith(v ExportBody) { x.node.ReplaceWith(v.node) }
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x ExportBody) AsBlock() (Block, bool) { return AsBlock(x.node) }
 
+// MustBlock returns x as a Block; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustBlock() Block { return MustBlock(x.node) }
+
 // AsLabel returns x as a Label; ok is false if it is not one.
 func (x ExportBody) AsLabel() (Label, bool) { return AsLabel(x.node) }
+
+// MustLabel returns x as a Label; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustLabel() Label { return MustLabel(x.node) }
 
 // AsIf returns x as an If; ok is false if it is not one.
 func (x ExportBody) AsIf() (If, bool) { return AsIf(x.node) }
 
+// MustIf returns x as an If; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustIf() If { return MustIf(x.node) }
+
 // AsFor returns x as a For; ok is false if it is not one.
 func (x ExportBody) AsFor() (For, bool) { return AsFor(x.node) }
+
+// MustFor returns x as a For; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustFor() For { return MustFor(x.node) }
 
 // AsForIn returns x as a ForIn; ok is false if it is not one.
 func (x ExportBody) AsForIn() (ForIn, bool) { return AsForIn(x.node) }
 
+// MustForIn returns x as a ForIn; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustForIn() ForIn { return MustForIn(x.node) }
+
 // AsForOf returns x as a ForOf; ok is false if it is not one.
 func (x ExportBody) AsForOf() (ForOf, bool) { return AsForOf(x.node) }
+
+// MustForOf returns x as a ForOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustForOf() ForOf { return MustForOf(x.node) }
 
 // AsForAwaitOf returns x as a ForAwaitOf; ok is false if it is not one.
 func (x ExportBody) AsForAwaitOf() (ForAwaitOf, bool) { return AsForAwaitOf(x.node) }
 
+// MustForAwaitOf returns x as a ForAwaitOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustForAwaitOf() ForAwaitOf { return MustForAwaitOf(x.node) }
+
 // AsWhile returns x as a While; ok is false if it is not one.
 func (x ExportBody) AsWhile() (While, bool) { return AsWhile(x.node) }
+
+// MustWhile returns x as a While; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustWhile() While { return MustWhile(x.node) }
 
 // AsDo returns x as a Do; ok is false if it is not one.
 func (x ExportBody) AsDo() (Do, bool) { return AsDo(x.node) }
 
+// MustDo returns x as a Do; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustDo() Do { return MustDo(x.node) }
+
 // AsWith returns x as a With; ok is false if it is not one.
 func (x ExportBody) AsWith() (With, bool) { return AsWith(x.node) }
+
+// MustWith returns x as a With; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustWith() With { return MustWith(x.node) }
 
 // AsSwitch returns x as a Switch; ok is false if it is not one.
 func (x ExportBody) AsSwitch() (Switch, bool) { return AsSwitch(x.node) }
 
+// MustSwitch returns x as a Switch; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustSwitch() Switch { return MustSwitch(x.node) }
+
 // AsTry returns x as a Try; ok is false if it is not one.
 func (x ExportBody) AsTry() (Try, bool) { return AsTry(x.node) }
 
+// MustTry returns x as a Try; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustTry() Try { return MustTry(x.node) }
+
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ExportBody) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
+
+// MustNameDeclaration returns x as a NameDeclaration; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNameDeclaration() NameDeclaration { return MustNameDeclaration(x.node) }
 
 // AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
 func (x ExportBody) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
@@ -9870,82 +11571,186 @@ func (x ExportBody) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, boo
 // AsExprStmt returns x as an ExprStmt; ok is false if it is not one.
 func (x ExportBody) AsExprStmt() (ExprStmt, bool) { return AsExprStmt(x.node) }
 
+// MustExprStmt returns x as an ExprStmt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustExprStmt() ExprStmt { return MustExprStmt(x.node) }
+
 // AsReturn returns x as a Return; ok is false if it is not one.
 func (x ExportBody) AsReturn() (Return, bool) { return AsReturn(x.node) }
+
+// MustReturn returns x as a Return; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustReturn() Return { return MustReturn(x.node) }
 
 // AsThrow returns x as a Throw; ok is false if it is not one.
 func (x ExportBody) AsThrow() (Throw, bool) { return AsThrow(x.node) }
 
+// MustThrow returns x as a Throw; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustThrow() Throw { return MustThrow(x.node) }
+
 // AsBreak returns x as a Break; ok is false if it is not one.
 func (x ExportBody) AsBreak() (Break, bool) { return AsBreak(x.node) }
+
+// MustBreak returns x as a Break; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustBreak() Break { return MustBreak(x.node) }
 
 // AsContinue returns x as a Continue; ok is false if it is not one.
 func (x ExportBody) AsContinue() (Continue, bool) { return AsContinue(x.node) }
 
+// MustContinue returns x as a Continue; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustContinue() Continue { return MustContinue(x.node) }
+
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x ExportBody) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
+
+// MustEmpty returns x as an Empty; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustEmpty() Empty { return MustEmpty(x.node) }
 
 // AsDebugger returns x as a Debugger; ok is false if it is not one.
 func (x ExportBody) AsDebugger() (Debugger, bool) { return AsDebugger(x.node) }
 
+// MustDebugger returns x as a Debugger; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustDebugger() Debugger { return MustDebugger(x.node) }
+
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x ExportBody) AsFunction() (Function, bool) { return AsFunction(x.node) }
+
+// MustFunction returns x as a Function; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustFunction() Function { return MustFunction(x.node) }
 
 // AsClass returns x as a Class; ok is false if it is not one.
 func (x ExportBody) AsClass() (Class, bool) { return AsClass(x.node) }
 
+// MustClass returns x as a Class; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustClass() Class { return MustClass(x.node) }
+
 // AsName returns x as a Name; ok is false if it is not one.
 func (x ExportBody) AsName() (Name, bool) { return AsName(x.node) }
+
+// MustName returns x as a Name; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustName() Name { return MustName(x.node) }
 
 // AsThis returns x as a This; ok is false if it is not one.
 func (x ExportBody) AsThis() (This, bool) { return AsThis(x.node) }
 
+// MustThis returns x as a This; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustThis() This { return MustThis(x.node) }
+
 // AsSuper returns x as a Super; ok is false if it is not one.
 func (x ExportBody) AsSuper() (Super, bool) { return AsSuper(x.node) }
+
+// MustSuper returns x as a Super; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustSuper() Super { return MustSuper(x.node) }
 
 // AsTrue returns x as a True; ok is false if it is not one.
 func (x ExportBody) AsTrue() (True, bool) { return AsTrue(x.node) }
 
+// MustTrue returns x as a True; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustTrue() True { return MustTrue(x.node) }
+
 // AsFalse returns x as a False; ok is false if it is not one.
 func (x ExportBody) AsFalse() (False, bool) { return AsFalse(x.node) }
+
+// MustFalse returns x as a False; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustFalse() False { return MustFalse(x.node) }
 
 // AsNull returns x as a Null; ok is false if it is not one.
 func (x ExportBody) AsNull() (Null, bool) { return AsNull(x.node) }
 
+// MustNull returns x as a Null; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNull() Null { return MustNull(x.node) }
+
 // AsNewTarget returns x as a NewTarget; ok is false if it is not one.
 func (x ExportBody) AsNewTarget() (NewTarget, bool) { return AsNewTarget(x.node) }
+
+// MustNewTarget returns x as a NewTarget; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNewTarget() NewTarget { return MustNewTarget(x.node) }
 
 // AsImportMeta returns x as an ImportMeta; ok is false if it is not one.
 func (x ExportBody) AsImportMeta() (ImportMeta, bool) { return AsImportMeta(x.node) }
 
+// MustImportMeta returns x as an ImportMeta; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustImportMeta() ImportMeta { return MustImportMeta(x.node) }
+
 // AsStringLit returns x as a StringLit; ok is false if it is not one.
 func (x ExportBody) AsStringLit() (StringLit, bool) { return AsStringLit(x.node) }
+
+// MustStringLit returns x as a StringLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustStringLit() StringLit { return MustStringLit(x.node) }
 
 // AsNumber returns x as a Number; ok is false if it is not one.
 func (x ExportBody) AsNumber() (Number, bool) { return AsNumber(x.node) }
 
+// MustNumber returns x as a Number; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNumber() Number { return MustNumber(x.node) }
+
 // AsBigInt returns x as a BigInt; ok is false if it is not one.
 func (x ExportBody) AsBigInt() (BigInt, bool) { return AsBigInt(x.node) }
+
+// MustBigInt returns x as a BigInt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustBigInt() BigInt { return MustBigInt(x.node) }
 
 // AsRegExp returns x as a RegExp; ok is false if it is not one.
 func (x ExportBody) AsRegExp() (RegExp, bool) { return AsRegExp(x.node) }
 
+// MustRegExp returns x as a RegExp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustRegExp() RegExp { return MustRegExp(x.node) }
+
 // AsTemplateLit returns x as a TemplateLit; ok is false if it is not one.
 func (x ExportBody) AsTemplateLit() (TemplateLit, bool) { return AsTemplateLit(x.node) }
+
+// MustTemplateLit returns x as a TemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustTemplateLit() TemplateLit { return MustTemplateLit(x.node) }
 
 // AsTaggedTemplateLit returns x as a TaggedTemplateLit; ok is false if it is not one.
 func (x ExportBody) AsTaggedTemplateLit() (TaggedTemplateLit, bool) {
 	return AsTaggedTemplateLit(x.node)
 }
 
+// MustTaggedTemplateLit returns x as a TaggedTemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustTaggedTemplateLit() TaggedTemplateLit { return MustTaggedTemplateLit(x.node) }
+
 // AsArrayLit returns x as an ArrayLit; ok is false if it is not one.
 func (x ExportBody) AsArrayLit() (ArrayLit, bool) { return AsArrayLit(x.node) }
+
+// MustArrayLit returns x as an ArrayLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustArrayLit() ArrayLit { return MustArrayLit(x.node) }
 
 // AsObjectLit returns x as an ObjectLit; ok is false if it is not one.
 func (x ExportBody) AsObjectLit() (ObjectLit, bool) { return AsObjectLit(x.node) }
 
+// MustObjectLit returns x as an ObjectLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustObjectLit() ObjectLit { return MustObjectLit(x.node) }
+
 // AsUnary returns x as an Unary; ok is false if it is not one.
 func (x ExportBody) AsUnary() (Unary, bool) { return AsUnary(x.node) }
+
+// MustUnary returns x as an Unary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustUnary() Unary { return MustUnary(x.node) }
 
 // AsUnaryOf returns x as an Unary if its token is token; ok is false otherwise.
 func (x ExportBody) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryOf(x.node, token) }
@@ -9953,11 +11758,23 @@ func (x ExportBody) AsUnaryOf(token rhino.Token) (Unary, bool) { return AsUnaryO
 // AsCast returns x as a Cast; ok is false if it is not one.
 func (x ExportBody) AsCast() (Cast, bool) { return AsCast(x.node) }
 
+// MustCast returns x as a Cast; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustCast() Cast { return MustCast(x.node) }
+
 // AsDynamicImport returns x as a DynamicImport; ok is false if it is not one.
 func (x ExportBody) AsDynamicImport() (DynamicImport, bool) { return AsDynamicImport(x.node) }
 
+// MustDynamicImport returns x as a DynamicImport; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustDynamicImport() DynamicImport { return MustDynamicImport(x.node) }
+
 // AsIncDec returns x as an IncDec; ok is false if it is not one.
 func (x ExportBody) AsIncDec() (IncDec, bool) { return AsIncDec(x.node) }
+
+// MustIncDec returns x as an IncDec; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustIncDec() IncDec { return MustIncDec(x.node) }
 
 // AsIncDecOf returns x as an IncDec if its token is token; ok is false otherwise.
 func (x ExportBody) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncDecOf(x.node, token) }
@@ -9965,8 +11782,16 @@ func (x ExportBody) AsIncDecOf(token rhino.Token) (IncDec, bool) { return AsIncD
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x ExportBody) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
+// MustAssign returns x as an Assign; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustAssign() Assign { return MustAssign(x.node) }
+
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x ExportBody) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// MustAssignOp returns x as an AssignOp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustAssignOp() AssignOp { return MustAssignOp(x.node) }
 
 // AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
 func (x ExportBody) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
@@ -9976,98 +11801,222 @@ func (x ExportBody) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
 // AsBinary returns x as a Binary; ok is false if it is not one.
 func (x ExportBody) AsBinary() (Binary, bool) { return AsBinary(x.node) }
 
+// MustBinary returns x as a Binary; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustBinary() Binary { return MustBinary(x.node) }
+
 // AsBinaryOf returns x as a Binary if its token is token; ok is false otherwise.
 func (x ExportBody) AsBinaryOf(token rhino.Token) (Binary, bool) { return AsBinaryOf(x.node, token) }
 
 // AsHook returns x as a Hook; ok is false if it is not one.
 func (x ExportBody) AsHook() (Hook, bool) { return AsHook(x.node) }
 
+// MustHook returns x as a Hook; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustHook() Hook { return MustHook(x.node) }
+
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x ExportBody) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
+
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustGetProp() GetProp { return MustGetProp(x.node) }
 
 // AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
 func (x ExportBody) AsOptChainGetProp() (OptChainGetProp, bool) { return AsOptChainGetProp(x.node) }
 
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustOptChainGetProp() OptChainGetProp { return MustOptChainGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x ExportBody) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
 func (x ExportBody) AsOptChainGetElem() (OptChainGetElem, bool) { return AsOptChainGetElem(x.node) }
 
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustOptChainGetElem() OptChainGetElem { return MustOptChainGetElem(x.node) }
+
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x ExportBody) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustCall() Call { return MustCall(x.node) }
 
 // AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
 func (x ExportBody) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
 
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
 // AsNew returns x as a New; ok is false if it is not one.
 func (x ExportBody) AsNew() (New, bool) { return AsNew(x.node) }
+
+// MustNew returns x as a New; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNew() New { return MustNew(x.node) }
 
 // AsYield returns x as a Yield; ok is false if it is not one.
 func (x ExportBody) AsYield() (Yield, bool) { return AsYield(x.node) }
 
+// MustYield returns x as a Yield; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustYield() Yield { return MustYield(x.node) }
+
 // AsAwait returns x as an Await; ok is false if it is not one.
 func (x ExportBody) AsAwait() (Await, bool) { return AsAwait(x.node) }
+
+// MustAwait returns x as an Await; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustAwait() Await { return MustAwait(x.node) }
 
 // AsImport returns x as an Import; ok is false if it is not one.
 func (x ExportBody) AsImport() (Import, bool) { return AsImport(x.node) }
 
+// MustImport returns x as an Import; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustImport() Import { return MustImport(x.node) }
+
 // AsExport returns x as an Export; ok is false if it is not one.
 func (x ExportBody) AsExport() (Export, bool) { return AsExport(x.node) }
+
+// MustExport returns x as an Export; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustExport() Export { return MustExport(x.node) }
 
 // AsExportSpecs returns x as an ExportSpecs; ok is false if it is not one.
 func (x ExportBody) AsExportSpecs() (ExportSpecs, bool) { return AsExportSpecs(x.node) }
 
+// MustExportSpecs returns x as an ExportSpecs; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustExportSpecs() ExportSpecs { return MustExportSpecs(x.node) }
+
 // AsInterface returns x as an Interface; ok is false if it is not one.
 func (x ExportBody) AsInterface() (Interface, bool) { return AsInterface(x.node) }
+
+// MustInterface returns x as an Interface; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustInterface() Interface { return MustInterface(x.node) }
 
 // AsEnum returns x as an Enum; ok is false if it is not one.
 func (x ExportBody) AsEnum() (Enum, bool) { return AsEnum(x.node) }
 
+// MustEnum returns x as an Enum; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustEnum() Enum { return MustEnum(x.node) }
+
 // AsTypeAlias returns x as a TypeAlias; ok is false if it is not one.
 func (x ExportBody) AsTypeAlias() (TypeAlias, bool) { return AsTypeAlias(x.node) }
+
+// MustTypeAlias returns x as a TypeAlias; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustTypeAlias() TypeAlias { return MustTypeAlias(x.node) }
 
 // AsDeclare returns x as a Declare; ok is false if it is not one.
 func (x ExportBody) AsDeclare() (Declare, bool) { return AsDeclare(x.node) }
 
+// MustDeclare returns x as a Declare; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustDeclare() Declare { return MustDeclare(x.node) }
+
 // AsNamespace returns x as a Namespace; ok is false if it is not one.
 func (x ExportBody) AsNamespace() (Namespace, bool) { return AsNamespace(x.node) }
+
+// MustNamespace returns x as a Namespace; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNamespace() Namespace { return MustNamespace(x.node) }
 
 // AsStatement returns x as a Statement; ok is false if it is not one.
 func (x ExportBody) AsStatement() (Statement, bool) { return AsStatement(x.node) }
 
+// MustStatement returns x as a Statement; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustStatement() Statement { return MustStatement(x.node) }
+
 // AsExpr returns x as an Expr; ok is false if it is not one.
 func (x ExportBody) AsExpr() (Expr, bool) { return AsExpr(x.node) }
+
+// MustExpr returns x as an Expr; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustExpr() Expr { return MustExpr(x.node) }
 
 // AsLoop returns x as a Loop; ok is false if it is not one.
 func (x ExportBody) AsLoop() (Loop, bool) { return AsLoop(x.node) }
 
+// MustLoop returns x as a Loop; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustLoop() Loop { return MustLoop(x.node) }
+
 // AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
 func (x ExportBody) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
+
+// MustEnhancedFor returns x as an EnhancedFor; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustEnhancedFor() EnhancedFor { return MustEnhancedFor(x.node) }
 
 // AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
 func (x ExportBody) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
 
+// MustForOfLoop returns x as a ForOfLoop; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustForOfLoop() ForOfLoop { return MustForOfLoop(x.node) }
+
 // AsJump returns x as a Jump; ok is false if it is not one.
 func (x ExportBody) AsJump() (Jump, bool) { return AsJump(x.node) }
+
+// MustJump returns x as a Jump; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustJump() Jump { return MustJump(x.node) }
 
 // AsForInit returns x as a ForInit; ok is false if it is not one.
 func (x ExportBody) AsForInit() (ForInit, bool) { return AsForInit(x.node) }
 
+// MustForInit returns x as a ForInit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustForInit() ForInit { return MustForInit(x.node) }
+
 // AsFunctionBody returns x as a FunctionBody; ok is false if it is not one.
 func (x ExportBody) AsFunctionBody() (FunctionBody, bool) { return AsFunctionBody(x.node) }
+
+// MustFunctionBody returns x as a FunctionBody; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustFunctionBody() FunctionBody { return MustFunctionBody(x.node) }
 
 // AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
 func (x ExportBody) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
 }
 
+// MustNormalOrOptChainCall returns x as a NormalOrOptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNormalOrOptChainCall() NormalOrOptChainCall {
+	return MustNormalOrOptChainCall(x.node)
+}
+
 // AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
 func (x ExportBody) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
+// MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x ExportBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
+}
+
+// MustNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return MustNormalOrOptChainGetProp(x.node)
 }
 
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet; ok is false if it is not one.
@@ -10075,16 +12024,36 @@ func (x ExportBody) AsNormalOrOptChainGet() (NormalOrOptChainGet, bool) {
 	return AsNormalOrOptChainGet(x.node)
 }
 
+// MustNormalOrOptChainGet returns x as a NormalOrOptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNormalOrOptChainGet() NormalOrOptChainGet {
+	return MustNormalOrOptChainGet(x.node)
+}
+
 // AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
 func (x ExportBody) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// MustNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return MustNormalOrOptChainGetElem(x.node)
+}
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x ExportBody) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
 
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
+
 // AsAssignment returns x as an Assignment; ok is false if it is not one.
 func (x ExportBody) AsAssignment() (Assignment, bool) { return AsAssignment(x.node) }
+
+// MustAssignment returns x as an Assignment; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustAssignment() Assignment { return MustAssignment(x.node) }
 
 // ScriptItem is a child of a script: statements, or one module body.
 //
@@ -10130,44 +12099,100 @@ func (x ScriptItem) ReplaceWith(v ScriptItem) { x.node.ReplaceWith(v.node) }
 // AsModuleBody returns x as a ModuleBody; ok is false if it is not one.
 func (x ScriptItem) AsModuleBody() (ModuleBody, bool) { return AsModuleBody(x.node) }
 
+// MustModuleBody returns x as a ModuleBody; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustModuleBody() ModuleBody { return MustModuleBody(x.node) }
+
 // AsBlock returns x as a Block; ok is false if it is not one.
 func (x ScriptItem) AsBlock() (Block, bool) { return AsBlock(x.node) }
+
+// MustBlock returns x as a Block; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustBlock() Block { return MustBlock(x.node) }
 
 // AsLabel returns x as a Label; ok is false if it is not one.
 func (x ScriptItem) AsLabel() (Label, bool) { return AsLabel(x.node) }
 
+// MustLabel returns x as a Label; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustLabel() Label { return MustLabel(x.node) }
+
 // AsIf returns x as an If; ok is false if it is not one.
 func (x ScriptItem) AsIf() (If, bool) { return AsIf(x.node) }
+
+// MustIf returns x as an If; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustIf() If { return MustIf(x.node) }
 
 // AsFor returns x as a For; ok is false if it is not one.
 func (x ScriptItem) AsFor() (For, bool) { return AsFor(x.node) }
 
+// MustFor returns x as a For; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustFor() For { return MustFor(x.node) }
+
 // AsForIn returns x as a ForIn; ok is false if it is not one.
 func (x ScriptItem) AsForIn() (ForIn, bool) { return AsForIn(x.node) }
+
+// MustForIn returns x as a ForIn; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustForIn() ForIn { return MustForIn(x.node) }
 
 // AsForOf returns x as a ForOf; ok is false if it is not one.
 func (x ScriptItem) AsForOf() (ForOf, bool) { return AsForOf(x.node) }
 
+// MustForOf returns x as a ForOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustForOf() ForOf { return MustForOf(x.node) }
+
 // AsForAwaitOf returns x as a ForAwaitOf; ok is false if it is not one.
 func (x ScriptItem) AsForAwaitOf() (ForAwaitOf, bool) { return AsForAwaitOf(x.node) }
+
+// MustForAwaitOf returns x as a ForAwaitOf; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustForAwaitOf() ForAwaitOf { return MustForAwaitOf(x.node) }
 
 // AsWhile returns x as a While; ok is false if it is not one.
 func (x ScriptItem) AsWhile() (While, bool) { return AsWhile(x.node) }
 
+// MustWhile returns x as a While; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustWhile() While { return MustWhile(x.node) }
+
 // AsDo returns x as a Do; ok is false if it is not one.
 func (x ScriptItem) AsDo() (Do, bool) { return AsDo(x.node) }
+
+// MustDo returns x as a Do; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustDo() Do { return MustDo(x.node) }
 
 // AsWith returns x as a With; ok is false if it is not one.
 func (x ScriptItem) AsWith() (With, bool) { return AsWith(x.node) }
 
+// MustWith returns x as a With; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustWith() With { return MustWith(x.node) }
+
 // AsSwitch returns x as a Switch; ok is false if it is not one.
 func (x ScriptItem) AsSwitch() (Switch, bool) { return AsSwitch(x.node) }
+
+// MustSwitch returns x as a Switch; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustSwitch() Switch { return MustSwitch(x.node) }
 
 // AsTry returns x as a Try; ok is false if it is not one.
 func (x ScriptItem) AsTry() (Try, bool) { return AsTry(x.node) }
 
+// MustTry returns x as a Try; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustTry() Try { return MustTry(x.node) }
+
 // AsNameDeclaration returns x as a NameDeclaration; ok is false if it is not one.
 func (x ScriptItem) AsNameDeclaration() (NameDeclaration, bool) { return AsNameDeclaration(x.node) }
+
+// MustNameDeclaration returns x as a NameDeclaration; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustNameDeclaration() NameDeclaration { return MustNameDeclaration(x.node) }
 
 // AsNameDeclarationOf returns x as a NameDeclaration if its token is token; ok is false otherwise.
 func (x ScriptItem) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, bool) {
@@ -10177,65 +12202,149 @@ func (x ScriptItem) AsNameDeclarationOf(token rhino.Token) (NameDeclaration, boo
 // AsExprStmt returns x as an ExprStmt; ok is false if it is not one.
 func (x ScriptItem) AsExprStmt() (ExprStmt, bool) { return AsExprStmt(x.node) }
 
+// MustExprStmt returns x as an ExprStmt; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustExprStmt() ExprStmt { return MustExprStmt(x.node) }
+
 // AsReturn returns x as a Return; ok is false if it is not one.
 func (x ScriptItem) AsReturn() (Return, bool) { return AsReturn(x.node) }
+
+// MustReturn returns x as a Return; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustReturn() Return { return MustReturn(x.node) }
 
 // AsThrow returns x as a Throw; ok is false if it is not one.
 func (x ScriptItem) AsThrow() (Throw, bool) { return AsThrow(x.node) }
 
+// MustThrow returns x as a Throw; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustThrow() Throw { return MustThrow(x.node) }
+
 // AsBreak returns x as a Break; ok is false if it is not one.
 func (x ScriptItem) AsBreak() (Break, bool) { return AsBreak(x.node) }
+
+// MustBreak returns x as a Break; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustBreak() Break { return MustBreak(x.node) }
 
 // AsContinue returns x as a Continue; ok is false if it is not one.
 func (x ScriptItem) AsContinue() (Continue, bool) { return AsContinue(x.node) }
 
+// MustContinue returns x as a Continue; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustContinue() Continue { return MustContinue(x.node) }
+
 // AsEmpty returns x as an Empty; ok is false if it is not one.
 func (x ScriptItem) AsEmpty() (Empty, bool) { return AsEmpty(x.node) }
+
+// MustEmpty returns x as an Empty; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustEmpty() Empty { return MustEmpty(x.node) }
 
 // AsDebugger returns x as a Debugger; ok is false if it is not one.
 func (x ScriptItem) AsDebugger() (Debugger, bool) { return AsDebugger(x.node) }
 
+// MustDebugger returns x as a Debugger; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustDebugger() Debugger { return MustDebugger(x.node) }
+
 // AsFunction returns x as a Function; ok is false if it is not one.
 func (x ScriptItem) AsFunction() (Function, bool) { return AsFunction(x.node) }
+
+// MustFunction returns x as a Function; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustFunction() Function { return MustFunction(x.node) }
 
 // AsClass returns x as a Class; ok is false if it is not one.
 func (x ScriptItem) AsClass() (Class, bool) { return AsClass(x.node) }
 
+// MustClass returns x as a Class; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustClass() Class { return MustClass(x.node) }
+
 // AsImport returns x as an Import; ok is false if it is not one.
 func (x ScriptItem) AsImport() (Import, bool) { return AsImport(x.node) }
+
+// MustImport returns x as an Import; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustImport() Import { return MustImport(x.node) }
 
 // AsExport returns x as an Export; ok is false if it is not one.
 func (x ScriptItem) AsExport() (Export, bool) { return AsExport(x.node) }
 
+// MustExport returns x as an Export; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustExport() Export { return MustExport(x.node) }
+
 // AsInterface returns x as an Interface; ok is false if it is not one.
 func (x ScriptItem) AsInterface() (Interface, bool) { return AsInterface(x.node) }
+
+// MustInterface returns x as an Interface; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustInterface() Interface { return MustInterface(x.node) }
 
 // AsEnum returns x as an Enum; ok is false if it is not one.
 func (x ScriptItem) AsEnum() (Enum, bool) { return AsEnum(x.node) }
 
+// MustEnum returns x as an Enum; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustEnum() Enum { return MustEnum(x.node) }
+
 // AsTypeAlias returns x as a TypeAlias; ok is false if it is not one.
 func (x ScriptItem) AsTypeAlias() (TypeAlias, bool) { return AsTypeAlias(x.node) }
+
+// MustTypeAlias returns x as a TypeAlias; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustTypeAlias() TypeAlias { return MustTypeAlias(x.node) }
 
 // AsDeclare returns x as a Declare; ok is false if it is not one.
 func (x ScriptItem) AsDeclare() (Declare, bool) { return AsDeclare(x.node) }
 
+// MustDeclare returns x as a Declare; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustDeclare() Declare { return MustDeclare(x.node) }
+
 // AsNamespace returns x as a Namespace; ok is false if it is not one.
 func (x ScriptItem) AsNamespace() (Namespace, bool) { return AsNamespace(x.node) }
+
+// MustNamespace returns x as a Namespace; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustNamespace() Namespace { return MustNamespace(x.node) }
 
 // AsStatement returns x as a Statement; ok is false if it is not one.
 func (x ScriptItem) AsStatement() (Statement, bool) { return AsStatement(x.node) }
 
+// MustStatement returns x as a Statement; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustStatement() Statement { return MustStatement(x.node) }
+
 // AsLoop returns x as a Loop; ok is false if it is not one.
 func (x ScriptItem) AsLoop() (Loop, bool) { return AsLoop(x.node) }
+
+// MustLoop returns x as a Loop; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustLoop() Loop { return MustLoop(x.node) }
 
 // AsEnhancedFor returns x as an EnhancedFor; ok is false if it is not one.
 func (x ScriptItem) AsEnhancedFor() (EnhancedFor, bool) { return AsEnhancedFor(x.node) }
 
+// MustEnhancedFor returns x as an EnhancedFor; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustEnhancedFor() EnhancedFor { return MustEnhancedFor(x.node) }
+
 // AsForOfLoop returns x as a ForOfLoop; ok is false if it is not one.
 func (x ScriptItem) AsForOfLoop() (ForOfLoop, bool) { return AsForOfLoop(x.node) }
 
+// MustForOfLoop returns x as a ForOfLoop; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustForOfLoop() ForOfLoop { return MustForOfLoop(x.node) }
+
 // AsJump returns x as a Jump; ok is false if it is not one.
 func (x ScriptItem) AsJump() (Jump, bool) { return AsJump(x.node) }
+
+// MustJump returns x as a Jump; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ScriptItem) MustJump() Jump { return MustJump(x.node) }
 
 // RootItem is a child of a root: a script, or a root (the top root holds
 // the externs root and the code root).
@@ -10282,8 +12391,16 @@ func (x RootItem) ReplaceWith(v RootItem) { x.node.ReplaceWith(v.node) }
 // AsRoot returns x as a Root; ok is false if it is not one.
 func (x RootItem) AsRoot() (Root, bool) { return AsRoot(x.node) }
 
+// MustRoot returns x as a Root; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x RootItem) MustRoot() Root { return MustRoot(x.node) }
+
 // AsScript returns x as a Script; ok is false if it is not one.
 func (x RootItem) AsScript() (Script, bool) { return AsScript(x.node) }
+
+// MustScript returns x as a Script; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x RootItem) MustScript() Script { return MustScript(x.node) }
 
 // NormalOrOptChainCall is a call, in an optional chain or not:
 // callee(args) or callee?.(args) (NodeUtil.isNormalOrOptChainCall).
@@ -10330,8 +12447,16 @@ func (x NormalOrOptChainCall) ReplaceWith(v NormalOrOptChainCall) { x.node.Repla
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x NormalOrOptChainCall) AsCall() (Call, bool) { return AsCall(x.node) }
 
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainCall) MustCall() Call { return MustCall(x.node) }
+
 // AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
 func (x NormalOrOptChainCall) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
+
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainCall) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
 
 // AsExpr returns x as an Expr.
 func (x NormalOrOptChainCall) AsExpr() Expr { return Expr{x.node} }
@@ -10450,11 +12575,23 @@ func (x CallOrNew) ReplaceWith(v CallOrNew) { x.node.ReplaceWith(v.node) }
 // AsCall returns x as a Call; ok is false if it is not one.
 func (x CallOrNew) AsCall() (Call, bool) { return AsCall(x.node) }
 
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x CallOrNew) MustCall() Call { return MustCall(x.node) }
+
 // AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
 func (x CallOrNew) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
 
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x CallOrNew) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
 // AsNew returns x as a New; ok is false if it is not one.
 func (x CallOrNew) AsNew() (New, bool) { return AsNew(x.node) }
+
+// MustNew returns x as a New; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x CallOrNew) MustNew() New { return MustNew(x.node) }
 
 // AsExpr returns x as an Expr.
 func (x CallOrNew) AsExpr() Expr { return Expr{x.node} }
@@ -10480,6 +12617,12 @@ func (x CallOrNew) AsExportBody() ExportBody { return ExportBody{x.node} }
 // AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
 func (x CallOrNew) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
 	return AsNormalOrOptChainCall(x.node)
+}
+
+// MustNormalOrOptChainCall returns x as a NormalOrOptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x CallOrNew) MustNormalOrOptChainCall() NormalOrOptChainCall {
+	return MustNormalOrOptChainCall(x.node)
 }
 
 // Callee returns the callee of x.
@@ -10574,9 +12717,19 @@ func (x NormalOrOptChainGetProp) ReplaceWith(v NormalOrOptChainGetProp) { x.node
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x NormalOrOptChainGetProp) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
 
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGetProp) MustGetProp() GetProp { return MustGetProp(x.node) }
+
 // AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
 func (x NormalOrOptChainGetProp) AsOptChainGetProp() (OptChainGetProp, bool) {
 	return AsOptChainGetProp(x.node)
+}
+
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGetProp) MustOptChainGetProp() OptChainGetProp {
+	return MustOptChainGetProp(x.node)
 }
 
 // AsExpr returns x as an Expr.
@@ -10657,17 +12810,37 @@ func (x NormalOrOptChainGet) ReplaceWith(v NormalOrOptChainGet) { x.node.Replace
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x NormalOrOptChainGet) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
 
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGet) MustGetProp() GetProp { return MustGetProp(x.node) }
+
 // AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
 func (x NormalOrOptChainGet) AsOptChainGetProp() (OptChainGetProp, bool) {
 	return AsOptChainGetProp(x.node)
 }
 
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGet) MustOptChainGetProp() OptChainGetProp {
+	return MustOptChainGetProp(x.node)
+}
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x NormalOrOptChainGet) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGet) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
 func (x NormalOrOptChainGet) AsOptChainGetElem() (OptChainGetElem, bool) {
 	return AsOptChainGetElem(x.node)
+}
+
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGet) MustOptChainGetElem() OptChainGetElem {
+	return MustOptChainGetElem(x.node)
 }
 
 // AsExpr returns x as an Expr.
@@ -10696,13 +12869,29 @@ func (x NormalOrOptChainGet) AsNormalOrOptChainGetProp() (NormalOrOptChainGetPro
 	return AsNormalOrOptChainGetProp(x.node)
 }
 
+// MustNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGet) MustNormalOrOptChainGetProp() NormalOrOptChainGetProp {
+	return MustNormalOrOptChainGetProp(x.node)
+}
+
 // AsNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; ok is false if it is not one.
 func (x NormalOrOptChainGet) AsNormalOrOptChainGetElem() (NormalOrOptChainGetElem, bool) {
 	return AsNormalOrOptChainGetElem(x.node)
 }
 
+// MustNormalOrOptChainGetElem returns x as a NormalOrOptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGet) MustNormalOrOptChainGetElem() NormalOrOptChainGetElem {
+	return MustNormalOrOptChainGetElem(x.node)
+}
+
 // AsNormalGet returns x as a NormalGet; ok is false if it is not one.
 func (x NormalOrOptChainGet) AsNormalGet() (NormalGet, bool) { return AsNormalGet(x.node) }
+
+// MustNormalGet returns x as a NormalGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGet) MustNormalGet() NormalGet { return MustNormalGet(x.node) }
 
 // Object returns the object of x.
 func (x NormalOrOptChainGet) Object() Expr { return Expr{x.node.GetFirstChild()} }
@@ -10752,9 +12941,19 @@ func (x NormalOrOptChainGetElem) ReplaceWith(v NormalOrOptChainGetElem) { x.node
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x NormalOrOptChainGetElem) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
 
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGetElem) MustGetElem() GetElem { return MustGetElem(x.node) }
+
 // AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
 func (x NormalOrOptChainGetElem) AsOptChainGetElem() (OptChainGetElem, bool) {
 	return AsOptChainGetElem(x.node)
+}
+
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGetElem) MustOptChainGetElem() OptChainGetElem {
+	return MustOptChainGetElem(x.node)
 }
 
 // AsExpr returns x as an Expr.
@@ -10834,8 +13033,16 @@ func (x NormalGet) ReplaceWith(v NormalGet) { x.node.ReplaceWith(v.node) }
 // AsGetProp returns x as a GetProp; ok is false if it is not one.
 func (x NormalGet) AsGetProp() (GetProp, bool) { return AsGetProp(x.node) }
 
+// MustGetProp returns x as a GetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalGet) MustGetProp() GetProp { return MustGetProp(x.node) }
+
 // AsGetElem returns x as a GetElem; ok is false if it is not one.
 func (x NormalGet) AsGetElem() (GetElem, bool) { return AsGetElem(x.node) }
+
+// MustGetElem returns x as a GetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalGet) MustGetElem() GetElem { return MustGetElem(x.node) }
 
 // AsExpr returns x as an Expr.
 func (x NormalGet) AsExpr() Expr { return Expr{x.node} }
@@ -10918,8 +13125,16 @@ func (x Assignment) ReplaceWith(v Assignment) { x.node.ReplaceWith(v.node) }
 // AsAssign returns x as an Assign; ok is false if it is not one.
 func (x Assignment) AsAssign() (Assign, bool) { return AsAssign(x.node) }
 
+// MustAssign returns x as an Assign; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Assignment) MustAssign() Assign { return MustAssign(x.node) }
+
 // AsAssignOp returns x as an AssignOp; ok is false if it is not one.
 func (x Assignment) AsAssignOp() (AssignOp, bool) { return AsAssignOp(x.node) }
+
+// MustAssignOp returns x as an AssignOp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Assignment) MustAssignOp() AssignOp { return MustAssignOp(x.node) }
 
 // AsAssignOpOf returns x as an AssignOp if its token is token; ok is false otherwise.
 func (x Assignment) AsAssignOpOf(token rhino.Token) (AssignOp, bool) {
@@ -11946,6 +14161,426 @@ func (v *Visitor[T]) Tokens() TokenSet {
 		s.Add(rhino.Token_NAMESPACE)
 	}
 	return s
+}
+
+// The roles, one per child of each kind of the grammar: RoleIfCond is the cond
+// of an if, RoleCallArgs any of the args of a call.
+const (
+	// RoleNone is the role of a node without a parent, or whose parent's kind is
+	// not in the grammar (JSDoc type expressions, for example).
+	RoleNone                       Role = iota
+	RoleRootItems                       // Root.items
+	RoleScriptItems                     // Script.items
+	RoleModuleBodyStatements            // ModuleBody.statements
+	RoleBlockStatements                 // Block.statements
+	RoleLabelName                       // Label.name
+	RoleLabelBody                       // Label.body
+	RoleIfCond                          // If.cond
+	RoleIfThen                          // If.then
+	RoleIfElse                          // If.else
+	RoleForInit                         // For.init
+	RoleForCond                         // For.cond
+	RoleForUpdate                       // For.update
+	RoleForBody                         // For.body
+	RoleForInTarget                     // ForIn.target
+	RoleForInObject                     // ForIn.object
+	RoleForInBody                       // ForIn.body
+	RoleForOfTarget                     // ForOf.target
+	RoleForOfIterable                   // ForOf.iterable
+	RoleForOfBody                       // ForOf.body
+	RoleForAwaitOfTarget                // ForAwaitOf.target
+	RoleForAwaitOfIterable              // ForAwaitOf.iterable
+	RoleForAwaitOfBody                  // ForAwaitOf.body
+	RoleWhileCond                       // While.cond
+	RoleWhileBody                       // While.body
+	RoleDoBody                          // Do.body
+	RoleDoCond                          // Do.cond
+	RoleWithObject                      // With.object
+	RoleWithBody                        // With.body
+	RoleSwitchDiscriminant              // Switch.discriminant
+	RoleSwitchBody                      // Switch.body
+	RoleSwitchBodyCases                 // SwitchBody.cases
+	RoleCaseValue                       // Case.value
+	RoleCaseBody                        // Case.body
+	RoleDefaultCaseBody                 // DefaultCase.body
+	RoleTryBody                         // Try.body
+	RoleTryCatches                      // Try.catches
+	RoleTryFinally                      // Try.finally
+	RoleTryCatchesCatch                 // TryCatches.catch
+	RoleCatchParam                      // Catch.param
+	RoleCatchBody                       // Catch.body
+	RoleNameDeclarationDeclarators      // NameDeclaration.declarators
+	RoleDestructuringLhsPattern         // DestructuringLhs.pattern
+	RoleDestructuringLhsInit            // DestructuringLhs.init
+	RoleExprStmtExpr                    // ExprStmt.expr
+	RoleReturnValue                     // Return.value
+	RoleThrowValue                      // Throw.value
+	RoleBreakLabel                      // Break.label
+	RoleContinueLabel                   // Continue.label
+	RoleFunctionName                    // Function.name
+	RoleFunctionParams                  // Function.params
+	RoleFunctionBody                    // Function.body
+	RoleParamListParams                 // ParamList.params
+	RoleDefaultValueTarget              // DefaultValue.target
+	RoleDefaultValueValue               // DefaultValue.value
+	RoleIterRestTarget                  // IterRest.target
+	RoleObjectRestTarget                // ObjectRest.target
+	RoleIterSpreadExpr                  // IterSpread.expr
+	RoleObjectSpreadExpr                // ObjectSpread.expr
+	RoleArrayPatternElements            // ArrayPattern.elements
+	RoleObjectPatternProps              // ObjectPattern.props
+	RoleClassName                       // Class.name
+	RoleClassExtends                    // Class.extends
+	RoleClassBody                       // Class.body
+	RoleClassBodyMembers                // ClassBody.members
+	RoleMemberFunctionDefFunction       // MemberFunctionDef.function
+	RoleGetterDefFunction               // GetterDef.function
+	RoleSetterDefFunction               // SetterDef.function
+	RoleMemberFieldDefValue             // MemberFieldDef.value
+	RoleComputedFieldDefKey             // ComputedFieldDef.key
+	RoleComputedFieldDefValue           // ComputedFieldDef.value
+	RoleComputedPropKey                 // ComputedProp.key
+	RoleComputedPropValue               // ComputedProp.value
+	RoleIndexSignatureChildren          // IndexSignature.children
+	RoleCallSignatureChildren           // CallSignature.children
+	RoleNameInit                        // Name.init
+	RoleRegExpPattern                   // RegExp.pattern
+	RoleRegExpFlags                     // RegExp.flags
+	RoleTemplateLitParts                // TemplateLit.parts
+	RoleTemplateLitSubExpr              // TemplateLitSub.expr
+	RoleTaggedTemplateLitTag            // TaggedTemplateLit.tag
+	RoleTaggedTemplateLitTemplate       // TaggedTemplateLit.template
+	RoleArrayLitElements                // ArrayLit.elements
+	RoleObjectLitMembers                // ObjectLit.members
+	RoleStringKeyValue                  // StringKey.value
+	RoleUnaryOperand                    // Unary.operand
+	RoleCastExpr                        // Cast.expr
+	RoleDynamicImportSpecifier          // DynamicImport.specifier
+	RoleIncDecTarget                    // IncDec.target
+	RoleAssignTarget                    // Assign.target
+	RoleAssignValue                     // Assign.value
+	RoleAssignOpTarget                  // AssignOp.target
+	RoleAssignOpValue                   // AssignOp.value
+	RoleBinaryLeft                      // Binary.left
+	RoleBinaryRight                     // Binary.right
+	RoleHookCond                        // Hook.cond
+	RoleHookThen                        // Hook.then
+	RoleHookElse                        // Hook.else
+	RoleGetPropObject                   // GetProp.object
+	RoleOptChainGetPropObject           // OptChainGetProp.object
+	RoleGetElemObject                   // GetElem.object
+	RoleGetElemIndex                    // GetElem.index
+	RoleOptChainGetElemObject           // OptChainGetElem.object
+	RoleOptChainGetElemIndex            // OptChainGetElem.index
+	RoleCallCallee                      // Call.callee
+	RoleCallArgs                        // Call.args
+	RoleOptChainCallCallee              // OptChainCall.callee
+	RoleOptChainCallArgs                // OptChainCall.args
+	RoleNewCallee                       // New.callee
+	RoleNewArgs                         // New.args
+	RoleYieldValue                      // Yield.value
+	RoleAwaitValue                      // Await.value
+	RoleImportDefault                   // Import.default
+	RoleImportBindings                  // Import.bindings
+	RoleImportSource                    // Import.source
+	RoleImportSpecsSpecs                // ImportSpecs.specs
+	RoleImportSpecImported              // ImportSpec.imported
+	RoleImportSpecLocal                 // ImportSpec.local
+	RoleExportBody                      // Export.body
+	RoleExportSource                    // Export.source
+	RoleExportSpecsSpecs                // ExportSpecs.specs
+	RoleExportSpecLocal                 // ExportSpec.local
+	RoleExportSpecExported              // ExportSpec.exported
+	RoleInterfaceChildren               // Interface.children
+	RoleEnumChildren                    // Enum.children
+	RoleTypeAliasChildren               // TypeAlias.children
+	RoleDeclareChildren                 // Declare.children
+	RoleNamespaceChildren               // Namespace.children
+)
+
+// Other names of roles (role|alias in the grammar).
+const (
+	RoleForInCollection      = RoleForInObject        // ForIn.collection is another name for ForIn.object
+	RoleForOfCollection      = RoleForOfIterable      // ForOf.collection is another name for ForOf.iterable
+	RoleForAwaitOfCollection = RoleForAwaitOfIterable // ForAwaitOf.collection is another name for ForAwaitOf.iterable
+)
+
+// roleNames gives the kind and the role name of each Role.
+var roleNames = [...][2]string{
+	RoleNone:                       {"", ""},
+	RoleRootItems:                  {"Root", "items"},
+	RoleScriptItems:                {"Script", "items"},
+	RoleModuleBodyStatements:       {"ModuleBody", "statements"},
+	RoleBlockStatements:            {"Block", "statements"},
+	RoleLabelName:                  {"Label", "name"},
+	RoleLabelBody:                  {"Label", "body"},
+	RoleIfCond:                     {"If", "cond"},
+	RoleIfThen:                     {"If", "then"},
+	RoleIfElse:                     {"If", "else"},
+	RoleForInit:                    {"For", "init"},
+	RoleForCond:                    {"For", "cond"},
+	RoleForUpdate:                  {"For", "update"},
+	RoleForBody:                    {"For", "body"},
+	RoleForInTarget:                {"ForIn", "target"},
+	RoleForInObject:                {"ForIn", "object"},
+	RoleForInBody:                  {"ForIn", "body"},
+	RoleForOfTarget:                {"ForOf", "target"},
+	RoleForOfIterable:              {"ForOf", "iterable"},
+	RoleForOfBody:                  {"ForOf", "body"},
+	RoleForAwaitOfTarget:           {"ForAwaitOf", "target"},
+	RoleForAwaitOfIterable:         {"ForAwaitOf", "iterable"},
+	RoleForAwaitOfBody:             {"ForAwaitOf", "body"},
+	RoleWhileCond:                  {"While", "cond"},
+	RoleWhileBody:                  {"While", "body"},
+	RoleDoBody:                     {"Do", "body"},
+	RoleDoCond:                     {"Do", "cond"},
+	RoleWithObject:                 {"With", "object"},
+	RoleWithBody:                   {"With", "body"},
+	RoleSwitchDiscriminant:         {"Switch", "discriminant"},
+	RoleSwitchBody:                 {"Switch", "body"},
+	RoleSwitchBodyCases:            {"SwitchBody", "cases"},
+	RoleCaseValue:                  {"Case", "value"},
+	RoleCaseBody:                   {"Case", "body"},
+	RoleDefaultCaseBody:            {"DefaultCase", "body"},
+	RoleTryBody:                    {"Try", "body"},
+	RoleTryCatches:                 {"Try", "catches"},
+	RoleTryFinally:                 {"Try", "finally"},
+	RoleTryCatchesCatch:            {"TryCatches", "catch"},
+	RoleCatchParam:                 {"Catch", "param"},
+	RoleCatchBody:                  {"Catch", "body"},
+	RoleNameDeclarationDeclarators: {"NameDeclaration", "declarators"},
+	RoleDestructuringLhsPattern:    {"DestructuringLhs", "pattern"},
+	RoleDestructuringLhsInit:       {"DestructuringLhs", "init"},
+	RoleExprStmtExpr:               {"ExprStmt", "expr"},
+	RoleReturnValue:                {"Return", "value"},
+	RoleThrowValue:                 {"Throw", "value"},
+	RoleBreakLabel:                 {"Break", "label"},
+	RoleContinueLabel:              {"Continue", "label"},
+	RoleFunctionName:               {"Function", "name"},
+	RoleFunctionParams:             {"Function", "params"},
+	RoleFunctionBody:               {"Function", "body"},
+	RoleParamListParams:            {"ParamList", "params"},
+	RoleDefaultValueTarget:         {"DefaultValue", "target"},
+	RoleDefaultValueValue:          {"DefaultValue", "value"},
+	RoleIterRestTarget:             {"IterRest", "target"},
+	RoleObjectRestTarget:           {"ObjectRest", "target"},
+	RoleIterSpreadExpr:             {"IterSpread", "expr"},
+	RoleObjectSpreadExpr:           {"ObjectSpread", "expr"},
+	RoleArrayPatternElements:       {"ArrayPattern", "elements"},
+	RoleObjectPatternProps:         {"ObjectPattern", "props"},
+	RoleClassName:                  {"Class", "name"},
+	RoleClassExtends:               {"Class", "extends"},
+	RoleClassBody:                  {"Class", "body"},
+	RoleClassBodyMembers:           {"ClassBody", "members"},
+	RoleMemberFunctionDefFunction:  {"MemberFunctionDef", "function"},
+	RoleGetterDefFunction:          {"GetterDef", "function"},
+	RoleSetterDefFunction:          {"SetterDef", "function"},
+	RoleMemberFieldDefValue:        {"MemberFieldDef", "value"},
+	RoleComputedFieldDefKey:        {"ComputedFieldDef", "key"},
+	RoleComputedFieldDefValue:      {"ComputedFieldDef", "value"},
+	RoleComputedPropKey:            {"ComputedProp", "key"},
+	RoleComputedPropValue:          {"ComputedProp", "value"},
+	RoleIndexSignatureChildren:     {"IndexSignature", "children"},
+	RoleCallSignatureChildren:      {"CallSignature", "children"},
+	RoleNameInit:                   {"Name", "init"},
+	RoleRegExpPattern:              {"RegExp", "pattern"},
+	RoleRegExpFlags:                {"RegExp", "flags"},
+	RoleTemplateLitParts:           {"TemplateLit", "parts"},
+	RoleTemplateLitSubExpr:         {"TemplateLitSub", "expr"},
+	RoleTaggedTemplateLitTag:       {"TaggedTemplateLit", "tag"},
+	RoleTaggedTemplateLitTemplate:  {"TaggedTemplateLit", "template"},
+	RoleArrayLitElements:           {"ArrayLit", "elements"},
+	RoleObjectLitMembers:           {"ObjectLit", "members"},
+	RoleStringKeyValue:             {"StringKey", "value"},
+	RoleUnaryOperand:               {"Unary", "operand"},
+	RoleCastExpr:                   {"Cast", "expr"},
+	RoleDynamicImportSpecifier:     {"DynamicImport", "specifier"},
+	RoleIncDecTarget:               {"IncDec", "target"},
+	RoleAssignTarget:               {"Assign", "target"},
+	RoleAssignValue:                {"Assign", "value"},
+	RoleAssignOpTarget:             {"AssignOp", "target"},
+	RoleAssignOpValue:              {"AssignOp", "value"},
+	RoleBinaryLeft:                 {"Binary", "left"},
+	RoleBinaryRight:                {"Binary", "right"},
+	RoleHookCond:                   {"Hook", "cond"},
+	RoleHookThen:                   {"Hook", "then"},
+	RoleHookElse:                   {"Hook", "else"},
+	RoleGetPropObject:              {"GetProp", "object"},
+	RoleOptChainGetPropObject:      {"OptChainGetProp", "object"},
+	RoleGetElemObject:              {"GetElem", "object"},
+	RoleGetElemIndex:               {"GetElem", "index"},
+	RoleOptChainGetElemObject:      {"OptChainGetElem", "object"},
+	RoleOptChainGetElemIndex:       {"OptChainGetElem", "index"},
+	RoleCallCallee:                 {"Call", "callee"},
+	RoleCallArgs:                   {"Call", "args"},
+	RoleOptChainCallCallee:         {"OptChainCall", "callee"},
+	RoleOptChainCallArgs:           {"OptChainCall", "args"},
+	RoleNewCallee:                  {"New", "callee"},
+	RoleNewArgs:                    {"New", "args"},
+	RoleYieldValue:                 {"Yield", "value"},
+	RoleAwaitValue:                 {"Await", "value"},
+	RoleImportDefault:              {"Import", "default"},
+	RoleImportBindings:             {"Import", "bindings"},
+	RoleImportSource:               {"Import", "source"},
+	RoleImportSpecsSpecs:           {"ImportSpecs", "specs"},
+	RoleImportSpecImported:         {"ImportSpec", "imported"},
+	RoleImportSpecLocal:            {"ImportSpec", "local"},
+	RoleExportBody:                 {"Export", "body"},
+	RoleExportSource:               {"Export", "source"},
+	RoleExportSpecsSpecs:           {"ExportSpecs", "specs"},
+	RoleExportSpecLocal:            {"ExportSpec", "local"},
+	RoleExportSpecExported:         {"ExportSpec", "exported"},
+	RoleInterfaceChildren:          {"Interface", "children"},
+	RoleEnumChildren:               {"Enum", "children"},
+	RoleTypeAliasChildren:          {"TypeAlias", "children"},
+	RoleDeclareChildren:            {"Declare", "children"},
+	RoleNamespaceChildren:          {"Namespace", "children"},
+}
+
+// roleRows gives, for the token of a parent, the roles of its children:
+// the fixed ones in order, then the list's for any child after them.
+var roleRows = [256]roleRow{
+	rhino.Token_ROOT:                {list: RoleRootItems},
+	rhino.Token_SCRIPT:              {list: RoleScriptItems},
+	rhino.Token_MODULE_BODY:         {list: RoleModuleBodyStatements},
+	rhino.Token_BLOCK:               {list: RoleBlockStatements, context: true},
+	rhino.Token_LABEL:               {fixed: [4]Role{RoleLabelName, RoleLabelBody}, nfixed: 2},
+	rhino.Token_IF:                  {fixed: [4]Role{RoleIfCond, RoleIfThen, RoleIfElse}, nfixed: 3},
+	rhino.Token_FOR:                 {fixed: [4]Role{RoleForInit, RoleForCond, RoleForUpdate, RoleForBody}, nfixed: 4},
+	rhino.Token_FOR_IN:              {fixed: [4]Role{RoleForInTarget, RoleForInObject, RoleForInBody}, nfixed: 3},
+	rhino.Token_FOR_OF:              {fixed: [4]Role{RoleForOfTarget, RoleForOfIterable, RoleForOfBody}, nfixed: 3},
+	rhino.Token_FOR_AWAIT_OF:        {fixed: [4]Role{RoleForAwaitOfTarget, RoleForAwaitOfIterable, RoleForAwaitOfBody}, nfixed: 3},
+	rhino.Token_WHILE:               {fixed: [4]Role{RoleWhileCond, RoleWhileBody}, nfixed: 2},
+	rhino.Token_DO:                  {fixed: [4]Role{RoleDoBody, RoleDoCond}, nfixed: 2},
+	rhino.Token_WITH:                {fixed: [4]Role{RoleWithObject, RoleWithBody}, nfixed: 2},
+	rhino.Token_SWITCH:              {fixed: [4]Role{RoleSwitchDiscriminant, RoleSwitchBody}, nfixed: 2},
+	rhino.Token_SWITCH_BODY:         {list: RoleSwitchBodyCases},
+	rhino.Token_CASE:                {fixed: [4]Role{RoleCaseValue, RoleCaseBody}, nfixed: 2},
+	rhino.Token_DEFAULT_CASE:        {fixed: [4]Role{RoleDefaultCaseBody}, nfixed: 1},
+	rhino.Token_TRY:                 {fixed: [4]Role{RoleTryBody, RoleTryCatches, RoleTryFinally}, nfixed: 3},
+	rhino.Token_CATCH:               {fixed: [4]Role{RoleCatchParam, RoleCatchBody}, nfixed: 2},
+	rhino.Token_VAR:                 {list: RoleNameDeclarationDeclarators},
+	rhino.Token_LET:                 {list: RoleNameDeclarationDeclarators},
+	rhino.Token_CONST:               {list: RoleNameDeclarationDeclarators},
+	rhino.Token_DESTRUCTURING_LHS:   {fixed: [4]Role{RoleDestructuringLhsPattern, RoleDestructuringLhsInit}, nfixed: 2},
+	rhino.Token_EXPR_RESULT:         {fixed: [4]Role{RoleExprStmtExpr}, nfixed: 1},
+	rhino.Token_RETURN:              {fixed: [4]Role{RoleReturnValue}, nfixed: 1},
+	rhino.Token_THROW:               {fixed: [4]Role{RoleThrowValue}, nfixed: 1},
+	rhino.Token_BREAK:               {fixed: [4]Role{RoleBreakLabel}, nfixed: 1},
+	rhino.Token_CONTINUE:            {fixed: [4]Role{RoleContinueLabel}, nfixed: 1},
+	rhino.Token_FUNCTION:            {fixed: [4]Role{RoleFunctionName, RoleFunctionParams, RoleFunctionBody}, nfixed: 3},
+	rhino.Token_PARAM_LIST:          {list: RoleParamListParams},
+	rhino.Token_DEFAULT_VALUE:       {fixed: [4]Role{RoleDefaultValueTarget, RoleDefaultValueValue}, nfixed: 2},
+	rhino.Token_ITER_REST:           {fixed: [4]Role{RoleIterRestTarget}, nfixed: 1},
+	rhino.Token_OBJECT_REST:         {fixed: [4]Role{RoleObjectRestTarget}, nfixed: 1},
+	rhino.Token_ITER_SPREAD:         {fixed: [4]Role{RoleIterSpreadExpr}, nfixed: 1},
+	rhino.Token_OBJECT_SPREAD:       {fixed: [4]Role{RoleObjectSpreadExpr}, nfixed: 1},
+	rhino.Token_ARRAY_PATTERN:       {list: RoleArrayPatternElements},
+	rhino.Token_OBJECT_PATTERN:      {list: RoleObjectPatternProps},
+	rhino.Token_CLASS:               {fixed: [4]Role{RoleClassName, RoleClassExtends, RoleClassBody}, nfixed: 3},
+	rhino.Token_CLASS_MEMBERS:       {list: RoleClassBodyMembers},
+	rhino.Token_MEMBER_FUNCTION_DEF: {fixed: [4]Role{RoleMemberFunctionDefFunction}, nfixed: 1},
+	rhino.Token_GETTER_DEF:          {fixed: [4]Role{RoleGetterDefFunction}, nfixed: 1},
+	rhino.Token_SETTER_DEF:          {fixed: [4]Role{RoleSetterDefFunction}, nfixed: 1},
+	rhino.Token_MEMBER_FIELD_DEF:    {fixed: [4]Role{RoleMemberFieldDefValue}, nfixed: 1},
+	rhino.Token_COMPUTED_FIELD_DEF:  {fixed: [4]Role{RoleComputedFieldDefKey, RoleComputedFieldDefValue}, nfixed: 2},
+	rhino.Token_COMPUTED_PROP:       {fixed: [4]Role{RoleComputedPropKey, RoleComputedPropValue}, nfixed: 2},
+	rhino.Token_INDEX_SIGNATURE:     {list: RoleIndexSignatureChildren},
+	rhino.Token_CALL_SIGNATURE:      {list: RoleCallSignatureChildren},
+	rhino.Token_NAME:                {fixed: [4]Role{RoleNameInit}, nfixed: 1},
+	rhino.Token_REGEXP:              {fixed: [4]Role{RoleRegExpPattern, RoleRegExpFlags}, nfixed: 2},
+	rhino.Token_TEMPLATELIT:         {list: RoleTemplateLitParts},
+	rhino.Token_TEMPLATELIT_SUB:     {fixed: [4]Role{RoleTemplateLitSubExpr}, nfixed: 1},
+	rhino.Token_TAGGED_TEMPLATELIT:  {fixed: [4]Role{RoleTaggedTemplateLitTag, RoleTaggedTemplateLitTemplate}, nfixed: 2},
+	rhino.Token_ARRAYLIT:            {list: RoleArrayLitElements},
+	rhino.Token_OBJECTLIT:           {list: RoleObjectLitMembers},
+	rhino.Token_STRING_KEY:          {fixed: [4]Role{RoleStringKeyValue}, nfixed: 1},
+	rhino.Token_DELPROP:             {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_POS:                 {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_NEG:                 {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_NOT:                 {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_TYPEOF:              {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_VOID:                {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_BITNOT:              {fixed: [4]Role{RoleUnaryOperand}, nfixed: 1},
+	rhino.Token_CAST:                {fixed: [4]Role{RoleCastExpr}, nfixed: 1},
+	rhino.Token_DYNAMIC_IMPORT:      {fixed: [4]Role{RoleDynamicImportSpecifier}, nfixed: 1},
+	rhino.Token_INC:                 {fixed: [4]Role{RoleIncDecTarget}, nfixed: 1},
+	rhino.Token_DEC:                 {fixed: [4]Role{RoleIncDecTarget}, nfixed: 1},
+	rhino.Token_ASSIGN:              {fixed: [4]Role{RoleAssignTarget, RoleAssignValue}, nfixed: 2},
+	rhino.Token_ASSIGN_BITOR:        {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_BITXOR:       {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_BITAND:       {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_LSH:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_RSH:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_URSH:         {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_ADD:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_SUB:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_MUL:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_DIV:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_MOD:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_EXPONENT:     {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_OR:           {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_AND:          {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_ASSIGN_COALESCE:     {fixed: [4]Role{RoleAssignOpTarget, RoleAssignOpValue}, nfixed: 2},
+	rhino.Token_COMMA:               {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_OR:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_AND:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_COALESCE:            {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_BITOR:               {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_BITXOR:              {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_BITAND:              {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_EQ:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_NE:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_SHEQ:                {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_SHNE:                {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_LT:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_GT:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_LE:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_GE:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_INSTANCEOF:          {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_IN:                  {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_LSH:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_RSH:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_URSH:                {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_SUB:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_ADD:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_MUL:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_MOD:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_DIV:                 {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_EXPONENT:            {fixed: [4]Role{RoleBinaryLeft, RoleBinaryRight}, nfixed: 2},
+	rhino.Token_HOOK:                {fixed: [4]Role{RoleHookCond, RoleHookThen, RoleHookElse}, nfixed: 3},
+	rhino.Token_GETPROP:             {fixed: [4]Role{RoleGetPropObject}, nfixed: 1},
+	rhino.Token_OPTCHAIN_GETPROP:    {fixed: [4]Role{RoleOptChainGetPropObject}, nfixed: 1},
+	rhino.Token_GETELEM:             {fixed: [4]Role{RoleGetElemObject, RoleGetElemIndex}, nfixed: 2},
+	rhino.Token_OPTCHAIN_GETELEM:    {fixed: [4]Role{RoleOptChainGetElemObject, RoleOptChainGetElemIndex}, nfixed: 2},
+	rhino.Token_CALL:                {fixed: [4]Role{RoleCallCallee}, nfixed: 1, list: RoleCallArgs},
+	rhino.Token_OPTCHAIN_CALL:       {fixed: [4]Role{RoleOptChainCallCallee}, nfixed: 1, list: RoleOptChainCallArgs},
+	rhino.Token_NEW:                 {fixed: [4]Role{RoleNewCallee}, nfixed: 1, list: RoleNewArgs},
+	rhino.Token_YIELD:               {fixed: [4]Role{RoleYieldValue}, nfixed: 1},
+	rhino.Token_AWAIT:               {fixed: [4]Role{RoleAwaitValue}, nfixed: 1},
+	rhino.Token_IMPORT:              {fixed: [4]Role{RoleImportDefault, RoleImportBindings, RoleImportSource}, nfixed: 3},
+	rhino.Token_IMPORT_SPECS:        {list: RoleImportSpecsSpecs},
+	rhino.Token_IMPORT_SPEC:         {fixed: [4]Role{RoleImportSpecImported, RoleImportSpecLocal}, nfixed: 2},
+	rhino.Token_EXPORT:              {fixed: [4]Role{RoleExportBody, RoleExportSource}, nfixed: 2},
+	rhino.Token_EXPORT_SPECS:        {list: RoleExportSpecsSpecs},
+	rhino.Token_EXPORT_SPEC:         {fixed: [4]Role{RoleExportSpecLocal, RoleExportSpecExported}, nfixed: 2},
+	rhino.Token_INTERFACE:           {list: RoleInterfaceChildren},
+	rhino.Token_ENUM:                {list: RoleEnumChildren},
+	rhino.Token_TYPE_ALIAS:          {list: RoleTypeAliasChildren},
+	rhino.Token_DECLARE:             {list: RoleDeclareChildren},
+	rhino.Token_NAMESPACE:           {list: RoleNamespaceChildren},
+}
+
+// contextRole returns the role of n if its parent p is a node of a kind that
+// only appears in one place (TryCatches, a BLOCK), and RoleNone otherwise.
+func contextRole(p rhino.Node) Role {
+	switch p.GetToken() {
+	case rhino.Token_BLOCK:
+		if gp := p.GetParent(); gp != rhino.NilNode && gp.GetToken() == rhino.Token_TRY && gp.GetSecondChild() == p {
+			return RoleTryCatchesCatch
+		}
+	}
+	return RoleNone
 }
 
 // grammarKinds is the grammar's node kinds, for Check.

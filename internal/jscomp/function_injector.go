@@ -21,9 +21,15 @@ package jscomp
 import (
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: the call sites and functions this file reads (the callee, the
+// this-argument and the arguments of a call, the assignment or var around
+// it, the name, params and body of a function) go through the typed view
+// (internal/ast); the subtree walks stay on rhino.Node.
 
 // FunctionInjector is a set of utility functions that replaces CALL with a
 // specified FUNCTION body, replacing and aliasing function parameters as
@@ -327,7 +333,8 @@ func functionInjector_blocksMinimumRequirements(n rhino.Node, fnName, fnRecursio
 //
 // Java: FunctionInjector.doesFunctionMeetMinimumRequirements(String, Node)
 func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fnNode rhino.Node) bool {
-	block := NodeUtil_GetFunctionBody(fnNode)
+	fn := ast.MustFunction(fnNode)
+	block := fn.Body().Node()
 
 	// Basic restrictions on functions that can be inlined:
 	// 1) It contains a reference to itself.
@@ -336,10 +343,10 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 	// 3) It references "eval". Inline a function containing eval can have
 	//    large performance implications.
 
-	fnRecursionName := fnNode.GetFirstChild().GetString()
-	// Java checkState(fnRecursionName != null): a Go string is never null.
-	if fnRecursionName == fnName {
-		fnRecursionName = ""
+	// The name of an anonymous function is "": no recursion through it.
+	fnRecursionName := ""
+	if name, ok := fn.Name(); ok && name.Ident() != fnName {
+		fnRecursionName = name.Ident()
 	}
 
 	return !functionInjector_blocksMinimumRequirements(block, fnName, fnRecursionName, true)
@@ -409,11 +416,12 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 //
 // Java: FunctionInjector.isSupportedCallType(Node, Node)
 func (f *FunctionInjector) IsSupportedCallType(callNode rhino.Node, fnNode rhino.Node) bool {
-	if !callNode.GetFirstChild().IsName() {
+	call := ast.MustNormalOrOptChainCall(callNode)
+	if call.Callee().Token() != rhino.Token_NAME {
 		if NodeUtil_IsFunctionObjectCall(callNode) {
 			if !f.assumeStrictThis && !fnNode.IsArrowFunction() {
-				thisValue := callNode.GetSecondChild()
-				if thisValue.IsNil() || !thisValue.IsThis() {
+				thisValue, ok := call.FirstArg()
+				if !ok || thisValue.Token() != rhino.Token_THIS {
 					return false
 				}
 			}
@@ -427,9 +435,10 @@ func (f *FunctionInjector) IsSupportedCallType(callNode rhino.Node, fnNode rhino
 
 // Java: FunctionInjector.hasSpreadCallArgument(Node)
 func FunctionInjector_HasSpreadCallArgument(callNode rhino.Node) bool {
-	jutil.CheckArgumentMsg1(NodeUtil_IsNormalOrOptChainCall(callNode), "%s", callNode)
-	for arg := callNode.GetSecondChild(); !arg.IsNil(); arg = arg.GetNext() {
-		if arg.IsSpread() {
+	call, ok := ast.AsNormalOrOptChainCall(callNode)
+	jutil.CheckArgumentMsg1(ok, "%s", callNode)
+	for arg := range call.Args() {
+		if arg.Token() == rhino.Token_ITER_SPREAD {
 			return true
 		}
 	}
@@ -473,7 +482,7 @@ func (f *FunctionInjector) InternalInline(ref FunctionInjector_Reference, fnName
 // Java: FunctionInjector.inlineReturnValue(Reference, Node)
 func (f *FunctionInjector) InlineReturnValue(ref FunctionInjector_Reference, fnNode rhino.Node) rhino.Node {
 	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
-	block := fnNode.GetLastChild()
+	block := ast.MustFunction(fnNode).Body().Node()
 
 	// NOTE: As the normalize pass guarantees globals aren't being
 	// shadowed and an expression can't introduce new names, there is
@@ -489,14 +498,16 @@ func (f *FunctionInjector) InlineReturnValue(ref FunctionInjector_Reference, fnN
 		srcLocation := block
 		newExpression = NodeUtil_NewUndefinedNode(srcLocation)
 	} else {
-		returnNode := block.GetFirstChild()
-		jutil.CheckArgumentMsg1(returnNode.IsReturn(), "%s", returnNode)
+		returnNode, ok := ast.AsReturn(block.GetFirstChild())
+		jutil.CheckArgumentMsg1(ok, "%s", block.GetFirstChild())
 
 		// Clone the return node first.
-		safeReturnNode := returnNode.CloneTree()
-		inlineResult := f.functionArgumentInjector.Inject(nil, safeReturnNode, rhino.NilNode, paramReplacements)
-		jutil.CheckArgument(safeReturnNode == inlineResult)
-		newExpression = safeReturnNode.RemoveFirstChild()
+		safeReturnNode := ast.MustReturn(returnNode.Node().CloneTree())
+		inlineResult := f.functionArgumentInjector.Inject(nil, safeReturnNode.Node(), rhino.NilNode, paramReplacements)
+		jutil.CheckArgument(safeReturnNode.Is(inlineResult))
+		value, ok := safeReturnNode.Value()
+		jutil.CheckState(ok) // canInlineReferenceDirectly: the return has a value
+		newExpression = value.Detach().Node()
 		NodeUtil_MarkNewScopesChanged(newExpression, f.compiler)
 	}
 
@@ -614,27 +625,15 @@ func (f *FunctionInjector) ClassifyCallSite(ref FunctionInjector_Reference) Func
 
 func (f *FunctionInjector) classifyCallSite(ref FunctionInjector_Reference, allowDecomposition bool) FunctionInjector_CallSiteType {
 	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
-	parent := callNode.GetParent()
-	grandParent := parent.GetParent()
 
 	// Verify the call site:
-	if NodeUtil_IsExprCall(parent) {
+	if NodeUtil_IsExprCall(callNode.GetParent()) {
 		// This is a simple call. Example: "foo();".
 		return FunctionInjector_CallSiteType_SIMPLE_CALL
-	} else if NodeUtil_IsExprAssign(grandParent) &&
-		!NodeUtil_IsNameDeclOrSimpleAssignLhs(callNode, parent) &&
-		parent.GetFirstChild().IsName() &&
-		// TODO(nicksantos): Remove this once everyone is using
-		// the CONSTANT_VAR annotation. We know how to remove that.
-		!NodeUtil_IsConstantName(parent.GetFirstChild()) {
+	} else if _, ok := functionInjector_simpleAssignTarget(callNode); ok {
 		// This is a simple assignment.  Example: "x = foo();"
 		return FunctionInjector_CallSiteType_SIMPLE_ASSIGNMENT
-	} else if parent.IsName() &&
-		// TODO(nicksantos): Remove this once everyone is using the CONSTANT_VAR annotation.
-		!NodeUtil_IsConstantName(parent) &&
-		// Note: not let or const. See InlineFunctionsTest.testInlineFunctions35
-		grandParent.IsVar() &&
-		grandParent.HasOneChild() {
+	} else if _, ok := functionInjector_simpleVarDecl(callNode); ok {
 		// This is a var declaration.  Example: "var x = foo();"
 		// TODO(johnlenz): Should we be checking for constants on the
 		// left-hand-side of the assignments and handling them as EXPRESSION?
@@ -654,6 +653,38 @@ func (f *FunctionInjector) classifyCallSite(ref FunctionInjector_Reference, allo
 	}
 
 	return FunctionInjector_CallSiteType_UNSUPPORTED
+}
+
+// functionInjector_simpleAssignTarget returns the name that the statement
+// x = call() assigns the call to; ok is false for any other call site.
+func functionInjector_simpleAssignTarget(callNode rhino.Node) (ast.Name, bool) {
+	if ast.RoleOf(callNode) != ast.RoleAssignValue {
+		return ast.Name{}, false
+	}
+	assign := ast.MustAssign(callNode.GetParent())
+	if ast.RoleOf(assign.Node()) != ast.RoleExprStmtExpr {
+		return ast.Name{}, false
+	}
+	name, ok := assign.Target().AsName()
+	// TODO(nicksantos): Remove this once everyone is using
+	// the CONSTANT_VAR annotation. We know how to remove that.
+	return name, ok && !NodeUtil_IsConstantName(name.Node())
+}
+
+// functionInjector_simpleVarDecl returns the name that var x = call()
+// declares, the only one of its var; ok is false for any other call site.
+func functionInjector_simpleVarDecl(callNode rhino.Node) (ast.Name, bool) {
+	if ast.RoleOf(callNode) != ast.RoleNameInit {
+		return ast.Name{}, false
+	}
+	name := ast.MustName(callNode.GetParent())
+	// TODO(nicksantos): Remove this once everyone is using the CONSTANT_VAR annotation.
+	if NodeUtil_IsConstantName(name.Node()) {
+		return ast.Name{}, false
+	}
+	// Note: not let or const. See InlineFunctionsTest.testInlineFunctions35
+	decl, ok := ast.AsNameDeclarationOf(name.Node().GetParent(), rhino.Token_VAR)
+	return name, ok && decl.NumDeclarators() == 1
 }
 
 // Java: FunctionInjector.getDecomposer(Scope)
@@ -701,11 +732,12 @@ func (f *FunctionInjector) InlineFunction(ref FunctionInjector_Reference, fnNode
 	needsDefaultReturnResult := true
 	switch callSiteType {
 	case FunctionInjector_CallSiteType_SIMPLE_ASSIGNMENT:
-		resultNameVal = parent.GetFirstChild().GetString()
+		target, _ := functionInjector_simpleAssignTarget(callNode)
+		resultNameVal = target.Ident()
 		resultName = &resultNameVal
 		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultNameVal)
 	case FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT:
-		resultNameVal = parent.GetString()
+		resultNameVal = ast.MustName(parent).Ident()
 		resultName = &resultNameVal
 		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultNameVal)
 	case FunctionInjector_CallSiteType_SIMPLE_CALL:
@@ -733,9 +765,10 @@ func (f *FunctionInjector) InlineFunction(ref FunctionInjector_Reference, fnNode
 	switch callSiteType {
 	case FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT:
 		// Remove the call from the name node.
-		firstChild := parent.RemoveFirstChild()
-		NodeUtil_MarkFunctionsDeleted(firstChild, f.compiler)
-		jutil.CheckState(!parent.HasChildren())
+		name := ast.MustName(parent)
+		value, _ := name.Init()
+		name.RemoveInit()
+		NodeUtil_MarkFunctionsDeleted(value.Node(), f.compiler)
 		// Add the call, after the VAR.
 		newBlock.InsertAfter(grandParent)
 	case FunctionInjector_CallSiteType_SIMPLE_ASSIGNMENT:
@@ -779,7 +812,7 @@ func FunctionInjector_RemoveConstantVarAnnotation(scope *Scope, name string) {
 // Java: FunctionInjector.isDirectCallNodeReplacementPossible(Node)
 func FunctionInjector_IsDirectCallNodeReplacementPossible(fnNode rhino.Node) bool {
 	// Only inline single-statement functions
-	block := NodeUtil_GetFunctionBody(fnNode)
+	block := ast.MustFunction(fnNode).Body().Node()
 
 	// Check if this function is suitable for direct replacement of a CALL node:
 	// a function that consists of single return that returns an expression.
@@ -788,8 +821,9 @@ func FunctionInjector_IsDirectCallNodeReplacementPossible(fnNode rhino.Node) boo
 		return true
 	} else if block.HasOneChild() {
 		// Only inline functions that return something.
-		if block.GetFirstChild().IsReturn() && !block.GetFirstFirstChild().IsNil() {
-			return true
+		if ret, ok := ast.AsReturn(block.GetFirstChild()); ok {
+			_, hasValue := ret.Value()
+			return hasValue
 		}
 	}
 
@@ -1025,7 +1059,7 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 
 	forbidTemps := false
 	if hoistRoot := callRef.GetFunctionInjector_ReferenceBase().closestHoistScopeRoot(); !hoistRoot.IsNil() {
-		callerFn := hoistRoot.GetParent()
+		callerFn := hoistRoot.GetParent() // the function of the hoist scope's block
 
 		// Don't allow any new vars into a scope that contains eval or one
 		// that contains functions (excluding the function being inlined).
@@ -1048,7 +1082,7 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 		// Don't inline functions with var declarations into a scope with inner
 		// functions as the new vars would leak into the inner function and
 		// cause memory leaks.
-		calleeContainsVars := functionInjector_hasShallowDeclaration(NodeUtil_GetFunctionBody(calleeFn))
+		calleeContainsVars := functionInjector_hasShallowDeclaration(ast.MustFunction(calleeFn).Body().Node())
 		if calleeContainsVars {
 			return false
 		}
@@ -1086,19 +1120,17 @@ func (f *FunctionInjector) CanInlineReferenceDirectly(
 
 	// CALL NODE: [ NAME, ARG1, ARG2, ... ]
 	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
-	cArg := callNode.GetSecondChild()
+	call := ast.MustNormalOrOptChainCall(callNode)
 
 	// Functions called via 'call' and 'apply' have a this-object as
 	// the first parameter, but this is not part of the called function's
 	// parameter list.
-	if !callNode.GetFirstChild().IsName() {
+	if call.Callee().Token() != rhino.Token_NAME {
 		if NodeUtil_IsFunctionObjectCall(callNode) {
 			// TODO(johnlenz): Support replace this with a value.
-			if !fnNode.IsArrowFunction() && (cArg.IsNil() || !cArg.IsThis()) {
+			thisArg, ok := call.FirstArg()
+			if !fnNode.IsArrowFunction() && (!ok || thisArg.Token() != rhino.Token_THIS) {
 				return FunctionInjector_CanInlineResult_NO
-			}
-			if !cArg.IsNil() {
-				cArg = cArg.GetNext()
 			}
 		} else {
 			// ".apply" call should be filtered before this.
@@ -1234,8 +1266,7 @@ func FunctionInjector_DoesLowerCost(
 //
 // Java: FunctionInjector.estimateCallCost(Node, boolean)
 func FunctionInjector_EstimateCallCost(fnNode rhino.Node, referencesThis bool) int {
-	argsNode := NodeUtil_GetFunctionParameters(fnNode)
-	numArgs := argsNode.GetChildCount()
+	numArgs := ast.MustFunction(fnNode).Params().NumParams()
 
 	callCost := FunctionInjector_NAME_COST_ESTIMATE + FunctionInjector_PAREN_COST
 	if numArgs > 0 {
@@ -1260,7 +1291,8 @@ func FunctionInjector_EstimateCallCost(fnNode rhino.Node, referencesThis bool) i
 func FunctionInjector_InlineCostDelta(fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string], mode FunctionInjector_InliningMode) int {
 	// The part of the function that is never inlined:
 	//    "function xx(xx,xx){}" (15 + (param count * 3) -1;
-	paramCount := NodeUtil_GetFunctionParameters(fnNode).GetChildCount()
+	fn := ast.MustFunction(fnNode)
+	paramCount := fn.Params().NumParams()
 	commaCount := 0
 	if paramCount > 1 {
 		commaCount = paramCount - 1
@@ -1268,7 +1300,7 @@ func FunctionInjector_InlineCostDelta(fnNode rhino.Node, namesToAlias *jutil.Lin
 	costDeltaFunctionOverhead :=
 		15 + commaCount + (paramCount * InlineCostEstimator_ESTIMATED_IDENTIFIER_COST)
 
-	block := fnNode.GetLastChild()
+	block := fn.Body().Node()
 	if !block.HasChildren() {
 		// Assume the inline cost is zero for empty functions.
 		return -costDeltaFunctionOverhead

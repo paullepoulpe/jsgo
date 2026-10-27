@@ -19,9 +19,15 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: the parameters of a function and the arguments of a call are
+// read through the typed view (internal/ast), and so are the targets of
+// assignments and the declared names; the injection and the subtree walks
+// stay on rhino.Node.
 
 // FunctionArgumentInjector is a nifty set of functions to deal with the
 // issues of replacing function parameters with a set of call argument
@@ -149,14 +155,12 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 		replaceThis = false
 	}
 
-	if node.IsComputedFieldDef() {
-		key := node.GetFirstChild()
-		if !key.IsNil() {
-			key = f.InjectWithReplaceThis(compiler, key, node, replacements, replaceThis)
-			value := key.GetNext()
-			if !value.IsNil() {
-				value = f.InjectWithReplaceThis(compiler, value, node, replacements /* replaceThis= */, false)
-			}
+	if field, ok := ast.AsComputedFieldDef(node); ok {
+		// The key is evaluated where the class is, the value later, in the
+		// field's own this.
+		f.InjectWithReplaceThis(compiler, field.Key().Node(), node, replacements, replaceThis)
+		if value, ok := field.Value(); ok { // read after the key was replaced
+			f.InjectWithReplaceThis(compiler, value.Node(), node, replacements /* replaceThis= */, false)
 		}
 		return node
 	}
@@ -213,9 +217,9 @@ func (f *FunctionArgumentInjector) appendCallParamBindings(
 	var undefTemplate rhino.Node
 
 	// CALL NODE: [ NAME, ARG1, ARG2, ... ]
-	cArg := callNode.GetSecondChild()
-	if !cArg.IsNil() && NodeUtil_IsFunctionObjectCall(callNode) {
-		thisArg := cArg
+	cArg, hasArg := ast.MustNormalOrOptChainCall(callNode).FirstArg()
+	if hasArg && NodeUtil_IsFunctionObjectCall(callNode) {
+		thisArg := cArg.Node()
 		if fnNode.IsArrowFunction() {
 			if mode == callParamWalkOwned {
 				thisArg = rhino.IR_ThisNode()
@@ -228,7 +232,7 @@ func (f *FunctionArgumentInjector) appendCallParamBindings(
 			paramNode: FunctionArgumentInjector_THIS_MARKER_NODE,
 			argNode:   thisArg,
 		})
-		cArg = cArg.GetNext()
+		cArg, hasArg = cArg.Next()
 	} else {
 		// 'apply' isn't supported yet.
 		jutil.CheckStateMsg1(!NodeUtil_IsFunctionObjectApply(callNode), "%s", callNode)
@@ -239,43 +243,46 @@ func (f *FunctionArgumentInjector) appendCallParamBindings(
 		})
 	}
 
-	for fnParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !fnParam.IsNil(); fnParam = fnParam.GetNext() {
-		if !cArg.IsNil() {
-			if fnParam.IsRest() {
-				restName := fnParam.GetOnlyChild()
-				jutil.CheckStateMsg1(restName.IsName(), "%s", restName)
+	// (A plain loop: ranging over Params() with a return in the body costs
+	// a closure call per parameter in this hot path.)
+	for fnParam, more := ast.MustFunction(fnNode).Params().FirstParam(); more; fnParam, more = fnParam.Next() {
+		if rest, ok := fnParam.AsIterRest(); ok {
+			restName, ok := rest.Target().AsName()
+			if hasArg {
+				jutil.CheckStateMsg1(ok, "%s", rest.Target().Node())
+				// The rest param takes the remaining arguments, as an array.
 				array := rhino.IR_Arraylit()
-				array.SrcrefTreeIfMissing(cArg)
-				for !cArg.IsNil() {
-					array.AddChildToBack(cArg.CloneTree())
-					cArg = cArg.GetNext()
+				array.SrcrefTreeIfMissing(cArg.Node())
+				for ; hasArg; cArg, hasArg = cArg.Next() {
+					array.AddChildToBack(cArg.Node().CloneTree())
 				}
 				return append(dst, callParamBinding{
-					name:      restName.GetString(),
-					paramNode: restName,
+					name:      restName.Ident(),
+					paramNode: restName.Node(),
 					argNode:   array,
 				})
 			}
-			jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
+			jutil.CheckStateMsg1(ok, "%s", fnParam.Node())
 			dst = append(dst, callParamBinding{
-				name:      fnParam.GetString(),
-				paramNode: fnParam,
-				argNode:   cArg,
+				name:      restName.Ident(),
+				paramNode: restName.Node(),
+				argNode:   rhino.IR_Arraylit().Srcref(fnParam.Node()),
 			})
-			cArg = cArg.GetNext()
-		} else if fnParam.IsRest() {
-			restName := fnParam.GetOnlyChild()
-			jutil.CheckStateMsg1(restName.IsName(), "%s", fnParam)
+			continue
+		}
+		name, ok := fnParam.AsName()
+		jutil.CheckStateMsg1(ok, "%s", fnParam.Node())
+		if hasArg {
 			dst = append(dst, callParamBinding{
-				name:      restName.GetString(),
-				paramNode: restName,
-				argNode:   rhino.IR_Arraylit().Srcref(fnParam),
+				name:      name.Ident(),
+				paramNode: name.Node(),
+				argNode:   cArg.Node(),
 			})
+			cArg, hasArg = cArg.Next()
 		} else {
-			jutil.CheckStateMsg1(fnParam.IsName(), "%s", fnParam)
 			dst = append(dst, callParamBinding{
-				name:      fnParam.GetString(),
-				paramNode: fnParam,
+				name:      name.Ident(),
+				paramNode: name.Node(),
 				argNode:   f.resolveUndefinedArg(callNode, mode, &undefTemplate),
 			})
 		}
@@ -283,7 +290,7 @@ func (f *FunctionArgumentInjector) appendCallParamBindings(
 
 	// Add temp names for arguments that don't have named parameters in the
 	// called function.
-	for !cArg.IsNil() {
+	for ; hasArg; cArg, hasArg = cArg.Next() {
 		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
 		paramNode := FunctionArgumentInjector_THIS_MARKER_NODE
 		if mode != callParamWalkReadOnly {
@@ -292,9 +299,8 @@ func (f *FunctionArgumentInjector) appendCallParamBindings(
 		dst = append(dst, callParamBinding{
 			name:      uniquePlaceholder,
 			paramNode: paramNode,
-			argNode:   cArg,
+			argNode:   cArg.Node(),
 		})
-		cArg = cArg.GetNext()
 	}
 	return dst
 }
@@ -387,7 +393,7 @@ func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode rhino.Node) *ju
 	if names.IsEmpty() {
 		return names
 	}
-	return FunctionArgumentInjector_FindModifiedParametersIn(fnNode.GetLastChild(), names, false)
+	return FunctionArgumentInjector_FindModifiedParametersIn(ast.MustFunction(fnNode).Body().Node(), names, false)
 }
 
 // FindModifiedParametersInto populates dstUnsafe with modified parameter names
@@ -395,22 +401,17 @@ func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode rhino.Node) *ju
 func (f *FunctionArgumentInjector) FindModifiedParametersInto(
 	fnNode rhino.Node, dstNames *jutil.LinkedHashSet[string], dstUnsafe *jutil.LinkedHashSet[string]) {
 	dstUnsafe.Clear()
-	firstParam := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild()
-	if firstParam.IsNil() {
+	fn := ast.MustFunction(fnNode)
+	params := fn.Params()
+	if !params.HasParams() {
 		return
 	}
 	dstNames.Clear()
-	for n := firstParam; !n.IsNil(); n = n.GetNext() {
-		if n.IsRest() {
-			dstNames.Add(FunctionArgumentInjector_REST_MARKER)
-		} else if n.IsDefaultValue() || n.IsObjectPattern() || n.IsArrayPattern() {
-			panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + n.String()))
-		} else {
-			dstNames.Add(n.GetString())
-		}
+	for p := range params.Params() {
+		dstNames.Add(functionArgumentInjector_paramName(p))
 	}
 	if !dstNames.IsEmpty() {
-		functionArgumentInjector_collectModifiedParameters(fnNode.GetLastChild(), dstNames, false, dstUnsafe)
+		functionArgumentInjector_collectModifiedParameters(fn.Body().Node(), dstNames, false, dstUnsafe)
 	}
 }
 
@@ -501,7 +502,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterName(
 	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
 	modifiedParameters *jutil.LinkedHashSet[string],
 	convention CodingConvention) string {
-	block := fnNode.GetLastChild()
+	block := ast.MustFunction(fnNode).Body().Node()
 
 	/*
 	 * This field holds the parameter name corresponding to the last side-effectful argument. Args
@@ -1005,10 +1006,13 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) HasNonLocalSideEffe
 	type_ := n.GetToken()
 	// Note: Only care about changes to non-local names, specifically
 	// ignore VAR declaration assignments.
-	if NodeUtil_IsAssignmentOp(n) || type_ == rhino.Token_INC || type_ == rhino.Token_DEC {
-		lhs := n.GetFirstChild()
+	if assign, ok := ast.AsAssignment(n); ok {
 		// Ignore changes to local names.
-		if !r.IsLocalName(lhs) {
+		if !r.IsLocalName(assign.Target().Node()) {
+			sideEffect = true
+		}
+	} else if incDec, ok := ast.AsIncDec(n); ok {
+		if !r.IsLocalName(incDec.Target().Node()) {
 			sideEffect = true
 		}
 	} else if type_ == rhino.Token_CALL {
@@ -1040,15 +1044,15 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) IsLocalName(node rh
 func FunctionArgumentInjector_GatherLocalNames(n rhino.Node, names *jutil.LinkedHashSet[string]) {
 	if n.IsFunction() {
 		if NodeUtil_IsFunctionDeclaration(n) {
-			names.Add(n.GetFirstChild().GetString())
+			name, _ := ast.MustFunction(n).Name()
+			names.Add(name.Ident())
 		}
 		// Don't traverse into inner function scopes;
 		return
 	} else if n.IsName() {
-		switch n.GetParent().GetToken() {
-		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH:
+		switch ast.RoleOf(n) {
+		case ast.RoleNameDeclarationDeclarators, ast.RoleCatchParam:
 			names.Add(n.GetString())
-		default:
 		}
 	}
 
@@ -1063,16 +1067,23 @@ func FunctionArgumentInjector_GatherLocalNames(n rhino.Node, names *jutil.Linked
 // Java: FunctionArgumentInjector.getFunctionParameterSet(Node)
 func FunctionArgumentInjector_GetFunctionParameterSet(fnNode rhino.Node) *jutil.LinkedHashSet[string] {
 	builder := jutil.NewLinkedHashSet[string]()
-	for n := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !n.IsNil(); n = n.GetNext() {
-		if n.IsRest() {
-			builder.Add(FunctionArgumentInjector_REST_MARKER)
-		} else if n.IsDefaultValue() || n.IsObjectPattern() || n.IsArrayPattern() {
-			panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + n.String()))
-		} else {
-			builder.Add(n.GetString())
-		}
+	for p := range ast.MustFunction(fnNode).Params().Params() {
+		builder.Add(functionArgumentInjector_paramName(p))
 	}
 	return builder
+}
+
+// functionArgumentInjector_paramName returns the name of a parameter, or
+// REST_MARKER for a rest parameter; a default value or a pattern is not
+// supported (InlineFunctions does not inline such functions).
+func functionArgumentInjector_paramName(p ast.Param) string {
+	switch p.Token() {
+	case rhino.Token_ITER_REST:
+		return FunctionArgumentInjector_REST_MARKER
+	case rhino.Token_NAME:
+		return p.MustName().Ident()
+	}
+	panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + p.Node().String()))
 }
 
 // FunctionArgumentInjector_ParamArgPair stores a pair of function formal

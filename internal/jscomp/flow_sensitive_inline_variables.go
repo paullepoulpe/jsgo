@@ -23,20 +23,29 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// Go-only: the shapes this pass reads (declarations and assignments with
+// their values, statement bodies, class members, function parameters,
+// whether a name is written or read) go through the typed view
+// (internal/ast); the subtree walks that look at every child stay on
+// rhino.Node. The Go-only prefilters (scanStatementsForCandidateDefs,
+// collectCandidateFuncs, fsivWalkGatherCandidates) follow the statement
+// structure that ControlFlowAnalysis builds a graph for.
+
 type fsivCandidateDef struct {
 	varName string
-	rhs     rhino.Node
+	rhs     ast.Expr
 	hasRead bool
 	hasFunc bool
 }
 
 type fsivCandFunc struct {
-	fn         rhino.Node
-	body       rhino.Node
+	fn         ast.Function
+	body       ast.Block
 	depth      int
 	hasFuncRhs bool
 }
@@ -291,20 +300,20 @@ func fsivSubtreeHasBlockScopeDecls(n rhino.Node) bool {
 	return false
 }
 
-func fsivHasNestedBlockScopeDecls(fnNode rhino.Node, fnBody rhino.Node) bool {
-	for p := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild(); !p.IsNil(); p = p.GetNext() {
-		if !p.IsName() && fsivSubtreeHasBlockScopeDecls(p) {
+func fsivHasNestedBlockScopeDecls(fn ast.Function, fnBody ast.Block) bool {
+	for p := range fn.Params().Params() {
+		if _, ok := p.AsName(); !ok && fsivSubtreeHasBlockScopeDecls(p.Node()) {
 			return true
 		}
 	}
-	for stmt := fnBody.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
-		switch stmt.GetToken() {
+	for stmt := range fnBody.Statements() {
+		switch stmt.Token() {
 		case rhino.Token_FUNCTION:
 			continue
 		case rhino.Token_CLASS, rhino.Token_CATCH:
 			return true
 		default:
-			for c := stmt.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			for c := stmt.Node().GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 				if fsivSubtreeHasBlockScopeDecls(c) {
 					return true
 				}
@@ -342,20 +351,22 @@ func fsivInspectRhs(n rhino.Node) (unsafe bool, hasFunc bool) {
 	return false, hasFunc
 }
 
+// fsivIsReadName reports whether the name n (whose parent is parent) is
+// purely a read: not assigned, declared, incremented, a parameter, a catch
+// binding or a destructuring target.
 func fsivIsReadName(n, parent rhino.Node) bool {
 	if parent.IsNil() {
 		return false
 	}
-	if (NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == n) ||
-		NodeUtil_IsNameDeclaration(parent) ||
-		parent.IsInc() ||
-		parent.IsDec() ||
-		parent.IsParamList() ||
-		parent.IsCatch() ||
-		NodeUtil_IsLhsByDestructuring(n) {
+	switch ast.RoleOf(n) {
+	case ast.RoleAssignTarget, ast.RoleAssignOpTarget,
+		ast.RoleNameDeclarationDeclarators,
+		ast.RoleIncDecTarget,
+		ast.RoleParamListParams,
+		ast.RoleCatchParam:
 		return false
 	}
-	return true
+	return !NodeUtil_IsLhsByDestructuring(n)
 }
 
 func fsivRhsDependsOnOuterOrCatchVars(n, parent rhino.Node, allVarsInFn *jutil.LinkedHashMap[string, *Var]) bool {
@@ -376,18 +387,18 @@ func fsivRhsDependsOnOuterOrCatchVars(n, parent rhino.Node, allVarsInFn *jutil.L
 	return false
 }
 
-func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(varName string, rhs rhino.Node) {
+func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(varName string, rhs ast.Expr) {
 	if varName == "" {
 		return
 	}
-	unsafe, hasFunc := fsivInspectRhs(rhs)
+	unsafe, hasFunc := fsivInspectRhs(rhs.Node())
 	if unsafe {
 		return
 	}
 	if f.getCodingConvention().IsExportedWithLocal(varName, true) {
 		return
 	}
-	if f.getAstAnalyzer().MayHaveSideEffects(rhs) {
+	if f.getAstAnalyzer().MayHaveSideEffects(rhs.Node()) {
 		return
 	}
 	f.inlinableDefs = append(f.inlinableDefs, fsivCandidateDef{
@@ -397,6 +408,10 @@ func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(varName string, rhs 
 	})
 }
 
+// scanStatementsForCandidateDefs collects the definitions under n that
+// the pass could inline: a declared name with a value (var x = v) or an
+// assignment statement to a name (x = v). It walks the statements that
+// get CFG nodes, and of a for loop its init or target, where a var can be.
 func (f *FlowSensitiveInlineVariables) scanStatementsForCandidateDefs(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY, rhino.Token_TRY:
@@ -404,34 +419,45 @@ func (f *FlowSensitiveInlineVariables) scanStatementsForCandidateDefs(n rhino.No
 			f.scanStatementsForCandidateDefs(c)
 		}
 	case rhino.Token_IF:
-		for c := n.GetSecondChild(); !c.IsNil(); c = c.GetNext() {
-			f.scanStatementsForCandidateDefs(c)
+		ifs := ast.MustIf(n)
+		f.scanStatementsForCandidateDefs(ifs.Then().Node())
+		if els, ok := ifs.Else(); ok {
+			f.scanStatementsForCandidateDefs(els.Node())
 		}
-	case rhino.Token_WHILE, rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_CATCH, rhino.Token_LABEL:
-		if second := n.GetSecondChild(); !second.IsNil() {
-			f.scanStatementsForCandidateDefs(second)
+	case rhino.Token_WHILE, rhino.Token_DO:
+		f.scanStatementsForCandidateDefs(ast.MustLoop(n).Body().Node())
+	case rhino.Token_WITH:
+		f.scanStatementsForCandidateDefs(ast.MustWith(n).Body().Node())
+	case rhino.Token_SWITCH:
+		f.scanStatementsForCandidateDefs(ast.MustSwitch(n).Body().Node())
+	case rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
+		f.scanStatementsForCandidateDefs(ast.MustSwitchCase(n).Body().Node())
+	case rhino.Token_CATCH:
+		f.scanStatementsForCandidateDefs(ast.MustCatch(n).Body().Node())
+	case rhino.Token_LABEL:
+		f.scanStatementsForCandidateDefs(ast.MustLabel(n).Body().Node())
+	case rhino.Token_FOR:
+		loop := ast.MustFor(n)
+		if init, ok := loop.Init(); ok {
+			f.scanStatementsForCandidateDefs(init.Node())
 		}
-	case rhino.Token_DO, rhino.Token_DEFAULT_CASE:
-		if first := n.GetFirstChild(); !first.IsNil() {
-			f.scanStatementsForCandidateDefs(first)
-		}
-	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		if first := n.GetFirstChild(); !first.IsNil() {
-			f.scanStatementsForCandidateDefs(first)
-			if last := n.GetLastChild(); !last.IsNil() && last != first {
-				f.scanStatementsForCandidateDefs(last)
-			}
-		}
+		f.scanStatementsForCandidateDefs(loop.Body().Node())
+	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		loop := ast.MustEnhancedFor(n)
+		f.scanStatementsForCandidateDefs(loop.Target().Node())
+		f.scanStatementsForCandidateDefs(loop.AsLoop().Body().Node())
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		for lhs := n.GetFirstChild(); !lhs.IsNil(); lhs = lhs.GetNext() {
-			if lhs.IsName() && lhs.HasChildren() {
-				f.maybeAddCandidateDef(lhs.GetString(), lhs.GetLastChild())
+		for d := range ast.MustNameDeclaration(n).Declarators() {
+			if name, ok := d.AsName(); ok {
+				if value, ok := name.Init(); ok {
+					f.maybeAddCandidateDef(name.Ident(), value)
+				}
 			}
 		}
 	case rhino.Token_EXPR_RESULT:
-		if c := n.GetFirstChild(); !c.IsNil() && c.IsAssign() {
-			if lhs := c.GetFirstChild(); lhs.IsName() {
-				f.maybeAddCandidateDef(lhs.GetString(), c.GetLastChild())
+		if assign, ok := ast.MustExprStmt(n).Expr().AsAssign(); ok {
+			if lhs, ok := assign.Target().AsName(); ok {
+				f.maybeAddCandidateDef(lhs.Ident(), assign.Value())
 			}
 		}
 	case rhino.Token_FUNCTION, rhino.Token_RETURN, rhino.Token_THROW,
@@ -475,14 +501,14 @@ func (f *FlowSensitiveInlineVariables) markReadsOutsideLoop(n rhino.Node) {
 	}
 }
 
-func (f *FlowSensitiveInlineVariables) collectInlinableDefsWithReads(fnBody rhino.Node) (ok bool, hasFuncRhs bool) {
+func (f *FlowSensitiveInlineVariables) collectInlinableDefsWithReads(fnBody ast.Block) (ok bool, hasFuncRhs bool) {
 	f.inlinableDefs = f.inlinableDefs[:0]
-	f.scanStatementsForCandidateDefs(fnBody)
+	f.scanStatementsForCandidateDefs(fnBody.Node())
 	if len(f.inlinableDefs) == 0 {
 		return false, false
 	}
 	f.unreadDefCount = len(f.inlinableDefs)
-	f.markReadsOutsideLoop(fnBody)
+	f.markReadsOutsideLoop(fnBody.Node())
 	nDefs := 0
 	for _, d := range f.inlinableDefs {
 		if d.hasRead {
@@ -514,12 +540,12 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	if len(t.scopes) <= 1 {
 		return // Don't even bother. All global variables are likely escaped.
 	}
-	fnBody := t.GetScopeRoot()
-	if !fnBody.IsBlock() {
+	fnBody, ok := ast.AsBlock(t.GetScopeRoot())
+	if !ok {
 		return
 	}
-	functionScopeRoot := fnBody.GetParent()
-	if functionScopeRoot.IsNil() || !functionScopeRoot.IsFunction() {
+	functionScopeRoot, ok := ast.AsFunction(fnBody.Node().GetParent())
+	if !ok {
 		return // Only want to do the following if it's a function block scope.
 	}
 
@@ -531,10 +557,11 @@ func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	f.processFunction(functionScopeRoot, fnBody, scopeCreator)
 }
 
-func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody rhino.Node, scopeCreator *SyntacticScopeCreator) {
-	if ok, _ := f.collectInlinableDefsWithReads(fnBody); !ok {
+func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast.Block, scopeCreator *SyntacticScopeCreator) {
+	if ok, _ := f.collectInlinableDefsWithReads(body); !ok {
 		return
 	}
+	functionScopeRoot, fnBody := fn.Node(), body.Node()
 
 	var fnScope, scope *Scope
 	if f.dummyGlobalScope != nil {
@@ -557,7 +584,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody
 	}
 
 	var allVarsInFn *jutil.LinkedHashMap[string, *Var]
-	if !fsivHasNestedBlockScopeDecls(functionScopeRoot, fnBody) {
+	if !fsivHasNestedBlockScopeDecls(fn, body) {
 		f.allVarsMap.Clear()
 		for _, v := range fnScope.varList {
 			if v != nil {
@@ -580,7 +607,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(functionScopeRoot, fnBody
 
 	nDefs := 0
 	for _, d := range f.inlinableDefs {
-		if allVarsInFn.Get(d.varName) != nil && !fsivRhsDependsOnOuterOrCatchVars(d.rhs, rhino.NilNode, allVarsInFn) {
+		if allVarsInFn.Get(d.varName) != nil && !fsivRhsDependsOnOuterOrCatchVars(d.rhs.Node(), rhino.NilNode, allVarsInFn) {
 			f.inlinableDefs[nDefs] = d
 			nDefs++
 		}
@@ -689,8 +716,8 @@ func flowSensitiveInlineVariables_containsAll(set *jutil.ObjectLinkedHashSet[*Va
 
 // Java: FlowSensitiveInlineVariables.isCandidateFunction(Node)
 func (f *FlowSensitiveInlineVariables) IsCandidateFunction(fn rhino.Node) bool {
-	fnBody := fn.GetLastChild()
-	return FlowSensitiveInlineVariables_ContainsCandidateExpressions(fnBody)
+	fnBody := ast.MustFunction(fn).Body()
+	return FlowSensitiveInlineVariables_ContainsCandidateExpressions(fnBody.Node())
 }
 
 // Java: FlowSensitiveInlineVariables.containsCandidateExpressions(Node)
@@ -700,11 +727,13 @@ func FlowSensitiveInlineVariables_ContainsCandidateExpressions(n rhino.Node) boo
 		return false
 	}
 
-	if NodeUtil_IsNameDeclaration(n) || FlowSensitiveInlineVariables_IsAssignmentToName(n) {
-		// if it is a simple assignment
-		if n.GetFirstChild().IsName() {
+	if decl, ok := ast.AsNameDeclaration(n); ok {
+		// if it is a simple declaration
+		if first, ok := decl.FirstDeclarator(); ok && first.Token() == rhino.Token_NAME {
 			return true
 		}
+	} else if FlowSensitiveInlineVariables_IsAssignmentToName(n) {
+		return true
 	}
 
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -717,29 +746,37 @@ func FlowSensitiveInlineVariables_ContainsCandidateExpressions(n rhino.Node) boo
 
 // Java: FlowSensitiveInlineVariables.isAssignmentToName(Node)
 func FlowSensitiveInlineVariables_IsAssignmentToName(n rhino.Node) bool {
-	if NodeUtil_IsAssignmentOp(n) || n.IsDec() || n.IsInc() {
-		// if it is a simple assignment
-		return n.GetFirstChild().IsName()
+	var target ast.Target
+	if assign, ok := ast.AsAssignment(n); ok {
+		target = assign.Target()
+	} else if incDec, ok := ast.AsIncDec(n); ok {
+		target = incDec.Target()
+	} else {
+		return false
 	}
-	return false
+	// if it is a simple assignment
+	return target.Token() == rhino.Token_NAME
 }
 
 // Java: FlowSensitiveInlineVariables.exitScope(NodeTraversal)
 func (f *FlowSensitiveInlineVariables) ExitScope(t *NodeTraversal) {}
 
-func (f *FlowSensitiveInlineVariables) collectCandidateFuncs(n, parent rhino.Node, depth int) {
-	if n.IsNil() {
-		return
-	}
-	if n.IsFunction() {
-		fnBody := n.GetLastChild()
-		if !fnBody.IsNil() && fnBody.IsBlock() {
+// collectCandidateFuncs collects the functions under n that have a
+// definition the pass could inline, with their nesting depth among such
+// functions, in the order NodeTraversal enters their scopes (a class's
+// extends before its body, the computed keys of a class body before its
+// members). The names of functions and classes hold nothing to collect.
+func (f *FlowSensitiveInlineVariables) collectCandidateFuncs(n rhino.Node, depth int) {
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION:
+		fn := ast.MustFunction(n)
+		if fnBody, ok := fn.Body().AsBlock(); ok {
 			if ok, hasFuncRhs := f.collectInlinableDefsWithReads(fnBody); ok {
 				if depth > f.maxCandDepth {
 					f.maxCandDepth = depth
 				}
 				f.candFuncs = append(f.candFuncs, fsivCandFunc{
-					fn:         n,
+					fn:         fn,
 					body:       fnBody,
 					depth:      depth,
 					hasFuncRhs: hasFuncRhs,
@@ -747,57 +784,44 @@ func (f *FlowSensitiveInlineVariables) collectCandidateFuncs(n, parent rhino.Nod
 				depth++
 			}
 		}
-		fnName := n.GetFirstChild()
-		isFunctionDeclaration := !parent.IsNil() && NodeUtil_IsFunctionDeclaration(n)
-		if isFunctionDeclaration {
-			f.collectCandidateFuncs(fnName, n, depth)
-		}
-		if !isFunctionDeclaration {
-			f.collectCandidateFuncs(fnName, n, depth)
-		}
-		args := fnName.GetNext()
-		body := args.GetNext()
-		f.collectCandidateFuncs(args, n, depth)
-		f.collectCandidateFuncs(body, n, depth)
+		f.collectCandidateFuncs(fn.Params().Node(), depth)
+		f.collectCandidateFuncs(fn.Body().Node(), depth)
 		return
-	}
-	if n.IsClass() {
-		className := n.GetFirstChild()
-		extendsClause := className.GetNext()
-		body := extendsClause.GetNext()
-		isClassExpression := NodeUtil_IsClassExpression(n)
-		f.collectCandidateFuncs(extendsClause, n, depth)
-		if !isClassExpression {
-			f.collectCandidateFuncs(className, n, depth)
+	case rhino.Token_CLASS:
+		class := ast.MustClass(n)
+		if extends, ok := class.Extends(); ok {
+			f.collectCandidateFuncs(extends.Node(), depth)
 		}
-		if isClassExpression {
-			f.collectCandidateFuncs(className, n, depth)
-		}
-		f.collectCandidateFuncs(body, n, depth)
+		f.collectCandidateFuncs(class.Body().Node(), depth)
 		return
-	}
-	if n.IsClassMembers() {
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsComputedProp() || child.IsComputedFieldDef() {
-				f.collectCandidateFuncs(child.GetFirstChild(), child, depth)
+	case rhino.Token_CLASS_MEMBERS:
+		members := ast.MustClassBody(n)
+		for m := range members.Members() {
+			switch m.Token() {
+			case rhino.Token_COMPUTED_PROP:
+				f.collectCandidateFuncs(m.MustComputedProp().Key().Node(), depth)
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				f.collectCandidateFuncs(m.MustComputedFieldDef().Key().Node(), depth)
 			}
 		}
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			switch child.GetToken() {
+		for m := range members.Members() {
+			switch m.Token() {
 			case rhino.Token_COMPUTED_PROP:
-				f.collectCandidateFuncs(child.GetLastChild(), child, depth)
+				if value, ok := m.MustComputedProp().Value(); ok {
+					f.collectCandidateFuncs(value.Node(), depth)
+				}
 			case rhino.Token_COMPUTED_FIELD_DEF:
-				if child.HasTwoChildren() {
-					f.collectCandidateFuncs(child.GetLastChild(), child, depth)
+				if value, ok := m.MustComputedFieldDef().Value(); ok {
+					f.collectCandidateFuncs(value.Node(), depth)
 				}
 			default:
-				f.collectCandidateFuncs(child, n, depth)
+				f.collectCandidateFuncs(m.Node(), depth)
 			}
 		}
 		return
 	}
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		f.collectCandidateFuncs(child, n, depth)
+		f.collectCandidateFuncs(child, depth)
 	}
 }
 
@@ -811,7 +835,7 @@ func (f *FlowSensitiveInlineVariables) Process(externs rhino.Node, root rhino.No
 	f.candFuncs = f.candFuncs[:0]
 	f.maxCandDepth = 0
 	if !root.IsNil() {
-		f.collectCandidateFuncs(root, root.GetParent(), 0)
+		f.collectCandidateFuncs(root, 0)
 	}
 	if len(f.candFuncs) == 0 {
 		return
@@ -988,18 +1012,8 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 
 		// n.getParent() isn't null. This just the case where n is the root
 		// node that gatherCb started at.
-		if parent.IsNil() {
-			return
-		}
-
 		// Make sure that the name node is purely a read.
-		if (NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == n) ||
-			NodeUtil_IsNameDeclaration(parent) ||
-			parent.IsInc() ||
-			parent.IsDec() ||
-			parent.IsParamList() ||
-			parent.IsCatch() ||
-			NodeUtil_IsLhsByDestructuring(n) {
+		if !fsivIsReadName(n, parent) {
 			return
 		}
 
@@ -1091,7 +1105,7 @@ func fsivTraverseGatherCandidates(compiler AbstractCompiler, root rhino.Node, cb
 
 func fsivWalkGatherCandidates(n, parent rhino.Node, cb *FlowSensitiveInlineVariables_GatherCandidates, currentNode *rhino.Node) {
 	*currentNode = n
-	if !parent.IsNil() && parent.IsFunction() && n != parent.GetFirstChild() {
+	if !parent.IsNil() && parent.IsFunction() && ast.RoleOf(n) != ast.RoleFunctionName {
 		return
 	}
 	switch n.GetToken() {
@@ -1105,14 +1119,10 @@ func fsivWalkGatherCandidates(n, parent rhino.Node, cb *FlowSensitiveInlineVaria
 			child = next
 		}
 	case rhino.Token_FUNCTION:
-		if parent.IsNil() {
-			fnName := n.GetFirstChild()
-			args := fnName.GetNext()
-			body := args.GetNext()
-			fsivWalkGatherCandidates(fnName, n, cb, currentNode)
-			fsivWalkGatherCandidates(args, n, cb, currentNode)
-			fsivWalkGatherCandidates(body, n, cb, currentNode)
-		}
+		// Only the function itself is a CFG node of the enclosing function:
+		// its name is no CFG node, and its params and body are not entered
+		// (above). The walk starts at a function body, so a function always
+		// has a parent here.
 	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY, rhino.Token_TRY:
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
@@ -1120,19 +1130,22 @@ func fsivWalkGatherCandidates(n, parent rhino.Node, cb *FlowSensitiveInlineVaria
 			child = next
 		}
 	case rhino.Token_IF:
-		for child := n.GetSecondChild(); !child.IsNil(); {
-			next := child.GetNext()
-			fsivWalkGatherCandidates(child, n, cb, currentNode)
-			child = next
+		ifs := ast.MustIf(n)
+		els, hasElse := ifs.Else()
+		fsivWalkGatherCandidates(ifs.Then().Node(), n, cb, currentNode)
+		if hasElse {
+			fsivWalkGatherCandidates(els.Node(), n, cb, currentNode)
 		}
-	case rhino.Token_WITH, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_CATCH, rhino.Token_LABEL:
-		if second := n.GetSecondChild(); !second.IsNil() {
-			fsivWalkGatherCandidates(second, n, cb, currentNode)
-		}
-	case rhino.Token_DEFAULT_CASE:
-		if first := n.GetFirstChild(); !first.IsNil() {
-			fsivWalkGatherCandidates(first, n, cb, currentNode)
-		}
+	case rhino.Token_WITH:
+		fsivWalkGatherCandidates(ast.MustWith(n).Body().Node(), n, cb, currentNode)
+	case rhino.Token_SWITCH:
+		fsivWalkGatherCandidates(ast.MustSwitch(n).Body().Node(), n, cb, currentNode)
+	case rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
+		fsivWalkGatherCandidates(ast.MustSwitchCase(n).Body().Node(), n, cb, currentNode)
+	case rhino.Token_CATCH:
+		fsivWalkGatherCandidates(ast.MustCatch(n).Body().Node(), n, cb, currentNode)
+	case rhino.Token_LABEL:
+		fsivWalkGatherCandidates(ast.MustLabel(n).Body().Node(), n, cb, currentNode)
 	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// Any use inside a loop node has NodeUtil_IsWithinLoop(use) == true,
 		// which CanInline always rejects. Skip loop subtrees entirely.
@@ -1220,7 +1233,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 
 	// Check that the assignment isn't used as a R-Value.
 	// TODO(user): Certain cases we can still inline.
-	if c.def.IsAssign() && !NodeUtil_IsExprAssign(c.def.GetParent()) {
+	if c.def.IsAssign() && ast.RoleOf(c.def) != ast.RoleExprStmtExpr {
 		return false
 	}
 
@@ -1231,7 +1244,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 	// TODO(user): Side-effect is OK sometimes. As long as there are no
 	// side-effect function down all paths to the use. Once we have all the
 	// side-effect analysis tool.
-	if c.outer.getAstAnalyzer().MayHaveSideEffects(c.def.GetLastChild()) {
+	if c.outer.getAstAnalyzer().MayHaveSideEffects(c.defValue().Node()) {
 		return false
 	}
 
@@ -1316,9 +1329,8 @@ func (c *FlowSensitiveInlineVariables_Candidate) HasExactlyOne(iterable iter.Seq
 func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 	defParent := c.def.GetParent()
 	useParent := c.use.GetParent()
-	if c.def.IsAssign() {
-		rhs := c.def.GetLastChild()
-		rhs.Detach()
+	if assign, ok := ast.AsAssign(c.def); ok {
+		rhs := assign.Value().Detach()
 		// Oh yes! I have grandparent to remove this.
 		jutil.CheckState(defParent.IsExprResult())
 		for defParent.GetParent().IsLabel() {
@@ -1326,16 +1338,16 @@ func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 		}
 		c.outer.reportChange(defParent)
 		defParent.Detach()
-		c.use.ReplaceWith(rhs)
-	} else if NodeUtil_IsNameDeclaration(defParent) {
-		rhs := c.def.GetLastChild()
-		if defParent.IsConst() {
+		c.use.ReplaceWith(rhs.Node())
+	} else if decl, ok := ast.AsNameDeclaration(defParent); ok {
+		rhs := c.defValue()
+		if decl.Token() == rhino.Token_CONST {
 			// If it is a const var we don't want to remove the rhs of the variable
-			rhs.ReplaceWith(rhino.Node_NewStringWithToken(rhino.Token_NAME, "undefined"))
-			c.use.ReplaceWith(rhs)
+			rhs.ReplaceWith(ast.NewName("undefined").AsExpr())
+			c.use.ReplaceWith(rhs.Node())
 		} else {
 			rhs.Detach()
-			c.use.ReplaceWith(rhs)
+			c.use.ReplaceWith(rhs.Node())
 		}
 	} else {
 		panic(jutil.NewIllegalStateExceptionMsg("No other definitions can be inlined."))
@@ -1349,42 +1361,74 @@ func (c *FlowSensitiveInlineVariables_Candidate) findDefWalk(n, parent rhino.Nod
 	}
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
-		className := n.GetFirstChild()
-		extendsClause := className.GetNext()
-		body := extendsClause.GetNext()
-		c.findDefWalk(extendsClause, n)
-		c.findDefWalk(className, n)
-		c.findDefWalk(body, n)
+		// In NodeTraversal's order: the extends clause, then the name
+		// (which defines nothing), then the body.
+		class := ast.MustClass(n)
+		if extends, ok := class.Extends(); ok {
+			c.findDefWalk(extends.Node(), n)
+		}
+		c.findDefWalk(class.Body().Node(), n)
 	case rhino.Token_CLASS_MEMBERS:
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsComputedProp() || child.IsComputedFieldDef() {
-				c.findDefWalk(child.GetFirstChild(), child)
-			}
-		}
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			switch child.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if !ControlFlowGraph_IsEnteringNewCfgNode(child) && child.HasTwoChildren() {
-					c.findDefWalk(child.GetLastChild(), child)
-				}
-			default:
-				c.findDefWalk(child, n)
-			}
-		}
+		fsivWalkClassMembers(ast.MustClassBody(n), c.findDefWalk)
 	default:
 		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			c.findDefWalk(child, n)
 		}
 	}
+	if c.isDefOfVar(n) {
+		c.def = n
+	}
+}
+
+// isDefOfVar reports whether n defines the candidate's variable: the
+// variable declared with a value, or an assignment to it.
+func (c *FlowSensitiveInlineVariables_Candidate) isDefOfVar(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
-		if n.GetString() == c.varName && n.HasChildren() {
-			c.def = n
-		}
+		return n.GetString() == c.varName && n.HasChildren()
 	case rhino.Token_ASSIGN:
-		lhs := n.GetFirstChild()
-		if lhs.IsName() && lhs.GetString() == c.varName {
-			c.def = n
+		lhs, ok := ast.MustAssign(n).Target().AsName()
+		return ok && lhs.Ident() == c.varName
+	}
+	return false
+}
+
+// defValue returns the value that the definition assigns: the value of an
+// assignment, or the initial value of a declared name.
+func (c *FlowSensitiveInlineVariables_Candidate) defValue() ast.Expr {
+	if assign, ok := ast.AsAssign(c.def); ok {
+		return assign.Value()
+	}
+	value, ok := ast.MustName(c.def).Init()
+	jutil.CheckState(ok)
+	return value
+}
+
+// fsivWalkClassMembers walks the parts of a class body that belong to the
+// CFG node of the class, in NodeTraversal's order: the computed keys
+// first, then the values of computed members (unless they start CFG nodes
+// of their own) and the other members.
+func fsivWalkClassMembers(body ast.ClassBody, walk func(n, parent rhino.Node)) {
+	for m := range body.Members() {
+		switch m.Token() {
+		case rhino.Token_COMPUTED_PROP:
+			walk(m.MustComputedProp().Key().Node(), m.Node())
+		case rhino.Token_COMPUTED_FIELD_DEF:
+			walk(m.MustComputedFieldDef().Key().Node(), m.Node())
+		}
+	}
+	for m := range body.Members() {
+		switch m.Token() {
+		case rhino.Token_COMPUTED_PROP:
+			if value, ok := m.MustComputedProp().Value(); ok && !ControlFlowGraph_IsEnteringNewCfgNode(m.Node()) {
+				walk(value.Node(), m.Node())
+			}
+		case rhino.Token_COMPUTED_FIELD_DEF:
+			if value, ok := m.MustComputedFieldDef().Value(); ok && !ControlFlowGraph_IsEnteringNewCfgNode(m.Node()) {
+				walk(value.Node(), m.Node())
+			}
+		default:
+			walk(m.Node(), body.Node())
 		}
 	}
 }
@@ -1413,19 +1457,8 @@ type flowSensitiveInlineVariables_definitionCallback struct {
 
 // Java: FlowSensitiveInlineVariables.Candidate.getDefinition(...).new AbstractCfgNodeTraversalCallback() {...}.visit(NodeTraversal, Node, Node)
 func (cb *flowSensitiveInlineVariables_definitionCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_NAME:
-		if n.GetString() == cb.candidate.varName && n.HasChildren() {
-			cb.candidate.def = n
-		}
-		return
-	case rhino.Token_ASSIGN:
-		lhs := n.GetFirstChild()
-		if lhs.IsName() && lhs.GetString() == cb.candidate.varName {
-			cb.candidate.def = n
-		}
-		return
-	default:
+	if cb.candidate.isDefOfVar(n) {
+		cb.candidate.def = n
 	}
 }
 
@@ -1434,29 +1467,14 @@ func (c *FlowSensitiveInlineVariables_Candidate) countUseWalk(n, parent, cfgNode
 		return
 	}
 	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsComputedProp() || child.IsComputedFieldDef() {
-				c.countUseWalk(child.GetFirstChild(), child, cfgNode)
-			}
-		}
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			switch child.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if !ControlFlowGraph_IsEnteringNewCfgNode(child) && child.HasTwoChildren() {
-					c.countUseWalk(child.GetLastChild(), child, cfgNode)
-				}
-			default:
-				c.countUseWalk(child, n, cfgNode)
-			}
-		}
+		fsivWalkClassMembers(ast.MustClassBody(n), func(n, parent rhino.Node) { c.countUseWalk(n, parent, cfgNode) })
 		return
 	}
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		c.countUseWalk(child, n, cfgNode)
 	}
 	if n.IsName() && n.GetString() == c.varName {
-		if !parent.IsNil() && parent.IsAssign() && (parent.GetFirstChild() == n) &&
-			fsivIsAssignChain(parent, cfgNode) {
+		if ast.RoleOf(n) == ast.RoleAssignTarget && fsivIsAssignChain(parent, cfgNode) {
 			return
 		}
 		c.numUsesWithinCfgNode++
@@ -1503,8 +1521,7 @@ func (cb *flowSensitiveInlineVariables_numUseCallback) Visit(t *NodeTraversal, n
 		// will happen after the inlining of the right hand side.
 		// TODO(lharker): We can probably remove the isAssignChain check, and instead use
 		// the SideEffectPredicate to look for dangerous assignments in the same CFG node
-		if parent.IsAssign() && (parent.GetFirstChild() == n) &&
-			cb.IsAssignChain(parent, cb.cfgNode) {
+		if ast.RoleOf(n) == ast.RoleAssignTarget && cb.IsAssignChain(parent, cb.cfgNode) {
 			// Don't count lhs of top-level assignment chain
 			return
 		} else {
@@ -1570,10 +1587,9 @@ func (f *FlowSensitiveInlineVariables) buildEnclosingScope() *Scope {
 	roots := rootsBuf[:0]
 	prev := f.curFn
 	for p := prev.GetParent(); !p.IsNil(); prev, p = p, p.GetParent() {
-		if p.IsClass() && prev == p.GetSecondChild() {
-			continue
-		}
-		if p.IsComputedFieldDef() && prev == p.GetFirstChild() {
+		switch ast.RoleOf(prev) {
+		case ast.RoleClassExtends, ast.RoleComputedFieldDefKey:
+			// Evaluated in the scope outside the class.
 			continue
 		}
 		if (p.IsRoot() && p.GetParent().IsNil()) || p.GetParent().IsNil() || p.IsFunction() || NodeUtil_CreatesBlockScope(p) {
@@ -1628,7 +1644,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) hasOutOfScopeName(n rhino.Node,
 //
 // Java: FlowSensitiveInlineVariables.Candidate.isRhsSafeToInline(Scope)
 func (c *FlowSensitiveInlineVariables_Candidate) IsRhsSafeToInline(usageScope *Scope) bool {
-	rhs := c.def.GetLastChild()
+	rhs := c.defValue().Node()
 	if fsivHasUnsafeRhsNode(rhs) {
 		return false
 	}

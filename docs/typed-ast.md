@@ -642,6 +642,99 @@ What they asked for (not added: the other port owned `internal/ast`):
   property accesses (`IsPrivateIdentifier`, `IsStaticMember` through
   `.Node()`, about 20 uses).
 
+## API round three: roles, aliases, Must on categories
+
+Added before the next ports (branch `typed/a`), from the requests listed
+in next steps, item 6:
+
+| ask | added |
+|---|---|
+| "is n the target of its assignment?" (`x, ok := ast.AsAssign(parent); ok && x.Target().Is(n)`) | `ast.RoleOf(n) == ast.RoleAssignTarget`: one `Role` constant per child of each kind, generated with a table per parent token; EMPTY placeholders have the role they stand for (`RoleForCond`), the catch of a try is `RoleTryCatchesCatch`, and `Role.Name()` asks across kinds (`"body"`) |
+| `ast.MustName(declarator.Node())` | `declarator.MustName()`: every checked conversion of a category has a Must form (they inline) |
+| same child, different role names (for-in `object`, for-of `iterable`) | grammar aliases, `object\|collection:Expr`: each name gets a getter, a category gets the getter of a name all its kinds have; `EnhancedFor.Collection()` is generated now, and `RoleForInCollection` is a constant |
+
+Not done: a common view of statement containers (none of the three ports
+below walks statement lists of several container kinds; their statement
+walks dispatch per kind anyway), Binary/AssignOp aliases (their `left` and
+`target` have different types, Expr and Target, so no shared getter
+would type both), the `~` placeholder accessor and typed AstFactory
+methods.
+
+`RoleOf` reads the parent's token and compares n with the parent's fixed
+children; a parent whose children are one list (a block, a var, a
+parameter list) answers from the table without reading them. It is not
+free: one more record load than a token test of the parent.
+
+## Twenty-eighth to thirtieth ports: FlowSensitiveInlineVariables, InlineFunctions, RemoveUnusedCode
+
+`FlowSensitiveInlineVariables`, `InlineFunctions` with `FunctionInjector`
+and `FunctionArgumentInjector` (5,600 lines), and `RemoveUnusedCode`
+(3,700 lines), on the API above. Output, source maps and stderr
+byte-identical on the four gate workloads at 1 and 4 threads, clie2e
+fixtures 2,974/2,976. Pass times measured in process: the base commit's
+pass, a copy with every top-level name renamed, and the new one run on
+clones of the same tree, alternating, 30 pairs, at the point where the
+compile first runs the pass (an A/A control of the same harness moves
+1-3 %):
+
+| pass | bundle | typed-full | typed-app |
+|---|---|---|---|
+| FlowSensitiveInlineVariables | 0.95-0.99 | 0.98 | 0.98 |
+| InlineFunctions | 0.97-1.02 | 1.00 | 1.00 |
+| RemoveUnusedCode | 0.98-0.99 | 1.00 | 0.99 |
+
+(new/old, median of pairs; same allocation counts.)
+
+What got clearer:
+
+- **Roles instead of parent tests.** "Is this name purely a read" was
+  seven token tests of the parent, written twice in
+  FlowSensitiveInlineVariables; it is one switch on `ast.RoleOf(n)`
+  (assignment target, declarator, ++/-- target, param, catch param).
+  InlineFunctions' `isCandidateUsage` (declarator, function name, callee,
+  object of `.call`) and the enclosing-scope skips (class extends,
+  computed field key) read the same way.
+- **One helper per shape the passes kept spelling out**: "a var whose
+  value is a function" (three places in InlineFunctions), "the function a
+  call calls directly", "the name x = f() assigns" and "the name var x =
+  f() declares" (FunctionInjector's call-site classification, reused for
+  the result name), "the owner of x.prototype" and "the name of
+  name.prototype" (eight places in RemoveUnusedCode), "the parameter name
+  or REST_MARKER" (three copies).
+- **Missing parts read as missing.** A class without `extends`, a `for`
+  without condition, a catch without binding: the old code traversed the
+  EMPTY node (a no-op); the typed code skips it.
+- **Dead walks gone**: FlowSensitiveInlineVariables visited the names of
+  functions and classes (NAMEs without children) on two identical
+  branches, and the gather walk had a root-function case it never takes.
+- **A Java quirk kept**: InlineFunctions counts any NAME child of a
+  function as a declaration, so the expression body of an arrow
+  (`() => fn`) is a candidate usage.
+
+What they reported:
+
+- **`RoleOf` in a per-name loop costs.** RemoveUnusedCode asks about the
+  parent of every name it traverses; with `RoleOf` the pass was 2-3 %
+  slower, with a token switch on the parent first (and `RoleOf` only for a
+  function or class parent) it is back to equal. A cheaper form when the
+  caller has the parent (`RoleIn(n, parent)`) or a test for one role
+  (`ast.IsRole(n, RoleAssignTarget)` reading only that position) would
+  help hot code.
+- **Ranging over a list whose loop body returns** compiles to a closure
+  call per element (`appendCallParamBindings-range1` in the profile);
+  the hot parameter-binding loop uses `FirstParam()`/`Next()`.
+- **`Function.Name()` reads the string** to answer ok (an anonymous
+  function has a NAME with ""), so `name, _ := fn.Name(); name.Ident()`
+  resolves the string twice; InlineFunctions' NamedFunction keeps the
+  name node. A `NameNode()` without the check would help.
+- **Lists have no Must**: "the declaration's only declarator, which
+  normalization guarantees" is `d, ok := decl.OnlyDeclarator();
+  jutil.CheckState(ok)` (three times), and `a, _ := call.FirstArg()` where
+  a NodeUtil test proved the argument.
+- **A placeholder's node** was wanted again: RemoveUnusedCode adds a
+  continuation for a class's `extends` even when it is EMPTY; the typed
+  code skips it (equivalent, as traversing EMPTY does nothing).
+
 ## Performance outlook
 
 The typed view compiles to the same code as before, so on its own it neither
@@ -710,19 +803,18 @@ bundle and typed-full workloads:
    callback for other nodes. A one-handler visitor over three.js's AST now
    takes 2.21 ms, against 2.43 ms for a hand-written token switch and
    3.07 ms before (minimums of 15 interleaved runs).
-2. **Port more passes.** 30 are on the typed view, among them the CFG,
-   the scope creator and the type checker. Left with the most positional
-   code: `RemoveUnusedCode`, `TypeInference`,
-   `FlowSensitiveInlineVariables`, `CodeGenerator`, `TypedScopeCreator`,
-   `InlineFunctions`.
-6. **The API requests that came back in several ports**, by count:
-   - a query for a node's role in its parent ("is n the body of its
-     parent?", ten uses in TypeCheck, nine in CFA);
+2. **Port more passes.** 33 are on the typed view, among them the CFG,
+   the scope creator, the type checker and the inliners. Left with the most
+   positional code: `TypeInference`, `CodeGenerator`, `TypedScopeCreator`.
+6. **The API requests that came back in several ports**, by count
+   (done: `RoleOf`, Must conversions on categories, role aliases; see
+   "API round three"):
+   - a cheaper role test for hot loops (`RoleIn(n, parent)`, one role at
+     one position), `Function.NameNode()`, Must on list accessors;
    - a common view of statement containers (block, script, module body,
      root, catch holder), so statement-list walks can be typed;
-   - Must conversions on categories (`declarator.MustName()`);
-   - role aliases for kinds that name the same child differently (for-in
-     `object`, for-of `iterable`; Binary left/right, AssignOp target/value);
+   - aliases for Binary left/right and AssignOp target/value (different
+     types: needs a Target-or-Expr view);
    - the placeholder node of a `~` role, for graph code that needs the
      EMPTY init of a `for`;
    - typed AstFactory methods for the transpilation passes.
