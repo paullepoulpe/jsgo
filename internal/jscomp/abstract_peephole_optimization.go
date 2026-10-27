@@ -79,70 +79,11 @@ type AbstractPeepholeOptimization interface {
 	// Java: AbstractPeepholeOptimization.optimizeSubtree(Node)
 	OptimizeSubtree(subtree rhino.Node) rhino.Node
 
-	// Java: AbstractPeepholeOptimization.report(DiagnosticType, Node)
-	Report(diagnostic *DiagnosticType, n rhino.Node)
-
-	// Java: AbstractPeepholeOptimization.areNodesEqualForInlining(Node, Node)
-	AreNodesEqualForInlining(n1 rhino.Node, n2 rhino.Node) bool
-
-	// Java: AbstractPeepholeOptimization.isASTNormalized()
-	IsASTNormalized() bool
-
 	// Java: AbstractPeepholeOptimization.beginTraversal(AbstractCompiler)
 	BeginTraversal(compiler AbstractCompiler)
 
 	// Java: AbstractPeepholeOptimization.endTraversal()
 	EndTraversal()
-
-	// Java: AbstractPeepholeOptimization.mayEffectMutableState(Node)
-	MayEffectMutableState(n rhino.Node) bool
-
-	// Java: AbstractPeepholeOptimization.mayHaveSideEffects(Node)
-	MayHaveSideEffects(n rhino.Node) bool
-
-	// Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValue(Node)
-	GetSideEffectFreeNumberValue(n rhino.Node) *float64
-	GetSideEffectFreeNumberValueVal(n rhino.Node) (float64, bool)
-
-	// Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValueNoConversion(Node)
-	GetSideEffectFreeNumberValueNoConversion(n rhino.Node) *float64
-	GetSideEffectFreeNumberValueNoConversionVal(n rhino.Node) (float64, bool)
-
-	// Java: AbstractPeepholeOptimization.getSideEffectFreeBigIntValue(Node)
-	GetSideEffectFreeBigIntValue(n rhino.Node) *big.Int
-
-	// Java: AbstractPeepholeOptimization.getSideEffectFreeStringValue(Node)
-	GetSideEffectFreeStringValue(n rhino.Node) *string
-
-	// Java: AbstractPeepholeOptimization.getSideEffectFreeBooleanValue(Node)
-	GetSideEffectFreeBooleanValue(n rhino.Node) base.Tri
-
-	// Java: AbstractPeepholeOptimization.nodeTypeMayHaveSideEffects(Node)
-	NodeTypeMayHaveSideEffects(n rhino.Node) bool
-
-	// Java: AbstractPeepholeOptimization.isEcmaScript5OrGreater()
-	IsEcmaScript5OrGreater() bool
-
-	// Java: AbstractPeepholeOptimization.getCodingConvention()
-	GetCodingConvention() CodingConvention
-
-	// Java: AbstractPeepholeOptimization.reportChangeToEnclosingScope(Node)
-	ReportChangeToEnclosingScope(n rhino.Node)
-
-	// Java: AbstractPeepholeOptimization.deleteNode(Node)
-	DeleteNode(property rhino.Node)
-
-	// Java: AbstractPeepholeOptimization.markFunctionsDeleted(Node)
-	MarkFunctionsDeleted(function rhino.Node)
-
-	// Java: AbstractPeepholeOptimization.markNewScopesChanged(Node)
-	MarkNewScopesChanged(n rhino.Node)
-
-	// Java: AbstractPeepholeOptimization.addFeatureToEnclosingScript(Feature)
-	AddFeatureToEnclosingScript(feature parser.FeatureSet_Feature)
-
-	// Java: AbstractPeepholeOptimization.clearNewFeatures()
-	ClearNewFeatures()
 
 	// GetAbstractPeepholeOptimizationBase gives access to the base fields
 	// through the interface (PORTING.md §4).
@@ -283,18 +224,8 @@ func (b *AbstractPeepholeOptimizationBase) MayHaveSideEffects(n rhino.Node) bool
 // GetSideEffectFreeNumberValue returns the number value of the node if it
 // has one and it cannot have side effects.
 //
-// Returns null otherwise.
-//
 // Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValue(Node)
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValue(n rhino.Node) *float64 {
-	v, ok := b.GetSideEffectFreeNumberValueVal(n)
-	if !ok {
-		return nil
-	}
-	return &v
-}
-
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueVal(n rhino.Node) (float64, bool) {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValue(n rhino.Node) (float64, bool) {
 	// Calculating the number value, if any, is likely to be faster than calculating side effects,
 	// and there are only a very few cases where we can compute a number value, but there could
 	// also be side effects. e.g. `void doSomething()` has value NaN, regardless of the behavior
@@ -307,15 +238,7 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueVal(n rhi
 }
 
 // Java: AbstractPeepholeOptimization.getSideEffectFreeNumberValueNoConversion(Node)
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConversion(n rhino.Node) *float64 {
-	v, ok := b.GetSideEffectFreeNumberValueNoConversionVal(n)
-	if !ok {
-		return nil
-	}
-	return &v
-}
-
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConversionVal(n rhino.Node) (float64, bool) {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeNumberValueNoConversion(n rhino.Node) (float64, bool) {
 	v, ok := nodeUtil_doGetNumberValue(n, false)
 	if !ok || b.astAnalyzer.MayHaveSideEffects(n) {
 		return 0, false
@@ -341,24 +264,23 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeBigIntValue(n rhino.
 	return value
 }
 
-// GetSideEffectFreeStringValue gets the value of a node as a String, or null
-// if it cannot be converted.
+// GetSideEffectFreeStringValue gets the value of a node as a String if it can
+// be converted and has no side effects.
 //
 // This method effectively emulates the String() JavaScript cast function
-// when possible and the node has no side effects. Otherwise, it returns
-// null.
+// when possible and the node has no side effects.
 //
 // Java: AbstractPeepholeOptimization.getSideEffectFreeStringValue(Node)
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeStringValue(n rhino.Node) *string {
-	value := NodeUtil_GetStringValue(n)
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeStringValue(n rhino.Node) (string, bool) {
+	value, ok := nodeUtil_getStringValue(n)
 	// Calculating the string value, if any, is likely to be faster than calculating side effects,
 	// and there are only a very few cases where we can compute a string value, but there could
 	// also be side effects. e.g. `void doSomething()` has value 'undefined', regardless of the
 	// behavior of `doSomething()`
-	if value != nil && b.astAnalyzer.MayHaveSideEffects(n) {
-		value = nil
+	if !ok || b.astAnalyzer.MayHaveSideEffects(n) {
+		return "", false
 	}
-	return value
+	return value, true
 }
 
 // GetSideEffectFreeBooleanValue calculates the known boolean value for a

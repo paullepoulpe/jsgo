@@ -45,9 +45,9 @@ func NewRewriteOptionalChainingOperator(compiler AbstractCompiler) *RewriteOptio
 	uniqueIdSupplier := compiler.GetUniqueIdSupplier()
 	r.getTmpVarNameCreatorForInput =
 		func(input *CompilerInput) OptionalChainRewriter_TmpVarNameCreator {
-			return OptionalChainRewriter_TmpVarNameCreatorFunc(func() string {
+			return func() string {
 				return "$jscomp$optchain$tmp" + uniqueIdSupplier.GetUniqueId(input)
-			})
+			}
 		}
 	return r
 }

@@ -21,288 +21,150 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // Es6RewriteModulesToCommonJsModules rewrites an ES6 module to a
-// CommonJS-like module for the sake of per-file transpilation + bunlding
+// CommonJS-like module for the sake of per-file transpilation + bundling
 // (e.g. Closure Bundler). Output is not meant to be type checked.
 type Es6RewriteModulesToCommonJsModules struct {
 	compiler AbstractCompiler
 }
 
-const es6RewriteModulesToCommonJsModules_JSCOMP_DEFAULT_EXPORT = "$$default"
-const es6RewriteModulesToCommonJsModules_MODULE = "$$module"
-const es6RewriteModulesToCommonJsModules_EXPORTS = "$$exports"
-const es6RewriteModulesToCommonJsModules_REQUIRE = "$$require"
+const (
+	es6CommonJsDefaultExport = "$$default"
+	es6CommonJsModule        = "$$module"
+	es6CommonJsExports       = "$$exports"
+	es6CommonJsRequire       = "$$require"
+)
 
 // Java: Es6RewriteModulesToCommonJsModules(AbstractCompiler)
 func NewEs6RewriteModulesToCommonJsModules(compiler AbstractCompiler) *Es6RewriteModulesToCommonJsModules {
-	e := &Es6RewriteModulesToCommonJsModules{}
-	e.compiler = compiler
-	return e
+	return &Es6RewriteModulesToCommonJsModules{compiler: compiler}
 }
 
 // Java: Es6RewriteModulesToCommonJsModules.process(Node, Node)
 func (e *Es6RewriteModulesToCommonJsModules) Process(externs rhino.Node, root rhino.Node) {
 	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		if Es6RewriteModules_IsEs6ModuleRoot(script) {
-			NodeTraversal_Traverse(e.compiler, script, NewEs6RewriteModulesToCommonJsModules_Rewriter(e.compiler, script))
+			NodeTraversal_Traverse(e.compiler, script, newEs6CommonJsModuleRewriter(e.compiler, script))
 		}
 	}
-	// It is unusual to call this NodeUtil method instead of the TranspilationPasses one. This
-	// pass is included in the {@code dependency_resolution} BUILD target and does not have access
-	// to {@code TranspilationPasses}. Adding that dep produces a cycle in the BUILD dep graph.
-	// Regular transpiler passes must use the {@code
-	// TranspilationPasses.maybeMarkFeaturesAsTranspiledAway}
 	NodeUtil_RemoveFeatureFromAllScripts(root, parser.FeatureSet_Feature_MODULES, e.compiler)
 	GatherGetterAndSetterProperties_Update(e.compiler, externs, root)
 }
 
-// Es6RewriteModulesToCommonJsModules_LocalQName is the private static
-// nested class Es6RewriteModulesToCommonJsModules.LocalQName.
-type Es6RewriteModulesToCommonJsModules_LocalQName struct {
-	qName string
-
-	// Node to use for source information. All exported properties are
-	// transpiled to ES5 getters so debuggers will automatically step into
-	// these, even with source maps. When stepping in this node will be
-	// displayed in the source map. In general it should either be the export
-	// itself (e.g. export function or class) or the specific name being
-	// exported (export specs, const, etc).
+type es6CommonJsLocalQName struct {
+	qName             string
 	nodeForSourceInfo rhino.Node
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.LocalQName(String, Node)
-func NewEs6RewriteModulesToCommonJsModules_LocalQName(qName string, nodeForSourceInfo rhino.Node) *Es6RewriteModulesToCommonJsModules_LocalQName {
-	l := &Es6RewriteModulesToCommonJsModules_LocalQName{}
-	l.qName = qName
-	l.nodeForSourceInfo = nodeForSourceInfo
-	return l
-}
-
-// Es6RewriteModulesToCommonJsModules_NormalizePath normalizes a registered
-// or import path.
-//
-// Absolute import paths need to match the registered path exactly. Some
-// ModuleLoader.ModulePaths will have a leading slash and some won't. So in
-// order to have everything line up AND preserve schemes (if they exist)
-// then just strip leading /.
-//
-// Additionally if any path contains a protocol it will be stripped only the
-// path part will remain. This is done heuristically as we cannot use
-// java.net.URL or java.nio.file.Path due to GWT. As a result of stripping
-// this cross-domain imports are not compatible with this pass.
-//
-// Java: Es6RewriteModulesToCommonJsModules.normalizePath(String)
-func Es6RewriteModulesToCommonJsModules_NormalizePath(path string) string {
-	indexOfProtocol := jutil.StringIndexOf(path, "://")
-	if indexOfProtocol > -1 {
-		path = jutil.StringSubstringFrom(path, indexOfProtocol+3)
-		indexOfSlash := jutil.StringIndexOfChar(path, '/')
-		if indexOfSlash > -1 {
-			path = jutil.StringSubstringFrom(path, indexOfSlash+1)
-		}
-	} else if strings.HasPrefix(path, "/") {
-		path = jutil.StringSubstringFrom(path, 1)
-	}
-	return path
-}
-
-// Es6RewriteModulesToCommonJsModules_ModuleRequest is the private record
-// Es6RewriteModulesToCommonJsModules.ModuleRequest(String specifier, String
-// varName), compared by value in a LinkedHashSet.
-type Es6RewriteModulesToCommonJsModules_ModuleRequest struct {
+type es6CommonJsModuleRequest struct {
 	specifier string
 	varName   string
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.ModuleRequest(String, String)
-func NewEs6RewriteModulesToCommonJsModules_ModuleRequest(specifier string, varName string) *Es6RewriteModulesToCommonJsModules_ModuleRequest {
-	// requireNonNull(specifier, "specifier"); requireNonNull(varName, "varName"): Go strings
-	// cannot be null.
-	return &Es6RewriteModulesToCommonJsModules_ModuleRequest{specifier: specifier, varName: varName}
+// Es6RewriteModulesToCommonJsModules_NormalizePath normalizes a registered
+// or import path by stripping any protocol+host prefix or leading '/'.
+//
+// Java: Es6RewriteModulesToCommonJsModules.normalizePath(String)
+func Es6RewriteModulesToCommonJsModules_NormalizePath(path string) string {
+	if indexOfProtocol := strings.Index(path, "://"); indexOfProtocol >= 0 {
+		path = path[indexOfProtocol+3:]
+		if indexOfSlash := strings.IndexByte(path, '/'); indexOfSlash >= 0 {
+			path = path[indexOfSlash+1:]
+		}
+	} else {
+		path = strings.TrimPrefix(path, "/")
+	}
+	return path
 }
 
-// Specifier is the record component accessor specifier().
-//
-// Java: Es6RewriteModulesToCommonJsModules.ModuleRequest.specifier()
-func (m *Es6RewriteModulesToCommonJsModules_ModuleRequest) Specifier() string { return m.specifier }
-
-// VarName is the record component accessor varName().
-//
-// Java: Es6RewriteModulesToCommonJsModules.ModuleRequest.varName()
-func (m *Es6RewriteModulesToCommonJsModules_ModuleRequest) VarName() string { return m.varName }
-
-// Equals is the record's equals: both components equal.
-//
-// Java: Es6RewriteModulesToCommonJsModules.ModuleRequest.equals(Object)
-func (m *Es6RewriteModulesToCommonJsModules_ModuleRequest) Equals(o any) bool {
-	that, ok := o.(*Es6RewriteModulesToCommonJsModules_ModuleRequest)
-	return ok && that != nil && m.specifier == that.specifier && m.varName == that.varName
-}
-
-// HashCode is the record's hashCode, derived from both components. The
-// set that holds requests iterates in insertion order, so only its
-// consistency with Equals matters.
-//
-// Java: Es6RewriteModulesToCommonJsModules.ModuleRequest.hashCode()
-func (m *Es6RewriteModulesToCommonJsModules_ModuleRequest) HashCode() int32 {
-	return 31*jutil.StringHashCode(m.specifier) + jutil.StringHashCode(m.varName)
-}
-
-// Java: Es6RewriteModulesToCommonJsModules.ModuleRequest.create(String, String)
-func Es6RewriteModulesToCommonJsModules_ModuleRequest_Create(specifier string, varName string) *Es6RewriteModulesToCommonJsModules_ModuleRequest {
-	return NewEs6RewriteModulesToCommonJsModules_ModuleRequest(specifier, varName)
-}
-
-// Es6RewriteModulesToCommonJsModules_Rewriter rewrites a single ES6 module
-// into a CommonJS like module designed to be loaded in the compiler's module
-// runtime.
-type Es6RewriteModulesToCommonJsModules_Rewriter struct {
+// es6CommonJsModuleRewriter rewrites a single ES6 module into a CommonJS-like
+// module designed to be loaded in the compiler's module runtime.
+type es6CommonJsModuleRewriter struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	requireInsertSpot        rhino.Node
 	script                   rhino.Node
-	exportedNameToLocalQName *jutil.TreeMap[string, *Es6RewriteModulesToCommonJsModules_LocalQName]
+	exportedNameToLocalQName *jutil.TreeMap[string, es6CommonJsLocalQName]
 	imports                  *jutil.LinkedHashSet[rhino.Node]
-	importRequests           *jutil.ObjectLinkedHashSet[*Es6RewriteModulesToCommonJsModules_ModuleRequest]
+	importRequests           *jutil.LinkedHashSet[es6CommonJsModuleRequest]
 	compiler                 AbstractCompiler
 	modulePath               *ModuleLoader_ModulePath
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter(AbstractCompiler, Node)
-func NewEs6RewriteModulesToCommonJsModules_Rewriter(compiler AbstractCompiler, script rhino.Node) *Es6RewriteModulesToCommonJsModules_Rewriter {
-	r := &Es6RewriteModulesToCommonJsModules_Rewriter{}
-	r.compiler = compiler
-	r.script = script
-	r.requireInsertSpot = rhino.NilNode
-	// TreeMap because ES6 orders the export key using natural ordering.
-	r.exportedNameToLocalQName = jutil.NewTreeMap[string, *Es6RewriteModulesToCommonJsModules_LocalQName](jutil.StringCompareTo)
-	r.importRequests = jutil.NewObjectLinkedHashSet[*Es6RewriteModulesToCommonJsModules_ModuleRequest]()
-	r.imports = jutil.NewLinkedHashSet[rhino.Node]()
-	r.modulePath = compiler.GetInput(script.GetInputId()).GetPath()
-	return r
+func newEs6CommonJsModuleRewriter(compiler AbstractCompiler, script rhino.Node) *es6CommonJsModuleRewriter {
+	return &es6CommonJsModuleRewriter{
+		compiler: compiler,
+		script:   script,
+		// TreeMap because ES6 orders the export keys using natural ordering.
+		exportedNameToLocalQName: jutil.NewTreeMap[string, es6CommonJsLocalQName](jutil.StringCompareTo),
+		importRequests:           jutil.NewLinkedHashSet[es6CommonJsModuleRequest](),
+		imports:                  jutil.NewLinkedHashSet[rhino.Node](),
+		modulePath:               compiler.GetInput(script.GetInputId()).GetPath(),
+	}
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visit(NodeTraversal, Node, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (r *es6CommonJsModuleRewriter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_IMPORT:
-		r.VisitImport(t.GetInput().GetPath(), n)
+		r.visitImport(t.GetInput().GetPath(), ast.MustImport(n))
 	case rhino.Token_EXPORT:
-		r.VisitExport(t, n, parent)
+		r.visitExport(t, ast.MustExport(n), parent)
 	case rhino.Token_SCRIPT:
-		r.VisitScript(t, n)
+		r.visitScript(t, n)
 	case rhino.Token_NAME:
-		r.MaybeRenameImportedValue(t, n)
-	default:
+		r.maybeRenameImportedValue(t, ast.MustName(n))
 	}
 }
 
-// GetVarNameOfImport, given an import node, gets the name of the var to use
-// for the imported module.
-//
-// Example: import {v} from './foo.js'; use(v); Can become:
-//
-//	const module$foo = require('./foo.js');
-//	use(module$foo.v);
-//
-// This method would return "module$foo".
-//
-// Note that if there is a star import the name will be preserved.
-//
-// Example:
-//
-//	import defaultValue, * as foo from './foo.js';
-//	use(defaultValue, foo.bar);
-//
-// Can become:
-//
-//	const foo = require('./foo.js'); use(foo.defaultValue, foo.bar);
-//
-// This makes debugging quite a bit easier as source maps are not great with
-// renaming.
-//
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.getVarNameOfImport(Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) GetVarNameOfImport(importDecl rhino.Node) string {
-	jutil.CheckState(importDecl.IsImport())
-	if importDecl.GetSecondChild().IsImportStar() {
-		return importDecl.GetSecondChild().GetString()
+func (r *es6CommonJsModuleRewriter) varNameOfImport(importDecl ast.Import) string {
+	if bindings, ok := importDecl.Bindings(); ok {
+		if star, isStar := bindings.AsImportStar(); isStar {
+			return star.Ident()
+		}
 	}
-	return r.GetVarNameOfImportWithImportRequest(importDecl.GetLastChild().GetString())
+	return r.varNameOfImportRequest(importDecl.Source().Value())
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.getVarNameOfImport(String)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) GetVarNameOfImportWithImportRequest(importRequest string) string {
+func (r *es6CommonJsModuleRewriter) varNameOfImportRequest(importRequest string) string {
 	return r.modulePath.ResolveModuleAsPath(importRequest).ToModuleName()
 }
 
-// GetNameOfImportedValue returns the qualified name to use to reference an
-// imported value.
-//
-// Examples:
-//
-//   - If referencing an import spec like v in "import {v} from './foo.js'"
-//     then this would return "module$foo.v".
-//   - If referencing an import star like m in "import * as m from
-//     './foo.js'" then this would return "m".
-//   - If referencing an import default like d in "import d from './foo.js'"
-//     then this would return "module$foo.default".
-//
-// Used to rename references to imported values within this module.
-//
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.getNameOfImportedValue(Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) GetNameOfImportedValue(nameNode rhino.Node) string {
-	importDecl := nameNode
-
-	for !importDecl.IsImport() {
-		importDecl = importDecl.GetParent()
+func (r *es6CommonJsModuleRewriter) nameOfImportedValue(nameNode rhino.Node) string {
+	curr := nameNode
+	for !curr.IsImport() {
+		curr = curr.GetParent()
 	}
+	moduleName := r.varNameOfImport(ast.MustImport(curr))
 
-	moduleName := r.GetVarNameOfImport(importDecl)
-
-	if nameNode.GetParent().IsImportSpec() {
-		return moduleName + "." + nameNode.GetParent().GetFirstChild().GetString()
-	} else if nameNode.IsImportStar() {
+	if spec, ok := ast.AsImportSpec(nameNode.GetParent()); ok {
+		return moduleName + "." + spec.Imported().Ident()
+	}
+	if _, ok := ast.AsImportStar(nameNode); ok {
 		return moduleName
-	} else {
-		jutil.CheckState(nameNode.GetParent().IsImport())
-		return moduleName + ".default"
 	}
+	jutil.CheckState(nameNode.GetParent().IsImport())
+	return moduleName + ".default"
 }
 
-// MaybeGetNameOfImportedValue: nameNode is any variable name that is
-// potentially from an import statement. Returns the qualified name to use to
-// reference an imported value if the given node is an imported name or nil
-// if the value is not imported or if it is in the import statement itself.
-//
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.maybeGetNameOfImportedValue(Scope, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) MaybeGetNameOfImportedValue(s *Scope, nameNode rhino.Node) *string {
-	jutil.CheckState(nameNode.IsName())
-	var_ := s.GetVar(nameNode.GetString())
-
-	if var_ != nil &&
-		// variables added implicitly to the scope, like arguments, have a null name node
-		!var_.GetNameNode().IsNil() &&
-		NodeUtil_IsImportedName(var_.GetNameNode()) &&
-		nameNode != var_.GetNameNode() {
-		return jutil.StringPtr(r.GetNameOfImportedValue(var_.GetNameNode()))
+func (r *es6CommonJsModuleRewriter) maybeGetNameOfImportedValue(s *Scope, nameNode ast.Name) (string, bool) {
+	v := s.GetVar(nameNode.Ident())
+	if v != nil &&
+		!v.GetNameNode().IsNil() &&
+		NodeUtil_IsImportedName(v.GetNameNode()) &&
+		nameNode.Node() != v.GetNameNode() {
+		return r.nameOfImportedValue(v.GetNameNode()), true
 	}
-
-	return nil
+	return "", false
 }
 
-// MaybeRenameImportedValue renames the given name node if it is an imported
-// value.
-//
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.maybeRenameImportedValue(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) MaybeRenameImportedValue(t *NodeTraversal, n rhino.Node) {
-	jutil.CheckState(n.IsName())
-	parent := n.GetParent()
-
+func (r *es6CommonJsModuleRewriter) maybeRenameImportedValue(t *NodeTraversal, nm ast.Name) {
+	parent := nm.Node().GetParent()
 	if parent.IsExport() ||
 		parent.IsExportSpec() ||
 		parent.IsImport() ||
@@ -310,100 +172,69 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) MaybeRenameImportedValue(t
 		return
 	}
 
-	qName := r.MaybeGetNameOfImportedValue(t.GetScope(), n)
-
-	if qName != nil {
-		n.ReplaceWith(NodeUtil_NewQName(r.compiler, *qName))
+	if qName, ok := r.maybeGetNameOfImportedValue(t.GetScope(), nm); ok {
+		nm.Node().ReplaceWith(NodeUtil_NewQName(r.compiler, qName))
 		t.ReportCodeChange()
 	}
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitScript(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitScript(t *NodeTraversal, script rhino.Node) {
+func (r *es6CommonJsModuleRewriter) visitScript(t *NodeTraversal, script rhino.Node) {
 	jutil.CheckState(r.script == script)
-	moduleNode := script.GetFirstChild()
-	jutil.CheckState(moduleNode.IsModuleBody())
+	moduleBody := ast.MustModuleBody(script.GetFirstChild())
+	moduleNode := moduleBody.Node()
 	moduleNode.Detach()
 	script.AddChildrenToFront(moduleNode.RemoveChildren())
 
-	// Order here is important. We want the end result to be:
-	//  $jscomp.registerAndLoadModule(function($$require, $$exports, $$module) {
-	//   // First to ensure circular deps can see exports of this module before we require them,
-	//   // and also so that temporal deadzone is respected.
-	//   //<export def>
-	//   // Second so the module definition can reference imported modules, and so any require'd
-	//   // modules are loaded.
-	//   //<requires>
-	//   // And finally last is the actual module definition.
-	//   //<module def>
-	//  }, /* <module path> */, [/* <deps> */]);
-	// As a result the calls below are in *inverse* order to what we want above so they can keep
-	// adding to the front of the script.
-	r.AddRequireCalls()
-	r.AddExportDef()
-	r.RegisterAndLoadModule(t)
+	// Prepend sections in reverse order so the resulting body has:
+	//   1) export definitions
+	//   2) require calls
+	//   3) module body statements
+	r.addRequireCalls()
+	r.addExportDef()
+	r.registerAndLoadModule(t)
 }
 
-// AddRequireCalls adds one call to require per imported module.
-//
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.addRequireCalls()
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddRequireCalls() {
-	if !r.importRequests.IsEmpty() {
-		for importDecl := range r.imports.All() {
-			importDecl.Detach()
-		}
+func (r *es6CommonJsModuleRewriter) addRequireCalls() {
+	if r.importRequests.IsEmpty() {
+		return
+	}
+	for importDecl := range r.imports.All() {
+		importDecl.Detach()
+	}
 
-		importedNames := jutil.NewLinkedHashSet[string]()
-
-		for request := range r.importRequests.All() {
-			varName := request.VarName()
-			if importedNames.Add(varName) {
-				requireCall := rhino.IR_Call(rhino.IR_Name(es6RewriteModulesToCommonJsModules_REQUIRE), rhino.IR_String(request.Specifier()))
-				requireCall.PutBooleanProp(rhino.Node_FREE_CALL, true)
-				decl := rhino.IR_VarWithValue(rhino.IR_Name(varName), requireCall)
-				decl.SrcrefTreeIfMissing(r.script)
-				if r.requireInsertSpot.IsNil() {
-					r.script.AddChildToFront(decl)
-				} else {
-					decl.InsertAfter(r.requireInsertSpot)
-				}
-				r.requireInsertSpot = decl
+	importedNames := jutil.NewLinkedHashSet[string]()
+	for request := range r.importRequests.All() {
+		if importedNames.Add(request.varName) {
+			requireCall := rhino.IR_Call(rhino.IR_Name(es6CommonJsRequire), rhino.IR_String(request.specifier))
+			ast.MustCall(requireCall).SetFreeCall(true)
+			decl := rhino.IR_VarWithValue(rhino.IR_Name(request.varName), requireCall)
+			decl.SrcrefTreeIfMissing(r.script)
+			if r.requireInsertSpot.IsNil() {
+				r.script.AddChildToFront(decl)
+			} else {
+				decl.InsertAfter(r.requireInsertSpot)
 			}
+			r.requireInsertSpot = decl
 		}
 	}
 }
 
-// RegisterAndLoadModule wraps the entire current module definition in a
-// $jscomp.registerAndLoadModule function.
-//
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.registerAndLoadModule(NodeTraversal)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) RegisterAndLoadModule(t *NodeTraversal) {
+func (r *es6CommonJsModuleRewriter) registerAndLoadModule(t *NodeTraversal) {
 	block := rhino.IR_Block()
 	block.AddChildrenToFront(r.script.RemoveChildren())
-
-	// TODO(b/282006497): Maybe mark this function for strict mode?
-	// NOTE: One might be tempted to add `'use strict';` here, but that causes problems.
-	// Optimizations and transpilations are not written to look for this statement,
-	// and are likely to either remove it or move other statements ahead of it,
-	// making it ineffective.
-	// The "right" way to mark the method for strict mode would be to apply the
-	// USE_STRICT node property to its body, but at the moment that will have no
-	// effect because 1) the code printer ignores it and 2) TypedAst doesn't
-	// serialize it.
 
 	moduleFunction :=
 		rhino.IR_Function(
 			rhino.IR_Name(""),
 			rhino.IR_ParamList(
-				rhino.IR_Name(es6RewriteModulesToCommonJsModules_REQUIRE),
-				rhino.IR_Name(es6RewriteModulesToCommonJsModules_EXPORTS),
-				rhino.IR_Name(es6RewriteModulesToCommonJsModules_MODULE)),
+				rhino.IR_Name(es6CommonJsRequire),
+				rhino.IR_Name(es6CommonJsExports),
+				rhino.IR_Name(es6CommonJsModule)),
 			block)
 
 	shallowDeps := rhino.NewNode(rhino.Token_ARRAYLIT)
-
 	for request := range r.importRequests.All() {
-		shallowDeps.AddChildToBack(rhino.IR_String(request.Specifier()))
+		shallowDeps.AddChildToBack(rhino.IR_String(request.specifier))
 	}
 
 	exprResult :=
@@ -411,7 +242,6 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) RegisterAndLoadModule(t *N
 			rhino.IR_Call(
 				rhino.IR_Getprop(rhino.IR_Name("$jscomp"), "registerAndLoadModule"),
 				moduleFunction,
-				// Resolving this path enables removing module roots from this path.
 				rhino.IR_String(
 					Es6RewriteModulesToCommonJsModules_NormalizePath(
 						r.compiler.GetModuleLoader().Resolve(t.GetInput().GetName()).String())),
@@ -424,33 +254,25 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) RegisterAndLoadModule(t *N
 	t.ReportCodeChange()
 }
 
-// AddExportDef adds exports to the exports object using
-// Object.defineProperties.
-//
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.addExportDef()
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExportDef() {
-	if !r.exportedNameToLocalQName.IsEmpty() {
-		definePropertiesLit := rhino.IR_Objectlit()
-
-		for key, value := range r.exportedNameToLocalQName.All() {
-			r.AddExport(definePropertiesLit, key, value)
-		}
-
-		r.script.AddChildToFront(
-			rhino.IR_ExprResult(
-				rhino.IR_Call(
-					NodeUtil_NewQName(r.compiler, "Object.defineProperties"),
-					rhino.IR_Name(es6RewriteModulesToCommonJsModules_EXPORTS),
-					definePropertiesLit)).
-				SrcrefTreeIfMissing(r.script))
+func (r *es6CommonJsModuleRewriter) addExportDef() {
+	if r.exportedNameToLocalQName.IsEmpty() {
+		return
 	}
+	definePropertiesLit := rhino.IR_Objectlit()
+	for key, value := range r.exportedNameToLocalQName.All() {
+		r.addExport(definePropertiesLit, key, value)
+	}
+
+	r.script.AddChildToFront(
+		rhino.IR_ExprResult(
+			rhino.IR_Call(
+				NodeUtil_NewQName(r.compiler, "Object.defineProperties"),
+				rhino.IR_Name(es6CommonJsExports),
+				definePropertiesLit)).
+			SrcrefTreeIfMissing(r.script))
 }
 
-// AddExport adds an ES5 getter to the given object literal to use an an
-// export.
-//
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.addExport(Node, String, LocalQName)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExport(definePropertiesLit rhino.Node, exportedName string, localQName *Es6RewriteModulesToCommonJsModules_LocalQName) {
+func (r *es6CommonJsModuleRewriter) addExport(definePropertiesLit rhino.Node, exportedName string, localQName es6CommonJsLocalQName) {
 	exportedValue := NodeUtil_NewQName(r.compiler, localQName.qName)
 	getterFunction :=
 		rhino.IR_Function(rhino.IR_Name(""), rhino.IR_ParamList(), rhino.IR_BlockOfNode(rhino.IR_ReturnNodeWithExpr(exportedValue)))
@@ -458,158 +280,156 @@ func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExport(defineProperties
 
 	objLit :=
 		rhino.IR_Objectlit(
-			rhino.IR_StringKeyWithValue("enumerable", rhino.IR_TrueNode()), rhino.IR_StringKeyWithValue("get", getterFunction))
+			rhino.IR_StringKeyWithValue("enumerable", rhino.IR_TrueNode()),
+			rhino.IR_StringKeyWithValue("get", getterFunction))
 	definePropertiesLit.AddChildToBack(rhino.IR_StringKeyWithValue(exportedName, objLit))
 
 	r.compiler.ReportChangeToChangeScope(getterFunction)
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitImport(ModulePath, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitImport(path *ModuleLoader_ModulePath, importDecl rhino.Node) {
-	if strings.Contains(importDecl.GetLastChild().GetString(), "://") {
+func (r *es6CommonJsModuleRewriter) visitImport(path *ModuleLoader_ModulePath, importDecl ast.Import) {
+	specifier := importDecl.Source().Value()
+	if strings.Contains(specifier, "://") {
 		r.compiler.Report(
 			JSError_MakeWithNode(
-				importDecl, TranspilationUtil_CANNOT_CONVERT, "Module requests with protocols."))
+				importDecl.Node(), TranspilationUtil_CANNOT_CONVERT, "Module requests with protocols."))
 	}
 
-	// Normalize the import path according to the module resolution scheme so that bundles are
-	// compatible with the compiler's module loader options.
-	r.importRequests.Add(
-		Es6RewriteModulesToCommonJsModules_ModuleRequest_Create(
-			Es6RewriteModulesToCommonJsModules_NormalizePath(
-				path.ResolveModuleAsPath(importDecl.GetLastChild().GetString()).String()),
-			r.GetVarNameOfImport(importDecl)))
-	r.imports.Add(importDecl)
+	r.importRequests.Add(es6CommonJsModuleRequest{
+		specifier: Es6RewriteModulesToCommonJsModules_NormalizePath(path.ResolveModuleAsPath(specifier).String()),
+		varName:   r.varNameOfImport(importDecl),
+	})
+	r.imports.Add(importDecl.Node())
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportDefault(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportDefault(t *NodeTraversal, export rhino.Node) {
-	child := export.GetFirstChild()
-	var name *string
+func (r *es6CommonJsModuleRewriter) visitExportDefault(t *NodeTraversal, export ast.Export) {
+	exportNode := export.Node()
+	child := export.Body().Node()
+	var localName string
+	hasDeclName := false
 
-	if child.IsFunction() || child.IsClass() {
-		name = NodeUtil_GetName(child)
+	if fn, ok := ast.AsFunction(child); ok {
+		if nm, named := fn.Name(); named {
+			localName = nm.Ident()
+			hasDeclName = true
+		}
+	} else if cls, ok := ast.AsClass(child); ok {
+		if nm, named := cls.Name(); named {
+			localName = nm.Ident()
+			hasDeclName = true
+		}
 	}
 
-	if name != nil {
-		decl := child.Detach()
-		export.ReplaceWith(decl)
+	if hasDeclName {
+		exportNode.ReplaceWith(child.Detach())
 	} else {
-		name = jutil.StringPtr(es6RewriteModulesToCommonJsModules_JSCOMP_DEFAULT_EXPORT)
-		// Default exports are constant in more ways than one. Not only can they not be
-		// overwritten but they also act like a const for temporal dead-zone purposes.
-		var_ := rhino.IR_ConstNode(rhino.IR_Name(*name), export.RemoveFirstChild())
-		export.ReplaceWith(var_.SrcrefTreeIfMissing(export))
+		localName = es6CommonJsDefaultExport
+		constDecl := rhino.IR_ConstNode(rhino.IR_Name(localName), exportNode.RemoveFirstChild())
+		exportNode.ReplaceWith(constDecl.SrcrefTreeIfMissing(exportNode))
 		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_CONST_DECLARATIONS, r.compiler)
 	}
 
-	r.exportedNameToLocalQName.Put("default", NewEs6RewriteModulesToCommonJsModules_LocalQName(*name, export))
+	r.exportedNameToLocalQName.Put("default", es6CommonJsLocalQName{qName: localName, nodeForSourceInfo: exportNode})
 	t.ReportCodeChange()
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportFrom(NodeTraversal, Node, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportFrom(t *NodeTraversal, export rhino.Node, parent rhino.Node) {
-	//   export {x, y as z} from 'moduleIdentifier';
-	moduleIdentifier := export.GetLastChild()
-	importNode := rhino.IR_ImportNode(rhino.IR_Empty(), rhino.IR_Empty(), moduleIdentifier.CloneNode())
-	importNode.Srcref(export)
-	importNode.InsertBefore(export)
+func (r *es6CommonJsModuleRewriter) visitExportFrom(t *NodeTraversal, export ast.Export, source ast.StringLit, parent rhino.Node) {
+	exportNode := export.Node()
+	importNode := rhino.IR_ImportNode(rhino.IR_Empty(), rhino.IR_Empty(), source.Node().CloneNode())
+	importNode.Srcref(exportNode)
+	importNode.InsertBefore(exportNode)
 	r.Visit(t, importNode, parent)
 
-	moduleName := r.GetVarNameOfImportWithImportRequest(moduleIdentifier.GetString())
-
-	for exportSpec := export.GetFirstFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
+	moduleName := r.varNameOfImportRequest(source.Value())
+	specs := ast.MustExportSpecs(export.Body().Node())
+	for exportSpec := range specs.Specs() {
 		r.exportedNameToLocalQName.Put(
-			exportSpec.GetLastChild().GetString(),
-			NewEs6RewriteModulesToCommonJsModules_LocalQName(moduleName+"."+exportSpec.GetFirstChild().GetString(), exportSpec))
+			exportSpec.Exported().Ident(),
+			es6CommonJsLocalQName{
+				qName:             moduleName + "." + exportSpec.Local().Ident(),
+				nodeForSourceInfo: exportSpec.Node(),
+			})
 	}
 
-	export.Detach()
+	exportNode.Detach()
 	t.ReportCodeChange()
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportSpecs(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportSpecs(t *NodeTraversal, export rhino.Node) {
-	//     export {Foo};
-	for exportSpec := export.GetFirstFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
-		localName := exportSpec.GetFirstChild().GetString()
-		var_ := t.GetScope().GetVar(localName)
-		if var_ != nil && NodeUtil_IsImportedName(var_.GetNameNode()) {
-			localName = *jutil.CheckNotNull(r.MaybeGetNameOfImportedValue(t.GetScope(), exportSpec.GetFirstChild()))
+func (r *es6CommonJsModuleRewriter) visitExportSpecs(t *NodeTraversal, export ast.Export, specs ast.ExportSpecs) {
+	for exportSpec := range specs.Specs() {
+		localNode := exportSpec.Local()
+		localName := localNode.Ident()
+		v := t.GetScope().GetVar(localName)
+		if v != nil && NodeUtil_IsImportedName(v.GetNameNode()) {
+			importedQName, ok := r.maybeGetNameOfImportedValue(t.GetScope(), localNode)
+			if !ok {
+				panic(jutil.NewNullPointerException())
+			}
+			localName = importedQName
 		}
 		r.exportedNameToLocalQName.Put(
-			exportSpec.GetLastChild().GetString(), NewEs6RewriteModulesToCommonJsModules_LocalQName(localName, exportSpec))
+			exportSpec.Exported().Ident(),
+			es6CommonJsLocalQName{qName: localName, nodeForSourceInfo: exportSpec.Node()})
 	}
-	export.Detach()
+	export.Node().Detach()
 	t.ReportCodeChange()
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportNameDeclaration(Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportNameDeclaration(declaration rhino.Node) {
-	//    export var Foo;
-	//    export let {a, b:[c,d]} = {};
-	NodeUtil_VisitLhsNodesInNode(declaration, r.AddExportedName)
+func (r *es6CommonJsModuleRewriter) addExportedName(lhs rhino.Node) {
+	nm := ast.MustName(lhs)
+	name := nm.Ident()
+	r.exportedNameToLocalQName.Put(name, es6CommonJsLocalQName{qName: name, nodeForSourceInfo: lhs})
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.addExportedName(Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) AddExportedName(lhs rhino.Node) {
-	jutil.CheckState(lhs.IsName())
-	name := lhs.GetString()
-	r.exportedNameToLocalQName.Put(name, NewEs6RewriteModulesToCommonJsModules_LocalQName(name, lhs))
-}
+func (r *es6CommonJsModuleRewriter) visitExportDeclaration(t *NodeTraversal, export ast.Export) {
+	exportNode := export.Node()
+	declaration := export.Body().Node()
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportDeclaration(NodeTraversal, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportDeclaration(t *NodeTraversal, export rhino.Node) {
-	//    export var Foo;
-	//    export function Foo() {}
-	// etc.
-	declaration := export.GetFirstChild()
-
-	if NodeUtil_IsNameDeclaration(declaration) {
-		r.VisitExportNameDeclaration(declaration)
+	if _, ok := ast.AsNameDeclaration(declaration); ok {
+		NodeUtil_VisitLhsNodesInNode(declaration, r.addExportedName)
+	} else if fn, ok := ast.AsFunction(declaration); ok {
+		name := fn.NameNode().Ident()
+		r.exportedNameToLocalQName.Put(name, es6CommonJsLocalQName{qName: name, nodeForSourceInfo: exportNode})
 	} else {
-		jutil.CheckState(declaration.IsFunction() || declaration.IsClass())
-		name := declaration.GetFirstChild().GetString()
-		r.exportedNameToLocalQName.Put(name, NewEs6RewriteModulesToCommonJsModules_LocalQName(name, export))
+		cls := ast.MustClass(declaration)
+		nm, _ := cls.Name()
+		name := nm.Ident()
+		r.exportedNameToLocalQName.Put(name, es6CommonJsLocalQName{qName: name, nodeForSourceInfo: exportNode})
 	}
 
-	export.ReplaceWith(declaration.Detach())
+	exportNode.ReplaceWith(declaration.Detach())
 	t.ReportCodeChange()
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExportStar(NodeTraversal, Node, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExportStar(t *NodeTraversal, export rhino.Node, parent rhino.Node) {
-	//   export * from 'moduleIdentifier';
-	moduleIdentifier := export.GetLastChild()
+func (r *es6CommonJsModuleRewriter) visitExportStar(t *NodeTraversal, export ast.Export, parent rhino.Node) {
+	exportNode := export.Node()
+	source, ok := export.Source()
+	jutil.CheckState(ok)
 
-	// Make an "import 'spec'" from this export node and then visit it to rewrite to a require().
-	importNode := rhino.IR_ImportNode(rhino.IR_Empty(), rhino.IR_Empty(), moduleIdentifier.CloneNode())
-	importNode.Srcref(export)
-	importNode.InsertBefore(export)
+	importNode := rhino.IR_ImportNode(rhino.IR_Empty(), rhino.IR_Empty(), source.Node().CloneNode())
+	importNode.Srcref(exportNode)
+	importNode.InsertBefore(exportNode)
 	r.Visit(t, importNode, parent)
 
-	moduleName := r.GetVarNameOfImportWithImportRequest(moduleIdentifier.GetString())
-	export.ReplaceWith(
+	moduleName := r.varNameOfImportRequest(source.Value())
+	exportNode.ReplaceWith(
 		rhino.IR_ExprResult(
-			rhino.IR_Call(rhino.IR_Getprop(rhino.IR_Name("$$module"), "exportAllFrom"), rhino.IR_Name(moduleName))).
-			SrcrefTree(export))
+			rhino.IR_Call(rhino.IR_Getprop(rhino.IR_Name(es6CommonJsModule), "exportAllFrom"), rhino.IR_Name(moduleName))).
+			SrcrefTree(exportNode))
 
 	t.ReportCodeChange()
 }
 
-// Java: Es6RewriteModulesToCommonJsModules.Rewriter.visitExport(NodeTraversal, Node, Node)
-func (r *Es6RewriteModulesToCommonJsModules_Rewriter) VisitExport(t *NodeTraversal, export rhino.Node, parent rhino.Node) {
-	if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
-		r.VisitExportDefault(t, export)
-	} else if export.GetBooleanProp(rhino.Node_EXPORT_ALL_FROM) {
-		r.VisitExportStar(t, export, parent)
-	} else if export.HasTwoChildren() {
-		r.VisitExportFrom(t, export, parent)
+func (r *es6CommonJsModuleRewriter) visitExport(t *NodeTraversal, export ast.Export, parent rhino.Node) {
+	if export.IsDefault() {
+		r.visitExportDefault(t, export)
+	} else if export.IsAllFrom() {
+		r.visitExportStar(t, export, parent)
+	} else if source, hasSource := export.Source(); hasSource {
+		r.visitExportFrom(t, export, source, parent)
+	} else if specs, isSpecs := export.Body().AsExportSpecs(); isSpecs {
+		r.visitExportSpecs(t, export, specs)
 	} else {
-		if export.GetFirstChild().IsExportSpecs() {
-			r.VisitExportSpecs(t, export)
-		} else {
-			r.VisitExportDeclaration(t, export)
-		}
+		r.visitExportDeclaration(t, export)
 	}
 }

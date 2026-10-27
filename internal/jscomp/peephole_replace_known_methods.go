@@ -46,9 +46,6 @@ import (
 // move children in bulk or in place (Array.of, the join's new elements, the
 // charAt rewrite) use the rhino API, in the Java's order.
 
-// Java: PeepholeReplaceKnownMethods.ECMA_WHITESPACE
-const peepholeReplaceKnownMethods_ECMA_WHITESPACE = "[ \t\n-\r\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]+"
-
 // Java: PeepholeReplaceKnownMethods.TRIM_BOTH_PATTERN
 var peepholeReplaceKnownMethods_TRIM_BOTH_PATTERN = peepholeReplaceKnownMethods_trimPattern{leading: true, trailing: true}
 
@@ -291,7 +288,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(call ast.Call, c
 		return subtree
 	}
 	valueNode := arg.Node()
-	onlyArg, ok := p.GetSideEffectFreeNumberValueNoConversionVal(valueNode)
+	onlyArg, ok := p.GetSideEffectFreeNumberValueNoConversion(valueNode)
 	var replacement rhino.Node
 	if ok {
 		switch methodName {
@@ -332,7 +329,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 	// first collect the arguments, if they are all numbers then we proceed
 	var args []float64
 	for arg := range call.Args() {
-		d, ok := p.GetSideEffectFreeNumberValueVal(arg.Node())
+		d, ok := p.GetSideEffectFreeNumberValue(arg.Node())
 		if ok {
 			// lazily allocate, most calls will not be optimizable
 			args = append(args, d)
@@ -340,7 +337,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 			return subtree
 		}
 	}
-	var replacement *float64
+	var replacement float64
+	hasReplacement := false
 	methodName := callTarget.Property()
 	// NOTE: the standard does not define precision for these methods, but we are conservative, so
 	// for now we only implement the methods that are guaranteed to not increase the size of the
@@ -349,95 +347,79 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 		arg := args[0]
 		switch methodName {
 		case "abs":
-			r := math.Abs(arg)
-			replacement = &r
+			replacement, hasReplacement = math.Abs(arg), true
 		case "ceil":
-			r := math.Ceil(arg)
-			replacement = &r
+			replacement, hasReplacement = math.Ceil(arg), true
 		case "floor":
-			r := math.Floor(arg)
-			replacement = &r
+			replacement, hasReplacement = math.Floor(arg), true
 		case "fround":
 			if math.IsNaN(arg) || math.IsInf(arg, 0) || arg == 0 {
-				r := arg
-				replacement = &r
+				replacement, hasReplacement = arg, true
 				// if the double is exactly representable as a float, then just cast since no rounding
 				// is involved
 			} else if float64(float32(arg)) == arg {
 				// TODO(b/155511629): This condition is always true after J2CL transpilation.
-				r := float64(float32(arg))
-				replacement = &r
-			} else {
-				// (float) arg does not necessarily use the correct rounding mode, so don't do anything
-				replacement = nil
+				replacement, hasReplacement = float64(float32(arg)), true
 			}
+			// else: (float) arg does not necessarily use the correct rounding mode, so don't do anything
 		case "round":
 			if math.IsNaN(arg) || math.IsInf(arg, 0) {
-				r := arg
-				replacement = &r
+				replacement, hasReplacement = arg, true
 			} else if arg >= -0.5 &&
 				(arg < 0.0 || (arg == 0.0 && int64(math.Float64bits(arg)) < 0)) {
 				// Go-only: language-adapter — the Go constant -0.0 is +0.
-				r := math.Copysign(0, -1)
-				replacement = &r
+				replacement, hasReplacement = math.Copysign(0, -1), true
 			} else {
-				r := float64(jutil.MathRound(arg))
-				replacement = &r
+				replacement, hasReplacement = float64(jutil.MathRound(arg)), true
 			}
 		case "sign":
-			r := jutil.MathSignum(arg)
-			replacement = &r
+			replacement, hasReplacement = jutil.MathSignum(arg), true
 		case "trunc":
 			if math.IsNaN(arg) || math.IsInf(arg, 0) {
-				r := arg
-				replacement = &r
+				replacement, hasReplacement = arg, true
 			} else {
-				r := jutil.MathSignum(arg) * math.Floor(math.Abs(arg))
-				replacement = &r
+				replacement, hasReplacement = jutil.MathSignum(arg)*math.Floor(math.Abs(arg)), true
 			}
 		case "clz32":
-			r := float64(bits.LeadingZeros32(uint32(base.JSCompDoubles_EcmascriptToUint32(arg))))
-			replacement = &r
+			replacement, hasReplacement = float64(bits.LeadingZeros32(uint32(base.JSCompDoubles_EcmascriptToUint32(arg)))), true
 		default:
 		}
 	}
 	// handle the variadic functions now if we haven't already
 	// For each of these we could allow for some of the values to be unknown and either reduce to
 	// NaN or simplify the existing args. e.g. Math.max(3, x, 2) -> Math.max(3, x)
-	if replacement == nil {
+	if !hasReplacement {
 		switch methodName {
 		case "max":
 			result := math.Inf(-1)
 			for _, d := range args {
 				result = jutil.MathMax(result, d)
 			}
-			replacement = &result
+			replacement, hasReplacement = result, true
 		case "min":
 			result := math.Inf(1)
 			for _, d := range args {
 				result = jutil.MathMin(result, d)
 			}
-			replacement = &result
+			replacement, hasReplacement = result, true
 		case "imul":
 			if len(args) < 2 {
-				r := 0.0
-				replacement = &r
+				replacement, hasReplacement = 0.0, true
 			} else {
 				// Ignore args3+
-				r := float64(base.JSCompDoubles_EcmascriptToInt32(args[0]) * base.JSCompDoubles_EcmascriptToInt32(args[1]))
-				replacement = &r
+				replacement = float64(base.JSCompDoubles_EcmascriptToInt32(args[0]) * base.JSCompDoubles_EcmascriptToInt32(args[1]))
+				hasReplacement = true
 			}
 		case "pow":
 			if len(args) == 2 {
-				r := jutil.MathPow(args[0], args[1])
-				replacement = &r
+				replacement, hasReplacement = jutil.MathPow(args[0], args[1]), true
 			}
 		default:
 		}
 	}
 
-	if replacement != nil {
-		numberNode := NodeUtil_NumberNode(*replacement, subtree)
+	if hasReplacement {
+		numberNode := NodeUtil_NumberNode(replacement, subtree)
 		subtree.ReplaceWith(numberNode)
 		p.ReportChangeToEnclosingScope(numberNode)
 		return numberNode
@@ -520,12 +502,12 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(call ast.Call, c
 	if _, ok := secondArg.Next(); ok {
 		return subtree
 	}
-	maybeStart, ok := p.GetSideEffectFreeNumberValueVal(firstArg.Node())
+	maybeStart, ok := p.GetSideEffectFreeNumberValue(firstArg.Node())
 	if !ok {
 		return subtree
 	}
 	start := int(jutil.D2I(maybeStart))
-	maybeLengthOrEnd, ok := p.GetSideEffectFreeNumberValueVal(secondArg.Node())
+	maybeLengthOrEnd, ok := p.GetSideEffectFreeNumberValue(secondArg.Node())
 	if !ok {
 		return subtree
 	}
@@ -608,24 +590,18 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringTrim(call ast.Call, stringNod
 	// See ECMA-262 § 22.1.3.32 (trim), § 22.1.3.34 (trimStart), § 22.1.3.33 (trimEnd),
 	// Annex B.2.2.15 (trimLeft), Annex B.2.2.16 (trimRight), § 12.2, and § 12.3
 	// All Unicode whitespace + LineTerminator + BOM
-	var result *string
+	var result string
 	switch functionName {
 	case "trim":
-		r := peepholeReplaceKnownMethods_TRIM_BOTH_PATTERN.replaceAll(stringNode.Value())
-		result = &r
+		result = peepholeReplaceKnownMethods_TRIM_BOTH_PATTERN.replaceAll(stringNode.Value())
 	case "trimStart", "trimLeft":
-		r := peepholeReplaceKnownMethods_TRIM_START_PATTERN.replaceAll(stringNode.Value())
-		result = &r
+		result = peepholeReplaceKnownMethods_TRIM_START_PATTERN.replaceAll(stringNode.Value())
 	case "trimEnd", "trimRight":
-		r := peepholeReplaceKnownMethods_TRIM_END_PATTERN.replaceAll(stringNode.Value())
-		result = &r
+		result = peepholeReplaceKnownMethods_TRIM_END_PATTERN.replaceAll(stringNode.Value())
 	default:
-		result = nil
-	}
-	if result == nil {
 		return subtree
 	}
-	replacement := rhino.IR_String(*result).Srcref(subtree)
+	replacement := rhino.IR_String(result).Srcref(subtree)
 	subtree.ReplaceWith(replacement)
 	p.ReportChangeToEnclosingScope(replacement)
 	return replacement
@@ -702,19 +678,17 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(call ast.Call, function
 
 	if !isParseInt {
 		// parseFloat logic
-		var stringVal string
 		if NodeUtil_IsNumericLiteral(firstArg.Node()) {
-			checkVal, _ := p.GetSideEffectFreeNumberValueVal(firstArg.Node())
+			checkVal, _ := p.GetSideEffectFreeNumberValue(firstArg.Node())
 			numericNode := NodeUtil_NumberNode(checkVal, n)
 			n.ReplaceWith(numericNode)
 			p.ReportChangeToEnclosingScope(numericNode)
 			return numericNode
 		} else {
-			maybeStringVal := p.GetSideEffectFreeStringValue(firstArg.Node())
-			if maybeStringVal == nil {
+			stringVal, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
+			if !ok {
 				return n
 			}
-			stringVal = *maybeStringVal
 			if _, ok := nodeUtil_getStringNumberValue(stringVal); !ok {
 				return n
 			}
@@ -749,11 +723,10 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(call ast.Call, function
 	}
 
 	// parseInt logic following ECMA-262 semantics
-	maybeStringVal := p.GetSideEffectFreeStringValue(firstArg.Node())
-	if maybeStringVal == nil {
+	stringVal, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
+	if !ok {
 		return n
 	}
-	stringVal := *maybeStringVal
 
 	stringVal = NodeUtil_TrimJsWhiteSpace(stringVal)
 	if stringVal == "" {
@@ -855,9 +828,9 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringIndexOf(call ast.Call, functi
 	n := call.Node()
 	lstring := lstringNode.Value()
 	isIndexOf := functionName == "indexOf"
-	searchValue := p.GetSideEffectFreeStringValue(firstArg.Node())
+	searchValue, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
 	// searchValue must be a valid string.
-	if searchValue == nil {
+	if !ok {
 		return n
 	}
 	fromIndex := 0
@@ -874,9 +847,9 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringIndexOf(call ast.Call, functi
 	}
 	var indexVal int
 	if isIndexOf {
-		indexVal = jutil.StringIndexOfFrom(lstring, *searchValue, fromIndex)
+		indexVal = jutil.StringIndexOfFrom(lstring, searchValue, fromIndex)
 	} else {
-		indexVal = jutil.StringLastIndexOfFrom(lstring, *searchValue, fromIndex)
+		indexVal = jutil.StringLastIndexOfFrom(lstring, searchValue, fromIndex)
 	}
 	newNode := NodeUtil_NumberNode(float64(indexVal), n)
 	n.ReplaceWith(newNode)
@@ -898,8 +871,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringIncludes(call ast.Call, lstri
 	}
 
 	lstring := lstringNode.Value()
-	searchValue := p.GetSideEffectFreeStringValue(firstArg.Node())
-	if searchValue == nil {
+	searchValue, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
+	if !ok {
 		return n
 	}
 
@@ -917,7 +890,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringIncludes(call ast.Call, lstri
 		}
 	}
 
-	contains := jutil.StringIndexOfFrom(lstring, *searchValue, fromIndex) != -1
+	contains := jutil.StringIndexOfFrom(lstring, searchValue, fromIndex) != -1
 	newNode := NodeUtil_BooleanNode(contains).Srcref(n)
 	n.ReplaceWith(newNode)
 	p.ReportChangeToEnclosingScope(newNode)
@@ -937,8 +910,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringStartsWith(call ast.Call, lst
 	}
 
 	lstring := lstringNode.Value()
-	searchValue := p.GetSideEffectFreeStringValue(firstArg.Node())
-	if searchValue == nil {
+	searchValue, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
+	if !ok {
 		return n
 	}
 
@@ -957,7 +930,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringStartsWith(call ast.Call, lst
 	}
 
 	// String.startsWith(String, int)
-	result := jutil.StringRegionMatches(lstring, start, *searchValue, 0, jutil.StringLength(*searchValue))
+	result := jutil.StringRegionMatches(lstring, start, searchValue, 0, jutil.StringLength(searchValue))
 	newNode := NodeUtil_BooleanNode(result).Srcref(n)
 	n.ReplaceWith(newNode)
 	p.ReportChangeToEnclosingScope(newNode)
@@ -977,8 +950,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringEndsWith(call ast.Call, lstri
 	}
 
 	lstring := lstringNode.Value()
-	searchValue := p.GetSideEffectFreeStringValue(firstArg.Node())
-	if searchValue == nil {
+	searchValue, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
+	if !ok {
 		return n
 	}
 
@@ -1000,10 +973,10 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringEndsWith(call ast.Call, lstri
 		}
 	}
 
-	searchLength := jutil.StringLength(*searchValue)
+	searchLength := jutil.StringLength(searchValue)
 	start := end - searchLength
 	// String.startsWith(String, int)
-	result := start >= 0 && jutil.StringRegionMatches(lstring, start, *searchValue, 0, searchLength)
+	result := start >= 0 && jutil.StringRegionMatches(lstring, start, searchValue, 0, searchLength)
 	newNode := NodeUtil_BooleanNode(result).Srcref(n)
 	n.ReplaceWith(newNode)
 	p.ReportChangeToEnclosingScope(newNode)
@@ -1027,7 +1000,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringAt(call ast.Call, stringNode 
 		if _, ok := firstArg.Next(); ok {
 			return n
 		}
-		maybePos, ok := p.GetSideEffectFreeNumberValueVal(firstArg.Node())
+		maybePos, ok := p.GetSideEffectFreeNumberValue(firstArg.Node())
 		if !ok {
 			return n
 		}
@@ -1100,12 +1073,13 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 
 	// logic above ensures that `right` is immutable, so no need to check for
 	// side effects with getSideEffectFreeStringValue(right)
-	var joinString *string
+	var joinString string
 	if !hasRight || NodeUtil_IsUndefined(right.Node()) {
-		comma := ","
-		joinString = &comma
+		joinString = ","
+	} else if s, ok := nodeUtil_getStringValue(right.Node()); ok {
+		joinString = s
 	} else {
-		joinString = NodeUtil_GetStringValue(right.Node())
+		joinString = "null"
 	}
 	var arrayFoldedChildren []rhino.Node
 	var sb *jutil.StringBuilder
@@ -1118,13 +1092,13 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 			if sb == nil {
 				sb = jutil.NewStringBuilder()
 			} else {
-				sb.Append(jutil.ToJavaString(joinString))
+				sb.Append(joinString)
 			}
-			elementStr := NodeUtil_GetArrayElementStringValue(elem)
-			if elementStr == nil {
+			elementStr, ok := nodeUtil_getArrayElementStringValue(elem)
+			if !ok {
 				return n // TODO(nickreid): Is this ever null?
 			}
-			sb.Append(*elementStr)
+			sb.Append(elementStr)
 		} else {
 			if sb != nil {
 				rhino.CheckNotNull(prev)
@@ -1209,7 +1183,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstr(call ast.Call, stringN
 	var length int
 	stringAsString := stringNode.Value()
 
-	maybeStart, ok := p.GetSideEffectFreeNumberValueVal(arg1.Node())
+	maybeStart, ok := p.GetSideEffectFreeNumberValue(arg1.Node())
 	if ok {
 		start = int(jutil.D2I(maybeStart))
 	} else {
@@ -1217,7 +1191,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstr(call ast.Call, stringN
 	}
 
 	if arg2, ok := arg1.Next(); ok {
-		maybeLength, ok := p.GetSideEffectFreeNumberValueVal(arg2.Node())
+		maybeLength, ok := p.GetSideEffectFreeNumberValue(arg2.Node())
 		if ok {
 			length = int(jutil.D2I(maybeLength))
 		} else {
@@ -1261,7 +1235,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstringOrSlice(call ast.Cal
 	var end int
 	stringAsString := stringNode.Value()
 
-	maybeStart, ok := p.GetSideEffectFreeNumberValueVal(arg1.Node())
+	maybeStart, ok := p.GetSideEffectFreeNumberValue(arg1.Node())
 	if ok {
 		start = int(jutil.D2I(maybeStart))
 	} else {
@@ -1269,7 +1243,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstringOrSlice(call ast.Cal
 	}
 
 	if arg2, ok := arg1.Next(); ok {
-		maybeEnd, ok := p.GetSideEffectFreeNumberValueVal(arg2.Node())
+		maybeEnd, ok := p.GetSideEffectFreeNumberValue(arg2.Node())
 		if ok {
 			end = int(jutil.D2I(maybeEnd))
 		} else {
@@ -1493,7 +1467,7 @@ func PeepholeReplaceKnownMethods_JsSplitMatch(stringValue string, startIndex int
 // JsSplit implements the JS String.split method using a string separator.
 //
 // Java: PeepholeReplaceKnownMethods.jsSplit(String, String, int)
-func (p *PeepholeReplaceKnownMethods) JsSplit(stringValue string, separator *string, limit int) []string {
+func (p *PeepholeReplaceKnownMethods) JsSplit(stringValue string, separator string, hasSeparator bool, limit int) []string {
 	jutil.CheckArgument(limit >= 0)
 
 	// For limits of 0, return an empty array
@@ -1503,7 +1477,7 @@ func (p *PeepholeReplaceKnownMethods) JsSplit(stringValue string, separator *str
 
 	// If a separator is not specified, return the entire string as
 	// the only element of an array.
-	if separator == nil {
+	if !hasSeparator {
 		return []string{stringValue}
 	}
 
@@ -1511,7 +1485,7 @@ func (p *PeepholeReplaceKnownMethods) JsSplit(stringValue string, separator *str
 
 	// If an empty string is specified for the separator, split apart each
 	// character of the string.
-	if *separator == "" {
+	if separator == "" {
 		for i := 0; i < jutil.StringLength(stringValue) && i < limit; i++ {
 			splitStrings = append(splitStrings, jutil.StringSubstring(stringValue, i, i+1))
 		}
@@ -1519,13 +1493,13 @@ func (p *PeepholeReplaceKnownMethods) JsSplit(stringValue string, separator *str
 		startIndex := 0
 		var matchIndex int
 		for {
-			matchIndex = PeepholeReplaceKnownMethods_JsSplitMatch(stringValue, startIndex, *separator)
+			matchIndex = PeepholeReplaceKnownMethods_JsSplitMatch(stringValue, startIndex, separator)
 			if !(matchIndex >= 0 && len(splitStrings) < limit) {
 				break
 			}
 			splitStrings = append(splitStrings, jutil.StringSubstring(stringValue, startIndex, matchIndex))
 
-			startIndex = matchIndex + jutil.StringLength(*separator)
+			startIndex = matchIndex + jutil.StringLength(separator)
 		}
 
 		if len(splitStrings) < limit {
@@ -1549,7 +1523,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(call ast.Call, stringNo
 		return n
 	}
 
-	var separator *string
+	var separator string
+	hasSeparator := false
 	stringValue := stringNode.Value()
 
 	// Maximum number of possible splits
@@ -1557,8 +1532,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(call ast.Call, stringNo
 
 	if arg1, ok := call.FirstArg(); ok {
 		if sep, ok := arg1.AsStringLit(); ok {
-			s := sep.Value()
-			separator = &s
+			separator, hasSeparator = sep.Value(), true
 		} else if arg1.Token() != rhino.Token_NULL {
 			return n
 		}
@@ -1579,7 +1553,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(call ast.Call, stringNo
 	}
 
 	// Split the string and convert the returned array into JS nodes
-	stringArray := p.JsSplit(stringValue, separator, limit)
+	stringArray := p.JsSplit(stringValue, separator, hasSeparator, limit)
 	arrayOfStrings := rhino.IR_Arraylit()
 	for _, element := range stringArray {
 		arrayOfStrings.AddChildToBack(rhino.IR_String(element).Srcref(stringNode.Node()))

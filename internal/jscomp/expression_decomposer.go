@@ -311,7 +311,7 @@ func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot rhino.Nod
 func (e *ExpressionDecomposer) RewriteAllContainingOptionalChains(subExpression rhino.Node) {
 	optChainRewriterBuilder :=
 		OptionalChainRewriter_Builder_(e.compiler).
-			SetTmpVarNameCreator(OptionalChainRewriter_TmpVarNameCreatorFunc(e.GetTempConstantValueName)).
+			SetTmpVarNameCreator(e.GetTempConstantValueName).
 			SetScope(e.scope)
 	// Rewriting the chains changes the shape of the AST in a way that would interfere
 	// with the simple traversal from child to parent done here, so we'll traverse

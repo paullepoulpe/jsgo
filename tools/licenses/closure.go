@@ -20,11 +20,9 @@ import (
 // for them; a port of such a source together with another one still needs
 // the other one's notice.
 var noNotice = map[string]string{
-	"com/google/javascript/jscomp/AutoBuilder_AstAnalyzer_Options_Builder.java":                      generated,
-	"com/google/javascript/jscomp/AutoBuilder_CheckAccessControls_PropertyReference_Builder.java":    generated,
-	"com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.java": generated,
-	"com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassProperty_Builder.java":            generated,
-	"com/google/javascript/jscomp/AutoValue_PassFactory.java":                                        generated,
+	"com/google/javascript/jscomp/AutoBuilder_AstAnalyzer_Options_Builder.java":                   generated,
+	"com/google/javascript/jscomp/AutoBuilder_CheckAccessControls_PropertyReference_Builder.java": generated,
+	"com/google/javascript/jscomp/AutoValue_PassFactory.java":                                     generated,
 	"com/google/javascript/jscomp/modules/AutoBuilder_Export_Builder.java":                           generated,
 	"com/google/javascript/jscomp/modules/AutoBuilder_Import_Builder.java":                           generated,
 	"com/google/javascript/jscomp/modules/AutoBuilder_Module_Builder.java":                           generated,

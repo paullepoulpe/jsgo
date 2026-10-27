@@ -386,11 +386,11 @@ func (o *coreG2Out) mutate(script rhino.Node) {
 			target := coreG2Preorder(clone)[i]
 			next := 0
 			builder := OptionalChainRewriter_Builder_(compiler).
-				SetTmpVarNameCreator(OptionalChainRewriter_TmpVarNameCreatorFunc(func() string {
+				SetTmpVarNameCreator(func() string {
 					s := "tmp$" + strconv.Itoa(next)
 					next++
 					return s
-				}))
+				})
 			if rewritten%2 == 0 {
 				builder.SetScope(Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)))
 			}

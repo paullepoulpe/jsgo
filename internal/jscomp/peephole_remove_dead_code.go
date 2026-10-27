@@ -794,7 +794,7 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeSwitch(n rhino.Node) rhino.Node {
 			cur, ok := cases.FirstCase()
 			for ok {
 				caseMatches = PeepholeFoldConstants_EvaluateComparison(
-					p, rhino.Token_SHEQ, cond, peepholeRemoveDeadCode_caseTagOrBody(cur))
+					&p.AbstractPeepholeOptimizationBase, rhino.Token_SHEQ, cond, peepholeRemoveDeadCode_caseTagOrBody(cur))
 				if caseMatches == base.Tri_TRUE || caseMatches == base.Tri_UNKNOWN {
 					break
 				}
@@ -964,7 +964,7 @@ func (p *PeepholeRemoveDeadCode) IsFirstSwitchMatch(foundMatchingCase bool, cond
 	if foundMatchingCase {
 		return false
 	}
-	return PeepholeFoldConstants_EvaluateComparison(p, rhino.Token_SHEQ, condition, tag) == base.Tri_TRUE
+	return PeepholeFoldConstants_EvaluateComparison(&p.AbstractPeepholeOptimizationBase, rhino.Token_SHEQ, condition, tag) == base.Tri_TRUE
 }
 
 // Java: PeepholeRemoveDeadCode.areAllCaseTagsLiterals(Node)

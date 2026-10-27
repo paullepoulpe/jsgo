@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -47,12 +48,12 @@ const (
 
 // Java: Es6ForOfConverter(AbstractCompiler)
 func NewEs6ForOfConverter(compiler AbstractCompiler) *Es6ForOfConverter {
-	e := &Es6ForOfConverter{}
-	e.compiler = compiler
-	e.namer = NewDefaultNameGenerator()
-	e.astFactory = compiler.CreateAstFactory()
-	e.namespace = compiler.GetTranspilationNamespace()
-	return e
+	return &Es6ForOfConverter{
+		compiler:   compiler,
+		namer:      NewDefaultNameGenerator(),
+		astFactory: compiler.CreateAstFactory(),
+		namespace:  compiler.GetTranspilationNamespace(),
+	}
 }
 
 // Java: Es6ForOfConverter.process(Node, Node)
@@ -63,68 +64,58 @@ func (e *Es6ForOfConverter) Process(externs rhino.Node, root rhino.Node) {
 
 // Java: Es6ForOfConverter.visit(NodeTraversal, Node, Node)
 func (e *Es6ForOfConverter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsForOf() {
-		e.VisitForOf(t, n)
+	if forOf, ok := ast.AsForOf(n); ok {
+		e.visitForOf(t, forOf)
 	}
 }
 
-// TODO(lharker): break up this method
-//
-// Java: Es6ForOfConverter.visitForOf(NodeTraversal, Node)
-func (e *Es6ForOfConverter) VisitForOf(t *NodeTraversal, node rhino.Node) {
-	// `var v` or `let v` or v any valid lhs
+func (e *Es6ForOfConverter) visitForOf(t *NodeTraversal, forOf ast.ForOf) {
+	node := forOf.Node()
 	variable := node.RemoveFirstChild()
 	iterable := node.RemoveFirstChild()
 	body := node.RemoveFirstChild()
 	varJSDocInfo := variable.GetJSDocInfo()
-	// `$jscomp$iter$0`
+
 	iterName :=
 		e.astFactory.CreateName(
 			Es6ForOfConverter_ITER_BASE+e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput()),
 			AstFactory_Type_OfColorId(colors.StandardColors_ITERATOR_ID))
 	iterName.MakeNonIndexable()
-	// `$jscomp$iter$0.next()`
+
 	getNext :=
 		e.astFactory.CreateCallWithUnknownType(
 			e.astFactory.CreateGetPropWithUnknownType(iterName.CloneTree(), "next"))
-	// generate a unique iterator result name for every for-of loop getting rewritten to avoid
-	// conflicts
+
 	iteratorResultName :=
 		Es6ForOfConverter_ITER_RESULT + e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput()) + "$"
 
-	if NodeUtil_IsNameDeclaration(variable) {
+	nameDecl, isNameDecl := ast.AsNameDeclaration(variable)
+	if isNameDecl {
 		iteratorResultName += variable.GetFirstChild().GetString()
-	} else if variable.IsName() {
-		iteratorResultName += variable.GetString()
+	} else if nm, ok := ast.AsName(variable); ok {
+		iteratorResultName += nm.Ident()
 	} else {
-		// give arbitrary lhs expressions an arbitrary name
 		iteratorResultName += e.namer.GenerateNextName()
 	}
-	// `$jscomp$key$extraName`
+
 	iterResult := e.astFactory.CreateNameWithUnknownType(iteratorResultName)
 	iterResult.MakeNonIndexable()
 
-	// `$jscomp.makeIterator(iterable)`
 	callMakeIterator :=
 		e.astFactory.
 			CreateJSCompMakeIteratorCall(iterable, e.namespace).
 			SrcrefTreeIfMissing(iterable)
-	// `var $jscomp$iter$0 = $jscomp.makeIterator(iterable)`
 	initIter := rhino.IR_VarWithValue(iterName.CloneTree(), callMakeIterator).SrcrefTreeIfMissing(iterable)
-	// var $jscomp$key$extraName = $jscomp$iter$0.next();
 	initIterResult :=
 		rhino.IR_VarWithValue(iterResult.CloneTree(), getNext.CloneTree()).SrcrefTreeIfMissing(iterable)
 
-	// !$jscomp$key$extraName.done
 	cond :=
 		e.astFactory.CreateNot(
 			e.astFactory.CreateGetProp(iterResult.CloneTree(), "done", AstFactory_Type_OfColor(colors.StandardColors_BOOLEAN)))
-	// $jscomp$key$extraName = $jscomp$iter$0.next()
 	incr := e.astFactory.CreateAssign(iterResult.CloneTree(), getNext.CloneTree())
 
 	var declarationOrAssign rhino.Node
-	if !NodeUtil_IsNameDeclaration(variable) {
-		// e.g. `for(a.b of []) {}`
+	if !isNameDecl {
 		declarationOrAssign =
 			e.astFactory.CreateAssign(
 				variable.CloneTree().SetJSDocInfo(nil),
@@ -132,22 +123,19 @@ func (e *Es6ForOfConverter) VisitForOf(t *NodeTraversal, node rhino.Node) {
 		declarationOrAssign.SetJSDocInfo(varJSDocInfo)
 		declarationOrAssign = rhino.IR_ExprResult(declarationOrAssign)
 	} else {
-		// `for(let a of []) {}` or `for(const a of []) {}`
-		type_ := AstFactory_Type_(variable.GetFirstChild())
-		declarationType := variable.GetToken() // i.e. VAR, CONST, or LET.
+		declName := ast.MustName(nameDecl.Node().GetFirstChild())
+		type_ := AstFactory_Type_(declName.Node())
+		declarationType := variable.GetToken()
 		jutil.CheckStateMsg(
 			declarationType != rhino.Token_VAR,
 			"var initializers must've gotten moved out of the loop during normalize")
 		declarationOrAssign =
 			e.astFactory.CreateSingleNameDeclaration(
 				declarationType,
-				variable.GetFirstChild().GetString(),
+				declName.Ident(),
 				e.astFactory.CreateGetProp(iterResult.CloneTree(), "value", type_))
-		if variable.GetFirstChild().GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
-			// if the original name was const, then the new name should be too
-			// e.g. `for(let CID of []) {}` where `CID` was originally marked constant by coding
-			// convention
-			declarationOrAssign.GetFirstChild().PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+		if declName.IsConstantName() {
+			ast.MustName(declarationOrAssign.GetFirstChild()).SetConstantName(true)
 		}
 		declarationOrAssign.SetJSDocInfo(varJSDocInfo)
 	}
@@ -155,8 +143,6 @@ func (e *Es6ForOfConverter) VisitForOf(t *NodeTraversal, node rhino.Node) {
 	empty := e.astFactory.CreateEmpty()
 	newFor := rhino.IR_ForNode(empty, cond, incr, newBody).SrcrefTreeIfMissing(node)
 
-	// Build finally block:
-	// (0, $jscomp.iteratorClose)($jscomp$iter$0, $jscomp$key$extraName);
 	callIteratorClose :=
 		e.astFactory.
 			CreateJscompIteratorCloseCall(
@@ -164,12 +150,15 @@ func (e *Es6ForOfConverter) VisitForOf(t *NodeTraversal, node rhino.Node) {
 			SrcrefTreeIfMissing(node)
 	finallyBlock := e.astFactory.CreateBlock(e.astFactory.ExprResult(callIteratorClose))
 
-	// Check if the for loop has a parent that is a label i.e. `loop1: for(...of ...)`
-	labelNames := []rhino.Node{}
+	var labelNames []rhino.Node
 	insertionPoint := node
-	for !insertionPoint.GetParent().IsNil() && insertionPoint.GetParent().IsLabel() {
-		insertionPoint = insertionPoint.GetParent()
-		labelNames = append(labelNames, insertionPoint.GetFirstChild().CloneNode())
+	for {
+		lbl, ok := ast.AsLabel(insertionPoint.GetParent())
+		if !ok {
+			break
+		}
+		insertionPoint = lbl.Node()
+		labelNames = append(labelNames, lbl.Name().Node().CloneNode())
 	}
 
 	innerLoop := newFor

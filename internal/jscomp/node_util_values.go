@@ -131,68 +131,79 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 //
 // Java: NodeUtil.getStringValue(Node)
 func NodeUtil_GetStringValue(n rhino.Node) *string {
+	s, ok := nodeUtil_getStringValue(n)
+	if !ok {
+		return nil
+	}
+	return &s
+}
+
+func nodeUtil_getStringValue(n rhino.Node) (string, bool) {
 	// TODO(user): regex literals as well.
 	switch n.GetToken() {
 	case rhino.Token_STRINGLIT, rhino.Token_STRING_KEY:
-		return jutil.StringPtr(n.GetString())
+		return n.GetString(), true
 	case rhino.Token_TEMPLATELIT:
 		// Only convert a template literal if all its expressions can be converted.
-		string_ := jutil.NewStringBuilder()
+		var string_ strings.Builder
 		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			expression := child
 			if child.IsTemplateLitSub() {
 				expression = child.GetFirstChild()
 			}
-			expressionString := NodeUtil_GetStringValue(expression)
-			if expressionString == nil {
+			expressionString, ok := nodeUtil_getStringValue(expression)
+			if !ok {
 				// Cannot convert.
-				return nil
+				return "", false
 			}
-			string_.Append(*expressionString)
+			string_.WriteString(expressionString)
 		}
-		return jutil.StringPtr(string_.String())
+		return string_.String(), true
 	case rhino.Token_TEMPLATELIT_STRING:
-		return n.GetCookedString()
+		cooked := n.GetCookedString()
+		if cooked == nil {
+			return "", false
+		}
+		return *cooked, true
 	case rhino.Token_NAME:
 		name := n.GetString()
 		if "undefined" == name || "Infinity" == name || "NaN" == name {
-			return jutil.StringPtr(name)
+			return name, true
 		}
-		return nil
+		return "", false
 	case rhino.Token_NEG, rhino.Token_NUMBER:
-		value := NodeUtil_GetNumberValue(n)
-		if value != nil {
-			return jutil.StringPtr(dtoa.DToA_NumberToString(*value))
+		if value, ok := nodeUtil_doGetNumberValue(n, true); ok {
+			return dtoa.DToA_NumberToString(value), true
 		}
-		return nil
+		return "", false
 	case rhino.Token_BIGINT:
-		return jutil.StringPtr(n.GetBigInt().String())
+		return n.GetBigInt().String(), true
 	case rhino.Token_FALSE:
-		return jutil.StringPtr("false")
+		return "false", true
 	case rhino.Token_TRUE:
-		return jutil.StringPtr("true")
+		return "true", true
 	case rhino.Token_NULL:
-		return jutil.StringPtr("null")
+		return "null", true
 	case rhino.Token_VOID:
-		return jutil.StringPtr("undefined")
+		return "undefined", true
 	case rhino.Token_NOT:
 		child := NodeUtil_GetBooleanValue(n.GetFirstChild())
 		if child != base.Tri_UNKNOWN {
 			if child.ToBoolean(true) { // reversed.
-				return jutil.StringPtr("false")
+				return "false", true
 			}
-			return jutil.StringPtr("true")
+			return "true", true
 		}
-		return nil
+		return "", false
 	case rhino.Token_ARRAYLIT:
-		return NodeUtil_ArrayToString(n)
+		return nodeUtil_arrayToString(n)
 	case rhino.Token_OBJECTLIT:
 		if n.HasChildren() {
-			return nil
+			return "", false
 		}
-		return jutil.StringPtr("[object Object]")
+		return "[object Object]", true
 	default:
-		return nil
+		return "", false
 	}
 }
 
@@ -206,27 +217,43 @@ func NodeUtil_GetStringValue(n rhino.Node) *string {
 //
 // Java: NodeUtil.getArrayElementStringValue(Node)
 func NodeUtil_GetArrayElementStringValue(n rhino.Node) *string {
-	if NodeUtil_IsNullOrUndefined(n) || n.IsEmpty() {
-		return jutil.StringPtr("")
+	s, ok := nodeUtil_getArrayElementStringValue(n)
+	if !ok {
+		return nil
 	}
-	return NodeUtil_GetStringValue(n)
+	return &s
+}
+
+func nodeUtil_getArrayElementStringValue(n rhino.Node) (string, bool) {
+	if NodeUtil_IsNullOrUndefined(n) || n.IsEmpty() {
+		return "", true
+	}
+	return nodeUtil_getStringValue(n)
 }
 
 // Java: NodeUtil.arrayToString(Node)
 func NodeUtil_ArrayToString(literal rhino.Node) *string {
+	s, ok := nodeUtil_arrayToString(literal)
+	if !ok {
+		return nil
+	}
+	return &s
+}
+
+func nodeUtil_arrayToString(literal rhino.Node) (string, bool) {
 	first := literal.GetFirstChild()
 	var result strings.Builder
 	for n := first; !n.IsNil(); n = n.GetNext() {
-		childValue := NodeUtil_GetArrayElementStringValue(n)
-		if childValue == nil {
-			return nil
+		childValue, ok := nodeUtil_getArrayElementStringValue(n)
+		if !ok {
+			return "", false
 		}
 		if n != first {
 			result.WriteByte(',')
 		}
-		result.WriteString(*childValue)
+		result.WriteString(childValue)
 	}
-	return jutil.StringPtr(result.String())
+	return result.String(), true
 }
 
 // NodeUtil_GetNumberValue gets the value of a node as a Number, or null if it

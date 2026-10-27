@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -59,22 +60,9 @@ type OptionalChainRewriter struct {
 
 // OptionalChainRewriter_TmpVarNameCreator creates unique names to be used
 // for temporary variables.
-type OptionalChainRewriter_TmpVarNameCreator interface {
-	// CreateTmpVarName creates a unique temporary variable name each time it
-	// is called.
-	//
-	// Java: OptionalChainRewriter.TmpVarNameCreator.createTmpVarName()
-	CreateTmpVarName() string
-}
-
-// OptionalChainRewriter_TmpVarNameCreatorFunc lets a func (a Java lambda or
-// method reference) be a TmpVarNameCreator.
 //
-// Go-only: language-adapter
-type OptionalChainRewriter_TmpVarNameCreatorFunc func() string
-
-// CreateTmpVarName calls f.
-func (f OptionalChainRewriter_TmpVarNameCreatorFunc) CreateTmpVarName() string { return f() }
+// Java: OptionalChainRewriter.TmpVarNameCreator
+type OptionalChainRewriter_TmpVarNameCreator func() string
 
 // OptionalChainRewriter_Builder is OptionalChainRewriter.Builder.
 type OptionalChainRewriter_Builder struct {
@@ -95,7 +83,10 @@ func NewOptionalChainRewriter_Builder(compiler AbstractCompiler) *OptionalChainR
 // Java: OptionalChainRewriter.Builder.setTmpVarNameCreator(OptionalChainRewriter.TmpVarNameCreator)
 func (b *OptionalChainRewriter_Builder) SetTmpVarNameCreator(
 	tmpVarNameCreator OptionalChainRewriter_TmpVarNameCreator) *OptionalChainRewriter_Builder {
-	b.tmpVarNameCreator = jutil.CheckNotNull(tmpVarNameCreator)
+	if tmpVarNameCreator == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	b.tmpVarNameCreator = tmpVarNameCreator
 	return b
 }
 
@@ -126,16 +117,18 @@ func NewOptionalChainRewriter(builder *OptionalChainRewriter_Builder, wholeChain
 	o := &OptionalChainRewriter{}
 	// This class will only operate on an entire chain.
 	jutil.CheckArgumentMsg1(NodeUtil_IsEndOfFullOptChain(wholeChain), "%s", wholeChain)
+	if builder.tmpVarNameCreator == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	o.compiler = builder.compiler
 	o.astFactory = builder.astFactory
-	o.tmpVarNameCreator = jutil.CheckNotNull(builder.tmpVarNameCreator)
+	o.tmpVarNameCreator = builder.tmpVarNameCreator
 	o.scope = builder.scope
 	o.wholeChain = wholeChain
 	o.chainParent = rhino.CheckNotNullMsg1(wholeChain.GetParent(), "%s", wholeChain)
 	// Insert temporaries just before the enclosing statement.
 	enclosingStatement := NodeUtil_GetEnclosingStatement(wholeChain)
-	if !enclosingStatement.GetPrevious().IsNil() &&
-		enclosingStatement.GetPrevious().IsLabelName() {
+	if _, isLabel := ast.AsLabel(enclosingStatement.GetParent()); isLabel {
 		// Do not insert temporaries between a label name and its statement.
 		// e.g. `{ label: for (const a of b?.c) {...}`
 		// AST shape is
@@ -147,7 +140,6 @@ func NewOptionalChainRewriter(builder *OptionalChainRewriter_Builder, wholeChain
 	} else {
 		o.insertionPoint = enclosingStatement
 	}
-	o.deletesToDelete = nil
 	return o
 }
 
@@ -187,24 +179,25 @@ func (o *OptionalChainRewriter) Rewrite() {
 	// The optional chain could evaluate to `undefined`, which we then try to call as a
 	// function. However, if it isn't undefined, we have to preserve the correct `this` value
 	// for the call.
-	if o.chainParent.IsCall() &&
+	if parentCall, ok := ast.AsCall(o.chainParent); ok &&
 		// If the call is explicitly a free call (e.g. `(0, a?.b)()`), we should not preserve
 		// `this`.
 		!o.chainParent.GetBooleanProp(rhino.Node_FREE_CALL) &&
 		// The chain will have been replaced by optChainReplacement during the rewriting above.
-		optChainReplacement.IsFirstChildOf(o.chainParent) &&
+		parentCall.Callee().Is(optChainReplacement) {
 		// The wholeChain variable will still point to the rewritten final Node of the
 		// chain. It will no longer be optional.
-		NodeUtil_IsNormalGet(o.wholeChain) {
-		thisValue := o.wholeChain.GetFirstChild()
-		tmpThisNode := o.GetSubExprNameNode(thisValue)
-		optChainReplacement.Detach()
-		o.chainParent.AddChildToFront(tmpThisNode)
-		dotCallNode :=
-			o.astFactory.
-				CreateGetPropWithUnknownType(optChainReplacement, "call").
-				SrcrefTreeIfMissing(optChainReplacement)
-		o.chainParent.AddChildToFront(dotCallNode)
+		if finalGet, ok := ast.AsNormalGet(o.wholeChain); ok {
+			thisValue := finalGet.Object().Node()
+			tmpThisNode := o.GetSubExprNameNode(thisValue)
+			optChainReplacement.Detach()
+			o.chainParent.AddChildToFront(tmpThisNode)
+			dotCallNode :=
+				o.astFactory.
+					CreateGetPropWithUnknownType(optChainReplacement, "call").
+					SrcrefTreeIfMissing(optChainReplacement)
+			o.chainParent.AddChildToFront(dotCallNode)
+		}
 	}
 
 	// Report changes here; chainParent can get deleted below this.
@@ -230,11 +223,12 @@ func (o *OptionalChainRewriter) Rewrite() {
 		for len(o.deletesToDelete) != 0 {
 			delete_ := o.deletesToDelete[0]
 			o.deletesToDelete = o.deletesToDelete[1:]
-			jutil.CheckStateMsg1(delete_.GetFirstChild().IsHook(), "%s", delete_)
-			hook := delete_.GetFirstChild()
-			hook.Detach()
-			delete_.ReplaceWith(hook)
-			o.compiler.ReportChangeToEnclosingScope(hook)
+			delUnary := ast.MustUnary(delete_)
+			hook, ok := delUnary.Operand().AsHook()
+			jutil.CheckStateMsg1(ok, "%s", delete_)
+			hookNode := hook.Detach().Node()
+			delete_.ReplaceWith(hookNode)
+			o.compiler.ReportChangeToEnclosingScope(hookNode)
 		}
 	}
 
@@ -314,8 +308,8 @@ func (o *OptionalChainRewriter) RewriteInitialSegment(fullChainStart rhino.Node,
 	fullChainEnd.ReplaceWith(placeholder)
 	// NOTE: convertToNonOptionalChain() above will have made the chain start
 	// and all the other nodes in the first segment of the chain non-optional,
-	// so fullChainStart.isCall() is the right test here.
-	if NodeUtil_IsNormalGet(receiverNode) &&
+	// so ast.AsCall(fullChainStart) is the right test here.
+	if recvGet, ok := ast.AsNormalGet(receiverNode); ok &&
 		fullChainStart.IsCall() &&
 		// Check !FREE_CALL to ensure we don't treat free calls on property
 		// access (e.g. `(0, expr.prop)?.()`) as method calls.
@@ -323,7 +317,7 @@ func (o *OptionalChainRewriter) RewriteInitialSegment(fullChainStart rhino.Node,
 		// `expr.prop?.(x).y`
 		// Needs to become
 		// `(t1 = (t0 = expr).prop) == null ? void 0 : t1.call(t0, x).y`
-		thisValue := receiverNode.GetFirstChild()
+		thisValue := recvGet.Object().Node()
 		tmpThisNode := o.GetSubExprNameNode(thisValue)
 		tmpReceiverNode := o.GetSubExprNameNode(receiverNode)
 		receiverNode = fullChainStart.RemoveFirstChild()
@@ -345,12 +339,9 @@ func (o *OptionalChainRewriter) RewriteInitialSegment(fullChainStart rhino.Node,
 	var trueValue, falseValue rhino.Node
 	if isBeingDeleted {
 		trueValue = o.astFactory.CreateBoolean(true)
-	} else {
-		trueValue = o.astFactory.CreateUndefinedValue()
-	}
-	if isBeingDeleted {
 		falseValue = o.astFactory.CreateDelProp(fullChainEnd)
 	} else {
+		trueValue = o.astFactory.CreateUndefinedValue()
 		falseValue = fullChainEnd
 	}
 	optChainReplacement :=
@@ -386,7 +377,7 @@ func (o *OptionalChainRewriter) GetSubExprNameNode(subExpr rhino.Node) rhino.Nod
 	subExpr.RemoveProp(rhino.Node_DIRECT_EVAL)
 	replacement := o.astFactory.CreateAssignToName(tempVarName, subExpr).SrcrefTreeIfMissing(subExpr)
 	placeholder.ReplaceWith(replacement)
-	return replacement.GetFirstChild().CloneNode()
+	return ast.MustAssign(replacement).Target().Node().CloneNode()
 }
 
 // DeclareTempVarName declares a temporary variable name that will be used
@@ -400,14 +391,15 @@ func (o *OptionalChainRewriter) GetSubExprNameNode(subExpr rhino.Node) rhino.Nod
 //
 // Java: OptionalChainRewriter.declareTempVarName(Node)
 func (o *OptionalChainRewriter) DeclareTempVarName(valueNode rhino.Node) string {
-	tempVarName := o.tmpVarNameCreator.CreateTmpVarName()
+	tempVarName := o.tmpVarNameCreator()
 	declarationStatement :=
 		o.astFactory.CreateSingleLetNameDeclaration(tempVarName).SrcrefTree(valueNode)
-	declarationStatement.GetFirstChild().SetInferredConstantVar(true)
+	nameNode, _ := ast.MustNameDeclaration(declarationStatement).OnlyDeclarator()
+	nameNode.Node().SetInferredConstantVar(true)
 	declarationStatement.InsertBefore(o.insertionPoint)
 	o.compiler.ReportChangeToEnclosingScope(declarationStatement)
 	if o.scope != nil {
-		o.scope.Declare(tempVarName, declarationStatement.GetFirstChild() /* input= */, nil)
+		o.scope.Declare(tempVarName, nameNode.Node() /* input= */, nil)
 	}
 	return tempVarName
 }

@@ -395,11 +395,11 @@ func (c *RewriteOptionalChainingOperatorTest_BaseTestClass) CustomSetUp() {
 func (c *RewriteOptionalChainingOperatorTest_BaseTestClass) GetProcessor(compiler *Compiler) CompilerPass {
 	// Just name temporary variables "tmp0", "tmp1", etc. to make the tests clearer.
 	counter := 0
-	testVarNameCreator := OptionalChainRewriter_TmpVarNameCreatorFunc(func() string {
+	testVarNameCreator := func() string {
 		name := "tmp" + strconv.Itoa(counter)
 		counter++
 		return name
-	})
+	}
 	return NewRewriteOptionalChainingOperatorWithTmpVarNameCreator(compiler, testVarNameCreator)
 }
 
@@ -438,11 +438,11 @@ func (c *RewriteOptionalChainingOperatorTest_DeleteOptChainTests) SetUp() {
 func (c *RewriteOptionalChainingOperatorTest_DeleteOptChainTests) GetProcessor(compiler *Compiler) CompilerPass {
 	// Just name temporary variables "tmp0", "tmp1", etc. to make the tests clearer.
 	counter := 0
-	testVarNameCreator := OptionalChainRewriter_TmpVarNameCreatorFunc(func() string {
+	testVarNameCreator := func() string {
 		name := "tmp" + strconv.Itoa(counter)
 		counter++
 		return name
-	})
+	}
 	return NewRewriteOptionalChainingOperatorWithTmpVarNameCreator(compiler, testVarNameCreator)
 }
 

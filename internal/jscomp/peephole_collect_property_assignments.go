@@ -301,21 +301,20 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 	// The property must be statically known.
 	// Go-only: Java checks that the lhs is a GETPROP or a GETELEM, and returns
 	// false for anything else; prop.lhs is one of them.
-	var propertyName *string
+	var propertyName string
+	var hasPropertyName bool
 	elem, isGetElem := prop.lhs.AsGetElem()
 	if isGetElem {
 		property := elem.Index()
 		if number, ok := property.AsNumber(); ok {
-			propertyName = p.GetSideEffectFreeStringValue(number.Node())
+			propertyName, hasPropertyName = p.GetSideEffectFreeStringValue(number.Node())
 		} else if str, ok := property.AsStringLit(); ok {
-			s := str.Value()
-			propertyName = &s
+			propertyName, hasPropertyName = str.Value(), true
 		} else {
 			return false
 		}
 	} else if get, ok := prop.lhs.AsGetProp(); ok {
-		s := get.Property()
-		propertyName = &s
+		propertyName, hasPropertyName = get.Property(), true
 	}
 
 	// Check if the new property already exists in the object literal
@@ -328,7 +327,7 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 			// Get the value of the property
 			currentValue := currentProperty.GetFirstChild()
 			// Compare the current property name with the new property name
-			if propertyName != nil && currentPropertyName == *propertyName {
+			if hasPropertyName && currentPropertyName == propertyName {
 				existingProperty = currentProperty
 				// Check if the current value and the new value are side-effect
 				isCurrentValueSideEffect := NodeUtil_CanBeSideEffected(currentValue)
@@ -342,18 +341,18 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 			}
 		} else if currentProperty.IsGetterDef() || currentProperty.IsSetterDef() {
 			currentPropertyName := currentProperty.GetString()
-			if propertyName != nil && currentPropertyName == *propertyName {
+			if hasPropertyName && currentPropertyName == propertyName {
 				return false
 			}
 		} else if computed, ok := ast.AsComputedProp(currentProperty); ok {
 			key, ok := computed.Key().AsStringLit()
-			if !ok || (propertyName != nil && key.Value() == *propertyName) {
+			if !ok || (hasPropertyName && key.Value() == propertyName) {
 				return false
 			}
 		}
 	}
 
-	newProperty := rhino.IR_StringKey(*propertyName).SrcrefIfMissing(prop.stmt.Node())
+	newProperty := rhino.IR_StringKey(propertyName).SrcrefIfMissing(prop.stmt.Node())
 	// Preserve the quotedness of a property reference
 	if isGetElem {
 		newProperty.SetQuotedStringKey()

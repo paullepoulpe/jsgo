@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -27,8 +28,7 @@ import (
 // Java: Es6TemplateLiterals.TEMPLATELIT_VAR
 const Es6TemplateLiterals_TEMPLATELIT_VAR = "$jscomp$templatelit$"
 
-// Es6TemplateLiterals is a helper class for transpiling ES6 template
-// literals.
+// Es6TemplateLiterals is a helper for transpiling ES6 template literals.
 type Es6TemplateLiterals struct {
 	astFactory                       *AstFactory
 	compiler                         AbstractCompiler
@@ -39,22 +39,17 @@ type Es6TemplateLiterals struct {
 
 // Java: Es6TemplateLiterals(AbstractCompiler)
 func NewEs6TemplateLiterals(compiler AbstractCompiler) *Es6TemplateLiterals {
-	e := &Es6TemplateLiterals{}
-	e.compiler = compiler
-	e.astFactory = compiler.CreateAstFactory()
-	e.namespace = e.compiler.GetTranspilationNamespace()
-
 	runtimeJsLibManager := compiler.GetRuntimeJsLibManager()
-	e.createTemplateTagFirstArg = runtimeJsLibManager.GetJsLibField("$jscomp.createTemplateTagFirstArg")
-	e.createTemplateTagFirstArgWithRaw =
-		runtimeJsLibManager.GetJsLibField("$jscomp.createTemplateTagFirstArgWithRaw")
-	return e
+	return &Es6TemplateLiterals{
+		compiler:                         compiler,
+		astFactory:                       compiler.CreateAstFactory(),
+		namespace:                        compiler.GetTranspilationNamespace(),
+		createTemplateTagFirstArg:        runtimeJsLibManager.GetJsLibField("$jscomp.createTemplateTagFirstArg"),
+		createTemplateTagFirstArgWithRaw: runtimeJsLibManager.GetJsLibField("$jscomp.createTemplateTagFirstArgWithRaw"),
+	}
 }
 
-// VisitTemplateLiteral converts `${a} b ${c} d ${e}` to (a + " b " + c + "
-// d " + e).
-//
-// n is a TEMPLATELIT node that is not prefixed with a tag.
+// VisitTemplateLiteral converts `${a} b ${c} d ${e}` to `(a + " b " + c + " d " + e)`.
 //
 // Java: Es6TemplateLiterals.visitTemplateLiteral(NodeTraversal, Node)
 func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n rhino.Node) {
@@ -62,32 +57,33 @@ func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n rhino.Nod
 	if length == 0 {
 		n.ReplaceWith(e.astFactory.CreateString("\"\""))
 	} else {
-		first := n.RemoveFirstChild()
-		jutil.CheckState(first.IsTemplateLitString() && first.GetCookedString() != nil)
-		firstStr := e.astFactory.CreateString(*first.GetCookedString())
+		firstTls, ok := ast.AsTemplateLitString(n.RemoveFirstChild())
+		jutil.CheckState(ok)
+		firstCooked, hasFirstCooked := firstTls.Cooked()
+		jutil.CheckState(hasFirstCooked)
+		firstStr := e.astFactory.CreateString(firstCooked)
 		if length == 1 {
 			n.ReplaceWith(firstStr)
 		} else {
-			// Add the first string with the first substitution expression
-			add := e.astFactory.CreateAdd(firstStr, n.RemoveFirstChild().RemoveFirstChild())
-			// Process the rest of the template literal
+			firstSub := ast.MustTemplateLitSub(n.RemoveFirstChild())
+			add := e.astFactory.CreateAdd(firstStr, firstSub.Expr().Node().Detach())
 			for i := 2; i < length; i++ {
 				child := n.RemoveFirstChild()
-				if child.IsTemplateLitString() {
-					jutil.CheckState(child.GetCookedString() != nil)
-					if *child.GetCookedString() == "" {
+				var right rhino.Node
+				if tls, isStr := ast.AsTemplateLitString(child); isStr {
+					cooked, hasCooked := tls.Cooked()
+					jutil.CheckState(hasCooked)
+					if cooked == "" {
 						continue
-					} else if i == 2 && *first.GetCookedString() == "" {
-						// So that `${hello} world` gets translated into (hello + " world")
-						// instead of ("" + hello + " world").
+					}
+					if i == 2 && firstCooked == "" {
+						// Translate `${hello} world` into `(hello + " world")` instead of `("" + hello + " world")`.
 						add = add.GetSecondChild().Detach()
 					}
-				}
-				var right rhino.Node
-				if child.IsTemplateLitString() {
-					right = e.astFactory.CreateString(*child.GetCookedString())
+					right = e.astFactory.CreateString(cooked)
 				} else {
-					right = child.RemoveFirstChild()
+					sub := ast.MustTemplateLitSub(child)
+					right = sub.Expr().Node().Detach()
 				}
 				add = e.astFactory.CreateAdd(add, right)
 			}
@@ -97,47 +93,22 @@ func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n rhino.Nod
 	t.ReportCodeChange()
 }
 
-// VisitTaggedTemplateLiteral converts a tagged template into a call to the
-// tag.
-//
-// If the cooked and raw strings of the template literal are same, this will
-// create a call to createtemplatetagfirstarg that simply calls slice() on the
-// cooked array at runtime to make the raw array a copy of the cooked array,
-// and returns the cooked array. For example, tag`ab${bar}` will change to:
-//
-//	// A call to the tagging function:
-//	tag($jscomp$templatelit$createTemplateTagFirstArg(['ab'], bar);
-//
-// If the cooked and raw strings of the template literal are not same, this
-// will construct the raw strings array, and call
-// createtemplatetagfirstargwithraw with it, which assigns the raw strings
-// array to the property 'raw' of the cooked array at runtime, and returns
-// the cooked array. For example, tag`a\tb${bar}` will change to:
-//
-//	// A call to the tagging function:
-//	tag($jscomp$templatelit$createTemplateTagFirstArgWithRaw(['a\tb'] /, ['a\\tb']), bar);
-//
-// See template_literal_test.js for more examples.
-//
-// n is a TAGGED_TEMPLATELIT node.
+// VisitTaggedTemplateLiteral converts a tagged template into a call to the tag.
 //
 // Java: Es6TemplateLiterals.visitTaggedTemplateLiteral(NodeTraversal, Node, Node)
 func (e *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n rhino.Node, insertBefore rhino.Node) {
-	templateLit := n.GetLastChild()
-	siteObject := e.CreateCookedStringArray(templateLit)
+	tagged := ast.MustTaggedTemplateLit(n)
+	templateLit := tagged.Template()
+	siteObject := e.createCookedStringArray(templateLit)
 
-	// Node holding the function call to the runtime injected function
 	var callTemplateTagArgCreator rhino.Node
-	if Es6TemplateLiterals_CookedAndRawStringsSame(templateLit) {
-		// The cooked and raw versions of the array are the same, so just call slice() on the
-		// cooked array at runtime to make the raw array a copy of the cooked array.
+	if cookedAndRawStringsSame(templateLit) {
 		callTemplateTagArgCreator = e.astFactory.CreateCall(
 			e.astFactory.CreateQNameOfField(e.namespace, e.createTemplateTagFirstArg),
 			AstFactory_Type_(siteObject),
 			siteObject.CloneTree())
 	} else {
-		// The raw string array is different, so we need to construct it.
-		raw := e.CreateRawStringArray(templateLit)
+		raw := e.createRawStringArray(templateLit)
 		callTemplateTagArgCreator = e.astFactory.CreateCall(
 			e.astFactory.CreateQNameOfField(e.namespace, e.createTemplateTagFirstArgWithRaw),
 			AstFactory_Type_(siteObject),
@@ -148,61 +119,51 @@ func (e *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n rhi
 	jsDocInfoBuilder.RecordNoInline()
 	info := jsDocInfoBuilder.Build()
 
-	input := t.GetInput()
-	uniqueId := e.compiler.GetUniqueIdSupplier().GetUniqueId(input)
-	// var tagFnFirstArg = $jscomp.createTemplateTagFirstArg...
+	uniqueId := e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 	tagFnFirstArgDeclaration := e.astFactory.
 		CreateSingleVarNameDeclarationWithValue(Es6TemplateLiterals_TEMPLATELIT_VAR+uniqueId, callTemplateTagArgCreator).
 		SetJSDocInfo(info).
 		SrcrefTreeIfMissing(n)
 
-	// For the first script, insertion point is right after the runtime injected function definition
-	// as injecting to the top of the script causes runtime errors
-	// https://github.com/google/closure-compiler/issues/3589. For any subsequent script(s), the
-	// call is injected to the top of that script.
 	tagFnFirstArgDeclaration.InsertBefore(insertBefore)
 	t.ReportCodeChangeWithNode(tagFnFirstArgDeclaration)
 
-	// Generate the call expression.
 	tagFnFirstArg := tagFnFirstArgDeclaration.GetFirstChild().CloneNode()
 	call := e.astFactory.CreateCall(n.RemoveFirstChild(), AstFactory_Type_(n), tagFnFirstArg)
-	for child := templateLit.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if !child.IsTemplateLitString() {
-			call.AddChildToBack(child.RemoveFirstChild())
+	for part := range templateLit.Parts() {
+		if sub, isSub := part.AsTemplateLitSub(); isSub {
+			call.AddChildToBack(sub.Expr().Node().Detach())
 		}
 	}
-	call.SrcrefTreeIfMissing(templateLit)
-	call.PutBooleanProp(rhino.Node_FREE_CALL, !NodeUtil_IsNormalOrOptChainGet(call.GetFirstChild()))
+	call.SrcrefTreeIfMissing(templateLit.Node())
+	callTyped := ast.MustCall(call)
+	_, isPropOrElemGet := ast.AsNormalOrOptChainGet(callTyped.Callee().Node())
+	callTyped.SetFreeCall(!isPropOrElemGet)
 	n.ReplaceWith(call)
 	t.ReportCodeChange()
 }
 
-// Java: Es6TemplateLiterals.CreateRawStringArray(Node)
-func (e *Es6TemplateLiterals) CreateRawStringArray(n rhino.Node) rhino.Node {
+func (e *Es6TemplateLiterals) createRawStringArray(tpl ast.TemplateLit) rhino.Node {
 	array := e.astFactory.CreateArraylit()
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child.IsTemplateLitString() {
-			array.AddChildToBack(e.astFactory.CreateString(child.GetRawString()))
+	for part := range tpl.Parts() {
+		if tls, ok := part.AsTemplateLitString(); ok {
+			array.AddChildToBack(e.astFactory.CreateString(tls.Raw()))
 		}
 	}
 	return array
 }
 
-// Java: Es6TemplateLiterals.CreateCookedStringArray(Node)
-func (e *Es6TemplateLiterals) CreateCookedStringArray(n rhino.Node) rhino.Node {
+func (e *Es6TemplateLiterals) createCookedStringArray(tpl ast.TemplateLit) rhino.Node {
 	var templateArrayType *colors.Color
 	if e.astFactory.IsAddingColors() {
 		templateArrayType = e.compiler.GetColorRegistry().Get(colors.StandardColors_I_TEMPLATE_ARRAY_ID)
 	}
-	array := e.astFactory.
-		CreateArraylit().
-		SetColor(templateArrayType) // tighten the type from Array to ITemplateArray
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child.IsTemplateLitString() {
-			if child.GetCookedString() != nil {
-				array.AddChildToBack(e.astFactory.CreateString(*child.GetCookedString()))
+	array := e.astFactory.CreateArraylit().SetColor(templateArrayType)
+	for part := range tpl.Parts() {
+		if tls, ok := part.AsTemplateLitString(); ok {
+			if cooked, hasCooked := tls.Cooked(); hasCooked {
+				array.AddChildToBack(e.astFactory.CreateString(cooked))
 			} else {
-				// undefined cooked string due to exception in template escapes
 				array.AddChildToBack(e.astFactory.CreateVoid(e.astFactory.CreateNumber(0)))
 			}
 		}
@@ -210,15 +171,13 @@ func (e *Es6TemplateLiterals) CreateCookedStringArray(n rhino.Node) rhino.Node {
 	return array
 }
 
-// Java: Es6TemplateLiterals.cookedAndRawStringsSame(Node)
-func Es6TemplateLiterals_CookedAndRawStringsSame(n rhino.Node) bool {
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if !child.IsTemplateLitString() {
-			continue
-		}
-		// getCookedString() returns null when the template literal has an illegal escape sequence.
-		if child.GetCookedString() == nil || *child.GetCookedString() != child.GetRawString() {
-			return false
+func cookedAndRawStringsSame(tpl ast.TemplateLit) bool {
+	for part := range tpl.Parts() {
+		if tls, ok := part.AsTemplateLitString(); ok {
+			cooked, hasCooked := tls.Cooked()
+			if !hasCooked || cooked != tls.Raw() {
+				return false
+			}
 		}
 	}
 	return true

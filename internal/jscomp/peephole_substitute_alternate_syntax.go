@@ -676,10 +676,9 @@ func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeStringArrayLiteral(array 
 
 	// These delimiters are chars that appears a lot in the program therefore
 	// probably have a small Huffman encoding.
-	delimiter := PeepholeSubstituteAlternateSyntax_PickDelimiter(strs)
-	if delimiter != nil {
-		template := strings.Join(strs, *delimiter)
-		call := rhino.IR_Call(rhino.IR_Getprop(rhino.IR_String(template), "split"), rhino.IR_String(""+*delimiter))
+	if delimiter, ok := PeepholeSubstituteAlternateSyntax_PickDelimiter(strs); ok {
+		template := strings.Join(strs, delimiter)
+		call := rhino.IR_Call(rhino.IR_Getprop(rhino.IR_String(template), "split"), rhino.IR_String(delimiter))
 		call.SrcrefTreeIfMissing(n)
 		n.ReplaceWith(call)
 		p.ReportChangeToEnclosingScope(call)
@@ -694,11 +693,11 @@ func (p *PeepholeSubstituteAlternateSyntax) TryTurnTemplateStringsToStrings(temp
 	if n.GetParent().IsTaggedTemplateLit() {
 		return n
 	}
-	str := p.GetSideEffectFreeStringValue(n)
-	if str == nil {
+	str, ok := p.GetSideEffectFreeStringValue(n)
+	if !ok {
 		return n
 	}
-	stringNode := rhino.IR_String(*str).Srcref(n)
+	stringNode := rhino.IR_String(str).Srcref(n)
 	n.ReplaceWith(stringNode)
 	p.ReportChangeToEnclosingScope(stringNode)
 	return stringNode
@@ -706,10 +705,10 @@ func (p *PeepholeSubstituteAlternateSyntax) TryTurnTemplateStringsToStrings(temp
 
 // PeepholeSubstituteAlternateSyntax_PickDelimiter finds a delimiter that
 // does not occur in the given strings. strs are the strings that must be
-// separated. Returns a delimiter string or null.
+// separated.
 //
 // Java: PeepholeSubstituteAlternateSyntax.pickDelimiter(String[])
-func PeepholeSubstituteAlternateSyntax_PickDelimiter(strs []string) *string {
+func PeepholeSubstituteAlternateSyntax_PickDelimiter(strs []string) (string, bool) {
 	allLength1 := true
 	for _, s := range strs {
 		if jutil.StringLength(s) != 1 {
@@ -719,14 +718,13 @@ func PeepholeSubstituteAlternateSyntax_PickDelimiter(strs []string) *string {
 	}
 
 	if allLength1 {
-		empty := ""
-		return &empty
+		return "", true
 	}
 
 	for _, delim := range [...]string{" ", ";", ",", "{", "}"} {
 		if !slices.ContainsFunc(strs, func(cur string) bool { return strings.Contains(cur, delim) }) {
-			return &delim
+			return delim, true
 		}
 	}
-	return nil
+	return "", false
 }
