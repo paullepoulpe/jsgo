@@ -425,6 +425,7 @@ func (k *Compactor) SlideWithThreads(threads int) {
 	}
 	var extPropNodes []Node
 	for _, m := range oldAux {
+		// order-independent: moves each entry to its new id; extPropNodes is only used to forward each node's own props
 		for id, a := range m {
 			if nn, ok := newNode(id); ok {
 				nn.auxShard().put(uint32(nn), a)
@@ -435,6 +436,7 @@ func (k *Compactor) SlideWithThreads(threads int) {
 		}
 	}
 	for _, m := range oldCold {
+		// order-independent: moves each entry to its new id
 		for id, c := range m {
 			if nn, ok := newNode(id); ok {
 				nn.auxShard().putCold(uint32(nn), c)
@@ -445,6 +447,7 @@ func (k *Compactor) SlideWithThreads(threads int) {
 	k.Live = int(live)
 
 	// Node ids held by the JSDoc of live nodes and by node-valued props.
+	// order-independent: forwards each JSDocInfo's own type nodes; Forward is idempotent
 	for info := range k.docs {
 		info.forwardTypeNodes(k.Forward)
 	}
@@ -484,11 +487,13 @@ func (k *Compactor) ForwardSlice(s []Node) {
 func (k *Compactor) PruneDeadAux() {
 	s := k.s
 	for sh := range s.aux {
+		// order-independent: deletes dead entries
 		for id := range s.aux[sh].m {
 			if i := id - k.base; id >= k.base && id < k.end && !k.isMarked(i) {
 				delete(s.aux[sh].m, id)
 			}
 		}
+		// order-independent: deletes dead entries
 		for id := range s.aux[sh].cold {
 			if i := id - k.base; id >= k.base && id < k.end && !k.isMarked(i) {
 				delete(s.aux[sh].cold, id)

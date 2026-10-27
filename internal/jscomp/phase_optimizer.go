@@ -510,6 +510,7 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 					}
 				}
 				if liveScripts != len(scriptSizes) {
+					// order-independent: deletes dead scripts and sums their sizes
 					for script, oldSz := range scriptSizes {
 						if script.GetParent() != root {
 							delete(scriptSizes, script)
@@ -523,6 +524,7 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			c.maybeCompactAST("loop iteration", &externs, &root, func(fwd func(rhino.Node) rhino.Node) {
 				if scriptSizes != nil {
 					sizes := make(map[rhino.Node]int, len(scriptSizes))
+					// order-independent: rebuilds the map with forwarded keys
 					for script, sz := range scriptSizes {
 						sizes[fwd(script)] = sz
 					}

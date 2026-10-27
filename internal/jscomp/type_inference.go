@@ -119,6 +119,7 @@ func (ti *TypeInference) initTypeInference(
 	ti.inferredUnboundVarList = ti.inferredUnboundVarBuf[:0]
 	if n := len(ti.inferredUnboundVars); n > 0 {
 		if n <= 64 {
+			// order-independent: clears the map
 			for k := range ti.inferredUnboundVars {
 				delete(ti.inferredUnboundVars, k)
 			}

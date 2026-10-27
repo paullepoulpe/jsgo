@@ -416,6 +416,7 @@ func (s *Normalize_NormalizeStatements) enableJscompVarMode() {
 		count int
 	}
 	var toBackfill []pending
+	// order-independent: backfills one entry per (name, i), and only absent ones, so the resulting map is the same in any order
 	for origName, count := range s.nameUsage {
 		if count > 1 {
 			toBackfill = append(toBackfill, pending{name: origName, count: count})

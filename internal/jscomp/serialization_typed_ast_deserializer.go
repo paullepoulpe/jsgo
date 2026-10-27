@@ -1465,6 +1465,7 @@ func (a *TypedAstDeserializer_DeserializedAst) rawFilesystem() *jutil.LinkedHash
 func (a *TypedAstDeserializer_DeserializedAst) GetFilesystem() *jutil.LinkedHashMap[*SourceFile, func() rhino.Node] {
 	if !a.suppliersBound && len(a.scriptDeserializers) > 0 && a.filesystem != nil {
 		a.suppliersBound = true
+		// order-independent: replaces values of existing keys, which keeps the LinkedHashMap's order
 		for file, sd := range a.scriptDeserializers {
 			if a.filesystem.ContainsKey(file) {
 				a.filesystem.Put(file, sd.DeserializeNew)
