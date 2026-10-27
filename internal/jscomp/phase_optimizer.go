@@ -424,13 +424,18 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 	trackAstSize := p.useSizeHeuristicToStopOptimizationLoop && l.isCodeRemovalLoop
 	var astSize int
 	var scriptSizes map[rhino.Node]int
+	// Go-only: fast mode counts sizes on workers (phase_optimizer_parallel.go).
+	sizeWorkers := fastLoopSizeWorkers(p.compiler)
 	if trackAstSize {
 		numScripts := root.GetChildCount()
 		scriptSizes = make(map[rhino.Node]int, numScripts)
 		astSize = 1
+		scripts := make([]rhino.Node, 0, numScripts)
 		for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
-			sz := NodeUtil_CountAstSize(script)
-			scriptSizes[script] = sz
+			scripts = append(scripts, script)
+		}
+		for i, sz := range countAstSizes(scripts, sizeWorkers) {
+			scriptSizes[scripts[i]] = sz
 			astSize += sz
 		}
 		p.changeTracker.changeTimeline.Mark(astSizeTimelineKey)
@@ -494,9 +499,10 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			previousAstSize = astSize
 			changedScopes := p.changeTracker.GetChangedScopeNodesForPass(astSizeTimelineKey)
 			if changedScopes == nil {
-				astSize = NodeUtil_CountAstSize(root)
+				astSize = countAstSizes([]rhino.Node{root}, sizeWorkers)[0]
 			} else {
 				recounted := make(map[rhino.Node]struct{}, len(changedScopes))
+				var toCount []rhino.Node
 				for _, scopeNode := range changedScopes {
 					cur := scopeNode
 					for !cur.IsNil() && cur.GetParent() != root {
@@ -505,12 +511,15 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 					if !cur.IsNil() && cur.GetParent() == root {
 						if _, done := recounted[cur]; !done {
 							recounted[cur] = struct{}{}
-							newSz := NodeUtil_CountAstSize(cur)
-							oldSz := scriptSizes[cur]
-							scriptSizes[cur] = newSz
-							astSize += newSz - oldSz
+							toCount = append(toCount, cur)
 						}
 					}
+				}
+				for i, newSz := range countAstSizes(toCount, sizeWorkers) {
+					cur := toCount[i]
+					oldSz := scriptSizes[cur]
+					scriptSizes[cur] = newSz
+					astSize += newSz - oldSz
 				}
 				liveScripts := 0
 				for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
