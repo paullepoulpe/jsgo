@@ -46,7 +46,10 @@ var Base64_BASE64_DECODE_MAP = func() []int32 {
 //
 // Java: Base64.toBase64(int)
 func Base64_ToBase64(value int32) uint16 {
-	return jutil.StringCharAt(Base64_BASE64_MAP, int(value))
+	if uint32(value) >= uint32(len(Base64_BASE64_MAP)) {
+		panic(jutil.NewStringIndexOutOfBoundsExceptionForIndex(int(value), len(Base64_BASE64_MAP)))
+	}
+	return uint16(Base64_BASE64_MAP[value])
 }
 
 // Base64_FromBase64 returns a value in the range of 0-63 for a base64

@@ -38,6 +38,7 @@ package rhino
 import (
 	"iter"
 	"math/bits"
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -55,8 +56,8 @@ import (
 //
 // Go-only: language-adapter — Java's Property<T> values are `any`; each
 // typed accessor converts with jsdocGet. The property value types are:
-// String → string, Integer → int, List<String> → *jutil.ArrayList[string],
-// ArrayList<JSTypeExpression> → *jutil.ArrayList[*JSTypeExpression],
+// String → string, Integer → int, List<String> → []string,
+// ArrayList<JSTypeExpression> → []*JSTypeExpression,
 // LinkedHashMap<String, X> → *jutil.LinkedHashMap[string, X],
 // ImmutableSet<String> → *jutil.LinkedHashSet[string], and
 // ImmutableMap<ImmutableSet<String>, String> →
@@ -100,9 +101,10 @@ type jsDocPropKind uint8
 
 const (
 	jsDocPropKindPlain      jsDocPropKind = iota // Property
-	jsDocPropKindMarkerList                      // MarkerListProperty: ArrayList<Marker>
+	jsDocPropKindStringList                      // Property<List<String>>: []string
+	jsDocPropKindMarkerList                      // MarkerListProperty: []*JSDocInfo_Marker
 	jsDocPropKindType                            // TypeProperty: JSTypeExpression
-	jsDocPropKindTypeList                        // TypeListProperty: ArrayList<JSTypeExpression>
+	jsDocPropKindTypeList                        // TypeListProperty: []*JSTypeExpression
 	jsDocPropKindTypeMap                         // TypeMapProperty: LinkedHashMap<String, JSTypeExpression>
 	jsDocPropKindNodeMap                         // NodeMapProperty: LinkedHashMap<String, Node>
 )
@@ -157,16 +159,19 @@ func (p *JSDocInfo_Property) Clone(arg any, transform JSDocInfo_TypeTransform) a
 		}
 		return arg
 	case jsDocPropKindTypeList:
-		out := jutil.NewArrayListFrom(jsdocGet[*jutil.ArrayList[*JSTypeExpression]](arg).Slice())
+		out := slices.Clone(jsdocGet[[]*JSTypeExpression](arg))
 		if transform != nil {
-			for i := 0; i < out.Size(); i++ {
-				elem := out.Get(i)
+			for i, elem := range out {
 				if elem != nil {
-					out.Set(i, transform(elem))
+					out[i] = transform(elem)
 				}
 			}
 		}
 		return out
+	case jsDocPropKindStringList:
+		return slices.Clip(jsdocGet[[]string](arg))
+	case jsDocPropKindMarkerList:
+		return slices.Clip(jsdocGet[[]*JSDocInfo_Marker](arg))
 	case jsDocPropKindTypeMap:
 		out := jutil.NewLinkedHashMapFrom(jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](arg))
 		if transform != nil {
@@ -185,6 +190,17 @@ func (p *JSDocInfo_Property) Clone(arg any, transform JSDocInfo_TypeTransform) a
 
 // Java: JSDocInfo.Property.isDefault(T)
 func (p *JSDocInfo_Property) IsDefault(value any) bool {
+	if value == nil {
+		return true
+	}
+	switch p.kind {
+	case jsDocPropKindStringList:
+		return len(jsdocGet[[]string](value)) == 0
+	case jsDocPropKindMarkerList:
+		return len(jsdocGet[[]*JSDocInfo_Marker](value)) == 0
+	case jsDocPropKindTypeList:
+		return len(jsdocGet[[]*JSTypeExpression](value)) == 0
+	}
 	if jutil.IsNil(value) {
 		return true
 	}
@@ -203,15 +219,16 @@ func (p *JSDocInfo_Property) IsDefault(value any) bool {
 // Java: JSDocInfo.Property.equalValues(T, T), and its overrides
 func (p *JSDocInfo_Property) EqualValues(left any, right any) bool {
 	switch p.kind {
+	case jsDocPropKindStringList:
+		return slices.Equal(jsdocGet[[]string](left), jsdocGet[[]string](right))
 	case jsDocPropKindMarkerList:
-		a := jsdocGet[*jutil.ArrayList[*JSDocInfo_Marker]](left)
-		b := jsdocGet[*jutil.ArrayList[*JSDocInfo_Marker]](right)
-		if a.Size() != b.Size() {
+		a := jsdocGet[[]*JSDocInfo_Marker](left)
+		b := jsdocGet[[]*JSDocInfo_Marker](right)
+		if len(a) != len(b) {
 			return false
 		}
-		for i := 0; i < a.Size(); i++ {
-			m1 := a.Get(i)
-			m2 := b.Get(i)
+		for i, m1 := range a {
+			m2 := b[i]
 			if (m1 == nil) != (m2 == nil) || (m1 != nil && !m1.IsEquivalentTo(m2)) {
 				return false
 			}
@@ -220,13 +237,13 @@ func (p *JSDocInfo_Property) EqualValues(left any, right any) bool {
 	case jsDocPropKindType:
 		return jsdocGet[*JSTypeExpression](left).IsEquivalentTo(jsdocGet[*JSTypeExpression](right))
 	case jsDocPropKindTypeList:
-		l := jsdocGet[*jutil.ArrayList[*JSTypeExpression]](left)
-		r := jsdocGet[*jutil.ArrayList[*JSTypeExpression]](right)
-		if l.Size() != r.Size() {
+		l := jsdocGet[[]*JSTypeExpression](left)
+		r := jsdocGet[[]*JSTypeExpression](right)
+		if len(l) != len(r) {
 			return false
 		}
-		for i := 0; i < l.Size(); i++ {
-			if !l.Get(i).IsEquivalentTo(r.Get(i)) {
+		for i, le := range l {
+			if !le.IsEquivalentTo(r[i]) {
 				return false
 			}
 		}
@@ -234,13 +251,11 @@ func (p *JSDocInfo_Property) EqualValues(left any, right any) bool {
 	case jsDocPropKindTypeMap:
 		l := jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](left)
 		r := jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](right)
-		leftKeys := jutil.NewLinkedHashSet(l.KeySlice()...)
-		rightKeys := jutil.NewLinkedHashSet(r.KeySlice()...)
-		if !leftKeys.Equals(rightKeys) {
+		if l.Size() != r.Size() {
 			return false
 		}
-		for key := range leftKeys.All() {
-			if !jsDocInfo_TypeMapProperty_AreEquivalent(l.Get(key), r.Get(key)) {
+		for key, lv := range l.All() {
+			if !r.ContainsKey(key) || !jsDocInfo_TypeMapProperty_AreEquivalent(lv, r.Get(key)) {
 				return false
 			}
 		}
@@ -283,9 +298,8 @@ func (p *JSDocInfo_Property) CompareTo(that *JSDocInfo_Property) int {
 //
 // Java: JSDocInfo.TypeListProperty.getUnmodifiable(JSDocInfo)
 func (p *JSDocInfo_Property) GetUnmodifiable(info *JSDocInfo) []*JSTypeExpression {
-	value := jsdocGet[*jutil.ArrayList[*JSTypeExpression]](p.Get(info))
-	if value != nil {
-		return value.Slice()
+	if value := jsdocGet[[]*JSTypeExpression](p.Get(info)); value != nil {
+		return value
 	}
 	return []*JSTypeExpression{}
 }
@@ -408,29 +422,6 @@ func (b JSDocInfo_Bit) Mask() int64 { return jsdocInfo_Bit_mask[b] }
 // Java: JSDocInfo.TypeTransform.apply(JSTypeExpression)
 type JSDocInfo_TypeTransform func(arg *JSTypeExpression) *JSTypeExpression
 
-// Java: JSDocInfo(long, TreeMap<Property<?>, Object>)
-func newJSDocInfo(bits_ int64, props *jutil.TreeMap[*JSDocInfo_Property, any]) *JSDocInfo {
-	var keys int64 = 0
-	var valsBuf [8]any
-	values := valsBuf[:0]
-	for prop, value := range props.All() {
-		if !prop.IsDefault(value) {
-			keys |= prop.mask
-
-			// Ensure that another codepath did not inadvertently retrieve a
-			// reference to the array or a `null` value.
-			_, isArray := value.([]any)
-			jutil.CheckState(!isArray && !jutil.IsNil(value))
-			values = append(values, value)
-		}
-	}
-	return &JSDocInfo{
-		propertyBits:       bits_,
-		propertyKeysBitset: keys,
-		propertyValues:     JSDocInfo_PackPropertyValues(values),
-	}
-}
-
 func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any) *JSDocInfo {
 	var keys int64 = 0
 	var valsBuf [8]any
@@ -459,24 +450,6 @@ func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any) *JSDocI
 // Java: JSDocInfo.checkBit(Bit)
 func (i *JSDocInfo) CheckBit(bit JSDocInfo_Bit) bool {
 	return (i.propertyBits & bit.Mask()) != 0
-}
-
-func jsdocInfo_NewPropMap() *jutil.TreeMap[*JSDocInfo_Property, any] {
-	return jutil.NewTreeMap[*JSDocInfo_Property, any](func(a, b *JSDocInfo_Property) int { return a.CompareTo(b) })
-}
-
-// Java: JSDocInfo.asMap()
-func (i *JSDocInfo) AsMap() *jutil.TreeMap[*JSDocInfo_Property, any] {
-	m := jsdocInfo_NewPropMap()
-	bits_ := i.propertyKeysBitset
-	index := 0
-	for bits_ > 0 {
-		low := bits.TrailingZeros64(uint64(bits_))
-		bits_ &^= jutil.Shl64(1, int64(low))
-		m.Put(JSDocInfo_Property_values[low], i.GetPropertyValueByIndex(index))
-		index++
-	}
-	return m
 }
 
 // JSDocInfo_Visibility enumerates visibility categories. The ordinal can be
@@ -578,7 +551,7 @@ var (
 	JSDocInfo_EXTENDED_INTERFACES       = newJSDocInfo_Property("extendedInterfaces", jsDocPropKindTypeList)
 	JSDocInfo_IMPLEMENTED_INTERFACES    = newJSDocInfo_Property("extendedInterfaces", jsDocPropKindTypeList)
 	JSDocInfo_PARAMETERS                = newJSDocInfo_Property("parameters", jsDocPropKindTypeMap)
-	JSDocInfo_THROWS_ANNOTATIONS        = newJSDocInfo_Property("throws", jsDocPropKindPlain)
+	JSDocInfo_THROWS_ANNOTATIONS        = newJSDocInfo_Property("throws", jsDocPropKindStringList)
 	JSDocInfo_TEMPLATE_TYPE_NAMES       = newJSDocInfo_Property("templateTypeNames", jsDocPropKindTypeMap)
 	JSDocInfo_TYPE_TRANSFORMATIONS      = newJSDocInfo_Property("typeTransformations", jsDocPropKindNodeMap)
 
@@ -608,11 +581,11 @@ var (
 	JSDocInfo_RETURN_DESCRIPTION           = newJSDocInfo_Property("returnDescription", jsDocPropKindPlain)
 	JSDocInfo_ENHANCED_NAMESPACE           = newJSDocInfo_Property("enhance", jsDocPropKindPlain)
 	JSDocInfo_MODS                         = newJSDocInfo_Property("mods", jsDocPropKindPlain)
-	JSDocInfo_TS_TYPES                     = newJSDocInfo_Property("tsType", jsDocPropKindPlain)
+	JSDocInfo_TS_TYPES                     = newJSDocInfo_Property("tsType", jsDocPropKindStringList)
 	JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE = newJSDocInfo_Property("perFileClosureUnawareMode", jsDocPropKindPlain)
 
-	JSDocInfo_AUTHORS = newJSDocInfo_Property("authors", jsDocPropKindPlain)
-	JSDocInfo_SEES    = newJSDocInfo_Property("sees", jsDocPropKindPlain)
+	JSDocInfo_AUTHORS = newJSDocInfo_Property("authors", jsDocPropKindStringList)
+	JSDocInfo_SEES    = newJSDocInfo_Property("sees", jsDocPropKindStringList)
 )
 
 // JSDocInfo_ComparableSourcePosition is a SourcePosition that can be
@@ -1458,9 +1431,8 @@ func (i *JSDocInfo) GetParameterCount() int {
 //
 // Java: JSDocInfo.getThrowsAnnotations()
 func (i *JSDocInfo) GetThrowsAnnotations() []string {
-	annotations := jsdocGet[*jutil.ArrayList[string]](JSDocInfo_THROWS_ANNOTATIONS.Get(i))
-	if annotations != nil {
-		return annotations.Slice()
+	if annotations := jsdocGet[[]string](JSDocInfo_THROWS_ANNOTATIONS.Get(i)); annotations != nil {
+		return annotations
 	}
 	return []string{}
 }
@@ -1581,9 +1553,8 @@ func (i *JSDocInfo) GetDescription() *string {
 //
 // Java: JSDocInfo.getTsTypes()
 func (i *JSDocInfo) GetTsTypes() []string {
-	types := jsdocGet[*jutil.ArrayList[string]](JSDocInfo_TS_TYPES.Get(i))
-	if types != nil {
-		return types.ToSlice()
+	if types := jsdocGet[[]string](JSDocInfo_TS_TYPES.Get(i)); types != nil {
+		return slices.Clone(types)
 	}
 	return []string{}
 }
@@ -1778,7 +1749,23 @@ func (i *JSDocInfo) ToStringVerbose() string {
 	for bits_ > 0 {
 		low := bits.TrailingZeros64(uint64(bits_))
 		bits_ &^= jutil.Shl64(1, int64(low))
-		helper = helper.Add(JSDocInfo_Property_values[low].name, i.GetPropertyValueByIndex(index))
+		prop := JSDocInfo_Property_values[low]
+		val := i.GetPropertyValueByIndex(index)
+		switch prop.kind {
+		case jsDocPropKindStringList:
+			if s := jsdocGet[[]string](val); s != nil {
+				val = jutil.CollectionToString(s)
+			}
+		case jsDocPropKindMarkerList:
+			if s := jsdocGet[[]*JSDocInfo_Marker](val); s != nil {
+				val = jutil.CollectionToString(s)
+			}
+		case jsDocPropKindTypeList:
+			if s := jsdocGet[[]*JSTypeExpression](val); s != nil {
+				val = jutil.CollectionToString(s)
+			}
+		}
+		helper = helper.Add(prop.name, val)
 		index++
 	}
 
@@ -1807,11 +1794,7 @@ func (i *JSDocInfo) GetImplementedInterfaces() []*JSTypeExpression {
 //
 // Java: JSDocInfo.getImplementedInterfaceCount()
 func (i *JSDocInfo) GetImplementedInterfaceCount() int {
-	list := jsdocGet[*jutil.ArrayList[*JSTypeExpression]](JSDocInfo_IMPLEMENTED_INTERFACES.Get(i))
-	if list != nil {
-		return list.Size()
-	}
-	return 0
+	return len(jsdocGet[[]*JSTypeExpression](JSDocInfo_IMPLEMENTED_INTERFACES.Get(i)))
 }
 
 // GetExtendedInterfaces returns the interfaces extended by an interface: an
@@ -1827,11 +1810,7 @@ func (i *JSDocInfo) GetExtendedInterfaces() []*JSTypeExpression {
 //
 // Java: JSDocInfo.getExtendedInterfacesCount()
 func (i *JSDocInfo) GetExtendedInterfacesCount() int {
-	list := jsdocGet[*jutil.ArrayList[*JSTypeExpression]](JSDocInfo_EXTENDED_INTERFACES.Get(i))
-	if list != nil {
-		return list.Size()
-	}
-	return 0
+	return len(jsdocGet[[]*JSTypeExpression](JSDocInfo_EXTENDED_INTERFACES.Get(i)))
 }
 
 // GetDeprecationReason returns the deprecation reason or null if none
@@ -1984,15 +1963,15 @@ func (i *JSDocInfo) GetDescriptionForParameter(name string) *string {
 // GetAuthors returns the list of authors or null if none.
 //
 // Java: JSDocInfo.getAuthors()
-func (i *JSDocInfo) GetAuthors() *jutil.ArrayList[string] {
-	return jsdocGet[*jutil.ArrayList[string]](JSDocInfo_AUTHORS.Get(i))
+func (i *JSDocInfo) GetAuthors() []string {
+	return jsdocGet[[]string](JSDocInfo_AUTHORS.Get(i))
 }
 
 // GetReferences returns the list of references or null if none.
 //
 // Java: JSDocInfo.getReferences()
-func (i *JSDocInfo) GetReferences() *jutil.ArrayList[string] {
-	return jsdocGet[*jutil.ArrayList[string]](JSDocInfo_SEES.Get(i))
+func (i *JSDocInfo) GetReferences() []string {
+	return jsdocGet[[]string](JSDocInfo_SEES.Get(i))
 }
 
 // GetReturnDescription returns the description of the returned object or
@@ -2058,9 +2037,8 @@ func (i *JSDocInfo) GetMods() *string {
 //
 // Java: JSDocInfo.getMarkers()
 func (i *JSDocInfo) GetMarkers() []*JSDocInfo_Marker {
-	markers := jsdocGet[*jutil.ArrayList[*JSDocInfo_Marker]](JSDocInfo_MARKERS.Get(i))
-	if markers != nil {
-		return markers.Slice()
+	if markers := jsdocGet[[]*JSDocInfo_Marker](JSDocInfo_MARKERS.Get(i)); markers != nil {
+		return markers
 	}
 	return []*JSDocInfo_Marker{}
 }
@@ -2132,7 +2110,7 @@ func (i *JSDocInfo) GetTypeTransformations() *jutil.LinkedHashMap[string, Node] 
 type JSDocTypeExprIterator struct {
 	info     *JSDocInfo
 	typeBits uint64
-	curList  *jutil.ArrayList[*JSTypeExpression]
+	curList  []*JSTypeExpression
 	curMap   *jutil.LinkedHashMap[string, *JSTypeExpression]
 	subIdx   int
 	cur      *JSTypeExpression
@@ -2159,9 +2137,8 @@ func (it *JSDocTypeExprIterator) Node() Node { return it.cur.GetRoot() }
 func (it *JSDocTypeExprIterator) Next() bool {
 	for {
 		if it.curList != nil {
-			n := it.curList.Size()
-			for it.subIdx < n {
-				e := it.curList.Get(it.subIdx)
+			for it.subIdx < len(it.curList) {
+				e := it.curList[it.subIdx]
 				it.subIdx++
 				if e != nil {
 					it.cur = e
@@ -2200,7 +2177,7 @@ func (it *JSDocTypeExprIterator) Next() bool {
 				return true
 			}
 		case jsDocPropKindTypeList:
-			it.curList = jsdocGet[*jutil.ArrayList[*JSTypeExpression]](val)
+			it.curList = jsdocGet[[]*JSTypeExpression](val)
 			it.subIdx = 0
 		case jsDocPropKindTypeMap:
 			it.curMap = jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](val)
@@ -2599,13 +2576,9 @@ func (b *JSDocInfo_Builder) MarkAnnotation(annotation string, lineno int, charno
 // Java: JSDocInfo.Builder.addMarker()
 func (b *JSDocInfo_Builder) AddMarker() *JSDocInfo_Marker {
 	if b.ShouldParseDocumentation() {
-		markers := jsdocGet[*jutil.ArrayList[*JSDocInfo_Marker]](b.GetProp(JSDocInfo_MARKERS))
-		if markers == nil {
-			markers = jutil.NewArrayList[*JSDocInfo_Marker]()
-			b.SetProp(JSDocInfo_MARKERS, markers)
-		}
+		markers := jsdocGet[[]*JSDocInfo_Marker](b.GetProp(JSDocInfo_MARKERS))
 		marker := NewJSDocInfo_Marker()
-		markers.Add(marker)
+		b.SetProp(JSDocInfo_MARKERS, append(markers, marker))
 		return marker
 	}
 	return nil
@@ -2752,7 +2725,10 @@ func (b *JSDocInfo_Builder) RecordTypeTransformation(name string, expr Node) boo
 	return JSDocInfo_Builder_PopulatePropEntry(b, JSDocInfo_TYPE_TRANSFORMATIONS, RhinoStringPool_AddOrGet(name), expr)
 }
 
-func jsdocNewStringList() any { return jutil.NewArrayList[string]() }
+func (b *JSDocInfo_Builder) appendStringProp(prop *JSDocInfo_Property, s string) {
+	list := jsdocGet[[]string](b.GetProp(prop))
+	b.SetProp(prop, append(list, s))
+}
 
 // RecordThrowsAnnotation records a throw annotation description; returns
 // true if the type's description was recorded. The description of a throw
@@ -2769,13 +2745,13 @@ func (b *JSDocInfo_Builder) RecordThrowsAnnotation(annotation string) bool {
 	// @type, the throws annotation is preserved, but if it appears after the
 	// singleton tag, it gets dropped.
 	if !b.HasAnySingletonTypeTags() {
-		throwsAnnotations := jsdocGet[*jutil.ArrayList[string]](b.GetPropWithDefault(JSDocInfo_THROWS_ANNOTATIONS, jsdocNewStringList))
+		throwsAnnotations := jsdocGet[[]string](b.GetProp(JSDocInfo_THROWS_ANNOTATIONS))
 		if b.ShouldParseDocumentation() {
-			throwsAnnotations.Add(annotation)
-		} else if throwsAnnotations.IsEmpty() {
+			b.SetProp(JSDocInfo_THROWS_ANNOTATIONS, append(throwsAnnotations, annotation))
+		} else if len(throwsAnnotations) == 0 {
 			// Add at least one annotation so that PureFunctionIdentifier knows
 			// about the side effect.
-			throwsAnnotations.Add("")
+			b.SetProp(JSDocInfo_THROWS_ANNOTATIONS, append(throwsAnnotations, ""))
 		}
 	}
 	return true
@@ -2787,7 +2763,7 @@ func (b *JSDocInfo_Builder) RecordThrowsAnnotation(annotation string) bool {
 func (b *JSDocInfo_Builder) RecordAuthor(author string) bool {
 	b.populated = true
 	if b.ShouldParseDocumentation() {
-		jsdocGet[*jutil.ArrayList[string]](b.GetPropWithDefault(JSDocInfo_AUTHORS, jsdocNewStringList)).Add(author)
+		b.appendStringProp(JSDocInfo_AUTHORS, author)
 	}
 	// NOTE: this could be removed, since it's always true.
 	return true
@@ -2799,7 +2775,7 @@ func (b *JSDocInfo_Builder) RecordAuthor(author string) bool {
 func (b *JSDocInfo_Builder) RecordReference(reference string) bool {
 	b.populated = true
 	if b.ShouldParseDocumentation() {
-		jsdocGet[*jutil.ArrayList[string]](b.GetPropWithDefault(JSDocInfo_SEES, jsdocNewStringList)).Add(reference)
+		b.appendStringProp(JSDocInfo_SEES, reference)
 	}
 	// NOTE: this could be removed, since it's always true.
 	return true
@@ -3070,7 +3046,7 @@ func (b *JSDocInfo_Builder) RecordDescription(description string) bool {
 // Java: JSDocInfo.Builder.recordTsType(String)
 func (b *JSDocInfo_Builder) RecordTsType(tsType string) {
 	b.populated = true
-	jsdocGet[*jutil.ArrayList[string]](b.GetPropWithDefault(JSDocInfo_TS_TYPES, jsdocNewStringList)).Add(tsType)
+	b.appendStringProp(JSDocInfo_TS_TYPES, tsType)
 }
 
 // RecordMeaning records a meaning giving context for translation (i18n).
@@ -3489,15 +3465,13 @@ func (b *JSDocInfo_Builder) RecordExtendedInterface(interfaceType *JSTypeExpress
 
 // Java: JSDocInfo.Builder.addUnique(Property<ArrayList<JSTypeExpression>>, JSTypeExpression)
 func (b *JSDocInfo_Builder) AddUnique(prop *JSDocInfo_Property, elem *JSTypeExpression) bool {
-	list := jsdocGet[*jutil.ArrayList[*JSTypeExpression]](b.GetPropWithDefault(prop, func() any {
-		return jutil.NewArrayList[*JSTypeExpression]()
-	}))
-	for e := range list.All() {
+	list := jsdocGet[[]*JSTypeExpression](b.GetProp(prop))
+	for _, e := range list {
 		if elem.IsEquivalentTo(e) {
 			return false
 		}
 	}
-	list.Add(elem)
+	b.SetProp(prop, append(list, elem))
 	b.populated = true
 	return true
 }
@@ -3747,8 +3721,7 @@ func (b *JSDocInfo_Builder) HasAnyParameters() bool {
 
 // Java: JSDocInfo.Builder.isPropEmpty(Property<? extends Collection<?>>)
 func (b *JSDocInfo_Builder) IsPropEmpty(prop *JSDocInfo_Property) bool {
-	c := b.GetProp(prop)
-	return c == nil || jsdocGet[jutil.JavaCollection](c).IsEmpty()
+	return prop.IsDefault(b.GetProp(prop))
 }
 
 // HasAnySingletonTypeTags reports whether the current doc info has any of

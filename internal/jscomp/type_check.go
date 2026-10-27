@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"math"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -3649,7 +3648,7 @@ type TypeCheck_DebugTypeLogger struct {
 func NewTypeCheck_DebugTypeLogger(outer *TypeCheck) *TypeCheck_DebugTypeLogger {
 	l := &TypeCheck_DebugTypeLogger{outer: outer}
 	if outer.compiler.IsDebugLoggingEnabled() {
-		l.typeLogFile = outer.compiler.CreateOrReopenLog(reflect.TypeOf(l).Elem(), "types_logged_in_compiler.log")
+		l.typeLogFile = outer.compiler.CreateOrReopenLog("DebugTypeLogger", "types_logged_in_compiler.log")
 	}
 	return l
 }

@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"math"
-	"reflect"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -88,7 +87,7 @@ func (o *OptimizeParameters) AsCallGraphCompilerPass() OptimizeCalls_CallGraphCo
 // Java: OptimizeParameters.process(Node, Node, ReferenceMap)
 func (o *OptimizeParameters) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
 	decisionsLog :=
-		o.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[OptimizeParameters](), "decisions.log")
+		o.compiler.CreateOrReopenIndexedLog("OptimizeParameters", "decisions.log")
 	defer decisionsLog.Close()
 	defer func() {
 		o.decisionsLog = nil

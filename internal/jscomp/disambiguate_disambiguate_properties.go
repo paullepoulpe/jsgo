@@ -21,7 +21,6 @@ package jscomp
 import (
 	"cmp"
 	"fmt"
-	"reflect"
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -76,7 +75,7 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		},
 		d.registry)
 	propagator := NewClusterPropagator()
-	renamingIndexLog := d.compiler.CreateOrReopenLog(reflect.TypeFor[DisambiguateProperties](), "renaming_index.log")
+	renamingIndexLog := d.compiler.CreateOrReopenLog("DisambiguateProperties", "renaming_index.log")
 	defer renamingIndexLog.Close()
 	renamer := NewUseSiteRenamer( /* mutationCb= */ d.compiler.ReportChangeToEnclosingScope)
 	renamer.trackRenamingIndex = renamingIndexLog.IsLogging()
@@ -363,14 +362,14 @@ func (d *DisambiguateProperties) RegisterOwnDeclaredProperties(
 
 // Java: DisambiguateProperties.logForDiagnostics(String, Supplier<Object>)
 func (d *DisambiguateProperties) LogForDiagnostics(name string, data func() any) {
-	log := d.compiler.CreateOrReopenLog(reflect.TypeFor[DisambiguateProperties](), name+".log")
+	log := d.compiler.CreateOrReopenLog("DisambiguateProperties", name+".log")
 	defer log.Close()
 	log.LogJsonSupplier(data)
 }
 
 // Java: DisambiguateProperties.logForDiagnostics(String, LogFile.StreamedJsonProducer)
 func (d *DisambiguateProperties) LogForDiagnosticsProducer(name string, data diagnostic.LogFile_StreamedJsonProducer) {
-	log := d.compiler.CreateOrReopenLog(reflect.TypeFor[DisambiguateProperties](), name+".log")
+	log := d.compiler.CreateOrReopenLog("DisambiguateProperties", name+".log")
 	defer log.Close()
 	log.LogJsonProducer(data)
 }

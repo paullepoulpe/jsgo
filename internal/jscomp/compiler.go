@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"reflect"
 	"runtime"
 	"slices"
 	"strconv"
@@ -238,8 +237,6 @@ type Compiler struct {
 
 	syntheticTypeSummaryInput *CompilerInput // matches syntheticTypeSummaryFile
 
-	indexProvidersByType *jutil.LinkedHashMap[reflect.Type, IndexProvider[any]]
-
 	// Ids for cross-chunk method stubbing, so that each method has a unique id.
 	crossChunkIdGenerator *IdGenerator
 
@@ -425,7 +422,6 @@ func (c *Compiler) initFields() {
 	c.preferRegexParser = false
 	c.SYNTHETIC_EXTERNS_FILE = SourceFile_FromCodeWithKind(compiler_SYNTHETIC_FILE_NAME_PREFIX+"externs] ", "", rhino.StaticSourceFile_SourceKind_EXTERN)
 	c.syntheticTypeSummaryFile = SourceFile_FromCodeWithKind(compiler_SYNTHETIC_FILE_NAME_PREFIX+"typeSummary] ", "", rhino.StaticSourceFile_SourceKind_EXTERN)
-	c.indexProvidersByType = jutil.NewLinkedHashMap[reflect.Type, IndexProvider[any]]()
 	c.crossChunkIdGenerator = NewIdGenerator()
 	c.exportedNames = jutil.NewLinkedHashSet[string]()
 	c.defineNames = jutil.NewLinkedHashSet[string]()
@@ -699,7 +695,7 @@ func (c *Compiler) maybeLogPrunedInputs() {
 
 // Java: Compiler.logToFile(String, Supplier<String>)
 func (c *Compiler) logToFile(logFileName string, logStringSupplier func() string) {
-	log := c.CreateOrReopenLog(reflect.TypeOf(c).Elem(), logFileName)
+	log := c.CreateOrReopenLog("Compiler", logFileName)
 	defer log.Close()
 	log.LogSupplier(logStringSupplier)
 }
@@ -1029,7 +1025,7 @@ func (c *Compiler) InitChunks(externs []*SourceFile, chunks []*JSChunk, options 
 	// Using gvpr(1) is recommended to extract the parts of the graph that are of interest.
 	// `dot -Tpng graph_file.dot > graph_file.png` will render an image.
 	func() {
-		chunkGraphLog := c.CreateOrReopenLog(reflect.TypeOf(c).Elem(), "chunk_graph.dot")
+		chunkGraphLog := c.CreateOrReopenLog("Compiler", "chunk_graph.dot")
 		defer chunkGraphLog.Close()
 		if chunkGraphLog.IsLogging() {
 			chunkGraphLog.LogString(DotFormatter_ToDotOfGraphvizGraph(c.chunkGraph.ToGraphvizGraph()))
@@ -1794,14 +1790,14 @@ func (c *Compiler) GetDebugLogFilterList() []string {
 }
 
 // Java: Compiler.createOrReopenLog(Class<?>, String, String...)
-func (c *Compiler) CreateOrReopenLog(owner reflect.Type, firstNamePart string, restNameParts ...string) diagnostic.LogFile {
+func (c *Compiler) CreateOrReopenLog(owner string, firstNamePart string, restNameParts ...string) diagnostic.LogFile {
 	if !c.IsDebugLoggingEnabled() {
 		return diagnostic.LogFile_CreateNoOp()
 	}
 
 	dir := c.GetOptions().GetDebugLogDirectory()
 	relativeParts := jutil.Path_Of(firstNamePart, restNameParts...)
-	file := dir.ResolveString(owner.Name()).Resolve(relativeParts)
+	file := dir.ResolveString(owner).Resolve(relativeParts)
 
 	// If a filter list for log file names was provided, only create a log file if any
 	// of the filter strings matches.
@@ -1819,7 +1815,7 @@ func (c *Compiler) CreateOrReopenLog(owner reflect.Type, firstNamePart string, r
 }
 
 // Java: Compiler.createOrReopenIndexedLog(Class<?>, String, String...)
-func (c *Compiler) CreateOrReopenIndexedLog(owner reflect.Type, firstNamePart string, restNameParts ...string) diagnostic.LogFile {
+func (c *Compiler) CreateOrReopenIndexedLog(owner string, firstNamePart string, restNameParts ...string) diagnostic.LogFile {
 	jutil.CheckStateMsg1(c.currentPassIndex >= 0, "%s", c.currentPassIndex)
 
 	index := strconv.Itoa(c.currentPassIndex)
@@ -1849,7 +1845,7 @@ func (c *Compiler) maybePrintSourceAfterEachPass(passName string) {
 
 	if c.IsDebugLoggingEnabled() {
 		func() {
-			log := c.CreateOrReopenIndexedLog(reflect.TypeOf(c).Elem(), "source_after_pass", passName)
+			log := c.CreateOrReopenIndexedLog("Compiler", "source_after_pass", passName)
 			defer log.Close()
 			log.LogString(currentJsSource)
 		}()
@@ -4204,24 +4200,6 @@ var compiler_SYNTHETIC_CODE_INPUT_ID = rhino.NewInputId(compiler_SYNTHETIC_FILE_
 // Java: Compiler.getChangeTracker()
 func (c *Compiler) GetChangeTracker() *ChangeTracker {
 	return c.changeTracker
-}
-
-// Java: Compiler.addIndexProvider(IndexProvider<?>)
-func (c *Compiler) AddIndexProvider(indexProvider IndexProvider[any]) {
-	type_ := indexProvider.GetType()
-	if c.indexProvidersByType.Put(type_, indexProvider) != nil {
-		panic(jutil.NewIllegalStateExceptionMsg(
-			"A provider is already registered for index of type " + type_.Name()))
-	}
-}
-
-// Java: Compiler.getIndex(Class<T>)
-func (c *Compiler) GetIndex(key reflect.Type) any {
-	indexProvider := c.indexProvidersByType.Get(key)
-	if indexProvider == nil {
-		return nil
-	}
-	return indexProvider.Get()
 }
 
 // Java: Compiler.getExternsRoot()

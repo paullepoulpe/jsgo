@@ -237,21 +237,15 @@ func (g *SourceMapGeneratorV3) Validate(validate bool) {
 //
 // Java: SourceMapGeneratorV3.setWrapperPrefix(String)
 func (g *SourceMapGeneratorV3) SetWrapperPrefix(prefix string) {
-	// Determine the current line and character position.
+	// Determine the current line and character position (in UTF-16 code units).
 	prefixLine := 0
-	prefixIndex := 0
-
-	// Go-only: language-adapter — iterate the Java chars (UTF-16 code units).
-	units := jutil.StringToUTF16(prefix)
-	for i := 0; i < len(units); i++ {
-		if units[i] == '\n' {
-			prefixLine++
-			prefixIndex = 0
-		} else {
-			prefixIndex++
-		}
+	var prefixIndex int
+	if lastNL := strings.LastIndexByte(prefix, '\n'); lastNL >= 0 {
+		prefixLine = strings.Count(prefix[:lastNL+1], "\n")
+		prefixIndex = jutil.StringLength(prefix[lastNL+1:])
+	} else {
+		prefixIndex = jutil.StringLength(prefix)
 	}
-
 	g.prefixPosition = MakeFilePosition(prefixLine, prefixIndex)
 }
 
@@ -339,85 +333,17 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 		}
 	}
 
-	var sourceFileIdx int32
-	if g.hasLastAddedSourceFile && g.lastAddedSourceFile == sourceName {
-		sourceFileIdx = g.lastAddedSourceFileIdx
-	} else {
-		if len(g.addedSourceFiles) < 16 {
-			found := false
-			for i, s := range g.addedSourceFiles {
-				if s == sourceName {
-					sourceFileIdx = int32(i)
-					found = true
-					break
-				}
-			}
-			if !found {
-				sourceFileIdx = int32(len(g.addedSourceFiles))
-				g.addedSourceFiles = append(g.addedSourceFiles, sourceName)
-			}
-		} else {
-			if len(g.addedSourceFileIndex) == 0 {
-				if g.addedSourceFileIndex == nil {
-					g.addedSourceFileIndex = make(map[string]int32, 256)
-				}
-				for i, s := range g.addedSourceFiles {
-					g.addedSourceFileIndex[s] = int32(i)
-				}
-			}
-			if idx, ok := g.addedSourceFileIndex[sourceName]; ok {
-				sourceFileIdx = idx
-			} else {
-				sourceFileIdx = int32(len(g.addedSourceFiles))
-				g.addedSourceFiles = append(g.addedSourceFiles, sourceName)
-				g.addedSourceFileIndex[sourceName] = sourceFileIdx
-			}
-		}
-		g.lastAddedSourceFile = sourceName
-		g.lastAddedSourceFileIdx = sourceFileIdx
-		g.hasLastAddedSourceFile = true
-	}
+	sourceFileIdx := internSourceMapString(
+		&g.addedSourceFiles, &g.addedSourceFileIndex,
+		&g.lastAddedSourceFile, &g.hasLastAddedSourceFile, &g.lastAddedSourceFileIdx,
+		sourceName)
 
 	originalNameIdx := int32(-1)
 	if symbolName != nil {
-		name := *symbolName
-		if g.hasLastAddedSymbolName && g.lastAddedSymbolName == name {
-			originalNameIdx = g.lastAddedSymbolNameIdx
-		} else {
-			if len(g.addedSymbolNames) < 16 {
-				found := false
-				for i, s := range g.addedSymbolNames {
-					if s == name {
-						originalNameIdx = int32(i)
-						found = true
-						break
-					}
-				}
-				if !found {
-					originalNameIdx = int32(len(g.addedSymbolNames))
-					g.addedSymbolNames = append(g.addedSymbolNames, name)
-				}
-			} else {
-				if len(g.addedSymbolIndex) == 0 {
-					if g.addedSymbolIndex == nil {
-						g.addedSymbolIndex = make(map[string]int32, 256)
-					}
-					for i, s := range g.addedSymbolNames {
-						g.addedSymbolIndex[s] = int32(i)
-					}
-				}
-				if idx, ok := g.addedSymbolIndex[name]; ok {
-					originalNameIdx = idx
-				} else {
-					originalNameIdx = int32(len(g.addedSymbolNames))
-					g.addedSymbolNames = append(g.addedSymbolNames, name)
-					g.addedSymbolIndex[name] = originalNameIdx
-				}
-			}
-			g.lastAddedSymbolName = name
-			g.lastAddedSymbolNameIdx = originalNameIdx
-			g.hasLastAddedSymbolName = true
-		}
+		originalNameIdx = internSourceMapString(
+			&g.addedSymbolNames, &g.addedSymbolIndex,
+			&g.lastAddedSymbolName, &g.hasLastAddedSymbolName, &g.lastAddedSymbolNameIdx,
+			*symbolName)
 	}
 
 	// Create the new mapping.
@@ -432,6 +358,54 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 		endCol:          int32(adjustedEnd.GetColumn()),
 	}
 	g.mappings.add(&mapping)
+}
+
+func internSourceMapString(
+	items *[]string,
+	index *map[string]int32,
+	last *string,
+	hasLast *bool,
+	lastIdx *int32,
+	s string,
+) int32 {
+	if *hasLast && *last == s {
+		return *lastIdx
+	}
+	var idx int32
+	if len(*items) < 16 {
+		found := false
+		for i, item := range *items {
+			if item == s {
+				idx = int32(i)
+				found = true
+				break
+			}
+		}
+		if !found {
+			idx = int32(len(*items))
+			*items = append(*items, s)
+		}
+	} else {
+		if len(*index) == 0 {
+			if *index == nil {
+				*index = make(map[string]int32, 256)
+			}
+			for i, item := range *items {
+				(*index)[item] = int32(i)
+			}
+		}
+		if existing, ok := (*index)[s]; ok {
+			idx = existing
+		} else {
+			idx = int32(len(*items))
+			*items = append(*items, s)
+			(*index)[s] = idx
+		}
+	}
+	*last = s
+	*lastIdx = idx
+	*hasLast = true
+	return idx
 }
 
 // Java: SourceMapGeneratorV3.addSourcesContent(String, String)

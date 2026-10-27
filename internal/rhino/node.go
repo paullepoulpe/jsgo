@@ -295,10 +295,10 @@ var Node_propValues = Node_Prop_values()
 //
 // Java: Node.getNonJSDocCommentString()
 func (n Node) GetNonJSDocCommentString() string {
-	if n.GetProp(Node_Prop_NON_JSDOC_COMMENT) == nil {
-		return ""
+	if c := n.GetNonJSDocComment(); c != nil {
+		return c.GetCommentString()
 	}
-	return node_cast[*NonJSDocComment](n.GetProp(Node_Prop_NON_JSDOC_COMMENT)).GetCommentString()
+	return ""
 }
 
 // Java: Node.getNonJSDocComment()
@@ -308,10 +308,10 @@ func (n Node) GetNonJSDocComment() *NonJSDocComment {
 
 // Java: Node.getTrailingNonJSDocCommentString()
 func (n Node) GetTrailingNonJSDocCommentString() string {
-	if n.GetProp(Node_Prop_TRAILING_NON_JSDOC_COMMENT) == nil {
-		return ""
+	if c := n.GetTrailingNonJSDocComment(); c != nil {
+		return c.GetCommentString()
 	}
-	return node_cast[*NonJSDocComment](n.GetProp(Node_Prop_TRAILING_NON_JSDOC_COMMENT)).GetCommentString()
+	return ""
 }
 
 // Java: Node.getTrailingNonJSDocComment()
@@ -3035,15 +3035,9 @@ func (n Node) ToStringTree() string {
 
 // Java: Node.toStringTreeImpl()
 func (n Node) ToStringTreeImpl() string {
-	var result string
-	jutil.Try(func() {
-		var s strings.Builder
-		n.AppendStringTree(&s)
-		result = s.String()
-	}, func(e jutil.IIOException) {
-		panic(jutil.NewIllegalStateExceptionMsg("Should not happen\n" + e.Error()))
-	})
-	return result
+	var s strings.Builder
+	n.AppendStringTree(&s)
+	return s.String()
 }
 
 // Java: Node.appendStringTree(Appendable)

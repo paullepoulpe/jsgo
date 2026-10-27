@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
-
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -76,7 +74,7 @@ func (o *OptimizeReturns) AsCallGraphCompilerPass() OptimizeCalls_CallGraphCompi
 
 // Java: OptimizeReturns.process(Node, Node, ReferenceMap)
 func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, definitions *OptimizeCalls_ReferenceMap) {
-	logFile := o.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[OptimizeReturns](), "decisions.log")
+	logFile := o.compiler.CreateOrReopenIndexedLog("OptimizeReturns", "decisions.log")
 	defer logFile.Close()
 	defer func() {
 		o.decisionsLog = nil

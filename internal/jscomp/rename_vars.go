@@ -523,7 +523,7 @@ func (r *RenameVars) RecordPseudoName(n rhino.Node) {
 }
 
 func (r *RenameVars) reusePreviouslyUsedVariableMapSlice(varsToRename []*RenameVars_Assignment) {
-	jutil.CheckNotNull(r.prevUsedRenameMap.GetNewNameToOriginalNameMap())
+	jutil.CheckNotNullPtr(r.prevUsedRenameMap)
 	for _, a := range varsToRename {
 		prevNewName := r.prevUsedRenameMap.LookupNewName(a.oldName)
 		if prevNewName == nil || r.reservedNames.Contains(*prevNewName) {

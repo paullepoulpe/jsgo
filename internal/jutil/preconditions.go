@@ -102,6 +102,10 @@ func IsNil(v any) bool {
 	if v == nil {
 		return true
 	}
+	switch v.(type) {
+	case string, int, int32, int64, uint16, float64, float32, bool:
+		return false
+	}
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice, reflect.UnsafePointer:
@@ -117,6 +121,14 @@ func IsNil(v any) bool {
 //go:noinline
 func failNull() {
 	panic(&NullPointerException{RuntimeException{ThrowableBase{className: "java.lang.NullPointerException"}}})
+}
+
+// CheckNotNullPtr is Preconditions.checkNotNull(T) for a typed pointer without reflection.
+func CheckNotNullPtr[T any](p *T) *T {
+	if p == nil {
+		failNull()
+	}
+	return p
 }
 
 // CheckNotNull is Preconditions.checkNotNull(T).

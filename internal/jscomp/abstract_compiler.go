@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -47,8 +46,8 @@ import (
 //
 // Go-only: language-adapter — Java Iterable/List/ImmutableList results are
 // []T; Set/ImmutableSet values are *jutil.LinkedHashSet[T] (insertion
-// order); java.util.function.Supplier<T> is func() T; Class<?> is
-// reflect.Type; a Java null String result is a nil *string.
+// order); java.util.function.Supplier<T> is func() T; a Java null String
+// result is a nil *string.
 type AbstractCompiler interface {
 	SourceExcerptProvider
 	CompilerInputProvider
@@ -425,23 +424,6 @@ type AbstractCompiler interface {
 	// Java: AbstractCompiler.getChangeTracker()
 	GetChangeTracker() *ChangeTracker
 
-	// AddIndexProvider registers a provider for some type of index.
-	//
-	// Go-only: language-adapter — IndexProvider<?> is IndexProvider[any]:
-	// a Go interface method cannot take a type parameter.
-	//
-	// Java: AbstractCompiler.addIndexProvider(IndexProvider<?>)
-	AddIndexProvider(indexProvider IndexProvider[any])
-
-	// GetIndex returns, from a provider, the desired index of type T,
-	// otherwise nil if no provider is registered for the given type.
-	//
-	// Go-only: language-adapter — <T> T getIndex(Class<T>) takes the
-	// reflect.Type and returns the index as any.
-	//
-	// Java: AbstractCompiler.getIndex(Class<T>)
-	GetIndex(type_ reflect.Type) any
-
 	// GetJsRoot returns the root of the source tree, ignoring externs
 	//
 	// Java: AbstractCompiler.getJsRoot()
@@ -698,20 +680,20 @@ type AbstractCompiler interface {
 	GetDebugLogFilterList() []string
 
 	// CreateOrReopenLog provides logging access to a file with the specified
-	// name.
+	// name under the owner pass's subdirectory.
 	//
 	// Java: AbstractCompiler.createOrReopenLog(Class<?>, String, String...)
-	CreateOrReopenLog(owner reflect.Type, firstNamePart string, restNameParts ...string) diagnostic.LogFile
+	CreateOrReopenLog(owner string, firstNamePart string, restNameParts ...string) diagnostic.LogFile
 
 	// CreateOrReopenIndexedLog provides logging access to a file with the
 	// specified name, differentiated by the index of the current pass.
 	//
 	// Indexing helps in separating logs from different pass loops. The
 	// filename pattern is
-	// "[debug_log_directory]/[owner_name]/([name_part[i]]/){0,n-1}[pass_index]_[name_part[n]]".
+	// "[debug_log_directory]/[owner]/([name_part[i]]/){0,n-1}[pass_index]_[name_part[n]]".
 	//
 	// Java: AbstractCompiler.createOrReopenIndexedLog(Class<?>, String, String...)
-	CreateOrReopenIndexedLog(owner reflect.Type, firstNamePart string, restNameParts ...string) diagnostic.LogFile
+	CreateOrReopenIndexedLog(owner string, firstNamePart string, restNameParts ...string) diagnostic.LogFile
 
 	// GetSyntheticCodeInputId returns the InputId of the synthetic code
 	// input (even if it is not initialized yet).

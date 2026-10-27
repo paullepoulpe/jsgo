@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
@@ -124,7 +123,7 @@ func NewCrossChunkCodeMotion(
 
 // Java: CrossChunkCodeMotion.process(Node, Node)
 func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
-	logFile := c.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[CrossChunkCodeMotion](), "cccm.log")
+	logFile := c.compiler.CreateOrReopenIndexedLog("CrossChunkCodeMotion", "cccm.log")
 	defer logFile.Close()
 	defer func() {
 		c.cccmLog = nil

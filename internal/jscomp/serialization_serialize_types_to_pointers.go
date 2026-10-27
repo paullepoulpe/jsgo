@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -186,7 +185,7 @@ func (s *SerializeTypesToPointers) logSerializationDebugInfo(serializer *JSTypeR
 	// Log information about how the JSTypes correspond to the colors. This may be useful later on
 	// in optimizations.
 	func() {
-		log := s.compiler.CreateOrReopenLog(reflect.TypeFor[SerializeTypesToPointers](), "object_uuids.log")
+		log := s.compiler.CreateOrReopenLog("SerializeTypesToPointers", "object_uuids.log")
 		defer log.Close()
 		if log.IsLogging() {
 			allSerializedTypes :=
@@ -199,7 +198,7 @@ func (s *SerializeTypesToPointers) logSerializationDebugInfo(serializer *JSTypeR
 
 	// Log type mismatches, which contribute to the definition of an "invalidating" type
 	func() {
-		log := s.compiler.CreateOrReopenLog(reflect.TypeFor[SerializeTypesToPointers](), "mismatches.log")
+		log := s.compiler.CreateOrReopenLog("SerializeTypesToPointers", "mismatches.log")
 		defer log.Close()
 		log.LogSupplier(
 			func() string {

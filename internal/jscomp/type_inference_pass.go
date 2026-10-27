@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
 	"slices"
 	"sort"
 
@@ -136,7 +135,7 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot rhino.Node) *TypedScope
 
 	if p.stepCountHistogram != nil {
 		func() {
-			histogram := p.compiler.CreateOrReopenLog(reflect.TypeOf(p).Elem(), "step_histogram.log")
+			histogram := p.compiler.CreateOrReopenLog("TypeInferencePass", "step_histogram.log")
 			defer histogram.Close()
 			histogram.LogString("step_count token population")
 

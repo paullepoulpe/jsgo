@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
 	"slices"
 	"strings"
 
@@ -390,10 +389,10 @@ func (r *RemoveUnusedCode) Process(externs rhino.Node, root rhino.Node) {
 	}()
 
 	removalLogFile :=
-		r.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[RemoveUnusedCode](), "removals.log")
+		r.compiler.CreateOrReopenIndexedLog("RemoveUnusedCode", "removals.log")
 	defer removalLogFile.Close()
 	keepLogFile :=
-		r.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[RemoveUnusedCode](), "unremovable.log")
+		r.compiler.CreateOrReopenIndexedLog("RemoveUnusedCode", "unremovable.log")
 	defer keepLogFile.Close()
 	defer func() {
 		r.removalLog = nil

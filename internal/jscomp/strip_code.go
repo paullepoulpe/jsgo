@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
@@ -149,7 +148,7 @@ func NewStripCode(
 // Java: StripCode.process(Node, Node)
 func (s *StripCode) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(s.compiler.GetLifeCycleStage().IsNormalized())
-	decisionsLog := s.compiler.CreateOrReopenIndexedLog(reflect.TypeFor[StripCode](), "decisions.log")
+	decisionsLog := s.compiler.CreateOrReopenIndexedLog("StripCode", "decisions.log")
 	defer decisionsLog.Close()
 	decisionsLog.LogSupplier(NewStripCode_StripCodeConfigRecord(s).Get)
 	decisionsLog.LogString("\n=== decisions ===\n")

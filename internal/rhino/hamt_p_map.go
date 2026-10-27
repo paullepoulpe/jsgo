@@ -39,6 +39,7 @@ import (
 	"math/bits"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -111,7 +112,7 @@ func hamtIsNull[V any](v V) bool { return jutil.IsNil(any(v)) }
 // Go-only: language-adapter — Java has one EMPTY instance cast to every
 // <K, V>; Go generics need one per instantiation (identity is observable:
 // minus() compares against EMPTY and empty() is always the same object).
-var hamtPMap_EMPTY = map[reflect.Type]any{}
+var hamtPMap_EMPTY sync.Map
 
 const debugHamtPMap = false
 
@@ -260,15 +261,6 @@ func allocHamtPMapNullKey[K any, V any](a *HamtPMapArena[K, V], value V, mask in
 	return allocHamtPMap(a, key, true, 0, value, mask, children)
 }
 
-// Java: HamtPMap(K, int, V, int, HamtPMap<K, V>[])
-func newHamtPMap[K any, V any](key K, keyIsNull bool, hash int32, value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
-	return allocHamtPMap(nil, key, keyIsNull, hash, value, mask, children)
-}
-
-func newHamtPMapNullKey[K any, V any](value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
-	return allocHamtPMapNullKey(nil, value, mask, children)
-}
-
 // Java: HamtPMap.checkInvariants()
 func (m *HamtPMap[K, V]) CheckInvariants() {
 	jutil.CheckState(bits.OnesCount32(uint32(m.mask)) == len(m.children))
@@ -282,13 +274,13 @@ func (m *HamtPMap[K, V]) CheckInvariants() {
 // Java: HamtPMap.empty()
 func HamtPMap_Empty[K any, V any]() *HamtPMap[K, V] {
 	t := reflect.TypeFor[HamtPMap[K, V]]()
-	if e, ok := hamtPMap_EMPTY[t]; ok {
+	if e, ok := hamtPMap_EMPTY.Load(t); ok {
 		return e.(*HamtPMap[K, V])
 	}
 	var nullValue V
-	e := newHamtPMapNullKey[K, V](nullValue, 0, HamtPMap_EmptyChildren[K, V]())
-	hamtPMap_EMPTY[t] = e
-	return e
+	e := allocHamtPMapNullKey[K, V](nil, nullValue, 0, HamtPMap_EmptyChildren[K, V]())
+	actual, _ := hamtPMap_EMPTY.LoadOrStore(t, e)
+	return actual.(*HamtPMap[K, V])
 }
 
 // HamtPMap_EmptyChildren returns an empty array of child maps.
@@ -433,13 +425,9 @@ func (m *HamtPMap[K, V]) PlusMapWithArena(arena *HamtPMapArena[K, V], key K, val
 	return allocHamtPMap(arena, key, false, HamtPMap_Hash(key), value, 0, HamtPMap_EmptyChildren[K, V]())
 }
 
-// PlusWithHash is the internal recursive implementation of plus(K, V).
+// plusWithHash is the internal recursive implementation of plus(K, V).
 //
 // Java: HamtPMap.plus(K, int, V)
-func (m *HamtPMap[K, V]) PlusWithHash(key K, hash int32, value V) *HamtPMap[K, V] {
-	return m.plusWithHash(nil, key, hash, value)
-}
-
 func (m *HamtPMap[K, V]) plusWithHash(arena *HamtPMapArena[K, V], key K, hash int32, value V) *HamtPMap[K, V] {
 	if hash == m.hash && m.keyEquals(key) {
 		if hamtEquals(value, m.value) {
@@ -470,10 +458,6 @@ func (m *HamtPMap[K, V]) plusWithHash(arena *HamtPMapArena[K, V], key K, hash in
 }
 
 // Java: HamtPMap.replaceRoot(K, int, V)
-func (m *HamtPMap[K, V]) ReplaceRoot(key K, hash int32, value V) *HamtPMap[K, V] {
-	return m.replaceRoot(nil, key, hash, value)
-}
-
 func (m *HamtPMap[K, V]) replaceRoot(arena *HamtPMapArena[K, V], key K, hash int32, value V) *HamtPMap[K, V] {
 	bucket := HamtPMap_Bucket(m.hash)
 	leafHash := HamtPMap_Shift(m.hash)
@@ -516,19 +500,11 @@ func (m *HamtPMap[K, V]) MinusMapWithArena(arena *HamtPMapArena[K, V], key K) *H
 	return m
 }
 
-// MinusWithHash is the internal recursive implementation of minus(K). The
+// minusWithHash is the internal recursive implementation of minus(K). The
 // value of the removed node is returned via the 'value' array, if it is
 // non-null.
 //
 // Java: HamtPMap.minus(K, int, V[])
-func (m *HamtPMap[K, V]) MinusWithHash(key K, hash int32, value []V) *HamtPMap[K, V] {
-	res := m.minusWithHash(nil, key, hash, value)
-	if res != nil {
-		return res
-	}
-	return HamtPMap_Empty[K, V]()
-}
-
 func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash int32, value []V) *HamtPMap[K, V] {
 	if hash == m.hash && m.keyEquals(key) {
 		result := deleteRoot(arena, m.mask, m.children)
@@ -592,14 +568,10 @@ func (m *HamtPMap[K, V]) ReconcileMapWithArena(arena *HamtPMapArena[K, V], that 
 	return HamtPMap_Empty[K, V]()
 }
 
-// HamtPMap_ReconcileTrees is the internal recursive implementation of
+// hamtPMap_ReconcileTrees is the internal recursive implementation of
 // reconcile(HamtPMap, BiFunction), factoring out empies.
 //
 // Java: HamtPMap.reconcile(HamtPMap<K, V>, HamtPMap<K, V>, Reconciler<K, V>)
-func HamtPMap_ReconcileTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner PMap_Reconciler[K, V]) *HamtPMap[K, V] {
-	return hamtPMap_ReconcileTrees(nil, t1, t2, joiner, false)
-}
-
 func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner PMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
 	var null V
 	if t1 == t2 {
@@ -730,7 +702,7 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 			} else if child1 == nil {
 				v := joiner(t2.key, null, t2.value)
 				if checkNotNull {
-					jutil.CheckNotNull(v)
+					hamtCheckNotNull(v)
 				}
 				if checkNotNull || !hamtIsNull(v) {
 					reconciled = allocHamtPMap(arena, t2.key, t2.keyIsNull, HamtPMap_Shift(t2.hash), v, 0, HamtPMap_EmptyChildren[K, V]())
@@ -746,7 +718,7 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 			} else if child2 == nil {
 				v := joiner(t1.key, t1.value, null)
 				if checkNotNull {
-					jutil.CheckNotNull(v)
+					hamtCheckNotNull(v)
 				}
 				if checkNotNull || !hamtIsNull(v) {
 					reconciled = allocHamtPMap(arena, t1.key, t1.keyIsNull, HamtPMap_Shift(t1.hash), v, 0, HamtPMap_EmptyChildren[K, V]())
@@ -961,7 +933,7 @@ func (m *HamtPMap[K, V]) pivot(arena *HamtPMapArena[K, V], key K, hash int32) *H
 	return m.pivotWithParent(arena, key, hash, nil, result[:])
 }
 
-// PivotWithParent is the internal recursive version of pivot.
+// pivotWithParent is the internal recursive version of pivot.
 //
 // result is an array of size 1. The value, if found, is stored in the
 // 'result' array, as a secondary return value. Otherwise the result array is
@@ -970,10 +942,6 @@ func (m *HamtPMap[K, V]) pivot(arena *HamtPMapArena[K, V], key K, hash int32) *H
 // a map rooted at 'parent.key'.
 //
 // Java: HamtPMap.pivot(K, int, HamtPMap<K, V>, V[])
-func (m *HamtPMap[K, V]) PivotWithParent(key K, hash int32, parent *HamtPMap[K, V], result []V) *HamtPMap[K, V] {
-	return m.pivotWithParent(nil, key, hash, parent, result)
-}
-
 func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash int32, parent *HamtPMap[K, V], result []V) *HamtPMap[K, V] {
 	newMask := m.mask
 	newChildren := m.children
@@ -1030,34 +998,10 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 	return allocHamtPMap(arena, key, false, hash, result[0], newMask, newChildren)
 }
 
-// VacateRoot moves the root into the appropriate child.
-//
-// Java: HamtPMap.vacateRoot()
-func (m *HamtPMap[K, V]) VacateRoot() *HamtPMap[K, V] {
-	return m.vacateRoot(nil)
-}
-
-func (m *HamtPMap[K, V]) vacateRoot(arena *HamtPMapArena[K, V]) *HamtPMap[K, V] {
-	var null V
-	bucket := HamtPMap_Bucket(m.hash)
-	bucketMask := jutil.Shl32(1, int64(bucket))
-	index := m.Index(bucketMask)
-	if (m.mask & bucketMask) != 0 {
-		newChild := m.children[index].plusWithHash(arena, m.key, HamtPMap_Shift(m.hash), m.value)
-		return allocHamtPMapNullKey(arena, null, m.mask, replaceChild(arena, m.children, index, newChild))
-	}
-	newChild := allocHamtPMap(arena, m.key, m.keyIsNull, HamtPMap_Shift(m.hash), m.value, 0, HamtPMap_EmptyChildren[K, V]())
-	return allocHamtPMapNullKey(arena, null, m.mask|bucketMask, insertChild(arena, m.children, index, newChild))
-}
-
-// WithChildren returns a copy of this node with a different array of
+// withChildren returns a copy of this node with a different array of
 // children.
 //
 // Java: HamtPMap.withChildren(int, HamtPMap<K, V>[])
-func (m *HamtPMap[K, V]) WithChildren(mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
-	return m.withChildren(nil, mask, children)
-}
-
 func (m *HamtPMap[K, V]) withChildren(arena *HamtPMapArena[K, V], mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	if mask == m.mask && hamtSameArray(children, m.children) {
 		return m
@@ -1070,15 +1014,11 @@ func hamtSameArray[T any](a, b []T) bool {
 	return len(a) == len(b) && (len(a) == 0 && cap(a) == cap(b) || len(a) > 0 && &a[0] == &b[0])
 }
 
-// HamtPMap_DeleteRoot returns a new map with the elements from children. One
+// deleteRoot returns a new map with the elements from children. One
 // element is removed from one of the children and promoted to a root node.
 // If there are no children, returns null.
 //
 // Java: HamtPMap.deleteRoot(int, HamtPMap<K, V>[])
-func HamtPMap_DeleteRoot[K any, V any](mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
-	return deleteRoot(nil, mask, children)
-}
-
 func deleteRoot[K any, V any](arena *HamtPMapArena[K, V], mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	if mask == 0 {
 		return nil
@@ -1094,14 +1034,10 @@ func deleteRoot[K any, V any](arena *HamtPMapArena[K, V], mask int32, children [
 	return allocHamtPMap(arena, child.key, child.keyIsNull, newHash, child.value, mask, replaceChild(arena, children, 0, newChild))
 }
 
-// HamtPMap_InsertChild returns a new array of children with an additional
+// insertChild returns a new array of children with an additional
 // child inserted at the given index.
 //
 // Java: HamtPMap.insertChild(HamtPMap<K, V>[], int, HamtPMap<K, V>)
-func HamtPMap_InsertChild[K any, V any](children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
-	return insertChild(nil, children, index, child)
-}
-
 func insertChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
 	newChildren := allocHamtChildren(arena, len(children)+1)
 	newChildren[index] = child
@@ -1110,14 +1046,10 @@ func insertChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[
 	return newChildren
 }
 
-// HamtPMap_ReplaceChild returns a new array of children with the child at
+// replaceChild returns a new array of children with the child at
 // the given index replaced.
 //
 // Java: HamtPMap.replaceChild(HamtPMap<K, V>[], int, HamtPMap<K, V>)
-func HamtPMap_ReplaceChild[K any, V any](children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
-	return replaceChild(nil, children, index, child)
-}
-
 func replaceChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
 	newChildren := allocHamtChildren(arena, len(children))
 	copy(newChildren, children)
@@ -1125,14 +1057,10 @@ func replaceChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap
 	return newChildren
 }
 
-// HamtPMap_DeleteChild returns a new array of children with the child at the
+// deleteChild returns a new array of children with the child at the
 // given index deleted.
 //
 // Java: HamtPMap.deleteChild(HamtPMap<K, V>[], int)
-func HamtPMap_DeleteChild[K any, V any](children []*HamtPMap[K, V], index int) []*HamtPMap[K, V] {
-	return deleteChild(nil, children, index)
-}
-
 func deleteChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int) []*HamtPMap[K, V] {
 	if len(children) == 1 {
 		// Note: index should always be zero.

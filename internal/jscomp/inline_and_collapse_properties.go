@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -179,7 +178,7 @@ func (p *InlineAndCollapseProperties) Process(externs rhino.Node, root rhino.Nod
 			p.namespace = nil
 		}
 	}()
-	logFile := p.compiler.CreateOrReopenIndexedLog(reflect.TypeOf(p).Elem(), "decisions.log")
+	logFile := p.compiler.CreateOrReopenIndexedLog("InlineAndCollapseProperties", "decisions.log")
 	defer logFile.Close()
 	// NOTE: decisionsLog will be a do-nothing proxy object unless the compiler
 	// was given an option telling it to generate log files and where to put them.

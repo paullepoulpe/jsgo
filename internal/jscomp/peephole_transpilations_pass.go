@@ -74,7 +74,7 @@ func PeepholeTranspilationsPass_Create(
 				ContainsAtLeastOneOf(transpilation.GetTranspiledAwayFeatures()),
 			"Transpilation pass %s has getAdditionalFeaturesToRunOn() that contains features that it"+
 				" transpiles away.",
-			peepholeTranspilationsPass_simpleName(transpilation))
+			peepholeTranspilationsPass_simpleName{transpilation})
 		featureSetToRunOn = featureSetToRunOn.WithFeatureSet(transpilation.GetTranspiledAwayFeatures())
 		// some passes need to run on additional features beyond those they transpile away.
 		featureSetToRunOn = featureSetToRunOn.WithFeatureSet(transpilation.GetAdditionalFeaturesToRunOn())
@@ -85,12 +85,17 @@ func PeepholeTranspilationsPass_Create(
 		compiler, transpilations, featureSetToRunOn, featureSetToMarkAsTranspiledAway)
 }
 
-// peepholeTranspilationsPass_simpleName is transpilation.getClass().getSimpleName().
+// peepholeTranspilationsPass_simpleName formats transpilation.getClass().getSimpleName()
+// lazily on failure.
 //
 // Go-only: language-adapter — the Go struct of each transpilation is named
 // after its Java class.
-func peepholeTranspilationsPass_simpleName(transpilation AbstractPeepholeTranspilation) string {
-	t := reflect.TypeOf(transpilation)
+type peepholeTranspilationsPass_simpleName struct {
+	transpilation AbstractPeepholeTranspilation
+}
+
+func (n peepholeTranspilationsPass_simpleName) String() string {
+	t := reflect.TypeOf(n.transpilation)
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}

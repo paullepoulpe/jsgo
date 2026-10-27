@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -151,7 +150,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	colorGraph := graphBuilder.Build()
 	graphBuilder = nil
 	func() {
-		chunkGraphLog := a.compiler.CreateOrReopenLog(reflect.TypeFor[AmbiguateProperties](), "color_graph.dot")
+		chunkGraphLog := a.compiler.CreateOrReopenLog("AmbiguateProperties", "color_graph.dot")
 		defer chunkGraphLog.Close()
 		if chunkGraphLog.IsLogging() {
 			chunkGraphLog.LogString(DotFormatter_ToDotOfGraphvizGraph(colorGraph))

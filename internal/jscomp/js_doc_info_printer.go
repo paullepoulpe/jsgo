@@ -82,7 +82,7 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 
 	if info.GetAuthors() != nil {
 		multiline = true
-		for name := range info.GetAuthors().All() {
+		for _, name := range info.GetAuthors() {
 			parts = append(parts, "@author "+name)
 		}
 	}
@@ -111,7 +111,7 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 
 	if info.GetReferences() != nil {
 		multiline = true
-		for desc := range info.GetReferences().All() {
+		for _, desc := range info.GetReferences() {
 			parts = append(parts, "@see "+desc)
 		}
 	}
