@@ -22,10 +22,15 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: side-effect and mutability queries inspect call, class, property,
+// pattern, and assignment structure through package ast while keeping
+// AstAnalyzer's rhino.Node method signatures unchanged.
 
 // AstAnalyzer holds the logic for answering questions about portions of the
 // AST.
@@ -314,8 +319,9 @@ func (a *AstAnalyzer) MayHaveSideEffects(n rhino.Node) bool {
 //
 // Java: AstAnalyzer.functionCallHasSideEffects(Node)
 func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
-	jutil.CheckStateMsg1(
-		callNode.IsCall() || callNode.IsTaggedTemplateLit() || callNode.IsOptChainCall(), "%s", callNode)
+	call, isCall := ast.AsNormalOrOptChainCall(callNode)
+	tagged, isTagged := ast.AsTaggedTemplateLit(callNode)
+	jutil.CheckStateMsg1(isCall || isTagged, "%s", callNode)
 
 	if callNode.IsNoSideEffectsCall() {
 		return false
@@ -325,23 +331,32 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 		return false
 	}
 
-	callee := callNode.GetFirstChild()
+	var callee ast.Expr
+	if isCall {
+		callee = call.Callee()
+	} else {
+		callee = tagged.Tag()
+	}
 
 	// Built-in functions with no side effects.
-	if callee.IsName() {
-		name := callee.GetString()
-		if a.assumeKnownBuiltinsArePure && astAnalyzerIsBuiltinFunctionWithoutSideEffects(name) {
+	if name, ok := callee.AsName(); ok {
+		if a.assumeKnownBuiltinsArePure && astAnalyzerIsBuiltinFunctionWithoutSideEffects(name.Ident()) {
 			return false
 		}
-	} else if callee.IsGetProp() || callee.IsOptChainGetProp() {
-		method := callee.GetString()
+	} else if getProp, ok := callee.AsNormalOrOptChainGetProp(); ok {
+		method := getProp.Property()
+		obj := getProp.Object()
 		if a.assumeKnownBuiltinsArePure {
 			var pureMethodCall bool
 			if method == "valueOf" {
-				pureMethodCall = callNode.HasOneChild()
-			} else {
-				pureMethodCall = method == "toString" &&
-					(callNode.HasOneChild() || callNode.HasTwoChildren())
+				pureMethodCall = isCall && !call.HasArgs()
+			} else if method == "toString" {
+				if isCall {
+					firstArg, hasArgs := call.FirstArg()
+					pureMethodCall = !hasArgs || firstArg.IsLast()
+				} else {
+					pureMethodCall = true
+				}
 			}
 			if pureMethodCall {
 				return false
@@ -349,17 +364,17 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 		}
 
 		if callNode.IsOnlyModifiesThisCall() &&
-			NodeUtil_EvaluatesToLocalValue(callee.GetFirstChild()) {
+			NodeUtil_EvaluatesToLocalValue(obj.Node()) {
 			return false
 		}
 
 		// Many common Math functions have no side-effects.
 		// TODO(nicksantos): This is a terrible terrible hack, until
 		// I create a definitionProvider that understands namespacing.
-		if a.assumeKnownBuiltinsArePure &&
-			callee.GetFirstChild().IsName() &&
-			callee.IsQualifiedName() &&
-			callee.GetFirstChild().GetString() == "Math" {
+		if objName, isName := obj.AsName(); a.assumeKnownBuiltinsArePure &&
+			isName &&
+			getProp.Node().IsQualifiedName() &&
+			objName.Ident() == "Math" {
 			switch method {
 			case "abs",
 				"acos",
@@ -395,29 +410,33 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 				return false
 			case "random":
 				// no parameters
-				return !callNode.HasOneChild()
+				return !isCall || call.HasArgs()
 			default:
 				// Unknown Math.* function, so fall out of this switch statement.
 			}
 		}
 
 		if !a.hasRegexpGlobalReferences && a.assumeKnownBuiltinsArePure {
-			if callee.GetFirstChild().IsRegExp() && astAnalyzerIsRegexpMethod(method) {
+			if _, isRegExp := obj.AsRegExp(); isRegExp && astAnalyzerIsRegexpMethod(method) {
 				return false
-			} else if a.IsTypedAsString(callee.GetFirstChild()) {
+			} else if a.IsTypedAsString(obj.Node()) && isCall {
 				// Unlike regexs, string methods don't need to be hosted on a string literal
 				// to avoid leaking mutating global state changes, it is just necessary that
 				// the regex object can't be referenced.
-				param := callee.GetNext()
-				if !param.IsNil() {
-					if param.IsStringLit() {
+				if param, hasParam := call.FirstArg(); hasParam {
+					if _, isStr := param.AsStringLit(); isStr {
 						if astAnalyzerIsStringRegexpMethod(method) {
 							return false
 						}
-					} else if param.IsRegExp() {
+					} else if _, isRe := param.AsRegExp(); isRe {
 						if "replace" == method {
 							// Assume anything but a string constant has side-effects
-							return !param.GetNext().IsStringLit()
+							secondArg, hasSecond := param.Next()
+							if !hasSecond {
+								return true
+							}
+							_, secondIsStr := secondArg.AsStringLit()
+							return !secondIsStr
 						} else if astAnalyzerIsStringRegexpMethod(method) {
 							return false
 						}
@@ -500,7 +519,8 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 	case rhino.Token_NAME:
 		// NAMEs have children if the left side of a var/let/const
 		// TODO(b/129564961): Consider EXPORT declarations.
-		return n.HasChildren()
+		_, hasInit := ast.MustName(n).Init()
+		return hasInit
 	case rhino.Token_FUNCTION:
 		// Function expressions don't have side-effects, but function
 		// declarations change the namespace. Either way, we don't need to
@@ -512,17 +532,22 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 		return false
 
 	case rhino.Token_COMPUTED_PROP:
+		cp := ast.MustComputedProp(n)
 		switch parent.GetToken() {
 		case rhino.Token_CLASS_MEMBERS:
 			// This is a computed method.
-			return a.CheckForStateChangeHelper(n.GetFirstChild(), checkForNewObjects)
+			return a.CheckForStateChangeHelper(cp.Key().Node(), checkForNewObjects)
 
 		case rhino.Token_OBJECT_PATTERN:
 			// Due to language syntax, only the last child can be an OBJECT_REST.
 			// `({ ['thisKey']: target, ...rest} = something())`
 			// The presence of `thisKey` affects what properties get put into `rest`.
-			return parent.GetLastChild().IsObjectRest() ||
-				a.CheckForChangeStateInChildren(n, checkForNewObjects)
+			if lastProp, ok := ast.MustObjectPattern(parent).LastProp(); ok {
+				if _, isRest := lastProp.AsObjectRest(); isRest {
+					return true
+				}
+			}
+			return a.CheckForChangeStateInChildren(n, checkForNewObjects)
 
 		case rhino.Token_OBJECTLIT:
 			// Assume that COMPUTED_PROP keys in OBJECTLIT never trigger getters.
@@ -531,21 +556,31 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 			panic(jutil.NewIllegalStateExceptionMsg("Illegal COMPUTED_PROP parent " + parent.String()))
 		}
 	case rhino.Token_MEMBER_FIELD_DEF:
-		return n.IsStaticMember() &&
-			n.HasChildren() &&
-			a.CheckForStateChangeHelper(n.GetFirstChild(), checkForNewObjects)
+		mf := ast.MustMemberFieldDef(n)
+		val, hasVal := mf.Value()
+		return mf.IsStatic() &&
+			hasVal &&
+			a.CheckForStateChangeHelper(val.Node(), checkForNewObjects)
 	case rhino.Token_COMPUTED_FIELD_DEF:
-		return a.CheckForStateChangeHelper(n.GetFirstChild(), checkForNewObjects) ||
-			(n.IsStaticMember() &&
-				!n.GetSecondChild().IsNil() &&
-				a.CheckForStateChangeHelper(n.GetSecondChild(), checkForNewObjects))
+		cf := ast.MustComputedFieldDef(n)
+		if a.CheckForStateChangeHelper(cf.Key().Node(), checkForNewObjects) {
+			return true
+		}
+		val, hasVal := cf.Value()
+		return cf.IsStatic() &&
+			hasVal &&
+			a.CheckForStateChangeHelper(val.Node(), checkForNewObjects)
 	case rhino.Token_CLASS:
-		return checkForNewObjects ||
-			NodeUtil_IsClassDeclaration(n) ||
-			// Check the extends clause for side effects.
-			a.CheckForStateChangeHelper(n.GetSecondChild(), checkForNewObjects) ||
-			// Check for class members that are computed properties with side effects.
-			a.CheckForStateChangeHelper(n.GetLastChild(), checkForNewObjects)
+		if checkForNewObjects || NodeUtil_IsClassDeclaration(n) {
+			return true
+		}
+		cls := ast.MustClass(n)
+		// Check the extends clause for side effects.
+		if ext, hasExt := cls.Extends(); hasExt && a.CheckForStateChangeHelper(ext.Node(), checkForNewObjects) {
+			return true
+		}
+		// Check for class members that are computed properties with side effects.
+		return a.CheckForStateChangeHelper(cls.Body().Node(), checkForNewObjects)
 
 	case rhino.Token_NEW:
 		return checkForNewObjects ||
@@ -587,16 +622,19 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 		return a.CheckForChangeStateInChildren(n, checkForNewObjects)
 
 	case rhino.Token_STRING_KEY:
-		if parent.IsObjectPattern() {
+		if objPat, ok := ast.AsObjectPattern(parent); ok {
 			// This STRING_KEY names a property being read from.
 			// Assumption: GETELEM (via a COMPUTED_PROP) never triggers a getter or setter.
-			if a.GetPropertyKind(n.GetString()).HasGetter() {
+			if a.GetPropertyKind(ast.MustStringKey(n).Key()).HasGetter() {
 				return true
-			} else if parent.GetLastChild().IsObjectRest() {
-				// Due to language syntax, only the last child can be an OBJECT_REST.
-				// `({ thisKey: target, ...rest} = something())`
-				// The presence of `thisKey` affects what properties get put into `rest`.
-				return true
+			}
+			if lastProp, hasLast := objPat.LastProp(); hasLast {
+				if _, isRest := lastProp.AsObjectRest(); isRest {
+					// Due to language syntax, only the last child can be an OBJECT_REST.
+					// `({ thisKey: target, ...rest} = something())`
+					// The presence of `thisKey` affects what properties get put into `rest`.
+					return true
+				}
 			}
 		}
 		return a.CheckForChangeStateInChildren(n, checkForNewObjects)
@@ -612,13 +650,13 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
 		// TODO(b/135640150): Use the parent nodes to determine whether this is a get or set.
-		return a.GetPropertyKind(n.GetString()).HasGetterOrSetter() ||
+		return a.GetPropertyKind(ast.MustNormalOrOptChainGetProp(n).Property()).HasGetterOrSetter() ||
 			a.CheckForChangeStateInChildren(n, checkForNewObjects)
 	default:
 		if NodeUtil_IsSimpleOperator(n) {
 			return a.CheckForChangeStateInChildren(n, checkForNewObjects)
 		}
-		if NodeUtil_IsAssignmentOp(n) {
+		if _, ok := ast.AsAssignment(n); ok {
 			return a.CheckAssignmentForChangeState(n, checkForNewObjects)
 		}
 		return true
@@ -638,34 +676,36 @@ func (a *AstAnalyzer) CheckForChangeStateInChildren(n rhino.Node, checkForNewObj
 
 // Java: AstAnalyzer.checkAssignmentForChangeState(Node, boolean)
 func (a *AstAnalyzer) CheckAssignmentForChangeState(assignOp rhino.Node, checkForNewObjects bool) bool {
-	assignTarget := assignOp.GetFirstChild()
+	assign := ast.MustAssignment(assignOp)
+	assignTarget := assign.Target()
 
-	if assignTarget.IsName() {
+	if _, ok := assignTarget.AsName(); ok {
 		return true
 	}
 
-	assignValue := assignOp.GetLastChild()
+	assignValue := assign.Value()
 	// Assignments will have side effects if
 	// a) The RHS has side effects, or
 	// b) The LHS has side effects, or
 	// c) A name on the LHS will exist beyond the life of this statement.
-	if a.CheckForStateChangeHelper(assignTarget, checkForNewObjects) ||
-		a.CheckForStateChangeHelper(assignValue, checkForNewObjects) {
+	if a.CheckForStateChangeHelper(assignTarget.Node(), checkForNewObjects) ||
+		a.CheckForStateChangeHelper(assignValue.Node(), checkForNewObjects) {
 		return true
 	}
 
-	if !NodeUtil_IsNormalGet(assignTarget) {
+	targetGet, ok := assignTarget.AsNormalGet()
+	if !ok {
 		// TODO(johnlenz): remove this code and make this an exception. This
 		// is here only for legacy reasons, the AST is not valid but
 		// preserve existing behavior.
-		return !NodeUtil_IsLiteralValue(assignTarget, true)
+		return !NodeUtil_IsLiteralValue(assignTarget.Node(), true)
 	}
 	// If the object being assigned to is a local object, don't
 	// consider this a side-effect as it can't be referenced
 	// elsewhere.  Don't do this recursively as the property might
 	// be an alias of another object, unlike a literal below.
-	current := assignTarget.GetFirstChild()
-	if NodeUtil_EvaluatesToLocalValue(current) {
+	current := targetGet.Object()
+	if NodeUtil_EvaluatesToLocalValue(current.Node()) {
 		return false
 	}
 
@@ -674,11 +714,11 @@ func (a *AstAnalyzer) CheckAssignmentForChangeState(assignOp rhino.Node, checkFo
 	// other objects.
 	// If the root object is a literal don't consider this a
 	// side-effect.
-	for NodeUtil_IsNormalGet(current) {
-		current = current.GetFirstChild()
+	for get, ok := current.AsNormalGet(); ok; get, ok = current.AsNormalGet() {
+		current = get.Object()
 	}
 
-	return !NodeUtil_IsLiteralValue(current, true)
+	return !NodeUtil_IsLiteralValue(current.Node(), true)
 }
 
 // ConstructorCallHasSideEffects answers: do calls to this constructor have
@@ -688,7 +728,8 @@ func (a *AstAnalyzer) CheckAssignmentForChangeState(assignOp rhino.Node, checkFo
 //
 // Java: AstAnalyzer.constructorCallHasSideEffects(Node)
 func (a *AstAnalyzer) ConstructorCallHasSideEffects(newNode rhino.Node) bool {
-	jutil.CheckArgumentMsg1(newNode.IsNew(), "Expected NEW node, got %s", newNode.GetToken())
+	newExpr, ok := ast.AsNew(newNode)
+	jutil.CheckArgumentMsg1(ok, "Expected NEW node, got %s", newNode.GetToken())
 
 	if newNode.IsNoSideEffectsCall() {
 		return false
@@ -703,10 +744,10 @@ func (a *AstAnalyzer) ConstructorCallHasSideEffects(newNode rhino.Node) bool {
 		return false
 	}
 
-	nameNode := newNode.GetFirstChild()
-	return !nameNode.IsName() ||
+	calleeName, isName := newExpr.Callee().AsName()
+	return !isName ||
 		!a.assumeKnownBuiltinsArePure ||
-		!astAnalyzerIsConstructorWithoutSideEffects(nameNode.GetString())
+		!astAnalyzerIsConstructorWithoutSideEffects(calleeName.Ident())
 }
 
 // NodeTypeMayHaveSideEffects returns true if the current node's type
@@ -718,7 +759,7 @@ func (a *AstAnalyzer) ConstructorCallHasSideEffects(newNode rhino.Node) bool {
 //
 // Java: AstAnalyzer.nodeTypeMayHaveSideEffects(Node)
 func (a *AstAnalyzer) NodeTypeMayHaveSideEffects(n rhino.Node) bool {
-	if NodeUtil_IsAssignmentOp(n) {
+	if _, ok := ast.AsAssignment(n); ok {
 		return true
 	}
 
@@ -738,7 +779,8 @@ func (a *AstAnalyzer) NodeTypeMayHaveSideEffects(n rhino.Node) bool {
 	// A variable definition that assigns a value.
 	// TODO(b/129564961): Consider EXPORT declarations.
 	case rhino.Token_NAME:
-		return n.HasChildren()
+		_, hasInit := ast.MustName(n).Init()
+		return hasInit
 	// A destructuring declaration statement or assignment. Technically these might contain no
 	// lvalues but that case is rare enough to be ignored.
 	case rhino.Token_DESTRUCTURING_LHS:
@@ -750,12 +792,12 @@ func (a *AstAnalyzer) NodeTypeMayHaveSideEffects(n rhino.Node) bool {
 	case rhino.Token_ITER_REST, rhino.Token_ITER_SPREAD:
 		return NodeUtil_IteratesImpureIterable(n)
 	case rhino.Token_STRING_KEY:
-		if n.GetParent().IsObjectPattern() {
-			return a.GetPropertyKind(n.GetString()).HasGetter()
+		if _, ok := ast.AsObjectPattern(n.GetParent()); ok {
+			return a.GetPropertyKind(ast.MustStringKey(n).Key()).HasGetter()
 		}
 		return false
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
-		return a.GetPropertyKind(n.GetString()).HasGetterOrSetter()
+		return a.GetPropertyKind(ast.MustNormalOrOptChainGetProp(n).Property()).HasGetterOrSetter()
 	default:
 		return false
 	}

@@ -23,10 +23,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: callable-leaf, r-value, try-catch, assignment, and invocation
+// shapes are read through package ast while keeping PureFunctionIdentifier's
+// rhino.Node pass API intact.
 
 // PureFunctionIdentifier is a compiler pass that computes function purity
 // and annotates invocation nodes with those purities.
@@ -199,14 +204,13 @@ func (p *PureFunctionIdentifier) getSummaryOrDefault(name string) *PureFunctionI
 }
 
 func (p *PureFunctionIdentifier) getSummaryForReference(nameRef rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	switch nameRef.GetToken() {
-	case rhino.Token_NAME:
-		return p.summariesByName[nameRef.GetString()]
-	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
-		return p.propSummariesByName[nameRef.GetString()]
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg("Unexpected name reference: " + nameRef.String()))
+	if name, ok := ast.AsName(nameRef); ok {
+		return p.summariesByName[name.Ident()]
 	}
+	if gp, ok := ast.AsNormalOrOptChainGetProp(nameRef); ok {
+		return p.propSummariesByName[gp.Property()]
+	}
+	panic(jutil.NewIllegalStateExceptionMsg("Unexpected name reference: " + nameRef.String()))
 }
 
 func (p *PureFunctionIdentifier) getSummaryForReferenceOrDefault(nameRef rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
@@ -364,6 +368,13 @@ func PureFunctionIdentifier_CollectCallableLeaves(
 	return nil
 }
 
+func pureFunctionIdentifier_invocationCallee(invocation rhino.Node) ast.Expr {
+	if callOrNew, ok := ast.AsCallOrNew(invocation); ok {
+		return callOrNew.Callee()
+	}
+	return ast.MustTaggedTemplateLit(invocation).Tag()
+}
+
 func pureFunctionIdentifier_collectCallableLeavesSlice(
 	expr rhino.Node, results *[]rhino.Node, astAnalyzer *AstAnalyzer) bool {
 	switch expr.GetToken() {
@@ -372,17 +383,18 @@ func pureFunctionIdentifier_collectCallableLeavesSlice(
 		return true
 
 	case rhino.Token_SUPER:
-		clazz := rhino.CheckNotNull(NodeUtil_GetEnclosingClass(expr))
-		return pureFunctionIdentifier_collectCallableLeavesSlice(clazz.GetSecondChild(), results, astAnalyzer)
+		clazz := ast.MustClass(rhino.CheckNotNull(NodeUtil_GetEnclosingClass(expr)))
+		return pureFunctionIdentifier_collectCallableLeavesSlice(clazz.ExtendsNode(), results, astAnalyzer)
 
 	case rhino.Token_CLASS:
-		members := expr.GetLastChild()
-		if !members.IsNil() && members.IsClassMembers() {
-			for member := members.GetFirstChild(); !member.IsNil(); member = member.GetNext() {
-				initializer := member.GetLastChild()
-				if !initializer.IsNil() &&
-					NodeUtil_IsNonStaticClassFieldInitializer(initializer) &&
-					astAnalyzer.MayHaveSideEffects(initializer) {
+		cls := ast.MustClass(expr)
+		for member := range cls.Body().Members() {
+			if mf, ok := member.AsMemberFieldDef(); ok && !mf.IsStatic() {
+				if init, hasInit := mf.Value(); hasInit && astAnalyzer.MayHaveSideEffects(init.Node()) {
+					return false
+				}
+			} else if cf, ok := member.AsComputedFieldDef(); ok && !cf.IsStatic() {
+				if init, hasInit := cf.Value(); hasInit && astAnalyzer.MayHaveSideEffects(init.Node()) {
 					return false
 				}
 			}
@@ -390,24 +402,30 @@ func pureFunctionIdentifier_collectCallableLeavesSlice(
 
 		ctorDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(expr)
 		if !ctorDef.IsNil() {
-			return pureFunctionIdentifier_collectCallableLeavesSlice(ctorDef.GetOnlyChild(), results, astAnalyzer)
-		} else if expr.GetSecondChild().IsEmpty() {
+			return pureFunctionIdentifier_collectCallableLeavesSlice(
+				ast.MustMemberFunctionDef(ctorDef).Function().Node(), results, astAnalyzer)
+		} else if ext, hasExt := cls.Extends(); !hasExt {
 			*results = append(*results, PureFunctionIdentifier_IMPLICIT_PURE_FN)
 			return true
 		} else {
-			return pureFunctionIdentifier_collectCallableLeavesSlice(expr.GetSecondChild(), results, astAnalyzer)
+			return pureFunctionIdentifier_collectCallableLeavesSlice(ext.Node(), results, astAnalyzer)
 		}
 
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
-		return pureFunctionIdentifier_collectCallableLeavesSlice(expr.GetFirstChild(), results, astAnalyzer) &&
-			pureFunctionIdentifier_collectCallableLeavesSlice(expr.GetSecondChild(), results, astAnalyzer)
+		bin := ast.MustBinary(expr)
+		return pureFunctionIdentifier_collectCallableLeavesSlice(bin.Left().Node(), results, astAnalyzer) &&
+			pureFunctionIdentifier_collectCallableLeavesSlice(bin.Right().Node(), results, astAnalyzer)
 
-	case rhino.Token_COMMA, rhino.Token_ASSIGN:
-		return pureFunctionIdentifier_collectCallableLeavesSlice(expr.GetSecondChild(), results, astAnalyzer)
+	case rhino.Token_COMMA:
+		return pureFunctionIdentifier_collectCallableLeavesSlice(ast.MustBinary(expr).Right().Node(), results, astAnalyzer)
+
+	case rhino.Token_ASSIGN:
+		return pureFunctionIdentifier_collectCallableLeavesSlice(ast.MustAssign(expr).Value().Node(), results, astAnalyzer)
 
 	case rhino.Token_HOOK:
-		return pureFunctionIdentifier_collectCallableLeavesSlice(expr.GetSecondChild(), results, astAnalyzer) &&
-			pureFunctionIdentifier_collectCallableLeavesSlice(expr.GetChildAtIndex(2), results, astAnalyzer)
+		hook := ast.MustHook(expr)
+		return pureFunctionIdentifier_collectCallableLeavesSlice(hook.Then().Node(), results, astAnalyzer) &&
+			pureFunctionIdentifier_collectCallableLeavesSlice(hook.Else().Node(), results, astAnalyzer)
 
 	case rhino.Token_NEW_TARGET, rhino.Token_THIS:
 		return false
@@ -460,16 +478,26 @@ func PureFunctionIdentifier_IsDefinitelyRValue(rvalue rhino.Node) bool {
 		rhino.Token_TYPEOF,
 		rhino.Token_YIELD:
 		return true
-	case rhino.Token_CASE, rhino.Token_IF, rhino.Token_SWITCH, rhino.Token_WHILE:
-		return rvalue.IsFirstChildOf(parent) // the condition is always an r-value
+	case rhino.Token_CASE:
+		return ast.MustCase(parent).Value().Is(rvalue)
+	case rhino.Token_IF:
+		return ast.MustIf(parent).Cond().Is(rvalue)
+	case rhino.Token_SWITCH:
+		return ast.MustSwitch(parent).Discriminant().Is(rvalue)
+	case rhino.Token_WHILE:
+		return ast.MustWhile(parent).Cond().Is(rvalue)
 	case rhino.Token_EXPR_RESULT:
 		// Extern declarations are sometimes stubs. These must be considered L-values with no
 		// associated R-values.
 		return !rvalue.IsFromExterns()
-	case rhino.Token_ASSIGN, rhino.Token_CLASS: // `extends` clause.
-		return rvalue.IsSecondChildOf(parent)
+	case rhino.Token_ASSIGN:
+		return ast.MustAssign(parent).Value().Is(rvalue)
+	case rhino.Token_CLASS: // `extends` clause.
+		ext, hasExt := ast.MustClass(parent).Extends()
+		return hasExt && ext.Is(rvalue)
 	case rhino.Token_STRING_KEY: // Assignment to an object literal property. Excludes object destructuring.
-		return parent.GetParent().IsObjectLit()
+		_, isObjLit := ast.AsObjectLit(parent.GetParent())
+		return isObjLit
 	default:
 		// Anything not explicitly listed may not be an R-value. We only worry about the likely
 		// cases for nominal function values since those are what interest us and its safe to miss
@@ -507,10 +535,11 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation rhino.Node) []
 
 	if cacheCall == nil {
 		var singleCallee rhino.Node
+		callee := pureFunctionIdentifier_invocationCallee(invocation)
 		if PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation) {
-			singleCallee = invocation.GetFirstFirstChild()
+			singleCallee = callee.MustNormalOrOptChainGet().Object().Node()
 		} else {
-			first := invocation.GetFirstChild()
+			first := callee.Node()
 			switch first.GetToken() {
 			case rhino.Token_FUNCTION, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_NAME:
 				singleCallee = first
@@ -534,7 +563,7 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation rhino.Node) []
 		callees = p.GetGoogCacheCallableExpression(cacheCall)
 	} else {
 		p.scratchCallableLeaves = p.scratchCallableLeaves[:0]
-		if pureFunctionIdentifier_collectCallableLeavesSlice(invocation.GetFirstChild(), &p.scratchCallableLeaves, p.astAnalyzer) {
+		if pureFunctionIdentifier_collectCallableLeavesSlice(pureFunctionIdentifier_invocationCallee(invocation).Node(), &p.scratchCallableLeaves, p.astAnalyzer) {
 			callees = p.scratchCallableLeaves
 		}
 	}
@@ -793,7 +822,7 @@ func (p *PureFunctionIdentifier) MarkPureFunctionCalls() {
 			}
 		}
 
-		if callNode.GetFirstChild().IsSuper() {
+		if _, isSuper := pureFunctionIdentifier_invocationCallee(callNode).AsSuper(); isSuper {
 			// All `super()` calls (i.e. from subclass constructors) implicitly mutate `this`; they
 			// determine its value in the caller scope. Concretely, `super()` calls must not be removed
 			// or reordered. Marking them this way ensures that without pinning the enclosing function.
@@ -1064,30 +1093,34 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 
 	switch node.GetToken() {
 	case rhino.Token_ASSIGN:
-		{
-			// e.g.
-			// lhs = rhs;
-			// ({x, y} = object);
-			lhs := node.GetFirstChild()
-			// Consider destructured properties or values to be nonlocal.
-			if lhs.IsDestructuringPattern() {
-				NodeUtil_VisitLhsNodesInNode(
-					node,
-					func(lhsNode rhino.Node) {
-						b.visitLhsNode(encloserSummary, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
-					})
-			} else {
-				b.visitLhsNode(encloserSummary, traversal, lhs, PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE)
-			}
+		// e.g.
+		// lhs = rhs;
+		// ({x, y} = object);
+		lhs := ast.MustAssign(node).Target()
+		// Consider destructured properties or values to be nonlocal.
+		if _, isPat := lhs.AsPattern(); isPat {
+			NodeUtil_VisitLhsNodesInNode(
+				node,
+				func(lhsNode rhino.Node) {
+					b.visitLhsNode(encloserSummary, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
+				})
+		} else {
+			b.visitLhsNode(encloserSummary, traversal, lhs.Node(), PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE)
 		}
 
-	case rhino.Token_INC, // e.g. x++;
-		rhino.Token_DEC,
-		rhino.Token_DELPROP:
+	case rhino.Token_INC, rhino.Token_DEC: // e.g. x++;
 		b.visitLhsNode(
 			encloserSummary,
 			traversal,
-			node.GetOnlyChild(),
+			ast.MustIncDec(node).Target().Node(),
+			// The value assigned by a unary op is always local.
+			PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL)
+
+	case rhino.Token_DELPROP:
+		b.visitLhsNode(
+			encloserSummary,
+			traversal,
+			ast.MustUnary(node).Operand().Node(),
 			// The value assigned by a unary op is always local.
 			PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL)
 
@@ -1147,12 +1180,11 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 
 	case rhino.Token_NAME:
 		// Local variable declarations are not a side-effect, but we do want to track them.
-		if NodeUtil_IsNameDeclaration(node.GetParent()) {
-			value := node.GetFirstChild()
+		if _, ok := ast.AsNameDeclaration(node.GetParent()); ok {
 			// Assignment to local, if the value isn't a safe local value,
 			// new object creation or literal or known primitive result
 			// value, add it to the local skiplist.
-			if !value.IsNil() && !NodeUtil_EvaluatesToLocalValue(value) {
+			if value, hasInit := ast.MustName(node).Init(); hasInit && !NodeUtil_EvaluatesToLocalValue(value.Node()) {
 				e := b.functionScopeStackGetLast()
 				e.skiplistedNameNodes = append(e.skiplistedNameNodes, node)
 			}
@@ -1180,17 +1212,17 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 		b.CheckIteratesImpureIterable(node, encloserSummary)
 
 	case rhino.Token_STRING_KEY:
-		if node.GetParent().IsObjectPattern() {
+		if _, ok := ast.AsObjectPattern(node.GetParent()); ok {
 			// This is an l-value STRING_KEY.
 			// Assumption: GETELEM (via a COMPUTED_PROP) is never side-effectful.
-			if b.outer.GetPropertyKind(node.GetString()).HasGetter() {
+			if b.outer.GetPropertyKind(ast.MustStringKey(node).Key()).HasGetter() {
 				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(node)
 			}
 		}
 
 	case rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETPROP:
 		// Assumption: GETELEM and OPTCHAIN_GETELEM are never side-effectful.
-		if b.outer.GetPropertyKind(node.GetString()).HasGetterOrSetter() {
+		if b.outer.GetPropertyKind(ast.MustNormalOrOptChainGetProp(node).Property()).HasGetterOrSetter() {
 			encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(node)
 		}
 
@@ -1206,7 +1238,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) UpdateSideEffectsForNode(
 			b.visitLhsNode(
 				encloserSummary,
 				traversal,
-				node.GetFirstChild(),
+				ast.MustAssignOp(node).Target().Node(),
 				// The update assignments (e.g. `+=) always assign primitive, and therefore local,
 				// values.
 				PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL)
@@ -1365,92 +1397,50 @@ func PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerSco
 	return varScope.HasSameContainerScope(scope)
 }
 
+// visitLhsNode records information about the side effects caused by assigning
+// a value to a given LHS, materializing traversal's Scope only when needed.
+//
+// If the operation modifies this or taints global state, mark the enclosing
+// function as having those side effects.
+//
+// Java: PureFunctionIdentifier.FunctionBodyAnalyzer.visitLhsNode(AmbiguatedFunctionSummary, Scope, Node, Predicate<Node>)
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) visitLhsNode(
 	encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary,
 	traversal *NodeTraversal,
 	lhs rhino.Node,
 	hasLocalRhs func(rhino.Node) bool) {
-	if NodeUtil_IsNormalOrOptChainGet(lhs) {
-		objectNode := lhs.GetFirstChild()
-		if objectNode.IsThis() {
-			if b.functionScopeStackGetLast().root.IsArrowFunction() {
-				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
-			} else {
-				encloserSummary.SetMutatesThis(lhs)
-			}
-		} else if objectNode.IsName() {
-			scope := traversal.GetScope()
-			var_ := scope.GetVar(objectNode.GetString())
-			if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
-				b.functionScopeStackGetLast().addTaintedVar(var_)
-			} else {
-				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
-			}
-		} else {
-			encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
-		}
-	} else {
-		jutil.CheckStateMsg1(lhs.IsName(), "%s", lhs)
-		scope := traversal.GetScope()
-		var_ := scope.GetVar(lhs.GetString())
-		if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
-			if !hasLocalRhs(lhs) {
-				b.functionScopeStackGetLast().addSkiplistedVar(var_)
-			}
-		} else {
-			encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
-		}
-	}
-}
-
-// VisitLhsNode records information about the side effects caused by
-// assigning a value to a given LHS.
-//
-// If the operation modifies this or taints global state, mark the enclosing
-// function as having those side effects.
-//
-// encloserSummary is the function side effect record to be updated; scope
-// the variable scope in which the variable assignment occurs; lhs the LHS
-// node assigned a value by a given parent node; hasLocalRhs a predicate
-// indicating whether a given LHS is being assigned a local value.
-//
-// Java: PureFunctionIdentifier.FunctionBodyAnalyzer.visitLhsNode(AmbiguatedFunctionSummary, Scope, Node, Predicate<Node>)
-func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitLhsNode(
-	encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary,
-	scope *Scope,
-	lhs rhino.Node,
-	hasLocalRhs func(rhino.Node) bool) {
-	if NodeUtil_IsNormalOrOptChainGet(lhs) {
+	if get, ok := ast.AsNormalOrOptChainGet(lhs); ok {
 		// Although OPTCHAIN_GETPROP can not be an LHS of an assign, it can be a child to DELPROP.
 		// e.g. `delete obj?.prop` <==> `obj == null ?  true : delete obj.prop;`
 		// Hence the enclosing function's side effects must be recorded.
-		if lhs.GetFirstChild().IsThis() {
-			if b.functionScopeStackGetLast().root.IsArrowFunction() {
+		object := get.Object()
+		if _, isThis := object.AsThis(); isThis {
+			if ast.MustFunction(b.functionScopeStackGetLast().root).IsArrow() {
 				// `this` in an arrow function is the `this` of the enclosing function, which is not
 				// the receiver the arrow function is called with.
 				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
 			} else {
 				encloserSummary.SetMutatesThis(lhs)
 			}
-		} else {
-			objectNode := lhs.GetFirstChild()
-			if objectNode.IsName() {
-				var_ := scope.GetVar(objectNode.GetString())
-				if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
-					// Maybe a local object modification.  We won't know for sure until
-					// we exit the scope and can validate the value of the local.
-					b.functionScopeStackGetLast().addTaintedVar(var_)
-				} else {
-					encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
-				}
+		} else if objName, isName := object.AsName(); isName {
+			scope := traversal.GetScope()
+			var_ := scope.GetVar(objName.Ident())
+			if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
+				// Maybe a local object modification. We won't know for sure until
+				// we exit the scope and can validate the value of the local.
+				b.functionScopeStackGetLast().addTaintedVar(var_)
 			} else {
-				// Don't track multi level locals: local.prop.prop2++;
 				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
 			}
+		} else {
+			// Don't track multi level locals: local.prop.prop2++;
+			encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
 		}
 	} else {
-		jutil.CheckStateMsg1(lhs.IsName(), "%s", lhs)
-		var_ := scope.GetVar(lhs.GetString())
+		name, ok := ast.AsName(lhs)
+		jutil.CheckStateMsg1(ok, "%s", lhs)
+		scope := traversal.GetScope()
+		var_ := scope.GetVar(name.Ident())
 		if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
 			if !hasLocalRhs(lhs) {
 				// Assigned value is not guaranteed to be a local value,
@@ -1516,15 +1506,12 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ArgumentsMatchParameters(i
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.addToCatchDepthIfTryBlock(Node, int)
 func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) AddToCatchDepthIfTryBlock(n rhino.Node, delta int) {
 	parent := n.GetParent()
-	if !n.IsBlock() || !parent.IsTry() || !n.IsFirstChildOf(parent) {
+	if ast.RoleIn(n, parent) != ast.RoleTryBody {
 		return
 	}
-
-	jsCatch := n.GetNext().GetFirstChild()
-	if jsCatch.IsNil() {
+	if _, hasCatch := ast.MustTry(parent).Catch(); !hasCatch {
 		return
 	}
-
 	b.functionScopeStackGetLast().catchDepth += delta
 }
 
@@ -1541,18 +1528,27 @@ func PureFunctionIdentifier_GetParamIndex(param *Var) int {
 	} else {
 		node = param.GetNameNode()
 	}
-	jutil.CheckStateMsg1(node.GetParent().IsParamList(), "%s", node)
+	_, isParamList := ast.AsParamList(node.GetParent())
+	jutil.CheckStateMsg1(isParamList, "%s", node)
 	return node.GetParent().GetIndexOfChild(node)
 }
 
 // Java: PureFunctionIdentifier.isInvocationViaCallOrApply(Node)
 func PureFunctionIdentifier_IsInvocationViaCallOrApply(callSite rhino.Node) bool {
-	receiver := callSite.GetFirstFirstChild()
-	if receiver.IsNil() ||
-		!(receiver.IsName() || receiver.IsGetProp() || receiver.IsOptChainGetProp()) {
+	call, ok := ast.AsNormalOrOptChainCall(callSite)
+	if !ok {
 		return false
 	}
-
+	calleeGet, ok := call.Callee().AsNormalOrOptChainGet()
+	if !ok {
+		return false
+	}
+	receiver := calleeGet.Object()
+	_, isName := receiver.AsName()
+	_, isGetProp := receiver.AsNormalOrOptChainGetProp()
+	if !isName && !isGetProp {
+		return false
+	}
 	return NodeUtil_IsFunctionObjectCall(callSite) || NodeUtil_IsFunctionObjectApply(callSite)
 }
 
@@ -1569,14 +1565,13 @@ func PureFunctionIdentifier_IsCallOrTaggedTemplateLit(invocation rhino.Node) boo
 //
 // Java: PureFunctionIdentifier.nameForReference(Node)
 func PureFunctionIdentifier_NameForReference(nameRef rhino.Node) string {
-	switch nameRef.GetToken() {
-	case rhino.Token_NAME:
-		return nameRef.GetString()
-	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
-		return PureFunctionIdentifier_PROP_NAME_PREFIX + nameRef.GetString()
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg("Unexpected name reference: " + nameRef.String()))
+	if name, ok := ast.AsName(nameRef); ok {
+		return name.Ident()
 	}
+	if gp, ok := ast.AsNormalOrOptChainGetProp(nameRef); ok {
+		return PureFunctionIdentifier_PROP_NAME_PREFIX + gp.Property()
+	}
+	panic(jutil.NewIllegalStateExceptionMsg("Unexpected name reference: " + nameRef.String()))
 }
 
 // Java: PureFunctionIdentifier.getPropertyKind(String)
@@ -1682,9 +1677,11 @@ func PureFunctionIdentifier_SideEffectPropagation_ForInvocation(
 //
 // Java: PureFunctionIdentifier.SideEffectPropagation.holdsLocalValue(Node)
 func (e *PureFunctionIdentifier_SideEffectPropagation) holdsLocalValue(expr rhino.Node) bool {
-	return NodeUtil_EvaluatesToLocalValue(expr) ||
-		(expr.IsName() &&
-			e.callerEntry.IsLocalVar(e.callScope.GetVar(expr.GetString()), e.callScope))
+	if NodeUtil_EvaluatesToLocalValue(expr) {
+		return true
+	}
+	name, isName := ast.AsName(expr)
+	return isName && e.callerEntry.IsLocalVar(e.callScope.GetVar(name.Ident()), e.callScope)
 }
 
 // mutatedArgumentsAreLocal reports whether all the arguments that may be
@@ -1696,14 +1693,15 @@ func (e *PureFunctionIdentifier_SideEffectPropagation) mutatedArgumentsAreLocal(
 		return NodeUtil_AllArgsUnescapedLocal(e.invocation)
 	}
 	index := 0
-	for arg := e.invocation.GetSecondChild(); !arg.IsNil(); arg, index = arg.GetNext(), index+1 {
-		if arg.IsSpread() {
+	for arg := range ast.MustCallOrNew(e.invocation).Args() {
+		if _, isSpread := arg.AsIterSpread(); isSpread {
 			return false
 		}
 		if (index >= 64 /* Long.SIZE */ || (mutatedParamMask&(int64(1)<<index)) != 0) &&
-			!e.holdsLocalValue(arg) {
+			!e.holdsLocalValue(arg.Node()) {
 			return false
 		}
+		index++
 	}
 	return true
 }
@@ -1713,10 +1711,11 @@ func (e *PureFunctionIdentifier_SideEffectPropagation) mutatedArgumentsAreLocal(
 //
 // Java: PureFunctionIdentifier.SideEffectPropagation.receiverIsLocal()
 func (e *PureFunctionIdentifier_SideEffectPropagation) receiverIsLocal() bool {
-	callee := e.invocation.GetFirstChild()
+	callee := pureFunctionIdentifier_invocationCallee(e.invocation)
+	getProp, isGetProp := callee.AsNormalOrOptChainGetProp()
 	return !PureFunctionIdentifier_IsInvocationViaCallOrApply(e.invocation) &&
-		NodeUtil_IsNormalOrOptChainGetProp(callee) &&
-		e.holdsLocalValue(callee.GetFirstChild())
+		isGetProp &&
+		e.holdsLocalValue(getProp.Object().Node())
 }
 
 // Java: PureFunctionIdentifier.SideEffectPropagation.calleeAndCallerShareThis(Node)
@@ -1725,19 +1724,19 @@ func PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invoc
 		return false // Calling a constructor creates a new object bound to `this`.
 	}
 
-	callee := invocation.GetFirstChild()
-	if callee.IsSuper() {
+	callee := pureFunctionIdentifier_invocationCallee(invocation)
+	if _, isSuper := callee.AsSuper(); isSuper {
 		return true
 	}
 
 	var thisArg rhino.Node
 	if PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation) {
 		// If the call site is actually a `.call` or `.apply`, then `this` will be an argument.
-		thisArg = invocation.GetSecondChild()
-	} else if callee.IsGetProp() || callee.IsOptChainGetProp() {
-		thisArg = callee.GetFirstChild()
-	} else {
-		thisArg = rhino.NilNode
+		if firstArg, ok := ast.MustCallOrNew(invocation).FirstArg(); ok {
+			thisArg = firstArg.Node()
+		}
+	} else if getProp, ok := callee.AsNormalOrOptChainGetProp(); ok {
+		thisArg = getProp.Object().Node()
 	}
 
 	if thisArg.IsNil() {

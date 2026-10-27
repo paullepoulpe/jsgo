@@ -21,10 +21,15 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: conditional, call, property-access, spread, and assignment shapes
+// are read through package ast while keeping ExpressionDecomposer's rhino.Node
+// API intact.
 
 // ExpressionDecomposer partially or fully decomposes an expression with
 // respect to some sub-expression. Initially this is intended to expand the
@@ -222,7 +227,7 @@ func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot rhino.Nod
 			"%s",
 			expressionParent)
 
-		if expressionParent.IsAssign() {
+		if assign, isAssign := ast.AsAssign(expressionParent); isAssign {
 			if e.IsSafeAssign(expressionParent, state.sideEffects) {
 				// It is always safe to inline "foo()" for expressions such as
 				// "a = b = c = foo();"
@@ -234,37 +239,34 @@ func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot rhino.Nod
 				// a.x = foo();
 				// next().x = foo();
 				// in these cases the checks below are necessary.
-			} else if !expressionToExpose.IsFirstChildOf(expressionParent) {
+			} else if !assign.Target().Is(expressionToExpose) {
 				// Alias "next()" in "next().foo"
-
-				left := expressionParent.GetFirstChild()
-				switch left.GetToken() {
-				case rhino.Token_ARRAY_PATTERN, // e.g. backoff from exposing expression `getObj()` in
-					// `[getObj().propName] = ...` as the RHS must execute first
-					rhino.Token_OBJECT_PATTERN: // e.g. backoff from exposing expression`getObj()` in `{a:
-					// getObj().propName} = ...` as the RHS must execute first
-				case rhino.Token_GETELEM, rhino.Token_GETPROP:
+				left := assign.Target()
+				if get, isGet := left.AsNormalGet(); isGet {
 					exposedSomething =
-						e.DecomposeSubExpressions(left.GetFirstChild(), rhino.NilNode, state) || exposedSomething
-				default:
+						e.DecomposeSubExpressions(get.Object().Node(), rhino.NilNode, state) || exposedSomething
+				} else if _, isPat := left.AsPattern(); !isPat {
+					// ArrayPattern / ObjectPattern: e.g. backoff from exposing expression `getObj()` in
+					// `[getObj().propName] = ...` or `{a: getObj().propName} = ...` as the RHS must execute first.
 					panic(jutil.NewIllegalStateExceptionMsg(
-						"Expected a property access or destructuring pattern: " + left.ToStringTree()))
+						"Expected a property access or destructuring pattern: " + left.Node().ToStringTree()))
 				}
 			}
-		} else if expressionParent.IsCall() &&
-			NodeUtil_IsNormalGet(expressionParent.GetFirstChild()) {
-			callee := expressionParent.GetFirstChild()
-			if callee != expressionToExpose {
+		} else if call, isCall := ast.AsCall(expressionParent); isCall &&
+			NodeUtil_IsNormalGet(call.Callee().Node()) {
+			callee := call.Callee().MustNormalGet()
+			if !callee.Is(expressionToExpose) {
+				firstArg, _ := call.FirstArg()
 				exposedSomething =
-					e.DecomposeSubExpressions(callee.GetNext(), expressionToExpose, state) ||
+					e.DecomposeSubExpressions(firstArg.Node(), expressionToExpose, state) ||
 						exposedSomething
 			}
 
 			// Now handle the call expression. We only have to do this if we arrived at decomposing this
 			// call through one of the arguments, rather than the callee; otherwise the callee would
 			// already be safe.
-			if e.IsExpressionTreeUnsafe(callee, state.sideEffects) &&
-				lastExposedSubexpression != callee.GetFirstChild() {
+			if e.IsExpressionTreeUnsafe(callee.Node(), state.sideEffects) &&
+				!callee.Object().Is(lastExposedSubexpression) {
 				// Either there were preexisting side-effects, or this node has side-effects.
 				state.sideEffects = true
 				// Rewrite the call so "this" is preserved and continue walking up from there.
@@ -324,7 +326,7 @@ func (e *ExpressionDecomposer) RewriteAllContainingOptionalChains(subExpression 
 			// We want to rewrite the outermost chain first, so the last one
 			// we find is the first one we rewrite.
 			rewriters = append(rewriters, optChainRewriterBuilder.Build(exprParent))
-		} else if exprParent.IsCall() {
+		} else if call, isCall := ast.AsCall(exprParent); isCall {
 			// It is possible to make a non-optional call against an optional chain callee by applying
 			// parentheses like this.
 			// `(obj?.method)(arg)`
@@ -332,7 +334,7 @@ func (e *ExpressionDecomposer) RewriteAllContainingOptionalChains(subExpression 
 			// if the chain is ever undefined, but it is allowed, so we must handle it.
 			// Fortunately the OptionalChainRewriter knows how to fix the call so it will still get
 			// made with the right `this` value.
-			callee := exprParent.GetFirstChild()
+			callee := call.Callee().Node()
 			if NodeUtil_IsOptChainGet(callee) {
 				// By definition callee must end an optional chain, because it is the first child of a
 				// non-optional parent.
@@ -471,31 +473,31 @@ func (e *ExpressionDecomposer) DecomposeSubExpressions(
 
 	// Now this node.
 
-	if NodeUtil_MayBeObjectLitKey(n) ||
+	if cp, isComputedProp := ast.AsComputedProp(n); isComputedProp {
 		// TODO(b/111621528): Delete when fixed.
-		n.IsComputedProp() {
-		if n.IsComputedProp() {
-			// If the prop is computed we have to fork the decomposition between the key and value. This
-			// is because we can't move the property assignment itself; COMPUTED_PROP must remain a
-			// child of OBJECTLIT for example.
-			//
-			// We decompose the value of the prop first because decomposition is in reverse order of
-			// evaluation.
+		// If the prop is computed we have to fork the decomposition between the key and value. This
+		// is because we can't move the property assignment itself; COMPUTED_PROP must remain a
+		// child of OBJECTLIT for example.
+		//
+		// We decompose the value of the prop first because decomposition is in reverse order of
+		// evaluation.
+		if val, hasVal := cp.Value(); hasVal {
 			decomposedSomething =
-				e.DecomposeSubExpressions(n.GetSecondChild(), stopNode, state) || decomposedSomething
+				e.DecomposeSubExpressions(val.Node(), stopNode, state) || decomposedSomething
 		}
-
-		// Decompose the children of the prop rather than the prop itself. In the computed case this
-		// will be the key, otherwise it will be the value.
-		n = n.GetFirstChild()
-	} else if n.IsTemplateLitSub() {
+		n = cp.Key().Node()
+	} else if sk, isStringKey := ast.AsStringKey(n); isStringKey {
+		n = sk.Value().Node()
+	} else if md, isMethodDef := ast.AsMethodDef(n); isMethodDef {
+		n = md.Function().Node()
+	} else if sub, isSub := ast.AsTemplateLitSub(n); isSub {
 		// A template literal substitution expression like ${f()} is represented in the AST as
 		//   TEMPLATELIT_SUB
 		//     CALL
 		//       NAME f
 		// The TEMPLATELIT_SUB node is not actually an expression and can't be extracted, but we may
 		// need to extract the expression inside of it.
-		n = n.GetFirstChild()
+		n = sub.Expr().Node()
 	} else if n.IsSpread() {
 		// SPREADs aren't expression but they can still be extracted using temp variables.
 		//
@@ -532,14 +534,6 @@ func (e *ExpressionDecomposer) ExtractConditional(expr rhino.Node, injectionPoin
 	parent := expr.GetParent()
 	tempName := e.GetTempValueName()
 
-	// Break down the conditional.
-	first := expr.GetFirstChild()
-	second := first.GetNext()
-	last := expr.GetLastChild()
-
-	// Isolate the children nodes.
-	expr.DetachChildren()
-
 	// Transform the conditional to an IF statement.
 	var cond rhino.Node = rhino.NilNode
 	trueExpr := e.astFactory.CreateBlock().Srcref(expr)
@@ -547,39 +541,51 @@ func (e *ExpressionDecomposer) ExtractConditional(expr rhino.Node, injectionPoin
 	switch expr.GetToken() {
 	case rhino.Token_HOOK:
 		// a = x?y:z --> if (x) {a=y} else {a=z}
-		cond = first
+		hook := ast.MustHook(expr)
+		condNode, thenNode, elseNode := hook.Cond().Node(), hook.Then().Node(), hook.Else().Node()
+		expr.DetachChildren()
+		cond = condNode
 		trueExpr.AddChildToFront(
-			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(second, needResult, tempName)))
+			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(thenNode, needResult, tempName)))
 		falseExpr.AddChildToFront(
-			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(last, needResult, tempName)))
+			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(elseNode, needResult, tempName)))
 	case rhino.Token_AND:
 		// a = x&&y --> if (a=x) {a=y} else {}
-		cond = ExpressionDecomposer_BuildResultExpression(first, needResult, tempName)
+		bin := ast.MustBinary(expr)
+		left, right := bin.Left().Node(), bin.Right().Node()
+		expr.DetachChildren()
+		cond = ExpressionDecomposer_BuildResultExpression(left, needResult, tempName)
 		trueExpr.AddChildToFront(
-			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(last, needResult, tempName)))
+			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(right, needResult, tempName)))
 	case rhino.Token_OR:
 		// a = x||y --> if (a=x) {} else {a=y}
-		cond = ExpressionDecomposer_BuildResultExpression(first, needResult, tempName)
+		bin := ast.MustBinary(expr)
+		left, right := bin.Left().Node(), bin.Right().Node()
+		expr.DetachChildren()
+		cond = ExpressionDecomposer_BuildResultExpression(left, needResult, tempName)
 		falseExpr.AddChildToFront(
-			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(last, needResult, tempName)))
+			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(right, needResult, tempName)))
 	case rhino.Token_COALESCE:
 		// a = x ?? y --> if ((temp=x)!=null) {a=temp} else {a=y}
+		bin := ast.MustBinary(expr)
+		left, right := bin.Left().Node(), bin.Right().Node()
+		expr.DetachChildren()
 		tempNameAssign := e.GetTempValueName()
 		tempVarNodeAssign :=
 			e.astFactory.CreateSingleVarNameDeclaration(tempNameAssign).SrcrefTreeIfMissing(expr)
 		tempVarNodeAssign.InsertBefore(injectionPoint)
 
-		assignLhs := ExpressionDecomposer_BuildResultExpression(first, true, tempNameAssign)
+		assignLhs := ExpressionDecomposer_BuildResultExpression(left, true, tempNameAssign)
 		nullNode := e.astFactory.CreateNull().Srcref(expr)
 		cond = e.astFactory.CreateNe(assignLhs, nullNode).Srcref(expr)
 		trueExpr.AddChildToFront(
 			e.astFactory.ExprResult(
 				ExpressionDecomposer_BuildResultExpression(
-					e.astFactory.CreateName(tempNameAssign, AstFactory_Type_(first)).Srcref(expr),
+					e.astFactory.CreateName(tempNameAssign, AstFactory_Type_(left)).Srcref(expr),
 					needResult,
 					tempName)))
 		falseExpr.AddChildToFront(
-			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(last, needResult, tempName)))
+			e.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(right, needResult, tempName)))
 	default:
 		// With a valid tree we should never get here.
 		panic(jutil.NewIllegalStateExceptionMsg("Unexpected expression: " + expr.String()))
@@ -653,8 +659,7 @@ func (e *ExpressionDecomposer) ExtractExpression(expr rhino.Node, injectionPoint
 	jutil.CheckStateMsg1(!NodeUtil_IsLogicalAssignmentOp(expr), "%s", expr)
 	parent := expr.GetParent()
 
-	isLhsOfAssignOp :=
-		NodeUtil_IsAssignmentOp(parent) && !parent.IsAssign() && expr.IsFirstChildOf(parent)
+	isLhsOfAssignOp := ast.RoleIn(expr, parent) == ast.RoleAssignOpTarget
 
 	var firstExtractedNode rhino.Node = rhino.NilNode
 
@@ -689,13 +694,14 @@ func (e *ExpressionDecomposer) ExtractExpression(expr rhino.Node, injectionPoint
 	// assignment in place and extract the original value of the LHS operand.
 	if isLhsOfAssignOp {
 		jutil.CheckStateMsg1(expr.IsName() || NodeUtil_IsNormalGet(expr), "%s", expr)
+		assignOp := ast.MustAssignOp(parent)
 		// Transform "x += 2" into "x = temp + 2"
 		opNode :=
 			rhino.NewNode(NodeUtil_GetOpFromAssignmentOp(parent)).
 				CopyTypeFrom(parent).
 				SrcrefIfMissing(parent)
 
-		rightOperand := parent.GetLastChild()
+		rightOperand := assignOp.Value().Node()
 
 		parent.SetToken(rhino.Token_ASSIGN)
 		rightOperand.ReplaceWith(opNode)
@@ -711,6 +717,12 @@ func (e *ExpressionDecomposer) ExtractExpression(expr rhino.Node, injectionPoint
 		// We make sure to do `var tmp = [...fn()];` rather than `var tmp = fn()` because the
 		// execution of a spread on an arbitrary iterable/object can both have side-effects and be
 		// side-effected. However, once done we are then sure that spreading `tmp` is isolated.
+		var spreadInner rhino.Node
+		if sp, ok := ast.AsIterSpread(expr); ok {
+			spreadInner = sp.Expr().Node()
+		} else {
+			spreadInner = ast.MustObjectSpread(expr).Expr().Node()
+		}
 
 		// Replace the expression with the spread for the temporary name.
 		spreadCopy := expr.CloneNode()
@@ -720,9 +732,9 @@ func (e *ExpressionDecomposer) ExtractExpression(expr rhino.Node, injectionPoint
 		// Move the original node into a legal context.
 		switch parent.GetToken() {
 		case rhino.Token_ARRAYLIT, rhino.Token_CALL, rhino.Token_NEW:
-			tempNameValue = e.astFactory.CreateArraylit(expr).Srcref(expr.GetOnlyChild())
+			tempNameValue = e.astFactory.CreateArraylit(expr).Srcref(spreadInner)
 		case rhino.Token_OBJECTLIT:
-			tempNameValue = e.astFactory.CreateObjectLit(expr).Srcref(expr.GetOnlyChild())
+			tempNameValue = e.astFactory.CreateObjectLit(expr).Srcref(spreadInner)
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"Unexpected parent of SPREAD:" + parent.ToStringTree()))
@@ -763,10 +775,12 @@ func (e *ExpressionDecomposer) ExtractExpression(expr rhino.Node, injectionPoint
 //	temp0.call(temp1,c);
 //
 // Java: ExpressionDecomposer.rewriteCallExpression(Node, ExpressionDecomposer.DecompositionState)
-func (e *ExpressionDecomposer) RewriteCallExpression(call rhino.Node, state *ExpressionDecomposer_DecompositionState) {
-	jutil.CheckArgumentMsg1(call.IsCall(), "%s", call)
-	first := call.GetFirstChild()
-	jutil.CheckArgumentMsg1(NodeUtil_IsNormalGet(first), "%s", first)
+func (e *ExpressionDecomposer) RewriteCallExpression(callNode rhino.Node, state *ExpressionDecomposer_DecompositionState) {
+	call, isCall := ast.AsCall(callNode)
+	jutil.CheckArgumentMsg1(isCall, "%s", callNode)
+	calleeGet, isGet := call.Callee().AsNormalGet()
+	jutil.CheckArgumentMsg1(isGet, "%s", call.Callee().Node())
+	first := calleeGet.Node()
 
 	// Find the type of (fn expression).call
 	var fnCallType rhino.JSType = nil
@@ -783,19 +797,21 @@ func (e *ExpressionDecomposer) RewriteCallExpression(call rhino.Node, state *Exp
 	//   "a['b'].c" from "a['b'].c()"
 	getVarNode := e.ExtractExpression(first, state.extractBeforeStatement)
 	state.extractBeforeStatement = getVarNode
-	functionNameNode := getVarNode.GetFirstChild().CloneNode()
+	varDecl := ast.MustNameDeclaration(getVarNode).MustOnlyDeclarator().MustName()
+	functionNameNode := varDecl.Node().CloneNode()
 
-	if call.GetBooleanProp(rhino.Node_FREE_CALL) {
+	if call.IsFreeCall() {
 		// For a free call, we don't need to extract the receiver
-		call.GetFirstChild().ReplaceWith(functionNameNode)
+		call.SetCallee(ast.MustExpr(functionNameNode))
 		return
 	}
 
 	// Extracts the object reference to be used as "this". For example:
 	//   "a['b']" from "a['b'].c"
-	getExprNode := getVarNode.GetFirstFirstChild()
-	jutil.CheckArgumentMsg1(NodeUtil_IsNormalGet(getExprNode), "%s", getExprNode)
-	origThisValue := getExprNode.GetFirstChild()
+	initExpr, _ := varDecl.Init()
+	getExpr, ok := initExpr.AsNormalGet()
+	jutil.CheckArgumentMsg1(ok, "%s", initExpr.Node())
+	origThisValue := getExpr.Object().Node()
 	var receiverNode rhino.Node
 
 	if origThisValue.IsThis() {
@@ -809,7 +825,8 @@ func (e *ExpressionDecomposer) RewriteCallExpression(call rhino.Node, state *Exp
 	} else {
 		thisVarNode := e.ExtractExpression(origThisValue, state.extractBeforeStatement)
 		state.extractBeforeStatement = thisVarNode
-		receiverNode = thisVarNode.GetFirstChild().CloneNode()
+		thisDecl := ast.MustNameDeclaration(thisVarNode).MustOnlyDeclarator().MustName()
+		receiverNode = thisDecl.Node().CloneNode()
 	}
 
 	// CALL
@@ -822,13 +839,13 @@ func (e *ExpressionDecomposer) RewriteCallExpression(call rhino.Node, state *Exp
 
 	// Reuse the existing CALL node instead of creating a new one to avoid breaking InlineFunction's
 	// bookkeeping. See b/124253050.
-	call.RemoveFirstChild()
-	call.AddChildToFront(receiverNode)
-	call.AddChildToFront(
+	callNode.RemoveFirstChild()
+	callNode.AddChildToFront(receiverNode)
+	callNode.AddChildToFront(
 		e.astFactory.
 			CreateGetProp(functionNameNode, "call", AstFactory_Type_OfJSTypeAndColor(fnCallType, colors.StandardColors_TOP_OBJECT)).
-			SrcrefTreeIfMissing(call))
-	call.PutBooleanProp(rhino.Node_FREE_CALL, false)
+			SrcrefTreeIfMissing(callNode))
+	call.SetFreeCall(false)
 }
 
 // SetTempNamePrefix allows the temp name to be overridden to make tests
@@ -950,7 +967,7 @@ func ExpressionDecomposer_FindExpressionRoot(subExpression rhino.Node) rhino.Nod
 
 		// Any of these indicate an unsupported expression:
 		case rhino.Token_FOR:
-			if child.IsFirstChildOf(current) {
+			if ast.RoleIn(child, current) == ast.RoleForInit {
 				// Only the initializer of a for-loop could possibly be decomposed since the other
 				// statements need to execute each iteration.
 				return current
@@ -1038,7 +1055,7 @@ func (e *ExpressionDecomposer) IsSubexpressionMovable(
 	}
 	child := subExpression
 	for parent := range child.GetAncestors().All() {
-		if NodeUtil_IsNameDeclaration(parent) && !child.IsFirstChildOf(parent) {
+		if decl, isDecl := ast.AsNameDeclaration(parent); isDecl && !decl.MustFirstDeclarator().Is(child) {
 			// Most declarations are split by `Normalize` but to do so in loops would change the
 			// behavior of the code.  We don't current handle this case but it is possible:
 			// For this case: `for (let x = 5, y = 2 * x; ...` where `child = y`.
@@ -1048,7 +1065,7 @@ func (e *ExpressionDecomposer) IsSubexpressionMovable(
 			return ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE
 		}
 
-		if parent.IsTaggedTemplateLit() && !parent.GetBooleanProp(rhino.Node_FREE_CALL) {
+		if tt, isTagged := ast.AsTaggedTemplateLit(parent); isTagged && !tt.IsFreeCall() {
 			// We're looking at something like: something.method`${subExpression()}`
 			// You can't use the `.call(something, ...)` trick for a tagged template literal.
 			// TODO(b/251958225): Implement decomposition of this case.
@@ -1105,9 +1122,10 @@ func (e *ExpressionDecomposer) IsSubexpressionMovable(
 					}
 				}
 
-				first := parent.GetFirstChild()
-				if requiresDecomposition && parent.IsCall() && NodeUtil_IsNormalGet(first) {
-					return ExpressionDecomposer_DecompositionType_DECOMPOSABLE
+				if call, isCall := ast.AsCall(parent); requiresDecomposition && isCall {
+					if _, isGet := call.Callee().AsNormalGet(); isGet {
+						return ExpressionDecomposer_DecompositionType_DECOMPOSABLE
+					}
 				}
 			}
 		}
@@ -1147,20 +1165,23 @@ func (d ExpressionDecomposer_EvaluationDirection) Ordinal() int { return int(d) 
 //
 // Java: ExpressionDecomposer.getEvaluationDirection(Node)
 func ExpressionDecomposer_GetEvaluationDirection(node rhino.Node) ExpressionDecomposer_EvaluationDirection {
+	// The lhs of a destructuring assignment is evaluated AFTER the rhs. This is only true for
+	// destructuring, though, not assignments like "first().x = second()" where "first()" is
+	// evaluated first.
 	switch node.GetToken() {
-	case rhino.Token_DESTRUCTURING_LHS,
-		rhino.Token_ASSIGN,
-		rhino.Token_DEFAULT_VALUE:
-		if node.GetFirstChild().IsDestructuringPattern() {
-			// The lhs of a destructuring assignment is evaluated AFTER the rhs. This is only true for
-			// destructuring, though, not assignments like "first().x = second()" where "first()" is
-			// evaluated first.
+	case rhino.Token_DESTRUCTURING_LHS:
+		return ExpressionDecomposer_EvaluationDirection_REVERSE
+	case rhino.Token_ASSIGN:
+		if _, isPat := ast.MustAssign(node).Target().AsPattern(); isPat {
 			return ExpressionDecomposer_EvaluationDirection_REVERSE
 		}
-		fallthrough
+	case rhino.Token_DEFAULT_VALUE:
+		if _, isPat := ast.MustDefaultValue(node).Target().AsPattern(); isPat {
+			return ExpressionDecomposer_EvaluationDirection_REVERSE
+		}
 	default:
-		return ExpressionDecomposer_EvaluationDirection_FORWARD
 	}
+	return ExpressionDecomposer_EvaluationDirection_FORWARD
 }
 
 // Java: ExpressionDecomposer.getFirstEvaluatedChild(Node, ExpressionDecomposer.EvaluationDirection)
@@ -1205,17 +1226,17 @@ func (e *ExpressionDecomposer) GetNextEvaluatedSibling(
 //
 // Java: ExpressionDecomposer.isSafeAssign(Node, boolean)
 func (e *ExpressionDecomposer) IsSafeAssign(n rhino.Node, seenSideEffects bool) bool {
-	if n.IsAssign() {
-		lhs := n.GetFirstChild()
-		switch lhs.GetToken() {
-		case rhino.Token_NAME:
+	if assign, ok := ast.AsAssign(n); ok {
+		lhs := assign.Target()
+		if _, isName := lhs.AsName(); isName {
 			return true
-		case rhino.Token_GETPROP:
-			return !e.IsExpressionTreeUnsafe(lhs.GetFirstChild(), seenSideEffects)
-		case rhino.Token_GETELEM:
-			return !e.IsExpressionTreeUnsafe(lhs.GetFirstChild(), seenSideEffects) &&
-				!e.IsExpressionTreeUnsafe(lhs.GetLastChild(), seenSideEffects)
-		default:
+		}
+		if gp, isGetProp := lhs.AsGetProp(); isGetProp {
+			return !e.IsExpressionTreeUnsafe(gp.Object().Node(), seenSideEffects)
+		}
+		if ge, isGetElem := lhs.AsGetElem(); isGetElem {
+			return !e.IsExpressionTreeUnsafe(ge.Object().Node(), seenSideEffects) &&
+				!e.IsExpressionTreeUnsafe(ge.Index().Node(), seenSideEffects)
 		}
 	}
 	return false
@@ -1235,12 +1256,16 @@ var ExpressionDecomposer_WINDOW_LOCATION_ASSIGN = rhino.QualifiedName_Of("window
 //
 // Java: ExpressionDecomposer.isExpressionTreeUnsafe(Node, boolean)
 func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree rhino.Node, followingSideEffectsExist bool) bool {
-	if tree.IsSpread() {
-		// Spread expressions would cause recursive rewriting if not special cased here.
-		// When extracted, spreads can't be assigned to a single variable and instead are put into
-		// a literal. However, that literal must be spread again at the original site. This
-		// check is what prevents the original spread from triggering recursion.
-		if e.IsTempConstantValueName(tree.GetOnlyChild()) {
+	// Spread expressions would cause recursive rewriting if not special cased here.
+	// When extracted, spreads can't be assigned to a single variable and instead are put into
+	// a literal. However, that literal must be spread again at the original site. This
+	// check is what prevents the original spread from triggering recursion.
+	if sp, ok := ast.AsIterSpread(tree); ok {
+		if e.IsTempConstantValueName(sp.Expr().Node()) {
+			return false
+		}
+	} else if sp, ok := ast.AsObjectSpread(tree); ok {
+		if e.IsTempConstantValueName(sp.Expr().Node()) {
 			return false
 		}
 	}
@@ -1257,8 +1282,8 @@ func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree rhino.Node, following
 		parent := tree.GetParent()
 		if NodeUtil_IsObjectCallMethod(parent, "call") || parent.GetBooleanProp(rhino.Node_FREE_CALL) {
 			var callee rhino.Node
-			if tree.IsGetProp() && tree.GetString() == "call" {
-				callee = tree.GetFirstChild()
+			if gp, ok := ast.AsGetProp(tree); ok && gp.Property() == "call" {
+				callee = gp.Object().Node()
 			} else {
 				callee = tree
 			}

@@ -19,8 +19,12 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: declaration and l-value queries read parent/child roles through
+// package ast while keeping Reference's rhino.Node API intact.
 
 // Reference represents a single declaration or reference to a variable.
 // Note that references can only be used with untyped scopes and traversals.
@@ -113,7 +117,7 @@ func reference_isDeclarationHelper(node rhino.Node) bool {
 	parentToken := parent.GetToken()
 
 	// Special case for class B extends A, A is not a declaration.
-	if parentToken == rhino.Token_CLASS && !node.IsFirstChildOf(parent) {
+	if cls, ok := ast.AsClass(parent); ok && cls.NameNode() != node {
 		return false
 	}
 
@@ -123,7 +127,8 @@ func reference_isDeclarationHelper(node rhino.Node) bool {
 		return false
 	}
 
-	if NodeUtil_IsNameDeclaration(grandparent) && node == parent.GetSecondChild() {
+	if _, isDecl := ast.AsNameDeclaration(grandparent); isDecl &&
+		ast.RoleIn(node, parent) == ast.RoleDestructuringLhsInit {
 		// This is the RHS of a var/let/const and thus not a declaration.
 		return false
 	}
@@ -134,30 +139,33 @@ func reference_isDeclarationHelper(node rhino.Node) bool {
 		rhino.Token_IMPORT:
 		return true
 	case rhino.Token_FUNCTION:
-		if parent.GetBooleanProp(rhino.Node_Prop_ARROW_FN) {
-			return node == parent.GetFirstChild()
+		fn := ast.MustFunction(parent)
+		if fn.IsArrow() {
+			return fn.NameNode().Is(node)
 		}
 		return true
 	case rhino.Token_DESTRUCTURING_LHS, rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN,
 		rhino.Token_ITER_REST, rhino.Token_OBJECT_REST:
 		return reference_isDeclarationHelper(parent)
 	case rhino.Token_STRING_KEY:
-		if grandparent.IsObjectPattern() {
+		if _, ok := ast.AsObjectPattern(grandparent); ok {
 			return reference_isDeclarationHelper(parent)
 		}
 		return false
 	case rhino.Token_COMPUTED_PROP:
-		if grandparent.IsObjectPattern() && node == parent.GetLastChild() {
-			return reference_isDeclarationHelper(parent)
+		if _, ok := ast.AsObjectPattern(grandparent); ok {
+			if val, hasVal := ast.MustComputedProp(parent).Value(); hasVal && val.Is(node) {
+				return reference_isDeclarationHelper(parent)
+			}
 		}
 		return false
 	case rhino.Token_DEFAULT_VALUE:
-		if node == parent.GetFirstChild() {
+		if ast.MustDefaultValue(parent).Target().Is(node) {
 			return reference_isDeclarationHelper(parent)
 		}
 		return false
 	case rhino.Token_IMPORT_SPEC:
-		return node == parent.GetLastChild()
+		return ast.MustImportSpec(parent).Local().Is(node)
 	default:
 		return false
 	}
@@ -184,8 +192,15 @@ func (r *Reference) IsAssignedToObjectDestructuringPattern() bool {
 	// `let { propName: varName } = ref;`
 	// or
 	// `({ propName: varName } = ref);`
-	return (parent.IsDestructuringLhs() || parent.IsAssign()) &&
-		parent.GetFirstChild().IsObjectPattern()
+	if lhs, ok := ast.AsDestructuringLhs(parent); ok {
+		_, isObj := lhs.Pattern().AsObjectPattern()
+		return isObj
+	}
+	if assign, ok := ast.AsAssign(parent); ok {
+		_, isObj := assign.Target().AsObjectPattern()
+		return isObj
+	}
+	return false
 }
 
 // Java: Reference.isConstDeclaration()
@@ -205,8 +220,13 @@ func (r *Reference) IsHoistedFunction() bool {
 func (r *Reference) IsInitializingDeclaration() bool {
 	// VAR and LET are the only types of variable declarations that may not initialize
 	// their variables. Catch blocks, named functions, and parameters all do.
-	return (r.IsDeclaration() && !r.GetParent().IsVar() && !r.GetParent().IsLet()) ||
-		r.nameNode.HasChildren()
+	if name, ok := ast.AsName(r.nameNode); ok {
+		if _, hasInit := name.Init(); hasInit {
+			return true
+		}
+	}
+	parent := r.GetParent()
+	return r.IsDeclaration() && !parent.IsVar() && !parent.IsLet()
 }
 
 // GetAssignedValue returns, for an assignment, variable declaration, or
@@ -234,14 +254,14 @@ func (r *Reference) GetGrandparent() rhino.Node {
 
 // Java: Reference.isLhsOfEnhancedForExpression(Node)
 func reference_isLhsOfEnhancedForExpression(n rhino.Node) bool {
-	parent := n.GetParent()
-	return NodeUtil_IsEnhancedFor(parent) && parent.GetFirstChild() == n
+	ef, ok := ast.AsEnhancedFor(n.GetParent())
+	return ok && ef.Target().Is(n)
 }
 
 // Java: Reference.isSimpleAssignmentToName()
 func (r *Reference) IsSimpleAssignmentToName() bool {
-	parent := r.GetParent()
-	return parent.IsAssign() && parent.GetFirstChild() == r.nameNode
+	assign, ok := ast.AsAssign(r.GetParent())
+	return ok && assign.Target().Is(r.nameNode)
 }
 
 // IsLvalue returns whether the name node for this reference is an lvalue.
@@ -251,21 +271,27 @@ func (r *Reference) IsSimpleAssignmentToName() bool {
 // Java: Reference.isLvalue()
 func (r *Reference) IsLvalue() bool {
 	parent := r.GetParent()
-	parentType := parent.GetToken()
-	switch parentType {
+	switch parent.GetToken() {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		return r.nameNode.HasChildren() || reference_isLhsOfEnhancedForExpression(r.nameNode)
+		if name, ok := ast.AsName(r.nameNode); ok {
+			if _, hasInit := name.Init(); hasInit {
+				return true
+			}
+		}
+		return reference_isLhsOfEnhancedForExpression(r.nameNode)
 	case rhino.Token_DEFAULT_VALUE:
-		return parent.GetFirstChild() == r.nameNode
+		return ast.MustDefaultValue(parent).Target().Is(r.nameNode)
 	case rhino.Token_INC, rhino.Token_DEC, rhino.Token_CATCH, rhino.Token_ITER_REST, rhino.Token_OBJECT_REST,
 		rhino.Token_PARAM_LIST:
 		return true
 	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		return NodeUtil_IsEnhancedFor(parent) && parent.GetFirstChild() == r.nameNode
+		ef, ok := ast.AsEnhancedFor(parent)
+		return ok && ef.Target().Is(r.nameNode)
 	case rhino.Token_ARRAY_PATTERN, rhino.Token_STRING_KEY, rhino.Token_COMPUTED_PROP:
 		return NodeUtil_IsLhsByDestructuring(r.nameNode)
 	default:
-		return NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == r.nameNode
+		assign, ok := ast.AsAssignment(parent)
+		return ok && assign.Target().Is(r.nameNode)
 	}
 }
 

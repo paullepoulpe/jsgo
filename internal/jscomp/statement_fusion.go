@@ -19,9 +19,13 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: this pass reads block, control-flow, and expression-statement shapes
+// through package ast while keeping its rhino.Node peephole interface intact.
 
 // StatementFusion tries to fuse all the statements in a block into a one
 // statement by using COMMAs or statements.
@@ -49,39 +53,41 @@ func NewStatementFusion() *StatementFusion {
 
 // Java: StatementFusion.optimizeSubtree(Node)
 func (s *StatementFusion) OptimizeSubtree(n rhino.Node) rhino.Node {
-	if n.GetParent().IsFunction() || !s.CanFuseIntoOneStatement(n) {
+	if _, inFn := ast.AsFunction(n.GetParent()); inFn || !s.CanFuseIntoOneStatement(n) {
 		return n
 	}
 
-	start := n.GetFirstChild()
-	end := n.GetLastChild()
-	result := StatementFusion_FuseIntoOneStatement(start, end)
-	StatementFusion_FuseExpressionIntoControlFlowStatement(result, n.GetLastChild())
+	block := ast.MustBlock(n)
+	start := block.MustFirstStatement().Node()
+	end, _ := block.LastStatement()
+	result := StatementFusion_FuseIntoOneStatement(start, end.Node())
+	last, _ := block.LastStatement()
+	StatementFusion_FuseExpressionIntoControlFlowStatement(result, last.Node())
 
 	s.ReportChangeToEnclosingScope(n)
 	return n
 }
 
 // Java: StatementFusion.canFuseIntoOneStatement(Node)
-func (s *StatementFusion) CanFuseIntoOneStatement(block rhino.Node) bool {
-	if !block.IsBlock() {
+func (s *StatementFusion) CanFuseIntoOneStatement(blockNode rhino.Node) bool {
+	block, ok := ast.AsBlock(blockNode)
+	if !ok {
 		return false
 	}
 
 	// Nothing to do here.
-	if !block.HasChildren() || block.HasOneChild() {
+	last, hasStmts := block.LastStatement()
+	if _, onlyOne := block.OnlyStatement(); !hasStmts || onlyOne {
 		return false
 	}
 
-	last := block.GetLastChild()
-
-	for c := block.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if !c.IsExprResult() && c != last {
+	for stmt := range block.Statements() {
+		if _, isExpr := stmt.AsExprStmt(); !isExpr && !stmt.Is(last.Node()) {
 			return false
 		}
 	}
 
-	return s.IsFusableControlStatement(last)
+	return s.IsFusableControlStatement(last.Node())
 }
 
 // Java: StatementFusion.isFusableControlStatement(Node)
@@ -91,19 +97,28 @@ func (s *StatementFusion) IsFusableControlStatement(n rhino.Node) bool {
 		return true
 	case rhino.Token_RETURN:
 		// We don't want to add a new return value.
-		return n.HasChildren()
+		_, hasValue := ast.MustReturn(n).Value()
+		return hasValue
 	case rhino.Token_FOR:
 		// Avoid cases where we have for(var x;_;_) { ....
-		return !NodeUtil_IsNameDeclaration(n.GetFirstChild())
+		init, hasInit := ast.MustFor(n).Init()
+		if !hasInit {
+			return true
+		}
+		_, isDecl := init.AsNameDeclaration()
+		return !isDecl
 	case rhino.Token_FOR_IN:
 		// Avoid cases where we have for(var x = foo() in a) { ....
-		return !s.MayHaveSideEffects(n.GetFirstChild())
+		return !s.MayHaveSideEffects(ast.MustForIn(n).Target().Node())
 	case rhino.Token_LABEL:
-		return s.IsFusableControlStatement(n.GetLastChild())
+		return s.IsFusableControlStatement(ast.MustLabel(n).Body().Node())
 	case rhino.Token_BLOCK:
+		blk := ast.MustBlock(n)
+		first, hasFirst := blk.FirstStatement()
 		return (s.IsASTNormalized() || NodeUtil_CanMergeBlock(n)) &&
-			!n.IsSyntheticBlock() &&
-			s.IsFusableControlStatement(n.GetFirstChild())
+			!blk.IsSynthetic() &&
+			hasFirst &&
+			s.IsFusableControlStatement(first.Node())
 	default:
 	}
 	return false
@@ -124,11 +139,12 @@ func StatementFusion_FuseIntoOneStatement(first rhino.Node, last rhino.Node) rhi
 	}
 
 	// Step one: Create a comma tree that contains all the statements.
-	commaTree := first.RemoveFirstChild()
+	commaTree := ast.MustExprStmt(first).Expr().Detach().Node()
 
 	var next rhino.Node
 	for cur := first.GetNext(); cur != last; cur = next {
-		commaTree = AstManipulations_FuseExpressions(commaTree, cur.RemoveFirstChild())
+		curExpr := ast.MustExprStmt(cur).Expr().Detach().Node()
+		commaTree = AstManipulations_FuseExpressions(commaTree, curExpr)
 		next = cur.GetNext()
 		cur.Detach()
 	}
@@ -142,22 +158,23 @@ func StatementFusion_FuseIntoOneStatement(first rhino.Node, last rhino.Node) rhi
 // Java: StatementFusion.fuseExpressionIntoControlFlowStatement(Node, Node)
 func StatementFusion_FuseExpressionIntoControlFlowStatement(
 	before rhino.Node, control rhino.Node) {
-	jutil.CheckArgumentMsg(before.IsExprResult(), "before must be expression result")
+	beforeStmt, ok := ast.AsExprStmt(before)
+	jutil.CheckArgumentMsg(ok, "before must be expression result")
 
 	// Now we are just left with two statements. The comma tree of the first
 	// n - 1 statements (which can be used in an expression) and the last
 	// statement. We perform specific fusion based on the last statement's type.
 	switch control.GetToken() {
 	case rhino.Token_IF, rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_SWITCH, rhino.Token_EXPR_RESULT, rhino.Token_FOR:
-		before.Detach()
-		StatementFusion_FuseExpressionIntoFirstChild(before.RemoveFirstChild(), control)
+		beforeStmt.Detach()
+		StatementFusion_FuseExpressionIntoFirstChild(beforeStmt.Expr().Detach().Node(), control)
 	case rhino.Token_FOR_IN:
-		before.Detach()
-		StatementFusion_FuseExpressionIntoSecondChild(before.RemoveFirstChild(), control)
+		beforeStmt.Detach()
+		StatementFusion_FuseExpressionIntoSecondChild(beforeStmt.Expr().Detach().Node(), control)
 	case rhino.Token_LABEL:
-		StatementFusion_FuseExpressionIntoControlFlowStatement(before, control.GetLastChild())
+		StatementFusion_FuseExpressionIntoControlFlowStatement(before, ast.MustLabel(control).Body().Node())
 	case rhino.Token_BLOCK:
-		StatementFusion_FuseExpressionIntoControlFlowStatement(before, control.GetFirstChild())
+		StatementFusion_FuseExpressionIntoControlFlowStatement(before, ast.MustBlock(control).MustFirstStatement().Node())
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg("Statement fusion missing."))
 	}
@@ -172,7 +189,9 @@ func StatementFusion_FuseExpressionIntoFirstChild(exp rhino.Node, stmt rhino.Nod
 
 // Java: StatementFusion.fuseExpressionIntoSecondChild(Node, Node)
 func StatementFusion_FuseExpressionIntoSecondChild(exp rhino.Node, stmt rhino.Node) {
-	val := stmt.GetSecondChild().Detach()
+	forIn := ast.MustForIn(stmt)
+	target := forIn.Target().Node()
+	val := forIn.Object().Detach().Node()
 	comma := AstManipulations_FuseExpressions(exp, val)
-	comma.InsertAfter(stmt.GetFirstChild())
+	comma.InsertAfter(target)
 }

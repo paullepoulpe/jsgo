@@ -19,9 +19,13 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Go-only: function, loop, declaration, and return shapes are read through
+// package ast while keeping FunctionToBlockMutator's rhino.Node API intact.
 
 // FunctionToBlockMutator is a class to transform the body of a function into
 // a generic block suitable for inlining.
@@ -140,7 +144,8 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	needsDefaultResult bool,
 	isCallInLoop bool,
 	renameLocals bool) rhino.Node {
-	newFnNode := fnNode.CloneTree()
+	newFn := ast.MustFunction(fnNode.CloneTree())
+	newFnNode := newFn.Node()
 	// Wrap the clone in a script, in a root, so that makeLocalNamesUnique sees a coherent tree.
 	usedScratch := false
 	if !m.scratchReady {
@@ -165,7 +170,7 @@ func (m *FunctionToBlockMutator) MutateInternal(
 		// Function declarations must be rewritten as function expressions as
 		// they will be within a block and normalization prevents function
 		// declarations within block as browser implementations vary.
-		FunctionToBlockMutator_RewriteFunctionDeclarations(newFnNode.GetLastChild())
+		FunctionToBlockMutator_RewriteFunctionDeclarations(newFn.Body().Node())
 	}
 
 	// TODO(johnlenz): Mark NAME nodes constant for parameters that are not modified.
@@ -182,9 +187,7 @@ func (m *FunctionToBlockMutator) MutateInternal(
 			m.compiler, newFnNode, args, modifiedParameters, m.compiler.GetCodingConvention(), allNamesToAlias)
 	}
 
-	newBlock := NodeUtil_GetFunctionBody(newFnNode)
-	// Make the newBlock insertable .
-	newBlock.Detach()
+	newBlock := newFn.Body().MustBlock().Detach().Node()
 	if usedScratch && newFnNode.GetParent() == m.scratchScript {
 		newFnNode.Detach()
 	}
@@ -215,15 +218,15 @@ func (m *FunctionToBlockMutator) MutateInternal(
 //
 // Java: FunctionToBlockMutator.rewriteFunctionDeclarations(Node)
 func FunctionToBlockMutator_RewriteFunctionDeclarations(n rhino.Node) rhino.Node {
-	if n.IsFunction() {
+	if fn, ok := ast.AsFunction(n); ok {
 		if NodeUtil_IsFunctionDeclaration(n) {
 			// Rewrite: function f() {} ==> var f = function() {}
-			fnNameNode := n.GetFirstChild()
+			fnName := fn.NameNode()
 
-			name := rhino.IR_Name(fnNameNode.GetString()).Srcref(fnNameNode)
+			name := rhino.IR_Name(fnName.Ident()).Srcref(fnName.Node())
 			var_ := rhino.IR_Var(name).Srcref(n)
 
-			fnNameNode.SetString("")
+			fn.RemoveName()
 			// Add the VAR, remove the FUNCTION
 			n.ReplaceWith(var_)
 			// readd the function as a function expression
@@ -277,7 +280,7 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 	n rhino.Node, containingBlock rhino.Node, inLoop bool) {
 	// Nested functions introduce there own var hoisting scope
 	// thier `var` should not be hoisted out to the containing block.
-	if n.IsFunction() {
+	if _, ok := ast.AsFunction(n); ok {
 		return
 	}
 
@@ -286,66 +289,68 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 	// outer loop iterations. When hoisting, any assignment at the declaration site in the loop
 	// must remain in the loop. Let declarations inside loops are block-scoped to that loop and
 	// do not need hoisting.
-	if NodeUtil_IsLoopStructure(n) {
-		body := NodeUtil_GetLoopCodeBlock(n)
+	if loop, ok := ast.AsLoop(n); ok {
+		body := loop.Body().Node()
 		if !body.IsNil() {
 			FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(body, containingBlock /* inLoop= */, true)
 		}
-		if n.IsVanillaFor() {
-			init := n.GetFirstChild()
-			if !init.IsNil() && !init.IsEmpty() {
-				FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(init, containingBlock /* inLoop= */, true)
+		if vanillaFor, isFor := loop.AsFor(); isFor {
+			if init, hasInit := vanillaFor.Init(); hasInit {
+				FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(init.Node(), containingBlock /* inLoop= */, true)
 			}
 		}
 		return
 	}
 
-	if inLoop && n.IsVar() && n.HasOneChild() {
-		name := n.GetFirstChild()
-		srcLocation := name
-		parent := n.GetParent()
-		// Hoist per-function declaration initialized to undefined
-		hoistedVar := rhino.IR_Var(name.CloneNode().SetJSDocInfo(nil)).Srcref(n)
-		hoistedVar.GetFirstChild().AddChildToBack(NodeUtil_NewUndefinedNode(srcLocation))
-		containingBlock.AddChildToFront(hoistedVar)
+	if decl, ok := ast.AsNameDeclaration(n); ok {
+		if onlyDecl, hasOne := decl.OnlyDeclarator(); hasOne {
+			if inLoop && decl.Token() == rhino.Token_VAR {
+				name := onlyDecl.MustName()
+				nameNode := name.Node()
+				inForInit := ast.RoleOf(n) == ast.RoleForInit
+				// Hoist per-function declaration initialized to undefined
+				hoistedName := nameNode.CloneNode().SetJSDocInfo(nil)
+				hoistedName.AddChildToBack(NodeUtil_NewUndefinedNode(nameNode))
+				containingBlock.AddChildToFront(rhino.IR_Var(hoistedName).Srcref(n))
 
-		if name.HasChildren() {
-			// If the var in the loop had an initializer, keep the assignment at the declaration site in
-			// the loop.
-			value := name.RemoveFirstChild()
-			assign := rhino.IR_Assign(name.Detach(), value).Srcref(n)
-			if !parent.IsNil() && parent.IsVanillaFor() && parent.GetFirstChild() == n {
-				n.ReplaceWith(assign)
-			} else {
-				n.ReplaceWith(NodeUtil_NewExpr(assign))
+				if initVal, hasInit := name.Init(); hasInit {
+					// If the var in the loop had an initializer, keep the assignment at the declaration site in
+					// the loop.
+					value := initVal.Detach().Node()
+					assign := rhino.IR_Assign(nameNode.Detach(), value).Srcref(n)
+					if inForInit {
+						n.ReplaceWith(assign)
+					} else {
+						n.ReplaceWith(NodeUtil_NewExpr(assign))
+					}
+				} else {
+					// If uninitialized in the loop, remove the var declaration from the loop.
+					if inForInit {
+						n.ReplaceWith(rhino.IR_Empty())
+					} else {
+						n.Detach()
+					}
+				}
+				return
 			}
-		} else {
-			// If uninitialized in the loop, remove the var declaration from the loop.
-			if !parent.IsNil() && parent.IsVanillaFor() && parent.GetFirstChild() == n {
-				n.ReplaceWith(rhino.IR_Empty())
-			} else {
-				n.Detach()
+
+			if !inLoop && (decl.Token() == rhino.Token_VAR || decl.Token() == rhino.Token_LET) {
+				if name, isName := onlyDecl.AsName(); isName {
+					// It isn't initialized.
+					if _, hasInit := name.Init(); !hasInit {
+						nameNode := name.Node()
+						nameNode.AddChildToBack(NodeUtil_NewUndefinedNode(nameNode))
+						if ast.RoleOf(n) == ast.RoleForInit {
+							n.ReplaceWith(rhino.IR_Empty())
+						} else {
+							n.Detach()
+						}
+						containingBlock.AddChildToFront(n)
+					}
+				}
+				return
 			}
 		}
-		return
-	}
-
-	if !inLoop && (n.IsVar() || n.IsLet()) && n.HasOneChild() {
-		name := n.GetFirstChild()
-		// It isn't initialized.
-		if !name.HasChildren() {
-			srcLocation := name
-			undefinedNode := NodeUtil_NewUndefinedNode(srcLocation)
-			name.AddChildToBack(undefinedNode)
-			parent := n.GetParent()
-			if !parent.IsNil() && parent.IsVanillaFor() && parent.GetFirstChild() == n {
-				n.ReplaceWith(rhino.IR_Empty())
-			} else {
-				n.Detach()
-			}
-			containingBlock.AddChildToFront(n)
-		}
-		return
 	}
 
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -683,15 +688,17 @@ func FunctionToBlockMutator_AddDummyAssignment(node rhino.Node, resultName strin
 //
 // Java: FunctionToBlockMutator.convertLastReturnToStatement(Node, String)
 func FunctionToBlockMutator_ConvertLastReturnToStatement(block rhino.Node, resultName string) {
-	ret := block.GetLastChild()
-	jutil.CheckArgument(ret.IsReturn())
-	resultNode := FunctionToBlockMutator_GetReplacementReturnStatement(ret, resultName)
+	lastStmt, hasLast := ast.MustBlock(block).LastStatement()
+	ret, isRet := lastStmt.AsReturn()
+	jutil.CheckArgument(hasLast && isRet)
+	retNode := ret.Node()
+	resultNode := FunctionToBlockMutator_GetReplacementReturnStatement(retNode, resultName)
 
 	if resultNode.IsNil() {
-		ret.Detach()
+		retNode.Detach()
 	} else {
-		resultNode.SrcrefTreeIfMissing(ret)
-		ret.ReplaceWith(resultNode)
+		resultNode.SrcrefTreeIfMissing(retNode)
+		retNode.ReplaceWith(resultNode)
 	}
 }
 
@@ -718,10 +725,10 @@ func FunctionToBlockMutator_GetReplacementReturnStatement(node rhino.Node, resul
 	var resultNode rhino.Node
 
 	var retVal rhino.Node
-	if node.HasChildren() {
+	if val, hasVal := ast.MustReturn(node).Value(); hasVal {
 		// Clone the child as the child hasn't been removed
 		// from the node yet.
-		retVal = node.GetFirstChild().CloneTree()
+		retVal = val.Node().CloneTree()
 	}
 
 	if resultName == "" {
@@ -748,7 +755,12 @@ func FunctionToBlockMutator_GetReplacementReturnStatement(node rhino.Node, resul
 func FunctionToBlockMutator_HasReturnAtExit(block rhino.Node) bool {
 	// Only inline functions that return something (empty returns
 	// will be handled by ConstFolding+EmptyFunctionRemoval)
-	return block.GetLastChild().IsReturn()
+	last, hasLast := ast.MustBlock(block).LastStatement()
+	if !hasLast {
+		return false
+	}
+	_, isRet := last.AsReturn()
+	return isRet
 }
 
 // FunctionToBlockMutator_ReplaceReturnWithBreak replaces the 'return'
