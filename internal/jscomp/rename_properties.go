@@ -222,10 +222,10 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 			continue
 		}
 		p := r.propertyMap.Get(oldName)
-		if p != nil && p.newName != nil {
+		if p != nil && p.newName != "" {
 			jutil.CheckState(oldName == p.oldName)
-			n.SetString(*p.newName)
-			if *p.newName != oldName {
+			n.SetString(p.newName)
+			if p.newName != oldName {
 				r.compiler.ReportChangeToEnclosingScope(n)
 			}
 		}
@@ -239,12 +239,12 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 		for _, oldName := range renameProperties_DOT_SPLITTER(firstArg.GetString()) {
 			p := r.propertyMap.Get(oldName)
 			var replacement string
-			if p != nil && p.newName != nil {
+			if p != nil && p.newName != "" {
 				jutil.CheckState(oldName == p.oldName)
 				if _, filtered := r.filteredOutNames[oldName]; filtered {
 					replacement = oldName
 				} else {
-					replacement = *p.newName
+					replacement = p.newName
 				}
 			} else {
 				replacement = oldName
@@ -283,8 +283,7 @@ func (r *RenameProperties) reusePropertyNamesSlice(reservedNames *jutil.LinkedHa
 				continue
 			}
 
-			prop.newNameVal = *prevName
-			prop.newName = &prop.newNameVal
+			prop.newName = *prevName
 			reservedNames.Add(*prevName)
 		}
 	}
@@ -295,13 +294,11 @@ func (r *RenameProperties) generateNamesSlice(props []*RenameProperties_Property
 		reservedNames, "", r.reservedFirstCharacters, r.reservedNonFirstCharacters)
 	for _, p := range props {
 		if r.generatePseudoNames {
-			p.newNameVal = "$" + p.oldName + "$"
-			p.newName = &p.newNameVal
-		} else if p.newName == nil {
-			p.newNameVal = r.nameGenerator.GenerateNextName()
-			p.newName = &p.newNameVal
+			p.newName = "$" + p.oldName + "$"
+		} else if p.newName == "" {
+			p.newName = r.nameGenerator.GenerateNextName()
 		}
-		reservedNames.Add(*p.newName)
+		reservedNames.Add(p.newName)
 	}
 }
 
@@ -312,8 +309,8 @@ func (r *RenameProperties) generateNamesSlice(props []*RenameProperties_Property
 func (r *RenameProperties) GetPropertyMap() *VariableMap {
 	m := jutil.NewLinkedHashMapWithCapacity[string, string](r.propertyMap.Size())
 	for p := range r.propertyMap.Values() {
-		if p.newName != nil {
-			m.PutNew(p.oldName, *p.newName)
+		if p.newName != "" {
+			m.PutNew(p.oldName, p.newName)
 		}
 	}
 	return NewVariableMap(m)
@@ -481,8 +478,7 @@ func (r *RenameProperties) allocProperty(name string) *RenameProperties_Property
 // Java: private static class RenameProperties.Property
 type RenameProperties_Property struct {
 	oldName        string
-	newName        *string // may be nil
-	newNameVal     string
+	newName        string
 	numOccurrences int
 }
 

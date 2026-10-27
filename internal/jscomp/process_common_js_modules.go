@@ -527,7 +527,7 @@ func (p *ProcessCommonJSModules) RemoveIIFEWrapper(root rhino.Node) bool {
 
 	mutator :=
 		NewFunctionToBlockMutator(p.compiler, p.compiler.GetUniqueNameIdSupplier())
-	block := mutator.MutateWithoutRenaming(iifeLabel, fnc, call, nil, false, false)
+	block := mutator.MutateWithoutRenaming(iifeLabel, fnc, call, "", false, false)
 	root.RemoveChildren()
 	root.AddChildrenToFront(block.RemoveChildren())
 	p.ReportNestedScopesDeleted(fnc)
@@ -1320,7 +1320,7 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 			mutator :=
 				NewFunctionToBlockMutator(compiler, compiler.GetUniqueNameIdSupplier())
 			newStatements :=
-				mutator.MutateWithoutRenaming(factoryLabel, fn, enclosingFnCall, nil, false, false)
+				mutator.MutateWithoutRenaming(factoryLabel, fn, enclosingFnCall, "", false, false)
 
 			// Check to see if the returned block is of the form:
 			// {
@@ -1339,16 +1339,16 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 			if inlinedFn, exprStmt, ok := processCommonJSModules_inlinedFactory(newStatements); ok {
 				expr := exprStmt.Expr()
 				var call rhino.Node
-				var assignedName *string
+				var assignedName string
 				var exprAssign ast.Assign
 				if assign, ok := expr.AsAssign(); ok {
 					if valueCall, ok := assign.Value().AsCall(); ok {
 						exprAssign = assign
 						call = valueCall.Node()
 						assignedName =
-							jutil.StringPtr(modulePath.ToModuleName() +
+							modulePath.ToModuleName() +
 								"_iife" +
-								compiler.GetUniqueIdSupplier().GetUniqueId(ci))
+								compiler.GetUniqueIdSupplier().GetUniqueId(ci)
 					}
 				} else if exprCall, ok := expr.AsCall(); ok {
 					call = exprCall.Node()
@@ -1358,17 +1358,17 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 					newStatements =
 						mutator.MutateWithoutRenaming(
 							factoryLabel, inlinedFn.Node(), call, assignedName, false, false)
-					if assignedName != nil {
+					if assignedName != "" {
 						newName :=
 							rhino.IR_Var(
 								NodeUtil_NewNameWithOriginalName(
 									compiler,
-									*assignedName,
+									assignedName,
 									fn,
 									*exprAssign.Target().Node().GetQualifiedName())).
 								SrcrefTree(fn)
 						// If the inlined function starts with `assignedName = value;`, declare it there.
-						if first, ok := processCommonJSModules_firstAssignTo(newStatements, *assignedName); ok {
+						if first, ok := processCommonJSModules_firstAssignTo(newStatements, assignedName); ok {
 							newName.
 								GetFirstChild().
 								AddChildToFront(first.Value().Detach().Node())

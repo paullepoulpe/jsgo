@@ -31,19 +31,36 @@ const asciiByteTable = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d
 	"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_" +
 	"`abcdefghijklmnopqrstuvwxyz{|}~\x7f"
 
+const (
+	defaultNameGenerator_FIRST_CHAR_STR    = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ$"
+	defaultNameGenerator_NONFIRST_CHAR_STR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789$"
+)
+
+var defaultNameGenerator_orderByASCII = func() [128]int8 {
+	var table [128]int8
+	for i := range table {
+		table[i] = -1
+	}
+	for order := 0; order < len(defaultNameGenerator_NONFIRST_CHAR_STR); order++ {
+		table[defaultNameGenerator_NONFIRST_CHAR_STR[order]] = int8(order)
+	}
+	return table
+}()
+
 // DefaultNameGenerator is a simple class for generating unique JavaScript
 // variable/property names.
 //
 // This class is not thread safe.
 type DefaultNameGenerator struct {
-	priorityLookupMap map[uint16]*defaultNameGenerator_CharPriority
-
 	reservedNames jutil.Set[string]
 	prefix        string
 	nameCount     int
 
 	firstChars    []*defaultNameGenerator_CharPriority
 	nonFirstChars []*defaultNameGenerator_CharPriority
+	priorities    [len(defaultNameGenerator_NONFIRST_CHAR_STR)]defaultNameGenerator_CharPriority
+	firstBuf      [len(defaultNameGenerator_FIRST_CHAR_STR)]*defaultNameGenerator_CharPriority
+	nonFirstBuf   [len(defaultNameGenerator_NONFIRST_CHAR_STR)]*defaultNameGenerator_CharPriority
 	scratchBuf    [32]byte
 }
 
@@ -56,18 +73,6 @@ type defaultNameGenerator_CharPriority struct {
 	// This is a tie-breaker when two chars occurrence count is the same.
 	// When that happens, the 'natural' order prevails.
 	order int
-}
-
-// Java: DefaultNameGenerator.CharPriority(char, int)
-func newDefaultNameGenerator_CharPriority(name uint16, order int) *defaultNameGenerator_CharPriority {
-	return &defaultNameGenerator_CharPriority{name: name, order: order, occurrence: 0}
-}
-
-// Java: DefaultNameGenerator.CharPriority.clone()
-func (c *defaultNameGenerator_CharPriority) Clone() *defaultNameGenerator_CharPriority {
-	result := newDefaultNameGenerator_CharPriority(c.name, c.order)
-	result.occurrence = c.occurrence
-	return result
 }
 
 // Java: DefaultNameGenerator.CharPriority.compareTo(CharPriority)
@@ -91,20 +96,17 @@ func (c *defaultNameGenerator_CharPriority) CompareTo(other *defaultNameGenerato
 
 // DefaultNameGenerator_FIRST_CHAR: generate short name with this first
 // character.
-var DefaultNameGenerator_FIRST_CHAR = jutil.StringToUTF16(
-	"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ$")
+var DefaultNameGenerator_FIRST_CHAR = jutil.StringToUTF16(defaultNameGenerator_FIRST_CHAR_STR)
 
 // DefaultNameGenerator_NONFIRST_CHAR: these appear after the first
 // character.
-var DefaultNameGenerator_NONFIRST_CHAR = jutil.StringToUTF16(
-	"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789$")
+var DefaultNameGenerator_NONFIRST_CHAR = jutil.StringToUTF16(defaultNameGenerator_NONFIRST_CHAR_STR)
 
 // Java: DefaultNameGenerator()
 func NewDefaultNameGenerator() *DefaultNameGenerator {
 	g := &DefaultNameGenerator{}
-	g.buildPriorityLookupMap()
-	reservedNames := jutil.NewLinkedHashSet[string]()
-	g.Reset(reservedNames, "", jutil.NewLinkedHashSet[uint16]())
+	g.initPriorities()
+	g.Reset(nil, "", nil)
 	return g
 }
 
@@ -132,36 +134,17 @@ func NewDefaultNameGeneratorWithFirstAndNonFirstChars(
 	reservedFirstCharacters jutil.Set[uint16],
 	reservedNonFirstCharacters jutil.Set[uint16]) *DefaultNameGenerator {
 	g := &DefaultNameGenerator{}
-	g.buildPriorityLookupMap()
+	g.initPriorities()
 	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedFirstCharacters, reservedNonFirstCharacters)
 	return g
 }
 
-// Java: DefaultNameGenerator(Set<String>, String, Set<Character>, Map<Character, CharPriority>)
-func newDefaultNameGeneratorCloned(
-	reservedNames jutil.Set[string],
-	prefix string,
-	reservedCharacters jutil.Set[uint16],
-	priorityLookupMap map[uint16]*defaultNameGenerator_CharPriority) *DefaultNameGenerator {
-	g := &DefaultNameGenerator{
-		// Clone the priorityLookupMap to preserve information about how often
-		// characters are used.
-		priorityLookupMap: make(map[uint16]*defaultNameGenerator_CharPriority, len(priorityLookupMap)),
-	}
-	// order-independent: clones each entry into a map
-	for key, value := range priorityLookupMap {
-		g.priorityLookupMap[key] = value.Clone()
-	}
-
-	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedCharacters, reservedCharacters)
-	return g
-}
-
-// Java: DefaultNameGenerator.buildPriorityLookupMap()
-func (g *DefaultNameGenerator) buildPriorityLookupMap() {
-	g.priorityLookupMap = make(map[uint16]*defaultNameGenerator_CharPriority, len(DefaultNameGenerator_NONFIRST_CHAR))
-	for order, c := range DefaultNameGenerator_NONFIRST_CHAR {
-		g.priorityLookupMap[c] = newDefaultNameGenerator_CharPriority(c, order)
+func (g *DefaultNameGenerator) initPriorities() {
+	for order := 0; order < len(defaultNameGenerator_NONFIRST_CHAR_STR); order++ {
+		g.priorities[order] = defaultNameGenerator_CharPriority{
+			name:  uint16(defaultNameGenerator_NONFIRST_CHAR_STR[order]),
+			order: order,
+		}
 	}
 }
 
@@ -203,8 +186,8 @@ func (g *DefaultNameGenerator) ResetWithFirstAndNonFirstChars(
 	g.nameCount = 0
 
 	// build the character arrays to use
-	g.firstChars = g.ReserveCharacters(DefaultNameGenerator_FIRST_CHAR, reservedFirstCharacters)
-	g.nonFirstChars = g.ReserveCharacters(DefaultNameGenerator_NONFIRST_CHAR, reservedNonFirstCharacters)
+	g.firstChars = g.reserveCharactersInto(g.firstBuf[:0], defaultNameGenerator_FIRST_CHAR_STR, reservedFirstCharacters)
+	g.nonFirstChars = g.reserveCharactersInto(g.nonFirstBuf[:0], defaultNameGenerator_NONFIRST_CHAR_STR, reservedNonFirstCharacters)
 	// Arrays.sort(Object[]) is a stable merge sort.
 	slices.SortStableFunc(g.firstChars, (*defaultNameGenerator_CharPriority).CompareTo)
 	slices.SortStableFunc(g.nonFirstChars, (*defaultNameGenerator_CharPriority).CompareTo)
@@ -215,8 +198,11 @@ func (g *DefaultNameGenerator) ResetWithFirstAndNonFirstChars(
 // Java: DefaultNameGenerator.clone(Set<String>, String, Set<Character>)
 func (g *DefaultNameGenerator) Clone(
 	reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) NameGenerator {
-	return newDefaultNameGeneratorCloned(reservedNames, prefix, reservedCharacters,
-		g.priorityLookupMap)
+	cloned := &DefaultNameGenerator{
+		priorities: g.priorities,
+	}
+	cloned.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedCharacters, reservedCharacters)
+	return cloned
 }
 
 // Favors increases the prioritization of all the chars in a String. This
@@ -226,69 +212,64 @@ func (g *DefaultNameGenerator) Clone(
 //
 // Java: DefaultNameGenerator.favors(CharSequence)
 func (g *DefaultNameGenerator) Favors(sequence string) {
-	for _, ch := range jutil.StringToUTF16(sequence) {
-		if c := g.priorityLookupMap[ch]; c != nil {
-			c.occurrence++
+	// All NONFIRST_CHAR entries are ASCII (< 0x80), and multi-byte UTF-8 / WTF-8
+	// sequences never contain bytes < 0x80.
+	for i := 0; i < len(sequence); i++ {
+		b := sequence[i]
+		if b < 0x80 {
+			if idx := defaultNameGenerator_orderByASCII[b]; idx >= 0 {
+				g.priorities[idx].occurrence++
+			}
 		}
 	}
 }
 
-// ReserveCharacters provides the array of available characters based on
-// the specified arrays.
-//
-// chars is the list of characters that are legal; reservedCharacterSet the
-// characters that should not be used. Returns an array of characters to
-// use. Will return the chars array if reservedCharacters is null or empty,
-// otherwise creates a new array.
-//
-// Java: DefaultNameGenerator.reserveCharacters(char[], Set<Character>)
-func (g *DefaultNameGenerator) ReserveCharacters(chars []uint16, reservedCharacterSet jutil.Set[uint16]) []*defaultNameGenerator_CharPriority {
-	if reservedCharacterSet.IsEmpty() {
-		result := make([]*defaultNameGenerator_CharPriority, len(chars))
-		for i, ch := range chars {
-			result[i] = g.priorityLookupMap[ch]
+func (g *DefaultNameGenerator) reserveCharactersInto(
+	dst []*defaultNameGenerator_CharPriority,
+	chars string,
+	reservedCharacterSet jutil.Set[uint16],
+) []*defaultNameGenerator_CharPriority {
+	if reservedCharacterSet == nil || reservedCharacterSet.IsEmpty() {
+		for i := 0; i < len(chars); i++ {
+			dst = append(dst, &g.priorities[defaultNameGenerator_orderByASCII[chars[i]]])
 		}
-		return result
+		return dst
 	}
-	charSet := jutil.NewLinkedHashSet(chars...)
-	for c := range reservedCharacterSet.All() {
-		charSet.Remove(c)
+	for i := 0; i < len(chars); i++ {
+		ch := chars[i]
+		if !reservedCharacterSet.Contains(uint16(ch)) {
+			dst = append(dst, &g.priorities[defaultNameGenerator_orderByASCII[ch]])
+		}
 	}
-
-	result := make([]*defaultNameGenerator_CharPriority, charSet.Size())
-	index := 0
-	for c := range charSet.All() {
-		result[index] = g.priorityLookupMap[c]
-		index++
-	}
-	return result
+	return dst
 }
 
 // checkPrefix validates a name prefix.
 //
 // Java: DefaultNameGenerator.checkPrefix(String)
 func (g *DefaultNameGenerator) checkPrefix(prefix string) {
+	if prefix == "" {
+		return
+	}
 	units := jutil.StringToUTF16(prefix)
-	if len(units) > 0 {
-		// Make sure that prefix starts with a legal character.
-		if !defaultNameGenerator_contains(g.firstChars, units[0]) {
-			chars := make([]uint16, len(g.firstChars))
-			for i := 0; i < len(chars); i++ {
-				chars[i] = g.firstChars[i].name
-			}
-			panic(jutil.NewIllegalArgumentExceptionMsg(
-				"prefix must start with one of: " + jutil.CollectionToString(chars)))
+	// Make sure that prefix starts with a legal character.
+	if !defaultNameGenerator_contains(g.firstChars, units[0]) {
+		chars := make([]uint16, len(g.firstChars))
+		for i := 0; i < len(chars); i++ {
+			chars[i] = g.firstChars[i].name
 		}
-		for pos := 1; pos < len(units); pos++ {
+		panic(jutil.NewIllegalArgumentExceptionMsg(
+			"prefix must start with one of: " + jutil.CollectionToString(chars)))
+	}
+	for pos := 1; pos < len(units); pos++ {
+		if !defaultNameGenerator_contains(g.nonFirstChars, units[pos]) {
 			chars := make([]uint16, len(g.nonFirstChars))
 			for i := 0; i < len(chars); i++ {
 				chars[i] = g.nonFirstChars[i].name
 			}
-			if !defaultNameGenerator_contains(g.nonFirstChars, units[pos]) {
-				panic(jutil.NewIllegalArgumentExceptionMsg(
-					"prefix has invalid characters, must be one of: " +
-						jutil.CollectionToString(chars)))
-			}
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"prefix has invalid characters, must be one of: " +
+					jutil.CollectionToString(chars)))
 		}
 	}
 }
@@ -365,13 +346,13 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 			if n == 1 {
 				b := buf[0]
 				cand := asciiByteTable[b : b+1]
-				if rhino.TokenStream_IsKeyword(cand) || g.reservedNames.Contains(cand) || DefaultNameGenerator_IsBadName(cand) {
+				if rhino.TokenStream_IsKeyword(cand) || (g.reservedNames != nil && g.reservedNames.Contains(cand)) || DefaultNameGenerator_IsBadName(cand) {
 					continue
 				}
 				return cand
 			}
 			cand := string(buf[:n])
-			if rhino.TokenStream_IsKeyword(cand) || g.reservedNames.Contains(cand) || DefaultNameGenerator_IsBadName(cand) {
+			if rhino.TokenStream_IsKeyword(cand) || (g.reservedNames != nil && g.reservedNames.Contains(cand)) || DefaultNameGenerator_IsBadName(cand) {
 				continue
 			}
 			return cand
@@ -407,7 +388,7 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 		name := sb.String()
 
 		// Make sure it's not a JS keyword or reserved name.
-		if !(rhino.TokenStream_IsKeyword(name) || g.reservedNames.Contains(name) || DefaultNameGenerator_IsBadName(name)) {
+		if !(rhino.TokenStream_IsKeyword(name) || (g.reservedNames != nil && g.reservedNames.Contains(name)) || DefaultNameGenerator_IsBadName(name)) {
 			return name
 		}
 	}

@@ -122,136 +122,60 @@ var FunctionTypeBuilder_ALL_DIAGNOSTICS = NewDiagnosticGroup(
 	FunctionTypeBuilder_TEMPLATE_TYPE_ILLEGAL_BOUND,
 	TypeCheck_SAME_INTERFACE_MULTIPLE_IMPLEMENTS)
 
-// FunctionTypeBuilder_ValidatorBase is the abstract Predicate<JSType> base
-// of the extended- and implemented-type validators.
-type FunctionTypeBuilder_ValidatorBase interface {
-	// Java: Predicate.apply(JSType)
-	Apply(type_ rhino.JSType) bool
-
-	// Java: FunctionTypeBuilder.ValidatorBase.reportWarning(DiagnosticType, String...)
-	ReportWarning(warning *DiagnosticType, args ...string)
-
-	// Java: FunctionTypeBuilder.ValidatorBase.reportError(DiagnosticType, String...)
-	ReportError(error_ *DiagnosticType, args ...string)
-
-	// GetFunctionTypeBuilder_ValidatorBaseBase gives access to the fields of
-	// the base class.
-	//
-	// Go-only: language-adapter — field access through the interface
-	// (PORTING.md §4).
-	GetFunctionTypeBuilder_ValidatorBaseBase() *FunctionTypeBuilder_ValidatorBaseBase
-}
-
-// FunctionTypeBuilder_ValidatorBaseBase holds the fields and base methods of
-// FunctionTypeBuilder.ValidatorBase.
-type FunctionTypeBuilder_ValidatorBaseBase struct {
-	compiler  AbstractCompiler
-	errorRoot rhino.Node
-}
-
-// InitFunctionTypeBuilder_ValidatorBaseBase is the ValidatorBase
-// constructor.
+// CreateExtendedTypeValidator returns the Predicate<JSType> that validates
+// @extends types without retaining the surrounding FunctionTypeBuilder.
 //
-// Java: FunctionTypeBuilder.ValidatorBase(Node, AbstractCompiler)
-func (b *FunctionTypeBuilder_ValidatorBaseBase) InitFunctionTypeBuilder_ValidatorBaseBase(errorRoot rhino.Node, compiler AbstractCompiler) {
-	b.errorRoot = errorRoot
-	b.compiler = compiler
-}
-
-// GetFunctionTypeBuilder_ValidatorBaseBase gives access to the fields of the
-// base class.
-func (b *FunctionTypeBuilder_ValidatorBaseBase) GetFunctionTypeBuilder_ValidatorBaseBase() *FunctionTypeBuilder_ValidatorBaseBase {
-	return b
-}
-
-// Java: FunctionTypeBuilder.ValidatorBase.reportWarning(DiagnosticType, String...)
-func (b *FunctionTypeBuilder_ValidatorBaseBase) ReportWarning(warning *DiagnosticType, args ...string) {
-	b.compiler.Report(JSError_MakeWithNode(b.errorRoot, warning, args...))
-}
-
-// Java: FunctionTypeBuilder.ValidatorBase.reportError(DiagnosticType, String...)
-func (b *FunctionTypeBuilder_ValidatorBaseBase) ReportError(error_ *DiagnosticType, args ...string) {
-	b.compiler.Report(JSError_MakeWithNode(b.errorRoot, error_, args...))
-}
-
 // Java: FunctionTypeBuilder.createExtendedTypeValidator()
-func (f *FunctionTypeBuilder) CreateExtendedTypeValidator() *FunctionTypeBuilder_ExtendedTypeValidator {
-	return NewFunctionTypeBuilder_ExtendedTypeValidator(f.errorRoot, f.compiler, f.FormatFnName())
-}
-
-// FunctionTypeBuilder_ExtendedTypeValidator validates the types of @extends.
-type FunctionTypeBuilder_ExtendedTypeValidator struct {
-	FunctionTypeBuilder_ValidatorBaseBase
-	formattedFnName string
-}
-
-// Java: FunctionTypeBuilder.ExtendedTypeValidator(Node, AbstractCompiler, String)
-func NewFunctionTypeBuilder_ExtendedTypeValidator(errorRoot rhino.Node, compiler AbstractCompiler, formattedFnName string) *FunctionTypeBuilder_ExtendedTypeValidator {
-	v := &FunctionTypeBuilder_ExtendedTypeValidator{}
-	v.InitFunctionTypeBuilder_ValidatorBaseBase(errorRoot, compiler)
-	v.formattedFnName = formattedFnName
-	return v
-}
-
-// Java: FunctionTypeBuilder.ExtendedTypeValidator.apply(JSType)
-func (v *FunctionTypeBuilder_ExtendedTypeValidator) Apply(type_ rhino.JSType) bool {
-	objectType := rhino.ObjectType_Cast(type_)
-	if objectType == nil {
-		v.ReportWarning(FunctionTypeBuilder_EXTENDS_NON_OBJECT, v.formattedFnName, type_.String())
-		return false
-	}
-	if objectType.IsEmptyType() {
-		v.ReportWarning(FunctionTypeBuilder_RESOLVED_TAG_EMPTY, "@extends", v.formattedFnName)
-		return false
-	}
-	if objectType.IsUnknownType() {
-		if FunctionTypeBuilder_HasMoreTagsToResolve(objectType) || type_.IsTemplateType() {
-			return true
-		} else {
-			v.ReportWarning(FunctionTypeBuilder_RESOLVED_TAG_EMPTY, "@extends", v.formattedFnName)
+func (f *FunctionTypeBuilder) CreateExtendedTypeValidator() func(rhino.JSType) bool {
+	errorRoot := f.errorRoot
+	compiler := f.compiler
+	formattedFnName := f.FormatFnName()
+	return func(type_ rhino.JSType) bool {
+		objectType := rhino.ObjectType_Cast(type_)
+		if objectType == nil {
+			compiler.Report(JSError_MakeWithNode(errorRoot, FunctionTypeBuilder_EXTENDS_NON_OBJECT, formattedFnName, type_.String()))
 			return false
 		}
+		if objectType.IsEmptyType() {
+			compiler.Report(JSError_MakeWithNode(errorRoot, FunctionTypeBuilder_RESOLVED_TAG_EMPTY, "@extends", formattedFnName))
+			return false
+		}
+		if objectType.IsUnknownType() {
+			if FunctionTypeBuilder_HasMoreTagsToResolve(objectType) || type_.IsTemplateType() {
+				return true
+			}
+			compiler.Report(JSError_MakeWithNode(errorRoot, FunctionTypeBuilder_RESOLVED_TAG_EMPTY, "@extends", formattedFnName))
+			return false
+		}
+		return true
 	}
-	return true
 }
 
+// CreateImplementedTypeValidator returns the Predicate<JSType> that validates
+// @implements types without retaining the surrounding FunctionTypeBuilder.
+//
 // Java: FunctionTypeBuilder.createImplementedTypeValidator()
-func (f *FunctionTypeBuilder) CreateImplementedTypeValidator() *FunctionTypeBuilder_ImplementedTypeValidator {
-	return NewFunctionTypeBuilder_ImplementedTypeValidator(f.errorRoot, f.compiler, f.FormatFnName())
-}
-
-// FunctionTypeBuilder_ImplementedTypeValidator validates the types of
-// @implements.
-type FunctionTypeBuilder_ImplementedTypeValidator struct {
-	FunctionTypeBuilder_ValidatorBaseBase
-	formattedFnName string
-}
-
-// Java: FunctionTypeBuilder.ImplementedTypeValidator(Node, AbstractCompiler, String)
-func NewFunctionTypeBuilder_ImplementedTypeValidator(errorRoot rhino.Node, compiler AbstractCompiler, formattedFnName string) *FunctionTypeBuilder_ImplementedTypeValidator {
-	v := &FunctionTypeBuilder_ImplementedTypeValidator{}
-	v.InitFunctionTypeBuilder_ValidatorBaseBase(errorRoot, compiler)
-	v.formattedFnName = formattedFnName
-	return v
-}
-
-// Java: FunctionTypeBuilder.ImplementedTypeValidator.apply(JSType)
-func (v *FunctionTypeBuilder_ImplementedTypeValidator) Apply(type_ rhino.JSType) bool {
-	objectType := rhino.ObjectType_Cast(type_)
-	if objectType == nil {
-		v.ReportError(TypeCheck_BAD_IMPLEMENTED_TYPE, v.formattedFnName)
-		return false
-	} else if objectType.IsEmptyType() {
-		v.ReportWarning(FunctionTypeBuilder_RESOLVED_TAG_EMPTY, "@implements", v.formattedFnName)
-		return false
-	} else if objectType.IsUnknownType() {
-		if FunctionTypeBuilder_HasMoreTagsToResolve(objectType) {
-			return true
-		} else {
-			v.ReportWarning(FunctionTypeBuilder_RESOLVED_TAG_EMPTY, "@implements", v.formattedFnName)
+func (f *FunctionTypeBuilder) CreateImplementedTypeValidator() func(rhino.JSType) bool {
+	errorRoot := f.errorRoot
+	compiler := f.compiler
+	formattedFnName := f.FormatFnName()
+	return func(type_ rhino.JSType) bool {
+		objectType := rhino.ObjectType_Cast(type_)
+		if objectType == nil {
+			compiler.Report(JSError_MakeWithNode(errorRoot, TypeCheck_BAD_IMPLEMENTED_TYPE, formattedFnName))
 			return false
 		}
-	} else {
+		if objectType.IsEmptyType() {
+			compiler.Report(JSError_MakeWithNode(errorRoot, FunctionTypeBuilder_RESOLVED_TAG_EMPTY, "@implements", formattedFnName))
+			return false
+		}
+		if objectType.IsUnknownType() {
+			if FunctionTypeBuilder_HasMoreTagsToResolve(objectType) {
+				return true
+			}
+			compiler.Report(JSError_MakeWithNode(errorRoot, FunctionTypeBuilder_RESOLVED_TAG_EMPTY, "@implements", formattedFnName))
+			return false
+		}
 		return true
 	}
 }
@@ -568,7 +492,7 @@ func (f *FunctionTypeBuilder) InferInheritance(info *rhino.JSDocInfo, classExten
 			if !FunctionTypeBuilder_AreCompatibleExtendsTypes(infoBaseType.ToMaybeObjectType(), classExtendsType) {
 				f.isKnownAmbiguous = true
 			}
-			if infoBaseType.SetValidator(f.CreateExtendedTypeValidator().Apply) {
+			if infoBaseType.SetValidator(f.CreateExtendedTypeValidator()) {
 				f.baseType = infoBaseType.ToObjectType()
 			} else {
 				f.isKnownAmbiguous = true
@@ -604,7 +528,7 @@ func (f *FunctionTypeBuilder) InferInheritance(info *rhino.JSDocInfo, classExten
 			for _, t := range info.GetImplementedInterfaces() {
 				maybeInterType := t.Evaluate(f.templateScope, f.typeRegistry)
 
-				if maybeInterType.SetValidator(f.CreateImplementedTypeValidator().Apply) {
+				if maybeInterType.SetValidator(f.CreateImplementedTypeValidator()) {
 					f.implementedInterfaces = append(f.implementedInterfaces, maybeInterType.(rhino.ObjectType))
 				}
 			}
@@ -627,7 +551,7 @@ func (f *FunctionTypeBuilder) InferInheritance(info *rhino.JSDocInfo, classExten
 					// for not-yet resolved named types, where validation is delayed).
 					// This code must run even for non-object types (which we know are invalid) to generate
 					// and record the user error message.
-					isValid := maybeInterfaceType.SetValidator(f.CreateExtendedTypeValidator().Apply)
+					isValid := maybeInterfaceType.SetValidator(f.CreateExtendedTypeValidator())
 					// ExtendedTypeValidator guarantees that maybeInterfaceType is an object type, but
 					// setValidator might not (e.g. due to delayed execution).
 					if isValid && maybeInterfaceType.ToMaybeObjectType() != nil {
@@ -641,7 +565,7 @@ func (f *FunctionTypeBuilder) InferInheritance(info *rhino.JSDocInfo, classExten
 			}
 		}
 		if classExtendsType != nil &&
-			classExtendsType.SetValidator(f.CreateExtendedTypeValidator().Apply) {
+			classExtendsType.SetValidator(f.CreateExtendedTypeValidator()) {
 			// case is:
 			// /**
 			//  * @interface
@@ -1463,8 +1387,6 @@ func (c *FunctionTypeBuilder_AstFunctionContents) MayHaveSingleThrow() bool {
 }
 
 var (
-	_ FunctionTypeBuilder_ValidatorBase    = (*FunctionTypeBuilder_ExtendedTypeValidator)(nil)
-	_ FunctionTypeBuilder_ValidatorBase    = (*FunctionTypeBuilder_ImplementedTypeValidator)(nil)
 	_ FunctionTypeBuilder_FunctionContents = (*FunctionTypeBuilder_UnknownFunctionContents)(nil)
 	_ FunctionTypeBuilder_FunctionContents = (*FunctionTypeBuilder_AstFunctionContents)(nil)
 )

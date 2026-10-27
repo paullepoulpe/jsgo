@@ -279,6 +279,37 @@ func (s *iolCandidateScanner) collectCandFns(n rhino.Node) {
 	}
 }
 
+func newIOLDummyGlobalScope(root rhino.Node) *Scope {
+	s := newScope(root)
+	s.scanDone = true
+	s.hasImplicitVars = false
+	return s
+}
+
+func (o *InlineObjectLiterals) newFilteredCollector(
+	sc *SyntacticScopeCreator,
+	behavior *InlineObjectLiterals_InliningBehavior,
+	varFilter func(*Var) bool,
+) *ReferenceCollector {
+	rc := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
+	rc.enableLocalReclamation(func() bool {
+		clear(behavior.staleVars)
+		return true
+	})
+	return rc
+}
+
+func traverseIOLCandFn(rc *ReferenceCollector, root rhino.Node, dummyGlobalScope *Scope, candFn rhino.Node) {
+	tb := rc.builderVal()
+	t := newNodeTraversal(&tb)
+	t.currentNode = root
+	t.PushScopeOfScope(dummyGlobalScope)
+	t.currentScript = t.GetEnclosingScript(candFn)
+	t.ClearScriptState()
+	t.TraverseBranch(candFn, candFn.GetParent())
+	t.PopScope()
+}
+
 // Java: InlineObjectLiterals.process(Node, Node)
 func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 	if root.IsNil() {
@@ -330,9 +361,7 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 					sc := NewSyntacticScopeCreator(o.compiler)
 					behavior := NewInlineObjectLiterals_InliningBehavior(o)
 					behavior.scanner = &s
-					dummyGlobalScope := newScope(root)
-					dummyGlobalScope.scanDone = true
-					dummyGlobalScope.hasImplicitVars = false
+					dummyGlobalScope := newIOLDummyGlobalScope(root)
 					for {
 						fnIdx := int(nextIdx.Add(1) - 1)
 						if fnIdx >= len(s.candFns) {
@@ -341,7 +370,7 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 						candFn := s.candFns[fnIdx]
 						localCounter := 0
 						prefix := runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
-						behavior.staleVars.Clear()
+						clear(behavior.staleVars)
 						behavior.idSupplier = func() string {
 							id := prefix + strconv.Itoa(localCounter)
 							localCounter++
@@ -357,19 +386,8 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 								changedPerFn[fnIdx] = append(changedPerFn[fnIdx], cs)
 							}
 						}
-						rc := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
-						rc.enableLocalReclamation(func() bool {
-							behavior.staleVars.Clear()
-							return true
-						})
-						tb := rc.builderVal()
-						t := newNodeTraversal(&tb)
-						t.currentNode = root
-						t.PushScopeOfScope(dummyGlobalScope)
-						t.currentScript = t.GetEnclosingScript(candFn)
-						t.ClearScriptState()
-						t.TraverseBranch(candFn, candFn.GetParent())
-						t.PopScope()
+						rc := o.newFilteredCollector(sc, behavior, varFilter)
+						traverseIOLCandFn(rc, root, dummyGlobalScope, candFn)
 					}
 				}()
 			}
@@ -385,50 +403,30 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 			sc := NewSyntacticScopeCreator(o.compiler)
 			behavior := NewInlineObjectLiterals_InliningBehavior(o)
 			behavior.scanner = &s
+			dummyGlobalScope := newIOLDummyGlobalScope(root)
 			if fastMode && len(s.candFns) >= 1 {
 				runPrefix := o.safeNameIdSupplier()
-				dummyGlobalScope := newScope(root)
-				dummyGlobalScope.scanDone = true
-				dummyGlobalScope.hasImplicitVars = false
 				for fnIdx, candFn := range s.candFns {
 					localCounter := 0
 					prefix := runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
-					behavior.staleVars.Clear()
+					clear(behavior.staleVars)
 					behavior.idSupplier = func() string {
 						id := prefix + strconv.Itoa(localCounter)
 						localCounter++
 						return id
 					}
-					rc := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
-					rc.enableLocalReclamation(func() bool {
-						behavior.staleVars.Clear()
-						return true
-					})
-					tb := rc.builderVal()
-					t := newNodeTraversal(&tb)
-					t.currentNode = root
-					t.PushScopeOfScope(dummyGlobalScope)
-					t.currentScript = t.GetEnclosingScript(candFn)
-					t.ClearScriptState()
-					t.TraverseBranch(candFn, candFn.GetParent())
-					t.PopScope()
+					rc := o.newFilteredCollector(sc, behavior, varFilter)
+					traverseIOLCandFn(rc, root, dummyGlobalScope, candFn)
 				}
 				return
 			}
-			callback := NewReferenceCollectorWithVarFilter(o.compiler, behavior, sc, varFilter)
-			callback.enableLocalReclamation(func() bool {
-				behavior.staleVars.Clear()
-				return true
-			})
-			dummyGlobalScope := newScope(root)
-			dummyGlobalScope.scanDone = true
-			dummyGlobalScope.hasImplicitVars = false
+			callback := o.newFilteredCollector(sc, behavior, varFilter)
 			tb := callback.builderVal()
 			t := newNodeTraversal(&tb)
 			t.currentNode = root
 			t.PushScopeOfScope(dummyGlobalScope)
 			for _, candFn := range s.candFns {
-				behavior.staleVars.Clear()
+				clear(behavior.staleVars)
 				t.currentScript = t.GetEnclosingScript(candFn)
 				t.ClearScriptState()
 				t.TraverseBranch(candFn, candFn.GetParent())
@@ -441,16 +439,7 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 	sc := NewSyntacticScopeCreator(o.compiler)
 	behavior := NewInlineObjectLiterals_InliningBehavior(o)
 	behavior.scanner = &s
-	callback := NewReferenceCollectorWithVarFilter(
-		o.compiler,
-		behavior,
-		sc,
-		varFilter)
-	callback.enableLocalReclamation(func() bool {
-		behavior.staleVars.Clear()
-		return true
-	})
-	callback.Process(externs, root)
+	o.newFilteredCollector(sc, behavior, varFilter).Process(externs, root)
 }
 
 // InlineObjectLiterals_InliningBehavior builds up information about nodes in
@@ -459,9 +448,8 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 type InlineObjectLiterals_InliningBehavior struct {
 	outer *InlineObjectLiterals
 
-	// A list of variables that should not be inlined, because their
-	// reference information is out of sync with the state of the AST.
-	staleVars *jutil.LinkedHashSet[*Var]
+	// Variables whose reference information is out of sync with the AST.
+	staleVars map[*Var]struct{}
 
 	validProperties jutil.LinkedHashSet[string]
 
@@ -472,10 +460,7 @@ type InlineObjectLiterals_InliningBehavior struct {
 
 // Java: InlineObjectLiterals.InliningBehavior()
 func NewInlineObjectLiterals_InliningBehavior(outer *InlineObjectLiterals) *InlineObjectLiterals_InliningBehavior {
-	b := &InlineObjectLiterals_InliningBehavior{
-		outer:     outer,
-		staleVars: jutil.NewLinkedHashSet[*Var](),
-	}
+	b := &InlineObjectLiterals_InliningBehavior{outer: outer}
 	if outer != nil {
 		b.idSupplier = outer.safeNameIdSupplier
 		if outer.compiler != nil {
@@ -483,6 +468,16 @@ func NewInlineObjectLiterals_InliningBehavior(outer *InlineObjectLiterals) *Inli
 		}
 	}
 	return b
+}
+
+func (b *InlineObjectLiterals_InliningBehavior) addStaleVar(v *Var) {
+	if v == nil {
+		return
+	}
+	if b.staleVars == nil {
+		b.staleVars = make(map[*Var]struct{}, 8)
+	}
+	b.staleVars[v] = struct{}{}
 }
 
 // Java: InlineObjectLiterals.InliningBehavior.afterExitScope(NodeTraversal, ReferenceMap)
@@ -522,7 +517,7 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 		if b.IsInlinableObject(referenceInfo.references) {
 			// Skiplist the object itself, as well as any other values
 			// that it refers to, since they will have been moved around.
-			b.staleVars.Add(v)
+			b.addStaleVar(v)
 
 			init := referenceInfo.GetInitializingReference()
 
@@ -541,7 +536,7 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 // Java: InlineObjectLiterals.InliningBehavior.recordStaleVarReferencesInTree(Node, Scope)
 func (b *InlineObjectLiterals_InliningBehavior) RecordStaleVarReferencesInTree(root rhino.Node, scope *Scope) {
 	if root.IsName() {
-		b.staleVars.Add(scope.GetVar(root.GetString()))
+		b.addStaleVar(scope.GetVar(root.GetString()))
 	}
 	if !root.IsFunction() {
 		for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -565,11 +560,12 @@ func (b *InlineObjectLiterals_InliningBehavior) IsVarInlineForbidden(var_ *Var) 
 
 	// Additionally, exclude global variables for now.
 
+	_, stale := b.staleVars[var_]
 	return var_.IsGlobal() ||
 		var_.IsExtern() ||
 		b.outer.compiler.GetCodingConvention().IsExportedWithLocal(var_.GetName(), true /* local= */) ||
 		b.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(var_.GetNameNode()) ||
-		b.staleVars.Contains(var_)
+		stale
 }
 
 // IsInlinableObject counts the number of direct (full) references to an

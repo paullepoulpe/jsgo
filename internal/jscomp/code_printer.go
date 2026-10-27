@@ -88,7 +88,7 @@ type CodePrinter_MappedCodePrinterBase struct {
 	lineLengthThreshold  int
 	lineLength           int
 	lineIndex            int
-	cg                   CodeGeneratorBase
+	cg                   CodeGenerator
 }
 
 type codePrinterScratch struct {
@@ -162,7 +162,7 @@ func (m *CodePrinter_MappedCodePrinterBase) resetAfterPrint() {
 	if cap(m.cg.scratchUnits) <= 65536 {
 		keepScratch = m.cg.scratchUnits[:0]
 	}
-	m.cg = CodeGeneratorBase{scratchUnits: keepScratch}
+	m.cg = CodeGenerator{scratchUnits: keepScratch}
 }
 
 func (m *CodePrinter_MappedCodePrinterBase) codeAppend(str string) int {
@@ -1093,16 +1093,15 @@ type CodePrinter_LicenseTracker interface {
 
 // CodePrinter_Builder builds the source code of an AST.
 type CodePrinter_Builder struct {
-	root                 rhino.Node
-	options              *CompilerOptions
-	lineBreak            bool
-	prettyPrint          bool
-	outputTypes          bool
-	tagAsTypeSummary     bool
-	tagAsStrict          bool
-	licenseTracker       CodePrinter_LicenseTracker // nil is null
-	registry             *rhino.JSTypeRegistry      // may be null unless using Format.TYPED
-	codeGeneratorFactory CodePrinter_Builder_CodeGeneratorFactory
+	root             rhino.Node
+	options          *CompilerOptions
+	lineBreak        bool
+	prettyPrint      bool
+	outputTypes      bool
+	tagAsTypeSummary bool
+	tagAsStrict      bool
+	licenseTracker   CodePrinter_LicenseTracker // nil is null
+	registry         *rhino.JSTypeRegistry      // may be null unless using Format.TYPED
 }
 
 // NewCodePrinter_Builder sets the root node from which to generate the
@@ -1114,12 +1113,11 @@ func NewCodePrinter_Builder(node rhino.Node) *CodePrinter_Builder {
 	// Go-only: performance — Java initializes options to a new
 	// CompilerOptions(), which almost every caller (Compiler.toSource, once
 	// per printed node in checks such as CheckDuplicateCase) replaces at
-	// once with setCompilerOptions. Building one costs ~100 allocations
-	// (its DefaultNameGenerator alone builds a 64-entry map), so it is
-	// created by getOptions only if it is used before being replaced.
+	// once with setCompilerOptions. Building one allocates dozens of option
+	// objects, so it is created by getOptions only if it is used before being
+	// replaced.
 	b.options = nil
 	b.outputTypes = false
-	b.codeGeneratorFactory = nil
 	b.root = node
 	return b
 }
@@ -1200,22 +1198,6 @@ func (b *CodePrinter_Builder) SetTagAsTypeSummary(tagAsTypeSummary bool) *CodePr
 func (b *CodePrinter_Builder) SetTagAsStrict(tagAsStrict bool) *CodePrinter_Builder {
 	b.tagAsStrict = tagAsStrict
 	return b
-}
-
-// SetCodeGeneratorFactory sets a custom code generator factory to enable
-// custom code generation.
-//
-// Java: CodePrinter.Builder.setCodeGeneratorFactory(CodeGeneratorFactory)
-func (b *CodePrinter_Builder) SetCodeGeneratorFactory(factory CodePrinter_Builder_CodeGeneratorFactory) *CodePrinter_Builder {
-	b.codeGeneratorFactory = factory
-	return b
-}
-
-// CodePrinter_Builder_CodeGeneratorFactory creates the code generator of a
-// build.
-type CodePrinter_Builder_CodeGeneratorFactory interface {
-	// Java: CodePrinter.Builder.CodeGeneratorFactory.getCodeGenerator(Format, CodeConsumer)
-	GetCodeGenerator(outputFormat CodePrinter_Format, cc CodeConsumer) CodeGenerator
 }
 
 // Build generates the source code and returns it.
@@ -1299,15 +1281,11 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
 		}
 	}
 
-	var cg CodeGenerator
-	if b.codeGeneratorFactory != nil {
-		cg = b.codeGeneratorFactory.GetCodeGenerator(outputFormat, mcp)
-	} else if outputFormat == CodePrinter_Format_TYPED {
-		cg = NewTypedCodeGenerator(mcp, options, b.registry)
+	cg := &base.cg
+	if outputFormat == CodePrinter_Format_TYPED {
+		cg.InitTypedCodeGenerator(mcp, options, b.registry)
 	} else {
-		baseCG := &base.cg
-		baseCG.InitCodeGeneratorBaseWithOptions(baseCG, mcp, options)
-		cg = baseCG
+		cg.InitCodeGeneratorWithOptions(mcp, options)
 	}
 
 	if b.tagAsTypeSummary {
@@ -1377,34 +1355,6 @@ type CodePrinter_SourceAndMappings struct {
 // Java: CodePrinter.SourceAndMappings()
 func NewCodePrinter_SourceAndMappings() *CodePrinter_SourceAndMappings {
 	return &CodePrinter_SourceAndMappings{}
-}
-
-// CodePrinter_ToSource converts a tree to JS code.
-//
-// Java: CodePrinter.toSource(Node, Format, CompilerOptions, LicenseTracker, boolean, boolean, boolean, CodeGeneratorFactory)
-func CodePrinter_ToSource(
-	root rhino.Node,
-	outputFormat CodePrinter_Format,
-	options *CompilerOptions,
-	licenseTracker CodePrinter_LicenseTracker,
-	tagAsTypeSummary bool,
-	tagAsStrict bool,
-	lineBreak bool,
-	codeGeneratorFactory CodePrinter_Builder_CodeGeneratorFactory) *CodePrinter_SourceAndMappings {
-	jutil.CheckNotNull(options)
-	jutil.CheckNotNull(codeGeneratorFactory)
-	b := CodePrinter_Builder{
-		root:                 root,
-		options:              options,
-		lineBreak:            lineBreak,
-		tagAsTypeSummary:     tagAsTypeSummary,
-		tagAsStrict:          tagAsStrict,
-		licenseTracker:       licenseTracker,
-		codeGeneratorFactory: codeGeneratorFactory,
-	}
-	result := NewCodePrinter_SourceAndMappings()
-	b.buildSourceAndMappingsWithFormatInto(options, outputFormat, result, true, nil)
-	return result
 }
 
 // Java: CodePrinter()

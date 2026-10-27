@@ -72,7 +72,7 @@ func (c *FunctionToBlockMutatorTest) TestMutateNoReturnWithResultAssignment() {
 
 // Java: FunctionToBlockMutatorTest.testMutateNoValueReturnWithoutResultAssignment()
 func (c *FunctionToBlockMutatorTest) TestMutateNoValueReturnWithoutResultAssignment() {
-	c.HelperMutateWithResultName("function foo(){return;}; foo();", "{}", "foo", nil)
+	c.HelperMutateWithResultName("function foo(){return;}; foo();", "{}", "foo", "")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateNoValueReturnWithResultAssignment()
@@ -82,13 +82,13 @@ func (c *FunctionToBlockMutatorTest) TestMutateNoValueReturnWithResultAssignment
 
 // Java: FunctionToBlockMutatorTest.testMutateValueReturnWithoutResultAssignment()
 func (c *FunctionToBlockMutatorTest) TestMutateValueReturnWithoutResultAssignment() {
-	c.HelperMutateWithResultName("function foo(){return true;}; foo();", "{true;}", "foo", nil)
+	c.HelperMutateWithResultName("function foo(){return true;}; foo();", "{true;}", "foo", "")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateValueReturnWithResultAssignment()
 func (c *FunctionToBlockMutatorTest) TestMutateValueReturnWithResultAssignment() {
 	c.needsDefaultResult = true
-	c.HelperMutateWithResultName("function foo(){return true;}; var x=foo();", "{x=true}", "foo", jutil.StringPtr("x"))
+	c.HelperMutateWithResultName("function foo(){return true;}; var x=foo();", "{x=true}", "foo", "x")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateWithMultipleReturns()
@@ -115,13 +115,13 @@ func (c *FunctionToBlockMutatorTest) TestMutateWithMultipleReturns() {
 // Java: FunctionToBlockMutatorTest.testMutateWithParameters1()
 func (c *FunctionToBlockMutatorTest) TestMutateWithParameters1() {
 	// Simple call with useless parameter
-	c.HelperMutateWithResultName("function foo(a){return true;}; foo(x);", "{true}", "foo", nil)
+	c.HelperMutateWithResultName("function foo(a){return true;}; foo(x);", "{true}", "foo", "")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateWithParameters2()
 func (c *FunctionToBlockMutatorTest) TestMutateWithParameters2() {
 	// Simple call with parameter
-	c.HelperMutateWithResultName("function foo(a){return x;}; foo(x);", "{x}", "foo", nil)
+	c.HelperMutateWithResultName("function foo(a){return x;}; foo(x);", "{x}", "foo", "")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateWithParameters3()
@@ -131,7 +131,7 @@ func (c *FunctionToBlockMutatorTest) TestMutateWithParameters3() {
 		"function foo(a){return a;}; function x() { foo(x++); }", //
 		"{ x++ }",
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutate8()
@@ -141,7 +141,7 @@ func (c *FunctionToBlockMutatorTest) TestMutate8() {
 		"function foo(a){return a+a;}; foo(x++);",
 		"{var a$jscomp$inline_0 = x++; a$jscomp$inline_0 + a$jscomp$inline_0;}",
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutate8_withConstVar()
@@ -151,7 +151,7 @@ func (c *FunctionToBlockMutatorTest) TestMutate8_withConstVar() {
 		"function foo(/** @const */ a){return a+a;}; foo(x++);",
 		"{var a$jscomp$inline_0 = x++; a$jscomp$inline_0 + a$jscomp$inline_0;}",
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateInitializeUninitializedVars1()
@@ -161,7 +161,7 @@ func (c *FunctionToBlockMutatorTest) TestMutateInitializeUninitializedVars1() {
 		"function foo(a){var b;return a;}; foo(1);",
 		"{var b$jscomp$inline_1 = void 0; 1;}",
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateInitializeUninitializedVars2()
@@ -180,7 +180,7 @@ func (c *FunctionToBlockMutatorTest) TestMutateInitializeUninitializedVars2() {
 }
 `,
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateInitializeUninitializedVarsNestedFunction()
@@ -199,7 +199,7 @@ foo(1);
 }
 `,
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateInitializeUninitializedLets1()
@@ -209,7 +209,7 @@ func (c *FunctionToBlockMutatorTest) TestMutateInitializeUninitializedLets1() {
 		"function foo(a){let b;return a;}; foo(1);",
 		"{let b$jscomp$inline_1 = void 0; 1;}",
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateInitializeUninitializedLets2()
@@ -227,7 +227,7 @@ func (c *FunctionToBlockMutatorTest) TestMutateInitializeUninitializedLets2() {
 }
 `,
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateInitializeUninitializedVarInLoop()
@@ -257,7 +257,7 @@ foo(1);
 }
 `,
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateInitializedVarInLoop()
@@ -288,7 +288,7 @@ foo(1);
 }
 `,
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateCallInLoopVars1()
@@ -301,11 +301,11 @@ foo(1);
 `
 	// baseline: outside a loop, the constant remains constant.
 	c.isCallInLoop = false
-	c.HelperMutateWithResultName(src, "{var B$jscomp$inline_1 = bar(); 1;}", "foo", nil)
+	c.HelperMutateWithResultName(src, "{var B$jscomp$inline_1 = bar(); 1;}", "foo", "")
 	// ... in a loop, the constant-ness is removed.
 	// TODO(johnlenz): update this test to look for the const annotation.
 	c.isCallInLoop = true
-	c.HelperMutateWithResultName(src, "{var B$jscomp$inline_1 = bar(); 1;}", "foo", nil)
+	c.HelperMutateWithResultName(src, "{var B$jscomp$inline_1 = bar(); 1;}", "foo", "")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateFunctionDefinition()
@@ -315,7 +315,7 @@ func (c *FunctionToBlockMutatorTest) TestMutateFunctionDefinition() {
 		"function foo(a){function g(){}}; foo(1);",
 		"{var g$jscomp$inline_1 = function() {};}",
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.testMutateFunctionDefinitionHoisting()
@@ -339,7 +339,7 @@ foo(1);
 }
 `,
 		"foo",
-		nil)
+		"")
 }
 
 // Java: FunctionToBlockMutatorTest.validateSourceInfo(Compiler, Node)
@@ -350,12 +350,12 @@ func (c *FunctionToBlockMutatorTest) ValidateSourceInfo(compiler *Compiler, subt
 
 // Java: FunctionToBlockMutatorTest.helperMutate(String, String, String)
 func (c *FunctionToBlockMutatorTest) HelperMutate(code string, expectedResult string, fnName string) {
-	c.HelperMutateWithResultName(code, expectedResult, fnName, jutil.StringPtr("result"))
+	c.HelperMutateWithResultName(code, expectedResult, fnName, "result")
 }
 
 // Java: FunctionToBlockMutatorTest.helperMutate(String, String, String, @Nullable String)
 func (c *FunctionToBlockMutatorTest) HelperMutateWithResultName(
-	code string, expectedResult string, fnName string, resultName *string) {
+	code string, expectedResult string, fnName string, resultName string) {
 	compiler := NewCompiler()
 	compiler.InitCompilerOptionsIfTesting()
 	mutator :=

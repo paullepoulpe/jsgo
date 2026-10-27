@@ -27,33 +27,26 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// TypedCodeGenerator is a code generator that outputs type annotations for
-// functions and constructors.
-type TypedCodeGenerator struct {
-	CodeGeneratorBase
-
-	registry         *rhino.JSTypeRegistry
-	jsDocInfoPrinter *JSDocInfoPrinter
+// InitTypedCodeGenerator initializes a CodeGenerator to emit type annotations
+// for functions and constructors (Java's TypedCodeGenerator subclass).
+//
+// Java: TypedCodeGenerator(CodeConsumer, CompilerOptions, JSTypeRegistry)
+func (t *CodeGenerator) InitTypedCodeGenerator(consumer CodeConsumer, options *CompilerOptions, registry *rhino.JSTypeRegistry) {
+	t.InitCodeGeneratorWithOptions(consumer, options)
+	jutil.CheckNotNull(registry)
+	t.registry = registry
+	t.emitTypeAnnotations = true
 }
 
 // Java: TypedCodeGenerator(CodeConsumer, CompilerOptions, JSTypeRegistry)
-func NewTypedCodeGenerator(consumer CodeConsumer, options *CompilerOptions, registry *rhino.JSTypeRegistry) *TypedCodeGenerator {
-	t := &TypedCodeGenerator{}
-	t.InitCodeGeneratorBaseWithOptions(t, consumer, options)
-	jutil.CheckNotNull(registry)
-	t.registry = registry
-	t.jsDocInfoPrinter = NewJSDocInfoPrinter(options.GetUseOriginalNamesInOutput())
+func NewTypedCodeGenerator(consumer CodeConsumer, options *CompilerOptions, registry *rhino.JSTypeRegistry) *CodeGenerator {
+	t := &CodeGenerator{}
+	t.InitTypedCodeGenerator(consumer, options, registry)
 	return t
 }
 
-// Java: TypedCodeGenerator.add(Node, Context)
-func (t *TypedCodeGenerator) AddNodeWithContext(n rhino.Node, context CodeGenerator_Context) {
-	t.MaybeAddTypeAnnotation(n)
-	t.CodeGeneratorBase.AddNodeWithContext(n, context)
-}
-
 // Java: TypedCodeGenerator.maybeAddTypeAnnotation(Node)
-func (t *TypedCodeGenerator) MaybeAddTypeAnnotation(n rhino.Node) {
+func (t *CodeGenerator) MaybeAddTypeAnnotation(n rhino.Node) {
 	parent := n.GetParent()
 	if parent.IsNil() {
 		// root node cannot have a type annotation.
@@ -86,7 +79,7 @@ func (t *TypedCodeGenerator) MaybeAddTypeAnnotation(n rhino.Node) {
 }
 
 // Java: TypedCodeGenerator.getTypeAnnotation(Node)
-func (t *TypedCodeGenerator) GetTypeAnnotation(node rhino.Node) string {
+func (t *CodeGenerator) GetTypeAnnotation(node rhino.Node) string {
 	if node.IsMemberFunctionDef() {
 		// For a member function the type information is actually on the
 		// function it contains, so just generate the type annotation for
@@ -130,7 +123,7 @@ func (t *TypedCodeGenerator) GetTypeAnnotation(node rhino.Node) string {
 // generate a type annotation.
 //
 // Java: TypedCodeGenerator.getFunctionAnnotation(Node)
-func (t *TypedCodeGenerator) GetFunctionAnnotation(fnNode rhino.Node) string {
+func (t *CodeGenerator) GetFunctionAnnotation(fnNode rhino.Node) string {
 	type_ := fnNode.GetJSType()
 	jutil.CheckState(fnNode.IsFunction() || type_.IsFunctionType())
 
@@ -212,7 +205,7 @@ func typedCodeGenerator_objectTypeOrNull(t rhino.ObjectType) any {
 // MEMBER_FUNCTION_DEF.
 //
 // Java: TypedCodeGenerator.getMemberFunctionAnnotation(Node)
-func (t *TypedCodeGenerator) GetMemberFunctionAnnotation(fnNode rhino.Node) string {
+func (t *CodeGenerator) GetMemberFunctionAnnotation(fnNode rhino.Node) string {
 	jutil.CheckStateMsg1(fnNode.IsFunction() && fnNode.GetParent().IsMemberFunctionDef(), "%s", fnNode)
 	type_ := fnNode.GetJSType()
 
@@ -261,7 +254,7 @@ func (t *TypedCodeGenerator) GetMemberFunctionAnnotation(fnNode rhino.Node) stri
 // paramNode is where parameter names will be taken from.
 //
 // Java: TypedCodeGenerator.appendFunctionParamAnnotations(StringBuilder, FunctionType, Node)
-func (t *TypedCodeGenerator) AppendFunctionParamAnnotations(
+func (t *CodeGenerator) AppendFunctionParamAnnotations(
 	sb *strings.Builder, funType rhino.FunctionType, paramNode rhino.Node) {
 	minArity := funType.GetMinArity()
 	maxArity := funType.GetMaxArity()
@@ -280,7 +273,7 @@ func (t *TypedCodeGenerator) AppendFunctionParamAnnotations(
 }
 
 // Java: TypedCodeGenerator.getClassAnnotation(JSType)
-func (t *TypedCodeGenerator) GetClassAnnotation(classType rhino.JSType) string {
+func (t *CodeGenerator) GetClassAnnotation(classType rhino.JSType) string {
 	if classType == nil || classType.IsUnknownType() {
 		return ""
 	}
@@ -311,7 +304,7 @@ func (t *TypedCodeGenerator) GetClassAnnotation(classType rhino.JSType) string {
 }
 
 // Java: TypedCodeGenerator.appendTemplateAnnotations(StringBuilder, Collection<? extends JSType>)
-func (t *TypedCodeGenerator) AppendTemplateAnnotations(
+func (t *CodeGenerator) AppendTemplateAnnotations(
 	sb *strings.Builder, typeParams []*rhino.TemplateType) {
 	if len(typeParams) != 0 {
 		sb.WriteString(" * @template ")
@@ -332,7 +325,7 @@ func (t *TypedCodeGenerator) AppendTemplateAnnotations(
 // of the child in the list. Returns the name to use in JSDoc.
 //
 // Java: TypedCodeGenerator.getParameterJSDocName(Node, int)
-func (t *TypedCodeGenerator) GetParameterJSDocName(paramNode rhino.Node, paramIndex int) string {
+func (t *CodeGenerator) GetParameterJSDocName(paramNode rhino.Node, paramIndex int) string {
 	var nameNode rhino.Node
 	if !paramNode.IsNil() {
 		jutil.CheckArgumentMsg1(paramNode.GetParent().IsParamList(), "%s", paramNode)
@@ -361,7 +354,7 @@ func (t *TypedCodeGenerator) GetParameterJSDocName(paramNode rhino.Node, paramIn
 }
 
 // Java: TypedCodeGenerator.formatTypeVar(JSType)
-func (t *TypedCodeGenerator) FormatTypeVar(var_ rhino.JSType) string {
+func (t *CodeGenerator) FormatTypeVar(var_ rhino.JSType) string {
 	return var_.ToAnnotationString(rhino.JSType_Nullability_IMPLICIT)
 }
 
@@ -370,7 +363,7 @@ func (t *TypedCodeGenerator) FormatTypeVar(var_ rhino.JSType) string {
 // for @interface and @record.
 //
 // Java: TypedCodeGenerator.appendClassAnnotations(StringBuilder, FunctionType)
-func (t *TypedCodeGenerator) AppendClassAnnotations(sb *strings.Builder, funType rhino.FunctionType) {
+func (t *CodeGenerator) AppendClassAnnotations(sb *strings.Builder, funType rhino.FunctionType) {
 	superConstructor := funType.GetInstanceType().GetSuperClassConstructor()
 	if superConstructor != nil {
 		superInstance := superConstructor.GetInstanceType()
@@ -393,7 +386,7 @@ func (t *TypedCodeGenerator) AppendClassAnnotations(sb *strings.Builder, funType
 }
 
 // Java: TypedCodeGenerator.appendInterfaceAnnotations(StringBuilder, FunctionType)
-func (t *TypedCodeGenerator) AppendInterfaceAnnotations(sb *strings.Builder, funType rhino.FunctionType) {
+func (t *CodeGenerator) AppendInterfaceAnnotations(sb *strings.Builder, funType rhino.FunctionType) {
 	interfaces := jutil.NewTreeSet(jutil.StringCompareTo)
 	for _, interfaceType := range funType.GetAncestorInterfaces() {
 		interfaces.Add(interfaceType.ToAnnotationString(rhino.JSType_Nullability_IMPLICIT))
@@ -418,7 +411,7 @@ func (t *TypedCodeGenerator) AppendInterfaceAnnotations(sb *strings.Builder, fun
 // a prototype method.
 //
 // Java: TypedCodeGenerator.findMethodOwner(Node)
-func (t *TypedCodeGenerator) FindMethodOwner(n rhino.Node) rhino.ObjectType {
+func (t *CodeGenerator) FindMethodOwner(n rhino.Node) rhino.ObjectType {
 	if n.IsNil() {
 		return nil
 	}
@@ -459,7 +452,7 @@ func TypedCodeGenerator_AppendAnnotation(sb *strings.Builder, name string, type_
 // the type of a parameter.
 //
 // Java: TypedCodeGenerator.getParameterJSDocType(List<FunctionType.Parameter>, int, int, int)
-func (t *TypedCodeGenerator) GetParameterJSDocType(
+func (t *CodeGenerator) GetParameterJSDocType(
 	parameters []*rhino.FunctionType_Parameter, index int, minArgs int, maxArgs int) string {
 	type_ := parameters[index].GetJSType()
 	if index < minArgs {
@@ -475,7 +468,7 @@ func (t *TypedCodeGenerator) GetParameterJSDocType(
 // RestrictByUndefined removes undefined from a union type.
 //
 // Java: TypedCodeGenerator.restrictByUndefined(JSType)
-func (t *TypedCodeGenerator) RestrictByUndefined(type_ rhino.JSType) rhino.JSType {
+func (t *CodeGenerator) RestrictByUndefined(type_ rhino.JSType) rhino.JSType {
 	// If not voidable, there's nothing to do. If not nullable then the
 	// easiest thing is to simply remove both null and undefined. If
 	// nullable, then add null back into the union after removing null and

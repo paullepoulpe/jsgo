@@ -92,10 +92,10 @@ const RenameVars_MAX_LOCALS_IN_SCOPE_TO_TEMP_RENAME = 1000
 // RenameVars_Assignment is the inner class Assignment.
 type RenameVars_Assignment struct {
 	isLocal           bool
+	hasNewName        bool
 	oldName           string
 	orderOfOccurrence int
-	newName           *string
-	newNameVal        string
+	newName           string
 	count             int // Number of times this is referenced
 }
 
@@ -149,9 +149,9 @@ func (r *RenameVars) appendGlobalRef(n rhino.Node, a *RenameVars_Assignment) {
 //
 // Java: RenameVars.Assignment.setNewName(String)
 func (a *RenameVars_Assignment) SetNewName(newName string) {
-	jutil.CheckState(a.newName == nil)
-	a.newNameVal = newName
-	a.newName = &a.newNameVal
+	jutil.CheckState(!a.hasNewName)
+	a.newName = newName
+	a.hasNewName = true
 }
 
 // A prefix to distinguish temporary local names from global names
@@ -462,8 +462,8 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 			n := ref.node
 			a := ref.assignment
 			oldName := n.GetString()
-			if a.newName != nil && *a.newName != oldName {
-				newName := *a.newName
+			if a.hasNewName && a.newName != oldName {
+				newName := a.newName
 				if r.pseudoNameMap != nil {
 					pName, ok := r.pseudoNameMap[n]
 					if !ok {
@@ -488,8 +488,8 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 		for _, ref := range chunk {
 			n := ref.node
 			a := ref.assignment
-			if *a.newName != a.oldName {
-				newName := *a.newName
+			if a.newName != a.oldName {
+				newName := a.newName
 				if r.pseudoNameMap != nil {
 					pName, ok := r.pseudoNameMap[n]
 					if !ok {
@@ -554,7 +554,7 @@ func (r *RenameVars) assignNamesSlice(varsToRename []*RenameVars_Assignment) {
 	var generatedNamesForAssignments []string
 
 	for _, a := range varsToRename {
-		if a.newName != nil {
+		if a.hasNewName {
 			continue
 		}
 

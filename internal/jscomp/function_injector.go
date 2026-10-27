@@ -727,21 +727,18 @@ func (f *FunctionInjector) InlineFunction(ref FunctionInjector_Reference, fnNode
 	// Store the name for the result. This will be used to
 	// replace "return expr" statements with "resultName = expr"
 	// to replace
-	var resultName *string
-	var resultNameVal string
+	var resultName string
 	needsDefaultReturnResult := true
 	switch callSiteType {
 	case FunctionInjector_CallSiteType_SIMPLE_ASSIGNMENT:
 		target, _ := functionInjector_simpleAssignTarget(callNode)
-		resultNameVal = target.Ident()
-		resultName = &resultNameVal
-		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultNameVal)
+		resultName = target.Ident()
+		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultName)
 	case FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT:
-		resultNameVal = ast.MustName(parent).Ident()
-		resultName = &resultNameVal
-		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultNameVal)
+		resultName = ast.MustName(parent).Ident()
+		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultName)
 	case FunctionInjector_CallSiteType_SIMPLE_CALL:
-		resultName = nil // "foo()" doesn't need a result.
+		resultName = "" // "foo()" doesn't need a result.
 		needsDefaultReturnResult = false
 	case FunctionInjector_CallSiteType_EXPRESSION:
 		panic(jutil.NewIllegalStateExceptionMsg("Movable expressions must be moved before inlining."))

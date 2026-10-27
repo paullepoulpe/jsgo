@@ -58,8 +58,8 @@ func InlineCostEstimator_GetCostWithThreshold(root rhino.Node, costThreshold int
 	est.InitCodeConsumerBase(&est)
 	est.maxCost = costThreshold
 	est.continueProcessing = true
-	var cg CodeGeneratorBase
-	cg.InitCodeGeneratorBase(&cg, &est)
+	var cg CodeGenerator
+	cg.InitCodeGenerator(&est)
 	cg.AddNode(root)
 	return est.cost
 }

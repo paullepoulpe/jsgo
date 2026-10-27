@@ -18,43 +18,75 @@
 
 package jscomp
 
+import "github.com/paullepoulpe/jsgo/internal/diagnostic"
+
 // Invalidation describes one way in which a property became invalidated.
 //
 // This information is only used diagnostically and doesn't affect the
 // outcome of optimizations. Since diagnostic information isn't usually
-// rendered, this class is designed to defer work as much as possible.
-//
-// The class has a subclass (WithReceiverType), so it is an interface over
-// InvalidationBase (PORTING.md §4). Its only use is GSON serialization of
-// the renaming index, which writes a WithReceiverType's own field before
-// the base class's: {"receiverType":5,"reason":"INVALIDATING_TYPE"}.
+// rendered, this value struct avoids heap allocations during disambiguation
+// and formats its GSON representation on demand via diagnostic.LogsGson_Able.
 //
 // Java: class Invalidation
-type Invalidation interface {
-	GetInvalidationBase() *InvalidationBase
+type Invalidation struct {
+	reason       Invalidation_Reason
+	receiverType int32
+	valid        bool
+	hasReceiver  bool
 }
 
-// InvalidationBase holds the fields of Invalidation.
-type InvalidationBase struct {
+// IsValid reports whether this Invalidation has been populated.
+func (i Invalidation) IsValid() bool { return i.valid }
+
+type invalidationJson struct {
 	Reason Invalidation_Reason `gson:"reason"`
 }
 
-// GetInvalidationBase gives access to the fields of an Invalidation.
-func (b *InvalidationBase) GetInvalidationBase() *InvalidationBase { return b }
+type invalidationWithReceiverJson struct {
+	ReceiverType int                 `gson:"receiverType"`
+	Reason       Invalidation_Reason `gson:"reason"`
+}
+
+// ToLogsGson formats Invalidation identically to Java's Invalidation and
+// Invalidation.WithReceiverType ({"receiverType":5,"reason":"INVALIDATING_TYPE"}).
+func (i Invalidation) ToLogsGson() any {
+	if i.hasReceiver {
+		return invalidationWithReceiverJson{
+			ReceiverType: int(i.receiverType),
+			Reason:       i.reason,
+		}
+	}
+	return invalidationJson{Reason: i.reason}
+}
+
+var _ diagnostic.LogsGson_Able = Invalidation{}
 
 // Java: Invalidation.wellKnownProperty()
 func Invalidation_WellKnownProperty() Invalidation {
-	return invalidation_WELL_KNOWN_PROPERTY
+	return Invalidation{
+		reason: Invalidation_Reason_WELL_KNOWN_PROPERTY,
+		valid:  true,
+	}
 }
 
 // Java: Invalidation.invalidatingType(int)
 func Invalidation_InvalidatingType(receiverType int) Invalidation {
-	return newInvalidation_WithReceiverType(Invalidation_Reason_INVALIDATING_TYPE, receiverType)
+	return Invalidation{
+		reason:       Invalidation_Reason_INVALIDATING_TYPE,
+		receiverType: int32(receiverType),
+		valid:        true,
+		hasReceiver:  true,
+	}
 }
 
 // Java: Invalidation.undeclaredAccess(int)
 func Invalidation_UndeclaredAccess(receiverType int) Invalidation {
-	return newInvalidation_WithReceiverType(Invalidation_Reason_UNDECLARED_ACCESS, receiverType)
+	return Invalidation{
+		reason:       Invalidation_Reason_UNDECLARED_ACCESS,
+		receiverType: int32(receiverType),
+		valid:        true,
+		hasReceiver:  true,
+	}
 }
 
 // Invalidation_Reason is Invalidation.Reason.
@@ -81,34 +113,3 @@ func (r Invalidation_Reason) String() string { return r.Name() }
 
 // Ordinal is Enum.ordinal().
 func (r Invalidation_Reason) Ordinal() int { return int(r) }
-
-// Java: Invalidation(Reason)
-func newInvalidation(reason Invalidation_Reason) *InvalidationBase {
-	b := &InvalidationBase{}
-	b.InitInvalidationBase(reason)
-	return b
-}
-
-// InitInvalidationBase is the constructor body, for subclasses.
-func (b *InvalidationBase) InitInvalidationBase(reason Invalidation_Reason) {
-	b.Reason = reason
-}
-
-// Invalidation_WithReceiverType is the private subclass WithReceiverType.
-// Anonymous classes are not serialized correctly by GSON.
-//
-// Java: private static final class Invalidation.WithReceiverType extends Invalidation
-type Invalidation_WithReceiverType struct {
-	ReceiverType int `gson:"receiverType"`
-	InvalidationBase
-}
-
-// Java: Invalidation.WithReceiverType(Reason, int)
-func newInvalidation_WithReceiverType(reason Invalidation_Reason, receiverType int) *Invalidation_WithReceiverType {
-	w := &Invalidation_WithReceiverType{}
-	w.InitInvalidationBase(reason)
-	w.ReceiverType = receiverType
-	return w
-}
-
-var invalidation_WELL_KNOWN_PROPERTY Invalidation = newInvalidation(Invalidation_Reason_WELL_KNOWN_PROPERTY)

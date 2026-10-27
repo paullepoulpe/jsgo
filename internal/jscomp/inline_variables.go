@@ -305,161 +305,46 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 	return true
 }
 
-// InlineVariables_VarExpert is responsible for analyzing a variable to
-// determine if it can be inlined.
-type InlineVariables_VarExpert interface {
-	// Analyze is called to conduct the initial analysis.
-	//
-	// Java: InlineVariables.VarExpert.analyze()
-	Analyze() InlineVariables_InlineVarAnalysis
+type inlineVariables_handledState uint8
 
-	// ReanalyzeAfterAliasedVar is called for a Var that is an alias after the
-	// original variable is handled.
-	//
-	// aliasedVar is the variable that was aliased; aliasedVarAnalysis the
-	// analysis results for the aliased variable.
-	//
-	// Java: InlineVariables.VarExpert.reanalyzeAfterAliasedVar(Var, InlineVarAnalysis)
-	ReanalyzeAfterAliasedVar(aliasedVar *Var, aliasedVarAnalysis InlineVariables_InlineVarAnalysis) InlineVariables_InlineVarAnalysis
-}
-
-// InlineVariables_VarExpertBase holds VarExpert's base implementations.
-type InlineVariables_VarExpertBase struct{}
-
-// Java: InlineVariables.VarExpert.reanalyzeAfterAliasedVar(Var, InlineVarAnalysis)
-func (b *InlineVariables_VarExpertBase) ReanalyzeAfterAliasedVar(
-	aliasedVar *Var, aliasedVarAnalysis InlineVariables_InlineVarAnalysis) InlineVariables_InlineVarAnalysis {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("not waiting for an aliased variable"))
-}
-
-// inlineVariables_noInlineSelfOrAliasesExpert is the anonymous VarExpert of
-// NO_INLINE_SELF_OR_ALIASES_EXPERT.
-type inlineVariables_noInlineSelfOrAliasesExpert struct {
-	InlineVariables_VarExpertBase
-}
-
-// Java: InlineVariables.NO_INLINE_SELF_OR_ALIASES_EXPERT.analyze()
-func (*inlineVariables_noInlineSelfOrAliasesExpert) Analyze() InlineVariables_InlineVarAnalysis {
-	return InlineVariables_NO_INLINE_SELF_OR_ALIASES_ANALYSIS
-}
-
-// inlineVariables_noInlineSelfAliasesOkExpert is the anonymous VarExpert of
-// NO_INLINE_SELF_ALIASES_OK_EXPERT.
-type inlineVariables_noInlineSelfAliasesOkExpert struct {
-	InlineVariables_VarExpertBase
-}
-
-// Java: InlineVariables.NO_INLINE_SELF_ALIASES_OK_EXPERT.analyze()
-func (*inlineVariables_noInlineSelfAliasesOkExpert) Analyze() InlineVariables_InlineVarAnalysis {
-	return InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS
-}
-
-// Canonical `VarExpert` objects for common cases.
-var (
-	// Java: InlineVariables.NO_INLINE_SELF_OR_ALIASES_EXPERT
-	InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT InlineVariables_VarExpert = &inlineVariables_noInlineSelfOrAliasesExpert{}
-	// Java: InlineVariables.NO_INLINE_SELF_ALIASES_OK_EXPERT
-	InlineVariables_NO_INLINE_SELF_ALIASES_OK_EXPERT InlineVariables_VarExpert = &inlineVariables_noInlineSelfAliasesOkExpert{}
+const (
+	handledVarUnseen inlineVariables_handledState = iota
+	handledVarUnsafe
+	handledVarSafe
+	handledVarLazy
+	handledVarLazyWellDefined
 )
 
-// InlineVariables_InlineVarAnalysis is the result of analyzing a variable to
-// see if it can be inlined.
-//
-// Non-abstract classes should be created by extending this class and
-// overriding the methods that should return `true` or perform an operation.
-type InlineVariables_InlineVarAnalysis interface {
-	// ShouldInline: should we inline this variable?
-	//
-	// Mutually exclusive with `shouldWaitForAliasedVar()`.
-	//
-	// Java: InlineVariables.InlineVarAnalysis.shouldInline()
-	ShouldInline() bool
-
-	// ShouldWaitForAliasedVar: true if this variable is an alias.
-	//
-	// The caller should wait for the aliased variable to be handled, then
-	// call the expert's `reanalyzeAfterAliasedVar()` method.
-	//
-	// Mutually exclusive with `shouldInline()`
-	//
-	// Java: InlineVariables.InlineVarAnalysis.shouldWaitForAliasedVar()
-	ShouldWaitForAliasedVar() bool
-
-	// GetAliasedVar gets the aliased variable, if this is an alias.
-	//
-	// Returns the `Var` for which this one is an alias; throws
-	// `UnsupportedOperationException` if `shouldWaitForAliasedVar()` is
-	// `false`.
-	//
-	// Java: InlineVariables.InlineVarAnalysis.getAliasedVar()
-	GetAliasedVar() *Var
-
-	// IsSafeToInlineAliases: true if it is safe for aliases of this variable
-	// to inline this variable's name.
-	//
-	// Java: InlineVariables.InlineVarAnalysis.isSafeToInlineAliases()
-	IsSafeToInlineAliases() bool
-
-	// PerformInline performs the inline operation.
-	//
-	// Java: InlineVariables.InlineVarAnalysis.performInline()
-	PerformInline()
+// inlineVariables_handledVar records whether an already-analyzed variable's
+// name may safely be inlined into aliases of it, deferring expensive
+// well-defined / assigned-once checks until an alias actually asks.
+type inlineVariables_handledVar struct {
+	referenceInfo *ReferenceCollection
+	state         inlineVariables_handledState
 }
 
-// InlineVariables_InlineVarAnalysisBase holds InlineVarAnalysis's base
-// implementations.
-type InlineVariables_InlineVarAnalysisBase struct{}
-
-// Java: InlineVariables.InlineVarAnalysis.shouldInline()
-func (b *InlineVariables_InlineVarAnalysisBase) ShouldInline() bool {
-	return false
+func (h *inlineVariables_handledVar) isSafeToInlineAliases() bool {
+	switch h.state {
+	case handledVarSafe:
+		return true
+	case handledVarLazy:
+		if h.referenceInfo.IsWellDefined() && h.referenceInfo.IsAssignedOnceInLifetime() {
+			h.state = handledVarSafe
+			return true
+		}
+		h.state = handledVarUnsafe
+		return false
+	case handledVarLazyWellDefined:
+		if h.referenceInfo.IsAssignedOnceInLifetime() {
+			h.state = handledVarSafe
+			return true
+		}
+		h.state = handledVarUnsafe
+		return false
+	default:
+		return false
+	}
 }
-
-// Java: InlineVariables.InlineVarAnalysis.shouldWaitForAliasedVar()
-func (b *InlineVariables_InlineVarAnalysisBase) ShouldWaitForAliasedVar() bool {
-	return false
-}
-
-// Java: InlineVariables.InlineVarAnalysis.getAliasedVar()
-func (b *InlineVariables_InlineVarAnalysisBase) GetAliasedVar() *Var {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("no aliased Var"))
-}
-
-// Java: InlineVariables.InlineVarAnalysis.isSafeToInlineAliases()
-func (b *InlineVariables_InlineVarAnalysisBase) IsSafeToInlineAliases() bool {
-	return false
-}
-
-// Java: InlineVariables.InlineVarAnalysis.performInline()
-func (b *InlineVariables_InlineVarAnalysisBase) PerformInline() {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("cannot inline"))
-}
-
-// inlineVariables_noInlineSelfOrAliasesAnalysis is the anonymous
-// InlineVarAnalysis of NO_INLINE_SELF_OR_ALIASES_ANALYSIS.
-type inlineVariables_noInlineSelfOrAliasesAnalysis struct {
-	InlineVariables_InlineVarAnalysisBase
-}
-
-// inlineVariables_noInlineSelfAliasesOkAnalysis is the anonymous
-// InlineVarAnalysis of NO_INLINE_SELF_ALIASES_OK_ANALYSIS.
-type inlineVariables_noInlineSelfAliasesOkAnalysis struct {
-	InlineVariables_InlineVarAnalysisBase
-}
-
-// Java: InlineVariables.NO_INLINE_SELF_ALIASES_OK_ANALYSIS.isSafeToInlineAliases()
-func (*inlineVariables_noInlineSelfAliasesOkAnalysis) IsSafeToInlineAliases() bool {
-	return true
-}
-
-// Canonical `InlineVarAnalysis` values.
-// We'll use these instead of creating new objects for each analysis.
-var (
-	// Java: InlineVariables.NO_INLINE_SELF_OR_ALIASES_ANALYSIS
-	InlineVariables_NO_INLINE_SELF_OR_ALIASES_ANALYSIS InlineVariables_InlineVarAnalysis = &inlineVariables_noInlineSelfOrAliasesAnalysis{}
-	// Java: InlineVariables.NO_INLINE_SELF_ALIASES_OK_ANALYSIS
-	InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS InlineVariables_InlineVarAnalysis = &inlineVariables_noInlineSelfAliasesOkAnalysis{}
-)
 
 // InlineVariables_InliningBehavior builds up information about nodes in each
 // scope. When exiting the scope, inspects all variables in that scope, and
@@ -472,7 +357,7 @@ type InlineVariables_InliningBehavior struct {
 	// the current scope (indexed by scope.varList slot) so aliases of those
 	// variables can determine whether they may be inlined.
 	currentScope     *Scope
-	handledScopeVars []InlineVariables_InlineVarAnalysis
+	handledScopeVars []inlineVariables_handledVar
 
 	// Records alias variables that are waiting for the original variables to
 	// be handled.
@@ -482,7 +367,6 @@ type InlineVariables_InliningBehavior struct {
 	onGlobalAliasRetry    func(*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler)
 
 	scratchExpert    InlineVariables_InliningBehavior_StandardVarExpert
-	delayedNegSlab   jutil.ReuseSlab[inlineVariables_delayedNegativeAnalysis]
 	retryExpertSlab  jutil.ReuseSlab[InlineVariables_InliningBehavior_StandardVarExpert]
 	retryHandlerSlab jutil.ReuseSlab[InlineVariables_InliningBehavior_AliasInlineRetryHandler]
 	motionScratch    NodeIterators_LocalVarMotion
@@ -507,22 +391,27 @@ func scopeVarSlot(scope *Scope, v *Var) int {
 	return slices.Index(scope.varList, v)
 }
 
-func (b *InlineVariables_InliningBehavior) putHandledVarAnalysis(v *Var, analysis InlineVariables_InlineVarAnalysis) {
-	scope := b.currentScope
-	if v == nil || scope == nil || v.scope != scope {
+func (b *InlineVariables_InliningBehavior) recordHandledVar(v *Var, hv inlineVariables_handledVar) {
+	if b.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 		return
 	}
-	if slot := scopeVarSlot(scope, v); slot >= 0 {
-		b.handledScopeVars[slot] = analysis
+	handledPtr := &hv
+	if scope := b.currentScope; v != nil && scope != nil && v.scope == scope {
+		if slot := scopeVarSlot(scope, v); slot >= 0 {
+			b.handledScopeVars[slot] = hv
+			handledPtr = &b.handledScopeVars[slot]
+		}
 	}
+	// Retry any aliases we saw before handling this Var
+	b.RetryAliases(v, handledPtr)
 }
 
-func (b *InlineVariables_InliningBehavior) getHandledVarAnalysis(scope *Scope, aliasedVar *Var) InlineVariables_InlineVarAnalysis {
+func (b *InlineVariables_InliningBehavior) getHandledVar(scope *Scope, aliasedVar *Var) *inlineVariables_handledVar {
 	if aliasedVar == nil || aliasedVar.scope != scope || scope != b.currentScope {
 		return nil
 	}
-	if slot := scopeVarSlot(scope, aliasedVar); slot >= 0 {
-		return b.handledScopeVars[slot]
+	if slot := scopeVarSlot(scope, aliasedVar); slot >= 0 && b.handledScopeVars[slot].state != handledVarUnseen {
+		return &b.handledScopeVars[slot]
 	}
 	return nil
 }
@@ -544,21 +433,6 @@ func (b *InlineVariables_InliningBehavior) initScratchVarExpert(
 	return &b.scratchExpert
 }
 
-func (b *InlineVariables_InliningBehavior) allocDelayedNegativeAnalysis(
-	src *InlineVariables_InliningBehavior_StandardVarExpert,
-) *inlineVariables_delayedNegativeAnalysis {
-	a := b.delayedNegSlab.Alloc()
-	var state uint8
-	if src.isWellDefined.IsKnownToBe(true) {
-		state = 3
-	}
-	*a = inlineVariables_delayedNegativeAnalysis{
-		referenceInfo: src.referenceInfo,
-		state:         state,
-	}
-	return a
-}
-
 func (b *InlineVariables_InliningBehavior) allocRetryExpert(
 	src *InlineVariables_InliningBehavior_StandardVarExpert,
 ) *InlineVariables_InliningBehavior_StandardVarExpert {
@@ -570,7 +444,7 @@ func (b *InlineVariables_InliningBehavior) allocRetryExpert(
 
 func (b *InlineVariables_InliningBehavior) allocRetryHandler(
 	v *Var,
-	expert InlineVariables_VarExpert,
+	expert *InlineVariables_InliningBehavior_StandardVarExpert,
 ) *InlineVariables_InliningBehavior_AliasInlineRetryHandler {
 	h := b.retryHandlerSlab.Alloc()
 	*h = InlineVariables_InliningBehavior_AliasInlineRetryHandler{
@@ -613,7 +487,6 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 	clear(b.handledScopeVars)
 	b.handledScopeVars = b.handledScopeVars[:0]
 	b.currentScope = nil
-	b.delayedNegSlab.Reset(nil)
 	if len(b.aliasRetryHandlers) == 0 && !b.hasGlobalAliasRetries {
 		b.retryExpertSlab.Reset(nil)
 		b.retryHandlerSlab.Reset(nil)
@@ -645,15 +518,19 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 			continue
 		}
 		referenceInfo := referenceMap.GetReferences(v)
-		expert := b.createVarExpertForScope(v, referenceInfo, mayBeAParameterModifiedViaArguments, isLocalScope)
-		analysis := expert.Analyze()
-		if analysis.ShouldWaitForAliasedVar() {
+		isConst, bailoutState, bailedOut := b.checkScopeVarEligibility(v, referenceInfo, isLocalScope)
+		if bailedOut {
+			b.recordHandledVar(v, inlineVariables_handledVar{state: bailoutState})
+			continue
+		}
+		expert := b.initScratchVarExpert(v, referenceInfo, isConst, mayBeAParameterModifiedViaArguments)
+		expert.Analyze()
+		if expert.ShouldWaitForAliasedVar() {
 			// We need to wait for the aliased variable to be handled.
-			aliasedVar := analysis.GetAliasedVar()
-			aliasedVarAnalysis := b.getHandledVarAnalysis(scope, aliasedVar)
-			if aliasedVarAnalysis != nil {
+			aliasedVar := expert.GetAliasedVar()
+			if aliasedHandled := b.getHandledVar(scope, aliasedVar); aliasedHandled != nil {
 				// We've actually already completed the aliased Var
-				b.handleAliasedVarCompletion(v, expert, aliasedVar, aliasedVarAnalysis)
+				b.handleAliasedVarCompletion(v, expert, aliasedVar, aliasedHandled)
 			} else {
 				// wait for completion of the aliased Var
 				if expert == &b.scratchExpert {
@@ -663,34 +540,35 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 				b.putAliasRetryHandler(aliasedVar, retryHandler)
 			}
 		} else {
-			b.completeVarAnalysis(v, analysis)
+			b.completeVarExpert(v, expert)
 		}
 	}
 }
 
-func (b *InlineVariables_InliningBehavior) completeVarAnalysis(v *Var, analysis InlineVariables_InlineVarAnalysis) {
-	if analysis.ShouldInline() {
-		analysis.PerformInline()
-		if analysis == &b.scratchExpert {
-			analysis = InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS
-		}
-	} else if analysis == &b.scratchExpert {
-		analysis = b.allocDelayedNegativeAnalysis(&b.scratchExpert)
+func (b *InlineVariables_InliningBehavior) completeVarExpert(
+	v *Var,
+	expert *InlineVariables_InliningBehavior_StandardVarExpert,
+) {
+	var hv inlineVariables_handledVar
+	if expert.ShouldInline() {
+		expert.PerformInline()
+		hv = inlineVariables_handledVar{state: handledVarSafe}
+	} else {
+		hv = expert.negativeHandledVar()
 	}
-	if b.outer.mode != InlineVariables_Mode_CONSTANTS_ONLY {
-		// Record the results for aliases we may find later
-		b.putHandledVarAnalysis(v, analysis)
-		// Retry any aliases we saw before handling this Var
-		b.RetryAliases(v, analysis)
-	}
+	b.recordHandledVar(v, hv)
 }
 
 func (b *InlineVariables_InliningBehavior) handleAliasedVarCompletion(
-	v *Var, expert InlineVariables_VarExpert, aliasedVar *Var, aliasedVarAnalysis InlineVariables_InlineVarAnalysis) {
-	newAnalysis := expert.ReanalyzeAfterAliasedVar(aliasedVar, aliasedVarAnalysis)
+	v *Var,
+	expert *InlineVariables_InliningBehavior_StandardVarExpert,
+	aliasedVar *Var,
+	aliasedHandled *inlineVariables_handledVar,
+) {
+	expert.ReanalyzeAfterAliasedVar(aliasedVar, aliasedHandled)
 	jutil.CheckStateMsg1(
-		!newAnalysis.ShouldWaitForAliasedVar(), "expert for %s asked to wait a second time", v)
-	b.completeVarAnalysis(v, newAnalysis)
+		!expert.ShouldWaitForAliasedVar(), "expert for %s asked to wait a second time", v)
+	b.completeVarExpert(v, expert)
 }
 
 // VarsInThisScopeMayBeModifiedUsingArguments returns true for function
@@ -726,7 +604,7 @@ func (b *InlineVariables_InliningBehavior) VarsInThisScopeMayBeModifiedUsingArgu
 }
 
 // Java: InlineVariables.InliningBehavior.retryAliases(Var, InlineVarAnalysis)
-func (b *InlineVariables_InliningBehavior) RetryAliases(aliasedVar *Var, aliasedVarAnalysis InlineVariables_InlineVarAnalysis) {
+func (b *InlineVariables_InliningBehavior) RetryAliases(aliasedVar *Var, aliasedHandled *inlineVariables_handledVar) {
 	if len(b.aliasRetryHandlers) == 0 {
 		return
 	}
@@ -743,7 +621,7 @@ func (b *InlineVariables_InliningBehavior) RetryAliases(aliasedVar *Var, aliased
 		b.unpinnedRetries = 0
 	}
 	for _, aliasInlineRetryHandler := range handlers {
-		aliasInlineRetryHandler.HandleAliasedVarCompletion(aliasedVar, aliasedVarAnalysis)
+		aliasInlineRetryHandler.HandleAliasedVarCompletion(aliasedVar, aliasedHandled)
 	}
 }
 
@@ -753,25 +631,21 @@ type InlineVariables_InliningBehavior_AliasInlineRetryHandler struct {
 	outer *InlineVariables_InliningBehavior
 
 	v      *Var
-	expert InlineVariables_VarExpert
-}
-
-// Java: InlineVariables.InliningBehavior.AliasInlineRetryHandler(Var, VarExpert)
-func NewInlineVariables_InliningBehavior_AliasInlineRetryHandler(
-	outer *InlineVariables_InliningBehavior, v *Var, expert InlineVariables_VarExpert) *InlineVariables_InliningBehavior_AliasInlineRetryHandler {
-	return &InlineVariables_InliningBehavior_AliasInlineRetryHandler{outer: outer, v: v, expert: expert}
+	expert *InlineVariables_InliningBehavior_StandardVarExpert
 }
 
 // Java: InlineVariables.InliningBehavior.AliasInlineRetryHandler.handleAliasedVarCompletion(Var, InlineVarAnalysis)
 func (h *InlineVariables_InliningBehavior_AliasInlineRetryHandler) HandleAliasedVarCompletion(
-	aliasedVar *Var, aliasedVarAnalyis InlineVariables_InlineVarAnalysis) {
-	h.outer.handleAliasedVarCompletion(h.v, h.expert, aliasedVar, aliasedVarAnalyis)
+	aliasedVar *Var, aliasedHandled *inlineVariables_handledVar) {
+	h.outer.handleAliasedVarCompletion(h.v, h.expert, aliasedVar, aliasedHandled)
 }
 
 type standardVarAnalysisKind uint8
 
 const (
 	analysisKindNone standardVarAnalysisKind = iota
+	analysisKindNegativeUnsafe
+	analysisKindNegativeSafe
 	analysisKindDelayedNegative
 	analysisKindWaitForAlias
 	analysisKindInlineWellDefined
@@ -783,7 +657,6 @@ const (
 // variable to determine whether it should be inlined, how to do the
 // inlining, and whether it's OK to inline aliases of the variable.
 type InlineVariables_InliningBehavior_StandardVarExpert struct {
-	InlineVariables_VarExpertBase
 	outer *InlineVariables_InliningBehavior
 
 	v                                   *Var
@@ -808,19 +681,6 @@ type InlineVariables_InliningBehavior_StandardVarExpert struct {
 	analysisSingleReadRef *Reference
 }
 
-// Java: InlineVariables.InliningBehavior.StandardVarExpert(VarExpertInitData)
-func NewInlineVariables_InliningBehavior_StandardVarExpert(
-	outer *InlineVariables_InliningBehavior, initData *InlineVariables_InliningBehavior_VarExpertInitData) *InlineVariables_InliningBehavior_StandardVarExpert {
-	return &InlineVariables_InliningBehavior_StandardVarExpert{
-		outer:                               outer,
-		v:                                   initData.v,
-		referenceInfo:                       initData.referenceInfo,
-		declaration:                         initData.referenceInfo.getRef(0),
-		isDeclaredOrInferredConstant:        initData.isDeclaredOrInferredConstant,
-		mayBeAParameterModifiedViaArguments: initData.mayBeAParameterModifiedViaArguments,
-	}
-}
-
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) ShouldInline() bool {
 	return e.analysisKind >= analysisKindInlineWellDefined
 }
@@ -834,19 +694,6 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) GetAliasedVar() *Va
 		return e.analysisAliasedVar
 	}
 	panic(jutil.NewUnsupportedOperationExceptionMsg("no aliased Var"))
-}
-
-func (e *InlineVariables_InliningBehavior_StandardVarExpert) IsSafeToInlineAliases() bool {
-	switch e.analysisKind {
-	case analysisKindDelayedNegative:
-		return e.IsWellDefinedAssignedOnce()
-	case analysisKindInlineWellDefined, analysisKindInlineNeverAssigned, analysisKindInlineSingleRef:
-		return true
-	case analysisKindWaitForAlias:
-		panic(jutil.NewUnsupportedOperationExceptionMsg("analysis is incomplete"))
-	default:
-		return false
-	}
 }
 
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) PerformInline() {
@@ -966,19 +813,19 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) AllReferencesAreVal
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.analyze()
-func (e *InlineVariables_InliningBehavior_StandardVarExpert) Analyze() InlineVariables_InlineVarAnalysis {
+func (e *InlineVariables_InliningBehavior_StandardVarExpert) Analyze() {
 	if InlineVariables_HasNoInlineAnnotation(e.v) || e.IsReferencedWeakly() {
-		return e.GetNegativeInlineVarAnalysis()
+		e.markNegativeAnalysis()
+		return
 	}
 	// Go-only: a variable whose only reference is its declaration can only
 	// be removed as an alias (var a = b; see ReanalyzeAfterAliasedVar), so
 	// the others skip the analysis.
 	if len(e.referenceInfo.references) == 1 && !e.isDeclaredOrInferredConstant {
-		if e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
-			return e.GetNegativeInlineVarAnalysis()
-		}
-		if !inlineVariables_isDeclaredAsAlias(e.declaration.nameNode) {
-			return e.GetNegativeInlineVarAnalysis()
+		if e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY ||
+			!inlineVariables_isDeclaredAsAlias(e.declaration.nameNode) {
+			e.markNegativeAnalysis()
+			return
 		}
 	}
 	initialization := e.GetInitialization()
@@ -996,22 +843,24 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) Analyze() InlineVar
 		initialValueAnalysis.IsImmutableValue() &&
 		// isAssignedOnceInLifetime() is much more expensive than the other checks
 		e.IsAssignedOnceInLifetime() {
-		return e.inlineWellDefinedVarAnalysis(initValue)
+		e.inlineWellDefinedVarAnalysis(initValue)
+		return
 	}
 
 	if e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 		// If we're in constants-only mode, don't run more aggressive
 		// inlining heuristics. See InlineConstantsTest.
-		return e.GetNegativeInlineVarAnalysis()
+		e.markNegativeAnalysis()
+		return
 	}
 
 	if initialValueAnalysis.IsAlias() {
 		e.analysisKind = analysisKindWaitForAlias
 		e.analysisAliasedVar = initialValueAnalysis.GetAliasedVar()
-		return e
+		return
 	}
 
-	return e.AnalyzeWithInitialValue(initialization, initValue, initialValueAnalysis)
+	e.AnalyzeWithInitialValue(initialization, initValue, initialValueAnalysis)
 }
 
 // inlineVariables_isDeclaredAsAlias reports whether n is a name declared
@@ -1031,7 +880,7 @@ func inlineVariables_isDeclaredAsAlias(n rhino.Node) bool {
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.analyzeWithInitialValue(Reference, Node, InitialValueAnalysis)
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) AnalyzeWithInitialValue(
-	initialization *Reference, initValue rhino.Node, initialValueAnalysis *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis) InlineVariables_InlineVarAnalysis {
+	initialization *Reference, initValue rhino.Node, initialValueAnalysis *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis) {
 	refCount := len(e.referenceInfo.references)
 
 	// TODO(bradfordcsmith): We could remove the `refCount > 1` here, but:
@@ -1043,14 +892,15 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) AnalyzeWithInitialV
 	if refCount > 1 && e.AllReferencesAreValid() {
 		if e.IsNeverAssigned() {
 			e.analysisKind = analysisKindInlineNeverAssigned
-			return e
+			return
 		}
 		if e.IsWellDefined() &&
 			(initialValueAnalysis.IsImmutableValue() ||
 				(initValue.IsThis() && !e.referenceInfo.IsThisRebound())) {
 			// if the variable is referenced more than once, we can only
 			// inline it if it's immutable and never defined before referenced.
-			return e.inlineWellDefinedVarAnalysis(initValue)
+			e.inlineWellDefinedVarAnalysis(initValue)
+			return
 		}
 
 		firstReadRefIndex := 2
@@ -1061,7 +911,8 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) AnalyzeWithInitialV
 		if numReadRefs == 0 {
 			// The only reference is the initialization.
 			// Remove the assignment and the variable declaration.
-			return e.inlineWellDefinedVarAnalysis(initValue)
+			e.inlineWellDefinedVarAnalysis(initValue)
+			return
 		}
 
 		if numReadRefs == 1 {
@@ -1073,82 +924,59 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) AnalyzeWithInitialV
 				e.analysisKind = analysisKindInlineSingleRef
 				e.analysisInitRef = initialization
 				e.analysisSingleReadRef = singleReadReference
-				return e
+				return
 			}
 		}
 	}
 
-	return e.GetNegativeInlineVarAnalysis()
+	e.markNegativeAnalysis()
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.getNegativeInlineVarAnalysis()
-func (e *InlineVariables_InliningBehavior_StandardVarExpert) GetNegativeInlineVarAnalysis() InlineVariables_InlineVarAnalysis {
-
+func (e *InlineVariables_InliningBehavior_StandardVarExpert) markNegativeAnalysis() {
 	// If we already know whether it is safe to inline aliases of this variable,
-	// use canonical analysis values to save on memory space.
+	// record the resolved state immediately.
 	if e.mayBeAParameterModifiedViaArguments ||
 		e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY ||
 		len(e.referenceInfo.references) <= 1 ||
 		e.isWellDefinedAssignedOnce.IsKnownToBe(false) ||
 		e.isWellDefined.IsKnownToBe(false) ||
 		e.isAssignedOnceInLifetime.IsKnownToBe(false) {
-		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_ANALYSIS
+		e.analysisKind = analysisKindNegativeUnsafe
+		return
 	}
 	if e.isWellDefinedAssignedOnce.IsKnownToBe(true) ||
 		(e.isWellDefined.IsKnownToBe(true) && e.isAssignedOnceInLifetime.IsKnownToBe(true)) {
-		return InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS
+		e.analysisKind = analysisKindNegativeSafe
+		return
 	}
 
 	// Delay calculating safety until we're actually asked.
 	e.analysisKind = analysisKindDelayedNegative
-	return e
 }
 
-// inlineVariables_delayedNegativeAnalysis is the anonymous InlineVarAnalysis
-// of StandardVarExpert.getNegativeInlineVarAnalysis().
-type inlineVariables_delayedNegativeAnalysis struct {
-	InlineVariables_InlineVarAnalysisBase
-	referenceInfo *ReferenceCollection
-	state         uint8 // 0: unknown, 1: false, 2: true, 3: wellDefined known true
-}
-
-// Java: InlineVariables.InliningBehavior.StandardVarExpert.getNegativeInlineVarAnalysis().new InlineVarAnalysis() {...}.isSafeToInlineAliases()
-func (a *inlineVariables_delayedNegativeAnalysis) IsSafeToInlineAliases() bool {
-	switch a.state {
-	case 0:
-		if a.referenceInfo.IsWellDefined() && a.referenceInfo.IsAssignedOnceInLifetime() {
-			a.state = 2
-			return true
+func (e *InlineVariables_InliningBehavior_StandardVarExpert) negativeHandledVar() inlineVariables_handledVar {
+	switch e.analysisKind {
+	case analysisKindNegativeSafe:
+		return inlineVariables_handledVar{state: handledVarSafe}
+	case analysisKindDelayedNegative:
+		if e.isWellDefined.IsKnownToBe(true) {
+			return inlineVariables_handledVar{referenceInfo: e.referenceInfo, state: handledVarLazyWellDefined}
 		}
-		a.state = 1
-		return false
-	case 3:
-		if a.referenceInfo.IsAssignedOnceInLifetime() {
-			a.state = 2
-			return true
-		}
-		a.state = 1
-		return false
+		return inlineVariables_handledVar{referenceInfo: e.referenceInfo, state: handledVarLazy}
 	default:
-		return a.state == 2
+		return inlineVariables_handledVar{state: handledVarUnsafe}
 	}
 }
 
-func (e *InlineVariables_InliningBehavior_StandardVarExpert) inlineWellDefinedVarAnalysis(initValue rhino.Node) InlineVariables_InlineVarAnalysis {
+func (e *InlineVariables_InliningBehavior_StandardVarExpert) inlineWellDefinedVarAnalysis(initValue rhino.Node) {
 	e.analysisKind = analysisKindInlineWellDefined
 	e.analysisInitValue = initValue
-	return e
-}
-
-// Java: InlineVariables.InliningBehavior.StandardVarExpert.createInlineWellDefinedVarAnalysis(Node)
-func (e *InlineVariables_InliningBehavior_StandardVarExpert) CreateInlineWellDefinedVarAnalysis(initValue rhino.Node) *InlineVariables_InliningBehavior_PositiveInlineVarAnalysis {
-	return NewInlineVariables_InliningBehavior_PositiveInlineVarAnalysis(
-		func() { e.outer.InlineWellDefinedVariable(e.v, initValue, e.referenceInfo.references) })
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.reanalyzeAfterAliasedVar(Var, InlineVarAnalysis)
 func (e *InlineVariables_InliningBehavior_StandardVarExpert) ReanalyzeAfterAliasedVar(
-	aliasedVar *Var, aliasedVarAnalysis InlineVariables_InlineVarAnalysis) InlineVariables_InlineVarAnalysis {
+	aliasedVar *Var, aliasedHandled *inlineVariables_handledVar) {
 	initialization := e.GetInitialization()
 	var initValue rhino.Node
 	if initialization != nil {
@@ -1164,19 +992,21 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) ReanalyzeAfterAlias
 		initialValueAnalysis.IsImmutableValue() &&
 		// isAssignedOnceInLifetime() is much more expensive than the other checks
 		e.IsAssignedOnceInLifetime() {
-		return e.inlineWellDefinedVarAnalysis(initValue)
+		e.inlineWellDefinedVarAnalysis(initValue)
+		return
 	}
 
 	if initialValueAnalysis.IsAlias() &&
 		aliasedVar == initialValueAnalysis.GetAliasedVar() &&
-		aliasedVarAnalysis.IsSafeToInlineAliases() &&
+		aliasedHandled.isSafeToInlineAliases() &&
 		e.IsWellDefinedAssignedOnce() {
 		// The variable we aliased couldn't be inlined itself, or it was an alias for another
 		// variable that got inlined in its place.
 		// However, it is safe to inline the name assigned to this variable now.
-		return e.inlineWellDefinedVarAnalysis(initValue)
+		e.inlineWellDefinedVarAnalysis(initValue)
+		return
 	}
-	return e.AnalyzeWithInitialValue(initialization, initValue, initialValueAnalysis)
+	e.AnalyzeWithInitialValue(initialization, initValue, initialValueAnalysis)
 }
 
 // InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis is
@@ -1188,15 +1018,6 @@ type InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis str
 
 	isImmutableValue InlineVariables_InitiallyUnknown[bool]
 	aliasedVar       InlineVariables_InitiallyUnknown[*Var]
-}
-
-// Java: InlineVariables.InliningBehavior.StandardVarExpert.InitialValueAnalysis(Node)
-func NewInlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis(
-	outer *InlineVariables_InliningBehavior_StandardVarExpert, value rhino.Node) *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis {
-	return &InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis{
-		outer: outer,
-		value: value,
-	}
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.InitialValueAnalysis.isImmutableValue()
@@ -1231,95 +1052,29 @@ func (a *InlineVariables_InliningBehavior_StandardVarExpert_InitialValueAnalysis
 	}
 }
 
-// InlineVariables_InliningBehavior_PositiveInlineVarAnalysis indicates that
-// the analyzed variable may be inlined.
-type InlineVariables_InliningBehavior_PositiveInlineVarAnalysis struct {
-	InlineVariables_InlineVarAnalysisBase
-
-	inliner func()
-}
-
-// Java: InlineVariables.InliningBehavior.PositiveInlineVarAnalysis(Runnable)
-func NewInlineVariables_InliningBehavior_PositiveInlineVarAnalysis(inliner func()) *InlineVariables_InliningBehavior_PositiveInlineVarAnalysis {
-	return &InlineVariables_InliningBehavior_PositiveInlineVarAnalysis{inliner: inliner}
-}
-
-// Java: InlineVariables.InliningBehavior.PositiveInlineVarAnalysis.shouldInline()
-func (a *InlineVariables_InliningBehavior_PositiveInlineVarAnalysis) ShouldInline() bool {
-	return true
-}
-
-// Java: InlineVariables.InliningBehavior.PositiveInlineVarAnalysis.performInline()
-func (a *InlineVariables_InliningBehavior_PositiveInlineVarAnalysis) PerformInline() {
-	a.inliner()
-}
-
-// Java: InlineVariables.InliningBehavior.PositiveInlineVarAnalysis.isSafeToInlineAliases()
-func (a *InlineVariables_InliningBehavior_PositiveInlineVarAnalysis) IsSafeToInlineAliases() bool {
-	// If we've inlined this variable, then any aliases of it should definitely try to
-	// inline themselves with the new value that replaced this variable.
-	// If for some reason the logic that requested this analysis decided not to actually
-	// do the inlining, it's still safe to inline the name of this variable.
-	// If it weren't, we wouldn't have said it was OK to inline its value.
-	return true
-}
-
-// InlineVariables_InliningBehavior_VarIsAliasAnalysis indicates that the
-// analyzed variable is an alias and the decision about whether to inline it
-// must wait until inlining has been done (or not) for the original value it
-// aliases.
-type InlineVariables_InliningBehavior_VarIsAliasAnalysis struct {
-	InlineVariables_InlineVarAnalysisBase
-
-	aliasedVar *Var
-}
-
-// Java: InlineVariables.InliningBehavior.VarIsAliasAnalysis(Var)
-func NewInlineVariables_InliningBehavior_VarIsAliasAnalysis(aliasedVar *Var) *InlineVariables_InliningBehavior_VarIsAliasAnalysis {
-	return &InlineVariables_InliningBehavior_VarIsAliasAnalysis{aliasedVar: aliasedVar}
-}
-
-// Java: InlineVariables.InliningBehavior.VarIsAliasAnalysis.shouldWaitForAliasedVar()
-func (a *InlineVariables_InliningBehavior_VarIsAliasAnalysis) ShouldWaitForAliasedVar() bool {
-	return true
-}
-
-// Java: InlineVariables.InliningBehavior.VarIsAliasAnalysis.getAliasedVar()
-func (a *InlineVariables_InliningBehavior_VarIsAliasAnalysis) GetAliasedVar() *Var {
-	return a.aliasedVar
-}
-
-// Java: InlineVariables.InliningBehavior.VarIsAliasAnalysis.isSafeToInlineAliases()
-func (a *InlineVariables_InliningBehavior_VarIsAliasAnalysis) IsSafeToInlineAliases() bool {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("analysis is incomplete"))
-}
-
-// CreateVarExpert creates a VarExpert object appropriate for the given
-// variable.
-//
-// Java: InlineVariables.InliningBehavior.createVarExpert(Var, ReferenceCollection, boolean)
-func (b *InlineVariables_InliningBehavior) CreateVarExpert(
-	v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool) InlineVariables_VarExpert {
-	return b.createVarExpertForScope(v, referenceInfo, mayBeAParameterModifiedViaArguments, v.IsLocal())
-}
-
-func (b *InlineVariables_InliningBehavior) createVarExpertForScope(
-	v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool, isLocal bool) InlineVariables_VarExpert {
+// checkScopeVarEligibility handles the fast bailouts of
+// Java's InliningBehavior.createVarExpert before initializing a
+// StandardVarExpert.
+func (b *InlineVariables_InliningBehavior) checkScopeVarEligibility(
+	v *Var,
+	referenceInfo *ReferenceCollection,
+	isLocal bool,
+) (isDeclaredOrInferredConstant bool, bailoutState inlineVariables_handledState, bailedOut bool) {
 	if referenceInfo == nil {
 		// If we couldn't collect any reference info, don't try to inline and assume it's unsafe
 		// to inline aliases of this variable, too.
-		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
+		return false, handledVarUnsafe, true
 	}
 
 	if v.IsExtern() {
 		// TODO(bradfordcsmith): Extern variables are generally unsafe to inline.
-		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
+		return false, handledVarUnsafe, true
 	}
 
-	isDeclaredOrInferredConstant := inlineVariables_isDeclaredOrInferredConst(v)
+	isDeclaredOrInferredConstant = inlineVariables_isDeclaredOrInferredConst(v)
 	if !isDeclaredOrInferredConstant && b.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 		// If we're only inlining constants, then we shouldn't inline an alias.
-		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
+		return false, handledVarUnsafe, true
 	}
 
 	cc := b.codingConvention
@@ -1332,30 +1087,16 @@ func (b *InlineVariables_InliningBehavior) createVarExpertForScope(
 		// If the variable is exported, it might be assigned a new value by code we cannot see,
 		// so aliases to it are creating snapshots of its state.
 		// We cannot inline this variable or its aliases.
-		return InlineVariables_NO_INLINE_SELF_OR_ALIASES_EXPERT
+		return isDeclaredOrInferredConstant, handledVarUnsafe, true
 	}
 
 	if cc.IsPropertyRenameFunction(v.nameNode) {
 		// It's not terribly likely that anything creates an alias of our special property rename
 		// function, but its value never changes, so it should be safe to inline aliases to it.
-		return InlineVariables_NO_INLINE_SELF_ALIASES_OK_EXPERT
+		return isDeclaredOrInferredConstant, handledVarSafe, true
 	}
 
-	return b.initScratchVarExpert(v, referenceInfo, isDeclaredOrInferredConstant, mayBeAParameterModifiedViaArguments)
-}
-
-// InlineVariables_InliningBehavior_VarExpertInitData is used to initialize
-// fields in a `StandardVarExpert` object.
-type InlineVariables_InliningBehavior_VarExpertInitData struct {
-	v                                   *Var
-	referenceInfo                       *ReferenceCollection
-	isDeclaredOrInferredConstant        bool
-	mayBeAParameterModifiedViaArguments bool
-}
-
-// Java: InlineVariables.InliningBehavior.VarExpertInitData()
-func NewInlineVariables_InliningBehavior_VarExpertInitData() *InlineVariables_InliningBehavior_VarExpertInitData {
-	return &InlineVariables_InliningBehavior_VarExpertInitData{}
+	return isDeclaredOrInferredConstant, handledVarUnseen, false
 }
 
 // IsSafeUseOfArguments: true if `argumentsNode` is a use of `arguments` we

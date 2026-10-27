@@ -193,12 +193,13 @@ func (p *PropertyClustering) GetOriginalNameClusterRep() *ColorGraphNode {
 
 // Java: PropertyClustering.isInvalidated()
 func (p *PropertyClustering) IsInvalidated() bool {
-	return p.lastInvalidation != nil
+	return p.lastInvalidation.IsValid()
 }
 
 // Java: PropertyClustering.invalidate(Invalidation)
 func (p *PropertyClustering) Invalidate(invalidation Invalidation) {
-	p.lastInvalidation = jutil.CheckNotNull(invalidation)
+	jutil.CheckState(invalidation.IsValid())
+	p.lastInvalidation = invalidation
 }
 
 // Java: PropertyClustering.getLastInvalidation()

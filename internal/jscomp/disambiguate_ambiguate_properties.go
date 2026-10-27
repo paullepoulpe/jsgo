@@ -275,30 +275,30 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	// Translate the color of each Property instance to a name.
 	for _, node := range propertyGraph.nodes {
 		prop := node.GetValue()
-		prop.newName = &colorMap[jutil.ObjectHashCode(node.GetAnnotation())]
+		prop.newName = colorMap[graph.GraphColoring_ColorOf(node.GetAnnotation()).Value]
 		if a.renamingMap != nil {
-			a.renamingMap.Put(prop.oldName, *prop.newName)
+			a.renamingMap.Put(prop.oldName, prop.newName)
 		}
 	}
 	propertyGraph = nil
 	nodes = nil
 	nodeSlab = nil
+	colorMap = nil
 
 	// Actually assign the new names to the relevant STRING nodes in the AST.
 	for _, n := range a.stringNodesToRename {
 		oldName := n.GetString()
 		p := a.propertyMap.Get(oldName)
-		if p != nil && p.newName != nil {
+		if p != nil && p.newName != "" {
 			jutil.CheckState(oldName == p.oldName)
-			if *p.newName != oldName {
-				n.SetString(*p.newName)
+			if p.newName != oldName {
+				n.SetString(p.newName)
 				a.compiler.ReportChangeToEnclosingScope(n)
 			}
 		}
 	}
 	a.stringNodesToRename = nil
 	a.propertyMap = nil
-	colorMap = nil
 
 	// We may have renamed getter / setter properties.
 	// TODO(b/161947315): this shouldn't be the responsibility of AmbiguateProperties
@@ -699,7 +699,7 @@ type AmbiguateProperties_Property struct {
 	outer *AmbiguateProperties
 
 	oldName          string
-	newName          *string // may be nil
+	newName          string
 	numOccurrences   int
 	skipAmbiguating  bool
 	singleColorIndex int32

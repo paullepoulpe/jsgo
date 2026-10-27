@@ -39,7 +39,7 @@ type DisambiguateProperties struct {
 	propertiesThatMustDisambiguate *jutil.LinkedHashSet[string]
 	registry                       *colors.ColorRegistry
 
-	mayHavePropertySeenSet *jutil.ObjectLinkedHashSet[*colors.Color]
+	mayHavePropertySeen map[*colors.Color]struct{}
 }
 
 // Java: DisambiguateProperties.PROPERTY_INVALIDATION
@@ -54,7 +54,7 @@ var disambiguateProperties_GSON = jutil.NewGson()
 func NewDisambiguateProperties(
 	compiler AbstractCompiler, propertiesThatMustDisambiguate *jutil.LinkedHashSet[string]) *DisambiguateProperties {
 	d := &DisambiguateProperties{
-		mayHavePropertySeenSet: jutil.NewObjectLinkedHashSet[*colors.Color](),
+		mayHavePropertySeen: make(map[*colors.Color]struct{}),
 	}
 	d.compiler = compiler
 	d.propertiesThatMustDisambiguate = propertiesThatMustDisambiguate
@@ -124,7 +124,7 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		})
 
 	d.InvalidateBasedOnType(flattener)
-	d.mayHavePropertySeenSet = jutil.NewObjectLinkedHashSet[*colors.Color]()
+	d.mayHavePropertySeen = nil
 
 	graph.FixedPointGraphTraversal_NewTraversal[*ColorGraphNode, ColorGraphBuilder_EdgeReason](propagator).ComputeFixedPoint(colorGraph)
 	flattener = nil
@@ -315,10 +315,15 @@ func (d *DisambiguateProperties) InvalidateNonDeclaredPropertyAccesses(colorGrap
 //
 // Java: DisambiguateProperties.mayHaveProperty(Color, String)
 func (d *DisambiguateProperties) MayHaveProperty(color *colors.Color, propertyName string) bool {
-	defer d.mayHavePropertySeenSet.Remove(color) // finally
-	if !d.mayHavePropertySeenSet.Add(color) {
+	if d.mayHavePropertySeen == nil {
+		d.mayHavePropertySeen = make(map[*colors.Color]struct{})
+	}
+	if _, seen := d.mayHavePropertySeen[color]; seen {
+		delete(d.mayHavePropertySeen, color) // Java: try { if (!seen.add(color)) return false; } finally { seen.remove(color); }
 		return false
 	}
+	d.mayHavePropertySeen[color] = struct{}{}
+	defer delete(d.mayHavePropertySeen, color)
 
 	if color.IsUnion() {
 		for element := range color.GetUnionElements().All() {

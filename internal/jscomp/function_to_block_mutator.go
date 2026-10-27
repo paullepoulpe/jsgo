@@ -73,7 +73,7 @@ func (m *FunctionToBlockMutator) Mutate(
 	fnName string,
 	fnNode rhino.Node,
 	callNode rhino.Node,
-	resultName *string,
+	resultName string,
 	needsDefaultResult bool,
 	isCallInLoop bool) rhino.Node {
 	if m.allowMoveCallArgs {
@@ -108,7 +108,7 @@ func (m *FunctionToBlockMutator) MutateWithoutRenaming(
 	fnName string,
 	fnNode rhino.Node,
 	callNode rhino.Node,
-	resultName *string,
+	resultName string,
 	needsDefaultResult bool,
 	isCallInLoop bool) rhino.Node {
 	return m.MutateInternal(
@@ -136,7 +136,7 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	fnName string,
 	fnNode rhino.Node,
 	callNode rhino.Node,
-	resultName *string,
+	resultName string,
 	needsDefaultResult bool,
 	isCallInLoop bool,
 	renameLocals bool) rhino.Node {
@@ -614,7 +614,7 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 //
 // Java: FunctionToBlockMutator.replaceReturns(Node, String, String, boolean)
 func FunctionToBlockMutator_ReplaceReturns(
-	block rhino.Node, resultName *string, labelName string, resultMustBeSet bool) rhino.Node {
+	block rhino.Node, resultName string, labelName string, resultMustBeSet bool) rhino.Node {
 	rhino.CheckNotNull(block)
 
 	root := block
@@ -651,8 +651,8 @@ func FunctionToBlockMutator_ReplaceReturns(
 
 	// If there wasn't an return at the end of the function block, and we need
 	// a result, add one to the block.
-	if resultMustBeSet && !hasReturnAtExit && resultName != nil {
-		FunctionToBlockMutator_AddDummyAssignment(block, *resultName)
+	if resultMustBeSet && !hasReturnAtExit && resultName != "" {
+		FunctionToBlockMutator_AddDummyAssignment(block, resultName)
 	}
 
 	return root
@@ -682,7 +682,7 @@ func FunctionToBlockMutator_AddDummyAssignment(node rhino.Node, resultName strin
 // "resultName = foo()" "return" is removed or becomes "resultName = void 0".
 //
 // Java: FunctionToBlockMutator.convertLastReturnToStatement(Node, String)
-func FunctionToBlockMutator_ConvertLastReturnToStatement(block rhino.Node, resultName *string) {
+func FunctionToBlockMutator_ConvertLastReturnToStatement(block rhino.Node, resultName string) {
 	ret := block.GetLastChild()
 	jutil.CheckArgument(ret.IsReturn())
 	resultNode := FunctionToBlockMutator_GetReplacementReturnStatement(ret, resultName)
@@ -709,12 +709,12 @@ func FunctionToBlockMutator_CreateAssignStatementNode(name string, expression rh
 
 // FunctionToBlockMutator_GetReplacementReturnStatement replaces the 'return'
 // statement with its child expression. If the result is needed (resultName
-// != null): "return foo()" becomes "resultName = foo()" "return" becomes
+// != ""): "return foo()" becomes "resultName = foo()" "return" becomes
 // "resultName = void 0". Otherwise: "return foo()" becomes "foo()" "return",
 // null is returned.
 //
 // Java: FunctionToBlockMutator.getReplacementReturnStatement(Node, String)
-func FunctionToBlockMutator_GetReplacementReturnStatement(node rhino.Node, resultName *string) rhino.Node {
+func FunctionToBlockMutator_GetReplacementReturnStatement(node rhino.Node, resultName string) rhino.Node {
 	var resultNode rhino.Node
 
 	var retVal rhino.Node
@@ -724,7 +724,7 @@ func FunctionToBlockMutator_GetReplacementReturnStatement(node rhino.Node, resul
 		retVal = node.GetFirstChild().CloneTree()
 	}
 
-	if resultName == nil {
+	if resultName == "" {
 		if !retVal.IsNil() {
 			resultNode = NodeUtil_NewExpr(retVal) // maybe null.
 		}
@@ -735,7 +735,7 @@ func FunctionToBlockMutator_GetReplacementReturnStatement(node rhino.Node, resul
 			retVal = NodeUtil_NewUndefinedNode(srcLocation)
 		}
 		// Create a "resultName = retVal;" statement.
-		resultNode = FunctionToBlockMutator_CreateAssignStatementNode(*resultName, retVal)
+		resultNode = FunctionToBlockMutator_CreateAssignStatementNode(resultName, retVal)
 	}
 
 	return resultNode
@@ -758,7 +758,7 @@ func FunctionToBlockMutator_HasReturnAtExit(block rhino.Node) bool {
 //
 // Java: FunctionToBlockMutator.replaceReturnWithBreak(Node, Node, String, String)
 func FunctionToBlockMutator_ReplaceReturnWithBreak(
-	current rhino.Node, parent rhino.Node, resultName *string, labelName string) rhino.Node {
+	current rhino.Node, parent rhino.Node, resultName string, labelName string) rhino.Node {
 
 	if current.IsFunction() || current.IsExprResult() {
 		// Don't recurse into functions definitions, and expressions can't
