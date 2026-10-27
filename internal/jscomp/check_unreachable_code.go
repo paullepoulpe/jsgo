@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/base"
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -29,7 +30,7 @@ type CheckUnreachableCode struct {
 	NodeTraversal_AbstractCfgCallbackBase
 
 	compiler             AbstractCompiler
-	reachability         GraphReachability[rhino.Node, ControlFlowGraph_Branch]
+	reachability         graph.GraphReachability[rhino.Node, ControlFlowGraph_Branch]
 	hasUnreachableStack  []bool
 	hasUnreachableBuf    [8]bool
 	scriptCheckCfg       ReusableCfg
@@ -53,8 +54,8 @@ func (*CheckUnreachableCode) nodeTraversalNoVisit() {}
 
 func hasUnreachableCfgNode(cfg ControlFlowGraph[rhino.Node]) bool {
 	if base := cfg.GetControlFlowGraphBase(); base != nil {
-		for n, gNode := range base.nodes.All() {
-			if !n.IsNil() && gNode.GetAnnotation() != GraphReachability_REACHABLE &&
+		for n, gNode := range base.Nodes.All() {
+			if !n.IsNil() && gNode.GetAnnotation() != graph.GraphReachability_REACHABLE &&
 				n.GetLineno() != -1 && !n.IsEmpty() && !n.IsBreak() {
 				return true
 			}
@@ -63,7 +64,7 @@ func hasUnreachableCfgNode(cfg ControlFlowGraph[rhino.Node]) bool {
 	}
 	for _, gNode := range cfg.GetNodes() {
 		n := gNode.GetValue()
-		if !n.IsNil() && gNode.GetAnnotation() != GraphReachability_REACHABLE &&
+		if !n.IsNil() && gNode.GetAnnotation() != graph.GraphReachability_REACHABLE &&
 			n.GetLineno() != -1 && !n.IsEmpty() && !n.IsBreak() {
 			return true
 		}
@@ -179,7 +180,7 @@ func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot rhino.Node) bo
 				/* shouldTraverseFunctions= */ false,
 				/* edgeAnnotations= */ true)
 			c.InitScope(cfg)
-			unreachable := hasUnreachableCfgNode(cfg) || cfg.GetImplicitReturn().GetAnnotation() != GraphReachability_REACHABLE
+			unreachable := hasUnreachableCfgNode(cfg) || cfg.GetImplicitReturn().GetAnnotation() != graph.GraphReachability_REACHABLE
 			c.scriptCheckCfg.release()
 			if unreachable {
 				return false
@@ -237,12 +238,12 @@ func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 	}
 	cfg := c.GetControlFlowGraph(c.compiler)
 	gNode := cfg.GetNode(n)
-	if gNode != nil && gNode.GetAnnotation() != GraphReachability_REACHABLE {
+	if gNode != nil && gNode.GetAnnotation() != graph.GraphReachability_REACHABLE {
 		c.compiler.Report(JSError_MakeWithNode(n, CheckUnreachableCode_UNREACHABLE_CODE))
 		// From now on, we are going to assume the user fixed the error and not
 		// give more warning related to code section reachable from this node.
-		c.reachability.graph = cfg
-		c.reachability.edgePredicate = nil
+		c.reachability.Graph = cfg
+		c.reachability.EdgePredicate = nil
 		c.reachability.Recompute(n)
 
 		// Saves time by not traversing children.
@@ -253,18 +254,18 @@ func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 
 // Java: CheckUnreachableCode.initScope(ControlFlowGraph<Node>)
 func (c *CheckUnreachableCode) InitScope(controlFlowGraph ControlFlowGraph[rhino.Node]) {
-	c.reachability.graph = controlFlowGraph
-	c.reachability.edgePredicate = CheckUnreachableCode_IsReachable
+	c.reachability.Graph = controlFlowGraph
+	c.reachability.EdgePredicate = CheckUnreachableCode_IsReachable
 	c.reachability.Compute(controlFlowGraph.GetEntry().GetValue())
 }
 
 // Java: CheckUnreachableCode.isReachable(EdgeTuple<Node, Branch>)
-func CheckUnreachableCode_IsReachable(input *GraphReachability_EdgeTuple[rhino.Node, ControlFlowGraph_Branch]) bool {
-	branch := input.edge
+func CheckUnreachableCode_IsReachable(input *graph.GraphReachability_EdgeTuple[rhino.Node, ControlFlowGraph_Branch]) bool {
+	branch := input.Edge
 	if !branch.IsConditional() {
 		return true
 	}
-	predecessor := input.sourceNode
+	predecessor := input.SourceNode
 	condition := NodeUtil_GetConditionExpression(predecessor)
 
 	// TODO(user): Handle more complicated expression like true == true,

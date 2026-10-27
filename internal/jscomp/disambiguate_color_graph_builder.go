@@ -22,6 +22,7 @@ import (
 	"iter"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -30,8 +31,8 @@ import (
 type ColorGraphBuilder struct {
 	registry    *colors.ColorRegistry
 	nodeFactory *ColorGraphNodeFactory
-	lcaFinder   LowestCommonAncestorFinder[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
-	topNode     *LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
+	lcaFinder   graph.LowestCommonAncestorFinder[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
+	topNode     *graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
 
 	// The graph of colors as defined by `holdsInstanceOf`.
 	//
@@ -49,7 +50,7 @@ type ColorGraphBuilder struct {
 	//   - Some colors, such as primitives, will not have nodes.
 	//   - Transitive edges (shortcut edges for which there exist alternate
 	//     paths) are kept minimal.
-	colorHoldsInstanceGraph *LinkedDirectedGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
+	colorHoldsInstanceGraph *graph.LinkedDirectedGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
 }
 
 // ColorGraphBuilder_EdgeReason is the relationship that caused an edge to
@@ -77,10 +78,10 @@ func (r ColorGraphBuilder_EdgeReason) Ordinal() int { return int(r) }
 // Java: ColorGraphBuilder(ColorGraphNodeFactory, LowestCommonAncestorFinder.Factory<ColorGraphNode, Object>, ColorRegistry)
 func NewColorGraphBuilder(
 	nodeFactory *ColorGraphNodeFactory,
-	lcaFinderFactory LowestCommonAncestorFinder_Factory[*ColorGraphNode, ColorGraphBuilder_EdgeReason],
+	lcaFinderFactory graph.LowestCommonAncestorFinder_Factory[*ColorGraphNode, ColorGraphBuilder_EdgeReason],
 	registry *colors.ColorRegistry) *ColorGraphBuilder {
 	b := &ColorGraphBuilder{
-		colorHoldsInstanceGraph: LinkedDirectedGraph_CreateWithoutAnnotations[*ColorGraphNode, ColorGraphBuilder_EdgeReason](),
+		colorHoldsInstanceGraph: graph.LinkedDirectedGraph_CreateWithoutAnnotations[*ColorGraphNode, ColorGraphBuilder_EdgeReason](),
 	}
 	b.registry = registry
 	b.nodeFactory = nodeFactory
@@ -105,7 +106,7 @@ func (b *ColorGraphBuilder) AddAll(flats iter.Seq[*ColorGraphNode]) {
 }
 
 // Java: ColorGraphBuilder.build()
-func (b *ColorGraphBuilder) Build() *LinkedDirectedGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
+func (b *ColorGraphBuilder) Build() *graph.LinkedDirectedGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
 	// connectUnionWithAncestors adds edges only, never nodes, so iterating a
 	// snapshot of the nodes matches Java's forEach over the live view.
 	for _, node := range b.colorHoldsInstanceGraph.GetLinkedDiGraphNodes() {
@@ -125,7 +126,7 @@ func (b *ColorGraphBuilder) Build() *LinkedDirectedGraph[*ColorGraphNode, ColorG
 // other colors are in place makes it easier.
 //
 // Java: ColorGraphBuilder.connectUnionWithAncestors(LinkedDiGraphNode<ColorGraphNode, Object>)
-func (b *ColorGraphBuilder) connectUnionWithAncestors(unionNode *LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) {
+func (b *ColorGraphBuilder) connectUnionWithAncestors(unionNode *graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) {
 	flatUnion := unionNode.GetValue()
 	if !flatUnion.GetColor().IsUnion() {
 		return
@@ -155,7 +156,7 @@ func (b *ColorGraphBuilder) connectUnionWithAncestors(unionNode *LinkedDirectedG
 // datastructures of this pass.
 //
 // Java: ColorGraphBuilder.addInternal(Color)
-func (b *ColorGraphBuilder) addInternalColor(color *colors.Color) *LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
+func (b *ColorGraphBuilder) addInternalColor(color *colors.Color) *graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
 	return b.addInternal(b.nodeFactory.CreateNode(color))
 }
 
@@ -163,7 +164,7 @@ func (b *ColorGraphBuilder) addInternalColor(color *colors.Color) *LinkedDirecte
 // datastructures of this pass.
 //
 // Java: ColorGraphBuilder.addInternal(ColorGraphNode)
-func (b *ColorGraphBuilder) addInternal(node *ColorGraphNode) *LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
+func (b *ColorGraphBuilder) addInternal(node *ColorGraphNode) *graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
 	flatNode := b.colorHoldsInstanceGraph.GetLinkedDiGraphNode(node)
 	if flatNode != nil {
 		return flatNode
@@ -206,9 +207,9 @@ func (b *ColorGraphBuilder) addInternal(node *ColorGraphNode) *LinkedDirectedGra
 
 // Java: ColorGraphBuilder.connectSourceToDest(LinkedDiGraphNode<ColorGraphNode, Object>, EdgeReason, LinkedDiGraphNode<ColorGraphNode, Object>)
 func (b *ColorGraphBuilder) connectSourceToDest(
-	source *LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason],
+	source *graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason],
 	reason ColorGraphBuilder_EdgeReason,
-	dest *LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) {
+	dest *graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) {
 	if source == dest ||
 		b.colorHoldsInstanceGraph.IsConnectedInDirectionOfNodes(source, func(ColorGraphBuilder_EdgeReason) bool { return true }, dest) {
 		return

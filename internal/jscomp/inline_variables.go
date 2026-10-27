@@ -482,9 +482,9 @@ type InlineVariables_InliningBehavior struct {
 	onGlobalAliasRetry    func(*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler)
 
 	scratchExpert    InlineVariables_InliningBehavior_StandardVarExpert
-	delayedNegSlab   reuseSlab[inlineVariables_delayedNegativeAnalysis]
-	retryExpertSlab  reuseSlab[InlineVariables_InliningBehavior_StandardVarExpert]
-	retryHandlerSlab reuseSlab[InlineVariables_InliningBehavior_AliasInlineRetryHandler]
+	delayedNegSlab   jutil.ReuseSlab[inlineVariables_delayedNegativeAnalysis]
+	retryExpertSlab  jutil.ReuseSlab[InlineVariables_InliningBehavior_StandardVarExpert]
+	retryHandlerSlab jutil.ReuseSlab[InlineVariables_InliningBehavior_AliasInlineRetryHandler]
 	motionScratch    NodeIterators_LocalVarMotion
 }
 
@@ -547,7 +547,7 @@ func (b *InlineVariables_InliningBehavior) initScratchVarExpert(
 func (b *InlineVariables_InliningBehavior) allocDelayedNegativeAnalysis(
 	src *InlineVariables_InliningBehavior_StandardVarExpert,
 ) *inlineVariables_delayedNegativeAnalysis {
-	a := b.delayedNegSlab.alloc()
+	a := b.delayedNegSlab.Alloc()
 	var state uint8
 	if src.isWellDefined.IsKnownToBe(true) {
 		state = 3
@@ -562,7 +562,7 @@ func (b *InlineVariables_InliningBehavior) allocDelayedNegativeAnalysis(
 func (b *InlineVariables_InliningBehavior) allocRetryExpert(
 	src *InlineVariables_InliningBehavior_StandardVarExpert,
 ) *InlineVariables_InliningBehavior_StandardVarExpert {
-	e := b.retryExpertSlab.alloc()
+	e := b.retryExpertSlab.Alloc()
 	*e = *src
 	e.initValAnalysis.outer = e
 	return e
@@ -572,7 +572,7 @@ func (b *InlineVariables_InliningBehavior) allocRetryHandler(
 	v *Var,
 	expert InlineVariables_VarExpert,
 ) *InlineVariables_InliningBehavior_AliasInlineRetryHandler {
-	h := b.retryHandlerSlab.alloc()
+	h := b.retryHandlerSlab.Alloc()
 	*h = InlineVariables_InliningBehavior_AliasInlineRetryHandler{
 		outer:  b,
 		v:      v,
@@ -613,10 +613,10 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 	clear(b.handledScopeVars)
 	b.handledScopeVars = b.handledScopeVars[:0]
 	b.currentScope = nil
-	b.delayedNegSlab.reset(nil)
+	b.delayedNegSlab.Reset(nil)
 	if len(b.aliasRetryHandlers) == 0 && !b.hasGlobalAliasRetries {
-		b.retryExpertSlab.reset(nil)
-		b.retryHandlerSlab.reset(nil)
+		b.retryExpertSlab.Reset(nil)
+		b.retryHandlerSlab.Reset(nil)
 	}
 	if len(t.scopes) > 0 && t.scopes[len(t.scopes)-1].scope == nil {
 		return

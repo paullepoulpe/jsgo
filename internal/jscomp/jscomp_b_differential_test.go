@@ -17,6 +17,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -168,8 +169,8 @@ func jscompBAtoi(s string) int {
 	return n
 }
 
-func (rg jscompBGraph) intGraph() *LinkedDirectedGraph[int, any] {
-	g := LinkedDirectedGraph_Create[int, any]()
+func (rg jscompBGraph) intGraph() *graph.LinkedDirectedGraph[int, any] {
+	g := graph.LinkedDirectedGraph_Create[int, any]()
 	for _, n := range rg.nodes {
 		g.CreateNode(jscompBAtoi(n))
 	}
@@ -181,11 +182,11 @@ func (rg jscompBGraph) intGraph() *LinkedDirectedGraph[int, any] {
 
 func jscompBColor(directed, tie string, rg jscompBGraph) string {
 	return jscompBCatch(func() string {
-		var g Graph[string, any]
+		var g graph.Graph[string, any]
 		if directed == "1" {
-			g = LinkedDirectedGraph_Create[string, any]()
+			g = graph.LinkedDirectedGraph_Create[string, any]()
 		} else {
-			g = LinkedUndirectedGraph_Create[string, any]()
+			g = graph.LinkedUndirectedGraph_Create[string, any]()
 		}
 		for _, n := range rg.nodes {
 			g.CreateNode("n" + n)
@@ -193,14 +194,14 @@ func jscompBColor(directed, tie string, rg jscompBGraph) string {
 		for _, e := range rg.edges {
 			g.Connect("n"+e[0], nil, "n"+e[1])
 		}
-		var coloring GraphColoring[string, any]
+		var coloring graph.GraphColoring[string, any]
 		switch tie {
 		case "A":
-			coloring = NewGraphColoring_GreedyGraphColoringWithTieBreaker[string, any](g, jutil.StringCompareTo)
+			coloring = graph.NewGraphColoring_GreedyGraphColoringWithTieBreaker[string, any](g, jutil.StringCompareTo)
 		case "D":
-			coloring = NewGraphColoring_GreedyGraphColoringWithTieBreaker[string, any](g, func(a, b string) int { return jutil.StringCompareTo(b, a) })
+			coloring = graph.NewGraphColoring_GreedyGraphColoringWithTieBreaker[string, any](g, func(a, b string) int { return jutil.StringCompareTo(b, a) })
 		default:
-			coloring = NewGraphColoring_GreedyGraphColoring[string, any](g)
+			coloring = graph.NewGraphColoring_GreedyGraphColoring[string, any](g)
 		}
 		count := coloring.Color()
 		supers := make([]string, len(rg.nodes))
@@ -220,7 +221,7 @@ func jscompBJoin[T any](seq iter.Seq[T]) string {
 }
 
 func jscompBUnionFind(ops string) string {
-	uf := NewStandardUnionFind[string]()
+	uf := graph.NewStandardUnionFind[string]()
 	var results []string
 	for _, op := range strings.Split(ops, ";") {
 		f := strings.Split(op, ":")
@@ -249,7 +250,7 @@ func jscompBUnionFind(ops string) string {
 			case "E":
 				return jscompBJoin(uf.Elements().All())
 			case "K":
-				uf = NewStandardUnionFindCopyOf[string](uf)
+				uf = graph.NewStandardUnionFindCopyOf[string](uf)
 				return ""
 			}
 			panic("bad op " + op)
@@ -261,7 +262,7 @@ func jscompBUnionFind(ops string) string {
 func jscompBDominators(rg jscompBGraph, entryCol string) string {
 	return jscompBCatch(func() string {
 		entry := jscompBAtoi(entryCol)
-		tree := DominatorTree_Compute[int, any](rg.intGraph(), entry)
+		tree := graph.DominatorTree_Compute[int, any](rg.intGraph(), entry)
 		var idoms, sizes, all []string
 		for i := 0; i <= len(rg.nodes); i++ {
 			if idom, ok := tree.GetImmediateDominator(i); ok {
@@ -285,7 +286,7 @@ func jscompBLca(rg jscompBGraph, rootsCol string) string {
 		for _, r := range strings.Split(rootsCol, ",") {
 			roots.Add(jscompBAtoi(r))
 		}
-		var finder LowestCommonAncestorFinder[int, any] = NewLowestCommonAncestorFinder[int, any](g)
+		var finder graph.LowestCommonAncestorFinder[int, any] = graph.NewLowestCommonAncestorFinder[int, any](g)
 		found := jscompBJoin(finder.FindAll(roots).All())
 		again := jscompBJoin(finder.FindAll(roots).All())
 		return found + ";" + again

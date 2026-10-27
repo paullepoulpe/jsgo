@@ -66,8 +66,8 @@ type MustBeReachingVariableDef struct {
 
 	// Go-only: performance — rewound for each CFG: allocMustDef(Raw) and
 	// allocDefinition re-initialize what they hand out and reuse its storage.
-	mustDefs reuseSlab[MustBeReachingVariableDef_MustDef]
-	defs     reuseSlab[MustBeReachingVariableDef_Definition]
+	mustDefs jutil.ReuseSlab[MustBeReachingVariableDef_MustDef]
+	defs     jutil.ReuseSlab[MustBeReachingVariableDef_Definition]
 }
 
 func (d *MustBeReachingVariableDef) initLayout(vars *jutil.LinkedHashMap[string, *Var]) {
@@ -308,12 +308,12 @@ func (d *MustBeReachingVariableDef) Reset(
 	d.depCallback.def = nil
 	d.flowInput = nil
 	d.flowOutput = nil
-	d.mustDefs.rewind()
-	d.defs.rewind()
+	d.mustDefs.Rewind()
+	d.defs.Rewind()
 }
 
 func (d *MustBeReachingVariableDef) allocMustDefRaw() *MustBeReachingVariableDef_MustDef {
-	return d.mustDefs.alloc()
+	return d.mustDefs.Alloc()
 }
 
 func (d *MustBeReachingVariableDef) allocMustDef() *MustBeReachingVariableDef_MustDef {
@@ -323,7 +323,7 @@ func (d *MustBeReachingVariableDef) allocMustDef() *MustBeReachingVariableDef_Mu
 }
 
 func (d *MustBeReachingVariableDef) allocDefinition(node rhino.Node) *MustBeReachingVariableDef_Definition {
-	def := d.defs.alloc()
+	def := d.defs.Alloc()
 	def.node = node
 	def.unknownDependencies = false
 	def.depMask = 0

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -34,7 +35,7 @@ import (
 // them.
 type FlowScope interface {
 	rhino.StaticTypedScope
-	LatticeElement
+	graph.LatticeElement
 
 	// WithSyntacticScope returns a flow scope with the given syntactic
 	// scope, which may be required to be a specific subclass, such as

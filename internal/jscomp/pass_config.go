@@ -18,7 +18,10 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"github.com/paullepoulpe/jsgo/internal/graph"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // PassConfig holds pass factories and meta-data for native Compiler passes.
 //
@@ -71,7 +74,7 @@ type PassConfig interface {
 	// GetPassGraph gets a graph of the passes run. For debugging.
 	//
 	// Java: PassConfig.getPassGraph()
-	GetPassGraph() GraphvizGraph
+	GetPassGraph() graph.GraphvizGraph
 
 	// GetBasePassConfig finds the first pass provider that does not have a
 	// delegate.
@@ -111,33 +114,33 @@ func (b *PassConfigBase) GetTranspileOnlyPasses() *PassListBuilder {
 }
 
 // Java: PassConfig.getPassGraph()
-func (b *PassConfigBase) GetPassGraph() GraphvizGraph {
-	graph := LinkedDirectedGraph_CreateWithoutAnnotations[string, string]()
+func (b *PassConfigBase) GetPassGraph() graph.GraphvizGraph {
+	passGraph := graph.LinkedDirectedGraph_CreateWithoutAnnotations[string, string]()
 	allPasses := append(b.self.GetChecks().Build(), b.self.GetOptimizations().Build()...)
 	var lastPass *string = nil
 	var loopStart *string = nil
 	for _, pass := range allPasses {
 		passName := pass.GetName()
 		i := 1
-		for graph.HasNode(passName) {
+		for passGraph.HasNode(passName) {
 			passName = pass.GetName() + jutil.ToJavaString(i)
 			i++
 		}
-		graph.CreateNode(passName)
+		passGraph.CreateNode(passName)
 
 		if loopStart == nil && pass.IsRunInFixedPointLoop() {
 			loopStart = &passName
 		} else if loopStart != nil && !pass.IsRunInFixedPointLoop() {
-			graph.Connect(*lastPass, "loop", *loopStart)
+			passGraph.Connect(*lastPass, "loop", *loopStart)
 			loopStart = nil
 		}
 
 		if lastPass != nil {
-			graph.Connect(*lastPass, "", passName)
+			passGraph.Connect(*lastPass, "", passName)
 		}
 		lastPass = &passName
 	}
-	return graph
+	return passGraph
 }
 
 // Java: PassConfig.getBasePassConfig()

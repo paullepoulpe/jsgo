@@ -25,6 +25,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -70,8 +71,8 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		flattener, d.compiler.GetCodingConvention().IsPropertyRenameFunction)
 	graphBuilder := NewColorGraphBuilder(
 		flattener,
-		func(graph DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) LowestCommonAncestorFinder[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
-			return NewLowestCommonAncestorFinder(graph)
+		func(g graph.DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) graph.LowestCommonAncestorFinder[*ColorGraphNode, ColorGraphBuilder_EdgeReason] {
+			return graph.NewLowestCommonAncestorFinder(g)
 		},
 		d.registry)
 	propagator := NewClusterPropagator()
@@ -92,13 +93,13 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		disambiguateProperties_propRefsProducer{propIndex: propIndex})
 
 	graphBuilder.AddAll(flattener.typeIndex.Values())
-	graph := graphBuilder.Build()
+	colorGraph := graphBuilder.Build()
 	graphBuilder = nil
 
 	// Model legacy behavior from the old (pre-January 2021) disambiguator.
 	// TODO(b/177695515): delete this section.
 	for colorGraphNode := range flattener.typeIndex.Values() {
-		if len(graph.GetOutEdges(colorGraphNode)) == 0 {
+		if len(colorGraph.GetOutEdges(colorGraphNode)) == 0 {
 			// Skipping leaf types improves code size, especially as "namespace" types are all leaf
 			// types and will often have their declared properties collapsed into variables.
 			continue
@@ -115,7 +116,7 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		"graph",
 		func() any {
 			var nodes []*disambiguateProperties_TypeNodeJson
-			for _, n := range graph.GetDiGraphNodes() {
+			for _, n := range colorGraph.GetDiGraphNodes() {
 				nodes = append(nodes, newDisambiguateProperties_TypeNodeJson(n))
 			}
 			slices.SortStableFunc(nodes, func(a, b *disambiguateProperties_TypeNodeJson) int { return cmp.Compare(a.Index, b.Index) })
@@ -125,9 +126,9 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	d.InvalidateBasedOnType(flattener)
 	d.mayHavePropertySeenSet = jutil.NewObjectLinkedHashSet[*colors.Color]()
 
-	FixedPointGraphTraversal_NewTraversal[*ColorGraphNode, ColorGraphBuilder_EdgeReason](propagator).ComputeFixedPoint(graph)
+	graph.FixedPointGraphTraversal_NewTraversal[*ColorGraphNode, ColorGraphBuilder_EdgeReason](propagator).ComputeFixedPoint(colorGraph)
 	flattener = nil
-	graph = nil
+	colorGraph = nil
 	propagator = nil
 
 	trackerSummaryGenerator := &DisambiguateProperties_TrackerSummaryGenerator{}
@@ -451,7 +452,7 @@ type disambiguateProperties_TypeNodeJson struct {
 }
 
 // Java: DisambiguateProperties.TypeNodeJson(DiGraph.DiGraphNode<ColorGraphNode, Object>)
-func newDisambiguateProperties_TypeNodeJson(n DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) *disambiguateProperties_TypeNodeJson {
+func newDisambiguateProperties_TypeNodeJson(n graph.DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) *disambiguateProperties_TypeNodeJson {
 	t := n.GetValue()
 
 	j := &disambiguateProperties_TypeNodeJson{}
@@ -489,7 +490,7 @@ type disambiguateProperties_TypeEdgeJson struct {
 }
 
 // Java: DisambiguateProperties.TypeEdgeJson(DiGraph.DiGraphEdge<ColorGraphNode, Object>)
-func newDisambiguateProperties_TypeEdgeJson(e DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) *disambiguateProperties_TypeEdgeJson {
+func newDisambiguateProperties_TypeEdgeJson(e graph.DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) *disambiguateProperties_TypeEdgeJson {
 	return &disambiguateProperties_TypeEdgeJson{
 		Dest:  e.GetDestination().GetValue().GetIndex(),
 		Value: e.GetValue(),

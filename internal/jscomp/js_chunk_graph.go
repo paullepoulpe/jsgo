@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -834,8 +835,8 @@ func (g *JSChunkGraph) createEntryPointInputs(
 }
 
 // Java: JSChunkGraph.toGraphvizGraph()
-func (g *JSChunkGraph) ToGraphvizGraph() *LinkedDirectedGraph[*JSChunk, string] {
-	graphViz := LinkedDirectedGraph_Create[*JSChunk, string]()
+func (g *JSChunkGraph) ToGraphvizGraph() *graph.LinkedDirectedGraph[*JSChunk, string] {
+	graphViz := graph.LinkedDirectedGraph_Create[*JSChunk, string]()
 	for _, chunk := range g.GetAllChunks() {
 		graphViz.CreateNode(chunk)
 		for _, dep := range chunk.GetDependencies() {

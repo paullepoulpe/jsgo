@@ -7,14 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-
-	"github.com/paullepoulpe/jsgo/internal/jscomp"
 )
 
 type output struct {
-	Isomorphic bool                        `json:"isomorphic"`
-	Error      string                      `json:"error,omitempty"`
-	Stats      *jscomp.AstIsomorphismStats `json:"stats,omitempty"`
+	Isomorphic bool                 `json:"isomorphic"`
+	Error      string               `json:"error,omitempty"`
+	Stats      *AstIsomorphismStats `json:"stats,omitempty"`
 }
 
 func main() {
@@ -33,7 +31,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	stats, isoErr := jscomp.VerifyAstAlphaIsomorphism(string(bA), string(bB))
+	stats, isoErr := VerifyAstAlphaIsomorphism(string(bA), string(bB))
 	res := output{
 		Isomorphic: isoErr == nil,
 		Stats:      stats,

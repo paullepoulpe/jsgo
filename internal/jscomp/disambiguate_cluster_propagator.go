@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
+	"github.com/paullepoulpe/jsgo/internal/graph"
 )
 
 // ClusterPropagator is a callback to propagate clusterings across a type
@@ -63,4 +64,4 @@ func (p *ClusterPropagator) TraverseEdge(src *ColorGraphNode, _ ColorGraphBuilde
 	return startDestPropCount < destProps.Size()
 }
 
-var _ FixedPointGraphTraversal_EdgeCallback[*ColorGraphNode, ColorGraphBuilder_EdgeReason] = (*ClusterPropagator)(nil)
+var _ graph.FixedPointGraphTraversal_EdgeCallback[*ColorGraphNode, ColorGraphBuilder_EdgeReason] = (*ClusterPropagator)(nil)

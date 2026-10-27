@@ -21,6 +21,7 @@ package jscomp
 import (
 	"iter"
 
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -121,7 +122,7 @@ type PropertyClustering struct {
 
 	useSites PropertyUseSites
 
-	clusters StandardUnionFind[*ColorGraphNode]
+	clusters graph.StandardUnionFind[*ColorGraphNode]
 
 	originalNameClusterRep *ColorGraphNode
 
@@ -132,10 +133,8 @@ type PropertyClustering struct {
 func NewPropertyClustering(name string) *PropertyClustering {
 	// checkNotNull(name): a Go string is never null.
 	return &PropertyClustering{
-		name: name,
-		clusters: StandardUnionFind[*ColorGraphNode]{
-			elmap: jutil.NewLinkedHashMap[*ColorGraphNode, *standardUnionFind_Node[*ColorGraphNode]](),
-		},
+		name:     name,
+		clusters: graph.NewStandardUnionFindValue[*ColorGraphNode](),
 	}
 }
 
@@ -156,7 +155,7 @@ func (p *PropertyClustering) GetUseSites() *PropertyUseSites {
 }
 
 // Java: PropertyClustering.getClusters()
-func (p *PropertyClustering) GetClusters() *StandardUnionFind[*ColorGraphNode] {
+func (p *PropertyClustering) GetClusters() *graph.StandardUnionFind[*ColorGraphNode] {
 	return &p.clusters
 }
 

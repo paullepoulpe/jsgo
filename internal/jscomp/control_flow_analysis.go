@@ -22,6 +22,7 @@ import (
 	"cmp"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -157,7 +158,7 @@ func (rc *ReusableCfg) Compute(
 // release clears the graph computed last, so that rc does not keep it (or
 // more storage than is worth reusing) alive once its user is done with it.
 func (rc *ReusableCfg) release() {
-	rc.cfg.clearForReuse()
+	rc.cfg.ClearForReuse()
 	rc.cfa.compiler = nil
 	rc.cfa.cfg = nil
 	rc.cfa.root = rhino.NilNode
@@ -295,14 +296,14 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowAn
 	// Now, generate the priority of nodes by doing a depth-first
 	// search on the CFG.
 	c.priorityCounter = 0
-	c.prioritizeFromEntryNode(c.cfg.entry.(*LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]))
+	c.prioritizeFromEntryNode(c.cfg.entry.(*graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]))
 
-	cfgNodes := &c.cfg.nodes
+	cfgNodes := &c.cfg.Nodes
 	if c.shouldTraverseFunctions {
 		// If we're traversing inner functions, we need to rank the
 		// priority of them too.
 		for candidate := range cfgNodes.Values() {
-			value := candidate.value
+			value := candidate.Value
 			if !value.IsNil() && value.IsFunction() {
 				c.prioritizeFromEntryNode(candidate)
 			}
@@ -324,9 +325,9 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowAn
 	// Presumably, it doesn't really matter what priority they get, since
 	// this shouldn't happen in real code.
 	for candidate := range cfgNodes.Values() {
-		if candidate.priority < 0 {
+		if candidate.Priority < 0 {
 			c.priorityCounter++
-			candidate.priority = int32(c.priorityCounter)
+			candidate.Priority = int32(c.priorityCounter)
 		}
 	}
 
@@ -465,7 +466,7 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, curr
 }
 
 type cfaWorkItem struct {
-	node *LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	node *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
 	pos  int32
 }
 
@@ -517,7 +518,7 @@ func (c *ControlFlowAnalysis) cfaSiftDown(worklist []cfaWorkItem, i int, x cfaWo
 // from that node and prioritize them.
 //
 // Java: ControlFlowAnalysis.prioritizeFromEntryNode(DiGraphNode<Node, Branch>)
-func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
+func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
 	if entry == nil {
 		panic(jutil.NewNullPointerException())
 	}
@@ -532,15 +533,15 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *LinkedDirectedGraph
 		if n > 1 {
 			c.cfaSiftDown(worklist, 0, last)
 		}
-		if current.priority >= 0 {
+		if current.Priority >= 0 {
 			continue
 		}
 
 		c.priorityCounter++
-		current.priority = int32(c.priorityCounter)
+		current.Priority = int32(c.priorityCounter)
 
-		for _, edge := range current.outEdgeList.Slice() {
-			succ := edge.destNode
+		for _, edge := range current.OutEdgeList.Slice() {
+			succ := edge.DestNode
 			if succ == nil {
 				panic(jutil.NewNullPointerException())
 			}
@@ -548,9 +549,9 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *LinkedDirectedGraph
 				worklist = append(worklist, cfaWorkItem{node: succ, pos: -1})
 			} else {
 				if worklist[0].pos < 0 {
-					worklist[0].pos = c.astPositionOfNode(worklist[0].node.value)
+					worklist[0].pos = c.astPositionOfNode(worklist[0].node.Value)
 				}
-				succPos := c.astPositionOfNode(succ.value)
+				succPos := c.astPositionOfNode(succ.Value)
 				worklist = append(worklist, cfaWorkItem{})
 				c.cfaSiftUp(worklist, len(worklist)-1, cfaWorkItem{node: succ, pos: succPos})
 			}
@@ -1289,21 +1290,21 @@ func ControlFlowAnalysis_ComputeFallThrough(n rhino.Node) rhino.Node {
 }
 
 func cfaHasEdgeInDirection(
-	source *LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	source *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 	branch ControlFlowGraph_Branch,
-	dest *LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	dest *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 ) bool {
-	outEdges := source.outEdgeList.Slice()
-	inEdges := dest.inEdgeList.Slice()
+	outEdges := source.OutEdgeList.Slice()
+	inEdges := dest.InEdgeList.Slice()
 	if len(outEdges) < len(inEdges) {
 		for _, outEdge := range outEdges {
-			if outEdge.GetDestination() == DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch](dest) && outEdge.GetValue() == branch {
+			if outEdge.GetDestination() == graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch](dest) && outEdge.GetValue() == branch {
 				return true
 			}
 		}
 	} else {
 		for _, inEdge := range inEdges {
-			if inEdge.GetSource() == DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch](source) && inEdge.GetValue() == branch {
+			if inEdge.GetSource() == graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch](source) && inEdge.GetValue() == branch {
 				return true
 			}
 		}
@@ -1321,7 +1322,7 @@ func (c *ControlFlowAnalysis) createEdge(fromNode rhino.Node, branch ControlFlow
 	from := base.CreateLinkedDiGraphNode(fromNode)
 	to := base.CreateLinkedDiGraphNode(toNode)
 	if !cfaHasEdgeInDirection(from, branch, to) && !cfaHasEdgeInDirection(to, branch, from) {
-		base.connectLinkedNodes(from, branch, to)
+		base.ConnectLinkedNodes(from, branch, to)
 	}
 }
 
@@ -1532,15 +1533,15 @@ func newControlFlowAnalysis_AstControlFlowGraph(entry rhino.Node, edgeAnnotation
 //
 // Go-only: performance — see ReusableCfg.
 func (g *ControlFlowAnalysis_AstControlFlowGraph) reinit(entry rhino.Node, edgeAnnotations bool) {
-	g.clearForReuse()
+	g.ClearForReuse()
 	g.InitControlFlowGraphBase(g, entry /* nodeAnnotations= */, true, edgeAnnotations)
 }
 
-func cfaForwardNodeComparator(a, b DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch]) int {
+func cfaForwardNodeComparator(a, b graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch]) int {
 	return cmp.Compare(a.GetPriority(), b.GetPriority())
 }
 
-func cfaBackwardNodeComparator(a, b DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch]) int {
+func cfaBackwardNodeComparator(a, b graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch]) int {
 	return cmp.Compare(b.GetPriority(), a.GetPriority())
 }
 
@@ -1551,7 +1552,7 @@ func cfaBackwardNodeComparator(a, b DiGraph_DiGraphNode[rhino.Node, ControlFlowG
 // y (if true) and x 'greater than' y (if false).
 //
 // Java: ControlFlowAnalysis.AstControlFlowGraph.getOptionalNodeComparator(boolean)
-func (g *ControlFlowAnalysis_AstControlFlowGraph) GetOptionalNodeComparator(isForward bool) func(a, b DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch]) int {
+func (g *ControlFlowAnalysis_AstControlFlowGraph) GetOptionalNodeComparator(isForward bool) func(a, b graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch]) int {
 	if isForward {
 		return cfaForwardNodeComparator
 	}

@@ -39,7 +39,7 @@ type FunctionArgumentInjector struct {
 	templateUndefinedNode rhino.Node
 	sentinelThisNode      rhino.Node
 	scratchArgMap         *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
-	pairSlab              reuseSlab[FunctionArgumentInjector_ParamArgPair]
+	pairSlab              jutil.ReuseSlab[FunctionArgumentInjector_ParamArgPair]
 	paramBindings         []callParamBinding
 	scratchLocals         *jutil.LinkedHashSet[string]
 	referencedAfter       FunctionArgumentInjector_ReferencedAfterSideEffect
@@ -75,7 +75,7 @@ func NewFunctionArgumentInjector(astAnalyzer *AstAnalyzer) *FunctionArgumentInje
 func (f *FunctionArgumentInjector) allocScratchPair(paramNode rhino.Node, arg rhino.Node) *FunctionArgumentInjector_ParamArgPair {
 	rhino.CheckNotNull(paramNode)
 	rhino.CheckNotNull(arg)
-	p := f.pairSlab.alloc()
+	p := f.pairSlab.Alloc()
 	p.paramNode = paramNode
 	p.arg = arg
 	return p
@@ -343,7 +343,7 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 	safeNameIdSupplier func() string,
 	dst *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]) {
 	dst.Clear()
-	f.pairSlab.rewind()
+	f.pairSlab.Rewind()
 	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkTemplate)
 	for _, b := range f.paramBindings {
 		if dst.Put(b.name, f.allocScratchPair(b.paramNode, b.argNode)) != nil {
@@ -359,7 +359,7 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMapScratch(
 	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
 	argMap := f.scratchArgMap
 	argMap.Clear()
-	f.pairSlab.rewind()
+	f.pairSlab.Rewind()
 	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkReadOnly)
 	for _, b := range f.paramBindings {
 		argMap.Put(b.name, f.allocScratchPair(b.paramNode, b.argNode))

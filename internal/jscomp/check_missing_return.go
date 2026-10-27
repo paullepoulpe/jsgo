@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/base"
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -44,7 +45,7 @@ var CheckMissingReturn_MISSING_RETURN_STATEMENT = DiagnosticType_Warning(
 //
 // Java: CheckMissingReturn.goesThroughTrueCondition(DiGraphEdge<Node, ControlFlowGraph.Branch>)
 func CheckMissingReturn_GoesThroughTrueCondition(
-	input DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]) bool {
+	input graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]) bool {
 	// First skill all exceptions.
 	branch := input.GetValue()
 	if branch == ControlFlowGraph_Branch_ON_EX {
@@ -115,14 +116,13 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 		return
 	}
 
-	test := CheckPathsBetweenNodes[rhino.Node, ControlFlowGraph_Branch]{
-		graph:         cfg,
-		start:         cfg.GetEntry(),
-		end:           cfg.GetImplicitReturn(),
-		nodePredicate: checkMissingReturn_isReturn,
-		edgePredicate: CheckMissingReturn_GoesThroughTrueCondition,
-		inclusive:     true,
-	}
+	test := graph.NewCheckPathsBetweenNodesInclusiveValue[rhino.Node, ControlFlowGraph_Branch](
+		cfg,
+		cfg.GetEntry(),
+		cfg.GetImplicitReturn(),
+		checkMissingReturn_isReturn,
+		CheckMissingReturn_GoesThroughTrueCondition,
+	)
 
 	if !test.AllPathsSatisfyPredicate() {
 		c.compiler.Report(

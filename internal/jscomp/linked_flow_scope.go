@@ -26,11 +26,11 @@ import (
 // linkedFlowScopeArena allocates the flow scopes of one TypeInference, which
 // resets it for each CFG.
 //
-// Go-only: performance — see reuseSlab.
+// Go-only: performance — see jutil.ReuseSlab.
 type linkedFlowScopeArena struct {
-	scopes   reuseSlab[LinkedFlowScope]
-	overlays reuseSlab[LinkedFlowScope_OverlayScope]
-	slots    reuseSlab[LinkedFlowScope_OverlaySlot]
+	scopes   jutil.ReuseSlab[LinkedFlowScope]
+	overlays jutil.ReuseSlab[LinkedFlowScope_OverlayScope]
+	slots    jutil.ReuseSlab[LinkedFlowScope_OverlaySlot]
 
 	scopeMapArena rhino.HamtPMapArena[*TypedScope, *LinkedFlowScope_OverlayScope]
 	slotMapArena  rhino.HamtPMapArena[string, *LinkedFlowScope_OverlaySlot]
@@ -53,9 +53,9 @@ func (a *linkedFlowScopeArena) slotMaps() *rhino.HamtPMapArena[string, *LinkedFl
 func (a *linkedFlowScopeArena) reset() {
 	a.scopeMapArena.Reset()
 	a.slotMapArena.Reset()
-	a.scopes.reset(nil)
-	a.overlays.reset(nil)
-	a.slots.reset(nil)
+	a.scopes.Reset(nil)
+	a.overlays.Reset(nil)
+	a.slots.Reset(nil)
 }
 
 // trimLargeChunks resets a and drops the storage that a large CFG made the
@@ -116,7 +116,7 @@ func newLinkedFlowScopeWithArena(
 	functionScope *TypedScope) *LinkedFlowScope {
 	var s *LinkedFlowScope
 	if arena != nil {
-		s = arena.scopes.alloc()
+		s = arena.scopes.Alloc()
 	} else {
 		s = &LinkedFlowScope{}
 	}
@@ -732,7 +732,7 @@ func newLinkedFlowScope_OverlayScopeWithArena(
 	jutil.CheckNotNull(scope)
 	var o *LinkedFlowScope_OverlayScope
 	if arena != nil {
-		o = arena.overlays.alloc()
+		o = arena.overlays.Alloc()
 	} else {
 		o = &LinkedFlowScope_OverlayScope{}
 	}
@@ -792,7 +792,7 @@ func newLinkedFlowScope_OverlaySlotWithArena(
 	arena *linkedFlowScopeArena, name string, type_ rhino.JSType) *LinkedFlowScope_OverlaySlot {
 	var s *LinkedFlowScope_OverlaySlot
 	if arena != nil {
-		s = arena.slots.alloc()
+		s = arena.slots.Alloc()
 	} else {
 		s = &LinkedFlowScope_OverlaySlot{}
 	}

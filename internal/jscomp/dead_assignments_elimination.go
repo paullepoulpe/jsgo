@@ -343,7 +343,7 @@ func (d *DeadAssignmentsElimination) TryRemoveDeadAssignments(t *NodeTraversal,
 	cfg ControlFlowGraph[rhino.Node],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
 
-	for cfgNode := range cfg.GetControlFlowGraphBase().nodes.Values() {
+	for cfgNode := range cfg.GetControlFlowGraphBase().Nodes.Values() {
 		state := dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode)
 		n := cfgNode.GetValue()
 		if n.IsNil() {

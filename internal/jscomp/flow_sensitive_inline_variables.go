@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -99,7 +100,7 @@ type FlowSensitiveInlineVariables struct {
 	candidatesSet       jutil.LinkedHashSet[*FlowSensitiveInlineVariables_Candidate]
 	gatherCandidates    FlowSensitiveInlineVariables_GatherCandidates
 	gatherCb            FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
-	candidateSlab       reuseSlab[FlowSensitiveInlineVariables_Candidate]
+	candidateSlab       jutil.ReuseSlab[FlowSensitiveInlineVariables_Candidate]
 
 	varsFinder          lvaAllVarsFinder
 	inlinableDefs       []fsivCandidateDef
@@ -152,7 +153,7 @@ func (f *FlowSensitiveInlineVariables) allocCandidate(
 	use rhino.Node,
 	useCfgNode rhino.Node) *FlowSensitiveInlineVariables_Candidate {
 	jutil.CheckArgument(use.IsName())
-	c := f.candidateSlab.alloc()
+	c := f.candidateSlab.Alloc()
 	*c = FlowSensitiveInlineVariables_Candidate{
 		outer:       f,
 		varName:     varName,
@@ -655,7 +656,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 	f.reachingDef.Analyze()
 	f.candidatesSet.Clear()
 	f.candidates = &f.candidatesSet
-	f.candidateSlab.reset(nil)
+	f.candidateSlab.Reset(nil)
 
 	// Using the forward reaching definition search to find all the inline
 	// candidates
@@ -1208,7 +1209,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetDefCfgNode() rhino.Node {
 	return c.defMetadata.node
 }
 
-func fsivAlwaysTrueEdgePredicate(DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]) bool {
+func fsivAlwaysTrueEdgePredicate(graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]) bool {
 	return true
 }
 
@@ -1296,7 +1297,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		// Similar side effect check as above but this time the side effect is
 		// else where along the path.
 		// x = readProp(b); while(modifyProp(b)) {}; print(x);
-		pathCheck := NewCheckPathsBetweenNodes[rhino.Node, ControlFlowGraph_Branch](
+		pathCheck := graph.NewCheckPathsBetweenNodes[rhino.Node, ControlFlowGraph_Branch](
 			c.outer.cfg,
 			c.outer.cfg.GetDiGraphNode(c.GetDefCfgNode()),
 			c.outer.cfg.GetDiGraphNode(c.useCfgNode),

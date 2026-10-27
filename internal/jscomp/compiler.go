@@ -2160,7 +2160,13 @@ func (c *Compiler) GetInput(id *rhino.InputId) *CompilerInput {
 	return c.inputsById.Get(id)
 }
 
+// PutCompilerInput registers input by its InputId on c.
+//
 // Java: Compiler.putCompilerInput(CompilerInput)
+func (c *Compiler) PutCompilerInput(input *CompilerInput) *CompilerInput {
+	return c.putCompilerInput(input)
+}
+
 func (c *Compiler) putCompilerInput(input *CompilerInput) *CompilerInput {
 	input.SetCompiler(c)
 	return c.inputsById.Put(input.GetInputId(), input)

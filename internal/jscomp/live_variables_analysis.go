@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -65,7 +66,7 @@ type LiveVariablesAnalysis struct {
 
 	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
 	joinOp       LiveVariablesAnalysis_LiveVariableJoinOp
-	lattices     reuseSlab[LiveVariablesAnalysis_LiveVariableLattice]
+	lattices     jutil.ReuseSlab[LiveVariablesAnalysis_LiveVariableLattice]
 }
 
 const LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
@@ -208,7 +209,7 @@ func (l *LiveVariablesAnalysis) Reset(
 	}
 	l.emptyLattice.liveBits.InitWithSize(len(l.orderedVars))
 	l.emptyLattice.liveSet = &l.emptyLattice.liveBits
-	l.lattices.reset(nil)
+	l.lattices.Reset(nil)
 
 	DataFlowAnalysis_ComputeEscaped(jsScope, l.escaped, compiler, scopeCreator, l.allVarsInFn)
 
@@ -285,7 +286,7 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 }
 
 func (l *LiveVariablesAnalysis) allocLattice() *LiveVariablesAnalysis_LiveVariableLattice {
-	lat := l.lattices.alloc()
+	lat := l.lattices.Alloc()
 	lat.liveSet = &lat.liveBits
 	return lat
 }
@@ -388,9 +389,9 @@ func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariable
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
-	var edgeList []*LinkedDirectedGraph_LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
-	if l.curLinkedNode != nil && l.curLinkedNode.value == node {
-		edgeList = l.curLinkedNode.outEdgeList.Slice()
+	var edgeList []*graph.LinkedDirectedGraph_LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
+	if l.curLinkedNode != nil && l.curLinkedNode.Value == node {
+		edgeList = l.curLinkedNode.OutEdgeList.Slice()
 	} else if l.curDiGraphNode != nil && l.curDiGraphNode.GetValue() == node {
 		edgeList = l.curDiGraphNode.GetOutEdges()
 	} else {

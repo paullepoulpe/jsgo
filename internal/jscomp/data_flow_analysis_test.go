@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -896,14 +897,14 @@ func dataFlowAnalysisTest_int(v int32) *int32 { return &v }
 
 // Java: DataFlowAnalysisTest.verifyInHas(GraphNode<Instruction, Branch>, Variable, Integer)
 func dataFlowAnalysisTest_verifyInHas(
-	node GraphNode[dataFlowAnalysisTest_Instruction, ControlFlowGraph_Branch], var_ *dataFlowAnalysisTest_Variable, constant *int32) {
+	node graph.GraphNode[dataFlowAnalysisTest_Instruction, ControlFlowGraph_Branch], var_ *dataFlowAnalysisTest_Variable, constant *int32) {
 	fState := node.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*dataFlowAnalysisTest_ConstPropLatticeElement])
 	dataFlowAnalysisTest_veritfyLatticeElementHas(fState.GetIn(), var_, constant)
 }
 
 // Java: DataFlowAnalysisTest.verifyOutHas(GraphNode<Instruction, Branch>, Variable, Integer)
 func dataFlowAnalysisTest_verifyOutHas(
-	node GraphNode[dataFlowAnalysisTest_Instruction, ControlFlowGraph_Branch], var_ *dataFlowAnalysisTest_Variable, constant *int32) {
+	node graph.GraphNode[dataFlowAnalysisTest_Instruction, ControlFlowGraph_Branch], var_ *dataFlowAnalysisTest_Variable, constant *int32) {
 	fState := node.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*dataFlowAnalysisTest_ConstPropLatticeElement])
 	dataFlowAnalysisTest_veritfyLatticeElementHas(fState.GetOut(), var_, constant)
 }

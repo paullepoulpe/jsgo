@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -114,7 +115,7 @@ type PureFunctionIdentifier struct {
 	// traversed to transitively propagate side-effect information across it's
 	// entire structure. The resultant side-effects can then be attached to
 	// invocation sites.
-	reverseCallGraph *LinkedDirectedGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]
+	reverseCallGraph *graph.LinkedDirectedGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]
 
 	// A summary for a function for which no definition was found.
 	//
@@ -158,7 +159,7 @@ func NewPureFunctionIdentifier(
 	compiler AbstractCompiler, assumeGettersArePure bool, validateArtificialPurity bool) *PureFunctionIdentifier {
 	p := &PureFunctionIdentifier{}
 	p.artificiallyPureLiteralsForDebugging = jutil.NewLinkedHashSet[rhino.Node]()
-	p.reverseCallGraph = LinkedDirectedGraph_CreateWithoutAnnotations[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]()
+	p.reverseCallGraph = graph.LinkedDirectedGraph_CreateWithoutAnnotations[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]()
 	p.unknownFunctionSummary =
 		p.createSummaryInGraph("<unknown>").
 			SetMutatesGlobalStateAndAllOtherFlags(rhino.NilNode)
@@ -174,8 +175,8 @@ func NewPureFunctionIdentifier(
 func (p *PureFunctionIdentifier) createSummaryInGraph(name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	s := p.summarySlab.New()
 	s.name = name
-	n := p.reverseCallGraph.allocNode(s)
-	p.reverseCallGraph.nodes.PutNew(s, n)
+	n := p.reverseCallGraph.AllocNode(s)
+	p.reverseCallGraph.Nodes.PutNew(s, n)
 	s.graphNode = n
 	s.selfSlice[0] = s
 	return s
@@ -564,7 +565,7 @@ func (p *PureFunctionIdentifier) ensureReverseCallGraphCapacity(totalNodes int) 
 	if totalNodes <= 8 {
 		return
 	}
-	p.reverseCallGraph.nodes.EnsureCapacity(totalNodes)
+	p.reverseCallGraph.Nodes.EnsureCapacity(totalNodes)
 }
 
 // PopulateDatastructuresForAnalysisTraversal fills all of the auxiliary
@@ -741,8 +742,8 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 //
 // Java: PureFunctionIdentifier.propagateSideEffects()
 func (p *PureFunctionIdentifier) PropagateSideEffects() {
-	FixedPointGraphTraversal_NewTraversal[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation](
-		FixedPointGraphTraversal_EdgeCallbackFunc[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation](
+	graph.FixedPointGraphTraversal_NewTraversal[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation](
+		graph.FixedPointGraphTraversal_EdgeCallbackFunc[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation](
 			func(source *PureFunctionIdentifier_AmbiguatedFunctionSummary,
 				edge *PureFunctionIdentifier_SideEffectPropagation,
 				destination *PureFunctionIdentifier_AmbiguatedFunctionSummary) bool {
@@ -1808,7 +1809,7 @@ type PureFunctionIdentifier_AmbiguatedFunctionSummary struct {
 	// The name shared by the set of functions that defined this summary.
 	name string
 	// The node holding this summary in the reverse call graph.
-	graphNode DiGraph_DiGraphNode[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]
+	graphNode graph.DiGraph_DiGraphNode[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]
 	// The side effect flags for this set of functions.
 	// TODO(nickreid): Replace this with a `Node.SideEffectFlags`.
 	bitmask int
@@ -1837,16 +1838,16 @@ const (
 //
 // Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.createInGraph(DiGraph<AmbiguatedFunctionSummary, SideEffectPropagation>, String)
 func PureFunctionIdentifier_AmbiguatedFunctionSummary_CreateInGraph(
-	graph DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation], name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	return NewPureFunctionIdentifier_AmbiguatedFunctionSummary(graph, name)
+	g graph.DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation], name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+	return NewPureFunctionIdentifier_AmbiguatedFunctionSummary(g, name)
 }
 
 // Java: PureFunctionIdentifier.AmbiguatedFunctionSummary(DiGraph<AmbiguatedFunctionSummary, SideEffectPropagation>, String)
 func NewPureFunctionIdentifier_AmbiguatedFunctionSummary(
-	graph DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation], name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+	g graph.DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation], name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	s := &PureFunctionIdentifier_AmbiguatedFunctionSummary{bitmask: 0}
 	s.name = name // Java: checkNotNull(name); a Go string is never null.
-	s.graphNode = graph.CreateDiGraphNode(s)
+	s.graphNode = g.CreateDiGraphNode(s)
 	s.selfSlice[0] = s
 	return s
 }

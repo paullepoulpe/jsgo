@@ -26,15 +26,16 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var coalescePreallocatedColors = func() [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE + 1]GraphColoring_Color {
-	var arr [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE + 1]GraphColoring_Color
+var coalescePreallocatedColors = func() [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE + 1]graph.GraphColoring_Color {
+	var arr [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE + 1]graph.GraphColoring_Color
 	for i := range arr {
-		arr[i].value = i
+		arr[i].Value = i
 	}
 	return arr
 }()
@@ -42,10 +43,10 @@ var coalescePreallocatedColors = func() [LiveVariablesAnalysis_MAX_VARIABLES_TO_
 type coalesceScopeState struct {
 	varsFinder        lvaAllVarsFinder
 	liveness          LiveVariablesAnalysis
-	interferenceGraph LinkedUndirectedGraph[*Var, struct{}]
-	coloring          GraphColoring_GreedyGraphColoring[*Var, struct{}]
-	worklistBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
-	subgraphBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
+	interferenceGraph graph.LinkedUndirectedGraph[*Var, struct{}]
+	coloring          graph.GraphColoring_GreedyGraphColoring[*Var, struct{}]
+	worklistBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*graph.LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
+	subgraphBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*graph.LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
 	colorToNodeBuf    [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]**Var
 	superNodeVals     [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*Var
 }
@@ -77,8 +78,8 @@ type CoalesceVariableNames struct {
 	// Go-only: language-adapter — the ArrayDeques used as stacks
 	// (push/pop/peek at the front); the front is the last element of the
 	// slice.
-	colorings       []*GraphColoring_GreedyGraphColoring[*Var, struct{}]
-	coloringsBuf    [8]*GraphColoring_GreedyGraphColoring[*Var, struct{}]
+	colorings       []*graph.GraphColoring_GreedyGraphColoring[*Var, struct{}]
+	coloringsBuf    [8]*graph.GraphColoring_GreedyGraphColoring[*Var, struct{}]
 	liveAnalyses    []*LiveVariablesAnalysis
 	liveAnalysesBuf [8]*LiveVariablesAnalysis
 	usePseudoNames  bool
@@ -97,7 +98,7 @@ type CoalesceVariableNames struct {
 	scopeStatesBuf [4]*coalesceScopeState
 
 	interferenceBitsBuf [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE][2]uint64
-	graphNodesBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
+	graphNodesBuf       [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]*graph.LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
 	liveRangeChecker    CoalesceVariableNames_LiveRangeChecker
 	assignToBuf         [16]int
 	readFromBuf         [16]int
@@ -390,7 +391,7 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 	// Color any interfering variables with different colors and any variables that can be safely
 	// coalesced wih the same color.
 	colorCount := state.colorInterferenceGraph()
-	if !c.usePseudoNames && colorCount == state.interferenceGraph.nodes.Size() {
+	if !c.usePseudoNames && colorCount == state.interferenceGraph.Nodes.Size() {
 		c.colorings = append(c.colorings, nil)
 	} else {
 		c.colorings = append(c.colorings, &state.coloring)
@@ -447,17 +448,17 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 
 	if !c.usePseudoNames {
 		cb := coloringsPeek.GetGraphColoringBase()
-		color := graphColoring_colorOf(vNode.GetAnnotation())
-		headNode := cb.colorToNodeMap[color.value]
+		color := graph.GraphColoring_ColorOf(vNode.GetAnnotation())
+		headNode := cb.ColorToNodeMap[color.Value]
 		if headNode == nil {
 			depth := len(c.colorings) - 1
-			if depth < len(c.scopeStates) && color.value < len(c.scopeStates[depth].superNodeVals) {
-				slot := &c.scopeStates[depth].superNodeVals[color.value]
+			if depth < len(c.scopeStates) && color.Value < len(c.scopeStates[depth].superNodeVals) {
+				slot := &c.scopeStates[depth].superNodeVals[color.Value]
 				*slot = var_
-				cb.colorToNodeMap[color.value] = slot
+				cb.ColorToNodeMap[color.Value] = slot
 			} else {
 				vCopy := var_
-				cb.colorToNodeMap[color.value] = &vCopy
+				cb.ColorToNodeMap[color.Value] = &vCopy
 			}
 			return
 		}
@@ -582,53 +583,53 @@ func (c *CoalesceVariableNames) IsNameInsideDestructuringAssignment(n rhino.Node
 //
 // Java: CoalesceVariableNames.computeVariableNamesInterferenceGraph(ControlFlowGraph<Node>, Set<? extends Var>)
 func (c *CoalesceVariableNames) ComputeVariableNamesInterferenceGraph(
-	cfg ControlFlowGraph[rhino.Node], escaped *jutil.ObjectLinkedHashSet[*Var]) UndiGraph[*Var, struct{}] {
-	interferenceGraph := LinkedUndirectedGraph_Create[*Var, struct{}]()
+	cfg ControlFlowGraph[rhino.Node], escaped *jutil.ObjectLinkedHashSet[*Var]) graph.UndiGraph[*Var, struct{}] {
+	interferenceGraph := graph.LinkedUndirectedGraph_Create[*Var, struct{}]()
 	c.computeVariableNamesInterferenceGraphInto(cfg, escaped, interferenceGraph)
 	return interferenceGraph
 }
 
 func coalesceCompareNodesByDegreeDesc(
-	left, right *LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}],
+	left, right *graph.LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}],
 ) int {
-	return len(right.neighborEdges) - len(left.neighborEdges)
+	return len(right.NeighborEdges) - len(left.NeighborEdges)
 }
 
 func (s *coalesceScopeState) colorInterferenceGraph() int {
 	g := &s.interferenceGraph
 	s.coloring.InitGraphColoringBase(g)
-	s.coloring.tieBreaker = nil
+	s.coloring.TieBreaker = nil
 
-	var worklist []*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
-	if g.nodes.Size() <= len(s.worklistBuf) {
+	var worklist []*graph.LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
+	if g.Nodes.Size() <= len(s.worklistBuf) {
 		worklist = s.worklistBuf[:0]
 	} else {
-		worklist = make([]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}], 0, g.nodes.Size())
+		worklist = make([]*graph.LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}], 0, g.Nodes.Size())
 	}
-	for n := range g.nodes.Values() {
+	for n := range g.Nodes.Values() {
 		worklist = append(worklist, n)
 	}
 
-	// Sort nodes by degree. Since g.nodes were inserted in orderedVariables
+	// Sort nodes by degree. Since g.Nodes were inserted in orderedVariables
 	// order (which equals liveness.GetVarIndex) and SortStableFunc is stable,
 	// ties are already in ascending GetVarIndex order.
 	slices.SortStableFunc(worklist, coalesceCompareNodesByDegreeDesc)
 
 	count := 0
 	for len(worklist) > 0 {
-		var color *GraphColoring_Color
+		var color *graph.GraphColoring_Color
 		if count < len(coalescePreallocatedColors) {
 			color = &coalescePreallocatedColors[count]
 		} else {
-			color = NewGraphColoring_Color(count)
+			color = graph.NewGraphColoring_Color(count)
 		}
 		subNodes := s.subgraphBuf[:0]
 		kept := worklist[:0]
 		for _, node := range worklist {
 			independent := true
-			if len(node.neighborEdges) != 0 {
+			if len(node.NeighborEdges) != 0 {
 				for _, n := range subNodes {
-					if g.isConnectedNodesAny(n, node) {
+					if g.IsConnectedNodesAny(n, node) {
 						independent = false
 						break
 					}
@@ -636,7 +637,7 @@ func (s *coalesceScopeState) colorInterferenceGraph() int {
 			}
 			if independent {
 				subNodes = append(subNodes, node)
-				node.annotation = color
+				node.Annotation = color
 			} else {
 				kept = append(kept, node)
 			}
@@ -647,9 +648,9 @@ func (s *coalesceScopeState) colorInterferenceGraph() int {
 	}
 	if count <= len(s.colorToNodeBuf) {
 		clear(s.colorToNodeBuf[:count])
-		s.coloring.colorToNodeMap = s.colorToNodeBuf[:count]
+		s.coloring.ColorToNodeMap = s.colorToNodeBuf[:count]
 	} else {
-		s.coloring.colorToNodeMap = make([]**Var, count)
+		s.coloring.ColorToNodeMap = make([]**Var, count)
 	}
 	return count
 }
@@ -657,10 +658,10 @@ func (s *coalesceScopeState) colorInterferenceGraph() int {
 func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 	cfg ControlFlowGraph[rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
-	interferenceGraph *LinkedUndirectedGraph[*Var, struct{}],
+	interferenceGraph *graph.LinkedUndirectedGraph[*Var, struct{}],
 ) {
-	interferenceGraph.clearForReuse()
-	interferenceGraph.init(true, true) // LinkedUndirectedGraph.create()
+	interferenceGraph.ClearForReuse()
+	interferenceGraph.Init(true, true) // LinkedUndirectedGraph.create()
 
 	// First create a node for each non-escaped variable. We add these nodes in the order in which
 	// they appear in the code because we want the names that appear earlier in the code to be used
@@ -672,7 +673,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 	// orderedVariables[i]
 	var interferenceBits [][2]uint64
 	var interferenceBitSetFallback []jutil.BitSet
-	var graphNodes []*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
+	var graphNodes []*graph.LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}]
 	if numVars <= len(c.interferenceBitsBuf) {
 		interferenceBits = c.interferenceBitsBuf[:numVars]
 		clear(interferenceBits)
@@ -680,7 +681,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 		clear(graphNodes)
 	} else {
 		interferenceBitSetFallback = make([]jutil.BitSet, numVars)
-		graphNodes = make([]*LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}], numVars)
+		graphNodes = make([]*graph.LinkedUndirectedGraph_LinkedUndirectedGraphNode[*Var, struct{}], numVars)
 	}
 
 	for vIndex, v := range orderedVariables {
@@ -715,7 +716,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 			continue
 		}
 
-		graphNodes[vIndex] = interferenceGraph.createLinkedNode(v)
+		graphNodes[vIndex] = interferenceGraph.CreateLinkedNode(v)
 	}
 
 	lrc := &c.liveRangeChecker
@@ -728,7 +729,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 		lrc.isReadFromList = c.readFromBuf[:0]
 	}
 
-	cfgNodes := &cfg.GetControlFlowGraphBase().nodes
+	cfgNodes := &cfg.GetControlFlowGraphBase().Nodes
 	if interferenceBits != nil {
 		// Go through every CFG node in the program and look at variables that are live.
 		// Set the pair of live variables in interferenceBits so we can add an edge between them.
@@ -765,7 +766,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 				if (v1IsParam && orderedVariables[v2Index].IsParam()) || bitSet {
 					// Add an edge between variable pairs that are both parameters
 					// because we don't want parameters to share a name.
-					interferenceGraph.connectLinkedNodes(node1, struct{}{}, node2)
+					interferenceGraph.ConnectLinkedNodes(node1, struct{}{}, node2)
 				}
 			}
 		}
@@ -812,7 +813,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 			if (v1IsParam && orderedVariables[v2Index].IsParam()) || bits1.Get(v2Index) {
 				// Add an edge between variable pairs that are both parameters
 				// because we don't want parameters to share a name.
-				interferenceGraph.connectLinkedNodes(node1, struct{}{}, node2)
+				interferenceGraph.ConnectLinkedNodes(node1, struct{}{}, node2)
 			}
 		}
 	}
@@ -820,7 +821,7 @@ func (c *CoalesceVariableNames) computeVariableNamesInterferenceGraphInto(
 
 func (c *CoalesceVariableNames) processCfgNodeBits128(
 	cfg ControlFlowGraph[rhino.Node],
-	cfgNode DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	cfgNode graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 	interferenceBits [][2]uint64,
 ) {
 	if cfg.IsImplicitReturn(cfgNode) {

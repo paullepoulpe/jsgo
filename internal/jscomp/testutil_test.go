@@ -69,3 +69,17 @@ func strPtrValue(s *string) string {
 	}
 	return *s
 }
+
+func assertTrue(t *testing.T, what string, b bool) {
+	t.Helper()
+	if !b {
+		t.Errorf("%s: got false, want true", what)
+	}
+}
+
+func assertFalse(t *testing.T, what string, b bool) {
+	t.Helper()
+	if b {
+		t.Errorf("%s: got true, want false", what)
+	}
+}

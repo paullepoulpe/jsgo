@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -124,9 +125,9 @@ const pruningAnalysis_VIRTUAL_ROOT = "ENTRY POINTS ROOT"
 //
 // Java: PruningAnalysis.calculateBottlenecks()
 func (a *PruningAnalysis) CalculateBottlenecks() *jutil.LinkedHashMap[string, int] {
-	graph := a.BuildGraph()
+	depGraph := a.BuildGraph()
 
-	dominatorTree := DominatorTree_Compute[string, *string](graph, pruningAnalysis_VIRTUAL_ROOT)
+	dominatorTree := graph.DominatorTree_Compute[string, *string](depGraph, pruningAnalysis_VIRTUAL_ROOT)
 
 	bottleneckBlame := jutil.NewLinkedHashMap[string, int]()
 	for node, retainedCount := range dominatorTree.GetAllSubtreeSizes().All() {
@@ -160,16 +161,16 @@ func (a *PruningAnalysis) CalculateBottlenecks() *jutil.LinkedHashMap[string, in
 }
 
 // Java: PruningAnalysis.buildGraph()
-func (a *PruningAnalysis) BuildGraph() DiGraph[string, *string] {
-	graph := LinkedDirectedGraph_Create[string, *string]()
-	graph.CreateNode(pruningAnalysis_VIRTUAL_ROOT)
+func (a *PruningAnalysis) BuildGraph() graph.DiGraph[string, *string] {
+	depGraph := graph.LinkedDirectedGraph_Create[string, *string]()
+	depGraph.CreateNode(pruningAnalysis_VIRTUAL_ROOT)
 
 	for _, input := range a.sorter.GetSortedList() {
-		graph.CreateNode(input.GetName())
+		depGraph.CreateNode(input.GetName())
 	}
 
 	for input := range a.entryPoints.All() {
-		graph.Connect(pruningAnalysis_VIRTUAL_ROOT, nil, input.GetName())
+		depGraph.Connect(pruningAnalysis_VIRTUAL_ROOT, nil, input.GetName())
 	}
 
 	for _, input := range a.sorter.GetSortedList() {
@@ -184,12 +185,12 @@ func (a *PruningAnalysis) BuildGraph() DiGraph[string, *string] {
 			jutil.Try(func() {
 				dep := a.sorter.GetInputProviding(symbol)
 				if dep != input {
-					graph.ConnectIfNotFound(name, nil, dep.GetName())
+					depGraph.ConnectIfNotFound(name, nil, dep.GetName())
 				}
 			}, func(e ISortedDependencies_MissingProvideException) {
 				// Skip missing symbols.
 			})
 		}
 	}
-	return graph
+	return depGraph
 }

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -33,33 +34,33 @@ import (
 // interface declares, besides ControlFlowGraph's own methods, the public
 // methods inherited from LinkedDirectedGraph.
 type ControlFlowGraph[N comparable] interface {
-	DiGraph[N, ControlFlowGraph_Branch]
-	GraphvizGraph
+	graph.DiGraph[N, ControlFlowGraph_Branch]
+	graph.GraphvizGraph
 
 	// Java: LinkedDirectedGraph.newSubGraph()
-	NewSubGraph() SubGraph[N, ControlFlowGraph_Branch]
+	NewSubGraph() graph.SubGraph[N, ControlFlowGraph_Branch]
 	// Java: LinkedDirectedGraph.connect(DiGraphNode<N, E>, E, DiGraphNode<N, E>)
-	ConnectNodes(src DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], edgeValue ControlFlowGraph_Branch, dest DiGraph_DiGraphNode[N, ControlFlowGraph_Branch])
+	ConnectNodes(src graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], edgeValue ControlFlowGraph_Branch, dest graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch])
 	// Java: LinkedDirectedGraph.connectIfNotConnectedInDirection(N, E, N)
 	ConnectIfNotConnectedInDirection(srcValue N, edgeValue ControlFlowGraph_Branch, destValue N)
 	// Java: LinkedDirectedGraph.getNodes() (Collection<LinkedDiGraphNode<N, E>>)
-	GetLinkedDiGraphNodes() []*LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
+	GetLinkedDiGraphNodes() []*graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 	// Java: LinkedDirectedGraph.getNode(N) (LinkedDiGraphNode<N, E>)
-	GetLinkedDiGraphNode(nodeValue N) *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
+	GetLinkedDiGraphNode(nodeValue N) *graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 	// Java: LinkedDirectedGraph.createNode(N) (LinkedDiGraphNode<N, E>)
-	CreateLinkedDiGraphNode(nodeValue N) *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
+	CreateLinkedDiGraphNode(nodeValue N) *graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 	// Java: LinkedDirectedGraph.isConnectedInDirection(LinkedDiGraphNode<N, E>, Predicate<E>, LinkedDiGraphNode<N, E>)
 	IsConnectedInDirectionOfNodes(
-		source *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], edgeFilter func(ControlFlowGraph_Branch) bool, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) bool
+		source *graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], edgeFilter func(ControlFlowGraph_Branch) bool, dest *graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) bool
 
 	// Java: ControlFlowGraph.getImplicitReturn()
-	GetImplicitReturn() DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	GetImplicitReturn() graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
 	// Java: ControlFlowGraph.getEntry()
-	GetEntry() DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	GetEntry() graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
 	// Java: ControlFlowGraph.isImplicitReturn(DiGraphNode<N, Branch>)
-	IsImplicitReturn(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool
+	IsImplicitReturn(node graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool
 	// Java: ControlFlowGraph.getOptionalNodeComparator(boolean)
-	GetOptionalNodeComparator(isForward bool) func(a, b DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int
+	GetOptionalNodeComparator(isForward bool) func(a, b graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int
 	// Java: ControlFlowGraph.toString()
 	String() string
 
@@ -68,16 +69,16 @@ type ControlFlowGraph[N comparable] interface {
 
 // ControlFlowGraphBase holds ControlFlowGraph's fields and implementations.
 type ControlFlowGraphBase[N comparable] struct {
-	LinkedDirectedGraph[N, ControlFlowGraph_Branch]
+	graph.LinkedDirectedGraph[N, ControlFlowGraph_Branch]
 
 	self ControlFlowGraph[N]
 
 	// A special node marked by the node value key null to a singleton
 	// "return" when control is transferred outside of the current control
 	// flow graph.
-	implicitReturn DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	implicitReturn graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
 
-	entry DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	entry graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
 }
 
 // NewControlFlowGraph is the constructor.
@@ -114,7 +115,7 @@ func (c *ControlFlowGraphBase[N]) GetControlFlowGraphBase() *ControlFlowGraphBas
 // Returns the return node.
 //
 // Java: ControlFlowGraph.getImplicitReturn()
-func (c *ControlFlowGraphBase[N]) GetImplicitReturn() DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] {
+func (c *ControlFlowGraphBase[N]) GetImplicitReturn() graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] {
 	return c.implicitReturn
 }
 
@@ -124,7 +125,7 @@ func (c *ControlFlowGraphBase[N]) GetImplicitReturn() DiGraph_DiGraphNode[N, Con
 // Returns the entry point.
 //
 // Java: ControlFlowGraph.getEntry()
-func (c *ControlFlowGraphBase[N]) GetEntry() DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] {
+func (c *ControlFlowGraphBase[N]) GetEntry() graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] {
 	return c.entry
 }
 
@@ -133,7 +134,7 @@ func (c *ControlFlowGraphBase[N]) GetEntry() DiGraph_DiGraphNode[N, ControlFlowG
 // node is the node; returns true if the node is the implicit return.
 //
 // Java: ControlFlowGraph.isImplicitReturn(DiGraphNode<N, Branch>)
-func (c *ControlFlowGraphBase[N]) IsImplicitReturn(node DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool {
+func (c *ControlFlowGraphBase[N]) IsImplicitReturn(node graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool {
 	return node == c.implicitReturn
 }
 
@@ -145,7 +146,7 @@ func (c *ControlFlowGraphBase[N]) IsImplicitReturn(node DiGraph_DiGraphNode[N, C
 // the flow; returns a comparator or null (in particular, if not overridden).
 //
 // Java: ControlFlowGraph.getOptionalNodeComparator(boolean)
-func (c *ControlFlowGraphBase[N]) GetOptionalNodeComparator(isForward bool) func(a, b DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int {
+func (c *ControlFlowGraphBase[N]) GetOptionalNodeComparator(isForward bool) func(a, b graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int {
 	return nil
 }
 

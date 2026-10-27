@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -114,25 +115,25 @@ func DotFormatter_ToDotWithCfg(n rhino.Node, inCFG ControlFlowGraph[rhino.Node])
 // the graph.
 //
 // Java: DotFormatter.toDot(GraphvizGraph)
-func DotFormatter_ToDotOfGraphvizGraph(graph GraphvizGraph) string {
+func DotFormatter_ToDotOfGraphvizGraph(gvGraph graph.GraphvizGraph) string {
 	builder := jutil.NewStringBuilder()
-	if graph.IsDirected() {
+	if gvGraph.IsDirected() {
 		builder.Append("digraph")
 	} else {
 		builder.Append("graph")
 	}
 	builder.Append(dotFormatter_INDENT)
-	builder.Append(graph.GetName())
+	builder.Append(gvGraph.GetName())
 	builder.Append(" {\n")
 	builder.Append(dotFormatter_INDENT)
 	builder.Append("node [color=lightblue2, style=filled];\n")
 
 	edgeSymbol := dotFormatter_LINE
-	if graph.IsDirected() {
+	if gvGraph.IsDirected() {
 		edgeSymbol = dotFormatter_ARROW
 	}
 
-	nodes := graph.GetGraphvizNodes()
+	nodes := gvGraph.GetGraphvizNodes()
 
 	nodeNames := make([]string, len(nodes))
 
@@ -157,8 +158,8 @@ func DotFormatter_ToDotOfGraphvizGraph(graph GraphvizGraph) string {
 	}
 
 	// Sort the list of edges so the output is deterministic
-	edges := graph.GetGraphvizEdges()
-	slices.SortStableFunc(edges, func(a, b GraphvizGraph_GraphvizEdge) int {
+	edges := gvGraph.GetGraphvizEdges()
+	slices.SortStableFunc(edges, func(a, b graph.GraphvizGraph_GraphvizEdge) int {
 		if c := jutil.StringCompareTo(a.GetNode1Id(), b.GetNode1Id()); c != 0 {
 			return c
 		}

@@ -22,6 +22,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -54,8 +55,8 @@ func cfaTestCfg(t *testing.T, input string, expected string, shouldTraverseFunct
 // cfaGetAllEdges gets all the edges of the graph.
 //
 // Java: ControlFlowAnalysisTest.getAllEdges(ControlFlowGraph<Node>)
-func cfaGetAllEdges(cfg ControlFlowGraph[rhino.Node]) []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
-	var edges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
+func cfaGetAllEdges(cfg ControlFlowGraph[rhino.Node]) []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
+	var edges []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	for _, n := range cfg.GetDiGraphNodes() {
 		for _, e := range cfg.GetOutEdges(n.GetValue()) {
 			edges = append(edges, e)
@@ -69,8 +70,8 @@ func cfaGetAllEdges(cfg ControlFlowGraph[rhino.Node]) []DiGraph_DiGraphEdge[rhin
 //
 // Java: ControlFlowAnalysisTest.getAllEdges(ControlFlowGraph<Node>, Token, Token)
 func cfaGetAllEdgesBetween(
-	cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token) []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
-	var edges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
+	cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token) []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
+	var edges []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	for _, edge := range cfaGetAllEdges(cfg) {
 		startNode := edge.GetSource().GetValue()
 		endNode := edge.GetDestination().GetValue()
@@ -90,8 +91,8 @@ func cfaGetAllEdgesBetween(
 //
 // Java: ControlFlowAnalysisTest.getAllEdges(ControlFlowGraph<Node>, Token, Token, Branch)
 func cfaGetAllEdgesOfType(
-	cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
-	var edges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
+	cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
+	var edges []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	for _, elem := range cfaGetAllEdgesBetween(cfg, startToken, endToken) {
 		if type_ == elem.GetValue() {
 			edges = append(edges, elem)
@@ -117,8 +118,8 @@ func cfaIsAncestor(n rhino.Node, maybeDescendant rhino.Node) bool {
 //
 // Java: ControlFlowAnalysisTest.getAllDownEdges(ControlFlowGraph<Node>, Token, Token, Branch)
 func cfaGetAllDownEdges(
-	cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
-	var edges []DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
+	cfg ControlFlowGraph[rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
+	var edges []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	for _, edge := range cfaGetAllEdgesOfType(cfg, startToken, endToken, type_) {
 		source := edge.GetSource().GetValue()
 		dest := edge.GetDestination().GetValue()
@@ -1780,7 +1781,7 @@ afterA();
 `
 	cfg := cfaTestCreateCfg(t, src, false)
 
-	var finExpr *LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	var finExpr *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
 	for _, n := range cfg.GetLinkedDiGraphNodes() {
 		if !n.GetValue().IsNil() &&
 			n.GetValue().IsExprResult() &&
