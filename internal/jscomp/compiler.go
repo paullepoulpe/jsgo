@@ -1066,6 +1066,10 @@ func (c *Compiler) InitBasedOnOptions() {
 	if c.options.ShouldGatherSourceMapInfo() {
 		c.sourceMap = c.options.GetSourceMapFormat().GetInstance()
 		c.sourceMap.SetPrefixMappings(c.options.GetSourceMapLocationMappings())
+		// Go-only: fast mode encodes the mappings on workers (byte-identical).
+		if c.options.isFastMode() && c.options.GetNumParallelThreads() > 1 && c.sourceMap.generatorV3 != nil {
+			c.sourceMap.generatorV3.SetParallelWorkers(c.options.GetNumParallelThreads())
+		}
 		if c.options.GetApplyInputSourceMaps() {
 			c.sourceMap.SetSourceFileMapping(c.AsSourceFileMapping())
 			if c.options.GetSourceMapIncludeSourcesContent() {

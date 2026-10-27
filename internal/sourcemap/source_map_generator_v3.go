@@ -33,6 +33,9 @@ import (
 // Source Map Revision 3 Proposal:
 // https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit?usp=sharing
 type SourceMapGeneratorV3 struct {
+	// Go-only: goroutines AppendTo may use (source_map_generator_v3_parallel.go).
+	parallelWorkers int
+
 	// A map of source names to source file contents
 	sourceFileContentMap map[string]*string
 
@@ -534,6 +537,10 @@ func (g *SourceMapGeneratorV3) MergeMapSectionWithMergeAction(
 //
 // Java: SourceMapGeneratorV3.appendTo(Appendable, String)
 func (g *SourceMapGeneratorV3) AppendTo(out io.StringWriter, name *string) {
+	if g.parallelWorkers > 1 {
+		g.appendToParallel(out, name)
+		return
+	}
 	maxLine := jutil.IntAdd(g.PrepMappings(), 1)
 
 	// Add the header fields.
@@ -556,7 +563,12 @@ func (g *SourceMapGeneratorV3) AppendTo(out io.StringWriter, name *string) {
 
 	// out.append("]");
 	SourceMapGeneratorV3_AppendFieldEnd(out)
+	g.appendToTail(out)
+}
 
+// appendToTail writes the fields after "mappings" (Go-only: shared with
+// appendToParallel).
+func (g *SourceMapGeneratorV3) appendToTail(out io.StringWriter) {
 	// Files names
 	SourceMapGeneratorV3_AppendFieldStart(out, "sources")
 	appendString(out, "[")
@@ -1078,6 +1090,10 @@ type SourceMapGeneratorV3_LineMapper struct {
 	buf       [4096]byte
 	bufLen    int
 	buffering bool
+
+	// Go-only: the id tables were filled by prepMappingsParallel and are
+	// only read.
+	frozenIds bool
 }
 
 // Java: SourceMapGeneratorV3.LineMapper(Appendable, int)
@@ -1176,6 +1192,9 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 	if m != nil {
 		// The relative source file id
 		sourceId := l.outer.sourceIdxToFileId[m.sourceFileIdx]
+		if sourceId < 0 && l.frozenIds {
+			panic(jutil.NewIllegalStateExceptionMsg("source id not assigned in phase 1"))
+		}
 		if sourceId < 0 {
 			sourceId = int32(len(l.outer.orderedSourceFiles))
 			l.outer.orderedSourceFiles = append(l.outer.orderedSourceFiles, l.outer.addedSourceFiles[m.sourceFileIdx])
@@ -1196,6 +1215,9 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 		if m.originalNameIdx >= 0 {
 			// The relative id for the associated symbol name
 			nameId := l.outer.symbolIdxToNameId[m.originalNameIdx]
+			if nameId < 0 && l.frozenIds {
+				panic(jutil.NewIllegalStateExceptionMsg("name id not assigned in phase 1"))
+			}
 			if nameId < 0 {
 				nameId = int32(len(l.outer.orderedSymbolNames))
 				l.outer.orderedSymbolNames = append(l.outer.orderedSymbolNames, l.outer.addedSymbolNames[m.originalNameIdx])
