@@ -641,16 +641,28 @@ have:
   replaces "no goroutine parallelism" above.
 - **Hidden `--fast_mode`.** A Go-only, hidden flag (or `JSGO_FAST_MODE=1`),
   off by default; without it ("compat" mode) every rule of this plan holds.
-  With it, a few passes take shortcuts whose output is not byte-identical
-  with Java's (today `InlineObjectLiterals`, which numbers its temporaries
-  per function and can run on workers, and `CollapseProperties`' early
-  flattening). Its gate is relaxed, `tools/bench/fast_mode_gate.py`: (1)
-  identical output at every thread count, no race or panic, and the compat
-  run's exit status; (2) the AST of the output equal to compat's up to a
-  one-to-one renaming of variables (lexical scopes in lockstep); (3) raw and
-  gzipped size at most 0.1% above compat's; (4) a token census (functions,
-  control flow, literals, total tokens) that does not regress. It is not a
-  drop-in mode and is not in the README's numbers.
+  With it, some passes take shortcuts whose output need not be byte-identical
+  with Java's (`InlineObjectLiterals`, which numbers its temporaries per
+  function and can run on workers, and `CollapseProperties`' early
+  flattening), and some work runs on workers only in fast mode (the
+  optimization loop's AST-size counts, the source-map encoding, the
+  resolution of printed mappings; fast mode round 1 in
+  [docs/performance-roadmap.md](docs/performance-roadmap.md)). Its gate,
+  relaxed as agreed with the owner (`tools/bench/fast_mode_gate.py`):
+  - strict: identical output (JS, source map, diagnostics, exit status) at
+    every thread count and from run to run, no race or panic; the compat
+    run's exit status; the same set of errors; the output AST equal to
+    compat's up to a one-to-one renaming of variables (lexical scopes in
+    lockstep); a census (functions, control flow) that does not grow;
+  - relaxed: diagnostics compared with compat's as a multiset (same messages,
+    any order); source maps compared semantically (decoded, each mapping
+    anchored to its output token, valid and equal to compat's original
+    position); size over the corpus of gated tasks, aggregate raw and gzip at
+    most +0.1% (configurable), no single task above +2%.
+
+  Replacing the alpha-isomorphism layer by a behavioural (execution-based)
+  oracle is a later, separate project. It is not a drop-in mode and is not
+  in the README's numbers.
 - **The typed AST view instead of 1:1 structure in ported passes.**
   `internal/ast` is a typed view of the `rhino.Node` tree generated from
   `internal/ast/grammar.txt` (`00a3bedd`,

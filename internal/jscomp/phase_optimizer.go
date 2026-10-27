@@ -51,6 +51,9 @@ type PhaseOptimizer struct {
 
 	// See CompilerOptions#optimizationLoopMaxIterations
 	optimizationLoopMaxIterations int
+
+	// Go-only: loop ordinal and iteration for DebugPassLogHook.
+	debugLoopOrdinal, debugLoopIter int
 }
 
 var PhaseOptimizer_logger = jutil.Logger_GetLogger("com.google.javascript.jscomp.PhaseOptimizer")
@@ -273,12 +276,19 @@ func (n *PhaseOptimizer_NamedPass) Process(externs rhino.Node, root rhino.Node) 
 	n.tracer = NewTracerWithType(&tracerType, &n.name)
 
 	p.compiler.BeforePass(n.name)
+	var debugEnd func()
+	if DebugPassLogHook != nil {
+		debugEnd = p.debugPassStart(n.name)
+	}
 
 	// Delay the creation of the actual pass until *after* all previous passes
 	// have been processed.
 	// Some precondition checks rely on this, eg, in CoalesceVariableNames.
 	n.factory.Create(p.compiler).Process(externs, root)
 
+	if debugEnd != nil {
+		debugEnd()
+	}
 	p.compiler.AfterPass(n.name)
 
 	jutil.Try(func() {
@@ -387,6 +397,7 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckStateMsg(!p.inLoop, "Nested loops are forbidden")
 	p.inLoop = true
 	l.isCodeRemovalLoop = l.IsCodeRemovalLoop()
+	p.debugLoopOrdinal++
 
 	// Set up function-change tracking
 	l.scopeHandler = NewPhaseOptimizer_ScopedChangeHandler(p)
@@ -413,13 +424,18 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 	trackAstSize := p.useSizeHeuristicToStopOptimizationLoop && l.isCodeRemovalLoop
 	var astSize int
 	var scriptSizes map[rhino.Node]int
+	// Go-only: fast mode counts sizes on workers (phase_optimizer_parallel.go).
+	sizeWorkers := fastLoopSizeWorkers(p.compiler)
 	if trackAstSize {
 		numScripts := root.GetChildCount()
 		scriptSizes = make(map[rhino.Node]int, numScripts)
 		astSize = 1
+		scripts := make([]rhino.Node, 0, numScripts)
 		for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
-			sz := NodeUtil_CountAstSize(script)
-			scriptSizes[script] = sz
+			scripts = append(scripts, script)
+		}
+		for i, sz := range countAstSizes(scripts, sizeWorkers) {
+			scriptSizes[scripts[i]] = sz
 			astSize += sz
 		}
 		p.changeTracker.changeTimeline.Mark(astSizeTimelineKey)
@@ -451,6 +467,7 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			p.compiler.ThrowInternalError(PhaseOptimizer_OPTIMIZE_LOOP_ERROR, nil)
 		}
 		count++
+		p.debugLoopIter = count - 1
 		lastIterMadeChanges = false
 		for _, pass := range l.myPasses {
 			if (state == PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER &&
@@ -482,9 +499,10 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			previousAstSize = astSize
 			changedScopes := p.changeTracker.GetChangedScopeNodesForPass(astSizeTimelineKey)
 			if changedScopes == nil {
-				astSize = NodeUtil_CountAstSize(root)
+				astSize = countAstSizes([]rhino.Node{root}, sizeWorkers)[0]
 			} else {
 				recounted := make(map[rhino.Node]struct{}, len(changedScopes))
+				var toCount []rhino.Node
 				for _, scopeNode := range changedScopes {
 					cur := scopeNode
 					for !cur.IsNil() && cur.GetParent() != root {
@@ -493,12 +511,15 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 					if !cur.IsNil() && cur.GetParent() == root {
 						if _, done := recounted[cur]; !done {
 							recounted[cur] = struct{}{}
-							newSz := NodeUtil_CountAstSize(cur)
-							oldSz := scriptSizes[cur]
-							scriptSizes[cur] = newSz
-							astSize += newSz - oldSz
+							toCount = append(toCount, cur)
 						}
 					}
+				}
+				for i, newSz := range countAstSizes(toCount, sizeWorkers) {
+					cur := toCount[i]
+					oldSz := scriptSizes[cur]
+					scriptSizes[cur] = newSz
+					astSize += newSz - oldSz
 				}
 				liveScripts := 0
 				for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {

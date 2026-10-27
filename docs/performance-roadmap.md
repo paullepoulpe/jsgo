@@ -1224,6 +1224,203 @@ all 11 benchmarks (peak RSS −26 to −53 %), byte-identical with Java, at the
 cost of more allocation (wall time +9 to +19 % with Go 1.27.3). Details, numbers and
 the round-2 plan: [memory-research/round1-results.md](memory-research/round1-results.md).
 
+## Fast mode round 1 (2026-10-27): profile, relaxed gate, first parallel work
+
+Branch `fast/round1` off `1c7c0734`. 4-CPU Linux machine, Go 1.27.3.
+
+### Profile (where t=4 wall time goes)
+
+`JSGO_PASS_LOG=<file>` (Go-only, `cmd/jsgo/passlog.go`) writes one row per
+pass run and tracer section: wall time, process CPU (getrusage, all threads),
+change reports and changed scopes, the loop and iteration; with
+`JSGO_CPU_PROFILE` the CPU samples carry a pprof label `pass=<name>`. One run
+per configuration on main:
+
+| task | compat t=1 | compat t=4 | fast t=4 | wall in serial passes at t=4 |
+|---|---|---|---|---|
+| typed-mega | 53.3 s | 44.6 s | 41.8 s | 34.0 s (76%) |
+| typed-full | 30.2 s | 25.2 s | 24.8 s | 19.4 s (77%) |
+| bundle-mega | 71.8 s | 56.8 s | 55.4 s | 41.6 s (73%) |
+| checks-only | 6.2 s | 4.9 s | 5.1 s | 4.1 s (84%) |
+
+A pass counts as serial when its CPU/wall ratio is below 1.3. At t=4, jsgo
+uses 1.25–1.36 CPUs on average. Largest serial items at t=4 (typed-mega /
+bundle-mega):
+
+- `removeUnusedCode`, all 11 runs: 7.2 s / 11.0 s (16–20% of wall). A global
+  reachability worklist over continuations, with no counters involved;
+- `inferTypes`: 5.7 s / 5.5 s (10–13%, 38% on checks-only), of which about 3 s
+  is the type-inference dataflow and 2.2 s typed scope creation;
+- `checkTypes`: 1.9 s / 1.4 s;
+- `collapseObjectLiterals` (InlineObjectLiterals), serial in compat and
+  parallel in fast mode: 2.1 s / 2.7 s;
+- `optimizeCalls`, `inlineAndCollapseProperties`, `inlineSimpleMethods`,
+  `inlineProperties`, `markPureFunctions` and `normalize`: 0.6–1.9 s each.
+  Several of these spend most of their time building a `GlobalNamespace`, a
+  full AST traversal;
+- outside the passes: the source map's encoding after printing (0.7–1.3 s)
+  and the loop's AST-size heuristic between iterations (0.4–1.1 s).
+
+The rest is a long tail of serial passes of 50–600 ms each. Parsing (3.5
+CPUs), `inlineVariables`, `inlineFunctions` (2 CPUs) and printing (1.8 CPUs)
+already run on workers.
+
+**Optimization loop waste.** The whole-program passes cost the same per run
+whether they change 15,000 scopes (iteration 1) or 1–10 (iterations 4 and
+later): `removeUnusedCode` takes 0.6–1.1 s per run, and `inlineFunctions`,
+`inlineVariables`, `optimizeCalls` and `collapseObjectLiterals` 0.3–0.7 s.
+At t=1, iterations that change fewer than 100 scopes take about 4–7 s per
+mega task (10–13% of wall): typed-mega loop 3, iterations 4–6, is 4.9 s for
+73 changed scopes; bundle-mega is 2.1 s plus 4.1 s for 97 scopes. Runs that
+change nothing cost 2.5–4.6 s. Stopping early or rerunning only on changed
+scopes skips the last inlinings and removals, so the output AST changes and
+the alpha-isomorphism layer cannot hold it. Not done; this is the measured
+potential.
+
+### The relaxed gate
+
+`tools/bench/fast_mode_gate.py`, as agreed with the owner (PLAN.md §7):
+
+- **Still strict:** identical output at every thread count and from run to run
+  (`--repeats`, default one extra run at the highest thread count); the compat
+  exit status; the same set of ERROR diagnostics; the alpha-isomorphism layer;
+  the census.
+- **Diagnostics** compared with compat's as a multiset: the same messages,
+  each with its source excerpt, and the same summary line, in any order.
+- **Source maps** compared semantically. Both maps are decoded and every
+  mapping is anchored to the output token at its generated position (the
+  outputs are alpha-isomorphic, so their token streams correspond one to
+  one). Every fast mapping must point to a listed source, at a line and
+  column inside that file, and must equal compat's original position for the
+  same token. `--sourcemap-mismatch-pct` (default 0) allows a share of
+  differences.
+- **Size** over the corpus of gated tasks: aggregate raw and gzip at most
+  `--size-aggregate-pct` (default +0.1%) above compat, and no task above
+  `--size-file-pct` (default +2%).
+
+Main and the branch pass it on every gated task (default tasks, fixtures and
+the whole-program tasks) under `-race` at t=1/2/4. Fast mode's output is still byte-identical to compat on every gated
+task, so the relaxed layers are exercised only by self-tests so far: a
+re-encoded map passes, a map with one original line moved fails, shuffled
+diagnostics pass, a dropped diagnostic fails.
+
+**A behavioural oracle** would replace the alpha-isomorphism layer once fast
+mode starts changing what the output does (different inlining, early loop
+stop). It would need:
+- an execution harness per task: a headless JS engine (node or d8) with the
+  externs' browser surface stubbed (DOM, `window`), or the libraries' own test
+  suites (Closure Library's, three.js', lodash's) run against the compiled
+  bundle, with exports kept by `--generate_exports` or a wrapper;
+- deterministic inputs and recorded traces: return values, thrown errors and
+  console output compared between the compat and fast builds, not with Java;
+- coverage measurement, to know what the oracle actually exercises;
+- tolerance for timing and order differences that are legal (property
+  enumeration order of renamed properties, for example).
+
+That is an effort of its own (PLAN.md §7, "Output quality: improving on
+Closure").
+
+### Changes (fast mode only; compat byte-identical)
+
+1. **Loop size heuristic on workers** (`phase_optimizer_parallel.go`). After
+   each iteration the code-removing loops recount the changed scripts
+   serially (1.1 s of CPU on bundle-mega). Fast mode cuts the trees into a
+   breadth-first frontier of subtrees counted by workers. The sums are exact,
+   so the loop stops exactly where it did. Loop gaps: typed-mega 0.42 → 0.20 s,
+   bundle-mega 1.07 → 0.66 s.
+2. **Source-map encoding on workers, byte-identical**
+   (`internal/sourcemap/source_map_generator_v3_parallel.go`). Phase 1 is one
+   sequential traversal that yields the line count, the source and name ids
+   in first-use order, and checkpoints every 32K mappings: the reader
+   position, the open-mapping stack and the LineMapper's relative state.
+   Phase 2 encodes the chunks on workers into private buffers. A unit test
+   compares the result with the sequential encoder over random nested
+   mappings and chunk sizes down to 1. The tail after printing: typed-mega
+   0.72 → 0.33 s, bundle-mega 1.08 → 0.55 s.
+3. **Printed mappings resolved on the print workers.**
+   `SourceMap.addMapping` is split into resolve (node, source file, input
+   source map, original name) and add. In fast mode the print workers
+   resolve their script's mappings with their own SourceMap and caches, and
+   the sequential merge only appends to the generator. bundle-mega spent
+   0.63 s in that merge, 0.43 s of it resolving. Fast mode also prints up to
+   256 scripts per batch instead of 4 when there are 64 or fewer, so scripts
+   of very different sizes balance.
+
+### Measured results (interleaved, N=5 blocks, main `1c7c0734` vs branch, wall time mean, paired 95% CI)
+
+Every run is gated byte for byte against the pinned Java jar's first cold run (11 tasks; 440 runs, all MATCH:
+fast mode's output is still byte-identical to compat on every task). Fixtures 2,974/2,976; `parallel_gate.py` 48/48 under
+`-race`; the relaxed fast gate 25/25 under `-race` at t=1/2/4 plus 7/7 large tasks without `-race`.
+
+| task | compat t=1 main → branch | compat t=4 main → branch | fast t=1 main → branch | fast t=4 main → branch |
+|---|---|---|---|---|
+| typed-app | 3.03 → 3.00 s (-0.8%, CI -4.9…+3.6) | 2.63 → 2.73 s (+3.7%, CI -1.0…+8.7) | 3.00 → 3.00 s (-0.0%, CI -5.6…+5.9) | 2.63 → 2.64 s (+0.5%, CI -5.9…+7.4) |
+| downlevel-whitespace | 0.94 → 0.98 s (+4.4%, CI -5.0…+14.7) | 0.88 → 0.86 s (-2.2%, CI -8.7…+4.7) | 0.98 → 0.96 s (-1.3%, CI -7.9…+5.7) | 0.85 → 0.85 s (-0.3%, CI -4.8…+4.5) |
+| downlevel-simple | 2.05 → 2.08 s (+1.1%, CI -5.0…+7.6) | 1.82 → 1.80 s (-1.5%, CI -5.4…+2.5) | 2.06 → 2.05 s (-0.3%, CI -4.1…+3.6) | 1.78 → 1.75 s (-1.5%, CI -3.7…+0.8) |
+| checks-only | 5.13 → 5.19 s (+0.9%, CI -6.4…+8.6) | 4.17 → 4.12 s (-1.2%, CI -5.9…+3.7) | 5.01 → 5.11 s (+2.0%, CI -3.5…+7.8) | 4.17 → 4.15 s (-0.6%, CI -5.6…+4.7) |
+| bundle | 9.56 → 9.31 s (-2.6%, CI -10.4…+5.8) | 8.71 → 8.73 s (+0.3%, CI -3.8…+4.5) | 9.45 → 9.43 s (-0.3%, CI -5.7…+5.5) | 8.60 → 8.53 s (-0.8%, CI -4.1…+2.5) |
+| bundle-advanced | 7.52 → 7.55 s (+0.4%, CI -4.3…+5.4) | 6.25 → 6.21 s (-0.5%, CI -6.1…+5.4) | 7.48 → 7.70 s (+3.0%, CI -0.2…+6.2) | 6.01 → 5.82 s (-3.2%, CI -6.5…+0.2) |
+| shaka-blockly | 10.34 → 10.58 s (+2.3%, CI -1.8…+6.6) | 8.71 → 8.79 s (+0.9%, CI -2.9…+4.9) | 10.21 → 10.48 s (+2.6%, CI -2.8…+8.3) | 8.47 → 8.15 s (-3.8%, CI -7.7…+0.2) |
+| bundle-advanced-ts | 15.92 → 15.64 s (-1.8%, CI -5.0…+1.5) | 14.82 → 14.79 s (-0.3%, CI -5.5…+5.1) | 15.79 → 15.63 s (-1.0%, CI -3.5…+1.5) | 14.98 → 14.81 s (-1.2%, CI -3.1…+0.8) |
+| typed-full | 25.41 → 24.91 s (-2.0%, CI -6.1…+2.3) | 20.82 → 20.80 s (-0.1%, CI -2.8…+2.6) | 24.45 → 24.20 s (-1.0%, CI -4.3…+2.4) | 20.04 → 19.26 s (-3.9%, CI -6.2…-1.5) |
+| typed-mega | 41.81 → 42.35 s (+1.3%, CI -1.1…+3.8) | 35.65 → 35.61 s (-0.1%, CI -2.8…+2.7) | 41.86 → 41.93 s (+0.2%, CI -0.8…+1.1) | 34.29 → 33.58 s (-2.1%, CI -4.2…+0.0) |
+| bundle-mega | 56.34 → 56.43 s (+0.2%, CI -2.9…+3.3) | 49.56 → 49.85 s (+0.6%, CI -1.2…+2.4) | 56.90 → 57.26 s (+0.6%, CI -1.3…+2.6) | 48.65 → 47.49 s (-2.4%, CI -3.7…-1.1) |
+| geomean | +0.3% | -0.0% | +0.4% | -1.8% |
+
+Compat does not regress (geomean +0.3% at t=1, 0.0% at t=4; every interval includes 0). Fast mode at t=4 gains 1.8%
+(geomean), 2–4% on the large tasks with source maps (typed-full −3.9%, bundle-mega −2.4%, both significant); the
+optimizations only touch serial work after printing and between loop iterations, so they are small next to the
+serial passes above. Fast t=4 against compat t=4 on the branch: typed-full −7.4%, shaka-blockly −7.4%,
+bundle-advanced −6.4%, typed-mega −5.7%, bundle-mega −4.7% (InlineObjectLiterals on workers plus this round).
+
+### Tried and shelved: TypeCheck per script on workers
+
+TypeCheck can run one script per worker: the scope creator is frozen after
+inference, and each worker records its reports and type mismatches for
+replay in script order. That gave byte-identical diagnostics on typed-app and
+checks-only (checkTypes is 0.68 s of checks-only's 4.9 s at t=4). It is not
+safe yet: under `-race`, workers race on state that JSTypes mutate while being
+read:
+- the recursion guards kept as flags on each type: `JSType.hashCode`'s
+  in-progress bit (a concurrent hash returns the recursion value -1 and
+  corrupts hash-set membership), the templated-check bit and the visited
+  bit;
+- lazy caches: `templateCheckResult`, `IsUnknownType`, `PropertyMap`'s
+  sorting and key-set cache;
+- `PrototypeObjectType.setImplicitPrototype`, called from checks;
+- the `JSTypeResolver`'s capture stack, when checks derive new types.
+
+The registry's parallel read-only mode bypasses only the registry's own
+caches. Making the type layer safe for concurrent readers means passing an
+explicit context (a per-goroutine visited set) through the 15
+`RecursionUnsafeHashCode` implementations and the guard sites, and freezing
+or precomputing the lazy caches after inference. That is the prerequisite
+for any parallel type checking and, beyond it, for parallel inference.
+Inference also mutates shared types in program order (inferred properties,
+captured variables), so on top of that it needs a dependency analysis
+between functions. The patch is kept out of the branch.
+
+### What is left (in order of measured payoff)
+
+- `removeUnusedCode` (16–20% of t=4 wall): a parallel, deterministic version
+  of its reachability worklist, for example per-function local analysis on
+  workers followed by a global fixpoint over cross-function edges.
+- Type checking and inference (10–38%): the thread-safe type layer above.
+- The serial global passes that build a `GlobalNamespace`
+  (`Es6RewriteClass`'s super-constructor rewriting,
+  `inlineAndCollapseProperties`, `markPureFunctions`' reference map): build
+  the namespace per script on workers, then merge in script order.
+- **Per-script counters** (`$jscomp$N`, transpilation and inliner
+  temporaries). `UniqueIdSupplier` already counts per file. The passes that
+  use the legacy global supplier and could otherwise run per script
+  (`Es6RewriteBlockScopedDeclaration`, `es6NormalizeClasses`, the
+  transpilation peepholes) total 0.2–0.4 s at t=4. `normalize`'s
+  `MakeDeclaredNamesUnique` (0.6–1.2 s) needs program-wide uniqueness, which
+  per-script counters with a script-unique suffix and a pre-pass counting
+  declarations would give. Not done this round because of that low ceiling.
+- The optimization loop: the waste above is real (10–13%) but not reachable
+  under the alpha-isomorphism gate; it needs the behavioural oracle.
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

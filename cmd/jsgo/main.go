@@ -26,6 +26,11 @@ func main() {
 			defer stopCPU()
 		}
 	}
+	if logPath := os.Getenv("JSGO_PASS_LOG"); logPath != "" {
+		writeLog := installPassLog(logPath, os.Getenv("JSGO_CPU_PROFILE") != "")
+		jutil.System_AtExit(writeLog)
+		defer writeLog()
+	}
 	if statsPath := os.Getenv("JSGO_MEMSTATS"); statsPath != "" {
 		writeStats := memStatsWriter(statsPath)
 		jutil.System_AtExit(writeStats)
