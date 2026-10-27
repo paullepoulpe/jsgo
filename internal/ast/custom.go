@@ -227,6 +227,234 @@ func (x Number) Value() float64 { return x.node.GetDouble() }
 // {'a': b} rather than {a: b}.
 func (x StringKey) IsQuoted() bool { return x.node.IsQuotedStringKey() }
 
+// SetQuoted marks x as having a quoted string-literal key (true) or plain
+// identifier key (false).
+func (x StringKey) SetQuoted(quoted bool) { x.node.PutBooleanProp(rhino.Node_QUOTED_PROP, quoted) }
+
+// IsQuoted reports whether the key of x was written as a string literal.
+func (x GetterDef) IsQuoted() bool { return x.node.IsQuotedStringKey() }
+
+// SetQuoted marks x as having a quoted string-literal key (true) or plain
+// identifier key (false).
+func (x GetterDef) SetQuoted(quoted bool) { x.node.PutBooleanProp(rhino.Node_QUOTED_PROP, quoted) }
+
+// IsQuoted reports whether the key of x was written as a string literal.
+func (x SetterDef) IsQuoted() bool { return x.node.IsQuotedStringKey() }
+
+// SetQuoted marks x as having a quoted string-literal key (true) or plain
+// identifier key (false).
+func (x SetterDef) SetQuoted(quoted bool) { x.node.PutBooleanProp(rhino.Node_QUOTED_PROP, quoted) }
+
+// IsQuoted reports whether the key of x was written as a string literal.
+func (x MemberFunctionDef) IsQuoted() bool { return x.node.IsQuotedStringKey() }
+
+// SetQuoted marks x as having a quoted string-literal key (true) or plain
+// identifier key (false).
+func (x MemberFunctionDef) SetQuoted(quoted bool) {
+	x.node.PutBooleanProp(rhino.Node_QUOTED_PROP, quoted)
+}
+
+// IsQuoted reports whether the key of x was written as a string literal.
+func (x MemberFieldDef) IsQuoted() bool { return x.node.IsQuotedStringKey() }
+
+// SetQuoted marks x as having a quoted string-literal key (true) or plain
+// identifier key (false).
+func (x MemberFieldDef) SetQuoted(quoted bool) { x.node.PutBooleanProp(rhino.Node_QUOTED_PROP, quoted) }
+
+// IsQuoted reports whether the key of x was written as a string literal.
+func (x MethodDef) IsQuoted() bool { return x.node.IsQuotedStringKey() }
+
+// SetQuoted marks x as having a quoted string-literal key (true) or plain
+// identifier key (false).
+func (x MethodDef) SetQuoted(quoted bool) { x.node.PutBooleanProp(rhino.Node_QUOTED_PROP, quoted) }
+
+// Value returns the property value or method function of x.
+func (x PlainKeyMember) Value() PropValue { return PropValue{x.node.GetFirstChild()} }
+
+// IsQuoted reports whether the key of x was written as a string literal.
+func (x PlainKeyMember) IsQuoted() bool { return x.node.IsQuotedStringKey() }
+
+// SetQuoted marks x as having a quoted string-literal key (true) or plain
+// identifier key (false).
+func (x PlainKeyMember) SetQuoted(quoted bool) { x.node.PutBooleanProp(rhino.Node_QUOTED_PROP, quoted) }
+
+// IsQuoted reports whether the key of x was written as a string literal.
+func (x NamedMember) IsQuoted() bool { return x.node.IsQuotedStringKey() }
+
+// SetQuoted marks x as having a quoted string-literal key (true) or plain
+// identifier key (false).
+func (x NamedMember) SetQuoted(quoted bool) { x.node.PutBooleanProp(rhino.Node_QUOTED_PROP, quoted) }
+
+// Value returns the initializer expression of x; ok is false if x has none.
+func (x FieldDef) Value() (v Expr, ok bool) {
+	if x.node.IsMemberFieldDef() {
+		c := x.node.GetFirstChild()
+		return Expr{c}, c != rhino.NilNode
+	}
+	c := x.node.GetSecondChild()
+	return Expr{c}, c != rhino.NilNode
+}
+
+// IsStatic reports whether x is a static class field.
+func (x FieldDef) IsStatic() bool { return x.node.IsStaticMember() }
+
+// SetStatic marks x as a static class field, or an instance one.
+func (x FieldDef) SetStatic(static bool) { x.node.SetStaticMember(static) }
+
+// IsMethod reports whether x is a computed method ([k]() {}).
+func (x ComputedProp) IsMethod() bool { return x.node.GetBooleanProp(rhino.Node_COMPUTED_PROP_METHOD) }
+
+// SetMethod marks x as a computed method (true) or not (false).
+func (x ComputedProp) SetMethod(v bool) { x.node.PutBooleanProp(rhino.Node_COMPUTED_PROP_METHOD, v) }
+
+// IsGetter reports whether x is a computed getter (get [k]() {}).
+func (x ComputedProp) IsGetter() bool { return x.node.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) }
+
+// SetGetter marks x as a computed getter (true) or not (false).
+func (x ComputedProp) SetGetter(v bool) { x.node.PutBooleanProp(rhino.Node_COMPUTED_PROP_GETTER, v) }
+
+// IsSetter reports whether x is a computed setter (set [k](v) {}).
+func (x ComputedProp) IsSetter() bool { return x.node.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) }
+
+// SetSetter marks x as a computed setter (true) or not (false).
+func (x ComputedProp) SetSetter(v bool) { x.node.PutBooleanProp(rhino.Node_COMPUTED_PROP_SETTER, v) }
+
+// IsStart reports whether x starts an optional chain.
+func (x OptChainGetProp) IsStart() bool { return x.node.IsOptionalChainStart() }
+
+// SetStart marks x as starting an optional chain (true) or continuing one (false).
+func (x OptChainGetProp) SetStart(start bool) { x.node.SetIsOptionalChainStart(start) }
+
+// IsStart reports whether x starts an optional chain.
+func (x OptChainGetElem) IsStart() bool { return x.node.IsOptionalChainStart() }
+
+// SetStart marks x as starting an optional chain (true) or continuing one (false).
+func (x OptChainGetElem) SetStart(start bool) { x.node.SetIsOptionalChainStart(start) }
+
+// IsStart reports whether x starts an optional chain.
+func (x OptChainCall) IsStart() bool { return x.node.IsOptionalChainStart() }
+
+// SetStart marks x as starting an optional chain (true) or continuing one (false).
+func (x OptChainCall) SetStart(start bool) { x.node.SetIsOptionalChainStart(start) }
+
+// IsStart reports whether x starts an optional chain.
+func (x OptChainGet) IsStart() bool { return x.node.IsOptionalChainStart() }
+
+// SetStart marks x as starting an optional chain (true) or continuing one (false).
+func (x OptChainGet) SetStart(start bool) { x.node.SetIsOptionalChainStart(start) }
+
+// IsStart reports whether x starts an optional chain.
+func (x OptChain) IsStart() bool { return x.node.IsOptionalChainStart() }
+
+// SetStart marks x as starting an optional chain (true) or continuing one (false).
+func (x OptChain) SetStart(start bool) { x.node.SetIsOptionalChainStart(start) }
+
+// IsUnused reports whether x is marked as an unused function parameter.
+func (x Param) IsUnused() bool { return x.node.IsUnusedParameter() }
+
+// SetUnused marks x as an unused function parameter (true) or used (false).
+func (x Param) SetUnused(unused bool) { x.node.SetUnusedParameter(unused) }
+
+// IsUnusedParam reports whether x is marked as an unused function parameter.
+func (x Name) IsUnusedParam() bool { return x.node.IsUnusedParameter() }
+
+// SetUnusedParam marks x as an unused function parameter (true) or used (false).
+func (x Name) SetUnusedParam(unused bool) { x.node.SetUnusedParameter(unused) }
+
+// IsConstantName reports whether x is annotated with IS_CONSTANT_NAME.
+func (x Name) IsConstantName() bool { return x.node.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) }
+
+// SetConstantName marks x with IS_CONSTANT_NAME (true) or clears it (false).
+func (x Name) SetConstantName(constant bool) {
+	x.node.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, constant)
+}
+
+// IsConstantName reports whether x is annotated with IS_CONSTANT_NAME.
+func (x GetProp) IsConstantName() bool { return x.node.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) }
+
+// SetConstantName marks x with IS_CONSTANT_NAME (true) or clears it (false).
+func (x GetProp) SetConstantName(constant bool) {
+	x.node.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, constant)
+}
+
+// IsConstantName reports whether x is annotated with IS_CONSTANT_NAME.
+func (x NormalOrOptChainGetProp) IsConstantName() bool {
+	return x.node.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)
+}
+
+// SetConstantName marks x with IS_CONSTANT_NAME (true) or clears it (false).
+func (x NormalOrOptChainGetProp) SetConstantName(constant bool) {
+	x.node.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, constant)
+}
+
+// IsEs6Constructor reports whether x is an ES6 class constructor method
+// definition (non-static constructor() inside a class body).
+func (x MemberFunctionDef) IsEs6Constructor() bool {
+	return x.node.GetParent().IsClassMembers() && !x.IsStatic() && x.Key() == "constructor"
+}
+
+// IsEs6Constructor reports whether x is the function of an ES6 class
+// constructor method definition.
+func (x Function) IsEs6Constructor() bool {
+	m, ok := AsMemberFunctionDef(x.node.GetParent())
+	return ok && m.IsEs6Constructor()
+}
+
+// Constructor returns the non-static constructor method definition of x; ok is
+// false if x has no explicit constructor.
+func (x Class) Constructor() (MemberFunctionDef, bool) {
+	for c := x.Body().Node().GetFirstChild(); c != rhino.NilNode; c = c.GetNext() {
+		if m, ok := AsMemberFunctionDef(c); ok && !m.IsStatic() && m.Key() == "constructor" {
+			return m, true
+		}
+	}
+	return MemberFunctionDef{}, false
+}
+
+// StaticPropertyName returns the static property name accessed by x: the
+// property of o.p / o?.p, or the string literal index of o['p'] / o?.['p'].
+func (x NormalOrOptChainGet) StaticPropertyName() (string, bool) {
+	if x.node.IsGetProp() || x.node.IsOptChainGetProp() {
+		return x.node.GetString(), true
+	}
+	if s, ok := AsStringLit(x.node.GetSecondChild()); ok {
+		return s.Value(), true
+	}
+	return "", false
+}
+
+// StaticPropertyName returns the static property name accessed by x: the
+// property of o.p, or the string literal index of o['p'].
+func (x NormalGet) StaticPropertyName() (string, bool) {
+	return x.AsNormalOrOptChainGet().StaticPropertyName()
+}
+
+// ParamAt returns the i-th parameter of x (0-based); ok is false if i is out
+// of range.
+func (x ParamList) ParamAt(i int) (Param, bool) {
+	if i < 0 {
+		return Param{}, false
+	}
+	c := x.node.GetFirstChild()
+	for ; i > 0 && c != rhino.NilNode; i-- {
+		c = c.GetNext()
+	}
+	return Param{c}, c != rhino.NilNode
+}
+
+// ArgAt returns the i-th argument of x (0-based, after the callee); ok is
+// false if i is out of range.
+func (x CallOrNew) ArgAt(i int) (Arg, bool) {
+	if i < 0 {
+		return Arg{}, false
+	}
+	c := x.node.GetSecondChild()
+	for ; i > 0 && c != rhino.NilNode; i-- {
+		c = c.GetNext()
+	}
+	return Arg{c}, c != rhino.NilNode
+}
+
 // Body returns the body of the loop x.
 func (x Loop) Body() Block {
 	if x.node.IsDo() {

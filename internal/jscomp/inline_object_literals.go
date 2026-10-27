@@ -19,11 +19,11 @@
 package jscomp
 
 import (
-	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -59,22 +59,23 @@ type iolCandidateScanner struct {
 	candFns              []rhino.Node
 }
 
-func iolHasParamName(fn rhino.Node, nameID uint32) bool {
-	if fn.IsNil() || !fn.IsFunction() {
+func iolHasParamName(fnNode rhino.Node, nameID uint32) bool {
+	fn, ok := ast.AsFunction(fnNode)
+	if !ok {
 		return false
 	}
-	args := fn.GetSecondChild()
-	if args.IsNil() || !args.IsParamList() {
-		return false
-	}
-	for a := args.GetFirstChild(); !a.IsNil(); a = a.GetNext() {
-		switch a.GetToken() {
+	for p := range fn.Params().Params() {
+		switch p.Token() {
 		case rhino.Token_NAME:
-			if a.GetStringID() == nameID {
+			if p.Node().GetStringID() == nameID {
 				return true
 			}
-		case rhino.Token_DEFAULT_VALUE, rhino.Token_ITER_REST:
-			if first := a.GetFirstChild(); !first.IsNil() && first.IsName() && first.GetStringID() == nameID {
+		case rhino.Token_DEFAULT_VALUE:
+			if target := p.MustDefaultValue().Target().Node(); target.IsName() && target.GetStringID() == nameID {
+				return true
+			}
+		case rhino.Token_ITER_REST:
+			if target := p.MustIterRest().Target().Node(); target.IsName() && target.GetStringID() == nameID {
 				return true
 			}
 		}
@@ -86,8 +87,8 @@ func iolHasDirectNameDecl(block rhino.Node, nameID uint32, includeVar bool) bool
 	for c := block.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		tok := c.GetToken()
 		if tok == rhino.Token_LET || tok == rhino.Token_CONST || (includeVar && tok == rhino.Token_VAR) {
-			for lhs := c.GetFirstChild(); !lhs.IsNil(); lhs = lhs.GetNext() {
-				if lhs.IsName() && lhs.GetStringID() == nameID {
+			for lhs := range ast.MustNameDeclaration(c).Declarators() {
+				if lhs.Node().IsName() && lhs.Node().GetStringID() == nameID {
 					return true
 				}
 			}
@@ -137,7 +138,7 @@ func (s *iolCandidateScanner) checkObjectLit(objLit rhino.Node) {
 	var varNameID uint32
 	var isDecl bool
 	var gp rhino.Node
-	if parent.IsName() && parent.GetFirstChild() == objLit {
+	if name, ok := ast.AsName(parent); ok && parent.GetFirstChild() == objLit {
 		gp = parent.GetParent()
 		if gp.IsNil() || !NodeUtil_IsNameDeclaration(gp) {
 			return
@@ -146,24 +147,24 @@ func (s *iolCandidateScanner) checkObjectLit(objLit rhino.Node) {
 		if ggp.IsNil() || NodeUtil_IsAnyFor(ggp) {
 			return
 		}
-		varNameID = parent.GetStringID()
+		varNameID = name.Node().GetStringID()
 		isDecl = true
-	} else if parent.IsAssign() && parent.GetLastChild() == objLit {
-		lhs := parent.GetFirstChild()
-		if lhs.IsNil() || !lhs.IsName() {
+	} else if assign, ok := ast.AsAssign(parent); ok && assign.Value().Is(objLit) {
+		lhs, isName := assign.Target().AsName()
+		if !isName {
 			return
 		}
 		gp = parent.GetParent()
 		if gp.IsNil() || !gp.IsExprResult() {
 			return
 		}
-		varNameID = lhs.GetStringID()
+		varNameID = lhs.Node().GetStringID()
 	} else {
 		return
 	}
 
-	for child := objLit.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		switch child.GetToken() {
+	for member := range ast.MustObjectLit(objLit).Members() {
+		switch member.Token() {
 		case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_OBJECT_SPREAD:
 			return
 		}
@@ -251,25 +252,24 @@ func (s *iolCandidateScanner) collectCandFns(n rhino.Node) {
 	}
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
-		className := n.GetFirstChild()
-		extendsClause := className.GetNext()
-		body := extendsClause.GetNext()
-		s.collectCandFns(extendsClause)
-		s.collectCandFns(className)
-		s.collectCandFns(body)
+		cls := ast.MustClass(n)
+		s.collectCandFns(cls.ExtendsNode())
+		s.collectCandFns(cls.NameNode())
+		s.collectCandFns(cls.Body().Node())
 	case rhino.Token_CLASS_MEMBERS:
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			if c.IsComputedProp() || c.IsComputedFieldDef() {
-				s.collectCandFns(c.GetFirstChild())
+		body := ast.MustClassBody(n)
+		for member := range body.Members() {
+			if cm, ok := member.AsComputedMember(); ok {
+				s.collectCandFns(cm.Key().Node())
 			}
 		}
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			if c.IsComputedProp() || c.IsComputedFieldDef() {
-				if c.HasTwoChildren() {
-					s.collectCandFns(c.GetLastChild())
+		for member := range body.Members() {
+			if cm, ok := member.AsComputedMember(); ok {
+				if val, hasVal := cm.Value(); hasVal {
+					s.collectCandFns(val.Node())
 				}
 			} else {
-				s.collectCandFns(c)
+				s.collectCandFns(member.Node())
 			}
 		}
 	default:
@@ -359,7 +359,7 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 				go func() {
 					defer wg.Done()
 					sc := NewSyntacticScopeCreator(o.compiler)
-					behavior := NewInlineObjectLiterals_InliningBehavior(o)
+					behavior := newInlineObjectLiteralsBehavior(o)
 					behavior.scanner = &s
 					dummyGlobalScope := newIOLDummyGlobalScope(root)
 					for {
@@ -401,7 +401,7 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 		}
 		if fastMode || len(s.candFns) == 1 || !s.anyCandFnInHoistedFn {
 			sc := NewSyntacticScopeCreator(o.compiler)
-			behavior := NewInlineObjectLiterals_InliningBehavior(o)
+			behavior := newInlineObjectLiteralsBehavior(o)
 			behavior.scanner = &s
 			dummyGlobalScope := newIOLDummyGlobalScope(root)
 			if fastMode && len(s.candFns) >= 1 {
@@ -437,7 +437,7 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	sc := NewSyntacticScopeCreator(o.compiler)
-	behavior := NewInlineObjectLiterals_InliningBehavior(o)
+	behavior := newInlineObjectLiteralsBehavior(o)
 	behavior.scanner = &s
 	o.newFilteredCollector(sc, behavior, varFilter).Process(externs, root)
 }
@@ -458,8 +458,7 @@ type InlineObjectLiterals_InliningBehavior struct {
 	reportChange func(rhino.Node)
 }
 
-// Java: InlineObjectLiterals.InliningBehavior()
-func NewInlineObjectLiterals_InliningBehavior(outer *InlineObjectLiterals) *InlineObjectLiterals_InliningBehavior {
+func newInlineObjectLiteralsBehavior(outer *InlineObjectLiterals) *InlineObjectLiterals_InliningBehavior {
 	b := &InlineObjectLiterals_InliningBehavior{outer: outer}
 	if outer != nil {
 		b.idSupplier = outer.safeNameIdSupplier
@@ -499,67 +498,35 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 		}
 	}
 	for _, v := range scope.varList {
-		if v == nil {
+		if v == nil || b.isVarInlineForbidden(v) {
 			continue
 		}
-		if b.IsVarInlineForbidden(v) {
-			continue
-		}
-
 		referenceInfo := referenceMap.GetReferences(v)
-		// ReferenceMap only creates collections for variables that have references.
-		// A variable declared in a scope (e.g. unreferenced catch parameter or block-scoped
-		// function declaration) without references will return null.
 		if referenceInfo == nil {
 			continue
 		}
-
-		if b.IsInlinableObject(referenceInfo.references) {
-			// Skiplist the object itself, as well as any other values
-			// that it refers to, since they will have been moved around.
+		if b.isInlinableObject(referenceInfo.references) {
 			b.addStaleVar(v)
-
 			init := referenceInfo.GetInitializingReference()
-
-			// Split up the object into individual variables if the object
-			// is never referenced directly in full.
-			b.SplitObject(v, init, referenceInfo)
+			b.splitObject(v, init, referenceInfo)
 		}
 	}
 }
 
-// RecordStaleVarReferencesInTree: if there are any variable references in
-// the given node tree, skiplist them to prevent the pass from trying to
-// inline the variable. Any code modifications will have potentially made the
-// ReferenceCollection invalid.
-//
 // Java: InlineObjectLiterals.InliningBehavior.recordStaleVarReferencesInTree(Node, Scope)
-func (b *InlineObjectLiterals_InliningBehavior) RecordStaleVarReferencesInTree(root rhino.Node, scope *Scope) {
-	if root.IsName() {
-		b.addStaleVar(scope.GetVar(root.GetString()))
+func (b *InlineObjectLiterals_InliningBehavior) recordStaleVarReferencesInTree(root rhino.Node, scope *Scope) {
+	if name, ok := ast.AsName(root); ok {
+		b.addStaleVar(scope.GetVar(name.Ident()))
 	}
 	if !root.IsFunction() {
 		for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			b.RecordStaleVarReferencesInTree(c, scope)
+			b.recordStaleVarReferencesInTree(c, scope)
 		}
 	}
 }
 
-// IsVarInlineForbidden reports whether the given variable is forbidden from
-// being inlined.
-//
 // Java: InlineObjectLiterals.InliningBehavior.isVarInlineForbidden(Var)
-func (b *InlineObjectLiterals_InliningBehavior) IsVarInlineForbidden(var_ *Var) bool {
-	// A variable may not be inlined if:
-	// 1) The variable is defined in the externs
-	// 2) The variable is exported,
-	// 3) Don't inline the special RENAME_PROPERTY_FUNCTION_NAME
-	// 4) A reference to the variable has been inlined. We're downstream
-	//    of the mechanism that creates variable references, so we don't
-	//    have a good way to update the reference. Just punt on it.
-
-	// Additionally, exclude global variables for now.
-
+func (b *InlineObjectLiterals_InliningBehavior) isVarInlineForbidden(var_ *Var) bool {
 	_, stale := b.staleVars[var_]
 	return var_.IsGlobal() ||
 		var_.IsExtern() ||
@@ -568,14 +535,8 @@ func (b *InlineObjectLiterals_InliningBehavior) IsVarInlineForbidden(var_ *Var) 
 		stale
 }
 
-// IsInlinableObject counts the number of direct (full) references to an
-// object. Specifically, we check for references of the following type:
-//
-//	x;
-//	x.fn();
-//
 // Java: InlineObjectLiterals.InliningBehavior.isInlinableObject(List<Reference>)
-func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs []*Reference) bool {
+func (b *InlineObjectLiterals_InliningBehavior) isInlinableObject(refs []*Reference) bool {
 	ret := false
 	validProperties := &b.validProperties
 	if !validProperties.IsEmpty() {
@@ -586,31 +547,18 @@ func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs []*Refere
 		parent := ref.GetParent()
 		grandparent := ref.GetGrandparent()
 
-		// Ignore most indirect references, like x.y (but not x.y(),
-		// since the function referenced by y might reference 'this').
-		//
-		if NodeUtil_IsNormalOrOptChainGetProp(parent) {
-			jutil.CheckState(parent.GetFirstChild() == name)
+		if gp, ok := ast.AsNormalOrOptChainGetProp(parent); ok {
+			jutil.CheckState(gp.Object().Is(name))
 			// A call target may be using the object as a 'this' value.
 			if NodeUtil_IsInvocationTarget(parent) {
 				return false
 			}
-
-			// Deleting a property has different semantics from deleting
-			// a variable, so deleted properties should not be inlined.
+			// Deleting a property has different semantics from deleting a variable.
 			if grandparent.IsDelProp() {
 				return false
 			}
 
-			// NOTE(nicksantos): This pass's object-splitting algorithm has
-			// a blind spot. It assumes that if a property isn't defined on an
-			// object, then the value is undefined. This is not true, because
-			// Object.prototype can have arbitrary properties on it.
-			//
-			// We short-circuit this problem by bailing out if we see a reference
-			// to a property that isn't defined on the object literal. This
-			// isn't a perfect algorithm, but it should catch most cases.
-			propName := parent.GetString()
+			propName := gp.Property()
 			if !validProperties.Contains(propName) {
 				if NodeUtil_IsNameDeclOrSimpleAssignLhs(parent, grandparent) {
 					validProperties.Add(propName)
@@ -621,194 +569,140 @@ func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs []*Refere
 			continue
 		}
 
-		// Only rewrite VAR declarations or simple assignment statements
-		if !b.IsVarOrAssignExprLhs(name) {
+		// Only rewrite VAR/LET/CONST declarations or simple assignment statements.
+		if !iolIsVarOrAssignExprLhs(name) {
 			return false
 		}
 
-		// Don't try to handle rewriting VAR/CONST/LET declarations inside for loops.
-		// Currently, normalization moves var declarations out of for loop initializers anyway.
-		// let/const are more difficult. Declaring each property outside the for loop puts them
-		// in an incorrect scope. Declaring them in the loop would initialize them multiple times.
+		// Don't rewrite declarations inside for-loop headers.
 		if NodeUtil_IsNameDeclaration(parent) && NodeUtil_IsAnyFor(grandparent) {
 			return false
 		}
 
 		val := ref.GetAssignedValue()
 		if val.IsNil() {
-			// A var with no assignment.
 			continue
 		}
 
-		// We're looking for object literal assignments only.
-		if !val.IsObjectLit() {
+		objLit, ok := ast.AsObjectLit(val)
+		if !ok {
 			return false
 		}
 
-		// Make sure that the value is not self-referential. IOW,
-		// disallow things like x = {b: x.a}.
-		//
-		// TODO(dimvar): Only exclude unorderable self-referential
-		// assignments. i.e. x = {a: x.b, b: x.a} is not orderable,
-		// but x = {a: 1, b: x.a} is.
-		//
-		// Also, ES5 getters/setters aren't handled by this pass.
-		for child := val.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			switch child.GetToken() {
+		// Disallow getters/setters, computed keys, spreads, and self-referential values.
+		for member := range objLit.Members() {
+			switch member.Token() {
 			case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_OBJECT_SPREAD:
-				// ES5 get/set not supported.
-				// Don't inline computed property names
-				// Spread can overwrite any preceding prop if there are matching keys.
-				// TODO(b/126567617): Allow inlining props declared after the SPREAD.
 				return false
 			case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_STRING_KEY:
 			default:
 				panic(jutil.NewIllegalStateExceptionMsg(
-					"Unexpected child of OBJECTLIT: " + child.ToStringTree()))
+					"Unexpected child of OBJECTLIT: " + member.Node().ToStringTree()))
 			}
 
-			validProperties.Add(child.GetString())
+			pkm := ast.MustPlainKeyMember(member.Node())
+			validProperties.Add(pkm.Key())
 
-			childVal := child.GetFirstChild()
-			// Check if childVal is the parent of any of the passed in
-			// references, as that is how self-referential assignments
-			// will happen.
+			childVal := pkm.Value().Node()
 			for _, t := range refs {
-				refNode := t.GetParent()
-				for !NodeUtil_IsStatementBlock(refNode) {
+				for refNode := t.GetParent(); !NodeUtil_IsStatementBlock(refNode); refNode = refNode.GetParent() {
 					if refNode == childVal {
-						// There's a self-referential assignment
 						return false
 					}
-					refNode = refNode.GetParent()
 				}
 			}
 		}
 
-		// We have found an acceptable object literal assignment. As
-		// long as there are no other assignments that mess things up,
-		// we can inline.
 		ret = true
 	}
 	return ret
 }
 
 // Java: InlineObjectLiterals.InliningBehavior.isVarOrAssignExprLhs(Node)
-func (b *InlineObjectLiterals_InliningBehavior) IsVarOrAssignExprLhs(n rhino.Node) bool {
+func iolIsVarOrAssignExprLhs(n rhino.Node) bool {
 	parent := n.GetParent()
-	return NodeUtil_IsNameDeclaration(parent) ||
-		(parent.IsAssign() &&
-			parent.GetFirstChild() == n &&
-			parent.GetParent().IsExprResult())
+	if NodeUtil_IsNameDeclaration(parent) {
+		return true
+	}
+	assign, ok := ast.AsAssign(parent)
+	return ok && assign.Target().Is(n) && parent.GetParent().IsExprResult()
 }
 
-// ComputeVarList computes a list of ever-referenced keys in the object being
-// inlined, and returns a mapping of key name -> generated variable name.
-//
 // Java: InlineObjectLiterals.InliningBehavior.computeVarList(ReferenceCollection)
-func (b *InlineObjectLiterals_InliningBehavior) ComputeVarList(referenceInfo *ReferenceCollection) *jutil.LinkedHashMap[string, string] {
+func (b *InlineObjectLiterals_InliningBehavior) computeVarList(referenceInfo *ReferenceCollection) *jutil.LinkedHashMap[string, string] {
 	varmap := jutil.NewLinkedHashMap[string, string]()
 
 	for _, ref := range referenceInfo.references {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
 			val := ref.GetAssignedValue()
 			if !val.IsNil() {
-				jutil.CheckStateMsg1(val.IsObjectLit(), "%s", val)
-				for child := val.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-					varname := child.GetString()
+				for member := range ast.MustObjectLit(val).Members() {
+					varname := member.Node().GetString()
 					if varmap.ContainsKey(varname) {
 						continue
 					}
-					var_ := varname
+					varIdent := varname
 					if !rhino.TokenStream_IsJSIdentifier(varname) {
-						var_ = InlineObjectLiterals_STRING_KEY_IDENTIFIER
+						varIdent = InlineObjectLiterals_STRING_KEY_IDENTIFIER
 					}
-					var_ = InlineObjectLiterals_VAR_PREFIX + var_ + "_" + b.idSupplier()
-					varmap.Put(varname, var_)
+					varmap.Put(varname, InlineObjectLiterals_VAR_PREFIX+varIdent+"_"+b.idSupplier())
 				}
 			}
 		} else if NodeUtil_IsNameDeclaration(ref.GetParent()) {
-			// This is the var. There is no value.
+			// Uninitialized declaration; no property keys to register.
 		} else {
-			getprop := ref.GetParent()
-			jutil.CheckStateMsg1(NodeUtil_IsNormalOrOptChainGetProp(getprop), "%s", getprop)
-
-			// The key being looked up in the original map.
-			varname := getprop.GetString()
-			if varmap.ContainsKey(varname) {
-				continue
+			gp := ast.MustNormalOrOptChainGetProp(ref.GetParent())
+			varname := gp.Property()
+			if !varmap.ContainsKey(varname) {
+				varmap.Put(varname, InlineObjectLiterals_VAR_PREFIX+varname+"_"+b.idSupplier())
 			}
-
-			var_ := InlineObjectLiterals_VAR_PREFIX + varname + "_" + b.idSupplier()
-			varmap.Put(varname, var_)
 		}
 	}
 
 	return varmap
 }
 
-// FillInitialValues populates a map of key names -> initial assigned values.
-// The object literal these are being pulled from is invalidated as a
-// result.
-//
 // Java: InlineObjectLiterals.InliningBehavior.fillInitialValues(Reference, Map<String, Node>)
-func (b *InlineObjectLiterals_InliningBehavior) FillInitialValues(init *Reference, initvals *jutil.LinkedHashMap[string, rhino.Node]) {
-	object := init.GetAssignedValue()
-	jutil.CheckStateMsg1(object.IsObjectLit(), "%s", object)
-	for key := object.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
+func (b *InlineObjectLiterals_InliningBehavior) fillInitialValues(init *Reference, initvals *jutil.LinkedHashMap[string, rhino.Node]) {
+	objLit := ast.MustObjectLit(init.GetAssignedValue())
+	for member := range objLit.Members() {
+		key := member.Node()
 		initvals.Put(key.GetString(), key.RemoveFirstChild())
 	}
 }
 
-// ReplaceAssignmentExpression replaces an assignment like x = {...} with
-// t1=a,t2=b,t3=c,true. Note that the resulting expression will always
-// evaluate to true, as would the x = {...} expression.
+// replaceAssignmentExpression replaces `x = {...}` with `t1=a, t2=b, true`.
 //
 // Java: InlineObjectLiterals.InliningBehavior.replaceAssignmentExpression(Var, Reference, Map<String, String>)
-func (b *InlineObjectLiterals_InliningBehavior) ReplaceAssignmentExpression(v *Var, ref *Reference, varmap *jutil.LinkedHashMap[string, string]) {
-	// Compute all of the assignments necessary
+func (b *InlineObjectLiterals_InliningBehavior) replaceAssignmentExpression(v *Var, ref *Reference, varmap *jutil.LinkedHashMap[string, string]) {
 	var nodes []rhino.Node
 	val := ref.GetAssignedValue()
-	b.RecordStaleVarReferencesInTree(val, v.GetScope().(*Scope))
-	jutil.CheckStateMsg1(val.IsObjectLit(), "%s", val)
+	b.recordStaleVarReferencesInTree(val, v.GetScope().(*Scope))
+	objLit := ast.MustObjectLit(val)
 	all := jutil.NewLinkedHashSet(varmap.KeySlice()...)
-	for key := val.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-		var_ := key.GetString()
-		value := key.RemoveFirstChild()
-		// TODO(user): Copy type information.
-		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(var_)), value))
-		all.Remove(var_)
+	for member := range objLit.Members() {
+		keyNode := member.Node()
+		propName := keyNode.GetString()
+		value := keyNode.RemoveFirstChild()
+		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(propName)), value))
+		all.Remove(propName)
 	}
 
-	// TODO(user): Better source information.
-	for var_ := range all.All() {
-		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(var_)), NodeUtil_NewUndefinedNode(rhino.NilNode)))
+	for propName := range all.All() {
+		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(propName)), NodeUtil_NewUndefinedNode(rhino.NilNode)))
 	}
 
 	var replacement rhino.Node
 	if len(nodes) == 0 {
 		replacement = rhino.IR_TrueNode()
 	} else {
-		// All assignments evaluate to true, so make sure that the
-		// expr statement evaluates to true in case it matters.
+		// All object-literal assignments evaluate to truthy; preserve truthiness with trailing `true`
+		// folded into a left-associative COMMA tree matching parser shape.
 		nodes = append(nodes, rhino.IR_TrueNode())
-
-		// Join these using COMMA.  A COMMA node must have 2 children, so we
-		// create a tree. In the tree the first child be the COMMA to match
-		// the parser, otherwise tree equality tests fail.
-		// Lists.reverse(nodes): the original order is not used again.
-		slices.Reverse(nodes)
-		replacement = rhino.NewNode(rhino.Token_COMMA)
-		cur := replacement
-		var i int
-		for i = 0; i < len(nodes)-2; i++ {
-			cur.AddChildToFront(nodes[i])
-			t := rhino.NewNode(rhino.Token_COMMA)
-			cur.AddChildToFront(t)
-			cur = t
+		replacement = nodes[0]
+		for _, next := range nodes[1:] {
+			replacement = rhino.IR_Comma(replacement, next)
 		}
-		cur.AddChildToFront(nodes[i])
-		cur.AddChildToFront(nodes[i+1])
 	}
 
 	replace := ref.GetParent()
@@ -821,38 +715,25 @@ func (b *InlineObjectLiterals_InliningBehavior) ReplaceAssignmentExpression(v *V
 	}
 }
 
-// SplitObject splits up the object literal into individual variables, and
-// updates all uses.
-//
 // Java: InlineObjectLiterals.InliningBehavior.splitObject(Var, Reference, ReferenceCollection)
-func (b *InlineObjectLiterals_InliningBehavior) SplitObject(v *Var, init *Reference, referenceInfo *ReferenceCollection) {
-	// First figure out the FULL set of possible keys, so that they
-	// can all be properly set as necessary.
-	varmap := b.ComputeVarList(referenceInfo)
+func (b *InlineObjectLiterals_InliningBehavior) splitObject(v *Var, init *Reference, referenceInfo *ReferenceCollection) {
+	varmap := b.computeVarList(referenceInfo)
 
 	initvals := jutil.NewLinkedHashMap[string, rhino.Node]()
-	// Figure out the top-level of the var assign node. If it's a plain
-	// ASSIGN, then there's an EXPR_STATEMENT above it, if it's a
-	// VAR then it should be directly replaced.
 	var vnode rhino.Node
 	defined := referenceInfo.IsWellDefined() && NodeUtil_IsNameDeclaration(init.GetParent())
 	if defined {
 		vnode = init.GetParent()
-		b.FillInitialValues(init, initvals)
+		b.fillInitialValues(init, initvals)
 	} else if v.GetParentNode().IsLet() || v.GetParentNode().IsConst() {
-		// Find the beginning of the current scope.
 		scopeRoot := v.GetScope().(*Scope).GetRootNode()
-		// Assuming scopeRoot is a BLOCK, then we want to insert at the top of the block, before the
-		// first statement.
 		vnode = scopeRoot.GetFirstChild()
-		// Some scope-creating nodes might not be BLOCK nodes
 		if !NodeUtil_IsStatement(vnode) && NodeUtil_IsStatement(scopeRoot) {
 			vnode = scopeRoot
 		} else if scopeRoot.IsSwitchBody() {
 			vnode = scopeRoot.GetParent()
 		}
 	} else {
-		// Find the beginning of the function body / script.
 		vnode = v.GetScope().(*Scope).GetClosestHoistScope().GetRootNode().GetFirstChild()
 	}
 
@@ -862,10 +743,9 @@ func (b *InlineObjectLiterals_InliningBehavior) SplitObject(v *Var, init *Refere
 		val := initvals.Get(key)
 		newVarNode := NodeUtil_NewVarNode(value, val)
 		if val.IsNil() {
-			// is this right?
 			newVarNode.SrcrefTreeIfMissing(vnode)
 		} else {
-			b.RecordStaleVarReferencesInTree(val, v.GetScope().(*Scope))
+			b.recordStaleVarReferencesInTree(val, v.GetScope().(*Scope))
 		}
 		newVarNode.InsertBefore(vnode)
 		b.reportChange(vnode)
@@ -877,37 +757,22 @@ func (b *InlineObjectLiterals_InliningBehavior) SplitObject(v *Var, init *Refere
 	}
 
 	for _, ref := range referenceInfo.references {
-
-		// The init/decl have already been converted.
 		if defined && ref == init {
 			continue
 		}
 		b.reportChange(ref.GetNode())
 
 		if ref.IsLvalue() {
-			// Assignments have to be handled specially, since they
-			// expand out into multiple assignments.
-			b.ReplaceAssignmentExpression(v, ref, varmap)
+			b.replaceAssignmentExpression(v, ref, varmap)
 		} else if NodeUtil_IsNameDeclaration(ref.GetParent()) {
-			// The old variable declaration. It didn't have a
-			// value. Remove it entirely as it should now be unused.
 			ref.GetParent().Detach()
 		} else {
-			// Make sure that the reference is a GETPROP as we expect it to be.
-			getprop := ref.GetParent()
-			jutil.CheckStateMsg1(NodeUtil_IsNormalOrOptChainGetProp(getprop), "%s", getprop)
+			gp := ast.MustNormalOrOptChainGetProp(ref.GetParent())
+			propName := gp.Property()
+			jutil.CheckState(varmap.ContainsKey(propName))
 
-			// The key being looked up in the original map.
-			var_ := getprop.GetString()
-
-			// If the variable hasn't already been declared, add an empty
-			// declaration near all the other declarations.
-			jutil.CheckState(varmap.ContainsKey(var_))
-
-			// Replace the GETPROP node with a NAME.
-			replacement := rhino.IR_Name(varmap.Get(var_))
-			replacement.SrcrefIfMissing(getprop)
-			ref.GetParent().ReplaceWith(replacement)
+			replacement := rhino.IR_Name(varmap.Get(propName)).SrcrefIfMissing(gp.Node())
+			gp.Node().ReplaceWith(replacement)
 		}
 	}
 }

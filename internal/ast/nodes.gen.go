@@ -2478,6 +2478,9 @@ func NewIterRest(target Target) IterRest {
 // AsParam returns x as a Param.
 func (x IterRest) AsParam() Param { return Param{x.node} }
 
+// AsRest returns x as a Rest.
+func (x IterRest) AsRest() Rest { return Rest{x.node} }
+
 // AsArrayPatternElem returns x as an ArrayPatternElem.
 func (x IterRest) AsArrayPatternElem() ArrayPatternElem { return ArrayPatternElem{x.node} }
 
@@ -2526,6 +2529,9 @@ func NewObjectRest(target Target) ObjectRest {
 	return ObjectRest{n}
 }
 
+// AsRest returns x as a Rest.
+func (x ObjectRest) AsRest() Rest { return Rest{x.node} }
+
 // AsObjectPatternProp returns x as an ObjectPatternProp.
 func (x ObjectRest) AsObjectPatternProp() ObjectPatternProp { return ObjectPatternProp{x.node} }
 
@@ -2573,6 +2579,9 @@ func NewIterSpread(expr Expr) IterSpread {
 	n.AddChildToBack(expr.node)
 	return IterSpread{n}
 }
+
+// AsSpread returns x as a Spread.
+func (x IterSpread) AsSpread() Spread { return Spread{x.node} }
 
 // AsArg returns x as an Arg.
 func (x IterSpread) AsArg() Arg { return Arg{x.node} }
@@ -2624,6 +2633,9 @@ func NewObjectSpread(expr Expr) ObjectSpread {
 	n.AddChildToBack(expr.node)
 	return ObjectSpread{n}
 }
+
+// AsSpread returns x as a Spread.
+func (x ObjectSpread) AsSpread() Spread { return Spread{x.node} }
 
 // AsObjectMember returns x as an ObjectMember.
 func (x ObjectSpread) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
@@ -3125,6 +3137,12 @@ func (x MemberFunctionDef) AsClassMember() ClassMember { return ClassMember{x.no
 // AsMethodDef returns x as a MethodDef.
 func (x MemberFunctionDef) AsMethodDef() MethodDef { return MethodDef{x.node} }
 
+// AsPlainKeyMember returns x as a PlainKeyMember.
+func (x MemberFunctionDef) AsPlainKeyMember() PlainKeyMember { return PlainKeyMember{x.node} }
+
+// AsNamedMember returns x as a NamedMember.
+func (x MemberFunctionDef) AsNamedMember() NamedMember { return NamedMember{x.node} }
+
 // GetterDef is get key() { body }.
 //
 // Grammar: GetterDef = GETTER_DEF  $Key function:Function
@@ -3188,6 +3206,12 @@ func (x GetterDef) AsGetterOrSetterDef() GetterOrSetterDef { return GetterOrSett
 // AsMethodDef returns x as a MethodDef.
 func (x GetterDef) AsMethodDef() MethodDef { return MethodDef{x.node} }
 
+// AsPlainKeyMember returns x as a PlainKeyMember.
+func (x GetterDef) AsPlainKeyMember() PlainKeyMember { return PlainKeyMember{x.node} }
+
+// AsNamedMember returns x as a NamedMember.
+func (x GetterDef) AsNamedMember() NamedMember { return NamedMember{x.node} }
+
 // SetterDef is set key(param) { body }.
 //
 // Grammar: SetterDef = SETTER_DEF  $Key function:Function
@@ -3250,6 +3274,12 @@ func (x SetterDef) AsGetterOrSetterDef() GetterOrSetterDef { return GetterOrSett
 
 // AsMethodDef returns x as a MethodDef.
 func (x SetterDef) AsMethodDef() MethodDef { return MethodDef{x.node} }
+
+// AsPlainKeyMember returns x as a PlainKeyMember.
+func (x SetterDef) AsPlainKeyMember() PlainKeyMember { return PlainKeyMember{x.node} }
+
+// AsNamedMember returns x as a NamedMember.
+func (x SetterDef) AsNamedMember() NamedMember { return NamedMember{x.node} }
 
 // MemberFieldDef is a class field: key = value.
 //
@@ -3319,6 +3349,12 @@ func NewMemberFieldDef(key string) MemberFieldDef {
 
 // AsClassMember returns x as a ClassMember.
 func (x MemberFieldDef) AsClassMember() ClassMember { return ClassMember{x.node} }
+
+// AsFieldDef returns x as a FieldDef.
+func (x MemberFieldDef) AsFieldDef() FieldDef { return FieldDef{x.node} }
+
+// AsNamedMember returns x as a NamedMember.
+func (x MemberFieldDef) AsNamedMember() NamedMember { return NamedMember{x.node} }
 
 // ComputedFieldDef is a class field with a computed key: [key] = value.
 //
@@ -3392,6 +3428,9 @@ func (x ComputedFieldDef) AsClassMember() ClassMember { return ClassMember{x.nod
 
 // AsComputedMember returns x as a ComputedMember.
 func (x ComputedFieldDef) AsComputedMember() ComputedMember { return ComputedMember{x.node} }
+
+// AsFieldDef returns x as a FieldDef.
+func (x ComputedFieldDef) AsFieldDef() FieldDef { return FieldDef{x.node} }
 
 // ComputedProp is [key]: value in an object literal or pattern, or a
 // method with a computed key in a class.
@@ -4723,7 +4762,7 @@ func (x TemplateLitSub) AsTemplatePart() TemplatePart { return TemplatePart{x.no
 
 // TaggedTemplateLit is tag`template`.
 //
-// Grammar: TaggedTemplateLit = TAGGED_TEMPLATELIT  tag:Expr template:TemplateLit
+// Grammar: TaggedTemplateLit = TAGGED_TEMPLATELIT  tag|callee:Expr template:TemplateLit
 type TaggedTemplateLit struct{ node rhino.Node }
 
 // AsTaggedTemplateLit returns n as a TaggedTemplateLit; ok is false if n is not one (or is the nil node).
@@ -4759,6 +4798,9 @@ func (x TaggedTemplateLit) Tag() Expr { return Expr{x.node.GetFirstChild()} }
 // SetTag replaces the tag of x with v (which must not be in a tree).
 func (x TaggedTemplateLit) SetTag(v Expr) { x.node.GetFirstChild().ReplaceWith(v.node) }
 
+// Callee returns the callee of x (another name for its tag).
+func (x TaggedTemplateLit) Callee() Expr { return Expr{x.node.GetFirstChild()} }
+
 // Template returns the template of x.
 func (x TaggedTemplateLit) Template() TemplateLit { return TemplateLit{x.node.GetSecondChild()} }
 
@@ -4793,6 +4835,9 @@ func (x TaggedTemplateLit) AsFunctionBody() FunctionBody { return FunctionBody{x
 
 // AsExportBody returns x as an ExportBody.
 func (x TaggedTemplateLit) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsInvocation returns x as an Invocation.
+func (x TaggedTemplateLit) AsInvocation() Invocation { return Invocation{x.node} }
 
 // ArrayLit is [elements].
 //
@@ -5096,6 +5141,12 @@ func (x StringKey) AsObjectPatternProp() ObjectPatternProp { return ObjectPatter
 
 // AsObjectMember returns x as an ObjectMember.
 func (x StringKey) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
+
+// AsPlainKeyMember returns x as a PlainKeyMember.
+func (x StringKey) AsPlainKeyMember() PlainKeyMember { return PlainKeyMember{x.node} }
+
+// AsNamedMember returns x as a NamedMember.
+func (x StringKey) AsNamedMember() NamedMember { return NamedMember{x.node} }
 
 // Unary is op operand: delete, +, -, !, typeof, void, ~.
 //
@@ -5908,6 +5959,12 @@ func (x OptChainGetProp) AsFunctionBody() FunctionBody { return FunctionBody{x.n
 // AsExportBody returns x as an ExportBody.
 func (x OptChainGetProp) AsExportBody() ExportBody { return ExportBody{x.node} }
 
+// AsOptChain returns x as an OptChain.
+func (x OptChainGetProp) AsOptChain() OptChain { return OptChain{x.node} }
+
+// AsOptChainGet returns x as an OptChainGet.
+func (x OptChainGetProp) AsOptChainGet() OptChainGet { return OptChainGet{x.node} }
+
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp.
 func (x OptChainGetProp) AsNormalOrOptChainGetProp() NormalOrOptChainGetProp {
 	return NormalOrOptChainGetProp{x.node}
@@ -6084,6 +6141,12 @@ func (x OptChainGetElem) AsFunctionBody() FunctionBody { return FunctionBody{x.n
 // AsExportBody returns x as an ExportBody.
 func (x OptChainGetElem) AsExportBody() ExportBody { return ExportBody{x.node} }
 
+// AsOptChain returns x as an OptChain.
+func (x OptChainGetElem) AsOptChain() OptChain { return OptChain{x.node} }
+
+// AsOptChainGet returns x as an OptChainGet.
+func (x OptChainGetElem) AsOptChainGet() OptChainGet { return OptChainGet{x.node} }
+
 // AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
 func (x OptChainGetElem) AsNormalOrOptChainGet() NormalOrOptChainGet {
 	return NormalOrOptChainGet{x.node}
@@ -6230,6 +6293,9 @@ func (x Call) AsNormalOrOptChainCall() NormalOrOptChainCall { return NormalOrOpt
 // AsCallOrNew returns x as a CallOrNew.
 func (x Call) AsCallOrNew() CallOrNew { return CallOrNew{x.node} }
 
+// AsInvocation returns x as an Invocation.
+func (x Call) AsInvocation() Invocation { return Invocation{x.node} }
+
 // OptChainCall is callee?.(args).
 //
 // Grammar: OptChainCall = OPTCHAIN_CALL  callee:Expr args:Arg*
@@ -6368,6 +6434,12 @@ func (x OptChainCall) AsNormalOrOptChainCall() NormalOrOptChainCall {
 // AsCallOrNew returns x as a CallOrNew.
 func (x OptChainCall) AsCallOrNew() CallOrNew { return CallOrNew{x.node} }
 
+// AsInvocation returns x as an Invocation.
+func (x OptChainCall) AsInvocation() Invocation { return Invocation{x.node} }
+
+// AsOptChain returns x as an OptChain.
+func (x OptChainCall) AsOptChain() OptChain { return OptChain{x.node} }
+
 // New is new callee(args).
 //
 // Grammar: New = NEW  callee:Expr args:Arg*
@@ -6500,6 +6572,9 @@ func (x New) AsExportBody() ExportBody { return ExportBody{x.node} }
 
 // AsCallOrNew returns x as a CallOrNew.
 func (x New) AsCallOrNew() CallOrNew { return CallOrNew{x.node} }
+
+// AsInvocation returns x as an Invocation.
+func (x New) AsInvocation() Invocation { return Invocation{x.node} }
 
 // Yield is yield value.
 //
@@ -8329,6 +8404,27 @@ func (x Expr) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x Expr) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
+// AsInvocation returns x as an Invocation; ok is false if it is not one.
+func (x Expr) AsInvocation() (Invocation, bool) { return AsInvocation(x.node) }
+
+// MustInvocation returns x as an Invocation; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustInvocation() Invocation { return MustInvocation(x.node) }
+
+// AsOptChain returns x as an OptChain; ok is false if it is not one.
+func (x Expr) AsOptChain() (OptChain, bool) { return AsOptChain(x.node) }
+
+// MustOptChain returns x as an OptChain; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustOptChain() OptChain { return MustOptChain(x.node) }
+
+// AsOptChainGet returns x as an OptChainGet; ok is false if it is not one.
+func (x Expr) AsOptChainGet() (OptChainGet, bool) { return AsOptChainGet(x.node) }
+
+// MustOptChainGet returns x as an OptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Expr) MustOptChainGet() OptChainGet { return MustOptChainGet(x.node) }
+
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x Expr) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
@@ -8653,6 +8749,124 @@ func (x Param) AsCatchParam() (CatchParam, bool) { return AsCatchParam(x.node) }
 // MustCatchParam returns x as a CatchParam; it panics if x is not one. Use it where the
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x Param) MustCatchParam() CatchParam { return MustCatchParam(x.node) }
+
+// Rest is ...target, in a parameter list, an array pattern or an object
+// pattern (Node.isRest).
+//
+// Grammar: Rest = IterRest | ObjectRest
+type Rest struct{ node rhino.Node }
+
+// AsRest returns n as a Rest; ok is false if n is not one (or is the nil node).
+func AsRest(n rhino.Node) (x Rest, ok bool) {
+	if n == rhino.NilNode || !restTokens.Has(n.GetToken()) {
+		return Rest{}, false
+	}
+	return Rest{n}, true
+}
+
+// MustRest returns n as a Rest; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustRest(n rhino.Node) Rest {
+	x, ok := AsRest(n)
+	if !ok {
+		panic(mustError{"Rest", n})
+	}
+	return x
+}
+
+// restTokens holds the tokens of Rest.
+var restTokens = tokenSetOf(rhino.Token_ITER_REST, rhino.Token_OBJECT_REST)
+
+// Node returns x as a rhino.Node.
+func (x Rest) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Rest) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of Rest it is).
+func (x Rest) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Rest) Detach() Rest { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Rest) ReplaceWith(v Rest) { x.node.ReplaceWith(v.node) }
+
+// AsIterRest returns x as an IterRest; ok is false if it is not one.
+func (x Rest) AsIterRest() (IterRest, bool) { return AsIterRest(x.node) }
+
+// MustIterRest returns x as an IterRest; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Rest) MustIterRest() IterRest { return MustIterRest(x.node) }
+
+// AsObjectRest returns x as an ObjectRest; ok is false if it is not one.
+func (x Rest) AsObjectRest() (ObjectRest, bool) { return AsObjectRest(x.node) }
+
+// MustObjectRest returns x as an ObjectRest; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Rest) MustObjectRest() ObjectRest { return MustObjectRest(x.node) }
+
+// Target returns the target of x.
+func (x Rest) Target() Target { return Target{x.node.GetFirstChild()} }
+
+// Spread is ...expr, in a call, an array literal or an object literal
+// (Node.isSpread).
+//
+// Grammar: Spread = IterSpread | ObjectSpread
+type Spread struct{ node rhino.Node }
+
+// AsSpread returns n as a Spread; ok is false if n is not one (or is the nil node).
+func AsSpread(n rhino.Node) (x Spread, ok bool) {
+	if n == rhino.NilNode || !spreadTokens.Has(n.GetToken()) {
+		return Spread{}, false
+	}
+	return Spread{n}, true
+}
+
+// MustSpread returns n as a Spread; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustSpread(n rhino.Node) Spread {
+	x, ok := AsSpread(n)
+	if !ok {
+		panic(mustError{"Spread", n})
+	}
+	return x
+}
+
+// spreadTokens holds the tokens of Spread.
+var spreadTokens = tokenSetOf(rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD)
+
+// Node returns x as a rhino.Node.
+func (x Spread) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Spread) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of Spread it is).
+func (x Spread) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Spread) Detach() Spread { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Spread) ReplaceWith(v Spread) { x.node.ReplaceWith(v.node) }
+
+// AsIterSpread returns x as an IterSpread; ok is false if it is not one.
+func (x Spread) AsIterSpread() (IterSpread, bool) { return AsIterSpread(x.node) }
+
+// MustIterSpread returns x as an IterSpread; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Spread) MustIterSpread() IterSpread { return MustIterSpread(x.node) }
+
+// AsObjectSpread returns x as an ObjectSpread; ok is false if it is not one.
+func (x Spread) AsObjectSpread() (ObjectSpread, bool) { return AsObjectSpread(x.node) }
+
+// MustObjectSpread returns x as an ObjectSpread; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Spread) MustObjectSpread() ObjectSpread { return MustObjectSpread(x.node) }
+
+// Expr returns the expr of x.
+func (x Spread) Expr() Expr { return Expr{x.node.GetFirstChild()} }
 
 // Arg is a call argument.
 //
@@ -8984,6 +9198,27 @@ func (x Arg) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
 // MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x Arg) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
+
+// AsInvocation returns x as an Invocation; ok is false if it is not one.
+func (x Arg) AsInvocation() (Invocation, bool) { return AsInvocation(x.node) }
+
+// MustInvocation returns x as an Invocation; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustInvocation() Invocation { return MustInvocation(x.node) }
+
+// AsOptChain returns x as an OptChain; ok is false if it is not one.
+func (x Arg) AsOptChain() (OptChain, bool) { return AsOptChain(x.node) }
+
+// MustOptChain returns x as an OptChain; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustOptChain() OptChain { return MustOptChain(x.node) }
+
+// AsOptChainGet returns x as an OptChainGet; ok is false if it is not one.
+func (x Arg) AsOptChainGet() (OptChainGet, bool) { return AsOptChainGet(x.node) }
+
+// MustOptChainGet returns x as an OptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Arg) MustOptChainGet() OptChainGet { return MustOptChainGet(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x Arg) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
@@ -9377,6 +9612,27 @@ func (x ArrayElem) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) 
 // MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x ArrayElem) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
+
+// AsInvocation returns x as an Invocation; ok is false if it is not one.
+func (x ArrayElem) AsInvocation() (Invocation, bool) { return AsInvocation(x.node) }
+
+// MustInvocation returns x as an Invocation; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustInvocation() Invocation { return MustInvocation(x.node) }
+
+// AsOptChain returns x as an OptChain; ok is false if it is not one.
+func (x ArrayElem) AsOptChain() (OptChain, bool) { return AsOptChain(x.node) }
+
+// MustOptChain returns x as an OptChain; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustOptChain() OptChain { return MustOptChain(x.node) }
+
+// AsOptChainGet returns x as an OptChainGet; ok is false if it is not one.
+func (x ArrayElem) AsOptChainGet() (OptChainGet, bool) { return AsOptChainGet(x.node) }
+
+// MustOptChainGet returns x as an OptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ArrayElem) MustOptChainGet() OptChainGet { return MustOptChainGet(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x ArrayElem) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
@@ -9996,6 +10252,27 @@ func (x PropValue) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) 
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x PropValue) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
+// AsInvocation returns x as an Invocation; ok is false if it is not one.
+func (x PropValue) AsInvocation() (Invocation, bool) { return AsInvocation(x.node) }
+
+// MustInvocation returns x as an Invocation; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustInvocation() Invocation { return MustInvocation(x.node) }
+
+// AsOptChain returns x as an OptChain; ok is false if it is not one.
+func (x PropValue) AsOptChain() (OptChain, bool) { return AsOptChain(x.node) }
+
+// MustOptChain returns x as an OptChain; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustOptChain() OptChain { return MustOptChain(x.node) }
+
+// AsOptChainGet returns x as an OptChainGet; ok is false if it is not one.
+func (x PropValue) AsOptChainGet() (OptChainGet, bool) { return AsOptChainGet(x.node) }
+
+// MustOptChainGet returns x as an OptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PropValue) MustOptChainGet() OptChainGet { return MustOptChainGet(x.node) }
+
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x PropValue) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
@@ -10144,6 +10421,13 @@ func (x ObjectMember) AsMethodDef() (MethodDef, bool) { return AsMethodDef(x.nod
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x ObjectMember) MustMethodDef() MethodDef { return MustMethodDef(x.node) }
 
+// AsPlainKeyMember returns x as a PlainKeyMember; ok is false if it is not one.
+func (x ObjectMember) AsPlainKeyMember() (PlainKeyMember, bool) { return AsPlainKeyMember(x.node) }
+
+// MustPlainKeyMember returns x as a PlainKeyMember; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ObjectMember) MustPlainKeyMember() PlainKeyMember { return MustPlainKeyMember(x.node) }
+
 // ClassMember is a member of a class body (Block for a static block).
 //
 // Grammar: ClassMember = MemberFunctionDef | GetterDef | SetterDef | MemberVariableDef | ComputedProp | MemberFieldDef | ComputedFieldDef | IndexSignature | CallSignature | Block | Empty
@@ -10289,6 +10573,13 @@ func (x ClassMember) AsComputedMember() (ComputedMember, bool) { return AsComput
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x ClassMember) MustComputedMember() ComputedMember { return MustComputedMember(x.node) }
 
+// AsFieldDef returns x as a FieldDef; ok is false if it is not one.
+func (x ClassMember) AsFieldDef() (FieldDef, bool) { return AsFieldDef(x.node) }
+
+// MustFieldDef returns x as a FieldDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ClassMember) MustFieldDef() FieldDef { return MustFieldDef(x.node) }
+
 // GetterOrSetterDef is a getter or a setter, in an object literal or a
 // class: get key() { body } or set key(param) { body }.
 //
@@ -10353,6 +10644,12 @@ func (x GetterOrSetterDef) AsClassMember() ClassMember { return ClassMember{x.no
 
 // AsMethodDef returns x as a MethodDef.
 func (x GetterOrSetterDef) AsMethodDef() MethodDef { return MethodDef{x.node} }
+
+// AsPlainKeyMember returns x as a PlainKeyMember.
+func (x GetterOrSetterDef) AsPlainKeyMember() PlainKeyMember { return PlainKeyMember{x.node} }
+
+// AsNamedMember returns x as a NamedMember.
+func (x GetterOrSetterDef) AsNamedMember() NamedMember { return NamedMember{x.node} }
 
 // Function returns the function of x.
 func (x GetterOrSetterDef) Function() Function { return Function{x.node.GetFirstChild()} }
@@ -10439,6 +10736,12 @@ func (x MethodDef) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x MethodDef) MustGetterOrSetterDef() GetterOrSetterDef { return MustGetterOrSetterDef(x.node) }
 
+// AsPlainKeyMember returns x as a PlainKeyMember.
+func (x MethodDef) AsPlainKeyMember() PlainKeyMember { return PlainKeyMember{x.node} }
+
+// AsNamedMember returns x as a NamedMember.
+func (x MethodDef) AsNamedMember() NamedMember { return NamedMember{x.node} }
+
 // Function returns the function of x.
 func (x MethodDef) Function() Function { return Function{x.node.GetFirstChild()} }
 
@@ -10508,6 +10811,270 @@ func (x ComputedMember) AsClassMember() ClassMember { return ClassMember{x.node}
 
 // Key returns the key of x.
 func (x ComputedMember) Key() Expr { return Expr{x.node.GetFirstChild()} }
+
+// FieldDef is a class field, named or computed: key = value or [key] = value.
+//
+// Grammar: FieldDef = MemberFieldDef | ComputedFieldDef
+type FieldDef struct{ node rhino.Node }
+
+// AsFieldDef returns n as a FieldDef; ok is false if n is not one (or is the nil node).
+func AsFieldDef(n rhino.Node) (x FieldDef, ok bool) {
+	if n == rhino.NilNode || !fieldDefTokens.Has(n.GetToken()) {
+		return FieldDef{}, false
+	}
+	return FieldDef{n}, true
+}
+
+// MustFieldDef returns n as a FieldDef; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustFieldDef(n rhino.Node) FieldDef {
+	x, ok := AsFieldDef(n)
+	if !ok {
+		panic(mustError{"FieldDef", n})
+	}
+	return x
+}
+
+// fieldDefTokens holds the tokens of FieldDef.
+var fieldDefTokens = tokenSetOf(rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF)
+
+// Node returns x as a rhino.Node.
+func (x FieldDef) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x FieldDef) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of FieldDef it is).
+func (x FieldDef) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x FieldDef) Detach() FieldDef { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x FieldDef) ReplaceWith(v FieldDef) { x.node.ReplaceWith(v.node) }
+
+// AsMemberFieldDef returns x as a MemberFieldDef; ok is false if it is not one.
+func (x FieldDef) AsMemberFieldDef() (MemberFieldDef, bool) { return AsMemberFieldDef(x.node) }
+
+// MustMemberFieldDef returns x as a MemberFieldDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FieldDef) MustMemberFieldDef() MemberFieldDef { return MustMemberFieldDef(x.node) }
+
+// AsComputedFieldDef returns x as a ComputedFieldDef; ok is false if it is not one.
+func (x FieldDef) AsComputedFieldDef() (ComputedFieldDef, bool) { return AsComputedFieldDef(x.node) }
+
+// MustComputedFieldDef returns x as a ComputedFieldDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FieldDef) MustComputedFieldDef() ComputedFieldDef { return MustComputedFieldDef(x.node) }
+
+// AsClassMember returns x as a ClassMember.
+func (x FieldDef) AsClassMember() ClassMember { return ClassMember{x.node} }
+
+// PlainKeyMember is an object or class member with a fixed key and a value or
+// function: key: value, key() {}, get key() {} or set key(v) {}.
+//
+// Grammar: PlainKeyMember = StringKey | MethodDef
+type PlainKeyMember struct{ node rhino.Node }
+
+// AsPlainKeyMember returns n as a PlainKeyMember; ok is false if n is not one (or is the nil node).
+func AsPlainKeyMember(n rhino.Node) (x PlainKeyMember, ok bool) {
+	if n == rhino.NilNode || !plainKeyMemberTokens.Has(n.GetToken()) {
+		return PlainKeyMember{}, false
+	}
+	return PlainKeyMember{n}, true
+}
+
+// MustPlainKeyMember returns n as a PlainKeyMember; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustPlainKeyMember(n rhino.Node) PlainKeyMember {
+	x, ok := AsPlainKeyMember(n)
+	if !ok {
+		panic(mustError{"PlainKeyMember", n})
+	}
+	return x
+}
+
+// plainKeyMemberTokens holds the tokens of PlainKeyMember.
+var plainKeyMemberTokens = tokenSetOf(rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_STRING_KEY)
+
+// Node returns x as a rhino.Node.
+func (x PlainKeyMember) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x PlainKeyMember) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of PlainKeyMember it is).
+func (x PlainKeyMember) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x PlainKeyMember) Detach() PlainKeyMember { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x PlainKeyMember) ReplaceWith(v PlainKeyMember) { x.node.ReplaceWith(v.node) }
+
+// AsMemberFunctionDef returns x as a MemberFunctionDef; ok is false if it is not one.
+func (x PlainKeyMember) AsMemberFunctionDef() (MemberFunctionDef, bool) {
+	return AsMemberFunctionDef(x.node)
+}
+
+// MustMemberFunctionDef returns x as a MemberFunctionDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PlainKeyMember) MustMemberFunctionDef() MemberFunctionDef {
+	return MustMemberFunctionDef(x.node)
+}
+
+// AsGetterDef returns x as a GetterDef; ok is false if it is not one.
+func (x PlainKeyMember) AsGetterDef() (GetterDef, bool) { return AsGetterDef(x.node) }
+
+// MustGetterDef returns x as a GetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PlainKeyMember) MustGetterDef() GetterDef { return MustGetterDef(x.node) }
+
+// AsSetterDef returns x as a SetterDef; ok is false if it is not one.
+func (x PlainKeyMember) AsSetterDef() (SetterDef, bool) { return AsSetterDef(x.node) }
+
+// MustSetterDef returns x as a SetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PlainKeyMember) MustSetterDef() SetterDef { return MustSetterDef(x.node) }
+
+// AsStringKey returns x as a StringKey; ok is false if it is not one.
+func (x PlainKeyMember) AsStringKey() (StringKey, bool) { return AsStringKey(x.node) }
+
+// MustStringKey returns x as a StringKey; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PlainKeyMember) MustStringKey() StringKey { return MustStringKey(x.node) }
+
+// AsObjectMember returns x as an ObjectMember.
+func (x PlainKeyMember) AsObjectMember() ObjectMember { return ObjectMember{x.node} }
+
+// AsGetterOrSetterDef returns x as a GetterOrSetterDef; ok is false if it is not one.
+func (x PlainKeyMember) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
+	return AsGetterOrSetterDef(x.node)
+}
+
+// MustGetterOrSetterDef returns x as a GetterOrSetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PlainKeyMember) MustGetterOrSetterDef() GetterOrSetterDef {
+	return MustGetterOrSetterDef(x.node)
+}
+
+// AsMethodDef returns x as a MethodDef; ok is false if it is not one.
+func (x PlainKeyMember) AsMethodDef() (MethodDef, bool) { return AsMethodDef(x.node) }
+
+// MustMethodDef returns x as a MethodDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x PlainKeyMember) MustMethodDef() MethodDef { return MustMethodDef(x.node) }
+
+// AsNamedMember returns x as a NamedMember.
+func (x PlainKeyMember) AsNamedMember() NamedMember { return NamedMember{x.node} }
+
+// Key returns the node's string.
+func (x PlainKeyMember) Key() string { return x.node.GetString() }
+
+// NamedMember is an object or class member with a non-computed key: a
+// property, method, getter, setter or named class field.
+//
+// Grammar: NamedMember = PlainKeyMember | MemberFieldDef
+type NamedMember struct{ node rhino.Node }
+
+// AsNamedMember returns n as a NamedMember; ok is false if n is not one (or is the nil node).
+func AsNamedMember(n rhino.Node) (x NamedMember, ok bool) {
+	if n == rhino.NilNode || !namedMemberTokens.Has(n.GetToken()) {
+		return NamedMember{}, false
+	}
+	return NamedMember{n}, true
+}
+
+// MustNamedMember returns n as a NamedMember; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustNamedMember(n rhino.Node) NamedMember {
+	x, ok := AsNamedMember(n)
+	if !ok {
+		panic(mustError{"NamedMember", n})
+	}
+	return x
+}
+
+// namedMemberTokens holds the tokens of NamedMember.
+var namedMemberTokens = tokenSetOf(rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_STRING_KEY)
+
+// Node returns x as a rhino.Node.
+func (x NamedMember) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x NamedMember) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of NamedMember it is).
+func (x NamedMember) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x NamedMember) Detach() NamedMember { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x NamedMember) ReplaceWith(v NamedMember) { x.node.ReplaceWith(v.node) }
+
+// AsMemberFunctionDef returns x as a MemberFunctionDef; ok is false if it is not one.
+func (x NamedMember) AsMemberFunctionDef() (MemberFunctionDef, bool) {
+	return AsMemberFunctionDef(x.node)
+}
+
+// MustMemberFunctionDef returns x as a MemberFunctionDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NamedMember) MustMemberFunctionDef() MemberFunctionDef { return MustMemberFunctionDef(x.node) }
+
+// AsGetterDef returns x as a GetterDef; ok is false if it is not one.
+func (x NamedMember) AsGetterDef() (GetterDef, bool) { return AsGetterDef(x.node) }
+
+// MustGetterDef returns x as a GetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NamedMember) MustGetterDef() GetterDef { return MustGetterDef(x.node) }
+
+// AsSetterDef returns x as a SetterDef; ok is false if it is not one.
+func (x NamedMember) AsSetterDef() (SetterDef, bool) { return AsSetterDef(x.node) }
+
+// MustSetterDef returns x as a SetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NamedMember) MustSetterDef() SetterDef { return MustSetterDef(x.node) }
+
+// AsMemberFieldDef returns x as a MemberFieldDef; ok is false if it is not one.
+func (x NamedMember) AsMemberFieldDef() (MemberFieldDef, bool) { return AsMemberFieldDef(x.node) }
+
+// MustMemberFieldDef returns x as a MemberFieldDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NamedMember) MustMemberFieldDef() MemberFieldDef { return MustMemberFieldDef(x.node) }
+
+// AsStringKey returns x as a StringKey; ok is false if it is not one.
+func (x NamedMember) AsStringKey() (StringKey, bool) { return AsStringKey(x.node) }
+
+// MustStringKey returns x as a StringKey; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NamedMember) MustStringKey() StringKey { return MustStringKey(x.node) }
+
+// AsGetterOrSetterDef returns x as a GetterOrSetterDef; ok is false if it is not one.
+func (x NamedMember) AsGetterOrSetterDef() (GetterOrSetterDef, bool) {
+	return AsGetterOrSetterDef(x.node)
+}
+
+// MustGetterOrSetterDef returns x as a GetterOrSetterDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NamedMember) MustGetterOrSetterDef() GetterOrSetterDef { return MustGetterOrSetterDef(x.node) }
+
+// AsMethodDef returns x as a MethodDef; ok is false if it is not one.
+func (x NamedMember) AsMethodDef() (MethodDef, bool) { return AsMethodDef(x.node) }
+
+// MustMethodDef returns x as a MethodDef; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NamedMember) MustMethodDef() MethodDef { return MustMethodDef(x.node) }
+
+// AsPlainKeyMember returns x as a PlainKeyMember; ok is false if it is not one.
+func (x NamedMember) AsPlainKeyMember() (PlainKeyMember, bool) { return AsPlainKeyMember(x.node) }
+
+// MustPlainKeyMember returns x as a PlainKeyMember; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NamedMember) MustPlainKeyMember() PlainKeyMember { return MustPlainKeyMember(x.node) }
+
+// Key returns the node's string.
+func (x NamedMember) Key() string { return x.node.GetString() }
 
 // Loop is a loop statement.
 //
@@ -11310,6 +11877,27 @@ func (x ForInit) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x ForInit) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
+// AsInvocation returns x as an Invocation; ok is false if it is not one.
+func (x ForInit) AsInvocation() (Invocation, bool) { return AsInvocation(x.node) }
+
+// MustInvocation returns x as an Invocation; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustInvocation() Invocation { return MustInvocation(x.node) }
+
+// AsOptChain returns x as an OptChain; ok is false if it is not one.
+func (x ForInit) AsOptChain() (OptChain, bool) { return AsOptChain(x.node) }
+
+// MustOptChain returns x as an OptChain; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustOptChain() OptChain { return MustOptChain(x.node) }
+
+// AsOptChainGet returns x as an OptChainGet; ok is false if it is not one.
+func (x ForInit) AsOptChainGet() (OptChainGet, bool) { return AsOptChainGet(x.node) }
+
+// MustOptChainGet returns x as an OptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ForInit) MustOptChainGet() OptChainGet { return MustOptChainGet(x.node) }
+
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x ForInit) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
@@ -11908,6 +12496,27 @@ func (x FunctionBody) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.nod
 // MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x FunctionBody) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
+
+// AsInvocation returns x as an Invocation; ok is false if it is not one.
+func (x FunctionBody) AsInvocation() (Invocation, bool) { return AsInvocation(x.node) }
+
+// MustInvocation returns x as an Invocation; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustInvocation() Invocation { return MustInvocation(x.node) }
+
+// AsOptChain returns x as an OptChain; ok is false if it is not one.
+func (x FunctionBody) AsOptChain() (OptChain, bool) { return AsOptChain(x.node) }
+
+// MustOptChain returns x as an OptChain; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustOptChain() OptChain { return MustOptChain(x.node) }
+
+// AsOptChainGet returns x as an OptChainGet; ok is false if it is not one.
+func (x FunctionBody) AsOptChainGet() (OptChainGet, bool) { return AsOptChainGet(x.node) }
+
+// MustOptChainGet returns x as an OptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x FunctionBody) MustOptChainGet() OptChainGet { return MustOptChainGet(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x FunctionBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
@@ -12646,6 +13255,27 @@ func (x ExportBody) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node)
 // kind is already known (a declarator that is not a destructuring is a name).
 func (x ExportBody) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
 
+// AsInvocation returns x as an Invocation; ok is false if it is not one.
+func (x ExportBody) AsInvocation() (Invocation, bool) { return AsInvocation(x.node) }
+
+// MustInvocation returns x as an Invocation; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustInvocation() Invocation { return MustInvocation(x.node) }
+
+// AsOptChain returns x as an OptChain; ok is false if it is not one.
+func (x ExportBody) AsOptChain() (OptChain, bool) { return AsOptChain(x.node) }
+
+// MustOptChain returns x as an OptChain; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustOptChain() OptChain { return MustOptChain(x.node) }
+
+// AsOptChainGet returns x as an OptChainGet; ok is false if it is not one.
+func (x ExportBody) AsOptChainGet() (OptChainGet, bool) { return AsOptChainGet(x.node) }
+
+// MustOptChainGet returns x as an OptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x ExportBody) MustOptChainGet() OptChainGet { return MustOptChainGet(x.node) }
+
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x ExportBody) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
 	return AsNormalOrOptChainGetProp(x.node)
@@ -13120,6 +13750,9 @@ func (x NormalOrOptChainCall) AsExportBody() ExportBody { return ExportBody{x.no
 // AsCallOrNew returns x as a CallOrNew.
 func (x NormalOrOptChainCall) AsCallOrNew() CallOrNew { return CallOrNew{x.node} }
 
+// AsInvocation returns x as an Invocation.
+func (x NormalOrOptChainCall) AsInvocation() Invocation { return Invocation{x.node} }
+
 // Callee returns the callee of x.
 func (x NormalOrOptChainCall) Callee() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -13281,6 +13914,9 @@ func (x CallOrNew) MustNormalOrOptChainCall() NormalOrOptChainCall {
 	return MustNormalOrOptChainCall(x.node)
 }
 
+// AsInvocation returns x as an Invocation.
+func (x CallOrNew) AsInvocation() Invocation { return Invocation{x.node} }
+
 // Callee returns the callee of x.
 func (x CallOrNew) Callee() Expr { return Expr{x.node.GetFirstChild()} }
 
@@ -13344,6 +13980,297 @@ func (x CallOrNew) NumArgs() int { return x.node.GetChildCount() - 1 }
 
 // AppendArg adds v (which must not be in a tree) after the args of x.
 func (x CallOrNew) AppendArg(v Arg) { x.node.AddChildToBack(v.node) }
+
+// Invocation is any call-like expression: callee(args), callee?.(args),
+// new callee(args) or callee`template` (NodeUtil.isInvocation).
+//
+// Grammar: Invocation = Call | OptChainCall | New | TaggedTemplateLit
+type Invocation struct{ node rhino.Node }
+
+// AsInvocation returns n as an Invocation; ok is false if n is not one (or is the nil node).
+func AsInvocation(n rhino.Node) (x Invocation, ok bool) {
+	if n == rhino.NilNode || !invocationTokens.Has(n.GetToken()) {
+		return Invocation{}, false
+	}
+	return Invocation{n}, true
+}
+
+// MustInvocation returns n as an Invocation; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustInvocation(n rhino.Node) Invocation {
+	x, ok := AsInvocation(n)
+	if !ok {
+		panic(mustError{"Invocation", n})
+	}
+	return x
+}
+
+// invocationTokens holds the tokens of Invocation.
+var invocationTokens = tokenSetOf(rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW)
+
+// Node returns x as a rhino.Node.
+func (x Invocation) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x Invocation) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of Invocation it is).
+func (x Invocation) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x Invocation) Detach() Invocation { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x Invocation) ReplaceWith(v Invocation) { x.node.ReplaceWith(v.node) }
+
+// AsTaggedTemplateLit returns x as a TaggedTemplateLit; ok is false if it is not one.
+func (x Invocation) AsTaggedTemplateLit() (TaggedTemplateLit, bool) {
+	return AsTaggedTemplateLit(x.node)
+}
+
+// MustTaggedTemplateLit returns x as a TaggedTemplateLit; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Invocation) MustTaggedTemplateLit() TaggedTemplateLit { return MustTaggedTemplateLit(x.node) }
+
+// AsCall returns x as a Call; ok is false if it is not one.
+func (x Invocation) AsCall() (Call, bool) { return AsCall(x.node) }
+
+// MustCall returns x as a Call; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Invocation) MustCall() Call { return MustCall(x.node) }
+
+// AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
+func (x Invocation) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
+
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Invocation) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
+// AsNew returns x as a New; ok is false if it is not one.
+func (x Invocation) AsNew() (New, bool) { return AsNew(x.node) }
+
+// MustNew returns x as a New; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Invocation) MustNew() New { return MustNew(x.node) }
+
+// AsExpr returns x as an Expr.
+func (x Invocation) AsExpr() Expr { return Expr{x.node} }
+
+// AsArg returns x as an Arg.
+func (x Invocation) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x Invocation) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x Invocation) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x Invocation) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x Invocation) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x Invocation) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsNormalOrOptChainCall returns x as a NormalOrOptChainCall; ok is false if it is not one.
+func (x Invocation) AsNormalOrOptChainCall() (NormalOrOptChainCall, bool) {
+	return AsNormalOrOptChainCall(x.node)
+}
+
+// MustNormalOrOptChainCall returns x as a NormalOrOptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Invocation) MustNormalOrOptChainCall() NormalOrOptChainCall {
+	return MustNormalOrOptChainCall(x.node)
+}
+
+// AsCallOrNew returns x as a CallOrNew; ok is false if it is not one.
+func (x Invocation) AsCallOrNew() (CallOrNew, bool) { return AsCallOrNew(x.node) }
+
+// MustCallOrNew returns x as a CallOrNew; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x Invocation) MustCallOrNew() CallOrNew { return MustCallOrNew(x.node) }
+
+// Callee returns the callee of x.
+func (x Invocation) Callee() Expr { return Expr{x.node.GetFirstChild()} }
+
+// OptChain is an optional-chain step: object?.property, object?.[index] or
+// callee?.(args) (NodeUtil.isOptChainNode).
+//
+// Grammar: OptChain = OptChainGetProp | OptChainGetElem | OptChainCall
+type OptChain struct{ node rhino.Node }
+
+// AsOptChain returns n as an OptChain; ok is false if n is not one (or is the nil node).
+func AsOptChain(n rhino.Node) (x OptChain, ok bool) {
+	if n == rhino.NilNode || !optChainTokens.Has(n.GetToken()) {
+		return OptChain{}, false
+	}
+	return OptChain{n}, true
+}
+
+// MustOptChain returns n as an OptChain; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustOptChain(n rhino.Node) OptChain {
+	x, ok := AsOptChain(n)
+	if !ok {
+		panic(mustError{"OptChain", n})
+	}
+	return x
+}
+
+// optChainTokens holds the tokens of OptChain.
+var optChainTokens = tokenSetOf(rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_CALL)
+
+// Node returns x as a rhino.Node.
+func (x OptChain) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x OptChain) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of OptChain it is).
+func (x OptChain) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x OptChain) Detach() OptChain { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x OptChain) ReplaceWith(v OptChain) { x.node.ReplaceWith(v.node) }
+
+// AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
+func (x OptChain) AsOptChainGetProp() (OptChainGetProp, bool) { return AsOptChainGetProp(x.node) }
+
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x OptChain) MustOptChainGetProp() OptChainGetProp { return MustOptChainGetProp(x.node) }
+
+// AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
+func (x OptChain) AsOptChainGetElem() (OptChainGetElem, bool) { return AsOptChainGetElem(x.node) }
+
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x OptChain) MustOptChainGetElem() OptChainGetElem { return MustOptChainGetElem(x.node) }
+
+// AsOptChainCall returns x as an OptChainCall; ok is false if it is not one.
+func (x OptChain) AsOptChainCall() (OptChainCall, bool) { return AsOptChainCall(x.node) }
+
+// MustOptChainCall returns x as an OptChainCall; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x OptChain) MustOptChainCall() OptChainCall { return MustOptChainCall(x.node) }
+
+// AsExpr returns x as an Expr.
+func (x OptChain) AsExpr() Expr { return Expr{x.node} }
+
+// AsArg returns x as an Arg.
+func (x OptChain) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x OptChain) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x OptChain) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x OptChain) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x OptChain) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x OptChain) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsOptChainGet returns x as an OptChainGet; ok is false if it is not one.
+func (x OptChain) AsOptChainGet() (OptChainGet, bool) { return AsOptChainGet(x.node) }
+
+// MustOptChainGet returns x as an OptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x OptChain) MustOptChainGet() OptChainGet { return MustOptChainGet(x.node) }
+
+// OptChainGet is an optional-chain property or element access:
+// object?.property or object?.[index].
+//
+// Grammar: OptChainGet = OptChainGetProp | OptChainGetElem
+type OptChainGet struct{ node rhino.Node }
+
+// AsOptChainGet returns n as an OptChainGet; ok is false if n is not one (or is the nil node).
+func AsOptChainGet(n rhino.Node) (x OptChainGet, ok bool) {
+	if n == rhino.NilNode || !optChainGetTokens.Has(n.GetToken()) {
+		return OptChainGet{}, false
+	}
+	return OptChainGet{n}, true
+}
+
+// MustOptChainGet returns n as an OptChainGet; it panics if n is not one. Use it where the kind
+// is already known, as in a case of a switch on n.GetToken().
+func MustOptChainGet(n rhino.Node) OptChainGet {
+	x, ok := AsOptChainGet(n)
+	if !ok {
+		panic(mustError{"OptChainGet", n})
+	}
+	return x
+}
+
+// optChainGetTokens holds the tokens of OptChainGet.
+var optChainGetTokens = tokenSetOf(rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM)
+
+// Node returns x as a rhino.Node.
+func (x OptChainGet) Node() rhino.Node { return x.node }
+
+// Is reports whether x is the node n.
+func (x OptChainGet) Is(n rhino.Node) bool { return x.node == n }
+
+// Token returns the token of x (which kind of OptChainGet it is).
+func (x OptChainGet) Token() rhino.Token { return x.node.GetToken() }
+
+// Detach takes x out of its parent, and returns it.
+func (x OptChainGet) Detach() OptChainGet { x.node.Detach(); return x }
+
+// ReplaceWith puts v (which must not be in a tree) in the place of x, and detaches x.
+func (x OptChainGet) ReplaceWith(v OptChainGet) { x.node.ReplaceWith(v.node) }
+
+// AsOptChainGetProp returns x as an OptChainGetProp; ok is false if it is not one.
+func (x OptChainGet) AsOptChainGetProp() (OptChainGetProp, bool) { return AsOptChainGetProp(x.node) }
+
+// MustOptChainGetProp returns x as an OptChainGetProp; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x OptChainGet) MustOptChainGetProp() OptChainGetProp { return MustOptChainGetProp(x.node) }
+
+// AsOptChainGetElem returns x as an OptChainGetElem; ok is false if it is not one.
+func (x OptChainGet) AsOptChainGetElem() (OptChainGetElem, bool) { return AsOptChainGetElem(x.node) }
+
+// MustOptChainGetElem returns x as an OptChainGetElem; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x OptChainGet) MustOptChainGetElem() OptChainGetElem { return MustOptChainGetElem(x.node) }
+
+// AsExpr returns x as an Expr.
+func (x OptChainGet) AsExpr() Expr { return Expr{x.node} }
+
+// AsArg returns x as an Arg.
+func (x OptChainGet) AsArg() Arg { return Arg{x.node} }
+
+// AsArrayElem returns x as an ArrayElem.
+func (x OptChainGet) AsArrayElem() ArrayElem { return ArrayElem{x.node} }
+
+// AsPropValue returns x as a PropValue.
+func (x OptChainGet) AsPropValue() PropValue { return PropValue{x.node} }
+
+// AsForInit returns x as a ForInit.
+func (x OptChainGet) AsForInit() ForInit { return ForInit{x.node} }
+
+// AsFunctionBody returns x as a FunctionBody.
+func (x OptChainGet) AsFunctionBody() FunctionBody { return FunctionBody{x.node} }
+
+// AsExportBody returns x as an ExportBody.
+func (x OptChainGet) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsOptChain returns x as an OptChain.
+func (x OptChainGet) AsOptChain() OptChain { return OptChain{x.node} }
+
+// AsNormalOrOptChainGet returns x as a NormalOrOptChainGet.
+func (x OptChainGet) AsNormalOrOptChainGet() NormalOrOptChainGet { return NormalOrOptChainGet{x.node} }
+
+// Object returns the object of x.
+func (x OptChainGet) Object() Expr { return Expr{x.node.GetFirstChild()} }
 
 // NormalOrOptChainGetProp is a property access with a dot, in an optional
 // chain or not: object.property or object?.property
@@ -13537,6 +14464,13 @@ func (x NormalOrOptChainGet) AsFunctionBody() FunctionBody { return FunctionBody
 
 // AsExportBody returns x as an ExportBody.
 func (x NormalOrOptChainGet) AsExportBody() ExportBody { return ExportBody{x.node} }
+
+// AsOptChainGet returns x as an OptChainGet; ok is false if it is not one.
+func (x NormalOrOptChainGet) AsOptChainGet() (OptChainGet, bool) { return AsOptChainGet(x.node) }
+
+// MustOptChainGet returns x as an OptChainGet; it panics if x is not one. Use it where the
+// kind is already known (a declarator that is not a destructuring is a name).
+func (x NormalOrOptChainGet) MustOptChainGet() OptChainGet { return MustOptChainGet(x.node) }
 
 // AsNormalOrOptChainGetProp returns x as a NormalOrOptChainGetProp; ok is false if it is not one.
 func (x NormalOrOptChainGet) AsNormalOrOptChainGetProp() (NormalOrOptChainGetProp, bool) {
@@ -14974,9 +15908,10 @@ const (
 
 // Other names of roles (role|alias in the grammar).
 const (
-	RoleForInCollection      = RoleForInObject        // ForIn.collection is another name for ForIn.object
-	RoleForOfCollection      = RoleForOfIterable      // ForOf.collection is another name for ForOf.iterable
-	RoleForAwaitOfCollection = RoleForAwaitOfIterable // ForAwaitOf.collection is another name for ForAwaitOf.iterable
+	RoleForInCollection         = RoleForInObject          // ForIn.collection is another name for ForIn.object
+	RoleForOfCollection         = RoleForOfIterable        // ForOf.collection is another name for ForOf.iterable
+	RoleForAwaitOfCollection    = RoleForAwaitOfIterable   // ForAwaitOf.collection is another name for ForAwaitOf.iterable
+	RoleTaggedTemplateLitCallee = RoleTaggedTemplateLitTag // TaggedTemplateLit.callee is another name for TaggedTemplateLit.tag
 )
 
 // roleNames gives the kind and the role name of each Role.
@@ -15366,6 +16301,8 @@ var grammarCategories = map[string][]string{
 	"Target":                  {"ArrayPattern", "ObjectPattern", "Name", "Cast", "GetProp", "GetElem"},
 	"Pattern":                 {"ArrayPattern", "ObjectPattern"},
 	"Param":                   {"DefaultValue", "IterRest", "ArrayPattern", "ObjectPattern", "Name"},
+	"Rest":                    {"IterRest", "ObjectRest"},
+	"Spread":                  {"IterSpread", "ObjectSpread"},
 	"Arg":                     {"Function", "IterSpread", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
 	"ArrayElem":               {"Empty", "Function", "IterSpread", "Class", "Name", "This", "Super", "True", "False", "Null", "NewTarget", "ImportMeta", "StringLit", "Number", "BigInt", "RegExp", "TemplateLit", "TaggedTemplateLit", "ArrayLit", "ObjectLit", "Unary", "Cast", "DynamicImport", "IncDec", "Assign", "AssignOp", "Binary", "Hook", "GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem", "Call", "OptChainCall", "New", "Yield", "Await"},
 	"ArrayPatternElem":        {"Empty", "DefaultValue", "IterRest", "ArrayPattern", "ObjectPattern", "Name", "Cast", "GetProp", "GetElem"},
@@ -15376,6 +16313,9 @@ var grammarCategories = map[string][]string{
 	"GetterOrSetterDef":       {"GetterDef", "SetterDef"},
 	"MethodDef":               {"MemberFunctionDef", "GetterDef", "SetterDef"},
 	"ComputedMember":          {"ComputedFieldDef", "ComputedProp"},
+	"FieldDef":                {"MemberFieldDef", "ComputedFieldDef"},
+	"PlainKeyMember":          {"MemberFunctionDef", "GetterDef", "SetterDef", "StringKey"},
+	"NamedMember":             {"MemberFunctionDef", "GetterDef", "SetterDef", "MemberFieldDef", "StringKey"},
 	"Loop":                    {"For", "ForIn", "ForOf", "ForAwaitOf", "While", "Do"},
 	"EnhancedFor":             {"ForIn", "ForOf", "ForAwaitOf"},
 	"ForOfLoop":               {"ForOf", "ForAwaitOf"},
@@ -15393,6 +16333,9 @@ var grammarCategories = map[string][]string{
 	"RootItem":                {"Root", "Script"},
 	"NormalOrOptChainCall":    {"Call", "OptChainCall"},
 	"CallOrNew":               {"Call", "OptChainCall", "New"},
+	"Invocation":              {"TaggedTemplateLit", "Call", "OptChainCall", "New"},
+	"OptChain":                {"OptChainGetProp", "OptChainGetElem", "OptChainCall"},
+	"OptChainGet":             {"OptChainGetProp", "OptChainGetElem"},
 	"NormalOrOptChainGetProp": {"GetProp", "OptChainGetProp"},
 	"NormalOrOptChainGet":     {"GetProp", "OptChainGetProp", "GetElem", "OptChainGetElem"},
 	"NormalOrOptChainGetElem": {"GetElem", "OptChainGetElem"},

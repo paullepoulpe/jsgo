@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -60,15 +61,16 @@ type OptimizeConstructors struct {
 	astAnalyzer *AstAnalyzer
 
 	// All constructor definition nodes that are to be removed.
-	removableConstructors []rhino.Node
+	removableConstructors []ast.MemberFunctionDef
 }
 
 // Java: OptimizeConstructors(AbstractCompiler)
 func NewOptimizeConstructors(compiler AbstractCompiler) *OptimizeConstructors {
-	o := &OptimizeConstructors{}
-	o.compiler = jutil.CheckNotNull(compiler)
-	o.astAnalyzer = compiler.GetAstAnalyzer()
-	return o
+	compiler = jutil.CheckNotNull(compiler)
+	return &OptimizeConstructors{
+		compiler:    compiler,
+		astAnalyzer: compiler.GetAstAnalyzer(),
+	}
 }
 
 // Process is CompilerPass.process.
@@ -100,45 +102,38 @@ func (o *OptimizeConstructors) AsCallGraphCompilerPass() OptimizeCalls_CallGraph
 
 // Java: OptimizeConstructors.process(Node, Node, ReferenceMap)
 func (o *OptimizeConstructors) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
+	defer func() {
+		clear(o.removableConstructors)
+		o.removableConstructors = o.removableConstructors[:0]
+	}()
+
 	for key, value := range refMap.GetNameReferences() {
-		o.AddConstructorsToBeRemoved(key, value)
+		o.addConstructorsToBeRemoved(key, value)
 	}
 
 	// NOTE: Normally, the ReferenceMap must be kept in a consistent state (removing references
 	// as they are removed from the AST) so the next pass can reuse the ReferenceMap. However,
 	// currently this pass runs by itself so that work is avoided.
-	//
-
-	for _, ref := range o.removableConstructors {
-		o.RemoveConstructorMethod(ref)
+	for _, ctor := range o.removableConstructors {
+		o.removeConstructorMethod(ctor)
 	}
 }
 
-// AddConstructorsToBeRemoved iterates over all the references to a symbol.
-// There are several interesting references:
-//
-// -a class definition
-//
-// -a subclass definition
-//
-// -class redefinition
-//
-// -allowed reference (anything not an assignment)
-//
 // Java: OptimizeConstructors.addConstructorsToBeRemoved(String, ArrayList<Node>)
-func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs []rhino.Node) {
+func (o *OptimizeConstructors) addConstructorsToBeRemoved(name string, refs []rhino.Node) {
 	if !OptimizeCalls_MayBeOptimizableName(o.compiler, name) {
 		return
 	}
 
 	var candidateClassDefinition rhino.Node
-	var candidateConstructor rhino.Node
+	var candidateConstructor ast.MemberFunctionDef
+	hasCandidateConstructor := false
 
-	// Lazily init as most symbols aren't class, and most classes don't have subclasses
-	var subclassConstructors []rhino.Node
+	// Lazily init as most symbols aren't classes, and most classes don't have subclasses.
+	var subclassConstructors []ast.MemberFunctionDef
 
 	for _, n := range refs {
-		definition := o.GetClassDefinitionOrFunction(n)
+		definition := optimizeConstructors_getClassDefinitionOrFunction(n)
 		if !definition.IsNil() {
 			if !candidateClassDefinition.IsNil() {
 				// As a simplification only allow one definition.
@@ -149,89 +144,64 @@ func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs []rh
 			// don't have subclasses.
 			candidateClassDefinition = definition
 
-			if candidateClassDefinition.IsClass() {
-				// There are two special cases that we can handle just by looking at the extend clause
-
-				// handle no super class
-				//    - if no extends clause
-				//    - and the constructor body is empty
-				//    - and the constructor parameters are side-effect free (no destructuring or
-				// side-effect defaults)
-				extendsExpr := candidateClassDefinition.GetSecondChild()
-				if extendsExpr.IsEmpty() {
-					constructor :=
-						NodeUtil_GetEs6ClassConstructorMemberFunctionDef(candidateClassDefinition)
-					if !constructor.IsNil() {
-						fn := constructor.GetLastChild()
-						body := fn.GetLastChild()
-						if !body.HasChildren() && o.HasRemovableParameterList(constructor) {
-							candidateConstructor = constructor
+			if cls, ok := ast.AsClass(candidateClassDefinition); ok {
+				// Handle no super class:
+				//   - no extends clause
+				//   - constructor body is empty
+				//   - constructor parameters are side-effect free (no destructuring or side-effect defaults)
+				if _, hasExtends := cls.Extends(); !hasExtends {
+					if ctor, hasCtor := cls.Constructor(); hasCtor {
+						if !ctor.Function().Body().Node().HasChildren() && o.hasRemovableParameterList(ctor) {
+							candidateConstructor = ctor
+							hasCandidateConstructor = true
 						}
 					}
-				} else {
-					// TODO: handle "Object" super class
-					//    - just a call to super and no-side-effects in the formal parameters, or super call
-					// arguments
 				}
 			}
-		} else {
-			// If this is a reference to the class in an extend clause, then this is a class
-			// definition whose constructor should considered for removal.
-			if o.IsClassExtendsExpression(n) {
-				subclassLiteral := n.GetParent()
-				subclassConstructor :=
-					NodeUtil_GetEs6ClassConstructorMemberFunctionDef(subclassLiteral)
-				if !subclassConstructor.IsNil() &&
-					OptimizeConstructors_ConstructorHasRemovableDefinition(subclassConstructor) {
-
-					subclassConstructors = append(subclassConstructors, subclassConstructor)
-				}
-			} else {
-				// Anything assignment that isn't a class definition covered above, is an
-				// invalidating assignment.
-				if OptimizeConstructors_IsAssigningReference(n) {
-					return
-				}
+		} else if ast.RoleIn(n, n.GetParent()) == ast.RoleClassExtends {
+			// If this is a reference to the class in an extend clause, then this is a subclass
+			// definition whose constructor should be considered for removal.
+			subclass := ast.MustClass(n.GetParent())
+			if subCtor, hasCtor := subclass.Constructor(); hasCtor &&
+				optimizeConstructors_constructorHasRemovableDefinition(subCtor) {
+				subclassConstructors = append(subclassConstructors, subCtor)
 			}
+		} else if optimizeConstructors_isAssigningReference(n) {
+			// Any assignment that isn't a class definition covered above is an invalidating assignment.
+			return
 		}
 	}
 
-	// There is no known class definition
 	if candidateClassDefinition.IsNil() {
 		return
 	}
 
-	if !candidateConstructor.IsNil() {
+	if hasCandidateConstructor {
 		o.removableConstructors = append(o.removableConstructors, candidateConstructor)
 	}
 
-	// Nothing that invalidated the superclass definition was found, so now check if the
-	// candidate subclasses are equivalent to the superclass.
-
-	if subclassConstructors != nil {
-		summary := OptimizeConstructors_ClassConstructorSummary_Build(candidateClassDefinition)
-		for _, n := range subclassConstructors {
-			if summary.IsEquivalentConstructorDefinition(n) {
-				o.removableConstructors = append(o.removableConstructors, n)
+	// Nothing invalidated the superclass definition; check whether candidate
+	// subclasses are equivalent to the superclass.
+	if len(subclassConstructors) > 0 {
+		summary := optimizeConstructors_buildSummary(candidateClassDefinition)
+		for _, subCtor := range subclassConstructors {
+			if summary.isEquivalentConstructorDefinition(subCtor) {
+				o.removableConstructors = append(o.removableConstructors, subCtor)
 			}
 		}
 	}
 }
 
-// OptimizeConstructors_IsAssigningReference: is the node in a position in
-// the AST so that it might be assigned a value?
-//
 // Java: OptimizeConstructors.isAssigningReference(Node)
-func OptimizeConstructors_IsAssigningReference(n rhino.Node) bool {
+func optimizeConstructors_isAssigningReference(n rhino.Node) bool {
 	parent := n.GetParent()
-	gparent := parent.GetParent()
 	switch parent.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
 		return n.HasChildren() // value assigned
 	case rhino.Token_STRING_KEY:
-		return gparent.IsObjectPattern()
+		return parent.GetParent().IsObjectPattern()
 	case rhino.Token_COMPUTED_PROP:
-		return parent.GetLastChild() == n && gparent.IsObjectPattern()
+		return parent.GetLastChild() == n && parent.GetParent().IsObjectPattern()
 	case rhino.Token_ARRAY_PATTERN,
 		rhino.Token_DEFAULT_VALUE, // object or array or function parameter
 		rhino.Token_PARAM_LIST,
@@ -263,238 +233,166 @@ func OptimizeConstructors_IsAssigningReference(n rhino.Node) bool {
 	}
 }
 
-// Java: OptimizeConstructors.isClassExtendsExpression(Node)
-func (o *OptimizeConstructors) IsClassExtendsExpression(n rhino.Node) bool {
-	parent := n.GetParent()
-	return (parent.IsClass() && parent.GetSecondChild() == n)
-}
-
 // Java: OptimizeConstructors.getClassDefinitionOrFunction(Node)
-func (o *OptimizeConstructors) GetClassDefinitionOrFunction(n rhino.Node) rhino.Node {
+func optimizeConstructors_getClassDefinitionOrFunction(n rhino.Node) rhino.Node {
 	parent := n.GetParent()
 
 	var expr rhino.Node
 	if OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n) {
-		expr = parent.GetLastChild()
-	} else if n.IsName() && n.HasChildren() {
-		expr = n.GetFirstChild()
-	} else if parent.IsFunction() && n.IsFirstChildOf(parent) {
+		expr = ast.MustAssign(parent).Value().Node()
+	} else if name, ok := ast.AsName(n); ok && n.HasChildren() {
+		init, _ := name.Init()
+		expr = init.Node()
+	} else if (parent.IsFunction() || parent.IsClass()) && n.IsFirstChildOf(parent) {
 		expr = parent
-	} else if parent.IsClass() && n.IsFirstChildOf(parent) {
-		expr = parent
-	} else {
-		return rhino.NilNode // Couldn't find a function.
-	}
-
-	expr = o.Unwrap(expr)
-	if OptimizeConstructors_IsDefinitionClassLiteralOrFunction(expr) {
-		return expr
 	} else {
 		return rhino.NilNode
 	}
-}
 
-// Java: OptimizeConstructors.unwrap(Node)
-func (o *OptimizeConstructors) Unwrap(expr rhino.Node) rhino.Node {
-	for expr.IsCast() || expr.IsComma() {
-		expr = expr.GetLastChild()
+	for {
+		if cast, ok := ast.AsCast(expr); ok {
+			expr = cast.Expr().Node()
+		} else if comma, ok := ast.AsBinaryOf(expr, rhino.Token_COMMA); ok {
+			expr = comma.Right().Node()
+		} else {
+			break
+		}
 	}
-	return expr
-}
 
-// Java: OptimizeConstructors.isDefinitionClassLiteralOrFunction(Node)
-func OptimizeConstructors_IsDefinitionClassLiteralOrFunction(n rhino.Node) bool {
-	switch n.GetToken() {
+	switch expr.GetToken() {
 	case rhino.Token_FUNCTION:
-		// TODO(b/176208718): ideally this is only return true for normal functions, but it is
-		// harmless to include other function types and checking for "normal" function is
-		// currently
-		// non-trivial.
-		return true
+		// TODO(b/176208718): ideally this only returns true for normal functions, but it is
+		// harmless to include other function types.
+		return expr
 	case rhino.Token_CLASS:
-		{
-			// `class NameNode {`
-			// find the constructor
-			constructorMemberFunctionDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-			return !constructorMemberFunctionDef.IsNil()
-		}
-	default:
-		return false
-	}
-}
-
-// OptimizeConstructors_ClassConstructorSummary is an abstraction of a super
-// class constructor definition. The goal of this class is to avoid repeated
-// analysis of the super class constructor when checking whether a subclass
-// constructor is removable.
-type OptimizeConstructors_ClassConstructorSummary struct {
-	// The number of explicit parameters
-	formalParameterCount int
-	// "var args" means any number of parameters are allowed
-	isVarArgs bool
-}
-
-// Java: OptimizeConstructors.ClassConstructorSummary(boolean, int)
-func NewOptimizeConstructors_ClassConstructorSummary(isVarArgs bool, formalParameterCount int) *OptimizeConstructors_ClassConstructorSummary {
-	return &OptimizeConstructors_ClassConstructorSummary{isVarArgs: isVarArgs, formalParameterCount: formalParameterCount}
-}
-
-// Java: OptimizeConstructors.ClassConstructorSummary.build(Node)
-func OptimizeConstructors_ClassConstructorSummary_Build(classDefinition rhino.Node) *OptimizeConstructors_ClassConstructorSummary {
-	jutil.CheckState(classDefinition.IsClass() || classDefinition.IsFunction())
-	var fn rhino.Node
-	if classDefinition.IsClass() {
-		// NOTE: it would be possible to handle implicit superclass definitions by caching
-		// the super class constructor summaries.
-		member := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classDefinition)
-		fn = member.GetFirstChild()
-	} else {
-		fn = classDefinition
-	}
-
-	argumentsReference := NodeUtil_DoesFunctionReferenceOwnArgumentsObject(fn)
-	hasVarArgs := argumentsReference || OptimizeConstructors_FunctionHasRest(fn)
-	return NewOptimizeConstructors_ClassConstructorSummary(
-		hasVarArgs, NodeUtil_GetFunctionParameters(fn).GetChildCount())
-}
-
-// Java: OptimizeConstructors.ClassConstructorSummary.isEquivalentConstructorDefinition(Node)
-func (s *OptimizeConstructors_ClassConstructorSummary) IsEquivalentConstructorDefinition(constructorMember rhino.Node) bool {
-	// `constructorHasRemovableDefinition` has already checked the subclass definition. We
-	// know that it has a trivial constructor and that the parameters are passed to the super call
-	// in the same order as they are declared in the parameter list, etc.
-
-	// As a result we can simply check the parameters of the constructor and
-	// validate they are sufficient for the constructor of the super class
-
-	fn := constructorMember.GetFirstChild()
-	paramList := NodeUtil_GetFunctionParameters(fn)
-
-	hasRest := OptimizeConstructors_FunctionHasRest(fn)
-	if hasRest {
-		return true
-	}
-
-	if s.isVarArgs {
-		// The count of parameters may matter, and the function may not pass them all on.
-		return false
-	}
-
-	if s.formalParameterCount != paramList.GetChildCount() {
-		return false
-	}
-
-	// same count
-	return true
-}
-
-// Java: OptimizeConstructors.functionHasRest(Node)
-func OptimizeConstructors_FunctionHasRest(fn rhino.Node) bool {
-	jutil.CheckState(fn.IsFunction())
-	params := NodeUtil_GetFunctionParameters(fn)
-	lastParam := params.GetLastChild()
-	return !lastParam.IsNil() && lastParam.IsRest()
-}
-
-// OptimizeConstructors_ConstructorHasRemovableDefinition validates that
-// nothing about the constructor definition itself prevents its removal: -
-// the body is simply a super call - it passes on exactly what it receives.
-// These are necessary but not sufficient for the constructor to be
-// removable.
-//
-// Java: OptimizeConstructors.constructorHasRemovableDefinition(Node)
-func OptimizeConstructors_ConstructorHasRemovableDefinition(member rhino.Node) bool {
-	fn := member.GetFirstChild()
-	superCall := OptimizeConstructors_GetOnlySuperCall(fn)
-	if superCall.IsNil() {
-		return false
-	}
-
-	paramList := NodeUtil_GetFunctionParameters(fn)
-	if paramList.GetChildCount() != superCall.GetChildCount()-1 {
-		return false
-	}
-
-	// TODO(johnlenz): broaden the recognized patterns: default parameters
-	param := paramList.GetFirstChild()
-	arg := superCall.GetSecondChild()
-	for !param.IsNil() {
-		if param.IsRest() {
-			if !arg.IsSpread() || !param.GetFirstChild().MatchesNameNode(arg.GetFirstChild()) {
-				return false
-			}
-		} else if !param.MatchesNameNode(arg) {
-			// not a simple parameter list or matching call args
-			return false
-		}
-		param = param.GetNext()
-		arg = arg.GetNext()
-	}
-
-	return true
-}
-
-// HasRemovableParameterList: true if the parameter list can't cause
-// side-effects.
-//
-// Java: OptimizeConstructors.hasRemovableParameterList(Node)
-func (o *OptimizeConstructors) HasRemovableParameterList(member rhino.Node) bool {
-	fn := member.GetFirstChild()
-	paramList := NodeUtil_GetFunctionParameters(fn)
-
-	for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
-		if param.IsName() {
-			// a simple name
-			continue
-		}
-		if param.IsRest() && param.GetFirstChild().IsName() {
-			// a simple rest expression
-			continue
-		}
-
-		if param.IsDefaultValue() &&
-			param.GetFirstChild().IsName() &&
-			!o.astAnalyzer.MayHaveSideEffects(param.GetLastChild()) {
-			// a default parameter whose value is determined to be side-effect free
-			continue
-		}
-
-		// not a simple parameter (destructuring can throw, etc)
-		return false
-	}
-
-	return true
-}
-
-// OptimizeConstructors_GetOnlySuperCall: if the body contains only a call
-// to super, return it, otherwise null.
-//
-// Java: OptimizeConstructors.getOnlySuperCall(Node)
-func OptimizeConstructors_GetOnlySuperCall(fn rhino.Node) rhino.Node {
-	body := fn.GetLastChild()
-	if body.IsBlock() && body.HasOneChild() {
-		stmt := body.GetFirstChild()
-		if stmt.IsExprResult() {
-			call := stmt.GetFirstChild()
-			if call.IsCall() && call.GetFirstChild().IsSuper() {
-				return call
-			}
+		if _, hasCtor := ast.MustClass(expr).Constructor(); hasCtor {
+			return expr
 		}
 	}
 	return rhino.NilNode
 }
 
-// RemoveConstructorMethod removes any candidate constructor if the callers
-// are consistent with the definition.
-//
+// optimizeConstructorsSummary summarizes a superclass constructor definition
+// to avoid repeated analysis when checking subclass constructors.
+type optimizeConstructorsSummary struct {
+	formalParameterCount int
+	isVarArgs            bool
+}
+
+// Java: OptimizeConstructors.ClassConstructorSummary.build(Node)
+func optimizeConstructors_buildSummary(classDefinition rhino.Node) optimizeConstructorsSummary {
+	var fn ast.Function
+	if cls, ok := ast.AsClass(classDefinition); ok {
+		ctor, hasCtor := cls.Constructor()
+		jutil.CheckState(hasCtor)
+		fn = ctor.Function()
+	} else {
+		fn = ast.MustFunction(classDefinition)
+	}
+
+	hasVarArgs := NodeUtil_DoesFunctionReferenceOwnArgumentsObject(fn.Node()) ||
+		optimizeConstructors_functionHasRest(fn)
+	return optimizeConstructorsSummary{
+		formalParameterCount: fn.Params().NumParams(),
+		isVarArgs:            hasVarArgs,
+	}
+}
+
+// Java: OptimizeConstructors.ClassConstructorSummary.isEquivalentConstructorDefinition(Node)
+func (s optimizeConstructorsSummary) isEquivalentConstructorDefinition(ctor ast.MemberFunctionDef) bool {
+	fn := ctor.Function()
+	if optimizeConstructors_functionHasRest(fn) {
+		return true
+	}
+	if s.isVarArgs {
+		// The count of parameters may matter, and the function may not pass them all on.
+		return false
+	}
+	return s.formalParameterCount == fn.Params().NumParams()
+}
+
+// Java: OptimizeConstructors.functionHasRest(Node)
+func optimizeConstructors_functionHasRest(fn ast.Function) bool {
+	lastParam, ok := fn.Params().LastParam()
+	return ok && lastParam.Node().IsRest()
+}
+
+// Java: OptimizeConstructors.constructorHasRemovableDefinition(Node)
+func optimizeConstructors_constructorHasRemovableDefinition(ctor ast.MemberFunctionDef) bool {
+	fn := ctor.Function()
+	superCall, ok := optimizeConstructors_getOnlySuperCall(fn)
+	if !ok {
+		return false
+	}
+
+	params := fn.Params()
+	if params.NumParams() != superCall.NumArgs() {
+		return false
+	}
+
+	// TODO(johnlenz): broaden the recognized patterns: default parameters
+	param, hasParam := params.FirstParam()
+	arg, _ := superCall.FirstArg()
+	for hasParam {
+		if rest, isRest := param.AsIterRest(); isRest {
+			spread, isSpread := arg.AsIterSpread()
+			if !isSpread || !rest.Target().Node().MatchesNameNode(spread.Expr().Node()) {
+				return false
+			}
+		} else if !param.Node().MatchesNameNode(arg.Node()) {
+			return false
+		}
+		param, hasParam = param.Next()
+		arg, _ = arg.Next()
+	}
+
+	return true
+}
+
+// Java: OptimizeConstructors.hasRemovableParameterList(Node)
+func (o *OptimizeConstructors) hasRemovableParameterList(ctor ast.MemberFunctionDef) bool {
+	for param := range ctor.Function().Params().Params() {
+		if _, ok := param.AsName(); ok {
+			continue
+		}
+		if rest, ok := param.AsIterRest(); ok && rest.Target().Node().IsName() {
+			continue
+		}
+		if dv, ok := param.AsDefaultValue(); ok &&
+			dv.Target().Node().IsName() &&
+			!o.astAnalyzer.MayHaveSideEffects(dv.Value().Node()) {
+			continue
+		}
+		// not a simple parameter (destructuring can throw, etc)
+		return false
+	}
+	return true
+}
+
+// Java: OptimizeConstructors.getOnlySuperCall(Node)
+func optimizeConstructors_getOnlySuperCall(fn ast.Function) (ast.Call, bool) {
+	block, ok := fn.Body().AsBlock()
+	if !ok {
+		return ast.Call{}, false
+	}
+	stmt, ok := block.OnlyStatement()
+	if !ok {
+		return ast.Call{}, false
+	}
+	exprStmt, ok := stmt.AsExprStmt()
+	if !ok {
+		return ast.Call{}, false
+	}
+	call, ok := exprStmt.Expr().AsCall()
+	if !ok || !call.Callee().Node().IsSuper() {
+		return ast.Call{}, false
+	}
+	return call, true
+}
+
 // Java: OptimizeConstructors.removeConstructorMethod(Node)
-func (o *OptimizeConstructors) RemoveConstructorMethod(member rhino.Node) {
-	jutil.CheckState(member.IsMemberFunctionDef())
-
-	o.compiler.ReportFunctionDeleted(member.GetFirstChild())
-	o.compiler.ReportChangeToEnclosingScope(member)
-	member.Detach()
-
-	// NOTE: As this pass is expected to run by itself, so don't spend the time to update the
-	// reference map.
+func (o *OptimizeConstructors) removeConstructorMethod(ctor ast.MemberFunctionDef) {
+	o.compiler.ReportFunctionDeleted(ctor.Function().Node())
+	o.compiler.ReportChangeToEnclosingScope(ctor.Node())
+	ctor.Detach()
 }

@@ -53,6 +53,14 @@ Pattern = ArrayPattern | ObjectPattern
 ## Param is a function parameter.
 Param = Name | ArrayPattern | ObjectPattern | DefaultValue | IterRest
 
+## Rest is ...target, in a parameter list, an array pattern or an object
+## pattern (Node.isRest).
+Rest = IterRest | ObjectRest
+
+## Spread is ...expr, in a call, an array literal or an object literal
+## (Node.isSpread).
+Spread = IterSpread | ObjectSpread
+
 ## Arg is a call argument.
 Arg = Expr | IterSpread
 
@@ -85,6 +93,17 @@ MethodDef = MemberFunctionDef | GetterDef | SetterDef
 ## ComputedMember is a computed property or computed class field:
 ## [key]: value or [key] = value.
 ComputedMember = ComputedProp | ComputedFieldDef
+
+## FieldDef is a class field, named or computed: key = value or [key] = value.
+FieldDef = MemberFieldDef | ComputedFieldDef
+
+## PlainKeyMember is an object or class member with a fixed key and a value or
+## function: key: value, key() {}, get key() {} or set key(v) {}.
+PlainKeyMember = StringKey | MethodDef
+
+## NamedMember is an object or class member with a non-computed key: a
+## property, method, getter, setter or named class field.
+NamedMember = PlainKeyMember | MemberFieldDef
 
 ## Loop is a loop statement.
 Loop = For | ForIn | ForOf | ForAwaitOf | While | Do
@@ -143,6 +162,18 @@ NormalOrOptChainCall = Call | OptChainCall
 ## CallOrNew is a call, in an optional chain or not, or a new:
 ## callee(args), callee?.(args) or new callee(args) (NodeUtil.isCallOrNew).
 CallOrNew = Call | OptChainCall | New
+
+## Invocation is any call-like expression: callee(args), callee?.(args),
+## new callee(args) or callee`template` (NodeUtil.isInvocation).
+Invocation = Call | OptChainCall | New | TaggedTemplateLit
+
+## OptChain is an optional-chain step: object?.property, object?.[index] or
+## callee?.(args) (NodeUtil.isOptChainNode).
+OptChain = OptChainGetProp | OptChainGetElem | OptChainCall
+
+## OptChainGet is an optional-chain property or element access:
+## object?.property or object?.[index].
+OptChainGet = OptChainGetProp | OptChainGetElem
 
 ## NormalOrOptChainGetProp is a property access with a dot, in an optional
 ## chain or not: object.property or object?.property
@@ -313,7 +344,7 @@ TemplateLitString  TEMPLATELIT_STRING
 ## TemplateLitSub is ${expr} in a template literal.
 TemplateLitSub     TEMPLATELIT_SUB       expr:Expr
 ## TaggedTemplateLit is tag`template`.
-TaggedTemplateLit  TAGGED_TEMPLATELIT    tag:Expr template:TemplateLit
+TaggedTemplateLit  TAGGED_TEMPLATELIT    tag|callee:Expr template:TemplateLit
 ## ArrayLit is [elements].
 ArrayLit           ARRAYLIT              elements:ArrayElem*
 ## ObjectLit is {members}.

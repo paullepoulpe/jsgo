@@ -16,6 +16,12 @@ func NodeTraversal_TraverseVisitor(compiler AbstractCompiler, root rhino.Node, v
 	NodeTraversal_Traverse(compiler, root, &nodeTraversal_visitorCallback{v: v, kinds: v.Tokens()})
 }
 
+// NodeTraversal_TraverseRootsVisitor traverses externs and root like
+// NodeTraversal_TraverseRoots with a post-order ast.Visitor.
+func NodeTraversal_TraverseRootsVisitor(compiler AbstractCompiler, externs rhino.Node, root rhino.Node, v *ast.Visitor[*NodeTraversal]) {
+	NodeTraversal_TraverseRoots(compiler, &nodeTraversal_visitorCallback{v: v, kinds: v.Tokens()}, externs, root)
+}
+
 // nodeTraversal_visitorCallback adapts an ast.Visitor to the callback
 // interface.
 type nodeTraversal_visitorCallback struct {

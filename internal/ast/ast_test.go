@@ -793,3 +793,106 @@ func TestMustListAccessorsAndCustomFlags(t *testing.T) {
 		t.Fatal("Block flags failed")
 	}
 }
+
+func TestWave3CategoriesAndHelpers(t *testing.T) {
+	newStore(t)
+
+	// Rest & Spread categories
+	ir := NewIterRest(NewName("a").AsTarget())
+	or := NewObjectRest(NewName("b").AsTarget())
+	if r, ok := AsRest(ir.Node()); !ok || r.Target().MustName().Ident() != "a" {
+		t.Fatal("IterRest -> Rest.Target() failed")
+	}
+	if r, ok := AsRest(or.Node()); !ok || r.Target().MustName().Ident() != "b" {
+		t.Fatal("ObjectRest -> Rest.Target() failed")
+	}
+	is := NewIterSpread(NewName("x").AsExpr())
+	os := NewObjectSpread(NewName("y").AsExpr())
+	if s, ok := AsSpread(is.Node()); !ok || s.Expr().MustName().Ident() != "x" {
+		t.Fatal("IterSpread -> Spread.Expr() failed")
+	}
+	if s, ok := AsSpread(os.Node()); !ok || s.Expr().MustName().Ident() != "y" {
+		t.Fatal("ObjectSpread -> Spread.Expr() failed")
+	}
+
+	// FieldDef (named vs computed, with and without initializer)
+	mf := NewMemberFieldDef("f")
+	if fd, ok := mf.AsClassMember().AsFieldDef(); !ok {
+		t.Fatal("MemberFieldDef -> FieldDef failed")
+	} else if _, hasVal := fd.Value(); hasVal {
+		t.Fatal("uninitialized MemberFieldDef reported Value()")
+	}
+	mf.SetValue(NewName("v").AsExpr())
+	if val, ok := mf.AsFieldDef().Value(); !ok || val.MustName().Ident() != "v" {
+		t.Fatal("initialized MemberFieldDef Value() mismatch")
+	}
+	cf := NewComputedFieldDef(NewName("k").AsExpr())
+	if _, hasVal := cf.AsFieldDef().Value(); hasVal {
+		t.Fatal("uninitialized ComputedFieldDef reported Value() (returned key instead of nil)")
+	}
+	cf.SetValue(NewName("cv").AsExpr())
+	if val, ok := cf.AsFieldDef().Value(); !ok || val.MustName().Ident() != "cv" {
+		t.Fatal("initialized ComputedFieldDef Value() mismatch")
+	}
+
+	// PlainKeyMember, NamedMember, Quoted, Class.Constructor, IsEs6Constructor
+	ctorFn := NewFunction("", NewParamList(NewName("p").AsParam()), NewBlock().AsFunctionBody())
+	ctorDef := NewMemberFunctionDef("constructor", ctorFn)
+	otherDef := NewMemberFunctionDef("m", NewFunction("", NewParamList(), NewBlock().AsFunctionBody()))
+	otherDef.SetQuoted(true)
+	cls := MustClass(rhino.NewNodeWith3Children(
+		rhino.Token_CLASS,
+		rhino.IR_Name("C"),
+		rhino.IR_Empty(),
+		NewClassBody(otherDef.AsClassMember(), ctorDef.AsClassMember()).Node(),
+	))
+	if got, ok := cls.Constructor(); !ok || got != ctorDef || !ctorDef.IsEs6Constructor() || !ctorFn.IsEs6Constructor() {
+		t.Fatal("Class.Constructor() / IsEs6Constructor() failed")
+	}
+	if !otherDef.AsPlainKeyMember().IsQuoted() || !otherDef.AsNamedMember().IsQuoted() || otherDef.AsNamedMember().Key() != "m" {
+		t.Fatal("PlainKeyMember / NamedMember Key/IsQuoted failed")
+	}
+
+	// Invocation, OptChain, StaticPropertyName, ParamAt, ArgAt
+	ttl := NewTaggedTemplateLit(NewName("tag").AsExpr(), NewTemplateLit())
+	if inv, ok := ttl.AsExpr().AsInvocation(); !ok || inv.Callee().MustName().Ident() != "tag" {
+		t.Fatal("TaggedTemplateLit -> Invocation.Callee() failed")
+	}
+	ocp := NewOptChainGetProp(NewName("o").AsExpr(), "prop")
+	ocp.SetStart(true)
+	if !ocp.AsOptChain().IsStart() {
+		t.Fatal("OptChain.IsStart() failed")
+	}
+	if name, ok := ocp.AsNormalOrOptChainGet().StaticPropertyName(); !ok || name != "prop" {
+		t.Fatalf("StaticPropertyName(o?.prop) = %q, %v", name, ok)
+	}
+	ge := NewGetElem(NewName("o").AsExpr(), NewStringLit("elem").AsExpr())
+	if name, ok := ge.AsNormalGet().StaticPropertyName(); !ok || name != "elem" {
+		t.Fatalf("StaticPropertyName(o['elem']) = %q, %v", name, ok)
+	}
+	dynGe := NewGetElem(NewName("o").AsExpr(), NewName("idx").AsExpr())
+	if _, ok := dynGe.AsNormalGet().StaticPropertyName(); ok {
+		t.Fatal("StaticPropertyName(o[idx]) unexpectedly succeeded")
+	}
+
+	pl := NewParamList(NewName("p0").AsParam(), NewName("p1").AsParam())
+	p1, ok := pl.ParamAt(1)
+	if !ok || p1.MustName().Ident() != "p1" {
+		t.Fatal("ParamList.ParamAt(1) failed")
+	}
+	p1.SetUnused(true)
+	if !p1.IsUnused() || !p1.MustName().IsUnusedParam() {
+		t.Fatal("Param.SetUnused / Name.IsUnusedParam failed")
+	}
+	if _, ok := pl.ParamAt(2); ok {
+		t.Fatal("ParamList.ParamAt(2) out of range succeeded")
+	}
+
+	cn := NewCall(NewName("f").AsExpr(), NewName("a0").AsArg(), NewName("a1").AsArg()).AsCallOrNew()
+	if a1, ok := cn.ArgAt(1); !ok || a1.MustExpr().MustName().Ident() != "a1" {
+		t.Fatal("CallOrNew.ArgAt(1) failed")
+	}
+	if _, ok := cn.ArgAt(2); ok {
+		t.Fatal("CallOrNew.ArgAt(2) out of range succeeded")
+	}
+}

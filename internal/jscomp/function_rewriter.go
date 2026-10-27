@@ -19,7 +19,7 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -48,58 +48,97 @@ type FunctionRewriter struct {
 
 // Safety margin used to avoid growing simple programs by a few bytes.
 // Selected arbitrarily.
-const FunctionRewriter_SAVINGS_THRESHOLD = 16
+const functionRewriterSavingsThreshold = 16
 
 // Java: FunctionRewriter(AbstractCompiler)
 func NewFunctionRewriter(compiler AbstractCompiler) *FunctionRewriter {
 	return &FunctionRewriter{compiler: compiler}
 }
 
+type functionRewriterReduction struct {
+	oldChild rhino.Node
+	newChild rhino.Node
+}
+
+type functionRewriterReducer struct {
+	helperSourceName string
+	helperSource     string
+	reduce           func(fn ast.Function) (rhino.Node, bool)
+}
+
+// Order matches Java FunctionRewriter.process:
+// [ReturnConstantReducer, GetterReducer, SetterReducer, EmptyFunctionReducer, IdentityReducer].
+var functionRewriterReducers = [...]functionRewriterReducer{
+	{
+		helperSourceName: "class com.google.javascript.jscomp.FunctionRewriter$ReturnConstantReducer:helper",
+		helperSource: "function JSCompiler_returnArg(JSCompiler_returnArg_value) {" +
+			"  return function() {return JSCompiler_returnArg_value}" +
+			"}",
+		reduce: functionRewriter_reduceReturnConstant,
+	},
+	{
+		helperSourceName: "class com.google.javascript.jscomp.FunctionRewriter$GetterReducer:helper",
+		helperSource: "function JSCompiler_get(JSCompiler_get_name) {" +
+			"  return function() {return this[JSCompiler_get_name]}" +
+			"}",
+		reduce: functionRewriter_reduceGetter,
+	},
+	{
+		helperSourceName: "class com.google.javascript.jscomp.FunctionRewriter$SetterReducer:helper",
+		helperSource: "function JSCompiler_set(JSCompiler_set_name) {" +
+			"  return function(JSCompiler_set_value) {" +
+			"this[JSCompiler_set_name] = JSCompiler_set_value}" +
+			"}",
+		reduce: functionRewriter_reduceSetter,
+	},
+	{
+		helperSourceName: "class com.google.javascript.jscomp.FunctionRewriter$EmptyFunctionReducer:helper",
+		helperSource: "function JSCompiler_emptyFn() {" +
+			"  return function() {}" +
+			"}",
+		reduce: functionRewriter_reduceEmptyFunction,
+	},
+	{
+		helperSourceName: "class com.google.javascript.jscomp.FunctionRewriter$IdentityReducer:helper",
+		helperSource: "function JSCompiler_identityFn() {" +
+			"  return function(JSCompiler_identityFn_value) {" +
+			"return JSCompiler_identityFn_value}" +
+			"}",
+		reduce: functionRewriter_reduceIdentity,
+	},
+}
+
 // Java: FunctionRewriter.process(Node, Node)
 func (f *FunctionRewriter) Process(externs rhino.Node, root rhino.Node) {
-	reducers := []FunctionRewriter_Reducer{
-		NewFunctionRewriter_ReturnConstantReducer(),
-		NewFunctionRewriter_GetterReducer(),
-		NewFunctionRewriter_SetterReducer(),
-		NewFunctionRewriter_EmptyFunctionReducer(),
-		NewFunctionRewriter_IdentityReducer(),
-	}
-
-	// Go-only: language-adapter — a HashMultimap keyed by identity-hashed
-	// Reducers with identity-hashed Reduction values; Java's iteration
-	// order there is not deterministic, so insertion order is used.
-	reductionMap := jutil.NewSetMultimap[FunctionRewriter_Reducer, *FunctionRewriter_Reduction]()
-
-	// Accumulate possible reductions in the reduction multi-map.  They
-	// will be applied in the loop below.
-	NodeTraversal_Traverse(f.compiler, root,
-		NewFunctionRewriter_ReductionGatherer(f, reducers, reductionMap))
+	gatherer := &functionRewriterGatherer{}
+	NodeTraversal_Traverse(f.compiler, root, gatherer)
 
 	// Apply reductions iff they will provide some savings.
-	for _, reducer := range reducers {
-		reductions := reductionMap.Get(reducer)
-		if reductions.IsEmpty() {
+	for i := range functionRewriterReducers {
+		reductions := gatherer.reductions[i]
+		if len(reductions) == 0 {
 			continue
 		}
 
-		helperCode := f.ParseHelperCode(reducer)
+		helperCode := f.parseHelperCode(&functionRewriterReducers[i])
 		if helperCode.IsNil() {
 			continue
 		}
 
 		helperCodeCost := InlineCostEstimator_GetCost(helperCode)
 
-		// Estimate savings
 		savings := 0
-		for reduction := range reductions.All() {
-			savings += reduction.EstimateSavings()
+		for _, r := range reductions {
+			savings += InlineCostEstimator_GetCost(r.oldChild) - InlineCostEstimator_GetCost(r.newChild)
 		}
 
-		// Compare estimated savings against the helper cost.  Apply
+		// Compare estimated savings against the helper cost. Apply
 		// reductions if doing so will result in some savings.
-		if savings > (helperCodeCost + FunctionRewriter_SAVINGS_THRESHOLD) {
-			for reduction := range reductions.All() {
-				reduction.Apply()
+		if savings > helperCodeCost+functionRewriterSavingsThreshold {
+			for _, r := range reductions {
+				r.oldChild.ReplaceWith(r.newChild)
+				NodeUtil_MarkFunctionsDeleted(r.oldChild, f.compiler)
+				f.compiler.ReportChangeToEnclosingScope(r.newChild)
 			}
 
 			addingRoot := f.compiler.GetNodeForCodeInsertion(nil)
@@ -110,525 +149,173 @@ func (f *FunctionRewriter) Process(externs rhino.Node, root rhino.Node) {
 	}
 }
 
-// ParseHelperCode parses helper code needed by a reducer.
-//
-// Returns the helper code root. If parse fails, return null.
-//
 // Java: FunctionRewriter.parseHelperCode(Reducer)
-func (f *FunctionRewriter) ParseHelperCode(reducer FunctionRewriter_Reducer) rhino.Node {
-	root :=
-		f.compiler.ParseSyntheticCode(functionRewriter_classString(reducer)+":helper", reducer.GetHelperSource())
+func (f *FunctionRewriter) parseHelperCode(reducer *functionRewriterReducer) rhino.Node {
+	root := f.compiler.ParseSyntheticCode(reducer.helperSourceName, reducer.helperSource)
 	if !root.IsNil() {
 		return root.RemoveFirstChild()
 	}
 	return rhino.NilNode
 }
 
-// functionRewriter_classString is `reducer.getClass()` in a string
-// concatenation (Class.toString()).
-//
-// Go-only: language-adapter — Go has no Class objects; the names are the
-// Java binary names of the reducer classes.
-func functionRewriter_classString(reducer FunctionRewriter_Reducer) string {
-	switch reducer.(type) {
-	case *FunctionRewriter_EmptyFunctionReducer:
-		return "class com.google.javascript.jscomp.FunctionRewriter$EmptyFunctionReducer"
-	case *FunctionRewriter_IdentityReducer:
-		return "class com.google.javascript.jscomp.FunctionRewriter$IdentityReducer"
-	case *FunctionRewriter_ReturnConstantReducer:
-		return "class com.google.javascript.jscomp.FunctionRewriter$ReturnConstantReducer"
-	case *FunctionRewriter_GetterReducer:
-		return "class com.google.javascript.jscomp.FunctionRewriter$GetterReducer"
-	case *FunctionRewriter_SetterReducer:
-		return "class com.google.javascript.jscomp.FunctionRewriter$SetterReducer"
-	}
-	panic(jutil.NewIllegalStateExceptionMsg("unknown reducer"))
-}
-
 // Java: FunctionRewriter.isReduceableFunctionExpression(Node)
-func FunctionRewriter_IsReduceableFunctionExpression(n rhino.Node) bool {
+func functionRewriter_isReduceableFunctionExpression(fn ast.Function) bool {
+	n := fn.Node()
 	parent := n.GetParent()
 	return NodeUtil_IsFunctionExpression(n) &&
 		!NodeUtil_IsGetOrSetKey(parent) &&
 		!parent.IsMemberFunctionDef() &&
-		!n.IsAsyncFunction() &&
-		!n.IsGeneratorFunction() &&
+		!fn.IsAsync() &&
+		!fn.IsGenerator() &&
 		!NodeUtil_HasNonSimpleParameters(n)
 }
 
-// FunctionRewriter_Reduction is information needed to apply a reduction.
-type FunctionRewriter_Reduction struct {
-	outer    *FunctionRewriter
-	oldChild rhino.Node
-	newChild rhino.Node
+// functionRewriterGatherer gathers candidate reductions during pre-order
+// traversal, stopping traversal inside reduced function subtrees.
+type functionRewriterGatherer struct {
+	reductions [len(functionRewriterReducers)][]functionRewriterReduction
 }
 
-// Java: FunctionRewriter.Reduction(Node, Node)
-func NewFunctionRewriter_Reduction(outer *FunctionRewriter, oldChild rhino.Node, newChild rhino.Node) *FunctionRewriter_Reduction {
-	return &FunctionRewriter_Reduction{outer: outer, oldChild: oldChild, newChild: newChild}
-}
+func (*functionRewriterGatherer) noVisit() {}
 
-// Apply applies the reduction by replacing the old child with the new
-// child.
-//
-// Java: FunctionRewriter.Reduction.apply()
-func (r *FunctionRewriter_Reduction) Apply() {
-	r.oldChild.ReplaceWith(r.newChild)
-	NodeUtil_MarkFunctionsDeleted(r.oldChild, r.outer.compiler)
-	r.outer.compiler.ReportChangeToEnclosingScope(r.newChild)
-}
-
-// EstimateSavings estimates the number of bytes saved by applying this
-// reduction.
-//
-// Java: FunctionRewriter.Reduction.estimateSavings()
-func (r *FunctionRewriter_Reduction) EstimateSavings() int {
-	return InlineCostEstimator_GetCost(r.oldChild) -
-		InlineCostEstimator_GetCost(r.newChild)
-}
-
-// FunctionRewriter_ReductionGatherer gathers a list of reductions to apply
-// later by doing an in-order AST traversal. If a suitable reduction is
-// found, stop traversal in that branch.
-type FunctionRewriter_ReductionGatherer struct {
-	outer      *FunctionRewriter
-	reducers   []FunctionRewriter_Reducer
-	reductions *jutil.SetMultimap[FunctionRewriter_Reducer, *FunctionRewriter_Reduction]
-}
-
-// NewFunctionRewriter_ReductionGatherer: reducers is the list of reducers
-// to apply during traversal; reductions the Reducer -> Reduction multimap,
-// populated during traversal.
-//
-// Java: FunctionRewriter.ReductionGatherer(List<Reducer>, Multimap<Reducer, Reduction>)
-func NewFunctionRewriter_ReductionGatherer(outer *FunctionRewriter, reducers []FunctionRewriter_Reducer,
-	reductions *jutil.SetMultimap[FunctionRewriter_Reducer, *FunctionRewriter_Reduction]) *FunctionRewriter_ReductionGatherer {
-	// Use a native array to avoid creating an iterator for every node in the AST.
-	// which accord to pprof accounts for ~20% of the runtime of this pass.
-	return &FunctionRewriter_ReductionGatherer{
-		outer:      outer,
-		reducers:   append([]FunctionRewriter_Reducer(nil), reducers...),
-		reductions: reductions,
+func (g *functionRewriterGatherer) ShouldTraverse(_ *NodeTraversal, node rhino.Node, _ rhino.Node) bool {
+	fn, ok := ast.AsFunction(node)
+	if !ok || !functionRewriter_isReduceableFunctionExpression(fn) {
+		return true
 	}
-}
-
-// Java: FunctionRewriter.ReductionGatherer.shouldTraverse(NodeTraversal, Node, Node)
-func (g *FunctionRewriter_ReductionGatherer) ShouldTraverse(raversal *NodeTraversal,
-	node rhino.Node,
-	parent rhino.Node) bool {
-	for _, reducer := range g.reducers {
-		replacement := reducer.Reduce(node)
-		if replacement != node {
-			g.reductions.Put(reducer, NewFunctionRewriter_Reduction(g.outer, node, replacement))
+	for i := range functionRewriterReducers {
+		if replacement, reduced := functionRewriterReducers[i].reduce(fn); reduced {
+			g.reductions[i] = append(g.reductions[i], functionRewriterReduction{
+				oldChild: node,
+				newChild: replacement,
+			})
 			return false
 		}
 	}
 	return true
 }
 
-// Java: FunctionRewriter.ReductionGatherer.visit(NodeTraversal, Node, Node)
-func (g *FunctionRewriter_ReductionGatherer) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
-}
+func (g *functionRewriterGatherer) Visit(*NodeTraversal, rhino.Node, rhino.Node) {}
 
-// FunctionRewriter_Reducer is the interface implemented by the
-// strength-reduction optimizers below.
-type FunctionRewriter_Reducer interface {
-	// GetHelperSource returns the JS source for helper methods used by this
-	// reduction.
-	//
-	// Java: FunctionRewriter.Reducer.getHelperSource()
-	GetHelperSource() string
-
-	// Reduce returns the root of the reduced subtree if a reduction was
-	// applied; otherwise returns the node argument.
-	//
-	// Java: FunctionRewriter.Reducer.reduce(Node)
-	Reduce(node rhino.Node) rhino.Node
-
-	GetFunctionRewriter_ReducerBase() *FunctionRewriter_ReducerBase
-}
-
-// FunctionRewriter_ReducerBase holds Reducer's final method.
-type FunctionRewriter_ReducerBase struct {
-	// Go-only: language-adapter — distinct identity (reducers are multimap
-	// keys).
-	_ byte
-}
-
-// GetFunctionRewriter_ReducerBase gives access to the base through the
-// interface.
-func (b *FunctionRewriter_ReducerBase) GetFunctionRewriter_ReducerBase() *FunctionRewriter_ReducerBase {
-	return b
-}
-
-// BuildCallNode builds a method call based on the the given method name,
-// argument and history.
-//
-// methodName is the method to call; argumentNode the method argument.
-//
-// Java: FunctionRewriter.Reducer.buildCallNode(String, Node, Node)
-func (b *FunctionRewriter_ReducerBase) BuildCallNode(
-	methodName string, argumentNode rhino.Node, srcref rhino.Node) rhino.Node {
-	call := rhino.IR_Call(rhino.IR_Name(methodName)).SrcrefTree(srcref)
-	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
-	if !argumentNode.IsNil() {
-		call.AddChildToBack(argumentNode.CloneTree())
+func functionRewriter_buildCallNode(methodName string, arg rhino.Node, srcref rhino.Node) rhino.Node {
+	call := ast.NewCall(ast.NewName(methodName).AsExpr())
+	call.Node().SrcrefTree(srcref)
+	call.SetFreeCall(true)
+	if !arg.IsNil() {
+		call.Node().AddChildToBack(arg)
 	}
-	return call
+	return call.Node()
 }
 
-// FunctionRewriter_EmptyFunctionReducer reduces return immutable constant
-// literal methods declarations with calls to a constant return method
-// factory.
-//
-// Example:
-//
-//	a.prototype.b = function() {}
-//
-// is reduced to:
-//
-//	a.prototype.b = emptyFn();
-type FunctionRewriter_EmptyFunctionReducer struct {
-	FunctionRewriter_ReducerBase
-}
-
-const FunctionRewriter_EmptyFunctionReducer_FACTORY_METHOD_NAME = "JSCompiler_emptyFn"
-
-const FunctionRewriter_EmptyFunctionReducer_HELPER_SOURCE = "function " + FunctionRewriter_EmptyFunctionReducer_FACTORY_METHOD_NAME + "() {" +
-	"  return function() {}" +
-	"}"
-
-// Java: FunctionRewriter.EmptyFunctionReducer()
-func NewFunctionRewriter_EmptyFunctionReducer() *FunctionRewriter_EmptyFunctionReducer {
-	return &FunctionRewriter_EmptyFunctionReducer{}
-}
-
-// Java: FunctionRewriter.EmptyFunctionReducer.getHelperSource()
-func (r *FunctionRewriter_EmptyFunctionReducer) GetHelperSource() string {
-	return FunctionRewriter_EmptyFunctionReducer_HELPER_SOURCE
+// Java: FunctionRewriter.SingleReturnStatementReducer.maybeGetSingleReturnRValue(Node)
+func functionRewriter_singleReturnValue(fn ast.Function) (ast.Expr, bool) {
+	block, ok := fn.Body().AsBlock()
+	if !ok {
+		return ast.Expr{}, false
+	}
+	stmt, ok := block.OnlyStatement()
+	if !ok {
+		return ast.Expr{}, false
+	}
+	ret, ok := stmt.AsReturn()
+	if !ok {
+		return ast.Expr{}, false
+	}
+	return ret.Value()
 }
 
 // Java: FunctionRewriter.EmptyFunctionReducer.reduce(Node)
-func (r *FunctionRewriter_EmptyFunctionReducer) Reduce(node rhino.Node) rhino.Node {
-	if FunctionRewriter_IsReduceableFunctionExpression(node) && NodeUtil_IsEmptyFunctionExpression(node) {
-		return r.BuildCallNode(FunctionRewriter_EmptyFunctionReducer_FACTORY_METHOD_NAME, rhino.NilNode, node)
-	} else {
-		return node
+func functionRewriter_reduceEmptyFunction(fn ast.Function) (rhino.Node, bool) {
+	if NodeUtil_IsEmptyFunctionExpression(fn.Node()) {
+		return functionRewriter_buildCallNode("JSCompiler_emptyFn", rhino.NilNode, fn.Node()), true
 	}
-}
-
-// FunctionRewriter_SingleReturnStatementReducer is the base class for
-// reducers that match functions that contain a single return statement.
-type FunctionRewriter_SingleReturnStatementReducer interface {
-	FunctionRewriter_Reducer
-
-	GetFunctionRewriter_SingleReturnStatementReducerBase() *FunctionRewriter_SingleReturnStatementReducerBase
-}
-
-// FunctionRewriter_SingleReturnStatementReducerBase holds
-// SingleReturnStatementReducer's final method.
-type FunctionRewriter_SingleReturnStatementReducerBase struct {
-	FunctionRewriter_ReducerBase
-}
-
-// GetFunctionRewriter_SingleReturnStatementReducerBase gives access to the
-// base through the interface.
-func (b *FunctionRewriter_SingleReturnStatementReducerBase) GetFunctionRewriter_SingleReturnStatementReducerBase() *FunctionRewriter_SingleReturnStatementReducerBase {
-	return b
-}
-
-// MaybeGetSingleReturnRValue returns the function return value node if
-// function body contains a single return statement. Otherwise, null.
-//
-// Java: FunctionRewriter.SingleReturnStatementReducer.maybeGetSingleReturnRValue(Node)
-func (b *FunctionRewriter_SingleReturnStatementReducerBase) MaybeGetSingleReturnRValue(functionNode rhino.Node) rhino.Node {
-	body := functionNode.GetLastChild()
-	if !body.HasOneChild() {
-		return rhino.NilNode
-	}
-
-	statement := body.GetFirstChild()
-	if statement.IsReturn() {
-		return statement.GetFirstChild()
-	}
-	return rhino.NilNode
-}
-
-// FunctionRewriter_IdentityReducer reduces property getter method
-// declarations with calls to a getter method factory.
-//
-// Example:
-//
-//	a.prototype.b = function(a) {return a}
-//
-// is reduced to:
-//
-//	a.prototype.b = getter(a);
-type FunctionRewriter_IdentityReducer struct {
-	FunctionRewriter_SingleReturnStatementReducerBase
-}
-
-const FunctionRewriter_IdentityReducer_FACTORY_METHOD_NAME = "JSCompiler_identityFn"
-
-const FunctionRewriter_IdentityReducer_HELPER_SOURCE = "function " + FunctionRewriter_IdentityReducer_FACTORY_METHOD_NAME + "() {" +
-	"  return function(" + FunctionRewriter_IdentityReducer_FACTORY_METHOD_NAME + "_value) {" +
-	"return " + FunctionRewriter_IdentityReducer_FACTORY_METHOD_NAME + "_value}" +
-	"}"
-
-// Java: FunctionRewriter.IdentityReducer()
-func NewFunctionRewriter_IdentityReducer() *FunctionRewriter_IdentityReducer {
-	return &FunctionRewriter_IdentityReducer{}
-}
-
-// Java: FunctionRewriter.IdentityReducer.getHelperSource()
-func (r *FunctionRewriter_IdentityReducer) GetHelperSource() string {
-	return FunctionRewriter_IdentityReducer_HELPER_SOURCE
+	return rhino.NilNode, false
 }
 
 // Java: FunctionRewriter.IdentityReducer.reduce(Node)
-func (r *FunctionRewriter_IdentityReducer) Reduce(node rhino.Node) rhino.Node {
-	if !FunctionRewriter_IsReduceableFunctionExpression(node) {
-		return node
+func functionRewriter_reduceIdentity(fn ast.Function) (rhino.Node, bool) {
+	firstParam, ok := fn.Params().FirstParam()
+	if !ok {
+		return rhino.NilNode, false
 	}
-
-	if r.IsIdentityFunction(node) {
-		return r.BuildCallNode(FunctionRewriter_IdentityReducer_FACTORY_METHOD_NAME, rhino.NilNode, node)
-	} else {
-		return node
+	paramName, ok := firstParam.AsName()
+	if !ok {
+		return rhino.NilNode, false
 	}
-}
-
-// IsIdentityFunction checks if the function matches the pattern:
-//
-//	function(<value>, <rest>) {return <value>}
-//
-// Returns whether the function matches the pattern.
-//
-// Java: FunctionRewriter.IdentityReducer.isIdentityFunction(Node)
-func (r *FunctionRewriter_IdentityReducer) IsIdentityFunction(functionNode rhino.Node) bool {
-	argList := functionNode.GetSecondChild()
-	paramNode := argList.GetFirstChild()
-	if paramNode.IsNil() || !paramNode.IsName() {
-		// no parameters, or first parameter uses destructuring or a default value
-		return false
+	retVal, ok := functionRewriter_singleReturnValue(fn)
+	if !ok {
+		return rhino.NilNode, false
 	}
-
-	value := r.MaybeGetSingleReturnRValue(functionNode)
-	return !value.IsNil() && value.IsName() && value.GetString() == paramNode.GetString()
-}
-
-// FunctionRewriter_ReturnConstantReducer reduces return immutable constant
-// literal methods declarations with calls to a constant return method
-// factory.
-//
-// Example:
-//
-//	a.prototype.b = function() {return 10}
-//
-// is reduced to:
-//
-//	a.prototype.b = returnconst(10);
-type FunctionRewriter_ReturnConstantReducer struct {
-	FunctionRewriter_SingleReturnStatementReducerBase
-}
-
-const FunctionRewriter_ReturnConstantReducer_FACTORY_METHOD_NAME = "JSCompiler_returnArg"
-
-const FunctionRewriter_ReturnConstantReducer_HELPER_SOURCE = "function " + FunctionRewriter_ReturnConstantReducer_FACTORY_METHOD_NAME +
-	"(" + FunctionRewriter_ReturnConstantReducer_FACTORY_METHOD_NAME + "_value) {" +
-	"  return function() {return " + FunctionRewriter_ReturnConstantReducer_FACTORY_METHOD_NAME + "_value}" +
-	"}"
-
-// Java: FunctionRewriter.ReturnConstantReducer()
-func NewFunctionRewriter_ReturnConstantReducer() *FunctionRewriter_ReturnConstantReducer {
-	return &FunctionRewriter_ReturnConstantReducer{}
-}
-
-// Java: FunctionRewriter.ReturnConstantReducer.getHelperSource()
-func (r *FunctionRewriter_ReturnConstantReducer) GetHelperSource() string {
-	return FunctionRewriter_ReturnConstantReducer_HELPER_SOURCE
+	retName, ok := retVal.AsName()
+	if !ok || retName.Ident() != paramName.Ident() {
+		return rhino.NilNode, false
+	}
+	return functionRewriter_buildCallNode("JSCompiler_identityFn", rhino.NilNode, fn.Node()), true
 }
 
 // Java: FunctionRewriter.ReturnConstantReducer.reduce(Node)
-func (r *FunctionRewriter_ReturnConstantReducer) Reduce(node rhino.Node) rhino.Node {
-	if !FunctionRewriter_IsReduceableFunctionExpression(node) {
-		return node
+func functionRewriter_reduceReturnConstant(fn ast.Function) (rhino.Node, bool) {
+	retVal, ok := functionRewriter_singleReturnValue(fn)
+	if !ok || !NodeUtil_IsImmutableValue(retVal.Node()) {
+		return rhino.NilNode, false
 	}
-
-	valueNode := r.GetValueNode(node)
-	if !valueNode.IsNil() {
-		return r.BuildCallNode(FunctionRewriter_ReturnConstantReducer_FACTORY_METHOD_NAME, valueNode, node)
-	} else {
-		return node
-	}
-}
-
-// GetValueNode checks if the function matches the pattern: function(<args>)
-// {return <immutable value>} and returns <immutable value> if a match is
-// found.
-//
-// Returns the immutable value node; or null.
-//
-// Java: FunctionRewriter.ReturnConstantReducer.getValueNode(Node)
-func (r *FunctionRewriter_ReturnConstantReducer) GetValueNode(functionNode rhino.Node) rhino.Node {
-	value := r.MaybeGetSingleReturnRValue(functionNode)
-	if !value.IsNil() &&
-		NodeUtil_IsImmutableValue(value) {
-		return value
-	}
-	return rhino.NilNode
-}
-
-// FunctionRewriter_GetterReducer reduces property getter method
-// declarations with calls to a getter method factory.
-//
-// Example:
-//
-//	a.prototype.b = function() {return this.b_}
-//
-// is reduced to:
-//
-//	a.prototype.b = getter("b_");
-type FunctionRewriter_GetterReducer struct {
-	FunctionRewriter_SingleReturnStatementReducerBase
-}
-
-const FunctionRewriter_GetterReducer_FACTORY_METHOD_NAME = "JSCompiler_get"
-
-const FunctionRewriter_GetterReducer_HELPER_SOURCE = "function " + FunctionRewriter_GetterReducer_FACTORY_METHOD_NAME + "(" +
-	FunctionRewriter_GetterReducer_FACTORY_METHOD_NAME + "_name) {" +
-	"  return function() {return this[" + FunctionRewriter_GetterReducer_FACTORY_METHOD_NAME + "_name]}" +
-	"}"
-
-// Java: FunctionRewriter.GetterReducer()
-func NewFunctionRewriter_GetterReducer() *FunctionRewriter_GetterReducer {
-	return &FunctionRewriter_GetterReducer{}
-}
-
-// Java: FunctionRewriter.GetterReducer.getHelperSource()
-func (r *FunctionRewriter_GetterReducer) GetHelperSource() string {
-	return FunctionRewriter_GetterReducer_HELPER_SOURCE
+	return functionRewriter_buildCallNode("JSCompiler_returnArg", retVal.Node().CloneTree(), fn.Node()), true
 }
 
 // Java: FunctionRewriter.GetterReducer.reduce(Node)
-func (r *FunctionRewriter_GetterReducer) Reduce(node rhino.Node) rhino.Node {
-	if !FunctionRewriter_IsReduceableFunctionExpression(node) || node.IsArrowFunction() {
-		return node
+func functionRewriter_reduceGetter(fn ast.Function) (rhino.Node, bool) {
+	if fn.IsArrow() {
+		return rhino.NilNode, false
 	}
-
-	getprop := r.GetGetPropertyName(node)
-	if !getprop.IsNil() {
-		if !getprop.IsGetProp() {
-			panic(jutil.NewIllegalStateExceptionMsg("Expected GETPROP, got " + getprop.GetToken().String()))
-		}
-
-		arg := rhino.IR_String(getprop.GetString()).Srcref(getprop)
-		return r.BuildCallNode(FunctionRewriter_GetterReducer_FACTORY_METHOD_NAME, arg, node)
-	} else {
-		return node
+	retVal, ok := functionRewriter_singleReturnValue(fn)
+	if !ok {
+		return rhino.NilNode, false
 	}
-}
-
-// GetGetPropertyName checks if the function matches the pattern:
-// function(<args>) {return this.<name>} and returns <name> if a match is
-// found.
-//
-// Returns the STRING node that is the RHS of a this property get; or null.
-//
-// Java: FunctionRewriter.GetterReducer.getGetPropertyName(Node)
-func (r *FunctionRewriter_GetterReducer) GetGetPropertyName(functionNode rhino.Node) rhino.Node {
-	value := r.MaybeGetSingleReturnRValue(functionNode)
-	if !value.IsNil() &&
-		value.IsGetProp() &&
-		value.GetFirstChild().IsThis() {
-		return value
+	getprop, ok := retVal.AsGetProp()
+	if !ok || !getprop.Object().Node().IsThis() {
+		return rhino.NilNode, false
 	}
-	return rhino.NilNode
-}
-
-// FunctionRewriter_SetterReducer reduces property setter method
-// declarations with calls to a setter method factory.
-//
-// Example:
-//
-//	a.prototype.setB = function(value) {this.b_ = value}
-//
-// reduces to:
-//
-//	a.prototype.setB = getter("b_");
-type FunctionRewriter_SetterReducer struct {
-	FunctionRewriter_ReducerBase
-}
-
-const FunctionRewriter_SetterReducer_FACTORY_METHOD_NAME = "JSCompiler_set"
-
-const FunctionRewriter_SetterReducer_HELPER_SOURCE = "function " + FunctionRewriter_SetterReducer_FACTORY_METHOD_NAME + "(" +
-	FunctionRewriter_SetterReducer_FACTORY_METHOD_NAME + "_name) {" +
-	"  return function(" + FunctionRewriter_SetterReducer_FACTORY_METHOD_NAME + "_value) {" +
-	"this[" + FunctionRewriter_SetterReducer_FACTORY_METHOD_NAME + "_name] = " +
-	FunctionRewriter_SetterReducer_FACTORY_METHOD_NAME + "_value}" +
-	"}"
-
-// Java: FunctionRewriter.SetterReducer()
-func NewFunctionRewriter_SetterReducer() *FunctionRewriter_SetterReducer {
-	return &FunctionRewriter_SetterReducer{}
-}
-
-// Java: FunctionRewriter.SetterReducer.getHelperSource()
-func (r *FunctionRewriter_SetterReducer) GetHelperSource() string {
-	return FunctionRewriter_SetterReducer_HELPER_SOURCE
+	arg := rhino.IR_String(getprop.Property()).Srcref(getprop.Node())
+	return functionRewriter_buildCallNode("JSCompiler_get", arg, fn.Node()), true
 }
 
 // Java: FunctionRewriter.SetterReducer.reduce(Node)
-func (r *FunctionRewriter_SetterReducer) Reduce(node rhino.Node) rhino.Node {
-	if !FunctionRewriter_IsReduceableFunctionExpression(node) || node.IsArrowFunction() {
-		return node
+func functionRewriter_reduceSetter(fn ast.Function) (rhino.Node, bool) {
+	if fn.IsArrow() {
+		return rhino.NilNode, false
 	}
-
-	propName := r.GetSetPropertyName(node)
-	if !propName.IsNil() {
-		if !propName.IsStringLit() {
-			panic(jutil.NewIllegalStateExceptionMsg("Expected STRING, got " + propName.GetToken().String()))
-		}
-
-		return r.BuildCallNode(FunctionRewriter_SetterReducer_FACTORY_METHOD_NAME, propName, node)
-	} else {
-		return node
+	block, ok := fn.Body().AsBlock()
+	if !ok {
+		return rhino.NilNode, false
 	}
-}
-
-// GetSetPropertyName checks if the function matches the pattern:
-// function(<value>, <rest>) {this.<name> = <value>} and returns <name> if a
-// match is found.
-//
-// Returns the STRING node that is the RHS of a this property get; or null.
-//
-// Java: FunctionRewriter.SetterReducer.getSetPropertyName(Node)
-func (r *FunctionRewriter_SetterReducer) GetSetPropertyName(functionNode rhino.Node) rhino.Node {
-	body := functionNode.GetLastChild()
-	if !body.HasOneChild() {
-		return rhino.NilNode
+	stmt, ok := block.OnlyStatement()
+	if !ok {
+		return rhino.NilNode, false
 	}
-
-	argList := functionNode.GetSecondChild()
-	paramNode := argList.GetFirstChild()
-	if paramNode.IsNil() || !paramNode.IsName() {
-		// no parameters, or first parameter uses destructuring or a default value
-		return rhino.NilNode
+	firstParam, ok := fn.Params().FirstParam()
+	if !ok {
+		return rhino.NilNode, false
 	}
-
-	statement := body.GetFirstChild()
-	if !NodeUtil_IsExprAssign(statement) {
-		return rhino.NilNode
+	paramName, ok := firstParam.AsName()
+	if !ok {
+		return rhino.NilNode, false
 	}
-
-	assign := statement.GetFirstChild()
-	lhs := assign.GetFirstChild()
-	if lhs.IsGetProp() && lhs.GetFirstChild().IsThis() {
-		rhs := assign.GetLastChild()
-		if rhs.IsName() && rhs.GetString() == paramNode.GetString() {
-			return rhino.IR_String(lhs.GetString()).ClonePropsFrom(lhs).Srcref(lhs)
-		}
+	exprStmt, ok := stmt.AsExprStmt()
+	if !ok {
+		return rhino.NilNode, false
 	}
-	return rhino.NilNode
+	assign, ok := exprStmt.Expr().AsAssign()
+	if !ok {
+		return rhino.NilNode, false
+	}
+	lhs, ok := assign.Target().AsGetProp()
+	if !ok || !lhs.Object().Node().IsThis() {
+		return rhino.NilNode, false
+	}
+	rhs, ok := assign.Value().AsName()
+	if !ok || rhs.Ident() != paramName.Ident() {
+		return rhino.NilNode, false
+	}
+	propName := rhino.IR_String(lhs.Property()).ClonePropsFrom(lhs.Node()).Srcref(lhs.Node())
+	return functionRewriter_buildCallNode("JSCompiler_set", propName, fn.Node()), true
 }

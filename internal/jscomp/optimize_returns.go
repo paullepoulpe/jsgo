@@ -19,8 +19,8 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -87,7 +87,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 
 	// Find all the candidates before modifying the AST.
 	for key, refs := range definitions.GetNameReferences() {
-		if o.IsCandidate(key, refs) {
+		if o.isCandidate(key, refs) {
 			if o.decisionsLog.IsLogging() {
 				o.decisionsLog.LogFormat("name %s\tremoving return value", key)
 			}
@@ -96,7 +96,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 	}
 
 	for key, refs := range definitions.GetPropReferences() {
-		if o.IsCandidate(key, refs) {
+		if o.isCandidate(key, refs) {
 			if o.decisionsLog.IsLogging() {
 				o.decisionsLog.LogFormat("property %s\tremoving return value", key)
 			}
@@ -109,19 +109,23 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 		fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], refs)
 		o.fnNodes = fns
 		for _, fn := range fns {
-			o.RewriteReturns(fn)
+			o.rewriteReturns(ast.MustFunction(fn))
 		}
 	}
 }
 
-// IsCandidate: this reference set is a candidate for return-value-removal
-// if: - if the all call sites are known (not aliased, not exported) - if all
-// call sites do not use the return value - if there is at least one known
-// function definition - if there is at least one use NOTE: unknown
-// definitions are allowed, as only known definitions will be removed.
+// isCandidate reports whether a reference set is a candidate for return-value
+// removal:
+//   - all call sites are known (not aliased, not exported)
+//   - all call sites ignore the return value
+//   - there is at least one known function definition
+//   - there is at least one use
+//
+// NOTE: unknown definitions are allowed, as only known definitions will be
+// rewritten.
 //
 // Java: OptimizeReturns.isCandidate(String, List<Node>)
-func (o *OptimizeReturns) IsCandidate(name string, refs []rhino.Node) bool {
+func (o *OptimizeReturns) isCandidate(name string, refs []rhino.Node) bool {
 	if !OptimizeCalls_MayBeOptimizableName(o.compiler, name) {
 		if o.decisionsLog.IsLogging() {
 			o.decisionsLog.LogFormat("%s\tnot an optimizable name", name)
@@ -129,35 +133,28 @@ func (o *OptimizeReturns) IsCandidate(name string, refs []rhino.Node) bool {
 		return false
 	}
 
-	seenCandidateDefiniton := false
+	seenCandidateDefinition := false
 	seenUse := false
 	for _, n := range refs {
 		// Assume indirect definitions references use the result
 		if OptimizeCalls_ReferenceMap_IsCallTarget(n) || OptimizeCalls_ReferenceMap_IsOptChainCallTarget(n) {
 			callNode := OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(n)
 			if NodeUtil_IsExpressionResultUsed(callNode) {
-				// At least one call site uses the return value, this
-				// is not a candidate.
 				if o.decisionsLog.IsLogging() { // avoid build location string when not logging
 					o.decisionsLog.LogFormat("%s\treturn value used: %s", name, callNode.GetLocation())
 				}
 				return false
 			}
 			seenUse = true
-		} else if o.IsCandidateDefinition(n) {
-			// NOTE: While is is possible to optimize calls to functions for which we know
-			// only some of the definition are candidates but to keep things simple, only
-			// optimize if all of the definitions are known.
-			seenCandidateDefiniton = true
-		} else {
-			// If this isn't an non-aliasing reference (typeof, instanceof, etc)
+		} else if o.isCandidateDefinition(n) {
+			seenCandidateDefinition = true
+		} else if !OptimizeCalls_IsAllowedReference(n) {
+			// If this isn't a non-aliasing reference (typeof, instanceof, etc)
 			// then there is nothing that can be done.
-			if !OptimizeCalls_IsAllowedReference(n) {
-				if o.decisionsLog.IsLogging() { // avoid build location string when not logging
-					o.decisionsLog.LogFormat("%s\tdisallowed reference: %s", name, n.GetLocation())
-				}
-				return false
+			if o.decisionsLog.IsLogging() { // avoid build location string when not logging
+				o.decisionsLog.LogFormat("%s\tdisallowed reference: %s", name, n.GetLocation())
 			}
+			return false
 		}
 	}
 
@@ -167,7 +164,7 @@ func (o *OptimizeReturns) IsCandidate(name string, refs []rhino.Node) bool {
 		}
 		return false
 	}
-	if !seenCandidateDefiniton {
+	if !seenCandidateDefinition {
 		if o.decisionsLog.IsLogging() {
 			o.decisionsLog.LogFormat("%s\tno definition seen", name)
 		}
@@ -177,56 +174,49 @@ func (o *OptimizeReturns) IsCandidate(name string, refs []rhino.Node) bool {
 }
 
 // Java: OptimizeReturns.isCandidateDefinition(Node)
-func (o *OptimizeReturns) IsCandidateDefinition(n rhino.Node) bool {
+func (o *OptimizeReturns) isCandidateDefinition(n rhino.Node) bool {
 	parent := n.GetParent()
 	if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
 		return true
-	} else if OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n) {
-		if OptimizeReturns_IsCandidateFunction(parent.GetLastChild()) {
-			return true
-		}
-	} else if n.IsName() {
-		if n.HasChildren() && OptimizeReturns_IsCandidateFunction(n.GetFirstChild()) {
-			return true
-		}
-	} else if o.IsClassMemberDefinition(n) {
-		return true
 	}
-
-	return false
-}
-
-// Java: OptimizeReturns.isClassMemberDefinition(Node)
-func (o *OptimizeReturns) IsClassMemberDefinition(n rhino.Node) bool {
-	return n.IsMemberFunctionDef() && n.GetParent().IsClassMembers()
+	if OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n) {
+		return optimizeReturns_isCandidateFunction(ast.MustAssign(parent).Value())
+	}
+	if name, ok := ast.AsName(n); ok {
+		init, hasInit := name.Init()
+		return hasInit && optimizeReturns_isCandidateFunction(init)
+	}
+	return n.IsMemberFunctionDef() && parent.IsClassMembers()
 }
 
 // Java: OptimizeReturns.isCandidateFunction(Node)
-func OptimizeReturns_IsCandidateFunction(n rhino.Node) bool {
-	switch n.GetToken() {
+func optimizeReturns_isCandidateFunction(e ast.Expr) bool {
+	switch e.Token() {
 	case rhino.Token_FUNCTION:
 		// Named function expression can be recursive, this creates an alias of the name, meaning
 		// it might be used in an unexpected way.
-		return !NodeUtil_IsNamedFunctionExpression(n)
-	case rhino.Token_COMMA, rhino.Token_CAST:
-		return OptimizeReturns_IsCandidateFunction(n.GetLastChild())
+		return !NodeUtil_IsNamedFunctionExpression(e.Node())
+	case rhino.Token_COMMA:
+		return optimizeReturns_isCandidateFunction(e.MustBinary().Right())
+	case rhino.Token_CAST:
+		return optimizeReturns_isCandidateFunction(e.MustCast().Expr())
 	case rhino.Token_HOOK:
-		return OptimizeReturns_IsCandidateFunction(n.GetSecondChild()) && OptimizeReturns_IsCandidateFunction(n.GetLastChild())
+		h := e.MustHook()
+		return optimizeReturns_isCandidateFunction(h.Then()) && optimizeReturns_isCandidateFunction(h.Else())
 	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
-		return OptimizeReturns_IsCandidateFunction(n.GetFirstChild()) && OptimizeReturns_IsCandidateFunction(n.GetLastChild())
+		b := e.MustBinary()
+		return optimizeReturns_isCandidateFunction(b.Left()) && optimizeReturns_isCandidateFunction(b.Right())
 	default:
 		return false
 	}
 }
 
-// RewriteReturns, for the supplied function node, rewrites all the return
-// expressions so that: return foo(); becomes: foo(); return; Useless return
-// will be removed later by the peephole optimization passes.
+// rewriteReturns rewrites all return expressions in fn so `return foo();`
+// becomes `foo(); return;` (peephole passes remove redundant trailing returns).
 //
 // Java: OptimizeReturns.rewriteReturns(Node)
-func (o *OptimizeReturns) RewriteReturns(fnNode rhino.Node) {
-	jutil.CheckState(fnNode.IsFunction())
-	body := fnNode.GetLastChild()
+func (o *OptimizeReturns) rewriteReturns(fn ast.Function) {
+	body := fn.Body().Node()
 	o.rewriteReturnsInSubtree(body, body)
 }
 
@@ -239,37 +229,41 @@ func (o *OptimizeReturns) rewriteReturnsInSubtree(n rhino.Node, body rhino.Node)
 			c = next
 		}
 	}
-	if n.IsReturn() && n.HasOneChild() {
-		result := n.GetFirstChild()
-		keepValue := !o.IsRemovableValue(result)
-		result.Detach()
-		if keepValue {
-			rhino.IR_ExprResult(result).Srcref(result).InsertBefore(n)
-		} else {
-			NodeUtil_MarkFunctionsDeleted(result, o.compiler)
+	if ret, ok := ast.AsReturn(n); ok {
+		if result, hasVal := ret.Value(); hasVal {
+			keepValue := !o.isRemovableValue(result.Node())
+			result.Detach()
+			if keepValue {
+				ast.NewExprStmt(result).Node().Srcref(result.Node()).InsertBefore(n)
+			} else {
+				NodeUtil_MarkFunctionsDeleted(result.Node(), o.compiler)
+			}
+			o.compiler.ReportChangeToEnclosingScope(body)
 		}
-		o.compiler.ReportChangeToEnclosingScope(body)
 	}
 }
 
-// IsRemovableValue: just remove objects that don't reference properties
-// (object literals) or names (functions) So we don't need to update the
-// graph.
+// isRemovableValue removes only values that don't reference properties (object
+// literals) or names (functions), so the call graph does not need updating.
 //
 // Java: OptimizeReturns.isRemovableValue(Node)
-func (o *OptimizeReturns) IsRemovableValue(n rhino.Node) bool {
+func (o *OptimizeReturns) isRemovableValue(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_TEMPLATELIT, rhino.Token_ARRAYLIT:
 		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if (!child.IsEmpty()) && !o.IsRemovableValue(child) {
+			if !child.IsEmpty() && !o.isRemovableValue(child) {
 				return false
 			}
 		}
 		return true
 	case rhino.Token_REGEXP, rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_NULL, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_TEMPLATELIT_STRING:
 		return true
-	case rhino.Token_TEMPLATELIT_SUB, rhino.Token_CAST, rhino.Token_NOT, rhino.Token_VOID, rhino.Token_NEG:
-		return o.IsRemovableValue(n.GetFirstChild())
+	case rhino.Token_TEMPLATELIT_SUB:
+		return o.isRemovableValue(ast.MustTemplateLitSub(n).Expr().Node())
+	case rhino.Token_CAST:
+		return o.isRemovableValue(ast.MustCast(n).Expr().Node())
+	case rhino.Token_NOT, rhino.Token_VOID, rhino.Token_NEG:
+		return o.isRemovableValue(ast.MustUnary(n).Operand().Node())
 	default:
 		return false
 	}
