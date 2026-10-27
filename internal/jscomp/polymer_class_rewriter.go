@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -66,7 +67,8 @@ func NewPolymerClassRewriter(compiler AbstractCompiler) *PolymerClassRewriter {
 
 // Java: PolymerClassRewriter.isIIFE(Node)
 func PolymerClassRewriter_IsIIFE(n rhino.Node) bool {
-	return n.IsCall() && n.GetFirstChild().IsFunction()
+	call, ok := ast.AsCall(n)
+	return ok && call.Callee().Node().IsFunction()
 }
 
 // Java: PolymerClassRewriter.isFunctionArgInGoogLoadModule(Node)
@@ -179,15 +181,15 @@ func (r *PolymerClassRewriter) insertGeneratedPropsAndBehaviorCode(enclosingNode
 		{
 			// This case represents only the Polymer calls which are enclosed inside an IIFE
 			jutil.CheckState(PolymerClassRewriter_IsIIFE(enclosingNode))
-			functionNode := enclosingNode.GetFirstChild()
-			functionBlock := functionNode.GetLastChild()
+			functionNode := ast.MustFunction(ast.MustCall(enclosingNode).Callee().Node())
+			functionBlock := functionNode.Body().Node()
 			functionBlock.AddChildrenToFront(statements)
 		}
 	case rhino.Token_FUNCTION:
 		// This case represents only the Polymer calls that are inside a function which is an arg
 		// to goog.loadModule
 		jutil.CheckState(PolymerClassRewriter_IsFunctionArgInGoogLoadModule(enclosingNode))
-		functionBlock := enclosingNode.GetLastChild()
+		functionBlock := ast.MustFunction(enclosingNode).Body().Node()
 		insertionPoint := polymerClassRewriter_getInsertionPointForGoogModule(functionBlock)
 		// Node insertionPoint will be null here if functionBlock does not contain a goog.module()
 		// Missing goog.module inside the loadModule's functionBlock is semantically incorrect
@@ -480,10 +482,17 @@ func (r *PolymerClassRewriter) addPropertiesConfigObjectReflection(
 // Java: PolymerClassRewriter.addTypesToFunctions(Node, String, PolymerClassDefinition.DefinitionType)
 func (r *PolymerClassRewriter) addTypesToFunctions(
 	objLit rhino.Node, thisType string, defType PolymerClassDefinition_DefinitionType) {
-	jutil.CheckState(objLit.IsObjectLit())
-	for keyNode := objLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		value := keyNode.GetLastChild()
-		if !value.IsNil() && value.IsFunction() {
+	for member := range ast.MustObjectLit(objLit).Members() {
+		keyNode := member.Node()
+		var value rhino.Node
+		if pkm, ok := member.AsPlainKeyMember(); ok {
+			value = pkm.Value().Node()
+		} else if cp, ok := member.AsComputedProp(); ok {
+			if val, hasVal := cp.Value(); hasVal {
+				value = val.Node()
+			}
+		}
+		if value.IsFunction() {
 			fnDoc := rhino.JSDocInfo_Builder_MaybeCopyFrom(keyNode.GetJSDocInfo())
 			fnDoc.RecordThisType(
 				rhino.NewJSTypeExpression(
@@ -672,7 +681,7 @@ func (r *PolymerClassRewriter) appendBehaviorPropertiesToBlock(
 			infoBuilder.RecordType(propType)
 			info = infoBuilder.Build()
 		}
-		propertyNode.GetFirstChild().SetJSDocInfo(info)
+		ast.MustExprStmt(propertyNode).Expr().Node().SetJSDocInfo(info)
 		block.AddChildToBack(propertyNode)
 	}
 }
@@ -703,7 +712,7 @@ func (r *PolymerClassRewriter) appendPropertiesToBlock(
 			infoBuilder.RecordType(propType)
 			info = infoBuilder.Build()
 		}
-		propertyNode.GetFirstChild().SetJSDocInfo(info)
+		ast.MustExprStmt(propertyNode).Expr().Node().SetJSDocInfo(info)
 		block.AddChildToBack(propertyNode)
 	}
 }
@@ -834,8 +843,9 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 			// Behaviors whose declarations are not in the global scope may contain references to
 			// symbols which do not exist in the element's scope. Only copy a function stub.
 			if !behavior.isGlobalDeclaration {
-				body := NodeUtil_GetFunctionBody(fnValue)
-				if fnValue.IsArrowFunction() && !NodeUtil_GetFunctionBody(fnValue).IsBlock() {
+				fn := ast.MustFunction(fnValue)
+				body := fn.Body().Node()
+				if fn.IsArrow() && !body.IsBlock() {
 					// replace `() => <someExpr>` with `() => undefined`
 					body.ReplaceWith(NodeUtil_NewUndefinedNode(body))
 				} else {
@@ -843,11 +853,9 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 				}
 				// Remove any non-named parameters, which may reference locals.
 				paramIndex := 0
-				for param := NodeUtil_GetFunctionParameters(fnValue).GetFirstChild(); !param.IsNil(); {
-					next := param.GetNext()
-					polymerClassRewriter_makeParamSafe(param, paramIndex)
+				for param := range ast.ReadAhead(fn.Params().FirstParam()) {
+					polymerClassRewriter_makeParamSafe(param.Node(), paramIndex)
 					paramIndex++
-					param = next
 				}
 				if behaviorFunction.info == nil || behaviorFunction.info.GetReturnType() == nil {
 					// Record a return type of ? to avoid the type inferencer assuming this function returns
@@ -898,14 +906,14 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 //
 // Java: PolymerClassRewriter.makeParamSafe(Node, int)
 func polymerClassRewriter_makeParamSafe(param rhino.Node, index int) {
-	if param.IsRest() {
+	if rest, ok := ast.AsIterRest(param); ok {
 		// The lhs may be a destructuring pattern.
-		param = param.GetOnlyChild()
-	} else if param.IsDefaultValue() {
+		param = rest.Target().Node()
+	} else if defVal, ok := ast.AsDefaultValue(param); ok {
 		// Replace default value with void 0, then look at the lhs
-		value := param.GetSecondChild()
-		value.ReplaceWith(NodeUtil_NewUndefinedNode(param))
-		param = param.GetFirstChild()
+		target := defVal.Target().Node()
+		defVal.Value().Node().ReplaceWith(NodeUtil_NewUndefinedNode(param))
+		param = target
 	}
 
 	if param.IsDestructuringPattern() {
@@ -1086,7 +1094,8 @@ func (r *PolymerClassRewriter) addMethodToObjectExternsUsingExportAnnotation(
 //
 // Java: PolymerClassRewriter.varToAssign(Node)
 func polymerClassRewriter_varToAssign(var_ rhino.Node) rhino.Node {
-	assign := rhino.IR_Assign(var_.GetFirstChild().CloneNode(), var_.GetFirstChild().RemoveFirstChild())
+	lhs := ast.MustNameDeclaration(var_).MustFirstDeclarator().Node()
+	assign := rhino.IR_Assign(lhs.CloneNode(), lhs.RemoveFirstChild())
 	return rhino.IR_ExprResult(assign).SrcrefTreeIfMissing(var_)
 }
 
@@ -1138,10 +1147,10 @@ func (r *PolymerClassRewriter) validateComplexObserverReflectionCalls(cls *Polym
 	getter := NodeUtil_GetFirstGetterMatchingKey(classMembers, "observers")
 	if !getter.IsNil() {
 		var complexObservers rhino.Node
-		for child := NodeUtil_GetFunctionBody(getter.GetFirstChild()).GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsReturn() {
-				if child.HasChildren() && child.GetFirstChild().IsArrayLit() {
-					complexObservers = child.GetFirstChild()
+		for stmt := range ast.MustGetterDef(getter).Function().Body().MustBlock().Statements() {
+			if ret, ok := stmt.AsReturn(); ok {
+				if val, hasVal := ret.Value(); hasVal && val.Node().IsArrayLit() {
+					complexObservers = val.Node()
 					break
 				}
 			}
@@ -1226,16 +1235,25 @@ func polymerClassRewriter_isGoogRequireExpr(statement rhino.Node) bool {
 		// `goog.require('a.b.c');`
 		return true
 	}
-	if !NodeUtil_IsNameDeclaration(statement) {
+	decl, ok := ast.AsNameDeclaration(statement)
+	if !ok {
+		return false
+	}
+	first, ok := decl.FirstDeclarator()
+	if !ok {
 		return false
 	}
 	var rhs rhino.Node
-	if statement.GetFirstChild().IsName() {
+	if name, ok := first.AsName(); ok {
 		// `const c = goog.require('a.b.c');`
-		rhs = statement.GetFirstFirstChild()
-	} else {
+		if init, hasInit := name.Init(); hasInit {
+			rhs = init.Node()
+		}
+	} else if dlhs, ok := first.AsDestructuringLhs(); ok {
 		// `const {D} = goog.require('a.b.c');`
-		rhs = statement.GetFirstChild().GetSecondChild()
+		if init, hasInit := dlhs.Init(); hasInit {
+			rhs = init.Node()
+		}
 	}
 	return ModuleImportResolver_IsGoogModuleDependencyCall(rhs)
 }

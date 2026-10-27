@@ -247,29 +247,6 @@ type Export_Builder struct {
 	moduleMetadata   *ModuleMetadataMap_ModuleMetadata
 	closureNamespace *string
 	mutated          bool
-	set0             byte
-}
-
-// Java: AutoBuilder_Export_Builder()
-func newAutoBuilder_Export_Builder() *Export_Builder {
-	return &Export_Builder{}
-}
-
-// Java: AutoBuilder_Export_Builder(Export)
-func newAutoBuilder_Export_BuilderFrom(source *Export) *Export_Builder {
-	return &Export_Builder{
-		exportName:       source.exportName,
-		moduleRequest:    source.moduleRequest,
-		importName:       source.importName,
-		localName:        source.localName,
-		modulePath:       source.modulePath,
-		exportNode:       source.exportNode,
-		nameNode:         source.nameNode,
-		moduleMetadata:   source.moduleMetadata,
-		closureNamespace: source.closureNamespace,
-		mutated:          source.mutated,
-		set0:             1,
-	}
 }
 
 // ExportName takes a possibly-nil value.
@@ -348,22 +325,13 @@ func (b *Export_Builder) ClosureNamespace(closureNamespace *string) *Export_Buil
 // Java: AutoBuilder_Export_Builder.mutated(boolean)
 func (b *Export_Builder) Mutated(mutated bool) *Export_Builder {
 	b.mutated = mutated
-	b.set0 |= 1
 	return b
 }
 
 // Java: AutoBuilder_Export_Builder.autoBuild()
 func (b *Export_Builder) AutoBuild() *Export {
-	if b.set0 != 1 ||
-		b.moduleMetadata == nil {
-		missing := ""
-		if b.moduleMetadata == nil {
-			missing += " moduleMetadata"
-		}
-		if (b.set0 & 1) == 0 {
-			missing += " mutated"
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing))
+	if b.moduleMetadata == nil {
+		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties: moduleMetadata"))
 	}
 	return NewExport(
 		b.exportName,
@@ -446,12 +414,23 @@ func Export_Builder_ValidateOtherModule(e *Export) {
 
 // Java: Export.builder()
 func Export_Builder_() *Export_Builder {
-	return newAutoBuilder_Export_Builder().Mutated(false)
+	return &Export_Builder{}
 }
 
 // Java: Export.toBuilder()
 func (e *Export) ToBuilder() *Export_Builder {
-	return newAutoBuilder_Export_BuilderFrom(e)
+	return &Export_Builder{
+		exportName:       e.exportName,
+		moduleRequest:    e.moduleRequest,
+		importName:       e.importName,
+		localName:        e.localName,
+		modulePath:       e.modulePath,
+		exportNode:       e.exportNode,
+		nameNode:         e.nameNode,
+		moduleMetadata:   e.moduleMetadata,
+		closureNamespace: e.closureNamespace,
+		mutated:          e.mutated,
+	}
 }
 
 // MutatedCopy returns a copy of this export that has the mutated() bit set.

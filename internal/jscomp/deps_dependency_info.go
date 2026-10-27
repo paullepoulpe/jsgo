@@ -1,8 +1,28 @@
 // Port of com/google/javascript/jscomp/deps/DependencyInfo.java @ closure-compiler v20261021
 // (with the AutoValue-generated deps/AutoValue_DependencyInfo_Require.java)
+// Port of com/google/javascript/jscomp/deps/DependencyResolver.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/deps/SourceFile.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/deps/ServiceException.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/deps/VirtualFile.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2008 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -330,4 +350,109 @@ func dependencyInfo_Util_writeJsArray(out jutil.Appendable, values []string) {
 	out.AppendCharSequence("[")
 	out.AppendCharSequence(strings.Join(quoted, ", "))
 	out.AppendCharSequence("]")
+}
+
+// DependencyResolver is the interface for DependencyResolver to keep in
+// line with com.google.javascript.jscomp.deps.DefaultDependencyResolver,
+// which doesn't provide an interface. This is so that later on, we can
+// merge back with it.
+//
+// Every method throws ServiceException (as a panic).
+type DependencyResolver interface {
+	// GetDependencies gets a list of dependencies for the provided code.
+	//
+	// Java: DependencyResolver.getDependencies(String)
+	GetDependencies(code string) []string
+
+	// GetDependenciesOfSymbols gets a list of dependencies for the provided
+	// list of symbols.
+	//
+	// Java: DependencyResolver.getDependencies(Collection<String>)
+	GetDependenciesOfSymbols(symbols []string) []string
+
+	// GetDependenciesWithSeen: code is the raw code to be parsed for
+	// requires; seen is the set of already seen symbols;
+	// addClosureBaseFile indicates whether the closure base file should be
+	// added to the dependency list. Returns a list of filenames for each of
+	// the dependencies for the provided code.
+	//
+	// Java: DependencyResolver.getDependencies(String, Set<String>, boolean)
+	GetDependenciesWithSeen(code string, seen *jutil.LinkedHashSet[string], addClosureBaseFile bool) []string
+
+	// GetDependenciesOfSymbolsWithSeen: symbols is a list of required
+	// symbols; seen is the set of already seen symbols. Returns a list of
+	// filenames for each of the required symbols.
+	//
+	// Java: DependencyResolver.getDependencies(Collection<String>, Set<String>)
+	GetDependenciesOfSymbolsWithSeen(symbols []string, seen *jutil.LinkedHashSet[string]) []string
+}
+
+// Deps_SourceFile is an interface for representing source files for the
+// Compilation Service.
+//
+// Go-only: language-adapter — com.google.javascript.jscomp.deps.SourceFile
+// and com.google.javascript.jscomp.SourceFile are both in the Go package
+// jscomp, so this one carries its subpackage name.
+type Deps_SourceFile interface {
+	GetName() string
+	GetContent() string
+	WasModified() bool
+}
+
+// ServiceException is an exception thrown by the compilation service.
+type ServiceException struct {
+	jutil.JavaException
+}
+
+func (*ServiceException) serviceException() {}
+
+// IServiceException matches ServiceException.
+type IServiceException interface {
+	jutil.IException
+	serviceException()
+}
+
+// Java: ServiceException(String)
+func NewServiceException(message string) *ServiceException {
+	e := &ServiceException{}
+	jutil.InitThrowable(e, "com.google.javascript.jscomp.deps.ServiceException", jutil.StringPtr(message), nil)
+	return e
+}
+
+// VirtualFile is used to represent a "virtual" file.
+type VirtualFile struct {
+	name string
+	code string
+}
+
+var _ Deps_SourceFile = (*VirtualFile)(nil)
+
+// Java: VirtualFile(String, String)
+func NewVirtualFile(name string, code string) *VirtualFile {
+	return &VirtualFile{name: name, code: code}
+}
+
+// Java: VirtualFile.getName()
+func (f *VirtualFile) GetName() string { return f.name }
+
+// Java: VirtualFile.getContent()
+func (f *VirtualFile) GetContent() string { return f.code }
+
+// Java: VirtualFile.wasModified()
+func (f *VirtualFile) WasModified() bool { return false }
+
+// Java: VirtualFile.hashCode() (Objects.hash(name, code))
+func (f *VirtualFile) HashCode() int32 {
+	h := int32(1)
+	h = 31*h + jutil.StringHashCode(f.name)
+	h = 31*h + jutil.StringHashCode(f.code)
+	return h
+}
+
+// Java: VirtualFile.equals(Object)
+func (f *VirtualFile) Equals(o any) bool {
+	if vf, ok := o.(*VirtualFile); ok && vf != nil {
+		return f.name == vf.name && f.code == vf.code
+	}
+	return false
 }

@@ -324,7 +324,7 @@ func (m *ModuleMetadataMap_ModuleMetadata) Path() *ModuleLoader_ModulePath {
 
 // Java: ModuleMetadataMap.ModuleMetadata.builder()
 func ModuleMetadataMap_ModuleMetadata_Builder_() *ModuleMetadataMap_ModuleMetadata_Builder {
-	return newAutoValue_ModuleMetadataMap_ModuleMetadata_Builder()
+	return &ModuleMetadataMap_ModuleMetadata_Builder{}
 }
 
 // Equals is reference equality.
@@ -372,7 +372,7 @@ func (m *ModuleMetadataMap_ModuleMetadata) String() string {
 // ModuleMetadataMap_ModuleMetadata_Builder is the builder for
 // ModuleMetadata (AutoValue_ModuleMetadataMap_ModuleMetadata.Builder).
 type ModuleMetadataMap_ModuleMetadata_Builder struct {
-	moduleType                                *ModuleMetadataMap_ModuleType
+	moduleType                                ModuleMetadataMap_ModuleType
 	rootNode                                  rhino.Node
 	usesClosure                               bool
 	isTestOnly                                bool
@@ -393,12 +393,6 @@ type ModuleMetadataMap_ModuleMetadata_Builder struct {
 	readTogglesBuilder_                       *jutil.ImmutableMultiset_Builder[string]
 	readToggles                               *jutil.ImmutableMultiset[string]
 	path                                      *ModuleLoader_ModulePath
-	set0                                      byte
-}
-
-// Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder()
-func newAutoValue_ModuleMetadataMap_ModuleMetadata_Builder() *ModuleMetadataMap_ModuleMetadata_Builder {
-	return &ModuleMetadataMap_ModuleMetadata_Builder{}
 }
 
 // Java: ModuleMetadataMap.ModuleMetadata.Builder.addGoogNamespace(String)
@@ -409,7 +403,7 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) AddGoogNamespace(namespace st
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.moduleType(ModuleType)
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) ModuleType(moduleType ModuleMetadataMap_ModuleType) *ModuleMetadataMap_ModuleMetadata_Builder {
-	b.moduleType = &moduleType
+	b.moduleType = moduleType
 	return b
 }
 
@@ -417,10 +411,7 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) ModuleType(moduleType ModuleM
 //
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.moduleType()
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) GetModuleType() ModuleMetadataMap_ModuleType {
-	if b.moduleType == nil {
-		panic(jutil.NewIllegalStateExceptionMsg("Property \"moduleType\" has not been set"))
-	}
-	return *b.moduleType
+	return b.moduleType
 }
 
 // RootNode takes a possibly-nil root.
@@ -434,14 +425,12 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) RootNode(rootNode rhino.Node)
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.usesClosure(boolean)
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) UsesClosure(usesClosure bool) *ModuleMetadataMap_ModuleMetadata_Builder {
 	b.usesClosure = usesClosure
-	b.set0 |= 1
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.isTestOnly(boolean)
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) IsTestOnly(isTestOnly bool) *ModuleMetadataMap_ModuleMetadata_Builder {
 	b.isTestOnly = isTestOnly
-	b.set0 |= 2
 	return b
 }
 
@@ -561,22 +550,8 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_Mo
 	} else if b.readToggles == nil {
 		b.readToggles = jutil.ImmutableMultiset_Of[string]()
 	}
-	if b.set0 != 3 ||
-		b.moduleType == nil {
-		missing := ""
-		if b.moduleType == nil {
-			missing += " moduleType"
-		}
-		if (b.set0 & 1) == 0 {
-			missing += " usesClosure"
-		}
-		if (b.set0 & 2) == 0 {
-			missing += " isTestOnly"
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing))
-	}
 	return &ModuleMetadataMap_ModuleMetadata{
-		moduleType:                        *b.moduleType,
+		moduleType:                        b.moduleType,
 		rootNode:                          b.rootNode,
 		usesClosure:                       b.usesClosure,
 		isTestOnly:                        b.isTestOnly,

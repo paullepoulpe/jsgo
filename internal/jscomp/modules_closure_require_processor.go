@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -110,10 +111,18 @@ func newClosureRequireProcessor(nameDeclaration rhino.Node, requireKind Binding_
 // Java: ClosureRequireProcessor.getAllRequires(Node)
 func ClosureRequireProcessor_GetAllRequires(nameDeclaration rhino.Node) []*ClosureRequireProcessor_Require {
 	var rhs rhino.Node
-	if nameDeclaration.GetFirstChild().IsDestructuringLhs() {
-		rhs = nameDeclaration.GetFirstChild().GetSecondChild()
-	} else {
-		rhs = nameDeclaration.GetFirstFirstChild()
+	if decl, ok := ast.AsNameDeclaration(nameDeclaration); ok {
+		if first, hasFirst := decl.FirstDeclarator(); hasFirst {
+			if dlhs, isDlhs := first.AsDestructuringLhs(); isDlhs {
+				if init, hasInit := dlhs.Init(); hasInit {
+					rhs = init.Node()
+				}
+			} else if name, isName := first.AsName(); isName {
+				if init, hasInit := name.Init(); hasInit {
+					rhs = init.Node()
+				}
+			}
+		}
 	}
 	// This may be a require, requireType, or forwardDeclare.
 	requireKind := ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(rhs)
@@ -133,22 +142,24 @@ func ClosureRequireProcessor_GetAllRequires(nameDeclaration rhino.Node) []*Closu
 //
 // Java: ClosureRequireProcessor.getModuleDependencyTypeFromRhs(Node)
 func ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(value rhino.Node) *Binding_CreatedBy {
-	if value.IsNil() ||
-		!value.IsCall() ||
-		!value.HasTwoChildren() ||
-		!value.GetSecondChild().IsStringLit() {
+	call, ok := ast.AsCall(value)
+	if !ok {
 		return nil
 	}
-	callee := value.GetFirstChild()
-	if !callee.IsGetProp() {
+	arg, ok := call.OnlyArg()
+	if !ok || !arg.Node().IsStringLit() {
 		return nil
 	}
-	owner := callee.GetFirstChild()
-	if !owner.IsName() || owner.GetString() != "goog" {
+	callee, ok := call.Callee().AsGetProp()
+	if !ok {
+		return nil
+	}
+	owner, ok := callee.Object().AsName()
+	if !ok || owner.Ident() != "goog" {
 		return nil
 	}
 	var createdBy Binding_CreatedBy
-	switch callee.GetString() {
+	switch callee.Property() {
 	case "require":
 		createdBy = Binding_CreatedBy_GOOG_REQUIRE
 	case "requireType":
@@ -166,33 +177,35 @@ func ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(value rhino.Node) *B
 //
 // Java: ClosureRequireProcessor.getAllRequiresInDeclaration()
 func (p *ClosureRequireProcessor) GetAllRequiresInDeclaration() []*ClosureRequireProcessor_Require {
+	first := ast.MustNameDeclaration(p.nameDeclaration).MustFirstDeclarator()
 	var rhs rhino.Node
-	if p.nameDeclaration.GetFirstChild().IsDestructuringLhs() {
-		rhs = p.nameDeclaration.GetFirstChild().GetSecondChild()
+	if dlhs, ok := first.AsDestructuringLhs(); ok {
+		init, _ := dlhs.Init()
+		rhs = init.Node()
 	} else {
-		rhs = p.nameDeclaration.GetFirstFirstChild()
+		init, _ := first.MustName().Init()
+		rhs = init.Node()
 	}
 
-	namespace := rhs.GetSecondChild().GetString()
+	namespace := ast.MustCall(rhs).MustOnlyArg().MustStringLit().Value()
 
-	if p.nameDeclaration.GetFirstChild().IsName() {
+	if lhs, ok := first.AsName(); ok {
 		// const modA = goog.require('modA');
-		lhs := p.nameDeclaration.GetFirstChild()
 		return []*ClosureRequireProcessor_Require{
 			ClosureRequireProcessor_Require_Create(
-				lhs.GetString(),
+				lhs.Ident(),
 				Import_Builder_().
 					ModuleRequest(namespace).
-					LocalName(lhs.GetString()).
+					LocalName(lhs.Ident()).
 					ImportName(Export_NAMESPACE).
 					ImportNode(p.nameDeclaration).
-					NameNode(lhs).
+					NameNode(lhs.Node()).
 					Build(),
 				p.requireKind),
 		}
 	} else {
 		// const {x, y} = goog.require('modA');
-		objectPattern := p.nameDeclaration.GetFirstFirstChild()
+		objectPattern := first.MustDestructuringLhs().Pattern().Node()
 		if !objectPattern.IsObjectPattern() {
 			// bad JS, ignore
 			return []*ClosureRequireProcessor_Require{}
@@ -208,26 +221,27 @@ func (p *ClosureRequireProcessor) GetAllRequiresInDeclaration() []*ClosureRequir
 func (p *ClosureRequireProcessor) GetAllRequiresFromDestructuring(
 	objectPattern rhino.Node, namespace string) []*ClosureRequireProcessor_Require {
 	requires := []*ClosureRequireProcessor_Require{}
-	for key := objectPattern.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-		if !key.IsStringKey() {
+	for prop := range ast.MustObjectPattern(objectPattern).Props() {
+		key, ok := prop.AsStringKey()
+		if !ok {
 			// Bad code, just ignore. We warn elsewhere.
 			continue
 		}
-		lhs := key.GetOnlyChild()
-		if !lhs.IsName() {
+		lhs, ok := key.Value().AsName()
+		if !ok {
 			// Bad code ( e.g. `const {a = 0} = goog.require(...)`). We warn elsewhere.
 			continue
 		}
 
 		requires = append(requires,
 			ClosureRequireProcessor_Require_Create(
-				lhs.GetString(),
+				lhs.Ident(),
 				Import_Builder_().
 					ModuleRequest(namespace).
-					LocalName(lhs.GetString()).
-					ImportName(key.GetString()).
+					LocalName(lhs.Ident()).
+					ImportName(key.Key()).
 					ImportNode(p.nameDeclaration).
-					NameNode(lhs).
+					NameNode(lhs.Node()).
 					Build(),
 				p.requireKind))
 	}

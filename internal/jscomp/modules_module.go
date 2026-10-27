@@ -179,14 +179,21 @@ func (m *Module) String() string {
 //
 // Java: Module.builder()
 func Module_Builder_() *Module_Builder {
-	return newAutoBuilder_Module_Builder()
+	return &Module_Builder{}
 }
 
 // ToBuilder returns this module in builder form.
 //
 // Java: Module.toBuilder()
 func (m *Module) ToBuilder() *Module_Builder {
-	return newAutoBuilder_Module_BuilderFrom(m)
+	return &Module_Builder{
+		metadata:               m.metadata,
+		path:                   m.path,
+		namespace:              m.namespace,
+		boundNames:             m.boundNames,
+		localNameToLocalExport: m.localNameToLocalExport,
+		closureNamespace:       m.closureNamespace,
+	}
 }
 
 // Module_Builder is the builder for Module (AutoBuilder_Module_Builder).
@@ -197,23 +204,6 @@ type Module_Builder struct {
 	boundNames             *jutil.LinkedHashMap[string, *Binding]
 	localNameToLocalExport *jutil.LinkedHashMap[string, *Export]
 	closureNamespace       *string
-}
-
-// Java: AutoBuilder_Module_Builder()
-func newAutoBuilder_Module_Builder() *Module_Builder {
-	return &Module_Builder{}
-}
-
-// Java: AutoBuilder_Module_Builder(Module)
-func newAutoBuilder_Module_BuilderFrom(source *Module) *Module_Builder {
-	return &Module_Builder{
-		metadata:               source.Metadata(),
-		path:                   source.Path(),
-		namespace:              source.Namespace(),
-		boundNames:             source.BoundNames(),
-		localNameToLocalExport: source.LocalNameToLocalExport(),
-		closureNamespace:       source.ClosureNamespace(),
-	}
 }
 
 // Java: AutoBuilder_Module_Builder.metadata(ModuleMetadataMap.ModuleMetadata)

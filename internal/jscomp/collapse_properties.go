@@ -82,7 +82,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs rhino.N
 		NodeTraversal_Traverse(
 			c.outer.compiler,
 			root,
-			NewInlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules(c, c.outer.haveModulesBeenRewritten, c.outer.moduleResolutionMode))
+			newCollapseProperties_findDynamicallyImportedModules(c, c.outer.haveModulesBeenRewritten, c.outer.moduleResolutionMode))
 	}
 
 	c.namespace = jutil.CheckNotNullMsg(c.outer.namespace, "namespace was not initialized")
@@ -1280,10 +1280,9 @@ func (c *InlineAndCollapseProperties_CollapseProperties) AppendPropForAlias(root
 	return result
 }
 
-// InlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules
-// finds all the module namespace objects which are referenced by a dynamic
-// import.
-type InlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules struct {
+// collapseProperties_findDynamicallyImportedModules finds all the module
+// namespace objects which are referenced by a dynamic import.
+type collapseProperties_findDynamicallyImportedModules struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *InlineAndCollapseProperties_CollapseProperties
 
@@ -1292,11 +1291,11 @@ type InlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModul
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.FindDynamicallyImportedModules(boolean, ResolutionMode)
-func NewInlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules(
+func newCollapseProperties_findDynamicallyImportedModules(
 	outer *InlineAndCollapseProperties_CollapseProperties,
 	processCommonJSModules bool,
-	resolutionMode ModuleLoader_ResolutionMode) *InlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules {
-	return &InlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules{
+	resolutionMode ModuleLoader_ResolutionMode) *collapseProperties_findDynamicallyImportedModules {
+	return &collapseProperties_findDynamicallyImportedModules{
 		outer:                  outer,
 		processCommonJSModules: processCommonJSModules,
 		moduleResolutionMode:   resolutionMode,
@@ -1304,7 +1303,7 @@ func NewInlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedMo
 }
 
 // Java: InlineAndCollapseProperties.CollapseProperties.FindDynamicallyImportedModules.visit(NodeTraversal, Node, Node)
-func (f *InlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (f *collapseProperties_findDynamicallyImportedModules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// After rewriting, CommonJS dynamic imports are of the form
 	// __webpack_require__.e(2).then(function() { return module$mod1.default; })
 	//

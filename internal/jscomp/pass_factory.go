@@ -45,22 +45,6 @@ type PassFactory struct {
 	internalFactory     func(compiler AbstractCompiler) CompilerPass
 }
 
-// Java: AutoValue_PassFactory(String, Function, Function, boolean, Function)
-func newAutoValue_PassFactory(
-	name string,
-	condition func(options *CompilerOptions) bool,
-	preconditionCheck func(options *CompilerOptions) *PassFactory_PreconditionResult,
-	runInFixedPointLoop bool,
-	internalFactory func(compiler AbstractCompiler) CompilerPass) *PassFactory {
-	return &PassFactory{
-		name:                name,
-		condition:           condition,
-		preconditionCheck:   preconditionCheck,
-		runInFixedPointLoop: runInFixedPointLoop,
-		internalFactory:     internalFactory,
-	}
-}
-
 // GetName returns the name of the pass as it will appear in logs.
 //
 // Java: PassFactory.getName()
@@ -204,7 +188,13 @@ func (f *PassFactory) HashCode() int32 {
 
 // Java: AutoValue_PassFactory.toBuilder()
 func (f *PassFactory) ToBuilder() *PassFactory_Builder {
-	return newAutoValue_PassFactory_BuilderFrom(f)
+	return &PassFactory_Builder{
+		name:                f.name,
+		condition:           f.condition,
+		preconditionCheck:   f.preconditionCheck,
+		runInFixedPointLoop: f.runInFixedPointLoop,
+		internalFactory:     f.internalFactory,
+	}
 }
 
 // PassFactory_Builder is a builder for a PassFactory.
@@ -212,38 +202,16 @@ func (f *PassFactory) ToBuilder() *PassFactory_Builder {
 // Go-only: language-adapter — the abstract PassFactory.Builder and the
 // generated AutoValue_PassFactory.Builder are one struct.
 type PassFactory_Builder struct {
-	name                *string
+	name                string
 	condition           func(options *CompilerOptions) bool
 	preconditionCheck   func(options *CompilerOptions) *PassFactory_PreconditionResult
 	runInFixedPointLoop bool
 	internalFactory     func(compiler AbstractCompiler) CompilerPass
-	set_0               byte
-}
-
-// Java: AutoValue_PassFactory.Builder()
-func newAutoValue_PassFactory_Builder() *PassFactory_Builder {
-	return &PassFactory_Builder{}
-}
-
-// Java: AutoValue_PassFactory.Builder(PassFactory)
-func newAutoValue_PassFactory_BuilderFrom(source *PassFactory) *PassFactory_Builder {
-	name := source.GetName()
-	return &PassFactory_Builder{
-		name:                &name,
-		condition:           source.GetCondition(),
-		preconditionCheck:   source.GetPreconditionCheck(),
-		runInFixedPointLoop: source.IsRunInFixedPointLoop(),
-		internalFactory:     source.GetInternalFactory(),
-		set_0:               1,
-	}
 }
 
 // Java: AutoValue_PassFactory.Builder.setName(String)
 func (b *PassFactory_Builder) SetName(name string) *PassFactory_Builder {
-	// Go-only: language-adapter — a Go string cannot be null, so the
-	// generated `if (name == null) throw new NullPointerException("Null name")`
-	// cannot fire.
-	b.name = &name
+	b.name = name
 	return b
 }
 
@@ -268,7 +236,6 @@ func (b *PassFactory_Builder) SetPreconditionCheck(preconditionCheck func(option
 // Java: AutoValue_PassFactory.Builder.setRunInFixedPointLoop(boolean)
 func (b *PassFactory_Builder) SetRunInFixedPointLoop(runInFixedPointLoop bool) *PassFactory_Builder {
 	b.runInFixedPointLoop = runInFixedPointLoop
-	b.set_0 |= 1
 	return b
 }
 
@@ -283,35 +250,28 @@ func (b *PassFactory_Builder) SetInternalFactory(internalFactory func(compiler A
 
 // Java: AutoValue_PassFactory.Builder.autoBuild()
 func (b *PassFactory_Builder) AutoBuild() *PassFactory {
-	if b.set_0 != 1 ||
-		b.name == nil ||
-		b.condition == nil ||
+	if b.condition == nil ||
 		b.preconditionCheck == nil ||
 		b.internalFactory == nil {
 		var missing strings.Builder
-		if b.name == nil {
-			missing.WriteString(" name")
-		}
 		if b.condition == nil {
 			missing.WriteString(" condition")
 		}
 		if b.preconditionCheck == nil {
 			missing.WriteString(" preconditionCheck")
 		}
-		if (b.set_0 & 1) == 0 {
-			missing.WriteString(" runInFixedPointLoop")
-		}
 		if b.internalFactory == nil {
 			missing.WriteString(" internalFactory")
 		}
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
 	}
-	return newAutoValue_PassFactory(
-		*b.name,
-		b.condition,
-		b.preconditionCheck,
-		b.runInFixedPointLoop,
-		b.internalFactory)
+	return &PassFactory{
+		name:                b.name,
+		condition:           b.condition,
+		preconditionCheck:   b.preconditionCheck,
+		runInFixedPointLoop: b.runInFixedPointLoop,
+		internalFactory:     b.internalFactory,
+	}
 }
 
 // Java: PassFactory.Builder.build()
@@ -323,8 +283,7 @@ func (b *PassFactory_Builder) Build() *PassFactory {
 
 // Java: PassFactory.builder()
 func PassFactory_Builder_() *PassFactory_Builder {
-	return newAutoValue_PassFactory_Builder().
-		SetRunInFixedPointLoop(false).
+	return (&PassFactory_Builder{}).
 		SetCondition(func(o *CompilerOptions) bool { return true }).
 		SetPreconditionCheck(func(o *CompilerOptions) *PassFactory_PreconditionResult {
 			return PassFactory_PreconditionResult_SUCCESS

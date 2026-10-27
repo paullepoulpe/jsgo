@@ -1,4 +1,8 @@
 // Port of com/google/javascript/jscomp/modules/ModuleMapCreator.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/ModuleMap.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/ModuleRequestResolver.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/GoogEsImports.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/ExportTrace.java @ closure-compiler v20261021
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -16,9 +20,27 @@
  * limitations under the License.
  */
 
+/*
+ * Copyright 2019 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -347,4 +369,139 @@ func (c *ModuleMapCreator) ProcessModuleMetadata(moduleMetadata *ModuleMetadataM
 // Java: ModuleMapCreator.process(Node, Node)
 func (c *ModuleMapCreator) Process(externs rhino.Node, root rhino.Node) {
 	c.compiler.SetModuleMap(c.Create())
+}
+
+// ModuleMap is a map containing information about all modules in the
+// compilation.
+//
+// This is currently used for ES modules and other types of module are not
+// processed in detail.
+type ModuleMap struct {
+	resolvedModules        *jutil.LinkedHashMap[string, *Module]
+	resolvedClosureModules *jutil.LinkedHashMap[string, *Module]
+}
+
+// Java: ModuleMap(ImmutableMap<String, Module>, ImmutableMap<String, Module>)
+func NewModuleMap(
+	resolvedModules *jutil.LinkedHashMap[string, *Module],
+	resolvedClosureModules *jutil.LinkedHashMap[string, *Module]) *ModuleMap {
+	return &ModuleMap{resolvedModules: resolvedModules, resolvedClosureModules: resolvedClosureModules}
+}
+
+// GetModule may return nil.
+//
+// Java: ModuleMap.getModule(String)
+func (m *ModuleMap) GetModule(moduleName string) *Module {
+	return m.resolvedModules.Get(moduleName)
+}
+
+// GetModuleByPath may return nil.
+//
+// Java: ModuleMap.getModule(ModuleLoader.ModulePath)
+func (m *ModuleMap) GetModuleByPath(path *ModuleLoader_ModulePath) *Module {
+	return m.GetModule(path.ToModuleName())
+}
+
+// Java: ModuleMap.getModulesByPath()
+func (m *ModuleMap) GetModulesByPath() *jutil.LinkedHashMap[string, *Module] {
+	return m.resolvedModules
+}
+
+// Java: ModuleMap.getModulesByClosureNamespace()
+func (m *ModuleMap) GetModulesByClosureNamespace() *jutil.LinkedHashMap[string, *Module] {
+	return m.resolvedClosureModules
+}
+
+// GetClosureModule may return nil.
+//
+// Java: ModuleMap.getClosureModule(String)
+func (m *ModuleMap) GetClosureModule(namespace string) *Module {
+	return m.resolvedClosureModules.Get(namespace)
+}
+
+// Java: ModuleMap.emptyForTesting()
+func ModuleMap_EmptyForTesting() *ModuleMap {
+	return NewModuleMap(jutil.NewLinkedHashMap[string, *Module](), jutil.NewLinkedHashMap[string, *Module]())
+}
+
+// ModuleRequestResolver resolves requests for other modules.
+type ModuleRequestResolver interface {
+	// Resolve returns the module that this import references, if it exists
+	// in the compilation (nil otherwise).
+	//
+	// Java: ModuleRequestResolver.resolve(Import)
+	Resolve(i *Import) UnresolvedModule
+
+	// ResolveWithExport returns the module that this export references, if
+	// it exists in the compilation (nil otherwise).
+	//
+	// Java: ModuleRequestResolver.resolve(Export)
+	ResolveWithExport(e *Export) UnresolvedModule
+}
+
+// GoogEsImports holds utilties for ES imports for Closure files, for example
+// `import array from 'goog:goog.array';`.
+type GoogEsImports struct{}
+
+const googEsImports_GOOG_IMPORT_PREFIX = "goog:"
+
+// Java: GoogEsImports.isGoogImportSpecifier(String)
+func GoogEsImports_IsGoogImportSpecifier(moduleSpecifier string) bool {
+	return strings.HasPrefix(moduleSpecifier, googEsImports_GOOG_IMPORT_PREFIX)
+}
+
+// Java: GoogEsImports.getClosureIdFromGoogImportSpecifier(String)
+func GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleSpecifier string) string {
+	return jutil.StringSubstringFrom(moduleSpecifier, len(googEsImports_GOOG_IMPORT_PREFIX))
+}
+
+// ExportTrace is a simple class to keep track of which modules and exports
+// have been visited when resolving exports. It is invalid to visit the same
+// (module, name) pair more than once when resolving an export (invalid
+// cycle).
+//
+// This is an AutoValue used for its hashCode / equals implementation and
+// used in a Set for equality checks. So fields may appear to be "unused".
+//
+// Go-only: language-adapter — a comparable value struct: Go equality is the
+// record's equality (the module by reference, the name by value), so
+// ExportTraces can key jutil sets directly.
+type ExportTrace struct {
+	module     UnresolvedModule
+	exportName string
+}
+
+// Java: ExportTrace(UnresolvedModule, String)
+func NewExportTrace(module UnresolvedModule, exportName string) ExportTrace {
+	if module == nil {
+		panic(jutil.NewNullPointerExceptionMsg("module"))
+	}
+	return ExportTrace{module: module, exportName: exportName}
+}
+
+// Java: ExportTrace.module()
+func (t ExportTrace) Module() UnresolvedModule { return t.module }
+
+// Java: ExportTrace.exportName()
+func (t ExportTrace) ExportName() string { return t.exportName }
+
+// Java: ExportTrace.create(UnresolvedModule, String)
+func ExportTrace_Create(module UnresolvedModule, exportName string) ExportTrace {
+	return NewExportTrace(module, exportName)
+}
+
+// Equals is the record's equals.
+func (t ExportTrace) Equals(o any) bool {
+	other, ok := o.(ExportTrace)
+	return ok && other == t
+}
+
+// HashCode is the record's hashCode.
+func (t ExportTrace) HashCode() int32 {
+	return 31*t.module.HashCode() + jutil.StringHashCode(t.exportName)
+}
+
+// String is the record's toString.
+func (t ExportTrace) String() string {
+	return "ExportTrace[module=" + jutil.ToJavaString(t.module) + ", exportName=" + t.exportName + "]"
 }

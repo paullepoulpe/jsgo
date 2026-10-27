@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -40,10 +41,11 @@ type PolymerPassStaticUtils struct{}
 //
 // Java: PolymerPassStaticUtils.isPolymerCall(Node)
 func PolymerPassStaticUtils_IsPolymerCall(call rhino.Node) bool {
-	if call.IsNil() || !call.IsCall() {
+	callNode, ok := ast.AsCall(call)
+	if !ok {
 		return false
 	}
-	name := call.GetFirstChild()
+	name := callNode.Callee().Node()
 	// When imported from an ES module, the rewriting should set the original name.
 	// When imported from an goog module (TS), we'll have a GETPROP like
 	// `module$polymer$polymer_legacy.Polymer`.
@@ -53,7 +55,8 @@ func PolymerPassStaticUtils_IsPolymerCall(call rhino.Node) bool {
 	if originalQualifiedName := name.GetOriginalQualifiedName(); originalQualifiedName != nil && *originalQualifiedName == "Polymer" {
 		return true
 	}
-	return name.IsGetProp() && name.GetString() == "Polymer"
+	gp, ok := ast.AsGetProp(name)
+	return ok && gp.Property() == "Polymer"
 }
 
 // PolymerPassStaticUtils_IsPolymerClass returns whether the class extends
@@ -61,7 +64,8 @@ func PolymerPassStaticUtils_IsPolymerCall(call rhino.Node) bool {
 //
 // Java: PolymerPassStaticUtils.isPolymerClass(Node)
 func PolymerPassStaticUtils_IsPolymerClass(cls rhino.Node) bool {
-	if cls.IsNil() || !cls.IsClass() {
+	classNode, ok := ast.AsClass(cls)
+	if !ok {
 		return false
 	}
 	// A class with the @polymer annotation is always considered a Polymer element.
@@ -69,20 +73,23 @@ func PolymerPassStaticUtils_IsPolymerClass(cls rhino.Node) bool {
 	if info != nil && info.IsPolymer() {
 		return true
 	}
-	heritage := cls.GetSecondChild()
+	ext, ok := classNode.Extends()
+	if !ok {
+		return false
+	}
+	heritage := ext.Node()
 	// In Polymer 3, the base class was renamed from `Polymer.Element` to `PolymerElement`. When
 	// imported from an ES module, the rewriting should set the original name to `PolymerElement`.
 	// When imported from an goog module (TS), we'll have a GETPROP like
 	// `module$polymer$polymer_element.PolymerElement`.
 	// YT Polymer components may also extend the `PolymerElementWithoutHtml`,
 	// `PolymerLiteControllerBase`, `PolymerBehavior`, or `PolymerBehaviorWithoutHtml` base classes.
-	return !heritage.IsEmpty() &&
-		(polymerPassStaticUtils_POLYMER_DOT_ELEMENT.Matches(heritage) ||
-			polymerPassStaticUtils_matches(heritage, "PolymerElement") ||
-			polymerPassStaticUtils_matches(heritage, "PolymerElementWithoutHtml") ||
-			polymerPassStaticUtils_matches(heritage, "PolymerLiteControllerBase") ||
-			polymerPassStaticUtils_matches(heritage, "PolymerBehavior") ||
-			polymerPassStaticUtils_matches(heritage, "PolymerBehaviorWithoutHtml"))
+	return polymerPassStaticUtils_POLYMER_DOT_ELEMENT.Matches(heritage) ||
+		polymerPassStaticUtils_matches(heritage, "PolymerElement") ||
+		polymerPassStaticUtils_matches(heritage, "PolymerElementWithoutHtml") ||
+		polymerPassStaticUtils_matches(heritage, "PolymerLiteControllerBase") ||
+		polymerPassStaticUtils_matches(heritage, "PolymerBehavior") ||
+		polymerPassStaticUtils_matches(heritage, "PolymerBehaviorWithoutHtml")
 }
 
 // Java: PolymerPassStaticUtils.matches(Node, String)
@@ -93,7 +100,8 @@ func polymerPassStaticUtils_matches(n rhino.Node, name string) bool {
 	if originalQualifiedName := n.GetOriginalQualifiedName(); originalQualifiedName != nil && name == *originalQualifiedName {
 		return true
 	}
-	return n.IsGetProp() && n.GetString() == name
+	gp, ok := ast.AsGetProp(n)
+	return ok && gp.Property() == name
 }
 
 // PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets: the "$" member in a
@@ -107,28 +115,28 @@ func polymerPassStaticUtils_matches(n rhino.Node, name string) bool {
 func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def rhino.Node, compiler AbstractCompiler) {
 	jutil.CheckState(def.IsObjectLit() || def.IsClassMembers())
 	for keyNode := def.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		value := keyNode.GetFirstChild()
-		if !value.IsNil() && value.IsFunction() {
+		if fn, ok := ast.AsFunction(keyNode.GetFirstChild()); ok {
 			NodeUtil_VisitPostOrder(
-				value.GetLastChild(),
+				fn.Body().Node(),
 				NodeUtil_VisitorFunc(func(n rhino.Node) {
-					if !n.IsGetProp() {
+					gp, ok := ast.AsGetProp(n)
+					if !ok {
 						return
 					}
 
-					dollarSign := n.GetFirstChild()
-					if !dollarSign.IsGetProp() || dollarSign.GetString() != "$" {
+					dollarSign, ok := gp.Object().AsGetProp()
+					if !ok || dollarSign.Property() != "$" {
 						return
 					}
 
 					// Some libraries like Mojo JS Bindings and jQuery place methods in a "$" member
 					// e.g. "foo.$.closePipe()". Avoid converting to brackets for these cases.
-					if n.GetParent().IsCall() && n.GetParent().HasOneChild() {
+					if call, ok := ast.AsCall(n.GetParent()); ok && !call.HasArgs() {
 						return
 					}
 
-					key := rhino.IR_String(n.GetString()).ClonePropsFrom(n).Srcref(n)
-					getelem := rhino.IR_Getelem(dollarSign.Detach(), key).ClonePropsFrom(n).Srcref(n)
+					key := rhino.IR_String(gp.Property()).ClonePropsFrom(n).Srcref(n)
+					getelem := rhino.IR_Getelem(dollarSign.Detach().Node(), key).ClonePropsFrom(n).Srcref(n)
 					n.ReplaceWith(getelem)
 					compiler.ReportChangeToEnclosingScope(getelem)
 				}))
@@ -142,16 +150,16 @@ func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def rhino.Node, comp
 //
 // Java: PolymerPassStaticUtils.quoteListenerAndHostAttributeKeys(Node, AbstractCompiler)
 func PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit rhino.Node, compiler AbstractCompiler) {
-	jutil.CheckState(objLit.IsObjectLit())
-	for keyNode := objLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		if !keyNode.IsStringKey() {
+	for member := range ast.MustObjectLit(objLit).Members() {
+		sk, ok := member.AsStringKey()
+		if !ok {
 			// We should only quote string keys. If this is not a string key, then we should skip it.
 			continue
 		}
-		if keyNode.GetString() != "listeners" && keyNode.GetString() != "hostAttributes" {
+		if sk.Key() != "listeners" && sk.Key() != "hostAttributes" {
 			continue
 		}
-		for keyToQuote := keyNode.GetFirstFirstChild(); !keyToQuote.IsNil(); keyToQuote = keyToQuote.GetNext() {
+		for keyToQuote := sk.Value().Node().GetFirstChild(); !keyToQuote.IsNil(); keyToQuote = keyToQuote.GetNext() {
 			if !keyToQuote.IsQuotedStringKey() {
 				keyToQuote.SetQuotedStringKey()
 				compiler.ReportChangeToEnclosingScope(keyToQuote)
@@ -217,18 +225,23 @@ func polymerPassStaticUtils_addObserverMethodsToProtect(behaviorObjLit rhino.Nod
 func polymerPassStaticUtils_addPropertyMethodsToProtect(behaviorObjLit rhino.Node) *jutil.LinkedHashSet[string] {
 	methodsToProtect := jutil.NewLinkedHashSet[string]()
 	properties := NodeUtil_GetFirstPropMatchingKey(behaviorObjLit, "properties")
-	if !properties.IsNil() && properties.IsObjectLit() {
-		for prop := properties.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
-			if !prop.GetLastChild().IsObjectLit() {
+	if propsObj, ok := ast.AsObjectLit(properties); ok {
+		for member := range propsObj.Members() {
+			sk, ok := member.AsStringKey()
+			if !ok {
+				continue
+			}
+			propVal := sk.Value().Node()
+			if !propVal.IsObjectLit() {
 				continue
 			}
 
-			observer := NodeUtil_GetFirstPropMatchingKey(prop.GetLastChild(), "observer")
+			observer := NodeUtil_GetFirstPropMatchingKey(propVal, "observer")
 			if !observer.IsNil() && observer.IsStringLit() {
 				methodsToProtect.Add(observer.GetString())
 			}
 
-			computed := NodeUtil_GetFirstPropMatchingKey(prop.GetLastChild(), "computed")
+			computed := NodeUtil_GetFirstPropMatchingKey(propVal, "computed")
 			if !computed.IsNil() && computed.IsStringLit() {
 				name := polymerPassStaticUtils_extractMethodName(computed.GetString())
 				if name != nil {
@@ -326,9 +339,9 @@ func PolymerPassStaticUtils_ExtractProperties(
 func polymerPassStaticUtils_collectConstructorPropertyJsDoc(node rhino.Node, m *jutil.LinkedHashMap[string, *rhino.JSDocInfo]) {
 	rhino.CheckNotNull(node)
 	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child.IsGetProp() && child.GetFirstChild().IsThis() {
+		if gp, ok := ast.AsGetProp(child); ok && gp.Object().Node().IsThis() {
 			// We found a "this.foo" expression. Map "foo" to its JSDoc.
-			m.Put(child.GetString(), NodeUtil_GetBestJSDocInfo(child))
+			m.Put(gp.Property(), NodeUtil_GetBestJSDocInfo(child))
 		} else {
 			// Recurse through every other kind of node, because properties are not necessarily declared
 			// at the top level of the constructor body; e.g. they could be declared as part of an

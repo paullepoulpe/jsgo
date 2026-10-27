@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -124,7 +125,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit rhino.Nod
 	if owner.IsNil() {
 		objLitParent := objLit.GetParent()
 		if NodeUtil_IsObjectDefinePropertiesDefinition(objLitParent) {
-			receiverNode := objLitParent.GetSecondChild()
+			receiverNode := ast.MustCall(objLitParent).MustFirstArg().Node()
 			if globalNamespace_nodeHasPrototype(receiverNode) {
 				return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 			}
@@ -198,8 +199,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit rhino.Nod
 	}
 
 	if owner.IsName() && t != nil && b.curModuleRoot.IsNil() && !t.currentHoistScopeRoot.IsNil() {
-		switch ownerParent.GetToken() {
-		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+		if NodeUtil_IsNameDeclaration(ownerParent) {
 			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 		}
 	}
@@ -407,12 +407,13 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			type_ = GlobalNamespace_NameProp_GET_SET
 		}
 	case rhino.Token_STRING_KEY:
+		sk := ast.MustStringKey(n)
 		if parent.IsObjectLit() {
 			prefix, r, s, state := b.resolveObjectLit(parent, scope, t)
 			if state == gnObjLitInvalid {
 				return
 			}
-			key := n.GetString()
+			key := sk.Key()
 			if key == "prototype" {
 				return
 			}
@@ -421,7 +422,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 					return
 				}
 				nameStr = prefix + "." + key
-				type_ = b.GetValueType(n.GetOnlyChild())
+				type_ = b.GetValueType(sk.Value().Node())
 			} else {
 				nameStr = prefix + "." + key
 				type_ = GlobalNamespace_NameProp_GET_SET
@@ -435,10 +436,16 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 				return
 			}
 			patternParent := parent.GetParent()
-			if !patternParent.IsAssign() && !patternParent.IsDestructuringLhs() {
+			var rhs rhino.Node
+			if assign, ok := ast.AsAssign(patternParent); ok {
+				rhs = assign.Value().Node()
+			} else if dlhs, ok := ast.AsDestructuringLhs(patternParent); ok {
+				if init, hasInit := dlhs.Init(); hasInit {
+					rhs = init.Node()
+				}
+			} else {
 				return
 			}
-			rhs := patternParent.GetSecondChild()
 			topName := globalNamespace_topNameOfQName(rhs)
 			if topName == "" {
 				return
@@ -451,8 +458,8 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			if !ok {
 				return
 			}
-			nameStr = qname + "." + n.GetString()
-			type_ = b.GetValueType(n.GetFirstChild())
+			nameStr = qname + "." + sk.Key()
+			type_ = b.GetValueType(sk.Value().Node())
 			hasName = true
 			// not a set
 		} else {
@@ -463,14 +470,14 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 		// "a.b?.c" is not a reference to the global name "a.b.c" for the
 		// purposes of GlobalNamespace, but we include OPTCHAIN_GETPROP to
 		// detect optional chain hasOwnProperty guards.
-		pTok := parent.GetToken()
-		if pTok == rhino.Token_GETPROP {
+		if parent.IsGetProp() {
 			// This name is nested in a getprop. Return and only create a Ref for the outermost
 			// getprop in the chain.
 			return
 		}
-		if !g.forProcessDefines && (pTok == rhino.Token_CALL || pTok == rhino.Token_OPTCHAIN_CALL) &&
-			n.IsFirstChildOf(parent) && b.IsObjectHasOwnPropertyCall(parent) {
+		role := ast.RoleIn(n, parent)
+		if !g.forProcessDefines && (role == ast.RoleCallCallee || role == ast.RoleOptChainCallCallee) &&
+			b.IsObjectHasOwnPropertyCall(parent) {
 			qname, _ := n.GetFirstChild().GetQualifiedNameString()
 			globalName := b.GetOrCreateName(qname, b.curMetadata)
 			globalName.SetBooleanProperty(GlobalNamespace_NameProp_IS_USED_HAS_OWN_PROPERTY)
@@ -480,58 +487,45 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 		}
 		// TODO(b/127505242): CAST parents may indicate a set.
 		// This may be a variable get or set.
-		switch pTok {
-		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+		switch role {
+		case ast.RoleNameDeclarationDeclarators:
 			isSet = true
-			rvalue := n.GetFirstChild()
-			if rvalue.IsNil() {
-				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
+			if init, hasInit := ast.MustName(n).Init(); hasInit {
+				type_ = b.GetValueType(init.Node())
 			} else {
-				type_ = b.GetValueType(rvalue)
+				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
 			}
-		case rhino.Token_ASSIGN:
-			if parent.GetFirstChild() == n {
-				isSet = true
-				type_ = b.GetValueType(n.GetNext())
-			}
-		case rhino.Token_FUNCTION:
+		case ast.RoleAssignTarget:
+			isSet = true
+			type_ = b.GetValueType(ast.MustAssign(parent).Value().Node())
+		case ast.RoleFunctionName, ast.RoleFunctionBody:
 			grandparent := parent.GetParent()
 			if grandparent.IsNil() || NodeUtil_IsFunctionExpression(parent) {
 				return
 			}
 			isSet = true
 			type_ = GlobalNamespace_NameProp_FUNCTION
-		case rhino.Token_CATCH, rhino.Token_INC, rhino.Token_DEC:
+		case ast.RoleCatchParam, ast.RoleIncDecTarget,
+			ast.RoleForInTarget, ast.RoleForOfTarget, ast.RoleForAwaitOfTarget,
+			ast.RoleAssignOpTarget:
 			isSet = true
 			type_ = GlobalNamespace_NameProp_OTHER_OBJECT
-		case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-			if parent.GetFirstChild() == n {
-				isSet = true
-				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
-			}
-		case rhino.Token_CLASS:
+		case ast.RoleClassName:
 			// The first child is the class name, and the second child is the superclass name.
-			if parent.GetFirstChild() == n {
-				isSet = true
-				type_ = GlobalNamespace_NameProp_CLASS
-			}
-		case rhino.Token_STRING_KEY,
-			rhino.Token_ARRAY_PATTERN,
-			rhino.Token_DEFAULT_VALUE,
-			rhino.Token_COMPUTED_PROP,
-			rhino.Token_ITER_REST,
-			rhino.Token_OBJECT_REST:
+			isSet = true
+			type_ = GlobalNamespace_NameProp_CLASS
+		case ast.RoleStringKeyValue,
+			ast.RoleArrayPatternElements,
+			ast.RoleDefaultValueTarget,
+			ast.RoleDefaultValueValue,
+			ast.RoleComputedPropKey,
+			ast.RoleComputedPropValue,
+			ast.RoleIterRestTarget,
+			ast.RoleObjectRestTarget:
 			// This may be a set.
 			// TODO(b/120303257): this should extend to qnames too, but doing
 			// so causes invalid output. Covered in CollapsePropertiesTest
 			if n.IsName() && NodeUtil_IsLhsByDestructuring(n) {
-				isSet = true
-				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
-			}
-		case rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL:
-			// isSet = false, type = OTHER.
-		default:
-			if NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == n {
 				isSet = true
 				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
 			}
@@ -541,17 +535,13 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 		}
 		if n.GetToken() == rhino.Token_NAME {
 			topID := n.GetStringID()
-			if topID <= 1 || pTok == rhino.Token_PARAM_LIST {
+			if topID <= 1 || role == ast.RoleParamListParams {
 				return
 			}
 			if t != nil && b.curModuleRoot.IsNil() && !t.currentHoistScopeRoot.IsNil() {
-				switch pTok {
-				case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION, rhino.Token_CATCH:
+				switch role {
+				case ast.RoleNameDeclarationDeclarators, ast.RoleFunctionName, ast.RoleCatchParam, ast.RoleClassName:
 					return
-				case rhino.Token_CLASS:
-					if parent.GetFirstChild() == n {
-						return
-					}
 				}
 			}
 			topName := strpool.String(strpool.ID(topID))
@@ -684,14 +674,19 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			}
 		}
 	case rhino.Token_CALL:
-		if parent.IsExprResult() &&
-			GlobalNamespace_GOOG_PROVIDE.Matches(n.GetFirstChild()) &&
-			n.GetSecondChild().IsStringLit() {
-			// goog.provide goes through a different code path than regular sets because it can
-			// create multiple names, e.g. `goog.provide('a.b.c');` creates the global names
-			// a, a.b, and a.b.c. Other sets only create a single global name.
-			b.CreateNamesFromProvide(n.GetSecondChild().GetString())
-			return
+		if parent.IsExprResult() {
+			call := ast.MustCall(n)
+			if GlobalNamespace_GOOG_PROVIDE.Matches(call.Callee().Node()) {
+				if arg, ok := call.FirstArg(); ok {
+					if str, ok := arg.AsStringLit(); ok {
+						// goog.provide goes through a different code path than regular sets because it can
+						// create multiple names, e.g. `goog.provide('a.b.c');` creates the global names
+						// a, a.b, and a.b.c. Other sets only create a single global name.
+						b.CreateNamesFromProvide(str.Value())
+						return
+					}
+				}
+			}
 		}
 		return
 	default:
@@ -859,16 +854,15 @@ func (b *GlobalNamespace_BuildGlobalNamespace) GetValueType(n rhino.Node) Global
 		// second value would be dead code. Assume that if the second value
 		// is an object literal or function, then the first value will also
 		// evaluate to one when it doesn't evaluate to false.
-		return b.GetValueType(n.GetLastChild())
+		return b.GetValueType(ast.MustBinary(n).Right().Node())
 	case rhino.Token_HOOK:
 		// The same line of reasoning used for the OR case applies here.
-		second := n.GetSecondChild()
-		t := b.GetValueType(second)
+		hook := ast.MustHook(n)
+		t := b.GetValueType(hook.Then().Node())
 		if t != GlobalNamespace_NameProp_OTHER_OBJECT {
 			return t
 		}
-		third := second.GetNext()
-		return b.GetValueType(third)
+		return b.GetValueType(hook.Else().Node())
 	default:
 	}
 	return GlobalNamespace_NameProp_OTHER_OBJECT
@@ -1055,7 +1049,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) determineRefTypeForGetImpl(
 		rhino.Token_URSH:
 		type_ = GlobalNamespace_Ref_Type_DIRECT_GET
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
-		if n == parent.GetFirstChild() {
+		if r := ast.RoleIn(n, parent); r == ast.RoleCallCallee || r == ast.RoleOptChainCallCallee {
 			// It is a call target
 			type_ = GlobalNamespace_Ref_Type_CALL_GET
 		} else if b.IsClassDefiningCall(parent) {
@@ -1064,7 +1058,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) determineRefTypeForGetImpl(
 			type_ = GlobalNamespace_Ref_Type_ALIASING_GET
 		}
 	case rhino.Token_NEW:
-		if n == parent.GetFirstChild() {
+		if ast.RoleIn(n, parent) == ast.RoleNewCallee {
 			type_ = GlobalNamespace_Ref_Type_DIRECT_GET
 		} else {
 			type_ = GlobalNamespace_Ref_Type_ALIASING_GET
@@ -1093,13 +1087,14 @@ func (b *GlobalNamespace_BuildGlobalNamespace) determineRefTypeForGetImpl(
 			type_ = GlobalNamespace_Ref_Type_ALIASING_GET
 		}
 	case rhino.Token_COMMA, rhino.Token_HOOK:
-		if n != parent.GetFirstChild() {
+		switch ast.RoleIn(n, parent) {
+		case ast.RoleBinaryLeft, ast.RoleHookCond:
+			type_ = GlobalNamespace_Ref_Type_DIRECT_GET
+		default:
 			// This node is y or z in (x?y:z) or (x,y). We only know that an alias is
 			// not getting created for this name if the result is assigned to
 			// the same name (e.g. var a = a ? a : {}).
 			type_ = b.determineRefTypeForGetImpl(parent, referenceNode, name, nameObj)
-		} else {
-			type_ = GlobalNamespace_Ref_Type_DIRECT_GET
 		}
 	case rhino.Token_DELPROP:
 		type_ = GlobalNamespace_Ref_Type_DELETE_PROP
@@ -1114,9 +1109,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) determineRefTypeForGetImpl(
 			type_ = GlobalNamespace_Ref_Type_ALIASING_GET
 			break
 		}
-		for lhs.IsCast() {
+		for cast, ok := ast.AsCast(lhs); ok; cast, ok = ast.AsCast(lhs) {
 			// Case: `/** @type {!Foo} */ (x) = ...`; or multiple casts like `(cast(cast(x)) =`
-			lhs = lhs.GetOnlyChild()
+			lhs = cast.Expr().Node()
 		}
 
 		// This is a recursive ascent check if this an assignment
@@ -1205,18 +1200,17 @@ func (b *GlobalNamespace_BuildGlobalNamespace) IsClassDefiningCall(callNode rhin
 //
 // Java: GlobalNamespace.BuildGlobalNamespace.isObjectHasOwnPropertyCall(Node)
 func (b *GlobalNamespace_BuildGlobalNamespace) IsObjectHasOwnPropertyCall(callNode rhino.Node) bool {
-	jutil.CheckArgumentMsg1(callNode.IsCall() || callNode.IsOptChainCall(), "%s", callNode)
-	if !callNode.HasTwoChildren() {
+	call := ast.MustNormalOrOptChainCall(callNode)
+	if _, ok := call.OnlyArg(); !ok {
 		return false
 	}
-	callee := callNode.GetFirstChild()
-	if !callee.IsGetProp() && !callee.IsOptChainGetProp() {
+	callee, ok := call.Callee().AsNormalOrOptChainGetProp()
+	if !ok {
 		return false
 	}
-	receiver := callee.GetFirstChild()
-	propName := callee.GetString()
+	propName := callee.Property()
 	return ("hasOwnProperty" == propName || "propertyIsEnumerable" == propName) &&
-		receiver.IsQualifiedName()
+		callee.Object().Node().IsQualifiedName()
 }
 
 // MaybeHandlePrototypePrefix updates our representation of the global

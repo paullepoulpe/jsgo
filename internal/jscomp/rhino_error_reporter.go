@@ -25,15 +25,13 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// RhinoErrorReporterBase is an error reporter for serializing Rhino errors
+// RhinoErrorReporter is an error reporter for serializing Rhino errors
 // into our error format.
-//
-// Go-only: language-adapter — RhinoErrorReporter has a single, private
-// subclass and no overridable methods, so the class is this embeddable
-// struct (PORTING.md §4 without the interface).
-type RhinoErrorReporterBase struct {
+type RhinoErrorReporter struct {
 	internalReporter ErrorHandler
 }
+
+var _ rhino.ErrorReporter = (*RhinoErrorReporter)(nil)
 
 var (
 	RhinoErrorReporter_PARSE_ERROR = DiagnosticType_Error("JSC_PARSE_ERROR", "Parse error. {0}")
@@ -191,28 +189,35 @@ func rhinoErrorReporter_replacePlaceHolders(s string) *jutil.Pattern {
 	return jutil.Pattern_Compile(rhinoErrorReporter_placeHolder.ReplaceAllLiteralString(s, `\E.*\Q`))
 }
 
-// Java: RhinoErrorReporter(ErrorHandler)
-func (r *RhinoErrorReporterBase) InitRhinoErrorReporterBase(internalReporter ErrorHandler) {
-	r.internalReporter = internalReporter
-}
-
 // Java: RhinoErrorReporter.forOldRhino(ErrorHandler)
 func RhinoErrorReporter_ForOldRhino(internalReporter ErrorHandler) rhino.ErrorReporter {
-	return newRhinoErrorReporter_OldRhinoErrorReporter(internalReporter)
+	return &RhinoErrorReporter{internalReporter: internalReporter}
 }
 
 // Java: RhinoErrorReporter.warningAtLine(String, String, int, int)
-func (r *RhinoErrorReporterBase) WarningAtLine(message string, sourceName string, line int,
+func (r *RhinoErrorReporter) WarningAtLine(message string, sourceName string, line int,
 	lineOffset int) {
 	r.internalReporter.Report(
 		nil, rhinoErrorReporter_makeError(message, sourceName, line, lineOffset, CheckLevel_WARNING))
 }
 
 // Java: RhinoErrorReporter.errorAtLine(String, String, int, int)
-func (r *RhinoErrorReporterBase) ErrorAtLine(message string, sourceName string, line int,
+func (r *RhinoErrorReporter) ErrorAtLine(message string, sourceName string, line int,
 	lineOffset int) {
 	r.internalReporter.Report(
 		nil, rhinoErrorReporter_makeError(message, sourceName, line, lineOffset, CheckLevel_ERROR))
+}
+
+// Java: RhinoErrorReporter.OldRhinoErrorReporter.error(String, String, int, int)
+func (r *RhinoErrorReporter) Error(message string, sourceName string, line int,
+	lineOffset int) {
+	r.ErrorAtLine(message, sourceName, line, lineOffset)
+}
+
+// Java: RhinoErrorReporter.OldRhinoErrorReporter.warning(String, String, int, int)
+func (r *RhinoErrorReporter) Warning(message string, sourceName string, line int,
+	lineOffset int) {
+	r.WarningAtLine(message, sourceName, line, lineOffset)
 }
 
 // RhinoErrorReporter_MapError may return nil.
@@ -248,33 +253,4 @@ func rhinoErrorReporter_makeError(
 	}
 
 	return builder.Build()
-}
-
-// rhinoErrorReporter_OldRhinoErrorReporter is RhinoErrorReporter's private
-// subclass implementing rhino.ErrorReporter.
-//
-// Java: RhinoErrorReporter.OldRhinoErrorReporter
-type rhinoErrorReporter_OldRhinoErrorReporter struct {
-	RhinoErrorReporterBase
-}
-
-var _ rhino.ErrorReporter = (*rhinoErrorReporter_OldRhinoErrorReporter)(nil)
-
-// Java: RhinoErrorReporter.OldRhinoErrorReporter(ErrorHandler)
-func newRhinoErrorReporter_OldRhinoErrorReporter(internalReporter ErrorHandler) *rhinoErrorReporter_OldRhinoErrorReporter {
-	r := &rhinoErrorReporter_OldRhinoErrorReporter{}
-	r.InitRhinoErrorReporterBase(internalReporter)
-	return r
-}
-
-// Java: RhinoErrorReporter.OldRhinoErrorReporter.error(String, String, int, int)
-func (r *rhinoErrorReporter_OldRhinoErrorReporter) Error(message string, sourceName string, line int,
-	lineOffset int) {
-	r.RhinoErrorReporterBase.ErrorAtLine(message, sourceName, line, lineOffset)
-}
-
-// Java: RhinoErrorReporter.OldRhinoErrorReporter.warning(String, String, int, int)
-func (r *rhinoErrorReporter_OldRhinoErrorReporter) Warning(message string, sourceName string, line int,
-	lineOffset int) {
-	r.RhinoErrorReporterBase.WarningAtLine(message, sourceName, line, lineOffset)
 }

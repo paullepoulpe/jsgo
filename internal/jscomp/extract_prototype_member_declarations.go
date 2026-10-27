@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -261,26 +262,27 @@ func (e *ExtractPrototypeMemberDeclarations) ExtractInstance(instance *ExtractPr
 // Java: ExtractPrototypeMemberDeclarations.replacePrototypeMemberDeclaration(PrototypeMemberDeclaration, String)
 func (e *ExtractPrototypeMemberDeclarations) ReplacePrototypeMemberDeclaration(declar *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, alias string) {
 	// x.prototype.y = ...  ->  t.y = ...
-	assignment := declar.node.GetFirstChild()
-	lhs := assignment.GetFirstChild()
-	name := NodeUtil_NewQNameWithOriginalName(
-		e.compiler, alias+"."+declar.memberName, declar.node, declar.memberName)
+	assignment := ast.MustExprStmt(declar.node).Expr().MustAssign()
+	lhs := assignment.Target().Node()
+	name := ast.MustGetProp(NodeUtil_NewQNameWithOriginalName(
+		e.compiler, alias+"."+declar.memberName, declar.node, declar.memberName))
 
 	// Save the full prototype path on the left hand side of the assignment for debugging purposes.
 	// declar.lhs = x.prototype.y so first child of the first child is 'x'.
-	accessNode := declar.lhs.GetFirstFirstChild()
+	accessNode := ast.MustGetProp(declar.lhs).Object().MustGetProp().Object().Node()
 	originalName := accessNode.GetOriginalName()
 	className := "?"
 	if originalName != nil {
 		className = *originalName
 	}
-	name.GetFirstChild().SrcrefTree(lhs)
-	name.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, lhs.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME))
+	nameObj := name.Object().Node()
+	nameObj.SrcrefTree(lhs)
+	name.SetConstantName(lhs.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME))
 	newOriginalName := className + ".prototype"
-	name.GetFirstChild().SetOriginalName(&newOriginalName)
+	nameObj.SetOriginalName(&newOriginalName)
 
-	lhs.ReplaceWith(name)
-	e.compiler.ReportChangeToEnclosingScope(name)
+	lhs.ReplaceWith(name.Node())
+	e.compiler.ReportChangeToEnclosingScope(name.Node())
 }
 
 // ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo is per-chunk info
@@ -324,7 +326,8 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit(t *NodeT
 			continue
 		}
 		g.scratchDecls = g.scratchDecls[:0]
-		head := makePrototypeMemberDeclaration(cur.GetFirstFirstChild(), cur)
+		head := makePrototypeMemberDeclaration(
+			ast.MustExprStmt(cur).Expr().MustAssign().Target().Node(), cur)
 		g.scratchDecls = append(g.scratchDecls, head)
 		delta := extractPrototypeMemberDeclarations_Pattern_perExtractionOverhead[g.outer.pattern] +
 			extractPrototypeMemberDeclarations_Pattern_perMemberOverhead[g.outer.pattern]
@@ -336,7 +339,8 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit(t *NodeT
 			if !ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePropertyDeclaration(next) {
 				break
 			}
-			cand := makePrototypeMemberDeclaration(next.GetFirstFirstChild(), next)
+			cand := makePrototypeMemberDeclaration(
+				ast.MustExprStmt(next).Expr().MustAssign().Target().Node(), next)
 			if !head.IsSameClass(&cand) {
 				break
 			}
@@ -472,12 +476,9 @@ func (d *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) IsSameCl
 
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.getPrototypeClassName(Node)
 func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_GetPrototypeClassName(qName rhino.Node) rhino.Node {
-	cur := qName
-	for cur.IsGetProp() {
-		if cur.GetString() == "prototype" {
-			return cur.GetFirstChild()
-		} else {
-			cur = cur.GetFirstChild()
+	for gp, ok := ast.AsGetProp(qName); ok; gp, ok = gp.Object().AsGetProp() {
+		if gp.Property() == "prototype" {
+			return gp.Object().Node()
 		}
 	}
 	return rhino.NilNode
@@ -488,14 +489,12 @@ func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePr
 	if !NodeUtil_IsExprAssign(n) {
 		return false
 	}
-	lvalue := n.GetFirstFirstChild()
-	if lvalue.IsGetProp() {
-		cur := lvalue.GetFirstChild()
-		for cur.IsGetProp() {
-			if cur.GetString() == "prototype" {
-				return cur.IsQualifiedName()
+	lvalue := ast.MustExprStmt(n).Expr().MustAssign().Target()
+	if gp, ok := lvalue.AsGetProp(); ok {
+		for cur, ok := gp.Object().AsGetProp(); ok; cur, ok = cur.Object().AsGetProp() {
+			if cur.Property() == "prototype" {
+				return cur.Node().IsQualifiedName()
 			}
-			cur = cur.GetFirstChild()
 		}
 	}
 	return false
@@ -510,6 +509,6 @@ func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_ExtractDeclar
 	if !ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePropertyDeclaration(n) {
 		return nil
 	}
-	lhs := n.GetFirstFirstChild()
+	lhs := ast.MustExprStmt(n).Expr().MustAssign().Target().Node()
 	return NewExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration(lhs, n)
 }

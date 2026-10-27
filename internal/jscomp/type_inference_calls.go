@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -51,13 +52,14 @@ func (ti *TypeInference) TraverseTaggedTemplateLit(tagTempLitNode rhino.Node, or
 //
 // Java: TypeInference.setCallNodeTypeAfterChildrenTraversed(Node, FlowScope)
 func (ti *TypeInference) SetCallNodeTypeAfterChildrenTraversed(n rhino.Node, scopeAfterChildren FlowScope) FlowScope {
+	inv := ast.MustInvocation(n)
+	left := inv.Callee().Node()
 	// Resolve goog.{require,requireType,requireDynamic,forwardDeclare,module.get} calls separately,
 	// as they are not normal functions.
 	if n.IsCall() &&
 		NodeUtil_IsExpressionResultUsed(n) && // Don't bother typing calls if the result is unused.
 		ModuleImportResolver_IsGoogModuleDependencyCall(n) {
-		calleeNode := n.GetFirstChild()
-		if calleeNode.MatchesQualifiedName(TypeInference_GOOG_REQUIREDYNAMIC_NAME) {
+		if left.MatchesQualifiedName(TypeInference_GOOG_REQUIREDYNAMIC_NAME) {
 			// Result of `goog.requireDynamic('module.name')` is `IThenable<MODULE_TYPE>`
 			// IThenable is a supertype of Promise.
 			n.SetJSType(Promises_WrapInIThenable(ti.registry, ti.GetGoogModuleDependencyCallResultType(n)))
@@ -67,7 +69,6 @@ func (ti *TypeInference) SetCallNodeTypeAfterChildrenTraversed(n rhino.Node, sco
 		return scopeAfterChildren
 	}
 
-	left := n.GetFirstChild()
 	functionType := ti.GetJSType(left).RestrictByNotNullOrUndefined()
 	if left.IsSuper() {
 		// TODO(sdh): This will probably return the super type; might want to return 'this' instead?
@@ -88,7 +89,8 @@ func (ti *TypeInference) SetCallNodeTypeAfterChildrenTraversed(n rhino.Node, sco
 
 // Java: TypeInference.getGoogModuleDependencyCallResultType(Node)
 func (ti *TypeInference) GetGoogModuleDependencyCallResultType(callNode rhino.Node) rhino.JSType {
-	moduleId := callNode.GetSecondChild().GetString()
+	firstArg, _ := ast.MustCall(callNode).FirstArg()
+	moduleId := firstArg.Node().GetString()
 	module := ti.compiler.GetModuleMap().GetClosureModule(moduleId)
 	// Fall back to the `?` type if the module is unknown to the compiler
 	if module == nil {
@@ -124,12 +126,14 @@ func (ti *TypeInference) GetGoogModuleDependencyCallResultType(callNode rhino.No
 
 // Java: TypeInference.tightenTypesAfterAssertions(FlowScope, Node)
 func (ti *TypeInference) TightenTypesAfterAssertions(scope FlowScope, callNode rhino.Node) FlowScope {
-	left := callNode.GetFirstChild()
-	firstParam := left.GetNext()
-	if firstParam.IsNil() {
+	call := ast.MustNormalOrOptChainCall(callNode)
+	left := call.Callee().Node()
+	firstParamExpr, ok := call.FirstArg()
+	if !ok {
 		// this may be an assertion call but there are no arguments to assert
 		return scope
 	}
+	firstParam := firstParamExpr.Node()
 	assertionFunctionSpec := ti.assertionFunctionLookup.LookupByCallee(left)
 	if assertionFunctionSpec == nil {
 		// this is not a recognized assertion function
@@ -220,7 +224,7 @@ func (ti *TypeInference) NarrowScope(scope FlowScope, node rhino.Node, narrowed 
 func (ti *TypeInference) BackwardsInferenceFromCallSite(n rhino.Node, fnType rhino.FunctionType, scope FlowScope) {
 	updatedFnType := ti.InferTemplatedTypesForCall(n, fnType, scope)
 	if updatedFnType {
-		fnType = n.GetFirstChild().GetJSType().ToMaybeFunctionType()
+		fnType = ast.MustInvocation(n).Callee().Node().GetJSType().ToMaybeFunctionType()
 	}
 	ti.UpdateTypeOfArguments(n, fnType)
 	ti.UpdateBind(n)
@@ -263,12 +267,13 @@ func (ti *TypeInference) UpdateBind(n rhino.Node) {
 		callTargetFn.GetBindReturnType(
 			// getBindReturnType expects the 'this' argument to be included.
 			bind.GetBoundParameterCount() + 1)
-	bindType := ti.GetJSType(n.GetFirstChild()).ToMaybeFunctionType()
-	if bindType != nil && n.GetFirstChild() != target {
+	callee := ast.MustInvocation(n).Callee().Node()
+	bindType := ti.GetJSType(callee).ToMaybeFunctionType()
+	if bindType != nil && callee != target {
 		// Update the type of the
 		bindType =
 			bindType.ToBuilder().WithReturnType(returnType).WithSourceNode(rhino.NilNode).BuildAndResolve()
-		n.GetFirstChild().SetJSType(bindType)
+		callee.SetJSType(bindType)
 	}
 
 	n.SetJSType(returnType)
@@ -499,7 +504,7 @@ func (ti *TypeInference) InferTemplatedTypesForCall(n rhino.Node, fnType rhino.F
 	// Replace all template types. If we couldn't find a replacement, we
 	// replace it with UNKNOWN.
 	replacer := rhino.TemplateTypeReplacer_MakeForInference(ti.registry, inferred)
-	callTarget := n.GetFirstChild()
+	callTarget := ast.MustInvocation(n).Callee().Node()
 
 	replacementFnType := replacer.VisitJSType(fnType).ToMaybeFunctionType()
 	jutil.CheckNotNull(replacementFnType)
@@ -512,7 +517,7 @@ func (ti *TypeInference) InferTemplatedTypesForCall(n rhino.Node, fnType rhino.F
 // Java: TypeInference.traverseNew(Node, FlowScope)
 func (ti *TypeInference) TraverseNew(n rhino.Node, scope FlowScope) FlowScope {
 	scope = ti.TraverseChildren(n, scope)
-	constructor := n.GetFirstChild()
+	constructor := ast.MustNew(n).Callee().Node()
 	constructorType := constructor.GetJSType()
 	return ti.TraverseInstantiation(n, constructorType, scope)
 }

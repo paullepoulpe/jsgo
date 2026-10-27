@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -43,7 +44,9 @@ func NewPolymerPassSuppressBehaviorsAndProtectKeys(compiler AbstractCompiler) *P
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.visit(NodeTraversal, Node, Node)
 func (p *PolymerPassSuppressBehaviorsAndProtectKeys) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if polymerPassSuppressBehaviorsAndProtectKeys_isBehavior(n) {
-		if !NodeUtil_IsNameDeclaration(n) && !n.IsAssign() {
+		decl, isDecl := ast.AsNameDeclaration(n)
+		assign, isAssign := ast.AsAssign(n)
+		if !isDecl && !isAssign {
 			p.compiler.Report(JSError_MakeWithNode(n, PolymerPassErrors_POLYMER_UNQUALIFIED_BEHAVIOR))
 			return
 		}
@@ -57,9 +60,13 @@ func (p *PolymerPassSuppressBehaviorsAndProtectKeys) Visit(t *NodeTraversal, n r
 		newDocs.RecordNoCollapse()
 		n.SetJSDocInfo(newDocs.Build())
 
-		behaviorValue := n.GetSecondChild()
-		if NodeUtil_IsNameDeclaration(n) {
-			behaviorValue = n.GetFirstFirstChild()
+		var behaviorValue rhino.Node
+		if isDecl {
+			if first, ok := decl.FirstDeclarator(); ok {
+				behaviorValue = first.Node().GetFirstChild()
+			}
+		} else {
+			behaviorValue = assign.Value().Node()
 		}
 		p.suppressBehavior(behaviorValue, n)
 	}

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -92,11 +93,12 @@ func (p *PolymerPass) Visit(traversal *NodeTraversal, node rhino.Node, parent rh
 
 // Java: PolymerPass.getModuleMetadata(NodeTraversal)
 func (p *PolymerPass) getModuleMetadata(traversal *NodeTraversal) *ModuleMetadataMap_ModuleMetadata {
-	script := traversal.GetCurrentScript()
-	if !script.IsNil() && script.GetFirstChild().IsModuleBody() {
-		return ModuleImportResolver_GetModuleFromScopeRoot(
-			p.compiler.GetModuleMap(), p.compiler, script.GetFirstChild()).
-			Metadata()
+	if script, ok := ast.AsScript(traversal.GetCurrentScript()); ok {
+		if first, hasFirst := script.FirstItem(); hasFirst && first.Node().IsModuleBody() {
+			return ModuleImportResolver_GetModuleFromScopeRoot(
+				p.compiler.GetModuleMap(), p.compiler, first.Node()).
+				Metadata()
+		}
 	}
 	// Check for bundled goog.loadModule calls
 	scopeRoot := traversal.GetScopeRoot()
@@ -158,7 +160,7 @@ func (p *PolymerPass) rewritePolymer2ClassDefinition(node rhino.Node, traversal 
 //
 // Java: PolymerPass.normalizePolymerExport(Node, Node)
 func (p *PolymerPass) normalizePolymerExport(nameDecl rhino.Node, export rhino.Node) {
-	name := nameDecl.GetFirstChild()
+	name := ast.MustNameDeclaration(nameDecl).MustFirstDeclarator().Node()
 	nameDecl.Detach().InsertBefore(export)
 
 	exportSpec := rhino.NewNode(rhino.Token_EXPORT_SPEC)
@@ -183,7 +185,7 @@ func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
 
 	baseExterns := p.polymerElementExterns.CloneTree()
 	polymerElementType := PolymerPassStaticUtils_GetPolymerElementType(def)
-	baseExterns.GetFirstChild().SetString(polymerElementType)
+	ast.MustNameDeclaration(baseExterns).MustFirstDeclarator().Node().SetString(polymerElementType)
 
 	elementType, ok := p.tagNameMap[*def.nativeBaseElement]
 	if !ok {
@@ -200,7 +202,8 @@ func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
 
 	for _, baseProp := range p.polymerElementProps {
 		newProp := baseProp.CloneTree()
-		newPropRootName := NodeUtil_GetRootOfQualifiedName(newProp.GetFirstFirstChild())
+		newPropRootName := NodeUtil_GetRootOfQualifiedName(
+			ast.MustExprStmt(newProp).Expr().Node().GetFirstChild())
 		newPropRootName.SetString(polymerElementType)
 		block.AddChildToBack(newProp)
 	}
@@ -252,16 +255,11 @@ func polymerPass_exportTsickleProps(classNode rhino.Node, classQualifiedName str
 //
 // Java: PolymerPass.maybeGetTsicklePropTypesIfBlock(Node)
 func polymerPass_maybeGetTsicklePropTypesIfBlock(node rhino.Node) rhino.Node {
-	if !node.IsIf() {
+	ifNode, ok := ast.AsIf(node)
+	if !ok || !ifNode.Cond().Node().IsFalse() {
 		return rhino.NilNode
 	}
-	condition := node.GetFirstChild()
-	if !condition.IsFalse() {
-		return rhino.NilNode
-	}
-	block := condition.GetNext()
-	jutil.CheckStateMsg1(!block.IsNil() && block.IsBlock(), "Expected block but got %s", block)
-	return block
+	return ifNode.Then().Node()
 }
 
 // polymerPass_getTsickleClassPrototypeProp looks for
@@ -270,22 +268,22 @@ func polymerPass_maybeGetTsicklePropTypesIfBlock(node rhino.Node) rhino.Node {
 //
 // Java: PolymerPass.getTsickleClassPrototypeProp(Node, String)
 func polymerPass_getTsickleClassPrototypeProp(stmt rhino.Node, classQualifiedName string) rhino.Node {
-	if !stmt.IsExprResult() {
+	exprStmt, ok := ast.AsExprStmt(stmt)
+	if !ok {
 		return rhino.NilNode
 	}
-	expr := stmt.GetFirstChild()
-	if !expr.IsGetProp() {
+	expr, ok := exprStmt.Expr().AsGetProp()
+	if !ok {
 		return rhino.NilNode
 	}
-	owner := expr.GetFirstChild()
-	if !owner.IsGetProp() || owner.GetString() != "prototype" {
+	owner, ok := expr.Object().AsGetProp()
+	if !ok || owner.Property() != "prototype" {
 		return rhino.NilNode
 	}
-	classRef := owner.GetFirstChild()
-	if !classRef.MatchesQualifiedName(classQualifiedName) {
+	if !owner.Object().Node().MatchesQualifiedName(classQualifiedName) {
 		return rhino.NilNode
 	}
-	return expr
+	return expr.Node()
 }
 
 // PolymerPass_MemberDefinition is any member of a Polymer element or

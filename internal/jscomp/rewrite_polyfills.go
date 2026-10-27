@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -185,18 +186,20 @@ func (r *RewritePolyfills) RemoveUnneededPolyfills(parent rhino.Node, runtimeEnd
 //
 // Java: RewritePolyfills.getPolyfillSupportedFeatureSet(Node)
 func (r *RewritePolyfills) GetPolyfillSupportedFeatureSet(maybePolyfill rhino.Node) *parser.FeatureSet {
-	var polyfillSupportFeatureSet *parser.FeatureSet
-	if NodeUtil_IsExprCall(maybePolyfill) {
-		call := maybePolyfill.GetFirstChild()
-		name := call.GetFirstChild()
-		if rewritePolyfills_JSCOMP_POLYFILL.Matches(name) {
-			nativeVersionStr := name.GetNext().GetNext().GetNext().GetString()
-			polyfillSupportFeatureSet = parser.FeatureSet_ValueOf(nativeVersionStr)
-			polyfillSupportFeatureSet =
-				PolyfillUsageFinder_GetPolyfillSupportedFeatureSet(nativeVersionStr)
-		}
+	stmt, ok := ast.AsExprStmt(maybePolyfill)
+	if !ok {
+		return nil
 	}
-	return polyfillSupportFeatureSet
+	call, ok := stmt.Expr().AsCall()
+	if !ok || !rewritePolyfills_JSCOMP_POLYFILL.Matches(call.Callee().Node()) {
+		return nil
+	}
+	arg, ok := call.AsCallOrNew().ArgAt(2)
+	if !ok {
+		return nil
+	}
+	nativeVersionStr := arg.MustStringLit().Value()
+	return PolyfillUsageFinder_GetPolyfillSupportedFeatureSet(nativeVersionStr)
 }
 
 // Java: RewritePolyfills.inject(PolyfillUsage)

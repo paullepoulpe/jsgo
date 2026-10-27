@@ -52,7 +52,7 @@ type CombinedCompilerPass struct {
 	compiler              AbstractCompiler
 	concreteCompiler      *Compiler
 	cachedErrorManager    ErrorManager
-	haltingErrorCount     *int
+	sortingErrorManager   *SortingErrorManagerBase
 	continueAfterErrors   bool
 	allNoVisit            bool
 	inactiveCount         int
@@ -96,7 +96,7 @@ func NewCombinedCompilerPassOfList(compiler AbstractCompiler, callbacks []NodeTr
 func (p *CombinedCompilerPass) refreshErrorState() {
 	p.continueAfterErrors = false
 	p.cachedErrorManager = nil
-	p.haltingErrorCount = nil
+	p.sortingErrorManager = nil
 	c, ok := p.compiler.(*Compiler)
 	if !ok || c == nil {
 		return
@@ -112,7 +112,7 @@ func (p *CombinedCompilerPass) refreshErrorState() {
 		em = ts.delegated
 	}
 	if sem, ok := em.(SortingErrorManager); ok {
-		p.haltingErrorCount = &sem.GetSortingErrorManagerBase().originalErrorCount
+		p.sortingErrorManager = sem.GetSortingErrorManagerBase()
 	}
 }
 
@@ -121,8 +121,8 @@ func (p *CombinedCompilerPass) hasHaltingErrors() bool {
 		if p.continueAfterErrors {
 			return false
 		}
-		if p.haltingErrorCount != nil && p.concreteCompiler.errorManager == p.cachedErrorManager {
-			return *p.haltingErrorCount != 0
+		if p.sortingErrorManager != nil && p.concreteCompiler.errorManager == p.cachedErrorManager {
+			return p.sortingErrorManager.originalErrorCount != 0
 		}
 	}
 	return p.compiler.HasHaltingErrors()

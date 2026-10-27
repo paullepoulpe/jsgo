@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -83,8 +84,12 @@ func (f *PolymerPassFindExterns) GetPolymerElementExterns() rhino.Node {
 // Java: PolymerPassFindExterns.isPolymerElementExterns(Node)
 func polymerPassFindExterns_isPolymerElementExterns(value rhino.Node) bool {
 	// Explicitly allow var, let or const.
-	return NodeUtil_IsNameDeclaration(value) &&
-		value.GetFirstChild().MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
+	decl, ok := ast.AsNameDeclaration(value)
+	if !ok {
+		return false
+	}
+	first, ok := decl.FirstDeclarator()
+	return ok && first.Node().MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
 }
 
 // polymerPassFindExterns_isPolymerElementPropExpr returns whether the node is
@@ -92,11 +97,12 @@ func polymerPassFindExterns_isPolymerElementExterns(value rhino.Node) bool {
 //
 // Java: PolymerPassFindExterns.isPolymerElementPropExpr(Node)
 func polymerPassFindExterns_isPolymerElementPropExpr(value rhino.Node) bool {
-	return !value.IsNil() &&
-		value.IsExprResult() &&
-		!value.GetFirstFirstChild().IsNil() &&
-		value.GetFirstFirstChild().IsGetProp() &&
-		value.GetFirstFirstChild().IsQualifiedName() &&
-		NodeUtil_GetRootOfQualifiedName(
-			value.GetFirstFirstChild()).MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
+	stmt, ok := ast.AsExprStmt(value)
+	if !ok {
+		return false
+	}
+	first := stmt.Expr().Node().GetFirstChild()
+	return first.IsGetProp() &&
+		first.IsQualifiedName() &&
+		NodeUtil_GetRootOfQualifiedName(first).MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
 }

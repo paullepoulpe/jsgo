@@ -18,7 +18,10 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/rhino"
+import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
 
 // ClosureReverseAbstractInterpreter is a reverse abstract interpreter (RAI)
 // for specific closure patterns such as goog.isObject.
@@ -45,14 +48,13 @@ func NewClosureReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *C
 // Java: ClosureReverseAbstractInterpreter.getPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 func (c *ClosureReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOutcome(
 	condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
-	if condition.IsCall() && condition.HasTwoChildren() {
-		callee := condition.GetFirstChild()
-		param := condition.GetLastChild()
-		if callee.IsGetProp() && param.IsQualifiedName() {
-			paramType := c.GetTypeIfRefinable(param, blindScope)
-			receiver := callee.GetFirstChild()
-			if receiver.IsName() && receiver.GetString() == "goog" && callee.GetString() == "isObject" {
-				return c.restrictIsObject(param, paramType, blindScope, outcome.IsTruthy())
+	if call, ok := ast.AsCall(condition); ok {
+		if param, ok := call.OnlyArg(); ok {
+			if callee, ok := call.Callee().AsGetProp(); ok && param.Node().IsQualifiedName() {
+				paramType := c.GetTypeIfRefinable(param.Node(), blindScope)
+				if receiver, ok := callee.Object().AsName(); ok && receiver.Ident() == "goog" && callee.Property() == "isObject" {
+					return c.restrictIsObject(param.Node(), paramType, blindScope, outcome.IsTruthy())
+				}
 			}
 		}
 	}

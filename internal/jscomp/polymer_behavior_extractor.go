@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -136,7 +137,7 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 
 		var resolveResult *PolymerBehaviorExtractor_ResolveBehaviorNameResult
 		if polymerBehaviorExtractor_isGoogModuleGetCall(behaviorName) {
-			resolveResult = e.resolveGoogModuleGet(behaviorName.GetSecondChild().GetString())
+			resolveResult = e.resolveGoogModuleGet(ast.MustCall(behaviorName).MustOnlyArg().MustStringLit().Value())
 		} else {
 			resolveResult = e.resolveBehaviorName(polymerBehaviorExtractor_getQualifiedNameThroughCast(behaviorName), moduleMetadata)
 		}
@@ -346,12 +347,12 @@ var polymerBehaviorExtractor_GOOG_MODULE_GET = rhino.QualifiedName_Of("goog.modu
 
 // Java: PolymerBehaviorExtractor.isGoogModuleGetCall(Node)
 func polymerBehaviorExtractor_isGoogModuleGetCall(callNode rhino.Node) bool {
-	if !callNode.IsCall() {
+	call, ok := ast.AsCall(callNode)
+	if !ok || !polymerBehaviorExtractor_GOOG_MODULE_GET.Matches(call.Callee().Node()) {
 		return false
 	}
-	return polymerBehaviorExtractor_GOOG_MODULE_GET.Matches(callNode.GetFirstChild()) &&
-		callNode.HasTwoChildren() &&
-		callNode.GetSecondChild().IsStringLit()
+	arg, ok := call.OnlyArg()
+	return ok && arg.Node().IsStringLit()
 }
 
 // Java: PolymerBehaviorExtractor.resolveGoogModuleGet(String)
@@ -513,22 +514,21 @@ func polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorObjLit rhino.No
 //
 // Java: PolymerBehaviorExtractor.getQualifiedNameThroughCast(Node)
 func polymerBehaviorExtractor_getQualifiedNameThroughCast(node rhino.Node) *string {
-	if node.IsName() {
-		name := node.GetString()
+	if nameNode, ok := ast.AsName(node); ok {
+		name := nameNode.Ident()
 		if name == "" {
 			return nil
 		}
 		return &name
-	} else if node.IsGetProp() {
-		left := polymerBehaviorExtractor_getQualifiedNameThroughCast(node.GetFirstChild())
+	} else if gp, ok := ast.AsGetProp(node); ok {
+		left := polymerBehaviorExtractor_getQualifiedNameThroughCast(gp.Object().Node())
 		if left == nil {
 			return nil
 		}
-		right := node.GetString()
-		qname := *left + "." + right
+		qname := *left + "." + gp.Property()
 		return &qname
-	} else if node.IsCast() {
-		return polymerBehaviorExtractor_getQualifiedNameThroughCast(node.GetFirstChild())
+	} else if cast, ok := ast.AsCast(node); ok {
+		return polymerBehaviorExtractor_getQualifiedNameThroughCast(cast.Expr().Node())
 	}
 	return nil
 }

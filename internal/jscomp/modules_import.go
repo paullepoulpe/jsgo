@@ -135,9 +135,9 @@ func (i *Import) String() string {
 
 // Import_Builder is Import.Builder with its AutoBuilder implementation.
 type Import_Builder struct {
-	moduleRequest *string
-	importName    *string
-	localName     *string
+	moduleRequest string
+	importName    string
+	localName     string
 	modulePath    *ModuleLoader_ModulePath
 	importNode    rhino.Node
 	nameNode      rhino.Node
@@ -145,41 +145,24 @@ type Import_Builder struct {
 
 // Java: Import.builder()
 func Import_Builder_() *Import_Builder {
-	return newAutoBuilder_Import_Builder()
-}
-
-// Java: AutoBuilder_Import_Builder()
-func newAutoBuilder_Import_Builder() *Import_Builder {
 	return &Import_Builder{}
-}
-
-// Java: AutoBuilder_Import_Builder(Import)
-func newAutoBuilder_Import_BuilderFrom(source *Import) *Import_Builder {
-	b := &Import_Builder{}
-	b.moduleRequest = &source.moduleRequest
-	b.importName = &source.importName
-	b.localName = &source.localName
-	b.modulePath = source.modulePath
-	b.importNode = source.importNode
-	b.nameNode = source.nameNode
-	return b
 }
 
 // Java: AutoBuilder_Import_Builder.moduleRequest(String)
 func (b *Import_Builder) ModuleRequest(moduleRequest string) *Import_Builder {
-	b.moduleRequest = &moduleRequest
+	b.moduleRequest = moduleRequest
 	return b
 }
 
 // Java: AutoBuilder_Import_Builder.importName(String)
 func (b *Import_Builder) ImportName(importName string) *Import_Builder {
-	b.importName = &importName
+	b.importName = importName
 	return b
 }
 
 // Java: AutoBuilder_Import_Builder.localName(String)
 func (b *Import_Builder) LocalName(localName string) *Import_Builder {
-	b.localName = &localName
+	b.localName = localName
 	return b
 }
 
@@ -209,21 +192,8 @@ func (b *Import_Builder) NameNode(nameNode rhino.Node) *Import_Builder {
 
 // Java: AutoBuilder_Import_Builder.build()
 func (b *Import_Builder) Build() *Import {
-	if b.moduleRequest == nil ||
-		b.importName == nil ||
-		b.localName == nil ||
-		b.importNode.IsNil() ||
-		b.nameNode.IsNil() {
+	if b.importNode.IsNil() || b.nameNode.IsNil() {
 		missing := ""
-		if b.moduleRequest == nil {
-			missing += " moduleRequest"
-		}
-		if b.importName == nil {
-			missing += " importName"
-		}
-		if b.localName == nil {
-			missing += " localName"
-		}
 		if b.importNode.IsNil() {
 			missing += " importNode"
 		}
@@ -233,9 +203,9 @@ func (b *Import_Builder) Build() *Import {
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing))
 	}
 	return NewImport(
-		*b.moduleRequest,
-		*b.importName,
-		*b.localName,
+		b.moduleRequest,
+		b.importName,
+		b.localName,
 		b.modulePath,
 		b.importNode,
 		b.nameNode)

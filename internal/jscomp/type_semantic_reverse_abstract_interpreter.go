@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -28,9 +29,9 @@ import (
 // computations. This interpreter expects the parse tree inputs to be typed.
 type SemanticReverseAbstractInterpreter struct {
 	ChainableReverseAbstractInterpreterBase
-	trackingUsed []*SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope
-	trackingFree []*SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope
-	trackingSlab jutil.Slab[SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope]
+	trackingUsed []*sraiTrackingFlowScope
+	trackingFree []*sraiTrackingFlowScope
+	trackingSlab jutil.Slab[sraiTrackingFlowScope]
 }
 
 // NewSemanticReverseAbstractInterpreter creates a semantic reverse abstract
@@ -53,12 +54,13 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 		var left rhino.Node
 		var right rhino.Node
 		if operatorToken == rhino.Token_CASE {
-			left = condition.GetParent().GetPrevious() // the switch condition
 			jutil.CheckStateMsg1(condition.GetParent().IsSwitchBody(), "%s", condition.GetParent())
-			right = condition.GetFirstChild()
+			left = ast.MustSwitch(condition.GetGrandparent()).Discriminant().Node() // the switch condition
+			right = ast.MustCase(condition).Value().Node()
 		} else {
-			left = condition.GetFirstChild()
-			right = condition.GetLastChild()
+			bin := ast.MustBinary(condition)
+			left = bin.Left().Node()
+			right = bin.Right().Node()
 		}
 
 		var typeOfNode rhino.Node
@@ -71,7 +73,7 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 			stringNode = left
 		}
 		if !typeOfNode.IsNil() && !stringNode.IsNil() {
-			operandNode := typeOfNode.GetFirstChild()
+			operandNode := ast.MustUnary(typeOfNode).Operand().Node()
 			operandType := s.GetTypeIfRefinable(operandNode, blindScope)
 			if operandType != nil {
 				resultEqualsValue := operatorToken == rhino.Token_EQ ||
@@ -88,80 +90,90 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 	}
 	switch operatorToken {
 	case rhino.Token_AND:
+		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
 			return s.CaseAndOrNotShortCircuiting(
-				condition.GetFirstChild(), condition.GetLastChild(), blindScope, rhino.Outcome_TRUE)
+				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_TRUE)
 		} else {
 			return s.CaseAndOrMaybeShortCircuiting(
-				condition.GetFirstChild(), condition.GetLastChild(), blindScope, rhino.Outcome_TRUE)
+				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_TRUE)
 		}
 	case rhino.Token_OR:
+		bin := ast.MustBinary(condition)
 		if !outcome.IsTruthy() {
 			return s.CaseAndOrNotShortCircuiting(
-				condition.GetFirstChild(), condition.GetLastChild(), blindScope, rhino.Outcome_FALSE)
+				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_FALSE)
 		} else {
 			return s.CaseAndOrMaybeShortCircuiting(
-				condition.GetFirstChild(), condition.GetLastChild(), blindScope, rhino.Outcome_FALSE)
+				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_FALSE)
 		}
 	case rhino.Token_EQ:
+		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeEq)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeEq)
 		} else {
-			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeNe)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeNe)
 		}
 	case rhino.Token_NE:
+		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeNe)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeNe)
 		} else {
-			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeEq)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeEq)
 		}
 	case rhino.Token_SHEQ:
+		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeSheq)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeSheq)
 		} else {
-			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeShne)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeShne)
 		}
 	case rhino.Token_SHNE:
+		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeShne)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeShne)
 		} else {
-			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeSheq)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeSheq)
 		}
 	case rhino.Token_NAME, rhino.Token_GETPROP:
 		return s.CaseNameOrGetProp(condition, blindScope, outcome)
 	case rhino.Token_ASSIGN:
+		assign := ast.MustAssign(condition)
 		return s.FirstPreciserScopeKnowingConditionOutcome(
-			condition.GetFirstChild(),
+			assign.Target().Node(),
 			s.FirstPreciserScopeKnowingConditionOutcome(
-				condition.GetSecondChild(), blindScope, outcome),
+				assign.Value().Node(), blindScope, outcome),
 			outcome)
 	case rhino.Token_NOT:
 		return s.FirstPreciserScopeKnowingConditionOutcome(
-			condition.GetFirstChild(), blindScope, outcome.Not())
+			ast.MustUnary(condition).Operand().Node(), blindScope, outcome.Not())
 	case rhino.Token_LE, rhino.Token_LT, rhino.Token_GE, rhino.Token_GT:
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(condition.GetFirstChild(), condition.GetLastChild(), blindScope, sraiModeIneq)
+			bin := ast.MustBinary(condition)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeIneq)
 		}
 	case rhino.Token_INSTANCEOF:
+		bin := ast.MustBinary(condition)
 		return s.CaseInstanceOf(
-			condition.GetFirstChild(), condition.GetLastChild(), blindScope, outcome)
+			bin.Left().Node(), bin.Right().Node(), blindScope, outcome)
 	case rhino.Token_IN:
-		if outcome.IsTruthy() && condition.GetFirstChild().IsStringLit() {
+		bin := ast.MustBinary(condition)
+		if outcome.IsTruthy() && bin.Left().Node().IsStringLit() {
 			return s.CaseIn(
-				condition.GetLastChild(), condition.GetFirstChild().GetString(), blindScope)
+				bin.Right().Node(), bin.Left().Node().GetString(), blindScope)
 		}
 	case rhino.Token_CASE:
-		left := condition.GetParent().GetPrevious() // the switch condition
-		right := condition.GetFirstChild()
+		left := ast.MustSwitch(condition.GetGrandparent()).Discriminant().Node() // the switch condition
+		right := ast.MustCase(condition).Value().Node()
 		if outcome.IsTruthy() {
 			return s.caseEqualityMode(left, right, blindScope, sraiModeSheq)
 		} else {
 			return s.caseEqualityMode(left, right, blindScope, sraiModeShne)
 		}
 	case rhino.Token_CALL:
-		left := condition.GetFirstChild()
-		if left.MatchesQualifiedName("Array.isArray") && !left.GetNext().IsNil() {
-			return s.CaseIsArray(left.GetNext(), blindScope, outcome)
+		call := ast.MustCall(condition)
+		if firstArg, ok := call.FirstArg(); ok && call.Callee().Node().MatchesQualifiedName("Array.isArray") {
+			return s.CaseIsArray(firstArg.Node(), blindScope, outcome)
 		}
 	default:
 	}
@@ -441,9 +453,9 @@ func (s *SemanticReverseAbstractInterpreter) CaseInstanceOf(
 	}
 	var visitor rhino.Visitor[rhino.JSType]
 	if outcome.IsTruthy() {
-		visitor = newSemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor(s, targetType)
+		visitor = newSraiRestrictByTrueInstanceOfVisitor(s, targetType)
 	} else {
-		visitor = newSemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor(s, targetType)
+		visitor = newSraiRestrictByFalseInstanceOfVisitor(s, targetType)
 	}
 	return s.MaybeRestrictName(blindScope, left, leftType, rhino.VisitJSType[rhino.JSType](leftType, visitor))
 }
@@ -480,33 +492,33 @@ func (s *SemanticReverseAbstractInterpreter) CaseIn(object rhino.Node, propertyN
 	return blindScope
 }
 
-// SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor:
+// sraiRestrictByTrueInstanceOfVisitor:
 // see SemanticReverseAbstractInterpreter.CaseInstanceOf.
 //
 // Java: private class SemanticReverseAbstractInterpreter.RestrictByTrueInstanceOfResultVisitor
 // extends RestrictByTrueTypeOfResultVisitor
-type SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor struct {
+type sraiRestrictByTrueInstanceOfVisitor struct {
 	ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase
 
 	target rhino.ObjectType
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor(ObjectType)
-func newSemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor(
-	outer *SemanticReverseAbstractInterpreter, target rhino.ObjectType) *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor {
-	v := &SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor{}
+func newSraiRestrictByTrueInstanceOfVisitor(
+	outer *SemanticReverseAbstractInterpreter, target rhino.ObjectType) *sraiRestrictByTrueInstanceOfVisitor {
+	v := &sraiRestrictByTrueInstanceOfVisitor{}
 	v.InitChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase(v, outer)
 	v.target = target
 	return v
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.caseTopType(JSType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseTopType(type_ rhino.JSType) rhino.JSType {
+func (v *sraiRestrictByTrueInstanceOfVisitor) CaseTopType(type_ rhino.JSType) rhino.JSType {
 	return v.ApplyCommonRestriction(type_)
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.caseUnknownType()
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseUnknownType() rhino.JSType {
+func (v *sraiRestrictByTrueInstanceOfVisitor) CaseUnknownType() rhino.JSType {
 	funcTarget := rhino.JSType_ToMaybeFunctionType(v.target)
 	if funcTarget != nil && funcTarget.HasInstanceType() {
 		return funcTarget.GetInstanceType()
@@ -515,22 +527,22 @@ func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisito
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.caseObjectType(ObjectType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
+func (v *sraiRestrictByTrueInstanceOfVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
 	return v.ApplyCommonRestriction(type_)
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.caseUnionType(UnionType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseUnionType(type_ *rhino.UnionType) rhino.JSType {
+func (v *sraiRestrictByTrueInstanceOfVisitor) CaseUnionType(type_ *rhino.UnionType) rhino.JSType {
 	return v.ApplyCommonRestriction(type_)
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.caseFunctionType(FunctionType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
+func (v *sraiRestrictByTrueInstanceOfVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
 	return v.self.CaseObjectType(type_)
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.applyCommonRestriction(JSType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) ApplyCommonRestriction(type_ rhino.JSType) rhino.JSType {
+func (v *sraiRestrictByTrueInstanceOfVisitor) ApplyCommonRestriction(type_ rhino.JSType) rhino.JSType {
 	if v.target.IsUnknownType() {
 		return type_
 	}
@@ -543,28 +555,28 @@ func (v *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisito
 	return nil
 }
 
-// SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor:
+// sraiRestrictByFalseInstanceOfVisitor:
 // see SemanticReverseAbstractInterpreter.CaseInstanceOf.
 //
 // Java: private class SemanticReverseAbstractInterpreter.RestrictByFalseInstanceOfResultVisitor
 // extends RestrictByFalseTypeOfResultVisitor
-type SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor struct {
+type sraiRestrictByFalseInstanceOfVisitor struct {
 	ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase
 
 	target rhino.ObjectType
 }
 
 // Java: RestrictByFalseInstanceOfResultVisitor(ObjectType)
-func newSemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor(
-	outer *SemanticReverseAbstractInterpreter, target rhino.ObjectType) *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor {
-	v := &SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor{}
+func newSraiRestrictByFalseInstanceOfVisitor(
+	outer *SemanticReverseAbstractInterpreter, target rhino.ObjectType) *sraiRestrictByFalseInstanceOfVisitor {
+	v := &sraiRestrictByFalseInstanceOfVisitor{}
 	v.InitChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase(v, outer)
 	v.target = target
 	return v
 }
 
 // Java: RestrictByFalseInstanceOfResultVisitor.caseObjectType(ObjectType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
+func (v *sraiRestrictByFalseInstanceOfVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
 	if v.target.IsUnknownType() {
 		return type_
 	}
@@ -582,7 +594,7 @@ func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisit
 }
 
 // Java: RestrictByFalseInstanceOfResultVisitor.caseUnionType(UnionType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor) CaseUnionType(type_ *rhino.UnionType) rhino.JSType {
+func (v *sraiRestrictByFalseInstanceOfVisitor) CaseUnionType(type_ *rhino.UnionType) rhino.JSType {
 	if v.target.IsUnknownType() {
 		return type_
 	}
@@ -596,7 +608,7 @@ func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisit
 }
 
 // Java: RestrictByFalseInstanceOfResultVisitor.caseFunctionType(FunctionType)
-func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
+func (v *sraiRestrictByFalseInstanceOfVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
 	return v.self.CaseObjectType(type_)
 }
 
@@ -606,7 +618,7 @@ func (v *SemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisit
 // Java: SemanticReverseAbstractInterpreter.unwrap(FlowScope)
 func SemanticReverseAbstractInterpreter_Unwrap(scope FlowScope) FlowScope {
 	for {
-		r, ok := scope.(*SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope)
+		r, ok := scope.(*sraiTrackingFlowScope)
 		if !ok {
 			break
 		}
@@ -629,9 +641,9 @@ func (t *sraiRefinementTracker) add(symbol string) {
 	}
 }
 
-// SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope is a
-// wrapper around FlowScope that keeps track of which vars were refined.
-type SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope struct {
+// sraiTrackingFlowScope is a wrapper around FlowScope that keeps track of
+// which vars were refined.
+type sraiTrackingFlowScope struct {
 	owner      *SemanticReverseAbstractInterpreter
 	delegate   FlowScope
 	tracker    *sraiRefinementTracker
@@ -640,8 +652,8 @@ type SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope struct {
 
 func (s *SemanticReverseAbstractInterpreter) acquireTrackingScope(
 	delegate FlowScope, tracker *sraiRefinementTracker,
-) *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope {
-	var r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope
+) *sraiTrackingFlowScope {
+	var r *sraiTrackingFlowScope
 	if n := len(s.trackingFree); n > 0 {
 		r = s.trackingFree[n-1]
 		s.trackingFree[n-1] = nil
@@ -675,25 +687,25 @@ func (s *SemanticReverseAbstractInterpreter) releaseTrackingScopes(mark int) {
 }
 
 // Java: RefinementTrackingFlowScope.withSyntacticScope(StaticTypedScope)
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) WithSyntacticScope(scope rhino.StaticTypedScope) FlowScope {
+func (r *sraiTrackingFlowScope) WithSyntacticScope(scope rhino.StaticTypedScope) FlowScope {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
 // Java: RefinementTrackingFlowScope.inferSlotType(String, JSType)
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowScope {
+func (r *sraiTrackingFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowScope {
 	r.tracker.add(symbol)
 	return r.Wrap(r.delegate.InferSlotType(symbol, type_))
 }
 
 // Java: RefinementTrackingFlowScope.inferQualifiedSlot(Node, String, JSType, JSType, boolean)
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferQualifiedSlot(
+func (r *sraiTrackingFlowScope) InferQualifiedSlot(
 	node rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declare bool) FlowScope {
 	r.tracker.add(symbol)
 	return r.Wrap(r.delegate.InferQualifiedSlot(node, symbol, bottomType, inferredType, declare))
 }
 
 // Java: RefinementTrackingFlowScope.wrap(FlowScope)
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) Wrap(scope FlowScope) FlowScope {
+func (r *sraiTrackingFlowScope) Wrap(scope FlowScope) FlowScope {
 	if scope != r.delegate {
 		return r.owner.acquireTrackingScope(scope, r.tracker)
 	}
@@ -701,45 +713,45 @@ func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) Wrap(sc
 }
 
 // Java: RefinementTrackingFlowScope.getDeclarationScope()
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetDeclarationScope() rhino.StaticTypedScope {
+func (r *sraiTrackingFlowScope) GetDeclarationScope() rhino.StaticTypedScope {
 	return r.delegate.GetDeclarationScope()
 }
 
 // Java: RefinementTrackingFlowScope.getRootNode()
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetRootNode() rhino.Node {
+func (r *sraiTrackingFlowScope) GetRootNode() rhino.Node {
 	return r.delegate.GetRootNode()
 }
 
 // Java: RefinementTrackingFlowScope.getParentScope()
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetParentScope() rhino.StaticScope {
+func (r *sraiTrackingFlowScope) GetParentScope() rhino.StaticScope {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
 // Java: RefinementTrackingFlowScope.getSlot(String)
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetSlot(name string) rhino.StaticSlot {
+func (r *sraiTrackingFlowScope) GetSlot(name string) rhino.StaticSlot {
 	return r.delegate.GetSlot(name)
 }
 
 // Java: RefinementTrackingFlowScope.getOwnSlot(String)
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetOwnSlot(name string) rhino.StaticSlot {
+func (r *sraiTrackingFlowScope) GetOwnSlot(name string) rhino.StaticSlot {
 	return r.delegate.GetOwnSlot(name)
 }
 
 // Java: RefinementTrackingFlowScope.getTypeOfThis()
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetTypeOfThis() rhino.JSType {
+func (r *sraiTrackingFlowScope) GetTypeOfThis() rhino.JSType {
 	return r.delegate.GetTypeOfThis()
 }
 
 // GetTopmostScopeOfEventualDeclaration is the inherited default method.
 //
 // Java: StaticScope.getTopmostScopeOfEventualDeclaration(String) (default method)
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
+func (r *sraiTrackingFlowScope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
 	return rhino.StaticScope_GetTopmostScopeOfEventualDeclaration(r, name)
 }
 
 // LookupQualifiedName is the inherited default method.
 //
 // Java: StaticTypedScope.lookupQualifiedName(QualifiedName) (default method)
-func (r *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType {
+func (r *sraiTrackingFlowScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType {
 	return rhino.StaticTypedScope_LookupQualifiedName(r, qname)
 }
