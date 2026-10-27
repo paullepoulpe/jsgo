@@ -564,6 +564,84 @@ What they reported:
 - **Same shape, different role names**: Binary is left/right, AssignOp is
   target/value, so the shared operator check takes rhino nodes.
 
+## Es6NormalizeClasses, ClosureRewriteModule and ProcessCommonJSModules
+
+Three passes from the "most positional" list (7,400 lines together),
+ported on the API above without changing `internal/ast`. Output, source
+maps and stderr byte-identical with the parent commit on typed-app,
+checks-only, bundle and typed-full (and downlevel-simple and
+downlevel-whitespace, which run ProcessCommonJSModules and transpile
+classes) at `--num_parallel_threads` 1 and 4; clie2e fixtures
+2,974/2,976. Pass times equal within noise, measured in process (old and
+new pass on clones of the tree after the preceding pass, alternating,
+trees and source positions identical, unique-id supplier reset before each
+run), with an A/A control because the machine was loaded (load 10-20):
+
+| pass | workload | new/old (medians, 40-80 runs) | A/A control |
+|---|---|---|---|
+| Es6NormalizeClasses | typed-full, downlevel-simple | 0.979, 0.996 | |
+| | bundle | 1.051, 1.009, 1.028, 0.932 | 0.946, 1.014 |
+| ClosureRewriteModule | typed-app, typed-full | 0.969, 1.011 | 0.965, 0.989 |
+| | checks-only | 1.079, 0.966, 0.992 | 1.012, 1.000 |
+| ProcessCommonJSModules | downlevel-simple | 0.995, 0.996 | 1.026, 1.042 |
+
+What the typed view changed in them:
+
+- **Records hold kinds.** Es6NormalizeClasses keeps the class as an
+  `ast.Class`, its queued fields and static blocks as `ast.ClassMember`s,
+  and a private member's method, getter and setter as
+  `ast.MemberFunctionDef`, `ast.GetterDef`, `ast.SetterDef`;
+  ClosureRewriteModule keeps its goog.module.get and requireDynamic calls
+  as `ast.Call`s. The Java `checkArgument(isX)` re-checks at each use
+  became types.
+- **Calls by role.** Every goog.* handler takes the `ast.Call` and reads
+  `call.NumArgs()`, the callee and the namespace argument; require(),
+  `__webpack_require__.bind(null, path)`, `require.ensure(deps, fn)` and
+  `Promise.all([...]).then(fn)` are read as callee, first argument,
+  `Next()` and `IsLast()` instead of child counts that include the callee.
+- **Assignments by role.** `exports = value`, `exports.x = value`,
+  `module.exports = exports['default']` and `super.x = value` read
+  `assign.Target()`/`Value()` (a local helper, `assignToTarget`, in two
+  passes) instead of `n.getNext()` from the target.
+- **Duplicates merged into helpers** (Go-only notes): the private field
+  assignment and the super property key of Es6NormalizeClasses, the
+  dynamic-require callee rename, the "only expression statement of the
+  script" walk and the "namespace object literal" member test of
+  ProcessCommonJSModules, each written twice in Java.
+- **Java quirks kept, now named**: the namespace argument of goog.* calls
+  is the call's last child, so `goog.module()` errors are reported at the
+  callee; the require.ensure warning's argument count includes the
+  callee; the webpack module shim reads the `module` argument by child
+  index, one position earlier for a free call.
+- **Positional traps met**: `ComputedFieldDef` key and value, `GetElem`
+  object and index, `DefaultValue` target and value are each read before
+  the first detach; the object-literal export loop reads the next member
+  after visiting the current one but before detaching it (Java's order,
+  neither the iterator's nor `ReadAhead`'s).
+- **Kept on rhino**: the per-node token switches (they hand typed nodes
+  on), the AstFactory and IR builders, the optional-chain surgery of
+  private member calls, JSDoc type rewriting, and ProcessCommonJSModules'
+  name rewriting (updateNameReference, visitExport), which reads siblings
+  and parents of a name in any expression.
+
+What they asked for (not added: the other port owned `internal/ast`):
+
+- **`RemoveName()` for a class** (the EMPTY placeholder, with the name's
+  source position): three places replace a class's inner name by hand.
+- **A computed-member category** (`ComputedProp | ComputedFieldDef` with
+  `Key()`) and **a method category** (`MemberFunctionDef | GetterDef |
+  SetterDef` with `Function()`): Es6NormalizeClasses reads both
+  positionally through helpers.
+- **A conditional category** (`If | Hook` with `Cond()`), for UMD tests
+  that walk up through either.
+- **Must conversions on categories**, again: `ast.MustX(category.Node())`
+  nine times (`ast.MustMemberFieldDef(member.Node())`...).
+- **The parent-role query**, again: "is n the target of its assignment",
+  "the callee of its call", "the pattern of its destructuring".
+- **Typed flags**: `IsPrivate()` and `IsStatic()` on class members and
+  property accesses (`IsPrivateIdentifier`, `IsStaticMember` through
+  `.Node()`, about 20 uses).
+
 ## Performance outlook
 
 The typed view compiles to the same code as before, so on its own it neither
@@ -632,11 +710,11 @@ bundle and typed-full workloads:
    callback for other nodes. A one-handler visitor over three.js's AST now
    takes 2.21 ms, against 2.43 ms for a hand-written token switch and
    3.07 ms before (minimums of 15 interleaved runs).
-2. **Port more passes.** 27 are on the typed view, among them the CFG,
+2. **Port more passes.** 30 are on the typed view, among them the CFG,
    the scope creator and the type checker. Left with the most positional
-   code: `RemoveUnusedCode`, `ProcessCommonJSModules`, `TypeInference`,
+   code: `RemoveUnusedCode`, `TypeInference`,
    `FlowSensitiveInlineVariables`, `CodeGenerator`, `TypedScopeCreator`,
-   `InlineFunctions`, `ClosureRewriteModule`, `Es6NormalizeClasses`.
+   `InlineFunctions`.
 6. **The API requests that came back in several ports**, by count:
    - a query for a node's role in its parent ("is n the body of its
      parent?", ten uses in TypeCheck, nine in CFA);
