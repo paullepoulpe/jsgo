@@ -25,17 +25,17 @@ make oracle-tools   # fetch the pinned Java jar/sources and build oracle tools (
 
 ## Benchmarks (`jsgo` vs. Java Closure Compiler v20261021)
 
-Gated on **100% byte-identical output** (JS, source maps, diagnostics, and exit code). Cold CLI runs measured across **$N = 5$ counterbalanced interleaved blocks** on Apple M2 (`--num_parallel_threads=4`, Go 1.27.3 + [PGO](cmd/jsgo/default.pgo), OpenJDK 27.0.1), at commit `b7b8fb1c`; ratios (`Java / jsgo`, against cold Java) report geometric means with 95% CIs (`±`). The warm-JVM column is Java's time in one JVM after warm-up runs (`CliBatch`), from the same measurement; `googleapis` has no warm run.
+Gated on **100% byte-identical output** (JS, source maps, diagnostics, and exit code). Cold CLI runs measured across **$N = 5$ counterbalanced interleaved blocks** on Apple M2 (`--num_parallel_threads=4`, Go 1.27.3 + [PGO](cmd/jsgo/default.pgo), OpenJDK 27.0.1), at commit `f99b1259`; ratios (`Java / jsgo`, against cold Java) report geometric means with 95% CIs (`±`). The warm-JVM column is Java's time in one JVM after warm-up runs (`CliBatch`), from the same measurement; `googleapis` has no warm run.
 
 | Benchmark | Java Time (cold) | Java Time (warm JVM) | `jsgo` Time | Java RSS | `jsgo` RSS |
 |---|---:|---:|---:|---:|---:|
-| **`googleapis`**<br>*staged ADV+types · 35.6M nodes* | 209.4 s | — | **120.4 s**<br>1.74×±0.07 | 12.21 GiB | **5.79 GiB**<br>2.11×±0.23 |
-| **`bundle-mega`**<br>*ADV · 4.19M nodes* | 49.4 s | 40.4 s | **23.4 s**<br>2.11×±0.01 | 4.84 GiB | **916 MiB**<br>5.41×±0.12 |
-| **`typed-mega`**<br>*ADV+types · 3.55M nodes* | 35.1 s | 26.0 s | **15.8 s**<br>2.22×±0.02 | 3.71 GiB | **750 MiB**<br>5.06×±0.11 |
-| **`typed-full`**<br>*ADV+types · 1.90M nodes* | 23.1 s | 15.5 s | **9.30 s**<br>2.48×±0.04 | 3.44 GiB | **436 MiB**<br>8.08×±0.14 |
-| **`checks-only`**<br>*CHECKS+types · 1.29M nodes* | 6.91 s | 2.80 s | **1.97 s**<br>3.50×±0.17 | 1.35 GiB | **277 MiB**<br>5.01×±0.25 |
-| **`bundle`**<br>*SIMPLE · 1.11M nodes* | 13.1 s | 8.78 s | **4.37 s**<br>2.99×±0.08 | 1.60 GiB | **238 MiB**<br>6.91×±0.54 |
-| **`shaka-blockly`**<br>*ADV+types · 618k nodes* | 12.5 s | 6.90 s | **3.82 s**<br>3.27×±0.08 | 1.43 GiB | **223 MiB**<br>6.58×±0.14 |
-| **`downlevel-simple`**<br>*SIMPLE→ES5 · 232k nodes* | 4.51 s | 1.54 s | **0.91 s**<br>4.97×±0.20 | 604 MiB | **127 MiB**<br>4.74×±0.20 |
+| **`googleapis`**<br>*staged ADV+types · 35.6M nodes* | 204.6 s | — | **119.6 s**<br>1.71×±0.06 | 12.61 GiB | **6.37 GiB**<br>1.98×±0.07 |
+| **`bundle-mega`**<br>*ADV · 4.19M nodes* | 49.4 s | 40.5 s | **23.4 s**<br>2.11×±0.03 | 4.54 GiB | **950 MiB**<br>4.89×±0.41 |
+| **`typed-mega`**<br>*ADV+types · 3.55M nodes* | 35.2 s | 26.3 s | **15.9 s**<br>2.22×±0.03 | 3.72 GiB | **747 MiB**<br>5.11×±0.22 |
+| **`typed-full`**<br>*ADV+types · 1.90M nodes* | 23.4 s | 15.4 s | **9.37 s**<br>2.50×±0.06 | 3.45 GiB | **446 MiB**<br>7.94×±0.24 |
+| **`checks-only`**<br>*CHECKS+types · 1.29M nodes* | 6.97 s | 2.75 s | **1.96 s**<br>3.56×±0.12 | 1.31 GiB | **281 MiB**<br>4.78×±0.35 |
+| **`bundle`**<br>*SIMPLE · 1.11M nodes* | 13.2 s | 8.69 s | **4.37 s**<br>3.03×±0.08 | 1.60 GiB | **233 MiB**<br>7.05×±0.40 |
+| **`shaka-blockly`**<br>*ADV+types · 618k nodes* | 12.8 s | 6.74 s | **3.81 s**<br>3.35×±0.13 | 1.43 GiB | **220 MiB**<br>6.67×±0.16 |
+| **`downlevel-simple`**<br>*SIMPLE→ES5 · 232k nodes* | 4.58 s | 1.50 s | **0.90 s**<br>5.10×±0.18 | 602 MiB | **125 MiB**<br>4.80×±0.20 |
 
-Across all whole-program and staged workloads, `jsgo` is **1.7×–5.5× faster** and uses **2.1×–8.3× less memory** than cold Java (and 1.2×–2.0× faster than a warm JVM). See [docs/benchmarks.md](docs/benchmarks.md#b7b8fb1c-on-jdk-27-apple-m2) for all 13 workloads, warm JVM numbers, the per-stage `googleapis` breakdown, `t=1` results, the comparison with the previous measurement, and full `[lo, hi]` 95% confidence intervals.
+Across all whole-program and staged workloads, `jsgo` is **1.7×–5.5× faster** and uses **2.0×–8.4× less memory** than cold Java (and 1.2×–2.0× faster than a warm JVM). See [docs/benchmarks.md](docs/benchmarks.md#f99b1259-on-jdk-27-apple-m2) for all 13 workloads, warm JVM numbers, the per-stage `googleapis` breakdown, `t=1` results, the comparison with the previous measurement, and full `[lo, hi]` 95% confidence intervals.
