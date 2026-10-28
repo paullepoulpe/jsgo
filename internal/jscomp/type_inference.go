@@ -1547,8 +1547,7 @@ func (ti *TypeInference) TraverseDestructuringPatternHelper(
 	pattern rhino.Node, scope FlowScope, patternType rhino.JSType, declarer TypeInference_TypeDeclaringCallback) FlowScope {
 	jutil.CheckArgumentMsg1(pattern.IsDestructuringPattern(), "%s", pattern)
 	jutil.CheckNotNull(patternType)
-	for _, target := range DestructuredTarget_CreateAllNonEmptyTargetsInPattern(ti.registry, patternType, pattern) {
-
+	ForEachDestructuredTarget(ti.registry, patternType, pattern, func(target DestructuredTarget) {
 		// The computed property is always evaluated first.
 		if target.HasComputedProperty() {
 			scope = ti.Traverse(target.GetComputedProperty().GetFirstChild(), scope)
@@ -1578,7 +1577,7 @@ func (ti *TypeInference) TraverseDestructuringPatternHelper(
 			// declare in the scope
 			scope = declarer(scope, targetNode, target.InferType())
 		}
-	}
+	})
 	// put the `inferred type` of a pattern on it, to make it easier to do typechecking
 	pattern.SetJSType(patternType)
 	return scope

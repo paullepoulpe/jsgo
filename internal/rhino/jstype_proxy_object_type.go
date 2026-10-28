@@ -142,6 +142,7 @@ func (p *ProxyObjectTypeBase) GetReferencedObjTypeInternal() ObjectType {
 // Java: ProxyObjectType.setReferencedType(JSType)
 func (p *ProxyObjectTypeBase) SetReferencedType(referencedType JSType) {
 	jutil.CheckNotNull(referencedType)
+	p.flags &^= jsTypeFlagWellFormedTemplateValid
 	p.referencedType = referencedType
 	if objectType, ok := referencedType.(ObjectType); ok {
 		p.referencedObjType = objectType

@@ -21,48 +21,69 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// TypedScopeCreator_NormalScopeBuilder is a shallow traversal of the global
-// scope to build up all classes, functions, and methods.
-type TypedScopeCreator_NormalScopeBuilder struct {
-	TypedScopeCreator_AbstractScopeBuilderBase
-}
+// visitPreorder dispatches pre-order scope-builder actions by scopeBuilderKind.
+//
+// Java: TypedScopeCreator.{NormalScopeBuilder,FunctionScopeBuilder,ClassScopeBuilder}.visitPreorder(NodeTraversal, Node, Node)
+func (b *TypedScopeCreator_scopeBuilder) visitPreorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	switch b.kind {
+	case scopeBuilderNormal:
+		// Create any child block scopes "pre-order" as we see them.
+		//
+		// This is required because hoisted or qualified names defined in earlier blocks might be
+		// referred to later outside the block. This isn't a big deal in most cases since a NamedType
+		// will be created and resolved later, but if a NamedType is used for a superclass, we lose a
+		// lot of valuable checking. Recursing into child blocks immediately prevents this from being
+		// a problem.
+		//
+		// We don't traverse into CLASSes because we haven't yet have created the class-type on which
+		// to assign members. We'll do this on the way back up (post-order) instead, after the
+		// class-type has been attached to the AST.
+		if !parent.IsNil() && NodeUtil_CreatesBlockScope(n) && !n.IsClass() {
+			b.outer.CreateScope(n, b.currentScope)
+		}
 
-// Java: TypedScopeCreator.NormalScopeBuilder(TypedScope)
-func NewTypedScopeCreator_NormalScopeBuilder(outer *TypedScopeCreator, scope *TypedScope) *TypedScopeCreator_NormalScopeBuilder {
-	b := &TypedScopeCreator_NormalScopeBuilder{}
-	b.InitTypedScopeCreator_AbstractScopeBuilderBase(b, outer, scope)
-	return b
-}
-
-// Java: TypedScopeCreator.NormalScopeBuilder.visitPreorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_NormalScopeBuilder) VisitPreorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	// Create any child block scopes "pre-order" as we see them.
-	//
-	// This is required because hoisted or qualified names defined in earlier blocks might be
-	// referred to later outside the block. This isn't a big deal in most cases since a NamedType
-	// will be created and resolved later, but if a NamedType is used for a superclass, we lose a
-	// lot of valuable checking. Recursing into child blocks immediately prevents this from being
-	// a problem.
-	//
-	// We don't traverse into CLASSes because we haven't yet have created the class-type on which
-	// to assign members. We'll do this on the way back up (post-order) instead, after the
-	// class-type has been attached to the AST.
-	if !parent.IsNil() && NodeUtil_CreatesBlockScope(n) && !n.IsClass() {
-		b.outer.CreateScope(n, b.currentScope)
+		// All other functions (and classes, etc) are handled when we see the actual function node.
+		if n.IsFunction() {
+			b.DefineFunctionLiteral(n)
+		}
+	case scopeBuilderFunction:
+		if parent.IsNil() {
+			b.HandleFunctionInputs()
+		} else if n.IsFunction() {
+			b.DefineFunctionLiteral(n)
+		}
+	case scopeBuilderClass:
+		// These are not descended into, so must be done preorder
+		if fn, ok := ast.AsFunction(n); ok {
+			if fn.IsEs6Constructor() {
+				// Constructor has already been analyzed, so pull that here.
+				b.outer.SetDeferredType(n, b.currentScope.GetRootNode().GetJSType())
+			} else {
+				b.DefineFunctionLiteral(n)
+			}
+		}
 	}
+}
 
-	// All other functions (and classes, etc) are handled when we see the actual function node.
-	if n.IsFunction() {
-		b.DefineFunctionLiteral(n)
+// visitPostorder dispatches post-order scope-builder actions by scopeBuilderKind.
+//
+// Java: TypedScopeCreator.{NormalScopeBuilder,FunctionScopeBuilder,ClassScopeBuilder}.visitPostorder(NodeTraversal, Node, Node)
+func (b *TypedScopeCreator_scopeBuilder) visitPostorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	switch b.kind {
+	case scopeBuilderNormal:
+		b.visitNormalPostorder(t, n, parent)
+	case scopeBuilderClass:
+		b.visitClassPostorder(t, n, parent)
 	}
 }
 
 // Java: TypedScopeCreator.NormalScopeBuilder.visitPostorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (b *TypedScopeCreator_scopeBuilder) visitNormalPostorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CALL:
 		b.CheckForClassDefiningCalls(n)
@@ -75,12 +96,14 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, 
 		// TODO(b/77597706): Ensure that CheckJSDoc warns for JSDoc on assignments not to
 		// qualified names, e.g.
 		//   /** @type {number} */ [a.b.c] = someArr;
-		firstChild := n.GetFirstChild()
-		if firstChild.IsGetProp() && firstChild.IsQualifiedName() {
-			b.MaybeDeclareQualifiedName(t, n.GetJSDocInfo(), firstChild, n, firstChild.GetNext())
-		} else if firstChild.IsGetElem() && firstChild.GetFirstChild().IsQualifiedName() {
-			b.MaybeDeclareGetElem(n.GetJSDocInfo(), firstChild, firstChild.GetNext())
-		} else if _, ok := b.outer.undeclaredNamesForClosure[firstChild]; ok {
+		assign := ast.MustAssign(n)
+		lhs := assign.Target().Node()
+		rhs := assign.Value().Node()
+		if lhs.IsGetProp() && lhs.IsQualifiedName() {
+			b.MaybeDeclareQualifiedName(t, n.GetJSDocInfo(), lhs, n, rhs)
+		} else if ge, ok := ast.AsGetElem(lhs); ok && ge.Object().Node().IsQualifiedName() {
+			b.MaybeDeclareGetElem(n.GetJSDocInfo(), lhs, rhs)
+		} else if _, ok := b.outer.undeclaredNamesForClosure[lhs]; ok {
 			b.DefineAssignAsIfVarDeclaration(n)
 		}
 	case rhino.Token_CATCH:
@@ -94,7 +117,7 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, 
 		}
 	case rhino.Token_GETELEM:
 		// Handle stubbed properties.
-		if parent.IsExprResult() && n.GetFirstChild().IsQualifiedName() {
+		if parent.IsExprResult() && ast.MustGetElem(n).Object().Node().IsQualifiedName() {
 			b.MaybeDeclareGetElem(n.GetJSDocInfo(), n, rhino.NilNode)
 		}
 	case rhino.Token_CLASS:
@@ -107,13 +130,14 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, 
 			b.DeclareProvidedNs(n, name)
 		}
 	case rhino.Token_EXPORT:
-		if n.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
+		exp := ast.MustExport(n)
+		if exp.IsDefault() {
 			// Define a dummy var for "export default <someExpr>" so that other utilities have
 			// access to the type.
 			// Problem: according to the debugger, if we have export default SomeName
 			// SomeName does not have a type attached so we don't really export it and can't use it
 			// as a type later. So we need to call getDeclaredType() instead to get the type.
-			declaredType := b.GetDeclaredType(nil, n, n.GetOnlyChild(), nil)
+			declaredType := b.GetDeclaredType(nil, n, exp.Body().Node(), nil)
 			b.defineSlot(typedScopeSlotSpec{
 				declNode:                n,
 				varName:                 Export_DEFAULT_EXPORT_NAME,
@@ -124,67 +148,42 @@ func (b *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTraversal, 
 		}
 	default:
 	}
-} // end NormalScopeBuilder
-
-// TypedScopeCreator_FunctionScopeBuilder is the scope builder subclass for
-// function scopes, which only contain bleeding function names and parameter
-// names. The main function body is handled by the NormalScopeBuilder on the
-// function block.
-type TypedScopeCreator_FunctionScopeBuilder struct {
-	TypedScopeCreator_AbstractScopeBuilderBase
-}
-
-// Java: TypedScopeCreator.FunctionScopeBuilder(TypedScope)
-func NewTypedScopeCreator_FunctionScopeBuilder(outer *TypedScopeCreator, scope *TypedScope) *TypedScopeCreator_FunctionScopeBuilder {
-	b := &TypedScopeCreator_FunctionScopeBuilder{}
-	b.InitTypedScopeCreator_AbstractScopeBuilderBase(b, outer, scope)
-	return b
-}
-
-// Java: TypedScopeCreator.FunctionScopeBuilder.visitPreorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_FunctionScopeBuilder) VisitPreorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if parent.IsNil() {
-		b.HandleFunctionInputs()
-	} else if n.IsFunction() {
-		b.DefineFunctionLiteral(n)
-	}
 }
 
 // HandleFunctionInputs handles bleeding functions and function parameters.
 //
 // Java: TypedScopeCreator.FunctionScopeBuilder.handleFunctionInputs()
-func (b *TypedScopeCreator_FunctionScopeBuilder) HandleFunctionInputs() {
+func (b *TypedScopeCreator_scopeBuilder) HandleFunctionInputs() {
 	// Handle bleeding functions. These are defined as function expressions which have a non-empty
 	// name, which we declare in the FUNCTION scope. Function declarations are hoisted and are
 	// already declared in the containing scope; ignore those.
 	fnNode := b.currentScope.GetRootNode()
-	fnNameNode := fnNode.GetFirstChild()
-	fnName := fnNameNode.GetString()
-	if fnName != "" && NodeUtil_IsFunctionExpression(fnNode) {
+	fn := ast.MustFunction(fnNode)
+	if fnNameNode, ok := fn.Name(); ok && NodeUtil_IsFunctionExpression(fnNode) {
 		b.defineSlot(typedScopeSlotSpec{
-			declNode:                fnNameNode,
-			varName:                 fnName,
+			declNode:                fnNameNode.Node(),
+			varName:                 fnNameNode.Ident(),
 			scope:                   b.currentScope,
 			type_:                   fnNode.GetJSType(),
 			allowLaterTypeInference: false,
 		})
 	}
 
-	b.DeclareParameters(fnNode)
+	b.DeclareParameters(fn)
 }
 
 // DeclareParameters declares all of a function's parameters inside the
 // function's scope.
 //
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareParameters(Node)
-func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode rhino.Node) {
+func (b *TypedScopeCreator_scopeBuilder) DeclareParameters(fn ast.Function) {
+	functionNode := fn.Node()
 	if NodeUtil_IsBundledGoogModuleCall(functionNode.GetParent()) {
 		// Skip declaring 'exports' for a goog.loadModule(function(exports) {.
 		// We pretend that any assignments to 'exports' in the body are actually declarations.
 		return
 	}
 
-	astParameters := functionNode.GetSecondChild()
 	var iifeArgumentNode rhino.Node
 
 	if NodeUtil_IsInvocationTarget(functionNode) {
@@ -203,7 +202,7 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode 
 			jsdocParametersIndex++
 		}
 
-		for astParameter := astParameters.GetFirstChild(); !astParameter.IsNil(); astParameter = astParameter.GetNext() {
+		for astParameter := range fn.Params().Params() {
 			if !iifeArgumentNode.IsNil() && iifeArgumentNode.IsSpread() {
 				// don't try inferring types from spreads in iifes because we don't know how
 				// many items are in the iterable.
@@ -230,10 +229,10 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionNode 
 
 		b.DeclareTemplatesInFunctionBody(functionNode, functionType)
 	}
-} // end declareParameters
+}
 
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareTemplatesInFunctionBody(Node, FunctionType)
-func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(functionNode rhino.Node, functionType rhino.FunctionType) {
+func (b *TypedScopeCreator_scopeBuilder) DeclareTemplatesInFunctionBody(functionNode rhino.Node, functionType rhino.FunctionType) {
 	// Add template params to the scope.
 	// This lets JSTypeRegistry resolve references to template types within the function body
 	// scope. (they were already registered as types by FunctionTypeBuilder, but they need to be
@@ -319,8 +318,8 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareTemplatesInFunctionBody(
 // e.g. for `(function (x) {}(3);` this would be `3`.
 //
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareNamesInPositionalParameter(Node, JSType, Node)
-func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareNamesInPositionalParameter(
-	astParameter rhino.Node, declaredParameterType rhino.JSType, iifeArgumentNode rhino.Node) {
+func (b *TypedScopeCreator_scopeBuilder) DeclareNamesInPositionalParameter(
+	astParameter ast.Param, declaredParameterType rhino.JSType, iifeArgumentNode rhino.Node) {
 	paramType := declaredParameterType
 	isInferred := paramType.Equals(b.outer.unknownType)
 
@@ -340,36 +339,36 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareNamesInPositionalParamet
 		paramType = b.outer.unknownType
 	}
 
-	switch astParameter.GetToken() {
+	switch astParameter.Token() {
 	case rhino.Token_NAME:
 		// function f(x) {}
-		b.DeclareSingleParameterName(isInferred, astParameter, paramType)
+		b.DeclareSingleParameterName(isInferred, astParameter.Node(), paramType)
 	case rhino.Token_ITER_REST:
 		// function f(...x) {}
 		// rest parameter is actually an array of the type specified in the JSDoc
-		param := astParameter.GetFirstChild()
+		target := astParameter.MustIterRest().Target()
 		arrayType := b.outer.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE)
 		restParamType := b.outer.typeRegistry.CreateTemplatizedType(arrayType, paramType)
-		if param.IsName() {
-			b.DeclareSingleParameterName(isInferred, astParameter.GetFirstChild(), restParamType)
+		if target.Token() == rhino.Token_NAME {
+			b.DeclareSingleParameterName(isInferred, target.Node(), restParamType)
 		} else {
 			// function f(...{length}) {}
-			b.DeclareDestructuringParameter(isInferred, param, restParamType)
+			b.DeclareDestructuringParameter(isInferred, target.Node(), restParamType)
 		}
 	case rhino.Token_DEFAULT_VALUE:
 		// function f(x = 3) {} or function f([x] = []) {}
-		actualParam := astParameter.GetFirstChild()
-		if actualParam.IsName() {
-			b.DeclareSingleParameterName(isInferred, actualParam, paramType)
+		actualParam := astParameter.MustDefaultValue().Target()
+		if actualParam.Token() == rhino.Token_NAME {
+			b.DeclareSingleParameterName(isInferred, actualParam.Node(), paramType)
 		} else {
-			b.DeclareDestructuringParameter(isInferred, actualParam, paramType)
+			b.DeclareDestructuringParameter(isInferred, actualParam.Node(), paramType)
 		}
 	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
 		// function f([x]) {}
 		// function f({x}) {}
-		b.DeclareDestructuringParameter(isInferred, astParameter, paramType)
+		b.DeclareDestructuringParameter(isInferred, astParameter.Node(), paramType)
 	default:
-		panic(jutil.NewIllegalStateExceptionMsg("Unexpected function parameter node " + jutil.ToJavaString(astParameter)))
+		panic(jutil.NewIllegalStateExceptionMsg("Unexpected function parameter node " + jutil.ToJavaString(astParameter.Node())))
 	}
 }
 
@@ -391,11 +390,9 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareNamesInPositionalParamet
 // https://github.com/google/closure-compiler/issues/1781
 //
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareDestructuringParameter(boolean, Node, JSType)
-func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareDestructuringParameter(
+func (b *TypedScopeCreator_scopeBuilder) DeclareDestructuringParameter(
 	isInferred bool, pattern rhino.Node, patternType rhino.JSType) {
-
-	for _, target := range DestructuredTarget_CreateAllNonEmptyTargetsInPattern(
-		b.outer.typeRegistry, patternType, pattern) {
+	ForEachDestructuredTarget(b.outer.typeRegistry, patternType, pattern, func(target DestructuredTarget) {
 		parameterType := target.InferTypeWithoutUsingDefaultValue()
 
 		if target.GetNode().IsDestructuringPattern() {
@@ -423,11 +420,11 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareDestructuringParameter(
 			}
 			b.DeclareSingleParameterName(isInferred, paramName, parameterType)
 		}
-	}
+	})
 }
 
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareSingleParameterName(boolean, Node, JSType)
-func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareSingleParameterName(isInferred bool, name rhino.Node, type_ rhino.JSType) {
+func (b *TypedScopeCreator_scopeBuilder) DeclareSingleParameterName(isInferred bool, name rhino.Node, type_ rhino.JSType) {
 	b.defineSlot(typedScopeSlotSpec{
 		declNode:                name,
 		varName:                 name.GetString(),
@@ -437,44 +434,13 @@ func (b *TypedScopeCreator_FunctionScopeBuilder) DeclareSingleParameterName(isIn
 	})
 } // end FunctionScopeBuilder
 
-// TypedScopeCreator_ClassScopeBuilder is the scope builder subclass for
-// class scopes (which only contain a bleeding class name), member field def
-// scopes, and RHS computed field def scopes (the latter two of which have
-// `this` and `super` properties). Methods are handled by
-// FunctionScopeBuilder and NormalScopeBuilder for the bodies.
-type TypedScopeCreator_ClassScopeBuilder struct {
-	TypedScopeCreator_AbstractScopeBuilderBase
-}
-
-// Java: TypedScopeCreator.ClassScopeBuilder(TypedScope)
-func NewTypedScopeCreator_ClassScopeBuilder(outer *TypedScopeCreator, scope *TypedScope) *TypedScopeCreator_ClassScopeBuilder {
-	b := &TypedScopeCreator_ClassScopeBuilder{}
-	b.InitTypedScopeCreator_AbstractScopeBuilderBase(b, outer, scope)
-	return b
-}
-
-// Java: TypedScopeCreator.ClassScopeBuilder.visitPreorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) VisitPreorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	// These are not descended into, so must be done preorder
-	if !n.IsFunction() {
-		return
-	}
-
-	if NodeUtil_IsEs6Constructor(n) {
-		// Constructor has already been analyzed, so pull that here.
-		b.outer.SetDeferredType(n, b.currentScope.GetRootNode().GetJSType())
-	} else {
-		b.DefineFunctionLiteral(n)
-	}
-}
-
 // Java: TypedScopeCreator.ClassScopeBuilder.visitPostorder(NodeTraversal, Node, Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) VisitPostorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsName() &&
+func (b *TypedScopeCreator_scopeBuilder) visitClassPostorder(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if name, ok := ast.AsName(n); ok &&
 		parent == b.currentScope.GetRootNode() &&
 		NodeUtil_IsClassExpression(parent) {
 		// Declare bleeding class name in scope.  Pull the type off the AST.
-		jutil.CheckState(n.GetString() != "") // anonymous classes have EMPTY nodes, not NAME
+		jutil.CheckState(name.Ident() != "") // anonymous classes have EMPTY nodes, not NAME
 		b.defineSlot(typedScopeSlotSpec{
 			declNode:                n,
 			varName:                 slotVarNameFromDeclNode(n),
@@ -482,33 +448,38 @@ func (b *TypedScopeCreator_ClassScopeBuilder) VisitPostorder(t *NodeTraversal, n
 			type_:                   parent.GetJSType(),
 			allowLaterTypeInference: false,
 		})
-	} else if NodeUtil_IsEs6ConstructorMemberFunctionDef(n) {
+	} else if mf, ok := ast.AsMemberFunctionDef(n); ok && parent.IsClassMembers() {
 		// Ignore "constructor" since it has special handling in `createClassTypeFromNodes()`.
-	} else if n.IsMemberFunctionDef() && parent.IsClassMembers() {
-		b.DefineMemberFunction(n)
-	} else if n.IsMemberFieldDef() {
+		if !mf.IsEs6Constructor() {
+			b.DefineMemberFunction(mf)
+		}
+	} else if f, ok := ast.AsMemberFieldDef(n); ok {
 		// public fields are roots of their own scope so the parent doesn't get passed into
 		// visitPostorder
-		b.DefineMemberField(n)
-	} else if (n.IsGetterDef() || n.IsSetterDef()) && parent.IsClassMembers() {
-		b.DefineGetterSetter(n)
-	} else if n.IsComputedFieldDef() ||
-		(n.IsComputedProp() &&
-			n.GetBooleanProp(rhino.Node_COMPUTED_PROP_METHOD) &&
-			parent.IsClassMembers()) {
-		b.DefineComputedMemberField(n)
+		b.DefineMemberField(f)
+	} else if gs, ok := ast.AsGetterOrSetterDef(n); ok && parent.IsClassMembers() {
+		b.DefineGetterSetter(gs)
+	} else if n.IsComputedFieldDef() {
+		b.DefineComputedMemberField(ast.MustComputedMember(n))
+	} else if cp, ok := ast.AsComputedProp(n); ok && cp.IsMethod() && parent.IsClassMembers() {
+		b.DefineComputedMemberField(cp.AsComputedMember())
 	}
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.defineMemberFunction(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberFunction(n rhino.Node) {
+func (b *TypedScopeCreator_scopeBuilder) DefineMemberFunction(mf ast.MemberFunctionDef) {
+	n := mf.Node()
 	ownerType := b.DetermineOwnerTypeForClassMember(n)
-	ownerType.DefineDeclaredProperty(n.GetString(), n.GetLastChild().GetJSType(), n)
+	ownerType.DefineDeclaredProperty(mf.Key(), mf.Function().Node().GetJSType(), n)
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.defineMemberField(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberField(n rhino.Node) {
-	rhs := n.GetLastChild()
+func (b *TypedScopeCreator_scopeBuilder) DefineMemberField(f ast.MemberFieldDef) {
+	n := f.Node()
+	var rhs rhino.Node
+	if val, ok := f.Value(); ok {
+		rhs = val.Node()
+	}
 	declaredType := b.GetDeclaredType(n.GetJSDocInfo(), n, rhs, nil)
 	// When there's no JSDoc type declaration for a field:
 	// If we can infer a type other than UNKNOWN for an initial value, use that as the field type
@@ -516,7 +487,7 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberField(n rhino.Node) {
 	if declaredType == nil {
 		var rhsType rhino.JSType
 		if !rhs.IsNil() {
-			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(rhino.NilNode, rhs)
+			rhsType = b.GetDeclaredRValueType(rhino.NilNode, rhs)
 		}
 		if rhsType != nil && !rhsType.IsUnknownType() {
 			declaredType = rhsType
@@ -526,14 +497,14 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineMemberField(n rhino.Node) {
 	}
 
 	ownerType := b.DetermineOwnerTypeForClassMember(n)
-	propName := n.GetString()
-	ownerType.DefineDeclaredProperty(propName, declaredType, n)
+	ownerType.DefineDeclaredProperty(f.Key(), declaredType, n)
 	n.SetJSType(declaredType)
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.defineComputedMemberField(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n rhino.Node) {
-	key := n.GetFirstChild()
+func (b *TypedScopeCreator_scopeBuilder) DefineComputedMemberField(cm ast.ComputedMember) {
+	n := cm.Node()
+	key := cm.Key().Node()
 	if !key.IsQualifiedName() {
 		return
 	}
@@ -541,7 +512,10 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n rhino.
 	if keyType == nil || !keyType.IsKnownSymbolValueType() {
 		return
 	}
-	rhs := n.GetLastChild()
+	var rhs rhino.Node
+	if val, ok := cm.Value(); ok {
+		rhs = val.Node()
+	}
 	declaredType := b.GetDeclaredType(n.GetJSDocInfo(), n, rhs, nil)
 	// When there's no JSDoc type declaration for a field:
 	// If we can infer a type other than UNKNOWN for an initial value, use that as the field type
@@ -549,7 +523,7 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n rhino.
 	if declaredType == nil {
 		var rhsType rhino.JSType
 		if !rhs.IsNil() {
-			rhsType = b.TypedScopeCreator_AbstractScopeBuilderBase.GetDeclaredRValueType(rhino.NilNode, rhs)
+			rhsType = b.GetDeclaredRValueType(rhino.NilNode, rhs)
 		}
 		if rhsType != nil && !rhsType.IsUnknownType() {
 			declaredType = rhsType
@@ -565,12 +539,13 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n rhino.
 }
 
 // Java: TypedScopeCreator.ClassScopeBuilder.defineGetterSetter(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DefineGetterSetter(n rhino.Node) {
-	name := n.GetString()
-	methodType := n.GetLastChild().GetJSType().ToMaybeFunctionType()
+func (b *TypedScopeCreator_scopeBuilder) DefineGetterSetter(gs ast.GetterOrSetterDef) {
+	n := gs.Node()
+	name := gs.Key()
+	methodType := gs.Function().Node().GetJSType().ToMaybeFunctionType()
 
 	var propertyType rhino.JSType
-	switch n.GetToken() {
+	switch gs.Token() {
 	case rhino.Token_GETTER_DEF:
 		// TODO(sdh): consider only falling back on unknown if the function body is empty?
 		// But
@@ -603,7 +578,7 @@ func (b *TypedScopeCreator_ClassScopeBuilder) DefineGetterSetter(n rhino.Node) {
 // `C.prototype` for a nonstatic member.
 //
 // Java: TypedScopeCreator.ClassScopeBuilder.determineOwnerTypeForClassMember(Node)
-func (b *TypedScopeCreator_ClassScopeBuilder) DetermineOwnerTypeForClassMember(member rhino.Node) rhino.ObjectType {
+func (b *TypedScopeCreator_scopeBuilder) DetermineOwnerTypeForClassMember(member rhino.Node) rhino.ObjectType {
 	// MEMBER_FUNCTION_DEF -> CLASS_MEMBERS -> CLASS or
 	// MEMBER_FIELD_DEF -> CLASS_MEMBERS -> CLASS or
 	// GETTER_DEF -> CLASS_MEMBERS -> CLASS or
@@ -681,7 +656,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 	}
 	scope := t.scopes[len(t.scopes)-1].untypedScope
 	if scope == nil {
-		if !root.IsModuleBody() && (!root.IsFunction() || root.GetFirstChild().GetString() == "") {
+		if fn, ok := ast.AsFunction(root); !root.IsModuleBody() && (!ok || fn.NameNode().Ident() == "") {
 			return
 		}
 		scope = t.GetScope()
@@ -872,9 +847,7 @@ func TypedScopeCreator_ExtractKnownSymbolKey(currentScope *TypedScope, key rhino
 var (
 	_ ScopeCreator                                  = (*TypedScopeCreator)(nil)
 	_ rhino.StaticSymbolTable[*TypedVar, *TypedVar] = (*TypedScopeCreator)(nil)
-	_ TypedScopeCreator_AbstractScopeBuilder        = (*TypedScopeCreator_NormalScopeBuilder)(nil)
-	_ TypedScopeCreator_AbstractScopeBuilder        = (*TypedScopeCreator_FunctionScopeBuilder)(nil)
-	_ TypedScopeCreator_AbstractScopeBuilder        = (*TypedScopeCreator_ClassScopeBuilder)(nil)
+	_ NodeTraversal_Callback                        = (*TypedScopeCreator_scopeBuilder)(nil)
 	_ NodeTraversal_Callback                        = (*TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable)(nil)
 	_ NodeTraversal_ScopedCallback                  = (*TypedScopeCreator_FirstOrderFunctionAnalyzer)(nil)
 )

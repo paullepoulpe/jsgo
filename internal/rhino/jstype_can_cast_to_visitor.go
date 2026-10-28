@@ -35,40 +35,56 @@
 
 package rhino
 
-// CanCastToVisitor is a "can cast to" relationship visitor.
+import "github.com/paullepoulpe/jsgo/internal/jutil"
+
+// canCastTo reports whether values of thisType can be cast to thatType.
 //
-// Java: implements RelationshipVisitor<Boolean>
-type CanCastToVisitor struct{}
-
-// Java: CanCastToVisitor()
-func NewCanCastToVisitor() *CanCastToVisitor {
-	return &CanCastToVisitor{}
-}
-
-// Java: CanCastToVisitor.caseUnknownType(JSType, JSType)
-func (v *CanCastToVisitor) CaseUnknownType(thisType JSType, thatType JSType) bool {
-	return true
-}
-
-// Java: CanCastToVisitor.caseNoType(JSType)
-func (v *CanCastToVisitor) CaseNoType(thatType JSType) bool {
-	return true
-}
-
-// Java: CanCastToVisitor.caseNoObjectType(JSType)
-func (v *CanCastToVisitor) CaseNoObjectType(thatType JSType) bool {
-	return true // TODO(johnlenz): restrict to objects
-}
-
-// Java: CanCastToVisitor.caseAllType(JSType)
-func (v *CanCastToVisitor) CaseAllType(thatType JSType) bool {
-	return true
+// Java: CanCastToVisitor + JSType.visit(RelationshipVisitor, JSType)
+func canCastTo(thisType JSType, thatType JSType) bool {
+	switch x := thisType.(type) {
+	case *UnknownType, *NoType, *NoObjectTypeBase, *AllType, *TemplateType:
+		return true
+	case *BigIntType, *BooleanType, *NullType, *NumberType, *StringType,
+		*SymbolTypeBase, *KnownSymbolType, *VoidType,
+		*FunctionTypeBase,
+		*InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *EnumType, *NoResolvedType:
+		return canCastToHelper(thisType, thatType)
+	case *UnionType:
+		return canCastUnionFrom(x, thatType)
+	case *TemplatizedType:
+		// TODO(johnlenz): once the templated type work is finished, restrict the
+		// type parameters.
+		return canCastTo(x.GetReferencedTypeInternal(), thatType)
+	case *EnumElementType:
+		return canCastTo(x.GetPrimitiveType(), thatType)
+	case *NamedType:
+		return canCastTo(x.referencedType, thatType)
+	case *ProxyObjectTypeBase:
+		return canCastTo(x.referencedType, thatType)
+	default:
+		if _, ok := thisType.(NoObjectType); ok {
+			return true // TODO(johnlenz): restrict to objects
+		}
+		if fn, ok := thisType.(FunctionType); ok {
+			return canCastToHelper(fn, thatType)
+		}
+		if proxy, ok := thisType.(ProxyObjectType); ok {
+			return canCastTo(proxy.GetReferencedTypeInternal(), thatType)
+		}
+		if obj, ok := thisType.(ObjectType); ok {
+			return canCastToHelper(obj, thatType)
+		}
+		if val, ok := thisType.(ValueType); ok {
+			return canCastToHelper(val, thatType)
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	}
 }
 
 // Java: CanCastToVisitor.canCastToUnion(JSType, UnionType)
-func (v *CanCastToVisitor) CanCastToUnion(thisType JSType, unionType *UnionType) bool {
+func canCastToUnion(thisType JSType, unionType *UnionType) bool {
 	for _, type_ := range unionType.GetAlternates() {
-		if VisitJSTypeRelationship[bool](thisType, v, type_) {
+		if canCastTo(thisType, type_) {
 			return true
 		}
 	}
@@ -76,18 +92,17 @@ func (v *CanCastToVisitor) CanCastToUnion(thisType JSType, unionType *UnionType)
 }
 
 // Java: CanCastToVisitor.canCastToFunction(JSType, FunctionType)
-func (v *CanCastToVisitor) CanCastToFunction(thisType JSType, functionType FunctionType) bool {
+func canCastToFunction(thisType JSType, functionType FunctionType) bool {
 	if thisType.IsFunctionType() {
 		// TODO(johnlenz): visit function parts
 		return true
-	} else {
-		return thisType.IsSubtypeOf(functionType) ||
-			functionType.IsSubtype(thisType)
 	}
+	return thisType.IsSubtypeOf(functionType) ||
+		functionType.IsSubtype(thisType)
 }
 
 // Java: CanCastToVisitor.isInterface(JSType)
-func (v *CanCastToVisitor) IsInterface(type_ JSType) bool {
+func canCastIsInterface(type_ JSType) bool {
 	objType := type_.ToObjectType()
 	if objType != nil {
 		constructor := objType.GetConstructor()
@@ -97,7 +112,7 @@ func (v *CanCastToVisitor) IsInterface(type_ JSType) bool {
 }
 
 // Java: CanCastToVisitor.castCastToHelper(JSType, JSType)
-func (v *CanCastToVisitor) CastCastToHelper(thisType JSType, thatType JSType) bool {
+func canCastToHelper(thisType JSType, thatType JSType) bool {
 	if thisType.IsNoResolvedType() {
 		return true
 	} else if thatType.IsUnknownType() ||
@@ -108,42 +123,25 @@ func (v *CanCastToVisitor) CastCastToHelper(thisType JSType, thatType JSType) bo
 		return true
 	} else if thisType.IsRecordType() || thatType.IsRecordType() {
 		return true // TODO(johnlenz): are there any misuses we can catch?
-	} else if v.IsInterface(thisType) || v.IsInterface(thatType) {
+	} else if canCastIsInterface(thisType) || canCastIsInterface(thatType) {
 		return true // TODO(johnlenz): are there any misuses we can catch?
 	} else if thatType.IsEnumElementType() {
-		return VisitJSTypeRelationship[bool](thisType, v,
-			thatType.ToMaybeEnumElementType().GetPrimitiveType())
+		return canCastTo(thisType, thatType.ToMaybeEnumElementType().GetPrimitiveType())
 	} else if thatType.IsUnionType() {
-		return v.CanCastToUnion(thisType, thatType.ToMaybeUnionType())
+		return canCastToUnion(thisType, thatType.ToMaybeUnionType())
 	} else if thatType.IsFunctionType() {
-		return v.CanCastToFunction(thisType, thatType.ToMaybeFunctionType())
+		return canCastToFunction(thisType, thatType.ToMaybeFunctionType())
 	} else if thatType.IsTemplatizedType() {
 		// TODO(johnlenz): once the templated type work is finished, restrict
 		// the type parameters.
-		return VisitJSTypeRelationship[bool](thisType, v,
-			thatType.ToMaybeTemplatizedType().GetReferencedTypeInternal())
+		return canCastTo(thisType, thatType.ToMaybeTemplatizedType().GetReferencedTypeInternal())
 	}
 
 	return thisType.IsSubtypeOf(thatType) || thatType.IsSubtypeOf(thisType)
 }
 
-// Java: CanCastToVisitor.caseValueType(ValueType, JSType)
-func (v *CanCastToVisitor) CaseValueType(thisType ValueType, thatType JSType) bool {
-	return v.CastCastToHelper(thisType, thatType)
-}
-
-// Java: CanCastToVisitor.caseObjectType(ObjectType, JSType)
-func (v *CanCastToVisitor) CaseObjectType(thisType ObjectType, thatType JSType) bool {
-	return v.CastCastToHelper(thisType, thatType)
-}
-
-// Java: CanCastToVisitor.caseFunctionType(FunctionType, JSType)
-func (v *CanCastToVisitor) CaseFunctionType(thisType FunctionType, thatType JSType) bool {
-	return v.CastCastToHelper(thisType, thatType)
-}
-
 // Java: CanCastToVisitor.caseUnionType(UnionType, JSType)
-func (v *CanCastToVisitor) CaseUnionType(thisType *UnionType, thatType JSType) bool {
+func canCastUnionFrom(thisType *UnionType, thatType JSType) bool {
 	visited := false
 	for _, type_ := range thisType.GetAlternates() {
 		if type_.IsVoidType() || type_.IsNullType() {
@@ -152,36 +150,19 @@ func (v *CanCastToVisitor) CaseUnionType(thisType *UnionType, thatType JSType) b
 			// type and we don't want that.
 		} else {
 			visited = true
-			if VisitJSTypeRelationship[bool](type_, v, thatType) {
+			if canCastTo(type_, thatType) {
 				return true
 			}
 		}
 	}
 
 	// Special case the "null|undefined" union and allow it to be cast to any
-	// cast to any type containing allowing either null|undefined.
+	// type allowing either null|undefined.
 	if !visited {
-		NULL_TYPE := thisType.GetNativeType(JSTypeNative_NULL_TYPE)
-		VOID_TYPE := thisType.GetNativeType(JSTypeNative_VOID_TYPE)
-		return VisitJSTypeRelationship[bool](NULL_TYPE, v, thatType) || VisitJSTypeRelationship[bool](VOID_TYPE, v, thatType)
+		nullType := thisType.GetNativeType(JSTypeNative_NULL_TYPE)
+		voidType := thisType.GetNativeType(JSTypeNative_VOID_TYPE)
+		return canCastTo(nullType, thatType) || canCastTo(voidType, thatType)
 	}
 
 	return false
-}
-
-// Java: CanCastToVisitor.caseTemplatizedType(TemplatizedType, JSType)
-func (v *CanCastToVisitor) CaseTemplatizedType(thisType *TemplatizedType, thatType JSType) bool {
-	// TODO(johnlenz): once the templated type work is finished, restrict the
-	// type parameters.
-	return VisitJSTypeRelationship[bool](thisType.GetReferencedTypeInternal(), v, thatType)
-}
-
-// Java: CanCastToVisitor.caseTemplateType(TemplateType, JSType)
-func (v *CanCastToVisitor) CaseTemplateType(thisType *TemplateType, thatType JSType) bool {
-	return true
-}
-
-// Java: CanCastToVisitor.caseEnumElementType(EnumElementType, JSType)
-func (v *CanCastToVisitor) CaseEnumElementType(typeType *EnumElementType, thatType JSType) bool {
-	return VisitJSTypeRelationship[bool](typeType.GetPrimitiveType(), v, thatType)
 }

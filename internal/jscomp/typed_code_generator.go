@@ -27,19 +27,26 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// InitTypedCodeGenerator initializes a CodeGenerator to emit type annotations
-// for functions and constructors (Java's TypedCodeGenerator subclass).
-//
-// Java: TypedCodeGenerator(CodeConsumer, CompilerOptions, JSTypeRegistry)
-func (t *CodeGenerator) InitTypedCodeGenerator(consumer CodeConsumer, options *CompilerOptions, registry *rhino.JSTypeRegistry) {
-	t.InitCodeGeneratorWithOptions(consumer, options)
+func (t *CodeGenerator) initTypedWithOptions(options *CompilerOptions, registry *rhino.JSTypeRegistry) {
+	t.initWithOptions(options)
 	jutil.CheckNotNull(registry)
 	t.registry = registry
 	t.emitTypeAnnotations = true
 }
 
+// InitTypedCodeGenerator initializes a CodeGenerator to emit type annotations
+// for functions and constructors (Java's TypedCodeGenerator subclass).
+//
 // Java: TypedCodeGenerator(CodeConsumer, CompilerOptions, JSTypeRegistry)
-func NewTypedCodeGenerator(consumer CodeConsumer, options *CompilerOptions, registry *rhino.JSTypeRegistry) *CodeGenerator {
+func (t *CodeGenerator) InitTypedCodeGenerator(consumer *CodeConsumer, options *CompilerOptions, registry *rhino.JSTypeRegistry) {
+	if consumer != nil {
+		t.cc = *consumer
+	}
+	t.initTypedWithOptions(options, registry)
+}
+
+// Java: TypedCodeGenerator(CodeConsumer, CompilerOptions, JSTypeRegistry)
+func NewTypedCodeGenerator(consumer *CodeConsumer, options *CompilerOptions, registry *rhino.JSTypeRegistry) *CodeGenerator {
 	t := &CodeGenerator{}
 	t.InitTypedCodeGenerator(consumer, options, registry)
 	return t

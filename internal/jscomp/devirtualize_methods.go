@@ -138,8 +138,26 @@ func (d *DevirtualizeMethods) processReferenceList(name string, sites []rhino.No
 			return
 		}
 	}
+	var chunkGraph *JSChunkGraph
+	var defChunk *JSChunk
+	haveDefChunk := false
 	for _, c := range callSites {
-		if !d.isEligibleCallSite(c, canonicalDefinitionSite) {
+		call, ok := ast.AsCall(c.GetParent())
+		if !ok || !call.Callee().Is(c) {
+			// Accessing the property in any way besides CALL has issues:
+			//   - tear-off: invocations can't be tracked
+			//   - as constructor: unsupported rewrite
+			//   - as tagged template string: unsupported rewrite
+			//   - as optional chaining call: original invocation target may be null/undefined and
+			//     rewriting creates an unconditional call to a well-defined global function
+			return
+		}
+		if !haveDefChunk {
+			chunkGraph = d.compiler.GetChunkGraph()
+			defChunk = d.chunkForNode(canonicalDefinitionSite)
+			haveDefChunk = true
+		}
+		if !d.isEligibleCallSiteChunk(c, chunkGraph, defChunk) {
 			return
 		}
 	}
@@ -216,14 +234,22 @@ func devirtualizeMethods_isPrototypeObjectLit(objectLit ast.ObjectLit) bool {
 
 // Java: DevirtualizeMethods.isDefinitelyCtorOrInterface(Node)
 func (d *DevirtualizeMethods) isDefinitelyCtorOrInterface(receiver rhino.Node) bool {
-	qname := receiver.GetQualifiedName()
-	if qname == nil {
-		return false
+	var var_ *Var
+	if receiver.IsName() {
+		id := receiver.GetStringID()
+		if id <= rhino.RhinoStringPool_EmptyID {
+			return false
+		}
+		var_ = d.refMap.GetGlobalScope().GetVarByID(id)
+	} else {
+		qname := receiver.GetQualifiedName()
+		if qname == nil {
+			return false
+		}
+		// It's safe to rely on the global scope because normalization has made all names unique. No
+		// local will shadow a global name, and we're ok with missing some statics.
+		var_ = d.refMap.GetGlobalScope().GetVar(*qname)
 	}
-
-	// It's safe to rely on the global scope because normalization has made all names unique. No
-	// local will shadow a global name, and we're ok with missing some statics.
-	var_ := d.refMap.GetGlobalScope().GetVar(*qname)
 	if var_ == nil {
 		return false
 	}
@@ -277,21 +303,7 @@ func (d *DevirtualizeMethods) isEligibleDefinitionFunction(definitionFunction as
 	return true
 }
 
-// Java: DevirtualizeMethods.isEligibleCallSite(Node, Node)
-func (d *DevirtualizeMethods) isEligibleCallSite(access rhino.Node, definitionSite rhino.Node) bool {
-	call, ok := ast.AsCall(access.GetParent())
-	if !ok || !call.Callee().Is(access) {
-		// Accessing the property in any way besides CALL has issues:
-		//   - tear-off: invocations can't be tracked
-		//   - as constructor: unsupported rewrite
-		//   - as tagged template string: unsupported rewrite
-		//   - as optional chaining call: original invocation target may be null/undefined and
-		//     rewriting creates an unconditional call to a well-defined global function
-		return false
-	}
-
-	chunkGraph := d.compiler.GetChunkGraph()
-	definitionChunk := d.chunkForNode(definitionSite)
+func (d *DevirtualizeMethods) isEligibleCallSiteChunk(access rhino.Node, chunkGraph *JSChunkGraph, definitionChunk *JSChunk) bool {
 	callChunk := d.chunkForNode(access)
 	if definitionChunk == callChunk {
 		return true

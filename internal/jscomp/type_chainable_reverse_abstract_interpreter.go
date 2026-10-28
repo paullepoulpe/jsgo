@@ -49,10 +49,7 @@ type ReverseAbstractInterpreter interface {
 // interpreter providing basic functionality.
 //
 // Java: abstract class ChainableReverseAbstractInterpreter implements
-// ReverseAbstractInterpreter. The Go interface declares every overridable
-// method; ChainableReverseAbstractInterpreterBase holds the fields and the
-// base implementations and dispatches virtual calls through self
-// (PORTING.md §4).
+// ReverseAbstractInterpreter.
 type ChainableReverseAbstractInterpreter interface {
 	ReverseAbstractInterpreter
 
@@ -60,67 +57,30 @@ type ChainableReverseAbstractInterpreter interface {
 	Append(lastLink ChainableReverseAbstractInterpreter) ChainableReverseAbstractInterpreter
 	// Java: ChainableReverseAbstractInterpreter.getFirst()
 	GetFirst() ChainableReverseAbstractInterpreter
-	// Java: ChainableReverseAbstractInterpreter.firstPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
-	FirstPreciserScopeKnowingConditionOutcome(
-		condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope
-	// Java: ChainableReverseAbstractInterpreter.nextPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
-	NextPreciserScopeKnowingConditionOutcome(
-		condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope
-	// Java: ChainableReverseAbstractInterpreter.getTypeIfRefinable(Node, FlowScope)
-	GetTypeIfRefinable(node rhino.Node, scope FlowScope) rhino.JSType
-	// Java: ChainableReverseAbstractInterpreter.declareNameInScope(FlowScope, Node, JSType)
-	DeclareNameInScope(scope FlowScope, node rhino.Node, type_ rhino.JSType) FlowScope
-	// Java: ChainableReverseAbstractInterpreter.getRestrictedByTypeOfResult(JSType, String, boolean)
-	GetRestrictedByTypeOfResult(type_ rhino.JSType, value string, resultEqualsValue bool) rhino.JSType
-	// Java: ChainableReverseAbstractInterpreter.getNativeType(JSTypeNative)
-	GetNativeType(typeId rhino.JSTypeNative) rhino.JSType
-	// Java: ChainableReverseAbstractInterpreter.getNativeTypeForTypeOf(String)
-	GetNativeTypeForTypeOf(value string) rhino.JSType
 
-	// GetChainableReverseAbstractInterpreterBase gives access to the fields
-	// through the interface.
-	//
-	// Go-only: language-adapter — field access through the interface
-	// (PORTING.md §4).
-	GetChainableReverseAbstractInterpreterBase() *ChainableReverseAbstractInterpreterBase
+	getChainableBase() *ChainableReverseAbstractInterpreterBase
 }
 
 // ChainableReverseAbstractInterpreterBase holds
 // ChainableReverseAbstractInterpreter's fields and base methods.
 type ChainableReverseAbstractInterpreterBase struct {
-	self ChainableReverseAbstractInterpreter
-
 	typeRegistry *rhino.JSTypeRegistry
 	firstLink    ChainableReverseAbstractInterpreter
 	nextLink     ChainableReverseAbstractInterpreter
-
-	// For when goog.isArray or Array.isArray returns true.
-	restrictToArrayVisitor rhino.Visitor[rhino.JSType]
-
-	// For when goog.isArray or Array.isArray returns false.
-	restrictToNotArrayVisitor rhino.Visitor[rhino.JSType]
 }
 
-// InitChainableReverseAbstractInterpreterBase constructs an interpreter,
-// which is the only link in a chain. Interpreters can be appended using
-// Append.
+// initChainableBase initializes an interpreter as the sole link in a chain.
+// Interpreters can be appended using Append.
 //
 // Java: ChainableReverseAbstractInterpreter(JSTypeRegistry)
-func (b *ChainableReverseAbstractInterpreterBase) InitChainableReverseAbstractInterpreterBase(
-	self ChainableReverseAbstractInterpreter, typeRegistry *rhino.JSTypeRegistry) {
-	b.self = self
-	// Field initializers.
-	b.restrictToArrayVisitor = newCraiRestrictToArrayVisitor(self)
-	b.restrictToNotArrayVisitor = newCraiRestrictToNotArrayVisitor(self)
-	// Constructor body.
+func (b *ChainableReverseAbstractInterpreterBase) initChainableBase(
+	firstLink ChainableReverseAbstractInterpreter, typeRegistry *rhino.JSTypeRegistry) {
 	b.typeRegistry = typeRegistry
-	b.firstLink = self
+	b.firstLink = firstLink
 	b.nextLink = nil
 }
 
-// GetChainableReverseAbstractInterpreterBase gives access to the fields
-// through the interface.
-func (b *ChainableReverseAbstractInterpreterBase) GetChainableReverseAbstractInterpreterBase() *ChainableReverseAbstractInterpreterBase {
+func (b *ChainableReverseAbstractInterpreterBase) getChainableBase() *ChainableReverseAbstractInterpreterBase {
 	return b
 }
 
@@ -135,9 +95,10 @@ func (b *ChainableReverseAbstractInterpreterBase) GetChainableReverseAbstractInt
 // Java: ChainableReverseAbstractInterpreter.append(ChainableReverseAbstractInterpreter)
 func (b *ChainableReverseAbstractInterpreterBase) Append(
 	lastLink ChainableReverseAbstractInterpreter) ChainableReverseAbstractInterpreter {
-	jutil.CheckArgument(lastLink.GetChainableReverseAbstractInterpreterBase().nextLink == nil)
+	lastBase := lastLink.getChainableBase()
+	jutil.CheckArgument(lastBase.nextLink == nil)
 	b.nextLink = lastLink
-	lastLink.GetChainableReverseAbstractInterpreterBase().firstLink = b.firstLink
+	lastBase.firstLink = b.firstLink
 	return lastLink
 }
 
@@ -205,7 +166,7 @@ func (b *ChainableReverseAbstractInterpreterBase) GetTypeIfRefinable(node rhino.
 			propVarType = node.GetJSType()
 		}
 		if propVarType == nil {
-			propVarType = b.self.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
+			propVarType = b.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 		}
 		return propVarType
 	default:
@@ -233,7 +194,7 @@ func (b *ChainableReverseAbstractInterpreterBase) DeclareNameInScope(
 
 		origType := node.GetJSType()
 		if origType == nil {
-			origType = b.self.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
+			origType = b.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 		}
 		return scope.InferQualifiedSlot(node, qualifiedName, origType, type_, false)
 	case rhino.Token_THIS:
@@ -242,402 +203,6 @@ func (b *ChainableReverseAbstractInterpreterBase) DeclareNameInScope(
 	default:
 		panic(jutil.NewIllegalArgumentExceptionMsg("Node cannot be refined. \n" + node.ToStringTree()))
 	}
-}
-
-// ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor is a
-// class common to all visitors that need to restrict the type based on
-// typeof-like conditions.
-//
-// Java: abstract class ChainableReverseAbstractInterpreter.RestrictByTypeOfResultVisitor
-// implements Visitor<JSType> (an inner class: it uses the enclosing
-// interpreter's getNativeType).
-type ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor interface {
-	rhino.Visitor[rhino.JSType]
-
-	// CaseTopType abstracts away the similarities between visiting the
-	// unknown type and the all type. topType is UNKNOWN_TYPE or ALL_TYPE;
-	// returns the restricted type.
-	//
-	// Java: RestrictByTypeOfResultVisitor.caseTopType(JSType)
-	CaseTopType(topType rhino.JSType) rhino.JSType
-}
-
-// ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase
-// holds the base implementations; self is the concrete visitor and outer
-// the enclosing interpreter.
-type ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase struct {
-	self  ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor
-	outer ChainableReverseAbstractInterpreter
-}
-
-// Java: ChainableReverseAbstractInterpreter.RestrictByTypeOfResultVisitor()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) InitChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase(
-	self ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor, outer ChainableReverseAbstractInterpreter) {
-	v.self = self
-	v.outer = outer
-}
-
-// Java: RestrictByTypeOfResultVisitor.caseAllType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseAllType() rhino.JSType {
-	return v.self.CaseTopType(v.outer.GetNativeType(rhino.JSTypeNative_ALL_TYPE))
-}
-
-// Java: RestrictByTypeOfResultVisitor.caseUnknownType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseUnknownType() rhino.JSType {
-	return v.self.CaseTopType(v.outer.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE))
-}
-
-// Java: RestrictByTypeOfResultVisitor.caseUnionType(UnionType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseUnionType(type_ *rhino.UnionType) rhino.JSType {
-	var restricted rhino.JSType
-	for _, alternate := range type_.GetAlternates() {
-		restrictedAlternate := rhino.VisitJSType[rhino.JSType](alternate, v.self)
-		if restrictedAlternate != nil {
-			if restricted == nil {
-				restricted = restrictedAlternate
-			} else {
-				restricted = restrictedAlternate.GetLeastSupertype(restricted)
-			}
-		}
-	}
-	return restricted
-}
-
-// Java: RestrictByTypeOfResultVisitor.caseNoType(NoType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseNoType(type_ *rhino.NoType) rhino.JSType {
-	return type_
-}
-
-// Java: RestrictByTypeOfResultVisitor.caseEnumElementType(EnumElementType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseEnumElementType(
-	enumElementType *rhino.EnumElementType) rhino.JSType {
-	// NOTE(nicksantos): This is a white lie. Suppose we have:
-	// /** @enum {string|number} */ var MyEnum = ...;
-	// if (goog.isNumber(myEnumInstance)) {
-	//   /* what is myEnumInstance here? */
-	// }
-	// There is no type that represents {MyEnum - string}. What we really
-	// need is a notion of "enum subtyping", so that we could dynamically
-	// create a subtype of MyEnum restricted by string. In any case,
-	// this should catch the common case.
-	type_ := rhino.VisitJSType[rhino.JSType](enumElementType.GetPrimitiveType(), v.self)
-	if type_ != nil && enumElementType.GetPrimitiveType().Equals(type_) {
-		return enumElementType
-	} else {
-		return type_
-	}
-}
-
-// Java: RestrictByTypeOfResultVisitor.caseTemplatizedType(TemplatizedType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseTemplatizedType(type_ *rhino.TemplatizedType) rhino.JSType {
-	return v.self.CaseObjectType(type_)
-}
-
-// Java: RestrictByTypeOfResultVisitor.caseTemplateType(TemplateType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseTemplateType(templateType *rhino.TemplateType) rhino.JSType {
-	return v.self.CaseObjectType(templateType)
-}
-
-// Java: RestrictByTypeOfResultVisitor.caseNamedType(NamedType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseNamedType(type_ *rhino.NamedType) rhino.JSType {
-	return v.self.CaseProxyObjectType(type_)
-}
-
-// Java: RestrictByTypeOfResultVisitor.caseProxyObjectType(ProxyObjectType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseProxyObjectType(type_ rhino.ProxyObjectType) rhino.JSType {
-	return rhino.VisitJSType[rhino.JSType](type_.GetReferencedTypeInternal(), v.self)
-}
-
-// ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor is a
-// class common to all visitors that need to restrict the type based on some
-// typeof-like condition being true. All base cases return null. It is up to
-// the subclasses to override the appropriate ones.
-//
-// Java: abstract class ChainableReverseAbstractInterpreter.RestrictByTrueTypeOfResultVisitor
-// extends RestrictByTypeOfResultVisitor
-type ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor interface {
-	ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor
-}
-
-// ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase
-// holds RestrictByTrueTypeOfResultVisitor's base implementations.
-type ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase struct {
-	ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase
-}
-
-// Java: ChainableReverseAbstractInterpreter.RestrictByTrueTypeOfResultVisitor()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) InitChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase(
-	self ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor, outer ChainableReverseAbstractInterpreter) {
-	v.InitChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase(self, outer)
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseNoObjectType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseNoObjectType() rhino.JSType {
-	return nil
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseBooleanType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseBooleanType() rhino.JSType {
-	return nil
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseFunctionType(FunctionType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
-	return nil
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseNullType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseNullType() rhino.JSType {
-	return nil
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseNumberType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseNumberType() rhino.JSType {
-	return nil
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseBigIntType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseBigIntType() rhino.JSType {
-	return nil
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseObjectType(ObjectType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
-	return nil
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseStringType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseStringType() rhino.JSType {
-	return nil
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseSymbolType(SymbolType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseSymbolType(type_ rhino.SymbolType) rhino.JSType {
-	return nil
-}
-
-// Java: RestrictByTrueTypeOfResultVisitor.caseVoidType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase) CaseVoidType() rhino.JSType {
-	return nil
-}
-
-// ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor is
-// a class common to all visitors that need to restrict the type based on
-// some typeof-like condition being false. All base cases return their type.
-// It is up to the subclasses to override the appropriate ones.
-//
-// Java: abstract class ChainableReverseAbstractInterpreter.RestrictByFalseTypeOfResultVisitor
-// extends RestrictByTypeOfResultVisitor
-type ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor interface {
-	ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor
-}
-
-// ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase
-// holds RestrictByFalseTypeOfResultVisitor's base implementations.
-type ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase struct {
-	ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase
-}
-
-// Java: ChainableReverseAbstractInterpreter.RestrictByFalseTypeOfResultVisitor()
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) InitChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase(
-	self ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor, outer ChainableReverseAbstractInterpreter) {
-	v.InitChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase(self, outer)
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseTopType(JSType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseTopType(topType rhino.JSType) rhino.JSType {
-	return topType
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseNoObjectType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseNoObjectType() rhino.JSType {
-	return v.outer.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseBooleanType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseBooleanType() rhino.JSType {
-	return v.outer.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseFunctionType(FunctionType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
-	return type_
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseNullType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseNullType() rhino.JSType {
-	return v.outer.GetNativeType(rhino.JSTypeNative_NULL_TYPE)
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseNumberType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseNumberType() rhino.JSType {
-	return v.outer.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseBigIntType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseBigIntType() rhino.JSType {
-	return v.outer.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE)
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseObjectType(ObjectType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
-	return type_
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseStringType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseStringType() rhino.JSType {
-	return v.outer.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseSymbolType(SymbolType)
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseSymbolType(type_ rhino.SymbolType) rhino.JSType {
-	return type_
-}
-
-// Java: RestrictByFalseTypeOfResultVisitor.caseVoidType()
-func (v *ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase) CaseVoidType() rhino.JSType {
-	return v.outer.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
-}
-
-// craiRestrictByOneTypeOfVisitor: see
-// ChainableReverseAbstractInterpreter.GetRestrictedByTypeOfResult.
-//
-// Java: private class ChainableReverseAbstractInterpreter.RestrictByOneTypeOfResultVisitor
-// extends RestrictByTypeOfResultVisitor
-type craiRestrictByOneTypeOfVisitor struct {
-	ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase
-
-	// A value known to be equal or not equal to the result of the typeOf
-	// operation.
-	value string
-
-	// true if the typeOf result is known to equal value; false if it is
-	// known not to equal value.
-	resultEqualsValue bool
-}
-
-// Java: RestrictByOneTypeOfResultVisitor(String, boolean)
-func newCraiRestrictByOneTypeOfVisitor(
-	outer ChainableReverseAbstractInterpreter, value string, resultEqualsValue bool) *craiRestrictByOneTypeOfVisitor {
-	v := &craiRestrictByOneTypeOfVisitor{}
-	v.InitChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase(v, outer)
-	v.value = value
-	v.resultEqualsValue = resultEqualsValue
-	return v
-}
-
-// MatchesExpectation computes whether the given result of a typeof operator
-// matches expectations, i.e. whether a type that gives such a result should
-// be kept.
-//
-// Java: RestrictByOneTypeOfResultVisitor.matchesExpectation(String)
-func (v *craiRestrictByOneTypeOfVisitor) MatchesExpectation(result string) bool {
-	return (result == v.value) == v.resultEqualsValue
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseTopType(JSType)
-func (v *craiRestrictByOneTypeOfVisitor) CaseTopType(topType rhino.JSType) rhino.JSType {
-	result := topType
-	if v.resultEqualsValue {
-		typeByName := v.outer.GetNativeTypeForTypeOf(v.value)
-		if typeByName != nil {
-			result = typeByName
-		}
-	}
-	return result
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseNoObjectType()
-func (v *craiRestrictByOneTypeOfVisitor) CaseNoObjectType() rhino.JSType {
-	if (v.value == "object" || v.value == "function") == v.resultEqualsValue {
-		return v.outer.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
-	}
-	return nil
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseBooleanType()
-func (v *craiRestrictByOneTypeOfVisitor) CaseBooleanType() rhino.JSType {
-	if v.MatchesExpectation("boolean") {
-		return v.outer.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
-	}
-	return nil
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseFunctionType(FunctionType)
-func (v *craiRestrictByOneTypeOfVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
-	if v.MatchesExpectation("function") {
-		return type_
-	}
-	return nil
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseNullType()
-func (v *craiRestrictByOneTypeOfVisitor) CaseNullType() rhino.JSType {
-	if v.MatchesExpectation("object") {
-		return v.outer.GetNativeType(rhino.JSTypeNative_NULL_TYPE)
-	}
-	return nil
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseNumberType()
-func (v *craiRestrictByOneTypeOfVisitor) CaseNumberType() rhino.JSType {
-	if v.MatchesExpectation("number") {
-		return v.outer.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
-	}
-	return nil
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseBigIntType()
-func (v *craiRestrictByOneTypeOfVisitor) CaseBigIntType() rhino.JSType {
-	if v.MatchesExpectation("bigint") {
-		return v.outer.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE)
-	}
-	return nil
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseObjectType(ObjectType)
-func (v *craiRestrictByOneTypeOfVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
-	if v.value == "function" {
-		ctorType := v.outer.GetNativeType(rhino.JSTypeNative_FUNCTION_TYPE)
-		if v.resultEqualsValue {
-			// Objects are restricted to "Function", subtypes are left
-			return ctorType.GetGreatestSubtype(type_)
-		} else {
-			// Only filter out subtypes of "function"
-			if type_.IsSubtypeOf(ctorType) {
-				return nil
-			}
-			return type_
-		}
-	}
-	if v.MatchesExpectation("object") {
-		return type_
-	}
-	return nil
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseStringType()
-func (v *craiRestrictByOneTypeOfVisitor) CaseStringType() rhino.JSType {
-	if v.MatchesExpectation("string") {
-		return v.outer.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
-	}
-	return nil
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseSymbolType(SymbolType)
-func (v *craiRestrictByOneTypeOfVisitor) CaseSymbolType(type_ rhino.SymbolType) rhino.JSType {
-	if v.MatchesExpectation("symbol") {
-		return type_
-	}
-	return nil
-}
-
-// Java: RestrictByOneTypeOfResultVisitor.caseVoidType()
-func (v *craiRestrictByOneTypeOfVisitor) CaseVoidType() rhino.JSType {
-	if v.MatchesExpectation("undefined") {
-		return v.outer.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
-	}
-	return nil
 }
 
 // GetRestrictedByTypeOfResult returns a version of type that is restricted
@@ -666,17 +231,155 @@ func (b *ChainableReverseAbstractInterpreterBase) GetRestrictedByTypeOfResult(
 	type_ rhino.JSType, value string, resultEqualsValue bool) rhino.JSType {
 	if type_ == nil {
 		if resultEqualsValue {
-			result := b.self.GetNativeTypeForTypeOf(value)
+			result := b.GetNativeTypeForTypeOf(value)
 			if result == nil {
-				return b.self.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
+				return b.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
 			}
 			return result
-		} else {
+		}
+		return nil
+	}
+	return b.restrictByOneTypeOf(type_, value, resultEqualsValue)
+}
+
+// Java: ChainableReverseAbstractInterpreter.RestrictByOneTypeOfResultVisitor
+func (b *ChainableReverseAbstractInterpreterBase) restrictByOneTypeOf(
+	t rhino.JSType, value string, resultEqualsValue bool) rhino.JSType {
+	switch x := t.(type) {
+	case *rhino.NoType:
+		return x
+	case *rhino.EnumElementType:
+		prim := x.GetPrimitiveType()
+		r := b.restrictByOneTypeOf(prim, value, resultEqualsValue)
+		if r != nil && prim.Equals(r) {
+			return x
+		}
+		return r
+	case *rhino.AllType:
+		return b.restrictTopByOneTypeOf(b.GetNativeType(rhino.JSTypeNative_ALL_TYPE), value, resultEqualsValue)
+	case *rhino.UnknownType:
+		return b.restrictTopByOneTypeOf(b.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE), value, resultEqualsValue)
+	case *rhino.NoObjectTypeBase:
+		if (value == "object" || value == "function") == resultEqualsValue {
+			return b.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+		}
+		return nil
+	case *rhino.BooleanType:
+		if (value == "boolean") == resultEqualsValue {
+			return b.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
+		}
+		return nil
+	case *rhino.FunctionTypeBase:
+		if (value == "function") == resultEqualsValue {
+			return x
+		}
+		return nil
+	case *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase, *rhino.RecordType,
+		*rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
+		return b.restrictObjectByOneTypeOf(t.(rhino.ObjectType), value, resultEqualsValue)
+	case *rhino.NullType:
+		if (value == "object") == resultEqualsValue {
+			return b.GetNativeType(rhino.JSTypeNative_NULL_TYPE)
+		}
+		return nil
+	case *rhino.NamedType:
+		return b.restrictByOneTypeOf(x.GetReferencedTypeInternal(), value, resultEqualsValue)
+	case *rhino.ProxyObjectTypeBase:
+		return b.restrictByOneTypeOf(x.GetReferencedTypeInternal(), value, resultEqualsValue)
+	case *rhino.NumberType:
+		if (value == "number") == resultEqualsValue {
+			return b.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+		}
+		return nil
+	case *rhino.BigIntType:
+		if (value == "bigint") == resultEqualsValue {
+			return b.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE)
+		}
+		return nil
+	case *rhino.StringType:
+		if (value == "string") == resultEqualsValue {
+			return b.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
+		}
+		return nil
+	case *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
+		if (value == "symbol") == resultEqualsValue {
+			return t
+		}
+		return nil
+	case *rhino.VoidType:
+		if (value == "undefined") == resultEqualsValue {
+			return b.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
+		}
+		return nil
+	case *rhino.UnionType:
+		var restricted rhino.JSType
+		for _, alt := range x.GetAlternates() {
+			if ra := b.restrictByOneTypeOf(alt, value, resultEqualsValue); ra != nil {
+				if restricted == nil {
+					restricted = ra
+				} else {
+					restricted = ra.GetLeastSupertype(restricted)
+				}
+			}
+		}
+		return restricted
+	default:
+		if _, ok := t.(rhino.NoObjectType); ok {
+			if (value == "object" || value == "function") == resultEqualsValue {
+				return b.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+			}
 			return nil
 		}
+		if fn, ok := t.(rhino.FunctionType); ok {
+			if (value == "function") == resultEqualsValue {
+				return fn
+			}
+			return nil
+		}
+		if proxy, ok := t.(rhino.ProxyObjectType); ok {
+			return b.restrictByOneTypeOf(proxy.GetReferencedTypeInternal(), value, resultEqualsValue)
+		}
+		if obj, ok := t.(rhino.ObjectType); ok {
+			return b.restrictObjectByOneTypeOf(obj, value, resultEqualsValue)
+		}
+		if sym, ok := t.(rhino.SymbolType); ok {
+			if (value == "symbol") == resultEqualsValue {
+				return sym
+			}
+			return nil
+		}
+		panic(jutil.NewUnsupportedOperationException())
 	}
-	return rhino.VisitJSType[rhino.JSType](
-		type_, newCraiRestrictByOneTypeOfVisitor(b.self, value, resultEqualsValue))
+}
+
+func (b *ChainableReverseAbstractInterpreterBase) restrictTopByOneTypeOf(
+	topType rhino.JSType, value string, resultEqualsValue bool) rhino.JSType {
+	if resultEqualsValue {
+		if typeByName := b.GetNativeTypeForTypeOf(value); typeByName != nil {
+			return typeByName
+		}
+	}
+	return topType
+}
+
+func (b *ChainableReverseAbstractInterpreterBase) restrictObjectByOneTypeOf(
+	type_ rhino.ObjectType, value string, resultEqualsValue bool) rhino.JSType {
+	if value == "function" {
+		ctorType := b.GetNativeType(rhino.JSTypeNative_FUNCTION_TYPE)
+		if resultEqualsValue {
+			// Objects are restricted to "Function", subtypes are left
+			return ctorType.GetGreatestSubtype(type_)
+		}
+		// Only filter out subtypes of "function"
+		if type_.IsSubtypeOf(ctorType) {
+			return nil
+		}
+		return type_
+	}
+	if (value == "object") == resultEqualsValue {
+		return type_
+	}
+	return nil
 }
 
 // Java: ChainableReverseAbstractInterpreter.getNativeType(JSTypeNative)
@@ -696,78 +399,172 @@ func (b *ChainableReverseAbstractInterpreterBase) GetNativeType(typeId rhino.JST
 func (b *ChainableReverseAbstractInterpreterBase) GetNativeTypeForTypeOf(value string) rhino.JSType {
 	switch value {
 	case "number":
-		return b.self.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+		return b.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
 	case "boolean":
-		return b.self.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
+		return b.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
 	case "string":
-		return b.self.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
+		return b.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
 	case "symbol":
-		return b.self.GetNativeType(rhino.JSTypeNative_SYMBOL_TYPE)
+		return b.GetNativeType(rhino.JSTypeNative_SYMBOL_TYPE)
 	case "undefined":
-		return b.self.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
+		return b.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
 	case "object":
 		// NOTE: This is broader than it needs to be if it's from goog.typeof, but (a) it's more
 		// consistent with common usage of the native builtin typeof, (b) it's more consistent
-		// with
-		// TypeScript, and (c) it's more useful than simply not narrowing.
+		// with TypeScript, and (c) it's more useful than simply not narrowing.
 		return b.typeRegistry.CreateUnionType(
-			b.self.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE), b.self.GetNativeType(rhino.JSTypeNative_NULL_TYPE))
+			b.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE), b.GetNativeType(rhino.JSTypeNative_NULL_TYPE))
 	case "function":
-		return b.self.GetNativeType(rhino.JSTypeNative_FUNCTION_TYPE)
+		return b.GetNativeType(rhino.JSTypeNative_FUNCTION_TYPE)
 	default:
 		return nil
 	}
 }
 
-// craiRestrictToArrayVisitor is the
-// anonymous RestrictByTrueTypeOfResultVisitor of restrictToArrayVisitor:
-// for when goog.isArray or Array.isArray returns true.
-type craiRestrictToArrayVisitor struct {
-	ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase
-}
-
-func newCraiRestrictToArrayVisitor(
-	outer ChainableReverseAbstractInterpreter) *craiRestrictToArrayVisitor {
-	v := &craiRestrictToArrayVisitor{}
-	v.InitChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase(v, outer)
-	return v
-}
-
-// Java: ChainableReverseAbstractInterpreter.restrictToArrayVisitor.caseTopType(JSType)
-func (v *craiRestrictToArrayVisitor) CaseTopType(topType rhino.JSType) rhino.JSType {
-	if topType.IsAllType() {
-		return v.outer.GetNativeType(rhino.JSTypeNative_ARRAY_TYPE)
-	}
-	return topType
-}
-
-// Java: ChainableReverseAbstractInterpreter.restrictToArrayVisitor.caseObjectType(ObjectType)
-func (v *craiRestrictToArrayVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
-	arrayType := v.outer.GetNativeType(rhino.JSTypeNative_ARRAY_TYPE)
-	if arrayType.IsSubtypeOf(type_) {
-		return arrayType
-	}
-	return nil
-}
-
-// craiRestrictToNotArrayVisitor is the
-// anonymous RestrictByFalseTypeOfResultVisitor of restrictToNotArrayVisitor:
-// for when goog.isArray or Array.isArray returns false.
-type craiRestrictToNotArrayVisitor struct {
-	ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase
-}
-
-func newCraiRestrictToNotArrayVisitor(
-	outer ChainableReverseAbstractInterpreter) *craiRestrictToNotArrayVisitor {
-	v := &craiRestrictToNotArrayVisitor{}
-	v.InitChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase(v, outer)
-	return v
-}
-
-// Java: ChainableReverseAbstractInterpreter.restrictToNotArrayVisitor.caseObjectType(ObjectType)
-func (v *craiRestrictToNotArrayVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
-	if type_.IsSubtypeOf(v.outer.GetNativeType(rhino.JSTypeNative_ARRAY_TYPE)) {
+// restrictToArray restricts t when goog.isArray or Array.isArray returns true.
+//
+// Java: ChainableReverseAbstractInterpreter.restrictToArrayVisitor
+func (b *ChainableReverseAbstractInterpreterBase) restrictToArray(t rhino.JSType) rhino.JSType {
+	switch x := t.(type) {
+	case *rhino.NoType:
+		return x
+	case *rhino.AllType:
+		return b.GetNativeType(rhino.JSTypeNative_ARRAY_TYPE)
+	case *rhino.UnknownType:
+		return b.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
+	case *rhino.EnumElementType:
+		prim := x.GetPrimitiveType()
+		r := b.restrictToArray(prim)
+		if r != nil && prim.Equals(r) {
+			return x
+		}
+		return r
+	case *rhino.UnionType:
+		var restricted rhino.JSType
+		for _, alt := range x.GetAlternates() {
+			if ra := b.restrictToArray(alt); ra != nil {
+				if restricted == nil {
+					restricted = ra
+				} else {
+					restricted = ra.GetLeastSupertype(restricted)
+				}
+			}
+		}
+		return restricted
+	case *rhino.NamedType:
+		return b.restrictToArray(x.GetReferencedTypeInternal())
+	case *rhino.ProxyObjectTypeBase:
+		return b.restrictToArray(x.GetReferencedTypeInternal())
+	case *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase, *rhino.RecordType,
+		*rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
+		arrayType := b.GetNativeType(rhino.JSTypeNative_ARRAY_TYPE)
+		if arrayType.IsSubtypeOf(t) {
+			return arrayType
+		}
 		return nil
+	case *rhino.NoObjectTypeBase, *rhino.BooleanType, *rhino.FunctionTypeBase,
+		*rhino.NullType, *rhino.NumberType, *rhino.BigIntType, *rhino.StringType,
+		*rhino.SymbolTypeBase, *rhino.KnownSymbolType, *rhino.VoidType:
+		return nil
+	default:
+		if _, ok := t.(rhino.NoObjectType); ok {
+			return nil
+		}
+		if _, ok := t.(rhino.FunctionType); ok {
+			return nil
+		}
+		if proxy, ok := t.(rhino.ProxyObjectType); ok {
+			return b.restrictToArray(proxy.GetReferencedTypeInternal())
+		}
+		if obj, ok := t.(rhino.ObjectType); ok {
+			arrayType := b.GetNativeType(rhino.JSTypeNative_ARRAY_TYPE)
+			if arrayType.IsSubtypeOf(obj) {
+				return arrayType
+			}
+			return nil
+		}
+		if _, ok := t.(rhino.SymbolType); ok {
+			return nil
+		}
+		panic(jutil.NewUnsupportedOperationException())
 	}
-	return type_
+}
+
+// restrictToNotArray restricts t when goog.isArray or Array.isArray returns false.
+//
+// Java: ChainableReverseAbstractInterpreter.restrictToNotArrayVisitor
+func (b *ChainableReverseAbstractInterpreterBase) restrictToNotArray(t rhino.JSType) rhino.JSType {
+	switch x := t.(type) {
+	case *rhino.NoType:
+		return x
+	case *rhino.AllType:
+		return b.GetNativeType(rhino.JSTypeNative_ALL_TYPE)
+	case *rhino.UnknownType:
+		return b.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
+	case *rhino.NoObjectTypeBase:
+		return b.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+	case *rhino.BooleanType:
+		return b.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
+	case *rhino.NullType:
+		return b.GetNativeType(rhino.JSTypeNative_NULL_TYPE)
+	case *rhino.NumberType:
+		return b.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+	case *rhino.BigIntType:
+		return b.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE)
+	case *rhino.StringType:
+		return b.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
+	case *rhino.VoidType:
+		return b.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
+	case *rhino.FunctionTypeBase, *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
+		return t
+	case *rhino.EnumElementType:
+		prim := x.GetPrimitiveType()
+		r := b.restrictToNotArray(prim)
+		if r != nil && prim.Equals(r) {
+			return x
+		}
+		return r
+	case *rhino.UnionType:
+		var restricted rhino.JSType
+		for _, alt := range x.GetAlternates() {
+			if ra := b.restrictToNotArray(alt); ra != nil {
+				if restricted == nil {
+					restricted = ra
+				} else {
+					restricted = ra.GetLeastSupertype(restricted)
+				}
+			}
+		}
+		return restricted
+	case *rhino.NamedType:
+		return b.restrictToNotArray(x.GetReferencedTypeInternal())
+	case *rhino.ProxyObjectTypeBase:
+		return b.restrictToNotArray(x.GetReferencedTypeInternal())
+	case *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase, *rhino.RecordType,
+		*rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
+		if t.IsSubtypeOf(b.GetNativeType(rhino.JSTypeNative_ARRAY_TYPE)) {
+			return nil
+		}
+		return t
+	default:
+		if _, ok := t.(rhino.NoObjectType); ok {
+			return b.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+		}
+		if _, ok := t.(rhino.FunctionType); ok {
+			return t
+		}
+		if proxy, ok := t.(rhino.ProxyObjectType); ok {
+			return b.restrictToNotArray(proxy.GetReferencedTypeInternal())
+		}
+		if obj, ok := t.(rhino.ObjectType); ok {
+			if obj.IsSubtypeOf(b.GetNativeType(rhino.JSTypeNative_ARRAY_TYPE)) {
+				return nil
+			}
+			return obj
+		}
+		if _, ok := t.(rhino.SymbolType); ok {
+			return t
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	}
 }

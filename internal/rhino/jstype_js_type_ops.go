@@ -47,7 +47,7 @@ import (
 //
 // Java: JSType.canCastTo(JSType)
 func (t *JSTypeBase) CanCastTo(that JSType) bool {
-	return VisitJSTypeRelationship[bool](t.self(), JSType_CAN_CAST_TO_VISITOR, that)
+	return canCastTo(t.self(), that)
 }
 
 // AutoboxesTo turns a scalar type to the corresponding object type. Returns

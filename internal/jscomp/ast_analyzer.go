@@ -601,7 +601,7 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 		if objPat, ok := ast.AsObjectPattern(parent); ok {
 			// This STRING_KEY names a property being read from.
 			// Assumption: GETELEM (via a COMPUTED_PROP) never triggers a getter or setter.
-			if a.GetPropertyKind(ast.MustStringKey(n).Key()).HasGetter() {
+			if a.getPropertyKindByID(n.GetStringID()).HasGetter() {
 				return true
 			}
 			if lastProp, hasLast := objPat.LastProp(); hasLast {
@@ -626,7 +626,7 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
 		// TODO(b/135640150): Use the parent nodes to determine whether this is a get or set.
-		return a.GetPropertyKind(ast.MustNormalOrOptChainGetProp(n).Property()).HasGetterOrSetter() ||
+		return a.getPropertyKindByID(n.GetStringID()).HasGetterOrSetter() ||
 			a.CheckForChangeStateInChildren(n, checkForNewObjects)
 	default:
 		if NodeUtil_IsSimpleOperator(n) {
@@ -769,14 +769,21 @@ func (a *AstAnalyzer) NodeTypeMayHaveSideEffects(n rhino.Node) bool {
 		return NodeUtil_IteratesImpureIterable(n)
 	case rhino.Token_STRING_KEY:
 		if _, ok := ast.AsObjectPattern(n.GetParent()); ok {
-			return a.GetPropertyKind(ast.MustStringKey(n).Key()).HasGetter()
+			return a.getPropertyKindByID(n.GetStringID()).HasGetter()
 		}
 		return false
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
-		return a.GetPropertyKind(ast.MustNormalOrOptChainGetProp(n).Property()).HasGetterOrSetter()
+		return a.getPropertyKindByID(n.GetStringID()).HasGetterOrSetter()
 	default:
 		return false
 	}
+}
+
+func (a *AstAnalyzer) getPropertyKindByID(id uint32) AccessorSummary_PropertyAccessKind {
+	if a.assumeGettersArePure {
+		return AccessorSummary_PropertyAccessKind_NORMAL
+	}
+	return a.accessorSummary.GetKindByID(id)
 }
 
 // Java: AstAnalyzer.getPropertyKind(String)

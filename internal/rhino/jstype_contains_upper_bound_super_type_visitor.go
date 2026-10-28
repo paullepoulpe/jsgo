@@ -35,85 +35,89 @@
 
 package rhino
 
-import "slices"
+import (
+	"slices"
 
-// ContainsUpperBoundSuperTypeVisitor is a type visitor that traverse through
-// the referenced types of "forwaring types" to search for a target type.
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+// containsUpperBoundSuperTypePresent reports whether target appears in the
+// reference chain of forwarding types reachable from type_.
 //
-// The result of the visitation indicates whether the target type was
-// present, absent, or undcidable due to a cycle.
+// Java: new ContainsUpperBoundSuperTypeVisitor(target) == Result.PRESENT
+func containsUpperBoundSuperTypePresent(type_ JSType, target JSType) bool {
+	return containsUpperBoundSuperType(type_, target) == ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+}
+
+// containsUpperBoundSuperTypeCycle reports whether the reference chain of
+// forwarding types reachable from type_ contains a cycle.
 //
-// This is used by TemplateType as a helper in cycle detection and
-// subtyping. Cycles are checked for once after TemplateTypes are constructed
-// in FunctionTypeBuilder and an error is emitted if they are found.
-//
-// Java: extends Visitor.WithDefaultCase<Result>
-type ContainsUpperBoundSuperTypeVisitor struct {
-	Visitor_WithDefaultCaseBase[ContainsUpperBoundSuperTypeVisitor_Result]
-
-	target JSType
-	seen   []JSType
+// Java: new ContainsUpperBoundSuperTypeVisitor(null) == Result.CYCLE
+func containsUpperBoundSuperTypeCycle(type_ JSType) bool {
+	return containsUpperBoundSuperType(type_, nil) == ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
 }
 
-// Java: ContainsUpperBoundSuperTypeVisitor(JSType)
-func NewContainsUpperBoundSuperTypeVisitor(target JSType) *ContainsUpperBoundSuperTypeVisitor {
-	v := &ContainsUpperBoundSuperTypeVisitor{target: target}
-	v.InitVisitor_WithDefaultCaseBase(v)
-	return v
+func containsUpperBoundSuperType(type_ JSType, target JSType) ContainsUpperBoundSuperTypeVisitor_Result {
+	var seenBuf [8]JSType
+	seen := seenBuf[:0]
+	return containsUpperBoundSuperTypeRec(type_, target, &seen)
 }
 
-// Java: ContainsUpperBoundSuperTypeVisitor.caseDefault(JSType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseDefault(type_ JSType) ContainsUpperBoundSuperTypeVisitor_Result {
-	if v.target == nil {
-		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
-	}
-
-	if type_ == v.target {
-		return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
-	}
-	return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
-}
-
-// Java: ContainsUpperBoundSuperTypeVisitor.caseTemplateType(TemplateType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseTemplateType(type_ *TemplateType) ContainsUpperBoundSuperTypeVisitor_Result {
-	return v.CaseForwardingType(type_, type_.GetBound())
-}
-
-// Java: ContainsUpperBoundSuperTypeVisitor.caseNamedType(NamedType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseNamedType(type_ *NamedType) ContainsUpperBoundSuperTypeVisitor_Result {
-	return v.CaseForwardingType(type_, type_.GetReferencedType())
-}
-
-// Java: ContainsUpperBoundSuperTypeVisitor.caseTemplatizedType(TemplatizedType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseTemplatizedType(type_ *TemplatizedType) ContainsUpperBoundSuperTypeVisitor_Result {
-	return v.CaseForwardingType(type_, type_.GetReferencedType())
-}
-
-// Java: ContainsUpperBoundSuperTypeVisitor.caseUnionType(UnionType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseUnionType(type_ *UnionType) ContainsUpperBoundSuperTypeVisitor_Result {
-	if JSType(type_) == v.target {
-		return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
-	}
-
-	for _, alt := range type_.GetAlternates() {
-		foundInAlt := VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](alt, v)
-		if foundInAlt != ContainsUpperBoundSuperTypeVisitor_Result_ABSENT {
-			return foundInAlt
+func containsUpperBoundSuperTypeRec(type_ JSType, target JSType, seen *[]JSType) ContainsUpperBoundSuperTypeVisitor_Result {
+	switch x := type_.(type) {
+	case *TemplateType:
+		return containsUpperBoundForwarding(x, x.GetBound(), target, seen)
+	case *NamedType:
+		return containsUpperBoundForwarding(x, x.GetReferencedType(), target, seen)
+	case *TemplatizedType:
+		return containsUpperBoundForwarding(x, x.GetReferencedType(), target, seen)
+	case *UnionType:
+		if JSType(x) == target {
+			return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
 		}
+		for _, alt := range x.GetAlternates() {
+			foundInAlt := containsUpperBoundSuperTypeRec(alt, target, seen)
+			if foundInAlt != ContainsUpperBoundSuperTypeVisitor_Result_ABSENT {
+				return foundInAlt
+			}
+		}
+		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+	case *AllType, *BooleanType, *NoObjectTypeBase, *UnknownType, *NullType,
+		*NumberType, *BigIntType, *StringType, *VoidType:
+		// Visitor.WithDefaultCase passes nil for zero-arg cases, so CaseDefault
+		// always returns ABSENT for these types.
+		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+	case *NoType, *EnumElementType, *FunctionTypeBase,
+		*InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *EnumType, *NoResolvedType,
+		*ProxyObjectTypeBase, *SymbolTypeBase, *KnownSymbolType:
+		if target != nil && type_ == target {
+			return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+		}
+		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+	default:
+		if _, ok := type_.(NoObjectType); ok {
+			return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+		}
+		switch type_.(type) {
+		case FunctionType, ProxyObjectType, ObjectType, SymbolType:
+			if target != nil && type_ == target {
+				return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+			}
+			return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+		}
+		panic(jutil.NewUnsupportedOperationException())
 	}
-
-	return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
 }
 
 // Java: ContainsUpperBoundSuperTypeVisitor.caseForwardingType(JSType, JSType)
-func (v *ContainsUpperBoundSuperTypeVisitor) CaseForwardingType(type_ JSType, reference JSType) ContainsUpperBoundSuperTypeVisitor_Result {
-	if type_ == v.target {
+func containsUpperBoundForwarding(type_ JSType, reference JSType, target JSType, seen *[]JSType) ContainsUpperBoundSuperTypeVisitor_Result {
+	if type_ == target {
 		return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
-	} else if slices.Contains(v.seen, type_) {
+	} else if slices.Contains(*seen, type_) {
 		return ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
 	} else {
-		v.seen = append(v.seen, type_)
-		return VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](reference, v)
+		*seen = append(*seen, type_)
+		return containsUpperBoundSuperTypeRec(reference, target, seen)
 	}
 }
 

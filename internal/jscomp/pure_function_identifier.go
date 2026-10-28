@@ -24,14 +24,119 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-// Go-only: callable-leaf, r-value, try-catch, assignment, and invocation
-// shapes are read through package ast while keeping PureFunctionIdentifier's
-// rhino.Node pass API intact.
+var (
+	pfiDotStringID         = rhino.RhinoStringPool_InternID(".")
+	pfiConstructorStringID = rhino.RhinoStringPool_InternID("constructor")
+	pfiCallStringID        = rhino.RhinoStringPool_InternID("call")
+	pfiApplyStringID       = rhino.RhinoStringPool_InternID("apply")
+)
+
+// pfiSummaryID indexes into PureFunctionIdentifier.summaries.
+// Index 0 is reserved for the conservative <unknown> summary.
+type pfiSummaryID uint32
+
+const (
+	pfiUnknownSummaryID pfiSummaryID = 0
+	pfiMultiSummaryBit  uint32       = 1 << 31
+)
+
+// Side-effect bitmask flags on pfiSummary.bitmask.
+const (
+	pfiThrows             uint8 = 1 << 0
+	pfiMutatesGlobalState uint8 = 1 << 1
+	pfiMutatesThis        uint8 = 1 << 2
+	pfiMutatesArguments   uint8 = 1 << 3
+	pfiAllFlags           uint8 = pfiThrows | pfiMutatesGlobalState | pfiMutatesThis | pfiMutatesArguments
+)
+
+// Auxiliary flags and name kind on pfiSummary.flags.
+const (
+	pfiSummaryCollectDebug uint8 = 1 << 0
+	pfiSummaryInQueue      uint8 = 1 << 1
+	pfiNameKindShift       uint8 = 2
+)
+
+type pfiNameKind uint8
+
+const (
+	pfiNameVar pfiNameKind = iota
+	pfiNameProp
+	pfiNameUnknown
+	pfiNameImplicitPureCtor
+	pfiNameAnonymous
+)
+
+// pfiSummary is a pointer-free summary for the set of functions sharing a name.
+type pfiSummary struct {
+	mutatedParamMask uint64
+	nameID           uint32
+	firstCallerEdge  int32
+	bitmask          uint8
+	flags            uint8
+}
+
+func (s *pfiSummary) nameKind() pfiNameKind {
+	return pfiNameKind(s.flags >> pfiNameKindShift)
+}
+
+func (s *pfiSummary) displayName() string {
+	switch s.nameKind() {
+	case pfiNameVar:
+		return strpool.String(strpool.ID(s.nameID))
+	case pfiNameProp:
+		return "." + strpool.String(strpool.ID(s.nameID))
+	case pfiNameUnknown:
+		return "<unknown>"
+	case pfiNameImplicitPureCtor:
+		return "<implicit pure class ctor"
+	case pfiNameAnonymous:
+		return "<anonymous>"
+	default:
+		return ""
+	}
+}
+
+// Flags on pfiEdge.flags.
+const (
+	pfiEdgeAlias              uint8 = 1 << 0
+	pfiEdgePropagateThrows    uint8 = 1 << 1
+	pfiEdgeAlwaysNonLocalArgs uint8 = 1 << 2
+	pfiEdgeThisCaller         uint8 = 1 << 3
+	pfiEdgeThisGlobal         uint8 = 1 << 4
+)
+
+// pfiEdge is a pointer-free reverse-call-graph edge from callee summary to caller summary.
+type pfiEdge struct {
+	nonLocalArgMask uint64
+	caller          pfiSummaryID
+	nextCallerEdge  int32
+	callerFn        rhino.Node
+	flags           uint8
+}
+
+// Flags on pfiCallSite.flags.
+const (
+	pfiCallIsCallOrTagged   uint8 = 1 << 0
+	pfiCallViaCallOrApply   uint8 = 1 << 1
+	pfiCallIsSuper          uint8 = 1 << 2
+	pfiCallKnownPureForMark uint8 = 1 << 3
+	pfiCallSkipAnalyzer     uint8 = 1 << 4
+	pfiCallIsCacheCall      uint8 = 1 << 5
+)
+
+// pfiCallSite records an invocation node and its resolved callee summary ID(s)
+// during the single AST traversal so MarkPureFunctionCalls needs no AST/name re-lookup.
+type pfiCallSite struct {
+	callNode    rhino.Node
+	firstCallee uint32 // pfiSummaryID when calleeCount == 1; offset into multiCallees when calleeCount > 1
+	calleeCount uint32
+	flags       uint8
+}
 
 // PureFunctionIdentifier is a compiler pass that computes function purity
 // and annotates invocation nodes with those purities.
@@ -49,101 +154,41 @@ import (
 // named "foo" is being called at a particular site. Therefore, if any
 // function "foo" has a particular side-effect, all invocations "foo" are
 // assumed to trigger it.
-//
-// This pass could be greatly improved by proper tracking of locals within
-// function bodies. Every instance of the call to
-// NodeUtil#evaluatesToLocalValue(Node) and NodeUtil#allArgsUnescapedLocal(Node)
-// do not actually take into account local variables. They only assume
-// literals, primitives, and operations on primitives are local.
 type PureFunctionIdentifier struct {
 	compiler                 AbstractCompiler
 	astAnalyzer              *AstAnalyzer
+	accessorSummary          *AccessorSummary
+	codingConvention         CodingConvention
+	assumeGettersArePure     bool
 	validateArtificialPurity bool
+	hasProcessed             bool
 
-	// Map of function names to the summary of the functions with that name.
-	//
-	// Variable names are recorded as-is. Property names are prefixed with
-	// PROP_NAME_PREFIX to differentiate them from variable names.
-	//
-	// See AmbiguatedFunctionSummary.
-	summariesByName     map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary
-	propSummariesByName map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary
+	summaries     []pfiSummary
+	edges         []pfiEdge
+	callSites     []pfiCallSite
+	multiCallees  []pfiSummaryID
+	nameSummaries map[uint32]pfiSummaryID
+	propSummaries map[uint32]pfiSummaryID
 
-	// Mapping from function node to summaries for all names associated with
-	// that node.
-	//
-	// This is a multimap because you can construct situations in which a
-	// function node has multiple names, and therefore multiple associated
-	// summaries. For example:
-	//
-	//	// Not enough type information to collapse/disambiguate properties on "staticMethod".
-	//	SomeClass.staticMethod = function anotherName() {};
-	//	OtherClass.staticMethod = function() { global++; }
-	//
-	// In this situation we want to keep the side effects for "staticMethod"
-	// which are "global" separate from "anotherName". Hence the function node
-	// should point to the AmbiguatedFunctionSummary for both "staticMethod"
-	// and "anotherName".
-	//
-	// We could instead store a map of FUNCTION nodes to names, and then join
-	// that with the name of names to infos. However, since names are 1:1 with
-	// infos, it's more effecient to "pre-join" in this way.
-	//
-	// Go-only: language-adapter — an ArrayListMultimap keyed by
-	// identity-hashed Nodes that is only looked up, so insertion order.
-	summariesForAllNamesOfFunctionByNode map[rhino.Node][]*PureFunctionIdentifier_AmbiguatedFunctionSummary
-
-	// Set of FUNCTION nodes which are artificially marked as pure, via a
-	// `@nosideeffects` JSDoc tag in source code, which triggers the compiler
-	// to ignore any actual side effects.
-	//
-	// We store this here instead of in the AmbiguatedFunctionSummary because
-	// 1) this is only for debugging, and we don't want to accidentally depend
-	// on it for side effect analysis and 2) we expect the set of functions
-	// with artificial purity annotations to be small and not scale linearly
-	// with the size of the application.
-	artificiallyPureLiteralsForDebugging *jutil.LinkedHashSet[rhino.Node]
-
-	// List of all function call sites. Storing them here during the function
-	// analysis traversal prevents us from doing a second traversal to annotate
-	// them with side-effects. We can just iterate the list.
-	allFunctionCalls []rhino.Node
-
-	// A graph linking the summary of a function callee to the summaries of
-	// its callers.
-	//
-	// Each node represents an aggregate summary of every function with a
-	// particular name. The edge values indicate the details of the invocation
-	// necessary to propagate function impurity from callee to caller.
-	//
-	// Once all the invocation edges are in place, this graph will be
-	// traversed to transitively propagate side-effect information across it's
-	// entire structure. The resultant side-effects can then be attached to
-	// invocation sites.
-	reverseCallGraph *graph.LinkedDirectedGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]
-
-	// A summary for a function for which no definition was found.
-	//
-	// We assume it has all possible side-effects. It's useful for references
-	// like function parameters, or inner functions.
-	unknownFunctionSummary      *PureFunctionIdentifier_AmbiguatedFunctionSummary
-	unknownFunctionSummarySlice []*PureFunctionIdentifier_AmbiguatedFunctionSummary
+	// Maps FUNCTION Node -> pfiSummaryID (when high bit clear) or index into
+	// fnMultiSummaries (when pfiMultiSummaryBit is set).
+	fnSummaries      map[rhino.Node]uint32
+	fnMultiSummaries [][]pfiSummaryID
 
 	scratchCallableLeaves []rhino.Node
+	scratchCalleeIDs      []pfiSummaryID
 
-	assumeGettersArePure bool
-
-	hasProcessed bool
+	// Debugging structures, populated only when validateArtificialPurity is true.
+	artificiallyPureFns []rhino.Node
+	artificiallyPureSet map[rhino.Node]struct{}
+	debugReasons        map[pfiSummaryID]*jutil.LinkedHashSet[rhino.Node]
 }
 
 // A prefix to differentiate property names from variable names.
-// TODO(nickreid): This pass could be made more efficient if props and
-// variables were maintained in separate datastructures. We wouldn't allocate
-// a bunch of extra strings.
 const PureFunctionIdentifier_PROP_NAME_PREFIX = "."
 
 // PureFunctionIdentifier_IMPLICIT_PURE_FN is a function node representing a
-// function implicit in the AST that is known to be pure
+// function implicit in the AST that is known to be pure.
 //
 // For example: `class C {}` would get this node.
 var PureFunctionIdentifier_IMPLICIT_PURE_FN = rhino.IR_Function(rhino.IR_Name(""), rhino.IR_ParamList(), rhino.IR_Block())
@@ -160,80 +205,150 @@ var PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION = DiagnosticType_Di
 // Java: PureFunctionIdentifier(AbstractCompiler, boolean, boolean)
 func NewPureFunctionIdentifier(
 	compiler AbstractCompiler, assumeGettersArePure bool, validateArtificialPurity bool) *PureFunctionIdentifier {
-	p := &PureFunctionIdentifier{}
-	p.artificiallyPureLiteralsForDebugging = jutil.NewLinkedHashSet[rhino.Node]()
-	p.reverseCallGraph = graph.LinkedDirectedGraph_CreateWithoutAnnotations[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]()
-	p.unknownFunctionSummary =
-		p.createSummaryInGraph("<unknown>").
-			SetMutatesGlobalStateAndAllOtherFlags(rhino.NilNode)
-	p.unknownFunctionSummarySlice = []*PureFunctionIdentifier_AmbiguatedFunctionSummary{p.unknownFunctionSummary}
-	p.hasProcessed = false
-	p.compiler = jutil.CheckNotNull(compiler)
-	p.assumeGettersArePure = assumeGettersArePure
-	p.astAnalyzer = compiler.GetAstAnalyzer()
-	p.validateArtificialPurity = validateArtificialPurity
-	return p
+	compiler = jutil.CheckNotNull(compiler)
+	return &PureFunctionIdentifier{
+		compiler:                 compiler,
+		astAnalyzer:              compiler.GetAstAnalyzer(),
+		assumeGettersArePure:     assumeGettersArePure,
+		validateArtificialPurity: validateArtificialPurity,
+	}
 }
 
-func (p *PureFunctionIdentifier) createSummaryInGraph(name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	s := &PureFunctionIdentifier_AmbiguatedFunctionSummary{name: name}
-	n := p.reverseCallGraph.AllocNode(s)
-	p.reverseCallGraph.Nodes.PutNew(s, n)
-	s.graphNode = n
-	return s
+func (p *PureFunctionIdentifier) allocSummary(nameID uint32, kind pfiNameKind) pfiSummaryID {
+	id := pfiSummaryID(len(p.summaries))
+	p.summaries = append(p.summaries, pfiSummary{
+		nameID:          nameID,
+		firstCallerEdge: -1,
+		flags:           uint8(kind) << pfiNameKindShift,
+	})
+	return id
 }
 
-func (p *PureFunctionIdentifier) putSummaryForFunctionNode(fn rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
-	existing := p.summariesForAllNamesOfFunctionByNode[fn]
-	if len(existing) == 0 {
-		p.summariesForAllNamesOfFunctionByNode[fn] = []*PureFunctionIdentifier_AmbiguatedFunctionSummary{summary}
+func (p *PureFunctionIdentifier) putSummaryForFunctionNode(fn rhino.Node, summary pfiSummaryID) {
+	cur := p.fnSummaries[fn]
+	if cur == 0 {
+		p.fnSummaries[fn] = uint32(summary)
+		return
+	}
+	if cur&pfiMultiSummaryBit == 0 {
+		idx := uint32(len(p.fnMultiSummaries))
+		p.fnMultiSummaries = append(p.fnMultiSummaries, []pfiSummaryID{pfiSummaryID(cur), summary})
+		p.fnSummaries[fn] = pfiMultiSummaryBit | idx
+		return
+	}
+	idx := cur &^ pfiMultiSummaryBit
+	p.fnMultiSummaries[idx] = append(p.fnMultiSummaries[idx], summary)
+}
+
+func (p *PureFunctionIdentifier) getFunctionSummaries(fn rhino.Node) (single pfiSummaryID, multi []pfiSummaryID) {
+	cur := p.fnSummaries[fn]
+	if cur == 0 {
+		return 0, nil
+	}
+	if cur&pfiMultiSummaryBit == 0 {
+		return pfiSummaryID(cur), nil
+	}
+	return 0, p.fnMultiSummaries[cur&^pfiMultiSummaryBit]
+}
+
+func (p *PureFunctionIdentifier) getSummaryForReference(nameRef rhino.Node) (pfiSummaryID, bool) {
+	switch nameRef.GetToken() {
+	case rhino.Token_NAME:
+		s := p.nameSummaries[nameRef.GetStringID()]
+		return s, s != 0
+	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
+		s := p.propSummaries[nameRef.GetStringID()]
+		return s, s != 0
+	default:
+		panic(jutil.NewIllegalStateExceptionMsg("Unexpected name reference: " + nameRef.String()))
+	}
+}
+
+func (p *PureFunctionIdentifier) getSummaryForReferenceOrDefault(nameRef rhino.Node) pfiSummaryID {
+	if s, ok := p.getSummaryForReference(nameRef); ok {
+		return s
+	}
+	return pfiUnknownSummaryID
+}
+
+func (p *PureFunctionIdentifier) addArtificiallyPureFunction(fn rhino.Node) {
+	if p.artificiallyPureSet == nil {
+		p.artificiallyPureSet = make(map[rhino.Node]struct{}, 8)
+	}
+	if _, exists := p.artificiallyPureSet[fn]; exists {
+		return
+	}
+	p.artificiallyPureSet[fn] = struct{}{}
+	p.artificiallyPureFns = append(p.artificiallyPureFns, fn)
+}
+
+func (p *PureFunctionIdentifier) maybeCollectDebugReason(id pfiSummaryID, s *pfiSummary, reason rhino.Node) {
+	if s.flags&pfiSummaryCollectDebug == 0 || reason.IsNil() {
+		return
+	}
+	fn := reason
+	if !fn.IsFunction() {
+		fn = NodeUtil_GetEnclosingFunction(reason)
+	}
+	if p.debugReasons == nil {
+		p.debugReasons = make(map[pfiSummaryID]*jutil.LinkedHashSet[rhino.Node], 8)
+	}
+	set := p.debugReasons[id]
+	if set == nil {
+		set = jutil.NewLinkedHashSet[rhino.Node]()
+		p.debugReasons[id] = set
+	}
+	set.Add(fn)
+}
+
+func (p *PureFunctionIdentifier) setSummaryThrows(id pfiSummaryID, s *pfiSummary, reason rhino.Node) {
+	p.maybeCollectDebugReason(id, s, reason)
+	s.bitmask |= pfiThrows
+}
+
+func (p *PureFunctionIdentifier) setSummaryMutatesThis(id pfiSummaryID, s *pfiSummary, reason rhino.Node) {
+	p.maybeCollectDebugReason(id, s, reason)
+	s.bitmask |= pfiMutatesThis
+}
+
+func (p *PureFunctionIdentifier) setSummaryMutatesArguments(id pfiSummaryID, s *pfiSummary, reason rhino.Node) {
+	p.maybeCollectDebugReason(id, s, reason)
+	s.mutatedParamMask = ^uint64(0)
+	s.bitmask |= pfiMutatesArguments
+}
+
+func (p *PureFunctionIdentifier) setSummaryMutatesArgumentAt(id pfiSummaryID, s *pfiSummary, paramIndex int, reason rhino.Node) {
+	jutil.CheckArgumentMsg1(paramIndex >= 0, "%s", paramIndex)
+	p.maybeCollectDebugReason(id, s, reason)
+	if paramIndex < 64 {
+		s.mutatedParamMask |= uint64(1) << paramIndex
 	} else {
-		p.summariesForAllNamesOfFunctionByNode[fn] = append(existing, summary)
+		s.mutatedParamMask = ^uint64(0)
 	}
+	s.bitmask |= pfiMutatesArguments
 }
 
-func (p *PureFunctionIdentifier) getSummaryOrDefault(name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	if s := p.summariesByName[name]; s != nil {
-		return s
-	}
-	return p.unknownFunctionSummary
+func (p *PureFunctionIdentifier) setSummaryMutatesGlobalState(id pfiSummaryID, s *pfiSummary, reason rhino.Node) {
+	p.maybeCollectDebugReason(id, s, reason)
+	s.mutatedParamMask = ^uint64(0)
+	s.bitmask |= pfiAllFlags
 }
 
-func (p *PureFunctionIdentifier) getSummaryForReference(nameRef rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	if name, ok := ast.AsName(nameRef); ok {
-		return p.summariesByName[name.Ident()]
-	}
-	if gp, ok := ast.AsNormalOrOptChainGetProp(nameRef); ok {
-		return p.propSummariesByName[gp.Property()]
-	}
-	panic(jutil.NewIllegalStateExceptionMsg("Unexpected name reference: " + nameRef.String()))
+func (p *PureFunctionIdentifier) addEdge(callee pfiSummaryID, caller pfiSummaryID, callerFn rhino.Node, flags uint8, nonLocalArgMask uint64) int32 {
+	idx := int32(len(p.edges))
+	p.edges = append(p.edges, pfiEdge{
+		nonLocalArgMask: nonLocalArgMask,
+		caller:          caller,
+		nextCallerEdge:  p.summaries[callee].firstCallerEdge,
+		callerFn:        callerFn,
+		flags:           flags,
+	})
+	p.summaries[callee].firstCallerEdge = idx
+	return idx
 }
 
-func (p *PureFunctionIdentifier) getSummaryForReferenceOrDefault(nameRef rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	if s := p.getSummaryForReference(nameRef); s != nil {
-		return s
-	}
-	return p.unknownFunctionSummary
-}
-
-// allocPropagationForInvocation is SideEffectPropagation.forInvocation.
-func (p *PureFunctionIdentifier) allocPropagationForInvocation(
-	invocation rhino.Node,
-	callScope *Scope,
-	callerEntry *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry,
-	argumentsMatchParameters bool,
-	propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
-	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
-	// `this` in an arrow function is the `this` of the enclosing function, which is not
-	// tracked.
-	return &PureFunctionIdentifier_SideEffectPropagation{
-		calleeThisEqualsCallerThis: PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation) && !callerEntry.root.IsArrowFunction(),
-		propagateThrows:            propagateThrows,
-		invocation:                 invocation,
-		callScope:                  callScope,
-		callerEntry:                callerEntry,
-		argumentsMatchParameters:   argumentsMatchParameters,
-	}
+func (p *PureFunctionIdentifier) addAliasEdge(callee pfiSummaryID, caller pfiSummaryID) {
+	p.addEdge(callee, caller, rhino.NilNode, pfiEdgeAlias|pfiEdgePropagateThrows, 0)
 }
 
 // Java: PureFunctionIdentifier.process(Node, Node, ReferenceMap)
@@ -242,74 +357,93 @@ func (p *PureFunctionIdentifier) Process(externs rhino.Node, root rhino.Node, re
 	jutil.CheckStateMsg(
 		!p.hasProcessed, "PureFunctionIdentifier::process may only be called once per instance.")
 	p.hasProcessed = true
+	p.codingConvention = p.compiler.GetCodingConvention()
+	if !p.assumeGettersArePure {
+		p.accessorSummary = p.compiler.GetAccessorSummary()
+	}
 
-	p.PopulateDatastructuresForAnalysisTraversal(references)
+	p.populateDatastructuresForAnalysisTraversal(references)
 
-	NodeTraversal_Traverse(p.compiler, externs, NewPureFunctionIdentifier_ExternFunctionAnnotationAnalyzer(p))
+	NodeTraversal_Traverse(p.compiler, externs, &pfiExternFunctionAnnotationAnalyzer{outer: p})
 	sc := NewSyntacticScopeCreator(p.compiler)
 	b := NodeTraversal_Builder{
 		compiler:     p.compiler,
-		callback:     NewPureFunctionIdentifier_FunctionBodyAnalyzer(p),
+		callback:     newPFIFunctionBodyAnalyzer(p),
 		scopeCreator: sc,
 	}
 	b.Traverse(root)
 
-	p.PropagateSideEffects()
+	p.propagateSideEffects()
+	p.validateArtificialPurityAnnotations()
+	p.markPureFunctionCalls()
 
-	p.ValidateArtificialPurity()
-
-	p.MarkPureFunctionCalls()
+	// Release transient arenas immediately once invocation flags are stamped.
+	p.summaries = nil
+	p.edges = nil
+	p.callSites = nil
+	p.multiCallees = nil
+	p.nameSummaries = nil
+	p.propSummaries = nil
+	p.fnSummaries = nil
+	p.fnMultiSummaries = nil
+	p.scratchCallableLeaves = nil
+	p.scratchCalleeIDs = nil
+	p.artificiallyPureFns = nil
+	p.artificiallyPureSet = nil
+	p.debugReasons = nil
 }
 
-// ValidateArtificialPurity checks whether any function literals marked as
-// artificially pure still have an overall AmbiguatedFunctionSummary with
-// some side-effects, for debugging purposes.
-//
-// This can happen when there are multiple definitions of the same function
-// name, and one is marked as artificially pure but another is
-// side-effect-full.
+// validateArtificialPurityAnnotations checks whether any function literals
+// marked as artificially pure still have an overall summary with side-effects.
 //
 // Java: PureFunctionIdentifier.validateArtificialPurity()
-func (p *PureFunctionIdentifier) ValidateArtificialPurity() {
+func (p *PureFunctionIdentifier) validateArtificialPurityAnnotations() {
 	if !p.validateArtificialPurity {
-		// Avoid unnecessary computation.
 		return
 	}
-	for function := range p.artificiallyPureLiteralsForDebugging.All() {
-		for _, summary := range p.summariesForAllNamesOfFunctionByNode[function] {
-			if summary.HasNoFlagsSet() {
-				// no flags set == the function is successfully treated as pure.
-				continue
+	for _, function := range p.artificiallyPureFns {
+		single, multi := p.getFunctionSummaries(function)
+		if single != 0 {
+			p.validateArtificialPurityForSummary(function, single)
+		} else {
+			for _, sid := range multi {
+				p.validateArtificialPurityForSummary(function, sid)
 			}
-			if summary.name == ".constructor" {
-				// .constructor is a special case - almost all the time, constructors get invoked by
-				// `new Foo();` instead of `new something.constructor();` are a special case - most of the
-				// time they are invoked not by the
-				// this.constructor property & JSCompiler doesn't support this.constructor + property
-				// renaming well. So don't report this error, as it's not particularly helpful.
-				continue
-			}
-			var reasons []rhino.Node
-			if summary.impureFunctionReasonsForDebugging != nil {
-				reasons = summary.impureFunctionReasonsForDebugging.ToSlice()
-			} else {
-				// stream() of a null set.
-				panic(jutil.NewNullPointerException())
-			}
-			slices.SortStableFunc(reasons, PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR)
-			formatted := make([]string, 0, len(reasons))
-			for _, reason := range reasons {
-				formatted = append(formatted, PureFunctionIdentifier_FormatSourceLocation(reason))
-			}
-			sideEffectfulDefinitions := strings.Join(formatted, "\n  ")
-			p.compiler.Report(
-				JSError_MakeWithNode(
-					function,
-					PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION,
-					summary.name,
-					sideEffectfulDefinitions))
 		}
 	}
+}
+
+func (p *PureFunctionIdentifier) validateArtificialPurityForSummary(function rhino.Node, sid pfiSummaryID) {
+	s := &p.summaries[sid]
+	if s.bitmask == 0 {
+		return
+	}
+	if s.nameKind() == pfiNameProp && s.nameID == pfiConstructorStringID {
+		// .constructor is a special case - constructors are almost always invoked via
+		// `new Foo();` rather than `new something.constructor();`.
+		return
+	}
+	var set *jutil.LinkedHashSet[rhino.Node]
+	if p.debugReasons != nil {
+		set = p.debugReasons[sid]
+	}
+	if set == nil {
+		// stream() of a null set.
+		panic(jutil.NewNullPointerException())
+	}
+	reasons := set.ToSlice()
+	slices.SortStableFunc(reasons, PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR)
+	formatted := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		formatted = append(formatted, PureFunctionIdentifier_FormatSourceLocation(reason))
+	}
+	sideEffectfulDefinitions := strings.Join(formatted, "\n  ")
+	p.compiler.Report(
+		JSError_MakeWithNode(
+			function,
+			PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION,
+			s.displayName(),
+			sideEffectfulDefinitions))
 }
 
 // PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR is
@@ -346,13 +480,6 @@ func PureFunctionIdentifier_FormatSourceLocation(node rhino.Node) string {
 	return name + ":" + strconv.Itoa(node.GetLineno()) + ":" + strconv.Itoa(node.GetCharno())
 }
 
-// PureFunctionIdentifier_CollectCallableLeaves traverses an expr to collect
-// nodes representing potential callables that it may resolve to well known
-// callables.
-//
-// See collectCallableLeavesInternal. Returns the disovered callables, or
-// null if an unexpected possible value was found.
-//
 // Java: PureFunctionIdentifier.collectCallableLeaves(Node, AstAnalyzer)
 func PureFunctionIdentifier_CollectCallableLeaves(
 	expr rhino.Node, astAnalyzer *AstAnalyzer) []rhino.Node {
@@ -430,20 +557,7 @@ func pureFunctionIdentifier_collectCallableLeavesSlice(
 }
 
 // PureFunctionIdentifier_IsDefinitelyRValue returns true only if rvalue is
-// defintely a reference reading a value.
-//
-// For the most part it's sufficient to cover cases where a nominal function
-// reference might reasonably be expected, since those are the values that
-// matter to analysis.
-//
-// It's very important that this never returns true for an L-value,
-// including when new syntax is added to the language. That would cause some
-// impure functions to be considered pure. Therefore, this method is a very
-// explict allowlist. Anything that's unrecognized is considered not an
-// R-value. This is insurance against new syntax.
-//
-// New cases can be added as needed to increase the accuracy of the analysis.
-// They just have to be verified as always R-values.
+// definitely a reference reading a value.
 //
 // Java: PureFunctionIdentifier.isDefinitelyRValue(Node)
 func PureFunctionIdentifier_IsDefinitelyRValue(rvalue rhino.Node) bool {
@@ -494,239 +608,307 @@ func PureFunctionIdentifier_IsDefinitelyRValue(rvalue rhino.Node) bool {
 		_, isObjLit := ast.AsObjectLit(parent.GetParent())
 		return isObjLit
 	default:
-		// Anything not explicitly listed may not be an R-value. We only worry about the likely
-		// cases for nominal function values since those are what interest us and its safe to miss
-		// some R-values. It's more important that we correctly identify L-values.
 		return false
 	}
 }
 
-// Java: PureFunctionIdentifier.getGoogCacheCallableExpression(Cache)
-func (p *PureFunctionIdentifier) GetGoogCacheCallableExpression(cacheCall *CodingConvention_Cache) []rhino.Node {
+func (p *PureFunctionIdentifier) appendGoogCacheCallableLeaves(cacheCall *CodingConvention_Cache) []rhino.Node {
 	jutil.CheckNotNull(cacheCall)
-
-	valueFnCallables := PureFunctionIdentifier_CollectCallableLeaves(cacheCall.valueFn, p.astAnalyzer)
-	if valueFnCallables == nil {
+	leaves := p.scratchCallableLeaves[:0]
+	if !pureFunctionIdentifier_collectCallableLeavesSlice(cacheCall.valueFn, &leaves, p.astAnalyzer) {
 		// ImmutableList.Builder.addAll(null)
 		panic(jutil.NewNullPointerException())
 	}
-	builder := append([]rhino.Node(nil), valueFnCallables...)
 	if !cacheCall.keyFn.IsNil() {
-		keyFnCallables := PureFunctionIdentifier_CollectCallableLeaves(cacheCall.keyFn, p.astAnalyzer)
-		if keyFnCallables == nil {
+		if !pureFunctionIdentifier_collectCallableLeavesSlice(cacheCall.keyFn, &leaves, p.astAnalyzer) {
 			// ImmutableList.Builder.addAll(null)
 			panic(jutil.NewNullPointerException())
 		}
-		builder = append(builder, keyFnCallables...)
 	}
-	return builder
+	p.scratchCallableLeaves = leaves
+	return leaves
 }
 
-// Java: PureFunctionIdentifier.getSummariesForCallee(Node)
-func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation rhino.Node) []*PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
+// recordCallSite resolves invocation's callee summaries and invocation flags once
+// during the analyzer traversal and appends a compact pfiCallSite record.
+func (p *PureFunctionIdentifier) recordCallSite(invocation rhino.Node) pfiCallSite {
+	var flags uint8
+	tok := invocation.GetToken()
+	isCallOrTagged := tok == rhino.Token_CALL || tok == rhino.Token_OPTCHAIN_CALL || tok == rhino.Token_TAGGED_TEMPLATELIT
+	if isCallOrTagged {
+		flags |= pfiCallIsCallOrTagged
+		if !p.astAnalyzer.FunctionCallHasSideEffects(invocation) {
+			flags |= pfiCallKnownPureForMark
+			if tok == rhino.Token_CALL {
+				flags |= pfiCallSkipAnalyzer
+			}
+		}
+	} else if tok == rhino.Token_NEW {
+		if !p.astAnalyzer.ConstructorCallHasSideEffects(invocation) {
+			flags |= pfiCallKnownPureForMark | pfiCallSkipAnalyzer
+		}
+	}
 
-	cacheCall := p.compiler.GetCodingConvention().DescribeCachingCall(invocation)
+	callee := pureFunctionIdentifier_invocationCallee(invocation)
+	calleeNode := callee.Node()
+	if calleeNode.IsSuper() {
+		flags |= pfiCallIsSuper
+	}
+
+	// Fast exit when neither VisitCall nor MarkPureFunctionCalls needs callee summaries.
+	if flags&pfiCallSkipAnalyzer != 0 {
+		site := pfiCallSite{callNode: invocation, flags: flags}
+		p.callSites = append(p.callSites, site)
+		return site
+	}
+
+	isViaCallOrApply := PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation)
+	if isViaCallOrApply {
+		flags |= pfiCallViaCallOrApply
+	}
+
+	var cacheCall *CodingConvention_Cache
+	if tok == rhino.Token_CALL {
+		cacheCall = p.codingConvention.DescribeCachingCall(invocation)
+		if cacheCall != nil {
+			flags |= pfiCallIsCacheCall
+		}
+	}
 
 	if cacheCall == nil {
 		var singleCallee rhino.Node
-		callee := pureFunctionIdentifier_invocationCallee(invocation)
-		if PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation) {
-			singleCallee = callee.MustNormalOrOptChainGet().Object().Node()
+		if isViaCallOrApply {
+			singleCallee = calleeNode.GetFirstChild()
 		} else {
-			first := callee.Node()
-			switch first.GetToken() {
+			switch calleeNode.GetToken() {
 			case rhino.Token_FUNCTION, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_NAME:
-				singleCallee = first
+				singleCallee = calleeNode
 			}
 		}
 		if !singleCallee.IsNil() {
 			if singleCallee.IsFunction() {
-				summariesForFunction := p.summariesForAllNamesOfFunctionByNode[singleCallee]
-				jutil.CheckStateMsg1(len(summariesForFunction) != 0, "Function missed during analysis: %s", singleCallee)
-				return summariesForFunction
+				single, multi := p.getFunctionSummaries(singleCallee)
+				jutil.CheckStateMsg1(single != 0 || len(multi) != 0, "Function missed during analysis: %s", singleCallee)
+				if single != 0 {
+					site := pfiCallSite{
+						callNode:    invocation,
+						firstCallee: uint32(single),
+						calleeCount: 1,
+						flags:       flags,
+					}
+					p.callSites = append(p.callSites, site)
+					return site
+				}
+				offset := uint32(len(p.multiCallees))
+				p.multiCallees = append(p.multiCallees, multi...)
+				site := pfiCallSite{
+					callNode:    invocation,
+					firstCallee: offset,
+					calleeCount: uint32(len(multi)),
+					flags:       flags,
+				}
+				p.callSites = append(p.callSites, site)
+				return site
 			}
-			if s := p.getSummaryForReference(singleCallee); s != nil {
-				return []*PureFunctionIdentifier_AmbiguatedFunctionSummary{s}
+			sid := p.getSummaryForReferenceOrDefault(singleCallee)
+			site := pfiCallSite{
+				callNode:    invocation,
+				firstCallee: uint32(sid),
+				calleeCount: 1,
+				flags:       flags,
 			}
-			return p.unknownFunctionSummarySlice
+			p.callSites = append(p.callSites, site)
+			return site
 		}
 	}
 
 	var callees []rhino.Node
 	if cacheCall != nil {
-		callees = p.GetGoogCacheCallableExpression(cacheCall)
+		callees = p.appendGoogCacheCallableLeaves(cacheCall)
 	} else {
 		p.scratchCallableLeaves = p.scratchCallableLeaves[:0]
-		if pureFunctionIdentifier_collectCallableLeavesSlice(pureFunctionIdentifier_invocationCallee(invocation).Node(), &p.scratchCallableLeaves, p.astAnalyzer) {
+		if pureFunctionIdentifier_collectCallableLeavesSlice(calleeNode, &p.scratchCallableLeaves, p.astAnalyzer) {
 			callees = p.scratchCallableLeaves
 		}
 	}
 
 	if callees == nil {
-		return p.unknownFunctionSummarySlice
+		site := pfiCallSite{
+			callNode:    invocation,
+			firstCallee: uint32(pfiUnknownSummaryID),
+			calleeCount: 1,
+			flags:       flags,
+		}
+		p.callSites = append(p.callSites, site)
+		return site
 	}
 
 	jutil.CheckStateMsg(len(callees) != 0, "Unexpected empty callees for valid result")
-	results := make([]*PureFunctionIdentifier_AmbiguatedFunctionSummary, 0, len(callees))
-	for _, callee := range callees {
-		if callee.IsFunction() {
-			jutil.CheckStateMsg1(callee.IsFunction(), "%s", callee)
-
-			summariesForFunction :=
-				p.summariesForAllNamesOfFunctionByNode[callee]
-			jutil.CheckStateMsg1(len(summariesForFunction) != 0, "Function missed during analysis: %s", callee)
-
-			results = append(results, summariesForFunction...)
+	ids := p.scratchCalleeIDs[:0]
+	for _, c := range callees {
+		if c.IsFunction() {
+			single, multi := p.getFunctionSummaries(c)
+			jutil.CheckStateMsg1(single != 0 || len(multi) != 0, "Function missed during analysis: %s", c)
+			if single != 0 {
+				ids = append(ids, single)
+			} else {
+				ids = append(ids, multi...)
+			}
 		} else {
-			results = append(results, p.getSummaryForReferenceOrDefault(callee))
+			ids = append(ids, p.getSummaryForReferenceOrDefault(c))
 		}
 	}
-	return results
-}
+	p.scratchCalleeIDs = ids[:0]
 
-func (p *PureFunctionIdentifier) ensureReverseCallGraphCapacity(totalNodes int) {
-	if totalNodes <= 8 {
-		return
+	if len(ids) == 1 {
+		site := pfiCallSite{
+			callNode:    invocation,
+			firstCallee: uint32(ids[0]),
+			calleeCount: 1,
+			flags:       flags,
+		}
+		p.callSites = append(p.callSites, site)
+		return site
 	}
-	p.reverseCallGraph.Nodes.EnsureCapacity(totalNodes)
+	offset := uint32(len(p.multiCallees))
+	p.multiCallees = append(p.multiCallees, ids...)
+	site := pfiCallSite{
+		callNode:    invocation,
+		firstCallee: offset,
+		calleeCount: uint32(len(ids)),
+		flags:       flags,
+	}
+	p.callSites = append(p.callSites, site)
+	return site
 }
 
-// PopulateDatastructuresForAnalysisTraversal fills all of the auxiliary
-// data-structures used by this pass based on the results in referenceMap.
-//
-// This is the first step of analysis. These structures will be used by a
-// traversal that analyzes the bodies of located functions for side-effects.
-// That traversal is separate because it needs access to scopes and also
-// depends on global knowledge of functions.
-//
 // Java: PureFunctionIdentifier.populateDatastructuresForAnalysisTraversal(ReferenceMap)
-func (p *PureFunctionIdentifier) PopulateDatastructuresForAnalysisTraversal(referenceMap *OptimizeCalls_ReferenceMap) {
-	totalRefs := referenceMap.names.Size() + referenceMap.props.Size()
-	p.summariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, totalRefs)
-	p.propSummariesByName = make(map[string]*PureFunctionIdentifier_AmbiguatedFunctionSummary, referenceMap.props.Size())
-	p.summariesForAllNamesOfFunctionByNode = make(map[rhino.Node][]*PureFunctionIdentifier_AmbiguatedFunctionSummary, max(totalRefs/2, 16))
-	p.ensureReverseCallGraphCapacity(totalRefs + 2)
+func (p *PureFunctionIdentifier) populateDatastructuresForAnalysisTraversal(referenceMap *OptimizeCalls_ReferenceMap) {
+	nameCount := referenceMap.names.Size()
+	propCount := referenceMap.props.Size()
+	totalRefs := nameCount + propCount
+
+	p.summaries = make([]pfiSummary, 1, totalRefs+4)
+	p.summaries[pfiUnknownSummaryID] = pfiSummary{
+		mutatedParamMask: ^uint64(0),
+		firstCallerEdge:  -1,
+		bitmask:          pfiAllFlags,
+		flags:            uint8(pfiNameUnknown) << pfiNameKindShift,
+	}
+	p.nameSummaries = make(map[uint32]pfiSummaryID, nameCount)
+	p.propSummaries = make(map[uint32]pfiSummaryID, propCount)
+	p.fnSummaries = make(map[rhino.Node]uint32, max(totalRefs/2, 16))
+	p.edges = make([]pfiEdge, 0, max(totalRefs/2, 16))
+	p.callSites = make([]pfiCallSite, 0, max(totalRefs/2, 16))
+
+	var dotPrefixedNames map[uint32]pfiSummaryID
+	for id, refs := range referenceMap.GetNameReferencesByID() {
+		if len(refs) == 0 {
+			continue
+		}
+		jutil.CheckState(id > rhino.RhinoStringPool_EmptyID && id != pfiDotStringID)
+		sid := p.allocSummary(id, pfiNameVar)
+		p.nameSummaries[id] = sid
+		if s := strpool.String(strpool.ID(id)); len(s) > 1 && s[0] == '.' {
+			if propID := strpool.Lookup(s[1:]); propID != 0 {
+				if dotPrefixedNames == nil {
+					dotPrefixedNames = make(map[uint32]pfiSummaryID, 4)
+				}
+				dotPrefixedNames[uint32(propID)] = sid
+			}
+		}
+	}
 
 	hasDotNameCollision := false
-	for key, refs := range referenceMap.GetNameReferences() {
+	for id, refs := range referenceMap.GetPropReferencesByID() {
 		if len(refs) == 0 {
 			continue
 		}
-		jutil.CheckState(key != "" && key != PureFunctionIdentifier_PROP_NAME_PREFIX)
-		p.summariesByName[key] = p.createSummaryInGraph(key)
-	}
-	for key, refs := range referenceMap.GetPropReferences() {
-		if len(refs) == 0 {
-			continue
+		jutil.CheckState(id > rhino.RhinoStringPool_EmptyID)
+		if dotPrefixedNames != nil {
+			if existing := dotPrefixedNames[id]; existing != 0 {
+				p.propSummaries[id] = existing
+				hasDotNameCollision = true
+				continue
+			}
 		}
-		jutil.CheckState(key != "")
-		propKey := p.allocPropKey(key)
-		if existing := p.summariesByName[propKey]; existing != nil {
-			p.propSummariesByName[key] = existing
-			hasDotNameCollision = true
-		} else {
-			s := p.createSummaryInGraph(propKey)
-			p.summariesByName[propKey] = s
-			p.propSummariesByName[key] = s
-		}
+		p.propSummaries[id] = p.allocSummary(id, pfiNameProp)
 	}
 
 	if !hasDotNameCollision {
-		for key, refs := range referenceMap.GetNameReferences() {
+		for id, refs := range referenceMap.GetNameReferencesByID() {
 			if len(refs) == 0 {
 				continue
 			}
-			p.populateFunctionDefinitionsWithSummary(p.summariesByName[key], refs)
+			p.populateFunctionDefinitionsWithSummary(p.nameSummaries[id], refs)
 		}
-		for key, refs := range referenceMap.GetPropReferences() {
+		for id, refs := range referenceMap.GetPropReferencesByID() {
 			if len(refs) == 0 {
 				continue
 			}
-			p.populateFunctionDefinitionsWithSummary(p.propSummariesByName[key], refs)
+			p.populateFunctionDefinitionsWithSummary(p.propSummaries[id], refs)
 		}
 	} else {
-		referencesByName := jutil.Maps_NewHashMapWithExpectedSize[string, []rhino.Node](max(totalRefs, 12))
-		for key, refs := range referenceMap.GetNameReferences() {
-			if len(refs) == 0 {
-				continue
-			}
-			referencesByName.Put(key, refs)
+		type summaryRefs struct {
+			sid  pfiSummaryID
+			refs []rhino.Node
 		}
-		for key, refs := range referenceMap.GetPropReferences() {
+		bySummary := make(map[pfiSummaryID]int, totalRefs)
+		ordered := make([]summaryRefs, 0, totalRefs)
+		for id, refs := range referenceMap.GetNameReferencesByID() {
 			if len(refs) == 0 {
 				continue
 			}
-			propKey := p.allocPropKey(key)
-			if existing, ok := referencesByName.Lookup(propKey); ok {
-				combined := make([]rhino.Node, 0, len(existing)+len(refs))
-				combined = append(combined, existing...)
+			sid := p.nameSummaries[id]
+			bySummary[sid] = len(ordered)
+			ordered = append(ordered, summaryRefs{sid: sid, refs: refs})
+		}
+		for id, refs := range referenceMap.GetPropReferencesByID() {
+			if len(refs) == 0 {
+				continue
+			}
+			sid := p.propSummaries[id]
+			if idx, ok := bySummary[sid]; ok {
+				combined := make([]rhino.Node, 0, len(ordered[idx].refs)+len(refs))
+				combined = append(combined, ordered[idx].refs...)
 				combined = append(combined, refs...)
-				referencesByName.Put(propKey, combined)
+				ordered[idx].refs = combined
 			} else {
-				referencesByName.Put(propKey, refs)
+				bySummary[sid] = len(ordered)
+				ordered = append(ordered, summaryRefs{sid: sid, refs: refs})
 			}
 		}
-		for name, references := range referencesByName.All() {
-			p.PopulateFunctionDefinitions(name, references)
+		for _, item := range ordered {
+			p.populateFunctionDefinitionsWithSummary(item.sid, item.refs)
 		}
 	}
 
 	p.putSummaryForFunctionNode(
 		PureFunctionIdentifier_IMPLICIT_PURE_FN,
-		p.createSummaryInGraph("<implicit pure class ctor"))
+		p.allocSummary(0, pfiNameImplicitPureCtor))
 }
 
-func (p *PureFunctionIdentifier) allocPropKey(key string) string {
-	return PureFunctionIdentifier_PROP_NAME_PREFIX + key
-}
-
-// PopulateFunctionDefinitions, for a name and its set of references, records
-// the set of functions that may define that name or skiplists the name if
-// there are unclear definitions.
-//
-// name is a variable or property name; references the set of all nodes
-// representing R- and L-value references to name.
-//
-// Java: PureFunctionIdentifier.populateFunctionDefinitions(String, List<Node>)
-func (p *PureFunctionIdentifier) PopulateFunctionDefinitions(name string, references []rhino.Node) {
-	summaryForName := jutil.CheckNotNull(p.summariesByName[name])
-	p.populateFunctionDefinitionsWithSummary(summaryForName, references)
-}
-
-func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryForName *PureFunctionIdentifier_AmbiguatedFunctionSummary, references []rhino.Node) {
-	// Make sure we get absolutely every R-value assigned to `name` or at the very least detect
-	// there are some we're missing. Overlooking a single R-value would invalidate the analysis.
-
+func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryID pfiSummaryID, references []rhino.Node) {
 	invalid := false
 	rvaluesAssignedToName := p.scratchCallableLeaves[:0]
 	for _, reference := range references {
-		// Eliminate any references that we're sure are R-values themselves. Otherwise
-		// there's a high probability we'll inspect an R-value for futher R-values. We wouldn't
-		// find any, and then we'd have to consider `name` impure.
 		if !PureFunctionIdentifier_IsDefinitelyRValue(reference) {
-			// For anything that might be an L-reference, get the expression being assigned to it.
 			rvalue := NodeUtil_GetRValueOfLValue(reference)
 			if rvalue.IsNil() {
 				invalid = true
 				break
-			} else {
-				// If the assigned R-value is an analyzable expression, collect all the possible
-				// FUNCTIONs that could result from that expression. If the expression isn't analyzable,
-				// represent that with `null` so we can skiplist `name`.
-				prevLen := len(rvaluesAssignedToName)
-				if !pureFunctionIdentifier_collectCallableLeavesSlice(rvalue, &rvaluesAssignedToName, p.astAnalyzer) {
-					invalid = true
-					break
-				}
-				if p.validateArtificialPurity && !reference.IsFromExterns() {
-					for _, callable := range rvaluesAssignedToName[prevLen:] {
-						jsdoc := NodeUtil_GetBestJSDocInfo(callable)
-						isArtificiallyPure := jsdoc != nil && jsdoc.IsNoSideEffects()
-						if isArtificiallyPure {
-							p.artificiallyPureLiteralsForDebugging.Add(callable)
-							summaryForName.SetCollectImpureDebuggingReason()
-						}
+			}
+			prevLen := len(rvaluesAssignedToName)
+			if !pureFunctionIdentifier_collectCallableLeavesSlice(rvalue, &rvaluesAssignedToName, p.astAnalyzer) {
+				invalid = true
+				break
+			}
+			if p.validateArtificialPurity && !reference.IsFromExterns() {
+				for _, callable := range rvaluesAssignedToName[prevLen:] {
+					jsdoc := NodeUtil_GetBestJSDocInfo(callable)
+					if jsdoc != nil && jsdoc.IsNoSideEffects() {
+						p.addArtificiallyPureFunction(callable)
+						p.summaries[summaryID].flags |= pfiSummaryCollectDebug
 					}
 				}
 			}
@@ -735,170 +917,202 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryF
 	p.scratchCallableLeaves = rvaluesAssignedToName[:0]
 
 	if len(rvaluesAssignedToName) == 0 || invalid {
-		// Any of:
-		// - There are no L-values with this name.
-		// - There's a an L-value and we can't find the associated R-values.
-		// - There's a an L-value with R-values are not all known to be callable.
-		summaryForName.SetMutatesGlobalStateAndAllOtherFlags(rhino.NilNode)
-	} else {
-		for _, rvalue := range rvaluesAssignedToName {
-			if rvalue.IsFunction() {
-				p.putSummaryForFunctionNode(rvalue, summaryForName)
-			} else if NodeUtil_IsUndefined(rvalue) {
-			} else {
-				rvalueSummary := p.getSummaryForReferenceOrDefault(rvalue)
+		p.setSummaryMutatesGlobalState(summaryID, &p.summaries[summaryID], rhino.NilNode)
+		return
+	}
+	for _, rvalue := range rvaluesAssignedToName {
+		if rvalue.IsFunction() {
+			p.putSummaryForFunctionNode(rvalue, summaryID)
+		} else if NodeUtil_IsUndefined(rvalue) {
+			// Assigning `undefined` leaves purity unchanged.
+		} else {
+			p.addAliasEdge(p.getSummaryForReferenceOrDefault(rvalue), summaryID)
+		}
+	}
+}
 
-				p.reverseCallGraph.ConnectNodes(
-					rvalueSummary.graphNode,
-					PureFunctionIdentifier_SideEffectPropagation_ForAlias(),
-					summaryForName.graphNode)
+// propagateSideEffects propagates side-effect flags from impure callees to
+// callers using an impure-seeded FIFO worklist over the flat edge arena.
+//
+// Java: PureFunctionIdentifier.propagateSideEffects()
+func (p *PureFunctionIdentifier) propagateSideEffects() {
+	// Reverse caller edge lists so traversal order matches insertion order.
+	for i := range p.summaries {
+		prev := int32(-1)
+		for cur := p.summaries[i].firstCallerEdge; cur >= 0; {
+			next := p.edges[cur].nextCallerEdge
+			p.edges[cur].nextCallerEdge = prev
+			prev = cur
+			cur = next
+		}
+		p.summaries[i].firstCallerEdge = prev
+	}
+
+	queue := make([]pfiSummaryID, 0, 64)
+	for i := range p.summaries {
+		if p.summaries[i].bitmask != 0 && p.summaries[i].firstCallerEdge >= 0 {
+			p.summaries[i].flags |= pfiSummaryInQueue
+			queue = append(queue, pfiSummaryID(i))
+		}
+	}
+
+	for head := 0; head < len(queue); head++ {
+		if head > 1024 && head*2 >= len(queue) {
+			n := copy(queue, queue[head:])
+			queue = queue[:n]
+			head = 0
+		}
+		calleeID := queue[head]
+		p.summaries[calleeID].flags &^= pfiSummaryInQueue
+		calleeMask := p.summaries[calleeID].bitmask
+		calleeParams := p.summaries[calleeID].mutatedParamMask
+
+		for eIdx := p.summaries[calleeID].firstCallerEdge; eIdx >= 0; eIdx = p.edges[eIdx].nextCallerEdge {
+			e := &p.edges[eIdx]
+			if p.propagateEdge(calleeMask, calleeParams, e) {
+				caller := &p.summaries[e.caller]
+				if caller.firstCallerEdge >= 0 && caller.flags&pfiSummaryInQueue == 0 {
+					caller.flags |= pfiSummaryInQueue
+					queue = append(queue, e.caller)
+				}
 			}
 		}
 	}
 }
 
-// PropagateSideEffects propagates side effect information in
-// reverseCallGraph from callees to callers.
-//
-// This is an iterative process executed until a fixed point, where no
-// caller summary would be given new side-effects from from any callee
-// summary, is reached.
-//
-// Java: PureFunctionIdentifier.propagateSideEffects()
-func (p *PureFunctionIdentifier) PropagateSideEffects() {
-	graph.FixedPointGraphTraversal_NewTraversal[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation](
-		graph.FixedPointGraphTraversal_EdgeCallbackFunc[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation](
-			func(source *PureFunctionIdentifier_AmbiguatedFunctionSummary,
-				edge *PureFunctionIdentifier_SideEffectPropagation,
-				destination *PureFunctionIdentifier_AmbiguatedFunctionSummary) bool {
-				return edge.Propagate(source, destination)
-			})).
-		ComputeFixedPoint(p.reverseCallGraph)
+func (p *PureFunctionIdentifier) propagateEdge(calleeMask uint8, calleeParams uint64, e *pfiEdge) bool {
+	caller := &p.summaries[e.caller]
+	initialMask := caller.bitmask
+	initialParams := caller.mutatedParamMask
+
+	if e.flags&pfiEdgeAlias != 0 {
+		caller.bitmask |= calleeMask
+		caller.mutatedParamMask |= calleeParams
+	} else if calleeMask&pfiMutatesGlobalState != 0 {
+		p.setSummaryMutatesGlobalState(e.caller, caller, e.callerFn)
+	} else {
+		if e.flags&pfiEdgePropagateThrows != 0 && calleeMask&pfiThrows != 0 {
+			p.setSummaryThrows(e.caller, caller, e.callerFn)
+		}
+		if calleeMask&pfiMutatesArguments != 0 &&
+			(e.flags&pfiEdgeAlwaysNonLocalArgs != 0 || (calleeParams&e.nonLocalArgMask) != 0) {
+			p.setSummaryMutatesGlobalState(e.caller, caller, e.callerFn)
+		}
+		if calleeMask&pfiMutatesThis != 0 {
+			if e.flags&pfiEdgeThisCaller != 0 {
+				p.setSummaryMutatesThis(e.caller, caller, e.callerFn)
+			} else if e.flags&pfiEdgeThisGlobal != 0 {
+				p.setSummaryMutatesGlobalState(e.caller, caller, e.callerFn)
+			}
+		}
+	}
+
+	return caller.bitmask != initialMask || caller.mutatedParamMask != initialParams
 }
 
-// MarkPureFunctionCalls sets no side effect property at pure-function call
-// sites.
+// markPureFunctionCalls stamps side-effect flags onto recorded invocation nodes.
 //
 // Java: PureFunctionIdentifier.markPureFunctionCalls()
-func (p *PureFunctionIdentifier) MarkPureFunctionCalls() {
-	for _, callNode := range p.allFunctionCalls {
-		calleeSummaries := p.GetSummariesForCallee(callNode)
-
-		// Default to side effects, non-local results
+func (p *PureFunctionIdentifier) markPureFunctionCalls() {
+	for i := range p.callSites {
+		site := p.callSites[i]
 		flags := rhino.NewNode_SideEffectFlags()
-		if len(calleeSummaries) == 0 {
-			flags.SetAllFlags()
-		} else {
+
+		if site.flags&pfiCallKnownPureForMark != 0 {
 			flags.ClearAllFlags()
-			for _, calleeSummary := range calleeSummaries {
-				jutil.CheckNotNull(calleeSummary)
-				if calleeSummary.MutatesGlobalState() {
+		} else {
+			if site.calleeCount == 0 {
+				flags.SetAllFlags()
+			} else {
+				var unionMask uint8
+				if site.calleeCount == 1 {
+					unionMask = p.summaries[site.firstCallee].bitmask
+				} else {
+					for _, cid := range p.multiCallees[site.firstCallee : site.firstCallee+site.calleeCount] {
+						unionMask |= p.summaries[cid].bitmask
+					}
+				}
+				flags.ClearAllFlags()
+				if unionMask&pfiMutatesGlobalState != 0 {
 					flags.SetMutatesGlobalState()
 				}
-
-				if calleeSummary.MutatesArguments() {
+				if unionMask&pfiMutatesArguments != 0 {
 					flags.SetMutatesArguments()
 				}
-
-				if calleeSummary.FunctionThrows() {
+				if unionMask&pfiThrows != 0 {
 					flags.SetThrows()
 				}
-
-				if PureFunctionIdentifier_IsCallOrTaggedTemplateLit(callNode) {
-					if calleeSummary.MutatesThis() {
-						// A summary for "f" maps to both "f()" and "f.call()" nodes.
-						if PureFunctionIdentifier_IsInvocationViaCallOrApply(callNode) {
-							flags.SetMutatesArguments() // `this` is actually an argument.
-						} else {
-							flags.SetMutatesThis()
-						}
+				if site.flags&pfiCallIsCallOrTagged != 0 && unionMask&pfiMutatesThis != 0 {
+					if site.flags&pfiCallViaCallOrApply != 0 {
+						flags.SetMutatesArguments() // `this` is passed as an argument.
+					} else {
+						flags.SetMutatesThis()
 					}
 				}
 			}
-		}
 
-		if _, isSuper := pureFunctionIdentifier_invocationCallee(callNode).AsSuper(); isSuper {
-			// All `super()` calls (i.e. from subclass constructors) implicitly mutate `this`; they
-			// determine its value in the caller scope. Concretely, `super()` calls must not be removed
-			// or reordered. Marking them this way ensures that without pinning the enclosing function.
-			flags.SetMutatesThis()
-		}
-
-		// Handle special cases (Math, RegExp)
-		if PureFunctionIdentifier_IsCallOrTaggedTemplateLit(callNode) {
-			if !p.astAnalyzer.FunctionCallHasSideEffects(callNode) {
-				flags.ClearAllFlags()
-			}
-		} else if callNode.IsNew() {
-			// Handle known cases now (Object, Date, RegExp, etc)
-			if !p.astAnalyzer.ConstructorCallHasSideEffects(callNode) {
-				flags.ClearAllFlags()
+			if site.flags&pfiCallIsSuper != 0 {
+				// All `super()` calls implicitly mutate `this` in the caller scope.
+				flags.SetMutatesThis()
 			}
 		}
 
-		if callNode.GetSideEffectFlags() != flags.ValueOf() {
-			callNode.SetSideEffectFlagsObject(flags)
-			p.compiler.ReportChangeToEnclosingScope(callNode)
+		if site.callNode.GetSideEffectFlags() != flags.ValueOf() {
+			site.callNode.SetSideEffectFlagsObject(flags)
+			p.compiler.ReportChangeToEnclosingScope(site.callNode)
 		}
 	}
 }
 
-// PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer inspects function
-// JSDoc for side effects and applies them to the associated
-// AmbiguatedFunctionSummary.
-//
-// This callback is only meant for use on externs.
-type PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer struct {
+// pfiExternFunctionAnnotationAnalyzer inspects extern function JSDoc annotations
+// and applies side effects to the associated summaries.
+type pfiExternFunctionAnnotationAnalyzer struct {
 	outer *PureFunctionIdentifier
 }
 
-// Java: PureFunctionIdentifier.ExternFunctionAnnotationAnalyzer()
-func NewPureFunctionIdentifier_ExternFunctionAnnotationAnalyzer(outer *PureFunctionIdentifier) *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer {
-	return &PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer{outer: outer}
-}
-
-// Java: PureFunctionIdentifier.ExternFunctionAnnotationAnalyzer.shouldTraverse(NodeTraversal, Node, Node)
-func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) ShouldTraverse(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
+func (a *pfiExternFunctionAnnotationAnalyzer) ShouldTraverse(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
-// Java: PureFunctionIdentifier.ExternFunctionAnnotationAnalyzer.visit(NodeTraversal, Node, Node)
-func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
+func (a *pfiExternFunctionAnnotationAnalyzer) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	if !node.IsFunction() {
 		return
 	}
-
-	for _, definitionSummary := range a.outer.summariesForAllNamesOfFunctionByNode[node] {
-		a.UpdateSideEffectsForExternFunction(node, definitionSummary)
+	single, multi := a.outer.getFunctionSummaries(node)
+	if single != 0 {
+		a.updateSideEffectsForExternFunction(node, single)
+	} else {
+		for _, sid := range multi {
+			a.updateSideEffectsForExternFunction(node, sid)
+		}
 	}
 }
 
-// Java: PureFunctionIdentifier.ExternFunctionAnnotationAnalyzer.updateSideEffectsForExternFunction(Node, AmbiguatedFunctionSummary)
-func (a *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) UpdateSideEffectsForExternFunction(
-	externFunction rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+func (a *pfiExternFunctionAnnotationAnalyzer) updateSideEffectsForExternFunction(
+	externFunction rhino.Node, sid pfiSummaryID) {
 	jutil.CheckArgument(externFunction.IsFunction())
 	jutil.CheckArgument(externFunction.IsFromExterns())
 
+	p := a.outer
+	s := &p.summaries[sid]
 	info := NodeUtil_GetBestJSDocInfo(externFunction)
 	if info == nil {
-		// We don't know anything about this function so we assume it has side effects.
-		summary.SetMutatesGlobalStateAndAllOtherFlags(externFunction)
+		p.setSummaryMutatesGlobalState(sid, s, externFunction)
 		return
 	}
 
 	if info.ModifiesThis() {
-		summary.SetMutatesThis(externFunction)
+		p.setSummaryMutatesThis(sid, s, externFunction)
 	}
 	if info.HasSideEffectsArgumentsAnnotation() {
-		summary.SetMutatesArguments(externFunction)
+		p.setSummaryMutatesArguments(sid, s, externFunction)
 	}
 	if len(info.GetThrowsAnnotations()) != 0 {
-		summary.SetThrows(externFunction)
+		p.setSummaryThrows(sid, s, externFunction)
 	}
 
-	if !info.IsNoSideEffects() && summary.HasNoFlagsSet() {
-		// We don't know anything about this function so we assume it has side effects.
-		summary.SetMutatesGlobalStateAndAllOtherFlags(externFunction)
+	if !info.IsNoSideEffects() && s.bitmask == 0 {
+		p.setSummaryMutatesGlobalState(sid, s, externFunction)
 	}
 }
 
@@ -912,210 +1126,6 @@ func PureFunctionIdentifier_RHS_IS_NEVER_LOCAL(lhs rhino.Node) bool { return fal
 func PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE(lhs rhino.Node) bool {
 	rhs := NodeUtil_GetRValueOfLValue(lhs)
 	return rhs.IsNil() || NodeUtil_EvaluatesToLocalValue(rhs)
-}
-
-// PureFunctionIdentifier_AmbiguatedFunctionSummary is a summary for the set
-// of functions that share a particular name.
-//
-// Side-effects of the functions are the most significant aspect of this
-// summary. Because the functions are "ambiguated", the recorded side-effects
-// are the union of all side effects detected in any member of the set.
-//
-// Name in this context refers to a short name, not a qualified name; only
-// the last segment of a qualified name is used.
-type PureFunctionIdentifier_AmbiguatedFunctionSummary struct {
-	// The name shared by the set of functions that defined this summary.
-	name string
-	// The node holding this summary in the reverse call graph.
-	graphNode graph.DiGraph_DiGraphNode[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]
-	// The side effect flags for this set of functions.
-	// TODO(nickreid): Replace this with a `Node.SideEffectFlags`.
-	bitmask int
-	// The indices of the parameters (0..63) mutated by this function, if MUTATES_ARGUMENTS is set.
-	mutatedParamMask             int64
-	collectImpureDebuggingReason bool
-	// FUNCTION nodes with a name corresponding to this summary that are
-	// impure. Only ever initialized if `collectImpureDebuggingReason` is
-	// true, and if PureFunctionIdentifier finds that this summary has a
-	// non-extern function that's "artificially pure", i.e. has a
-	// @nosideeffects annotation.
-	impureFunctionReasonsForDebugging *jutil.LinkedHashSet[rhino.Node] // lazily initialized
-}
-
-// Side effect types:
-const (
-	PureFunctionIdentifier_AmbiguatedFunctionSummary_THROWS               = 1 << 0
-	PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_GLOBAL_STATE = 1 << 1
-	PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_THIS         = 1 << 2
-	PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS    = 1 << 3
-)
-
-// PureFunctionIdentifier_AmbiguatedFunctionSummary_CreateInGraph adds a new
-// summary node to graph, storing the node and returning the summary.
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.createInGraph(DiGraph<AmbiguatedFunctionSummary, SideEffectPropagation>, String)
-func PureFunctionIdentifier_AmbiguatedFunctionSummary_CreateInGraph(
-	g graph.DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation], name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	return NewPureFunctionIdentifier_AmbiguatedFunctionSummary(g, name)
-}
-
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary(DiGraph<AmbiguatedFunctionSummary, SideEffectPropagation>, String)
-func NewPureFunctionIdentifier_AmbiguatedFunctionSummary(
-	g graph.DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation], name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	s := &PureFunctionIdentifier_AmbiguatedFunctionSummary{bitmask: 0}
-	s.name = name // Java: checkNotNull(name); a Go string is never null.
-	s.graphNode = g.CreateDiGraphNode(s)
-	return s
-}
-
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMask(int)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMask(mask int) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	s.bitmask |= mask
-	return s
-}
-
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.getMask(int)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) GetMask(mask int) bool {
-	return (s.bitmask & mask) != 0
-}
-
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.maybeCollectImpureDebuggingReason(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MaybeCollectImpureDebuggingReason(debuggingReason rhino.Node) {
-	if !s.collectImpureDebuggingReason || debuggingReason.IsNil() {
-		return
-	}
-	if s.impureFunctionReasonsForDebugging == nil {
-		s.impureFunctionReasonsForDebugging = jutil.NewLinkedHashSet[rhino.Node]()
-	}
-	s.impureFunctionReasonsForDebugging.Add(NodeUtil_GetEnclosingFunction(debuggingReason))
-}
-
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.mutatesThis()
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesThis() bool {
-	// MUTATES_GLOBAL_STATE implies MUTATES_THIS
-	return s.GetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_THIS)
-}
-
-// SetMutatesThis marks the function as having "modifies this" side effects.
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesThis(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesThis(debuggingReason rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	s.MaybeCollectImpureDebuggingReason(debuggingReason)
-	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_THIS)
-}
-
-// FunctionThrows returns true if function has an explicit "throw".
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.functionThrows()
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) FunctionThrows() bool {
-	// MUTATES_GLOBAL_STATE implies THROWS
-	return s.GetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_THROWS)
-}
-
-// SetThrows marks the function as having "throw" side effects.
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setThrows(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetThrows(debuggingReason rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	s.MaybeCollectImpureDebuggingReason(debuggingReason)
-	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_THROWS)
-}
-
-// MutatesGlobalState returns true if function mutates global state.
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.mutatesGlobalState()
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesGlobalState() bool {
-	return s.GetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_GLOBAL_STATE)
-}
-
-// SetMutatesGlobalStateAndAllOtherFlags marks the function as having
-// "modifies globals" side effects.
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesGlobalStateAndAllOtherFlags(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesGlobalStateAndAllOtherFlags(debuggingReason rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	s.MaybeCollectImpureDebuggingReason(debuggingReason)
-	s.mutatedParamMask = ^int64(0)
-	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_THROWS | PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_THIS | PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS | PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_GLOBAL_STATE)
-}
-
-// MutatesArguments returns true if function mutates its arguments.
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.mutatesArguments()
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesArguments() bool {
-	// MUTATES_GLOBAL_STATE implies MUTATES_ARGUMENTS
-	return s.GetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS)
-}
-
-// SetMutatesArguments marks the function as having "modifies arguments"
-// side effects.
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesArguments(Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesArguments(debuggingReason rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	s.MaybeCollectImpureDebuggingReason(debuggingReason)
-	s.mutatedParamMask = ^int64(0)
-	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS)
-}
-
-// SetMutatesArgumentAt marks the function as mutating the parameter at
-// paramIndex.
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setMutatesArgumentAt(int, Node)
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesArgumentAt(paramIndex int, debuggingReason rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	jutil.CheckArgumentMsg1(paramIndex >= 0, "%s", paramIndex)
-	s.MaybeCollectImpureDebuggingReason(debuggingReason)
-	// A parameter that doesn't fit in the mask is approximated by all the parameters.
-	var paramBit int64
-	if paramIndex < 64 /* Long.SIZE */ {
-		paramBit = int64(1) << paramIndex
-	} else {
-		paramBit = ^int64(0)
-	}
-	s.mutatedParamMask |= paramBit
-	return s.SetMask(PureFunctionIdentifier_AmbiguatedFunctionSummary_MUTATES_ARGUMENTS)
-}
-
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.hasNoFlagsSet()
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) HasNoFlagsSet() bool {
-	return s.bitmask == 0
-}
-
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.setCollectImpureDebuggingReason()
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetCollectImpureDebuggingReason() {
-	s.collectImpureDebuggingReason = true
-}
-
-// String is for debugging only (@DoNotCall in Java).
-//
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.toString()
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) String() string {
-	return jutil.MoreObjects_ToStringHelper("AmbiguatedFunctionSummary").
-		Add("name", s.name).
-		// Passing `graphNode` directly causes recursion as its `toString` calls `toString` on the
-		// summary it contains.
-		Add("graphNode", jutil.IdentityHashCode(s.graphNode)).
-		Add("sideEffects", s.SideEffectsToString()).
-		String()
-}
-
-// Java: PureFunctionIdentifier.AmbiguatedFunctionSummary.sideEffectsToString()
-func (s *PureFunctionIdentifier_AmbiguatedFunctionSummary) SideEffectsToString() string {
-	var status []string
-	if s.MutatesThis() {
-		status = append(status, "this")
-	}
-
-	if s.MutatesGlobalState() {
-		status = append(status, "global")
-	}
-
-	if s.MutatesArguments() {
-		status = append(status, "args")
-	}
-
-	if s.FunctionThrows() {
-		status = append(status, "throw")
-	}
-
-	return jutil.CollectionToString(status)
 }
 
 // PureFunctionIdentifier_Driver is a compiler pass that constructs a

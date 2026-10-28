@@ -551,14 +551,18 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	typeable := true
 
 	if nodeType := n.GetJSType(); nodeType != nil {
-		switch nodeType.GetTypeClass() {
-		case rhino.JSTypeClass_ENUM_ELEMENT,
-			rhino.JSTypeClass_FUNCTION,
-			rhino.JSTypeClass_NAMED,
-			rhino.JSTypeClass_UNION,
-			rhino.JSTypeClass_TEMPLATIZED,
-			rhino.JSTypeClass_TEMPLATE:
-			tc.validator.ExpectWellFormedTemplatizedType(n)
+		if tb := nodeType.GetJSTypeBase(); !tb.IsWellFormedTemplateValid() {
+			switch nodeType.GetTypeClass() {
+			case rhino.JSTypeClass_ENUM_ELEMENT,
+				rhino.JSTypeClass_FUNCTION,
+				rhino.JSTypeClass_NAMED,
+				rhino.JSTypeClass_UNION,
+				rhino.JSTypeClass_TEMPLATIZED,
+				rhino.JSTypeClass_TEMPLATE:
+				tc.validator.checkWellFormedTemplatizedType(n, nodeType)
+			default:
+				tb.MarkWellFormedTemplateValidIfResolved()
+			}
 		}
 	}
 
@@ -1171,13 +1175,12 @@ func (tc *TypeCheck) CheckCanAssignToWithScope(
 // Java: TypeCheck.checkDestructuringAssignment(NodeTraversal, Node, Node, JSType, String)
 func (tc *TypeCheck) CheckDestructuringAssignment(
 	t *NodeTraversal, nodeToWarn rhino.Node, pattern ast.Pattern, rightType rhino.JSType, msg string) {
-	for _, target := range DestructuredTarget_CreateAllNonEmptyTargetsInPattern(tc.typeRegistry, rightType, pattern.Node()) {
-
+	ForEachDestructuredTarget(tc.typeRegistry, rightType, pattern.Node(), func(target DestructuredTarget) {
 		// TODO(b/77597706): this is not very efficient because it re-infers the types below,
 		// which we already did once in TypeInference. don't repeat the work.
 		tc.CheckCanAssignToWithScope(
 			t, nodeToWarn, ast.MustTarget(target.GetNode()), target.InferType() /* info= */, nil, msg)
-	}
+	})
 }
 
 // CheckCanAssignToNameGetpropOrGetelem checks that we can assign the given

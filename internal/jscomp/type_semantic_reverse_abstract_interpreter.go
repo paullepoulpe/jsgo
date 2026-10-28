@@ -40,7 +40,7 @@ type SemanticReverseAbstractInterpreter struct {
 // Java: SemanticReverseAbstractInterpreter(JSTypeRegistry)
 func NewSemanticReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *SemanticReverseAbstractInterpreter {
 	s := &SemanticReverseAbstractInterpreter{}
-	s.InitChainableReverseAbstractInterpreterBase(s, typeRegistry)
+	s.initChainableBase(s, typeRegistry)
 	return s
 }
 
@@ -185,13 +185,13 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 func (s *SemanticReverseAbstractInterpreter) CaseIsArray(value rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
 	type_ := s.GetTypeIfRefinable(value, blindScope)
 	if type_ != nil {
-		var visitor rhino.Visitor[rhino.JSType]
+		var restricted rhino.JSType
 		if outcome.IsTruthy() {
-			visitor = s.restrictToArrayVisitor
+			restricted = s.restrictToArray(type_)
 		} else {
-			visitor = s.restrictToNotArrayVisitor
+			restricted = s.restrictToNotArray(type_)
 		}
-		return s.MaybeRestrictName(blindScope, value, type_, rhino.VisitJSType[rhino.JSType](type_, visitor))
+		return s.MaybeRestrictName(blindScope, value, type_, restricted)
 	}
 	return blindScope
 }
@@ -451,13 +451,13 @@ func (s *SemanticReverseAbstractInterpreter) CaseInstanceOf(
 	if rightType != nil && rightType.IsFunctionType() {
 		targetType = rightType.ToMaybeFunctionType()
 	}
-	var visitor rhino.Visitor[rhino.JSType]
+	var restricted rhino.JSType
 	if outcome.IsTruthy() {
-		visitor = newSraiRestrictByTrueInstanceOfVisitor(s, targetType)
+		restricted = s.restrictByTrueInstanceOf(leftType, targetType)
 	} else {
-		visitor = newSraiRestrictByFalseInstanceOfVisitor(s, targetType)
+		restricted = s.restrictByFalseInstanceOf(leftType, targetType)
 	}
-	return s.MaybeRestrictName(blindScope, left, leftType, rhino.VisitJSType[rhino.JSType](leftType, visitor))
+	return s.MaybeRestrictName(blindScope, left, leftType, restricted)
 }
 
 // CaseIn: given 'property in object', ensures that the object has the
@@ -492,124 +492,155 @@ func (s *SemanticReverseAbstractInterpreter) CaseIn(object rhino.Node, propertyN
 	return blindScope
 }
 
-// sraiRestrictByTrueInstanceOfVisitor:
-// see SemanticReverseAbstractInterpreter.CaseInstanceOf.
+// restrictByTrueInstanceOf restricts t when `x instanceof target` is truthy.
 //
-// Java: private class SemanticReverseAbstractInterpreter.RestrictByTrueInstanceOfResultVisitor
-// extends RestrictByTrueTypeOfResultVisitor
-type sraiRestrictByTrueInstanceOfVisitor struct {
-	ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase
-
-	target rhino.ObjectType
-}
-
-// Java: RestrictByTrueInstanceOfResultVisitor(ObjectType)
-func newSraiRestrictByTrueInstanceOfVisitor(
-	outer *SemanticReverseAbstractInterpreter, target rhino.ObjectType) *sraiRestrictByTrueInstanceOfVisitor {
-	v := &sraiRestrictByTrueInstanceOfVisitor{}
-	v.InitChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase(v, outer)
-	v.target = target
-	return v
-}
-
-// Java: RestrictByTrueInstanceOfResultVisitor.caseTopType(JSType)
-func (v *sraiRestrictByTrueInstanceOfVisitor) CaseTopType(type_ rhino.JSType) rhino.JSType {
-	return v.ApplyCommonRestriction(type_)
-}
-
-// Java: RestrictByTrueInstanceOfResultVisitor.caseUnknownType()
-func (v *sraiRestrictByTrueInstanceOfVisitor) CaseUnknownType() rhino.JSType {
-	funcTarget := rhino.JSType_ToMaybeFunctionType(v.target)
-	if funcTarget != nil && funcTarget.HasInstanceType() {
-		return funcTarget.GetInstanceType()
+// Java: SemanticReverseAbstractInterpreter.RestrictByTrueInstanceOfResultVisitor
+func (s *SemanticReverseAbstractInterpreter) restrictByTrueInstanceOf(t rhino.JSType, target rhino.ObjectType) rhino.JSType {
+	switch x := t.(type) {
+	case *rhino.NoType:
+		return x
+	case *rhino.AllType:
+		return applyCommonInstanceOfRestriction(s.GetNativeType(rhino.JSTypeNative_ALL_TYPE), target)
+	case *rhino.UnknownType:
+		funcTarget := rhino.JSType_ToMaybeFunctionType(target)
+		if funcTarget != nil && funcTarget.HasInstanceType() {
+			return funcTarget.GetInstanceType()
+		}
+		return s.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
+	case *rhino.UnionType:
+		return applyCommonInstanceOfRestriction(x, target)
+	case *rhino.FunctionTypeBase, *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase,
+		*rhino.RecordType, *rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
+		return applyCommonInstanceOfRestriction(t, target)
+	case *rhino.EnumElementType:
+		prim := x.GetPrimitiveType()
+		r := s.restrictByTrueInstanceOf(prim, target)
+		if r != nil && prim.Equals(r) {
+			return x
+		}
+		return r
+	case *rhino.NamedType:
+		return s.restrictByTrueInstanceOf(x.GetReferencedTypeInternal(), target)
+	case *rhino.ProxyObjectTypeBase:
+		return s.restrictByTrueInstanceOf(x.GetReferencedTypeInternal(), target)
+	case *rhino.NoObjectTypeBase, *rhino.BooleanType, *rhino.NullType,
+		*rhino.NumberType, *rhino.BigIntType, *rhino.StringType,
+		*rhino.SymbolTypeBase, *rhino.KnownSymbolType, *rhino.VoidType:
+		return nil
+	default:
+		if _, ok := t.(rhino.NoObjectType); ok {
+			return nil
+		}
+		if _, ok := t.(rhino.FunctionType); ok {
+			return applyCommonInstanceOfRestriction(t, target)
+		}
+		if proxy, ok := t.(rhino.ProxyObjectType); ok {
+			return s.restrictByTrueInstanceOf(proxy.GetReferencedTypeInternal(), target)
+		}
+		if _, ok := t.(rhino.ObjectType); ok {
+			return applyCommonInstanceOfRestriction(t, target)
+		}
+		if _, ok := t.(rhino.SymbolType); ok {
+			return nil
+		}
+		panic(jutil.NewUnsupportedOperationException())
 	}
-	return v.outer.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
-}
-
-// Java: RestrictByTrueInstanceOfResultVisitor.caseObjectType(ObjectType)
-func (v *sraiRestrictByTrueInstanceOfVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
-	return v.ApplyCommonRestriction(type_)
-}
-
-// Java: RestrictByTrueInstanceOfResultVisitor.caseUnionType(UnionType)
-func (v *sraiRestrictByTrueInstanceOfVisitor) CaseUnionType(type_ *rhino.UnionType) rhino.JSType {
-	return v.ApplyCommonRestriction(type_)
-}
-
-// Java: RestrictByTrueInstanceOfResultVisitor.caseFunctionType(FunctionType)
-func (v *sraiRestrictByTrueInstanceOfVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
-	return v.self.CaseObjectType(type_)
 }
 
 // Java: RestrictByTrueInstanceOfResultVisitor.applyCommonRestriction(JSType)
-func (v *sraiRestrictByTrueInstanceOfVisitor) ApplyCommonRestriction(type_ rhino.JSType) rhino.JSType {
-	if v.target.IsUnknownType() {
+func applyCommonInstanceOfRestriction(type_ rhino.JSType, target rhino.ObjectType) rhino.JSType {
+	if target.IsUnknownType() {
 		return type_
 	}
-
-	funcTarget := v.target.ToMaybeFunctionType()
+	funcTarget := target.ToMaybeFunctionType()
 	if funcTarget.HasInstanceType() {
 		return type_.GetGreatestSubtype(funcTarget.GetInstanceType())
 	}
-
 	return nil
 }
 
-// sraiRestrictByFalseInstanceOfVisitor:
-// see SemanticReverseAbstractInterpreter.CaseInstanceOf.
+// restrictByFalseInstanceOf restricts t when `x instanceof target` is falsy.
 //
-// Java: private class SemanticReverseAbstractInterpreter.RestrictByFalseInstanceOfResultVisitor
-// extends RestrictByFalseTypeOfResultVisitor
-type sraiRestrictByFalseInstanceOfVisitor struct {
-	ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase
-
-	target rhino.ObjectType
+// Java: SemanticReverseAbstractInterpreter.RestrictByFalseInstanceOfResultVisitor
+func (s *SemanticReverseAbstractInterpreter) restrictByFalseInstanceOf(t rhino.JSType, target rhino.ObjectType) rhino.JSType {
+	switch x := t.(type) {
+	case *rhino.NoType:
+		return x
+	case *rhino.AllType:
+		return s.GetNativeType(rhino.JSTypeNative_ALL_TYPE)
+	case *rhino.UnknownType:
+		return s.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
+	case *rhino.NoObjectTypeBase:
+		return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+	case *rhino.BooleanType:
+		return s.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
+	case *rhino.NullType:
+		return s.GetNativeType(rhino.JSTypeNative_NULL_TYPE)
+	case *rhino.NumberType:
+		return s.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+	case *rhino.BigIntType:
+		return s.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE)
+	case *rhino.StringType:
+		return s.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
+	case *rhino.VoidType:
+		return s.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
+	case *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
+		return t
+	case *rhino.UnionType:
+		if target.IsUnknownType() {
+			return x
+		}
+		funcTarget := target.ToMaybeFunctionType()
+		if funcTarget.HasInstanceType() {
+			return x.GetRestrictedUnion(funcTarget.GetInstanceType())
+		}
+		return nil
+	case *rhino.FunctionTypeBase, *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase,
+		*rhino.RecordType, *rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
+		return restrictObjectByFalseInstanceOf(t.(rhino.ObjectType), target)
+	case *rhino.EnumElementType:
+		prim := x.GetPrimitiveType()
+		r := s.restrictByFalseInstanceOf(prim, target)
+		if r != nil && prim.Equals(r) {
+			return x
+		}
+		return r
+	case *rhino.NamedType:
+		return s.restrictByFalseInstanceOf(x.GetReferencedTypeInternal(), target)
+	case *rhino.ProxyObjectTypeBase:
+		return s.restrictByFalseInstanceOf(x.GetReferencedTypeInternal(), target)
+	default:
+		if _, ok := t.(rhino.NoObjectType); ok {
+			return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+		}
+		if fn, ok := t.(rhino.FunctionType); ok {
+			return restrictObjectByFalseInstanceOf(fn, target)
+		}
+		if proxy, ok := t.(rhino.ProxyObjectType); ok {
+			return s.restrictByFalseInstanceOf(proxy.GetReferencedTypeInternal(), target)
+		}
+		if obj, ok := t.(rhino.ObjectType); ok {
+			return restrictObjectByFalseInstanceOf(obj, target)
+		}
+		if _, ok := t.(rhino.SymbolType); ok {
+			return t
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	}
 }
 
-// Java: RestrictByFalseInstanceOfResultVisitor(ObjectType)
-func newSraiRestrictByFalseInstanceOfVisitor(
-	outer *SemanticReverseAbstractInterpreter, target rhino.ObjectType) *sraiRestrictByFalseInstanceOfVisitor {
-	v := &sraiRestrictByFalseInstanceOfVisitor{}
-	v.InitChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase(v, outer)
-	v.target = target
-	return v
-}
-
-// Java: RestrictByFalseInstanceOfResultVisitor.caseObjectType(ObjectType)
-func (v *sraiRestrictByFalseInstanceOfVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
-	if v.target.IsUnknownType() {
+func restrictObjectByFalseInstanceOf(type_ rhino.ObjectType, target rhino.ObjectType) rhino.JSType {
+	if target.IsUnknownType() {
 		return type_
 	}
-
-	funcTarget := v.target.ToMaybeFunctionType()
+	funcTarget := target.ToMaybeFunctionType()
 	if funcTarget.HasInstanceType() {
 		if type_.IsSubtypeOf(funcTarget.GetInstanceType()) {
 			return nil
 		}
-
 		return type_
 	}
-
 	return nil
-}
-
-// Java: RestrictByFalseInstanceOfResultVisitor.caseUnionType(UnionType)
-func (v *sraiRestrictByFalseInstanceOfVisitor) CaseUnionType(type_ *rhino.UnionType) rhino.JSType {
-	if v.target.IsUnknownType() {
-		return type_
-	}
-
-	funcTarget := v.target.ToMaybeFunctionType()
-	if funcTarget.HasInstanceType() {
-		return type_.GetRestrictedUnion(funcTarget.GetInstanceType())
-	}
-
-	return nil
-}
-
-// Java: RestrictByFalseInstanceOfResultVisitor.caseFunctionType(FunctionType)
-func (v *sraiRestrictByFalseInstanceOfVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
-	return v.self.CaseObjectType(type_)
 }
 
 // SemanticReverseAbstractInterpreter_Unwrap unwraps any

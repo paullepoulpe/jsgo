@@ -184,47 +184,42 @@ func (m FunctionInjector_InliningMode) Ordinal() int { return int(m) }
 
 // FunctionInjector_Reference holds a reference to the call node of a
 // function call.
-//
-// It has a subclass (InlineFunctions.Reference), so it is an interface
-// (PORTING.md §4); FunctionInjector_ReferenceBase holds its fields.
-type FunctionInjector_Reference interface {
-	// Java: FunctionInjector.Reference.toString()
-	String() string
-
-	GetFunctionInjector_ReferenceBase() *FunctionInjector_ReferenceBase
+type FunctionInjector_Reference struct {
+	callNode              rhino.Node
+	scope                 *Scope
+	t                     *NodeTraversal
+	chunk                 *JSChunk
+	mode                  FunctionInjector_InliningMode
+	requiresDecomposition bool
+	inlined               bool
 }
 
-// FunctionInjector_ReferenceBase holds FunctionInjector.Reference's fields.
-type FunctionInjector_ReferenceBase struct {
-	callNode rhino.Node
-	scope    *Scope
-	t        *NodeTraversal
-	chunk    *JSChunk
-	mode     FunctionInjector_InliningMode
-}
-
-// NewFunctionInjector_Reference constructs a FunctionInjector.Reference.
+// NewFunctionInjector_Reference constructs a FunctionInjector_Reference.
 //
 // Java: FunctionInjector.Reference(Node, Scope, JSChunk, InliningMode)
-func NewFunctionInjector_Reference(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *FunctionInjector_ReferenceBase {
-	r := &FunctionInjector_ReferenceBase{}
-	r.InitFunctionInjector_ReferenceBase(callNode, scope, chunk, mode)
+func NewFunctionInjector_Reference(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *FunctionInjector_Reference {
+	r := &FunctionInjector_Reference{}
+	r.init(callNode, scope, chunk, mode, false)
 	return r
 }
 
-// InitFunctionInjector_ReferenceBase is the Reference(Node, Scope, JSChunk,
-// InliningMode) constructor body, called by subclasses (super(...)).
-//
-// Java: FunctionInjector.Reference(Node, Scope, JSChunk, InliningMode)
-func (r *FunctionInjector_ReferenceBase) InitFunctionInjector_ReferenceBase(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) {
+func (r *FunctionInjector_Reference) init(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode, decompose bool) {
 	r.callNode = callNode
 	r.scope = scope
 	r.t = nil
 	r.chunk = chunk
 	r.mode = mode
+	r.requiresDecomposition = decompose
+	r.inlined = false
 }
 
-func (r *FunctionInjector_ReferenceBase) inGlobalScope() bool {
+// SetRequiresDecomposition records whether the call site must be moved or
+// decomposed before block inlining.
+func (r *FunctionInjector_Reference) SetRequiresDecomposition(val bool) {
+	r.requiresDecomposition = val
+}
+
+func (r *FunctionInjector_Reference) inGlobalScope() bool {
 	if r.scope != nil {
 		return r.scope.IsGlobal()
 	}
@@ -234,7 +229,7 @@ func (r *FunctionInjector_ReferenceBase) inGlobalScope() bool {
 	return false
 }
 
-func (r *FunctionInjector_ReferenceBase) closestHoistScopeRoot() rhino.Node {
+func (r *FunctionInjector_Reference) closestHoistScopeRoot() rhino.Node {
 	if r.scope != nil {
 		hs := r.scope.GetClosestHoistScope()
 		if hs == nil || hs.IsGlobal() {
@@ -252,7 +247,7 @@ func (r *FunctionInjector_ReferenceBase) closestHoistScopeRoot() rhino.Node {
 	return rhino.NilNode
 }
 
-func (r *FunctionInjector_ReferenceBase) lookupScope() *Scope {
+func (r *FunctionInjector_Reference) lookupScope() *Scope {
 	if r.scope != nil {
 		return r.scope
 	}
@@ -262,14 +257,8 @@ func (r *FunctionInjector_ReferenceBase) lookupScope() *Scope {
 	return nil
 }
 
-// GetFunctionInjector_ReferenceBase gives access to the base through the
-// interface.
-func (r *FunctionInjector_ReferenceBase) GetFunctionInjector_ReferenceBase() *FunctionInjector_ReferenceBase {
-	return r
-}
-
 // Java: FunctionInjector.Reference.toString()
-func (r *FunctionInjector_ReferenceBase) String() string {
+func (r *FunctionInjector_Reference) String() string {
 	return "Reference @ " + jutil.ToJavaString(r.callNode)
 }
 
@@ -361,16 +350,27 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 //
 // Java: FunctionInjector.canInlineReferenceToFunction(Reference, Node, ImmutableSet<String>, boolean, boolean)
 func (f *FunctionInjector) CanInlineReferenceToFunction(
-	ref FunctionInjector_Reference,
+	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
 	needAliases *jutil.LinkedHashSet[string],
 	referencesThis bool,
 	containsClosures bool) FunctionInjector_CanInlineResult {
+	return f.canInlineReferenceWithSummary(
+		ref, fnNode, needAliases, referencesThis, containsClosures, nil)
+}
+
+func (f *FunctionInjector) canInlineReferenceWithSummary(
+	ref *FunctionInjector_Reference,
+	fnNode rhino.Node,
+	needAliases *jutil.LinkedHashSet[string],
+	referencesThis bool,
+	containsClosures bool,
+	summary *calleeSummary) FunctionInjector_CanInlineResult {
 	// TODO(johnlenz): This function takes too many parameter, without
 	// context.  Modify the API to take a structure describing the function.
 
 	// Allow direct function calls or "fn.call" style calls.
-	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
+	callNode := ref.callNode
 	if !f.IsSupportedCallType(callNode, fnNode) {
 		return FunctionInjector_CanInlineResult_NO
 	}
@@ -384,7 +384,7 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 	// a memory leak.  This isn't a problem in the global scope as those values
 	// last until explicitly cleared.
 	if containsClosures {
-		if !ref.GetFunctionInjector_ReferenceBase().inGlobalScope() {
+		if !ref.inGlobalScope() {
 			// TODO(johnlenz): Allow inlining into any scope without local names or inner functions.
 			return FunctionInjector_CanInlineResult_NO
 		} else if NodeUtil_IsWithinLoop(callNode) {
@@ -401,10 +401,10 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 		return FunctionInjector_CanInlineResult_NO
 	}
 
-	if ref.GetFunctionInjector_ReferenceBase().mode == FunctionInjector_InliningMode_DIRECT {
-		return f.CanInlineReferenceDirectly(ref, fnNode, needAliases)
+	if ref.mode == FunctionInjector_InliningMode_DIRECT {
+		return f.canInlineReferenceDirectlyWithSummary(ref, fnNode, needAliases, summary)
 	} else {
-		return f.CanInlineReferenceAsStatementBlock(ref, fnNode, needAliases)
+		return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, needAliases, summary)
 	}
 }
 
@@ -448,9 +448,14 @@ func FunctionInjector_HasSpreadCallArgument(callNode rhino.Node) bool {
 // Inline inlines a function into the call site.
 //
 // Java: FunctionInjector.inline(Reference, String, Node)
-func (f *FunctionInjector) Inline(ref FunctionInjector_Reference, fnName string, fnNode rhino.Node) rhino.Node {
+func (f *FunctionInjector) Inline(ref *FunctionInjector_Reference, fnName string, fnNode rhino.Node) rhino.Node {
+	return f.inlineWithSummary(ref, fnName, fnNode, nil)
+}
+
+func (f *FunctionInjector) inlineWithSummary(
+	ref *FunctionInjector_Reference, fnName string, fnNode rhino.Node, summary *calleeSummary) rhino.Node {
 	jutil.CheckState(f.compiler.GetLifeCycleStage().IsNormalized())
-	return f.InternalInline(ref, fnName, fnNode)
+	return f.internalInlineWithSummary(ref, fnName, fnNode, summary)
 }
 
 // UnsafeInline inlines a function into the call site. Note that this unsafe
@@ -459,17 +464,22 @@ func (f *FunctionInjector) Inline(ref FunctionInjector_Reference, fnName string,
 // is safe without being normalized first.
 //
 // Java: FunctionInjector.unsafeInline(Reference, String, Node)
-func (f *FunctionInjector) UnsafeInline(ref FunctionInjector_Reference, fnName string, fnNode rhino.Node) rhino.Node {
+func (f *FunctionInjector) UnsafeInline(ref *FunctionInjector_Reference, fnName string, fnNode rhino.Node) rhino.Node {
 	return f.InternalInline(ref, fnName, fnNode)
 }
 
 // Java: FunctionInjector.internalInline(Reference, String, Node)
-func (f *FunctionInjector) InternalInline(ref FunctionInjector_Reference, fnName string, fnNode rhino.Node) rhino.Node {
+func (f *FunctionInjector) InternalInline(ref *FunctionInjector_Reference, fnName string, fnNode rhino.Node) rhino.Node {
+	return f.internalInlineWithSummary(ref, fnName, fnNode, nil)
+}
+
+func (f *FunctionInjector) internalInlineWithSummary(
+	ref *FunctionInjector_Reference, fnName string, fnNode rhino.Node, summary *calleeSummary) rhino.Node {
 	var result rhino.Node
-	if ref.GetFunctionInjector_ReferenceBase().mode == FunctionInjector_InliningMode_DIRECT {
+	if ref.mode == FunctionInjector_InliningMode_DIRECT {
 		result = f.InlineReturnValue(ref, fnNode)
 	} else {
-		result = f.InlineFunction(ref, fnNode, fnName)
+		result = f.inlineFunctionWithSummary(ref, fnNode, fnName, summary)
 	}
 	f.compiler.ReportChangeToEnclosingScope(result)
 	return result
@@ -480,9 +490,9 @@ func (f *FunctionInjector) InternalInline(ref FunctionInjector_Reference, fnName
 // node.
 //
 // Java: FunctionInjector.inlineReturnValue(Reference, Node)
-func (f *FunctionInjector) InlineReturnValue(ref FunctionInjector_Reference, fnNode rhino.Node) rhino.Node {
-	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
-	block := ast.MustFunction(fnNode).Body().Node()
+func (f *FunctionInjector) InlineReturnValue(ref *FunctionInjector_Reference, fnNode rhino.Node) rhino.Node {
+	callNode := ref.callNode
+	body := ast.MustFunction(fnNode).Body()
 
 	// NOTE: As the normalize pass guarantees globals aren't being
 	// shadowed and an expression can't introduce new names, there is
@@ -494,12 +504,14 @@ func (f *FunctionInjector) InlineReturnValue(ref FunctionInjector_Reference, fnN
 		fnNode, callNode, f.safeNameIdSupplier, paramReplacements)
 
 	var newExpression rhino.Node
-	if !block.HasChildren() {
-		srcLocation := block
-		newExpression = NodeUtil_NewUndefinedNode(srcLocation)
+	if block, ok := body.AsBlock(); ok && !block.HasStatements() {
+		newExpression = NodeUtil_NewUndefinedNode(block.Node())
+	} else if !body.Node().HasChildren() {
+		newExpression = NodeUtil_NewUndefinedNode(body.Node())
 	} else {
-		returnNode, ok := ast.AsReturn(block.GetFirstChild())
-		jutil.CheckArgumentMsg1(ok, "%s", block.GetFirstChild())
+		firstStmt := body.MustBlock().MustFirstStatement()
+		returnNode, ok := firstStmt.AsReturn()
+		jutil.CheckArgumentMsg1(ok, "%s", firstStmt.Node())
 
 		// Clone the return node first.
 		safeReturnNode := ast.MustReturn(returnNode.Node().CloneTree())
@@ -581,7 +593,7 @@ func (c FunctionInjector_CallSiteType) Ordinal() int { return int(c) }
 // Prepare is the abstract enum method, with each constant's body.
 //
 // Java: FunctionInjector.CallSiteType.prepare(FunctionInjector, Reference)
-func (c FunctionInjector_CallSiteType) Prepare(injector *FunctionInjector, ref FunctionInjector_Reference) {
+func (c FunctionInjector_CallSiteType) Prepare(injector *FunctionInjector, ref *FunctionInjector_Reference) {
 	switch c {
 	case FunctionInjector_CallSiteType_UNSUPPORTED:
 		panic(jutil.NewIllegalStateExceptionMsg("unexpected: " + ref.String()))
@@ -592,16 +604,16 @@ func (c FunctionInjector_CallSiteType) Prepare(injector *FunctionInjector, ref F
 	case FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT:
 		// Nothing to do.
 	case FunctionInjector_CallSiteType_EXPRESSION:
-		callNode := ref.GetFunctionInjector_ReferenceBase().callNode
-		injector.GetDecomposer(ref.GetFunctionInjector_ReferenceBase().scope).MoveExpression(callNode)
+		callNode := ref.callNode
+		injector.GetDecomposer(ref.scope).MoveExpression(callNode)
 
 		// Reclassify after move
 		callSiteType := injector.ClassifyCallSite(ref)
 		jutil.CheckState(c != callSiteType)
 		callSiteType.Prepare(injector, ref)
 	case FunctionInjector_CallSiteType_DECOMPOSABLE_EXPRESSION:
-		callNode := ref.GetFunctionInjector_ReferenceBase().callNode
-		injector.GetDecomposer(ref.GetFunctionInjector_ReferenceBase().scope).MaybeExposeExpression(callNode)
+		callNode := ref.callNode
+		injector.GetDecomposer(ref.scope).MaybeExposeExpression(callNode)
 
 		// Reclassify after decomposition
 		callSiteType := injector.ClassifyCallSite(ref)
@@ -619,12 +631,12 @@ func (c FunctionInjector_CallSiteType) Prepare(injector *FunctionInjector, ref F
 // just teach this pass how to remove the annotation.
 //
 // Java: FunctionInjector.classifyCallSite(Reference)
-func (f *FunctionInjector) ClassifyCallSite(ref FunctionInjector_Reference) FunctionInjector_CallSiteType {
+func (f *FunctionInjector) ClassifyCallSite(ref *FunctionInjector_Reference) FunctionInjector_CallSiteType {
 	return f.classifyCallSite(ref, true)
 }
 
-func (f *FunctionInjector) classifyCallSite(ref FunctionInjector_Reference, allowDecomposition bool) FunctionInjector_CallSiteType {
-	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
+func (f *FunctionInjector) classifyCallSite(ref *FunctionInjector_Reference, allowDecomposition bool) FunctionInjector_CallSiteType {
+	callNode := ref.callNode
 
 	// Verify the call site:
 	if NodeUtil_IsExprCall(callNode.GetParent()) {
@@ -642,7 +654,7 @@ func (f *FunctionInjector) classifyCallSite(ref FunctionInjector_Reference, allo
 		if ExpressionDecomposer_FindExpressionRoot(callNode).IsNil() {
 			return FunctionInjector_CallSiteType_UNSUPPORTED
 		}
-		decomposer := f.GetDecomposer(ref.GetFunctionInjector_ReferenceBase().lookupScope())
+		decomposer := f.GetDecomposer(ref.lookupScope())
 		switch decomposer.CanExposeExpression(callNode) {
 		case ExpressionDecomposer_DecompositionType_MOVABLE:
 			return FunctionInjector_CallSiteType_EXPRESSION
@@ -704,7 +716,7 @@ func (f *FunctionInjector) GetDecomposer(scope *Scope) *ExpressionDecomposer {
 // See ExpressionDecomposer#canExposeExpression.
 //
 // Java: FunctionInjector.maybePrepareCall(Reference)
-func (f *FunctionInjector) MaybePrepareCall(ref FunctionInjector_Reference) {
+func (f *FunctionInjector) MaybePrepareCall(ref *FunctionInjector_Reference) {
 	callSiteType := f.ClassifyCallSite(ref)
 	callSiteType.Prepare(f, ref)
 }
@@ -714,8 +726,13 @@ func (f *FunctionInjector) MaybePrepareCall(ref FunctionInjector_Reference) {
 // parent expression.
 //
 // Java: FunctionInjector.inlineFunction(Reference, Node, String)
-func (f *FunctionInjector) InlineFunction(ref FunctionInjector_Reference, fnNode rhino.Node, fnName string) rhino.Node {
-	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
+func (f *FunctionInjector) InlineFunction(ref *FunctionInjector_Reference, fnNode rhino.Node, fnName string) rhino.Node {
+	return f.inlineFunctionWithSummary(ref, fnNode, fnName, nil)
+}
+
+func (f *FunctionInjector) inlineFunctionWithSummary(
+	ref *FunctionInjector_Reference, fnNode rhino.Node, fnName string, summary *calleeSummary) rhino.Node {
+	callNode := ref.callNode
 	parent := callNode.GetParent()
 	grandParent := parent.GetParent()
 
@@ -733,10 +750,10 @@ func (f *FunctionInjector) InlineFunction(ref FunctionInjector_Reference, fnNode
 	case FunctionInjector_CallSiteType_SIMPLE_ASSIGNMENT:
 		target, _ := functionInjector_simpleAssignTarget(callNode)
 		resultName = target.Ident()
-		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultName)
+		FunctionInjector_RemoveConstantVarAnnotation(ref.scope, resultName)
 	case FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT:
 		resultName = ast.MustName(parent).Ident()
-		FunctionInjector_RemoveConstantVarAnnotation(ref.GetFunctionInjector_ReferenceBase().scope, resultName)
+		FunctionInjector_RemoveConstantVarAnnotation(ref.scope, resultName)
 	case FunctionInjector_CallSiteType_SIMPLE_CALL:
 		resultName = "" // "foo()" doesn't need a result.
 		needsDefaultReturnResult = false
@@ -751,8 +768,8 @@ func (f *FunctionInjector) InlineFunction(ref FunctionInjector_Reference, fnNode
 
 	isCallInLoop := NodeUtil_IsWithinLoop(callNode)
 	f.mutator.allowMoveCallArgs = true
-	newBlock := f.mutator.Mutate(
-		fnName, fnNode, callNode, resultName, needsDefaultReturnResult, isCallInLoop)
+	newBlock := f.mutator.mutateWithSummary(
+		fnName, fnNode, callNode, resultName, needsDefaultReturnResult, isCallInLoop, summary)
 	f.mutator.allowMoveCallArgs = false
 	NodeUtil_MarkNewScopesChanged(newBlock, f.compiler)
 
@@ -809,22 +826,24 @@ func FunctionInjector_RemoveConstantVarAnnotation(scope *Scope, name string) {
 // Java: FunctionInjector.isDirectCallNodeReplacementPossible(Node)
 func FunctionInjector_IsDirectCallNodeReplacementPossible(fnNode rhino.Node) bool {
 	// Only inline single-statement functions
-	block := ast.MustFunction(fnNode).Body().Node()
-
-	// Check if this function is suitable for direct replacement of a CALL node:
-	// a function that consists of single return that returns an expression.
-	if !block.HasChildren() {
-		// special case empty functions.
-		return true
-	} else if block.HasOneChild() {
-		// Only inline functions that return something.
-		if ret, ok := ast.AsReturn(block.GetFirstChild()); ok {
-			_, hasValue := ret.Value()
-			return hasValue
+	body := ast.MustFunction(fnNode).Body()
+	if block, ok := body.AsBlock(); ok {
+		// Check if this function is suitable for direct replacement of a CALL node:
+		// a function that consists of single return that returns an expression.
+		if !block.HasStatements() {
+			// special case empty functions.
+			return true
 		}
+		if onlyStmt, ok := block.OnlyStatement(); ok {
+			// Only inline functions that return something.
+			if ret, ok := onlyStmt.AsReturn(); ok {
+				_, hasValue := ret.Value()
+				return hasValue
+			}
+		}
+		return false
 	}
-
-	return false
+	return !body.Node().HasChildren()
 }
 
 // FunctionInjector_CanInlineResult is the enum FunctionInjector.CanInlineResult.
@@ -858,7 +877,15 @@ func (r FunctionInjector_CanInlineResult) Ordinal() int { return int(r) }
 //
 // Java: FunctionInjector.canInlineReferenceAsStatementBlock(Reference, Node, ImmutableSet<String>)
 func (f *FunctionInjector) CanInlineReferenceAsStatementBlock(
-	ref FunctionInjector_Reference, fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) FunctionInjector_CanInlineResult {
+	ref *FunctionInjector_Reference, fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) FunctionInjector_CanInlineResult {
+	return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, namesToAlias, nil)
+}
+
+func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
+	ref *FunctionInjector_Reference,
+	fnNode rhino.Node,
+	namesToAlias *jutil.LinkedHashSet[string],
+	summary *calleeSummary) FunctionInjector_CanInlineResult {
 	callSiteType := f.classifyCallSite(ref, f.allowDecomposition)
 	if callSiteType == FunctionInjector_CallSiteType_UNSUPPORTED {
 		return FunctionInjector_CanInlineResult_NO
@@ -870,7 +897,7 @@ func (f *FunctionInjector) CanInlineReferenceAsStatementBlock(
 		return FunctionInjector_CanInlineResult_NO
 	}
 
-	if !f.CallMeetsBlockInliningRequirements(ref, fnNode, namesToAlias) {
+	if !f.callMeetsBlockInliningRequirementsWithSummary(ref, fnNode, namesToAlias, summary) {
 		return FunctionInjector_CanInlineResult_NO
 	}
 
@@ -1043,7 +1070,15 @@ func (f *FunctionInjector) InnerFunctionOf(containerFn rhino.Node) rhino.Node {
 //
 // Java: FunctionInjector.callMeetsBlockInliningRequirements(Reference, Node, ImmutableSet<String>)
 func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
-	callRef FunctionInjector_Reference, calleeFn rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) bool {
+	callRef *FunctionInjector_Reference, calleeFn rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) bool {
+	return f.callMeetsBlockInliningRequirementsWithSummary(callRef, calleeFn, namesToAlias, nil)
+}
+
+func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
+	callRef *FunctionInjector_Reference,
+	calleeFn rhino.Node,
+	namesToAlias *jutil.LinkedHashSet[string],
+	summary *calleeSummary) bool {
 	// Note: functions that contain function definitions are filtered out
 	// in isCandidateFunction.
 
@@ -1055,7 +1090,7 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 	// of an issue.
 
 	forbidTemps := false
-	if hoistRoot := callRef.GetFunctionInjector_ReferenceBase().closestHoistScopeRoot(); !hoistRoot.IsNil() {
+	if hoistRoot := callRef.closestHoistScopeRoot(); !hoistRoot.IsNil() {
 		callerFn := hoistRoot.GetParent() // the function of the hoist scope's block
 
 		// Don't allow any new vars into a scope that contains eval or one
@@ -1079,17 +1114,22 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 		// Don't inline functions with var declarations into a scope with inner
 		// functions as the new vars would leak into the inner function and
 		// cause memory leaks.
-		calleeContainsVars := functionInjector_hasShallowDeclaration(ast.MustFunction(calleeFn).Body().Node())
+		var calleeContainsVars bool
+		if summary != nil && summary.fnNode == calleeFn {
+			calleeContainsVars = summary.hasShallowDeclarations
+		} else {
+			calleeContainsVars = functionInjector_hasShallowDeclaration(ast.MustFunction(calleeFn).Body().Node())
+		}
 		if calleeContainsVars {
 			return false
 		}
 
 		args := f.functionArgumentInjector.GetFunctionCallParameterMapScratch(
-			calleeFn, callRef.GetFunctionInjector_ReferenceBase().callNode, f.safeNameIdSupplier)
+			calleeFn, callRef.callNode, f.safeNameIdSupplier)
 		hasArgs := !args.IsEmpty()
 		if hasArgs {
-			if f.functionArgumentInjector.HasCallArgumentsNeedingTemps(
-				f.compiler, calleeFn, args, namesToAlias, f.compiler.GetCodingConvention()) {
+			if f.functionArgumentInjector.hasCallArgumentsNeedingTempsWithSummary(
+				f.compiler, calleeFn, args, namesToAlias, f.compiler.GetCodingConvention(), summary) {
 				return false
 			}
 		}
@@ -1110,13 +1150,21 @@ func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 //
 // Java: FunctionInjector.canInlineReferenceDirectly(Reference, Node, ImmutableSet<String>)
 func (f *FunctionInjector) CanInlineReferenceDirectly(
-	ref FunctionInjector_Reference, fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) FunctionInjector_CanInlineResult {
+	ref *FunctionInjector_Reference, fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) FunctionInjector_CanInlineResult {
+	return f.canInlineReferenceDirectlyWithSummary(ref, fnNode, namesToAlias, nil)
+}
+
+func (f *FunctionInjector) canInlineReferenceDirectlyWithSummary(
+	ref *FunctionInjector_Reference,
+	fnNode rhino.Node,
+	namesToAlias *jutil.LinkedHashSet[string],
+	summary *calleeSummary) FunctionInjector_CanInlineResult {
 	if !FunctionInjector_IsDirectCallNodeReplacementPossible(fnNode) {
 		return FunctionInjector_CanInlineResult_NO
 	}
 
 	// CALL NODE: [ NAME, ARG1, ARG2, ... ]
-	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
+	callNode := ref.callNode
 	call := ast.MustNormalOrOptChainCall(callNode)
 
 	// Functions called via 'call' and 'apply' have a this-object as
@@ -1143,8 +1191,8 @@ func (f *FunctionInjector) CanInlineReferenceDirectly(
 		fnNode, callNode, f.throwawayNameSupplier)
 	hasArgs := !args.IsEmpty()
 	if hasArgs {
-		if f.functionArgumentInjector.HasCallArgumentsNeedingTemps(
-			f.compiler, fnNode, args, namesToAlias, f.compiler.GetCodingConvention()) {
+		if f.functionArgumentInjector.hasCallArgumentsNeedingTempsWithSummary(
+			f.compiler, fnNode, args, namesToAlias, f.compiler.GetCodingConvention(), summary) {
 			return FunctionInjector_CanInlineResult_NO
 		}
 	}
@@ -1155,17 +1203,26 @@ func (f *FunctionInjector) CanInlineReferenceDirectly(
 // InliningLowersCost determines if inlining the function is likely to reduce
 // the code size.
 //
-// Go-only: language-adapter — `Collection<? extends Reference> refs` is a
-// slice of the interface.
-//
 // Java: FunctionInjector.inliningLowersCost(JSChunk, Node, Collection<? extends Reference>, Set<String>, boolean, boolean)
 func (f *FunctionInjector) InliningLowersCost(
 	fnChunk *JSChunk,
 	fnNode rhino.Node,
-	refs []FunctionInjector_Reference,
+	refs []*FunctionInjector_Reference,
 	namesToAlias *jutil.LinkedHashSet[string],
 	isRemovable bool,
 	referencesThis bool) bool {
+	return f.inliningLowersCostWithSummary(
+		fnChunk, fnNode, refs, namesToAlias, isRemovable, referencesThis, nil)
+}
+
+func (f *FunctionInjector) inliningLowersCostWithSummary(
+	fnChunk *JSChunk,
+	fnNode rhino.Node,
+	refs []*FunctionInjector_Reference,
+	namesToAlias *jutil.LinkedHashSet[string],
+	isRemovable bool,
+	referencesThis bool,
+	summary *calleeSummary) bool {
 	referenceCount := len(refs)
 	if referenceCount == 0 {
 		return true
@@ -1177,14 +1234,13 @@ func (f *FunctionInjector) InliningLowersCost(
 	chunkGraph := f.compiler.GetChunkGraph()
 
 	for _, ref := range refs {
-		refBase := ref.GetFunctionInjector_ReferenceBase()
-		if refBase.mode == FunctionInjector_InliningMode_BLOCK {
+		if ref.mode == FunctionInjector_InliningMode_BLOCK {
 			referencesUsingBlockInlining++
 		}
 
 		// Check if any of the references cross the chunk boundaries.
-		if checkChunks && refBase.chunk != nil {
-			if refBase.chunk != fnChunk && !chunkGraph.DependsOn(refBase.chunk, fnChunk) {
+		if checkChunks && ref.chunk != nil {
+			if ref.chunk != fnChunk && !chunkGraph.DependsOn(ref.chunk, fnChunk) {
 				// Calculate the cost as if the function were non-removable,
 				// if it still lowers the cost inline it.
 				isRemovable = false
@@ -1208,8 +1264,8 @@ func (f *FunctionInjector) InliningLowersCost(
 	callCost := FunctionInjector_EstimateCallCost(fnNode, referencesThis)
 	overallCallCost := callCost * referenceCount
 
-	costDeltaDirect := FunctionInjector_InlineCostDelta(fnNode, namesToAlias, FunctionInjector_InliningMode_DIRECT)
-	costDeltaBlock := FunctionInjector_InlineCostDelta(fnNode, namesToAlias, FunctionInjector_InliningMode_BLOCK)
+	costDeltaDirect := functionInjector_inlineCostDeltaWithSummary(fnNode, namesToAlias, FunctionInjector_InliningMode_DIRECT, summary)
+	costDeltaBlock := functionInjector_inlineCostDeltaWithSummary(fnNode, namesToAlias, FunctionInjector_InliningMode_BLOCK, summary)
 
 	return FunctionInjector_DoesLowerCost(
 		fnNode,
@@ -1286,6 +1342,14 @@ func FunctionInjector_EstimateCallCost(fnNode rhino.Node, referencesThis bool) i
 //
 // Java: FunctionInjector.inlineCostDelta(Node, Set<String>, InliningMode)
 func FunctionInjector_InlineCostDelta(fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string], mode FunctionInjector_InliningMode) int {
+	return functionInjector_inlineCostDeltaWithSummary(fnNode, namesToAlias, mode, nil)
+}
+
+func functionInjector_inlineCostDeltaWithSummary(
+	fnNode rhino.Node,
+	namesToAlias *jutil.LinkedHashSet[string],
+	mode FunctionInjector_InliningMode,
+	summary *calleeSummary) int {
 	// The part of the function that is never inlined:
 	//    "function xx(xx,xx){}" (15 + (param count * 3) -1;
 	fn := ast.MustFunction(fnNode)
@@ -1324,9 +1388,12 @@ func FunctionInjector_InlineCostDelta(fnNode rhino.Node, namesToAlias *jutil.Lin
 		const perReturnResultOverhead = 3 // "XX="
 		const perAliasOverhead = 3        // "XX="
 
-		// TODO(johnlenz): Counting the number of returns is relatively expensive.
-		//   This information should be determined during the traversal and cached.
-		returnCount := functionInjector_countShallowReturns(block)
+		var returnCount int
+		if summary != nil && summary.fnNode == fnNode {
+			returnCount = int(summary.shallowReturnCount)
+		} else {
+			returnCount = functionInjector_countShallowReturns(block)
+		}
 		resultCount := 0
 		if returnCount > 0 {
 			resultCount = returnCount - 1

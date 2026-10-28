@@ -1253,12 +1253,12 @@ func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, body ast.ModuleBody) {
 		if parentObjectType == nil {
 			return
 		}
-		tc.validator.ExpectCanAssignToPropertyOfOwnerType(
+		tc.validator.expectCanAssignToPropertyOfQualifiedOwner(
 			googModuleCall.Node(),
 			moduleBody.GetJSType(),
 			parentObjectType.GetPropertyType(moduleName.GetComponent()),
 			parentObjectType,
-			func() string { return moduleName.GetOwner().Join() },
+			moduleName.GetOwner(),
 			moduleName.GetComponent())
 	}
 }

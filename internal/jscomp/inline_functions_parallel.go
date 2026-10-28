@@ -52,14 +52,15 @@ type ifPhase1Candidate struct {
 	hasInnerClosures    bool
 	namesToAlias        *jutil.LinkedHashSet[string]
 	bodyAstSize         int32
+	summary             *calleeSummary
 }
 
 type ifPhase1Worker struct {
 	outer                         *InlineFunctions
-	paramScratch                  []string
 	lastCheckedBlock              rhino.Node
 	lastCheckedBlockHasLetOrConst bool
 	cands                         []ifPhase1Candidate
+	scratchSummary                calleeSummary
 }
 
 func (w *ifPhase1Worker) blockHasLetOrConst(block rhino.Node) bool {
@@ -70,10 +71,6 @@ func (w *ifPhase1Worker) blockHasLetOrConst(block rhino.Node) bool {
 	w.lastCheckedBlock = block
 	w.lastCheckedBlockHasLetOrConst = res
 	return res
-}
-
-func (w *ifPhase1Worker) analyzeBody(fnNode rhino.Node) (*jutil.LinkedHashSet[string], bool, bool) {
-	return inlineFunctions_analyzeBody(fnNode, &w.paramScratch)
 }
 
 func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.Node, nameNode rhino.Node, fnNode rhino.Node, chunk *JSChunk) ifPhase1Candidate {
@@ -113,29 +110,67 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.No
 		cand.disallowReason = InlineFunctions_DisallowInliningReason_ASYNC_FUNCTION
 		return cand
 	}
-	if InlineFunctions_HasNonInlinableParam(NodeUtil_GetFunctionParameters(fnNode)) {
+	fn := ast.MustFunction(fnNode)
+	if InlineFunctions_HasNonInlinableParam(fn.Params().Node()) {
 		cand.hasDisallow = true
 		cand.disallowReason = InlineFunctions_DisallowInliningReason_NON_INLINABLE_PARAM
 		return cand
 	}
 	conv := f.compiler.GetCodingConvention()
-	if conv.IsExported(name) || conv.IsPropertyRenameFunction(nameNode) || !f.injector.DoesFunctionMeetMinimumRequirements(name, fnNode) {
+	if conv.IsExported(name) || conv.IsPropertyRenameFunction(nameNode) {
 		cand.hasDisallow = true
 		cand.disallowReason = InlineFunctions_DisallowInliningReason_NOT_CANDIDATE_FUNCTION
 		return cand
 	}
-	namesToAlias, referencesThis, hasInnerClosures := w.analyzeBody(fnNode)
-	if namesToAlias != nil && !namesToAlias.IsEmpty() {
-		cand.inlineDirectly = false
-		cand.namesToAlias = namesToAlias
-	}
-	cand.referencesThis = referencesThis
-	if hasInnerClosures {
-		cand.hasInnerClosures = true
-		if InlineFunctions_HasLocalNames(fnNode) {
+	summaryValid := scanCalleeSummary(name, fnNode, &w.scratchSummary)
+	if summaryValid {
+		s := &w.scratchSummary
+		if s.blocksMinReqs {
 			cand.hasDisallow = true
-			cand.disallowReason = InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES
+			cand.disallowReason = InlineFunctions_DisallowInliningReason_NOT_CANDIDATE_FUNCTION
 			return cand
+		}
+		if s.numModified > 0 {
+			namesToAlias := jutil.NewLinkedHashSet[string]()
+			params := s.params()
+			for _, idx := range s.modifiedParamIndices() {
+				namesToAlias.Add(params[idx].nameStr())
+			}
+			cand.inlineDirectly = false
+			cand.namesToAlias = namesToAlias
+		}
+		cand.referencesThis = s.referencesThis
+		if s.hasInnerClosures {
+			cand.hasInnerClosures = true
+			if s.numParams > 0 || s.hasShallowDeclarations {
+				cand.hasDisallow = true
+				cand.disallowReason = InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES
+				return cand
+			}
+		}
+	} else {
+		if !f.injector.DoesFunctionMeetMinimumRequirements(name, fnNode) {
+			cand.hasDisallow = true
+			cand.disallowReason = InlineFunctions_DisallowInliningReason_NOT_CANDIDATE_FUNCTION
+			return cand
+		}
+		body := fn.Body().Node()
+		paramSet := FunctionArgumentInjector_GetFunctionParameterSet(fnNode)
+		if !paramSet.IsEmpty() {
+			namesToAlias := FunctionArgumentInjector_FindModifiedParametersIn(body, paramSet, false)
+			if !namesToAlias.IsEmpty() {
+				cand.inlineDirectly = false
+				cand.namesToAlias = namesToAlias
+			}
+		}
+		cand.referencesThis = NodeUtil_ReferencesEnclosingReceiver(body)
+		if NodeUtil_Has(body, NodeUtil_IsFunctionOrNonStaticClassFieldInitializer, inlineFunctions_alwaysTrue) {
+			cand.hasInnerClosures = true
+			if InlineFunctions_HasLocalNames(fnNode) {
+				cand.hasDisallow = true
+				cand.disallowReason = InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES
+				return cand
+			}
 		}
 	}
 	if fnNode.GetGrandparent().IsVar() {
@@ -152,7 +187,15 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.No
 		}
 	}
 	if f.enforceMaxSizeAfterInlining && !InlineFunctions_IsAlwaysInlinable(fnNode) {
-		cand.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(NodeUtil_GetFunctionBody(fnNode), f.maxSizeAfterInlining))
+		if summaryValid {
+			cand.bodyAstSize = int32(min(int(w.scratchSummary.bodyAstSize), f.maxSizeAfterInlining))
+		} else {
+			cand.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(fn.Body().Node(), f.maxSizeAfterInlining))
+		}
+	}
+	if summaryValid {
+		sumCopy := w.scratchSummary
+		cand.summary = &sumCopy
 	}
 	return cand
 }
@@ -272,10 +315,10 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 		for i := range candsByScript[idx] {
 			cand := &candsByScript[idx][i]
 			if cand.kind == ifCandAnonExpr {
-				fn := NewInlineFunctions_FunctionExpression(cand.fnNode, callsSeen)
+				target := newExprFnTarget(cand.fnNode, callsSeen)
 				callsSeen++
-				f.MaybeAddFunction(fn, cand.chunk)
-				f.anonFns.Put(cand.fnNode, fn.GetName())
+				f.MaybeAddFunction(target, cand.chunk)
+				f.anonFns.Put(cand.fnNode, target.name)
 				continue
 			}
 			fs := f.GetOrCreateFunctionState(cand.name)
@@ -285,16 +328,20 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 				if cand.disallowBeforeSetFn {
 					fs.DisallowInlining(f.compiler, cand.disallowReason)
 				} else {
-					var fn InlineFunctions_Function
+					var target inlineFnTarget
 					if cand.kind == ifCandVar {
-						fn = NewInlineFunctions_FunctionVar(f, cand.node)
+						target = newVarFnTarget(cand.node)
 					} else {
-						fn = NewInlineFunctions_NamedFunction(f, cand.node)
+						target = newNamedFnTarget(cand.node)
 					}
-					fs.SetFn(fn)
+					fs.setTarget(target)
 					if cand.hasDisallow {
 						fs.DisallowInlining(f.compiler, cand.disallowReason)
 					} else {
+						if cand.summary != nil {
+							fs.summary = cand.summary
+							fs.summaryValid = true
+						}
 						if cand.inlineDirectly {
 							fs.InlineDirectly(true)
 						}
@@ -341,19 +388,19 @@ type ifPhase2Event struct {
 }
 
 type ifPhase2RefCallback struct {
-	InlineFunctions_CallVisitorBase
-
+	visitor              inlineCallVisitor
 	outer                *InlineFunctions
 	injector             *FunctionInjector
 	safeIdsCounter       int
-	scratchRef           InlineFunctions_Reference
+	scratchRef           FunctionInjector_Reference
 	lastContainingFn     rhino.Node
 	lastContainingFnSize int
 	localDisallowed      map[*InlineFunctions_FunctionState]struct{}
 	events               []ifPhase2Event
 }
 
-func (*ifPhase2RefCallback) onlyNameLeaves() {}
+func (*ifPhase2RefCallback) ShouldTraverse(*NodeTraversal, rhino.Node, rhino.Node) bool { return true }
+func (*ifPhase2RefCallback) onlyNameLeaves()                                            {}
 
 func (r *ifPhase2RefCallback) isDisallowed(fs *InlineFunctions_FunctionState) bool {
 	if !fs.CanInline() {
@@ -371,13 +418,13 @@ func (r *ifPhase2RefCallback) targetSizeExceedsLimit(t *NodeTraversal, fs *Inlin
 	if containingFunction.IsNil() {
 		return false
 	}
-	inlinedFun := fs.GetFn().GetFunctionNode()
+	inlinedFun := fs.functionNode()
 	if InlineFunctions_IsAlwaysInlinable(inlinedFun) {
 		return false
 	}
 	inlinedFunSize := int(fs.bodyAstSize)
 	if inlinedFunSize == 0 {
-		inlinedFunSize = NodeUtil_CountAstSizeUpToLimit(NodeUtil_GetFunctionBody(inlinedFun), r.outer.maxSizeAfterInlining)
+		inlinedFunSize = NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(inlinedFun).Body().Node(), r.outer.maxSizeAfterInlining)
 	}
 	var targetFunSize int
 	if containingFunction == r.lastContainingFn {
@@ -391,11 +438,12 @@ func (r *ifPhase2RefCallback) targetSizeExceedsLimit(t *NodeTraversal, fs *Inlin
 }
 
 func (r *ifPhase2RefCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsName() {
+	switch n.GetToken() {
+	case rhino.Token_NAME:
 		r.checkNameUsage(n, parent)
-		return
+	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
+		r.visitor.visitCallNode(t, n)
 	}
-	r.InlineFunctions_CallVisitorBase.Visit(t, n, parent)
 }
 
 func (r *ifPhase2RefCallback) VisitCallSite(t *NodeTraversal, callNode rhino.Node, functionState *InlineFunctions_FunctionState) {
@@ -444,16 +492,15 @@ func (r *ifPhase2RefCallback) tryMode(
 	if r.outer.enforceMaxSizeAfterInlining && r.targetSizeExceedsLimit(t, functionState) {
 		return false, nil, false, mode
 	}
-	r.scratchRef.requiresDecomposition = false
-	r.scratchRef.inlined = false
-	r.scratchRef.InitFunctionInjector_ReferenceBase(callNode, nil, chunk, mode)
+	r.scratchRef.init(callNode, nil, chunk, mode, false)
 	r.scratchRef.t = t
-	result := r.injector.CanInlineReferenceToFunction(
+	result := r.injector.canInlineReferenceWithSummary(
 		&r.scratchRef,
-		functionState.GetFn().GetFunctionNode(),
+		functionState.functionNode(),
 		functionState.GetNamesToAlias(),
 		functionState.GetReferencesThis(),
-		functionState.HasInnerClosures())
+		functionState.HasInnerClosures(),
+		functionState.readOnlySummary())
 	if result != FunctionInjector_CanInlineResult_NO {
 		var scope *Scope
 		if result == FunctionInjector_CanInlineResult_AFTER_PREPARATION {
@@ -476,7 +523,7 @@ func (r *ifPhase2RefCallback) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	if InlineFunctions_IsCandidateUsage(n) {
 		return
 	}
-	functionState := r.functionMap.Get(name)
+	functionState := r.visitor.functionMap.Get(name)
 	if functionState == nil {
 		return
 	}
@@ -517,9 +564,9 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 	if f.enforceMaxSizeAfterInlining {
 		for fs := range f.fns.Values() {
 			if fs.CanInline() && fs.bodyAstSize == 0 {
-				fnNode := fs.GetFn().GetFunctionNode()
+				fnNode := fs.functionNode()
 				if !InlineFunctions_IsAlwaysInlinable(fnNode) {
-					fs.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(NodeUtil_GetFunctionBody(fnNode), f.maxSizeAfterInlining))
+					fs.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(fnNode).Body().Node(), f.maxSizeAfterInlining))
 				}
 			}
 		}
@@ -527,6 +574,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 
 	lazyGlobal := newLazyGlobalScope(f.compiler, root)
 	workerFnCaches := make([]map[rhino.Node]functionInjectorFnInfo, numWorkers)
+	workerSideEffects := make([]map[rhino.Node]calleeSideEffectSummary, numWorkers)
 
 	ifEventsByScript := make([][]ifPhase2Event, len(scripts))
 	runParallelWork(f.compiler, numWorkers, len(scripts), func(workerID int) (func(int, *recordingCompiler), func()) {
@@ -535,25 +583,36 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 		var sc *SyntacticScopeCreator
 
 		cleanup := func() {
-			if cb != nil && cb.injector != nil && len(cb.injector.fnInfoCache) != 0 {
-				workerFnCaches[workerID] = cb.injector.fnInfoCache
+			if cb != nil && cb.injector != nil {
+				if len(cb.injector.fnInfoCache) != 0 {
+					workerFnCaches[workerID] = cb.injector.fnInfoCache
+				}
+				if len(cb.injector.functionArgumentInjector.sideEffectCache) != 0 {
+					workerSideEffects[workerID] = cb.injector.functionArgumentInjector.sideEffectCache
+				}
 			}
 		}
 		runItem := func(idx int, rc *recordingCompiler) {
 			if cb == nil || workerRC != rc {
 				workerRC = rc
 				cb = &ifPhase2RefCallback{outer: f}
-				cb.InitInlineFunctions_CallVisitorBase(f.fns, f.anonFns, cb)
+				cb.visitor = inlineCallVisitor{
+					functionMap:     f.fns,
+					anonFunctionMap: f.anonFns,
+					onCallSite:      cb.VisitCallSite,
+				}
 				localSafeSupplier := func() string {
 					id := cb.safeIdsCounter
 					cb.safeIdsCounter++
 					return strconv.Itoa(id)
 				}
+				argInj := NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())
+				argInj.readOnlySummaries = true
 				injBuilder := NewFunctionInjector_Builder(rc).
 					SafeNameIdSupplier(localSafeSupplier).
 					AllowDecomposition(f.injector.allowDecomposition).
 					AssumeStrictThis(f.injector.assumeStrictThis).
-					FunctionArgumentInjector(NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer()))
+					FunctionArgumentInjector(argInj)
 				cb.injector = injBuilder.Build()
 				cb.injector.SetKnownConstantFunctions(f.injector.knownConstantFunctions)
 				sc = NewSyntacticScopeCreator(rc)
@@ -645,51 +704,20 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 		}
 	}
 
+	for _, seCache := range workerSideEffects {
+		if len(seCache) == 0 {
+			continue
+		}
+		if f.functionArgumentInjector.sideEffectCache == nil {
+			f.functionArgumentInjector.sideEffectCache = make(map[rhino.Node]calleeSideEffectSummary, len(seCache)*2)
+		}
+		// order-independent: merges deterministic per-fnNode side-effect bitmasks computed identically by workers
+		for fnNode, se := range seCache {
+			f.functionArgumentInjector.sideEffectCache[fnNode] = se
+		}
+	}
+
 	return true
-}
-
-// Java: InlineFunctions.Inline(FunctionInjector)
-func NewInlineFunctions_Inline(injector *FunctionInjector) *InlineFunctions_Inline {
-	return &InlineFunctions_Inline{injector: injector}
-}
-
-func (*InlineFunctions_Inline) noVisitLeaves() {}
-
-// Java: InlineFunctions.Inline.visitCallSite(NodeTraversal, Node, FunctionState)
-func (i *InlineFunctions_Inline) VisitCallSite(t *NodeTraversal, callNode rhino.Node, functionState *InlineFunctions_FunctionState) {
-	jutil.CheckState(functionState.HasExistingFunctionDefinition())
-	if functionState.CanInline() {
-		ref := functionState.GetReference(callNode)
-
-		// There are two cases ref can be null: if the call site was introduced
-		// because it was part of a function that was inlined during this pass
-		// or if the call site was trimmed from the list of references because
-		// the function couldn't be inlined at this location.
-		if ref != nil {
-			i.InlineFunction(t, ref, functionState)
-			// Keep track of references that have been inlined so that
-			// we can verify that none have been missed.
-			ref.inlined = true
-		}
-	}
-}
-
-// InlineFunction inlines a function into the call site.
-//
-// Java: InlineFunctions.Inline.inlineFunction(NodeTraversal, Reference, FunctionState)
-func (i *InlineFunctions_Inline) InlineFunction(t *NodeTraversal, ref *InlineFunctions_Reference, functionState *InlineFunctions_FunctionState) {
-	fn := functionState.GetFn()
-	fnName := fn.GetName()
-	fnNode := functionState.GetSafeFnNode()
-
-	newExpr := i.injector.Inline(ref, fnName, fnNode)
-	if newExpr != ref.callNode {
-		if t != nil {
-			t.GetCompiler().ReportChangeToEnclosingScope(newExpr)
-		} else {
-			i.injector.compiler.ReportChangeToEnclosingScope(newExpr)
-		}
-	}
 }
 
 // TrimCandidatesNotMeetingMinimumRequirements removes entries that aren't a
@@ -766,13 +794,14 @@ func (f *InlineFunctions) InliningLowersCost(functionState *InlineFunctions_Func
 			p.refsScratch = append(p.refsScratch, ref)
 		}
 	}
-	return f.injector.InliningLowersCost(
+	return f.injector.inliningLowersCostWithSummary(
 		functionState.GetChunk(),
-		functionState.GetFn().GetFunctionNode(),
+		functionState.functionNode(),
 		p.refsScratch,
 		functionState.GetNamesToAlias(),
 		functionState.CanRemove(),
-		functionState.GetReferencesThis())
+		functionState.GetReferencesThis(),
+		functionState.ensureSummary())
 }
 
 // ResolveInlineConflicts: size base inlining calculations are thrown off
@@ -863,8 +892,8 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 					return
 				}
 				fs := cands[idx]
-				fnNode := fs.GetFn().GetFunctionNode()
-				body := NodeUtil_GetFunctionBody(fnNode)
+				fnNode := fs.functionNode()
+				body := ast.MustFunction(fnNode).Body().Node()
 				names.Clear()
 				inlineFunctions_findCalledFunctions(body, names)
 				if names.IsEmpty() {
@@ -930,7 +959,7 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 	cloneWorkers := parallelThreadCount(f.compiler, len(toClone))
 	if cloneWorkers <= 1 {
 		for _, fs := range toClone {
-			fs.SetSafeFnNode(fs.GetFn().GetFunctionNode().CloneTree())
+			fs.SetSafeFnNode(fs.functionNode().CloneTree())
 		}
 		return
 	}
@@ -945,7 +974,7 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 					return
 				}
 				fs := toClone[idx]
-				fs.SetSafeFnNode(fs.GetFn().GetFunctionNode().CloneTree())
+				fs.SetSafeFnNode(fs.functionNode().CloneTree())
 			}
 		}()
 	}
@@ -988,12 +1017,12 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 		return
 	}
 
-	fnNode := functionState.GetFn().GetFunctionNode()
+	fnNode := functionState.functionNode()
 	p := f.ensureRunState()
 	names := p.calledNames
 	names.Clear()
 	hasAnonInlinable := inlineFunctions_findCalledFunctionsAndAnon(
-		NodeUtil_GetFunctionBody(fnNode), names, f.anonFns, f.fns)
+		ast.MustFunction(fnNode).Body().Node(), names, f.anonFns, f.fns)
 	if !names.IsEmpty() {
 		needsSafeClone := hasAnonInlinable || !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode)
 		// Prevent the removal of the referenced functions unless they will be immediately inlined.
@@ -1063,7 +1092,7 @@ func inlineFunctions_isIsolatedStmtFn(fnNode rhino.Node) bool {
 // Java: InlineFunctions.findCalledFunctions(Node)
 func (f *InlineFunctions) FindCalledFunctions(node rhino.Node) *jutil.LinkedHashSet[string] {
 	changed := jutil.NewLinkedHashSet[string]()
-	inlineFunctions_findCalledFunctions(NodeUtil_GetFunctionBody(node), changed)
+	inlineFunctions_findCalledFunctions(ast.MustFunction(node).Body().Node(), changed)
 	return changed
 }
 
@@ -1143,7 +1172,7 @@ func (f *InlineFunctions) DecomposeExpressions() {
 	if f.fns == nil || f.fns.IsEmpty() {
 		return
 	}
-	var workRefs []*InlineFunctions_Reference
+	var workRefs []*FunctionInjector_Reference
 	for functionState := range f.fns.Values() {
 		if functionState.CanInline() && functionState.references != nil {
 			for ref := range functionState.references.Values() {
@@ -1155,6 +1184,9 @@ func (f *InlineFunctions) DecomposeExpressions() {
 	}
 	if len(workRefs) == 0 {
 		return
+	}
+	for _, ref := range workRefs {
+		f.invalidateEnclosingSummaries(ref.callNode)
 	}
 	if len(workRefs) < 2 || f.compiler == nil || f.compiler.GetOptions() == nil || f.compiler.GetOptions().GetNumParallelThreads() <= 1 {
 		for _, ref := range workRefs {
@@ -1246,7 +1278,7 @@ func collectIfDecompPlaceholders(
 	}
 }
 
-func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*InlineFunctions_Reference) bool {
+func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*FunctionInjector_Reference) bool {
 	groupIdxByScript := make(map[rhino.Node]int, 32)
 	var groups []ifDecompScriptGroup
 	var anyScope *Scope
@@ -1417,12 +1449,12 @@ func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*InlineFunctio
 func (f *InlineFunctions) RemoveInlinedFunctions() {
 	for name, functionState := range f.fns.All() {
 		if functionState.CanRemove() {
-			fn := functionState.GetFn()
+			target := functionState.target
 			jutil.CheckState(functionState.CanInline())
-			jutil.CheckState(fn != nil)
+			jutil.CheckState(target.kind != fnKindNone)
 			if f.runState != nil && len(f.runState.movedArgs) > 0 {
 				inMovedArg := false
-				for anc := fn.GetFunctionNode(); !anc.IsNil(); anc = anc.GetParent() {
+				for anc := target.fnNode; !anc.IsNil(); anc = anc.GetParent() {
 					if _, ok := f.runState.movedArgs[anc]; ok {
 						inMovedArg = true
 						break
@@ -1430,15 +1462,15 @@ func (f *InlineFunctions) RemoveInlinedFunctions() {
 				}
 				if inMovedArg {
 					f.VerifyAllReferencesInlined(name, functionState)
-					if _, isExpr := fn.(*InlineFunctions_FunctionExpression); !isExpr {
+					if target.kind != fnKindExpr {
 						f.compiler.GetChangeTracker().notifyChangeHandlers()
 					}
 					continue
 				}
 			}
 			f.VerifyAllReferencesInlined(name, functionState)
-			fn.Remove()
-			NodeUtil_MarkFunctionsDeleted(fn.GetFunctionNode(), f.compiler)
+			target.remove(f.compiler)
+			NodeUtil_MarkFunctionsDeleted(target.fnNode, f.compiler)
 		}
 	}
 }

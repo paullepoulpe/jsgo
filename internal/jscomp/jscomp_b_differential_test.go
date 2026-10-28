@@ -364,33 +364,15 @@ func jscompBMessageId(projectCol, meaningCol, partsCol string) string {
 	})
 }
 
-// jscompBConsumer is the oracle's anonymous CodeConsumer.
-type jscompBConsumer struct {
-	CodeConsumerBase
-	buf []uint16
-}
-
-func (c *jscompBConsumer) GetLastChar() uint16 {
-	if len(c.buf) == 0 {
-		return 0
-	}
-	return c.buf[len(c.buf)-1]
-}
-
-func (c *jscompBConsumer) Append(str string) {
-	c.buf = append(c.buf, jutil.StringToUTF16(str)...)
-}
-
 func jscompBAddNumber(bitsCol string) string {
 	bits, err := strconv.ParseUint(bitsCol, 16, 64)
 	if err != nil {
 		panic(err)
 	}
 	return jscompBCatch(func() string {
-		c := &jscompBConsumer{}
-		c.InitCodeConsumerBase(c)
-		c.AddNumber(math.Float64frombits(bits), (rhino.Node)(rhino.NilNode))
-		return jscompBEncS(jutil.StringFromUTF16(c.buf))
+		var c CodeConsumer
+		c.AddNumber(math.Float64frombits(bits), rhino.NilNode)
+		return jscompBEncS(c.GetCode())
 	})
 }
 

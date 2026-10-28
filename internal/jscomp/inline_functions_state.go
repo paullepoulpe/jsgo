@@ -27,20 +27,90 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+type fnDeclKind uint8
+
+const (
+	fnKindNone fnDeclKind = iota
+	fnKindDecl            // function foo() {}
+	fnKindVar             // var/let/const foo = function() {}
+	fnKindExpr            // (function() {})()
+)
+
+// inlineFnTarget describes a candidate function definition without interface
+// boxing or per-function heap wrapper allocations.
+type inlineFnTarget struct {
+	kind     fnDeclKind
+	name     string
+	nameNode rhino.Node
+	fnNode   rhino.Node
+	declNode rhino.Node
+}
+
+func newNamedFnTarget(fn rhino.Node) inlineFnTarget {
+	name, ok := ast.MustFunction(fn).Name()
+	jutil.CheckState(ok)
+	return inlineFnTarget{
+		kind:     fnKindDecl,
+		name:     name.Ident(),
+		nameNode: name.Node(),
+		fnNode:   fn,
+		declNode: fn,
+	}
+}
+
+func newVarFnTarget(declNode rhino.Node) inlineFnTarget {
+	d, _ := ast.MustNameDeclaration(declNode).FirstDeclarator()
+	name := d.MustName()
+	initVal, _ := name.Init()
+	return inlineFnTarget{
+		kind:     fnKindVar,
+		name:     name.Ident(),
+		nameNode: name.Node(),
+		fnNode:   initVal.MustFunction().Node(),
+		declNode: declNode,
+	}
+}
+
+func newExprFnTarget(fn rhino.Node, index int) inlineFnTarget {
+	return inlineFnTarget{
+		kind:   fnKindExpr,
+		name:   strconv.Itoa(index),
+		fnNode: fn,
+	}
+}
+
+func (t inlineFnTarget) declaringBlock() rhino.Node {
+	if t.declNode.IsNil() {
+		return rhino.NilNode
+	}
+	return t.declNode.GetParent()
+}
+
+func (t inlineFnTarget) remove(compiler AbstractCompiler) {
+	if t.declNode.IsNil() {
+		return
+	}
+	compiler.ReportChangeToEnclosingScope(t.declNode)
+	NodeUtil_RemoveChild(t.declNode.GetParent(), t.declNode)
+	NodeUtil_MarkFunctionsDeleted(t.declNode, compiler)
+}
+
 // InlineFunctions_FunctionState is used to track the decisions that have
 // been made about a function.
 type InlineFunctions_FunctionState struct {
-	fn               InlineFunctions_Function
+	target           inlineFnTarget
 	safeFnNode       rhino.Node
 	inline           bool
 	remove           bool
 	inlineDirectly   bool
 	referencesThis   bool
 	hasInnerClosures bool
-	references       *jutil.LinkedHashMap[rhino.Node, *InlineFunctions_Reference]
-	refMapVal        jutil.LinkedHashMap[rhino.Node, *InlineFunctions_Reference]
+	summaryValid     bool
+	references       *jutil.LinkedHashMap[rhino.Node, *FunctionInjector_Reference]
+	refMapVal        jutil.LinkedHashMap[rhino.Node, *FunctionInjector_Reference]
 	chunk            *JSChunk
 	namesToAlias     *jutil.LinkedHashSet[string]
+	summary          *calleeSummary
 
 	hasRequireInliningAnnotation            bool
 	hasRequireInliningAnnotationInitialized bool
@@ -53,7 +123,6 @@ type InlineFunctions_FunctionState struct {
 // Java: InlineFunctions.FunctionState()
 func NewInlineFunctions_FunctionState() *InlineFunctions_FunctionState {
 	return &InlineFunctions_FunctionState{
-		fn:             nil,
 		safeFnNode:     rhino.NilNode,
 		inline:         true,
 		remove:         true,
@@ -64,7 +133,7 @@ func NewInlineFunctions_FunctionState() *InlineFunctions_FunctionState {
 
 // Java: InlineFunctions.FunctionState.hasExistingFunctionDefinition()
 func (s *InlineFunctions_FunctionState) HasExistingFunctionDefinition() bool {
-	return s.fn != nil
+	return s.target.kind != fnKindNone
 }
 
 // Java: InlineFunctions.FunctionState.setReferencesThis(boolean)
@@ -115,15 +184,17 @@ func (s *InlineFunctions_FunctionState) HasBlockInliningReferences() bool {
 	return false
 }
 
-// Java: InlineFunctions.FunctionState.getFn()
-func (s *InlineFunctions_FunctionState) GetFn() InlineFunctions_Function {
-	return s.fn
+func (s *InlineFunctions_FunctionState) setTarget(target inlineFnTarget) {
+	jutil.CheckState(s.target.kind == fnKindNone)
+	s.target = target
 }
 
-// Java: InlineFunctions.FunctionState.setFn(Function)
-func (s *InlineFunctions_FunctionState) SetFn(fn InlineFunctions_Function) {
-	jutil.CheckState(s.fn == nil)
-	s.fn = fn
+func (s *InlineFunctions_FunctionState) functionNode() rhino.Node {
+	return s.target.fnNode
+}
+
+func (s *InlineFunctions_FunctionState) functionName() string {
+	return s.target.name
 }
 
 // Java: InlineFunctions.FunctionState.getSafeFnNode()
@@ -131,12 +202,42 @@ func (s *InlineFunctions_FunctionState) GetSafeFnNode() rhino.Node {
 	if !s.safeFnNode.IsNil() {
 		return s.safeFnNode
 	}
-	return s.fn.GetFunctionNode()
+	return s.target.fnNode
 }
 
 // Java: InlineFunctions.FunctionState.setSafeFnNode(Node)
 func (s *InlineFunctions_FunctionState) SetSafeFnNode(safeFnNode rhino.Node) {
+	if s.summaryValid && s.summary != nil {
+		if s.summary.fnNode == s.GetSafeFnNode() {
+			s.summary.fnNode = safeFnNode
+		} else {
+			s.summaryValid = false
+		}
+	}
 	s.safeFnNode = safeFnNode
+}
+
+func (s *InlineFunctions_FunctionState) readOnlySummary() *calleeSummary {
+	if s.summaryValid && s.summary != nil && s.summary.fnNode == s.GetSafeFnNode() {
+		return s.summary
+	}
+	return nil
+}
+
+func (s *InlineFunctions_FunctionState) ensureSummary() *calleeSummary {
+	fnNode := s.GetSafeFnNode()
+	if s.summaryValid && s.summary != nil && s.summary.fnNode == fnNode {
+		return s.summary
+	}
+	if s.summary == nil {
+		s.summary = new(calleeSummary)
+	}
+	if scanCalleeSummary(s.target.name, fnNode, s.summary) {
+		s.summaryValid = true
+		return s.summary
+	}
+	s.summaryValid = false
+	return nil
 }
 
 // Java: InlineFunctions.FunctionState.canInline()
@@ -146,24 +247,24 @@ func (s *InlineFunctions_FunctionState) CanInline() bool {
 
 // Java: InlineFunctions.FunctionState.encourageInlining()
 func (s *InlineFunctions_FunctionState) EncourageInlining() bool {
-	if s.fn == nil {
+	if s.target.kind == fnKindNone {
 		return false
 	}
 	if !s.hasEncourageInliningAnnotationInitialized {
 		s.hasEncourageInliningAnnotationInitialized = true
-		s.hasEncourageInliningAnnotation = InlineFunctions_HasEncourageInliningAnnotation(s.fn.GetFunctionNode())
+		s.hasEncourageInliningAnnotation = InlineFunctions_HasEncourageInliningAnnotation(s.target.fnNode)
 	}
 	return s.hasEncourageInliningAnnotation
 }
 
 // Java: InlineFunctions.FunctionState.requireInlining()
 func (s *InlineFunctions_FunctionState) RequireInlining() bool {
-	if s.fn == nil {
+	if s.target.kind == fnKindNone {
 		return false
 	}
 	if !s.hasRequireInliningAnnotationInitialized {
 		s.hasRequireInliningAnnotationInitialized = true
-		s.hasRequireInliningAnnotation = InlineFunctions_HasRequireInliningAnnotation(s.fn.GetFunctionNode())
+		s.hasRequireInliningAnnotation = InlineFunctions_HasRequireInliningAnnotation(s.target.fnNode)
 	}
 	return s.hasRequireInliningAnnotation
 }
@@ -183,7 +284,7 @@ func (s *InlineFunctions_FunctionState) DisallowInliningWithWarning(
 		shouldWarnWhenRequireInliningCannotInline ==
 			InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_YES {
 		compiler.Report(
-			JSError_MakeWithNode(s.fn.GetFunctionNode(), InlineFunctions_MISSED_REQUIRED_INLINING, reason.String()))
+			JSError_MakeWithNode(s.target.fnNode, InlineFunctions_MISSED_REQUIRED_INLINING, reason.String()))
 	}
 	s.inline = false
 
@@ -192,6 +293,8 @@ func (s *InlineFunctions_FunctionState) DisallowInliningWithWarning(
 		s.refMapVal.Clear()
 	}
 	s.references = nil
+	s.summary = nil
+	s.summaryValid = false
 	// Don't remove functions that we aren't inlining.
 	s.remove = false
 }
@@ -227,7 +330,7 @@ func (s *InlineFunctions_FunctionState) SetRemoveWithContext(
 		}
 		compiler.Report(
 			JSError_MakeWithNode(
-				s.fn.GetFunctionNode(),
+				s.target.fnNode,
 				InlineFunctions_MISSED_REQUIRED_INLINING,
 				reason.String(),
 				contextString))
@@ -251,15 +354,15 @@ func (s *InlineFunctions_FunctionState) HasReferences() bool {
 }
 
 // Java: InlineFunctions.FunctionState.getReferencesInternal()
-func (s *InlineFunctions_FunctionState) GetReferencesInternal() *jutil.LinkedHashMap[rhino.Node, *InlineFunctions_Reference] {
+func (s *InlineFunctions_FunctionState) GetReferencesInternal() *jutil.LinkedHashMap[rhino.Node, *FunctionInjector_Reference] {
 	if s.references == nil {
-		return jutil.NewLinkedHashMap[rhino.Node, *InlineFunctions_Reference]()
+		return jutil.NewLinkedHashMap[rhino.Node, *FunctionInjector_Reference]()
 	}
 	return s.references
 }
 
 // Java: InlineFunctions.FunctionState.addReference(Reference)
-func (s *InlineFunctions_FunctionState) AddReference(ref *InlineFunctions_Reference) {
+func (s *InlineFunctions_FunctionState) AddReference(ref *FunctionInjector_Reference) {
 	if s.references == nil {
 		s.references = &s.refMapVal
 	}
@@ -274,11 +377,11 @@ var inlineFunctions_emptyStringSet = jutil.NewLinkedHashSet[string]()
 // slice; no caller modifies the map while iterating it.
 //
 // Java: InlineFunctions.FunctionState.getReferences()
-func (s *InlineFunctions_FunctionState) GetReferences() []*InlineFunctions_Reference {
+func (s *InlineFunctions_FunctionState) GetReferences() []*FunctionInjector_Reference {
 	if s.references == nil || s.references.IsEmpty() {
 		return nil
 	}
-	out := make([]*InlineFunctions_Reference, 0, s.references.Size())
+	out := make([]*FunctionInjector_Reference, 0, s.references.Size())
 	for ref := range s.references.Values() {
 		out = append(out, ref)
 	}
@@ -286,7 +389,7 @@ func (s *InlineFunctions_FunctionState) GetReferences() []*InlineFunctions_Refer
 }
 
 // Java: InlineFunctions.FunctionState.getReference(Node)
-func (s *InlineFunctions_FunctionState) GetReference(n rhino.Node) *InlineFunctions_Reference {
+func (s *InlineFunctions_FunctionState) GetReference(n rhino.Node) *FunctionInjector_Reference {
 	if s.references == nil {
 		return nil
 	}
@@ -314,193 +417,6 @@ func (s *InlineFunctions_FunctionState) SetChunk(chunk *JSChunk) {
 // Java: InlineFunctions.FunctionState.getChunk()
 func (s *InlineFunctions_FunctionState) GetChunk() *JSChunk {
 	return s.chunk
-}
-
-// InlineFunctions_Function is an interface for dealing with function
-// declarations and function expressions equally.
-type InlineFunctions_Function interface {
-	// GetName gets the name of the function.
-	//
-	// Java: InlineFunctions.Function.getName()
-	GetName() string
-
-	// GetNameNode gets the name node of the function.
-	//
-	// Java: InlineFunctions.Function.getNameNode()
-	GetNameNode() rhino.Node
-
-	// GetFunctionNode gets the function node.
-	//
-	// Java: InlineFunctions.Function.getFunctionNode()
-	GetFunctionNode() rhino.Node
-
-	// Remove removes itself from the JavaScript.
-	//
-	// Java: InlineFunctions.Function.remove()
-	Remove()
-
-	// Java: InlineFunctions.Function.getDeclaringBlock()
-	GetDeclaringBlock() rhino.Node
-}
-
-// InlineFunctions_NamedFunction is the NamedFunction implementation of the
-// Function interface.
-type InlineFunctions_NamedFunction struct {
-	outer *InlineFunctions
-
-	fn   rhino.Node
-	name ast.Name // the name of fn (the node: renaming it keeps the node)
-}
-
-// Java: InlineFunctions.NamedFunction(Node)
-func NewInlineFunctions_NamedFunction(outer *InlineFunctions, fn rhino.Node) *InlineFunctions_NamedFunction {
-	name, ok := ast.MustFunction(fn).Name()
-	jutil.CheckState(ok)
-	return &InlineFunctions_NamedFunction{outer: outer, fn: fn, name: name}
-}
-
-// Java: InlineFunctions.NamedFunction.getName()
-func (n *InlineFunctions_NamedFunction) GetName() string {
-	return n.nameNode().Ident()
-}
-
-// Java: InlineFunctions.NamedFunction.getNameNode()
-func (n *InlineFunctions_NamedFunction) GetNameNode() rhino.Node {
-	return n.nameNode().Node()
-}
-
-// nameNode returns the name of the declared function.
-func (n *InlineFunctions_NamedFunction) nameNode() ast.Name {
-	return n.name
-}
-
-// Java: InlineFunctions.NamedFunction.getFunctionNode()
-func (n *InlineFunctions_NamedFunction) GetFunctionNode() rhino.Node {
-	return n.fn
-}
-
-// Java: InlineFunctions.NamedFunction.remove()
-func (n *InlineFunctions_NamedFunction) Remove() {
-	n.outer.compiler.ReportChangeToEnclosingScope(n.fn)
-	NodeUtil_RemoveChild(n.fn.GetParent(), n.fn)
-	NodeUtil_MarkFunctionsDeleted(n.fn, n.outer.compiler)
-}
-
-// Java: InlineFunctions.NamedFunction.getDeclaringBlock()
-func (n *InlineFunctions_NamedFunction) GetDeclaringBlock() rhino.Node {
-	return n.fn.GetParent()
-}
-
-// InlineFunctions_FunctionVar is the FunctionVar implementation of the
-// Function interface.
-type InlineFunctions_FunctionVar struct {
-	outer *InlineFunctions
-
-	var_ rhino.Node
-}
-
-// Java: InlineFunctions.FunctionVar(Node)
-func NewInlineFunctions_FunctionVar(outer *InlineFunctions, var_ rhino.Node) *InlineFunctions_FunctionVar {
-	return &InlineFunctions_FunctionVar{outer: outer, var_: var_}
-}
-
-// Java: InlineFunctions.FunctionVar.getName()
-func (v *InlineFunctions_FunctionVar) GetName() string {
-	return v.nameNode().Ident()
-}
-
-// Java: InlineFunctions.FunctionVar.getNameNode()
-func (v *InlineFunctions_FunctionVar) GetNameNode() rhino.Node {
-	return v.nameNode().Node()
-}
-
-// Java: InlineFunctions.FunctionVar.getFunctionNode()
-func (v *InlineFunctions_FunctionVar) GetFunctionNode() rhino.Node {
-	value, _ := v.nameNode().Init()
-	return value.MustFunction().Node()
-}
-
-// nameNode returns the declared name (var name = function...).
-func (v *InlineFunctions_FunctionVar) nameNode() ast.Name {
-	d, _ := ast.MustNameDeclaration(v.var_).FirstDeclarator()
-	return d.MustName()
-}
-
-// Java: InlineFunctions.FunctionVar.remove()
-func (v *InlineFunctions_FunctionVar) Remove() {
-	v.outer.compiler.ReportChangeToEnclosingScope(v.var_)
-	NodeUtil_RemoveChild(v.var_.GetParent(), v.var_)
-	NodeUtil_MarkFunctionsDeleted(v.var_, v.outer.compiler)
-}
-
-// Java: InlineFunctions.FunctionVar.getDeclaringBlock()
-func (v *InlineFunctions_FunctionVar) GetDeclaringBlock() rhino.Node {
-	return v.var_.GetParent()
-}
-
-// InlineFunctions_FunctionExpression is the FunctionExpression
-// implementation of the Function interface.
-type InlineFunctions_FunctionExpression struct {
-	fn           rhino.Node
-	fakeName     string
-	fakeNameNode rhino.Node
-}
-
-// Java: InlineFunctions.FunctionExpression(Node, int)
-func NewInlineFunctions_FunctionExpression(fn rhino.Node, index int) *InlineFunctions_FunctionExpression {
-	return &InlineFunctions_FunctionExpression{
-		fn:       fn,
-		fakeName: strconv.Itoa(index),
-	}
-}
-
-// Java: InlineFunctions.FunctionExpression.getName()
-func (e *InlineFunctions_FunctionExpression) GetName() string {
-	return e.fakeName
-}
-
-// Java: InlineFunctions.FunctionExpression.getNameNode()
-func (e *InlineFunctions_FunctionExpression) GetNameNode() rhino.Node {
-	if e.fakeNameNode.IsNil() {
-		e.fakeNameNode = rhino.IR_Name(e.fakeName)
-	}
-	return e.fakeNameNode
-}
-
-// Java: InlineFunctions.FunctionExpression.getFunctionNode()
-func (e *InlineFunctions_FunctionExpression) GetFunctionNode() rhino.Node {
-	return e.fn
-}
-
-// Java: InlineFunctions.FunctionExpression.remove()
-func (e *InlineFunctions_FunctionExpression) Remove() {
-	// Nothing to do. The function is removed with the call.
-}
-
-// Java: InlineFunctions.FunctionExpression.getDeclaringBlock()
-func (e *InlineFunctions_FunctionExpression) GetDeclaringBlock() rhino.Node {
-	return rhino.NilNode
-}
-
-// InlineFunctions_Reference is InlineFunctions.Reference, a subclass of
-// FunctionInjector.Reference.
-type InlineFunctions_Reference struct {
-	FunctionInjector_ReferenceBase
-
-	requiresDecomposition bool
-	inlined               bool
-}
-
-// Java: InlineFunctions.Reference(Node, Scope, JSChunk, InliningMode)
-func NewInlineFunctions_Reference(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *InlineFunctions_Reference {
-	r := &InlineFunctions_Reference{requiresDecomposition: false, inlined: false}
-	r.InitFunctionInjector_ReferenceBase(callNode, scope, chunk, mode)
-	return r
-}
-
-// Java: InlineFunctions.Reference.setRequiresDecomposition(boolean)
-func (r *InlineFunctions_Reference) SetRequiresDecomposition(newVal bool) {
-	r.requiresDecomposition = newVal
 }
 
 // InlineFunctions_ShouldWarnWhenRequireInliningCannotInline is the enum

@@ -19,21 +19,18 @@
 package jscomp
 
 import (
-	"math"
-	"strconv"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// CodeGenerator generates codes from a parse tree, sending it to the
-// specified CodeConsumer.
+// CodeGenerator generates JS code from a parse tree, sending it to the
+// specified concrete CodeConsumer.
 //
 // Go-only: language-adapter — TypedCodeGenerator's single override
 // (add(Node, Context) calling maybeAddTypeAnnotation(Node)) is folded into
-// CodeGenerator via emitTypeAnnotations + registry so all 300+ internal
-// calls dispatch directly without interface indirection.
+// CodeGenerator via emitTypeAnnotations + registry so all internal calls
+// dispatch directly without interface indirection.
 type CodeGenerator struct {
 	cc CodeConsumer
 
@@ -56,15 +53,15 @@ type CodeGenerator struct {
 	jsDocInfoPrinter       *JSDocInfoPrinter
 	registry               *rhino.JSTypeRegistry
 
-	// Go-only: language-adapter — the UTF-16 view of the string being
-	// escaped (Java indexes its chars), reused across calls.
+	// Go-only: language-adapter — reused UTF-16 buffer for escaping strings
+	// larger than the stack buffer.
 	scratchUnits []uint16
 }
 
-// NewCodeGenerator is the private constructor used for cost estimation.
+// NewCodeGenerator is the constructor used for cost estimation.
 //
 // Java: CodeGenerator(CodeConsumer)
-func NewCodeGenerator(consumer CodeConsumer) *CodeGenerator {
+func NewCodeGenerator(consumer *CodeConsumer) *CodeGenerator {
 	g := &CodeGenerator{}
 	g.InitCodeGenerator(consumer)
 	return g
@@ -75,11 +72,7 @@ var (
 	codeGenerator_jsDocInfoPrinterTrue  = &JSDocInfoPrinter{useOriginalName: true, printDesc: false}
 )
 
-// InitCodeGenerator is the CodeGenerator(CodeConsumer) constructor.
-//
-// Java: CodeGenerator(CodeConsumer)
-func (g *CodeGenerator) InitCodeGenerator(consumer CodeConsumer) {
-	g.cc = consumer
+func (g *CodeGenerator) initDefaults() {
 	g.outputCharsetEncoder = nil
 	g.preferSingleQuotes = false
 	g.trustedStrings = true
@@ -94,20 +87,16 @@ func (g *CodeGenerator) InitCodeGenerator(consumer CodeConsumer) {
 	g.registry = nil
 }
 
-// Java: CodeGenerator(CodeConsumer, CompilerOptions)
-func NewCodeGeneratorWithOptions(consumer CodeConsumer, options *CompilerOptions) *CodeGenerator {
-	g := &CodeGenerator{}
-	g.InitCodeGeneratorWithOptions(consumer, options)
-	return g
+func (g *CodeGenerator) initForCostEstimation(costThreshold int) {
+	g.cc = CodeConsumer{
+		mode:               sinkCost,
+		continueProcessing: true,
+		maxCost:            costThreshold,
+	}
+	g.initDefaults()
 }
 
-// InitCodeGeneratorWithOptions is the CodeGenerator(CodeConsumer,
-// CompilerOptions) constructor.
-//
-// Java: CodeGenerator(CodeConsumer, CompilerOptions)
-func (g *CodeGenerator) InitCodeGeneratorWithOptions(consumer CodeConsumer, options *CompilerOptions) {
-	g.cc = consumer
-
+func (g *CodeGenerator) initWithOptions(options *CompilerOptions) {
 	if outputCharset := options.GetOutputCharset(); outputCharset != nil && outputCharset != jutil.StandardCharsets_US_ASCII {
 		g.outputCharsetEncoder = NewOutputCharsetEncoder(outputCharset)
 	} else {
@@ -130,8 +119,36 @@ func (g *CodeGenerator) InitCodeGeneratorWithOptions(consumer CodeConsumer, opti
 	g.registry = nil
 }
 
+// InitCodeGenerator is the CodeGenerator(CodeConsumer) constructor.
+//
+// Java: CodeGenerator(CodeConsumer)
+func (g *CodeGenerator) InitCodeGenerator(consumer *CodeConsumer) {
+	if consumer != nil {
+		g.cc = *consumer
+	}
+	g.initDefaults()
+}
+
+// Java: CodeGenerator(CodeConsumer, CompilerOptions)
+func NewCodeGeneratorWithOptions(consumer *CodeConsumer, options *CompilerOptions) *CodeGenerator {
+	g := &CodeGenerator{}
+	g.InitCodeGeneratorWithOptions(consumer, options)
+	return g
+}
+
+// InitCodeGeneratorWithOptions is the CodeGenerator(CodeConsumer,
+// CompilerOptions) constructor.
+//
+// Java: CodeGenerator(CodeConsumer, CompilerOptions)
+func (g *CodeGenerator) InitCodeGeneratorWithOptions(consumer *CodeConsumer, options *CompilerOptions) {
+	if consumer != nil {
+		g.cc = *consumer
+	}
+	g.initWithOptions(options)
+}
+
 // Java: CodeGenerator.forCostEstimation(CodeConsumer)
-func CodeGenerator_ForCostEstimation(consumer CodeConsumer) *CodeGenerator {
+func CodeGenerator_ForCostEstimation(consumer *CodeConsumer) *CodeGenerator {
 	return NewCodeGenerator(consumer)
 }
 
@@ -234,7 +251,6 @@ func (g *CodeGenerator) HasTrailingCommentOnSameLine(node rhino.Node) bool {
 
 // Java: CodeGenerator.printTrailingComment(Node)
 func (g *CodeGenerator) PrintTrailingComment(node rhino.Node) {
-	// print any trailing nonJSDoc comment attached to this node
 	if !g.printNonJSDocComments {
 		return
 	}
@@ -243,6 +259,57 @@ func (g *CodeGenerator) PrintTrailingComment(node rhino.Node) {
 		nonJSDocCommentString := node.GetTrailingNonJSDocCommentString()
 		if nonJSDocCommentString != "" {
 			g.AddNonJsDoctrailing(nonJSDocComment, g.HasTrailingCommentOnSameLine(node))
+		}
+	}
+}
+
+// Java: CodeGenerator.addNonJsDoc_nonTrailing(Node, NonJSDocComment)
+func (g *CodeGenerator) AddNonJsDoc_nonTrailing(node rhino.Node, nonJSDocComment *rhino.NonJSDocComment) {
+	content := nonJSDocComment.GetCommentString()
+	commentEndPosition := nonJSDocComment.GetEndPosition()
+
+	nodeLineNumber := node.GetLineno() - 1 // source lines are 1-indexed
+
+	if nonJSDocComment.IsEndingAsLineComment() {
+		// Non trailing line comments can not be on the same line as the node.
+		jutil.CheckStateMsg(
+			g.gentsMode || int(commentEndPosition.Line) < nodeLineNumber,
+			"Non trailing line comments can not be on the same line as the node.")
+		g.Add(content + "\n")
+	} else {
+		if nodeLineNumber == int(commentEndPosition.Line) {
+			// e.g. ``` /* comment */ let x; ```
+			g.Add(content + " ")
+		} else {
+			// e.g.
+			// ```
+			// /* comment */
+			// let x;
+			// ```
+			g.Add(content + "\n")
+		}
+	}
+}
+
+// Java: CodeGenerator.addNonJsDoctrailing(NonJSDocComment, boolean)
+func (g *CodeGenerator) AddNonJsDoctrailing(nonJSDocComment *rhino.NonJSDocComment, sameLine bool) {
+	content := nonJSDocComment.GetCommentString()
+	if nonJSDocComment.IsEndingAsLineComment() {
+		// Trailing line comments *must* end with a `\n`. E.g.. `let x; //comment\n`
+		g.Add(" " + content)
+		if sameLine {
+			g.cc.StartNewLine()
+		}
+	} else {
+		if nonJSDocComment.IsInline() {
+			// e.g. `foo(x /*comment*/);` is inline
+			g.Add(" " + content)
+		} else {
+			// e.g. `let x; /*comment*/` is non-inline
+			g.Add(" " + content)
+			if sameLine {
+				g.cc.StartNewLine()
+			}
 		}
 	}
 }
@@ -271,7 +338,7 @@ func (g *CodeGenerator) AddNodeWithContext(node rhino.Node, context CodeGenerato
 //
 // Java: CodeGenerator.add(Node, Context, boolean)
 func (g *CodeGenerator) AddNodeWithContextAndComments(node rhino.Node, context CodeGenerator_Context, printComments bool) {
-	cc := g.cc
+	cc := &g.cc
 	if !cc.ContinueProcessing() {
 		return
 	}
@@ -348,1055 +415,22 @@ func (g *CodeGenerator) AddNodeWithContextAndComments(node rhino.Node, context C
 
 	cc.StartSourceMapping(node)
 
-	switch type_ {
-	case rhino.Token_TRY:
-		jutil.CheckState(first.GetNext().IsBlock() && !first.GetNext().HasMoreThanOneChild())
-		jutil.CheckState(childCount >= 2 && childCount <= 3)
-
-		g.Add("try")
-		g.AddNode(first)
-
-		// second child contains the catch block, or nothing if there
-		// isn't a catch block
-		catchblock := first.GetNext().GetFirstChild()
-		if !catchblock.IsNil() {
-			g.AddNode(catchblock)
-		}
-
-		if childCount == 3 {
-			cc.MaybeInsertSpace()
-			g.Add("finally")
-			g.AddNode(last)
-		}
-	case rhino.Token_CATCH:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
-		cc.MaybeInsertSpace()
-		g.Add("catch")
-		cc.MaybeInsertSpace()
-
-		if !first.IsEmpty() {
-			// optional catch binding
-			g.Add("(")
-			g.AddNode(first)
-			g.Add(")")
-		}
-
-		g.AddNode(last)
-	case rhino.Token_THROW:
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
-		g.Add("throw")
-		cc.MaybeInsertSpace()
-		g.AddNode(first)
-
-		// Must have a ';' after a throw statement, otherwise safari can't
-		// parse this.
-		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_RETURN:
-		g.Add("return")
-		if childCount == 1 {
-			cc.MaybeInsertSpace()
-			if g.preserveTypeAnnotations && first.GetJSDocInfo() != nil {
-				g.Add("(")
-				g.AddNode(first)
-				g.Add(")")
-			} else {
-				g.AddNode(first)
-			}
-		} else {
-			jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		}
-		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_VAR:
-		g.Add("var ")
-		g.AddListWithContextAndSeparator(first, false, CodeGenerator_GetContextForNoInOperator(context), ",")
-		if node.GetParent().IsNil() || NodeUtil_IsStatement(node) {
-			cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-		}
-	case rhino.Token_CONST:
-		g.Add("const ")
-		g.AddListWithContextAndSeparator(first, false, CodeGenerator_GetContextForNoInOperator(context), ",")
-		if node.GetParent().IsNil() || NodeUtil_IsStatement(node) {
-			cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-		}
-	case rhino.Token_LET:
-		g.Add("let ")
-		g.AddListWithContextAndSeparator(first, false, CodeGenerator_GetContextForNoInOperator(context), ",")
-		if node.GetParent().IsNil() || NodeUtil_IsStatement(node) {
-			cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-		}
-	case rhino.Token_LABEL_NAME:
-		jutil.CheckStateMsg1(node.GetString() != "", "%s", node)
-		g.AddIdentifier(node.GetString())
-	case rhino.Token_DESTRUCTURING_LHS:
-		g.AddNode(first)
-		if first != last {
-			jutil.CheckStateMsg1(childCount == 2, "%s", node)
-			cc.AddOp("=", true)
-			g.AddExpr(last, NodeUtil_Precedence(rhino.Token_ASSIGN), CodeGenerator_GetContextForNoInOperator(context))
-		}
-	case rhino.Token_NAME:
-		if g.useOriginalName && node.GetOriginalName() != nil {
-			g.AddIdentifier(*node.GetOriginalName())
-		} else {
-			g.AddIdentifier(node.GetString())
-		}
-		g.MaybeAddOptional(node)
-		g.MaybeAddTypeDecl(node)
-
-		if !first.IsNil() && !first.IsEmpty() {
-			jutil.CheckStateMsg1(childCount == 1, "%s", node)
-			cc.AddOp("=", true)
-			g.AddExpr(first, NodeUtil_Precedence(rhino.Token_ASSIGN), CodeGenerator_GetContextForNoInOperator(context))
-		}
-	case rhino.Token_ARRAYLIT:
-		g.Add("[")
-		g.AddArrayList(first)
-		g.Add("]")
-	case rhino.Token_ARRAY_PATTERN:
-		g.Add("[")
-		g.AddArrayList(first)
-		g.Add("]")
-		g.MaybeAddTypeDecl(node)
-	case rhino.Token_PARAM_LIST:
-		// If this is the list for a non-TypeScript arrow function with one
-		// simple name param.
-		if node.GetParent().IsArrowFunction() &&
-			node.HasOneChild() &&
-			first.IsName() &&
-			!g.gentsMode {
-			g.AddNode(first)
-		} else {
-			g.Add("(")
-			g.AddList(first)
-			g.Add(")")
-		}
-	case rhino.Token_DEFAULT_VALUE:
-		g.AddNode(first)
-		g.MaybeAddTypeDecl(node)
-		cc.AddOp("=", true)
-		g.AddExpr(first.GetNext(), 1, CodeGenerator_Context_OTHER)
-	case rhino.Token_COMMA:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
-		g.UnrollBinaryOperator(
-			node, rhino.Token_COMMA, ",", context, CodeGenerator_GetContextForNoInOperator(context), 0, 0)
-	case rhino.Token_NUMBER:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		cc.AddNumber(node.GetDouble(), node)
-	case rhino.Token_BIGINT:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		cc.AddBigInt(node.GetBigInt())
-	case rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_NOT, rhino.Token_BITNOT, rhino.Token_POS, rhino.Token_NEG:
-		// All of these unary operators are right-associative
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
-		cc.AddOp(NodeUtil_OpToStrNoFail(type_), false)
-		g.AddExpr(first, NodeUtil_Precedence(type_), CodeGenerator_Context_OTHER)
-	case rhino.Token_HOOK:
-		if childCount != 3 {
-			jutil.CheckStateMsg2(false, "%s wrong number of children: %s", node, node.GetChildCount())
-		}
-		p := NodeUtil_Precedence(type_)
-		rhsContext := CodeGenerator_GetContextForNoInOperator(context)
-		g.AddExpr(first, p+1, context)
-		cc.AddOp("?", true)
-		g.AddExpr(first.GetNext(), 1, rhsContext)
-		cc.AddOp(":", true)
-		g.AddExpr(last, 1, rhsContext)
-	case rhino.Token_REGEXP:
-		if !first.IsStringLit() || !last.IsStringLit() {
-			panic(jutil.NewJavaLangError("Expected children to be strings"))
-		}
-
-		regexp := g.RegexpEscape(first.GetString())
-
-		// I only use one .add because whitespace matters
-		if childCount == 2 {
-			g.Add(regexp + last.GetString())
-		} else {
-			jutil.CheckStateMsg1(childCount == 1, "%s", node)
-			g.Add(regexp)
-		}
-	case rhino.Token_FUNCTION:
-		if !node.IsPlainNode() {
-			panic(jutil.NewJavaLangError("Unexpected Node subclass."))
-		}
-		jutil.CheckStateMsg1(childCount == 3, "%s", node)
-		if node.IsArrowFunction() {
-			g.AddArrowFunction(node, first, last, context)
-		} else {
-			g.AddFunction(node, first, last, context)
-		}
-	case rhino.Token_ITER_REST, rhino.Token_OBJECT_REST:
-		g.Add("...")
-		g.AddNode(first)
-		g.MaybeAddTypeDecl(node)
-	case rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD:
-		g.Add("...")
-		g.AddExpr(first, NodeUtil_Precedence(type_), CodeGenerator_Context_OTHER)
-	case rhino.Token_EXPORT:
-		g.Add("export")
-		if node.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
-			g.Add("default")
-		}
-		if node.GetBooleanProp(rhino.Node_EXPORT_ALL_FROM) {
-			g.Add("*")
-			jutil.CheckStateMsg1(!first.IsNil() && first.IsEmpty(), "%s", node)
-		} else {
-			g.AddNode(first)
-		}
-		if childCount == 2 {
-			g.Add("from")
-			g.AddNode(last)
-		}
-		g.ProcessEnd(first, context)
-	case rhino.Token_IMPORT:
-		g.Add("import")
-
-		second := first.GetNext()
-		if !first.IsEmpty() {
-			g.AddNode(first)
-			if !second.IsEmpty() {
-				cc.ListSeparator()
-			}
-		}
-		if !second.IsEmpty() {
-			g.AddNode(second)
-		}
-		if !first.IsEmpty() || !second.IsEmpty() {
-			g.Add("from")
-		}
-		g.AddNode(last)
-		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_EXPORT_SPECS, rhino.Token_IMPORT_SPECS:
-		g.Add("{")
-		for c := first; !c.IsNil(); c = c.GetNext() {
-			if c != first {
-				cc.ListSeparator()
-			}
-			g.AddNode(c)
-		}
-		g.Add("}")
-	case rhino.Token_EXPORT_SPEC, rhino.Token_IMPORT_SPEC:
-		g.AddNode(first)
-		if node.IsShorthandProperty() && first.GetString() == last.GetString() {
-			break
-		}
-		g.Add("as")
-		g.AddNode(last)
-	case rhino.Token_IMPORT_STAR:
-		g.Add("*")
-		g.Add("as")
-		g.Add(node.GetString())
-	case rhino.Token_DYNAMIC_IMPORT:
-		g.Add("import(")
-		g.AddExpr(first, NodeUtil_Precedence(type_), context)
-		g.Add(")")
-	case rhino.Token_IMPORT_META:
-		g.Add("import.meta")
-	// CLASS -> NAME,EXPR|EMPTY,BLOCK
-	case rhino.Token_CLASS:
-		{
-			jutil.CheckStateMsg1(childCount == 3, "%s", node)
-			classNeedsParens := (context == CodeGenerator_Context_START_OF_EXPR)
-			if classNeedsParens {
-				g.Add("(")
-			}
-
-			name := first
-			superClass := first.GetNext()
-			members := last
-
-			g.Add("class")
-			if !name.IsEmpty() {
-				g.AddNode(name)
-			}
-
-			g.MaybeAddGenericTypes(first)
-
-			if !superClass.IsEmpty() {
-				g.Add("extends")
-
-				// Parentheses are required for a comma expression or an
-				// assignment expression.
-				g.AddExpr(superClass, 1, CodeGenerator_Context_OTHER)
-			}
-
-			interfaces := codeGenerator_nodeProp(node.GetProp(rhino.Node_IMPLEMENTS))
-			if !interfaces.IsNil() {
-				g.Add("implements")
-				child := interfaces.GetFirstChild()
-				g.AddNode(child)
-				for {
-					child = child.GetNext()
-					if child.IsNil() {
-						break
-					}
-					g.Add(",")
-					cc.MaybeInsertSpace()
-					g.AddNode(child)
-				}
-			}
-			g.AddNode(members)
-			cc.EndClass(context == CodeGenerator_Context_STATEMENT)
-
-			if classNeedsParens {
-				g.Add(")")
-			}
-		}
-	case rhino.Token_CLASS_MEMBERS, rhino.Token_INTERFACE_MEMBERS, rhino.Token_NAMESPACE_ELEMENTS:
-		cc.BeginBlock()
-		for c := first; !c.IsNil(); c = c.GetNext() {
-			g.AddNode(c)
-			g.ProcessEnd(c, context)
-			cc.EndLine()
-		}
-		cc.EndBlockWithShouldEndLine(false)
-	case rhino.Token_ENUM_MEMBERS:
-		cc.BeginBlock()
-		for c := first; !c.IsNil(); c = c.GetNext() {
-			g.AddNode(c)
-			if !c.GetNext().IsNil() {
-				g.Add(",")
-			}
-			cc.EndLine()
-		}
-		cc.EndBlockWithShouldEndLine(false)
-	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_VARIABLE_DEF:
-		jutil.CheckState(
-			node.GetParent().IsObjectLit() ||
-				node.GetParent().IsClassMembers() ||
-				node.GetParent().IsInterfaceMembers() ||
-				node.GetParent().IsRecordType() ||
-				node.GetParent().IsIndexSignature())
-
-		g.MaybeAddAccessibilityModifier(node)
-		if node.IsStaticMember() {
-			g.Add("static ")
-		}
-
-		if node.IsMemberFunctionDef() && node.GetFirstChild().IsAsyncFunction() {
-			g.Add("async ")
-		}
-
-		if !node.IsMemberVariableDef() && node.GetFirstChild().IsGeneratorFunction() {
-			jutil.CheckStateMsg1(type_ == rhino.Token_MEMBER_FUNCTION_DEF, "%s", node)
-			g.Add("*")
-		}
-
-		switch type_ {
-		case rhino.Token_GETTER_DEF:
-			// Get methods have no parameters.
-			jutil.CheckStateMsg1(!first.GetSecondChild().HasChildren(), "%s", node)
-			g.Add("get ")
-		case rhino.Token_SETTER_DEF:
-			// Set methods have one parameter.
-			jutil.CheckStateMsg1(first.GetSecondChild().HasOneChild(), "%s", node)
-			g.Add("set ")
-		case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_VARIABLE_DEF:
-			// nothing to do.
-		default:
-		}
-
-		// The name is on the GET or SET node.
-		name := node.GetString()
-		if node.IsMemberVariableDef() {
-			g.Add(node.GetString())
-			g.MaybeAddOptional(node)
-			g.MaybeAddTypeDecl(node)
-		} else {
-			jutil.CheckStateMsg1(childCount == 1, "%s", node)
-			jutil.CheckStateMsg1(first.IsFunction(), "%s", first)
-
-			// The function referenced by the definition should always be
-			// unnamed.
-			jutil.CheckStateMsg1(first.GetFirstChild().GetString() == "", "%s", first)
-
-			fn := first
-			parameters := fn.GetSecondChild()
-			body := fn.GetLastChild()
-
-			// Add the property name.
-			if !node.IsQuotedStringKey() &&
-				(rhino.TokenStream_IsJSIdentifier(name) || node.IsPrivateIdentifier()) &&
-				// do not encode literally any non-literal characters that
-				// were Unicode escaped.
-				NodeUtil_IsLatin(name) {
-				g.Add(name)
-				g.MaybeAddGenericTypes(fn.GetFirstChild())
-			} else {
-				// Determine if the string is a simple number.
-				d := CodeGenerator_GetSimpleNumber(name)
-				if !math.IsNaN(d) {
-					cc.AddNumber(d, node)
-				} else {
-					g.AddJsString(node)
-				}
-			}
-			g.MaybeAddOptional(fn)
-			g.AddNode(parameters)
-			g.MaybeAddTypeDecl(fn)
-			g.AddNode(body)
-		}
-	case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
-		jutil.CheckState(node.GetParent().IsClassMembers())
-		if node.GetBooleanProp(rhino.Node_STATIC_MEMBER) {
-			g.Add("static ")
-		}
-		var init rhino.Node
-		switch type_ {
-		case rhino.Token_MEMBER_FIELD_DEF:
-			propertyName := node.GetString()
-			g.Add(propertyName)
-			init = first
-		case rhino.Token_COMPUTED_FIELD_DEF:
-			g.Add("[")
-			// Must use addExpr() with a priority of 1, because comma
-			// expressions aren't allowed.
-			// https://www.ecma-international.org/ecma-262/9.0/index.html#prod-ComputedPropertyName
-			g.AddExpr(first, 1, CodeGenerator_Context_OTHER)
-			g.Add("]")
-			init = node.GetSecondChild()
-		default:
-		}
-		if !init.IsNil() {
-			cc.AddOp("=", true)
-			g.AddExpr(init, 1, CodeGenerator_Context_OTHER)
-		}
-		g.Add(";")
-	case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_BLOCK, rhino.Token_ROOT:
-		if !node.IsPlainNode() {
-			panic(jutil.NewJavaLangError("Unexpected Node subclass."))
-		}
-		if node.HasParent() {
-			staticBlock := node.IsBlock() && node.GetParent().IsClassMembers()
-			if staticBlock {
-				g.Add("static")
-			}
-		}
-		// A BLOCK marked as synthetic is not a real JS block with {} around
-		// it in the JS code. It just represents a span of statements that
-		// need to be kept together.
-		preserveBlock := node.IsBlock() && !node.IsSyntheticBlock()
-		if preserveBlock {
-			cc.BeginBlock()
-		}
-
-		preferLineBreaks := type_ == rhino.Token_SCRIPT ||
-			(type_ == rhino.Token_BLOCK && !preserveBlock && node.GetParent().IsScript())
-		for c := first; !c.IsNil(); c = c.GetNext() {
-			g.AddNodeWithContext(c, CodeGenerator_Context_STATEMENT)
-
-			if c.IsFunction() || c.IsClass() {
-				cc.MaybeLineBreak()
-			}
-
-			// Prefer to break lines in between top-level statements
-			// because top-level statements are more homogeneous.
-			if preferLineBreaks {
-				cc.NotePreferredLineBreak()
-			}
-		}
-		if preserveBlock {
-			cc.EndBlockWithShouldEndLine(cc.BreakAfterBlockFor(node, context == CodeGenerator_Context_STATEMENT))
-		}
-	case rhino.Token_FOR:
-		jutil.CheckStateMsg1(childCount == 4, "%s", node)
-		g.Add("for")
-		cc.MaybeInsertSpace()
-		g.Add("(")
-		if NodeUtil_IsNameDeclaration(first) {
-			g.AddNodeWithContext(first, CodeGenerator_Context_IN_FOR_INIT_CLAUSE)
-		} else {
-			g.AddExpr(first, 0, CodeGenerator_Context_IN_FOR_INIT_CLAUSE)
-		}
-		g.Add(";")
-		if !first.GetNext().IsEmpty() {
-			cc.MaybeInsertSpace()
-		}
-		g.AddNode(first.GetNext())
-		g.Add(";")
-		if !first.GetNext().GetNext().IsEmpty() {
-			cc.MaybeInsertSpace()
-		}
-		g.AddNode(first.GetNext().GetNext())
-		g.Add(")")
-		g.AddNonEmptyStatement(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
-	case rhino.Token_FOR_IN:
-		jutil.CheckStateMsg1(childCount == 3, "%s", node)
-		g.Add("for")
-		cc.MaybeInsertSpace()
-		g.Add("(")
-		g.AddNode(first)
-		g.Add("in")
-		g.AddNode(first.GetNext())
-		g.Add(")")
-		g.AddNonEmptyStatement(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
-	case rhino.Token_FOR_OF:
-		jutil.CheckStateMsg1(childCount == 3, "%s", node)
-		g.Add("for")
-		cc.MaybeInsertSpace()
-		g.Add("(")
-		g.AddNode(first)
-		cc.MaybeInsertSpace()
-		g.Add("of")
-		cc.MaybeInsertSpace()
-		// the iterable must be an AssignmentExpression
-		g.AddExpr(first.GetNext(), NodeUtil_Precedence(rhino.Token_ASSIGN), CodeGenerator_Context_OTHER)
-		g.Add(")")
-		g.AddNonEmptyStatement(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
-	case rhino.Token_FOR_AWAIT_OF:
-		jutil.CheckStateMsg1(childCount == 3, "%s", node)
-		g.Add("for await")
-		cc.MaybeInsertSpace()
-		g.Add("(")
-		g.AddNode(first)
-		cc.MaybeInsertSpace()
-		g.Add("of")
-		cc.MaybeInsertSpace()
-		// the iterable must be an AssignmentExpression
-		g.AddExpr(first.GetNext(), NodeUtil_Precedence(rhino.Token_ASSIGN), CodeGenerator_Context_OTHER)
-		g.Add(")")
-		g.AddNonEmptyStatement(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
-	case rhino.Token_DO:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
-		g.Add("do")
-		g.AddNonEmptyStatement(first, CodeGenerator_Context_OTHER, false)
-		cc.MaybeInsertSpace()
-		g.Add("while")
-		cc.MaybeInsertSpace()
-		g.Add("(")
-		g.AddNode(last)
-		g.Add(")")
-		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_WHILE:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
-		g.Add("while")
-		cc.MaybeInsertSpace()
-		g.Add("(")
-		g.AddNode(first)
-		g.Add(")")
-		g.AddNonEmptyStatement(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
-	case rhino.Token_EMPTY:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-	case rhino.Token_OPTCHAIN_GETPROP:
-		g.AddExpr(first, NodeUtil_Precedence(type_), context)
-		if node.IsOptionalChainStart() {
-			g.Add("?.")
-		} else {
-			g.Add(".")
-		}
-		g.AddGetpropIdentifier(node)
-	case rhino.Token_GETPROP:
-		// This attempts to convert rewritten aliased code back to the
-		// original code, such as when using goog.scope(). See
-		// ScopedAliases.java for the original code.
-		// NOTE: OPTCHAIN_GETPROP case doesn't need this logic, because it
-		// only applies to qualified names.
-		if g.useOriginalName && node.GetOriginalName() != nil {
-			// The ScopedAliases pass will convert variable assignments and
-			// function declarations to assignments to GETPROP nodes, like
-			// $jscomp.scope.SOME_VAR = 3;. This attempts to rewrite it back
-			// to the original code.
-			if codeGenerator_JSCOMP_SCOPE.Matches(node.GetFirstChild()) && node.GetParent().IsAssign() {
-				g.Add("var ")
-			}
-			g.AddGetpropIdentifier(node)
-			break
-		}
-		// We need parentheses to distinguish
-		// `a?.b.c` from `(a?.b).c`
-		breakOutOfOptionalChain := NodeUtil_IsOptChainNode(first)
-		// `2.toString()` is invalid - it must be `(2).toString()`
-		needsParens := first.IsNumber() || breakOutOfOptionalChain
-		if needsParens {
-			g.Add("(")
-		}
-		g.AddExpr(first, NodeUtil_Precedence(type_), context)
-		if needsParens {
-			g.Add(")")
-		}
-		if g.quoteKeywordProperties && rhino.TokenStream_IsKeyword(node.GetString()) {
-			// NOTE: We don't have to worry about quoting keyword properties
-			// in the OPTCHAIN_GETPROP case above, because we only need to
-			// quote keywords for ES3-compatible output.
-			//
-			// Must be a single call to `add` otherwise the generator will
-			// add a trailing space.
-			g.Add("[\"" + node.GetString() + "\"]")
-		} else {
-			g.Add(".")
-			g.AddGetpropIdentifier(node)
-		}
-	case rhino.Token_OPTCHAIN_GETELEM:
-		if childCount != 2 {
-			jutil.CheckStateMsg2(
-				false,
-				"Bad GETELEM node: Expected 2 children but got %s. For node: %s",
-				node.GetChildCount(),
-				node)
-		}
-		g.AddExpr(first, NodeUtil_Precedence(type_), context)
-		if node.IsOptionalChainStart() {
-			g.Add("?.")
-		}
-		g.Add("[")
-		g.AddNode(first.GetNext())
-		g.Add("]")
-	case rhino.Token_GETELEM:
-		if childCount != 2 {
-			jutil.CheckStateMsg2(
-				false,
-				"Bad GETELEM node: Expected 2 children but got %s. For node: %s",
-				node.GetChildCount(),
-				node)
-		}
-		needsParens := NodeUtil_IsOptChainNode(first)
-		if needsParens {
-			g.Add("(")
-		}
-		g.AddExpr(first, NodeUtil_Precedence(type_), context)
-		if needsParens {
-			g.Add(")")
-		}
-		g.Add("[")
-		g.AddNode(first.GetNext())
-		g.Add("]")
-	case rhino.Token_WITH:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
-		g.Add("with(")
-		g.AddNode(first)
-		g.Add(")")
-		g.AddNonEmptyStatement(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
-	case rhino.Token_INC, rhino.Token_DEC:
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
-		o := "--"
-		if type_ == rhino.Token_INC {
-			o = "++"
-		}
-		postProp := node.GetBooleanProp(rhino.Node_INCRDECR_PROP)
-		if postProp {
-			g.AddExpr(first, NodeUtil_Precedence(type_), context)
-			cc.AddOp(o, false)
-		} else {
-			cc.AddOp(o, false)
-			g.AddNode(first)
-		}
-	case rhino.Token_OPTCHAIN_CALL:
-		// We have two special cases here:
-		// 1) If the left hand side of the call is a direct reference to eval,
-		// then it must have a DIRECT_EVAL annotation. If it does not, then
-		// that means it was originally an indirect call to eval, and that
-		// indirectness must be preserved.
-		// 2) If the left hand side of the call is a property reference,
-		// then the call must not a FREE_CALL annotation. If it does, then
-		// that means it was originally an call without an explicit this and
-		// that must be preserved.
-		if CodeGenerator_IsIndirectEval(first) ||
-			(node.GetBooleanProp(rhino.Node_FREE_CALL) && NodeUtil_IsNormalOrOptChainGet(first)) {
-			g.Add("(0,")
-			g.AddExpr(first, NodeUtil_Precedence(rhino.Token_COMMA), CodeGenerator_Context_OTHER)
-			g.Add(")")
-		} else {
-			g.AddExpr(first, NodeUtil_Precedence(type_), context)
-		}
-		args := first.GetNext()
-		if node.IsOptionalChainStart() {
-			g.Add("?.")
-		}
-		g.Add("(")
-		g.AddList(args)
-		g.Add(")")
-	case rhino.Token_CALL:
-		g.AddInvocationTarget(node, context)
-
-		g.Add("(")
-		g.AddList(first.GetNext())
-		g.Add(")")
-	case rhino.Token_IF:
-		jutil.CheckStateMsg1(childCount == 2 || childCount == 3, "%s", node)
-		hasElse := childCount == 3
-		ambiguousElseClause := context == CodeGenerator_Context_BEFORE_DANGLING_ELSE && !hasElse
-		if ambiguousElseClause {
-			cc.BeginBlock()
-		}
-
-		g.Add("if")
-		cc.MaybeInsertSpace()
-		g.Add("(")
-		g.AddNode(first)
-		g.Add(")")
-
-		if hasElse {
-			g.AddNonEmptyStatement(first.GetNext(), CodeGenerator_Context_BEFORE_DANGLING_ELSE, false)
-			cc.MaybeInsertSpace()
-			g.Add("else")
-			g.AddNonEmptyStatement(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
-		} else {
-			g.AddNonEmptyStatement(first.GetNext(), CodeGenerator_Context_OTHER, false)
-		}
-
-		if ambiguousElseClause {
-			cc.EndBlock()
-		}
-	case rhino.Token_NULL:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		cc.AddConstant("null")
-	case rhino.Token_THIS:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		g.Add("this")
-	case rhino.Token_SUPER:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		g.Add("super")
-	case rhino.Token_NEW_TARGET:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		g.Add("new.target")
-	case rhino.Token_YIELD:
-		g.Add("yield")
-		if node.IsYieldAll() {
-			rhino.CheckNotNull(first)
-			g.Add("*")
-		}
-		if !first.IsNil() {
-			cc.MaybeInsertSpace()
-			g.AddExpr(first, NodeUtil_Precedence(type_), CodeGenerator_Context_OTHER)
-		}
-	case rhino.Token_AWAIT:
-		g.Add("await ")
-		g.AddExpr(first, NodeUtil_Precedence(type_), CodeGenerator_Context_OTHER)
-	case rhino.Token_FALSE:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		cc.AddConstant("false")
-	case rhino.Token_TRUE:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		cc.AddConstant("true")
-	case rhino.Token_CONTINUE:
-		jutil.CheckStateMsg1(childCount <= 1, "%s", node)
-		g.Add("continue")
-		if childCount == 1 {
-			if !first.IsLabelName() {
-				panic(jutil.NewJavaLangError("Unexpected token type. Should be LABEL_NAME."))
-			}
-			g.Add(" ")
-			g.AddNode(first)
-		}
-		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_DEBUGGER:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
-		g.Add("debugger")
-		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_BREAK:
-		jutil.CheckStateMsg1(childCount <= 1, "%s", node)
-		g.Add("break")
-		if childCount == 1 {
-			if !first.IsLabelName() {
-				panic(jutil.NewJavaLangError("Unexpected token type. Should be LABEL_NAME."))
-			}
-			g.Add(" ")
-			g.AddNode(first)
-		}
-		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_EXPR_RESULT:
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
-		g.AddNodeWithContext(first, CodeGenerator_Context_START_OF_EXPR)
-		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_NEW:
-		g.Add("new ")
-		precedence := NodeUtil_Precedence(type_)
-
-		// `new void 0` is a syntax error add parenthese in this case. This
-		// is only particularly interesting for code in dead branches.
-		precedenceOfFirst := NodeUtil_Precedence(first.GetToken())
-		if precedenceOfFirst == precedence {
-			precedence = precedence + 1
-		}
-
-		// If the first child contains a CALL, then claim higher precedence
-		// to force parentheses. Otherwise, when parsed, NEW will bind to the
-		// first viable parentheses (don't traverse into functions).
-		// Also, NEW requires parentheses around an optional chain callee.
-		// If the first child is an arrow function, then parentheses is
-		// needed
-		if NodeUtil_Has(first, (rhino.Node).IsCall, NodeUtil_MATCH_NOT_FUNCTION) ||
-			NodeUtil_IsOptChainNode(first) {
-			precedence = NodeUtil_Precedence(first.GetToken()) + 1
-		}
-		g.AddExpr(first, precedence, CodeGenerator_Context_OTHER)
-
-		// '()' is optional when no arguments are present
-		next := first.GetNext()
-		if !next.IsNil() {
-			g.Add("(")
-			g.AddList(next)
-			g.Add(")")
-		} else {
-			if cc.ShouldPreserveExtras(node) {
-				g.Add("(")
-				g.Add(")")
-			}
-		}
-	case rhino.Token_STRING_KEY:
-		g.AddStringKey(node)
-	case rhino.Token_STRINGLIT:
-		jutil.CheckStateMsg1(childCount == 0, "String node %s may not have children", node)
-		g.AddJsString(node)
-	case rhino.Token_DELPROP:
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
-		g.Add("delete ")
-		g.AddNode(first)
-	case rhino.Token_OBJECTLIT:
-		needsParens := context == CodeGenerator_Context_START_OF_EXPR || context.AtArrowFunctionBody()
-		if needsParens {
-			g.Add("(")
-		}
-		g.Add("{")
-		for c := first; !c.IsNil(); c = c.GetNext() {
-			if c != first {
-				cc.ListSeparator()
-			}
-
-			jutil.CheckStateMsg1(NodeUtil_IsObjLitProperty(c) || c.IsSpread(), "%s", c)
-			g.AddNode(c)
-		}
-		if !first.IsNil() && node.HasTrailingComma() {
-			cc.OptionalListSeparator()
-		}
-		g.Add("}")
-		if needsParens {
-			g.Add(")")
-		}
-	case rhino.Token_COMPUTED_PROP:
-		g.MaybeAddAccessibilityModifier(node)
-		if node.GetBooleanProp(rhino.Node_STATIC_MEMBER) {
-			g.Add("static ")
-		}
-
-		if node.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) {
-			g.Add("get ")
-		} else if node.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
-			g.Add("set ")
-		} else if node.GetBooleanProp(rhino.Node_COMPUTED_PROP_METHOD) {
-			if last.IsAsyncFunction() {
-				g.Add("async")
-			}
-			if last.GetBooleanProp(rhino.Node_GENERATOR_FN) {
-				g.Add("*")
-			}
-		}
-		g.Add("[")
-		// Must use addExpr() with a priority of 1, because comma expressions
-		// aren't allowed.
-		// https://www.ecma-international.org/ecma-262/9.0/index.html#prod-ComputedPropertyName
-		g.AddExpr(first, 1, CodeGenerator_Context_OTHER)
-		g.Add("]")
-		// TODO(martinprobst): There's currently no syntax for properties in
-		// object literals that have type declarations on them (a la `{foo:
-		// number: 12}`). This comes up for, e.g., function parameters with
-		// default values. Support when figured out.
-		g.MaybeAddTypeDecl(node)
-		if node.GetBooleanProp(rhino.Node_COMPUTED_PROP_METHOD) ||
-			node.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) ||
-			node.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
-			function := first.GetNext()
-			params := function.GetSecondChild()
-			body := function.GetLastChild()
-
-			g.AddNode(params)
-			g.AddNode(body)
-		} else {
-			// This is a field or object literal property.
-			isInClass := node.GetParent().IsClassMembers()
-			initializer := first.GetNext()
-			if !initializer.IsNil() {
-				// Object literal value.
-				jutil.CheckStateMsg(
-					!isInClass, "initializers should only exist in object literals, not classes")
-				cc.Add(":")
-				// Must use addExpr() with a priority of 1, because a comma
-				// expression here would cause a syntax error within the
-				// object literal.
-				g.AddExpr(initializer, 1, CodeGenerator_Context_OTHER)
-			} else {
-				// Computed properties must either have an initializer or be
-				// computed member-variable properties that exist for their
-				// type declaration.
-				jutil.CheckStateMsg1(node.GetBooleanProp(rhino.Node_COMPUTED_PROP_VARIABLE), "%s", node)
-			}
-		}
-	case rhino.Token_OBJECT_PATTERN:
-		g.AddObjectPattern(node)
-		g.MaybeAddTypeDecl(node)
-	case rhino.Token_SWITCH:
-		g.Add("switch(")
-		g.AddNode(first)
-		g.Add(")")
-		g.AddNodeWithContext(last, context)
-	case rhino.Token_SWITCH_BODY:
-		cc.BeginBlock()
-		g.AddAllSiblings(first)
-		cc.EndBlockWithShouldEndLine(context == CodeGenerator_Context_STATEMENT)
-	case rhino.Token_CASE:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
-		g.Add("case ")
-		g.AddNode(first)
-		g.AddCaseBody(last)
-	case rhino.Token_DEFAULT_CASE:
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
-		g.Add("default")
-		g.AddCaseBody(first)
-	case rhino.Token_LABEL:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
-		if !first.IsLabelName() {
-			panic(jutil.NewJavaLangError("Unexpected token type. Should be LABEL_NAME."))
-		}
-		g.AddNode(first)
-		g.Add(":")
-		if !last.IsBlock() {
-			cc.MaybeInsertSpace()
-		}
-		g.AddNonEmptyStatement(last, CodeGenerator_GetContextForNonEmptyExpression(context), true)
-	case rhino.Token_CAST:
-		if g.preserveTypeAnnotations {
-			g.Add("(")
-			g.AddNode(first) // drop context because of added parentheses
-			g.Add(")")
-		} else {
-			g.AddNodeWithContext(first, context) // preserve context
-		}
-	case rhino.Token_TAGGED_TEMPLATELIT:
-		g.AddInvocationTarget(node, context)
-		g.AddNode(first.GetNext())
-	case rhino.Token_TEMPLATELIT:
-		cc.BeginTemplateLit()
-		for c := first; !c.IsNil(); c = c.GetNext() {
-			if c.IsTemplateLitString() {
-				g.Add(g.EscapeUnrecognizedCharacters(c.GetRawString()))
-			} else {
-				cc.BeginTemplateLitSub()
-				g.AddNodeWithContext(c.GetFirstChild(), CodeGenerator_Context_START_OF_EXPR)
-				cc.EndTemplateLitSub()
-			}
-		}
-		cc.EndTemplateLit()
-	// Type Declaration ASTs.
-	case rhino.Token_STRING_TYPE:
-		g.Add("string")
-	case rhino.Token_BOOLEAN_TYPE:
-		g.Add("boolean")
-	case rhino.Token_NUMBER_TYPE:
-		g.Add("number")
-	case rhino.Token_ANY_TYPE:
-		g.Add("any")
-	case rhino.Token_VOID_TYPE:
-		g.Add("void")
-	case rhino.Token_NAMED_TYPE:
-		// Children are a chain of getprop nodes.
-		g.AddNode(first)
-	case rhino.Token_ARRAY_TYPE:
-		g.AddExpr(first, NodeUtil_Precedence(rhino.Token_ARRAY_TYPE), context)
-		g.Add("[]")
-	case rhino.Token_FUNCTION_TYPE:
-		returnType := first
-		g.Add("(")
-		g.AddList(first.GetNext())
-		g.Add(")")
-		cc.AddOp("=>", true)
-		g.AddNode(returnType)
-	case rhino.Token_UNION_TYPE:
-		g.AddListWithSeparator(first, "|")
-	case rhino.Token_RECORD_TYPE:
-		g.Add("{")
-		g.AddListWithContextAndSeparator(first, false, CodeGenerator_Context_OTHER, ",")
-		g.Add("}")
-	case rhino.Token_PARAMETERIZED_TYPE:
-		// First child is the type that's parameterized, later children are
-		// the arguments.
-		g.AddNode(first)
-		g.Add("<")
-		g.AddList(first.GetNext())
-		g.Add(">")
-		// CLASS -> NAME,EXPR|EMPTY,BLOCK
-	case rhino.Token_GENERIC_TYPE_LIST:
-		g.Add("<")
-		g.AddListWithContextAndSeparator(first, false, CodeGenerator_Context_STATEMENT, ",")
-		g.Add(">")
-	case rhino.Token_GENERIC_TYPE:
-		g.AddIdentifier(node.GetString())
-		if node.HasChildren() {
-			g.Add("extends")
-			cc.MaybeInsertSpace()
-			g.AddNode(node.GetFirstChild())
-		}
-	case rhino.Token_INTERFACE:
-		{
-			jutil.CheckStateMsg1(childCount == 3, "%s", node)
-			name := first
-			superTypes := first.GetNext()
-			members := last
-
-			g.Add("interface")
-			g.AddNode(name)
-			g.MaybeAddGenericTypes(name)
-			if !superTypes.IsEmpty() {
-				g.Add("extends")
-				superType := superTypes.GetFirstChild()
-				g.AddNode(superType)
-				for {
-					superType = superType.GetNext()
-					if superType.IsNil() {
-						break
-					}
-					g.Add(",")
-					cc.MaybeInsertSpace()
-					g.AddNode(superType)
-				}
-			}
-			g.AddNode(members)
-		}
-	case rhino.Token_ENUM:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
-		name := first
-		members := last
-		g.Add("enum")
-		g.AddNode(name)
-		g.AddNode(members)
-	case rhino.Token_NAMESPACE:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
-		name := first
-		elements := last
-		g.Add("namespace")
-		g.AddNode(name)
-		g.AddNode(elements)
-	case rhino.Token_TYPE_ALIAS:
-		g.Add("type")
-		g.Add(node.GetString())
-		cc.AddOp("=", true)
-		g.AddNode(last)
-		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_DECLARE:
-		g.Add("declare")
-		g.AddNode(first)
-		g.ProcessEnd(node, context)
-	case rhino.Token_INDEX_SIGNATURE:
-		g.Add("[")
-		g.AddNode(first)
-		g.Add("]")
-		g.MaybeAddTypeDecl(node)
-		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
-	case rhino.Token_CALL_SIGNATURE:
-		if node.GetBooleanProp(rhino.Node_CONSTRUCT_SIGNATURE) {
-			g.Add("new ")
-		}
-		g.MaybeAddGenericTypes(node)
-		g.AddNode(first)
-		g.MaybeAddTypeDecl(node)
-		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg("Unknown token " + type_.String() + "\n" + node.ToStringTree()))
+	if !g.addStmtOrDecl(node, type_, first, last, childCount, context) {
+		g.addExprOrTypeNode(node, type_, first, last, childCount, context)
 	}
+
 	if g.printNonJSDocComments {
 		g.PrintTrailingComment(node)
 	}
 
 	cc.EndSourceMapping(node)
+}
+
+// Java: CodeGenerator.addAllSiblings(Node)
+func (g *CodeGenerator) AddAllSiblings(n rhino.Node) {
+	for c := n; !c.IsNil(); c = c.GetNext() {
+		g.AddNode(c)
+	}
 }
 
 // codeGenerator_nodeProp is the cast `(Node) n.getProp(...)`.
@@ -1409,389 +443,12 @@ func codeGenerator_nodeProp(value any) rhino.Node {
 	return value.(rhino.Node)
 }
 
-// Java: CodeGenerator.addIdentifier(String)
-func (g *CodeGenerator) AddIdentifier(identifier string) {
-	g.cc.AddIdentifier(CodeGenerator_IdentifierEscape(identifier))
-}
-
-// Java: CodeGenerator.addGetpropIdentifier(Node)
-func (g *CodeGenerator) AddGetpropIdentifier(getprop rhino.Node) {
-	g.cc.StartSourceMapping(getprop)
-	g.AddIdentifier(getprop.GetString())
-	g.cc.EndSourceMapping(getprop)
-}
-
 // Java: CodeGenerator.precedence(Node)
 func (g *CodeGenerator) Precedence(n rhino.Node) int {
 	if n.IsCast() {
 		return g.Precedence(n.GetFirstChild())
 	}
 	return NodeUtil_Precedence(n.GetToken())
-}
-
-// AddInvocationTarget handles two special cases:
-//
-//   - If the left hand side of the call is a direct reference to eval, then
-//     it must have a DIRECT_EVAL annotation. If it does not, then that means
-//     it was originally an indirect call to eval, and that indirectness must
-//     be preserved.
-//   - If the left hand side of the call is a property reference, then the
-//     call must not a FREE_CALL annotation. If it does, then that means it
-//     was originally an call without an explicit this and that must be
-//     preserved.
-//
-// Java: CodeGenerator.addInvocationTarget(Node, Context)
-func (g *CodeGenerator) AddInvocationTarget(node rhino.Node, context CodeGenerator_Context) {
-	first := node.GetFirstChild()
-
-	needsParens := NodeUtil_IsOptChainNode(first)
-	if CodeGenerator_IsIndirectEval(first) ||
-		(node.GetBooleanProp(rhino.Node_FREE_CALL) && NodeUtil_IsNormalOrOptChainGet(first)) {
-		g.Add("(0,")
-		g.AddExpr(first, NodeUtil_Precedence(rhino.Token_COMMA), CodeGenerator_Context_OTHER)
-		g.Add(")")
-	} else {
-		if needsParens {
-			g.Add("(")
-		}
-		g.AddExpr(first, NodeUtil_Precedence(node.GetToken()), context)
-		if needsParens {
-			g.Add(")")
-		}
-	}
-}
-
-// Java: CodeGenerator.arrowFunctionNeedsParens(Node)
-func (g *CodeGenerator) ArrowFunctionNeedsParens(n rhino.Node) bool {
-	parent := n.GetParent()
-	expressionOrEnclosingCast := n
-	for !parent.IsNil() && parent.IsCast() {
-		if g.preserveTypeAnnotations {
-			// If printing type annotations, any expression in a CAST
-			// automatically is wrapped in parentheses when printing the
-			// CAST. Returning true here would add a second, unnecessary pair
-			// of parentheses.
-			return false
-		}
-		// If not printing type annotations, then pretend the CAST node is
-		// not there and check the parent of the CAST.
-		expressionOrEnclosingCast = parent
-		parent = parent.GetParent()
-	}
-
-	// Once you cut through the layers of non-terminals used to define
-	// operator precedence, you can see the following are true.
-	// (Read => as "may expand to" and "!=>" as "may not expand to")
-	//
-	// 1. You can substitute an ArrowFunction into rules where an Expression
-	//    or AssignmentExpression is required, because
-	//      Expression => AssignmentExpression => ArrowFunction
-	//
-	// 2. However, most operators act on LeftHandSideExpression,
-	//    CallExpression, or MemberExpression. None of these expand to
-	//    ArrowFunction.
-	//
-	// 3. CallExpression cannot expand to an ArrowFunction at all, because
-	//    all of its expansions produce multiple symbols and none can be
-	//    logically equivalent to ArrowFunction.
-	//
-	// 4. LeftHandSideExpression and MemberExpression may be replaced with an
-	//    ArrowFunction in parentheses, because:
-	//      LeftHandSideExpression => MemberExpression => PrimaryExpression
-	//      PrimaryExpression => '(' Expression ')' => '(' ArrowFunction ')'
-	if parent.IsNil() {
-		return false
-	} else if NodeUtil_IsBinaryOperator(parent) ||
-		NodeUtil_IsUnaryOperator(parent) ||
-		NodeUtil_IsUpdateOperator(parent) ||
-		parent.IsTaggedTemplateLit() ||
-		parent.IsGetProp() ||
-		parent.IsOptChainGetProp() ||
-		parent.IsAwait() ||
-		parent.IsYield() {
-		// LeftHandSideExpression OP LeftHandSideExpression
-		// OP LeftHandSideExpression | LeftHandSideExpression OP
-		// MemberExpression TemplateLiteral
-		// MemberExpression '.' IdentifierName
-		return true
-	} else if parent.IsGetElem() ||
-		parent.IsCall() ||
-		parent.IsHook() ||
-		parent.IsOptChainGetElem() ||
-		parent.IsOptChainCall() ||
-		parent.IsNew() {
-		// MemberExpression '[' Expression ']'
-		// MemberFunction '(' AssignmentExpressionList ')'
-		// LeftHandSideExpression ? AssignmentExpression : AssignmentExpression
-		return expressionOrEnclosingCast.IsFirstChildOf(parent)
-	} else {
-		// All other cases are either illegal (e.g. because you cannot assign
-		// a value to an ArrowFunction) or do not require parens.
-		return false
-	}
-}
-
-// Java: CodeGenerator.addArrowFunction(Node, Node, Node, Context)
-func (g *CodeGenerator) AddArrowFunction(n rhino.Node, first rhino.Node, last rhino.Node, context CodeGenerator_Context) {
-	jutil.CheckStateMsg1(first.GetString() == "", "%s", first)
-	funcNeedsParens := g.ArrowFunctionNeedsParens(n)
-	if funcNeedsParens {
-		g.Add("(")
-	}
-
-	g.MaybeAddGenericTypes(first)
-
-	if n.IsAsyncFunction() {
-		g.Add("async")
-	}
-	g.AddNode(first.GetNext()) // param list
-	g.MaybeAddTypeDecl(n)
-
-	g.cc.AddOp("=>", true)
-
-	if last.IsBlock() {
-		g.AddNode(last)
-	} else {
-		// This is a hack. Arrow functions have no token type, but
-		// blockless arrow function bodies have lower precedence than
-		// anything other than commas.
-		g.AddExpr(last, NodeUtil_Precedence(rhino.Token_COMMA)+1, CodeGenerator_GetContextForArrowFunctionBody(context))
-	}
-	g.cc.EndFunction(context == CodeGenerator_Context_STATEMENT)
-
-	if funcNeedsParens {
-		g.Add(")")
-	}
-}
-
-// Java: CodeGenerator.addFunction(Node, Node, Node, Context)
-func (g *CodeGenerator) AddFunction(n rhino.Node, first rhino.Node, last rhino.Node, context CodeGenerator_Context) {
-	funcNeedsParens := (context == CodeGenerator_Context_START_OF_EXPR)
-	if funcNeedsParens {
-		g.Add("(")
-	}
-
-	if n.IsAsyncFunction() {
-		g.Add("async function")
-	} else {
-		g.Add("function")
-	}
-	if n.IsGeneratorFunction() {
-		g.Add("*")
-		if first.GetString() != "" {
-			g.cc.MaybeInsertSpace()
-		}
-	}
-
-	g.AddNode(first)
-	g.MaybeAddGenericTypes(first)
-
-	g.AddNode(first.GetNext()) // param list
-	g.MaybeAddTypeDecl(n)
-
-	g.AddNode(last)
-	g.cc.EndFunction(context == CodeGenerator_Context_STATEMENT)
-
-	if funcNeedsParens {
-		g.Add(")")
-	}
-}
-
-// Java: CodeGenerator.maybeAddAccessibilityModifier(Node)
-func (g *CodeGenerator) MaybeAddAccessibilityModifier(n rhino.Node) {
-	access := n.GetProp(rhino.Node_ACCESS_MODIFIER)
-	if access != nil {
-		g.Add(jutil.StringToLowerCaseASCII(access.(rhino.JSDocInfo_Visibility).String()) + " ")
-	}
-}
-
-// Java: CodeGenerator.maybeAddTypeDecl(Node)
-func (g *CodeGenerator) MaybeAddTypeDecl(n rhino.Node) {
-	if !n.GetDeclaredTypeExpression().IsNil() {
-		g.Add(":")
-		g.cc.MaybeInsertSpace()
-		g.AddNode(n.GetDeclaredTypeExpression())
-	}
-}
-
-// Java: CodeGenerator.maybeAddGenericTypes(Node)
-func (g *CodeGenerator) MaybeAddGenericTypes(n rhino.Node) {
-	generics := codeGenerator_nodeProp(n.GetProp(rhino.Node_GENERIC_TYPE_LIST))
-	if !generics.IsNil() {
-		g.AddNode(generics)
-	}
-}
-
-// Java: CodeGenerator.maybeAddOptional(Node)
-func (g *CodeGenerator) MaybeAddOptional(n rhino.Node) {
-	if n.GetBooleanProp(rhino.Node_OPT_ES6_TYPED) {
-		g.Add("?")
-	}
-}
-
-// UnrollBinaryOperator: we could use addList recursively here, but
-// sometimes we produce very deeply nested operators and run out of stack
-// space, so we just unroll the recursion when possible.
-//
-// We assume nodes are left-recursive.
-//
-// Java: CodeGenerator.unrollBinaryOperator(Node, Token, String, Context, Context, int, int)
-func (g *CodeGenerator) UnrollBinaryOperator(
-	n rhino.Node,
-	op rhino.Token,
-	opStr string,
-	context CodeGenerator_Context,
-	rhsContext CodeGenerator_Context,
-	leftPrecedence int,
-	rightPrecedence int) {
-	firstNonOperator := n.GetFirstChild()
-	for firstNonOperator.GetToken() == op {
-		firstNonOperator = firstNonOperator.GetFirstChild()
-	}
-
-	g.AddExpr(firstNonOperator, leftPrecedence, context)
-
-	current := firstNonOperator
-	for {
-		current = current.GetParent()
-		g.cc.AddOp(opStr, true)
-		g.AddExpr(current.GetSecondChild(), rightPrecedence, rhsContext)
-		if current == n {
-			break
-		}
-	}
-}
-
-// Java: CodeGenerator.isSimpleNumber(String)
-func CodeGenerator_IsSimpleNumber(s string) bool {
-	// Go-only: language-adapter — every accepted char is an ASCII digit, so
-	// the byte length equals the UTF-16 length whenever the loop completes.
-	len_ := len(s)
-	if len_ == 0 {
-		return false
-	}
-	for index := 0; index < len_; index++ {
-		c := s[index]
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return len_ == 1 || s[0] != '0'
-}
-
-// Java: CodeGenerator.getSimpleNumber(String)
-func CodeGenerator_GetSimpleNumber(s string) float64 {
-	if CodeGenerator_IsSimpleNumber(s) {
-		// Long.parseLong throws NumberFormatException when the number is
-		// too long to parse; that falls through to NaN.
-		l, err := strconv.ParseInt(s, 10, 64)
-		if err == nil {
-			if l <= NodeUtil_MAX_POSITIVE_INTEGER_NUMBER {
-				return float64(l)
-			}
-		}
-	}
-	return math.NaN()
-}
-
-// CodeGenerator_IsIndirectEval returns whether the name is an indirect
-// eval.
-//
-// Java: CodeGenerator.isIndirectEval(Node)
-func CodeGenerator_IsIndirectEval(n rhino.Node) bool {
-	return n.IsName() && n.GetString() == "eval" && !n.GetBooleanProp(rhino.Node_DIRECT_EVAL)
-}
-
-// AddNonEmptyStatement adds a block or expression, substituting a VOID with
-// an empty statement. This is used for "for (...);" and "if (...);" type
-// statements.
-//
-// n is the node to print; context is the context to determine how the node
-// should be printed.
-//
-// Java: CodeGenerator.addNonEmptyStatement(Node, Context, boolean)
-func (g *CodeGenerator) AddNonEmptyStatement(n rhino.Node, context CodeGenerator_Context, allowNonBlockChild bool) {
-	nodeToProcess := n
-
-	if !allowNonBlockChild && !n.IsBlock() {
-		panic(jutil.NewJavaLangError("Missing BLOCK child."))
-	}
-
-	// Strip unneeded blocks, that is blocks with <2 children unless
-	// the CodePrinter specifically wants to keep them.
-	if n.IsBlock() {
-		count := CodeGenerator_GetNonEmptyChildCount(n, 2)
-		if count == 0 {
-			if g.cc.ShouldPreserveExtras(n) {
-				g.cc.BeginBlock()
-				g.PrintTrailingComment(n)
-				g.cc.EndBlockWithShouldEndLine(g.cc.BreakAfterBlockFor(n, context == CodeGenerator_Context_STATEMENT))
-			} else {
-				g.PrintTrailingComment(n)
-				g.cc.EndStatementWithSemiColon(true /* needSemiColon */, false /* hasTrailingCommentOnSameLine */)
-			}
-			return
-		}
-
-		if count == 1 {
-			// Preserve the block only if needed or requested.
-			// 'let', 'const', etc are not allowed by themselves in "if" and
-			// other structures. Also, hack around a IE6/7 browser bug that
-			// needs a block around DOs.
-			firstAndOnlyChild := CodeGenerator_GetFirstNonEmptyChild(n)
-			alwaysWrapInBlock := g.cc.ShouldPreserveExtras(n)
-			if alwaysWrapInBlock || CodeGenerator_IsBlockDeclOrDo(firstAndOnlyChild) {
-				g.cc.BeginBlock()
-				g.AddNodeWithContext(firstAndOnlyChild, CodeGenerator_Context_STATEMENT)
-				g.PrintTrailingComment(n)
-				g.cc.MaybeLineBreak()
-				g.cc.EndBlockWithShouldEndLine(g.cc.BreakAfterBlockFor(n, context == CodeGenerator_Context_STATEMENT))
-				return
-			} else {
-				// Continue with the only child.
-				nodeToProcess = firstAndOnlyChild
-			}
-		}
-	}
-
-	if nodeToProcess.IsEmpty() {
-		g.PrintTrailingComment(n)
-		g.cc.EndStatementWithSemiColon(true /* needSemiColon */, false /* hasTrailingCommentOnSameLine */)
-	} else {
-		g.AddNodeWithContext(nodeToProcess, context)
-		g.PrintTrailingComment(n)
-	}
-}
-
-// CodeGenerator_IsBlockDeclOrDo returns whether the Node is a DO or a
-// declaration that is only allowed in restricted contexts.
-//
-// Java: CodeGenerator.isBlockDeclOrDo(Node)
-func CodeGenerator_IsBlockDeclOrDo(n rhino.Node) bool {
-	if n.IsLabel() {
-		labeledStatement := n.GetLastChild()
-		if !labeledStatement.IsBlock() {
-			return CodeGenerator_IsBlockDeclOrDo(labeledStatement)
-		} else {
-			// For labels with block children, we need to ensure that a
-			// labeled FUNCTION or DO isn't generated when extraneous BLOCKs
-			// are skipped.
-			if CodeGenerator_GetNonEmptyChildCount(n, 2) == 1 {
-				return CodeGenerator_IsBlockDeclOrDo(CodeGenerator_GetFirstNonEmptyChild(n))
-			} else {
-				// Either a empty statement or an block with more than one
-				// child, way it isn't a FUNCTION or DO.
-				return false
-			}
-		}
-	} else {
-		switch n.GetToken() {
-		case rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_DO:
-			return true
-		default:
-			return false
-		}
-	}
 }
 
 // Java: CodeGenerator.addExpr(Node, int, Context)
@@ -1821,8 +478,7 @@ func (g *CodeGenerator) OpRequiresParentheses(n rhino.Node, minPrecedence int, c
 		// parentheses is a syntax error as ?? expands directly to |
 		return true
 	} else if n.IsAssign() && n.GetParent().IsClass() {
-		// Class declarations with assignments should be wrapped in
-		// parentheses.
+		// Class declarations with assignments should be wrapped in parentheses.
 		return true
 	} else {
 		return g.Precedence(n) < minPrecedence
@@ -1850,222 +506,49 @@ func (g *CodeGenerator) IsFirstOperandOfExponentiationExpression(n rhino.Node) b
 	return !parent.IsNil() && parent.IsExponent() && parent.GetFirstChild() == n
 }
 
-// Java: CodeGenerator.addList(Node)
-func (g *CodeGenerator) AddList(firstInList rhino.Node) {
-	g.AddListWithContextAndSeparator(firstInList, true, CodeGenerator_Context_OTHER, ",")
-}
-
-// Java: CodeGenerator.addList(Node, String)
-func (g *CodeGenerator) AddListWithSeparator(firstInList rhino.Node, separator string) {
-	g.AddListWithContextAndSeparator(firstInList, true, CodeGenerator_Context_OTHER, separator)
-}
-
-// Java: CodeGenerator.addList(Node, boolean, Context, String)
-func (g *CodeGenerator) AddListWithContextAndSeparator(
-	firstInList rhino.Node, isArrayOrFunctionArgument bool, lhsContext CodeGenerator_Context, separator string) {
-	if firstInList.IsNil() {
-		return
-	}
-	for n := firstInList; !n.IsNil(); n = n.GetNext() {
-		isFirst := n == firstInList
-		minPrecedence := 0
-		if isArrayOrFunctionArgument {
-			minPrecedence = 1
+// Java: CodeGenerator.maybeAddAccessibilityModifier(Node)
+func (g *CodeGenerator) MaybeAddAccessibilityModifier(n rhino.Node) {
+	access := n.GetProp(rhino.Node_ACCESS_MODIFIER)
+	if access != nil {
+		switch access.(rhino.JSDocInfo_Visibility) {
+		case rhino.JSDocInfo_Visibility_PRIVATE:
+			g.Add("private ")
+		case rhino.JSDocInfo_Visibility_PACKAGE:
+			g.Add("package ")
+		case rhino.JSDocInfo_Visibility_PROTECTED:
+			g.Add("protected ")
+		case rhino.JSDocInfo_Visibility_PUBLIC:
+			g.Add("public ")
+		case rhino.JSDocInfo_Visibility_INHERITED:
+			g.Add("inherited ")
+		default:
+			g.Add(jutil.StringToLowerCaseASCII(access.(rhino.JSDocInfo_Visibility).String()) + " ")
 		}
-		if isFirst {
-			g.AddExpr(n, minPrecedence, lhsContext)
-		} else {
-			g.cc.AddOp(separator, true)
-			g.AddExpr(n, minPrecedence, CodeGenerator_GetContextForNoInOperator(lhsContext))
-		}
-	}
-	if isArrayOrFunctionArgument && rhino.CheckNotNull(firstInList.GetParent()).HasTrailingComma() {
-		g.cc.OptionalListSeparator()
 	}
 }
 
-// Java: CodeGenerator.addStringKey(Node)
-func (g *CodeGenerator) AddStringKey(n rhino.Node) {
-	key := n.GetString()
-	// Object literal property names don't have to be quoted if they are not
-	// JavaScript keywords.
-	mustBeQuoted := n.IsQuotedStringKey() ||
-		(g.quoteKeywordProperties && rhino.TokenStream_IsKeyword(key)) ||
-		!rhino.TokenStream_IsJSIdentifier(key) ||
-		// do not encode literally any non-literal characters that were
-		// Unicode escaped.
-		!NodeUtil_IsLatin(key)
-	if !mustBeQuoted {
-		// Check if the property is eligible to be printed as shorthand.
-		if n.IsShorthandProperty() {
-			child := n.GetFirstChild()
-			if child.MatchesQualifiedName(key) ||
-				(child.IsDefaultValue() && child.GetFirstChild().MatchesQualifiedName(key)) {
-				g.AddNode(child)
-				return
-			}
-		}
-		g.Add(key)
-	} else {
-		// Determine if the string is a simple number.
-		d := CodeGenerator_GetSimpleNumber(key)
-		if !math.IsNaN(d) {
-			g.cc.AddNumber(d, n)
-		} else {
-			g.AddJsString(n)
-		}
-	}
-	if n.HasChildren() {
-		// NOTE: the only time a STRING_KEY node does *not* have children is
-		// when it's inside a TypeScript enum. We should change these to
-		// their own ENUM_KEY token so that the bifurcating logic can be
-		// removed from STRING_KEY.
+// Java: CodeGenerator.maybeAddTypeDecl(Node)
+func (g *CodeGenerator) MaybeAddTypeDecl(n rhino.Node) {
+	if !n.GetDeclaredTypeExpression().IsNil() {
 		g.Add(":")
-		g.AddExpr(n.GetFirstChild(), 1, CodeGenerator_Context_OTHER)
+		g.cc.MaybeInsertSpace()
+		g.AddNode(n.GetDeclaredTypeExpression())
 	}
 }
 
-// Java: CodeGenerator.addObjectPattern(Node)
-func (g *CodeGenerator) AddObjectPattern(n rhino.Node) {
-	g.Add("{")
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child != n.GetFirstChild() {
-			g.cc.ListSeparator()
-		}
-
-		g.AddNode(child)
-	}
-	g.Add("}")
-}
-
-// AddArrayList adds a comma-separated list as is specified by an ARRAYLIT
-// node.
-//
-// firstInList is the first in the node list (chained through the next
-// property).
-//
-// Java: CodeGenerator.addArrayList(Node)
-func (g *CodeGenerator) AddArrayList(firstInList rhino.Node) {
-	if firstInList.IsNil() {
-		return
-	}
-	lastWasEmpty := false
-	for n := firstInList; !n.IsNil(); n = n.GetNext() {
-		if n != firstInList {
-			g.cc.ListSeparator()
-		}
-		g.AddExpr(n, 1, CodeGenerator_Context_OTHER)
-		lastWasEmpty = n.IsEmpty()
-	}
-
-	if lastWasEmpty {
-		g.cc.ListSeparator()
-	} else if firstInList.GetParent().HasTrailingComma() {
-		g.cc.OptionalListSeparator()
+// Java: CodeGenerator.maybeAddGenericTypes(Node)
+func (g *CodeGenerator) MaybeAddGenericTypes(n rhino.Node) {
+	generics := codeGenerator_nodeProp(n.GetProp(rhino.Node_GENERIC_TYPE_LIST))
+	if !generics.IsNil() {
+		g.AddNode(generics)
 	}
 }
 
-// Java: CodeGenerator.addCaseBody(Node)
-func (g *CodeGenerator) AddCaseBody(caseBody rhino.Node) {
-	jutil.CheckStateMsg1(caseBody.IsBlock(), "%s", caseBody)
-	g.cc.BeginCaseBody()
-	g.AddAllSiblings(caseBody.GetFirstChild())
-	g.cc.EndCaseBody()
-}
-
-// Java: CodeGenerator.addAllSiblings(Node)
-func (g *CodeGenerator) AddAllSiblings(n rhino.Node) {
-	for c := n; !c.IsNil(); c = c.GetNext() {
-		g.AddNode(c)
+// Java: CodeGenerator.maybeAddOptional(Node)
+func (g *CodeGenerator) MaybeAddOptional(n rhino.Node) {
+	if n.GetBooleanProp(rhino.Node_OPT_ES6_TYPED) {
+		g.Add("?")
 	}
-}
-
-// Java: CodeGenerator.addNonJsDoc_nonTrailing(Node, NonJSDocComment)
-func (g *CodeGenerator) AddNonJsDoc_nonTrailing(node rhino.Node, nonJSDocComment *rhino.NonJSDocComment) {
-	content := nonJSDocComment.GetCommentString()
-	commentEndPosition := nonJSDocComment.GetEndPosition()
-
-	nodeLineNumber := node.GetLineno() - 1 // source lines are 1-indexed
-
-	if nonJSDocComment.IsEndingAsLineComment() {
-		// Non trailing line comments can not be on the same line as the node.
-		jutil.CheckStateMsg(
-			g.gentsMode || int(commentEndPosition.Line) < nodeLineNumber,
-			"Non trailing line comments can not be on the same line as the node.")
-		g.Add(content + "\n")
-	} else {
-		if nodeLineNumber == int(commentEndPosition.Line) {
-			// e.g. ``` /* comment */ let x; ```
-			g.Add(content + " ")
-		} else {
-			// e.g.
-			// ```
-			// /* comment */
-			// let x;
-			// ```
-			g.Add(content + "\n")
-		}
-	}
-}
-
-// Java: CodeGenerator.addNonJsDoctrailing(NonJSDocComment, boolean)
-func (g *CodeGenerator) AddNonJsDoctrailing(nonJSDocComment *rhino.NonJSDocComment, sameLine bool) {
-	content := nonJSDocComment.GetCommentString()
-	if nonJSDocComment.IsEndingAsLineComment() {
-		// Trailing line comments *must* end with a `\n`. E.g.. `let x;
-		// //comment\n`
-		g.Add(" " + content)
-		if sameLine {
-			g.cc.StartNewLine()
-		}
-	} else {
-		if nonJSDocComment.IsInline() {
-			// e.g. `foo(x /*comment*/);` is inline
-			g.Add(" " + content)
-		} else {
-			// e.g. `let x; /*comment*/` is non-inline
-			g.Add(" " + content)
-			if sameLine {
-				g.cc.StartNewLine()
-			}
-		}
-	}
-}
-
-// CodeGenerator_GetNonEmptyChildCount returns the number of children of
-// this node that are non empty up to maxCount (the maximum number of
-// children to look for).
-//
-// Java: CodeGenerator.getNonEmptyChildCount(Node, int)
-func CodeGenerator_GetNonEmptyChildCount(n rhino.Node, maxCount int) int {
-	i := 0
-	c := n.GetFirstChild()
-	for ; !c.IsNil() && i < maxCount; c = c.GetNext() {
-		if c.IsBlock() {
-			i += CodeGenerator_GetNonEmptyChildCount(c, maxCount-i)
-		} else if !c.IsEmpty() {
-			i++
-		}
-	}
-	return i
-}
-
-// CodeGenerator_GetFirstNonEmptyChild gets the first non-empty child of the
-// given node.
-//
-// Java: CodeGenerator.getFirstNonEmptyChild(Node)
-func CodeGenerator_GetFirstNonEmptyChild(n rhino.Node) rhino.Node {
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if c.IsBlock() {
-			result := CodeGenerator_GetFirstNonEmptyChild(c)
-			if !result.IsNil() {
-				return result
-			}
-		} else if !c.IsEmpty() {
-			return c
-		}
-	}
-	return rhino.NilNode
 }
 
 // CodeGenerator_Context is information on the current context. Used for
@@ -2085,8 +568,7 @@ const (
 	// until we reach expressions which no longer have the limitation.
 	CodeGenerator_Context_IN_FOR_INIT_CLAUSE
 	// Handle object literals at the start of a non-block arrow function
-	// body. This is only important when the first token after the "=>" is
-	// "{".
+	// body. This is only important when the first token after the "=>" is "{".
 	CodeGenerator_Context_START_OF_ARROW_FN_BODY
 	CodeGenerator_Context_START_OF_ARROW_FN_IN_FOR_INIT
 	// nothing special to watch out for.
@@ -2103,29 +585,24 @@ var codeGenerator_Context_names = [...]string{
 	"OTHER",
 }
 
-// The following two cases are independent, unlike the other enum states, so
-// we have separate booleans for them.
-//
-// Context.inForInitClause, by ordinal.
 var codeGenerator_Context_inForInitClause = [...]bool{
 	false, // STATEMENT
 	false, // BEFORE_DANGLING_ELSE
 	false, // START_OF_EXPR
-	/* inForInitClause= */ true, // IN_FOR_INIT_CLAUSE
-	/* inForInitClause= */ false, // START_OF_ARROW_FN_BODY
-	/* inForInitClause= */ true, // START_OF_ARROW_FN_IN_FOR_INIT
-	false,                       // OTHER
+	true,  // IN_FOR_INIT_CLAUSE
+	false, // START_OF_ARROW_FN_BODY
+	true,  // START_OF_ARROW_FN_IN_FOR_INIT
+	false, // OTHER
 }
 
-// Context.atArrowFnBody, by ordinal.
 var codeGenerator_Context_atArrowFnBody = [...]bool{
 	false, // STATEMENT
 	false, // BEFORE_DANGLING_ELSE
 	false, // START_OF_EXPR
-	/* at start of arrow fn */ false, // IN_FOR_INIT_CLAUSE
-	/* at start of arrow fn */ true, // START_OF_ARROW_FN_BODY
-	/* atArrowFunctionBody */ true, // START_OF_ARROW_FN_IN_FOR_INIT
-	false,                          // OTHER
+	false, // IN_FOR_INIT_CLAUSE
+	true,  // START_OF_ARROW_FN_BODY
+	true,  // START_OF_ARROW_FN_IN_FOR_INIT
+	false, // OTHER
 }
 
 // String is Context.name().
@@ -2149,9 +626,9 @@ func CodeGenerator_GetContextForNonEmptyExpression(currentContext CodeGenerator_
 	return CodeGenerator_Context_OTHER
 }
 
-// CodeGenerator_GetContextForNoInOperator: if we're in a
-// IN_FOR_INIT_CLAUSE, we can't permit in operators in the expression. Pass
-// on the IN_FOR_INIT_CLAUSE flag through subexpressions.
+// CodeGenerator_GetContextForNoInOperator: if we're in a IN_FOR_INIT_CLAUSE,
+// we can't permit in operators in the expression. Pass on the
+// IN_FOR_INIT_CLAUSE flag through subexpressions.
 //
 // Java: CodeGenerator.getContextForNoInOperator(Context)
 func CodeGenerator_GetContextForNoInOperator(context CodeGenerator_Context) CodeGenerator_Context {
@@ -2163,7 +640,7 @@ func CodeGenerator_GetContextForNoInOperator(context CodeGenerator_Context) Code
 
 // CodeGenerator_GetContextForArrowFunctionBody: if we're at the start of an
 // arrow function body, we need parentheses around object literals and
-// object patterns. We also must also pass the IN_FOR_INIT_CLAUSE flag into
+// object patterns. We also must pass the IN_FOR_INIT_CLAUSE flag into
 // subexpressions.
 //
 // Java: CodeGenerator.getContextForArrowFunctionBody(Context)

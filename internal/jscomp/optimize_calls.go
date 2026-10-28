@@ -25,7 +25,10 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var optimizeCallsCallStringID = rhino.RhinoStringPool_InternID("call")
 
 // OptimizeCalls is a root pass that is a container for other passes that
 // should run on with a single call graph.
@@ -159,8 +162,8 @@ func (o *OptimizeCalls) Process(externs rhino.Node, root rhino.Node) {
 //
 // Java: OptimizeCalls.eliminateAccessorsFrom(ReferenceMap)
 func (o *OptimizeCalls) eliminateAccessorsFrom(references *OptimizeCalls_ReferenceMap) {
-	for name := range o.compiler.GetAccessorSummary().GetAccessors().Keys() {
-		references.props.Remove(name)
+	for _, id := range o.compiler.GetAccessorSummary().AccessorIDs() {
+		references.props.removeByID(id)
 	}
 }
 
@@ -184,31 +187,28 @@ func NewOptimizeCalls_ReferenceMap() *OptimizeCalls_ReferenceMap {
 // optimizeCalls_refList is a reference list with room for its first nodes in
 // the same allocation.
 type optimizeCalls_refList struct {
-	name    string
-	nodes   []rhino.Node
-	buf     [4]rhino.Node
-	removed bool
+	nodes []rhino.Node
+	buf   [4]rhino.Node
 }
 
 type optimizeCalls_refTable struct {
-	byName map[string]*optimizeCalls_refList
-	order  []*optimizeCalls_refList
-	size   int
+	byID  map[uint32]*optimizeCalls_refList
+	order []uint32
+	size  int
 }
 
 func (t *optimizeCalls_refTable) initWithCapacity(capHint int) {
-	t.byName = make(map[string]*optimizeCalls_refList, capHint)
-	t.order = make([]*optimizeCalls_refList, 0, min(capHint, 4096))
+	t.byID = make(map[uint32]*optimizeCalls_refList, capHint)
+	t.order = make([]uint32, 0, min(capHint, 4096))
 	t.size = 0
 }
 
 func (t *optimizeCalls_refTable) Size() int     { return t.size }
 func (t *optimizeCalls_refTable) IsEmpty() bool { return t.size == 0 }
 
-func (t *optimizeCalls_refTable) Remove(name string) {
-	if l := t.byName[name]; l != nil {
-		delete(t.byName, name)
-		l.removed = true
+func (t *optimizeCalls_refTable) removeByID(id uint32) {
+	if l := t.byID[id]; l != nil {
+		delete(t.byID, id)
 		l.nodes = nil
 		t.size--
 	}
@@ -216,36 +216,61 @@ func (t *optimizeCalls_refTable) Remove(name string) {
 
 func (t *optimizeCalls_refTable) all() iter.Seq2[string, []rhino.Node] {
 	return func(yield func(string, []rhino.Node) bool) {
-		for _, l := range t.order {
-			if !l.removed && !yield(l.name, l.nodes) {
-				return
+		for _, id := range t.order {
+			if l := t.byID[id]; l != nil {
+				if !yield(strpool.String(strpool.ID(id)), l.nodes) {
+					return
+				}
 			}
 		}
 	}
 }
 
-// Java: OptimizeCalls.ReferenceMap.addReference(LinkedHashMap<String, ArrayList<Node>>, String, Node)
-func (m *OptimizeCalls_ReferenceMap) AddReference(data *optimizeCalls_refTable, name string, n rhino.Node) {
-	refs := data.byName[name]
+func (t *optimizeCalls_refTable) allByID() iter.Seq2[uint32, []rhino.Node] {
+	return func(yield func(uint32, []rhino.Node) bool) {
+		for _, id := range t.order {
+			if l := t.byID[id]; l != nil {
+				if !yield(id, l.nodes) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (m *OptimizeCalls_ReferenceMap) addReferenceByID(data *optimizeCalls_refTable, id uint32, n rhino.Node) {
+	refs := data.byID[id]
 	if refs == nil {
 		refs = m.refLists.New()
-		refs.name = name
 		refs.nodes = refs.buf[:0:len(refs.buf)]
-		data.byName[name] = refs
-		data.order = append(data.order, refs)
+		data.byID[id] = refs
+		data.order = append(data.order, id)
 		data.size++
 	}
 	refs.nodes = append(refs.nodes, n)
 }
 
+// Java: OptimizeCalls.ReferenceMap.addReference(LinkedHashMap<String, ArrayList<Node>>, String, Node)
+func (m *OptimizeCalls_ReferenceMap) AddReference(data *optimizeCalls_refTable, name string, n rhino.Node) {
+	m.addReferenceByID(data, uint32(strpool.Intern(name)), n)
+}
+
 // Java: OptimizeCalls.ReferenceMap.addNameReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n rhino.Node) {
-	m.AddReference(&m.names, name, n)
+	m.addReferenceByID(&m.names, uint32(strpool.Intern(name)), n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addPropReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n rhino.Node) {
-	m.AddReference(&m.props, name, n)
+	m.addReferenceByID(&m.props, uint32(strpool.Intern(name)), n)
+}
+
+func (m *OptimizeCalls_ReferenceMap) addNameReferenceByID(id uint32, n rhino.Node) {
+	m.addReferenceByID(&m.names, id, n)
+}
+
+func (m *OptimizeCalls_ReferenceMap) addPropReferenceByID(id uint32, n rhino.Node) {
+	m.addReferenceByID(&m.props, id, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.getGlobalScope()
@@ -261,6 +286,16 @@ func (m *OptimizeCalls_ReferenceMap) GetNameReferences() iter.Seq2[string, []rhi
 // Java: OptimizeCalls.ReferenceMap.getPropReferences()
 func (m *OptimizeCalls_ReferenceMap) GetPropReferences() iter.Seq2[string, []rhino.Node] {
 	return m.props.all()
+}
+
+// GetNameReferencesByID iterates global name references keyed by interned strpool.ID.
+func (m *OptimizeCalls_ReferenceMap) GetNameReferencesByID() iter.Seq2[uint32, []rhino.Node] {
+	return m.names.allByID()
+}
+
+// GetPropReferencesByID iterates property references keyed by interned strpool.ID.
+func (m *OptimizeCalls_ReferenceMap) GetPropReferencesByID() iter.Seq2[uint32, []rhino.Node] {
+	return m.props.allByID()
 }
 
 // OptimizeCalls_ReferenceMap_AppendFunctionNodes appends all function nodes
@@ -420,8 +455,7 @@ func OptimizeCalls_ReferenceMap_IsCallTarget(n rhino.Node) bool {
 	if call, ok := ast.AsCall(parent); ok && call.Callee().Is(n) {
 		return true
 	}
-	gp, ok := ast.AsGetProp(parent)
-	if !ok || gp.Property() != "call" {
+	if !parent.IsGetProp() || parent.GetStringID() != optimizeCallsCallStringID {
 		return false
 	}
 	call, ok := ast.AsCall(parent.GetParent())
@@ -438,8 +472,7 @@ func OptimizeCalls_ReferenceMap_IsOptChainCallTarget(n rhino.Node) bool {
 	if call, ok := ast.AsOptChainCall(parent); ok && call.Callee().Is(n) {
 		return true
 	}
-	gp, ok := ast.AsOptChainGetProp(parent)
-	if !ok || gp.Property() != "call" {
+	if !parent.IsOptChainGetProp() || parent.GetStringID() != optimizeCallsCallStringID {
 		return false
 	}
 	call, ok := ast.AsOptChainCall(parent.GetParent())
@@ -517,30 +550,30 @@ func OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n rhino.Node) bool {
 	return ok && assign.Target().Is(n) && parent.GetParent().IsExprResult()
 }
 
-var optimizeCalls_emptyStringSet = jutil.NewLinkedHashSet[string]()
-
-func optimizeCalls_safeSet(set *jutil.LinkedHashSet[string]) *jutil.LinkedHashSet[string] {
-	if set != nil {
-		return set
-	}
-	return optimizeCalls_emptyStringSet
-}
-
 type optimizeCallsRefCollector struct {
 	outer            *OptimizeCalls
 	codingConvention CodingConvention
-	externProps      *jutil.LinkedHashSet[string]
+	externPropBits   jutil.BitSet
 	references       *OptimizeCalls_ReferenceMap
 	globalScope      *Scope
 }
 
 func newOptimizeCallsRefCollector(outer *OptimizeCalls, references *OptimizeCalls_ReferenceMap) *optimizeCallsRefCollector {
-	return &optimizeCallsRefCollector{
+	c := &optimizeCallsRefCollector{
 		outer:            outer,
 		codingConvention: outer.compiler.GetCodingConvention(),
-		externProps:      optimizeCalls_safeSet(outer.compiler.GetExternProperties()),
 		references:       references,
 	}
+	if !outer.considerExterns {
+		if externProps := outer.compiler.GetExternProperties(); externProps != nil {
+			for name := range externProps.All() {
+				if id := strpool.Lookup(name); id != 0 {
+					c.externPropBits.Set(int(id))
+				}
+			}
+		}
+	}
+	return c
 }
 
 func (c *optimizeCallsRefCollector) initGlobalScope(s *Scope) {
@@ -597,7 +630,7 @@ func (c *optimizeCallsRefCollector) traverseNode(n rhino.Node) {
 				c.visitSuper(child)
 			case rhino.Token_MEMBER_FIELD_DEF:
 				if !child.IsQuotedStringKey() {
-					c.maybeAddPropReference(child.GetString(), child)
+					c.maybeAddPropReferenceByID(child.GetStringID(), child)
 				}
 			}
 			continue
@@ -609,17 +642,16 @@ func (c *optimizeCallsRefCollector) traverseNode(n rhino.Node) {
 	case rhino.Token_NAME:
 		c.maybeAddNameReferenceNode(n, n)
 	case rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETPROP:
-		c.maybeAddPropReference(n.GetString(), n)
+		c.maybeAddPropReferenceByID(n.GetStringID(), n)
 	case rhino.Token_CALL:
 		call := ast.MustCall(n)
 		if firstArg, ok := call.FirstArg(); ok && c.codingConvention.IsPropertyRenameFunction(call.Callee().Node()) {
-			c.maybeAddPropReference(firstArg.Node().GetString(), n)
+			c.maybeAddPropReferenceByID(firstArg.Node().GetStringID(), n)
 		}
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF,
 		rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF:
-		nm := ast.MustNamedMember(n)
-		if !nm.IsQuoted() {
-			c.maybeAddPropReference(nm.Key(), n)
+		if !n.IsQuotedStringKey() {
+			c.maybeAddPropReferenceByID(n.GetStringID(), n)
 		}
 	case rhino.Token_SUPER:
 		c.visitSuper(n)
@@ -639,7 +671,7 @@ func (c *optimizeCallsRefCollector) visitSuper(superNode rhino.Node) {
 	if name, isName := extendsExpr.AsName(); isName {
 		c.maybeAddNameReferenceNode(name.Node(), superNode)
 	} else if gp, isGetProp := extendsExpr.AsGetProp(); isGetProp {
-		c.maybeAddPropReference(gp.Property(), superNode)
+		c.maybeAddPropReferenceByID(gp.Node().GetStringID(), superNode)
 	}
 }
 
@@ -650,16 +682,15 @@ func (c *optimizeCallsRefCollector) maybeAddNameReferenceNode(nameNode rhino.Nod
 	}
 	var_ := c.globalScope.GetVarByID(id)
 	if var_ != nil && (c.outer.considerExterns || !var_.IsExtern()) {
-		c.references.AddNameReference(nameNode.GetString(), n)
+		c.references.addNameReferenceByID(id, n)
 	}
 }
 
-// Java: OptimizeCalls.ReferenceMapBuildingCallback.maybeAddPropReference(String, Node)
-func (c *optimizeCallsRefCollector) maybeAddPropReference(name string, n rhino.Node) {
-	if !c.outer.considerExterns && c.externProps.Contains(name) {
+func (c *optimizeCallsRefCollector) maybeAddPropReferenceByID(id uint32, n rhino.Node) {
+	if !c.outer.considerExterns && c.externPropBits.Get(int(id)) {
 		return
 	}
-	c.references.AddPropReference(name, n)
+	c.references.addPropReferenceByID(id, n)
 }
 
 // OptimizeCalls_MayBeOptimizableName returns whether the provided name may be

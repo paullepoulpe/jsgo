@@ -19,15 +19,21 @@
 package jscomp
 
 import (
+	"sync"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // AccessorSummary is a strongly typed view of information about getters and
 // setters collected from the AST.
 type AccessorSummary struct {
-	assumeAlwaysGetterAndSetter bool
-	accessors                   *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]
-	byName                      map[string]AccessorSummary_PropertyAccessKind
+	alwaysGetterAndSetter bool
+	hasAnyAccessors       bool
+	kindsByID             []uint64 // 2 bits per strpool.ID (32 IDs per uint64)
+	accessorIDs           []uint32 // insertion-ordered strpool.IDs
+	accessorsOnce         sync.Once
+	accessors             *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]
 }
 
 // AccessorSummary_PropertyAccessKind indicates whether a property has a
@@ -103,40 +109,100 @@ func (k AccessorSummary_PropertyAccessKind) UnionWith(other AccessorSummary_Prop
 //
 // Java: AccessorSummary.create(Map<String, PropertyAccessKind>)
 func AccessorSummary_Create(accessors *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]) *AccessorSummary {
-	return newAccessorSummary(jutil.NewLinkedHashMapFrom(accessors))
+	return newAccessorSummary(jutil.CheckNotNull(accessors))
 }
 
 // Java: AccessorSummary(ImmutableMap<String, PropertyAccessKind>)
 func newAccessorSummary(accessors *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]) *AccessorSummary {
-	var byName map[string]AccessorSummary_PropertyAccessKind
-	if !accessors.IsEmpty() {
-		byName = make(map[string]AccessorSummary_PropertyAccessKind, accessors.Size())
-		for name, kind := range accessors.All() {
-			byName[name] = kind
+	if accessors.IsEmpty() {
+		return &AccessorSummary{}
+	}
+	n := accessors.Size()
+	accessorIDs := make([]uint32, 0, n)
+	var maxID uint32
+	hasAny := false
+	for name, kind := range accessors.All() {
+		id := uint32(strpool.Intern(name))
+		accessorIDs = append(accessorIDs, id)
+		if kind != AccessorSummary_PropertyAccessKind_NORMAL {
+			hasAny = true
+			if id > maxID {
+				maxID = id
+			}
 		}
 	}
-	return &AccessorSummary{accessors: accessors, byName: byName, assumeAlwaysGetterAndSetter: false}
+	var kindsByID []uint64
+	if hasAny {
+		kindsByID = make([]uint64, int(maxID>>5)+1)
+		i := 0
+		for kind := range accessors.Values() {
+			id := accessorIDs[i]
+			i++
+			if kind != AccessorSummary_PropertyAccessKind_NORMAL {
+				shift := (id & 31) * 2
+				kindsByID[id>>5] |= (uint64(kind) & 3) << shift
+			}
+		}
+	}
+	return &AccessorSummary{
+		hasAnyAccessors: hasAny,
+		kindsByID:       kindsByID,
+		accessorIDs:     accessorIDs,
+	}
 }
 
 // Java: AccessorSummary(boolean)
 func newAccessorSummaryAssuming(assumeAlwaysGetterAndSetter bool) *AccessorSummary {
 	return &AccessorSummary{
-		accessors:                   jutil.NewLinkedHashMap[string, AccessorSummary_PropertyAccessKind](),
-		assumeAlwaysGetterAndSetter: assumeAlwaysGetterAndSetter,
+		alwaysGetterAndSetter: assumeAlwaysGetterAndSetter,
 	}
+}
+
+// AccessorIDs returns the interned strpool.IDs of recorded accessors in insertion order.
+func (s *AccessorSummary) AccessorIDs() []uint32 {
+	return s.accessorIDs
 }
 
 // Java: AccessorSummary.getAccessors()
 func (s *AccessorSummary) GetAccessors() *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
+	s.accessorsOnce.Do(func() {
+		m := jutil.NewLinkedHashMapWithCapacity[string, AccessorSummary_PropertyAccessKind](len(s.accessorIDs))
+		for _, id := range s.accessorIDs {
+			m.Put(strpool.String(strpool.ID(id)), s.GetKindByID(id))
+		}
+		s.accessors = m
+	})
 	return s.accessors
+}
+
+// GetKindByID returns the PropertyAccessKind for an interned strpool.ID.
+func (s *AccessorSummary) GetKindByID(id uint32) AccessorSummary_PropertyAccessKind {
+	if s.alwaysGetterAndSetter {
+		return AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER
+	}
+	if !s.hasAnyAccessors {
+		return AccessorSummary_PropertyAccessKind_NORMAL
+	}
+	wordIdx := int(id >> 5)
+	if wordIdx >= len(s.kindsByID) {
+		return AccessorSummary_PropertyAccessKind_NORMAL
+	}
+	return AccessorSummary_PropertyAccessKind((s.kindsByID[wordIdx] >> ((id & 31) * 2)) & 3)
 }
 
 // Java: AccessorSummary.getKind(String)
 func (s *AccessorSummary) GetKind(name string) AccessorSummary_PropertyAccessKind {
-	if s.assumeAlwaysGetterAndSetter {
+	if s.alwaysGetterAndSetter {
 		return AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER
 	}
-	return s.byName[name]
+	if !s.hasAnyAccessors {
+		return AccessorSummary_PropertyAccessKind_NORMAL
+	}
+	id := strpool.Lookup(name)
+	if id == 0 {
+		return AccessorSummary_PropertyAccessKind_NORMAL
+	}
+	return s.GetKindByID(uint32(id))
 }
 
 // AccessorSummary_CreateAssumingAlwaysGetterAndSetter returns an accessor
@@ -151,15 +217,15 @@ func AccessorSummary_CreateAssumingAlwaysGetterAndSetter() *AccessorSummary {
 func (s *AccessorSummary) ToProto() *AccessorSummaryProto {
 	builder :=
 		AccessorSummaryProto_NewBuilder().
-			SetAssumeAlwaysGetterAndSetter(s.assumeAlwaysGetterAndSetter)
-	if s.assumeAlwaysGetterAndSetter {
-		jutil.CheckState(s.accessors.IsEmpty())
+			SetAssumeAlwaysGetterAndSetter(s.alwaysGetterAndSetter)
+	if s.alwaysGetterAndSetter {
+		jutil.CheckState(len(s.accessorIDs) == 0)
 	} else {
-		for name, kind := range s.accessors.All() {
+		for _, id := range s.accessorIDs {
 			builder.AddAccessors(
 				AccessorSummaryEntryProto_NewBuilder().
-					SetName(name).
-					SetKind(AccessorSummary_ToProto(kind)).
+					SetName(strpool.String(strpool.ID(id))).
+					SetKind(AccessorSummary_ToProto(s.GetKindByID(id))).
 					Build())
 		}
 	}

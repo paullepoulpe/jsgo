@@ -77,17 +77,31 @@ func (m *FunctionToBlockMutator) Mutate(
 	resultName string,
 	needsDefaultResult bool,
 	isCallInLoop bool) rhino.Node {
+	return m.mutateWithSummary(
+		fnName, fnNode, callNode, resultName, needsDefaultResult, isCallInLoop, nil)
+}
+
+func (m *FunctionToBlockMutator) mutateWithSummary(
+	fnName string,
+	fnNode rhino.Node,
+	callNode rhino.Node,
+	resultName string,
+	needsDefaultResult bool,
+	isCallInLoop bool,
+	summary *calleeSummary,
+) rhino.Node {
 	if m.allowMoveCallArgs {
 		m.currentCallNode = callNode
 	}
-	res := m.MutateInternal(
+	res := m.mutateInternalWithSummary(
 		fnName,
 		fnNode,
 		callNode,
 		resultName,
 		needsDefaultResult,
 		isCallInLoop,
-		/* renameLocals= */ true)
+		/* renameLocals= */ true,
+		summary)
 	m.currentCallNode = rhino.NilNode
 	return res
 }
@@ -141,6 +155,29 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	needsDefaultResult bool,
 	isCallInLoop bool,
 	renameLocals bool) rhino.Node {
+	return m.mutateInternalWithSummary(
+		fnName, fnNode, callNode, resultName, needsDefaultResult, isCallInLoop, renameLocals, nil)
+}
+
+func (m *FunctionToBlockMutator) mutateInternalWithSummary(
+	fnName string,
+	fnNode rhino.Node,
+	callNode rhino.Node,
+	resultName string,
+	needsDefaultResult bool,
+	isCallInLoop bool,
+	renameLocals bool,
+	summary *calleeSummary,
+) rhino.Node {
+	var localSummary calleeSummary
+	if summary == nil || summary.fnNode != fnNode {
+		if scanCalleeSummary(fnName, fnNode, &localSummary) {
+			summary = &localSummary
+		} else {
+			summary = nil
+		}
+	}
+
 	newFn := ast.MustFunction(fnNode.CloneTree())
 	newFnNode := newFn.Node()
 	// Wrap the clone in a script, in a root, so that makeLocalNamesUnique sees a coherent tree.
@@ -150,32 +187,59 @@ func (m *FunctionToBlockMutator) MutateInternal(
 		// Now that parameter names have been replaced, make sure all the local
 		// names are unique, to allow functions to be inlined multiple times
 		// without causing conflicts.
-		m.MakeLocalNamesUnique(newFnNode, isCallInLoop)
+		m.makeLocalNamesUnique(newFnNode, isCallInLoop, summary == nil || summary.hasLabels)
 
 		// Function declarations must be rewritten as function expressions as
 		// they will be within a block and normalization prevents function
 		// declarations within block as browser implementations vary.
-		FunctionToBlockMutator_RewriteFunctionDeclarations(newFn.Body().Node())
+		if summary == nil || summary.hasInnerFunctionDecls {
+			FunctionToBlockMutator_RewriteFunctionDeclarations(newFn.Body().Node())
+		}
 	}
 
-	// TODO(johnlenz): Mark NAME nodes constant for parameters that are not modified.
-	modifiedParameters := &m.modifiedParamsScratch
-	m.functionArgumentInjector.FindModifiedParametersInto(newFnNode, &m.paramNamesScratch, modifiedParameters)
 	args := &m.argsScratch
 	m.functionArgumentInjector.FillFunctionCallParameterPairMap(
 		newFnNode, callNode, m.safeNameIdSupplier, args)
+
+	// TODO(johnlenz): Mark NAME nodes constant for parameters that are not modified.
+	modifiedParameters := &m.modifiedParamsScratch
+	if summary != nil && summary.canReuseAfterRename(renameLocals) {
+		modifiedParameters.Clear()
+		if summary.numModified > 0 {
+			bindings := m.functionArgumentInjector.paramBindings
+			for _, paramIdx := range summary.modifiedParamIndices() {
+				if int(paramIdx)+1 < len(bindings) {
+					modifiedParameters.Add(bindings[int(paramIdx)+1].name)
+				}
+			}
+		}
+	} else {
+		m.functionArgumentInjector.FindModifiedParametersInto(newFnNode, &m.paramNamesScratch, modifiedParameters)
+	}
+
 	hasArgs := !args.IsEmpty()
 	allNamesToAlias := &m.allNamesToAliasScratch
 	allNamesToAlias.Clear()
 	if hasArgs {
-		m.functionArgumentInjector.GatherCallArgumentsNeedingTempsInto(
-			m.compiler, newFnNode, args, modifiedParameters, m.compiler.GetCodingConvention(), allNamesToAlias)
+		m.functionArgumentInjector.gatherCallArgumentsNeedingTempsIntoWithSummary(
+			m.compiler, newFnNode, args, modifiedParameters, m.compiler.GetCodingConvention(), summary, renameLocals, allNamesToAlias)
+	}
+
+	mayHaveInjectedDecls := false
+	if isCallInLoop && summary != nil && !summary.hasVarOrLetDecls && !(renameLocals && summary.hasInnerFunctionDecls) {
+		for _, b := range m.functionArgumentInjector.paramBindings {
+			if b.argNode.HasChildren() && functionToBlockMutator_hasVarOrLetOutsideFn(b.argNode) {
+				mayHaveInjectedDecls = true
+				break
+			}
+		}
 	}
 
 	newBlock := newFn.Body().MustBlock().Detach().Node()
 
 	if hasArgs {
-		inlineResult := m.AliasAndInlineArguments(newBlock, args, allNamesToAlias)
+		inlineResult := m.aliasAndInlineArguments(
+			newBlock, args, allNamesToAlias, summary != nil, summary != nil && summary.referencesThis)
 		jutil.CheckState(newBlock == inlineResult)
 	}
 
@@ -184,15 +248,36 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	// undefined as they would have been if the function were called, so ensure
 	// that they are properly initialized.
 	//
-	if isCallInLoop {
+	if isCallInLoop && (summary == nil || summary.hasVarOrLetDecls || (renameLocals && summary.hasInnerFunctionDecls) || mayHaveInjectedDecls) {
 		FunctionToBlockMutator_FixUninitializedVarDeclarations(newBlock, newBlock)
 	}
 
 	labelName := m.GetLabelNameForFunction(fnName)
-	injectableBlock := FunctionToBlockMutator_ReplaceReturns(newBlock, resultName, labelName, needsDefaultResult)
+	var injectableBlock rhino.Node
+	if summary != nil {
+		injectableBlock = functionToBlockMutator_replaceReturnsWithCount(
+			newBlock, resultName, labelName, needsDefaultResult, int(summary.shallowReturnCount))
+	} else {
+		injectableBlock = FunctionToBlockMutator_ReplaceReturns(newBlock, resultName, labelName, needsDefaultResult)
+	}
 	jutil.CheckState(!injectableBlock.IsNil())
 
 	return injectableBlock
+}
+
+func functionToBlockMutator_hasVarOrLetOutsideFn(n rhino.Node) bool {
+	if n.IsFunction() {
+		return false
+	}
+	if n.IsVar() || n.IsLet() {
+		return true
+	}
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.HasChildren() && functionToBlockMutator_hasVarOrLetOutsideFn(c) {
+			return true
+		}
+	}
+	return false
 }
 
 // FunctionToBlockMutator_RewriteFunctionDeclarations: n is the node to
@@ -347,6 +432,10 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 //
 // Java: FunctionToBlockMutator.makeLocalNamesUnique(Node, boolean)
 func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode rhino.Node, isCallInLoop bool) {
+	m.makeLocalNamesUnique(fnNode, isCallInLoop, true)
+}
+
+func (m *FunctionToBlockMutator) makeLocalNamesUnique(fnNode rhino.Node, isCallInLoop bool, checkLabels bool) {
 	idSupplier := m.compiler.GetUniqueNameIdSupplier()
 	rootRenamer := NewMakeDeclaredNamesUnique_InlineRenamer(
 		m.compiler.GetCodingConvention(),
@@ -389,7 +478,7 @@ func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode rhino.Node, isCallI
 	scb.scopeNode = rhino.NilNode
 
 	// Make label names unique to this instance.
-	if hasLabelNode(fnNode) {
+	if checkLabels && hasLabelNode(fnNode) {
 		NewRenameLabelsWithSupplier(m.compiler, NewFunctionToBlockMutator_LabelNameSupplier(idSupplier).Get, false, false).
 			Process(rhino.NilNode, fnNode)
 	}
@@ -515,7 +604,16 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 	fnTemplateRoot rhino.Node,
 	paramToArgMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
 	namesToAlias *jutil.LinkedHashSet[string]) rhino.Node {
+	return m.aliasAndInlineArguments(fnTemplateRoot, paramToArgMap, namesToAlias, false, false)
+}
 
+func (m *FunctionToBlockMutator) aliasAndInlineArguments(
+	fnTemplateRoot rhino.Node,
+	paramToArgMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
+	namesToAlias *jutil.LinkedHashSet[string],
+	hasSummary bool,
+	knownReferencesThis bool,
+) rhino.Node {
 	if namesToAlias == nil || namesToAlias.IsEmpty() {
 		// There are no names to alias. Just inline the arguments directly.
 		replacements := &m.paramReplacementsScratch
@@ -546,18 +644,22 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 				continue
 			}
 			if name == FunctionArgumentInjector_THIS_MARKER {
-				referencesThis := NodeUtil_ReferencesEnclosingReceiver(fnTemplateRoot)
 				// Update "this". We only need to create an alias if "this" is referenced
 				// and the value of "this" is not Token.THIS, or the value of "this" has side effects.
 				originalValue := arg.Arg()
 				replacement := originalValue
-				if !originalValue.IsThis() &&
-					(referencesThis || m.compiler.GetAstAnalyzer().MayHaveSideEffects(originalValue)) {
-					newName := m.GetUniqueThisName()
-					newValue := m.takeOrCloneCallArg(originalValue)
-					newNode := NodeUtil_NewVarNode(newName, newValue).SrcrefTreeIfMissing(newValue)
-					newAliasesToAdd = append(newAliasesToAdd, newNode)
-					replacement = rhino.IR_Name(newName).SrcrefTree(newValue)
+				if !originalValue.IsThis() {
+					referencesThis := knownReferencesThis
+					if !hasSummary {
+						referencesThis = NodeUtil_ReferencesEnclosingReceiver(fnTemplateRoot)
+					}
+					if referencesThis || m.compiler.GetAstAnalyzer().MayHaveSideEffects(originalValue) {
+						newName := m.GetUniqueThisName()
+						newValue := m.takeOrCloneCallArg(originalValue)
+						newNode := NodeUtil_NewVarNode(newName, newValue).SrcrefTreeIfMissing(newValue)
+						newAliasesToAdd = append(newAliasesToAdd, newNode)
+						replacement = rhino.IR_Name(newName).SrcrefTree(newValue)
+					}
 				}
 				paramReplacements.Put(FunctionArgumentInjector_THIS_MARKER, replacement)
 			} else {
@@ -603,12 +705,17 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 func FunctionToBlockMutator_ReplaceReturns(
 	block rhino.Node, resultName string, labelName string, resultMustBeSet bool) rhino.Node {
 	rhino.CheckNotNull(block)
+	returnCount := functionInjector_countShallowReturns(block)
+	return functionToBlockMutator_replaceReturnsWithCount(
+		block, resultName, labelName, resultMustBeSet, returnCount)
+}
+
+func functionToBlockMutator_replaceReturnsWithCount(
+	block rhino.Node, resultName string, labelName string, resultMustBeSet bool, returnCount int) rhino.Node {
+	rhino.CheckNotNull(block)
 
 	root := block
-
 	hasReturnAtExit := false
-	returnCount := NodeUtil_GetNodeTypeReferenceCount(
-		block, rhino.Token_RETURN, NewNodeUtil_MatchShallowStatement().Apply)
 	if returnCount > 0 {
 		hasReturnAtExit = FunctionToBlockMutator_HasReturnAtExit(block)
 		// TODO(johnlenz): Simpler not to special case this,

@@ -22,6 +22,7 @@ import (
 	"iter"
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -87,8 +88,7 @@ type TypedScopeCreator struct {
 	providedNamesFromCall map[rhino.Node][]*ProcessClosureProvidesAndRequires_ProvidedName
 	providedNamesCount    int
 
-	normalScopeBuilderPool   []*TypedScopeCreator_NormalScopeBuilder
-	functionScopeBuilderPool []*TypedScopeCreator_FunctionScopeBuilder
+	builderPool []*TypedScopeCreator_scopeBuilder
 
 	stage TypedScopeCreator_Stage
 }
@@ -349,8 +349,6 @@ func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *Ty
 	// show up in the type registry.
 	var newScope *TypedScope
 
-	var scopeBuilder TypedScopeCreator_AbstractScopeBuilder
-
 	module := ModuleImportResolver_GetModuleFromScopeRoot(c.moduleMap, c.compiler, root)
 	if typedParent == nil {
 		jutil.CheckStateMsg1(root.IsRoot(), "%s", root)
@@ -399,28 +397,13 @@ func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *Ty
 		newScope = newTypedScopeOwnedReservedNames(typedParent, root, reservedNames, module)
 	}
 
-	var pooledNormalBuilder *TypedScopeCreator_NormalScopeBuilder
-	var pooledFunctionBuilder *TypedScopeCreator_FunctionScopeBuilder
+	var kind scopeBuilderKind
 	if root.IsFunction() {
-		if n := len(c.functionScopeBuilderPool); n > 0 {
-			pooledFunctionBuilder = c.functionScopeBuilderPool[n-1]
-			c.functionScopeBuilderPool = c.functionScopeBuilderPool[:n-1]
-			pooledFunctionBuilder.InitTypedScopeCreator_AbstractScopeBuilderBase(pooledFunctionBuilder, c, newScope)
-		} else {
-			pooledFunctionBuilder = NewTypedScopeCreator_FunctionScopeBuilder(c, newScope)
-		}
-		scopeBuilder = pooledFunctionBuilder
+		kind = scopeBuilderFunction
 	} else if root.IsClass() || root.IsMemberFieldDef() || root.IsComputedFieldDef() {
-		scopeBuilder = NewTypedScopeCreator_ClassScopeBuilder(c, newScope)
+		kind = scopeBuilderClass
 	} else {
-		if n := len(c.normalScopeBuilderPool); n > 0 {
-			pooledNormalBuilder = c.normalScopeBuilderPool[n-1]
-			c.normalScopeBuilderPool = c.normalScopeBuilderPool[:n-1]
-			pooledNormalBuilder.InitTypedScopeCreator_AbstractScopeBuilderBase(pooledNormalBuilder, c, newScope)
-		} else {
-			pooledNormalBuilder = NewTypedScopeCreator_NormalScopeBuilder(c, newScope)
-		}
-		scopeBuilder = pooledNormalBuilder
+		kind = scopeBuilderNormal
 		if root.IsModuleBody() {
 			// Store the module scope on the CompilerInput object so it can be found and used for
 			// program analysis purposes.
@@ -430,12 +413,9 @@ func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *Ty
 			compilerInput.SetTypedScope(newScope)
 		}
 	}
+	scopeBuilder := c.acquireScopeBuilder(kind, newScope)
 	scopeBuilder.Build()
-	if pooledNormalBuilder != nil {
-		c.normalScopeBuilderPool = append(c.normalScopeBuilderPool, pooledNormalBuilder)
-	} else if pooledFunctionBuilder != nil {
-		c.functionScopeBuilderPool = append(c.functionScopeBuilderPool, pooledFunctionBuilder)
-	}
+	c.releaseScopeBuilder(scopeBuilder)
 	if module != nil && module.Metadata().IsEs6Module() {
 		// Declare an implicit variable representing the namespace of this module, then add a property
 		// for each exported name to that variable's type.
@@ -457,6 +437,23 @@ func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *Ty
 	return newScope
 }
 
+func (c *TypedScopeCreator) acquireScopeBuilder(kind scopeBuilderKind, scope *TypedScope) *TypedScopeCreator_scopeBuilder {
+	var b *TypedScopeCreator_scopeBuilder
+	if n := len(c.builderPool); n > 0 {
+		b = c.builderPool[n-1]
+		c.builderPool = c.builderPool[:n-1]
+	} else {
+		b = &TypedScopeCreator_scopeBuilder{}
+	}
+	b.init(kind, c, scope)
+	return b
+}
+
+func (c *TypedScopeCreator) releaseScopeBuilder(b *TypedScopeCreator_scopeBuilder) {
+	b.reset()
+	c.builderPool = append(c.builderPool, b)
+}
+
 // MarkGoogModuleExportsAsConst adds nodes representing goog.module exports
 // to a list, to treat them as @const.
 //
@@ -472,19 +469,25 @@ func (c *TypedScopeCreator) MarkGoogModuleExportsAsConst(moduleBody rhino.Node) 
 	// TODO(lharker): Use the source nodes from the Bindings once we no longer rewrite before
 	// typechecking. This is not feasible currently because a few places will rewrite exports = ...
 	for statement := moduleBody.GetFirstChild(); !statement.IsNil(); statement = statement.GetNext() {
-		if !NodeUtil_IsExprAssign(statement) {
+		exprStmt, ok := ast.AsExprStmt(statement)
+		if !ok {
 			continue
 		}
-		lhs := statement.GetFirstFirstChild()
+		assign, ok := exprStmt.Expr().AsAssign()
+		if !ok {
+			continue
+		}
+		lhs := assign.Target().Node()
+		rhs := assign.Value().Node()
 		if lhs.MatchesName("exports") {
 			c.undeclaredNamesForClosure[lhs] = struct{}{}
 			// If this is full of named exports, add all the string key nodes.
-			if NodeUtil_IsNamedExportsLiteral(lhs.GetNext()) {
-				for key := lhs.GetNext().GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-					c.undeclaredNamesForClosure[key] = struct{}{}
+			if NodeUtil_IsNamedExportsLiteral(rhs) {
+				for member := range ast.MustObjectLit(rhs).Members() {
+					c.undeclaredNamesForClosure[member.Node()] = struct{}{}
 				}
 			}
-		} else if lhs.IsGetProp() && lhs.GetFirstChild().MatchesName("exports") {
+		} else if gp, ok := ast.AsGetProp(lhs); ok && gp.Object().Node().MatchesName("exports") {
 			c.undeclaredNamesForClosure[lhs] = struct{}{}
 		}
 	}
@@ -518,10 +521,11 @@ func (c *TypedScopeCreator) GatherAllProvides(root rhino.Node) {
 		if !name.GetCandidateDefinition().IsNil() {
 			// This name will be defined eventually in the source code.
 			firstDefinitionNode := name.GetCandidateDefinition()
-			if NodeUtil_IsExprAssign(firstDefinitionNode) &&
-				firstDefinitionNode.GetFirstFirstChild().IsName() {
-				// Treat assignments of provided names as declarations.
-				c.undeclaredNamesForClosure[firstDefinitionNode.GetFirstFirstChild()] = struct{}{}
+			if exprStmt, ok := ast.AsExprStmt(firstDefinitionNode); ok {
+				if assign, ok := exprStmt.Expr().AsAssign(); ok && assign.Target().Node().IsName() {
+					// Treat assignments of provided names as declarations.
+					c.undeclaredNamesForClosure[assign.Target().Node()] = struct{}{}
+				}
 			}
 		} else if !name.GetFirstProvideCall().IsNil() &&
 			NodeUtil_IsExprCall(name.GetFirstProvideCall()) &&
@@ -702,8 +706,7 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 	c.undeclaredNamesForClosure = nil
 	c.providedNamesFromCall = nil
 	c.providedNamesCount = 0
-	c.normalScopeBuilderPool = nil
-	c.functionScopeBuilderPool = nil
+	c.builderPool = nil
 	c.stage = TypedScopeCreator_Stage_FROZEN
 
 	// we must keep the 'memoized' set of TypedScopes around, since later passes will use it.
@@ -720,8 +723,7 @@ func (c *TypedScopeCreator) ClearCommonState() {
 	c.undeclaredNamesForClosure = make(map[rhino.Node]struct{})
 	c.providedNamesFromCall = nil
 	c.providedNamesCount = 0
-	c.normalScopeBuilderPool = nil
-	c.functionScopeBuilderPool = nil
+	c.builderPool = nil
 }
 
 // TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable adds all enums and
@@ -742,20 +744,30 @@ func NewTypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable(registry *rhino.
 func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	switch node.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
-		for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		for decl := range ast.MustNameDeclaration(node).Declarators() {
 			// TODO(b/116853368): make this work for destructuring aliases as well.
+			child := decl.Node()
+			var rvalue rhino.Node
+			if name, ok := decl.AsName(); ok {
+				if init, ok := name.Init(); ok {
+					rvalue = init.Node()
+				}
+			} else {
+				rvalue = child.GetFirstChild()
+			}
 			v.IdentifyEnumOrTypedefDeclaration(
-				t, child, child.GetFirstChild(), NodeUtil_GetBestJSDocInfo(child))
+				t, child, rvalue, NodeUtil_GetBestJSDocInfo(child))
 		}
 	case rhino.Token_EXPR_RESULT:
-		firstChild := node.GetFirstChild()
-		if firstChild.IsAssign() {
-			assign := firstChild
+		expr := ast.MustExprStmt(node).Expr()
+		if assign, ok := expr.AsAssign(); ok {
+			aNode := assign.Node()
 			v.IdentifyEnumOrTypedefDeclaration(
-				t, assign.GetFirstChild(), assign.GetSecondChild(), assign.GetJSDocInfo())
-		} else if firstChild.IsGetProp() {
+				t, assign.Target().Node(), assign.Value().Node(), aNode.GetJSDocInfo())
+		} else if gp, ok := expr.AsGetProp(); ok {
+			gpNode := gp.Node()
 			v.IdentifyEnumOrTypedefDeclaration(
-				t, firstChild /* rvalue= */, rhino.NilNode, firstChild.GetJSDocInfo())
+				t, gpNode /* rvalue= */, rhino.NilNode, gpNode.GetJSDocInfo())
 		}
 	default:
 	}

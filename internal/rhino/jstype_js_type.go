@@ -260,14 +260,32 @@ type JSTypeBase struct {
 }
 
 const (
-	jsTypeFlagLoosenTypechecking uint8 = 1 << 0 // loosenTypecheckingDueToForwardReferencedSupertype
-	jsTypeFlagHashCodeInProgress uint8 = 1 << 1
-	jsTypeFlagInTemplatedCheck   uint8 = 1 << 2
-	jsTypeFlagVisited            uint8 = 1 << 3
-	jsTypeFlagResolvedToSelf     uint8 = 1 << 4
-	jsTypeTemplateCheckShift           = 5
-	jsTypeTemplateCheckMask      uint8 = 3 << jsTypeTemplateCheckShift
+	jsTypeFlagLoosenTypechecking      uint8 = 1 << 0 // loosenTypecheckingDueToForwardReferencedSupertype
+	jsTypeFlagHashCodeInProgress      uint8 = 1 << 1
+	jsTypeFlagInTemplatedCheck        uint8 = 1 << 2
+	jsTypeFlagVisited                 uint8 = 1 << 3
+	jsTypeFlagResolvedToSelf          uint8 = 1 << 4
+	jsTypeTemplateCheckShift                = 5
+	jsTypeTemplateCheckMask           uint8 = 3 << jsTypeTemplateCheckShift
+	jsTypeFlagWellFormedTemplateValid uint8 = 1 << 7
 )
+
+// IsWellFormedTemplateValid reports whether TypeValidator has already verified
+// that this resolved type has well-formed bounded generic arguments.
+func (t *JSTypeBase) IsWellFormedTemplateValid() bool {
+	return t.flags&jsTypeFlagWellFormedTemplateValid != 0
+}
+
+// MarkWellFormedTemplateValidIfResolved records a positive well-formed
+// templatized-type check result once the type is resolved and the resolver is
+// closed (so referenced types and bounds are final).
+func (t *JSTypeBase) MarkWellFormedTemplateValidIfResolved() {
+	if t.resolveResult != nil {
+		if reg := t.GetRegistry(); reg != nil && reg.resolver != nil && reg.resolver.state == JSTypeResolver_State_CLOSED {
+			t.flags |= jsTypeFlagWellFormedTemplateValid
+		}
+	}
+}
 
 func (t *JSTypeBase) templateCheckResult() uint8 {
 	return (t.flags & jsTypeTemplateCheckMask) >> jsTypeTemplateCheckShift
@@ -385,9 +403,6 @@ func jsTypeIsFunction(t JSType, kind uint8) bool {
 	}
 	return false
 }
-
-// Java: JSType.CAN_CAST_TO_VISITOR
-var JSType_CAN_CAST_TO_VISITOR = NewCanCastToVisitor()
 
 // InitJSTypeBase is the Go form of the JSType(JSTypeRegistry) constructor;
 // self is the concrete type.
@@ -793,8 +808,7 @@ func (t *JSTypeBase) IsDict() bool {
 //
 // Java: JSType.containsReferenceAncestor(JSType)
 func (t *JSTypeBase) ContainsReferenceAncestor(target JSType) bool {
-	visitor := NewContainsUpperBoundSuperTypeVisitor(target)
-	return VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](t.self(), visitor) == ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+	return containsUpperBoundSuperTypePresent(t.self(), target)
 }
 
 // Java: JSType.isLiteralObject()

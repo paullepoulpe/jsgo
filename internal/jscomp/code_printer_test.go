@@ -4289,3 +4289,60 @@ func (c *CodePrinterTest) TestNullishCoalesceAssignExtends() {
 	c.languageMode = CompilerOptions_LanguageMode_ECMASCRIPT_NEXT
 	AssertThat(c.PrintNode(c.Parse("class C extends (a ??= b) {}"))).IsEqualTo("class C extends a??=b{}")
 }
+
+func TestCodeGeneratorStreamingEscapeAndZeroAlloc(t *testing.T) {
+	cases := []string{
+		"hello world",
+		"it's \"quoted\" and `backticked`",
+		"a\nb\rc\td\be\ff\x00\v",
+		"</script></SCRIPT></style></STYLE><!-- --> ]]>",
+		"</\u017fcript> </\u017ftyle> </scr\u0131pt>",
+		"café \u2028 \u2029 😀 \xed\xa0\x80",
+		strings.Repeat("abc\n\"'</script><!--", 20),
+	}
+
+	for _, tc := range cases {
+		for _, utf8Out := range []bool{false, true} {
+			for _, trusted := range []bool{false, true} {
+				opts := NewCompilerOptions()
+				opts.SetTrustedStrings(trusted)
+				if utf8Out {
+					opts.SetOutputCharset(jutil.StandardCharsets_UTF_8)
+				}
+				strNode := rhino.IR_String(tc)
+				var scratch codePrinterScratch
+				got := NewCodePrinter_Builder(strNode).SetCompilerOptions(opts).buildSourceAndMappingsInto(nil, false, &scratch)
+				cg := NewCodeGeneratorWithOptions(&CodeConsumer{mode: sinkCompact, continueProcessing: true}, opts)
+				want := cg.JsString(tc)
+				if got != want {
+					t.Fatalf("utf8=%v trusted=%v string=%q:\ngot:  %q\nwant: %q", utf8Out, trusted, tc, got, want)
+				}
+			}
+		}
+	}
+
+	// Verify 0 heap allocations on reused compact CodePrinter + InlineCostEstimator hot paths.
+	astNode := InlineCostEstimatorTest_Parse(`function f(a){return "hello\n</script>" + 12345 + /foo\/bar/gi + a}`)
+	allocsCost := testing.AllocsPerRun(100, func() {
+		if c := InlineCostEstimator_GetCost(astNode); c <= 0 {
+			t.Fatal("unexpected cost")
+		}
+	})
+	if allocsCost != 0 {
+		t.Fatalf("InlineCostEstimator_GetCost allocs = %v, want 0", allocsCost)
+	}
+
+	var scratch codePrinterScratch
+	opts := NewCompilerOptions()
+	builder := NewCodePrinter_Builder(astNode).SetCompilerOptions(opts)
+	// Warm up reusable scratch buffer once.
+	_ = builder.buildSourceAndMappingsInto(nil, false, &scratch)
+	allocsPrint := testing.AllocsPerRun(100, func() {
+		_ = builder.buildSourceAndMappingsInto(nil, false, &scratch)
+	})
+	// Only the final returned Go string is allocated (1 alloc/op).
+	if allocsPrint > 1 {
+		t.Fatalf("CodePrinter buildSourceAndMappingsInto allocs = %v, want <= 1", allocsPrint)
+	}
+}
+

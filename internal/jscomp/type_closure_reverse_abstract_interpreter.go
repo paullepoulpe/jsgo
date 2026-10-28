@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -27,21 +28,12 @@ import (
 // for specific closure patterns such as goog.isObject.
 type ClosureReverseAbstractInterpreter struct {
 	ChainableReverseAbstractInterpreterBase
-
-	// For when goog.isObject returns true. This includes functions, but not
-	// null.
-	restrictToObjectVisitor rhino.Visitor[rhino.JSType]
-
-	// For when goog.isObject returns false.
-	restrictToNotObjectVisitor rhino.Visitor[rhino.JSType]
 }
 
 // Java: ClosureReverseAbstractInterpreter(JSTypeRegistry)
 func NewClosureReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *ClosureReverseAbstractInterpreter {
 	c := &ClosureReverseAbstractInterpreter{}
-	c.InitChainableReverseAbstractInterpreterBase(c, typeRegistry)
-	c.restrictToObjectVisitor = newClosureReverseAbstractInterpreter_restrictToObjectVisitor(c)
-	c.restrictToNotObjectVisitor = newClosureReverseAbstractInterpreter_restrictToNotObjectVisitor(c)
+	c.initChainableBase(c, typeRegistry)
 	return c
 }
 
@@ -71,9 +63,9 @@ func (c *ClosureReverseAbstractInterpreter) restrictIsObject(
 			type_ = c.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE)
 		}
 	} else if outcome {
-		type_ = rhino.VisitJSType[rhino.JSType](type_, c.restrictToObjectVisitor)
+		type_ = c.restrictToObject(type_)
 	} else {
-		type_ = rhino.VisitJSType[rhino.JSType](type_, c.restrictToNotObjectVisitor)
+		type_ = c.restrictToNotObject(type_)
 	}
 	if type_ != nil {
 		return c.DeclareNameInScope(blindScope, parameter, type_)
@@ -81,54 +73,135 @@ func (c *ClosureReverseAbstractInterpreter) restrictIsObject(
 	return blindScope
 }
 
-// closureReverseAbstractInterpreter_restrictToObjectVisitor is the anonymous
-// RestrictByTrueTypeOfResultVisitor of restrictToObjectVisitor.
-type closureReverseAbstractInterpreter_restrictToObjectVisitor struct {
-	ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase
+// restrictToObject restricts t when goog.isObject returns true (includes
+// functions, excludes null).
+//
+// Java: ClosureReverseAbstractInterpreter.restrictToObjectVisitor
+func (c *ClosureReverseAbstractInterpreter) restrictToObject(t rhino.JSType) rhino.JSType {
+	switch x := t.(type) {
+	case *rhino.NoType:
+		return x
+	case *rhino.AllType, *rhino.UnknownType:
+		return c.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+	case *rhino.EnumElementType:
+		prim := x.GetPrimitiveType()
+		r := c.restrictToObject(prim)
+		if r != nil && prim.Equals(r) {
+			return x
+		}
+		return r
+	case *rhino.UnionType:
+		var restricted rhino.JSType
+		for _, alt := range x.GetAlternates() {
+			if ra := c.restrictToObject(alt); ra != nil {
+				if restricted == nil {
+					restricted = ra
+				} else {
+					restricted = ra.GetLeastSupertype(restricted)
+				}
+			}
+		}
+		return restricted
+	case *rhino.NamedType:
+		return c.restrictToObject(x.GetReferencedTypeInternal())
+	case *rhino.ProxyObjectTypeBase:
+		return c.restrictToObject(x.GetReferencedTypeInternal())
+	case *rhino.FunctionTypeBase, *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase,
+		*rhino.RecordType, *rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
+		return t
+	case *rhino.NoObjectTypeBase, *rhino.BooleanType, *rhino.NullType,
+		*rhino.NumberType, *rhino.BigIntType, *rhino.StringType,
+		*rhino.SymbolTypeBase, *rhino.KnownSymbolType, *rhino.VoidType:
+		return nil
+	default:
+		if _, ok := t.(rhino.NoObjectType); ok {
+			return nil
+		}
+		if _, ok := t.(rhino.FunctionType); ok {
+			return t
+		}
+		if proxy, ok := t.(rhino.ProxyObjectType); ok {
+			return c.restrictToObject(proxy.GetReferencedTypeInternal())
+		}
+		if _, ok := t.(rhino.ObjectType); ok {
+			return t
+		}
+		if _, ok := t.(rhino.SymbolType); ok {
+			return nil
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	}
 }
 
-func newClosureReverseAbstractInterpreter_restrictToObjectVisitor(
-	outer *ClosureReverseAbstractInterpreter) *closureReverseAbstractInterpreter_restrictToObjectVisitor {
-	v := &closureReverseAbstractInterpreter_restrictToObjectVisitor{}
-	v.InitChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase(v, outer)
-	return v
-}
-
-// Java: ClosureReverseAbstractInterpreter.restrictToObjectVisitor.caseTopType(JSType)
-func (v *closureReverseAbstractInterpreter_restrictToObjectVisitor) CaseTopType(topType rhino.JSType) rhino.JSType {
-	return v.outer.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
-}
-
-// Java: ClosureReverseAbstractInterpreter.restrictToObjectVisitor.caseObjectType(ObjectType)
-func (v *closureReverseAbstractInterpreter_restrictToObjectVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
-	return type_
-}
-
-// Java: ClosureReverseAbstractInterpreter.restrictToObjectVisitor.caseFunctionType(FunctionType)
-func (v *closureReverseAbstractInterpreter_restrictToObjectVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
-	return type_
-}
-
-// closureReverseAbstractInterpreter_restrictToNotObjectVisitor is the
-// anonymous RestrictByFalseTypeOfResultVisitor of
-// restrictToNotObjectVisitor.
-type closureReverseAbstractInterpreter_restrictToNotObjectVisitor struct {
-	ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase
-}
-
-func newClosureReverseAbstractInterpreter_restrictToNotObjectVisitor(
-	outer *ClosureReverseAbstractInterpreter) *closureReverseAbstractInterpreter_restrictToNotObjectVisitor {
-	v := &closureReverseAbstractInterpreter_restrictToNotObjectVisitor{}
-	v.InitChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase(v, outer)
-	return v
-}
-
-// Java: ClosureReverseAbstractInterpreter.restrictToNotObjectVisitor.caseObjectType(ObjectType)
-func (v *closureReverseAbstractInterpreter_restrictToNotObjectVisitor) CaseObjectType(type_ rhino.ObjectType) rhino.JSType {
-	return nil
-}
-
-// Java: ClosureReverseAbstractInterpreter.restrictToNotObjectVisitor.caseFunctionType(FunctionType)
-func (v *closureReverseAbstractInterpreter_restrictToNotObjectVisitor) CaseFunctionType(type_ rhino.FunctionType) rhino.JSType {
-	return nil
+// restrictToNotObject restricts t when goog.isObject returns false.
+//
+// Java: ClosureReverseAbstractInterpreter.restrictToNotObjectVisitor
+func (c *ClosureReverseAbstractInterpreter) restrictToNotObject(t rhino.JSType) rhino.JSType {
+	switch x := t.(type) {
+	case *rhino.NoType:
+		return x
+	case *rhino.AllType:
+		return c.GetNativeType(rhino.JSTypeNative_ALL_TYPE)
+	case *rhino.UnknownType:
+		return c.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
+	case *rhino.NoObjectTypeBase:
+		return c.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+	case *rhino.BooleanType:
+		return c.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
+	case *rhino.NullType:
+		return c.GetNativeType(rhino.JSTypeNative_NULL_TYPE)
+	case *rhino.NumberType:
+		return c.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+	case *rhino.BigIntType:
+		return c.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE)
+	case *rhino.StringType:
+		return c.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
+	case *rhino.VoidType:
+		return c.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
+	case *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
+		return t
+	case *rhino.FunctionTypeBase, *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase,
+		*rhino.RecordType, *rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
+		return nil
+	case *rhino.EnumElementType:
+		prim := x.GetPrimitiveType()
+		r := c.restrictToNotObject(prim)
+		if r != nil && prim.Equals(r) {
+			return x
+		}
+		return r
+	case *rhino.UnionType:
+		var restricted rhino.JSType
+		for _, alt := range x.GetAlternates() {
+			if ra := c.restrictToNotObject(alt); ra != nil {
+				if restricted == nil {
+					restricted = ra
+				} else {
+					restricted = ra.GetLeastSupertype(restricted)
+				}
+			}
+		}
+		return restricted
+	case *rhino.NamedType:
+		return c.restrictToNotObject(x.GetReferencedTypeInternal())
+	case *rhino.ProxyObjectTypeBase:
+		return c.restrictToNotObject(x.GetReferencedTypeInternal())
+	default:
+		if _, ok := t.(rhino.NoObjectType); ok {
+			return c.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+		}
+		if _, ok := t.(rhino.FunctionType); ok {
+			return nil
+		}
+		if proxy, ok := t.(rhino.ProxyObjectType); ok {
+			return c.restrictToNotObject(proxy.GetReferencedTypeInternal())
+		}
+		if _, ok := t.(rhino.ObjectType); ok {
+			return nil
+		}
+		if _, ok := t.(rhino.SymbolType); ok {
+			return t
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	}
 }

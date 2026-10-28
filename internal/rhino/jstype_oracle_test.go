@@ -726,9 +726,9 @@ func (d *typeAlgebraDump) buildTypes() {
 	tmap.Put(tKey, bool_)
 	d.add("Box<boolean>(map)", registry.CreateTemplatizedTypeOfMap(box, tmap))
 	replacer := TemplateTypeReplacer_ForInference(registry, tmap)
-	d.add("replace(function(T):T)", VisitJSType[JSType](d.types[d.indexOfLabel("function(T):T")], replacer))
-	d.add("replace(Box<T>)", VisitJSType[JSType](d.types[d.indexOfLabel("Box<T>")], replacer))
-	d.add("replace(T|number)", VisitJSType[JSType](d.types[d.indexOfLabel("T|number")], replacer))
+	d.add("replace(function(T):T)", replacer.VisitJSType(d.types[d.indexOfLabel("function(T):T")]))
+	d.add("replace(Box<T>)", replacer.VisitJSType(d.types[d.indexOfLabel("Box<T>")]))
+	d.add("replace(T|number)", replacer.VisitJSType(d.types[d.indexOfLabel("T|number")]))
 	d.add("U|string", registry.CreateUnionType(uKey, string_))
 
 	// Proxies and named types.
@@ -1021,15 +1021,15 @@ func (d *typeAlgebraDump) unaryFacts(i int) {
 	}
 	d.fact("replacePartial", func() any {
 		r := TemplateTypeReplacer_ForPartialReplacement(registry, d.partialMap)
-		return taStr(VisitJSType[JSType](t, r)) + " " + strconv.FormatBool(r.HasMadeReplacement())
+		return taStr(r.VisitJSType(t)) + " " + strconv.FormatBool(r.HasMadeReplacement())
 	})
 	d.fact("replaceTotal", func() any {
 		r := TemplateTypeReplacer_ForTotalReplacement(registry, d.totalMap)
-		return taStr(VisitJSType[JSType](t, r)) + " " + strconv.FormatBool(r.HasMadeReplacement())
+		return taStr(r.VisitJSType(t)) + " " + strconv.FormatBool(r.HasMadeReplacement())
 	})
 	d.fact("replaceInfer", func() any {
 		r := TemplateTypeReplacer_ForInference(registry, d.inferMap)
-		return taStr(VisitJSType[JSType](t, r)) + " " + strconv.FormatBool(r.HasMadeReplacement())
+		return taStr(r.VisitJSType(t)) + " " + strconv.FormatBool(r.HasMadeReplacement())
 	})
 	d.fact("ttm.keys", func() any { return t.GetTemplateTypeMap().GetTemplateKeys() })
 	d.fact("ttm.values", func() any { return t.GetTemplateTypeMap().GetTemplateValues() })

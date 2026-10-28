@@ -45,11 +45,6 @@ type TypeValidator struct {
 	subtypingMode rhino.JSType_SubtypingMode
 
 	mismatches *TypeMismatch_Accumulator
-
-	// Go-only: performance — a WellFormedTemplatizedTypeVerifier kept for
-	// the next expectWellFormedTemplatizedType call (see there); nil while
-	// one is in use.
-	spareWellFormedTemplatizedTypeVerifier *TypeValidator_WellFormedTemplatizedTypeVerifier
 }
 
 // User warnings
@@ -588,34 +583,46 @@ func (v *TypeValidator) ExpectIndexMatch(n rhino.Node, objType rhino.JSType, ind
 // Java: TypeValidator.expectCanAssignToPropertyOf(Node, JSType, JSType, Node, String)
 func (v *TypeValidator) ExpectCanAssignToPropertyOf(
 	n rhino.Node, rightType rhino.JSType, leftType rhino.JSType, owner rhino.Node, propName string) bool {
-	var typeNameSupplier func() string
+	var classType rhino.FunctionType
 	if n.IsMemberFieldDef() {
-		classType := n.GetGrandparent().GetJSType().AssertFunctionType()
-		typeNameSupplier = func() string { return classType.GetInstanceType().String() }
-	} else {
-		typeNameSupplier = func() string { return v.typeRegistry.GetReadableTypeName(owner) }
+		classType = n.GetGrandparent().GetJSType().AssertFunctionType()
 	}
-	return v.ExpectCanAssignToPropertyOfOwnerType(
-		n, rightType, leftType, v.GetJSType(owner), typeNameSupplier, propName)
+	ok, isTemplateMismatch := v.checkCanAssignToPropertyOf(rightType, leftType, v.GetJSType(owner))
+	if ok {
+		return true
+	}
+	var ownerTypeName string
+	if classType != nil {
+		ownerTypeName = classType.GetInstanceType().String()
+	} else {
+		ownerTypeName = v.typeRegistry.GetReadableTypeName(owner)
+	}
+	v.reportPropertyAssignmentMismatch(n, rightType, leftType, propName, ownerTypeName, isTemplateMismatch)
+	return false
 }
 
-// ExpectCanAssignToPropertyOfOwnerType expects that the first type can be
-// assigned to a symbol of the second type.
-//
-// n is the node to issue warnings on; rightType is the type on the RHS of
-// the assign; leftType is the type of the symbol on the LHS of the assign;
-// ownerType is the owner of the property being assigned to; propName is the
-// name of the property being assigned to. Returns true if the types matched,
-// false otherwise.
-//
-// Java: TypeValidator.expectCanAssignToPropertyOf(Node, JSType, JSType, JSType, Supplier<String>, String)
-func (v *TypeValidator) ExpectCanAssignToPropertyOfOwnerType(
+// expectCanAssignToPropertyOfQualifiedOwner checks property assignment when the
+// owner name is a QualifiedName, avoiding any closure or Join() allocation on
+// the valid fast path.
+func (v *TypeValidator) expectCanAssignToPropertyOfQualifiedOwner(
 	n rhino.Node,
 	rightType rhino.JSType,
 	leftType rhino.JSType,
 	ownerType rhino.JSType,
-	typeNameSupplier func() string,
-	propName string) bool {
+	ownerQName rhino.QualifiedName,
+	propName string,
+) bool {
+	ok, isTemplateMismatch := v.checkCanAssignToPropertyOf(rightType, leftType, ownerType)
+	if ok {
+		return true
+	}
+	v.reportPropertyAssignmentMismatch(n, rightType, leftType, propName, ownerQName.Join(), isTemplateMismatch)
+	return false
+}
+
+func (v *TypeValidator) checkCanAssignToPropertyOf(
+	rightType rhino.JSType, leftType rhino.JSType, ownerType rhino.JSType,
+) (ok bool, isTemplateMismatch bool) {
 	if leftType.IsTemplateType() {
 		left := leftType.ToMaybeTemplateType()
 		if rightType.ContainsReferenceAncestor(left) ||
@@ -625,18 +632,9 @@ func (v *TypeValidator) ExpectCanAssignToPropertyOfOwnerType(
 			// has a type that explicitly has it as a supertype.
 			// Otherwise, the template type is existential and it is unknown whether or not it is a
 			// proper super type.
-			return true
-		} else {
-			v.RegisterMismatchAndReportWithDiagnostic(
-				n,
-				TypeValidator_TYPE_MISMATCH_WARNING,
-				"assignment to property "+propName+" of "+typeNameSupplier(),
-				rightType,
-				leftType,
-				jutil.NewLinkedHashSet[string](),
-				jutil.NewLinkedHashSet[string]())
-			return false
+			return true, false
 		}
+		return false, true
 	}
 	// The NoType check is a hack to make typedefs work OK.
 	if !leftType.IsNoType() && !rightType.IsSubtypeOf(leftType) {
@@ -646,17 +644,35 @@ func (v *TypeValidator) ExpectCanAssignToPropertyOfOwnerType(
 		if ownerType.IsFunctionPrototypeType() {
 			ownerFn := ownerType.ToObjectType().GetOwnerFunction()
 			if ownerFn.IsInterface() && rightType.IsFunctionType() && leftType.IsFunctionType() {
-				return true
+				return true, false
 			}
 		}
-		v.Mismatch(
-			n,
-			"assignment to property "+propName+" of "+typeNameSupplier(),
-			rightType,
-			leftType)
-		return false
+		return false, false
 	}
-	return true
+	return true, false
+}
+
+func (v *TypeValidator) reportPropertyAssignmentMismatch(
+	n rhino.Node,
+	rightType rhino.JSType,
+	leftType rhino.JSType,
+	propName string,
+	ownerTypeName string,
+	isTemplateMismatch bool,
+) {
+	msg := "assignment to property " + propName + " of " + ownerTypeName
+	if isTemplateMismatch {
+		v.RegisterMismatchAndReportWithDiagnostic(
+			n,
+			TypeValidator_TYPE_MISMATCH_WARNING,
+			msg,
+			rightType,
+			leftType,
+			jutil.NewLinkedHashSet[string](),
+			jutil.NewLinkedHashSet[string]())
+		return
+	}
+	v.Mismatch(n, msg, rightType, leftType)
 }
 
 // ExpectCanAssignTo expects that the first type can be assigned to a symbol
@@ -1270,97 +1286,90 @@ func TypeValidator_HasDuplicateDeclarationSuppression(compiler AbstractCompiler,
 }
 
 // Java: TypeValidator.expectWellFormedTemplatizedType(Node)
-//
-// Go-only: performance — TypeCheck calls this for every node it visits, and
-// the verifier (which holds nothing but the node) was 4% of checks-only's
-// allocations. One is reused: the call takes the spare verifier, or makes
-// one if a call that has not returned holds it, and leaves its verifier as
-// the spare when it returns.
 func (v *TypeValidator) ExpectWellFormedTemplatizedType(n rhino.Node) {
-	verifier := v.spareWellFormedTemplatizedTypeVerifier
-	if verifier != nil {
-		v.spareWellFormedTemplatizedTypeVerifier = nil
-		verifier.node = n
-	} else {
-		verifier = NewTypeValidator_WellFormedTemplatizedTypeVerifier(v, n)
+	if nodeType := n.GetJSType(); nodeType != nil {
+		v.checkWellFormedTemplatizedType(n, nodeType)
 	}
-	if n.GetJSType() != nil {
-		rhino.VisitJSType[bool](n.GetJSType(), verifier)
+}
+
+// checkWellFormedTemplatizedType verifies bounded generic type arguments on t
+// without allocating a visitor, caching positive results on resolved JSTypes.
+//
+// Java: TypeValidator.WellFormedTemplatizedTypeVerifier
+func (v *TypeValidator) checkWellFormedTemplatizedType(n rhino.Node, t rhino.JSType) bool {
+	tb := t.GetJSTypeBase()
+	if tb.IsWellFormedTemplateValid() {
+		return true
 	}
-	verifier.node = rhino.NilNode
-	v.spareWellFormedTemplatizedTypeVerifier = verifier
+	var valid bool
+	switch x := t.(type) {
+	case *rhino.EnumElementType:
+		prim := x.GetPrimitiveType()
+		valid = prim == nil || v.checkWellFormedTemplatizedType(n, prim)
+	case *rhino.FunctionTypeBase:
+		valid = v.checkWellFormedFunctionType(n, x)
+	case *rhino.NamedType:
+		valid = v.checkWellFormedTemplatizedType(n, x.GetReferencedType())
+	case *rhino.UnionType:
+		valid = true
+		for _, alt := range x.GetAlternates() {
+			if !v.checkWellFormedTemplatizedType(n, alt) {
+				valid = false
+				break
+			}
+		}
+	case *rhino.TemplatizedType:
+		valid = v.checkWellFormedTemplatizedInstance(n, x)
+	case *rhino.TemplateType:
+		valid = !x.ContainsCycle() && v.checkWellFormedTemplatizedType(n, x.GetBound())
+	case *rhino.NoType, *rhino.NoObjectTypeBase,
+		*rhino.AllType, *rhino.BooleanType, *rhino.UnknownType, *rhino.NullType,
+		*rhino.NumberType, *rhino.BigIntType, *rhino.StringType, *rhino.VoidType,
+		*rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase, *rhino.RecordType,
+		*rhino.EnumType, *rhino.NoResolvedType, *rhino.ProxyObjectTypeBase,
+		*rhino.SymbolTypeBase, *rhino.KnownSymbolType:
+		valid = true
+	default:
+		if _, ok := t.(rhino.NoObjectType); ok {
+			valid = true
+		} else if fn, ok := t.(rhino.FunctionType); ok {
+			valid = v.checkWellFormedFunctionType(n, fn)
+		} else {
+			switch t.(type) {
+			case rhino.ProxyObjectType, rhino.ObjectType, rhino.SymbolType:
+				valid = true
+			default:
+				panic(jutil.NewUnsupportedOperationException())
+			}
+		}
+	}
+	if valid {
+		tb.MarkWellFormedTemplateValidIfResolved()
+	}
+	return valid
 }
 
-// TypeValidator_WellFormedTemplatizedTypeVerifier is an inner class of
-// TypeValidator (outer is the enclosing instance).
-type TypeValidator_WellFormedTemplatizedTypeVerifier struct {
-	rhino.Visitor_WithDefaultCaseBase[bool]
-
-	outer *TypeValidator
-
-	node rhino.Node
-}
-
-// Java: TypeValidator.WellFormedTemplatizedTypeVerifier(Node)
-func NewTypeValidator_WellFormedTemplatizedTypeVerifier(outer *TypeValidator, node rhino.Node) *TypeValidator_WellFormedTemplatizedTypeVerifier {
-	w := &TypeValidator_WellFormedTemplatizedTypeVerifier{outer: outer}
-	w.InitVisitor_WithDefaultCaseBase(w)
-	w.node = node
-	return w
-}
-
-// Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseDefault(JSType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseDefault(type_ rhino.JSType) bool {
-	return true
-}
-
-// Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseEnumElementType(EnumElementType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseEnumElementType(type_ *rhino.EnumElementType) bool {
-	return type_.GetPrimitiveType() == nil || rhino.VisitJSType[bool](type_.GetPrimitiveType(), w)
-}
-
-// Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseFunctionType(FunctionType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseFunctionType(type_ rhino.FunctionType) bool {
+func (v *TypeValidator) checkWellFormedFunctionType(n rhino.Node, type_ rhino.FunctionType) bool {
 	for _, param := range type_.GetParameters() {
-		if !rhino.VisitJSType[bool](param.GetJSType(), w) {
+		if !v.checkWellFormedTemplatizedType(n, param.GetJSType()) {
 			return false
 		}
 	}
-	return rhino.VisitJSType[bool](type_.GetReturnType(), w)
+	return v.checkWellFormedTemplatizedType(n, type_.GetReturnType())
 }
 
-// Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseNamedType(NamedType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseNamedType(type_ *rhino.NamedType) bool {
-	return rhino.VisitJSType[bool](type_.GetReferencedType(), w)
-}
-
-// Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseUnionType(UnionType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseUnionType(type_ *rhino.UnionType) bool {
-	// Avoid iterators in very hot code.
-	alternates := type_.GetAlternates()
-	alternateCount := len(alternates)
-	for i := 0; i < alternateCount; i++ {
-		alternative := alternates[i]
-		if !rhino.VisitJSType[bool](alternative, w) {
-			return false
-		}
-	}
-	return true
-}
-
-// Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseTemplatizedType(TemplatizedType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseTemplatizedType(type_ *rhino.TemplatizedType) bool {
+func (v *TypeValidator) checkWellFormedTemplatizedInstance(n rhino.Node, type_ *rhino.TemplatizedType) bool {
 	referencedTemplates := type_.GetReferencedType().GetTemplateTypeMap().GetTemplateKeys()
-	for i := 0; i < len(type_.GetTemplateTypes()); i++ {
-		assignedType := type_.GetTemplateTypes()[i]
+	assignedTypes := type_.GetTemplateTypes()
+	for i, assignedType := range assignedTypes {
 		if i < len(referencedTemplates) {
 			templateType := referencedTemplates[i]
 			if !assignedType.IsSubtype(templateType.GetBound()) {
-				w.outer.RegisterMismatchAndReport(
+				v.RegisterMismatchAndReport(
 					assignedType,
 					templateType.GetBound(),
 					JSError_MakeWithNode(
-						w.node,
+						n,
 						RhinoErrorReporter_BOUNDED_GENERIC_TYPE_ERROR,
 						assignedType.String(),
 						jutil.ToJavaString(templateType.GetReferenceName()),
@@ -1371,10 +1380,3 @@ func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseTemplatizedType(ty
 	}
 	return true
 }
-
-// Java: TypeValidator.WellFormedTemplatizedTypeVerifier.caseTemplateType(TemplateType)
-func (w *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseTemplateType(templateType *rhino.TemplateType) bool {
-	return !templateType.ContainsCycle() && rhino.VisitJSType[bool](templateType.GetBound(), w)
-}
-
-var _ rhino.Visitor_WithDefaultCase[bool] = (*TypeValidator_WellFormedTemplatizedTypeVerifier)(nil)

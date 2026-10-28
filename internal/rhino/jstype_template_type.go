@@ -162,10 +162,7 @@ func (t *TemplateType) SetValidator(validator func(JSType) bool) bool {
 //
 // Java: TemplateType.containsCycle()
 func (t *TemplateType) ContainsCycle() bool {
-	// By passing in an unreachable type `null` as the target, the visitor will
-	// only return if a cycle is found or a terminating type is reached.
-	typeVisitor := NewContainsUpperBoundSuperTypeVisitor(nil)
-	return VisitJSType[ContainsUpperBoundSuperTypeVisitor_Result](t, typeVisitor) == ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
+	return containsUpperBoundSuperTypeCycle(t)
 }
 
 // Java: TemplateType.recursionUnsafeHashCode()

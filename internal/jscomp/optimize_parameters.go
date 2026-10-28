@@ -571,9 +571,9 @@ func optimizeParameters_mayReferenceParamBeforeBody(fn ast.Function) bool {
 		}
 		if count <= 16 {
 			for a := paramList.Node().GetFirstChild(); !a.IsNil(); a = a.GetNext() {
-				aStr := a.GetString()
+				aID := a.GetStringID()
 				for b := a.GetNext(); !b.IsNil(); b = b.GetNext() {
-					if aStr == b.GetString() {
+					if aID == b.GetStringID() {
 						return true
 					}
 				}
@@ -582,31 +582,69 @@ func optimizeParameters_mayReferenceParamBeforeBody(fn ast.Function) bool {
 		}
 	}
 
-	var namesByNames map[string][]rhino.Node
-	NodeUtil_VisitPostOrder(
-		paramList.Node(),
-		NodeUtil_VisitorFunc(func(n rhino.Node) {
-			if n.IsName() {
-				if namesByNames == nil {
-					namesByNames = make(map[string][]rhino.Node)
-				}
-				name := n.GetString()
-				namesByNames[name] = append(namesByNames[name], n)
-			}
-		}))
+	var seen optimizeParametersParamNameTracker
+	return seen.scan(paramList.Node())
+}
 
-	// order-independent: only answers whether any name has an lvalue among several refs
-	for _, names := range namesByNames {
-		if len(names) == 1 {
-			continue
+type optimizeParametersParamNameEntry struct {
+	id    uint32
+	first rhino.Node
+	multi bool
+}
+
+type optimizeParametersParamNameTracker struct {
+	inline [16]optimizeParametersParamNameEntry
+	entries []optimizeParametersParamNameEntry
+	byID   map[uint32]int
+}
+
+func (t *optimizeParametersParamNameTracker) scan(n rhino.Node) bool {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if t.scan(c) {
+			return true
 		}
-		for _, name := range names {
-			if NodeUtil_IsLValue(name) {
-				return true
+	}
+	if !n.IsName() {
+		return false
+	}
+	id := n.GetStringID()
+	if t.entries == nil {
+		t.entries = t.inline[:0]
+	}
+	idx := -1
+	if t.byID != nil {
+		if existing, ok := t.byID[id]; ok {
+			idx = existing
+		}
+	} else {
+		for i := range t.entries {
+			if t.entries[i].id == id {
+				idx = i
+				break
 			}
 		}
 	}
-	return false
+	if idx < 0 {
+		newIdx := len(t.entries)
+		t.entries = append(t.entries, optimizeParametersParamNameEntry{id: id, first: n})
+		if t.byID != nil {
+			t.byID[id] = newIdx
+		} else if len(t.entries) == len(t.inline) {
+			t.byID = make(map[uint32]int, 32)
+			for i := range t.entries {
+				t.byID[t.entries[i].id] = i
+			}
+		}
+		return false
+	}
+	e := &t.entries[idx]
+	if !e.multi {
+		e.multi = true
+		if NodeUtil_IsLValue(e.first) {
+			return true
+		}
+	}
+	return NodeUtil_IsLValue(n)
 }
 
 // Java: OptimizeParameters.tryEliminateOptionalArgs(ArrayList<Node>)
@@ -846,6 +884,8 @@ func (o *OptimizeParameters) setParameterSideEffectInfo(p *optimizeParametersPar
 	}
 }
 
+var optimizeParametersArgumentsID = rhino.RhinoStringPool_InternID("arguments")
+
 // Java: OptimizeParameters.isMovableValue(Node, Scope)
 func optimizeParameters_isMovableValue(n rhino.Node, globalScope *Scope) bool {
 	switch n.GetToken() {
@@ -855,8 +895,8 @@ func optimizeParameters_isMovableValue(n rhino.Node, globalScope *Scope) bool {
 	case rhino.Token_FUNCTION:
 		return false
 	case rhino.Token_NAME:
-		ident := n.GetString()
-		if ident == "arguments" || globalScope.GetVar(ident) == nil {
+		id := n.GetStringID()
+		if id == optimizeParametersArgumentsID || globalScope.GetVarByID(id) == nil {
 			return false
 		}
 	}
