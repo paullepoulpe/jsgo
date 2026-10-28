@@ -492,8 +492,9 @@ func (b *AbstractVarBase[S, V]) equals(name string, other any) bool {
 // the inputs weakly, so it never keeps a compilation alive; a variable is
 // used while its compiler, which holds its inputs, is.
 var compilerInputTable struct {
-	mu      sync.RWMutex
-	entries []weak.Pointer[CompilerInput] // entry i has index i+1
+	mu       sync.Mutex
+	entries  []weak.Pointer[CompilerInput]                 // entry i has index i+1
+	snapshot atomic.Pointer[[]weak.Pointer[CompilerInput]] // immutable prefix snapshot for lock-free reads
 }
 
 // compilerInputTable_indexOf returns the index of input (0 for nil),
@@ -510,8 +511,21 @@ func compilerInputTable_indexOf(input *CompilerInput) uint32 {
 	if i := input.varTableIndex.Load(); i != 0 {
 		return i
 	}
-	compilerInputTable.entries = append(compilerInputTable.entries, weak.Make(input))
-	i := uint32(len(compilerInputTable.entries))
+	cur := compilerInputTable.entries
+	var next []weak.Pointer[CompilerInput]
+	if len(cur) < cap(cur) {
+		next = cur[:len(cur)+1]
+		next[len(cur)] = weak.Make(input)
+	} else {
+		next = make([]weak.Pointer[CompilerInput], len(cur)+1, max(cap(cur)*2, 64))
+		copy(next, cur)
+		next[len(cur)] = weak.Make(input)
+	}
+	compilerInputTable.entries = next
+	snap := new([]weak.Pointer[CompilerInput])
+	*snap = next
+	compilerInputTable.snapshot.Store(snap)
+	i := uint32(len(next))
 	input.varTableIndex.Store(i)
 	return i
 }
@@ -521,8 +535,5 @@ func compilerInputTable_at(i uint32) *CompilerInput {
 	if i == 0 {
 		return nil
 	}
-	compilerInputTable.mu.RLock()
-	w := compilerInputTable.entries[i-1]
-	compilerInputTable.mu.RUnlock()
-	return w.Value()
+	return (*compilerInputTable.snapshot.Load())[i-1].Value()
 }

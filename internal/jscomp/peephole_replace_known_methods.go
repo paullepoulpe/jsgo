@@ -701,23 +701,18 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(call ast.Call, function
 				p.ReportChangeToEnclosingScope(newNode)
 				return newNode
 			}
-			normalizedNewVal := "0"
-			var result rhino.Node
-			jutil.Try(func() {
-				newVal := jutil.DoubleParseDouble(stringVal)
-				newNode := NodeUtil_NumberNode(newVal, n)
-				normalizedNewVal = PeepholeReplaceKnownMethods_NormalizeNumericString(jutil.DoubleToString(newVal))
-				if PeepholeReplaceKnownMethods_NormalizeNumericString(stringVal) != normalizedNewVal {
-					result = n
-					return
-				}
-				n.ReplaceWith(newNode)
-				p.ReportChangeToEnclosingScope(newNode)
-				result = newNode
-			}, func(e jutil.INumberFormatException) {
-				result = n
-			})
-			return result
+			newVal, ok := jutil.TryParseDouble(stringVal)
+			if !ok {
+				return n
+			}
+			newNode := NodeUtil_NumberNode(newVal, n)
+			normalizedNewVal := PeepholeReplaceKnownMethods_NormalizeNumericString(jutil.DoubleToString(newVal))
+			if PeepholeReplaceKnownMethods_NormalizeNumericString(stringVal) != normalizedNewVal {
+				return n
+			}
+			n.ReplaceWith(newNode)
+			p.ReportChangeToEnclosingScope(newNode)
+			return newNode
 		}
 	}
 
@@ -752,11 +747,10 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(call ast.Call, function
 		}
 	}
 
-	chars := jutil.StringToUTF16(stringVal)
 	endDigitIndex := 0
-	for endDigitIndex < len(chars) {
-		c := chars[endDigitIndex]
-		if PeepholeReplaceKnownMethods_GetRadixDigit(c, radix) < 0 {
+	for endDigitIndex < len(stringVal) {
+		c := stringVal[endDigitIndex]
+		if c >= 0x80 || PeepholeReplaceKnownMethods_GetRadixDigit(uint16(c), radix) < 0 {
 			break
 		}
 		endDigitIndex++
@@ -766,19 +760,18 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(call ast.Call, function
 		return n
 	}
 
-	digits := jutil.StringSubstring(stringVal, 0, endDigitIndex)
+	digits := stringVal[:endDigitIndex]
 	var newVal float64
-	failed := false
-	jutil.Try(func() {
-		bi := jutil.NewBigIntegerFromStringRadix(digits, radix)
+	if val, ok := jutil.TryParseLong(digits, radix); ok && val >= -(1<<53) && val <= 1<<53 {
+		newVal = float64(val)
+	} else {
+		bi, ok := jutil.TryParseBigInt(digits, radix)
+		if !ok {
+			return n
+		}
 		// BigInteger.doubleValue(): the nearest double, ties to even, or an
 		// infinity when out of range.
 		newVal, _ = new(big.Float).SetInt(bi).Float64()
-	}, func(e jutil.INumberFormatException) {
-		failed = true
-	})
-	if failed {
-		return n
 	}
 
 	if isNegative {

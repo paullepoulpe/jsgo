@@ -81,9 +81,9 @@ func astFactorySplitDots(s string) []string {
 
 // Java: AstFactory.bigintNumberStringColor (Suppliers.memoize)
 var AstFactory_bigintNumberStringColor = sync.OnceValue(func() *colors.Color {
-	return colors.Color_CreateUnion(
-		jutil.NewObjectLinkedHashSet(
-			colors.StandardColors_BIGINT, colors.StandardColors_STRING, colors.StandardColors_NUMBER))
+	return colors.Color_CreateUnionSlice(
+		[]*colors.Color{
+			colors.StandardColors_BIGINT, colors.StandardColors_STRING, colors.StandardColors_NUMBER})
 })
 
 // AstFactory_TypeMode is AstFactory.TypeMode.
@@ -981,10 +981,10 @@ func (a *AstFactory) CreatePrototypeAccess(receiver rhino.Node) rhino.Node {
 	case AstFactory_TypeMode_COLOR:
 		jutil.CheckNotNullMsg1(receiver.GetColor(), "Missing color on %s", receiver)
 		possiblePrototypes := receiver.GetColor().GetPrototypes()
-		if possiblePrototypes.IsEmpty() {
+		if len(possiblePrototypes) == 0 {
 			result.SetColor(colors.StandardColors_UNKNOWN)
 		} else {
-			result.SetColor(colors.Color_CreateUnion(possiblePrototypes))
+			result.SetColor(colors.Color_CreateUnionSlice(possiblePrototypes))
 		}
 	case AstFactory_TypeMode_NONE:
 	}
@@ -1178,16 +1178,6 @@ func (a *AstFactory) CreateCommas(first rhino.Node, second rhino.Node, rest ...r
 	return result
 }
 
-// astFactoryImmutableSetOf2 is ImmutableSet.of(e1, e2).
-//
-// Go-only: language-adapter — Guava's ImmutableSet.of rejects null
-// elements with a NullPointerException.
-func astFactoryImmutableSetOf2(e1 *colors.Color, e2 *colors.Color) *jutil.ObjectLinkedHashSet[*colors.Color] {
-	jutil.CheckNotNull(e1)
-	jutil.CheckNotNull(e2)
-	return jutil.NewObjectLinkedHashSet(e1, e2)
-}
-
 // Java: AstFactory.createAnd(Node, Node)
 func (a *AstFactory) CreateAnd(left rhino.Node, right rhino.Node) rhino.Node {
 	result := rhino.IR_And(left, right)
@@ -1199,7 +1189,7 @@ func (a *AstFactory) CreateAnd(left rhino.Node, right rhino.Node) rhino.Node {
 	case AstFactory_TypeMode_COLOR:
 		leftColor := jutil.CheckNotNullMsg1(left.GetColor(), "%s", left)
 		rightColor := jutil.CheckNotNullMsg1(right.GetColor(), "%s", right)
-		result.SetColor(colors.Color_CreateUnion(astFactoryImmutableSetOf2(leftColor, rightColor)))
+		result.SetColor(colors.Color_CreateUnion2(leftColor, rightColor))
 	case AstFactory_TypeMode_NONE:
 	}
 	return result
@@ -1216,7 +1206,7 @@ func (a *AstFactory) CreateOr(left rhino.Node, right rhino.Node) rhino.Node {
 	case AstFactory_TypeMode_COLOR:
 		leftColor := jutil.CheckNotNullMsg1(left.GetColor(), "%s", left)
 		rightColor := jutil.CheckNotNullMsg1(right.GetColor(), "%s", right)
-		result.SetColor(colors.Color_CreateUnion(astFactoryImmutableSetOf2(leftColor, rightColor)))
+		result.SetColor(colors.Color_CreateUnion2(leftColor, rightColor))
 	case AstFactory_TypeMode_NONE:
 	}
 	return result
@@ -1350,10 +1340,10 @@ func astFactoryObjectTypeAsJSType(t rhino.ObjectType) rhino.JSType {
 // Java: AstFactory.getInstanceOfColor(Color)
 func (a *AstFactory) GetInstanceOfColor(color *colors.Color) *colors.Color {
 	possibleInstanceColors := color.GetInstanceColors()
-	if possibleInstanceColors.IsEmpty() {
+	if len(possibleInstanceColors) == 0 {
 		return colors.StandardColors_UNKNOWN
 	}
-	return colors.Color_CreateUnion(possibleInstanceColors)
+	return colors.Color_CreateUnionSlice(possibleInstanceColors)
 }
 
 // CreateConstructorCall creates a call that returns an instance of the
@@ -1574,7 +1564,7 @@ func (a *AstFactory) CreateHook(condition rhino.Node, expr1 rhino.Node, expr2 rh
 	case AstFactory_TypeMode_JSTYPE:
 		result.SetJSType(a.registry.CreateUnionType(expr1.GetJSType(), expr2.GetJSType()))
 	case AstFactory_TypeMode_COLOR:
-		result.SetColor(colors.Color_CreateUnion(astFactoryImmutableSetOf2(expr1.GetColor(), expr2.GetColor())))
+		result.SetColor(colors.Color_CreateUnion2(expr1.GetColor(), expr2.GetColor()))
 	case AstFactory_TypeMode_NONE:
 	}
 

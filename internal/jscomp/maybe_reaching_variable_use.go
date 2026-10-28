@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"iter"
+	"math/bits"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
@@ -48,49 +49,74 @@ import (
 // Here, MaybeReachingUses[D1] = {U1, U3} and MaybeReachingUses[D2]={U2, U3}.
 // The use U3 is not guaranteed to use def D1: this is a "may-be" analysis.
 //
-// This pass is a backwards-analysis pass, i.e. it traverses the CFG nodes
-// bottom-up, `MAX_STEPS` times or till a fixed point solution is reached. At
-// each `cfgNode`, it:
-//
-//  1. Creates a new output lattice element to store the set of upward
-//     exposed variable uses at `cfgNode`.
-//  2. Propagates the set of existing upwards exposed variable uses at
-//     `cfgNode` from the input lattice to output lattice
-//  3. Adds new exposed uses of a variable to the upward exposed set in the
-//     output lattice
-//  4. Removes killed(unconditionally redefined) variables from upward
-//     exposed set in the output lattice
+// Go-only: performance — instead of re-walking each CFG node's AST and
+// rebuilding persistent HAMT maps on every fixed-point step, Analyze() walks
+// each CFG block once to compute local upward-exposed (varIdx, cfgNode) uses
+// and unconditional variable kills, assigns consecutive bit positions grouped
+// by variable, and solves the backward fixed-point over flat uint64 bitvectors
+// (single uint64 per node when total uses <= 64, []uint64 when > 64).
 type MaybeReachingVariableUse struct {
-	DataFlowAnalysisBase[rhino.Node, *MaybeReachingVariableUse_ReachingUses]
+	cfg         ControlFlowGraph[rhino.Node]
+	cfgBase     *ControlFlowGraphBase[rhino.Node]
+	hasPriority bool
 
-	// The scope of the function that we are analyzing.
-	//
-	// Go-only: language-adapter — Var overrides equals/hashCode (ScopedName),
-	// hence the Object set.
-	escaped         *jutil.ObjectLinkedHashSet[*Var]
-	allVarsInFn     *jutil.LinkedHashMap[string, *Var]
-	unescapedVars   []*Var
-	unescapedBuf    [16]*Var
-	unescapedByName map[string]*Var
-	useUnescapedMap bool
+	numVars       int
+	varNameIDs    []uint32
+	varNameIDsBuf [16]uint32
+	varIdxByID    map[uint32]int // stores varIdx + 1
+	useVarMap     bool
 
-	emptyLattice MaybeReachingVariableUse_ReachingUses
-	joinOp       MaybeReachingVariableUse_ReachingUsesJoinOp
+	// Per-block scratch during the single AST pre-pass.
+	curGen64        uint64
+	curKill64       uint64
+	curGenVarWords  []uint64
+	curKillVarWords []uint64
 
-	varMapArena  rhino.HamtPMapArena[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]
-	nodeMapArena rhino.HamtPMapArena[rhino.Node, rhino.Node]
+	blockKillVars64   []uint64
+	blockKillVarWords []uint64
+	rawUses           []mrvuRawUse
+	varUseCount       []int
+	varBitStart       []int
+	varBitEnd         []int
+	varWritePos       []int
+
+	totalUses int
+	useWords  int
+	useNodes  []rhino.Node
+
+	// Fast path (totalUses <= 64).
+	varMask64 []uint64
+	gen64     []uint64
+	kill64    []uint64
+	in64      []uint64
+	out64     []uint64
+
+	// General path (totalUses > 64).
+	genWords  []uint64
+	killWords []uint64
+	inWords   []uint64
+	outWords  []uint64
+
+	// Worklist (max-heap on Priority when hasPriority, else FIFO).
+	queue     []*graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	queueHead int
+	steps     []int
 }
 
-var (
-	maybeReachingUse_EMPTY_VARS  = rhino.HamtPMap_Empty[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]()
-	maybeReachingUse_EMPTY_NODES = rhino.HamtPMap_Empty[rhino.Node, rhino.Node]()
-)
+type mrvuRawUse struct {
+	varIdx  uint32
+	cfgIdx  uint32
+	cfgNode rhino.Node
+}
+
+const mrvuReuseMaxCap = 4096
 
 // Java: MaybeReachingVariableUse(ControlFlowGraph<Node>, Set<Var>, Map<String, Var>)
 func NewMaybeReachingVariableUse(
 	cfg ControlFlowGraph[rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]) *MaybeReachingVariableUse {
+	allVarsInFn *jutil.LinkedHashMap[string, *Var],
+) *MaybeReachingVariableUse {
 	u := &MaybeReachingVariableUse{}
 	u.Reset(cfg, escaped, allVarsInFn)
 	return u
@@ -101,341 +127,559 @@ func NewMaybeReachingVariableUse(
 func (u *MaybeReachingVariableUse) Reset(
 	cfg ControlFlowGraph[rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-	u.InitDataFlowAnalysisBase(u, cfg)
-	u.varMapArena.Reset()
-	u.nodeMapArena.Reset()
-	u.escaped = escaped
-	u.allVarsInFn = allVarsInFn
-	clear(u.unescapedVars)
-	u.unescapedVars = u.unescapedBuf[:0:len(u.unescapedBuf)]
-	u.useUnescapedMap = false
+	allVarsInFn *jutil.LinkedHashMap[string, *Var],
+) {
+	u.releaseLargeStorage()
+	u.cfg = cfg
+	u.cfgBase = cfg.GetControlFlowGraphBase()
+	u.hasPriority = cfg.GetOptionalNodeComparator(false) != nil
+	u.totalUses = 0
+	u.useWords = 0
+
+	u.varNameIDs = u.varNameIDsBuf[:0]
+	u.useVarMap = false
 	if allVarsInFn != nil {
-		if allVarsInFn.Size() <= len(u.unescapedBuf) {
-			for v := range allVarsInFn.Values() {
-				if escaped == nil || !escaped.Contains(v) {
-					u.unescapedVars = append(u.unescapedVars, v)
+		for v := range allVarsInFn.Values() {
+			if escaped == nil || !escaped.Contains(v) {
+				id := v.nameID
+				if id == 0 {
+					id = rhino.RhinoStringPool_InternID(v.GetName())
 				}
+				u.varNameIDs = append(u.varNameIDs, id)
+			}
+		}
+		if len(u.varNameIDs) > len(u.varNameIDsBuf) {
+			u.useVarMap = true
+			if u.varIdxByID == nil {
+				u.varIdxByID = make(map[uint32]int, max(len(u.varNameIDs), 32))
+			} else {
+				clear(u.varIdxByID)
+			}
+			for i, id := range u.varNameIDs {
+				u.varIdxByID[id] = i + 1
+			}
+		}
+	}
+	u.numVars = len(u.varNameIDs)
+}
+
+func (u *MaybeReachingVariableUse) releaseLargeStorage() {
+	clear(u.useNodes)
+	u.useNodes = u.useNodes[:0]
+	if cap(u.useNodes) > mrvuReuseMaxCap {
+		u.useNodes = nil
+	}
+	clear(u.rawUses)
+	u.rawUses = u.rawUses[:0]
+	if cap(u.rawUses) > mrvuReuseMaxCap {
+		u.rawUses = nil
+	}
+	if cap(u.gen64) > mrvuReuseMaxCap {
+		u.blockKillVars64 = nil
+		u.gen64 = nil
+		u.kill64 = nil
+		u.in64 = nil
+		u.out64 = nil
+		u.steps = nil
+	}
+	if cap(u.genWords) > mrvuReuseMaxCap {
+		u.blockKillVarWords = nil
+		u.genWords = nil
+		u.killWords = nil
+		u.inWords = nil
+		u.outWords = nil
+	}
+	if cap(u.queue) > mrvuReuseMaxCap {
+		u.queue = nil
+		u.queueHead = 0
+	}
+}
+
+// GetCfg returns the control flow graph that this analysis was performed on.
+//
+// Java: DataFlowAnalysis.getCfg()
+func (u *MaybeReachingVariableUse) GetCfg() ControlFlowGraph[rhino.Node] {
+	return u.cfg
+}
+
+func (u *MaybeReachingVariableUse) lookupVarIdxByID(id uint32) int {
+	if id == 0 {
+		return -1
+	}
+	if !u.useVarMap {
+		for i, vid := range u.varNameIDs {
+			if vid == id {
+				return i
+			}
+		}
+		return -1
+	}
+	return u.varIdxByID[id] - 1
+}
+
+func (u *MaybeReachingVariableUse) lookupVarIdxByName(name string) int {
+	return u.lookupVarIdxByID(rhino.RhinoStringPool_LookupID(name))
+}
+
+func mrvuResetZeroSlice[T any](s []T, n int) []T {
+	if cap(s) < n {
+		return make([]T, n)
+	}
+	clear(s)
+	return s[:n]
+}
+
+func mrvuOrBitRange(dst []uint64, start, end int) {
+	if start >= end {
+		return
+	}
+	sw, sb := start>>6, uint(start&63)
+	ew, eb := (end-1)>>6, uint((end-1)&63)
+	if sw == ew {
+		dst[sw] |= (^uint64(0) >> (63 - (eb - sb))) << sb
+		return
+	}
+	dst[sw] |= ^uint64(0) << sb
+	for w := sw + 1; w < ew; w++ {
+		dst[w] = ^uint64(0)
+	}
+	dst[ew] |= ^uint64(0) >> (63 - eb)
+}
+
+// Analyze computes the fixed-point reaching uses across the CFG.
+//
+// Java: DataFlowAnalysis.analyze()
+func (u *MaybeReachingVariableUse) Analyze() {
+	numVars := u.numVars
+	u.totalUses = 0
+	if numVars == 0 {
+		return
+	}
+
+	cfgBase := u.cfgBase
+	implicitReturn, _ := cfgBase.implicitReturn.(*graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch])
+	nodeCap := cfgBase.NodeIndexCap()
+
+	clear(u.rawUses)
+	u.rawUses = u.rawUses[:0]
+	u.varUseCount = mrvuResetZeroSlice(u.varUseCount, numVars)
+
+	varWords := (numVars + 63) >> 6
+	if numVars <= 64 {
+		u.blockKillVars64 = mrvuResetZeroSlice(u.blockKillVars64, nodeCap)
+		for node := range cfgBase.Nodes.Values() {
+			if node == implicitReturn {
+				continue
+			}
+			conditional := false
+			for _, edge := range node.OutEdgeList.Slice() {
+				if edge.Value == ControlFlowGraph_Branch_ON_EX {
+					conditional = true
+					break
+				}
+			}
+			u.curGen64 = 0
+			u.curKill64 = 0
+			u.computeMayUse(node.Value, conditional)
+			u.blockKillVars64[node.Index] = u.curKill64
+			for m := u.curGen64; m != 0; m &= m - 1 {
+				v := bits.TrailingZeros64(m)
+				u.varUseCount[v]++
+				u.rawUses = append(u.rawUses, mrvuRawUse{
+					varIdx:  uint32(v),
+					cfgIdx:  node.Index,
+					cfgNode: node.Value,
+				})
+			}
+		}
+	} else {
+		u.blockKillVarWords = mrvuResetZeroSlice(u.blockKillVarWords, nodeCap*varWords)
+		u.curGenVarWords = mrvuResetZeroSlice(u.curGenVarWords, varWords)
+		u.curKillVarWords = mrvuResetZeroSlice(u.curKillVarWords, varWords)
+		for node := range cfgBase.Nodes.Values() {
+			if node == implicitReturn {
+				continue
+			}
+			conditional := false
+			for _, edge := range node.OutEdgeList.Slice() {
+				if edge.Value == ControlFlowGraph_Branch_ON_EX {
+					conditional = true
+					break
+				}
+			}
+			clear(u.curGenVarWords)
+			clear(u.curKillVarWords)
+			u.computeMayUse(node.Value, conditional)
+			base := int(node.Index) * varWords
+			copy(u.blockKillVarWords[base:base+varWords], u.curKillVarWords)
+			for wIdx, w := range u.curGenVarWords {
+				for m := w; m != 0; m &= m - 1 {
+					v := (wIdx << 6) + bits.TrailingZeros64(m)
+					u.varUseCount[v]++
+					u.rawUses = append(u.rawUses, mrvuRawUse{
+						varIdx:  uint32(v),
+						cfgIdx:  node.Index,
+						cfgNode: node.Value,
+					})
+				}
+			}
+		}
+	}
+
+	totalUses := len(u.rawUses)
+	u.totalUses = totalUses
+	if totalUses == 0 {
+		return
+	}
+
+	u.varBitStart = mrvuResetZeroSlice(u.varBitStart, numVars)
+	u.varBitEnd = mrvuResetZeroSlice(u.varBitEnd, numVars)
+	u.varWritePos = mrvuResetZeroSlice(u.varWritePos, numVars)
+	offset := 0
+	for v := range numVars {
+		u.varBitStart[v] = offset
+		u.varWritePos[v] = offset
+		offset += u.varUseCount[v]
+		u.varBitEnd[v] = offset
+	}
+
+	u.useNodes = mrvuResetZeroSlice(u.useNodes, totalUses)
+	u.steps = mrvuResetZeroSlice(u.steps, nodeCap)
+
+	if totalUses <= 64 {
+		u.varMask64 = mrvuResetZeroSlice(u.varMask64, numVars)
+		for v := range numVars {
+			s, e := u.varBitStart[v], u.varBitEnd[v]
+			if s < e {
+				u.varMask64[v] = (^uint64(0) >> uint(64-(e-s))) << uint(s)
+			}
+		}
+		u.gen64 = mrvuResetZeroSlice(u.gen64, nodeCap)
+		u.kill64 = mrvuResetZeroSlice(u.kill64, nodeCap)
+		u.in64 = mrvuResetZeroSlice(u.in64, nodeCap)
+		u.out64 = mrvuResetZeroSlice(u.out64, nodeCap)
+
+		for _, ru := range u.rawUses {
+			bit := u.varWritePos[ru.varIdx]
+			u.varWritePos[ru.varIdx]++
+			u.useNodes[bit] = ru.cfgNode
+			u.gen64[ru.cfgIdx] |= uint64(1) << uint(bit)
+		}
+		if numVars <= 64 {
+			for node := range cfgBase.Nodes.Values() {
+				if node == implicitReturn {
+					continue
+				}
+				var k uint64
+				for m := u.blockKillVars64[node.Index]; m != 0; m &= m - 1 {
+					v := bits.TrailingZeros64(m)
+					k |= u.varMask64[v]
+				}
+				u.kill64[node.Index] = k
 			}
 		} else {
-			u.useUnescapedMap = true
-			if u.unescapedByName == nil {
-				u.unescapedByName = make(map[string]*Var, max(allVarsInFn.Size(), 32))
-			} else {
-				clear(u.unescapedByName)
-			}
-			for v := range allVarsInFn.Values() {
-				if escaped == nil || !escaped.Contains(v) {
-					u.unescapedByName[v.GetName()] = v
+			for node := range cfgBase.Nodes.Values() {
+				if node == implicitReturn {
+					continue
 				}
-			}
-		}
-	}
-	u.emptyLattice.u = u
-	u.emptyLattice.mayUsePMap = maybeReachingUse_EMPTY_VARS
-}
-
-func (u *MaybeReachingVariableUse) lookupUnescapedLocal(name string) *Var {
-	if !u.useUnescapedMap {
-		id := rhino.RhinoStringPool_LookupID(name)
-		if id == 0 {
-			return nil
-		}
-		for _, v := range u.unescapedVars {
-			if v.nameID == id {
-				return v
+				var k uint64
+				base := int(node.Index) * varWords
+				for wIdx, w := range u.blockKillVarWords[base : base+varWords] {
+					for m := w; m != 0; m &= m - 1 {
+						v := (wIdx << 6) + bits.TrailingZeros64(m)
+						k |= u.varMask64[v]
+					}
+				}
+				u.kill64[node.Index] = k
 			}
 		}
-		return nil
-	}
-	return u.unescapedByName[name]
-}
-
-func (u *MaybeReachingVariableUse) allocLattice(m *rhino.HamtPMap[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]) *MaybeReachingVariableUse_ReachingUses {
-	return &MaybeReachingVariableUse_ReachingUses{u: u, mayUsePMap: m}
-}
-
-// MaybeReachingVariableUse_ReachingUses is the may use definition lattice
-// representation. It captures a product lattice for each local
-// (non-escaped) variable. The sub-lattice is a n + 2 power set element
-// lattice with all the Nodes in the program, TOP and BOTTOM. This is better
-// explained with an example:
-//
-// Consider: A sub-lattice element representing the variable A represented
-// by { N_4, N_5} where N_x is a Node in the program. This implies at that
-// particular point in the program the content of A is "upward exposed" at
-// point N_4 and N_5.
-//
-// Example:
-//
-//	A = 1;
-//	...
-//	N_3:
-//	N_4: print(A);
-//	N_5: y = A;
-//	N_6: A = 1;
-//	N_7: print(A);
-//
-// At N_3, reads of A in {N_4, N_5} are said to be upward exposed.
-type MaybeReachingVariableUse_ReachingUses struct {
-	u *MaybeReachingVariableUse
-	// Maps variables to all their uses that are upward exposed at the
-	// current cfgNode.
-	mayUsePMap *rhino.HamtPMap[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]
-}
-
-// Java: MaybeReachingVariableUse.ReachingUses()
-func NewMaybeReachingVariableUse_ReachingUses() *MaybeReachingVariableUse_ReachingUses {
-	return &MaybeReachingVariableUse_ReachingUses{
-		mayUsePMap: maybeReachingUse_EMPTY_VARS,
-	}
-}
-
-// NewMaybeReachingVariableUse_ReachingUsesCopy is the copy constructor.
-//
-// other: the constructed object is a replicated copy of this element.
-//
-// Java: MaybeReachingVariableUse.ReachingUses(ReachingUses)
-func NewMaybeReachingVariableUse_ReachingUsesCopy(other *MaybeReachingVariableUse_ReachingUses) *MaybeReachingVariableUse_ReachingUses {
-	return &MaybeReachingVariableUse_ReachingUses{
-		u:          other.u,
-		mayUsePMap: other.mayUsePMap,
-	}
-}
-
-// Java: MaybeReachingVariableUse.ReachingUses.get(Var)
-func (r *MaybeReachingVariableUse_ReachingUses) Get(v *Var) iter.Seq[rhino.Node] {
-	uses := r.mayUsePMap.Get(v)
-	if uses != nil {
-		return uses.Keys()
-	}
-	return func(func(rhino.Node) bool) {}
-}
-
-// Java: MaybeReachingVariableUse.ReachingUses.removeAll(Var)
-func (r *MaybeReachingVariableUse_ReachingUses) RemoveAll(v *Var) {
-	var varArena *rhino.HamtPMapArena[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]
-	if r.u != nil {
-		varArena = &r.u.varMapArena
-	}
-	r.mayUsePMap = r.mayUsePMap.MinusMapWithArena(varArena, v)
-}
-
-// Java: MaybeReachingVariableUse.ReachingUses.put(Var, Node)
-func (r *MaybeReachingVariableUse_ReachingUses) Put(v *Var, n rhino.Node) {
-	values := r.mayUsePMap.Get(v)
-	if values == nil {
-		values = maybeReachingUse_EMPTY_NODES
-	}
-	var nodeArena *rhino.HamtPMapArena[rhino.Node, rhino.Node]
-	var varArena *rhino.HamtPMapArena[*Var, *rhino.HamtPMap[rhino.Node, rhino.Node]]
-	if r.u != nil {
-		nodeArena = &r.u.nodeMapArena
-		varArena = &r.u.varMapArena
-	}
-	newValues := values.PlusMapWithArena(nodeArena, n, n)
-	if newValues != values {
-		r.mayUsePMap = r.mayUsePMap.PlusMapWithArena(varArena, v, newValues)
-	}
-}
-
-func maybeReachingUse_reconcileNodes(node rhino.Node, unused1 rhino.Node, unused2 rhino.Node) rhino.Node {
-	return node
-}
-
-func maybeReachingUse_reconcileVars(var_ *Var, thisVal *rhino.HamtPMap[rhino.Node, rhino.Node], thatVal *rhino.HamtPMap[rhino.Node, rhino.Node]) *rhino.HamtPMap[rhino.Node, rhino.Node] {
-	if thisVal == nil {
-		return thatVal
-	}
-	if thatVal == nil || thisVal == thatVal {
-		return thisVal
-	}
-	// The PMap as a set with the key and value pair have the same value.
-	return thisVal.ReconcileMap(thatVal, maybeReachingUse_reconcileNodes)
-}
-
-// Java: MaybeReachingVariableUse.ReachingUses.join(ReachingUses)
-func (r *MaybeReachingVariableUse_ReachingUses) Join(other *MaybeReachingVariableUse_ReachingUses) {
-	empty := maybeReachingUse_EMPTY_VARS
-	if r.mayUsePMap == other.mayUsePMap || other.mayUsePMap == empty {
+		u.solve64(cfgBase, implicitReturn)
 		return
 	}
-	if r.mayUsePMap == empty {
-		r.mayUsePMap = other.mayUsePMap
-		return
+
+	words := (totalUses + 63) >> 6
+	u.useWords = words
+	totalWords := nodeCap * words
+	u.genWords = mrvuResetZeroSlice(u.genWords, totalWords)
+	u.killWords = mrvuResetZeroSlice(u.killWords, totalWords)
+	u.inWords = mrvuResetZeroSlice(u.inWords, totalWords)
+	u.outWords = mrvuResetZeroSlice(u.outWords, totalWords)
+
+	for _, ru := range u.rawUses {
+		bit := u.varWritePos[ru.varIdx]
+		u.varWritePos[ru.varIdx]++
+		u.useNodes[bit] = ru.cfgNode
+		u.genWords[int(ru.cfgIdx)*words+(bit>>6)] |= uint64(1) << uint(bit&63)
 	}
-	u := r.u
-	if u == nil {
-		u = other.u
-	}
-	if u != nil {
-		r.mayUsePMap = r.mayUsePMap.ReconcileMapWithArena(
-			&u.varMapArena,
-			other.mayUsePMap,
-			func(var_ *Var, thisVal *rhino.HamtPMap[rhino.Node, rhino.Node], thatVal *rhino.HamtPMap[rhino.Node, rhino.Node]) *rhino.HamtPMap[rhino.Node, rhino.Node] {
-				if thisVal == nil {
-					return thatVal
-				}
-				if thatVal == nil || thisVal == thatVal {
-					return thisVal
-				}
-				return thisVal.ReconcileMapWithArena(&u.nodeMapArena, thatVal, maybeReachingUse_reconcileNodes)
-			})
-		return
-	}
-	r.mayUsePMap = r.mayUsePMap.ReconcileMap(other.mayUsePMap, maybeReachingUse_reconcileVars)
-}
-
-// Java: MaybeReachingVariableUse.ReachingUses.equals(Object)
-func (r *MaybeReachingVariableUse_ReachingUses) Equals(other any) bool {
-	reachingUses, ok := other.(*MaybeReachingVariableUse_ReachingUses)
-	return ok && reachingUses != nil &&
-		(r == reachingUses || r.mayUsePMap == reachingUses.mayUsePMap ||
-			reachingUses.mayUsePMap.EquivalentMap(r.mayUsePMap, MaybeReachingVariableUse_ReachingUses_EqualMaps))
-}
-
-// Java: MaybeReachingVariableUse.ReachingUses.equalMaps(PMap<Node, Node>, PMap<Node, Node>)
-func MaybeReachingVariableUse_ReachingUses_EqualMaps(map1 *rhino.HamtPMap[rhino.Node, rhino.Node], map2 *rhino.HamtPMap[rhino.Node, rhino.Node]) bool {
-	return map1 == map2 || map1.EquivalentMap(map2, MaybeReachingVariableUse_ReachingUses_EqualNodes)
-}
-
-// Java: MaybeReachingVariableUse.ReachingUses.equalNodes(Node, Node)
-func MaybeReachingVariableUse_ReachingUses_EqualNodes(n1 rhino.Node, n2 rhino.Node) bool {
-	return n1 == n2
-}
-
-// Java: MaybeReachingVariableUse.ReachingUses.hashCode()
-func (r *MaybeReachingVariableUse_ReachingUses) HashCode() int32 {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("the hashcode of this object is not stable"))
-}
-
-// MaybeReachingVariableUse_ReachingUsesJoinOp: the join is a simple union
-// because of the "may be" nature of the analysis.
-//
-// Consider: A = 1; if (x) { A = 2 }; alert(A);
-//
-// The read of A "may be" exposed to A = 1 in the beginning.
-type MaybeReachingVariableUse_ReachingUsesJoinOp struct {
-	result *MaybeReachingVariableUse_ReachingUses
-}
-
-// Java: MaybeReachingVariableUse.ReachingUsesJoinOp()
-func NewMaybeReachingVariableUse_ReachingUsesJoinOp() *MaybeReachingVariableUse_ReachingUsesJoinOp {
-	return &MaybeReachingVariableUse_ReachingUsesJoinOp{result: NewMaybeReachingVariableUse_ReachingUses()}
-}
-
-// Java: MaybeReachingVariableUse.ReachingUsesJoinOp.joinFlow(ReachingUses)
-func (j *MaybeReachingVariableUse_ReachingUsesJoinOp) JoinFlow(uses *MaybeReachingVariableUse_ReachingUses) {
-	j.result.Join(uses)
-}
-
-// Java: MaybeReachingVariableUse.ReachingUsesJoinOp.finish()
-func (j *MaybeReachingVariableUse_ReachingUsesJoinOp) Finish() *MaybeReachingVariableUse_ReachingUses {
-	return j.result
-}
-
-// Java: MaybeReachingVariableUse.isForward()
-func (u *MaybeReachingVariableUse) IsForward() bool {
-	return false
-}
-
-func (u *MaybeReachingVariableUse) EqualsLattice(a, b *MaybeReachingVariableUse_ReachingUses) bool {
-	if a == b {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return a.mayUsePMap == b.mayUsePMap ||
-		b.mayUsePMap.EquivalentMap(a.mayUsePMap, MaybeReachingVariableUse_ReachingUses_EqualMaps)
-}
-
-// Java: MaybeReachingVariableUse.createEntryLattice()
-func (u *MaybeReachingVariableUse) CreateEntryLattice() *MaybeReachingVariableUse_ReachingUses {
-	return &u.emptyLattice
-}
-
-// Java: MaybeReachingVariableUse.createInitialEstimateLattice()
-func (u *MaybeReachingVariableUse) CreateInitialEstimateLattice() *MaybeReachingVariableUse_ReachingUses {
-	return &u.emptyLattice
-}
-
-// Java: MaybeReachingVariableUse.createFlowJoiner()
-func (u *MaybeReachingVariableUse) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*MaybeReachingVariableUse_ReachingUses] {
-	u.joinOp.result = u.allocLattice(u.emptyLattice.mayUsePMap)
-	u.joinOp.result.u = u
-	return &u.joinOp
-}
-
-// FlowThrough computes the new LatticeElement for a given node given its
-// LatticeElement from previous iteration.
-//
-// input: backward dataflow analyses compute their LatticeElement bottom-up
-// (i.e. LinearFlowState.out to LinearFlowState.in). See
-// DataFlowAnalysis#flow(DiGraphNode). Here param `input` is the readonly
-// input LinearFlowState.out that was constructed as `LinearFlowState.in` in
-// the previous iteration, or the initial lattice element if this is the
-// first iteration.
-//
-// Java: MaybeReachingVariableUse.flowThrough(Node, ReachingUses)
-func (u *MaybeReachingVariableUse) FlowThrough(n rhino.Node, input *MaybeReachingVariableUse_ReachingUses) *MaybeReachingVariableUse_ReachingUses {
-	temp := MaybeReachingVariableUse_ReachingUses{u: u, mayUsePMap: input.mayUsePMap}
-
-	// If there's an ON_EX edge, this cfgNode may or may not get executed.
-	// We can express this concisely by just pretending this happens in
-	// a conditional.
-	conditional := u.HasExceptionHandler(n)
-	u.ComputeMayUse(n, n, &temp, conditional)
-	if temp.mayUsePMap == input.mayUsePMap {
-		return input
-	}
-	return u.allocLattice(temp.mayUsePMap)
-}
-
-// Java: MaybeReachingVariableUse.hasExceptionHandler(Node)
-func (u *MaybeReachingVariableUse) HasExceptionHandler(cfgNode rhino.Node) bool {
-	var branchEdges []*graph.LinkedDirectedGraph_LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
-	if u.curDiGraphNode != nil && u.curDiGraphNode.GetValue() == cfgNode {
-		branchEdges = u.curDiGraphNode.GetOutEdges()
+	if numVars <= 64 {
+		for node := range cfgBase.Nodes.Values() {
+			if node == implicitReturn {
+				continue
+			}
+			killRow := u.killWords[int(node.Index)*words : (int(node.Index)+1)*words]
+			for m := u.blockKillVars64[node.Index]; m != 0; m &= m - 1 {
+				v := bits.TrailingZeros64(m)
+				mrvuOrBitRange(killRow, u.varBitStart[v], u.varBitEnd[v])
+			}
+		}
 	} else {
-		branchEdges = u.GetCfg().GetOutEdges(cfgNode)
-	}
-	for _, edge := range branchEdges {
-		if edge.GetValue() == ControlFlowGraph_Branch_ON_EX {
-			return true
+		for node := range cfgBase.Nodes.Values() {
+			if node == implicitReturn {
+				continue
+			}
+			killRow := u.killWords[int(node.Index)*words : (int(node.Index)+1)*words]
+			base := int(node.Index) * varWords
+			for wIdx, w := range u.blockKillVarWords[base : base+varWords] {
+				for m := w; m != 0; m &= m - 1 {
+					v := (wIdx << 6) + bits.TrailingZeros64(m)
+					mrvuOrBitRange(killRow, u.varBitStart[v], u.varBitEnd[v])
+				}
+			}
 		}
 	}
-	return false
+	u.solveWords(cfgBase, implicitReturn, words)
 }
 
-// ComputeMayUse updates, given a cfgNode, the output LatticeElement at that
-// node by finding and storing all variables and their uses that are upward
-// exposed at the cfgNode.
-//
-// n is the explorer node which searches for variables; cfgNode the CFG node
-// for which the upward exposed variables are being searched; conditional
-// whether n is only conditionally evaluated given that cfgNode is
-// evaluated. Do not remove conditionally redefined variables from the
-// reaching uses set.
+func (u *MaybeReachingVariableUse) initQueue(
+	cfgBase *ControlFlowGraphBase[rhino.Node],
+	implicitReturn *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+) {
+	clear(u.queue)
+	u.queue = u.queue[:0]
+	u.queueHead = 0
+	numNodes := cfgBase.Nodes.Size()
+	if cap(u.queue) < numNodes {
+		u.queue = make([]*graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch], 0, numNodes)
+	}
+	for node := range cfgBase.Nodes.Values() {
+		node.DfaInQueue = false
+		if node != implicitReturn {
+			u.enqueue(node)
+		}
+	}
+}
+
+func (u *MaybeReachingVariableUse) enqueue(node *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
+	node.DfaInQueue = true
+	u.queue = append(u.queue, node)
+	if u.hasPriority {
+		i := len(u.queue) - 1
+		xPrio := node.Priority
+		if xPrio < 0 {
+			panic(jutil.NewIllegalStateExceptionMsg("priority not set"))
+		}
+		for i > 0 {
+			parent := (i - 1) / 2
+			p := u.queue[parent]
+			if xPrio <= p.Priority {
+				break
+			}
+			u.queue[i] = p
+			i = parent
+		}
+		u.queue[i] = node
+	}
+}
+
+func (u *MaybeReachingVariableUse) dequeue() *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch] {
+	var cur *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	if u.hasPriority {
+		n := len(u.queue)
+		cur = u.queue[0]
+		last := u.queue[n-1]
+		u.queue[n-1] = nil
+		u.queue = u.queue[:n-1]
+		if n > 1 {
+			i := 0
+			m := n - 1
+			xPrio := last.Priority
+			for {
+				pick := 2*i + 1
+				if pick >= m {
+					break
+				}
+				larger := u.queue[pick]
+				largerPrio := larger.Priority
+				if sibling := pick + 1; sibling < m {
+					sib := u.queue[sibling]
+					if sibPrio := sib.Priority; largerPrio < sibPrio {
+						pick = sibling
+						larger = sib
+						largerPrio = sibPrio
+					}
+				}
+				if xPrio >= largerPrio {
+					break
+				}
+				u.queue[i] = larger
+				i = pick
+			}
+			u.queue[i] = last
+		}
+	} else {
+		cur = u.queue[u.queueHead]
+		u.queue[u.queueHead] = nil
+		u.queueHead++
+		if u.queueHead == len(u.queue) {
+			u.queue = u.queue[:0]
+			u.queueHead = 0
+		}
+	}
+	cur.DfaInQueue = false
+	return cur
+}
+
+func (u *MaybeReachingVariableUse) solve64(
+	cfgBase *ControlFlowGraphBase[rhino.Node],
+	implicitReturn *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+) {
+	u.initQueue(cfgBase, implicitReturn)
+	for len(u.queue) > u.queueHead {
+		curNode := u.dequeue()
+		idx := curNode.Index
+		stepCount := u.steps[idx]
+		u.steps[idx] = stepCount + 1
+		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
+			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
+		}
+
+		outEdges := curNode.OutEdgeList.Slice()
+		if len(outEdges) > 0 {
+			var joined uint64
+			for _, edge := range outEdges {
+				dest := edge.DestNode
+				if dest != implicitReturn {
+					joined |= u.in64[dest.Index]
+				}
+			}
+			u.out64[idx] = joined
+		}
+
+		inAfter := (u.out64[idx] &^ u.kill64[idx]) | u.gen64[idx]
+		if inAfter != u.in64[idx] {
+			u.in64[idx] = inAfter
+			for _, edge := range curNode.InEdgeList.Slice() {
+				prev := edge.SourceNode
+				if !prev.DfaInQueue && prev != implicitReturn {
+					u.enqueue(prev)
+				}
+			}
+		}
+	}
+}
+
+func (u *MaybeReachingVariableUse) solveWords(
+	cfgBase *ControlFlowGraphBase[rhino.Node],
+	implicitReturn *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	words int,
+) {
+	u.initQueue(cfgBase, implicitReturn)
+	for len(u.queue) > u.queueHead {
+		curNode := u.dequeue()
+		idx := int(curNode.Index)
+		stepCount := u.steps[idx]
+		u.steps[idx] = stepCount + 1
+		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
+			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
+		}
+
+		base := idx * words
+		outRow := u.outWords[base : base+words]
+		outEdges := curNode.OutEdgeList.Slice()
+		if len(outEdges) > 0 {
+			clear(outRow)
+			for _, edge := range outEdges {
+				dest := edge.DestNode
+				if dest != implicitReturn {
+					destBase := int(dest.Index) * words
+					destIn := u.inWords[destBase : destBase+words]
+					for w := range words {
+						outRow[w] |= destIn[w]
+					}
+				}
+			}
+		}
+
+		inRow := u.inWords[base : base+words]
+		killRow := u.killWords[base : base+words]
+		genRow := u.genWords[base : base+words]
+		changed := false
+		for w := range words {
+			after := (outRow[w] &^ killRow[w]) | genRow[w]
+			if after != inRow[w] {
+				inRow[w] = after
+				changed = true
+			}
+		}
+		if changed {
+			for _, edge := range curNode.InEdgeList.Slice() {
+				prev := edge.SourceNode
+				if !prev.DfaInQueue && prev != implicitReturn {
+					u.enqueue(prev)
+				}
+			}
+		}
+	}
+}
+
+func (u *MaybeReachingVariableUse) genVarIdx(v int) {
+	if u.numVars <= 64 {
+		u.curGen64 |= uint64(1) << uint(v)
+	} else {
+		u.curGenVarWords[v>>6] |= uint64(1) << uint(v&63)
+	}
+}
+
+func (u *MaybeReachingVariableUse) killVarIdx(v int) {
+	if u.numVars <= 64 {
+		bit := uint64(1) << uint(v)
+		u.curKill64 |= bit
+		u.curGen64 &^= bit
+	} else {
+		w, b := v>>6, uint(v&63)
+		bit := uint64(1) << b
+		u.curKillVarWords[w] |= bit
+		u.curGenVarWords[w] &^= bit
+	}
+}
+
+func (u *MaybeReachingVariableUse) genLocalID(id uint32) {
+	if v := u.lookupVarIdxByID(id); v >= 0 {
+		u.genVarIdx(v)
+	}
+}
+
+func (u *MaybeReachingVariableUse) killLocalID(id uint32) {
+	if v := u.lookupVarIdxByID(id); v >= 0 {
+		u.killVarIdx(v)
+	}
+}
+
+// computeMayUse finds all upward-exposed uses and unconditional kills of
+// unescaped local variables within a single CFG node, walking subexpressions
+// in reverse evaluation order.
 //
 // Java: MaybeReachingVariableUse.computeMayUse(Node, Node, ReachingUses, boolean)
-func (u *MaybeReachingVariableUse) ComputeMayUse(n rhino.Node, cfgNode rhino.Node, output *MaybeReachingVariableUse_ReachingUses, conditional bool) {
+func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool) {
+	if n.IsNil() {
+		return
+	}
 	switch n.GetToken() {
 	case rhino.Token_BLOCK, rhino.Token_ROOT, rhino.Token_FUNCTION:
 		return
 	case rhino.Token_NAME:
-		ident := ast.MustName(n).Ident()
+		id := n.GetStringID()
 		if NodeUtil_IsLhsByDestructuring(n) {
 			if !conditional {
-				u.RemoveFromUseIfLocal(ident, output)
+				u.killLocalID(id)
 			}
 		} else {
-			u.AddToUseIfLocal(ident, cfgNode, output)
+			u.genLocalID(id)
 		}
 		return
 	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
 		condExpr := NodeUtil_GetConditionExpression(n)
-		u.ComputeMayUse(condExpr, cfgNode, output, conditional)
+		u.computeMayUse(condExpr, conditional)
 		return
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// for(x in y) {...}
@@ -454,24 +698,24 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n rhino.Node, cfgNode rhino.Nod
 			lhs = target.Node()
 		}
 		if _, isPat := ast.AsPattern(lhs); isPat {
-			u.ComputeMayUse(lhs, cfgNode, output, true)
+			u.computeMayUse(lhs, true)
 		}
-		u.ComputeMayUse(loop.Collection().Node(), cfgNode, output, conditional)
+		u.computeMayUse(loop.Collection().Node(), conditional)
 		return
 	case rhino.Token_OPTCHAIN_GETPROP:
 		// Go-only: OPTCHAIN_GETPROP has only one child (Object; property is its string),
 		// so visiting Object once matches Java without O(2^k) re-traversal on chains.
-		u.ComputeMayUse(ast.MustOptChainGetProp(n).Object().Node(), cfgNode, output, conditional)
+		u.computeMayUse(ast.MustOptChainGetProp(n).Object().Node(), conditional)
 		return
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
 		bin := ast.MustBinary(n)
-		u.ComputeMayUse(bin.Right().Node(), cfgNode, output /* conditional= */, true)
-		u.ComputeMayUse(bin.Left().Node(), cfgNode, output, conditional)
+		u.computeMayUse(bin.Right().Node(), /* conditional= */ true)
+		u.computeMayUse(bin.Left().Node(), conditional)
 		return
 	case rhino.Token_OPTCHAIN_GETELEM:
 		ge := ast.MustOptChainGetElem(n)
-		u.ComputeMayUse(ge.Index().Node(), cfgNode, output /* conditional= */, true)
-		u.ComputeMayUse(ge.Object().Node(), cfgNode, output, conditional)
+		u.computeMayUse(ge.Index().Node(), /* conditional= */ true)
+		u.computeMayUse(ge.Object().Node(), conditional)
 		return
 	case rhino.Token_OPTCHAIN_CALL:
 		call := ast.MustOptChainCall(n)
@@ -479,15 +723,15 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n rhino.Node, cfgNode rhino.Nod
 		// As args are evaluated in AST order, we traverse in reverse AST order for backward
 		// dataflow analysis.
 		for c := n.GetLastChild(); c != callee; c = c.GetPrevious() {
-			u.ComputeMayUse(c, cfgNode, output /* conditional= */, true)
+			u.computeMayUse(c, /* conditional= */ true)
 		}
-		u.ComputeMayUse(callee, cfgNode, output, conditional)
+		u.computeMayUse(callee, conditional)
 		return
 	case rhino.Token_HOOK:
 		hook := ast.MustHook(n)
-		u.ComputeMayUse(hook.Else().Node(), cfgNode, output /* conditional= */, true)
-		u.ComputeMayUse(hook.Then().Node(), cfgNode, output /* conditional= */, true)
-		u.ComputeMayUse(hook.Cond().Node(), cfgNode, output, conditional)
+		u.computeMayUse(hook.Else().Node(), /* conditional= */ true)
+		u.computeMayUse(hook.Then().Node(), /* conditional= */ true)
+		u.computeMayUse(hook.Cond().Node(), conditional)
 		return
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		decl := ast.MustNameDeclaration(n)
@@ -496,16 +740,16 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n rhino.Node, cfgNode rhino.Nod
 		if dlhs, ok := d.AsDestructuringLhs(); ok {
 			// Note: since destructuring is evaluated in reverse AST order, we traverse the pattern
 			// before the initializer in order to do our backwards data flow analysis.
-			u.ComputeMayUse(dlhs.Pattern().Node(), cfgNode, output, conditional)
+			u.computeMayUse(dlhs.Pattern().Node(), conditional)
 			if init, hasInit := dlhs.Init(); hasInit {
-				u.ComputeMayUse(init.Node(), cfgNode, output, conditional)
+				u.computeMayUse(init.Node(), conditional)
 			}
 		} else {
 			varName := d.MustName()
 			if init, hasInit := varName.Init(); hasInit {
-				u.ComputeMayUse(init.Node(), cfgNode, output, conditional)
+				u.computeMayUse(init.Node(), conditional)
 				if !conditional {
-					u.RemoveFromUseIfLocal(varName.Ident(), output)
+					u.killLocalID(varName.Node().GetStringID())
 				}
 			} // else var name declaration with no initial value
 		}
@@ -515,41 +759,39 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n rhino.Node, cfgNode rhino.Nod
 		target := dv.Target()
 		value := dv.Value().Node()
 		if pat, ok := target.AsPattern(); ok {
-			u.ComputeMayUse(pat.Node(), cfgNode, output, conditional)
-			u.ComputeMayUse(value, cfgNode, output, true)
+			u.computeMayUse(pat.Node(), conditional)
+			u.computeMayUse(value, true)
 		} else if name, ok := target.AsName(); ok {
 			// assigning to the name occurs after evaluating the default value
 			if !conditional {
-				u.RemoveFromUseIfLocal(name.Ident(), output)
+				u.killLocalID(name.Node().GetStringID())
 			}
-			u.ComputeMayUse(value, cfgNode, output, true)
+			u.computeMayUse(value, true)
 		} else {
-			u.ComputeMayUse(value, cfgNode, output, true)
-			u.ComputeMayUse(target.Node(), cfgNode, output, conditional)
+			u.computeMayUse(value, true)
+			u.computeMayUse(target.Node(), conditional)
 		}
 	default:
 		if assign, ok := ast.AsAssignment(n); ok {
 			if name, isName := assign.Target().AsName(); isName {
 				jutil.CheckState(!NodeUtil_IsLogicalAssignmentOp(n))
-				var_ := u.lookupUnescapedLocal(name.Ident())
-				if var_ != nil {
+				if v := u.lookupVarIdxByID(name.Node().GetStringID()); v >= 0 {
 					if !conditional {
-						output.RemoveAll(var_)
+						u.killVarIdx(v)
 					}
 					// In case of a += "Hello". There is a read of a.
 					if assign.Token() != rhino.Token_ASSIGN {
-						output.Put(var_, cfgNode)
+						u.genVarIdx(v)
 					}
 				}
-
-				u.ComputeMayUse(assign.Value().Node(), cfgNode, output, conditional)
+				u.computeMayUse(assign.Value().Node(), conditional)
 				return
 			}
 			if assign.Token() == rhino.Token_ASSIGN {
 				if pat, isPat := assign.Target().AsPattern(); isPat {
 					// Note: the rhs of destructuring is evaluated before the lhs
-					u.ComputeMayUse(pat.Node(), cfgNode, output, conditional)
-					u.ComputeMayUse(assign.Value().Node(), cfgNode, output, conditional)
+					u.computeMayUse(pat.Node(), conditional)
+					u.computeMayUse(assign.Value().Node(), conditional)
 					return
 				}
 			}
@@ -559,31 +801,65 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n rhino.Node, cfgNode rhino.Nod
 		 * definition in the sub-tree.
 		 */
 		for c := n.GetLastChild(); !c.IsNil(); c = c.GetPrevious() {
-			u.ComputeMayUse(c, cfgNode, output, conditional)
+			u.computeMayUse(c, conditional)
 		}
 	}
 }
 
-// AddToUseIfLocal sets the variable for the given name to the node value in
-// the upward exposed lattice. Do nothing if the variable name is one of the
-// escaped variable.
-//
-// Java: MaybeReachingVariableUse.addToUseIfLocal(String, Node, ReachingUses)
-func (u *MaybeReachingVariableUse) AddToUseIfLocal(name string, node rhino.Node, use *MaybeReachingVariableUse_ReachingUses) {
-	if var_ := u.lookupUnescapedLocal(name); var_ != nil {
-		use.Put(var_, node)
-	}
-}
+func mrvuEmptyUses(func(rhino.Node) bool) {}
 
-// RemoveFromUseIfLocal removes the variable for the given name from the node
-// value in the upward exposed lattice. Do nothing if the variable name is
-// one of the escaped variable.
-//
-// Java: MaybeReachingVariableUse.removeFromUseIfLocal(String, ReachingUses)
-func (u *MaybeReachingVariableUse) RemoveFromUseIfLocal(name string, use *MaybeReachingVariableUse_ReachingUses) {
-	if var_ := u.lookupUnescapedLocal(name); var_ != nil {
-		use.RemoveAll(var_)
+// HasExactlyOneUse reports whether defNode has exactly one upward-exposed
+// reaching use CFG node for name, without allocating an iterator closure.
+func (u *MaybeReachingVariableUse) HasExactlyOneUse(name string, defNode rhino.Node) bool {
+	n := u.cfgBase.Nodes.Get(defNode)
+	if n == nil {
+		panic(jutil.NewNullPointerException())
 	}
+	if u.totalUses == 0 {
+		return false
+	}
+	v := u.lookupVarIdxByName(name)
+	if v < 0 {
+		return false
+	}
+	if u.totalUses <= 64 {
+		m := u.out64[n.Index] & u.varMask64[v]
+		return m != 0 && (m&(m-1)) == 0
+	}
+	start, end := u.varBitStart[v], u.varBitEnd[v]
+	if start >= end {
+		return false
+	}
+	words := u.useWords
+	outRow := u.outWords[int(n.Index)*words : (int(n.Index)+1)*words]
+	sw, sb := start>>6, uint(start&63)
+	ew, eb := (end-1)>>6, uint((end-1)&63)
+	if sw == ew {
+		w := outRow[sw] & ((^uint64(0) >> (63 - (eb - sb))) << sb)
+		return w != 0 && (w&(w-1)) == 0
+	}
+	count := 0
+	if w := outRow[sw] & (^uint64(0) << sb); w != 0 {
+		if (w & (w - 1)) != 0 {
+			return false
+		}
+		count++
+	}
+	for wi := sw + 1; wi < ew; wi++ {
+		if w := outRow[wi]; w != 0 {
+			if count > 0 || (w&(w-1)) != 0 {
+				return false
+			}
+			count++
+		}
+	}
+	if w := outRow[ew] & (^uint64(0) >> (63 - eb)); w != 0 {
+		if count > 0 || (w&(w-1)) != 0 {
+			return false
+		}
+		count++
+	}
+	return count == 1
 }
 
 // GetUses gets a list of nodes that may be using the value assigned to name
@@ -597,8 +873,76 @@ func (u *MaybeReachingVariableUse) RemoveFromUseIfLocal(name string, use *MaybeR
 //
 // Java: MaybeReachingVariableUse.getUses(String, Node)
 func (u *MaybeReachingVariableUse) GetUses(name string, defNode rhino.Node) iter.Seq[rhino.Node] {
-	n := u.GetCfg().GetNode(defNode)
-	jutil.CheckNotNull(n)
-	state := n.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*MaybeReachingVariableUse_ReachingUses])
-	return state.GetOut().Get(u.lookupUnescapedLocal(name))
+	n := u.cfgBase.Nodes.Get(defNode)
+	if n == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	if u.totalUses == 0 {
+		return mrvuEmptyUses
+	}
+	v := u.lookupVarIdxByName(name)
+	if v < 0 {
+		return mrvuEmptyUses
+	}
+	if u.totalUses <= 64 {
+		m0 := u.out64[n.Index] & u.varMask64[v]
+		if m0 == 0 {
+			return mrvuEmptyUses
+		}
+		useNodes := u.useNodes
+		return func(yield func(rhino.Node) bool) {
+			for m := m0; m != 0; m &= m - 1 {
+				if !yield(useNodes[bits.TrailingZeros64(m)]) {
+					return
+				}
+			}
+		}
+	}
+	start, end := u.varBitStart[v], u.varBitEnd[v]
+	if start >= end {
+		return mrvuEmptyUses
+	}
+	words := u.useWords
+	outRow := u.outWords[int(n.Index)*words : (int(n.Index)+1)*words]
+	useNodes := u.useNodes
+	return func(yield func(rhino.Node) bool) {
+		sw, sb := start>>6, uint(start&63)
+		ew, eb := (end-1)>>6, uint((end-1)&63)
+		if sw == ew {
+			w := outRow[sw] & ((^uint64(0) >> (63 - (eb - sb))) << sb)
+			base := sw << 6
+			for m := w; m != 0; m &= m - 1 {
+				if !yield(useNodes[base+bits.TrailingZeros64(m)]) {
+					return
+				}
+			}
+			return
+		}
+		if w := outRow[sw] & (^uint64(0) << sb); w != 0 {
+			base := sw << 6
+			for m := w; m != 0; m &= m - 1 {
+				if !yield(useNodes[base+bits.TrailingZeros64(m)]) {
+					return
+				}
+			}
+		}
+		for wi := sw + 1; wi < ew; wi++ {
+			if w := outRow[wi]; w != 0 {
+				base := wi << 6
+				for m := w; m != 0; m &= m - 1 {
+					if !yield(useNodes[base+bits.TrailingZeros64(m)]) {
+						return
+					}
+				}
+			}
+		}
+		if w := outRow[ew] & (^uint64(0) >> (63 - eb)); w != 0 {
+			base := ew << 6
+			for m := w; m != 0; m &= m - 1 {
+				if !yield(useNodes[base+bits.TrailingZeros64(m)]) {
+					return
+				}
+			}
+		}
+	}
 }

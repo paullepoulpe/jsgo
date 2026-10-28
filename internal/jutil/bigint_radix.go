@@ -73,6 +73,95 @@ func NewBigIntegerFromStringRadix(s string, radix int) *big.Int {
 	return bigIntegerWithinRange(x)
 }
 
+// TryParseBigInt parses s in radix using Java's BigInteger(String, int)
+// grammar, returning (nil, false) where NewBigIntegerFromStringRadix would
+// throw NumberFormatException or ArithmeticException.
+func TryParseBigInt(s string, radix int) (*big.Int, bool) {
+	if radix < Character_MIN_RADIX || radix > Character_MAX_RADIX {
+		return nil, false
+	}
+	if IsASCII(s) {
+		start := 0
+		negative := false
+		if len(s) > 0 && (s[0] == '-' || s[0] == '+') {
+			negative = s[0] == '-'
+			start = 1
+		}
+		if start == len(s) {
+			return nil, false
+		}
+		for i := start; i < len(s); i++ {
+			c := s[i]
+			var d int
+			switch {
+			case c >= '0' && c <= '9':
+				d = int(c - '0')
+			case c >= 'a' && c <= 'z':
+				d = int(c-'a') + 10
+			case c >= 'A' && c <= 'Z':
+				d = int(c-'A') + 10
+			default:
+				return nil, false
+			}
+			if d >= radix {
+				return nil, false
+			}
+		}
+		for start < len(s) && s[start] == '0' {
+			start++
+		}
+		if start == len(s) {
+			return big.NewInt(0), true
+		}
+		x, ok := new(big.Int).SetString(s[start:], radix)
+		if !ok || x.BitLen() > bigIntegerMaxBitLength {
+			return nil, false
+		}
+		if negative {
+			x.Neg(x)
+		}
+		return x, true
+	}
+	units := StringToUTF16(s)
+	start := 0
+	negative := false
+	if len(units) > 0 && (units[0] == '-' || units[0] == '+') {
+		negative = units[0] == '-'
+		start = 1
+	}
+	if start == len(units) {
+		return nil, false
+	}
+	for _, c := range units[start:] {
+		if c == '-' || c == '+' {
+			return nil, false
+		}
+	}
+	for start < len(units) && CharacterDigit(units[start], radix) == 0 {
+		start++
+	}
+	if start == len(units) {
+		return big.NewInt(0), true
+	}
+	digits := units[start:]
+	text := make([]byte, len(digits))
+	for i, c := range digits {
+		d := CharacterDigit(c, radix)
+		if d < 0 {
+			return nil, false
+		}
+		text[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[d]
+	}
+	x, ok := new(big.Int).SetString(string(text), radix)
+	if !ok || x.BitLen() > bigIntegerMaxBitLength {
+		return nil, false
+	}
+	if negative {
+		x.Neg(x)
+	}
+	return x, true
+}
+
 // bigIntegerRadixGroup is the size of the digit groups in which
 // NewBigIntegerFromStringRadix reports a bad digit: the largest k such that
 // radix^k does not exceed Integer.MAX_VALUE, so any k digits fit in an int.

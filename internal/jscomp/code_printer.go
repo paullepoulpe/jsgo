@@ -1028,7 +1028,7 @@ func (c *CodePrinter_CompactCodePrinter) StartNewLine() {
 func (c *CodePrinter_CompactCodePrinter) MaybeLineBreak() {
 	if c.lineBreak {
 		if c.sawFunction {
-			c.self.StartNewLine()
+			c.StartNewLine()
 			c.sawFunction = false
 		}
 	}
@@ -1043,7 +1043,9 @@ func (c *CodePrinter_CompactCodePrinter) MaybeLineBreak() {
 			c.preferredBreakPosition = len_
 		}
 	}
-	c.self.MaybeCutLine()
+	if c.lineLength > c.lineLengthThreshold {
+		c.MaybeCutLine()
+	}
 }
 
 // MaybeCutLine may start a new line if the current line is longer than the
@@ -1065,7 +1067,7 @@ func (c *CodePrinter_CompactCodePrinter) MaybeCutLine() {
 		c.lineLength -= (c.preferredBreakPosition - c.lineStartPosition)
 		c.lineStartPosition = c.preferredBreakPosition + 1 // Jump over the inserted newline.
 	} else {
-		c.self.StartNewLine()
+		c.StartNewLine()
 	}
 }
 

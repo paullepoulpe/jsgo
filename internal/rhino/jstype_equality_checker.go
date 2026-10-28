@@ -36,8 +36,36 @@
 package rhino
 
 import (
+	"hash/maphash"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+type optEqMethod uint8
+
+const (
+	optEqMethodUnset optEqMethod = iota
+	optEqMethodIdentity
+	optEqMethodDataFlow
+)
+
+func optEqMethodOf(m EqualityChecker_EqMethod) optEqMethod {
+	return optEqMethod(m + 1)
+}
+
+func (m optEqMethod) isDataFlow() bool {
+	if m == optEqMethodUnset {
+		failJSTypeNull()
+	}
+	return m == optEqMethodDataFlow
+}
+
+func (m optEqMethod) isIdentity() bool {
+	if m == optEqMethodUnset {
+		failJSTypeNull()
+	}
+	return m == optEqMethodIdentity
+}
 
 // EqualityChecker represents the computation of a single equality
 // relationship.
@@ -45,11 +73,9 @@ import (
 // Each instance can only be used once. It acts as a scope for the
 // computation and may accumulate state.
 type EqualityChecker struct {
-	// Go: nil is Java null.
-	eqMethod *EqualityChecker_EqMethod
-
-	eqCache        *jutil.ObjectLinkedHashMap[*EqualityChecker_CacheKey, JSType_MatchStatus]
+	eqCache        *typePairCache
 	recursionDepth int
+	eqMethod       optEqMethod
 	hasRun         bool
 }
 
@@ -114,27 +140,12 @@ func failJSTypeNull() {
 // Java: EqualityChecker.setEqMethod(EqMethod)
 func (c *EqualityChecker) SetEqMethod(x EqualityChecker_EqMethod) *EqualityChecker {
 	c.CheckHasNotRun()
-	if c.eqMethod != nil {
+	if c.eqMethod != optEqMethodUnset {
 		failJSTypeState()
 	}
-	// Go-only: performance — the nullable enum points into a shared table
-	// rather than at a fresh copy of x (it is only ever read through). The
-	// copy is a variable of the else branch: taking &x would move x to the
-	// heap on every call.
-	if x >= 0 && int(x) < len(equalityChecker_eqMethods) {
-		c.eqMethod = &equalityChecker_eqMethods[x]
-	} else {
-		other := x
-		c.eqMethod = &other
-	}
+	c.eqMethod = optEqMethodOf(x)
 	return c
 }
-
-// equalityChecker_eqMethods holds each EqMethod, for SetEqMethod.
-//
-// Go-only: performance — see SetEqMethod.
-var equalityChecker_eqMethods = [...]EqualityChecker_EqMethod{
-	EqualityChecker_EqMethod_IDENTITY, EqualityChecker_EqMethod_DATA_FLOW}
 
 // Java: EqualityChecker.checkHasNotRun()
 func (c *EqualityChecker) CheckHasNotRun() {
@@ -194,7 +205,7 @@ func equalityChecker_AreIdentityEqualWithBases(left JSType, lb *JSTypeBase, righ
 		}
 	}
 	c := EqualityChecker{
-		eqMethod: &equalityChecker_eqMethods[EqualityChecker_EqMethod_IDENTITY],
+		eqMethod: optEqMethodIdentity,
 		hasRun:   true,
 	}
 	return c.AreEqualInternal(left, right)
@@ -218,11 +229,19 @@ func (c *EqualityChecker) CheckArrows(left *ArrowType, right *ArrowType) bool {
 
 // Java: EqualityChecker.areEqualCaching(JSType, JSType)
 func (c *EqualityChecker) AreEqualCaching(left JSType, right JSType) bool {
+	lb := jsTypeBase(left)
+	rb := jsTypeBase(right)
+	if lb == rb {
+		return true
+	} else if lb == nil || rb == nil {
+		return false
+	}
+
 	// Wait to instantiate/use the cache until we have some hint that there may
 	// be recursion.
 	if c.recursionDepth > EqualityChecker_POTENTIALLY_CYCLIC_RECURSION_DEPTH {
 		if c.eqCache == nil {
-			c.eqCache = jutil.NewObjectLinkedHashMap[*EqualityChecker_CacheKey, JSType_MatchStatus]()
+			c.eqCache = newTypePairCache()
 		}
 	}
 
@@ -234,18 +253,17 @@ func (c *EqualityChecker) AreEqualCaching(left JSType, right JSType) bool {
 		return res
 	}
 
-	key := NewEqualityChecker_CacheKey(left, right)
-	cached, present := c.eqCache.Lookup(key)
-
+	h := eqPairHash(lb, rb)
+	slotIdx, cached, present := c.eqCache.lookupEq(left, right, h)
 	if !present {
-		c.eqCache.Put(key, JSType_MatchStatus_PROCESSING)
+		c.eqCache.putEq(left, right, h, JSType_MatchStatus_PROCESSING)
 		result := c.AreEqualInternal(left, right)
-		c.eqCache.Put(key, JSType_MatchStatus_ValueOf(result))
+		c.eqCache.putEq(left, right, h, JSType_MatchStatus_ValueOf(result))
 		return result
 	}
 
 	if cached == JSType_MatchStatus_PROCESSING {
-		c.eqCache.Put(key, JSType_MatchStatus_MATCH)
+		c.eqCache.slots[slotIdx].status = JSType_MatchStatus_MATCH
 		return true
 	}
 
@@ -295,7 +313,7 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 	leftUnknown := left.IsUnknownType()
 	rightUnknown := right.IsUnknownType()
 	if leftUnknown || rightUnknown {
-		if *c.eqMethod == EqualityChecker_EqMethod_DATA_FLOW {
+		if c.eqMethod.isDataFlow() {
 			// If we're checkings data flow, then two types are the same if they're
 			// both unknown.
 			return leftUnknown && rightUnknown
@@ -412,7 +430,7 @@ func jsTypeNullableStringEquals(a, b *string) bool {
 func (c *EqualityChecker) AreUnionEqual(left *UnionType, right *UnionType) bool {
 	leftAlternates := left.GetAlternates()
 	rightAlternates := right.GetAlternates()
-	if *c.eqMethod == EqualityChecker_EqMethod_IDENTITY && len(leftAlternates) != len(rightAlternates) {
+	if c.eqMethod.isIdentity() && len(leftAlternates) != len(rightAlternates) {
 		return false
 	}
 
@@ -650,45 +668,48 @@ outer:
 	return true
 }
 
-// EqualityChecker_CacheKey is EqualityChecker.CacheKey.
-type EqualityChecker_CacheKey struct {
-	left     JSType
-	right    JSType
-	hashCode int32 // Cache this calculation because it is made often.
+var eqPairCacheSeed = maphash.MakeSeed()
+
+func eqPairHash(lb, rb *JSTypeBase) uint32 {
+	return uint32(maphash.Comparable(eqPairCacheSeed, lb) ^ maphash.Comparable(eqPairCacheSeed, rb))
 }
 
-// Java: EqualityChecker.CacheKey.hashCode()
-func (k *EqualityChecker_CacheKey) HashCode() int32 {
-	return k.hashCode
+func (s *typePairSlot) matchesEq(left, right JSType, h uint32) bool {
+	return s.hash == h &&
+		((s.left == left && s.right == right) || (s.left == right && s.right == left))
 }
 
-// Java: EqualityChecker.CacheKey.equals(Object)
-func (k *EqualityChecker_CacheKey) Equals(other any) bool {
-	// Calling left with `null` or not a `Key` should cause a crash.
-	right := other.(*EqualityChecker_CacheKey)
-	if k == right {
-		return true
+func (c *typePairCache) lookupEq(left, right JSType, h uint32) (int, JSType_MatchStatus, bool) {
+	mask := uint32(len(c.slots) - 1)
+	for idx := h & mask; ; idx = (idx + 1) & mask {
+		s := &c.slots[idx]
+		if !s.occupied {
+			return 0, 0, false
+		}
+		if s.matchesEq(left, right, h) {
+			return int(idx), s.status, true
+		}
 	}
-
-	// Recall right `Key` implements identity equality on `left` and `right`.
-	//
-	// Recall right `left` and `right` are not ordered.
-	return (k.left == right.left && k.right == right.right) ||
-		(k.left == right.right && k.right == right.left)
 }
 
-// Java: EqualityChecker.CacheKey(JSType, JSType)
-func NewEqualityChecker_CacheKey(left JSType, right JSType) *EqualityChecker_CacheKey {
-	// XOR the component hashcodes because:
-	//   - It's a symmetric operator, so we don't have to worry about order.
-	//   - It's assumed the inputs are already uniformly distributed and
-	//     unrelated.
-	//     - `left` and `right` should never be identical.
-	// Recall right `Key` implements identity equality on `left` and `right`.
-	return &EqualityChecker_CacheKey{
-		left:     left,
-		right:    right,
-		hashCode: jutil.IdentityHashCode(left) ^ jutil.IdentityHashCode(right),
+func (c *typePairCache) putEq(left, right JSType, h uint32, status JSType_MatchStatus) {
+	mask := uint32(len(c.slots) - 1)
+	for idx := h & mask; ; idx = (idx + 1) & mask {
+		s := &c.slots[idx]
+		if !s.occupied {
+			if (c.count+1)*2 > len(c.slots) {
+				c.grow()
+				c.insertFresh(left, right, h, status)
+				return
+			}
+			*s = typePairSlot{left: left, right: right, hash: h, status: status, occupied: true}
+			c.count++
+			return
+		}
+		if s.matchesEq(left, right, h) {
+			s.status = status
+			return
+		}
 	}
 }
 

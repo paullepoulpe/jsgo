@@ -265,6 +265,7 @@ type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] str
 	isBottom        bool
 	hasImplicitVars bool
 	scanDone        bool
+	scopeID         uint32
 }
 
 // Java: AbstractScope.getDepth()

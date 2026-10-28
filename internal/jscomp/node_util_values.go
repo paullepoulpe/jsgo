@@ -475,105 +475,9 @@ func nodeUtil_getStringNumberValue(rawJsString string) (float64, bool) {
 		return math.NaN(), true
 	}
 
-	v, ok := nodeUtil_parseDecimalDouble(s)
+	v, ok := jutil.TryParseDouble(s)
 	if !ok {
 		return math.NaN(), true
-	}
-	return v, true
-}
-
-// nodeUtil_parseDecimalDouble parses a non-empty string restricted to ASCII
-// [0-9.eE+-] using Java's Double.parseDouble decimal grammar without panicking.
-func nodeUtil_parseDecimalDouble(s string) (float64, bool) {
-	i := 0
-	negative := false
-	if s[0] == '-' || s[0] == '+' {
-		negative = s[0] == '-'
-		i = 1
-	}
-	body := s[i:]
-	if body == "" {
-		return 0, false
-	}
-	pos, points, digitCount := 0, 0, 0
-	for pos < len(body) && ((body[pos] >= '0' && body[pos] <= '9') || body[pos] == '.') {
-		if body[pos] == '.' {
-			points++
-		} else {
-			digitCount++
-		}
-		pos++
-	}
-	if points > 1 || digitCount == 0 {
-		return 0, false
-	}
-	significandEnd := pos
-	var exponent int64
-	if pos < len(body) && (body[pos] == 'e' || body[pos] == 'E') {
-		pos++
-		expNeg := false
-		if pos < len(body) && (body[pos] == '+' || body[pos] == '-') {
-			expNeg = body[pos] == '-'
-			pos++
-		}
-		expStart := pos
-		for pos < len(body) && body[pos] >= '0' && body[pos] <= '9' {
-			if exponent < 1e15 {
-				exponent = exponent*10 + int64(body[pos]-'0')
-			}
-			pos++
-		}
-		if pos == expStart {
-			return 0, false
-		}
-		if expNeg {
-			exponent = -exponent
-		}
-	}
-	if pos != len(body) {
-		return 0, false
-	}
-	if exponent > -10000 && exponent < 10000 {
-		v, err := strconv.ParseFloat(s, 64)
-		if err == nil {
-			return v, true
-		}
-		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
-			return v, true
-		}
-	}
-	sig := make([]byte, 0, digitCount)
-	var intDigits int64
-	seenPoint := false
-	for j := 0; j < significandEnd; j++ {
-		switch c := body[j]; {
-		case c == '.':
-			seenPoint = true
-		case c == '0' && len(sig) == 0:
-			if seenPoint {
-				intDigits--
-			}
-		default:
-			sig = append(sig, c)
-			if !seenPoint {
-				intDigits++
-			}
-		}
-	}
-	var v float64
-	if len(sig) > 0 {
-		scale10 := intDigits + exponent
-		switch {
-		case scale10 > 310:
-			v = math.Inf(1)
-		case scale10 < -400:
-			v = 0
-		default:
-			v, _ = strconv.ParseFloat("0."+string(sig)+"e"+strconv.FormatInt(scale10, 10), 64)
-		}
-	}
-	if negative {
-		v = -v
 	}
 	return v, true
 }
@@ -717,69 +621,50 @@ func NodeUtil_GetStringBigIntValue(rawJsString string) *big.Int {
 			radix = 0
 		}
 		if radix != 0 {
-			return nodeUtil_parseBigInteger(jutil.StringSubstringFrom(s, 2), radix)
+			v, _ := jutil.TryParseBigInt(s[2:], radix)
+			return v
 		}
 	}
 
 	// Java: new BigInteger(s), i.e. new BigInteger(s, 10).
-	return nodeUtil_parseBigInteger(s, 10)
+	v, _ := jutil.TryParseBigInt(s, 10)
+	return v
 }
 
-// nodeUtil_parseBigInteger parses s in radix using Java's BigInteger(String, int)
-// grammar, returning nil instead of panicking on invalid input.
-func nodeUtil_parseBigInteger(s string, radix int) *big.Int {
-	units := jutil.StringToUTF16(s)
-	start := 0
-	negative := false
-	if len(units) > 0 && (units[0] == '-' || units[0] == '+') {
-		negative = units[0] == '-'
-		start = 1
+func nodeUtil_isASCIIJsWhiteSpace(b byte) bool {
+	switch b {
+	case ' ', '\t', '\n', '\r', '\f':
+		return true
 	}
-	if start == len(units) {
-		return nil
-	}
-	for _, c := range units[start:] {
-		if c == '-' || c == '+' {
-			return nil
-		}
-	}
-	for start < len(units) && jutil.CharacterDigit(units[start], radix) == 0 {
-		start++
-	}
-	if start == len(units) {
-		return big.NewInt(0)
-	}
-	digits := units[start:]
-	text := make([]byte, len(digits))
-	for i, c := range digits {
-		d := jutil.CharacterDigit(c, radix)
-		if d < 0 {
-			return nil
-		}
-		text[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[d]
-	}
-	x, ok := new(big.Int).SetString(string(text), radix)
-	if !ok {
-		return nil
-	}
-	if negative {
-		x.Neg(x)
-	}
-	return x
+	return false
 }
 
 // Java: NodeUtil.trimJsWhiteSpace(String)
 func NodeUtil_TrimJsWhiteSpace(s string) string {
-	units := jutil.StringToUTF16(s)
 	start := 0
-	end := len(units)
-	for end > 0 && rhino.TokenUtil_IsStrWhiteSpaceChar(int(units[end-1])) == base.Tri_TRUE {
-		end--
-	}
-	for start < end && rhino.TokenUtil_IsStrWhiteSpaceChar(int(units[start])) == base.Tri_TRUE {
+	end := len(s)
+	for start < end && nodeUtil_isASCIIJsWhiteSpace(s[start]) {
 		start++
 	}
-	return jutil.StringFromUTF16(units[start:end])
+	for end > start && nodeUtil_isASCIIJsWhiteSpace(s[end-1]) {
+		end--
+	}
+	if start == end {
+		return ""
+	}
+	if s[start] < 0x80 && s[end-1] < 0x80 {
+		return s[start:end]
+	}
+	units := jutil.StringToUTF16(s[start:end])
+	uStart := 0
+	uEnd := len(units)
+	for uEnd > 0 && rhino.TokenUtil_IsStrWhiteSpaceChar(int(units[uEnd-1])) == base.Tri_TRUE {
+		uEnd--
+	}
+	for uStart < uEnd && rhino.TokenUtil_IsStrWhiteSpaceChar(int(units[uStart])) == base.Tri_TRUE {
+		uStart++
+	}
+	return jutil.StringFromUTF16(units[uStart:uEnd])
 }
 
 // NodeUtil_GetName returns the name of the given function or class, if it

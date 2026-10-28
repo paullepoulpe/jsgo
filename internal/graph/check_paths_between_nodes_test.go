@@ -247,6 +247,85 @@ func TestCheckPathsBetweenNodes_NonInclusive(t *testing.T) {
 	assertTrue(t, "b", checkPathsTest_createNonInclusiveTest(g, "a", "c", checkPathsTest_equalTo("b"), checkPathsTest_ALL_EDGE).SomePathsSatisfyPredicate())
 }
 
+func TestCheckPathsBetweenNodes_WithoutAnnotationsAndSideEffectFree(t *testing.T) {
+	// Works on graphs with annotations disabled.
+	noAnn := LinkedDirectedGraph_CreateWithoutAnnotations[string, string]()
+	a := noAnn.CreateLinkedDiGraphNode("a")
+	b := noAnn.CreateLinkedDiGraphNode("b")
+	c := noAnn.CreateLinkedDiGraphNode("c")
+	d := noAnn.CreateLinkedDiGraphNode("d")
+	p := noAnn.CreateLinkedDiGraphNode("p")
+	// Multi-entry cycle where one entry passes through p and the other bypasses p:
+	// a -> p -> b <-> c, b -> d, a -> c.
+	noAnn.ConnectLinkedNodes(a, "-", p)
+	noAnn.ConnectLinkedNodes(p, "-", b)
+	noAnn.ConnectLinkedNodes(b, "-", c)
+	noAnn.ConnectLinkedNodes(c, "-", b)
+	noAnn.ConnectLinkedNodes(b, "-", d)
+	noAnn.ConnectLinkedNodes(a, "-", c)
+
+	var checker CheckPathsBetweenNodes[string, string]
+	checker.ResetLinkedAllEdges(noAnn, a, d, checkPathsTest_equalTo("p"), true)
+	assertFalse(t, "allPaths bypass via a->c->b->d", checker.AllPathsSatisfyPredicate())
+	assertTrue(t, "somePaths via a->p->b->d", checker.SomePathsSatisfyPredicate())
+
+	checker.ResetLinkedAllEdges(noAnn, a, d, checkPathsTest_equalTo("b"), false)
+	assertTrue(t, "allPaths must pass through b", checker.AllPathsSatisfyPredicate())
+	assertTrue(t, "somePaths pass through b", checker.SomePathsSatisfyPredicate())
+
+	// Preserves existing node and edge annotations on annotated graphs.
+	ann := LinkedDirectedGraph_Create[string, string]()
+	na := ann.CreateLinkedDiGraphNode("a")
+	nb := ann.CreateLinkedDiGraphNode("b")
+	nc := ann.CreateLinkedDiGraphNode("c")
+	ann.ConnectLinkedNodes(na, "-", nb)
+	ann.ConnectLinkedNodes(nb, "-", nb) // self-loop
+	ann.ConnectLinkedNodes(nb, "-", nc)
+
+	type marker struct{ id int }
+	nodeMarker := &marker{id: 42}
+	edgeMarker := &marker{id: 99}
+	na.SetAnnotation(nodeMarker)
+	nb.SetAnnotation(nodeMarker)
+	for _, e := range nb.OutEdgeList.Slice() {
+		e.SetAnnotation(edgeMarker)
+	}
+
+	checker.ResetLinkedAllEdges(ann, na, nc, checkPathsTest_equalTo("b"), false)
+	assertTrue(t, "self-loop allPaths", checker.AllPathsSatisfyPredicate())
+	assertTrue(t, "self-loop somePaths", checker.SomePathsSatisfyPredicate())
+	assertEqual(t, "node annotation preserved", na.GetAnnotation(), Annotation(nodeMarker))
+	assertEqual(t, "node annotation preserved", nb.GetAnnotation(), Annotation(nodeMarker))
+	for _, e := range nb.OutEdgeList.Slice() {
+		assertEqual(t, "edge annotation preserved", e.GetAnnotation(), Annotation(edgeMarker))
+	}
+}
+
+func TestCheckPathsBetweenNodes_LargeGraphReuse(t *testing.T) {
+	lg := LinkedDirectedGraph_CreateWithoutAnnotations[int, int]()
+	const n = 100
+	nodes := make([]*LinkedDirectedGraph_LinkedDiGraphNode[int, int], n)
+	for i := range n {
+		nodes[i] = lg.CreateLinkedDiGraphNode(i)
+	}
+	for i := range n - 1 {
+		lg.ConnectLinkedNodes(nodes[i], 0, nodes[i+1])
+		if i > 0 {
+			lg.ConnectLinkedNodes(nodes[i], 1, nodes[i-1])
+		}
+	}
+	var checker CheckPathsBetweenNodes[int, int]
+	for target := 1; target < n-1; target++ {
+		want := target
+		checker.ResetLinkedAllEdges(lg, nodes[0], nodes[n-1], func(v int) bool { return v == want }, false)
+		assertTrue(t, "chain allPaths", checker.AllPathsSatisfyPredicate())
+		assertTrue(t, "chain somePaths", checker.SomePathsSatisfyPredicate())
+	}
+	checker.ResetLinkedAllEdges(lg, nodes[0], nodes[n-1], func(v int) bool { return v == -1 }, false)
+	assertFalse(t, "chain missing allPaths", checker.AllPathsSatisfyPredicate())
+	assertFalse(t, "chain missing somePaths", checker.SomePathsSatisfyPredicate())
+}
+
 func checkPathsTest_assertGood[N comparable, E any](t *testing.T, test *CheckPathsBetweenNodes[N, E]) {
 	t.Helper()
 	assertTrue(t, "allPathsSatisfyPredicate", test.AllPathsSatisfyPredicate())

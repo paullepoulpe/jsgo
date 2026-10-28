@@ -20,7 +20,6 @@
 package jscomp
 
 import (
-	"iter"
 	"strings"
 	"testing"
 
@@ -233,22 +232,14 @@ func (c *Es6RewriteGeneratorsTest) GetAndCheckGeneratorProgram(genFunction rhino
 // transpileTests_GetOnlyElement is Guava's Iterables.getOnlyElement(iterable).
 //
 // Go-only: test-helper.
-func transpileTests_GetOnlyElement[T any](elements iter.Seq[T]) T {
-	var result T
-	n := 0
-	for e := range elements {
-		if n == 0 {
-			result = e
-		}
-		n++
-	}
-	if n == 0 {
+func transpileTests_GetOnlyElement[T any](elements []T) T {
+	if len(elements) == 0 {
 		panic(jutil.NewNoSuchElementException())
 	}
-	if n > 1 {
-		panic(jutil.NewIllegalArgumentExceptionMsg("expected one element but was: " + jutil.ToJavaString(n)))
+	if len(elements) > 1 {
+		panic(jutil.NewIllegalArgumentExceptionMsg("expected one element but was: " + jutil.ToJavaString(len(elements))))
 	}
-	return result
+	return elements[0]
 }
 
 // Java: Es6RewriteGeneratorsTest.testGeneratorForAsyncFunction()
@@ -1659,7 +1650,7 @@ func (c *Es6RewriteGeneratorsTest) TestYield_withTypes() {
 				c.GetLastCompiler().GetExternsRoot(),
 				func(n rhino.Node) bool { return n.MatchesQualifiedName("$jscomp.generator.Context") }).
 				GetColor().
-				GetInstanceColors().All())
+				GetInstanceColors())
 	AssertThat(jscompGeneratorContext.GetColor()).IsEqualTo(generatorContext)
 
 	// Check types on "1 + 2" are still present after transpilation
@@ -1778,7 +1769,7 @@ GEN_CONTEXT$0.jumpToEnd();
 				c.GetLastCompiler().GetExternsRoot(),
 				func(n rhino.Node) bool { return n.MatchesQualifiedName("$jscomp.generator.Context") }).
 				GetColor().
-				GetInstanceColors().All())
+				GetInstanceColors())
 	AssertThat(jscompGeneratorContext.GetColor()).IsEqualTo(generatorContext)
 }
 

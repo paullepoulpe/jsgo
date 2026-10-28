@@ -105,7 +105,7 @@ func (c *RewriteAsyncIterationTest) GetJSCompAsyncGeneratorWrapperClassColor() *
 
 // Java: RewriteAsyncIterationTest.getJSCompAsyncGeneratorWrapperInstanceColor()
 func (c *RewriteAsyncIterationTest) GetJSCompAsyncGeneratorWrapperInstanceColor() *colors.Color {
-	return colors.Color_CreateUnion(c.GetJSCompAsyncGeneratorWrapperClassColor().GetInstanceColors())
+	return colors.Color_CreateUnionSlice(c.GetJSCompAsyncGeneratorWrapperClassColor().GetInstanceColors())
 }
 
 // Java: RewriteAsyncIterationTest.testForAwaitWithThrow()

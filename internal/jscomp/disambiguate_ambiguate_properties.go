@@ -593,10 +593,10 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessClass(clas
 
 	possiblePrototypes := classConstructorType.GetPrototypes()
 	var classPrototype *colors.Color
-	if possiblePrototypes.IsEmpty() {
+	if len(possiblePrototypes) == 0 {
 		classPrototype = colors.StandardColors_UNKNOWN
 	} else {
-		classPrototype = colors.Color_CreateUnion(possiblePrototypes)
+		classPrototype = colors.Color_CreateUnionSlice(possiblePrototypes)
 	}
 	for member := NodeUtil_GetClassMembers(classNode).GetFirstChild(); !member.IsNil(); member = member.GetNext() {
 		if member.IsQuotedStringKey() {
@@ -628,10 +628,10 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessClass(clas
 			memberOwnerColor = classConstructorType
 		} else if member.IsMemberFieldDef() {
 			possibleInstances := classConstructorType.GetInstanceColors()
-			if possibleInstances.IsEmpty() {
+			if len(possibleInstances) == 0 {
 				memberOwnerColor = colors.StandardColors_UNKNOWN
 			} else {
-				memberOwnerColor = colors.Color_CreateUnion(possibleInstances)
+				memberOwnerColor = colors.Color_CreateUnionSlice(possibleInstances)
 			}
 		} else {
 			jutil.CheckState(member.IsMemberFunctionDef() || member.IsGetterDef() || member.IsSetterDef())

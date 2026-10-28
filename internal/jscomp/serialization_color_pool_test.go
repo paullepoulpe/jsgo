@@ -37,8 +37,8 @@ func TestColorPool_DeserializesTopObjectTypeFromEmptyTypePool(t *testing.T) {
 	colorPool := ColorPool_FromOnlyShardForTesting(TypePool_GetDefaultInstance(), StringPool_Empty()).GetOnlyShardForTesting()
 	object := colorPool.GetColor(jsaInt(jsaPrim(PrimitiveType_TOP_OBJECT)))
 	jsaTrue(t, object.IsInvalidating())
-	jsaTrue(t, object.GetInstanceColors().IsEmpty())
-	jsaTrue(t, object.GetPrototypes().IsEmpty())
+	jsaTrue(t, len(object.GetInstanceColors()) == 0)
+	jsaTrue(t, len(object.GetPrototypes()) == 0)
 }
 
 func TestColorPool_DeserializesNativeObjectTableIntoNativeColor(t *testing.T) {
@@ -78,7 +78,7 @@ func TestColorPool_DeserializesPropertiesFromStringPool(t *testing.T) {
 	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")).AddOwnProperty(1).AddOwnProperty(2))).Build()
 	stringPool := StringPool_Builder_().PutAnd("x").PutAnd("y").Build()
 	colorPool := ColorPool_FromOnlyShardForTesting(typePool, stringPool).GetOnlyShardForTesting()
-	jsaJavaEq(t, colorPool.GetColor(jsaInt(jsaPoolPointer(0))), jsaCreateObjectColorBuilder().SetId(colors.ColorId_FromAscii("Foo")).SetOwnProperties(jutil.NewLinkedHashSet("x", "y")).Build())
+	jsaJavaEq(t, colorPool.GetColor(jsaInt(jsaPoolPointer(0))), jsaCreateObjectColorBuilder().SetId(colors.ColorId_FromAscii("Foo")).SetOwnProperties([]string{"x", "y"}).Build())
 }
 
 func TestColorPool_MarksInvalidatingObject(t *testing.T) {
@@ -229,9 +229,9 @@ func TestColorPool_Reconcile_defaultValues(t *testing.T) {
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool, StringPool_Empty()).Build()
 	// Then
 	defaultColor := colorPool.GetColor(jsaTEST_ID)
-	jsaTrue(t, defaultColor.GetInstanceColors().IsEmpty())
-	jsaTrue(t, defaultColor.GetPrototypes().IsEmpty())
-	jsaTrue(t, defaultColor.GetOwnProperties().IsEmpty())
+	jsaTrue(t, len(defaultColor.GetInstanceColors()) == 0)
+	jsaTrue(t, len(defaultColor.GetPrototypes()) == 0)
+	jsaTrue(t, len(defaultColor.GetOwnProperties()) == 0)
 	jsaFalse(t, defaultColor.IsClosureAssert())
 	jsaFalse(t, defaultColor.IsConstructor())
 	jsaFalse(t, defaultColor.IsInvalidating())
@@ -255,7 +255,7 @@ func TestColorPool_Reconcile_setInstanceColors(t *testing.T) {
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
-	jsaColorsExactly(t, colorPool.GetColor(jsaTEST_ID).GetInstanceColors(), colors.StandardColors_NUMBER, colors.StandardColors_STRING)
+	jsaColorSliceExactly(t, colorPool.GetColor(jsaTEST_ID).GetInstanceColors(), colors.StandardColors_NUMBER, colors.StandardColors_STRING)
 }
 
 func TestColorPool_Reconcile_addPrototypes(t *testing.T) {
@@ -265,7 +265,7 @@ func TestColorPool_Reconcile_addPrototypes(t *testing.T) {
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
-	jsaColorsExactly(t, colorPool.GetColor(jsaTEST_ID).GetPrototypes(), colors.StandardColors_NUMBER, colors.StandardColors_STRING)
+	jsaColorSliceExactly(t, colorPool.GetColor(jsaTEST_ID).GetPrototypes(), colors.StandardColors_NUMBER, colors.StandardColors_STRING)
 }
 
 func TestColorPool_Reconcile_setOwnProperties(t *testing.T) {
@@ -401,18 +401,43 @@ func jsaColorsExactly(t *testing.T, got *jutil.ObjectLinkedHashSet[*colors.Color
 	}
 }
 
+func jsaColorSliceExactly(t *testing.T, got []*colors.Color, expected ...*colors.Color) {
+	t.Helper()
+	ok := len(got) == len(expected)
+	for _, e := range expected {
+		found := false
+		for _, g := range got {
+			if g == e || g.Equals(e) {
+				found = true
+				break
+			}
+		}
+		ok = ok && found
+	}
+	if !ok {
+		t.Errorf("got %v, want exactly %v", got, expected)
+	}
+}
+
 // jsaHasAlternates is ColorSubject.hasAlternates(Color...).
 func jsaHasAlternates(t *testing.T, c *colors.Color, alternates ...*colors.Color) {
 	t.Helper()
 	jsaTrue(t, c.IsUnion(), c, " is a union")
-	jsaColorsExactly(t, c.GetUnionElements(), alternates...)
+	jsaColorSliceExactly(t, c.GetUnionElements(), alternates...)
 }
 
-func jsaStringsExactly(t *testing.T, got *jutil.LinkedHashSet[string], expected ...string) {
+func jsaStringsExactly(t *testing.T, got []string, expected ...string) {
 	t.Helper()
-	ok := got.Size() == len(expected)
+	ok := len(got) == len(expected)
 	for _, e := range expected {
-		ok = ok && got.Contains(e)
+		found := false
+		for _, g := range got {
+			if g == e {
+				found = true
+				break
+			}
+		}
+		ok = ok && found
 	}
 	if !ok {
 		t.Errorf("got %v, want exactly %v", got, expected)

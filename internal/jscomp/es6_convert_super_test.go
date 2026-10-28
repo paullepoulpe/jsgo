@@ -90,7 +90,7 @@ func (c *Es6ConvertSuperTest) TestCallingSuperInstanceProperty() {
 `))
 
 	// get types we need to check
-	classAPrototypeType := colors.Color_CreateUnion(
+	classAPrototypeType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").GetRootNode().GetColor().GetPrototypes())
 
 	aDotGMethodType := CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").
@@ -99,7 +99,7 @@ func (c *Es6ConvertSuperTest) TestCallingSuperInstanceProperty() {
 		GetFirstChild().
 		GetColor()
 
-	classBInstanceType := colors.Color_CreateUnion(
+	classBInstanceType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "B").
 			GetRootNode().
 			GetColor().
@@ -183,10 +183,10 @@ class B extends A {
 `))
 
 	// get types we need to check
-	classAPrototypeType := colors.Color_CreateUnion(
+	classAPrototypeType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").GetRootNode().GetColor().GetPrototypes())
 
-	classBInstanceType := colors.Color_CreateUnion(
+	classBInstanceType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "B").
 			GetRootNode().
 			GetColor().
@@ -273,7 +273,7 @@ func (c *Es6ConvertSuperTest) TestAccessingSuperInstanceProperty() {
 `))
 
 	// get types we need to check
-	classAPrototypeType := colors.Color_CreateUnion(
+	classAPrototypeType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").GetRootNode().GetColor().GetPrototypes())
 	aDotGMethodType := CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").
 		FindMethodDefinition("g").
@@ -340,7 +340,7 @@ class B extends A {
 `))
 
 	// get types we need to check
-	classAPrototypeType := colors.Color_CreateUnion(
+	classAPrototypeType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").GetRootNode().GetColor().GetPrototypes())
 
 	// A.prototype['g']
@@ -744,7 +744,7 @@ func (c *Es6ConvertSuperTest) TestResolvingSuperInGetter() {
 `))
 
 	// get types we need to check
-	classAPrototypeType := colors.Color_CreateUnion(
+	classAPrototypeType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").GetRootNode().GetColor().GetPrototypes())
 	aDotGMethodType := CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").
 		FindMethodDefinition("g").
@@ -753,7 +753,7 @@ func (c *Es6ConvertSuperTest) TestResolvingSuperInGetter() {
 		GetColor()
 	aDotGDotCallType := colors.StandardColors_UNKNOWN // colors do not track ".call" type
 
-	classBInstanceType := colors.Color_CreateUnion(
+	classBInstanceType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "B").
 			GetRootNode().
 			GetColor().
@@ -839,7 +839,7 @@ func (c *Es6ConvertSuperTest) TestResolvingSuperInSetter() {
 `))
 
 	// get types we need to check
-	classAPrototypeType := colors.Color_CreateUnion(
+	classAPrototypeType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").GetRootNode().GetColor().GetPrototypes())
 	aDotGMethodType := CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "A").
 		FindMethodDefinition("g").
@@ -848,7 +848,7 @@ func (c *Es6ConvertSuperTest) TestResolvingSuperInSetter() {
 		GetColor()
 	aDotGDotCallType := colors.StandardColors_UNKNOWN // colors do not track ".call" type
 
-	classBInstanceType := colors.Color_CreateUnion(
+	classBInstanceType := colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "B").
 			GetRootNode().
 			GetColor().
@@ -1076,7 +1076,7 @@ class B extends A {
 	// class B extends A { ... }
 	classBNode := CodeSubTree_FindClassDefinition(c.GetLastCompiler(), "B").GetRootNode()
 	classBConstructorType := classBNode.GetColor()
-	classBInstanceType := colors.Color_CreateUnion(classBConstructorType.GetInstanceColors())
+	classBInstanceType := colors.Color_CreateUnionSlice(classBConstructorType.GetInstanceColors())
 
 	// constructor() { }
 	constructorMemberFunctionDefForB := classBNode.

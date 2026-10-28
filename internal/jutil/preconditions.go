@@ -102,20 +102,37 @@ func IsNil(v any) bool {
 	if v == nil {
 		return true
 	}
-	switch v.(type) {
-	case string, int, int32, int64, uint16, float64, float32, bool:
+	switch reflect.TypeOf(v).Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface, reflect.UnsafePointer:
+		return reflect.ValueOf(v).IsNil()
+	case reflect.Uint32:
+		if reflect.ValueOf(v).Uint() != 0 {
+			return false
+		}
+		_, ok := v.(interface{ IsNil() bool })
+		return ok
+	default:
 		return false
 	}
-	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice, reflect.UnsafePointer:
-		return rv.IsNil()
+}
+
+func isNilOf[T any](v T) bool {
+	switch reflect.TypeFor[T]().Kind() {
+	case reflect.Pointer, reflect.UnsafePointer, reflect.Chan:
+		var zero T
+		return any(v) == any(zero)
 	case reflect.Uint32:
-		if h, ok := v.(interface{ IsNil() bool }); ok {
-			return h.IsNil()
+		var zero T
+		if any(v) != any(zero) {
+			return false
 		}
+		_, ok := any(v).(interface{ IsNil() bool })
+		return ok
+	case reflect.Interface, reflect.Slice, reflect.Map, reflect.Func:
+		return IsNil(any(v))
+	default:
+		return false
 	}
-	return false
 }
 
 //go:noinline
@@ -133,7 +150,7 @@ func CheckNotNullPtr[T any](p *T) *T {
 
 // CheckNotNull is Preconditions.checkNotNull(T).
 func CheckNotNull[T any](reference T) T {
-	if IsNil(reference) {
+	if isNilOf(reference) {
 		failNull()
 	}
 	return reference
@@ -141,7 +158,7 @@ func CheckNotNull[T any](reference T) T {
 
 // CheckNotNullMsg is Preconditions.checkNotNull(T, String, Object...).
 func CheckNotNullMsg[T any](reference T, template string, args ...any) T {
-	if IsNil(reference) {
+	if isNilOf(reference) {
 		failNotNull(template, args...)
 	}
 	return reference
@@ -149,7 +166,7 @@ func CheckNotNullMsg[T any](reference T, template string, args ...any) T {
 
 // CheckNotNullMsg1 is Preconditions.checkNotNull(T, String, Object).
 func CheckNotNullMsg1[T, A any](reference T, template string, p1 A) T {
-	if IsNil(reference) {
+	if isNilOf(reference) {
 		failNotNull(template, p1)
 	}
 	return reference
@@ -157,7 +174,7 @@ func CheckNotNullMsg1[T, A any](reference T, template string, p1 A) T {
 
 // CheckNotNullMsg2 is Preconditions.checkNotNull(T, String, Object, Object).
 func CheckNotNullMsg2[T, A, B any](reference T, template string, p1 A, p2 B) T {
-	if IsNil(reference) {
+	if isNilOf(reference) {
 		failNotNull(template, p1, p2)
 	}
 	return reference

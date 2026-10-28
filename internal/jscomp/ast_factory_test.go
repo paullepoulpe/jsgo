@@ -477,7 +477,7 @@ func (c *AstFactoryTest) TestCreateThisForEs6ClassMember_colors() {
 		GetLastChild(). // class members
 		GetFirstChild()
 	// member function def
-	instanceType := colors.Color_CreateUnion(classNode.GetColor().GetInstanceColors())
+	instanceType := colors.Color_CreateUnionSlice(classNode.GetColor().GetInstanceColors())
 	thisAlias := astFactory.CreateThisForEs6ClassMember(memberDef)
 	AssertNode(thisAlias).HasType(rhino.Token_THIS)
 	AssertNode(thisAlias).HasColorThat().IsEqualTo(instanceType)

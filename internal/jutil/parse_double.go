@@ -45,6 +45,17 @@ func DoubleParseDouble(s string) float64 {
 	panic(NewNumberFormatException("For input string: \"" + t + "\""))
 }
 
+// TryParseDouble parses s using Double.parseDouble's grammar, returning
+// (0, false) where Double.parseDouble would throw NumberFormatException.
+func TryParseDouble(s string) (float64, bool) {
+	t := StringTrim(s)
+	if t == "" {
+		return 0, false
+	}
+	v, outcome := parseJavaDouble(t)
+	return v, outcome == parseDoubleOK
+}
+
 // Double_NaN is Double.NaN (the canonical NaN, raw bits 0x7ff8000000000000).
 var Double_NaN = math.Float64frombits(0x7ff8000000000000)
 

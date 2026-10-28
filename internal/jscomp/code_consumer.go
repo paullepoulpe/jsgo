@@ -87,14 +87,15 @@ type CodeConsumer interface {
 type CodeConsumerBase struct {
 	self CodeConsumer
 
-	statementNeedsEnded bool
-	statementStarted    bool
-	sawFunction         bool
-
 	// State tracking for template literals. Remember that template literal
 	// substitutions can contain additional template literals.
 	templateLitDepth    int
 	templateLitSubDepth int
+
+	statementNeedsEnded bool
+	statementStarted    bool
+	sawFunction         bool
+	continueProcessing  bool
 }
 
 // InitCodeConsumerBase is the CodeConsumer() constructor; self is the
@@ -104,6 +105,7 @@ func (c *CodeConsumerBase) InitCodeConsumerBase(self CodeConsumer) {
 	c.statementNeedsEnded = false
 	c.statementStarted = false
 	c.sawFunction = false
+	c.continueProcessing = true
 	c.templateLitDepth = 0
 	c.templateLitSubDepth = 0
 }
@@ -138,7 +140,7 @@ func (c *CodeConsumerBase) TrackLicenses(node rhino.Node) {}
 //
 // Java: CodeConsumer.continueProcessing()
 func (c *CodeConsumerBase) ContinueProcessing() bool {
-	return true
+	return c.continueProcessing
 }
 
 // codeConsumer_firstChar is s.charAt(0).
@@ -419,7 +421,7 @@ func (c *CodeConsumerBase) AddOp(op string, binOp bool) {
 		// This is not pretty printing. This is to prevent misparsing of
 		// things like "x + ++y" or "x++ + ++y"
 		c.self.Append(" ")
-	} else if jutil.CharacterIsLetter(first) && CodeConsumer_IsWordChar(prev) {
+	} else if codeConsumer_isLetterChar(first) && CodeConsumer_IsWordChar(prev) {
 		// Make sure there is a space after e.g. instanceof , typeof
 		c.self.Append(" ")
 	} else if (prev == '-' && first == '>') || (prev == '<' && first == '!') {
@@ -501,11 +503,49 @@ func (c *CodeConsumerBase) AddConstant(newcode string) {
 	c.self.Add(newcode)
 }
 
+var codeConsumer_asciiIsLetter = [128]bool{
+	'A': true, 'B': true, 'C': true, 'D': true, 'E': true, 'F': true, 'G': true, 'H': true,
+	'I': true, 'J': true, 'K': true, 'L': true, 'M': true, 'N': true, 'O': true, 'P': true,
+	'Q': true, 'R': true, 'S': true, 'T': true, 'U': true, 'V': true, 'W': true, 'X': true,
+	'Y': true, 'Z': true,
+	'a': true, 'b': true, 'c': true, 'd': true, 'e': true, 'f': true, 'g': true, 'h': true,
+	'i': true, 'j': true, 'k': true, 'l': true, 'm': true, 'n': true, 'o': true, 'p': true,
+	'q': true, 'r': true, 's': true, 't': true, 'u': true, 'v': true, 'w': true, 'x': true,
+	'y': true, 'z': true,
+}
+
+var codeConsumer_asciiIsWord = [128]bool{
+	'$': true,
+	'0': true, '1': true, '2': true, '3': true, '4': true, '5': true, '6': true, '7': true, '8': true, '9': true,
+	'A': true, 'B': true, 'C': true, 'D': true, 'E': true, 'F': true, 'G': true, 'H': true,
+	'I': true, 'J': true, 'K': true, 'L': true, 'M': true, 'N': true, 'O': true, 'P': true,
+	'Q': true, 'R': true, 'S': true, 'T': true, 'U': true, 'V': true, 'W': true, 'X': true,
+	'Y': true, 'Z': true,
+	'_': true,
+	'a': true, 'b': true, 'c': true, 'd': true, 'e': true, 'f': true, 'g': true, 'h': true,
+	'i': true, 'j': true, 'k': true, 'l': true, 'm': true, 'n': true, 'o': true, 'p': true,
+	'q': true, 'r': true, 's': true, 't': true, 'u': true, 'v': true, 'w': true, 'x': true,
+	'y': true, 'z': true,
+}
+
+func codeConsumer_isLetterChar(ch uint16) bool {
+	if ch < 0x80 {
+		return codeConsumer_asciiIsLetter[ch]
+	}
+	return jutil.CharacterIsLetter(ch)
+}
+
+//go:noinline
+func codeConsumer_isWordCharNonASCII(ch uint16) bool {
+	return jutil.CharacterIsLetter(ch) || jutil.CharacterIsDigit(ch)
+}
+
 // Java: CodeConsumer.isWordChar(char)
 func CodeConsumer_IsWordChar(ch uint16) bool {
-	return ch == '_' ||
-		ch == '$' ||
-		jutil.CharacterIsLetter(ch) || jutil.CharacterIsDigit(ch)
+	if ch < 0x80 {
+		return codeConsumer_asciiIsWord[ch]
+	}
+	return codeConsumer_isWordCharNonASCII(ch)
 }
 
 // ShouldPreserveExtras: if the body of a for loop or the then clause of an

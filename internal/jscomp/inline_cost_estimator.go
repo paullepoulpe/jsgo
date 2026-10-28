@@ -20,7 +20,9 @@ package jscomp
 
 import (
 	"math"
+	"math/big"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -57,7 +59,6 @@ func InlineCostEstimator_GetCostWithThreshold(root rhino.Node, costThreshold int
 	var est InlineCostEstimator_CompiledSizeEstimator
 	est.InitCodeConsumerBase(&est)
 	est.maxCost = costThreshold
-	est.continueProcessing = true
 	var cg CodeGenerator
 	cg.InitCodeGenerator(&est)
 	cg.AddNode(root)
@@ -70,19 +71,14 @@ func InlineCostEstimator_GetCostWithThreshold(root rhino.Node, costThreshold int
 type InlineCostEstimator_CompiledSizeEstimator struct {
 	CodeConsumerBase
 
-	maxCost            int
-	cost               int
-	last               uint16
-	continueProcessing bool
+	maxCost int
+	cost    int
+	last    uint16
 }
 
 // Java: InlineCostEstimator.CompiledSizeEstimator(int)
 func NewInlineCostEstimator_CompiledSizeEstimator(costThreshold int) *InlineCostEstimator_CompiledSizeEstimator {
-	e := &InlineCostEstimator_CompiledSizeEstimator{
-		cost:               0,
-		last:               0,
-		continueProcessing: true,
-	}
+	e := &InlineCostEstimator_CompiledSizeEstimator{}
 	e.InitCodeConsumerBase(e)
 	e.maxCost = costThreshold
 	return e
@@ -92,18 +88,14 @@ func NewInlineCostEstimator_CompiledSizeEstimator(costThreshold int) *InlineCost
 //
 // Java: InlineCostEstimator.CompiledSizeEstimator.add(Node)
 func (e *InlineCostEstimator_CompiledSizeEstimator) AddNode(root rhino.Node) {
-	cg := CodeGenerator_ForCostEstimation(e)
+	var cg CodeGenerator
+	cg.InitCodeGenerator(e)
 	cg.AddNode(root)
 }
 
 // Java: InlineCostEstimator.CompiledSizeEstimator.getCost()
 func (e *InlineCostEstimator_CompiledSizeEstimator) GetCost() int {
 	return e.cost
-}
-
-// Java: InlineCostEstimator.CompiledSizeEstimator.continueProcessing()
-func (e *InlineCostEstimator_CompiledSizeEstimator) ContinueProcessing() bool {
-	return e.continueProcessing
 }
 
 // Java: InlineCostEstimator.CompiledSizeEstimator.getLastChar()
@@ -113,6 +105,14 @@ func (e *InlineCostEstimator_CompiledSizeEstimator) GetLastChar() uint16 {
 
 // Java: InlineCostEstimator.CompiledSizeEstimator.append(String)
 func (e *InlineCostEstimator_CompiledSizeEstimator) Append(str string) {
+	if n := len(str); n > 0 && jutil.IsASCII(str) {
+		e.last = uint16(str[n-1])
+		e.cost += n
+		if e.maxCost <= e.cost {
+			e.continueProcessing = false
+		}
+		return
+	}
 	length := jutil.StringLength(str)
 	e.last = jutil.StringCharAt(str, length-1)
 	e.cost += length
@@ -131,5 +131,18 @@ func (e *InlineCostEstimator_CompiledSizeEstimator) AddIdentifier(identifier str
 //
 // Java: InlineCostEstimator.CompiledSizeEstimator.addConstant(String)
 func (e *InlineCostEstimator_CompiledSizeEstimator) AddConstant(newcode string) {
+	e.Add("0")
+}
+
+// AddNumber skips formatting x into a decimal string since constants cost 1 char ("0").
+func (e *InlineCostEstimator_CompiledSizeEstimator) AddNumber(x float64, _ rhino.Node) {
+	if !base.JSCompDoubles_IsPositive(x) {
+		panic(jutil.NewIllegalStateExceptionMsg(jutil.DoubleToString(x)))
+	}
+	e.Add("0")
+}
+
+// AddBigInt skips formatting x into a decimal string since constants cost 1 char ("0").
+func (e *InlineCostEstimator_CompiledSizeEstimator) AddBigInt(_ *big.Int) {
 	e.Add("0")
 }

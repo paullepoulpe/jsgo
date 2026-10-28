@@ -50,35 +50,58 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // that depend on it.
 type JSIdentifier struct{}
 
+var asciiIdentStart = [128]uint8{
+	'$': 1,
+	'A': 1, 'B': 1, 'C': 1, 'D': 1, 'E': 1, 'F': 1, 'G': 1, 'H': 1, 'I': 1, 'J': 1, 'K': 1, 'L': 1, 'M': 1,
+	'N': 1, 'O': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1, 'T': 1, 'U': 1, 'V': 1, 'W': 1, 'X': 1, 'Y': 1, 'Z': 1,
+	'_': 1,
+	'a': 1, 'b': 1, 'c': 1, 'd': 1, 'e': 1, 'f': 1, 'g': 1, 'h': 1, 'i': 1, 'j': 1, 'k': 1, 'l': 1, 'm': 1,
+	'n': 1, 'o': 1, 'p': 1, 'q': 1, 'r': 1, 's': 1, 't': 1, 'u': 1, 'v': 1, 'w': 1, 'x': 1, 'y': 1, 'z': 1,
+}
+
+var asciiIdentPart = [128]uint8{
+	'$': 1,
+	'0': 1, '1': 1, '2': 1, '3': 1, '4': 1, '5': 1, '6': 1, '7': 1, '8': 1, '9': 1,
+	'A': 1, 'B': 1, 'C': 1, 'D': 1, 'E': 1, 'F': 1, 'G': 1, 'H': 1, 'I': 1, 'J': 1, 'K': 1, 'L': 1, 'M': 1,
+	'N': 1, 'O': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1, 'T': 1, 'U': 1, 'V': 1, 'W': 1, 'X': 1, 'Y': 1, 'Z': 1,
+	'_': 1,
+	'a': 1, 'b': 1, 'c': 1, 'd': 1, 'e': 1, 'f': 1, 'g': 1, 'h': 1, 'i': 1, 'j': 1, 'k': 1, 'l': 1, 'm': 1,
+	'n': 1, 'o': 1, 'p': 1, 'q': 1, 'r': 1, 's': 1, 't': 1, 'u': 1, 'v': 1, 'w': 1, 'x': 1, 'y': 1, 'z': 1,
+}
+
 // Java: JSIdentifier.isJSIdentifier(String)
 func JSIdentifier_IsJSIdentifier(s string) bool {
-	// Go-only: performance — an ASCII string of up to 64 bytes (whose bytes
-	// are its UTF-16 chars) is copied into a stack buffer; any other string
-	// is converted on the heap as before. TypedScopeCreator checks every
-	// object-literal key this way.
-	var buf [64]uint16
-	var chars []uint16 // s.charAt(i) is chars[i]
-	if len(s) <= len(buf) {
-		chars = buf[:len(s)]
-		for i := 0; i < len(s); i++ {
-			if s[i] >= 0x80 {
-				chars = nil
-				break
-			}
-			chars[i] = uint16(s[i])
+	if len(s) == 0 {
+		return false
+	}
+	c0 := s[0]
+	if c0 >= 0x80 {
+		return isJSIdentifierUTF16(s)
+	}
+	if asciiIdentStart[c0] == 0 {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if c >= 0x80 {
+			return isJSIdentifierUTF16(s)
+		}
+		if asciiIdentPart[c] == 0 {
+			return false
 		}
 	}
-	if chars == nil {
-		chars = jutil.StringToUTF16(s)
-	}
-	length := len(chars)
+	return true
+}
 
+//go:noinline
+func isJSIdentifierUTF16(s string) bool {
+	chars := jutil.StringToUTF16(s)
+	length := len(chars)
 	if length == 0 ||
 		jutil.CharacterIsIdentifierIgnorable(chars[0]) ||
 		!jutil.CharacterIsJavaIdentifierStart(chars[0]) {
 		return false
 	}
-
 	for i := 1; i < length; i++ {
 		if jutil.CharacterIsIdentifierIgnorable(chars[i]) ||
 			!jutil.CharacterIsJavaIdentifierPart(chars[i]) {

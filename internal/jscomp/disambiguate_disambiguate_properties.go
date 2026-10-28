@@ -30,6 +30,11 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+type propAssocKey struct {
+	node *ColorGraphNode
+	prop *PropertyClustering
+}
+
 // DisambiguateProperties assembles the various parts of the diambiguator to
 // execute them as a compiler pass.
 //
@@ -40,6 +45,7 @@ type DisambiguateProperties struct {
 	registry                       *colors.ColorRegistry
 
 	mayHavePropertySeen map[*colors.Color]struct{}
+	propAssocs          map[propAssocKey]ColorGraphNode_PropAssociation
 }
 
 // Java: DisambiguateProperties.PROPERTY_INVALIDATION
@@ -76,6 +82,12 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		},
 		d.registry)
 	propagator := NewClusterPropagator()
+	graphLog := d.compiler.CreateOrReopenLog("DisambiguateProperties", "graph.log")
+	defer graphLog.Close()
+	if graphLog.IsLogging() {
+		d.propAssocs = make(map[propAssocKey]ColorGraphNode_PropAssociation)
+		findRefs.propAssocs = d.propAssocs
+	}
 	renamingIndexLog := d.compiler.CreateOrReopenLog("DisambiguateProperties", "renaming_index.log")
 	defer renamingIndexLog.Close()
 	renamer := NewUseSiteRenamer( /* mutationCb= */ d.compiler.ReportChangeToEnclosingScope)
@@ -112,16 +124,16 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		d.RegisterOwnDeclaredProperties(colorGraphNode, propIndex)
 	}
 
-	d.LogForDiagnostics(
-		"graph",
+	graphLog.LogJsonSupplier(
 		func() any {
 			var nodes []*disambiguateProperties_TypeNodeJson
 			for _, n := range colorGraph.GetDiGraphNodes() {
-				nodes = append(nodes, newDisambiguateProperties_TypeNodeJson(n))
+				nodes = append(nodes, newDisambiguateProperties_TypeNodeJson(n, d.propAssocs))
 			}
 			slices.SortStableFunc(nodes, func(a, b *disambiguateProperties_TypeNodeJson) int { return cmp.Compare(a.Index, b.Index) })
 			return nodes
 		})
+	d.propAssocs = nil
 
 	d.InvalidateBasedOnType(flattener)
 	d.mayHavePropertySeen = nil
@@ -270,7 +282,7 @@ func (d *DisambiguateProperties) InvalidateBasedOnType(flattener *ColorGraphNode
 	for type_ := range flattener.typeIndex.Values() {
 		if type_.GetColor().IsInvalidating() {
 			inv := Invalidation_InvalidatingType(type_.GetIndex())
-			for prop := range type_.GetAssociatedProps().Keys() {
+			for _, prop := range type_.Props() {
 				prop.Invalidate(inv)
 			}
 		} else {
@@ -295,7 +307,7 @@ func (d *DisambiguateProperties) InvalidateNonDeclaredPropertyAccesses(colorGrap
 		!color.IsInvalidating(),
 		"Not applicable to invalidating types. All their properties are invalidated")
 
-	for prop := range colorGraphNode.GetAssociatedProps().Keys() {
+	for _, prop := range colorGraphNode.Props() {
 		if prop.IsInvalidated() {
 			continue // Skip unnecessary `hasProperty` lookups which can be expensive.
 		}
@@ -326,7 +338,7 @@ func (d *DisambiguateProperties) MayHaveProperty(color *colors.Color, propertyNa
 	defer delete(d.mayHavePropertySeen, color)
 
 	if color.IsUnion() {
-		for element := range color.GetUnionElements().All() {
+		for _, element := range color.GetUnionElements() {
 			if d.MayHaveProperty(element, propertyName) {
 				return true
 			}
@@ -334,7 +346,7 @@ func (d *DisambiguateProperties) MayHaveProperty(color *colors.Color, propertyNa
 		return false
 	}
 
-	if color.GetOwnProperties().Contains(propertyName) {
+	if color.HasOwnProperty(propertyName) {
 		return true
 	}
 	for element := range d.registry.GetDisambiguationSupertypes(color).All() {
@@ -353,7 +365,7 @@ func (d *DisambiguateProperties) RegisterOwnDeclaredProperties(
 	// For each type, get the list of its "own properties" and add them to its clustering. This
 	// is only to mimic the behavior of the old disambiguator and could be removed if we were
 	// confident we could update all existing code to be compatible.
-	for propName := range colorGraphNode.GetColor().GetOwnProperties().All() {
+	for _, propName := range colorGraphNode.GetColor().GetOwnProperties() {
 		prop := propIndex.Get(propName)
 		if prop == nil {
 			// Ignore declared properties without any visible references to rename.
@@ -362,7 +374,10 @@ func (d *DisambiguateProperties) RegisterOwnDeclaredProperties(
 			continue
 		}
 		prop.GetClusters().Add(colorGraphNode)
-		colorGraphNode.GetAssociatedProps().Put(prop, ColorGraphNode_PropAssociation_TYPE_SYSTEM)
+		colorGraphNode.AddProp(prop)
+		if d.propAssocs != nil {
+			d.propAssocs[propAssocKey{node: colorGraphNode, prop: prop}] = ColorGraphNode_PropAssociation_TYPE_SYSTEM
+		}
 	}
 }
 
@@ -457,7 +472,10 @@ type disambiguateProperties_TypeNodeJson struct {
 }
 
 // Java: DisambiguateProperties.TypeNodeJson(DiGraph.DiGraphNode<ColorGraphNode, Object>)
-func newDisambiguateProperties_TypeNodeJson(n graph.DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) *disambiguateProperties_TypeNodeJson {
+func newDisambiguateProperties_TypeNodeJson(
+	n graph.DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason],
+	propAssocs map[propAssocKey]ColorGraphNode_PropAssociation,
+) *disambiguateProperties_TypeNodeJson {
 	t := n.GetValue()
 
 	j := &disambiguateProperties_TypeNodeJson{}
@@ -473,10 +491,11 @@ func newDisambiguateProperties_TypeNodeJson(n graph.DiGraph_DiGraphNode[*ColorGr
 	// collect(toImmutableSortedMap(naturalOrder(), e -> e.getKey().getName(), Map.Entry::getValue))
 	var names []string
 	byName := jutil.NewLinkedHashMap[string, ColorGraphNode_PropAssociation]()
-	for prop, association := range t.GetAssociatedProps().All() {
+	for _, prop := range t.Props() {
 		if byName.ContainsKey(prop.GetName()) {
 			panic(jutil.NewIllegalArgumentExceptionMsg("Duplicate keys in toImmutableSortedMap: " + prop.GetName()))
 		}
+		association := propAssocs[propAssocKey{node: t, prop: prop}]
 		byName.Put(prop.GetName(), association)
 		names = append(names, prop.GetName())
 	}

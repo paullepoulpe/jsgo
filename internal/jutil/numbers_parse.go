@@ -28,6 +28,15 @@ func LongParseLong(s string, radix int) int64 {
 	return v
 }
 
+// TryParseLong parses s in radix using Long.parseLong's grammar and range,
+// returning (0, false) where Long.parseLong would throw NumberFormatException.
+func TryParseLong(s string, radix int) (int64, bool) {
+	if radix < Character_MIN_RADIX || radix > Character_MAX_RADIX {
+		return 0, false
+	}
+	return parseRadixInteger(s, radix, math.MaxInt64)
+}
+
 // LongToString is Long.toString(long): the signed decimal form.
 func LongToString(v int64) string {
 	return strconv.FormatInt(v, 10)

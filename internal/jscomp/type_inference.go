@@ -158,8 +158,13 @@ func (ti *TypeInference) initTypeInference(
 
 	rootNode := syntacticScope.GetRootNode()
 	clear(ti.bottomImplicitVars[:])
+	bottomID := ti.bottomTypedScope.scopeID
+	if bottomID == 0 {
+		bottomID = allocTypedScopeID()
+	}
 	ti.bottomTypedScope = TypedScope{}
 	ti.bottomTypedScope.InitAbstractScopeBase(&ti.bottomTypedScope, rootNode)
+	ti.bottomTypedScope.scopeID = bottomID
 	ti.bottomTypedScope.implicitVars = &ti.bottomImplicitVars
 	ti.bottomTypedScope.CheckRootScope()
 	ti.bottomTypedScope.isBottom = true
@@ -202,7 +207,7 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScop
 	// type is VOID.
 	l := flow.(*LinkedFlowScope)
 	var overlay *LinkedFlowScope_OverlayScope
-	var slots *rhino.HamtPMap[string, *LinkedFlowScope_OverlaySlot]
+	var slots *rhino.HamtPMap[string, rhino.JSType]
 	var voidType rhino.JSType
 	for var_ := range scope.GetVarIterable() {
 		if !scope.IsDeclarativelyUnboundVarWithoutType(var_) || ti.IsUnflowable(var_) {
@@ -218,9 +223,8 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow FlowScop
 			}
 		}
 		name := var_.GetName()
-		slot := slots.Get(name)
-		if slot == nil || slot.type_ != voidType {
-			slots = slots.PlusMapWithArena(l.arena.slotMaps(), name, newLinkedFlowScope_OverlaySlotWithArena(l.arena, name, voidType))
+		if slots.Get(name) != voidType {
+			slots = slots.PlusMapWithArena(l.arena.slotMaps(), name, voidType)
 		}
 	}
 	if voidType == nil {

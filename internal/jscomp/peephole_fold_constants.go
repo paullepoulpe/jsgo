@@ -898,13 +898,10 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n rhino.Node, left rhi
 				return rhino.NilNode
 			}
 		case rhino.Token_EXPONENT:
-			var result rhino.Node
-			jutil.Try(func() {
-				result = PeepholeFoldConstants_BigintNode(jutil.BigIntegerPow(lVal, jutil.BigIntegerIntValueExact(rVal)), n)
-			}, func(exception jutil.IArithmeticException) {
-				result = rhino.NilNode
-			})
-			return result
+			if pow, ok := peepholeFoldConstants_tryBigIntPow(lVal, rVal); ok {
+				return PeepholeFoldConstants_BigintNode(pow, n)
+			}
+			return rhino.NilNode
 		case rhino.Token_MOD:
 			return PeepholeFoldConstants_BigintNode(jutil.BigIntegerMod(lVal, rVal), n)
 		case rhino.Token_BITAND:
@@ -952,6 +949,48 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n rhino.Node, left rhi
 	default:
 		return rhino.NilNode
 	}
+}
+
+// peepholeFoldConstants_tryBigIntPow computes baseVal^expVal with Java's
+// BigInteger.pow(rVal.intValueExact()) range checks, returning (nil, false)
+// where Java throws ArithmeticException.
+func peepholeFoldConstants_tryBigIntPow(baseVal, expVal *big.Int) (*big.Int, bool) {
+	if expVal.Sign() < 0 || !expVal.IsInt64() {
+		return nil, false
+	}
+	exp64 := expVal.Int64()
+	if exp64 > math.MaxInt32 {
+		return nil, false
+	}
+	exponent := int32(exp64)
+	if exponent == 0 {
+		return big.NewInt(1), true
+	}
+	if baseVal.Sign() == 0 {
+		return big.NewInt(0), true
+	}
+	negative := baseVal.Sign() < 0 && exponent&1 == 1
+	magnitude := new(big.Int).Abs(baseVal)
+	var result *big.Int
+	if twos := magnitude.TrailingZeroBits(); uint(magnitude.BitLen()) == twos+1 {
+		bits := int64(twos) * int64(exponent)
+		if bits+1 > math.MaxInt32 {
+			return nil, false
+		}
+		result = new(big.Int).Lsh(big.NewInt(1), uint(bits))
+	} else {
+		if int64(magnitude.BitLen())*int64(exponent)/32 > 1<<26 {
+			return nil, false
+		}
+		result = new(big.Int).Exp(magnitude, big.NewInt(int64(exponent)), nil)
+		if result.BitLen() > math.MaxInt32 {
+			return nil, false
+		}
+	}
+	if negative {
+		result.Neg(result)
+	}
+	return result, true
 }
 
 // Java: PeepholeFoldConstants.isNumeric(Node)

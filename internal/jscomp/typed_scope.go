@@ -22,10 +22,21 @@ import (
 	"iter"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var nextTypedScopeID atomic.Uint32
+
+func allocTypedScopeID() uint32 {
+	id := nextTypedScopeID.Add(1)
+	if id == 0 {
+		id = nextTypedScopeID.Add(1)
+	}
+	return id
+}
 
 // TypedScope contains information about variables and their types. Scopes
 // can be nested; a scope points back to its parent scope.
@@ -100,12 +111,13 @@ func (s *TypedScope) Equals(other any) bool {
 	return ok && s == that
 }
 
-// HashCode implements jutil.Hasher using pointer identity (matching Java Object.hashCode).
+// HashCode implements jutil.Hasher using scopeID (matching Java Object.hashCode).
 func (s *TypedScope) HashCode() int32 {
 	if s == nil {
 		return 0
 	}
-	return jutil.IdentityHashCodeOfPointer(s)
+	h := s.scopeID * 0x9e3779b1
+	return int32(h ^ (h >> 16))
 }
 
 // Java: TypedScope(TypedScope, Node)
@@ -133,6 +145,7 @@ func newTypedScopeOwnedReservedNames(
 	parent *TypedScope, rootNode rhino.Node, reservedNames []string, module *Module) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
+	s.scopeID = allocTypedScopeID()
 	// Go-only: performance — the reserved names will all be declared.
 	if len(reservedNames) > 0 {
 		s.vars = make([]*TypedVar, 0, len(reservedNames))
@@ -157,6 +170,7 @@ func newTypedScopeOwnedReservedNames(
 func newTypedScopeWithIsBottom(rootNode rhino.Node, isBottom bool) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
+	s.scopeID = allocTypedScopeID()
 	s.CheckRootScope()
 	s.parent = nil
 	s.depth = 0
@@ -167,6 +181,7 @@ func newTypedScopeWithIsBottom(rootNode rhino.Node, isBottom bool) *TypedScope {
 func newGlobalTypedScopeWithCapacity(rootNode rhino.Node, varCap int) *TypedScope {
 	s := &TypedScope{}
 	s.InitAbstractScopeBase(s, rootNode)
+	s.scopeID = allocTypedScopeID()
 	if varCap > 0 {
 		s.vars = make([]*TypedVar, 0, varCap)
 	}
@@ -687,7 +702,12 @@ func (s *TypedScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType
 
 func (s *TypedScope) ThisScope() *TypedScope          { return s }
 func (s *TypedScope) Contains(other *TypedScope) bool { return s.contains(s, other) }
-func (s *TypedScope) GetGlobalScope() *TypedScope     { return s.getGlobalScope(s) }
+func (s *TypedScope) GetGlobalScope() *TypedScope {
+	for s.parent != nil {
+		s = s.parent
+	}
+	return s
+}
 func (s *TypedScope) HasSlot(name string) bool        { return s.hasSlot(s, name) }
 func (s *TypedScope) GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) *TypedVar {
 	return s.getOwnImplicitSlot(s, name)

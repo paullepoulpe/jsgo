@@ -177,10 +177,10 @@ func (g *InlineProperties_GatherCandidates) MaybeRecordCandidateClassFieldDefini
 		c = g.outer.GetColor(classNode)
 	} else {
 		possibleInstances := g.outer.GetColor(classNode).GetInstanceColors()
-		if possibleInstances.IsEmpty() {
+		if len(possibleInstances) == 0 {
 			c = colors.StandardColors_UNKNOWN
 		} else {
-			c = colors.Color_CreateUnion(possibleInstances)
+			c = colors.Color_CreateUnionSlice(possibleInstances)
 		}
 	}
 

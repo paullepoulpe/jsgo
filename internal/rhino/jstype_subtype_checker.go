@@ -39,6 +39,33 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+type optBool uint8
+
+const (
+	optBoolUnset optBool = iota
+	optBoolFalse
+	optBoolTrue
+)
+
+func (o optBool) get() bool {
+	if o == optBoolUnset {
+		failJSTypeNull()
+	}
+	return o == optBoolTrue
+}
+
+type optSubtypingMode uint8
+
+const (
+	optSubtypingModeUnset optSubtypingMode = iota
+	optSubtypingModeNormal
+	optSubtypingModeIgnoreNullUndefined
+)
+
+func optSubtypingModeOf(mode JSType_SubtypingMode) optSubtypingMode {
+	return optSubtypingMode(mode + 1)
+}
+
 // SubtypeChecker represents the computation of a single supertype-subtype
 // relationship.
 //
@@ -48,15 +75,13 @@ type SubtypeChecker struct {
 	initialSupertype JSType
 	initialSubtype   JSType
 
-	registry *JSTypeRegistry
-	// Go: nil is Java null.
-	isUsingStructuralTyping *bool
-	subtypingMode           *JSType_SubtypingMode
+	registry     *JSTypeRegistry
+	subtypeCache *typePairCache
 
-	subtypeCache *jutil.ObjectLinkedHashMap[*SubtypeChecker_CacheKey, JSType_MatchStatus]
-
-	hasRun         bool
-	recursionDepth int
+	recursionDepth        int
+	usingStructuralTyping optBool
+	subtypingMode         optSubtypingMode
+	hasRun                bool
 }
 
 // Java: SubtypeChecker.BIVARIANT_TYPES
@@ -105,42 +130,24 @@ func (c *SubtypeChecker) SetSubtype(value JSType) *SubtypeChecker {
 // Java: SubtypeChecker.setUsingStructuralSubtyping(boolean)
 func (c *SubtypeChecker) SetUsingStructuralSubtyping(value bool) *SubtypeChecker {
 	c.CheckHasNotRun()
-	if c.isUsingStructuralTyping != nil {
+	if c.usingStructuralTyping != optBoolUnset {
 		failJSTypeState()
 	}
-	// Go-only: performance — the nullable Boolean points at a shared value
-	// rather than a fresh copy (it is only ever read through).
-	c.isUsingStructuralTyping = &subtypeChecker_booleans[0]
 	if value {
-		c.isUsingStructuralTyping = &subtypeChecker_booleans[1]
+		c.usingStructuralTyping = optBoolTrue
+	} else {
+		c.usingStructuralTyping = optBoolFalse
 	}
 	return c
 }
 
-// subtypeChecker_booleans and subtypeChecker_subtypingModes hold the values
-// the setters point at.
-//
-// Go-only: performance — see SetUsingStructuralSubtyping.
-var (
-	subtypeChecker_booleans       = [...]bool{false, true}
-	subtypeChecker_subtypingModes = [...]JSType_SubtypingMode{
-		JSType_SubtypingMode_NORMAL, JSType_SubtypingMode_IGNORE_NULL_UNDEFINED}
-)
-
 // Java: SubtypeChecker.setSubtypingMode(SubtypingMode)
 func (c *SubtypeChecker) SetSubtypingMode(value JSType_SubtypingMode) *SubtypeChecker {
 	c.CheckHasNotRun()
-	if c.subtypingMode != nil {
+	if c.subtypingMode != optSubtypingModeUnset {
 		failJSTypeState()
 	}
-	// Go-only: performance — see SetUsingStructuralSubtyping (and
-	// EqualityChecker.SetEqMethod for the copy in the else branch).
-	if value >= 0 && int(value) < len(subtypeChecker_subtypingModes) {
-		c.subtypingMode = &subtypeChecker_subtypingModes[value]
-	} else {
-		other := value
-		c.subtypingMode = &other
-	}
+	c.subtypingMode = optSubtypingModeOf(value)
 	return c
 }
 
@@ -185,7 +192,7 @@ func (c *SubtypeChecker) IsSubtypeCaching(subtype JSType, supertype JSType) bool
 	// be recursion.
 	if c.recursionDepth > SubtypeChecker_POTENTIALLY_CYCLIC_RECURSION_DEPTH {
 		if c.subtypeCache == nil {
-			c.subtypeCache = jutil.NewObjectLinkedHashMap[*SubtypeChecker_CacheKey, JSType_MatchStatus]()
+			c.subtypeCache = newTypePairCache()
 		}
 	}
 
@@ -197,17 +204,17 @@ func (c *SubtypeChecker) IsSubtypeCaching(subtype JSType, supertype JSType) bool
 		return res
 	}
 
-	key := NewSubtypeChecker_CacheKey(subtype, supertype)
-	cached, present := c.subtypeCache.Lookup(key)
+	h := subtypePairHash(subtype, supertype)
+	slotIdx, cached, present := c.subtypeCache.lookupSubtype(subtype, supertype, h)
 	if !present {
-		c.subtypeCache.Put(key, JSType_MatchStatus_PROCESSING)
+		c.subtypeCache.putSubtype(subtype, supertype, h, JSType_MatchStatus_PROCESSING)
 		result := c.IsSubtypeDispatching(subtype, supertype)
-		c.subtypeCache.Put(key, JSType_MatchStatus_ValueOf(result))
+		c.subtypeCache.putSubtype(subtype, supertype, h, JSType_MatchStatus_ValueOf(result))
 		return result
 	}
 
 	if cached == JSType_MatchStatus_PROCESSING {
-		c.subtypeCache.Put(key, JSType_MatchStatus_MATCH)
+		c.subtypeCache.slots[slotIdx].status = JSType_MatchStatus_MATCH
 		return true
 	}
 
@@ -287,7 +294,7 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 
 	bothBits := (uint32(1) << subKind) | (uint32(1) << supKind)
 	if (bothBits&jsKindMaybeUnknownMask) == 0 && !subBase.unknown && !supBase.unknown {
-		if c.subtypingMode != nil && *c.subtypingMode == JSType_SubtypingMode_IGNORE_NULL_UNDEFINED &&
+		if c.subtypingMode == optSubtypingModeIgnoreNullUndefined &&
 			(subKind == jsKindNull || subKind == jsKindVoid) {
 			return true
 		}
@@ -314,7 +321,7 @@ func (c *SubtypeChecker) IsSubtypeHelper(subtype JSType, supertype JSType) bool 
 	}
 
 	// Special consideration for `null` and `undefined` in J2CL.
-	if c.subtypingMode != nil && *c.subtypingMode == JSType_SubtypingMode_IGNORE_NULL_UNDEFINED &&
+	if c.subtypingMode == optSubtypingModeIgnoreNullUndefined &&
 		(subKind == jsKindNull || subKind == jsKindVoid || (subKind == objKindFallback && (subtype.IsNullType() || subtype.IsVoidType()))) {
 		return true
 	}
@@ -422,7 +429,7 @@ func (c *SubtypeChecker) IsObjectSubtypeHelper(subtype ObjectType, supertype Obj
 	}
 
 	if !subAndSuperAreSameBaseType &&
-		*c.isUsingStructuralTyping &&
+		c.usingStructuralTyping.get() &&
 		supertype.IsStructuralType() {
 		// Do this before considering templatization in general.
 		//
@@ -893,7 +900,7 @@ func (c *SubtypeChecker) ShouldTreatThisTypesAsCovariant(subtype FunctionType, s
 	// If one of the 'this' types is covariant of the other, then we'll treat
 	// them as covariant (see comment above).
 	originalMode := c.subtypingMode
-	c.subtypingMode = &subtypeChecker_subtypingModes[JSType_SubtypingMode_NORMAL]
+	c.subtypingMode = optSubtypingModeNormal
 	res := c.IsSubtypeCaching(supertype.GetTypeOfThis(), subtype.GetTypeOfThis()) ||
 		c.IsSubtypeCaching(subtype.GetTypeOfThis(), supertype.GetTypeOfThis())
 	c.subtypingMode = originalMode
@@ -903,12 +910,7 @@ func (c *SubtypeChecker) ShouldTreatThisTypesAsCovariant(subtype FunctionType, s
 // Java: SubtypeChecker.hackTemporarilyChangeSubtypingMode(SubtypingMode, BooleanSupplier)
 func (c *SubtypeChecker) HackTemporarilyChangeSubtypingMode(tempMode JSType_SubtypingMode, callback func() bool) bool {
 	originalMode := c.subtypingMode
-	if tempMode >= 0 && int(tempMode) < len(subtypeChecker_subtypingModes) {
-		c.subtypingMode = &subtypeChecker_subtypingModes[tempMode]
-	} else {
-		other := tempMode
-		c.subtypingMode = &other
-	}
+	c.subtypingMode = optSubtypingModeOf(tempMode)
 	res := callback()
 	c.subtypingMode = originalMode
 	return res
@@ -950,42 +952,104 @@ const (
 	SubtypeChecker_Variance_INVARIANT
 )
 
-// SubtypeChecker_CacheKey is SubtypeChecker.CacheKey.
-type SubtypeChecker_CacheKey struct {
+type typePairSlot struct {
 	left     JSType
 	right    JSType
-	hashCode int32 // Cache this calculation because it is made often.
+	hash     uint32
+	status   JSType_MatchStatus
+	occupied bool
 }
 
-// Java: SubtypeChecker.CacheKey.hashCode()
-func (k *SubtypeChecker_CacheKey) HashCode() int32 {
-	return k.hashCode
+// typePairCache is a compact open-addressed value-keyed hash table for cyclic
+// type-pair recursion detection in SubtypeChecker and EqualityChecker.
+type typePairCache struct {
+	slots  []typePairSlot
+	count  int
+	inline [16]typePairSlot
 }
 
-// Java: SubtypeChecker.CacheKey.equals(Object)
-func (k *SubtypeChecker_CacheKey) Equals(other any) bool {
-	// Calling this with `null` or not a `Key` should never happen, so it's
-	// fine to crash.
-	that := other.(*SubtypeChecker_CacheKey)
-	if k.left == that.left && k.right == that.right {
+func newTypePairCache() *typePairCache {
+	c := &typePairCache{}
+	c.slots = c.inline[:]
+	return c
+}
+
+func subtypePairHash(left, right JSType) uint32 {
+	h := 31*uint32(left.HashCode()) + uint32(right.HashCode())
+	h ^= h >> 16
+	h *= 0x85ebca6b
+	h ^= h >> 13
+	return h
+}
+
+func (s *typePairSlot) matchesSubtype(left, right JSType, h uint32) bool {
+	if s.hash != h {
+		return false
+	}
+	if s.left == left && s.right == right {
 		return true
 	}
-
-	// The vast majority of cases will have already returned by now, since
-	// equality isn't even checked unless the hash code matches, and in most
-	// cases there's only one instance of any equivalent JSType floating
-	// around. The remainder only occurs for cyclic (or otherwise complicated)
-	// data structures where equivalent types are being synthesized by
-	// recursive application of type parameters, or (even more rarely) for hash
-	// collisions. Identity is insufficient in the case of recursive
-	// parameterized types because new equivalent copies of the type are
-	// generated on-the-fly to compute the types of various properties.
-	return equalityChecker_AreIdentityEqual(k.left, that.left) && equalityChecker_AreIdentityEqual(k.right, that.right)
+	return equalityChecker_AreIdentityEqual(s.left, left) &&
+		equalityChecker_AreIdentityEqual(s.right, right)
 }
 
-// Java: SubtypeChecker.CacheKey(JSType, JSType)
-func NewSubtypeChecker_CacheKey(left JSType, right JSType) *SubtypeChecker_CacheKey {
-	// NOTE: order matters here, since we're expressing an asymmetric
-	// relationship.
-	return &SubtypeChecker_CacheKey{left: left, right: right, hashCode: 31*left.HashCode() + right.HashCode()}
+func (c *typePairCache) lookupSubtype(left, right JSType, h uint32) (int, JSType_MatchStatus, bool) {
+	mask := uint32(len(c.slots) - 1)
+	for idx := h & mask; ; idx = (idx + 1) & mask {
+		s := &c.slots[idx]
+		if !s.occupied {
+			return 0, 0, false
+		}
+		if s.matchesSubtype(left, right, h) {
+			return int(idx), s.status, true
+		}
+	}
+}
+
+func (c *typePairCache) putSubtype(left, right JSType, h uint32, status JSType_MatchStatus) {
+	mask := uint32(len(c.slots) - 1)
+	for idx := h & mask; ; idx = (idx + 1) & mask {
+		s := &c.slots[idx]
+		if !s.occupied {
+			if (c.count+1)*2 > len(c.slots) {
+				c.grow()
+				c.insertFresh(left, right, h, status)
+				return
+			}
+			*s = typePairSlot{left: left, right: right, hash: h, status: status, occupied: true}
+			c.count++
+			return
+		}
+		if s.matchesSubtype(left, right, h) {
+			s.status = status
+			return
+		}
+	}
+}
+
+func (c *typePairCache) insertFresh(left, right JSType, h uint32, status JSType_MatchStatus) {
+	mask := uint32(len(c.slots) - 1)
+	idx := h & mask
+	for c.slots[idx].occupied {
+		idx = (idx + 1) & mask
+	}
+	c.slots[idx] = typePairSlot{left: left, right: right, hash: h, status: status, occupied: true}
+	c.count++
+}
+
+func (c *typePairCache) grow() {
+	newSlots := make([]typePairSlot, len(c.slots)*2)
+	mask := uint32(len(newSlots) - 1)
+	for i := range c.slots {
+		s := &c.slots[i]
+		if !s.occupied {
+			continue
+		}
+		idx := s.hash & mask
+		for newSlots[idx].occupied {
+			idx = (idx + 1) & mask
+		}
+		newSlots[idx] = *s
+	}
+	c.slots = newSlots
 }

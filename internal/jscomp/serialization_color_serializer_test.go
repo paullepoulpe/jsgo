@@ -482,22 +482,22 @@ func (b *jsaCsTestObjectColorBuilder) Build() *jsaCsTestColor {
 	isInvalidating := false
 	isClosureAssert := false
 
-	instanceColors := jutil.NewObjectLinkedHashSet[*colors.Color]()
+	instanceColors := make([]*colors.Color, 0, len(b.instanceTestColors))
 	var instancePointers []int32
 	for _, c := range b.instanceTestColors {
-		instanceColors.Add(c.color)
+		instanceColors = append(instanceColors, c.color)
 		instancePointers = append(instancePointers, int32(c.expectedTypePointer))
 	}
-	prototypes := jutil.NewObjectLinkedHashSet[*colors.Color]()
+	prototypes := make([]*colors.Color, 0, len(b.prototypeTestColors))
 	var prototypePointers []int32
 	for _, c := range b.prototypeTestColors {
-		prototypes.Add(c.color)
+		prototypes = append(prototypes, c.color)
 		prototypePointers = append(prototypePointers, int32(c.expectedTypePointer))
 	}
-	ownProperties := jutil.NewLinkedHashSet[string]()
+	ownProperties := make([]string, 0, len(b.ownProperties))
 	var ownPropertyOffsets []int32
 	for _, p := range b.ownProperties {
-		ownProperties.Add(p.value)
+		ownProperties = append(ownProperties, p.value)
 		ownPropertyOffsets = append(ownPropertyOffsets, int32(p.poolOffset))
 	}
 	colorBuilder := colors.Color_SingleBuilder().
@@ -546,13 +546,13 @@ func (b *jsaCsTestUnionColorBuilder) AddTestColor(testColor *jsaCsTestColor) *js
 
 func (b *jsaCsTestUnionColorBuilder) Build() *jsaCsTestColor {
 	jutil.CheckStateMsg(b.trimmedPoolOffset >= 0, "call setTrimmedPoolOffset() first")
-	memberColors := jutil.NewObjectLinkedHashSet[*colors.Color]()
+	memberColors := make([]*colors.Color, 0, len(b.memberTestColors))
 	var memberTypePointers []int32
 	for _, c := range b.memberTestColors {
-		memberColors.Add(c.color)
+		memberColors = append(memberColors, c.color)
 		memberTypePointers = append(memberTypePointers, int32(c.expectedTypePointer))
 	}
-	color := colors.Color_CreateUnion(memberColors)
+	color := colors.Color_CreateUnionSlice(memberColors)
 
 	typePointer := TypePointers_UntrimOffset(b.trimmedPoolOffset)
 

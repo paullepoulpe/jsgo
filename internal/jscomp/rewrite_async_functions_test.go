@@ -96,7 +96,7 @@ func (c *RewriteAsyncFunctionsTest) GetGlobalColor(colorId colors.ColorId) *colo
 
 // Java: RewriteAsyncFunctionsTest.getGlobalInstanceColor(String)
 func (c *RewriteAsyncFunctionsTest) GetGlobalInstanceColor(globalClassName string) *colors.Color {
-	return colors.Color_CreateUnion(
+	return colors.Color_CreateUnionSlice(
 		CodeSubTree_FindClassDefinition(c.GetLastCompiler(), globalClassName).
 			GetRootNode().
 			GetColor().

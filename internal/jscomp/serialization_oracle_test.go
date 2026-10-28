@@ -245,13 +245,13 @@ func serializationDump_collectColor(colorsSeen *jutil.LinkedHashMap[colors.Color
 		return
 	}
 	colorsSeen.Put(c.GetId(), c)
-	for x := range c.GetPrototypes().All() {
+	for _, x := range c.GetPrototypes() {
 		serializationDump_collectColor(colorsSeen, x)
 	}
-	for x := range c.GetInstanceColors().All() {
+	for _, x := range c.GetInstanceColors() {
 		serializationDump_collectColor(colorsSeen, x)
 	}
-	for x := range c.GetUnionElements().All() {
+	for _, x := range c.GetUnionElements() {
 		serializationDump_collectColor(colorsSeen, x)
 	}
 }
@@ -267,15 +267,15 @@ func serializationDump_colorLine(c *colors.Color) string {
 		" keep=" + strconv.FormatBool(c.GetPropertiesKeepOriginalName()) +
 		" assert=" + strconv.FormatBool(c.IsClosureAssert()) +
 		" box=" + box +
-		" own=" + c.GetOwnProperties().String() +
+		" own=" + jutil.CollectionToString(c.GetOwnProperties()) +
 		" proto=" + serializationDump_ids(c.GetPrototypes()) +
 		" inst=" + serializationDump_ids(c.GetInstanceColors()) +
 		" union=" + serializationDump_ids(c.GetUnionElements())
 }
 
-func serializationDump_ids(cs *jutil.ObjectLinkedHashSet[*colors.Color]) string {
+func serializationDump_ids(cs []*colors.Color) string {
 	var out []string
-	for c := range cs.All() {
+	for _, c := range cs {
 		out = append(out, c.GetId().String())
 	}
 	return "[" + strings.Join(out, ", ") + "]"

@@ -50,17 +50,15 @@ var (
 	StandardColors_SYMBOL_OBJECT_ID  = ColorId_FromUnsignedInt(0x5e514f7e)
 )
 
-func colorIdPtr(id ColorId) *ColorId { return &id }
-
 var StandardColors_BIGINT = Color_SingleBuilder().
 	SetId(ColorId_FromUnsignedInt(0x234eb61a)).
-	SetBoxId(colorIdPtr(StandardColors_BIGINT_OBJECT_ID)).
+	SetBoxIdValue(StandardColors_BIGINT_OBJECT_ID).
 	SetInvalidating(false).
 	BuildAxiomatic()
 
 var StandardColors_BOOLEAN = Color_SingleBuilder().
 	SetId(ColorId_FromUnsignedInt(0x126812ee)).
-	SetBoxId(colorIdPtr(StandardColors_BOOLEAN_OBJECT_ID)).
+	SetBoxIdValue(StandardColors_BOOLEAN_OBJECT_ID).
 	SetInvalidating(false).
 	BuildAxiomatic()
 
@@ -72,19 +70,19 @@ var StandardColors_NULL_OR_VOID = Color_SingleBuilder().
 
 var StandardColors_NUMBER = Color_SingleBuilder().
 	SetId(ColorId_FromUnsignedInt(int32(-0x2f7e8dd4))). // 0xd081722c
-	SetBoxId(colorIdPtr(StandardColors_NUMBER_OBJECT_ID)).
+	SetBoxIdValue(StandardColors_NUMBER_OBJECT_ID).
 	SetInvalidating(false).
 	BuildAxiomatic()
 
 var StandardColors_STRING = Color_SingleBuilder().
 	SetId(ColorId_FromUnsignedInt(int32(-0x73b2709b))). // 0x8c4d8f65
-	SetBoxId(colorIdPtr(StandardColors_STRING_OBJECT_ID)).
+	SetBoxIdValue(StandardColors_STRING_OBJECT_ID).
 	SetInvalidating(false).
 	BuildAxiomatic()
 
 var StandardColors_SYMBOL = Color_SingleBuilder().
 	SetId(ColorId_FromUnsignedInt(0x759f2066)).
-	SetBoxId(colorIdPtr(StandardColors_SYMBOL_OBJECT_ID)).
+	SetBoxIdValue(StandardColors_SYMBOL_OBJECT_ID).
 	SetInvalidating(false).
 	BuildAxiomatic()
 

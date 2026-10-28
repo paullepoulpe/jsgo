@@ -31,12 +31,11 @@ type Equaler interface {
 // doubles by bit pattern (Double.equals: NaN equals NaN, 0.0 != -0.0), and
 // everything else (pointers, enums) by identity.
 func ObjectsEquals(a, b any) bool {
-	aNil, bNil := IsNil(a), IsNil(b)
-	if aNil || bNil {
-		return aNil && bNil
+	if a == nil {
+		return IsNil(b)
 	}
-	if e, ok := a.(Equaler); ok {
-		return e.Equals(b)
+	if b == nil {
+		return IsNil(a)
 	}
 	switch x := a.(type) {
 	case string:
@@ -48,6 +47,12 @@ func ObjectsEquals(a, b any) bool {
 	case int32:
 		y, ok := b.(int32)
 		return ok && x == y
+	case int64:
+		y, ok := b.(int64)
+		return ok && x == y
+	case bool:
+		y, ok := b.(bool)
+		return ok && x == y
 	case float64:
 		y, ok := b.(float64)
 		return ok && doubleBits(x) == doubleBits(y)
@@ -55,11 +60,53 @@ func ObjectsEquals(a, b any) bool {
 		y, ok := b.(float32)
 		return ok && floatBits(x) == floatBits(y)
 	case *string:
-		// A nullable Java String (non-null here): String.equals.
+		if x == nil {
+			return IsNil(b)
+		}
 		y, ok := b.(*string)
-		return ok && *x == *y
+		return ok && y != nil && *x == *y
 	}
-	ta, tb := reflect.TypeOf(a), reflect.TypeOf(b)
+	ta := reflect.TypeOf(a)
+	switch ta.Kind() {
+	case reflect.Pointer:
+		if a == b {
+			return true
+		}
+		if reflect.ValueOf(a).IsNil() {
+			return IsNil(b)
+		}
+		if IsNil(b) {
+			return false
+		}
+		if e, ok := a.(Equaler); ok {
+			return e.Equals(b)
+		}
+		return false
+	case reflect.Uint32:
+		if reflect.ValueOf(a).Uint() == 0 {
+			if _, ok := a.(interface{ IsNil() bool }); ok {
+				return IsNil(b)
+			}
+		}
+		if a == b {
+			return true
+		}
+		if IsNil(b) {
+			return false
+		}
+		if e, ok := a.(Equaler); ok {
+			return e.Equals(b)
+		}
+		return false
+	}
+	aNil, bNil := IsNil(a), IsNil(b)
+	if aNil || bNil {
+		return aNil && bNil
+	}
+	if e, ok := a.(Equaler); ok {
+		return e.Equals(b)
+	}
+	tb := reflect.TypeOf(b)
 	if ta != tb {
 		return false
 	}
@@ -79,15 +126,89 @@ func ObjectsEquals(a, b any) bool {
 
 // ObjectsEqualsOf is ObjectsEquals for two values of a type parameter.
 //
-// Go-only: performance — in generic code, passing a string (or an int) as
-// an interface boxes it on the heap, and ObjectsEquals then compares strings
-// through reflection. Strings and ints are compared here directly, with the
-// same result; every other type goes through ObjectsEquals. Generic
-// collections keyed by String (HamtPMap, ObjectLinkedHashMap) use it.
+// Go-only: performance — in generic code, scalars, pointers, structs and node
+// IDs avoid boxing/reflection fast-paths while matching ObjectsEquals exactly.
+// Generic collections (HamtPMap, ObjectLinkedHashMap) use it.
 func ObjectsEqualsOf[T any](a, b T) bool {
+	if reflect.TypeFor[T]().Kind() == reflect.Pointer {
+		if any(a) == any(b) {
+			return true
+		}
+		var zero T
+		if any(a) == any(zero) || any(b) == any(zero) {
+			return false
+		}
+		if x, ok := any(a).(*string); ok {
+			return *x == *any(b).(*string)
+		}
+		if e, ok := any(a).(Equaler); ok {
+			return e.Equals(b)
+		}
+		return false
+	}
 	switch x := any(a).(type) {
+	case nil:
+		return isNilOf(b)
 	case string:
 		return any(b) == x
+	case int:
+		return any(b) == x
+	case int32:
+		return any(b) == x
+	case int64:
+		return any(b) == x
+	case int16:
+		return any(b) == x
+	case int8:
+		return any(b) == x
+	case uint:
+		return any(b) == x
+	case uint64:
+		return any(b) == x
+	case uint32:
+		return any(b) == x
+	case uint16:
+		return any(b) == x
+	case uint8:
+		return any(b) == x
+	case bool:
+		return any(b) == x
+	case float64:
+		y, ok := any(b).(float64)
+		return ok && doubleBits(x) == doubleBits(y)
+	case float32:
+		y, ok := any(b).(float32)
+		return ok && floatBits(x) == floatBits(y)
+	case *string:
+		if x == nil {
+			return isNilOf(b)
+		}
+		y, ok := any(b).(*string)
+		return ok && y != nil && *x == *y
+	}
+	switch reflect.TypeFor[T]().Kind() {
+	case reflect.Struct:
+		if e, ok := any(a).(Equaler); ok {
+			return e.Equals(b)
+		}
+		if reflect.TypeFor[T]().Comparable() {
+			return any(a) == any(b)
+		}
+		return false
+	case reflect.Uint32:
+		if any(a) == any(b) {
+			return true
+		}
+		var zero T
+		if any(a) == any(zero) || any(b) == any(zero) {
+			if _, ok := any(a).(interface{ IsNil() bool }); ok {
+				return false
+			}
+		}
+		if e, ok := any(a).(Equaler); ok {
+			return e.Equals(b)
+		}
+		return false
 	}
 	return ObjectsEquals(a, b)
 }
@@ -96,19 +217,78 @@ func ObjectsEqualsOf[T any](a, b T) bool {
 //
 // Go-only: performance — see ObjectsEqualsOf.
 func ObjectHashCodeOf[T any](v T) int32 {
-	switch x := any(v).(type) {
-	case string:
-		return StringHashCode(x)
-	case int32:
-		return x
-	case int:
-		return int32(x)
-	}
-	if h, ok := any(v).(Hashable); ok {
-		if IsNil(h) {
+	if reflect.TypeFor[T]().Kind() == reflect.Pointer {
+		var zero T
+		if any(v) == any(zero) {
 			return 0
 		}
-		return h.HashCode()
+		if s, ok := any(v).(*string); ok {
+			return StringHashCode(*s)
+		}
+		if h, ok := any(v).(Hashable); ok {
+			return h.HashCode()
+		}
+		p := uint64(reflect.ValueOf(v).Pointer())
+		return int32(p ^ (p >> 32))
+	}
+	switch x := any(v).(type) {
+	case nil:
+		return 0
+	case string:
+		return StringHashCode(x)
+	case int:
+		return int32(x)
+	case int32:
+		return x
+	case int64:
+		return int32(x ^ int64(uint64(x)>>32))
+	case int16:
+		return int32(x)
+	case int8:
+		return int32(x)
+	case uint:
+		return int32(uint64(x) ^ (uint64(x) >> 32))
+	case uint64:
+		return int32(x ^ (x >> 32))
+	case uint32:
+		return int32(x)
+	case uint16:
+		return int32(x)
+	case uint8:
+		return int32(x)
+	case bool:
+		if x {
+			return 1231
+		}
+		return 1237
+	case float64:
+		bits := doubleBits(x)
+		return int32(bits ^ (bits >> 32))
+	case float32:
+		return int32(floatBits(x))
+	case *string:
+		if x == nil {
+			return 0
+		}
+		return StringHashCode(*x)
+	}
+	switch reflect.TypeFor[T]().Kind() {
+	case reflect.Struct:
+		if h, ok := any(v).(Hashable); ok {
+			return h.HashCode()
+		}
+		return 0
+	case reflect.Uint32:
+		var zero T
+		if any(v) == any(zero) {
+			if _, ok := any(v).(interface{ IsNil() bool }); ok {
+				return 0
+			}
+		}
+		if h, ok := any(v).(Hashable); ok {
+			return h.HashCode()
+		}
+		return int32(reflect.ValueOf(v).Uint())
 	}
 	return ObjectHashCode(v)
 }
@@ -133,17 +313,16 @@ func floatBits(f float32) uint32 {
 // the corresponding Java boxed type (String, Boolean, Integer, Long, Double,
 // Character), or an identity hash for reference types.
 func ObjectHashCode(v any) int32 {
-	if IsNil(v) {
+	if v == nil {
 		return 0
-	}
-	if h, ok := v.(Hashable); ok {
-		return h.HashCode()
 	}
 	switch x := v.(type) {
 	case string:
 		return StringHashCode(x)
 	case *string:
-		// A nullable Java String (non-null here).
+		if x == nil {
+			return 0
+		}
 		return StringHashCode(*x)
 	case bool:
 		if x {
@@ -161,6 +340,14 @@ func ObjectHashCode(v any) int32 {
 		return int32(x)
 	case uint16:
 		return int32(x)
+	case uint32:
+		return int32(x)
+	case uint64:
+		return int32(x ^ (x >> 32))
+	case uint:
+		return int32(uint64(x) ^ (uint64(x) >> 32))
+	case uint8:
+		return int32(x)
 	case int64:
 		return int32(x ^ int64(uint64(x)>>32))
 	case float64:
@@ -169,7 +356,13 @@ func ObjectHashCode(v any) int32 {
 	case float32:
 		return int32(floatBits(x))
 	}
-	return IdentityHashCode(v)
+	if IsNil(v) {
+		return 0
+	}
+	if h, ok := v.(Hashable); ok {
+		return h.HashCode()
+	}
+	return identityHashCodeNonNil(v)
 }
 
 // IdentityHashCode is System.identityHashCode(Object). Java's identity hash
@@ -181,6 +374,10 @@ func IdentityHashCode(v any) int32 {
 	if IsNil(v) {
 		return 0
 	}
+	return identityHashCodeNonNil(v)
+}
+
+func identityHashCodeNonNil(v any) int32 {
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.UnsafePointer:

@@ -49,19 +49,18 @@ func (p *ClusterPropagator) TraverseEdge(src *ColorGraphNode, _ ColorGraphBuilde
 		return false
 	}
 
-	destProps := dest.GetAssociatedProps()
-	startDestPropCount := destProps.Size()
+	startDestPropCount := dest.AssociatedPropsSize()
 
-	for prop := range src.GetAssociatedProps().Keys() {
+	for _, prop := range src.Props() {
 		if prop.IsInvalidated() {
 			continue
 		}
-		destProps.PutIfAbsent(prop, ColorGraphNode_PropAssociation_SUPERTYPE)
+		dest.AddProp(prop)
 		prop.GetClusters().Union(src, dest)
 	}
 
 	// Were any properties added to dest?
-	return startDestPropCount < destProps.Size()
+	return startDestPropCount < dest.AssociatedPropsSize()
 }
 
 var _ graph.FixedPointGraphTraversal_EdgeCallback[*ColorGraphNode, ColorGraphBuilder_EdgeReason] = (*ClusterPropagator)(nil)

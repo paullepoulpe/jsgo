@@ -101,6 +101,7 @@ type FlowSensitiveInlineVariables struct {
 	gatherCandidates    FlowSensitiveInlineVariables_GatherCandidates
 	gatherCb            FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
 	candidateSlab       jutil.ReuseSlab[FlowSensitiveInlineVariables_Candidate]
+	pathChecker         graph.CheckPathsBetweenNodes[rhino.Node, ControlFlowGraph_Branch]
 
 	varsFinder          lvaAllVarsFinder
 	inlinableDefs       []fsivCandidateDef
@@ -1067,7 +1068,7 @@ func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, 
 	case rhino.Token_BLOCK, rhino.Token_TRY, rhino.Token_SWITCH_BODY, rhino.Token_EMPTY:
 		return
 	}
-	graphNode := g.outer.cfg.GetDiGraphNode(n)
+	graphNode := g.outer.cfg.GetControlFlowGraphBase().Nodes.Get(n)
 	if graphNode == nil {
 		// Not a CFG node.
 		return
@@ -1075,8 +1076,7 @@ func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, 
 	cfgNode := n
 
 	g.gatherCb.cfgNode = cfgNode
-	state := graphNode.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*MustBeReachingVariableDef_MustDef])
-	g.gatherCb.inState = state.GetIn()
+	g.gatherCb.inState = g.outer.reachingDef.FlowStateAt(graphNode.Index).GetIn()
 	var currentNode rhino.Node
 	walkCfgNodeBranch(cfgNode, rhino.NilNode, g.gatherCb, &currentNode)
 	g.gatherCb.inState = nil
@@ -1209,10 +1209,6 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetDefCfgNode() rhino.Node {
 	return c.defMetadata.node
 }
 
-func fsivAlwaysTrueEdgePredicate(graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]) bool {
-	return true
-}
-
 // Java: FlowSensitiveInlineVariables.Candidate.canInline(Scope)
 func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 	// Cannot inline a parameter.
@@ -1286,7 +1282,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	if !c.HasExactlyOne(c.outer.getReachingUses().GetUses(c.varName, c.GetDefCfgNode())) {
+	if !c.outer.getReachingUses().HasExactlyOneUse(c.varName, c.GetDefCfgNode()) {
 		return false
 	}
 
@@ -1297,14 +1293,14 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		// Similar side effect check as above but this time the side effect is
 		// else where along the path.
 		// x = readProp(b); while(modifyProp(b)) {}; print(x);
-		pathCheck := graph.NewCheckPathsBetweenNodes[rhino.Node, ControlFlowGraph_Branch](
-			c.outer.cfg,
-			c.outer.cfg.GetDiGraphNode(c.GetDefCfgNode()),
-			c.outer.cfg.GetDiGraphNode(c.useCfgNode),
+		cfgBase := c.outer.cfg.GetControlFlowGraphBase()
+		c.outer.pathChecker.ResetLinkedAllEdges(
+			&cfgBase.LinkedDirectedGraph,
+			cfgBase.Nodes.Get(c.GetDefCfgNode()),
+			cfgBase.Nodes.Get(c.useCfgNode),
 			c.outer.sideEffectPredicateFn,
-			fsivAlwaysTrueEdgePredicate,
 			false)
-		if pathCheck.SomePathsSatisfyPredicate() {
+		if c.outer.pathChecker.SomePathsSatisfyPredicate() {
 			return false
 		}
 	}

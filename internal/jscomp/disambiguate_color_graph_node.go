@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"iter"
+
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -34,11 +36,13 @@ import (
 type ColorGraphNode struct {
 	color *colors.Color
 
-	associatedProps jutil.LinkedHashMap[*PropertyClustering, ColorGraphNode_PropAssociation]
+	props       []*PropertyClustering
+	propsInline [4]*PropertyClustering
+	propSet     map[*PropertyClustering]struct{}
 
-	index int
+	subtypeIndices *jutil.BitSet
 
-	subtypeIndices   *jutil.BitSet
+	index            int
 	reflexiveSubtype bool
 }
 
@@ -94,7 +98,7 @@ func ColorGraphNode_CreateForTestingWithColor(single *colors.Color, index int) *
 
 // Java: ColorGraphNode(Color, int)
 func newColorGraphNode(single *colors.Color, index int) *ColorGraphNode {
-	jutil.CheckNotNull(single)
+	jutil.CheckNotNullPtr(single)
 	return &ColorGraphNode{
 		index: index,
 		color: single,
@@ -103,7 +107,7 @@ func newColorGraphNode(single *colors.Color, index int) *ColorGraphNode {
 
 // Java: ColorGraphNode.getColor()
 func (n *ColorGraphNode) GetColor() *colors.Color {
-	return jutil.CheckNotNull(n.color)
+	return jutil.CheckNotNullPtr(n.color)
 }
 
 // GetIndex is an ID used to efficiently construct a unique name for any
@@ -114,16 +118,97 @@ func (n *ColorGraphNode) GetIndex() int {
 	return n.index
 }
 
-// GetAssociatedProps is the set of properties that that might be accessed
+// Props returns the properties associated with n in insertion order.
+func (n *ColorGraphNode) Props() []*PropertyClustering {
+	return n.props
+}
+
+// HasProp reports whether prop is associated with n.
+func (n *ColorGraphNode) HasProp(prop *PropertyClustering) bool {
+	if n.propSet != nil {
+		_, ok := n.propSet[prop]
+		return ok
+	}
+	for _, p := range n.props {
+		if p == prop {
+			return true
+		}
+	}
+	return false
+}
+
+// AddProp associates prop with n if not already present, returning true if it
+// was newly added.
+func (n *ColorGraphNode) AddProp(prop *PropertyClustering) bool {
+	if n.propSet != nil {
+		if _, ok := n.propSet[prop]; ok {
+			return false
+		}
+		n.propSet[prop] = struct{}{}
+		n.props = append(n.props, prop)
+		return true
+	}
+	for _, p := range n.props {
+		if p == prop {
+			return false
+		}
+	}
+	if n.props == nil {
+		n.props = n.propsInline[:0]
+	}
+	n.props = append(n.props, prop)
+	if len(n.props) > 16 {
+		m := make(map[*PropertyClustering]struct{}, 32)
+		for _, p := range n.props {
+			m[p] = struct{}{}
+		}
+		n.propSet = m
+	}
+	return true
+}
+
+// ColorGraphNodePropsView adapts ColorGraphNode's flat property list to the
+// map-like API expected by tests.
+type ColorGraphNodePropsView struct {
+	n *ColorGraphNode
+}
+
+func (v ColorGraphNodePropsView) Size() int { return len(v.n.props) }
+
+func (v ColorGraphNodePropsView) IsEmpty() bool { return len(v.n.props) == 0 }
+
+func (v ColorGraphNodePropsView) ContainsKey(prop *PropertyClustering) bool {
+	return v.n.HasProp(prop)
+}
+
+func (v ColorGraphNodePropsView) Put(prop *PropertyClustering, _ ColorGraphNode_PropAssociation) {
+	v.n.AddProp(prop)
+}
+
+func (v ColorGraphNodePropsView) PutIfAbsent(prop *PropertyClustering, _ ColorGraphNode_PropAssociation) {
+	v.n.AddProp(prop)
+}
+
+func (v ColorGraphNodePropsView) Keys() iter.Seq[*PropertyClustering] {
+	return func(yield func(*PropertyClustering) bool) {
+		for _, p := range v.n.props {
+			if !yield(p) {
+				return
+			}
+		}
+	}
+}
+
+// GetAssociatedProps is the set of properties that might be accessed
 // from this type.
 //
 // Java: ColorGraphNode.getAssociatedProps()
-func (n *ColorGraphNode) GetAssociatedProps() *jutil.LinkedHashMap[*PropertyClustering, ColorGraphNode_PropAssociation] {
-	return &n.associatedProps
+func (n *ColorGraphNode) GetAssociatedProps() ColorGraphNodePropsView {
+	return ColorGraphNodePropsView{n: n}
 }
 
 func (n *ColorGraphNode) AssociatedPropsSize() int {
-	return n.associatedProps.Size()
+	return len(n.props)
 }
 
 // GetSubtypeIndices returns the IDs of other ColorGraphNodes that have been
@@ -153,6 +238,6 @@ func (n *ColorGraphNode) String() string {
 	return jutil.MoreObjects_ToStringHelper("ColorGraphNode").
 		Add("index", n.index).
 		Add("color.id", n.color.GetId()).
-		Add("color.ownProperties", n.color.GetOwnProperties()).
+		Add("color.ownProperties", jutil.CollectionToString(n.color.GetOwnProperties())).
 		String()
 }

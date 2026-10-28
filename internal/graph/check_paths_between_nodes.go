@@ -22,49 +22,27 @@ package graph
 // for a description of this algorithm.
 //
 // N is the node type; E is the edge type.
+//
+// Go-only: performance — instead of mutating graph node/edge annotations via
+// PushNodeAnnotations/PushEdgeAnnotations on every query, visited edges are
+// tracked in an epoch-stamped uint32 array indexed by LinkedDiGraphEdge.Index,
+// and traversal walks concrete LinkedDiGraphNodes directly.
 type CheckPathsBetweenNodes[N comparable, E any] struct {
 	nodePredicate func(N) bool
 	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool
+	allEdges      bool
 	inclusive     bool
 
-	graph DiGraph[N, E]
-	start DiGraph_DiGraphNode[N, E]
-	end   DiGraph_DiGraphNode[N, E]
+	linkedGraph *LinkedDirectedGraph[N, E]
+	linkedStart *LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+	linkedEnd   *LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+
+	epoch     uint32
+	edgeState []uint32
+	edgeBuf   [64]uint32
 }
 
-// This algorithm works in two stages. First, the depth-first search (DFS)
-// tree is calculated with A as the root. During when constructing the DFS
-// tree, back edges are recorded. A back edge is a non-tree edge (X -> Y)
-// where X is an descendant of Y in the DFS tree. The second step does a
-// recursive traversal of the graph. Back edges are ignored during the
-// recursive traversal, thus no cycles are encountered. Any recursive branch
-// that encounters B without yet satisfying the predicate represents a path
-// from the entry node to the exit without any nodes that satisfy the
-// predicate.
-//
-// The implementation of discoverBackEdges follows the DFS-Visit algorithm
-// in "Introduction to Algorithms" by Cormen, Leiseron, Rivest, and Stein,
-// 2nd ed., on page 541. The calculation of back edges is described on page
-// 546.
-
-// checkPathsBetweenNodes_sentinel is the anonymous `new Annotation() {}`
-// class. Instances are compared by identity; the field keeps the type
-// non-zero-sized so that distinct sentinels have distinct addresses.
-type checkPathsBetweenNodes_sentinel struct{ name string }
-
-var (
-	// A non-tree edge in the DFS that connects a node to one of its
-	// ancestors.
-	checkPathsBetweenNodes_BACK_EDGE    Annotation = &checkPathsBetweenNodes_sentinel{"BACK_EDGE"}
-	checkPathsBetweenNodes_VISITED_EDGE Annotation = &checkPathsBetweenNodes_sentinel{"VISITED_EDGE"}
-
-	// Not yet visited.
-	checkPathsBetweenNodes_WHITE Annotation = nil
-	// Being visited.
-	checkPathsBetweenNodes_GRAY Annotation = &checkPathsBetweenNodes_sentinel{"GRAY"}
-	// Finished visiting.
-	checkPathsBetweenNodes_BLACK Annotation = &checkPathsBetweenNodes_sentinel{"BLACK"}
-)
+const checkPathsReuseMaxEdges = 4096
 
 // NewCheckPathsBetweenNodes: given a graph G with nodes A and B, this
 // algorithm determines if all paths from A to B contain at least one node
@@ -87,15 +65,11 @@ func NewCheckPathsBetweenNodes[N comparable, E any](
 	b DiGraph_DiGraphNode[N, E],
 	nodePredicate func(N) bool,
 	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool,
-	inclusive bool) *CheckPathsBetweenNodes[N, E] {
-	return &CheckPathsBetweenNodes[N, E]{
-		graph:         graph,
-		start:         a,
-		end:           b,
-		nodePredicate: nodePredicate,
-		edgePredicate: edgePredicate,
-		inclusive:     inclusive,
-	}
+	inclusive bool,
+) *CheckPathsBetweenNodes[N, E] {
+	c := &CheckPathsBetweenNodes[N, E]{}
+	c.Reset(graph, a, b, nodePredicate, edgePredicate, inclusive)
+	return c
 }
 
 // NewCheckPathsBetweenNodesInclusive is the inclusive check.
@@ -106,7 +80,8 @@ func NewCheckPathsBetweenNodesInclusive[N comparable, E any](
 	a DiGraph_DiGraphNode[N, E],
 	b DiGraph_DiGraphNode[N, E],
 	nodePredicate func(N) bool,
-	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool) *CheckPathsBetweenNodes[N, E] {
+	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool,
+) *CheckPathsBetweenNodes[N, E] {
 	return NewCheckPathsBetweenNodes(graph, a, b, nodePredicate, edgePredicate, true)
 }
 
@@ -116,15 +91,72 @@ func NewCheckPathsBetweenNodesInclusiveValue[N comparable, E any](
 	a DiGraph_DiGraphNode[N, E],
 	b DiGraph_DiGraphNode[N, E],
 	nodePredicate func(N) bool,
-	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool) CheckPathsBetweenNodes[N, E] {
-	return CheckPathsBetweenNodes[N, E]{
-		graph:         graph,
-		start:         a,
-		end:           b,
-		nodePredicate: nodePredicate,
-		edgePredicate: edgePredicate,
-		inclusive:     true,
+	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool,
+) CheckPathsBetweenNodes[N, E] {
+	var c CheckPathsBetweenNodes[N, E]
+	c.Reset(graph, a, b, nodePredicate, edgePredicate, true)
+	return c
+}
+
+// Reset configures c for a new query while reusing its edge-visited state buffer.
+func (c *CheckPathsBetweenNodes[N, E]) Reset(
+	graph DiGraph[N, E],
+	a DiGraph_DiGraphNode[N, E],
+	b DiGraph_DiGraphNode[N, E],
+	nodePredicate func(N) bool,
+	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool,
+	inclusive bool,
+) {
+	c.linkedGraph = graph.AsLinkedDirectedGraph()
+	c.linkedStart = a.(*LinkedDirectedGraph_LinkedDiGraphNode[N, E])
+	c.linkedEnd = b.(*LinkedDirectedGraph_LinkedDiGraphNode[N, E])
+	c.nodePredicate = nodePredicate
+	c.edgePredicate = edgePredicate
+	c.allEdges = false
+	c.inclusive = inclusive
+}
+
+// ResetLinkedAllEdges configures c for a query on a concrete LinkedDirectedGraph
+// where all edges are traversed without calling an edge predicate.
+func (c *CheckPathsBetweenNodes[N, E]) ResetLinkedAllEdges(
+	graph *LinkedDirectedGraph[N, E],
+	a *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
+	b *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
+	nodePredicate func(N) bool,
+	inclusive bool,
+) {
+	c.linkedGraph = graph
+	c.linkedStart = a
+	c.linkedEnd = b
+	c.nodePredicate = nodePredicate
+	c.edgePredicate = nil
+	c.allEdges = true
+	c.inclusive = inclusive
+}
+
+// ReleaseLargeStorage drops heap storage when it grew beyond checkPathsReuseMaxEdges.
+func (c *CheckPathsBetweenNodes[N, E]) ReleaseLargeStorage() {
+	if cap(c.edgeState) > checkPathsReuseMaxEdges {
+		c.edgeState = nil
 	}
+}
+
+func (c *CheckPathsBetweenNodes[N, E]) prepare() uint32 {
+	edgeCap := c.linkedGraph.EdgeIndexCap()
+	c.epoch++
+	if c.epoch == 0 {
+		clear(c.edgeState)
+		clear(c.edgeBuf[:])
+		c.epoch = 1
+	}
+	if cap(c.edgeState) == 0 && edgeCap <= len(c.edgeBuf) {
+		c.edgeState = c.edgeBuf[:]
+	} else if cap(c.edgeState) < edgeCap {
+		c.edgeState = make([]uint32, max(edgeCap, 128))
+	} else if len(c.edgeState) < edgeCap {
+		c.edgeState = c.edgeState[:edgeCap]
+	}
+	return c.epoch
 }
 
 // AllPathsSatisfyPredicate returns true iff all paths contain at least one
@@ -132,10 +164,8 @@ func NewCheckPathsBetweenNodesInclusiveValue[N comparable, E any](
 //
 // Java: CheckPathsBetweenNodes.allPathsSatisfyPredicate()
 func (c *CheckPathsBetweenNodes[N, E]) AllPathsSatisfyPredicate() bool {
-	c.setUp()
-	result := c.checkAllPathsWithoutBackEdges(c.start, c.end)
-	c.tearDown()
-	return result
+	epoch := c.prepare()
+	return c.checkAllPaths(c.linkedStart, c.linkedEnd, epoch)
 }
 
 // SomePathsSatisfyPredicate returns true iff some paths contain at least
@@ -143,111 +173,56 @@ func (c *CheckPathsBetweenNodes[N, E]) AllPathsSatisfyPredicate() bool {
 //
 // Java: CheckPathsBetweenNodes.somePathsSatisfyPredicate()
 func (c *CheckPathsBetweenNodes[N, E]) SomePathsSatisfyPredicate() bool {
-	c.setUp()
-	result := c.checkSomePathsWithoutBackEdges(c.start, c.end)
-	c.tearDown()
-	return result
+	epoch := c.prepare()
+	return c.checkSomePaths(c.linkedStart, c.linkedEnd, epoch)
 }
 
-// Java: CheckPathsBetweenNodes.setUp()
-func (c *CheckPathsBetweenNodes[N, E]) setUp() {
-	c.graph.PushNodeAnnotations()
-	c.graph.PushEdgeAnnotations()
-	c.discoverBackEdges(c.start)
-}
-
-// Java: CheckPathsBetweenNodes.tearDown()
-func (c *CheckPathsBetweenNodes[N, E]) tearDown() {
-	c.graph.PopNodeAnnotations()
-	c.graph.PopEdgeAnnotations()
-}
-
-// Java: CheckPathsBetweenNodes.discoverBackEdges(DiGraphNode<N, E>)
-func (c *CheckPathsBetweenNodes[N, E]) discoverBackEdges(u DiGraph_DiGraphNode[N, E]) {
-	u.SetAnnotation(checkPathsBetweenNodes_GRAY)
-	for _, e := range u.GetOutEdges() {
-		if c.ignoreEdge(e) {
-			continue
-		}
-		v := e.GetDestination()
-		if v.GetAnnotation() == checkPathsBetweenNodes_WHITE {
-			c.discoverBackEdges(v)
-		} else if v.GetAnnotation() == checkPathsBetweenNodes_GRAY {
-			e.SetAnnotation(checkPathsBetweenNodes_BACK_EDGE)
-		}
-	}
-	u.SetAnnotation(checkPathsBetweenNodes_BLACK)
-}
-
-// Java: CheckPathsBetweenNodes.ignoreEdge(DiGraphEdge<N, E>)
-func (c *CheckPathsBetweenNodes[N, E]) ignoreEdge(e DiGraph_DiGraphEdge[N, E]) bool {
-	return !c.edgePredicate(e)
-}
-
-// checkAllPathsWithoutBackEdges verifies that all non-looping paths from a
-// to b pass through at least one node where nodePredicate is true.
-//
-// Java: CheckPathsBetweenNodes.checkAllPathsWithoutBackEdges(DiGraphNode<N, E>, DiGraphNode<N, E>)
-func (c *CheckPathsBetweenNodes[N, E]) checkAllPathsWithoutBackEdges(a DiGraph_DiGraphNode[N, E], b DiGraph_DiGraphNode[N, E]) bool {
-	if c.nodePredicate(a.GetValue()) &&
-		(c.inclusive || (a != c.start && a != c.end)) {
+func (c *CheckPathsBetweenNodes[N, E]) checkAllPaths(
+	a *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
+	b *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
+	epoch uint32,
+) bool {
+	if (c.inclusive || (a != c.linkedStart && a != c.linkedEnd)) && c.nodePredicate(a.Value) {
 		return true
 	}
 	if a == b {
 		return false
 	}
-	for _, e := range a.GetOutEdges() {
-		// Once we visited that edge once, we no longer need to
-		// re-visit it again.
-		if e.GetAnnotation() == checkPathsBetweenNodes_VISITED_EDGE {
+	for _, e := range a.OutEdgeList.Slice() {
+		if c.edgeState[e.Index] == epoch {
 			continue
 		}
-		e.SetAnnotation(checkPathsBetweenNodes_VISITED_EDGE)
-
-		if c.ignoreEdge(e) {
+		c.edgeState[e.Index] = epoch
+		if !c.allEdges && !c.edgePredicate(e) {
 			continue
 		}
-		if e.GetAnnotation() == checkPathsBetweenNodes_BACK_EDGE {
-			continue
-		}
-
-		next := e.GetDestination()
-		if !c.checkAllPathsWithoutBackEdges(next, b) {
+		if !c.checkAllPaths(e.DestNode, b, epoch) {
 			return false
 		}
 	}
 	return true
 }
 
-// checkSomePathsWithoutBackEdges verifies that some non-looping paths from
-// a to b pass through at least one node where nodePredicate is true.
-//
-// Java: CheckPathsBetweenNodes.checkSomePathsWithoutBackEdges(DiGraphNode<N, E>, DiGraphNode<N, E>)
-func (c *CheckPathsBetweenNodes[N, E]) checkSomePathsWithoutBackEdges(a DiGraph_DiGraphNode[N, E], b DiGraph_DiGraphNode[N, E]) bool {
-	if c.nodePredicate(a.GetValue()) &&
-		(c.inclusive || (a != c.start && a != c.end)) {
+func (c *CheckPathsBetweenNodes[N, E]) checkSomePaths(
+	a *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
+	b *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
+	epoch uint32,
+) bool {
+	if (c.inclusive || (a != c.linkedStart && a != c.linkedEnd)) && c.nodePredicate(a.Value) {
 		return true
 	}
 	if a == b {
 		return false
 	}
-	for _, e := range a.GetOutEdges() {
-		// Once we visited that edge once, we no longer need to
-		// re-visit it again.
-		if e.GetAnnotation() == checkPathsBetweenNodes_VISITED_EDGE {
+	for _, e := range a.OutEdgeList.Slice() {
+		if c.edgeState[e.Index] == epoch {
 			continue
 		}
-		e.SetAnnotation(checkPathsBetweenNodes_VISITED_EDGE)
-
-		if c.ignoreEdge(e) {
+		c.edgeState[e.Index] = epoch
+		if !c.allEdges && !c.edgePredicate(e) {
 			continue
 		}
-		if e.GetAnnotation() == checkPathsBetweenNodes_BACK_EDGE {
-			continue
-		}
-
-		next := e.GetDestination()
-		if c.checkSomePathsWithoutBackEdges(next, b) {
+		if c.checkSomePaths(e.DestNode, b, epoch) {
 			return true
 		}
 	}

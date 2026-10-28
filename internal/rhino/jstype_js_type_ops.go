@@ -609,12 +609,12 @@ func (t *JSTypeBase) IsSubtypeWithoutStructuralTyping(supertype JSType) bool {
 		return true
 	}
 	c := SubtypeChecker{
-		initialSubtype:          t.self(),
-		initialSupertype:        supertype,
-		registry:                t.GetRegistry(),
-		isUsingStructuralTyping: &subtypeChecker_booleans[0],
-		subtypingMode:           &subtypeChecker_subtypingModes[JSType_SubtypingMode_NORMAL],
-		hasRun:                  true,
+		initialSubtype:        t.self(),
+		initialSupertype:      supertype,
+		registry:              t.GetRegistry(),
+		usingStructuralTyping: optBoolFalse,
+		subtypingMode:         optSubtypingModeNormal,
+		hasRun:                true,
 	}
 	return c.IsSubtypeDispatching(t.self(), supertype)
 }
@@ -679,12 +679,12 @@ func (t *JSTypeBase) IsSubtypeOf(supertype JSType) bool {
 		return true
 	}
 	c := SubtypeChecker{
-		initialSubtype:          t.self(),
-		initialSupertype:        supertype,
-		registry:                t.GetRegistry(),
-		isUsingStructuralTyping: &subtypeChecker_booleans[1],
-		subtypingMode:           &subtypeChecker_subtypingModes[JSType_SubtypingMode_NORMAL],
-		hasRun:                  true,
+		initialSubtype:        t.self(),
+		initialSupertype:      supertype,
+		registry:              t.GetRegistry(),
+		usingStructuralTyping: optBoolTrue,
+		subtypingMode:         optSubtypingModeNormal,
+		hasRun:                true,
 	}
 	return c.IsSubtypeDispatching(t.self(), supertype)
 }
@@ -698,20 +698,13 @@ func (t *JSTypeBase) IsSubtypeOfWithMode(supertype JSType, mode JSType_Subtyping
 	if t == supBase {
 		return true
 	}
-	var modePtr *JSType_SubtypingMode
-	if mode >= 0 && int(mode) < len(subtypeChecker_subtypingModes) {
-		modePtr = &subtypeChecker_subtypingModes[mode]
-	} else {
-		other := mode
-		modePtr = &other
-	}
 	c := SubtypeChecker{
-		initialSubtype:          t.self(),
-		initialSupertype:        supertype,
-		registry:                t.GetRegistry(),
-		isUsingStructuralTyping: &subtypeChecker_booleans[1],
-		subtypingMode:           modePtr,
-		hasRun:                  true,
+		initialSubtype:        t.self(),
+		initialSupertype:      supertype,
+		registry:              t.GetRegistry(),
+		usingStructuralTyping: optBoolTrue,
+		subtypingMode:         optSubtypingModeOf(mode),
+		hasRun:                true,
 	}
 	return c.IsSubtypeDispatching(t.self(), supertype)
 }

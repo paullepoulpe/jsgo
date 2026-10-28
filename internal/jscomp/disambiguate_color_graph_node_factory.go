@@ -90,11 +90,26 @@ func (f *ColorGraphNodeFactory) simplifyColor(type_ *colors.Color) *colors.Color
 		// components
 		type_ = type_.SubtractNullOrVoid()
 		if type_.IsUnion() {
-			simplified := jutil.NewObjectLinkedHashSet[*colors.Color]()
-			for e := range type_.GetUnionElements().All() {
-				simplified.Add(f.simplifyColor(e))
+			elems := type_.GetUnionElements()
+			var stackBuf [8]*colors.Color
+			var simplified []*colors.Color
+			if len(elems) <= len(stackBuf) {
+				simplified = stackBuf[:0]
+			} else {
+				simplified = make([]*colors.Color, 0, len(elems))
 			}
-			return colors.Color_CreateUnion(simplified)
+			changed := false
+			for _, e := range elems {
+				se := f.simplifyColor(e)
+				if se != e {
+					changed = true
+				}
+				simplified = append(simplified, se)
+			}
+			if !changed {
+				return type_
+			}
+			return colors.Color_CreateUnionSlice(simplified)
 		}
 		return f.simplifyColor(type_)
 	} else if type_.GetBoxId() != nil {

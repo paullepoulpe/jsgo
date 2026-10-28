@@ -20,6 +20,8 @@
 package jscomp
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -270,6 +272,29 @@ func (c *MaybeReachingVariableUseTest) TestDestructuring() {
 	c.AssertMatch("D: var [x] = []; U: x;")
 	c.AssertMatch("var x; x = 3; D: [x] = 5; U: x;")
 	c.AssertNotMatch("D: var x; x = 3; [x] = 5; U: x;")
+}
+
+func (c *MaybeReachingVariableUseTest) TestManyVarsAndManyUses() {
+	var b strings.Builder
+	for i := range 80 {
+		v := "v" + strconv.Itoa(i)
+		b.WriteString("var " + v + " = " + strconv.Itoa(i) + "; use(" + v + ");\n")
+	}
+	b.WriteString("D: var x = 1;\n")
+	for i := range 75 {
+		b.WriteString("if (cond(" + strconv.Itoa(i) + ")) { U" + strconv.Itoa(i) + ": use(x); }\n")
+	}
+	b.WriteString("x = 2; afterKill(x);\n")
+	c.AssertMatch(b.String())
+
+	// Also verify a killed def before >64 uses does not reach after unconditional redef.
+	b.Reset()
+	for i := range 70 {
+		v := "v" + strconv.Itoa(i)
+		b.WriteString("var " + v + " = " + strconv.Itoa(i) + "; use(" + v + ");\n")
+	}
+	b.WriteString("D: var x = 1;\nx = 2;\nU: use(x);\n")
+	c.AssertNotMatch(b.String())
 }
 
 // Java: MaybeReachingVariableUseTest.assertMatch(String)

@@ -173,12 +173,12 @@ func (s *ColorSerializer) allocInt32Slice(src []int32) []int32 {
 	return out
 }
 
-func (s *ColorSerializer) addColorSetInt32s(set *jutil.ObjectLinkedHashSet[*colors.Color]) []int32 {
-	if set == nil || set.IsEmpty() {
+func (s *ColorSerializer) addColorSliceInt32s(cs []*colors.Color) []int32 {
+	if len(cs) == 0 {
 		return nil
 	}
 	tmp := s.scratchInt32s[:0]
-	for c := range set.All() {
+	for _, c := range cs {
 		tmp = append(tmp, int32(s.AddColor(c)))
 	}
 	s.scratchInt32s = tmp
@@ -187,18 +187,18 @@ func (s *ColorSerializer) addColorSetInt32s(set *jutil.ObjectLinkedHashSet[*colo
 
 func (s *ColorSerializer) ownPropertyInt32s(color *colors.Color) []int32 {
 	props := color.GetOwnProperties()
-	if props == nil || props.IsEmpty() {
+	if len(props) == 0 {
 		return nil
 	}
 	tmp := s.scratchInt32s[:0]
 	if s.lookupUsedPropIndexFn != nil {
-		for ownProperty := range props.All() {
+		for _, ownProperty := range props {
 			if idx, ok := s.lookupUsedPropIndexFn(ownProperty); ok {
 				tmp = append(tmp, int32(idx))
 			}
 		}
 	} else {
-		for ownProperty := range props.All() {
+		for _, ownProperty := range props {
 			if s.propertyFilter(ownProperty) {
 				tmp = append(tmp, int32(s.getStringPoolIndexFn(ownProperty)))
 			}
@@ -283,7 +283,7 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 	tp := s.allocTypeProto()
 	if color.IsUnion() {
 		up := s.allocUnionTypeProto()
-		members := s.addColorSetInt32s(color.GetUnionElements())
+		members := s.addColorSliceInt32s(color.GetUnionElements())
 		uSize := 0
 		if len(members) > 0 {
 			p := protoPackedInt32PayloadSize(members)
@@ -302,9 +302,9 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 		}
 	} else {
 		op := s.allocObjectTypeProto()
-		inst := s.addColorSetInt32s(color.GetInstanceColors())
+		inst := s.addColorSliceInt32s(color.GetInstanceColors())
 		own := s.ownPropertyInt32s(color)
-		protos := s.addColorSetInt32s(color.GetPrototypes())
+		protos := s.addColorSliceInt32s(color.GetPrototypes())
 		closureAssert := color.IsClosureAssert()
 		isInvalidating := color.IsInvalidating()
 		markedCtor := color.IsConstructor()
@@ -362,7 +362,7 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 
 func (s *ColorSerializer) GetOwnPropertyStringPoolOffsets(color *colors.Color) []int {
 	var builder []int
-	for ownProperty := range color.GetOwnProperties().All() {
+	for _, ownProperty := range color.GetOwnProperties() {
 		// The client code may know that some properties are unused in the
 		// AST, so there's no need to serialize them.
 		if s.propertyFilter(ownProperty) {

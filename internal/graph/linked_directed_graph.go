@@ -47,6 +47,8 @@ type LinkedDirectedGraph[N comparable, E any] struct {
 	nodeSlab jutil.ReuseSlab[LinkedDirectedGraph_LinkedDiGraphNode[N, E]]
 	edgeSlab jutil.ReuseSlab[LinkedDirectedGraph_LinkedDiGraphEdge[N, E]]
 
+	nextNodeIndex      uint32
+	nextEdgeIndex      uint32
 	useNodeAnnotations bool
 	useEdgeAnnotations bool
 }
@@ -106,8 +108,20 @@ func NewLinkedDirectedGraph[N comparable, E any](useNodeAnnotations bool, useEdg
 // is the object being constructed.
 func (g *LinkedDirectedGraph[N, E]) InitLinkedDirectedGraph(self DiGraph[N, E], useNodeAnnotations bool, useEdgeAnnotations bool) {
 	g.InitDiGraphBase(self)
+	g.nextNodeIndex = 0
+	g.nextEdgeIndex = 0
 	g.useNodeAnnotations = useNodeAnnotations
 	g.useEdgeAnnotations = useEdgeAnnotations
+}
+
+// NodeIndexCap returns an upper bound on Index + 1 for all nodes allocated by g.
+func (g *LinkedDirectedGraph[N, E]) NodeIndexCap() int {
+	return int(g.nextNodeIndex)
+}
+
+// EdgeIndexCap returns an upper bound on Index + 1 for all edges allocated by g.
+func (g *LinkedDirectedGraph[N, E]) EdgeIndexCap() int {
+	return int(g.nextEdgeIndex)
 }
 
 // AsLinkedDirectedGraph returns g, satisfying DiGraph for both
@@ -129,6 +143,8 @@ const linkedDirectedGraphReuseMaxNodes = 1024
 func (g *LinkedDirectedGraph[N, E]) ClearForReuse() {
 	g.nodeAnnotationStack = nil
 	g.edgeAnnotationStack = nil
+	g.nextNodeIndex = 0
+	g.nextEdgeIndex = 0
 	if g.Nodes.Size() > linkedDirectedGraphReuseMaxNodes {
 		g.Nodes.Reset()
 	} else {
@@ -150,6 +166,8 @@ func (g *LinkedDirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedDirectedGr
 func (g *LinkedDirectedGraph[N, E]) AllocNode(nodeValue N) *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
 	n := g.nodeSlab.Alloc()
 	n.Value = nodeValue
+	n.Index = g.nextNodeIndex
+	g.nextNodeIndex++
 	n.Priority = -1
 	n.annotated = g.useNodeAnnotations
 	return n
@@ -162,6 +180,8 @@ func (g *LinkedDirectedGraph[N, E]) newEdge(
 	e.SourceNode = src
 	e.DestNode = dest
 	e.Value = edgeValue
+	e.Index = g.nextEdgeIndex
+	g.nextEdgeIndex++
 	e.annotated = g.useEdgeAnnotations
 	return e
 }
@@ -674,6 +694,7 @@ type LinkedDirectedGraph_LinkedDiGraphNode[N, E any] struct {
 
 	Value N
 
+	Index      uint32
 	Priority   int32
 	annotated  bool
 	inWorkSet  bool
@@ -883,8 +904,9 @@ type LinkedDirectedGraph_LinkedDiGraphEdge[N, E any] struct {
 	Value E
 
 	// AnnotatedLinkedDiGraphEdge
-	annotated  bool
 	Annotation Annotation
+	Index      uint32
+	annotated  bool
 }
 
 // newLinkedDirectedGraph_LinkedDiGraphEdge is the constructor; edgeValue is

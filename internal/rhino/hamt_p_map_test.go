@@ -100,6 +100,17 @@ func TestHamtPMap_Empty(t *testing.T) {
 	assertGet(t, m, "foo", nil)
 	assertValuesExactly(t, m.Values())
 	assertIsEmpty(t, m, true)
+
+	var nilMap *HamtPMap[string, any]
+	if nilMap != HamtPMap_Empty[string, any]() {
+		t.Error("HamtPMap_Empty() != nil")
+	}
+	assertGet(t, nilMap, "foo", nil)
+	assertValuesExactly(t, nilMap.Values())
+	assertIsEmpty(t, nilMap, true)
+	if got := nilMap.String(); got != "{}" {
+		t.Errorf("nilMap.String() = %q, want {}", got)
+	}
 }
 
 func TestHamtPMap_Plus(t *testing.T) {

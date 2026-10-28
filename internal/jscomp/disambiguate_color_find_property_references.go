@@ -36,8 +36,9 @@ import (
 type ColorFindPropertyReferences struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	propIndex *jutil.LinkedHashMap[string, *PropertyClustering]
-	ownerMap  map[*colors.Color]*ColorGraphNode
+	propIndex  *jutil.LinkedHashMap[string, *PropertyClustering]
+	ownerMap   map[*colors.Color]*ColorGraphNode
+	propAssocs map[propAssocKey]ColorGraphNode_PropAssociation
 
 	colorGraphNodeFactory *ColorGraphNodeFactory
 	isPropertyReflector   ColorFindPropertyReferences_IsPropertyReflector
@@ -156,10 +157,10 @@ func (r *ColorFindPropertyReferences) handleClass(t *NodeTraversal, classNode rh
 			} else if child.IsMemberFieldDef() {
 				if instanceOwner == nil {
 					classInstanceType := classType.GetInstanceColors()
-					if classInstanceType.IsEmpty() {
+					if len(classInstanceType) == 0 {
 						instanceOwner = colors.StandardColors_UNKNOWN
 					} else {
-						instanceOwner = colors.Color_CreateUnion(classInstanceType)
+						instanceOwner = colors.Color_CreateUnionSlice(classInstanceType)
 					}
 				}
 				owner = instanceOwner
@@ -167,10 +168,10 @@ func (r *ColorFindPropertyReferences) handleClass(t *NodeTraversal, classNode rh
 				jutil.CheckStateMsg1(child.IsMemberFunctionDef() || child.IsGetterDef() || child.IsSetterDef(), "%s", child)
 				if protoOwner == nil {
 					classPrototypeType := classType.GetPrototypes()
-					if classPrototypeType.IsEmpty() {
+					if len(classPrototypeType) == 0 {
 						protoOwner = colors.StandardColors_UNKNOWN
 					} else {
-						protoOwner = colors.Color_CreateUnion(classPrototypeType)
+						protoOwner = colors.Color_CreateUnionSlice(classPrototypeType)
 					}
 				}
 				owner = protoOwner
@@ -191,7 +192,7 @@ func (r *ColorFindPropertyReferences) handleFunction(fnNode rhino.Node) {
 	// via a superclass or implemented interface.
 	// e.g. `const /** !FooInterface */ x = new Foo(); x.method();`
 	fnType := fnNode.GetColor()
-	if fnType != nil && !fnType.GetInstanceColors().IsEmpty() {
+	if fnType != nil && len(fnType.GetInstanceColors()) != 0 {
 		r.createNode(fnType)
 	}
 }
@@ -260,7 +261,10 @@ func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site
 	flatOwner := r.createNode(owner)
 
 	// Set the initial condition for flowing this property along the graph.
-	if _, existed := flatOwner.GetAssociatedProps().LoadOrStore(prop, ColorGraphNode_PropAssociation_AST); !existed {
+	if flatOwner.AddProp(prop) {
+		if r.propAssocs != nil {
+			r.propAssocs[propAssocKey{node: flatOwner, prop: prop}] = ColorGraphNode_PropAssociation_AST
+		}
 		// Make sure there's a cluster for this name/type combination.
 		prop.GetClusters().Add(flatOwner)
 	}

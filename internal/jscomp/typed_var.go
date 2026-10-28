@@ -99,6 +99,9 @@ func (v *TypedVar) HashCode() int32 {
 
 // Java: ScopedName.equals(Object)
 func (v *TypedVar) Equals(other any) bool {
+	if o, ok := other.(*TypedVar); ok {
+		return o != nil && v.name == o.name && scopedName_nodeEquals(v.GetScopeRoot(), o.GetScopeRoot())
+	}
 	return v.equals(v.name, other)
 }
 

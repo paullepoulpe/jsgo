@@ -1238,7 +1238,7 @@ func (h *ObjectLinkedHashMap[K, V]) InitWithBuffer(buf []OlhmSlot[K, V]) {
 func (h *ObjectLinkedHashMap[K, V]) find(k K) (int, int32) {
 	// Go-only: performance — the ...Of forms do not box String keys.
 	hash := ObjectHashCodeOf(k)
-	if h == nil {
+	if h == nil || h.size == 0 {
 		return -1, hash
 	}
 	slots := h.slots
@@ -1281,6 +1281,10 @@ func (h *ObjectLinkedHashMap[K, V]) Get(k K) V {
 
 // Lookup returns the value and whether the key is present.
 func (h *ObjectLinkedHashMap[K, V]) Lookup(k K) (V, bool) {
+	if h == nil || h.size == 0 {
+		var zero V
+		return zero, false
+	}
 	if i, _ := h.find(k); i >= 0 {
 		return h.slots[i].value, true
 	}
@@ -1290,6 +1294,9 @@ func (h *ObjectLinkedHashMap[K, V]) Lookup(k K) (V, bool) {
 
 // ContainsKey is Map.containsKey.
 func (h *ObjectLinkedHashMap[K, V]) ContainsKey(k K) bool {
+	if h == nil || h.size == 0 {
+		return false
+	}
 	i, _ := h.find(k)
 	return i >= 0
 }
@@ -1362,6 +1369,10 @@ func (h *ObjectLinkedHashMap[K, V]) compact() {
 
 // Remove is Map.remove; returns the removed value (zero if absent).
 func (h *ObjectLinkedHashMap[K, V]) Remove(k K) V {
+	if h == nil || h.size == 0 {
+		var zero V
+		return zero
+	}
 	i, hash := h.find(k)
 	if i < 0 {
 		var zero V
@@ -1589,6 +1600,9 @@ func (s *ObjectLinkedHashSet[T]) Contains(e T) bool { return s != nil && s.m.Con
 
 // Remove is Set.remove.
 func (s *ObjectLinkedHashSet[T]) Remove(e T) bool {
+	if s == nil || s.m.size == 0 {
+		return false
+	}
 	i, hash := s.m.find(e)
 	if i < 0 {
 		return false

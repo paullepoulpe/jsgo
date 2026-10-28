@@ -143,7 +143,7 @@ func (b *ColorGraphBuilder) connectUnionWithAncestors(unionNode *graph.LinkedDir
 	// could be more careful.
 	jutil.CheckState(len(unionNode.GetOutEdges()) != 0)
 	graphNodes := jutil.NewLinkedHashSet[*ColorGraphNode]() // toImmutableSet()
-	for alt := range flatUnion.GetColor().GetUnionElements().All() {
+	for _, alt := range flatUnion.GetColor().GetUnionElements() {
 		graphNodes.Add(b.nodeFactory.CreateNode(alt))
 	}
 	for lca := range b.lcaFinder.FindAll(graphNodes).All() {
@@ -172,7 +172,7 @@ func (b *ColorGraphBuilder) addInternal(node *ColorGraphNode) *graph.LinkedDirec
 	flatNode = b.colorHoldsInstanceGraph.CreateLinkedDiGraphNode(node)
 
 	if node.GetColor().IsUnion() {
-		for alt := range node.GetColor().GetUnionElements().All() {
+		for _, alt := range node.GetColor().GetUnionElements() {
 			b.connectSourceToDest(flatNode, ColorGraphBuilder_EdgeReason_ALGEBRAIC, b.addInternalColor(alt))
 		}
 		return flatNode
@@ -196,10 +196,10 @@ func (b *ColorGraphBuilder) addInternal(node *ColorGraphNode) *graph.LinkedDirec
 	// initialized but instead passed to some function expecting
 	// `function(new:Parent)`. See
 	// AmbiguatePropertiesTest#testImplementsAndExtends_respectsUndeclaredProperties().
-	for prototype := range color.GetPrototypes().All() {
+	for _, prototype := range color.GetPrototypes() {
 		b.addInternalColor(prototype)
 	}
-	for instanceColor := range color.GetInstanceColors().All() {
+	for _, instanceColor := range color.GetInstanceColors() {
 		b.addInternalColor(instanceColor)
 	}
 	return flatNode

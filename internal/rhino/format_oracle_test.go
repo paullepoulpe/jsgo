@@ -385,13 +385,13 @@ func buildFormatOracle() string {
 	o.line("=== colors")
 	o.rec("number", colors.StandardColors_NUMBER.String())
 	o.rec("unknown", colors.StandardColors_UNKNOWN.String())
-	elems := jutil.NewObjectLinkedHashSet(colors.StandardColors_NUMBER, colors.StandardColors_STRING, colors.StandardColors_NULL_OR_VOID)
-	union := colors.Color_CreateUnion(elems)
+	elems := []*colors.Color{colors.StandardColors_NUMBER, colors.StandardColors_STRING, colors.StandardColors_NULL_OR_VOID}
+	union := colors.Color_CreateUnionSlice(elems)
 	o.rec("union", union.String())
 	o.rec("unionMinusNull", union.SubtractNullOrVoid().String())
 	custom := colors.Color_SingleBuilder().
 		SetId(colors.ColorId_FromAscii("Foo")).
-		SetOwnProperties(set("a", "b")).
+		SetOwnProperties([]string{"a", "b"}).
 		SetInstanceColor(colors.StandardColors_NUMBER).
 		SetConstructor(true).
 		Build()

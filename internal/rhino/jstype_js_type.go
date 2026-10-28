@@ -1205,7 +1205,7 @@ func (t *JSTypeBase) DiffersFrom(that JSType) bool {
 		return false
 	}
 	c := EqualityChecker{
-		eqMethod: &equalityChecker_eqMethods[EqualityChecker_EqMethod_DATA_FLOW],
+		eqMethod: optEqMethodDataFlow,
 		hasRun:   true,
 	}
 	return !c.AreEqualInternal(t.self(), that)

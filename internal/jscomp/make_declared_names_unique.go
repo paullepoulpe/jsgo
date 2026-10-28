@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -278,37 +279,66 @@ type MakeDeclaredNamesUnique_Renamer interface {
 
 // MakeDeclaredNamesUnique_ContextualRenameInverter inverts the
 // transformation by ContextualRenamer, when possible.
+//
+// Go-only: performance — collapses Java's 5-class VariableInfo /
+// DeclaredVariableInfo / UndeclaredVariableInfo / RenamingInfo /
+// VariableInfoStackMap hierarchy onto a slab-allocated concrete inverterVar
+// with an intrusive prevShadow pointer stack keyed by StringPool ID, skips
+// non-NAME/IMPORT_STAR Visit callbacks via visitTokens(), and skips top-level
+// local scope subtrees that contain no "$jscomp$" names.
 type MakeDeclaredNamesUnique_ContextualRenameInverter struct {
 	compiler AbstractCompiler
 
-	// The top of this stack is always an object storing information about the current variable
-	// scope or null for the global scope.
-	//
-	// Go-only: language-adapter — the ArrayDeque used as a stack is a slice
-	// whose top is the last element.
+	// Stack of active local scope contexts (empty in the global scope).
 	scopeContextStack []*renameInverterScopeContext
 
-	// Keeps track of all VariableInfo objects for all variables visible in the current
-	// variable scope.
-	//
-	// Basically this is a map whose keys are names and whose values are stacks of
-	// VariableInfo objects. The top of each stack represents the variable with that name that is
-	// visible in the scope we are currently traversing.
-	variablesStackedByName renameInverterVarInfoStackMap
+	// Maps StringPool ID to the innermost visible inverterVar with that name;
+	// outer shadowed variables are chained via inverterVar.prevShadow.
+	shadowByID map[uint32]*inverterVar
+
+	varSlab            jutil.ReuseSlab[inverterVar]
+	scopeSlab          jutil.ReuseSlab[renameInverterScopeContext]
+	disallowedNames    map[string]struct{}
+	skippingModuleBody bool
+}
+
+var renameInverterVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_IMPORT_STAR)
+	return s
+}()
+
+func (*MakeDeclaredNamesUnique_ContextualRenameInverter) visitTokens() *ast.TokenSet {
+	return &renameInverterVisitTokens
+}
+
+type renameInverterScopeCreator struct {
+	sc *SyntacticScopeCreator
+}
+
+func (r *renameInverterScopeCreator) CreateScope(n rhino.Node, parent AbstractScope) AbstractScope {
+	if parent == nil {
+		// ContextualRenameInverter never reads global variable declarations;
+		// avoid scanning the global AST when instantiating a local scope.
+		return newScope(n)
+	}
+	return r.sc.CreateScopeOfScope(n, parent.(*Scope))
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter(AbstractCompiler)
 func NewMakeDeclaredNamesUnique_ContextualRenameInverter(
-	compiler AbstractCompiler) *MakeDeclaredNamesUnique_ContextualRenameInverter {
-	c := &MakeDeclaredNamesUnique_ContextualRenameInverter{}
-	c.variablesStackedByName.init(c)
-	c.compiler = compiler
-	return c
+	compiler AbstractCompiler,
+) *MakeDeclaredNamesUnique_ContextualRenameInverter {
+	return &MakeDeclaredNamesUnique_ContextualRenameInverter{
+		compiler:   compiler,
+		shadowByID: make(map[uint32]*inverterVar),
+	}
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.process(Node, Node)
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Process(externs rhino.Node, js rhino.Node) {
-	sc := NewSyntacticScopeCreator(c.compiler)
+	sc := &renameInverterScopeCreator{sc: NewSyntacticScopeCreator(c.compiler)}
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
 		callback:     c,
@@ -331,135 +361,173 @@ func MakeDeclaredNamesUnique_ContextualRenameInverter_IndexOfSeparator(name stri
 	return jutil.StringLastIndexOf(name, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR)
 }
 
-// EnterScope prepares a set for the new scope.
-//
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.enterScope(NodeTraversal)
-func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) EnterScope(t *NodeTraversal) {
-	if t.InGlobalScope() {
-		// Don't track any information for the global scope, because it is likely to be
-		// very large, and we will never rename any variables it contains. MakeDeclaredNamesUnique
-		// favors keeping global variables unchanged, so they won't need to be restored.
-		return
-	}
-
-	scope := t.GetScope()
-
-	// Create DeclaredVariableInfo objects for all variables declared in this scope.
-	// Push them onto the variablesByName data structure to make them visible,
-	// and store them into a ScopeContext object for the scope we're entering.
-	var declaredVariablesBuilder []*renameInverterDeclaredVarInfo
-	if varCount := scope.GetVarCount(); varCount > 0 {
-		declaredVariablesBuilder = make([]*renameInverterDeclaredVarInfo, 0, varCount)
-		for _, var_ := range scope.varList {
-			if var_ == nil {
-				continue
+func renameInverterSubtreeHasSeparator(n rhino.Node) bool {
+	tok := n.GetToken()
+	if tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
+		if n.GetStringID() > rhino.RhinoStringPool_EmptyID {
+			s := n.GetString()
+			if len(s) > len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR) &&
+				strings.LastIndex(s, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR) > 0 {
+				return true
 			}
-			variableInfo := c.CreateDeclaredVariableInfo(var_)
-			declaredVariablesBuilder = append(declaredVariablesBuilder, variableInfo)
-			c.variablesStackedByName.PushVariableInfo(variableInfo)
 		}
 	}
-	var parent *renameInverterScopeContext
-	if len(c.scopeContextStack) != 0 {
-		parent = c.scopeContextStack[len(c.scopeContextStack)-1]
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if renameInverterSubtreeHasSeparator(c) {
+			return true
+		}
 	}
-	c.scopeContextStack = append(c.scopeContextStack,
-		newRenameInverterScopeContext(scope, declaredVariablesBuilder, parent))
+	return false
 }
 
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.createDeclaredVariableInfo(Var)
-func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) CreateDeclaredVariableInfo(
-	var_ *Var) *renameInverterDeclaredVarInfo {
-	currentName := var_.GetName()
-	indexOfSeparator := MakeDeclaredNamesUnique_ContextualRenameInverter_IndexOfSeparator(currentName)
-	var renamingInfo *renameInverterRenamingInfo
-	if indexOfSeparator > 0 {
-		// We check for an index > 0, because a variable created directly by the compiler generally
-		// begin with `$jscomp$` (the separator). We can't and don't want to try to rename any
-		// variable to an empty string.
-		invertedName := jutil.StringSubstring(currentName, 0, indexOfSeparator)
-		renamingInfo = newRenameInverterRenamingInfo(c, currentName, invertedName)
-	} else {
-		renamingInfo = nil
-	}
-	return newRenameInverterDeclaredVarInfo(var_, renamingInfo)
-}
+// inverterVar unifies Java's VariableInfo, DeclaredVariableInfo,
+// UndeclaredVariableInfo, and RenamingInfo into a single concrete struct.
+type inverterVar struct {
+	inverter *MakeDeclaredNamesUnique_ContextualRenameInverter
 
-// renameInverterRenamingInfo keeps track of information needed to rename a
-// DeclaredVariableInfo.
-type renameInverterRenamingInfo struct {
-	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter // the enclosing instance
-
-	// Will be filled with all nodes referring to the variable.
-	referenceNodes []rhino.Node
-
-	// Will be filled with objects representing variables whose names must not conflict with this
-	// one.
-	potentialShadowVariables jutil.LinkedHashSet[renameInverterVarInfo]
-
-	// The name the variable has currently
-	currentName string
-
-	// The name we want to use when renaming the variable.
+	name          string
+	nameID        uint32
 	preferredName string
+	scopeDepth    int
+	prevShadow    *inverterVar
+
+	// Non-nil (pointing to this inverterVar) while renaming is pending;
+	// nil when not renamable or after TryToInvertName().
+	renamingInfo *inverterVar
+
+	referenceNodes           []rhino.Node
+	potentialShadowVariables jutil.LinkedHashSet[*inverterVar]
 }
 
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.RenamingInfo(String, String)
-func newRenameInverterRenamingInfo(
-	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter,
-	currentName string,
-	preferredName string) *renameInverterRenamingInfo {
-	return &renameInverterRenamingInfo{
-		this_:         this_,
-		currentName:   currentName,
-		preferredName: preferredName,
+type MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo = inverterVar
+type MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo = *inverterVar
+
+func (v *inverterVar) recycle() {
+	v.inverter = nil
+	v.name = ""
+	v.nameID = 0
+	v.preferredName = ""
+	v.scopeDepth = 0
+	v.prevShadow = nil
+	v.renamingInfo = nil
+	if cap(v.referenceNodes) <= 64 {
+		clear(v.referenceNodes)
+		v.referenceNodes = v.referenceNodes[:0]
+	} else {
+		v.referenceNodes = nil
+	}
+	if v.potentialShadowVariables.Size() > 64 {
+		v.potentialShadowVariables = jutil.LinkedHashSet[*inverterVar]{}
+	} else {
+		v.potentialShadowVariables.Clear()
 	}
 }
 
 func NewMakeDeclaredNamesUnique_ContextualRenameInverter_RenamingInfo(
 	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter,
 	currentName string,
-	preferredName string) *renameInverterRenamingInfo {
-	return newRenameInverterRenamingInfo(this_, currentName, preferredName)
+	preferredName string,
+) *inverterVar {
+	v := &inverterVar{
+		inverter:      this_,
+		name:          currentName,
+		nameID:        rhino.RhinoStringPool_InternID(currentName),
+		preferredName: preferredName,
+	}
+	v.renamingInfo = v
+	return v
 }
 
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.RenamingInfo.addPotentialShadowVariable(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
-func (r *renameInverterRenamingInfo) AddPotentialShadowVariable(
-	variableInfo renameInverterVarInfo) {
-	r.potentialShadowVariables.Add(variableInfo)
+func NewMakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo(
+	var_ *Var,
+	renamingInfo *inverterVar,
+) *inverterVar {
+	currentName := var_.GetName()
+	id := var_.nameID
+	if id == 0 {
+		id = rhino.RhinoStringPool_InternID(currentName)
+	}
+	depth := var_.GetScope().(*Scope).GetDepth()
+	if renamingInfo != nil {
+		renamingInfo.name = currentName
+		renamingInfo.nameID = id
+		renamingInfo.scopeDepth = depth
+		renamingInfo.renamingInfo = renamingInfo
+		return renamingInfo
+	}
+	return &inverterVar{
+		name:       currentName,
+		nameID:     id,
+		scopeDepth: depth,
+	}
+}
+
+// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.getName()
+func (v *inverterVar) GetName() string {
+	return v.name
+}
+
+// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.getScopeDepth()
+func (v *inverterVar) GetScopeDepth() int {
+	return v.scopeDepth
+}
+
+// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.addPotentialConflict(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
+func (v *inverterVar) AddPotentialConflict(other *inverterVar) {
+	if v.renamingInfo != nil && other != v {
+		v.potentialShadowVariables.Add(other)
+	}
+}
+
+// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.addReferenceNode(Node)
+func (v *inverterVar) AddReferenceNode(nameNode rhino.Node) {
+	if v.renamingInfo != nil {
+		v.referenceNodes = append(v.referenceNodes, nameNode)
+	}
+}
+
+// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo.tryToInvertName()
+func (v *inverterVar) TryToInvertName() {
+	if v.renamingInfo != nil {
+		v.name = v.attemptRename()
+		v.renamingInfo = nil
+	}
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.RenamingInfo.attemptRename()
-func (r *renameInverterRenamingInfo) AttemptRename() string {
+func (v *inverterVar) attemptRename() string {
 	// If we somehow ended up with "arguments$jscomp$..." it's not safe to rename
 	// that to "arguments", because that name is special, but it would still be good
-	// to simplify its name, if possible. See the note below regarding why we
-	// rename variables to something other than their original name.
-	conflict := r.preferredName == MakeDeclaredNamesUnique_ARGUMENTS
+	// to simplify its name, if possible.
+	conflict := v.preferredName == MakeDeclaredNamesUnique_ARGUMENTS
 	if !conflict {
-		for potentialShadowVariable := range r.potentialShadowVariables.All() {
-			if potentialShadowVariable.GetName() == r.preferredName {
+		for potentialShadowVariable := range v.potentialShadowVariables.All() {
+			if potentialShadowVariable.name == v.preferredName {
 				conflict = true
 				break
 			}
 		}
 	}
-	newName := r.preferredName
+	newName := v.preferredName
 	if conflict {
-		disallowedNames := make(map[string]struct{}, r.potentialShadowVariables.Size()+1)
-		disallowedNames[MakeDeclaredNamesUnique_ARGUMENTS] = struct{}{}
-		for potentialShadowVariable := range r.potentialShadowVariables.All() {
-			// NOTE: We need to look up these names immediately before making our rename
-			// decision, because some of these variables could themselves have been renamed.
-			disallowedNames[potentialShadowVariable.GetName()] = struct{}{}
+		var disallowedNames map[string]struct{}
+		if v.inverter != nil {
+			if v.inverter.disallowedNames == nil {
+				v.inverter.disallowedNames = make(map[string]struct{}, v.potentialShadowVariables.Size()+1)
+			} else {
+				clear(v.inverter.disallowedNames)
+			}
+			disallowedNames = v.inverter.disallowedNames
+		} else {
+			disallowedNames = make(map[string]struct{}, v.potentialShadowVariables.Size()+1)
 		}
-		// Why are we bothering to find a name other than the original one?
-		// The reason is that we would like the final output name to depend more on the shape
-		// of the output code than on the process the compiler followed to reach that shape.
-		// This keeps our unit tests more stable. Without it, a tweak to the details of some
-		// optimization pass would be more likely to make a trivial change to the output that
-		// breaks unit tests.
-		baseName := r.preferredName + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
+		disallowedNames[MakeDeclaredNamesUnique_ARGUMENTS] = struct{}{}
+		for potentialShadowVariable := range v.potentialShadowVariables.All() {
+			// Look up names immediately before making our rename decision, because
+			// some of these variables could themselves have been renamed.
+			disallowedNames[potentialShadowVariable.name] = struct{}{}
+		}
+		baseName := v.preferredName + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
 		i := 0
 		for {
 			newName = baseName + strconv.Itoa(i)
@@ -470,95 +538,123 @@ func (r *renameInverterRenamingInfo) AttemptRename() string {
 		}
 	}
 
-	// It's possible we ended up generating the same name we already had.
-	if newName == r.currentName {
-		return r.currentName
+	if newName == v.name {
+		return v.name
 	}
 
-	for _, referenceNode := range r.referenceNodes {
+	for _, referenceNode := range v.referenceNodes {
 		referenceNode.SetString(newName)
-		// NOTE: This could probably be made more efficient by only reporting after doing all the
-		// nodes that occur in the same scope.
-		r.this_.compiler.ReportChangeToEnclosingScope(referenceNode)
-		parent := referenceNode.GetParent()
-		// If we are renaming a function declaration, make sure the containing scope
-		// has the opportunity to act on the change.
-		if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
-			r.this_.compiler.ReportChangeToEnclosingScope(parent)
+		if v.inverter != nil && v.inverter.compiler != nil {
+			v.inverter.compiler.ReportChangeToEnclosingScope(referenceNode)
+			parent := referenceNode.GetParent()
+			if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
+				v.inverter.compiler.ReportChangeToEnclosingScope(parent)
+			}
 		}
 	}
 
 	return newName
 }
 
-// renameInverterDeclaredVarInfo records information about a variable for
-// which we have seen a non-global declaration.
-type renameInverterDeclaredVarInfo struct {
-	var_ *Var
-	name string
-
-	// Keep track of information needed to rename this variable, if that is possible.
-	//
-	// This will be null if renaming has already been done or cannot be done.
-	renamingInfo *renameInverterRenamingInfo
-}
-
-type MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo = renameInverterDeclaredVarInfo
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo(Var, MakeDeclaredNamesUnique.ContextualRenameInverter.RenamingInfo)
-func newRenameInverterDeclaredVarInfo(
-	var_ *Var,
-	renamingInfo *renameInverterRenamingInfo,
-) *renameInverterDeclaredVarInfo {
-	return &renameInverterDeclaredVarInfo{
-		var_:         var_,
-		name:         var_.GetName(),
-		renamingInfo: renamingInfo,
+func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) allocDeclaredVar(
+	var_ *Var, scopeDepth int,
+) *inverterVar {
+	v := c.varSlab.Alloc()
+	currentName := var_.GetName()
+	id := var_.nameID
+	if id == 0 {
+		id = rhino.RhinoStringPool_InternID(currentName)
 	}
-}
-
-func NewMakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo(
-	var_ *Var,
-	renamingInfo *renameInverterRenamingInfo,
-) *renameInverterDeclaredVarInfo {
-	return newRenameInverterDeclaredVarInfo(var_, renamingInfo)
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo.getName()
-func (d *renameInverterDeclaredVarInfo) GetName() string {
-	return d.name
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo.getScopeDepth()
-func (d *renameInverterDeclaredVarInfo) GetScopeDepth() int {
-	// Go-only: language-adapter — AbstractVar.getScope() returns the StaticScope
-	// interface (see abstract_scope.go); a Var's scope is a *Scope.
-	return d.var_.GetScope().(*Scope).GetDepth()
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo.addPotentialConflict(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
-func (d *renameInverterDeclaredVarInfo) AddPotentialConflict(
-	variableInfo renameInverterVarInfo) {
-	if d.renamingInfo != nil && variableInfo != renameInverterVarInfo(d) {
-		d.renamingInfo.AddPotentialShadowVariable(variableInfo)
-	} // else we won't rename, so we don't care.
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo.addReferenceNode(Node)
-func (d *renameInverterDeclaredVarInfo) AddReferenceNode(nameNode rhino.Node) {
-	if d.renamingInfo != nil {
-		d.renamingInfo.referenceNodes = append(d.renamingInfo.referenceNodes, nameNode)
-	} // else we won't rename, so we don't care
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo.tryToInvertName()
-func (d *renameInverterDeclaredVarInfo) TryToInvertName() {
-	if d.renamingInfo != nil {
-		// update the name for the sake of other variables that may check this one for
-		// conflicts.
-		d.name = d.renamingInfo.AttemptRename()
-		d.renamingInfo = nil // allow garbage collection
+	v.inverter = c
+	v.name = currentName
+	v.nameID = id
+	v.scopeDepth = scopeDepth
+	if len(currentName) > len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR) {
+		if indexOfSeparator := strings.LastIndex(currentName, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR); indexOfSeparator > 0 {
+			// Note: indexOfSeparator is a byte index into currentName (and the
+			// separator "$jscomp$" is ASCII), so currentName[:indexOfSeparator]
+			// slices the exact prefix before "$jscomp$".
+			v.preferredName = currentName[:indexOfSeparator]
+			v.renamingInfo = v
+		}
 	}
+	return v
+}
+
+func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) pushVar(v *inverterVar) {
+	v.prevShadow = c.shadowByID[v.nameID]
+	c.shadowByID[v.nameID] = v
+}
+
+func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) getOrCreateCurrentVar(
+	id uint32, node rhino.Node,
+) *inverterVar {
+	if v := c.shadowByID[id]; v != nil {
+		return v
+	}
+	v := c.varSlab.Alloc()
+	v.inverter = c
+	v.name = node.GetString()
+	v.nameID = id
+	c.shadowByID[id] = v
+	return v
+}
+
+func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) popVar(expected *inverterVar) {
+	top, ok := c.shadowByID[expected.nameID]
+	if !ok {
+		panic(jutil.NewNullPointerExceptionMsg("Nonexistent variable info requested: '" + expected.name + "'"))
+	}
+	jutil.CheckStateMsg1(
+		top == expected,
+		"Declared variable \"%s\" was not the top of the name stack",
+		expected.name)
+	if top.prevShadow == nil {
+		delete(c.shadowByID, expected.nameID)
+	} else {
+		c.shadowByID[expected.nameID] = top.prevShadow
+	}
+	top.prevShadow = nil
+}
+
+// EnterScope prepares a set for the new scope.
+//
+// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.enterScope(NodeTraversal)
+func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) EnterScope(t *NodeTraversal) {
+	if t.InGlobalScope() {
+		// Don't track any information for the global scope, because it is likely to be
+		// very large, and we will never rename any variables it contains. MakeDeclaredNamesUnique
+		// favors keeping global variables unchanged, so they won't need to be restored.
+		return
+	}
+	if len(c.scopeContextStack) == 0 && t.GetScopeRoot().IsModuleBody() &&
+		!renameInverterSubtreeHasSeparator(t.GetScopeRoot()) {
+		c.skippingModuleBody = true
+		return
+	}
+
+	scope := t.GetScope()
+	var parent *renameInverterScopeContext
+	if len(c.scopeContextStack) != 0 {
+		parent = c.scopeContextStack[len(c.scopeContextStack)-1]
+	}
+	ctx := c.scopeSlab.Alloc()
+	ctx.scope = scope
+	ctx.parent = parent
+
+	scopeDepth := scope.GetDepth()
+	for _, var_ := range scope.varList {
+		if var_ == nil {
+			continue
+		}
+		variableInfo := c.allocDeclaredVar(var_, scopeDepth)
+		ctx.declaredVariableInfos = append(ctx.declaredVariableInfos, variableInfo)
+		if variableInfo.renamingInfo != nil {
+			ctx.renamableDeclared = append(ctx.renamableDeclared, variableInfo)
+		}
+		c.pushVar(variableInfo)
+	}
+	c.scopeContextStack = append(c.scopeContextStack, ctx)
 }
 
 // ExitScope renames vars for the current scope, and merge any referenced
@@ -569,119 +665,145 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) ExitScope(t *NodeTrav
 	if t.InGlobalScope() {
 		return
 	}
+	if c.skippingModuleBody {
+		c.skippingModuleBody = false
+		return
+	}
 
 	if len(c.scopeContextStack) == 0 {
 		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
 	}
-	scopeContext := jutil.CheckNotNull(c.scopeContextStack[len(c.scopeContextStack)-1])
-	c.scopeContextStack = c.scopeContextStack[:len(c.scopeContextStack)-1]
+	topIdx := len(c.scopeContextStack) - 1
+	scopeContext := jutil.CheckNotNull(c.scopeContextStack[topIdx])
+	c.scopeContextStack[topIdx] = nil
+	c.scopeContextStack = c.scopeContextStack[:topIdx]
 
 	// Tell all the variables we referenced and the variables that might conflict with them
-	// about each other.
-	// This needs to happen before we start trying to rename the variables in this scope next.
+	// about each other before trying to rename the variables in this scope.
 	for referencedVariable := range scopeContext.referencedVariables.Keys() {
 		scopeContext.RecordPotentialConflicts(referencedVariable)
 	}
 
-	// Pop each variable declared in the scope we're exiting off of the variable stack
-	// data structure.
-	// Try to rename each one.
 	for _, declaredVariableInfo := range scopeContext.declaredVariableInfos {
-		variableName := declaredVariableInfo.GetName()
-		// Out of an abundance of caution:
-		// 1. Pop the variable from its name stack and make sure it matches
-		// 2. Do this before renaming causes the name to be different.
-		oldStackTop := c.variablesStackedByName.PopVariableInfo(variableName)
-		jutil.CheckStateMsg1(
-			oldStackTop == renameInverterVarInfo(declaredVariableInfo),
-			"Declared variable \"%s\" was not the top of the name stack",
-			variableName)
+		c.popVar(declaredVariableInfo)
 		declaredVariableInfo.TryToInvertName()
 	}
 
 	if len(c.scopeContextStack) == 0 {
-		// clear the records for any global or undeclared variables before we start traversing
-		// a new local scope.
-		c.variablesStackedByName.Clear()
+		clear(c.shadowByID)
+		c.varSlab.Reset((*inverterVar).recycle)
+		c.scopeSlab.Reset((*renameInverterScopeContext).recycle)
 	}
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.shouldTraverse(NodeTraversal, Node, Node)
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) ShouldTraverse(
-	t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	t *NodeTraversal, n rhino.Node, parent rhino.Node,
+) bool {
+	if c.skippingModuleBody {
+		return false
+	}
+	if len(c.scopeContextStack) == 0 && !parent.IsNil() {
+		tok := n.GetToken()
+		if tok == rhino.Token_FUNCTION || tok == rhino.Token_CLASS ||
+			(!n.IsSyntheticBlock() && t.CreatesBlockScope(n)) {
+			return renameInverterSubtreeHasSeparator(n)
+		}
+	}
 	return true
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.visit(NodeTraversal, Node, Node)
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Visit(
-	t *NodeTraversal, node rhino.Node, parent rhino.Node) {
-	var scopeContext *renameInverterScopeContext
-	if len(c.scopeContextStack) != 0 {
-		scopeContext = c.scopeContextStack[len(c.scopeContextStack)-1]
+	t *NodeTraversal, node rhino.Node, parent rhino.Node,
+) {
+	if len(c.scopeContextStack) == 0 {
+		return
 	}
-	if scopeContext != nil {
-		// We're not in the global scope
-		if NodeUtil_IsReferenceName(node) || node.IsImportStar() {
-			name := node.GetString()
-			// Get the corresponding VariableInfo, creating one if we haven't found a declaration
-			// for it.
-			variableInfo := c.variablesStackedByName.GetOrCreateCurrentVariableInfo(name)
-			// add this reference to the variable
-			variableInfo.AddReferenceNode(node)
-			// tell the current scope that it references the variable
-			scopeContext.AddReferencedVariableInfo(variableInfo)
+	tok := node.GetToken()
+	if tok == rhino.Token_NAME {
+		id := node.GetStringID()
+		if id <= rhino.RhinoStringPool_EmptyID {
+			return
 		}
-	} // else nothing to do for the global scope
+		scopeContext := c.scopeContextStack[len(c.scopeContextStack)-1]
+		variableInfo := c.getOrCreateCurrentVar(id, node)
+		variableInfo.AddReferenceNode(node)
+		scopeContext.AddReferencedVariableInfo(variableInfo)
+	} else if tok == rhino.Token_IMPORT_STAR {
+		id := node.GetStringID()
+		scopeContext := c.scopeContextStack[len(c.scopeContextStack)-1]
+		variableInfo := c.getOrCreateCurrentVar(id, node)
+		variableInfo.AddReferenceNode(node)
+		scopeContext.AddReferencedVariableInfo(variableInfo)
+	}
 }
 
 // renameInverterScopeContext keeps track of information about variables
 // declared and referenced in a local scope.
-//
-// We do not create one of these objects for the global scope, because we
-// know those won't be renamed. It isn't worthwhile to track all of them.
 type renameInverterScopeContext struct {
 	parent                *renameInverterScopeContext
 	scope                 *Scope
-	declaredVariableInfos []*renameInverterDeclaredVarInfo
+	declaredVariableInfos []*inverterVar
+	renamableDeclared     []*inverterVar
 
 	// Will be filled with objects for all variables we reference in this scope.
-	referencedVariables jutil.LinkedHashMap[renameInverterVarInfo, bool]
+	referencedVariables jutil.LinkedHashMap[*inverterVar, bool]
 }
 
 type MakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext = renameInverterScopeContext
 
+func (s *renameInverterScopeContext) recycle() {
+	s.parent = nil
+	s.scope = nil
+	if cap(s.declaredVariableInfos) <= 64 {
+		clear(s.declaredVariableInfos)
+		s.declaredVariableInfos = s.declaredVariableInfos[:0]
+	} else {
+		s.declaredVariableInfos = nil
+	}
+	if cap(s.renamableDeclared) <= 64 {
+		clear(s.renamableDeclared)
+		s.renamableDeclared = s.renamableDeclared[:0]
+	} else {
+		s.renamableDeclared = nil
+	}
+	if s.referencedVariables.Size() > 64 {
+		s.referencedVariables.Reset()
+	} else {
+		s.referencedVariables.Clear()
+	}
+}
+
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext(Scope, ImmutableList<MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo>, MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext)
-func newRenameInverterScopeContext(
+func NewMakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext(
 	scope *Scope,
-	declaredVariableInfos []*renameInverterDeclaredVarInfo,
+	declaredVariableInfos []*inverterVar,
 	parent *renameInverterScopeContext,
 ) *renameInverterScopeContext {
+	var renamable []*inverterVar
+	for _, d := range declaredVariableInfos {
+		if d.renamingInfo != nil {
+			renamable = append(renamable, d)
+		}
+	}
 	return &renameInverterScopeContext{
 		scope:                 scope,
 		declaredVariableInfos: declaredVariableInfos,
+		renamableDeclared:     renamable,
 		parent:                parent,
 	}
 }
 
-func NewMakeDeclaredNamesUnique_ContextualRenameInverter_ScopeContext(
-	scope *Scope,
-	declaredVariableInfos []*renameInverterDeclaredVarInfo,
-	parent *renameInverterScopeContext,
-) *renameInverterScopeContext {
-	return newRenameInverterScopeContext(scope, declaredVariableInfos, parent)
-}
-
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext.addReferencedVariableInfo(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
-func (s *renameInverterScopeContext) AddReferencedVariableInfo(
-	variableInfo renameInverterVarInfo) {
+func (s *renameInverterScopeContext) AddReferencedVariableInfo(variableInfo *inverterVar) {
 	s.referencedVariables.LoadOrStore(variableInfo, false)
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.ScopeContext.recordPotentialConflicts(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
-func (s *renameInverterScopeContext) RecordPotentialConflicts(
-	referencedVariable renameInverterVarInfo) {
+func (s *renameInverterScopeContext) RecordPotentialConflicts(referencedVariable *inverterVar) {
 	thisScopeDepth := s.scope.GetDepth()
-	referencedVariableDeclarationDepth := referencedVariable.GetScopeDepth()
+	referencedVariableDeclarationDepth := referencedVariable.scopeDepth
 	if thisScopeDepth >= referencedVariableDeclarationDepth {
 		// A scope's declaration list is fixed. Recording this same pair again
 		// can only re-add the same object identities to conflict sets. Remember
@@ -693,158 +815,21 @@ func (s *renameInverterScopeContext) RecordPotentialConflicts(
 				return
 			}
 		}
-		for _, declaredVariableInfo := range s.declaredVariableInfos {
-			// NOTE: No need to check whether the 2 variables are actually the same here.
-			// The logic in addPotentialConflict() can do that more efficiently.
-
-			// The referenced variable must be sure not to "hide behind" another variable
-			// declared between its declaration and the location where it is referenced.
-			referencedVariable.AddPotentialConflict(declaredVariableInfo)
-
-			// The declared variable must be sure not to "shadow" a variable declared in its own
-			// or a higher scope, thus preventing the reference from seeing it.
-			declaredVariableInfo.AddPotentialConflict(referencedVariable)
+		if referencedVariable.renamingInfo != nil {
+			for _, declaredVariableInfo := range s.declaredVariableInfos {
+				referencedVariable.AddPotentialConflict(declaredVariableInfo)
+				declaredVariableInfo.AddPotentialConflict(referencedVariable)
+			}
+		} else {
+			for _, declaredVariableInfo := range s.renamableDeclared {
+				declaredVariableInfo.AddPotentialConflict(referencedVariable)
+			}
 		}
 		if s.parent != nil {
 			s.parent.RecordPotentialConflicts(referencedVariable)
 		}
 	}
 }
-
-// renameInverterVarInfoStackMap handles storing and looking up VariableInfo
-// objects for the variables that are visible in the current ScopeContext.
-type renameInverterVarInfoStackMap struct {
-	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter // the enclosing instance
-
-	// Go-only: language-adapter — each ArrayDeque used as a stack is a
-	// []VariableInfo whose top is the last element.
-	mapOfStacks map[string][]renameInverterVarInfo
-}
-
-func (v *renameInverterVarInfoStackMap) init(
-	this_ *MakeDeclaredNamesUnique_ContextualRenameInverter,
-) {
-	v.this_ = this_
-	v.mapOfStacks = make(map[string][]renameInverterVarInfo)
-}
-
-// PushVariableInfo pushes a VariableInfo onto the stack corresponding to
-// its name.
-//
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfoStackMap.pushVariableInfo(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
-func (v *renameInverterVarInfoStackMap) PushVariableInfo(
-	info renameInverterVarInfo) {
-	name := info.GetName()
-	v.mapOfStacks[name] = append(v.mapOfStacks[name], info)
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfoStackMap.getOrCreateCurrentVariableInfo(String)
-func (v *renameInverterVarInfoStackMap) GetOrCreateCurrentVariableInfo(
-	name string) renameInverterVarInfo {
-	variableInfoStack := v.mapOfStacks[name]
-	if len(variableInfoStack) == 0 {
-		variableInfo := v.this_.CreateUndeclaredVariableInfo(name)
-		v.mapOfStacks[name] = []renameInverterVarInfo{variableInfo}
-		return variableInfo
-	}
-	return variableInfoStack[len(variableInfoStack)-1]
-}
-
-// PopVariableInfo pops the topmost VariableInfo off of the stack for the
-// given variable name.
-//
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfoStackMap.popVariableInfo(String)
-func (v *renameInverterVarInfoStackMap) PopVariableInfo(
-	name string) renameInverterVarInfo {
-	variableInfos, ok := v.mapOfStacks[name]
-	if !ok {
-		panic(jutil.NewNullPointerExceptionMsg("Nonexistent variable info requested: '" + name + "'"))
-	}
-	if len(variableInfos) == 0 {
-		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
-	}
-	info := variableInfos[len(variableInfos)-1]
-	if len(variableInfos) == 1 {
-		// Remove empty stacks, so they can be garbage collected.
-		delete(v.mapOfStacks, name)
-	} else {
-		v.mapOfStacks[name] = variableInfos[:len(variableInfos)-1]
-	}
-	return info
-}
-
-// Clear empties all the variable name stacks.
-//
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfoStackMap.clear()
-func (v *renameInverterVarInfoStackMap) Clear() {
-	clear(v.mapOfStacks)
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.createUndeclaredVariableInfo(String)
-func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) CreateUndeclaredVariableInfo(
-	name string) renameInverterVarInfo {
-	return newRenameInverterUndeclaredVarInfo(name)
-}
-
-// renameInverterUndeclaredVarInfo represents a variable we've seen
-// referenced but not declared.
-//
-// One of these will be created when a global variable or simply undeclared
-// variable is referenced. It doesn't do much more than keep track of the
-// name and the fact that we don't have a declaration for it (as a 0 scope
-// depth).
-type renameInverterUndeclaredVarInfo struct {
-	name string
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.UndeclaredVariableInfo(String)
-func newRenameInverterUndeclaredVarInfo(
-	name string) *renameInverterUndeclaredVarInfo {
-	return &renameInverterUndeclaredVarInfo{name: name}
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.UndeclaredVariableInfo.addReferenceNode(Node)
-func (u *renameInverterUndeclaredVarInfo) AddReferenceNode(nameNode rhino.Node) {
-	// no need to track references
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.UndeclaredVariableInfo.getName()
-func (u *renameInverterUndeclaredVarInfo) GetName() string {
-	return u.name
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.UndeclaredVariableInfo.getScopeDepth()
-func (u *renameInverterUndeclaredVarInfo) GetScopeDepth() int {
-	// NOTE: Pretend that any variable for which we didn't see a declaration was declared in
-	// the global scope, which is depth 0. This will most often be actually true, since we skip
-	// creating variables for the global scope to avoid wasting time and space on variables that
-	// will never be renamed.
-	return 0
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.UndeclaredVariableInfo.addPotentialConflict(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
-func (u *renameInverterUndeclaredVarInfo) AddPotentialConflict(
-	variableInfo renameInverterVarInfo) {
-	// No need to record the potential conflict, because this variable will never be renamed.
-}
-
-// renameInverterVarInfo: one of these will be created for every variable we
-// encounter.
-type renameInverterVarInfo interface {
-	// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.addReferenceNode(Node)
-	AddReferenceNode(nameNode rhino.Node)
-
-	// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.getName()
-	GetName() string
-
-	// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.getScopeDepth()
-	GetScopeDepth() int
-
-	// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo.addPotentialConflict(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
-	AddPotentialConflict(variableInfo renameInverterVarInfo)
-}
-
-type MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo = renameInverterVarInfo
 
 // MakeDeclaredNamesUnique_ContextualRenamer renames every local name to be
 // unique. The first encountered declaration of a given name (specifically a

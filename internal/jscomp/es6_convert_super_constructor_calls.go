@@ -633,8 +633,8 @@ func (c *es6ReplaceThisWithSuperThis) Visit(t *NodeTraversal, n rhino.Node, pare
 func (e *Es6ConvertSuperConstructorCalls) typeOfThisForConstructor(constructor rhino.Node) AstFactory_Type {
 	jutil.CheckArgumentMsg1(constructor.IsFunction(), "%s", constructor)
 	constructorType := constructor.GetColor()
-	if constructorType != nil && !constructorType.GetInstanceColors().IsEmpty() {
-		return AstFactory_Type_OfColor(colors.Color_CreateUnion(constructorType.GetInstanceColors()))
+	if constructorType != nil && len(constructorType.GetInstanceColors()) != 0 {
+		return AstFactory_Type_OfColor(colors.Color_CreateUnionSlice(constructorType.GetInstanceColors()))
 	}
 	return AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)
 }
