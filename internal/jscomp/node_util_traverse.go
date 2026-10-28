@@ -24,28 +24,39 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
-
-// Java: NodeUtil.VarCollector()
-func NewNodeUtil_VarCollector() *NodeUtil_VarCollector {
-	return &NodeUtil_VarCollector{vars: jutil.NewLinkedHashMap[string, rhino.Node]()}
-}
-
-// Java: NodeUtil.VarCollector.visit(Node)
-func (c *NodeUtil_VarCollector) Visit(n rhino.Node) {
-	if n.IsVar() {
-		NodeUtil_VisitLhsNodesInNode(n, func(name rhino.Node) { c.vars.PutIfAbsent(name.GetString(), name) })
-	}
-}
 
 // NodeUtil_GetVarsDeclaredInBranch retrieves vars declared in the current
 // node tree, excluding descent scopes.
 //
 // Java: NodeUtil.getVarsDeclaredInBranch(Node)
 func NodeUtil_GetVarsDeclaredInBranch(root rhino.Node) []rhino.Node {
-	collector := NewNodeUtil_VarCollector()
-	NodeUtil_VisitPreOrderWithPred(root, collector, NodeUtil_MATCH_NOT_FUNCTION)
-	return slices.Collect(collector.vars.Values())
+	var seenBuf [16]uint32
+	seen := seenBuf[:0]
+	var out []rhino.Node
+	var walk func(n rhino.Node)
+	walk = func(n rhino.Node) {
+		if n.IsVar() {
+			NodeUtil_GetLhsNodesHelper(n, func(name rhino.Node) {
+				if !name.IsName() {
+					_ = name.GetString()
+				}
+				id := name.GetStringID()
+				if !slices.Contains(seen, id) {
+					seen = append(seen, id)
+					out = append(out, name)
+				}
+			})
+		}
+		if !n.IsFunction() {
+			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+				walk(c)
+			}
+		}
+	}
+	walk(root)
+	return out
 }
 
 // Java: NodeUtil.getLhsNodesHelper(Node, Consumer<Node>)
@@ -85,34 +96,6 @@ func NodeUtil_GetLhsNodesHelper(n rhino.Node, consumer func(rhino.Node)) {
 			panic(jutil.NewIllegalStateExceptionMsg("Invalid node in lhs: " + n.String()))
 		}
 	}
-}
-
-// Java: NodeUtil.MatchNameNode(String)
-func NewNodeUtil_MatchNameNode(name string) *NodeUtil_MatchNameNode {
-	return &NodeUtil_MatchNameNode{name: name}
-}
-
-// Java: NodeUtil.MatchNameNode.apply(Node)
-func (m *NodeUtil_MatchNameNode) Apply(n rhino.Node) bool {
-	return n.IsName() && n.GetString() == m.name
-}
-
-// NodeUtil_MatchNodeType is a predicate for matching nodes with the
-// specified type.
-//
-// Java: NodeUtil.MatchNodeType
-type NodeUtil_MatchNodeType struct {
-	type_ rhino.Token
-}
-
-// Java: NodeUtil.MatchNodeType(Token)
-func NewNodeUtil_MatchNodeType(type_ rhino.Token) *NodeUtil_MatchNodeType {
-	return &NodeUtil_MatchNodeType{type_: type_}
-}
-
-// Java: NodeUtil.MatchNodeType.apply(Node)
-func (m *NodeUtil_MatchNodeType) Apply(n rhino.Node) bool {
-	return n.GetToken() == m.type_
 }
 
 // NodeUtil_MatchDeclaration is a predicate for matching var, let, const,
@@ -185,7 +168,16 @@ func (m *NodeUtil_MatchShallowStatement) Apply(n rhino.Node) bool {
 // Java: NodeUtil.getNodeTypeReferenceCount(Node, Token, Predicate<Node>)
 func NodeUtil_GetNodeTypeReferenceCount(
 	node rhino.Node, type_ rhino.Token, traverseChildrenPred func(rhino.Node) bool) int {
-	return NodeUtil_GetCount(node, NewNodeUtil_MatchNodeType(type_).Apply, traverseChildrenPred)
+	total := 0
+	if node.GetToken() == type_ {
+		total++
+	}
+	if traverseChildrenPred(node) {
+		for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			total += NodeUtil_GetNodeTypeReferenceCount(c, type_, traverseChildrenPred)
+		}
+	}
+	return total
 }
 
 // NodeUtil_IsNameReferencedWithPred: whether a simple name is referenced
@@ -193,7 +185,28 @@ func NodeUtil_GetNodeTypeReferenceCount(
 //
 // Java: NodeUtil.isNameReferenced(Node, String, Predicate<Node>)
 func NodeUtil_IsNameReferencedWithPred(node rhino.Node, name string, traverseChildrenPred func(rhino.Node) bool) bool {
-	return NodeUtil_Has(node, NewNodeUtil_MatchNameNode(name).Apply, traverseChildrenPred)
+	id := uint32(strpool.Lookup(name))
+	if id == 0 {
+		_ = node.GetToken()
+		_ = traverseChildrenPred(node)
+		return false
+	}
+	return nodeUtil_hasNameIDWithPred(node, id, traverseChildrenPred)
+}
+
+func nodeUtil_hasNameIDWithPred(node rhino.Node, id uint32, traverseChildrenPred func(rhino.Node) bool) bool {
+	if node.IsName() && node.GetStringID() == id {
+		return true
+	}
+	if !traverseChildrenPred(node) {
+		return false
+	}
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if nodeUtil_hasNameIDWithPred(c, id, traverseChildrenPred) {
+			return true
+		}
+	}
+	return false
 }
 
 // NodeUtil_IsNameReferenced: whether a simple name is referenced within the
@@ -201,7 +214,24 @@ func NodeUtil_IsNameReferencedWithPred(node rhino.Node, name string, traverseChi
 //
 // Java: NodeUtil.isNameReferenced(Node, String)
 func NodeUtil_IsNameReferenced(node rhino.Node, name string) bool {
-	return NodeUtil_IsNameReferencedWithPred(node, name, nodeUtil_alwaysTrue)
+	_ = node.GetToken()
+	id := uint32(strpool.Lookup(name))
+	if id == 0 {
+		return false
+	}
+	return nodeUtil_hasNameID(node, id)
+}
+
+func nodeUtil_hasNameID(node rhino.Node, id uint32) bool {
+	if node.IsName() && node.GetStringID() == id {
+		return true
+	}
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if nodeUtil_hasNameID(c, id) {
+			return true
+		}
+	}
+	return false
 }
 
 // NodeUtil_GetNameReferenceCount finds the number of times a simple name is
@@ -209,7 +239,23 @@ func NodeUtil_IsNameReferenced(node rhino.Node, name string) bool {
 //
 // Java: NodeUtil.getNameReferenceCount(Node, String)
 func NodeUtil_GetNameReferenceCount(node rhino.Node, name string) int {
-	return NodeUtil_GetCount(node, NewNodeUtil_MatchNameNode(name).Apply, nodeUtil_alwaysTrue)
+	_ = node.GetToken()
+	id := uint32(strpool.Lookup(name))
+	if id == 0 {
+		return 0
+	}
+	return nodeUtil_countNameID(node, id)
+}
+
+func nodeUtil_countNameID(node rhino.Node, id uint32) int {
+	total := 0
+	if node.IsName() && node.GetStringID() == id {
+		total++
+	}
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		total += nodeUtil_countNameID(c, id)
+	}
+	return total
 }
 
 // nodeUtil_alwaysTrue is Guava's Predicates.alwaysTrue() for nodes.
@@ -376,11 +422,12 @@ func NodeUtil_PreOrderIterableWithPred(root rhino.Node, travserseNodePredicate f
 		if root.IsNil() {
 			panic(jutil.NewNullPointerException())
 		}
-		it := NodeUtil_PreOrderIterator{traverseNodePredicate: travserseNodePredicate, current: root}
-		for it.HasNext() {
-			if !yield(it.Next()) {
+		for cur := root; !cur.IsNil(); {
+			next := nodeUtil_nextPreOrderNode(cur, travserseNodePredicate)
+			if !yield(cur) {
 				return
 			}
+			cur = next
 		}
 	}
 }
@@ -396,100 +443,20 @@ func NodeUtil_PreOrderIterable(root rhino.Node) iter.Seq[rhino.Node] {
 		nodeUtil_alwaysTrue)
 }
 
-// NodeUtil_PreOrderIterator is the utility class for preOrderIterable.
-// Iterates over nodes in tree in depth-first pre-order.
-//
-// Java: NodeUtil.PreOrderIterator
-type NodeUtil_PreOrderIterator struct {
-	traverseNodePredicate func(rhino.Node) bool
-
-	current rhino.Node
-
-	// Go-only: language-adapter — AbstractIterator's state: whether next
-	// holds a computed element, and whether endOfData() was reached.
-	next    rhino.Node
-	hasNext bool
-	done    bool
-}
-
-// Java: NodeUtil.PreOrderIterator(Node, Predicate<Node>)
-func NewNodeUtil_PreOrderIterator(root rhino.Node, traverseNodePredicate func(rhino.Node) bool) *NodeUtil_PreOrderIterator {
-	if root.IsNil() {
-		panic(jutil.NewNullPointerException())
-	}
-	return &NodeUtil_PreOrderIterator{traverseNodePredicate: traverseNodePredicate, current: root}
-}
-
-// HasNext is AbstractIterator.hasNext().
-func (it *NodeUtil_PreOrderIterator) HasNext() bool {
-	if it.done {
-		return false
-	}
-	if !it.hasNext {
-		next, ok := it.ComputeNext()
-		if !ok {
-			it.done = true
-			return false
-		}
-		it.next = next
-		it.hasNext = true
-	}
-	return true
-}
-
-// Next is AbstractIterator.next().
-func (it *NodeUtil_PreOrderIterator) Next() rhino.Node {
-	if !it.HasNext() {
-		panic(jutil.NewNoSuchElementException())
-	}
-	it.hasNext = false
-	result := it.next
-	it.next = rhino.NilNode
-	return result
-}
-
-// ComputeNext returns the next node, or ok=false for endOfData().
-//
-// Java: NodeUtil.PreOrderIterator.computeNext()
-func (it *NodeUtil_PreOrderIterator) ComputeNext() (next rhino.Node, ok bool) {
-	if it.current.IsNil() {
-		return rhino.NilNode, false
-	}
-
-	returnValue := it.current
-	it.current = it.CalculateNextNode(returnValue)
-	return returnValue, true
-}
-
-// Java: NodeUtil.PreOrderIterator.calculateNextNode(Node)
-func (it *NodeUtil_PreOrderIterator) CalculateNextNode(currentNode rhino.Node) rhino.Node {
-	if currentNode.IsNil() {
-		panic(jutil.NewNullPointerException())
-	}
-
+func nodeUtil_nextPreOrderNode(currentNode rhino.Node, traverseNodePredicate func(rhino.Node) bool) rhino.Node {
 	// If node does not match the predicate, do not descend into it.
-	if it.traverseNodePredicate(currentNode) {
+	if traverseNodePredicate(currentNode) && currentNode.HasChildren() {
 		// In prefix order, the next node is the leftmost child.
-		if currentNode.HasChildren() {
-			return currentNode.GetFirstChild()
-		}
+		return currentNode.GetFirstChild()
 	}
 
-	// If currentNode doesn't have children, it is a leaf node.
-
-	// To find the next node, walk up the ancestry chain (including current node) and return the
-	// first sibling we see.
-	// If we don't find one, we're done.
-
+	// Walk up the ancestry chain (including current node) and return the first sibling we see.
 	for !currentNode.IsNil() {
-		next := currentNode.GetNext()
-		if !next.IsNil() {
+		if next := currentNode.GetNext(); !next.IsNil() {
 			return next
 		}
-
 		currentNode = currentNode.GetParent()
 	}
-
 	return rhino.NilNode
 }
 
@@ -805,12 +772,6 @@ type NodeUtil_AllVarsDeclaredInFunction struct {
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
 	orderedVars []*Var
 	mapStorage  jutil.LinkedHashMap[string, *Var]
-}
-
-// Java: NodeUtil.AllVarsDeclaredInFunction(Map<String, Var>, List<Var>)
-func NewNodeUtil_AllVarsDeclaredInFunction(allVarsInFn *jutil.LinkedHashMap[string, *Var], orderedVars []*Var) *NodeUtil_AllVarsDeclaredInFunction {
-	jutil.CheckState(allVarsInFn.IsEmpty() == (len(orderedVars) == 0))
-	return &NodeUtil_AllVarsDeclaredInFunction{allVarsInFn: allVarsInFn, orderedVars: orderedVars}
 }
 
 // Java: NodeUtil.AllVarsDeclaredInFunction.getAllVariables()

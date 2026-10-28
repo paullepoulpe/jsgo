@@ -30,6 +30,56 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var (
+	rkmIDArray         = uint32(strpool.Intern("Array"))
+	rkmIDMath          = uint32(strpool.Intern("Math"))
+	rkmIDNumber        = uint32(strpool.Intern("Number"))
+	rkmIDOf            = uint32(strpool.Intern("of"))
+	rkmIDIsArray       = uint32(strpool.Intern("isArray"))
+	rkmIDParseInt      = uint32(strpool.Intern("parseInt"))
+	rkmIDParseFloat    = uint32(strpool.Intern("parseFloat"))
+	rkmIDIsFinite      = uint32(strpool.Intern("isFinite"))
+	rkmIDIsNaN         = uint32(strpool.Intern("isNaN"))
+	rkmIDIsSafeInteger = uint32(strpool.Intern("isSafeInteger"))
+	rkmIDAbs           = uint32(strpool.Intern("abs"))
+	rkmIDCeil          = uint32(strpool.Intern("ceil"))
+	rkmIDFloor         = uint32(strpool.Intern("floor"))
+	rkmIDFround        = uint32(strpool.Intern("fround"))
+	rkmIDRound         = uint32(strpool.Intern("round"))
+	rkmIDSign          = uint32(strpool.Intern("sign"))
+	rkmIDTrunc         = uint32(strpool.Intern("trunc"))
+	rkmIDClz32         = uint32(strpool.Intern("clz32"))
+	rkmIDMax           = uint32(strpool.Intern("max"))
+	rkmIDMin           = uint32(strpool.Intern("min"))
+	rkmIDImul          = uint32(strpool.Intern("imul"))
+	rkmIDPow           = uint32(strpool.Intern("pow"))
+	rkmIDSplit         = uint32(strpool.Intern("split"))
+	rkmIDToLowerCase   = uint32(strpool.Intern("toLowerCase"))
+	rkmIDToUpperCase   = uint32(strpool.Intern("toUpperCase"))
+	rkmIDTrim          = uint32(strpool.Intern("trim"))
+	rkmIDTrimStart     = uint32(strpool.Intern("trimStart"))
+	rkmIDTrimEnd       = uint32(strpool.Intern("trimEnd"))
+	rkmIDTrimLeft      = uint32(strpool.Intern("trimLeft"))
+	rkmIDTrimRight     = uint32(strpool.Intern("trimRight"))
+	rkmIDAt            = uint32(strpool.Intern("at"))
+	rkmIDIndexOf       = uint32(strpool.Intern("indexOf"))
+	rkmIDLastIndexOf   = uint32(strpool.Intern("lastIndexOf"))
+	rkmIDIncludes      = uint32(strpool.Intern("includes"))
+	rkmIDStartsWith    = uint32(strpool.Intern("startsWith"))
+	rkmIDEndsWith      = uint32(strpool.Intern("endsWith"))
+	rkmIDSubstr        = uint32(strpool.Intern("substr"))
+	rkmIDSubstring     = uint32(strpool.Intern("substring"))
+	rkmIDSlice         = uint32(strpool.Intern("slice"))
+	rkmIDCharAt        = uint32(strpool.Intern("charAt"))
+	rkmIDCharCodeAt    = uint32(strpool.Intern("charCodeAt"))
+	rkmIDReplace       = uint32(strpool.Intern("replace"))
+	rkmIDReplaceAll    = uint32(strpool.Intern("replaceAll"))
+	rkmIDJoin          = uint32(strpool.Intern("join"))
+	rkmIDConcat        = uint32(strpool.Intern("concat"))
+	rkmIDComma         = uint32(strpool.Intern(","))
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) to read the
@@ -170,16 +220,16 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMethods(call ast.Call) rhino.N
 	callTarget := call.Callee()
 	if method, ok := callTarget.AsGetProp(); ok {
 		if receiver, ok := method.Object().AsName(); ok {
-			switch receiver.Ident() {
-			case "Array":
+			switch receiver.Node().GetStringID() {
+			case rkmIDArray:
 				if p.IsASTNormalized() {
 					return p.TryFoldKnownArrayMethods(call, method)
 				}
-			case "Math":
+			case rkmIDMath:
 				if p.IsASTNormalized() {
 					return p.TryFoldKnownMathMethods(call, method)
 				}
-			case "Number":
+			case rkmIDNumber:
 				if p.IsASTNormalized() {
 					return p.TryFoldKnownNumberMethods(call, method)
 				}
@@ -198,8 +248,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMethods(call ast.Call) rhino.N
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownArrayMethods(Node, Node)
 func (p *PeepholeReplaceKnownMethods) TryFoldKnownArrayMethods(call ast.Call, callTarget ast.GetProp) rhino.Node {
 	subtree := call.Node()
-	switch callTarget.Property() {
-	case "of":
+	switch callTarget.Node().GetStringID() {
+	case rkmIDOf:
 		// Array.of(args) -> [args]: the arguments move to the literal at once.
 		callTarget.Detach()
 
@@ -208,7 +258,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownArrayMethods(call ast.Call, ca
 		subtree.ReplaceWith(arraylit)
 		p.ReportChangeToEnclosingScope(arraylit)
 		return arraylit
-	case "isArray":
+	case rkmIDIsArray:
 		return p.TryFoldArrayIsArray(call)
 	default:
 		return subtree
@@ -270,15 +320,21 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayIsArray(call ast.Call) rhino.N
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownNumberMethods(Node, Node)
 func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(call ast.Call, callTarget ast.GetProp) rhino.Node {
 	subtree := call.Node()
-	methodName := callTarget.Property()
-	switch methodName {
-	case "parseInt", "parseFloat":
+	methodID := callTarget.Node().GetStringID()
+	switch methodID {
+	case rkmIDParseInt, rkmIDParseFloat:
 		if firstArg, ok := call.FirstArg(); ok &&
 			(firstArg.Token() == rhino.Token_STRINGLIT || NodeUtil_IsNumericLiteral(firstArg.Node())) {
+			methodName := "parseFloat"
+			if methodID == rkmIDParseInt {
+				methodName = "parseInt"
+			}
 			return p.TryFoldParseNumber(call, methodName, firstArg)
 		}
 		return subtree
+	case rkmIDIsFinite, rkmIDIsNaN, rkmIDIsSafeInteger:
 	default:
+		return subtree
 	}
 
 	// Get the only number arg as a double as long as it is the only argument
@@ -290,26 +346,21 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(call ast.Call, c
 	onlyArg, ok := p.GetSideEffectFreeNumberValueNoConversion(valueNode)
 	var replacement rhino.Node
 	if ok {
-		switch methodName {
-		case "isFinite":
+		switch methodID {
+		case rkmIDIsFinite:
 			replacement = NodeUtil_BooleanNode(!math.IsInf(onlyArg, 0) && !math.IsNaN(onlyArg))
-		case "isNaN":
+		case rkmIDIsNaN:
 			replacement = NodeUtil_BooleanNode(math.IsNaN(onlyArg))
-		case "isSafeInteger":
+		case rkmIDIsSafeInteger:
 			replacement =
 				NodeUtil_BooleanNode(
 					onlyArg < jutil.MathPow(2, 53) &&
 						onlyArg >= (-1*(jutil.MathPow(2, 53)-1)) &&
 						float64(jutil.D2L(onlyArg)) == onlyArg)
-		default:
 		}
 	} else if !p.MayHaveSideEffects(valueNode) &&
 		(NodeUtil_IsImmutableValue(valueNode) || NodeUtil_IsLiteralValue(valueNode, false)) {
-		switch methodName {
-		case "isFinite", "isNaN", "isSafeInteger":
-			replacement = NodeUtil_BooleanNode(false)
-		default:
-		}
+		replacement = NodeUtil_BooleanNode(false)
 	}
 	if !replacement.IsNil() {
 		subtree.ReplaceWith(replacement)
@@ -326,11 +377,11 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 	subtree := call.Node()
 
 	// first collect the arguments, if they are all numbers then we proceed
-	var args []float64
+	var argsBuf [4]float64
+	args := argsBuf[:0]
 	for arg := range call.Args() {
 		d, ok := p.GetSideEffectFreeNumberValue(arg.Node())
 		if ok {
-			// lazily allocate, most calls will not be optimizable
 			args = append(args, d)
 		} else {
 			return subtree
@@ -338,20 +389,20 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 	}
 	var replacement float64
 	hasReplacement := false
-	methodName := callTarget.Property()
+	methodID := callTarget.Node().GetStringID()
 	// NOTE: the standard does not define precision for these methods, but we are conservative, so
 	// for now we only implement the methods that are guaranteed to not increase the size of the
 	// numeric constants.
 	if len(args) == 1 {
 		arg := args[0]
-		switch methodName {
-		case "abs":
+		switch methodID {
+		case rkmIDAbs:
 			replacement, hasReplacement = math.Abs(arg), true
-		case "ceil":
+		case rkmIDCeil:
 			replacement, hasReplacement = math.Ceil(arg), true
-		case "floor":
+		case rkmIDFloor:
 			replacement, hasReplacement = math.Floor(arg), true
-		case "fround":
+		case rkmIDFround:
 			if math.IsNaN(arg) || math.IsInf(arg, 0) || arg == 0 {
 				replacement, hasReplacement = arg, true
 				// if the double is exactly representable as a float, then just cast since no rounding
@@ -361,7 +412,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 				replacement, hasReplacement = float64(float32(arg)), true
 			}
 			// else: (float) arg does not necessarily use the correct rounding mode, so don't do anything
-		case "round":
+		case rkmIDRound:
 			if math.IsNaN(arg) || math.IsInf(arg, 0) {
 				replacement, hasReplacement = arg, true
 			} else if arg >= -0.5 &&
@@ -371,15 +422,15 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 			} else {
 				replacement, hasReplacement = float64(jutil.MathRound(arg)), true
 			}
-		case "sign":
+		case rkmIDSign:
 			replacement, hasReplacement = jutil.MathSignum(arg), true
-		case "trunc":
+		case rkmIDTrunc:
 			if math.IsNaN(arg) || math.IsInf(arg, 0) {
 				replacement, hasReplacement = arg, true
 			} else {
 				replacement, hasReplacement = jutil.MathSignum(arg)*math.Floor(math.Abs(arg)), true
 			}
-		case "clz32":
+		case rkmIDClz32:
 			replacement, hasReplacement = float64(bits.LeadingZeros32(uint32(base.JSCompDoubles_EcmascriptToUint32(arg)))), true
 		default:
 		}
@@ -388,20 +439,20 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 	// For each of these we could allow for some of the values to be unknown and either reduce to
 	// NaN or simplify the existing args. e.g. Math.max(3, x, 2) -> Math.max(3, x)
 	if !hasReplacement {
-		switch methodName {
-		case "max":
+		switch methodID {
+		case rkmIDMax:
 			result := math.Inf(-1)
 			for _, d := range args {
 				result = jutil.MathMax(result, d)
 			}
 			replacement, hasReplacement = result, true
-		case "min":
+		case rkmIDMin:
 			result := math.Inf(1)
 			for _, d := range args {
 				result = jutil.MathMin(result, d)
 			}
 			replacement, hasReplacement = result, true
-		case "imul":
+		case rkmIDImul:
 			if len(args) < 2 {
 				replacement, hasReplacement = 0.0, true
 			} else {
@@ -409,7 +460,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 				replacement = float64(base.JSCompDoubles_EcmascriptToInt32(args[0]) * base.JSCompDoubles_EcmascriptToInt32(args[1]))
 				hasReplacement = true
 			}
-		case "pow":
+		case rkmIDPow:
 			if len(args) == 2 {
 				replacement, hasReplacement = jutil.MathPow(args[0], args[1]), true
 			}
@@ -441,47 +492,49 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(call ast.Call, c
 	if !isStringLiteral && !p.useTypes {
 		return subtree
 	}
-	functionNameString := callTarget.Property()
+	methodID := callTarget.Node().GetStringID()
 	firstArg, hasArgs := call.FirstArg()
 	if isStringLiteral {
-		if functionNameString == "split" {
+		if methodID == rkmIDSplit {
 			return p.TryFoldStringSplit(call, str)
 		} else if !hasArgs {
-			switch functionNameString {
-			case "toLowerCase":
+			switch methodID {
+			case rkmIDToLowerCase:
 				return p.TryFoldStringToLowerCase(call, str)
-			case "toUpperCase":
+			case rkmIDToUpperCase:
 				return p.TryFoldStringToUpperCase(call, str)
-			case "trim", "trimStart", "trimEnd", "trimLeft", "trimRight":
-				return p.TryFoldStringTrim(call, str, functionNameString)
-			case "at":
+			case rkmIDTrim, rkmIDTrimStart, rkmIDTrimEnd, rkmIDTrimLeft, rkmIDTrimRight:
+				return p.TryFoldStringTrim(call, str, callTarget.Property())
+			case rkmIDAt:
 				return p.TryFoldStringAt(call, str)
 			default:
 			}
 		} else {
 			if NodeUtil_IsImmutableValue(firstArg.Node()) {
-				switch functionNameString {
-				case "indexOf", "lastIndexOf":
-					return p.TryFoldStringIndexOf(call, functionNameString, str, firstArg)
-				case "includes":
+				switch methodID {
+				case rkmIDIndexOf:
+					return p.TryFoldStringIndexOf(call, "indexOf", str, firstArg)
+				case rkmIDLastIndexOf:
+					return p.TryFoldStringIndexOf(call, "lastIndexOf", str, firstArg)
+				case rkmIDIncludes:
 					return p.TryFoldStringIncludes(call, str, firstArg)
-				case "startsWith":
+				case rkmIDStartsWith:
 					return p.TryFoldStringStartsWith(call, str, firstArg)
-				case "endsWith":
+				case rkmIDEndsWith:
 					return p.TryFoldStringEndsWith(call, str, firstArg)
-				case "at":
+				case rkmIDAt:
 					return p.TryFoldStringAt(call, str)
-				case "substr":
+				case rkmIDSubstr:
 					return p.TryFoldStringSubstr(call, str, firstArg)
-				case "substring", "slice":
+				case rkmIDSubstring, rkmIDSlice:
 					return p.TryFoldStringSubstringOrSlice(call, str, firstArg)
-				case "charAt":
+				case rkmIDCharAt:
 					return p.TryFoldStringCharAt(call, str, firstArg)
-				case "charCodeAt":
+				case rkmIDCharCodeAt:
 					return p.TryFoldStringCharCodeAt(call, str, firstArg)
-				case "replace":
+				case rkmIDReplace:
 					return p.TryFoldStringReplace(call, str, firstArg)
-				case "replaceAll":
+				case rkmIDReplaceAll:
 					return p.TryFoldStringReplaceAll(call, str, firstArg)
 				default:
 				}
@@ -490,6 +543,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(call ast.Call, c
 	}
 	if !p.useTypes ||
 		!hasArgs ||
+		(methodID != rkmIDSubstr && methodID != rkmIDSubstring && methodID != rkmIDSlice) ||
 		!(isStringLiteral || colors.StandardColors_STRING.Equals(stringNode.Node().GetColor())) {
 		return subtree
 	}
@@ -510,19 +564,18 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(call ast.Call, c
 	if !ok {
 		return subtree
 	}
-	switch functionNameString {
-	case "substr":
+	switch methodID {
+	case rkmIDSubstr:
 		length := int(jutil.D2I(maybeLengthOrEnd))
 		if start >= 0 && length == 1 {
 			return p.ReplaceWithCharAt(call, callTarget, firstArg, secondArg)
 		}
-	case "substring", "slice":
+	case rkmIDSubstring, rkmIDSlice:
 		end := int(jutil.D2I(maybeLengthOrEnd))
 		// unlike slice and substring, chatAt can not be used with negative indexes
 		if start >= 0 && jutil.IntSub(end, start) == 1 {
 			return p.ReplaceWithCharAt(call, callTarget, firstArg, secondArg)
 		}
-	default:
 	}
 	return subtree
 }
@@ -532,12 +585,16 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(call ast.Call, c
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownNumericMethods(Node, Node)
 func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumericMethods(call ast.Call, callTarget ast.Name) rhino.Node {
-	functionNameString := callTarget.Ident()
-	if functionNameString == "parseInt" || functionNameString == "parseFloat" {
+	id := callTarget.Node().GetStringID()
+	if id == rkmIDParseInt || id == rkmIDParseFloat {
 		if firstArgument, ok := call.FirstArg(); ok &&
 			(firstArgument.Token() == rhino.Token_STRINGLIT || NodeUtil_IsNumericLiteral(firstArgument.Node())) &&
 			p.IsASTNormalized() {
-			return p.TryFoldParseNumber(call, functionNameString, firstArgument)
+			name := "parseFloat"
+			if id == rkmIDParseInt {
+				name = "parseInt"
+			}
+			return p.TryFoldParseNumber(call, name, firstArgument)
 		}
 	}
 	return call.Node()
@@ -617,29 +674,22 @@ func PeepholeReplaceKnownMethods_NormalizeNumericString(input string) string {
 	}
 
 	startIndex := 0
-	endIndex := jutil.StringLength(input) - 1
-
-	// Remove leading zeros
-	for startIndex < jutil.StringLength(input) &&
-		jutil.StringCharAt(input, startIndex) == '0' &&
-		jutil.StringCharAt(input, startIndex) != '.' {
+	endIndex := len(input) - 1
+	for startIndex < len(input) && input[startIndex] == '0' {
 		startIndex++
 	}
-
-	// Remove trailing zeros only after the decimal
-	if jutil.StringIndexOfChar(input, '.') >= 0 {
-		for endIndex >= 0 && jutil.StringCharAt(input, endIndex) == '0' {
+	if strings.IndexByte(input, '.') >= 0 {
+		for endIndex >= 0 && input[endIndex] == '0' {
 			endIndex--
 		}
-		if jutil.StringCharAt(input, endIndex) == '.' {
+		if endIndex >= 0 && input[endIndex] == '.' {
 			endIndex--
 		}
 	}
 	if startIndex >= endIndex {
 		return input
 	}
-
-	return jutil.StringSubstring(input, startIndex, endIndex+1)
+	return input[startIndex : endIndex+1]
 }
 
 // TryFoldParseNumber tries to evaluate parseInt, parseFloat:
@@ -728,19 +778,19 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(call ast.Call, function
 	}
 
 	isNegative := false
-	if jutil.StringStartsWith(stringVal, "-") {
+	if stringVal[0] == '-' {
 		isNegative = true
-		stringVal = jutil.StringSubstringFrom(stringVal, 1)
-	} else if jutil.StringStartsWith(stringVal, "+") {
-		stringVal = jutil.StringSubstringFrom(stringVal, 1)
+		stringVal = stringVal[1:]
+	} else if stringVal[0] == '+' {
+		stringVal = stringVal[1:]
 	}
 
 	if radix == 0 || radix == 16 {
-		if jutil.StringLength(stringVal) > 1 && jutil.AsciiEqualsIgnoreCase(jutil.StringSubstring(stringVal, 0, 2), "0x") {
+		if len(stringVal) >= 2 && stringVal[0] == '0' && (stringVal[1] == 'x' || stringVal[1] == 'X') {
 			radix = 16
-			stringVal = jutil.StringSubstringFrom(stringVal, 2)
+			stringVal = stringVal[2:]
 		} else if radix == 0 {
-			if !p.IsEcmaScript5OrGreater() && jutil.StringStartsWith(stringVal, "0") {
+			if !p.IsEcmaScript5OrGreater() && len(stringVal) > 0 && stringVal[0] == '0' {
 				return n
 			}
 			radix = 10
@@ -1019,6 +1069,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringAt(call ast.Call, stringNode 
 		}
 		if k < 0 || k >= int64(len_) {
 			replacement = NodeUtil_NewUndefinedNode(n)
+		} else if jutil.IsASCII(stringVal) {
+			replacement = rhino.IR_String(stringVal[k : k+1]).Srcref(n)
 		} else {
 			replacement = rhino.IR_String(jutil.StringFromChar(jutil.StringCharAt(stringVal, int(k)))).Srcref(n)
 		}
@@ -1041,7 +1093,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 	}
 
 	array, ok := callTarget.Object().AsArrayLit()
-	if !ok || callTarget.Property() != "join" {
+	if !ok || callTarget.Node().GetStringID() != rkmIDJoin {
 		return n
 	}
 	arrayNode := array.Node()
@@ -1056,7 +1108,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 
 	if hasRight {
 		str, isStringLit := right.AsStringLit()
-		if NodeUtil_IsUndefined(right.Node()) || (isStringLit && "," == str.Value()) {
+		if NodeUtil_IsUndefined(right.Node()) || (isStringLit && str.Node().GetStringID() == rkmIDComma) {
 			// "," is the default, it doesn't need to be explicit
 			right.Detach()
 			p.ReportChangeToEnclosingScope(n)
@@ -1073,31 +1125,35 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 	} else {
 		joinString = "null"
 	}
-	var arrayFoldedChildren []rhino.Node
-	var sb *jutil.StringBuilder
+	var arrayFoldedBuf [8]rhino.Node
+	arrayFoldedChildren := arrayFoldedBuf[:0]
+	var sb strings.Builder
+	hasSB := false
 	foldedSize := 0
 	var prev rhino.Node
 	// Merges adjacent String nodes.
 	for e := range array.Elements() {
 		elem := e.Node()
 		if NodeUtil_IsImmutableValue(elem) || elem.IsEmpty() {
-			if sb == nil {
-				sb = jutil.NewStringBuilder()
+			if !hasSB {
+				hasSB = true
 			} else {
-				sb.Append(joinString)
+				sb.WriteString(joinString)
 			}
 			elementStr, ok := nodeUtil_getArrayElementStringValue(elem)
 			if !ok {
 				return n // TODO(nickreid): Is this ever null?
 			}
-			sb.Append(elementStr)
+			sb.WriteString(elementStr)
 		} else {
-			if sb != nil {
+			if hasSB {
 				rhino.CheckNotNull(prev)
+				merged := sb.String()
+				sb.Reset()
+				hasSB = false
 				// + 2 for the quotes.
-				foldedSize += sb.Length() + 2
-				arrayFoldedChildren = append(arrayFoldedChildren, rhino.IR_String(sb.String()).SrcrefIfMissing(prev))
-				sb = nil
+				foldedSize += jutil.StringLength(merged) + 2
+				arrayFoldedChildren = append(arrayFoldedChildren, rhino.IR_String(merged).SrcrefIfMissing(prev))
 			}
 			foldedSize += InlineCostEstimator_GetCost(elem)
 			arrayFoldedChildren = append(arrayFoldedChildren, elem)
@@ -1105,11 +1161,12 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 		prev = elem
 	}
 
-	if sb != nil {
+	if hasSB {
 		rhino.CheckNotNull(prev)
+		merged := sb.String()
 		// + 2 for the quotes.
-		foldedSize += sb.Length() + 2
-		arrayFoldedChildren = append(arrayFoldedChildren, rhino.IR_String(sb.String()).SrcrefIfMissing(prev))
+		foldedSize += jutil.StringLength(merged) + 2
+		arrayFoldedChildren = append(arrayFoldedChildren, rhino.IR_String(merged).SrcrefIfMissing(prev))
 	}
 	// one for each comma.
 	foldedSize += len(arrayFoldedChildren) - 1
@@ -1321,14 +1378,23 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringCharAt(call ast.Call, stringN
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldStringReplace(Node, Node, Node)
 func (p *PeepholeReplaceKnownMethods) TryFoldStringReplace(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg) rhino.Node {
+	return p.tryFoldStringReplaceImpl(call, stringNode, arg1, false)
+}
+
+// TryFoldStringReplaceAll tries to fold .replaceAll() calls on strings.
+//
+// Java: PeepholeReplaceKnownMethods.tryFoldStringReplaceAll(Node, Node, Node)
+func (p *PeepholeReplaceKnownMethods) TryFoldStringReplaceAll(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg) rhino.Node {
+	return p.tryFoldStringReplaceImpl(call, stringNode, arg1, true)
+}
+
+func (p *PeepholeReplaceKnownMethods) tryFoldStringReplaceImpl(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg, replaceAll bool) rhino.Node {
 	n := call.Node()
 	arg2, ok := arg1.Next()
 	if !ok {
-		// too few parameters
 		return n
 	}
 	if _, ok := arg2.Next(); ok {
-		// too many parameters
 		return n
 	}
 
@@ -1341,63 +1407,35 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringReplace(call ast.Call, string
 
 	lookForPattern := pattern.Value()
 	replacementPattern := replacement.Value()
-	if strings.Contains(replacementPattern, "$") {
+	if strings.IndexByte(replacementPattern, '$') != -1 {
 		// 'special' replacements aren't supported yet.
 		return n
 	}
 
 	original := stringNode.Value()
-
-	index := jutil.StringIndexOf(original, lookForPattern)
-	if index == -1 {
-		return n
+	var newString string
+	if replaceAll {
+		if jutil.IsASCII(original) && jutil.IsASCII(lookForPattern) {
+			newString = strings.ReplaceAll(original, lookForPattern, replacementPattern)
+		} else {
+			newString = jutil.StringReplace(original, lookForPattern, replacementPattern)
+		}
+	} else if jutil.IsASCII(original) && jutil.IsASCII(lookForPattern) {
+		index := strings.Index(original, lookForPattern)
+		if index == -1 {
+			return n
+		}
+		newString = original[:index] + replacementPattern + original[index+len(lookForPattern):]
+	} else {
+		index := jutil.StringIndexOf(original, lookForPattern)
+		if index == -1 {
+			return n
+		}
+		newString =
+			jutil.StringSubstring(original, 0, index) +
+				replacementPattern +
+				jutil.StringSubstringFrom(original, index+jutil.StringLength(lookForPattern))
 	}
-
-	// Java "replace" acts like JavaScript's "replaceAll" here we only want to replace the first
-	// instance of the string
-	newString :=
-		jutil.StringSubstring(original, 0, index) +
-			replacementPattern +
-			jutil.StringSubstringFrom(original, index+jutil.StringLength(lookForPattern))
-
-	resultNode := rhino.IR_String(newString).Srcref(stringNode.Node())
-	parent := n.GetParent()
-	n.ReplaceWith(resultNode)
-	p.ReportChangeToEnclosingScope(parent)
-	return resultNode
-}
-
-// TryFoldStringReplaceAll tries to fold .replaceAll() calls on strings.
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringReplaceAll(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringReplaceAll(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg) rhino.Node {
-	n := call.Node()
-	arg2, ok := arg1.Next()
-	if !ok {
-		// too few parameters
-		return n
-	}
-	if _, ok := arg2.Next(); ok {
-		// too many parameters
-		return n
-	}
-
-	pattern, isString1 := arg1.AsStringLit()
-	replacement, isString2 := arg2.AsStringLit()
-	if !isString1 || !isString2 {
-		// only string literals are supported for folding.
-		return n
-	}
-
-	replacementPattern := replacement.Value()
-	if strings.Contains(replacementPattern, "$") {
-		// 'special' replacements aren't supported yet.
-		return n
-	}
-
-	// Java "replace" acts like JavaScript's "replaceAll" and replaces all occurrences.
-	original := stringNode.Value()
-	newString := jutil.StringReplace(original, pattern.Value(), replacementPattern)
 
 	resultNode := rhino.IR_String(newString).Srcref(stringNode.Node())
 	parent := n.GetParent()
@@ -1436,73 +1474,70 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringCharCodeAt(call ast.Call, str
 	return resultNode
 }
 
-// PeepholeReplaceKnownMethods_JsSplitMatch is a support function for jsSplit:
-// it finds the first occurrence of separator within stringValue starting at
-// startIndex.
-//
-// Java: PeepholeReplaceKnownMethods.jsSplitMatch(String, int, String)
-func PeepholeReplaceKnownMethods_JsSplitMatch(stringValue string, startIndex int, separator string) int {
-
-	if startIndex+jutil.StringLength(separator) > jutil.StringLength(stringValue) {
-		return -1
-	}
-
-	matchIndex := jutil.StringIndexOfFrom(stringValue, separator, startIndex)
-
-	if matchIndex < 0 {
-		return -1
-	}
-
-	return matchIndex
-}
-
 // JsSplit implements the JS String.split method using a string separator.
 //
 // Java: PeepholeReplaceKnownMethods.jsSplit(String, String, int)
 func (p *PeepholeReplaceKnownMethods) JsSplit(stringValue string, separator string, hasSeparator bool, limit int) []string {
 	jutil.CheckArgument(limit >= 0)
 
-	// For limits of 0, return an empty array
 	if limit == 0 {
 		return []string{}
 	}
-
-	// If a separator is not specified, return the entire string as
-	// the only element of an array.
 	if !hasSeparator {
 		return []string{stringValue}
 	}
 
 	var splitStrings []string
-
-	// If an empty string is specified for the separator, split apart each
-	// character of the string.
-	if separator == "" {
-		for i := 0; i < jutil.StringLength(stringValue) && i < limit; i++ {
-			splitStrings = append(splitStrings, jutil.StringSubstring(stringValue, i, i+1))
+	if jutil.IsASCII(stringValue) && jutil.IsASCII(separator) {
+		if separator == "" {
+			n := min(len(stringValue), limit)
+			splitStrings = make([]string, n)
+			for i := 0; i < n; i++ {
+				splitStrings[i] = stringValue[i : i+1]
+			}
+			return splitStrings
 		}
-	} else {
 		startIndex := 0
-		var matchIndex int
-		for {
-			matchIndex = PeepholeReplaceKnownMethods_JsSplitMatch(stringValue, startIndex, separator)
-			if !(matchIndex >= 0 && len(splitStrings) < limit) {
+		for len(splitStrings) < limit && startIndex+len(separator) <= len(stringValue) {
+			rel := strings.Index(stringValue[startIndex:], separator)
+			if rel < 0 {
 				break
 			}
-			splitStrings = append(splitStrings, jutil.StringSubstring(stringValue, startIndex, matchIndex))
-
-			startIndex = matchIndex + jutil.StringLength(separator)
+			matchIndex := startIndex + rel
+			splitStrings = append(splitStrings, stringValue[startIndex:matchIndex])
+			startIndex = matchIndex + len(separator)
 		}
-
 		if len(splitStrings) < limit {
-			if startIndex < jutil.StringLength(stringValue) {
-				splitStrings = append(splitStrings, jutil.StringSubstringFrom(stringValue, startIndex))
-			} else {
-				splitStrings = append(splitStrings, "")
-			}
+			splitStrings = append(splitStrings, stringValue[startIndex:])
 		}
+		return splitStrings
 	}
 
+	strLen := jutil.StringLength(stringValue)
+	if separator == "" {
+		for i := 0; i < strLen && i < limit; i++ {
+			splitStrings = append(splitStrings, jutil.StringSubstring(stringValue, i, i+1))
+		}
+		return splitStrings
+	}
+
+	sepLen := jutil.StringLength(separator)
+	startIndex := 0
+	for len(splitStrings) < limit && startIndex+sepLen <= strLen {
+		matchIndex := jutil.StringIndexOfFrom(stringValue, separator, startIndex)
+		if matchIndex < 0 {
+			break
+		}
+		splitStrings = append(splitStrings, jutil.StringSubstring(stringValue, startIndex, matchIndex))
+		startIndex = matchIndex + sepLen
+	}
+	if len(splitStrings) < limit {
+		if startIndex < strLen {
+			splitStrings = append(splitStrings, jutil.StringSubstringFrom(stringValue, startIndex))
+		} else {
+			splitStrings = append(splitStrings, "")
+		}
+	}
 	return splitStrings
 }
 
@@ -1562,12 +1597,12 @@ func (p *PeepholeReplaceKnownMethods) TryToFoldArrayConcat(n ast.Call) ast.Call 
 	if !p.IsASTNormalized() || !p.useTypes {
 		return n
 	}
-	concatFunctionCall := PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode(n)
-	if concatFunctionCall == nil {
+	concatFunctionCall, ok := PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode(n)
+	if !ok {
 		return n
 	}
-	concatFunctionCall = p.TryToRemoveArrayLiteralFromFrontOfConcat(concatFunctionCall)
-	jutil.CheckNotNull(concatFunctionCall)
+	concatFunctionCall, ok = p.TryToRemoveArrayLiteralFromFrontOfConcat(concatFunctionCall)
+	jutil.CheckState(ok)
 	return p.TryToFoldConcatChaining(concatFunctionCall)
 }
 
@@ -1578,21 +1613,19 @@ func (p *PeepholeReplaceKnownMethods) TryToFoldArrayConcat(n ast.Call) ast.Call 
 //
 // Java: PeepholeReplaceKnownMethods.tryToRemoveArrayLiteralFromFrontOfConcat(ConcatFunctionCall)
 func (p *PeepholeReplaceKnownMethods) TryToRemoveArrayLiteralFromFrontOfConcat(
-	concatFunctionCall *peepholeReplaceKnownMethods_ConcatFunctionCall) *peepholeReplaceKnownMethods_ConcatFunctionCall {
-	jutil.CheckNotNull(concatFunctionCall)
-
+	concatFunctionCall peepholeReplaceKnownMethods_ConcatFunctionCall) (peepholeReplaceKnownMethods_ConcatFunctionCall, bool) {
 	callNode := concatFunctionCall.callNode
 	arrayLiteralToRemove := concatFunctionCall.calleeNode
 	if array, ok := arrayLiteralToRemove.AsArrayLit(); !ok || array.HasElements() {
-		return concatFunctionCall
+		return concatFunctionCall, true
 	}
 	firstArgument, ok := callNode.FirstArg()
 	if !ok {
-		return concatFunctionCall
+		return concatFunctionCall, true
 	}
 	firstArg, ok := firstArgument.AsExpr() // not a spread
 	if !ok || !PeepholeReplaceKnownMethods_ContainsExactlyArray(firstArg) {
-		return concatFunctionCall
+		return concatFunctionCall, true
 	}
 
 	firstArg.Detach()
@@ -1608,18 +1641,16 @@ func (p *PeepholeReplaceKnownMethods) TryToRemoveArrayLiteralFromFrontOfConcat(
 // `arr.concat(a,b)`.
 //
 // Java: PeepholeReplaceKnownMethods.tryToFoldConcatChaining(ConcatFunctionCall)
-func (p *PeepholeReplaceKnownMethods) TryToFoldConcatChaining(concatFunctionCall *peepholeReplaceKnownMethods_ConcatFunctionCall) ast.Call {
-	jutil.CheckNotNull(concatFunctionCall)
-
+func (p *PeepholeReplaceKnownMethods) TryToFoldConcatChaining(concatFunctionCall peepholeReplaceKnownMethods_ConcatFunctionCall) ast.Call {
 	concatCallNode := concatFunctionCall.callNode
 
 	maybeFunctionCall, ok := concatFunctionCall.calleeNode.AsCall()
 	if !ok {
 		return concatCallNode
 	}
-	previousConcatFunctionCall :=
+	previousConcatFunctionCall, ok :=
 		PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode(maybeFunctionCall)
-	if previousConcatFunctionCall == nil {
+	if !ok {
 		return concatCallNode
 	}
 	// make sure that arguments in second concat function call can't change the array
@@ -1662,29 +1693,21 @@ type peepholeReplaceKnownMethods_ConcatFunctionCall struct {
 	calleeNode ast.Expr
 }
 
-// Java: PeepholeReplaceKnownMethods.ConcatFunctionCall(Node, Node, Node)
-func newPeepholeReplaceKnownMethods_ConcatFunctionCall(callNode ast.Call, calleeNode ast.Expr) *peepholeReplaceKnownMethods_ConcatFunctionCall {
-	c := &peepholeReplaceKnownMethods_ConcatFunctionCall{}
-	c.callNode = callNode
-	c.calleeNode = calleeNode
-	return c
-}
-
 // PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode returns, if the
 // argument node is a call to `Array.prototype.concat`, a
-// `ConcatFunctionCall` object for it, otherwise `null`.
+// `ConcatFunctionCall` value for it and true, otherwise false.
 //
 // Java: PeepholeReplaceKnownMethods.createConcatFunctionCallForNode(Node)
-func PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode(n ast.Call) *peepholeReplaceKnownMethods_ConcatFunctionCall {
+func PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode(n ast.Call) (peepholeReplaceKnownMethods_ConcatFunctionCall, bool) {
 	callTarget, ok := n.Callee().AsGetProp()
-	if !ok || callTarget.Property() != "concat" {
-		return nil
+	if !ok || callTarget.Node().GetStringID() != rkmIDConcat {
+		return peepholeReplaceKnownMethods_ConcatFunctionCall{}, false
 	}
 	calleeNode := callTarget.Object()
 	if !PeepholeReplaceKnownMethods_ContainsExactlyArray(calleeNode) {
-		return nil
+		return peepholeReplaceKnownMethods_ConcatFunctionCall{}, false
 	}
-	return newPeepholeReplaceKnownMethods_ConcatFunctionCall(n, calleeNode)
+	return peepholeReplaceKnownMethods_ConcatFunctionCall{callNode: n, calleeNode: calleeNode}, true
 }
 
 // PeepholeReplaceKnownMethods_ContainsExactlyArray checks if a node is a
@@ -1703,6 +1726,6 @@ func PeepholeReplaceKnownMethods_ContainsExactlyArray(n ast.Expr) bool {
 	}
 	callee, ok := call.Callee().AsGetProp()
 	return ok &&
-		callee.Property() == "concat" &&
+		callee.Node().GetStringID() == rkmIDConcat &&
 		PeepholeReplaceKnownMethods_ContainsExactlyArray(callee.Object())
 }

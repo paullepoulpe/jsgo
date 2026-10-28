@@ -61,24 +61,16 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// ParserRunner is the parser runner.
-//
-// Java: final class ParserRunner
-type ParserRunner struct{}
-
 var (
-	parserRunner_annotationNames       *jutil.LinkedHashSet[string]
-	parserRunner_suppressionNames      *jutil.LinkedHashSet[string]
-	parserRunner_reservedVars          *jutil.LinkedHashSet[string]
-	parserRunner_closurePrimitiveNames *jutil.LinkedHashSet[string]
+	parserRunner_annotationNames         *jutil.LinkedHashSet[string]
+	parserRunner_defaultExtraAnnotations *jutil.LinkedHashSet[string]
+	parserRunner_defaultAnnotations      *jutil.LinkedHashMap[string, Annotation]
+	parserRunner_suppressionNames        *jutil.LinkedHashSet[string]
+	parserRunner_reservedVars            *jutil.LinkedHashSet[string]
+	parserRunner_closurePrimitiveNames   *jutil.LinkedHashSet[string]
 
 	parserRunner_initOnce sync.Once
 )
-
-// Should never need to instantiate class of static methods.
-//
-// Java: ParserRunner()
-func NewParserRunner() *ParserRunner { return &ParserRunner{} }
 
 // Java: ParserRunner.createConfig(LanguageMode, Set<String>, StrictMode)
 func ParserRunner_CreateConfig(
@@ -100,25 +92,43 @@ func ParserRunner_CreateConfigWithModes(
 	extraAnnotationNames *jutil.LinkedHashSet[string],
 	parseInlineSourceMaps bool,
 	strictMode Config_StrictMode) *Config {
-
 	ParserRunner_InitResourceConfig()
-	var effectiveAnnotationNames *jutil.LinkedHashSet[string]
-	if extraAnnotationNames == nil {
-		effectiveAnnotationNames = parserRunner_annotationNames
+	extra := parserRunner_defaultExtraAnnotations
+	var annotations *jutil.LinkedHashMap[string, Annotation]
+	if extraAnnotationNames == nil || extraAnnotationNames.IsEmpty() {
+		annotations = parserRunner_defaultAnnotations
 	} else {
-		effectiveAnnotationNames = jutil.NewLinkedHashSet(parserRunner_annotationNames.ToSlice()...)
-		effectiveAnnotationNames.AddAll(extraAnnotationNames.ToSlice()...)
+		var custom *jutil.LinkedHashSet[string]
+		if extra != nil {
+			custom = jutil.NewLinkedHashSet(extra.ToSlice()...)
+		}
+		for name := range extraAnnotationNames.All() {
+			if name != "" && !Annotation_recognizedAnnotations.ContainsKey(name) {
+				if custom == nil {
+					custom = jutil.NewLinkedHashSet[string]()
+				}
+				custom.Add(name)
+			}
+		}
+		extra = custom
+		if extra == nil {
+			annotations = Annotation_recognizedAnnotations
+		}
 	}
-	return Config_Builder_().
-		SetExtraAnnotationNames(effectiveAnnotationNames.All()).
-		SetJsDocParsingMode(jsdocParsingMode).
-		SetRunMode(runMode).
-		SetSuppressionNames(parserRunner_suppressionNames.All()).
-		SetClosurePrimitiveNames(parserRunner_closurePrimitiveNames.All()).
-		SetLanguageMode(languageMode).
-		SetParseInlineSourceMaps(parseInlineSourceMaps).
-		SetStrictMode(strictMode).
-		Build()
+	c := &Config{
+		languageMode:          languageMode,
+		strictMode:            strictMode,
+		jsDocParsingMode:      jsdocParsingMode,
+		runMode:               runMode,
+		extraAnnotations:      extra,
+		suppressionNames:      parserRunner_suppressionNames,
+		closurePrimitiveNames: parserRunner_closurePrimitiveNames,
+		parseInlineSourceMaps: parseInlineSourceMaps,
+	}
+	if annotations != nil {
+		c.annotations.Store(annotations)
+	}
+	return c
 }
 
 // Java: ParserRunner.getReservedVars()
@@ -140,6 +150,15 @@ func ParserRunner_InitResourceConfig() {
 		parserRunner_suppressionNames = ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.suppressions"))
 		parserRunner_closurePrimitiveNames = ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.primitives"))
 		parserRunner_reservedVars = ParserRunner_ExtractList(ParserConfiguration_GetString("compiler.reserved.vars"))
+		for name := range parserRunner_annotationNames.All() {
+			if name != "" && !Annotation_recognizedAnnotations.ContainsKey(name) {
+				if parserRunner_defaultExtraAnnotations == nil {
+					parserRunner_defaultExtraAnnotations = jutil.NewLinkedHashSet[string]()
+				}
+				parserRunner_defaultExtraAnnotations.Add(name)
+			}
+		}
+		parserRunner_defaultAnnotations = Config_BuildAnnotations(parserRunner_annotationNames.All())
 	})
 }
 
@@ -159,66 +178,58 @@ func ParserRunner_Parse(
 
 // ParserRunner_ParseWithAllocator is ParserRunner_Parse taking the AST's
 // node ids from alloc (see rhino.NodeAllocator; nil: the store's counter).
-//
-// Go-only: performance, for parse workers.
 func ParserRunner_ParseWithAllocator(
 	sourceFile rhino.StaticSourceFile,
 	sourceString string,
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	alloc *rhino.NodeAllocator) *ParserRunner_ParseResult {
-	// TODO(johnlenz): unify "SourceFile", "Es6ErrorReporter" and "Config"
-
 	sourceName := sourceFile.GetName()
-	var result *ParserRunner_ParseResult
-	jutil.Try(func() {
-		file := parser.NewSourceFile(sourceName, sourceString)
-		keepGoing := config.RunMode() == Config_RunMode_KEEP_GOING
-		es6ErrorReporter := NewParserRunner_Es6ErrorReporter(errorReporter, keepGoing)
-		es6ErrorReporter.sourceName = sourceName
-		es6config := ParserRunner_NewParserConfig(config)
-		p := parser.NewParser(es6config, es6ErrorReporter, file)
-		tree := p.ParseProgram()
-		var root rhino.Node
-		comments := []parser.Comment{}
-		topLevelStatementRanges := []parser.SourceRange{}
-		features := p.GetFeatures()
-		if tree != nil && (!es6ErrorReporter.HadError() || keepGoing) {
-			factory := irFactoryTransformTree(
-				tree, sourceFile, config, errorReporter, file, alloc)
-			root = factory.GetResultNode()
-			features = features.Union(factory.GetFeatures())
-			root.PutProp(rhino.Node_FEATURE_SET, features)
+	defer func() {
+		if r := recover(); r != nil {
+			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception parsing \""+sourceName+"\"", jutil.AsThrowable(r)))
+		}
+	}()
+	file := parser.NewSourceFile(sourceName, sourceString)
+	keepGoing := config.RunMode() == Config_RunMode_KEEP_GOING
+	es6ErrorReporter := NewParserRunner_Es6ErrorReporter(errorReporter, keepGoing)
+	es6ErrorReporter.sourceName = sourceName
+	es6config := ParserRunner_NewParserConfig(config)
+	p := parser.NewParser(es6config, es6ErrorReporter, file)
+	tree := p.ParseProgram()
+	var root rhino.Node
+	comments := []parser.Comment{}
+	topLevelStatementRanges := []parser.SourceRange{}
+	features := p.GetFeatures()
+	if tree != nil && (!es6ErrorReporter.HadError() || keepGoing) {
+		factory := irFactoryTransformTree(
+			tree, sourceFile, config, errorReporter, file, alloc)
+		root = factory.GetResultNode()
+		features = features.Union(factory.GetFeatures())
+		root.PutProp(rhino.Node_FEATURE_SET, features)
 
-			if config.JsDocParsingMode().ShouldParseDescriptions() {
-				comments = p.GetComments()
-				builder := make([]parser.SourceRange, 0, len(tree.SourceElements))
-				for _, element := range tree.SourceElements {
-					builder = append(builder, element.GetParseTreeBase().Location)
-				}
-				topLevelStatementRanges = builder
+		if config.JsDocParsingMode().ShouldParseDescriptions() {
+			comments = p.GetComments()
+			topLevelStatementRanges = make([]parser.SourceRange, len(tree.SourceElements))
+			for i, element := range tree.SourceElements {
+				topLevelStatementRanges[i] = element.GetParseTreeBase().Location
 			}
 		}
-		result = NewParserRunner_ParseResultWithTopLevelStatementRanges(
-			root, comments, topLevelStatementRanges, features, p.GetSourceMapURL())
-	}, func(t jutil.Throwable) {
-		panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception parsing \""+sourceName+"\"", t))
-	})
-	return result
+	}
+	return NewParserRunner_ParseResultWithTopLevelStatementRanges(
+		root, comments, topLevelStatementRanges, features, p.GetSourceMapURL())
 }
 
 // Java: ParserRunner.newParserConfig(Config)
 func ParserRunner_NewParserConfig(config *Config) *parser.Parser_Config {
-	languageMode := config.LanguageMode()
-	isStrictMode := config.StrictMode().IsStrict()
-	var parserConfigLanguageMode parser.Parser_Config_Mode
-	switch languageMode {
+	var mode parser.Parser_Config_Mode
+	switch config.LanguageMode() {
 	case Config_LanguageMode_ECMASCRIPT3:
-		parserConfigLanguageMode = parser.Parser_Config_Mode_ES3
+		mode = parser.Parser_Config_Mode_ES3
 	case Config_LanguageMode_ECMASCRIPT5:
-		parserConfigLanguageMode = parser.Parser_Config_Mode_ES5
+		mode = parser.Parser_Config_Mode_ES5
 	case Config_LanguageMode_ECMASCRIPT_2015, Config_LanguageMode_ECMASCRIPT_2016:
-		parserConfigLanguageMode = parser.Parser_Config_Mode_ES6_OR_ES7
+		mode = parser.Parser_Config_Mode_ES6_OR_ES7
 	case Config_LanguageMode_ECMASCRIPT_2017,
 		Config_LanguageMode_ECMASCRIPT_2018,
 		Config_LanguageMode_ECMASCRIPT_2019,
@@ -228,114 +239,76 @@ func ParserRunner_NewParserConfig(config *Config) *parser.Parser_Config {
 		Config_LanguageMode_ES_NEXT,
 		Config_LanguageMode_UNSTABLE,
 		Config_LanguageMode_UNSUPPORTED:
-		parserConfigLanguageMode = parser.Parser_Config_Mode_ES8_OR_GREATER
+		mode = parser.Parser_Config_Mode_ES8_OR_GREATER
 	default:
-		// Go-only: language-adapter — an exhaustive Java switch expression
-		// throws MatchException for an enum constant it does not know.
 		panic(jutil.NewIllegalStateException())
 	}
-	return parser.NewParser_ConfigWithMode(jutil.CheckNotNull(parserConfigLanguageMode), isStrictMode)
+	return parser.NewParser_ConfigWithMode(mode, config.StrictMode().IsStrict())
 }
 
 // ParserRunner_Es6ErrorReporter forwards the parser's errors and warnings to
 // a rhino ErrorReporter.
-//
-// Java: class ParserRunner.Es6ErrorReporter extends parser.util.ErrorReporter
 type ParserRunner_Es6ErrorReporter struct {
 	parser.ErrorReporterBase
 
 	reporter        rhino.ErrorReporter
 	errorSeen       bool
 	reportAllErrors bool
-	// Go-only: language-adapter — the name Java reads from location.source
-	// (parser positions carry no source file, see parser.SourcePosition).
-	sourceName string
+	sourceName      string
 }
 
-// Java: ParserRunner.Es6ErrorReporter(ErrorReporter, boolean)
 func NewParserRunner_Es6ErrorReporter(reporter rhino.ErrorReporter, reportAllErrors bool) *ParserRunner_Es6ErrorReporter {
-	r := &ParserRunner_Es6ErrorReporter{}
+	r := &ParserRunner_Es6ErrorReporter{
+		reporter:        reporter,
+		reportAllErrors: reportAllErrors,
+	}
 	r.InitErrorReporterBase(r)
-	r.reporter = reporter
-	r.reportAllErrors = reportAllErrors
 	return r
 }
 
-// Java: ParserRunner.Es6ErrorReporter.reportError(SourcePosition, String)
 func (r *ParserRunner_Es6ErrorReporter) ReportError(location parser.LinePosition, message string) {
-	// In normal usage, only the first parse error should be reported, but
-	// sometimes it is useful to keep going.
 	if r.reportAllErrors || !r.errorSeen {
 		r.errorSeen = true
 		r.reporter.Error(message, r.sourceName, int(location.Line)+1, int(location.Column))
 	}
 }
 
-// Java: ParserRunner.Es6ErrorReporter.reportWarning(SourcePosition, String)
 func (r *ParserRunner_Es6ErrorReporter) ReportWarning(location parser.LinePosition, message string) {
 	r.reporter.Warning(message, r.sourceName, int(location.Line)+1, int(location.Column))
 }
 
 // ParserRunner_ParseResult holds results of parsing.
-//
-// Java: class ParserRunner.ParseResult
 type ParserRunner_ParseResult struct {
-	Ast      rhino.Node
-	Comments []parser.Comment
-
-	// TopLevelStatementRanges are the source ranges of the top-level
-	// statements, in source order, using the same character offsets as
-	// comments. Only populated when JSDoc descriptions are parsed.
-	//
-	// Unlike Node#getSourceOffset, these offsets are exact for any file size
-	// and line length.
+	Ast                     rhino.Node
+	Comments                []parser.Comment
 	TopLevelStatementRanges []parser.SourceRange
-
-	Features *parser.FeatureSet
-	// Go-only: language-adapter — nil is Java null.
-	SourceMapURL *string
+	Features                *parser.FeatureSet
+	SourceMapURL            *string
 }
 
-// Java: ParserRunner.ParseResult(Node, List<Comment>, FeatureSet, String)
 func NewParserRunner_ParseResult(ast rhino.Node, comments []parser.Comment, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
 	return NewParserRunner_ParseResultWithTopLevelStatementRanges(ast, comments, []parser.SourceRange{}, features, sourceMapURL)
 }
 
-// Java: ParserRunner.ParseResult(Node, List<Comment>, ImmutableList<SourceRange>, FeatureSet, String)
 func NewParserRunner_ParseResultWithTopLevelStatementRanges(ast rhino.Node, comments []parser.Comment, topLevelStatementRanges []parser.SourceRange, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
-	r := &ParserRunner_ParseResult{}
-	r.Ast = ast
-	r.Comments = comments
-	r.TopLevelStatementRanges = topLevelStatementRanges
-	r.Features = features
-	r.SourceMapURL = sourceMapURL
-	return r
+	return &ParserRunner_ParseResult{
+		Ast:                     ast,
+		Comments:                comments,
+		TopLevelStatementRanges: topLevelStatementRanges,
+		Features:                features,
+		SourceMapURL:            sourceMapURL,
+	}
 }
 
-// Go-only: language-adapter — classpath resource via go:embed. This is
-// com/google/javascript/jscomp/parsing/ParserConfig.properties, extracted
-// byte for byte from the pinned closure-compiler.jar.
-//
 //go:embed ParserConfig.properties
 var parserConfiguration_properties string
 
-// Go-only: language-adapter — ResourceBundle.getBundle loads (and caches) the
-// PropertyResourceBundle once; the mutex is the JDK's own synchronization of
-// that cache.
 var (
 	parserConfiguration_bundleOnce sync.Once
 	parserConfiguration_bundle     *jutil.LinkedHashMap[string, string]
 )
 
-// ParserConfiguration reads the parser's ParserConfig.properties resource.
-//
-// Java: final class ParserConfiguration
-type ParserConfiguration struct{}
-
-// ParserConfiguration_GetString is
-// ResourceBundle.getBundle("com.google.javascript.jscomp.parsing.ParserConfig").getString(name).
-//
-// Java: ParserConfiguration.getString(String)
+// ParserConfiguration_GetString reads a key from ParserConfig.properties.
 func ParserConfiguration_GetString(name string) string {
 	parserConfiguration_bundleOnce.Do(func() {
 		parserConfiguration_bundle = jutil.PropertiesLoad(parserConfiguration_properties)
@@ -349,55 +322,20 @@ func ParserConfiguration_GetString(name string) string {
 	return value
 }
 
-// Java: ParserConfiguration()
-func NewParserConfiguration() *ParserConfiguration { return &ParserConfiguration{} }
-
-// ParsingUtil holds utility functions for parsing that don't depend on the
-// compiler.
-//
-// Java: final class ParsingUtil
-type ParsingUtil struct{}
-
-// Utility class; do not instantiate.
-//
-// Java: ParsingUtil()
-func NewParsingUtil() *ParsingUtil { return &ParsingUtil{} }
-
 // ParsingUtil_GetParamOrPatternNames calls cb with all NAMEs declared in a
 // PARAM_LIST or destructuring pattern.
-//
-// Java: ParsingUtil.getParamOrPatternNames(Node, Consumer<Node>)
 func ParsingUtil_GetParamOrPatternNames(n rhino.Node, cb func(rhino.Node)) {
 	rhino.CheckNotNull(n)
 	switch n.GetToken() {
 	case rhino.Token_EMPTY, rhino.Token_GETELEM, rhino.Token_GETPROP:
-		// let [,] = ...
-		// [someArray[1]] = ...
-		// [someObj.someProp] = ...
-		// An empty node or assigned to an existing value means nothings here
-		// and we can't recurse further.
+		// An empty node or assignment target means nothing declared here.
 	case rhino.Token_NAME:
-		// let [someName] = ...
-		// A name node generally means we found an assignment happening.
 		cb(n)
 	case rhino.Token_ITER_REST, rhino.Token_OBJECT_REST, rhino.Token_STRING_KEY, rhino.Token_DEFAULT_VALUE:
-		// let [...name] = ...
-		// let {...name} = ...
-		// let {name} = ...
-		// let {name = 10} = ...
-		// For these node types there is a name node as the first child.
 		ParsingUtil_GetParamOrPatternNames(n.GetFirstChild(), cb)
 	case rhino.Token_COMPUTED_PROP:
-		// let {[someProp]: name} = ...
-		// For this node types there is a name node as the second child.
 		ParsingUtil_GetParamOrPatternNames(n.GetSecondChild(), cb)
 	case rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN, rhino.Token_PARAM_LIST:
-		// let {<pattern>} = ...
-		// let [<pattern>] = ...
-		// function fn(<params>) ...
-		// Each item in the destructuring pattern is scanned for assignments.
-		// Although PARAM_LIST isn't technically a pattern, we know how to
-		// handle it anyway.
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			ParsingUtil_GetParamOrPatternNames(c, cb)
 		}

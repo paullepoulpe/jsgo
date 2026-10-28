@@ -154,24 +154,9 @@ func (r *ReportUntranspilableFeatures) CheckForUntranspilable(root rhino.Node) {
 		if f, ok := re.Flags(); ok {
 			flags = f.Value()
 		}
-		var reg regex.RegExpTree
-		malformed := false
-		jutil.Try(func() {
-			reg = regex.RegExpTree_ParseRegExp(pattern, flags)
-		}, func(ex jutil.IRuntimeException) {
-			// Go-only: language-adapter — Java's multi-catch
-			// `catch (IllegalArgumentException | IndexOutOfBoundsException ex)`:
-			// any other exception propagates unchanged.
-			switch ex.(type) {
-			case jutil.IIllegalArgumentException, jutil.IIndexOutOfBoundsException:
-				// A null message formats as "null", as MessageFormat does.
-				r.compiler.Report(JSError_MakeWithNode(root, CheckRegExp_MALFORMED_REGEXP, jutil.ToJavaString(jutil.GetMessageOrNull(ex))))
-				malformed = true
-			default:
-				panic(ex)
-			}
-		})
-		if malformed {
+		reg, err := regex.ParseRegExp(pattern, flags)
+		if err != nil {
+			r.compiler.Report(JSError_MakeWithNode(root, CheckRegExp_MALFORMED_REGEXP, err.Message))
 			break
 		}
 		if r.untranspilableFeaturesToRemove.ContainsFeature(parser.FeatureSet_Feature_REGEXP_FLAG_S) {

@@ -87,10 +87,10 @@ func newTypedAstDeserializer(
 	mode typedAstDeserializer_Mode,
 	includeTypeInformation bool) *TypedAstDeserializer {
 	d := &TypedAstDeserializer{
-		filePoolBuilder:               jutil.NewLinkedHashMap[string, *SourceFile](),
-		canonicalFilePool:             jutil.NewLinkedHashMap[string, *SourceFile](),
-		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() rhino.Node](),
-		scriptDeserializers:           make(map[*SourceFile]*ScriptNodeDeserializer),
+		filePoolBuilder:     jutil.NewLinkedHashMap[string, *SourceFile](),
+		canonicalFilePool:   jutil.NewLinkedHashMap[string, *SourceFile](),
+		typedAstFilesystem:  jutil.NewLinkedHashMap[*SourceFile, func() rhino.Node](),
+		scriptDeserializers: make(map[*SourceFile]*ScriptNodeDeserializer),
 		externProperties:    jutil.NewLinkedHashSet[string](),
 		runtimeLibraries:    jutil.NewLinkedHashSet[string](),
 	}

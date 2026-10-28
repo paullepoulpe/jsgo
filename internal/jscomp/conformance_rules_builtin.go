@@ -1588,11 +1588,11 @@ type ConformanceRules_BanElementSetAttribute struct {
 }
 
 const (
-	conformanceRules_BanElementSetAttribute_ELEMENT_TYPE_NAME     = "Element"
-	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE         = "setAttribute"
-	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NS      = "setAttributeNS"
-	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NODE    = "setAttributeNode"
-	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NODE_NS = "setAttributeNodeNS"
+	conformanceRules_BanElementSetAttribute_ELEMENT_TYPE_NAME               = "Element"
+	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE                   = "setAttribute"
+	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NS                = "setAttributeNS"
+	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NODE              = "setAttributeNode"
+	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NODE_NS           = "setAttributeNodeNS"
 	conformanceRules_BanElementSetAttribute_GLOBAL_NAMESPACE_ANALYSIS_LIMIT = 10000
 )
 

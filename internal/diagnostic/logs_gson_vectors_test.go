@@ -39,7 +39,7 @@ type TestPoint struct {
 
 type testPoint3 struct {
 	TestPoint
-	Z int32                                `gson:"z"`
+	Z int32                               `gson:"z"`
 	M *jutil.LinkedHashMap[string, int32] `gson:"m"`
 }
 

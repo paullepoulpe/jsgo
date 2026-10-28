@@ -157,11 +157,11 @@ func (o *JsonObject) GetAsJsonNull() *JsonNull {
 	panic(NewIllegalStateExceptionMsg("Not a JSON Null: " + o.String()))
 }
 
-func (*JsonObject) GetAsBoolean() bool     { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) GetAsBoolean() bool      { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
 func (*JsonObject) GetAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
-func (*JsonObject) GetAsString() string    { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
-func (*JsonObject) GetAsLong() int64       { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
-func (*JsonObject) GetAsInt() int32        { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) GetAsString() string     { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) GetAsLong() int64        { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) GetAsInt() int32         { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
 
 func (*JsonObject) TryGetAsInt() (int32, Throwable) {
 	return 0, NewUnsupportedOperationExceptionMsg("JsonObject")
@@ -696,11 +696,11 @@ func (n *JsonNull) GetAsJsonPrimitive() *JsonPrimitive {
 }
 func (n *JsonNull) GetAsJsonNull() *JsonNull { return n }
 
-func (*JsonNull) GetAsBoolean() bool     { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) GetAsBoolean() bool      { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
 func (*JsonNull) GetAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
-func (*JsonNull) GetAsString() string    { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
-func (*JsonNull) GetAsLong() int64       { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
-func (*JsonNull) GetAsInt() int32        { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) GetAsString() string     { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) GetAsLong() int64        { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) GetAsInt() int32         { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
 
 func (*JsonNull) TryGetAsInt() (int32, Throwable) {
 	return 0, NewUnsupportedOperationExceptionMsg("JsonNull")

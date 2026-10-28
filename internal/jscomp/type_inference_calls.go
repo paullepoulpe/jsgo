@@ -77,8 +77,8 @@ func (ti *TypeInference) SetCallNodeTypeAfterChildrenTraversed(n rhino.Node, sco
 		fnType := functionType.ToMaybeFunctionType()
 		n.SetJSType(fnType.GetReturnType())
 		ti.BackwardsInferenceFromCallSite(n, fnType, scopeAfterChildren)
-	} else if functionType.Equals(ti.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)) {
-		n.SetJSType(ti.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE))
+	} else if checkedUnknown := ti.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE); functionType.Equals(checkedUnknown) {
+		n.SetJSType(checkedUnknown)
 	} else if left.GetJSType() != nil && left.GetJSType().IsUnknownType() {
 		// TODO(lharker): do we also want to set this to unknown if the left's type is null? We would
 		// lose some inference that TypeCheck does when given a null type.
@@ -399,54 +399,56 @@ func (ti *TypeInference) MatchFunction(
 	return currentType
 }
 
-// BuildTypeVariables builds the type environment where type transformations
-// will be evaluated. It only considers the template type variables that do
-// not have a type transformation.
-//
-// Java: TypeInference.buildTypeVariables(Map<TemplateType, JSType>)
-func (ti *TypeInference) BuildTypeVariables(
-	inferredTypes *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]) *jutil.LinkedHashMap[string, rhino.JSType] {
-	typeVars := jutil.NewLinkedHashMap[string, rhino.JSType]()
-	for key, value := range inferredTypes.All() {
-		// Only add the template type that do not have a type transformation
-		if !key.IsTypeTransformation() {
-			typeVars.Put(*key.GetReferenceName(), value)
-		}
-	}
-	return typeVars
-}
-
-// EvaluateTypeTransformations evaluates the type transformations associated
-// to the template types.
+// evaluateTypeTransformations evaluates the type transformations associated
+// with the template types and updates inferredTypes in place.
 //
 // Java: TypeInference.evaluateTypeTransformations(ImmutableList<TemplateType>, Map<TemplateType, JSType>, FlowScope)
-func (ti *TypeInference) EvaluateTypeTransformations(
+func (ti *TypeInference) evaluateTypeTransformations(
 	templateTypes []*rhino.TemplateType,
 	inferredTypes *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType],
-	scope FlowScope) *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType] {
-
-	var typeVars *jutil.LinkedHashMap[string, rhino.JSType]
-	var result *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
-	var ttlObj *TypeTransformation
+	scope FlowScope) {
+	var typeVarBuf [8]ttlTypeVar
+	typeVars := typeVarBuf[:0]
+	var ttlObj TypeTransformation
+	initialized := false
 
 	for _, type_ := range templateTypes {
-		if type_.IsTypeTransformation() {
-			// Lazy initialization when the first type transformation is found
-			if ttlObj == nil {
-				ttlObj = NewTypeTransformation(ti.compiler, scope.GetDeclarationScope())
-				typeVars = ti.BuildTypeVariables(inferredTypes)
-				result = jutil.NewLinkedHashMap[*rhino.TemplateType, rhino.JSType]()
+		if !type_.IsTypeTransformation() {
+			continue
+		}
+		// Lazy initialization when the first type transformation is found
+		if !initialized {
+			initialized = true
+			ttlObj = TypeTransformation{
+				compiler: ti.compiler,
+				registry: ti.registry,
+				typeEnv:  scope.GetDeclarationScope(),
 			}
-			// Evaluate the type transformation expression using the current
-			// known types for the template type variables
-			transformedType :=
-				ttlObj.Eval(type_.GetTypeTransformation(), jutil.NewLinkedHashMapFrom(typeVars))
-			result.Put(type_, transformedType)
-			// Add the transformed type to the type variables
-			typeVars.Put(*type_.GetReferenceName(), transformedType)
+			for key, value := range inferredTypes.All() {
+				// Only add the template types that do not have a type transformation
+				if !key.IsTypeTransformation() {
+					typeVars = append(typeVars, ttlTypeVar{name: *key.GetReferenceName(), typ: value})
+				}
+			}
+		}
+		// Evaluate the type transformation expression using the current
+		// known types for the template type variables
+		transformedType := ttlObj.evalWithSlices(type_.GetTypeTransformation(), typeVars, nil)
+		inferredTypes.Put(type_, transformedType)
+		// Add the transformed type to the type variables
+		refName := *type_.GetReferenceName()
+		updated := false
+		for i := range typeVars {
+			if typeVars[i].name == refName {
+				typeVars[i].typ = transformedType
+				updated = true
+				break
+			}
+		}
+		if !updated {
+			typeVars = append(typeVars, ttlTypeVar{name: refName, typ: transformedType})
 		}
 	}
-	return result
 }
 
 func (ti *TypeInference) matchInvocationTemplateTypes(
@@ -493,13 +495,7 @@ func (ti *TypeInference) InferTemplatedTypesForCall(n rhino.Node, fnType rhino.F
 	}
 
 	// Try to infer the template types using the type transformations
-	typeTransformations :=
-		ti.EvaluateTypeTransformations(keys, inferred, scope)
-	if typeTransformations != nil {
-		for k, v := range typeTransformations.All() {
-			inferred.Put(k, v)
-		}
-	}
+	ti.evaluateTypeTransformations(keys, inferred, scope)
 
 	// Replace all template types. If we couldn't find a replacement, we
 	// replace it with UNKNOWN.

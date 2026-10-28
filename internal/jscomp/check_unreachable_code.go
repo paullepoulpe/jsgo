@@ -28,7 +28,8 @@ import (
 // CheckUnreachableCode uses ControlFlowGraph and GraphReachability to inform
 // user about unreachable code.
 type CheckUnreachableCode struct {
-	NodeTraversal_AbstractCfgCallbackBase
+	NodeTraversal_AbstractPreOrderCallbackBase
+	cfgScopeStack
 
 	compiler             AbstractCompiler
 	reachability         graph.GraphReachability[rhino.Node, ControlFlowGraph_Branch]
@@ -44,14 +45,11 @@ var CheckUnreachableCode_UNREACHABLE_CODE = DiagnosticType_Warning(
 
 // Java: CheckUnreachableCode(AbstractCompiler)
 func NewCheckUnreachableCode(compiler AbstractCompiler) *CheckUnreachableCode {
-	c := &CheckUnreachableCode{}
-	c.InitNodeTraversal_AbstractCfgCallbackBase(c)
-	c.compiler = compiler
+	c := &CheckUnreachableCode{compiler: compiler}
+	c.cfgs = c.cfgsBuf[:0]
 	c.hasUnreachableStack = c.hasUnreachableBuf[:0]
 	return c
 }
-
-func (*CheckUnreachableCode) nodeTraversalNoVisit() {}
 
 func hasUnreachableCfgNode(cfg ControlFlowGraph[rhino.Node]) bool {
 	if base := cfg.GetControlFlowGraphBase(); base != nil {
@@ -196,6 +194,18 @@ func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot rhino.Node) bo
 	default:
 		return false
 	}
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
+func (c *CheckUnreachableCode) EnterScope(t *NodeTraversal) {
+	c.pushScopeRoot(t.GetScopeRoot())
+	c.EnterScopeWithCfg(t)
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
+func (c *CheckUnreachableCode) ExitScope(t *NodeTraversal) {
+	c.ExitScopeWithCfg(t)
+	c.popScopeRoot(t.GetScopeRoot())
 }
 
 // Java: CheckUnreachableCode.enterScopeWithCfg(NodeTraversal)

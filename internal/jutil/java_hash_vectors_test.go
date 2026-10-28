@@ -2,6 +2,7 @@ package jutil
 
 import (
 	"iter"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -417,11 +418,23 @@ func jhReplayMap[K any](t *testing.T, si int, sc [][]string, p jhPool[K], cov *j
 			case "m":
 				m = NewJavaHashMapFrom[K, any](jhParseSrc(t, p, r[2]))
 			case "gd":
-				m = Maps_NewHashMap[K, any]()
+				m = NewJavaHashMap[K, any]()
 			case "gm":
-				m = Maps_NewHashMapFrom[K, any](jhParseSrc(t, p, r[2]))
+				m = NewJavaHashMapFrom[K, any](jhParseSrc(t, p, r[2]))
 			case "ge":
-				m = Maps_NewHashMapWithExpectedSize[K, any](jhAtoi(t, r[2]))
+				n := jhAtoi(t, r[2])
+				var cap_ int
+				switch {
+				case n < 0:
+					panic(NewIllegalArgumentExceptionMsg("expectedSize cannot be negative but was: " + strconv.Itoa(n)))
+				case n < 3:
+					cap_ = n + 1
+				case n < 1<<30:
+					cap_ = int(D2I(math.Ceil(float64(n) / 0.75)))
+				default:
+					cap_ = math.MaxInt32
+				}
+				m = NewJavaHashMapWithCapacity[K, any](cap_)
 			case "nh":
 				m = JavaHashMap_NewHashMap[K, any](jhAtoi(t, r[2]))
 			default:

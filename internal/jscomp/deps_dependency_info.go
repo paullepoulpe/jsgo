@@ -48,43 +48,17 @@ import (
 
 // DependencyInfo is a data structure for JS dependency information for a
 // single .js file.
-//
-// Java default methods are declared in the interface; their default bodies
-// are the DependencyInfo_X functions, which implementations call.
 type DependencyInfo interface {
-	// GetName gets the unique name / path of this file.
 	GetName() string
-
-	// GetPathRelativeToClosureBase gets the path of this file relative to
-	// Closure's base.js file.
 	GetPathRelativeToClosureBase() string
-
-	// GetProvides gets the symbols provided by this file.
 	GetProvides() []string
-
-	// GetRequires gets the symbols required by this file.
 	GetRequires() []*DependencyInfo_Require
-
 	GetRequiredSymbols() []string
-
-	// GetTypeRequires gets the symbols type-required by this file (i.e. for
-	// typechecking only).
 	GetTypeRequires() []string
-
-	// GetLoadFlags gets the loading information for this file.
 	GetLoadFlags() *jutil.LinkedHashMap[string, string]
-
-	// IsEs6Module reports whether the symbol is provided by an ES6 module.
 	IsEs6Module() bool
-
-	// IsGoogModule reports whether the symbol is provided by a goog module.
 	IsGoogModule() bool
-
-	// GetHasExternsAnnotation reports whether the file '@externs' annotation.
 	GetHasExternsAnnotation() bool
-
-	// GetHasNoCompileAnnotation reports whether the file has the '@nocompile'
-	// annotation.
 	GetHasNoCompileAnnotation() bool
 }
 
@@ -107,10 +81,6 @@ func DependencyInfo_IsGoogModule(d DependencyInfo) bool {
 
 // DependencyInfo_Require is a dependency link between two files, e.g.
 // goog.require('namespace'), import 'file';
-//
-// Go-only: language-adapter — Require is an @AutoValue: the abstract class
-// and the generated AutoValue_DependencyInfo_Require (fields, equals,
-// hashCode, toString, Builder) are one struct here (PORTING.md §4).
 type DependencyInfo_Require struct {
 	symbol  string
 	rawText string
@@ -121,16 +91,10 @@ type DependencyInfo_Require struct {
 type DependencyInfo_Require_Type int32
 
 const (
-	// Standard goog.require call for a symbol from a goog.provide or
-	// goog.module.
 	DependencyInfo_Require_Type_GOOG_REQUIRE_SYMBOL DependencyInfo_Require_Type = iota
-	// ES6 import statement.
 	DependencyInfo_Require_Type_ES6_IMPORT
-	// Parsed from an existing Closure dependency file.
 	DependencyInfo_Require_Type_PARSED_FROM_DEPS
-	// CommonJS require() call.
 	DependencyInfo_Require_Type_COMMON_JS
-	// Compiler chunk graph dependencies.
 	DependencyInfo_Require_Type_COMPILER_CHUNK
 )
 
@@ -138,7 +102,6 @@ var dependencyInfo_Require_Type_names = [...]string{
 	"GOOG_REQUIRE_SYMBOL", "ES6_IMPORT", "PARSED_FROM_DEPS", "COMMON_JS", "COMPILER_CHUNK",
 }
 
-// String is Enum.name().
 func (t DependencyInfo_Require_Type) String() string { return dependencyInfo_Require_Type_names[t] }
 
 // Java: DependencyInfo.Require.BASE
@@ -146,9 +109,9 @@ var DependencyInfo_Require_BASE = DependencyInfo_Require_GoogRequireSymbol("goog
 
 // Java: DependencyInfo.Require.asSymbolList(Iterable<Require>)
 func DependencyInfo_Require_AsSymbolList(requires []*DependencyInfo_Require) []string {
-	out := make([]string, 0, len(requires))
-	for _, r := range requires {
-		out = append(out, r.GetSymbol())
+	out := make([]string, len(requires))
+	for i, r := range requires {
+		out[i] = r.symbol
 	}
 	return out
 }
@@ -183,33 +146,14 @@ func DependencyInfo_Require_ParsedFromDeps(symbol string) *DependencyInfo_Requir
 	return &DependencyInfo_Require{symbol: symbol, rawText: symbol, type_: DependencyInfo_Require_Type_PARSED_FROM_DEPS}
 }
 
-// DependencyInfo_Require_Builder_ is DependencyInfo.Require.builder().
-//
-// Go-only: language-adapter — the trailing underscore keeps the mechanical
-// name DependencyInfo_Require_Builder for the nested Builder type.
-func DependencyInfo_Require_Builder_() *DependencyInfo_Require_Builder {
-	return NewDependencyInfo_Require_Builder()
-}
-
-// Java: DependencyInfo.Require.toBuilder()
-func (r *DependencyInfo_Require) ToBuilder() *DependencyInfo_Require_Builder {
-	return &DependencyInfo_Require_Builder{symbol: &r.symbol, rawText: &r.rawText, type_: r.type_.ptr()}
-}
-
 // Java: DependencyInfo.Require.withSymbol(String)
 func (r *DependencyInfo_Require) WithSymbol(symbol string) *DependencyInfo_Require {
 	return &DependencyInfo_Require{symbol: symbol, rawText: r.rawText, type_: r.type_}
 }
 
-// GetSymbol returns the symbol provided by another DependencyInfo's
-// GetProvides().
-//
 // Java: DependencyInfo.Require.getSymbol()
 func (r *DependencyInfo_Require) GetSymbol() string { return r.symbol }
 
-// GetRawText returns the raw text of the import string as it appears in the
-// file. Used mostly for error reporting.
-//
 // Java: DependencyInfo.Require.getRawText()
 func (r *DependencyInfo_Require) GetRawText() string { return r.rawText }
 
@@ -228,21 +172,11 @@ func (r *DependencyInfo_Require) String() string {
 // Java: AutoValue_DependencyInfo_Require.equals(Object)
 func (r *DependencyInfo_Require) Equals(o any) bool {
 	that, ok := o.(*DependencyInfo_Require)
-	if !ok || that == nil {
-		return false
-	}
-	if that == r {
-		return true
-	}
-	return r.symbol == that.GetSymbol() &&
-		r.rawText == that.GetRawText() &&
-		r.type_ == that.GetType()
+	return ok && that != nil &&
+		(that == r || (r.symbol == that.symbol && r.rawText == that.rawText && r.type_ == that.type_))
 }
 
 // Java: AutoValue_DependencyInfo_Require.hashCode()
-//
-// Go-only: language-adapter — Java's Enum.hashCode() is the identity hash,
-// which varies from run to run; the ordinal stands in for it.
 func (r *DependencyInfo_Require) HashCode() int32 {
 	h := int32(1)
 	h *= 1000003
@@ -254,60 +188,6 @@ func (r *DependencyInfo_Require) HashCode() int32 {
 	return h
 }
 
-func (t DependencyInfo_Require_Type) ptr() *DependencyInfo_Require_Type { return &t }
-
-// DependencyInfo_Require_Builder is DependencyInfo.Require.Builder
-// (AutoValue_DependencyInfo_Require.Builder).
-type DependencyInfo_Require_Builder struct {
-	symbol  *string
-	rawText *string
-	type_   *DependencyInfo_Require_Type
-}
-
-// Java: AutoValue_DependencyInfo_Require.Builder()
-func NewDependencyInfo_Require_Builder() *DependencyInfo_Require_Builder {
-	return &DependencyInfo_Require_Builder{}
-}
-
-// Java: DependencyInfo.Require.Builder.setType(Type)
-func (b *DependencyInfo_Require_Builder) SetType(value DependencyInfo_Require_Type) *DependencyInfo_Require_Builder {
-	b.type_ = value.ptr()
-	return b
-}
-
-// Java: DependencyInfo.Require.Builder.setRawText(String)
-func (b *DependencyInfo_Require_Builder) SetRawText(rawText string) *DependencyInfo_Require_Builder {
-	b.rawText = &rawText
-	return b
-}
-
-// Java: DependencyInfo.Require.Builder.setSymbol(String)
-func (b *DependencyInfo_Require_Builder) SetSymbol(value string) *DependencyInfo_Require_Builder {
-	b.symbol = &value
-	return b
-}
-
-// Java: DependencyInfo.Require.Builder.build()
-func (b *DependencyInfo_Require_Builder) Build() *DependencyInfo_Require {
-	if b.symbol == nil || b.rawText == nil || b.type_ == nil {
-		var missing strings.Builder
-		if b.symbol == nil {
-			missing.WriteString(" symbol")
-		}
-		if b.rawText == nil {
-			missing.WriteString(" rawText")
-		}
-		if b.type_ == nil {
-			missing.WriteString(" type")
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
-	}
-	return &DependencyInfo_Require{symbol: *b.symbol, rawText: *b.rawText, type_: *b.type_}
-}
-
-// DependencyInfo_Util holds utility methods.
-type DependencyInfo_Util struct{}
-
 // DependencyInfo_Util_WriteAddDependency prints a goog.addDependency call
 // for a single DependencyInfo. It panics with an IOException if out does.
 //
@@ -317,8 +197,16 @@ func DependencyInfo_Util_WriteAddDependency(out jutil.Appendable, info Dependenc
 	out.AppendCharSequence(info.GetPathRelativeToClosureBase())
 	out.AppendCharSequence("', ")
 	dependencyInfo_Util_writeJsArray(out, info.GetProvides())
-	out.AppendCharSequence(", ")
-	dependencyInfo_Util_writeJsArray(out, DependencyInfo_Require_AsSymbolList(info.GetRequires()))
+	out.AppendCharSequence(", [")
+	for i, r := range info.GetRequires() {
+		if i > 0 {
+			out.AppendCharSequence(", ")
+		}
+		out.AppendCharSequence("'")
+		out.AppendCharSequence(strings.ReplaceAll(r.GetSymbol(), "'", "\\'"))
+		out.AppendCharSequence("'")
+	}
+	out.AppendCharSequence("]")
 	loadFlags := info.GetLoadFlags()
 	if !loadFlags.IsEmpty() {
 		out.AppendCharSequence(", ")
@@ -327,72 +215,46 @@ func DependencyInfo_Util_WriteAddDependency(out jutil.Appendable, info Dependenc
 	out.AppendCharSequence(");\n")
 }
 
-// Prints a map as a JS object literal.
 func dependencyInfo_Util_writeJsObject(out jutil.Appendable, m *jutil.LinkedHashMap[string, string]) {
-	var entries []string
-	for k, v := range m.All() {
-		key := strings.ReplaceAll(k, "'", "\\'")
-		value := strings.ReplaceAll(v, "'", "\\'")
-		entries = append(entries, "'"+key+"': '"+value+"'")
-	}
 	out.AppendCharSequence("{")
-	out.AppendCharSequence(strings.Join(entries, ", "))
+	first := true
+	for k, v := range m.All() {
+		if !first {
+			out.AppendCharSequence(", ")
+		}
+		first = false
+		out.AppendCharSequence("'")
+		out.AppendCharSequence(strings.ReplaceAll(k, "'", "\\'"))
+		out.AppendCharSequence("': '")
+		out.AppendCharSequence(strings.ReplaceAll(v, "'", "\\'"))
+		out.AppendCharSequence("'")
+	}
 	out.AppendCharSequence("}")
 }
 
-// Prints a list of strings formatted as a JavaScript array of string
-// literals.
 func dependencyInfo_Util_writeJsArray(out jutil.Appendable, values []string) {
-	quoted := make([]string, len(values))
-	for i, arg := range values {
-		quoted[i] = "'" + strings.ReplaceAll(arg, "'", "\\'") + "'"
-	}
 	out.AppendCharSequence("[")
-	out.AppendCharSequence(strings.Join(quoted, ", "))
+	for i, arg := range values {
+		if i > 0 {
+			out.AppendCharSequence(", ")
+		}
+		out.AppendCharSequence("'")
+		out.AppendCharSequence(strings.ReplaceAll(arg, "'", "\\'"))
+		out.AppendCharSequence("'")
+	}
 	out.AppendCharSequence("]")
 }
 
-// DependencyResolver is the interface for DependencyResolver to keep in
-// line with com.google.javascript.jscomp.deps.DefaultDependencyResolver,
-// which doesn't provide an interface. This is so that later on, we can
-// merge back with it.
-//
+// DependencyResolver gets dependency lists for code or symbols.
 // Every method throws ServiceException (as a panic).
 type DependencyResolver interface {
-	// GetDependencies gets a list of dependencies for the provided code.
-	//
-	// Java: DependencyResolver.getDependencies(String)
 	GetDependencies(code string) []string
-
-	// GetDependenciesOfSymbols gets a list of dependencies for the provided
-	// list of symbols.
-	//
-	// Java: DependencyResolver.getDependencies(Collection<String>)
 	GetDependenciesOfSymbols(symbols []string) []string
-
-	// GetDependenciesWithSeen: code is the raw code to be parsed for
-	// requires; seen is the set of already seen symbols;
-	// addClosureBaseFile indicates whether the closure base file should be
-	// added to the dependency list. Returns a list of filenames for each of
-	// the dependencies for the provided code.
-	//
-	// Java: DependencyResolver.getDependencies(String, Set<String>, boolean)
 	GetDependenciesWithSeen(code string, seen *jutil.LinkedHashSet[string], addClosureBaseFile bool) []string
-
-	// GetDependenciesOfSymbolsWithSeen: symbols is a list of required
-	// symbols; seen is the set of already seen symbols. Returns a list of
-	// filenames for each of the required symbols.
-	//
-	// Java: DependencyResolver.getDependencies(Collection<String>, Set<String>)
 	GetDependenciesOfSymbolsWithSeen(symbols []string, seen *jutil.LinkedHashSet[string]) []string
 }
 
-// Deps_SourceFile is an interface for representing source files for the
-// Compilation Service.
-//
-// Go-only: language-adapter — com.google.javascript.jscomp.deps.SourceFile
-// and com.google.javascript.jscomp.SourceFile are both in the Go package
-// jscomp, so this one carries its subpackage name.
+// Deps_SourceFile represents source files for the Compilation Service.
 type Deps_SourceFile interface {
 	GetName() string
 	GetContent() string
@@ -415,7 +277,7 @@ type IServiceException interface {
 // Java: ServiceException(String)
 func NewServiceException(message string) *ServiceException {
 	e := &ServiceException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.deps.ServiceException", jutil.StringPtr(message), nil)
+	jutil.InitThrowable(e, "com.google.javascript.jscomp.deps.ServiceException", &message, nil)
 	return e
 }
 
@@ -451,8 +313,6 @@ func (f *VirtualFile) HashCode() int32 {
 
 // Java: VirtualFile.equals(Object)
 func (f *VirtualFile) Equals(o any) bool {
-	if vf, ok := o.(*VirtualFile); ok && vf != nil {
-		return f.name == vf.name && f.code == vf.code
-	}
-	return false
+	vf, ok := o.(*VirtualFile)
+	return ok && vf != nil && f.name == vf.name && f.code == vf.code
 }

@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -28,29 +27,10 @@ import (
 // them to be property accesses to a special object with the same name as the
 // global symbol.
 //
-// Given the name of the global object is NS
+// Given the name of the global object is NS:
 //
 //	var a = 1; function b() { return a }
-//
-// becomes
-//
-//	NS.a = 1; NS.b = function b() { return NS.a }
-//
-// This allows splitting code into chunks that depend on each other's global
-// symbols, without using polluting JavaScript's global scope with those
-// symbols. You typically define just a single global symbol, wrap each chunk
-// in a function wrapper, and pass the global symbol around, eg,
-//
-//	var uniqueNs = uniqueNs || {};
-//
-//	(function (NS) { ...your chunk code here... })(uniqueNs);
-//
-// This compile step requires rewriteGlobalDeclarationsForTryCatchWrapping to
-// be turned on to guarantee semantics.
-//
-// For lots of examples, see the unit test.
-//
-// Java: final class RescopeGlobalSymbols implements CompilerPass
+//	-> NS.a = 1; NS.b = function b() { return NS.a }
 type RescopeGlobalSymbols struct {
 	compiler              AbstractCompiler
 	globalSymbolNamespace string
@@ -59,15 +39,7 @@ type RescopeGlobalSymbols struct {
 	optimizeLocalAccess   CompilerOptions_OptimizeLocalAccess
 }
 
-// NewRescopeGlobalSymbols is the constructor for the RescopeGlobalSymbols
-// compiler pass.
-//
-// compiler is the JSCompiler, for reporting code changes;
-// globalSymbolNamespace is the name of namespace into which all global
-// symbols are transferred. If assumeCrossChunkNames is true, all global
-// symbols will be assumed cross chunk boundaries and thus require renaming.
-// If optimizeLocalAccess is true, write aliases for global symbols in the
-// chunk where they are defined, for more efficient access.
+// NewRescopeGlobalSymbols creates a new RescopeGlobalSymbols compiler pass.
 //
 // Java: RescopeGlobalSymbols(AbstractCompiler, String, boolean, CompilerOptions.OptimizeLocalAccess)
 func NewRescopeGlobalSymbols(
@@ -79,16 +51,8 @@ func NewRescopeGlobalSymbols(
 		compiler, globalSymbolNamespace, true, assumeCrossChunkNames, optimizeLocalAccess)
 }
 
-// NewRescopeGlobalSymbolsWithAddExtern is the constructor for the
-// RescopeGlobalSymbols compiler pass for use in testing.
-//
-// compiler is the JSCompiler, for reporting code changes;
-// globalSymbolNamespace is the name of namespace into which all global
-// symbols are transferred. If addExtern is true, the compiler will consider
-// the globalSymbolNamespace an extern name. If assumeCrossChunkNames is true,
-// all global symbols will be assumed cross chunk boundaries and thus require
-// renaming. VisibleForTesting. optimizeLocalAccess is the mode for optimizing
-// local access to global symbols.
+// NewRescopeGlobalSymbolsWithAddExtern creates a RescopeGlobalSymbols pass
+// with explicit control over extern synthesis (used in testing).
 //
 // Java: RescopeGlobalSymbols(AbstractCompiler, String, boolean, boolean, CompilerOptions.OptimizeLocalAccess)
 func NewRescopeGlobalSymbolsWithAddExtern(
@@ -97,17 +61,16 @@ func NewRescopeGlobalSymbolsWithAddExtern(
 	addExtern bool,
 	assumeCrossChunkNames bool,
 	optimizeLocalAccess CompilerOptions_OptimizeLocalAccess) *RescopeGlobalSymbols {
-	r := &RescopeGlobalSymbols{}
-	r.compiler = compiler
-	r.globalSymbolNamespace = globalSymbolNamespace
-	r.addExtern = addExtern
-	r.assumeCrossChunkNames = assumeCrossChunkNames
-	r.optimizeLocalAccess = optimizeLocalAccess
-	return r
+	return &RescopeGlobalSymbols{
+		compiler:              compiler,
+		globalSymbolNamespace: globalSymbolNamespace,
+		addExtern:             addExtern,
+		assumeCrossChunkNames: assumeCrossChunkNames,
+		optimizeLocalAccess:   optimizeLocalAccess,
+	}
 }
 
-// Java: RescopeGlobalSymbols.addExternForGlobalSymbolNamespace()
-func (r *RescopeGlobalSymbols) AddExternForGlobalSymbolNamespace() {
+func (r *RescopeGlobalSymbols) addExternForGlobalSymbolNamespace() {
 	varNode := rhino.IR_Var(rhino.IR_Name(r.globalSymbolNamespace))
 	input := r.compiler.GetSynthesizedExternsInput()
 	input.GetAstRoot(r.compiler).AddChildToBack(varNode)
@@ -116,106 +79,61 @@ func (r *RescopeGlobalSymbols) AddExternForGlobalSymbolNamespace() {
 
 // Java: RescopeGlobalSymbols.process(Node, Node)
 func (r *RescopeGlobalSymbols) Process(externs rhino.Node, root rhino.Node) {
-	// Make the name of the globalSymbolNamespace an extern.
 	if r.addExtern {
-		r.AddExternForGlobalSymbolNamespace()
+		r.addExternForGlobalSymbolNamespace()
 	}
 
-	// Rewrite all references to global symbols to properties of a single symbol:
+	// Turn global named function and class statements into var assignments.
+	declsCallback := rescopeGlobalDeclsCallback{compiler: r.compiler}
+	NodeTraversal_Traverse(r.compiler, root, &declsCallback)
 
-	// Turn global named function statements into var assignments.
-	NodeTraversal_Traverse(
-		r.compiler,
-		root,
-		newRescopeGlobalDeclsCallback(r.compiler))
-
-	// Find global names that are used in more than one chunk. Those that
-	// are have to be rewritten.
-	findCrossChunkNames :=
-		newRescopeFindCrossChunkNamesCallback(r.optimizeLocalAccess.ShouldOptimize())
-
-	// And find names that may refer to functions that reference this.
-	findNamesReferencingThis := newRescopeFindNamesReferencingThis()
-
-	CombinedCompilerPass_Traverse(
-		r.compiler, root, []NodeTraversal_Callback{findCrossChunkNames, findNamesReferencingThis})
-
-	symbolInfo :=
-		NewRescopeGlobalSymbolsRewriteCallback_SymbolInformationFromSets(
-			findCrossChunkNames.crossChunkNames,
-			findCrossChunkNames.crossChunkNamesWithWriteFromOtherChunk,
-			findCrossChunkNames.globalNamesWithReadInDefiningChunk,
-			findCrossChunkNames.globalNamesWithInnerScopeWriteInDefiningChunk,
-			findNamesReferencingThis.maybeReferencesThis)
+	// Find global names that are used in more than one chunk and names that
+	// may refer to functions that reference `this`.
+	analyzer := rescopeAnalyzeNamesCallback{
+		trackLocalAccessSets: r.optimizeLocalAccess.ShouldOptimize(),
+		info: rescopeSymbolInfo{
+			crossChunkNames:     make(map[string]struct{}),
+			maybeReferencesThis: make(map[string]struct{}),
+		},
+	}
+	if analyzer.trackLocalAccessSets {
+		analyzer.info.globalNamesWithReadInDefiningChunk = make(map[string]struct{})
+	}
+	NodeTraversal_Traverse(r.compiler, root, &analyzer)
 
 	// Rewrite all references to be property accesses of the single symbol.
-	rewriteScope :=
-		NewRescopeGlobalSymbolsRewriteCallback(
-			r.compiler,
-			r.globalSymbolNamespace,
-			r.assumeCrossChunkNames,
-			r.optimizeLocalAccess,
-			externs,
-			symbolInfo)
+	rewriteScope := newRescopeRewriteCallback(
+		r.compiler,
+		r.globalSymbolNamespace,
+		r.assumeCrossChunkNames,
+		r.optimizeLocalAccess,
+		externs,
+		&analyzer.info)
 	NodeTraversal_Traverse(r.compiler, root, rewriteScope)
 
-	// Remove the var from statements in global scope if the declared names have been rewritten
-	// in the previous pass.
-	NodeTraversal_Traverse(r.compiler, root, newRescopeRemoveGlobalVarCallback(r.compiler))
+	// Remove the var/let/const from statements in global scope if the declared
+	// names have been rewritten in the previous pass.
+	removeVarCallback := rescopeRemoveGlobalVarCallback{compiler: r.compiler}
+	NodeTraversal_Traverse(r.compiler, root, &removeVarCallback)
 
-	rewriteScope.AddDeclarations()
+	rewriteScope.addDeclarations()
 }
 
 // rescopeGlobalDeclsCallback rewrites global function and class declarations to
-// var statements + assignment. Ignores non-global function and class
-// declarations.
-//
-//	function test(){}
-//
-// becomes
-//
-//	var test = function (){}
-//
-//	class A {}
-//
-// becomes
-//
-//	var A = class {}
-//
-// After this traversal, the special case of global class and function
-// statements can be ignored.
-//
-// This is helpful when rewriting simple names to property accesses on the
-// global symbol, since class A {} cannot be rewritten directly to
-// class NS.A {}.
-//
-// Java: private static class RescopeGlobalSymbols.RewriteGlobalClassFunctionDeclarationsToVarAssignmentsCallback extends AbstractShallowStatementCallback
+// var statements + assignment. Ignores non-global declarations.
 type rescopeGlobalDeclsCallback struct {
 	NodeTraversal_AbstractShallowStatementCallbackBase
 	compiler AbstractCompiler
 }
 
-// Java: RescopeGlobalSymbols.RewriteGlobalClassFunctionDeclarationsToVarAssignmentsCallback(AbstractCompiler)
-func newRescopeGlobalDeclsCallback(compiler AbstractCompiler) *rescopeGlobalDeclsCallback {
-	return &rescopeGlobalDeclsCallback{compiler: compiler}
-}
-
-// Java: RescopeGlobalSymbols.RewriteGlobalClassFunctionDeclarationsToVarAssignmentsCallback.visit(NodeTraversal, Node, Node)
 func (c *rescopeGlobalDeclsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	// Ignore block scopes within the global scope, as class and function declarations are
-	// block-scoped.
-	// Note that we should never find block-scoped function declarations if outputting ES5
-	// code. Es6RewriteBlockScopedFunctionDeclaration will have rewritten them.
 	if !t.InGlobalScope() {
 		return
 	}
-	// Ignore everything that's not a function or class declaration.
 	if !NodeUtil_IsFunctionDeclaration(n) && !NodeUtil_IsClassDeclaration(n) {
 		return
 	}
 	var name string
-	// Remove the class or function name. Anonymous classes have an EMPTY node, while anonymous
-	// functions have a NAME node with an empty string.
 	if cls, ok := ast.AsClass(n); ok {
 		nameNode, _ := cls.Name()
 		name = nameNode.Ident()
@@ -229,242 +147,180 @@ func (c *rescopeGlobalDeclsCallback) Visit(t *NodeTraversal, n rhino.Node, paren
 	}
 	prev := n.GetPrevious()
 	n.Detach()
-	var_ := NodeUtil_NewVarNode(name, n)
+	varNode := NodeUtil_NewVarNode(name, n)
 	if prev.IsNil() {
-		parent.AddChildToFront(var_)
+		parent.AddChildToFront(varNode)
 	} else {
-		var_.InsertAfter(prev)
+		varNode.InsertAfter(prev)
 	}
 	c.compiler.ReportChangeToEnclosingScope(parent)
 }
 
-// rescopeFindCrossChunkNamesCallback finds all global names that are used in
-// more than one chunk. The following compiler transformations can ignore the
-// globals that are not.
-//
-// Java: private static class RescopeGlobalSymbols.FindCrossChunkNamesCallback extends AbstractPostOrderCallback
-type rescopeFindCrossChunkNamesCallback struct {
+type rescopeOrderedStringSet struct {
+	names []string
+	seen  map[string]struct{}
+}
+
+func (s *rescopeOrderedStringSet) add(name string) {
+	if s.seen == nil {
+		s.seen = make(map[string]struct{})
+	}
+	if _, ok := s.seen[name]; !ok {
+		s.seen[name] = struct{}{}
+		s.names = append(s.names, name)
+	}
+}
+
+func (s *rescopeOrderedStringSet) contains(name string) bool {
+	_, ok := s.seen[name]
+	return ok
+}
+
+type rescopeSymbolInfo struct {
+	crossChunkNames                               map[string]struct{}
+	crossChunkNamesWithWriteFromOtherChunk        rescopeOrderedStringSet
+	globalNamesWithReadInDefiningChunk            map[string]struct{}
+	globalNamesWithInnerScopeWriteInDefiningChunk rescopeOrderedStringSet
+	maybeReferencesThis                           map[string]struct{}
+}
+
+// rescopeAnalyzeNamesCallback combines FindCrossChunkNamesCallback and
+// FindNamesReferencingThis into a single post-order pass over NAME nodes.
+type rescopeAnalyzeNamesCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	trackLocalAccessSets bool
-	crossChunkNames      *jutil.LinkedHashSet[string]
-
-	// Global cross-chunk identifiers that are written to from a chunk other
-	// than the defining one. Only populated if trackLocalAccessSets is true.
-	crossChunkNamesWithWriteFromOtherChunk *jutil.LinkedHashSet[string]
-
-	// Global identifiers that are read in the chunk where they are defined.
-	// Only populated if trackLocalAccessSets is true.
-	globalNamesWithReadInDefiningChunk *jutil.LinkedHashSet[string]
-
-	// Global identifiers that are written to from a nested scope (i.e. not
-	// the global scope) in their defining chunk. Only populated if
-	// trackLocalAccessSets is true.
-	globalNamesWithInnerScopeWriteInDefiningChunk *jutil.LinkedHashSet[string]
+	info                 rescopeSymbolInfo
 }
 
-// Java: RescopeGlobalSymbols.FindCrossChunkNamesCallback(boolean)
-func newRescopeFindCrossChunkNamesCallback(trackLocalAccessSets bool) *rescopeFindCrossChunkNamesCallback {
-	return &rescopeFindCrossChunkNamesCallback{
-		trackLocalAccessSets:                          trackLocalAccessSets,
-		crossChunkNames:                               jutil.NewLinkedHashSet[string](),
-		crossChunkNamesWithWriteFromOtherChunk:        jutil.NewLinkedHashSet[string](),
-		globalNamesWithReadInDefiningChunk:            jutil.NewLinkedHashSet[string](),
-		globalNamesWithInnerScopeWriteInDefiningChunk: jutil.NewLinkedHashSet[string](),
+func (c *rescopeAnalyzeNamesCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	nameNode, ok := ast.AsName(n)
+	if !ok {
+		return
 	}
+	name := nameNode.Ident()
+	if name == "" {
+		return
+	}
+	c.visitCrossChunkName(t, nameNode, n, name, parent)
+	c.visitMaybeReferencesThis(t, nameNode, n, name, parent)
 }
 
-// Java: RescopeGlobalSymbols.FindCrossChunkNamesCallback.visit(NodeTraversal, Node, Node)
-func (c *rescopeFindCrossChunkNamesCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if nameNode, ok := ast.AsName(n); ok {
-		name := nameNode.Ident()
-		if name == "" || (!c.trackLocalAccessSets && c.crossChunkNames.Contains(name)) {
+func (c *rescopeAnalyzeNamesCallback) visitCrossChunkName(
+	t *NodeTraversal, nameNode ast.Name, n rhino.Node, name string, parent rhino.Node) {
+	if !c.trackLocalAccessSets {
+		if _, exists := c.info.crossChunkNames[name]; exists {
 			return
 		}
-		s := t.GetScope()
-		v := s.GetVar(name)
-		if v == nil || !v.IsGlobal() {
-			return
-		}
+	}
+	v := t.GetScope().GetVar(name)
+	if v == nil || !v.IsGlobal() {
+		return
+	}
 
-		input := v.GetInput()
-		_, hasInit := nameNode.Init()
+	input := v.GetInput()
+	_, hasInit := nameNode.Init()
 
+	if c.trackLocalAccessSets &&
+		!t.InGlobalScope() &&
+		(input == nil || input.GetChunk() == t.GetChunk()) &&
+		NodeUtil_IsLValue(n) &&
+		(!NodeUtil_IsNameDeclaration(parent) || hasInit) {
+		c.info.globalNamesWithInnerScopeWriteInDefiningChunk.add(name)
+	}
+
+	if input == nil {
+		c.info.crossChunkNames[name] = struct{}{}
+		return
+	}
+	if input.GetChunk() != t.GetChunk() {
+		c.info.crossChunkNames[name] = struct{}{}
 		if c.trackLocalAccessSets &&
-			!t.InGlobalScope() &&
-			(input == nil || input.GetChunk() == t.GetChunk()) &&
 			NodeUtil_IsLValue(n) &&
 			(!NodeUtil_IsNameDeclaration(parent) || hasInit) {
-			c.globalNamesWithInnerScopeWriteInDefiningChunk.Add(name)
+			c.info.crossChunkNamesWithWriteFromOtherChunk.add(name)
 		}
-
-		if input == nil {
-			// We know nothing. Assume name is used across chunks.
-			c.crossChunkNames.Add(name)
-			return
-		}
-		// Compare the chunk where the variable is declared to the current
-		// chunk. If they are different, the variable is used across chunks.
-		chunk := input.GetChunk()
-		if chunk != t.GetChunk() {
-			c.crossChunkNames.Add(name)
-
-			// If tracking local access, track names with non-local writes separately. This includes
-			// all L-value names except for declarations without children.
-			if c.trackLocalAccessSets &&
-				NodeUtil_IsLValue(n) &&
-				(!NodeUtil_IsNameDeclaration(parent) || hasInit) {
-				c.crossChunkNamesWithWriteFromOtherChunk.Add(name)
-			}
-		} else if c.trackLocalAccessSets && n != v.GetNameNode() {
-			c.globalNamesWithReadInDefiningChunk.Add(name)
-		}
+	} else if c.trackLocalAccessSets && n != v.GetNameNode() {
+		c.info.globalNamesWithReadInDefiningChunk[name] = struct{}{}
 	}
 }
 
-// rescopeFindNamesReferencingThis builds the maybeReferencesThis set of names
-// that may reference a function that references this. If the function a name
-// references does not reference this it can be called as a method call where
-// the this value is not the same as in a normal function call.
-//
-// Java: private static class RescopeGlobalSymbols.FindNamesReferencingThis extends AbstractPostOrderCallback
-type rescopeFindNamesReferencingThis struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-	maybeReferencesThis *jutil.LinkedHashSet[string]
-}
-
-// Java: RescopeGlobalSymbols.FindNamesReferencingThis()
-func newRescopeFindNamesReferencingThis() *rescopeFindNamesReferencingThis {
-	return &rescopeFindNamesReferencingThis{
-		maybeReferencesThis: jutil.NewLinkedHashSet[string](),
+func (c *rescopeAnalyzeNamesCallback) visitMaybeReferencesThis(
+	t *NodeTraversal, nameNode ast.Name, n rhino.Node, name string, parent rhino.Node) {
+	var value rhino.Node
+	switch ast.RoleIn(n, parent) {
+	case ast.RoleAssignTarget:
+		value = ast.MustAssign(parent).Value().Node()
+	case ast.RoleNameDeclarationDeclarators:
+		if init, hasInit := nameNode.Init(); hasInit {
+			value = init.Node()
+		}
+	case ast.RoleFunctionName:
+		value = parent
 	}
-}
-
-// Java: RescopeGlobalSymbols.FindNamesReferencingThis.visit(NodeTraversal, Node, Node)
-func (c *rescopeFindNamesReferencingThis) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if nameNode, ok := ast.AsName(n); ok {
-		name := nameNode.Ident()
-		if name == "" {
-			return
-		}
-		var value rhino.Node
-		switch ast.RoleIn(n, parent) {
-		case ast.RoleAssignTarget:
-			value = ast.MustAssign(parent).Value().Node()
-		case ast.RoleNameDeclarationDeclarators:
-			if init, hasInit := nameNode.Init(); hasInit {
-				value = init.Node()
-			}
-		case ast.RoleFunctionName:
-			value = parent
-		}
-		if value.IsNil() && !NodeUtil_IsLhsByDestructuring(n) {
-			// If n is assigned in a destructuring pattern, don't bother finding its value and just
-			// assume it may reference this.
-			return
-		}
-		// We already added this symbol. Done after checks above because those
-		// are comparatively cheap.
-		if c.maybeReferencesThis.Contains(name) {
-			return
-		}
-		s := t.GetScope()
-		v := s.GetVar(name)
-		if v == nil || !v.IsGlobal() {
-			return
-		}
-		// If anything but a function is assigned we assume that possibly
-		// a function referencing this is being assigned. Otherwise we
-		// check whether the function assigned is a) an arrow function, which has a
-		// lexically-scoped this, or b) a non-arrow function that does not reference this.
-		if value.IsNil() || !value.IsFunction() || NodeUtil_ReferencesOwnReceiver(value) {
-			c.maybeReferencesThis.Add(name)
-		}
+	if value.IsNil() && !NodeUtil_IsLhsByDestructuring(n) {
+		return
+	}
+	if _, already := c.info.maybeReferencesThis[name]; already {
+		return
+	}
+	v := t.GetScope().GetVar(name)
+	if v == nil || !v.IsGlobal() {
+		return
+	}
+	if value.IsNil() || !value.IsFunction() || NodeUtil_ReferencesOwnReceiver(value) {
+		c.info.maybeReferencesThis[name] = struct{}{}
 	}
 }
 
 // rescopeRemoveGlobalVarCallback removes every occurrence of var/let/const
-// that declares a global variable.
-//
-//	var NS.a = 1, NS.b = 2;
-//
-// becomes
-//
-//	NS.a = 1; NS.b = 2;
-//
-//	for (var a = 0, b = 0;;)
-//
-// becomes
-//
-//	for (NS.a = 0, NS.b = 0;;)
-//
-// Declarations without assignments are optimized away:
-//
-//	var a = 1, b;
-//
-// becomes
-//
-//	NS.a = 1
-//
-// Java: private static class RescopeGlobalSymbols.RemoveGlobalVarCallback extends AbstractShallowStatementCallback
+// that declares a rewritten global variable.
 type rescopeRemoveGlobalVarCallback struct {
 	NodeTraversal_AbstractShallowStatementCallbackBase
 	compiler AbstractCompiler
+	commas   []rhino.Node
+	children []rhino.Node
 }
 
-// Java: RescopeGlobalSymbols.RemoveGlobalVarCallback(AbstractCompiler)
-func newRescopeRemoveGlobalVarCallback(compiler AbstractCompiler) *rescopeRemoveGlobalVarCallback {
-	return &rescopeRemoveGlobalVarCallback{compiler: compiler}
-}
-
-// Java: RescopeGlobalSymbols.RemoveGlobalVarCallback.visit(NodeTraversal, Node, Node)
 func (c *rescopeRemoveGlobalVarCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !NodeUtil_IsNameDeclaration(n) {
 		return
 	}
 
-	var commas []rhino.Node
-	var interestingChildren []rhino.Node
-	// Filter out declarations without assignments.
-	// As opposed to regular var nodes, there are always assignments
-	// because the previous traversal in RescopeGlobalSymbolsRewriteCallback creates
-	// them.
+	c.commas = c.commas[:0]
+	c.children = c.children[:0]
+	parentIsAnyFor := NodeUtil_IsAnyFor(parent)
 	allNameOrDestructuring := true
 	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 		if !ch.IsName() && !ch.IsDestructuringLhs() {
 			allNameOrDestructuring = false
 		}
-		if ch.IsAssign() || NodeUtil_IsAnyFor(parent) {
-			interestingChildren = append(interestingChildren, ch)
+		if ch.IsAssign() || parentIsAnyFor {
+			c.children = append(c.children, ch)
 		}
 	}
-	// If every child of a var declares a name, it must stay in place.
-	// This is the case if none of the declared variables cross chunk
-	// boundaries.
 	if allNameOrDestructuring {
 		return
 	}
-	for _, ch := range interestingChildren {
-		if NodeUtil_IsAnyFor(parent) && parent.GetFirstChild() == n {
-			commas = append(commas, ch.CloneTree())
+	isForInit := parentIsAnyFor && parent.GetFirstChild() == n
+	for _, ch := range c.children {
+		if isForInit {
+			c.commas = append(c.commas, ch.CloneTree())
 		} else {
-			// Var statement outside of for-loop.
 			expr := rhino.IR_ExprResult(ch.CloneTree()).Srcref(ch)
 			NodeUtil_MarkNewScopesChanged(expr, c.compiler)
 			expr.InsertBefore(n)
 		}
 	}
-	if len(commas) != 0 {
-		comma := c.JoinOnComma(commas, n)
+	if len(c.commas) != 0 {
+		comma := joinNodesOnComma(c.commas, n)
 		comma.InsertBefore(n)
 	}
-	// Remove the var/const/let node.
 	n.Detach()
 	NodeUtil_MarkFunctionsDeleted(n, c.compiler)
 	c.compiler.ReportChangeToEnclosingScope(parent)
 }
 
-// Java: RescopeGlobalSymbols.RemoveGlobalVarCallback.joinOnComma(List<Node>, Node)
-func (c *rescopeRemoveGlobalVarCallback) JoinOnComma(commas []rhino.Node, source rhino.Node) rhino.Node {
+func joinNodesOnComma(commas []rhino.Node, source rhino.Node) rhino.Node {
 	comma := commas[0]
 	for i := 1; i < len(commas); i++ {
 		nextComma := rhino.IR_Comma(comma, commas[i])

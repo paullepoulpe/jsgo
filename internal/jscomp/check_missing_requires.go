@@ -26,10 +26,10 @@ import (
 // CheckMissingRequires is a pass to detect references to fully qualified
 // Closure namespaces.
 type CheckMissingRequires struct {
-	NodeTraversal_AbstractModuleCallbackBase
+	moduleTraversal
 
 	// The set of template parameter names found so far in the file currently being checked.
-	templateParamNames *jutil.LinkedHashSet[string]
+	templateParamNames map[string]struct{}
 
 	// The mapping from Closure namespace into the module that provides it.
 	moduleByNamespace *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
@@ -117,17 +117,23 @@ var CheckMissingRequires_MISSING_REQUIRE_FOR_GOOG_MODULE_GET = DiagnosticType_Wa
 
 // Java: CheckMissingRequires(AbstractCompiler, ModuleMetadataMap)
 func NewCheckMissingRequires(compiler AbstractCompiler, moduleMetadataMap *ModuleMetadataMap) *CheckMissingRequires {
-	c := &CheckMissingRequires{}
-	c.InitNodeTraversal_AbstractModuleCallbackBase(c, compiler, moduleMetadataMap)
-	c.templateParamNames = jutil.NewLinkedHashSet[string]()
-	c.controlFlowScopeDepth = 0
-	c.moduleByNamespace = moduleMetadataMap.GetModulesByGoogNamespace()
+	c := &CheckMissingRequires{
+		templateParamNames: make(map[string]struct{}),
+		moduleByNamespace:  moduleMetadataMap.GetModulesByGoogNamespace(),
+	}
+	c.initModuleTraversal(compiler, moduleMetadataMap)
 	return c
 }
 
 // Java: CheckMissingRequires.process(Node, Node)
 func (c *CheckMissingRequires) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
+}
+
+// Java: NodeTraversal.AbstractModuleCallback.shouldTraverse(NodeTraversal, Node, Node)
+func (c *CheckMissingRequires) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	c.enterNode(t, n)
+	return c.ShouldTraverseWithModule(t, n, c.currentModule, c.scopeRoot)
 }
 
 // Java: CheckMissingRequires.shouldTraverse(NodeTraversal, Node, ModuleMetadata, Node)
@@ -177,6 +183,12 @@ func CheckMissingRequires_IsIIFE(n rhino.Node) bool {
 	return n.IsFunction() && n.GetParent().IsCall() && n.IsFirstChildOf(n.GetParent())
 }
 
+// Java: NodeTraversal.AbstractModuleCallback.visit(NodeTraversal, Node, Node)
+func (c *CheckMissingRequires) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	c.exitNode(t, n)
+	c.VisitWithModule(t, n, c.currentModule, c.scopeRoot)
+}
+
 // Java: CheckMissingRequires.visit(NodeTraversal, Node, ModuleMetadata, Node)
 func (c *CheckMissingRequires) VisitWithModule(
 	t *NodeTraversal, n rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, scopeRoot rhino.Node) {
@@ -185,7 +197,7 @@ func (c *CheckMissingRequires) VisitWithModule(
 	}
 	if currentModule != nil && n == currentModule.RootNode() {
 		// For this pass, template parameter names are only meaningful inside the file defining them.
-		c.templateParamNames.Clear()
+		clear(c.templateParamNames)
 	}
 }
 
@@ -217,9 +229,11 @@ func (c *CheckMissingRequires) VisitNode(t *NodeTraversal, n rhino.Node, current
 func (c *CheckMissingRequires) VisitJsDocInfo(t *NodeTraversal, currentModule *ModuleMetadataMap_ModuleMetadata, info *rhino.JSDocInfo) {
 	// Collect template parameter names before checking, so that annotations on the same node that
 	// reference the name are excluded from the check.
-	c.templateParamNames.AddAll(info.GetTemplateTypeNames()...)
+	for _, name := range info.GetTemplateTypeNames() {
+		c.templateParamNames[name] = struct{}{}
+	}
 	for name := range info.GetTypeTransformations().Keys() {
-		c.templateParamNames.Add(name)
+		c.templateParamNames[name] = struct{}{}
 	}
 	if info.HasType() {
 		c.VisitJsDocExpr(t, currentModule, info.GetType(), CheckMissingRequires_Strength_WEAK_TYPE)
@@ -332,7 +346,7 @@ func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n rhino.N
 		return
 	}
 
-	if var_.GetScope().(*Scope).IsLocal() {
+	if var_.IsLocal() {
 		require := NodeUtil_GetGoogRequireInfo(var_)
 		if require == nil {
 			// If it refers to a local variable, it's legal.
@@ -392,7 +406,7 @@ func (c *CheckMissingRequires) VisitQualifiedName(
 
 	rootName := qualifiedName.GetRoot()
 	if qualifiedName.IsSimple() {
-		if c.templateParamNames.Contains(rootName) {
+		if _, ok := c.templateParamNames[rootName]; ok {
 			// This will produce a false negative when the same name is used in both template and
 			// non-template capacity in the same file, and a false positive when the `@template` does
 			// not precede the reference within the same source file (e.g. an ES5 ctor in a different
@@ -407,7 +421,7 @@ func (c *CheckMissingRequires) VisitQualifiedName(
 	}
 
 	var_ := t.GetScope().GetVar(rootName)
-	if var_ != nil && var_.GetScope().(*Scope).IsLocal() {
+	if var_ != nil && var_.IsLocal() {
 		c.CheckMissingRequireThroughShortName(t, n, var_, currentFile, qualifiedName, referenceStrength)
 	} else {
 		c.CheckMissingRequireThroughFullyQualifiedName(

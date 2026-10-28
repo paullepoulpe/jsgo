@@ -196,8 +196,8 @@ func dumpAnalyzed(sb *strings.Builder, label string, t RegExpTree, flags string)
 	var out strings.Builder
 	e := catch(func() {
 		line(&out, label+": "+t.String())
-		src := jutil.NewStringBuilder()
-		t.AppendSourceCode(src)
+		var src strings.Builder
+		t.AppendSourceCode(&src)
 		line(&out, "  source="+src.String())
 		line(&out, fmt.Sprintf("  groups=%d hasCapturingGroup=%v caseSensitive=%v anchor=%v wholeInput=%v hash=%d",
 			t.NumCapturingGroups(), t.HasCapturingGroup(), t.IsCaseSensitive(), t.ContainsAnchor(),
@@ -211,8 +211,8 @@ func dumpAnalyzed(sb *strings.Builder, label string, t RegExpTree, flags string)
 }
 
 func dumpTree(sb *strings.Builder, t RegExpTree, level int) {
-	info := jutil.NewStringBuilder()
-	t.AppendDebugInfo(info)
+	var info strings.Builder
+	t.AppendDebugInfo(&info)
 	line(sb, strings.Repeat("  ", level)+javaSimpleName(t)+" ["+info.String()+"]")
 	for _, c := range t.Children() {
 		dumpTree(sb, c, level+1)

@@ -60,42 +60,30 @@ import (
 //
 //	class module$contents$foo$Bar_Bar extends module$exports$foo$Baz {}
 //	var module$exports$foo$Bar = module$contents$foo$Bar_Bar;
-//
-// and
-//
-//	goog.loadModule(function(exports) {
-//	  goog.module('foo.Bar');
-//	  var Baz = goog.require('foo.Baz');
-//	  class Bar extends Baz {}
-//	  exports = Bar;
-//	  return exports;
-//	})
-//
-// becomes
-//
-//	class module$contents$foo$Bar_Bar extends module$exports$foo$Baz {}
-//	var module$exports$foo$Bar = module$contents$foo$Bar_Bar;
 type ClosureRewriteModule struct {
 	compiler                AbstractCompiler
 	astFactory              *AstFactory
 	preprocessorSymbolTable *PreprocessorSymbolTable
 	preserveSugar           bool
-	syntheticExterns        *jutil.LinkedHashMap[string, rhino.Node]
 
-	globalScope *Scope // non-final because it must be set after process() is called
+	syntheticExternNodes []rhino.Node
+	syntheticExternSeen  map[string]struct{}
+
+	globalScope *Scope // set after Process() starts updating scripts
 
 	// Per script state needed for rewriting.
-	scriptStack   []*ClosureRewriteModule_ScriptDescription
-	currentScript *ClosureRewriteModule_ScriptDescription
+	scriptStack   []*closureScriptDescription
+	currentScript *closureScriptDescription
 
-	rewriteState *ClosureRewriteModule_GlobalRewriteState
+	rewriteState closureGlobalRewriteState
 	// All prefix namespaces from goog.provides and legacy goog.modules.
 	legacyScriptNamespacesAndPrefixes map[string]struct{}
-	unrecognizedRequires              []ClosureRewriteModule_UnrecognizedRequire
+	unrecognizedRequires              []closureUnrecognizedRequire
 	googModuleGetCalls                []ast.Call
 	googRequireDynamicCalls           []ast.Call
 
 	globalTypedScope *TypedScope
+	xid              *Xid
 }
 
 var _ CompilerPass = (*ClosureRewriteModule)(nil)
@@ -182,76 +170,33 @@ var (
 const closureRewriteModule_GOOG_REQUIREDYNAMIC_NAME = "goog.requireDynamic"
 const closureRewriteModule_IMPORT_HANDLER_NAME = "importHandler_"
 
-// ClosureRewriteModule_AddAt indicates where new nodes should be added in
-// relation to some other node.
-type ClosureRewriteModule_AddAt int32
+type closureAddAt uint8
 
 const (
-	ClosureRewriteModule_AddAt_BEFORE ClosureRewriteModule_AddAt = iota
-	ClosureRewriteModule_AddAt_AFTER
+	closureAddBefore closureAddAt = iota
+	closureAddAfter
 )
 
-// Java: ClosureRewriteModule.AddAt.name()
-func (a ClosureRewriteModule_AddAt) String() string {
-	return [...]string{"BEFORE", "AFTER"}[a]
-}
-
-// ClosureRewriteModule_ScopeType is ClosureRewriteModule.ScopeType.
-type ClosureRewriteModule_ScopeType int32
+type closureScopeType uint8
 
 const (
-	ClosureRewriteModule_ScopeType_EXEC_CONTEXT ClosureRewriteModule_ScopeType = iota
-	ClosureRewriteModule_ScopeType_BLOCK
+	closureScopeExecContext closureScopeType = iota
+	closureScopeBlock
 )
 
-// Java: ClosureRewriteModule.ScopeType.name()
-func (s ClosureRewriteModule_ScopeType) String() string {
-	return [...]string{"EXEC_CONTEXT", "BLOCK"}[s]
-}
-
-// ClosureRewriteModule_UnrecognizedRequire describes the context of an
-// "unrecognized require" scenario so that it will be possible to categorize
-// and report it as either a "not provided yet" or "not provided at all"
-// error at the end.
-type ClosureRewriteModule_UnrecognizedRequire struct {
-	// A goog.require() call, or a goog.module.get() call.
+type closureUnrecognizedRequire struct {
 	requireNode rhino.Node
 	namespaceId string
 }
 
-// ClosureRewriteModule_ExportDefinition is
-// ClosureRewriteModule.ExportDefinition.
-type ClosureRewriteModule_ExportDefinition struct {
-	// Null if the export is a default export (exports = expr)
-	exportName *string
-	// Null if the export is of a @typedef
-	rhs rhino.Node
-	// Null if the export is of anything other than a name
-	nameDecl *Var
+type closureExportDefinition struct {
+	exportName string
+	isNamed    bool
+	rhs        rhino.Node
+	nameDecl   *Var
 }
 
-// Java: ClosureRewriteModule.ExportDefinition.toString()
-func (e *ClosureRewriteModule_ExportDefinition) String() string {
-	h := jutil.MoreObjects_ToStringHelper("ExportDefinition")
-	if e.exportName != nil {
-		h.Add("exportName", *e.exportName)
-	} else {
-		h.Add("exportName", nil)
-	}
-	if !e.rhs.IsNil() {
-		h.Add("rhs", e.rhs)
-	} else {
-		h.Add("rhs", nil)
-	}
-	if e.nameDecl != nil {
-		h.Add("nameDecl", e.nameDecl)
-	} else {
-		h.Add("nameDecl", nil)
-	}
-	return h.OmitNullValues().String()
-}
-
-func closureRewriteModule_isInlinableNameParent(t rhino.Token) bool {
+func isInlinableExportNameParent(t rhino.Token) bool {
 	switch t {
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET, rhino.Token_FUNCTION, rhino.Token_CLASS:
 		return true
@@ -260,43 +205,42 @@ func closureRewriteModule_isInlinableNameParent(t rhino.Token) bool {
 	}
 }
 
-// Java: ClosureRewriteModule.ExportDefinition.newDefaultExport(NodeTraversal, Node)
-func ClosureRewriteModule_ExportDefinition_NewDefaultExport(t *NodeTraversal, rhs rhino.Node) *ClosureRewriteModule_ExportDefinition {
-	return ClosureRewriteModule_ExportDefinition_NewNamedExport(t, nil, rhs)
+func newDefaultExportDefinition(t *NodeTraversal, rhs rhino.Node) closureExportDefinition {
+	return newExportDefinition(t, "", false, rhs)
 }
 
-// Java: ClosureRewriteModule.ExportDefinition.newNamedExport(NodeTraversal, String, Node)
-func ClosureRewriteModule_ExportDefinition_NewNamedExport(t *NodeTraversal, name *string, rhs rhino.Node) *ClosureRewriteModule_ExportDefinition {
-	newExport := &ClosureRewriteModule_ExportDefinition{}
-	newExport.exportName = name
-	newExport.rhs = rhs
-	if !rhs.IsNil() && (rhs.IsName() || rhs.IsStringKey()) {
-		newExport.nameDecl = t.GetScope().GetVar(rhs.GetString())
+func newNamedExportDefinition(t *NodeTraversal, name string, rhs rhino.Node) closureExportDefinition {
+	return newExportDefinition(t, name, true, rhs)
+}
+
+func newExportDefinition(t *NodeTraversal, name string, isNamed bool, rhs rhino.Node) closureExportDefinition {
+	def := closureExportDefinition{
+		exportName: name,
+		isNamed:    isNamed,
+		rhs:        rhs,
 	}
-	return newExport
+	if !rhs.IsNil() && (rhs.IsName() || rhs.IsStringKey()) {
+		def.nameDecl = t.GetScope().GetVar(rhs.GetString())
+	}
+	return def
 }
 
-// Java: ClosureRewriteModule.ExportDefinition.getExportPostfix()
-func (e *ClosureRewriteModule_ExportDefinition) GetExportPostfix() string {
-	if e.exportName == nil {
+func (e *closureExportDefinition) exportPostfix() string {
+	if !e.isNamed {
 		return ""
 	}
-	return "." + *e.exportName
+	return "." + e.exportName
 }
 
-// HasInlinableName: exportedNames is the key set of a Map<Var,
-// ExportDefinition>.
-//
-// Go-only: language-adapter — the Java parameter is the map's keySet()
-// view; Go passes the map and reads its keys.
-//
-// Java: ClosureRewriteModule.ExportDefinition.hasInlinableName(Set<Var>)
-func (e *ClosureRewriteModule_ExportDefinition) HasInlinableName(
-	exportedNames *jutil.LinkedHashMap[*Var, *ClosureRewriteModule_ExportDefinition]) bool {
-	if e.nameDecl == nil ||
-		exportedNames.ContainsKey(e.nameDecl) ||
-		!closureRewriteModule_isInlinableNameParent(e.nameDecl.GetParentNode().GetToken()) ||
-		NodeUtil_IsFunctionDeclaration(e.nameDecl.GetParentNode()) {
+func (e *closureExportDefinition) hasInlinableName(exportedVars map[*Var]struct{}) bool {
+	if e.nameDecl == nil {
+		return false
+	}
+	if _, alreadyExported := exportedVars[e.nameDecl]; alreadyExported {
+		return false
+	}
+	parent := e.nameDecl.GetParentNode()
+	if !isInlinableExportNameParent(parent.GetToken()) || NodeUtil_IsFunctionDeclaration(parent) {
 		return false
 	}
 	initialValue, ok := ast.AsCall(e.nameDecl.GetInitialValue())
@@ -315,63 +259,50 @@ func (e *ClosureRewriteModule_ExportDefinition) HasInlinableName(
 	return name != "require" && name != "forwardDeclare" && name != "getMsg"
 }
 
-// Java: ClosureRewriteModule.ExportDefinition.getLocalName()
-func (e *ClosureRewriteModule_ExportDefinition) GetLocalName() *string {
+func (e *closureExportDefinition) localName() (string, bool) {
 	if e.nameDecl != nil {
-		name := e.nameDecl.GetName()
-		return &name
+		return e.nameDecl.GetName(), true
 	}
-	return nil
+	return "", false
 }
 
-// ClosureRewriteModule_AliasName is ClosureRewriteModule.AliasName.
-type ClosureRewriteModule_AliasName struct {
-	newName     string
-	namespaceId *string // non-null only if this is an alias of a module itself
+type closureAliasName struct {
+	newName      string
+	namespaceId  string
+	hasNamespace bool
 }
 
-// Java: ClosureRewriteModule.AliasName(String, String)
-func NewClosureRewriteModule_AliasName(newName string, namespaceId *string) *ClosureRewriteModule_AliasName {
-	return &ClosureRewriteModule_AliasName{newName: newName, namespaceId: namespaceId}
-}
-
-// ClosureRewriteModule_ScriptDescription is
-// ClosureRewriteModule.ScriptDescription.
-type ClosureRewriteModule_ScriptDescription struct {
+type closureScriptDescription struct {
 	isModule               bool
 	declareLegacyNamespace bool
-	namespaceId            *string             // "a.b.c"
-	contentsPrefix         *string             // "module$contents$a$b$c_
-	topLevelNames          map[string]struct{} // For prefixed content renaming.
-	childScripts           []*ClosureRewriteModule_ScriptDescription
-	namesToInlineByAlias   map[string]*ClosureRewriteModule_AliasName // For alias inlining.
+	hasNamespaceId         bool
+	namespaceId            string // "a.b.c"
+	binaryNamespace        string // "module$exports$a$b$c"
+	contentsPrefix         string // "module$contents$a$b$c_"
+	topLevelNames          map[string]struct{}
+	childScripts           []*closureScriptDescription
+	namesToInlineByAlias   map[string]closureAliasName
 
 	// Transient state.
-	willCreateExportsObject bool
+	willCreateExportsObject   bool
+	hasCreatedExportObject    bool
+	hasDefaultExport          bool
+	defaultExport             closureExportDefinition
+	hasDefaultExportLocalName bool
+	defaultExportLocalName    string
+	namedExports              map[string]struct{}
+	exportsToInline           []closureExportDefinition
+	exportsToInlineVars       map[*Var]struct{}
 
-	hasCreatedExportObject bool
-	defaultExport          *ClosureRewriteModule_ExportDefinition
-	defaultExportLocalName *string
-	namedExports           map[string]struct{}
-	exportsToInline        jutil.LinkedHashMap[*Var, *ClosureRewriteModule_ExportDefinition]
-
-	// The root of the module. The MODULE_BODY node that contains the module
-	// contents. For recognizing top level names.
+	// The MODULE_BODY node (or SCRIPT node at outer level) that contains the contents.
 	rootNode rhino.Node
 }
 
-// Java: ClosureRewriteModule.ScriptDescription()
-func NewClosureRewriteModule_ScriptDescription() *ClosureRewriteModule_ScriptDescription {
-	return &ClosureRewriteModule_ScriptDescription{}
-}
-
-// Java: ClosureRewriteModule.ScriptDescription.addChildScript(ScriptDescription)
-func (s *ClosureRewriteModule_ScriptDescription) AddChildScript(childScript *ClosureRewriteModule_ScriptDescription) {
+func (s *closureScriptDescription) addChildScript(childScript *closureScriptDescription) {
 	s.childScripts = append(s.childScripts, childScript)
 }
 
-// Java: ClosureRewriteModule.ScriptDescription.removeFirstChildScript()
-func (s *ClosureRewriteModule_ScriptDescription) RemoveFirstChildScript() *ClosureRewriteModule_ScriptDescription {
+func (s *closureScriptDescription) removeFirstChildScript() *closureScriptDescription {
 	if len(s.childScripts) == 0 {
 		panic(jutil.NewNoSuchElementException())
 	}
@@ -381,23 +312,42 @@ func (s *ClosureRewriteModule_ScriptDescription) RemoveFirstChildScript() *Closu
 	return first
 }
 
-// GetBinaryNamespace is "module$exports$a$b$c" for non-legacy modules.
-//
-// Java: ClosureRewriteModule.ScriptDescription.getBinaryNamespace()
-func (s *ClosureRewriteModule_ScriptDescription) GetBinaryNamespace() *string {
+func (s *closureScriptDescription) getBinaryNamespace() (string, bool) {
 	if !s.isModule || s.declareLegacyNamespace {
-		return nil
+		return "", false
 	}
-	ns := ClosureRewriteModule_GetBinaryModuleNamespace(*s.namespaceId)
-	return &ns
+	if !s.hasNamespaceId {
+		panic(jutil.NewNullPointerException())
+	}
+	return s.binaryNamespace, true
 }
 
-// Java: ClosureRewriteModule.ScriptDescription.getExportedNamespace()
-func (s *ClosureRewriteModule_ScriptDescription) GetExportedNamespace() *string {
-	if s.declareLegacyNamespace {
-		return s.namespaceId
+func (s *closureScriptDescription) binaryNamespaceOrNull() string {
+	if ns, ok := s.getBinaryNamespace(); ok {
+		return ns
 	}
-	return s.GetBinaryNamespace()
+	return "null"
+}
+
+func (s *closureScriptDescription) contentsPrefixOrNull() string {
+	if !s.hasNamespaceId {
+		return "null"
+	}
+	return s.contentsPrefix
+}
+
+func (s *closureScriptDescription) namespaceIdOrNull() string {
+	if !s.hasNamespaceId {
+		return "null"
+	}
+	return s.namespaceId
+}
+
+func (s *closureScriptDescription) getExportedNamespace() (string, bool) {
+	if s.declareLegacyNamespace {
+		return s.namespaceId, s.hasNamespaceId
+	}
+	return s.getBinaryNamespace()
 }
 
 // Java: ClosureRewriteModule.getBinaryModuleNamespace(String)
@@ -405,15 +355,12 @@ func ClosureRewriteModule_GetBinaryModuleNamespace(namespaceId string) string {
 	return ClosureRewriteModule_MODULE_EXPORTS_PREFIX + strings.ReplaceAll(namespaceId, ".", "$")
 }
 
-// ClosureRewriteModule_ScriptPreprocessor is
-// ClosureRewriteModule.ScriptPreprocessor (an inner class).
-type ClosureRewriteModule_ScriptPreprocessor struct {
+type closureScriptPreprocessor struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
 	outer *ClosureRewriteModule
 }
 
-// Java: ClosureRewriteModule.ScriptPreprocessor.shouldTraverse(NodeTraversal, Node, Node)
-func (p *ClosureRewriteModule_ScriptPreprocessor) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (p *closureScriptPreprocessor) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_ROOT, rhino.Token_MODULE_BODY:
 		return true
@@ -423,7 +370,7 @@ func (p *ClosureRewriteModule_ScriptPreprocessor) ShouldTraverse(t *NodeTraversa
 		}
 		return true
 	case rhino.Token_NAME:
-		p.outer.PreprocessExportDeclaration(t, n)
+		p.outer.preprocessExportDeclaration(t, n)
 		return true
 	default:
 		// Don't traverse into non-module scripts.
@@ -431,20 +378,17 @@ func (p *ClosureRewriteModule_ScriptPreprocessor) ShouldTraverse(t *NodeTraversa
 	}
 }
 
-// ClosureRewriteModule_ScriptRecorder is ClosureRewriteModule.ScriptRecorder
-// (an inner class).
-type ClosureRewriteModule_ScriptRecorder struct {
+type closureScriptRecorder struct {
 	outer *ClosureRewriteModule
 }
 
-func (*ClosureRewriteModule_ScriptRecorder) noVisitLeaves() {}
+func (*closureScriptRecorder) noVisitLeaves() {}
 
-// Java: ClosureRewriteModule.ScriptRecorder.shouldTraverse(NodeTraversal, Node, Node)
-func (r *ClosureRewriteModule_ScriptRecorder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (r *closureScriptRecorder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	m := r.outer
 	switch n.GetToken() {
 	case rhino.Token_MODULE_BODY:
-		m.RecordModuleBody(n)
+		m.recordModuleBody(n)
 	case rhino.Token_CALL:
 		call := ast.MustCall(n)
 		getProp, ok := call.Callee().AsGetProp()
@@ -453,99 +397,78 @@ func (r *ClosureRewriteModule_ScriptRecorder) ShouldTraverse(t *NodeTraversal, n
 		}
 		method := getProp.Node()
 		if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_MODULE) {
-			m.RecordGoogModule(t, call)
+			m.recordGoogModule(t, call)
 		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE) {
-			m.RecordGoogDeclareLegacyNamespace()
+			m.recordGoogDeclareLegacyNamespace()
 		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_PROVIDE) {
-			m.RecordGoogProvide(t, call)
+			m.recordGoogProvide(t, call)
 		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_REQUIRE) {
-			m.RecordGoogRequire(t, call)
+			m.recordGoogRequire(t, call)
 		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_REQUIRETYPE) {
-			m.RecordGoogRequireType(t, call)
+			m.recordGoogRequireType(t, call)
 		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_REQUIREDYNAMIC) {
-			m.RecordGoogRequireDynamic(t, call)
+			m.recordGoogRequireDynamic(t, call)
 		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_FORWARDDECLARE) && !parent.IsExprResult() {
-			m.RecordGoogForwardDeclare(t, call)
+			m.recordGoogForwardDeclare(t, call)
 		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_MODULE_GET) {
-			m.RecordGoogModuleGet(t, call)
+			m.recordGoogModuleGet(t, call)
 		}
 	case rhino.Token_CLASS, rhino.Token_FUNCTION:
-		if m.IsTopLevel(t, n, ClosureRewriteModule_ScopeType_BLOCK) {
-			m.RecordTopLevelClassOrFunctionName(n)
+		if m.isTopLevel(t, n, closureScopeBlock) {
+			m.recordTopLevelClassOrFunctionName(n)
 		}
 	case rhino.Token_CONST, rhino.Token_LET, rhino.Token_VAR:
-		scopeType := ClosureRewriteModule_ScopeType_BLOCK
+		scopeType := closureScopeBlock
 		if n.IsVar() {
-			scopeType = ClosureRewriteModule_ScopeType_EXEC_CONTEXT
+			scopeType = closureScopeExecContext
 		}
-		if m.IsTopLevel(t, n, scopeType) {
-			m.RecordTopLevelVarNames(n)
+		if m.isTopLevel(t, n, scopeType) {
+			m.recordTopLevelVarNames(n)
 		}
 	case rhino.Token_GETPROP:
 		if getProp := ast.MustGetProp(n); m.currentScript.isModule && closureRewriteModule_isExportPropertyAssignment(t, getProp) {
-			m.RecordExportsPropertyAssignment(t, getProp)
+			m.recordExportsPropertyAssignment(t, getProp)
 		}
 	case rhino.Token_NAME:
 		if m.currentScript.isModule {
-			m.MaybeRecordExportDeclaration(t, n)
+			m.maybeRecordExportDeclaration(t, n)
 		}
-	default:
 	}
 
 	return true
 }
 
-// Java: ClosureRewriteModule.ScriptRecorder.visit(NodeTraversal, Node, Node)
-func (r *ClosureRewriteModule_ScriptRecorder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (r *closureScriptRecorder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsModuleBody() {
-		r.outer.PopScript()
+		r.outer.popScript()
 	}
 }
 
-// ClosureRewriteModule_GlobalRewriteState is the global state tracking an
-// association between the dotted names of goog.module()s and whether the
-// goog.module declares itself as a legacy namespace. Allows for detecting
-// duplicate goog.module()s and for rewriting fully qualified JsDoc type
-// references to goog.module() types in legacy scripts.
-type ClosureRewriteModule_GlobalRewriteState struct {
-	scriptDescriptionsByGoogModuleNamespace map[string]*ClosureRewriteModule_ScriptDescription
+type closureGlobalRewriteState struct {
+	scriptDescriptionsByGoogModuleNamespace map[string]*closureScriptDescription
 	providedNamespaces                      map[string]struct{}
 }
 
-// Java: ClosureRewriteModule.GlobalRewriteState()
-func NewClosureRewriteModule_GlobalRewriteState() *ClosureRewriteModule_GlobalRewriteState {
-	return &ClosureRewriteModule_GlobalRewriteState{
-		scriptDescriptionsByGoogModuleNamespace: make(map[string]*ClosureRewriteModule_ScriptDescription),
-		providedNamespaces:                      make(map[string]struct{}),
-	}
-}
-
-// Java: ClosureRewriteModule.GlobalRewriteState.containsModule(String)
-func (g *ClosureRewriteModule_GlobalRewriteState) ContainsModule(namespaceId string) bool {
+func (g *closureGlobalRewriteState) containsModule(namespaceId string) bool {
 	_, ok := g.scriptDescriptionsByGoogModuleNamespace[namespaceId]
 	return ok
 }
 
-// Java: ClosureRewriteModule.GlobalRewriteState.isLegacyModule(String)
-func (g *ClosureRewriteModule_GlobalRewriteState) IsLegacyModule(namespaceId string) bool {
-	jutil.CheckArgument(g.ContainsModule(namespaceId))
-	return g.scriptDescriptionsByGoogModuleNamespace[namespaceId].declareLegacyNamespace
+func (g *closureGlobalRewriteState) isLegacyModule(namespaceId string) bool {
+	s, ok := g.scriptDescriptionsByGoogModuleNamespace[namespaceId]
+	jutil.CheckArgument(ok)
+	return s.declareLegacyNamespace
 }
 
-// Java: ClosureRewriteModule.GlobalRewriteState.getBinaryNamespace(String)
-func (g *ClosureRewriteModule_GlobalRewriteState) GetBinaryNamespace(namespaceId string) *string {
+func (g *closureGlobalRewriteState) getBinaryNamespace(namespaceId string) (string, bool) {
 	script := g.scriptDescriptionsByGoogModuleNamespace[namespaceId]
 	if script == nil {
-		return nil
+		return "", false
 	}
-	return script.GetBinaryNamespace()
+	return script.getBinaryNamespace()
 }
 
-// GetGoogModuleNamespaceType returns the type of a goog.require of the given
-// goog.module, or null if not a module.
-//
-// Java: ClosureRewriteModule.GlobalRewriteState.getGoogModuleNamespaceType(String)
-func (g *ClosureRewriteModule_GlobalRewriteState) GetGoogModuleNamespaceType(namespaceId string) rhino.JSType {
+func (g *closureGlobalRewriteState) getGoogModuleNamespaceType(namespaceId string) rhino.JSType {
 	googModule := g.scriptDescriptionsByGoogModuleNamespace[namespaceId]
 	if googModule == nil {
 		return nil
@@ -553,16 +476,15 @@ func (g *ClosureRewriteModule_GlobalRewriteState) GetGoogModuleNamespaceType(nam
 	return googModule.rootNode.GetJSType()
 }
 
-// Java: ClosureRewriteModule.GlobalRewriteState.getExportedNamespaceOrScript(String)
-func (g *ClosureRewriteModule_GlobalRewriteState) GetExportedNamespaceOrScript(namespaceId string) *string {
+func (g *closureGlobalRewriteState) getExportedNamespaceOrScript(namespaceId string) (string, bool) {
 	if _, ok := g.providedNamespaces[namespaceId]; ok {
-		return &namespaceId
+		return namespaceId, true
 	}
 	script := g.scriptDescriptionsByGoogModuleNamespace[namespaceId]
 	if script == nil {
-		return nil
+		return "", false
 	}
-	return script.GetExportedNamespace()
+	return script.getExportedNamespace()
 }
 
 // Java: ClosureRewriteModule(AbstractCompiler, PreprocessorSymbolTable, TypedScope)
@@ -572,23 +494,20 @@ func NewClosureRewriteModule(
 	globalTypedScope *TypedScope) *ClosureRewriteModule {
 	jutil.CheckArgument(globalTypedScope == nil || globalTypedScope.IsGlobal())
 
-	m := &ClosureRewriteModule{
-		syntheticExterns:                  jutil.NewLinkedHashMap[string, rhino.Node](),
-		rewriteState:                      NewClosureRewriteModule_GlobalRewriteState(),
+	return &ClosureRewriteModule{
+		compiler:                compiler,
+		astFactory:              compiler.CreateAstFactory(),
+		preprocessorSymbolTable: preprocessorSymbolTable,
+		preserveSugar:           compiler.GetOptions().ShouldPreserveGoogModule(),
+		rewriteState: closureGlobalRewriteState{
+			scriptDescriptionsByGoogModuleNamespace: make(map[string]*closureScriptDescription),
+			providedNamespaces:                      make(map[string]struct{}),
+		},
 		legacyScriptNamespacesAndPrefixes: make(map[string]struct{}),
+		globalTypedScope:                  globalTypedScope,
 	}
-	m.compiler = compiler
-	m.astFactory = compiler.CreateAstFactory()
-	m.preprocessorSymbolTable = preprocessorSymbolTable
-	m.preserveSugar = compiler.GetOptions().ShouldPreserveGoogModule()
-	m.globalTypedScope = globalTypedScope
-	return m
 }
 
-// closureRewriteModule_staticScope is the nullable globalTypedScope as a
-// rhino.StaticScope.
-//
-// Go-only: language-adapter — a nil *TypedScope must stay a nil interface.
 func (m *ClosureRewriteModule) globalTypedStaticScope() rhino.StaticScope {
 	if m.globalTypedScope == nil {
 		return nil
@@ -596,19 +515,15 @@ func (m *ClosureRewriteModule) globalTypedStaticScope() rhino.StaticScope {
 	return m.globalTypedScope
 }
 
-// Java: ClosureRewriteModule.isWeakNamespace(String)
-func (m *ClosureRewriteModule) IsWeakNamespace(namespaceId string) bool {
-	metadata :=
-		m.compiler.GetModuleMetadataMap().GetModulesByGoogNamespace().Get(namespaceId)
+func (m *ClosureRewriteModule) isWeakNamespace(namespaceId string) bool {
+	metadata := m.compiler.GetModuleMetadataMap().GetModulesByGoogNamespace().Get(namespaceId)
 	return metadata != nil && metadata.RootNode().GetStaticSourceFile().IsWeak()
 }
 
-// Java: ClosureRewriteModule.isUnrequiredWeakNamespace(Node, String)
-func (m *ClosureRewriteModule) IsUnrequiredWeakNamespace(call rhino.Node, namespaceId string) bool {
-	if call.GetStaticSourceFile().IsWeak() || !m.IsWeakNamespace(namespaceId) {
+func (m *ClosureRewriteModule) isUnrequiredWeakNamespace(call rhino.Node, namespaceId string) bool {
+	if call.GetStaticSourceFile().IsWeak() || !m.isWeakNamespace(namespaceId) {
 		return false
 	}
-	// Go-only: language-adapter — ImmutableMap.get(null) is null.
 	var callerMetadata *ModuleMetadataMap_ModuleMetadata
 	if sourceFileName := call.GetSourceFileName(); sourceFileName != nil {
 		callerMetadata = m.compiler.GetModuleMetadataMap().GetModulesByPath().Get(*sourceFileName)
@@ -617,15 +532,12 @@ func (m *ClosureRewriteModule) IsUnrequiredWeakNamespace(call rhino.Node, namesp
 		!callerMetadata.StronglyRequiredGoogNamespaces().Contains(namespaceId)
 }
 
-// ClosureRewriteModule_UnwrapGoogLoadModule is
-// ClosureRewriteModule.UnwrapGoogLoadModule (an inner class).
-type ClosureRewriteModule_UnwrapGoogLoadModule struct {
+type closureUnwrapGoogLoadModule struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
 	outer *ClosureRewriteModule
 }
 
-// Java: ClosureRewriteModule.UnwrapGoogLoadModule.shouldTraverse(NodeTraversal, Node, Node)
-func (u *ClosureRewriteModule_UnwrapGoogLoadModule) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (u *closureUnwrapGoogLoadModule) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	compiler := u.outer.compiler
 	switch n.GetToken() {
 	case rhino.Token_ROOT, rhino.Token_SCRIPT:
@@ -635,7 +547,6 @@ func (u *ClosureRewriteModule_UnwrapGoogLoadModule) ShouldTraverse(t *NodeTraver
 		if !ok || !NodeUtil_IsCallToNode(call.Node(), closureRewriteModule_GOOG_LOADMODULE) {
 			return false
 		}
-		// goog.loadModule(function(exports) { ... }): the function is the last argument.
 		lastArg, _ := call.LastArg()
 		if function, ok := ast.AsFunction(lastArg.Node()); ok {
 			parent.PutBooleanProp(rhino.Node_GOOG_MODULE, true)
@@ -662,17 +573,13 @@ func (u *ClosureRewriteModule_UnwrapGoogLoadModule) ShouldTraverse(t *NodeTraver
 
 // Java: ClosureRewriteModule.process(Node, Node)
 func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
-	// Record all the scripts first so that the googModuleNamespaces global
-	// state can be complete before doing any updating also queue up
-	// scriptDescriptions for later use in ScriptUpdater runs.
-
 	sc := NewSyntacticScopeCreator(m.compiler)
 	defer func() {
 		m.globalScope = nil
 	}()
-	unwrap := ClosureRewriteModule_UnwrapGoogLoadModule{outer: m}
-	preprocessor := ClosureRewriteModule_ScriptPreprocessor{outer: m}
-	recorder := ClosureRewriteModule_ScriptRecorder{outer: m}
+	unwrap := closureUnwrapGoogLoadModule{outer: m}
+	preprocessor := closureScriptPreprocessor{outer: m}
+	recorder := closureScriptRecorder{outer: m}
 	bPrep := NodeTraversal_Builder{
 		compiler:     m.compiler,
 		callback:     &preprocessor,
@@ -684,95 +591,92 @@ func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
 		scopeCreator: sc,
 	}
 
-	var scriptDescriptions []*ClosureRewriteModule_ScriptDescription
-	for _, parent := range []rhino.Node{externs, root} {
+	scriptCount := externs.GetChildCount() + root.GetChildCount()
+	scriptSlab := make([]closureScriptDescription, scriptCount)
+	scriptDescriptions := make([]*closureScriptDescription, 0, scriptCount)
+	slabIdx := 0
+	for _, parent := range [2]rhino.Node{externs, root} {
 		for script := parent.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 			jutil.CheckStateMsg1(script.IsScript(), "%s", script)
 			NodeTraversal_Traverse(m.compiler, script, &unwrap)
 
-			m.PushScript(NewClosureRewriteModule_ScriptDescription()) // sets currentScript
+			var desc *closureScriptDescription
+			if slabIdx < len(scriptSlab) {
+				desc = &scriptSlab[slabIdx]
+				slabIdx++
+			} else {
+				desc = &closureScriptDescription{}
+			}
+			m.pushScript(desc)
 
 			m.currentScript.rootNode = script
 			scriptDescriptions = append(scriptDescriptions, m.currentScript)
 			bPrep.Traverse(script)
 			bRec.Traverse(script)
-			m.PopScript()
+			m.popScript()
 		}
 	}
 
-	m.ReportUnrecognizedRequires()
+	m.reportUnrecognizedRequires()
 	if m.compiler.HasHaltingErrors() {
 		return
 	}
 
-	// Update scripts using the now complete googModuleNamespaces global state
-	// and unspool the scriptDescriptions that were queued up by all the
-	// recording.
-
+	updater := closureScriptUpdater{outer: m, scriptDescriptions: scriptDescriptions}
 	bUpd := NodeTraversal_Builder{
 		compiler:     m.compiler,
-		callback:     m.NewScriptUpdater(scriptDescriptions),
+		callback:     &updater,
 		scopeCreator: sc,
 	}
 	bUpd.TraverseRoots(externs, root)
-	m.DeclareSyntheticExterns()
+	m.declareSyntheticExterns()
 	for _, call := range m.googModuleGetCalls {
-		m.UpdateGoogModuleGetCall(call)
+		m.updateGoogModuleGetCall(call)
 	}
 	for _, call := range m.googRequireDynamicCalls {
-		m.UpdateGoogRequireDynamicCall(call)
+		m.updateGoogRequireDynamicCall(call)
 	}
 }
 
-// DeclareSyntheticExterns declares `var foo;` in the externs for all
-// synthetic_externs names that aren't already in the global scope.
-//
-// Only add externs in the error case where there is an unrecognized
-// goog.require or goog.module.get. Clutz depends on the compiler deleting
-// local name declarations that alias or destructure the invalid call from
-// this file. In order to preserve AST validity, we instead declare the
-// deleted name in the externs. (which is fine with Clutz, as it just ignores
-// the synthetic externs)
-//
-// Java: ClosureRewriteModule.declareSyntheticExterns()
-func (m *ClosureRewriteModule) DeclareSyntheticExterns() {
+func (m *ClosureRewriteModule) addSyntheticExternIfAbsent(lhs rhino.Node) {
+	name := lhs.GetString()
+	if m.syntheticExternSeen == nil {
+		m.syntheticExternSeen = make(map[string]struct{})
+	}
+	if _, seen := m.syntheticExternSeen[name]; !seen {
+		m.syntheticExternSeen[name] = struct{}{}
+		m.syntheticExternNodes = append(m.syntheticExternNodes, lhs)
+	}
+}
+
+func (m *ClosureRewriteModule) declareSyntheticExterns() {
+	if len(m.syntheticExternNodes) == 0 {
+		return
+	}
 	var vars []rhino.Node
-	for lhs := range m.syntheticExterns.Values() {
-		// Skip roots of goog.provide or goog.module.declareLegacyNamespace();
-		if m.IsNameInGlobalScope(lhs.GetString()) {
+	for _, lhs := range m.syntheticExternNodes {
+		name := lhs.GetString()
+		if m.isNameInGlobalScope(name) {
 			continue
 		}
 		vars = append(vars,
-			rhino.IR_Var(m.astFactory.CreateNameWithUnknownType(lhs.GetString())).SrcrefTree(lhs))
+			rhino.IR_Var(m.astFactory.CreateNameWithUnknownType(name)).SrcrefTree(lhs))
 	}
-
 	if len(vars) == 0 {
 		return
 	}
-
 	root := m.compiler.GetSynthesizedExternsInput().GetAstRoot(m.compiler)
 	for _, v := range vars {
 		root.AddChildToBack(v)
 	}
 }
 
-// IsNameInGlobalScope returns whether the name is declared in the global
-// scope, either explicitly with var/const/let or implicitly by a
-// goog.provide or legacy goog.module.
-//
-// Java: ClosureRewriteModule.isNameInGlobalScope(String)
-func (m *ClosureRewriteModule) IsNameInGlobalScope(name string) bool {
+func (m *ClosureRewriteModule) isNameInGlobalScope(name string) bool {
 	_, isLegacy := m.legacyScriptNamespacesAndPrefixes[name]
 	return isLegacy || m.globalScope.GetVar(name) != nil
 }
 
-// PreprocessExportDeclaration rewrites object literal exports to the
-// standard named exports style. i.e. exports = {Foo, Bar} to exports.Foo =
-// Foo; exports.Bar = Bar; This makes the module exports into a more standard
-// format for later passes.
-//
-// Java: ClosureRewriteModule.preprocessExportDeclaration(NodeTraversal, Node)
-func (m *ClosureRewriteModule) PreprocessExportDeclaration(t *NodeTraversal, n rhino.Node) {
+func (m *ClosureRewriteModule) preprocessExportDeclaration(t *NodeTraversal, n rhino.Node) {
 	if !closureRewriteModule_isGoogModuleExportsRef(t, n) {
 		return
 	}
@@ -781,23 +685,20 @@ func (m *ClosureRewriteModule) PreprocessExportDeclaration(t *NodeTraversal, n r
 		return
 	}
 
-	jutil.CheckState(m.currentScript.defaultExport == nil)
+	jutil.CheckState(!m.currentScript.hasDefaultExport)
 	exportRhs := assign.Value().Node()
 	if NodeUtil_IsNamedExportsLiteral(exportRhs) {
 		insertionPoint := n.GetGrandparent()
-		// A named exports literal holds string keys: `exports = {Foo, Bar: Baz}`.
 		for member := range ast.MustObjectLit(exportRhs).Members() {
 			key := ast.MustStringKey(member.Node())
 			exportName := key.Key()
 			jsdoc := key.Node().GetJSDocInfo()
 			rhs := key.Value().Detach().Node()
-			lhs :=
-				m.astFactory.
-					CreateGetProp(m.astFactory.CreateName("exports", AstFactory_Type_(n)), exportName, AstFactory_Type_(rhs)).
-					SrcrefTree(key.Node())
-			newExport :=
-				rhino.IR_ExprResult(m.astFactory.CreateAssign(lhs, rhs).Srcref(key.Node()).SetJSDocInfo(jsdoc)).
-					Srcref(key.Node())
+			lhs := m.astFactory.
+				CreateGetProp(m.astFactory.CreateName("exports", AstFactory_Type_(n)), exportName, AstFactory_Type_(rhs)).
+				SrcrefTree(key.Node())
+			newExport := rhino.IR_ExprResult(m.astFactory.CreateAssign(lhs, rhs).Srcref(key.Node()).SetJSDocInfo(jsdoc)).
+				Srcref(key.Node())
 			newExport.InsertAfter(insertionPoint)
 			insertionPoint = newExport
 		}
@@ -805,40 +706,39 @@ func (m *ClosureRewriteModule) PreprocessExportDeclaration(t *NodeTraversal, n r
 	}
 }
 
-// Java: ClosureRewriteModule.recordModuleBody(Node)
-func (m *ClosureRewriteModule) RecordModuleBody(moduleRoot rhino.Node) {
-	m.PushScript(NewClosureRewriteModule_ScriptDescription())
-
-	m.currentScript.rootNode = moduleRoot
-	m.currentScript.isModule = true
+func (m *ClosureRewriteModule) recordModuleBody(moduleRoot rhino.Node) {
+	m.pushScript(&closureScriptDescription{
+		rootNode: moduleRoot,
+		isModule: true,
+	})
 }
 
-// Java: ClosureRewriteModule.recordGoogModule(NodeTraversal, Node)
-func (m *ClosureRewriteModule) RecordGoogModule(t *NodeTraversal, call ast.Call) {
+func (m *ClosureRewriteModule) recordGoogModule(t *NodeTraversal, call ast.Call) {
 	namespaceIdNode := closureRewriteModule_namespaceArg(call)
 	if !namespaceIdNode.IsStringLit() {
 		t.Report(namespaceIdNode, ClosureRewriteModule_INVALID_MODULE_ID_ARG)
 		return
 	}
 	namespaceId := namespaceIdNode.GetString()
+	escaped := strings.ReplaceAll(namespaceId, ".", "$")
 
-	m.currentScript.namespaceId = &namespaceId
-	contentsPrefix := closureRewriteModule_toModuleContentsPrefix(namespaceId)
-	m.currentScript.contentsPrefix = &contentsPrefix
+	m.currentScript.hasNamespaceId = true
+	m.currentScript.namespaceId = namespaceId
+	m.currentScript.binaryNamespace = ClosureRewriteModule_MODULE_EXPORTS_PREFIX + escaped
+	m.currentScript.contentsPrefix = closureRewriteModule_MODULE_CONTENTS_PREFIX + escaped + "_"
 
 	m.rewriteState.scriptDescriptionsByGoogModuleNamespace[namespaceId] = m.currentScript
 }
 
-// Java: ClosureRewriteModule.recordGoogDeclareLegacyNamespace()
-func (m *ClosureRewriteModule) RecordGoogDeclareLegacyNamespace() {
+func (m *ClosureRewriteModule) recordGoogDeclareLegacyNamespace() {
 	m.currentScript.declareLegacyNamespace = true
-	// Go-only: language-adapter — namespaceId is a nullable String; a nil one
-	// panics here as Java's NullPointerException does.
-	m.UpdateLegacyScriptNamespacesAndPrefixes(*m.currentScript.namespaceId)
+	if !m.currentScript.hasNamespaceId {
+		panic(jutil.NewNullPointerException())
+	}
+	m.updateLegacyScriptNamespacesAndPrefixes(m.currentScript.namespaceId)
 }
 
-// Java: ClosureRewriteModule.updateLegacyScriptNamespacesAndPrefixes(String)
-func (m *ClosureRewriteModule) UpdateLegacyScriptNamespacesAndPrefixes(namespace string) {
+func (m *ClosureRewriteModule) updateLegacyScriptNamespacesAndPrefixes(namespace string) {
 	m.legacyScriptNamespacesAndPrefixes[namespace] = struct{}{}
 	for dot := strings.LastIndexByte(namespace, '.'); dot != -1; dot = strings.LastIndexByte(namespace, '.') {
 		namespace = namespace[:dot]
@@ -846,8 +746,7 @@ func (m *ClosureRewriteModule) UpdateLegacyScriptNamespacesAndPrefixes(namespace
 	}
 }
 
-// Java: ClosureRewriteModule.recordGoogProvide(NodeTraversal, Node)
-func (m *ClosureRewriteModule) RecordGoogProvide(t *NodeTraversal, call ast.Call) {
+func (m *ClosureRewriteModule) recordGoogProvide(t *NodeTraversal, call ast.Call) {
 	namespaceIdNode := closureRewriteModule_namespaceArg(call)
 	if !namespaceIdNode.IsStringLit() {
 		t.Report(namespaceIdNode, ClosureRewriteModule_INVALID_PROVIDE_NAMESPACE)
@@ -859,13 +758,11 @@ func (m *ClosureRewriteModule) RecordGoogProvide(t *NodeTraversal, call ast.Call
 		t.Report(namespaceIdNode, ClosureRewriteModule_INVALID_PROVIDE_CALL)
 	}
 
-	// Log legacy namespaces and prefixes.
 	m.rewriteState.providedNamespaces[namespaceId] = struct{}{}
-	m.UpdateLegacyScriptNamespacesAndPrefixes(namespaceId)
+	m.updateLegacyScriptNamespacesAndPrefixes(namespaceId)
 }
 
-// Java: ClosureRewriteModule.recordGoogRequire(NodeTraversal, Node)
-func (m *ClosureRewriteModule) RecordGoogRequire(t *NodeTraversal, call ast.Call) {
+func (m *ClosureRewriteModule) recordGoogRequire(t *NodeTraversal, call ast.Call) {
 	closureRewriteModule_maybeSplitMultiVar(call.Node())
 
 	namespaceIdNode := closureRewriteModule_namespaceArg(call)
@@ -875,45 +772,32 @@ func (m *ClosureRewriteModule) RecordGoogRequire(t *NodeTraversal, call ast.Call
 	}
 	namespaceId := namespaceIdNode.GetString()
 
-	// Maybe report an error if there is an attempt to import something that
-	// is expected to be a goog.module() but no such goog.module() has been
-	// defined.
-	targetIsAModule := m.rewriteState.ContainsModule(namespaceId)
+	targetIsAModule := m.rewriteState.containsModule(namespaceId)
 	_, targetIsALegacyScript := m.rewriteState.providedNamespaces[namespaceId]
 	if m.currentScript.isModule && !targetIsAModule && !targetIsALegacyScript {
-		m.unrecognizedRequires = append(m.unrecognizedRequires, ClosureRewriteModule_UnrecognizedRequire{requireNode: call.Node(), namespaceId: namespaceId})
+		m.unrecognizedRequires = append(m.unrecognizedRequires, closureUnrecognizedRequire{requireNode: call.Node(), namespaceId: namespaceId})
 	}
 }
 
-// Java: ClosureRewriteModule.recordGoogRequireType(NodeTraversal, Node)
-func (m *ClosureRewriteModule) RecordGoogRequireType(t *NodeTraversal, call ast.Call) {
+func (m *ClosureRewriteModule) recordGoogRequireType(t *NodeTraversal, call ast.Call) {
 	namespaceIdNode := closureRewriteModule_namespaceArg(call)
 	if !namespaceIdNode.IsStringLit() {
 		t.Report(namespaceIdNode, ClosurePrimitiveErrors_INVALID_REQUIRE_TYPE_NAMESPACE)
 		return
 	}
-
-	// For purposes of import collection, goog.requireType is the same as
-	// goog.require but a goog.requireType call is not required to appear
-	// after the corresponding namespace definition.
-	m.RecordGoogRequire(t, call)
+	m.recordGoogRequire(t, call)
 }
 
-// Java: ClosureRewriteModule.recordGoogForwardDeclare(NodeTraversal, Node)
-func (m *ClosureRewriteModule) RecordGoogForwardDeclare(t *NodeTraversal, call ast.Call) {
+func (m *ClosureRewriteModule) recordGoogForwardDeclare(t *NodeTraversal, call ast.Call) {
 	namespaceNode := closureRewriteModule_namespaceArg(call)
 	if call.NumArgs() != 1 || !namespaceNode.IsStringLit() {
 		t.Report(namespaceNode, ClosurePrimitiveErrors_INVALID_FORWARD_DECLARE_NAMESPACE)
 		return
 	}
-
-	// For purposes of import collection, goog.forwardDeclare is the same as
-	// goog.require.
-	m.RecordGoogRequire(t, call)
+	m.recordGoogRequire(t, call)
 }
 
-// Java: ClosureRewriteModule.recordGoogRequireDynamic(NodeTraversal, Node)
-func (m *ClosureRewriteModule) RecordGoogRequireDynamic(t *NodeTraversal, call ast.Call) {
+func (m *ClosureRewriteModule) recordGoogRequireDynamic(t *NodeTraversal, call ast.Call) {
 	namespaceIdNode := closureRewriteModule_namespaceArg(call)
 	if !namespaceIdNode.IsStringLit() {
 		t.Report(namespaceIdNode, ClosurePrimitiveErrors_INVALID_REQUIRE_DYNAMIC)
@@ -921,15 +805,13 @@ func (m *ClosureRewriteModule) RecordGoogRequireDynamic(t *NodeTraversal, call a
 	}
 
 	namespaceId := namespaceIdNode.GetString()
-
-	if !m.rewriteState.ContainsModule(namespaceId) {
-		m.unrecognizedRequires = append(m.unrecognizedRequires, ClosureRewriteModule_UnrecognizedRequire{requireNode: call.Node(), namespaceId: namespaceId})
+	if !m.rewriteState.containsModule(namespaceId) {
+		m.unrecognizedRequires = append(m.unrecognizedRequires, closureUnrecognizedRequire{requireNode: call.Node(), namespaceId: namespaceId})
 	}
 	m.googRequireDynamicCalls = append(m.googRequireDynamicCalls, call)
 }
 
-// Java: ClosureRewriteModule.recordGoogModuleGet(NodeTraversal, Node)
-func (m *ClosureRewriteModule) RecordGoogModuleGet(t *NodeTraversal, call ast.Call) {
+func (m *ClosureRewriteModule) recordGoogModuleGet(t *NodeTraversal, call ast.Call) {
 	namespaceIdNode := closureRewriteModule_namespaceArg(call)
 	if call.NumArgs() != 1 || !namespaceIdNode.IsStringLit() {
 		t.Report(namespaceIdNode, ClosurePrimitiveErrors_INVALID_GET_NAMESPACE)
@@ -937,12 +819,11 @@ func (m *ClosureRewriteModule) RecordGoogModuleGet(t *NodeTraversal, call ast.Ca
 	}
 	namespaceId := namespaceIdNode.GetString()
 
-	if !m.rewriteState.ContainsModule(namespaceId) {
-		m.unrecognizedRequires = append(m.unrecognizedRequires, ClosureRewriteModule_UnrecognizedRequire{requireNode: call.Node(), namespaceId: namespaceId})
+	if !m.rewriteState.containsModule(namespaceId) {
+		m.unrecognizedRequires = append(m.unrecognizedRequires, closureUnrecognizedRequire{requireNode: call.Node(), namespaceId: namespaceId})
 	}
 	m.googModuleGetCalls = append(m.googModuleGetCalls, call)
 
-	// Is the call filling an alias: `alias = goog.module.get('a.namespace');`?
 	maybeAssign := call.Node().GetParent()
 	assign, ok := ast.AsAssign(maybeAssign)
 	if !ok || !maybeAssign.GetParent().IsExprResult() || !m.currentScript.isModule {
@@ -953,33 +834,22 @@ func (m *ClosureRewriteModule) RecordGoogModuleGet(t *NodeTraversal, call ast.Ca
 		return
 	}
 
-	aliasName := alias.Ident()
-
-	// If the assignment isn't into a var in our scope then it's not ok.
-	aliasVar := t.GetScope().GetVar(aliasName)
+	aliasVar := t.GetScope().GetVar(alias.Ident())
 	if aliasVar == nil {
-		// Reported in CheckClosureImports
 		return
 	}
 
-	// Even if it was to a var in our scope it should still only rewrite if
-	// the var looked like:
-	//   let x = goog.forwardDeclare('a.namespace');
 	aliasVarNodeRhs := NodeUtil_GetRValueOfLValue(aliasVar.GetNode())
 	if aliasVarNodeRhs.IsNil() ||
 		!NodeUtil_IsCallToNode(aliasVarNodeRhs, closureRewriteModule_GOOG_FORWARDDECLARE) ||
 		namespaceId != closureRewriteModule_namespaceArg(ast.MustCall(aliasVarNodeRhs)).GetString() {
-		// Reported in CheckClosureImports
 		return
 	}
 
-	if m.IsUnrequiredWeakNamespace(call.Node(), namespaceId) {
+	if m.isUnrequiredWeakNamespace(call.Node(), namespaceId) {
 		return
 	}
 
-	// Each goog.module.get() calling filling an alias will have the alias
-	// importing logic handled at the goog.forwardDeclare call, and the
-	// corresponding goog.module.get can simply be removed.
 	m.compiler.ReportChangeToEnclosingScope(maybeAssign)
 	maybeAssign.GetParent().Detach()
 	m.googModuleGetCalls = m.googModuleGetCalls[:len(m.googModuleGetCalls)-1]
@@ -998,8 +868,7 @@ func closureRewriteModule_namespaceArg(call ast.Call) rhino.Node {
 	return call.Callee().Node()
 }
 
-// Java: ClosureRewriteModule.recordTopLevelClassOrFunctionName(Node)
-func (m *ClosureRewriteModule) RecordTopLevelClassOrFunctionName(classOrFunctionNode rhino.Node) {
+func (m *ClosureRewriteModule) recordTopLevelClassOrFunctionName(classOrFunctionNode rhino.Node) {
 	var nameNode ast.Name
 	var ok bool
 	if fn, isFunction := ast.AsFunction(classOrFunctionNode); isFunction {
@@ -1008,16 +877,14 @@ func (m *ClosureRewriteModule) RecordTopLevelClassOrFunctionName(classOrFunction
 		nameNode, ok = ast.MustClass(classOrFunctionNode).Name()
 	}
 	if ok {
-		name := nameNode.Ident()
 		if m.currentScript.topLevelNames == nil {
 			m.currentScript.topLevelNames = make(map[string]struct{})
 		}
-		m.currentScript.topLevelNames[name] = struct{}{}
+		m.currentScript.topLevelNames[nameNode.Ident()] = struct{}{}
 	}
 }
 
-// Java: ClosureRewriteModule.recordTopLevelVarNames(Node)
-func (m *ClosureRewriteModule) RecordTopLevelVarNames(varNode rhino.Node) {
+func (m *ClosureRewriteModule) recordTopLevelVarNames(varNode rhino.Node) {
 	NodeUtil_VisitLhsNodesInNode(
 		varNode, func(lhs rhino.Node) {
 			if m.currentScript.topLevelNames == nil {
@@ -1027,8 +894,7 @@ func (m *ClosureRewriteModule) RecordTopLevelVarNames(varNode rhino.Node) {
 		})
 }
 
-// Java: ClosureRewriteModule.maybeRecordExportDeclaration(NodeTraversal, Node)
-func (m *ClosureRewriteModule) MaybeRecordExportDeclaration(t *NodeTraversal, n rhino.Node) {
+func (m *ClosureRewriteModule) maybeRecordExportDeclaration(t *NodeTraversal, n rhino.Node) {
 	if !m.currentScript.isModule || !closureRewriteModule_isGoogModuleExportsRef(t, n) {
 		return
 	}
@@ -1040,29 +906,28 @@ func (m *ClosureRewriteModule) MaybeRecordExportDeclaration(t *NodeTraversal, n 
 	// ClosureCheckModule reports an error for duplicate 'exports = '
 	// assignments, but that error may be suppressed. If so then use the final
 	// assignment as the canonical one.
-	if m.currentScript.defaultExport != nil {
-		previousExport := m.currentScript.defaultExport
-		localName := previousExport.GetLocalName()
-		if localName != nil {
-			delete(m.currentScript.namesToInlineByAlias, *localName)
+	if m.currentScript.hasDefaultExport {
+		if localName, hasLocal := m.currentScript.defaultExport.localName(); hasLocal {
+			delete(m.currentScript.namesToInlineByAlias, localName)
 		}
-		m.currentScript.defaultExportLocalName = nil
+		m.currentScript.hasDefaultExportLocalName = false
+		m.currentScript.defaultExportLocalName = ""
 	}
 	exportRhs := assign.Value().Node()
 
-	// Exports object should have already been converted in ScriptPreprocess
-	// step.
 	jutil.CheckStateMsg(
 		!NodeUtil_IsNamedExportsLiteral(exportRhs),
 		"Exports object should have been converted already")
 
 	m.currentScript.willCreateExportsObject = true
-	defaultExport := ClosureRewriteModule_ExportDefinition_NewDefaultExport(t, exportRhs)
+	defaultExport := newDefaultExportDefinition(t, exportRhs)
+	m.currentScript.hasDefaultExport = true
 	m.currentScript.defaultExport = defaultExport
 	if !m.currentScript.declareLegacyNamespace &&
-		defaultExport.HasInlinableName(&m.currentScript.exportsToInline) {
-		localName := defaultExport.GetLocalName()
+		defaultExport.hasInlinableName(m.currentScript.exportsToInlineVars) {
+		localName, _ := defaultExport.localName()
+		m.currentScript.hasDefaultExportLocalName = true
 		m.currentScript.defaultExportLocalName = localName
-		m.RecordExportToInline(defaultExport)
+		m.recordExportToInline(defaultExport)
 	}
 }

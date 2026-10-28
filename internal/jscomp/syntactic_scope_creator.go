@@ -970,9 +970,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n rhino.Node)
 		if parentVar != nil && !sc.isBleedingFunctionNameID(id) {
 			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", n)))
 		}
-		var_ := s.creator.vars.New()
-		var_.nameID = id
-		var_.initAbstractVarBase(n, sc, len(sc.varList), input, rhino.NilNode)
+		var_ := initVar(s.creator.vars.New(), id, n, sc, len(sc.varList), input, rhino.NilNode)
 		sc.addVar(var_)
 	}
 }
@@ -1013,18 +1011,6 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCal
 		}
 	}
 	sc.DeclareImplicitGoogNamespaceIfAbsent(root, namespaceNode.Node())
-}
-
-// Function body declarations are not allowed to shadow
-// function parameters.
-//
-// Java: SyntacticScopeCreator.ScopeScanner.isShadowingAllowed(String, Scope)
-func syntacticScopeCreator_ScopeScanner_isShadowingAllowed(name string, s *Scope) bool {
-	if s.IsFunctionBlockScope() {
-		maybeParam := s.GetParent().getOwnSlotV(name)
-		return maybeParam == nil || !maybeParam.IsParam()
-	}
-	return true
 }
 
 // isLegacyGoogModule reports whether stmt is goog.module('a.b.c') followed

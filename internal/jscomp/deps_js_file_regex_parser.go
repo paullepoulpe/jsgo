@@ -30,14 +30,13 @@ import (
 // from a .js file, including goog.require, goog.provide, goog.module, import
 // statements, and export statements.
 type JsFileRegexParser struct {
-	JsFileLineParserBase
+	jsFileLineParser
 
 	// Previous lines stored for multi-line googMatcher application.
 	googMatcherBuffer string
 
 	// The info for the file we are currently parsing.
-	provides []string
-
+	provides                  []string
 	requires                  []*DependencyInfo_Require
 	typeRequires              []string
 	fileHasProvidesOrRequires bool
@@ -52,8 +51,6 @@ type JsFileRegexParser struct {
 	// Whether to provide/require the root namespace.
 	includeGoogBase bool
 }
-
-var _ JsFileLineParser = (*JsFileRegexParser)(nil)
 
 // Java: JsFileRegexParser.logger
 var jsFileRegexParser_logger = jutil.Logger_GetLogger("com.google.javascript.jscomp.deps.JsFileRegexParser")
@@ -73,12 +70,6 @@ var jsFileRegexParser_logger = jutil.Logger_GetLogger("com.google.javascript.jsc
 // GOOG_PROVIDE_REQUIRE_PATTERN is the pattern for matching goog.provide(*)
 // and goog.require(*).
 //
-// Java:
-//
-//	"(?:^|;)(?:[\\p{L}\\p{Nl}\\p{Nd}$_,:{}\\s]+=)?\\s*"
-//	    + "goog\\.(?<func>provide|module|require|requireType|addDependency|declareModuleId)"
-//	    + "\\s*\\(\\s*(?<args>.*?)\\s*\\)"
-//
 // TODO(sdh): this handles goog.loadModule(function(){"use strict";goog.module
 // but fails to match without "use strict"; since we look for semicolon, not open brace.
 // TODO(johnplaisted): Remove declareNamespace.
@@ -92,32 +83,8 @@ var (
 	jsFileRegexParser_googArgsGroup = jsFileRegexParser_GOOG_PROVIDE_REQUIRE_PATTERN.SubexpIndex("args")
 )
 
-// ES6_MODULE_PATTERN is the pattern for matching import ... from
-// './path/to/file'.
-//
-// Unlike the goog.require() pattern above, this pattern does not allow
-// multiple statements per line. The import/export must be at the beginning
-// of the line to match.
-//
-// Java:
-//
-//	// Require the import/export to be at the beginning of the line
-//	"^"
-//	    // Either an import or export, but we don't care which, followed by at least one space
-//	    + "(?:import|export)\\b\\s*"
-//	    // Skip any identifier chars, as well as star, comma, braces, and spaces
-//	    // This should match, e.g., "* as foo from ", or "Foo, {Bar as Baz} from ".
-//	    // The 'from' keyword is required except in the case of "import '...';",
-//	    // where there's nothing between 'import' and the module key string literal.
-//	    + "(?:[a-zA-Z0-9$_*,{}\\s]+\\bfrom\\s*|)"
-//	    // Imports require a string literal at the end; it's optional for exports
-//	    // (e.g. "export * from './other';", which is effectively also an import).
-//	    // This optionally captures group #1, which is the imported module name.
-//	    + "(?:['\"]([^'\"]+)['\"])?"
-//	    // Finally, this should be the entire statement, so ensure there's a semicolon.
-//	    + "\\s*;"
-//
-// Here: the part after "^(?:import|export)\\b", anchored at offset 6.
+// ES6_MODULE_PATTERN_REST matches the part of ES6_MODULE_PATTERN after
+// "^(?:import|export)\\b", anchored at offset 6.
 var jsFileRegexParser_ES6_MODULE_PATTERN_REST = regexp.MustCompile(
 	`^[\t\n\x0B\f\r ]*` +
 		`(?:[a-zA-Z0-9$_*,{}\t\n\x0B\f\r ]+\bfrom[\t\n\x0B\f\r ]*|)` +
@@ -147,28 +114,22 @@ func jsFileRegexParser_isWordBoundaryAfterKeyword(line string) bool {
 	return true
 }
 
-// ES6_EXPORT_PATTERN is the pattern for 'export' keyword, e.g. "export
-// default class ..." or "export {blah}". The '\b' ensures we don't also match
-// "exports = ...", which is not an ES6 module.
-//
 // Java: Pattern.compile("^export\\b"), used with lookingAt().
 func jsFileRegexParser_ES6_EXPORT_PATTERN_LookingAt(line string) bool {
 	return strings.HasPrefix(line, "export") && jsFileRegexParser_isWordBoundaryAfterKeyword(line)
 }
 
-// Line in comment indicating that the file is Closure's base.js.
-const jsFileRegexParser_PROVIDES_GOOG_COMMENT = "@provideGoog"
+const (
+	// Line in comment indicating that the file is Closure's base.js.
+	jsFileRegexParser_PROVIDES_GOOG_COMMENT = "@provideGoog"
+	// Line in comment indicating that the file is an extern.
+	jsFileRegexParser_EXTERNS_COMMENT = "@externs"
+	// Line in comment indicating that the file should not be touched by JSCompiler.
+	jsFileRegexParser_NOCOMPILE_COMMENT = "@nocompile"
+	// The start of a bundled goog.module, i.e. one that is wrapped in a goog.loadModule call
+	jsFileRegexParser_BUNDLED_GOOG_MODULE_START = "goog.loadModule(function("
+)
 
-// Line in comment indicating that the file is an extern.
-const jsFileRegexParser_EXTERNS_COMMENT = "@externs"
-
-// Line in comment indicating that the file should not be touched by JSCompiler.
-const jsFileRegexParser_NOCOMPILE_COMMENT = "@nocompile"
-
-// The start of a bundled goog.module, i.e. one that is wrapped in a goog.loadModule call
-const jsFileRegexParser_BUNDLED_GOOG_MODULE_START = "goog.loadModule(function("
-
-// jsFileRegexParser_ModuleType is JsFileRegexParser.ModuleType.
 type jsFileRegexParser_ModuleType int32
 
 const (
@@ -178,29 +139,16 @@ const (
 	jsFileRegexParser_ModuleType_ES6_MODULE
 )
 
-// NewJsFileRegexParser is the constructor; errorManager handles parse
-// errors.
-//
 // Java: JsFileRegexParser(ErrorManager)
 func NewJsFileRegexParser(errorManager ErrorManager) *JsFileRegexParser {
-	p := &JsFileRegexParser{
-		loader: ModuleLoader_EMPTY,
+	return &JsFileRegexParser{
+		jsFileLineParser: jsFileLineParser{errorManager: errorManager},
+		loader:           ModuleLoader_EMPTY,
 	}
-	p.InitJsFileLineParserBase(p, errorManager)
-	return p
 }
 
 // SetIncludeGoogBase sets whether we should create implicit provides and
 // requires of the root namespace.
-//
-// When generating deps files, you do not want this behavior. Deps files
-// need base.js to run anyway, so they don't need information about it.
-//
-// When generating abstract build graphs, you probably do want this
-// behavior. It will create an implicit dependency of all files with
-// provides/requires on base.js.
-//
-// It returns this for easy chaining.
 //
 // Java: JsFileRegexParser.setIncludeGoogBase(boolean)
 func (p *JsFileRegexParser) SetIncludeGoogBase(include bool) *JsFileRegexParser {
@@ -212,8 +160,6 @@ func (p *JsFileRegexParser) SetIncludeGoogBase(include bool) *JsFileRegexParser 
 // SetModuleLoader sets a list of "module root" URIs, which allow
 // relativizing filenames for modules.
 //
-// It returns this for easy chaining.
-//
 // Java: JsFileRegexParser.setModuleLoader(ModuleLoader)
 func (p *JsFileRegexParser) SetModuleLoader(loader *ModuleLoader) *JsFileRegexParser {
 	p.loader = loader
@@ -223,18 +169,13 @@ func (p *JsFileRegexParser) SetModuleLoader(loader *ModuleLoader) *JsFileRegexPa
 // ParseFile parses the given file and returns the dependency information
 // that it contained.
 //
-// filePath is the path to the file to parse; closureRelativePath the path
-// of the file relative to closure; fileContents the contents to parse. The
-// result is a DependencyInfo containing all provides/requires found in the
-// file.
-//
 // Java: JsFileRegexParser.parseFile(String, String, String)
 func (p *JsFileRegexParser) ParseFile(filePath string, closureRelativePath string, fileContents string) DependencyInfo {
 	p.resetForFile(filePath)
 	if jsFileRegexParser_logger.IsLoggable(jutil.Level_FINE) {
 		jsFileRegexParser_logger.Log(jutil.Level_FINE, "Parsing Source: "+filePath)
 	}
-	p.doParseString(filePath, fileContents)
+	parseJsString(&p.jsFileLineParser, p, filePath, fileContents)
 	return p.finishDependencyInfo(filePath, closureRelativePath)
 }
 
@@ -282,19 +223,6 @@ func (p *JsFileRegexParser) finishDependencyInfo(filePath string, closureRelativ
 	return dependencyInfo
 }
 
-// Java: JsFileRegexParser.parseReader(String, String, Reader)
-func (p *JsFileRegexParser) parseReader(filePath string, closureRelativePath string, fileContents jutil.JavaReader) DependencyInfo {
-	p.resetForFile(filePath)
-	if jsFileRegexParser_logger.IsLoggable(jutil.Level_FINE) {
-		jsFileRegexParser_logger.Log(jutil.Level_FINE, "Parsing Source: "+filePath)
-	}
-	p.DoParse(filePath, fileContents)
-	return p.finishDependencyInfo(filePath, closureRelativePath)
-}
-
-// setModuleType returns true if the moduleType is successfully set and
-// false otherwise (e.g. goog.provide, goog.module conflict).
-//
 // Java: JsFileRegexParser.setModuleType(ModuleType)
 func (p *JsFileRegexParser) setModuleType(type_ jsFileRegexParser_ModuleType) bool {
 	provide := type_ == jsFileRegexParser_ModuleType_GOOG_PROVIDE || p.moduleType == jsFileRegexParser_ModuleType_GOOG_PROVIDE
@@ -323,7 +251,7 @@ func (p *JsFileRegexParser) setModuleType(type_ jsFileRegexParser_ModuleType) bo
 				/* lineno= */ -1,
 				/* charno= */ -1,
 				ModuleLoader_MODULE_CONFLICT,
-				p.file.String()))
+				fileName))
 
 		return false
 	}
@@ -333,11 +261,8 @@ func (p *JsFileRegexParser) setModuleType(type_ jsFileRegexParser_ModuleType) bo
 }
 
 // Java: JsFileRegexParser.parseJsDocCommentLine(String)
-func (p *JsFileRegexParser) ParseJsDocCommentLine(line string) bool {
+func (p *JsFileRegexParser) parseJsDocCommentLine(line string) bool {
 	// Since these checks are all mutually exclusive, bail out after we see the first one.
-	// @providesGoog should only ever be in one file (namely base.js),
-	// and @nocompile means the file is thrown out entirely,
-	// so it should never exist with @externs.
 	if p.includeGoogBase && strings.Contains(line, jsFileRegexParser_PROVIDES_GOOG_COMMENT) {
 		p.provides = append(p.provides, "goog")
 		return false
@@ -405,7 +330,7 @@ func jsFileRegexParser_tryFastGoogCall(line string) (methodName, args string, ok
 	return fn, rawArgs, true
 }
 
-func (p *JsFileRegexParser) recordGoogMatch(methodName, rawArgs string) {
+func (p *JsFileRegexParser) recordGoogMatch(methodName, rawArgs string) string {
 	if p.includeGoogBase && !p.fileHasProvidesOrRequires {
 		p.fileHasProvidesOrRequires = true
 		p.requires = append(p.requires, DependencyInfo_Require_BASE)
@@ -427,52 +352,51 @@ func (p *JsFileRegexParser) recordGoogMatch(methodName, rawArgs string) {
 	}
 
 	if providesNamespace || isRequire {
-		// Parse the param.
-		//
+		parsed, errMsg, ok := p.parseJsString(rawArgs)
+		if !ok {
+			return errMsg
+		}
 		// Go-only: performance — clone the name: a substring would keep
 		// the whole file text alive as long as the DependencyInfo.
-		arg := strings.Clone(p.ParseJsString(rawArgs))
-		// Add the dependency.
+		arg := strings.Clone(parsed)
 		if isRequire {
 			if methodName == "requireType" {
 				p.typeRequires = append(p.typeRequires, arg)
 			} else if arg != "goog" {
-				require := DependencyInfo_Require_GoogRequireSymbol(arg)
-				p.requires = append(p.requires, require)
+				p.requires = append(p.requires, DependencyInfo_Require_GoogRequireSymbol(arg))
 			}
 		} else {
 			p.provides = append(p.provides, arg)
 		}
 	}
+	return ""
 }
 
-// applyGoogMatcher panics with *JsFileLineParser_ParseException.
-//
 // Java: JsFileRegexParser.applyGoogMatcher(String)
-func (p *JsFileRegexParser) applyGoogMatcher(line string) bool {
+func (p *JsFileRegexParser) applyGoogMatcher(line string) (bool, string) {
 	if fn, rawArgs, ok := jsFileRegexParser_tryFastGoogCall(line); ok {
-		p.recordGoogMatch(fn, rawArgs)
-		return true
+		if errMsg := p.recordGoogMatch(fn, rawArgs); errMsg != "" {
+			return false, errMsg
+		}
+		return true, ""
 	}
 	if !strings.Contains(line, "goog.") {
-		return false
+		return false, ""
 	}
 	lineHasProvidesOrRequires := false
-	// Iterate over the provides/requires.
 	for _, m := range jsFileRegexParser_GOOG_PROVIDE_REQUIRE_PATTERN.FindAllStringSubmatchIndex(line, -1) {
 		lineHasProvidesOrRequires = true
 		methodName := line[m[2*jsFileRegexParser_googFuncGroup]:m[2*jsFileRegexParser_googFuncGroup+1]]
 		rawArgs := line[m[2*jsFileRegexParser_googArgsGroup]:m[2*jsFileRegexParser_googArgsGroup+1]]
-		p.recordGoogMatch(methodName, rawArgs)
+		if errMsg := p.recordGoogMatch(methodName, rawArgs); errMsg != "" {
+			return false, errMsg
+		}
 	}
-	return lineHasProvidesOrRequires
+	return lineHasProvidesOrRequires, ""
 }
 
-// ParseLine parses a line of JavaScript, extracting goog.provide and
-// goog.require information.
-//
 // Java: JsFileRegexParser.parseLine(String)
-func (p *JsFileRegexParser) ParseLine(line string) bool {
+func (p *JsFileRegexParser) parseLine(line string) (bool, string) {
 	lineHasProvidesOrRequires := false
 
 	if strings.HasPrefix(line, jsFileRegexParser_BUNDLED_GOOG_MODULE_START) {
@@ -488,26 +412,27 @@ func (p *JsFileRegexParser) ParseLine(line string) bool {
 			strings.Contains(line, "declareModuleId")
 
 	if p.googMatcherBuffer != "" {
-		// Retry with the previous line.
-		lineHasProvidesOrRequires = p.applyGoogMatcher(p.googMatcherBuffer + line)
+		var errMsg string
+		lineHasProvidesOrRequires, errMsg = p.applyGoogMatcher(p.googMatcherBuffer + line)
+		if errMsg != "" {
+			return false, errMsg
+		}
 	}
 	if !lineHasProvidesOrRequires && lineHasProvidesOrRequiresWords {
-		// Try without the previous line.
-		lineHasProvidesOrRequires = p.applyGoogMatcher(line)
+		var errMsg string
+		lineHasProvidesOrRequires, errMsg = p.applyGoogMatcher(line)
+		if errMsg != "" {
+			return false, errMsg
+		}
 	}
 	if !lineHasProvidesOrRequires && lineHasProvidesOrRequiresWords {
-		// We haven't found any matches in this line and will retry on the next line.
-		// We support only 2-lines retries for efficiency; otherwise if there were no matches, we
-		// could end up applying the regexp to the whole file. It covers majority of multi-line
-		// cases (according to the JS formatting rules).
+		// Retry on the next line (at most 2-line retries).
 		p.googMatcherBuffer = line
 	} else {
 		p.googMatcherBuffer = ""
 	}
 
 	if strings.HasPrefix(line, "import") || strings.HasPrefix(line, "export") {
-		// "^(?:import|export)\\b" can only match at the start of the line, so
-		// the find() loop runs at most once and es6Matcher.start() is 0.
 		if jsFileRegexParser_isWordBoundaryAfterKeyword(line) {
 			if m := jsFileRegexParser_ES6_MODULE_PATTERN_REST.FindStringSubmatchIndex(line[6:]); m != nil {
 				p.setModuleType(jsFileRegexParser_ModuleType_ES6_MODULE)
@@ -517,7 +442,6 @@ func (p *JsFileRegexParser) ParseLine(line string) bool {
 					// Go-only: performance — cloned, as in applyGoogMatcher.
 					arg := strings.Clone(line[6+m[2] : 6+m[3]])
 					if strings.HasPrefix(arg, "goog:") {
-						// cut off the "goog:" prefix
 						p.requires = append(p.requires, DependencyInfo_Require_GoogRequireSymbol(arg[5:]))
 					} else {
 						path := p.file.ResolveJsModule(arg, p.filePath, p.lineNum, 0 /* es6Matcher.start() */)
@@ -536,30 +460,32 @@ func (p *JsFileRegexParser) ParseLine(line string) bool {
 		}
 	}
 
-	return !p.shortcutMode ||
+	keepGoing := !p.shortcutMode ||
 		lineHasProvidesOrRequires ||
 		p.googMatcherBuffer != "" ||
 		jsFileRegexParser_isAllWhitespace(line) ||
 		!strings.Contains(line, ";") ||
 		strings.Contains(line, "goog.setTestOnly") ||
 		strings.Contains(line, "goog.module.declareLegacyNamespace")
+	return keepGoing, ""
 }
 
 // jsFileRegexParser_isAllWhitespace is CharMatcher.whitespace().matchesAllOf(line).
 func jsFileRegexParser_isAllWhitespace(line string) bool {
-	for i := 0; i < len(line); i++ {
+	for i := 0; i < len(line); {
 		c := line[i]
-		if c >= 0x80 {
-			for _, u := range jutil.StringToUTF16(line[i:]) {
-				if !jutil.CharMatcher_Whitespace_Matches(u) {
-					return false
-				}
+		if c < utf8.RuneSelf {
+			if c != ' ' && (c < 0x09 || c > 0x0D) {
+				return false
 			}
-			return true
+			i++
+			continue
 		}
-		if c != ' ' && (c < 0x09 || c > 0x0D) {
+		r, size := utf8.DecodeRuneInString(line[i:])
+		if !jsFileLineParser_isCharMatcherSpace(r, size) {
 			return false
 		}
+		i += size
 	}
 	return true
 }

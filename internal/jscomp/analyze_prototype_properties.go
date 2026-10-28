@@ -151,12 +151,12 @@ func NewAnalyzePrototypeProperties(
 	anchorUnusedVars bool,
 	rootScopeUsesAreGlobal bool) *AnalyzePrototypeProperties {
 	a := &AnalyzePrototypeProperties{
-		propertyNameInfo: make(map[string]*AnalyzePrototypeProperties_NameInfo, 16),
-		varNameInfo:      make(map[string]*AnalyzePrototypeProperties_NameInfo, 16),
-		compiler:         compiler,
-		chunkGraph:       chunkGraph,
-		canModifyExterns: canModifyExterns,
-		anchorUnusedVars: anchorUnusedVars,
+		propertyNameInfo:       make(map[string]*AnalyzePrototypeProperties_NameInfo, 16),
+		varNameInfo:            make(map[string]*AnalyzePrototypeProperties_NameInfo, 16),
+		compiler:               compiler,
+		chunkGraph:             chunkGraph,
+		canModifyExterns:       canModifyExterns,
+		anchorUnusedVars:       anchorUnusedVars,
 		rootScopeUsesAreGlobal: rootScopeUsesAreGlobal,
 	}
 	a.globalNode = a.allocNameInfo("[global]")

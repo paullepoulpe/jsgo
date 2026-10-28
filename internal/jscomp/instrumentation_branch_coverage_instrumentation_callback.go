@@ -28,7 +28,8 @@ import (
 //
 // Java: public class BranchCoverageInstrumentationCallback extends NodeTraversal.AbstractCfgCallback
 type BranchCoverageInstrumentationCallback struct {
-	NodeTraversal_AbstractCfgCallbackBase
+	NodeTraversal_AbstractPostOrderCallbackBase
+	cfgScopeStack
 
 	compiler            AbstractCompiler
 	instrumentationData *jutil.LinkedHashMap[string, *FileInstrumentationData]
@@ -49,11 +50,22 @@ func BranchCoverageInstrumentationCallback_CreateArrayName(traversal *NodeTraver
 // Java: BranchCoverageInstrumentationCallback(AbstractCompiler, Map<String, FileInstrumentationData>)
 func NewBranchCoverageInstrumentationCallback(
 	compiler AbstractCompiler, instrumentationData *jutil.LinkedHashMap[string, *FileInstrumentationData]) *BranchCoverageInstrumentationCallback {
-	c := &BranchCoverageInstrumentationCallback{}
-	c.InitNodeTraversal_AbstractCfgCallbackBase(c)
-	c.compiler = compiler
-	c.instrumentationData = instrumentationData
+	c := &BranchCoverageInstrumentationCallback{
+		compiler:            compiler,
+		instrumentationData: instrumentationData,
+	}
+	c.cfgs = c.cfgsBuf[:0]
 	return c
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
+func (c *BranchCoverageInstrumentationCallback) EnterScope(t *NodeTraversal) {
+	c.pushScopeRoot(t.GetScopeRoot())
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
+func (c *BranchCoverageInstrumentationCallback) ExitScope(t *NodeTraversal) {
+	c.popScopeRoot(t.GetScopeRoot())
 }
 
 // branchCoverageInstrumentationCallback_stringsEqual is

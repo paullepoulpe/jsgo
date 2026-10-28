@@ -309,4 +309,3 @@ func TestParseException(t *testing.T) {
 		t.Error("ParseException not caught as a checked exception")
 	}
 }
-

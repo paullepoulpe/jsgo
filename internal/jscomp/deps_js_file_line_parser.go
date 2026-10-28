@@ -20,84 +20,31 @@ package jscomp
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// JsFileLineParser is the base class for classes that parse JavaScript
-// sources on a line-by-line basis. Strips comments from files and records
-// all parsing errors.
-//
-// The Go interface declares the overridable methods; implementations embed
-// JsFileLineParserBase (PORTING.md §4).
+// jsLineHandler is implemented by concrete line-based JS/deps parsers.
+type jsLineHandler interface {
+	parseLine(line string) (keepGoing bool, errMsg string)
+	parseJsDocCommentLine(line string) bool
+}
+
+// jsFileLineParser strips JS comments line-by-line and parses string, array,
+// and object literals for JsFileRegexParser and DepsFileRegexParser.
 //
 // Go-only: language-adapter — line and string positions are byte offsets
-// into the (WTF-8) Go strings: every index this class computes comes from
+// into the (WTF-8) Go strings: every index this struct computes comes from
 // finding an ASCII delimiter ("//", "/*", "*/", quotes, backslashes, ':' and
 // ',') or from stepping over one, so byte arithmetic selects exactly the
 // characters Java's UTF-16 arithmetic selects.
-type JsFileLineParser interface {
-	GetJsFileLineParserBase() *JsFileLineParserBase
-
-	// SetShortcutMode: in shortcut mode, the file line parser can stop
-	// reading early if it thinks it found enough information.
-	//
-	// For example, many parsers assume that dependency information never
-	// shows up after "real" code.
-	//
-	// Java: JsFileLineParser.setShortcutMode(boolean)
-	SetShortcutMode(mode bool)
-
-	// Java: JsFileLineParser.didParseSucceed()
-	DidParseSucceed() bool
-
-	// DoParse performs the line-by-line parsing of the given fileContents.
-	// This method strips out JavaScript comments and then uses the abstract
-	// parseLine() method to do the line parsing.
-	//
-	// Java: JsFileLineParser.doParse(String, Reader)
-	DoParse(filePath string, fileContents jutil.JavaReader)
-
-	// ParseLine is called for each line of the file being parsed. It
-	// returns true to keep going, false otherwise. It panics with
-	// *JsFileLineParser_ParseException to signify a problem with the line.
-	//
-	// Java: JsFileLineParser.parseLine(String)
-	ParseLine(line string) bool
-
-	// ParseJsDocCommentLine is called for each JSDoc line of the file being
-	// parsed. It returns true to keep going, false otherwise.
-	//
-	// Java: JsFileLineParser.parseJsDocCommentLine(String)
-	ParseJsDocCommentLine(line string) bool
-
-	// Java: JsFileLineParser.parseJsString(String)
-	ParseJsString(jsStringLiteral string) string
-
-	// Java: JsFileLineParser.parseJsStringArray(String)
-	ParseJsStringArray(input string) []string
-
-	// Java: JsFileLineParser.parseJsStringMap(String)
-	ParseJsStringMap(input string) *jutil.LinkedHashMap[string, string]
-}
-
-// JsFileLineParserBase holds the fields and base implementations of
-// JsFileLineParser.
-type JsFileLineParserBase struct {
-	self JsFileLineParser
-
-	shortcutMode bool
-
-	// Matcher used in the parsing string literals.
-	valueMatcher jsFileLineParser_stringLiteralMatcher
-
-	// Path of the file currently being parsed.
-	filePath string
-	// The line number of the line currently being parsed.
-	lineNum int
-	// Handles error messages.
-	errorManager ErrorManager
-	// Did our parse succeed.
+type jsFileLineParser struct {
+	shortcutMode   bool
+	valueMatcher   jsFileLineParser_stringLiteralMatcher
+	filePath       string
+	lineNum        int
+	errorManager   ErrorManager
 	parseSucceeded bool
 }
 
@@ -107,29 +54,12 @@ var JsFileLineParser_PARSE_WARNING = DiagnosticType_Warning("DEPS_PARSE_WARNING"
 // Java: JsFileLineParser.PARSE_ERROR
 var JsFileLineParser_PARSE_ERROR = DiagnosticType_Error("DEPS_PARSE_ERROR", "{0}\n{1}")
 
-// JsFileLineParser_ParseException is thrown by base classes to signify a
-// problem parsing a line.
+// JsFileLineParser_ParseException signifies a problem parsing a line or literal.
 type JsFileLineParser_ParseException struct {
 	jutil.JavaException
 	fatal bool
 }
 
-func (*JsFileLineParser_ParseException) parseException() {}
-
-// IJsFileLineParser_ParseException matches JsFileLineParser_ParseException.
-type IJsFileLineParser_ParseException interface {
-	jutil.IException
-	parseException()
-	IsFatal() bool
-}
-
-// Java: JsFileLineParser.ParseException.serialVersionUID
-const JsFileLineParser_ParseException_serialVersionUID int64 = 1
-
-// NewJsFileLineParser_ParseException is the constructor: message is a
-// description of what caused the exception; fatal is whether the exception
-// is recoverable.
-//
 // Java: JsFileLineParser.ParseException(String, boolean)
 func NewJsFileLineParser_ParseException(message string, fatal bool) *JsFileLineParser_ParseException {
 	e := &JsFileLineParser_ParseException{fatal: fatal}
@@ -142,38 +72,21 @@ func (e *JsFileLineParser_ParseException) IsFatal() bool {
 	return e.fatal
 }
 
-// InitJsFileLineParserBase is the constructor; errorManager is the parse
-// error handler.
-//
-// Java: JsFileLineParser(ErrorManager)
-func (b *JsFileLineParserBase) InitJsFileLineParserBase(self JsFileLineParser, errorManager ErrorManager) {
-	b.self = self
-	b.valueMatcher.Reset("")
-	b.errorManager = errorManager
-}
-
-// GetJsFileLineParserBase gives access to the fields of the base class.
-func (b *JsFileLineParserBase) GetJsFileLineParserBase() *JsFileLineParserBase { return b }
-
 // Java: JsFileLineParser.setShortcutMode(boolean)
-func (b *JsFileLineParserBase) SetShortcutMode(mode bool) {
+func (b *jsFileLineParser) SetShortcutMode(mode bool) {
 	b.shortcutMode = mode
 }
 
 // Java: JsFileLineParser.didParseSucceed()
-func (b *JsFileLineParserBase) DidParseSucceed() bool {
+func (b *jsFileLineParser) DidParseSucceed() bool {
 	return b.parseSucceeded
 }
 
-// DoParse performs the line-by-line parsing of the given fileContents. This
-// method strips out JavaScript comments and then uses the abstract
-// parseLine() method to do the line parsing.
-//
-// filePath is the path to the file being parsed. Used for reporting parse
-// exceptions. fileContents is a reader for the contents of the file.
-//
-// Java: JsFileLineParser.doParse(String, Reader)
-func (b *JsFileLineParserBase) DoParse(filePath string, fileContents jutil.JavaReader) {
+func (*jsFileLineParser) parseJsDocCommentLine(string) bool {
+	return true
+}
+
+func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, fileContents jutil.JavaReader) {
 	b.filePath = filePath
 	b.parseSucceeded = true
 	b.lineNum = 0
@@ -185,7 +98,7 @@ func (b *JsFileLineParserBase) DoParse(filePath string, fileContents jutil.JavaR
 	}, func(e jutil.IIOException) {
 		fp := filePath
 		b.errorManager.Report(CheckLevel_ERROR.Ptr(),
-			JSError_MakeWithSourceLocation(&fp, 0, 0, /* char offset */
+			JSError_MakeWithSourceLocation(&fp, 0, 0,
 				JsFileLineParser_PARSE_ERROR, "Error reading file: "+filePath))
 		b.parseSucceeded = false
 		readOK = false
@@ -193,87 +106,48 @@ func (b *JsFileLineParserBase) DoParse(filePath string, fileContents jutil.JavaR
 	if !readOK {
 		return
 	}
-	b.doParseLoadedString(filePath, text)
+	parseJsLines(b, h, filePath, text)
 }
 
-func (b *JsFileLineParserBase) doParseString(filePath string, text string) {
+func parseJsString[H jsLineHandler](b *jsFileLineParser, h H, filePath string, text string) {
 	b.filePath = filePath
 	b.parseSucceeded = true
 	b.lineNum = 0
-	b.doParseLoadedString(filePath, text)
+	parseJsLines(b, h, filePath, text)
 }
 
-func (b *JsFileLineParserBase) doParseLoadedString(filePath string, text string) {
+func parseJsLines[H jsLineHandler](b *jsFileLineParser, h H, filePath string, text string) {
 	inMultilineComment := false
 	inJsDocComment := false
 	pos := 0
-	for pos < len(text) {
-		if b.doParseLinesChunk(filePath, text, &pos, &inMultilineComment, &inJsDocComment) {
-			break
-		}
-	}
-}
-
-func (b *JsFileLineParserBase) doParseLinesChunk(
-	filePath string,
-	text string,
-	pos *int,
-	inMultilineComment *bool,
-	inJsDocComment *bool,
-) (stopped bool) {
-	var curLine string
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(IJsFileLineParser_ParseException); ok {
-				level := CheckLevel_WARNING
-				diagnostic := JsFileLineParser_PARSE_WARNING
-				if e.IsFatal() {
-					level = CheckLevel_ERROR
-					diagnostic = JsFileLineParser_PARSE_ERROR
-				}
-				fp := filePath
-				b.errorManager.Report(
-					level.Ptr(),
-					JSError_MakeWithSourceLocation(&fp, b.lineNum, 0, /* char offset */
-						diagnostic,
-						e.GetMessage(), curLine))
-				b.parseSucceeded = b.parseSucceeded && !e.IsFatal()
-				stopped = false
-				return
-			}
-			panic(r)
-		}
-	}()
-
 	for {
-		line, nextPos, ok := jutil.NextLineFromString(text, *pos)
+		line, nextPos, ok := jutil.NextLineFromString(text, pos)
 		if !ok {
-			return true
+			return
 		}
-		*pos = nextPos
-		curLine = line
+		pos = nextPos
 		b.lineNum++
 
 		revisedLine := line
 		revisedJsDocCommentLine := ""
-		if *inMultilineComment {
+		if inMultilineComment {
 			endOfComment := strings.Index(revisedLine, "*/")
 			if endOfComment != -1 {
-				if *inJsDocComment {
+				if inJsDocComment {
 					revisedJsDocCommentLine = revisedLine[:endOfComment+2]
-					*inJsDocComment = false
+					inJsDocComment = false
 				}
 				revisedLine = revisedLine[endOfComment+2:]
-				*inMultilineComment = false
+				inMultilineComment = false
 			} else {
-				if *inJsDocComment {
+				if inJsDocComment {
 					revisedJsDocCommentLine = line
 				}
 				revisedLine = ""
 			}
 		}
 
-		if !*inMultilineComment {
+		if !inMultilineComment {
 			for {
 				startOfLineComment := strings.Index(revisedLine, "//")
 				startOfMultilineComment := strings.Index(revisedLine, "/*")
@@ -284,34 +158,31 @@ func (b *JsFileLineParserBase) doParseLinesChunk(
 					break
 				} else if startOfMultilineComment != -1 {
 					// If comment is in a string (single or double quoted), don't parse as a comment.
-					if b.isCommentQuoted(revisedLine, startOfMultilineComment, '\'') {
-						break
-					}
-					if b.isCommentQuoted(revisedLine, startOfMultilineComment, '"') {
+					if jsFileLineParser_isCommentQuoted(revisedLine, startOfMultilineComment, '\'') ||
+						jsFileLineParser_isCommentQuoted(revisedLine, startOfMultilineComment, '"') {
 						break
 					}
 					if len(revisedLine) > startOfMultilineComment+2 && revisedLine[startOfMultilineComment+2] == '*' {
-						*inJsDocComment = true
+						inJsDocComment = true
 					}
 					endOfMultilineComment := jsFileLineParser_indexFrom(revisedLine, "*/", startOfMultilineComment+2)
 					if endOfMultilineComment == -1 {
-						if *inJsDocComment {
+						if inJsDocComment {
 							revisedJsDocCommentLine = revisedLine[startOfMultilineComment:]
 						}
 						revisedLine = revisedLine[:startOfMultilineComment]
-						*inMultilineComment = true
+						inMultilineComment = true
 						break
-					} else {
-						if *inJsDocComment {
-							jsDocComment := revisedLine[startOfMultilineComment : endOfMultilineComment+2]
-							if !b.self.ParseJsDocCommentLine(jsDocComment) && b.shortcutMode {
-								break
-							}
-							*inJsDocComment = false
-						}
-						revisedLine = revisedLine[:startOfMultilineComment] +
-							revisedLine[endOfMultilineComment+2:]
 					}
+					if inJsDocComment {
+						jsDocComment := revisedLine[startOfMultilineComment : endOfMultilineComment+2]
+						if !h.parseJsDocCommentLine(jsDocComment) && b.shortcutMode {
+							break
+						}
+						inJsDocComment = false
+					}
+					revisedLine = revisedLine[:startOfMultilineComment] +
+						revisedLine[endOfMultilineComment+2:]
 				} else {
 					break
 				}
@@ -319,33 +190,29 @@ func (b *JsFileLineParserBase) doParseLinesChunk(
 		}
 
 		if revisedJsDocCommentLine != "" {
-			if !b.self.ParseJsDocCommentLine(revisedJsDocCommentLine) && b.shortcutMode {
-				return true
+			if !h.parseJsDocCommentLine(revisedJsDocCommentLine) && b.shortcutMode {
+				return
 			}
 		}
 
 		if revisedLine != "" {
-			// This check for shortcut mode should be redundant, but
-			// it's done for safety reasons.
-			if !b.self.ParseLine(revisedLine) && b.shortcutMode {
-				return true
+			keepGoing, errMsg := h.parseLine(revisedLine)
+			if errMsg != "" {
+				fp := filePath
+				b.errorManager.Report(
+					CheckLevel_ERROR.Ptr(),
+					JSError_MakeWithSourceLocation(&fp, b.lineNum, 0,
+						JsFileLineParser_PARSE_ERROR, errMsg, line))
+				b.parseSucceeded = false
+				continue
+			}
+			if !keepGoing && b.shortcutMode {
+				return
 			}
 		}
 	}
 }
 
-// jsFileLineParser_newBufferedReader is new BufferedReader(fileContents).
-//
-// Go-only: language-adapter — jutil.BufferedReader reads from a Go string,
-// so the Reader is drained first (an IOException surfaces from the first
-// read, as from Java's first readLine()). It is drained with
-// CharStreams_ToString, which returns an unread StringReader's string
-// without converting it to UTF-16 and back.
-func jsFileLineParser_newBufferedReader(fileContents jutil.JavaReader) *jutil.BufferedReader {
-	return jutil.NewBufferedReaderFromString(jutil.CharStreams_ToString(fileContents))
-}
-
-// jsFileLineParser_indexFrom is String.indexOf(String, int) on byte offsets.
 func jsFileLineParser_indexFrom(s string, sub string, from int) int {
 	if from > len(s) {
 		return -1
@@ -357,7 +224,7 @@ func jsFileLineParser_indexFrom(s string, sub string, from int) int {
 }
 
 // Java: JsFileLineParser.isCommentQuoted(String, int, char)
-func (b *JsFileLineParserBase) isCommentQuoted(line string, startOfMultilineComment int, quoteChar byte) bool {
+func jsFileLineParser_isCommentQuoted(line string, startOfMultilineComment int, quoteChar byte) bool {
 	startQuoteIndex := strings.IndexByte(line, quoteChar)
 	// Loop in case there are multiple strings between start of line and start of the comment.
 	for startQuoteIndex != -1 && startQuoteIndex < startOfMultilineComment {
@@ -366,7 +233,7 @@ func (b *JsFileLineParserBase) isCommentQuoted(line string, startOfMultilineComm
 			return false
 		}
 		// Skip escaped quotes
-		for b.isEscaped(line, closingQuoteIndex) {
+		for jsFileLineParser_isEscaped(line, closingQuoteIndex) {
 			closingQuoteIndex = jsFileLineParser_indexByteFrom(line, quoteChar, closingQuoteIndex+1)
 			if closingQuoteIndex == -1 {
 				return false
@@ -380,8 +247,6 @@ func (b *JsFileLineParserBase) isCommentQuoted(line string, startOfMultilineComm
 	return false
 }
 
-// jsFileLineParser_indexByteFrom is String.indexOf(int, int) on byte
-// offsets.
 func jsFileLineParser_indexByteFrom(s string, c byte, from int) int {
 	if from >= len(s) {
 		return -1
@@ -393,11 +258,9 @@ func jsFileLineParser_indexByteFrom(s string, c byte, from int) int {
 }
 
 // Java: JsFileLineParser.isEscaped(String, int)
-func (b *JsFileLineParserBase) isEscaped(line string, closingQuoteIndex int) bool {
+func jsFileLineParser_isEscaped(line string, closingQuoteIndex int) bool {
 	escapeCharCount := 0
-	index := closingQuoteIndex - 1
-	for line[index] == '\\' {
-		index--
+	for index := closingQuoteIndex - 1; line[index] == '\\'; index-- {
 		escapeCharCount++
 	}
 	// Odd number of backslashes means one is actually escaping the quote. Otherwise they are
@@ -405,45 +268,37 @@ func (b *JsFileLineParserBase) isEscaped(line string, closingQuoteIndex int) boo
 	return escapeCharCount%2 == 1
 }
 
-// ParseJsDocCommentLine is called for each JSDoc line of the file being
-// parsed: line is the JSDoc comment line to parse. It returns true to keep
-// going, false otherwise.
-//
-// Java: JsFileLineParser.parseJsDocCommentLine(String)
-func (b *JsFileLineParserBase) ParseJsDocCommentLine(line string) bool {
-	return true
+// Java: JsFileLineParser.parseJsString(String)
+func (b *jsFileLineParser) ParseJsString(jsStringLiteral string) string {
+	val, errMsg, ok := b.parseJsString(jsStringLiteral)
+	if !ok {
+		panic(NewJsFileLineParser_ParseException(errMsg, true))
+	}
+	return val
 }
 
-// ParseJsString parses a JS string literal.
-//
-// jsStringLiteral is the literal. Must look like "asdf" or 'asdf'. It panics
-// with *JsFileLineParser_ParseException if there is a string literal that
-// cannot be parsed.
-//
-// Java: JsFileLineParser.parseJsString(String)
-func (b *JsFileLineParserBase) ParseJsString(jsStringLiteral string) string {
+func (b *jsFileLineParser) parseJsString(jsStringLiteral string) (string, string, bool) {
 	b.valueMatcher.Reset(jsStringLiteral)
 	if !b.valueMatcher.Matches() {
-		panic(NewJsFileLineParser_ParseException("Syntax error in JS String literal", true /* fatal */))
+		return "", "Syntax error in JS String literal", false
 	}
-	return b.valueMatcher.MatchedValue()
+	return b.valueMatcher.MatchedValue(), "", true
 }
 
-// ParseJsStringArray parses a JavaScript array of string literals. (eg:
-// ['a', 'b', "c"]).
-//
-// input is a string containing a JavaScript array of string literals; the
-// result is a list of parsed string literals. It panics with
-// *JsFileLineParser_ParseException if there is a syntax error with the
-// input.
-//
 // Java: JsFileLineParser.parseJsStringArray(String)
-func (b *JsFileLineParserBase) ParseJsStringArray(input string) []string {
-	results := []string{}
+func (b *jsFileLineParser) ParseJsStringArray(input string) []string {
+	vals, errMsg, ok := b.parseJsStringArray(input)
+	if !ok {
+		panic(NewJsFileLineParser_ParseException(errMsg, true))
+	}
+	return vals
+}
+
+func (b *jsFileLineParser) parseJsStringArray(input string) ([]string, string, bool) {
 	indexStart := strings.IndexByte(input, '[')
 	indexEnd := strings.LastIndexByte(input, ']')
-	if (indexStart == -1) || (indexEnd == -1) {
-		panic(NewJsFileLineParser_ParseException("Syntax error when parsing JS array", true /* fatal */))
+	if indexStart == -1 || indexEnd == -1 {
+		return nil, "Syntax error when parsing JS array", false
 	}
 	if indexStart+1 > indexEnd {
 		// String.substring(begin, end) with begin > end.
@@ -451,78 +306,142 @@ func (b *JsFileLineParserBase) ParseJsStringArray(input string) []string {
 			jutil.StringLength(input[:indexStart+1]), jutil.StringLength(input[:indexEnd]), jutil.StringLength(input)))
 	}
 	innerValues := input[indexStart+1 : indexEnd]
-
-	if jutil.StringTrim(innerValues) != "" {
+	results := []string{}
+	if jsFileLineParser_hasNonControlSpace(innerValues) {
 		b.valueMatcher.Reset(innerValues)
 		for {
-			// Parse the current string literal.
 			if !b.valueMatcher.LookingAt() {
-				panic(NewJsFileLineParser_ParseException("Syntax error in JS String literal", true /* fatal */))
+				return nil, "Syntax error in JS String literal", false
 			}
-			// Add it to the results.
 			results = append(results, b.valueMatcher.MatchedValue())
 			if b.valueMatcher.HitEnd() {
 				break
 			}
-			// Ensure there is a comma after the value.
 			if innerValues[b.valueMatcher.End()] != ',' {
-				panic(NewJsFileLineParser_ParseException("Missing comma in string array", true /* fatal */))
+				return nil, "Missing comma in string array", false
 			}
-			// Move to the next value.
 			b.valueMatcher.Region(b.valueMatcher.End()+1, b.valueMatcher.RegionEnd())
 		}
 	}
-	return results
+	return results, "", true
 }
 
-// TODO(sdh): Consider simplifying this by reusing the parser or a separate JSON library.
-
-// ParseJsStringMap parses a JavaScript map of string literals. (eg: {'a':
-// 'b', "c": "d"}).
-//
-// input is a string containing a JavaScript map of string literals; the
-// result is a map of parsed string literals. It panics with
-// *JsFileLineParser_ParseException if there is a syntax error with the
-// input.
-//
 // Java: JsFileLineParser.parseJsStringMap(String)
-func (b *JsFileLineParserBase) ParseJsStringMap(input string) *jutil.LinkedHashMap[string, string] {
-	input = jutil.CharMatcher_Whitespace_TrimFrom(input)
-	jsFileLineParser_check(
-		input != "" && input[0] == '{' && input[len(input)-1] == '}',
-		"Syntax error when parsing JS object")
-	input = jutil.StringTrim(input[1 : len(input)-1])
+func (b *jsFileLineParser) ParseJsStringMap(input string) *jutil.LinkedHashMap[string, string] {
+	m, errMsg, ok := b.parseJsStringMap(input)
+	if !ok {
+		panic(NewJsFileLineParser_ParseException(errMsg, true))
+	}
+	return m
+}
+
+func (b *jsFileLineParser) parseJsStringMap(input string) (*jutil.LinkedHashMap[string, string], string, bool) {
+	input = jsFileLineParser_trimCharMatcherWhitespace(input)
+	if input == "" || input[0] != '{' || input[len(input)-1] != '}' {
+		return nil, "Syntax error when parsing JS object", false
+	}
+	input = jsFileLineParser_trimJava(input[1 : len(input)-1])
 
 	results := jutil.NewLinkedHashMap[string, string]()
-	done := input == ""
 	b.valueMatcher.Reset(input)
-	for !done {
+	for input != "" {
 		// Parse the next key (TODO(sdh): need to support non-quoted keys?).
-		jsFileLineParser_check(b.valueMatcher.LookingAt(), "Bad key in JS object literal")
+		if !b.valueMatcher.LookingAt() {
+			return nil, "Bad key in JS object literal", false
+		}
 		key := b.valueMatcher.MatchedValue()
-		jsFileLineParser_check(!b.valueMatcher.HitEnd(), "Missing value in JS object literal")
-		jsFileLineParser_check(input[b.valueMatcher.End()] == ':', "Missing colon in JS object literal")
+		if b.valueMatcher.HitEnd() {
+			return nil, "Missing value in JS object literal", false
+		}
+		if input[b.valueMatcher.End()] != ':' {
+			return nil, "Missing colon in JS object literal", false
+		}
 		b.valueMatcher.Region(b.valueMatcher.End()+1, b.valueMatcher.RegionEnd())
 
 		// Parse the corresponding value.
-		jsFileLineParser_check(b.valueMatcher.LookingAt(), "Bad value in JS object literal")
+		if !b.valueMatcher.LookingAt() {
+			return nil, "Bad value in JS object literal", false
+		}
 		val := b.valueMatcher.MatchedValue()
 		results.Put(key, val)
-		if !b.valueMatcher.HitEnd() {
-			jsFileLineParser_check(input[b.valueMatcher.End()] == ',', "Missing comma in JS object literal")
-			b.valueMatcher.Region(b.valueMatcher.End()+1, b.valueMatcher.RegionEnd())
-		} else {
-			done = true
+		if b.valueMatcher.HitEnd() {
+			break
 		}
+		if input[b.valueMatcher.End()] != ',' {
+			return nil, "Missing comma in JS object literal", false
+		}
+		b.valueMatcher.Region(b.valueMatcher.End()+1, b.valueMatcher.RegionEnd())
 	}
-	return results
+	return results, "", true
 }
 
-// Java: JsFileLineParser.check(boolean, String)
-func jsFileLineParser_check(condition bool, message string) {
-	if !condition {
-		panic(NewJsFileLineParser_ParseException(message, true /* fatal */))
+func jsFileLineParser_hasNonControlSpace(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > ' ' {
+			return true
+		}
 	}
+	return false
+}
+
+// jsFileLineParser_trimJava is Java's String.trim() without UTF-16 allocation:
+// every UTF-16 code unit <= 0x20 is an ASCII byte <= 0x20 in WTF-8.
+func jsFileLineParser_trimJava(s string) string {
+	start := 0
+	for start < len(s) && s[start] <= ' ' {
+		start++
+	}
+	end := len(s)
+	for end > start && s[end-1] <= ' ' {
+		end--
+	}
+	return s[start:end]
+}
+
+func jsFileLineParser_isCharMatcherSpace(r rune, size int) bool {
+	if r < utf8.RuneSelf {
+		return r == ' ' || (r >= 0x09 && r <= 0x0D)
+	}
+	if (r == utf8.RuneError && size == 1) || r > 0xFFFF {
+		return false
+	}
+	return jutil.CharMatcher_Whitespace_Matches(uint16(r))
+}
+
+func jsFileLineParser_trimCharMatcherWhitespace(s string) string {
+	start := 0
+	for start < len(s) {
+		c := s[start]
+		if c < utf8.RuneSelf {
+			if c != ' ' && (c < 0x09 || c > 0x0D) {
+				break
+			}
+			start++
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(s[start:])
+		if !jsFileLineParser_isCharMatcherSpace(r, size) {
+			break
+		}
+		start += size
+	}
+	end := len(s)
+	for end > start {
+		c := s[end-1]
+		if c < utf8.RuneSelf {
+			if c != ' ' && (c < 0x09 || c > 0x0D) {
+				break
+			}
+			end--
+			continue
+		}
+		r, size := utf8.DecodeLastRuneInString(s[start:end])
+		if !jsFileLineParser_isCharMatcherSpace(r, size) {
+			break
+		}
+		end -= size
+	}
+	return s[start:end]
 }
 
 // jsFileLineParser_stringLiteralMatcher is the java.util.regex.Matcher of
@@ -542,24 +461,17 @@ func jsFileLineParser_check(condition bool, message string) {
 // region always starts and ends next to one, so byte and UTF-16 matching
 // agree.
 type jsFileLineParser_stringLiteralMatcher struct {
-	input  string
-	from   int // region start
-	to     int // region end
-	hitEnd bool
-	// The last successful match: group 0 end and groups 1 and 2 (-1 when
-	// the group did not participate).
-	matched                bool
-	end                    int
-	g1Start, g1End         int
-	g2Start, g2End         int
-	requireEnd             bool
-	curStart, curEndOfLoop int
-}
-
-func newJsFileLineParser_stringLiteralMatcher(input string) *jsFileLineParser_stringLiteralMatcher {
-	m := &jsFileLineParser_stringLiteralMatcher{}
-	m.Reset(input)
-	return m
+	input      string
+	from       int // region start
+	to         int // region end
+	hitEnd     bool
+	matched    bool
+	end        int
+	g1Start    int
+	g1End      int
+	g2Start    int
+	g2End      int
+	requireEnd bool
 }
 
 // Reset is Matcher.reset(CharSequence): new input, whole-input region.
@@ -625,28 +537,6 @@ func (m *jsFileLineParser_stringLiteralMatcher) MatchedValue() string {
 	return m.input[m.g2Start:m.g2End]
 }
 
-// Group is Matcher.group(int) for groups 1 and 2: nil when the group did
-// not participate in the match.
-func (m *jsFileLineParser_stringLiteralMatcher) Group(group int) *string {
-	if !m.matched {
-		panic(jutil.NewIllegalStateExceptionMsg("No match found"))
-	}
-	var s, e int
-	switch group {
-	case 1:
-		s, e = m.g1Start, m.g1End
-	case 2:
-		s, e = m.g2Start, m.g2End
-	default:
-		panic(jutil.NewIndexOutOfBoundsException("No group " + jutil.ToJavaString(group)))
-	}
-	if s < 0 {
-		return nil
-	}
-	str := m.input[s:e]
-	return &str
-}
-
 func jsFileLineParser_isJavaSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\n' || c == 0x0B || c == '\f' || c == '\r'
 }
@@ -665,19 +555,13 @@ func (m *jsFileLineParser_stringLiteralMatcher) match(requireEnd bool) bool {
 		m.hitEnd = true
 	}
 	for p := i; p >= m.from; p-- {
-		// First alternative: '...'
-		if m.quoted(p, '\'', 1) {
-			return true
-		}
-		// Second alternative: "..."
-		if m.quoted(p, '"', 2) {
+		if m.quoted(p, '\'', 1) || m.quoted(p, '"', 2) {
 			return true
 		}
 	}
 	return false
 }
 
-// quoted matches the alternative quote((?:\\.|[^quote\\])*)quote\s* at p.
 func (m *jsFileLineParser_stringLiteralMatcher) quoted(p int, quote byte, group int) bool {
 	if p >= m.to {
 		m.hitEnd = true
@@ -689,22 +573,9 @@ func (m *jsFileLineParser_stringLiteralMatcher) quoted(p int, quote byte, group 
 	return m.greedyLoop(p+1, p+1, quote, group)
 }
 
-// greedyLoop is the greedy loop (?:\\.|[^quote\\])* at q, followed by the
-// closing quote, \s* and the end of the pattern.
-//
-// The two body alternatives never both match at one position (the first
-// starts with a backslash, the second excludes it), so the loop takes the
-// longest run of iterations and then tries the closing quote. When that
-// fails, Java backtracks to fewer iterations and tries the closing quote at
-// the start of each one; those characters are a backslash or not the quote,
-// and lie before the region end, so that backtracking neither matches nor
-// sets hitEnd.
 func (m *jsFileLineParser_stringLiteralMatcher) greedyLoop(groupStart int, q int, quote byte, group int) bool {
 	for {
-		// Body alternative 1: a backslash and any character but a line
-		// terminator.
 		if q >= m.to {
-			// Both alternatives read at the region end.
 			m.hitEnd = true
 			break
 		}
@@ -715,16 +586,11 @@ func (m *jsFileLineParser_stringLiteralMatcher) greedyLoop(groupStart int, q int
 				break
 			}
 			if jsFileLineParser_isJavaLineTerminatorAt(m.input, q+1) {
-				// Body alternative 2 rejects the backslash.
 				break
 			}
-			// Stepping over the first byte of the escaped character is
-			// enough: the bytes left of a multi-byte character are not ASCII,
-			// so body alternative 2 consumes them.
 			q += 2
 			continue
 		}
-		// Body alternative 2: any character but the quote and a backslash.
 		if c == quote {
 			break
 		}
@@ -733,9 +599,6 @@ func (m *jsFileLineParser_stringLiteralMatcher) greedyLoop(groupStart int, q int
 	return m.closing(groupStart, q, quote, group)
 }
 
-// jsFileLineParser_isJavaLineTerminatorAt reports whether the character at
-// byte offset i of s is one that Java's . does not match: \n, \r, U+0085,
-// U+2028 or U+2029.
 func jsFileLineParser_isJavaLineTerminatorAt(s string, i int) bool {
 	switch s[i] {
 	case '\n', '\r':
@@ -748,7 +611,6 @@ func jsFileLineParser_isJavaLineTerminatorAt(s string, i int) bool {
 	return false
 }
 
-// closing matches quote\s* at q and accepts.
 func (m *jsFileLineParser_stringLiteralMatcher) closing(groupStart int, q int, quote byte, group int) bool {
 	if q >= m.to {
 		m.hitEnd = true
@@ -764,8 +626,6 @@ func (m *jsFileLineParser_stringLiteralMatcher) closing(groupStart int, q int, q
 	if i >= m.to {
 		m.hitEnd = true
 	}
-	// Greedy \s* backs off one character at a time; only Matcher.matches()
-	// rejects an end before the region end.
 	if m.requireEnd && i != m.to {
 		return false
 	}

@@ -31,53 +31,24 @@ type GoogleCodingConvention struct {
 	CodingConventions_ProxyBase
 }
 
-const googleCodingConvention_serialVersionUID int64 = 1
+const (
+	googleOptionalArgPrefix = "opt_"
+	googleVarArgsName       = "var_args"
+)
 
-const GoogleCodingConvention_OPTIONAL_ARG_PREFIX = "opt_"
-
-const GoogleCodingConvention_VAR_ARGS_NAME = "var_args"
-
-var GoogleCodingConvention_ENUM_KEY_PATTERN = jutil.Pattern_Compile("[A-Z0-9][A-Z0-9_]*")
-
-var GoogleCodingConvention_PACKAGE_WITH_TEST_DIR = jutil.Pattern_Compile("^(.*)/(?:test|tests|testing)/(?:[^/]+)$")
-
-var GoogleCodingConvention_GENFILES_DIR = jutil.Pattern_Compile("-out/.*/(bin|genfiles)/(.*)$")
-
-// NewGoogleCodingConvention: by default, decorate the
-// ClosureCodingConvention.
-//
-// Java: GoogleCodingConvention()
 func NewGoogleCodingConvention() *GoogleCodingConvention {
 	return NewGoogleCodingConventionWithConvention(NewClosureCodingConvention())
 }
 
-// NewGoogleCodingConventionWithConvention decorates a wrapped
-// CodingConvention.
-//
-// Java: GoogleCodingConvention(CodingConvention)
 func NewGoogleCodingConventionWithConvention(convention CodingConvention) *GoogleCodingConvention {
 	c := &GoogleCodingConvention{}
-	c.self = c
-	c.InitCodingConventions_ProxyBase(convention)
+	c.CodingConventions_ProxyBase = newProxyBase(c, convention)
 	return c
 }
 
-// IsConstant enforces the Google const name convention, that the first
-// character after the last $ must be an upper-case letter and all
-// subsequent letters must be upper case. The name must be at least 2
-// characters long.
-//
-// Examples:
-//
-//	aaa          Not constant - lower-case letters in the name
-//	A            Not constant - too short
-//	goog$A       Constant - letters after the $ are upper-case.
-//	AA17         Constant - digits can appear after the first letter
-//	goog$7A      Not constant - first character after the $ must be
-//	             upper case.
-//	$A           Constant - doesn't have to be anything in front of the $
-//
-// Java: GoogleCodingConvention.isConstant(String)
+// IsConstant enforces the Google const name convention: the first character
+// after the last $ must be an upper-case letter, all subsequent letters must be
+// upper case, and the name must be at least 2 characters long.
 func (c *GoogleCodingConvention) IsConstant(name string) bool {
 	if len(name) <= 1 {
 		return false
@@ -96,47 +67,30 @@ func (c *GoogleCodingConvention) IsConstant(name string) bool {
 		}
 	}
 	if ascii {
-		start := 0
-		if lastDollar >= 0 {
-			start = lastDollar + 1
-		}
-		return googleCodingConvention_isConstantKeyASCII(name, start, len(name))
+		return isConstantKeyASCII(name, lastDollar+1, len(name))
 	}
 
-	if jutil.StringLength(name) <= 1 {
+	utf16Len := jutil.StringLength(name)
+	if utf16Len <= 1 {
 		return false
 	}
-
-	// In compiled code, '$' is often a namespace delimiter. To allow inlining
-	// of namespaced constants, we strip off any namespaces here.
 	pos := jutil.StringLastIndexOf(name, "$")
-	start := 0
-	if pos >= 0 {
-		start = pos + 1
-	}
-
-	return GoogleCodingConvention_IsConstantKeyWithRange(name, start, jutil.StringLength(name))
+	return isConstantKeyUTF16(name, pos+1, utf16Len)
 }
 
-// Java: GoogleCodingConvention.isConstantKey(String)
 func (c *GoogleCodingConvention) IsConstantKey(name string) bool {
 	if len(name) == 0 {
 		return false
 	}
-	ascii := true
 	for i := 0; i < len(name); i++ {
 		if name[i] >= 0x80 {
-			ascii = false
-			break
+			return isConstantKeyUTF16(name, 0, jutil.StringLength(name))
 		}
 	}
-	if ascii {
-		return googleCodingConvention_isConstantKeyASCII(name, 0, len(name))
-	}
-	return GoogleCodingConvention_IsConstantKeyWithRange(name, 0, jutil.StringLength(name))
+	return isConstantKeyASCII(name, 0, len(name))
 }
 
-func googleCodingConvention_isConstantKeyASCII(name string, start int, end int) bool {
+func isConstantKeyASCII(name string, start, end int) bool {
 	if start >= end {
 		return false
 	}
@@ -153,20 +107,11 @@ func googleCodingConvention_isConstantKeyASCII(name string, start int, end int) 
 	return true
 }
 
-// GoogleCodingConvention_IsConstantKeyWithRange returns true iff the
-// substring of name from [start, end) is a constant key.
-//
-// This method takes start and end indices, rather than checking an entire
-// string, to avoid the need for unnecessary .substring(start, end) calls
-//
-// Java: GoogleCodingConvention.isConstantKey(String, int, int)
-func GoogleCodingConvention_IsConstantKeyWithRange(name string, start int, end int) bool {
+func isConstantKeyUTF16(name string, start, end int) bool {
 	if start >= end || !jutil.CharacterIsUpperCase(jutil.StringCharAt(name, start)) {
 		return false
 	}
 	for i := start + 1; i < end; i++ {
-		// check this instead of Character.isUpperCase - they have different results for some
-		// characters like symbols. symbols are allowed unless at the start index.
 		ch := jutil.StringCharAt(name, i)
 		if jutil.CharacterToUpperCase(ch) != ch {
 			return false
@@ -175,15 +120,7 @@ func GoogleCodingConvention_IsConstantKeyWithRange(name string, start int, end i
 	return true
 }
 
-// IsValidEnumKey enforces Google's convention about enum key names. They
-// must match the regular expression [A-Z0-9][A-Z0-9_]*.
-//
-// Examples:
-//   - A
-//   - 213
-//   - FOO_BAR
-//
-// Java: GoogleCodingConvention.isValidEnumKey(String)
+// IsValidEnumKey enforces [A-Z0-9][A-Z0-9_]*.
 func (c *GoogleCodingConvention) IsValidEnumKey(key string) bool {
 	if len(key) == 0 {
 		return false
@@ -201,64 +138,55 @@ func (c *GoogleCodingConvention) IsValidEnumKey(key string) bool {
 	return true
 }
 
-// IsOptionalParameter: in Google code, parameter names beginning with opt_
-// are treated as optional arguments.
-//
-// Java: GoogleCodingConvention.isOptionalParameter(Node)
 func (c *GoogleCodingConvention) IsOptionalParameter(parameter rhino.Node) bool {
 	return c.CodingConventions_ProxyBase.IsOptionalParameter(parameter) ||
-		(parameter.IsName() && strings.HasPrefix(parameter.GetString(), GoogleCodingConvention_OPTIONAL_ARG_PREFIX))
+		(parameter.IsName() && strings.HasPrefix(parameter.GetString(), googleOptionalArgPrefix))
 }
 
-// Java: GoogleCodingConvention.isVarArgsParameter(Node)
 func (c *GoogleCodingConvention) IsVarArgsParameter(parameter rhino.Node) bool {
 	return c.CodingConventions_ProxyBase.IsVarArgsParameter(parameter) ||
-		(parameter.IsName() && GoogleCodingConvention_VAR_ARGS_NAME == parameter.GetString())
+		(parameter.IsName() && parameter.GetString() == googleVarArgsName)
 }
 
-// IsExportedWithLocal: in Google code, any global name starting with an
-// underscore is considered exported.
-//
-// Java: GoogleCodingConvention.isExported(String, boolean)
 func (c *GoogleCodingConvention) IsExportedWithLocal(name string, local bool) bool {
 	return c.CodingConventions_ProxyBase.IsExportedWithLocal(name, local) || (!local && strings.HasPrefix(name, "_"))
 }
 
-// Java: GoogleCodingConvention.isClassFactoryCall(Node)
 func (c *GoogleCodingConvention) IsClassFactoryCall(callNode rhino.Node) bool {
-	callTarget := callNode.GetFirstChild()
-	// Go-only: performance — in Java, `callTarget.isName() && callTarget.toString().equals("Polymer")`
-	// always evaluates to false because `Node.toString()` starts with `"NAME "`. Calling `callTarget.String()`
-	// here formats the entire Node and its JSType into a new string on every CALL node during CheckJSDoc.
-	return c.CodingConventions_ProxyBase.IsClassFactoryCall(callNode) ||
-		(callTarget.IsName() && false)
+	return c.CodingConventions_ProxyBase.IsClassFactoryCall(callNode)
 }
 
-// GetPackageName: in Google code, the package name of a source file is its
-// file path. Exceptions: if a source file's parent directory is "test",
-// "tests", or "testing", that directory is stripped from the package name.
-// If a file is generated, strip the "genfiles" prefix to try to match the
-// package of the generating file.
-//
-// Java: GoogleCodingConvention.getPackageName(StaticSourceFile)
+// GetPackageName returns the package directory path of source, stripping any
+// Bazel "-out/.../(bin|genfiles)/" prefix and trailing "/(test|tests|testing)"
+// parent directory.
 func (c *GoogleCodingConvention) GetPackageName(source rhino.StaticSourceFile) *string {
 	name := source.GetName()
-	genfilesMatcher := GoogleCodingConvention_GENFILES_DIR.Matcher(name)
-	if genfilesMatcher.Find() {
-		name = *genfilesMatcher.Group(2)
+	if !strings.ContainsAny(name, "\r\n") {
+		if outIdx := strings.Index(name, "-out/"); outIdx >= 0 {
+			after := name[outIdx+len("-out/"):]
+			binIdx := strings.LastIndex(after, "/bin/")
+			genIdx := strings.LastIndex(after, "/genfiles/")
+			switch {
+			case binIdx >= 0 && binIdx > genIdx:
+				name = after[binIdx+len("/bin/"):]
+			case genIdx >= 0:
+				name = after[genIdx+len("/genfiles/"):]
+			}
+		}
 	}
 
-	m := GoogleCodingConvention_PACKAGE_WITH_TEST_DIR.Matcher(name)
-	if m.Find() {
-		return m.Group(1)
-	} else {
-		lastSlash := jutil.StringLastIndexOf(name, "/")
-		var result string
-		if lastSlash == -1 {
-			result = ""
-		} else {
-			result = jutil.StringSubstring(name, 0, lastSlash)
-		}
-		return &result
+	lastSlash := strings.LastIndexByte(name, '/')
+	if lastSlash < 0 {
+		return &emptyPackageName
 	}
+	pkg := name[:lastSlash]
+	if lastSlash+1 < len(name) && !strings.ContainsAny(name, "\r\n") {
+		if prevSlash := strings.LastIndexByte(pkg, '/'); prevSlash >= 0 {
+			switch pkg[prevSlash+1:] {
+			case "test", "tests", "testing":
+				pkg = pkg[:prevSlash]
+			}
+		}
+	}
+	return &pkg
 }

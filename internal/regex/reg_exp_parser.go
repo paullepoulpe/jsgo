@@ -19,136 +19,198 @@
 package regex
 
 import (
-	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// RegExpTree_ParentheticalType is the kind of a parenthesized group.
-//
-// Java: private enum RegExpTree.ParentheticalType
-type RegExpTree_ParentheticalType int32
+// RegExpParseErrorKind classifies a regular expression parse failure.
+type RegExpParseErrorKind uint8
 
 const (
-	RegExpTree_ParentheticalType_CAPTURING RegExpTree_ParentheticalType = iota
-	RegExpTree_ParentheticalType_NONCAPTURING
-	RegExpTree_ParentheticalType_POSITIVE_LOOKAHEAD
-	RegExpTree_ParentheticalType_NEGATIVE_LOOKAHEAD
-	RegExpTree_ParentheticalType_POSITIVE_LOOKBEHIND
-	RegExpTree_ParentheticalType_NEGATIVE_LOOKBEHIND
-	RegExpTree_ParentheticalType_NAMED_GROUPS
+	RegExpParseErrorIllegalArgument RegExpParseErrorKind = iota
+	RegExpParseErrorIndexOutOfBounds
+	RegExpParseErrorStringIndexOutOfBounds
 )
 
-var regExpTree_ParentheticalType_names = [...]string{
-	"CAPTURING",
-	"NONCAPTURING",
-	"POSITIVE_LOOKAHEAD",
-	"NEGATIVE_LOOKAHEAD",
-	"POSITIVE_LOOKBEHIND",
-	"NEGATIVE_LOOKBEHIND",
-	"NAMED_GROUPS",
+// RegExpParseError describes a syntax or bounds error encountered while parsing
+// a regular expression pattern.
+type RegExpParseError struct {
+	Kind    RegExpParseErrorKind
+	Message string
+	isRange bool
+	index   int
+	end     int
+	length  int
 }
 
-// String is the constant's name.
-//
-// Java: ParentheticalType.name()
-func (p RegExpTree_ParentheticalType) String() string {
-	return regExpTree_ParentheticalType_names[p]
+func (e *RegExpParseError) Error() string {
+	return e.Message
 }
 
-// RegExpTree_ParseRegExp parses a regular expression to an AST.
+func (e *RegExpParseError) toThrowable() jutil.IRuntimeException {
+	switch e.Kind {
+	case RegExpParseErrorIndexOutOfBounds:
+		return jutil.NewIndexOutOfBoundsException(e.Message)
+	case RegExpParseErrorStringIndexOutOfBounds:
+		if e.isRange {
+			return jutil.NewStringIndexOutOfBoundsExceptionForRange(e.index, e.end, e.length)
+		}
+		return jutil.NewStringIndexOutOfBoundsExceptionForIndex(e.index, e.length)
+	default:
+		return jutil.NewIllegalArgumentExceptionMsg(e.Message)
+	}
+}
+
+func illegalArgError(msg string) *RegExpParseError {
+	return &RegExpParseError{
+		Kind:    RegExpParseErrorIllegalArgument,
+		Message: msg,
+	}
+}
+
+func stringIndexError(index, length int) *RegExpParseError {
+	return &RegExpParseError{
+		Kind:    RegExpParseErrorStringIndexOutOfBounds,
+		Message: "Index " + strconv.Itoa(index) + " out of bounds for length " + strconv.Itoa(length),
+		index:   index,
+		length:  length,
+	}
+}
+
+func stringRangeError(begin, end, length int) *RegExpParseError {
+	return &RegExpParseError{
+		Kind:    RegExpParseErrorStringIndexOutOfBounds,
+		Message: "Range [" + strconv.Itoa(begin) + ", " + strconv.Itoa(end) + ") out of bounds for length " + strconv.Itoa(length),
+		isRange: true,
+		index:   begin,
+		end:     end,
+		length:  length,
+	}
+}
+
+func charRangeOrderError(start, end int) *RegExpParseError {
+	return &RegExpParseError{
+		Kind:    RegExpParseErrorIndexOutOfBounds,
+		Message: strconv.Itoa(start) + " > " + strconv.Itoa(end),
+	}
+}
+
+type parentheticalType uint8
+
+const (
+	parentheticalCapturing parentheticalType = iota
+	parentheticalNonCapturing
+	parentheticalPositiveLookahead
+	parentheticalNegativeLookahead
+	parentheticalPositiveLookbehind
+	parentheticalNegativeLookbehind
+	parentheticalNamedGroups
+)
+
+// ParseRegExp parses a regular expression pattern and flags into a RegExpTree,
+// returning a structured *RegExpParseError instead of panicking on malformed input.
 //
 // pattern is the "foo" from /foo/i; flags is the "i" from /foo/i.
+func ParseRegExp(pattern string, flags string) (RegExpTree, *RegExpParseError) {
+	var p regExpParser
+	p.init(pattern, flags)
+	return p.parseTopLevel()
+}
+
+// RegExpTree_ParseRegExp parses a regular expression to an AST, panicking with
+// the matching Java RuntimeException on malformed input.
 //
 // Java: RegExpTree.parseRegExp(String, String)
 func RegExpTree_ParseRegExp(pattern string, flags string) RegExpTree {
-	return NewRegExpTree_Parser(pattern, flags).ParseTopLevel()
+	tree, err := ParseRegExp(pattern, flags)
+	if err != nil {
+		panic(err.toThrowable())
+	}
+	return tree
 }
 
-// RegExpTree_Parser is a recursive descent parser that closes over pattern
-// and flags.
+// regExpParser is a recursive descent parser over pattern and flags.
 //
-// Java: local class Parser in RegExpTree.parseRegExp(String, String); the
-// captured pattern and flags are constructor parameters.
-type RegExpTree_Parser struct {
-	pattern string
-	flags   string
-
-	// Go-only: language-adapter — the UTF-16 code units of pattern, so that
-	// pattern.charAt(i) is O(1) as in Java.
-	patternChars []uint16
-
-	// The number of characters in pattern consumed.
-	pos int
-
-	// The number of capturing groups seen so far.
-	numCapturingGroups int
-
-	// The names of capturing groups in the regex expression
-	capturingGroupNames map[string]bool
-
-	// The length of pattern.
-	limit int
-
-	// Boolean indicating whether we should look for named capture group
-	// backreferences
+// Java: local class Parser in RegExpTree.parseRegExp(String, String).
+type regExpParser struct {
+	pattern                           string
+	patternChars                      []uint16
+	pos                               int
+	numCapturingGroups                int
+	capturingGroupNames               map[string]bool
+	limit                             int
+	isASCII                           bool
+	isCaseInsensitive                 bool
+	hasUFlag                          bool
 	lookForNamedCaptureBackreferences bool
 }
 
-// NewRegExpTree_Parser constructs the parser for pattern and flags.
-//
-// Java: new Parser() (inside parseRegExp)
-func NewRegExpTree_Parser(pattern string, flags string) *RegExpTree_Parser {
-	p := &RegExpTree_Parser{}
+func (p *regExpParser) init(pattern, flags string) {
 	p.pattern = pattern
-	p.flags = flags
-	p.patternChars = jutil.StringToUTF16(pattern)
-	p.capturingGroupNames = make(map[string]bool)
-	p.limit = len(p.patternChars)
-	return p
+	p.isCaseInsensitive = strings.IndexByte(flags, 'i') >= 0
+	p.hasUFlag = strings.IndexByte(flags, 'u') >= 0
+	if jutil.IsASCII(pattern) {
+		p.isASCII = true
+		p.limit = len(pattern)
+	} else {
+		p.patternChars = jutil.StringToUTF16(pattern)
+		p.limit = len(p.patternChars)
+	}
 }
 
-// charAt is pattern.charAt(i).
-//
-// Go-only: language-adapter — String.charAt on the UTF-16 view, with Java's
-// StringIndexOutOfBoundsException.
-func (p *RegExpTree_Parser) charAt(i int) uint16 {
-	if i < 0 || i >= len(p.patternChars) {
-		panic(jutil.NewStringIndexOutOfBoundsExceptionForIndex(i, len(p.patternChars)))
+// codeUnitAt returns the UTF-16 code unit at i when 0 <= i < p.limit is already known.
+func (p *regExpParser) codeUnitAt(i int) uint16 {
+	if p.isASCII {
+		return uint16(p.pattern[i])
 	}
 	return p.patternChars[i]
 }
 
-// substring is pattern.substring(begin, end).
-//
-// Go-only: language-adapter — String.substring on the UTF-16 view, with
-// Java's StringIndexOutOfBoundsException.
-func (p *RegExpTree_Parser) substring(begin, end int) string {
-	if begin < 0 || end > len(p.patternChars) || begin > end {
-		panic(jutil.NewStringIndexOutOfBoundsExceptionForRange(begin, end, len(p.patternChars)))
+func (p *regExpParser) charAt(i int) (uint16, *RegExpParseError) {
+	if i < 0 || i >= p.limit {
+		return 0, stringIndexError(i, p.limit)
 	}
-	return jutil.StringFromUTF16(p.patternChars[begin:end])
+	return p.codeUnitAt(i), nil
 }
 
-// substringFrom is pattern.substring(begin).
-//
-// Go-only: language-adapter — see substring.
-func (p *RegExpTree_Parser) substringFrom(begin int) string {
-	return p.substring(begin, len(p.patternChars))
+func (p *regExpParser) substring(begin, end int) (string, *RegExpParseError) {
+	if begin < 0 || end > p.limit || begin > end {
+		return "", stringRangeError(begin, end, p.limit)
+	}
+	if p.isASCII {
+		return p.pattern[begin:end], nil
+	}
+	return jutil.StringFromUTF16(p.patternChars[begin:end]), nil
 }
 
-// ParseTopLevel parses the whole pattern.
+func (p *regExpParser) sliceError(prefix string, begin, end int) *RegExpParseError {
+	sub, err := p.substring(begin, end)
+	if err != nil {
+		return err
+	}
+	return illegalArgError(prefix + sub)
+}
+
+func (p *regExpParser) tailError(prefix string, begin int) *RegExpParseError {
+	return p.sliceError(prefix, begin, p.limit)
+}
+
+// parseTopLevel parses the whole pattern.
 //
 // Java: Parser.parseTopLevel()
-func (p *RegExpTree_Parser) ParseTopLevel() RegExpTree {
+func (p *regExpParser) parseTopLevel() (RegExpTree, *RegExpParseError) {
 	// First assume there are no named capture backreferences,
 	// because the spec says they should only be recognized
 	// if the pattern contains at least one named capture group.
 	p.pos = 0
 	p.numCapturingGroups = 0
 	p.lookForNamedCaptureBackreferences = false
-	out := p.Parse()
+	out, err := p.parse()
+	if err != nil {
+		return nil, err
+	}
 
 	// If there were named capture groups, we must parse the pattern string again
 	// so we can check for any backreferences to them.
@@ -156,20 +218,23 @@ func (p *RegExpTree_Parser) ParseTopLevel() RegExpTree {
 		p.pos = 0
 		p.numCapturingGroups = 0
 		p.lookForNamedCaptureBackreferences = true
-		out = p.Parse()
+		out, err = p.parse()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if p.pos < p.limit { // Unmatched closed paren maybe.
-		panic(jutil.NewIllegalArgumentExceptionMsg(p.substringFrom(p.pos)))
+		return nil, p.tailError("", p.pos)
 	}
-	return out
+	return out, nil
 }
 
-// Parse parses a disjunction up to the end of the pattern or an unmatched
+// parse parses a disjunction up to the end of the pattern or an unmatched
 // close paren.
 //
 // Java: Parser.parse()
-func (p *RegExpTree_Parser) Parse() RegExpTree {
+func (p *regExpParser) parse() (RegExpTree, *RegExpParseError) {
 	// Collects ["foo", "bar", "baz"] for /foo|bar|baz/.
 	var alternatives []RegExpTree
 	// The last item parsed within an alternation.
@@ -177,17 +242,18 @@ func (p *RegExpTree_Parser) Parse() RegExpTree {
 
 topLoop:
 	for p.pos < p.limit {
-		ch := p.charAt(p.pos)
+		ch := p.codeUnitAt(p.pos)
 		var atom RegExpTree
+		var err *RegExpParseError
 		switch ch {
 		case '[':
-			atom = p.ParseCharset()
+			atom, err = p.parseCharset()
 		case '(':
-			atom = p.ParseParenthetical()
+			atom, err = p.parseParenthetical()
 		case ')':
 			break topLoop
 		case '\\':
-			atom = p.ParseEscape()
+			atom, err = p.parseEscape()
 		case '^', '$':
 			atom = NewRegExpTree_Anchor(ch)
 			p.pos++
@@ -207,38 +273,42 @@ topLoop:
 			end := p.pos + 1
 		charsLoop:
 			for end < p.limit {
-				switch p.charAt(end) {
+				switch p.codeUnitAt(end) {
 				case '[', '(', ')', '\\', '^', '$', '|', '.', '*', '+', '?', '{':
 					break charsLoop
 				default:
 					// Repetition binds more tightly than concatenation.
 					// Only consume up to "foo" in /foob*/ so that the suffix
 					// operator parser below has the right precedence.
-					if end+1 >= p.limit || !p.IsRepetitionStart(p.charAt(end+1)) {
+					if end+1 >= p.limit || !isRepetitionStart(p.codeUnitAt(end+1)) {
 						end++
 					} else {
 						break charsLoop
 					}
 				}
 			}
-			atom = NewRegExpTree_Text(p.substring(start, end))
-			p.pos = end
+			var text string
+			text, err = p.substring(start, end)
+			if err == nil {
+				atom = NewRegExpTree_Text(text)
+				p.pos = end
+			}
 		}
-		if p.pos < p.limit && p.IsRepetitionStart(p.charAt(p.pos)) {
-			atom = p.ParseRepetition(atom)
+		if err != nil {
+			return nil, err
+		}
+		if p.pos < p.limit && isRepetitionStart(p.codeUnitAt(p.pos)) {
+			atom = p.parseRepetition(atom)
 		}
 		if preceder == nil {
 			preceder = atom
 		} else {
 			preceder = NewRegExpTree_ConcatenationOfPair(preceder, atom)
 		}
-		// If this is an alternative in a alternation, then add it to the
+		// If this is an alternative in an alternation, then add it to the
 		// list of complete alternatives, and reset the parser state for the
 		// next alternative.
-		if p.pos < p.limit && p.charAt(p.pos) == '|' {
-			if alternatives == nil {
-				alternatives = []RegExpTree{}
-			}
+		if p.pos < p.limit && p.codeUnitAt(p.pos) == '|' {
 			alternatives = append(alternatives, preceder)
 			preceder = nil
 			p.pos++
@@ -250,173 +320,180 @@ topLoop:
 	}
 	if alternatives != nil {
 		alternatives = append(alternatives, preceder)
-		return NewRegExpTree_Alternation(alternatives)
-	} else {
-		return preceder
+		return NewRegExpTree_Alternation(alternatives), nil
 	}
+	return preceder, nil
 }
 
-// ParseParenthetical handles capturing groups (...), non-capturing groups
-// (?:...), and lookahead assertions (?=...).
+// parseParenthetical handles capturing groups (...), non-capturing groups
+// (?:...), and lookahead/lookbehind assertions.
 //
 // Java: Parser.parseParenthetical()
-func (p *RegExpTree_Parser) ParseParenthetical() RegExpTree {
-	jutil.CheckState(p.charAt(p.pos) == '(')
+func (p *regExpParser) parseParenthetical() (RegExpTree, *RegExpParseError) {
 	start := p.pos
 	p.pos++
-	var type_ RegExpTree_ParentheticalType
-	var captureName *string
-	if p.pos < p.limit && p.charAt(p.pos) == '?' {
+	var kind parentheticalType
+	var captureName string
+	if p.pos < p.limit && p.codeUnitAt(p.pos) == '?' {
 		if p.pos+1 < p.limit {
-			ch := p.charAt(p.pos + 1)
+			ch := p.codeUnitAt(p.pos + 1)
 			switch ch {
 			case ':':
-				// (?:...) Non-capturing groups.
 				p.pos += 2
-				type_ = RegExpTree_ParentheticalType_NONCAPTURING
-			// (?=...) and (?!...) Lookahead Assertions
+				kind = parentheticalNonCapturing
 			case '=':
 				p.pos += 2
-				type_ = RegExpTree_ParentheticalType_POSITIVE_LOOKAHEAD
+				kind = parentheticalPositiveLookahead
 			case '!':
 				p.pos += 2
-				type_ = RegExpTree_ParentheticalType_NEGATIVE_LOOKAHEAD
-			// (?<=...) and (?<!...) Lookbehind Assertions, (?<name>) named groups
+				kind = parentheticalNegativeLookahead
 			case '<':
-				if p.pos+2 < p.limit && p.charAt(p.pos+2) == '=' {
+				if p.pos+2 < p.limit && p.codeUnitAt(p.pos+2) == '=' {
 					p.pos += 3
-					type_ = RegExpTree_ParentheticalType_POSITIVE_LOOKBEHIND
-				} else if p.pos+2 < p.limit && p.charAt(p.pos+2) == '!' {
+					kind = parentheticalPositiveLookbehind
+				} else if p.pos+2 < p.limit && p.codeUnitAt(p.pos+2) == '!' {
 					p.pos += 3
-					type_ = RegExpTree_ParentheticalType_NEGATIVE_LOOKBEHIND
+					kind = parentheticalNegativeLookbehind
 				} else {
 					p.pos += 2
-					name := p.ScanNamedGroupName()
-					captureName = &name
-					p.capturingGroupNames[*captureName] = true
-					type_ = RegExpTree_ParentheticalType_NAMED_GROUPS
+					name, err := p.scanNamedGroupName()
+					if err != nil {
+						return nil, err
+					}
+					captureName = name
+					if p.capturingGroupNames == nil {
+						p.capturingGroupNames = make(map[string]bool)
+					}
+					p.capturingGroupNames[captureName] = true
+					kind = parentheticalNamedGroups
 				}
 			default:
-				panic(jutil.NewIllegalArgumentExceptionMsg(
-					"Malformed parenthetical: " + p.substringFrom(start)))
+				return nil, p.tailError("Malformed parenthetical: ", start)
 			}
 		} else {
-			panic(jutil.NewIllegalArgumentExceptionMsg(
-				"Malformed parenthetical: " + p.substringFrom(start)))
+			return nil, p.tailError("Malformed parenthetical: ", start)
 		}
 	} else {
-		type_ = RegExpTree_ParentheticalType_CAPTURING
+		kind = parentheticalCapturing
 	}
-	body := p.Parse()
-	if p.pos < p.limit && p.charAt(p.pos) == ')' {
+	body, err := p.parse()
+	if err != nil {
+		return nil, err
+	}
+	if p.pos < p.limit && p.codeUnitAt(p.pos) == ')' {
 		p.pos++
 	} else {
-		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"Unclosed parenthetical group: " + p.substringFrom(start)))
+		return nil, p.tailError("Unclosed parenthetical group: ", start)
 	}
-	switch type_ {
-	case RegExpTree_ParentheticalType_CAPTURING:
+	switch kind {
+	case parentheticalCapturing:
 		p.numCapturingGroups++
-		return NewRegExpTree_CapturingGroup(body)
-	case RegExpTree_ParentheticalType_NONCAPTURING:
-		return body
-	case RegExpTree_ParentheticalType_POSITIVE_LOOKAHEAD:
-		return NewRegExpTree_LookaheadAssertion(body, true)
-	case RegExpTree_ParentheticalType_NEGATIVE_LOOKAHEAD:
-		return NewRegExpTree_LookaheadAssertion(body, false)
-	case RegExpTree_ParentheticalType_POSITIVE_LOOKBEHIND:
-		return NewRegExpTree_LookbehindAssertion(body, true)
-	case RegExpTree_ParentheticalType_NEGATIVE_LOOKBEHIND:
-		return NewRegExpTree_LookbehindAssertion(body, false)
-	case RegExpTree_ParentheticalType_NAMED_GROUPS:
-		if captureName != nil {
-			p.numCapturingGroups++
-			return NewRegExpTree_NamedCaptureGroup(body, *captureName)
-		} else {
-			panic(jutil.NewIllegalArgumentExceptionMsg(
-				"Malformed named capture group: " + p.substringFrom(start)))
-		}
+		return NewRegExpTree_CapturingGroup(body), nil
+	case parentheticalNonCapturing:
+		return body, nil
+	case parentheticalPositiveLookahead:
+		return NewRegExpTree_LookaheadAssertion(body, true), nil
+	case parentheticalNegativeLookahead:
+		return NewRegExpTree_LookaheadAssertion(body, false), nil
+	case parentheticalPositiveLookbehind:
+		return NewRegExpTree_LookbehindAssertion(body, true), nil
+	case parentheticalNegativeLookbehind:
+		return NewRegExpTree_LookbehindAssertion(body, false), nil
+	default:
+		p.numCapturingGroups++
+		return NewRegExpTree_NamedCaptureGroup(body, captureName), nil
 	}
-	panic(jutil.NewAssertionError("Unrecognized ParentheticalType " + type_.String()))
 }
 
-// ScanNamedGroupName scans the pattern for a named group name. Assumes that
-// pos points to the character after '<'. Returns the group name.
+// scanNamedGroupName scans the pattern for a named group name. Assumes that
+// pos points to the character after '<'.
 //
 // Java: Parser.scanNamedGroupName()
-func (p *RegExpTree_Parser) ScanNamedGroupName() string {
+func (p *regExpParser) scanNamedGroupName() (string, *RegExpParseError) {
 	start := p.pos
 	end := p.pos
-	if !RegExpTree_IsIdentifierStart(p.charAt(start)) {
-		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"Invalid capture group name: <" + p.substringFrom(start)))
+	first, err := p.charAt(start)
+	if err != nil {
+		return "", err
+	}
+	if !RegExpTree_IsIdentifierStart(first) {
+		return "", p.tailError("Invalid capture group name: <", start)
 	}
 	end++
 	for end < p.limit {
-		if p.charAt(end) == '>' {
+		ch := p.codeUnitAt(end)
+		if ch == '>' {
 			p.pos = end + 1
 			return p.substring(start, end)
-		} else if RegExpTree_IsIdentifierPart(p.charAt(end)) {
+		} else if RegExpTree_IsIdentifierPart(ch) {
 			end++
 		} else {
-			panic(jutil.NewIllegalArgumentExceptionMsg(
-				"Invalid capture group name: <" + p.substringFrom(start)))
+			return "", p.tailError("Invalid capture group name: <", start)
 		}
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg(
-		"Malformed named capture group: <" + p.substringFrom(start)))
+	return "", p.tailError("Malformed named capture group: <", start)
 }
 
-// ParseCharset parses a square bracketed character set. Standalone character
-// groups /\d/ are handled by ParseEscape.
+// parseCharset parses a square bracketed character set. Standalone character
+// groups /\d/ are handled by parseEscape.
 //
 // Java: Parser.parseCharset()
-func (p *RegExpTree_Parser) ParseCharset() RegExpTree {
-	jutil.CheckState(p.charAt(p.pos) == '[')
+func (p *regExpParser) parseCharset() (RegExpTree, *RegExpParseError) {
 	p.pos++
-
-	isCaseInsensitive := strings.IndexByte(p.flags, 'i') >= 0
-	inverse := p.pos < p.limit && p.charAt(p.pos) == '^'
+	inverse := p.pos < p.limit && p.codeUnitAt(p.pos) == '^'
 	if inverse {
 		p.pos++
 	}
 	ranges := CharRanges_EMPTY
 	ieExplicits := CharRanges_EMPTY
-	for p.pos < p.limit && p.charAt(p.pos) != ']' {
-		ch := p.charAt(p.pos)
+	for p.pos < p.limit && p.codeUnitAt(p.pos) != ']' {
+		ch := p.codeUnitAt(p.pos)
 		var start int
 		if ch == '\\' {
 			p.pos++
-			possibleGroupName := p.charAt(p.pos)
+			possibleGroupName, err := p.charAt(p.pos)
+			if err != nil {
+				return nil, err
+			}
 			group := regExpTree_namedCharGroup(possibleGroupName)
 			if group != nil {
 				p.pos++
 				ranges = ranges.Union(group)
 				continue
 			}
-			start = p.ParseEscapeChar()
+			start, err = p.parseEscapeChar()
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			start = int(ch)
 			p.pos++
 		}
 		end := start
-		if p.pos+1 < p.limit && p.charAt(p.pos) == '-' && p.charAt(p.pos+1) != ']' {
+		if p.pos+1 < p.limit && p.codeUnitAt(p.pos) == '-' && p.codeUnitAt(p.pos+1) != ']' {
 			p.pos++
-			ch = p.charAt(p.pos)
+			ch = p.codeUnitAt(p.pos)
 			if ch == '\\' {
 				p.pos++
-				end = p.ParseEscapeChar()
+				var err *RegExpParseError
+				end, err = p.parseEscapeChar()
+				if err != nil {
+					return nil, err
+				}
 			} else {
 				end = int(ch)
 				p.pos++
 			}
+		}
+		if start > end {
+			return nil, charRangeOrderError(start, end)
 		}
 		range_ := CharRanges_Inclusive(start, end)
 		ranges = ranges.Union(range_)
 		if RegExpTree_IE_SPEC_ERRORS.Contains(start) && RegExpTree_IE_SPEC_ERRORS.Contains(end) {
 			ieExplicits = ieExplicits.Union(range_.Intersection(RegExpTree_IE_SPEC_ERRORS))
 		}
-		if isCaseInsensitive {
+		if p.isCaseInsensitive {
 			// If the flags contain the 'i' flag, then it is not correct to
 			// say that [^a-z] contains the letter 'A', or that [a-z] does not
 			// contain the letter 'A'.
@@ -439,38 +516,38 @@ func (p *RegExpTree_Parser) ParseCharset() RegExpTree {
 		ranges = CharRanges_ALL_CODE_UNITS.Difference(ranges)
 	}
 
-	return NewRegExpTree_Charset(ranges, ieExplicits)
+	return NewRegExpTree_Charset(ranges, ieExplicits), nil
 }
 
-// ParseEscapeChar parses an escape to a code point. Some of the characters
-// parsed here have special meanings in various contexts, so contexts must
-// filter those instead. E.g. '\b' means a different thing inside a charset
-// than without.
+// parseEscapeChar parses an escape to a code point.
 //
 // Java: Parser.parseEscapeChar()
-func (p *RegExpTree_Parser) ParseEscapeChar() int {
+func (p *regExpParser) parseEscapeChar() (int, *RegExpParseError) {
 	p.pos++
-	ch := p.charAt(p.pos - 1)
+	ch, err := p.charAt(p.pos - 1)
+	if err != nil {
+		return 0, err
+	}
 	switch ch {
 	case 'b':
-		return '\b'
+		return '\b', nil
 	case 'f':
-		return '\f'
+		return '\f', nil
 	case 'n':
-		return '\n'
+		return '\n', nil
 	case 'r':
-		return '\r'
+		return '\r', nil
 	case 't':
-		return '\t'
+		return '\t', nil
 	case 'u':
-		if strings.Contains(p.flags, "u") && p.pos < p.limit && p.charAt(p.pos) == '{' {
-			return p.ParseBracedUnicodeEscape()
+		if p.hasUFlag && p.pos < p.limit && p.codeUnitAt(p.pos) == '{' {
+			return p.parseBracedUnicodeEscape()
 		}
-		return p.ParseHex(4)
+		return p.parseHex(4)
 	case 'v':
-		return '\u000b'
+		return '\u000b', nil
 	case 'x':
-		return p.ParseHex(2)
+		return p.parseHex(2)
 	default:
 		if '0' <= ch && ch <= '7' {
 			codeUnit := ch - '0'
@@ -487,7 +564,7 @@ func (p *RegExpTree_Parser) ParseEscapeChar() int {
 			}
 			octLimit := min(p.limit, p.pos+extra)
 			for p.pos < octLimit {
-				ch = p.charAt(p.pos)
+				ch = p.codeUnitAt(p.pos)
 				if '0' <= ch && ch <= '7' {
 					codeUnit = (codeUnit << 3) + (ch - '0')
 					p.pos++
@@ -495,91 +572,97 @@ func (p *RegExpTree_Parser) ParseEscapeChar() int {
 					break
 				}
 			}
-			return int(codeUnit)
+			return int(codeUnit), nil
 		}
-		return int(ch)
+		return int(ch), nil
 	}
 }
 
-// ParseEscape parses an escape that appears outside a charset.
+func isUnicodePropertyIdentChar(ch uint16) bool {
+	return ch == '_' ||
+		('a' <= ch && ch <= 'z') ||
+		('A' <= ch && ch <= 'Z') ||
+		('0' <= ch && ch <= '9')
+}
+
+func stringFromCodePoint(cp int) string {
+	if cp <= 0xFFFF {
+		return jutil.StringFromChar(uint16(cp))
+	}
+	return string(rune(cp))
+}
+
+// parseEscape parses an escape that appears outside a charset.
 //
 // Java: Parser.parseEscape()
-func (p *RegExpTree_Parser) ParseEscape() RegExpTree {
-	jutil.CheckState(p.charAt(p.pos) == '\\')
+func (p *regExpParser) parseEscape() (RegExpTree, *RegExpParseError) {
 	start := p.pos
 	p.pos++
-	ch := p.charAt(p.pos)
+	ch, err := p.charAt(p.pos)
+	if err != nil {
+		return nil, err
+	}
 	if ch == 'b' || ch == 'B' {
 		p.pos++
-		return NewRegExpTree_WordBoundary(ch)
-	} else if (ch == 'p' || ch == 'P') && strings.Contains(p.flags, "u") {
+		return NewRegExpTree_WordBoundary(ch), nil
+	} else if (ch == 'p' || ch == 'P') && p.hasUFlag {
 		// handle ES2018 unicode property tests, e.g.
 		// /\p{ASCII_Hex_Digit=true}/ only hex digits
 		// /\P{Script=Greek}/  no greek letters
 		negated := ch == 'P'
 		p.pos++
-		if p.pos < p.limit && p.charAt(p.pos) == '{' {
-			lhs := jutil.NewStringBuilder()
+		if p.pos < p.limit && p.codeUnitAt(p.pos) == '{' {
+			lhsStart := p.pos + 1
 			for {
 				p.pos++
 				if !(p.pos < p.limit) {
 					break
 				}
-				ch = p.charAt(p.pos)
-				if !(ch == '_' ||
-					('a' <= ch && ch <= 'z') ||
-					('A' <= ch && ch <= 'Z') ||
-					('0' <= ch && ch <= '9')) {
+				ch = p.codeUnitAt(p.pos)
+				if !isUnicodePropertyIdentChar(ch) {
 					break
 				}
-				lhs.AppendChar(ch)
+			}
+			lhs, err := p.substring(lhsStart, p.pos)
+			if err != nil {
+				return nil, err
 			}
 			if p.pos < p.limit && ch == '}' {
 				// Case of shorthand like /\p{ASCII_Hex_Digit}/u
 				p.pos++
-				return NewRegExpTree_UnicodePropertyEscape(nil, lhs.String(), negated)
+				return newUnicodePropertyEscape(nil, lhs, negated)
 			} else if p.pos < p.limit && ch == '=' {
 				// Case of having '=' like /\p{Script=Greek}/u
-				rhs := jutil.NewStringBuilder()
+				rhsStart := p.pos + 1
 				for {
 					p.pos++
 					if !(p.pos < p.limit) {
 						break
 					}
-					ch = p.charAt(p.pos)
-					if !(ch == '_' ||
-						('a' <= ch && ch <= 'z') ||
-						('A' <= ch && ch <= 'Z') ||
-						('0' <= ch && ch <= '9')) {
+					ch = p.codeUnitAt(p.pos)
+					if !isUnicodePropertyIdentChar(ch) {
 						break
 					}
-					rhs.AppendChar(ch)
 				}
 				if p.pos < p.limit && ch == '}' {
+					rhs, err := p.substring(rhsStart, p.pos)
+					if err != nil {
+						return nil, err
+					}
 					p.pos++
-					lhsString := lhs.String()
-					return NewRegExpTree_UnicodePropertyEscape(&lhsString, rhs.String(), negated)
-				} else {
-					panic(jutil.NewIllegalArgumentExceptionMsg(
-						"Malformed Unicode Property Escape: expected '}' after " +
-							p.substring(start, p.pos)))
+					return newUnicodePropertyEscape(&lhs, rhs, negated)
 				}
-			} else {
-				panic(jutil.NewIllegalArgumentExceptionMsg(
-					"Malformed Unicode Property Escape: expected '=' or '}' after " +
-						p.substring(start, p.pos)))
+				return nil, p.sliceError("Malformed Unicode Property Escape: expected '}' after ", start, p.pos)
 			}
-		} else {
-			panic(jutil.NewIllegalArgumentExceptionMsg(
-				"Malformed Unicode Property Escape: expected '{' after " +
-					p.substring(start, p.pos)))
+			return nil, p.sliceError("Malformed Unicode Property Escape: expected '=' or '}' after ", start, p.pos)
 		}
+		return nil, p.sliceError("Malformed Unicode Property Escape: expected '{' after ", start, p.pos)
 	} else if '1' <= ch && ch <= '9' {
 		p.pos++
 		possibleGroupIndex := int(ch - '0')
 		if p.numCapturingGroups >= possibleGroupIndex {
 			if p.pos < p.limit {
-				next := p.charAt(p.pos)
+				next := p.codeUnitAt(p.pos)
 				if '0' <= next && next <= '9' {
 					twoDigitGroupIndex := possibleGroupIndex*10 + int(next-'0')
 					if p.numCapturingGroups >= twoDigitGroupIndex {
@@ -588,59 +671,61 @@ func (p *RegExpTree_Parser) ParseEscape() RegExpTree {
 					}
 				}
 			}
-			return NewRegExpTree_BackReference(possibleGroupIndex)
-		} else {
-			// \1 - \7 are octal escapes if there is no such group.
-			// \8 and \9 are the literal characters '8' and '9' if there
-			// is no such group.
-			c := ch
-			if possibleGroupIndex <= 7 {
-				c = uint16(possibleGroupIndex)
-			}
-			return NewRegExpTree_Text(jutil.StringFromChar(c))
+			return NewRegExpTree_BackReference(possibleGroupIndex), nil
 		}
+		// \1 - \7 are octal escapes if there is no such group.
+		// \8 and \9 are the literal characters '8' and '9' if there
+		// is no such group.
+		c := ch
+		if possibleGroupIndex <= 7 {
+			c = uint16(possibleGroupIndex)
+		}
+		return NewRegExpTree_Text(jutil.StringFromChar(c)), nil
 	} else if p.lookForNamedCaptureBackreferences &&
 		ch == 'k' &&
 		p.pos+1 < p.limit &&
-		p.charAt(p.pos+1) == '<' &&
+		p.codeUnitAt(p.pos+1) == '<' &&
 		// According to the spec
 		// https://github.com/tc39/proposal-regexp-named-groups#backwards-compatibility-of-new-syntax
 		// we want to treat \k as a normal string if there are no named capturing groups present
 		len(p.capturingGroupNames) != 0 {
 		p.pos += 2
-		potentialName := p.ScanNamedGroupName()
+		potentialName, err := p.scanNamedGroupName()
+		if err != nil {
+			return nil, err
+		}
 		if !p.capturingGroupNames[potentialName] {
-			panic(jutil.NewIllegalArgumentExceptionMsg(
-				"Invalid named capture referenced: " + p.substringFrom(start)))
+			return nil, p.tailError("Invalid named capture referenced: ", start)
 		}
-		return NewRegExpTree_NamedBackReference(potentialName)
-	} else {
-		charGroup := regExpTree_namedCharGroup(ch)
-		if charGroup != nil { // Handle \d, etc.
-			p.pos++
-			return NewRegExpTree_Charset(charGroup, CharRanges_EMPTY)
-		}
-		return NewRegExpTree_Text(jutil.StringFromUTF16(jutil.CharacterToChars(p.ParseEscapeChar())))
+		return NewRegExpTree_NamedBackReference(potentialName), nil
 	}
+	charGroup := regExpTree_namedCharGroup(ch)
+	if charGroup != nil { // Handle \d, etc.
+		p.pos++
+		return NewRegExpTree_Charset(charGroup, CharRanges_EMPTY), nil
+	}
+	cp, err := p.parseEscapeChar()
+	if err != nil {
+		return nil, err
+	}
+	return NewRegExpTree_Text(stringFromCodePoint(cp)), nil
 }
 
-// ParseHex parses n hex digits to a code-unit.
+// parseHex parses n hex digits to a code-unit.
 //
 // Java: Parser.parseHex(int)
-func (p *RegExpTree_Parser) ParseHex(n int) int {
+func (p *regExpParser) parseHex(n int) (int, *RegExpParseError) {
 	if p.pos+n > p.limit {
-		panic(jutil.NewIllegalArgumentExceptionMsg("Abbreviated hex escape " + p.substringFrom(p.pos)))
+		return 0, p.tailError("Abbreviated hex escape ", p.pos)
 	}
 	if n > 7 {
 		// We need to guard the MSB to prevent overflow.
-		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"Cannot parse hexadecimal encoding wider than 28 bits: " +
-				p.substring(p.pos, p.pos+n)))
+		return 0, p.sliceError("Cannot parse hexadecimal encoding wider than 28 bits: ", p.pos, p.pos+n)
 	}
 
 	result := 0
 	for n--; n >= 0; n-- {
-		ch := p.charAt(p.pos)
+		ch := p.codeUnitAt(p.pos)
 		var digit int
 		if '0' <= ch && ch <= '9' {
 			digit = int(ch - '0')
@@ -649,46 +734,43 @@ func (p *RegExpTree_Parser) ParseHex(n int) int {
 		} else if 'A' <= ch && ch <= 'F' {
 			digit = int(ch) + (10 - 'A')
 		} else {
-			panic(jutil.NewIllegalArgumentExceptionMsg(p.substringFrom(p.pos)))
+			return 0, p.tailError("", p.pos)
 		}
 		p.pos++
 		result = (result << 4) | digit
 	}
-	return result
+	return result, nil
 }
 
-// ParseBracedUnicodeEscape parses \u{...} (with the 'u' flag).
+// parseBracedUnicodeEscape parses \u{...} (with the 'u' flag).
 //
 // Java: Parser.parseBracedUnicodeEscape()
-func (p *RegExpTree_Parser) ParseBracedUnicodeEscape() int {
+func (p *regExpParser) parseBracedUnicodeEscape() (int, *RegExpParseError) {
 	openBrace := p.pos
 	p.pos++
-	jutil.CheckState(p.charAt(p.pos-1) == '{')
 
 	closeBrace := p.pos
-	for closeBrace < p.limit && p.charAt(closeBrace) != '}' {
+	for closeBrace < p.limit && p.codeUnitAt(closeBrace) != '}' {
 		closeBrace++
 	}
 	if closeBrace == p.limit {
-		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"Malformed unicode escape: expected '}' after " + p.substringFrom(openBrace)))
+		return 0, p.tailError("Malformed unicode escape: expected '}' after ", openBrace)
 	} else if closeBrace == p.pos {
-		panic(jutil.NewIllegalArgumentExceptionMsg("Empty unicode escape"))
+		return 0, illegalArgError("Empty unicode escape")
 	}
 
-	result := p.ParseHex(closeBrace - p.pos)
+	result, err := p.parseHex(closeBrace - p.pos)
+	if err != nil {
+		return 0, err
+	}
 	if result > 0x10FFFF {
-		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"Unicode must be at most 0x10FFFF: " + p.substring(openBrace+1, p.pos)))
+		return 0, p.sliceError("Unicode must be at most 0x10FFFF: ", openBrace+1, p.pos)
 	}
 	p.pos++ // Consume the close brace.
-	return result
+	return result, nil
 }
 
-// IsRepetitionStart reports whether ch starts a quantifier.
-//
-// Java: Parser.isRepetitionStart(char)
-func (p *RegExpTree_Parser) IsRepetitionStart(ch uint16) bool {
+func isRepetitionStart(ch uint16) bool {
 	switch ch {
 	case '?', '*', '+', '{':
 		return true
@@ -697,17 +779,17 @@ func (p *RegExpTree_Parser) IsRepetitionStart(ch uint16) bool {
 	}
 }
 
-// ParseRepetition parses a repetition. x? is treated as a repetition -- an
+// parseRepetition parses a repetition. x? is treated as a repetition -- an
 // optional production can be matched 0 or 1 time.
 //
 // Java: Parser.parseRepetition(RegExpTree)
-func (p *RegExpTree_Parser) ParseRepetition(body RegExpTree) RegExpTree {
-	if p.pos == p.limit {
+func (p *regExpParser) parseRepetition(body RegExpTree) RegExpTree {
+	if p.pos >= p.limit {
 		return body
 	}
 	var min_ int
 	var max_ int
-	switch p.charAt(p.pos) {
+	switch p.codeUnitAt(p.pos) {
 	case '+':
 		p.pos++
 		min_ = 1
@@ -725,7 +807,7 @@ func (p *RegExpTree_Parser) ParseRepetition(body RegExpTree) RegExpTree {
 		start := p.pos
 		end := -1 // Java: pattern.indexOf('}', start)
 		for i := start; i < p.limit; i++ {
-			if p.patternChars[i] == '}' {
+			if p.codeUnitAt(i) == '}' {
 				end = i
 				break
 			}
@@ -734,21 +816,26 @@ func (p *RegExpTree_Parser) ParseRepetition(body RegExpTree) RegExpTree {
 			p.pos = start - 1
 			return body
 		}
-		counts := p.patternChars[start:end]
 		p.pos = end + 1
-		comma := slices.Index(counts, ',')
+		comma := -1
+		for i := start; i < end; i++ {
+			if p.codeUnitAt(i) == ',' {
+				comma = i
+				break
+			}
+		}
 		var ok bool
 		if comma >= 0 {
-			min_, ok = regExpParser_parseDecimalInt(counts[:comma])
+			min_, ok = p.parseDecimalInt(start, comma)
 			if ok {
-				if comma+1 != len(counts) {
-					max_, ok = regExpParser_parseDecimalInt(counts[comma+1:])
+				if comma+1 != end {
+					max_, ok = p.parseDecimalInt(comma+1, end)
 				} else {
 					max_ = javaIntegerMaxValue
 				}
 			}
 		} else {
-			min_, ok = regExpParser_parseDecimalInt(counts)
+			min_, ok = p.parseDecimalInt(start, end)
 			max_ = min_
 		}
 		if !ok || min_ < 0 || min_ > max_ {
@@ -760,23 +847,23 @@ func (p *RegExpTree_Parser) ParseRepetition(body RegExpTree) RegExpTree {
 		return body
 	}
 	greedy := true
-	if p.pos < p.limit && p.charAt(p.pos) == '?' {
+	if p.pos < p.limit && p.codeUnitAt(p.pos) == '?' {
 		greedy = false
 		p.pos++
 	}
 	return NewRegExpTree_Repetition(body, min_, max_, greedy)
 }
 
-// regExpParser_parseDecimalInt parses a signed 32-bit decimal integer from
-// UTF-16 code units, matching Java Integer.parseInt(s, 10) without exceptions.
-func regExpParser_parseDecimalInt(chars []uint16) (int, bool) {
-	i := 0
+// parseDecimalInt parses a signed 32-bit decimal integer from pattern[start:end],
+// matching Java Integer.parseInt(s, 10) without exceptions.
+func (p *regExpParser) parseDecimalInt(start, end int) (int, bool) {
+	i := start
 	neg := false
-	if i < len(chars) && (chars[i] == '+' || chars[i] == '-') {
-		neg = chars[i] == '-'
+	if i < end && (p.codeUnitAt(i) == '+' || p.codeUnitAt(i) == '-') {
+		neg = p.codeUnitAt(i) == '-'
 		i++
 	}
-	if i == len(chars) {
+	if i == end {
 		return 0, false
 	}
 	limit := int64(javaIntegerMaxValue)
@@ -784,8 +871,8 @@ func regExpParser_parseDecimalInt(chars []uint16) (int, bool) {
 		limit++
 	}
 	var v int64
-	for ; i < len(chars); i++ {
-		c := chars[i]
+	for ; i < end; i++ {
+		c := p.codeUnitAt(i)
 		var d int
 		if c >= '0' && c <= '9' {
 			d = int(c - '0')

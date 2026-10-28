@@ -773,7 +773,9 @@ func (s *linkedFlowSlot) GetType() rhino.JSType           { return s.type_ }
 func (s *linkedFlowSlot) IsTypeInferred() bool            { return true }
 func (s *linkedFlowSlot) GetDeclaration() rhino.StaticRef { return nil }
 func (s *linkedFlowSlot) GetJSDocInfo() *rhino.JSDocInfo  { return nil }
-func (s *linkedFlowSlot) GetScope() rhino.StaticScope     { panic(jutil.NewUnsupportedOperationException()) }
+func (s *linkedFlowSlot) GetScope() rhino.StaticScope {
+	panic(jutil.NewUnsupportedOperationException())
+}
 
 var LinkedFlowScope_EMPTY_SCOPES *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]
 var LinkedFlowScope_EMPTY_SLOTS *rhino.HamtPMap[string, rhino.JSType]

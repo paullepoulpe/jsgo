@@ -38,13 +38,16 @@ type Es6RewriteModules struct {
 
 	preprocessorSymbolTable *PreprocessorSymbolTable
 
-	namesToInlineByAlias *jutil.LinkedHashMap[string, *ModuleRenaming_GlobalizedModuleName]
-	typedefs             *jutil.LinkedHashSet[string]
+	namesToInlineByAlias map[string]*ModuleRenaming_GlobalizedModuleName
+	typedefs             map[string]struct{}
 
 	moduleMetadataMap *ModuleMetadataMap
 	moduleMap         *ModuleMap
 	globalTypedScope  *TypedScope
 	chunkOutputType   CompilerOptions_ChunkOutputType
+
+	requireRewriter  es6RewriteRequiresForEs6Modules
+	globalVarRenamer es6RenameGlobalVars
 }
 
 var Es6RewriteModules_LHS_OF_GOOG_REQUIRE_MUST_BE_CONST = DiagnosticType_Error(
@@ -95,7 +98,7 @@ func NewEs6RewriteModulesWithChunkOutputType(
 	globalTypedScope *TypedScope,
 	chunkOutputType CompilerOptions_ChunkOutputType) *Es6RewriteModules {
 	jutil.CheckNotNull(moduleMetadataMap)
-	return &Es6RewriteModules{
+	e := &Es6RewriteModules{
 		compiler:                compiler,
 		astFactory:              compiler.CreateAstFactory(),
 		moduleMetadataMap:       moduleMetadataMap,
@@ -105,6 +108,9 @@ func NewEs6RewriteModulesWithChunkOutputType(
 		unknownType:             compiler.GetTypeRegistry().GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE),
 		chunkOutputType:         chunkOutputType,
 	}
+	e.requireRewriter.pass = e
+	e.globalVarRenamer.pass = e
+	return e
 }
 
 // Es6RewriteModules_IsEs6ModuleRoot returns whether the given script node
@@ -130,8 +136,22 @@ func (e *Es6RewriteModules) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (e *Es6RewriteModules) clearPerFileState() {
-	e.typedefs = jutil.NewLinkedHashSet[string]()
-	e.namesToInlineByAlias = jutil.NewLinkedHashMap[string, *ModuleRenaming_GlobalizedModuleName]()
+	clear(e.typedefs)
+	clear(e.namesToInlineByAlias)
+}
+
+func (e *Es6RewriteModules) addTypedef(name string) {
+	if e.typedefs == nil {
+		e.typedefs = make(map[string]struct{})
+	}
+	e.typedefs[name] = struct{}{}
+}
+
+func (e *Es6RewriteModules) putInlineAlias(alias string, rep *ModuleRenaming_GlobalizedModuleName) {
+	if e.namesToInlineByAlias == nil {
+		e.namesToInlineByAlias = make(map[string]*ModuleRenaming_GlobalizedModuleName)
+	}
+	e.namesToInlineByAlias[alias] = rep
 }
 
 var (
@@ -152,7 +172,7 @@ type es6RewriteRequiresForEs6Modules struct {
 }
 
 func (r *es6RewriteRequiresForEs6Modules) rewrite(scriptNode rhino.Node) {
-	r.renameTable = nil
+	clear(r.renameTable)
 	NodeTraversal_Traverse(r.pass.compiler, scriptNode, r)
 
 	if len(r.renameTable) > 0 {
@@ -204,8 +224,7 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 	}
 
 	if isRequire {
-		currentModuleMetadata :=
-			e.moduleMetadataMap.GetModulesByPath().Get(t.GetInput().GetPath().String())
+		currentModuleMetadata := e.moduleMetadataMap.GetModulesByPath().Get(t.GetInput().GetPath().String())
 		if currentModuleMetadata != nil && currentModuleMetadata.IsEs6Module() {
 			t.Report(n, Es6RewriteModules_SHOULD_IMPORT_ES6_MODULE)
 		}
@@ -229,26 +248,21 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 					t.Report(statementNode, Es6RewriteModules_REQUIRE_TYPE_FOR_ES6_SHOULD_BE_CONST)
 					return
 				}
+				baseGlobal := ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, &name)
+				scopeRoot := t.GetScopeRoot()
 				for prop := range objPat.Props() {
 					sk := ast.MustStringKey(prop.Node())
 					local := ast.MustName(sk.Value().Node())
-					r.putRename(
-						t.GetScopeRoot(),
-						local.Ident(),
-						ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, jutil.StringPtr(name)).
-							Getprop(sk.Key()).
-							Join())
+					r.putRename(scopeRoot, local.Ident(), baseGlobal.Getprop(sk.Key()).Join())
 				}
 			} else {
+				baseGlobal := e.getGlobalNameAndType(moduleMetadata, &name /* isFromMissingModuleOrProvide= */, false)
 				for prop := range objPat.Props() {
 					sk := ast.MustStringKey(prop.Node())
 					local := ast.MustName(sk.Value().Node())
-					globalName :=
-						e.getGlobalNameAndType(moduleMetadata, jutil.StringPtr(name) /* isFromMissingModuleOrProvide= */, false).
-							Getprop(sk.Key())
-					constNode :=
-						e.astFactory.CreateSingleConstNameDeclaration(
-							local.Ident(), globalName.ToQname(e.astFactory))
+					globalName := baseGlobal.Getprop(sk.Key())
+					constNode := e.astFactory.CreateSingleConstNameDeclaration(
+						local.Ident(), globalName.ToQname(e.astFactory))
 					constNode.SrcrefTree(sk.Node())
 					constNode.InsertBefore(statementNode)
 				}
@@ -269,14 +283,14 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 				r.putRename(
 					t.GetScopeRoot(),
 					lhsName.Ident(),
-					ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, jutil.StringPtr(name)).Join())
+					ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, &name).Join())
 				statementNode.Detach()
 				t.ReportCodeChange()
 			} else {
 				n.ReplaceWith(
 					e.astFactory.
 						CreateName(
-							ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, jutil.StringPtr(name)).GetRoot(), AstFactory_Type_(n)).
+							ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, &name).GetRoot(), AstFactory_Type_(n)).
 						SrcrefTree(n))
 				t.ReportCodeChange()
 			}
@@ -284,7 +298,7 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 	} else {
 		if isForwardDeclare || isRequireType {
 			r.putRename(
-				t.GetScopeRoot(), name, ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, jutil.StringPtr(name)).Join())
+				t.GetScopeRoot(), name, ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, &name).Join())
 			statementNode.Detach()
 		} else if exprStmt, ok := ast.AsExprStmt(statementNode); ok && exprStmt.Expr().Node() == n {
 			statementNode.Detach()
@@ -292,7 +306,7 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 			n.ReplaceWith(
 				e.astFactory.
 					CreateName(
-						ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, jutil.StringPtr(name)).GetRoot(), AstFactory_Type_(n)).
+						ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata, &name).GetRoot(), AstFactory_Type_(n)).
 					SrcrefTree(n))
 		}
 		t.ReportCodeChange()
@@ -304,7 +318,7 @@ func (e *Es6RewriteModules) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino
 	if _, ok := ast.AsScript(n); ok {
 		// Trigger creation of the global scope before inserting any synthetic code.
 		nodeTraversal.GetScope()
-		(&es6RewriteRequiresForEs6Modules{pass: e}).rewrite(n)
+		e.requireRewriter.rewrite(n)
 		if Es6RewriteModules_IsEs6ModuleRoot(n) {
 			e.clearPerFileState()
 		} else {
@@ -360,27 +374,26 @@ func (e *Es6RewriteModules) visitImport(t *NodeTraversal, importDecl ast.Import,
 			jutil.CheckState(m.IsEs6Module() || m.IsGoogModule() || m.IsGoogProvide())
 		}
 	} else {
-		modulePath :=
-			t.GetInput().
-				GetPath().
-				ResolveJsModule(
-					importName,
-					processCommonJSModules_sourceFileName(importDeclNode),
-					importDeclNode.GetLineno(),
-					importDeclNode.GetCharno())
+		inputPath := t.GetInput().GetPath()
+		modulePath := inputPath.ResolveJsModule(
+			importName,
+			processCommonJSModules_sourceFileName(importDeclNode),
+			importDeclNode.GetLineno(),
+			importDeclNode.GetCharno())
 		if modulePath == nil {
-			modulePath = t.GetInput().GetPath().ResolveModuleAsPath(importName)
+			modulePath = inputPath.ResolveModuleAsPath(importName)
 		}
 		e.maybeAddImportedFileReferenceToSymbolTable(sourceLit.Node(), modulePath.String())
 	}
 
 	if bindings, hasBindings := importDecl.Bindings(); hasBindings {
+		sourceName := jutil.ToJavaString(t.GetSourceName())
 		if specs, isSpecs := bindings.AsImportSpecs(); isSpecs {
 			for spec := range specs.Specs() {
-				e.maybeAddAliasToSymbolTable(spec.Imported().Node(), jutil.ToJavaString(t.GetSourceName()))
+				e.maybeAddAliasToSymbolTable(spec.Imported().Node(), sourceName)
 			}
 		} else if star, isStar := bindings.AsImportStar(); isStar {
-			e.maybeAddAliasToSymbolTable(star.Node(), jutil.ToJavaString(t.GetSourceName()))
+			e.maybeAddAliasToSymbolTable(star.Node(), sourceName)
 		}
 	}
 
@@ -403,9 +416,8 @@ func (e *Es6RewriteModules) visitExport(t *NodeTraversal, export ast.Export, par
 		if hasDeclName {
 			exportNode.ReplaceWith(child.Detach())
 		} else {
-			varDecl :=
-				e.astFactory.CreateSingleVarNameDeclarationWithValue(
-					ModuleRenaming_DEFAULT_EXPORT_VAR_PREFIX, exportNode.RemoveFirstChild())
+			varDecl := e.astFactory.CreateSingleVarNameDeclarationWithValue(
+				ModuleRenaming_DEFAULT_EXPORT_VAR_PREFIX, exportNode.RemoveFirstChild())
 			varDecl.SetJSDocInfo(child.GetJSDocInfo())
 			child.SetJSDocInfo(nil)
 			varDecl.SrcrefTreeIfMissing(exportNode)
@@ -422,7 +434,7 @@ func (e *Es6RewriteModules) visitExport(t *NodeTraversal, export ast.Export, par
 
 func (e *Es6RewriteModules) visitExportNameDeclaration(declaration rhino.Node) {
 	if info := declaration.GetJSDocInfo(); info != nil && info.HasTypedefType() {
-		NodeUtil_VisitLhsNodesInNode(declaration, func(lhs rhino.Node) { e.typedefs.Add(lhs.GetString()) })
+		NodeUtil_VisitLhsNodesInNode(declaration, func(lhs rhino.Node) { e.addTypedef(lhs.GetString()) })
 	}
 }
 
@@ -451,15 +463,16 @@ func (e *Es6RewriteModules) visitScript(t *NodeTraversal, script rhino.Node) {
 	ClosureRewriteModule_CheckAndSetStrictModeDirective(t, script)
 
 	thisModule := e.moduleMap.GetModuleByPath(t.GetInput().GetPath())
-	qualifiedName :=
-		ModuleRenaming_GetGlobalNameWithModuleMetadata(thisModule.Metadata() /* googNamespace= */, nil)
+	qualifiedName := ModuleRenaming_GetGlobalNameWithModuleMetadata(thisModule.Metadata() /* googNamespace= */, nil)
 	jutil.CheckStateMsg1(qualifiedName.IsSimple(), "Unexpected qualified name %s", qualifiedName)
 	moduleName := qualifiedName.GetRoot()
 
-	moduleVar := e.createExportsObject(moduleName, t, script, moduleObjectType)
+	moduleVar := e.createExportsObject(moduleName, t, script, thisModule, moduleObjectType)
 
 	// Rename vars to not conflict in global scope.
-	NodeTraversal_Traverse(e.compiler, script, &es6RenameGlobalVars{pass: e, thisModule: thisModule})
+	e.globalVarRenamer.thisModule = thisModule
+	NodeTraversal_Traverse(e.compiler, script, &e.globalVarRenamer)
+	e.globalVarRenamer.thisModule = nil
 
 	// Rename the exports object to something we can reference later.
 	moduleVar.GetFirstChild().SetString(moduleName)
@@ -472,18 +485,19 @@ func (e *Es6RewriteModules) visitScript(t *NodeTraversal, script rhino.Node) {
 }
 
 func (e *Es6RewriteModules) createExportsObject(
-	moduleName string, t *NodeTraversal, script rhino.Node, moduleObjectType AstFactory_Type) rhino.Node {
+	moduleName string,
+	t *NodeTraversal,
+	script rhino.Node,
+	thisModule *Module,
+	moduleObjectType AstFactory_Type) rhino.Node {
 	moduleObject := e.astFactory.CreateObjectLitWithType(moduleObjectType)
-	moduleVar :=
-		e.astFactory.CreateSingleVarNameDeclarationWithValue("$jscomp$tmp$exports$module$name", moduleObject)
+	moduleVar := e.astFactory.CreateSingleVarNameDeclarationWithValue("$jscomp$tmp$exports$module$name", moduleObject)
 	moduleVar.GetFirstChild().PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
 	infoBuilder := rhino.JSDocInfo_Builder_()
 	infoBuilder.RecordConstancy()
 	moduleVar.SetJSDocInfo(infoBuilder.Build())
 	moduleVar.GetFirstChild().SetDeclaredConstantVar(true)
 	script.AddChildToBack(moduleVar.SrcrefTreeIfMissing(script))
-
-	thisModule := e.moduleMap.GetModuleByPath(t.GetInput().GetPath())
 
 	for exportedName, binding := range thisModule.Namespace().All() {
 		nodeForSourceInfo := binding.SourceNode()
@@ -495,17 +509,15 @@ func (e *Es6RewriteModules) createExportsObject(
 			boundVariableQualifiedName)
 		boundVariableName := boundVariableQualifiedName.GetRoot()
 
-		getProp :=
-			e.astFactory.CreateGetPropWithoutColor(
-				e.astFactory.CreateName(moduleName, moduleObjectType), exportedName)
+		getProp := e.astFactory.CreateGetPropWithoutColor(
+			e.astFactory.CreateName(moduleName, moduleObjectType), exportedName)
 		getProp.PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
 
-		if e.typedefs.Contains(exportedName) {
+		if _, isTypedef := e.typedefs[exportedName]; isTypedef {
 			builder := rhino.JSDocInfo_Builder_().ParseDocumentation()
-			typeExpr :=
-				rhino.NewJSTypeExpression(
-					e.astFactory.CreateString(exportedName).Srcref(nodeForSourceInfo),
-					jutil.ToJavaString(script.GetSourceFileName()))
+			typeExpr := rhino.NewJSTypeExpression(
+				e.astFactory.CreateString(exportedName).Srcref(nodeForSourceInfo),
+				jutil.ToJavaString(script.GetSourceFileName()))
 			builder.RecordTypedef(typeExpr)
 			getProp.SetJSDocInfo(builder.Build())
 			exprResult := e.astFactory.ExprResult(getProp).SrcrefTreeIfMissing(nodeForSourceInfo)
@@ -515,9 +527,8 @@ func (e *Es6RewriteModules) createExportsObject(
 			e.addGetterExport(script, nodeForSourceInfo, moduleObject, exportedName, globalExportName)
 			NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_GETTER, e.compiler)
 		} else {
-			assign :=
-				e.astFactory.CreateAssign(
-					getProp, e.astFactory.CreateName(boundVariableName, AstFactory_Type_(getProp)))
+			assign := e.astFactory.CreateAssign(
+				getProp, e.astFactory.CreateName(boundVariableName, AstFactory_Type_(getProp)))
 			builder := rhino.JSDocInfo_Builder_().ParseDocumentation()
 			builder.RecordConstancy()
 			assign.SetJSDocInfo(builder.Build())
@@ -564,6 +575,9 @@ func (e *Es6RewriteModules) rewriteRequires(script rhino.Node) {
 				}
 			}).
 		Traverse(script)
+	if len(e.namesToInlineByAlias) == 0 {
+		return
+	}
 	NodeTraversal_Builder_().
 		SetCompiler(e.compiler).
 		SetCallbackFunc(
@@ -574,13 +588,14 @@ func (e *Es6RewriteModules) rewriteRequires(script rhino.Node) {
 					}
 				}
 
-				if nm, ok := ast.AsName(n); ok && e.namesToInlineByAlias.ContainsKey(nm.Ident()) {
+				if nm, ok := ast.AsName(n); ok {
 					ident := nm.Ident()
-					v := t.GetScope().GetVar(ident)
-					if v == nil || v.GetNameNode() != n {
-						replacementName := e.namesToInlineByAlias.Get(ident)
-						replacement := replacementName.ToQname(e.astFactory).SrcrefTree(n)
-						n.ReplaceWith(replacement)
+					if replacementName, found := e.namesToInlineByAlias[ident]; found {
+						v := t.GetScope().GetVar(ident)
+						if v == nil || v.GetNameNode() != n {
+							replacement := replacementName.ToQname(e.astFactory).SrcrefTree(n)
+							n.ReplaceWith(replacement)
+						}
 					}
 				}
 			}).
@@ -591,16 +606,14 @@ func (e *Es6RewriteModules) inlineAliasedTypes(t *NodeTraversal, typeNode rhino.
 	if typeNode.IsStringLit() {
 		name := typeNode.GetString()
 		base, rest, hasDot := strings.Cut(name, ".")
-		if t.GetScope().GetVar(base) == nil {
-			if replacement := e.namesToInlineByAlias.Get(base); replacement != nil {
-				newTypeName := replacement.AliasName().Join()
-				if hasDot {
-					newTypeName += "." + rest
-				}
-				typeNode.SetOriginalName(jutil.StringPtr(name))
-				typeNode.SetString(newTypeName)
-				t.ReportCodeChange()
+		if replacement := e.namesToInlineByAlias[base]; replacement != nil && t.GetScope().GetVar(base) == nil {
+			newTypeName := replacement.AliasName().Join()
+			if hasDot {
+				newTypeName += "." + rest
 			}
+			typeNode.SetOriginalName(&name)
+			typeNode.SetString(newTypeName)
+			t.ReportCodeChange()
 		}
 	}
 	for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
@@ -623,11 +636,10 @@ func (e *Es6RewriteModules) visitGoogModuleGet(t *NodeTraversal, getCall rhino.N
 }
 
 func (e *Es6RewriteModules) fallbackMetadataForNamespace(namespace string) *ModuleMetadataMap_ModuleMetadata {
-	builder :=
-		ModuleMetadataMap_ModuleMetadata_Builder_().
-			ModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE).
-			UsesClosure(true).
-			IsTestOnly(false)
+	builder := ModuleMetadataMap_ModuleMetadata_Builder_().
+		ModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE).
+		UsesClosure(true).
+		IsTestOnly(false)
 	builder.GoogNamespacesBuilder().Add(namespace)
 	return builder.Build()
 }
@@ -664,17 +676,15 @@ func (e *Es6RewriteModules) visitRequireOrGet(
 			if destructLhs, ok := ast.AsDestructuringLhs(parent); ok {
 				objPat := ast.MustObjectPattern(destructLhs.Pattern().Node())
 				toDetach = parent.GetParent()
+				baseGlobal := e.getGlobalNameAndType(m, &namespace, isFromFallbackMetadata)
 				for prop := range objPat.Props() {
 					sk := ast.MustStringKey(prop.Node())
 					local := ast.MustName(sk.Value().Node())
-					rep :=
-						e.getGlobalNameAndType(m, jutil.StringPtr(namespace), isFromFallbackMetadata).
-							Getprop(sk.Key())
-					e.namesToInlineByAlias.Put(local.Ident(), rep)
+					e.putInlineAlias(local.Ident(), baseGlobal.Getprop(sk.Key()))
 				}
 			} else if nm, ok := ast.AsName(parent); ok {
-				alias := e.getGlobalNameAndType(m, jutil.StringPtr(namespace), isFromFallbackMetadata)
-				e.namesToInlineByAlias.Put(nm.Ident(), alias)
+				alias := e.getGlobalNameAndType(m, &namespace, isFromFallbackMetadata)
+				e.putInlineAlias(nm.Ident(), alias)
 				toDetach = parent.GetParent()
 			} else {
 				jutil.CheckState(parent.IsExprResult())
@@ -682,7 +692,7 @@ func (e *Es6RewriteModules) visitRequireOrGet(
 			}
 			toDetach.Detach()
 		} else {
-			name := e.getGlobalNameAndType(m, jutil.StringPtr(namespace), isFromFallbackMetadata)
+			name := e.getGlobalNameAndType(m, &namespace, isFromFallbackMetadata)
 			replacement := name.ToQname(e.astFactory).SrcrefTree(requireCall)
 			requireCall.ReplaceWith(replacement)
 		}
@@ -726,31 +736,30 @@ func (r *es6RenameGlobalVars) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 	name := nm.Ident()
 	v := t.GetScope().GetVar(name)
 	if v != nil && v.IsGlobal() {
-		newName :=
-			ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(r.thisModule.Metadata(), name).
-				Join()
+		newName := ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(r.thisModule.Metadata(), name).Join()
 		nm.SetIdent(newName)
-		n.SetOriginalName(jutil.StringPtr(name))
+		n.SetOriginalName(&name)
 		t.ReportCodeChangeWithNode(n)
 		if NodeUtil_IsDeclarationLValue(n) {
 			r.pass.declareGlobalVariable(n, t)
 		}
-	} else if v == nil && r.thisModule.BoundNames().ContainsKey(name) {
-		r.pass.maybeAddAliasToSymbolTable(n, jutil.ToJavaString(t.GetSourceName()))
-		binding := r.thisModule.BoundNames().Get(name)
+	} else if v == nil {
+		if binding := r.thisModule.BoundNames().Get(name); binding != nil {
+			r.pass.maybeAddAliasToSymbolTable(n, jutil.ToJavaString(t.GetSourceName()))
 
-		replacement := r.replaceBindingRef(n, binding)
+			replacement := r.replaceBindingRef(n, binding)
 
-		if _, isName := ast.AsName(replacement); isName {
-			if call, isCall := ast.AsCall(parent); isCall && call.Callee().Node() == n && call.IsFreeCall() {
-				call.SetFreeCall(true)
+			if _, isName := ast.AsName(replacement); isName {
+				if call, isCall := ast.AsCall(parent); isCall && call.Callee().Node() == n && call.IsFreeCall() {
+					call.SetFreeCall(true)
+				}
 			}
-		}
 
-		if NodeUtil_IsDeclarationLValue(n) {
-			r.pass.declareGlobalVariable(n, t)
+			if NodeUtil_IsDeclarationLValue(n) {
+				r.pass.declareGlobalVariable(n, t)
+			}
+			t.ReportCodeChange()
 		}
-		t.ReportCodeChange()
 	}
 }
 
@@ -765,8 +774,8 @@ func (r *es6RenameGlobalVars) replaceBindingRef(n rhino.Node, binding *Binding) 
 		}
 		propertyName := gp.Property()
 		m := e.moduleMap.GetModuleByPath(binding.Metadata().Path())
-		if m.Namespace().ContainsKey(propertyName) {
-			binding = m.Namespace().Get(propertyName)
+		if propBinding := m.Namespace().Get(propertyName); propBinding != nil {
+			binding = propBinding
 			n = gp.Node()
 		} else {
 			break
@@ -786,45 +795,44 @@ func (r *es6RenameGlobalVars) replaceBindingRef(n rhino.Node, binding *Binding) 
 		newNode = e.astFactory.CreateName(globalName.GetRoot(), AstFactory_Type_(n))
 	}
 
+	origName := n.GetString()
 	n.ReplaceWith(newNode)
 	newNode.SrcrefTree(n)
-	newNode.SetOriginalName(jutil.StringPtr(n.GetString()))
+	newNode.SetOriginalName(&origName)
 	return newNode
 }
 
 func (r *es6RenameGlobalVars) fixTypeNode(t *NodeTraversal, typeNode rhino.Node) {
 	e := r.pass
 	if typeNode.IsStringLit() {
-		thisModule := e.moduleMap.GetModuleByPath(t.GetInput().GetPath())
+		thisModule := r.thisModule
 		name := typeNode.GetString()
-		splitted := strings.Split(name, ".")
-		baseName := splitted[0]
-		rest := ""
-		if len(splitted) > 1 {
-			rest = name[len(baseName):]
-		}
+		baseName, rest, hasDot := strings.Cut(name, ".")
 		v := t.GetScope().GetVar(baseName)
 		if v != nil && v.IsGlobal() {
-			r.maybeSetNewName(
-				t,
-				typeNode,
-				name,
-				ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(thisModule.Metadata(), baseName).
-					Join()+
-					rest)
-		} else if v == nil && thisModule.BoundNames().ContainsKey(baseName) {
-			binding := thisModule.BoundNames().Get(baseName)
-			globalName := ModuleRenaming_GetGlobalNameForJsDoc(e.moduleMap, binding, splitted[1:])
-			r.maybeSetNewName(t, typeNode, name, globalName)
+			newName := ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(thisModule.Metadata(), baseName).Join()
+			if hasDot {
+				newName += "." + rest
+			}
+			r.maybeSetNewName(t, typeNode, name, newName)
+		} else if v == nil {
+			if binding := thisModule.BoundNames().Get(baseName); binding != nil {
+				var propChain []string
+				if hasDot {
+					propChain = strings.Split(rest, ".")
+				}
+				globalName := ModuleRenaming_GetGlobalNameForJsDoc(e.moduleMap, binding, propChain)
+				r.maybeSetNewName(t, typeNode, name, globalName)
 
-			if e.preprocessorSymbolTable != nil {
-				onlyBaseName := rhino.Node_NewString(baseName).Srcref(typeNode)
-				onlyBaseName.SetLength(jutil.StringLength(baseName))
-				e.maybeAddAliasToSymbolTable(onlyBaseName, jutil.ToJavaString(t.GetSourceName()))
+				if e.preprocessorSymbolTable != nil {
+					onlyBaseName := rhino.Node_NewString(baseName).Srcref(typeNode)
+					onlyBaseName.SetLength(jutil.StringLength(baseName))
+					e.maybeAddAliasToSymbolTable(onlyBaseName, jutil.ToJavaString(t.GetSourceName()))
+				}
 			}
 		}
 
-		typeNode.SetOriginalName(jutil.StringPtr(name))
+		typeNode.SetOriginalName(&name)
 	}
 
 	for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
@@ -835,7 +843,7 @@ func (r *es6RenameGlobalVars) fixTypeNode(t *NodeTraversal, typeNode rhino.Node)
 func (r *es6RenameGlobalVars) maybeSetNewName(t *NodeTraversal, node rhino.Node, name string, newName string) {
 	if name != newName {
 		node.SetString(newName)
-		node.SetOriginalName(jutil.StringPtr(name))
+		node.SetOriginalName(&name)
 		t.ReportCodeChange()
 	}
 }

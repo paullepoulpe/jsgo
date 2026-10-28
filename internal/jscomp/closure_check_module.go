@@ -40,7 +40,7 @@ import (
 // program checks happen during goog.module rewriting, in
 // ClosureRewriteModule.
 type ClosureCheckModule struct {
-	NodeTraversal_AbstractModuleCallbackBase
+	moduleTraversal
 
 	currentModuleInfo *ClosureCheckModule_ModuleInfo
 }
@@ -159,29 +159,28 @@ type ClosureCheckModule_ModuleInfo struct {
 	// Go-only: language-adapter — the Java map may receive a null key (the
 	// first argument of a malformed goog.require call); it is only ever read
 	// with non-null keys, so null keys are not stored.
-	importsByLongRequiredName *jutil.LinkedHashMap[string, rhino.Node]
+	importsByLongRequiredName map[string]rhino.Node
 	// Module-local short names for goog.required symbols.
-	shortImportNames *jutil.LinkedHashSet[string]
+	shortImportNames map[string]struct{}
 	// A map from the export names "exports.name" to the nodes of those named
 	// exports. The default export is keyed with just "exports"
-	exportNodesByName *jutil.LinkedHashMap[string, rhino.Node]
+	exportNodesByName map[string]rhino.Node
 }
 
 // Java: ClosureCheckModule.ModuleInfo(String)
 func newClosureCheckModule_ModuleInfo(moduleName string) *ClosureCheckModule_ModuleInfo {
-	i := &ClosureCheckModule_ModuleInfo{}
-	i.importsByLongRequiredName = jutil.NewLinkedHashMap[string, rhino.Node]()
-	i.shortImportNames = jutil.NewLinkedHashSet[string]()
-	i.exportNodesByName = jutil.NewLinkedHashMap[string, rhino.Node]()
-	i.name = moduleName
-	return i
+	return &ClosureCheckModule_ModuleInfo{
+		name:                      moduleName,
+		importsByLongRequiredName: make(map[string]rhino.Node),
+		shortImportNames:          make(map[string]struct{}),
+		exportNodesByName:         make(map[string]rhino.Node),
+	}
 }
 
 // Java: ClosureCheckModule(AbstractCompiler, ModuleMetadataMap)
 func NewClosureCheckModule(compiler AbstractCompiler, moduleMetadataMap *ModuleMetadataMap) *ClosureCheckModule {
 	c := &ClosureCheckModule{}
-	c.InitNodeTraversal_AbstractModuleCallbackBase(c, compiler, moduleMetadataMap)
-	c.currentModuleInfo = nil
+	c.initModuleTraversal(compiler, moduleMetadataMap)
 	return c
 }
 
@@ -226,6 +225,22 @@ func (c *ClosureCheckModule) processParallel(root rhino.Node) bool {
 		return runItem, nil
 	}, false)
 	return true
+}
+
+// Java: NodeTraversal.AbstractModuleCallback.shouldTraverse(NodeTraversal, Node, Node)
+func (c *ClosureCheckModule) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if c.enterNode(t, n) {
+		c.EnterModule(c.currentModule, c.scopeRoot)
+	}
+	return true
+}
+
+// Java: NodeTraversal.AbstractModuleCallback.visit(NodeTraversal, Node, Node)
+func (c *ClosureCheckModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if exitedModule, exitedScopeRoot := c.exitNode(t, n); exitedModule != nil {
+		c.ExitModule(exitedModule, exitedScopeRoot)
+	}
+	c.VisitWithModule(t, n, c.currentModule, c.scopeRoot)
 }
 
 // Java: ClosureCheckModule.enterModule(ModuleMetadata, Node)
@@ -327,7 +342,7 @@ func (c *ClosureCheckModule) VisitWithModule(
 				// but it would require a cleanup to land.
 				t.Report(n, ClosureCheckModule_REFERENCE_TO_MODULE_GLOBAL_NAME)
 			}
-		} else if !parent.IsGetProp() && !c.currentModuleInfo.importsByLongRequiredName.IsEmpty() {
+		} else if !parent.IsGetProp() && len(c.currentModuleInfo.importsByLongRequiredName) != 0 {
 			if qname, ok := n.GetQualifiedNameString(); ok {
 				node := n
 				var nextPart string
@@ -414,7 +429,7 @@ func (c *ClosureCheckModule) CheckImproperReferenceToImport(
 		return true
 	}
 
-	importLhs := c.currentModuleInfo.importsByLongRequiredName.Get(*qname)
+	importLhs := c.currentModuleInfo.importsByLongRequiredName[*qname]
 	if importLhs.IsNil() {
 		return true
 	}
@@ -490,17 +505,17 @@ func (c *ClosureCheckModule) CheckModuleExport(t *NodeTraversal, assign ast.Assi
 	lhs := assign.Target().Node()
 	jutil.CheckState(ClosureCheckModule_IsExportLhs(lhs))
 	// Check multiple exports of the same name
-	previousDefinition := c.currentModuleInfo.exportNodesByName.Get(*lhs.GetQualifiedName())
+	previousDefinition := c.currentModuleInfo.exportNodesByName[*lhs.GetQualifiedName()]
 	if !previousDefinition.IsNil() {
 		previousLine := previousDefinition.GetLineno()
 		t.Report(n, ClosureCheckModule_EXPORT_REPEATED_ERROR, strconv.Itoa(previousLine))
 	}
 	// Check exports in invalid program position
-	defaultExportNode := c.currentModuleInfo.exportNodesByName.Get("exports")
+	defaultExportNode := c.currentModuleInfo.exportNodesByName["exports"]
 	// If we have never seen an `exports =` default export assignment, or this is the
 	// default export, then treat this assignment as an export and do the checks it is well formed.
 	if defaultExportNode.IsNil() || lhs.MatchesName("exports") {
-		c.currentModuleInfo.exportNodesByName.Put(*lhs.GetQualifiedName(), lhs)
+		c.currentModuleInfo.exportNodesByName[*lhs.GetQualifiedName()] = lhs
 		if !t.InModuleScope() {
 			t.Report(n, ClosureCheckModule_EXPORT_NOT_AT_MODULE_SCOPE)
 		} else if !parent.IsExprResult() {
@@ -537,7 +552,9 @@ func (c *ClosureCheckModule) CheckRequireCall(t *NodeTraversal, call ast.Call, p
 	case rhino.Token_EXPR_RESULT:
 		key := ClosureCheckModule_ExtractFirstArgumentName(call)
 		if key != nil {
-			c.currentModuleInfo.importsByLongRequiredName.PutIfAbsent(*key, parent)
+			if _, exists := c.currentModuleInfo.importsByLongRequiredName[*key]; !exists {
+				c.currentModuleInfo.importsByLongRequiredName[*key] = parent
+			}
 		}
 	case rhino.Token_NAME, rhino.Token_DESTRUCTURING_LHS:
 		c.CheckShortGoogRequireCall(t, call, parent.GetParent())
@@ -576,14 +593,16 @@ func (c *ClosureCheckModule) CheckShortGoogRequireCall(t *NodeTraversal, call as
 		ClosureCheckModule_CheckShortName(t, lhs, ast.MustStringLit(namespace.Node()).Value())
 	}
 	if key := ClosureCheckModule_ExtractFirstArgumentName(call); key != nil {
-		c.currentModuleInfo.importsByLongRequiredName.Put(*key, lhs)
+		c.currentModuleInfo.importsByLongRequiredName[*key] = lhs
 	}
 	NodeUtil_VisitLhsNodesInNode(
 		declaration,
 		func(nameNode rhino.Node) {
 			name := nameNode.GetString()
-			if !c.currentModuleInfo.shortImportNames.Add(name) {
+			if _, exists := c.currentModuleInfo.shortImportNames[name]; exists {
 				t.Report(nameNode, ClosureCheckModule_DUPLICATE_NAME_SHORT_REQUIRE, name)
+			} else {
+				c.currentModuleInfo.shortImportNames[name] = struct{}{}
 			}
 		})
 }

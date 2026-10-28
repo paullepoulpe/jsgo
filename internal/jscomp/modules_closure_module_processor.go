@@ -19,70 +19,40 @@
 package jscomp
 
 import (
-	"slices"
-
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // ClosureModuleProcessor is the processor for goog.module.
-//
-// The namespace of a goog.module contains all named exports, e.g.
-// `exports.x = 0`, and any 'default export's that assign directly to the
-// `exports` object, e.g. `exports = class {}`).
-//
-// The bound names include any names imported through a
-// goog.require(Type)/forwardDeclare.
 type ClosureModuleProcessor struct {
 	compiler AbstractCompiler
 }
 
-var _ ModuleMapCreator_ModuleProcessor = (*ClosureModuleProcessor)(nil)
+var _ moduleProcessor = (*ClosureModuleProcessor)(nil)
 
-// ClosureModuleProcessor_UnresolvedGoogModule is
-// ClosureModuleProcessor.UnresolvedGoogModule.
-type ClosureModuleProcessor_UnresolvedGoogModule struct {
+type unresolvedGoogModule struct {
 	UnresolvedModuleBase
 
 	metadata            *ModuleMetadataMap_ModuleMetadata
 	srcFileName         *string
 	path                *ModuleLoader_ModulePath
 	namespace           *jutil.LinkedHashMap[string, *Binding]
-	requiresByLocalName *jutil.LinkedHashMap[string, *ClosureRequireProcessor_Require]
+	requireNames        []string
+	requiresByLocalName map[string]*ClosureRequireProcessor_Require
 	compiler            AbstractCompiler
 	resolved            *Module
 }
 
-// Java: ClosureModuleProcessor.UnresolvedGoogModule(ModuleMetadata, String, ModulePath, ImmutableMap<String, Binding>, ImmutableMap<String, Require>, AbstractCompiler)
-func NewClosureModuleProcessor_UnresolvedGoogModule(
-	metadata *ModuleMetadataMap_ModuleMetadata,
-	srcFileName *string,
-	path *ModuleLoader_ModulePath,
-	namespace *jutil.LinkedHashMap[string, *Binding],
-	requires *jutil.LinkedHashMap[string, *ClosureRequireProcessor_Require],
-	compiler AbstractCompiler) *ClosureModuleProcessor_UnresolvedGoogModule {
-	m := &ClosureModuleProcessor_UnresolvedGoogModule{}
-	m.InitUnresolvedModuleBase(m)
-	m.metadata = metadata
-	m.srcFileName = srcFileName
-	m.path = path
-	m.namespace = namespace
-	m.requiresByLocalName = requires
-	m.compiler = compiler
-	return m
-}
-
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.resolveExport(ModuleRequestResolver, String)
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) ResolveExport(
+func (m *unresolvedGoogModule) ResolveExport(
 	moduleRequestResolver ModuleRequestResolver, exportName string) *ResolveExportResult {
-	if m.namespace.ContainsKey(exportName) {
-		return ResolveExportResult_Of(m.namespace.Get(exportName))
+	if b, ok := m.namespace.Lookup(exportName); ok {
+		return ResolveExportResult_Of(b)
 	}
 	return ResolveExportResult_NOT_FOUND
 }
 
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.resolveExport(ModuleRequestResolver, String, String, Set<ExportTrace>, Set<UnresolvedModule>)
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) ResolveExportWithTraces(
+func (m *unresolvedGoogModule) ResolveExportWithTraces(
 	moduleRequestResolver ModuleRequestResolver,
 	moduleSpecifier *string,
 	exportName string,
@@ -91,145 +61,128 @@ func (m *ClosureModuleProcessor_UnresolvedGoogModule) ResolveExportWithTraces(
 	return m.ResolveExport(moduleRequestResolver, exportName)
 }
 
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.resolve(ModuleRequestResolver, String)
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) ResolveWithModuleSpecifier(
+func closureModuleProcessor_onlyNamespace(metadata *ModuleMetadataMap_ModuleMetadata) string {
+	var out string
+	found := false
+	for ns := range metadata.GoogNamespaces().All() {
+		if found {
+			panic(jutil.NewIllegalArgumentExceptionMsg("expected one element"))
+		}
+		out = ns
+		found = true
+	}
+	if !found {
+		panic(jutil.NewNoSuchElementException())
+	}
+	return out
+}
+
+func (m *unresolvedGoogModule) ResolveWithModuleSpecifier(
 	moduleRequestResolver ModuleRequestResolver, moduleSpecifier *string) *Module {
 	if m.resolved == nil {
-		// Every import creates a locally bound name.
-		boundNames := jutil.NewLinkedHashMapFrom(m.GetAllResolvedImports(moduleRequestResolver))
-
-		closureNamespace := colorPool_getOnlyElement(slices.Collect(m.metadata.GoogNamespaces().All()))
-		m.resolved =
-			Module_Builder_().
-				Path(m.path).
-				Metadata(m.metadata).
-				Namespace(m.namespace).
-				BoundNames(closureModuleProcessor_immutableMapCopyOf(boundNames)).
-				LocalNameToLocalExport(jutil.NewLinkedHashMap[string, *Export]()).
-				ClosureNamespace(&closureNamespace).
-				Build()
+		boundNames := m.getAllResolvedImports(moduleRequestResolver)
+		closureNamespace := closureModuleProcessor_onlyNamespace(m.metadata)
+		m.resolved = NewModule(
+			m.metadata,
+			m.path,
+			m.namespace,
+			boundNames,
+			nonEsEmptyExportMap,
+			&closureNamespace,
+		)
 	}
 	return m.resolved
 }
 
+func (m *unresolvedGoogModule) getAllResolvedImports(
+	moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashMap[string, *Binding] {
+	imports := jutil.NewLinkedHashMapWithCapacity[string, *Binding](len(m.requireNames))
+	for _, name := range m.requireNames {
+		b := m.resolveImport(moduleRequestResolver, name)
+		if b.Resolved() {
+			imports.Put(name, jutil.CheckNotNull(b.GetBinding()))
+		}
+	}
+	return imports
+}
+
 // closureModuleProcessor_immutableMapCopyOf is ImmutableMap.copyOf(Map),
 // which rejects null values.
-//
-// Go-only: language-adapter — Guava ImmutableMap.copyOf.
 func closureModuleProcessor_immutableMapCopyOf[V any](m *jutil.LinkedHashMap[string, V]) *jutil.LinkedHashMap[string, V] {
-	out := jutil.NewLinkedHashMap[string, V]()
+	out := jutil.NewLinkedHashMapWithCapacity[string, V](m.Size())
 	for k, v := range m.All() {
 		out.Put(k, jutil.CheckNotNull(v))
 	}
 	return out
 }
 
-// GetAllResolvedImports is a map from import bound name to binding.
-//
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.getAllResolvedImports(ModuleRequestResolver)
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) GetAllResolvedImports(
-	moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashMap[string, *Binding] {
-	imports := jutil.NewLinkedHashMap[string, *Binding]()
-
-	for name := range m.requiresByLocalName.Keys() {
-		b := m.ResolveImport(moduleRequestResolver, name)
-		if b.Resolved() {
-			imports.Put(name, b.GetBinding())
-		}
-	}
-
-	return imports
-}
-
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.resolveImport(ModuleRequestResolver, String)
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) ResolveImport(
+func (m *unresolvedGoogModule) resolveImport(
 	moduleRequestResolver ModuleRequestResolver, name string) *ResolveExportResult {
-	require := m.requiresByLocalName.Get(name)
+	require := m.requiresByLocalName[name]
 	importRecord := require.ImportRecord()
-
 	requested := moduleRequestResolver.Resolve(importRecord)
 
 	if requested == nil {
 		return ResolveExportResult_ERROR
-	} else if importRecord.ImportName() == Export_NAMESPACE {
-		// Return a binding based on the other module's metadata.
-		moduleRequest := importRecord.ModuleRequest()
+	}
+	moduleRequest := importRecord.ModuleRequest()
+	if importRecord.ImportName() == Export_NAMESPACE {
 		return ResolveExportResult_Of(
 			Binding_FromClosureImport(
 				requested.Metadata(),
 				importRecord.NameNode(),
 				&moduleRequest,
 				require.CreatedBy()))
-
-	} else {
-		moduleRequest := importRecord.ModuleRequest()
-		result :=
-			requested.ResolveExportWithTraces(
-				moduleRequestResolver,
-				&moduleRequest,
-				importRecord.ImportName(),
-				jutil.NewLinkedHashSet[ExportTrace](),
-				jutil.NewLinkedHashSet[UnresolvedModule]())
-		if !result.Found() && !result.HadError() {
-			m.ReportInvalidDestructuringRequire(requested, importRecord)
-			return ResolveExportResult_ERROR
-		}
-		forSourceInfo := importRecord.NameNode()
-		if forSourceInfo.IsNil() {
-			forSourceInfo = importRecord.ImportNode()
-		}
-		return result.Copy(forSourceInfo, require.CreatedBy())
 	}
+
+	result := requested.ResolveExportWithTraces(
+		moduleRequestResolver,
+		&moduleRequest,
+		importRecord.ImportName(),
+		jutil.NewLinkedHashSet[ExportTrace](),
+		jutil.NewLinkedHashSet[UnresolvedModule]())
+	if !result.Found() && !result.HadError() {
+		m.reportInvalidDestructuringRequire(requested, importRecord)
+		return ResolveExportResult_ERROR
+	}
+	forSourceInfo := importRecord.NameNode()
+	if forSourceInfo.IsNil() {
+		forSourceInfo = importRecord.ImportNode()
+	}
+	return result.Copy(forSourceInfo, require.CreatedBy())
 }
 
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.metadata()
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
+func (m *unresolvedGoogModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
 	return m.metadata
 }
 
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.getExportedNames(ModuleRequestResolver)
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
-	// Unsupported until such time as it becomes useful
+func (m *unresolvedGoogModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.getExportedNames(ModuleRequestResolver, Set<UnresolvedModule>)
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) GetExportedNamesWithVisited(
+func (m *unresolvedGoogModule) GetExportedNamesWithVisited(
 	moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string] {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.reset()
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) Reset() {
+func (m *unresolvedGoogModule) Reset() {
 	m.resolved = nil
 }
 
-// ReportInvalidDestructuringRequire reports an error given an invalid
-// destructuring require.
-//
-// Java: ClosureModuleProcessor.UnresolvedGoogModule.reportInvalidDestructuringRequire(UnresolvedModule, Import)
-func (m *ClosureModuleProcessor_UnresolvedGoogModule) ReportInvalidDestructuringRequire(
+func (m *unresolvedGoogModule) reportInvalidDestructuringRequire(
 	requested UnresolvedModule, importRecord *Import) {
 	additionalInfo := ""
-	if unresolvedGoogModule, ok := requested.(*ClosureModuleProcessor_UnresolvedGoogModule); ok {
-		// Detect some edge cases and given more helpful error messages.
-		exports := unresolvedGoogModule.namespace
-		if exports.ContainsKey(Export_NAMESPACE) {
-			// Can't use destructuring imports on a goog.module with a default
-			// export like
-			//   exports = class {
-			// (even if there is an assignment like `exports.Bar = 0;` later)
+	if otherGoog, ok := requested.(*unresolvedGoogModule); ok {
+		if defaultBinding, hasDefault := otherGoog.namespace.Lookup(Export_NAMESPACE); hasDefault {
 			additionalInfo =
-				jutil.LenientFormat( // Use Strings.lenientFormat for GWT/J2CL compatability
+				jutil.LenientFormat(
 					"\n"+
 						"The goog.module \"%s\" cannot be destructured as it contains a default"+
 						" export, not named exports. See %s.",
 					importRecord.ModuleRequest(),
 					"https://github.com/google/closure-library/wiki/goog.module%3A-an-ES6-module-like-alternative-to-goog.provide#destructuring-imports")
 
-			if closureModuleProcessor_mayBeAccidentalDefaultExport(importRecord.ImportName(), exports) {
-				// Give the user a more detailed error message, since this is a
-				// tricky edge case.
+			if closureModuleProcessor_mayBeAccidentalDefaultExport(importRecord.ImportName(), defaultBinding) {
 				additionalInfo +=
 					jutil.LenientFormat(
 						"\n"+
@@ -255,31 +208,16 @@ func (m *ClosureModuleProcessor_UnresolvedGoogModule) ReportInvalidDestructuring
 			additionalInfo))
 }
 
-// closureModuleProcessor_mayBeAccidentalDefaultExport returns whether the
-// user appears to have confused a default export of an object literal with
-// the named export object literal shorthand.
-//
-// Basically, `exports = {foo: 0};`, does /not/ create a 'named export' of
-// 'foo' because 0 is not a name. So users cannot destructuring-require
-// `const {foo} = goog.require('the.module');`. However, if instead of `0`
-// the user exported a name like `bar`, the user could use a destructuring
-// require.
-//
-// Java: ClosureModuleProcessor.mayBeAccidentalDefaultExport(String, Map<String, Binding>)
-func closureModuleProcessor_mayBeAccidentalDefaultExport(
-	importName string, exports *jutil.LinkedHashMap[string, *Binding]) bool {
-	defaultExport := exports.Get(Export_NAMESPACE).OriginatingExport().ExportNode()
-	jutil.CheckStateMsg1(
-		defaultExport.MatchesName("exports") && defaultExport.GetParent().IsAssign(),
-		"%s",
-		defaultExport)
-	exportedValue := defaultExport.GetNext()
-	if !exportedValue.IsObjectLit() {
+func closureModuleProcessor_mayBeAccidentalDefaultExport(importName string, defaultBinding *Binding) bool {
+	defaultExport := defaultBinding.OriginatingExport().ExportNode()
+	assign, isAssign := ast.AsAssign(defaultExport.GetParent())
+	jutil.CheckStateMsg1(defaultExport.MatchesName("exports") && isAssign, "%s", defaultExport)
+	objLit, ok := assign.Value().AsObjectLit()
+	if !ok {
 		return false
 	}
-	// Look for `importName` in the exported object literal.
-	for key := exportedValue.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-		if key.IsStringKey() && key.GetString() == importName {
+	for member := range objLit.Members() {
+		if key, ok := member.AsStringKey(); ok && key.Key() == importName {
 			return true
 		}
 	}
@@ -299,127 +237,86 @@ func (p *ClosureModuleProcessor) Process(
 	jutil.CheckArgumentMsg(
 		script.IsCall() || path != nil, "Non goog.loadModules must have a path")
 
-	moduleProcessingCallback := NewClosureModuleProcessor_ModuleProcessingCallback(metadata)
-	NodeTraversal_Traverse(p.compiler, script, moduleProcessingCallback)
-	return NewClosureModuleProcessor_UnresolvedGoogModule(
-		metadata,
-		script.GetSourceFileName(),
-		path,
-		closureModuleProcessor_immutableMapCopyOf(moduleProcessingCallback.namespace),
-		closureModuleProcessor_immutableMapCopyOf(moduleProcessingCallback.requiresByLocalName),
-		p.compiler)
+	cb := &closureModuleProcessingCallback{
+		metadata:            metadata,
+		closureNamespace:    closureModuleProcessor_onlyNamespace(metadata),
+		namespace:           jutil.NewLinkedHashMap[string, *Binding](),
+		requiresByLocalName: make(map[string]*ClosureRequireProcessor_Require),
+	}
+	NodeTraversal_Traverse(p.compiler, script, cb)
+
+	m := &unresolvedGoogModule{
+		metadata:            metadata,
+		srcFileName:         script.GetSourceFileName(),
+		path:                path,
+		namespace:           cb.namespace,
+		requireNames:        cb.requireNames,
+		requiresByLocalName: cb.requiresByLocalName,
+		compiler:            p.compiler,
+	}
+	m.InitUnresolvedModuleBase(m)
+	return m
 }
 
-// ClosureModuleProcessor_ModuleProcessingCallback traverses a subtree rooted
-// at a module, gathering all exports and requires.
-type ClosureModuleProcessor_ModuleProcessingCallback struct {
+type closureModuleProcessingCallback struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
 
-	metadata *ModuleMetadataMap_ModuleMetadata
-
-	// The Closure namespace 'a.b.c' from the `goog.module('a.b.c');` statement
-	closureNamespace string
-
-	// Note: the following two maps are mutable because in some cases, we need
-	// to check if a key has already been added before trying to add a second.
-
-	// All named exports and explicit assignments of the `exports` object
-	namespace *jutil.LinkedHashMap[string, *Binding]
-
-	// All required/forwardDeclared local names
-	requiresByLocalName *jutil.LinkedHashMap[string, *ClosureRequireProcessor_Require]
-
-	// Whether we've come across an "exports = ..." assignment
+	metadata              *ModuleMetadataMap_ModuleMetadata
+	closureNamespace      string
+	namespace             *jutil.LinkedHashMap[string, *Binding]
+	requireNames          []string
+	requiresByLocalName   map[string]*ClosureRequireProcessor_Require
 	seenExportsAssignment bool
 }
 
-// Java: ClosureModuleProcessor.ModuleProcessingCallback(ModuleMetadata)
-func NewClosureModuleProcessor_ModuleProcessingCallback(
-	metadata *ModuleMetadataMap_ModuleMetadata) *ClosureModuleProcessor_ModuleProcessingCallback {
-	c := &ClosureModuleProcessor_ModuleProcessingCallback{}
-	c.metadata = metadata
-	c.namespace = jutil.NewLinkedHashMap[string, *Binding]()
-	c.requiresByLocalName = jutil.NewLinkedHashMap[string, *ClosureRequireProcessor_Require]()
-	c.closureNamespace = colorPool_getOnlyElement(slices.Collect(metadata.GoogNamespaces().All()))
-	c.seenExportsAssignment = false
-	return c
-}
-
-// Java: ClosureModuleProcessor.ModuleProcessingCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (c *closureModuleProcessingCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
-	case rhino.Token_MODULE_BODY,
-		rhino.Token_SCRIPT,
-		rhino.Token_CALL, // Traverse into goog.loadModule calls.
-		rhino.Token_BLOCK:
+	case rhino.Token_MODULE_BODY, rhino.Token_SCRIPT, rhino.Token_CALL, rhino.Token_BLOCK:
 		return true
 	case rhino.Token_FUNCTION:
-		// Only traverse into functions that are the argument of a
-		// goog.loadModule call, which is the module root. Avoid traversing
-		// function declarations like:
-		//     goog.module('a.b'); function (exports) { exports.x = 0; }
 		return parent.IsCall() && parent == c.metadata.RootNode()
 	case rhino.Token_EXPR_RESULT:
-		expr := n.GetFirstChild()
-		if expr.IsAssign() {
-			c.MaybeInitializeExports(expr)
-		} else if expr.IsGetProp() {
-			c.MaybeInitializeExportsStub(expr)
+		expr := ast.MustExprStmt(n).Expr()
+		if assign, ok := expr.AsAssign(); ok {
+			c.maybeInitializeExports(assign)
+		} else if getProp, ok := expr.AsGetProp(); ok {
+			c.maybeInitializeExportsStub(getProp)
 		}
 		return false
 	case rhino.Token_CONST, rhino.Token_VAR, rhino.Token_LET:
-		// Note that `let` is valid only for `goog.forwardDeclare`.
-		c.MaybeInitializeRequire(n)
+		c.maybeInitializeRequire(n)
 		return false
 	default:
 		return false
 	}
 }
 
-// MaybeInitializeExports: if an assignment is to 'exports', adds it to the
-// list of Exports.
-//
-// Java: ClosureModuleProcessor.ModuleProcessingCallback.maybeInitializeExports(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeExports(assignment rhino.Node) {
-	lhs := assignment.GetFirstChild()
-	rhs := assignment.GetSecondChild()
-	if lhs.IsName() && lhs.GetString() == "exports" {
-		// This may be a 'named exports' or may be a default export.
-		// It is a 'named export' if and only if it is assigned an object
-		// literal w/ string keys, whose values are all names.
+func (c *closureModuleProcessingCallback) maybeInitializeExports(assign ast.Assign) {
+	lhs := assign.Target()
+	if lhsName, ok := lhs.AsName(); ok && lhsName.Ident() == "exports" {
+		rhs := assign.Value().Node()
 		if NodeUtil_IsNamedExportsLiteral(rhs) {
-			c.InitializeNamedExportsLiteral(rhs)
+			for member := range ast.MustObjectLit(rhs).Members() {
+				c.addPropertyExport(member.Node().GetString(), member.Node())
+			}
 		} else {
 			c.seenExportsAssignment = true
-			c.MarkExportsAssignmentInNamespace(lhs)
+			c.markExportsAssignmentInNamespace(lhs.Node())
 		}
-	} else if lhs.IsGetProp() &&
-		lhs.GetFirstChild().IsName() &&
-		lhs.GetFirstChild().GetString() == "exports" {
-		exportedId := lhs.GetString()
-		c.AddPropertyExport(exportedId, lhs)
+	} else if getProp, ok := lhs.AsGetProp(); ok {
+		if owner, ok := getProp.Object().AsName(); ok && owner.Ident() == "exports" {
+			c.addPropertyExport(getProp.Property(), getProp.Node())
+		}
 	}
 }
 
-// MaybeInitializeExportsStub adds stub export declarations `exports.Foo;`
-// to the list of Exports.
-//
-// Java: ClosureModuleProcessor.ModuleProcessingCallback.maybeInitializeExportsStub(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeExportsStub(qname rhino.Node) {
-	owner := qname.GetFirstChild()
-	if owner.IsName() && owner.GetString() == "exports" {
-		c.AddPropertyExport(qname.GetString(), qname)
+func (c *closureModuleProcessingCallback) maybeInitializeExportsStub(getProp ast.GetProp) {
+	if owner, ok := getProp.Object().AsName(); ok && owner.Ident() == "exports" {
+		c.addPropertyExport(getProp.Property(), getProp.Node())
 	}
 }
 
-// MarkExportsAssignmentInNamespace adds an explicit namespace export.
-//
-// Note that all goog.modules create an 'exports' object, but this object
-// is only added to the Module namespace if there is an explicit' exports =
-// ...' assignment
-//
-// Java: ClosureModuleProcessor.ModuleProcessingCallback.markExportsAssignmentInNamespace(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) MarkExportsAssignmentInNamespace(exportsNode rhino.Node) {
+func (c *closureModuleProcessingCallback) markExportsAssignmentInNamespace(exportsNode rhino.Node) {
 	exportName := Export_NAMESPACE
 	closureNamespace := c.closureNamespace
 	c.namespace.Put(
@@ -435,26 +332,10 @@ func (c *ClosureModuleProcessor_ModuleProcessingCallback) MarkExportsAssignmentI
 			exportsNode))
 }
 
-// Java: ClosureModuleProcessor.ModuleProcessingCallback.initializeNamedExportsLiteral(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) InitializeNamedExportsLiteral(objectLit rhino.Node) {
-	for key := objectLit.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-		c.AddPropertyExport(key.GetString(), key)
-	}
-}
-
-// AddPropertyExport adds a named export to the list of Exports.
-//
-// Java: ClosureModuleProcessor.ModuleProcessingCallback.addPropertyExport(String, Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) AddPropertyExport(exportedId string, propNode rhino.Node) {
-	if c.seenExportsAssignment {
-		// We've seen an assignment "exports = ...", so this is not a named
-		// export.
-		return
-	} else if c.namespace.ContainsKey(exportedId) {
-		// Ignore duplicate exports - this is an error but checked elsewhere.
+func (c *closureModuleProcessingCallback) addPropertyExport(exportedId string, propNode rhino.Node) {
+	if c.seenExportsAssignment || c.namespace.ContainsKey(exportedId) {
 		return
 	}
-
 	closureNamespace := c.closureNamespace
 	c.namespace.Put(
 		exportedId,
@@ -469,12 +350,12 @@ func (c *ClosureModuleProcessor_ModuleProcessingCallback) AddPropertyExport(expo
 			propNode))
 }
 
-// MaybeInitializeRequire adds a goog.require(Type) or forwardDeclare to the
-// list of requiresByLocalName.
-//
-// Java: ClosureModuleProcessor.ModuleProcessingCallback.maybeInitializeRequire(Node)
-func (c *ClosureModuleProcessor_ModuleProcessingCallback) MaybeInitializeRequire(nameDeclaration rhino.Node) {
+func (c *closureModuleProcessingCallback) maybeInitializeRequire(nameDeclaration rhino.Node) {
 	for _, require := range ClosureRequireProcessor_GetAllRequires(nameDeclaration) {
-		c.requiresByLocalName.PutIfAbsent(require.LocalName(), require)
+		localName := require.LocalName()
+		if _, exists := c.requiresByLocalName[localName]; !exists {
+			c.requireNames = append(c.requireNames, localName)
+			c.requiresByLocalName[localName] = require
+		}
 	}
 }

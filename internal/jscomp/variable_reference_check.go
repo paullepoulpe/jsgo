@@ -174,7 +174,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) AfterExitScope(t *Nod
 			b.CheckVar(v, referenceCollection.references)
 		}
 	}
-	if scope.HasOwnImplicitSlot(AbstractScope_ImplicitVar_EXPORTS.ptr()) {
+	if scope.hasOwnImplicitVar(AbstractScope_ImplicitVar_EXPORTS) {
 		b.CheckGoogModuleExports(scope.MakeImplicitVar(AbstractScope_ImplicitVar_EXPORTS), referenceMap)
 	}
 }
@@ -219,8 +219,8 @@ func (cb *variableReferenceCheck_defaultParamCallback) Visit(t *NodeTraversal, n
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.checkShadowParam(Var, Scope, List<Reference>)
 func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckShadowParam(
 	v *Var, functionScope *Scope, references []*Reference) {
-	maybeParam := functionScope.GetVar(v.GetName())
-	if maybeParam != nil && maybeParam.IsParam() && maybeParam.GetScope() == rhino.StaticScope(functionScope) {
+	maybeParam := functionScope.GetVarByID(v.nameID)
+	if maybeParam != nil && maybeParam.IsParam() && maybeParam.scope == functionScope {
 		for _, r := range references {
 			if (r.IsVarDeclaration() || r.IsHoistedFunction()) &&
 				r.GetNode() != v.GetNameNode() {
@@ -300,7 +300,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, refe
 			// TODO(b/111441110): Fix this check. it causes spurious warnings on `b = a` in
 			//   for (const [a, b = a] of []) {}
 			if (v.IsLet() || v.IsConst()) &&
-				v.GetScope() == rhino.StaticScope(reference.GetScope()) &&
+				v.scope == reference.GetScope() &&
 				NodeUtil_IsEnhancedFor(reference.GetScope().GetRootNode()) {
 				c.compiler.Report(JSError_MakeWithNode(referenceNode, VariableReferenceCheck_EARLY_REFERENCE_ERROR, v.GetName()))
 			}
@@ -375,7 +375,7 @@ func (vc *VariableReferenceCheck) CheckRedeclaration(
 			// TODOO - lharker: this won't handle destructuring block scoped declarations. Is this
 			// an actual bug?
 			NodeUtil_IsBlockScopedDeclaration(referenceNode.GetParent()) &&
-			v.GetScope() == rhino.StaticScope(reference.GetScope().GetParent())
+			v.scope == reference.GetScope().parent
 
 		isFunctionDecl := !v.GetParentNode().IsNil() &&
 			v.GetParentNode().IsFunction() &&
@@ -396,7 +396,7 @@ func (vc *VariableReferenceCheck) CheckRedeclaration(
 		} else {
 			// These diagnostics are for valid, but suspicious, code, and are suppressible.
 			// For vars defined in the global scope, give the same error as VarCheck
-			if v.GetScope().(*Scope).IsGlobal() {
+			if v.scope.IsGlobal() {
 				diagnosticType = VarCheck_VAR_MULTIPLY_DECLARED_ERROR
 			} else {
 				diagnosticType = VariableReferenceCheck_REDECLARED_VARIABLE
@@ -414,7 +414,7 @@ func (vc *VariableReferenceCheck) CheckRedeclaration(
 		return true
 	}
 
-	if (letConstShadowsVar || shadowCatchVar) && v.GetScope() == rhino.StaticScope(reference.GetScope()) {
+	if (letConstShadowsVar || shadowCatchVar) && v.scope == reference.GetScope() {
 		vc.compiler.Report(JSError_MakeWithNode(referenceNode, VariableReferenceCheck_REDECLARED_VARIABLE_ERROR, v.GetName()))
 		return true
 	}
@@ -458,7 +458,7 @@ func (vc *VariableReferenceCheck) CheckEarlyReference(v *Var, reference *Referen
 		for curr.IsOr() && curr.GetParent().GetFirstChild() == curr {
 			curr = curr.GetParent()
 		}
-		if curr.IsName() && curr.GetString() == v.GetName() {
+		if curr.IsName() && curr.GetStringID() == v.nameID {
 			return false
 		}
 	}
@@ -476,7 +476,7 @@ func (vc *VariableReferenceCheck) CheckEarlyReference(v *Var, reference *Referen
 	// We don't track where `f` is called, just where it's defined, and don't want to warn for
 	//     function f() { return x; } let x = 5; f();
 	// TODO(moz): See if we can remove the bypass for "goog"
-	if reference.GetScope().HasSameContainerScope(v.GetScope().(*Scope)) && v.GetName() != "goog" {
+	if reference.GetScope().HasSameContainerScope(v.scope) && v.GetName() != "goog" {
 		var diagnostic *DiagnosticType
 		if v.IsGoogModuleExports() {
 			diagnostic = VariableReferenceCheck_EARLY_EXPORTS_REFERENCE
@@ -509,7 +509,7 @@ func (vc *VariableReferenceCheck) CheckForUnusedLocalVar(v *Var, unusedAssignmen
 	}
 
 	inGoogScope := false
-	s := v.GetScope().(*Scope)
+	s := v.scope
 	if s.IsFunctionBlockScope() {
 		function := s.GetRootNode().GetParent()
 		callee := function.GetPrevious()

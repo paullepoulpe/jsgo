@@ -18,7 +18,11 @@
 
 package regex
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // CaseCanonicalize implements the ECMAScript 5 Canonicalize
 // (http://es5.github.com/#Canonicalize) operation used to specify how
@@ -180,17 +184,44 @@ var CaseCanonicalize_CASE_SENSITIVE = CharRanges_WithRanges(
 //
 // Java: CaseCanonicalize.caseCanonicalize(String)
 func CaseCanonicalize_CaseCanonicalize(s string) string {
-	chars := jutil.StringToUTF16(s) // Java: s.charAt(i)
+	ascii := true
+	hasUpper := false
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		if b >= 0x80 {
+			ascii = false
+			break
+		}
+		if 'A' <= b && b <= 'Z' {
+			hasUpper = true
+		}
+	}
+	if ascii {
+		if !hasUpper {
+			return s
+		}
+		var sb strings.Builder
+		sb.Grow(len(s))
+		for i := 0; i < len(s); i++ {
+			b := s[i]
+			if 'A' <= b && b <= 'Z' {
+				b |= 32
+			}
+			sb.WriteByte(b)
+		}
+		return sb.String()
+	}
+
+	chars := jutil.StringToUTF16(s)
 	for i, n := 0, len(chars); i < n; i++ {
 		ch := chars[i]
 		cu := CaseCanonicalize_CaseCanonicalizeChar(ch)
 		if cu != ch {
-			sb := jutil.NewStringBuilderFrom(s)
-			sb.SetCharAt(i, cu)
+			chars[i] = cu
 			for i++; i < n; i++ {
-				sb.SetCharAt(i, CaseCanonicalize_CaseCanonicalizeChar(chars[i]))
+				chars[i] = CaseCanonicalize_CaseCanonicalizeChar(chars[i])
 			}
-			return sb.String()
+			return jutil.StringFromUTF16(chars)
 		}
 	}
 	return s

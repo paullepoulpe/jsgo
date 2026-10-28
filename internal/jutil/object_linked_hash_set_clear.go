@@ -15,4 +15,3 @@ func (h *ObjectLinkedHashMap[K, V]) Clear() {
 	h.size = 0
 	h.first = 0
 }
-

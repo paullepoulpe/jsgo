@@ -63,13 +63,13 @@ import (
 
 // Token flags packed into Token.flags.
 const (
-	tokenFlagPrivateIdent               uint8 = 1 << 0
-	tokenFlagIdentIsKeyword             uint8 = 1 << 1
+	tokenFlagPrivateIdent                uint8 = 1 << 0
+	tokenFlagIdentIsKeyword              uint8 = 1 << 1
 	tokenFlagUnescapedLineOrParagraphSep uint8 = 1 << 2
-	tokenFlagTemplateTrim1              uint8 = 1 << 3 // template closed with `
-	tokenFlagTemplateTrim2              uint8 = 1 << 4 // template closed with ${
-	tokenFlagNumericSeparator           uint8 = 1 << 5 // _ in NUMBER or BIGINT
-	tokenFlagTemplateHasError           uint8 = 1 << 6 // TemplateLiteralToken.ErrorLevel == ERROR
+	tokenFlagTemplateTrim1               uint8 = 1 << 3 // template closed with `
+	tokenFlagTemplateTrim2               uint8 = 1 << 4 // template closed with ${
+	tokenFlagNumericSeparator            uint8 = 1 << 5 // _ in NUMBER or BIGINT
+	tokenFlagTemplateHasError            uint8 = 1 << 6 // TemplateLiteralToken.ErrorLevel == ERROR
 )
 
 // Token is a 16-byte pointer-free value representing any JavaScript token

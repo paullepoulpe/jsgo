@@ -4345,4 +4345,3 @@ func TestCodeGeneratorStreamingEscapeAndZeroAlloc(t *testing.T) {
 		t.Fatalf("CodePrinter buildSourceAndMappingsInto allocs = %v, want <= 1", allocsPrint)
 	}
 }
-

@@ -1,4 +1,11 @@
 // Port of org/kohsuke/args4j/Option.java @ args4j 2.33
+// Port of org/kohsuke/args4j/Argument.java @ args4j 2.33
+// Port of org/kohsuke/args4j/OptionDef.java @ args4j 2.33
+// Port of org/kohsuke/args4j/NamedOptionDef.java @ args4j 2.33
+// Port of org/kohsuke/args4j/OptionHandlerFilter.java @ args4j 2.33
+// Port of org/kohsuke/args4j/ParserProperties.java @ args4j 2.33
+// Port of org/kohsuke/args4j/CmdLineException.java @ args4j 2.33
+// Port of org/kohsuke/args4j/IllegalAnnotationError.java @ args4j 2.33
 
 /*
  * Copyright (c) 2013 Kohsuke Kawaguchi and other contributors
@@ -24,163 +31,291 @@
 
 package args4j
 
-// Option marks a field/setter that receives a command line switch value.
-//
-// This annotation can be placed on a field of type T or the method of the
-// form void methodName(T value). Its access modified can be anything, but if
-// it's not public, your application needs to run in a security context that
-// allows args4j to access the field/method (see
-// AccessibleObject.setAccessible(boolean)).
-//
-// The behavior of the annotation differs depending on T --- the type of the
-// field or the parameter of the method.
-//
-// Boolean Switch: When T is boolean, it represents a boolean option that
-// takes the form of -OPT. When this option is set, the property will be set
-// to true.
-//
-// String Switch: When T is String, it represents an option that takes one
-// operand. The value of the operand is set to the property.
-//
-// Enum Switch: When T is derived from Enum, it represents an option that
-// takes an operand, which must be one of the enum constant. The comparion
-// between the operand and the enum constant name is done in a case
-// insensitive fashion.
-//
-// For example, the following definition will represent command line options
-// like -coin penny or -coin DIME, but things like -coin or -coin abc are
-// errors.
-//
-//	enum Coin { PENNY,NICKEL,DIME,QUARTER }
-//
-//	class Option {
-//	  @Option(name="-coin")
-//	  public Coin coin;
-//	}
-//
-// File Switch: When T is a File, it represents an option that takes a
-// file/directory name as an operand.
-//
-// Go-only: language-adapter — annotations: the annotation is a struct whose
-// fields are its elements; a field left at its zero value has the
-// element's default (see the package documentation).
-//
-// Java: @interface Option
+import (
+	"slices"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+// Option describes a named command-line flag bound to a Bean field.
 type Option struct {
-	// Name of the option, such as -foo or -bar.
-	Name string
-
-	// Aliases for the options, such as --long-option-name.
-	Aliases []string
-
-	// Help string used to display the usage screen.
-	//
-	// This parameter works in two ways. For a simple use, you can just encode
-	// the human-readable help string directly, and that will be used as the
-	// message. This is easier, but it doesn't support localization.
-	//
-	// For more advanced use, this property is set to a key of a
-	// ResourceBundle. The actual message is obtained by querying a
-	// ResourceBundle instance supplied to CmdLineParser by this key. This
-	// allows the usage screen to be properly localized.
-	//
-	// If this value is empty, the option will not be displayed in the usage
-	// screen.
-	Usage string
-
-	// When the option takes an operand, the usage screen will show something
-	// like this
-	//
-	//	-x FOO  : blah blah blah
-	//
-	// You can replace the FOO token by using this parameter.
-	//
-	// If left unspecified, this value is infered from the type of the option.
-	//
-	// Just like Usage, normally, this value is printed as is. But if a
-	// ResourceBundle is given to the CmdLineParser, it will be used to obtain
-	// the locale-specific value.
-	MetaVar string
-
-	// Specify that the option is mandatory.
-	//
-	// At the end of CmdLineParser.parseArgument(String...), a
-	// CmdLineException will be thrown if a required option is not present.
-	//
-	// Note that in most of the command line interface design principles,
-	// options should be really optional. So use caution when using this flag.
+	Name     string
+	Aliases  []string
+	Usage    string
+	MetaVar  string
 	Required bool
-
-	// Specify that the option is a help option.
-	//
-	// When flagging an option being the help option, required arguments or
-	// options that are missing in an actual command line don't cause an
-	// exception to be thrown.
-	Help bool
-
-	// Specify that the option is hidden from the usage, by default.
-	//
-	// You can still have CmdLineParser show hidden options by using
-	// OptionHandlerFilter.ALL, which allows you to create an option that shows
-	// hidden options.
-	//
-	// If you need more complicated filtering logic, define your own
-	// annotations and check them in Setter.asAnnotatedElement().
-	Hidden bool
-
-	// Specify the OptionHandler that processes the command line arguments.
-	//
-	// The default value OptionHandler (nil) indicates that the OptionHandler
-	// will be infered from the type of the field/method where a Option
-	// annotation is placed.
-	//
-	// If this annotation element is used, it overrides the inference and
-	// determines the handler to be used. This is convenient for defining a
-	// non-standard option parsing semantics.
-	//
-	//	// this is a normal "-r" option
-	//	@Option(name="-r")
-	//	boolean value;
-	//
-	//	// this causes arg4j to use MyHandler, not the default
-	//	// handler provided for boolean
-	//	@Option(name="-b",handler=MyHandler.class)
-	//	boolean value;
-	Handler OptionHandlerClass
-
-	// List of other options that this option depends on.
-	//
-	//	@Option(name="-a")
-	//	int a;
-	//	//-b is not required but if it's provided, then a becomes required
-	//	@Option(name="-b", depends={"-a"})
-	//	int b;
-	//
-	// At the end of CmdLineParser.parseArgument(String...), a
-	// CmdLineException will be thrown if options required by another one are
-	// not present.
-	Depends []string
-
-	// List of other options that this option is incompatible with..
-	//
-	//	@Option(name="-a")
-	//	int a;
-	//	// -h and -a cannot be specified together
-	//	@Option(name="-h", forbids={"-a"})
-	//	boolean h;
-	//
-	// At the end of CmdLineParser.parseArgument(String...), a
-	// CmdLineException will be thrown if forbidden option combinations are
-	// present.
-	Forbids []string
+	Help     bool
+	Hidden   bool
+	Handler  OptionHandlerClass
+	Depends  []string
+	Forbids  []string
 }
 
-// OptionHandlerClass is the Go form of Class<? extends OptionHandler>, as an
-// annotation's handler element and OptionHandlerRegistry use it: the
-// handler's constructor with the signature of
-// OptionHandler(CmdLineParser, OptionDef, Setter). nil is
-// OptionHandler.class, the default.
-//
-// Go-only: language-adapter — reflection (args4j instantiates the class
-// through that constructor).
+// OptionHandlerClass constructs an OptionHandler. A nil value instructs args4j
+// to infer the handler from the field's Class.
 type OptionHandlerClass func(parser *CmdLineParser, option OptionDef, setter Setter) OptionHandler
+
+// Argument describes a positional command-line argument bound to a Bean field.
+type Argument struct {
+	Usage       string
+	MetaVar     string
+	Required    bool
+	Hidden      bool
+	Handler     OptionHandlerClass
+	Index       int
+	MultiValued bool
+}
+
+// OptionDef is the runtime metadata of an Option or Argument. Unnamed
+// instances represent positional arguments; NamedOptionDef represents flags.
+type OptionDef interface {
+	Usage() string
+	MetaVar() string
+	Required() bool
+	Help() bool
+	Hidden() bool
+	Handler() OptionHandlerClass
+	IsMultiValued() bool
+	IsArgument() bool
+	String() string
+	GetOptionDefBase() *OptionDefBase
+}
+
+// OptionDefBase holds the common OptionDef fields and default methods.
+type OptionDefBase struct {
+	self        OptionDef
+	usage       string
+	metaVar     string
+	required    bool
+	help        bool
+	hidden      bool
+	multiValued bool
+	handler     OptionHandlerClass
+}
+
+// NewOptionDef constructs an OptionDef for a positional Argument.
+func NewOptionDef(a *Argument, forceMultiValued bool) *OptionDefBase {
+	d := &OptionDefBase{}
+	d.InitOptionDefBase(d, a.Usage, a.MetaVar, a.Required, false, a.Hidden, a.Handler, a.MultiValued || forceMultiValued)
+	return d
+}
+
+// InitOptionDefBase initializes OptionDefBase for a concrete OptionDef.
+func (d *OptionDefBase) InitOptionDefBase(
+	self OptionDef,
+	usage, metaVar string,
+	required, help, hidden bool,
+	handler OptionHandlerClass,
+	multiValued bool,
+) {
+	d.self = self
+	d.usage = usage
+	d.metaVar = metaVar
+	d.required = required
+	d.help = help
+	d.hidden = hidden
+	d.handler = handler
+	d.multiValued = multiValued
+}
+
+func (d *OptionDefBase) GetOptionDefBase() *OptionDefBase { return d }
+func (d *OptionDefBase) Usage() string                    { return d.usage }
+func (d *OptionDefBase) MetaVar() string                  { return d.metaVar }
+func (d *OptionDefBase) Required() bool                   { return d.required }
+func (d *OptionDefBase) Help() bool                       { return d.help }
+func (d *OptionDefBase) Hidden() bool                     { return d.hidden }
+func (d *OptionDefBase) Handler() OptionHandlerClass      { return d.handler }
+func (d *OptionDefBase) IsMultiValued() bool              { return d.multiValued }
+func (d *OptionDefBase) IsArgument() bool                 { return true }
+func (d *OptionDefBase) String() string                   { return d.self.MetaVar() }
+
+// NamedOptionDef is the runtime copy of an Option annotation.
+type NamedOptionDef struct {
+	OptionDefBase
+	name    string
+	aliases []string
+	depends []string
+	forbids []string
+}
+
+// NewNamedOptionDef constructs a NamedOptionDef from an Option.
+func NewNamedOptionDef(o *Option) *NamedOptionDef {
+	d := &NamedOptionDef{
+		name:    o.Name,
+		aliases: nonNilStrings(o.Aliases),
+		depends: nonNilStrings(o.Depends),
+		forbids: nonNilStrings(o.Forbids),
+	}
+	d.InitOptionDefBase(d, o.Usage, o.MetaVar, o.Required, o.Help, o.Hidden, o.Handler, false)
+	return d
+}
+
+func nonNilStrings(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
+}
+
+func (d *NamedOptionDef) Name() string      { return d.name }
+func (d *NamedOptionDef) Aliases() []string { return slices.Clone(d.aliases) }
+func (d *NamedOptionDef) Depends() []string { return slices.Clone(d.depends) }
+func (d *NamedOptionDef) Forbids() []string { return slices.Clone(d.forbids) }
+func (d *NamedOptionDef) IsArgument() bool  { return false }
+
+func (d *NamedOptionDef) String() string {
+	if len(d.aliases) > 0 {
+		return d.name + " (" + strings.Join(d.aliases, ", ") + ")"
+	}
+	return d.name
+}
+
+// OptionHandlerFilter selects which OptionHandlers are included in usage output.
+type OptionHandlerFilter interface {
+	Select(o OptionHandler) bool
+}
+
+// OptionHandlerFilterFunc adapts a function to OptionHandlerFilter.
+type OptionHandlerFilterFunc func(o OptionHandler) bool
+
+func (f OptionHandlerFilterFunc) Select(o OptionHandler) bool { return f(o) }
+
+var (
+	OptionHandlerFilter_ALL OptionHandlerFilter = OptionHandlerFilterFunc(func(OptionHandler) bool {
+		return true
+	})
+	OptionHandlerFilter_PUBLIC OptionHandlerFilter = OptionHandlerFilterFunc(func(o OptionHandler) bool {
+		return !o.GetOptionHandlerBase().Option.Hidden()
+	})
+	OptionHandlerFilter_REQUIRED OptionHandlerFilter = OptionHandlerFilterFunc(func(o OptionHandler) bool {
+		return o.GetOptionHandlerBase().Option.Required()
+	})
+)
+
+const defaultUsageWidth = 80
+
+// ParserProperties configures CmdLineParser formatting and @-file behavior.
+type ParserProperties struct {
+	usageWidth           int
+	optionSorter         func(o1, o2 OptionHandler) int
+	optionValueDelimiter string
+	atSyntax             bool
+	showDefaults         bool
+}
+
+// ParserProperties_Defaults returns a new ParserProperties with standard defaults.
+func ParserProperties_Defaults() *ParserProperties {
+	return &ParserProperties{
+		usageWidth:           defaultUsageWidth,
+		optionSorter:         ParserProperties_DEFAULT_COMPARATOR,
+		optionValueDelimiter: " ",
+		atSyntax:             true,
+		showDefaults:         true,
+	}
+}
+
+func (p *ParserProperties) WithAtSyntax(atSyntax bool) *ParserProperties {
+	p.atSyntax = atSyntax
+	return p
+}
+
+func (p *ParserProperties) GetAtSyntax() bool { return p.atSyntax }
+
+func (p *ParserProperties) WithShowDefaults(showDefaults bool) *ParserProperties {
+	p.showDefaults = showDefaults
+	return p
+}
+
+func (p *ParserProperties) GetShowDefaults() bool { return p.showDefaults }
+
+func (p *ParserProperties) WithUsageWidth(usageWidth int) *ParserProperties {
+	if usageWidth < 0 {
+		panic(jutil.NewIllegalArgumentExceptionMsg("Usage width is negative"))
+	}
+	p.usageWidth = usageWidth
+	return p
+}
+
+func (p *ParserProperties) GetUsageWidth() int { return p.usageWidth }
+
+func (p *ParserProperties) WithOptionSorter(sorter func(o1, o2 OptionHandler) int) *ParserProperties {
+	p.optionSorter = sorter
+	return p
+}
+
+func (p *ParserProperties) GetOptionSorter() func(o1, o2 OptionHandler) int { return p.optionSorter }
+
+func (p *ParserProperties) WithOptionValueDelimiter(v string) *ParserProperties {
+	p.optionValueDelimiter = v
+	return p
+}
+
+func (p *ParserProperties) GetOptionValueDelimiter() string { return p.optionValueDelimiter }
+
+// ParserProperties_DEFAULT_COMPARATOR sorts options alphabetically by OptionDef.String().
+var ParserProperties_DEFAULT_COMPARATOR = func(o1, o2 OptionHandler) int {
+	return jutil.StringCompareTo(o1.GetOptionHandlerBase().Option.String(), o2.GetOptionHandlerBase().Option.String())
+}
+
+// cmdLineExceptionClassName matches the shaded class name in closure-compiler.jar.
+const cmdLineExceptionClassName = "com.google.javascript.jscomp.jarjar.org.kohsuke.args4j.CmdLineException"
+
+// CmdLineException signals an error in user command-line arguments.
+type CmdLineException struct {
+	jutil.JavaException
+	parser *CmdLineParser
+}
+
+func (*CmdLineException) cmdLineException() {}
+
+// ICmdLineException matches CmdLineException and its subclasses.
+type ICmdLineException interface {
+	jutil.IException
+	cmdLineException()
+	GetLocalizedMessage() string
+	GetParser() *CmdLineParser
+}
+
+func newCmdLineException(parser *CmdLineParser, msg messageTemplate, args ...string) *CmdLineException {
+	objs := make([]any, len(args))
+	for i, a := range args {
+		objs[i] = a
+	}
+	return NewCmdLineExceptionWithParser(parser, msg.format(objs...))
+}
+
+func NewCmdLineExceptionWithParser(parser *CmdLineParser, message string) *CmdLineException {
+	e := &CmdLineException{parser: parser}
+	jutil.InitThrowable(e, cmdLineExceptionClassName, &message, nil)
+	return e
+}
+
+func NewCmdLineExceptionWithParserMessageAndCause(parser *CmdLineParser, message string, cause jutil.Throwable) *CmdLineException {
+	e := &CmdLineException{parser: parser}
+	jutil.InitThrowable(e, cmdLineExceptionClassName, &message, cause)
+	return e
+}
+
+func (e *CmdLineException) GetLocalizedMessage() string { return e.GetMessage() }
+func (e *CmdLineException) GetParser() *CmdLineParser   { return e.parser }
+
+func (e *CmdLineException) Error() string {
+	if jutil.GetMessageOrNull(e) == nil {
+		return cmdLineExceptionClassName
+	}
+	return cmdLineExceptionClassName + ": " + e.GetMessage()
+}
+
+const illegalAnnotationErrorClassName = "com.google.javascript.jscomp.jarjar.org.kohsuke.args4j.IllegalAnnotationError"
+
+// IllegalAnnotationError signals invalid option metadata on a Bean.
+type IllegalAnnotationError struct {
+	jutil.JavaLangError
+}
+
+func NewIllegalAnnotationError(message string) *IllegalAnnotationError {
+	e := &IllegalAnnotationError{}
+	jutil.InitThrowable(e, illegalAnnotationErrorClassName, &message, nil)
+	return e
+}

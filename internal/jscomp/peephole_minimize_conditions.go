@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -766,7 +768,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(ifs ast.If) rhino.Node {
 			thenValue, hasValue := name1.Init()
 			maybeName2, isName := elseAssign.Target().AsName()
 
-			if hasValue && isName && name1.Ident() == maybeName2.Ident() {
+			if hasValue && isName && name1.Node().GetStringID() == maybeName2.Node().GetStringID() {
 				thenExpr := thenValue.Node()
 				thenExpr.Detach()
 				elseExpr := elseAssign.Value().Node()
@@ -787,7 +789,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(ifs ast.If) rhino.Node {
 			maybeName1, isName := thenAssign.Target().AsName()
 			elseValue, hasValue := name2.Init()
 
-			if hasValue && isName && maybeName1.Ident() == name2.Ident() {
+			if hasValue && isName && maybeName1.Node().GetStringID() == name2.Node().GetStringID() {
 				thenExpr := thenAssign.Value().Node()
 				thenExpr.Detach()
 				elseExpr := elseValue.Node()
@@ -927,7 +929,7 @@ func PeepholeMinimizeConditions_GetBlockExpression(n ast.Block) (ast.ExprStmt, b
 		// param, or this doesn't happen: calls of obj[key] or obj.onX.
 		if calledFn, ok := call.Callee().AsNormalOrOptChainGet(); ok {
 			getProp, isGetProp := calledFn.AsNormalOrOptChainGetProp()
-			if !isGetProp || jutil.StringStartsWith(getProp.Property(), "on") {
+			if !isGetProp || strings.HasPrefix(getProp.Property(), "on") {
 				return ast.ExprStmt{}, false
 			}
 		}
@@ -1046,16 +1048,23 @@ func PeepholeMinimizeConditions_IsLowerPrecedence(n rhino.Node, precedence int) 
 	return NodeUtil_Precedence(n.GetToken()) < precedence
 }
 
-func peepholeMinimizeConditions_isPropertyAssignmentInExpressionPredicate(input rhino.Node) bool {
-	return input.IsGetProp() && input.GetParent().IsAssign()
-}
-
 // PeepholeMinimizeConditions_IsPropertyAssignmentInExpression reports
 // whether the expression contains a property assignment.
 //
 // Java: PeepholeMinimizeConditions.isPropertyAssignmentInExpression(Node)
 func PeepholeMinimizeConditions_IsPropertyAssignmentInExpression(n rhino.Node) bool {
-	return NodeUtil_Has(n, peepholeMinimizeConditions_isPropertyAssignmentInExpressionPredicate, NodeUtil_MATCH_NOT_FUNCTION)
+	if n.IsGetProp() && n.GetParent().IsAssign() {
+		return true
+	}
+	if n.IsFunction() {
+		return false
+	}
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if PeepholeMinimizeConditions_IsPropertyAssignmentInExpression(c) {
+			return true
+		}
+	}
+	return false
 }
 
 // TryMinimizeCondition tries to minimize condition expression, as there are
@@ -1235,6 +1244,9 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 //
 // Java: PeepholeMinimizeConditions.maybeReplaceChildWithNumber(Node, int)
 func (p *PeepholeMinimizeConditions) MaybeReplaceChildWithNumber(n rhino.Node, num int) rhino.Node {
+	if n.IsNumber() && n.GetDouble() == float64(num) && n.GetDeclaredTypeExpression().IsNil() {
+		return n
+	}
 	newNode := rhino.IR_Number(float64(num))
 	if !newNode.IsEquivalentTo(n) {
 		n.ReplaceWith(newNode)

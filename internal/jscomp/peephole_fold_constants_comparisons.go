@@ -21,6 +21,7 @@ package jscomp
 import (
 	"math"
 	"math/big"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -62,7 +63,7 @@ func PeepholeFoldConstants_TryAbstractRelationalComparison(
 		rvStr, rvOk := peepholeOptimization.GetSideEffectFreeStringValue(right)
 		if lvOk && rvOk {
 			// In JS, browsers parse \v differently. So do not compare strings if one contains \v.
-			if jutil.StringIndexOfChar(lvStr, 0x000B) != -1 || jutil.StringIndexOfChar(rvStr, 0x000B) != -1 {
+			if strings.IndexByte(lvStr, '\v') != -1 || strings.IndexByte(rvStr, '\v') != -1 {
 				return base.Tri_UNKNOWN
 			}
 			return base.Tri_ForBoolean(jutil.StringCompareTo(lvStr, rvStr) < 0)
@@ -140,7 +141,7 @@ func PeepholeFoldConstants_TryAbstractRelationalComparison(
 	// TODO(moz): If we knew the named value wouldn't be NaN, it would be nice to handle
 	// LE and GE. We should use type information if available here.
 	if !willNegate && left.IsName() && right.IsName() {
-		if left.GetString() == right.GetString() {
+		if left.GetStringID() == right.GetStringID() {
 			return base.Tri_FALSE
 		}
 	}
@@ -161,14 +162,14 @@ func peepholeFoldConstants_isTypeofOfSameName(left rhino.Node, right rhino.Node)
 	return ok && leftName == rightName
 }
 
-// peepholeFoldConstants_typeofName returns a, if n is `typeof a`.
-func peepholeFoldConstants_typeofName(n rhino.Node) (string, bool) {
+// peepholeFoldConstants_typeofName returns the string ID of a, if n is `typeof a`.
+func peepholeFoldConstants_typeofName(n rhino.Node) (uint32, bool) {
 	if typeof, ok := ast.AsUnary(n); ok && typeof.Token() == rhino.Token_TYPEOF {
 		if name, ok := typeof.Operand().AsName(); ok {
-			return name.Ident(), true
+			return name.Node().GetStringID(), true
 		}
 	}
-	return "", false
+	return 0, false
 }
 
 // Java: PeepholeFoldConstants.bigintLessThanDouble(BigInteger, double, Tri, boolean)
@@ -341,7 +342,7 @@ func PeepholeFoldConstants_TryStrictEqualityComparison(
 			if lOk && rOk {
 				// In JS, browsers parse \v differently. So do not consider strings
 				// equal if one contains \v.
-				if jutil.StringIndexOfChar(lv, 0x000B) != -1 || jutil.StringIndexOfChar(rv, 0x000B) != -1 {
+				if strings.IndexByte(lv, '\v') != -1 || strings.IndexByte(rv, '\v') != -1 {
 					return base.Tri_UNKNOWN
 				}
 				return base.Tri_ForBoolean(lv == rv)

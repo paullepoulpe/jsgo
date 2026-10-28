@@ -20,23 +20,12 @@
 package jscomp
 
 import (
-	"strings"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// PassFactory is a factory for creating JSCompiler passes based on the
-// Options injected.
-//
-// Contains all meta-data about compiler passes (like whether it can be run
-// multiple times, a human-readable name for logging, etc.).
-//
-// Go-only: language-adapter — an @AutoValue: the abstract class and the
-// generated AutoValue_PassFactory (fields, equals, hashCode, toString) are
-// one struct (PORTING.md §4). The java.util.function.Function fields are Go
-// funcs; Java compares the lambdas by identity, which jutil.ObjectsEquals
-// models for funcs by code pointer.
+// PassFactory creates JSCompiler passes and holds pass metadata (name,
+// preconditions, and whether the pass runs in a fixed-point loop).
 type PassFactory struct {
 	name                string
 	condition           func(options *CompilerOptions) bool
@@ -45,148 +34,98 @@ type PassFactory struct {
 	internalFactory     func(compiler AbstractCompiler) CompilerPass
 }
 
+func passFactoryAlwaysEnabled(*CompilerOptions) bool { return true }
+
+func passFactoryAlwaysValid(*CompilerOptions) *PassFactory_PreconditionResult {
+	return PassFactory_PreconditionResult_SUCCESS
+}
+
+func makePassFactory(name string, factory func(AbstractCompiler) CompilerPass) *PassFactory {
+	return &PassFactory{
+		name:              name,
+		condition:         passFactoryAlwaysEnabled,
+		preconditionCheck: passFactoryAlwaysValid,
+		internalFactory:   factory,
+	}
+}
+
+func makeLoopPassFactory(name string, factory func(AbstractCompiler) CompilerPass) *PassFactory {
+	return &PassFactory{
+		name:                name,
+		condition:           passFactoryAlwaysEnabled,
+		preconditionCheck:   passFactoryAlwaysValid,
+		runInFixedPointLoop: true,
+		internalFactory:     factory,
+	}
+}
+
+func makeCheckedPassFactory(
+	name string,
+	precond func(*CompilerOptions) *PassFactory_PreconditionResult,
+	loop bool,
+	factory func(AbstractCompiler) CompilerPass,
+) *PassFactory {
+	return &PassFactory{
+		name:                name,
+		condition:           passFactoryAlwaysEnabled,
+		preconditionCheck:   precond,
+		runInFixedPointLoop: loop,
+		internalFactory:     factory,
+	}
+}
+
 // GetName returns the name of the pass as it will appear in logs.
-//
-// Java: PassFactory.getName()
-func (f *PassFactory) GetName() string {
-	return f.name
-}
+func (f *PassFactory) GetName() string { return f.name }
 
-// Java: PassFactory.getCondition()
-func (f *PassFactory) GetCondition() func(options *CompilerOptions) bool {
-	return f.condition
-}
+func (f *PassFactory) GetCondition() func(options *CompilerOptions) bool { return f.condition }
 
-// PassFactory_PreconditionResult is the result of a precondition check.
-//
-// Go-only: language-adapter — a Java record: a struct with its accessors
-// and value equality.
+// PassFactory_PreconditionResult is the result of a pass precondition check.
 type PassFactory_PreconditionResult struct {
 	success bool
 	message *string
 }
 
-// Java: PassFactory.PreconditionResult(boolean, String)
 func NewPassFactory_PreconditionResult(success bool, message *string) *PassFactory_PreconditionResult {
 	return &PassFactory_PreconditionResult{success: success, message: message}
 }
 
-// PassFactory_PreconditionResult_SUCCESS is PreconditionResult.SUCCESS.
 var PassFactory_PreconditionResult_SUCCESS = NewPassFactory_PreconditionResult(true, nil)
 
-// Java: PassFactory.PreconditionResult.success()
-func (r *PassFactory_PreconditionResult) Success() bool { return r.success }
-
-// Java: PassFactory.PreconditionResult.message()
+func (r *PassFactory_PreconditionResult) Success() bool    { return r.success }
 func (r *PassFactory_PreconditionResult) Message() *string { return r.message }
 
-// Java: PassFactory.PreconditionResult.equals(Object)
-func (r *PassFactory_PreconditionResult) Equals(o any) bool {
-	that, ok := o.(*PassFactory_PreconditionResult)
-	if !ok || that == nil {
-		return false
-	}
-	return r.success == that.success && jutil.ObjectsEquals(r.message, that.message)
-}
-
-// Java: PassFactory.PreconditionResult.hashCode()
-func (r *PassFactory_PreconditionResult) HashCode() int32 {
-	// A record's hashCode combines its components as 31 * h + hash(c).
-	var h int32
-	if r.success {
-		h = 1231
-	} else {
-		h = 1237
-	}
-	var m int32
-	if r.message != nil {
-		m = jutil.StringHashCode(*r.message)
-	}
-	return 31*h + m
-}
-
-// Java: PassFactory.PreconditionResult.toString()
-func (r *PassFactory_PreconditionResult) String() string {
-	return "PreconditionResult[success=" + jutil.ToJavaString(r.success) +
-		", message=" + jutil.ToJavaString(r.message) + "]"
-}
-
-// GetPreconditionCheck runs before this pass runs to validate
-// preconditions. Throws an exception if any are violated (unlike
-// GetCondition.)
-//
-// Java: PassFactory.getPreconditionCheck()
+// GetPreconditionCheck runs before this pass runs to validate preconditions.
 func (f *PassFactory) GetPreconditionCheck() func(options *CompilerOptions) *PassFactory_PreconditionResult {
 	return f.preconditionCheck
 }
 
-// IsRunInFixedPointLoop reports whether this factory must or must not
-// appear in a PhaseOptimizer loop.
-//
-// Java: PassFactory.isRunInFixedPointLoop()
-func (f *PassFactory) IsRunInFixedPointLoop() bool {
-	return f.runInFixedPointLoop
-}
+// IsRunInFixedPointLoop reports whether this factory runs inside a PhaseOptimizer loop.
+func (f *PassFactory) IsRunInFixedPointLoop() bool { return f.runInFixedPointLoop }
 
-// GetInternalFactory is a simple factory function for creating actual pass
-// instances.
-//
-// Users should call Create(AbstractCompiler) rather than use this object
-// directly.
-//
-// Java: PassFactory.getInternalFactory()
+// GetInternalFactory returns the underlying pass constructor function.
 func (f *PassFactory) GetInternalFactory() func(compiler AbstractCompiler) CompilerPass {
 	return f.internalFactory
 }
 
-// Java: AutoValue_PassFactory.toString()
 func (f *PassFactory) String() string {
-	return "PassFactory{" +
-		"name=" + f.name + ", " +
-		"condition=" + jutil.ToJavaString(f.condition) + ", " +
-		"preconditionCheck=" + jutil.ToJavaString(f.preconditionCheck) + ", " +
-		"runInFixedPointLoop=" + jutil.ToJavaString(f.runInFixedPointLoop) + ", " +
-		"internalFactory=" + jutil.ToJavaString(f.internalFactory) +
-		"}"
+	return "PassFactory{" + f.name + "}"
 }
 
-// Java: AutoValue_PassFactory.equals(Object)
 func (f *PassFactory) Equals(o any) bool {
 	that, ok := o.(*PassFactory)
-	if ok && that == f {
+	if !ok || that == nil {
+		return false
+	}
+	if that == f {
 		return true
 	}
-	if ok && that != nil {
-		return f.name == that.GetName() &&
-			jutil.ObjectsEquals(f.condition, that.GetCondition()) &&
-			jutil.ObjectsEquals(f.preconditionCheck, that.GetPreconditionCheck()) &&
-			f.runInFixedPointLoop == that.IsRunInFixedPointLoop() &&
-			jutil.ObjectsEquals(f.internalFactory, that.GetInternalFactory())
-	}
-	return false
+	return f.name == that.name &&
+		f.runInFixedPointLoop == that.runInFixedPointLoop &&
+		jutil.ObjectsEquals(f.condition, that.condition) &&
+		jutil.ObjectsEquals(f.preconditionCheck, that.preconditionCheck) &&
+		jutil.ObjectsEquals(f.internalFactory, that.internalFactory)
 }
 
-// Java: AutoValue_PassFactory.hashCode()
-func (f *PassFactory) HashCode() int32 {
-	h := int32(1)
-	h *= 1000003
-	h ^= jutil.StringHashCode(f.name)
-	h *= 1000003
-	h ^= jutil.ObjectHashCode(f.condition)
-	h *= 1000003
-	h ^= jutil.ObjectHashCode(f.preconditionCheck)
-	h *= 1000003
-	if f.runInFixedPointLoop {
-		h ^= 1231
-	} else {
-		h ^= 1237
-	}
-	h *= 1000003
-	h ^= jutil.ObjectHashCode(f.internalFactory)
-	return h
-}
-
-// Java: AutoValue_PassFactory.toBuilder()
 func (f *PassFactory) ToBuilder() *PassFactory_Builder {
 	return &PassFactory_Builder{
 		name:                f.name,
@@ -197,10 +136,7 @@ func (f *PassFactory) ToBuilder() *PassFactory_Builder {
 	}
 }
 
-// PassFactory_Builder is a builder for a PassFactory.
-//
-// Go-only: language-adapter — the abstract PassFactory.Builder and the
-// generated AutoValue_PassFactory.Builder are one struct.
+// PassFactory_Builder builds a PassFactory.
 type PassFactory_Builder struct {
 	name                string
 	condition           func(options *CompilerOptions) bool
@@ -209,13 +145,18 @@ type PassFactory_Builder struct {
 	internalFactory     func(compiler AbstractCompiler) CompilerPass
 }
 
-// Java: AutoValue_PassFactory.Builder.setName(String)
+func PassFactory_Builder_() *PassFactory_Builder {
+	return &PassFactory_Builder{
+		condition:         passFactoryAlwaysEnabled,
+		preconditionCheck: passFactoryAlwaysValid,
+	}
+}
+
 func (b *PassFactory_Builder) SetName(name string) *PassFactory_Builder {
 	b.name = name
 	return b
 }
 
-// Java: AutoValue_PassFactory.Builder.setCondition(Function)
 func (b *PassFactory_Builder) SetCondition(condition func(options *CompilerOptions) bool) *PassFactory_Builder {
 	if condition == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null condition"))
@@ -224,7 +165,6 @@ func (b *PassFactory_Builder) SetCondition(condition func(options *CompilerOptio
 	return b
 }
 
-// Java: AutoValue_PassFactory.Builder.setPreconditionCheck(Function)
 func (b *PassFactory_Builder) SetPreconditionCheck(preconditionCheck func(options *CompilerOptions) *PassFactory_PreconditionResult) *PassFactory_Builder {
 	if preconditionCheck == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null preconditionCheck"))
@@ -233,13 +173,11 @@ func (b *PassFactory_Builder) SetPreconditionCheck(preconditionCheck func(option
 	return b
 }
 
-// Java: AutoValue_PassFactory.Builder.setRunInFixedPointLoop(boolean)
 func (b *PassFactory_Builder) SetRunInFixedPointLoop(runInFixedPointLoop bool) *PassFactory_Builder {
 	b.runInFixedPointLoop = runInFixedPointLoop
 	return b
 }
 
-// Java: AutoValue_PassFactory.Builder.setInternalFactory(Function)
 func (b *PassFactory_Builder) SetInternalFactory(internalFactory func(compiler AbstractCompiler) CompilerPass) *PassFactory_Builder {
 	if internalFactory == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null internalFactory"))
@@ -248,22 +186,9 @@ func (b *PassFactory_Builder) SetInternalFactory(internalFactory func(compiler A
 	return b
 }
 
-// Java: AutoValue_PassFactory.Builder.autoBuild()
-func (b *PassFactory_Builder) AutoBuild() *PassFactory {
-	if b.condition == nil ||
-		b.preconditionCheck == nil ||
-		b.internalFactory == nil {
-		var missing strings.Builder
-		if b.condition == nil {
-			missing.WriteString(" condition")
-		}
-		if b.preconditionCheck == nil {
-			missing.WriteString(" preconditionCheck")
-		}
-		if b.internalFactory == nil {
-			missing.WriteString(" internalFactory")
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
+func (b *PassFactory_Builder) Build() *PassFactory {
+	if b.condition == nil || b.preconditionCheck == nil || b.internalFactory == nil || b.name == "" {
+		b.failBuild()
 	}
 	return &PassFactory{
 		name:                b.name,
@@ -274,56 +199,39 @@ func (b *PassFactory_Builder) AutoBuild() *PassFactory {
 	}
 }
 
-// Java: PassFactory.Builder.build()
-func (b *PassFactory_Builder) Build() *PassFactory {
-	result := b.AutoBuild()
-	jutil.CheckState(result.GetName() != "")
-	return result
+func (b *PassFactory_Builder) failBuild() {
+	if b.condition == nil || b.preconditionCheck == nil || b.internalFactory == nil {
+		panic(jutil.NewIllegalStateExceptionMsg("Missing required PassFactory properties"))
+	}
+	jutil.CheckState(b.name != "")
 }
 
-// Java: PassFactory.builder()
-func PassFactory_Builder_() *PassFactory_Builder {
-	return (&PassFactory_Builder{}).
-		SetCondition(func(o *CompilerOptions) bool { return true }).
-		SetPreconditionCheck(func(o *CompilerOptions) *PassFactory_PreconditionResult {
-			return PassFactory_PreconditionResult_SUCCESS
-		})
-}
-
-// Java: PassFactory.validatePreconditions(CompilerOptions)
 func (f *PassFactory) ValidatePreconditions(options *CompilerOptions) {
-	canRun := f.GetPreconditionCheck()(options)
+	canRun := f.preconditionCheck(options)
 	if !canRun.success {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
-			jutil.StringFormat("Precondition for pass %s failed: %s", f.GetName(), canRun.Message())))
+			jutil.StringFormat("Precondition for pass %s failed: %s", f.name, canRun.message)))
 	}
 }
 
 // PassFactory_CreateEmptyPass creates a no-op pass that can only run once.
-// Used to break up loops.
-//
-// Java: PassFactory.createEmptyPass(String)
+// Used to break up loops and mark pipeline boundaries.
 func PassFactory_CreateEmptyPass(name string) *PassFactory {
-	return PassFactory_Builder_().
-		SetName(name).
-		SetInternalFactory(func(c AbstractCompiler) CompilerPass { return passFactory_emptyPassInstance }).
-		Build()
+	if name == "" {
+		jutil.CheckState(false)
+	}
+	return makePassFactory(name, passFactoryEmptyInternal)
 }
 
-// passFactory_emptyPass is the `(externs, root) -> {}` lambda of
-// createEmptyPass.
 type passFactory_emptyPass struct{}
 
-// passFactory_emptyPassInstance: the lambda captures nothing, so Java
-// evaluates it to a single instance.
 var passFactory_emptyPassInstance = &passFactory_emptyPass{}
 
-// Java: PassFactory.createEmptyPass(String) (the CompilerPass lambda)
+func passFactoryEmptyInternal(AbstractCompiler) CompilerPass { return passFactory_emptyPassInstance }
+
 func (*passFactory_emptyPass) Process(externs rhino.Node, root rhino.Node) {}
 
 // Create creates a new compiler pass to be run.
-//
-// Java: PassFactory.create(AbstractCompiler)
 func (f *PassFactory) Create(compiler AbstractCompiler) CompilerPass {
-	return f.GetInternalFactory()(compiler)
+	return f.internalFactory(compiler)
 }

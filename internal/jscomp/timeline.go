@@ -53,8 +53,8 @@ type timeline_Event[T comparable] struct {
 	prevAndTime uint32
 }
 
-func (e *timeline_Event[T]) prev() uint32   { return e.prevAndTime & timelinePrevMask }
-func (e *timeline_Event[T]) isTime() bool   { return e.prevAndTime&timelineTimeBit != 0 }
+func (e *timeline_Event[T]) prev() uint32 { return e.prevAndTime & timelinePrevMask }
+func (e *timeline_Event[T]) isTime() bool { return e.prevAndTime&timelineTimeBit != 0 }
 func (e *timeline_Event[T]) setPrev(p uint32) {
 	e.prevAndTime = (e.prevAndTime & timelineTimeBit) | p
 }

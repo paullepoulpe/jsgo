@@ -19,14 +19,12 @@
 package jscomp
 
 import (
-	"iter"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// How the generic scope hierarchy is mapped (read this before porting code
-// that uses scopes or vars).
+// How the scope hierarchy is mapped (read this before porting code that uses
+// scopes or vars).
 //
 // Java has AbstractScope<S extends AbstractScope<S, V>, V extends
 // AbstractVar<S, V>> with two subclasses, Scope (S=Scope, V=Var) and
@@ -38,12 +36,11 @@ import (
 //     (what NodeTraversal, ScopeCreator and MemoizedScopeCreator handle). It
 //     declares every AbstractScope method whose signature mentions neither S
 //     nor V.
-//   - AbstractScopeBase[S, V] is the generic base struct with the fields and
-//     every implementation. The methods whose signature mentions S or V
-//     (getParent, getVar, getGlobalScope, getClosestHoistScope,
-//     getVarIterable, ...) exist only there and on the concrete scopes, where
-//     they are typed: (*Scope).GetVar returns *Var, (*TypedScope).GetParent
-//     returns *TypedScope, (*Scope).GetVarIterable is an iter.Seq[*Var].
+//   - scopeCommon holds the root node and flags shared by Scope and TypedScope;
+//     methods whose signature mentions the concrete scope or var type
+//     (GetParent, GetVar, GetGlobalScope, GetClosestHoistScope,
+//     GetVarIterable, ...) live directly on *Scope and *TypedScope without
+//     F-bounded generic indirection.
 //   - Java narrows three rhino.StaticScope methods to S/V: getParentScope(),
 //     getSlot(String) and getOwnSlot(String). They keep rhino.StaticScope's
 //     Go signatures (as rhino.StaticTypedScope does), so that *Scope is a
@@ -54,12 +51,6 @@ import (
 //       tv, _ := typedScope.GetSlot(name).(*TypedVar)
 //     The same holds for AbstractVar's getScope() (rhino.StaticSlot),
 //     getDeclaration() and getSymbol(): `v.GetScope().(*Scope)`.
-//   - abstractScopeBound / abstractVarBound are the Go form of the bounds
-//     `S extends AbstractScope<S, V>` / `V extends AbstractVar<S, V>`.
-//
-// Virtual calls from the base go through self (an S): getDepth, getParent,
-// getVar (TypedScope overrides it), hasOwnImplicitSlot (TypedScope overrides
-// it), makeImplicitVar, typed()/untyped().
 
 // AbstractScope contains information about a variable scope in JavaScript.
 // Scopes can be nested, a scope points back to its parent scope. A Scope
@@ -173,415 +164,118 @@ type AbstractScope interface {
 	CheckRootScope()
 }
 
-// abstractScopeBound is the bound `S extends AbstractScope<S, V>`: the
-// methods AbstractScopeBase and AbstractVarBase call on an S other than
-// their own self. All but GetParent, GetDepth and MakeImplicitVar are
-// promoted from AbstractScopeBase.
-//
-// Go-only: language-adapter — the bound of a Java type parameter; see the
-// note at the top of this file. It may not mention Scope, TypedScope, their
-// vars or AbstractScope (whose Untyped() returns *Scope): Scope embeds
-// AbstractScopeBase[*Scope, *Var], and a constraint that refers back to its
-// own instantiations is an invalid recursive type in Go. Where Java passes an
-// S as an AbstractScope<?, ?>, the Go code converts it with
-// abstractScope_of.
-type abstractScopeBound[S any, V any] interface {
-	comparable
-	rhino.StaticScope
-
-	// Java: AbstractScope.getDepth()
-	GetDepth() int
-
-	// Java: AbstractScope.hasOwnImplicitSlot(ImplicitVar)
-	HasOwnImplicitSlot(name *AbstractScope_ImplicitVar) bool
-
-	// Java: AbstractScope.hasOwnSlot(String)
-	HasOwnSlot(name string) bool
-
-	// Java: AbstractScope.canDeclare(String)
-	CanDeclare(name string) bool
-
-	// Java: AbstractScope.isGlobal()
-	IsGlobal() bool
-
-	// Java: AbstractScope.isLocal()
-	IsLocal() bool
-
-	// Java: AbstractScope.isBlockScope()
-	IsBlockScope() bool
-
-	// Java: AbstractScope.isStaticBlockScope()
-	IsStaticBlockScope() bool
-
-	// Java: AbstractScope.isFunctionBlockScope()
-	IsFunctionBlockScope() bool
-
-	// Java: AbstractScope.isFunctionScope()
-	IsFunctionScope() bool
-
-	// Java: AbstractScope.isModuleScope()
-	IsModuleScope() bool
-
-	// Java: AbstractScope.isCfgRootScope()
-	IsCfgRootScope() bool
-
-	// Java: AbstractScope.isHoistScope()
-	IsHoistScope() bool
-
-	// Java: AbstractScope.getParent()
-	GetParent() S
-
-	// Java: AbstractScope.getVar(String)
-	GetVar(name string) V
-
-	// Java: AbstractScope.makeImplicitVar(ImplicitVar)
-	MakeImplicitVar(type_ AbstractScope_ImplicitVar) V
-
-	// Java: AbstractScope.getOwnImplicitSlot(ImplicitVar)
-	GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) V
-
-	// Java: AbstractScope.getVarIterable()
-	GetVarIterable() iter.Seq[V]
-
-	// Java: AbstractScope.getClosestContainerScope()
-	GetClosestContainerScope() S
-
-	getOwnSlotV(name string) V
-}
-
-// AbstractScopeBase holds the fields and the implementations of
-// AbstractScope; Scope and TypedScope embed it and call
-// InitAbstractScopeBase with themselves.
-type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] struct {
-	// Go-only: language-adapter — the EnumMap<ImplicitVar, V>, indexed by
-	// ordinal (a zero V is an absent key, as EnumMap.computeIfAbsent never
-	// stores null); nil is the ImmutableMap.of() sentinel.
-	implicitVars *[4]V
-
-	rootNode rhino.Node
-
+// scopeCommon holds the root node, depth, and state flags shared by Scope and
+// TypedScope (12 bytes, 4-byte aligned).
+type scopeCommon struct {
+	rootNode        rhino.Node
 	depth           int32
 	varsInitialized bool
 	isBottom        bool
 	hasImplicitVars bool
 	scanDone        bool
-	scopeID         uint32
+}
+
+func (b *scopeCommon) initScopeCommon(rootNode rhino.Node) {
+	*b = scopeCommon{rootNode: rhino.CheckNotNull(rootNode)}
 }
 
 // Java: AbstractScope.getDepth()
-func (b *AbstractScopeBase[S, V]) GetDepth() int {
+func (b *scopeCommon) GetDepth() int {
 	return int(b.depth)
 }
 
-func abstractScope_of[S abstractScopeBound[S, V], V abstractVarBound[S, V]](s S) AbstractScope {
-	var null S
-	if s == null {
-		return nil
-	}
-	return any(s).(AbstractScope)
-}
-
-// InitAbstractScopeBase is the AbstractScope(Node) constructor; self is the
-// concrete scope.
-//
-// Java: AbstractScope(Node)
-func (b *AbstractScopeBase[S, V]) InitAbstractScopeBase(_ S, rootNode rhino.Node) {
-	b.varsInitialized = false
-	b.isBottom = false
-	b.hasImplicitVars = false
-	b.scanDone = false
-	b.depth = 0
-	b.implicitVars = nil
-	b.rootNode = rhino.CheckNotNull(rootNode)
-}
-
-// String is final in Java.
-//
 // Java: AbstractScope.toString()
-func (b *AbstractScopeBase[S, V]) String() string {
+func (b *scopeCommon) String() string {
 	return "Scope@" + jutil.ToJavaString(b.rootNode)
 }
 
 // Java: AbstractScope.untyped()
-func (b *AbstractScopeBase[S, V]) Untyped() *Scope {
+func (b *scopeCommon) Untyped() *Scope {
 	panic(jutil.NewIllegalStateExceptionMsg("untyped() called, but not an untyped scope."))
 }
 
 // Java: AbstractScope.typed()
-func (b *AbstractScopeBase[S, V]) Typed() *TypedScope {
+func (b *scopeCommon) Typed() *TypedScope {
 	panic(jutil.NewIllegalStateExceptionMsg("typed() called, but not a typed scope."))
-}
-
-// Java: AbstractScope.contains(S)
-func (b *AbstractScopeBase[S, V]) contains(self S, other S) bool {
-	var null S
-	s := jutil.CheckNotNull(other)
-	for s != null {
-		if s == self {
-			return true
-		}
-		s = s.GetParent()
-	}
-	return false
 }
 
 // GetRootNode gets the container node of the scope. This is typically the
 // FUNCTION node or the global BLOCK/SCRIPT node.
 //
 // Java: AbstractScope.getRootNode()
-func (b *AbstractScopeBase[S, V]) GetRootNode() rhino.Node {
+func (b *scopeCommon) GetRootNode() rhino.Node {
 	return b.rootNode
 }
 
-// GetGlobalScope walks up the tree to find the global scope.
-//
-// Java: AbstractScope.getGlobalScope()
-func (b *AbstractScopeBase[S, V]) getGlobalScope(self S) S {
-	var null S
-	result := self
-	for result.GetParent() != null {
-		result = result.GetParent()
-	}
-	return result
-}
-
-// HasSlot returns true if a variable is declared in this or any parent
-// scope.
-//
-// Java: AbstractScope.hasSlot(String)
-func (b *AbstractScopeBase[S, V]) hasSlot(self S, name string) bool {
-	var null S
-	for scope := self; scope != null; scope = scope.GetParent() {
-		if scope.HasOwnSlot(name) {
-			return true
-		}
-	}
-	return false
-}
-
-// Java: AbstractScope.getOwnImplicitSlot(ImplicitVar)
-func (b *AbstractScopeBase[S, V]) getOwnImplicitSlot(self S, name *AbstractScope_ImplicitVar) V {
-	if !self.HasOwnImplicitSlot(name) {
-		var null V
-		return null
-	}
-
-	// For memory savings, only initialize the map once it needs to add its first element
-	if b.implicitVars == nil {
-		b.implicitVars = new([4]V)
-	}
-
-	var null V
-	if v := b.implicitVars[*name]; v != null {
-		return v
-	}
-	v := self.MakeImplicitVar(*name)
-	if v != null {
-		b.implicitVars[*name] = v
-	}
-	return v
-}
-
-// Java: AbstractScope.getArgumentsVar()
-func (b *AbstractScopeBase[S, V]) getArgumentsVar(self S) V {
-	var nullS S
-	var null V
-	for scope := self; scope != nullS; scope = scope.GetParent() {
-		if arguments := scope.GetOwnImplicitSlot(AbstractScope_ImplicitVar_ARGUMENTS.ptr()); arguments != null {
-			return arguments
-		}
-	}
-	return null
-}
-
-// Java: AbstractScope.canDeclare(String)
-func (b *AbstractScopeBase[S, V]) canDeclare(self S, name string) bool {
-	return !self.HasOwnSlot(name) &&
-		(!self.IsFunctionBlockScope() ||
-			!self.GetParent().HasOwnSlot(name) ||
-			b.isBleedingFunctionName(self, name))
-}
-
-// Java: AbstractScope.isBleedingFunctionName(String)
-func (b *AbstractScopeBase[S, V]) isBleedingFunctionName(self S, name string) bool {
-	var null V
-	var_ := self.GetVar(name)
-	return var_ != null &&
-		!var_.GetNode().IsNil() &&
-		var_.GetNode().GetParent().IsFunction()
-}
-
-// Java: AbstractScope.getAllAccessibleVariables()
-func (b *AbstractScopeBase[S, V]) getAllAccessibleVariables(self S) iter.Seq[V] {
-	accessibleVars := jutil.NewLinkedHashMap[string, V]()
-	var null S
-	s := self
-
-	for s != null {
-		for v := range s.GetVarIterable() {
-			accessibleVars.PutIfAbsent(v.GetName(), v)
-		}
-		s = s.GetParent()
-	}
-	return accessibleVars.Values()
-}
-
 // Java: AbstractScope.isBlockScope()
-func (b *AbstractScopeBase[S, V]) IsBlockScope() bool {
+func (b *scopeCommon) IsBlockScope() bool {
 	return NodeUtil_CreatesBlockScope(b.rootNode)
 }
 
 // Java: AbstractScope.isStaticBlockScope()
-func (b *AbstractScopeBase[S, V]) IsStaticBlockScope() bool {
-	return NodeUtil_IsClassStaticBlock(b.GetRootNode())
+func (b *scopeCommon) IsStaticBlockScope() bool {
+	return NodeUtil_IsClassStaticBlock(b.rootNode)
 }
 
 // Java: AbstractScope.isFunctionBlockScope()
-func (b *AbstractScopeBase[S, V]) IsFunctionBlockScope() bool {
-	return NodeUtil_IsFunctionBlock(b.GetRootNode())
+func (b *scopeCommon) IsFunctionBlockScope() bool {
+	return NodeUtil_IsFunctionBlock(b.rootNode)
 }
 
 // Java: AbstractScope.isFunctionScope()
-func (b *AbstractScopeBase[S, V]) IsFunctionScope() bool {
-	return b.GetRootNode().IsFunction()
+func (b *scopeCommon) IsFunctionScope() bool {
+	return b.rootNode.IsFunction()
 }
 
 // Java: AbstractScope.isModuleScope()
-func (b *AbstractScopeBase[S, V]) IsModuleScope() bool {
-	return b.GetRootNode().IsModuleBody()
+func (b *scopeCommon) IsModuleScope() bool {
+	return b.rootNode.IsModuleBody()
 }
 
 // Java: AbstractScope.isMemberFieldDefScope()
-func (b *AbstractScopeBase[S, V]) IsMemberFieldDefScope() bool {
-	return b.GetRootNode().IsMemberFieldDef()
+func (b *scopeCommon) IsMemberFieldDefScope() bool {
+	return b.rootNode.IsMemberFieldDef()
 }
 
 // Java: AbstractScope.isComputedFieldDefRhsScope()
-func (b *AbstractScopeBase[S, V]) IsComputedFieldDefRhsScope() bool {
-	return b.GetRootNode().IsComputedFieldDef()
+func (b *scopeCommon) IsComputedFieldDefRhsScope() bool {
+	return b.rootNode.IsComputedFieldDef()
 }
 
 // Java: AbstractScope.isCatchScope()
-func (b *AbstractScopeBase[S, V]) IsCatchScope() bool {
-	return b.GetRootNode().IsBlock() &&
-		b.GetRootNode().HasOneChild() &&
-		b.GetRootNode().GetFirstChild().IsCatch()
+func (b *scopeCommon) IsCatchScope() bool {
+	return b.rootNode.IsBlock() &&
+		b.rootNode.HasOneChild() &&
+		b.rootNode.GetFirstChild().IsCatch()
 }
 
 // Java: AbstractScope.isCfgRootScope()
-func (b *AbstractScopeBase[S, V]) IsCfgRootScope() bool {
+func (b *scopeCommon) IsCfgRootScope() bool {
 	return NodeUtil_IsValidCfgRoot(b.rootNode)
 }
 
-// Java: AbstractScope.isHoistScope()
-func (b *AbstractScopeBase[S, V]) isHoistScope(self S) bool {
-	return self.IsFunctionScope() ||
-		self.IsFunctionBlockScope() ||
-		self.IsGlobal() ||
-		self.IsModuleScope() ||
-		self.IsStaticBlockScope()
-}
-
-// Java: AbstractScope.getClosestHoistScope()
-func (b *AbstractScopeBase[S, V]) getClosestHoistScope(self S) S {
-	var null S
-	current := self
-	for current != null {
-		if current.IsHoistScope() {
-			return current
-		}
-		current = current.GetParent()
-	}
-	return null
-}
-
-// Java: AbstractScope.getClosestCfgRootScope()
-func (b *AbstractScopeBase[S, V]) getClosestCfgRootScope(self S) S {
-	current := self
-	for !current.IsCfgRootScope() {
-		current = current.GetParent()
-	}
-	return current
-}
-
-// Java: AbstractScope.getClosestContainerScope()
-func (b *AbstractScopeBase[S, V]) getClosestContainerScope(self S) S {
-	scope := b.getClosestHoistScope(self)
-	if scope.IsFunctionBlockScope() {
-		scope = scope.GetParent()
-		if scope.IsBlockScope() {
-			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("%s", scope)))
-		}
-	}
-	return scope
-}
-
-// CheckChildScope performs simple validity checks on when constructing a
-// child scope.
-//
-// Java: AbstractScope.checkChildScope(S)
-func (b *AbstractScopeBase[S, V]) CheckChildScope(parent S) {
-	var null S
-	if parent == null {
-		panic(jutil.NewNullPointerException())
-	}
+func (b *scopeCommon) checkChildScopeRoot(parentRoot rhino.Node) {
 	if !NodeUtil_CreatesScope(b.rootNode) {
 		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.LenientFormat("%s", b.rootNode)))
 	}
-	if b.rootNode == parent.GetRootNode() {
+	if b.rootNode == parentRoot {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			jutil.LenientFormat("rootNode should not be the parent's root node: %s", b.rootNode)))
 	}
 }
 
-// CheckRootScope performs simple validity checks on when constructing a
-// root scope.
+// CheckRootScope performs simple validity checks when constructing a root scope.
 //
 // Java: AbstractScope.checkRootScope()
-func (b *AbstractScopeBase[S, V]) CheckRootScope() {
+func (b *scopeCommon) CheckRootScope() {
 	// TODO(tbreisacher): Can we tighten this to just NodeUtil.createsScope?
 	if !NodeUtil_CreatesScope(b.rootNode) && !b.rootNode.IsScript() && !b.rootNode.IsRoot() {
 		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.LenientFormat("%s", b.rootNode)))
 	}
 }
 
-// Java: AbstractScope.getCommonParent(S)
-func (b *AbstractScopeBase[S, V]) getCommonParent(self S, other S) S {
-	var null S
-	left := self
-	right := other
-	for left != null && right != null && left != right {
-		leftDepth := left.GetDepth()
-		rightDepth := right.GetDepth()
-		if leftDepth >= rightDepth {
-			left = left.GetParent()
-		}
-		if leftDepth <= rightDepth {
-			right = right.GetParent()
-		}
-	}
-
-	jutil.CheckState(left != null && left == right)
-	return left
-}
-
-// Java: AbstractScope.hasSameContainerScope(S)
-func (b *AbstractScopeBase[S, V]) hasSameContainerScope(self S, other S) bool {
-	return self == other || self.GetClosestContainerScope() == other.GetClosestContainerScope()
-}
-
-// Java: AbstractScope.getScopeOfThis()
-func (b *AbstractScopeBase[S, V]) getScopeOfThis(self S) S {
-	scope := self.GetClosestContainerScope()
-	for !scope.IsGlobal() && !NodeUtil_IsNonArrowFunction(scope.GetRootNode()) {
-		scope = scope.GetParent().GetClosestContainerScope()
-	}
-	return scope
-}
-
-// AbstractScope_ImplicitVar is the three implicit var types, which are
-// defined implicitly (at least) in every vanilla function scope without
-// actually being declared.
+// AbstractScope_ImplicitVar enumerates the implicit var kinds defined in
+// scopes without an explicit declaration.
 //
 // Java: AbstractScope.ImplicitVar
 type AbstractScope_ImplicitVar int32
@@ -618,9 +312,8 @@ var (
 	}
 )
 
-// Go-only: language-adapter — a Java ImplicitVar reference may be null; such
-// values are *AbstractScope_ImplicitVar here (nil is null), always pointing
-// into this table so that no call allocates.
+// Go-only: language-adapter — nullable *AbstractScope_ImplicitVar callers share
+// static pointers into this table so no call allocates.
 var abstractScope_ImplicitVar_ptrs = [...]AbstractScope_ImplicitVar{
 	AbstractScope_ImplicitVar_ARGUMENTS, AbstractScope_ImplicitVar_EXPORTS,
 	AbstractScope_ImplicitVar_SUPER, AbstractScope_ImplicitVar_THIS,
@@ -642,59 +335,81 @@ func (v AbstractScope_ImplicitVar) ptr() *AbstractScope_ImplicitVar {
 	return &abstractScope_ImplicitVar_ptrs[v]
 }
 
+func (v AbstractScope_ImplicitVar) isMadeByRootNode(root rhino.Node) bool {
+	switch v {
+	case AbstractScope_ImplicitVar_EXPORTS:
+		return root.IsModuleBody() &&
+			root.GetParent().GetBooleanProp(rhino.Node_GOOG_MODULE)
+	case AbstractScope_ImplicitVar_SUPER, AbstractScope_ImplicitVar_THIS:
+		return NodeUtil_IsClassStaticBlock(root) ||
+			NodeUtil_IsNonArrowFunction(root) ||
+			root.IsMemberFieldDef() ||
+			root.IsComputedFieldDef()
+	case AbstractScope_ImplicitVar_ARGUMENTS:
+		return NodeUtil_IsNonArrowFunction(root)
+	}
+	panic(jutil.NewIllegalStateException())
+}
+
 // IsMadeByScope reports whether this kind of implicit variable is
 // created/owned by the given scope.
 //
 // Java: AbstractScope.ImplicitVar.isMadeByScope(AbstractScope<?, ?>)
 func (v AbstractScope_ImplicitVar) IsMadeByScope(scope AbstractScope) bool {
-	switch v {
-	case AbstractScope_ImplicitVar_EXPORTS:
-		return scope.IsModuleScope() &&
-			scope.GetRootNode().GetParent().GetBooleanProp(rhino.Node_GOOG_MODULE)
-	case AbstractScope_ImplicitVar_SUPER, AbstractScope_ImplicitVar_THIS:
-		return scope.IsStaticBlockScope() ||
-			NodeUtil_IsNonArrowFunction(scope.GetRootNode()) ||
-			scope.IsMemberFieldDefScope() ||
-			scope.IsComputedFieldDefRhsScope()
-	case AbstractScope_ImplicitVar_ARGUMENTS:
-		return NodeUtil_IsNonArrowFunction(scope.GetRootNode())
+	return v.isMadeByRootNode(scope.GetRootNode())
+}
+
+// AbstractScope_ImplicitVar_Lookup classifies name as an ImplicitVar without
+// pointer boxing.
+func AbstractScope_ImplicitVar_Lookup(name string) (AbstractScope_ImplicitVar, bool) {
+	switch len(name) {
+	case 4:
+		if name == "this" {
+			return AbstractScope_ImplicitVar_THIS, true
+		}
+	case 5:
+		if name == "super" {
+			return AbstractScope_ImplicitVar_SUPER, true
+		}
+	case 7:
+		if name == "exports" {
+			return AbstractScope_ImplicitVar_EXPORTS, true
+		}
+	case 9:
+		if name == "arguments" {
+			return AbstractScope_ImplicitVar_ARGUMENTS, true
+		}
 	}
-	panic(jutil.NewIllegalStateException())
+	return 0, false
+}
+
+// AbstractScope_ImplicitVar_LookupID classifies an interned string ID as an
+// ImplicitVar without pointer boxing.
+func AbstractScope_ImplicitVar_LookupID(id uint32) (AbstractScope_ImplicitVar, bool) {
+	switch id {
+	case implicitArgumentsID:
+		return AbstractScope_ImplicitVar_ARGUMENTS, true
+	case implicitThisID:
+		return AbstractScope_ImplicitVar_THIS, true
+	case implicitExportsID:
+		return AbstractScope_ImplicitVar_EXPORTS, true
+	case implicitSuperID:
+		return AbstractScope_ImplicitVar_SUPER, true
+	}
+	return 0, false
 }
 
 // Java: AbstractScope.ImplicitVar.of(String)
 func AbstractScope_ImplicitVar_Of(name string) *AbstractScope_ImplicitVar {
-	switch len(name) {
-	case 4:
-		if name == "this" {
-			return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_THIS]
-		}
-	case 5:
-		if name == "super" {
-			return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_SUPER]
-		}
-	case 7:
-		if name == "exports" {
-			return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_EXPORTS]
-		}
-	case 9:
-		if name == "arguments" {
-			return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_ARGUMENTS]
-		}
+	if imp, ok := AbstractScope_ImplicitVar_Lookup(name); ok {
+		return imp.ptr()
 	}
 	return nil
 }
 
 func AbstractScope_ImplicitVar_OfID(id uint32) *AbstractScope_ImplicitVar {
-	switch id {
-	case implicitArgumentsID:
-		return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_ARGUMENTS]
-	case implicitThisID:
-		return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_THIS]
-	case implicitExportsID:
-		return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_EXPORTS]
-	case implicitSuperID:
-		return &abstractScope_ImplicitVar_ptrs[AbstractScope_ImplicitVar_SUPER]
+	if imp, ok := AbstractScope_ImplicitVar_LookupID(id); ok {
+		return imp.ptr()
 	}
 	return nil
 }

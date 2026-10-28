@@ -19,24 +19,22 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // CheckNoMutatedEs6Exports checks that exports of ES6 modules are not mutated
 // outside of module initialization.
 type CheckNoMutatedEs6Exports struct {
 	compiler AbstractCompiler
-	// Go-only: language-adapter — the Java field is
-	// MultimapBuilder.hashKeys().hashSetValues().build(). Its String keys
-	// iterate in java.util.HashMap order, which decides the order of the
-	// MUTATED_EXPORT reports: the backing map is a JavaHashMap sized as
-	// hashKeys() sizes it (8 expected keys), and clear() keeps its table, as
-	// Java's does. Its Node values hash by identity, so Java iterates the
-	// values of one key in an order that differs from run to run; they are
-	// kept in insertion order here (PORTING.md §6).
-	mutatedNames       *jutil.JavaHashMap[string, *jutil.LinkedHashSet[rhino.Node]]
-	exportedLocalNames map[string]struct{}
+	// Java's MultimapBuilder.hashKeys().hashSetValues().build() sizes a
+	// java.util.HashMap for 8 expected keys (initial capacity 11 -> 16),
+	// whose bucket order determines MUTATED_EXPORT report order.
+	mutatedNames       *jutil.JavaHashMap[string, []rhino.Node]
+	exportedLocalNames map[uint32]struct{}
 }
 
 var CheckNoMutatedEs6Exports_MUTATED_EXPORT = DiagnosticType_Warning(
@@ -46,26 +44,20 @@ var CheckNoMutatedEs6Exports_MUTATED_EXPORT = DiagnosticType_Warning(
 		"can work around this by exporting getter/setter functions, or an object with "+
 		"mutable properties instead.")
 
-// NewCheckNoMutatedEs6Exports is new CheckNoMutatedEs6Exports(compiler).
-//
-// Java: CheckNoMutatedEs6Exports(AbstractCompiler)
 func NewCheckNoMutatedEs6Exports(compiler AbstractCompiler) *CheckNoMutatedEs6Exports {
 	return &CheckNoMutatedEs6Exports{
 		compiler:           compiler,
-		mutatedNames:       jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.LinkedHashSet[rhino.Node]](8),
-		exportedLocalNames: make(map[string]struct{}),
+		mutatedNames:       jutil.NewJavaHashMapWithCapacity[string, []rhino.Node](11),
+		exportedLocalNames: make(map[uint32]struct{}),
 	}
 }
 
-// Java: CheckNoMutatedEs6Exports.checkNoMutations()
 func (c *CheckNoMutatedEs6Exports) CheckNoMutations() {
-	// Sets.intersection(mutatedNames.keySet(), exportedLocalNames): the keys of
-	// mutatedNames, in its order, that are also in exportedLocalNames.
 	for mutatedExport, mutations := range c.mutatedNames.All() {
-		if _, ok := c.exportedLocalNames[mutatedExport]; !ok {
+		if _, ok := c.exportedLocalNames[uint32(strpool.Lookup(mutatedExport))]; !ok {
 			continue
 		}
-		for mutation := range mutations.All() {
+		for _, mutation := range mutations {
 			c.compiler.Report(JSError_MakeWithNode(mutation, CheckNoMutatedEs6Exports_MUTATED_EXPORT, mutatedExport))
 		}
 	}
@@ -74,90 +66,78 @@ func (c *CheckNoMutatedEs6Exports) CheckNoMutations() {
 	clear(c.exportedLocalNames)
 }
 
-// Java: CheckNoMutatedEs6Exports.visit(NodeTraversal, Node, Node)
 func (c *CheckNoMutatedEs6Exports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsModuleBody() {
 		c.CheckNoMutations()
 	}
 }
 
-// Java: CheckNoMutatedEs6Exports.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckNoMutatedEs6Exports) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		return n.GetBooleanProp(rhino.Node_ES6_MODULE)
 	case rhino.Token_EXPORT:
 		c.VisitExport(n)
-		return true
 	case rhino.Token_NAME:
 		c.VisitName(t, n)
-		return true
-	default:
-		return true
 	}
+	return true
 }
 
-// Java: CheckNoMutatedEs6Exports.visitExport(Node)
 func (c *CheckNoMutatedEs6Exports) VisitExport(export rhino.Node) {
-	if export.HasOneChild() && export.GetFirstChild().IsExportSpecs() {
-		// export {a, b as c};
-		for exportSpec := export.GetFirstFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
+	if !export.HasOneChild() {
+		return
+	}
+	first := export.GetFirstChild()
+	if first.IsExportSpecs() {
+		for exportSpec := first.GetFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
 			jutil.CheckState(exportSpec.HasTwoChildren())
-			c.exportedLocalNames[exportSpec.GetFirstChild().GetString()] = struct{}{}
+			c.exportedLocalNames[exportSpec.GetFirstChild().GetStringID()] = struct{}{}
 		}
-	} else if export.HasOneChild() && !export.GetBooleanProp(rhino.Node_EXPORT_ALL_FROM) {
-		declaration := export.GetFirstChild()
-
-		if NodeUtil_IsNameDeclaration(declaration) {
-			// export const x = 0;
-			// export let a, b, c;
-			NodeUtil_VisitLhsNodesInNode(
-				declaration,
-				func(lhs rhino.Node) {
-					jutil.CheckState(lhs.IsName())
-					c.exportedLocalNames[lhs.GetString()] = struct{}{}
-				})
-		} else if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
-			// export default function() {}
-			// export default function foo() {}
-			// export default 0;
-			// Note: default exports may or may not be declarations.
-			if !declaration.IsClass() && !declaration.IsFunction() {
-				return
-			}
-			nameNode := declaration.GetFirstChild()
-			if !nameNode.IsEmpty() && nameNode.GetString() != "" {
-				c.exportedLocalNames[nameNode.GetString()] = struct{}{}
-			}
-		} else {
-			// export function foo() {}
-			// export class Bar {}
-			jutil.CheckState(declaration.IsClass() || declaration.IsFunction())
-			nameNode := declaration.GetFirstChild()
-			c.exportedLocalNames[nameNode.GetString()] = struct{}{}
+		return
+	}
+	if export.GetBooleanProp(rhino.Node_EXPORT_ALL_FROM) {
+		return
+	}
+	if NodeUtil_IsNameDeclaration(first) {
+		NodeUtil_VisitLhsNodesInNode(first, func(lhs rhino.Node) {
+			jutil.CheckState(lhs.IsName())
+			c.exportedLocalNames[lhs.GetStringID()] = struct{}{}
+		})
+	} else if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
+		if !first.IsClass() && !first.IsFunction() {
+			return
 		}
+		nameNode := first.GetFirstChild()
+		if !nameNode.IsEmpty() && nameNode.GetString() != "" {
+			c.exportedLocalNames[nameNode.GetStringID()] = struct{}{}
+		}
+	} else {
+		jutil.CheckState(first.IsClass() || first.IsFunction())
+		c.exportedLocalNames[first.GetFirstChild().GetStringID()] = struct{}{}
 	}
 }
 
-// Java: CheckNoMutatedEs6Exports.visitName(NodeTraversal, Node)
 func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name rhino.Node) {
+	if !NodeUtil_IsLValue(name) {
+		return
+	}
 	scope := t.GetScope()
-	if NodeUtil_IsLValue(name) && !scope.GetClosestHoistScope().IsModuleScope() {
-		var_ := scope.GetVar(name.GetString())
-		if var_ != nil && var_.GetScope().(*Scope).IsModuleScope() {
-			// Multimap.put: a new key gets its value set (and its place in the
-			// map) on its first value.
-			mutations := c.mutatedNames.Get(name.GetString())
-			if mutations == nil {
-				mutations = jutil.NewLinkedHashSet[rhino.Node]()
-				c.mutatedNames.Put(name.GetString(), mutations)
-			}
-			mutations.Add(name)
-		}
+	if scope.GetClosestHoistScope().IsModuleScope() {
+		return
+	}
+	id := name.GetStringID()
+	var_ := scope.GetVarByID(id)
+	if var_ == nil || !var_.GetScope().(*Scope).IsModuleScope() {
+		return
+	}
+	key := name.GetString()
+	nodes, _ := c.mutatedNames.Lookup(key)
+	if !slices.Contains(nodes, name) {
+		c.mutatedNames.Put(key, append(nodes, name))
 	}
 }
 
-// Java: CheckNoMutatedEs6Exports.process(Node, Node)
 func (c *CheckNoMutatedEs6Exports) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }

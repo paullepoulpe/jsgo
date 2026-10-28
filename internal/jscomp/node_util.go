@@ -25,6 +25,14 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var (
+	nodeUtilIDUndefined = uint32(strpool.Intern("undefined"))
+	nodeUtilIDInfinity  = uint32(strpool.Intern("Infinity"))
+	nodeUtilIDNaN       = uint32(strpool.Intern("NaN"))
+	nodeUtilIDSymbol    = uint32(strpool.Intern("Symbol"))
 )
 
 // NodeUtil contains generally useful AST utilities.
@@ -426,7 +434,7 @@ func NodeUtil_IsUndefined(n rhino.Node) bool {
 	case rhino.Token_VOID:
 		return true
 	case rhino.Token_NAME:
-		return n.GetString() == "undefined"
+		return n.GetStringID() == nodeUtilIDUndefined
 	default:
 		return false
 	}
@@ -539,7 +547,12 @@ func NodeUtil_GetOpFromAssignmentOp(n rhino.Node) rhino.Token {
 //
 // Java: NodeUtil.getEnclosingType(Node, Token)
 func NodeUtil_GetEnclosingType(n rhino.Node, type_ rhino.Token) rhino.Node {
-	return NodeUtil_GetEnclosingNode(n, func(n1 rhino.Node) bool { return n1.GetToken() == type_ })
+	for curr := n; !curr.IsNil(); curr = curr.GetParent() {
+		if curr.GetToken() == type_ {
+			return curr
+		}
+	}
+	return rhino.NilNode
 }
 
 var nodeUtil_opToStrTable = func() []*string {
@@ -696,11 +709,11 @@ func NodeUtil_RedeclareVarsInsideBranch(branch rhino.Node) {
 //
 // Java: NodeUtil.getRootOfQualifiedName(String)
 func NodeUtil_GetRootOfQualifiedNameString(qName string) string {
-	dot := jutil.StringIndexOfChar(qName, '.')
+	dot := strings.IndexByte(qName, '.')
 	if dot == -1 {
 		return qName
 	}
-	return jutil.StringSubstring(qName, 0, dot)
+	return qName[:dot]
 }
 
 // Java: NodeUtil.newName(AbstractCompiler, String)
@@ -794,19 +807,30 @@ func NodeUtil_IsValidQualifiedName(mode CompilerOptions_LanguageMode, name strin
 //
 // Java: NodeUtil.isValidQualifiedName(FeatureSet, String)
 func NodeUtil_IsValidQualifiedNameFeatureSet(mode *parser.FeatureSet, name string) bool {
-	if strings.HasSuffix(name, ".") || strings.HasPrefix(name, ".") {
+	if len(name) == 0 || name[0] == '.' || name[len(name)-1] == '.' {
 		return false
 	}
 
-	// Go-only: language-adapter — Splitter.on('.').splitToList(name) keeps
-	// empty parts, exactly like strings.Split with a one-character separator.
-	parts := strings.Split(name, ".")
-	for _, part := range parts {
-		if !NodeUtil_IsValidPropertyName(mode, part) {
+	first := true
+	for rest := name; ; {
+		dot := strings.IndexByte(rest, '.')
+		part := rest
+		if dot != -1 {
+			part = rest[:dot]
+		}
+		if first {
+			if !NodeUtil_IsValidSimpleName(part) {
+				return false
+			}
+			first = false
+		} else if !NodeUtil_IsValidPropertyName(mode, part) {
 			return false
 		}
+		if dot == -1 {
+			return true
+		}
+		rest = rest[dot+1:]
 	}
-	return NodeUtil_IsValidSimpleName(parts[0])
 }
 
 // NodeUtil_IsValidPropertyName determines whether the given name can appear
@@ -815,18 +839,8 @@ func NodeUtil_IsValidQualifiedNameFeatureSet(mode *parser.FeatureSet, name strin
 //
 // Java: NodeUtil.isValidPropertyName(FeatureSet, String)
 func NodeUtil_IsValidPropertyName(mode *parser.FeatureSet, name string) bool {
-	if NodeUtil_IsValidSimpleName(name) {
-		return true
-	} else {
-		return mode.Has(parser.FeatureSet_Feature_KEYWORDS_AS_PROPERTIES) && rhino.TokenStream_IsKeyword(name)
-	}
-}
-
-// NodeUtil_VarCollector collects the names declared by VARs.
-//
-// Java: NodeUtil.VarCollector
-type NodeUtil_VarCollector struct {
-	vars *jutil.LinkedHashMap[string, rhino.Node]
+	return NodeUtil_IsValidSimpleName(name) ||
+		(mode.Has(parser.FeatureSet_Feature_KEYWORDS_AS_PROPERTIES) && rhino.TokenStream_IsKeyword(name))
 }
 
 // Java: NodeUtil.GLOBAL_OBJECT
@@ -847,22 +861,28 @@ var NodeUtil_GOOG_LOADMODULE = rhino.QualifiedName_Of("goog.loadModule")
 // Java: NodeUtil.getOriginalName(String)
 func NodeUtil_GetOriginalName(name string) string {
 	// Strip unique name suffix: "foo$$1" -> "foo"
-	name = jutil.StringReplaceAll(name, "\\$\\$\\d+$", "")
+	if n := len(name); n >= 3 && name[n-1] >= '0' && name[n-1] <= '9' {
+		i := n - 2
+		for i >= 0 && name[i] >= '0' && name[i] <= '9' {
+			i--
+		}
+		if i >= 1 && name[i] == '$' && name[i-1] == '$' {
+			name = name[:i-1]
+		}
+	}
 
 	// Strip contextual rename suffix: "foo$jscomp$1" -> "foo"
 	name = MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name)
 
 	// Strip module exports prefix: "module$exports$foo$Bar" -> "Bar"
 	if strings.HasPrefix(name, "module$exports$") {
-		lastDollar := jutil.StringLastIndexOf(name, "$")
-		if lastDollar != -1 {
-			name = jutil.StringSubstringFrom(name, lastDollar+1)
+		if lastDollar := strings.LastIndexByte(name, '$'); lastDollar != -1 {
+			name = name[lastDollar+1:]
 		}
 	} else if strings.HasPrefix(name, "module$contents$") {
 		// Strip module contents prefix: "module$contents$foo$Bar_baz" -> "baz"
-		lastUnderscore := jutil.StringLastIndexOf(name, "_")
-		if lastUnderscore != -1 {
-			name = jutil.StringSubstringFrom(name, lastUnderscore+1)
+		if lastUnderscore := strings.LastIndexByte(name, '_'); lastUnderscore != -1 {
+			name = name[lastUnderscore+1:]
 		}
 	}
 	return name

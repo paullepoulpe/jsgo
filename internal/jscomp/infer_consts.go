@@ -95,10 +95,11 @@ func inferConsts_isInferredConstState(v *Var, nameNode rhino.Node, st *inferCons
 	if nameNode.IsNil() || st.assignCount != 1 || !st.isAssignedOnceInLifetime() {
 		return false
 	}
-	declarationType := v.DeclarationType()
-
-	// A switch on a null Token throws NullPointerException.
-	switch *declarationType {
+	declarationType, ok := v.DeclarationToken()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	switch declarationType {
 	case rhino.Token_LET:
 		// Check that non-destructuring let names are actually assigned at declaration.
 		return !nameNode.GetParent().IsLet() || nameNode.HasChildren()
@@ -423,8 +424,8 @@ func (c *inferConstsCollector) addReference(v *Var, n rhino.Node, parent rhino.N
 		parentTok := parent.GetToken()
 		isInitDecl := (isDecl && parentTok != rhino.Token_VAR && parentTok != rhino.Token_LET) || n.HasChildren()
 		isAssign := isInitDecl || inferConsts_isLvalue(n, parent)
-		declType := v.DeclarationType()
-		needOrderCheck := isInitDecl && declType != nil && *declType == rhino.Token_VAR
+		declType, hasDeclType := v.DeclarationToken()
+		needOrderCheck := isInitDecl && hasDeclType && declType == rhino.Token_VAR
 		var currentBlock *BasicBlock
 		if isAssign || needOrderCheck {
 			currentBlock = c.getCurrentBlock()
@@ -512,10 +513,11 @@ func InferConsts_IsInferredConst(v *Var, refCollection *ReferenceCollection) boo
 	if v.IsImplicitGoogNamespace() {
 		return false
 	}
-	declarationType := v.DeclarationType()
-
-	// A switch on a null Token throws NullPointerException.
-	switch *declarationType {
+	declarationType, ok := v.DeclarationToken()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	switch declarationType {
 	case rhino.Token_LET:
 		// Check that non-destructuring let names are actually assigned at declaration.
 		return !nameNode.GetParent().IsLet() || nameNode.HasChildren()

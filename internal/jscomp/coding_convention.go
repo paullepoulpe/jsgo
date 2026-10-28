@@ -1,6 +1,4 @@
 // Port of com/google/javascript/jscomp/CodingConvention.java @ closure-compiler v20261021
-// (with com/google/javascript/jscomp/AutoValue_CodingConvention_AssertionFunctionSpec.java
-// folded in)
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -425,128 +423,85 @@ func NewCodingConvention_ObjectLiteralCast(
 	return c
 }
 
-// CodingConvention_AssertionFunctionSpec is a description of a JavaScript
-// function that will throw an exception when either:
-//
-//   - One of its parameters does not match the return type of the function
-//   - One of its parameters is falsy. This has some special handling for
-//     expressions that the match-return-type handling does not have.
-//
-// Java: @AutoValue abstract class CodingConvention.AssertionFunctionSpec,
-// with its generated AutoValue_CodingConvention_AssertionFunctionSpec
-// folded in: the struct holds the AutoValue fields.
+// CodingConvention_AssertionFunctionSpec describes a JavaScript function that
+// throws when either one of its parameters does not match its return type or
+// one of its parameters is falsy.
 type CodingConvention_AssertionFunctionSpec struct {
-	functionName     *string
-	closurePrimitive *rhino.ClosurePrimitive
+	functionName     string
+	hasFunctionName  bool
+	qname            rhino.QualifiedName
+	closurePrimitive rhino.ClosurePrimitive
+	hasPrimitive     bool
 	assertionKind    CodingConvention_AssertionFunctionSpec_AssertionKind
 	paramIndex       int
 }
 
-// Java: AutoValue_CodingConvention_AssertionFunctionSpec(String, ClosurePrimitive, AssertionKind, int)
-func newCodingConvention_AssertionFunctionSpec(
-	functionName *string,
-	closurePrimitive *rhino.ClosurePrimitive,
-	assertionKind CodingConvention_AssertionFunctionSpec_AssertionKind,
-	paramIndex int) *CodingConvention_AssertionFunctionSpec {
-	s := &CodingConvention_AssertionFunctionSpec{}
-	s.functionName = functionName
-	s.closurePrimitive = closurePrimitive
-	s.assertionKind = assertionKind
-	s.paramIndex = paramIndex
-	return s
+func newAssertionSpecPrimitive(
+	primitive rhino.ClosurePrimitive,
+	kind CodingConvention_AssertionFunctionSpec_AssertionKind,
+) *CodingConvention_AssertionFunctionSpec {
+	return &CodingConvention_AssertionFunctionSpec{
+		closurePrimitive: primitive,
+		hasPrimitive:     true,
+		assertionKind:    kind,
+	}
 }
 
-// TODO(b/126254920): remove this field and always use ClosurePrimitive
-//
-// Java: CodingConvention.AssertionFunctionSpec.getFunctionName()
-func (s *CodingConvention_AssertionFunctionSpec) GetFunctionName() *string {
-	return s.functionName
+func newAssertionSpecFunc(
+	name string,
+	kind CodingConvention_AssertionFunctionSpec_AssertionKind,
+) *CodingConvention_AssertionFunctionSpec {
+	var qname rhino.QualifiedName
+	if strings.IndexByte(name, '.') >= 0 {
+		qname = rhino.QualifiedName_Of(name)
+	}
+	return &CodingConvention_AssertionFunctionSpec{
+		functionName:    name,
+		hasFunctionName: true,
+		qname:           qname,
+		assertionKind:   kind,
+	}
 }
 
-// Java: CodingConvention.AssertionFunctionSpec.getClosurePrimitive()
-func (s *CodingConvention_AssertionFunctionSpec) GetClosurePrimitive() *rhino.ClosurePrimitive {
-	return s.closurePrimitive
-}
-
-// Java: CodingConvention.AssertionFunctionSpec.getAssertionKind()
 func (s *CodingConvention_AssertionFunctionSpec) GetAssertionKind() CodingConvention_AssertionFunctionSpec_AssertionKind {
 	return s.assertionKind
 }
 
-// GetParamIndex is the index of the formal parameter that is actually
-// asserted.
-//
-// Java: CodingConvention.AssertionFunctionSpec.getParamIndex()
-func (s *CodingConvention_AssertionFunctionSpec) GetParamIndex() int {
-	return s.paramIndex
+// GetAssertedArg returns which argument is actually being asserted, or NilNode
+// if fewer args than expected.
+func (s *CodingConvention_AssertionFunctionSpec) GetAssertedArg(firstArg rhino.Node) rhino.Node {
+	for i := 0; i < s.paramIndex; i++ {
+		if firstArg.IsNil() {
+			return rhino.NilNode
+		}
+		firstArg = firstArg.GetNext()
+	}
+	return firstArg
 }
 
-// Java: AutoValue_CodingConvention_AssertionFunctionSpec.toString()
+func (s *CodingConvention_AssertionFunctionSpec) equals(that *CodingConvention_AssertionFunctionSpec) bool {
+	return s == that || (that != nil &&
+		s.hasFunctionName == that.hasFunctionName &&
+		s.functionName == that.functionName &&
+		s.hasPrimitive == that.hasPrimitive &&
+		s.closurePrimitive == that.closurePrimitive &&
+		s.assertionKind == that.assertionKind &&
+		s.paramIndex == that.paramIndex)
+}
+
 func (s *CodingConvention_AssertionFunctionSpec) String() string {
 	functionName := "null"
-	if s.functionName != nil {
-		functionName = *s.functionName
+	if s.hasFunctionName {
+		functionName = s.functionName
 	}
 	closurePrimitive := "null"
-	if s.closurePrimitive != nil {
+	if s.hasPrimitive {
 		closurePrimitive = s.closurePrimitive.String()
 	}
-	return "AssertionFunctionSpec{" +
-		"functionName=" + functionName + ", " +
-		"closurePrimitive=" + closurePrimitive + ", " +
-		"assertionKind=" + s.assertionKind.String() + ", " +
-		"paramIndex=" + strconv.Itoa(s.paramIndex) +
-		"}"
-}
-
-// Java: AutoValue_CodingConvention_AssertionFunctionSpec.equals(Object)
-func (s *CodingConvention_AssertionFunctionSpec) Equals(o any) bool {
-	that, ok := o.(*CodingConvention_AssertionFunctionSpec)
-	if !ok || that == nil {
-		return false
-	}
-	if that == s {
-		return true
-	}
-	var functionNameEquals bool
-	if s.functionName == nil {
-		functionNameEquals = that.GetFunctionName() == nil
-	} else {
-		functionNameEquals = that.GetFunctionName() != nil && *s.functionName == *that.GetFunctionName()
-	}
-	var closurePrimitiveEquals bool
-	if s.closurePrimitive == nil {
-		closurePrimitiveEquals = that.GetClosurePrimitive() == nil
-	} else {
-		closurePrimitiveEquals = that.GetClosurePrimitive() != nil && *s.closurePrimitive == *that.GetClosurePrimitive()
-	}
-	return functionNameEquals &&
-		closurePrimitiveEquals &&
-		s.assertionKind == that.GetAssertionKind() &&
-		s.paramIndex == that.GetParamIndex()
-}
-
-// HashCode is AutoValue's hashCode.
-//
-// Go-only: language-adapter — Java enums hash by identity (a value that
-// differs from run to run); the enum fields hash by ordinal here.
-//
-// Java: AutoValue_CodingConvention_AssertionFunctionSpec.hashCode()
-func (s *CodingConvention_AssertionFunctionSpec) HashCode() int32 {
-	var h int32 = 1
-	h *= 1000003
-	if s.functionName != nil {
-		h ^= jutil.StringHashCode(*s.functionName)
-	}
-	h *= 1000003
-	if s.closurePrimitive != nil {
-		h ^= int32(*s.closurePrimitive)
-	}
-	h *= 1000003
-	h ^= int32(s.assertionKind)
-	h *= 1000003
-	h ^= int32(s.paramIndex)
-	return h
+	return "AssertionFunctionSpec{functionName=" + functionName +
+		", closurePrimitive=" + closurePrimitive +
+		", assertionKind=" + s.assertionKind.String() +
+		", paramIndex=" + strconv.Itoa(s.paramIndex) + "}"
 }
 
 // CodingConvention_AssertionFunctionSpec_AssertionKind is
@@ -562,152 +517,28 @@ const (
 
 var codingConvention_AssertionFunctionSpec_AssertionKind_names = [...]string{"TRUTHY", "MATCHES_RETURN_TYPE"}
 
-// Name is Enum.name().
-func (k CodingConvention_AssertionFunctionSpec_AssertionKind) Name() string {
+func (k CodingConvention_AssertionFunctionSpec_AssertionKind) String() string {
 	return codingConvention_AssertionFunctionSpec_AssertionKind_names[k]
 }
 
-// String is Enum.toString().
-func (k CodingConvention_AssertionFunctionSpec_AssertionKind) String() string { return k.Name() }
-
-// Ordinal is Enum.ordinal().
-func (k CodingConvention_AssertionFunctionSpec_AssertionKind) Ordinal() int { return int(k) }
-
-// CodingConvention_AssertionFunctionSpec_Builder_ is
-// AssertionFunctionSpec.builder().
-//
-// Java: CodingConvention.AssertionFunctionSpec.builder()
-func CodingConvention_AssertionFunctionSpec_Builder_() *CodingConvention_AssertionFunctionSpec_Builder {
-	return newCodingConvention_AssertionFunctionSpec_Builder().SetParamIndex(0)
-}
-
-// Java: CodingConvention.AssertionFunctionSpec.forTruthy()
-func CodingConvention_AssertionFunctionSpec_ForTruthy() *CodingConvention_AssertionFunctionSpec_Builder {
-	return CodingConvention_AssertionFunctionSpec_Builder_().
-		SetAssertionKind(CodingConvention_AssertionFunctionSpec_AssertionKind_TRUTHY)
-}
-
-// Java: CodingConvention.AssertionFunctionSpec.forMatchesReturn()
-func CodingConvention_AssertionFunctionSpec_ForMatchesReturn() *CodingConvention_AssertionFunctionSpec_Builder {
-	return CodingConvention_AssertionFunctionSpec_Builder_().
-		SetAssertionKind(CodingConvention_AssertionFunctionSpec_AssertionKind_MATCHES_RETURN_TYPE)
-}
-
-// CodingConvention_AssertionFunctionSpec_Builder is
-// AssertionFunctionSpec.Builder.
-//
-// Java: @AutoValue.Builder abstract class AssertionFunctionSpec.Builder, with
-// the generated AutoValue_CodingConvention_AssertionFunctionSpec.Builder
-// folded in: the struct holds the generated builder's fields.
-type CodingConvention_AssertionFunctionSpec_Builder struct {
-	functionName     *string
-	closurePrimitive *rhino.ClosurePrimitive
-	assertionKind    *CodingConvention_AssertionFunctionSpec_AssertionKind
-	paramIndex       int
-	set0             int8
-}
-
-// Java: AutoValue_CodingConvention_AssertionFunctionSpec.Builder()
-func newCodingConvention_AssertionFunctionSpec_Builder() *CodingConvention_AssertionFunctionSpec_Builder {
-	return &CodingConvention_AssertionFunctionSpec_Builder{}
-}
-
-// Java: CodingConvention.AssertionFunctionSpec.Builder.setFunctionName(String)
-func (b *CodingConvention_AssertionFunctionSpec_Builder) SetFunctionName(name string) *CodingConvention_AssertionFunctionSpec_Builder {
-	b.functionName = &name
-	return b
-}
-
-// Java: CodingConvention.AssertionFunctionSpec.Builder.setClosurePrimitive(ClosurePrimitive)
-func (b *CodingConvention_AssertionFunctionSpec_Builder) SetClosurePrimitive(primitive rhino.ClosurePrimitive) *CodingConvention_AssertionFunctionSpec_Builder {
-	b.closurePrimitive = &primitive
-	return b
-}
-
-// Java: CodingConvention.AssertionFunctionSpec.Builder.setParamIndex(int)
-func (b *CodingConvention_AssertionFunctionSpec_Builder) SetParamIndex(paramIndex int) *CodingConvention_AssertionFunctionSpec_Builder {
-	b.paramIndex = paramIndex
-	b.set0 |= 1
-	return b
-}
-
-// SetAssertionKind is the generated setter, which rejects null (a Go
-// AssertionKind value is never null).
-//
-// Java: CodingConvention.AssertionFunctionSpec.Builder.setAssertionKind(AssertionKind)
-func (b *CodingConvention_AssertionFunctionSpec_Builder) SetAssertionKind(
-	kind CodingConvention_AssertionFunctionSpec_AssertionKind) *CodingConvention_AssertionFunctionSpec_Builder {
-	b.assertionKind = &kind
-	return b
-}
-
-// Java: AutoValue_CodingConvention_AssertionFunctionSpec.Builder.autoBuild()
-func (b *CodingConvention_AssertionFunctionSpec_Builder) AutoBuild() *CodingConvention_AssertionFunctionSpec {
-	if b.set0 != 1 || b.assertionKind == nil {
-		missing := ""
-		if b.assertionKind == nil {
-			missing += " assertionKind"
-		}
-		if (b.set0 & 1) == 0 {
-			missing += " paramIndex"
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing))
-	}
-	return newCodingConvention_AssertionFunctionSpec(
-		b.functionName,
-		b.closurePrimitive,
-		*b.assertionKind,
-		b.paramIndex)
-}
-
-// Java: CodingConvention.AssertionFunctionSpec.Builder.build()
-func (b *CodingConvention_AssertionFunctionSpec_Builder) Build() *CodingConvention_AssertionFunctionSpec {
-	spec := b.AutoBuild()
-	jutil.CheckStateMsg(
-		spec.GetFunctionName() != nil || spec.GetClosurePrimitive() != nil,
-		"Must provide a function name or ClosurePrimitive for each spec")
-	return spec
-}
-
-// GetAssertedArg returns which argument is actually being asserted, or null
-// if fewer args than expected
-//
-// Java: CodingConvention.AssertionFunctionSpec.getAssertedArg(Node)
-func (s *CodingConvention_AssertionFunctionSpec) GetAssertedArg(firstArg rhino.Node) rhino.Node {
-	for i := 0; i < s.GetParamIndex(); i++ {
-		if firstArg.IsNil() {
-			// If there are fewer arguments than expected, return null instead of crashing in this
-			// function.
-			return rhino.NilNode
-		}
-		firstArg = firstArg.GetNext()
-	}
-	return firstArg
-}
-
 // CodingConvention_AssertionFunctionLookup stores a relation from either
-// name or Closure Primitive to assertion function
+// name or Closure Primitive to assertion function.
 type CodingConvention_AssertionFunctionLookup struct {
 	byPrimitive map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec
 	byName      map[string]*CodingConvention_AssertionFunctionSpec
 	byLastProp  map[string][]*CodingConvention_AssertionFunctionSpec
 }
 
-// CodingConvention_AssertionFunctionLookup_Of returns a new map containing
-// all the given AssertionFunctionSpecs
-//
-// Assumes that in the input, there is a unique mapping from string name to
-// spec and closure primitive to spec.
-//
-// Java: CodingConvention.AssertionFunctionLookup.of(Collection<AssertionFunctionSpec>)
+// CodingConvention_AssertionFunctionLookup_Of returns a new lookup containing
+// all the given AssertionFunctionSpecs.
 func CodingConvention_AssertionFunctionLookup_Of(
 	specs []*CodingConvention_AssertionFunctionSpec) *CodingConvention_AssertionFunctionLookup {
 	l := &CodingConvention_AssertionFunctionLookup{}
 	for _, spec := range specs {
 		jutil.CheckNotNullPtr(spec)
 		switch {
-		case spec.closurePrimitive != nil:
-			key := *spec.closurePrimitive
+		case spec.hasPrimitive:
+			key := spec.closurePrimitive
 			if l.byPrimitive == nil {
 				l.byPrimitive = make(map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec)
 			}
@@ -716,15 +547,15 @@ func CodingConvention_AssertionFunctionLookup_Of(
 					"Multiple entries with same key: " + key.String() + "=" + spec.String() + " and " + key.String() + "=" + prev.String()))
 			}
 			l.byPrimitive[key] = spec
-		case spec.functionName != nil:
-			key := *spec.functionName
+		case spec.hasFunctionName:
+			key := spec.functionName
 			if lastDot := strings.LastIndexByte(key, '.'); lastDot >= 0 {
 				if l.byLastProp == nil {
 					l.byLastProp = make(map[string][]*CodingConvention_AssertionFunctionSpec)
 				}
 				lastProp := key[lastDot+1:]
 				for _, prev := range l.byLastProp[lastProp] {
-					if prev.functionName != nil && *prev.functionName == key {
+					if prev.hasFunctionName && prev.functionName == key {
 						panic(jutil.NewIllegalArgumentExceptionMsg(
 							"Multiple entries with same key: " + key + "=" + spec.String() + " and " + key + "=" + prev.String()))
 					}
@@ -748,34 +579,23 @@ func CodingConvention_AssertionFunctionLookup_Of(
 }
 
 // LookupByCallee returns the AssertionFunctionSpec matching the given
-// function reference.
-//
-// This first looks up specs by their ClosurePrimitive, then falls back to
-// qualified name
-//
-// Java: CodingConvention.AssertionFunctionLookup.lookupByCallee(Node)
+// function reference, first by ClosurePrimitive, then by qualified name.
 func (l *CodingConvention_AssertionFunctionLookup) LookupByCallee(callee rhino.Node) *CodingConvention_AssertionFunctionSpec {
 	fnType := rhino.JSType_ToMaybeFunctionType(callee.GetJSType())
 	if fnType != nil && fnType.GetClosurePrimitive() != nil {
-		spec := l.byPrimitive[*fnType.GetClosurePrimitive()]
-		if spec != nil {
+		if spec := l.byPrimitive[*fnType.GetClosurePrimitive()]; spec != nil {
 			return spec
 		}
 	}
-
-	// TODO(b/126254920): remove this
 	if callee.IsName() {
 		return l.byName[callee.GetString()]
 	}
 	if callee.IsGetProp() && len(l.byLastProp) > 0 {
-		if specs := l.byLastProp[callee.GetString()]; len(specs) > 0 {
-			for _, spec := range specs {
-				if spec.functionName != nil && callee.MatchesQualifiedName(*spec.functionName) {
-					return spec
-				}
+		for _, spec := range l.byLastProp[callee.GetString()] {
+			if spec.qname != nil && spec.qname.Matches(callee) {
+				return spec
 			}
 		}
 	}
-
 	return nil
 }

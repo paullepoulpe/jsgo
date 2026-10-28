@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // TryFoldCtorCall tries to fold away unnecessary object instantiation. e.g.
@@ -52,7 +53,7 @@ func (p *PeepholeFoldConstants) TryFoldUselessObjectDotDefinePropertiesCall(n rh
 	// Go-only: the callee's property is compared first, a cheap test that
 	// fails for almost every call, before NodeUtil's full check.
 	callee, ok := call.Callee().AsGetProp()
-	if !ok || callee.Property() != "defineProperties" || !NodeUtil_IsObjectDefinePropertiesDefinition(n) {
+	if !ok || callee.Node().GetStringID() != foldIDDefineProperties || !NodeUtil_IsObjectDefinePropertiesDefinition(n) {
 		return n
 	}
 	// Object.defineProperties(destObj, srcObj): the check above proves both
@@ -88,7 +89,7 @@ func (p *PeepholeFoldConstants) TryFoldInForcedStringContext(n rhino.Node) rhino
 	jutil.CheckArgument(ok)
 
 	objectType, ok := newNode.Callee().AsName()
-	if !ok || objectType.Ident() != "String" {
+	if !ok || objectType.Node().GetStringID() != foldIDString {
 		return n
 	}
 
@@ -151,7 +152,7 @@ func (p *PeepholeFoldConstants) TryFoldGetProp(n rhino.Node) rhino.Node {
 		obj, _ := left.AsObjectLit() // the case proves the kind
 		return p.TryFoldObjectPropAccess(n, obj, get.Property())
 	case rhino.Token_ARRAYLIT, rhino.Token_STRINGLIT:
-		if get.Property() != "length" || NodeUtil_IsLValue(n) {
+		if get.Node().GetStringID() != foldIDLength || NodeUtil_IsLValue(n) {
 			return n
 		}
 		var knownLength int
@@ -350,17 +351,15 @@ func (p *PeepholeFoldConstants) TryFoldStringArrayAccess(n rhino.Node, left ast.
 		return undefined
 	}
 
-	var c uint16
 	// Note: For now skip the strings with unicode
 	// characters as I don't understand the differences
 	// between Java and JavaScript.
 	for i := 0; i <= int(intIndex); i++ {
-		c = jutil.StringCharAt(value, i)
-		if c < 32 || c > 127 {
+		if c := value[i]; c < 32 || c > 127 {
 			return n
 		}
 	}
-	elem := rhino.IR_String(jutil.StringFromChar(c))
+	elem := rhino.IR_String(value[intIndex : intIndex+1])
 
 	// Replace the entire GETELEM with the value
 	n.ReplaceWith(elem)
@@ -397,6 +396,7 @@ func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n rhino.Node, left ast.O
 	}
 
 	// find the last definition in the object literal
+	nameID := uint32(strpool.Lookup(name))
 	var key rhino.Node
 	var value rhino.Node
 	for member := range left.Members() {
@@ -414,7 +414,7 @@ func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n rhino.Node, left ast.O
 			if !ok {
 				return n
 			}
-			if prop.Value() == name && !c.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
+			if nameID != 0 && prop.Node().GetStringID() == nameID && !c.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
 				v, _ := computed.Value() // the nil node if it has none, as in the Java
 				key = c
 				value = v.Node()
@@ -422,7 +422,7 @@ func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n rhino.Node, left ast.O
 		case rhino.Token_GETTER_DEF, rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF:
 			// (Go: each of these kinds names its key and its only child
 			// differently, so they are read alike with the rhino API.)
-			if c.GetString() == name {
+			if nameID != 0 && c.GetStringID() == nameID {
 				key = c
 				value = key.GetFirstChild()
 			}

@@ -45,14 +45,35 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+type orderedUnresolvedMap struct {
+	keys  []string
+	byKey map[string]UnresolvedModule
+}
+
+func (m *orderedUnresolvedMap) reset() {
+	m.keys = m.keys[:0]
+	if m.byKey == nil {
+		m.byKey = make(map[string]UnresolvedModule)
+	} else {
+		clear(m.byKey)
+	}
+}
+
+func (m *orderedUnresolvedMap) put(k string, v UnresolvedModule) {
+	if _, exists := m.byKey[k]; !exists {
+		m.keys = append(m.keys, k)
+	}
+	m.byKey[k] = v
+}
+
 // ModuleMapCreator creates a ModuleMap.
 type ModuleMapCreator struct {
 	compiler                            AbstractCompiler
 	esModuleProcessor                   *EsModuleProcessor
 	closureModuleProcessor              *ClosureModuleProcessor
 	nonEsModuleProcessor                *NonEsModuleProcessor
-	unresolvedModules                   *jutil.LinkedHashMap[string, UnresolvedModule]
-	unresolvedModulesByClosureNamespace *jutil.LinkedHashMap[string, UnresolvedModule]
+	unresolvedModules                   orderedUnresolvedMap
+	unresolvedModulesByClosureNamespace orderedUnresolvedMap
 	moduleMetadataMap                   *ModuleMetadataMap
 }
 
@@ -67,74 +88,53 @@ var ModuleMapCreator_DOES_NOT_HAVE_EXPORT_WITH_DETAILS = DiagnosticType_Error(
 	"JSC_DOES_NOT_HAVE_EXPORT_WITH_DETAILS",
 	"Requested module does not have an export \"{0}\".{1}")
 
-// ModuleMapCreator_ModuleRequestResolverImpl is
-// ModuleMapCreator.ModuleRequestResolverImpl (an inner class: outer is the
-// enclosing ModuleMapCreator).
-type ModuleMapCreator_ModuleRequestResolverImpl struct {
+type moduleRequestResolverImpl struct {
 	outer *ModuleMapCreator
 }
 
-var _ ModuleRequestResolver = (*ModuleMapCreator_ModuleRequestResolverImpl)(nil)
+var _ ModuleRequestResolver = (*moduleRequestResolverImpl)(nil)
 
-// moduleMapCreator_fallbackForMissingNonClosureModule is the anonymous
-// UnresolvedModule of
-// ModuleRequestResolverImpl.getFallbackForMissingNonClosureModule.
-type moduleMapCreator_fallbackForMissingNonClosureModule struct {
+type fallbackMissingNonClosureModule struct {
 	UnresolvedModuleBase
 
 	path     *ModuleLoader_ModulePath
 	metadata *ModuleMetadataMap_ModuleMetadata
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingNonClosureModule(ModulePath)
-func (r *ModuleMapCreator_ModuleRequestResolverImpl) GetFallbackForMissingNonClosureModule(path *ModuleLoader_ModulePath) UnresolvedModule {
-	metadata :=
-		ModuleMetadataMap_ModuleMetadata_Builder_().
-			RootNode(rhino.NilNode).
-			Path(path).
-			ModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE).
-			IsTestOnly(false).
-			UsesClosure(false).
-			Build()
-
-	m := &moduleMapCreator_fallbackForMissingNonClosureModule{path: path, metadata: metadata}
+func newFallbackMissingNonClosureModule(path *ModuleLoader_ModulePath) UnresolvedModule {
+	metadata := ModuleMetadataMap_ModuleMetadata_Builder_().
+		RootNode(rhino.NilNode).
+		Path(path).
+		ModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE).
+		IsTestOnly(false).
+		UsesClosure(false).
+		Build()
+	m := &fallbackMissingNonClosureModule{path: path, metadata: metadata}
 	m.InitUnresolvedModuleBase(m)
 	return m
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingNonClosureModule(ModulePath).new UnresolvedModule() {...}.reset()
-func (m *moduleMapCreator_fallbackForMissingNonClosureModule) Reset() {}
+func (m *fallbackMissingNonClosureModule) Reset() {}
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingNonClosureModule(ModulePath).new UnresolvedModule() {...}.resolve(ModuleRequestResolver, String)
-func (m *moduleMapCreator_fallbackForMissingNonClosureModule) ResolveWithModuleSpecifier(
+func (m *fallbackMissingNonClosureModule) ResolveWithModuleSpecifier(
 	moduleRequestResolver ModuleRequestResolver, moduleSpecifier *string) *Module {
-	return Module_Builder_().
-		BoundNames(jutil.NewLinkedHashMap[string, *Binding]()).
-		Namespace(jutil.NewLinkedHashMap[string, *Binding]()).
-		LocalNameToLocalExport(jutil.NewLinkedHashMap[string, *Export]()).
-		Path(m.path).
-		Metadata(m.metadata).
-		Build()
+	return NewModule(m.metadata, m.path, nonEsEmptyBindingMap, nonEsEmptyBindingMap, nonEsEmptyExportMap, nil)
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingNonClosureModule(ModulePath).new UnresolvedModule() {...}.metadata()
-func (m *moduleMapCreator_fallbackForMissingNonClosureModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
+func (m *fallbackMissingNonClosureModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
 	return m.metadata
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingNonClosureModule(ModulePath).new UnresolvedModule() {...}.getExportedNames(ModuleRequestResolver)
-func (m *moduleMapCreator_fallbackForMissingNonClosureModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
-	return jutil.NewLinkedHashSet[string]()
+func (m *fallbackMissingNonClosureModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
+	return nonEsEmptyExportedSet
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingNonClosureModule(ModulePath).new UnresolvedModule() {...}.getExportedNames(ModuleRequestResolver, Set<UnresolvedModule>)
-func (m *moduleMapCreator_fallbackForMissingNonClosureModule) GetExportedNamesWithVisited(
+func (m *fallbackMissingNonClosureModule) GetExportedNamesWithVisited(
 	moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string] {
-	return jutil.NewLinkedHashSet[string]()
+	return nonEsEmptyExportedSet
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingNonClosureModule(ModulePath).new UnresolvedModule() {...}.resolveExport(ModuleRequestResolver, String, String, Set<ExportTrace>, Set<UnresolvedModule>)
-func (m *moduleMapCreator_fallbackForMissingNonClosureModule) ResolveExportWithTraces(
+func (m *fallbackMissingNonClosureModule) ResolveExportWithTraces(
 	moduleRequestResolver ModuleRequestResolver,
 	moduleSpecifier *string,
 	exportName string,
@@ -148,11 +148,10 @@ func (m *moduleMapCreator_fallbackForMissingNonClosureModule) ResolveExportWithT
 				ModulePath(m.path).
 				ClosureNamespace(nil).
 				Build(),
-			/* sourceNode= */ rhino.NilNode))
+			rhino.NilNode))
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.getFallbackForMissingClosureModule(String)
-func (r *ModuleMapCreator_ModuleRequestResolverImpl) GetFallbackForMissingClosureModule(namespace string) UnresolvedModule {
+func (r *moduleRequestResolverImpl) fallbackForMissingClosureModule(namespace string) UnresolvedModule {
 	return r.outer.nonEsModuleProcessor.Process(
 		ModuleMetadataMap_ModuleMetadata_Builder_().
 			AddGoogNamespace(namespace).
@@ -162,180 +161,119 @@ func (r *ModuleMapCreator_ModuleRequestResolverImpl) GetFallbackForMissingClosur
 			RootNode(rhino.NilNode).
 			UsesClosure(true).
 			Build(),
-		/* path= */ nil,
-		/* script= */ rhino.NilNode)
+		nil,
+		rhino.NilNode)
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.resolve(Import)
-func (r *ModuleMapCreator_ModuleRequestResolverImpl) Resolve(i *Import) UnresolvedModule {
+func (r *moduleRequestResolverImpl) Resolve(i *Import) UnresolvedModule {
 	if i.ModulePath() == nil {
-		return r.ResolveForClosure(i.ModuleRequest())
+		return r.resolveForClosure(i.ModuleRequest())
 	}
-	return r.ResolveWithModulePath(i.ModuleRequest(), i.ModulePath(), i.ImportNode())
+	return r.resolveWithModulePath(i.ModuleRequest(), i.ModulePath(), i.ImportNode())
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.resolve(Export)
-func (r *ModuleMapCreator_ModuleRequestResolverImpl) ResolveWithExport(e *Export) UnresolvedModule {
-	// Go-only: language-adapter — Export.moduleRequest() is a nullable
-	// String; the callers only resolve exports that have one.
-	return r.ResolveWithModulePath(*e.ModuleRequest(), e.ModulePath(), e.ExportNode())
+func (r *moduleRequestResolverImpl) ResolveWithExport(e *Export) UnresolvedModule {
+	return r.resolveWithModulePath(*e.ModuleRequest(), e.ModulePath(), e.ExportNode())
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.resolveForClosure(String)
-func (r *ModuleMapCreator_ModuleRequestResolverImpl) ResolveForClosure(namespace string) UnresolvedModule {
-	return r.outer.unresolvedModulesByClosureNamespace.ComputeIfAbsent(
-		namespace, r.GetFallbackForMissingClosureModule)
+func (r *moduleRequestResolverImpl) resolveForClosure(namespace string) UnresolvedModule {
+	if m, ok := r.outer.unresolvedModulesByClosureNamespace.byKey[namespace]; ok {
+		return m
+	}
+	m := r.fallbackForMissingClosureModule(namespace)
+	r.outer.unresolvedModulesByClosureNamespace.put(namespace, m)
+	return m
 }
 
-// Java: ModuleMapCreator.ModuleRequestResolverImpl.resolve(String, ModulePath, Node)
-func (r *ModuleMapCreator_ModuleRequestResolverImpl) ResolveWithModulePath(
+func (r *moduleRequestResolverImpl) resolveWithModulePath(
 	moduleRequest string, modulePath *ModuleLoader_ModulePath, forLineInfo rhino.Node) UnresolvedModule {
-
 	if GoogEsImports_IsGoogImportSpecifier(moduleRequest) {
-		namespace := GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleRequest)
-		return r.ResolveForClosure(namespace)
+		return r.resolveForClosure(GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleRequest))
 	}
 
-	// Go-only: language-adapter — Node.getSourceFileName() is a nullable
-	// String; ModulePath.resolveJsModule takes a Go string.
 	sourceFileName := ""
 	if s := forLineInfo.GetSourceFileName(); s != nil {
 		sourceFileName = *s
 	}
-	requestedPath :=
-		modulePath.ResolveJsModule(
-			moduleRequest,
-			sourceFileName,
-			forLineInfo.GetLineno(),
-			forLineInfo.GetCharno())
+	requestedPath := modulePath.ResolveJsModule(
+		moduleRequest,
+		sourceFileName,
+		forLineInfo.GetLineno(),
+		forLineInfo.GetCharno())
 
 	if requestedPath == nil {
 		requestedPath = modulePath.ResolveModuleAsPath(moduleRequest)
-
-		if !r.outer.unresolvedModules.ContainsKey(requestedPath.ToModuleName()) {
-			module := r.GetFallbackForMissingNonClosureModule(requestedPath)
-			r.outer.unresolvedModules.Put(requestedPath.ToModuleName(), module)
-			return module
+		modName := requestedPath.ToModuleName()
+		if existing, ok := r.outer.unresolvedModules.byKey[modName]; ok {
+			return existing
 		}
+		module := newFallbackMissingNonClosureModule(requestedPath)
+		r.outer.unresolvedModules.put(modName, module)
+		return module
 	}
 
-	return r.outer.unresolvedModules.Get(requestedPath.ToModuleName())
+	return r.outer.unresolvedModules.byKey[requestedPath.ToModuleName()]
 }
 
-// ModuleMapCreator_ModuleProcessor is a basic interface that can scan and
-// return information about a module.
-type ModuleMapCreator_ModuleProcessor interface {
-	// Java: ModuleMapCreator.ModuleProcessor.process(ModuleMetadata, ModulePath, Node)
+type moduleProcessor interface {
 	Process(metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule
 }
 
 // Java: ModuleMapCreator(AbstractCompiler, ModuleMetadataMap)
 func NewModuleMapCreator(compiler AbstractCompiler, moduleMetadataMap *ModuleMetadataMap) *ModuleMapCreator {
-	c := &ModuleMapCreator{}
-	c.compiler = compiler
-	c.moduleMetadataMap = moduleMetadataMap
-	c.esModuleProcessor = NewEsModuleProcessor(compiler)
-	c.closureModuleProcessor = NewClosureModuleProcessor(compiler)
-	c.nonEsModuleProcessor = NewNonEsModuleProcessor()
-	c.unresolvedModules = jutil.NewLinkedHashMap[string, UnresolvedModule]()
-	c.unresolvedModulesByClosureNamespace = jutil.NewLinkedHashMap[string, UnresolvedModule]()
-	return c
+	return &ModuleMapCreator{
+		compiler:               compiler,
+		moduleMetadataMap:      moduleMetadataMap,
+		esModuleProcessor:      NewEsModuleProcessor(compiler),
+		closureModuleProcessor: NewClosureModuleProcessor(compiler),
+		nonEsModuleProcessor:   NewNonEsModuleProcessor(),
+	}
 }
 
 // Java: ModuleMapCreator.create()
 func (c *ModuleMapCreator) Create() *ModuleMap {
-	c.unresolvedModules.Clear()
-	c.unresolvedModulesByClosureNamespace.Clear()
+	c.unresolvedModules.reset()
+	c.unresolvedModulesByClosureNamespace.reset()
 
-	// There are modules that aren't associated with scripts - nested
-	// goog.modules in goog.loadModule calls.
 	for moduleMetadata := range c.moduleMetadataMap.GetAllModuleMetadata().All() {
-		c.ProcessModuleMetadata(moduleMetadata)
+		c.processModuleMetadata(moduleMetadata)
 	}
-
-	return c.Resolve()
+	return c.resolve()
 }
 
-// Java: ModuleMapCreator.resolve()
-func (c *ModuleMapCreator) Resolve() *ModuleMap {
-	var requestResolver ModuleRequestResolver = &ModuleMapCreator_ModuleRequestResolverImpl{outer: c}
+func (c *ModuleMapCreator) resolve() *ModuleMap {
+	requestResolver := &moduleRequestResolverImpl{outer: c}
 	resolvedModules := jutil.NewLinkedHashMap[string, *Module]()
 	resolvedClosureModules := jutil.NewLinkedHashMap[string, *Module]()
 
-	// We need to resolve in a loop as any missing reference will add a fake to
-	// the unresolvedModules map (see getFallback* methods above). This would
-	// cause a concurrent modification exception if we just iterated over
-	// unresolvedModules. So the first loop through should resolve any "known"
-	// modules, and the second any "unrecognized" modules.
-	for {
-		toResolve := moduleMapCreator_difference(c.unresolvedModules, resolvedModules)
-
-		for _, key := range toResolve {
-			resolved := c.unresolvedModules.Get(key).Resolve(requestResolver)
-			resolvedModules.Put(key, resolved)
-
-			for namespace := range resolved.Metadata().GoogNamespaces().All() {
-				resolvedClosureModules.Put(namespace, resolved)
-			}
-		}
-
-		if moduleMapCreator_containsAllKeys(resolvedModules, c.unresolvedModules) {
-			break
+	// Missing references append fallback entries to unresolvedModules.keys during
+	// resolution, so advancing an index cursor resolves known and fallback modules
+	// in deterministic insertion order in a single linear pass.
+	for idx := 0; idx < len(c.unresolvedModules.keys); idx++ {
+		key := c.unresolvedModules.keys[idx]
+		resolved := c.unresolvedModules.byKey[key].Resolve(requestResolver)
+		resolvedModules.Put(key, resolved)
+		for namespace := range resolved.Metadata().GoogNamespaces().All() {
+			resolvedClosureModules.Put(namespace, resolved)
 		}
 	}
 
-	for {
-		toResolve := moduleMapCreator_difference(c.unresolvedModulesByClosureNamespace, resolvedClosureModules)
-
-		for _, namespace := range toResolve {
+	for idx := 0; idx < len(c.unresolvedModulesByClosureNamespace.keys); idx++ {
+		namespace := c.unresolvedModulesByClosureNamespace.keys[idx]
+		if !resolvedClosureModules.ContainsKey(namespace) {
 			resolvedClosureModules.Put(
-				namespace, c.unresolvedModulesByClosureNamespace.Get(namespace).Resolve(requestResolver))
-		}
-
-		if moduleMapCreator_containsAllKeys(resolvedClosureModules, c.unresolvedModulesByClosureNamespace) {
-			break
+				namespace,
+				c.unresolvedModulesByClosureNamespace.byKey[namespace].Resolve(requestResolver))
 		}
 	}
 
-	c.unresolvedModules.Clear()
-	c.unresolvedModulesByClosureNamespace.Clear()
-
-	return NewModuleMap(
-		jutil.NewLinkedHashMapFrom(resolvedModules), jutil.NewLinkedHashMapFrom(resolvedClosureModules))
+	c.unresolvedModules.reset()
+	c.unresolvedModulesByClosureNamespace.reset()
+	return NewModuleMap(resolvedModules, resolvedClosureModules)
 }
 
-// moduleMapCreator_difference is
-// Sets.difference(a.keySet(), b.keySet()).immutableCopy(): the keys of a
-// that are not keys of b, in a's iteration order.
-//
-// Go-only: language-adapter — Guava Sets.difference.
-func moduleMapCreator_difference(
-	a *jutil.LinkedHashMap[string, UnresolvedModule], b *jutil.LinkedHashMap[string, *Module]) []string {
-	var out []string
-	for k := range a.Keys() {
-		if !b.ContainsKey(k) {
-			out = append(out, k)
-		}
-	}
-	return out
-}
-
-// moduleMapCreator_containsAllKeys is a.keySet().containsAll(b.keySet()).
-//
-// Go-only: language-adapter — Set.containsAll.
-func moduleMapCreator_containsAllKeys(
-	a *jutil.LinkedHashMap[string, *Module], b *jutil.LinkedHashMap[string, UnresolvedModule]) bool {
-	for k := range b.Keys() {
-		if !a.ContainsKey(k) {
-			return false
-		}
-	}
-	return true
-}
-
-// Java: ModuleMapCreator.process(ModuleMetadata)
-func (c *ModuleMapCreator) ProcessModuleMetadata(moduleMetadata *ModuleMetadataMap_ModuleMetadata) {
-	var processor ModuleMapCreator_ModuleProcessor
+func (c *ModuleMapCreator) processModuleMetadata(moduleMetadata *ModuleMetadataMap_ModuleMetadata) {
+	var processor moduleProcessor
 	switch moduleMetadata.ModuleType() {
 	case ModuleMetadataMap_ModuleType_ES6_MODULE:
 		processor = c.esModuleProcessor
@@ -343,26 +281,18 @@ func (c *ModuleMapCreator) ProcessModuleMetadata(moduleMetadata *ModuleMetadataM
 		if moduleMetadata.GoogNamespaces().Size() == 1 {
 			processor = c.closureModuleProcessor
 		} else {
-			// this indicates some malformed Closure module. We should already
-			// have reported an error.
 			processor = c.nonEsModuleProcessor
 		}
 	default:
 		processor = c.nonEsModuleProcessor
 	}
-	module :=
-		processor.Process(moduleMetadata, moduleMetadata.Path(), moduleMetadata.RootNode())
+	module := processor.Process(moduleMetadata, moduleMetadata.Path(), moduleMetadata.RootNode())
 
-	// Have to use module names as keys because path "resolution"
-	// (ModuleLoader) "respects" leading slashes. Meaning that if you look up
-	// "file.js" and "/file.js" you'll get different paths back. But they'll
-	// have the same module name.
 	if moduleMetadata.Path() != nil {
-		c.unresolvedModules.Put(moduleMetadata.Path().ToModuleName(), module)
+		c.unresolvedModules.put(moduleMetadata.Path().ToModuleName(), module)
 	}
-
 	for namespace := range moduleMetadata.GoogNamespaces().All() {
-		c.unresolvedModulesByClosureNamespace.Put(namespace, module)
+		c.unresolvedModulesByClosureNamespace.put(namespace, module)
 	}
 }
 
@@ -371,11 +301,7 @@ func (c *ModuleMapCreator) Process(externs rhino.Node, root rhino.Node) {
 	c.compiler.SetModuleMap(c.Create())
 }
 
-// ModuleMap is a map containing information about all modules in the
-// compilation.
-//
-// This is currently used for ES modules and other types of module are not
-// processed in detail.
+// ModuleMap holds resolved module information for the compilation.
 type ModuleMap struct {
 	resolvedModules        *jutil.LinkedHashMap[string, *Module]
 	resolvedClosureModules *jutil.LinkedHashMap[string, *Module]
@@ -388,18 +314,14 @@ func NewModuleMap(
 	return &ModuleMap{resolvedModules: resolvedModules, resolvedClosureModules: resolvedClosureModules}
 }
 
-// GetModule may return nil.
-//
 // Java: ModuleMap.getModule(String)
 func (m *ModuleMap) GetModule(moduleName string) *Module {
 	return m.resolvedModules.Get(moduleName)
 }
 
-// GetModuleByPath may return nil.
-//
 // Java: ModuleMap.getModule(ModuleLoader.ModulePath)
 func (m *ModuleMap) GetModuleByPath(path *ModuleLoader_ModulePath) *Module {
-	return m.GetModule(path.ToModuleName())
+	return m.resolvedModules.Get(path.ToModuleName())
 }
 
 // Java: ModuleMap.getModulesByPath()
@@ -412,8 +334,6 @@ func (m *ModuleMap) GetModulesByClosureNamespace() *jutil.LinkedHashMap[string, 
 	return m.resolvedClosureModules
 }
 
-// GetClosureModule may return nil.
-//
 // Java: ModuleMap.getClosureModule(String)
 func (m *ModuleMap) GetClosureModule(namespace string) *Module {
 	return m.resolvedClosureModules.Get(namespace)
@@ -426,22 +346,9 @@ func ModuleMap_EmptyForTesting() *ModuleMap {
 
 // ModuleRequestResolver resolves requests for other modules.
 type ModuleRequestResolver interface {
-	// Resolve returns the module that this import references, if it exists
-	// in the compilation (nil otherwise).
-	//
-	// Java: ModuleRequestResolver.resolve(Import)
 	Resolve(i *Import) UnresolvedModule
-
-	// ResolveWithExport returns the module that this export references, if
-	// it exists in the compilation (nil otherwise).
-	//
-	// Java: ModuleRequestResolver.resolve(Export)
 	ResolveWithExport(e *Export) UnresolvedModule
 }
-
-// GoogEsImports holds utilties for ES imports for Closure files, for example
-// `import array from 'goog:goog.array';`.
-type GoogEsImports struct{}
 
 const googEsImports_GOOG_IMPORT_PREFIX = "goog:"
 
@@ -452,20 +359,10 @@ func GoogEsImports_IsGoogImportSpecifier(moduleSpecifier string) bool {
 
 // Java: GoogEsImports.getClosureIdFromGoogImportSpecifier(String)
 func GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleSpecifier string) string {
-	return jutil.StringSubstringFrom(moduleSpecifier, len(googEsImports_GOOG_IMPORT_PREFIX))
+	return moduleSpecifier[len(googEsImports_GOOG_IMPORT_PREFIX):]
 }
 
-// ExportTrace is a simple class to keep track of which modules and exports
-// have been visited when resolving exports. It is invalid to visit the same
-// (module, name) pair more than once when resolving an export (invalid
-// cycle).
-//
-// This is an AutoValue used for its hashCode / equals implementation and
-// used in a Set for equality checks. So fields may appear to be "unused".
-//
-// Go-only: language-adapter — a comparable value struct: Go equality is the
-// record's equality (the module by reference, the name by value), so
-// ExportTraces can key jutil sets directly.
+// ExportTrace keeps track of visited (module, exportName) pairs for cycle detection.
 type ExportTrace struct {
 	module     UnresolvedModule
 	exportName string
@@ -490,18 +387,15 @@ func ExportTrace_Create(module UnresolvedModule, exportName string) ExportTrace 
 	return NewExportTrace(module, exportName)
 }
 
-// Equals is the record's equals.
 func (t ExportTrace) Equals(o any) bool {
 	other, ok := o.(ExportTrace)
 	return ok && other == t
 }
 
-// HashCode is the record's hashCode.
 func (t ExportTrace) HashCode() int32 {
 	return 31*t.module.HashCode() + jutil.StringHashCode(t.exportName)
 }
 
-// String is the record's toString.
 func (t ExportTrace) String() string {
 	return "ExportTrace[module=" + jutil.ToJavaString(t.module) + ", exportName=" + t.exportName + "]"
 }

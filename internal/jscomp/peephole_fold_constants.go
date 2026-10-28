@@ -19,14 +19,24 @@
 package jscomp
 
 import (
+	"bytes"
 	"math"
 	"math/big"
+	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var (
+	foldIDDefineProperties = uint32(strpool.Intern("defineProperties"))
+	foldIDString           = uint32(strpool.Intern("String"))
+	foldIDLength           = uint32(strpool.Intern("length"))
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) where it reads
@@ -220,6 +230,10 @@ func (p *PeepholeFoldConstants) TryConvertToNumber(n rhino.Node) {
 	case rhino.Token_NUMBER:
 		// Nothing to do
 		return
+	case rhino.Token_NEG:
+		if c := n.GetFirstChild(); c.IsNumber() && !math.IsInf(c.GetDouble(), 0) && !math.IsNaN(c.GetDouble()) {
+			return
+		}
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COMMA, rhino.Token_COALESCE:
 		op := ast.MustBinary(n)
 		p.TryConvertToNumber(op.Right().Node())
@@ -281,7 +295,7 @@ func (p *PeepholeFoldConstants) TryFoldTypeof(originalTypeofNode rhino.Node) rhi
 	case rhino.Token_NAME:
 		// We assume here that programs don't change the value of the
 		// keyword undefined to something other than the value undefined.
-		if name, ok := argumentNode.AsName(); ok && name.Ident() == "undefined" {
+		if argumentNode.Node().GetStringID() == nodeUtilIDUndefined {
 			typeNameString = "undefined"
 		}
 	default:
@@ -1015,21 +1029,107 @@ func (p *PeepholeFoldConstants) IsBigInt(n rhino.Node) bool {
 	return false
 }
 
+// peepholeIntStringLen returns len(strconv.Itoa(v)) without allocating.
+func peepholeIntStringLen(v int) int {
+	n := 0
+	if v < 0 {
+		n = 1
+		v = -v
+	}
+	switch {
+	case v < 10:
+		return n + 1
+	case v < 100:
+		return n + 2
+	case v < 1000:
+		return n + 3
+	case v < 10000:
+		return n + 4
+	case v < 100000:
+		return n + 5
+	case v < 1000000:
+		return n + 6
+	default:
+		return n + 7
+	}
+}
+
+// peepholeDoubleToStringLen returns len(jutil.DoubleToString(d)) without
+// allocating temporary strings on the hot arithmetic-folding path.
+func peepholeDoubleToStringLen(d float64) int {
+	switch {
+	case math.IsNaN(d):
+		return 3
+	case math.IsInf(d, 1):
+		return 8
+	case math.IsInf(d, -1):
+		return 9
+	case d == 0:
+		if math.Signbit(d) {
+			return 4
+		}
+		return 3
+	}
+	if iv := int64(d); float64(iv) == d && iv > -10000000 && iv < 10000000 {
+		return peepholeIntStringLen(int(iv)) + 2 // ".0"
+	}
+	a := math.Abs(d)
+	var buf [32]byte
+	b := strconv.AppendFloat(buf[:0], a, 'e', -1, 64)
+	ePos := bytes.IndexByte(b, 'e')
+	digitsLen := 1
+	if ePos > 1 {
+		digitsLen = ePos - 1
+	}
+	if digitsLen == 1 {
+		return len(jutil.DoubleToString(d))
+	}
+	expSign := 1
+	i := ePos + 1
+	if b[i] == '-' {
+		expSign = -1
+		i++
+	} else if b[i] == '+' {
+		i++
+	}
+	exp := 0
+	for ; i < len(b); i++ {
+		exp = exp*10 + int(b[i]-'0')
+	}
+	exp *= expSign
+	n := 0
+	if d < 0 {
+		n = 1
+	}
+	if a >= 1e-3 && a < 1e7 {
+		if exp >= 0 {
+			intLen := exp + 1
+			if digitsLen <= intLen {
+				return n + intLen + 2
+			}
+			return n + digitsLen + 1
+		}
+		return n + 2 + (-exp - 1) + digitsLen
+	}
+	return n + digitsLen + 2 + peepholeIntStringLen(exp)
+}
+
 // Java: PeepholeFoldConstants.maybeReplaceBinaryOpWithNumericResult(double, double, double)
 func (p *PeepholeFoldConstants) MaybeReplaceBinaryOpWithNumericResult(
 	result float64, lval float64, rval float64) rhino.Node {
+	if math.IsNaN(result) || math.IsInf(result, 0) {
+		return NodeUtil_NumberNode(result, rhino.NilNode)
+	}
+	// Do not try to fold arithmetic for numbers > 2^53. After that
+	// point, fixed-point math starts to break down and become inaccurate.
+	if math.Abs(result) > peepholeFoldConstants_MAX_FOLD_NUMBER {
+		return rhino.NilNode
+	}
 	// TODO(johnlenz): consider removing the result length check.
 	// length of the left and right value plus 1 byte for the operator.
 	// Double.toString is always ASCII.
-	if (len(jutil.DoubleToString(result)) <=
-		len(jutil.DoubleToString(lval))+len(jutil.DoubleToString(rval))+1 &&
-
-		// Do not try to fold arithmetic for numbers > 2^53. After that
-		// point, fixed-point math starts to break down and become inaccurate.
-		math.Abs(result) <= peepholeFoldConstants_MAX_FOLD_NUMBER) ||
-		math.IsNaN(result) ||
-		result == math.Inf(1) ||
-		result == math.Inf(-1) {
+	if peepholeDoubleToStringLen(result) <=
+		peepholeDoubleToStringLen(lval)+peepholeDoubleToStringLen(rval)+1 {
 		return NodeUtil_NumberNode(result, rhino.NilNode)
 	}
 	return rhino.NilNode
@@ -1097,7 +1197,7 @@ func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode rhino.Node, left
 	lastLeft := left.GetLastChild()
 	firstRight := right.GetFirstChild()
 	if p.EndsWithUnescapedDollar(lastLeft.GetRawString()) &&
-		jutil.StringStartsWith(firstRight.GetRawString(), "{") {
+		strings.HasPrefix(firstRight.GetRawString(), "{") {
 		return oldNode
 	}
 	cooked := jutil.ToJavaString(lastLeft.GetCookedString()) + jutil.ToJavaString(firstRight.GetCookedString())
@@ -1124,13 +1224,16 @@ func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode rhino.Node, left
 //
 // Java: PeepholeFoldConstants.isSimpleTemplateStringValue(String)
 func (p *PeepholeFoldConstants) IsSimpleTemplateStringValue(s string) bool {
-	chars := jutil.StringToUTF16(s)
-	for i := 0; i < len(chars); i++ {
-		switch chars[i] {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
 		// See: https://tc39.es/ecma262/#prod-LineTerminator
-		case '`', '$', '{', '\\', '\n', '\r', 0x2028, 0x2029:
+		case '`', '$', '{', '\\', '\n', '\r':
 			return false
-		default:
+		case 0xe2:
+			// U+2028 (E2 80 A8) and U+2029 (E2 80 A9)
+			if i+2 < len(s) && s[i+1] == 0x80 && (s[i+2] == 0xa8 || s[i+2] == 0xa9) {
+				return false
+			}
 		}
 	}
 	return true
@@ -1142,13 +1245,8 @@ func (p *PeepholeFoldConstants) IsSimpleTemplateStringValue(s string) bool {
 // Java: PeepholeFoldConstants.endsWithUnescapedBackslash(String)
 func (p *PeepholeFoldConstants) EndsWithUnescapedBackslash(raw string) bool {
 	backslashCount := 0
-	chars := jutil.StringToUTF16(raw)
-	for i := len(chars) - 1; i >= 0; i-- {
-		if chars[i] == '\\' {
-			backslashCount++
-		} else {
-			break
-		}
+	for i := len(raw) - 1; i >= 0 && raw[i] == '\\'; i-- {
+		backslashCount++
 	}
 	return backslashCount%2 != 0
 }
@@ -1158,17 +1256,12 @@ func (p *PeepholeFoldConstants) EndsWithUnescapedBackslash(raw string) bool {
 //
 // Java: PeepholeFoldConstants.endsWithUnescapedDollar(String)
 func (p *PeepholeFoldConstants) EndsWithUnescapedDollar(raw string) bool {
-	if !jutil.StringEndsWith(raw, "$") {
+	if len(raw) == 0 || raw[len(raw)-1] != '$' {
 		return false
 	}
 	backslashCount := 0
-	chars := jutil.StringToUTF16(raw)
-	for i := len(chars) - 2; i >= 0; i-- {
-		if chars[i] == '\\' {
-			backslashCount++
-		} else {
-			break
-		}
+	for i := len(raw) - 2; i >= 0 && raw[i] == '\\'; i-- {
+		backslashCount++
 	}
 	return backslashCount%2 == 0
 }
@@ -1199,27 +1292,27 @@ func (p *PeepholeFoldConstants) TryFoldTemplateLiteralSubstitutions(n rhino.Node
 				if ok && p.IsSimpleTemplateStringValue(strValue) {
 					nextNext := next.GetNext()
 					if !nextNext.IsNil() && nextNext.IsTemplateLitString() {
-						curCooked := *cur.GetCookedString()
-						nextNextCooked := *nextNext.GetCookedString()
+						curRaw := cur.GetRawString()
+						nextNextRaw := nextNext.GetRawString()
 
 						// Avoid creating a new `${` sequence when folding.
 						if strValue == "" &&
-							p.EndsWithUnescapedDollar(cur.GetRawString()) &&
-							jutil.StringStartsWith(nextNext.GetRawString(), "{") {
+							p.EndsWithUnescapedDollar(curRaw) &&
+							strings.HasPrefix(nextNextRaw, "{") {
 							cur = next
 							continue
 						}
-
-						combinedCooked := curCooked + strValue + nextNextCooked
-						combinedRaw := cur.GetRawString() + strValue + nextNext.GetRawString()
 
 						// Avoid creating a restricted octal escape sequence (e.g. \07)
-						if p.IsRestrictedOctalEscape(cur.GetRawString(), strValue) ||
-							p.IsRestrictedOctalEscape(
-								cur.GetRawString()+strValue, nextNext.GetRawString()) {
+						if p.IsRestrictedOctalEscape(curRaw, strValue) ||
+							(len(nextNextRaw) > 0 && nextNextRaw[0] >= '0' && nextNextRaw[0] <= '9' &&
+								p.IsRestrictedOctalEscape(curRaw+strValue, nextNextRaw)) {
 							cur = next
 							continue
 						}
+
+						combinedCooked := *cur.GetCookedString() + strValue + *nextNext.GetCookedString()
+						combinedRaw := curRaw + strValue + nextNextRaw
 
 						newStringNode := rhino.IR_TemplateLiteralString(&combinedCooked, combinedRaw)
 						newStringNode.SrcrefTree(cur)
@@ -1246,18 +1339,13 @@ func (p *PeepholeFoldConstants) TryFoldTemplateLiteralSubstitutions(n rhino.Node
 
 // Java: PeepholeFoldConstants.isRestrictedOctalEscape(String, String)
 func (p *PeepholeFoldConstants) IsRestrictedOctalEscape(prefixRaw string, suffixRaw string) bool {
-	if suffixRaw == "" {
-		return false
-	}
-	firstChar := jutil.StringCharAt(suffixRaw, 0)
-	if firstChar < '0' || firstChar > '9' {
+	if len(suffixRaw) == 0 || suffixRaw[0] < '0' || suffixRaw[0] > '9' {
 		return false
 	}
 
 	// Check if prefix ends with an unescaped \0
-	if jutil.StringEndsWith(prefixRaw, "0") {
-		beforeZero := jutil.StringSubstring(prefixRaw, 0, jutil.StringLength(prefixRaw)-1)
-		return p.EndsWithUnescapedBackslash(beforeZero)
+	if len(prefixRaw) > 0 && prefixRaw[len(prefixRaw)-1] == '0' {
+		return p.EndsWithUnescapedBackslash(prefixRaw[:len(prefixRaw)-1])
 	}
 	return false
 }
@@ -1282,9 +1370,9 @@ func (p *PeepholeFoldConstants) TryFoldAdd(node rhino.Node, left rhino.Node, rig
 		if NodeUtil_IsLiteralValue(left, false) && NodeUtil_IsLiteralValue(right, false) {
 			// '6' + 7
 			return p.TryFoldAddConstantString(node, left, right)
-		} else if left.IsStringLit() && left.GetString() == "" && p.IsStringTyped(right) {
+		} else if left.IsStringLit() && left.GetStringID() == rhino.RhinoStringPool_EmptyID && p.IsStringTyped(right) {
 			return p.Replace(node, right.CloneTreeWithTypeExprs(true))
-		} else if right.IsStringLit() && right.GetString() == "" && p.IsStringTyped(left) {
+		} else if right.IsStringLit() && right.GetStringID() == rhino.RhinoStringPool_EmptyID && p.IsStringTyped(left) {
 			return p.Replace(node, left.CloneTreeWithTypeExprs(true))
 		} else {
 			// a + 7 or 6 + a

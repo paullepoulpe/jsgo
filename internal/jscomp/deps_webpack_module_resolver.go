@@ -22,12 +22,9 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 
 // WebpackModuleResolver is the resolution algorithm for Webpack. Modules are
 // located by a map of numeric ids to module paths.
-//
-// As the compiler normally locates modules by path string, webpack numeric
-// ids are converted to strings.
 type WebpackModuleResolver struct {
 	NodeModuleResolver
-	modulesById *jutil.LinkedHashMap[string, string]
+	modulesById map[string]string
 }
 
 var _ ModuleResolver = (*WebpackModuleResolver)(nil)
@@ -51,61 +48,38 @@ func (f *WebpackModuleResolver_Factory) Create(
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
-	normalizedPathsById := jutil.NewLinkedHashMap[string, string]()
+	normalizedPathsById := make(map[string]string, f.lookupMap.Size())
 	for key, value := range f.lookupMap.All() {
-		canonicalizedPath :=
-			ModuleLoader_Normalize(pathEscaper.Escape(value), moduleRootPaths)
+		canonicalizedPath := ModuleLoader_Normalize(pathEscaper.Escape(value), moduleRootPaths)
 		if ModuleLoader_IsAmbiguousIdentifier(canonicalizedPath) {
 			canonicalizedPath = ModuleLoader_MODULE_SLASH + canonicalizedPath
 		}
-		normalizedPathsById.Put(key, canonicalizedPath)
+		normalizedPathsById[key] = canonicalizedPath
 	}
-	return NewWebpackModuleResolver(
-		modulePaths, moduleRootPaths, normalizedPathsById, errorHandler, pathEscaper)
-}
-
-// Java: WebpackModuleResolver(ImmutableSet<String>, ImmutableList<String>, Map<String, String>, ErrorHandler, PathEscaper)
-func NewWebpackModuleResolver(
-	modulePaths *jutil.LinkedHashSet[string],
-	moduleRootPaths []string,
-	modulesById *jutil.LinkedHashMap[string, string],
-	errorHandler ErrorHandler,
-	pathEscaper ModuleLoader_PathEscaper) *WebpackModuleResolver {
-	r := &WebpackModuleResolver{
+	return &WebpackModuleResolver{
 		NodeModuleResolver: *NewNodeModuleResolver(
 			modulePaths,
 			moduleRootPaths,
-			/* packageJsonMainEntries= */ nil,
+			nil,
 			errorHandler,
 			pathEscaper),
+		modulesById: normalizedPathsById,
 	}
-	r.modulesById = jutil.NewLinkedHashMapFrom(modulesById)
-	return r
 }
 
-// ResolveJsModule may return nil.
-//
 // Java: WebpackModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *WebpackModuleResolver) ResolveJsModule(
 	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string {
-	loadAddress, ok := r.modulesById.Lookup(moduleAddress)
-	if !ok {
-		// Module paths may still be used in type nodes so we need to fall back
-		// to node module resolution for those.
-		return r.NodeModuleResolver.ResolveJsModule(scriptAddress, moduleAddress, sourcename, lineno, colno)
+	if loadAddress, ok := r.modulesById[moduleAddress]; ok {
+		return &loadAddress
 	}
-	return &loadAddress
+	return r.NodeModuleResolver.ResolveJsModule(scriptAddress, moduleAddress, sourcename, lineno, colno)
 }
 
-// ResolveJsModuleSilently may return nil.
-//
 // Java: WebpackModuleResolver.resolveJsModuleSilently(String, String)
 func (r *WebpackModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string {
-	loadAddress, ok := r.modulesById.Lookup(moduleAddress)
-	if !ok {
-		// Module paths may still be used in type nodes so we need to fall back
-		// to node module resolution for those.
-		return r.NodeModuleResolver.ResolveJsModuleSilently(scriptAddress, moduleAddress)
+	if loadAddress, ok := r.modulesById[moduleAddress]; ok {
+		return &loadAddress
 	}
-	return &loadAddress
+	return r.NodeModuleResolver.ResolveJsModuleSilently(scriptAddress, moduleAddress)
 }

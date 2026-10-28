@@ -30,12 +30,6 @@ const polymerPassStaticUtils_VIRTUAL_FILE = "<PolymerPassStaticUtils.java>"
 
 var polymerPassStaticUtils_POLYMER_DOT_ELEMENT = rhino.QualifiedName_Of("Polymer.Element")
 
-// PolymerPassStaticUtils holds simple static utility functions shared
-// between the PolymerPass and its helper classes.
-//
-// Java: final class PolymerPassStaticUtils
-type PolymerPassStaticUtils struct{}
-
 // PolymerPassStaticUtils_IsPolymerCall returns whether the call represents a
 // call to the Polymer function.
 //
@@ -45,18 +39,7 @@ func PolymerPassStaticUtils_IsPolymerCall(call rhino.Node) bool {
 	if !ok {
 		return false
 	}
-	name := callNode.Callee().Node()
-	// When imported from an ES module, the rewriting should set the original name.
-	// When imported from an goog module (TS), we'll have a GETPROP like
-	// `module$polymer$polymer_legacy.Polymer`.
-	if name.MatchesName("Polymer") {
-		return true
-	}
-	if originalQualifiedName := name.GetOriginalQualifiedName(); originalQualifiedName != nil && *originalQualifiedName == "Polymer" {
-		return true
-	}
-	gp, ok := ast.AsGetProp(name)
-	return ok && gp.Property() == "Polymer"
+	return polymerMatchesNameOrProp(callNode.Callee().Node(), "Polymer")
 }
 
 // PolymerPassStaticUtils_IsPolymerClass returns whether the class extends
@@ -78,22 +61,15 @@ func PolymerPassStaticUtils_IsPolymerClass(cls rhino.Node) bool {
 		return false
 	}
 	heritage := ext.Node()
-	// In Polymer 3, the base class was renamed from `Polymer.Element` to `PolymerElement`. When
-	// imported from an ES module, the rewriting should set the original name to `PolymerElement`.
-	// When imported from an goog module (TS), we'll have a GETPROP like
-	// `module$polymer$polymer_element.PolymerElement`.
-	// YT Polymer components may also extend the `PolymerElementWithoutHtml`,
-	// `PolymerLiteControllerBase`, `PolymerBehavior`, or `PolymerBehaviorWithoutHtml` base classes.
 	return polymerPassStaticUtils_POLYMER_DOT_ELEMENT.Matches(heritage) ||
-		polymerPassStaticUtils_matches(heritage, "PolymerElement") ||
-		polymerPassStaticUtils_matches(heritage, "PolymerElementWithoutHtml") ||
-		polymerPassStaticUtils_matches(heritage, "PolymerLiteControllerBase") ||
-		polymerPassStaticUtils_matches(heritage, "PolymerBehavior") ||
-		polymerPassStaticUtils_matches(heritage, "PolymerBehaviorWithoutHtml")
+		polymerMatchesNameOrProp(heritage, "PolymerElement") ||
+		polymerMatchesNameOrProp(heritage, "PolymerElementWithoutHtml") ||
+		polymerMatchesNameOrProp(heritage, "PolymerLiteControllerBase") ||
+		polymerMatchesNameOrProp(heritage, "PolymerBehavior") ||
+		polymerMatchesNameOrProp(heritage, "PolymerBehaviorWithoutHtml")
 }
 
-// Java: PolymerPassStaticUtils.matches(Node, String)
-func polymerPassStaticUtils_matches(n rhino.Node, name string) bool {
+func polymerMatchesNameOrProp(n rhino.Node, name string) bool {
 	if n.MatchesName(name) {
 		return true
 	}
@@ -104,56 +80,51 @@ func polymerPassStaticUtils_matches(n rhino.Node, name string) bool {
 	return ok && gp.Property() == name
 }
 
-// PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets: the "$" member in a
-// Polymer element is a map of statically created nodes in its local DOM. This
-// method is used to rewrite usage of this map from "this.$.foo" to
-// "this.$['foo']" to avoid JSC_POSSIBLE_INEXISTENT_PROPERTY errors. Excludes
-// function calls like "bar.$.foo()" since some libraries place methods under
-// a "$" member.
+// PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets rewrites usage of a
+// Polymer element's "$" local-DOM map from "this.$.foo" to "this.$['foo']" to
+// avoid JSC_POSSIBLE_INEXISTENT_PROPERTY errors, excluding zero-arg function
+// calls like "bar.$.foo()".
 //
 // Java: PolymerPassStaticUtils.switchDollarSignPropsToBrackets(Node, AbstractCompiler)
 func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def rhino.Node, compiler AbstractCompiler) {
 	jutil.CheckState(def.IsObjectLit() || def.IsClassMembers())
 	for keyNode := def.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		if fn, ok := ast.AsFunction(keyNode.GetFirstChild()); ok {
-			NodeUtil_VisitPostOrder(
-				fn.Body().Node(),
-				NodeUtil_VisitorFunc(func(n rhino.Node) {
-					gp, ok := ast.AsGetProp(n)
-					if !ok {
-						return
-					}
-
-					dollarSign, ok := gp.Object().AsGetProp()
-					if !ok || dollarSign.Property() != "$" {
-						return
-					}
-
-					// Some libraries like Mojo JS Bindings and jQuery place methods in a "$" member
-					// e.g. "foo.$.closePipe()". Avoid converting to brackets for these cases.
-					if call, ok := ast.AsCall(n.GetParent()); ok && !call.HasArgs() {
-						return
-					}
-
-					key := rhino.IR_String(gp.Property()).ClonePropsFrom(n).Srcref(n)
-					getelem := rhino.IR_Getelem(dollarSign.Detach().Node(), key).ClonePropsFrom(n).Srcref(n)
-					n.ReplaceWith(getelem)
-					compiler.ReportChangeToEnclosingScope(getelem)
-				}))
+		fn, ok := ast.AsFunction(keyNode.GetFirstChild())
+		if !ok {
+			continue
 		}
+		NodeUtil_VisitPostOrder(
+			fn.Body().Node(),
+			NodeUtil_VisitorFunc(func(n rhino.Node) {
+				gp, ok := ast.AsGetProp(n)
+				if !ok {
+					return
+				}
+				dollarSign, ok := gp.Object().AsGetProp()
+				if !ok || dollarSign.Property() != "$" {
+					return
+				}
+				// Some libraries like Mojo JS Bindings and jQuery place methods in a "$" member
+				// e.g. "foo.$.closePipe()". Avoid converting to brackets for these cases.
+				if call, ok := ast.AsCall(n.GetParent()); ok && !call.HasArgs() {
+					return
+				}
+				key := rhino.IR_String(gp.Property()).ClonePropsFrom(n).Srcref(n)
+				getelem := rhino.IR_Getelem(dollarSign.Detach().Node(), key).ClonePropsFrom(n).Srcref(n)
+				n.ReplaceWith(getelem)
+				compiler.ReportChangeToEnclosingScope(getelem)
+			}))
 	}
 }
 
-// PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys makes sure that
-// the keys for listeners and hostAttributes blocks are quoted to avoid
-// renaming.
+// PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys ensures keys for
+// listeners and hostAttributes blocks are quoted to avoid renaming.
 //
 // Java: PolymerPassStaticUtils.quoteListenerAndHostAttributeKeys(Node, AbstractCompiler)
 func PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit rhino.Node, compiler AbstractCompiler) {
 	for member := range ast.MustObjectLit(objLit).Members() {
 		sk, ok := member.AsStringKey()
 		if !ok {
-			// We should only quote string keys. If this is not a string key, then we should skip it.
 			continue
 		}
 		if sk.Key() != "listeners" && sk.Key() != "hostAttributes" {
@@ -171,59 +142,31 @@ func PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit rhino.Node,
 // PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys ensures that
 // methods registered in the static `observers` block, as well as methods
 // referenced in the `observer` and `computed` fields on a Polymer property
-// block declaration are exported and marked `@noCollapse`.
+// block declaration, are exported and marked `@nocollapse`.
 //
 // Java: PolymerPassStaticUtils.protectObserverAndPropertyFunctionKeys(Node)
 func PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(behaviorObjLit rhino.Node) {
 	jutil.CheckState(behaviorObjLit.IsObjectLit())
 
-	methodsToProtect := jutil.NewLinkedHashSet[string]()
-	methodsToProtect.AddAll(polymerPassStaticUtils_addObserverMethodsToProtect(behaviorObjLit).ToSlice()...)
-	methodsToProtect.AddAll(polymerPassStaticUtils_addPropertyMethodsToProtect(behaviorObjLit).ToSlice()...)
-
-	for keyNode := behaviorObjLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		// Note: This also is true for object literal methods.
-		if !NodeUtil_IsObjectLitKey(keyNode) {
-			continue
+	var methodsToProtect map[string]struct{}
+	addMethod := func(name string) {
+		if methodsToProtect == nil {
+			methodsToProtect = make(map[string]struct{})
 		}
-
-		keyName := NodeUtil_GetObjectOrClassLitKeyName(keyNode)
-		if !methodsToProtect.Contains(keyName) {
-			continue
-		}
-
-		polymerPassStaticUtils_addExportAndNoCollapseToKey(keyNode)
+		methodsToProtect[name] = struct{}{}
 	}
-}
 
-// polymerPassStaticUtils_addObserverMethodsToProtect finds methods
-// referenced in the 'observers' property and returns them as a Set.
-//
-// Java: PolymerPassStaticUtils.addObserverMethodsToProtect(Node)
-func polymerPassStaticUtils_addObserverMethodsToProtect(behaviorObjLit rhino.Node) *jutil.LinkedHashSet[string] {
-	methodsToProtect := jutil.NewLinkedHashSet[string]()
 	observers := NodeUtil_GetFirstPropMatchingKey(behaviorObjLit, "observers")
 	if !observers.IsNil() && observers.IsArrayLit() {
 		for child := observers.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if !child.IsStringLit() {
-				continue
-			}
-
-			name := polymerPassStaticUtils_extractMethodName(child.GetString())
-			if name != nil {
-				methodsToProtect.Add(*name)
+			if child.IsStringLit() {
+				if name, ok := polymerExtractMethodName(child.GetString()); ok {
+					addMethod(name)
+				}
 			}
 		}
 	}
-	return methodsToProtect
-}
 
-// polymerPassStaticUtils_addPropertyMethodsToProtect finds methods
-// referenced in the 'properties' property and returns them as a Set.
-//
-// Java: PolymerPassStaticUtils.addPropertyMethodsToProtect(Node)
-func polymerPassStaticUtils_addPropertyMethodsToProtect(behaviorObjLit rhino.Node) *jutil.LinkedHashSet[string] {
-	methodsToProtect := jutil.NewLinkedHashSet[string]()
 	properties := NodeUtil_GetFirstPropMatchingKey(behaviorObjLit, "properties")
 	if propsObj, ok := ast.AsObjectLit(properties); ok {
 		for member := range propsObj.Members() {
@@ -238,53 +181,46 @@ func polymerPassStaticUtils_addPropertyMethodsToProtect(behaviorObjLit rhino.Nod
 
 			observer := NodeUtil_GetFirstPropMatchingKey(propVal, "observer")
 			if !observer.IsNil() && observer.IsStringLit() {
-				methodsToProtect.Add(observer.GetString())
+				addMethod(observer.GetString())
 			}
 
 			computed := NodeUtil_GetFirstPropMatchingKey(propVal, "computed")
 			if !computed.IsNil() && computed.IsStringLit() {
-				name := polymerPassStaticUtils_extractMethodName(computed.GetString())
-				if name != nil {
-					methodsToProtect.Add(*name)
+				if name, ok := polymerExtractMethodName(computed.GetString()); ok {
+					addMethod(name)
 				}
 			}
 		}
 	}
-	return methodsToProtect
-}
 
-// Java: PolymerPassStaticUtils.extractMethodName(String)
-func polymerPassStaticUtils_extractMethodName(signature string) *string {
-	// '(' is ASCII: its byte index is positive exactly when its UTF-16 index is.
-	openParenIndex := strings.IndexByte(signature, '(')
-	if openParenIndex > 0 {
-		name := jutil.StringTrim(signature[:openParenIndex])
-		return &name
+	if len(methodsToProtect) == 0 {
+		return
 	}
-	return nil
+
+	for keyNode := behaviorObjLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
+		if !NodeUtil_IsObjectLitKey(keyNode) {
+			continue
+		}
+		if _, protect := methodsToProtect[NodeUtil_GetObjectOrClassLitKeyName(keyNode)]; !protect {
+			continue
+		}
+		newDocs := rhino.JSDocInfo_Builder_MaybeCopyFrom(keyNode.GetJSDocInfo())
+		newDocs.RecordNoCollapse()
+		newDocs.RecordExport()
+		keyNode.SetJSDocInfo(newDocs.Build())
+	}
 }
 
-// polymerPassStaticUtils_addExportAndNoCollapseToKey ensures the given key
-// node (or methodFunction) is exported and adds `@nocollapse` to its JSDoc.
-//
-// keyNode is the key node from an object literal.
-//
-// Java: PolymerPassStaticUtils.addExportAndNoCollapseToKey(Node)
-func polymerPassStaticUtils_addExportAndNoCollapseToKey(keyNode rhino.Node) {
-	newDocs := rhino.JSDocInfo_Builder_MaybeCopyFrom(keyNode.GetJSDocInfo())
-	newDocs.RecordNoCollapse()
-	newDocs.RecordExport()
-	keyNode.SetJSDocInfo(newDocs.Build())
+func polymerExtractMethodName(signature string) (string, bool) {
+	// '(' is ASCII: its byte index is positive iff its UTF-16 index is.
+	if openParenIndex := strings.IndexByte(signature, '('); openParenIndex > 0 {
+		return jutil.StringTrim(signature[:openParenIndex]), true
+	}
+	return "", false
 }
 
-// PolymerPassStaticUtils_ExtractProperties finds a list of MemberDefinitions
-// for the `properties` block of the given descriptor Object literal.
-//
-// descriptor is the Polymer properties configuration object literal node.
-// constructor: if we are finding the properties of an ES6 class, the
-// constructor function node for that class, otherwise null. We'll prefer
-// JSDoc from property initialization statements in this constructor over the
-// JSDoc within the Polymer properties configuration object.
+// PolymerPassStaticUtils_ExtractProperties extracts MemberDefinitions for the
+// `properties` block of the given descriptor Object literal.
 //
 // Java: PolymerPassStaticUtils.extractProperties(Node, PolymerClassDefinition.DefinitionType, AbstractCompiler, Node)
 func PolymerPassStaticUtils_ExtractProperties(
@@ -300,27 +236,25 @@ func PolymerPassStaticUtils_ExtractProperties(
 		return nil
 	}
 
-	constructorPropertyJsDoc := jutil.NewLinkedHashMap[string, *rhino.JSDocInfo]()
+	var constructorPropertyJsDoc map[string]*rhino.JSDocInfo
 	if !constructor.IsNil() {
-		polymerPassStaticUtils_collectConstructorPropertyJsDoc(constructor, constructorPropertyJsDoc)
+		constructorPropertyJsDoc = make(map[string]*rhino.JSDocInfo)
+		collectConstructorPropertyJsDoc(constructor, constructorPropertyJsDoc)
 	}
 	enclosingModule := NodeUtil_GetEnclosingModuleIfPresent(descriptor)
 
 	var members []*PolymerPass_MemberDefinition
 	for keyNode := properties.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		// The JSDoc for a Polymer property in the constructor should win over the JSDoc in the
+		// The JSDoc for a Polymer property in the constructor wins over the JSDoc in the
 		// Polymer properties configuration object.
-		constructorJsDoc := constructorPropertyJsDoc.Get(keyNode.GetString())
+		constructorJsDoc := constructorPropertyJsDoc[keyNode.GetString()]
 		propertiesConfigJsDoc := NodeUtil_GetBestJSDocInfo(keyNode)
-		var bestJsDoc *rhino.JSDocInfo
+		bestJsDoc := propertiesConfigJsDoc
 		if constructorJsDoc != nil {
 			bestJsDoc = constructorJsDoc
 			if propertiesConfigJsDoc != nil {
-				// Warn if the user put JSDoc in both places.
 				compiler.Report(JSError_MakeWithNode(keyNode, PolymerPassErrors_POLYMER_MISPLACED_PROPERTY_JSDOC))
 			}
-		} else {
-			bestJsDoc = propertiesConfigJsDoc
 		}
 		members = append(members,
 			NewPolymerPass_MemberDefinition(bestJsDoc, keyNode, keyNode.GetFirstChild(), enclosingModule))
@@ -328,35 +262,19 @@ func PolymerPassStaticUtils_ExtractProperties(
 	return members
 }
 
-// polymerPassStaticUtils_collectConstructorPropertyJsDoc finds the
-// properties that are initialized in the given constructor, and return a map
-// from each property name to its JSDoc.
-//
-// node is the constructor function node to traverse; m the map from property
-// name to JSDoc.
-//
-// Java: PolymerPassStaticUtils.collectConstructorPropertyJsDoc(Node, Map<String, JSDocInfo>)
-func polymerPassStaticUtils_collectConstructorPropertyJsDoc(node rhino.Node, m *jutil.LinkedHashMap[string, *rhino.JSDocInfo]) {
+func collectConstructorPropertyJsDoc(node rhino.Node, m map[string]*rhino.JSDocInfo) {
 	rhino.CheckNotNull(node)
 	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		if gp, ok := ast.AsGetProp(child); ok && gp.Object().Node().IsThis() {
-			// We found a "this.foo" expression. Map "foo" to its JSDoc.
-			m.Put(gp.Property(), NodeUtil_GetBestJSDocInfo(child))
+			m[gp.Property()] = NodeUtil_GetBestJSDocInfo(child)
 		} else {
-			// Recurse through every other kind of node, because properties are not necessarily declared
-			// at the top level of the constructor body; e.g. they could be declared as part of an
-			// assignment, or within an if statement. We're being overly loose here, e.g. we shouldn't
-			// traverse into a nested function where "this" doesn't refer to our prototype, but
-			// hopefully this is good enough for our purposes.
-			polymerPassStaticUtils_collectConstructorPropertyJsDoc(child, m)
+			collectConstructorPropertyJsDoc(child, m)
 		}
 	}
 }
 
 // PolymerPassStaticUtils_GetTypeFromProperty gets the JSTypeExpression for a
 // given property using its "type" key.
-//
-// See https://github.com/Polymer/polymer/blob/0.8-preview/PRIMER.md#configuring-properties
 //
 // Java: PolymerPassStaticUtils.getTypeFromProperty(MemberDefinition, AbstractCompiler)
 func PolymerPassStaticUtils_GetTypeFromProperty(
@@ -374,8 +292,6 @@ func PolymerPassStaticUtils_GetTypeFromProperty(
 		}
 	} else if property.value.IsName() {
 		typeValue = property.value
-	} else {
-		typeValue = rhino.NilNode
 	}
 
 	if typeValue.IsNil() {
@@ -383,11 +299,14 @@ func PolymerPassStaticUtils_GetTypeFromProperty(
 		return nil
 	}
 
-	typeString := typeValue.GetString()
 	var typeNode rhino.Node
-	switch typeString {
-	case "Boolean", "String", "Number":
-		typeNode = rhino.IR_String(jutil.StringToLowerCaseASCII(typeString))
+	switch typeString := typeValue.GetString(); typeString {
+	case "Boolean":
+		typeNode = rhino.IR_String("boolean")
+	case "String":
+		typeNode = rhino.IR_String("string")
+	case "Number":
+		typeNode = rhino.IR_String("number")
 	case "Array", "Function", "Object", "Date":
 		typeNode = rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String(typeString))
 	default:
@@ -404,9 +323,8 @@ func PolymerPassStaticUtils_GetTypeFromProperty(
 //
 // Java: PolymerPassStaticUtils.getPolymerElementType(PolymerClassDefinition)
 func PolymerPassStaticUtils_GetPolymerElementType(cls *PolymerClassDefinition) string {
-	nativeElementName := ""
-	if cls.nativeBaseElement != nil {
-		nativeElementName = jutil.CaseFormat_LowerHyphenToUpperCamel(*cls.nativeBaseElement)
+	if cls.nativeBaseElement == nil {
+		return "PolymerElement"
 	}
-	return "Polymer" + nativeElementName + "Element" // String.format("Polymer%sElement", ...)
+	return "Polymer" + jutil.CaseFormat_LowerHyphenToUpperCamel(*cls.nativeBaseElement) + "Element"
 }

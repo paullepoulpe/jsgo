@@ -2,7 +2,6 @@ package jutil
 
 import (
 	"math"
-	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
@@ -109,55 +108,6 @@ func sortJavaStrings(s []string) {
 			s[j-1], s[j] = s[j], s[j-1]
 		}
 	}
-}
-
-func TestTreeRangeSetAgainstModel(t *testing.T) {
-	cmp := func(a, b int) int { return a - b }
-	rnd := rand.New(rand.NewSource(7))
-	for trial := 0; trial < 500; trial++ {
-		s := NewTreeRangeSet(cmp)
-		var model [][2]int
-		if !s.IsEmpty() {
-			t.Fatal("new set not empty")
-		}
-		for k := 0; k < 1+rnd.Intn(12); k++ {
-			lo := rnd.Intn(60)
-			hi := lo + rnd.Intn(8)
-			s.Add(Range_Closed(lo, hi, cmp))
-			model = append(model, [2]int{lo, hi})
-			for v := -2; v < 72; v++ {
-				want := false
-				for _, m := range model {
-					if m[0] <= v && v <= m[1] {
-						want = true
-					}
-				}
-				if got := s.Contains(v); got != want {
-					t.Fatalf("trial %d: contains(%d) = %v, want %v (ranges %v)", trial, v, got, want, model)
-				}
-			}
-			rs := s.AsRanges()
-			for i := 1; i < len(rs); i++ {
-				if rs[i-1].UpperEndpoint() >= rs[i].LowerEndpoint() {
-					t.Fatalf("trial %d: ranges not coalesced: %v", trial, rs)
-				}
-			}
-		}
-		if s.IsEmpty() {
-			t.Fatal("set empty after add")
-		}
-	}
-	func() {
-		defer func() {
-			r := recover()
-			if _, ok := r.(*IllegalArgumentException); !ok {
-				t.Errorf("Range.closed(2, 1) did not throw IllegalArgumentException: %v", r)
-			} else if msg := r.(*IllegalArgumentException).GetMessage(); msg != "Invalid range: [2..1]" {
-				t.Errorf("message %q", msg)
-			}
-		}()
-		Range_Closed(2, 1, cmp)
-	}()
 }
 
 func TestMissingResourceException(t *testing.T) {

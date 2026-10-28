@@ -709,12 +709,12 @@ func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool)
 		return
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
 		bin := ast.MustBinary(n)
-		u.computeMayUse(bin.Right().Node(), /* conditional= */ true)
+		u.computeMayUse(bin.Right().Node() /* conditional= */, true)
 		u.computeMayUse(bin.Left().Node(), conditional)
 		return
 	case rhino.Token_OPTCHAIN_GETELEM:
 		ge := ast.MustOptChainGetElem(n)
-		u.computeMayUse(ge.Index().Node(), /* conditional= */ true)
+		u.computeMayUse(ge.Index().Node() /* conditional= */, true)
 		u.computeMayUse(ge.Object().Node(), conditional)
 		return
 	case rhino.Token_OPTCHAIN_CALL:
@@ -723,14 +723,14 @@ func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool)
 		// As args are evaluated in AST order, we traverse in reverse AST order for backward
 		// dataflow analysis.
 		for c := n.GetLastChild(); c != callee; c = c.GetPrevious() {
-			u.computeMayUse(c, /* conditional= */ true)
+			u.computeMayUse(c /* conditional= */, true)
 		}
 		u.computeMayUse(callee, conditional)
 		return
 	case rhino.Token_HOOK:
 		hook := ast.MustHook(n)
-		u.computeMayUse(hook.Else().Node(), /* conditional= */ true)
-		u.computeMayUse(hook.Then().Node(), /* conditional= */ true)
+		u.computeMayUse(hook.Else().Node() /* conditional= */, true)
+		u.computeMayUse(hook.Then().Node() /* conditional= */, true)
 		u.computeMayUse(hook.Cond().Node(), conditional)
 		return
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:

@@ -30,8 +30,8 @@ import (
 // without LinkedHashSet entry/order slice overhead.
 type stringMapSet map[string]struct{}
 
-func (s stringMapSet) Size() int             { return len(s) }
-func (s stringMapSet) IsEmpty() bool         { return len(s) == 0 }
+func (s stringMapSet) Size() int              { return len(s) }
+func (s stringMapSet) IsEmpty() bool          { return len(s) == 0 }
 func (s stringMapSet) Contains(e string) bool { _, ok := s[e]; return ok }
 func (s stringMapSet) All() iter.Seq[string] {
 	return func(yield func(string) bool) {

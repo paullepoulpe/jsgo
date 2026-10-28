@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -51,8 +52,8 @@ type FunctionTypeBuilder struct {
 	typeRegistry     *rhino.JSTypeRegistry
 	errorRoot        rhino.Node
 
-	contents        FunctionTypeBuilder_FunctionContents
-	defaultContents FunctionTypeBuilder_AstFunctionContents
+	sourceNode         rhino.Node
+	hasNonEmptyReturns bool
 
 	syntacticFnName              *string
 	returnType                   rhino.JSType
@@ -190,7 +191,6 @@ func (f *FunctionTypeBuilder) CreateImplementedTypeValidator() func(rhino.JSType
 func NewFunctionTypeBuilder(fnName *string, compiler AbstractCompiler, errorRoot rhino.Node, scope *TypedScope) *FunctionTypeBuilder {
 	rhino.CheckNotNull(errorRoot)
 	f := &FunctionTypeBuilder{
-		contents:                     functionTypeBuilder_UnknownFunctionContents_singleton,
 		templateTypeNames:            emptyTemplateTypeSlice,
 		constructorTemplateTypeNames: emptyTemplateTypeSlice,
 		codingConvention:             compiler.GetCodingConvention(),
@@ -210,16 +210,6 @@ func NewFunctionTypeBuilder(fnName *string, compiler AbstractCompiler, errorRoot
 		f.templateScope = scope
 	}
 	return f
-}
-
-// functionTypeBuilder_nullToEmpty is Guava's Strings.nullToEmpty.
-//
-// Go-only: language-adapter — Java null strings are nil *string.
-func functionTypeBuilder_nullToEmpty(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 // functionTypeBuilder_staticScope passes a possibly-null TypedScope where
@@ -257,22 +247,11 @@ func (f *FunctionTypeBuilder) SetSyntacticFunctionName(syntacticFnName *string) 
 	return f
 }
 
-// SetContents sets the contents of this function.
-//
-// Java: FunctionTypeBuilder.setContents(FunctionContents)
-func (f *FunctionTypeBuilder) SetContents(contents FunctionTypeBuilder_FunctionContents) *FunctionTypeBuilder {
-	if contents != nil {
-		f.contents = contents
-	}
-	return f
-}
-
 // SetAstContents sets the AST contents of this function without allocating a separate struct.
 func (f *FunctionTypeBuilder) SetAstContents(n rhino.Node, hasNonEmptyReturns bool) *FunctionTypeBuilder {
 	if !n.IsNil() {
-		f.defaultContents.n = n
-		f.defaultContents.hasNonEmptyReturns = hasNonEmptyReturns
-		f.contents = &f.defaultContents
+		f.sourceNode = n
+		f.hasNonEmptyReturns = hasNonEmptyReturns
 	}
 	return f
 }
@@ -624,20 +603,73 @@ func (f *FunctionTypeBuilder) InferThisType(info *rhino.JSDocInfo) *FunctionType
 	return f
 }
 
+func (f *FunctionTypeBuilder) paramNameConventions(name string) (isOptional, isVarArgs bool) {
+	for conv := f.codingConvention; conv != nil; {
+		switch c := conv.(type) {
+		case *GoogleCodingConvention:
+			if strings.HasPrefix(name, googleOptionalArgPrefix) {
+				isOptional = true
+			}
+			if name == googleVarArgsName {
+				isVarArgs = true
+			}
+			conv = c.CodingConventions_ProxyBase.CodingConvention
+		case *ClosureCodingConvention:
+			conv = c.CodingConventions_ProxyBase.CodingConvention
+		case *CodingConventions_DefaultCodingConvention:
+			return isOptional, isVarArgs
+		default:
+			tmp := rhino.IR_Name(name)
+			return isOptional || conv.IsOptionalParameter(tmp), isVarArgs || conv.IsVarArgsParameter(tmp)
+		}
+	}
+	return isOptional, isVarArgs
+}
+
 // InferParameterTypes infers the parameter types from the doc info
 // alone.
 //
 // Java: FunctionTypeBuilder.inferParameterTypes(JSDocInfo)
 func (f *FunctionTypeBuilder) InferParameterTypes(info *rhino.JSDocInfo) *FunctionTypeBuilder {
-	// Create a fake args parent.
-	lp := rhino.IR_ParamList()
+	builder := rhino.NewFunctionParamBuilder(f.typeRegistry)
+	warnedAboutArgList := false
+	oldIdx := 0
+	isVarArgs := false
 	paramCount := info.GetParameterCount()
 	for i := 0; i < paramCount; i++ {
-		name, _ := info.GetParameterNameValueAt(i)
-		lp.AddChildToBack(rhino.IR_Name(name))
-	}
+		paramName, _ := info.GetParameterNameValueAt(i)
+		isOptionalParam, varArgsByConv := f.paramNameConventions(paramName)
+		isVarArgs = varArgsByConv
 
-	return f.InferParameterTypesWithParamsParent(lp, info)
+		var oldParameterType *rhino.FunctionType_Parameter
+		if oldIdx < len(f.parameters) {
+			oldParameterType = f.parameters[oldIdx]
+			oldIdx++
+		}
+
+		var parameterType rhino.JSType
+		if parameterTypeExpression := info.GetParameterType(paramName); parameterTypeExpression != nil {
+			parameterType = parameterTypeExpression.Evaluate(f.templateScope, f.typeRegistry)
+			isOptionalParam = isOptionalParam || parameterTypeExpression.IsOptionalArg()
+			isVarArgs = isVarArgs || parameterTypeExpression.IsVarArgs()
+		} else if oldParameterType != nil && oldParameterType.GetJSType() != nil {
+			parameterType = oldParameterType.GetJSType()
+			isOptionalParam = oldParameterType.IsOptional()
+			isVarArgs = oldParameterType.IsVariadic()
+		} else {
+			parameterType = f.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
+		}
+
+		warnedAboutArgList = f.AddParameter(builder, parameterType, warnedAboutArgList, isOptionalParam, isVarArgs) ||
+			warnedAboutArgList
+	}
+	if !isVarArgs {
+		for ; oldIdx < len(f.parameters); oldIdx++ {
+			builder.NewParameterFrom(f.parameters[oldIdx])
+		}
+	}
+	f.parameters = builder.Build()
+	return f
 }
 
 // InferParameterTypesWithParamsParent infers the parameter types from the list of parameter
@@ -648,29 +680,16 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 	if paramsParent.IsNil() {
 		if info == nil {
 			return f
-		} else {
-			return f.InferParameterTypes(info)
 		}
-	}
-
-	// arguments
-	// Go-only: language-adapter — the Iterator<Parameter> over parameters is
-	// an index into oldParameters.
-	var oldParameters []*rhino.FunctionType_Parameter
-	oldParametersIndex := 0
-	var oldParameterType *rhino.FunctionType_Parameter
-	if f.parameters != nil {
-		oldParameters = f.parameters
-		if oldParametersIndex < len(oldParameters) {
-			oldParameterType = oldParameters[oldParametersIndex]
-			oldParametersIndex++
-		}
+		return f.InferParameterTypes(info)
 	}
 
 	builder := rhino.NewFunctionParamBuilder(f.typeRegistry)
 	warnedAboutArgList := false
 	hasJsDocParams := info != nil && info.GetParameterCount() > 0
-	var seen []string
+	var seenBuf [8]string
+	seen := seenBuf[:0]
+	oldIdx := 0
 	isVarArgs := false
 	paramIndex := 0
 	for param := paramsParent.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
@@ -711,6 +730,12 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 			seen = append(seen, paramName)
 		}
 
+		var oldParameterType *rhino.FunctionType_Parameter
+		if oldIdx < len(f.parameters) {
+			oldParameterType = f.parameters[oldIdx]
+			oldIdx++
+		}
+
 		// type from JSDocInfo
 		var parameterType rhino.JSType
 		var parameterTypeExpression *rhino.JSTypeExpression
@@ -736,23 +761,12 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 
 		warnedAboutArgList = f.AddParameter(builder, parameterType, warnedAboutArgList, isOptionalParam, isVarArgs) ||
 			warnedAboutArgList
-
-		oldParameterType = nil
-		if oldParametersIndex < len(oldParameters) {
-			oldParameterType = oldParameters[oldParametersIndex]
-			oldParametersIndex++
-		}
 		paramIndex++
 	}
 	// Copy over any old parameters that aren't in the param list.
 	if !isVarArgs {
-		for oldParameterType != nil && !isVarArgs {
-			builder.NewParameterFrom(oldParameterType)
-			oldParameterType = nil
-			if oldParametersIndex < len(oldParameters) {
-				oldParameterType = oldParameters[oldParametersIndex]
-				oldParametersIndex++
-			}
+		for ; oldIdx < len(f.parameters); oldIdx++ {
+			builder.NewParameterFrom(f.parameters[oldIdx])
 		}
 	}
 
@@ -854,6 +868,11 @@ func (f *FunctionTypeBuilder) IsVarArgsParameterByConvention(param rhino.Node) b
 	return f.codingConvention.IsVarArgsParameter(param)
 }
 
+type templateBoundEntry struct {
+	template *rhino.TemplateType
+	bound    rhino.JSType
+}
+
 // Java: FunctionTypeBuilder.buildTemplateTypesFromJSDocInfo(JSDocInfo, boolean)
 func (f *FunctionTypeBuilder) BuildTemplateTypesFromJSDocInfo(info *rhino.JSDocInfo, allowTypeTransformations bool) []*rhino.TemplateType {
 	infoTypeKeys := info.GetTemplateTypeEntries()
@@ -865,19 +884,27 @@ func (f *FunctionTypeBuilder) BuildTemplateTypesFromJSDocInfo(info *rhino.JSDocI
 	}
 
 	// Temporarily bootstrap the template environment with unbound (unknown bound) template types
-	var unboundedTemplates []*rhino.TemplateType
-	if hasKeys {
-		unboundedTemplates = make([]*rhino.TemplateType, 0, len(infoTypeKeys))
-		for _, entry := range infoTypeKeys {
-			unboundedTemplates = append(unboundedTemplates, f.typeRegistry.CreateTemplateType(entry.Name))
-		}
+	var unboundedBuf [4]*rhino.TemplateType
+	unboundedTemplates := unboundedBuf[:0]
+	for _, entry := range infoTypeKeys {
+		unboundedTemplates = append(unboundedTemplates, f.typeRegistry.CreateTemplateType(entry.Name))
 	}
 	f.templateScope = f.typeRegistry.CreateScopeWithTemplates(f.templateScope, unboundedTemplates)
 
 	// Evaluate template type bounds with bootstrapped environment and reroute the bounds to these
-	templates := []*rhino.TemplateType{}
+	totalCap := len(infoTypeKeys)
+	if hasTransformations && allowTypeTransformations {
+		totalCap += infoTypeTransformations.Size()
+	}
+	var templates []*rhino.TemplateType
+	if totalCap > 0 {
+		templates = make([]*rhino.TemplateType, 0, totalCap)
+	} else {
+		templates = emptyTemplateTypeSlice
+	}
 	if hasKeys {
-		templatesToBounds := jutil.NewLinkedHashMap[*rhino.TemplateType, rhino.JSType]()
+		var boundBuf [4]templateBoundEntry
+		bounds := boundBuf[:0]
 		for _, entry := range infoTypeKeys {
 			key, expr := entry.Name, entry.Type
 			typeBound := f.typeRegistry.EvaluateTypeExpression(expr, f.templateScope)
@@ -888,17 +915,25 @@ func (f *FunctionTypeBuilder) BuildTemplateTypesFromJSDocInfo(info *rhino.JSDocI
 				f.ReportError(FunctionTypeBuilder_TEMPLATE_TYPE_ILLEGAL_BOUND, jutil.ToJavaString(typeBound), key)
 			}
 			template := f.typeRegistry.GetType(f.templateScope, key).ToMaybeTemplateType()
-			if template != nil {
-				templatesToBounds.Put(template, typeBound)
-			} else {
-				templatesToBounds.Put(
-					f.typeRegistry.CreateTemplateTypeWithBound(key, typeBound), typeBound)
+			if template == nil {
+				template = f.typeRegistry.CreateTemplateTypeWithBound(key, typeBound)
+			}
+			updated := false
+			for i := range bounds {
+				if bounds[i].template == template {
+					bounds[i].bound = typeBound
+					updated = true
+					break
+				}
+			}
+			if !updated {
+				bounds = append(bounds, templateBoundEntry{template: template, bound: typeBound})
 			}
 		}
 
-		for template, bound := range templatesToBounds.All() {
-			template.SetBound(bound)
-			templates = append(templates, template)
+		for _, b := range bounds {
+			b.template.SetBound(b.bound)
+			templates = append(templates, b.template)
 		}
 	}
 
@@ -913,8 +948,7 @@ func (f *FunctionTypeBuilder) BuildTemplateTypesFromJSDocInfo(info *rhino.JSDocI
 		}
 	}
 
-	builtTemplates := templates
-	for _, template := range builtTemplates {
+	for _, template := range templates {
 		if template.ContainsCycle() {
 			f.ReportError(
 				RhinoErrorReporter_CYCLIC_INHERITANCE_ERROR,
@@ -922,7 +956,7 @@ func (f *FunctionTypeBuilder) BuildTemplateTypesFromJSDocInfo(info *rhino.JSDocI
 		}
 	}
 
-	return builtTemplates
+	return templates
 }
 
 // InferTemplateTypeName infers the template type from the doc info.
@@ -951,14 +985,14 @@ func (f *FunctionTypeBuilder) InferTemplateTypeName(info *rhino.JSDocInfo, owner
 		// method templates, but this currently loosens type checking of arrays more than we'd like.
 		// See http://github.com/google/closure-compiler/issues/2973
 		if len(ownerTypeKeys) == 0 {
-			f.RegisterTemplates(f.templateTypeNames, f.contents.GetSourceNode())
+			f.RegisterTemplates(f.templateTypeNames, f.sourceNode)
 		} else if len(f.templateTypeNames) == 0 {
-			f.RegisterTemplates(ownerTypeKeys, f.contents.GetSourceNode())
+			f.RegisterTemplates(ownerTypeKeys, f.sourceNode)
 		} else {
-			concat := make([]*rhino.TemplateType, 0, len(f.templateTypeNames)+len(ownerTypeKeys))
-			concat = append(concat, f.templateTypeNames...)
+			var concatBuf [8]*rhino.TemplateType
+			concat := append(concatBuf[:0], f.templateTypeNames...)
 			concat = append(concat, ownerTypeKeys...)
-			f.RegisterTemplates(concat, f.contents.GetSourceNode())
+			f.RegisterTemplates(concat, f.sourceNode)
 		}
 	}
 
@@ -1014,26 +1048,30 @@ func (f *FunctionTypeBuilder) AddParameter(
 //
 // Java: FunctionTypeBuilder.provideDefaultReturnType()
 func (f *FunctionTypeBuilder) ProvideDefaultReturnType() {
-	if !f.contents.GetSourceNode().IsNil() && f.contents.GetSourceNode().IsAsyncGeneratorFunction() {
-		// Set the return type of a generator function to:
-		//   @return {!AsyncGenerator<?>}
-		generatorType := f.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_ASYNC_GENERATOR_TYPE)
-		f.returnType = f.typeRegistry.CreateTemplatizedType(
-			generatorType, f.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE))
-		return
-	} else if !f.contents.GetSourceNode().IsNil() && f.contents.GetSourceNode().IsGeneratorFunction() {
-		// Set the return type of a generator function to:
-		//   @return {!Generator<?>}
-		generatorType := f.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_GENERATOR_TYPE)
-		f.returnType = f.typeRegistry.CreateTemplatizedType(
-			generatorType, f.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE))
-		return
+	if !f.sourceNode.IsNil() {
+		if f.sourceNode.IsAsyncGeneratorFunction() {
+			// Set the return type of a generator function to:
+			//   @return {!AsyncGenerator<?>}
+			generatorType := f.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_ASYNC_GENERATOR_TYPE)
+			f.returnType = f.typeRegistry.CreateTemplatizedType(
+				generatorType, f.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE))
+			return
+		}
+		if f.sourceNode.IsGeneratorFunction() {
+			// Set the return type of a generator function to:
+			//   @return {!Generator<?>}
+			generatorType := f.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_GENERATOR_TYPE)
+			f.returnType = f.typeRegistry.CreateTemplatizedType(
+				generatorType, f.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE))
+			return
+		}
 	}
 
 	inferredReturnType := f.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
-	if !f.contents.MayHaveNonEmptyReturns() &&
-		!f.contents.MayHaveSingleThrow() &&
-		!f.contents.MayBeFromExterns() {
+	if !f.sourceNode.IsNil() &&
+		!f.hasNonEmptyReturns &&
+		!functionTypeBuilder_hasSingleThrow(f.sourceNode) &&
+		!f.sourceNode.IsFromExterns() {
 		// Infer return types for non-generator functions.
 		// We need to be extremely conservative about this, because of two
 		// competing needs.
@@ -1048,7 +1086,7 @@ func (f *FunctionTypeBuilder) ProvideDefaultReturnType() {
 		f.returnTypeInferred = true
 	}
 
-	if !f.contents.GetSourceNode().IsNil() && f.contents.GetSourceNode().IsAsyncFunction() {
+	if !f.sourceNode.IsNil() && f.sourceNode.IsAsyncFunction() {
 		// Set the return type of an async function:
 		//   @return {!Promise<?>} or @return {!Promise<undefined>}
 		promiseType := f.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_PROMISE_TYPE)
@@ -1120,7 +1158,7 @@ func (f *FunctionTypeBuilder) CreateDefaultBuilder() *rhino.FunctionType_Builder
 	}
 	return rhino.FunctionType_Builder_(f.typeRegistry).
 		WithName(namePtr).
-		WithSourceNode(f.contents.GetSourceNode()).
+		WithSourceNode(f.sourceNode).
 		WithTemplateKeysOfList(f.templateTypeNames).
 		SetIsKnownAmbiguous(f.isKnownAmbiguous).
 		SetGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(f.declarationScope))
@@ -1172,7 +1210,7 @@ func (f *FunctionTypeBuilder) GetOrCreateConstructor() rhino.FunctionType {
 			}
 
 			if existingFn.GetSource().IsNil() {
-				existingFn.SetSource(f.contents.GetSourceNode())
+				existingFn.SetSource(f.sourceNode)
 			}
 
 			if !existingFn.HasEqualCallType(fnType) {
@@ -1194,7 +1232,7 @@ func (f *FunctionTypeBuilder) GetOrCreateConstructor() rhino.FunctionType {
 	//   @constructor
 	//   this.Foo = ...
 	//
-	if *f.syntacticFnName != "" && !jutil.StringStartsWith(*f.syntacticFnName, "this.") {
+	if *f.syntacticFnName != "" && !strings.HasPrefix(*f.syntacticFnName, "this.") {
 		f.typeRegistry.DeclareTypeForExactScope(
 			functionTypeBuilder_staticScope(f.declarationScope), *f.syntacticFnName, fnType.GetInstanceType())
 	}
@@ -1210,7 +1248,7 @@ func (f *FunctionTypeBuilder) GetOrCreateInterface() rhino.FunctionType {
 		ctor := type_.ToMaybeObjectType().GetConstructor()
 		if ctor.IsInterface() {
 			fnType = ctor
-			fnType.SetSource(f.contents.GetSourceNode())
+			fnType.SetSource(f.sourceNode)
 		}
 	}
 
@@ -1277,103 +1315,7 @@ func FunctionTypeBuilder_HasMoreTagsToResolve(objectType rhino.ObjectType) bool 
 	return false
 }
 
-// FunctionTypeBuilder_FunctionContents holds data dynamically inferred about
-// functions.
-type FunctionTypeBuilder_FunctionContents interface {
-	// GetSourceNode returns the source node of this function. May be null.
-	//
-	// Java: FunctionTypeBuilder.FunctionContents.getSourceNode()
-	GetSourceNode() rhino.Node
-
-	// MayBeFromExterns returns if the function may be in externs.
-	//
-	// Java: FunctionTypeBuilder.FunctionContents.mayBeFromExterns()
-	MayBeFromExterns() bool
-
-	// MayHaveNonEmptyReturns returns if a return of a real value (not
-	// undefined) appears.
-	//
-	// Java: FunctionTypeBuilder.FunctionContents.mayHaveNonEmptyReturns()
-	MayHaveNonEmptyReturns() bool
-
-	// MayHaveSingleThrow returns if this consists of a single throw.
-	//
-	// Java: FunctionTypeBuilder.FunctionContents.mayHaveSingleThrow()
-	MayHaveSingleThrow() bool
-}
-
-// FunctionTypeBuilder_UnknownFunctionContents is the FunctionContents of a
-// function whose body is unknown.
-type FunctionTypeBuilder_UnknownFunctionContents struct{}
-
-var functionTypeBuilder_UnknownFunctionContents_singleton = &FunctionTypeBuilder_UnknownFunctionContents{}
-
-// Java: FunctionTypeBuilder.UnknownFunctionContents.get()
-func FunctionTypeBuilder_UnknownFunctionContents_Get() FunctionTypeBuilder_FunctionContents {
-	return functionTypeBuilder_UnknownFunctionContents_singleton
-}
-
-// Java: FunctionTypeBuilder.UnknownFunctionContents.getSourceNode()
-func (c *FunctionTypeBuilder_UnknownFunctionContents) GetSourceNode() rhino.Node {
-	return rhino.NilNode
-}
-
-// Java: FunctionTypeBuilder.UnknownFunctionContents.mayBeFromExterns()
-func (c *FunctionTypeBuilder_UnknownFunctionContents) MayBeFromExterns() bool {
-	return true
-}
-
-// Java: FunctionTypeBuilder.UnknownFunctionContents.mayHaveNonEmptyReturns()
-func (c *FunctionTypeBuilder_UnknownFunctionContents) MayHaveNonEmptyReturns() bool {
-	return true
-}
-
-// Java: FunctionTypeBuilder.UnknownFunctionContents.mayHaveSingleThrow()
-func (c *FunctionTypeBuilder_UnknownFunctionContents) MayHaveSingleThrow() bool {
-	return true
-}
-
-// FunctionTypeBuilder_AstFunctionContents is the FunctionContents of a
-// function literal in the AST.
-type FunctionTypeBuilder_AstFunctionContents struct {
-	n                  rhino.Node
-	hasNonEmptyReturns bool
-}
-
-// Java: FunctionTypeBuilder.AstFunctionContents(Node)
-func NewFunctionTypeBuilder_AstFunctionContents(n rhino.Node) *FunctionTypeBuilder_AstFunctionContents {
-	c := &FunctionTypeBuilder_AstFunctionContents{}
-	c.n = n
-	return c
-}
-
-// Java: FunctionTypeBuilder.AstFunctionContents.getSourceNode()
-func (c *FunctionTypeBuilder_AstFunctionContents) GetSourceNode() rhino.Node {
-	return c.n
-}
-
-// Java: FunctionTypeBuilder.AstFunctionContents.mayBeFromExterns()
-func (c *FunctionTypeBuilder_AstFunctionContents) MayBeFromExterns() bool {
-	return c.n.IsFromExterns()
-}
-
-// Java: FunctionTypeBuilder.AstFunctionContents.mayHaveNonEmptyReturns()
-func (c *FunctionTypeBuilder_AstFunctionContents) MayHaveNonEmptyReturns() bool {
-	return c.hasNonEmptyReturns
-}
-
-// Java: FunctionTypeBuilder.AstFunctionContents.recordNonEmptyReturn()
-func (c *FunctionTypeBuilder_AstFunctionContents) RecordNonEmptyReturn() {
-	c.hasNonEmptyReturns = true
-}
-
-// Java: FunctionTypeBuilder.AstFunctionContents.mayHaveSingleThrow()
-func (c *FunctionTypeBuilder_AstFunctionContents) MayHaveSingleThrow() bool {
-	block := c.n.GetLastChild()
+func functionTypeBuilder_hasSingleThrow(n rhino.Node) bool {
+	block := n.GetLastChild()
 	return block.HasOneChild() && block.GetFirstChild().IsThrow()
 }
-
-var (
-	_ FunctionTypeBuilder_FunctionContents = (*FunctionTypeBuilder_UnknownFunctionContents)(nil)
-	_ FunctionTypeBuilder_FunctionContents = (*FunctionTypeBuilder_AstFunctionContents)(nil)
-)

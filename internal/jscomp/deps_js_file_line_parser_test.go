@@ -128,7 +128,7 @@ func jsFileLineParserTest_assertStrip(t *testing.T, expected string, input strin
 	t.Helper()
 	errorManager := NewPrintStreamErrorManager(jutil.System_Err())
 	parser := newJsFileLineParserTest_TestParserWithErrorManager(errorManager)
-	parser.DoParse("file", jutil.NewStringReader(input))
+	parseJsReader(&parser.jsFileLineParser, parser, "file", jutil.NewStringReader(input))
 	if got := parser.String(); got != expected {
 		t.Errorf("strip %q: got %q, want %q", input, got, expected)
 	}
@@ -138,14 +138,14 @@ func jsFileLineParserTest_assertBlocks(t *testing.T, expected string, input stri
 	t.Helper()
 	errorManager := NewPrintStreamErrorManager(jutil.System_Err())
 	parser := newJsFileLineParserTest_TestParserWithErrorManager(errorManager)
-	parser.DoParse("file", jutil.NewStringReader(input))
+	parseJsReader(&parser.jsFileLineParser, parser, "file", jutil.NewStringReader(input))
 	if got := parser.comments.String(); got != expected {
 		t.Errorf("blocks %q: got %q, want %q", input, got, expected)
 	}
 }
 
 type jsFileLineParserTest_TestParser struct {
-	JsFileLineParserBase
+	jsFileLineParser
 	sb       *jutil.StringBuilder
 	comments *jutil.StringBuilder
 }
@@ -157,17 +157,19 @@ func newJsFileLineParserTest_TestParser() *jsFileLineParserTest_TestParser {
 
 // Java: JsFileLineParserTest.TestParser(ErrorManager)
 func newJsFileLineParserTest_TestParserWithErrorManager(errorManager ErrorManager) *jsFileLineParserTest_TestParser {
-	p := &jsFileLineParserTest_TestParser{sb: jutil.NewStringBuilder(), comments: jutil.NewStringBuilder()}
-	p.InitJsFileLineParserBase(p, errorManager)
-	return p
+	return &jsFileLineParserTest_TestParser{
+		jsFileLineParser: jsFileLineParser{errorManager: errorManager},
+		sb:               jutil.NewStringBuilder(),
+		comments:         jutil.NewStringBuilder(),
+	}
 }
 
-func (p *jsFileLineParserTest_TestParser) ParseLine(line string) bool {
+func (p *jsFileLineParserTest_TestParser) parseLine(line string) (bool, string) {
 	p.sb.Append(line)
-	return true
+	return true, ""
 }
 
-func (p *jsFileLineParserTest_TestParser) ParseJsDocCommentLine(line string) bool {
+func (p *jsFileLineParserTest_TestParser) parseJsDocCommentLine(line string) bool {
 	p.comments.Append(line)
 	return true
 }

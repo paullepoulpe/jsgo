@@ -19,6 +19,7 @@
 package regex
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -26,8 +27,8 @@ import (
 
 func parseRegExpAndPrintPattern(regex, flags string) string {
 	tree := RegExpTree_ParseRegExp(regex, flags)
-	sb := jutil.NewStringBuilder()
-	tree.AppendSourceCode(sb)
+	var sb strings.Builder
+	tree.AppendSourceCode(&sb)
 	return sb.String()
 }
 
@@ -248,5 +249,32 @@ func TestDecomposedCharsetEqualsAndHashCode(t *testing.T) {
 	isNotEqualTo("charsetA1, charsetDiffGroups", charsetA1, charsetDiffGroups)
 	if charsetA1 == nil {
 		t.Error("charsetA1 is null")
+	}
+}
+
+func TestParseRegExpReturnsErrorWithoutPanic(t *testing.T) {
+	cases := []struct {
+		pattern string
+		flags   string
+		kind    RegExpParseErrorKind
+		wantMsg string
+	}{
+		{"foo\\", "", RegExpParseErrorStringIndexOutOfBounds, "Index 4 out of bounds for length 4"},
+		{"[\\", "", RegExpParseErrorStringIndexOutOfBounds, "Index 2 out of bounds for length 2"},
+		{"(?<", "", RegExpParseErrorStringIndexOutOfBounds, "Index 3 out of bounds for length 3"},
+		{"[z-a]", "", RegExpParseErrorIndexOutOfBounds, "122 > 97"},
+		{"(foo", "", RegExpParseErrorIllegalArgument, "Unclosed parenthetical group: (foo"},
+		{"foo)", "", RegExpParseErrorIllegalArgument, ")"},
+		{"\\p{}", "u", RegExpParseErrorIllegalArgument, "unicode property escape value cannot be empty"},
+		{"\\p{=Greek}", "u", RegExpParseErrorIllegalArgument, "if '=' is present in a unicode property escape, the name cannot be empty"},
+	}
+	for _, tc := range cases {
+		tree, err := ParseRegExp(tc.pattern, tc.flags)
+		if err == nil || tree != nil {
+			t.Fatalf("ParseRegExp(%q, %q) = (%v, %v), want error %q", tc.pattern, tc.flags, tree, err, tc.wantMsg)
+		}
+		if err.Kind != tc.kind || err.Message != tc.wantMsg {
+			t.Errorf("ParseRegExp(%q, %q) = (%v, %q), want (%v, %q)", tc.pattern, tc.flags, err.Kind, err.Message, tc.kind, tc.wantMsg)
+		}
 	}
 }

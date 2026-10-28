@@ -163,7 +163,7 @@ func (ti *TypeInference) initTypeInference(
 		bottomID = allocTypedScopeID()
 	}
 	ti.bottomTypedScope = TypedScope{}
-	ti.bottomTypedScope.InitAbstractScopeBase(&ti.bottomTypedScope, rootNode)
+	ti.bottomTypedScope.initScopeCommon(rootNode)
 	ti.bottomTypedScope.scopeID = bottomID
 	ti.bottomTypedScope.implicitVars = &ti.bottomImplicitVars
 	ti.bottomTypedScope.CheckRootScope()

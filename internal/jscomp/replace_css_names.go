@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -33,48 +34,6 @@ import (
 // For 'BY_PART', all the class name's components, separated by '-', are
 // renamed individually and then recombined.
 //
-// Given the renaming map:
-//
-//	{
-//	  once:  'a',
-//	  upon:  'b',
-//	  atime: 'c',
-//	  long:  'd',
-//	  time:  'e',
-//	  ago:   'f'
-//	}
-//
-// The following outputs are expected with the 'BY_PART' renaming style:
-//
-//	goog.getCssName('once') -> 'a'
-//	goog.getCssName('once-upon-atime') -> 'a-b-c'
-//
-//	var baseClass = goog.getCssName('long-time');
-//	el.className = goog.getCssName(baseClass, 'ago');
-//	->
-//	var baseClass = 'd-e';
-//	el.className = baseClass + '-f';
-//
-// However if we have the following renaming map with the 'BY_WHOLE' renaming
-// style:
-//
-//	{
-//	  once: 'a',
-//	  upon-atime: 'b',
-//	  long-time: 'c',
-//	  ago: 'd'
-//	}
-//
-// Then we would expect:
-//
-//	goog.getCssName('once') -> 'a'
-//
-//	var baseClass = goog.getCssName('long-time');
-//	el.className = goog.getCssName(baseClass, 'ago');
-//	->
-//	var baseClass = 'c';
-//	el.className = baseClass + '-d';
-//
 // In addition, the CSS names before replacement can optionally be gathered.
 //
 // Java: class ReplaceCssNames implements CompilerPass
@@ -82,22 +41,18 @@ type ReplaceCssNames struct {
 	compiler   AbstractCompiler
 	astFactory *AstFactory
 
-	cssNameCollector ReplaceCssNames_CssNameCollector
+	cssNameCollector             ReplaceCssNames_CssNameCollector
+	cssNamesBySymbol             map[string]string
+	classesObjectsQualifiedNames map[string]struct{}
 
-	cssNamesBySymbol *jutil.LinkedHashMap[string, string]
-
-	classesObjectsQualifiedNames *jutil.LinkedHashSet[string]
-
-	symbolMap CssRenamingMap // may be nil
-
-	skiplist jutil.Set[string] // may be nil
+	symbolMap CssRenamingMap    // may be nil
+	skiplist  jutil.Set[string] // may be nil
 }
 
-// This is used only for qualified name comparison, so it's OK to build it with IR instead of
-// AstFactory. Type information isn't important here.
-//
-// Java: ReplaceCssNames.GET_CSS_NAME_FUNCTION
-var ReplaceCssNames_GET_CSS_NAME_FUNCTION = rhino.IR_Getprop(rhino.IR_Name("goog"), "getCssName")
+var (
+	replaceCssNamesGetCssNameFn      = rhino.QualifiedName_Of("goog.getCssName")
+	replaceCssNamesSetCssNameMapping = rhino.QualifiedName_Of("goog.setCssNameMapping")
+)
 
 // Java: ReplaceCssNames.INVALID_NUM_ARGUMENTS_ERROR
 var ReplaceCssNames_INVALID_NUM_ARGUMENTS_ERROR = DiagnosticType_Error(
@@ -124,7 +79,7 @@ var ReplaceCssNames_NESTED_CALL_ERROR = DiagnosticType_Error(
 // Java: ReplaceCssNames.UNKNOWN_SYMBOL_WARNING
 var ReplaceCssNames_UNKNOWN_SYMBOL_WARNING = DiagnosticType_Warning(
 	"JSC_GETCSSNAME_UNKNOWN_CSS_SYMBOL",
-	"goog.getCssName called with unrecognized symbol \"{0}\" in class "+"\"{1}\".")
+	"goog.getCssName called with unrecognized symbol \"{0}\" in class \"{1}\".")
 
 // Java: ReplaceCssNames.UNEXPECTED_SASS_GENERATED_CSS_TS_ERROR
 var ReplaceCssNames_UNEXPECTED_SASS_GENERATED_CSS_TS_ERROR = DiagnosticType_Error(
@@ -143,17 +98,12 @@ var ReplaceCssNames_INVALID_USE_OF_CLASSES_OBJECT_ERROR = DiagnosticType_Error(
 
 // ReplaceCssNames_CssNameCollector is called for each class name seen when
 // replacing.
-//
-// Java: public interface ReplaceCssNames.CssNameCollector (a @FunctionalInterface)
 type ReplaceCssNames_CssNameCollector interface {
-	// Java: ReplaceCssNames.CssNameCollector.add(String)
 	Add(className string)
 }
 
 // ReplaceCssNames_CssNameCollectorFunc lets a Go closure stand for a Java
 // lambda implementing CssNameCollector.
-//
-// Go-only: language-adapter
 type ReplaceCssNames_CssNameCollectorFunc func(className string)
 
 // Add calls f.
@@ -165,442 +115,299 @@ func NewReplaceCssNames(
 	symbolMap CssRenamingMap,
 	cssNameCollector ReplaceCssNames_CssNameCollector,
 	skiplist jutil.Set[string]) *ReplaceCssNames {
-	r := &ReplaceCssNames{}
-	r.compiler = compiler
-	r.astFactory = compiler.CreateAstFactory()
-	r.symbolMap = symbolMap
-	r.cssNameCollector = cssNameCollector
-	r.skiplist = skiplist
-	r.cssNamesBySymbol = jutil.NewLinkedHashMap[string, string]()
-	r.classesObjectsQualifiedNames = jutil.NewLinkedHashSet[string]()
-	return r
+	return &ReplaceCssNames{
+		compiler:         compiler,
+		astFactory:       compiler.CreateAstFactory(),
+		symbolMap:        symbolMap,
+		cssNameCollector: cssNameCollector,
+		skiplist:         skiplist,
+	}
 }
 
 // Java: ReplaceCssNames.process(Node, Node)
 func (r *ReplaceCssNames) Process(externs rhino.Node, root rhino.Node) {
-	NodeTraversal_Traverse(r.compiler, root, &ReplaceCssNames_FindSetCssNameTraversal{outer: r})
-	getCssNameInstances := r.GatherGetCssNameInstances(root)
-	for _, getCssNameInstance := range getCssNameInstances {
-		cssClassName := getCssNameInstance.GetCssClassName()
-		if getCssNameInstance.IsCssClosureFileClassesMember() {
-			r.cssNamesBySymbol.Put(*getCssNameInstance.GetCssClosureClassesMemberName(), *cssClassName)
-			r.classesObjectsQualifiedNames.Add(*getCssNameInstance.GetCssClosureClassesQualifiedName())
+	NodeTraversal_Traverse(r.compiler, root, &findSetCssNameTraversal{r: r})
+
+	gather := gatherCssNamesTraversal{r: r}
+	NodeTraversal_Traverse(r.compiler, root, &gather)
+	for i := range gather.instances {
+		inst := &gather.instances[i]
+		cssClassName := inst.cssClassName()
+		if inst.classesQName != "" {
+			if r.cssNamesBySymbol == nil {
+				r.cssNamesBySymbol = make(map[string]string)
+				r.classesObjectsQualifiedNames = make(map[string]struct{})
+			}
+			r.cssNamesBySymbol[inst.classesMemberName()] = cssClassName
+			r.classesObjectsQualifiedNames[inst.classesQName] = struct{}{}
 		} else {
-			r.cssNameCollector.Add(*cssClassName)
+			r.cssNameCollector.Add(cssClassName)
 		}
-		getCssNameInstance.ReplaceWithExpression()
+		r.replaceGetCssNameCall(inst.callNode)
 	}
-	if !r.classesObjectsQualifiedNames.IsEmpty() {
-		NodeTraversal_Traverse(r.compiler, root, &ReplaceCssNames_CountCssNamesBySymbol{outer: r})
+	if len(r.classesObjectsQualifiedNames) > 0 {
+		NodeTraversal_Traverse(r.compiler, root, &countCssNamesBySymbol{r: r})
 	}
 }
 
-// GatherGetCssNameInstances creates a list of objects representing all the
-// `goog.getCssName()` calls in the AST.
-//
-// The elements in this list will be in depth-first left-to-right order. So,
-// if you perform actions on them in this order you'll affect nested calls
-// before the containing calls. e.g.
-//
-//	goog.getCssName(goog.getCssName('me-first'), 'me-second')
-//
-// Java: ReplaceCssNames.gatherGetCssNameInstances(Node)
-func (r *ReplaceCssNames) GatherGetCssNameInstances(root rhino.Node) []*ReplaceCssNames_GetCssNameInstance {
-	gatherCssNamesTraversal := NewReplaceCssNames_GatherCssNamesTraversal(r)
-	NodeTraversal_Traverse(r.compiler, root, gatherCssNamesTraversal)
-	return gatherCssNamesTraversal.listOfCssNameInstances
-}
-
-// This is used only for qualified name comparison, so it's OK to build it with IR instead of
-// AstFactory. Type information isn't important here.
-var replaceCssNames_GOOG_SET_CSS_NAME_MAPPING = rhino.IR_Getprop(rhino.IR_Name("goog"), "setCssNameMapping")
-
-// Java: private class ReplaceCssNames.FindSetCssNameTraversal extends AbstractPostOrderCallback
-type ReplaceCssNames_FindSetCssNameTraversal struct {
+type findSetCssNameTraversal struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	outer *ReplaceCssNames
+	r *ReplaceCssNames
 }
 
-// Java: ReplaceCssNames.FindSetCssNameTraversal.visit(NodeTraversal, Node, Node)
-func (f *ReplaceCssNames_FindSetCssNameTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	r := f.outer
-	if !n.IsCall() || !parent.IsExprResult() {
+func (f *findSetCssNameTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	call, ok := ast.AsCall(n)
+	if !ok || parent.IsNil() || !parent.IsExprResult() || !replaceCssNamesSetCssNameMapping.Matches(call.Callee().Node()) {
 		return
 	}
-	callee := n.GetFirstChild()
-	if !callee.MatchesQualifiedNameNode(replaceCssNames_GOOG_SET_CSS_NAME_MAPPING) {
-		return
-	}
-	cssRenamingMap := ProcessClosurePrimitives_ProcessSetCssNameMapping(r.compiler, n, parent)
-	r.symbolMap = cssRenamingMap
-	r.compiler.ReportChangeToEnclosingScope(parent)
+	f.r.symbolMap = ProcessClosurePrimitives_ProcessSetCssNameMapping(f.r.compiler, n, parent)
+	f.r.compiler.ReportChangeToEnclosingScope(parent)
 	parent.Detach()
 }
 
-// Java: private class ReplaceCssNames.GatherCssNamesTraversal implements NodeTraversal.Callback
-type ReplaceCssNames_GatherCssNamesTraversal struct {
-	outer                  *ReplaceCssNames
-	listOfCssNameInstances []*ReplaceCssNames_GetCssNameInstance
-	traversalState         ReplaceCssNames_GatherCssNamesTraversal_TraversalState
+type gatherCssNamesTraversal struct {
+	r                          *ReplaceCssNames
+	instances                  []cssNameInstance
+	inSassGeneratedCssTsScript bool
+	classesQualifiedName       string
 }
 
-// Java: ReplaceCssNames.GatherCssNamesTraversal()
-func NewReplaceCssNames_GatherCssNamesTraversal(outer *ReplaceCssNames) *ReplaceCssNames_GatherCssNamesTraversal {
-	return &ReplaceCssNames_GatherCssNamesTraversal{
-		outer: outer,
-	}
-}
-
-// Java: ReplaceCssNames.GatherCssNamesTraversal.shouldTraverse(NodeTraversal, Node, Node)
-func (g *ReplaceCssNames_GatherCssNamesTraversal) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	r := g.outer
+func (g *gatherCssNamesTraversal) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	jsdoc := n.GetJSDocInfo()
 	hasSassGeneratedCssTsJsDoc := jsdoc != nil && jsdoc.IsSassGeneratedCssTs()
-	if hasSassGeneratedCssTsJsDoc && (!n.IsScript() || r.IsNotInCssClosureFile(n)) {
-		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNEXPECTED_SASS_GENERATED_CSS_TS_ERROR))
+	if hasSassGeneratedCssTsJsDoc && (!n.IsScript() || isNotInCssClosureFile(n)) {
+		g.r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNEXPECTED_SASS_GENERATED_CSS_TS_ERROR))
 		// Skip all nodes that are descendants of this one, since we found an invalid
 		// @sassGeneratedCssTs JSDoc annotation, and are in an invalid state.
 		return false
 	}
 	if n.IsScript() {
-		g.traversalState.inSassGeneratedCssTsScript = hasSassGeneratedCssTsJsDoc
-		g.traversalState.cssClosureClassesQualifiedName = nil
-	} else if g.traversalState.inSassGeneratedCssTsScript && n.IsAssign() {
-		assignmentTarget := n.GetFirstChild()
-		if assignmentTarget.IsGetProp() && assignmentTarget.GetString() == "classes" {
-			g.traversalState.cssClosureClassesQualifiedName = assignmentTarget.GetQualifiedName()
+		g.inSassGeneratedCssTsScript = hasSassGeneratedCssTsJsDoc
+		g.classesQualifiedName = ""
+	} else if g.inSassGeneratedCssTsScript {
+		if assign, ok := ast.AsAssign(n); ok {
+			if gp, ok := assign.Target().AsGetProp(); ok && gp.Property() == "classes" {
+				if qname, ok := gp.Node().GetQualifiedNameString(); ok {
+					g.classesQualifiedName = qname
+				} else {
+					g.classesQualifiedName = ""
+				}
+			}
 		}
 	}
 	return true
 }
 
-// Java: ReplaceCssNames.GatherCssNamesTraversal.visit(NodeTraversal, Node, Node)
-func (g *ReplaceCssNames_GatherCssNamesTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	r := g.outer
-	if r.IsGetCssNameCall(n) {
-		getCssNameInstance := r.CreateGetCssNameInstance(n, g.traversalState.cssClosureClassesQualifiedName)
-		if getCssNameInstance.IsValid() {
-			g.listOfCssNameInstances = append(g.listOfCssNameInstances, getCssNameInstance)
-		} else {
-			r.compiler.Report(getCssNameInstance.GetValidationError())
-		}
+func (g *gatherCssNamesTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if !isGetCssNameCall(n) {
+		return
 	}
+	if err := validateGetCssNameCall(n); err != nil {
+		g.r.compiler.Report(err)
+		return
+	}
+	// Collect valid goog.getCssName() calls in depth-first left-to-right post-order so
+	// nested calls are processed before containing calls.
+	g.instances = append(g.instances, cssNameInstance{
+		callNode:     n,
+		classesQName: g.classesQualifiedName,
+	})
 }
 
-// Java: private static class ReplaceCssNames.GatherCssNamesTraversal.TraversalState
-type ReplaceCssNames_GatherCssNamesTraversal_TraversalState struct {
-	inSassGeneratedCssTsScript     bool
-	cssClosureClassesQualifiedName *string
-}
-
-// Java: ReplaceCssNames.isNotInCssClosureFile(Node)
-func (r *ReplaceCssNames) IsNotInCssClosureFile(node rhino.Node) bool {
+func isNotInCssClosureFile(node rhino.Node) bool {
 	sourceFileName := node.GetSourceFileName()
 	return sourceFileName == nil || !strings.HasSuffix(*sourceFileName, ".css.closure.js")
 }
 
-// Java: ReplaceCssNames.isGetCssNameCall(Node)
-func (r *ReplaceCssNames) IsGetCssNameCall(node rhino.Node) bool {
-	return node.IsCall() && node.GetFirstChild().MatchesQualifiedNameNode(ReplaceCssNames_GET_CSS_NAME_FUNCTION)
+func isGetCssNameCall(node rhino.Node) bool {
+	call, ok := ast.AsCall(node)
+	return ok && replaceCssNamesGetCssNameFn.Matches(call.Callee().Node())
 }
 
-// Java: ReplaceCssNames.createGetCssNameInstance(Node, String)
-func (r *ReplaceCssNames) CreateGetCssNameInstance(
-	n rhino.Node, cssClosureClassesQualifiedName *string) *ReplaceCssNames_GetCssNameInstance {
-	return NewReplaceCssNames_GetCssNameInstance(
-		r, n, r.ValidateGetCssNameCall(n), cssClosureClassesQualifiedName)
+// cssNameInstance represents a validated `goog.getCssName()` call.
+type cssNameInstance struct {
+	callNode     rhino.Node
+	classesQName string
 }
 
-// ReplaceCssNames_GetCssNameInstance represents a `goog.getCssName()` call.
-//
-// Java: private class ReplaceCssNames.GetCssNameInstance
-type ReplaceCssNames_GetCssNameInstance struct {
-	outer *ReplaceCssNames
-
-	// The CALL node representing `goog.getCssName()`.
-	//
-	// We shouldn't store final pointers to any of the children of this node, because they might
-	// be changed between creation of this object and performance of other methods.
-	callNode rhino.Node
-
-	// Non-null if the shape of the function call was invalid, when this object was created.
-	validationError *JSError
-
-	// The qualified name for the classes object if we're in a Sass-generated .css.ts file, or null
-	// otherwise. For example "module$exports$foo.classes".
-	cssClosureClassesQualifiedName *string
-}
-
-// Java: ReplaceCssNames.GetCssNameInstance(Node, JSError, String)
-func NewReplaceCssNames_GetCssNameInstance(
-	outer *ReplaceCssNames, callNode rhino.Node, validationError *JSError, cssClosureClassesQualifiedName *string) *ReplaceCssNames_GetCssNameInstance {
-	return &ReplaceCssNames_GetCssNameInstance{
-		outer:                          outer,
-		callNode:                       callNode,
-		validationError:                validationError,
-		cssClosureClassesQualifiedName: cssClosureClassesQualifiedName,
-	}
-}
-
-// Java: ReplaceCssNames.GetCssNameInstance.isValid()
-func (g *ReplaceCssNames_GetCssNameInstance) IsValid() bool {
-	return g.validationError == nil
-}
-
-// Java: ReplaceCssNames.GetCssNameInstance.getValidationError()
-func (g *ReplaceCssNames_GetCssNameInstance) GetValidationError() *JSError {
-	jutil.CheckNotNullMsg1(g.validationError, "No validation error found: %s", g.callNode)
-	return g.validationError
-}
-
-// ReplaceWithExpression replaces this `goog.getCssName()` call in the AST
-// with a string typed expression.
-//
-// Java: ReplaceCssNames.GetCssNameInstance.replaceWithExpression()
-func (g *ReplaceCssNames_GetCssNameInstance) ReplaceWithExpression() {
-	jutil.CheckStateMsg1(g.IsValid(), "not a valid goog.getCssName() call: %s", g.callNode)
-	rhino.CheckNotNullMsg1(g.callNode.GetParent(), "already replaced: %s", g.callNode)
-	childCount := g.callNode.GetChildCount()
-	switch childCount {
-	case 2:
-		g.ReplaceWithConvertedSingleArg()
-	case 3:
-		g.ReplaceWithConcatenatedArgs()
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg(
-			fmt.Sprintf("invalid number of children: %s for: %s", strconv.Itoa(childCount), g.callNode.String())))
-	}
-}
-
-// Java: ReplaceCssNames.GetCssNameInstance.replaceWithConvertedSingleArg()
-func (g *ReplaceCssNames_GetCssNameInstance) ReplaceWithConvertedSingleArg() {
-	r := g.outer
-	// `goog.getCssName('some-literal')` -> `'mapped-literal'`
-	stringLitArg := rhino.CheckNotNullMsg1(g.callNode.GetSecondChild(), "%s", g.callNode)
-	jutil.CheckStateMsg1(stringLitArg.IsStringLit(), "not a string literal: %s", stringLitArg)
-	stringLitArg.Detach()
-	r.ProcessStringNode(stringLitArg)
-	g.callNode.ReplaceWith(stringLitArg)
-	r.compiler.ReportChangeToEnclosingScope(stringLitArg)
-}
-
-// Java: ReplaceCssNames.GetCssNameInstance.replaceWithConcatenatedArgs()
-func (g *ReplaceCssNames_GetCssNameInstance) ReplaceWithConcatenatedArgs() {
-	r := g.outer
-	// `goog.getCssName(someExpr, 'some-literal')` -> `someExpr + '-mapped-literal'`
-	firstArg := rhino.CheckNotNullMsg1(g.callNode.GetSecondChild(), "%s", g.callNode)
-	secondArg := rhino.CheckNotNullMsg1(firstArg.GetNext(), "%s", firstArg)
-	firstArg.Detach()
-	secondArg.Detach()
-	r.ProcessStringNode(secondArg)
-	secondArg.SetString("-" + secondArg.GetString())
-	replacement := r.astFactory.CreateAdd(firstArg, secondArg).Srcref(g.callNode)
-	g.callNode.ReplaceWith(replacement)
-	r.compiler.ReportChangeToEnclosingScope(replacement)
-}
-
-// Java: ReplaceCssNames.GetCssNameInstance.isCssClosureFileClassesMember()
-func (g *ReplaceCssNames_GetCssNameInstance) IsCssClosureFileClassesMember() bool {
-	return g.cssClosureClassesQualifiedName != nil
-}
-
-// Java: ReplaceCssNames.GetCssNameInstance.getCssClosureClassesQualifiedName()
-func (g *ReplaceCssNames_GetCssNameInstance) GetCssClosureClassesQualifiedName() *string {
-	jutil.CheckNotNullMsg1(
-		g.cssClosureClassesQualifiedName, "Not a css closure file classes object: %s", g.callNode)
-	return g.cssClosureClassesQualifiedName
-}
-
-// Java: ReplaceCssNames.GetCssNameInstance.getCssClosureClassesMemberName()
-func (g *ReplaceCssNames_GetCssNameInstance) GetCssClosureClassesMemberName() *string {
-	jutil.CheckNotNullMsg1(
-		g.cssClosureClassesQualifiedName, "Not a css closure file classes object: %s", g.callNode)
-	// We support 2 structures getCssName() calls in Sass-generated files:
+func (inst *cssNameInstance) classesMemberName() string {
+	// We support 2 structures of getCssName() calls in Sass-generated files:
 	// 1. { Foo: goog.getCssName('foo') }
 	// 2. { Foo: expression ? … : goog.getCssName('foo') }
 	// Traversing our ancestry allows us to find the `Foo` string key in both cases.
-	ancestors := g.callNode.GetAncestors()
-	for ancestor := range ancestors.All() {
+	for ancestor := inst.callNode.GetParent(); !ancestor.IsNil(); ancestor = ancestor.GetParent() {
 		if ancestor.IsStringKey() {
-			name := *g.cssClosureClassesQualifiedName + "." + ancestor.GetString()
-			return &name
+			return inst.classesQName + "." + ancestor.GetString()
 		}
 	}
 	panic(jutil.NewIllegalStateExceptionMsg(
-		fmt.Sprintf("No css closure classes member name found: %s", g.callNode.String())))
+		fmt.Sprintf("No css closure classes member name found: %s", inst.callNode.String())))
 }
 
-// Java: ReplaceCssNames.GetCssNameInstance.getCssClassName()
-func (g *ReplaceCssNames_GetCssNameInstance) GetCssClassName() *string {
-	jutil.CheckStateMsg1(g.IsValid(), "not a valid goog.getCssName() call: %s", g.callNode)
-	rhino.CheckNotNullMsg1(g.callNode.GetParent(), "already replaced: %s", g.callNode)
-	childCount := g.callNode.GetChildCount()
-	firstArg := rhino.CheckNotNullMsg1(g.callNode.GetSecondChild(), "%s", g.callNode)
+func (inst *cssNameInstance) cssClassName() string {
+	rhino.CheckNotNullMsg1(inst.callNode.GetParent(), "already replaced: %s", inst.callNode)
+	childCount := inst.callNode.GetChildCount()
+	firstArg := rhino.CheckNotNullMsg1(inst.callNode.GetSecondChild(), "%s", inst.callNode)
 	switch childCount {
 	case 2:
 		jutil.CheckStateMsg1(firstArg.IsStringLit(), "not a string literal: %s", firstArg)
-		name := firstArg.GetString()
-		return &name
+		return firstArg.GetString()
 	case 3:
 		secondArg := rhino.CheckNotNullMsg1(firstArg.GetNext(), "%s", firstArg)
 		jutil.CheckStateMsg1(secondArg.IsStringLit(), "not a string literal: %s", secondArg)
-		name := secondArg.GetString()
-		return &name
+		return secondArg.GetString()
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg(
-			fmt.Sprintf("invalid number of children: %s for: %s", strconv.Itoa(childCount), g.callNode.String())))
+			fmt.Sprintf("invalid number of children: %d for: %s", childCount, inst.callNode.String())))
 	}
 }
 
-// Java: ReplaceCssNames.validateGetCssNameCall(Node)
-func (r *ReplaceCssNames) ValidateGetCssNameCall(callNode rhino.Node) *JSError {
+func (r *ReplaceCssNames) replaceGetCssNameCall(callNode rhino.Node) {
+	rhino.CheckNotNullMsg1(callNode.GetParent(), "already replaced: %s", callNode)
 	childCount := callNode.GetChildCount()
 	switch childCount {
 	case 2:
-		return r.ValidateSingleArgGetCssNameCall(callNode)
+		// `goog.getCssName('some-literal')` -> `'mapped-literal'`
+		stringLitArg := rhino.CheckNotNullMsg1(callNode.GetSecondChild(), "%s", callNode)
+		jutil.CheckStateMsg1(stringLitArg.IsStringLit(), "not a string literal: %s", stringLitArg)
+		stringLitArg.Detach()
+		r.processStringNode(stringLitArg)
+		callNode.ReplaceWith(stringLitArg)
+		r.compiler.ReportChangeToEnclosingScope(stringLitArg)
 	case 3:
-		return r.ValidateTwoArgGetCssNameCall(callNode)
+		// `goog.getCssName(someExpr, 'some-literal')` -> `someExpr + '-mapped-literal'`
+		firstArg := rhino.CheckNotNullMsg1(callNode.GetSecondChild(), "%s", callNode)
+		secondArg := rhino.CheckNotNullMsg1(firstArg.GetNext(), "%s", firstArg)
+		firstArg.Detach()
+		secondArg.Detach()
+		r.processStringNode(secondArg)
+		secondArg.SetString("-" + secondArg.GetString())
+		replacement := r.astFactory.CreateAdd(firstArg, secondArg).Srcref(callNode)
+		callNode.ReplaceWith(replacement)
+		r.compiler.ReportChangeToEnclosingScope(replacement)
+	default:
+		panic(jutil.NewIllegalStateExceptionMsg(
+			fmt.Sprintf("invalid number of children: %d for: %s", childCount, callNode.String())))
+	}
+}
+
+func validateGetCssNameCall(callNode rhino.Node) *JSError {
+	childCount := callNode.GetChildCount()
+	switch childCount {
+	case 2:
+		// `goog.getCssName('css-name')`
+		stringLiteralArg := rhino.CheckNotNull(callNode.GetLastChild())
+		if !stringLiteralArg.IsStringLit() {
+			return JSError_MakeWithNode(
+				callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, stringLiteralArg.GetToken().String())
+		}
+		return nil
+	case 3:
+		// `goog.getCssName(BASE_CSS_NAME, 'css-suffix')`
+		firstArg := rhino.CheckNotNull(callNode.GetSecondChild())
+		secondArg := rhino.CheckNotNull(firstArg.GetNext())
+		if !secondArg.IsStringLit() {
+			return JSError_MakeWithNode(callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, secondArg.GetToken().String())
+		}
+		if firstArg.IsStringLit() {
+			return JSError_MakeWithNode(
+				callNode, ReplaceCssNames_UNEXPECTED_STRING_LITERAL_ERROR, firstArg.GetString(), secondArg.GetString())
+		}
+		if isGetCssNameCall(firstArg) {
+			return JSError_MakeWithNode(firstArg, ReplaceCssNames_NESTED_CALL_ERROR)
+		}
+		return nil
 	default:
 		return JSError_MakeWithNode(callNode, ReplaceCssNames_INVALID_NUM_ARGUMENTS_ERROR, strconv.Itoa(childCount))
 	}
 }
 
-// Java: ReplaceCssNames.validateSingleArgGetCssNameCall(Node)
-func (r *ReplaceCssNames) ValidateSingleArgGetCssNameCall(callNode rhino.Node) *JSError {
-	// `goog.getCssName('css-name')`
-	stringLiteralArg := rhino.CheckNotNull(callNode.GetLastChild())
-	if !stringLiteralArg.IsStringLit() {
-		return JSError_MakeWithNode(
-			callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, stringLiteralArg.GetToken().String())
-	}
-	return nil
-}
-
-// Java: ReplaceCssNames.validateTwoArgGetCssNameCall(Node)
-func (r *ReplaceCssNames) ValidateTwoArgGetCssNameCall(callNode rhino.Node) *JSError {
-	// `goog.getCssName(BASE_CSS_NAME, 'css-suffix')`
-	// The first child is the callee, so the first argument is the second child
-	firstArg := rhino.CheckNotNull(callNode.GetSecondChild())
-	secondArg := rhino.CheckNotNull(firstArg.GetNext())
-
-	if !secondArg.IsStringLit() {
-		return JSError_MakeWithNode(callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, secondArg.GetToken().String())
-	}
-	if firstArg.IsStringLit() {
-		return JSError_MakeWithNode(
-			callNode, ReplaceCssNames_UNEXPECTED_STRING_LITERAL_ERROR, firstArg.GetString(), secondArg.GetString())
-	}
-	if r.IsGetCssNameCall(firstArg) {
-		// Disallow `goog.getCssName(goog.getCssName('n1'), 'n2')`.
-		// Disallowing this is a bit arbitrary and is done for historical reasons.
-		// The 2-argument form results in more JS code shipped to the browser and
-		// forces users to have camelCase CSS names, which contravenes normal CSS style.
-		// Since we'd like to stop supporting the 2-argument form, we don't want to
-		// start allowing any form of it that was previously an error.
-		return JSError_MakeWithNode(firstArg, ReplaceCssNames_NESTED_CALL_ERROR)
-	}
-
-	return nil
-}
-
-// ProcessStringNode processes a string argument to goog.getCssName(). The
-// string will be renamed based off the symbol map. If there is no map or any
-// part of the name can't be renamed, a warning is reported to the compiler
-// and the node is left unchanged.
-//
-// If the type is unexpected then an error is reported to the compiler.
-//
-// n is the string node to process.
-//
-// Java: ReplaceCssNames.processStringNode(Node)
-func (r *ReplaceCssNames) ProcessStringNode(n rhino.Node) {
+func (r *ReplaceCssNames) processStringNode(n rhino.Node) {
 	name := n.GetString()
 	if r.skiplist != nil && r.skiplist.Contains(name) {
 		// We apply the skiplist before splitting on dashes, and not after.
 		// External substitution maps should do the same.
 		return
 	}
-	if r.symbolMap != nil {
-		var replacement *string
+	if r.symbolMap == nil {
+		return
+	}
 
-		if strings.HasPrefix(name, "--") {
-			// Force BY_WHOLE style for CSS variables.
-			replacement = r.symbolMap.Get(name)
-			if replacement == nil {
+	var replacement string
+	if strings.HasPrefix(name, "--") || r.symbolMap.GetStyle() == CssRenamingMap_Style_BY_WHOLE {
+		// Force BY_WHOLE style for CSS variables.
+		mapped := r.symbolMap.Get(name)
+		if mapped == nil {
+			r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, name, name))
+			return
+		}
+		replacement = *mapped
+	} else if r.symbolMap.GetStyle() == CssRenamingMap_Style_BY_PART {
+		if !strings.Contains(name, "-") {
+			part := r.symbolMap.Get(name)
+			if part == nil {
 				r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, name, name))
 				return
 			}
+			replacement = *part
 		} else {
-			switch r.symbolMap.GetStyle() {
-			case CssRenamingMap_Style_BY_WHOLE:
-				replacement = r.symbolMap.Get(name)
-				if replacement == nil {
-					r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, name, name))
+			parts := strings.Split(name, "-")
+			for len(parts) > 0 && parts[len(parts)-1] == "" {
+				parts = parts[:len(parts)-1]
+			}
+			for i, p := range parts {
+				part := r.symbolMap.Get(p)
+				if part == nil {
+					// If we can't encode all parts, don't encode any of it.
+					r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, p, name))
 					return
 				}
-			case CssRenamingMap_Style_BY_PART:
-				parts := []string{name}
-				if strings.Contains(name, "-") {
-					parts = strings.Split(name, "-")
-					for len(parts) > 0 && parts[len(parts)-1] == "" {
-						parts = parts[:len(parts)-1]
-					}
-				}
-				replaced := make([]string, len(parts))
-				for i, p := range parts {
-					part := r.symbolMap.Get(p)
-					if part == nil {
-						// If we can't encode all parts, don't encode any of it.
-						r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, p, name))
-						return
-					}
-					replaced[i] = *part
-				}
-				joined := strings.Join(replaced, "-")
-				replacement = &joined
+				parts[i] = *part
 			}
+			replacement = strings.Join(parts, "-")
 		}
-		// n.setString(replacement): a null replacement throws.
-		n.SetString(*replacement)
 	}
+	n.SetString(replacement)
 }
 
-// Java: private class ReplaceCssNames.CountCssNamesBySymbol implements NodeTraversal.Callback
-type ReplaceCssNames_CountCssNamesBySymbol struct {
-	outer *ReplaceCssNames
+type countCssNamesBySymbol struct {
+	r *ReplaceCssNames
 }
 
-// Java: ReplaceCssNames.CountCssNamesBySymbol.shouldTraverse(NodeTraversal, Node, Node)
-func (c *ReplaceCssNames_CountCssNamesBySymbol) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (c *countCssNamesBySymbol) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		// Only descend into source files NOT named `*.css.closure.js`
-		return c.outer.IsNotInCssClosureFile(n)
-	} else {
-		return true // descend into every other node
+		return isNotInCssClosureFile(n)
 	}
+	return true
 }
 
-// Java: ReplaceCssNames.CountCssNamesBySymbol.visit(NodeTraversal, Node, Node)
-func (c *ReplaceCssNames_CountCssNamesBySymbol) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	r := c.outer
-	if r.classesObjectsQualifiedNames.IsEmpty() || !n.IsQualifiedName() {
+func (c *countCssNamesBySymbol) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	r := c.r
+	if len(r.classesObjectsQualifiedNames) == 0 || !n.IsQualifiedName() {
 		return
 	}
-	classesObjectQualifiedName := n.GetQualifiedName()
-	if classesObjectQualifiedName == nil ||
-		!r.classesObjectsQualifiedNames.Contains(*classesObjectQualifiedName) {
+	classesObjQName, ok := n.GetQualifiedNameString()
+	if !ok {
+		return
+	}
+	if _, found := r.classesObjectsQualifiedNames[classesObjQName]; !found {
 		return
 	}
 	classNameNode := n.GetParent()
-	if !n.IsGetProp() || !classNameNode.IsGetProp() {
+	if !n.IsGetProp() || classNameNode.IsNil() || !classNameNode.IsGetProp() {
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_INVALID_USE_OF_CLASSES_OBJECT_ERROR))
 		return
 	}
-	classQualifiedName := classNameNode.GetQualifiedName()
-	if classQualifiedName == nil || !r.cssNamesBySymbol.ContainsKey(*classQualifiedName) {
+	classQName, ok := classNameNode.GetQualifiedNameString()
+	if !ok {
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_ERROR, classNameNode.GetString()))
 		return
 	}
-	className := r.cssNamesBySymbol.Get(*classQualifiedName)
+	className, defined := r.cssNamesBySymbol[classQName]
+	if !defined {
+		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_ERROR, classNameNode.GetString()))
+		return
+	}
 	r.cssNameCollector.Add(className)
 }

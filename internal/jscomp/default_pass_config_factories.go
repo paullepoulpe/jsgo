@@ -25,1834 +25,1080 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// initFields runs the field initializers of DefaultPassConfig, in Java
-// declaration order (after super(options), as in Java).
-//
-// Java: DefaultPassConfig.<init> (field initializers)
+var errPropsNotStaticallyAnalyzable = NewPassFactory_PreconditionResult(
+	false,
+	jutil.StringPtr("requires assumePropertiesAreStaticallyAnalyzable to be enabled"),
+)
+
+func defaultPassConfig_requirePropertiesAreStaticallyAnalyzable(
+	options *CompilerOptions,
+) *PassFactory_PreconditionResult {
+	if options.GetAssumePropertiesAreStaticallyAnalyzable() {
+		return PassFactory_PreconditionResult_SUCCESS
+	}
+	return errPropsNotStaticallyAnalyzable
+}
+
+func inlineAndCollapsePrecondition(options *CompilerOptions) *PassFactory_PreconditionResult {
+	if options.GetPropertyCollapseLevel() == CompilerOptions_PropertyCollapseLevel_NONE ||
+		options.GetAssumePropertiesAreStaticallyAnalyzable() {
+		return PassFactory_PreconditionResult_SUCCESS
+	}
+	return errPropsNotStaticallyAnalyzable
+}
+
+// Stateless PassFactory singletons shared across all DefaultPassConfig instances.
+var (
+	defaultPass_stripSideEffectProtection = makePassFactory(PassNames_STRIP_SIDE_EFFECT_PROTECTION, func(compiler AbstractCompiler) CompilerPass {
+		return NewCheckSideEffects_StripProtection(compiler)
+	})
+	defaultPass_checkMissingRequires = makePassFactory("checkMissingRequires", func(compiler AbstractCompiler) CompilerPass {
+		return NewCheckMissingRequires(compiler, compiler.GetModuleMetadataMap())
+	})
+	defaultPass_checkJsDocAndEs6Modules = makePassFactory("checkJsDocAndEs6Modules", func(compiler AbstractCompiler) CompilerPass {
+		return defaultPassConfig_combineChecks(compiler, []NodeTraversal_Callback{
+			NewCheckJSDoc(compiler),
+			NewEs6CheckModule(compiler),
+		})
+	})
+	defaultPass_generateIjs = makePassFactory("generateIjs", func(compiler AbstractCompiler) CompilerPass {
+		return NewConvertToTypedInterface(compiler)
+	})
+	defaultPass_removeExtraRequires = makePassFactory("removeExtraRequires", func(compiler AbstractCompiler) CompilerPass {
+		return NewExtraRequireRemover(compiler)
+	})
+	defaultPass_exportTestFunctions = makePassFactory(PassNames_EXPORT_TEST_FUNCTIONS, func(compiler AbstractCompiler) CompilerPass {
+		convention := compiler.GetCodingConvention()
+		if convention.GetExportSymbolFunction() != nil {
+			return NewExportTestFunctions(
+				compiler,
+				convention.GetExportSymbolFunction(),
+				convention.GetExportPropertyFunction())
+		}
+		return NewErrorPass(compiler, defaultPassConfig_GENERATE_EXPORTS_ERROR)
+	})
+	defaultPass_gatherRawExports = makePassFactory(PassNames_GATHER_RAW_EXPORTS, func(compiler AbstractCompiler) CompilerPass {
+		pass := NewGatherRawExports(compiler)
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			pass.Process(externs, root)
+			compiler.AddExportedNames(pass.GetExportedVariableNames())
+		})
+	})
+	defaultPass_angularPass = makePassFactory(PassNames_ANGULAR_PASS, func(compiler AbstractCompiler) CompilerPass {
+		return NewAngularPass(compiler)
+	})
+	defaultPass_closureGoogScopeAliasesForIjs = makePassFactory("closureGoogScopeAliasesForIjs", func(compiler AbstractCompiler) CompilerPass {
+		return ScopedAliases_Builder_(compiler).Build()
+	})
+	defaultPass_injectRuntimeLibraries = makePassFactory("InjectRuntimeLibraries", func(compiler AbstractCompiler) CompilerPass {
+		return NewInjectRuntimeLibraries(
+			compiler,
+			jutil.NewLinkedHashSet(compiler.GetOptions().GetForceLibraryInjectionList()...))
+	})
+	defaultPass_removeWeakSources = makePassFactory("removeWeakSources", func(compiler AbstractCompiler) CompilerPass {
+		return NewRemoveWeakSources(compiler)
+	})
+	defaultPass_declaredGlobalExternsOnWindow = makePassFactory(PassNames_DECLARED_GLOBAL_EXTERNS_ON_WINDOW, func(compiler AbstractCompiler) CompilerPass {
+		return NewDeclaredGlobalExternsOnWindow(compiler)
+	})
+	defaultPass_checkTypeImportCodeReferences = makePassFactory("checkTypeImportCodeReferences", func(compiler AbstractCompiler) CompilerPass {
+		return NewCheckTypeImportCodeReferences(compiler)
+	})
+	defaultPass_closureCheckModule = makePassFactory("closureCheckModule", func(compiler AbstractCompiler) CompilerPass {
+		return NewClosureCheckModule(compiler, compiler.GetModuleMetadataMap())
+	})
+	defaultPass_checkClosureImports = makePassFactory("checkGoogRequires", func(compiler AbstractCompiler) CompilerPass {
+		return NewCheckClosureImports(compiler, compiler.GetModuleMetadataMap())
+	})
+	defaultPass_rewriteGoogJsImports = makePassFactory("rewriteGoogJsImports", func(compiler AbstractCompiler) CompilerPass {
+		return NewRewriteGoogJsImports(compiler, RewriteGoogJsImports_Mode_LINT_AND_REWRITE, compiler.GetModuleMap())
+	})
+	defaultPass_earlyPeepholeOptimizations = makePassFactory("earlyPeepholeOptimizations", func(compiler AbstractCompiler) CompilerPass {
+		opts := compiler.GetOptions()
+		useTypes := opts.ShouldUseTypesForLocalOptimization()
+		peepholes := []AbstractPeepholeOptimization{NewPeepholeRemoveDeadCode()}
+		if opts.GetJ2clPass().ShouldAddJ2clPasses() {
+			peepholes = append(peepholes, NewJ2clEqualitySameRewriterPass(useTypes))
+		}
+		return NewPeepholeOptimizationsPassOfList(compiler, "earlyPeepholeOptimizations", peepholes)
+	})
+	defaultPass_peepholeOptimizations = makeLoopPassFactory(PassNames_PEEPHOLE_OPTIMIZATIONS, func(compiler AbstractCompiler) CompilerPass {
+		return defaultPassConfig_createPeepholeOptimizationsPass(compiler, PassNames_PEEPHOLE_OPTIMIZATIONS, true)
+	})
+	defaultPass_peepholeOptimizationsOnceNormalized = makePassFactory(PassNames_PEEPHOLE_OPTIMIZATIONS, func(compiler AbstractCompiler) CompilerPass {
+		return defaultPassConfig_createPeepholeOptimizationsPass(compiler, PassNames_PEEPHOLE_OPTIMIZATIONS, true)
+	})
+	defaultPass_peepholeOptimizationsOnceNonNormalized = makePassFactory(PassNames_PEEPHOLE_OPTIMIZATIONS, func(compiler AbstractCompiler) CompilerPass {
+		return defaultPassConfig_createPeepholeOptimizationsPass(compiler, PassNames_PEEPHOLE_OPTIMIZATIONS, false)
+	})
+	defaultPass_checkVars = makePassFactory(PassNames_CHECK_VARS, func(compiler AbstractCompiler) CompilerPass {
+		return NewVarCheck(compiler)
+	})
+	defaultPass_inferConsts = makePassFactory(PassNames_INFER_CONSTS, func(compiler AbstractCompiler) CompilerPass {
+		return NewInferConsts(compiler)
+	})
+	defaultPass_checkVariableReferences = makePassFactory(PassNames_CHECK_VARIABLE_REFERENCES, func(compiler AbstractCompiler) CompilerPass {
+		return NewVariableReferenceCheck(compiler)
+	})
+	defaultPass_checkSuper = makePassFactory("checkSuper", func(compiler AbstractCompiler) CompilerPass {
+		return NewCheckSuper(compiler)
+	})
+	defaultPass_clearTypedScopeCreatorPass = makePassFactory("clearTypedScopeCreatorPass", func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			compiler.ClearTypedScopeCreator()
+		})
+	})
+	defaultPass_clearTopTypedScopePass = makePassFactory("clearTopTypedScopePass", func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			compiler.SetTopScope(nil)
+			for _, compilerInput := range compiler.GetInputsInOrder() {
+				compilerInput.SetTypedScope(nil)
+			}
+		})
+	})
+	defaultPass_inferTypes = makePassFactory(PassNames_INFER_TYPES, func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(unused rhino.Node, srcRoot rhino.Node) {
+			globalRoot := srcRoot.GetParent()
+			inferencePass := NewTypeInferencePass(
+				compiler,
+				compiler.GetReverseAbstractInterpreter(),
+				compiler.GetTypedScopeCreator().(*TypedScopeCreator))
+			compiler.SetTypeCheckingHasRun(true)
+			compiler.SetTopScope(inferencePass.InferAllScopes(globalRoot))
+		})
+	})
+	defaultPass_inferJsDocInfo = makePassFactory("inferJsDocInfo", func(compiler AbstractCompiler) CompilerPass {
+		return NewInferJSDocInfo(compiler)
+	})
+	defaultPass_checkAccessControls = makePassFactory("checkAccessControls", func(compiler AbstractCompiler) CompilerPass {
+		return NewCheckAccessControls(compiler)
+	})
+	defaultPass_lintChecks = makePassFactory(PassNames_LINT_CHECKS, func(compiler AbstractCompiler) CompilerPass {
+		return defaultPassConfig_combineChecks(compiler, []NodeTraversal_Callback{
+			NewCheckConstPrivateProperties(compiler),
+			NewCheckConstantCaseNames(compiler),
+			NewCheckEmptyStatements(compiler),
+			NewCheckEnums(compiler),
+			NewCheckEs6ModuleFileStructure(compiler),
+			NewCheckEs6Modules(compiler),
+			NewCheckNoMutatedEs6Exports(compiler),
+			NewCheckGoogModuleTypeScriptName(compiler),
+			NewCheckInterfaces(compiler),
+			NewCheckJSDocStyle(compiler),
+			NewCheckMissingSemicolon(compiler),
+			NewCheckNullabilityModifiers(compiler),
+			NewCheckPrimitiveAsObject(compiler),
+			NewCheckPrototypeProperties(compiler),
+			NewCheckUnusedPrivateProperties(compiler),
+			NewCheckUnusedLabels(compiler),
+			NewCheckUselessBlocks(compiler),
+			NewCheckVar(compiler),
+		})
+	})
+	defaultPass_analyzerChecks = makePassFactory(PassNames_ANALYZER_CHECKS, func(compiler AbstractCompiler) CompilerPass {
+		return defaultPassConfig_combineChecks(compiler, []NodeTraversal_Callback{
+			NewCheckArrayWithGoogObject(compiler),
+			NewImplicitNullabilityCheck(compiler),
+			NewCheckNestedNames(compiler),
+		})
+	})
+	defaultPass_checkRequiresAndProvidesSorted = makePassFactory("checkRequiresAndProvidesSorted", func(compiler AbstractCompiler) CompilerPass {
+		return defaultPassConfig_combineChecks(compiler, []NodeTraversal_Callback{
+			NewCheckProvidesSorted(CheckProvidesSorted_Mode_COLLECT_AND_REPORT),
+			NewCheckRequiresSorted(CheckRequiresSorted_Mode_COLLECT_AND_REPORT),
+		})
+	})
+	defaultPass_stripCode = makePassFactory("stripCode", func(compiler AbstractCompiler) CompilerPass {
+		opts := compiler.GetOptions()
+		return NewStripCode(
+			compiler,
+			opts.GetStripTypes(),
+			opts.GetStripNameSuffixes(),
+			opts.GetStripNamePrefixes(),
+			opts.GetTweakProcessing().ShouldStrip())
+	})
+	defaultPass_checkConsts = makePassFactory("checkConsts", func(compiler AbstractCompiler) CompilerPass {
+		return NewConstCheck(compiler)
+	})
+	defaultPass_rewriteCallerCodeLocation = makePassFactory("rewriteCallerCodeLocation", func(compiler AbstractCompiler) CompilerPass {
+		return NewRewriteCallerCodeLocation(compiler)
+	})
+	defaultPass_replaceToggles = makePassFactory("replaceToggles", func(compiler AbstractCompiler) CompilerPass {
+		return NewReplaceToggles(compiler)
+	})
+	defaultPass_closureOptimizePrimitives = makePassFactory("closureOptimizePrimitives", func(compiler AbstractCompiler) CompilerPass {
+		return NewClosureOptimizePrimitives(
+			compiler, compiler.GetOptions().GetOutputFeatureSet().Contains(parser.FeatureSet_ES2015))
+	})
+	defaultPass_convertChunksToESModules = makePassFactory("convertChunksToESModules", func(compiler AbstractCompiler) CompilerPass {
+		return NewConvertChunksToESModules(compiler)
+	})
+	defaultPass_collapseObjectLiterals = makeLoopPassFactory(PassNames_COLLAPSE_OBJECT_LITERALS, func(compiler AbstractCompiler) CompilerPass {
+		return NewInlineObjectLiterals(compiler, compiler.GetUniqueNameIdSupplier())
+	})
+	defaultPass_devirtualizeMethods = makeCheckedPassFactory(
+		PassNames_DEVIRTUALIZE_METHODS,
+		defaultPassConfig_requirePropertiesAreStaticallyAnalyzable,
+		false,
+		func(compiler AbstractCompiler) CompilerPass {
+			return OptimizeCalls_Builder_().
+				SetCompiler(compiler).
+				SetConsiderExterns(false).
+				AddPass(NewDevirtualizeMethods(compiler)).
+				Build()
+		},
+	)
+	defaultPass_optimizeCalls = makeCheckedPassFactory(
+		PassNames_OPTIMIZE_CALLS,
+		defaultPassConfig_requirePropertiesAreStaticallyAnalyzable,
+		true,
+		func(compiler AbstractCompiler) CompilerPass {
+			return OptimizeCalls_Builder_().
+				SetCompiler(compiler).
+				SetConsiderExterns(false).
+				AddPass(NewOptimizeReturns(compiler).AsCallGraphCompilerPass()).
+				AddPass(NewOptimizeParameters(compiler).AsCallGraphCompilerPass()).
+				Build()
+		},
+	)
+	defaultPass_optimizeConstructors = makePassFactory("optimizeConstructors", func(compiler AbstractCompiler) CompilerPass {
+		return OptimizeCalls_Builder_().
+			SetCompiler(compiler).
+			SetConsiderExterns(false).
+			AddPass(NewOptimizeConstructors(compiler).AsCallGraphCompilerPass()).
+			Build()
+	})
+	defaultPass_markPureFunctions = makeCheckedPassFactory(
+		"markPureFunctions",
+		defaultPassConfig_requirePropertiesAreStaticallyAnalyzable,
+		false,
+		func(compiler AbstractCompiler) CompilerPass {
+			return NewPureFunctionIdentifier_Driver(compiler)
+		},
+	)
+	defaultPass_inlineConstants = makeLoopPassFactory("inlineConstants", func(compiler AbstractCompiler) CompilerPass {
+		return NewInlineVariables(compiler, InlineVariables_Mode_CONSTANTS_ONLY)
+	})
+	defaultPass_inlineSimpleMethods = makeCheckedPassFactory(
+		"inlineSimpleMethods",
+		defaultPassConfig_requirePropertiesAreStaticallyAnalyzable,
+		true,
+		func(compiler AbstractCompiler) CompilerPass {
+			return NewInlineSimpleMethods(compiler)
+		},
+	)
+	defaultPass_deadAssignmentsElimination = makeLoopPassFactory(PassNames_DEAD_ASSIGNMENT_ELIMINATION, func(compiler AbstractCompiler) CompilerPass {
+		return NewDeadAssignmentsElimination(compiler)
+	})
+	defaultPass_deadPropertyAssignmentElimination = makeCheckedPassFactory(
+		"deadPropertyAssignmentElimination",
+		defaultPassConfig_requirePropertiesAreStaticallyAnalyzable,
+		true,
+		func(compiler AbstractCompiler) CompilerPass {
+			return NewDeadPropertyAssignmentElimination(compiler)
+		},
+	)
+	defaultPass_inlineProperties = makeLoopPassFactory(PassNames_INLINE_PROPERTIES, func(compiler AbstractCompiler) CompilerPass {
+		return NewInlineProperties(compiler)
+	})
+	defaultPass_isolatePolyfills = makePassFactory("IsolatePolyfills", func(compiler AbstractCompiler) CompilerPass {
+		return NewIsolatePolyfills(compiler)
+	})
+	defaultPass_flowSensitiveInlineVariables = makePassFactory(PassNames_FLOW_SENSITIVE_INLINE_VARIABLES, func(compiler AbstractCompiler) CompilerPass {
+		return NewFlowSensitiveInlineVariables(compiler)
+	})
+	defaultPass_collapseVariableDeclarations = makePassFactory(PassNames_COLLAPSE_VARIABLE_DECLARATIONS, func(compiler AbstractCompiler) CompilerPass {
+		return NewCollapseVariableDeclarations(compiler)
+	})
+	defaultPass_rewriteFunctionExpressions = makePassFactory(PassNames_REWRITE_FUNCTION_EXPRESSIONS, func(compiler AbstractCompiler) CompilerPass {
+		return NewFunctionRewriter(compiler)
+	})
+	defaultPass_collapseAnonymousFunctions = makePassFactory(PassNames_COLLAPSE_ANONYMOUS_FUNCTIONS, func(compiler AbstractCompiler) CompilerPass {
+		return NewCollapseAnonymousFunctions(compiler)
+	})
+	defaultPass_rewriteGlobalDeclarationsForTryCatchWrapping = makePassFactory("rewriteGlobalDeclarationsForTryCatchWrapping", func(compiler AbstractCompiler) CompilerPass {
+		return NewRewriteGlobalDeclarationsForTryCatchWrapping(compiler)
+	})
+	defaultPass_markUnnormalized = makePassFactory("markUnnormalized", func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
+		})
+	})
+	defaultPass_normalize = makePassFactory(PassNames_NORMALIZE, func(compiler AbstractCompiler) CompilerPass {
+		return Normalize_CreateNormalizeForOptimizations(compiler)
+	})
+	defaultPass_externExports = makePassFactory(PassNames_EXTERN_EXPORTS, func(compiler AbstractCompiler) CompilerPass {
+		return NewExternExportsPass(compiler)
+	})
+	defaultPass_invertContextualRenaming = makePassFactory("invertContextualRenaming", func(compiler AbstractCompiler) CompilerPass {
+		return MakeDeclaredNamesUnique_GetContextualRenameInverter(compiler)
+	})
+	defaultPass_removePropertyRenamingCalls = makePassFactory("removePropertyRenamingCalls", func(compiler AbstractCompiler) CompilerPass {
+		return NewRemovePropertyRenamingCalls(compiler)
+	})
+	defaultPass_renameLabels = makePassFactory("renameLabels", func(compiler AbstractCompiler) CompilerPass {
+		return NewRenameLabels(compiler)
+	})
+	defaultPass_convertToDottedProperties = makePassFactory(PassNames_CONVERT_TO_DOTTED_PROPERTIES, func(compiler AbstractCompiler) CompilerPass {
+		return NewConvertToDottedProperties(compiler)
+	})
+	defaultPass_checkAstValidity = makePassFactory("checkAstValidity", func(compiler AbstractCompiler) CompilerPass {
+		return NewAstValidator(compiler)
+	})
+	defaultPass_varCheckValidity = makePassFactory("varCheckValidity", func(compiler AbstractCompiler) CompilerPass {
+		return NewVarCheckWithValidityCheck(compiler, true)
+	})
+	defaultPass_gatherExternPropertiesCheck = makePassFactory("gatherExternProperties", func(compiler AbstractCompiler) CompilerPass {
+		return NewGatherExternProperties(compiler, GatherExternProperties_Mode_CHECK)
+	})
+	defaultPass_gatherExternPropertiesOptimize = makePassFactory("gatherExternProperties", func(compiler AbstractCompiler) CompilerPass {
+		return NewGatherExternProperties(compiler, GatherExternProperties_Mode_OPTIMIZE)
+	})
+	defaultPass_polymerPass = makePassFactory("polymerPass", func(compiler AbstractCompiler) CompilerPass {
+		return NewPolymerPass(compiler)
+	})
+	defaultPass_chromePass = makePassFactory("chromePass", func(compiler AbstractCompiler) CompilerPass {
+		return NewChromePass(compiler)
+	})
+	defaultPass_j2clConstantHoisterPass = makeLoopPassFactory("j2clConstantHoisterPass", func(compiler AbstractCompiler) CompilerPass {
+		return NewJ2clConstantHoisterPass(compiler)
+	})
+	defaultPass_j2clClinitPass = makeLoopPassFactory("j2clClinitPass", func(compiler AbstractCompiler) CompilerPass {
+		return NewJ2clClinitPrunerPass(
+			compiler,
+			compiler.GetChangeTracker().GetChangedScopeNodesForPass("j2clClinitPass"))
+	})
+	defaultPass_j2clPropertyInlinerPass = makePassFactory("j2clPropertyInlinerPass", func(compiler AbstractCompiler) CompilerPass {
+		return NewJ2clPropertyInlinerPass(compiler)
+	})
+	defaultPass_j2clPass = makePassFactory("j2clPass", func(compiler AbstractCompiler) CompilerPass {
+		return NewJ2clPass(compiler)
+	})
+	defaultPass_j2clUtilGetDefineRewriterPass = makePassFactory("j2clUtilGetDefineRewriterPass", func(compiler AbstractCompiler) CompilerPass {
+		return NewJ2clUtilGetDefineRewriterPass(compiler)
+	})
+	defaultPass_j2clAssertRemovalPass = makePassFactory("j2clAssertRemovalPass", func(compiler AbstractCompiler) CompilerPass {
+		return NewJ2clAssertRemovalPass(compiler)
+	})
+	defaultPass_j2clSourceFileChecker = makePassFactory("j2clSourceFileChecker", func(compiler AbstractCompiler) CompilerPass {
+		return NewJ2clSourceFileChecker(compiler)
+	})
+	defaultPass_j2clChecksPass = makePassFactory("j2clChecksPass", func(compiler AbstractCompiler) CompilerPass {
+		return NewJ2clChecksPass(compiler)
+	})
+	defaultPass_removeCastNodes = makePassFactory("removeCastNodes", func(compiler AbstractCompiler) CompilerPass {
+		return NewRemoveCastNodes(compiler)
+	})
+	defaultPass_typesToColors = makePassFactory("typesToColors", func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
+			NewConvertTypesToColors(
+				compiler,
+				SerializationOptions_Builder_().
+					SetIncludeDebugInfo(compiler.GetOptions().ShouldSerializeExtraDebugInfo()).
+					Build()).
+				Process(externs, js)
+			compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC)
+		})
+	})
+	defaultPass_removeUnnecessarySyntheticExterns = makePassFactory("removeUnnecessarySyntheticExterns", func(compiler AbstractCompiler) CompilerPass {
+		return NewRemoveUnnecessarySyntheticExterns(compiler)
+	})
+	defaultPass_optimizeToEs6 = makePassFactory("optimizeToEs6", func(compiler AbstractCompiler) CompilerPass {
+		return NewSubstituteEs6Syntax(compiler)
+	})
+	defaultPass_whitespaceWrapGoogModules = makePassFactory("whitespaceWrapGoogModules", func(compiler AbstractCompiler) CompilerPass {
+		return NewWhitespaceWrapGoogModules(compiler)
+	})
+	defaultPass_rewriteCommonJsModules = makePassFactory(PassNames_REWRITE_COMMON_JS_MODULES, func(compiler AbstractCompiler) CompilerPass {
+		return NewProcessCommonJSModules(compiler)
+	})
+	defaultPass_rewriteScriptsToEs6Modules = makePassFactory(PassNames_REWRITE_SCRIPTS_TO_ES6_MODULES, func(compiler AbstractCompiler) CompilerPass {
+		return NewEs6RewriteScriptsToModules(compiler)
+	})
+	defaultPass_createModuleMapPass = makePassFactory(PassNames_CREATE_MODULE_MAP, func(compiler AbstractCompiler) CompilerPass {
+		return NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap())
+	})
+	defaultPass_gatherGettersAndSetters = makePassFactory(PassNames_GATHER_GETTERS_AND_SETTERS, func(compiler AbstractCompiler) CompilerPass {
+		return NewGatherGetterAndSetterProperties(compiler)
+	})
+	defaultPass_addSyntheticScript = makePassFactory("ADD_SYNTHETIC_SCRIPT", func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
+			compiler.InitializeSyntheticCodeInput()
+		})
+	})
+	defaultPass_removeSyntheticScript = makePassFactory("REMOVE_SYNTHETIC_SCRIPT", func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
+			compiler.RemoveSyntheticCodeInput()
+		})
+	})
+	defaultPass_mergeSyntheticScript = makePassFactory("MERGE_SYNTHETIC_SCRIPT", func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
+			compiler.MergeSyntheticCodeInput()
+		})
+	})
+	defaultPass_protectLocaleData = makePassFactory("protectLocaleData", func(compiler AbstractCompiler) CompilerPass {
+		return NewLocaleDataPasses_ProtectGoogLocale(compiler)
+	})
+	defaultPass_substituteLocaleData = makePassFactory("SubstituteLocaleData", func(compiler AbstractCompiler) CompilerPass {
+		return NewLocaleDataPasses_LocaleSubstitutions(compiler, compiler.GetOptions().GetLocale())
+	})
+	defaultPass_transpileOnlyClosureUnaware = makePassFactory("TranspileOnlyClosureUnaware", func(compiler AbstractCompiler) CompilerPass {
+		return NewTranspileAndOptimizeClosureUnaware(compiler, NestedCompilerRunner_Mode_TRANSPILE_ONLY)
+	})
+	defaultPass_transpileAndOptimizeClosureUnaware = makePassFactory("TranspileAndOptimizeClosureUnaware", func(compiler AbstractCompiler) CompilerPass {
+		return NewTranspileAndOptimizeClosureUnaware(compiler, NestedCompilerRunner_Mode_TRANSPILE_AND_OPTIMIZE)
+	})
+
+	defaultPassConfig_forbidDynamicImportUsage = makePassFactory("FORBID_DYNAMIC_IMPORT", func(compiler AbstractCompiler) CompilerPass {
+		return NewForbidDynamicImportUsage(compiler)
+	})
+	defaultPassConfig_rewriteDynamicImports = makePassFactory("REWRITE_DYNAMIC_IMPORT", func(compiler AbstractCompiler) CompilerPass {
+		opts := compiler.GetOptions()
+		return NewRewriteDynamicImports(compiler, opts.GetDynamicImportAlias(), opts.GetChunkOutputType())
+	})
+)
+
 func (c *DefaultPassConfig) initFields() {
 	options := c.options
 
 	c.preprocessorSymbolTableFactory = NewPreprocessorSymbolTable_CachedInstanceFactory()
 
-	c.checkSideEffects =
-		PassFactory_Builder_().
-			SetName("checkSideEffects").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewCheckSideEffects(
-						compiler,
-						options.GetCheckSuspiciousCode(),
-						options.ShouldProtectHiddenSideEffects())
-				}).
-			Build()
+	c.checkSideEffects = makePassFactory("checkSideEffects", func(compiler AbstractCompiler) CompilerPass {
+		return NewCheckSideEffects(
+			compiler,
+			options.GetCheckSuspiciousCode(),
+			options.ShouldProtectHiddenSideEffects())
+	})
+	c.stripSideEffectProtection = defaultPass_stripSideEffectProtection
 
-	// Removes the "protector" functions that were added by CheckSideEffects.
-	c.stripSideEffectProtection =
-		PassFactory_Builder_().
-			SetName(PassNames_STRIP_SIDE_EFFECT_PROTECTION).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewCheckSideEffects_StripProtection(compiler)
-			}).
-			Build()
+	c.suspiciousCode = makePassFactory("suspiciousCode", func(compiler AbstractCompiler) CompilerPass {
+		var callbacks []NodeTraversal_Callback
+		if options.GetCheckSuspiciousCode() {
+			callbacks = append(callbacks, NewCheckSuspiciousCode(), NewCheckDuplicateCase(compiler))
+		}
+		if options.Enables(DiagnosticGroups_GLOBAL_THIS) {
+			callbacks = append(callbacks, NewCheckGlobalThis(compiler))
+		}
+		if options.Enables(DiagnosticGroups_DEBUGGER_STATEMENT_PRESENT) {
+			callbacks = append(callbacks, NewCheckDebuggerStatement(compiler))
+		}
+		return defaultPassConfig_combineChecks(compiler, callbacks)
+	})
 
-	// Checks for code that is probably wrong (such as stray expressions).
-	c.suspiciousCode =
-		PassFactory_Builder_().
-			SetName("suspiciousCode").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					var sharedCallbacks []NodeTraversal_Callback
-					if options.GetCheckSuspiciousCode() {
-						sharedCallbacks = append(sharedCallbacks, NewCheckSuspiciousCode())
-						sharedCallbacks = append(sharedCallbacks, NewCheckDuplicateCase(compiler))
+	c.extraRequires = makePassFactory("checkExtraRequires", func(compiler AbstractCompiler) CompilerPass {
+		return NewCheckExtraRequires(compiler, options.GetUnusedImportsToRemove())
+	})
+	c.checkMissingRequires = defaultPass_checkMissingRequires
+	c.checkJsDocAndEs6Modules = defaultPass_checkJsDocAndEs6Modules
+
+	c.generateExports = makePassFactory(PassNames_GENERATE_EXPORTS, func(compiler AbstractCompiler) CompilerPass {
+		convention := compiler.GetCodingConvention()
+		pass := NewGenerateExports(
+			compiler,
+			options.ShouldExportLocalPropertyDefinitions(),
+			convention.GetExportSymbolFunction(),
+			convention.GetExportPropertyFunction())
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			pass.Process(externs, root)
+			compiler.AddExportedNames(pass.GetExportedVariableNames())
+		})
+	})
+
+	c.generateIjs = defaultPass_generateIjs
+	c.removeExtraRequires = defaultPass_removeExtraRequires
+	c.exportTestFunctions = defaultPass_exportTestFunctions
+	c.gatherRawExports = defaultPass_gatherRawExports
+
+	c.closurePrimitives = makePassFactory("closurePrimitives", func(compiler AbstractCompiler) CompilerPass {
+		c.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
+		return NewProcessClosurePrimitives(compiler)
+	})
+
+	c.closureProvidesRequires = makePassFactory("closureProvidesRequires", func(compiler AbstractCompiler) CompilerPass {
+		c.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
+		pass := NewProcessClosureProvidesAndRequires(compiler, options.ShouldPreservesGoogProvidesAndRequires())
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			pass.Process(externs, root)
+			compiler.AddExportedNames(pass.GetExportedVariableNames())
+		})
+	})
+
+	c.angularPass = defaultPass_angularPass
+
+	c.replaceMessagesForChrome = makePassFactory(PassNames_REPLACE_MESSAGES, func(compiler AbstractCompiler) CompilerPass {
+		return NewReplaceMessagesForChrome(compiler, NewGoogleJsMessageIdGenerator(options.GetTcProjectId()))
+	})
+
+	c.closureGoogScopeAliasesForIjs = defaultPass_closureGoogScopeAliasesForIjs
+
+	c.closureGoogScopeAliases = makePassFactory("closureGoogScopeAliases", func(compiler AbstractCompiler) CompilerPass {
+		c.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
+		return ScopedAliases_Builder_(compiler).
+			SetPreprocessorSymbolTable(c.preprocessorSymbolTableFactory.GetInstanceOrNull()).
+			SetModuleMetadataMap(compiler.GetModuleMetadataMap()).
+			SetInvalidModuleGetHandling(ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME).
+			Build()
+	})
+
+	c.injectRuntimeLibraries = defaultPass_injectRuntimeLibraries
+	c.removeWeakSources = defaultPass_removeWeakSources
+	c.declaredGlobalExternsOnWindow = defaultPass_declaredGlobalExternsOnWindow
+	c.checkTypeImportCodeReferences = defaultPass_checkTypeImportCodeReferences
+	c.closureCheckModule = defaultPass_closureCheckModule
+
+	c.closureRewriteModule = makePassFactory("closureRewriteModule", func(compiler AbstractCompiler) CompilerPass {
+		c.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
+		return NewClosureRewriteModule(
+			compiler,
+			c.preprocessorSymbolTableFactory.GetInstanceOrNull(),
+			compiler.GetTopScope())
+	})
+
+	c.checkClosureImports = defaultPass_checkClosureImports
+	c.rewriteGoogJsImports = defaultPass_rewriteGoogJsImports
+
+	c.closureReplaceGetCssName = makePassFactory("closureReplaceGetCssName", func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, jsRoot rhino.Node) {
+			var cssNames *jutil.LinkedHashSet[string]
+			if options.ShouldGatherCssNames() {
+				cssNames = jutil.NewLinkedHashSet[string]()
+			}
+			pass := NewReplaceCssNames(
+				compiler,
+				options.GetCssRenamingMap(),
+				ReplaceCssNames_CssNameCollectorFunc(func(cssName string) {
+					if cssNames != nil {
+						cssNames.Add(cssName)
 					}
+				}),
+				options.GetCssRenamingSkiplist())
+			pass.Process(externs, jsRoot)
+			compiler.SetCssNames(cssNames)
+		})
+	})
 
-					if options.Enables(DiagnosticGroups_GLOBAL_THIS) {
-						sharedCallbacks = append(sharedCallbacks, NewCheckGlobalThis(compiler))
-					}
+	c.createSyntheticBlocks = makePassFactory("createSyntheticBlocks", func(compiler AbstractCompiler) CompilerPass {
+		return NewCreateSyntheticBlocks(
+			compiler,
+			*options.GetSyntheticBlockStartMarker(),
+			*options.GetSyntheticBlockEndMarker())
+	})
 
-					if options.Enables(DiagnosticGroups_DEBUGGER_STATEMENT_PRESENT) {
-						sharedCallbacks = append(sharedCallbacks, NewCheckDebuggerStatement(compiler))
-					}
+	c.earlyPeepholeOptimizations = defaultPass_earlyPeepholeOptimizations
 
-					return defaultPassConfig_combineChecks(compiler, sharedCallbacks)
-				}).
-			Build()
+	c.earlyInlineVariables = makePassFactory("earlyInlineVariables", func(compiler AbstractCompiler) CompilerPass {
+		return NewInlineVariables(compiler, inlineVariablesMode(options))
+	})
 
-	// Checks that all goog.require()s are used.
-	c.extraRequires =
-		PassFactory_Builder_().
-			SetName("checkExtraRequires").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewCheckExtraRequires(compiler, options.GetUnusedImportsToRemove())
-				}).
-			Build()
+	c.peepholeOptimizations = defaultPass_peepholeOptimizations
+	c.peepholeOptimizationsOnceNormalized = defaultPass_peepholeOptimizationsOnceNormalized
+	c.peepholeOptimizationsOnceNonNormalized = defaultPass_peepholeOptimizationsOnceNonNormalized
 
-	c.checkMissingRequires =
-		PassFactory_Builder_().
-			SetName("checkMissingRequires").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewCheckMissingRequires(compiler, compiler.GetModuleMetadataMap())
-				}).
-			Build()
+	c.latePeepholeOptimizations = makePassFactory("latePeepholeOptimizations", func(compiler AbstractCompiler) CompilerPass {
+		const late = true
+		useTypes := options.ShouldUseTypesForLocalOptimization()
+		return NewPeepholeOptimizationsPass(
+			compiler,
+			"latePeepholeOptimizations",
+			NewStatementFusion(),
+			NewPeepholeRemoveDeadCode(),
+			NewPeepholeMinimizeConditions(late),
+			NewPeepholeSubstituteAlternateSyntax(late),
+			NewPeepholeReplaceKnownMethods(late, useTypes),
+			NewPeepholeFoldConstants(late, useTypes))
+	})
 
-	// Verifies JSDoc annotations are used properly and checks for ES modules.
-	c.checkJsDocAndEs6Modules =
-		PassFactory_Builder_().
-			SetName("checkJsDocAndEs6Modules").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return defaultPassConfig_combineChecks(
-						compiler,
-						[]NodeTraversal_Callback{NewCheckJSDoc(compiler), NewEs6CheckModule(compiler)})
-				}).
-			Build()
+	c.checkVars = defaultPass_checkVars
+	c.inferConsts = defaultPass_inferConsts
 
-	// Generates exports for @export annotations.
-	c.generateExports =
-		PassFactory_Builder_().
-			SetName(PassNames_GENERATE_EXPORTS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					convention := compiler.GetCodingConvention()
-					pass :=
-						NewGenerateExports(
-							compiler,
-							options.ShouldExportLocalPropertyDefinitions(),
-							convention.GetExportSymbolFunction(),
-							convention.GetExportPropertyFunction())
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						pass.Process(externs, root)
-						compiler.AddExportedNames(pass.GetExportedVariableNames())
-					})
-				}).
-			Build()
+	c.checkRegExp = makePassFactory(PassNames_CHECK_REG_EXP, func(compiler AbstractCompiler) CompilerPass {
+		pass := NewCheckRegExp(compiler, options.GetAssumePropertiesAreStaticallyAnalyzable(), true)
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			pass.Process(externs, root)
+			compiler.SetHasRegExpGlobalReferences(pass.IsGlobalRegExpPropertiesUsed())
+		})
+	})
 
-	c.generateIjs =
-		PassFactory_Builder_().
-			SetName("generateIjs").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewConvertToTypedInterface(compiler)
-			}).
-			Build()
+	c.checkRegExpForOptimizations = makePassFactory("checkRegExpForOptimizations", func(compiler AbstractCompiler) CompilerPass {
+		pass := NewCheckRegExp(compiler, options.GetAssumePropertiesAreStaticallyAnalyzable(), false)
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			pass.Process(externs, root)
+			compiler.SetHasRegExpGlobalReferences(pass.IsGlobalRegExpPropertiesUsed())
+		})
+	})
 
-	// Prunes unnecessary goog.requires and in .i.js files
-	// (go/exclude-unnecessary-goog-requires-in-ijs)
-	c.removeExtraRequires =
-		PassFactory_Builder_().
-			SetName("removeExtraRequires").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewExtraRequireRemover(compiler)
-			}).
-			Build()
+	c.checkVariableReferences = defaultPass_checkVariableReferences
+	c.checkSuper = defaultPass_checkSuper
+	c.clearTypedScopeCreatorPass = defaultPass_clearTypedScopeCreatorPass
+	c.clearTopTypedScopePass = defaultPass_clearTopTypedScopePass
+	c.inferTypes = defaultPass_inferTypes
+	c.inferJsDocInfo = defaultPass_inferJsDocInfo
 
-	// Generates exports for functions associated with JsUnit.
-	c.exportTestFunctions =
-		PassFactory_Builder_().
-			SetName(PassNames_EXPORT_TEST_FUNCTIONS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					convention := compiler.GetCodingConvention()
-					if convention.GetExportSymbolFunction() != nil {
-						return NewExportTestFunctions(
-							compiler,
-							convention.GetExportSymbolFunction(),
-							convention.GetExportPropertyFunction())
-					} else {
-						return NewErrorPass(compiler, defaultPassConfig_GENERATE_EXPORTS_ERROR)
-					}
-				}).
-			Build()
+	c.checkTypes = makePassFactory(PassNames_CHECK_TYPES, func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			check := NewTypeCheckWithScope(
+				compiler,
+				compiler.GetReverseAbstractInterpreter(),
+				compiler.GetTypeRegistry(),
+				compiler.GetTopScope(),
+				compiler.GetTypedScopeCreator().(*TypedScopeCreator)).
+				ReportUnknownTypes(options.Enables(DiagnosticGroup_ForType(TypeCheck_UNKNOWN_EXPR_TYPE))).
+				ReportMissingProperties(!options.Disables(DiagnosticGroup_ForType(TypeCheck_INEXISTENT_PROPERTY)))
+			check.Process(externs, root)
+			compiler.GetErrorManager().SetTypedPercent(check.GetTypedPercent())
+		})
+	})
 
-	// Raw exports processing pass.
-	c.gatherRawExports =
-		PassFactory_Builder_().
-			SetName(PassNames_GATHER_RAW_EXPORTS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					pass := NewGatherRawExports(compiler)
+	c.checkControlFlow = makePassFactory("checkControlFlow", func(compiler AbstractCompiler) CompilerPass {
+		var callbacks []NodeTraversal_Callback
+		var unreachable *CheckUnreachableCode
+		if !options.Disables(DiagnosticGroups_CHECK_USELESS_CODE) {
+			unreachable = NewCheckUnreachableCode(compiler)
+			callbacks = append(callbacks, unreachable)
+		}
+		if !options.Disables(DiagnosticGroups_MISSING_RETURN) {
+			mr := NewCheckMissingReturn(compiler)
+			mr.sharedCfgSource = unreachable
+			callbacks = append(callbacks, mr)
+		}
+		return defaultPassConfig_combineChecks(compiler, callbacks)
+	})
 
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						pass.Process(externs, root)
-						compiler.AddExportedNames(pass.GetExportedVariableNames())
-					})
-				}).
-			Build()
+	c.checkAccessControls = defaultPass_checkAccessControls
+	c.lintChecks = defaultPass_lintChecks
+	c.analyzerChecks = defaultPass_analyzerChecks
+	c.checkRequiresAndProvidesSorted = defaultPass_checkRequiresAndProvidesSorted
 
-	// Closure pre-processing pass.
-	c.closurePrimitives =
-		PassFactory_Builder_().
-			SetName("closurePrimitives").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					c.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
-					return NewProcessClosurePrimitives(compiler)
-				}).
-			Build()
+	c.checkStrictMode = makePassFactory("checkStrictMode", func(compiler AbstractCompiler) CompilerPass {
+		defaultLevel := CheckLevel_OFF
+		if options.ExpectStrictModeInput() {
+			defaultLevel = CheckLevel_ERROR
+		}
+		return NewStrictModeCheck(compiler, defaultLevel)
+	})
 
-	// Closure provide/require rewriting pass.
-	c.closureProvidesRequires =
-		PassFactory_Builder_().
-			SetName("closureProvidesRequires").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					c.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
-					pass :=
-						NewProcessClosureProvidesAndRequires(
-							compiler, options.ShouldPreservesGoogProvidesAndRequires())
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						pass.Process(externs, root)
-						compiler.AddExportedNames(pass.GetExportedVariableNames())
-					})
-				}).
-			Build()
+	c.processTweaks = makePassFactory("processTweaks", func(compiler AbstractCompiler) CompilerPass {
+		return NewProcessTweaks(compiler, options.GetTweakProcessing().ShouldStrip())
+	})
 
-	// Process AngularJS-specific annotations.
-	c.angularPass =
-		PassFactory_Builder_().
-			SetName(PassNames_ANGULAR_PASS).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewAngularPass(compiler)
-			}).
-			Build()
-
-	c.replaceMessagesForChrome =
-		PassFactory_Builder_().
-			SetName(PassNames_REPLACE_MESSAGES).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewReplaceMessagesForChrome(
-						compiler, NewGoogleJsMessageIdGenerator(options.GetTcProjectId()),
-						/* allow messages with goog.getMsg */
-					)
-				}).
-			Build()
-
-	// Applies aliases and inlines goog.scope.
-	c.closureGoogScopeAliasesForIjs =
-		PassFactory_Builder_().
-			SetName("closureGoogScopeAliasesForIjs").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return ScopedAliases_Builder_(compiler).Build()
-			}).
-			Build()
-
-	// Applies aliases and inlines goog.scope, storing information about the
-	// transformations performed.
-	c.closureGoogScopeAliases =
-		PassFactory_Builder_().
-			SetName("closureGoogScopeAliases").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					c.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
-					return ScopedAliases_Builder_(compiler).
-						SetPreprocessorSymbolTable(c.preprocessorSymbolTableFactory.GetInstanceOrNull()).
-						SetModuleMetadataMap(compiler.GetModuleMetadataMap()).
-						SetInvalidModuleGetHandling(ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME).
-						Build()
-				}).
-			Build()
-
-	c.injectRuntimeLibraries =
-		PassFactory_Builder_().
-			SetName("InjectRuntimeLibraries").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewInjectRuntimeLibraries(
-						compiler,
-						jutil.NewLinkedHashSet(compiler.GetOptions().GetForceLibraryInjectionList()...))
-				}).
-			Build()
-
-	c.removeWeakSources =
-		PassFactory_Builder_().
-			SetName("removeWeakSources").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewRemoveWeakSources(compiler)
-			}).
-			Build()
-
-	c.declaredGlobalExternsOnWindow =
-		PassFactory_Builder_().
-			SetName(PassNames_DECLARED_GLOBAL_EXTERNS_ON_WINDOW).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewDeclaredGlobalExternsOnWindow(compiler)
-			}).
-			Build()
-
-	c.checkTypeImportCodeReferences =
-		PassFactory_Builder_().
-			SetName("checkTypeImportCodeReferences").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewCheckTypeImportCodeReferences(compiler)
-			}).
-			Build()
-
-	// Checks of correct usage of goog.module
-	c.closureCheckModule =
-		PassFactory_Builder_().
-			SetName("closureCheckModule").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewClosureCheckModule(compiler, compiler.GetModuleMetadataMap())
-				}).
-			Build()
-
-	// Rewrites goog.module
-	c.closureRewriteModule =
-		PassFactory_Builder_().
-			SetName("closureRewriteModule").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					c.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
-					return NewClosureRewriteModule(
-						compiler,
-						c.preprocessorSymbolTableFactory.GetInstanceOrNull(),
-						compiler.GetTopScope())
-				}).
-			Build()
-
-	// Checks goog.require, goog.forwardDeclare, goog.requireType, and
-	// goog.module.get calls
-	c.checkClosureImports =
-		PassFactory_Builder_().
-			SetName("checkGoogRequires").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewCheckClosureImports(compiler, compiler.GetModuleMetadataMap())
-				}).
-			Build()
-
-	// Rewrite imports for Closure Library's goog.js file to global goog
-	// references.
-	c.rewriteGoogJsImports =
-		PassFactory_Builder_().
-			SetName("rewriteGoogJsImports").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewRewriteGoogJsImports(
-						compiler,
-						RewriteGoogJsImports_Mode_LINT_AND_REWRITE,
-						compiler.GetModuleMap())
-				}).
-			Build()
-
-	// Processes goog.getCssName. The cssRenamingMap is used to lookup
-	// replacement values for the classnames. If null, the raw class names are
-	// inlined.
-	c.closureReplaceGetCssName =
-		PassFactory_Builder_().
-			SetName("closureReplaceGetCssName").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, jsRoot rhino.Node) {
-						// Go-only: language-adapter — Optional<ImmutableSet.Builder<String>>:
-						// nil is Optional.empty().
-						var cssNames *jutil.LinkedHashSet[string]
-						if options.ShouldGatherCssNames() {
-							cssNames = jutil.NewLinkedHashSet[string]()
-						}
-
-						pass :=
-							NewReplaceCssNames(
-								compiler,
-								options.GetCssRenamingMap(),
-								ReplaceCssNames_CssNameCollectorFunc(func(cssName string) {
-									if cssNames != nil {
-										cssNames.Add(cssName)
-									}
-								}),
-								options.GetCssRenamingSkiplist())
-						pass.Process(externs, jsRoot)
-
-						if cssNames != nil {
-							compiler.SetCssNames(cssNames)
-						} else {
-							compiler.SetCssNames(nil)
-						}
-					})
-				}).
-			Build()
-
-	// Creates synthetic blocks to prevent FoldConstants from moving code past
-	// markers in the source.
-	c.createSyntheticBlocks =
-		PassFactory_Builder_().
-			SetName("createSyntheticBlocks").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewCreateSyntheticBlocks(
-						compiler,
-						*options.GetSyntheticBlockStartMarker(),
-						*options.GetSyntheticBlockEndMarker())
-				}).
-			Build()
-
-	c.earlyPeepholeOptimizations =
-		PassFactory_Builder_().
-			SetName("earlyPeepholeOptimizations").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					useTypesForOptimization :=
-						compiler.GetOptions().ShouldUseTypesForLocalOptimization()
-					var peepholeOptimizations []AbstractPeepholeOptimization
-					peepholeOptimizations = append(peepholeOptimizations, NewPeepholeRemoveDeadCode())
-					if compiler.GetOptions().GetJ2clPass().ShouldAddJ2clPasses() {
-						peepholeOptimizations = append(peepholeOptimizations,
-							NewJ2clEqualitySameRewriterPass(useTypesForOptimization))
-					}
-					return NewPeepholeOptimizationsPassOfList(
-						compiler, "earlyPeepholeOptimizations", peepholeOptimizations)
-				}).
-			Build()
-
-	c.earlyInlineVariables =
-		PassFactory_Builder_().
-			SetName("earlyInlineVariables").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					var mode InlineVariables_Mode
-					if options.ShouldInlineVariables() {
-						mode = InlineVariables_Mode_ALL
-					} else if options.ShouldInlineLocalVariables() {
-						mode = InlineVariables_Mode_LOCALS_ONLY
-					} else {
-						panic(jutil.NewIllegalStateExceptionMsg("No variable inlining option set."))
-					}
-					return NewInlineVariables(compiler, mode)
-				}).
-			Build()
-
-	// Various peephole optimizations.
-	c.peepholeOptimizations =
-		PassFactory_Builder_().
-			SetName(PassNames_PEEPHOLE_OPTIMIZATIONS).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return defaultPassConfig_createPeepholeOptimizationsPass(compiler, PassNames_PEEPHOLE_OPTIMIZATIONS, true)
-				}).
-			Build()
-
-	// Various peephole optimizations.
-	c.peepholeOptimizationsOnceNormalized =
-		PassFactory_Builder_().
-			SetName(PassNames_PEEPHOLE_OPTIMIZATIONS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return defaultPassConfig_createPeepholeOptimizationsPass(
-						compiler,
-						PassNames_PEEPHOLE_OPTIMIZATIONS,
-						/* expectAstIsNormalized= */ true)
-				}).
-			Build()
-
-	// Various peephole optimizations.
-	c.peepholeOptimizationsOnceNonNormalized =
-		PassFactory_Builder_().
-			SetName(PassNames_PEEPHOLE_OPTIMIZATIONS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return defaultPassConfig_createPeepholeOptimizationsPass(
-						compiler,
-						PassNames_PEEPHOLE_OPTIMIZATIONS,
-						/* expectAstIsNormalized= */ false)
-				}).
-			Build()
-
-	// Same as peepholeOptimizations but aggressively merges code together
-	c.latePeepholeOptimizations =
-		PassFactory_Builder_().
-			SetName("latePeepholeOptimizations").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					const late = true
-					useTypesForOptimization :=
-						options.ShouldUseTypesForLocalOptimization()
-					return NewPeepholeOptimizationsPass(
-						compiler,
-						"latePeepholeOptimizations",
-						NewStatementFusion(),
-						NewPeepholeRemoveDeadCode(),
-						NewPeepholeMinimizeConditions(late),
-						NewPeepholeSubstituteAlternateSyntax(late),
-						NewPeepholeReplaceKnownMethods(late, useTypesForOptimization),
-						NewPeepholeFoldConstants(late, useTypesForOptimization))
-				}).
-			Build()
-
-	// Checks that all variables are defined.
-	c.checkVars =
-		PassFactory_Builder_().SetName(PassNames_CHECK_VARS).SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-			return NewVarCheck(compiler)
-		}).Build()
-
-	// Infers constants.
-	c.inferConsts =
-		PassFactory_Builder_().
-			SetName(PassNames_INFER_CONSTS).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewInferConsts(compiler)
-			}).
-			Build()
-
-	// Checks for RegExp references.
-	c.checkRegExp =
-		PassFactory_Builder_().
-			SetName(PassNames_CHECK_REG_EXP).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					pass :=
-						NewCheckRegExp(
-							compiler,
-							options.GetAssumePropertiesAreStaticallyAnalyzable(),
-							/* reportErrors= */ true)
-
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						pass.Process(externs, root)
-						compiler.SetHasRegExpGlobalReferences(pass.IsGlobalRegExpPropertiesUsed())
-					})
-				}).
-			Build()
-
-	// This pass is redundant if we've already run checkRegExp during this compilation
-	c.checkRegExpForOptimizations =
-		PassFactory_Builder_().
-			SetName("checkRegExpForOptimizations").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					regExpCheck :=
-						NewCheckRegExp(
-							compiler,
-							options.GetAssumePropertiesAreStaticallyAnalyzable(),
-							/* reportErrors= */ false)
-
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						regExpCheck.Process(externs, root)
-						compiler.SetHasRegExpGlobalReferences(
-							regExpCheck.IsGlobalRegExpPropertiesUsed())
-					})
-				}).
-			Build()
-
-	// Checks that references to variables look reasonable.
-	c.checkVariableReferences =
-		PassFactory_Builder_().
-			SetName(PassNames_CHECK_VARIABLE_REFERENCES).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewVariableReferenceCheck(compiler)
-			}).
-			Build()
-
-	c.checkSuper =
-		PassFactory_Builder_().SetName("checkSuper").SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-			return NewCheckSuper(compiler)
-		}).Build()
-
-	// Clears the typed scope creator and all local typed scopes.
-	c.clearTypedScopeCreatorPass =
-		PassFactory_Builder_().
-			SetName("clearTypedScopeCreatorPass").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) { compiler.ClearTypedScopeCreator() })
-			}).
-			Build()
-
-	// Clears the top typed scope when we're done with it.
-	c.clearTopTypedScopePass =
-		PassFactory_Builder_().
-			SetName("clearTopTypedScopePass").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						// clear these scopes which we don't need anymore so they can be garbage
-						// collected
-						compiler.SetTopScope(nil)
-						for _, compilerInput := range compiler.GetInputsInOrder() {
-							compilerInput.SetTypedScope(nil)
-						}
-					})
-				}).
-			Build()
-
-	// Runs type inference.
-	c.inferTypes =
-		PassFactory_Builder_().
-			SetName(PassNames_INFER_TYPES).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(unused rhino.Node, srcRoot rhino.Node) {
-						globalRoot := srcRoot.GetParent()
-
-						inferencePass :=
-							NewTypeInferencePass(
-								compiler,
-								compiler.GetReverseAbstractInterpreter(),
-								compiler.GetTypedScopeCreator().(*TypedScopeCreator))
-						compiler.SetTypeCheckingHasRun(true)
-						compiler.SetTopScope(inferencePass.InferAllScopes(globalRoot))
-					})
-				}).
-			Build()
-
-	c.inferJsDocInfo =
-		PassFactory_Builder_().
-			SetName("inferJsDocInfo").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewInferJSDocInfo(compiler)
-			}).
-			Build()
-
-	// Checks type usage
-	c.checkTypes =
-		PassFactory_Builder_().
-			SetName(PassNames_CHECK_TYPES).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						check :=
-							NewTypeCheckWithScope(
-								compiler,
-								compiler.GetReverseAbstractInterpreter(),
-								compiler.GetTypeRegistry(),
-								compiler.GetTopScope(),
-								compiler.GetTypedScopeCreator().(*TypedScopeCreator)).
-								ReportUnknownTypes(
-									options.Enables(
-										DiagnosticGroup_ForType(TypeCheck_UNKNOWN_EXPR_TYPE))).
-								ReportMissingProperties(
-									!options.Disables(
-										DiagnosticGroup_ForType(TypeCheck_INEXISTENT_PROPERTY)))
-						check.Process(externs, root)
-						compiler.GetErrorManager().SetTypedPercent(check.GetTypedPercent())
-					})
-				}).
-			Build()
-
-	// Checks possible execution paths of the program for problems: missing
-	// return statements and dead code.
-	c.checkControlFlow =
-		PassFactory_Builder_().
-			SetName("checkControlFlow").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					var callbacks []NodeTraversal_Callback
-					var unreachable *CheckUnreachableCode
-					if !options.Disables(DiagnosticGroups_CHECK_USELESS_CODE) {
-						unreachable = NewCheckUnreachableCode(compiler)
-						callbacks = append(callbacks, unreachable)
-					}
-					if !options.Disables(DiagnosticGroups_MISSING_RETURN) {
-						mr := NewCheckMissingReturn(compiler)
-						mr.sharedCfgSource = unreachable
-						callbacks = append(callbacks, mr)
-					}
-					return defaultPassConfig_combineChecks(compiler, callbacks)
-				}).
-			Build()
-
-	// Checks access controls. Depends on type-inference.
-	c.checkAccessControls =
-		PassFactory_Builder_().
-			SetName("checkAccessControls").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewCheckAccessControls(compiler)
-			}).
-			Build()
-
-	// Runs the single-file linter passes
-	//
-	// These is NOT the configuration for the standalone Linter binary. New
-	// linter passes must also be added to LintPassConfig as well as this list.
-	c.lintChecks =
-		PassFactory_Builder_().
-			SetName(PassNames_LINT_CHECKS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					callbacks := []NodeTraversal_Callback{
-						NewCheckConstPrivateProperties(compiler),
-						NewCheckConstantCaseNames(compiler),
-						NewCheckEmptyStatements(compiler),
-						NewCheckEnums(compiler),
-						NewCheckEs6ModuleFileStructure(compiler),
-						NewCheckEs6Modules(compiler),
-						NewCheckNoMutatedEs6Exports(compiler),
-						NewCheckGoogModuleTypeScriptName(compiler),
-						NewCheckInterfaces(compiler),
-						NewCheckJSDocStyle(compiler),
-						NewCheckMissingSemicolon(compiler),
-						NewCheckNullabilityModifiers(compiler),
-						NewCheckPrimitiveAsObject(compiler),
-						NewCheckPrototypeProperties(compiler),
-						NewCheckUnusedPrivateProperties(compiler),
-						NewCheckUnusedLabels(compiler),
-						NewCheckUselessBlocks(compiler),
-						NewCheckVar(compiler),
-					}
-					return defaultPassConfig_combineChecks(compiler, callbacks)
-				}).
-			Build()
-
-	c.analyzerChecks =
-		PassFactory_Builder_().
-			SetName(PassNames_ANALYZER_CHECKS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					callbacks :=
-						[]NodeTraversal_Callback{
-							NewCheckArrayWithGoogObject(compiler),
-							NewImplicitNullabilityCheck(compiler),
-							NewCheckNestedNames(compiler)}
-
-					return defaultPassConfig_combineChecks(compiler, callbacks)
-				}).
-			Build()
-
-	c.checkRequiresAndProvidesSorted =
-		PassFactory_Builder_().
-			SetName("checkRequiresAndProvidesSorted").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return defaultPassConfig_combineChecks(
-						compiler,
-						[]NodeTraversal_Callback{
-							NewCheckProvidesSorted(CheckProvidesSorted_Mode_COLLECT_AND_REPORT),
-							NewCheckRequiresSorted(CheckRequiresSorted_Mode_COLLECT_AND_REPORT)})
-				}).
-			Build()
-
-	// Checks that the code is ES5 strict compliant.
-	c.checkStrictMode =
-		PassFactory_Builder_().
-			SetName("checkStrictMode").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					defaultLevel := CheckLevel_OFF
-					if options.ExpectStrictModeInput() {
-						defaultLevel = CheckLevel_ERROR
-					}
-					return NewStrictModeCheck(compiler, defaultLevel)
-				}).
-			Build()
-
-	// Process goog.tweak.getTweak() calls.
-	c.processTweaks =
-		PassFactory_Builder_().
-			SetName("processTweaks").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, jsRoot rhino.Node) {
-						NewProcessTweaks(compiler, options.GetTweakProcessing().ShouldStrip()).
-							Process(externs, jsRoot)
-					})
-				}).
-			Build()
-
-	// Check @define-annotated constants.
 	c.processDefinesCheck = c.createProcessDefines(ProcessDefines_Mode_CHECK)
-
-	// Replace @define-annotated constants.
-	c.processDefinesOptimize =
-		c.createProcessDefines(ProcessDefines_Mode_OPTIMIZE)
-
-	// Strips code for smaller compiled code. This is useful for removing debug
-	// statements to prevent leaking them publicly.
-	c.stripCode =
-		PassFactory_Builder_().
-			SetName("stripCode").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, jsRoot rhino.Node) {
-						options := compiler.GetOptions()
-						pass :=
-							NewStripCode(
-								compiler,
-								options.GetStripTypes(),
-								options.GetStripNameSuffixes(),
-								options.GetStripNamePrefixes(),
-								options.GetTweakProcessing().ShouldStrip())
-
-						pass.Process(externs, jsRoot)
-					})
-				}).
-			// TODO(johnlenz): StripCode may be fooled by some newer features, like destructuring,
-			// an).build();
-			Build()
-
-	// Checks that all constants are not modified
-	c.checkConsts =
-		PassFactory_Builder_().SetName("checkConsts").SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-			return NewConstCheck(compiler)
-		}).Build()
-
-	c.rewriteCallerCodeLocation =
-		PassFactory_Builder_().
-			SetName("rewriteCallerCodeLocation").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewRewriteCallerCodeLocation(compiler)
-			}).
-			Build()
-
-	// Replaces goog.toggle calls with toggle lookups.
-	c.replaceToggles =
-		PassFactory_Builder_().
-			SetName("replaceToggles").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewReplaceToggles(compiler)
-			}).
-			Build()
-
-	// Generates unique ids.
-	c.replaceIdGenerators =
-		PassFactory_Builder_().
-			SetName(PassNames_REPLACE_ID_GENERATORS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						pass :=
-							NewReplaceIdGenerators(
-								compiler,
-								options.NeedsTranspilationOf(parser.FeatureSet_Feature_TEMPLATE_LITERALS),
-								options.GetIdGenerators(),
-								options.ShouldGeneratePseudoNames(),
-								options.GetIdGeneratorsMapSerialized(),
-								options.GetXidHashFunction())
-						pass.Process(externs, root)
-						compiler.SetIdGeneratorMap(pass.GetSerializedIdMappings())
-					})
-				}).
-			Build()
-
-	// Replace strings.
-	c.replaceStrings =
-		PassFactory_Builder_().
-			SetName("replaceStrings").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						pass :=
-							NewReplaceStrings(
-								compiler,
-								options.GetReplaceStringsPlaceholderToken(),
-								options.GetReplaceStringsFunctionDescriptions())
-						pass.Process(externs, root)
-						compiler.SetStringMap(pass.GetStringMap())
-					})
-				}).
-			Build()
-
-	// Remove variables set to goog.abstractMethod.
-	c.closureCodeRemoval =
-		PassFactory_Builder_().
-			SetName("closureCodeRemoval").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewClosureCodeRemoval(
-						compiler,
-						options.ShouldRemoveAbstractMethods(),
-						options.ShouldRemoveClosureAsserts())
-				}).
-			Build()
-
-	// Special case optimizations for closure functions.
-	c.closureOptimizePrimitives =
-		PassFactory_Builder_().
-			SetName("closureOptimizePrimitives").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewClosureOptimizePrimitives(
-						compiler, compiler.GetOptions().GetOutputFeatureSet().Contains(parser.FeatureSet_ES2015))
-				}).
-			Build()
-
-	// Puts global symbols into a single object.
-	c.rescopeGlobalSymbols =
-		PassFactory_Builder_().
-			SetName("rescopeGlobalSymbols").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewRescopeGlobalSymbols(
-						compiler,
-						*options.GetRenamePrefixNamespace(),
-						options.AssumeCrossChunkNamesForRenamePrefixNamespace(),
-						options.GetOptimizeLocalAccessForGlobalSymbolNamespace())
-				}).
-			Build()
-
-	// Converts cross chunk references into ES Module import and export
-	// statements.
-	c.convertChunksToESModules =
-		PassFactory_Builder_().
-			SetName("convertChunksToESModules").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewConvertChunksToESModules(compiler)
-			}).
-			Build()
-
-	// Perform inlining of aliases and collapsing of qualified names to global
-	// variables in order to improve later optimizations, such as
-	// RemoveUnusedCode.
-	c.inlineAndCollapseProperties =
-		PassFactory_Builder_().
-			SetName("inlineAndCollapseProperties").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return InlineAndCollapseProperties_Builder_(compiler).
-						SetPropertyCollapseLevel(options.GetPropertyCollapseLevel()).
-						SetChunkOutputType(options.GetChunkOutputType()).
-						SetHaveModulesBeenRewritten(options.GetProcessCommonJSModules()).
-						SetModuleResolutionMode(options.GetModuleResolutionMode()).
-						Build()
-				}).
-			SetPreconditionCheck(
-				func(options *CompilerOptions) *PassFactory_PreconditionResult {
-					return NewPassFactory_PreconditionResult(
-						options.GetPropertyCollapseLevel() == CompilerOptions_PropertyCollapseLevel_NONE ||
-							options.GetAssumePropertiesAreStaticallyAnalyzable(),
-						jutil.StringPtr("requires assumePropertiesAreStaticallyAnalyzable to be enabled"))
-				}).
-			Build()
-
-	// Rewrite properties as variables.
-	c.collapseObjectLiterals =
-		PassFactory_Builder_().
-			SetName(PassNames_COLLAPSE_OBJECT_LITERALS).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewInlineObjectLiterals(compiler, compiler.GetUniqueNameIdSupplier())
-				}).
-			Build()
-
-	// Disambiguate property names based on type information.
-	c.disambiguateProperties =
-		PassFactory_Builder_().
-			SetName(PassNames_DISAMBIGUATE_PROPERTIES).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewDisambiguateProperties(compiler, options.GetPropertiesThatMustDisambiguate())
-				}).
-			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
-			Build()
-
-	// Rewrite instance methods as static methods, to make them easier to
-	// inline.
-	c.devirtualizeMethods =
-		PassFactory_Builder_().
-			SetName(PassNames_DEVIRTUALIZE_METHODS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return OptimizeCalls_Builder_().
-						SetCompiler(compiler).
-						SetConsiderExterns(false).
-						AddPass(NewDevirtualizeMethods(compiler)).
-						Build()
-				}).
-			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
-			Build()
-
-	// Optimizes unused function arguments, unused return values, and inlines
-	// constant parameters. Also runs RemoveUnusedCode.
-	c.optimizeCalls =
-		PassFactory_Builder_().
-			SetName(PassNames_OPTIMIZE_CALLS).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return OptimizeCalls_Builder_().
-						SetCompiler(compiler).
-						SetConsiderExterns(false).
-						// Remove unused return values.
-						AddPass(NewOptimizeReturns(compiler).AsCallGraphCompilerPass()).
-						// Remove all parameters that are constants or unused.
-						AddPass(NewOptimizeParameters(compiler).AsCallGraphCompilerPass()).
-						Build()
-				}).
-			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
-			Build()
-
-	// Removes ECMAScript class constructors when an implicit constructor is
-	// sufficient.
-	c.optimizeConstructors =
-		PassFactory_Builder_().
-			SetName("optimizeConstructors").
-			SetRunInFixedPointLoop(false).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return OptimizeCalls_Builder_().
-						SetCompiler(compiler).
-						SetConsiderExterns(false).
-						// Remove redundant constructor definitions.
-						AddPass(NewOptimizeConstructors(compiler).AsCallGraphCompilerPass()).
-						Build()
-				}).
-			Build()
-
-	// Look for function calls that are pure, and annotate them that way.
-	c.markPureFunctions =
-		PassFactory_Builder_().
-			SetName("markPureFunctions").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewPureFunctionIdentifier_Driver(compiler)
-			}).
-			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
-			Build()
-
-	// Inlines variables heuristically.
-	c.inlineVariables =
-		PassFactory_Builder_().
-			SetName(PassNames_INLINE_VARIABLES).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					var mode InlineVariables_Mode
-					if options.ShouldInlineVariables() {
-						mode = InlineVariables_Mode_ALL
-					} else if options.ShouldInlineLocalVariables() {
-						mode = InlineVariables_Mode_LOCALS_ONLY
-					} else {
-						panic(jutil.NewIllegalStateExceptionMsg("No variable inlining option set."))
-					}
-					return NewInlineVariables(compiler, mode)
-				}).
-			Build()
-
-	// Inlines variables that are marked as constants.
-	c.inlineConstants =
-		PassFactory_Builder_().
-			SetName("inlineConstants").
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewInlineVariables(compiler, InlineVariables_Mode_CONSTANTS_ONLY)
-				}).
-			Build()
-
-	// Inlines simple methods, like getters
-	c.inlineSimpleMethods =
-		PassFactory_Builder_().
-			SetName("inlineSimpleMethods").
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewInlineSimpleMethods(compiler)
-			}).
-			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
-			Build()
-
-	// Kills dead assignments.
-	c.deadAssignmentsElimination =
-		PassFactory_Builder_().
-			SetName(PassNames_DEAD_ASSIGNMENT_ELIMINATION).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewDeadAssignmentsElimination(compiler)
-			}).
-			Build()
-
-	// Kills dead property assignments.
-	c.deadPropertyAssignmentElimination =
-		PassFactory_Builder_().
-			SetName("deadPropertyAssignmentElimination").
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewDeadPropertyAssignmentElimination(compiler)
-			}).
-			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
-			Build()
-
-	// Inlines function calls.
-	c.inlineFunctions =
-		PassFactory_Builder_().
-			SetName(PassNames_INLINE_FUNCTIONS).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewInlineFunctions(
-						compiler,
-						compiler.GetUniqueNameIdSupplier(),
-						options.GetInlineFunctionsLevel(),
-						options.AssumeStrictThis() || options.ExpectStrictModeInput(),
-						options.GetMaxFunctionSizeAfterInlining())
-				}).
-			Build()
-
-	// Inlines constant properties.
-	c.inlineProperties =
-		PassFactory_Builder_().
-			SetName(PassNames_INLINE_PROPERTIES).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewInlineProperties(compiler)
-			}).
-			Build()
-
-	// Isolates injected polyfills & references from the global scope
-	c.isolatePolyfills =
-		PassFactory_Builder_().
-			SetName("IsolatePolyfills").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewIsolatePolyfills(compiler)
-			}).
-			Build()
-
-	c.removeUnusedCode =
-		PassFactory_Builder_().
-			SetName(PassNames_REMOVE_UNUSED_CODE).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewRemoveUnusedCode_Builder(compiler).
-						RemoveLocalVars(options.ShouldRemoveUnusedLocalVariables()).
-						RemoveGlobals(options.ShouldRemoveUnusedVariables()).
-						PreserveFunctionExpressionNames(false).
-						RemoveUnusedPrototypeProperties(
-							options.ShouldRemoveUnusedPrototypeProperties()).
-						RemoveUnusedThisProperties(options.IsRemoveUnusedClassProperties()).
-						RemoveUnusedObjectDefinePropertiesDefinitions(
-							options.IsRemoveUnusedClassProperties()).
-						// If we are forcing injection of some library code, don't remove polyfills.
-						// Otherwise, we might end up removing polyfills the user specifically asked
-						// to include.
-						RemoveUnusedPolyfills(
-							len(options.GetForceLibraryInjectionList()) == 0 &&
-								options.GetInjectPolyfillsNewerThan() == nil).
-						AssumeGettersArePure(options.GetAssumeGettersArePure()).
-						Build()
-				}).
-			Build()
-
-	c.removeUnusedCodeOnce =
-		c.removeUnusedCode.ToBuilder().SetRunInFixedPointLoop(false).Build()
-
-	// Move global symbols to a deeper common chunk
-	c.crossChunkCodeMotion =
-		PassFactory_Builder_().
-			SetName(PassNames_CROSS_CHUNK_CODE_MOTION).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewCrossChunkCodeMotion(
-						compiler,
-						compiler.GetChunkGraph(),
-						options.GetParentChunkCanSeeSymbolsDeclaredInChildren())
-				}).
-			Build()
-
-	// Move methods to a deeper common chunk
-	c.crossChunkMethodMotion =
-		PassFactory_Builder_().
-			SetName(PassNames_CROSS_CHUNK_METHOD_MOTION).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewCrossChunkMethodMotion(
-						compiler,
-						compiler.GetCrossChunkIdGenerator(),
-						/* canModifyExterns= */ false, // remove this
-						options.GetCrossChunkCodeMotionNoStubMethods())
-				}).
-			Build()
-
-	// A data-flow based variable inliner.
-	c.flowSensitiveInlineVariables =
-		PassFactory_Builder_().
-			SetName(PassNames_FLOW_SENSITIVE_INLINE_VARIABLES).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewFlowSensitiveInlineVariables(compiler)
-			}).
-			Build()
-
-	// Lowers block-scoped declarations to function-scoped declarations.
-
-	// Uses register-allocation algorithms to use fewer variables.
-	c.coalesceVariableNames =
-		PassFactory_Builder_().
-			SetName(PassNames_COALESCE_VARIABLE_NAMES).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewCoalesceVariableNames(compiler, options.ShouldGeneratePseudoNames())
-				}).
-			Build()
-
-	// Collapses assignment expressions (e.g., `x = 3; y = x;` becomes
-	// `y = x = 3;`.
-	c.postNormalizePeephole =
-		PassFactory_Builder_().
-			SetName(PassNames_POST_NORMALIZE_PEEPHOLE).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					var optimizations []AbstractPeepholeOptimization
-					if options.ShouldCollapseVariableDeclarations() {
-						optimizations = append(optimizations, NewExploitAssigns())
-					}
-					if options.ShouldOptimizeLetAndConst() {
-						optimizations = append(optimizations,
-							NewOptimizeLetAndConstPeephole(options.ShouldTreatGlobalScopeAsIsolated()))
-					}
-					return NewPeepholeOptimizationsPassOfList(
-						compiler, PassNames_POST_NORMALIZE_PEEPHOLE, optimizations)
-				}).
-			Build()
-
-	// Collapses variable declarations (e.g., `var x; var y;` becomes
-	// `var x,y;`.
-	c.collapseVariableDeclarations =
-		PassFactory_Builder_().
-			SetName(PassNames_COLLAPSE_VARIABLE_DECLARATIONS).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewCollapseVariableDeclarations(compiler)
-			}).
-			Build()
-
-	// Extracts common sub-expressions.
-	c.extractPrototypeMemberDeclarations =
-		PassFactory_Builder_().
-			SetName(PassNames_EXTRACT_PROTOTYPE_MEMBER_DECLARATIONS).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					var pattern ExtractPrototypeMemberDeclarations_Pattern
-					switch options.GetExtractPrototypeMemberDeclarationsMode() {
-					case CompilerOptions_ExtractPrototypeMemberDeclarationsMode_USE_GLOBAL_TEMP:
-						pattern = ExtractPrototypeMemberDeclarations_Pattern_USE_GLOBAL_TEMP
-					case CompilerOptions_ExtractPrototypeMemberDeclarationsMode_USE_CHUNK_TEMP:
-						pattern = ExtractPrototypeMemberDeclarations_Pattern_USE_CHUNK_TEMP
-					case CompilerOptions_ExtractPrototypeMemberDeclarationsMode_USE_IIFE:
-						pattern = ExtractPrototypeMemberDeclarations_Pattern_USE_IIFE
-					default:
-						panic(jutil.NewIllegalStateExceptionMsg("unexpected"))
-					}
-
-					return NewExtractPrototypeMemberDeclarations(compiler, pattern)
-				}).
-			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
-			Build()
-
-	// Rewrites common function definitions to be more compact.
-	c.rewriteFunctionExpressions =
-		PassFactory_Builder_().
-			SetName(PassNames_REWRITE_FUNCTION_EXPRESSIONS).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewFunctionRewriter(compiler)
-			}).
-			Build()
-
-	// Collapses functions to not use the VAR keyword.
-	c.collapseAnonymousFunctions =
-		PassFactory_Builder_().
-			SetName(PassNames_COLLAPSE_ANONYMOUS_FUNCTIONS).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewCollapseAnonymousFunctions(compiler)
-			}).
-			Build()
-
-	// Moves function declarations to the top to simulate actual hoisting and
-	// rewrites block scope declarations to 'var'.
-	c.rewriteGlobalDeclarationsForTryCatchWrapping =
-		PassFactory_Builder_().
-			SetName("rewriteGlobalDeclarationsForTryCatchWrapping").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewRewriteGlobalDeclarationsForTryCatchWrapping(compiler)
-			}).
-			Build()
-
-	// Alias string literals with global variables, to reduce code size.
-	c.aliasStrings =
-		PassFactory_Builder_().
-			SetName("aliasStrings").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewAliasStrings(
-						compiler,
-						compiler.GetChunkGraph(),
-						options.ShouldOutputJsStringUsage(),
-						options.GetAliasStringsMode())
-				}).
-			Build()
-
-	// Renames properties so that the two properties that never appear on the
-	// same object get the same name.
-	c.ambiguateProperties =
-		PassFactory_Builder_().
-			SetName(PassNames_AMBIGUATE_PROPERTIES).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewAmbiguateProperties(
-						compiler,
-						options.GetPropertyReservedNamingFirstChars(),
-						options.GetPropertyReservedNamingNonFirstChars(),
-						compiler.GetExternProperties())
-				}).
-			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
-			Build()
-
-	// Mark the point at which the normalized AST assumptions no longer hold.
-	c.markUnnormalized =
-		PassFactory_Builder_().
-			SetName("markUnnormalized").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
-					})
-				}).
-			Build()
-
-	c.normalize =
-		PassFactory_Builder_().
-			SetName(PassNames_NORMALIZE).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return Normalize_CreateNormalizeForOptimizations(compiler)
-			}).
-			Build()
-
-	c.externExports =
-		PassFactory_Builder_().
-			SetName(PassNames_EXTERN_EXPORTS).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewExternExportsPass(compiler)
-			}).
-			Build()
-
-	// Denormalize the AST for code generation.
-	c.denormalize =
-		PassFactory_Builder_().
-			SetName("denormalize").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewDenormalize(compiler, options.GetOutputFeatureSet())
-				}).
-			Build()
-
-	// Inverting name normalization.
-	c.invertContextualRenaming =
-		PassFactory_Builder_().
-			SetName("invertContextualRenaming").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return MakeDeclaredNamesUnique_GetContextualRenameInverter(compiler)
-			}).
-			Build()
-
-	// Renames properties.
-	c.renameProperties =
-		PassFactory_Builder_().
-			SetName("renameProperties").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					jutil.CheckState(options.GetPropertyRenaming() == PropertyRenamingPolicy_ALL_UNQUOTED)
-					prevPropertyMap := options.GetInputPropertyMap()
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						rprop :=
-							NewRenameProperties(
-								compiler,
-								options.ShouldGeneratePseudoNames(),
-								prevPropertyMap,
-								options.GetPropertyReservedNamingFirstChars(),
-								options.GetPropertyReservedNamingNonFirstChars(),
-								options.GetNameGenerator())
-						rprop.Process(externs, root)
-						compiler.SetPropertyMap(rprop.GetPropertyMap())
-					})
-				}).
-			SetPreconditionCheck(defaultPassConfig_requirePropertiesAreStaticallyAnalyzable).
-			Build()
-
-	// Inlines calls to property renaming functions.
-	c.removePropertyRenamingCalls =
-		PassFactory_Builder_().
-			SetName("removePropertyRenamingCalls").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewRemovePropertyRenamingCalls(compiler)
-			}).
-			Build()
-
-	// Renames variables.
-	c.renameVars =
-		PassFactory_Builder_().
-			SetName("renameVars").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					prevVariableMap := options.GetInputVariableMap()
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						compiler.SetVariableMap(
-							c.runVariableRenaming(compiler, prevVariableMap, externs, root))
-					})
-				}).
-			Build()
-
-	// Renames labels
-	c.renameLabels =
-		PassFactory_Builder_().SetName("renameLabels").SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-			return NewRenameLabels(compiler)
-		}).Build()
-
-	// Convert bracket access to dot access
-	c.convertToDottedProperties =
-		PassFactory_Builder_().
-			SetName(PassNames_CONVERT_TO_DOTTED_PROPERTIES).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewConvertToDottedProperties(compiler)
-			}).
-			Build()
-
-	c.checkAstValidity =
-		PassFactory_Builder_().
-			SetName("checkAstValidity").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewAstValidator(compiler)
-			}).
-			Build()
-
-	// Checks that all variables are defined.
-	c.varCheckValidity =
-		PassFactory_Builder_().
-			SetName("varCheckValidity").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass { return NewVarCheckWithValidityCheck(compiler, true) }).
-			Build()
-
-	c.instrumentForCodeCoverage =
-		PassFactory_Builder_().
-			SetName("instrumentForCodeCoverage").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					// TODO(johnlenz): make global instrumentation an option
-					return NewCoverageInstrumentationPassWithInstrumentOption(
-						compiler,
-						CoverageInstrumentationPass_CoverageReach_CONDITIONAL,
-						options.GetInstrumentForCoverageOption(),
-						options.GetProductionInstrumentationArrayName())
-				}).
-			Build()
-
-	c.gatherExternPropertiesCheck =
-		c.createGatherExternProperties(GatherExternProperties_Mode_CHECK)
-
-	c.gatherExternPropertiesOptimize =
-		c.createGatherExternProperties(GatherExternProperties_Mode_OPTIMIZE)
-
-	// Rewrites Polymer({})
-	c.polymerPass =
-		PassFactory_Builder_().SetName("polymerPass").SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-			return NewPolymerPass(compiler)
-		}).Build()
-
-	c.chromePass =
-		PassFactory_Builder_().SetName("chromePass").SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-			return NewChromePass(compiler)
-		}).Build()
-
-	// Rewrites J2CL constructs to be more optimizable.
-	c.j2clConstantHoisterPass =
-		PassFactory_Builder_().
-			SetName("j2clConstantHoisterPass").
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewJ2clConstantHoisterPass(compiler)
-			}).
-			Build()
-
-	// Optimizes J2CL clinit methods.
-	c.j2clClinitPass =
-		PassFactory_Builder_().
-			SetName("j2clClinitPass").
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					changedScopeNodes :=
-						compiler.GetChangeTracker().GetChangedScopeNodesForPass("j2clClinitPass")
-					return NewJ2clClinitPrunerPass(compiler, changedScopeNodes)
-				}).
-			Build()
-
-	// Rewrites J2CL constructs to be more optimizable.
-	c.j2clPropertyInlinerPass =
-		PassFactory_Builder_().
-			SetName("j2clPropertyInlinerPass").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewJ2clPropertyInlinerPass(compiler)
-			}).
-			Build()
-
-	// Rewrites J2CL constructs to be more optimizable.
-	c.j2clPass =
-		PassFactory_Builder_().SetName("j2clPass").SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-			return NewJ2clPass(compiler)
-		}).Build()
-
-	// Rewrites J2CL constructs to be more optimizable.
-	c.j2clUtilGetDefineRewriterPass =
-		PassFactory_Builder_().
-			SetName("j2clUtilGetDefineRewriterPass").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewJ2clUtilGetDefineRewriterPass(compiler)
-			}).
-			Build()
-
-	c.j2clAssertRemovalPass =
-		PassFactory_Builder_().
-			SetName("j2clAssertRemovalPass").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewJ2clAssertRemovalPass(compiler)
-			}).
-			Build()
-
-	c.j2clSourceFileChecker =
-		PassFactory_Builder_().
-			SetName("j2clSourceFileChecker").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewJ2clSourceFileChecker(compiler)
-			}).
-			Build()
-
-	c.j2clChecksPass =
-		PassFactory_Builder_().
-			SetName("j2clChecksPass").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewJ2clChecksPass(compiler)
-			}).
-			Build()
-
-	c.checkConformance =
-		PassFactory_Builder_().
-			SetName(PassNames_CHECK_CONFORMANCE).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					reportingMode := options.GetConformanceReportingMode()
-					return NewCheckConformanceWithConfigs(
-						compiler,
-						options.GetConformanceConfigs(),
-						&reportingMode)
-				}).
-			Build()
-
-	c.removeCastNodes =
-		PassFactory_Builder_().
-			SetName("removeCastNodes").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewRemoveCastNodes(compiler)
-			}).
-			Build()
-
-	// Convert types from type-checking to optimization "colors"
-	c.typesToColors =
-		PassFactory_Builder_().
-			SetName("typesToColors").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
-						NewConvertTypesToColors(
-							compiler,
-							SerializationOptions_Builder_().
-								SetIncludeDebugInfo(
-									compiler.GetOptions().ShouldSerializeExtraDebugInfo()).
-								Build()).
-							Process(externs, js)
-
-						compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC)
-					})
-				}).
-			Build()
-
-	// Emit a TypedAST into of the current compilation.
-	c.serializeTypedAst =
-		PassFactory_Builder_().
-			SetName("serializeTypedAst").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return SerializeTypedAstPass_CreateFromPath(
-						compiler,
-						options.GetTypedAstOutputFile(),
-						SerializationOptions_Builder_().
-							SetIncludeDebugInfo(
-								compiler.GetOptions().ShouldSerializeExtraDebugInfo()).
-							// set the runtime libraries to serialize in the TypedAST proto
-							SetRuntimeLibraries(
-								compiler.GetRuntimeJsLibManager().GetInjectedLibraries()).
-							Build())
-				}).
-			Build()
-
-	c.removeUnnecessarySyntheticExterns =
-		PassFactory_Builder_().
-			SetName("removeUnnecessarySyntheticExterns").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewRemoveUnnecessarySyntheticExterns(compiler)
-			}).
-			Build()
-
-	// Optimizations that output ES2015 features.
-	c.optimizeToEs6 =
-		PassFactory_Builder_().
-			SetName("optimizeToEs6").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewSubstituteEs6Syntax(compiler)
-			}).
-			Build()
-
-	// Rewrites goog.module in whitespace only mode
-	c.whitespaceWrapGoogModules =
-		PassFactory_Builder_().
-			SetName("whitespaceWrapGoogModules").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewWhitespaceWrapGoogModules(compiler)
-			}).
-			Build()
-
-	c.rewriteCommonJsModules =
-		PassFactory_Builder_().
-			SetName(PassNames_REWRITE_COMMON_JS_MODULES).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewProcessCommonJSModules(compiler)
-			}).
-			Build()
-
-	c.rewriteScriptsToEs6Modules =
-		PassFactory_Builder_().
-			SetName(PassNames_REWRITE_SCRIPTS_TO_ES6_MODULES).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewEs6RewriteScriptsToModules(compiler)
-			}).
-			Build()
-
-	c.gatherModuleMetadataPass =
-		PassFactory_Builder_().
-			SetName(PassNames_GATHER_MODULE_METADATA).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					// Force creation of the synthetic input so that we create metadata for it
-					compiler.GetSynthesizedExternsInput()
-					return NewGatherModuleMetadata(
-						compiler,
-						options.GetProcessCommonJSModules(),
-						options.GetModuleResolutionMode())
-				}).
-			Build()
-
-	c.createModuleMapPass =
-		PassFactory_Builder_().
-			SetName(PassNames_CREATE_MODULE_MAP).
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap())
-				}).
-			// does not look at AST
-			Build()
-
-	c.gatherGettersAndSetters =
-		PassFactory_Builder_().
-			SetName(PassNames_GATHER_GETTERS_AND_SETTERS).
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return NewGatherGetterAndSetterProperties(compiler)
-			}).
-			Build()
-
-	// this pass is just adding script without looking at the AST so it should accept all features
-	c.addSyntheticScript =
-		PassFactory_Builder_().
-			SetName("ADD_SYNTHETIC_SCRIPT").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) { compiler.InitializeSyntheticCodeInput() })
-				}).
-			Build()
-
-	c.removeSyntheticScript =
-		PassFactory_Builder_().
-			SetName("REMOVE_SYNTHETIC_SCRIPT").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) { compiler.RemoveSyntheticCodeInput() })
-			}).
-			Build()
-
-	c.mergeSyntheticScript =
-		PassFactory_Builder_().
-			SetName("MERGE_SYNTHETIC_SCRIPT").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) { compiler.MergeSyntheticCodeInput() })
-			}).
-			Build()
-
-	// Replace locale values with stubs that can survive optimizations and be
-	// replaced afterwards.
-	c.protectLocaleData =
-		PassFactory_Builder_().
-			SetName("protectLocaleData").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						NewLocaleDataPasses_ProtectGoogLocale(compiler).Process(externs, root)
-					})
-				}).
-			Build()
-
-	// Replace locale data stubs with the values for a locale.
-	c.substituteLocaleData =
-		PassFactory_Builder_().
-			SetName("SubstituteLocaleData").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						NewLocaleDataPasses_LocaleSubstitutions(
-							compiler, compiler.GetOptions().GetLocale()).
-							Process(externs, root)
-					})
-				}).
-			Build()
-
-	c.transpileOnlyClosureUnaware =
-		PassFactory_Builder_().
-			SetName("TranspileOnlyClosureUnaware").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewTranspileAndOptimizeClosureUnaware(
-						compiler, NestedCompilerRunner_Mode_TRANSPILE_ONLY)
-				}).
-			Build()
-
-	c.transpileAndOptimizeClosureUnaware =
-		PassFactory_Builder_().
-			SetName("TranspileAndOptimizeClosureUnaware").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewTranspileAndOptimizeClosureUnaware(
-						compiler, NestedCompilerRunner_Mode_TRANSPILE_AND_OPTIMIZE)
-				}).
-			Build()
+	c.processDefinesOptimize = c.createProcessDefines(ProcessDefines_Mode_OPTIMIZE)
+
+	c.stripCode = defaultPass_stripCode
+	c.checkConsts = defaultPass_checkConsts
+	c.rewriteCallerCodeLocation = defaultPass_rewriteCallerCodeLocation
+	c.replaceToggles = defaultPass_replaceToggles
+
+	c.replaceIdGenerators = makePassFactory(PassNames_REPLACE_ID_GENERATORS, func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			pass := NewReplaceIdGenerators(
+				compiler,
+				options.NeedsTranspilationOf(parser.FeatureSet_Feature_TEMPLATE_LITERALS),
+				options.GetIdGenerators(),
+				options.ShouldGeneratePseudoNames(),
+				options.GetIdGeneratorsMapSerialized(),
+				options.GetXidHashFunction())
+			pass.Process(externs, root)
+			compiler.SetIdGeneratorMap(pass.GetSerializedIdMappings())
+		})
+	})
+
+	c.replaceStrings = makePassFactory("replaceStrings", func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			pass := NewReplaceStrings(
+				compiler,
+				options.GetReplaceStringsPlaceholderToken(),
+				options.GetReplaceStringsFunctionDescriptions())
+			pass.Process(externs, root)
+			compiler.SetStringMap(pass.GetStringMap())
+		})
+	})
+
+	c.closureCodeRemoval = makePassFactory("closureCodeRemoval", func(compiler AbstractCompiler) CompilerPass {
+		return NewClosureCodeRemoval(
+			compiler,
+			options.ShouldRemoveAbstractMethods(),
+			options.ShouldRemoveClosureAsserts())
+	})
+
+	c.closureOptimizePrimitives = defaultPass_closureOptimizePrimitives
+
+	c.rescopeGlobalSymbols = makePassFactory("rescopeGlobalSymbols", func(compiler AbstractCompiler) CompilerPass {
+		return NewRescopeGlobalSymbols(
+			compiler,
+			*options.GetRenamePrefixNamespace(),
+			options.AssumeCrossChunkNamesForRenamePrefixNamespace(),
+			options.GetOptimizeLocalAccessForGlobalSymbolNamespace())
+	})
+
+	c.convertChunksToESModules = defaultPass_convertChunksToESModules
+
+	c.inlineAndCollapseProperties = makeCheckedPassFactory(
+		"inlineAndCollapseProperties",
+		inlineAndCollapsePrecondition,
+		false,
+		func(compiler AbstractCompiler) CompilerPass {
+			return InlineAndCollapseProperties_Builder_(compiler).
+				SetPropertyCollapseLevel(options.GetPropertyCollapseLevel()).
+				SetChunkOutputType(options.GetChunkOutputType()).
+				SetHaveModulesBeenRewritten(options.GetProcessCommonJSModules()).
+				SetModuleResolutionMode(options.GetModuleResolutionMode()).
+				Build()
+		},
+	)
+
+	c.collapseObjectLiterals = defaultPass_collapseObjectLiterals
+
+	c.disambiguateProperties = makeCheckedPassFactory(
+		PassNames_DISAMBIGUATE_PROPERTIES,
+		defaultPassConfig_requirePropertiesAreStaticallyAnalyzable,
+		false,
+		func(compiler AbstractCompiler) CompilerPass {
+			return NewDisambiguateProperties(compiler, options.GetPropertiesThatMustDisambiguate())
+		},
+	)
+
+	c.devirtualizeMethods = defaultPass_devirtualizeMethods
+	c.optimizeCalls = defaultPass_optimizeCalls
+	c.optimizeConstructors = defaultPass_optimizeConstructors
+	c.markPureFunctions = defaultPass_markPureFunctions
+
+	c.inlineVariables = makeLoopPassFactory(PassNames_INLINE_VARIABLES, func(compiler AbstractCompiler) CompilerPass {
+		return NewInlineVariables(compiler, inlineVariablesMode(options))
+	})
+
+	c.inlineConstants = defaultPass_inlineConstants
+	c.inlineSimpleMethods = defaultPass_inlineSimpleMethods
+	c.deadAssignmentsElimination = defaultPass_deadAssignmentsElimination
+	c.deadPropertyAssignmentElimination = defaultPass_deadPropertyAssignmentElimination
+
+	c.inlineFunctions = makeLoopPassFactory(PassNames_INLINE_FUNCTIONS, func(compiler AbstractCompiler) CompilerPass {
+		return NewInlineFunctions(
+			compiler,
+			compiler.GetUniqueNameIdSupplier(),
+			options.GetInlineFunctionsLevel(),
+			options.AssumeStrictThis() || options.ExpectStrictModeInput(),
+			options.GetMaxFunctionSizeAfterInlining())
+	})
+
+	c.inlineProperties = defaultPass_inlineProperties
+	c.isolatePolyfills = defaultPass_isolatePolyfills
+
+	c.removeUnusedCode = makeLoopPassFactory(PassNames_REMOVE_UNUSED_CODE, func(compiler AbstractCompiler) CompilerPass {
+		return NewRemoveUnusedCode_Builder(compiler).
+			RemoveLocalVars(options.ShouldRemoveUnusedLocalVariables()).
+			RemoveGlobals(options.ShouldRemoveUnusedVariables()).
+			PreserveFunctionExpressionNames(false).
+			RemoveUnusedPrototypeProperties(options.ShouldRemoveUnusedPrototypeProperties()).
+			RemoveUnusedThisProperties(options.IsRemoveUnusedClassProperties()).
+			RemoveUnusedObjectDefinePropertiesDefinitions(options.IsRemoveUnusedClassProperties()).
+			RemoveUnusedPolyfills(
+				len(options.GetForceLibraryInjectionList()) == 0 && options.GetInjectPolyfillsNewerThan() == nil).
+			AssumeGettersArePure(options.GetAssumeGettersArePure()).
+			Build()
+	})
+	c.removeUnusedCodeOnce = c.removeUnusedCode.ToBuilder().SetRunInFixedPointLoop(false).Build()
+
+	c.crossChunkCodeMotion = makeLoopPassFactory(PassNames_CROSS_CHUNK_CODE_MOTION, func(compiler AbstractCompiler) CompilerPass {
+		return NewCrossChunkCodeMotion(
+			compiler,
+			compiler.GetChunkGraph(),
+			options.GetParentChunkCanSeeSymbolsDeclaredInChildren())
+	})
+
+	c.crossChunkMethodMotion = makeLoopPassFactory(PassNames_CROSS_CHUNK_METHOD_MOTION, func(compiler AbstractCompiler) CompilerPass {
+		return NewCrossChunkMethodMotion(
+			compiler,
+			compiler.GetCrossChunkIdGenerator(),
+			false,
+			options.GetCrossChunkCodeMotionNoStubMethods())
+	})
+
+	c.flowSensitiveInlineVariables = defaultPass_flowSensitiveInlineVariables
+
+	c.coalesceVariableNames = makePassFactory(PassNames_COALESCE_VARIABLE_NAMES, func(compiler AbstractCompiler) CompilerPass {
+		return NewCoalesceVariableNames(compiler, options.ShouldGeneratePseudoNames())
+	})
+
+	c.postNormalizePeephole = makePassFactory(PassNames_POST_NORMALIZE_PEEPHOLE, func(compiler AbstractCompiler) CompilerPass {
+		var optimizations []AbstractPeepholeOptimization
+		if options.ShouldCollapseVariableDeclarations() {
+			optimizations = append(optimizations, NewExploitAssigns())
+		}
+		if options.ShouldOptimizeLetAndConst() {
+			optimizations = append(optimizations,
+				NewOptimizeLetAndConstPeephole(options.ShouldTreatGlobalScopeAsIsolated()))
+		}
+		return NewPeepholeOptimizationsPassOfList(compiler, PassNames_POST_NORMALIZE_PEEPHOLE, optimizations)
+	})
+
+	c.collapseVariableDeclarations = defaultPass_collapseVariableDeclarations
+
+	c.extractPrototypeMemberDeclarations = makeCheckedPassFactory(
+		PassNames_EXTRACT_PROTOTYPE_MEMBER_DECLARATIONS,
+		defaultPassConfig_requirePropertiesAreStaticallyAnalyzable,
+		false,
+		func(compiler AbstractCompiler) CompilerPass {
+			var pattern ExtractPrototypeMemberDeclarations_Pattern
+			switch options.GetExtractPrototypeMemberDeclarationsMode() {
+			case CompilerOptions_ExtractPrototypeMemberDeclarationsMode_USE_GLOBAL_TEMP:
+				pattern = ExtractPrototypeMemberDeclarations_Pattern_USE_GLOBAL_TEMP
+			case CompilerOptions_ExtractPrototypeMemberDeclarationsMode_USE_CHUNK_TEMP:
+				pattern = ExtractPrototypeMemberDeclarations_Pattern_USE_CHUNK_TEMP
+			case CompilerOptions_ExtractPrototypeMemberDeclarationsMode_USE_IIFE:
+				pattern = ExtractPrototypeMemberDeclarations_Pattern_USE_IIFE
+			default:
+				panic(jutil.NewIllegalStateExceptionMsg("unexpected"))
+			}
+			return NewExtractPrototypeMemberDeclarations(compiler, pattern)
+		},
+	)
+
+	c.rewriteFunctionExpressions = defaultPass_rewriteFunctionExpressions
+	c.collapseAnonymousFunctions = defaultPass_collapseAnonymousFunctions
+	c.rewriteGlobalDeclarationsForTryCatchWrapping = defaultPass_rewriteGlobalDeclarationsForTryCatchWrapping
+
+	c.aliasStrings = makePassFactory("aliasStrings", func(compiler AbstractCompiler) CompilerPass {
+		return NewAliasStrings(
+			compiler,
+			compiler.GetChunkGraph(),
+			options.ShouldOutputJsStringUsage(),
+			options.GetAliasStringsMode())
+	})
+
+	c.ambiguateProperties = makeCheckedPassFactory(
+		PassNames_AMBIGUATE_PROPERTIES,
+		defaultPassConfig_requirePropertiesAreStaticallyAnalyzable,
+		false,
+		func(compiler AbstractCompiler) CompilerPass {
+			return NewAmbiguateProperties(
+				compiler,
+				options.GetPropertyReservedNamingFirstChars(),
+				options.GetPropertyReservedNamingNonFirstChars(),
+				compiler.GetExternProperties())
+		},
+	)
+
+	c.markUnnormalized = defaultPass_markUnnormalized
+	c.normalize = defaultPass_normalize
+	c.externExports = defaultPass_externExports
+
+	c.denormalize = makePassFactory("denormalize", func(compiler AbstractCompiler) CompilerPass {
+		return NewDenormalize(compiler, options.GetOutputFeatureSet())
+	})
+
+	c.invertContextualRenaming = defaultPass_invertContextualRenaming
+
+	c.renameProperties = makeCheckedPassFactory(
+		"renameProperties",
+		defaultPassConfig_requirePropertiesAreStaticallyAnalyzable,
+		false,
+		func(compiler AbstractCompiler) CompilerPass {
+			jutil.CheckState(options.GetPropertyRenaming() == PropertyRenamingPolicy_ALL_UNQUOTED)
+			prevPropertyMap := options.GetInputPropertyMap()
+			return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+				rprop := NewRenameProperties(
+					compiler,
+					options.ShouldGeneratePseudoNames(),
+					prevPropertyMap,
+					options.GetPropertyReservedNamingFirstChars(),
+					options.GetPropertyReservedNamingNonFirstChars(),
+					options.GetNameGenerator())
+				rprop.Process(externs, root)
+				compiler.SetPropertyMap(rprop.GetPropertyMap())
+			})
+		},
+	)
+
+	c.removePropertyRenamingCalls = defaultPass_removePropertyRenamingCalls
+
+	c.renameVars = makePassFactory("renameVars", func(compiler AbstractCompiler) CompilerPass {
+		prevVariableMap := options.GetInputVariableMap()
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			compiler.SetVariableMap(c.runVariableRenaming(compiler, prevVariableMap, externs, root))
+		})
+	})
+
+	c.renameLabels = defaultPass_renameLabels
+	c.convertToDottedProperties = defaultPass_convertToDottedProperties
+	c.checkAstValidity = defaultPass_checkAstValidity
+	c.varCheckValidity = defaultPass_varCheckValidity
+
+	c.instrumentForCodeCoverage = makePassFactory("instrumentForCodeCoverage", func(compiler AbstractCompiler) CompilerPass {
+		return NewCoverageInstrumentationPassWithInstrumentOption(
+			compiler,
+			CoverageInstrumentationPass_CoverageReach_CONDITIONAL,
+			options.GetInstrumentForCoverageOption(),
+			options.GetProductionInstrumentationArrayName())
+	})
+
+	c.gatherExternPropertiesCheck = defaultPass_gatherExternPropertiesCheck
+	c.gatherExternPropertiesOptimize = defaultPass_gatherExternPropertiesOptimize
+	c.polymerPass = defaultPass_polymerPass
+	c.chromePass = defaultPass_chromePass
+	c.j2clConstantHoisterPass = defaultPass_j2clConstantHoisterPass
+	c.j2clClinitPass = defaultPass_j2clClinitPass
+	c.j2clPropertyInlinerPass = defaultPass_j2clPropertyInlinerPass
+	c.j2clPass = defaultPass_j2clPass
+	c.j2clUtilGetDefineRewriterPass = defaultPass_j2clUtilGetDefineRewriterPass
+	c.j2clAssertRemovalPass = defaultPass_j2clAssertRemovalPass
+	c.j2clSourceFileChecker = defaultPass_j2clSourceFileChecker
+	c.j2clChecksPass = defaultPass_j2clChecksPass
+
+	c.checkConformance = makePassFactory(PassNames_CHECK_CONFORMANCE, func(compiler AbstractCompiler) CompilerPass {
+		reportingMode := options.GetConformanceReportingMode()
+		return NewCheckConformanceWithConfigs(compiler, options.GetConformanceConfigs(), &reportingMode)
+	})
+
+	c.removeCastNodes = defaultPass_removeCastNodes
+	c.typesToColors = defaultPass_typesToColors
+
+	c.serializeTypedAst = makePassFactory("serializeTypedAst", func(compiler AbstractCompiler) CompilerPass {
+		return SerializeTypedAstPass_CreateFromPath(
+			compiler,
+			options.GetTypedAstOutputFile(),
+			SerializationOptions_Builder_().
+				SetIncludeDebugInfo(compiler.GetOptions().ShouldSerializeExtraDebugInfo()).
+				SetRuntimeLibraries(compiler.GetRuntimeJsLibManager().GetInjectedLibraries()).
+				Build())
+	})
+
+	c.removeUnnecessarySyntheticExterns = defaultPass_removeUnnecessarySyntheticExterns
+	c.optimizeToEs6 = defaultPass_optimizeToEs6
+	c.whitespaceWrapGoogModules = defaultPass_whitespaceWrapGoogModules
+	c.rewriteCommonJsModules = defaultPass_rewriteCommonJsModules
+	c.rewriteScriptsToEs6Modules = defaultPass_rewriteScriptsToEs6Modules
+
+	c.gatherModuleMetadataPass = makePassFactory(PassNames_GATHER_MODULE_METADATA, func(compiler AbstractCompiler) CompilerPass {
+		// Ensure the synthetic externs input exists so metadata is created for it.
+		compiler.GetSynthesizedExternsInput()
+		return NewGatherModuleMetadata(
+			compiler,
+			options.GetProcessCommonJSModules(),
+			options.GetModuleResolutionMode())
+	})
+
+	c.createModuleMapPass = defaultPass_createModuleMapPass
+	c.gatherGettersAndSetters = defaultPass_gatherGettersAndSetters
+	c.addSyntheticScript = defaultPass_addSyntheticScript
+	c.removeSyntheticScript = defaultPass_removeSyntheticScript
+	c.mergeSyntheticScript = defaultPass_mergeSyntheticScript
+	c.protectLocaleData = defaultPass_protectLocaleData
+	c.substituteLocaleData = defaultPass_substituteLocaleData
+	c.transpileOnlyClosureUnaware = defaultPass_transpileOnlyClosureUnaware
+	c.transpileAndOptimizeClosureUnaware = defaultPass_transpileAndOptimizeClosureUnaware
 }
 
-// getFullReplaceMessagesPass returns the form of `replaceMessages` that
-// does the replacement all at once, and which must run before
-// optimizations.
-//
-// Java: DefaultPassConfig.getFullReplaceMessagesPass()
+func inlineVariablesMode(options *CompilerOptions) InlineVariables_Mode {
+	if options.ShouldInlineVariables() {
+		return InlineVariables_Mode_ALL
+	}
+	if options.ShouldInlineLocalVariables() {
+		return InlineVariables_Mode_LOCALS_ONLY
+	}
+	panic(jutil.NewIllegalStateExceptionMsg("No variable inlining option set."))
+}
+
 func (c *DefaultPassConfig) getFullReplaceMessagesPass() *PassFactory {
 	options := c.options
-	return PassFactory_Builder_().
-		SetName(PassNames_REPLACE_MESSAGES).
-		SetInternalFactory(
-			func(compiler AbstractCompiler) CompilerPass {
-				return NewReplaceMessages(
-					compiler,
-					options.GetMessageBundle(),
-					/* allow messages with goog.getMsg */
-					options.GetStrictMessageReplacement()).
-					GetFullReplacementPass()
-			}).
-		Build()
+	return makePassFactory(PassNames_REPLACE_MESSAGES, func(compiler AbstractCompiler) CompilerPass {
+		return NewReplaceMessages(
+			compiler,
+			options.GetMessageBundle(),
+			options.GetStrictMessageReplacement()).
+			GetFullReplacementPass()
+	})
 }
 
-// getProtectMessagesPass returns the pass that protects messages from
-// mangling, so they can be found and replaced after optimizations.
-//
-// Java: DefaultPassConfig.getProtectMessagesPass()
 func (c *DefaultPassConfig) getProtectMessagesPass() *PassFactory {
 	options := c.options
-	return PassFactory_Builder_().
-		SetName("protectMessages").
-		SetInternalFactory(
-			func(compiler AbstractCompiler) CompilerPass {
-				return NewReplaceMessages(
-					compiler,
-					options.GetMessageBundle(),
-					/* allow messages with goog.getMsg */
-					options.GetStrictMessageReplacement()).
-					GetMsgProtectionPass()
-			}).
-		Build()
+	return makePassFactory("protectMessages", func(compiler AbstractCompiler) CompilerPass {
+		return NewReplaceMessages(
+			compiler,
+			options.GetMessageBundle(),
+			options.GetStrictMessageReplacement()).
+			GetMsgProtectionPass()
+	})
 }
 
-// getReplaceProtectedMessagesPass returns the pass that identifies
-// protected messages and completes their replacement.
-//
-// Java: DefaultPassConfig.getReplaceProtectedMessagesPass()
 func (c *DefaultPassConfig) getReplaceProtectedMessagesPass() *PassFactory {
 	options := c.options
-	return PassFactory_Builder_().
-		SetName("replaceProtectedMessages").
-		SetInternalFactory(
-			func(compiler AbstractCompiler) CompilerPass {
-				return NewReplaceMessages(
-					compiler,
-					options.GetMessageBundle(),
-					/* allow messages with goog.getMsg */
-					options.GetStrictMessageReplacement()).
-					GetReplacementCompletionPass()
-			}).
-		Build()
+	return makePassFactory("replaceProtectedMessages", func(compiler AbstractCompiler) CompilerPass {
+		return NewReplaceMessages(
+			compiler,
+			options.GetMessageBundle(),
+			options.GetStrictMessageReplacement()).
+			GetReplacementCompletionPass()
+	})
 }
 
-// defaultPassConfig_createPeepholeOptimizationsPass: various peephole
-// optimizations.
-//
-// Java: DefaultPassConfig.createPeepholeOptimizationsPass(AbstractCompiler, String, boolean)
 func defaultPassConfig_createPeepholeOptimizationsPass(
-	compiler AbstractCompiler, passName string, expectAstIsNormalized bool) CompilerPass {
+	compiler AbstractCompiler, passName string, expectAstIsNormalized bool,
+) CompilerPass {
 	jutil.CheckArgumentMsg1(
 		expectAstIsNormalized == compiler.GetLifeCycleStage().IsNormalized(),
 		"%s",
 		compiler.GetLifeCycleStage())
 	const late = false
-	useTypesForOptimization :=
-		compiler.GetOptions().ShouldUseTypesForLocalOptimization()
-	var optimizations []AbstractPeepholeOptimization
+	opts := compiler.GetOptions()
+	useTypes := opts.ShouldUseTypesForLocalOptimization()
+	optimizations := make([]AbstractPeepholeOptimization, 0, 10)
 	if expectAstIsNormalized {
-		// MinimizeExitPoints requires the AST to be normalized.
 		optimizations = append(optimizations, NewMinimizeExitPoints())
 	}
-	optimizations = append(optimizations, NewPeepholeMinimizeConditions(late))
-	optimizations = append(optimizations, NewPeepholeSubstituteAlternateSyntax(late))
-	optimizations = append(optimizations, NewPeepholeReplaceKnownMethods(late, useTypesForOptimization))
-	optimizations = append(optimizations, NewPeepholeRemoveDeadCode())
-	if compiler.GetOptions().GetJ2clPass().ShouldAddJ2clPasses() {
-		optimizations = append(optimizations, NewJ2clEqualitySameRewriterPass(useTypesForOptimization))
-		optimizations = append(optimizations, NewJ2clStringValueOfRewriterPass())
-		optimizations = append(optimizations, NewJ2clUndefinedChecksRewriterPass())
+	optimizations = append(
+		optimizations,
+		NewPeepholeMinimizeConditions(late),
+		NewPeepholeSubstituteAlternateSyntax(late),
+		NewPeepholeReplaceKnownMethods(late, useTypes),
+		NewPeepholeRemoveDeadCode(),
+	)
+	if opts.GetJ2clPass().ShouldAddJ2clPasses() {
+		optimizations = append(
+			optimizations,
+			NewJ2clEqualitySameRewriterPass(useTypes),
+			NewJ2clStringValueOfRewriterPass(),
+			NewJ2clUndefinedChecksRewriterPass(),
+		)
 	}
-	optimizations = append(optimizations, NewPeepholeFoldConstants(late, useTypesForOptimization))
-	optimizations = append(optimizations, NewPeepholeCollectPropertyAssignments())
+	optimizations = append(
+		optimizations,
+		NewPeepholeFoldConstants(late, useTypes),
+		NewPeepholeCollectPropertyAssignments(),
+	)
 	return NewPeepholeOptimizationsPassOfList(compiler, passName, optimizations)
 }
 
-// defaultPassConfig_combineChecks executes the given callbacks with a
-// CombinedCompilerPass.
-//
-// Java: DefaultPassConfig.combineChecks(AbstractCompiler, List<NodeTraversal.Callback>)
 func defaultPassConfig_combineChecks(
-	compiler AbstractCompiler, callbacks []NodeTraversal_Callback) CompilerPass {
+	compiler AbstractCompiler, callbacks []NodeTraversal_Callback,
+) CompilerPass {
 	jutil.CheckArgument(len(callbacks) != 0)
 	return NewCombinedCompilerPassOfList(compiler, callbacks)
 }
 
-// Java: DefaultPassConfig.createProcessDefines(ProcessDefines.Mode)
 func (c *DefaultPassConfig) createProcessDefines(mode ProcessDefines_Mode) *PassFactory {
 	options := c.options
-	return PassFactory_Builder_().
-		SetName("processDefines_" + mode.String()).
-		SetInternalFactory(
-			func(compiler AbstractCompiler) CompilerPass {
-				return NewProcessDefines_Builder(compiler).
-					PutReplacements(defaultPassConfig_getAdditionalReplacements(options)).
-					PutReplacements(options.GetDefineReplacements()).
-					SetMode(mode).
-					SetRecognizeClosureDefines(compiler.GetOptions().GetClosurePass()).
-					SetEnableZonesDefineName(options.GetEnableZonesDefineName()).
-					SetZoneInputPattern(options.GetZoneInputPattern()).
-					SetUnknownDefinesToIgnore(options.GetUnknownDefinesToIgnore()).
-					Build()
-			}).
-		Build()
+	return makePassFactory("processDefines_"+mode.String(), func(compiler AbstractCompiler) CompilerPass {
+		return NewProcessDefines_Builder(compiler).
+			PutReplacements(defaultPassConfig_getAdditionalReplacements(options)).
+			PutReplacements(options.GetDefineReplacements()).
+			SetMode(mode).
+			SetRecognizeClosureDefines(compiler.GetOptions().GetClosurePass()).
+			SetEnableZonesDefineName(options.GetEnableZonesDefineName()).
+			SetZoneInputPattern(options.GetZoneInputPattern()).
+			SetUnknownDefinesToIgnore(options.GetUnknownDefinesToIgnore()).
+			Build()
+	})
 }
 
-// Java: DefaultPassConfig.runVariableRenaming(AbstractCompiler, VariableMap, Node, Node)
 func (c *DefaultPassConfig) runVariableRenaming(
-	compiler AbstractCompiler, prevVariableMap *VariableMap, externs rhino.Node, root rhino.Node) *VariableMap {
+	compiler AbstractCompiler, prevVariableMap *VariableMap, externs rhino.Node, root rhino.Node,
+) *VariableMap {
 	options := c.options
 	reservedChars := jutil.NewLinkedHashSet[uint16]()
 	reservedNames := jutil.NewLinkedHashSet[string]()
-	if options.GetRenamePrefixNamespace() != nil {
-		// don't use the prefix name as a global symbol.
-		reservedNames.Add(*options.GetRenamePrefixNamespace())
+	if ns := options.GetRenamePrefixNamespace(); ns != nil {
+		reservedNames.Add(*ns)
 	}
 	for name := range compiler.GetExportedNames().All() {
 		reservedNames.Add(name)
@@ -1860,51 +1106,27 @@ func (c *DefaultPassConfig) runVariableRenaming(
 	for name := range parsing.ParserRunner_GetReservedVars().All() {
 		reservedNames.Add(name)
 	}
-	rn :=
-		NewRenameVars(
-			compiler,
-			options.GetRenamePrefix(),
-			options.GetVariableRenaming() == VariableRenamingPolicy_LOCAL,
-			options.ShouldGeneratePseudoNames(),
-			options.ShouldPreferStableNames(),
-			prevVariableMap,
-			reservedChars,
-			reservedNames,
-			options.GetNameGenerator())
+	rn := NewRenameVars(
+		compiler,
+		options.GetRenamePrefix(),
+		options.GetVariableRenaming() == VariableRenamingPolicy_LOCAL,
+		options.ShouldGeneratePseudoNames(),
+		options.ShouldPreferStableNames(),
+		prevVariableMap,
+		reservedChars,
+		reservedNames,
+		options.GetNameGenerator())
 	rn.Process(externs, root)
 	return rn.GetVariableMap()
 }
 
-// createGatherExternProperties: extern property names gathering pass.
-//
-// Java: DefaultPassConfig.createGatherExternProperties(GatherExternProperties.Mode)
-func (c *DefaultPassConfig) createGatherExternProperties(mode GatherExternProperties_Mode) *PassFactory {
-	return PassFactory_Builder_().
-		SetName("gatherExternProperties").
-		SetInternalFactory(func(compiler AbstractCompiler) CompilerPass { return NewGatherExternProperties(compiler, mode) }).
-		Build()
-}
-
-// getCustomPasses runs custom passes that are designated to run at a
-// particular time.
-//
-// TODO(nickreid): Deprecate this API
-//
-// Java: DefaultPassConfig.getCustomPasses(CustomPassExecutionTime)
 func (c *DefaultPassConfig) getCustomPasses(executionTime CustomPassExecutionTime) *PassFactory {
 	options := c.options
-	return PassFactory_Builder_().
-		SetName("runCustomPasses").
-		SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-			return defaultPassConfig_runInSerial(options.GetCustomPassesAt(executionTime))
-		}).
-		Build()
+	return makePassFactory("runCustomPasses", func(compiler AbstractCompiler) CompilerPass {
+		return defaultPassConfig_runInSerial(options.GetCustomPassesAt(executionTime))
+	})
 }
 
-// defaultPassConfig_runInSerial creates a compiler pass that runs the given
-// passes in serial.
-//
-// Java: DefaultPassConfig.runInSerial(Collection<CompilerPass>)
 func defaultPassConfig_runInSerial(passes []CompilerPass) CompilerPass {
 	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		for _, pass := range passes {
@@ -1913,49 +1135,13 @@ func defaultPassConfig_runInSerial(passes []CompilerPass) CompilerPass {
 	})
 }
 
-// Java: DefaultPassConfig.getAdditionalReplacements(CompilerOptions)
 func defaultPassConfig_getAdditionalReplacements(options *CompilerOptions) *jutil.LinkedHashMap[string, rhino.Node] {
 	additionalReplacements := jutil.NewLinkedHashMap[string, rhino.Node]()
-
 	if options.ShouldMarkAsCompiled() || options.GetClosurePass() {
 		additionalReplacements.Put(defaultPassConfig_COMPILED_CONSTANT_NAME, rhino.IR_TrueNode())
 	}
-
 	if options.GetClosurePass() && options.GetLocale() != nil && !options.DoLateLocalization() {
 		additionalReplacements.Put(defaultPassConfig_CLOSURE_LOCALE_CONSTANT_NAME, rhino.IR_String(*options.GetLocale()))
 	}
-
 	return additionalReplacements
-}
-
-// Rewrites ES modules import paths to be browser compliant
-//
-// Java: DefaultPassConfig.forbidDynamicImportUsage
-var defaultPassConfig_forbidDynamicImportUsage = PassFactory_Builder_().
-	SetName("FORBID_DYNAMIC_IMPORT").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-		return NewForbidDynamicImportUsage(compiler)
-	}).
-	Build()
-
-// Rewrites Dynamic Import Expressions
-//
-// Java: DefaultPassConfig.rewriteDynamicImports
-var defaultPassConfig_rewriteDynamicImports = PassFactory_Builder_().
-	SetName("REWRITE_DYNAMIC_IMPORT").
-	SetInternalFactory(
-		func(compiler AbstractCompiler) CompilerPass {
-			return NewRewriteDynamicImports(
-				compiler,
-				compiler.GetOptions().GetDynamicImportAlias(),
-				compiler.GetOptions().GetChunkOutputType())
-		}).
-	Build()
-
-// Java: DefaultPassConfig.requirePropertiesAreStaticallyAnalyzable(CompilerOptions)
-func defaultPassConfig_requirePropertiesAreStaticallyAnalyzable(
-	options *CompilerOptions) *PassFactory_PreconditionResult {
-	return NewPassFactory_PreconditionResult(
-		options.GetAssumePropertiesAreStaticallyAnalyzable(),
-		jutil.StringPtr("requires assumePropertiesAreStaticallyAnalyzable to be enabled"))
 }

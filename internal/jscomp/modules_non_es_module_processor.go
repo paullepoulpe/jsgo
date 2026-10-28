@@ -24,30 +24,23 @@ import (
 )
 
 var (
-	nonEsEmptyBindingMap = jutil.NewLinkedHashMap[string, *Binding]()
-	nonEsEmptyExportMap  = jutil.NewLinkedHashMap[string, *Export]()
+	nonEsEmptyBindingMap  = jutil.NewLinkedHashMap[string, *Binding]()
+	nonEsEmptyExportMap   = jutil.NewLinkedHashMap[string, *Export]()
+	nonEsEmptyExportedSet = jutil.NewLinkedHashSet[string]()
 )
 
-// NonEsModuleProcessor is the catch all module processor for non-ES and
-// non-goog modules that doesn't do any scanning of exports but instead will
-// always treat every name as `munged.name`.
-//
-// This includes goog.provide'd names and CommonJS modules.
-//
-// TODO(johnplaisted): It may not be too hard to actually scan these modules
-// and figure out their exported keys. At least, assuming we're rigid with
-// what we allow (no dynamic exports).
+// NonEsModuleProcessor is the catch-all module processor for non-ES and
+// non-goog modules (including goog.provide'd names and CommonJS modules).
 type NonEsModuleProcessor struct{}
 
-var _ ModuleMapCreator_ModuleProcessor = (*NonEsModuleProcessor)(nil)
+var _ moduleProcessor = (*NonEsModuleProcessor)(nil)
 
 // Java: NonEsModuleProcessor()
 func NewNonEsModuleProcessor() *NonEsModuleProcessor {
 	return &NonEsModuleProcessor{}
 }
 
-// NonEsModuleProcessor_NonEsModule is NonEsModuleProcessor.NonEsModule.
-type NonEsModuleProcessor_NonEsModule struct {
+type nonEsModule struct {
 	UnresolvedModuleBase
 
 	metadata   *ModuleMetadataMap_ModuleMetadata
@@ -55,25 +48,12 @@ type NonEsModuleProcessor_NonEsModule struct {
 	scriptNode rhino.Node
 }
 
-// Java: NonEsModuleProcessor.NonEsModule(ModuleMetadata, ModulePath, Node)
-func NewNonEsModuleProcessor_NonEsModule(
-	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, scriptNode rhino.Node) *NonEsModuleProcessor_NonEsModule {
-	m := &NonEsModuleProcessor_NonEsModule{}
-	m.InitUnresolvedModuleBase(m)
-	m.metadata = metadata
-	m.path = path
-	m.scriptNode = scriptNode
-	return m
-}
-
-// Java: NonEsModuleProcessor.NonEsModule.resolveExport(ModuleRequestResolver, String)
-func (m *NonEsModuleProcessor_NonEsModule) ResolveExport(
+func (m *nonEsModule) ResolveExport(
 	moduleRequestResolver ModuleRequestResolver, exportName string) *ResolveExportResult {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
-// Java: NonEsModuleProcessor.NonEsModule.resolveExport(ModuleRequestResolver, String, String, Set<ExportTrace>, Set<UnresolvedModule>)
-func (m *NonEsModuleProcessor_NonEsModule) ResolveExportWithTraces(
+func (m *nonEsModule) ResolveExportWithTraces(
 	moduleRequestResolver ModuleRequestResolver,
 	moduleSpecifier *string,
 	exportName string,
@@ -86,13 +66,8 @@ func (m *NonEsModuleProcessor_NonEsModule) ResolveExportWithTraces(
 	} else if m.metadata.IsGoogProvide() {
 		namespace = moduleSpecifier
 	}
-	if m.metadata.IsCommonJs() {
-		// Currently we don't scan require()s, so this only gets hit if an ES
-		// module imports a CJS module. If so then this module should only have
-		// a default export.
-		if exportName != "default" {
-			return ResolveExportResult_NOT_FOUND
-		}
+	if m.metadata.IsCommonJs() && exportName != "default" {
+		return ResolveExportResult_NOT_FOUND
 	}
 	return ResolveExportResult_Of(
 		Binding_From(
@@ -105,11 +80,9 @@ func (m *NonEsModuleProcessor_NonEsModule) ResolveExportWithTraces(
 			m.scriptNode))
 }
 
-// Java: NonEsModuleProcessor.NonEsModule.reset()
-func (m *NonEsModuleProcessor_NonEsModule) Reset() {}
+func (m *nonEsModule) Reset() {}
 
-// Java: NonEsModuleProcessor.NonEsModule.resolve(ModuleRequestResolver, String)
-func (m *NonEsModuleProcessor_NonEsModule) ResolveWithModuleSpecifier(
+func (m *nonEsModule) ResolveWithModuleSpecifier(
 	moduleRequestResolver ModuleRequestResolver, moduleSpecifier *string) *Module {
 	var namespace *string
 	if moduleSpecifier != nil && GoogEsImports_IsGoogImportSpecifier(*moduleSpecifier) {
@@ -127,18 +100,15 @@ func (m *NonEsModuleProcessor_NonEsModule) ResolveWithModuleSpecifier(
 	}
 }
 
-// Java: NonEsModuleProcessor.NonEsModule.metadata()
-func (m *NonEsModuleProcessor_NonEsModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
+func (m *nonEsModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
 	return m.metadata
 }
 
-// Java: NonEsModuleProcessor.NonEsModule.getExportedNames(ModuleRequestResolver)
-func (m *NonEsModuleProcessor_NonEsModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
+func (m *nonEsModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
-// Java: NonEsModuleProcessor.NonEsModule.getExportedNames(ModuleRequestResolver, Set<UnresolvedModule>)
-func (m *NonEsModuleProcessor_NonEsModule) GetExportedNamesWithVisited(
+func (m *nonEsModule) GetExportedNamesWithVisited(
 	moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string] {
 	panic(jutil.NewUnsupportedOperationException())
 }
@@ -146,5 +116,11 @@ func (m *NonEsModuleProcessor_NonEsModule) GetExportedNamesWithVisited(
 // Java: NonEsModuleProcessor.process(ModuleMetadata, ModulePath, Node)
 func (p *NonEsModuleProcessor) Process(
 	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule {
-	return NewNonEsModuleProcessor_NonEsModule(metadata, path, script)
+	m := &nonEsModule{
+		metadata:   metadata,
+		path:       path,
+		scriptNode: script,
+	}
+	m.InitUnresolvedModuleBase(m)
+	return m
 }

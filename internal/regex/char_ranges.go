@@ -292,12 +292,7 @@ func (c *CharRanges) Union(other *CharRanges) *CharRanges {
 		k += n - j
 	}
 	// We guessed at the output length above.  Cut off the tail.
-	if k != len(out) {
-		clipped := make([]int, k)
-		copy(clipped, out)
-		out = clipped
-	}
-	return NewCharRanges(out)
+	return NewCharRanges(out[:k])
 }
 
 // Intersection returns the intersection of c and other.
@@ -349,12 +344,7 @@ func (c *CharRanges) Intersection(other *CharRanges) *CharRanges {
 			}
 		}
 	}
-	if intersectionIdx != len(intersection) {
-		newArr := make([]int, intersectionIdx)
-		copy(newArr, intersection)
-		intersection = newArr
-	}
-	return NewCharRanges(intersection)
+	return NewCharRanges(intersection[:intersectionIdx])
 }
 
 // Difference returns c minus subtrahendRanges.
@@ -415,13 +405,7 @@ func (c *CharRanges) Difference(subtrahendRanges *CharRanges) *CharRanges {
 		}
 	}
 
-	if dIdx != len(difference) {
-		newArr := make([]int, dIdx)
-		copy(newArr, difference)
-		difference = newArr
-	}
-
-	return NewCharRanges(difference)
+	return NewCharRanges(difference[:dIdx])
 }
 
 // ContainsAll reports whether every member of sub is in c.
@@ -522,19 +506,7 @@ func (c *CharRanges) String() string {
 // Java: CharRanges.equals(Object)
 func (c *CharRanges) Equals(o any) bool {
 	charRanges, ok := o.(*CharRanges)
-	if !ok || charRanges == nil {
-		return false
-	}
-	// Java: Arrays.equals(this.ranges, charRanges.ranges)
-	if len(c.ranges) != len(charRanges.ranges) {
-		return false
-	}
-	for i := range c.ranges {
-		if c.ranges[i] != charRanges.ranges[i] {
-			return false
-		}
-	}
-	return true
+	return ok && charRanges != nil && slices.Equal(c.ranges, charRanges.ranges)
 }
 
 // HashCode hashes the first 16 boundaries.

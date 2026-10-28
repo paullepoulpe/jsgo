@@ -21,6 +21,7 @@ package parsing
 import (
 	"cmp"
 	"math/big"
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -45,13 +46,10 @@ type IRFactory struct {
 	errorReporter       rhino.ErrorReporter
 	transformDispatcher *IRFactory_TransformDispatcher
 
-	// If non-null, use this set of keywords instead of TokenStream.isKeyword().
-	reservedKeywords map[string]bool
-
 	parsedCommentBits    []uint64
 	parsedCommentBitsBuf [4]uint64
 
-	licenseBuilder    *jutil.LinkedHashSet[string]
+	licenses          []string
 	firstFileoverview *rhino.JSDocInfo
 
 	// Use a template node for properties set on all nodes to minimize the
@@ -80,7 +78,7 @@ type IRFactory struct {
 	features   *parser.FeatureSet
 	resultNode rhino.Node
 
-	closureUnawareCodeRanges *jutil.TreeRangeSet[IRFactory_LineAndColumn]
+	closureUnawareRanges []irFactorySpan
 
 	jsdocStream JsDocTokenStream
 	jsdocParser JsDocInfoParser
@@ -141,37 +139,17 @@ const IRFactory_UNEXPECTED_NEW_DOT_TARGET = "new.target must be inside a functio
 const IRFactory_NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK = "new.target is not supported in class field initializers or static blocks"
 const IRFactory_UNDEFINED_LABEL = "undefined label \"%s\""
 
-var IRFactory_ES5_RESERVED_KEYWORDS = map[string]bool{
-	// From Section 7.6.1.2
-	"class": true, "const": true, "enum": true, "export": true, "extends": true, "import": true, "super": true,
-}
-
-var IRFactory_ES5_STRICT_RESERVED_KEYWORDS = map[string]bool{
-	// From Section 7.6.1.2
-	"class":      true,
-	"const":      true,
-	"enum":       true,
-	"export":     true,
-	"extends":    true,
-	"import":     true,
-	"super":      true,
-	"implements": true,
-	"interface":  true,
-	"let":        true,
-	"package":    true,
-	"private":    true,
-	"protected":  true,
-	"public":     true,
-	"static":     true,
-	"yield":      true,
-}
-
 // IRFactory_LineAndColumn represents a line and column number in a file.
 //
 // Java: record IRFactory.LineAndColumn(int lineNo, int column) implements Comparable<LineAndColumn>
 type IRFactory_LineAndColumn struct {
 	lineNo int
 	column int
+}
+
+type irFactorySpan struct {
+	start IRFactory_LineAndColumn
+	end   IRFactory_LineAndColumn
 }
 
 // Java: IRFactory.LineAndColumn(int, int)
@@ -194,13 +172,6 @@ func (l IRFactory_LineAndColumn) CompareTo(o IRFactory_LineAndColumn) int {
 	}
 	return cmp.Compare(l.column, o.column)
 }
-
-// irFactory_LineAndColumn_compare is the natural ordering of LineAndColumn
-// (Comparable.compareTo) as a comparator.
-//
-// Go-only: language-adapter — TreeRangeSet<LineAndColumn> orders by
-// Comparable; the jutil TreeRangeSet takes the comparator.
-func irFactory_LineAndColumn_compare(a, b IRFactory_LineAndColumn) int { return a.CompareTo(b) }
 
 // Java: IRFactory(StaticSourceFile, Config, ErrorReporter, ImmutableList<Comment>, SourceFile, JsDocInfoParser.JsDocSourceKind)
 func NewIRFactory(
@@ -255,13 +226,10 @@ func NewIRFactory(
 	f.transformDispatcher = &f.transformDispatcherVal
 
 	if config.StrictMode().IsStrict() {
-		f.reservedKeywords = IRFactory_ES5_STRICT_RESERVED_KEYWORDS
 		f.reservedMode = 2
 	} else if config.LanguageMode() == Config_LanguageMode_ECMASCRIPT3 {
-		f.reservedKeywords = nil // use TokenStream.isKeyword instead
 		f.reservedMode = 0
 	} else {
-		f.reservedKeywords = IRFactory_ES5_RESERVED_KEYWORDS
 		f.reservedMode = 1
 	}
 	f.jsDocSourceKind = jsDocSourceKind
@@ -516,6 +484,13 @@ func (f *IRFactory) GetFeatures() *parser.FeatureSet {
 
 // Java: IRFactory.setFileOverviewJsDoc(Node)
 func (f *IRFactory) SetFileOverviewJsDoc(irNode rhino.Node) {
+	if len(f.licenses) == 0 {
+		if f.firstFileoverview != nil {
+			irNode.SetJSDocInfo(f.firstFileoverview)
+		}
+		return
+	}
+
 	var fileoverview *rhino.JSDocInfo_Builder
 	if f.firstFileoverview == nil {
 		fileoverview = rhino.JSDocInfo_Builder_()
@@ -523,14 +498,11 @@ func (f *IRFactory) SetFileOverviewJsDoc(irNode rhino.Node) {
 		fileoverview = f.firstFileoverview.ToBuilder()
 	}
 
-	if f.licenseBuilder != nil && !f.licenseBuilder.IsEmpty() {
-		var sb strings.Builder
-		for license := range f.licenseBuilder.All() {
-			sb.WriteString(license)
-		}
-		fileoverview.RecordLicense(sb.String())
+	if len(f.licenses) == 1 {
+		fileoverview.RecordLicense(f.licenses[0])
+	} else {
+		fileoverview.RecordLicense(strings.Join(f.licenses, ""))
 	}
-
 	irNode.SetJSDocInfo(fileoverview.BuildWithAlways(false))
 }
 
@@ -558,11 +530,8 @@ func (f *IRFactory) TransformBlock(node parser.ParseTree) rhino.Node {
 //
 // Java: IRFactory.handlePossibleFileOverviewJsDoc(JsDocInfoParser)
 func (f *IRFactory) HandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser) bool {
-	if jsDocParser.GetLicenseText() != nil {
-		if f.licenseBuilder == nil {
-			f.licenseBuilder = jutil.NewLinkedHashSet[string]()
-		}
-		f.licenseBuilder.Add(*jsDocParser.GetLicenseText())
+	if lic := jsDocParser.GetLicenseText(); lic != nil && !slices.Contains(f.licenses, *lic) {
+		f.licenses = append(f.licenses, *lic)
 	}
 
 	newFileoverview := jsDocParser.GetFileOverviewJSDocInfo()
@@ -722,7 +691,7 @@ func (f *IRFactory) hasAnyPendingCommentBeforeOffset(offset int32) bool {
 	if f.nonJsdocTracker.hasPendingBeforeOffset(offset) {
 		return true
 	}
-	return f.closureUnawareCodeRanges != nil && f.jsdocTracker.hasPendingBeforeOffset(offset)
+	return len(f.closureUnawareRanges) > 0 && f.jsdocTracker.hasPendingBeforeOffset(offset)
 }
 
 // Java: IRFactory.hasAnyPendingCommentBefore(SourcePosition, boolean)
@@ -907,14 +876,11 @@ func (f *IRFactory) Transform(tree parser.ParseTree) rhino.Node {
 		if f.closureUnawareTemplateNode.IsNil() {
 			f.closureUnawareTemplateNode = f.CreateClosureUnawareTemplateNode()
 		}
-		if f.closureUnawareCodeRanges == nil {
-			f.closureUnawareCodeRanges = jutil.NewTreeRangeSet(irFactory_LineAndColumn_compare)
-		}
 		f.templateNode = f.closureUnawareTemplateNode
-		nextClosureUnawareRangeStart := IRFactory_LineAndColumn_FromSourcePosition(startPos)
-		nextClosureUnawareRangeEnd := IRFactory_LineAndColumn_FromSourcePosition(f.linePos(loc.End))
-		f.closureUnawareCodeRanges.Add(
-			jutil.Range_Closed(nextClosureUnawareRangeStart, nextClosureUnawareRangeEnd, irFactory_LineAndColumn_compare))
+		f.addClosureUnawareRange(
+			IRFactory_LineAndColumn_FromSourcePosition(startPos),
+			IRFactory_LineAndColumn_FromSourcePosition(f.linePos(loc.End)),
+		)
 	}
 
 	node := f.transformDispatcher.Process(tree)
@@ -965,13 +931,35 @@ func (f *IRFactory) HideClosureUnawareCodeRoot(fn rhino.Node) rhino.Node {
 	return shadowNameNode
 }
 
+func (f *IRFactory) addClosureUnawareRange(start, end IRFactory_LineAndColumn) {
+	spans := f.closureUnawareRanges
+	i, _ := slices.BinarySearchFunc(spans, start, func(s irFactorySpan, p IRFactory_LineAndColumn) int {
+		return s.end.CompareTo(p)
+	})
+	j := i
+	for j < len(spans) && spans[j].start.CompareTo(end) <= 0 {
+		if spans[j].start.CompareTo(start) < 0 {
+			start = spans[j].start
+		}
+		if spans[j].end.CompareTo(end) > 0 {
+			end = spans[j].end
+		}
+		j++
+	}
+	f.closureUnawareRanges = slices.Replace(spans, i, j, irFactorySpan{start: start, end: end})
+}
+
 // Java: IRFactory.withinClosureUnawareCodeRange(int, int)
 func (f *IRFactory) WithinClosureUnawareCodeRange(line int, lineColumnNo int) bool {
-	if f.closureUnawareCodeRanges == nil || f.closureUnawareCodeRanges.IsEmpty() {
+	spans := f.closureUnawareRanges
+	if len(spans) == 0 {
 		return false
 	}
-
-	return f.closureUnawareCodeRanges.Contains(NewIRFactory_LineAndColumn(line, lineColumnNo))
+	pt := IRFactory_LineAndColumn{lineNo: line, column: lineColumnNo}
+	i, _ := slices.BinarySearchFunc(spans, pt, func(s irFactorySpan, p IRFactory_LineAndColumn) int {
+		return s.end.CompareTo(p)
+	})
+	return i < len(spans) && spans[i].start.CompareTo(pt) <= 0
 }
 
 // Java: IRFactory.maybeInjectCastNode(ParseTree, JSDocInfo, Node)

@@ -226,6 +226,95 @@ func (b *NodeTraversal_AbstractScopedCallbackBase) EnterScope(t *NodeTraversal) 
 // Java: NodeTraversal.AbstractScopedCallback.exitScope(NodeTraversal)
 func (b *NodeTraversal_AbstractScopedCallbackBase) ExitScope(t *NodeTraversal) {}
 
+type cfgStackEntry struct {
+	root rhino.Node
+	cfg  ControlFlowGraph[rhino.Node]
+}
+
+// cfgScopeStack tracks and lazily computes ControlFlowGraphs for enclosing CFG
+// root scopes during a traversal without virtual self-dispatch.
+type cfgScopeStack struct {
+	cfgs    []cfgStackEntry
+	cfgsBuf [8]cfgStackEntry
+
+	// Go-only: performance — the graph of cfgs[i] is computed into
+	// cfgStorage[i], which is released when cfgs[i] is popped and reused for
+	// the next CFG root at the same depth.
+	cfgStorage []*ReusableCfg
+}
+
+func (s *cfgScopeStack) resetCfgStack() {
+	for i := range s.cfgs {
+		if s.cfgs[i].cfg != nil {
+			s.cfgStorage[i].release()
+		}
+	}
+	clear(s.cfgs)
+	s.cfgs = s.cfgsBuf[:0]
+}
+
+func (s *cfgScopeStack) pushCfgRoot(root rhino.Node) {
+	if s.cfgs == nil {
+		s.cfgs = s.cfgsBuf[:0]
+	}
+	s.cfgs = append(s.cfgs, cfgStackEntry{root: root})
+}
+
+func (s *cfgScopeStack) pushScopeRoot(scopeRoot rhino.Node) {
+	if NodeUtil_IsValidCfgRoot(scopeRoot) {
+		s.pushCfgRoot(scopeRoot)
+	}
+}
+
+func (s *cfgScopeStack) popCfgRoot() {
+	if len(s.cfgs) == 0 {
+		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
+	}
+	idx := len(s.cfgs) - 1
+	if s.cfgs[idx].cfg != nil {
+		s.cfgStorage[idx].release()
+	}
+	s.cfgs[idx] = cfgStackEntry{}
+	s.cfgs = s.cfgs[:idx]
+}
+
+func (s *cfgScopeStack) popScopeRoot(scopeRoot rhino.Node) {
+	if NodeUtil_IsValidCfgRoot(scopeRoot) {
+		s.popCfgRoot()
+	}
+}
+
+// PeekCurrentScopeCfg returns the already-computed ControlFlowGraph for the
+// current scope if one has been materialized, or nil otherwise.
+func (s *cfgScopeStack) PeekCurrentScopeCfg() ControlFlowGraph[rhino.Node] {
+	idx := len(s.cfgs) - 1
+	if idx < 0 {
+		return nil
+	}
+	return s.cfgs[idx].cfg
+}
+
+// GetControlFlowGraph gets the control flow graph for the current JS scope.
+//
+// Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
+func (s *cfgScopeStack) GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[rhino.Node] {
+	idx := len(s.cfgs) - 1
+	jutil.CheckState(idx >= 0)
+	if cfg := s.cfgs[idx].cfg; cfg != nil {
+		return cfg
+	}
+	for len(s.cfgStorage) <= idx {
+		s.cfgStorage = append(s.cfgStorage, &ReusableCfg{})
+	}
+	result := s.cfgStorage[idx].Compute(
+		compiler,
+		s.cfgs[idx].root,
+		/* shouldTraverseFunctions= */ false,
+		/* edgeAnnotations= */ true)
+	s.cfgs[idx].cfg = result
+	return result
+}
+
 // NodeTraversal_AbstractCfgCallback is a traversal base class that tracks
 // and caches the ControlFlowGraph (CFG) during the traversal. The CFGs are
 // constructed lazily.
@@ -244,100 +333,34 @@ type NodeTraversal_AbstractCfgCallback interface {
 	GetNodeTraversal_AbstractCfgCallbackBase() *NodeTraversal_AbstractCfgCallbackBase
 }
 
-type cfgStackEntry struct {
-	root rhino.Node
-	cfg  ControlFlowGraph[rhino.Node]
-}
-
 // NodeTraversal_AbstractCfgCallbackBase holds the fields and methods of
-// AbstractCfgCallback; subclasses embed it and call
-// InitNodeTraversal_AbstractCfgCallbackBase with themselves.
+// AbstractCfgCallback for external/test callbacks; production passes embed
+// cfgScopeStack directly.
 type NodeTraversal_AbstractCfgCallbackBase struct {
+	cfgScopeStack
 	self NodeTraversal_AbstractCfgCallback
-
-	cfgs    []cfgStackEntry
-	cfgsBuf [8]cfgStackEntry
-
-	// Go-only: performance — the graph of cfgs[i] is computed into
-	// cfgStorage[i], which is released when cfgs[i] is popped and reused for
-	// the next CFG root at the same depth.
-	cfgStorage []*ReusableCfg
 }
 
-// InitNodeTraversal_AbstractCfgCallbackBase is the implicit
-// AbstractCfgCallback() constructor; self is the subclass.
-//
 // Java: NodeTraversal.AbstractCfgCallback()
 func (b *NodeTraversal_AbstractCfgCallbackBase) InitNodeTraversal_AbstractCfgCallbackBase(self NodeTraversal_AbstractCfgCallback) {
 	b.self = self
 	b.cfgs = b.cfgsBuf[:0]
 }
 
-// GetNodeTraversal_AbstractCfgCallbackBase gives access to the base through
-// the interface.
 func (b *NodeTraversal_AbstractCfgCallbackBase) GetNodeTraversal_AbstractCfgCallbackBase() *NodeTraversal_AbstractCfgCallbackBase {
 	return b
 }
 
-// PeekCurrentScopeCfg returns the already-computed ControlFlowGraph for the
-// current scope if one has been materialized, or nil otherwise.
-func (b *NodeTraversal_AbstractCfgCallbackBase) PeekCurrentScopeCfg() ControlFlowGraph[rhino.Node] {
-	idx := len(b.cfgs) - 1
-	if idx < 0 {
-		return nil
-	}
-	return b.cfgs[idx].cfg
-}
-
-// GetControlFlowGraph gets the control flow graph for the current JS scope.
-//
-// Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
-func (b *NodeTraversal_AbstractCfgCallbackBase) GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[rhino.Node] {
-	idx := len(b.cfgs) - 1
-	jutil.CheckState(idx >= 0)
-	if cfg := b.cfgs[idx].cfg; cfg != nil {
-		return cfg
-	}
-	for len(b.cfgStorage) <= idx {
-		b.cfgStorage = append(b.cfgStorage, &ReusableCfg{})
-	}
-	result := b.cfgStorage[idx].Compute(
-		compiler,
-		b.cfgs[idx].root,
-		/* shouldTraverseFunctions= */ false,
-		/* edgeAnnotations= */ true)
-	b.cfgs[idx].cfg = result
-	return result
-}
-
-// EnterScope is final in Java.
-//
 // Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
 func (b *NodeTraversal_AbstractCfgCallbackBase) EnterScope(t *NodeTraversal) {
-	currentScopeRoot := t.GetScopeRoot()
-	if NodeUtil_IsValidCfgRoot(currentScopeRoot) {
-		b.cfgs = append(b.cfgs, cfgStackEntry{root: currentScopeRoot})
-	}
+	b.pushScopeRoot(t.GetScopeRoot())
 	b.self.EnterScopeWithCfg(t)
 }
 
-// ExitScope is final in Java.
-//
 // Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
 func (b *NodeTraversal_AbstractCfgCallbackBase) ExitScope(t *NodeTraversal) {
 	b.self.ExitScopeWithCfg(t)
-	currentScopeRoot := t.GetScopeRoot()
-	if NodeUtil_IsValidCfgRoot(currentScopeRoot) {
-		if len(b.cfgs) == 0 {
-			panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
-		}
-		idx := len(b.cfgs) - 1
-		if b.cfgs[idx].cfg != nil {
-			b.cfgStorage[idx].release()
-		}
-		b.cfgs[idx] = cfgStackEntry{}
-		b.cfgs = b.cfgs[:idx]
-	}
+	b.popScopeRoot(t.GetScopeRoot())
 }
 
 // Java: NodeTraversal.AbstractCfgCallback.enterScopeWithCfg(NodeTraversal)
@@ -396,45 +419,9 @@ func (b *NodeTraversal_AbstractShallowStatementCallbackBase) ShouldTraverse(node
 	return NodeUtil_IsShallowStatementTree(parent)
 }
 
-// NodeTraversal_AbstractModuleCallback is the abstract callback that knows
-// when a global script, goog.provide file, goog.module, goog.loadModule, ES
-// module or CommonJS module is entered or exited. This includes both whole
-// file modules and bundled modules, as well as files in the global scope.
-type NodeTraversal_AbstractModuleCallback interface {
-	NodeTraversal_Callback
-
-	// EnterModule is called when the traversal enters a global file or
-	// module. currentModule is the entered global file or module;
-	// moduleScopeRoot the root scope for the entered module or SCRIPT for
-	// global files.
-	//
-	// Java: NodeTraversal.AbstractModuleCallback.enterModule(ModuleMetadata, Node)
-	EnterModule(currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node)
-
-	// ExitModule is called when the traversal exits a global file or module.
-	// oldModule is the exited global file or module; moduleScopeRoot the root
-	// scope for the exited module or SCRIPT for global files.
-	//
-	// Java: NodeTraversal.AbstractModuleCallback.exitModule(ModuleMetadata, Node)
-	ExitModule(oldModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node)
-
-	// Java: NodeTraversal.AbstractModuleCallback.shouldTraverse(NodeTraversal, Node, ModuleMetadata, Node)
-	ShouldTraverseWithModule(
-		t *NodeTraversal, n rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node) bool
-
-	// Java: NodeTraversal.AbstractModuleCallback.visit(NodeTraversal, Node, ModuleMetadata, Node)
-	VisitWithModule(
-		t *NodeTraversal, n rhino.Node, currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node)
-
-	GetNodeTraversal_AbstractModuleCallbackBase() *NodeTraversal_AbstractModuleCallbackBase
-}
-
-// NodeTraversal_AbstractModuleCallbackBase holds the fields and methods of
-// AbstractModuleCallback; subclasses embed it and call
-// InitNodeTraversal_AbstractModuleCallbackBase with themselves.
-type NodeTraversal_AbstractModuleCallbackBase struct {
-	self NodeTraversal_AbstractModuleCallback
-
+// moduleTraversal tracks the current file or bundled goog.module during a
+// traversal (Java: NodeTraversal.AbstractModuleCallback) without self-dispatch.
+type moduleTraversal struct {
 	compiler          AbstractCompiler
 	moduleMetadataMap *ModuleMetadataMap
 
@@ -443,31 +430,9 @@ type NodeTraversal_AbstractModuleCallbackBase struct {
 	inLoadModule  bool
 }
 
-// InitNodeTraversal_AbstractModuleCallbackBase is the
-// AbstractModuleCallback constructor; self is the subclass.
-//
-// Java: NodeTraversal.AbstractModuleCallback(AbstractCompiler, ModuleMetadataMap)
-func (b *NodeTraversal_AbstractModuleCallbackBase) InitNodeTraversal_AbstractModuleCallbackBase(
-	self NodeTraversal_AbstractModuleCallback, compiler AbstractCompiler, moduleMetadataMap *ModuleMetadataMap) {
-	b.self = self
-	b.compiler = compiler
-	b.moduleMetadataMap = moduleMetadataMap
-}
-
-// GetNodeTraversal_AbstractModuleCallbackBase gives access to the base
-// through the interface.
-func (b *NodeTraversal_AbstractModuleCallbackBase) GetNodeTraversal_AbstractModuleCallbackBase() *NodeTraversal_AbstractModuleCallbackBase {
-	return b
-}
-
-// Java: NodeTraversal.AbstractModuleCallback.enterModule(ModuleMetadata, Node)
-func (b *NodeTraversal_AbstractModuleCallbackBase) EnterModule(
-	currentModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node) {
-}
-
-// Java: NodeTraversal.AbstractModuleCallback.exitModule(ModuleMetadata, Node)
-func (b *NodeTraversal_AbstractModuleCallbackBase) ExitModule(
-	oldModule *ModuleMetadataMap_ModuleMetadata, moduleScopeRoot rhino.Node) {
+func (m *moduleTraversal) initModuleTraversal(compiler AbstractCompiler, moduleMetadataMap *ModuleMetadataMap) {
+	m.compiler = compiler
+	m.moduleMetadataMap = moduleMetadataMap
 }
 
 var nodeTraversal_AbstractModuleCallback_GOOG_MODULE = rhino.QualifiedName_Of("goog.module")
@@ -477,105 +442,71 @@ func failNodeTraversalNull() {
 	panic(jutil.NewNullPointerException())
 }
 
-// ShouldTraverse is final in Java.
-//
-// Java: NodeTraversal.AbstractModuleCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractModuleCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+// enterNode updates module state on preorder entry and reports whether a new
+// module was entered (in which case m.currentModule and m.scopeRoot identify it).
+func (m *moduleTraversal) enterNode(t *NodeTraversal, n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
-		b.currentModule = b.moduleMetadataMap.GetModulesByPath().Get(t.GetInput().GetPath().String())
-		if b.currentModule == nil {
+		m.currentModule = m.moduleMetadataMap.GetModulesByPath().Get(t.GetInput().GetPath().String())
+		if m.currentModule == nil {
 			failNodeTraversalNull()
 		}
 		if n.HasChildren() && n.GetFirstChild().IsModuleBody() {
-			b.scopeRoot = n.GetFirstChild()
+			m.scopeRoot = n.GetFirstChild()
 		} else {
-			b.scopeRoot = n
+			m.scopeRoot = n
 		}
-		b.self.EnterModule(b.currentModule, b.scopeRoot)
+		return true
 	case rhino.Token_BLOCK:
 		if NodeUtil_IsBundledGoogModuleScopeRoot(n) {
-			b.scopeRoot = n
-			b.inLoadModule = true
+			m.scopeRoot = n
+			m.inLoadModule = true
 		}
 	case rhino.Token_CALL:
-		if b.inLoadModule && nodeTraversal_AbstractModuleCallback_GOOG_MODULE.Matches(n.GetFirstChild()) {
-			newModule := b.moduleMetadataMap.GetModulesByGoogNamespace().Get(n.GetLastChild().GetString())
+		if m.inLoadModule && nodeTraversal_AbstractModuleCallback_GOOG_MODULE.Matches(n.GetFirstChild()) {
+			newModule := m.moduleMetadataMap.GetModulesByGoogNamespace().Get(n.GetLastChild().GetString())
 			if newModule == nil {
 				failNodeTraversalNull()
 			}
 			// In the event of multiple goog.module statements (an error), don't call enterModule
 			// more than once.
-			if newModule != b.currentModule {
-				b.currentModule = newModule
-				b.self.EnterModule(b.currentModule, b.scopeRoot)
+			if newModule != m.currentModule {
+				m.currentModule = newModule
+				return true
 			}
 		}
 	default:
 	}
-	return b.self.ShouldTraverseWithModule(t, n, b.currentModule, b.scopeRoot)
+	return false
 }
 
-// ShouldTraverseWithModule: see Callback.ShouldTraverse.
-//
-// t is the current traversal, n the current node, currentModule the current
-// module, or null if not inside a module (e.g. AST root), moduleScopeRoot the
-// root scope for the current module, or null if not inside a module (e.g.
-// AST root). Returns whether the children of this node should be visited.
-//
-// Java: NodeTraversal.AbstractModuleCallback.shouldTraverse(NodeTraversal, Node, ModuleMetadata, Node)
-func (b *NodeTraversal_AbstractModuleCallbackBase) ShouldTraverseWithModule(
-	t *NodeTraversal,
-	n rhino.Node,
-	currentModule *ModuleMetadataMap_ModuleMetadata,
-	moduleScopeRoot rhino.Node) bool {
-	return true
-}
-
-// Visit is final in Java.
-//
-// Java: NodeTraversal.AbstractModuleCallback.visit(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractModuleCallbackBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+// exitNode updates module state on postorder exit and returns the exited module
+// and scope root when leaving a file or bundled goog.module (or nil, NilNode).
+func (m *moduleTraversal) exitNode(t *NodeTraversal, n rhino.Node) (exitedModule *ModuleMetadataMap_ModuleMetadata, exitedScopeRoot rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
-		if b.currentModule == nil {
+		if m.currentModule == nil {
 			failNodeTraversalNull()
 		}
-		b.self.ExitModule(b.currentModule, b.scopeRoot)
-		b.currentModule = nil
-		b.scopeRoot = rhino.NilNode
+		exitedModule, exitedScopeRoot = m.currentModule, m.scopeRoot
+		m.currentModule = nil
+		m.scopeRoot = rhino.NilNode
 	case rhino.Token_BLOCK:
 		if NodeUtil_IsBundledGoogModuleScopeRoot(n) {
-			if b.currentModule == nil {
+			if m.currentModule == nil {
 				failNodeTraversalNull()
 			}
-			b.self.ExitModule(b.currentModule, b.scopeRoot)
-			b.scopeRoot = n.GetGrandparent().GetGrandparent()
-			b.inLoadModule = false
-			b.currentModule = b.moduleMetadataMap.GetModulesByPath().Get(t.GetInput().GetPath().String())
-			if b.currentModule == nil {
+			exitedModule, exitedScopeRoot = m.currentModule, m.scopeRoot
+			m.scopeRoot = n.GetGrandparent().GetGrandparent()
+			m.inLoadModule = false
+			m.currentModule = m.moduleMetadataMap.GetModulesByPath().Get(t.GetInput().GetPath().String())
+			if m.currentModule == nil {
 				failNodeTraversalNull()
 			}
 		}
 	default:
 	}
-
-	b.self.VisitWithModule(t, n, b.currentModule, b.scopeRoot)
-}
-
-// VisitWithModule: see Callback.Visit.
-//
-// t is the current traversal, n the current node, currentModule the current
-// module, or null if not inside a module (e.g. AST root), moduleScopeRoot the
-// root scope for the current module, or null if not inside a module (e.g.
-// AST root).
-//
-// Java: NodeTraversal.AbstractModuleCallback.visit(NodeTraversal, Node, ModuleMetadata, Node)
-func (b *NodeTraversal_AbstractModuleCallbackBase) VisitWithModule(
-	t *NodeTraversal,
-	n rhino.Node,
-	currentModule *ModuleMetadataMap_ModuleMetadata,
-	moduleScopeRoot rhino.Node) {
+	return exitedModule, exitedScopeRoot
 }
 
 // NodeTraversal_AbstractChangedScopeCallback is the callback that fires on

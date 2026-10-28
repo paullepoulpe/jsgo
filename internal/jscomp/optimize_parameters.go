@@ -593,9 +593,9 @@ type optimizeParametersParamNameEntry struct {
 }
 
 type optimizeParametersParamNameTracker struct {
-	inline [16]optimizeParametersParamNameEntry
+	inline  [16]optimizeParametersParamNameEntry
 	entries []optimizeParametersParamNameEntry
-	byID   map[uint32]int
+	byID    map[uint32]int
 }
 
 func (t *optimizeParametersParamNameTracker) scan(n rhino.Node) bool {

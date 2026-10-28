@@ -28,7 +28,7 @@ import (
 // statements are only expected for functions with return type information.
 // Functions with empty bodies are ignored.
 type CheckMissingReturn struct {
-	NodeTraversal_AbstractCfgCallbackBase
+	cfgScopeStack
 
 	compiler        AbstractCompiler
 	convention      CodingConvention
@@ -72,11 +72,23 @@ func checkMissingReturn_isReturn(input rhino.Node) bool {
 
 // Java: CheckMissingReturn(AbstractCompiler)
 func NewCheckMissingReturn(compiler AbstractCompiler) *CheckMissingReturn {
-	c := &CheckMissingReturn{}
-	c.InitNodeTraversal_AbstractCfgCallbackBase(c)
-	c.compiler = compiler
-	c.convention = compiler.GetCodingConvention()
+	c := &CheckMissingReturn{
+		compiler:   compiler,
+		convention: compiler.GetCodingConvention(),
+	}
+	c.cfgs = c.cfgsBuf[:0]
 	return c
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
+func (c *CheckMissingReturn) EnterScope(t *NodeTraversal) {
+	c.pushScopeRoot(t.GetScopeRoot())
+	c.EnterScopeWithCfg(t)
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
+func (c *CheckMissingReturn) ExitScope(t *NodeTraversal) {
+	c.popScopeRoot(t.GetScopeRoot())
 }
 
 // Java: CheckMissingReturn.enterScopeWithCfg(NodeTraversal)

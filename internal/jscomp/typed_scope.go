@@ -52,18 +52,17 @@ func allocTypedScopeID() uint32 {
 // Looking up any of these reserved names will always return null, even if
 // the name is available in a parent scope.
 //
-// See NodeTraversal and DataFlowAnalysis. Several methods in this class,
-// such as isBlockScope throw an exception when called. The reason for this
-// is that we want to shadow methods from the parent class, to avoid calling
-// them accidentally.
+// See NodeTraversal and DataFlowAnalysis.
 //
 // It is a rhino.StaticTypedScope: GetSlot, GetOwnSlot and GetParentScope
 // keep rhino.StaticScope's signatures (assert `.(*TypedVar)`); see the note
 // at the top of abstract_scope.go.
 type TypedScope struct {
-	AbstractScopeBase[*TypedScope, *TypedVar]
+	scopeCommon
+	scopeID uint32
 
-	parent *TypedScope
+	implicitVars *[4]*TypedVar
+	parent       *TypedScope
 
 	// Go-only: performance — the Java `module` and `reservedNames` fields,
 	// which only the scope builder reads; dropped by ValidateCompletelyBuilt
@@ -73,28 +72,23 @@ type TypedScope struct {
 	// Go-only: performance — the Java LinkedHashMap<String, TypedVar> is vars,
 	// in declaration order (a var is keyed by its name), plus varIndex once
 	// there are more than typedScopeSmallVars vars, plus varBloom, a filter
-	// that lets lookups skip scopes without the name. varIndex is an
-	// open-addressed table, at most half full, of 1-based positions in vars
-	// tagged with the top bits of the name's hash: 8 pointer-free bytes per
-	// var, where a Go map keyed by the name takes about 40 that the
-	// collector scans.
+	// that lets lookups skip scopes without the name.
 	vars     []*TypedVar
 	varIndex *[]uint32 // a pointer: most scopes have none, and it saves 16 bytes in each
 	varBloom uint64
-
-	// Scope.java contains an arguments field.
-	// We haven't added it here because it's unused by the passes that need typed scopes.
 }
+
+var (
+	_ AbstractScope          = (*TypedScope)(nil)
+	_ rhino.StaticTypedScope = (*TypedScope)(nil)
+)
 
 // typedScopeBuildState is the part of a TypedScope that TypedScopeCreator
 // needs while it builds the scope.
 type typedScopeBuildState struct {
 	module *Module
 
-	// Will shrink over time. Set to "ImmutableSet.of()" once empty (so don't try removing
-	// elements from an empty set)
-	//
-	// Go-only: language-adapter — nil/empty slice is the ImmutableSet.of() sentinel.
+	// Will shrink over time; nil/empty slice is the ImmutableSet.of() sentinel.
 	reservedNames []string
 }
 
@@ -120,16 +114,20 @@ func (s *TypedScope) HashCode() int32 {
 	return int32(h ^ (h >> 16))
 }
 
+// Java: AbstractScope.checkChildScope(S)
+func (s *TypedScope) CheckChildScope(parent *TypedScope) {
+	if parent == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	s.checkChildScopeRoot(parent.rootNode)
+}
+
 // Java: TypedScope(TypedScope, Node)
 func NewTypedScope(parent *TypedScope, rootNode rhino.Node) *TypedScope {
 	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil)
 }
 
 // NewTypedScopeWithReservedNames creates a new global or local TypedScope.
-//
-// parent is the containing scope, unless this is the global scope. rootNode
-// can be any node that creates a scope. reservedNames is the set of simple
-// names that will eventually be declared in this scope.
 //
 // Java: TypedScope(TypedScope, Node, Set<String>, Module)
 func NewTypedScopeWithReservedNames(
@@ -144,51 +142,38 @@ func NewTypedScopeWithReservedNames(
 func newTypedScopeOwnedReservedNames(
 	parent *TypedScope, rootNode rhino.Node, reservedNames []string, module *Module) *TypedScope {
 	s := &TypedScope{}
-	s.InitAbstractScopeBase(s, rootNode)
+	s.initScopeCommon(rootNode)
 	s.scopeID = allocTypedScopeID()
-	// Go-only: performance — the reserved names will all be declared.
 	if len(reservedNames) > 0 {
 		s.vars = make([]*TypedVar, 0, len(reservedNames))
 	}
 	s.CheckChildScope(parent)
 	s.parent = parent
 	s.depth = parent.depth + 1
-	s.isBottom = false
 	if len(reservedNames) > 0 || module != nil {
 		s.build = &typedScopeBuildState{module: module, reservedNames: reservedNames}
 	}
 	return s
 }
 
-// newTypedScopeWithIsBottom creates a empty Scope (bottom of the lattice).
-//
-// rootNode is typically a FUNCTION node or the global ROOT. isBottom is
-// whether this is the bottom of a lattice. Otherwise, it must be a global
-// scope.
-//
 // Java: TypedScope(Node, boolean)
 func newTypedScopeWithIsBottom(rootNode rhino.Node, isBottom bool) *TypedScope {
 	s := &TypedScope{}
-	s.InitAbstractScopeBase(s, rootNode)
+	s.initScopeCommon(rootNode)
 	s.scopeID = allocTypedScopeID()
 	s.CheckRootScope()
-	s.parent = nil
-	s.depth = 0
 	s.isBottom = isBottom
 	return s
 }
 
 func newGlobalTypedScopeWithCapacity(rootNode rhino.Node, varCap int) *TypedScope {
 	s := &TypedScope{}
-	s.InitAbstractScopeBase(s, rootNode)
+	s.initScopeCommon(rootNode)
 	s.scopeID = allocTypedScopeID()
 	if varCap > 0 {
 		s.vars = make([]*TypedVar, 0, varCap)
 	}
 	s.CheckRootScope()
-	s.parent = nil
-	s.depth = 0
-	s.isBottom = false
 	return s
 }
 
@@ -220,10 +205,6 @@ func (s *TypedScope) ValidateCompletelyBuilt() {
 			s,
 			"["+strings.Join(reserved, ", ")+"]")
 	}
-	// let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
-	// singleton)
-	//
-	// Go-only: the module goes with it; only the scope builder reads it.
 	s.build = nil
 }
 
@@ -269,8 +250,8 @@ func (s *TypedScope) IsLocal() bool {
 //
 // Java: TypedScope.getTypeOfThis()
 func (s *TypedScope) GetTypeOfThis() rhino.JSType {
-	root := s.GetRootNode()
-	if s.IsGlobal() {
+	root := s.rootNode
+	if s.parent == nil {
 		if t := rhino.ObjectType_Cast(root.GetJSType()); t != nil {
 			return t
 		}
@@ -279,25 +260,22 @@ func (s *TypedScope) GetTypeOfThis() rhino.JSType {
 		nodeType := root.GetJSType()
 		if nodeType != nil && nodeType.IsFunctionType() {
 			return nodeType.ToMaybeFunctionType().GetTypeOfThis()
-		} else {
-			// Executed when the current scope has not been typechecked.
-			return nil
 		}
+		// Executed when the current scope has not been typechecked.
+		return nil
 	} else if s.IsStaticBlockScope() {
-		return s.GetParent().GetRootNode().GetJSType()
+		return s.parent.rootNode.GetJSType()
 	} else if s.IsMemberFieldDefScope() || s.IsComputedFieldDefRhsScope() {
-		classType := s.GetParent().GetRootNode().GetJSType()
+		classType := s.parent.rootNode.GetJSType()
 		if root.IsStaticMember() {
 			return classType
-		} else {
-			if t := classType.AssertFunctionType().GetInstanceType(); t != nil {
-				return t
-			}
-			return nil
 		}
-	} else {
-		return s.GetParent().GetTypeOfThis()
+		if t := classType.AssertFunctionType().GetInstanceType(); t != nil {
+			return t
+		}
+		return nil
 	}
+	return s.parent.GetTypeOfThis()
 }
 
 // Java: TypedScope.declare(String, Node, JSType, CompilerInput, boolean)
@@ -312,8 +290,6 @@ func (s *TypedScope) declareWithReserved(name string, nameNode rhino.Node,
 	jutil.CheckState(name != "") // Java: name != null && !name.isEmpty()
 	wasReserved := false
 	if reserved := s.reservedNames(); len(reserved) > 0 {
-		// (reservedNames only contains simple, non-qualified names; so it's completely normal to
-		// declare qualified names that were not 'reserved')
 		for i, rn := range reserved {
 			if rn == name {
 				wasReserved = true
@@ -324,15 +300,15 @@ func (s *TypedScope) declareWithReserved(name string, nameNode rhino.Node,
 			}
 		}
 	}
-	var_ := NewTypedVar(inferred, name, nameNode, type_, s, s.GetVarCount(), input)
+	var_ := NewTypedVar(inferred, name, nameNode, type_, s, len(s.vars), input)
 	s.DeclareInternal(name, var_)
 	return var_, wasReserved
 }
 
 // Java: AbstractScope.undeclare(V)
 func (s *TypedScope) Undeclare(var_ *TypedVar) {
-	jutil.CheckState(var_.getScopeS() == s)
-	current := s.getOwnTypedSlot(var_.GetName())
+	jutil.CheckState(var_.scope == s)
+	current := s.getOwnTypedSlot(var_.name)
 	if current == nil {
 		panic(jutil.NewNullPointerException())
 	}
@@ -345,7 +321,7 @@ func (s *TypedScope) UndeclareInteral(var_ *TypedVar) {
 	if !s.varsInitialized {
 		panic(jutil.NewUnsupportedOperationException())
 	}
-	name := var_.GetName()
+	name := var_.name
 	if i := s.findVar(name, scopeNameHash(name)); i >= 0 {
 		s.vars = slices.Delete(s.vars, i, i+1)
 		if s.varIndex != nil {
@@ -359,7 +335,7 @@ func (s *TypedScope) DeclareInternal(name string, var_ *TypedVar) {
 	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
 		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
 	}
-	jutil.CheckState(name == var_.GetName())
+	jutil.CheckState(name == var_.name)
 	h := scopeNameHash(name)
 	s.varBloom |= scopeBloomFromHash(h)
 	s.varsInitialized = true
@@ -479,12 +455,33 @@ func (s *TypedScope) ownVar(name string, h uint32) *TypedVar {
 	return nil
 }
 
+func (s *TypedScope) hasOwnImplicitVar(imp AbstractScope_ImplicitVar) bool {
+	return imp != AbstractScope_ImplicitVar_EXPORTS && imp.isMadeByRootNode(s.rootNode)
+}
+
+func (s *TypedScope) getOwnImplicitVar(imp AbstractScope_ImplicitVar) *TypedVar {
+	if !s.hasOwnImplicitVar(imp) {
+		return nil
+	}
+	if s.implicitVars == nil {
+		s.implicitVars = new([4]*TypedVar)
+	}
+	if v := s.implicitVars[imp]; v != nil {
+		return v
+	}
+	v := s.MakeImplicitVar(imp)
+	if v != nil {
+		s.implicitVars[imp] = v
+	}
+	return v
+}
+
 func (s *TypedScope) getOwnSlotV(name string) *TypedVar {
 	if v := s.getOwnTypedSlot(name); v != nil {
 		return v
 	}
-	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
-		return s.GetOwnImplicitSlot(imp)
+	if imp, ok := AbstractScope_ImplicitVar_Lookup(name); ok {
+		return s.getOwnImplicitVar(imp)
 	}
 	return nil
 }
@@ -500,21 +497,15 @@ func (s *TypedScope) HasOwnSlot(name string) bool {
 	if s.getOwnTypedSlot(name) != nil {
 		return true
 	}
-	if imp := AbstractScope_ImplicitVar_Of(name); imp != nil {
-		return s.HasOwnImplicitSlot(imp)
+	if imp, ok := AbstractScope_ImplicitVar_Lookup(name); ok {
+		return s.hasOwnImplicitVar(imp)
 	}
 	return false
 }
 
 // Java: TypedScope.makeImplicitVar(ImplicitVar)
 func (s *TypedScope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *TypedVar {
-	if s.IsGlobal() {
-		// TODO(sdh): This is incorrect for 'global this', but since that's currently not handled
-		// by this code, it's okay to bail out now until we find the root cause.  See b/74980936.
-		return nil
-	} else if var_ == AbstractScope_ImplicitVar_EXPORTS {
-		// Instead of using the implicit 'exports' var, we want to pretend that the var is actually
-		// declared.
+	if s.parent == nil || var_ == AbstractScope_ImplicitVar_EXPORTS {
 		return nil
 	}
 	return NewTypedVar(false, var_.name(), rhino.NilNode, s.GetImplicitVarType(var_), s, -1, nil)
@@ -522,16 +513,21 @@ func (s *TypedScope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *TypedVar {
 
 // Java: TypedScope.hasOwnImplicitSlot(ImplicitVar)
 func (s *TypedScope) HasOwnImplicitSlot(name *AbstractScope_ImplicitVar) bool {
-	return name != nil && *name != AbstractScope_ImplicitVar_EXPORTS && name.IsMadeByScope(s)
+	return name != nil && s.hasOwnImplicitVar(*name)
+}
+
+// Java: AbstractScope.getOwnImplicitSlot(ImplicitVar)
+func (s *TypedScope) GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) *TypedVar {
+	if name == nil {
+		return nil
+	}
+	return s.getOwnImplicitVar(*name)
 }
 
 // Java: TypedScope.getImplicitVarType(ImplicitVar)
 func (s *TypedScope) GetImplicitVarType(var_ AbstractScope_ImplicitVar) rhino.JSType {
 	switch var_ {
 	case AbstractScope_ImplicitVar_ARGUMENTS:
-		// Look for an extern named "arguments" and use its type if available.
-		// TODO(sdh): consider looking for "Arguments" ctor rather than "arguments" var: this could
-		// allow deleting the variable, which doesn't really belong in externs in the first place.
 		globalArgs := s.GetGlobalScope().GetVar(Var_ARGUMENTS)
 		if globalArgs != nil && globalArgs.IsExtern() {
 			return globalArgs.GetType()
@@ -540,9 +536,6 @@ func (s *TypedScope) GetImplicitVarType(var_ AbstractScope_ImplicitVar) rhino.JS
 	case AbstractScope_ImplicitVar_THIS:
 		return s.GetTypeOfThis()
 	case AbstractScope_ImplicitVar_SUPER:
-		// Inside a constructor, `super` may have two different types. Calls to `super()` use the
-		// super-ctor type, while property accesses use the super-instance type. This logic always
-		// returns the latter case.
 		receiverType := rhino.ObjectType_Cast(s.GetTypeOfThis())
 		if receiverType == nil {
 			return nil
@@ -572,18 +565,10 @@ func (s *TypedScope) GetImplicitVarType(var_ AbstractScope_ImplicitVar) rhino.JS
 // scope that have been declared with 'var' and not yet declared with a known
 // type.
 //
-// These variables can safely be set to undefined (rather than unknown) at
-// the start of type inference, and will be reset to the correct type when
-// analyzing the first assignment to them. Parameters and externs are
-// excluded because they are not initialized in the function body, and
-// lexically-bound variables (let and const) are excluded because they are
-// initialized when inferring the LET/CONST node, which is guaranteed to
-// occur before any use, since they are not hoisted.
-//
 // Java: TypedScope.getDeclarativelyUnboundVarsWithoutTypes()
 func (s *TypedScope) GetDeclarativelyUnboundVarsWithoutTypes() iter.Seq[*TypedVar] {
 	return func(yield func(*TypedVar) bool) {
-		for v := range s.GetVarIterable() {
+		for _, v := range s.vars {
 			if s.IsDeclarativelyUnboundVarWithoutType(v) && !yield(v) {
 				return
 			}
@@ -603,13 +588,13 @@ func (s *TypedScope) IsDeclarativelyUnboundVarWithoutType(var_ *TypedVar) bool {
 // lookupRootVar is AbstractScope.getVar, for a name without dots.
 func (s *TypedScope) lookupRootVar(name string) *TypedVar {
 	h := scopeNameHash(name)
-	implicit := AbstractScope_ImplicitVar_Of(name)
+	imp, isImplicit := AbstractScope_ImplicitVar_Lookup(name)
 	for cur := s; cur != nil; cur = cur.parent {
 		if v := cur.ownVar(name, h); v != nil {
 			return v
 		}
-		if implicit != nil {
-			if v := cur.GetOwnImplicitSlot(implicit); v != nil {
+		if isImplicit {
+			if v := cur.getOwnImplicitVar(imp); v != nil {
 				return v
 			}
 		}
@@ -617,23 +602,7 @@ func (s *TypedScope) lookupRootVar(name string) *TypedVar {
 	return nil
 }
 
-// GetVar returns the slot for name, considering shadowing of qualified
-// names.
-//
-// The superclass method does not handle shadowing.
-//
-// Lookup of qualified names (i.e. names with dots) executes against scopes
-// in the following precedence:
-//
-//  1. This Scope.
-//  2. The first ancestor Scope, if any, that declares the root of the
-//     qualified name.
-//  3. The global Scope.
-//
-// An example of where this is necessary: say the global scope contains "a"
-// and "a.b" and a function scope contains "a". When looking up "a.b" in the
-// function scope, AbstractScope::getVar returns "a.b". This method returns
-// null because the global "a" is shadowed.
+// GetVar returns the slot for name, considering shadowing of qualified names.
 //
 // Java: TypedScope.getVar(String)
 func (s *TypedScope) GetVar(name string) *TypedVar {
@@ -655,13 +624,11 @@ func (s *TypedScope) GetVar(name string) *TypedVar {
 	}
 	// Qualified names 'a.b.c' are declared in the same scope as 'a', never a child scope, which
 	// is why calling `getOwnSlot` is sufficient.
-	return rootVar.getScopeS().getOwnSlotV(name)
+	return rootVar.scope.getOwnSlotV(name)
 }
 
 // Java: TypedScope.getTypeThroughNamespace(String)
 func (s *TypedScope) GetTypeThroughNamespace(moduleId string) rhino.JSType {
-	// Go-only: language-adapter — '.' is ASCII, so byte indices split the
-	// string exactly where Java's UTF-16 indices do.
 	split := strings.LastIndexByte(moduleId, '.')
 	if split >= 0 {
 		parentName := moduleId[:split]
@@ -671,25 +638,22 @@ func (s *TypedScope) GetTypeThroughNamespace(moduleId string) rhino.JSType {
 			return nil
 		}
 		return parentType.AssertObjectType().GetPropertyType(prop)
-	} else {
-		var_ := s.getSlotV(moduleId)
-		if var_ != nil {
-			return var_.GetType()
-		}
-		return nil
 	}
+	var_ := s.GetVar(moduleId)
+	if var_ != nil {
+		return var_.GetType()
+	}
+	return nil
 }
 
 // Java: TypedScope.getTopmostScopeOfEventualDeclaration(String)
 func (s *TypedScope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
-	if s.getOwnSlotV(name) != nil || slices.Contains(s.reservedNames(), name) {
-		return s
-	} else if s.GetParent() == nil {
-		return nil
-	} else {
-		// Recurse on the parent because it, too, may be incomplete.
-		return s.GetParent().GetTopmostScopeOfEventualDeclaration(name)
+	for cur := s; cur != nil; cur = cur.parent {
+		if cur.getOwnSlotV(name) != nil || slices.Contains(cur.reservedNames(), name) {
+			return cur
+		}
 	}
+	return nil
 }
 
 // LookupQualifiedName is the rhino.StaticTypedScope default method, which
@@ -700,41 +664,160 @@ func (s *TypedScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType
 	return rhino.StaticTypedScope_LookupQualifiedName(s, qname)
 }
 
-func (s *TypedScope) ThisScope() *TypedScope          { return s }
-func (s *TypedScope) Contains(other *TypedScope) bool { return s.contains(s, other) }
+func (s *TypedScope) ThisScope() *TypedScope { return s }
+
+// Java: AbstractScope.contains(S)
+func (s *TypedScope) Contains(other *TypedScope) bool {
+	for cur := jutil.CheckNotNull(other); cur != nil; cur = cur.parent {
+		if cur == s {
+			return true
+		}
+	}
+	return false
+}
+
+// Java: AbstractScope.getGlobalScope()
 func (s *TypedScope) GetGlobalScope() *TypedScope {
 	for s.parent != nil {
 		s = s.parent
 	}
 	return s
 }
-func (s *TypedScope) HasSlot(name string) bool        { return s.hasSlot(s, name) }
-func (s *TypedScope) GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) *TypedVar {
-	return s.getOwnImplicitSlot(s, name)
+
+// Java: AbstractScope.hasSlot(String)
+func (s *TypedScope) HasSlot(name string) bool {
+	for cur := s; cur != nil; cur = cur.parent {
+		if cur.HasOwnSlot(name) {
+			return true
+		}
+	}
+	return false
 }
+
 func (s *TypedScope) getSlotV(name string) *TypedVar { return s.GetVar(name) }
+
 func (s *TypedScope) GetSlot(name string) rhino.StaticSlot {
 	if v := s.GetVar(name); v != nil {
 		return v
 	}
 	return nil
 }
-func (s *TypedScope) GetArgumentsVar() *TypedVar  { return s.getArgumentsVar(s) }
-func (s *TypedScope) CanDeclare(name string) bool { return s.canDeclare(s, name) }
+
+// Java: AbstractScope.getArgumentsVar()
+func (s *TypedScope) GetArgumentsVar() *TypedVar {
+	for cur := s; cur != nil; cur = cur.parent {
+		if v := cur.getOwnImplicitVar(AbstractScope_ImplicitVar_ARGUMENTS); v != nil {
+			return v
+		}
+	}
+	return nil
+}
+
+// Java: AbstractScope.canDeclare(String)
+func (s *TypedScope) CanDeclare(name string) bool {
+	return !s.HasOwnSlot(name) &&
+		(!s.IsFunctionBlockScope() ||
+			!s.parent.HasOwnSlot(name) ||
+			s.IsBleedingFunctionName(name))
+}
+
+// Java: AbstractScope.isBleedingFunctionName(String)
 func (s *TypedScope) IsBleedingFunctionName(name string) bool {
-	return s.isBleedingFunctionName(s, name)
+	var_ := s.GetVar(name)
+	return var_ != nil &&
+		!var_.nameNode.IsNil() &&
+		var_.nameNode.GetParent().IsFunction()
 }
+
+// Java: AbstractScope.getAllAccessibleVariables()
 func (s *TypedScope) GetAllAccessibleVariables() iter.Seq[*TypedVar] {
-	return s.getAllAccessibleVariables(s)
+	return func(yield func(*TypedVar) bool) {
+		var seen map[string]struct{}
+		for cur := s; cur != nil; cur = cur.parent {
+			for _, v := range cur.vars {
+				if _, dup := seen[v.name]; dup {
+					continue
+				}
+				if cur.parent != nil || seen != nil {
+					if seen == nil {
+						seen = make(map[string]struct{}, len(cur.vars))
+					}
+					seen[v.name] = struct{}{}
+				}
+				if !yield(v) {
+					return
+				}
+			}
+		}
+	}
 }
-func (s *TypedScope) IsHoistScope() bool                    { return s.isHoistScope(s) }
-func (s *TypedScope) GetClosestHoistScope() *TypedScope     { return s.getClosestHoistScope(s) }
-func (s *TypedScope) GetClosestCfgRootScope() *TypedScope   { return s.getClosestCfgRootScope(s) }
-func (s *TypedScope) GetClosestContainerScope() *TypedScope { return s.getClosestContainerScope(s) }
+
+// Java: AbstractScope.isHoistScope()
+func (s *TypedScope) IsHoistScope() bool {
+	return s.parent == nil ||
+		s.rootNode.IsFunction() ||
+		NodeUtil_IsFunctionBlock(s.rootNode) ||
+		s.rootNode.IsModuleBody() ||
+		NodeUtil_IsClassStaticBlock(s.rootNode)
+}
+
+// Java: AbstractScope.getClosestHoistScope()
+func (s *TypedScope) GetClosestHoistScope() *TypedScope {
+	for cur := s; cur != nil; cur = cur.parent {
+		if cur.IsHoistScope() {
+			return cur
+		}
+	}
+	return nil
+}
+
+// Java: AbstractScope.getClosestCfgRootScope()
+func (s *TypedScope) GetClosestCfgRootScope() *TypedScope {
+	cur := s
+	for !cur.IsCfgRootScope() {
+		cur = cur.parent
+	}
+	return cur
+}
+
+// Java: AbstractScope.getClosestContainerScope()
+func (s *TypedScope) GetClosestContainerScope() *TypedScope {
+	scope := s.GetClosestHoistScope()
+	if NodeUtil_IsFunctionBlock(scope.rootNode) {
+		scope = scope.parent
+		if scope.IsBlockScope() {
+			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("%s", scope)))
+		}
+	}
+	return scope
+}
+
+// Java: AbstractScope.getCommonParent(S)
 func (s *TypedScope) GetCommonParent(other *TypedScope) *TypedScope {
-	return s.getCommonParent(s, other)
+	left, right := s, other
+	for left != nil && right != nil && left != right {
+		ld, rd := left.depth, right.depth
+		if ld >= rd {
+			left = left.parent
+		}
+		if ld <= rd {
+			right = right.parent
+		}
+	}
+	jutil.CheckState(left != nil && left == right)
+	return left
 }
+
+// Java: AbstractScope.hasSameContainerScope(S)
 func (s *TypedScope) HasSameContainerScope(other *TypedScope) bool {
-	return s.hasSameContainerScope(s, other)
+	return s == other || s.GetClosestContainerScope() == other.GetClosestContainerScope()
 }
-func (s *TypedScope) GetScopeOfThis() *TypedScope { return s.getScopeOfThis(s) }
+
+// Java: AbstractScope.getScopeOfThis()
+func (s *TypedScope) GetScopeOfThis() *TypedScope {
+	scope := s.GetClosestContainerScope()
+	for scope.parent != nil && !NodeUtil_IsNonArrowFunction(scope.rootNode) {
+		scope = scope.parent.GetClosestContainerScope()
+	}
+	return scope
+}

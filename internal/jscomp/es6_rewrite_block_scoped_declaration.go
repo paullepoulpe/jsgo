@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -38,55 +39,71 @@ type Es6RewriteBlockScopedDeclaration struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler          AbstractCompiler
 	astFactory        *AstFactory
-	letConsts         *jutil.LinkedHashSet[rhino.Node]
+	letConsts         []rhino.Node
+	letConstActive    map[rhino.Node]bool
 	loopLetConstNames map[string]struct{}
 	uniqueIdSupplier  *UniqueIdSupplier
 }
 
 func (e *Es6RewriteBlockScopedDeclaration) noVisitLeaves() {}
 
-var es6RewriteBlockScopedDeclaration_transpiledFeatures = parser.FeatureSet_BARE_MINIMUM.WithFeatures(
+var es6RewriteBlockScopedDeclarationTranspiledFeatures = parser.FeatureSet_BARE_MINIMUM.WithFeatures(
 	parser.FeatureSet_Feature_LET_DECLARATIONS,
 	parser.FeatureSet_Feature_CONST_DECLARATIONS,
 )
 
-const es6BlockLoopParamNamePrefix = "$jscomp$loop_param$"
+const (
+	es6BlockLoopParamNamePrefix = "$jscomp$loop_param$"
+	es6BlockLoopObjectName      = "$jscomp$loop"
+)
 
-// Java: Es6RewriteBlockScopedDeclaration(AbstractCompiler)
 func NewEs6RewriteBlockScopedDeclaration(compiler AbstractCompiler) *Es6RewriteBlockScopedDeclaration {
 	return &Es6RewriteBlockScopedDeclaration{
-		letConsts:        jutil.NewLinkedHashSet[rhino.Node](),
 		compiler:         compiler,
 		uniqueIdSupplier: compiler.GetUniqueIdSupplier(),
 		astFactory:       compiler.CreateAstFactory(),
 	}
 }
 
-// Java: Es6RewriteBlockScopedDeclaration.visit(NodeTraversal, Node, Node)
+func (e *Es6RewriteBlockScopedDeclaration) addLetConst(n rhino.Node) {
+	if e.letConstActive == nil {
+		e.letConstActive = make(map[rhino.Node]bool, 16)
+	}
+	if _, seen := e.letConstActive[n]; !seen {
+		e.letConsts = append(e.letConsts, n)
+	}
+	e.letConstActive[n] = true
+}
+
+func (e *Es6RewriteBlockScopedDeclaration) removeLetConst(n rhino.Node) {
+	if e.letConstActive != nil {
+		e.letConstActive[n] = false
+	}
+}
+
 func (e *Es6RewriteBlockScopedDeclaration) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(parent.IsNil() || !parent.IsForOf(), "%s", parent)
 
 	if n.IsLet() || n.IsConst() {
-		e.letConsts.Add(n)
+		e.addLetConst(n)
 		for nameNode := n.GetFirstChild(); !nameNode.IsNil(); nameNode = nameNode.GetNext() {
 			e.visitBlockScopedNameDeclaration(n, nameNode)
 		}
 	}
 }
 
-// Java: Es6RewriteBlockScopedDeclaration.process(Node, Node)
 func (e *Es6RewriteBlockScopedDeclaration) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(e.compiler, root, e)
-	if !e.letConsts.IsEmpty() {
+	if len(e.letConsts) > 0 {
 		if len(e.loopLetConstNames) > 0 {
 			sc := NewSyntacticScopeCreator(e.compiler)
-			transformer := newEs6BlockLoopClosureTransformer(e)
+			transformer := &es6BlockLoopClosureTransformer{pass: e}
 			NodeTraversal_Builder_().SetCompiler(e.compiler).SetScopeCreator(sc).SetCallback(transformer).Traverse(root)
 			transformer.transformLoopClosure()
 		}
 		e.rewriteDeclsToVars()
 	}
-	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, es6RewriteBlockScopedDeclaration_transpiledFeatures)
+	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, es6RewriteBlockScopedDeclarationTranspiledFeatures)
 }
 
 func (e *Es6RewriteBlockScopedDeclaration) visitBlockScopedNameDeclaration(decl rhino.Node, nameNode rhino.Node) {
@@ -144,13 +161,13 @@ func (e *Es6RewriteBlockScopedDeclaration) handleLetConstDeclarationList(declara
 		return
 	}
 
-	if parent.IsVanillaFor() {
-		e.handleLetConstInVanillaForInitializer(declarationList, parent)
+	if forLoop, ok := ast.AsFor(parent); ok {
+		e.handleLetConstInVanillaForInitializer(declarationList, forLoop)
 		return
 	}
 
-	if parent.IsForIn() {
-		e.handleLetConstInForInInitializer(declarationList, parent)
+	if forIn, ok := ast.AsForIn(parent); ok {
+		e.handleLetConstInForInInitializer(declarationList, forIn)
 		return
 	}
 
@@ -167,12 +184,10 @@ func (e *Es6RewriteBlockScopedDeclaration) handleLetConstDeclarationList(declara
 	e.compiler.ReportChangeToEnclosingScope(parent)
 }
 
-func (e *Es6RewriteBlockScopedDeclaration) handleLetConstInForInInitializer(declarationList rhino.Node, parent rhino.Node) {
-	jutil.CheckState(parent.IsForIn())
-	first := declarationList
-	lhs := first.GetFirstChild()
-	loopNode := parent
-	if lhs.IsDestructuringLhs() {
+func (e *Es6RewriteBlockScopedDeclaration) handleLetConstInForInInitializer(declarationList rhino.Node, forIn ast.ForIn) {
+	loopNode := forIn.Node()
+	lhs := declarationList.GetFirstChild()
+	if dlhs, ok := ast.AsDestructuringLhs(lhs); ok {
 		jutil.CheckStateMsg(
 			false, "Destructuring syntax is unsupported in ES6RewriteBlockScopedDeclarations pass")
 		NodeUtil_VisitLhsNodesInNode(
@@ -180,27 +195,23 @@ func (e *Es6RewriteBlockScopedDeclaration) handleLetConstInForInInitializer(decl
 			func(name rhino.Node) {
 				nm, ok := ast.AsName(name)
 				jutil.CheckStateMsg1(ok, "lhs in destructuring declaration should be a simple name. (%s)", name)
-				newName := rhino.IR_Name(nm.Ident()).Srcref(name)
-				newVar := rhino.IR_Var(newName).Srcref(name)
+				newVar := rhino.IR_Var(rhino.IR_Name(nm.Ident()).Srcref(name)).Srcref(name)
 				es6BlockExtractInlineJSDoc(declarationList, name, newVar)
 				e.addNodeBeforeLoop(newVar, loopNode)
 			})
-
-		destructuringPattern := lhs.RemoveFirstChild()
-		first.ReplaceWith(destructuringPattern)
+		declarationList.ReplaceWith(dlhs.Pattern().Node().Detach())
 	} else {
-		newStatement := first.CloneTree()
+		newStatement := declarationList.CloneTree()
 		name := newStatement.GetFirstChild().CloneNode()
 		newStatement.SetToken(rhino.Token_VAR)
-		es6BlockExtractInlineJSDoc(first, first.GetFirstChild(), newStatement)
-		first.ReplaceWith(name)
+		es6BlockExtractInlineJSDoc(declarationList, lhs, newStatement)
+		declarationList.ReplaceWith(name)
 		e.addNodeBeforeLoop(newStatement, loopNode)
 	}
 }
 
-func (e *Es6RewriteBlockScopedDeclaration) handleLetConstInVanillaForInitializer(
-	declarationList rhino.Node, parent rhino.Node) {
-	jutil.CheckState(parent.IsVanillaFor())
+func (e *Es6RewriteBlockScopedDeclaration) handleLetConstInVanillaForInitializer(declarationList rhino.Node, forLoop ast.For) {
+	parent := forLoop.Node()
 	insertSpot := e.insertSpotBeforeLoop(parent)
 	for declarationList.HasChildren() {
 		name := declarationList.GetLastChild()
@@ -230,8 +241,10 @@ func (e *Es6RewriteBlockScopedDeclaration) insertSpotBeforeLoop(loopNode rhino.N
 }
 
 func (e *Es6RewriteBlockScopedDeclaration) rewriteDeclsToVars() {
-	for n := range e.letConsts.All() {
-		e.handleLetConstDeclarationList(n, n.GetParent())
+	for _, n := range e.letConsts {
+		if e.letConstActive[n] {
+			e.handleLetConstDeclarationList(n, n.GetParent())
+		}
 	}
 }
 
@@ -240,26 +253,27 @@ type es6LoopClosureHandledKey struct {
 	name string
 }
 
+type es6BlockLoopObject struct {
+	name string
+	vars []*Var
+}
+
+type es6WrapTarget struct {
+	node    rhino.Node
+	objects []*es6BlockLoopObject
+}
+
 // es6BlockLoopClosureTransformer transforms let/const declarations captured by loop closures.
 type es6BlockLoopClosureTransformer struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
 	pass *Es6RewriteBlockScopedDeclaration
 
-	loopObjectMap                       *jutil.LinkedHashMap[rhino.Node, *es6BlockLoopObject]
-	nodesRequiringLoopObjectsClosureMap *jutil.SetMultimap[rhino.Node, *es6BlockLoopObject]
-	nodesHandledForLoopObjectClosure    map[es6LoopClosureHandledKey]struct{}
-	referenceMap                        *jutil.SetMultimap[*Var, rhino.Node]
-}
-
-const es6BlockLoopObjectName = "$jscomp$loop"
-
-func newEs6BlockLoopClosureTransformer(pass *Es6RewriteBlockScopedDeclaration) *es6BlockLoopClosureTransformer {
-	return &es6BlockLoopClosureTransformer{
-		pass:                                pass,
-		loopObjectMap:                       jutil.NewLinkedHashMap[rhino.Node, *es6BlockLoopObject](),
-		nodesRequiringLoopObjectsClosureMap: jutil.NewSetMultimap[rhino.Node, *es6BlockLoopObject](),
-		referenceMap:                        jutil.NewSetMultimap[*Var, rhino.Node](),
-	}
+	loopOrder                        []rhino.Node
+	loopObjects                      map[rhino.Node]*es6BlockLoopObject
+	wrapTargets                      []es6WrapTarget
+	wrapTargetIdx                    map[rhino.Node]int
+	nodesHandledForLoopObjectClosure map[es6LoopClosureHandledKey]struct{}
+	references                       map[*Var][]rhino.Node
 }
 
 func (l *es6BlockLoopClosureTransformer) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
@@ -292,7 +306,10 @@ func (l *es6BlockLoopClosureTransformer) ShouldTraverse(t *NodeTraversal, n rhin
 		}
 	}
 
-	l.referenceMap.Put(v, n)
+	if l.references == nil {
+		l.references = make(map[*Var][]rhino.Node, 8)
+	}
+	l.references[v] = append(l.references[v], n)
 
 	var outerMostFunctionScope *Scope
 	for s := referencedIn; s != declaredIn && s.GetRootNode() != loopNode; s = s.GetParent() {
@@ -303,14 +320,12 @@ func (l *es6BlockLoopClosureTransformer) ShouldTraverse(t *NodeTraversal, n rhin
 
 	if outerMostFunctionScope != nil {
 		enclosingFunction := outerMostFunctionScope.GetRootNode()
-
-		var nodeToWrapInClosure rhino.Node
+		nodeToWrapInClosure := enclosingFunction
 		if _, isAccessor := ast.AsGetterOrSetterDef(enclosingFunction.GetParent()); isAccessor {
 			nodeToWrapInClosure = enclosingFunction.GetGrandparent()
 			jutil.CheckState(nodeToWrapInClosure.IsObjectLit())
-		} else {
-			nodeToWrapInClosure = enclosingFunction
 		}
+
 		key := es6LoopClosureHandledKey{node: nodeToWrapInClosure, name: name}
 		if _, ok := l.nodesHandledForLoopObjectClosure[key]; ok {
 			return true
@@ -320,40 +335,57 @@ func (l *es6BlockLoopClosureTransformer) ShouldTraverse(t *NodeTraversal, n rhin
 		}
 		l.nodesHandledForLoopObjectClosure[key] = struct{}{}
 
-		object := l.loopObjectMap.ComputeIfAbsent(
-			loopNode, func(k rhino.Node) *es6BlockLoopObject {
-				return &es6BlockLoopObject{
-					name: es6BlockLoopObjectName + "$" + l.pass.uniqueIdSupplier.GetUniqueId(t.GetInput()),
-					vars: jutil.NewLinkedHashSet[*Var](),
-				}
+		if l.loopObjects == nil {
+			l.loopObjects = make(map[rhino.Node]*es6BlockLoopObject, 4)
+		}
+		object, ok := l.loopObjects[loopNode]
+		if !ok {
+			object = &es6BlockLoopObject{
+				name: es6BlockLoopObjectName + "$" + l.pass.uniqueIdSupplier.GetUniqueId(t.GetInput()),
+			}
+			l.loopObjects[loopNode] = object
+			l.loopOrder = append(l.loopOrder, loopNode)
+		}
+		if !slices.Contains(object.vars, v) {
+			object.vars = append(object.vars, v)
+		}
+
+		if l.wrapTargetIdx == nil {
+			l.wrapTargetIdx = make(map[rhino.Node]int, 4)
+		}
+		if idx, exists := l.wrapTargetIdx[nodeToWrapInClosure]; exists {
+			wt := &l.wrapTargets[idx]
+			if !slices.Contains(wt.objects, object) {
+				wt.objects = append(wt.objects, object)
+			}
+		} else {
+			l.wrapTargetIdx[nodeToWrapInClosure] = len(l.wrapTargets)
+			l.wrapTargets = append(l.wrapTargets, es6WrapTarget{
+				node:    nodeToWrapInClosure,
+				objects: []*es6BlockLoopObject{object},
 			})
-		object.vars.Add(v)
-		l.nodesRequiringLoopObjectsClosureMap.Put(nodeToWrapInClosure, object)
+		}
 	}
 	return true
 }
 
-func (l *es6BlockLoopClosureTransformer) loopObjPropName(v *Var) string {
-	return v.GetNameNode().GetString()
-}
-
 func (l *es6BlockLoopClosureTransformer) transformLoopClosure() {
-	if l.loopObjectMap.IsEmpty() {
+	if len(l.loopOrder) == 0 {
 		return
 	}
 
 	wrapperFunctions := l.createWrapperFunctions()
 
-	for loopNode := range l.loopObjectMap.Keys() {
-		loopObject := l.loopObjectMap.Get(loopNode)
+	for _, loopNode := range l.loopOrder {
+		loopObject := l.loopObjects[loopNode]
 		objectLitNextIteration := l.pass.astFactory.CreateObjectLit()
 		l.renameVarsToProperties(loopObject, objectLitNextIteration, loopNode)
 
-		updateLoopObject :=
-			l.pass.astFactory.CreateAssign(l.createLoopObjectNameNode(loopObject), objectLitNextIteration)
-		objectLit :=
-			rhino.IR_VarWithValue(l.createLoopObjectNameNode(loopObject), l.pass.astFactory.CreateObjectLit()).
-				SrcrefTree(loopNode)
+		updateLoopObject := l.pass.astFactory.CreateAssign(
+			l.createLoopObjectNameNode(loopObject), objectLitNextIteration)
+		objectLit := rhino.IR_VarWithValue(
+			l.createLoopObjectNameNode(loopObject), l.pass.astFactory.CreateObjectLit()).
+			SrcrefTree(loopNode)
 		l.pass.addNodeBeforeLoop(objectLit, loopNode)
 		if forLoop, ok := ast.AsFor(loopNode); ok {
 			l.changeVanillaForLoopHeader(forLoop, updateLoopObject)
@@ -366,12 +398,7 @@ func (l *es6BlockLoopClosureTransformer) transformLoopClosure() {
 		l.changeLoopLocalVariablesToProperties(loopNode, loopObject)
 	}
 
-	l.updateNamesInWrapperFunctions(wrapperFunctions)
-}
-
-func (l *es6BlockLoopClosureTransformer) updateNamesInWrapperFunctions(wrapperFunctions *jutil.LinkedHashSet[rhino.Node]) {
-	for fnNode := range wrapperFunctions.All() {
-		fn := ast.MustFunction(fnNode)
+	for _, fn := range wrapperFunctions {
 		body := fn.Body().Node()
 		for param := range fn.Params().Params() {
 			paramName := ast.MustName(param.Node())
@@ -381,9 +408,10 @@ func (l *es6BlockLoopClosureTransformer) updateNamesInWrapperFunctions(wrapperFu
 	}
 }
 
-func (l *es6BlockLoopClosureTransformer) createWrapperFunctions() *jutil.LinkedHashSet[rhino.Node] {
-	wrapperFunctions := jutil.NewLinkedHashSet[rhino.Node]()
-	for functionOrObjectLit := range l.nodesRequiringLoopObjectsClosureMap.KeySet() {
+func (l *es6BlockLoopClosureTransformer) createWrapperFunctions() []ast.Function {
+	wrapperFunctions := make([]ast.Function, 0, len(l.wrapTargets))
+	for _, wt := range l.wrapTargets {
+		functionOrObjectLit := wt.node
 		if _, isObjLit := ast.AsObjectLit(functionOrObjectLit); isObjLit {
 			enclosingFunction := NodeUtil_GetEnclosingFunction(functionOrObjectLit)
 			var scopeBody rhino.Node
@@ -396,37 +424,30 @@ func (l *es6BlockLoopClosureTransformer) createWrapperFunctions() *jutil.LinkedH
 			}
 			script := NodeUtil_GetEnclosingScript(functionOrObjectLit)
 			input := l.pass.compiler.GetInput(script.GetInputId())
-			thisContext :=
-				NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
-					scopeBody, isConstructor, l.pass.uniqueIdSupplier.GetUniqueId(input))
-			updater :=
-				NewThisAndArgumentsReferenceUpdater(l.pass.compiler, thisContext, l.pass.astFactory)
+			thisContext := NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
+				scopeBody, isConstructor, l.pass.uniqueIdSupplier.GetUniqueId(input))
+			updater := NewThisAndArgumentsReferenceUpdater(l.pass.compiler, thisContext, l.pass.astFactory)
 			NodeTraversal_Traverse(l.pass.compiler, functionOrObjectLit, updater)
 			thisContext.AddVarDeclarations(l.pass.compiler, l.pass.astFactory, script)
 			for child := scopeBody.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 				if child.IsLet() || child.IsConst() {
-					l.pass.letConsts.Add(child)
+					l.pass.addLetConst(child)
 				}
 			}
 		}
 		returnNode := rhino.IR_ReturnNode()
-		objects := l.nodesRequiringLoopObjectsClosureMap.Get(functionOrObjectLit)
-		parameterNames := make([]rhino.Node, objects.Size())
-		objectNamesForCall := make([]rhino.Node, objects.Size())
-		loopObjectIndex := 0
-		for object := range objects.All() {
-			parameterNames[loopObjectIndex] =
-				l.createUniqueParameterNameToUseWithinLoop(functionOrObjectLit, object)
-			objectNamesForCall[loopObjectIndex] = l.createLoopObjectNameNode(object)
-			loopObjectIndex++
+		parameterNames := make([]rhino.Node, len(wt.objects))
+		objectNamesForCall := make([]rhino.Node, len(wt.objects))
+		for i, object := range wt.objects {
+			parameterNames[i] = l.createUniqueParameterNameToUseWithinLoop(functionOrObjectLit, object)
+			objectNamesForCall[i] = l.createLoopObjectNameNode(object)
 		}
 
-		iife :=
-			l.pass.astFactory.CreateFunction(
-				"",
-				rhino.IR_ParamList(parameterNames...),
-				rhino.IR_BlockOfNode(returnNode),
-				AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT))
+		iife := l.pass.astFactory.CreateFunction(
+			"",
+			rhino.IR_ParamList(parameterNames...),
+			rhino.IR_BlockOfNode(returnNode),
+			AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT))
 		l.pass.compiler.ReportChangeToChangeScope(iife)
 		call := l.pass.astFactory.CreateCall(iife, AstFactory_Type_(functionOrObjectLit), objectNamesForCall...)
 		ast.MustCall(call).SetFreeCall(true)
@@ -436,7 +457,7 @@ func (l *es6BlockLoopClosureTransformer) createWrapperFunctions() *jutil.LinkedH
 			functionOrObjectLit)
 		replacement := call.SrcrefTreeIfMissing(functionOrObjectLit)
 		functionOrObjectLit.ReplaceWith(replacement)
-		wrapperFunctions.Add(iife)
+		wrapperFunctions = append(wrapperFunctions, ast.MustFunction(iife))
 		returnNode.AddChildToFront(functionOrObjectLit)
 		l.pass.compiler.ReportChangeToEnclosingScope(replacement)
 	}
@@ -464,10 +485,10 @@ func (l *es6BlockLoopClosureTransformer) changeVanillaForLoopHeader(forLoop ast.
 		l.pass.addNodeBeforeLoop(initializer, loopNode)
 	}
 
-	increment := loopNode.GetChildAtIndex(2)
-	if increment.IsEmpty() {
-		increment.ReplaceWith(updateLoopObject.SrcrefTreeIfMissing(loopNode))
+	if inc, hasUpdate := forLoop.Update(); !hasUpdate {
+		forLoop.SetUpdate(ast.MustExpr(updateLoopObject.SrcrefTreeIfMissing(loopNode)))
 	} else {
+		increment := inc.Node()
 		placeHolder := rhino.IR_Empty()
 		increment.ReplaceWith(placeHolder)
 		placeHolder.ReplaceWith(
@@ -476,27 +497,29 @@ func (l *es6BlockLoopClosureTransformer) changeVanillaForLoopHeader(forLoop ast.
 }
 
 func (l *es6BlockLoopClosureTransformer) changeLoopLocalVariablesToProperties(loopNode rhino.Node, loopObject *es6BlockLoopObject) {
-	for v := range loopObject.vars.All() {
-		newPropertyName := l.loopObjPropName(v)
-		for reference := range l.referenceMap.Get(v).All() {
+	for _, v := range loopObject.vars {
+		newPropertyName := v.GetNameNode().GetString()
+		for _, reference := range l.references[v] {
 			jutil.CheckStateMsg1(!loopNode.IsForOf(), "%s", loopNode)
 			if forIn, ok := ast.AsForIn(loopNode); ok && forIn.Target().Node() == reference.GetParent() {
-				l.assignLoopVarToLoopObjectProperty(
-					forIn, loopObject, v, newPropertyName, reference)
+				l.assignLoopVarToLoopObjectProperty(forIn, loopObject, v, newPropertyName, reference)
 			} else if _, isDecl := ast.AsNameDeclaration(reference.GetParent()); isDecl {
 				l.replaceDeclarationWithProperty(loopObject, newPropertyName, reference)
 			} else {
-				l.replaceReferenceWithProperty(loopObject, newPropertyName, reference)
+				referenceParent := reference.GetParent()
+				reference.ReplaceWith(l.createLoopVarReferenceReplacement(loopObject, reference, newPropertyName))
+				l.pass.compiler.ReportChangeToEnclosingScope(referenceParent)
 			}
 		}
 	}
 }
 
 func (l *es6BlockLoopClosureTransformer) replaceDeclarationWithProperty(
-	loopObject *es6BlockLoopObject, newPropertyName string, reference rhino.Node) {
+	loopObject *es6BlockLoopObject, newPropertyName string, reference rhino.Node,
+) {
 	declaration := reference.GetParent()
 	grandParent := declaration.GetParent()
-	l.pass.letConsts.Remove(declaration)
+	l.pass.removeLetConst(declaration)
 	l.pass.handleLetConstDeclarationList(declaration, grandParent)
 
 	declaration = reference.GetParent()
@@ -507,44 +530,36 @@ func (l *es6BlockLoopClosureTransformer) replaceDeclarationWithProperty(
 		es6BlockMaybeAddConstJSDoc(declaration, reference, declaration)
 		assign.SetJSDocInfo(declaration.GetJSDocInfo())
 
-		replacement := rhino.IR_ExprResult(assign).SrcrefTreeIfMissing(declaration)
-		declaration.ReplaceWith(replacement)
+		declaration.ReplaceWith(rhino.IR_ExprResult(assign).SrcrefTreeIfMissing(declaration))
 	} else {
 		declaration.Detach()
 	}
 	l.pass.compiler.ReportChangeToEnclosingScope(grandParent)
 }
 
-func (l *es6BlockLoopClosureTransformer) replaceReferenceWithProperty(
-	loopObject *es6BlockLoopObject, newPropertyName string, reference rhino.Node) {
-	referenceParent := reference.GetParent()
-	reference.ReplaceWith(l.createLoopVarReferenceReplacement(loopObject, reference, newPropertyName))
-	l.pass.compiler.ReportChangeToEnclosingScope(referenceParent)
-}
-
 func (l *es6BlockLoopClosureTransformer) assignLoopVarToLoopObjectProperty(
-	forIn ast.ForIn, loopObject *es6BlockLoopObject, v *Var, newPropertyName string, reference rhino.Node) {
+	forIn ast.ForIn, loopObject *es6BlockLoopObject, v *Var, newPropertyName string, reference rhino.Node,
+) {
 	jutil.CheckStateMsg1(reference == v.GetNameNode(), "%s", reference)
 	referenceParent := reference.GetParent()
 	jutil.CheckStateMsg1(NodeUtil_IsNameDeclaration(referenceParent), "%s", referenceParent)
 	jutil.CheckStateMsg1(reference.IsName(), "%s", reference)
 
-	loopVarReference := reference.CloneNode()
-	forInPropAssignmentStatement :=
-		rhino.IR_ExprResult(
-			l.pass.astFactory.CreateAssign(
-				l.createLoopVarReferenceReplacement(loopObject, reference, newPropertyName),
-				loopVarReference)).
-			SrcrefTreeIfMissing(reference)
+	forInPropAssignmentStatement := rhino.IR_ExprResult(
+		l.pass.astFactory.CreateAssign(
+			l.createLoopVarReferenceReplacement(loopObject, reference, newPropertyName),
+			reference.CloneNode())).
+		SrcrefTreeIfMissing(reference)
 
 	loopUpdateStatement := forIn.Body().Node().GetFirstChild()
 	forInPropAssignmentStatement.InsertAfter(loopUpdateStatement)
 }
 
 func (l *es6BlockLoopClosureTransformer) renameVarsToProperties(
-	loopObject *es6BlockLoopObject, objectLitNextIteration rhino.Node, scopeRoot rhino.Node) {
-	for v := range loopObject.vars.All() {
-		newPropertyName := l.loopObjPropName(v)
+	loopObject *es6BlockLoopObject, objectLitNextIteration rhino.Node, scopeRoot rhino.Node,
+) {
+	for _, v := range loopObject.vars {
+		newPropertyName := v.GetNameNode().GetString()
 		var newPropertyValue rhino.Node
 		if v.GetScopeRoot() == scopeRoot {
 			newPropertyValue = l.createLoopVarReferenceReplacement(loopObject, v.GetNameNode(), newPropertyName)
@@ -557,12 +572,11 @@ func (l *es6BlockLoopClosureTransformer) renameVarsToProperties(
 }
 
 func (l *es6BlockLoopClosureTransformer) createLoopVarReferenceReplacement(
-	loopObject *es6BlockLoopObject, reference rhino.Node, propertyName string) rhino.Node {
-	replacement :=
-		l.pass.astFactory.CreateGetProp(
-			l.createLoopObjectNameNode(loopObject), propertyName, AstFactory_Type_(reference))
-	replacement.SrcrefTree(reference)
-	return replacement
+	loopObject *es6BlockLoopObject, reference rhino.Node, propertyName string,
+) rhino.Node {
+	return l.pass.astFactory.
+		CreateGetProp(l.createLoopObjectNameNode(loopObject), propertyName, AstFactory_Type_(reference)).
+		SrcrefTree(reference)
 }
 
 func (l *es6BlockLoopClosureTransformer) createUniqueParameterNameToUseWithinLoop(node rhino.Node, loopObject *es6BlockLoopObject) rhino.Node {
@@ -575,9 +589,4 @@ func (l *es6BlockLoopClosureTransformer) createUniqueParameterNameToUseWithinLoo
 
 func (l *es6BlockLoopClosureTransformer) createLoopObjectNameNode(loopObject *es6BlockLoopObject) rhino.Node {
 	return l.pass.astFactory.CreateName(loopObject.name, AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT))
-}
-
-type es6BlockLoopObject struct {
-	name string
-	vars *jutil.LinkedHashSet[*Var]
 }

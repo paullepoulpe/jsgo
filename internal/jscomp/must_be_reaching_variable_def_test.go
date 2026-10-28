@@ -292,4 +292,3 @@ func TestMustBeReachingVariableDefWideAndEscaped(t *testing.T) {
 	c.AssertNotMatch("var esc = 1; function inner() { return esc; } D: var x = esc; esc = 2; U: x")
 	c.AssertNotMatch("var esc = 1, x; function inner() { return esc; } D: (x = esc, esc = 2); U: x")
 }
-

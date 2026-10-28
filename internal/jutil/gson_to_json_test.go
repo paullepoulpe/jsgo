@@ -41,7 +41,7 @@ type GsonTestPoint struct {
 // Java: class Point3 extends Point { int z; Map<String, Integer> m; }
 type gsonTestPoint3 struct {
 	GsonTestPoint
-	Z int32                          `gson:"z"`
+	Z int32                         `gson:"z"`
 	M *LinkedHashMap[string, int32] `gson:"m"`
 }
 

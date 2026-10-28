@@ -57,7 +57,7 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 			return base.Tri_UNKNOWN
 		}
 	case rhino.Token_STRINGLIT:
-		return base.Tri_ForBoolean(jutil.StringLength(n.GetString()) > 0)
+		return base.Tri_ForBoolean(n.GetStringID() != rhino.RhinoStringPool_EmptyID)
 	case rhino.Token_NUMBER:
 		return base.Tri_ForBoolean(n.GetDouble() != 0)
 	case rhino.Token_BIGINT:
@@ -67,26 +67,23 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 
 	case rhino.Token_NAME:
 		// We assume here that programs don't change the value of these global variables.
-		switch n.GetString() {
-		case "undefined", "NaN":
+		switch n.GetStringID() {
+		case nodeUtilIDUndefined, nodeUtilIDNaN:
 			return base.Tri_FALSE
-		case "Infinity":
+		case nodeUtilIDInfinity:
 			return base.Tri_TRUE
 		default:
 			return base.Tri_UNKNOWN
 		}
 
 	case rhino.Token_BITNOT, rhino.Token_POS, rhino.Token_NEG:
-		doubleVal := NodeUtil_GetNumberValue(n)
-		if doubleVal != nil {
-			isFalsey := math.IsNaN(*doubleVal) || base.JSCompDoubles_IsEitherZero(*doubleVal)
+		if doubleVal, ok := nodeUtil_doGetNumberValue(n, true); ok {
+			isFalsey := math.IsNaN(doubleVal) || base.JSCompDoubles_IsEitherZero(doubleVal)
 			return base.Tri_ForBoolean(!isFalsey)
 		}
 
-		bigintVal := NodeUtil_GetBigIntValue(n)
-		if bigintVal != nil {
-			isFalsey := bigintVal.Sign() == 0
-			return base.Tri_ForBoolean(!isFalsey)
+		if bigintVal := NodeUtil_GetBigIntValue(n); bigintVal != nil {
+			return base.Tri_ForBoolean(bigintVal.Sign() != 0)
 		}
 
 		return base.Tri_UNKNOWN
@@ -165,11 +162,16 @@ func nodeUtil_getStringValue(n rhino.Node) (string, bool) {
 	case rhino.Token_TEMPLATELIT_STRING:
 		return ast.MustTemplateLitString(n).Cooked()
 	case rhino.Token_NAME:
-		name := n.GetString()
-		if "undefined" == name || "Infinity" == name || "NaN" == name {
-			return name, true
+		switch n.GetStringID() {
+		case nodeUtilIDUndefined:
+			return "undefined", true
+		case nodeUtilIDInfinity:
+			return "Infinity", true
+		case nodeUtilIDNaN:
+			return "NaN", true
+		default:
+			return "", false
 		}
-		return "", false
 	case rhino.Token_NEG, rhino.Token_NUMBER:
 		if value, ok := nodeUtil_doGetNumberValue(n, true); ok {
 			return dtoa.DToA_NumberToString(value), true
@@ -288,11 +290,6 @@ func NodeUtil_GetNumberValueNoConversions(n rhino.Node) *float64 {
 	return &v
 }
 
-// nodeUtil_double boxes a double (Java's autoboxing to Double).
-func nodeUtil_double(d float64) *float64 {
-	return &d
-}
-
 // Java: NodeUtil.doGetNumberValue(Node, boolean)
 func NodeUtil_DoGetNumberValue(n rhino.Node, numberConversions bool) *float64 {
 	v, ok := nodeUtil_doGetNumberValue(n, numberConversions)
@@ -318,15 +315,15 @@ func nodeUtil_doGetNumberValue(n rhino.Node, numberConversions bool) (float64, b
 		}
 		return math.NaN(), true
 	case rhino.Token_NAME:
-		switch n.GetString() {
-		case "undefined":
+		switch n.GetStringID() {
+		case nodeUtilIDUndefined:
 			if numberConversions {
 				return math.NaN(), true
 			}
 			return 0, false
-		case "NaN":
+		case nodeUtilIDNaN:
 			return math.NaN(), true
-		case "Infinity":
+		case nodeUtilIDInfinity:
 			return math.Inf(1), true
 		default:
 			return 0, false
@@ -358,29 +355,19 @@ func nodeUtil_doGetNumberValue(n rhino.Node, numberConversions bool) (float64, b
 		default: // case UNKNOWN
 			return 0, false
 		}
-	case rhino.Token_TEMPLATELIT:
+	case rhino.Token_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT:
 		if !numberConversions {
 			return 0, false
 		}
-		string_ := NodeUtil_GetStringValue(n)
-		if string_ == nil {
-			return 0, false
+		if s, ok := nodeUtil_getStringValue(n); ok {
+			return nodeUtil_getStringNumberValue(s)
 		}
-		return nodeUtil_getStringNumberValue(*string_)
+		return 0, false
 	case rhino.Token_STRINGLIT:
 		if !numberConversions {
 			return 0, false
 		}
 		return nodeUtil_getStringNumberValue(n.GetString())
-	case rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT:
-		if !numberConversions {
-			return 0, false
-		}
-		value := NodeUtil_GetStringValue(n)
-		if value != nil {
-			return nodeUtil_getStringNumberValue(*value)
-		}
-		return 0, false
 	default:
 	}
 
@@ -397,7 +384,7 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 }
 
 func nodeUtil_getStringNumberValue(rawJsString string) (float64, bool) {
-	if strings.Contains(rawJsString, "\u000b") {
+	if strings.IndexByte(rawJsString, '\v') != -1 {
 		// vertical tab is not always whitespace
 		return 0, false
 	}
@@ -408,23 +395,23 @@ func nodeUtil_getStringNumberValue(rawJsString string) (float64, bool) {
 		return 0.0, true
 	}
 
-	if jutil.StringLength(s) >= 2 && jutil.StringCharAt(s, 0) == '0' {
+	if len(s) >= 2 && s[0] == '0' {
 		radix := 0
-		prefix := jutil.StringCharAt(s, 1)
-		if prefix == 'x' || prefix == 'X' {
+		switch s[1] {
+		case 'x', 'X':
 			radix = 16
-		} else if prefix == 'b' || prefix == 'B' {
+		case 'b', 'B':
 			radix = 2
-		} else if prefix == 'o' || prefix == 'O' {
+		case 'o', 'O':
 			radix = 8
 		}
 		if radix != 0 {
-			digits := jutil.StringSubstringFrom(s, 2)
+			digits := s[2:]
 			if digits == "" {
 				return math.NaN(), true
 			}
-			for i := 0; i < jutil.StringLength(digits); i++ {
-				if !nodeUtil_isValidDigit(jutil.StringCharAt(digits, i), radix) {
+			for i := 0; i < len(digits); i++ {
+				if !nodeUtil_isValidDigit(digits[i], radix) {
 					return math.NaN(), true
 				}
 			}
@@ -443,10 +430,10 @@ func nodeUtil_getStringNumberValue(rawJsString string) (float64, bool) {
 		}
 	}
 
-	if jutil.StringLength(s) > 3 &&
-		(jutil.StringCharAt(s, 0) == '-' || jutil.StringCharAt(s, 0) == '+') &&
-		jutil.StringCharAt(s, 1) == '0' &&
-		(jutil.StringCharAt(s, 2) == 'x' || jutil.StringCharAt(s, 2) == 'X') {
+	if len(s) > 3 &&
+		(s[0] == '-' || s[0] == '+') &&
+		s[1] == '0' &&
+		(s[2] == 'x' || s[2] == 'X') {
 		// hex numbers with explicit signs vary between browsers.
 		return 0, false
 	}
@@ -483,7 +470,7 @@ func nodeUtil_getStringNumberValue(rawJsString string) (float64, bool) {
 }
 
 // Java: NodeUtil.isValidDigit(char, int)
-func nodeUtil_isValidDigit(c uint16, radix int) bool {
+func nodeUtil_isValidDigit(c byte, radix int) bool {
 	switch radix {
 	case 2:
 		return c == '0' || c == '1'
@@ -559,12 +546,11 @@ func NodeUtil_GetBigIntValue(n rhino.Node) *big.Int {
 			return nil
 		}
 
-	case rhino.Token_TEMPLATELIT:
-		string_ := NodeUtil_GetStringValue(n)
-		if string_ == nil {
-			return nil
+	case rhino.Token_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT:
+		if s, ok := nodeUtil_getStringValue(n); ok {
+			return NodeUtil_GetStringBigIntValue(s)
 		}
-		return NodeUtil_GetStringBigIntValue(*string_)
+		return nil
 
 	case rhino.Token_STRINGLIT:
 		return NodeUtil_GetStringBigIntValue(n.GetString())
@@ -582,12 +568,6 @@ func NodeUtil_GetBigIntValue(n rhino.Node) *big.Int {
 		}
 		return new(big.Int).Not(result)
 
-	case rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT:
-		value := NodeUtil_GetStringValue(n)
-		if value != nil {
-			return NodeUtil_GetStringBigIntValue(*value)
-		}
-		return nil
 	case rhino.Token_VOID, rhino.Token_NAME, rhino.Token_NULL:
 		return nil
 	default:
@@ -597,28 +577,26 @@ func NodeUtil_GetBigIntValue(n rhino.Node) *big.Int {
 
 // Java: NodeUtil.getStringBigIntValue(String)
 func NodeUtil_GetStringBigIntValue(rawJsString string) *big.Int {
-	if strings.Contains(rawJsString, "\u000b") {
+	if strings.IndexByte(rawJsString, '\v') != -1 {
 		// vertical tab is not always whitespace
 		return nil
 	}
 
 	s := NodeUtil_TrimJsWhiteSpace(rawJsString)
 	if s == "" {
-		return big.NewInt(0)
+		return &nodeUtil_smallBigInts[0-nodeUtil_smallBigIntMin]
 	}
 
-	if jutil.StringLength(s) > 2 && jutil.StringCharAt(s, 0) == '0' {
+	if len(s) > 2 && s[0] == '0' {
 		// Attempt to convert hex, octal, and binary formats.
 		var radix int
-		switch jutil.StringCharAt(s, 1) {
+		switch s[1] {
 		case 'x', 'X':
 			radix = 16
 		case 'o', 'O':
 			radix = 8
 		case 'b', 'B':
 			radix = 2
-		default:
-			radix = 0
 		}
 		if radix != 0 {
 			v, _ := jutil.TryParseBigInt(s[2:], radix)
@@ -699,10 +677,10 @@ func NodeUtil_IsImmutableValue(n rhino.Node) bool {
 	case rhino.Token_CAST, rhino.Token_NOT, rhino.Token_VOID, rhino.Token_NEG:
 		return NodeUtil_IsImmutableValue(n.GetFirstChild())
 	case rhino.Token_NAME:
-		name := n.GetString()
+		id := n.GetStringID()
 		// We assume here that programs don't change the value of the keyword
 		// undefined to something other than the value undefined.
-		return "undefined" == name || "Infinity" == name || "NaN" == name
+		return id == nodeUtilIDUndefined || id == nodeUtilIDInfinity || id == nodeUtilIDNaN
 	case rhino.Token_TEMPLATELIT:
 		for part := range ast.MustTemplateLit(n).Parts() {
 			if sub, ok := part.AsTemplateLitSub(); ok {
@@ -766,7 +744,7 @@ func NodeUtil_GetNumericLiteralValue(n rhino.Node) float64 {
 // Java: NodeUtil.findClosureUnawareScriptRoot(Node)
 func NodeUtil_FindClosureUnawareScriptRoot(script rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(script.IsScript() && script.GetIsInClosureUnawareSubtree(), "%s", script)
-	return NodeUtil_FindPreorder(script, (rhino.Node).IsBlock, func(c rhino.Node) bool { return true })
+	return NodeUtil_FindPreorder(script, (rhino.Node).IsBlock, nodeUtil_alwaysTrue)
 }
 
 // NodeUtil_IsEmptyBlock returns whether this a BLOCK node with no children.
@@ -824,7 +802,7 @@ func NodeUtil_AllArgsUnescapedLocal(callOrNew rhino.Node) bool {
 //
 // Java: NodeUtil.canBeSideEffected(Node)
 func NodeUtil_CanBeSideEffected(n rhino.Node) bool {
-	return NodeUtil_CanBeSideEffectedWithScope(n, NodeUtil_KNOWN_CONSTANTS, nil)
+	return nodeUtil_canBeSideEffected(n, true, nil, nil)
 }
 
 // NodeUtil_CanBeSideEffectedWithScope: knownConstants is a set of names
@@ -837,6 +815,10 @@ func NodeUtil_CanBeSideEffected(n rhino.Node) bool {
 // TODO(nick): Get rid of the knownConstants argument in favor of using
 // scope with InferConsts.
 func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants map[string]bool, scope *Scope) bool {
+	return nodeUtil_canBeSideEffected(n, false, knownConstants, scope)
+}
+
+func nodeUtil_canBeSideEffected(n rhino.Node, defaultKnownConstants bool, knownConstants map[string]bool, scope *Scope) bool {
 	switch n.GetToken() {
 	case rhino.Token_YIELD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_AWAIT, rhino.Token_DYNAMIC_IMPORT:
 		// Function calls or constructor can reference changed values.
@@ -845,12 +827,20 @@ func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants map[string
 		return true
 	case rhino.Token_NAME:
 		// Non-constant names values may have been changed.
-		return !NodeUtil_IsConstantVar(n, scope) && !knownConstants[n.GetString()]
+		if NodeUtil_IsConstantVar(n, scope) {
+			return false
+		}
+		if defaultKnownConstants {
+			id := n.GetStringID()
+			return id != nodeUtilIDUndefined && id != nodeUtilIDInfinity && id != nodeUtilIDNaN
+		}
+		return len(knownConstants) == 0 || !knownConstants[n.GetString()]
 
 	// Properties on constant NAMEs can still be side-effected.
 	case rhino.Token_GETPROP:
 		// Assume well-known symbols will not be modified.
-		return !n.GetFirstChild().MatchesName("Symbol")
+		first := n.GetFirstChild()
+		return !(first.IsName() && first.GetStringID() == nodeUtilIDSymbol)
 	// Properties on constant NAMEs can still be side-effected.
 	case rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM:
 		return true
@@ -865,7 +855,7 @@ func NodeUtil_CanBeSideEffectedWithScope(n rhino.Node, knownConstants map[string
 	}
 
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if NodeUtil_CanBeSideEffectedWithScope(c, knownConstants, scope) {
+		if nodeUtil_canBeSideEffected(c, defaultKnownConstants, knownConstants, scope) {
 			return true
 		}
 	}
@@ -1094,17 +1084,14 @@ func NodeUtil_GetKnownValueType(n rhino.Node) NodeUtil_ValueType {
 		}
 		return NodeUtil_ValueType_UNDETERMINED
 	case rhino.Token_NAME:
-		name := n.GetString()
-		if name == "undefined" {
+		switch n.GetStringID() {
+		case nodeUtilIDUndefined:
 			return NodeUtil_ValueType_VOID
-		}
-		if name == "NaN" {
+		case nodeUtilIDNaN, nodeUtilIDInfinity:
 			return NodeUtil_ValueType_NUMBER
+		default:
+			return NodeUtil_ValueType_UNDETERMINED
 		}
-		if name == "Infinity" {
-			return NodeUtil_ValueType_NUMBER
-		}
-		return NodeUtil_ValueType_UNDETERMINED
 	case rhino.Token_ASSIGN_BITOR,
 		rhino.Token_ASSIGN_BITXOR,
 		rhino.Token_ASSIGN_BITAND,
@@ -1384,10 +1371,10 @@ func NodeUtil_IsDefinedValue(value rhino.Node) bool {
 	case rhino.Token_TEMPLATELIT_STRING:
 		return value.GetCookedString() != nil
 	case rhino.Token_NAME:
-		name := value.GetString()
+		id := value.GetStringID()
 		// We assume here that programs don't change the value of the keyword
 		// undefined to something other than the value undefined.
-		return "Infinity" == name || "NaN" == name
+		return id == nodeUtilIDInfinity || id == nodeUtilIDNaN
 	default:
 		// Other op force a local value:
 		//  '' + g (a  string)
@@ -1417,7 +1404,7 @@ func NodeUtil_GetNthSibling(first rhino.Node, index int) rhino.Node {
 
 // Java: NodeUtil.isNaN(Node)
 func NodeUtil_IsNaN(n rhino.Node) bool {
-	return (n.IsName() && n.GetString() == "NaN") ||
+	return (n.IsName() && n.GetStringID() == nodeUtilIDNaN) ||
 		(n.GetToken() == rhino.Token_DIV &&
 			n.GetFirstChild().IsNumber() &&
 			n.GetFirstChild().GetDouble() == 0 &&

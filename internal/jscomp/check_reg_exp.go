@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/regex"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -168,19 +167,8 @@ func (c *CheckRegExp) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		if n.HasTwoChildren() {
 			flags = n.GetLastChild().GetString()
 		}
-		jutil.Try(func() {
-			regex.RegExpTree_ParseRegExp(pattern, flags)
-		}, func(ex jutil.IRuntimeException) {
-			// Go-only: language-adapter — Java's multi-catch
-			// `catch (IllegalArgumentException | IndexOutOfBoundsException ex)`:
-			// any other exception propagates unchanged.
-			switch ex.(type) {
-			case jutil.IIllegalArgumentException, jutil.IIndexOutOfBoundsException:
-				// A null message formats as "null", as MessageFormat does.
-				t.Report(n, CheckRegExp_MALFORMED_REGEXP, jutil.ToJavaString(jutil.GetMessageOrNull(ex)))
-			default:
-				panic(ex)
-			}
-		})
+		if _, err := regex.ParseRegExp(pattern, flags); err != nil {
+			t.Report(n, CheckRegExp_MALFORMED_REGEXP, err.Message)
+		}
 	}
 }

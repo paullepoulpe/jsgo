@@ -63,7 +63,8 @@ type coalesceScopeState struct {
 // greedy graph coloring to determine which two variables can be merged
 // together safely.
 type CoalesceVariableNames struct {
-	NodeTraversal_AbstractCfgCallbackBase
+	NodeTraversal_AbstractPostOrderCallbackBase
+	cfgScopeStack
 
 	compiler       AbstractCompiler
 	scopeCreator   *MemoizedScopeCreator
@@ -106,7 +107,7 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 		astFactory:     compiler.CreateAstFactory(),
 		scopeCreator:   NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler)),
 	}
-	c.InitNodeTraversal_AbstractCfgCallbackBase(c)
+	c.cfgs = c.cfgsBuf[:0]
 	c.shouldOptimizeScopeStack = c.shouldOptimizeScopeStackBuf[:0]
 	c.activeStates = c.activeStateBuf[:0]
 	c.scopeStates = c.scopeStatesBuf[:0]
@@ -138,11 +139,6 @@ func cvnCollectTopFunctions(n rhino.Node, out *[]rhino.Node) {
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		cvnCollectTopFunctions(c, out)
 	}
-}
-
-func (c *CoalesceVariableNames) clearCfgs() {
-	clear(c.cfgs)
-	c.cfgs = c.cfgs[:0]
 }
 
 func (c *CoalesceVariableNames) processTopFunction(topFn rhino.Node, dummyGlobal *Scope) {
@@ -193,8 +189,8 @@ func (c *CoalesceVariableNames) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	if numThreads <= 1 || len(topFns) <= 1 {
-		c.cfgs = append(c.cfgs, cfgStackEntry{root: root})
-		defer c.clearCfgs()
+		c.pushCfgRoot(root)
+		defer c.resetCfgStack()
 		for _, topFn := range topFns {
 			c.processTopFunction(topFn, dummyGlobal)
 		}
@@ -213,8 +209,8 @@ func (c *CoalesceVariableNames) Process(externs rhino.Node, root rhino.Node) {
 			defer wg.Done()
 			wc := NewCoalesceVariableNames(c.compiler, false)
 			wc.deferChanges = true
-			wc.cfgs = append(wc.cfgs, cfgStackEntry{root: root})
-			defer wc.clearCfgs()
+			wc.pushCfgRoot(root)
+			defer wc.resetCfgStack()
 			for {
 				idx := int(next.Add(1) - 1)
 				if idx >= len(topFns) {
@@ -260,6 +256,18 @@ func CoalesceVariableNames_ShouldOptimizeScope(t *NodeTraversal) *NodeUtil_AllVa
 		}
 	}
 	return nil
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
+func (c *CoalesceVariableNames) EnterScope(t *NodeTraversal) {
+	c.pushScopeRoot(t.GetScopeRoot())
+	c.EnterScopeWithCfg(t)
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
+func (c *CoalesceVariableNames) ExitScope(t *NodeTraversal) {
+	c.ExitScopeWithCfg(t)
+	c.popScopeRoot(t.GetScopeRoot())
 }
 
 // Java: CoalesceVariableNames.enterScopeWithCfg(NodeTraversal)
@@ -426,19 +434,21 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 		// This code block is slow but since usePseudoName is for debugging,
 		// we should not sacrifice performance for non-debugging compilation to
 		// make this fast.
-		allMergedNames := jutil.NewTreeSet[string](jutil.StringCompareTo)
+		var allMergedNames []string
 		for i, iVar := range state.orderedVars {
 			if state.varColor[i] == color {
-				allMergedNames.Add(iVar.GetName())
+				allMergedNames = append(allMergedNames, iVar.GetName())
 			}
 		}
+		slices.Sort(allMergedNames)
+		allMergedNames = slices.Compact(allMergedNames)
 
 		// Keep its original name.
-		if allMergedNames.Size() == 1 {
+		if len(allMergedNames) == 1 {
 			return
 		}
 
-		pseudoName := strings.Join(allMergedNames.ToSlice(), "_")
+		pseudoName := strings.Join(allMergedNames, "_")
 
 		for t.GetScope().HasSlot(pseudoName) {
 			pseudoName += "$"
@@ -681,12 +691,12 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 //
 // Java: CoalesceVariableNames.isInMultipleLvalueDecl(Var)
 func (c *CoalesceVariableNames) IsInMultipleLvalueDecl(v *Var) bool {
-	declarationType := v.DeclarationType()
-	if declarationType == nil {
+	declarationType, ok := v.DeclarationToken()
+	if !ok {
 		// switch on a null enum throws.
 		panic(jutil.NewNullPointerException())
 	}
-	switch *declarationType {
+	switch declarationType {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
 		nameDecl := NodeUtil_GetEnclosingNode(v.GetNode(), NodeUtil_IsNameDeclaration)
 		count := 0
@@ -834,8 +844,12 @@ func (l *CoalesceVariableNames_LiveRangeChecker) varIndex(name string) int {
 		}
 		return -1
 	}
+	id := rhino.RhinoStringPool_LookupID(name)
+	if id == 0 {
+		return -1
+	}
 	for i, v := range l.orderedVariables {
-		if v.GetName() == name {
+		if v.nameID == id {
 			return i
 		}
 	}

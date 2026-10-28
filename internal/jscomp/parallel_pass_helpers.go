@@ -61,8 +61,8 @@ func freezeGlobalScopeForParallelReads(gs *Scope) {
 	if gs == nil {
 		return
 	}
-	for i := range abstractScope_ImplicitVar_ptrs {
-		_ = gs.GetOwnImplicitSlot(&abstractScope_ImplicitVar_ptrs[i])
+	for imp := AbstractScope_ImplicitVar_ARGUMENTS; imp <= AbstractScope_ImplicitVar_THIS; imp++ {
+		_ = gs.getOwnImplicitVar(imp)
 	}
 }
 

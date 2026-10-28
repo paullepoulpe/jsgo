@@ -19,218 +19,135 @@
 package jscomp
 
 import (
+	"strconv"
+
 	"github.com/paullepoulpe/jsgo/internal/graph"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// PassConfig holds pass factories and meta-data for native Compiler passes.
-//
-// Go-only: language-adapter — an abstract class with subclasses: this
-// interface declares every overridable method, PassConfigBase holds the
-// fields and the base implementations. Subclasses embed PassConfigBase, set
-// self, then call InitPassConfigBase.
+// PassConfig holds pass factories and metadata for native Compiler passes.
 type PassConfig interface {
-	// GetWhitespaceOnlyPasses gets additional checking passes that are run
-	// always, even in "whitespace only" mode. For very specific cases where
-	// processing is required even in a mode which is intended not to have any
-	// processing - specifically introduced to support goog.module() usage.
-	//
-	// Java: PassConfig.getWhitespaceOnlyPasses()
 	GetWhitespaceOnlyPasses() *PassListBuilder
-
-	// GetTranspileOnlyPasses gets the transpilation passes
-	//
-	// Java: PassConfig.getTranspileOnlyPasses()
 	GetTranspileOnlyPasses() *PassListBuilder
-
-	// GetChecks gets the checking passes to run.
-	//
-	// Checking passes revolve around emitting warnings and errors. They also
-	// may include pre-processor passes needed to do error analysis more
-	// effectively.
-	//
-	// Clients that only want to analyze code (like IDEs) and not emit code
-	// will only run checks and not optimizations.
-	//
-	// Java: PassConfig.getChecks()
 	GetChecks() *PassListBuilder
-
-	// GetOptimizations gets the optimization passes to run.
-	//
-	// Optimization passes revolve around producing smaller and faster code.
-	// They should always run after checking passes.
-	//
-	// Java: PassConfig.getOptimizations()
 	GetOptimizations() *PassListBuilder
-
-	// GetFinalizations gets the finalization passes to run.
-	//
-	// Finalization passes include the injection of locale-specific code and
-	// converting the AST to its final form for output.
-	//
-	// Java: PassConfig.getFinalizations()
 	GetFinalizations() *PassListBuilder
-
-	// GetPassGraph gets a graph of the passes run. For debugging.
-	//
-	// Java: PassConfig.getPassGraph()
 	GetPassGraph() graph.GraphvizGraph
-
-	// GetBasePassConfig finds the first pass provider that does not have a
-	// delegate.
-	//
-	// Java: PassConfig.getBasePassConfig()
 	GetBasePassConfig() PassConfig
-
 	GetPassConfigBase() *PassConfigBase
 }
 
 // PassConfigBase holds PassConfig's fields and base implementations.
 type PassConfigBase struct {
-	self PassConfig
-
-	// Used by the subclasses.
+	self    PassConfig
 	options *CompilerOptions
 }
 
-// InitPassConfigBase is the PassConfig(CompilerOptions) constructor.
-//
-// Java: PassConfig(CompilerOptions)
 func (b *PassConfigBase) InitPassConfigBase(options *CompilerOptions) {
 	b.options = options
 }
 
-// GetPassConfigBase gives access to the base fields through the interface.
 func (b *PassConfigBase) GetPassConfigBase() *PassConfigBase { return b }
 
-// Java: PassConfig.getWhitespaceOnlyPasses()
+func (b *PassConfigBase) Options() *CompilerOptions { return b.options }
+
 func (b *PassConfigBase) GetWhitespaceOnlyPasses() *PassListBuilder {
 	return NewPassListBuilder(b.options)
 }
 
-// Java: PassConfig.getTranspileOnlyPasses()
 func (b *PassConfigBase) GetTranspileOnlyPasses() *PassListBuilder {
 	return NewPassListBuilder(b.options)
 }
 
-// Java: PassConfig.getPassGraph()
 func (b *PassConfigBase) GetPassGraph() graph.GraphvizGraph {
 	passGraph := graph.LinkedDirectedGraph_CreateWithoutAnnotations[string, string]()
 	allPasses := append(b.self.GetChecks().Build(), b.self.GetOptimizations().Build()...)
-	var lastPass *string = nil
-	var loopStart *string = nil
+	var lastPass, loopStart string
+	var hasLast, inLoop bool
 	for _, pass := range allPasses {
-		passName := pass.GetName()
-		i := 1
-		for passGraph.HasNode(passName) {
-			passName = pass.GetName() + jutil.ToJavaString(i)
-			i++
+		baseName := pass.GetName()
+		passName := baseName
+		for i := 1; passGraph.HasNode(passName); i++ {
+			passName = baseName + strconv.Itoa(i)
 		}
 		passGraph.CreateNode(passName)
 
-		if loopStart == nil && pass.IsRunInFixedPointLoop() {
-			loopStart = &passName
-		} else if loopStart != nil && !pass.IsRunInFixedPointLoop() {
-			passGraph.Connect(*lastPass, "loop", *loopStart)
-			loopStart = nil
+		if !inLoop && pass.IsRunInFixedPointLoop() {
+			loopStart = passName
+			inLoop = true
+		} else if inLoop && !pass.IsRunInFixedPointLoop() {
+			passGraph.Connect(lastPass, "loop", loopStart)
+			loopStart = ""
+			inLoop = false
 		}
 
-		if lastPass != nil {
-			passGraph.Connect(*lastPass, "", passName)
+		if hasLast {
+			passGraph.Connect(lastPass, "", passName)
 		}
-		lastPass = &passName
+		lastPass = passName
+		hasLast = true
 	}
 	return passGraph
 }
 
-// Options returns the CompilerOptions bound to this PassConfig.
-func (b *PassConfigBase) Options() *CompilerOptions {
-	return b.options
-}
-
-// Java: PassConfig.getBasePassConfig()
 func (b *PassConfigBase) GetBasePassConfig() PassConfig {
 	current := b.self
 	for {
 		delegate, ok := current.(PassConfig_PassConfigDelegate)
 		if !ok {
-			break
+			return current
 		}
 		current = delegate.GetPassConfig_PassConfigDelegateBase().delegate
 	}
-	return current
 }
 
-// PassConfig_PassConfigDelegate is an implementation of PassConfig that
-// just proxies all its method calls into an inner class.
-//
-// Go-only: language-adapter — a class with subclasses: this interface plus
-// PassConfig_PassConfigDelegateBase, which subclasses embed.
+// PassConfig_PassConfigDelegate proxies PassConfig method calls to an inner delegate.
 type PassConfig_PassConfigDelegate interface {
 	PassConfig
-
 	GetPassConfig_PassConfigDelegateBase() *PassConfig_PassConfigDelegateBase
 }
 
-// PassConfig_PassConfigDelegateBase holds PassConfigDelegate's fields and
-// base implementations.
+// PassConfig_PassConfigDelegateBase holds PassConfigDelegate's fields and base implementations.
 type PassConfig_PassConfigDelegateBase struct {
 	PassConfigBase
-
 	delegate PassConfig
 }
 
-// NewPassConfig_PassConfigDelegate allocates a PassConfigDelegate.
-//
-// Java: PassConfig.PassConfigDelegate(PassConfig)
 func NewPassConfig_PassConfigDelegate(delegate PassConfig) *PassConfig_PassConfigDelegateBase {
 	d := &PassConfig_PassConfigDelegateBase{}
 	d.InitPassConfigDelegate(d, delegate)
 	return d
 }
 
-// InitPassConfigDelegate initializes a subclass embedding PassConfig_PassConfigDelegateBase.
 func (d *PassConfig_PassConfigDelegateBase) InitPassConfigDelegate(self PassConfig, delegate PassConfig) {
 	d.self = self
 	d.InitPassConfig_PassConfigDelegateBase(delegate)
 }
 
-// InitPassConfig_PassConfigDelegateBase is the PassConfigDelegate
-// constructor body (super(delegate.options) included).
-//
-// Java: PassConfig.PassConfigDelegate(PassConfig)
 func (d *PassConfig_PassConfigDelegateBase) InitPassConfig_PassConfigDelegateBase(delegate PassConfig) {
 	d.InitPassConfigBase(delegate.GetPassConfigBase().options)
 	d.delegate = delegate
 }
 
-// GetPassConfig_PassConfigDelegateBase gives access to the delegate's
-// fields through the interface.
 func (d *PassConfig_PassConfigDelegateBase) GetPassConfig_PassConfigDelegateBase() *PassConfig_PassConfigDelegateBase {
 	return d
 }
 
-// Java: PassConfig.PassConfigDelegate.getWhitespaceOnlyPasses()
 func (d *PassConfig_PassConfigDelegateBase) GetWhitespaceOnlyPasses() *PassListBuilder {
 	return d.delegate.GetWhitespaceOnlyPasses()
 }
 
-// Java: PassConfig.PassConfigDelegate.getChecks()
 func (d *PassConfig_PassConfigDelegateBase) GetChecks() *PassListBuilder {
 	return d.delegate.GetChecks()
 }
 
-// Java: PassConfig.PassConfigDelegate.getOptimizations()
 func (d *PassConfig_PassConfigDelegateBase) GetOptimizations() *PassListBuilder {
 	return d.delegate.GetOptimizations()
 }
 
-// Java: PassConfig.PassConfigDelegate.getFinalizations()
 func (d *PassConfig_PassConfigDelegateBase) GetFinalizations() *PassListBuilder {
 	return d.delegate.GetFinalizations()
 }
 
-// Java: PassConfig.PassConfigDelegate.getTranspileOnlyPasses()
 func (d *PassConfig_PassConfigDelegateBase) GetTranspileOnlyPasses() *PassListBuilder {
 	return d.delegate.GetTranspileOnlyPasses()
 }
@@ -239,72 +156,48 @@ func (d *PassConfig_PassConfigDelegateBase) GetTranspileOnlyPasses() *PassListBu
 // earlier passes required by conformance.
 type ConformancePassConfig struct {
 	PassConfig_PassConfigDelegateBase
-
-	delegate PassConfig
 }
 
-// Java: ConformancePassConfig(PassConfig)
 func NewConformancePassConfig(delegate PassConfig) *ConformancePassConfig {
 	c := &ConformancePassConfig{}
-	c.self = c
-	c.InitPassConfig_PassConfigDelegateBase(delegate)
-	c.delegate = delegate
+	c.InitPassConfigDelegate(c, delegate)
 	return c
 }
 
-// Java: ConformancePassConfig.getChecks()
 func (c *ConformancePassConfig) GetChecks() *PassListBuilder {
-	fromDelegate := c.delegate.GetChecks()
-
-	// Return every check up to and including the "checkConformance" check. Return empty list if
-	// "checkConformance" not found. This list may include some unnecessary checks that run before
-	// conformance. However, there's no other reliable way to find a list of all the passes
-	// that conformance depends on.
+	// Return every check up to and including "checkConformance", or an empty list if not found.
 	passes := NewPassListBuilder(c.options)
-	passes.AddAllUpTo(fromDelegate, PassNames_CHECK_CONFORMANCE)
+	passes.AddAllUpTo(c.delegate.GetChecks(), PassNames_CHECK_CONFORMANCE)
 	return passes
 }
 
-// Java: ConformancePassConfig.getOptimizations()
 func (c *ConformancePassConfig) GetOptimizations() *PassListBuilder {
 	return NewPassListBuilder(c.options)
 }
 
-// CheckExtraRequiresPassConfig is a PassConfig to only run the
-// CheckExtraRequires linter rule. This allows user to select which
-// goog.require imports to be removed, provided by requiresToRemove
-//
-// Java: final class CheckExtraRequiresPassConfig extends PassConfig.PassConfigDelegate
+// CheckExtraRequiresPassConfig runs only the CheckExtraRequires linter rule to
+// remove unused goog.require imports.
 type CheckExtraRequiresPassConfig struct {
 	PassConfig_PassConfigDelegateBase
 }
 
-// Java: CheckExtraRequiresPassConfig(CompilerOptions)
 func NewCheckExtraRequiresPassConfig(options *CompilerOptions) *CheckExtraRequiresPassConfig {
 	c := &CheckExtraRequiresPassConfig{}
-	c.self = c
-	c.InitPassConfig_PassConfigDelegateBase(NewDefaultPassConfig(options))
+	c.InitPassConfigDelegate(c, NewDefaultPassConfig(options))
 	return c
 }
 
-// Java: CheckExtraRequiresPassConfig.getChecks()
 func (c *CheckExtraRequiresPassConfig) GetChecks() *PassListBuilder {
 	passes := NewPassListBuilder(c.options)
-	passes.MaybeAdd(
-		PassFactory_Builder_().
-			SetName("removeUnusedImport").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					return NewCombinedCompilerPassOfList(
-						compiler,
-						[]NodeTraversal_Callback{
-							NewCheckExtraRequires(compiler, c.options.GetUnusedImportsToRemove())})
-				}).
-			Build())
+	passes.MaybeAdd(makePassFactory("removeUnusedImport", func(compiler AbstractCompiler) CompilerPass {
+		return NewCombinedCompilerPassOfList(
+			compiler,
+			[]NodeTraversal_Callback{NewCheckExtraRequires(compiler, c.options.GetUnusedImportsToRemove())},
+		)
+	}))
 	return passes
 }
 
-// Java: CheckExtraRequiresPassConfig.getOptimizations()
 func (c *CheckExtraRequiresPassConfig) GetOptimizations() *PassListBuilder {
 	return NewPassListBuilder(c.options)
 }

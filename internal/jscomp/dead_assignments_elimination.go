@@ -32,7 +32,8 @@ import (
 // assignment to variable x and x is dead after this assignment, we know that
 // the current content of x will not be read and this assignment is useless.
 type DeadAssignmentsElimination struct {
-	NodeTraversal_AbstractCfgCallbackBase
+	NodeTraversal_AbstractPostOrderCallbackBase
+	cfgScopeStack
 
 	compiler     AbstractCompiler
 	scopeCreator *SyntacticScopeCreator
@@ -59,9 +60,8 @@ type DeadAssignmentsElimination_BailoutInformation struct {
 
 // Java: DeadAssignmentsElimination(AbstractCompiler)
 func NewDeadAssignmentsElimination(compiler AbstractCompiler) *DeadAssignmentsElimination {
-	d := &DeadAssignmentsElimination{}
-	d.InitNodeTraversal_AbstractCfgCallbackBase(d)
-	d.compiler = compiler
+	d := &DeadAssignmentsElimination{compiler: compiler}
+	d.cfgs = d.cfgsBuf[:0]
 	d.functionStack = d.functionStackBuf[:0]
 	return d
 }
@@ -127,10 +127,9 @@ func (d *DeadAssignmentsElimination) eliminateFunction(fn rhino.Node, dummyGloba
 	if allVarsDeclaredInFunction.GetAllVariables().IsEmpty() {
 		return
 	}
-	d.cfgs = append(d.cfgs, cfgStackEntry{root: fn})
+	d.pushCfgRoot(fn)
+	defer d.popCfgRoot()
 	cfg := d.GetControlFlowGraph(d.compiler)
-	d.cfgs[len(d.cfgs)-1] = cfgStackEntry{}
-	d.cfgs = d.cfgs[:len(d.cfgs)-1]
 
 	d.livenessStorage.Reset(
 		cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
@@ -246,6 +245,18 @@ func (d *DeadAssignmentsElimination) Visit(t *NodeTraversal, n rhino.Node, paren
 	} else if !top.containsRemovableAssign && d.IsRemovableAssign(n) {
 		top.containsRemovableAssign = true
 	}
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
+func (d *DeadAssignmentsElimination) EnterScope(t *NodeTraversal) {
+	d.pushScopeRoot(t.GetScopeRoot())
+	d.EnterScopeWithCfg(t)
+}
+
+// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
+func (d *DeadAssignmentsElimination) ExitScope(t *NodeTraversal) {
+	d.ExitScopeWithCfg(t)
+	d.popScopeRoot(t.GetScopeRoot())
 }
 
 // Java: DeadAssignmentsElimination.enterScopeWithCfg(NodeTraversal)

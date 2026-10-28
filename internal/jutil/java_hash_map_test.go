@@ -94,23 +94,11 @@ func TestJavaHashMapToString(t *testing.T) {
 }
 
 func TestGuavaHashCapacities(t *testing.T) {
-	// Maps.capacity in the shaded Guava (javap): n+1 below 3, ceil(n/0.75)
-	// below 2^30.
-	for n, want := range map[int]int{0: 1, 1: 2, 2: 3, 3: 4, 4: 6, 6: 8, 12: 16, 13: 18, 96: 128, 1 << 30: 1<<31 - 1} {
-		if got := Maps_Capacity(n); got != want {
-			t.Errorf("Maps.capacity(%d) = %d, want %d", n, got, want)
-		}
-	}
 	for n, want := range map[int]int32{0: 1, 1: 1, 2: 2, 3: 4, 16: 16, 17: 32, 1 << 30: 1 << 30} {
 		if got := pow2AtLeast(int32(n)); got != want {
 			t.Errorf("pow2AtLeast(%d) = %d, want %d", n, got, want)
 		}
 	}
-	Try(func() { Maps_Capacity(-1); t.Error("no exception") }, func(e IRuntimeException) {
-		if e.GetMessage() != "expectedSize cannot be negative but was: -1" {
-			t.Errorf("message %v", e.GetMessage())
-		}
-	})
 }
 
 func BenchmarkJavaHashMapStringPutGet(b *testing.B) {

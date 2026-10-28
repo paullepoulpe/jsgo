@@ -1,4 +1,6 @@
+// Port of org/kohsuke/args4j/Localizable.java @ args4j 2.33
 // Port of org/kohsuke/args4j/Messages.java @ args4j 2.33
+// Port of org/kohsuke/args4j/spi/Messages.java @ args4j 2.33
 
 /*
  * Copyright (c) 2013 Kohsuke Kawaguchi and other contributors
@@ -24,73 +26,44 @@
 
 package args4j
 
-import (
-	_ "embed"
+import "github.com/paullepoulpe/jsgo/internal/jutil"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+// ResourceBundle localizes option usage strings and meta variables when passed
+// to CmdLineParser usage printers.
+type ResourceBundle interface {
+	GetString(key string) string
+}
 
-// Messages are the messages of org.kohsuke.args4j.
-//
-// Java: enum Messages implements Localizable
-type Messages int32
+// messageTemplate is an English args4j MessageFormat pattern from
+// org/kohsuke/args4j/Messages.properties or spi/Messages.properties.
+type messageTemplate string
+
+func (m messageTemplate) format(args ...any) string {
+	return jutil.MessageFormat_Format(string(m), args)
+}
 
 const (
-	Messages_MISSING_OPERAND Messages = iota
-	Messages_UNDEFINED_OPTION
-	Messages_NO_ARGUMENT_ALLOWED
-	Messages_REQUIRED_OPTION_MISSING
-	Messages_TOO_MANY_ARGUMENTS
-	Messages_REQUIRED_ARGUMENT_MISSING
-	Messages_METADATA_ERROR
-	Messages_MULTIPLE_USE_OF_ARGUMENT
-	Messages_MULTIPLE_USE_OF_OPTION
-	Messages_UNKNOWN_HANDLER
-	Messages_NO_OPTIONHANDLER
-	Messages_NO_CONSTRUCTOR_ON_HANDLER
-	Messages_REQUIRES_OPTION_MISSING
-	Messages_FORBIDDEN_OPTION_PRESENT
-	Messages_NO_SUCH_FILE
-	Messages_DEFAULT_VALUE
+	msgMissingOperand          messageTemplate = `Option "{0}" takes an operand`
+	msgUndefinedOption         messageTemplate = `"{0}" is not a valid option`
+	msgNoArgumentAllowed       messageTemplate = `No argument is allowed: {0}`
+	msgRequiredOptionMissing   messageTemplate = `Option "{0}" is required`
+	msgRequiredArgumentMissing messageTemplate = `Argument "{0}" is required`
+	msgTooManyArguments        messageTemplate = `Too many arguments: {0}`
+	msgMultipleUseOfArgument   messageTemplate = `Argument with index {0} is used more than once`
+	msgMultipleUseOfOption     messageTemplate = `Option name {0} is used more than once`
+	msgUnknownHandler          messageTemplate = `No OptionHandler is registered to handle {0}`
+	msgRequiresOptionMissing   messageTemplate = `option "{0}" requires the option(s) {1}`
+	msgForbiddenOptionPresent  messageTemplate = `option "{0}" cannot be used with the option(s) {1}`
+	msgNoSuchFile              messageTemplate = `No such file: {0}`
+	msgDefaultValue            messageTemplate = `(default: {0})`
+
+	spiMsgIllegalOperand        messageTemplate = `"{1}" is not a valid value for "{0}"`
+	spiMsgIllegalBoolean        messageTemplate = `"{0}" is not a legal boolean value`
+	spiMsgIllegalFieldSignature messageTemplate = `Field of type {0} isn't supported by args4j`
+	spiMsgIllegalList           messageTemplate = `type of {0} is not a List`
+	spiMsgFormatErrorForMap     messageTemplate = `An argument for setting a Map must contain a "="`
+	spiMsgMapHasNoKey           messageTemplate = `A key must be set.`
+
+	defaultMetaStringArray = "STRING[]"
+	defaultMetaString      = "VAL"
 )
-
-var messages_names = [...]string{
-	"MISSING_OPERAND",
-	"UNDEFINED_OPTION",
-	"NO_ARGUMENT_ALLOWED",
-	"REQUIRED_OPTION_MISSING",
-	"TOO_MANY_ARGUMENTS",
-	"REQUIRED_ARGUMENT_MISSING",
-	"METADATA_ERROR",
-	"MULTIPLE_USE_OF_ARGUMENT",
-	"MULTIPLE_USE_OF_OPTION",
-	"UNKNOWN_HANDLER",
-	"NO_OPTIONHANDLER",
-	"NO_CONSTRUCTOR_ON_HANDLER",
-	"REQUIRES_OPTION_MISSING",
-	"FORBIDDEN_OPTION_PRESENT",
-	"NO_SUCH_FILE",
-	"DEFAULT_VALUE",
-}
-
-// String is Messages.name().
-func (m Messages) String() string { return messages_names[m] }
-
-// Go-only: language-adapter — classpath resource via go:embed: the bundle
-// org/kohsuke/args4j/Messages.properties (see locale.go).
-//
-//go:embed messages.properties
-var messages_properties string
-
-var messages_bundle = &propertyBundle{text: messages_properties}
-
-// Java: Messages.formatWithLocale(Locale, Object...)
-func (m Messages) FormatWithLocale(locale *Locale, args ...any) string {
-	localized := messages_bundle
-	return jutil.MessageFormat_Format(localized.GetString(m.String()), args)
-}
-
-// Java: Messages.format(Object...)
-func (m Messages) Format(args ...any) string {
-	return m.FormatWithLocale(Locale_GetDefault(), args...)
-}

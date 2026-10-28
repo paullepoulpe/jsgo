@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/args4j"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 )
+
 // LinterMain is a minimal binary that just runs the "lint" checks which can
 // be run on a single file at a time. This means some checks in the
 // lintChecks DiagnosticGroup are skipped, since they depend on type

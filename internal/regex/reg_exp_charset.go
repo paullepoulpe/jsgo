@@ -244,7 +244,7 @@ func (c *RegExpTree_Charset) IsCaseSensitive() bool {
 //
 // Java: Charset.decompose(CharRanges, boolean)
 func (c *RegExpTree_Charset) DecomposeRanges(ranges *CharRanges, inverted bool) *RegExpTree_DecomposedCharset {
-	namedGroups := jutil.NewStringBuilder()
+	var namedGroups strings.Builder
 	rangesInterIeExplicits := ranges.Intersection(c.ieExplicits)
 	for {
 		groupName := uint16(0)
@@ -262,7 +262,8 @@ func (c *RegExpTree_Charset) DecomposeRanges(ranges *CharRanges, inverted bool) 
 			}
 		}
 		if simplest != nil {
-			namedGroups.AppendChar('\\').AppendChar(groupName)
+			namedGroups.WriteByte('\\')
+			namedGroups.WriteByte(byte(groupName))
 			ranges = simplest
 		} else {
 			break
@@ -295,9 +296,9 @@ func (c *RegExpTree_Charset) Decompose() *RegExpTree_DecomposedCharset {
 // AppendSourceCode emits '.' or the decomposed charset.
 //
 // Java: Charset.appendSourceCode(StringBuilder)
-func (c *RegExpTree_Charset) AppendSourceCode(sb *jutil.StringBuilder) {
+func (c *RegExpTree_Charset) AppendSourceCode(sb *strings.Builder) {
 	if RegExpTree_DOT_CHARSET.ranges.Equals(c.ranges) {
-		sb.AppendChar('.')
+		sb.WriteByte('.')
 		return
 	}
 	c.Decompose().AppendSourceCode(sb)
@@ -306,8 +307,8 @@ func (c *RegExpTree_Charset) AppendSourceCode(sb *jutil.StringBuilder) {
 // AppendDebugInfo emits the ranges.
 //
 // Java: Charset.appendDebugInfo(StringBuilder)
-func (c *RegExpTree_Charset) AppendDebugInfo(sb *jutil.StringBuilder) {
-	sb.Append(c.ranges.String())
+func (c *RegExpTree_Charset) AppendDebugInfo(sb *strings.Builder) {
+	sb.WriteString(c.ranges.String())
 }
 
 // Equals compares the ranges.
@@ -363,25 +364,25 @@ func (d *RegExpTree_DecomposedCharset) Complexity() int {
 // AppendSourceCode emits the charset.
 //
 // Java: DecomposedCharset.appendSourceCode(StringBuilder)
-func (d *RegExpTree_DecomposedCharset) AppendSourceCode(sb *jutil.StringBuilder) {
+func (d *RegExpTree_DecomposedCharset) AppendSourceCode(sb *strings.Builder) {
 	if d.ranges.IsEmpty() {
 		if !d.inverted && jutil.StringLength(d.namedGroups) == 2 {
-			sb.Append(d.namedGroups)
+			sb.WriteString(d.namedGroups)
 			return
 		} else if d.ranges.IsEmpty() && d.namedGroups == "" {
 			if d.inverted {
-				sb.Append("[\\S\\s]")
+				sb.WriteString("[\\S\\s]")
 			} else {
-				sb.Append("(?!)")
+				sb.WriteString("(?!)")
 			}
 			return
 		}
 	}
-	sb.AppendChar('[')
+	sb.WriteByte('[')
 	if d.inverted {
-		sb.AppendChar('^')
+		sb.WriteByte('^')
 	}
-	sb.Append(d.namedGroups)
+	sb.WriteString(d.namedGroups)
 	rangesStartCharset := !d.inverted && d.namedGroups == ""
 	emitDashAtEnd := false
 	for i, n := 0, d.ranges.GetNumRanges(); i < n; i++ {
@@ -400,14 +401,14 @@ func (d *RegExpTree_DecomposedCharset) AppendSourceCode(sb *jutil.StringBuilder)
 			RegExpTree_DecomposedCharset_EscapeRangeCharOnto(end, rangesStartCharset, false, i+1 == n, sb)
 		default:
 			RegExpTree_DecomposedCharset_EscapeRangeCharOnto(start, rangesStartCharset, i == 0, false, sb)
-			sb.AppendChar('-')
+			sb.WriteByte('-')
 			RegExpTree_DecomposedCharset_EscapeRangeCharOnto(end, rangesStartCharset, false, true, sb)
 		}
 	}
 	if emitDashAtEnd {
-		sb.AppendChar('-')
+		sb.WriteByte('-')
 	}
-	sb.AppendChar(']')
+	sb.WriteByte(']')
 }
 
 // RegExpTree_DecomposedCharset_EscapeRangeCharOnto escapes a character that
@@ -415,24 +416,25 @@ func (d *RegExpTree_DecomposedCharset) AppendSourceCode(sb *jutil.StringBuilder)
 //
 // Java: DecomposedCharset.escapeRangeCharOnto(char, boolean, boolean, boolean, StringBuilder)
 func RegExpTree_DecomposedCharset_EscapeRangeCharOnto(
-	ch uint16, startIsFlush bool, atStart bool, atEnd bool, sb *jutil.StringBuilder) {
+	ch uint16, startIsFlush bool, atStart bool, atEnd bool, sb *strings.Builder) {
 	switch ch {
 	case '\b':
-		sb.Append("\\b")
+		sb.WriteString("\\b")
 	case '^':
 		if atStart && startIsFlush {
-			sb.Append("\\^")
+			sb.WriteString("\\^")
 		} else {
-			sb.Append("^")
+			sb.WriteByte('^')
 		}
 	case '-':
 		if atStart || atEnd {
-			sb.Append("-")
+			sb.WriteByte('-')
 		} else {
-			sb.Append("\\-")
+			sb.WriteString("\\-")
 		}
 	case '\\', ']':
-		sb.AppendChar('\\').AppendChar(ch)
+		sb.WriteByte('\\')
+		sb.WriteByte(byte(ch))
 	default:
 		RegExpTree_EscapeCharOnto(ch, sb)
 	}
@@ -525,23 +527,30 @@ type RegExpTree_UnicodePropertyEscape struct {
 	negated       bool
 }
 
+func newUnicodePropertyEscape(propertyName *string, propertyValue string, negated bool) (*RegExpTree_UnicodePropertyEscape, *RegExpParseError) {
+	if propertyName != nil && *propertyName == "" {
+		return nil, illegalArgError("if '=' is present in a unicode property escape, the name cannot be empty")
+	}
+	if propertyValue == "" {
+		return nil, illegalArgError("unicode property escape value cannot be empty")
+	}
+	return &RegExpTree_UnicodePropertyEscape{
+		propertyName:  propertyName,
+		propertyValue: propertyValue,
+		negated:       negated,
+	}, nil
+}
+
 // NewRegExpTree_UnicodePropertyEscape constructs a UnicodePropertyEscape;
 // propertyName is nil for the shorthand form \p{Value}.
 //
 // Java: UnicodePropertyEscape(@Nullable String, String, boolean)
 func NewRegExpTree_UnicodePropertyEscape(propertyName *string, propertyValue string, negated bool) *RegExpTree_UnicodePropertyEscape {
-	// Java: checkState(propertyValue != null);
-	// Go-only: language-adapter — a Go string is never null, so the check
-	// always holds.
-	jutil.CheckArgumentMsg(
-		propertyName == nil || *propertyName != "",
-		"if '=' is present in a unicode property escape, the name cannot be empty")
-	jutil.CheckArgumentMsg(propertyValue != "", "unicode property escape value cannot be empty")
-	return &RegExpTree_UnicodePropertyEscape{
-		propertyName:  propertyName,
-		propertyValue: propertyValue,
-		negated:       negated,
+	u, err := newUnicodePropertyEscape(propertyName, propertyValue, negated)
+	if err != nil {
+		panic(err.toThrowable())
 	}
+	return u
 }
 
 // Simplify returns u.
@@ -554,24 +563,24 @@ func (u *RegExpTree_UnicodePropertyEscape) Simplify(flags string) RegExpTree {
 // AppendSourceCode emits \p{...} or \P{...}.
 //
 // Java: UnicodePropertyEscape.appendSourceCode(StringBuilder)
-func (u *RegExpTree_UnicodePropertyEscape) AppendSourceCode(sb *jutil.StringBuilder) {
+func (u *RegExpTree_UnicodePropertyEscape) AppendSourceCode(sb *strings.Builder) {
 	if u.negated {
-		sb.Append("\\P{")
+		sb.WriteString("\\P{")
 	} else {
-		sb.Append("\\p{")
+		sb.WriteString("\\p{")
 	}
 	if u.propertyName != nil {
-		sb.Append(*u.propertyName)
-		sb.AppendChar('=')
+		sb.WriteString(*u.propertyName)
+		sb.WriteByte('=')
 	}
-	sb.Append(u.propertyValue)
-	sb.Append("}")
+	sb.WriteString(u.propertyValue)
+	sb.WriteByte('}')
 }
 
 // AppendDebugInfo emits nothing.
 //
 // Java: UnicodePropertyEscape.appendDebugInfo(StringBuilder)
-func (u *RegExpTree_UnicodePropertyEscape) AppendDebugInfo(sb *jutil.StringBuilder) {
+func (u *RegExpTree_UnicodePropertyEscape) AppendDebugInfo(sb *strings.Builder) {
 	// Nothing besides properties and possible negation.
 }
 
@@ -624,35 +633,42 @@ func regExpTree_nullableStringEquals(a, b *string) bool {
 // source.
 //
 // Java: RegExpTree.escapeCharOnto(char, StringBuilder)
-func RegExpTree_EscapeCharOnto(ch uint16, sb *jutil.StringBuilder) {
+func RegExpTree_EscapeCharOnto(ch uint16, sb *strings.Builder) {
+	const hexDigits = "0123456789abcdef"
 	switch ch {
 	case '\u0000':
-		sb.Append("\\0")
+		sb.WriteString("\\0")
 	case '\f':
-		sb.Append("\\f")
+		sb.WriteString("\\f")
 	case '\t':
-		sb.Append("\\t")
+		sb.WriteString("\\t")
 	case '\n':
-		sb.Append("\\n")
+		sb.WriteString("\\n")
 	case '\r':
-		sb.Append("\\r")
+		sb.WriteString("\\r")
 	case '\\':
-		sb.Append("\\\\")
+		sb.WriteString("\\\\")
 	default:
 		if ch < 0x20 || ch >= 0x7f {
 			if ch >= 0x100 {
-				sb.Append("\\u")
-				sb.AppendChar(uint16("0123456789abcdef"[(ch>>12)&0xf]))
-				sb.AppendChar(uint16("0123456789abcdef"[(ch>>8)&0xf]))
-				sb.AppendChar(uint16("0123456789abcdef"[(ch>>4)&0xf]))
-				sb.AppendChar(uint16("0123456789abcdef"[(ch)&0xf]))
+				buf := [6]byte{
+					'\\', 'u',
+					hexDigits[(ch>>12)&0xf],
+					hexDigits[(ch>>8)&0xf],
+					hexDigits[(ch>>4)&0xf],
+					hexDigits[ch&0xf],
+				}
+				sb.Write(buf[:])
 			} else {
-				sb.Append("\\x")
-				sb.AppendChar(uint16("0123456789abcdef"[(ch>>4)&0xf]))
-				sb.AppendChar(uint16("0123456789abcdef"[(ch)&0xf]))
+				buf := [4]byte{
+					'\\', 'x',
+					hexDigits[(ch>>4)&0xf],
+					hexDigits[ch&0xf],
+				}
+				sb.Write(buf[:])
 			}
 		} else {
-			sb.AppendChar(ch)
+			sb.WriteByte(byte(ch))
 		}
 	}
 }

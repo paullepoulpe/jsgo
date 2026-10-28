@@ -26,31 +26,26 @@ type ChromeCodingConvention struct {
 	CodingConventions_ProxyBase
 }
 
-// Java: ChromeCodingConvention()
+var chromeAddSingletonGetterQ = rhino.QualifiedName_Of("cr.addSingletonGetter")
+
 func NewChromeCodingConvention() *ChromeCodingConvention {
 	return NewChromeCodingConventionWithConvention(CodingConventions_GetDefault())
 }
 
-// Java: ChromeCodingConvention(CodingConvention)
 func NewChromeCodingConventionWithConvention(wrapped CodingConvention) *ChromeCodingConvention {
 	c := &ChromeCodingConvention{}
-	c.self = c
-	c.InitCodingConventions_ProxyBase(wrapped)
+	c.CodingConventions_ProxyBase = newProxyBase(c, wrapped)
 	return c
 }
 
-var ChromeCodingConvention_CR_ADD_SINGLETON_GETTER = rhino.QualifiedName_Of("cr.addSingletonGetter")
-
-// Java: ChromeCodingConvention.getSingletonGetterClassName(Node)
 func (c *ChromeCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) *string {
 	callArg := callNode.GetFirstChild()
-	if !ChromeCodingConvention_CR_ADD_SINGLETON_GETTER.Matches(callArg) || !callNode.HasTwoChildren() {
+	if !chromeAddSingletonGetterQ.Matches(callArg) || !callNode.HasTwoChildren() {
 		return c.CodingConventions_ProxyBase.GetSingletonGetterClassName(callNode)
 	}
 	return callArg.GetNext().GetQualifiedName()
 }
 
-// Java: ChromeCodingConvention.applySingletonGetter(NominalTypeBuilder, FunctionType)
 func (c *ChromeCodingConvention) ApplySingletonGetter(classType *rhino.NominalTypeBuilder, getterType rhino.FunctionType) {
 	defSite := classType.Constructor().GetSource()
 	classType.DeclareConstructorProperty("getInstance", getterType, defSite)
