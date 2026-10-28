@@ -49,9 +49,7 @@ type PeepholeCollectPropertyAssignments struct {
 
 // Java: PeepholeCollectPropertyAssignments()
 func NewPeepholeCollectPropertyAssignments() *PeepholeCollectPropertyAssignments {
-	p := &PeepholeCollectPropertyAssignments{}
-	p.InitAbstractPeepholeOptimizationBase(p) // the implicit super()
-	return p
+	return &PeepholeCollectPropertyAssignments{}
 }
 
 // Java: PeepholeCollectPropertyAssignments.optimizeSubtree(Node)

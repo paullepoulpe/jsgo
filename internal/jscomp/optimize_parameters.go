@@ -97,7 +97,7 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs rhino.Node, root rh
 	decisionsLog := o.compiler.CreateOrReopenIndexedLog("OptimizeParameters", "decisions.log")
 	defer decisionsLog.Close()
 	defer func() {
-		o.decisionsLog = nil
+		o.decisionsLog = diagnostic.LogFile{}
 		clear(o.fnNodes)
 		o.fnNodes = o.fnNodes[:0]
 		clear(o.defNodes)

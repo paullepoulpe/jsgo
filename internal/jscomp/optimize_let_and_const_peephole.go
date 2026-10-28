@@ -33,10 +33,7 @@ type OptimizeLetAndConstPeephole struct {
 
 // Java: OptimizeLetAndConstPeephole(boolean)
 func NewOptimizeLetAndConstPeephole(assumeOutputIsWrapped bool) *OptimizeLetAndConstPeephole {
-	p := &OptimizeLetAndConstPeephole{}
-	p.InitAbstractPeepholeOptimizationBase(p) // the implicit super()
-	p.assumeOutputIsWrapped = assumeOutputIsWrapped
-	return p
+	return &OptimizeLetAndConstPeephole{assumeOutputIsWrapped: assumeOutputIsWrapped}
 }
 
 // Java: OptimizeLetAndConstPeephole.optimizeSubtree(Node)

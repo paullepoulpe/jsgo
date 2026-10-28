@@ -360,11 +360,31 @@ func (r *AbstractCommandLineRunnerBase) OutputJsonStream() {
 	jsonWriter := jutil.NewJsonWriter(jutil.NewBufferedWriter(jutil.NewOutputStreamWriterWithCharset(
 		abstractCommandLineRunner_printStreamAsOutputStream{r.defaultJsOutput}, jutil.StandardCharsets_UTF_8)))
 	defer jsonWriter.Close()
-	gsonOut := jutil.NewGsonBuilder().DisableHtmlEscaping().SetPrettyPrinting().Create()
-	// Java: the TypeToken<List<JsChunkSpec>> is not used to write the elements:
-	// Gson's runtime type wrapper writes each JsonFileSpec with its own
-	// reflective adapter.
-	gsonOut.ToJsonWithWriter(r.filesToStreamOut, jsonWriter)
+	jsonWriter.SetLenient(true)
+	jsonWriter.SetHtmlSafe(false)
+	jsonWriter.SetSerializeNulls(false)
+	jutil.Try(func() {
+		if r.filesToStreamOut == nil {
+			jsonWriter.NullValue()
+			return
+		}
+		jsonWriter.BeginArray()
+		for _, spec := range r.filesToStreamOut {
+			if spec == nil {
+				jsonWriter.NullValue()
+				continue
+			}
+			jsonWriter.BeginObject()
+			jsonWriter.Name("src").ValueString(spec.Src)
+			jsonWriter.Name("path").ValueString(spec.Path)
+			jsonWriter.Name("source_map").ValueString(spec.SourceMap)
+			jsonWriter.Name("webpack_id").ValueString(spec.WebpackId)
+			jsonWriter.EndObject()
+		}
+		jsonWriter.EndArray()
+	}, func(e jutil.IIOException) {
+		panic(jutil.NewJsonIOExceptionWithCause(e))
+	})
 }
 
 // Java: AbstractCommandLineRunner.outputChunkBinaryAndSourceMaps(JSChunkGraph, B)

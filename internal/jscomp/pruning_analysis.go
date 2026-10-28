@@ -182,14 +182,9 @@ func (a *PruningAnalysis) BuildGraph() graph.DiGraph[string, *string] {
 		depSymbols.AddAll(input.GetTypeRequires()...)
 
 		for symbol := range depSymbols.All() {
-			jutil.Try(func() {
-				dep := a.sorter.GetInputProviding(symbol)
-				if dep != input {
-					depGraph.ConnectIfNotFound(name, nil, dep.GetName())
-				}
-			}, func(e ISortedDependencies_MissingProvideException) {
-				// Skip missing symbols.
-			})
+			if dep := a.sorter.MaybeGetInputProviding(symbol); dep != nil && dep != input {
+				depGraph.ConnectIfNotFound(name, nil, dep.GetName())
+			}
 		}
 	}
 	return depGraph

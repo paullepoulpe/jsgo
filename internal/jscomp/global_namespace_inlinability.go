@@ -310,7 +310,7 @@ func (n *GlobalNamespace_Name) CanCollapseOrInline() GlobalNamespace_Inlinabilit
 
 // Java: GlobalNamespace.Name.logDecision(Inlinability, String)
 func (n *GlobalNamespace_Name) LogDecision(inlinability GlobalNamespace_Inlinability, reason string) {
-	if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+	if n.outer.decisionsLog.IsLogging() {
 		n.outer.decisionsLog.LogFormat("%s: %s: %s", n.GetFullName(), inlinability.String(), reason)
 	}
 }
@@ -436,19 +436,19 @@ func (n *GlobalNamespace_Name) CanCollapseOrInlineChildNames() GlobalNamespace_I
 		n.LogChildNamesDecision(GlobalNamespace_Inlinability_DO_NOT_INLINE, "getter/setter")
 		return GlobalNamespace_Inlinability_DO_NOT_INLINE
 	} else if n.globalSets != 1 {
-		if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+		if n.outer.decisionsLog.IsLogging() {
 			n.LogChildNamesDecisionSupplier(
 				GlobalNamespace_Inlinability_DO_NOT_INLINE, func() string { return "set " + strconv.Itoa(int(n.globalSets)) + " times globally" })
 		}
 		return GlobalNamespace_Inlinability_DO_NOT_INLINE
 	} else if n.localSets != 0 {
-		if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+		if n.outer.decisionsLog.IsLogging() {
 			n.LogChildNamesDecisionSupplier(
 				GlobalNamespace_Inlinability_DO_NOT_INLINE, func() string { return "set " + strconv.Itoa(int(n.localSets)) + " times locally" })
 		}
 		return GlobalNamespace_Inlinability_DO_NOT_INLINE
 	} else if n.deleteProps != 0 {
-		if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+		if n.outer.decisionsLog.IsLogging() {
 			n.LogChildNamesDecisionSupplier(
 				GlobalNamespace_Inlinability_DO_NOT_INLINE,
 				func() string { return "properties are deleted " + strconv.Itoa(int(n.deleteProps)) + " times" })
@@ -504,7 +504,7 @@ func (n *GlobalNamespace_Name) CanCollapseOrInlineChildNames() GlobalNamespace_I
 	// condition (b)
 	if n.aliasingGets > 0 {
 		unsafeInlinability := n.GetUnsafeInlinabilityBasedOnDeclaredType()
-		if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+		if n.outer.decisionsLog.IsLogging() {
 			n.LogChildNamesDecisionSupplier(
 				unsafeInlinability, func() string { return strconv.Itoa(int(n.aliasingGets)) + " aliasing gets exist" })
 		}
@@ -536,14 +536,14 @@ func (n *GlobalNamespace_Name) CanCollapseOrInlineChildNames() GlobalNamespace_I
 
 // Java: GlobalNamespace.Name.logChildNamesDecision(Inlinability, String)
 func (n *GlobalNamespace_Name) LogChildNamesDecision(inlinability GlobalNamespace_Inlinability, reason string) {
-	if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+	if n.outer.decisionsLog.IsLogging() {
 		n.outer.decisionsLog.LogFormat("%s: children: %s: %s", n.GetFullName(), inlinability.String(), reason)
 	}
 }
 
 // Java: GlobalNamespace.Name.logChildNamesDecision(Inlinability, Supplier<String>)
 func (n *GlobalNamespace_Name) LogChildNamesDecisionSupplier(inlinability GlobalNamespace_Inlinability, reasonSupplier func() string) {
-	if n.outer.decisionsLog != nil && n.outer.decisionsLog.IsLogging() {
+	if n.outer.decisionsLog.IsLogging() {
 		n.outer.decisionsLog.LogSupplier(
 			func() string {
 				return n.GetFullName() + ": children: " + inlinability.String() + ": " + reasonSupplier()

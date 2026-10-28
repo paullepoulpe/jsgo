@@ -44,13 +44,10 @@ type FunctionToBlockMutator struct {
 	lastDiagCount            int
 	paramNamesScratch        jutil.LinkedHashSet[string]
 	modifiedParamsScratch    jutil.LinkedHashSet[string]
-	argsScratch              jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
+	argsScratch              jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair]
 	allNamesToAliasScratch   jutil.LinkedHashSet[string]
 	paramReplacementsScratch jutil.LinkedHashMap[string, rhino.Node]
 	newAliasesToAddScratch   []rhino.Node
-	scratchRoot              rhino.Node
-	scratchScript            rhino.Node
-	scratchReady             bool
 }
 
 // Java: FunctionToBlockMutator(AbstractCompiler, Supplier<String>)
@@ -147,19 +144,7 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	newFn := ast.MustFunction(fnNode.CloneTree())
 	newFnNode := newFn.Node()
 	// Wrap the clone in a script, in a root, so that makeLocalNamesUnique sees a coherent tree.
-	usedScratch := false
-	if !m.scratchReady {
-		m.scratchRoot = rhino.NewNode(rhino.Token_ROOT)
-		m.scratchScript = rhino.NewNode(rhino.Token_SCRIPT)
-		m.scratchRoot.AddChildToBack(m.scratchScript)
-		m.scratchReady = true
-	}
-	if !m.scratchScript.HasChildren() {
-		m.scratchScript.AddChildToBack(newFnNode)
-		usedScratch = true
-	} else {
-		rhino.IR_Root(rhino.IR_ScriptOfNodes(newFnNode))
-	}
+	rhino.IR_Root(rhino.IR_ScriptOfNodes(newFnNode))
 
 	if renameLocals {
 		// Now that parameter names have been replaced, make sure all the local
@@ -188,9 +173,6 @@ func (m *FunctionToBlockMutator) MutateInternal(
 	}
 
 	newBlock := newFn.Body().MustBlock().Detach().Node()
-	if usedScratch && newFnNode.GetParent() == m.scratchScript {
-		newFnNode.Detach()
-	}
 
 	if hasArgs {
 		inlineResult := m.AliasAndInlineArguments(newBlock, args, allNamesToAlias)
@@ -531,7 +513,7 @@ func (m *FunctionToBlockMutator) takeOrCloneCallArg(origArg rhino.Node) rhino.No
 // Java: FunctionToBlockMutator.aliasAndInlineArguments(Node, ImmutableMap<String, ParamArgPair>, Set<String>)
 func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 	fnTemplateRoot rhino.Node,
-	paramToArgMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
+	paramToArgMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
 	namesToAlias *jutil.LinkedHashSet[string]) rhino.Node {
 
 	if namesToAlias == nil || namesToAlias.IsEmpty() {

@@ -35,11 +35,7 @@
 
 package rhino
 
-import (
-	"strings"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "strings"
 
 // TypeStringBuilder visits types to assemble an associated stringification.
 //
@@ -73,28 +69,29 @@ func (b *TypeStringBuilder) AppendType(x JSType) *TypeStringBuilder {
 	return b
 }
 
-// AppendAll appends the elements, which are JSTypes or Strings, separated by
-// separator.
+// AppendTypes appends the JSTypes separated by separator.
 //
 // Java: TypeStringBuilder.appendAll(Iterable<?>, String)
-func (b *TypeStringBuilder) AppendAll(elements []any, separator string) *TypeStringBuilder {
-	separate := false
-	for _, e := range elements {
-		if separate {
+func (b *TypeStringBuilder) AppendTypes(elements []JSType, separator string) *TypeStringBuilder {
+	for i, e := range elements {
+		if i > 0 {
 			b.Append(separator)
-		} else {
-			separate = true
 		}
-
-		if jSType, ok := e.(JSType); ok {
-			b.AppendType(jSType)
-		} else if s, ok := e.(string); ok {
-			b.Append(s)
-		} else {
-			panic(jutil.NewClassCastException("java.lang.Object", "java.lang.String"))
-		}
+		b.AppendType(e)
 	}
+	return b
+}
 
+// AppendStrings appends the strings separated by separator.
+//
+// Java: TypeStringBuilder.appendAll(Iterable<?>, String)
+func (b *TypeStringBuilder) AppendStrings(elements []string, separator string) *TypeStringBuilder {
+	for i, s := range elements {
+		if i > 0 {
+			b.Append(separator)
+		}
+		b.Append(s)
+	}
 	return b
 }
 

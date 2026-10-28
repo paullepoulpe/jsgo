@@ -20,13 +20,25 @@ package jscomp
 
 import "github.com/paullepoulpe/jsgo/internal/jutil"
 
+// ConformanceViolationHandler handles conformance violations reported to a
+// ThreadSafeDelegatingErrorManager and returns whether the violation should be
+// surfaced as a compiler diagnostic.
+type ConformanceViolationHandler func(
+	requirement *Requirement,
+	allowlistEntry *RequirementScopeEntry,
+	diagnostic *JSError,
+	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior,
+	isAllowlisted bool,
+) bool
+
 // ThreadSafeDelegatingErrorManager is a simple delegating ErrorManager that
 // provides a thread-safe wrapper for the one being delegated.
 type ThreadSafeDelegatingErrorManager struct {
 	// Go-only: language-adapter — the object's monitor, which its
 	// synchronized methods (and those of its subclasses) hold.
-	monitor   jutil.Monitor
-	delegated ErrorManager
+	monitor                     jutil.Monitor
+	delegated                   ErrorManager
+	conformanceViolationHandler ConformanceViolationHandler
 }
 
 var _ ErrorManager = (*ThreadSafeDelegatingErrorManager)(nil)
@@ -97,6 +109,15 @@ func (m *ThreadSafeDelegatingErrorManager) GetTypedPercent() float64 {
 	return m.delegated.GetTypedPercent()
 }
 
+// SetConformanceViolationHandler installs an optional callback invoked by
+// ShouldReportConformanceViolation under the manager's lock. When nil, calls
+// delegate to the wrapped ErrorManager.
+func (m *ThreadSafeDelegatingErrorManager) SetConformanceViolationHandler(h ConformanceViolationHandler) {
+	m.lock()
+	defer m.unlock()
+	m.conformanceViolationHandler = h
+}
+
 // Java: ThreadSafeDelegatingErrorManager.shouldReportConformanceViolation(Requirement, Optional<RequirementScopeEntry>, JSError, LibraryLevelNonAllowlistedConformanceViolationsBehavior, boolean)
 func (m *ThreadSafeDelegatingErrorManager) ShouldReportConformanceViolation(
 	requirement *Requirement,
@@ -106,6 +127,10 @@ func (m *ThreadSafeDelegatingErrorManager) ShouldReportConformanceViolation(
 	isAllowlisted bool) bool {
 	m.lock()
 	defer m.unlock()
+	if m.conformanceViolationHandler != nil {
+		return m.conformanceViolationHandler(
+			requirement, allowlistEntry, diagnostic, behavior, isAllowlisted)
+	}
 	return m.delegated.ShouldReportConformanceViolation(
 		requirement, allowlistEntry, diagnostic, behavior, isAllowlisted)
 }

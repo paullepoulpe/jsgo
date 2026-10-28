@@ -183,6 +183,13 @@ func (c *Compiler) GetCompilerStateProtoBuilder() *JSCompilerStateProto_Builder 
 		builder.AddAllInstrumentationMapping(compiler_toVariableMapEntries(c.instrumentationMapping))
 	}
 
+	if len(c.conformanceViolations) > 0 {
+		builder.AddAllConformanceViolations(c.conformanceViolations)
+	}
+	if len(c.unattributedConformanceViolations) > 0 {
+		builder.AddAllUnattributedConformanceViolations(c.unattributedConformanceViolations)
+	}
+
 	return builder
 }
 
@@ -253,6 +260,9 @@ func (c *Compiler) RestoreFromState(compilerState *JSCompilerStateProto) {
 	} else {
 		c.instrumentationMapping = nil
 	}
+
+	c.conformanceViolations = slices.Clone(compilerState.GetConformanceViolationsList())
+	c.unattributedConformanceViolations = slices.Clone(compilerState.GetUnattributedConformanceViolationsList())
 
 	// We don't save changeStamp, because its value turned out to be non-deterministic
 	// (Reasons for this are unknown.), and there's no benefit to saving it anyway.

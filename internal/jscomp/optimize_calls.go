@@ -224,19 +224,6 @@ func (t *optimizeCalls_refTable) all() iter.Seq2[string, []rhino.Node] {
 	}
 }
 
-// appendDoubling is append that doubles the capacity of a full large slice.
-//
-// Go-only: performance — append already doubles up to 256 elements, then grows
-// by only 1.25x, which allocates about five times the final size of a long list.
-func appendDoubling[T any](s []T, e T) []T {
-	if len(s) == cap(s) && len(s) >= 256 {
-		grown := make([]T, len(s), 2*len(s))
-		copy(grown, s)
-		s = grown
-	}
-	return append(s, e)
-}
-
 // Java: OptimizeCalls.ReferenceMap.addReference(LinkedHashMap<String, ArrayList<Node>>, String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddReference(data *optimizeCalls_refTable, name string, n rhino.Node) {
 	refs := data.byName[name]
@@ -248,7 +235,7 @@ func (m *OptimizeCalls_ReferenceMap) AddReference(data *optimizeCalls_refTable, 
 		data.order = append(data.order, refs)
 		data.size++
 	}
-	refs.nodes = appendDoubling(refs.nodes, n)
+	refs.nodes = append(refs.nodes, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addNameReference(String, Node)

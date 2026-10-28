@@ -395,8 +395,8 @@ func (r *RemoveUnusedCode) Process(externs rhino.Node, root rhino.Node) {
 		r.compiler.CreateOrReopenIndexedLog("RemoveUnusedCode", "unremovable.log")
 	defer keepLogFile.Close()
 	defer func() {
-		r.removalLog = nil
-		r.unremovableLog = nil
+		r.removalLog = diagnostic.LogFile{}
+		r.unremovableLog = diagnostic.LogFile{}
 	}()
 	r.removalLog = removalLogFile // avoid passing the log file through a bunch of methods
 	r.unremovableLog = keepLogFile
@@ -2370,7 +2370,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 		varInfo.SetIsExplicitlyNotRemovable(func() string { return "not removing locals" })
 	}
 	r.varByKey[key] = varInfo
-	r.varInfos = appendDoubling(r.varInfos, varInfo)
+	r.varInfos = append(r.varInfos, varInfo)
 	return varInfo
 }
 

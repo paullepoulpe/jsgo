@@ -46,9 +46,7 @@ type StatementFusion struct {
 
 // Java: StatementFusion()
 func NewStatementFusion() *StatementFusion {
-	s := &StatementFusion{}
-	s.InitAbstractPeepholeOptimizationBase(s) // the implicit super()
-	return s
+	return &StatementFusion{}
 }
 
 // Java: StatementFusion.optimizeSubtree(Node)

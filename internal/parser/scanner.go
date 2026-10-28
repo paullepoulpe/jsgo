@@ -1004,12 +1004,12 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 	// Process unicode escapes.
 	var start uint16
 	if containsUnicodeEscape {
-		processed := Scanner_ProcessUnicodeEscapes(value)
-		if processed == nil {
+		processed, ok := scanner_processUnicodeEscapes(value)
+		if !ok {
 			s.ReportErrorAtPosition(s.GetPositionAt(s.index), "Invalid escape sequence")
 			return s.CreateToken(TokenType_ERROR, beginToken)
 		}
-		value = *processed
+		value = processed
 		start = jutil.StringCharAt(value, 0)
 		if isPrivateIdentifier {
 			start = jutil.StringCharAt(value, 1)
@@ -1050,86 +1050,66 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 //
 // Java: Scanner.processUnicodeEscapes(String)
 func Scanner_ProcessUnicodeEscapes(valueString string) *string {
-	// Go-only: language-adapter — the Java String is handled as UTF-16 code
-	// units so that indices are char indices; charAt past the end throws
-	// StringIndexOutOfBoundsException like Java's.
-	value := jutil.StringToUTF16(valueString)
-	charAt := func(i int) uint16 {
-		if i < 0 || i >= len(value) {
-			panic(jutil.NewStringIndexOutOfBoundsException(i, len(value)))
-		}
-		return value[i]
+	result, ok := scanner_processUnicodeEscapes(valueString)
+	if !ok {
+		return nil
 	}
-	for slices.Contains(value, '\\') {
-		escapeStart := slices.Index(value, '\\')
-		invalid := false
-		jutil.Try(func() {
-			if charAt(escapeStart+1) != 'u' {
-				invalid = true
-				return
-			}
+	return &result
+}
 
-			var hexDigits []uint16
-			var escapeEnd int
-			if charAt(escapeStart+2) != '{' {
-				// Simple escape with exactly four hex digits: \\uXXXX
-				escapeEnd = escapeStart + 6
-				// TODO(b/155480859): Don't trust String#substring to throw on out of bounds. J2CL
-				// implements it incorrectly.
-				if escapeEnd > len(value) {
-					invalid = true
-					return
-				}
-				hexDigits = value[escapeStart+2 : escapeEnd]
-			} else {
-				// Escape with braces can have any number of hex digits: \\u{XXXXXXX}
-				escapeEnd = escapeStart + 3
-				for Scanner_IsHexDigit(charAt(escapeEnd)) {
-					escapeEnd++
-				}
-				if charAt(escapeEnd) != '}' {
-					invalid = true
-					return
-				}
-				hexDigits = value[escapeStart+3 : escapeEnd]
+func scanner_processUnicodeEscapes(valueString string) (string, bool) {
+	// Go-only: language-adapter — the Java String is handled as UTF-16 code
+	// units so that indices are char indices.
+	value := jutil.StringToUTF16(valueString)
+	for {
+		escapeStart := slices.Index(value, '\\')
+		if escapeStart < 0 {
+			break
+		}
+		if escapeStart+2 >= len(value) || value[escapeStart+1] != 'u' {
+			return "", false
+		}
+
+		var hexDigits []uint16
+		var escapeEnd int
+		if value[escapeStart+2] != '{' {
+			// Simple escape with exactly four hex digits: \\uXXXX
+			escapeEnd = escapeStart + 6
+			if escapeEnd > len(value) {
+				return "", false
+			}
+			hexDigits = value[escapeStart+2 : escapeEnd]
+		} else {
+			// Escape with braces can have any number of hex digits: \\u{XXXXXXX}
+			escapeEnd = escapeStart + 3
+			for escapeEnd < len(value) && Scanner_IsHexDigit(value[escapeEnd]) {
 				escapeEnd++
 			}
-			// Identifiers are carried around the compiler as sequences of char (UTF-16 code
-			// units), so a code point that does not fit in a single char cannot be represented
-			// here. The value used to be cast straight to char, which silently kept only the low
-			// 16 bits: a braced escape for U+10041 was accepted as the identifier "A", and even
-			// code points above the U+10FFFF maximum (e.g. U+110041) slipped through the same
-			// way. Reject anything outside the BMP rather than aliasing it to a different character.
-			// TODO(mattloring): Allow code points >= 0xFFFF (greater than the size of a char).
-			codePoint := jutil.IntegerParseInt(jutil.StringFromUTF16(hexDigits), 0x10)
-			if codePoint > 0xFFFF {
-				invalid = true
-				return
+			if escapeEnd >= len(value) || value[escapeEnd] != '}' {
+				return "", false
 			}
-			ch := uint16(codePoint)
-			if !Identifiers_IsIdentifierPart(ch) {
-				invalid = true
-				return
-			}
-			next := make([]uint16, 0, len(value))
-			next = append(next, value[:escapeStart]...)
-			next = append(next, ch)
-			next = append(next, value[escapeEnd:]...)
-			value = next
-		}, func(e jutil.IRuntimeException) {
-			switch e.(type) {
-			case *jutil.NumberFormatException, *jutil.StringIndexOutOfBoundsException:
-				invalid = true
-			default:
-				panic(e)
-			}
-		})
-		if invalid {
-			return nil
+			hexDigits = value[escapeStart+3 : escapeEnd]
+			escapeEnd++
 		}
+		// Identifiers are carried around the compiler as sequences of char (UTF-16 code
+		// units), so a code point that does not fit in a single char cannot be represented
+		// here. The value used to be cast straight to char, which silently kept only the low
+		// 16 bits: a braced escape for U+10041 was accepted as the identifier "A", and even
+		// code points above the U+10FFFF maximum (e.g. U+110041) slipped through the same
+		// way. Reject anything outside the BMP rather than aliasing it to a different character.
+		// TODO(mattloring): Allow code points >= 0xFFFF (greater than the size of a char).
+		codePoint, ok := jutil.TryIntegerParseInt(jutil.StringFromUTF16(hexDigits), 0x10)
+		if !ok || codePoint > 0xFFFF {
+			return "", false
+		}
+		ch := uint16(codePoint)
+		if !Identifiers_IsIdentifierPart(ch) {
+			return "", false
+		}
+		value[escapeStart] = ch
+		value = slices.Delete(value, escapeStart+1, escapeEnd)
 	}
-	result := jutil.StringFromUTF16(value)
-	return &result
+	return jutil.StringFromUTF16(value), true
 }
 
 // Java: Scanner.scanStringLiteral(int, char)

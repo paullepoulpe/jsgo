@@ -176,17 +176,15 @@ type commandLineRunner_Flags struct {
 	parser *args4j.CmdLineParser
 
 	maxLineLength int
+
+	// Java: CommandLineRunner.Flags.guardLevels (per-Flags instance so
+	// concurrent CommandLineRunner instances do not share mutable state)
+	guardLevels []*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel]
+
+	// Java: CommandLineRunner.Flags.mixedJsSources (per-Flags instance so
+	// concurrent CommandLineRunner instances do not share mutable state)
+	mixedJsSources []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]
 }
-
-// Some clients run a few copies of the compiler through CommandLineRunner
-// on parallel threads (thankfully, with the same flags),
-// so the access to these lists should be synchronized.
-//
-// Java: CommandLineRunner.Flags.guardLevels
-var commandLineRunner_Flags_guardLevels []*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel]
-
-// Java: CommandLineRunner.Flags.mixedJsSources
-var commandLineRunner_Flags_mixedJsSources []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]
 
 // Java: CommandLineRunner.Flags()
 func newCommandLineRunner_Flags() *commandLineRunner_Flags {
@@ -328,9 +326,9 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.StringField(c, "loggingLevel", &f.loggingLevel)},
 		{Option: &args4j.Option{Name: "--externs", Usage: "The file containing JavaScript externs. You may specify multiple"},
 			Field: args4j.ListField(c, "externs", args4j.Class_String, &f.externs)},
-		{Option: &args4j.Option{Name: "--js", Handler: newCommandLineRunner_Flags_JsOptionHandler, Usage: "The JavaScript filename. You may specify multiple. The flag name is optional, because args are interpreted as files by default. You may also use minimatch-style glob patterns. For example, use --js='**.js' --js='!**_test.js' to recursively include all js files that do not end in _test.js"},
+		{Option: &args4j.Option{Name: "--js", Handler: newCommandLineRunner_Flags_JsOptionHandler(&f.mixedJsSources), Usage: "The JavaScript filename. You may specify multiple. The flag name is optional, because args are interpreted as files by default. You may also use minimatch-style glob patterns. For example, use --js='**.js' --js='!**_test.js' to recursively include all js files that do not end in _test.js"},
 			Field: args4j.ListField(c, "js", args4j.Class_String, &f.js)},
-		{Option: &args4j.Option{Name: "--jszip", Hidden: true, Handler: newCommandLineRunner_Flags_JsZipOptionHandler, Usage: "The JavaScript zip filename. You may specify multiple."},
+		{Option: &args4j.Option{Name: "--jszip", Hidden: true, Handler: newCommandLineRunner_Flags_JsZipOptionHandler(&f.mixedJsSources), Usage: "The JavaScript zip filename. You may specify multiple."},
 			Field: args4j.ListField(c, "unusedJsZip", args4j.Class_String, &f.unusedJsZip)},
 		{Option: &args4j.Option{Name: "--js_output_file", Usage: "Primary output filename. If not specified, output is written to stdout"},
 			Field: args4j.StringField(c, "jsOutputFile", &f.jsOutputFile)},
@@ -378,11 +376,11 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.BooleanField(c, "parseInlineSourceMaps", &f.parseInlineSourceMaps)},
 		{Option: &args4j.Option{Name: "--apply_input_source_maps", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Apply input source maps to the output source map, i.e. have the result map back to original inputs.  Input sourcemaps can be located in 2 ways:\n 1) by the//# sourceMappingURL=<url>. \n 2) using the--source_map_location_mapping flag.\nsourceMappingURL=<url> can read both paths and inline Base64 encoded sourcemaps. For inline Base64 encoded sourcemaps, see --parse_inline_source_maps."},
 			Field: args4j.BooleanField(c, "applyInputSourceMaps", &f.applyInputSourceMaps)},
-		{Option: &args4j.Option{Name: "--jscomp_error", Handler: newCommandLineRunner_Flags_WarningGuardErrorOptionHandler, Usage: "Make the named class of warnings an error. Must be one of the error group items. '*' adds all supported."},
+		{Option: &args4j.Option{Name: "--jscomp_error", Handler: newCommandLineRunner_Flags_WarningGuardErrorOptionHandler(&f.guardLevels), Usage: "Make the named class of warnings an error. Must be one of the error group items. '*' adds all supported."},
 			Field: args4j.ListField(c, "jscompError", args4j.Class_String, &f.jscompError)},
-		{Option: &args4j.Option{Name: "--jscomp_warning", Handler: newCommandLineRunner_Flags_WarningGuardWarningOptionHandler, Usage: "Make the named class of warnings a normal warning. Must be one of the error group items. '*' adds all supported."},
+		{Option: &args4j.Option{Name: "--jscomp_warning", Handler: newCommandLineRunner_Flags_WarningGuardWarningOptionHandler(&f.guardLevels), Usage: "Make the named class of warnings a normal warning. Must be one of the error group items. '*' adds all supported."},
 			Field: args4j.ListField(c, "jscompWarning", args4j.Class_String, &f.jscompWarning)},
-		{Option: &args4j.Option{Name: "--jscomp_off", Handler: newCommandLineRunner_Flags_WarningGuardOffOptionHandler, Usage: "Turn off the named class of warnings. Must be one of the error group items. '*' adds all supported."},
+		{Option: &args4j.Option{Name: "--jscomp_off", Handler: newCommandLineRunner_Flags_WarningGuardOffOptionHandler(&f.guardLevels), Usage: "Turn off the named class of warnings. Must be one of the error group items. '*' adds all supported."},
 			Field: args4j.ListField(c, "jscompOff", args4j.Class_String, &f.jscompOff)},
 		{Option: &args4j.Option{Name: "--define", Aliases: []string{"--D", "-D"}, Usage: "Override the value of a variable annotated @define. The format is <name>[=<val>], where <name> is the name of a @define variable and <val> is a boolean, number, or a single-quoted string that contains no single quotes. If [=<val>] is omitted, the variable is marked true"},
 			Field: args4j.ListField(c, "define", args4j.Class_String, &f.define)},
@@ -814,12 +812,12 @@ func commandLineRunner_Flags_printShortUsageAfterErrors(ps *jutil.PrintStream) {
 //
 // Java: CommandLineRunner.Flags.getMixedJsSources()
 func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
-	mixedSources := make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 0, len(commandLineRunner_Flags_mixedJsSources)+len(f.arguments))
+	mixedSources := make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 0, len(f.mixedJsSources)+len(f.arguments))
 	var excludes *jutil.LinkedHashSet[string]
 	allocJsEntry := func(filename string) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
 		return NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, filename)
 	}
-	for _, source := range commandLineRunner_Flags_mixedJsSources {
+	for _, source := range f.mixedJsSources {
 		val := source.GetValue()
 		if strings.HasSuffix(val, ".zip") {
 			mixedSources = append(mixedSources, source)
@@ -859,7 +857,7 @@ func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunn
 			mixedSources = append(mixedSources, allocJsEntry(filename))
 		}
 	}
-	if len(commandLineRunner_Flags_mixedJsSources) != 0 && len(f.arguments) != 0 && len(mixedSources) == 0 {
+	if len(f.mixedJsSources) != 0 && len(f.arguments) != 0 && len(mixedSources) == 0 {
 		panic(args4j.NewCmdLineExceptionWithParser(f.parser, "No inputs matched"))
 	}
 	return mixedSources
@@ -977,10 +975,13 @@ type commandLineRunner_Flags_WarningGuardErrorOptionHandler struct {
 //
 // Java: CommandLineRunner.Flags.WarningGuardErrorOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_WarningGuardErrorOptionHandler(
-	parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-	h := &commandLineRunner_Flags_WarningGuardErrorOptionHandler{}
-	h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_ERROR, &commandLineRunner_Flags_guardLevels))
-	return h
+	guardLevels *[]*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel],
+) args4j.OptionHandlerClass {
+	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
+		h := &commandLineRunner_Flags_WarningGuardErrorOptionHandler{}
+		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_ERROR, guardLevels))
+		return h
+	}
 }
 
 // Java: CommandLineRunner.Flags.WarningGuardWarningOptionHandler
@@ -992,10 +993,13 @@ type commandLineRunner_Flags_WarningGuardWarningOptionHandler struct {
 //
 // Java: CommandLineRunner.Flags.WarningGuardWarningOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_WarningGuardWarningOptionHandler(
-	parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-	h := &commandLineRunner_Flags_WarningGuardWarningOptionHandler{}
-	h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_WARNING, &commandLineRunner_Flags_guardLevels))
-	return h
+	guardLevels *[]*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel],
+) args4j.OptionHandlerClass {
+	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
+		h := &commandLineRunner_Flags_WarningGuardWarningOptionHandler{}
+		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_WARNING, guardLevels))
+		return h
+	}
 }
 
 // Java: CommandLineRunner.Flags.WarningGuardOffOptionHandler
@@ -1007,10 +1011,13 @@ type commandLineRunner_Flags_WarningGuardOffOptionHandler struct {
 //
 // Java: CommandLineRunner.Flags.WarningGuardOffOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_WarningGuardOffOptionHandler(
-	parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-	h := &commandLineRunner_Flags_WarningGuardOffOptionHandler{}
-	h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_OFF, &commandLineRunner_Flags_guardLevels))
-	return h
+	guardLevels *[]*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel],
+) args4j.OptionHandlerClass {
+	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
+		h := &commandLineRunner_Flags_WarningGuardOffOptionHandler{}
+		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_OFF, guardLevels))
+		return h
+	}
 }
 
 // Java: CommandLineRunner.Flags.JsOptionHandler
@@ -1022,10 +1029,13 @@ type commandLineRunner_Flags_JsOptionHandler struct {
 //
 // Java: CommandLineRunner.Flags.JsOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_JsOptionHandler(
-	parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-	h := &commandLineRunner_Flags_JsOptionHandler{}
-	h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, AbstractCommandLineRunner_JsSourceType_JS, &commandLineRunner_Flags_mixedJsSources))
-	return h
+	mixedJsSources *[]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
+) args4j.OptionHandlerClass {
+	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
+		h := &commandLineRunner_Flags_JsOptionHandler{}
+		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, AbstractCommandLineRunner_JsSourceType_JS, mixedJsSources))
+		return h
+	}
 }
 
 // Java: CommandLineRunner.Flags.JsZipOptionHandler
@@ -1037,10 +1047,13 @@ type commandLineRunner_Flags_JsZipOptionHandler struct {
 //
 // Java: CommandLineRunner.Flags.JsZipOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_JsZipOptionHandler(
-	parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-	h := &commandLineRunner_Flags_JsZipOptionHandler{}
-	h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, AbstractCommandLineRunner_JsSourceType_JS_ZIP, &commandLineRunner_Flags_mixedJsSources))
-	return h
+	mixedJsSources *[]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
+) args4j.OptionHandlerClass {
+	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
+		h := &commandLineRunner_Flags_JsZipOptionHandler{}
+		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, AbstractCommandLineRunner_JsSourceType_JS_ZIP, mixedJsSources))
+		return h
+	}
 }
 
 // Java: CommandLineRunner.Flags.MultiFlagSetter<T>

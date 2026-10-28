@@ -56,10 +56,7 @@ var peepholeMinimizeConditions_AND_PRECEDENCE = NodeUtil_Precedence(rhino.Token_
 //
 // Java: PeepholeMinimizeConditions(boolean)
 func NewPeepholeMinimizeConditions(late bool) *PeepholeMinimizeConditions {
-	p := &PeepholeMinimizeConditions{}
-	p.InitAbstractPeepholeOptimizationBase(p) // the implicit super()
-	p.late = late
-	return p
+	return &PeepholeMinimizeConditions{late: late}
 }
 
 // OptimizeSubtree tries to apply our various peephole minimizations on the

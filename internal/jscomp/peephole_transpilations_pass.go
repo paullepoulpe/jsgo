@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"reflect"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -68,13 +66,13 @@ func PeepholeTranspilationsPass_Create(
 	// initialize the feature sets to the union of all the features that the peephole transpilations
 	// need to run on and the features that they transpile away.
 	for _, transpilation := range transpilations {
-		jutil.CheckStateMsg1(
-			!transpilation.
-				GetAdditionalFeaturesToRunOn().
-				ContainsAtLeastOneOf(transpilation.GetTranspiledAwayFeatures()),
-			"Transpilation pass %s has getAdditionalFeaturesToRunOn() that contains features that it"+
-				" transpiles away.",
-			peepholeTranspilationsPass_simpleName{transpilation})
+		if transpilation.
+			GetAdditionalFeaturesToRunOn().
+			ContainsAtLeastOneOf(transpilation.GetTranspiledAwayFeatures()) {
+			panic(jutil.NewIllegalStateExceptionMsg(
+				"Transpilation pass " + peepholeTranspilationSimpleName(transpilation) +
+					" has getAdditionalFeaturesToRunOn() that contains features that it transpiles away."))
+		}
 		featureSetToRunOn = featureSetToRunOn.WithFeatureSet(transpilation.GetTranspiledAwayFeatures())
 		// some passes need to run on additional features beyond those they transpile away.
 		featureSetToRunOn = featureSetToRunOn.WithFeatureSet(transpilation.GetAdditionalFeaturesToRunOn())
@@ -85,21 +83,19 @@ func PeepholeTranspilationsPass_Create(
 		compiler, transpilations, featureSetToRunOn, featureSetToMarkAsTranspiledAway)
 }
 
-// peepholeTranspilationsPass_simpleName formats transpilation.getClass().getSimpleName()
-// lazily on failure.
-//
-// Go-only: language-adapter — the Go struct of each transpilation is named
-// after its Java class.
-type peepholeTranspilationsPass_simpleName struct {
-	transpilation AbstractPeepholeTranspilation
-}
-
-func (n peepholeTranspilationsPass_simpleName) String() string {
-	t := reflect.TypeOf(n.transpilation)
-	if t.Kind() == reflect.Pointer {
-		t = t.Elem()
+func peepholeTranspilationSimpleName(t AbstractPeepholeTranspilation) string {
+	switch t.(type) {
+	case *ReportUntranspilableFeatures:
+		return "ReportUntranspilableFeatures"
+	case *RewriteCatchWithNoBinding:
+		return "RewriteCatchWithNoBinding"
+	case *Es6NormalizeShorthandProperties:
+		return "Es6NormalizeShorthandProperties"
+	case *RewriteNewDotTarget:
+		return "RewriteNewDotTarget"
+	default:
+		return "AbstractPeepholeTranspilation"
 	}
-	return t.Name()
 }
 
 // Java: PeepholeTranspilationsPass.process(Node, Node)

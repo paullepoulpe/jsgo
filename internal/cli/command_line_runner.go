@@ -305,13 +305,13 @@ func (r *CommandLineRunner) ProcessFlagFile(flagFileString string) {
 
 	// Command-line warning levels should override flag file settings,
 	// which means they should go last.
-	previousGuardLevels := slices.Clone(commandLineRunner_Flags_guardLevels)
-	previousMixedJsSources := slices.Clone(commandLineRunner_Flags_mixedJsSources)
-	commandLineRunner_Flags_guardLevels = commandLineRunner_Flags_guardLevels[:0]
-	commandLineRunner_Flags_mixedJsSources = commandLineRunner_Flags_mixedJsSources[:0]
+	previousGuardLevels := slices.Clone(r.flags.guardLevels)
+	previousMixedJsSources := slices.Clone(r.flags.mixedJsSources)
+	r.flags.guardLevels = r.flags.guardLevels[:0]
+	r.flags.mixedJsSources = r.flags.mixedJsSources[:0]
 	r.flags.Parse(tokens)
-	commandLineRunner_Flags_guardLevels = append(commandLineRunner_Flags_guardLevels, previousGuardLevels...)
-	commandLineRunner_Flags_mixedJsSources = append(commandLineRunner_Flags_mixedJsSources, previousMixedJsSources...)
+	r.flags.guardLevels = append(r.flags.guardLevels, previousGuardLevels...)
+	r.flags.mixedJsSources = append(r.flags.mixedJsSources, previousMixedJsSources...)
 
 	// Currently we are not supporting this (prevent direct/indirect loops)
 	if len(r.flags.flagFiles) != 0 {
@@ -335,8 +335,8 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	r.errorStream = err
 	processedArgs := commandLineRunner_processArgs(args)
 
-	commandLineRunner_Flags_guardLevels = commandLineRunner_Flags_guardLevels[:0]
-	commandLineRunner_Flags_mixedJsSources = commandLineRunner_Flags_mixedJsSources[:0]
+	flags.guardLevels = flags.guardLevels[:0]
+	flags.mixedJsSources = flags.mixedJsSources[:0]
 
 	var mixedSources []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]
 	var mappings []jscomp.SourceMap_LocationMapping
@@ -474,7 +474,7 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 			SetSourceMapInputFiles(sourceMapInputs).
 			SetParseInlineSourceMaps(parseInlineSourceMaps).
 			SetApplyInputSourceMaps(applyInputSourceMaps).
-			SetWarningGuards(commandLineRunner_Flags_guardLevels).
+			SetWarningGuards(flags.guardLevels).
 			SetDefine(flags.define).
 			SetBrowserFeaturesetYear(int(flags.browserFeaturesetYear)).
 			SetCharset(flags.charset).

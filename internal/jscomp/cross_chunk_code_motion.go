@@ -67,10 +67,6 @@ type CrossChunkCodeMotion struct {
 	// declarations that have to be moved into that chunk
 	chunkInsertionPointMap map[*JSChunk]rhino.Node
 
-	symSlab   jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]
-	dsgSlab   jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]
-	cycleSlab jutil.Slab[CrossChunkCodeMotion_GlobalSymbolCycle]
-
 	scratchImmovableChunks jutil.BitSet
 	scratchDsgCycle        CrossChunkCodeMotion_DeclarationStatementGroupCycle
 
@@ -78,28 +74,29 @@ type CrossChunkCodeMotion struct {
 }
 
 func (c *CrossChunkCodeMotion) allocGlobalSymbol(var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
-	s := c.symSlab.New()
-	s.outer = c
+	s := &CrossChunkCodeMotion_GlobalSymbol{
+		outer:                c,
+		preorderNumber:       -1,
+		singleImmovableChunk: -1,
+		var_:                 var_,
+	}
 	s.dsgs = s.dsgBuf[:0]
 	s.referencingSlice = s.referencingBuf[:0]
-	s.preorderNumber = -1
-	s.singleImmovableChunk = -1
-	s.var_ = var_
 	return s
 }
 
 func (c *CrossChunkCodeMotion) allocDsg(declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroup {
-	g := c.dsgSlab.New()
-	g.declaredGlobalSymbol = declaredGlobalSymbol
-	g.currentChunk = currentChunk
+	g := &CrossChunkCodeMotion_DeclarationStatementGroup{
+		declaredGlobalSymbol: declaredGlobalSymbol,
+		currentChunk:         currentChunk,
+	}
 	g.statements = g.stmtBuf[:0]
 	g.referencedSlice = g.referencedBuf[:0]
 	return g
 }
 
 func (c *CrossChunkCodeMotion) allocCycle() *CrossChunkCodeMotion_GlobalSymbolCycle {
-	y := c.cycleSlab.New()
-	y.outer = c
+	y := &CrossChunkCodeMotion_GlobalSymbolCycle{outer: c}
 	y.symbolsSlice = y.symbolsBuf[:0]
 	return y
 }
@@ -126,10 +123,7 @@ func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 	logFile := c.compiler.CreateOrReopenIndexedLog("CrossChunkCodeMotion", "cccm.log")
 	defer logFile.Close()
 	defer func() {
-		c.cccmLog = nil
-		c.symSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]{}
-		c.dsgSlab = jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]{}
-		c.cycleSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbolCycle]{}
+		c.cccmLog = diagnostic.LogFile{}
 	}()
 	c.cccmLog = logFile
 	c.cccmLog.LogString("doing cccm")

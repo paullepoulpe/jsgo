@@ -77,7 +77,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 	logFile := o.compiler.CreateOrReopenIndexedLog("OptimizeReturns", "decisions.log")
 	defer logFile.Close()
 	defer func() {
-		o.decisionsLog = nil
+		o.decisionsLog = diagnostic.LogFile{}
 		clear(o.fnNodes)
 		o.fnNodes = o.fnNodes[:0]
 	}()

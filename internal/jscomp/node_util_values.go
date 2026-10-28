@@ -21,6 +21,7 @@ package jscomp
 import (
 	"math"
 	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -427,17 +428,18 @@ func nodeUtil_getStringNumberValue(rawJsString string) (float64, bool) {
 					return math.NaN(), true
 				}
 			}
-			var result float64
-			jutil.Try(func() {
-				if jutil.StringLength(digits) <= 14 {
-					result = float64(jutil.LongParseLong(digits, radix))
-				} else {
-					result = nodeUtil_bigIntegerDoubleValue(digits, radix)
+			if len(digits) <= 14 {
+				v, err := strconv.ParseInt(digits, radix, 64)
+				if err != nil {
+					return math.NaN(), true
 				}
-			}, func(e jutil.INumberFormatException) {
-				result = math.NaN()
-			})
-			return result, true
+				return float64(v), true
+			}
+			v, ok := nodeUtil_bigIntegerDoubleValue(digits, radix)
+			if !ok {
+				return math.NaN(), true
+			}
+			return v, true
 		}
 	}
 
@@ -473,13 +475,107 @@ func nodeUtil_getStringNumberValue(rawJsString string) (float64, bool) {
 		return math.NaN(), true
 	}
 
-	var result float64
-	jutil.Try(func() {
-		result = jutil.DoubleParseDouble(s)
-	}, func(e jutil.INumberFormatException) {
-		result = math.NaN()
-	})
-	return result, true
+	v, ok := nodeUtil_parseDecimalDouble(s)
+	if !ok {
+		return math.NaN(), true
+	}
+	return v, true
+}
+
+// nodeUtil_parseDecimalDouble parses a non-empty string restricted to ASCII
+// [0-9.eE+-] using Java's Double.parseDouble decimal grammar without panicking.
+func nodeUtil_parseDecimalDouble(s string) (float64, bool) {
+	i := 0
+	negative := false
+	if s[0] == '-' || s[0] == '+' {
+		negative = s[0] == '-'
+		i = 1
+	}
+	body := s[i:]
+	if body == "" {
+		return 0, false
+	}
+	pos, points, digitCount := 0, 0, 0
+	for pos < len(body) && ((body[pos] >= '0' && body[pos] <= '9') || body[pos] == '.') {
+		if body[pos] == '.' {
+			points++
+		} else {
+			digitCount++
+		}
+		pos++
+	}
+	if points > 1 || digitCount == 0 {
+		return 0, false
+	}
+	significandEnd := pos
+	var exponent int64
+	if pos < len(body) && (body[pos] == 'e' || body[pos] == 'E') {
+		pos++
+		expNeg := false
+		if pos < len(body) && (body[pos] == '+' || body[pos] == '-') {
+			expNeg = body[pos] == '-'
+			pos++
+		}
+		expStart := pos
+		for pos < len(body) && body[pos] >= '0' && body[pos] <= '9' {
+			if exponent < 1e15 {
+				exponent = exponent*10 + int64(body[pos]-'0')
+			}
+			pos++
+		}
+		if pos == expStart {
+			return 0, false
+		}
+		if expNeg {
+			exponent = -exponent
+		}
+	}
+	if pos != len(body) {
+		return 0, false
+	}
+	if exponent > -10000 && exponent < 10000 {
+		v, err := strconv.ParseFloat(s, 64)
+		if err == nil {
+			return v, true
+		}
+		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
+			return v, true
+		}
+	}
+	sig := make([]byte, 0, digitCount)
+	var intDigits int64
+	seenPoint := false
+	for j := 0; j < significandEnd; j++ {
+		switch c := body[j]; {
+		case c == '.':
+			seenPoint = true
+		case c == '0' && len(sig) == 0:
+			if seenPoint {
+				intDigits--
+			}
+		default:
+			sig = append(sig, c)
+			if !seenPoint {
+				intDigits++
+			}
+		}
+	}
+	var v float64
+	if len(sig) > 0 {
+		scale10 := intDigits + exponent
+		switch {
+		case scale10 > 310:
+			v = math.Inf(1)
+		case scale10 < -400:
+			v = 0
+		default:
+			v, _ = strconv.ParseFloat("0."+string(sig)+"e"+strconv.FormatInt(scale10, 10), 64)
+		}
+	}
+	if negative {
+		v = -v
+	}
+	return v, true
 }
 
 // Java: NodeUtil.isValidDigit(char, int)
@@ -501,13 +597,13 @@ func nodeUtil_isValidDigit(c uint16, radix int) bool {
 // ties to even, or Infinity if it is too large.
 //
 // Go-only: language-adapter — java.math.BigInteger.
-func nodeUtil_bigIntegerDoubleValue(digits string, radix int) float64 {
+func nodeUtil_bigIntegerDoubleValue(digits string, radix int) (float64, bool) {
 	x, ok := new(big.Int).SetString(digits, radix)
 	if !ok {
-		panic(jutil.NewNumberFormatException("For input string: \"" + digits + "\""))
+		return 0, false
 	}
 	f, _ := new(big.Float).SetInt(x).Float64()
-	return f
+	return f, true
 }
 
 const (
@@ -621,24 +717,55 @@ func NodeUtil_GetStringBigIntValue(rawJsString string) *big.Int {
 			radix = 0
 		}
 		if radix != 0 {
-			var result *big.Int
-			jutil.Try(func() {
-				result = jutil.NewBigIntegerFromStringRadix(jutil.StringSubstringFrom(s, 2), radix)
-			}, func(e jutil.INumberFormatException) {
-				result = nil
-			})
-			return result
+			return nodeUtil_parseBigInteger(jutil.StringSubstringFrom(s, 2), radix)
 		}
 	}
 
-	var result *big.Int
-	jutil.Try(func() {
-		// Java: new BigInteger(s), i.e. new BigInteger(s, 10).
-		result = jutil.NewBigIntegerFromStringRadix(s, 10)
-	}, func(e jutil.INumberFormatException) {
-		result = nil
-	})
-	return result
+	// Java: new BigInteger(s), i.e. new BigInteger(s, 10).
+	return nodeUtil_parseBigInteger(s, 10)
+}
+
+// nodeUtil_parseBigInteger parses s in radix using Java's BigInteger(String, int)
+// grammar, returning nil instead of panicking on invalid input.
+func nodeUtil_parseBigInteger(s string, radix int) *big.Int {
+	units := jutil.StringToUTF16(s)
+	start := 0
+	negative := false
+	if len(units) > 0 && (units[0] == '-' || units[0] == '+') {
+		negative = units[0] == '-'
+		start = 1
+	}
+	if start == len(units) {
+		return nil
+	}
+	for _, c := range units[start:] {
+		if c == '-' || c == '+' {
+			return nil
+		}
+	}
+	for start < len(units) && jutil.CharacterDigit(units[start], radix) == 0 {
+		start++
+	}
+	if start == len(units) {
+		return big.NewInt(0)
+	}
+	digits := units[start:]
+	text := make([]byte, len(digits))
+	for i, c := range digits {
+		d := jutil.CharacterDigit(c, radix)
+		if d < 0 {
+			return nil
+		}
+		text[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[d]
+	}
+	x, ok := new(big.Int).SetString(string(text), radix)
+	if !ok {
+		return nil
+	}
+	if negative {
+		x.Neg(x)
+	}
+	return x
 }
 
 // Java: NodeUtil.trimJsWhiteSpace(String)

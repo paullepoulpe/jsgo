@@ -193,11 +193,9 @@ func (t *ArrowType) HasTemplatedParameterType() bool {
 func (t *ArrowType) String() string {
 	typeStringBuilder := NewTypeStringBuilder(false)
 	typeStringBuilder.Append("(")
-	elements := make([]any, len(t.parameterList))
-	for i, p := range t.parameterList {
-		elements[i] = p
+	if len(t.parameterList) != 0 {
+		panic(jutil.NewClassCastException("java.lang.Object", "java.lang.String"))
 	}
-	typeStringBuilder.AppendAll(elements, ",")
 	typeStringBuilder.Append(") -> ")
 	typeStringBuilder.AppendType(jsTypeOf(t.returnType))
 	return typeStringBuilder.Build()

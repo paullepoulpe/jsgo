@@ -217,7 +217,7 @@ func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Build
 	if !t.noShouldTraverse {
 		_, t.noShouldTraverse = cb.(NodeTraversal_AbstractPostOrderCallbackInterface)
 		if !t.noShouldTraverse {
-			if tc, ok := cb.(*TypeCheck); ok && (tc.debugTypeLogger == nil || tc.debugTypeLogger.typeLogFile == nil) {
+			if tc, ok := cb.(*TypeCheck); ok && (tc.debugTypeLogger == nil || !tc.debugTypeLogger.typeLogFile.IsLogging()) {
 				t.noShouldTraverse = true
 			}
 		}
@@ -1194,18 +1194,6 @@ func (t *NodeTraversal) PopScopeWithQuietly(quietly bool) {
 	}
 	t.scopes[len(t.scopes)-1] = scopeStackEntry{}
 	t.scopes = t.scopes[:len(t.scopes)-1]
-}
-
-// GetNodeRootFromScopeObj: scopes are stored in a list of objects. These
-// can either be instanciated `AbstractScope` or the `Node` representing the
-// root of the scope.
-//
-// Java: NodeTraversal.getNodeRootFromScopeObj(Object)
-func (t *NodeTraversal) GetNodeRootFromScopeObj(root any) rhino.Node {
-	if node, ok := root.(rhino.Node); ok {
-		return node
-	}
-	return root.(AbstractScope).GetRootNode()
 }
 
 // GetScopeRoot returns the current scope's root.

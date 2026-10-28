@@ -27,8 +27,14 @@ package graph
 // createNode, getNodes, getNode, getEdges() and getEdges(N, N) are the
 // methods CreateDiGraphNode, GetDiGraphNodes, GetDiGraphNode,
 // GetDiGraphEdges and GetDiGraphEdgesBetween (see Graph).
-type DiGraph[N, E any] interface {
+type DiGraph[N comparable, E any] interface {
 	Graph[N, E]
+
+	// AsLinkedDirectedGraph returns the underlying LinkedDirectedGraph.
+	//
+	// Go-only: performance — LinkedDirectedGraph is the sole DiGraph
+	// implementation (embedded by ControlFlowGraphBase).
+	AsLinkedDirectedGraph() *LinkedDirectedGraph[N, E]
 
 	// Java: DiGraph.createNode(N)
 	CreateDiGraphNode(nodeValue N) DiGraph_DiGraphNode[N, E]
@@ -90,7 +96,7 @@ type DiGraph[N, E any] interface {
 }
 
 // DiGraphBase holds DiGraph's base implementations.
-type DiGraphBase[N, E any] struct {
+type DiGraphBase[N comparable, E any] struct {
 	GraphBase[N, E]
 
 	diSelf DiGraph[N, E]

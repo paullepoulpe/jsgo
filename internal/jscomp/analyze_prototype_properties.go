@@ -64,11 +64,6 @@ type AnalyzePrototypeProperties struct {
 	varNameInfo *jutil.LinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo]
 
 	seededNodes []*AnalyzePrototypeProperties_NameInfo
-
-	nameInfoSlab   jutil.Slab[AnalyzePrototypeProperties_NameInfo]
-	globalFuncSlab jutil.Slab[AnalyzePrototypeProperties_GlobalFunction]
-	assignPropSlab jutil.Slab[AnalyzePrototypeProperties_AssignmentPrototypeProperty]
-	edgeSlab       []analyzeProtoPropEdge
 }
 
 func (a *AnalyzePrototypeProperties) allocGlobalFunction(nameNode rhino.Node, var_ *Var, chunk *JSChunk) *AnalyzePrototypeProperties_GlobalFunction {
@@ -76,24 +71,25 @@ func (a *AnalyzePrototypeProperties) allocGlobalFunction(nameNode rhino.Node, va
 	jutil.CheckState(
 		(NodeUtil_IsNameDeclaration(parent) && var_.IsGlobal()) ||
 			NodeUtil_IsFunctionDeclaration(parent))
-	g := a.globalFuncSlab.New()
-	g.var_ = var_
-	g.chunk = chunk
-	return g
+	return &AnalyzePrototypeProperties_GlobalFunction{
+		var_:  var_,
+		chunk: chunk,
+	}
 }
 
 func (a *AnalyzePrototypeProperties) allocAssignmentPrototypeProperty(node rhino.Node, rootVar *Var, chunk *JSChunk) *AnalyzePrototypeProperties_AssignmentPrototypeProperty {
-	p := a.assignPropSlab.New()
-	p.exprNode = node
-	p.rootVar = rootVar
-	p.chunk = chunk
-	return p
+	return &AnalyzePrototypeProperties_AssignmentPrototypeProperty{
+		exprNode: node,
+		rootVar:  rootVar,
+		chunk:    chunk,
+	}
 }
 
 func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototypeProperties_NameInfo {
-	info := a.nameInfoSlab.New()
-	info.outer = a
-	info.name = name
+	info := &AnalyzePrototypeProperties_NameInfo{
+		outer: a,
+		name:  name,
+	}
 	info.declarations = info.declBuf[:0]
 	info.outEdges = info.outEdgesBuf[:0]
 	return info
@@ -134,18 +130,6 @@ func (a *AnalyzePrototypeProperties) connectSymbolNodes(src *AnalyzePrototypePro
 	}
 	dest.lastSrc = src
 	dest.lastChunk = chunk
-	if len(src.outEdges) == cap(src.outEdges) {
-		newCap := max(cap(src.outEdges)*2, 8)
-		if newCap <= 256 {
-			if len(a.edgeSlab) < newCap {
-				a.edgeSlab = make([]analyzeProtoPropEdge, 1024)
-			}
-			newBuf := a.edgeSlab[:len(src.outEdges):newCap]
-			a.edgeSlab = a.edgeSlab[newCap:]
-			copy(newBuf, src.outEdges)
-			src.outEdges = newBuf
-		}
-	}
 	src.outEdges = append(src.outEdges, analyzeProtoPropEdge{chunk: chunk, dest: dest})
 }
 

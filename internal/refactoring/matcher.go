@@ -20,12 +20,17 @@ package refactoring
 
 import "github.com/paullepoulpe/jsgo/internal/rhino"
 
-// Matcher is the interface for a class that knows how to match a Node for a
-// specific pattern. For example of Matchers, see Matchers.
-type Matcher interface {
-	// Matches returns true if the specified Node and NodeMetadata match the
-	// given pattern.
-	//
-	// Java: Matcher.matches(Node, NodeMetadata)
-	Matches(n rhino.Node, metadata *NodeMetadata) bool
+// Matcher is a function that knows how to match a Node for a specific
+// pattern. For example of Matchers, see Matchers.
+//
+// Go-only: language-adapter — Java's @FunctionalInterface Matcher is a func
+// type so closures convert directly without an adapter wrapper.
+type Matcher func(n rhino.Node, metadata *NodeMetadata) bool
+
+// Matches returns true if the specified Node and NodeMetadata match the
+// given pattern.
+//
+// Java: Matcher.matches(Node, NodeMetadata)
+func (m Matcher) Matches(n rhino.Node, metadata *NodeMetadata) bool {
+	return m(n, metadata)
 }

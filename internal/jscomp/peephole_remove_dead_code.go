@@ -44,9 +44,7 @@ type PeepholeRemoveDeadCode struct {
 
 // Java: PeepholeRemoveDeadCode()
 func NewPeepholeRemoveDeadCode() *PeepholeRemoveDeadCode {
-	p := &PeepholeRemoveDeadCode{}
-	p.InitAbstractPeepholeOptimizationBase(p) // the implicit super()
-	return p
+	return &PeepholeRemoveDeadCode{}
 }
 
 // Java: PeepholeRemoveDeadCode.optimizeSubtree(Node)

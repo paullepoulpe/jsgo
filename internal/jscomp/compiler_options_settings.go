@@ -21,7 +21,6 @@ package jscomp
 import (
 	"fmt"
 	"io"
-	"reflect"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -824,14 +823,6 @@ func (o *CompilerOptions) GetCustomPassesAt(executionTime CustomPassExecutionTim
 		return []CompilerPass{}
 	}
 	return o.customPasses.Get(executionTime).ToSlice()
-}
-
-// Java: CompilerOptions.setDefineReplacements(Map<String, Object>)
-func (o *CompilerOptions) SetDefineReplacements(defineReplacements *jutil.LinkedHashMap[string, any]) {
-	o.defineReplacements.Clear()
-	for k, v := range defineReplacements.All() {
-		o.defineReplacements.Put(k, v)
-	}
 }
 
 // Java: CompilerOptions.getEnableZonesDefineName()
@@ -1664,6 +1655,14 @@ func compilerOptions_optionalOf[T any](p *T) compilerOptions_optional {
 	return compilerOptions_optional{value: p}
 }
 
+func compilerOptions_formatSlice[T any](s []T) string {
+	parts := make([]string, len(s))
+	for i, elem := range s {
+		parts[i] = compilerOptions_toJavaString(elem)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
 // compilerOptions_toJavaString is String.valueOf(Object) for the option
 // values.
 //
@@ -1683,21 +1682,20 @@ func compilerOptions_toJavaString(value any) string {
 		return *v
 	case string, bool, int, int32, int64, float64:
 		return jutil.ToJavaString(v)
+	case []string:
+		return "[" + strings.Join(v, ", ") + "]"
+	case []*ConformanceConfig:
+		return compilerOptions_formatSlice(v)
+	case []SourceMap_LocationMapping:
+		return compilerOptions_formatSlice(v)
 	case fmt.Stringer:
 		return v.String()
 	}
-	rv := reflect.ValueOf(value)
-	if rv.Kind() == reflect.Slice {
-		parts := make([]string, rv.Len())
-		for i := range parts {
-			parts[i] = compilerOptions_toJavaString(rv.Index(i).Interface())
-		}
-		return "[" + strings.Join(parts, ", ") + "]"
-	}
-	t := rv.Type()
-	if t.Kind() == reflect.Pointer {
-		t = t.Elem()
+	typeName := fmt.Sprintf("%T", value)
+	typeName = strings.TrimPrefix(typeName, "*")
+	if dot := strings.LastIndexByte(typeName, '.'); dot >= 0 {
+		typeName = typeName[dot+1:]
 	}
 	return jutil.ObjectToString(
-		"com.google.javascript.jscomp."+strings.ReplaceAll(t.Name(), "_", "$"), value)
+		"com.google.javascript.jscomp."+strings.ReplaceAll(typeName, "_", "$"), value)
 }

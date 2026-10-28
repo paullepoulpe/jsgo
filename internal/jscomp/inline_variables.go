@@ -198,10 +198,8 @@ type InlineVariables_InliningBehavior struct {
 	hasGlobalAliasRetries bool
 	onGlobalAliasRetry    func(*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler)
 
-	scratchExpert    inlineVariables_standardVarExpert
-	retryExpertSlab  jutil.ReuseSlab[inlineVariables_standardVarExpert]
-	retryHandlerSlab jutil.ReuseSlab[InlineVariables_InliningBehavior_AliasInlineRetryHandler]
-	motionScratch    NodeIterators_LocalVarMotion
+	scratchExpert inlineVariables_standardVarExpert
+	motionScratch NodeIterators_LocalVarMotion
 }
 
 // Java: InlineVariables.InliningBehavior()
@@ -268,7 +266,7 @@ func (b *InlineVariables_InliningBehavior) initScratchVarExpert(
 func (b *InlineVariables_InliningBehavior) allocRetryExpert(
 	src *inlineVariables_standardVarExpert,
 ) *inlineVariables_standardVarExpert {
-	e := b.retryExpertSlab.Alloc()
+	e := &inlineVariables_standardVarExpert{}
 	*e = *src
 	e.initValAnalysis.outer = e
 	return e
@@ -278,13 +276,11 @@ func (b *InlineVariables_InliningBehavior) allocRetryHandler(
 	v *Var,
 	expert *inlineVariables_standardVarExpert,
 ) *InlineVariables_InliningBehavior_AliasInlineRetryHandler {
-	h := b.retryHandlerSlab.Alloc()
-	*h = InlineVariables_InliningBehavior_AliasInlineRetryHandler{
+	return &InlineVariables_InliningBehavior_AliasInlineRetryHandler{
 		outer:  b,
 		v:      v,
 		expert: expert,
 	}
-	return h
 }
 
 func (b *InlineVariables_InliningBehavior) putAliasRetryHandler(
@@ -319,10 +315,6 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 	clear(b.handledScopeVars)
 	b.handledScopeVars = b.handledScopeVars[:0]
 	b.currentScope = nil
-	if len(b.aliasRetryHandlers) == 0 && !b.hasGlobalAliasRetries {
-		b.retryExpertSlab.Reset(nil)
-		b.retryHandlerSlab.Reset(nil)
-	}
 	if len(t.scopes) > 0 && t.scopes[len(t.scopes)-1].scope == nil {
 		return
 	}

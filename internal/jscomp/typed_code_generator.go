@@ -176,7 +176,11 @@ func (t *CodeGenerator) GetFunctionAnnotation(fnNode rhino.Node) string {
 	} else {
 		thisType := funType.GetTypeOfThis()
 		if thisType != nil && !thisType.IsUnknownType() && !thisType.IsVoidType() {
-			if fnNode.IsNil() || !thisType.Equals(typedCodeGenerator_objectTypeOrNull(t.FindMethodOwner(fnNode))) {
+			var owner rhino.ObjectType
+			if !fnNode.IsNil() {
+				owner = t.FindMethodOwner(fnNode)
+			}
+			if owner == nil || !thisType.Equals(owner) {
 				sb.WriteString(" * ")
 				TypedCodeGenerator_AppendAnnotation(&sb, "this", thisType.ToAnnotationString(rhino.JSType_Nullability_EXPLICIT))
 				sb.WriteString("\n")
@@ -188,17 +192,6 @@ func (t *CodeGenerator) GetFunctionAnnotation(fnNode rhino.Node) string {
 
 	sb.WriteString(" */\n")
 	return sb.String()
-}
-
-// typedCodeGenerator_objectTypeOrNull passes an ObjectType to
-// Object.equals(Object), keeping null as null.
-//
-// Go-only: language-adapter — a nil interface must stay an untyped nil.
-func typedCodeGenerator_objectTypeOrNull(t rhino.ObjectType) any {
-	if t == nil {
-		return nil
-	}
-	return t
 }
 
 // GetMemberFunctionAnnotation: fnNode is a function node child of a

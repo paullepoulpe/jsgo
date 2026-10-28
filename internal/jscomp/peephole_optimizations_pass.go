@@ -747,7 +747,7 @@ func (c *peepholeOptimizationsPass_PeepCallback) ExitScope(t *NodeTraversal) {
 // Java: PeepholeOptimizationsPass.PeepCallback.updateFeatures(NodeTraversal)
 func (c *peepholeOptimizationsPass_PeepCallback) UpdateFeatures(t *NodeTraversal) {
 	for _, base := range c.this.featureOptimBases {
-		if !base.newFeatures.IsEmpty() {
+		if base.newFeatures != nil && !base.newFeatures.IsEmpty() {
 			NodeUtil_AddFeaturesToScript(t.GetCurrentScript(), base.newFeatures, c.this.compiler)
 			base.ClearNewFeatures()
 		}

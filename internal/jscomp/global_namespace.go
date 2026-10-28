@@ -199,7 +199,7 @@ func NewGlobalNamespaceWithLog(decisionsLog diagnostic.LogFile, compiler Abstrac
 //
 // Java: GlobalNamespace(AbstractCompiler, Node)
 func NewGlobalNamespace(compiler AbstractCompiler, root rhino.Node) *GlobalNamespace {
-	return NewGlobalNamespaceWithLogAndRoots( /* decisionsLog= */ nil, compiler, rhino.NilNode, root)
+	return NewGlobalNamespaceWithLogAndRoots( /* decisionsLog= */ diagnostic.LogFile{}, compiler, rhino.NilNode, root)
 }
 
 // NewGlobalNamespaceWithRoots creates an instance that may emit warnings
@@ -214,7 +214,7 @@ func NewGlobalNamespace(compiler AbstractCompiler, root rhino.Node) *GlobalNames
 //
 // Java: GlobalNamespace(AbstractCompiler, Node, Node)
 func NewGlobalNamespaceWithRoots(compiler AbstractCompiler, externsRoot rhino.Node, root rhino.Node) *GlobalNamespace {
-	return NewGlobalNamespaceWithLogAndRoots(nil, compiler, externsRoot, root)
+	return NewGlobalNamespaceWithLogAndRoots(diagnostic.LogFile{}, compiler, externsRoot, root)
 }
 
 // NewGlobalNamespaceWithLogAndRoots creates an instance that may emit

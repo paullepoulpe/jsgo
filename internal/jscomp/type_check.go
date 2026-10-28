@@ -2398,7 +2398,7 @@ func NewTypeCheck_DebugTypeLogger(outer *TypeCheck) *TypeCheck_DebugTypeLogger {
 // Java: TypeCheck.DebugTypeLogger.maybeStartLoggingAt(Node)
 func (l *TypeCheck_DebugTypeLogger) MaybeStartLoggingAt(n rhino.Node) {
 	// We don't log outside debug mode, or if we're already logging.
-	if l.typeLogFile == nil || !l.parentNode.IsNil() {
+	if !l.typeLogFile.IsLogging() || !l.parentNode.IsNil() {
 		return
 	}
 
@@ -2418,9 +2418,7 @@ func (l *TypeCheck_DebugTypeLogger) StopLoggingIfThisIsWhereWeStarted(n rhino.No
 
 // Java: TypeCheck.DebugTypeLogger.close()
 func (l *TypeCheck_DebugTypeLogger) Close() {
-	if l.typeLogFile != nil {
-		l.typeLogFile.Close()
-	}
+	l.typeLogFile.Close()
 }
 
 // Java: TypeCheck.DebugTypeLogger.maybeLogTypeOfNode(Node)

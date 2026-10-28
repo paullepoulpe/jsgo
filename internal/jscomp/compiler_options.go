@@ -294,7 +294,7 @@ type CompilerOptions struct {
 	// Custom passes
 	customPasses *jutil.SetMultimap[CustomPassExecutionTime, CompilerPass]
 	// Replacements for @defines. Will be Boolean, Numbers, or Strings
-	defineReplacements *jutil.LinkedHashMap[string, any]
+	defineReplacements *jutil.LinkedHashMap[string, defineReplacement]
 	// What kind of processing to do for goog.tweak functions.
 	tweakProcessing CompilerOptions_TweakProcessing
 	// Move top-level function declarations to the top
@@ -1248,7 +1248,7 @@ func NewCompilerOptions() *CompilerOptions {
 	o.stripNameSuffixes = jutil.NewLinkedHashSet[string]()
 	o.stripNamePrefixes = jutil.NewLinkedHashSet[string]()
 	o.customPasses = nil
-	o.defineReplacements = jutil.NewLinkedHashMap[string, any]()
+	o.defineReplacements = jutil.NewLinkedHashMap[string, defineReplacement]()
 	o.tweakProcessing = CompilerOptions_TweakProcessing_OFF
 	o.rewriteGlobalDeclarationsForTryCatchWrapping = false
 	o.checksOnly = false
@@ -1298,24 +1298,45 @@ func (o *CompilerOptions) SetRemoveUnusedClassProperties(removeUnusedClassProper
 	o.removeUnusedClassProperties = removeUnusedClassProperties
 }
 
+type defineReplacementKind uint8
+
+const (
+	defineReplacementBool defineReplacementKind = iota
+	defineReplacementInt
+	defineReplacementDouble
+	defineReplacementString
+)
+
+type defineReplacement struct {
+	kind    defineReplacementKind
+	boolVal bool
+	intVal  int32
+	numVal  float64
+	strVal  string
+}
+
+func (d defineReplacement) toNode() rhino.Node {
+	switch d.kind {
+	case defineReplacementBool:
+		return NodeUtil_BooleanNode(d.boolVal)
+	case defineReplacementInt:
+		return NodeUtil_NumberNode(float64(d.intVal), rhino.NilNode)
+	case defineReplacementDouble:
+		return NodeUtil_NumberNode(d.numVal, rhino.NilNode)
+	case defineReplacementString:
+		return rhino.IR_String(d.strVal)
+	default:
+		panic(jutil.NewIllegalStateException())
+	}
+}
+
 // Returns the map of define replacements.
 //
 // Java: CompilerOptions.getDefineReplacements()
 func (o *CompilerOptions) GetDefineReplacements() *jutil.LinkedHashMap[string, rhino.Node] {
 	m := jutil.NewLinkedHashMap[string, rhino.Node]()
 	for name, value := range o.defineReplacements.All() {
-		switch v := value.(type) {
-		case bool:
-			m.Put(name, NodeUtil_BooleanNode(v))
-		case int32:
-			m.Put(name, NodeUtil_NumberNode(float64(v), rhino.NilNode))
-		case float64:
-			m.Put(name, NodeUtil_NumberNode(v, rhino.NilNode))
-		case string:
-			m.Put(name, rhino.IR_String(v))
-		default:
-			panic(jutil.NewIllegalStateExceptionMsg(jutil.ToJavaString(value)))
-		}
+		m.Put(name, value.toNode())
 	}
 	return m
 }
@@ -1324,28 +1345,28 @@ func (o *CompilerOptions) GetDefineReplacements() *jutil.LinkedHashMap[string, r
 //
 // Java: CompilerOptions.setDefineToBooleanLiteral(String, boolean)
 func (o *CompilerOptions) SetDefineToBooleanLiteral(defineName string, value bool) {
-	o.defineReplacements.Put(defineName, value)
+	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementBool, boolVal: value})
 }
 
 // Sets the value of the @define variable in JS to a String literal.
 //
 // Java: CompilerOptions.setDefineToStringLiteral(String, String)
 func (o *CompilerOptions) SetDefineToStringLiteral(defineName string, value string) {
-	o.defineReplacements.Put(defineName, value)
+	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementString, strVal: value})
 }
 
 // Sets the value of the @define variable in JS to a number literal.
 //
 // Java: CompilerOptions.setDefineToNumberLiteral(String, int)
 func (o *CompilerOptions) SetDefineToNumberLiteral(defineName string, value int) {
-	o.defineReplacements.Put(defineName, int32(value)) // boxed as Integer
+	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementInt, intVal: int32(value)})
 }
 
 // Sets the value of the @define variable in JS to a number literal.
 //
 // Java: CompilerOptions.setDefineToDoubleLiteral(String, double)
 func (o *CompilerOptions) SetDefineToDoubleLiteral(defineName string, value float64) {
-	o.defineReplacements.Put(defineName, value)
+	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementDouble, numVal: value})
 }
 
 // Skip all possible passes, to make the compiler as fast as possible.

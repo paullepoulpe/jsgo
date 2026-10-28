@@ -25,6 +25,7 @@
 package jscomp
 
 import (
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -315,17 +316,22 @@ func (t *TextFormat_Tokenizer) LookingAt(text string) bool {
 	return t.currentToken == text
 }
 
+func (t *TextFormat_Tokenizer) isIdentifier() bool {
+	for _, c := range jutil.StringToUTF16(t.currentToken) {
+		if !(TextFormat_Tokenizer_IsAlphaUnder(c) || ('0' <= c && c <= '9') || (c == '.')) {
+			return false
+		}
+	}
+	return true
+}
+
 // ConsumeIdentifier: if the next token is an identifier, consume it and
 // return its value. Otherwise, throw a ParseException.
 //
 // Java: TextFormat.Tokenizer.consumeIdentifier()
 func (t *TextFormat_Tokenizer) ConsumeIdentifier() string {
-	for _, c := range jutil.StringToUTF16(t.currentToken) {
-		if TextFormat_Tokenizer_IsAlphaUnder(c) || ('0' <= c && c <= '9') || (c == '.') {
-			// OK
-		} else {
-			panic(t.ParseException("Expected identifier. Found '" + t.currentToken + "'"))
-		}
+	if !t.isIdentifier() {
+		panic(t.ParseException("Expected identifier. Found '" + t.currentToken + "'"))
 	}
 
 	result := t.currentToken
@@ -333,23 +339,16 @@ func (t *TextFormat_Tokenizer) ConsumeIdentifier() string {
 	return result
 }
 
-// textFormat_tryParse runs a consume* call, reporting whether it did not
-// throw a ParseException.
-//
-// Go-only: language-adapter — try { consumeX(); return true; } catch
-// (ParseException e) { return false; }
-func textFormat_tryParse(consume func()) (ok bool) {
-	ok = true
-	jutil.Try(consume, func(e ITextFormat_ParseException) { ok = false })
-	return ok
-}
-
 // TryConsumeIdentifier: if the next token is an identifier, consume it and
 // return true. Otherwise, return false without doing anything.
 //
 // Java: TextFormat.Tokenizer.tryConsumeIdentifier()
 func (t *TextFormat_Tokenizer) TryConsumeIdentifier() bool {
-	return textFormat_tryParse(func() { t.ConsumeIdentifier() })
+	if !t.isIdentifier() {
+		return false
+	}
+	t.NextToken()
+	return true
 }
 
 // ConsumeInt32: if the next token is a 32-bit signed integer, consume it and
@@ -357,14 +356,12 @@ func (t *TextFormat_Tokenizer) TryConsumeIdentifier() bool {
 //
 // Java: TextFormat.Tokenizer.consumeInt32()
 func (t *TextFormat_Tokenizer) ConsumeInt32() int32 {
-	var result int32
-	jutil.Try(func() {
-		result = TextFormat_ParseInt32(t.currentToken)
-	}, func(e jutil.INumberFormatException) {
-		panic(t.IntegerParseException(e))
-	})
+	result, errMsg, ok := textFormat_parseInteger(t.currentToken, true, false)
+	if !ok {
+		panic(t.IntegerParseException(jutil.NewNumberFormatException(errMsg)))
+	}
 	t.NextToken()
-	return result
+	return int32(result)
 }
 
 // ConsumeUInt32: if the next token is a 32-bit unsigned integer, consume it
@@ -372,14 +369,12 @@ func (t *TextFormat_Tokenizer) ConsumeInt32() int32 {
 //
 // Java: TextFormat.Tokenizer.consumeUInt32()
 func (t *TextFormat_Tokenizer) ConsumeUInt32() int32 {
-	var result int32
-	jutil.Try(func() {
-		result = TextFormat_ParseUInt32(t.currentToken)
-	}, func(e jutil.INumberFormatException) {
-		panic(t.IntegerParseException(e))
-	})
+	result, errMsg, ok := textFormat_parseInteger(t.currentToken, false, false)
+	if !ok {
+		panic(t.IntegerParseException(jutil.NewNumberFormatException(errMsg)))
+	}
 	t.NextToken()
-	return result
+	return int32(result)
 }
 
 // ConsumeInt64: if the next token is a 64-bit signed integer, consume it and
@@ -387,12 +382,10 @@ func (t *TextFormat_Tokenizer) ConsumeUInt32() int32 {
 //
 // Java: TextFormat.Tokenizer.consumeInt64()
 func (t *TextFormat_Tokenizer) ConsumeInt64() int64 {
-	var result int64
-	jutil.Try(func() {
-		result = TextFormat_ParseInt64(t.currentToken)
-	}, func(e jutil.INumberFormatException) {
-		panic(t.IntegerParseException(e))
-	})
+	result, errMsg, ok := textFormat_parseInteger(t.currentToken, true, true)
+	if !ok {
+		panic(t.IntegerParseException(jutil.NewNumberFormatException(errMsg)))
+	}
 	t.NextToken()
 	return result
 }
@@ -402,7 +395,11 @@ func (t *TextFormat_Tokenizer) ConsumeInt64() int64 {
 //
 // Java: TextFormat.Tokenizer.tryConsumeInt64()
 func (t *TextFormat_Tokenizer) TryConsumeInt64() bool {
-	return textFormat_tryParse(func() { t.ConsumeInt64() })
+	if _, _, ok := textFormat_parseInteger(t.currentToken, true, true); !ok {
+		return false
+	}
+	t.NextToken()
+	return true
 }
 
 // ConsumeUInt64: if the next token is a 64-bit unsigned integer, consume it
@@ -410,12 +407,10 @@ func (t *TextFormat_Tokenizer) TryConsumeInt64() bool {
 //
 // Java: TextFormat.Tokenizer.consumeUInt64()
 func (t *TextFormat_Tokenizer) ConsumeUInt64() int64 {
-	var result int64
-	jutil.Try(func() {
-		result = TextFormat_ParseUInt64(t.currentToken)
-	}, func(e jutil.INumberFormatException) {
-		panic(t.IntegerParseException(e))
-	})
+	result, errMsg, ok := textFormat_parseInteger(t.currentToken, false, true)
+	if !ok {
+		panic(t.IntegerParseException(jutil.NewNumberFormatException(errMsg)))
+	}
 	t.NextToken()
 	return result
 }
@@ -425,7 +420,25 @@ func (t *TextFormat_Tokenizer) ConsumeUInt64() int64 {
 //
 // Java: TextFormat.Tokenizer.tryConsumeUInt64()
 func (t *TextFormat_Tokenizer) TryConsumeUInt64() bool {
-	return textFormat_tryParse(func() { t.ConsumeUInt64() })
+	if _, _, ok := textFormat_parseInteger(t.currentToken, false, true); !ok {
+		return false
+	}
+	t.NextToken()
+	return true
+}
+
+func (t *TextFormat_Tokenizer) parseDoubleToken() (float64, string, bool) {
+	// We need to parse infinity and nan separately because
+	// Double.parseDouble() does not accept "inf", "infinity", or "nan".
+	switch jutil.StringToLowerCaseRoot(t.currentToken) {
+	case "-inf", "-infinity":
+		return math.Inf(-1), "", true
+	case "inf", "infinity":
+		return math.Inf(1), "", true
+	case "nan":
+		return jutil.Double_NaN, "", true
+	}
+	return textFormat_parseJavaDouble(t.currentToken)
 }
 
 // ConsumeDouble: if the next token is a double, consume it and return its
@@ -433,28 +446,10 @@ func (t *TextFormat_Tokenizer) TryConsumeUInt64() bool {
 //
 // Java: TextFormat.Tokenizer.consumeDouble()
 func (t *TextFormat_Tokenizer) ConsumeDouble() float64 {
-	// We need to parse infinity and nan separately because
-	// Double.parseDouble() does not accept "inf", "infinity", or "nan".
-	switch jutil.StringToLowerCaseRoot(t.currentToken) {
-	case "-inf", "-infinity":
-		t.NextToken()
-		return jutil.DoubleParseDouble("-Infinity")
-	case "inf", "infinity":
-		t.NextToken()
-		return jutil.DoubleParseDouble("Infinity")
-	case "nan":
-		t.NextToken()
-		return jutil.DoubleParseDouble("NaN")
-	default:
-		// fall through
+	result, errMsg, ok := t.parseDoubleToken()
+	if !ok {
+		panic(t.FloatParseException(jutil.NewNumberFormatException(errMsg)))
 	}
-
-	var result float64
-	jutil.Try(func() {
-		result = jutil.DoubleParseDouble(t.currentToken)
-	}, func(e jutil.INumberFormatException) {
-		panic(t.FloatParseException(e))
-	})
 	t.NextToken()
 	return result
 }
@@ -464,7 +459,29 @@ func (t *TextFormat_Tokenizer) ConsumeDouble() float64 {
 //
 // Java: TextFormat.Tokenizer.tryConsumeDouble()
 func (t *TextFormat_Tokenizer) TryConsumeDouble() bool {
-	return textFormat_tryParse(func() { t.ConsumeDouble() })
+	if _, _, ok := t.parseDoubleToken(); !ok {
+		return false
+	}
+	t.NextToken()
+	return true
+}
+
+func (t *TextFormat_Tokenizer) parseFloatToken() (float32, string, bool) {
+	// We need to parse infinity and nan separately because
+	// Float.parseFloat() does not accept "inf", "infinity", or "nan".
+	switch jutil.StringToLowerCaseRoot(t.currentToken) {
+	case "-inf", "-inff", "-infinity", "-infinityf":
+		return float32(math.Inf(-1)), "", true
+	case "inf", "inff", "infinity", "infinityf":
+		return float32(math.Inf(1)), "", true
+	case "nan", "nanf":
+		return float32(jutil.Double_NaN), "", true
+	}
+	v, errMsg, ok := textFormat_parseJavaDouble(t.currentToken)
+	if !ok {
+		return 0, errMsg, false
+	}
+	return float32(v), "", true
 }
 
 // ConsumeFloat: if the next token is a float, consume it and return its
@@ -477,28 +494,10 @@ func (t *TextFormat_Tokenizer) TryConsumeDouble() bool {
 //
 // Java: TextFormat.Tokenizer.consumeFloat()
 func (t *TextFormat_Tokenizer) ConsumeFloat() float32 {
-	// We need to parse infinity and nan separately because
-	// Float.parseFloat() does not accept "inf", "infinity", or "nan".
-	switch jutil.StringToLowerCaseRoot(t.currentToken) {
-	case "-inf", "-inff", "-infinity", "-infinityf":
-		t.NextToken()
-		return float32(jutil.DoubleParseDouble("-Infinity"))
-	case "inf", "inff", "infinity", "infinityf":
-		t.NextToken()
-		return float32(jutil.DoubleParseDouble("Infinity"))
-	case "nan", "nanf":
-		t.NextToken()
-		return float32(jutil.DoubleParseDouble("NaN"))
-	default:
-		// fall through
+	result, errMsg, ok := t.parseFloatToken()
+	if !ok {
+		panic(t.FloatParseException(jutil.NewNumberFormatException(errMsg)))
 	}
-
-	var result float32
-	jutil.Try(func() {
-		result = float32(jutil.DoubleParseDouble(t.currentToken))
-	}, func(e jutil.INumberFormatException) {
-		panic(t.FloatParseException(e))
-	})
 	t.NextToken()
 	return result
 }
@@ -508,7 +507,11 @@ func (t *TextFormat_Tokenizer) ConsumeFloat() float32 {
 //
 // Java: TextFormat.Tokenizer.tryConsumeFloat()
 func (t *TextFormat_Tokenizer) TryConsumeFloat() bool {
-	return textFormat_tryParse(func() { t.ConsumeFloat() })
+	if _, _, ok := t.parseFloatToken(); !ok {
+		return false
+	}
+	t.NextToken()
+	return true
 }
 
 // ConsumeBoolean: if the next token is a boolean, consume it and return its
@@ -563,7 +566,17 @@ func (t *TextFormat_Tokenizer) ConsumeByteString() []byte {
 //
 // Java: TextFormat.Tokenizer.tryConsumeByteString()
 func (t *TextFormat_Tokenizer) TryConsumeByteString() bool {
-	return textFormat_tryParse(func() { t.ConsumeByteString() })
+	if _, _, ok := t.parseByteStringToken(); !ok {
+		return false
+	}
+	t.NextToken()
+	for strings.HasPrefix(t.currentToken, "'") || strings.HasPrefix(t.currentToken, "\"") {
+		if _, _, ok := t.parseByteStringToken(); !ok {
+			return false
+		}
+		t.NextToken()
+	}
+	return true
 }
 
 // consumeByteStringInto is like ConsumeByteString but adds each token of the
@@ -573,26 +586,29 @@ func (t *TextFormat_Tokenizer) TryConsumeByteString() bool {
 //
 // Java: TextFormat.Tokenizer.consumeByteString(List<ByteString>)
 func (t *TextFormat_Tokenizer) consumeByteStringInto(list *[][]byte) {
+	result, errMsg, ok := t.parseByteStringToken()
+	if !ok {
+		panic(t.ParseException(errMsg))
+	}
+	t.NextToken()
+	*list = append(*list, result)
+}
+
+func (t *TextFormat_Tokenizer) parseByteStringToken() ([]byte, string, bool) {
 	var quote byte
 	if len(t.currentToken) > 0 {
 		quote = t.currentToken[0]
 	}
 	if quote != '"' && quote != '\'' {
-		panic(t.ParseException("Expected string."))
+		return nil, "Expected string.", false
 	}
 
 	if len(t.currentToken) < 2 || t.currentToken[len(t.currentToken)-1] != quote {
-		panic(t.ParseException("String missing ending quote."))
+		return nil, "String missing ending quote.", false
 	}
 
-	jutil.Try(func() {
-		escaped := t.currentToken[1 : len(t.currentToken)-1]
-		result := TextFormat_UnescapeBytes(escaped)
-		t.NextToken()
-		*list = append(*list, result)
-	}, func(e *TextFormat_InvalidEscapeSequenceException) {
-		panic(t.ParseException(e.GetMessage()))
-	})
+	escaped := t.currentToken[1 : len(t.currentToken)-1]
+	return textFormat_unescapeBytes(escaped)
 }
 
 // ParseException returns a ParseException with the current line and column
@@ -1253,6 +1269,14 @@ func (p *TextFormat_Parser) SkipFieldShortFormedRepeated(
 //
 // Java: TextFormat.unescapeBytes(CharSequence)
 func TextFormat_UnescapeBytes(charString string) []byte {
+	result, errMsg, ok := textFormat_unescapeBytes(charString)
+	if !ok {
+		panic(NewTextFormat_InvalidEscapeSequenceException(errMsg))
+	}
+	return result
+}
+
+func textFormat_unescapeBytes(charString string) ([]byte, string, bool) {
 	input := jutil.StringGetBytesUTF8(charString)
 	result := make([]byte, 0, len(input))
 	for i := 0; i < len(input); i++ {
@@ -1303,8 +1327,7 @@ func TextFormat_UnescapeBytes(charString string) []byte {
 							i++
 							code = textFormat_digitValue(input[i])
 						} else {
-							panic(NewTextFormat_InvalidEscapeSequenceException(
-								"Invalid escape sequence: '\\x' with no digits"))
+							return nil, "Invalid escape sequence: '\\x' with no digits", false
 						}
 						if i+1 < len(input) && textFormat_isHex(input[i+1]) {
 							i++
@@ -1325,65 +1348,57 @@ func TextFormat_UnescapeBytes(charString string) []byte {
 								textFormat_digitValue(input[i+3]))
 
 							if ch >= 0xD800 && ch <= 0xDFFF {
-								panic(NewTextFormat_InvalidEscapeSequenceException(
-									"Invalid escape sequence: '\\u' refers to a surrogate"))
+								return nil, "Invalid escape sequence: '\\u' refers to a surrogate", false
 							}
 							result = append(result, jutil.StringGetBytesUTF8(jutil.StringFromUTF16([]uint16{ch}))...)
 							i += 3
 						} else {
-							panic(NewTextFormat_InvalidEscapeSequenceException(
-								"Invalid escape sequence: '\\u' with too few hex chars"))
+							return nil, "Invalid escape sequence: '\\u' with too few hex chars", false
 						}
 
 					case 'U':
 						i++
 						if i+7 >= len(input) {
-							panic(NewTextFormat_InvalidEscapeSequenceException(
-								"Invalid escape sequence: '\\U' with too few hex chars"))
+							return nil, "Invalid escape sequence: '\\U' with too few hex chars", false
 						}
 						codepoint := 0
 						for offset := i; offset < i+8; offset++ {
 							b := input[offset]
 							if !textFormat_isHex(b) {
-								panic(NewTextFormat_InvalidEscapeSequenceException(
-									"Invalid escape sequence: '\\U' with too few hex chars"))
+								return nil, "Invalid escape sequence: '\\U' with too few hex chars", false
 							}
 							codepoint = (codepoint << 4) | textFormat_digitValue(b)
 						}
 						// Character.isValidCodePoint; the hex digits make it non-negative
 						// as an int only below 0x80000000.
 						if int32(codepoint) < 0 || codepoint > 0x10FFFF {
-							panic(NewTextFormat_InvalidEscapeSequenceException(
-								"Invalid escape sequence: '\\U" +
-									jutil.NewStringFromUTF8Bytes(input[i:i+8]) +
-									"' is not a valid code point value"))
+							return nil, "Invalid escape sequence: '\\U" +
+								jutil.NewStringFromUTF8Bytes(input[i:i+8]) +
+								"' is not a valid code point value", false
 						}
 						// Character.UnicodeBlock LOW_SURROGATES, HIGH_SURROGATES,
 						// HIGH_PRIVATE_USE_SURROGATES: U+D800..U+DFFF.
 						if codepoint >= 0xD800 && codepoint <= 0xDFFF {
-							panic(NewTextFormat_InvalidEscapeSequenceException(
-								"Invalid escape sequence: '\\U" +
-									jutil.NewStringFromUTF8Bytes(input[i:i+8]) +
-									"' refers to a surrogate code unit"))
+							return nil, "Invalid escape sequence: '\\U" +
+								jutil.NewStringFromUTF8Bytes(input[i:i+8]) +
+								"' refers to a surrogate code unit", false
 						}
 						result = append(result, []byte(string(rune(codepoint)))...)
 						i += 7
 
 					default:
-						panic(NewTextFormat_InvalidEscapeSequenceException(
-							"Invalid escape sequence: '\\" + string(rune(c)) + "'"))
+						return nil, "Invalid escape sequence: '\\" + string(rune(c)) + "'", false
 					}
 				}
 			} else {
-				panic(NewTextFormat_InvalidEscapeSequenceException(
-					"Invalid escape sequence: '\\' at end of string."))
+				return nil, "Invalid escape sequence: '\\' at end of string.", false
 			}
 		} else {
 			result = append(result, c)
 		}
 	}
 
-	return result
+	return result, "", true
 }
 
 // TextFormat_InvalidEscapeSequenceException is thrown by unescape methods
@@ -1469,12 +1484,20 @@ func TextFormat_ParseUInt64(text string) int64 {
 
 // Java: TextFormat.parseInteger(String, boolean, boolean)
 func TextFormat_ParseInteger(text string, isSigned bool, isLong bool) int64 {
+	result, errMsg, ok := textFormat_parseInteger(text, isSigned, isLong)
+	if !ok {
+		panic(jutil.NewNumberFormatException(errMsg))
+	}
+	return result
+}
+
+func textFormat_parseInteger(text string, isSigned bool, isLong bool) (int64, string, bool) {
 	pos := 0
 
 	negative := false
 	if strings.HasPrefix(text[pos:], "-") {
 		if !isSigned {
-			panic(jutil.NewNumberFormatException("Number must be positive: " + text))
+			return 0, "Number must be positive: " + text, false
 		}
 		pos++
 		negative = true
@@ -1492,7 +1515,12 @@ func TextFormat_ParseInteger(text string, isSigned bool, isLong bool) int64 {
 
 	var result int64
 	if jutil.StringLength(numberText) < 16 {
-		result = jutil.LongParseLong(numberText, radix)
+		var errMsg string
+		var ok bool
+		result, errMsg, ok = textFormat_parseLong(numberText, radix)
+		if !ok {
+			return 0, errMsg, false
+		}
 		if negative {
 			result = -result
 		}
@@ -1500,18 +1528,19 @@ func TextFormat_ParseInteger(text string, isSigned bool, isLong bool) int64 {
 		if !isLong {
 			if isSigned {
 				if result > 2147483647 || result < -2147483648 {
-					panic(jutil.NewNumberFormatException(
-						"Number out of range for 32-bit signed integer: " + text))
+					return 0, "Number out of range for 32-bit signed integer: " + text, false
 				}
 			} else {
 				if result >= (int64(1)<<32) || result < 0 {
-					panic(jutil.NewNumberFormatException(
-						"Number out of range for 32-bit unsigned integer: " + text))
+					return 0, "Number out of range for 32-bit unsigned integer: " + text, false
 				}
 			}
 		}
 	} else {
-		bigValue := jutil.NewBigIntegerFromStringRadix(numberText, radix)
+		bigValue, errMsg, ok := textFormat_parseBigInteger(numberText, radix)
+		if !ok {
+			return 0, errMsg, false
+		}
 		if negative {
 			bigValue = new(big.Int).Neg(bigValue)
 		}
@@ -1525,25 +1554,21 @@ func TextFormat_ParseInteger(text string, isSigned bool, isLong bool) int64 {
 		if !isLong {
 			if isSigned {
 				if bitLength > 31 {
-					panic(jutil.NewNumberFormatException(
-						"Number out of range for 32-bit signed integer: " + text))
+					return 0, "Number out of range for 32-bit signed integer: " + text, false
 				}
 			} else {
 				if bitLength > 32 {
-					panic(jutil.NewNumberFormatException(
-						"Number out of range for 32-bit unsigned integer: " + text))
+					return 0, "Number out of range for 32-bit unsigned integer: " + text, false
 				}
 			}
 		} else {
 			if isSigned {
 				if bitLength > 63 {
-					panic(jutil.NewNumberFormatException(
-						"Number out of range for 64-bit signed integer: " + text))
+					return 0, "Number out of range for 64-bit signed integer: " + text, false
 				}
 			} else {
 				if bitLength > 64 {
-					panic(jutil.NewNumberFormatException(
-						"Number out of range for 64-bit unsigned integer: " + text))
+					return 0, "Number out of range for 64-bit unsigned integer: " + text, false
 				}
 			}
 		}
@@ -1552,5 +1577,288 @@ func TextFormat_ParseInteger(text string, isSigned bool, isLong bool) int64 {
 		result = int64(new(big.Int).And(bigValue, new(big.Int).SetUint64(^uint64(0))).Uint64())
 	}
 
-	return result
+	return result, "", true
+}
+
+func textFormat_badNumberInput(s string, radix int) string {
+	msg := "For input string: \"" + s + "\""
+	if radix != 10 {
+		msg += " under radix " + strconv.Itoa(radix)
+	}
+	return msg
+}
+
+func textFormat_parseLong(s string, radix int) (int64, string, bool) {
+	units := jutil.StringToUTF16(s)
+	i := 0
+	negative := false
+	if len(units) > 0 && (units[0] == '-' || units[0] == '+') {
+		negative = units[0] == '-'
+		i = 1
+	}
+	if i == len(units) {
+		return 0, textFormat_badNumberInput(s, radix), false
+	}
+	limit := uint64(math.MaxInt64)
+	if negative {
+		limit++
+	}
+	base := uint64(radix)
+	var magnitude uint64
+	for ; i < len(units); i++ {
+		digit := jutil.CharacterDigit(units[i], radix)
+		if digit < 0 || magnitude > (limit-uint64(digit))/base {
+			return 0, textFormat_badNumberInput(s, radix), false
+		}
+		magnitude = magnitude*base + uint64(digit)
+	}
+	if negative {
+		return -int64(magnitude), "", true
+	}
+	return int64(magnitude), "", true
+}
+
+func textFormat_parseBigInteger(s string, radix int) (*big.Int, string, bool) {
+	units := jutil.StringToUTF16(s)
+	start := 0
+	negative := false
+	if len(units) > 0 && (units[0] == '-' || units[0] == '+') {
+		negative = units[0] == '-'
+		start = 1
+	}
+	if start == len(units) {
+		return nil, "Zero length BigInteger", false
+	}
+	for _, c := range units[start:] {
+		if c == '-' || c == '+' {
+			return nil, "Illegal embedded sign character", false
+		}
+	}
+	for start < len(units) && jutil.CharacterDigit(units[start], radix) == 0 {
+		start++
+	}
+	if start == len(units) {
+		return big.NewInt(0), "", true
+	}
+	digits := units[start:]
+	group := 0
+	for p := int64(radix); p <= math.MaxInt32; p *= int64(radix) {
+		group++
+	}
+	first := len(digits) % group
+	if first == 0 {
+		first = group
+	}
+	text := make([]byte, len(digits))
+	for from, to := 0, first; from < len(digits); from, to = to, to+group {
+		for i := from; i < to; i++ {
+			d := jutil.CharacterDigit(digits[i], radix)
+			if d < 0 {
+				return nil, textFormat_badNumberInput(jutil.StringFromUTF16(digits[from:to]), radix), false
+			}
+			text[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[d]
+		}
+	}
+	x, ok := new(big.Int).SetString(string(text), radix)
+	if !ok {
+		return nil, textFormat_badNumberInput(s, radix), false
+	}
+	if negative {
+		x.Neg(x)
+	}
+	return x, "", true
+}
+
+func textFormat_parseJavaDouble(s string) (float64, string, bool) {
+	t := jutil.StringTrim(s)
+	if t == "" {
+		return 0, "empty String", false
+	}
+	i := 0
+	negative := false
+	if t[0] == '-' || t[0] == '+' {
+		negative = t[0] == '-'
+		i = 1
+	}
+	body := t[i:]
+	if body == "" {
+		return 0, "For input string: \"" + t + "\"", false
+	}
+	var v float64
+	var errKind int // 0=ok, 1=multiplePoints, 2=invalid
+	switch {
+	case body[0] == 'N':
+		if body != "NaN" {
+			return 0, "For input string: \"" + t + "\"", false
+		}
+		return jutil.Double_NaN, "", true
+	case body[0] == 'I':
+		if body != "Infinity" {
+			return 0, "For input string: \"" + t + "\"", false
+		}
+		v = math.Inf(1)
+	case len(body) >= 2 && body[0] == '0' && (body[1] == 'x' || body[1] == 'X'):
+		v, errKind = textFormat_parseHexDouble(body[2:])
+	default:
+		v, errKind = textFormat_parseDecimalDouble(body)
+	}
+	switch errKind {
+	case 0:
+		if negative {
+			v = -v
+		}
+		return v, "", true
+	case 1:
+		return 0, "multiple points", false
+	default:
+		return 0, "For input string: \"" + t + "\"", false
+	}
+}
+
+func textFormat_skipFloatSuffix(s string, i int) bool {
+	if i < len(s) {
+		switch s[i] {
+		case 'f', 'F', 'd', 'D':
+			i++
+		}
+	}
+	return i == len(s)
+}
+
+func textFormat_scanSignedExponent(s string, i int) (int64, int, bool) {
+	var value int64
+	negative := false
+	if i < len(s) && (s[i] == '+' || s[i] == '-') {
+		negative = s[i] == '-'
+		i++
+	}
+	start := i
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		if value < 1e15 {
+			value = value*10 + int64(s[i]-'0')
+		}
+		i++
+	}
+	if i == start {
+		return 0, i, false
+	}
+	if negative {
+		value = -value
+	}
+	return value, i, true
+}
+
+func textFormat_parseDecimalDouble(s string) (float64, int) {
+	i, points, digitCount := 0, 0, 0
+	for i < len(s) && ((s[i] >= '0' && s[i] <= '9') || s[i] == '.') {
+		if s[i] == '.' {
+			points++
+		} else {
+			digitCount++
+		}
+		i++
+	}
+	if points > 1 {
+		return 0, 1
+	}
+	if digitCount == 0 {
+		return 0, 2
+	}
+	significandEnd := i
+	var exponent int64
+	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
+		var ok bool
+		exponent, i, ok = textFormat_scanSignedExponent(s, i+1)
+		if !ok {
+			return 0, 2
+		}
+	}
+	literalEnd := i
+	if !textFormat_skipFloatSuffix(s, i) {
+		return 0, 2
+	}
+	if exponent > -10000 && exponent < 10000 {
+		if v, err := strconv.ParseFloat(s[:literalEnd], 64); err == nil {
+			return v, 0
+		} else if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
+			return v, 0
+		}
+	}
+	sig := make([]byte, 0, digitCount)
+	var intDigits int64
+	seenPoint := false
+	for j := 0; j < significandEnd; j++ {
+		switch c := s[j]; {
+		case c == '.':
+			seenPoint = true
+		case c == '0' && len(sig) == 0:
+			if seenPoint {
+				intDigits--
+			}
+		default:
+			sig = append(sig, c)
+			if !seenPoint {
+				intDigits++
+			}
+		}
+	}
+	if len(sig) == 0 {
+		return 0, 0
+	}
+	scale10 := intDigits + exponent
+	switch {
+	case scale10 > 310:
+		return math.Inf(1), 0
+	case scale10 < -400:
+		return 0, 0
+	}
+	v, _ := strconv.ParseFloat("0."+string(sig)+"e"+strconv.FormatInt(scale10, 10), 64)
+	return v, 0
+}
+
+func textFormat_parseHexDouble(s string) (float64, int) {
+	i, digitCount := 0, 0
+	sig := make([]byte, 0, len(s))
+	var intDigits int64
+	seenPoint := false
+	for i < len(s) {
+		c := s[i]
+		switch {
+		case textFormat_isHex(c):
+			digitCount++
+			if c != '0' || len(sig) > 0 {
+				sig = append(sig, c)
+				if !seenPoint {
+					intDigits++
+				}
+			} else if seenPoint {
+				intDigits--
+			}
+		case c == '.' && !seenPoint:
+			seenPoint = true
+		default:
+			goto digitsDone
+		}
+		i++
+	}
+digitsDone:
+	if digitCount == 0 || i == len(s) || (s[i] != 'p' && s[i] != 'P') {
+		return 0, 2
+	}
+	exponent, end, ok := textFormat_scanSignedExponent(s, i+1)
+	if !ok || !textFormat_skipFloatSuffix(s, end) {
+		return 0, 2
+	}
+	if len(sig) == 0 {
+		return 0, 0
+	}
+	scale2 := 4*intDigits + exponent
+	switch {
+	case scale2 > 1100:
+		return math.Inf(1), 0
+	case scale2 < -1200:
+		return 0, 0
+	}
+	v, _ := strconv.ParseFloat("0x0."+string(sig)+"p"+strconv.FormatInt(scale2, 10), 64)
+	return v, 0
 }

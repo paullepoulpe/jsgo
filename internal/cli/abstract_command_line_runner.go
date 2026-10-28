@@ -208,8 +208,6 @@ type AbstractCommandLineRunnerBase struct {
 
 	parsedChunkConformanceFiles *jutil.LinkedHashMap[string, string] // nil is null
 
-	gson *jutil.Gson
-
 	filesToStreamOut []*AbstractCommandLineRunner_JsonFileSpec
 }
 
@@ -273,7 +271,6 @@ func (r *AbstractCommandLineRunnerBase) InitAbstractCommandLineRunnerBase(
 	r.in = jutil.CheckNotNull(in)
 	r.defaultJsOutput = jutil.CheckNotNull(out)
 	r.err = jutil.CheckNotNull(err)
-	r.gson = jutil.NewGson()
 }
 
 // EnableTestMode puts the command line runner into test mode. In test mode,
@@ -616,14 +613,77 @@ func (r *AbstractCommandLineRunnerBase) ParseJsonFilesFromInputStream() []*Abstr
 	defer reader.Close()
 	reader.BeginArray()
 	for reader.HasNext() {
-		var jsonFile *AbstractCommandLineRunner_JsonFileSpec
-		if v := r.gson.FromJsonReaderReflective(reader, func() any { return newAbstractCommandLineRunner_JsonFileSpecDefault() }); v != nil {
-			jsonFile = v.(*AbstractCommandLineRunner_JsonFileSpec)
-		}
-		jsonFiles = append(jsonFiles, jsonFile)
+		jsonFiles = append(jsonFiles, parseJsonFileSpec(reader))
 	}
 	reader.EndArray()
 	return jsonFiles
+}
+
+func parseJsonFileSpec(reader *jutil.JsonReader) (result *AbstractCommandLineRunner_JsonFileSpec) {
+	isEmpty := true
+	oldLenient := reader.IsLenient()
+	reader.SetLenient(true)
+	defer reader.SetLenient(oldLenient)
+	jutil.Try(func() {
+		tok := reader.Peek()
+		isEmpty = false
+		if tok == jutil.JsonToken_NULL {
+			reader.NextNull()
+			return
+		}
+		spec := newAbstractCommandLineRunner_JsonFileSpecDefault()
+		reader.BeginObject()
+		for reader.HasNext() {
+			switch reader.NextName() {
+			case "src":
+				spec.Src = readJsonNullableString(reader)
+			case "path":
+				spec.Path = readJsonNullableString(reader)
+			case "source_map", "sourceMap":
+				spec.SourceMap = readJsonNullableString(reader)
+			case "webpack_id", "webpackId":
+				spec.WebpackId = readJsonNullableString(reader)
+			default:
+				reader.SkipValue()
+			}
+		}
+		reader.EndObject()
+		result = spec
+	}, func(t jutil.Throwable) {
+		switch e := t.(type) {
+		case jutil.IEOFException:
+			if isEmpty {
+				result = nil
+				return
+			}
+			panic(jutil.NewJsonSyntaxExceptionWithCause(e))
+		case jutil.IIllegalStateException:
+			panic(jutil.NewJsonSyntaxExceptionWithCause(e))
+		case jutil.IIOException:
+			panic(jutil.NewJsonSyntaxExceptionWithCause(e))
+		default:
+			panic(t)
+		}
+	})
+	return result
+}
+
+func readJsonNullableString(reader *jutil.JsonReader) *string {
+	switch reader.Peek() {
+	case jutil.JsonToken_NULL:
+		reader.NextNull()
+		return nil
+	case jutil.JsonToken_BOOLEAN:
+		if reader.NextBoolean() {
+			s := "true"
+			return &s
+		}
+		s := "false"
+		return &s
+	default:
+		s := reader.NextString()
+		return &s
+	}
 }
 
 // CreateInputs creates inputs from a list of files.
@@ -1254,7 +1314,7 @@ func (r *AbstractCommandLineRunnerBase) RunCompilerPasses(metricsRecorder Compil
 		}
 	}
 	if runStage2 {
-		r.compiler.Stage2Passes(jscomp.CompilerOptions_SegmentOfCompilationToRun_OPTIMIZATIONS)
+		r.compiler.Stage2Passes(config.stage2SegmentOfCompilationToRun)
 		if r.compiler.HasErrors() {
 			return
 		}

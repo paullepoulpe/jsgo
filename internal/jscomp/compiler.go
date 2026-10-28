@@ -24,6 +24,7 @@ import (
 	"io"
 	"iter"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -253,6 +254,10 @@ type Compiler struct {
 
 	// Id generator map
 	idGeneratorMap *string
+
+	// Conformance violations persisted across compilation stages.
+	conformanceViolations             []*ConformanceViolationsProto
+	unattributedConformanceViolations []*ViolationProto
 
 	// Did any source file need any feature transpiled
 	transpiledFiles bool
@@ -1508,6 +1513,62 @@ func (c *Compiler) GetResult() *Result {
 		c.cssNames,
 		c.idGeneratorMap,
 		c.transpiledFiles)
+}
+
+// SetDefaultCodingConvention overrides the compiler's fallback CodingConvention
+// used when CompilerOptions does not specify one.
+func (c *Compiler) SetDefaultCodingConvention(cc CodingConvention) {
+	c.defaultCodingConvention = jutil.CheckNotNull(cc)
+}
+
+// GetDefaultCodingConvention returns the compiler's fallback CodingConvention.
+func (c *Compiler) GetDefaultCodingConvention() CodingConvention {
+	return c.defaultCodingConvention
+}
+
+// GetIdGeneratorMap returns the serialized ID generator mapping, or "" when
+// none has been produced, without allocating a full Result.
+func (c *Compiler) GetIdGeneratorMap() string {
+	if c.idGeneratorMap == nil {
+		return ""
+	}
+	return *c.idGeneratorMap
+}
+
+// GetConformanceViolations returns the attributed conformance violation protos
+// persisted on this Compiler across compilation stages.
+func (c *Compiler) GetConformanceViolations() []*ConformanceViolationsProto {
+	return c.conformanceViolations
+}
+
+// SetConformanceViolations replaces the attributed conformance violation protos
+// stored on this Compiler.
+func (c *Compiler) SetConformanceViolations(violations []*ConformanceViolationsProto) {
+	c.conformanceViolations = slices.Clone(violations)
+}
+
+// AddConformanceViolations appends an attributed conformance violations proto
+// to this Compiler.
+func (c *Compiler) AddConformanceViolations(violations *ConformanceViolationsProto) {
+	c.conformanceViolations = append(c.conformanceViolations, jutil.CheckNotNull(violations))
+}
+
+// GetUnattributedConformanceViolations returns the unattributed conformance
+// violation protos persisted on this Compiler across compilation stages.
+func (c *Compiler) GetUnattributedConformanceViolations() []*ViolationProto {
+	return c.unattributedConformanceViolations
+}
+
+// SetUnattributedConformanceViolations replaces the unattributed conformance
+// violation protos stored on this Compiler.
+func (c *Compiler) SetUnattributedConformanceViolations(violations []*ViolationProto) {
+	c.unattributedConformanceViolations = slices.Clone(violations)
+}
+
+// AddUnattributedConformanceViolation appends an unattributed conformance
+// violation proto to this Compiler.
+func (c *Compiler) AddUnattributedConformanceViolation(violation *ViolationProto) {
+	c.unattributedConformanceViolations = append(c.unattributedConformanceViolations, jutil.CheckNotNull(violation))
 }
 
 // GetErrors returns the list of errors (never null).

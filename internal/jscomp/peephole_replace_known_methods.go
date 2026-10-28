@@ -126,11 +126,10 @@ type PeepholeReplaceKnownMethods struct {
 //
 // Java: PeepholeReplaceKnownMethods(boolean, boolean)
 func NewPeepholeReplaceKnownMethods(late bool, useTypes bool) *PeepholeReplaceKnownMethods {
-	p := &PeepholeReplaceKnownMethods{}
-	p.InitAbstractPeepholeOptimizationBase(p) // the implicit super()
-	p.late = late
-	p.useTypes = useTypes
-	return p
+	return &PeepholeReplaceKnownMethods{
+		late:     late,
+		useTypes: useTypes,
+	}
 }
 
 // Java: PeepholeReplaceKnownMethods.optimizeSubtree(Node)

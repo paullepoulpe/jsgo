@@ -33,10 +33,7 @@ type J2clUndefinedChecksRewriterPass struct {
 
 // Java: J2clUndefinedChecksRewriterPass()
 func NewJ2clUndefinedChecksRewriterPass() *J2clUndefinedChecksRewriterPass {
-	p := &J2clUndefinedChecksRewriterPass{}
-	p.InitAbstractPeepholeOptimizationBase(p)
-	p.shouldRunJ2clPasses = false
-	return p
+	return &J2clUndefinedChecksRewriterPass{}
 }
 
 // Java: J2clUndefinedChecksRewriterPass.beginTraversal(AbstractCompiler)

@@ -446,13 +446,13 @@ func (c *inferConstsCollector) addReference(v *Var, n rhino.Node, parent rhino.N
 				c.localIndex = make(map[*Var]int, 16)
 			}
 			c.localIndex[v] = len(c.localStates)
-			c.localStates = appendDoubling(c.localStates, st)
+			c.localStates = append(c.localStates, st)
 		} else {
 			if c.globalIndex == nil {
 				c.globalIndex = make(map[*Var]int, 64)
 			}
 			c.globalIndex[v] = len(c.globalStates)
-			c.globalStates = appendDoubling(c.globalStates, st)
+			c.globalStates = append(c.globalStates, st)
 		}
 		return
 	}

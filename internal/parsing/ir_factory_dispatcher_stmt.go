@@ -19,9 +19,6 @@
 package parsing
 
 import (
-	"reflect"
-	"strings"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -797,8 +794,6 @@ func (d *IRFactory_TransformDispatcher) ProcessClassDeclaration(tree *parser.Cla
 	// When nested inside of multiple classes, only run the validation once
 	// the top-most class exits scope.
 	if !d.classScope.InScope() {
-		// Go-only: language-adapter — Collections.unmodifiableSet is a
-		// read-only view; the set is passed as it is.
 		d.ValidatePrivatePropertyUsage(d.GetPrivatePropsAndValidateUniqueness(classMembers), classMembers)
 	}
 
@@ -808,16 +803,41 @@ func (d *IRFactory_TransformDispatcher) ProcessClassDeclaration(tree *parser.Cla
 	return classNode
 }
 
+const (
+	privStatic uint8 = 1 << iota
+	privGetter
+	privSetter
+	privOther
+)
+
+type privatePropScope struct {
+	props  map[string]uint8
+	parent *privatePropScope
+}
+
+func (s *privatePropScope) contains(name string) bool {
+	for cur := s; cur != nil; cur = cur.parent {
+		if cur.props[name] != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // ValidatePrivatePropertyUsage validates that all referenced private
 // properties within the scope of classMembers are found in privatePropNames
 // and private fields are not deleted (both of these cases are syntax
 // errors).
 //
-// Recurses into inner classes and successively adds to privatePropNames such
-// that outer class private properties are available to inner classes.
+// Recurses into inner classes and successively chains privatePropNames scopes
+// such that outer class private properties are available to inner classes.
 //
 // Java: IRFactory.TransformDispatcher.validatePrivatePropertyUsage(Set<String>, Node)
-func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privatePropNames *jutil.TreeSet[string], classMembers rhino.Node) {
+func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privatePropNames map[string]uint8, classMembers rhino.Node) {
+	d.validatePrivatePropertyUsage(&privatePropScope{props: privatePropNames}, classMembers)
+}
+
+func (d *IRFactory_TransformDispatcher) validatePrivatePropertyUsage(scope *privatePropScope, classMembers rhino.Node) {
 	jutil.CheckState(classMembers.IsClassMembers())
 	if !classMembers.HasChildren() {
 		return
@@ -840,7 +860,7 @@ func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privateProp
 			(node.IsGetProp() ||
 				node.IsOptChainGetProp() ||
 				(node.IsName() && node.HasParent() && node.GetParent().IsIn())) &&
-			!privatePropNames.Contains(node.GetString()) {
+			!scope.contains(node.GetString()) {
 			propType := "fields"
 			if node.GetParent().IsCall() {
 				propType = "methods"
@@ -868,9 +888,8 @@ func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privateProp
 		if node.IsClassMembers() {
 			// Recurse into the inner class with the outer and inner class
 			// private properties.
-			innerClassPrivatePropNames := d.GetPrivatePropsAndValidateUniqueness(node)
-			innerClassPrivatePropNames.AddAll(privatePropNames.All())
-			d.ValidatePrivatePropertyUsage(innerClassPrivatePropNames, node)
+			innerProps := d.GetPrivatePropsAndValidateUniqueness(node)
+			d.validatePrivatePropertyUsage(&privatePropScope{props: innerProps, parent: scope}, node)
 		} else {
 			if !node.GetNext().IsNil() {
 				visitStack = append(visitStack, node.GetNext())
@@ -882,7 +901,7 @@ func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privateProp
 	}
 }
 
-// GetPrivatePropsAndValidateUniqueness returns the set of private properties
+// GetPrivatePropsAndValidateUniqueness returns the map of private properties
 // declared in the class corresponding to classMembers.
 //
 // While gathering private properties, validates that there are no duplicate
@@ -891,16 +910,8 @@ func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privateProp
 // non-static modifier.
 //
 // Java: IRFactory.TransformDispatcher.getPrivatePropsAndValidateUniqueness(Node)
-func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(classMembers rhino.Node) *jutil.TreeSet[string] {
-	// Track all this to ensure we don't have duplicate private getters and
-	// setters.
-	privateGetterNames := jutil.NewTreeSet(jutil.StringCompareTo)
-	privateSetterNames := jutil.NewTreeSet(jutil.StringCompareTo)
-	privateStaticGetterNames := jutil.NewTreeSet(jutil.StringCompareTo)
-	privateStaticSetterNames := jutil.NewTreeSet(jutil.StringCompareTo)
-	privateFieldAndMethodNames := jutil.NewTreeSet(jutil.StringCompareTo)
-
-	privatePropNames := jutil.NewTreeSet(jutil.StringCompareTo)
+func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(classMembers rhino.Node) map[string]uint8 {
+	var props map[string]uint8
 	for curNode := classMembers.GetFirstChild(); !curNode.IsNil(); curNode = curNode.GetNext() {
 		if !curNode.IsPrivateIdentifier() {
 			continue
@@ -916,66 +927,33 @@ func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(cla
 			propName,
 			curNode.GetToken())
 
-		isStatic := curNode.IsStaticMember()
-		alreadyDeclared := privatePropNames.Contains(propName)
+		if props == nil {
+			props = make(map[string]uint8)
+		}
+		prev := props[propName]
+		var cur uint8
 		switch curNode.GetToken() {
 		case rhino.Token_GETTER_DEF:
-			if alreadyDeclared {
-				var otherSetter bool
-				if isStatic {
-					otherSetter = privateSetterNames.Contains(propName)
-				} else {
-					otherSetter = privateStaticSetterNames.Contains(propName)
-				}
-				alreadyDeclaredIsOtherThanItsSetter := privateFieldAndMethodNames.Contains(propName) ||
-					privateGetterNames.Contains(propName) ||
-					privateStaticGetterNames.Contains(propName) ||
-					otherSetter
-				var itsSetter bool
-				if isStatic {
-					itsSetter = privateStaticSetterNames.Contains(propName)
-				} else {
-					itsSetter = privateSetterNames.Contains(propName)
-				}
-				jutil.CheckState(alreadyDeclaredIsOtherThanItsSetter || itsSetter)
-				alreadyDeclared = alreadyDeclaredIsOtherThanItsSetter
-			}
-
-			if isStatic {
-				privateStaticGetterNames.Add(propName)
-			} else {
-				privateGetterNames.Add(propName)
-			}
+			cur = privGetter
 		case rhino.Token_SETTER_DEF:
-			if alreadyDeclared {
-				var otherGetter bool
-				if isStatic {
-					otherGetter = privateGetterNames.Contains(propName)
-				} else {
-					otherGetter = privateStaticGetterNames.Contains(propName)
-				}
-				alreadyDeclaredIsOtherThanItsGetter := privateFieldAndMethodNames.Contains(propName) ||
-					privateSetterNames.Contains(propName) ||
-					privateStaticSetterNames.Contains(propName) ||
-					otherGetter
-				var itsGetter bool
-				if isStatic {
-					itsGetter = privateStaticGetterNames.Contains(propName)
-				} else {
-					itsGetter = privateGetterNames.Contains(propName)
-				}
-				jutil.CheckState(alreadyDeclaredIsOtherThanItsGetter || itsGetter)
-				alreadyDeclared = alreadyDeclaredIsOtherThanItsGetter
-			}
-
-			if curNode.IsStaticMember() {
-				privateStaticSetterNames.Add(propName)
-			} else {
-				privateSetterNames.Add(propName)
-			}
+			cur = privSetter
 		case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_MEMBER_FUNCTION_DEF:
-			privateFieldAndMethodNames.Add(propName)
+			cur = privOther
 		default:
+		}
+		if curNode.IsStaticMember() {
+			cur |= privStatic
+		}
+		alreadyDeclared := false
+		if prev != 0 {
+			staticMismatch := (prev & privStatic) != (cur & privStatic)
+			roleConflict := prev&privOther != 0 || cur&privOther != 0 || prev&cur&(privGetter|privSetter) != 0
+			if staticMismatch || roleConflict {
+				alreadyDeclared = true
+			}
+			if staticMismatch {
+				cur |= privOther
+			}
 		}
 		if alreadyDeclared {
 			d.errorReporter.Error(
@@ -984,10 +962,9 @@ func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(cla
 				curNode.GetLineno(),
 				curNode.GetCharno())
 		}
-
-		privatePropNames.Add(propName)
+		props[propName] = prev | cur
 	}
-	return privatePropNames
+	return props
 }
 
 // ValidateClassConstructorMember returns true iff this member is a legal
@@ -1181,15 +1158,20 @@ func (d *IRFactory_TransformDispatcher) TransformListOrEmpty(type_ rhino.Token, 
 
 // irFactory_javaClassOf is Object.getClass().toString() for a parser token:
 // "class com.google.javascript.jscomp.parsing.parser.<simple name>".
-//
-// Go-only: language-adapter — the Go token types are named after the Java
-// classes (a *Base struct is the non-abstract Java base class itself).
 func irFactory_javaClassOf(token parser.Token) string {
-	t := reflect.TypeOf(token)
-	if t.Kind() == reflect.Pointer {
-		t = t.Elem()
+	const prefix = "class com.google.javascript.jscomp.parsing.parser."
+	switch token.(type) {
+	case *parser.StringLiteralToken:
+		return prefix + "StringLiteralToken"
+	case *parser.TemplateLiteralToken:
+		return prefix + "TemplateLiteralToken"
+	case *parser.LiteralTokenBase:
+		return prefix + "LiteralToken"
+	case *parser.IdentifierToken:
+		return prefix + "IdentifierToken"
+	default:
+		return prefix + "Token"
 	}
-	return "class com.google.javascript.jscomp.parsing.parser." + strings.TrimSuffix(t.Name(), "Base")
 }
 
 // Java: IRFactory.TransformDispatcher.process(ParseTree)

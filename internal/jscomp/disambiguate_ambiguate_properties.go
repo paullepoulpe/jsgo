@@ -652,7 +652,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) MaybeMarkCandidat
 	a := p.outer
 	name := n.GetString()
 	if !a.externedNames.Contains(name) {
-		a.stringNodesToRename = appendDoubling(a.stringNodesToRename, n)
+		a.stringNodesToRename = append(a.stringNodesToRename, n)
 		p.RecordProperty(name, type_)
 	}
 }

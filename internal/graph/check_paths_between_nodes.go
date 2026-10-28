@@ -22,7 +22,7 @@ package graph
 // for a description of this algorithm.
 //
 // N is the node type; E is the edge type.
-type CheckPathsBetweenNodes[N, E any] struct {
+type CheckPathsBetweenNodes[N comparable, E any] struct {
 	nodePredicate func(N) bool
 	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool
 	inclusive     bool
@@ -81,7 +81,7 @@ var (
 // test for the node predicate.
 //
 // Java: CheckPathsBetweenNodes(DiGraph<N, E>, DiGraphNode<N, E>, DiGraphNode<N, E>, Predicate<N>, Predicate<DiGraphEdge<N, E>>, boolean)
-func NewCheckPathsBetweenNodes[N, E any](
+func NewCheckPathsBetweenNodes[N comparable, E any](
 	graph DiGraph[N, E],
 	a DiGraph_DiGraphNode[N, E],
 	b DiGraph_DiGraphNode[N, E],
@@ -101,7 +101,7 @@ func NewCheckPathsBetweenNodes[N, E any](
 // NewCheckPathsBetweenNodesInclusive is the inclusive check.
 //
 // Java: CheckPathsBetweenNodes(DiGraph<N, E>, DiGraphNode<N, E>, DiGraphNode<N, E>, Predicate<N>, Predicate<DiGraphEdge<N, E>>)
-func NewCheckPathsBetweenNodesInclusive[N, E any](
+func NewCheckPathsBetweenNodesInclusive[N comparable, E any](
 	graph DiGraph[N, E],
 	a DiGraph_DiGraphNode[N, E],
 	b DiGraph_DiGraphNode[N, E],
@@ -111,7 +111,7 @@ func NewCheckPathsBetweenNodesInclusive[N, E any](
 }
 
 // NewCheckPathsBetweenNodesInclusiveValue returns a stack-allocatable CheckPathsBetweenNodes value.
-func NewCheckPathsBetweenNodesInclusiveValue[N, E any](
+func NewCheckPathsBetweenNodesInclusiveValue[N comparable, E any](
 	graph DiGraph[N, E],
 	a DiGraph_DiGraphNode[N, E],
 	b DiGraph_DiGraphNode[N, E],

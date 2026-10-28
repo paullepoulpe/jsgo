@@ -63,7 +63,6 @@ type peepholeOptimizationsPassTest_anonymous struct {
 func newPeepholeOptimizationsPassTest_anonymous(
 	optimizeSubtree func(self *peepholeOptimizationsPassTest_anonymous, node rhino.Node) rhino.Node) *peepholeOptimizationsPassTest_anonymous {
 	o := &peepholeOptimizationsPassTest_anonymous{optimizeSubtree: optimizeSubtree}
-	o.InitAbstractPeepholeOptimizationBase(o)
 	return o
 }
 
@@ -139,7 +138,6 @@ type peepholeOptimizationsPassTest_RemoveNodesNamedXUnderVarOptimization struct 
 
 func newPeepholeOptimizationsPassTest_RemoveNodesNamedXUnderVarOptimization() *peepholeOptimizationsPassTest_RemoveNodesNamedXUnderVarOptimization {
 	o := &peepholeOptimizationsPassTest_RemoveNodesNamedXUnderVarOptimization{}
-	o.InitAbstractPeepholeOptimizationBase(o)
 	return o
 }
 
@@ -172,7 +170,6 @@ type peepholeOptimizationsPassTest_RemoveNodesNamedXOptimization struct {
 
 func newPeepholeOptimizationsPassTest_RemoveNodesNamedXOptimization() *peepholeOptimizationsPassTest_RemoveNodesNamedXOptimization {
 	o := &peepholeOptimizationsPassTest_RemoveNodesNamedXOptimization{}
-	o.InitAbstractPeepholeOptimizationBase(o)
 	return o
 }
 
@@ -197,7 +194,6 @@ type peepholeOptimizationsPassTest_RemoveParentVarsForNodesNamedX struct {
 
 func newPeepholeOptimizationsPassTest_RemoveParentVarsForNodesNamedX() *peepholeOptimizationsPassTest_RemoveParentVarsForNodesNamedX {
 	o := &peepholeOptimizationsPassTest_RemoveParentVarsForNodesNamedX{}
-	o.InitAbstractPeepholeOptimizationBase(o)
 	return o
 }
 
@@ -223,7 +219,6 @@ type peepholeOptimizationsPassTest_RenameYToX struct {
 
 func newPeepholeOptimizationsPassTest_RenameYToX() *peepholeOptimizationsPassTest_RenameYToX {
 	o := &peepholeOptimizationsPassTest_RenameYToX{}
-	o.InitAbstractPeepholeOptimizationBase(o)
 	return o
 }
 

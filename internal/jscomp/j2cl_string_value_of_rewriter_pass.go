@@ -35,10 +35,7 @@ type J2clStringValueOfRewriterPass struct {
 
 // Java: J2clStringValueOfRewriterPass()
 func NewJ2clStringValueOfRewriterPass() *J2clStringValueOfRewriterPass {
-	p := &J2clStringValueOfRewriterPass{}
-	p.InitAbstractPeepholeOptimizationBase(p)
-	p.shouldRunJ2clPasses = false
-	return p
+	return &J2clStringValueOfRewriterPass{}
 }
 
 // Java: J2clStringValueOfRewriterPass.beginTraversal(AbstractCompiler)

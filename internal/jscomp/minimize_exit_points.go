@@ -37,9 +37,7 @@ type MinimizeExitPoints struct {
 
 // Java: MinimizeExitPoints()
 func NewMinimizeExitPoints() *MinimizeExitPoints {
-	m := &MinimizeExitPoints{}
-	m.InitAbstractPeepholeOptimizationBase(m) // the implicit super()
-	return m
+	return &MinimizeExitPoints{}
 }
 
 // Java: MinimizeExitPoints.optimizeSubtree(Node)

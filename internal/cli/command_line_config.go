@@ -68,6 +68,8 @@ type AbstractCommandLineRunner_CommandLineConfig struct {
 	// compilation state be stored into a save file.
 	saveAfterCompilationStage int
 
+	stage2SegmentOfCompilationToRun jscomp.CompilerOptions_SegmentOfCompilationToRun
+
 	typedAstListInputFilename *string
 
 	saveCompilationStateToFilename *string
@@ -174,9 +176,10 @@ func NewAbstractCommandLineRunner_CommandLineConfig() *AbstractCommandLineRunner
 		mixedJsSources:             []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]{},
 		defaultToStdin:             false,
 		jsOutputFile:               "",
-		restoredCompilationStage:   -1,
-		saveAfterCompilationStage:  -1,
-		chunk:                      []string{},
+		restoredCompilationStage:        -1,
+		saveAfterCompilationStage:       -1,
+		stage2SegmentOfCompilationToRun: jscomp.CompilerOptions_SegmentOfCompilationToRun_OPTIMIZATIONS,
+		chunk:                           []string{},
 		sourceMapInputFiles:        jutil.NewLinkedHashMap[string, string](),
 		parseInlineSourceMaps:      false,
 		expectedDiagnostics:        []string{},
@@ -446,6 +449,22 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetSaveCompilationStateToF
 // Java: AbstractCommandLineRunner.CommandLineConfig.getSaveCompilationStateToFilename()
 func (c *AbstractCommandLineRunner_CommandLineConfig) GetSaveCompilationStateToFilename() *string {
 	return c.saveCompilationStateToFilename
+}
+
+// SetStage2SegmentOfCompilationToRun configures which Stage 2 segment
+// (OPTIMIZATIONS, OPTIMIZATIONS_FIRST_HALF, or OPTIMIZATIONS_SECOND_HALF)
+// RunCompilerPasses executes when Stage 2 runs.
+func (c *AbstractCommandLineRunner_CommandLineConfig) SetStage2SegmentOfCompilationToRun(
+	segment jscomp.CompilerOptions_SegmentOfCompilationToRun,
+) *AbstractCommandLineRunner_CommandLineConfig {
+	c.stage2SegmentOfCompilationToRun = segment
+	return c
+}
+
+// GetStage2SegmentOfCompilationToRun returns the Stage 2 segment configured
+// on this CommandLineConfig.
+func (c *AbstractCommandLineRunner_CommandLineConfig) GetStage2SegmentOfCompilationToRun() jscomp.CompilerOptions_SegmentOfCompilationToRun {
+	return c.stage2SegmentOfCompilationToRun
 }
 
 // SetChunk sets the JavaScript chunk specifications. The format is
@@ -858,16 +877,12 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetIncludeTrailingNewline(
 // AbstractCommandLineRunner_JsonFileSpec is the representation of a source
 // file from an encoded json stream input.
 //
-// Go-only: language-adapter — the `gson` tags are the @SerializedName
-// values and `gsonalt` their alternates (jutil Gson's reflective adapter);
-// a nil field is Java's null.
-//
 // Java: AbstractCommandLineRunner.JsonFileSpec
 type AbstractCommandLineRunner_JsonFileSpec struct {
-	Src       *string `gson:"src"`
-	Path      *string `gson:"path"`
-	SourceMap *string `gson:"source_map" gsonalt:"sourceMap"`
-	WebpackId *string `gson:"webpack_id" gsonalt:"webpackId"`
+	Src       *string
+	Path      *string
+	SourceMap *string
+	WebpackId *string
 }
 
 // Graal requires a non-arg constructor for use with GSON
@@ -1067,11 +1082,9 @@ func AbstractCommandLineRunner_JsChunkSpec_Create(specString string, isFirstChun
 
 	// Parse chunk inputs.
 	numInputs := -1
-	jutil.Try(func() {
-		numInputs = int(jutil.IntegerParseInt(parts[1], 10))
-	}, func(ignored jutil.INumberFormatException) {
-		numInputs = -1
-	})
+	if parsed, ok := jutil.TryIntegerParseInt(parts[1], 10); ok {
+		numInputs = int(parsed)
+	}
 
 	// We will allow chunks of zero input.
 	if numInputs < 0 {

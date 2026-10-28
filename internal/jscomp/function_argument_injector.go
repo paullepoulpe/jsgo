@@ -38,8 +38,7 @@ type FunctionArgumentInjector struct {
 	sentinelUndefinedNode rhino.Node
 	templateUndefinedNode rhino.Node
 	sentinelThisNode      rhino.Node
-	scratchArgMap         *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
-	pairSlab              jutil.ReuseSlab[FunctionArgumentInjector_ParamArgPair]
+	scratchArgMap         *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair]
 	paramBindings         []callParamBinding
 	scratchLocals         *jutil.LinkedHashSet[string]
 	referencedAfter       FunctionArgumentInjector_ReferencedAfterSideEffect
@@ -61,7 +60,7 @@ func NewFunctionArgumentInjector(astAnalyzer *AstAnalyzer) *FunctionArgumentInje
 		sentinelUndefinedNode: NodeUtil_NewUndefinedNode(rhino.NilNode),
 		templateUndefinedNode: NodeUtil_NewUndefinedNode(rhino.NilNode),
 		sentinelThisNode:      rhino.IR_ThisNode(),
-		scratchArgMap:         jutil.NewLinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair](),
+		scratchArgMap:         jutil.NewLinkedHashMap[string, FunctionArgumentInjector_ParamArgPair](),
 		scratchLocals:         jutil.NewLinkedHashSet[string](),
 	}
 	f.referencedAfter.outer = f
@@ -70,15 +69,6 @@ func NewFunctionArgumentInjector(astAnalyzer *AstAnalyzer) *FunctionArgumentInje
 	f.setContainer.parametersReferencedAfterSideEffect = f.referencedAfter.parametersReferenced
 	f.setContainer.parametersWithNamesReferencedBeforeParameter = f.referencedAfter.parametersWithNamesReferencedBeforeParameter
 	return f
-}
-
-func (f *FunctionArgumentInjector) allocScratchPair(paramNode rhino.Node, arg rhino.Node) *FunctionArgumentInjector_ParamArgPair {
-	rhino.CheckNotNull(paramNode)
-	rhino.CheckNotNull(arg)
-	p := f.pairSlab.Alloc()
-	p.paramNode = paramNode
-	p.arg = arg
-	return p
 }
 
 func (f *FunctionArgumentInjector) getTemplateUndefinedNode(callNode rhino.Node) rhino.Node {
@@ -310,8 +300,8 @@ func (f *FunctionArgumentInjector) appendCallParamBindings(
 //
 // Java: FunctionArgumentInjector.getFunctionCallParameterMap(Node, Node, Supplier<String>)
 func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
-	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
-	argMap := jutil.NewImmutableMapBuilder[string, *FunctionArgumentInjector_ParamArgPair]()
+	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair] {
+	argMap := jutil.NewImmutableMapBuilder[string, FunctionArgumentInjector_ParamArgPair]()
 	for _, b := range f.appendCallParamBindings(nil, fnNode, callNode, safeNameIdSupplier, callParamWalkOwned) {
 		argMap.Put(b.name, NewFunctionArgumentInjector_ParamArgPair(b.paramNode, b.argNode))
 	}
@@ -336,17 +326,16 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterNodeMap(
 }
 
 // FillFunctionCallParameterPairMap populates dst with parameterName ->
-// ParamArgPair entries backed by f's scratch pair slab.
+// ParamArgPair entries.
 func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 	fnNode rhino.Node,
 	callNode rhino.Node,
 	safeNameIdSupplier func() string,
-	dst *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]) {
+	dst *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair]) {
 	dst.Clear()
-	f.pairSlab.Rewind()
 	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkTemplate)
 	for _, b := range f.paramBindings {
-		if dst.Put(b.name, f.allocScratchPair(b.paramNode, b.argNode)) != nil {
+		if !dst.Put(b.name, NewFunctionArgumentInjector_ParamArgPair(b.paramNode, b.argNode)).ParamNode().IsNil() {
 			f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
 		}
 	}
@@ -356,13 +345,12 @@ func (f *FunctionArgumentInjector) FillFunctionCallParameterPairMap(
 // GetFunctionCallParameterMap for call-site inlining checks that only inspect
 // the returned map and do not inject its nodes into the AST.
 func (f *FunctionArgumentInjector) GetFunctionCallParameterMapScratch(
-	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
+	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair] {
 	argMap := f.scratchArgMap
 	argMap.Clear()
-	f.pairSlab.Rewind()
 	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkReadOnly)
 	for _, b := range f.paramBindings {
-		argMap.Put(b.name, f.allocScratchPair(b.paramNode, b.argNode))
+		argMap.Put(b.name, NewFunctionArgumentInjector_ParamArgPair(b.paramNode, b.argNode))
 	}
 	return argMap
 }
@@ -499,7 +487,7 @@ func FunctionArgumentInjector_CanNameValueChange(n rhino.Node) bool {
 func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterName(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
-	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
+	argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
 	modifiedParameters *jutil.LinkedHashSet[string],
 	convention CodingConvention) string {
 	block := ast.MustFunction(fnNode).Body().Node()
@@ -623,7 +611,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterName(
 func (f *FunctionArgumentInjector) HasCallArgumentsNeedingTemps(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
-	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
+	argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
 	modifiedParameters *jutil.LinkedHashSet[string],
 	convention CodingConvention) bool {
 	jutil.CheckArgumentMsg1(fnNode.IsFunction(), "%s", fnNode)
@@ -654,7 +642,7 @@ func (f *FunctionArgumentInjector) HasCallArgumentsNeedingTemps(
 func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
-	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
+	argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
 	modifiedParameters *jutil.LinkedHashSet[string],
 	convention CodingConvention) *jutil.LinkedHashSet[string] {
 	jutil.CheckArgumentMsg1(fnNode.IsFunction(), "%s", fnNode)
@@ -676,7 +664,7 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTempsInto(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
-	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
+	argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
 	modifiedParameters *jutil.LinkedHashSet[string],
 	convention CodingConvention,
 	dst *jutil.LinkedHashSet[string]) {
@@ -698,7 +686,7 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTempsInto(
 
 func (f *FunctionArgumentInjector) addCallArgumentsNeedingTemps(
 	fnNode rhino.Node,
-	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair],
+	argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
 	initial *jutil.LinkedHashSet[string],
 	requiresTempsUpToThisParameterName string,
 	dst *jutil.LinkedHashSet[string],
@@ -809,7 +797,7 @@ func (f *FunctionArgumentInjector) FindParametersReferencedAfterSideEffect(
 }
 
 func (f *FunctionArgumentInjector) findParametersReferencedAfterSideEffectForArgMap(
-	argMap *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair], root rhino.Node) *FunctionArgumentInjector_SetContainer {
+	argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair], root rhino.Node) *FunctionArgumentInjector_SetContainer {
 	if f.scratchLocals == nil {
 		f.scratchLocals = jutil.NewLinkedHashSet[string]()
 	} else {
@@ -887,7 +875,7 @@ func (s *FunctionArgumentInjector_SetContainer) ParametersWithNamesReferencedBef
 type FunctionArgumentInjector_ReferencedAfterSideEffect struct {
 	outer                *FunctionArgumentInjector
 	parameters           *jutil.LinkedHashSet[string]
-	argMap               *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair]
+	argMap               *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair]
 	locals               *jutil.LinkedHashSet[string]
 	sideEffectSeen       bool
 	parametersReferenced *jutil.LinkedHashSet[string]
@@ -1099,14 +1087,14 @@ type FunctionArgumentInjector_ParamArgPair struct {
 }
 
 // Java: FunctionArgumentInjector.ParamArgPair(Node, Node)
-func NewFunctionArgumentInjector_ParamArgPair(paramNode rhino.Node, arg rhino.Node) *FunctionArgumentInjector_ParamArgPair {
+func NewFunctionArgumentInjector_ParamArgPair(paramNode rhino.Node, arg rhino.Node) FunctionArgumentInjector_ParamArgPair {
 	rhino.CheckNotNull(paramNode)
 	rhino.CheckNotNull(arg)
-	return &FunctionArgumentInjector_ParamArgPair{paramNode: paramNode, arg: arg}
+	return FunctionArgumentInjector_ParamArgPair{paramNode: paramNode, arg: arg}
 }
 
 // Java: FunctionArgumentInjector.ParamArgPair.paramNode()
-func (p *FunctionArgumentInjector_ParamArgPair) ParamNode() rhino.Node { return p.paramNode }
+func (p FunctionArgumentInjector_ParamArgPair) ParamNode() rhino.Node { return p.paramNode }
 
 // Java: FunctionArgumentInjector.ParamArgPair.arg()
-func (p *FunctionArgumentInjector_ParamArgPair) Arg() rhino.Node { return p.arg }
+func (p FunctionArgumentInjector_ParamArgPair) Arg() rhino.Node { return p.arg }

@@ -39,10 +39,7 @@ type J2clEqualitySameRewriterPass struct {
 
 // Java: J2clEqualitySameRewriterPass(boolean)
 func NewJ2clEqualitySameRewriterPass(useTypes bool) *J2clEqualitySameRewriterPass {
-	p := &J2clEqualitySameRewriterPass{}
-	p.InitAbstractPeepholeOptimizationBase(p)
-	p.useTypes = useTypes
-	return p
+	return &J2clEqualitySameRewriterPass{useTypes: useTypes}
 }
 
 // Java: J2clEqualitySameRewriterPass.beginTraversal(AbstractCompiler)

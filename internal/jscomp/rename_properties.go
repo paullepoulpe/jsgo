@@ -421,7 +421,7 @@ func (p *RenameProperties_ProcessProperties) MaybeMarkCandidate(n rhino.Node) {
 			}
 			r.filteredOutNames[name] = struct{}{}
 		}
-		r.stringNodesToRename = appendDoubling(r.stringNodesToRename, n)
+		r.stringNodesToRename = append(r.stringNodesToRename, n)
 		p.CountPropertyOccurrence(name)
 	}
 }

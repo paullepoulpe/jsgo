@@ -18,7 +18,11 @@
 
 package sourcemap
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"math"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // SourceMapJsonLexer is a JSON lexer optimized for large string extraction.
 // By using String.substring() on the source contents, it avoids the massive
@@ -334,14 +338,48 @@ func SourceMapJsonLexer_Unescape(s []uint16, start, end int) string {
 }
 
 // sourceMapJsonLexer_parseInt is Integer.parseInt(CharSequence, int, int,
-// int) on s[beginIndex:endIndex]; ok is false where Java throws
-// NumberFormatException. By its Javadoc it parses that range exactly as
-// Integer.parseInt(String, int) parses the same chars, and the callers
-// replace the exception's message with their own, so jutil.IntegerParseInt
-// on the substring is equivalent. (The callers only pass in-range indices.)
-func sourceMapJsonLexer_parseInt(s []uint16, beginIndex, endIndex, radix int) (v int32, ok bool) {
-	jutil.Try(func() {
-		v, ok = jutil.IntegerParseInt(jutil.StringFromUTF16(s[beginIndex:endIndex]), radix), true
-	}, func(e jutil.INumberFormatException) {})
-	return v, ok
+// int) on s[beginIndex:endIndex] (for radix 10 or 16); ok is false where Java
+// throws NumberFormatException.
+func sourceMapJsonLexer_parseInt(s []uint16, beginIndex, endIndex, radix int) (int32, bool) {
+	i := beginIndex
+	neg := false
+	if i < endIndex && (s[i] == '-' || s[i] == '+') {
+		neg = s[i] == '-'
+		i++
+	}
+	if i == endIndex {
+		return 0, false
+	}
+	limit := uint64(math.MaxInt32)
+	if neg {
+		limit++
+	}
+	base := uint64(radix)
+	var mag uint64
+	for ; i < endIndex; i++ {
+		c := s[i]
+		var d int
+		if c >= '0' && c <= '9' {
+			d = int(c - '0')
+		} else if radix == 16 && c >= 'a' && c <= 'f' {
+			d = int(c - 'a' + 10)
+		} else if radix == 16 && c >= 'A' && c <= 'F' {
+			d = int(c - 'A' + 10)
+		} else if c < 0x80 {
+			return 0, false
+		} else {
+			d = jutil.CharacterDigit(c, radix)
+			if d < 0 {
+				return 0, false
+			}
+		}
+		if mag > (limit-uint64(d))/base {
+			return 0, false
+		}
+		mag = mag*base + uint64(d)
+	}
+	if neg {
+		return int32(-int64(mag)), true
+	}
+	return int32(mag), true
 }

@@ -189,12 +189,22 @@ func decimalDigitValue(r rune) int {
 // radix; the value must fit in an int. Failures throw NumberFormatException
 // (messages: checkParseRadix, badNumberInput).
 func IntegerParseInt(s string, radix int) int32 {
-	checkParseRadix(radix)
-	v, ok := parseRadixInteger(s, radix, math.MaxInt32)
+	v, ok := TryIntegerParseInt(s, radix)
 	if !ok {
 		panic(badNumberInput(s, radix))
 	}
-	return int32(v)
+	return v
+}
+
+// TryIntegerParseInt parses s in radix with exact Java Integer.parseInt
+// semantics without panicking on malformed number strings.
+func TryIntegerParseInt(s string, radix int) (int32, bool) {
+	checkParseRadix(radix)
+	v, ok := parseRadixInteger(s, radix, math.MaxInt32)
+	if !ok {
+		return 0, false
+	}
+	return int32(v), true
 }
 
 // badNumberInput builds the NumberFormatException with which

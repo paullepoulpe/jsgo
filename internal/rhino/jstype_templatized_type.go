@@ -130,11 +130,7 @@ func (t *TemplatizedType) GetCtorExtendedInterfaces() []ObjectType {
 func (t *TemplatizedType) AppendTo(sb *TypeStringBuilder) {
 	t.ProxyObjectTypeBase.AppendTo(sb)
 	if len(t.templateTypes) != 0 {
-		elements := make([]any, len(t.templateTypes))
-		for i, e := range t.templateTypes {
-			elements[i] = e
-		}
-		sb.Append("<").AppendAll(elements, ",").Append(">")
+		sb.Append("<").AppendTypes(t.templateTypes, ",").Append(">")
 	}
 }
 

@@ -19,6 +19,7 @@
 package regex
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -733,29 +734,24 @@ func (p *RegExpTree_Parser) ParseRepetition(body RegExpTree) RegExpTree {
 			p.pos = start - 1
 			return body
 		}
-		counts := p.substring(start, end)
+		counts := p.patternChars[start:end]
 		p.pos = end + 1
-		comma := jutil.StringIndexOf(counts, ",")
-		jutil.Try(func() {
-			if comma >= 0 {
-				min_ = int(jutil.IntegerParseInt(jutil.StringSubstring(counts, 0, comma), 10))
-			} else {
-				min_ = int(jutil.IntegerParseInt(counts, 10))
-			}
-			if comma >= 0 {
-				if comma+1 != jutil.StringLength(counts) {
-					max_ = int(jutil.IntegerParseInt(jutil.StringSubstringFrom(counts, comma+1), 10))
+		comma := slices.Index(counts, ',')
+		var ok bool
+		if comma >= 0 {
+			min_, ok = regExpParser_parseDecimalInt(counts[:comma])
+			if ok {
+				if comma+1 != len(counts) {
+					max_, ok = regExpParser_parseDecimalInt(counts[comma+1:])
 				} else {
 					max_ = javaIntegerMaxValue
 				}
-			} else {
-				max_ = min_
 			}
-		}, func(ex jutil.INumberFormatException) {
-			min_ = -1
-			max_ = -1
-		})
-		if min_ < 0 || min_ > max_ {
+		} else {
+			min_, ok = regExpParser_parseDecimalInt(counts)
+			max_ = min_
+		}
+		if !ok || min_ < 0 || min_ > max_ {
 			// Treat the open curly bracket literally.
 			p.pos = start - 1
 			return body
@@ -769,6 +765,47 @@ func (p *RegExpTree_Parser) ParseRepetition(body RegExpTree) RegExpTree {
 		p.pos++
 	}
 	return NewRegExpTree_Repetition(body, min_, max_, greedy)
+}
+
+// regExpParser_parseDecimalInt parses a signed 32-bit decimal integer from
+// UTF-16 code units, matching Java Integer.parseInt(s, 10) without exceptions.
+func regExpParser_parseDecimalInt(chars []uint16) (int, bool) {
+	i := 0
+	neg := false
+	if i < len(chars) && (chars[i] == '+' || chars[i] == '-') {
+		neg = chars[i] == '-'
+		i++
+	}
+	if i == len(chars) {
+		return 0, false
+	}
+	limit := int64(javaIntegerMaxValue)
+	if neg {
+		limit++
+	}
+	var v int64
+	for ; i < len(chars); i++ {
+		c := chars[i]
+		var d int
+		if c >= '0' && c <= '9' {
+			d = int(c - '0')
+		} else if c < 0x80 {
+			return 0, false
+		} else {
+			d = jutil.CharacterDigit(c, 10)
+			if d < 0 {
+				return 0, false
+			}
+		}
+		v = v*10 + int64(d)
+		if v > limit {
+			return 0, false
+		}
+	}
+	if neg {
+		return int(-v), true
+	}
+	return int(v), true
 }
 
 // RegExpTree_IsIdentifierStart reports whether ch is a valid Javascript

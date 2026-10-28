@@ -129,8 +129,6 @@ type PureFunctionIdentifier struct {
 	unknownFunctionSummary      *PureFunctionIdentifier_AmbiguatedFunctionSummary
 	unknownFunctionSummarySlice []*PureFunctionIdentifier_AmbiguatedFunctionSummary
 
-	summarySlab           jutil.Slab[PureFunctionIdentifier_AmbiguatedFunctionSummary]
-	propSlab              jutil.Slab[PureFunctionIdentifier_SideEffectPropagation]
 	scratchCallableLeaves []rhino.Node
 
 	assumeGettersArePure bool
@@ -168,7 +166,7 @@ func NewPureFunctionIdentifier(
 	p.unknownFunctionSummary =
 		p.createSummaryInGraph("<unknown>").
 			SetMutatesGlobalStateAndAllOtherFlags(rhino.NilNode)
-	p.unknownFunctionSummarySlice = p.unknownFunctionSummary.selfSlice[:]
+	p.unknownFunctionSummarySlice = []*PureFunctionIdentifier_AmbiguatedFunctionSummary{p.unknownFunctionSummary}
 	p.hasProcessed = false
 	p.compiler = jutil.CheckNotNull(compiler)
 	p.assumeGettersArePure = assumeGettersArePure
@@ -178,19 +176,17 @@ func NewPureFunctionIdentifier(
 }
 
 func (p *PureFunctionIdentifier) createSummaryInGraph(name string) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
-	s := p.summarySlab.New()
-	s.name = name
+	s := &PureFunctionIdentifier_AmbiguatedFunctionSummary{name: name}
 	n := p.reverseCallGraph.AllocNode(s)
 	p.reverseCallGraph.Nodes.PutNew(s, n)
 	s.graphNode = n
-	s.selfSlice[0] = s
 	return s
 }
 
 func (p *PureFunctionIdentifier) putSummaryForFunctionNode(fn rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
 	existing := p.summariesForAllNamesOfFunctionByNode[fn]
 	if len(existing) == 0 {
-		p.summariesForAllNamesOfFunctionByNode[fn] = summary.selfSlice[:1:1]
+		p.summariesForAllNamesOfFunctionByNode[fn] = []*PureFunctionIdentifier_AmbiguatedFunctionSummary{summary}
 	} else {
 		p.summariesForAllNamesOfFunctionByNode[fn] = append(existing, summary)
 	}
@@ -220,8 +216,7 @@ func (p *PureFunctionIdentifier) getSummaryForReferenceOrDefault(nameRef rhino.N
 	return p.unknownFunctionSummary
 }
 
-// allocPropagationForInvocation is SideEffectPropagation.forInvocation,
-// allocated from a slab.
+// allocPropagationForInvocation is SideEffectPropagation.forInvocation.
 func (p *PureFunctionIdentifier) allocPropagationForInvocation(
 	invocation rhino.Node,
 	callScope *Scope,
@@ -229,16 +224,16 @@ func (p *PureFunctionIdentifier) allocPropagationForInvocation(
 	argumentsMatchParameters bool,
 	propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
 	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
-	prop := p.propSlab.New()
 	// `this` in an arrow function is the `this` of the enclosing function, which is not
 	// tracked.
-	prop.calleeThisEqualsCallerThis = PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation) && !callerEntry.root.IsArrowFunction()
-	prop.propagateThrows = propagateThrows
-	prop.invocation = invocation
-	prop.callScope = callScope
-	prop.callerEntry = callerEntry
-	prop.argumentsMatchParameters = argumentsMatchParameters
-	return prop
+	return &PureFunctionIdentifier_SideEffectPropagation{
+		calleeThisEqualsCallerThis: PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation) && !callerEntry.root.IsArrowFunction(),
+		propagateThrows:            propagateThrows,
+		invocation:                 invocation,
+		callScope:                  callScope,
+		callerEntry:                callerEntry,
+		argumentsMatchParameters:   argumentsMatchParameters,
+	}
 }
 
 // Java: PureFunctionIdentifier.process(Node, Node, ReferenceMap)
@@ -552,7 +547,7 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation rhino.Node) []
 				return summariesForFunction
 			}
 			if s := p.getSummaryForReference(singleCallee); s != nil {
-				return s.selfSlice[:]
+				return []*PureFunctionIdentifier_AmbiguatedFunctionSummary{s}
 			}
 			return p.unknownFunctionSummarySlice
 		}
@@ -945,7 +940,6 @@ type PureFunctionIdentifier_AmbiguatedFunctionSummary struct {
 	// non-extern function that's "artificially pure", i.e. has a
 	// @nosideeffects annotation.
 	impureFunctionReasonsForDebugging *jutil.LinkedHashSet[rhino.Node] // lazily initialized
-	selfSlice                         [1]*PureFunctionIdentifier_AmbiguatedFunctionSummary
 }
 
 // Side effect types:
@@ -971,7 +965,6 @@ func NewPureFunctionIdentifier_AmbiguatedFunctionSummary(
 	s := &PureFunctionIdentifier_AmbiguatedFunctionSummary{bitmask: 0}
 	s.name = name // Java: checkNotNull(name); a Go string is never null.
 	s.graphNode = g.CreateDiGraphNode(s)
-	s.selfSlice[0] = s
 	return s
 }
 

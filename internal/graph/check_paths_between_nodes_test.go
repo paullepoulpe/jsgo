@@ -247,12 +247,12 @@ func TestCheckPathsBetweenNodes_NonInclusive(t *testing.T) {
 	assertTrue(t, "b", checkPathsTest_createNonInclusiveTest(g, "a", "c", checkPathsTest_equalTo("b"), checkPathsTest_ALL_EDGE).SomePathsSatisfyPredicate())
 }
 
-func checkPathsTest_assertGood[N, E any](t *testing.T, test *CheckPathsBetweenNodes[N, E]) {
+func checkPathsTest_assertGood[N comparable, E any](t *testing.T, test *CheckPathsBetweenNodes[N, E]) {
 	t.Helper()
 	assertTrue(t, "allPathsSatisfyPredicate", test.AllPathsSatisfyPredicate())
 }
 
-func checkPathsTest_assertBad[N, E any](t *testing.T, test *CheckPathsBetweenNodes[N, E]) {
+func checkPathsTest_assertBad[N comparable, E any](t *testing.T, test *CheckPathsBetweenNodes[N, E]) {
 	t.Helper()
 	assertFalse(t, "allPathsSatisfyPredicate", test.AllPathsSatisfyPredicate())
 }

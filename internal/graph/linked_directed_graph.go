@@ -110,6 +110,12 @@ func (g *LinkedDirectedGraph[N, E]) InitLinkedDirectedGraph(self DiGraph[N, E], 
 	g.useEdgeAnnotations = useEdgeAnnotations
 }
 
+// AsLinkedDirectedGraph returns g, satisfying DiGraph for both
+// *LinkedDirectedGraph and subclasses embedding LinkedDirectedGraph.
+func (g *LinkedDirectedGraph[N, E]) AsLinkedDirectedGraph() *LinkedDirectedGraph[N, E] {
+	return g
+}
+
 // linkedDirectedGraphReuseMaxNodes is the most nodes a graph may have had for
 // ClearForReuse to keep its node map (clearing a Go map costs time in
 // proportion to its largest size).

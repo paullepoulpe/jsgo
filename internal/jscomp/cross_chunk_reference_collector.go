@@ -38,12 +38,6 @@ type CrossChunkReferenceCollector struct {
 	blockStack    []*BasicBlock
 	blockStackBuf [16]*BasicBlock
 
-	// Go-only: performance — one collection's blocks, references, and top-level
-	// statements die together with it (see jutil.Slab).
-	blocks   jutil.Slab[BasicBlock]
-	refSlab  jutil.Slab[Reference]
-	stmtSlab jutil.Slab[CrossChunkReferenceCollector_TopLevelStatement]
-
 	// List of all top-level statements in the order they appear in the AST.
 	topLevelStatements []*CrossChunkReferenceCollector_TopLevelStatement
 
@@ -57,9 +51,6 @@ type CrossChunkReferenceCollector struct {
 	draftVal               CrossChunkReferenceCollector_TopLevelStatementDraft
 	draftRefsBuf           [16]*Reference
 	draftVarsBuf           [16]*Var
-
-	stmtRefsSlab []*Reference
-	stmtVarsSlab []*Var
 }
 
 // NewCrossChunkReferenceCollector: constructor initializes block stack.
@@ -77,42 +68,23 @@ func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCre
 	return c
 }
 
-func (c *CrossChunkReferenceCollector) allocStmtRefs(n int) []*Reference {
-	if len(c.stmtRefsSlab) < n {
-		c.stmtRefsSlab = jutil.SlabChunk[*Reference](max(n, 256))
-	}
-	out := c.stmtRefsSlab[:n:n]
-	c.stmtRefsSlab = c.stmtRefsSlab[n:]
-	return out
-}
-
-func (c *CrossChunkReferenceCollector) allocStmtVars(n int) []*Var {
-	if len(c.stmtVarsSlab) < n {
-		c.stmtVarsSlab = jutil.SlabChunk[*Var](max(n, 256))
-	}
-	out := c.stmtVarsSlab[:n:n]
-	c.stmtVarsSlab = c.stmtVarsSlab[n:]
-	return out
-}
-
 func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkReferenceCollector_TopLevelStatementDraft) *CrossChunkReferenceCollector_TopLevelStatement {
-	s := c.stmtSlab.New()
 	var refs []*Reference
 	var vars []*Var
 	if n := len(draft.nonDeclarationReferences); n > 0 {
-		refs = c.allocStmtRefs(n)
-		copy(refs, draft.nonDeclarationReferences)
+		refs = append([]*Reference(nil), draft.nonDeclarationReferences...)
 		if len(draft.nonDeclarationVars) == n {
-			vars = c.allocStmtVars(n)
-			copy(vars, draft.nonDeclarationVars)
+			vars = append([]*Var(nil), draft.nonDeclarationVars...)
 		}
 	}
-	s.outer = c
-	s.originalOrder = draft.originalOrder
-	s.chunk = draft.chunk
-	s.statementNode = draft.statementNode
-	s.nonDeclarationReferences = refs
-	s.nonDeclarationVars = vars
+	s := &CrossChunkReferenceCollector_TopLevelStatement{
+		outer:                    c,
+		originalOrder:            draft.originalOrder,
+		chunk:                    draft.chunk,
+		statementNode:            draft.statementNode,
+		nonDeclarationReferences: refs,
+		nonDeclarationVars:       vars,
+	}
 	s.declaredNameReference = draft.declaredNameReference
 	s.declaredVar = draft.declaredVar
 	s.declaredValueNode = draft.declaredValueNode
@@ -211,8 +183,7 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, par
 						}
 						col = c.createReferencesForNewVar(v)
 					}
-					reference := c.refSlab.New()
-					*reference = Reference{nameNode: n, basicBlock: crossChunkReferenceCollector_peek(c.blockStack), scope: scope, inputId: t.GetInput().GetInputId()}
+					reference := &Reference{nameNode: n, basicBlock: crossChunkReferenceCollector_peek(c.blockStack), scope: scope, inputId: t.GetInput().GetInputId()}
 					if n == c.topLevelStatementDraft.declaredNameNode {
 						c.topLevelStatementDraft.declaredNameReference = reference
 						c.topLevelStatementDraft.declaredVar = v
@@ -244,7 +215,7 @@ func (c *CrossChunkReferenceCollector) EnterScope(t *NodeTraversal) {
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() and removed in visit().
 	if t.IsHoistScope() {
-		c.blockStack = append(c.blockStack, initBasicBlock(c.blocks.New(), parent, n))
+		c.blockStack = append(c.blockStack, NewBasicBlock(parent, n))
 	}
 }
 
@@ -265,7 +236,7 @@ func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n rhino.
 	}
 	// If node is a new basic block, put on basic block stack
 	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
-		c.blockStack = append(c.blockStack, initBasicBlock(c.blocks.New(), crossChunkReferenceCollector_peek(c.blockStack), n))
+		c.blockStack = append(c.blockStack, NewBasicBlock(crossChunkReferenceCollector_peek(c.blockStack), n))
 	}
 	return true
 }

@@ -96,16 +96,8 @@ func FixedPointGraphTraversal_NewReverseTraversal[NodeT comparable, EdgeT any](
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>)
 func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPoint(graph DiGraph[N, E]) {
-	if ldg, ok := graph.(*LinkedDirectedGraph[N, E]); ok {
-		var zeroN N
-		t.computeFixedPointLinked(ldg, true, zeroN, nil)
-		return
-	}
-	var workSet jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]
-	for _, node := range graph.GetDiGraphNodes() {
-		workSet.Add(node)
-	}
-	t.computeFixedPointWorkSet(graph, &workSet)
+	var zeroN N
+	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), true, zeroN, nil)
 }
 
 // ComputeFixedPointFrom computes a fixed point for the given graph,
@@ -114,13 +106,7 @@ func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPoint(graph DiGraph[N, E]) 
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>, N)
 func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFrom(graph DiGraph[N, E], entry N) {
-	if ldg, ok := graph.(*LinkedDirectedGraph[N, E]); ok {
-		t.computeFixedPointLinked(ldg, false, entry, nil)
-		return
-	}
-	var workSet jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]
-	workSet.Add(graph.GetDiGraphNode(entry))
-	t.computeFixedPointWorkSet(graph, &workSet)
+	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), false, entry, nil)
 }
 
 // We cube the number of nodes to estimate the largest number of iterations
@@ -138,23 +124,18 @@ var fixedPointGraphTraversal_MAX_NODE_COUNT_FOR_ITERATION_LIMIT = int64(math.Flo
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>, Set<N>)
 func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFromSet(graph DiGraph[N, E], entrySet jutil.Set[N]) {
-	if ldg, ok := graph.(*LinkedDirectedGraph[N, E]); ok && entrySet != nil {
-		var zeroN N
-		t.computeFixedPointLinked(ldg, false, zeroN, entrySet)
-		return
+	if jutil.IsNil(entrySet) {
+		panic(jutil.NewNullPointerException())
 	}
-	var workSet jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]
-	for n := range entrySet.All() {
-		workSet.Add(graph.GetDiGraphNode(n))
-	}
-	t.computeFixedPointWorkSet(graph, &workSet)
+	var zeroN N
+	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), false, zeroN, entrySet)
 }
 
 func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 	ldg *LinkedDirectedGraph[N, E], initAll bool, singleEntry N, entrySet jutil.Set[N]) {
 	nodeCountInt := ldg.Nodes.Size()
 	ringCap := 16
-	for ringCap < nodeCountInt+1 {
+	for ringCap <= nodeCountInt+1 {
 		ringCap <<= 1
 	}
 	var ringBuf [64]*LinkedDirectedGraph_LinkedDiGraphNode[N, E]
@@ -175,6 +156,7 @@ func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 		}
 	}()
 
+	var nilInWorkSet bool
 	if initAll {
 		for node := range ldg.Nodes.Values() {
 			if !node.inWorkSet {
@@ -187,18 +169,12 @@ func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 		for v := range entrySet.All() {
 			node := ldg.GetLinkedDiGraphNode(v)
 			if node == nil {
-				for head != tail {
-					if n := ring[head&mask]; n != nil {
-						n.inWorkSet = false
-					}
-					head++
+				if !nilInWorkSet {
+					nilInWorkSet = true
+					ring[tail&mask] = nil
+					tail++
 				}
-				var workSet jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]
-				for n := range entrySet.All() {
-					workSet.Add(ldg.GetDiGraphNode(n))
-				}
-				t.computeFixedPointWorkSet(ldg, &workSet)
-				return
+				continue
 			}
 			if !node.inWorkSet {
 				node.inWorkSet = true
@@ -221,24 +197,24 @@ func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 	maxIterations := max(nodeCount*nodeCount*nodeCount, 100)
 
 	outwards := t.traversalDirection == fixedPointGraphTraversal_TraversalDirection_OUTWARDS
-	if !outwards && t.traversalDirection != fixedPointGraphTraversal_TraversalDirection_INWARDS {
-		if head != tail {
-			panic(jutil.NewAssertionError("Unrecognized direction " + t.traversalDirection.String()))
-		}
-	}
+	inwards := t.traversalDirection == fixedPointGraphTraversal_TraversalDirection_INWARDS
 
 	for ; head != tail && cycleCount < maxIterations; cycleCount++ {
 		idx := head & mask
 		node := ring[idx]
 		ring[idx] = nil
 		head++
+		if node == nil {
+			// An entry value that is not in the graph: node.getValue() on null.
+			panic(jutil.NewNullPointerException())
+		}
 		node.inWorkSet = false
 
 		if outwards {
 			sourceValue := node.Value
 			for _, edge := range node.OutEdgeList.Slice() {
-				destNode := edge.GetDestination().(*LinkedDirectedGraph_LinkedDiGraphNode[N, E])
-				if t.callback.TraverseEdge(sourceValue, edge.GetValue(), destNode.Value) {
+				destNode := edge.DestNode
+				if t.callback.TraverseEdge(sourceValue, edge.Value, destNode.Value) {
 					if !destNode.inWorkSet {
 						destNode.inWorkSet = true
 						ring[tail&mask] = destNode
@@ -246,11 +222,11 @@ func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 					}
 				}
 			}
-		} else {
+		} else if inwards {
 			revSourceValue := node.Value
 			for _, edge := range node.InEdgeList.Slice() {
-				srcNode := edge.GetSource().(*LinkedDirectedGraph_LinkedDiGraphNode[N, E])
-				if t.callback.TraverseEdge(revSourceValue, edge.GetValue(), srcNode.Value) {
+				srcNode := edge.SourceNode
+				if t.callback.TraverseEdge(revSourceValue, edge.Value, srcNode.Value) {
 					if !srcNode.inWorkSet {
 						srcNode.inWorkSet = true
 						ring[tail&mask] = srcNode
@@ -258,72 +234,14 @@ func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 					}
 				}
 			}
+		} else {
+			panic(jutil.NewAssertionError("Unrecognized direction " + t.traversalDirection.String()))
 		}
 	}
 
 	if cycleCount == maxIterations {
 		panic(jutil.NewIllegalStateExceptionMsg(FixedPointGraphTraversal_NON_HALTING_ERROR_MSG))
 	}
-}
-
-func (t *FixedPointGraphTraversal[N, E]) computeFixedPointWorkSet(graph DiGraph[N, E], workSet *jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]) {
-	cycleCount := int64(0)
-	nodeCount := min(int64(graph.GetNodeCount()), fixedPointGraphTraversal_MAX_NODE_COUNT_FOR_ITERATION_LIMIT)
-
-	// Choose a bail-out heuristically in case the computation
-	// doesn't converge.
-	maxIterations := max(nodeCount*nodeCount*nodeCount, 100)
-
-	for ; !workSet.IsEmpty() && cycleCount < maxIterations; cycleCount++ {
-		t.visitNode(fixedPointGraphTraversal_getFirst(workSet), workSet)
-	}
-
-	if cycleCount == maxIterations {
-		// checkState(boolean, Object errorMessage)
-		panic(jutil.NewIllegalStateExceptionMsg(FixedPointGraphTraversal_NON_HALTING_ERROR_MSG))
-	}
-}
-
-// fixedPointGraphTraversal_getFirst is LinkedHashSet.getFirst() (Java 21).
-func fixedPointGraphTraversal_getFirst[T comparable](s *jutil.LinkedHashSet[T]) T {
-	for e := range s.All() {
-		return e
-	}
-	panic(jutil.NewNoSuchElementException())
-}
-
-// Java: FixedPointGraphTraversal.visitNode(DiGraphNode<N, E>, LinkedHashSet<DiGraphNode<N, E>>)
-func (t *FixedPointGraphTraversal[N, E]) visitNode(node DiGraph_DiGraphNode[N, E], workSet *jutil.LinkedHashSet[DiGraph_DiGraphNode[N, E]]) {
-	// For every out edge in the workSet, traverse that edge. If that
-	// edge updates the state of the graph, then add the destination
-	// node to the resultSet, so that we can update all of its out edges
-	// on the next iteration.
-	workSet.Remove(node)
-	if node == nil {
-		// An entry value that is not in the graph: node.getValue() on null.
-		panic(jutil.NewNullPointerException())
-	}
-	switch t.traversalDirection {
-	case fixedPointGraphTraversal_TraversalDirection_OUTWARDS:
-		sourceValue := node.GetValue()
-		for _, edge := range node.GetOutEdges() {
-			destValue := edge.GetDestination().GetValue()
-			if t.callback.TraverseEdge(sourceValue, edge.GetValue(), destValue) {
-				workSet.Add(edge.GetDestination())
-			}
-		}
-		return
-	case fixedPointGraphTraversal_TraversalDirection_INWARDS:
-		revSourceValue := node.GetValue()
-		for _, edge := range node.GetInEdges() {
-			revDestValue := edge.GetSource().GetValue()
-			if t.callback.TraverseEdge(revSourceValue, edge.GetValue(), revDestValue) {
-				workSet.Add(edge.GetSource())
-			}
-		}
-		return
-	}
-	panic(jutil.NewAssertionError("Unrecognized direction " + t.traversalDirection.String()))
 }
 
 // FixedPointGraphTraversal_EdgeCallback is the edge callback.

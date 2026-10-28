@@ -64,11 +64,10 @@ var peepholeFoldConstants_MAX_FOLD_NUMBER = jutil.MathPow(2, 53)
 //
 // Java: PeepholeFoldConstants(boolean, boolean)
 func NewPeepholeFoldConstants(late bool, shouldUseTypes bool) *PeepholeFoldConstants {
-	p := &PeepholeFoldConstants{}
-	p.InitAbstractPeepholeOptimizationBase(p) // the implicit super()
-	p.late = late
-	p.shouldUseTypes = shouldUseTypes
-	return p
+	return &PeepholeFoldConstants{
+		late:           late,
+		shouldUseTypes: shouldUseTypes,
+	}
 }
 
 // Java: PeepholeFoldConstants.optimizeSubtree(Node)

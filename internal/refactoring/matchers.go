@@ -33,25 +33,15 @@ import (
 // TODO(mknichel): Make sure all this code works with goog.scope.
 //
 // Go-only: language-adapter — the Java class has only a private
-// constructor and static methods; it has no Go type. Its anonymous Matcher
-// classes are matchers_matcherFunc closures.
-
-// matchers_matcherFunc is a Matcher implemented by a closure (the anonymous
-// `new Matcher() {...}` classes and Matcher lambdas of Matchers).
-type matchers_matcherFunc func(node rhino.Node, metadata *NodeMetadata) bool
-
-// Matches calls f.
-func (f matchers_matcherFunc) Matches(node rhino.Node, metadata *NodeMetadata) bool {
-	return f(node, metadata)
-}
+// constructor and static methods; it has no Go type.
 
 // Matchers_Anything returns a Matcher that matches every node.
 //
 // Java: Matchers.anything()
 func Matchers_Anything() Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		return true
-	})
+	}
 }
 
 // Matchers_AllOf returns a Matcher that returns true only if all of the
@@ -59,14 +49,14 @@ func Matchers_Anything() Matcher {
 //
 // Java: Matchers.allOf(Matcher...)
 func Matchers_AllOf(matchers ...Matcher) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		for _, m := range matchers {
 			if !m.Matches(node, metadata) {
 				return false
 			}
 		}
 		return true
-	})
+	}
 }
 
 // Matchers_AnyOf returns a Matcher that returns true if any of the provided
@@ -74,14 +64,14 @@ func Matchers_AllOf(matchers ...Matcher) Matcher {
 //
 // Java: Matchers.anyOf(Matcher...)
 func Matchers_AnyOf(matchers ...Matcher) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		for _, m := range matchers {
 			if m.Matches(node, metadata) {
 				return true
 			}
 		}
 		return false
-	})
+	}
 }
 
 // Matchers_Not returns a Matcher that matches the opposite of the provided
@@ -89,9 +79,9 @@ func Matchers_AnyOf(matchers ...Matcher) Matcher {
 //
 // Java: Matchers.not(Matcher)
 func Matchers_Not(matcher Matcher) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		return !matcher.Matches(node, metadata)
-	})
+	}
 }
 
 // Matchers_Constructor returns a matcher that matches any constructor
@@ -99,10 +89,10 @@ func Matchers_Not(matcher Matcher) Matcher {
 //
 // Java: Matchers.constructor()
 func Matchers_Constructor() Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		info := node.GetJSDocInfo()
 		return info != nil && info.IsConstructor()
-	})
+	}
 }
 
 // Matchers_ConstructorWithName returns a matcher that matches constructor
@@ -112,7 +102,7 @@ func Matchers_Constructor() Matcher {
 //
 // Java: Matchers.constructor(String)
 func Matchers_ConstructorWithName(name string) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		info := node.GetJSDocInfo()
 		if info != nil && info.IsConstructor() {
 			firstChild := node.GetFirstChild()
@@ -127,7 +117,7 @@ func Matchers_ConstructorWithName(name string) Matcher {
 			}
 		}
 		return false
-	})
+	}
 }
 
 // Matchers_NewClass returns a Matcher that matches constructing new objects.
@@ -135,9 +125,9 @@ func Matchers_ConstructorWithName(name string) Matcher {
 //
 // Java: Matchers.newClass()
 func Matchers_NewClass() Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		return node.IsNew()
-	})
+	}
 }
 
 // Matchers_NewClassWithName returns a Matcher that matches constructing
@@ -148,7 +138,7 @@ func Matchers_NewClass() Matcher {
 //
 // Java: Matchers.newClass(String)
 func Matchers_NewClassWithName(className string) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		if !node.IsNew() {
 			return false
 		}
@@ -163,16 +153,16 @@ func Matchers_NewClassWithName(className string) Matcher {
 		}
 		jsType = jsType.RestrictByNotNullOrUndefined()
 		return matchers_areTypesEquivalentIgnoringGenerics(jsType, providedJsType)
-	})
+	}
 }
 
 // Matchers_FunctionCall returns a Matcher that matches any function call.
 //
 // Java: Matchers.functionCall()
 func Matchers_FunctionCall() Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		return node.IsCall() && Matchers_PropertyAccess().Matches(node.GetFirstChild(), metadata)
-	})
+	}
 }
 
 // Matchers_FunctionCallWithName returns a Matcher that matches all nodes
@@ -185,10 +175,10 @@ func Matchers_FunctionCall() Matcher {
 //
 // Java: Matchers.functionCall(String)
 func Matchers_FunctionCallWithName(name string) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		// TODO(mknichel): Handle the case when functions are applied through .call or .apply.
 		return node.IsCall() && Matchers_PropertyAccessWithName(&name).Matches(node.GetFirstChild(), metadata)
-	})
+	}
 }
 
 // Matchers_FunctionCallWithNumArgs returns a Matcher that matches any
@@ -196,9 +186,9 @@ func Matchers_FunctionCallWithName(name string) Matcher {
 //
 // Java: Matchers.functionCallWithNumArgs(int)
 func Matchers_FunctionCallWithNumArgs(numArgs int) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		return node.IsCall() && node.HasXChildren(numArgs+1)
-	})
+	}
 }
 
 // Matchers_FunctionCallWithNumArgsAndName returns a Matcher that matches any
@@ -216,11 +206,11 @@ func Matchers_FunctionCallWithNumArgsAndName(name string, numArgs int) Matcher {
 
 // Java: Matchers.googRequirelike(String)
 func Matchers_GoogRequirelikeWithNamespace(namespace string) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		return Matchers_GoogRequirelike().Matches(node, metadata) &&
 			node.GetSecondChild().IsStringLit() &&
 			node.GetSecondChild().GetString() == namespace
-	})
+	}
 }
 
 // Java: Matchers.googRequirelike()
@@ -271,7 +261,7 @@ func Matchers_PropertyAccess() Matcher {
 //
 // Java: Matchers.propertyAccess(String)
 func Matchers_PropertyAccessWithName(name *string) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		if node.IsGetProp() {
 			if name == nil {
 				return true
@@ -283,7 +273,7 @@ func Matchers_PropertyAccessWithName(name *string) Matcher {
 			}
 		}
 		return false
-	})
+	}
 }
 
 // Matchers_EnumDefinition returns a Matcher that matches definitions of any
@@ -291,10 +281,10 @@ func Matchers_PropertyAccessWithName(name *string) Matcher {
 //
 // Java: Matchers.enumDefinition()
 func Matchers_EnumDefinition() Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		jsType := node.GetJSType()
 		return jsType != nil && jsType.IsEnumType()
-	})
+	}
 }
 
 // Matchers_EnumDefinitionOfType returns a Matcher that matches definitions
@@ -302,7 +292,7 @@ func Matchers_EnumDefinition() Matcher {
 //
 // Java: Matchers.enumDefinitionOfType(String)
 func Matchers_EnumDefinitionOfType(type_ string) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		providedJsType := matchers_getJsType(metadata, type_)
 		if providedJsType == nil {
 			return false
@@ -313,7 +303,7 @@ func Matchers_EnumDefinitionOfType(type_ string) Matcher {
 		return jsType != nil &&
 			jsType.IsEnumType() &&
 			providedJsType.Equals(jsType.ToMaybeEnumType().GetElementsType().GetPrimitiveType())
-	})
+	}
 }
 
 // Matchers_AssignmentWithRhs returns a Matcher that matches an ASSIGN node
@@ -321,9 +311,9 @@ func Matchers_EnumDefinitionOfType(type_ string) Matcher {
 //
 // Java: Matchers.assignmentWithRhs(Matcher)
 func Matchers_AssignmentWithRhs(rhsMatcher Matcher) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		return node.IsAssign() && rhsMatcher.Matches(node.GetLastChild(), metadata)
-	})
+	}
 }
 
 // Matchers_PrototypeVariableDeclaration returns a Matcher that matches a
@@ -347,7 +337,7 @@ func Matchers_PrototypeMethodDeclaration() Matcher {
 //
 // Java: Matchers.jsDocType(String)
 func Matchers_JsDocType(type_ string) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		providedJsType := matchers_getJsType(metadata, type_)
 		if providedJsType == nil {
 			return false
@@ -367,7 +357,7 @@ func Matchers_JsDocType(type_ string) Matcher {
 			jsDoc.HasType() &&
 			jsType != nil &&
 			providedJsType.Equals(jsType.RestrictByNotNullOrUndefined())
-	})
+	}
 }
 
 // Matchers_ConstructorPropertyDeclaration returns a Matcher that matches
@@ -375,7 +365,7 @@ func Matchers_JsDocType(type_ string) Matcher {
 //
 // Java: Matchers.constructorPropertyDeclaration()
 func Matchers_ConstructorPropertyDeclaration() Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		// This will match against code that looks like:
 		// /** @constructor */
 		// function constructor() {
@@ -396,7 +386,7 @@ func Matchers_ConstructorPropertyDeclaration() Matcher {
 			}
 		}
 		return false
-	})
+	}
 }
 
 // Matchers_IsPrivate returns a Matcher that matches against nodes that are
@@ -404,13 +394,13 @@ func Matchers_ConstructorPropertyDeclaration() Matcher {
 //
 // Java: Matchers.isPrivate()
 func Matchers_IsPrivate() Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		jsDoc := jscomp.NodeUtil_GetBestJSDocInfo(node)
 		if jsDoc != nil {
 			return jsDoc.GetVisibility() == rhino.JSDocInfo_Visibility_PRIVATE
 		}
 		return false
-	})
+	}
 }
 
 // Java: Matchers.getJsType(NodeMetadata, String)
@@ -481,7 +471,7 @@ func matchers_matchesPrototypeInstanceVar(node rhino.Node, metadata *NodeMetadat
 
 // Java: Matchers.matcherForPrototypeDeclaration(boolean)
 func matchers_matcherForPrototypeDeclaration(requireFunctionType bool) Matcher {
-	return matchers_matcherFunc(func(node rhino.Node, metadata *NodeMetadata) bool {
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		// TODO(mknichel): Figure out which node is the best to return for this
 		// function: the GETPROP node, or the ASSIGN node when the property is
 		// being assigned to.
@@ -504,7 +494,7 @@ func matchers_matcherForPrototypeDeclaration(requireFunctionType bool) Matcher {
 			}
 		}
 		return false
-	})
+	}
 }
 
 // TODO(mknichel): Add matchers for:

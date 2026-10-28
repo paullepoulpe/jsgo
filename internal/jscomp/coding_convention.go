@@ -669,23 +669,6 @@ func (b *CodingConvention_AssertionFunctionSpec_Builder) Build() *CodingConventi
 	return spec
 }
 
-// GetId returns the spec's key: its ClosurePrimitive, or else its function
-// name.
-//
-// Go-only: language-adapter — the Object result is a rhino.ClosurePrimitive
-// or a string value (nil for Java null).
-//
-// Java: CodingConvention.AssertionFunctionSpec.getId()
-func (s *CodingConvention_AssertionFunctionSpec) GetId() any {
-	if s.GetClosurePrimitive() != nil {
-		return *s.GetClosurePrimitive()
-	}
-	if s.GetFunctionName() != nil {
-		return *s.GetFunctionName()
-	}
-	return nil
-}
-
 // GetAssertedArg returns which argument is actually being asserted, or null
 // if fewer args than expected
 //
@@ -705,47 +688,9 @@ func (s *CodingConvention_AssertionFunctionSpec) GetAssertedArg(firstArg rhino.N
 // CodingConvention_AssertionFunctionLookup stores a relation from either
 // name or Closure Primitive to assertion function
 type CodingConvention_AssertionFunctionLookup struct {
-	// the key type 'Object' is mutable, but at runtime is only ever a string
-	// or ClosurePrimitive
-	//
-	// Go-only: language-adapter — keys are string or rhino.ClosurePrimitive
-	// values, whose Go == is Java equals.
-	internal    *jutil.LinkedHashMap[any, *CodingConvention_AssertionFunctionSpec]
 	byPrimitive map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec
 	byName      map[string]*CodingConvention_AssertionFunctionSpec
 	byLastProp  map[string][]*CodingConvention_AssertionFunctionSpec
-}
-
-// Java: CodingConvention.AssertionFunctionLookup(ImmutableMap<Object, AssertionFunctionSpec>)
-func newCodingConvention_AssertionFunctionLookup(
-	internal *jutil.LinkedHashMap[any, *CodingConvention_AssertionFunctionSpec]) *CodingConvention_AssertionFunctionLookup {
-	l := &CodingConvention_AssertionFunctionLookup{}
-	l.internal = internal
-	if internal != nil && !internal.IsEmpty() {
-		for k, spec := range internal.All() {
-			switch key := k.(type) {
-			case rhino.ClosurePrimitive:
-				if l.byPrimitive == nil {
-					l.byPrimitive = make(map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec)
-				}
-				l.byPrimitive[key] = spec
-			case string:
-				if lastDot := strings.LastIndexByte(key, '.'); lastDot >= 0 {
-					if l.byLastProp == nil {
-						l.byLastProp = make(map[string][]*CodingConvention_AssertionFunctionSpec)
-					}
-					lastProp := key[lastDot+1:]
-					l.byLastProp[lastProp] = append(l.byLastProp[lastProp], spec)
-				} else {
-					if l.byName == nil {
-						l.byName = make(map[string]*CodingConvention_AssertionFunctionSpec)
-					}
-					l.byName[key] = spec
-				}
-			}
-		}
-	}
-	return l
 }
 
 // CodingConvention_AssertionFunctionLookup_Of returns a new map containing
@@ -757,13 +702,49 @@ func newCodingConvention_AssertionFunctionLookup(
 // Java: CodingConvention.AssertionFunctionLookup.of(Collection<AssertionFunctionSpec>)
 func CodingConvention_AssertionFunctionLookup_Of(
 	specs []*CodingConvention_AssertionFunctionSpec) *CodingConvention_AssertionFunctionLookup {
-	builder := jutil.NewImmutableMapBuilder[any, *CodingConvention_AssertionFunctionSpec]()
+	l := &CodingConvention_AssertionFunctionLookup{}
 	for _, spec := range specs {
-		builder.Put(spec.GetId(), spec)
+		jutil.CheckNotNullPtr(spec)
+		switch {
+		case spec.closurePrimitive != nil:
+			key := *spec.closurePrimitive
+			if l.byPrimitive == nil {
+				l.byPrimitive = make(map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec)
+			}
+			if prev, exists := l.byPrimitive[key]; exists {
+				panic(jutil.NewIllegalArgumentExceptionMsg(
+					"Multiple entries with same key: " + key.String() + "=" + spec.String() + " and " + key.String() + "=" + prev.String()))
+			}
+			l.byPrimitive[key] = spec
+		case spec.functionName != nil:
+			key := *spec.functionName
+			if lastDot := strings.LastIndexByte(key, '.'); lastDot >= 0 {
+				if l.byLastProp == nil {
+					l.byLastProp = make(map[string][]*CodingConvention_AssertionFunctionSpec)
+				}
+				lastProp := key[lastDot+1:]
+				for _, prev := range l.byLastProp[lastProp] {
+					if prev.functionName != nil && *prev.functionName == key {
+						panic(jutil.NewIllegalArgumentExceptionMsg(
+							"Multiple entries with same key: " + key + "=" + spec.String() + " and " + key + "=" + prev.String()))
+					}
+				}
+				l.byLastProp[lastProp] = append(l.byLastProp[lastProp], spec)
+			} else {
+				if l.byName == nil {
+					l.byName = make(map[string]*CodingConvention_AssertionFunctionSpec)
+				}
+				if prev, exists := l.byName[key]; exists {
+					panic(jutil.NewIllegalArgumentExceptionMsg(
+						"Multiple entries with same key: " + key + "=" + spec.String() + " and " + key + "=" + prev.String()))
+				}
+				l.byName[key] = spec
+			}
+		default:
+			panic(jutil.NewNullPointerException())
+		}
 	}
-	idToSpecMap := builder.BuildOrThrow()
-
-	return newCodingConvention_AssertionFunctionLookup(idToSpecMap)
+	return l
 }
 
 // LookupByCallee returns the AssertionFunctionSpec matching the given

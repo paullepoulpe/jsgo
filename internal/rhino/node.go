@@ -1209,13 +1209,9 @@ func (n Node) ClearNoBlockScopeDecls() {
 //
 // Java: Node.children()
 func (n Node) Children() iter.Seq[Node] {
-	if n.rec().first == 0 {
-		return func(yield func(Node) bool) {}
-	}
 	start := n.firstNode()
 	return func(yield func(Node) bool) {
-		current := start
-		for !current.IsNil() {
+		for current := start; !current.IsNil(); {
 			c := current
 			current = current.GetNext()
 			if !yield(c) {

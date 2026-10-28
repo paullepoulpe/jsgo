@@ -869,7 +869,7 @@ func (c *FunctionArgumentInjectorTest) TestNeededTemps(code string, fnName strin
 
 // Java: FunctionArgumentInjectorTest.getAndValidateFunctionCallParameterMap(Node, Node)
 func (c *FunctionArgumentInjectorTest) GetAndValidateFunctionCallParameterMap(
-	fn rhino.Node, call rhino.Node) *jutil.LinkedHashMap[string, *FunctionArgumentInjector_ParamArgPair] {
+	fn rhino.Node, call rhino.Node) *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair] {
 	map_ := c.functionArgumentInjector.GetFunctionCallParameterMap(fn, call, FunctionArgumentInjectorTest_GetNameSupplier())
 	// Verify that all nodes in the map have source info, so they are valid to add to the AST
 	for name, value := range map_.All() {

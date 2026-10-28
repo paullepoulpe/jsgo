@@ -55,7 +55,7 @@ func (u *PropertyUseSites) PutNew(site rhino.Node, owner *ColorGraphNode) {
 	if u.sites == nil {
 		u.sites = u.inline[:0]
 	}
-	u.sites = appendDoubling(u.sites, PropertyUseSite{site: site, owner: owner})
+	u.sites = append(u.sites, PropertyUseSite{site: site, owner: owner})
 }
 
 func (u *PropertyUseSites) Put(site rhino.Node, owner *ColorGraphNode) *ColorGraphNode {

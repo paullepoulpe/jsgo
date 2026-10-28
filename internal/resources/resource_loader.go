@@ -67,16 +67,11 @@ type ResourceLoader struct{}
 //
 // Java: ResourceLoader.loadTextResource(Class<?>, String)
 func ResourceLoader_LoadTextResource(clazz string, path string) string {
-	var result string
-	jutil.Try(func() {
-		result = resourceLoader_charStreamsToString(resourceLoader_getResourceAsStream(clazz, path))
-	}, func(e jutil.INullPointerException) {
-		if !ResourceLoader_ResourceExists(clazz, path) {
-			panic(jutil.NewRuntimeException("No such resource: " + path))
-		}
-		panic(e)
-	})
-	return result
+	data, ok := resourceLoader_getResource(resourceLoader_resolveName(clazz, path))
+	if !ok {
+		panic(jutil.NewRuntimeException("No such resource: " + path))
+	}
+	return string(data)
 }
 
 // ResourceLoader_LoadPropertiesMap parses the resource resourceName relative
@@ -155,20 +150,6 @@ func resourceLoader_getResourceAsStream(clazz string, path string) []byte {
 		return nil
 	}
 	return data
-}
-
-// resourceLoader_charStreamsToString is CharStreams.toString(new
-// InputStreamReader(stream, UTF_8)); like new InputStreamReader(null, ...)
-// it throws NullPointerException for a null stream. The embedded resources
-// are valid UTF-8 (resource_loader_test.go checks every one), on which
-// Java's decoding with replacement is the identity.
-//
-// Go-only: language-adapter — java.io stream decoding of embedded bytes.
-func resourceLoader_charStreamsToString(stream []byte) string {
-	if stream == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	return string(stream)
 }
 
 // ResourceLoader_GetResourceAsStream is clazz.getResourceAsStream(path) for

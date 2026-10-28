@@ -18,7 +18,11 @@
 
 package jscomp
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 func TestDiagnosticGroup_Registration(t *testing.T) {
 	dg := NewDiagnosticGroups()
@@ -40,4 +44,29 @@ func TestDiagnosticGroup_Basics(t *testing.T) {
 	jsaTrue(t, composite.GetName() == nil)
 	jsaTrue(t, DiagnosticGroup_ForType(a) == DiagnosticGroup_ForType(a))
 	jsaFalse(t, DiagnosticGroup_ForType(a).MatchesType(b))
+}
+
+func TestDiagnosticGroup_ValueCopyEquality(t *testing.T) {
+	dt := DiagnosticType_Warning("JSC_DG_COPY", "copy test")
+	orig := NewDiagnosticGroupWithName(jsaStr("copyGroup"), dt)
+	copied := *orig
+
+	jsaTrue(t, orig.Equals(&copied))
+	jsaTrue(t, (&copied).Equals(orig))
+	jsaTrue(t, orig.Equals(copied))
+	jsaEq(t, orig.HashCode(), (&copied).HashCode())
+	jsaTrue(t, jutil.ObjectsEquals(orig, &copied))
+
+	other := NewDiagnosticGroupWithName(jsaStr("copyGroup"), dt)
+	jsaFalse(t, orig.Equals(other))
+
+	set := jutil.NewObjectLinkedHashSet(orig)
+	jsaTrue(t, set.Contains(&copied))
+	jsaFalse(t, set.Contains(other))
+
+	m := jutil.NewObjectLinkedHashMap[*DiagnosticGroup, CheckLevel]()
+	m.Put(orig, CheckLevel_ERROR)
+	got, ok := m.Lookup(&copied)
+	jsaTrue(t, ok)
+	jsaEq(t, got, CheckLevel_ERROR)
 }

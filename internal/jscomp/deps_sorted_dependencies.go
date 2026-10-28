@@ -25,6 +25,12 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+// SortedDependencies_Input constrains InputT to comparable DependencyInfo values.
+type SortedDependencies_Input interface {
+	DependencyInfo
+	comparable
+}
+
 // SortedDependencies is a sorted list of inputs following the ES6 module
 // ordering spec.
 //
@@ -41,14 +47,14 @@ import (
 // provide symbols.
 //
 // Inputs are compared with equals/hashCode, as in the Java collections.
-type SortedDependencies[InputT DependencyInfo] struct {
+type SortedDependencies[InputT SortedDependencies_Input] struct {
 	userOrderedInputs          []InputT
 	importOrderedInputs        []InputT
 	nonExportingInputs         *jutil.LinkedHashMap[string, InputT]
 	exportingInputBySymbolName *jutil.LinkedHashMap[string, InputT]
 
 	uniqueInputs            []InputT
-	ptrToID                 map[any]int32
+	ptrToID                 map[InputT]int32
 	objToID                 *jutil.ObjectLinkedHashMap[InputT, int32]
 	exportingIDBySymbolName map[string]int32
 	userOrderedIDs          []int32
@@ -64,7 +70,7 @@ type SortedDependencies[InputT DependencyInfo] struct {
 }
 
 // Java: SortedDependencies(List<InputT>)
-func NewSortedDependencies[InputT DependencyInfo](userOrderedInputs []InputT) *SortedDependencies[InputT] {
+func NewSortedDependencies[InputT SortedDependencies_Input](userOrderedInputs []InputT) *SortedDependencies[InputT] {
 	d := &SortedDependencies[InputT]{
 		userOrderedInputs:          append([]InputT{}, userOrderedInputs...),
 		nonExportingInputs:         jutil.NewLinkedHashMap[string, InputT](),
@@ -336,7 +342,7 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 	userSlice := d.userOrderedInputs
 	n := len(userSlice)
 	d.uniqueInputs = make([]InputT, 0, n)
-	d.ptrToID = make(map[any]int32, n)
+	d.ptrToID = make(map[InputT]int32, n)
 	var zero InputT
 	if _, isEqualer := any(zero).(jutil.Equaler); isEqualer {
 		d.objToID = jutil.NewObjectLinkedHashMap[InputT, int32]()

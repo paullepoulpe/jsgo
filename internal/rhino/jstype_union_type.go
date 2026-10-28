@@ -683,18 +683,15 @@ func (t *UnionType) GetRestrictedUnion(type_ JSType) JSType {
 func (t *UnionType) AppendTo(sb *TypeStringBuilder) {
 	sb.Append("(")
 
-	names := []string{}
-	for _, alt := range t.rawAlternates() {
+	alts := t.rawAlternates()
+	names := make([]string, 0, len(alts))
+	for _, alt := range alts {
 		// Clone the config to preserve indentation.
 		names = append(names, sb.CloneWithConfig().AppendType(alt).Build())
 	}
 	// Sort types by stringification to get deterministic behaviour.
 	slices.SortStableFunc(names, jutil.StringCompareTo)
-	elements := make([]any, len(names))
-	for i, n := range names {
-		elements[i] = n
-	}
-	sb.AppendAll(elements, "|")
+	sb.AppendStrings(names, "|")
 
 	sb.Append(")")
 }

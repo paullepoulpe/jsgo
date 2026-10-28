@@ -89,7 +89,7 @@ var InlineAndCollapseProperties_ALIAS_CYCLE = DiagnosticType_Error("JSC_ALIAS_CY
 
 // Java: InlineAndCollapseProperties(Builder)
 func NewInlineAndCollapseProperties(builder *InlineAndCollapseProperties_Builder) *InlineAndCollapseProperties {
-	p := &InlineAndCollapseProperties{decisionsLog: nil}
+	p := &InlineAndCollapseProperties{decisionsLog: diagnostic.LogFile{}}
 	p.compiler = builder.compiler
 	p.propertyCollapseLevel = builder.propertyCollapseLevel
 	p.chunkOutputType = builder.chunkOutputType
@@ -170,7 +170,7 @@ func (p *InlineAndCollapseProperties) Process(externs rhino.Node, root rhino.Nod
 		"testAggressiveInlining is invalid for: %s",
 		p.propertyCollapseLevel)
 	defer func() {
-		p.decisionsLog = nil
+		p.decisionsLog = diagnostic.LogFile{}
 		if p.optionalGlobalNamespaceTester == nil {
 			p.namespace = nil
 		}

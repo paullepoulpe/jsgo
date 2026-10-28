@@ -130,11 +130,10 @@ type RegExpTree_Charset struct {
 //
 // Java: Charset(CharRanges, CharRanges)
 func NewRegExpTree_Charset(ranges *CharRanges, ieExplicits *CharRanges) *RegExpTree_Charset {
-	c := &RegExpTree_Charset{}
-	c.InitRegExpTree_RegExpTreeAtomBase(c)
-	c.ranges = ranges
-	c.ieExplicits = ieExplicits
-	return c
+	return &RegExpTree_Charset{
+		ranges:      ranges,
+		ieExplicits: ieExplicits,
+	}
 }
 
 // RegExpTree_Charset_ComplexityWordFolded is the complexity of ranges or of
@@ -325,6 +324,9 @@ func (c *RegExpTree_Charset) Equals(o any) bool {
 func (c *RegExpTree_Charset) HashCode() int32 {
 	return int32(uint32(c.ranges.HashCode()) ^ 0xdede2246)
 }
+
+// Java: RegExpTree.toString()
+func (c *RegExpTree_Charset) String() string { return regExpTreeString(c) }
 
 // RegExpTree_DecomposedCharset is the internal representation for []
 // charsets.
@@ -528,8 +530,6 @@ type RegExpTree_UnicodePropertyEscape struct {
 //
 // Java: UnicodePropertyEscape(@Nullable String, String, boolean)
 func NewRegExpTree_UnicodePropertyEscape(propertyName *string, propertyValue string, negated bool) *RegExpTree_UnicodePropertyEscape {
-	u := &RegExpTree_UnicodePropertyEscape{}
-	u.InitRegExpTree_RegExpTreeAtomBase(u)
 	// Java: checkState(propertyValue != null);
 	// Go-only: language-adapter — a Go string is never null, so the check
 	// always holds.
@@ -537,10 +537,11 @@ func NewRegExpTree_UnicodePropertyEscape(propertyName *string, propertyValue str
 		propertyName == nil || *propertyName != "",
 		"if '=' is present in a unicode property escape, the name cannot be empty")
 	jutil.CheckArgumentMsg(propertyValue != "", "unicode property escape value cannot be empty")
-	u.propertyName = propertyName
-	u.propertyValue = propertyValue
-	u.negated = negated
-	return u
+	return &RegExpTree_UnicodePropertyEscape{
+		propertyName:  propertyName,
+		propertyValue: propertyValue,
+		negated:       negated,
+	}
 }
 
 // Simplify returns u.
@@ -605,6 +606,9 @@ func (u *RegExpTree_UnicodePropertyEscape) HashCode() int32 {
 	result = 31*result + jutil.StringHashCode(u.propertyValue)
 	return result
 }
+
+// Java: RegExpTree.toString()
+func (u *RegExpTree_UnicodePropertyEscape) String() string { return regExpTreeString(u) }
 
 // regExpTree_nullableStringEquals is Objects.equals on nullable strings.
 //

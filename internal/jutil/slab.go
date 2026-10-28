@@ -1,9 +1,6 @@
 package jutil
 
-import (
-	"reflect"
-	"slices"
-)
+import "slices"
 
 // Slab allocates values of T in chunks: New returns a pointer to a new zero
 // T, and only one call in a few hundred allocates. The zero Slab is ready to
@@ -22,7 +19,7 @@ import (
 type Slab[T any] struct {
 	chunk      []T
 	used       int
-	chunkBytes int // the last chunk's size class (see grow)
+	nextChunk  int
 	fixedChunk int
 	maxChunk   int
 }
@@ -39,10 +36,8 @@ func NewMaxSlab[T any](maxChunk int) Slab[T] {
 }
 
 const (
-	slabMinChunk      = 4
-	slabMinChunkBytes = 256
-	slabMaxChunkBytes = 8192
-	slabHeaderBytes   = 8
+	minChunk        = 16
+	defaultMaxChunk = 128
 )
 
 // New returns a pointer to a new zero T, distinct from every other pointer
@@ -56,41 +51,34 @@ func (s *Slab[T]) New() *T {
 	return p
 }
 
-// grow starts a new chunk, twice the size of the last one, so that a slab
-// that serves few objects stays small (many serve only a handful: one
-// traversal's scopes, say). Chunk sizes are the size classes 256, 512, ...,
-// 8192 bytes (counting the 8-byte header Go puts in front of a pointerful
-// allocation over 512 bytes), and the chunk gets every element its class
-// holds. Those classes are the ones whose spans are a single 8 KB page:
-// a chunk then never waits for a run of contiguous free pages, and any
-// page the GC frees can serve one. Chunks of 10-60 KB (5-7-page spans)
-// made the heap grow 14% (700 MB) on a 35 M-node input although the live
-// heap was unchanged.
+// grow starts a new chunk, ramping 16 -> 32 -> 64 -> 128 elements (capped by
+// maxChunk when set) so that a slab that serves few objects stays small while
+// larger slabs amortize allocations without spanning many 8 KB pages.
 func (s *Slab[T]) grow() {
 	n := s.fixedChunk
 	if n == 0 {
-		size := max(int(reflect.TypeFor[T]().Size()), 1)
-		b := 2 * s.chunkBytes
-		if b == 0 {
-			b = slabMinChunkBytes
-			for b < slabMinChunk*size+slabHeaderBytes {
-				b *= 2
-			}
-		}
-		b = min(b, slabMaxChunkBytes)
-		s.chunkBytes = b
-		n = max((b-slabHeaderBytes)/size, 1)
+		limit := defaultMaxChunk
 		if s.maxChunk > 0 {
-			n = min(n, s.maxChunk)
+			limit = s.maxChunk
 		}
+		if s.nextChunk == 0 {
+			n = min(minChunk, limit)
+		} else {
+			n = min(s.nextChunk, limit)
+		}
+		s.nextChunk = min(2*n, limit)
 	}
-	s.chunk = SlabChunk[T](n)
+	chunk := SlabChunk[T](n)
+	if s.maxChunk > 0 && len(chunk) > s.maxChunk {
+		chunk = chunk[:s.maxChunk]
+	}
+	s.chunk = chunk
 	s.used = 0
 }
 
 // SlabChunk returns a zeroed []T of at least n elements, as many as the
-// allocation's size class holds (see Slab.grow), for callers that carve
-// small slices out of shared chunks.
+// allocation's size class holds, for callers that carve small slices out of
+// shared chunks.
 func SlabChunk[T any](n int) []T {
 	c := slices.Grow([]T(nil), n)
 	return c[:cap(c)]

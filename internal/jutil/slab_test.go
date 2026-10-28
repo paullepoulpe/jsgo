@@ -33,9 +33,8 @@ func TestSlabNewReturnsDistinctZeroValues(t *testing.T) {
 	}
 }
 
-// Chunk byte sizes double from 512 (the smallest holding slabMinChunk
-// 64-byte elements) to 8192, each filled to what its size class holds after
-// the 8-byte header of a pointerful allocation.
+// Chunk requested sizes ramp 16 -> 32 -> 64 -> 128, each filled to what its
+// allocation size class holds (and capped by maxChunk when set).
 func TestSlabChunkSizes(t *testing.T) {
 	type node struct {
 		p [4]*int
@@ -49,16 +48,33 @@ func TestSlabChunkSizes(t *testing.T) {
 			got = append(got, len(s.chunk))
 		}
 	}
-	want := []int{7, 15, 31, 63, 127}
-	for n := 7 + 15 + 31 + 63 + 127; n < 3000; n += 127 {
-		want = append(want, 127)
+	c16 := len(SlabChunk[node](16))
+	c32 := len(SlabChunk[node](32))
+	c64 := len(SlabChunk[node](64))
+	c128 := len(SlabChunk[node](128))
+	want := []int{c16, c32, c64, c128}
+	for n := c16 + c32 + c64 + c128; n < 3000; n += c128 {
+		want = append(want, c128)
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("chunk sizes %v, want %v", got, want)
 	}
+	m := NewMaxSlab[node](40)
+	var maxGot []int
+	for i := 0; i < 150; i++ {
+		m.New()
+		if m.used == 1 {
+			maxGot = append(maxGot, len(m.chunk))
+		}
+	}
+	for _, sz := range maxGot {
+		if sz > 40 {
+			t.Fatalf("NewMaxSlab(40) produced chunk of %d elements (> 40)", sz)
+		}
+	}
 	f := NewFixedSlab[node](100)
 	f.New()
-	if len(f.chunk) != 101 {
-		t.Fatalf("fixed chunk of %d elements, want 101", len(f.chunk))
+	if len(f.chunk) != len(SlabChunk[node](100)) {
+		t.Fatalf("fixed chunk of %d elements, want %d", len(f.chunk), len(SlabChunk[node](100)))
 	}
 }

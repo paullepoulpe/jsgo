@@ -688,14 +688,13 @@ func ProcessClosurePrimitives_ProcessSetCssNameMapping(
 	}
 
 	var style CssRenamingMap_Style
-	invalidStyle := false
-	jutil.Try(func() {
-		style = CssRenamingMap_Style_ValueOf(styleStr)
-	}, func(e jutil.IIllegalArgumentException) {
+	switch styleStr {
+	case "BY_WHOLE":
+		style = CssRenamingMap_Style_BY_WHOLE
+	case "BY_PART":
+		style = CssRenamingMap_Style_BY_PART
+	default:
 		compiler.Report(JSError_MakeWithNode(n, ProcessClosurePrimitives_INVALID_STYLE_ERROR, styleStr))
-		invalidStyle = true
-	})
-	if invalidStyle {
 		return nil
 	}
 
@@ -769,66 +768,17 @@ func (p *ProcessClosurePrimitives) ProcessForwardDeclare(n rhino.Node) {
 	}
 	convention := p.compiler.GetCodingConvention()
 
-	var typeDeclaration *string = nil
-	jutil.Try(func() {
-		typeDeclaration = processClosurePrimitives_getOnlyElement(
-			convention.IdentifyTypeDeclarationCall(n))
-	}, func(e jutil.Throwable) {
-		switch e.(type) {
-		case jutil.INullPointerException, jutil.INoSuchElementException, jutil.IIllegalArgumentException:
-			p.compiler.Report(
-				JSError_MakeWithNode(
-					n,
-					ProcessClosurePrimitives_INVALID_FORWARD_DECLARE,
-					"A single type could not identified for the goog.forwardDeclare statement"))
-		default:
-			panic(e)
-		}
-	})
+	typeDeclarations := convention.IdentifyTypeDeclarationCall(n)
+	if len(typeDeclarations) != 1 {
+		p.compiler.Report(
+			JSError_MakeWithNode(
+				n,
+				ProcessClosurePrimitives_INVALID_FORWARD_DECLARE,
+				"A single type could not identified for the goog.forwardDeclare statement"))
+		return
+	}
 
-	if typeDeclaration != nil {
-		p.compiler.ForwardDeclareType(*typeDeclaration)
-	}
-}
-
-// processClosurePrimitives_getOnlyElement is Guava's
-// Iterables.getOnlyElement(Iterable): it throws NullPointerException for a
-// null list, NoSuchElementException for an empty one and
-// IllegalArgumentException for one with several elements.
-//
-// Go-only: language-adapter — Guava Iterables.getOnlyElement; a nil slice
-// stands for a null List.
-func processClosurePrimitives_getOnlyElement(list []string) *string {
-	if list == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	if len(list) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
-	if len(list) > 1 {
-		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"expected one element but was: <" + processClosurePrimitives_joinElements(list) + ">"))
-	}
-	s := list[0]
-	return &s
-}
-
-// processClosurePrimitives_joinElements renders the first (at most five)
-// elements like Guava's getOnlyElement message.
-//
-// Go-only: language-adapter — Guava Iterators.getOnlyElement message.
-func processClosurePrimitives_joinElements(list []string) string {
-	s := ""
-	for i := 0; i < 5 && i < len(list); i++ {
-		if i > 0 {
-			s += ", "
-		}
-		s += list[i]
-	}
-	if len(list) > 5 {
-		s += ", ..."
-	}
-	return s
+	p.compiler.ForwardDeclareType(typeDeclarations[0])
 }
 
 // ProcessClosurePrimitives_VerifySetCssNameMapping verifies that

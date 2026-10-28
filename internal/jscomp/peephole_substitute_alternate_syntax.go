@@ -58,10 +58,7 @@ const peepholeSubstituteAlternateSyntax_STRING_SPLIT_OVERHEAD = len(".split('.')
 //
 // Java: PeepholeSubstituteAlternateSyntax(boolean)
 func NewPeepholeSubstituteAlternateSyntax(late bool) *PeepholeSubstituteAlternateSyntax {
-	p := &PeepholeSubstituteAlternateSyntax{}
-	p.InitAbstractPeepholeOptimizationBase(p) // the implicit super()
-	p.late = late
-	return p
+	return &PeepholeSubstituteAlternateSyntax{late: late}
 }
 
 // OptimizeSubtree tries apply our various peephole minimizations on the

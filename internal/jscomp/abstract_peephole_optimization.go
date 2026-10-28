@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"math/big"
-	"reflect"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -46,10 +45,7 @@ import (
 //
 //	// Java: PeepholeFoo(boolean)
 //	func NewPeepholeFoo(late bool) *PeepholeFoo {
-//		p := &PeepholeFoo{}
-//		p.InitAbstractPeepholeOptimizationBase(p) // the implicit super()
-//		p.late = late                             // the constructor body
-//		return p
+//		return &PeepholeFoo{late: late}
 //	}
 //
 //	// Java: PeepholeFoo.optimizeSubtree(Node)
@@ -91,13 +87,8 @@ type AbstractPeepholeOptimization interface {
 }
 
 // AbstractPeepholeOptimizationBase holds the fields and the base
-// implementations of AbstractPeepholeOptimization; every subclass embeds it
-// and calls InitAbstractPeepholeOptimizationBase from its constructor.
+// implementations of AbstractPeepholeOptimization; every subclass embeds it.
 type AbstractPeepholeOptimizationBase struct {
-	// self is the most-derived object, for the virtual call in EndTraversal
-	// (this.getClass()).
-	self AbstractPeepholeOptimization
-
 	// Intentionally not exposed to subclasses
 	compiler AbstractCompiler
 	// Intentionally not exposed to subclasses
@@ -110,16 +101,6 @@ type AbstractPeepholeOptimizationBase struct {
 	// doesn't know what script node it's currently in, and would need to
 	// walk the AST.
 	newFeatures *parser.FeatureSet
-}
-
-// InitAbstractPeepholeOptimizationBase is the implicit no-argument
-// constructor of AbstractPeepholeOptimization (the Go form of super()): it
-// records the most-derived object and runs the field initializers.
-//
-// Java: AbstractPeepholeOptimization()
-func (b *AbstractPeepholeOptimizationBase) InitAbstractPeepholeOptimizationBase(self AbstractPeepholeOptimization) {
-	b.self = self
-	b.newFeatures = parser.FeatureSet_BARE_MINIMUM
 }
 
 // GetAbstractPeepholeOptimizationBase returns the embedded base.
@@ -169,6 +150,9 @@ func (b *AbstractPeepholeOptimizationBase) IsASTNormalized() bool {
 func (b *AbstractPeepholeOptimizationBase) BeginTraversal(compiler AbstractCompiler) {
 	b.compiler = jutil.CheckNotNull(compiler)
 	b.astAnalyzer = compiler.GetAstAnalyzer()
+	if b.newFeatures == nil {
+		b.newFeatures = parser.FeatureSet_BARE_MINIMUM
+	}
 }
 
 // EndTraversal informs the optimization that a traversal has ended.
@@ -178,31 +162,12 @@ func (b *AbstractPeepholeOptimizationBase) BeginTraversal(compiler AbstractCompi
 //
 // Java: AbstractPeepholeOptimization.endTraversal()
 func (b *AbstractPeepholeOptimizationBase) EndTraversal() {
-	jutil.CheckStateMsg2(
-		b.newFeatures.IsEmpty(),
-		"Expected getNewFeatures() to be empty in endTraversal() but found %s for %s",
-		b.newFeatures,
-		abstractPeepholeOptimization_className{b.self})
+	jutil.CheckStateMsg1(
+		b.newFeatures == nil || b.newFeatures.IsEmpty(),
+		"Expected getNewFeatures() to be empty in endTraversal() but found %s",
+		b.newFeatures)
 	b.compiler = nil
 	b.astAnalyzer = nil
-}
-
-// abstractPeepholeOptimization_className is this.getClass().getName() of a
-// peephole optimization, formatted only when the message is built.
-//
-// Go-only: language-adapter — Java's getClass().getName(); every subclass is
-// a top-level class of package com.google.javascript.jscomp, whose Go type
-// keeps the Java class name.
-type abstractPeepholeOptimization_className struct {
-	self AbstractPeepholeOptimization
-}
-
-func (c abstractPeepholeOptimization_className) String() string {
-	t := reflect.TypeOf(c.self)
-	if t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	return "com.google.javascript.jscomp." + t.Name()
 }
 
 // MayEffectMutableState returns whether the node may create new mutable
@@ -376,6 +341,9 @@ func (b *AbstractPeepholeOptimizationBase) AddFeatureToEnclosingScript(feature p
 	// the  current implementation, we let PeepholeOptimizationsPass to find the script in what's
 	// usually O(1) time, or worst case it only calls getEnclosingScript() once per NodeTraversal
 	// and then caches the result.
+	if b.newFeatures == nil {
+		b.newFeatures = parser.FeatureSet_BARE_MINIMUM
+	}
 	b.newFeatures = b.newFeatures.With(feature)
 }
 

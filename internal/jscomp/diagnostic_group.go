@@ -20,13 +20,18 @@ package jscomp
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+var nextDiagnosticGroupID atomic.Uint64
+
 // DiagnosticGroup groups a set of related diagnostic types together, so that
 // they can be toggled on and off as one unit.
 type DiagnosticGroup struct {
+	id uint64
+
 	// The set of types represented by this group, hashed by key.
 	types *jutil.ObjectLinkedHashSet[*DiagnosticType]
 
@@ -41,7 +46,11 @@ const diagnosticGroup_serialVersionUID int64 = 1
 //
 // Java: DiagnosticGroup(String, DiagnosticType...)
 func NewDiagnosticGroupWithName(name *string, types ...*DiagnosticType) *DiagnosticGroup {
-	g := &DiagnosticGroup{name: name, types: jutil.NewObjectLinkedHashSet[*DiagnosticType]()}
+	g := &DiagnosticGroup{
+		id:    nextDiagnosticGroupID.Add(1),
+		name:  name,
+		types: jutil.NewObjectLinkedHashSet[*DiagnosticType](),
+	}
 	for _, t := range types {
 		g.types.Add(jutil.CheckNotNull(t))
 	}
@@ -61,7 +70,11 @@ func NewDiagnosticGroup(types ...*DiagnosticType) *DiagnosticGroup {
 //
 // Java: DiagnosticGroup(DiagnosticType)
 func newDiagnosticGroupForSingleType(type_ *DiagnosticType) *DiagnosticGroup {
-	return &DiagnosticGroup{name: nil, types: jutil.NewObjectLinkedHashSet(jutil.CheckNotNull(type_))}
+	return &DiagnosticGroup{
+		id:    nextDiagnosticGroupID.Add(1),
+		name:  nil,
+		types: jutil.NewObjectLinkedHashSet(jutil.CheckNotNull(type_)),
+	}
 }
 
 // NewDiagnosticGroupFromGroups creates a composite group.
@@ -81,7 +94,11 @@ func NewDiagnosticGroupWithNameFromGroups(name *string, groups ...*DiagnosticGro
 		set.AddAll(group.types.All())
 	}
 
-	return &DiagnosticGroup{name: name, types: set}
+	return &DiagnosticGroup{
+		id:    nextDiagnosticGroupID.Add(1),
+		name:  name,
+		types: set,
+	}
 }
 
 // DiagnosticGroups with only a single DiagnosticType.
@@ -140,4 +157,35 @@ func (g *DiagnosticGroup) String() string {
 		return jutil.ObjectToString("com.google.javascript.jscomp.DiagnosticGroup", g)
 	}
 	return "DiagnosticGroup<" + *g.name + ">"
+}
+
+// Equals reports whether other refers to the same DiagnosticGroup, including
+// across value copies that preserve the group's creation ID.
+func (g *DiagnosticGroup) Equals(other any) bool {
+	switch o := other.(type) {
+	case *DiagnosticGroup:
+		if g == nil || o == nil {
+			return g == o
+		}
+		return g == o || (g.id != 0 && g.id == o.id)
+	case DiagnosticGroup:
+		if g == nil {
+			return false
+		}
+		return g.id != 0 && g.id == o.id
+	default:
+		return false
+	}
+}
+
+// HashCode returns a stable hash code derived from the group's creation ID so
+// value-copied DiagnosticGroups hash identically to the original.
+func (g *DiagnosticGroup) HashCode() int32 {
+	if g == nil {
+		return 0
+	}
+	if g.id != 0 {
+		return int32(g.id ^ (g.id >> 32))
+	}
+	return jutil.IdentityHashCodeOfPointer(g)
 }
